@@ -1,0 +1,23 @@
+client2/src/Path2Demo.tsx
+  s_89d5ad20619017::t_7e2ec5b9bcf436 1-25
+client2/src/main.tsx
+  s_89d5ad20619017::t_3dcd8322d8c6f3 4,13-15,17
+client2/src/game/path2Scene.ts
+  s_89d5ad20619017::t_dc3e7309a61f59 1-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "015c767a34a2605e354e8db04f1af005a2cb3fcf",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
