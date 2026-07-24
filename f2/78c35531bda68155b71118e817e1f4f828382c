@@ -1,0 +1,26 @@
+client2/src/game/engine/tablePool.test.ts
+  s_89d5ad20619017::t_fde455a6404006 86,91
+client2/src/game/engine/tableSide.test.ts
+  s_89d5ad20619017::t_9cab432265c68a 1-36
+client2/src/game/engine/tablePool.ts
+  s_89d5ad20619017::t_9f6e73b50b4d2f 90,93,115
+  s_89d5ad20619017::t_4d9ab45e8b9345 34-40,43
+client2/src/game/engine/tableSide.ts
+  s_89d5ad20619017::t_5e932e22fa1e26 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f278c35531bda68155b71118e817e1f4f828382c",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
