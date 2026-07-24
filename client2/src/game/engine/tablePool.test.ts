@@ -83,12 +83,12 @@ describe("TablePool", () => {
     expect(pool.inBox("hand").map((v) => v.card)).toEqual(["Q♦"]);
   });
 
-  it("apply возвращает разбиение entered/moved/left", () => {
+  it("apply возвращает разбиение entered/moved(from→to)/left", () => {
     const { pool } = makePool();
     pool.apply([slot("A♠", "deck"), slot("K♥", "deck", 1)]);
     const r = pool.apply([slot("A♠", "hand"), slot("Q♦", "deck")]);
     expect(r.entered).toEqual(["Q♦"]);
-    expect(r.moved).toEqual(["A♠"]);
+    expect(r.moved).toEqual([{ card: "A♠", from: "deck", to: "hand" }]);
     expect(r.left).toEqual(["K♥"]);
   });
 

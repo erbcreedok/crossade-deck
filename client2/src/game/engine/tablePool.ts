@@ -31,9 +31,16 @@ export interface TablePoolOptions {
   onLeave?: (visual: CardVisual, card: string) => void;
 }
 
+/** Переезд карты: из какого бокса в какой (from === to — реордер внутри бокса). */
+export interface CardMove {
+  card: string;
+  from: string;
+  to: string;
+}
+
 export interface TableApplyResult {
   entered: string[]; // впервые появились
-  moved: string[]; // сменили слот (в т.ч. бокс) — летят на новое место
+  moved: CardMove[]; // сменили слот; from→to позволяет решить перелёт/переворот на границе
   left: string[]; // ушли из видимости
 }
 
@@ -80,9 +87,10 @@ export class TablePool {
    */
   apply(next: readonly TableSlot[]): TableApplyResult {
     const entered: string[] = [];
-    const moved: string[] = [];
+    const moved: CardMove[] = [];
     const left: string[] = [];
     const wanted = new Set(next.map((s) => s.card));
+    const prevBox = new Map(this.slots.map((s) => [s.card, s.box]));
 
     for (const [card, v] of this.byCard) {
       if (!wanted.has(card)) {
@@ -104,7 +112,7 @@ export class TablePool {
       } else {
         this.o.onPlace?.(v, slot);
         v.body.setTarget(this.o.anchor(slot));
-        moved.push(slot.card);
+        moved.push({ card: slot.card, from: prevBox.get(slot.card) ?? slot.box, to: slot.box });
       }
     }
 
