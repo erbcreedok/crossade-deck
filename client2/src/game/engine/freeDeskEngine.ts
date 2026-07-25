@@ -171,6 +171,7 @@ export class FreeDeskEngine {
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
   private stacks: SandboxStack[] = [];
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
+  private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
   private grabbedMarker: Marker | null = null; // за какую метку сейчас тянут (для follow/endFollow)
@@ -362,6 +363,7 @@ export class FreeDeskEngine {
     pieces: { id: string; x: number; y: number }[];
     pieceCount: number;
     soloVis: { label: string; dragger: boolean; anchor: boolean; x: number; y: number }[];
+    pileGrip: { x: number; y: number } | null;
     cardW: number;
     draggingId: string | null;
   } {
@@ -381,6 +383,7 @@ export class FreeDeskEngine {
       markerVis: this.stacks.map((st) => ({ dragger: st.dragger.cfg.showWhen(st.host.state()), anchor: st.anchor.cfg.showWhen(st.host.state()) })),
       pieces: this.pieces.map((p) => ({ id: p.el.id, ...toScreen(p.el.body.px, p.el.body.py) })),
       pieceCount: this.pieces.length,
+      pileGrip: this.chipPile ? toScreen(this.chipPile.dragger.gfx.position.x, this.chipPile.dragger.gfx.position.y) : null,
       soloVis: this.solos.map((s) => ({
         label: s.label,
         dragger: s.dragger.cfg.showWhen(s.host.state()),
@@ -639,6 +642,11 @@ export class FreeDeskEngine {
     cap("белая пешка", slotW * 0.9);
     x += slotW * 0.9;
 
+    // 4) СТОПКА ФИШЕК — тянется целиком за грип (GroupDrag на фишках, как пачка карт).
+    this.buildChipStack(x, cy, r);
+    cap("стопка фишек", slotW);
+    x += slotW;
+
     this.contentW = Math.max(this.contentW, x + left);
     return cy + this.cardH / 2 + 34;
   }
@@ -660,8 +668,23 @@ export class FreeDeskEngine {
     return { atHome: el.state === "drag" ? 0 : 1, total: 1 };
   }
 
-  // Навесить метки (драггер+якорь) на ОДИНОЧНЫЙ элемент по id — тот же механизм, что у стопки,
-  // но host отдаёт SingleDrag. Работает на соло-карте и на соло-фигуре одинаково.
+  // Навесить пару меток (драггер+якорь) на ЛЮБОЙ host (соло-элемент ИЛИ группу) — общая навеска:
+  // грип едет с грузом, якорь стоит дома по политике. Регистрирует их в markers+grabbers.
+  private mountMarkers(host: MarkerHost, lead: () => Elem | null, anchorDraw: (g: Graphics) => void, anchorWhen: ShowWhen): { dragger: Marker; anchor: Marker } {
+    const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
+      draw: drawGrip,
+      offset: { x: 0, y: this.cardH / 2 + 9 },
+      hit: { w: 44, h: 22 },
+      follow: true,
+      followOffset: { x: 0, y: this.cardH * 0.62 },
+    });
+    const anchor = withAnchor(host, this.scene.surface, { draw: anchorDraw, showWhen: anchorWhen });
+    this.markers.push(dragger, anchor);
+    this.grabbers.push({ marker: dragger, host, lead });
+    return { dragger, anchor };
+  }
+
+  // Метки на ОДИНОЧНЫЙ элемент по id (host отдаёт SingleDrag). Соло-карта и соло-фигура одинаково.
   private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorWhen: ShowWhen, label: string): void {
     const lead = () => this.byId.get(id) ?? null;
     const host: MarkerHost = {
@@ -672,17 +695,29 @@ export class FreeDeskEngine {
         return el ? new SingleDrag(el, this.dragCtx, cp) : null;
       },
     };
-    const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
-      draw: drawGrip,
-      offset: { x: 0, y: this.cardH / 2 + 9 },
-      hit: { w: 44, h: 22 },
-      follow: true,
-      followOffset: { x: 0, y: this.cardH * 0.62 },
-    });
-    const anchor = withAnchor(host, this.scene.surface, { draw: anchorDraw, showWhen: anchorWhen });
-    this.markers.push(dragger, anchor);
+    const { dragger, anchor } = this.mountMarkers(host, lead, anchorDraw, anchorWhen);
     this.solos.push({ host, dragger, anchor, lead, label });
-    this.grabbers.push({ marker: dragger, host, lead });
+  }
+
+  // Вертикальная СТОПКА ФИШЕК (как в покере), которую тянут ЦЕЛИКОМ за грип. Тот же host +
+  // makeStackPayload (GroupDrag), что у стопки карт — доказательство, что группировка generic по
+  // элементу. Флип пачки не сработает (фишки не Flippable → GroupDrag.flip пуст), сжечь — сработает.
+  private buildChipStack(x: number, cy: number, r: number): void {
+    const n = 6;
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const id = `pile-${i}`;
+      this.spawnPiece(id, { x, y: cy - i * r * 0.28 }, r * 2, r * 2, (root) => drawChip(root, r, 0xc79a3e, "")); // одинаковые, друг на друге
+      ids.push(id);
+    }
+    const slot = { x, y: cy - ((n - 1) / 2) * r * 0.28 }; // центр столбика
+    const host: MarkerHost = {
+      slotPos: () => slot,
+      state: () => this.stackState(ids),
+      makePayload: (cp) => this.makeStackPayload(ids, cp),
+    };
+    const { dragger } = this.mountMarkers(host, () => this.byId.get(ids[ids.length - 1]!) ?? null, drawAnchorIcon, showAway);
+    this.chipPile = { ids, dragger };
   }
 
   // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом
@@ -1148,6 +1183,7 @@ export class FreeDeskEngine {
     this.markers = [];
     this.stacks = [];
     this.solos = [];
+    this.chipPile = null;
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
@@ -1201,6 +1237,7 @@ export class FreeDeskEngine {
     this.markers = [];
     this.stacks = [];
     this.solos = [];
+    this.chipPile = null;
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;

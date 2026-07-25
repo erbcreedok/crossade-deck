@@ -11,6 +11,7 @@ test.describe("песочница — фишки и фигуры", () => {
     pieces: { id: string; x: number; y: number }[];
     pieceCount: number;
     soloVis: { label: string; dragger: boolean; anchor: boolean; x: number; y: number }[];
+    pileGrip: { x: number; y: number } | null;
     cardW: number;
     draggingId: string | null;
   }
@@ -33,10 +34,14 @@ test.describe("песочница — фишки и фигуры", () => {
     if (!hold) await page.mouse.up();
   };
 
-  test("ряд содержит 4 фишки + коня + пешку, а метки висят на соло-карте и коне", async ({ page }) => {
+  test("ряд: 4 фишки + конь + пешка + стопка из 6 фишек; метки на соло-карте и коне", async ({ page }) => {
     const h = await hooks(page);
-    expect(h.pieceCount).toBe(6);
-    expect(h.pieces.map((p) => p.id)).toEqual(["chip-5", "chip-25", "chip-100", "chip-500", "chess-knight", "chess-pawn"]);
+    expect(h.pieceCount).toBe(12); // 6 одиночных + 6 в стопке
+    for (const id of ["chip-5", "chip-25", "chip-100", "chip-500", "chess-knight", "chess-pawn"]) {
+      expect(h.pieces.some((p) => p.id === id)).toBe(true);
+    }
+    expect(h.pieces.filter((p) => p.id.startsWith("pile-"))).toHaveLength(6);
+    expect(h.pileGrip).not.toBeNull(); // у стопки фишек есть грип целиком
     // Метка generic: не только стопка — соло-карта и одиночный конь тоже её носят.
     expect(h.soloVis.map((s) => s.label)).toEqual(["карта", "конь"]);
     for (const s of h.soloVis) {
@@ -63,7 +68,7 @@ test.describe("песочница — фишки и фигуры", () => {
     await dragTo(page, pieceOf(h, "chip-100"), h.zones["СЖЕЧЬ"]!);
     await page.waitForTimeout(1000); // догореть + reap
     const g = await hooks(page);
-    expect(g.pieceCount).toBe(5);
+    expect(g.pieceCount).toBe(h.pieceCount - 1);
     expect(g.pieces.some((p) => p.id === "chip-100")).toBe(false);
   });
 
@@ -72,9 +77,39 @@ test.describe("песочница — фишки и фигуры", () => {
     await dragTo(page, pieceOf(h, "chip-100"), h.zones["ПЕРЕВОРОТ"]!);
     await page.waitForTimeout(700);
     const g = await hooks(page);
-    expect(g.pieceCount).toBe(6); // ничего не уничтожено и не «съедено»
+    expect(g.pieceCount).toBe(h.pieceCount); // ничего не уничтожено и не «съедено»
     const back = pieceOf(g, "chip-100");
     expect(Math.abs(back.x - pieceOf(h, "chip-100").x)).toBeLessThan(6); // вернулась домой
+  });
+
+  test("стопка фишек тянется ЦЕЛИКОМ за грип (GroupDrag на фишках, как пачка карт)", async ({ page }) => {
+    const h = await hooks(page);
+    const grip = h.pileGrip!;
+    const box = (await page.locator("canvas").boundingBox())!;
+    const clip = { x: box.x + grip.x - 120, y: box.y + grip.y - 200, width: 240, height: 240 };
+    const before = await page.screenshot({ clip });
+    await dragTo(page, grip, { x: grip.x + 40, y: grip.y + 160 }, true);
+    await page.waitForTimeout(140);
+    const during = await page.screenshot({ clip });
+    await page.mouse.up();
+    expect(Buffer.compare(before, during)).not.toBe(0);
+  });
+
+  test("стопку фишек можно сжечь целиком — все 6 уходят", async ({ page }) => {
+    const h = await hooks(page);
+    await dragTo(page, h.pileGrip!, h.zones["СЖЕЧЬ"]!);
+    await page.waitForTimeout(1100);
+    const g = await hooks(page);
+    expect(g.pieceCount).toBe(h.pieceCount - 6); // вся стопка фишек сгорела
+    expect(g.pieces.some((p) => p.id.startsWith("pile-"))).toBe(false);
+  });
+
+  test("стопку фишек НЕ перевернуть (фишки не Flippable) — вся возвращается", async ({ page }) => {
+    const h = await hooks(page);
+    await dragTo(page, h.pileGrip!, h.zones["ПЕРЕВОРОТ"]!);
+    await page.waitForTimeout(700);
+    const g = await hooks(page);
+    expect(g.pieceCount).toBe(h.pieceCount); // флип пачки проигнорирован
   });
 
   test("сожжённый конь: его драггер гаснет, якорь «когда пусто» загорается (метка на фигуре)", async ({ page }) => {
