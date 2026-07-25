@@ -4,9 +4,12 @@ import { Card, type CardOptions, type CardState, type ShadowShape } from "../ui/
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { ShadowLayer } from "../ui/ShadowLayer";
+import { Viewport, type ViewState } from "./viewport";
 
 type Level = "idle" | "floating" | "fan" | "drag";
 import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
+
+export type { ViewState };
 
 // UI-kit «/free-desk» — сторибук на канвасе. Один горизонтальный ряд карт-вариантов с
 // подписями; контент панится и зумится (жесты/колесо/полосы). Управление drag-and-drop.
@@ -66,18 +69,6 @@ interface CardRuntime {
   y: number;
 }
 
-export interface ViewState {
-  zoom: number;
-  minZoom: number;
-  maxZoom: number;
-  scrollX: number;
-  thumbX: number;
-  scrollableX: boolean;
-  scrollY: number;
-  thumbY: number;
-  scrollableY: boolean;
-}
-
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.6;
 const BLOCK_PAD = 16; // внутренний отступ рамки блока «Управление»
@@ -112,7 +103,7 @@ export class FreeDeskEngine {
   private contentH = 1;
 
   private container!: HTMLElement;
-  private view = { x: 0, y: 0, zoom: 1 };
+  private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
   private cards: Placed[] = [];
   private cardSpecs: CardSpec[] = [];
   private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
@@ -232,11 +223,13 @@ export class FreeDeskEngine {
   async restartCanvas(): Promise<void> {
     if (!this.app || this.destroyed) return;
     const snap = this.snapshotCards();
-    const savedView = { ...this.view };
+    const savedView = { x: this.viewport.x, y: this.viewport.y, zoom: this.viewport.zoom };
     this.teardownApp();
     await this.bootApp(snap);
     if (this.app) {
-      this.view = savedView;
+      this.viewport.x = savedView.x;
+      this.viewport.y = savedView.y;
+      this.viewport.zoom = savedView.zoom;
       this.clampView();
       this.applyView();
       this.emitView();
@@ -556,28 +549,29 @@ export class FreeDeskEngine {
 
   // ——— вьюпорт ———
 
+  // Синхронизировать границы камеры перед операцией (экран/контент меняются в mount/buildContent).
+  private syncVp(): void {
+    this.viewport.setScreen(this.W, this.H);
+    this.viewport.setContent(this.contentW, this.contentH);
+  }
+
   private screenToContent(sx: number, sy: number): { x: number; y: number } {
-    return { x: (sx - this.view.x) / this.view.zoom, y: (sy - this.view.y) / this.view.zoom };
+    return this.viewport.screenToContent(sx, sy);
   }
 
   private clampView(): void {
-    const cw = this.contentW * this.view.zoom;
-    const ch = this.contentH * this.view.zoom;
-    this.view.x = cw <= this.W ? (this.W - cw) / 2 : clamp(this.view.x, this.W - cw, 0);
-    this.view.y = ch <= this.H ? 24 : clamp(this.view.y, this.H - ch, 0);
+    this.syncVp();
+    this.viewport.clamp();
   }
 
   private applyView(): void {
-    this.content.position.set(this.view.x, this.view.y);
-    this.content.scale.set(this.view.zoom);
+    this.content.position.set(this.viewport.x, this.viewport.y);
+    this.content.scale.set(this.viewport.zoom);
   }
 
   private zoomAround(sx: number, sy: number, factor: number): void {
-    const focal = this.screenToContent(sx, sy);
-    this.view.zoom = clamp(this.view.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    this.view.x = sx - focal.x * this.view.zoom;
-    this.view.y = sy - focal.y * this.view.zoom;
-    this.clampView();
+    this.syncVp();
+    this.viewport.zoomAround(sx, sy, factor);
     this.applyView();
     this.wake();
     this.emitView();
@@ -599,9 +593,8 @@ export class FreeDeskEngine {
       this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dy * ZOOM_SENS));
     } else {
       // Тачпад: двумя пальцами тащим канвас (пан), а не зумим.
-      this.view.x -= e.deltaX;
-      this.view.y -= dy;
-      this.clampView();
+      this.syncVp();
+      this.viewport.panBy(-e.deltaX, -dy);
       this.applyView();
       this.wake();
       this.emitView();
@@ -618,40 +611,29 @@ export class FreeDeskEngine {
   }
 
   private viewState(): ViewState {
-    const cw = this.contentW * this.view.zoom;
-    const ch = this.contentH * this.view.zoom;
-    const ox = Math.max(0, cw - this.W);
-    const oy = Math.max(0, ch - this.H);
-    return {
-      zoom: this.view.zoom,
-      minZoom: MIN_ZOOM,
-      maxZoom: MAX_ZOOM,
-      scrollX: ox > 0 ? -this.view.x / ox : 0,
-      thumbX: cw > 0 ? Math.min(1, this.W / cw) : 1,
-      scrollableX: ox > 1,
-      scrollY: oy > 0 ? -this.view.y / oy : 0,
-      thumbY: ch > 0 ? Math.min(1, this.H / ch) : 1,
-      scrollableY: oy > 1,
-    };
+    this.syncVp();
+    return this.viewport.state();
   }
 
   setZoom(z: number): void {
-    this.zoomAround(this.W / 2, this.H / 2, clamp(z, MIN_ZOOM, MAX_ZOOM) / this.view.zoom);
+    this.syncVp();
+    this.viewport.setZoom(z);
+    this.applyView();
+    this.wake();
+    this.emitView();
   }
 
   setScrollX(fraction: number): void {
-    const overflow = Math.max(0, this.contentW * this.view.zoom - this.W);
-    this.view.x = -clamp(fraction, 0, 1) * overflow;
-    this.clampView();
+    this.syncVp();
+    this.viewport.setScrollX(fraction);
     this.applyView();
     this.wake();
     this.emitView();
   }
 
   setScrollY(fraction: number): void {
-    const overflow = Math.max(0, this.contentH * this.view.zoom - this.H);
-    this.view.y = -clamp(fraction, 0, 1) * overflow;
-    this.clampView();
+    this.syncVp();
+    this.viewport.setScrollY(fraction);
     this.applyView();
     this.wake();
     this.emitView();
@@ -718,7 +700,7 @@ export class FreeDeskEngine {
     const [a, b] = [...this.pointers.values()];
     const mid = { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
     const c = this.screenToContent(mid.x, mid.y);
-    this.pinch = { dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), zoom: this.view.zoom, midContentX: c.x, midContentY: c.y };
+    this.pinch = { dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y };
   }
 
   private onMove = (e: { global: { x: number; y: number }; pointerId: number }): void => {
@@ -728,9 +710,9 @@ export class FreeDeskEngine {
       const [a, b] = [...this.pointers.values()];
       const mid = { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
       const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      this.view.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, MIN_ZOOM, MAX_ZOOM);
-      this.view.x = mid.x - this.pinch.midContentX * this.view.zoom;
-      this.view.y = mid.y - this.pinch.midContentY * this.view.zoom;
+      this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, MIN_ZOOM, MAX_ZOOM);
+      this.viewport.x = mid.x - this.pinch.midContentX * this.viewport.zoom;
+      this.viewport.y = mid.y - this.pinch.midContentY * this.viewport.zoom;
       this.clampView();
       this.applyView();
       this.emitView();
@@ -744,8 +726,8 @@ export class FreeDeskEngine {
       const p = this.screenToContent(e.global.x, e.global.y);
       this.pressedButton.setPressed(this.pressedButton.hitTest(p.x, p.y));
     } else if (this.gesture === "pan") {
-      this.view.x += e.global.x - this.panLast.x;
-      this.view.y += e.global.y - this.panLast.y;
+      this.viewport.x += e.global.x - this.panLast.x;
+      this.viewport.y += e.global.y - this.panLast.y;
       this.panLast = { x: e.global.x, y: e.global.y };
       this.clampView();
       this.applyView();
@@ -810,12 +792,12 @@ export class FreeDeskEngine {
     else if (sy > this.H - margin) dy = -ramp(sy - (this.H - margin));
     if (dx === 0 && dy === 0) return;
 
-    const bx = this.view.x;
-    const by = this.view.y;
-    this.view.x += dx * SPEED * dt;
-    this.view.y += dy * SPEED * dt;
+    const bx = this.viewport.x;
+    const by = this.viewport.y;
+    this.viewport.x += dx * SPEED * dt;
+    this.viewport.y += dy * SPEED * dt;
     this.clampView();
-    if (this.view.x === bx && this.view.y === by) return; // упёрлись в край — двигать нечего
+    if (this.viewport.x === bx && this.viewport.y === by) return; // упёрлись в край — двигать нечего
     this.applyView();
     const p = this.screenToContent(sx, sy);
     this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
