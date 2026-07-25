@@ -1,0 +1,27 @@
+client2/src/game/ui/plane.ts
+  s_89d5ad20619017::t_4110b730a33f83 1-40
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_66479c6dd12e7d 5-6
+  s_89d5ad20619017::t_1956a857c3ab9b 226-235
+  s_89d5ad20619017::t_715b221b88d077 135,141
+client2/src/game/engine/constants.ts
+  s_89d5ad20619017::t_e7ccb8327b779c 57-58
+client2/src/game/ui/plane.test.ts
+  s_89d5ad20619017::t_fda6d88578dc6f 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "42365e91b369e7839dc912587fac2305f436ca4b",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
