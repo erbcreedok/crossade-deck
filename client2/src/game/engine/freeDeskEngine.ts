@@ -101,6 +101,7 @@ export class FreeDeskEngine {
 
     app.ticker.add(this.tick);
     this.render();
+    this.wake(); // без этого тикер (autoStart:false) не стартует и Pixi не рисует первый кадр
   }
 
   private buildStory1(): void {

@@ -13,5 +13,9 @@ export function FreeDesk() {
     return () => engine.destroy();
   }, []);
 
-  return <div ref={hostRef} className="table-host" />;
+  return (
+    <div className="table-screen">
+      <div ref={hostRef} className="table-host" />
+    </div>
+  );
 }
