@@ -1,0 +1,32 @@
+client2/e2e/sandbox.spec.ts
+  s_89d5ad20619017::t_ec25f311efad88 1-52
+client2/REFACTOR.md
+  s_89d5ad20619017::t_00605f28bc4789 3-10
+client2/playwright.config.ts
+  s_89d5ad20619017::t_0e982e4aa30433 1-22
+client2/e2e/menu.spec.ts
+  s_89d5ad20619017::t_e62695fbfb06fb 1-26
+client2/package.json
+  s_89d5ad20619017::t_59f8dd315184b4 23
+  s_89d5ad20619017::t_5c0822813fc691 11-12
+client2/.gitignore
+  s_89d5ad20619017::t_734d85963d302b 1-4
+client2/package-lock.json
+  s_89d5ad20619017::t_f980c7790ba725 3,9,19,1720-1735,3951-3997
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cca5d5df9ab2cf77207e1efe8130922593a249b3",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
