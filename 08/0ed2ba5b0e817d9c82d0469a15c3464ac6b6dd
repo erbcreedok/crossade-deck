@@ -1,0 +1,31 @@
+client2/src/game/engine/canvasHost.ts
+  s_89d5ad20619017::t_a1f587c0863a55 1-36
+client2/src/game/engine/menuEngine.ts
+  s_89d5ad20619017::t_86e61a10a3fed5 44,47-48
+  s_89d5ad20619017::t_b79c5abd4d429c 3
+client2/src/game/engine/tableEngine.ts
+  s_89d5ad20619017::t_fd7e886be5aceb 68-71
+  s_89d5ad20619017::t_191db896b9b106 5
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_e56ccc212fb0f1 8
+  s_89d5ad20619017::t_356af05ceadbad 148,150,152
+client2/e2e/table.spec.ts
+  s_89d5ad20619017::t_c7f6fc82297e64 1-2,12
+  s_89d5ad20619017::t_90deaddf1e041e 3-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "080ed2ba5b0e817d9c82d0469a15c3464ac6b6dd",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
