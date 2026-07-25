@@ -1,0 +1,48 @@
+client2/src/game/board/container.ts
+  s_89d5ad20619017::t_b7fc51890a27f7 1-56
+client2/GRID-DESIGN.md
+  s_89d5ad20619017::t_69b74bbb88464d 185
+  s_89d5ad20619017::t_ef41495c281648 202-203,210
+  s_89d5ad20619017::t_1a759efaec378d 101,106
+  s_89d5ad20619017::t_8b5ffdc77fdde6 41-43
+  s_89d5ad20619017::t_dcffe69e605ccf 1-40,44-62,65-66,120,214-224
+  s_89d5ad20619017::t_72357650aff2f2 189-191
+  s_89d5ad20619017::t_bf9974638ef937 192-195
+  s_89d5ad20619017::t_4f147eff51a6da 121-133
+  s_89d5ad20619017::t_2fbf4858e6a81a 182-184
+  s_89d5ad20619017::t_1256dc7d2c4d56 155-158,160-162
+  s_89d5ad20619017::t_0799da35c7ff7e 173-181,186-188,196
+  s_89d5ad20619017::t_c9109124038256 151,153
+  s_89d5ad20619017::t_f2d5e5c3782dd3 63-64
+  s_89d5ad20619017::t_8c4087505b4662 72,79-94
+  s_89d5ad20619017::t_ce78a11f4d2df3 74-78
+  s_89d5ad20619017::t_2512c9c02942f2 73,95
+  s_89d5ad20619017::t_2239f1e10ebbf2 134-150,152,154,159,163-172,197-201,204-209,211-213
+  s_89d5ad20619017::t_4f1c3c45771345 67-71,96-100,102-105,107-119
+client2/src/game/board/container.test.ts
+  s_89d5ad20619017::t_af18651243c575 1-51
+client2/src/game/board/board.ts
+  s_89d5ad20619017::t_23bf6d150e0ac5 1-67
+client2/REFACTOR.md
+  s_89d5ad20619017::t_f293194d4cdce0 19
+  s_89d5ad20619017::t_3f27e6923b406a 20
+  s_89d5ad20619017::t_d946f190156156 21-23
+client2/src/game/board/board.test.ts
+  s_89d5ad20619017::t_7f93a4219f3a33 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5a5e0761ee5b6730d0c0a36097085428e970c980",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
