@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Rectangle, Sprite, type Texture } fro
 import { CardBody } from "../CardBody";
 import { SUITS } from "../card";
 import { ElementPool, type Slot } from "./elementPool";
+import { InputRouter, type InputHandlers } from "./inputRouter";
 import { createPixiApp, ensureFonts } from "./canvasHost";
 import { assembleTable } from "./tableAssemble";
 import { boxFaceUp } from "./tableSide";
@@ -56,6 +57,7 @@ export class TableEngine {
   private discard: string[] = [];
 
   private drag: { card: string; dx: number; dy: number } | null = null;
+  private input = new InputRouter<string, never>(this.inputHandlers());
 
   async mount(container: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
@@ -226,37 +228,57 @@ export class TableEngine {
     return best?.card ?? null;
   }
 
-  private onDown = (e: { global: { x: number; y: number } }): void => {
-    const card = this.hitCard(e.global.x, e.global.y);
-    if (!card) return;
-    const v = this.pool.get(card);
-    if (!v) return;
-    this.drag = { card, dx: v.body.px - e.global.x, dy: v.body.py - e.global.y };
-    v.sprite.zIndex = 100_000; // поверх всех, пока тащим
-    v.sprite.texture = this.faceFor(card); // в руке видно, что берёшь
-    v.body.setTarget({ x: e.global.x + this.drag.dx, y: e.global.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
-    this.wake();
-  };
+  private onDown = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+    this.input.down(e.pointerId, e.global.x, e.global.y);
+  private onMove = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+    this.input.move(e.pointerId, e.global.x, e.global.y);
+  private onUp = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+    this.input.up(e.pointerId, e.global.x, e.global.y);
 
-  private onMove = (e: { global: { x: number; y: number } }): void => {
-    const d = this.drag;
-    if (!d) return;
-    const v = this.pool.get(d.card);
-    if (!v) return;
-    v.body.setTarget({ x: e.global.x + d.dx, y: e.global.y + d.dy, scale: DRAG_SCALE, rot: 0 });
-    this.wake();
-  };
-
-  private onUp = (e: { global: { x: number; y: number } }): void => {
-    const d = this.drag;
-    if (!d) return;
-    this.drag = null;
-    const zone = this.zoneAt(e.global.x, e.global.y);
-    if (zone) this.moveCardTo(d.card, zone, e.global.x);
-    // rebuild в любом случае: попал в зону — переедет туда; мимо — спружинит домой (scale
-    // вернётся к 1). Тот же спрайт, реальный перелёт.
-    this.rebuild();
-  };
+  // Ввод стола через общий InputRouter. Столу нужен только драг карт — камеры/кнопок/пинча нет,
+  // соответствующие колбэки пусты (screen == content, pickButton == null, pan/pinch/hover — no-op).
+  private inputHandlers(): InputHandlers<string, never> {
+    return {
+      screenToContent: (x, y) => ({ x, y }),
+      pickCard: (x, y) => this.hitCard(x, y),
+      cardDraggable: () => true,
+      pickButton: () => null,
+      buttonContains: () => false,
+      onCardGrab: (card, cp) => {
+        const v = this.pool.get(card);
+        if (!v) return;
+        this.drag = { card, dx: v.body.px - cp.x, dy: v.body.py - cp.y };
+        v.sprite.zIndex = 100_000; // поверх всех, пока тащим
+        v.sprite.texture = this.faceFor(card); // в руке видно, что берёшь
+        v.body.setTarget({ x: cp.x + this.drag.dx, y: cp.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
+      },
+      onCardMove: (card, cp) => {
+        const d = this.drag;
+        const v = this.pool.get(card);
+        if (!d || !v) return;
+        v.body.setTarget({ x: cp.x + d.dx, y: cp.y + d.dy, scale: DRAG_SCALE, rot: 0 });
+      },
+      onCardDrop: (card, cp) => {
+        this.drag = null;
+        const zone = this.zoneAt(cp.x, cp.y);
+        if (zone) this.moveCardTo(card, zone, cp.x);
+        this.rebuild(); // попал — переедет; мимо — спружинит домой (scale→1), тот же спрайт
+      },
+      onCardCancel: () => {
+        this.drag = null;
+        this.rebuild();
+      },
+      onCardBlocked: () => {},
+      onButtonDown: () => {},
+      onButtonMove: () => {},
+      onButtonUp: () => {},
+      onPan: () => {},
+      onPinchStart: () => {},
+      onPinch: () => {},
+      onHover: () => {},
+      afterAny: () => this.wake(),
+    };
+  }
 
   private zoneAt(x: number, y: number): "deck" | "hand" | "play" | "discard" | null {
     const z = this.zones();
