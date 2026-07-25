@@ -1,0 +1,29 @@
+client2/src/game/board/selection.test.ts
+  s_89d5ad20619017::t_fede3a0bb286dd 1-50
+client2/src/game/board/selection.ts
+  s_89d5ad20619017::t_cddf213961124b 1-41
+client2/src/game/board/bounds.test.ts
+  s_89d5ad20619017::t_746b20aeb49ddb 1-23
+client2/src/game/board/containerConfig.ts
+  s_89d5ad20619017::t_54e0a6c480c45c 1-29
+client2/src/game/board/containerConfig.test.ts
+  s_89d5ad20619017::t_1d2f10939a8b5f 1-22
+client2/src/game/board/bounds.ts
+  s_89d5ad20619017::t_1a7de972213d69 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5a8994c5ec31db382c90acc16147f73acd2dd072",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
