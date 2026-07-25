@@ -1,0 +1,30 @@
+client2/src/game/board/layout/grid.ts
+  s_89d5ad20619017::t_6546a0f0d031d8 1-60
+client2/src/game/board/actionFold.ts
+  s_89d5ad20619017::t_a8a2337f64163a 1-29
+client2/src/game/board/dropResolve.test.ts
+  s_89d5ad20619017::t_6395c0d4f1a28d 1-50
+client2/src/game/board/dropResolve.ts
+  s_89d5ad20619017::t_bed31ad0d2b609 19,22-26
+  s_89d5ad20619017::t_a72f0dd4b46b0a 1-18,20-21,27
+client2/src/game/board/actionFold.test.ts
+  s_89d5ad20619017::t_d20d6b3bfdd510 1-34
+client2/src/game/board/layout/grid.test.ts
+  s_89d5ad20619017::t_2983f001e05f7b 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9a1f4a693f2d4c93c0068aa9be81caa685348a3e",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
