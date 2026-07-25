@@ -1,0 +1,23 @@
+client2/src/theme.css
+  s_89d5ad20619017::t_2b11fe5cd4edd7 45-92
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_a21474002d501e 7-13,36-52,57,65,68,72-79,125,127-128,132,135-137,140,142,148-149,151-155,159,161,164-165,168-172,174-176,180-222,225-244,246-252,255-256,269-284,289-316,318-324,328-334,337-345,348-353,363,379
+client2/src/FreeDesk.tsx
+  s_89d5ad20619017::t_93985452ffaa57 1-2,4-5,8-9,15-16,18-21,25,27-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "789c8366e790f4a9827924457f0738cf0e8aefc6",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
