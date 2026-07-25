@@ -1,0 +1,32 @@
+client2/src/game/engine/elementPool.ts
+  s_89d5ad20619017::t_1318a7f54189e4 1-7
+  s_89d5ad20619017::t_c668f68bfaa4a5 8-50,52-129
+  s_89d5ad20619017::t_146783f7a1135f 51
+client2/src/game/engine/elementPool.test.ts
+  s_89d5ad20619017::t_95bf5c0200608f 1-100
+client2/src/game/engine/tableAssemble.test.ts
+  s_89d5ad20619017::t_44e912ca9d3d73 8-11,21-23,29
+.claude/commands/todo-ignore.md
+  s_89d5ad20619017::t_015033d4eef60b 1-15
+client2/src/game/engine/tableEngine.ts
+  s_89d5ad20619017::t_c3c31bac22bbd9 4,37,89,135,186,209-210
+client2/src/game/engine/tableAssemble.ts
+  s_89d5ad20619017::t_a8bafb26566fe6 1
+  s_89d5ad20619017::t_d049d8a4bb253d 16-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cd7c900fbc2b5bcaa1060bff85cb0f957228a7c1",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
