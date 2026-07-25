@@ -56,6 +56,18 @@ interface Placed {
   specIndex: number; // из какого CardSpec рождена — для снимка/восстановления при рестарте канваса
 }
 
+// Стопка песочницы: карты (ids) + драггер и его поведение при драге пачки:
+//   none   — без ручки (тащим по карте);
+//   follow — три точки, ЛЕТЯТ вместе с пачкой (ручка едет под пачкой);
+//   hide   — три точки, ИСЧЕЗАЮТ на старте драга.
+interface SandboxStack {
+  ids: string[];
+  dragger: "none" | "follow" | "hide";
+  handle: { x: number; y: number; w: number; h: number } | null; // хит-зона ручки (контент)
+  gfx: Graphics | null; // графика ручки
+  home: { x: number; y: number }; // её позиция покоя
+}
+
 // Описание карты песочницы (позиция покоя + пропсы) — из него рождаются живые Card. Держим
 // отдельно, чтобы «рестарт канваса» мог пересоздать канвас и воссоздать карты из тех же спеков.
 interface CardSpec {
@@ -106,8 +118,8 @@ export class FreeDeskEngine {
   private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
   private byId = new Map<string, Card>(); // реестр по id для публичного API
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
-  // Стопки с драггерами (демо захвата всей пачки). handle — прямоугольник «ручки» в координатах контента.
-  private stacks: Array<{ ids: string[]; dragger: "none" | "grip" | "tab"; handle: { x: number; y: number; w: number; h: number } | null }> = [];
+  private stacks: SandboxStack[] = [];
+  private dragStack: SandboxStack | null = null; // стопка, которую тащат целиком — для драггера (летит/прячется)
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
   private dragSqueeze = false; // плейсмент пачки при драге: false — врассыпную, true — сжать в руку
   private pendingWhole: string[] | null = null; // ids захватываемой целиком стопки (между pickCard и grab)
@@ -473,8 +485,8 @@ export class FreeDeskEngine {
     const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦"];
     const footprint = this.cardW + (ranks.length - 1) * step;
     const gap = this.cardW * 0.9;
-    const styles = ["none", "grip", "tab"] as const;
-    const caps = ["без ручки — по карте", "ручка-грип", "ручка-таб"];
+    const styles = ["none", "follow", "hide"] as const;
+    const caps = ["без ручки — по карте", "точки летят с пачкой", "точки исчезают при драге"];
     styles.forEach((dragger, s) => {
       const ox = left + s * (footprint + gap);
       const ids = ranks.map((r, i) => {
@@ -483,8 +495,8 @@ export class FreeDeskEngine {
         this.cardSpecs.push({ opts: { id, card: r, rest: "floating" }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.6 + s });
         return id;
       });
-      const handle = this.buildStackDragger(dragger, ox, cy, footprint);
-      this.stacks.push({ ids, dragger, handle });
+      const { handle, gfx, home } = this.buildStackDragger(dragger, ox, cy, footprint);
+      this.stacks.push({ ids, dragger, handle, gfx, home });
       this.scene.surface.addChild(this.label(caps[s]!, ox, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
     });
     const toggleY = cy + this.cardH / 2 + 50;
@@ -495,19 +507,18 @@ export class FreeDeskEngine {
 
   // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом
   // стопки. Возвращает прямоугольник хит-зоны (в координатах контента) или null (без ручки).
-  private buildStackDragger(style: "none" | "grip" | "tab", ox: number, cy: number, footprint: number): { x: number; y: number; w: number; h: number } | null {
-    if (style === "none") return null;
-    const g = new Graphics();
-    g.alpha = 0.55; // ненавязчиво
+  // «Ручка» стопки — три точки (еле видны). Рисуем в ЛОКАЛЬНЫХ координатах + позиционируем, чтобы
+  // ручку можно было двигать (follow) или прятать (hide) при драге. none — ручки нет.
+  private buildStackDragger(style: "none" | "follow" | "hide", ox: number, cy: number, footprint: number): { handle: { x: number; y: number; w: number; h: number } | null; gfx: Graphics | null; home: { x: number; y: number } } {
     const cx = ox + footprint / 2;
     const y = cy + this.cardH / 2 + 9;
-    if (style === "grip") {
-      for (const dx of [-8, 0, 8]) g.circle(cx + dx, y, 2.6).fill({ color: 0xcdb98f });
-    } else {
-      g.roundRect(cx - 16, y - 4, 32, 9, 4).fill({ color: 0x5f7a6d }).stroke({ width: 1, color: 0xcdb98f });
-    }
-    this.scene.verb.addChild(g); // над картами, чтобы читалась
-    return { x: cx - 22, y: y - 11, w: 44, h: 22 }; // хит-зона чуть крупнее для пальца
+    if (style === "none") return { handle: null, gfx: null, home: { x: cx, y } };
+    const g = new Graphics();
+    g.alpha = 0.55;
+    for (const dx of [-8, 0, 8]) g.circle(dx, 0, 2.6).fill({ color: 0xcdb98f }); // локально, центр в 0
+    g.position.set(cx, y);
+    this.scene.verb.addChild(g);
+    return { handle: { x: cx - 22, y: y - 11, w: 44, h: 22 }, gfx: g, home: { x: cx, y } };
   }
 
   // Стильный сегментный переключатель режима драга: «по карте» | «всю стопку».
@@ -538,7 +549,26 @@ export class FreeDeskEngine {
     setMark(initial);
   }
 
-  private stackAtHandle(cx: number, cy: number): { ids: string[] } | null {
+  // Драггер стопки при драге: follow — точки едут под пачкой (тот же сдвиг к лиду, что и в покое).
+  private followDragger(): void {
+    const st = this.dragStack;
+    if (!st || st.dragger !== "follow" || !st.gfx || !this.drag) return;
+    const lead = this.drag.lead;
+    const lh = this.cards.find((c) => c.card === lead)?.home;
+    if (lh) st.gfx.position.set(lead.body.px + st.home.x - lh.x, lead.body.py + st.home.y - lh.y);
+  }
+
+  // Вернуть драггер на место после драга (показать спрятанный, вернуть уехавший).
+  private restoreDragStack(): void {
+    const st = this.dragStack;
+    if (st?.gfx) {
+      st.gfx.visible = true;
+      st.gfx.position.set(st.home.x, st.home.y);
+    }
+    this.dragStack = null;
+  }
+
+  private stackAtHandle(cx: number, cy: number): SandboxStack | null {
     for (const st of this.stacks) {
       const h = st.handle;
       if (h && cx >= h.x && cx <= h.x + h.w && cy >= h.y && cy <= h.y + h.h) return st;
@@ -546,7 +576,7 @@ export class FreeDeskEngine {
     return null;
   }
 
-  private stackOfCard(card: Card): { ids: string[] } | null {
+  private stackOfCard(card: Card): SandboxStack | null {
     return this.stacks.find((st) => card.id !== "" && st.ids.includes(card.id)) ?? null;
   }
 
@@ -731,7 +761,9 @@ export class FreeDeskEngine {
         this.dragScreen = { x: sp.x, y: sp.y };
         if (this.pendingWhole) {
           const cards = this.pendingWhole.map((id) => this.byId.get(id)).filter((c): c is Card => !!c);
+          this.dragStack = this.stacks.find((s) => s.ids === this.pendingWhole) ?? null; // тащим целиком — для ручки
           this.pendingWhole = null;
+          if (this.dragStack?.dragger === "hide" && this.dragStack.gfx) this.dragStack.gfx.visible = false; // точки исчезают
           this.drag = new GroupDrag(cards, this.wholeOffsets(cards, cp), this.dragCtx);
         } else {
           this.drag = new SingleDrag(card, this.dragCtx, cp);
@@ -750,11 +782,13 @@ export class FreeDeskEngine {
           if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
           this.drag = null;
         }
+        this.restoreDragStack();
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
         this.drag?.release();
         this.drag = null;
+        this.restoreDragStack();
       },
       onCardBlocked: (card) => card.blockNudge(),
       onButtonDown: (b) => b.setPressed(true),
@@ -900,6 +934,7 @@ export class FreeDeskEngine {
     this.byId.clear();
     this.stackMove = null;
     this.stacks = [];
+    this.dragStack = null;
     this.pendingWhole = null;
     this.drag = null;
     this.buttons = [];
@@ -921,6 +956,7 @@ export class FreeDeskEngine {
   private render(): void {
     for (const card of this.everyCard()) card.sync();
     for (const b of this.buttons) b.sync();
+    this.followDragger();
 
     // Слитые тени по уровням: силуэты карт уровня → одна маска+заливка (без потемнения наложений).
     const shadows = this.everyCard()
@@ -943,6 +979,7 @@ export class FreeDeskEngine {
     this.byId.clear();
     this.stackMove = null;
     this.stacks = [];
+    this.dragStack = null;
     this.pendingWhole = null;
     this.drag = null;
     this.buttons = [];
