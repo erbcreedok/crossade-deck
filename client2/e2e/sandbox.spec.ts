@@ -49,6 +49,19 @@ test.describe("песочница", () => {
     await page.mouse.up();
     expect(Buffer.compare(before, during)).not.toBe(0);
   });
+
+  test("инерция: пан-флик продолжает ехать после отпускания", async ({ page }) => {
+    const thumb = () =>
+      page.$eval(".fd-scrollbar-y .fd-scrollbar-thumb", (e) => parseFloat((e as HTMLElement).style.top) || 0).catch(() => 0);
+    await page.mouse.move(470, 500); // пустое место правее секций
+    await page.mouse.down();
+    await page.mouse.move(470, 150, { steps: 3 }); // быстрый флик вверх
+    await page.mouse.up();
+    const t0 = await thumb();
+    await page.waitForTimeout(180);
+    const t1 = await thumb();
+    expect(t1).toBeGreaterThan(t0); // после отпускания скролл продолжился по инерции
+  });
 });
 
 // Действия через дропзоны (флип/сжечь) — высокий вьюпорт, чтобы зоны были на экране.

@@ -91,6 +91,42 @@ export class Viewport {
     this.clamp();
   }
 
+  // ——— инерция (fling): после отпускания пана вид едет по инерции с затуханием ———
+  private fvx = 0;
+  private fvy = 0;
+  flinging = false;
+
+  /** Запустить инерцию со скоростью px/сек (порог/капы отсекают дрожь и безумные броски). */
+  startFling(vx: number, vy: number): void {
+    const cap = 4000;
+    this.fvx = clamp(vx, -cap, cap);
+    this.fvy = clamp(vy, -cap, cap);
+    this.flinging = Math.hypot(this.fvx, this.fvy) > 40;
+  }
+
+  stopFling(): void {
+    this.flinging = false;
+    this.fvx = 0;
+    this.fvy = 0;
+  }
+
+  /** Шаг инерции: сдвинуть, кламп, затухание; ось гасится, упершись в край. Возвращает «ещё едем». */
+  stepFling(dt: number): boolean {
+    if (!this.flinging) return false;
+    const bx = this.x;
+    const by = this.y;
+    this.x += this.fvx * dt;
+    this.y += this.fvy * dt;
+    this.clamp();
+    if (this.x === bx) this.fvx = 0; // упёрлись в вертикальный край
+    if (this.y === by) this.fvy = 0; // упёрлись в горизонтальный край
+    const k = Math.exp(-5 * dt); // затухание, независимое от частоты кадров
+    this.fvx *= k;
+    this.fvy *= k;
+    if (Math.hypot(this.fvx, this.fvy) < 40) this.flinging = false;
+    return this.flinging;
+  }
+
   state(): ViewState {
     const cw = this.cw * this.zoom;
     const ch = this.ch * this.zoom;

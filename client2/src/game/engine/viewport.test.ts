@@ -71,6 +71,42 @@ describe("Viewport", () => {
     expect(v.x).toBe(400 - 1000); // -overflow
   });
 
+  it("fling: малая скорость ниже порога не летит", () => {
+    const v = vp();
+    v.startFling(10, 10);
+    expect(v.flinging).toBe(false);
+  });
+
+  it("fling двигает вид и со временем гаснет", () => {
+    const v = vp();
+    v.x = -300;
+    v.startFling(-1000, 0);
+    expect(v.flinging).toBe(true);
+    const x0 = v.x;
+    v.stepFling(0.016);
+    expect(v.x).toBeLessThan(x0); // уехал влево
+    let steps = 0;
+    while (v.stepFling(0.016) && steps < 1000) steps++;
+    expect(v.flinging).toBe(false); // остановился
+  });
+
+  it("fling в упор в край сразу гаснет", () => {
+    const v = vp();
+    v.x = 0; // правый край (max 0)
+    v.startFling(1000, 0); // толкаем за край
+    v.stepFling(0.016);
+    expect(v.x).toBe(0);
+    expect(v.flinging).toBe(false);
+  });
+
+  it("stopFling гасит инерцию", () => {
+    const v = vp();
+    v.startFling(1000, 0);
+    v.stopFling();
+    expect(v.flinging).toBe(false);
+    expect(v.stepFling(0.016)).toBe(false);
+  });
+
   it("state: флаги scrollable по переполнению", () => {
     const v = vp();
     const s = v.state();

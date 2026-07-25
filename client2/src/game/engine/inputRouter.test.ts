@@ -22,7 +22,9 @@ function setup(opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: 
     onButtonDown: (b) => calls.push(`bdown(${b.id})`),
     onButtonMove: (b, inside) => calls.push(`bmove(${b.id},${inside})`),
     onButtonUp: (b, inside) => calls.push(`bup(${b.id},${inside})`),
+    onPanStart: rec("panStart"),
     onPan: rec("pan"),
+    onPanEnd: rec("panEnd"),
     onPinchStart: rec("pinchStart"),
     onPinch: rec("pinch"),
     onHover: (b) => calls.push(`hover(${b?.id ?? "null"})`),
@@ -32,14 +34,14 @@ function setup(opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: 
 }
 
 describe("InputRouter", () => {
-  it("пусто → пан", () => {
+  it("пусто → пан, со стартом/концом (для инерции)", () => {
     const { r, calls } = setup();
     r.down(1, 100, 100);
     expect(r.gesture).toBe("pan");
     r.move(1, 130, 120);
     r.up(1, 130, 120);
     expect(r.gesture).toBe("none");
-    expect(calls).toEqual(["pan(30,20)"]);
+    expect(calls).toEqual(["panStart()", "pan(30,20)", "panEnd()"]);
   });
 
   it("карта → grab/move/drop", () => {

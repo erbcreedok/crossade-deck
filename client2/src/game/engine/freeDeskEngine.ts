@@ -110,6 +110,8 @@ export class FreeDeskEngine {
   private input = new InputRouter<Card, Button>(this.inputHandlers());
   private cardDrag: { card: Card; dx: number; dy: number } | null = null;
   private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
+  private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
+  private lastPanT = 0;
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
   private onView: ((v: ViewState) => void) | null = null;
 
@@ -600,8 +602,10 @@ export class FreeDeskEngine {
   }
 
   // Ввод: стейт-машину ведёт InputRouter, движок лишь форвардит события и отдаёт домен в колбэки.
-  private onDown = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+  private onDown = (e: { global: { x: number; y: number }; pointerId: number }): void => {
+    this.viewport.stopFling(); // касание гасит инерцию
     this.input.down(e.pointerId, e.global.x, e.global.y);
+  };
   private onMove = (e: { global: { x: number; y: number }; pointerId: number }): void =>
     this.input.move(e.pointerId, e.global.x, e.global.y);
   private onUp = (e: { global: { x: number; y: number }; pointerId: number }): void =>
@@ -647,11 +651,27 @@ export class FreeDeskEngine {
         if (inside) b.click();
         b.setPressed(false);
       },
+      onPanStart: () => {
+        this.viewport.stopFling();
+        this.panVel = { x: 0, y: 0 };
+        this.lastPanT = 0;
+      },
       onPan: (dx, dy) => {
+        // Копим сглаженную скорость пана (px/сек) для инерции после отпускания.
+        const t = performance.now();
+        if (this.lastPanT) {
+          const dtp = Math.min(0.1, (t - this.lastPanT) / 1000);
+          if (dtp > 0) this.panVel = { x: 0.5 * this.panVel.x + 0.5 * (dx / dtp), y: 0.5 * this.panVel.y + 0.5 * (dy / dtp) };
+        }
+        this.lastPanT = t;
         this.syncVp();
         this.viewport.panBy(dx, dy);
         this.applyView();
         this.emitView();
+      },
+      onPanEnd: () => {
+        this.viewport.startFling(this.panVel.x, this.panVel.y);
+        this.wake();
       },
       onPinchStart: (mx, my, dist) => {
         const c = this.screenToContent(mx, my);
@@ -724,7 +744,13 @@ export class FreeDeskEngine {
     if (!this.app) return;
     const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
     this.edgeScroll(dt);
-    let moving = this.input.gesture !== "none";
+    if (this.viewport.flinging) {
+      this.syncVp();
+      this.viewport.stepFling(dt);
+      this.applyView();
+      this.emitView();
+    }
+    let moving = this.input.gesture !== "none" || this.viewport.flinging;
     for (const card of this.everyCard()) {
       card.step(dt);
       if (!card.resting) moving = true;

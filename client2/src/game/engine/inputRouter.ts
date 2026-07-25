@@ -27,7 +27,9 @@ export interface InputHandlers<C, B> {
   onButtonMove(b: B, inside: boolean): void;
   onButtonUp(b: B, inside: boolean): void; // inside → клик
 
+  onPanStart?(): void; // начался пан (для сброса инерции/скорости)
   onPan(dx: number, dy: number): void; // экранная дельта
+  onPanEnd?(): void; // пан отпущен (для запуска инерции)
   onPinchStart(midX: number, midY: number, dist: number): void;
   onPinch(midX: number, midY: number, dist: number): void;
 
@@ -75,6 +77,7 @@ export class InputRouter<C, B> {
         } else {
           this.gesture = "pan";
           this.panLast = { x: sx, y: sy };
+          this.h.onPanStart?.();
         }
       }
     }
@@ -107,6 +110,7 @@ export class InputRouter<C, B> {
   }
 
   up(id: number, sx: number, sy: number): void {
+    const wasPan = this.gesture === "pan";
     this.pointers.delete(id);
     if (this.gesture === "drag" && this.card) {
       this.h.onCardDrop(this.card, this.h.screenToContent(sx, sy));
@@ -123,6 +127,7 @@ export class InputRouter<C, B> {
       this.panLast = { x: only.x, y: only.y };
     } else if (this.pointers.size === 0) {
       this.gesture = "none";
+      if (wasPan) this.h.onPanEnd?.(); // пан отпущен последним пальцем → запускаем инерцию
     }
     this.h.afterAny();
   }
