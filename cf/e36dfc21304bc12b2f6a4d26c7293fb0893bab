@@ -1,0 +1,56 @@
+.github/workflows/ci.yml
+  s_89d5ad20619017::t_b02af00393155e 100,102-103
+  s_89d5ad20619017::t_5beb53ddabbae1 57-75,78-79
+client/src/VersionSwitch.tsx
+  s_89d5ad20619017::t_e16921c05495b7 1-12
+client2/src/FreeDesk.tsx
+  s_89d5ad20619017::t_46d4096d47efbb 3
+  s_89d5ad20619017::t_5fa41a8eac8cbb 64
+client2/vite.config.ts
+  s_89d5ad20619017::t_387dd6276d29b4 26-30,32
+  s_89d5ad20619017::t_23671d68393c19 39
+client/src/Lobby.tsx
+  s_89d5ad20619017::t_e6cab329ba5ee2 14
+  s_89d5ad20619017::t_e86fffcad956ec 202
+client2/src/main.tsx
+  s_89d5ad20619017::t_1b5d74bdd3395e 6,9-12
+client2/src/Menu.tsx
+  s_89d5ad20619017::t_82969189db87db 3,5,13,21-24
+DEPLOY.md
+  s_89d5ad20619017::t_92b9dc193f9d36 236-250
+deploy/web.Dockerfile
+  s_89d5ad20619017::t_8aa9ffb27c19de 1-41
+client/src/theme.css
+  s_89d5ad20619017::t_9a5092387572f1 293-310
+client2/src/theme.css
+  s_89d5ad20619017::t_b967982baf0334 31-46
+client/src/AuthScreen.tsx
+  s_89d5ad20619017::t_5ba92090d00b0e 4
+  s_89d5ad20619017::t_9008745fff2bbe 115
+client2/src/vite-env.d.ts
+  s_89d5ad20619017::t_115b24189ee380 1
+deploy/nginx.conf
+  s_89d5ad20619017::t_fb66912d3d72cd 1-22
+.dockerignore
+  s_89d5ad20619017::t_1c09c6917d4c97 1-6
+client2/src/nav.ts
+  s_89d5ad20619017::t_6de5961a6d114a 1-18
+scripts/deploy.sh
+  s_89d5ad20619017::t_81416d9dc3a220 49-51,53-59,64-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cfe36dfc21304bc12b2f6a4d26c7293fb0893bab",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
