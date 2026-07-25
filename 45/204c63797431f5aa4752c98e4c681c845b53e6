@@ -1,0 +1,26 @@
+client2/src/theme.css
+  s_89d5ad20619017::t_8fb1b4d2c6fc78 58-59,64,67-91
+client2/src/main.tsx
+  s_89d5ad20619017::t_d4fa981f5b32f2 16-19
+  s_89d5ad20619017::t_0c1c8bfd50976b 6
+client2/src/BrandBadge.tsx
+  s_89d5ad20619017::t_eea6d8680bb4fc 1-5
+client2/e2e/menu.spec.ts
+  s_89d5ad20619017::t_9b9ce3944bd28d 31-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "45204c63797431f5aa4752c98e4c681c845b53e6",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
