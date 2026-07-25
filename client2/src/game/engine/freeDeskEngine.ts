@@ -271,6 +271,10 @@ export class FreeDeskEngine {
     });
     t.anchor.set(anchorX, 0);
     t.position.set(x, y);
+    // На узком экране длинное слово без пробелов (напр. «удерживаемая») перенос не ловит и
+    // вылезает за свою ячейку, налезая на соседа. Гарантия: если подпись всё же шире ячейки —
+    // ужимаем её ровно до ширины (масштаб вокруг якоря, центровка под картой сохраняется).
+    if (wrap !== undefined && t.width > wrap) t.scale.set(wrap / t.width);
     return t;
   }
 
@@ -361,7 +365,7 @@ export class FreeDeskEngine {
       // правее = глубже по z; сюда карта и вернётся после драга
       this.cardSpecs.push({ opts: { card: c, rest: "floating" }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.7 });
     });
-    this.layers.surface.addChild(this.label("левитирующая стопка (верхняя справа)", left, cy + this.cardH / 2 + 12, 13, 0x9aa89f));
+    this.layers.surface.addChild(this.label("левитирующая стопка (верхняя справа)", left, cy + this.cardH / 2 + 12, 13, 0x9aa89f, undefined, 0));
     return cy + this.cardH / 2 + 44;
   }
 
