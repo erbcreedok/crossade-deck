@@ -6,6 +6,7 @@ import { Button, type ButtonOptions } from "../ui/Button";
 import { ShadowLayer } from "../ui/ShadowLayer";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
+import { InputRouter, type InputHandlers } from "./inputRouter";
 
 type Level = "idle" | "floating" | "fan" | "drag";
 import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
@@ -113,13 +114,9 @@ export class FreeDeskEngine {
   private buttons: Button[] = [];
   private zones: Array<{ zone: DropZone; onDrop: (card: Card) => void }> = [];
 
-  private pointers = new Map<number, { x: number; y: number }>();
-  private gesture: "none" | "card" | "pan" | "pinch" | "button" = "none";
+  private input = new InputRouter<Card, Button>(this.inputHandlers());
   private cardDrag: { card: Card; dx: number; dy: number } | null = null;
   private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
-  private pressedButton: Button | null = null;
-  private hovered: Button | null = null;
-  private panLast = { x: 0, y: 0 };
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
   private onView: ((v: ViewState) => void) | null = null;
 
@@ -178,7 +175,7 @@ export class FreeDeskEngine {
     if (!this.app || this.destroyed) return;
     this.clearContent();
     this.buildContent();
-    this.gesture = "none";
+    this.input.reset();
     this.clampView();
     this.applyView();
     this.render();
@@ -619,132 +616,90 @@ export class FreeDeskEngine {
     return null;
   }
 
-  private onDown = (e: { global: { x: number; y: number }; pointerId: number }): void => {
-    this.pointers.set(e.pointerId, { x: e.global.x, y: e.global.y });
-    if (this.pointers.size === 2) {
-      this.beginPinch();
-    } else if (this.pointers.size === 1) {
-      const p = this.screenToContent(e.global.x, e.global.y);
-      const card = this.hitCard(p.x, p.y);
-      if (card && !card.draggable) {
-        // Заблокированную карту не тащим и стол не панимаем — только лёгкий «стоп»-кивок,
-        // чтобы игрок понял: это механика блока, а не залипший драг.
-        card.blockNudge();
-        this.gesture = "none";
-      } else if (card) {
-        this.gesture = "card";
-        this.cardDrag = { card, dx: card.body.px - p.x, dy: card.body.py - p.y };
-        this.dragScreen = { x: e.global.x, y: e.global.y };
-        card.setState("drag"); // подъём: масштаб/тень едут плавно
-        card.root.zIndex = 1e6; // пока тащим — поверх всех в слое драга
-        this.placeCard(card); // и переезд в верхний слой
-        card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
-      } else {
-        const btn = this.hitButton(p.x, p.y);
-        if (btn) {
-          this.gesture = "button";
-          this.pressedButton = btn;
-          btn.setPressed(true);
-        } else {
-          this.gesture = "pan";
-          this.panLast = { x: e.global.x, y: e.global.y };
-        }
-      }
-    }
-    this.wake();
-  };
-
   private hitButton(cx: number, cy: number): Button | null {
     for (const b of this.buttons) if (b.hitTest(cx, cy)) return b;
     return null;
   }
 
-  private beginPinch(): void {
-    if (this.cardDrag) {
-      this.releaseCard(this.cardDrag.card);
-      this.cardDrag = null;
-    }
-    this.gesture = "pinch";
-    const [a, b] = [...this.pointers.values()];
-    const mid = { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
-    const c = this.screenToContent(mid.x, mid.y);
-    this.pinch = { dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y };
-  }
+  // Ввод: стейт-машину ведёт InputRouter, движок лишь форвардит события и отдаёт домен в колбэки.
+  private onDown = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+    this.input.down(e.pointerId, e.global.x, e.global.y);
+  private onMove = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+    this.input.move(e.pointerId, e.global.x, e.global.y);
+  private onUp = (e: { global: { x: number; y: number }; pointerId: number }): void =>
+    this.input.up(e.pointerId, e.global.x, e.global.y);
 
-  private onMove = (e: { global: { x: number; y: number }; pointerId: number }): void => {
-    if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.global.x, y: e.global.y });
-
-    if (this.gesture === "pinch" && this.pointers.size >= 2) {
-      const [a, b] = [...this.pointers.values()];
-      const mid = { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
-      const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, MIN_ZOOM, MAX_ZOOM);
-      this.viewport.x = mid.x - this.pinch.midContentX * this.viewport.zoom;
-      this.viewport.y = mid.y - this.pinch.midContentY * this.viewport.zoom;
-      this.clampView();
-      this.applyView();
-      this.emitView();
-    } else if (this.gesture === "card" && this.cardDrag) {
-      this.dragScreen = { x: e.global.x, y: e.global.y };
-      const p = this.screenToContent(e.global.x, e.global.y);
-      this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
-      for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y));
-    } else if (this.gesture === "button" && this.pressedButton) {
-      // Ушёл пальцем с кнопки — отжимаем; вернулся — снова нажата (клик только при отпускании на ней).
-      const p = this.screenToContent(e.global.x, e.global.y);
-      this.pressedButton.setPressed(this.pressedButton.hitTest(p.x, p.y));
-    } else if (this.gesture === "pan") {
-      this.viewport.x += e.global.x - this.panLast.x;
-      this.viewport.y += e.global.y - this.panLast.y;
-      this.panLast = { x: e.global.x, y: e.global.y };
-      this.clampView();
-      this.applyView();
-      this.emitView();
-    } else if (this.gesture === "none") {
-      // Ховер кнопок (комп): подсветка той, что под курсором.
-      const p = this.screenToContent(e.global.x, e.global.y);
-      const hovered = this.hitButton(p.x, p.y);
-      if (hovered !== this.hovered) {
-        this.hovered = hovered;
-        for (const b of this.buttons) b.hover(b === hovered);
+  // Хит-тесты и реакции на жесты (домен). Стейт-машина — в InputRouter.
+  private inputHandlers(): InputHandlers<Card, Button> {
+    return {
+      screenToContent: (sx, sy) => this.screenToContent(sx, sy),
+      pickCard: (cx, cy) => this.hitCard(cx, cy),
+      cardDraggable: (c) => c.draggable,
+      pickButton: (cx, cy) => this.hitButton(cx, cy),
+      buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
+      onCardGrab: (card, cp, sp) => {
+        this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y };
+        this.dragScreen = { x: sp.x, y: sp.y };
+        card.setState("drag"); // подъём: масштаб/тень едут плавно
+        card.root.zIndex = 1e6; // пока тащим — поверх всех
+        this.placeCard(card);
+        card.body.setTarget({ x: cp.x + this.cardDrag.dx, y: cp.y + this.cardDrag.dy, rot: 0 });
+      },
+      onCardMove: (card, cp, sp) => {
+        this.dragScreen = { x: sp.x, y: sp.y };
+        if (this.cardDrag) card.body.setTarget({ x: cp.x + this.cardDrag.dx, y: cp.y + this.cardDrag.dy, rot: 0 });
+        for (const z of this.zones) z.zone.setHot(z.zone.contains(cp.x, cp.y));
+      },
+      onCardDrop: (card, cp) => {
+        const hit = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
+        hit?.onDrop(card);
+        // Сгорающая остаётся догорать на месте; иначе — возврат домой.
+        if (!card.burning) this.releaseCard(card);
+        this.cardDrag = null;
+        for (const z of this.zones) z.zone.setHot(false);
+      },
+      onCardCancel: (card) => {
+        this.releaseCard(card);
+        this.cardDrag = null;
+      },
+      onCardBlocked: (card) => card.blockNudge(),
+      onButtonDown: (b) => b.setPressed(true),
+      onButtonMove: (b, inside) => b.setPressed(inside),
+      onButtonUp: (b, inside) => {
+        if (inside) b.click();
+        b.setPressed(false);
+      },
+      onPan: (dx, dy) => {
+        this.syncVp();
+        this.viewport.panBy(dx, dy);
+        this.applyView();
+        this.emitView();
+      },
+      onPinchStart: (mx, my, dist) => {
+        const c = this.screenToContent(mx, my);
+        this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y };
+      },
+      onPinch: (mx, my, dist) => {
+        this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, MIN_ZOOM, MAX_ZOOM);
+        this.viewport.x = mx - this.pinch.midContentX * this.viewport.zoom;
+        this.viewport.y = my - this.pinch.midContentY * this.viewport.zoom;
+        this.clampView();
+        this.applyView();
+        this.emitView();
+      },
+      onHover: (b) => {
+        for (const btn of this.buttons) btn.hover(btn === b);
         this.wake();
-      }
-    }
-  };
-
-  private onUp = (e: { global: { x: number; y: number }; pointerId: number }): void => {
-    this.pointers.delete(e.pointerId);
-    if (this.gesture === "card" && this.cardDrag) {
-      const card = this.cardDrag.card;
-      const p = this.screenToContent(e.global.x, e.global.y);
-      const hit = this.zones.find((z) => z.zone.contains(p.x, p.y));
-      hit?.onDrop(card);
-      // Сгорающая карта остаётся на месте (в зоне) и догорает; движок уберёт её сам. Иначе —
-      // возврат домой.
-      if (!card.burning) this.releaseCard(card);
-      this.cardDrag = null;
-      for (const z of this.zones) z.zone.setHot(false);
-    } else if (this.gesture === "button" && this.pressedButton) {
-      const p = this.screenToContent(e.global.x, e.global.y);
-      if (this.pressedButton.hitTest(p.x, p.y)) this.pressedButton.click();
-      this.pressedButton.setPressed(false);
-      this.pressedButton = null;
-    }
-    if (this.pointers.size === 1) {
-      const only = [...this.pointers.values()][0]!;
-      this.gesture = "pan";
-      this.panLast = { x: only.x, y: only.y };
-    } else if (this.pointers.size === 0) {
-      this.gesture = "none";
-    }
-    this.wake();
-  };
+      },
+      afterAny: () => this.wake(),
+    };
+  }
 
   // Авто-скролл у кромки: пока держишь элемент (карту) у края экрана, вид панится в ту сторону —
   // скорость растёт с глубиной захода в кромку. Карта остаётся ПОД пальцем (пересчёт по экранной
   // точке при новом виде), так что она «уезжает» на открывшуюся область стола.
   private edgeScroll(dt: number): void {
-    if (this.gesture !== "card" || !this.cardDrag) return;
+    if (this.input.gesture !== "drag" || !this.cardDrag) return;
     const margin = Math.max(48, Math.min(this.W, this.H) * 0.12);
     const SPEED = 780; // экранных px/сек на самой кромке
     const { x: sx, y: sy } = this.dragScreen;
@@ -791,7 +746,7 @@ export class FreeDeskEngine {
     if (!this.app) return;
     const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
     this.edgeScroll(dt);
-    let moving = this.gesture !== "none";
+    let moving = this.input.gesture !== "none";
     for (const card of this.everyCard()) {
       card.step(dt);
       if (!card.resting) moving = true;
@@ -824,8 +779,7 @@ export class FreeDeskEngine {
     this.buttons = [];
     this.zones = [];
     this.cardDrag = null;
-    this.pressedButton = null;
-    this.hovered = null;
+    this.input.reset();
     this.layers.surface.removeChildren().forEach((c) => c.destroy());
     this.layers.verb.removeChildren().forEach((c) => c.destroy());
     for (const lvl of ["idle", "floating", "fan", "drag"] as const) {
@@ -871,11 +825,8 @@ export class FreeDeskEngine {
     this.stackMove = null;
     this.buttons = [];
     this.zones = [];
-    this.gesture = "none";
     this.cardDrag = null;
-    this.pressedButton = null;
-    this.hovered = null;
-    this.pointers.clear();
+    this.input.reset();
     this.tex?.destroy();
     this.app.destroy({ removeView: true }, { children: true, texture: true });
     this.app = null;
