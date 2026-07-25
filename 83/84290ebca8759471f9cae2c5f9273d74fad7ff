@@ -1,0 +1,25 @@
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_ba5e61a00ab141 1-4,7-15,18-31,37-38,43,49-50,52,59,85,89-90,92,103,106-115,118-126,129-140,142-143,145-149,151,160-169,174-178,188-189,200,203-208,223-226,229,233,240
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_574603cbe27181 1-164
+client2/src/game/ui/DropZone.ts
+  s_89d5ad20619017::t_3ee2d4b33d2077 1-64
+client2/src/game/ui/CardTextureCache.ts
+  s_89d5ad20619017::t_573f88a40dff9b 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8384290ebca8759471f9cae2c5f9273d74fad7ff",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
