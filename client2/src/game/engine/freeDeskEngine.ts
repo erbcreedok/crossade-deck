@@ -2,6 +2,7 @@ import { Application, Container, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState } from "../ui/Card";
 import { DropZone } from "../ui/DropZone";
+import { Button, type ButtonOptions } from "../ui/Button";
 import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
 
 // UI-kit «/free-desk» — сторибук на канвасе. Один горизонтальный ряд карт-вариантов с
@@ -86,11 +87,14 @@ export class FreeDeskEngine {
 
   private view = { x: 0, y: 0, zoom: 1 };
   private cards: Placed[] = [];
+  private buttons: Button[] = [];
   private flipZone!: DropZone;
 
   private pointers = new Map<number, { x: number; y: number }>();
-  private gesture: "none" | "card" | "pan" | "pinch" = "none";
+  private gesture: "none" | "card" | "pan" | "pinch" | "button" = "none";
   private cardDrag: { card: Card; dx: number; dy: number } | null = null;
+  private pressedButton: Button | null = null;
+  private hovered: Button | null = null;
   private panLast = { x: 0, y: 0 };
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
   private onView: ((v: ViewState) => void) | null = null;
@@ -223,7 +227,43 @@ export class FreeDeskEngine {
     this.layers.surface.addChild(this.flipZone.base);
     this.layers.verb.addChild(this.flipZone.verb);
 
-    this.contentH = zoneRect.y + zoneRect.h + pad;
+    const buttonsBottom = this.buildButtons(pad, zoneRect.y + zoneRect.h + 46);
+    this.contentH = buttonsBottom + pad;
+  }
+
+  // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
+  private buildButtons(left: number, startY: number): number {
+    this.layers.surface.addChild(this.label("Кнопки", left, startY, 26, 0xcdb98f, undefined, 0));
+    let y = startY + 48;
+    y = this.buttonRow(left, y, [
+      { opts: { label: "Основная", variant: "primary" }, cap: "primary" },
+      { opts: { label: "Вторичная", variant: "secondary" }, cap: "secondary" },
+      { opts: { label: "Опасно", variant: "danger" }, cap: "danger" },
+      { opts: { label: "Призрак", variant: "ghost" }, cap: "ghost" },
+    ]);
+    y = this.buttonRow(left, y, [
+      { opts: { label: "Мелкая", size: "sm" }, cap: "sm" },
+      { opts: { label: "Средняя", size: "md" }, cap: "md" },
+      { opts: { label: "Крупная", size: "lg" }, cap: "lg" },
+    ]);
+    y = this.buttonRow(left, y, [{ opts: { label: "Недоступна", disabled: true }, cap: "disabled" }]);
+    return y;
+  }
+
+  private buttonRow(left: number, y: number, items: Array<{ opts: ButtonOptions; cap: string }>): number {
+    const gap = 26;
+    const made = items.map((it) => ({ b: new Button(it.opts), cap: it.cap }));
+    const rowH = Math.max(...made.map((m) => m.b.h));
+    let x = left;
+    for (const { b, cap } of made) {
+      const cx = x + b.w / 2;
+      b.place(cx, y + rowH / 2);
+      this.layers.surface.addChild(b.root);
+      this.buttons.push(b);
+      this.layers.surface.addChild(this.label(cap, cx, y + rowH + 8, 13, 0x9aa89f));
+      x += b.w + gap;
+    }
+    return y + rowH + 42;
   }
 
   // ——— вьюпорт ———
@@ -327,12 +367,24 @@ export class FreeDeskEngine {
         this.placeCard(card); // и переезд в верхний слой
         card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
       } else {
-        this.gesture = "pan";
-        this.panLast = { x: e.global.x, y: e.global.y };
+        const btn = this.hitButton(p.x, p.y);
+        if (btn) {
+          this.gesture = "button";
+          this.pressedButton = btn;
+          btn.setPressed(true);
+        } else {
+          this.gesture = "pan";
+          this.panLast = { x: e.global.x, y: e.global.y };
+        }
       }
     }
     this.wake();
   };
+
+  private hitButton(cx: number, cy: number): Button | null {
+    for (const b of this.buttons) if (b.hitTest(cx, cy)) return b;
+    return null;
+  }
 
   private beginPinch(): void {
     if (this.cardDrag) {
@@ -363,6 +415,10 @@ export class FreeDeskEngine {
       const p = this.screenToContent(e.global.x, e.global.y);
       this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
       this.flipZone.setHot(this.flipZone.contains(p.x, p.y));
+    } else if (this.gesture === "button" && this.pressedButton) {
+      // Ушёл пальцем с кнопки — отжимаем; вернулся — снова нажата (клик только при отпускании на ней).
+      const p = this.screenToContent(e.global.x, e.global.y);
+      this.pressedButton.setPressed(this.pressedButton.hitTest(p.x, p.y));
     } else if (this.gesture === "pan") {
       this.view.x += e.global.x - this.panLast.x;
       this.view.y += e.global.y - this.panLast.y;
@@ -370,6 +426,15 @@ export class FreeDeskEngine {
       this.clampView();
       this.applyView();
       this.emitView();
+    } else if (this.gesture === "none") {
+      // Ховер кнопок (комп): подсветка той, что под курсором.
+      const p = this.screenToContent(e.global.x, e.global.y);
+      const hovered = this.hitButton(p.x, p.y);
+      if (hovered !== this.hovered) {
+        this.hovered = hovered;
+        for (const b of this.buttons) b.hover(b === hovered);
+        this.wake();
+      }
     }
   };
 
@@ -381,6 +446,11 @@ export class FreeDeskEngine {
       this.releaseCard(this.cardDrag.card);
       this.cardDrag = null;
       this.flipZone.setHot(false);
+    } else if (this.gesture === "button" && this.pressedButton) {
+      const p = this.screenToContent(e.global.x, e.global.y);
+      if (this.pressedButton.hitTest(p.x, p.y)) this.pressedButton.click();
+      this.pressedButton.setPressed(false);
+      this.pressedButton = null;
     }
     if (this.pointers.size === 1) {
       const only = [...this.pointers.values()][0]!;
@@ -413,12 +483,17 @@ export class FreeDeskEngine {
       card.step(dt);
       if (!card.resting) moving = true;
     }
+    for (const b of this.buttons) {
+      b.step(dt);
+      if (!b.resting) moving = true;
+    }
     this.render();
     if (!moving) this.app.ticker.stop();
   };
 
   private render(): void {
     for (const { card } of this.cards) card.sync();
+    for (const b of this.buttons) b.sync();
   }
 
   destroy(): void {
