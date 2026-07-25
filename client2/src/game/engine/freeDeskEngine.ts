@@ -104,6 +104,13 @@ export class FreeDeskEngine {
   private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
   private byId = new Map<string, Card>(); // реестр по id для публичного API
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
+  // Стопки с драггерами (демо захвата всей пачки). handle — прямоугольник «ручки» в координатах контента.
+  private stacks: Array<{ ids: string[]; dragger: "none" | "grip" | "tab"; handle: { x: number; y: number; w: number; h: number } | null }> = [];
+  private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
+  private pendingWhole: string[] | null = null; // ids захватываемой целиком стопки (между pickCard и grab)
+  private wholeDrag: { cards: Card[]; offsets: Array<{ dx: number; dy: number }> } | null = null;
+  private modeButtons: Button[] = [];
+  private modeMark!: Graphics; // подчёркивание активного сегмента переключателя
   private buttons: Button[] = [];
   private zones: Array<{ zone: DropZone; onDrop: (card: Card) => void }> = [];
 
@@ -274,6 +281,7 @@ export class FreeDeskEngine {
     zones: Record<string, { x: number; y: number }>;
     firstCard: { x: number; y: number; faceUp: boolean } | null;
     cardCount: number;
+    grips: ({ x: number; y: number } | null)[];
   } {
     const toScreen = (cx: number, cy: number) => ({ x: this.viewport.x + cx * this.viewport.zoom, y: this.viewport.y + cy * this.viewport.zoom });
     const zones: Record<string, { x: number; y: number }> = {};
@@ -286,6 +294,7 @@ export class FreeDeskEngine {
       zones,
       firstCard: first ? { ...toScreen(first.body.px, first.body.py), faceUp: first.faceUp } : null,
       cardCount: this.cards.length,
+      grips: this.stacks.map((st) => (st.handle ? toScreen(st.handle.x + st.handle.w / 2, st.handle.y + st.handle.h / 2) : null)),
     };
   }
 
@@ -428,6 +437,7 @@ export class FreeDeskEngine {
       card.root.zIndex = spec.depth;
       card.body.snapTo({ x: r ? r.x : spec.home.x, y: r ? r.y : spec.home.y, rot: 0, scale: card.restScale });
       this.placeCard(card);
+      if (card.id) this.byId.set(card.id, card); // карты стопок адресуются по id (захват пачки)
       this.cards.push({ card, home: spec.home, depth: spec.depth, specIndex: i });
     });
   }
@@ -443,18 +453,87 @@ export class FreeDeskEngine {
 
   // Стопки. Первая — ЛЕВИТИРУЮЩАЯ: 6 карт стоят внахлёст рядом, каждая сдвинута вправо;
   // негласное правило — верхняя карта СПРАВА (правее = выше по z). Без веера/арки/перестановок.
+  // Ряд из ТРЁХ стопок с разными «драггерами» захвата всей пачки: без ручки / грип / таб.
+  // Плюс переключатель режима драга карты (одна / вся стопка). Верхняя карта справа, левитируют.
   private buildStacks(left: number, top: number): number {
     this.scene.surface.addChild(this.label("Стопки", left, top, 26, 0xcdb98f, undefined, 0));
     const cy = top + 44 + this.cardH / 2;
     const step = this.cardW * 0.4; // сдвиг соседа вправо (перекрытие)
-    const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦", "J♦"];
-    ranks.forEach((c, i) => {
-      const cx = left + this.cardW / 2 + i * step;
-      // правее = глубже по z; сюда карта и вернётся после драга
-      this.cardSpecs.push({ opts: { card: c, rest: "floating" }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.7 });
+    const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦"];
+    const footprint = this.cardW + (ranks.length - 1) * step;
+    const gap = this.cardW * 0.9;
+    const styles = ["none", "grip", "tab"] as const;
+    const caps = ["без ручки — по карте", "ручка-грип", "ручка-таб"];
+    styles.forEach((dragger, s) => {
+      const ox = left + s * (footprint + gap);
+      const ids = ranks.map((r, i) => {
+        const id = `stk${s}c${i}`;
+        const cx = ox + this.cardW / 2 + i * step;
+        this.cardSpecs.push({ opts: { id, card: r, rest: "floating" }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.6 + s });
+        return id;
+      });
+      const handle = this.buildStackDragger(dragger, ox, cy, footprint);
+      this.stacks.push({ ids, dragger, handle });
+      this.scene.surface.addChild(this.label(caps[s]!, ox, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
     });
-    this.scene.surface.addChild(this.label("левитирующая стопка (верхняя справа)", left, cy + this.cardH / 2 + 12, 13, 0x9aa89f, undefined, 0));
-    return cy + this.cardH / 2 + 44;
+    const toggleY = cy + this.cardH / 2 + 50;
+    this.buildStackModeToggle(left, toggleY);
+    return toggleY + 42;
+  }
+
+  // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом
+  // стопки. Возвращает прямоугольник хит-зоны (в координатах контента) или null (без ручки).
+  private buildStackDragger(style: "none" | "grip" | "tab", ox: number, cy: number, footprint: number): { x: number; y: number; w: number; h: number } | null {
+    if (style === "none") return null;
+    const g = new Graphics();
+    g.alpha = 0.55; // ненавязчиво
+    const cx = ox + footprint / 2;
+    const y = cy + this.cardH / 2 + 9;
+    if (style === "grip") {
+      for (const dx of [-8, 0, 8]) g.circle(cx + dx, y, 2.6).fill({ color: 0xcdb98f });
+    } else {
+      g.roundRect(cx - 16, y - 4, 32, 9, 4).fill({ color: 0x5f7a6d }).stroke({ width: 1, color: 0xcdb98f });
+    }
+    this.scene.verb.addChild(g); // над картами, чтобы читалась
+    return { x: cx - 22, y: y - 11, w: 44, h: 22 }; // хит-зона чуть крупнее для пальца
+  }
+
+  // Стильный сегментный переключатель режима драга: «по карте» | «всю стопку».
+  private buildStackModeToggle(left: number, y: number): void {
+    this.scene.surface.addChild(this.label("режим драга карты стопки:", left, y, 12, 0x9aa89f, undefined, 0));
+    const b1 = this.textButton("по карте", () => this.setStackMode("one"));
+    const b2 = this.textButton("всю стопку", () => this.setStackMode("whole"));
+    const x0 = left + 200;
+    b1.place(x0 + b1.w / 2, y + b1.h / 2);
+    b2.place(x0 + b1.w + 10 + b2.w / 2, y + b2.h / 2);
+    this.registerButton(b1);
+    this.registerButton(b2);
+    this.modeButtons = [b1, b2];
+    this.modeMark = new Graphics();
+    this.scene.surface.addChild(this.modeMark);
+    this.setStackMode(this.stackMode);
+  }
+
+  private setStackMode(m: "one" | "whole"): void {
+    this.stackMode = m;
+    const b = this.modeButtons[m === "one" ? 0 : 1];
+    if (b && this.modeMark) {
+      this.modeMark.clear();
+      this.modeMark.roundRect(b.x - b.w / 2 + 4, b.y + b.h / 2 - 1, b.w - 8, 2, 1).fill({ color: 0xf2c14e });
+    }
+    this.wake();
+  }
+
+  private stackAtHandle(cx: number, cy: number): { ids: string[] } | null {
+    for (const st of this.stacks) {
+      const h = st.handle;
+      if (h && cx >= h.x && cx <= h.x + h.w && cy >= h.y && cy <= h.y + h.h) return st;
+    }
+    return null;
+  }
+
+  private stackOfCard(card: Card): { ids: string[] } | null {
+    return this.stacks.find((st) => card.id !== "" && st.ids.includes(card.id)) ?? null;
   }
 
   // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
@@ -615,13 +694,40 @@ export class FreeDeskEngine {
   private inputHandlers(): InputHandlers<Card, Button> {
     return {
       screenToContent: (sx, sy) => this.screenToContent(sx, sy),
-      pickCard: (cx, cy) => this.hitCard(cx, cy),
+      // Захват: сперва «ручка» стопки → тянем всю пачку; иначе карта (а в режиме «всю стопку» —
+      // любая карта стопки тоже тянет пачку). pendingWhole передаётся из pickCard в onCardGrab.
+      pickCard: (cx, cy) => {
+        const h = this.stackAtHandle(cx, cy);
+        if (h) {
+          this.pendingWhole = h.ids;
+          return this.byId.get(h.ids[h.ids.length - 1]!) ?? null; // верхняя карта — лид
+        }
+        const card = this.hitCard(cx, cy);
+        if (card && this.stackMode === "whole") {
+          const st = this.stackOfCard(card);
+          if (st) this.pendingWhole = st.ids;
+        }
+        return card;
+      },
       cardDraggable: (c) => c.draggable,
       pickButton: (cx, cy) => this.hitButton(cx, cy),
       buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
       onCardGrab: (card, cp, sp) => {
-        this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y };
         this.dragScreen = { x: sp.x, y: sp.y };
+        if (this.pendingWhole) {
+          const cards = this.pendingWhole.map((id) => this.byId.get(id)).filter((c): c is Card => !!c);
+          this.pendingWhole = null;
+          cards.forEach((c, i) => {
+            c.setState("drag");
+            c.root.zIndex = 1e6 + i; // вся пачка поверх всех, порядок сохранён
+            this.placeCard(c);
+          });
+          this.wholeDrag = { cards, offsets: cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y })) };
+          this.applyWhole(cp);
+          this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y }; // лид — для edge-scroll
+          return;
+        }
+        this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y };
         card.setState("drag"); // подъём: масштаб/тень едут плавно
         card.root.zIndex = 1e6; // пока тащим — поверх всех
         this.placeCard(card);
@@ -629,10 +735,20 @@ export class FreeDeskEngine {
       },
       onCardMove: (card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
+        if (this.wholeDrag) {
+          this.applyWhole(cp);
+          return;
+        }
         if (this.cardDrag) card.body.setTarget({ x: cp.x + this.cardDrag.dx, y: cp.y + this.cardDrag.dy, rot: 0 });
         for (const z of this.zones) z.zone.setHot(z.zone.contains(cp.x, cp.y));
       },
       onCardDrop: (card, cp) => {
+        if (this.wholeDrag) {
+          for (const c of this.wholeDrag.cards) this.releaseCard(c); // вся пачка вернулась в строй
+          this.wholeDrag = null;
+          this.cardDrag = null;
+          return;
+        }
         const hit = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
         hit?.onDrop(card);
         // Сгорающая остаётся догорать на месте; иначе — возврат домой.
@@ -641,7 +757,12 @@ export class FreeDeskEngine {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: (card) => {
-        this.releaseCard(card);
+        if (this.wholeDrag) {
+          for (const c of this.wholeDrag.cards) this.releaseCard(c);
+          this.wholeDrag = null;
+        } else {
+          this.releaseCard(card);
+        }
         this.cardDrag = null;
       },
       onCardBlocked: (card) => card.blockNudge(),
@@ -726,6 +847,15 @@ export class FreeDeskEngine {
     this.emitView();
   }
 
+  // Вести всю пачку за пальцем: каждая карта = точка пальца + её исходный сдвиг (форма сохранена).
+  private applyWhole(cp: { x: number; y: number }): void {
+    if (!this.wholeDrag) return;
+    this.wholeDrag.cards.forEach((c, i) => {
+      const off = this.wholeDrag!.offsets[i]!;
+      c.body.setTarget({ x: cp.x + off.dx, y: cp.y + off.dy, rot: 0 });
+    });
+  }
+
   private releaseCard(card: Card): void {
     const placed = this.cards.find((c) => c.card === card)!;
     card.setState(card.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
@@ -780,6 +910,10 @@ export class FreeDeskEngine {
     this.controlCards = [];
     this.byId.clear();
     this.stackMove = null;
+    this.stacks = [];
+    this.pendingWhole = null;
+    this.wholeDrag = null;
+    this.modeButtons = [];
     this.buttons = [];
     this.zones = [];
     this.cardDrag = null;
@@ -821,6 +955,10 @@ export class FreeDeskEngine {
     this.controlCards = [];
     this.byId.clear();
     this.stackMove = null;
+    this.stacks = [];
+    this.pendingWhole = null;
+    this.wholeDrag = null;
+    this.modeButtons = [];
     this.buttons = [];
     this.zones = [];
     this.cardDrag = null;

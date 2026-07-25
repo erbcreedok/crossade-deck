@@ -69,7 +69,14 @@ test.describe("песочница", () => {
 test.describe("песочница — действия", () => {
   test.use({ viewport: { width: 500, height: 1200 } });
   const hooks = (page: import("@playwright/test").Page) =>
-    page.evaluate(() => (window as unknown as { __fd: { testHooks(): { zones: Record<string, { x: number; y: number }>; firstCard: { x: number; y: number; faceUp: boolean } | null; cardCount: number } } }).__fd.testHooks());
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __fd: { testHooks(): { zones: Record<string, { x: number; y: number }>; firstCard: { x: number; y: number; faceUp: boolean } | null; cardCount: number; grips: ({ x: number; y: number } | null)[] } };
+          }
+        ).__fd.testHooks(),
+    );
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/free-desk");
@@ -102,6 +109,22 @@ test.describe("песочница — действия", () => {
     await page.waitForTimeout(1000); // догореть + reap
     const h2 = await hooks(page);
     expect(h2.cardCount).toBe(h1.cardCount - 1);
+  });
+
+  test("грип стопки тянет всю пачку (сцена меняется)", async ({ page }) => {
+    const h = await hooks(page);
+    const grip = h.grips.find((g) => g)!; // первый непустой драггер (стопка 2)
+    expect(grip).toBeTruthy();
+    const box = (await page.locator("canvas").boundingBox())!;
+    const clip = { x: box.x + grip.x - 120, y: box.y + grip.y - 180, width: 240, height: 200 };
+    const before = await page.screenshot({ clip });
+    await page.mouse.move(box.x + grip.x, box.y + grip.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + grip.x + 30, box.y + grip.y + 150, { steps: 12 });
+    await page.waitForTimeout(150);
+    const during = await page.screenshot({ clip });
+    await page.mouse.up();
+    expect(Buffer.compare(before, during)).not.toBe(0);
   });
 });
 
