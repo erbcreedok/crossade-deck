@@ -121,6 +121,27 @@ test.describe("песочница — действия", () => {
     expect(h2.cardCount).toBe(h1.cardCount - 1);
   });
 
+  test("дроп стопки на ПЕРЕВОРОТ переворачивает всю пачку", async ({ page }) => {
+    const h = await hooks(page);
+    const grip = h.grips.find((g) => g)!; // грип стопки (5 карт)
+    const box = (await page.locator("canvas").boundingBox())!;
+    const clip = { x: box.x + grip.x - 130, y: box.y + grip.y - 150, width: 260, height: 170 };
+    const before = await page.screenshot({ clip });
+    await dragTo(page, grip, h.zones["ПЕРЕВОРОТ"]!);
+    await page.waitForTimeout(900);
+    const after = await page.screenshot({ clip });
+    expect(Buffer.compare(before, after)).not.toBe(0); // лица → рубашки, порядок реверснут
+  });
+
+  test("дроп стопки на СЖЕЧЬ сжигает всю пачку", async ({ page }) => {
+    const h = await hooks(page);
+    const grip = h.grips.find((g) => g)!;
+    await dragTo(page, grip, h.zones["СЖЕЧЬ"]!);
+    await page.waitForTimeout(1100);
+    const h2 = await hooks(page);
+    expect(h2.cardCount).toBe(h.cardCount - 5); // сгорела вся пачка из 5
+  });
+
   test("грип стопки тянет всю пачку (сцена меняется)", async ({ page }) => {
     const h = await hooks(page);
     const grip = h.grips.find((g) => g)!; // первый непустой драггер (стопка 2)

@@ -136,6 +136,7 @@ export class FreeDeskEngine {
       this.placeCard(el);
     },
     returnHome: (el) => this.releaseCard(el as Card),
+    flipGroup: (els) => this.flipGroup(els),
   };
   private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
@@ -877,6 +878,28 @@ export class FreeDeskEngine {
   private wholeOffsets(cards: Card[], cp: { x: number; y: number }): Array<{ dx: number; dy: number }> {
     if (this.dragSqueeze) return squeezeOffsets(cards.length, this.cardW, this.cardH);
     return cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y }));
+  }
+
+  // Перевернуть пачку ЦЕЛИКОМ: карта i уезжает в зеркальный слот (n-1-i), z реверсится, и каждая
+  // делает СИНХРОННЫЙ флип (requestFlip разом) — пачка переворачивается как одна плоскость вокруг
+  // центральной карты (её слот=центр не меняется). Лицо↔рубашка меняет сам flip. В новые слоты
+  // карты уезжают через release (вызывается после в onCardDrop). Порядок ids тоже реверсим.
+  private flipGroup(els: readonly TableElement[]): void {
+    const n = els.length;
+    const placeds = els.map((el) => this.cards.find((c) => c.card === el)).filter((p): p is Placed => !!p);
+    if (placeds.length !== n) return;
+    const homes = placeds.map((p) => ({ ...p.home }));
+    const depths = placeds.map((p) => p.depth);
+    placeds.forEach((p, i) => {
+      const j = n - 1 - i;
+      p.home = homes[j]!;
+      p.depth = depths[j]!;
+      p.card.root.zIndex = depths[j]!;
+      p.card.requestFlip();
+    });
+    const st = this.stacks.find((s) => els.every((el) => s.ids.includes(el.id)));
+    st?.ids.reverse();
+    this.wake();
   }
 
   private releaseCard(card: Card): void {

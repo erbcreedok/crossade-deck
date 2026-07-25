@@ -28,8 +28,13 @@ function elem(id: string, opts: { flip?: boolean; burn?: boolean; burning?: bool
 function ctx() {
   const raised: string[] = [];
   const homed: string[] = [];
-  const c: DragContext = { raise: (e) => raised.push(e.id), returnHome: (e) => homed.push(e.id) };
-  return { c, raised, homed };
+  const flipped: string[][] = [];
+  const c: DragContext = {
+    raise: (e) => raised.push(e.id),
+    returnHome: (e) => homed.push(e.id),
+    flipGroup: (els) => flipped.push(els.map((e) => e.id)),
+  };
+  return { c, raised, homed, flipped };
 }
 
 describe("SingleDrag", () => {
@@ -81,5 +86,29 @@ describe("GroupDrag", () => {
     expect((els[1]!.body as unknown as { targets: { x: number }[] }).targets.at(-1)).toMatchObject({ x: 103 });
     d.release();
     expect(homed).toEqual(["0", "1"]);
+  });
+
+  it("flip есть только если ВСЕ элементы Flippable, делегируется в ctx.flipGroup", () => {
+    const { c, flipped } = ctx();
+    const yes = new GroupDrag([elem("a", { flip: true }), elem("b", { flip: true })], [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }], c);
+    expect(yes.flip).toBeTypeOf("function");
+    yes.flip!();
+    expect(flipped).toEqual([["a", "b"]]); // всю пачку целиком
+
+    const no = new GroupDrag([elem("a", { flip: true }), elem("b")], [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }], c);
+    expect(no.flip).toBeUndefined(); // не все умеют — пачка не переворачивается
+  });
+
+  it("burn жжёт каждый элемент; consumed = кто-то горит", () => {
+    const { c } = ctx();
+    const a = elem("a", { burn: true });
+    const bb = elem("b", { burn: true });
+    const d = new GroupDrag([a, bb], [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }], c);
+    d.burn!();
+    expect((a as unknown as { burn: ReturnType<typeof vi.fn> }).burn).toHaveBeenCalled();
+    expect((bb as unknown as { burn: ReturnType<typeof vi.fn> }).burn).toHaveBeenCalled();
+
+    const burning = new GroupDrag([elem("x", { burn: true, burning: true })], [{ dx: 0, dy: 0 }], c);
+    expect(burning.consumed).toBe(true);
   });
 });

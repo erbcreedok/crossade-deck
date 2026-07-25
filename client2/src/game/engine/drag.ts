@@ -15,6 +15,7 @@ interface Pt {
 export interface DragContext {
   raise(el: TableElement): void; // поднять в слой драга (план drag, z-порядок)
   returnHome(el: TableElement): void; // вернуть на исходное место (пружиной)
+  flipGroup(els: readonly TableElement[]): void; // перевернуть пачку целиком (реверс + синхронный флип)
 }
 
 export interface DragPayload {
@@ -70,6 +71,8 @@ export class SingleDrag implements DragPayload {
  *  группы (flip всей стопки, burn) — задел на следующий шаг, пока не заданы (дроп в зону = возврат). */
 export class GroupDrag implements DragPayload {
   readonly lead: TableElement;
+  flip?: () => void; // переворот всей пачки — делегируется движку (реверс + синхронный флип)
+  burn?: () => void; // сжечь пачку — жжём каждый элемент (каждый своей анимацией)
 
   constructor(
     private readonly els: readonly TableElement[],
@@ -81,6 +84,8 @@ export class GroupDrag implements DragPayload {
       ctx.raise(el);
       el.root.zIndex = 1e6 + i; // вся пачка поверх всех, порядок сохранён
     });
+    if (els.every((el) => asFlippable(el))) this.flip = () => ctx.flipGroup(els);
+    if (els.every((el) => asBurnable(el))) this.burn = () => els.forEach((el) => asBurnable(el)?.burn());
   }
 
   move(cp: Pt): void {
@@ -93,6 +98,6 @@ export class GroupDrag implements DragPayload {
     for (const el of this.els) this.ctx.returnHome(el);
   }
   get consumed(): boolean {
-    return false;
+    return this.els.some((el) => asBurnable(el)?.burning);
   }
 }
