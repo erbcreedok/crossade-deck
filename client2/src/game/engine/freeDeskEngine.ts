@@ -46,9 +46,12 @@ export interface ViewState {
   zoom: number;
   minZoom: number;
   maxZoom: number;
-  scroll: number;
-  thumb: number;
-  scrollable: boolean;
+  scrollX: number;
+  thumbX: number;
+  scrollableX: boolean;
+  scrollY: number;
+  thumbY: number;
+  scrollableY: boolean;
 }
 
 const MIN_ZOOM = 0.6;
@@ -334,14 +337,19 @@ export class FreeDeskEngine {
 
   private viewState(): ViewState {
     const cw = this.contentW * this.view.zoom;
-    const overflow = Math.max(0, cw - this.W);
+    const ch = this.contentH * this.view.zoom;
+    const ox = Math.max(0, cw - this.W);
+    const oy = Math.max(0, ch - this.H);
     return {
       zoom: this.view.zoom,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
-      scroll: overflow > 0 ? -this.view.x / overflow : 0,
-      thumb: cw > 0 ? Math.min(1, this.W / cw) : 1,
-      scrollable: overflow > 1,
+      scrollX: ox > 0 ? -this.view.x / ox : 0,
+      thumbX: cw > 0 ? Math.min(1, this.W / cw) : 1,
+      scrollableX: ox > 1,
+      scrollY: oy > 0 ? -this.view.y / oy : 0,
+      thumbY: ch > 0 ? Math.min(1, this.H / ch) : 1,
+      scrollableY: oy > 1,
     };
   }
 
@@ -349,9 +357,18 @@ export class FreeDeskEngine {
     this.zoomAround(this.W / 2, this.H / 2, clamp(z, MIN_ZOOM, MAX_ZOOM) / this.view.zoom);
   }
 
-  setScroll(fraction: number): void {
+  setScrollX(fraction: number): void {
     const overflow = Math.max(0, this.contentW * this.view.zoom - this.W);
     this.view.x = -clamp(fraction, 0, 1) * overflow;
+    this.clampView();
+    this.applyView();
+    this.wake();
+    this.emitView();
+  }
+
+  setScrollY(fraction: number): void {
+    const overflow = Math.max(0, this.contentH * this.view.zoom - this.H);
+    this.view.y = -clamp(fraction, 0, 1) * overflow;
     this.clampView();
     this.applyView();
     this.wake();

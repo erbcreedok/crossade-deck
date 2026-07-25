@@ -177,12 +177,15 @@ export class Card {
       this.root.scale.set(render);
     }
 
-    // Тень: смещение и размер растут с «высотой». Свет сверху справа → тень вниз-влево.
+    // Тень: смещение растёт с «высотой» (карта выше — тень дальше). А вот РАЗМЕР тени — от
+    // размера ПОКОЯ карты (scaleFactor), а не от увеличенной драгом (render): по перспективе
+    // приподнятая карта кажется крупнее (ближе к глазу), но её тень на доске остаётся почти
+    // исходного размера, лишь чуть подрастая с высотой. Свет сверху справа → тень вниз-влево.
     const lift = this.body.scaleVal - 1 + IDLE_LIFT + bobLift;
     const chpx = TEX_H * this.scaleFactor;
     this.shadow.position.set(this.body.px + shakeX - lift * chpx * 0.14, this.body.py + bobY * 0.35 + lift * chpx * 0.2);
     this.shadow.rotation = this.body.rotation;
-    this.shadow.scale.set(render * (1 + lift * 0.18));
+    this.shadow.scale.set(this.scaleFactor * (1 + lift * 0.15));
   }
 
   destroy(): void {

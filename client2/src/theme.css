@@ -65,26 +65,42 @@ body {
     pointer-events: auto;
     accent-color: #f2c14e;
   }
-  /* Настоящий скроллбар: трек + ползунок шириной с видимую долю, тащится мышью. */
+  /* Настоящие скроллбары: трек + ползунок (размер = доля видимого), тащится мышью. Каждый
+     показывается лишь при переполнении своей оси (см. FreeDesk). В углу не пересекаются. */
   .fd-scrollbar {
     position: absolute;
-    left: 12px;
-    right: 130px;
-    bottom: 9px;
-    height: 11px;
     background: rgba(0, 0, 0, 0.28);
     border-radius: 6px;
     pointer-events: auto;
   }
+  .fd-scrollbar-x {
+    left: 12px;
+    right: 28px;
+    bottom: 9px;
+    height: 11px;
+  }
+  .fd-scrollbar-y {
+    right: 9px;
+    top: 46px;
+    bottom: 28px;
+    width: 11px;
+  }
   .fd-scrollbar-thumb {
     position: absolute;
-    top: 1px;
-    height: 9px;
-    min-width: 22px;
     background: rgba(242, 193, 78, 0.65);
     border-radius: 5px;
     cursor: grab;
     touch-action: none;
+  }
+  .fd-scrollbar-x .fd-scrollbar-thumb {
+    top: 1px;
+    height: 9px;
+    min-width: 22px;
+  }
+  .fd-scrollbar-y .fd-scrollbar-thumb {
+    left: 1px;
+    width: 9px;
+    min-height: 22px;
   }
   .fd-scrollbar-thumb:hover {
     background: rgba(242, 193, 78, 0.85);
