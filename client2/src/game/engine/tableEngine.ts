@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Rectangle, Sprite, type Texture } from "pixi.js";
 import { CardBody } from "../CardBody";
 import { SUITS } from "../card";
-import { TablePool, type TableSlot } from "./tablePool";
+import { ElementPool, type Slot } from "./elementPool";
 import { createPixiApp, ensureFonts } from "./canvasHost";
 import { assembleTable } from "./tableAssemble";
 import { boxFaceUp } from "./tableSide";
@@ -34,7 +34,7 @@ interface Zone {
 export class TableEngine {
   private app: Application | null = null;
   private destroyed = false;
-  private pool!: TablePool;
+  private pool!: ElementPool<CardVisual>;
   private cardLayer!: Container;
   private shadowLayer!: Container;
 
@@ -86,7 +86,7 @@ export class TableEngine {
     this.cardLayer.sortableChildren = true;
     app.stage.addChild(zonesG, this.shadowLayer, this.cardLayer);
 
-    this.pool = new TablePool({
+    this.pool = new ElementPool<CardVisual>({
       create: (card) => this.createCard(card),
       anchor: (s) => this.anchorFor(s),
       onEnter: (v, s) => this.paint(v, s),
@@ -132,7 +132,7 @@ export class TableEngine {
 
   // ——— якоря: место слота в его боксе ———
 
-  private anchorFor(s: TableSlot) {
+  private anchorFor(s: Slot) {
     const z = this.zones();
     if (s.box === "deck") return this.stackAnchor(z.deck, s.within, this.deck.length);
     if (s.box === "discard") return this.stackAnchor(z.discard, s.within, this.discard.length);
@@ -183,7 +183,7 @@ export class TableEngine {
     this.shadowByCard.delete(card);
   }
 
-  private paint(v: CardVisual, s: TableSlot): void {
+  private paint(v: CardVisual, s: Slot): void {
     v.sprite.zIndex = (s.box.startsWith("play") ? 1000 : 0) + s.within;
     v.sprite.texture = boxFaceUp(s.box) ? this.faceFor(v.card) : this.backTex;
   }
@@ -206,8 +206,8 @@ export class TableEngine {
     this.wake();
   }
 
-  private slotOf(card: string): TableSlot | undefined {
-    return this.pool.slots.find((s) => s.card === card);
+  private slotOf(card: string): Slot | undefined {
+    return this.pool.slots.find((s) => s.id === card);
   }
 
   // ——— drag-and-drop ———

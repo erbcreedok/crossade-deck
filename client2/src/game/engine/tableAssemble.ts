@@ -1,4 +1,4 @@
-import type { TableSlot } from "./tablePool";
+import type { Slot } from "./elementPool";
 
 // Сборка единого списка слотов стола из четырёх массивов состояния (Путь 2, см. PATH2.md).
 // Раньше каждый бокс реконсилился сам по себе, и идентичность карты рвалась на границе.
@@ -13,11 +13,11 @@ export function assembleTable(
   hand: readonly string[],
   discard: readonly string[],
   play: readonly (readonly string[])[],
-): TableSlot[] {
-  const out: TableSlot[] = [];
-  deck.forEach((card, i) => out.push({ card, box: "deck", within: i }));
-  hand.forEach((card, i) => out.push({ card, box: "hand", within: i }));
-  discard.forEach((card, i) => out.push({ card, box: "discard", within: i }));
-  play.forEach((stack, k) => stack.forEach((card, j) => out.push({ card, box: `play:${k}`, within: j })));
+): Slot[] {
+  const out: Slot[] = [];
+  deck.forEach((card, i) => out.push({ id: card, box: "deck", within: i }));
+  hand.forEach((card, i) => out.push({ id: card, box: "hand", within: i }));
+  discard.forEach((card, i) => out.push({ id: card, box: "discard", within: i }));
+  play.forEach((stack, k) => stack.forEach((card, j) => out.push({ id: card, box: `play:${k}`, within: j })));
   return out;
 }
