@@ -1,0 +1,26 @@
+client2/src/game/effects/burn.test.ts
+  s_89d5ad20619017::t_76ba42146bcfcd 11-12
+  s_89d5ad20619017::t_798109b900d735 1-10,13-41
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_49639612863999 237-240,247,249-250
+  s_89d5ad20619017::t_b4dce951ee7fa1 7
+  s_89d5ad20619017::t_a15329dfbb57ae 153
+client2/src/game/effects/burn.ts
+  s_89d5ad20619017::t_28d383de4246bf 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4d2e828b752efa123b29a1505960920ad0f073e6",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
