@@ -1,0 +1,52 @@
+import { describe, it, expect } from "vitest";
+import { BoardZone } from "./boardZone";
+import type { Board } from "./board";
+import type { GridSpec } from "./layout/grid";
+
+// BoardZone — сердце визуального полигона, но БЕЗ Pixi: логический board + геометрия слотов +
+// размещение фигур + резолв дропа между слотами + запертость. Визуал потом читает отсюда.
+const spec: GridSpec = { cols: 3, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } };
+const bounds = { x: 0, y: 0, w: 300, h: 200 }; // 3×2
+const make = (slots: Board["slots"]) => new BoardZone({ spec, rows: 2, board: { slots, onEmpty: "keep" }, bounds });
+
+describe("BoardZone — размещение", () => {
+  it("locate находит слот и индекс фигуры", () => {
+    const z = make({ "0,0": { members: ["a"] }, "1,2": { members: ["p", "q"] } });
+    expect(z.locate("a")).toEqual({ key: "0,0", index: 0 });
+    expect(z.locate("q")).toEqual({ key: "1,2", index: 1 });
+    expect(z.locate("zzz")).toBeNull();
+  });
+  it("figureHome — центр слота (одиночка без сдвига)", () => {
+    const z = make({ "0,1": { members: ["a"] } });
+    expect(z.figureHome("a")).toEqual({ x: 150, y: 50 }); // слот (0,1): центр 150,50
+  });
+});
+
+describe("BoardZone — дроп между слотами", () => {
+  it("дроп в ПУСТОЙ слот переносит фигуру (board обновляется)", () => {
+    const z = make({ "0,0": { members: ["a"] } });
+    expect(z.dropAt("a", 250, 50)).toEqual({ moved: true }); // точка в слоте (0,2)
+    expect(z.locate("a")).toEqual({ key: "0,2", index: 0 });
+    expect(z.locate("a")?.key).not.toBe("0,0");
+  });
+  it("дроп в ТОТ ЖЕ слот — не переезд", () => {
+    const z = make({ "0,0": { members: ["a"] } });
+    expect(z.dropAt("a", 50, 50).moved).toBe(false); // точка в (0,0)
+  });
+  it("дроп в занятый слот с maxSize=1 — отказ (canAccept)", () => {
+    const z = make({ "0,0": { members: ["a"] }, "0,1": { members: ["b"], maxSize: 1 } });
+    expect(z.dropAt("a", 150, 50).moved).toBe(false); // (0,1) полон
+    expect(z.locate("a")?.key).toBe("0,0"); // остался
+  });
+  it("дроп вне всех слотов — не переезд", () => {
+    const z = make({ "0,0": { members: ["a"] } });
+    expect(z.dropAt("a", 9999, 9999).moved).toBe(false);
+  });
+});
+
+describe("BoardZone — запертость", () => {
+  it("clamp держит фигуру в рамке зоны", () => {
+    const z = make({});
+    expect(z.clamp({ x: -50, y: 999 }, { w: 10, h: 10 })).toEqual({ x: 10, y: 190 });
+  });
+});
