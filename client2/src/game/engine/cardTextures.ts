@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, Texture } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor } from "../card";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
@@ -115,33 +115,39 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
-  // Хаотичная мозайка из 🖕: сетка со ДЕТЕРМИНИРОВАННЫМ разбросом позиции, поворота и размера
-  // (одинаково при каждой запечке). Отступы держат эмодзи в пределах карты, чтобы bounds
-  // текстуры оставались ровно размером карты.
+  // Хаотичная мозайка из КРУПНЫХ 🖕 со ДЕТЕРМИНИРОВАННЫМ разбросом позиции, поворота и размера.
+  // Факи большие и налезают на края/друг на друга — обрезаются маской по форме карты, а
+  // fixed frame держит размер текстуры ровно как у карты.
+  const fingers = new Container();
   const cols = 4;
   const rows = 6;
-  const mx = 30;
-  const my = 30;
+  const mx = 26;
+  const my = 26;
   const stepX = (TEX_W - 2 * mx) / (cols - 1);
   const stepY = (TEX_H - 2 * my) / (rows - 1);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const jx = (((c * 5 + r * 3) % 5) - 2) * 3;
-      const jy = (((c * 3 + r * 7) % 5) - 2) * 3;
-      const size = 22 + ((c + r) % 3) * 4;
+      const jx = (((c * 5 + r * 3) % 5) - 2) * 4;
+      const jy = (((c * 3 + r * 7) % 5) - 2) * 4;
+      const size = 40 + ((c + r) % 3) * 8;
       const f = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: size } });
       f.anchor.set(0.5);
       f.position.set(mx + c * stepX + jx, my + r * stepY + jy);
       f.rotation = (((c * 7 + r * 13) % 12) / 12) * Math.PI * 2;
-      root.addChild(f);
+      fingers.addChild(f);
     }
   }
+  const mask = new Graphics();
+  mask.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xffffff });
+  root.addChild(mask);
+  fingers.mask = mask;
+  root.addChild(fingers);
 
   const shade = new Graphics();
   drawCardShade(shade);
   root.addChild(shade);
 
-  const tex = app.renderer.generateTexture({ target: root, resolution: 2 });
+  const tex = app.renderer.generateTexture({ target: root, resolution: 2, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
   root.destroy({ children: true });
   return tex;
 }
