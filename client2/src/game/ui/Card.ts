@@ -132,6 +132,11 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
     return scaleForState(this.rest);
   }
 
+  /** Полуразмеры покоя (для обобщённого хит-теста; движок берёт их × scaleVal). */
+  get footprint(): { hw: number; hh: number } {
+    return { hw: this.width / 2, hh: this.height / 2 };
+  }
+
   /** Сменить план: целевой масштаб едет пружиной, поэтому размер/тень/позиция — плавно. */
   setState(s: CardState): void {
     this.state = s;

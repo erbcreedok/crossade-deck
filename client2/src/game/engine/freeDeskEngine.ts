@@ -1,12 +1,13 @@
 import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { Card, type CardOptions, type CardState, type ShadowShape } from "../ui/Card";
+import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
+import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
-import type { TableElement } from "./element";
+import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
-import { Marker, withAnchor, withDragger, showAlways, showAway, showEmpty, type MarkerHost, type MarkerState } from "./marker";
+import { Marker, withAnchor, withDragger, showAlways, showAway, showEmpty, type MarkerHost, type MarkerState, type ShowWhen } from "./marker";
 import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
@@ -55,6 +56,38 @@ interface Placed {
   home: { x: number; y: number };
   depth: number; // z-индекс глубины в своём слое; после драга карта возвращается на него
   specIndex: number; // из какого CardSpec рождена — для снимка/восстановления при рестарте канваса
+}
+
+// Элемент стола, которым можно ДВИГАТЬ пальцем: карта, фишка, фигура. Ровно то, что нужно
+// системам движка (тени/слои/цикл/хит-тест/драг) — конкретный класс им безразличен.
+type Elem = TableElement &
+  Draggable & {
+    readonly rest: RestState;
+    readonly restScale: number;
+    readonly footprint: { hw: number; hh: number };
+  };
+
+// Не-карточный элемент на столе (фишка/фигура) с домом и глубиной (как Placed для карт).
+interface PiecePlaced {
+  el: Piece;
+  home: { x: number; y: number };
+  depth: number;
+}
+
+// Одиночная цель с меткой (соло-карта, соло-фигура): host + драггер/якорь + как достать лид.
+interface SoloTarget {
+  host: MarkerHost;
+  dragger: Marker;
+  anchor: Marker;
+  lead: () => Elem | null;
+  label: string;
+}
+
+// Всё, за что можно схватиться ЧЕРЕЗ МЕТКУ (стопки и соло) — единый список для хит-теста захвата.
+interface Grabber {
+  marker: Marker;
+  host: MarkerHost;
+  lead: () => Elem | null;
 }
 
 // Стопка песочницы: состав (ids), host для меток и её драггер-метка (для хит-теста захвата пачки).
@@ -131,12 +164,15 @@ export class FreeDeskEngine {
   private container!: HTMLElement;
   private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
   private cards: Placed[] = [];
+  private pieces: PiecePlaced[] = []; // не-карточные элементы (фишки, фигуры) — тот же драг/тени
   private cardSpecs: CardSpec[] = [];
   private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
-  private byId = new Map<string, Card>(); // реестр по id для публичного API
+  private byId = new Map<string, Elem>(); // реестр по id (карты + фишки + фигуры) для API/меток
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
   private stacks: SandboxStack[] = [];
+  private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
+  private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
   private grabbedMarker: Marker | null = null; // за какую метку сейчас тянут (для follow/endFollow)
   private pendingHost: MarkerHost | null = null; // host захватываемой цели (между pickCard и grab)
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
@@ -144,7 +180,7 @@ export class FreeDeskEngine {
   private buttons: Button[] = [];
   private zones: Array<{ zone: DropZone; onDrop: (p: DragPayload) => void }> = [];
 
-  private input = new InputRouter<Card, Button>(this.inputHandlers());
+  private input = new InputRouter<Elem, Button>(this.inputHandlers());
   private drag: DragPayload | null = null; // текущий груз драга (одна карта или пачка)
   // Контекст драга: поднять элемент в слой драга / вернуть домой (движок-специфика для payload).
   private dragCtx: DragContext = {
@@ -153,7 +189,7 @@ export class FreeDeskEngine {
       el.root.zIndex = 1e6;
       this.placeCard(el);
     },
-    returnHome: (el) => this.releaseCard(el as Card),
+    returnHome: (el) => this.releaseElement(el as Elem),
     flipGroup: (els) => this.flipGroup(els),
   };
   private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
@@ -293,8 +329,11 @@ export class FreeDeskEngine {
     // Стопки (ряд под картами). Первая — левитирующая: 6 карт внахлёст, верхняя справа.
     const stacksBottom = this.buildStacks(pad, cardCY + this.cardH / 2 + capH + 16);
 
+    // Ряд «Фишки и фигуры» — НЕ карты (Piece), но тот же драг/тени/метки. Доказательство generic.
+    const piecesBottom = this.buildPieces(pad, stacksBottom + 6);
+
     // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
-    const dzTitleY = stacksBottom + 6;
+    const dzTitleY = piecesBottom + 6;
     this.scene.surface.addChild(this.label("Дропзоны", pad, dzTitleY, 26, 0xcdb98f, undefined, 0));
     const zoneY = dzTitleY + 44;
     const zoneW = this.cardW * 2.4;
@@ -320,6 +359,9 @@ export class FreeDeskEngine {
     grips: ({ x: number; y: number } | null)[];
     stackCards: { x: number; y: number }[][];
     markerVis: { dragger: boolean; anchor: boolean }[];
+    pieces: { id: string; x: number; y: number }[];
+    pieceCount: number;
+    soloVis: { label: string; dragger: boolean; anchor: boolean; x: number; y: number }[];
     cardW: number;
     draggingId: string | null;
   } {
@@ -335,8 +377,16 @@ export class FreeDeskEngine {
       firstCard: first ? { ...toScreen(first.body.px, first.body.py), faceUp: first.faceUp } : null,
       cardCount: this.cards.length,
       grips: this.stacks.map((st) => toScreen(st.dragger.gfx.position.x, st.dragger.gfx.position.y)),
-      stackCards: this.stacks.map((st) => st.ids.map((id) => this.byId.get(id)).filter((c): c is Card => !!c).map((c) => toScreen(c.body.px, c.body.py))),
+      stackCards: this.stacks.map((st) => st.ids.map((id) => this.byId.get(id)).filter((c): c is Elem => !!c).map((c) => toScreen(c.body.px, c.body.py))),
       markerVis: this.stacks.map((st) => ({ dragger: st.dragger.cfg.showWhen(st.host.state()), anchor: st.anchor.cfg.showWhen(st.host.state()) })),
+      pieces: this.pieces.map((p) => ({ id: p.el.id, ...toScreen(p.el.body.px, p.el.body.py) })),
+      pieceCount: this.pieces.length,
+      soloVis: this.solos.map((s) => ({
+        label: s.label,
+        dragger: s.dragger.cfg.showWhen(s.host.state()),
+        anchor: s.anchor.cfg.showWhen(s.host.state()),
+        ...toScreen(s.dragger.gfx.position.x, s.dragger.gfx.position.y),
+      })),
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
@@ -345,9 +395,10 @@ export class FreeDeskEngine {
   // ——— публичное API доски (то, чем СЕРВЕР или скрытая логика юзера двигает карты) ———
   // Все движения — та же пружина, что и при драге. Одиночные вызовы или пачкой (см. doStackMove).
 
-  /** Перевернуть карту по id (напр. «игрок открыл карту»). */
+  /** Перевернуть карту по id (напр. «игрок открыл карту»). Не-Flippable элемент игнорируем. */
   flipCard(id: string): void {
-    if (this.byId.get(id)?.requestFlip()) this.wake();
+    const el = this.byId.get(id);
+    if (el && "requestFlip" in el && (el as { requestFlip(): boolean }).requestFlip()) this.wake();
   }
 
   /** Плавно (пружиной) переместить карту по id в точку контента (напр. «перенёс в дропзону»). */
@@ -537,12 +588,101 @@ export class FreeDeskEngine {
       const anchor = withAnchor(host, this.scene.surface, { draw: a.draw, showWhen: a.showWhen }); // якорь в центре, под картами
       this.markers.push(dragger, anchor);
       this.stacks.push({ ids, host, dragger, anchor });
+      this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(ids[ids.length - 1]!) ?? null });
       this.scene.surface.addChild(this.label(a.cap, ox, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
     });
     const toggleY = cy + this.cardH / 2 + 50;
     this.segToggle(left, toggleY, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
     this.segToggle(left, toggleY + 28, "при драге стопки:", ["рассыпью", "в руку"], this.dragSqueeze ? 1 : 0, (i) => (this.dragSqueeze = i === 1));
     return toggleY + 70;
+  }
+
+  // Ряд НЕ-карточных элементов: соло-карта с меткой + фишки номиналов + шахматы. Все — тот же
+  // драг/тени/метки, что и карты (Piece реализует те же способности). Конь тоже носит метку —
+  // withDragger/withAnchor generic по элементу, не только по стопке.
+  private buildPieces(left: number, top: number): number {
+    this.scene.surface.addChild(this.label("Фишки и фигуры", left, top, 26, 0xcdb98f, undefined, 0));
+    const cy = top + 44 + this.cardH / 2;
+    const r = this.cardH * 0.34; // радиус фишки/подставки
+    const slotW = this.cardW * 1.05;
+    let x = left + this.cardW / 2;
+    const cap = (text: string, w = slotW) => this.scene.surface.addChild(this.label(text, x, cy + this.cardH / 2 + 8, 12, 0x9aa89f, w));
+
+    // 1) СОЛО-КАРТА с меткой (доказательство: withDragger/withAnchor на одиночной карте, не стопке).
+    const soloId = "solo-card";
+    this.cardSpecs.push({ opts: { id: soloId, card: "A♠", rest: "idle" }, home: { x, y: cy }, depth: 100, bobPhase: 0 });
+    this.attachSolo(soloId, { x, y: cy }, drawAnchorIcon, showAway, "карта"); // якорь «когда унесли»
+    cap("карта + метка");
+    x += slotW;
+
+    // 2) ФИШКИ разных номиналов (Piece, круглые). Draggable + Burnable, но НЕ Flippable — значит
+    // «перевернуть» их проигнорирует, а «сжечь» сработает (зона реагирует на способности).
+    const chips = [
+      { v: "5", c: 0xb23b34 },
+      { v: "25", c: 0x2f6b34 },
+      { v: "100", c: 0x24242a },
+      { v: "500", c: 0x6c4bb0 },
+    ];
+    for (const ch of chips) {
+      this.spawnPiece(`chip-${ch.v}`, { x, y: cy }, r * 2, r * 2, (root) => drawChip(root, r, ch.c, ch.v));
+      cap(`фишка ${ch.v}`, slotW * 0.78);
+      x += slotW * 0.78;
+    }
+
+    // 3) ШАХМАТЫ: чёрный конь (тоже с меткой — метка не про карты) и белая пешка.
+    this.spawnPiece("chess-knight", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r, true, "♞"));
+    this.attachSolo("chess-knight", { x, y: cy }, drawRingIcon, showEmpty, "конь"); // якорь «когда пусто» (сожжёшь → покажется)
+    cap("чёрный конь", slotW * 0.9);
+    x += slotW * 0.9;
+
+    this.spawnPiece("chess-pawn", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r, false, "♙"));
+    cap("белая пешка", slotW * 0.9);
+    x += slotW * 0.9;
+
+    this.contentW = Math.max(this.contentW, x + left);
+    return cy + this.cardH / 2 + 34;
+  }
+
+  // Живой не-карточный элемент: расставляем как карту (snapTo → слой → реестр byId → список pieces).
+  private spawnPiece(id: string, home: { x: number; y: number }, w: number, h: number, build: (root: Container) => void): void {
+    const piece = new Piece({ id, w, h, build });
+    piece.root.zIndex = 100 + this.pieces.length;
+    piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
+    this.placeCard(piece);
+    this.byId.set(id, piece);
+    this.pieces.push({ el: piece, home: { ...home }, depth: piece.root.zIndex });
+  }
+
+  // Состояние одиночной цели (соло-карта/фигура) для меток: 1 дома, если жива и не в драге.
+  private soloState(id: string): MarkerState {
+    const el = this.byId.get(id);
+    if (!el) return { atHome: 0, total: 0 };
+    return { atHome: el.state === "drag" ? 0 : 1, total: 1 };
+  }
+
+  // Навесить метки (драггер+якорь) на ОДИНОЧНЫЙ элемент по id — тот же механизм, что у стопки,
+  // но host отдаёт SingleDrag. Работает на соло-карте и на соло-фигуре одинаково.
+  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorWhen: ShowWhen, label: string): void {
+    const lead = () => this.byId.get(id) ?? null;
+    const host: MarkerHost = {
+      slotPos: () => slot,
+      state: () => this.soloState(id),
+      makePayload: (cp) => {
+        const el = this.byId.get(id);
+        return el ? new SingleDrag(el, this.dragCtx, cp) : null;
+      },
+    };
+    const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
+      draw: drawGrip,
+      offset: { x: 0, y: this.cardH / 2 + 9 },
+      hit: { w: 44, h: 22 },
+      follow: true,
+      followOffset: { x: 0, y: this.cardH * 0.62 },
+    });
+    const anchor = withAnchor(host, this.scene.surface, { draw: anchorDraw, showWhen: anchorWhen });
+    this.markers.push(dragger, anchor);
+    this.solos.push({ host, dragger, anchor, lead, label });
+    this.grabbers.push({ marker: dragger, host, lead });
   }
 
   // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом
@@ -562,7 +702,7 @@ export class FreeDeskEngine {
 
   // Груз для захвата всей стопки (по её живым картам).
   private makeStackPayload(ids: string[], cp: { x: number; y: number }): DragPayload | null {
-    const cards = ids.map((id) => this.byId.get(id)).filter((c): c is Card => !!c);
+    const cards = ids.map((id) => this.byId.get(id)).filter((c): c is Elem => !!c);
     return cards.length ? new GroupDrag(cards, this.wholeOffsets(cards, cp), this.dragCtx) : null;
   }
 
@@ -723,15 +863,24 @@ export class FreeDeskEngine {
 
   // ——— ввод ———
 
-  private hitCard(cx: number, cy: number): Card | null {
+  // Все перетаскиваемые элементы (карты + фишки/фигуры) — единый хит-тест/список.
+  private draggables(): Elem[] {
+    const out: Elem[] = this.cards.map((p) => p.card);
+    for (const p of this.pieces) out.push(p.el);
+    return out;
+  }
+
+  private hitElement(cx: number, cy: number): Elem | null {
     // Бокс по ВИДИМОМУ размеру (scaleVal), не раздутый DRAG_SCALE; из накрывших побеждает ВЕРХНЯЯ
-    // по z — в стопке цепляется та карта, что сверху, а не нижняя, попавшая в зону тапа раньше.
-    const boxes: HitBox[] = this.cards.map(({ card }) => {
-      const s = card.body.scaleVal;
-      return { px: card.body.px, py: card.body.py, hw: (card.width * s) / 2, hh: (card.height * s) / 2, z: card.root.zIndex };
+    // по z. Футпринт берём из самого элемента — карта/фишка/фигура одинаково (см. Elem.footprint).
+    const els = this.draggables();
+    const boxes: HitBox[] = els.map((el) => {
+      const s = el.body.scaleVal;
+      const f = el.footprint;
+      return { px: el.body.px, py: el.body.py, hw: f.hw * s, hh: f.hh * s, z: el.root.zIndex };
     });
     const i = topmostAt(boxes, cx, cy);
-    return i >= 0 ? this.cards[i]!.card : null;
+    return i >= 0 ? els[i]! : null;
   }
 
   private hitButton(cx: number, cy: number): Button | null {
@@ -750,28 +899,28 @@ export class FreeDeskEngine {
     this.input.up(e.pointerId, e.global.x, e.global.y);
 
   // Хит-тесты и реакции на жесты (домен). Стейт-машина — в InputRouter.
-  private inputHandlers(): InputHandlers<Card, Button> {
+  private inputHandlers(): InputHandlers<Elem, Button> {
     return {
       screenToContent: (sx, sy) => this.screenToContent(sx, sy),
-      // Захват: сперва метка-драггер стопки → тянем всю пачку через её host; иначе карта (а в
-      // режиме «всю стопку» — любая карта стопки тоже цепляет драггер её стопки). host+метка
-      // передаются из pickCard в onCardGrab через pendingHost/grabbedMarker.
+      // Захват: сперва любая метка-драггер (стопки ИЛИ соло — единый список grabbers) → тянем её
+      // цель через host; иначе элемент под пальцем (а в режиме «всю стопку» — карта стопки цепляет
+      // драггер стопки). host+метка передаются из pickCard в onCardGrab через pendingHost/grabbedMarker.
       pickCard: (cx, cy) => {
-        const st = this.stacks.find((s) => s.dragger.hitTest(cx, cy));
-        if (st) {
-          this.pendingHost = st.host;
-          this.grabbedMarker = st.dragger;
-          return this.byId.get(st.ids[st.ids.length - 1]!) ?? null; // верхняя карта — лид
+        const g = this.grabbers.find((gr) => gr.marker.interactive && gr.marker.hitTest(cx, cy));
+        if (g) {
+          this.pendingHost = g.host;
+          this.grabbedMarker = g.marker;
+          return g.lead(); // лид: верхняя карта стопки / сам соло-элемент
         }
-        const card = this.hitCard(cx, cy);
-        if (card && this.stackMode === "whole") {
-          const owner = this.stacks.find((s) => card.id !== "" && s.ids.includes(card.id));
+        const el = this.hitElement(cx, cy);
+        if (el && this.stackMode === "whole") {
+          const owner = this.stacks.find((s) => el.id !== "" && s.ids.includes(el.id));
           if (owner) {
             this.pendingHost = owner.host;
             this.grabbedMarker = owner.dragger;
           }
         }
-        return card;
+        return el;
       },
       cardDraggable: (c) => c.draggable,
       pickButton: (cx, cy) => this.hitButton(cx, cy),
@@ -896,7 +1045,7 @@ export class FreeDeskEngine {
 
   // Сдвиги пачки относительно пальца: «в руку» — тесная центрированная стопка (номинал задних
   // скрыт, ширина видна); «врассыпную» — сохранить исходную форму стопки.
-  private wholeOffsets(cards: Card[], cp: { x: number; y: number }): Array<{ dx: number; dy: number }> {
+  private wholeOffsets(cards: Elem[], cp: { x: number; y: number }): Array<{ dx: number; dy: number }> {
     if (this.dragSqueeze) return squeezeOffsets(cards.length, this.cardW, this.cardH);
     return cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y }));
   }
@@ -923,12 +1072,22 @@ export class FreeDeskEngine {
     this.wake();
   }
 
-  private releaseCard(card: Card): void {
-    const placed = this.cards.find((c) => c.card === card)!;
-    card.setState(card.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
-    card.root.zIndex = placed.depth; // и на свою глубину — не поверх соседей по стопке
-    this.placeCard(card);
-    card.body.setTarget({ x: placed.home.x, y: placed.home.y, rot: 0 });
+  // Дом элемента (позиция покоя + глубина) — среди карт или фишек/фигур.
+  private homeOf(el: Elem): { home: { x: number; y: number }; depth: number } | null {
+    const c = this.cards.find((p) => p.card === el);
+    if (c) return { home: c.home, depth: c.depth };
+    const p = this.pieces.find((q) => q.el === el);
+    return p ? { home: p.home, depth: p.depth } : null;
+  }
+
+  // Вернуть ЛЮБОЙ элемент (карта/фишка/фигура) домой.
+  private releaseElement(el: Elem): void {
+    const h = this.homeOf(el);
+    if (!h) return;
+    el.setState(el.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
+    el.root.zIndex = h.depth; // и на свою глубину — не поверх соседей по стопке
+    this.placeCard(el);
+    el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
   }
 
   // ——— цикл ———
@@ -948,9 +1107,9 @@ export class FreeDeskEngine {
       this.emitView();
     }
     let moving = this.input.gesture !== "none" || this.viewport.flinging;
-    for (const card of this.everyCard()) {
-      card.step(dt);
-      if (!card.resting) moving = true;
+    for (const el of this.everyElement()) {
+      el.step(dt);
+      if (!el.resting) moving = true;
     }
     this.reapDead();
     for (const b of this.buttons) {
@@ -961,18 +1120,26 @@ export class FreeDeskEngine {
     if (!moving) this.app.ticker.stop();
   };
 
-  // Убрать догоревшие карты (dead) — уничтожить их узлы и вычистить из списка.
+  // Убрать догоревшие элементы (dead) — уничтожить узлы и вычистить из списков + byId (метки
+  // увидят total--). Карты и фишки/фигуры реапаются одинаково.
   private reapDead(): void {
-    if (!this.cards.some((p) => p.card.dead)) return;
-    for (const p of this.cards) if (p.card.dead) { p.card.destroy(); this.byId.delete(p.card.id); } // метки увидят total--
-    this.cards = this.cards.filter((p) => !p.card.dead);
+    if (this.cards.some((p) => p.card.dead)) {
+      for (const p of this.cards) if (p.card.dead) { p.card.destroy(); this.byId.delete(p.card.id); }
+      this.cards = this.cards.filter((p) => !p.card.dead);
+    }
+    if (this.pieces.some((p) => p.el.dead)) {
+      for (const p of this.pieces) if (p.el.dead) { p.el.destroy(); this.byId.delete(p.el.id); }
+      this.pieces = this.pieces.filter((p) => !p.el.dead);
+    }
   }
 
   // Снести весь контент песочницы (карты + мебель), оставив сами слои — для рестарта песочницы.
   private clearContent(): void {
     for (const p of this.cards) p.card.destroy();
+    for (const p of this.pieces) p.el.destroy();
     for (const c of this.controlCards) c.destroy();
     this.cards = [];
+    this.pieces = [];
     this.cardSpecs = [];
     this.controlCards = [];
     this.byId.clear();
@@ -980,6 +1147,8 @@ export class FreeDeskEngine {
     for (const m of this.markers) m.destroy();
     this.markers = [];
     this.stacks = [];
+    this.solos = [];
+    this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
     this.drag = null;
@@ -991,21 +1160,23 @@ export class FreeDeskEngine {
     this.scene.clearCards(this.contentW, this.contentH);
   }
 
-  // Все карты сцены: перетаскиваемые (this.cards) + управляемые API (control). Для шага/рендера/
-  // теней; драг-хит-тест (hitCard) работает только по this.cards — control картами двигает API.
-  private everyCard(): Card[] {
-    const out: Card[] = this.controlCards.slice();
+  // Все живые элементы сцены: перетаскиваемые карты (this.cards) + фишки/фигуры (this.pieces) +
+  // управляемые API карты (control). Для шага/рендера/теней; хит-тест — только по draggables().
+  private everyElement(): TableElement[] {
+    const out: TableElement[] = this.controlCards.slice();
     for (const p of this.cards) out.push(p.card);
+    for (const p of this.pieces) out.push(p.el);
     return out;
   }
 
   private render(): void {
-    for (const card of this.everyCard()) card.sync();
+    const els = this.everyElement();
+    for (const el of els) el.sync();
     for (const b of this.buttons) b.sync();
     for (const m of this.markers) m.update(); // видимость (свап драггер↔якорь) + позиция дома
 
-    // Слитые тени по уровням: силуэты карт уровня → одна маска+заливка (без потемнения наложений).
-    const shadows = this.everyCard()
+    // Слитые тени по уровням: силуэты элементов уровня → одна маска+заливка (без потемнения наложений).
+    const shadows = els
       .filter((c) => c.shadowRect)
       .map((c) => ({ level: levelOf(c.state), rect: c.shadowRect! }));
     this.scene.paintShadows(shadows, this.contentW, this.contentH);
@@ -1018,8 +1189,10 @@ export class FreeDeskEngine {
     this.app.canvas.removeEventListener("wheel", this.onWheel);
     this.app.ticker.remove(this.tick);
     for (const p of this.cards) p.card.destroy();
+    for (const p of this.pieces) p.el.destroy();
     for (const c of this.controlCards) c.destroy();
     this.cards = [];
+    this.pieces = [];
     this.cardSpecs = [];
     this.controlCards = [];
     this.byId.clear();
@@ -1027,6 +1200,8 @@ export class FreeDeskEngine {
     for (const m of this.markers) m.destroy();
     this.markers = [];
     this.stacks = [];
+    this.solos = [];
+    this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
     this.drag = null;
