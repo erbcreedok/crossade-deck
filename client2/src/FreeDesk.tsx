@@ -60,6 +60,9 @@ export function FreeDesk() {
   return (
     <div className="table-screen freedesk">
       <div className="fd-topbar">
+        <button className="fd-btn" onClick={() => (window.location.href = "/")}>
+          ← в меню
+        </button>
         <button className="fd-btn" onClick={() => engineRef.current?.restartSandbox()}>
           ⟲ рестарт песочницы
         </button>
