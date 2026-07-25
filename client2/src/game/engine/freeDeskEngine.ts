@@ -9,7 +9,8 @@ import { fitBlock } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
 import { InputRouter, type InputHandlers } from "./inputRouter";
-import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
+import { topmostAt, type HitBox } from "./cardHit";
+import { PIXEL_FONT, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
 
@@ -282,6 +283,9 @@ export class FreeDeskEngine {
     firstCard: { x: number; y: number; faceUp: boolean } | null;
     cardCount: number;
     grips: ({ x: number; y: number } | null)[];
+    stackCards: { x: number; y: number }[][];
+    cardW: number;
+    draggingId: string | null;
   } {
     const toScreen = (cx: number, cy: number) => ({ x: this.viewport.x + cx * this.viewport.zoom, y: this.viewport.y + cy * this.viewport.zoom });
     const zones: Record<string, { x: number; y: number }> = {};
@@ -295,6 +299,9 @@ export class FreeDeskEngine {
       firstCard: first ? { ...toScreen(first.body.px, first.body.py), faceUp: first.faceUp } : null,
       cardCount: this.cards.length,
       grips: this.stacks.map((st) => (st.handle ? toScreen(st.handle.x + st.handle.w / 2, st.handle.y + st.handle.h / 2) : null)),
+      stackCards: this.stacks.map((st) => st.ids.map((id) => { const c = this.byId.get(id)!; return toScreen(c.body.px, c.body.py); })),
+      cardW: this.cardW * this.viewport.zoom,
+      draggingId: this.cardDrag?.card.id ?? null,
     };
   }
 
@@ -666,13 +673,14 @@ export class FreeDeskEngine {
   // ——— ввод ———
 
   private hitCard(cx: number, cy: number): Card | null {
-    // Драг-карта (если есть) поверх всех; иначе первая, что накрыла точку (в покое не overlap).
-    for (const { card } of this.cards) {
-      const hw = (card.width * DRAG_SCALE) / 2;
-      const hh = (card.height * DRAG_SCALE) / 2;
-      if (Math.abs(cx - card.body.px) <= hw && Math.abs(cy - card.body.py) <= hh) return card;
-    }
-    return null;
+    // Бокс по ВИДИМОМУ размеру (scaleVal), не раздутый DRAG_SCALE; из накрывших побеждает ВЕРХНЯЯ
+    // по z — в стопке цепляется та карта, что сверху, а не нижняя, попавшая в зону тапа раньше.
+    const boxes: HitBox[] = this.cards.map(({ card }) => {
+      const s = card.body.scaleVal;
+      return { px: card.body.px, py: card.body.py, hw: (card.width * s) / 2, hh: (card.height * s) / 2, z: card.root.zIndex };
+    });
+    const i = topmostAt(boxes, cx, cy);
+    return i >= 0 ? this.cards[i]!.card : null;
   }
 
   private hitButton(cx: number, cy: number): Button | null {

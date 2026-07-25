@@ -73,7 +73,17 @@ test.describe("песочница — действия", () => {
       () =>
         (
           window as unknown as {
-            __fd: { testHooks(): { zones: Record<string, { x: number; y: number }>; firstCard: { x: number; y: number; faceUp: boolean } | null; cardCount: number; grips: ({ x: number; y: number } | null)[] } };
+            __fd: {
+              testHooks(): {
+                zones: Record<string, { x: number; y: number }>;
+                firstCard: { x: number; y: number; faceUp: boolean } | null;
+                cardCount: number;
+                grips: ({ x: number; y: number } | null)[];
+                stackCards: { x: number; y: number }[][];
+                cardW: number;
+                draggingId: string | null;
+              };
+            };
           }
         ).__fd.testHooks(),
     );
@@ -125,6 +135,18 @@ test.describe("песочница — действия", () => {
     const during = await page.screenshot({ clip });
     await page.mouse.up();
     expect(Buffer.compare(before, during)).not.toBe(0);
+  });
+
+  test("тап по верхней карте в стопке цепляет ЕЁ, не нижнюю (приоритет по z)", async ({ page }) => {
+    const h = await hooks(page);
+    const box = (await page.locator("canvas").boundingBox())!;
+    const c8 = h.stackCards[0]![2]!; // карта i=2 = «8» стопки 1 (без ручки, режим «по карте»)
+    // жмём в видимую полосу «8» слева от её центра (там 8 сверху 7, но старый код цеплял 7)
+    await page.mouse.move(box.x + c8.x - 0.3 * h.cardW, box.y + c8.y);
+    await page.mouse.down();
+    const g = await hooks(page);
+    await page.mouse.up();
+    expect(g.draggingId).toBe("stk0c2"); // схвачена «8», а не «7» (stk0c1)
   });
 });
 
