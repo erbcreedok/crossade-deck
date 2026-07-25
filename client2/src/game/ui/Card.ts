@@ -4,6 +4,7 @@ import { spinAngle, spinScale, spinShowsOther } from "../flip";
 import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
 import { scaleForState, shadowSilhouette } from "./plane";
+import { burnFrame, BURN_DUR } from "../effects/burn";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -56,11 +57,6 @@ interface FlipAnim {
 }
 
 const BOB_SPEED = 2.2;
-
-// «Сжечь»: сначала карта ЗАМИРАЕТ на долю секунды (дрожь нарастает), затем теряет видимость
-// СНИЗУ ВВЕРХ (маска с волнистым фронтом) при сильной дрожи.
-const BURN_FREEZE = 0.14;
-const BURN_DISSOLVE = 0.5;
 
 export class Card {
   readonly root = new Container();
@@ -154,7 +150,7 @@ export class Card {
 
   /** Сжечь: карта замирает, потом расходится снизу вверх при сильной дрожи; затем dead → убирают. */
   burn(): void {
-    if (!this.dying && !this.dead) this.dying = { t: 0, dur: BURN_FREEZE + BURN_DISSOLVE };
+    if (!this.dying && !this.dead) this.dying = { t: 0, dur: BURN_DUR };
   }
 
   get burning(): boolean {
@@ -238,36 +234,20 @@ export class Card {
     // (маска отрезает низ волнистым «фронтом горения») при сильной дрожи. Без общего затухания:
     // видимость съедает именно маска. Накладывается ПОВЕРХ обычного sync.
     if (this.dying) {
-      const t = this.dying.t;
-      const amp = this.width * 0.055; // «сильная дрожь»
-      const jx = Math.sin(this.age * 92) * amp + Math.sin(this.age * 57) * amp * 0.5;
-      const jy = Math.cos(this.age * 78) * amp * 0.7;
-      if (t < BURN_FREEZE) {
-        // Замирание на долю секунды: держим, дрожь плавно нарастает.
-        const q = t / BURN_FREEZE;
-        this.root.position.set(this.body.px + jx * q, this.body.py + jy * q);
-      } else {
-        const p = Math.min(1, (t - BURN_FREEZE) / BURN_DISSOLVE);
-        this.root.position.set(this.body.px + jx, this.body.py + jy);
-        // Видимой остаётся ВЕРХНЯЯ часть; нижняя граница (фронт) едет вверх и волнится.
+      const f = burnFrame(this.dying.t, this.age, this.width);
+      this.root.position.set(this.body.px + f.jitterX, this.body.py + f.jitterY);
+      if (f.dissolve) {
+        // Маска оставляет видимой верхнюю часть; фронт горения едет вверх (см. burnFrame).
         if (!this.burnMask) {
           this.burnMask = new Graphics();
           this.root.addChild(this.burnMask);
           this.root.mask = this.burnMask;
         }
-        const frontY = -TEX_H / 2 + TEX_H * (1 - p);
-        const pts: number[] = [-TEX_W / 2, -TEX_H / 2, TEX_W / 2, -TEX_H / 2];
-        const seg = 10;
-        for (let k = 0; k <= seg; k++) {
-          const x = TEX_W / 2 - TEX_W * (k / seg);
-          pts.push(x, frontY + Math.sin(x * 0.18 + this.age * 26 + k) * TEX_H * 0.05);
-        }
         this.burnMask.clear();
-        this.burnMask.poly(pts).fill(0xffffff);
-        // Тень съёживается вслед за расходящейся картой и гаснет.
+        this.burnMask.poly(f.dissolve.maskPoints).fill(0xffffff);
         if (this.shadowRect) {
-          if (p > 0.85) this.shadowRect = null;
-          else this.shadowRect.hh *= 1 - p;
+          if (f.dissolve.shadowShrink === null) this.shadowRect = null;
+          else this.shadowRect.hh *= f.dissolve.shadowShrink;
         }
       }
     }
