@@ -26,7 +26,7 @@ interface Story {
 const STORIES: Story[] = [
   { caption: "открытая", opts: { faceUp: true } },
   { caption: "закрытая", opts: { faceUp: false } },
-  { caption: "без переворота", opts: { faceUp: true, flippable: false } },
+  { caption: "скрытая 🖕", opts: { hidden: true, faceUp: false } },
   { caption: "рубашка: изумруд", opts: { faceUp: false, back: "emerald" } },
   { caption: "лицо: символ", opts: { card: "K♥", faceStyle: "symbol" } },
   { caption: "4-цветная", opts: { card: "Q♦", fourColor: true } },

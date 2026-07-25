@@ -1,5 +1,5 @@
 import type { Application, Texture } from "pixi.js";
-import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture, type FaceStyle } from "../engine/cardTextures";
+import { makeCardBackTexture, makeCardFaceTexture, makeHiddenFaceTexture, makeShadowTexture, type FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 
 // Кэш текстур карт по параметрам: одна запечённая текстура на уникальную комбинацию
@@ -8,12 +8,19 @@ export class CardTextureCache {
   private faces = new Map<string, Texture>();
   private backs = new Map<CardBackId, Texture>();
   private shadowTex: Texture | null = null;
+  private hiddenTex: Texture | null = null;
 
   constructor(private readonly app: Application) {}
 
   shadow(): Texture {
     if (!this.shadowTex) this.shadowTex = makeShadowTexture(this.app);
     return this.shadowTex;
+  }
+
+  /** Лицо скрытой карты (🖕 вместо номинала). */
+  hiddenFace(): Texture {
+    if (!this.hiddenTex) this.hiddenTex = makeHiddenFaceTexture(this.app);
+    return this.hiddenTex;
   }
 
   face(card: string, fourColor: boolean, style: FaceStyle): Texture {
@@ -39,8 +46,10 @@ export class CardTextureCache {
     this.faces.forEach((t) => t.destroy(true));
     this.backs.forEach((t) => t.destroy(true));
     this.shadowTex?.destroy(true);
+    this.hiddenTex?.destroy(true);
     this.faces.clear();
     this.backs.clear();
     this.shadowTex = null;
+    this.hiddenTex = null;
   }
 }

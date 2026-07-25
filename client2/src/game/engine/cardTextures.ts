@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor } from "../card";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
-import { COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
+import { COLORS, EMOJI_FONT, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
 
 // Вид лица числовых карт (меню → Графика):
 //  - "symbol": один крупный значок масти по центру (как было);
@@ -95,6 +95,30 @@ export function makeCardFaceTexture(
     center.position.set(TEX_W / 2, TEX_H / 2 + 6);
     root.addChild(center);
   }
+
+  const shade = new Graphics();
+  drawCardShade(shade);
+  root.addChild(shade);
+
+  const tex = app.renderer.generateTexture({ target: root, resolution: 2 });
+  root.destroy({ children: true });
+  return tex;
+}
+
+/**
+ * Лицо СКРЫТОЙ карты: номинала нет — вместо ранга/масти по центру 🖕. Такую карту переворот
+ * не раскрывает по-настоящему; она лишь показывает этот «сюрприз».
+ */
+export function makeHiddenFaceTexture(app: Application): Texture {
+  const root = new Container();
+  const bg = new Graphics();
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  root.addChild(bg);
+
+  const emoji = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: 128 } });
+  emoji.anchor.set(0.5);
+  emoji.position.set(TEX_W / 2, TEX_H / 2 + 4);
+  root.addChild(emoji);
 
   const shade = new Graphics();
   drawCardShade(shade);

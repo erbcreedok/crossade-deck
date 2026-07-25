@@ -30,6 +30,7 @@ export interface CardOptions {
   fourColor?: boolean;
   torn?: boolean;
   size?: number;
+  hidden?: boolean; // скрытая карта: без номинала, «лицо» — 🖕 (обычно лежит рубашкой вверх)
 }
 
 interface FlipAnim {
@@ -57,6 +58,7 @@ export class Card {
   readonly fourColor: boolean;
   readonly torn: boolean;
   readonly size: number;
+  readonly hidden: boolean;
 
   state: CardState = "idle";
   private age = 0;
@@ -78,6 +80,7 @@ export class Card {
     this.fourColor = opts.fourColor ?? false;
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
+    this.hidden = opts.hidden ?? false;
 
     this.shadow = new Sprite(tex.shadow());
     this.shadow.anchor.set(0.5);
@@ -187,7 +190,9 @@ export class Card {
   // ——— отрисовка ———
 
   private faceTex(faceUp: boolean): Texture {
-    return faceUp ? this.tex.face(this.card, this.fourColor, this.faceStyle) : this.tex.back(this.back);
+    if (!faceUp) return this.tex.back(this.back);
+    // Скрытая карта номинала не имеет — «лицо» это 🖕.
+    return this.hidden ? this.tex.hiddenFace() : this.tex.face(this.card, this.fourColor, this.faceStyle);
   }
 
   private paint(): void {
