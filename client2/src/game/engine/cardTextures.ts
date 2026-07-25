@@ -119,17 +119,17 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   // Факи большие и налезают на края/друг на друга — обрезаются маской по форме карты, а
   // fixed frame держит размер текстуры ровно как у карты.
   const fingers = new Container();
-  const cols = 4;
-  const rows = 6;
-  const mx = 26;
-  const my = 26;
+  const cols = 5;
+  const rows = 7;
+  const mx = 20;
+  const my = 20;
   const stepX = (TEX_W - 2 * mx) / (cols - 1);
   const stepY = (TEX_H - 2 * my) / (rows - 1);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const jx = (((c * 5 + r * 3) % 5) - 2) * 4;
-      const jy = (((c * 3 + r * 7) % 5) - 2) * 4;
-      const size = 40 + ((c + r) % 3) * 8;
+      const jx = (((c * 5 + r * 3) % 5) - 2) * 5;
+      const jy = (((c * 3 + r * 7) % 5) - 2) * 5;
+      const size = 54 + ((c + r) % 3) * 12;
       const f = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: size } });
       f.anchor.set(0.5);
       f.position.set(mx + c * stepX + jx, my + r * stepY + jy);
