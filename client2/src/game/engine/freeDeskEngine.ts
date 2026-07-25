@@ -298,14 +298,11 @@ export class FreeDeskEngine {
     this.emitView();
   }
 
-  // Колесо мыши (и пинч тачпада) → ЗУМ; двупальцевый скролл тачпада → ПАН. Отличаем по
-  // признакам события: ctrl (пинч/ctrl+колесо) или «настоящее колесо» (wheelDeltaY кратен 120,
-  // строчный/страничный режим). Всё прочее (плавный пиксельный скролл) — это тачпад → пан.
+  // Зум колесом — ТОЛЬКО с модификатором (кроссплатформенно): Ctrl на Windows/Linux/Mac или
+  // Cmd на Mac. Пинч тачпада браузер шлёт как колесо с ctrlKey — тоже зум. Без модификатора
+  // любое колесо/скролл (мышь и тачпад) — это ПАН. Shift не берём: в браузерах это гориз.скролл.
   private wheelIsZoom(e: WheelEvent): boolean {
-    if (e.ctrlKey) return true;
-    if (e.deltaMode !== 0) return true;
-    const wd = (e as unknown as { wheelDeltaY?: number }).wheelDeltaY;
-    return typeof wd === "number" && wd !== 0 && e.deltaX === 0 && Math.abs(wd) % 120 === 0;
+    return e.ctrlKey || e.metaKey;
   }
 
   private onWheel = (e: WheelEvent): void => {
