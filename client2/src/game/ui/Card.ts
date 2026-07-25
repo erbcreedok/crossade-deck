@@ -2,7 +2,7 @@ import { Container, Graphics, Sprite, type Texture } from "pixi.js";
 import { CardBody } from "../CardBody";
 import { spinAngle, spinScale, spinShowsOther } from "../flip";
 import { easeOutQuad } from "../anim/easing";
-import { DRAG_SCALE, SHADOW_ALPHA, TEX_H, TEX_W } from "../engine/constants";
+import { DRAG_SCALE, TEX_H, TEX_W } from "../engine/constants";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -15,11 +15,22 @@ import type { CardTextureCache } from "./CardTextureCache";
 //   drag     — в руке игрока (наивысшая, тень растёт сильнее всего);
 //   fan      — в вееере (задел на будущее).
 // Смена плана меняет целевой масштаб (пружина CardBody), поэтому размер/тень/позиция едут
-// ПЛАВНО. Тень — отдельный спрайт (движок кладёт его в нужный слой): её смещение и размер
-// растут с «высотой» (lift), свет сверху справа → тень уходит вниз-влево.
+// ПЛАВНО. Тень карта НЕ рисует сама: в sync() она считает СИЛУЭТ тени (shadowRect) — его
+// движок собирает в общую маску уровня и заливает одной непрозрачной заливкой (см.
+// ShadowLayer). Так пересекающиеся тени сливаются в одну и не темнят. Смещение/размер силуэта
+// растут с «высотой» (elev): свет сверху справа → тень уходит вниз-влево, сильнее вниз.
 
 export type CardState = "idle" | "floating" | "held" | "drag" | "fan";
 export type RestState = "idle" | "floating" | "held";
+
+/** Силуэт тени карты (центр, полуразмеры, поворот) — движок сливает их в маску уровня. */
+export interface ShadowShape {
+  x: number;
+  y: number;
+  hw: number;
+  hh: number;
+  rot: number;
+}
 
 export interface CardOptions {
   card?: string;
@@ -47,8 +58,8 @@ const BOB_SPEED = 2.2;
 
 export class Card {
   readonly root = new Container();
-  readonly shadow: Sprite;
   readonly body = new CardBody();
+  shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
 
   readonly card: string;
@@ -88,10 +99,6 @@ export class Card {
     this.joker = opts.joker ?? false;
     this.rest = opts.rest ?? "idle";
     this.state = this.rest; // стартуем в своём плане покоя
-
-    this.shadow = new Sprite(tex.shadow());
-    this.shadow.anchor.set(0.5);
-    this.shadow.alpha = SHADOW_ALPHA;
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
@@ -192,26 +199,24 @@ export class Card {
       this.root.scale.set(render);
     }
 
-    // Тень: смещение растёт с «высотой» (карта выше — тень дальше). А вот РАЗМЕР тени — от
-    // размера ПОКОЯ карты (scaleFactor), а не от увеличенной драгом (render): по перспективе
-    // приподнятая карта кажется крупнее (ближе к глазу), но её тень на доске остаётся почти
-    // исходного размера, лишь чуть подрастая с высотой. Свет сверху справа → тень вниз-влево.
-    // elev — физический подъём над столом: 0 в покое, ~0.45 в драге (+ парение).
-    const elev = this.body.scaleVal - 1 + bobLift;
+    // Силуэт тени. Смещение растёт с «высотой» (карта выше — тень дальше, сильнее вниз). РАЗМЕР
+    // тени — от размера ПОКОЯ карты (scaleFactor), а не от увеличенной драгом (render): по
+    // перспективе приподнятая карта кажется крупнее, но её тень на доске почти исходного
+    // размера, лишь чуть подрастая с высотой. В покое сдвиг маленький (тень прижата).
+    const elev = this.body.scaleVal - 1 + bobLift; // подъём: 0 в покое, ~0.45 в драге (+ парение)
     const chpx = TEX_H * this.scaleFactor;
-    // В ПОКОЕ тень прижата к карте (маленький базовый сдвиг). С ПОДЪЁМОМ уходит дальше —
-    // особенно ВНИЗ (отдача тени), заметно сильнее, чем в стороны. Свет сверху справа.
-    this.shadow.position.set(
-      this.body.px + shakeX - chpx * (0.03 + elev * 0.32),
-      this.body.py + bobY * 0.35 + chpx * (0.04 + elev * 0.85),
-    );
-    this.shadow.rotation = this.body.rotation;
-    this.shadow.scale.set(this.scaleFactor * (1.06 + elev * 0.35));
+    const sc = this.scaleFactor * (1.06 + elev * 0.35);
+    this.shadowRect = {
+      x: this.body.px + shakeX - chpx * (0.03 + elev * 0.32),
+      y: this.body.py + bobY * 0.35 + chpx * (0.04 + elev * 0.85),
+      hw: (TEX_W * sc) / 2,
+      hh: (TEX_H * sc) / 2,
+      rot: this.body.rotation,
+    };
   }
 
   destroy(): void {
     this.root.destroy({ children: true });
-    this.shadow.destroy();
   }
 
   // ——— отрисовка ———

@@ -1,8 +1,11 @@
 import { Application, Container, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { Card, type CardOptions, type CardState } from "../ui/Card";
+import { Card, type CardOptions, type CardState, type ShadowShape } from "../ui/Card";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
+import { ShadowLayer } from "../ui/ShadowLayer";
+
+type Level = "idle" | "floating" | "fan" | "drag";
 import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
 
 // UI-kit «/free-desk» — сторибук на канвасе. Один горизонтальный ряд карт-вариантов с
@@ -74,15 +77,9 @@ export class FreeDeskEngine {
 
   private layers!: {
     surface: Container;
-    idleShadow: Container;
-    idleCards: Container;
-    floatShadow: Container;
-    floatCards: Container;
-    fanShadow: Container;
     verb: Container;
-    fanCards: Container;
-    dragShadow: Container;
-    dragCards: Container;
+    cards: Record<Level, Container>;
+    shadows: Record<Level, ShadowLayer>;
   };
 
   private W = 1;
@@ -160,37 +157,40 @@ export class FreeDeskEngine {
   }
 
   private buildLayers(): void {
-    const make = () => new Container();
     this.layers = {
-      surface: make(),
-      idleShadow: make(),
-      idleCards: make(),
-      floatShadow: make(),
-      floatCards: make(),
-      fanShadow: make(),
-      verb: make(),
-      fanCards: make(),
-      dragShadow: make(),
-      dragCards: make(),
+      surface: new Container(),
+      verb: new Container(),
+      cards: { idle: new Container(), floating: new Container(), fan: new Container(), drag: new Container() },
+      shadows: { idle: new ShadowLayer(), floating: new ShadowLayer(), fan: new ShadowLayer(), drag: new ShadowLayer() },
     };
-    // Порядок добавления = z-порядок (снизу вверх). Удержание живёт в слоях драга (сверху).
-    for (const key of ["surface", "idleShadow", "idleCards", "floatShadow", "floatCards", "fanShadow", "verb", "fanCards", "dragShadow", "dragCards"] as const) {
-      this.content.addChild(this.layers[key]);
-    }
+    const L = this.layers;
+    // z-порядок снизу вверх: под каждым уровнем карт — его СЛИТАЯ тень (маска+заливка).
+    // Удержание живёт в слоях драга (сверху). Веер — задел.
+    this.content.addChild(
+      L.surface,
+      L.shadows.idle.root,
+      L.cards.idle,
+      L.shadows.floating.root,
+      L.cards.floating,
+      L.shadows.fan.root,
+      L.verb,
+      L.cards.fan,
+      L.shadows.drag.root,
+      L.cards.drag,
+    );
   }
 
-  /** Положить карту (root + тень) в слои её текущего плана. */
+  // Удержание — в слоях драга (сверху); остальные — по своему плану.
+  private levelOf(s: CardState): Level {
+    if (s === "held" || s === "drag") return "drag";
+    if (s === "floating") return "floating";
+    if (s === "fan") return "fan";
+    return "idle";
+  }
+
+  /** Положить карту в слой её текущего плана. Тень рисует слитый ShadowLayer (см. render). */
   private placeCard(card: Card): void {
-    const map: Record<CardState, { cards: Container; shadow: Container }> = {
-      idle: { cards: this.layers.idleCards, shadow: this.layers.idleShadow },
-      floating: { cards: this.layers.floatCards, shadow: this.layers.floatShadow },
-      held: { cards: this.layers.dragCards, shadow: this.layers.dragShadow }, // держит движок = слои драга
-      fan: { cards: this.layers.fanCards, shadow: this.layers.fanShadow },
-      drag: { cards: this.layers.dragCards, shadow: this.layers.dragShadow },
-    };
-    const dst = map[card.state];
-    dst.cards.addChild(card.root);
-    dst.shadow.addChild(card.shadow);
+    this.layers.cards[this.levelOf(card.state)].addChild(card.root);
   }
 
   // ——— контент ———
@@ -229,15 +229,37 @@ export class FreeDeskEngine {
 
     this.layers.surface.addChild(this.label("Карты — варианты", pad, pad, 26, 0xcdb98f, undefined, 0));
 
+    // Стопки (новый ряд под картами). Первая — левитирующая: 6 карт внахлёст, верхняя справа.
+    const stacksBottom = this.buildStacks(pad, cardCY + this.cardH / 2 + capH + 16);
+
     // Дропзона: фон+название — на поверхности, глагол — в слое над лежащими картами.
     const zoneW = this.cardW * 3;
-    const zoneRect = { x: pad, y: cardCY + this.cardH / 2 + capH + 24, w: zoneW, h: this.cardH };
+    const zoneRect = { x: pad, y: stacksBottom + 10, w: zoneW, h: this.cardH };
     this.flipZone = new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: zoneRect });
     this.layers.surface.addChild(this.flipZone.base);
     this.layers.verb.addChild(this.flipZone.verb);
 
     const buttonsBottom = this.buildButtons(pad, zoneRect.y + zoneRect.h + 46);
     this.contentH = buttonsBottom + pad;
+  }
+
+  // Стопки. Первая — ЛЕВИТИРУЮЩАЯ: 6 карт стоят внахлёст рядом, каждая сдвинута вправо;
+  // негласное правило — верхняя карта СПРАВА (правее = выше по z). Без веера/арки/перестановок.
+  private buildStacks(left: number, top: number): number {
+    this.layers.surface.addChild(this.label("Стопки", left, top, 26, 0xcdb98f, undefined, 0));
+    const cy = top + 44 + this.cardH / 2;
+    const step = this.cardW * 0.4; // сдвиг соседа вправо (перекрытие)
+    const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦", "J♦"];
+    ranks.forEach((c, i) => {
+      const cx = left + this.cardW / 2 + i * step;
+      const card = new Card({ card: c, rest: "floating" }, this.tex, this.baseScale);
+      card.bobPhase = i * 0.7;
+      card.body.snapTo({ x: cx, y: cy, rot: 0, scale: card.restScale });
+      this.placeCard(card); // слева направо → правая добавлена последней → сверху
+      this.cards.push({ card, home: { x: cx, y: cy } });
+    });
+    this.layers.surface.addChild(this.label("левитирующая стопка (верхняя справа)", left, cy + this.cardH / 2 + 12, 13, 0x9aa89f));
+    return cy + this.cardH / 2 + 44;
   }
 
   // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
@@ -536,6 +558,15 @@ export class FreeDeskEngine {
   private render(): void {
     for (const { card } of this.cards) card.sync();
     for (const b of this.buttons) b.sync();
+
+    // Слитые тени по уровням: силуэты карт уровня → одна маска+заливка (без потемнения наложений).
+    const byLevel: Record<Level, ShadowShape[]> = { idle: [], floating: [], fan: [], drag: [] };
+    for (const { card } of this.cards) {
+      if (card.shadowRect) byLevel[this.levelOf(card.state)].push(card.shadowRect);
+    }
+    for (const lvl of ["idle", "floating", "fan", "drag"] as const) {
+      this.layers.shadows[lvl].update(byLevel[lvl], this.contentW, this.contentH);
+    }
   }
 
   destroy(): void {
