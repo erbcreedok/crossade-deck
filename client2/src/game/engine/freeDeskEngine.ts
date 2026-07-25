@@ -58,9 +58,11 @@ export class FreeDeskEngine {
     if (this.destroyed) return;
     this.W = Math.max(1, Math.round(width));
     this.H = Math.max(1, Math.round(height));
-    this.cardW = Math.min(this.W * 0.22, this.H * 0.18);
-    this.cardH = this.cardW * (TEX_H / TEX_W);
-    this.baseScale = this.cardW / TEX_W;
+    // Эталонный размер карты — ровно как в игре (layout.ts): высота = min(w,h)*0.16 с полом
+    // 48 и потолком 140; ширина по соотношению текстуры. Карта в покое в вееере — этот размер.
+    this.cardH = Math.max(48, Math.min(140, Math.min(this.W, this.H) * 0.16));
+    this.baseScale = this.cardH / TEX_H;
+    this.cardW = TEX_W * this.baseScale;
     this.contentH = Math.max(this.H * 1.6, this.H + 200); // выше экрана — есть куда скроллить
 
     const app = new Application();
