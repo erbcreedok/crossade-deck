@@ -1,0 +1,20 @@
+client2/src/game/engine/cardTextures.ts
+  s_89d5ad20619017::t_49e05a14a8b572 1
+  s_89d5ad20619017::t_7d76a60889e7d2 118-121,124-125,130-132,137,140-144,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4d1b6698c86bfca3deb0526a8fb642bde9838e28",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
