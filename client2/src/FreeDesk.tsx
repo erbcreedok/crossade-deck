@@ -18,6 +18,7 @@ export function FreeDesk() {
     if (!host) return;
     const engine = new FreeDeskEngine();
     engineRef.current = engine;
+    if (import.meta.env.DEV) (window as unknown as { __fd?: FreeDeskEngine }).__fd = engine; // e2e-хук
     engine.setOnView(setView);
     void engine.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => {

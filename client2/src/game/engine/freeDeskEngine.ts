@@ -267,6 +267,26 @@ export class FreeDeskEngine {
     this.spawnCards(restore);
   }
 
+  // Только для e2e: экранные точки зон + состояние первой карты + число карт. Дёшево, безвредно.
+  testHooks(): {
+    zones: Record<string, { x: number; y: number }>;
+    firstCard: { x: number; y: number; faceUp: boolean } | null;
+    cardCount: number;
+  } {
+    const toScreen = (cx: number, cy: number) => ({ x: this.viewport.x + cx * this.viewport.zoom, y: this.viewport.y + cy * this.viewport.zoom });
+    const zones: Record<string, { x: number; y: number }> = {};
+    for (const z of this.zones) {
+      const r = z.zone.rect;
+      zones[z.zone.label] = toScreen(r.x + r.w / 2, r.y + r.h / 2);
+    }
+    const first = this.cards[0]?.card;
+    return {
+      zones,
+      firstCard: first ? { ...toScreen(first.body.px, first.body.py), faceUp: first.faceUp } : null,
+      cardCount: this.cards.length,
+    };
+  }
+
   // ——— публичное API доски (то, чем СЕРВЕР или скрытая логика юзера двигает карты) ———
   // Все движения — та же пружина, что и при драге. Одиночные вызовы или пачкой (см. doStackMove).
 

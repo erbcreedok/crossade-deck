@@ -23,4 +23,9 @@ test.describe("меню", () => {
     const during = await page.screenshot({ clip });
     expect(Buffer.compare(before, during)).not.toBe(0); // что-то анимируется в центре
   });
+
+  test("неприметный тумблер на старый клиент (v1) присутствует", async ({ page }) => {
+    const href = await page.locator(".ver-switch").getAttribute("href");
+    expect(href).toContain("5173"); // локально ведёт на порт соседнего клиента
+  });
 });

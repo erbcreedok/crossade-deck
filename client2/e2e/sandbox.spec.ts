@@ -50,3 +50,73 @@ test.describe("песочница", () => {
     expect(Buffer.compare(before, during)).not.toBe(0);
   });
 });
+
+// Действия через дропзоны (флип/сжечь) — высокий вьюпорт, чтобы зоны были на экране.
+// Координаты берём из тест-хука движка (window.__fd.testHooks), а не пиксельным гаданием.
+test.describe("песочница — действия", () => {
+  test.use({ viewport: { width: 500, height: 1200 } });
+  const hooks = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => (window as unknown as { __fd: { testHooks(): { zones: Record<string, { x: number; y: number }>; firstCard: { x: number; y: number; faceUp: boolean } | null; cardCount: number } } }).__fd.testHooks());
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/free-desk");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(600);
+  });
+
+  // Хук отдаёт координаты ОТНОСИТЕЛЬНО КАНВАСА (как global у Pixi); мышь Playwright бьёт по
+  // странице — прибавляем оффсет канваса (топбар сверху сдвигает его вниз).
+  const dragTo = async (page: import("@playwright/test").Page, from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    await page.mouse.move(box.x + from.x, box.y + from.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + to.x, box.y + to.y, { steps: 12 });
+    await page.mouse.up();
+  };
+
+  test("дроп на ПЕРЕВОРОТ переворачивает карту", async ({ page }) => {
+    const h1 = await hooks(page);
+    expect(h1.firstCard).not.toBeNull();
+    await dragTo(page, h1.firstCard!, h1.zones["ПЕРЕВОРОТ"]!);
+    await page.waitForTimeout(700);
+    const h2 = await hooks(page);
+    expect(h2.firstCard!.faceUp).toBe(!h1.firstCard!.faceUp);
+  });
+
+  test("дроп на СЖЕЧЬ уничтожает карту", async ({ page }) => {
+    const h1 = await hooks(page);
+    await dragTo(page, h1.firstCard!, h1.zones["СЖЕЧЬ"]!);
+    await page.waitForTimeout(1000); // догореть + reap
+    const h2 = await hooks(page);
+    expect(h2.cardCount).toBe(h1.cardCount - 1);
+  });
+});
+
+// Топбар (HTML): рестарты и возврат в меню.
+test.describe("песочница — топбар", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/free-desk");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(600);
+  });
+
+  test("рестарт песочницы — сцена остаётся", async ({ page }) => {
+    await page.locator(".fd-btn", { hasText: "рестарт песочницы" }).click();
+    await page.waitForTimeout(400);
+    expect((await page.screenshot()).length).toBeGreaterThan(20000);
+  });
+
+  test("рестарт канваса — сцена остаётся", async ({ page }) => {
+    await page.locator(".fd-btn", { hasText: "рестарт канваса" }).click();
+    await page.waitForTimeout(700);
+    expect((await page.screenshot()).length).toBeGreaterThan(20000);
+  });
+
+  test("← в меню уводит на главный экран", async ({ page }) => {
+    await page.locator(".fd-btn", { hasText: "в меню" }).click();
+    await page.waitForURL((u) => u.pathname === "/");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(400);
+    await expect(page.locator("canvas")).toBeVisible();
+  });
+});

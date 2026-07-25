@@ -57,6 +57,10 @@ export class DropZone {
     return this.opts.rect;
   }
 
+  get label(): string {
+    return this.opts.name;
+  }
+
   contains(x: number, y: number): boolean {
     const r = this.opts.rect;
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
