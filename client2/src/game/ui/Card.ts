@@ -186,11 +186,11 @@ export class Card {
     // В ПОКОЕ тень прижата к карте (маленький базовый сдвиг). С ПОДЪЁМОМ уходит дальше —
     // особенно ВНИЗ (отдача тени), заметно сильнее, чем в стороны. Свет сверху справа.
     this.shadow.position.set(
-      this.body.px + shakeX - chpx * (0.03 + elev * 0.3),
-      this.body.py + bobY * 0.35 + chpx * (0.04 + elev * 0.55),
+      this.body.px + shakeX - chpx * (0.03 + elev * 0.32),
+      this.body.py + bobY * 0.35 + chpx * (0.04 + elev * 0.85),
     );
     this.shadow.rotation = this.body.rotation;
-    this.shadow.scale.set(this.scaleFactor * (1.06 + elev * 0.14));
+    this.shadow.scale.set(this.scaleFactor * (1.06 + elev * 0.35));
   }
 
   destroy(): void {
