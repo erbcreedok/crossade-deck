@@ -115,10 +115,27 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
-  const emoji = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: 128 } });
-  emoji.anchor.set(0.5);
-  emoji.position.set(TEX_W / 2, TEX_H / 2 + 4);
-  root.addChild(emoji);
+  // Хаотичная мозайка из 🖕: сетка со ДЕТЕРМИНИРОВАННЫМ разбросом позиции, поворота и размера
+  // (одинаково при каждой запечке). Отступы держат эмодзи в пределах карты, чтобы bounds
+  // текстуры оставались ровно размером карты.
+  const cols = 4;
+  const rows = 6;
+  const mx = 30;
+  const my = 30;
+  const stepX = (TEX_W - 2 * mx) / (cols - 1);
+  const stepY = (TEX_H - 2 * my) / (rows - 1);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const jx = (((c * 5 + r * 3) % 5) - 2) * 3;
+      const jy = (((c * 3 + r * 7) % 5) - 2) * 3;
+      const size = 22 + ((c + r) % 3) * 4;
+      const f = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: size } });
+      f.anchor.set(0.5);
+      f.position.set(mx + c * stepX + jx, my + r * stepY + jy);
+      f.rotation = (((c * 7 + r * 13) % 12) / 12) * Math.PI * 2;
+      root.addChild(f);
+    }
+  }
 
   const shade = new Graphics();
   drawCardShade(shade);
