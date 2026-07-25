@@ -43,7 +43,6 @@ interface FlipAnim {
 }
 
 const FLOAT_SCALE = 1.07; // парящая (левитация) чуть крупнее
-const HELD_SCALE = 1.28; // удерживаемая — заметно приподнята, «в руке», но ниже драга (1.45)
 const BOB_SPEED = 2.2;
 
 export class Card {
@@ -114,8 +113,8 @@ export class Card {
   }
 
   private scaleFor(s: CardState): number {
-    if (s === "drag") return DRAG_SCALE;
-    if (s === "held") return HELD_SCALE;
+    // Удержание — это программная симуляция драга: тот же масштаб/тень/слой, держит движок.
+    if (s === "held" || s === "drag") return DRAG_SCALE;
     if (s === "floating") return FLOAT_SCALE;
     return 1;
   }

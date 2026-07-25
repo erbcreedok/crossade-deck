@@ -78,8 +78,6 @@ export class FreeDeskEngine {
     idleCards: Container;
     floatShadow: Container;
     floatCards: Container;
-    heldShadow: Container;
-    heldCards: Container;
     fanShadow: Container;
     verb: Container;
     fanCards: Container;
@@ -169,16 +167,14 @@ export class FreeDeskEngine {
       idleCards: make(),
       floatShadow: make(),
       floatCards: make(),
-      heldShadow: make(),
-      heldCards: make(),
       fanShadow: make(),
       verb: make(),
       fanCards: make(),
       dragShadow: make(),
       dragCards: make(),
     };
-    // Порядок добавления = z-порядок (снизу вверх): удерживаемая — над приподнятой, под драгом.
-    for (const key of ["surface", "idleShadow", "idleCards", "floatShadow", "floatCards", "heldShadow", "heldCards", "fanShadow", "verb", "fanCards", "dragShadow", "dragCards"] as const) {
+    // Порядок добавления = z-порядок (снизу вверх). Удержание живёт в слоях драга (сверху).
+    for (const key of ["surface", "idleShadow", "idleCards", "floatShadow", "floatCards", "fanShadow", "verb", "fanCards", "dragShadow", "dragCards"] as const) {
       this.content.addChild(this.layers[key]);
     }
   }
@@ -188,7 +184,7 @@ export class FreeDeskEngine {
     const map: Record<CardState, { cards: Container; shadow: Container }> = {
       idle: { cards: this.layers.idleCards, shadow: this.layers.idleShadow },
       floating: { cards: this.layers.floatCards, shadow: this.layers.floatShadow },
-      held: { cards: this.layers.heldCards, shadow: this.layers.heldShadow },
+      held: { cards: this.layers.dragCards, shadow: this.layers.dragShadow }, // держит движок = слои драга
       fan: { cards: this.layers.fanCards, shadow: this.layers.fanShadow },
       drag: { cards: this.layers.dragCards, shadow: this.layers.dragShadow },
     };
