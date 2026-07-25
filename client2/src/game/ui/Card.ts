@@ -18,7 +18,8 @@ import type { CardTextureCache } from "./CardTextureCache";
 // ПЛАВНО. Тень — отдельный спрайт (движок кладёт его в нужный слой): её смещение и размер
 // растут с «высотой» (lift), свет сверху справа → тень уходит вниз-влево.
 
-export type CardState = "idle" | "floating" | "drag" | "fan";
+export type CardState = "idle" | "floating" | "held" | "drag" | "fan";
+export type RestState = "idle" | "floating" | "held";
 
 export interface CardOptions {
   card?: string;
@@ -32,6 +33,7 @@ export interface CardOptions {
   size?: number;
   hidden?: boolean; // скрытая карта: без номинала, «лицо» — 🖕 (обычно лежит рубашкой вверх)
   joker?: boolean; // джокер: кастомное рисованное лицо
+  rest?: RestState; // план ПОКОЯ: idle (на столе) / floating (левитация, «в руке») / held (в руке держат)
 }
 
 interface FlipAnim {
@@ -40,7 +42,8 @@ interface FlipAnim {
   fromFaceUp: boolean;
 }
 
-const FLOAT_SCALE = 1.06; // парящая чуть крупнее
+const FLOAT_SCALE = 1.07; // парящая (левитация) чуть крупнее
+const HELD_SCALE = 1.28; // удерживаемая — заметно приподнята, «в руке», но ниже драга (1.45)
 const BOB_SPEED = 2.2;
 
 export class Card {
@@ -62,6 +65,7 @@ export class Card {
   readonly joker: boolean;
 
   state: CardState = "idle";
+  readonly rest: RestState;
   private age = 0;
   private readonly baseSprite = new Sprite();
   private flip: FlipAnim | null = null;
@@ -83,6 +87,8 @@ export class Card {
     this.size = opts.size ?? 1;
     this.hidden = opts.hidden ?? false;
     this.joker = opts.joker ?? false;
+    this.rest = opts.rest ?? "idle";
+    this.state = this.rest; // стартуем в своём плане покоя
 
     this.shadow = new Sprite(tex.shadow());
     this.shadow.anchor.set(0.5);
@@ -107,11 +113,22 @@ export class Card {
     return TEX_H * this.scaleFactor;
   }
 
+  private scaleFor(s: CardState): number {
+    if (s === "drag") return DRAG_SCALE;
+    if (s === "held") return HELD_SCALE;
+    if (s === "floating") return FLOAT_SCALE;
+    return 1;
+  }
+
+  /** Масштаб плана покоя карты — движок им расставляет карты при монтировании. */
+  get restScale(): number {
+    return this.scaleFor(this.rest);
+  }
+
   /** Сменить план: целевой масштаб едет пружиной, поэтому размер/тень/позиция — плавно. */
   setState(s: CardState): void {
     this.state = s;
-    const scale = s === "drag" ? DRAG_SCALE : s === "floating" ? FLOAT_SCALE : 1;
-    this.body.setTarget({ scale });
+    this.body.setTarget({ scale: this.scaleFor(s) });
   }
 
   requestFlip(): boolean {

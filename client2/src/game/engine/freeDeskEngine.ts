@@ -34,6 +34,8 @@ const STORIES: Story[] = [
   { caption: "порванная", opts: { card: "10♦", torn: true } },
   { caption: "меньше ×0.7", opts: { size: 0.7 } },
   { caption: "нельзя тащить", opts: { card: "7♣", draggable: false } },
+  { caption: "удерживаемая", opts: { card: "8♦", rest: "held" } },
+  { caption: "приподнятая (в руке)", opts: { card: "9♠", rest: "floating" } },
   { caption: "джокер", opts: { joker: true } },
 ];
 
@@ -76,6 +78,8 @@ export class FreeDeskEngine {
     idleCards: Container;
     floatShadow: Container;
     floatCards: Container;
+    heldShadow: Container;
+    heldCards: Container;
     fanShadow: Container;
     verb: Container;
     fanCards: Container;
@@ -165,14 +169,16 @@ export class FreeDeskEngine {
       idleCards: make(),
       floatShadow: make(),
       floatCards: make(),
+      heldShadow: make(),
+      heldCards: make(),
       fanShadow: make(),
       verb: make(),
       fanCards: make(),
       dragShadow: make(),
       dragCards: make(),
     };
-    // Порядок добавления = z-порядок (снизу вверх).
-    for (const key of ["surface", "idleShadow", "idleCards", "floatShadow", "floatCards", "fanShadow", "verb", "fanCards", "dragShadow", "dragCards"] as const) {
+    // Порядок добавления = z-порядок (снизу вверх): удерживаемая — над приподнятой, под драгом.
+    for (const key of ["surface", "idleShadow", "idleCards", "floatShadow", "floatCards", "heldShadow", "heldCards", "fanShadow", "verb", "fanCards", "dragShadow", "dragCards"] as const) {
       this.content.addChild(this.layers[key]);
     }
   }
@@ -182,6 +188,7 @@ export class FreeDeskEngine {
     const map: Record<CardState, { cards: Container; shadow: Container }> = {
       idle: { cards: this.layers.idleCards, shadow: this.layers.idleShadow },
       floating: { cards: this.layers.floatCards, shadow: this.layers.floatShadow },
+      held: { cards: this.layers.heldCards, shadow: this.layers.heldShadow },
       fan: { cards: this.layers.fanCards, shadow: this.layers.fanShadow },
       drag: { cards: this.layers.dragCards, shadow: this.layers.dragShadow },
     };
@@ -214,8 +221,8 @@ export class FreeDeskEngine {
       const cx = pad + this.cardW / 2 + i * cellW;
       const card = new Card(s.opts, this.tex, this.baseScale);
       card.bobPhase = i * 0.9;
-      card.body.snapTo({ x: cx, y: cardCY, rot: 0, scale: 1 });
-      this.placeCard(card); // idle → на стол
+      card.body.snapTo({ x: cx, y: cardCY, rot: 0, scale: card.restScale });
+      this.placeCard(card); // в свой план покоя (idle / floating / held)
       this.cards.push({ card, home: { x: cx, y: cardCY } });
       // Подпись — на ПОВЕРХНОСТИ (под картами).
       this.layers.surface.addChild(this.label(s.caption, cx, cardCY + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9));
@@ -503,7 +510,7 @@ export class FreeDeskEngine {
 
   private releaseCard(card: Card): void {
     const placed = this.cards.find((c) => c.card === card)!;
-    card.setState("idle"); // опускается на стол — размер/тень плавно назад
+    card.setState(card.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
     this.placeCard(card);
     card.body.setTarget({ x: placed.home.x, y: placed.home.y, rot: 0 });
   }
