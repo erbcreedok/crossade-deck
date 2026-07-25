@@ -56,10 +56,10 @@ interface FlipAnim {
 const FLOAT_SCALE = 1.07; // парящая (левитация) чуть крупнее
 const BOB_SPEED = 2.2;
 
-/** Линейная интерполяция канала цвета 0..255 и округление — для обугливания при «сжечь». */
-function lerp8(a: number, b: number, t: number): number {
-  return Math.round(a + (b - a) * t);
-}
+// «Сжечь»: сначала карта ЗАМИРАЕТ на долю секунды (дрожь нарастает), затем теряет видимость
+// СНИЗУ ВВЕРХ (маска с волнистым фронтом) при сильной дрожи.
+const BURN_FREEZE = 0.14;
+const BURN_DISSOLVE = 0.5;
 
 export class Card {
   readonly root = new Container();
@@ -85,7 +85,8 @@ export class Card {
   private readonly baseSprite = new Sprite();
   private flip: FlipAnim | null = null;
   private block: { t: number; dur: number } | null = null; // «стоп»-покачивание при блоке драга
-  private dying: { t: number; dur: number } | null = null; // «сжечь»: обугливание → исчезновение
+  private dying: { t: number; dur: number } | null = null; // «сжечь»: замирание → расход снизу вверх
+  private burnMask: Graphics | null = null; // маска фронта горения (создаётся на фазе расхода)
   dead = false; // догорела — движок убирает её из песочницы
 
   constructor(
@@ -155,9 +156,9 @@ export class Card {
     if (!this.block) this.block = { t: 0, dur: 0.4 };
   }
 
-  /** Сжечь: карта обугливается (темнеет), съёживается и гаснет; затем dead → движок её убирает. */
+  /** Сжечь: карта замирает, потом расходится снизу вверх при сильной дрожи; затем dead → убирают. */
   burn(): void {
-    if (!this.dying && !this.dead) this.dying = { t: 0, dur: 0.55 };
+    if (!this.dying && !this.dead) this.dying = { t: 0, dur: BURN_FREEZE + BURN_DISSOLVE };
   }
 
   get burning(): boolean {
@@ -237,19 +238,40 @@ export class Card {
       rot: this.body.rotation,
     };
 
-    // «Сжечь»: обугливание (тон белый → тёмный уголь), лёгкое съёживание и затухание; тень
-    // тоже съёживается и пропадает. Накладывается ПОВЕРХ обычного sync — не ломает переходы.
+    // «Сжечь». Две фазы: ЗАМИРАНИЕ (держим на месте, дрожь нарастает) → РАСХОД снизу вверх
+    // (маска отрезает низ волнистым «фронтом горения») при сильной дрожи. Без общего затухания:
+    // видимость съедает именно маска. Накладывается ПОВЕРХ обычного sync.
     if (this.dying) {
-      const p = Math.min(1, this.dying.t / this.dying.dur);
-      this.root.alpha = 1 - p * p;
-      const shrink = 1 - 0.4 * p;
-      this.root.scale.set(this.root.scale.x * shrink, this.root.scale.y * shrink);
-      this.baseSprite.tint = (lerp8(255, 51, p) << 16) | (lerp8(255, 26, p) << 8) | lerp8(255, 13, p);
-      if (this.shadowRect) {
-        if (p > 0.55) this.shadowRect = null;
-        else {
-          this.shadowRect.hw *= 1 - p * 1.3;
-          this.shadowRect.hh *= 1 - p * 1.3;
+      const t = this.dying.t;
+      const amp = this.width * 0.055; // «сильная дрожь»
+      const jx = Math.sin(this.age * 92) * amp + Math.sin(this.age * 57) * amp * 0.5;
+      const jy = Math.cos(this.age * 78) * amp * 0.7;
+      if (t < BURN_FREEZE) {
+        // Замирание на долю секунды: держим, дрожь плавно нарастает.
+        const q = t / BURN_FREEZE;
+        this.root.position.set(this.body.px + jx * q, this.body.py + jy * q);
+      } else {
+        const p = Math.min(1, (t - BURN_FREEZE) / BURN_DISSOLVE);
+        this.root.position.set(this.body.px + jx, this.body.py + jy);
+        // Видимой остаётся ВЕРХНЯЯ часть; нижняя граница (фронт) едет вверх и волнится.
+        if (!this.burnMask) {
+          this.burnMask = new Graphics();
+          this.root.addChild(this.burnMask);
+          this.root.mask = this.burnMask;
+        }
+        const frontY = -TEX_H / 2 + TEX_H * (1 - p);
+        const pts: number[] = [-TEX_W / 2, -TEX_H / 2, TEX_W / 2, -TEX_H / 2];
+        const seg = 10;
+        for (let k = 0; k <= seg; k++) {
+          const x = TEX_W / 2 - TEX_W * (k / seg);
+          pts.push(x, frontY + Math.sin(x * 0.18 + this.age * 26 + k) * TEX_H * 0.05);
+        }
+        this.burnMask.clear();
+        this.burnMask.poly(pts).fill(0xffffff);
+        // Тень съёживается вслед за расходящейся картой и гаснет.
+        if (this.shadowRect) {
+          if (p > 0.85) this.shadowRect = null;
+          else this.shadowRect.hh *= 1 - p;
         }
       }
     }
