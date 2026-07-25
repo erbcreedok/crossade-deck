@@ -1,0 +1,35 @@
+client2/src/game/ui/Piece.ts
+  s_89d5ad20619017::t_ecd84cfec03621 46
+  s_89d5ad20619017::t_b7583acf99ea6e 18,21
+  s_89d5ad20619017::t_a179488fc92eb6 137,139,141-147,149-151,153,156-161,164-165,168
+  s_89d5ad20619017::t_4853e0d992c688 36
+  s_89d5ad20619017::t_49863ad5fc7e51 110,112-115
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_6aef59027b7986 658-659
+  s_89d5ad20619017::t_f2cd663f3a9889 713
+  s_89d5ad20619017::t_1c6c5d48b4d259 629,631,636-639,644
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_01480b8a6d3c0e 36
+client2/src/game/ui/ShadowLayer.ts
+  s_89d5ad20619017::t_89a515d5f84c55 24-28
+client2/src/game/effects/pieceShadow.test.ts
+  s_89d5ad20619017::t_7554654608b64b 5,7,9-13,16-18,21-26,29-31
+client2/src/game/effects/pieceShadow.ts
+  s_89d5ad20619017::t_50ae78396ea5a2 3-5,9-11,13,18-19,21-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4e94d2c2abcc738b7b3f5d6aa307e7e11a263b0a",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
