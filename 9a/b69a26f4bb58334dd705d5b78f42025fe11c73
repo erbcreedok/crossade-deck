@@ -1,0 +1,30 @@
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_f440622413699e 6
+  s_89d5ad20619017::t_e3aa27e4c05535 90
+  s_89d5ad20619017::t_715866a606cf59 763-766
+  s_89d5ad20619017::t_e1ab1200561334 198,203
+  s_89d5ad20619017::t_bc9959cea86c42 747
+  s_89d5ad20619017::t_5b73369f23ab4b 236,242,249,289,385,393,399-400,429,438,444,469,471,745-746
+client2/src/game/engine/sceneLayers.ts
+  s_89d5ad20619017::t_a7bbdc34637b54 1-79
+client2/REFACTOR.md
+  s_89d5ad20619017::t_da06c74b378719 14-21
+client2/src/game/engine/sceneLayers.test.ts
+  s_89d5ad20619017::t_8458050a19ff50 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9ab69a26f4bb58334dd705d5b78f42025fe11c73",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
