@@ -1,0 +1,27 @@
+client2/src/game/flip.ts
+  s_89d5ad20619017::t_6e16a343fc76af 1-78
+client2/src/main.tsx
+  s_89d5ad20619017::t_41d89bfe132ac0 4,8-10,12
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_3bd1fe45351c3f 1-243
+client2/src/FreeDesk.tsx
+  s_89d5ad20619017::t_74cf6d145d272c 1-17
+client2/src/game/flip.test.ts
+  s_89d5ad20619017::t_6e16a343fc76af 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "08af7759cf0adabd333c582ba15947ec3232222b",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
