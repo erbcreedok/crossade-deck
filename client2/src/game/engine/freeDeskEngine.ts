@@ -119,6 +119,7 @@ export class FreeDeskEngine {
   private pointers = new Map<number, { x: number; y: number }>();
   private gesture: "none" | "card" | "pan" | "pinch" | "button" = "none";
   private cardDrag: { card: Card; dx: number; dy: number } | null = null;
+  private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
   private pressedButton: Button | null = null;
   private hovered: Button | null = null;
   private panLast = { x: 0, y: 0 };
@@ -529,6 +530,7 @@ export class FreeDeskEngine {
       } else if (card) {
         this.gesture = "card";
         this.cardDrag = { card, dx: card.body.px - p.x, dy: card.body.py - p.y };
+        this.dragScreen = { x: e.global.x, y: e.global.y };
         card.setState("drag"); // подъём: масштаб/тень едут плавно
         card.root.zIndex = 1e6; // пока тащим — поверх всех в слое драга
         this.placeCard(card); // и переезд в верхний слой
@@ -579,6 +581,7 @@ export class FreeDeskEngine {
       this.applyView();
       this.emitView();
     } else if (this.gesture === "card" && this.cardDrag) {
+      this.dragScreen = { x: e.global.x, y: e.global.y };
       const p = this.screenToContent(e.global.x, e.global.y);
       this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
       for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y));
@@ -633,6 +636,39 @@ export class FreeDeskEngine {
     this.wake();
   };
 
+  // Авто-скролл у кромки: пока держишь элемент (карту) у края экрана, вид панится в ту сторону —
+  // скорость растёт с глубиной захода в кромку. Карта остаётся ПОД пальцем (пересчёт по экранной
+  // точке при новом виде), так что она «уезжает» на открывшуюся область стола.
+  private edgeScroll(dt: number): void {
+    if (this.gesture !== "card" || !this.cardDrag) return;
+    const margin = Math.max(48, Math.min(this.W, this.H) * 0.12);
+    const SPEED = 780; // экранных px/сек на самой кромке
+    const { x: sx, y: sy } = this.dragScreen;
+    const ramp = (d: number): number => {
+      const r = clamp(d / margin, 0, 1);
+      return r * r; // мягче у границы зоны, резче у самого края
+    };
+    let dx = 0;
+    let dy = 0;
+    if (sx < margin) dx = ramp(margin - sx);
+    else if (sx > this.W - margin) dx = -ramp(sx - (this.W - margin));
+    if (sy < margin) dy = ramp(margin - sy);
+    else if (sy > this.H - margin) dy = -ramp(sy - (this.H - margin));
+    if (dx === 0 && dy === 0) return;
+
+    const bx = this.view.x;
+    const by = this.view.y;
+    this.view.x += dx * SPEED * dt;
+    this.view.y += dy * SPEED * dt;
+    this.clampView();
+    if (this.view.x === bx && this.view.y === by) return; // упёрлись в край — двигать нечего
+    this.applyView();
+    const p = this.screenToContent(sx, sy);
+    this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
+    for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y));
+    this.emitView();
+  }
+
   private releaseCard(card: Card): void {
     const placed = this.cards.find((c) => c.card === card)!;
     card.setState(card.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
@@ -650,6 +686,7 @@ export class FreeDeskEngine {
   private tick = (): void => {
     if (!this.app) return;
     const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
+    this.edgeScroll(dt);
     let moving = this.gesture !== "none";
     for (const { card } of this.cards) {
       card.step(dt);
