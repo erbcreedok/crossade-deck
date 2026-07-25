@@ -2,7 +2,8 @@ import { Container, Graphics, Sprite, type Texture } from "pixi.js";
 import { CardBody } from "../CardBody";
 import { spinAngle, spinScale, spinShowsOther } from "../flip";
 import { easeOutQuad } from "../anim/easing";
-import { DRAG_SCALE, TEX_H, TEX_W } from "../engine/constants";
+import { TEX_H, TEX_W } from "../engine/constants";
+import { scaleForState, shadowSilhouette } from "./plane";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -54,7 +55,6 @@ interface FlipAnim {
   fromFaceUp: boolean;
 }
 
-const FLOAT_SCALE = 1.07; // парящая (левитация) чуть крупнее
 const BOB_SPEED = 2.2;
 
 // «Сжечь»: сначала карта ЗАМИРАЕТ на долю секунды (дрожь нарастает), затем теряет видимость
@@ -130,22 +130,15 @@ export class Card {
     return TEX_H * this.scaleFactor;
   }
 
-  private scaleFor(s: CardState): number {
-    // Удержание — это программная симуляция драга: тот же масштаб/тень/слой, держит движок.
-    if (s === "held" || s === "drag") return DRAG_SCALE;
-    if (s === "floating") return FLOAT_SCALE;
-    return 1;
-  }
-
   /** Масштаб плана покоя карты — движок им расставляет карты при монтировании. */
   get restScale(): number {
-    return this.scaleFor(this.rest);
+    return scaleForState(this.rest);
   }
 
   /** Сменить план: целевой масштаб едет пружиной, поэтому размер/тень/позиция — плавно. */
   setState(s: CardState): void {
     this.state = s;
-    this.body.setTarget({ scale: this.scaleFor(s) });
+    this.body.setTarget({ scale: scaleForState(s) });
   }
 
   requestFlip(): boolean {
@@ -230,16 +223,16 @@ export class Card {
     // тени — от размера ПОКОЯ карты (scaleFactor), а не от увеличенной драгом (render): по
     // перспективе приподнятая карта кажется крупнее, но её тень на доске почти исходного
     // размера, лишь чуть подрастая с высотой. В покое сдвиг маленький (тень прижата).
-    const elev = this.body.scaleVal - 1 + bobLift; // подъём: 0 в покое, ~0.45 в драге (+ парение)
-    const chpx = TEX_H * this.scaleFactor;
-    const sc = this.scaleFactor * (1.06 + elev * 0.35);
-    this.shadowRect = {
-      x: this.body.px + shakeX - chpx * (0.03 + elev * 0.32),
-      y: this.body.py + bobY * 0.35 + chpx * (0.04 + elev * 0.85),
-      hw: (TEX_W * sc) / 2,
-      hh: (TEX_H * sc) / 2,
-      rot: this.body.rotation,
-    };
+    this.shadowRect = shadowSilhouette({
+      px: this.body.px,
+      py: this.body.py,
+      shakeX,
+      bobY,
+      bobLift,
+      rotation: this.body.rotation,
+      scaleVal: this.body.scaleVal,
+      scaleFactor: this.scaleFactor,
+    });
 
     // «Сжечь». Две фазы: ЗАМИРАНИЕ (держим на месте, дрожь нарастает) → РАСХОД снизу вверх
     // (маска отрезает низ волнистым «фронтом горения») при сильной дрожи. Без общего затухания:
