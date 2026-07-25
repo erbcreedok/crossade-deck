@@ -1,0 +1,23 @@
+client2/REFACTOR.md
+  s_89d5ad20619017::t_7ce668c3ee987f 32-41
+  s_89d5ad20619017::t_b5cfde9bab1308 21-31
+  s_89d5ad20619017::t_6c07dd498cc0d9 158-172
+client2/ENGINE-UPGRADE.md
+  s_89d5ad20619017::t_4e4b2a3901001d 1-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "eb34b040f33856f71daf36c029b7b39a04e20031",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
