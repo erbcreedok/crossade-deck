@@ -1,0 +1,38 @@
+client2/e2e/sandbox.spec.ts
+  s_89d5ad20619017::t_6c251fa20b8a8e 52-64
+client2/src/game/engine/inputRouter.ts
+  s_89d5ad20619017::t_40545acdfce376 30,32
+  s_89d5ad20619017::t_aa778ace1d0b88 80
+  s_89d5ad20619017::t_90025f948af527 113
+  s_89d5ad20619017::t_fc97da58aeee18 130
+client2/src/game/engine/viewport.ts
+  s_89d5ad20619017::t_9d92c6bd6b6954 94-129
+client2/src/game/engine/viewport.test.ts
+  s_89d5ad20619017::t_599e8e1cbd783e 74-109
+client2/REFACTOR.md
+  s_89d5ad20619017::t_5d4ca2ac85ea0f 14-22
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_0f42b8bc18385a 747-753
+  s_89d5ad20619017::t_f723c2b2f21592 605-606,608
+  s_89d5ad20619017::t_e679b9470b27b1 113-114
+  s_89d5ad20619017::t_1d3724ac8ed60b 654-658,660-666,672-675
+client2/src/game/engine/inputRouter.test.ts
+  s_89d5ad20619017::t_462000e5e8d83f 25,27
+  s_89d5ad20619017::t_8de3a51640ed85 37,44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a7201b4194968eb6c4a31e7d20f6efcb26c8defb",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
