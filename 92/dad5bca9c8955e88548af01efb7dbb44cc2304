@@ -1,0 +1,29 @@
+client2/e2e/sandbox.spec.ts
+  s_89d5ad20619017::t_5d986c34cc3ce0 139-150
+  s_89d5ad20619017::t_678bc20b90cc24 76-86
+client2/src/game/engine/cardHit.test.ts
+  s_89d5ad20619017::t_69371396525427 1-27
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_fe60ca7d5f6daa 12-13
+  s_89d5ad20619017::t_af11a7fee1f133 286-288
+  s_89d5ad20619017::t_b3b773b33857ff 302-304
+  s_89d5ad20619017::t_87d3ccbc19afdd 676-683
+client2/src/game/engine/cardHit.ts
+  s_89d5ad20619017::t_acc8b9d7a7d550 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "92dad5bca9c8955e88548af01efb7dbb44cc2304",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
