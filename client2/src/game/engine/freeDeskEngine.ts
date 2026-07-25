@@ -54,8 +54,8 @@ export interface ViewState {
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.6;
 // Чувствительность зума колесом: множитель = exp(-deltaY·ZOOM_SENS) по нормализованному в
-// пиксели deltaY. ~0.00115 даёт ~11% на щелчок — почти как прежние 12%, но чуть мягче.
-const ZOOM_SENS = 0.00115;
+// пиксели deltaY. ~0.0015 даёт ~14% на щелчок.
+const ZOOM_SENS = 0.0015;
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
