@@ -1,0 +1,25 @@
+client2/src/game/engine/element.ts
+  s_89d5ad20619017::t_54888fd46f9b83 1-36
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_7f217ebf35d012 8
+  s_89d5ad20619017::t_47761ecb5fd95b 62
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_9bb0457debc26e 7
+  s_89d5ad20619017::t_eee7941627b2ce 202-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e5198dbf1963472a4d28b78c4fb73e4589b02757",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
