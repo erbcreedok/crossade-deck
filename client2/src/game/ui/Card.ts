@@ -207,9 +207,11 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
 
     this.root.position.set(this.body.px + shakeX, this.body.py + bobY);
     this.root.rotation = this.body.rotation;
+    let spinX = 1; // гориз. сжатие при перевороте — им же сужаем тень
     if (this.flip) {
       const angle = spinAngle(easeOutQuad(Math.min(1, this.flip.t / this.flip.dur)), 1);
-      this.root.scale.set(render * spinScale(angle), render);
+      spinX = spinScale(angle);
+      this.root.scale.set(render * spinX, render);
       const showOther = spinShowsOther(angle);
       this.baseSprite.texture = this.faceTex(showOther ? !this.flip.fromFaceUp : this.flip.fromFaceUp);
     } else {
@@ -229,6 +231,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
       rotation: this.body.rotation,
       scaleVal: this.body.scaleVal,
       scaleFactor: this.scaleFactor,
+      spinX,
     });
 
     // «Сжечь». Две фазы: ЗАМИРАНИЕ (держим на месте, дрожь нарастает) → РАСХОД снизу вверх

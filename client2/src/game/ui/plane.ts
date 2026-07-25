@@ -21,6 +21,7 @@ export interface ShadowInput {
   rotation: number;
   scaleVal: number; // текущий множитель масштаба тела (1 в покое, >1 в подъёме)
   scaleFactor: number; // базовый масштаб карты (px-текстура → экран)
+  spinX?: number; // гориз. сжатие при перевороте (spinScale: 1→0→1); тень сужается в такт
 }
 
 // Силуэт тени. Смещение растёт с «высотой» (elev): свет сверху справа → тень уходит вниз-влево,
@@ -33,7 +34,7 @@ export function shadowSilhouette(i: ShadowInput): ShadowShape {
   return {
     x: i.px + i.shakeX - chpx * (0.03 + elev * 0.32),
     y: i.py + i.bobY * 0.35 + chpx * (0.04 + elev * 0.85),
-    hw: (TEX_W * sc) / 2,
+    hw: ((TEX_W * sc) / 2) * (i.spinX ?? 1), // при перевороте тень сужается вместе с картой
     hh: (TEX_H * sc) / 2,
     rot: i.rotation,
   };

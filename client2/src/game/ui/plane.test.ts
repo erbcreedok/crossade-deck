@@ -45,4 +45,13 @@ describe("plane.shadowSilhouette", () => {
     expect(s.x).toBeCloseTo(shadowSilhouette(rest).x + 7, 6);
     expect(s.rot).toBe(0.2);
   });
+
+  it("spinX сужает тень по ширине при перевороте (в такт карте)", () => {
+    const full = shadowSilhouette(rest);
+    const half = shadowSilhouette({ ...rest, spinX: 0.5 });
+    const edge = shadowSilhouette({ ...rest, spinX: 0 });
+    expect(half.hw).toBeCloseTo(full.hw * 0.5, 6);
+    expect(edge.hw).toBe(0); // на ребре (90°) тень схлопывается
+    expect(half.hh).toBe(full.hh); // высота не меняется
+  });
 });
