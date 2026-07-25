@@ -25,11 +25,6 @@ export function FreeDesk() {
     <div className="table-screen freedesk">
       <div ref={hostRef} className="table-host" />
 
-      {/* Мягкое затухание левого и правого краёв в цвет фона — обрез ленты при скролле не
-          выглядит резким (карты у края плавно уходят в фон, а не рубятся пополам). */}
-      <div className="fd-fade fd-fade-left" />
-      <div className="fd-fade fd-fade-right" />
-
       {/* Полосы — только на устройствах с ховером (комп); на тач-экране их скрывает CSS. */}
       {view && (
         <div className="fd-controls">

@@ -24,6 +24,7 @@ export interface CardOptions {
   card?: string;
   faceUp?: boolean;
   flippable?: boolean;
+  draggable?: boolean; // можно ли тащить; false — драг блокируется «стоп»-анимацией
   back?: CardBackId;
   faceStyle?: FaceStyle;
   fourColor?: boolean;
@@ -50,6 +51,7 @@ export class Card {
   readonly card: string;
   faceUp: boolean;
   readonly flippable: boolean;
+  readonly draggable: boolean;
   readonly back: CardBackId;
   readonly faceStyle: FaceStyle;
   readonly fourColor: boolean;
@@ -60,6 +62,7 @@ export class Card {
   private age = 0;
   private readonly baseSprite = new Sprite();
   private flip: FlipAnim | null = null;
+  private block: { t: number; dur: number } | null = null; // «стоп»-покачивание при блоке драга
 
   constructor(
     opts: CardOptions,
@@ -69,6 +72,7 @@ export class Card {
     this.card = opts.card ?? "A♠";
     this.faceUp = opts.faceUp ?? true;
     this.flippable = opts.flippable ?? true;
+    this.draggable = opts.draggable ?? true;
     this.back = opts.back ?? "ruby";
     this.faceStyle = opts.faceStyle ?? "pips";
     this.fourColor = opts.fourColor ?? false;
@@ -111,6 +115,11 @@ export class Card {
     return true;
   }
 
+  /** Лёгкая «стоп»-анимация: короткое затухающее покачивание — «эту карту тащить нельзя». */
+  blockNudge(): void {
+    if (!this.block) this.block = { t: 0, dur: 0.4 };
+  }
+
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
@@ -122,11 +131,15 @@ export class Card {
         this.paint();
       }
     }
+    if (this.block) {
+      this.block.t += dt;
+      if (this.block.t >= this.block.dur) this.block = null;
+    }
   }
 
   /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. */
   get resting(): boolean {
-    return this.body.isResting() && !this.flip && this.state !== "floating";
+    return this.body.isResting() && !this.flip && !this.block && this.state !== "floating";
   }
 
   sync(): void {
@@ -140,7 +153,14 @@ export class Card {
       bobLift = (b * 0.5 + 0.5) * 0.12;
     }
 
-    this.root.position.set(this.body.px, this.body.py + bobY);
+    // «Стоп»-покачивание при заблокированном драге: затухающее мелкое смещение вбок.
+    let shakeX = 0;
+    if (this.block) {
+      const p = this.block.t / this.block.dur;
+      shakeX = Math.sin(this.block.t * 42) * this.width * 0.05 * (1 - p);
+    }
+
+    this.root.position.set(this.body.px + shakeX, this.body.py + bobY);
     this.root.rotation = this.body.rotation;
     if (this.flip) {
       const angle = spinAngle(easeOutQuad(Math.min(1, this.flip.t / this.flip.dur)), 1);
@@ -154,7 +174,7 @@ export class Card {
     // Тень: смещение и размер растут с «высотой». Свет сверху справа → тень вниз-влево.
     const lift = this.body.scaleVal - 1 + IDLE_LIFT + bobLift;
     const chpx = TEX_H * this.scaleFactor;
-    this.shadow.position.set(this.body.px - lift * chpx * 0.14, this.body.py + bobY * 0.35 + lift * chpx * 0.2);
+    this.shadow.position.set(this.body.px + shakeX - lift * chpx * 0.14, this.body.py + bobY * 0.35 + lift * chpx * 0.2);
     this.shadow.rotation = this.body.rotation;
     this.shadow.scale.set(render * (1 + lift * 0.18));
   }

@@ -32,6 +32,7 @@ const STORIES: Story[] = [
   { caption: "4-цветная", opts: { card: "Q♦", fourColor: true } },
   { caption: "порванная", opts: { card: "10♦", torn: true } },
   { caption: "меньше ×0.7", opts: { size: 0.7 } },
+  { caption: "нельзя тащить", opts: { card: "7♣", draggable: false } },
 ];
 
 interface Placed {
@@ -313,7 +314,12 @@ export class FreeDeskEngine {
     } else if (this.pointers.size === 1) {
       const p = this.screenToContent(e.global.x, e.global.y);
       const card = this.hitCard(p.x, p.y);
-      if (card) {
+      if (card && !card.draggable) {
+        // Заблокированную карту не тащим и стол не панимаем — только лёгкий «стоп»-кивок,
+        // чтобы игрок понял: это механика блока, а не залипший драг.
+        card.blockNudge();
+        this.gesture = "none";
+      } else if (card) {
         this.gesture = "card";
         this.cardDrag = { card, dx: card.body.px - p.x, dy: card.body.py - p.y };
         card.setState("drag"); // подъём: масштаб/тень едут плавно

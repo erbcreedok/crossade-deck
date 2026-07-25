@@ -43,25 +43,6 @@ body {
   display: block;
 }
 
-/* Затухание краёв ленты /free-desk в цвет фона (#2f3d34) — карты у левого/правого края
-   плавно уходят в фон при скролле, а не обрезаются резко по границе канваса. */
-.fd-fade {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 44px;
-  pointer-events: none;
-  z-index: 2;
-}
-.fd-fade-left {
-  left: 0;
-  background: linear-gradient(to right, #2f3d34, rgba(47, 61, 52, 0));
-}
-.fd-fade-right {
-  right: 0;
-  background: linear-gradient(to left, #2f3d34, rgba(47, 61, 52, 0));
-}
-
 /* Полосы прокрутки/зума UI-kit — только на компе (устройствах с ховером), поверх канваса,
    проявляются при наведении на область. На тач-экране скрыты — там пан/пинч жестами. */
 .fd-controls {
