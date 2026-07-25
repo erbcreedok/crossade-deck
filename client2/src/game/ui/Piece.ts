@@ -15,9 +15,10 @@ import type { CardState, RestState, ShadowShape } from "./Card";
 
 export interface PieceOptions {
   id: string;
-  w: number; // футпринт покоя (для хит-теста и тени)
+  w: number; // футпринт ПОКОЯ для хит-теста (полуразмеры × scaleVal)
   h: number;
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
+  shadow: { rx: number; ry: number; dy: number }; // эллипс тени у основания: полуоси + сдвиг вниз
   rest?: RestState;
 }
 
@@ -32,6 +33,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   state: CardState;
   private readonly w: number;
   private readonly h: number;
+  private readonly shadowCfg: { rx: number; ry: number; dy: number };
   private age = 0;
   private block: { t: number; dur: number } | null = null;
   private dying: { t: number; dur: number } | null = null;
@@ -41,6 +43,7 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.id = opts.id;
     this.w = opts.w;
     this.h = opts.h;
+    this.shadowCfg = opts.shadow;
     this.rest = opts.rest ?? "idle";
     this.state = this.rest;
     opts.build(this.root);
@@ -104,12 +107,13 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.root.scale.set(render);
 
     this.shadowRect = pieceSilhouette({
-      px: this.body.px + shakeX,
+      px: this.body.px,
       py: this.body.py,
-      halfW: this.w / 2,
-      halfH: this.h / 2,
+      shakeX,
+      rx: this.shadowCfg.rx,
+      ry: this.shadowCfg.ry,
+      baseDy: this.shadowCfg.dy,
       elev: this.body.scaleVal - 1,
-      rotation: this.body.rotation,
     });
 
     // «Сжечь»: без карточной маски — фишка дрожит, тускнеет и сжимается; затем dead → убирают.
@@ -130,40 +134,38 @@ export class Piece implements TableElement, Draggable, Burnable {
 
 // ——— визуалы (рисуют в ЛОКАЛЬНЫХ координатах, центр 0,0) ———
 
-/** Покерная фишка: диск номинального цвета, светлые насечки по ободу, ядро, номинал. */
+/** Покерная фишка: диск номинала, кремовые edge-споты по ободу, кремовое кольцо, светлое ядро, номинал. */
 export function drawChip(root: Container, radius: number, color: number, label: string): void {
+  const cream = 0xf2ecda;
   const g = new Graphics();
-  g.circle(0, 0, radius).fill({ color }).stroke({ width: radius * 0.06, color: darken(color, 0.5) });
-  const notches = 8;
-  for (let k = 0; k < notches; k++) {
-    const a = (k / notches) * Math.PI * 2;
-    const c = Math.cos(a);
-    const s = Math.sin(a);
-    g.moveTo(c * radius * 0.78, s * radius * 0.78)
-      .lineTo(c * radius, s * radius)
-      .stroke({ width: radius * 0.22, color: 0xf4ecd8, cap: "round" });
+  // тело + тонкий тёмный кант (чтобы читалось на любом фоне)
+  g.circle(0, 0, radius).fill({ color }).stroke({ width: radius * 0.05, color: darken(color, 0.5) });
+  // edge-споты: 6 кремовых блоков по ободу (радиально-тангенциальные дуги)
+  const n = 6;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2 - Math.PI / 2;
+    g.arc(0, 0, radius * 0.84, a - 0.24, a + 0.24).stroke({ width: radius * 0.34, color: cream, cap: "butt" });
   }
-  g.circle(0, 0, radius * 0.62).fill({ color: lighten(color, 0.18) }).stroke({ width: radius * 0.04, color: darken(color, 0.35) });
+  // кремовое кольцо + светлое ядро (перекрывает внутренние концы спотов — остаются только на ободе)
+  g.circle(0, 0, radius * 0.6).stroke({ width: radius * 0.09, color: cream });
+  g.circle(0, 0, radius * 0.56).fill({ color: lighten(color, 0.12) });
   root.addChild(g);
-  root.addChild(glyph(label, radius * 0.85, textInk(color), radius * 0.09));
+  if (label) root.addChild(glyph(label, radius * 0.8, textInk(lighten(color, 0.12)), radius * 0.05, darken(color, 0.6)));
 }
 
-/** Шахматная фигура: диск-подставка команды и глиф. Белая — светлая с тёмным контуром, чёрная — наоборот. */
-export function drawChessPiece(root: Container, radius: number, dark: boolean, sym: string): void {
-  const base = dark ? 0x2a2622 : 0xece4d2;
-  const ink = dark ? 0xf4ecd8 : 0x201b16;
-  const g = new Graphics();
-  g.ellipse(0, radius * 0.72, radius * 0.9, radius * 0.34).fill({ color: darken(base, 0.4), alpha: 0.6 }); // «стойка»
-  g.circle(0, 0, radius).fill({ color: base }).stroke({ width: radius * 0.08, color: darken(ink, 0.1), alpha: 0.5 });
-  root.addChild(g);
-  root.addChild(glyph(sym, radius * 1.7, ink, radius * 0.05));
+/** Шахматная фигура — СПЛОШНОЙ силуэт (без диска-подложки): глиф чёрного набора, крашенный в
+ *  команду, с контрастным контуром. Белая — кремовая с тёмным кантом, чёрная — тёмная со светлым. */
+export function drawChessPiece(root: Container, size: number, dark: boolean, sym: string): void {
+  const fill = dark ? 0x2a2521 : 0xf1e8d4;
+  const ink = dark ? 0xc9b892 : 0x241c14;
+  root.addChild(glyph(sym, size * 1.15, fill, size * 0.045, ink));
 }
 
-// Текст-глиф по центру (0,0).
-function glyph(text: string, size: number, color: number, strokeW: number): Container {
+// Текст-глиф по центру (0,0), с настраиваемым контуром.
+function glyph(text: string, size: number, color: number, strokeW: number, strokeColor = 0x000000): Container {
   const t = new Text({
     text,
-    style: { fontFamily: "'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols2',serif", fontSize: size, fill: color, stroke: { color: 0x000000, width: strokeW }, align: "center" },
+    style: { fontFamily: "'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols2','DejaVu Sans',serif", fontSize: size, fill: color, stroke: { color: strokeColor, width: strokeW }, align: "center" },
   });
   t.anchor.set(0.5);
   return t;

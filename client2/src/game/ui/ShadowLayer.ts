@@ -21,6 +21,11 @@ export class ShadowLayer {
   update(shapes: readonly ShadowShape[], w: number, h: number): void {
     this.mask.clear();
     for (const s of shapes) {
+      if (s.round) {
+        // Эллипс — для круглых фишек и овальных подставок фигур (не карточный прямоугольник).
+        this.mask.ellipse(s.x, s.y, s.hw, s.hh).fill({ color: 0xffffff });
+        continue;
+      }
       // Восьмиугольник (прямоугольник со срезанными углами) — точные скругления маске не нужны.
       const c = Math.min(s.hw, s.hh) * 0.22;
       const cos = Math.cos(s.rot);

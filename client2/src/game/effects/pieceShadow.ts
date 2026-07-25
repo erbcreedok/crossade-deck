@@ -1,27 +1,28 @@
 import type { ShadowShape } from "../ui/Card";
 
-// Силуэт тени ПРОИЗВОЛЬНОГО элемента (фишка, фигура) — обобщение shadowSilhouette карты на любой
-// футпринт (полуразмеры покоя), без привязки к размеру карточной текстуры. Правило то же: свет
-// сверху справа → тень уходит вниз-влево; РАЗМЕР тени от размера ПОКОЯ (halfW/halfH), а высота
-// (elev) лишь отодвигает и чуть растит её. Чистая функция — тестируется без Pixi.
+// Тень-ЭЛЛИПС у ОСНОВАНИЯ элемента (фишка лежит — тень под ней; фигура стоит — овал под ножкой),
+// а не карточный прямоугольник. Правило высоты то же: подъём (elev) отодвигает тень вниз-влево и
+// чуть растит; РАЗМЕР от полуосей ПОКОЯ (rx/ry). Чистая функция — тестируется без Pixi.
 export interface PieceShadowInput {
   px: number;
   py: number;
-  halfW: number; // полуширина ПОКОЯ (без раздувания драгом)
-  halfH: number; // полувысота покоя
+  rx: number; // полуось эллипса тени по X в покое
+  ry: number; // полуось по Y (у стоящей фигуры сильно меньше rx — плоский овал)
+  baseDy: number; // насколько ниже центра лежит тень (у основания фигуры)
   elev: number; // «высота над столом»: scaleVal-1 (+добавки); 0 в покое
-  rotation: number;
+  shakeX?: number;
 }
 
 export function pieceSilhouette(i: PieceShadowInput): ShadowShape {
   const elev = Math.max(0, i.elev);
-  const drop = i.halfH * 2; // характерный размер — высота элемента
-  const grow = 1.04 + elev * 0.35;
+  const grow = 1 + elev * 0.28;
+  const reach = i.ry * 2; // характерный масштаб смещения
   return {
-    x: i.px - drop * (0.03 + elev * 0.32),
-    y: i.py + drop * (0.04 + elev * 0.85),
-    hw: i.halfW * grow,
-    hh: i.halfH * grow,
-    rot: i.rotation,
+    x: i.px + (i.shakeX ?? 0) - reach * elev * 0.25, // свет справа → тень левее с подъёмом
+    y: i.py + i.baseDy + reach * elev * 0.9, // и ниже
+    hw: i.rx * grow,
+    hh: i.ry * grow,
+    rot: 0,
+    round: true,
   };
 }

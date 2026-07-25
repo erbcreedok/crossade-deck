@@ -33,6 +33,7 @@ export interface ShadowShape {
   hw: number;
   hh: number;
   rot: number;
+  round?: boolean; // тень-ЭЛЛИПС (круглая фишка, овальная подставка фигуры), а не карточный прямоугольник
 }
 
 export interface CardOptions {

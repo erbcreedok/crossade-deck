@@ -626,19 +626,22 @@ export class FreeDeskEngine {
       { v: "100", c: 0x24242a },
       { v: "500", c: 0x6c4bb0 },
     ];
+    const chipShadow = { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 }; // фишка лежит — тень почти круглая под ней
     for (const ch of chips) {
-      this.spawnPiece(`chip-${ch.v}`, { x, y: cy }, r * 2, r * 2, (root) => drawChip(root, r, ch.c, ch.v));
+      this.spawnPiece(`chip-${ch.v}`, { x, y: cy }, r * 2, r * 2, (root) => drawChip(root, r, ch.c, ch.v), chipShadow);
       cap(`фишка ${ch.v}`, slotW * 0.78);
       x += slotW * 0.78;
     }
 
-    // 3) ШАХМАТЫ: чёрный конь (тоже с меткой — метка не про карты) и белая пешка.
-    this.spawnPiece("chess-knight", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r, true, "♞"));
+    // 3) ШАХМАТЫ: сплошные силуэты (чёрный набор глифов), тень — плоский овал у ножки. Конь тоже
+    // с меткой — метка не про карты. Пешка тоже глиф чёрного набора, крашенный в «белую» команду.
+    const pieceShadow = { rx: r * 0.58, ry: r * 0.18, dy: r * 0.72 }; // стоящая фигура — узкий овал у основания
+    this.spawnPiece("chess-knight", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, true, "♞"), pieceShadow);
     this.attachSolo("chess-knight", { x, y: cy }, drawRingIcon, showEmpty, "конь"); // якорь «когда пусто» (сожжёшь → покажется)
     cap("чёрный конь", slotW * 0.9);
     x += slotW * 0.9;
 
-    this.spawnPiece("chess-pawn", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r, false, "♙"));
+    this.spawnPiece("chess-pawn", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, false, "♟"), pieceShadow);
     cap("белая пешка", slotW * 0.9);
     x += slotW * 0.9;
 
@@ -652,8 +655,8 @@ export class FreeDeskEngine {
   }
 
   // Живой не-карточный элемент: расставляем как карту (snapTo → слой → реестр byId → список pieces).
-  private spawnPiece(id: string, home: { x: number; y: number }, w: number, h: number, build: (root: Container) => void): void {
-    const piece = new Piece({ id, w, h, build });
+  private spawnPiece(id: string, home: { x: number; y: number }, w: number, h: number, build: (root: Container) => void, shadow: { rx: number; ry: number; dy: number }): void {
+    const piece = new Piece({ id, w, h, build, shadow });
     piece.root.zIndex = 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
     this.placeCard(piece);
@@ -707,7 +710,7 @@ export class FreeDeskEngine {
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
       const id = `pile-${i}`;
-      this.spawnPiece(id, { x, y: cy - i * r * 0.28 }, r * 2, r * 2, (root) => drawChip(root, r, 0xc79a3e, "")); // одинаковые, друг на друге
+      this.spawnPiece(id, { x, y: cy - i * r * 0.28 }, r * 2, r * 2, (root) => drawChip(root, r, 0xc79a3e, ""), { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 }); // одинаковые, друг на друге
       ids.push(id);
     }
     const slot = { x, y: cy - ((n - 1) / 2) * r * 0.28 }; // центр столбика
