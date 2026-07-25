@@ -2,6 +2,8 @@ import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
+import { BoardZone } from "../board/boardZone";
+import type { Board } from "../board/board";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
@@ -172,6 +174,7 @@ export class FreeDeskEngine {
   private stacks: SandboxStack[] = [];
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
   private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
+  private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
   private grabbedMarker: Marker | null = null; // за какую метку сейчас тянут (для follow/endFollow)
@@ -333,8 +336,11 @@ export class FreeDeskEngine {
     // Ряд «Фишки и фигуры» — НЕ карты (Piece), но тот же драг/тени/метки. Доказательство generic.
     const piecesBottom = this.buildPieces(pad, stacksBottom + 6);
 
+    // Игровая зона (борд): фигуры в слотах, драг между слотами, заперты в рамке.
+    const boardBottom = this.buildBoardZone(pad, piecesBottom + 6);
+
     // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
-    const dzTitleY = piecesBottom + 6;
+    const dzTitleY = boardBottom + 6;
     this.scene.surface.addChild(this.label("Дропзоны", pad, dzTitleY, 26, 0xcdb98f, undefined, 0));
     const zoneY = dzTitleY + 44;
     const zoneW = this.cardW * 2.4;
@@ -364,6 +370,8 @@ export class FreeDeskEngine {
     pieceCount: number;
     soloVis: { label: string; dragger: boolean; anchor: boolean; x: number; y: number }[];
     pileGrip: { x: number; y: number } | null;
+    boardFigures: { id: string; key: string; x: number; y: number }[];
+    boardSlots: { key: string; x: number; y: number }[];
     cardW: number;
     draggingId: string | null;
   } {
@@ -390,9 +398,25 @@ export class FreeDeskEngine {
         anchor: s.anchor.cfg.showWhen(s.host.state()),
         ...toScreen(s.dragger.gfx.position.x, s.dragger.gfx.position.y),
       })),
+      boardFigures: this.boardFiguresHook(toScreen),
+      boardSlots: this.boardZones[0]?.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })) ?? [],
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
+  }
+
+  // Экранные позиции фигур первой зоны + их ЛОГИЧЕСКИЙ слот (для e2e: проверить переезд).
+  private boardFiguresHook(toScreen: (x: number, y: number) => { x: number; y: number }): { id: string; key: string; x: number; y: number }[] {
+    const z = this.boardZones[0];
+    if (!z) return [];
+    const out: { id: string; key: string; x: number; y: number }[] = [];
+    for (const key of Object.keys(z.board.slots)) {
+      for (const id of z.board.slots[key]!.members) {
+        const el = this.byId.get(id);
+        if (el) out.push({ id, key, ...toScreen(el.body.px, el.body.py) });
+      }
+    }
+    return out;
   }
 
   // ——— публичное API доски (то, чем СЕРВЕР или скрытая логика юзера двигает карты) ———
@@ -772,6 +796,65 @@ export class FreeDeskEngine {
     setMark(initial);
   }
 
+  // Игровая зона (борд): сетка слотов, фигуры-карты в них, драг между слотами через BoardZone
+  // (логика в board/boardZone.ts). Фигуры заперты в рамке. Демо-полигон для будущего BoardFactory.
+  private buildBoardZone(left: number, top: number): number {
+    this.scene.surface.addChild(this.label("Игровая зона (борд)", left, top, 26, 0xcdb98f, undefined, 0));
+    const cols = 3;
+    const rows = 2;
+    const cell = { w: this.cardW * 1.3, h: this.cardH * 1.15 };
+    const gap = 10;
+    const gy = top + 44;
+    const spec = { cols, cell, gap, origin: { x: left, y: gy } };
+    const w = cols * cell.w + (cols - 1) * gap;
+    const h = rows * cell.h + (rows - 1) * gap;
+    const bounds = { x: left, y: gy, w, h };
+    // Начальная раскладка: карты в слотах, один слот со стопкой из 2 (peek).
+    const board: Board = {
+      slots: {
+        "0,0": { members: ["bz-a"] },
+        "0,2": { members: ["bz-b", "bz-c"] },
+        "1,1": { members: ["bz-d"] },
+      },
+      onEmpty: "keep",
+    };
+    const zone = new BoardZone({ spec, rows, board, bounds });
+    this.boardZones.push(zone);
+
+    // Рамка контейнера + сетка слотов (на поверхности, под картами).
+    const frame = new Graphics();
+    frame.roundRect(bounds.x - 6, bounds.y - 6, bounds.w + 12, bounds.h + 12, 12).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
+    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 8).stroke({ width: 1, color: 0x5d6b64 });
+    this.scene.surface.addChild(frame);
+
+    // Фигуры-карты в слотах (home = позиция покоя из зоны). depth растёт — верх стопки поверх.
+    const faces: Record<string, string> = { "bz-a": "A♠", "bz-b": "K♥", "bz-c": "Q♦", "bz-d": "10♣" };
+    let depth = 300;
+    for (const key of Object.keys(board.slots)) {
+      for (const id of board.slots[key]!.members) {
+        this.cardSpecs.push({ opts: { id, card: faces[id] ?? "A♠", rest: "idle", size: 0.9 }, home: zone.figureHome(id), depth: depth++, bobPhase: 0 });
+      }
+    }
+    this.scene.surface.addChild(this.label("тащи карты между слотами; из рамки не выйти", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
+    return bounds.y + bounds.h + 34;
+  }
+
+  // Зона, которой принадлежит фигура (или null).
+  private boardZoneOf(id: string): BoardZone | null {
+    for (const z of this.boardZones) if (z.locate(id)) return z;
+    return null;
+  }
+
+  // Пересчитать home всех фигур зоны (после переезда стек-смещения меняются).
+  private refreshZoneHomes(zone: BoardZone): void {
+    for (const key of Object.keys(zone.board.slots)) {
+      for (const id of zone.board.slots[key]!.members) {
+        const placed = this.cards.find((p) => p.card.id === id);
+        if (placed) placed.home = zone.figureHome(id);
+      }
+    }
+  }
+
   // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
   private buildButtons(left: number, startY: number): number {
     this.scene.surface.addChild(this.label("Кнопки", left, startY, 26, 0xcdb98f, undefined, 0));
@@ -978,15 +1061,26 @@ export class FreeDeskEngine {
       },
       onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
-        this.drag?.move(cp);
-        this.grabbedMarker?.followTo(cp);
-        for (const z of this.zones) z.zone.setHot(z.zone.contains(cp.x, cp.y)); // подсветка зоны под грузом
+        // Фигура борда заперта в рамке зоны — клампим точку драга по полурзмеру карты.
+        const bz = this.drag ? this.boardZoneOf(this.drag.lead.id) : null;
+        const p = bz ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
+        this.drag?.move(p);
+        this.grabbedMarker?.followTo(p);
+        for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
       },
       onCardDrop: (_card, cp) => {
-        const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
         if (this.drag) {
-          zone?.onDrop(this.drag); // зона реагирует на СПОСОБНОСТИ груза (flip/burn), не на тип
-          if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
+          const bz = this.boardZoneOf(this.drag.lead.id);
+          if (bz) {
+            // Борд: резолвим целевой слот и переносим (или возврат, если слот не принял).
+            bz.dropAt(this.drag.lead.id, cp.x, cp.y);
+            this.refreshZoneHomes(bz);
+            this.drag.release(); // летит в (возможно новый) home
+          } else {
+            const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
+            zone?.onDrop(this.drag); // зона реагирует на СПОСОБНОСТИ груза (flip/burn), не на тип
+            if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
+          }
           this.drag = null;
         }
         this.grabbedMarker?.endFollow();
@@ -1187,6 +1281,7 @@ export class FreeDeskEngine {
     this.stacks = [];
     this.solos = [];
     this.chipPile = null;
+    this.boardZones = [];
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
@@ -1241,6 +1336,7 @@ export class FreeDeskEngine {
     this.stacks = [];
     this.solos = [];
     this.chipPile = null;
+    this.boardZones = [];
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
