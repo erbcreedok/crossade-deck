@@ -171,9 +171,9 @@ export class FreeDeskEngine {
     // Заголовок всего ряда — над рядом, слева.
     this.content.addChild(this.label("Карты — варианты", pad, pad, 26, 0xcdb98f, undefined, 0));
 
-    // Дропзона под рядом, по центру контента.
+    // Дропзона под рядом, ПРИЖАТА ВЛЕВО (как начало ряда) — не по центру широкого контента.
     const zoneW = this.cardW * 3;
-    const zoneRect = { x: this.contentW / 2 - zoneW / 2, y: cardCY + this.cardH / 2 + capH + 24, w: zoneW, h: this.cardH };
+    const zoneRect = { x: pad, y: cardCY + this.cardH / 2 + capH + 24, w: zoneW, h: this.cardH };
     this.flipZone = new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: zoneRect });
     this.content.addChild(this.flipZone.root);
 
@@ -190,7 +190,9 @@ export class FreeDeskEngine {
     const cw = this.contentW * this.view.zoom;
     const ch = this.contentH * this.view.zoom;
     this.view.x = cw <= this.W ? (this.W - cw) / 2 : clamp(this.view.x, this.W - cw, 0);
-    this.view.y = ch <= this.H ? (this.H - ch) / 2 : clamp(this.view.y, this.H - ch, 0);
+    // По вертикали прижимаем к верху (с небольшим отступом от статус-бара), а не центрируем —
+    // ряд стоит вверху, снизу место под будущие ряды/прокрутку.
+    this.view.y = ch <= this.H ? 24 : clamp(this.view.y, this.H - ch, 0);
   }
 
   private applyView(): void {
