@@ -55,13 +55,39 @@ body {
   touch-action: none;
 }
 
-/* Панель управления песочницей — всегда сверху, вне пан/зума канваса. */
+/* Панель управления песочницей — всегда сверху, вне пан/зума канваса. Верх/бока учитывают
+   safe-area (в установленном PWA на iPhone иначе кнопки уезжают под козырёк/динамик-айленд). */
 .fd-topbar {
   flex: none;
   display: flex;
   gap: 8px;
-  padding: 8px 10px;
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));
   z-index: 3;
+}
+
+/* Брендовая пилюля в зоне статус-бара (как «2ГИС») — только в установленном PWA (standalone),
+   в обычном браузере скрыта. Сидит в строке статус-бара по центру. */
+.brand-badge {
+  display: none;
+}
+@media (display-mode: standalone) {
+  .brand-badge {
+    display: block;
+    position: fixed;
+    top: max(4px, calc(env(safe-area-inset-top) - 32px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    font-family: "VT323", monospace;
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+    color: #2b1d0a;
+    background: #f2c14e;
+    padding: 1px 12px;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+  }
 }
 .fd-btn {
   font-family: "VT323", monospace;

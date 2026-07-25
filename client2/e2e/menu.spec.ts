@@ -28,4 +28,9 @@ test.describe("меню", () => {
     const href = await page.locator(".ver-switch").getAttribute("href");
     expect(href).toContain("5173"); // локально ведёт на порт соседнего клиента
   });
+
+  test("бренд-бейдж есть в DOM, но скрыт вне PWA (standalone)", async ({ page }) => {
+    await expect(page.locator(".brand-badge")).toHaveText(/crusade/);
+    await expect(page.locator(".brand-badge")).toBeHidden();
+  });
 });

@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { Menu } from "./Menu";
 import { Table } from "./Table";
 import { FreeDesk } from "./FreeDesk";
+import { BrandBadge } from "./BrandBadge";
 import { routePath } from "./nav";
 import "./theme.css";
 
@@ -12,5 +13,8 @@ const rel = routePath();
 const view = rel.startsWith("free-desk") ? <FreeDesk /> : rel.startsWith("table") ? <Table /> : <Menu />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>{view}</React.StrictMode>
+  <React.StrictMode>
+    <BrandBadge />
+    {view}
+  </React.StrictMode>
 );
