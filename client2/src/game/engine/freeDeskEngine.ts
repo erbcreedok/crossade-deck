@@ -5,6 +5,7 @@ import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import type { TableElement } from "./element";
+import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
@@ -110,12 +111,20 @@ export class FreeDeskEngine {
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
   private dragSqueeze = false; // плейсмент пачки при драге: false — врассыпную, true — сжать в руку
   private pendingWhole: string[] | null = null; // ids захватываемой целиком стопки (между pickCard и grab)
-  private wholeDrag: { cards: Card[]; offsets: Array<{ dx: number; dy: number }> } | null = null;
   private buttons: Button[] = [];
-  private zones: Array<{ zone: DropZone; onDrop: (card: Card) => void }> = [];
+  private zones: Array<{ zone: DropZone; onDrop: (p: DragPayload) => void }> = [];
 
   private input = new InputRouter<Card, Button>(this.inputHandlers());
-  private cardDrag: { card: Card; dx: number; dy: number } | null = null;
+  private drag: DragPayload | null = null; // текущий груз драга (одна карта или пачка)
+  // Контекст драга: поднять элемент в слой драга / вернуть домой (движок-специфика для payload).
+  private dragCtx: DragContext = {
+    raise: (el) => {
+      el.setState("drag");
+      el.root.zIndex = 1e6;
+      this.placeCard(el);
+    },
+    returnHome: (el) => this.releaseCard(el as Card),
+  };
   private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
   private lastPanT = 0;
@@ -259,12 +268,8 @@ export class FreeDeskEngine {
     const zoneY = dzTitleY + 44;
     const zoneW = this.cardW * 2.4;
     const zoneGap = this.cardW * 0.5;
-    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: pad, y: zoneY, w: zoneW, h: this.cardH } }), (c) =>
-      c.requestFlip(),
-    );
-    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: pad + zoneW + zoneGap, y: zoneY, w: zoneW, h: this.cardH } }), (c) =>
-      c.burn(),
-    );
+    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: pad, y: zoneY, w: zoneW, h: this.cardH } }), (p) => p.flip?.());
+    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: pad + zoneW + zoneGap, y: zoneY, w: zoneW, h: this.cardH } }), (p) => p.burn?.());
 
     const buttonsBottom = this.buildButtons(pad, zoneY + this.cardH + 30);
 
@@ -300,7 +305,7 @@ export class FreeDeskEngine {
       grips: this.stacks.map((st) => (st.handle ? toScreen(st.handle.x + st.handle.w / 2, st.handle.y + st.handle.h / 2) : null)),
       stackCards: this.stacks.map((st) => st.ids.map((id) => { const c = this.byId.get(id)!; return toScreen(c.body.px, c.body.py); })),
       cardW: this.cardW * this.viewport.zoom,
-      draggingId: this.cardDrag?.card.id ?? null,
+      draggingId: this.drag?.lead.id ?? null,
     };
   }
 
@@ -427,7 +432,7 @@ export class FreeDeskEngine {
   }
 
   // Кладём зону: фон+название — на поверхность (под картами), глагол — в слой над лежащими картами.
-  private registerZone(zone: DropZone, onDrop: (card: Card) => void): void {
+  private registerZone(zone: DropZone, onDrop: (p: DragPayload) => void): void {
     this.zones.push({ zone, onDrop });
     this.scene.surface.addChild(zone.base);
     this.scene.verb.addChild(zone.verb);
@@ -727,53 +732,29 @@ export class FreeDeskEngine {
         if (this.pendingWhole) {
           const cards = this.pendingWhole.map((id) => this.byId.get(id)).filter((c): c is Card => !!c);
           this.pendingWhole = null;
-          cards.forEach((c, i) => {
-            c.setState("drag");
-            c.root.zIndex = 1e6 + i; // вся пачка поверх всех, порядок сохранён
-            this.placeCard(c);
-          });
-          this.wholeDrag = { cards, offsets: this.wholeOffsets(cards, cp) };
-          this.applyWhole(cp);
-          this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y }; // лид — для edge-scroll
-          return;
+          this.drag = new GroupDrag(cards, this.wholeOffsets(cards, cp), this.dragCtx);
+        } else {
+          this.drag = new SingleDrag(card, this.dragCtx, cp);
         }
-        this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y };
-        card.setState("drag"); // подъём: масштаб/тень едут плавно
-        card.root.zIndex = 1e6; // пока тащим — поверх всех
-        this.placeCard(card);
-        card.body.setTarget({ x: cp.x + this.cardDrag.dx, y: cp.y + this.cardDrag.dy, rot: 0 });
+        this.drag.move(cp);
       },
-      onCardMove: (card, cp, sp) => {
+      onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
-        if (this.wholeDrag) {
-          this.applyWhole(cp);
-          return;
-        }
-        if (this.cardDrag) card.body.setTarget({ x: cp.x + this.cardDrag.dx, y: cp.y + this.cardDrag.dy, rot: 0 });
-        for (const z of this.zones) z.zone.setHot(z.zone.contains(cp.x, cp.y));
+        this.drag?.move(cp);
+        for (const z of this.zones) z.zone.setHot(z.zone.contains(cp.x, cp.y)); // подсветка зоны под грузом
       },
-      onCardDrop: (card, cp) => {
-        if (this.wholeDrag) {
-          for (const c of this.wholeDrag.cards) this.releaseCard(c); // вся пачка вернулась в строй
-          this.wholeDrag = null;
-          this.cardDrag = null;
-          return;
+      onCardDrop: (_card, cp) => {
+        const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
+        if (this.drag) {
+          zone?.onDrop(this.drag); // зона реагирует на СПОСОБНОСТИ груза (flip/burn), не на тип
+          if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
+          this.drag = null;
         }
-        const hit = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
-        hit?.onDrop(card);
-        // Сгорающая остаётся догорать на месте; иначе — возврат домой.
-        if (!card.burning) this.releaseCard(card);
-        this.cardDrag = null;
         for (const z of this.zones) z.zone.setHot(false);
       },
-      onCardCancel: (card) => {
-        if (this.wholeDrag) {
-          for (const c of this.wholeDrag.cards) this.releaseCard(c);
-          this.wholeDrag = null;
-        } else {
-          this.releaseCard(card);
-        }
-        this.cardDrag = null;
+      onCardCancel: () => {
+        this.drag?.release();
+        this.drag = null;
       },
       onCardBlocked: (card) => card.blockNudge(),
       onButtonDown: (b) => b.setPressed(true),
@@ -828,7 +809,7 @@ export class FreeDeskEngine {
   // скорость растёт с глубиной захода в кромку. Карта остаётся ПОД пальцем (пересчёт по экранной
   // точке при новом виде), так что она «уезжает» на открывшуюся область стола.
   private edgeScroll(dt: number): void {
-    if (this.input.gesture !== "drag" || !this.cardDrag) return;
+    if (this.input.gesture !== "drag" || !this.drag) return;
     const margin = Math.max(48, Math.min(this.W, this.H) * 0.12);
     const SPEED = 780; // экранных px/сек на самой кромке
     const { x: sx, y: sy } = this.dragScreen;
@@ -852,7 +833,7 @@ export class FreeDeskEngine {
     if (this.viewport.x === bx && this.viewport.y === by) return; // упёрлись в край — двигать нечего
     this.applyView();
     const p = this.screenToContent(sx, sy);
-    this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
+    this.drag.move(p); // груз (карта/пачка) остаётся под пальцем на открывшейся области
     for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y));
     this.emitView();
   }
@@ -862,15 +843,6 @@ export class FreeDeskEngine {
   private wholeOffsets(cards: Card[], cp: { x: number; y: number }): Array<{ dx: number; dy: number }> {
     if (this.dragSqueeze) return squeezeOffsets(cards.length, this.cardW, this.cardH);
     return cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y }));
-  }
-
-  // Вести всю пачку за пальцем: каждая карта = точка пальца + её сдвиг (форма сохранена/сжата).
-  private applyWhole(cp: { x: number; y: number }): void {
-    if (!this.wholeDrag) return;
-    this.wholeDrag.cards.forEach((c, i) => {
-      const off = this.wholeDrag!.offsets[i]!;
-      c.body.setTarget({ x: cp.x + off.dx, y: cp.y + off.dy, rot: 0 });
-    });
   }
 
   private releaseCard(card: Card): void {
@@ -929,10 +901,9 @@ export class FreeDeskEngine {
     this.stackMove = null;
     this.stacks = [];
     this.pendingWhole = null;
-    this.wholeDrag = null;
+    this.drag = null;
     this.buttons = [];
     this.zones = [];
-    this.cardDrag = null;
     this.input.reset();
     this.scene.surface.removeChildren().forEach((c) => c.destroy());
     this.scene.verb.removeChildren().forEach((c) => c.destroy());
@@ -973,10 +944,9 @@ export class FreeDeskEngine {
     this.stackMove = null;
     this.stacks = [];
     this.pendingWhole = null;
-    this.wholeDrag = null;
+    this.drag = null;
     this.buttons = [];
     this.zones = [];
-    this.cardDrag = null;
     this.input.reset();
     this.tex?.destroy();
     this.app.destroy({ removeView: true }, { children: true, texture: true });

@@ -1,4 +1,5 @@
 import type { Container } from "pixi.js";
+import type { CardBody } from "../CardBody";
 import type { CardState, ShadowShape } from "../ui/Card";
 
 // Контракт УПРАВЛЯЕМОГО ЭЛЕМЕНТА стола — то, от чего зависят системы движка (слои/тени/цикл/
@@ -10,7 +11,9 @@ import type { CardState, ShadowShape } from "../ui/Card";
 export interface TableElement {
   readonly id: string;
   readonly root: Container;
+  readonly body: CardBody; // пружинное тело: позиция/полёт (px/py/setTarget)
   state: CardState; // план — им levelOf раскладывает по слоям
+  setState(s: CardState): void; // сменить план (масштаб/тень едут пружиной)
   readonly shadowRect: ShadowShape | null;
   readonly resting: boolean; // осел ли (для сна цикла)
   readonly dead: boolean; // пора убрать из сцены
