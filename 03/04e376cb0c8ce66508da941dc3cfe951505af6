@@ -1,0 +1,21 @@
+client2/src/FreeDesk.tsx
+  s_89d5ad20619017::t_7e88efba3aae58 4-6,10-11,27-48,68-77
+client2/src/theme.css
+  s_89d5ad20619017::t_c21fc34ff8bb86 68-69,72-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0304e376cb0c8ce66508da941dc3cfe951505af6",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
