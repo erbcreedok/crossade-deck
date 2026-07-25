@@ -1,0 +1,28 @@
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_ad91242ae51c69 785,791
+  s_89d5ad20619017::t_0cbde4be3636ee 121-122
+  s_89d5ad20619017::t_38f227c92f988b 959
+  s_89d5ad20619017::t_7cfec7d9ce05a4 764,766
+  s_89d5ad20619017::t_895a93d826c8ce 571,579
+  s_89d5ad20619017::t_ce04fa0b4d4297 488-489,498-499
+  s_89d5ad20619017::t_30f4b45e60d9c9 59-70
+  s_89d5ad20619017::t_e492e9e8d7296c 552-570
+  s_89d5ad20619017::t_fe84afcc40af3a 937,982
+  s_89d5ad20619017::t_c37607df47c04a 510-512,515-521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d864615d6e95b4b32607b300f6197cfd349c67e0",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
