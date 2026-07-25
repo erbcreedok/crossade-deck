@@ -1,10 +1,9 @@
 import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
 
+// client2 — тесты только на чистые модули (мат карт, физика, единый пул). DOM/setup не нужны.
 export default defineConfig({
-  plugins: [react()],
   test: {
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    environment: "node",
+    include: ["src/**/*.test.ts"],
   },
 });
