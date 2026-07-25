@@ -103,8 +103,18 @@ export class FreeDeskEngine {
     this.wake();
   }
 
-  private label(text: string, x: number, y: number, size: number, fill: number): Text {
-    const t = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: size, fill, align: "center" } });
+  private label(text: string, x: number, y: number, size: number, fill: number, wrap?: number): Text {
+    const t = new Text({
+      text,
+      style: {
+        fontFamily: PIXEL_FONT,
+        fontSize: size,
+        fill,
+        align: "center",
+        wordWrap: wrap !== undefined,
+        wordWrapWidth: wrap ?? 0,
+      },
+    });
     t.anchor.set(0.5, 0);
     t.position.set(x, y);
     return t;
@@ -116,10 +126,10 @@ export class FreeDeskEngine {
     this.content.addChild(title);
 
     // Сетка вариантов: столбцов столько, сколько влезает; подпись под каждой картой.
-    const gap = this.cardW * 0.45;
-    const capH = 18;
+    const gap = this.cardW * 0.5;
+    const capH = 36; // запас под подпись в две строки (перенос по словам)
     const cellW = this.cardW + gap;
-    const cellH = this.cardH + 10 + capH;
+    const cellH = this.cardH + 8 + capH;
     const cols = Math.max(1, Math.floor((this.W - pad * 2 + gap) / cellW));
     const gridW = cols * cellW - gap;
     const left = (this.W - gridW) / 2 + this.cardW / 2;
@@ -136,7 +146,7 @@ export class FreeDeskEngine {
       card.root.zIndex = i;
       this.cardLayer.addChild(card.root);
       this.cards.push({ card, home: { x: cx, y: cy } });
-      this.content.addChild(this.label(s.caption, cx, cy + this.cardH / 2 + 8, 15, 0x9aa89f));
+      this.content.addChild(this.label(s.caption, cx, cy + this.cardH / 2 + 8, 13, 0x9aa89f, cellW * 0.94));
     });
 
     const rows = Math.ceil(STORIES.length / cols);
