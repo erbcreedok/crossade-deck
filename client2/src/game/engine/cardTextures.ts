@@ -115,33 +115,39 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
-  // Хаотичная мозайка из КРУПНЫХ 🖕 со ДЕТЕРМИНИРОВАННЫМ разбросом позиции, поворота и размера.
-  // Факи большие и налезают на края/друг на друга — обрезаются маской по форме карты, а
-  // fixed frame держит размер текстуры ровно как у карты.
-  const fingers = new Container();
-  const cols = 5;
-  const rows = 7;
-  const mx = 20;
-  const my = 20;
+  // СЗАДИ — редкая мелочь факов, хаотично и приглушённо (как бы на заднем плане). Обрезаются
+  // маской по форме карты; fixed frame держит размер текстуры ровным.
+  const back = new Container();
+  back.alpha = 0.5;
+  const cols = 3;
+  const rows = 5;
+  const mx = 28;
+  const my = 28;
   const stepX = (TEX_W - 2 * mx) / (cols - 1);
   const stepY = (TEX_H - 2 * my) / (rows - 1);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const jx = (((c * 5 + r * 3) % 5) - 2) * 5;
-      const jy = (((c * 3 + r * 7) % 5) - 2) * 5;
-      const size = 54 + ((c + r) % 3) * 12;
+      const jx = (((c * 5 + r * 3) % 5) - 2) * 6;
+      const jy = (((c * 3 + r * 7) % 5) - 2) * 6;
+      const size = 20 + ((c + r) % 3) * 8;
       const f = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: size } });
       f.anchor.set(0.5);
       f.position.set(mx + c * stepX + jx, my + r * stepY + jy);
       f.rotation = (((c * 7 + r * 13) % 12) / 12) * Math.PI * 2;
-      fingers.addChild(f);
+      back.addChild(f);
     }
   }
   const mask = new Graphics();
   mask.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xffffff });
   root.addChild(mask);
-  fingers.mask = mask;
-  root.addChild(fingers);
+  back.mask = mask;
+  root.addChild(back);
+
+  // СПЕРЕДИ — один крупный 🖕 по центру.
+  const big = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: 118 } });
+  big.anchor.set(0.5);
+  big.position.set(TEX_W / 2, TEX_H / 2 + 4);
+  root.addChild(big);
 
   const shade = new Graphics();
   drawCardShade(shade);
