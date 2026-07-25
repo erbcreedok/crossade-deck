@@ -1,4 +1,4 @@
-import { Application, Container, Rectangle, Text } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type ShadowShape } from "../ui/Card";
 import { DropZone } from "../ui/DropZone";
@@ -113,6 +113,9 @@ export class FreeDeskEngine {
   private view = { x: 0, y: 0, zoom: 1 };
   private cards: Placed[] = [];
   private cardSpecs: CardSpec[] = [];
+  private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
+  private byId = new Map<string, Card>(); // реестр по id для публичного API
+  private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
   private buttons: Button[] = [];
   private zones: Array<{ zone: DropZone; onDrop: (card: Card) => void }> = [];
 
@@ -317,10 +320,130 @@ export class FreeDeskEngine {
     );
 
     const buttonsBottom = this.buildButtons(pad, zoneY + this.cardH + 30);
-    this.contentH = buttonsBottom + pad;
+
+    // Раздел «Управление» — демонстрация публичного API (карты двигает движок, не палец).
+    const controlBottom = this.buildControls(pad, buttonsBottom + 24);
+    this.contentH = controlBottom + pad;
 
     // Карты рождаем ПОСЛЕ мебели — чтобы легли поверх подписей/зон.
     this.spawnCards(restore);
+  }
+
+  // ——— публичное API доски (то, чем СЕРВЕР или скрытая логика юзера двигает карты) ———
+  // Все движения — та же пружина, что и при драге. Одиночные вызовы или пачкой (см. doStackMove).
+
+  /** Перевернуть карту по id (напр. «игрок открыл карту»). */
+  flipCard(id: string): void {
+    if (this.byId.get(id)?.requestFlip()) this.wake();
+  }
+
+  /** Плавно (пружиной) переместить карту по id в точку контента (напр. «перенёс в дропзону»). */
+  moveCard(id: string, x: number, y: number): void {
+    const c = this.byId.get(id);
+    if (!c) return;
+    c.body.setTarget({ x, y, rot: 0 });
+    this.wake();
+  }
+
+  // ——— раздел «Управление» (демо API) ———
+
+  private buildControls(left: number, top: number): number {
+    this.layers.surface.addChild(this.label("Управление", left, top, 26, 0xcdb98f, undefined, 0));
+    let y = top + 46;
+    y = this.buildFlipBlock(left, y) + 22;
+    y = this.buildMoveBlock(left, y);
+    return y;
+  }
+
+  // Блок 1: текст-кнопка «перевернуть карту» — по тапу переворачивает карту внутри блока.
+  private buildFlipBlock(left: number, top: number): number {
+    const boxW = this.cardW * 2.2;
+    const boxH = 40 + this.cardH + 24;
+    this.blockFrame(left, top, boxW, boxH);
+    this.registerButton(this.textButton("перевернуть карту", left + boxW / 2, top + 20, () => this.flipCard("ctl-flip")));
+    const card = new Card({ id: "ctl-flip", card: "A♥", rest: "idle" }, this.tex, this.baseScale);
+    card.body.snapTo({ x: left + boxW / 2, y: top + 40 + this.cardH / 2, rot: 0, scale: card.restScale });
+    this.addControlCard(card);
+    return top + boxH;
+  }
+
+  // Блок 2: две стопки (5 и 4). Тап — случайная карта летит из одной в другую и остаётся там;
+  // следующий тап — случайная летит обратно. Направление чередуется.
+  private buildMoveBlock(left: number, top: number): number {
+    const step = this.cardW * 0.4;
+    const footprint = this.cardW + 4 * step; // до 5 карт внахлёст
+    const gap = this.cardW * 0.7;
+    const boxW = footprint * 2 + gap + 40;
+    const boxH = 40 + this.cardH + 24;
+    this.blockFrame(left, top, boxW, boxH);
+    this.registerButton(this.textButton("перенос из стопки в стопку", left + boxW / 2, top + 20, () => this.doStackMove()));
+    const y = top + 40 + this.cardH / 2;
+    const ax = left + 20;
+    const bx = ax + footprint + gap;
+    const a = ["6♣", "7♣", "8♣", "9♣", "10♣"].map((r, i) => this.makeStackCard(`sa${i}`, r));
+    const b = ["6♦", "7♦", "8♦", "9♦"].map((r, i) => this.makeStackCard(`sb${i}`, r));
+    this.stackMove = { a, b, ax, bx, y, toB: true };
+    this.relayoutStack(a, ax, y, true);
+    this.relayoutStack(b, bx, y, true);
+    return top + boxH;
+  }
+
+  private doStackMove(): void {
+    const s = this.stackMove;
+    if (!s) return;
+    const [from, to, fromX, toX] = s.toB ? [s.a, s.b, s.ax, s.bx] : [s.b, s.a, s.bx, s.ax];
+    if (from.length > 0) {
+      const [id] = from.splice(Math.floor(Math.random() * from.length), 1); // случайная карта
+      to.push(id); // ложится сверху (правее)
+      this.relayoutStack(from, fromX, s.y);
+      this.relayoutStack(to, toX, s.y);
+    }
+    s.toB = !s.toB; // следующий тап — в обратную сторону
+  }
+
+  // Разложить стопку: i-я карта левее→правее, правее = выше по z. snap — при первичной раскладке.
+  private relayoutStack(ids: string[], originX: number, y: number, snap = false): void {
+    const step = this.cardW * 0.4;
+    ids.forEach((id, i) => {
+      const c = this.byId.get(id);
+      if (!c) return;
+      c.root.zIndex = i;
+      const x = originX + this.cardW / 2 + i * step;
+      if (snap) c.body.snapTo({ x, y, rot: 0, scale: c.restScale });
+      else this.moveCard(id, x, y);
+    });
+    this.wake();
+  }
+
+  private makeStackCard(id: string, rank: string): string {
+    const card = new Card({ id, card: rank, rest: "idle" }, this.tex, this.baseScale);
+    this.addControlCard(card);
+    return id;
+  }
+
+  private addControlCard(card: Card): void {
+    this.controlCards.push(card);
+    if (card.id) this.byId.set(card.id, card);
+    this.placeCard(card);
+  }
+
+  private textButton(label: string, cx: number, topY: number, onClick: () => void): Button {
+    const b = new Button({ label, variant: "text", onClick });
+    b.place(cx, topY + b.h / 2);
+    return b;
+  }
+
+  private registerButton(b: Button): void {
+    this.buttons.push(b);
+    this.layers.surface.addChild(b.root);
+  }
+
+  private blockFrame(x: number, y: number, w: number, h: number): void {
+    const g = new Graphics();
+    g.roundRect(x, y, w, h, 12)
+      .fill({ color: 0x000000, alpha: 0.1 })
+      .stroke({ width: 1, color: 0x4a5b50 });
+    this.layers.surface.addChild(g);
   }
 
   // Кладём зону: фон+название — на поверхность (под картами), глагол — в слой над лежащими картами.
@@ -692,7 +815,7 @@ export class FreeDeskEngine {
     const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
     this.edgeScroll(dt);
     let moving = this.gesture !== "none";
-    for (const { card } of this.cards) {
+    for (const card of this.everyCard()) {
       card.step(dt);
       if (!card.resting) moving = true;
     }
@@ -715,8 +838,12 @@ export class FreeDeskEngine {
   // Снести весь контент песочницы (карты + мебель), оставив сами слои — для рестарта песочницы.
   private clearContent(): void {
     for (const p of this.cards) p.card.destroy();
+    for (const c of this.controlCards) c.destroy();
     this.cards = [];
     this.cardSpecs = [];
+    this.controlCards = [];
+    this.byId.clear();
+    this.stackMove = null;
     this.buttons = [];
     this.zones = [];
     this.cardDrag = null;
@@ -730,13 +857,21 @@ export class FreeDeskEngine {
     }
   }
 
+  // Все карты сцены: перетаскиваемые (this.cards) + управляемые API (control). Для шага/рендера/
+  // теней; драг-хит-тест (hitCard) работает только по this.cards — control картами двигает API.
+  private everyCard(): Card[] {
+    const out: Card[] = this.controlCards.slice();
+    for (const p of this.cards) out.push(p.card);
+    return out;
+  }
+
   private render(): void {
-    for (const { card } of this.cards) card.sync();
+    for (const card of this.everyCard()) card.sync();
     for (const b of this.buttons) b.sync();
 
     // Слитые тени по уровням: силуэты карт уровня → одна маска+заливка (без потемнения наложений).
     const byLevel: Record<Level, ShadowShape[]> = { idle: [], floating: [], fan: [], drag: [] };
-    for (const { card } of this.cards) {
+    for (const card of this.everyCard()) {
       if (card.shadowRect) byLevel[this.levelOf(card.state)].push(card.shadowRect);
     }
     for (const lvl of ["idle", "floating", "fan", "drag"] as const) {
@@ -751,8 +886,12 @@ export class FreeDeskEngine {
     this.app.canvas.removeEventListener("wheel", this.onWheel);
     this.app.ticker.remove(this.tick);
     for (const p of this.cards) p.card.destroy();
+    for (const c of this.controlCards) c.destroy();
     this.cards = [];
     this.cardSpecs = [];
+    this.controlCards = [];
+    this.byId.clear();
+    this.stackMove = null;
     this.buttons = [];
     this.zones = [];
     this.gesture = "none";

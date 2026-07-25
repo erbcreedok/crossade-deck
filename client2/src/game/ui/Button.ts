@@ -6,7 +6,7 @@ import { PIXEL_FONT } from "../engine/constants";
 // Событий сама не слушает: ввод ведёт движок (hitTest + hover/press/click) — так драг/пан и
 // кнопки не спорят за один pointer (как у карт).
 
-export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "text";
 export type ButtonSize = "sm" | "md" | "lg";
 type State = "rest" | "hover" | "pressed";
 
@@ -29,6 +29,7 @@ const VARIANTS: Record<ButtonVariant, { fill: number; text: number; border: numb
   secondary: { fill: 0x39463d, text: 0xcdb98f, border: 0x5f7a6d },
   danger: { fill: 0xe0483f, text: 0xfff1ef, border: 0xa8362f },
   ghost: { fill: 0xf2c14e, text: 0xf2c14e, border: 0xf2c14e },
+  text: { fill: 0x000000, text: 0xf2c14e, border: 0x000000 }, // без фона/обводки — только текст
 };
 
 function shade(color: number, f: number): number {
@@ -53,6 +54,8 @@ export class Button {
   private state: State = "rest";
   private press = 0; // 0..1 — сглаженное «нажатие» (масштаб/сдвиг вниз)
   private pressTarget = 0;
+  private customW = 0; // текст-кнопка меряется по тексту, а не по SIZES
+  private customH = 0;
 
   constructor(opts: ButtonOptions) {
     this.variant = opts.variant ?? "primary";
@@ -64,15 +67,19 @@ export class Button {
     this.label = new Text({ text: opts.label, style: { fontFamily: PIXEL_FONT, fontSize: SIZES[this.size].font, fill: VARIANTS[this.variant].text } });
     this.label.anchor.set(0.5);
     this.root.addChild(this.label);
+    if (this.variant === "text") {
+      this.customW = this.label.width + 22;
+      this.customH = this.label.height + 12;
+    }
     if (this.disabled) this.root.alpha = 0.45;
     this.draw();
   }
 
   get w(): number {
-    return SIZES[this.size].w;
+    return this.customW || SIZES[this.size].w;
   }
   get h(): number {
-    return SIZES[this.size].h;
+    return this.customH || SIZES[this.size].h;
   }
 
   place(x: number, y: number): void {
@@ -120,6 +127,18 @@ export class Button {
   }
 
   private draw(): void {
+    if (this.variant === "text") {
+      // Текст-кнопка: без фона и обводки. Аффорданс — цветом: ярче на ховере, глуше при нажатии.
+      this.bg.clear();
+      this.label.style.fill = this.disabled
+        ? 0x6b7a70
+        : this.state === "pressed"
+          ? 0xc79a2e
+          : this.state === "hover"
+            ? 0xffe08a
+            : 0xf2c14e;
+      return;
+    }
     const s = SIZES[this.size];
     const v = VARIANTS[this.variant];
     let fillColor = v.fill;

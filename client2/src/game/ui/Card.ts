@@ -33,6 +33,7 @@ export interface ShadowShape {
 }
 
 export interface CardOptions {
+  id?: string; // ключ идентичности для публичного API (flipCard/moveCard по id)
   card?: string;
   faceUp?: boolean;
   flippable?: boolean;
@@ -67,6 +68,7 @@ export class Card {
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
 
+  readonly id: string;
   readonly card: string;
   faceUp: boolean;
   readonly flippable: boolean;
@@ -94,6 +96,7 @@ export class Card {
     private readonly tex: CardTextureCache,
     private readonly baseScale: number,
   ) {
+    this.id = opts.id ?? "";
     this.card = opts.card ?? "A♠";
     this.faceUp = opts.faceUp ?? true;
     this.flippable = opts.flippable ?? true;
