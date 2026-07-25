@@ -1,0 +1,29 @@
+client2/src/game/ui/DropZone.ts
+  s_89d5ad20619017::t_d1d5801e330a28 12-13,17-21,23-24,26,30-47,49-52,68-69
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_5edfceeee84b01 3,7-19,46-47,62-75,129,148-181,195,199,204,206,208-209,215,217,221-222,227,297,300,304,306,319-321,332,357,374,379,381,388,390-392,404
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_42c2624317d846 157
+  s_89d5ad20619017::t_8565e067058477 5,10,12-21,24-31,40,42-43,46,48,59-61,78-83,101-107,115,127,129,133-143,147,149,151,153-156,158-159,164,174,187,190,198-200
+  s_89d5ad20619017::t_5fc46226fb469b 41
+client2/src/game/ui/CardTextureCache.ts
+  s_89d5ad20619017::t_575ca45f593f8c 2,6,10,14-17
+  s_89d5ad20619017::t_233963a2a3d363 41,44
+  s_89d5ad20619017::t_2daf70b37615a4 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c97577d7356944c70aa2acf99e0ba14170e277ee",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
