@@ -56,6 +56,11 @@ interface FlipAnim {
 const FLOAT_SCALE = 1.07; // парящая (левитация) чуть крупнее
 const BOB_SPEED = 2.2;
 
+/** Линейная интерполяция канала цвета 0..255 и округление — для обугливания при «сжечь». */
+function lerp8(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
 export class Card {
   readonly root = new Container();
   readonly body = new CardBody();
@@ -80,6 +85,8 @@ export class Card {
   private readonly baseSprite = new Sprite();
   private flip: FlipAnim | null = null;
   private block: { t: number; dur: number } | null = null; // «стоп»-покачивание при блоке драга
+  private dying: { t: number; dur: number } | null = null; // «сжечь»: обугливание → исчезновение
+  dead = false; // догорела — движок убирает её из песочницы
 
   constructor(
     opts: CardOptions,
@@ -148,6 +155,15 @@ export class Card {
     if (!this.block) this.block = { t: 0, dur: 0.4 };
   }
 
+  /** Сжечь: карта обугливается (темнеет), съёживается и гаснет; затем dead → движок её убирает. */
+  burn(): void {
+    if (!this.dying && !this.dead) this.dying = { t: 0, dur: 0.55 };
+  }
+
+  get burning(): boolean {
+    return this.dying !== null;
+  }
+
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
@@ -163,11 +179,18 @@ export class Card {
       this.block.t += dt;
       if (this.block.t >= this.block.dur) this.block = null;
     }
+    if (this.dying) {
+      this.dying.t += dt;
+      if (this.dying.t >= this.dying.dur) {
+        this.dying = null;
+        this.dead = true;
+      }
+    }
   }
 
   /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. */
   get resting(): boolean {
-    return this.body.isResting() && !this.flip && !this.block && this.state !== "floating";
+    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating";
   }
 
   sync(): void {
@@ -213,6 +236,23 @@ export class Card {
       hh: (TEX_H * sc) / 2,
       rot: this.body.rotation,
     };
+
+    // «Сжечь»: обугливание (тон белый → тёмный уголь), лёгкое съёживание и затухание; тень
+    // тоже съёживается и пропадает. Накладывается ПОВЕРХ обычного sync — не ломает переходы.
+    if (this.dying) {
+      const p = Math.min(1, this.dying.t / this.dying.dur);
+      this.root.alpha = 1 - p * p;
+      const shrink = 1 - 0.4 * p;
+      this.root.scale.set(this.root.scale.x * shrink, this.root.scale.y * shrink);
+      this.baseSprite.tint = (lerp8(255, 51, p) << 16) | (lerp8(255, 26, p) << 8) | lerp8(255, 13, p);
+      if (this.shadowRect) {
+        if (p > 0.55) this.shadowRect = null;
+        else {
+          this.shadowRect.hw *= 1 - p * 1.3;
+          this.shadowRect.hh *= 1 - p * 1.3;
+        }
+      }
+    }
   }
 
   destroy(): void {

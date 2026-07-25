@@ -59,6 +59,14 @@ export function FreeDesk() {
 
   return (
     <div className="table-screen freedesk">
+      <div className="fd-topbar">
+        <button className="fd-btn" onClick={() => engineRef.current?.restartSandbox()}>
+          ⟲ рестарт песочницы
+        </button>
+        <button className="fd-btn" onClick={() => void engineRef.current?.restartCanvas()}>
+          ⟳ рестарт канваса
+        </button>
+      </div>
       <div ref={hostRef} className="table-host" />
 
       {view && (

@@ -39,6 +39,35 @@ body {
   touch-action: none;
 }
 
+/* Панель управления песочницей — всегда сверху, вне пан/зума канваса. */
+.fd-topbar {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  z-index: 3;
+}
+.fd-btn {
+  font-family: "VT323", monospace;
+  font-size: 1rem;
+  color: #cdb98f;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #5f7a6d;
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.fd-btn:hover {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: #f2c14e;
+  color: #f2c14e;
+}
+.fd-btn:active {
+  background: #f2c14e;
+  border-color: #f2c14e;
+  color: #2b1d0a;
+}
+
 .table-host > canvas {
   display: block;
 }

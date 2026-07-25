@@ -46,6 +46,24 @@ interface Placed {
   card: Card;
   home: { x: number; y: number };
   depth: number; // z-индекс глубины в своём слое; после драга карта возвращается на него
+  specIndex: number; // из какого CardSpec рождена — для снимка/восстановления при рестарте канваса
+}
+
+// Описание карты песочницы (позиция покоя + пропсы) — из него рождаются живые Card. Держим
+// отдельно, чтобы «рестарт канваса» мог пересоздать канвас и воссоздать карты из тех же спеков.
+interface CardSpec {
+  opts: CardOptions;
+  home: { x: number; y: number };
+  depth: number;
+  bobPhase: number;
+}
+
+// Снимок ИЗМЕНЯЕМОГО состояния карты — переживает пересоздание канваса (положение, лицевая
+// сторона; сгоревшие карты в снимок не попадают и не воскресают).
+interface CardRuntime {
+  faceUp: boolean;
+  x: number;
+  y: number;
 }
 
 export interface ViewState {
@@ -91,10 +109,12 @@ export class FreeDeskEngine {
   private contentW = 1;
   private contentH = 1;
 
+  private container!: HTMLElement;
   private view = { x: 0, y: 0, zoom: 1 };
   private cards: Placed[] = [];
+  private cardSpecs: CardSpec[] = [];
   private buttons: Button[] = [];
-  private flipZone!: DropZone;
+  private zones: Array<{ zone: DropZone; onDrop: (card: Card) => void }> = [];
 
   private pointers = new Map<number, { x: number; y: number }>();
   private gesture: "none" | "card" | "pan" | "pinch" | "button" = "none";
@@ -107,12 +127,16 @@ export class FreeDeskEngine {
 
   async mount(container: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
+    this.container = container;
     this.W = Math.max(1, Math.round(width));
     this.H = Math.max(1, Math.round(height));
     this.cardH = Math.max(48, Math.min(140, Math.min(this.W, this.H) * 0.16));
     this.baseScale = this.cardH / TEX_H;
     this.cardW = TEX_W * this.baseScale;
+    await this.bootApp();
+  }
 
+  private async createApp(): Promise<Application | null> {
     const app = new Application();
     try {
       await app.init({
@@ -126,21 +150,12 @@ export class FreeDeskEngine {
         preference: "webgl",
       });
     } catch {
-      return;
+      return null;
     }
-    if (this.destroyed) {
-      app.destroy({ removeView: true }, { children: true, texture: true });
-      return;
-    }
-    container.appendChild(app.canvas);
-    this.app = app;
-    this.tex = new CardTextureCache(app);
+    return app;
+  }
 
-    this.content = new Container();
-    app.stage.addChild(this.content);
-    this.buildLayers();
-    this.buildContent();
-
+  private wire(app: Application): void {
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.W, this.H);
     app.stage.on("pointerdown", this.onDown);
@@ -148,6 +163,26 @@ export class FreeDeskEngine {
     app.stage.on("pointerup", this.onUp);
     app.stage.on("pointerupoutside", this.onUp);
     app.canvas.addEventListener("wheel", this.onWheel, { passive: false });
+  }
+
+  // Поднять новый Pixi-канвас и собрать сцену. restore — снимок состояния карт (для рестарта
+  // канваса); без него песочница строится в исходном виде.
+  private async bootApp(restore?: Map<number, CardRuntime>): Promise<void> {
+    const app = await this.createApp();
+    if (!app) return;
+    if (this.destroyed) {
+      app.destroy({ removeView: true }, { children: true, texture: true });
+      return;
+    }
+    this.container.appendChild(app.canvas);
+    this.app = app;
+    this.tex = new CardTextureCache(app);
+
+    this.content = new Container();
+    app.stage.addChild(this.content);
+    this.buildLayers();
+    this.buildContent(restore);
+    this.wire(app);
 
     this.clampView();
     this.applyView();
@@ -155,6 +190,35 @@ export class FreeDeskEngine {
     this.render();
     this.wake();
     this.emitView();
+  }
+
+  // Полный сброс песочницы к исходному состоянию (карты, стопки, зоны) — канвас не пересоздаём.
+  restartSandbox(): void {
+    if (!this.app || this.destroyed) return;
+    this.clearContent();
+    this.buildContent();
+    this.gesture = "none";
+    this.clampView();
+    this.applyView();
+    this.render();
+    this.wake();
+    this.emitView();
+  }
+
+  // Пересоздать сам канвас (свежий WebGL-контекст), СОХРАНИВ состояние песочницы: снимаем
+  // положение/лицо живых карт и вид, сносим app, поднимаем новый и восстанавливаемся.
+  async restartCanvas(): Promise<void> {
+    if (!this.app || this.destroyed) return;
+    const snap = this.snapshotCards();
+    const savedView = { ...this.view };
+    this.teardownApp();
+    await this.bootApp(snap);
+    if (this.app) {
+      this.view = savedView;
+      this.clampView();
+      this.applyView();
+      this.emitView();
+    }
   }
 
   private buildLayers(): void {
@@ -209,7 +273,9 @@ export class FreeDeskEngine {
     return t;
   }
 
-  private buildContent(): void {
+  // Собрать песочницу: мебель (тексты, дропзоны, кнопки) — всегда заново; карты — из спеков,
+  // при restore восстанавливая их положение/лицо (рестарт канваса), иначе в исходном виде.
+  private buildContent(restore?: Map<number, CardRuntime>): void {
     const pad = 40;
     const gap = this.cardW * 1.15;
     const cellW = this.cardW + gap;
@@ -217,15 +283,10 @@ export class FreeDeskEngine {
     const titleH = 40;
     const cardCY = pad + titleH + this.cardH / 2;
 
+    // Ряд «Карты — варианты»: копим спеки (позиция+пропсы), рисуем подписи.
     STORIES.forEach((s, i) => {
       const cx = pad + this.cardW / 2 + i * cellW;
-      const card = new Card(s.opts, this.tex, this.baseScale);
-      card.bobPhase = i * 0.9;
-      card.root.zIndex = i;
-      card.body.snapTo({ x: cx, y: cardCY, rot: 0, scale: card.restScale });
-      this.placeCard(card); // в свой план покоя (idle / floating / held)
-      this.cards.push({ card, home: { x: cx, y: cardCY }, depth: i });
-      // Подпись — на ПОВЕРХНОСТИ (под картами).
+      this.cardSpecs.push({ opts: s.opts, home: { x: cx, y: cardCY }, depth: i, bobPhase: i * 0.9 });
       this.layers.surface.addChild(this.label(s.caption, cx, cardCY + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9));
     });
 
@@ -234,18 +295,57 @@ export class FreeDeskEngine {
 
     this.layers.surface.addChild(this.label("Карты — варианты", pad, pad, 26, 0xcdb98f, undefined, 0));
 
-    // Стопки (новый ряд под картами). Первая — левитирующая: 6 карт внахлёст, верхняя справа.
+    // Стопки (ряд под картами). Первая — левитирующая: 6 карт внахлёст, верхняя справа.
     const stacksBottom = this.buildStacks(pad, cardCY + this.cardH / 2 + capH + 16);
 
-    // Дропзона: фон+название — на поверхности, глагол — в слое над лежащими картами.
-    const zoneW = this.cardW * 3;
-    const zoneRect = { x: pad, y: stacksBottom + 10, w: zoneW, h: this.cardH };
-    this.flipZone = new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: zoneRect });
-    this.layers.surface.addChild(this.flipZone.base);
-    this.layers.verb.addChild(this.flipZone.verb);
+    // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
+    const dzTitleY = stacksBottom + 6;
+    this.layers.surface.addChild(this.label("Дропзоны", pad, dzTitleY, 26, 0xcdb98f, undefined, 0));
+    const zoneY = dzTitleY + 44;
+    const zoneW = this.cardW * 2.4;
+    const zoneGap = this.cardW * 0.5;
+    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: pad, y: zoneY, w: zoneW, h: this.cardH } }), (c) =>
+      c.requestFlip(),
+    );
+    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: pad + zoneW + zoneGap, y: zoneY, w: zoneW, h: this.cardH } }), (c) =>
+      c.burn(),
+    );
 
-    const buttonsBottom = this.buildButtons(pad, zoneRect.y + zoneRect.h + 46);
+    const buttonsBottom = this.buildButtons(pad, zoneY + this.cardH + 30);
     this.contentH = buttonsBottom + pad;
+
+    // Карты рождаем ПОСЛЕ мебели — чтобы легли поверх подписей/зон.
+    this.spawnCards(restore);
+  }
+
+  // Кладём зону: фон+название — на поверхность (под картами), глагол — в слой над лежащими картами.
+  private registerZone(zone: DropZone, onDrop: (card: Card) => void): void {
+    this.zones.push({ zone, onDrop });
+    this.layers.surface.addChild(zone.base);
+    this.layers.verb.addChild(zone.verb);
+  }
+
+  // Живые Card из накопленных спеков. restore — снимок (положение/лицо), сгоревшие пропускаем.
+  private spawnCards(restore?: Map<number, CardRuntime>): void {
+    this.cardSpecs.forEach((spec, i) => {
+      const r = restore?.get(i);
+      if (restore && !r) return; // сгоревшую карту при рестарте канваса не воскрешаем
+      const card = new Card(r ? { ...spec.opts, faceUp: r.faceUp } : spec.opts, this.tex, this.baseScale);
+      card.bobPhase = spec.bobPhase;
+      card.root.zIndex = spec.depth;
+      card.body.snapTo({ x: r ? r.x : spec.home.x, y: r ? r.y : spec.home.y, rot: 0, scale: card.restScale });
+      this.placeCard(card);
+      this.cards.push({ card, home: spec.home, depth: spec.depth, specIndex: i });
+    });
+  }
+
+  private snapshotCards(): Map<number, CardRuntime> {
+    const m = new Map<number, CardRuntime>();
+    for (const p of this.cards) {
+      if (p.card.dead || p.card.burning) continue; // сгоревшие/догорающие не восстанавливаем
+      m.set(p.specIndex, { faceUp: p.card.faceUp, x: p.card.body.px, y: p.card.body.py });
+    }
+    return m;
   }
 
   // Стопки. Первая — ЛЕВИТИРУЮЩАЯ: 6 карт стоят внахлёст рядом, каждая сдвинута вправо;
@@ -257,12 +357,8 @@ export class FreeDeskEngine {
     const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦", "J♦"];
     ranks.forEach((c, i) => {
       const cx = left + this.cardW / 2 + i * step;
-      const card = new Card({ card: c, rest: "floating" }, this.tex, this.baseScale);
-      card.bobPhase = i * 0.7;
-      card.root.zIndex = i; // правее = глубже по z; сюда карта и вернётся после драга
-      card.body.snapTo({ x: cx, y: cy, rot: 0, scale: card.restScale });
-      this.placeCard(card); // слева направо → правая добавлена последней → сверху
-      this.cards.push({ card, home: { x: cx, y: cy }, depth: i });
+      // правее = глубже по z; сюда карта и вернётся после драга
+      this.cardSpecs.push({ opts: { card: c, rest: "floating" }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.7 });
     });
     this.layers.surface.addChild(this.label("левитирующая стопка (верхняя справа)", left, cy + this.cardH / 2 + 12, 13, 0x9aa89f));
     return cy + this.cardH / 2 + 44;
@@ -485,7 +581,7 @@ export class FreeDeskEngine {
     } else if (this.gesture === "card" && this.cardDrag) {
       const p = this.screenToContent(e.global.x, e.global.y);
       this.cardDrag.card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
-      this.flipZone.setHot(this.flipZone.contains(p.x, p.y));
+      for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y));
     } else if (this.gesture === "button" && this.pressedButton) {
       // Ушёл пальцем с кнопки — отжимаем; вернулся — снова нажата (клик только при отпускании на ней).
       const p = this.screenToContent(e.global.x, e.global.y);
@@ -512,11 +608,15 @@ export class FreeDeskEngine {
   private onUp = (e: { global: { x: number; y: number }; pointerId: number }): void => {
     this.pointers.delete(e.pointerId);
     if (this.gesture === "card" && this.cardDrag) {
+      const card = this.cardDrag.card;
       const p = this.screenToContent(e.global.x, e.global.y);
-      if (this.flipZone.contains(p.x, p.y)) this.cardDrag.card.requestFlip();
-      this.releaseCard(this.cardDrag.card);
+      const hit = this.zones.find((z) => z.zone.contains(p.x, p.y));
+      hit?.onDrop(card);
+      // Сгорающая карта остаётся на месте (в зоне) и догорает; движок уберёт её сам. Иначе —
+      // возврат домой.
+      if (!card.burning) this.releaseCard(card);
       this.cardDrag = null;
-      this.flipZone.setHot(false);
+      for (const z of this.zones) z.zone.setHot(false);
     } else if (this.gesture === "button" && this.pressedButton) {
       const p = this.screenToContent(e.global.x, e.global.y);
       if (this.pressedButton.hitTest(p.x, p.y)) this.pressedButton.click();
@@ -555,6 +655,7 @@ export class FreeDeskEngine {
       card.step(dt);
       if (!card.resting) moving = true;
     }
+    this.reapDead();
     for (const b of this.buttons) {
       b.step(dt);
       if (!b.resting) moving = true;
@@ -562,6 +663,31 @@ export class FreeDeskEngine {
     this.render();
     if (!moving) this.app.ticker.stop();
   };
+
+  // Убрать догоревшие карты (dead) — уничтожить их узлы и вычистить из списка.
+  private reapDead(): void {
+    if (!this.cards.some((p) => p.card.dead)) return;
+    for (const p of this.cards) if (p.card.dead) p.card.destroy();
+    this.cards = this.cards.filter((p) => !p.card.dead);
+  }
+
+  // Снести весь контент песочницы (карты + мебель), оставив сами слои — для рестарта песочницы.
+  private clearContent(): void {
+    for (const p of this.cards) p.card.destroy();
+    this.cards = [];
+    this.cardSpecs = [];
+    this.buttons = [];
+    this.zones = [];
+    this.cardDrag = null;
+    this.pressedButton = null;
+    this.hovered = null;
+    this.layers.surface.removeChildren().forEach((c) => c.destroy());
+    this.layers.verb.removeChildren().forEach((c) => c.destroy());
+    for (const lvl of ["idle", "floating", "fan", "drag"] as const) {
+      this.layers.cards[lvl].removeChildren();
+      this.layers.shadows[lvl].update([], this.contentW, this.contentH);
+    }
+  }
 
   private render(): void {
     for (const { card } of this.cards) card.sync();
@@ -577,13 +703,29 @@ export class FreeDeskEngine {
     }
   }
 
-  destroy(): void {
-    this.destroyed = true;
+  // Снести Pixi-app и живые узлы (для рестарта канваса и окончательного destroy). Логические
+  // спеки не сохраняем — при рестарте канваса состояние берётся из снимка ДО вызова.
+  private teardownApp(): void {
     if (!this.app) return;
     this.app.canvas.removeEventListener("wheel", this.onWheel);
     this.app.ticker.remove(this.tick);
+    for (const p of this.cards) p.card.destroy();
+    this.cards = [];
+    this.cardSpecs = [];
+    this.buttons = [];
+    this.zones = [];
+    this.gesture = "none";
+    this.cardDrag = null;
+    this.pressedButton = null;
+    this.hovered = null;
+    this.pointers.clear();
     this.tex?.destroy();
     this.app.destroy({ removeView: true }, { children: true, texture: true });
     this.app = null;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    this.teardownApp();
   }
 }
