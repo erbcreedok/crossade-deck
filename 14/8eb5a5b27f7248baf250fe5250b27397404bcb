@@ -1,0 +1,32 @@
+client2/REFACTOR.md
+  s_89d5ad20619017::t_368d8d43eda099 14-17
+client2/src/FreeDesk.tsx
+  s_89d5ad20619017::t_8a2aa4aafe6ce9 21
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_980bd0cc1099de 280
+  s_89d5ad20619017::t_115903b0a53f61 270-279,281-289
+client2/e2e/sandbox.spec.ts
+  s_89d5ad20619017::t_03ad1b789b4be5 53-66,77-79,81-87,89-122
+  s_89d5ad20619017::t_d6e9c3d14240ed 67-76,80,88
+client2/e2e/menu.spec.ts
+  s_89d5ad20619017::t_a7a7e8174b6072 26-30
+client2/src/game/ui/DropZone.ts
+  s_89d5ad20619017::t_5349d05557f000 60
+  s_89d5ad20619017::t_69f7afab3d64d7 61-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "148eb5a5b27f7248baf250fe5250b27397404bcb",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
