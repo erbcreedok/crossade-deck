@@ -183,7 +183,9 @@ export class Card {
     // исходного размера, лишь чуть подрастая с высотой. Свет сверху справа → тень вниз-влево.
     const lift = this.body.scaleVal - 1 + IDLE_LIFT + bobLift;
     const chpx = TEX_H * this.scaleFactor;
-    this.shadow.position.set(this.body.px + shakeX - lift * chpx * 0.14, this.body.py + bobY * 0.35 + lift * chpx * 0.2);
+    // Смещение растёт с высотой СИЛЬНЕЕ размера: приподнятая карта крупнее, но тень уходит
+    // дальше вниз-влево и выглядывает из-под неё, а не прячется целиком (иначе «тень пропала»).
+    this.shadow.position.set(this.body.px + shakeX - lift * chpx * 0.26, this.body.py + bobY * 0.35 + lift * chpx * 0.34);
     this.shadow.rotation = this.body.rotation;
     this.shadow.scale.set(this.scaleFactor * (1 + lift * 0.15));
   }
