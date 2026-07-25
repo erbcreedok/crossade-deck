@@ -53,6 +53,9 @@ export interface ViewState {
 
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.6;
+// Чувствительность зума колесом: множитель = exp(-deltaY·ZOOM_SENS) по нормализованному в
+// пиксели deltaY. ~0.0006 даёт мягкие ~6% на щелчок колеса (медленнее прежних 12%).
+const ZOOM_SENS = 0.0006;
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
@@ -295,10 +298,32 @@ export class FreeDeskEngine {
     this.emitView();
   }
 
+  // Колесо мыши (и пинч тачпада) → ЗУМ; двупальцевый скролл тачпада → ПАН. Отличаем по
+  // признакам события: ctrl (пинч/ctrl+колесо) или «настоящее колесо» (wheelDeltaY кратен 120,
+  // строчный/страничный режим). Всё прочее (плавный пиксельный скролл) — это тачпад → пан.
+  private wheelIsZoom(e: WheelEvent): boolean {
+    if (e.ctrlKey) return true;
+    if (e.deltaMode !== 0) return true;
+    const wd = (e as unknown as { wheelDeltaY?: number }).wheelDeltaY;
+    return typeof wd === "number" && wd !== 0 && e.deltaX === 0 && Math.abs(wd) % 120 === 0;
+  }
+
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
-    const rect = this.app!.canvas.getBoundingClientRect();
-    this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    // deltaY в пиксели: в строчном/страничном режиме домножаем.
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.H : e.deltaY;
+    if (this.wheelIsZoom(e)) {
+      const rect = this.app!.canvas.getBoundingClientRect();
+      this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dy * ZOOM_SENS));
+    } else {
+      // Тачпад: двумя пальцами тащим канвас (пан), а не зумим.
+      this.view.x -= e.deltaX;
+      this.view.y -= dy;
+      this.clampView();
+      this.applyView();
+      this.wake();
+      this.emitView();
+    }
   };
 
   setOnView(cb: ((v: ViewState) => void) | null): void {
