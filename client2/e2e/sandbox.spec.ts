@@ -80,6 +80,7 @@ test.describe("песочница — действия", () => {
                 cardCount: number;
                 grips: ({ x: number; y: number } | null)[];
                 stackCards: { x: number; y: number }[][];
+                markerVis: { dragger: boolean; anchor: boolean }[];
                 cardW: number;
                 draggingId: string | null;
               };
@@ -156,6 +157,24 @@ test.describe("песочница — действия", () => {
     const during = await page.screenshot({ clip });
     await page.mouse.up();
     expect(Buffer.compare(before, during)).not.toBe(0);
+  });
+
+  test("метки: драггер виден в покое; якоря — по своей политике (always/away/empty)", async ({ page }) => {
+    const h = await hooks(page);
+    // В покое драггер (грип) виден у всех трёх стопок — за него тянут пачку.
+    expect(h.markerVis.map((m) => m.dragger)).toEqual([true, true, true]);
+    // Якоря: стопка0 «когда унесли» (нет), стопка1 «когда пусто» (нет), стопка2 «всегда» (да).
+    expect(h.markerVis.map((m) => m.anchor)).toEqual([false, false, true]);
+  });
+
+  test("сожжённая стопка: драггер гаснет, якорь «когда пусто» загорается (свап)", async ({ page }) => {
+    const h = await hooks(page);
+    const grip = h.grips[1]!; // стопка1 (якорь showEmpty), на экране
+    await dragTo(page, grip, h.zones["СЖЕЧЬ"]!);
+    await page.waitForTimeout(1100); // догореть + reap (byId удалит карты)
+    const g = await hooks(page);
+    expect(g.markerVis[1]!.dragger).toBe(false); // дома пусто — грип не за что цеплять
+    expect(g.markerVis[1]!.anchor).toBe(true); // total=0 → якорь «когда пусто» показался
   });
 
   test("тап по верхней карте в стопке цепляет ЕЁ, не нижнюю (приоритет по z)", async ({ page }) => {
