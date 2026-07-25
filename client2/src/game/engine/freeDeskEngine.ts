@@ -80,6 +80,8 @@ export interface ViewState {
 
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.6;
+const BLOCK_PAD = 16; // внутренний отступ рамки блока «Управление»
+const BLOCK_GAP = 12; // зазор между текст-кнопкой (названием) и картами блока
 // Чувствительность зума колесом: множитель = exp(-deltaY·ZOOM_SENS) по нормализованному в
 // пиксели deltaY. ~0.0015 даёт ~14% на щелчок.
 const ZOOM_SENS = 0.0015;
@@ -171,7 +173,23 @@ export class FreeDeskEngine {
 
   // Поднять новый Pixi-канвас и собрать сцену. restore — снимок состояния карт (для рестарта
   // канваса); без него песочница строится в исходном виде.
+  // Pixi рисует текст в текстуру ОДИН раз при создании. Если веб-шрифт (VT323) ещё не догружен,
+  // берётся узкий фолбэк — и надписи навсегда остаются кривыми/уже́, ломая fit-раскладку (на
+  // устройстве шрифт из кэша шире, чем свежий фолбэк в headless). Поэтому ждём шрифты ДО отрисовки.
+  private async ensureFonts(): Promise<void> {
+    const f = (document as unknown as { fonts?: FontFaceSet }).fonts;
+    if (!f) return;
+    try {
+      await Promise.all([f.load("16px VT323"), f.load('16px "Press Start 2P"')]);
+      await f.ready;
+    } catch {
+      /* оффлайн — рисуем фолбэком, лучше чем зависнуть */
+    }
+  }
+
   private async bootApp(restore?: Map<number, CardRuntime>): Promise<void> {
+    await this.ensureFonts();
+    if (this.destroyed) return;
     const app = await this.createApp();
     if (!app) return;
     if (this.destroyed) {
@@ -356,30 +374,41 @@ export class FreeDeskEngine {
   }
 
   // Блок 1: текст-кнопка «перевернуть карту» — по тапу переворачивает карту внутри блока.
+  // Бокс подгоняется под контент (fit): ширина = max(кнопка, карта) + отступы.
   private buildFlipBlock(left: number, top: number): number {
-    const boxW = this.cardW * 2.2;
-    const boxH = 40 + this.cardH + 24;
+    const btn = this.textButton("перевернуть карту", () => this.flipCard("ctl-flip"));
+    const contentW = Math.max(btn.w, this.cardW);
+    const boxW = contentW + BLOCK_PAD * 2;
+    const boxH = BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH + BLOCK_PAD;
     this.blockFrame(left, top, boxW, boxH);
-    this.registerButton(this.textButton("перевернуть карту", left + boxW / 2, top + 20, () => this.flipCard("ctl-flip")));
+    const cx = left + boxW / 2;
+    btn.place(cx, top + BLOCK_PAD + btn.h / 2);
+    this.registerButton(btn);
     const card = new Card({ id: "ctl-flip", card: "A♥", rest: "idle" }, this.tex, this.baseScale);
-    card.body.snapTo({ x: left + boxW / 2, y: top + 40 + this.cardH / 2, rot: 0, scale: card.restScale });
+    card.body.snapTo({ x: cx, y: top + BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH / 2, rot: 0, scale: card.restScale });
     this.addControlCard(card);
     return top + boxH;
   }
 
   // Блок 2: две стопки (5 и 4). Тап — случайная карта летит из одной в другую и остаётся там;
-  // следующий тап — случайная летит обратно. Направление чередуется.
+  // следующий тап — случайная летит обратно. Направление чередуется. Бокс подгоняется под контент.
   private buildMoveBlock(left: number, top: number): number {
     const step = this.cardW * 0.4;
     const footprint = this.cardW + 4 * step; // до 5 карт внахлёст
-    const gap = this.cardW * 0.7;
-    const boxW = footprint * 2 + gap + 40;
-    const boxH = 40 + this.cardH + 24;
+    const stacksGap = this.cardW * 0.7;
+    const stacksW = footprint * 2 + stacksGap;
+    const btn = this.textButton("перенос из стопки в стопку", () => this.doStackMove());
+    const contentW = Math.max(btn.w, stacksW);
+    const boxW = contentW + BLOCK_PAD * 2;
+    const boxH = BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH + BLOCK_PAD;
     this.blockFrame(left, top, boxW, boxH);
-    this.registerButton(this.textButton("перенос из стопки в стопку", left + boxW / 2, top + 20, () => this.doStackMove()));
-    const y = top + 40 + this.cardH / 2;
-    const ax = left + 20;
-    const bx = ax + footprint + gap;
+    const cx = left + boxW / 2;
+    btn.place(cx, top + BLOCK_PAD + btn.h / 2);
+    this.registerButton(btn);
+    const y = top + BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH / 2;
+    const groupLeft = left + (boxW - stacksW) / 2; // группа стопок по центру блока
+    const ax = groupLeft;
+    const bx = groupLeft + footprint + stacksGap;
     const a = ["6♣", "7♣", "8♣", "9♣", "10♣"].map((r, i) => this.makeStackCard(`sa${i}`, r));
     const b = ["6♦", "7♦", "8♦", "9♦"].map((r, i) => this.makeStackCard(`sb${i}`, r));
     this.stackMove = { a, b, ax, bx, y, toB: true };
@@ -427,10 +456,8 @@ export class FreeDeskEngine {
     this.placeCard(card);
   }
 
-  private textButton(label: string, cx: number, topY: number, onClick: () => void): Button {
-    const b = new Button({ label, variant: "text", onClick });
-    b.place(cx, topY + b.h / 2);
-    return b;
+  private textButton(label: string, onClick: () => void): Button {
+    return new Button({ label, variant: "text", onClick }); // размещает вызывающий блок
   }
 
   private registerButton(b: Button): void {
