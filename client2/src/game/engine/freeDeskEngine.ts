@@ -120,6 +120,7 @@ export class FreeDeskEngine {
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
   private stacks: SandboxStack[] = [];
   private dragStack: SandboxStack | null = null; // стопка, которую тащат целиком — для драггера (летит/прячется)
+  private followOff: { x: number; y: number } | null = null; // сдвиг follow-ручки от пальца при драге
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
   private dragSqueeze = false; // плейсмент пачки при драге: false — врассыпную, true — сжать в руку
   private pendingWhole: string[] | null = null; // ids захватываемой целиком стопки (между pickCard и grab)
@@ -550,22 +551,27 @@ export class FreeDeskEngine {
     setMark(initial);
   }
 
-  // Драггер стопки при драге: follow — точки едут под пачкой (тот же сдвиг к лиду, что и в покое).
+  // Драггер стопки при драге: follow — точки едут за пальцем (поверх пачки) с тем же сдвигом.
   private followDragger(): void {
     const st = this.dragStack;
-    if (!st || st.dragger !== "follow" || !st.gfx || !this.drag) return;
-    const lead = this.drag.lead;
-    const lh = this.cards.find((c) => c.card === lead)?.home;
-    if (lh) st.gfx.position.set(lead.body.px + st.home.x - lh.x, lead.body.py + st.home.y - lh.y);
+    if (!st || st.dragger !== "follow" || !st.gfx || !this.drag || !this.followOff) return;
+    const cp = this.screenToContent(this.dragScreen.x, this.dragScreen.y);
+    st.gfx.position.set(cp.x + this.followOff.x, cp.y + this.followOff.y);
   }
 
-  // Вернуть драггер на место после драга (показать спрятанный, вернуть уехавший).
+  // Вернуть драггер на место после драга (показать спрятанный, вернуть уехавший в свой слой).
   private restoreDragStack(): void {
     const st = this.dragStack;
     if (st?.gfx) {
       st.gfx.visible = true;
+      if (st.dragger === "follow") {
+        this.scene.verb.addChild(st.gfx); // вернуть из слоя драга обратно на verb
+        st.gfx.zIndex = 0;
+        st.gfx.alpha = 0.55; // обратно в «еле видно»
+      }
       st.gfx.position.set(st.home.x, st.home.y);
     }
+    this.followOff = null;
     this.dragStack = null;
   }
 
@@ -764,7 +770,17 @@ export class FreeDeskEngine {
           const cards = this.pendingWhole.map((id) => this.byId.get(id)).filter((c): c is Card => !!c);
           this.dragStack = this.stacks.find((s) => s.ids === this.pendingWhole) ?? null; // тащим целиком — для ручки
           this.pendingWhole = null;
-          if (this.dragStack?.dragger === "hide" && this.dragStack.gfx) this.dragStack.gfx.visible = false; // точки исчезают
+          const st = this.dragStack;
+          if (st?.gfx) {
+            if (st.dragger === "hide") {
+              st.gfx.visible = false; // точки исчезают на драге
+            } else if (st.dragger === "follow") {
+              this.scene.cards.drag.addChild(st.gfx); // поверх пачки, чтобы было видно
+              st.gfx.zIndex = 2e6;
+              st.gfx.alpha = 0.9; // на драге ярче (в покое еле видны)
+              this.followOff = { x: 0, y: this.cardH * 0.62 }; // ручка под пачкой, у пальца
+            }
+          }
           this.drag = new GroupDrag(cards, this.wholeOffsets(cards, cp), this.dragCtx);
         } else {
           this.drag = new SingleDrag(card, this.dragCtx, cp);
