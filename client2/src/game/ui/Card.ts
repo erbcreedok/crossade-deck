@@ -5,6 +5,7 @@ import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
 import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
+import type { Burnable, Draggable, Flippable, TableElement } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -58,7 +59,7 @@ interface FlipAnim {
 
 const BOB_SPEED = 2.2;
 
-export class Card {
+export class Card implements TableElement, Draggable, Flippable, Burnable {
   readonly root = new Container();
   readonly body = new CardBody();
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает

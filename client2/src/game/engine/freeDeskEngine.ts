@@ -4,6 +4,7 @@ import { Card, type CardOptions, type CardState, type ShadowShape } from "../ui/
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
+import type { TableElement } from "./element";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -198,9 +199,9 @@ export class FreeDeskEngine {
     this.scene = new SceneLayers(this.content);
   }
 
-  /** Положить карту в слой её текущего плана. Тень рисует слитый ShadowLayer (см. render). */
-  private placeCard(card: Card): void {
-    this.scene.place(card.root, levelOf(card.state));
+  /** Положить элемент в слой его текущего плана. Тень рисует слитый ShadowLayer (см. render). */
+  private placeCard(el: TableElement): void {
+    this.scene.place(el.root, levelOf(el.state));
   }
 
   // ——— контент ———
