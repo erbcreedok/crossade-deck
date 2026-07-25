@@ -1,0 +1,22 @@
+client2/src/game/ui/Card.ts
+  s_89d5ad20619017::t_8c14ad4c92acd4 88-89
+  s_89d5ad20619017::t_7d24bb4ee3fe94 159,161
+  s_89d5ad20619017::t_f2bf05482477b3 241-243,245-274
+  s_89d5ad20619017::t_930edc3bcdfb48 59-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a9b49153e29f25274116adab75e74583e021fb8b",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
