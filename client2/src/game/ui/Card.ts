@@ -41,7 +41,6 @@ interface FlipAnim {
 }
 
 const FLOAT_SCALE = 1.06; // парящая чуть крупнее
-const IDLE_LIFT = 0.3; // базовая «высота» лежащей карты — тень заметно дальше, чем впритык
 const BOB_SPEED = 2.2;
 
 export class Card {
@@ -181,13 +180,17 @@ export class Card {
     // размера ПОКОЯ карты (scaleFactor), а не от увеличенной драгом (render): по перспективе
     // приподнятая карта кажется крупнее (ближе к глазу), но её тень на доске остаётся почти
     // исходного размера, лишь чуть подрастая с высотой. Свет сверху справа → тень вниз-влево.
-    const lift = this.body.scaleVal - 1 + IDLE_LIFT + bobLift;
+    // elev — физический подъём над столом: 0 в покое, ~0.45 в драге (+ парение).
+    const elev = this.body.scaleVal - 1 + bobLift;
     const chpx = TEX_H * this.scaleFactor;
-    // Смещение растёт с высотой СИЛЬНЕЕ размера: приподнятая карта крупнее, но тень уходит
-    // дальше вниз-влево и выглядывает из-под неё, а не прячется целиком (иначе «тень пропала»).
-    this.shadow.position.set(this.body.px + shakeX - lift * chpx * 0.26, this.body.py + bobY * 0.35 + lift * chpx * 0.34);
+    // В ПОКОЕ тень прижата к карте (маленький базовый сдвиг). С ПОДЪЁМОМ уходит дальше —
+    // особенно ВНИЗ (отдача тени), заметно сильнее, чем в стороны. Свет сверху справа.
+    this.shadow.position.set(
+      this.body.px + shakeX - chpx * (0.03 + elev * 0.3),
+      this.body.py + bobY * 0.35 + chpx * (0.04 + elev * 0.55),
+    );
     this.shadow.rotation = this.body.rotation;
-    this.shadow.scale.set(this.scaleFactor * (1 + lift * 0.15));
+    this.shadow.scale.set(this.scaleFactor * (1.06 + elev * 0.14));
   }
 
   destroy(): void {
