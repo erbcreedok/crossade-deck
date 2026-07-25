@@ -5,6 +5,7 @@ import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import type { TableElement } from "./element";
+import { fitBlock } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -72,8 +73,6 @@ interface CardRuntime {
 
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.6;
-const BLOCK_PAD = 16; // внутренний отступ рамки блока «Управление»
-const BLOCK_GAP = 12; // зазор между текст-кнопкой (названием) и картами блока
 // Чувствительность зума колесом: множитель = exp(-deltaY·ZOOM_SENS) по нормализованному в
 // пиксели deltaY. ~0.0015 даёт ~14% на щелчок.
 const ZOOM_SENS = 0.0015;
@@ -298,17 +297,15 @@ export class FreeDeskEngine {
   // Бокс подгоняется под контент (fit): ширина = max(кнопка, карта) + отступы.
   private buildFlipBlock(left: number, top: number): number {
     const btn = this.textButton("перевернуть карту", () => this.flipCard("ctl-flip"));
-    const contentW = Math.max(btn.w, this.cardW);
-    const boxW = contentW + BLOCK_PAD * 2;
-    const boxH = BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH + BLOCK_PAD;
-    this.blockFrame(left, top, boxW, boxH);
-    const cx = left + boxW / 2;
-    btn.place(cx, top + BLOCK_PAD + btn.h / 2);
+    const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
+    this.blockFrame(left, top, box.boxW, box.boxH);
+    const cx = left + box.boxW / 2;
+    btn.place(cx, top + box.btnCY);
     this.registerButton(btn);
     const card = new Card({ id: "ctl-flip", card: "A♥", rest: "idle" }, this.tex, this.baseScale);
-    card.body.snapTo({ x: cx, y: top + BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH / 2, rot: 0, scale: card.restScale });
+    card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
     this.addControlCard(card);
-    return top + boxH;
+    return top + box.boxH;
   }
 
   // Блок 2: две стопки (5 и 4). Тап — случайная карта летит из одной в другую и остаётся там;
@@ -319,15 +316,13 @@ export class FreeDeskEngine {
     const stacksGap = this.cardW * 0.7;
     const stacksW = footprint * 2 + stacksGap;
     const btn = this.textButton("перенос из стопки в стопку", () => this.doStackMove());
-    const contentW = Math.max(btn.w, stacksW);
-    const boxW = contentW + BLOCK_PAD * 2;
-    const boxH = BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH + BLOCK_PAD;
-    this.blockFrame(left, top, boxW, boxH);
-    const cx = left + boxW / 2;
-    btn.place(cx, top + BLOCK_PAD + btn.h / 2);
+    const box = fitBlock(btn.w, stacksW, btn.h, this.cardH);
+    this.blockFrame(left, top, box.boxW, box.boxH);
+    const cx = left + box.boxW / 2;
+    btn.place(cx, top + box.btnCY);
     this.registerButton(btn);
-    const y = top + BLOCK_PAD + btn.h + BLOCK_GAP + this.cardH / 2;
-    const groupLeft = left + (boxW - stacksW) / 2; // группа стопок по центру блока
+    const y = top + box.cardCY;
+    const groupLeft = left + (box.boxW - stacksW) / 2; // группа стопок по центру блока
     const ax = groupLeft;
     const bx = groupLeft + footprint + stacksGap;
     const a = ["6♣", "7♣", "8♣", "9♣", "10♣"].map((r, i) => this.makeStackCard(`sa${i}`, r));
@@ -335,7 +330,7 @@ export class FreeDeskEngine {
     this.stackMove = { a, b, ax, bx, y, toB: true };
     this.relayoutStack(a, ax, y, true);
     this.relayoutStack(b, bx, y, true);
-    return top + boxH;
+    return top + box.boxH;
   }
 
   private doStackMove(): void {
