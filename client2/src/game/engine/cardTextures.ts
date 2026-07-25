@@ -129,6 +129,60 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   return tex;
 }
 
+/**
+ * Кастомное лицо ДЖОКЕРА: шутовской колпак с бубенцами + «JOKER». Полностью рисованное —
+ * пример карты со своим лицом, не числовой и не эмодзи.
+ */
+export function makeJokerFaceTexture(app: Application): Texture {
+  const root = new Container();
+  const cx = TEX_W / 2;
+  const purple = 0x7b3fa0;
+
+  const bg = new Graphics();
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  root.addChild(bg);
+
+  // Угловые «J».
+  for (const [x, y, rot] of [
+    [26, 40, 0],
+    [TEX_W - 26, TEX_H - 40, Math.PI],
+  ] as const) {
+    const j = new Text({ text: "J", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: purple } });
+    j.anchor.set(0.5);
+    j.position.set(x, y);
+    j.rotation = rot;
+    root.addChild(j);
+  }
+
+  // Колпак: три треугольника, у каждого бубенец на кончике.
+  const hat = new Graphics();
+  const bells: Array<[number, number]> = [];
+  const tri = (bx: number, tx: number, ty: number, color: number) => {
+    hat.poly([bx - 14, 96, bx + 14, 96, tx, ty]).fill({ color });
+    bells.push([tx, ty]);
+  };
+  tri(cx - 26, cx - 42, 52, 0xc0392b);
+  tri(cx, cx, 38, 0xe0a63a);
+  tri(cx + 26, cx + 42, 52, 0x2f7d4f);
+  root.addChild(hat);
+  const bellsG = new Graphics();
+  for (const [bx, by] of bells) bellsG.circle(bx, by, 6).fill({ color: 0xf4ecd8 }).stroke({ width: 2, color: 0x8a7a4a });
+  root.addChild(bellsG);
+
+  const label = new Text({ text: "JOKER", style: { fontFamily: PIXEL_FONT, fontSize: 30, fill: purple } });
+  label.anchor.set(0.5);
+  label.position.set(cx, 152);
+  root.addChild(label);
+
+  const shade = new Graphics();
+  drawCardShade(shade);
+  root.addChild(shade);
+
+  const tex = app.renderer.generateTexture({ target: root, resolution: 2 });
+  root.destroy({ children: true });
+  return tex;
+}
+
 /** Рубашка по выбранному скину (см. cardBack.ts — там палитра и геометрия узора). */
 export function makeCardBackTexture(app: Application, backId: CardBackId): Texture {
   const skin = cardBackSkin(backId);

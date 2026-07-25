@@ -31,6 +31,7 @@ export interface CardOptions {
   torn?: boolean;
   size?: number;
   hidden?: boolean; // скрытая карта: без номинала, «лицо» — 🖕 (обычно лежит рубашкой вверх)
+  joker?: boolean; // джокер: кастомное рисованное лицо
 }
 
 interface FlipAnim {
@@ -59,6 +60,7 @@ export class Card {
   readonly torn: boolean;
   readonly size: number;
   readonly hidden: boolean;
+  readonly joker: boolean;
 
   state: CardState = "idle";
   private age = 0;
@@ -81,6 +83,7 @@ export class Card {
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
     this.hidden = opts.hidden ?? false;
+    this.joker = opts.joker ?? false;
 
     this.shadow = new Sprite(tex.shadow());
     this.shadow.anchor.set(0.5);
@@ -191,8 +194,10 @@ export class Card {
 
   private faceTex(faceUp: boolean): Texture {
     if (!faceUp) return this.tex.back(this.back);
-    // Скрытая карта номинала не имеет — «лицо» это 🖕.
-    return this.hidden ? this.tex.hiddenFace() : this.tex.face(this.card, this.fourColor, this.faceStyle);
+    // Особые лица: скрытая (🖕) и джокер (кастом); иначе обычное числовое.
+    if (this.hidden) return this.tex.hiddenFace();
+    if (this.joker) return this.tex.jokerFace();
+    return this.tex.face(this.card, this.fourColor, this.faceStyle);
   }
 
   private paint(): void {

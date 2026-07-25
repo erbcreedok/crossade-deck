@@ -33,6 +33,7 @@ const STORIES: Story[] = [
   { caption: "порванная", opts: { card: "10♦", torn: true } },
   { caption: "меньше ×0.7", opts: { size: 0.7 } },
   { caption: "нельзя тащить", opts: { card: "7♣", draggable: false } },
+  { caption: "джокер", opts: { joker: true } },
 ];
 
 interface Placed {
