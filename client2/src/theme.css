@@ -42,3 +42,51 @@ body {
 .table-host > canvas {
   display: block;
 }
+
+/* Полосы прокрутки/зума UI-kit — только на компе (устройствах с ховером), поверх канваса,
+   проявляются при наведении на область. На тач-экране скрыты — там пан/пинч жестами. */
+.fd-controls {
+  display: none;
+}
+
+@media (hover: hover) {
+  .fd-controls {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.25;
+    transition: opacity 0.15s;
+  }
+  .freedesk:hover .fd-controls {
+    opacity: 1;
+  }
+  .fd-controls input {
+    pointer-events: auto;
+    accent-color: #f2c14e;
+  }
+  .fd-scroll {
+    position: absolute;
+    left: 12px;
+    right: 120px;
+    bottom: 10px;
+    width: auto;
+  }
+  .fd-zoom {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "VT323", monospace;
+    font-size: 0.95rem;
+    color: #cdb98f;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+  .fd-zoom input {
+    width: 110px;
+  }
+}
