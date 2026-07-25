@@ -5,6 +5,7 @@ import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { ShadowLayer } from "../ui/ShadowLayer";
 import { Viewport, type ViewState } from "./viewport";
+import { createPixiApp, ensureFonts } from "./canvasHost";
 
 type Level = "idle" | "floating" | "fan" | "drag";
 import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
@@ -133,25 +134,6 @@ export class FreeDeskEngine {
     await this.bootApp();
   }
 
-  private async createApp(): Promise<Application | null> {
-    const app = new Application();
-    try {
-      await app.init({
-        width: this.W,
-        height: this.H,
-        backgroundAlpha: 0,
-        antialias: true,
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
-        autoDensity: true,
-        autoStart: false,
-        preference: "webgl",
-      });
-    } catch {
-      return null;
-    }
-    return app;
-  }
-
   private wire(app: Application): void {
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.W, this.H);
@@ -163,25 +145,11 @@ export class FreeDeskEngine {
   }
 
   // Поднять новый Pixi-канвас и собрать сцену. restore — снимок состояния карт (для рестарта
-  // канваса); без него песочница строится в исходном виде.
-  // Pixi рисует текст в текстуру ОДИН раз при создании. Если веб-шрифт (VT323) ещё не догружен,
-  // берётся узкий фолбэк — и надписи навсегда остаются кривыми/уже́, ломая fit-раскладку (на
-  // устройстве шрифт из кэша шире, чем свежий фолбэк в headless). Поэтому ждём шрифты ДО отрисовки.
-  private async ensureFonts(): Promise<void> {
-    const f = (document as unknown as { fonts?: FontFaceSet }).fonts;
-    if (!f) return;
-    try {
-      await Promise.all([f.load("16px VT323"), f.load('16px "Press Start 2P"')]);
-      await f.ready;
-    } catch {
-      /* оффлайн — рисуем фолбэком, лучше чем зависнуть */
-    }
-  }
-
+  // канваса); без него песочница строится в исходном виде. Шрифты ждём до отрисовки (canvasHost).
   private async bootApp(restore?: Map<number, CardRuntime>): Promise<void> {
-    await this.ensureFonts();
+    await ensureFonts();
     if (this.destroyed) return;
-    const app = await this.createApp();
+    const app = await createPixiApp(this.W, this.H);
     if (!app) return;
     if (this.destroyed) {
       app.destroy({ removeView: true }, { children: true, texture: true });

@@ -1,5 +1,6 @@
 import { Application, Container, Rectangle, Text } from "pixi.js";
 import { Button } from "../ui/Button";
+import { createPixiApp, ensureFonts } from "./canvasHost";
 import { PIXEL_FONT } from "./constants";
 
 // Главное меню — целиком на канвасе. Две кнопки по центру:
@@ -40,24 +41,11 @@ export class MenuEngine {
     if (this.destroyed) return;
     this.W = Math.max(1, Math.round(width));
     this.H = Math.max(1, Math.round(height));
-    await this.ensureFonts();
+    await ensureFonts();
     if (this.destroyed) return;
 
-    const app = new Application();
-    try {
-      await app.init({
-        width: this.W,
-        height: this.H,
-        backgroundAlpha: 0,
-        antialias: true,
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
-        autoDensity: true,
-        autoStart: false,
-        preference: "webgl",
-      });
-    } catch {
-      return;
-    }
+    const app = await createPixiApp(this.W, this.H);
+    if (!app) return;
     if (this.destroyed) {
       app.destroy({ removeView: true }, { children: true, texture: true });
       return;
@@ -79,18 +67,6 @@ export class MenuEngine {
     app.ticker.add(this.tick);
     this.render();
     this.wake();
-  }
-
-  // Pixi рисует текст в текстуру один раз — ждём веб-шрифт (VT323) до отрисовки (см. песочницу).
-  private async ensureFonts(): Promise<void> {
-    const f = (document as unknown as { fonts?: FontFaceSet }).fonts;
-    if (!f) return;
-    try {
-      await Promise.all([f.load("16px VT323"), f.load('16px "Press Start 2P"')]);
-      await f.ready;
-    } catch {
-      /* оффлайн — рисуем фолбэком */
-    }
   }
 
   private build(): void {

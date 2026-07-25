@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Rectangle, Sprite, type Texture } fro
 import { CardBody } from "../CardBody";
 import { SUITS } from "../card";
 import { TablePool, type TableSlot } from "./tablePool";
+import { createPixiApp, ensureFonts } from "./canvasHost";
 import { assembleTable } from "./tableAssemble";
 import { boxFaceUp } from "./tableSide";
 import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./cardTextures";
@@ -64,21 +65,10 @@ export class TableEngine {
     this.cardH = this.cardW * (TEX_H / TEX_W);
     this.baseScale = this.cardW / TEX_W;
 
-    const app = new Application();
-    try {
-      await app.init({
-        width: this.W,
-        height: this.H,
-        backgroundAlpha: 0,
-        antialias: true,
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
-        autoDensity: true,
-        autoStart: false,
-        preference: "webgl",
-      });
-    } catch {
-      return;
-    }
+    await ensureFonts();
+    if (this.destroyed) return;
+    const app = await createPixiApp(this.W, this.H);
+    if (!app) return;
     if (this.destroyed) {
       app.destroy({ removeView: true }, { children: true, texture: true });
       return;
