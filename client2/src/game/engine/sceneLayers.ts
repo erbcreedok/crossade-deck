@@ -1,0 +1,79 @@
+import { Container } from "pixi.js";
+import { ShadowLayer } from "../ui/ShadowLayer";
+import type { CardState, ShadowShape } from "../ui/Card";
+
+// Слои сцены по «плану» (высоте над столом) + слитые тени под каждым уровнем. Инкапсулирует
+// z-порядок и теневой пасс. Чистые части (levelOf, bucketByLevel) тестируются без Pixi; сам
+// класс — тонкая обёртка над контейнерами.
+
+export type Level = "idle" | "floating" | "fan" | "drag";
+export const LEVELS: readonly Level[] = ["idle", "floating", "fan", "drag"];
+
+/** План элемента → уровень слоя. Удержание живёт в слоях драга (сверху). */
+export function levelOf(s: CardState): Level {
+  if (s === "held" || s === "drag") return "drag";
+  if (s === "floating") return "floating";
+  if (s === "fan") return "fan";
+  return "idle";
+}
+
+/** Сгруппировать силуэты теней по уровню (для слитого пасса). Чистая. */
+export function bucketByLevel(items: readonly { level: Level; rect: ShadowShape }[]): Record<Level, ShadowShape[]> {
+  const out: Record<Level, ShadowShape[]> = { idle: [], floating: [], fan: [], drag: [] };
+  for (const it of items) out[it.level].push(it.rect);
+  return out;
+}
+
+export class SceneLayers {
+  readonly surface = new Container(); // стол: тексты, фоны зон, кнопки
+  readonly verb = new Container(); // глаголы зон (над лежащими картами)
+  readonly cards: Record<Level, Container> = {
+    idle: new Container(),
+    floating: new Container(),
+    fan: new Container(),
+    drag: new Container(),
+  };
+  private readonly shadows: Record<Level, ShadowLayer> = {
+    idle: new ShadowLayer(),
+    floating: new ShadowLayer(),
+    fan: new ShadowLayer(),
+    drag: new ShadowLayer(),
+  };
+
+  constructor(content: Container) {
+    // Карты слоя сортируются по zIndex (глубине) — после драга карта встаёт на свою глубину.
+    for (const lvl of LEVELS) this.cards[lvl].sortableChildren = true;
+    // z-порядок снизу вверх: под каждым уровнем карт — его слитая тень; глаголы — над лежащими.
+    content.addChild(
+      this.surface,
+      this.shadows.idle.root,
+      this.cards.idle,
+      this.shadows.floating.root,
+      this.cards.floating,
+      this.shadows.fan.root,
+      this.verb,
+      this.cards.fan,
+      this.shadows.drag.root,
+      this.cards.drag,
+    );
+  }
+
+  /** Положить визуал элемента в слой его уровня. */
+  place(root: Container, level: Level): void {
+    this.cards[level].addChild(root);
+  }
+
+  /** Пересобрать тени всех уровней из силуэтов. */
+  paintShadows(items: readonly { level: Level; rect: ShadowShape }[], w: number, h: number): void {
+    const byLevel = bucketByLevel(items);
+    for (const lvl of LEVELS) this.shadows[lvl].update(byLevel[lvl], w, h);
+  }
+
+  /** Снять все карты со слоёв и погасить тени (для рестарта контента). */
+  clearCards(w: number, h: number): void {
+    for (const lvl of LEVELS) {
+      this.cards[lvl].removeChildren();
+      this.shadows[lvl].update([], w, h);
+    }
+  }
+}
