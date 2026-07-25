@@ -1,0 +1,50 @@
+client2/src/game/engine/marker.test.ts
+  s_89d5ad20619017::t_dfe52f3f0c01dd 1-29
+client2/e2e/sandbox.spec.ts
+  s_89d5ad20619017::t_4e426744ffae0f 166-167,172,176-177
+  s_89d5ad20619017::t_5ed18d4e1a8be9 83
+  s_89d5ad20619017::t_7c0ee671375cf0 162-165,168-171,173-175,178-179
+client2/REFACTOR.md
+  s_89d5ad20619017::t_33c67a057b53c0 125-138
+client2/src/game/engine/marker.ts
+  s_89d5ad20619017::t_3db8d6f7ce4360 1-30,32-67,69-99,101,108-120
+  s_89d5ad20619017::t_e6d1d9a74852fd 68
+  s_89d5ad20619017::t_d1ee9431ea993f 100,102-107
+  s_89d5ad20619017::t_0e47fac7ebf9d0 31
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_bae018087b3b43 337
+  s_89d5ad20619017::t_20f8d973066acb 967
+  s_89d5ad20619017::t_c56a93990fcc8e 338
+  s_89d5ad20619017::t_f24775c86b994c 756-758,760-764,768-772,782-785,787,795,805-806,812-813
+  s_89d5ad20619017::t_d778f21cb556a9 9
+  s_89d5ad20619017::t_82e611cbfff638 514
+  s_89d5ad20619017::t_cf3e4dc187c2b7 980-981,983-984
+  s_89d5ad20619017::t_8a1e00c761e71c 139-141
+  s_89d5ad20619017::t_a7df8b26e6c7f5 1005
+  s_89d5ad20619017::t_85eef047adfb80 66
+  s_89d5ad20619017::t_3280c64852b71e 1027-1028,1030-1031
+  s_89d5ad20619017::t_9ede4ac9da2267 509-513,515-516,524-538,540
+  s_89d5ad20619017::t_1c04dd77843c2f 322
+  s_89d5ad20619017::t_2968563b4884c8 550-566
+  s_89d5ad20619017::t_b44b60f1583bd0 96-114
+  s_89d5ad20619017::t_7b6a6a84be9ac5 539
+  s_89d5ad20619017::t_f050116744e680 60-61,64-65
+  s_89d5ad20619017::t_6a4523f4fd1075 339
+  s_89d5ad20619017::t_adba453948434a 781
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ecf2c38529312d13b943a15d4fa5236041c24016",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
