@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RecentAccount } from "./recentAccounts";
 import { formatVersion } from "./version";
+import { VersionSwitch } from "./VersionSwitch";
 
 // Вход без пароля: либо новый профиль одной кнопкой, либо восстановление по короткому
 // коду (см. account.ts). Экран показывается, пока у игрока нет аккаунта. Недавние аккаунты
@@ -111,6 +112,7 @@ export function AuthScreen({
 
       {/* Версия в углу экрана — как в лобби: по скриншоту видно, что за сборка на проде. */}
       <p className="pixel-version pixel-version-corner">{formatVersion()}</p>
+      <VersionSwitch />
     </div>
   );
 }

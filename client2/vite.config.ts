@@ -23,13 +23,17 @@ function buildNumber(): string {
   return process.env.APP_BUILD || git("git rev-list --count HEAD", "dev");
 }
 
-export default defineConfig({
+// В ПРОДЕ новый клиент временно раздаётся под сабрутом /v2/ (один домен со старым): base
+// должен быть /v2/, чтобы пути к ассетам и роутинг были префиксованы. Локально (dev) держим
+// base '/' — отдельный порт 5174, standalone. BASE_URL пробрасывается в код (см. src/nav.ts).
+export default defineConfig(({ mode }) => ({
+  base: mode === "production" ? "/v2/" : "/",
   plugins: [react()],
-  server: { port: 5173, host: true },
+  server: { port: 5174, host: true },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version ?? "0.0.0"),
     __APP_BUILD__: JSON.stringify(buildNumber()),
     __APP_COMMIT__: JSON.stringify(process.env.APP_COMMIT || git("git rev-parse --short HEAD", "dev")),
     __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
   },
-});
+}));

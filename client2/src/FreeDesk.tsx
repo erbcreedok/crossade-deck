@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FreeDeskEngine, type ViewState } from "./game/engine/freeDeskEngine";
+import { goApp } from "./nav";
 
 // UI-kit «/free-desk» — сторибук на канвасе (пан + зум + drag-and-drop карт/кнопок). На
 // телефоне управление жестами; на компе поверх канваса — скроллбары (гориз./верт., каждый
@@ -60,7 +61,7 @@ export function FreeDesk() {
   return (
     <div className="table-screen freedesk">
       <div className="fd-topbar">
-        <button className="fd-btn" onClick={() => (window.location.href = "/")}>
+        <button className="fd-btn" onClick={() => goApp("")}>
           ← в меню
         </button>
         <button className="fd-btn" onClick={() => engineRef.current?.restartSandbox()}>

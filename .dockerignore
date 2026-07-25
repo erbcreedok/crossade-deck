@@ -1,0 +1,6 @@
+# Контекст сборки корневого образа (deploy/web.Dockerfile). node_modules/dist ставятся/собираются
+# внутри образа, .git не нужен (номер сборки передаётся через APP_BUILD). Экономит вес контекста.
+**/node_modules
+**/dist
+**/.env.local
+.git

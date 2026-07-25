@@ -233,6 +233,21 @@ Machines sleep between visits (`min_machines_running = 0`), so the first request
 pause takes a few seconds to wake the server. That's expected — rooms live in memory only,
 and a restart already kicks everyone out anyway.
 
+### Two clients on one domain (`/` and `/v2/`)
+
+`crusade-deck-client` serves BOTH clients from one nginx image: the old client (`client/`)
+at `/`, and the new one (`client2/`) temporarily at `/v2/`. The image is built from the
+**repo root** by `deploy/web.Dockerfile` (it needs both folders) with `deploy/nginx.conf`
+(a `/v2/` location with its own SPA fallback, before the general `/`). `scripts/deploy.sh`
+builds the client from the root with `--config client/fly.toml --dockerfile
+deploy/web.Dockerfile`, so the app name and the server address (`VITE_*`) still come from
+`client/fly.toml`. `client2` builds with Vite `base: '/v2/'` (production mode only), so its
+assets and routing are prefixed; a broken v2 is gated by its own CI job.
+
+Switching between versions is a deliberately faint corner link in the UI: `v2` in the old
+client (bottom-left, next to the version), `v1` in the new one. In production both are same-
+origin (`/v2/` and `/`); locally they point at the other dev port (5173 ↔ 5174).
+
 ### CI
 
 `.github/workflows/ci.yml` runs the tests of both packages on every push, and on `main`

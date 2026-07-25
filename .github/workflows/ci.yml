@@ -54,9 +54,29 @@ jobs:
       # (например, импорт, который есть только в dev-режиме).
       - run: npx vite build
 
+  client2:
+    name: Клиент v2 — тесты, типы и сборка
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client2/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      # Сборка в prod-режиме — та же, что уедет в образ (base=/v2/). Ловит то, что не видят тесты/tsc.
+      - run: npx vite build
+
   deploy:
     name: Выкатка на Fly.io
-    needs: [server, client]
+    # client2 тоже в гейте: он теперь едет в тот же образ (на /v2/), сломанный — не должен уехать.
+    needs: [server, client, client2]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -77,5 +97,7 @@ jobs:
           curl -sS --max-time 60 --retry 3 --retry-delay 5 \
             https://crusade-deck-server.fly.dev/health
           echo
-          curl -sS -o /dev/null -w "клиент: %{http_code}\n" --max-time 60 --retry 3 --retry-delay 5 \
+          curl -sS -o /dev/null -w "клиент v1: %{http_code}\n" --max-time 60 --retry 3 --retry-delay 5 \
             https://crusade-deck-client.fly.dev/
+          curl -sS -o /dev/null -w "клиент v2: %{http_code}\n" --max-time 60 --retry 3 --retry-delay 5 \
+            https://crusade-deck-client.fly.dev/v2/

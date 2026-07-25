@@ -28,6 +28,22 @@ body {
   flex-direction: column;
 }
 
+/* Неприметный тумблер версий (client2 → старый клиент). Еле виден, ярче на наведении. */
+.ver-switch {
+  position: fixed;
+  right: 10px;
+  bottom: 8px;
+  z-index: 5;
+  font-family: "VT323", monospace;
+  font-size: 0.85rem;
+  color: #cdb98f;
+  opacity: 0.22;
+  text-decoration: none;
+}
+.ver-switch:hover {
+  opacity: 0.7;
+}
+
 .table-hint {
   padding: 8px 12px;
   font-size: 1rem;

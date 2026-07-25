@@ -290,6 +290,24 @@ textarea {
   z-index: 1;
 }
 
+/* Неприметный тумблер на новый клиент (v2). Противоположный версии угол (слева внизу),
+   еле виден, ярче на наведении. Временная штука, пока v2 живёт под сабрутом /v2/. */
+.ver-switch-v2 {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left));
+  bottom: max(6px, env(safe-area-inset-bottom));
+  z-index: 2;
+  font-family: "VT323", monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--panel-border);
+  opacity: 0.35;
+  text-decoration: none;
+}
+.ver-switch-v2:hover {
+  opacity: 0.75;
+}
+
 .pixel-error {
   font-family: "VT323", monospace;
   color: var(--accent-red);

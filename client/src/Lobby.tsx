@@ -11,6 +11,7 @@ import {
   LastRoomInfo,
 } from "./colyseus";
 import { formatVersion } from "./version";
+import { VersionSwitch } from "./VersionSwitch";
 
 export function Lobby({
   accountId,
@@ -198,6 +199,7 @@ export function Lobby({
       {/* Версия в углу ЭКРАНА, а не панели: по скриншоту видно, залился ли деплой, но
           на глаза она не лезет. */}
       <p className="pixel-version pixel-version-corner">{formatVersion()}</p>
+      <VersionSwitch />
     </div>
   );
 }

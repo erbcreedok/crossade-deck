@@ -46,10 +46,20 @@ deploy_one() {
 if [[ "$target" == "all" || "$target" == "server" ]]; then
   deploy_one server
 fi
+# Клиент — ОДИН образ на две версии: старый (v1) на «/», новый (v2) на «/v2/». Собирается из
+# КОРНЯ репо (нужны обе папки) общим deploy/web.Dockerfile; app-имя и адрес сервера (VITE_*)
+# берутся из client/fly.toml. Поэтому не deploy_one (у него контекст = папка), а вызов из корня.
 if [[ "$target" == "all" || "$target" == "client" ]]; then
-  deploy_one client
+  echo "==> client (v1 → /, v2 → /v2 — общий образ из корня)"
+  flyctl deploy --now \
+    --config client/fly.toml \
+    --dockerfile deploy/web.Dockerfile \
+    --build-arg "APP_BUILD=${APP_BUILD}" \
+    --build-arg "APP_COMMIT=${APP_COMMIT}" \
+    .
 fi
 
 echo "==> Готово. Проверка:"
 echo "    curl -s https://crusade-deck-server.fly.dev/health"
-echo "    открыть https://crusade-deck-client.fly.dev/ — версия внизу главного экрана"
+echo "    открыть https://crusade-deck-client.fly.dev/     — старый клиент (версия внизу)"
+echo "    открыть https://crusade-deck-client.fly.dev/v2/  — новый клиент (v2)"
