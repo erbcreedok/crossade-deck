@@ -1,0 +1,28 @@
+client2/src/game/engine/drag.ts
+  s_89d5ad20619017::t_1daa51954a0a46 74-75,87-88,101
+  s_89d5ad20619017::t_938e025188a87b 18
+client2/src/game/engine/drag.test.ts
+  s_89d5ad20619017::t_03e3d3a21284b0 90-113
+  s_89d5ad20619017::t_fba94fccd87c59 31-37
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_3f17bcc4ce980f 883-904
+  s_89d5ad20619017::t_7145eac7360701 139
+client2/e2e/sandbox.spec.ts
+  s_89d5ad20619017::t_df2af6cc4b0d05 124-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c61e806bed7d3c6224340b8b7a8c0e6e5d454459",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
