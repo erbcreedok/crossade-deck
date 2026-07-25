@@ -1,69 +1,65 @@
-import { Application, Container, Graphics, Rectangle, Sprite, Text, type Texture } from "pixi.js";
-import { CardBody } from "../CardBody";
-import { spinAngle, spinScale, spinShowsOther } from "../flip";
-import { easeOutQuad } from "../anim/easing";
-import { makeCardBackTexture, makeCardFaceTexture } from "./cardTextures";
+import { Application, Container, Rectangle, Text } from "pixi.js";
+import { CardTextureCache } from "../ui/CardTextureCache";
+import { Card, type CardOptions } from "../ui/Card";
+import { DropZone } from "../ui/DropZone";
 import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
 
-// UI-kit «/free-desk» — сторибук НА КАНВАСЕ. Вертикально скроллится (тащишь пустоту — едет
-// лист), при этом drag-and-drop карт работает (тащишь карту — берёшь её). Каждый «стори» —
-// интерактивный кусок будущего UI.
-//
-// Стори 1: одна карта + дропзона рядом. Бросил карту в зону — она ПЕРЕВОРАЧИВАЕТСЯ и
-// пружиной возвращается на исходное место (мимо зоны — просто возвращается, без переворота).
+// UI-kit «/free-desk» — сторибук НА КАНВАСЕ. Композит из объектов Card и DropZone. Показывает
+// ряд карт разных вариантов с подписями снизу и дропзону (основной элемент управления). Лист
+// вертикально скроллится (тащишь пустоту — едет), при этом drag-and-drop карт работает:
+// тащишь карту → берёшь её; занёс над зоной — зона показывает ГЛАГОЛ; бросил в зону —
+// зона действует (тут: переворачивает), карта пружиной возвращается домой.
 
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+interface Story {
+  caption: string;
+  opts: CardOptions;
 }
 
-interface FlipAnim {
-  t: number;
-  dur: number;
-  fromFaceUp: boolean;
+const STORIES: Story[] = [
+  { caption: "открытая", opts: { faceUp: true } },
+  { caption: "закрытая", opts: { faceUp: false } },
+  { caption: "без переворота", opts: { faceUp: true, flippable: false } },
+  { caption: "рубашка: изумруд", opts: { faceUp: false, back: "emerald" } },
+  { caption: "лицо: символ", opts: { card: "K♥", faceStyle: "symbol" } },
+  { caption: "4-цветная", opts: { card: "Q♦", fourColor: true } },
+  { caption: "порванная", opts: { card: "10♦", torn: true } },
+  { caption: "меньше ×0.7", opts: { size: 0.7 } },
+];
+
+interface Placed {
+  card: Card;
+  home: { x: number; y: number };
 }
 
 export class FreeDeskEngine {
   private app: Application | null = null;
   private destroyed = false;
-  private content!: Container; // скроллится по вертикали
+  private tex!: CardTextureCache;
+  private content!: Container; // скроллится
   private cardLayer!: Container;
-  private zoneG!: Graphics;
-
-  private backTex!: Texture;
-  private faceTex!: Texture;
 
   private W = 1;
   private H = 1;
+  private baseScale = 1;
   private cardW = 1;
   private cardH = 1;
-  private baseScale = 1;
   private contentH = 1;
   private scrollY = 0;
 
-  // Стори 1
-  private card!: CardBody;
-  private sprite!: Sprite;
-  private home = { x: 0, y: 0 };
-  private zone: Rect = { x: 0, y: 0, w: 0, h: 0 };
-  private faceUp = true;
-  private flip: FlipAnim | null = null;
+  private cards: Placed[] = [];
+  private flipZone!: DropZone;
 
-  private drag: { dx: number; dy: number } | null = null;
+  private drag: { card: Card; dx: number; dy: number } | null = null;
   private scroll: { startPointerY: number; startScroll: number } | null = null;
 
   async mount(container: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
     this.W = Math.max(1, Math.round(width));
     this.H = Math.max(1, Math.round(height));
-    // Эталонный размер карты — ровно как в игре (layout.ts): высота = min(w,h)*0.16 с полом
-    // 48 и потолком 140; ширина по соотношению текстуры. Карта в покое в вееере — этот размер.
+    // Эталонный размер карты — как в игре (layout.ts): высота = min(w,h)*0.16 (пол/потолок).
     this.cardH = Math.max(48, Math.min(140, Math.min(this.W, this.H) * 0.16));
     this.baseScale = this.cardH / TEX_H;
     this.cardW = TEX_W * this.baseScale;
-    this.contentH = Math.max(this.H * 1.6, this.H + 200); // выше экрана — есть куда скроллить
 
     const app = new Application();
     try {
@@ -86,13 +82,14 @@ export class FreeDeskEngine {
     }
     container.appendChild(app.canvas);
     this.app = app;
-    this.backTex = makeCardBackTexture(app, "ruby");
-    this.faceTex = makeCardFaceTexture(app, "A♠", false, "pips");
+    this.tex = new CardTextureCache(app);
 
     this.content = new Container();
     app.stage.addChild(this.content);
+    this.cardLayer = new Container();
+    this.cardLayer.sortableChildren = true;
 
-    this.buildStory1();
+    this.buildContent();
 
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.W, this.H);
@@ -103,43 +100,55 @@ export class FreeDeskEngine {
 
     app.ticker.add(this.tick);
     this.render();
-    this.wake(); // без этого тикер (autoStart:false) не стартует и Pixi не рисует первый кадр
+    this.wake();
   }
 
-  private buildStory1(): void {
-    const title = new Text({
-      text: "01 — Карта + дропзона (дроп → переворот и возврат)",
-      style: { fontFamily: PIXEL_FONT, fontSize: 22, fill: 0xcdb98f },
-    });
-    title.position.set(this.W * 0.06, 24);
+  private label(text: string, x: number, y: number, size: number, fill: number): Text {
+    const t = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: size, fill, align: "center" } });
+    t.anchor.set(0.5, 0);
+    t.position.set(x, y);
+    return t;
+  }
+
+  private buildContent(): void {
+    const pad = this.W * 0.05;
+    const title = this.label("UI-kit — карты и дропзоны", this.W / 2, 20, 24, 0xcdb98f);
     this.content.addChild(title);
 
-    this.zoneG = new Graphics();
-    this.content.addChild(this.zoneG);
+    // Сетка вариантов: столбцов столько, сколько влезает; подпись под каждой картой.
+    const gap = this.cardW * 0.45;
+    const capH = 18;
+    const cellW = this.cardW + gap;
+    const cellH = this.cardH + 10 + capH;
+    const cols = Math.max(1, Math.floor((this.W - pad * 2 + gap) / cellW));
+    const gridW = cols * cellW - gap;
+    const left = (this.W - gridW) / 2 + this.cardW / 2;
+    const top = 64;
 
-    this.cardLayer = new Container();
     this.content.addChild(this.cardLayer);
+    STORIES.forEach((s, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cx = left + col * cellW;
+      const cy = top + row * (cellH + 14) + this.cardH / 2;
+      const card = new Card(s.opts, this.tex, this.baseScale);
+      card.body.snapTo({ x: cx, y: cy, rot: 0, scale: 1 });
+      card.root.zIndex = i;
+      this.cardLayer.addChild(card.root);
+      this.cards.push({ card, home: { x: cx, y: cy } });
+      this.content.addChild(this.label(s.caption, cx, cy + this.cardH / 2 + 8, 15, 0x9aa89f));
+    });
 
-    const rowY = 130 + this.cardH / 2;
-    this.home = { x: this.W * 0.3, y: rowY };
-    this.zone = { x: this.W * 0.56, y: rowY - this.cardH / 2, w: this.cardW * 1.2, h: this.cardH };
+    const rows = Math.ceil(STORIES.length / cols);
+    const gridBottom = top + rows * (cellH + 14);
 
-    this.card = new CardBody();
-    this.card.snapTo({ x: this.home.x, y: this.home.y, rot: 0, scale: 1 });
-    this.sprite = new Sprite(this.faceTex);
-    this.sprite.anchor.set(0.5);
-    this.cardLayer.addChild(this.sprite);
+    // Дропзона: занеси карту — «перевернуть», бросил — карта перевернётся и вернётся домой.
+    const zoneW = Math.min(this.W - pad * 2, this.cardW * 3);
+    const zoneRect = { x: (this.W - zoneW) / 2, y: gridBottom + 20, w: zoneW, h: this.cardH };
+    this.flipZone = new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: zoneRect });
+    this.content.addChild(this.flipZone.root);
 
-    this.drawZone(false);
-  }
-
-  private drawZone(hot: boolean): void {
-    const z = this.zone;
-    this.zoneG.clear();
-    this.zoneG
-      .roundRect(z.x, z.y, z.w, z.h, 12)
-      .fill({ color: hot ? 0x3a5142 : 0x000000, alpha: hot ? 0.35 : 0.12 })
-      .stroke({ width: 2, color: hot ? 0xf2c14e : 0x5f7a6d });
+    this.contentH = Math.max(this.H, zoneRect.y + zoneRect.h + 40);
   }
 
   // ——— ввод ———
@@ -148,17 +157,25 @@ export class FreeDeskEngine {
     return { x: sx, y: sy + this.scrollY };
   }
 
-  private hitCard(cx: number, cy: number): boolean {
-    const hw = (this.cardW * DRAG_SCALE) / 2;
-    const hh = (this.cardH * DRAG_SCALE) / 2;
-    return Math.abs(cx - this.card.px) <= hw && Math.abs(cy - this.card.py) <= hh;
+  private hitCard(cx: number, cy: number): Card | null {
+    let best: { card: Card; z: number } | null = null;
+    for (const { card } of this.cards) {
+      const hw = (card.width * DRAG_SCALE) / 2;
+      const hh = (card.height * DRAG_SCALE) / 2;
+      if (Math.abs(cx - card.body.px) <= hw && Math.abs(cy - card.body.py) <= hh) {
+        if (!best || card.root.zIndex >= best.z) best = { card, z: card.root.zIndex };
+      }
+    }
+    return best?.card ?? null;
   }
 
   private onDown = (e: { global: { x: number; y: number } }): void => {
     const p = this.toContent(e.global.x, e.global.y);
-    if (this.hitCard(p.x, p.y) && !this.flip) {
-      this.drag = { dx: this.card.px - p.x, dy: this.card.py - p.y };
-      this.card.setTarget({ x: p.x + this.drag.dx, y: p.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
+    const card = this.hitCard(p.x, p.y);
+    if (card) {
+      this.drag = { card, dx: card.body.px - p.x, dy: card.body.py - p.y };
+      card.root.zIndex = 100_000;
+      card.body.setTarget({ x: p.x + this.drag.dx, y: p.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
     } else {
       this.scroll = { startPointerY: e.global.y, startScroll: this.scrollY };
     }
@@ -168,8 +185,8 @@ export class FreeDeskEngine {
   private onMove = (e: { global: { x: number; y: number } }): void => {
     if (this.drag) {
       const p = this.toContent(e.global.x, e.global.y);
-      this.card.setTarget({ x: p.x + this.drag.dx, y: p.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
-      this.drawZone(this.overZone(p.x, p.y));
+      this.drag.card.body.setTarget({ x: p.x + this.drag.dx, y: p.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
+      this.flipZone.setHot(this.flipZone.contains(p.x, p.y));
       this.wake();
     } else if (this.scroll) {
       const max = Math.max(0, this.contentH - this.H);
@@ -180,21 +197,19 @@ export class FreeDeskEngine {
 
   private onUp = (e: { global: { x: number; y: number } }): void => {
     if (this.drag) {
+      const d = this.drag;
       this.drag = null;
       const p = this.toContent(e.global.x, e.global.y);
-      // Возврат домой в любом случае; попал в зону — по пути переворачивается.
-      this.card.setTarget({ x: this.home.x, y: this.home.y, scale: 1, rot: 0 });
-      if (this.overZone(p.x, p.y)) this.flip = { t: 0, dur: 0.45, fromFaceUp: this.faceUp };
-      this.drawZone(false);
+      if (this.flipZone.contains(p.x, p.y)) d.card.requestFlip(); // действие зоны
+      // Возврат домой в любом случае (мимо зоны — просто пружинит назад).
+      const home = this.cards.find((c) => c.card === d.card)!.home;
+      d.card.body.setTarget({ x: home.x, y: home.y, scale: 1, rot: 0 });
+      d.card.root.zIndex = this.cards.findIndex((c) => c.card === d.card);
+      this.flipZone.setHot(false);
       this.wake();
     }
     this.scroll = null;
   };
-
-  private overZone(cx: number, cy: number): boolean {
-    const z = this.zone;
-    return cx >= z.x && cx <= z.x + z.w && cy >= z.y && cy <= z.y + z.h;
-  }
 
   // ——— цикл ———
 
@@ -205,41 +220,24 @@ export class FreeDeskEngine {
   private tick = (): void => {
     if (!this.app) return;
     const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
-    this.card.step(dt);
-    if (this.flip) {
-      this.flip.t += dt;
-      if (this.flip.t >= this.flip.dur) {
-        this.faceUp = !this.flip.fromFaceUp;
-        this.flip = null;
-      }
+    let moving = this.drag !== null;
+    for (const { card } of this.cards) {
+      card.step(dt);
+      if (!card.resting) moving = true;
     }
     this.render();
-    if (this.card.isResting() && !this.flip && !this.drag) this.app.ticker.stop();
+    if (!moving) this.app.ticker.stop();
   };
 
-  private sideTex(faceUp: boolean): Texture {
-    return faceUp ? this.faceTex : this.backTex;
-  }
-
   private render(): void {
-    const s = this.card.scaleVal * this.baseScale;
-    this.sprite.position.set(this.card.px, this.card.py);
-    this.sprite.rotation = this.card.rotation;
-    if (this.flip) {
-      const angle = spinAngle(easeOutQuad(Math.min(1, this.flip.t / this.flip.dur)), 1);
-      this.sprite.scale.set(s * spinScale(angle), s);
-      const showOther = spinShowsOther(angle);
-      this.sprite.texture = this.sideTex(showOther ? !this.flip.fromFaceUp : this.flip.fromFaceUp);
-    } else {
-      this.sprite.scale.set(s, s);
-      this.sprite.texture = this.sideTex(this.faceUp);
-    }
+    for (const { card } of this.cards) card.sync();
   }
 
   destroy(): void {
     this.destroyed = true;
     if (!this.app) return;
     this.app.ticker.remove(this.tick);
+    this.tex?.destroy();
     this.app.destroy({ removeView: true }, { children: true, texture: true });
     this.app = null;
   }
