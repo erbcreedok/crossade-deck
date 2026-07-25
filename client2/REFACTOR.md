@@ -16,7 +16,11 @@
 - [x] PWA: safe-area на топбаре (env(safe-area-inset-*)).
 - [x] Брендовый бейдж как в 2ГИС (BrandBadge, только standalone).
 - [x] Инерция скролла доски (Viewport.startFling/stepFling + panEnd).
-- [x] Команда/скилл /todo-ignore (+ /todo-after).
+- [x] Скиллы: /todo-ignore, /todo-after, /discuss («не кодить, а обсуждать»), /design-review
+      (adversarial-разбор дизайна веером ревьюеров), /craft (рабочий режим «вдумчивого инженера»:
+      проактивные решения + адверсариальный self-review дизайна и кода + SOLID/чистый код/ООП-где-надо
+      + небольшие файлы и структура + масштабирование композицией + мультиплатформа + TDD + кратко).
+      Живут в `~/.claude/skills/`.
 
 **АПГРЕЙД ДВИЖКА — новый режим игры = лёгкий конфиг-МАПА, а не файл на 3000 строк.**
 Полный дизайн: [`ENGINE-UPGRADE.md`](./ENGINE-UPGRADE.md). Суть:
