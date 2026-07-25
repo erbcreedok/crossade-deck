@@ -21,3 +21,13 @@ export function fitBlock(btnW: number, innerW: number, btnH: number, cardH: numb
     cardCY: pad + btnH + gap + cardH / 2,
   };
 }
+
+// Сдвиги карт пачки относительно пальца при драге «в руку»: тесная стопка, центрированная под
+// пальцем. Шаг маленький — передняя карта прячет номинал задних, но общая ширина ненулевая, чтобы
+// на глаз читалось количество. i=0 — низ (сзади), i=n-1 — верх (спереди).
+export function squeezeOffsets(n: number, cardW: number, cardH: number): Array<{ dx: number; dy: number }> {
+  const sx = cardW * 0.06; // тесный боковой шаг (пара пикселей)
+  const sy = cardH * 0.03;
+  const mid = (n - 1) / 2;
+  return Array.from({ length: n }, (_, i) => ({ dx: (i - mid) * sx, dy: (i - mid) * sy }));
+}

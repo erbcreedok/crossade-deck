@@ -5,7 +5,7 @@ import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import type { TableElement } from "./element";
-import { fitBlock } from "./sandboxLayout";
+import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -108,10 +108,9 @@ export class FreeDeskEngine {
   // Стопки с драггерами (демо захвата всей пачки). handle — прямоугольник «ручки» в координатах контента.
   private stacks: Array<{ ids: string[]; dragger: "none" | "grip" | "tab"; handle: { x: number; y: number; w: number; h: number } | null }> = [];
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
+  private dragSqueeze = false; // плейсмент пачки при драге: false — врассыпную, true — сжать в руку
   private pendingWhole: string[] | null = null; // ids захватываемой целиком стопки (между pickCard и grab)
   private wholeDrag: { cards: Card[]; offsets: Array<{ dx: number; dy: number }> } | null = null;
-  private modeButtons: Button[] = [];
-  private modeMark!: Graphics; // подчёркивание активного сегмента переключателя
   private buttons: Button[] = [];
   private zones: Array<{ zone: DropZone; onDrop: (card: Card) => void }> = [];
 
@@ -484,8 +483,9 @@ export class FreeDeskEngine {
       this.scene.surface.addChild(this.label(caps[s]!, ox, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
     });
     const toggleY = cy + this.cardH / 2 + 50;
-    this.buildStackModeToggle(left, toggleY);
-    return toggleY + 42;
+    this.segToggle(left, toggleY, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
+    this.segToggle(left, toggleY + 28, "при драге стопки:", ["рассыпью", "в руку"], this.dragSqueeze ? 1 : 0, (i) => (this.dragSqueeze = i === 1));
+    return toggleY + 70;
   }
 
   // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом
@@ -506,29 +506,31 @@ export class FreeDeskEngine {
   }
 
   // Стильный сегментный переключатель режима драга: «по карте» | «всю стопку».
-  private buildStackModeToggle(left: number, y: number): void {
-    this.scene.surface.addChild(this.label("режим драга карты стопки:", left, y, 12, 0x9aa89f, undefined, 0));
-    const b1 = this.textButton("по карте", () => this.setStackMode("one"));
-    const b2 = this.textButton("всю стопку", () => this.setStackMode("whole"));
-    const x0 = left + 200;
-    b1.place(x0 + b1.w / 2, y + b1.h / 2);
-    b2.place(x0 + b1.w + 10 + b2.w / 2, y + b2.h / 2);
-    this.registerButton(b1);
-    this.registerButton(b2);
-    this.modeButtons = [b1, b2];
-    this.modeMark = new Graphics();
-    this.scene.surface.addChild(this.modeMark);
-    this.setStackMode(this.stackMode);
-  }
-
-  private setStackMode(m: "one" | "whole"): void {
-    this.stackMode = m;
-    const b = this.modeButtons[m === "one" ? 0 : 1];
-    if (b && this.modeMark) {
-      this.modeMark.clear();
-      this.modeMark.roundRect(b.x - b.w / 2 + 4, b.y + b.h / 2 - 1, b.w - 8, 2, 1).fill({ color: 0xf2c14e });
-    }
-    this.wake();
+  // Стильный сегментный переключатель: подпись + текст-кнопки, под активной — золотая черта.
+  private segToggle(left: number, y: number, caption: string, labels: string[], initial: number, onPick: (i: number) => void): void {
+    const cap = this.label(caption, left, y, 12, 0x9aa89f, undefined, 0);
+    this.scene.surface.addChild(cap);
+    const mark = new Graphics();
+    const btns: Button[] = [];
+    const setMark = (i: number) => {
+      const b = btns[i]!;
+      mark.clear();
+      mark.roundRect(b.x - b.w / 2 + 4, b.y + b.h / 2 - 1, b.w - 8, 2, 1).fill({ color: 0xf2c14e });
+      this.wake();
+    };
+    let x = left + cap.width + 14;
+    labels.forEach((lab, i) => {
+      const b = this.textButton(lab, () => {
+        onPick(i);
+        setMark(i);
+      });
+      b.place(x + b.w / 2, y + b.h / 2);
+      this.registerButton(b);
+      btns.push(b);
+      x += b.w + 10;
+    });
+    this.scene.surface.addChild(mark);
+    setMark(initial);
   }
 
   private stackAtHandle(cx: number, cy: number): { ids: string[] } | null {
@@ -730,7 +732,7 @@ export class FreeDeskEngine {
             c.root.zIndex = 1e6 + i; // вся пачка поверх всех, порядок сохранён
             this.placeCard(c);
           });
-          this.wholeDrag = { cards, offsets: cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y })) };
+          this.wholeDrag = { cards, offsets: this.wholeOffsets(cards, cp) };
           this.applyWhole(cp);
           this.cardDrag = { card, dx: card.body.px - cp.x, dy: card.body.py - cp.y }; // лид — для edge-scroll
           return;
@@ -855,7 +857,14 @@ export class FreeDeskEngine {
     this.emitView();
   }
 
-  // Вести всю пачку за пальцем: каждая карта = точка пальца + её исходный сдвиг (форма сохранена).
+  // Сдвиги пачки относительно пальца: «в руку» — тесная центрированная стопка (номинал задних
+  // скрыт, ширина видна); «врассыпную» — сохранить исходную форму стопки.
+  private wholeOffsets(cards: Card[], cp: { x: number; y: number }): Array<{ dx: number; dy: number }> {
+    if (this.dragSqueeze) return squeezeOffsets(cards.length, this.cardW, this.cardH);
+    return cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y }));
+  }
+
+  // Вести всю пачку за пальцем: каждая карта = точка пальца + её сдвиг (форма сохранена/сжата).
   private applyWhole(cp: { x: number; y: number }): void {
     if (!this.wholeDrag) return;
     this.wholeDrag.cards.forEach((c, i) => {
@@ -921,7 +930,6 @@ export class FreeDeskEngine {
     this.stacks = [];
     this.pendingWhole = null;
     this.wholeDrag = null;
-    this.modeButtons = [];
     this.buttons = [];
     this.zones = [];
     this.cardDrag = null;
@@ -966,7 +974,6 @@ export class FreeDeskEngine {
     this.stacks = [];
     this.pendingWhole = null;
     this.wholeDrag = null;
-    this.modeButtons = [];
     this.buttons = [];
     this.zones = [];
     this.cardDrag = null;

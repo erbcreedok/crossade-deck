@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fitBlock } from "./sandboxLayout";
+import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 
 describe("fitBlock", () => {
   it("рамка = max(кнопка, контент) + 2·pad; высота = pad+кнопка+gap+карта+pad", () => {
@@ -20,5 +20,21 @@ describe("fitBlock", () => {
     const btnBottom = b.btnCY + 30 / 2;
     const cardTop = b.cardCY - 140 / 2;
     expect(cardTop).toBeGreaterThanOrEqual(btnBottom);
+  });
+});
+
+describe("squeezeOffsets", () => {
+  it("центрирована: средняя карта в нуле, крайние симметричны", () => {
+    const o = squeezeOffsets(5, 100, 140);
+    expect(o[2]).toEqual({ dx: 0, dy: 0 }); // середина под пальцем
+    expect(o[0]!.dx).toBeCloseTo(-o[4]!.dx, 6);
+    expect(o[0]!.dy).toBeCloseTo(-o[4]!.dy, 6);
+  });
+
+  it("тесно, но ширина ненулевая (видно количество)", () => {
+    const o = squeezeOffsets(5, 100, 140);
+    const width = o[4]!.dx - o[0]!.dx;
+    expect(width).toBeGreaterThan(0);
+    expect(width).toBeLessThan(100 * 0.4); // заметно у́же исходного веера
   });
 });
