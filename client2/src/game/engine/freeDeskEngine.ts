@@ -45,6 +45,7 @@ const STORIES: Story[] = [
 interface Placed {
   card: Card;
   home: { x: number; y: number };
+  depth: number; // z-индекс глубины в своём слое; после драга карта возвращается на него
 }
 
 export interface ViewState {
@@ -164,6 +165,9 @@ export class FreeDeskEngine {
       shadows: { idle: new ShadowLayer(), floating: new ShadowLayer(), fan: new ShadowLayer(), drag: new ShadowLayer() },
     };
     const L = this.layers;
+    // Слои карт сортируются по zIndex (глубине): после драга карта встаёт на свою глубину,
+    // а не поверх всех (addChild дописывает в конец).
+    for (const lvl of ["idle", "floating", "fan", "drag"] as const) L.cards[lvl].sortableChildren = true;
     // z-порядок снизу вверх: под каждым уровнем карт — его СЛИТАЯ тень (маска+заливка).
     // Удержание живёт в слоях драга (сверху). Веер — задел.
     this.content.addChild(
@@ -217,9 +221,10 @@ export class FreeDeskEngine {
       const cx = pad + this.cardW / 2 + i * cellW;
       const card = new Card(s.opts, this.tex, this.baseScale);
       card.bobPhase = i * 0.9;
+      card.root.zIndex = i;
       card.body.snapTo({ x: cx, y: cardCY, rot: 0, scale: card.restScale });
       this.placeCard(card); // в свой план покоя (idle / floating / held)
-      this.cards.push({ card, home: { x: cx, y: cardCY } });
+      this.cards.push({ card, home: { x: cx, y: cardCY }, depth: i });
       // Подпись — на ПОВЕРХНОСТИ (под картами).
       this.layers.surface.addChild(this.label(s.caption, cx, cardCY + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9));
     });
@@ -254,9 +259,10 @@ export class FreeDeskEngine {
       const cx = left + this.cardW / 2 + i * step;
       const card = new Card({ card: c, rest: "floating" }, this.tex, this.baseScale);
       card.bobPhase = i * 0.7;
+      card.root.zIndex = i; // правее = глубже по z; сюда карта и вернётся после драга
       card.body.snapTo({ x: cx, y: cy, rot: 0, scale: card.restScale });
       this.placeCard(card); // слева направо → правая добавлена последней → сверху
-      this.cards.push({ card, home: { x: cx, y: cy } });
+      this.cards.push({ card, home: { x: cx, y: cy }, depth: i });
     });
     this.layers.surface.addChild(this.label("левитирующая стопка (верхняя справа)", left, cy + this.cardH / 2 + 12, 13, 0x9aa89f));
     return cy + this.cardH / 2 + 44;
@@ -428,6 +434,7 @@ export class FreeDeskEngine {
         this.gesture = "card";
         this.cardDrag = { card, dx: card.body.px - p.x, dy: card.body.py - p.y };
         card.setState("drag"); // подъём: масштаб/тень едут плавно
+        card.root.zIndex = 1e6; // пока тащим — поверх всех в слое драга
         this.placeCard(card); // и переезд в верхний слой
         card.body.setTarget({ x: p.x + this.cardDrag.dx, y: p.y + this.cardDrag.dy, rot: 0 });
       } else {
@@ -529,6 +536,7 @@ export class FreeDeskEngine {
   private releaseCard(card: Card): void {
     const placed = this.cards.find((c) => c.card === card)!;
     card.setState(card.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
+    card.root.zIndex = placed.depth; // и на свою глубину — не поверх соседей по стопке
     this.placeCard(card);
     card.body.setTarget({ x: placed.home.x, y: placed.home.y, rot: 0 });
   }
