@@ -1,0 +1,27 @@
+client2/src/Table.tsx
+  s_89d5ad20619017::t_587005e871c165 1-22
+client2/src/theme.css
+  s_89d5ad20619017::t_978a89e2389cd5 8,16-17,21,31-32,34,37,39,42
+client2/vitest.config.ts
+  s_89d5ad20619017::t_009f7afacea963 3,6-7
+client2/src/game/engine/tableEngine.ts
+  s_89d5ad20619017::t_714940b4e70ca1 1-355
+client2/src/main.tsx
+  s_89d5ad20619017::t_134fcdd4ecb893 3,6,8-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "75494453bec18b19be6e5ba70266a744437da5c6",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
