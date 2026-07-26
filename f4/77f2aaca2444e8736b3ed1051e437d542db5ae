@@ -1,0 +1,20 @@
+client2/src/game/censorDemo.ts
+  s_89d5ad20619017::t_1fdd6d1775e442 5
+  s_89d5ad20619017::t_5bf804546bdcd1 84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f477f2aaca2444e8736b3ed1051e437d542db5ae",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
