@@ -38,6 +38,12 @@ describe("grid layout", () => {
     expect(g.indexAt({ x: 250, y: 70 }, many(4))).toBe(2);
     expect(g.indexAt({ x: 50, y: 210 }, many(4))).toBe(3); // второй ряд
   });
+  it("ПУСТОЙ грид с явной ячейкой держит размер (colsMin×rowsMin), а без неё схлопывается в 0", () => {
+    const withCell = grid({ cell: CARD, cols: { min: 3 }, gap: 0, reserve: true }).place([]);
+    expect(withCell.size).toEqual({ w: 300, h: 140 }); // 3×1 зарезервировано
+    const noCell = grid({ cols: { min: 3 }, gap: 0, reserve: true }).place([]);
+    expect(noCell.size).toEqual({ w: 0, h: 0 }); // без ячейки — 0 (нет контекста размера)
+  });
 });
 
 describe("pile layout", () => {

@@ -135,7 +135,7 @@ export class Field implements Configurable {
     // расширена на gridPad (тот же отступ, что рисует рамку) — дроп у края ловится ровно как рисуется.
     this.gridGroup = group(
       "field-grid",
-      gridLayout({ cols: { min: () => this.colsMin, max: () => this.colsMax }, rows: { min: () => this.rowsMin, max: () => this.rowsMax }, grow: this.config.grow, gap: this.grid.gap, reserve: this.config.reserve }),
+      gridLayout({ cell: this.grid.cell, cols: { min: () => this.colsMin, max: () => this.colsMax }, rows: { min: () => this.rowsMin, max: () => this.rowsMax }, grow: this.config.grow, gap: this.grid.gap, reserve: this.config.reserve }),
       [],
       { reorder: { enabled: this.config.reorder ?? false }, drop: { pad: this.config.gridPad } },
     );
