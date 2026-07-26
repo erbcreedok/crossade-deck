@@ -217,6 +217,34 @@ TARGET (резолв EC1 + `accepts`) → COMMIT. Всё — те же `GroupDra
 `playHover.ts` (соседи расступаются под пальцем), `playStack.ts`, `playFlat.ts`. Плюс уже
 готовое в client2: `Elem`/`TableElement`, метки, `GroupDrag`, тени, хит-тест, `ElementPool`.
 
+## Реализация — статус (2026-07-26, автономная сессия)
+
+**Логический слой (чистые функции/классы, тесты рядом):**
+- `board/container.ts` — атом (члены+maxSize/locked/accepts).
+- `board/board.ts` — слоты↔контейнеры (move/removeFrom/reorder + onEmpty).
+- `board/layout/grid.ts` + `layout/slots.ts` — геометрия + стратегии раскладки (gridSlots/ringSlots),
+  подключаемые: BoardZone принимает список PositionedSlot, не зная grid/ring.
+- `board/dropResolve.ts` — резолвер EC1 (priority→depth→z, accepts=прозрачность).
+- `board/actionFold.ts` — свёртка Action (all/each/container/block + fn).
+- `board/slotLayout.ts` — раскладка членов в слоте (EC2).
+- `board/selection.ts` — изолированный мультиселект (замкнут на контейнер).
+- `board/bounds.ts` — запертость (clampToBounds).
+- `board/containerConfig.ts` — конфиг контейнера (данные).
+- `board/boardZone.ts` — ядро: onOccupied (merge/swap/capture/reject) + AcceptRule (value-aware,
+  rules as data) + dropAt/dropSetAt + clamp.
+- `board/boardPresets.ts` — пресеты-ДАННЫЕ + cardColor/rankOf.
+
+**Визуал в песочнице (freeDeskEngine):** ряд из 6 бордов-пресетов (свободно/дурак-maxSize/пятнашки-
+swap/шахматы-capture/монополия-ring/value-правило) с тоглером onOccupied; изолированный мультиселект
+(кнопки «выделение»/«снять», тап-выбор, драг НАБОРА в слот с сортом по номиналу, тап-vs-драг),
+фигуры заперты в рамке, capture жжёт вытесненных.
+
+Покрытие: ~198 юнитов + e2e (переезд/кламп/выделение/изоляция/value-правило/драг-набора).
+
+**Не сделано (задел):** run-grab, reorder-within-slot (UI), onEmpty как открытый Action (refill),
+global-тоглеры (рубашка/multiSelect on-off), пасьянс, вынос board-песочницы из freeDeskEngine в
+модуль (BoardFactory, см. ENGINE-UPGRADE.md).
+
 ## План (TDD, когда закончим дискуссию)
 
 Чистые модули сперва: `boardModel` (слоты↔контейнеры), `layout/*` (grid/ring/points), `dropTarget`,
