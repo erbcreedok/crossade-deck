@@ -183,6 +183,8 @@ export class FreeDeskEngine {
   private selZone: BoardZone | null = null; // зона демо-выделения
   private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
   private selGrabCp = { x: 0, y: 0 }; // точка захвата набора (тап vs драг)
+  private multiSelectOn = true; // конфиг: доступен ли режim выделения
+  private selSortByRank = true; // конфиг: порядок выноса набора (номинал / порядок выбора)
   private faceOf = new Map<string, string>(); // id фигуры → лицо карты (для сорта набора по номиналу)
   private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
@@ -921,11 +923,27 @@ export class FreeDeskEngine {
     this.registerButton(bMode);
     this.registerButton(bClear);
     this.selButtons = [{ label: "выделение", btn: bMode }, { label: "снять", btn: bClear }];
-    return bottom + 30;
+
+    // Глобальные конфиги контейнера (живут в зоне): мультиселект вкл/выкл, порядок выноса набора.
+    this.multiSelectOn = true;
+    this.selSortByRank = true;
+    const t1 = bottom + 34;
+    this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
+      this.multiSelectOn = i === 0;
+      if (!this.multiSelectOn && this.selMode) {
+        this.selMode = false;
+        this.sel = clearSel();
+        this.refreshSel();
+        this.wake();
+      }
+    });
+    this.segToggle(left, t1 + 26, "сорт набора:", ["номинал", "выбор"], 0, (i) => (this.selSortByRank = i === 0));
+    return t1 + 52;
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
   private toggleSelectMode(): void {
+    if (!this.multiSelectOn) return; // конфиг контейнера отключил мультиселект
     this.selMode = !this.selMode;
     this.sel = this.selMode ? begin("sel") : clearSel();
     this.refreshSel();
@@ -946,8 +964,9 @@ export class FreeDeskEngine {
     this.wake();
   }
 
-  // Порядок выноса набора — по номиналу (конфиг контейнера selectSort: rank).
+  // Порядок выноса набора — конфиг контейнера: по номиналу (rank) или порядок выбора.
   private sortSet(ids: string[]): string[] {
+    if (!this.selSortByRank) return [...ids]; // порядок выделения
     return [...ids].sort((a, b) => rankOf(this.faceOf.get(a) ?? "") - rankOf(this.faceOf.get(b) ?? ""));
   }
 
