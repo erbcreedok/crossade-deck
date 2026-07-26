@@ -23,13 +23,17 @@
       .kz { font-size: 34px; }
       .kz .lbl { color: #7d8f84; font-size: 14px; font-family: system-ui, sans-serif; }
       .lat { font-size: 24px; color: #cdb98f; }
+      .cv { display: block; margin-top: 6px; width: 100%; max-width: 860px; height: 92px; background: #17211c; border-radius: 4px; }
+      .tag { color: #7d8f84; font-size: 12px; font-family: system-ui, sans-serif; }
     </style>
   </head>
   <body>
     <h1>Подбор пиксель-шрифта: кириллица + казахский</h1>
     <p class="hint">
       Смотри строку <b>КАЗАХ</b>. Где буквы <span class="kzchars">Әә Ғғ Ққ Ңң Өө Ұұ Үү Һһ Іі</span> нарисованы в стиле шрифта — поддержка есть.
-      Где они сериф/обычные (фолбэк) — нет. Текущий в приложении — <b>VT323</b> (кириллицы у него нет).
+      Где они сериф (фолбэк Times New Roman) — нет. Текущий в приложении — <b>VT323</b> (кириллицы у него нет).<br />
+      У каждого шрифта две строки: <b>DOM</b> (обычный текст) и <b>КАНВАС</b> — как реально рисует приложение (Pixi/canvas).
+      Сравнивай именно КАНВАС.
     </p>
     <div id="list"></div>
     <script>
@@ -49,14 +53,37 @@
         const ff = `font-family:'${f}','Times New Roman',serif`;
         el.innerHTML =
           `<div class="meta">${f}</div>` +
+          `<div class="tag">DOM:</div>` +
           `<div class="row big" style="${ff}">${SAMPLE}</div>` +
           `<div class="row kz"><span class="lbl">КАЗАХ&nbsp;</span><span style="${ff}">${KAZ}</span></div>` +
-          `<div class="row lat" style="${ff}">${LAT}</div>`;
+          `<div class="row lat" style="${ff}">${LAT}</div>` +
+          `<div class="tag">КАНВАС (как в приложении):</div><canvas class="cv" data-font="${f}"></canvas>`;
         list.appendChild(el);
       }
-      // Форсим загрузку нужных подмножеств (латиница+кириллица+казахский) у каждого до просмотра.
+      // Форсим загрузку нужных подмножеств (латиница+кириллица+казахский), потом рисуем на КАНВАСЕ.
       const probe = SAMPLE + KAZ + LAT;
-      Promise.all(FONTS.map((f) => document.fonts.load(`34px '${f}'`, probe).catch(() => {}))).then(() => document.fonts.ready);
+      Promise.all(FONTS.map((f) => document.fonts.load(`34px '${f}'`, probe).catch(() => {})))
+        .then(() => document.fonts.ready)
+        .then(() => {
+          const dpr = window.devicePixelRatio || 1;
+          for (const cv of document.querySelectorAll("canvas.cv")) {
+            const f = cv.getAttribute("data-font");
+            const w = cv.clientWidth || 860;
+            const h = cv.clientHeight || 92;
+            cv.width = w * dpr;
+            cv.height = h * dpr;
+            const ctx = cv.getContext("2d");
+            ctx.scale(dpr, dpr);
+            ctx.textBaseline = "alphabetic";
+            const stack = `'${f}','Times New Roman',serif`;
+            ctx.fillStyle = "#f2e9d0";
+            ctx.font = `30px ${stack}`;
+            ctx.fillText(SAMPLE, 12, 34);
+            ctx.fillStyle = "#f2c14e";
+            ctx.font = `30px ${stack}`;
+            ctx.fillText("КАЗАХ " + KAZ, 12, 74);
+          }
+        });
     </script>
   </body>
 </html>
