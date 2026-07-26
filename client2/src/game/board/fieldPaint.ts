@@ -125,54 +125,38 @@ function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: numbe
   dashPath(g, rectPoints(r, radius), dash, gap, color, width, alpha);
 }
 
-// Точки пути-УЗЛА: базовая линия from→to с петлёй посередине (перекрещивается — «узел»).
-function knotPoints(from: { x: number; y: number }, to: { x: number; y: number }): Array<{ x: number; y: number }> {
+// Узел-стрелка = МЁРТВАЯ ПЕТЛЯ: прямые хвосты from→X→to, в центре X — каплевидная петля с
+// ПЕРЕКРЕСТИЕМ у основания. Одна кубическая безье P0=P3=X с контролами вверх-ВПРАВО и вверх-ВЛЕВО
+// (свап) — кривая уходит вправо, возвращается слева и сама себя пересекает у X → капля (шире вверху).
+function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; y: number }, color: number, width: number): void {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-  const px = -uy;
-  const py = ux;
-  const R = 15; // радиус петли
-  const N = 56;
-  const pts: Array<{ x: number; y: number }> = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    let x = from.x + dx * t;
-    let y = from.y + dy * t;
-    const s = (t - 0.32) / 0.34; // петля активна на t∈[0.32,0.66]
-    if (s >= 0 && s <= 1) {
-      const ang = s * Math.PI * 2 - Math.PI / 2; // полный оборот → перекрещивание
-      x += px * Math.cos(ang) * R + ux * Math.sin(ang) * R * 0.65;
-      y += py * Math.cos(ang) * R + uy * Math.sin(ang) * R * 0.65;
-    }
-    pts.push({ x, y });
+  const L = Math.hypot(dx, dy) || 1;
+  const ux = dx / L;
+  const uy = dy / L;
+  // перпендикуляр, ориентированный ВВЕРХ экрана (меньший y).
+  let px = -uy;
+  let py = ux;
+  if (py > 0) {
+    px = -px;
+    py = -py;
   }
-  return pts;
-}
-
-// Узел-стрелка: петля + наконечник. Тонкая/тусклая — «менее навязчивая».
-// ЯБ1 (временно SOLID): dashed рвал линию на изгибах узла — пропуски ложились на дуги, кривизна
-// читалась как «излом». Сначала убеждаемся на сплошной, потом решим формат пунктира.
-function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; y: number }, color: number, width: number): void {
-  const pts = knotPoints(from, to);
-  g.moveTo(pts[0]!.x, pts[0]!.y);
-  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]!.x, pts[i]!.y);
-  g.stroke({ width, color });
-  // наконечник по касательной последнего сегмента.
-  const a = pts[pts.length - 2]!;
-  const b = pts[pts.length - 1]!;
-  const tx = b.x - a.x;
-  const ty = b.y - a.y;
-  const tl = Math.hypot(tx, ty) || 1;
-  const ux = tx / tl;
-  const uy = ty / tl;
+  const at = (a: number, h: number) => ({ x: from.x + ux * a + px * h, y: from.y + uy * a + py * h });
+  const ac = L * 0.5; // центр = перекрестие
+  const W = L * 0.26; // разброс контролов вбок (капля шире вверху)
+  const H = L * 0.62; // высота петли
+  const X = at(ac, 0);
+  const c1 = at(ac + W, H); // контрол вверх-вправо
+  const c2 = at(ac - W, H); // контрол вверх-влево (свап c1/c2 → самопересечение у X)
+  g.moveTo(from.x, from.y).lineTo(X.x, X.y);
+  g.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, X.x, X.y); // петля назад в X
+  g.lineTo(to.x, to.y).stroke({ width, color });
+  // наконечник у `to` вдоль оси стрелки.
+  const s = 11;
   const nx = -uy;
   const ny = ux;
-  const s = 11;
-  g.moveTo(b.x - ux * s + nx * s * 0.5, b.y - uy * s + ny * s * 0.5)
-    .lineTo(b.x, b.y)
-    .lineTo(b.x - ux * s - nx * s * 0.5, b.y - uy * s - ny * s * 0.5)
+  g.moveTo(to.x - ux * s + nx * s * 0.5, to.y - uy * s + ny * s * 0.5)
+    .lineTo(to.x, to.y)
+    .lineTo(to.x - ux * s - nx * s * 0.5, to.y - uy * s - ny * s * 0.5)
     .stroke({ width, color });
 }
