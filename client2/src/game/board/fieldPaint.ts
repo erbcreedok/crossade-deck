@@ -152,16 +152,13 @@ function knotPoints(from: { x: number; y: number }, to: { x: number; y: number }
   return pts;
 }
 
-// Узел-стрелка: dashed-петля + наконечник. Тонкая/тусклая — «менее навязчивая».
+// Узел-стрелка: петля + наконечник. Тонкая/тусклая — «менее навязчивая».
+// ЯБ1 (временно SOLID): dashed рвал линию на изгибах узла — пропуски ложились на дуги, кривизна
+// читалась как «излом». Сначала убеждаемся на сплошной, потом решим формат пунктира.
 function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; y: number }, color: number, width: number): void {
   const pts = knotPoints(from, to);
-  // dashed по количеству точек (плотная выборка): рисуем 2 сегмента, пропускаем 2.
-  let i = 0;
-  while (i < pts.length - 1) {
-    g.moveTo(pts[i]!.x, pts[i]!.y);
-    for (let k = 0; k < 2 && i < pts.length - 1; k++, i++) g.lineTo(pts[i + 1]!.x, pts[i + 1]!.y);
-    i += 2;
-  }
+  g.moveTo(pts[0]!.x, pts[0]!.y);
+  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]!.x, pts[i]!.y);
   g.stroke({ width, color });
   // наконечник по касательной последнего сегмента.
   const a = pts[pts.length - 2]!;
