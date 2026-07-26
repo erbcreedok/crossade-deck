@@ -1211,11 +1211,12 @@ export class FreeDeskEngine {
           if (this.selDragging && this.selZone) {
             const dragged = Math.hypot(cp.x - this.selGrabCp.x, cp.y - this.selGrabCp.y) > 8; // тап vs драг
             if (dragged) {
-              // Набор перенесён: все выбранные в целевой слот (сорт по номиналу), затем гасим выбор.
-              this.selZone.dropSetAt(this.sortSet(this.selDragging), cp.x, cp.y);
+              // Набор в целевой слот (сорт по номиналу). Гасим выбор ТОЛЬКО при успешном переносе —
+              // дроп «в никуда» возвращает набор и СОХРАНЯЕТ выделение (onInvalidDrop: keep).
+              const { moved } = this.selZone.dropSetAt(this.sortSet(this.selDragging), cp.x, cp.y);
               this.refreshZoneHomes(this.selZone);
               this.drag.release();
-              this.sel = begin("sel"); // очистить набор, остаться в режиме
+              if (moved) this.sel = begin("sel"); // очистить набор, остаться в режиме
             } else {
               this.drag.release(); // тап по выделенной — снять её из набора
               this.toggleSelectFigure(card.id);
