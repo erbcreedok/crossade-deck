@@ -2,11 +2,11 @@ import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
-import { BoardZone, type OnOccupied, type AcceptCtx } from "../board/boardZone";
+import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
 import { layoutForPreset } from "../board/boardLayout";
-import { buildBoardModel } from "../board/boardModel";
+import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
@@ -858,14 +858,7 @@ export class FreeDeskEngine {
     // Логическая модель (id фигур + faces) — чистая (board/boardModel.ts).
     const { slots, faces } = buildBoardModel(preset, `bz${pi}`);
     for (const [id, f] of Object.entries(faces)) this.faceOf.set(id, f);
-    // Value-правило: оборачиваем preset.rule (по лицам) в AcceptRule (по ids/слотам) через faces.
-    const rule = preset.rule
-      ? (ctx: AcceptCtx): boolean => {
-          const c = ctx.board.slots[ctx.toKey];
-          const topId = c && c.members[c.members.length - 1];
-          return preset.rule!(faces[ctx.figureId] ?? "", topId ? (faces[topId] ?? null) : null, ctx.toKey);
-        }
-      : undefined;
+    const rule = wrapRule(preset.rule, faces); // value-правило (по лицам) → AcceptRule (по ids)
     const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied, rule });
     this.boardZones.push(zone);
     this.boardTitles.push(preset.title);
