@@ -68,6 +68,15 @@ interface DemoCard {
   animated: boolean;
 }
 
+// Живые параметры настраиваемого танца — крутятся слайдерами на странице.
+export interface DanceParams {
+  block: number; // размер частицы (меньше → больше частиц, чётче)
+  swapsPerSec: number; // реже свапы → силуэт цельнее
+  jitterAmp: number; // «биас» смещения: меньше → пиксели ближе к дому, читаемее
+  jitterFreq: number; // скорость дрожания
+}
+export const DANCE_DEFAULT: DanceParams = { block: 4, swapsPerSec: 26, jitterAmp: 1, jitterFreq: 6 };
+
 export class CensorDemo {
   private app: Application | null = null;
   private cards: DemoCard[] = [];
@@ -86,6 +95,9 @@ export class CensorDemo {
   private pointers = new Map<number, { x: number; y: number }>();
   private pinchDist = 0;
 
+  // Настраиваемый танец: держим карту/маску/спек, чтобы менять параметры вживую (block → пересборка).
+  private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
+
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     await ensureFonts();
     const app = await createPixiApp(width, height);
@@ -96,12 +108,15 @@ export class CensorDemo {
 
     // Статичный эталон = row-shear с НУЛЕВЫМ движением (off=0 у всех рядов) → чистая пиксель-сетка.
     const staticSpec: CensorSpec = { kind: "row-shear", block: 2.4, speedPxSec: 0, flipEverySec: 1, rowBias: 0, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1 };
-    const variants: Array<{ label: string; spec: CensorSpec; animated: boolean }> = [
+    // Настраиваемый танец: swap-dance с дефолтом «чётче» (мельче блок, реже свапы, меньше дрожание).
+    const danceSpec: CensorSpec = { kind: "swap-dance", block: DANCE_DEFAULT.block, speedPxSec: 0, flipEverySec: 0.3, rowBias: 0, swapsPerSec: DANCE_DEFAULT.swapsPerSec, jitterAmp: DANCE_DEFAULT.jitterAmp, jitterFreq: DANCE_DEFAULT.jitterFreq, shearMix: 0 };
+    const variants: Array<{ label: string; spec: CensorSpec; animated: boolean; tunable?: boolean }> = [
       { label: "статика (пиксели)", spec: staticSpec, animated: false },
       { label: "танец / свапы", spec: CENSOR_PRESETS.swap!, animated: true },
       { label: "ряды ← → (крупно)", spec: CENSOR_PRESETS.shearCoarse!, animated: true },
       { label: "ряды ← → (мельче)", spec: CENSOR_PRESETS.shearFine!, animated: true },
       { label: "комбо (ряды+свапы)", spec: CENSOR_PRESETS.combo!, animated: true },
+      { label: "танец ⚙ слайдеры", spec: danceSpec, animated: true, tunable: true },
     ];
 
     const gap = 34;
@@ -135,6 +150,7 @@ export class CensorDemo {
       field.update(0); // первый статичный кадр
 
       this.cards.push({ field, animated: v.animated });
+      if (v.tunable) this.tunable = { card, mask, spec: v.spec, cardIdx: this.cards.length - 1 };
 
       // Подпись под картой.
       const label = new Text({ text: v.label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
@@ -218,6 +234,26 @@ export class CensorDemo {
 
   setSpeed(s: number): void {
     this.speed = s;
+  }
+
+  // Живая настройка «танец ⚙». swaps/jitter — просто мутируем спек (CensorField читает его каждый кадр).
+  // block меняет размер частиц → нужна пересборка источника-сетки и поля (в той же карте/маске).
+  updateDance(p: Partial<DanceParams>): void {
+    const t = this.tunable;
+    if (!t || !this.app) return;
+    if (p.swapsPerSec !== undefined) t.spec.swapsPerSec = p.swapsPerSec;
+    if (p.jitterAmp !== undefined) t.spec.jitterAmp = p.jitterAmp;
+    if (p.jitterFreq !== undefined) t.spec.jitterFreq = p.jitterFreq;
+    if (p.block !== undefined && p.block !== t.spec.block) {
+      t.spec.block = p.block;
+      this.cards[t.cardIdx]?.field?.destroy();
+      const src = buildFingerSource(this.app, p.block);
+      const field = new CensorField(src, t.spec);
+      field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
+      field.view.mask = t.mask;
+      t.card.addChild(field.view);
+      this.cards[t.cardIdx] = { field, animated: true };
+    }
   }
 
   destroy(): void {
