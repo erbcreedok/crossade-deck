@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor, type Suit } from "../card";
 import { FINGER_PATH, FINGER_VIEWBOX, SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
@@ -112,13 +112,16 @@ export function makeCardFaceTexture(
 
 /** Жёлтый (амбер) фака — «масти» скрытой карты. Насыщенный, чтобы читался на кремовом лице. */
 const HIDDEN_FINGER = 0xe8a200;
+/** Пикселизация контента скрытой карты: рендерим в 1/HIDDEN_PIX разрешения и растягиваем nearest'ом
+ *  → квадратные пиксель-блоки ~HIDDEN_PIX px. Слабенько (не гаусс) — эффект «зацензурено/размыто». */
+const HIDDEN_PIX = 2.4;
 
 // Средний палец как «масть»: тот же примитив, что drawSuit, но со своим НЕквадратным холстом.
 const drawFinger = (root: Container, cx: number, cy: number, sizePx: number, color: number, flip = false): Graphics => drawSymbol(root, FINGER_PATH, cx, cy, sizePx, color, flip, FINGER_VIEWBOX);
 
 /**
  * Лицо СКРЫТОЙ карты: обычная карта, но номинал — «?», а «масть» — средний палец (SVG-силуэт,
- * жёлтый). Юмор-пояснение «не покажу»: достоинство неизвестно, а вместо масти — фак.
+ * жёлтый). Контент (фак+«?») слегка ПИКСЕЛИЗОВАН (не гаусс): «якобы зацензурено». Рамка/тень — чёткие.
  */
 export function makeHiddenFaceTexture(app: Application): Texture {
   const root = new Container();
@@ -126,7 +129,8 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
-  // Углы: «?» вместо ранга, фак вместо масти (как в makeCardFaceTexture, только масть — палец).
+  // Контент (фак+«?») собираем ОТДЕЛЬНО, чтобы запечь его в низком разрешении → пиксель-блоки.
+  const content = new Container();
   const makeCorner = (): Container => {
     const c = new Container();
     const r = new Text({ text: "?", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: HIDDEN_FINGER } });
@@ -138,14 +142,20 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   };
   const tl = makeCorner();
   tl.position.set(28, 42);
-  root.addChild(tl);
+  content.addChild(tl);
   const br = makeCorner();
   br.position.set(TEX_W - 28, TEX_H - 42);
   br.rotation = Math.PI;
-  root.addChild(br);
+  content.addChild(br);
+  drawFinger(content, TEX_W / 2, TEX_H / 2 + 6, 118, HIDDEN_FINGER); // крупный фак по центру (как масть на тузе)
 
-  // Центр — крупный фак (как крупная масть на тузе).
-  drawFinger(root, TEX_W / 2, TEX_H / 2 + 6, 118, HIDDEN_FINGER);
+  // Пикселизация: текстура контента в 1/HIDDEN_PIX плотности, потом растягиваем nearest'ом на весь размер.
+  const contentTex = app.renderer.generateTexture({ target: content, resolution: 1 / HIDDEN_PIX, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
+  contentTex.source.scaleMode = "nearest";
+  const pixelated = new Sprite(contentTex);
+  pixelated.setSize(TEX_W, TEX_H);
+  root.addChild(pixelated);
+  content.destroy({ children: true });
 
   const shade = new Graphics();
   drawCardShade(shade);
@@ -153,6 +163,7 @@ export function makeHiddenFaceTexture(app: Application): Texture {
 
   const tex = app.renderer.generateTexture({ target: root, resolution: 2, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
   root.destroy({ children: true });
+  contentTex.destroy(true);
   return tex;
 }
 
