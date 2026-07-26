@@ -1,0 +1,26 @@
+client2/vite.config.ts
+  s_89d5ad20619017::t_9de369fb99c0eb 26-39
+  s_89d5ad20619017::t_a30dec554803ec 45
+client/src/version.ts
+  s_89d5ad20619017::t_24c373198e2428 36-40,43-44
+client/vite.config.ts
+  s_89d5ad20619017::t_7b1e85d39fb038 26-39,41
+client2/src/version.ts
+  s_89d5ad20619017::t_9b27f0c57aa45d 22-26,29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0f401326807bc13db72991c50db1c26d32154afa",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
