@@ -59,6 +59,34 @@ export function grid(o: { minCols?: Num; maxRows?: Num; gap?: number; reserve?: 
   };
 }
 
+// Куча/колода — почти совмещённые слоты с лёгким ДИАГОНАЛЬНЫМ стаггером «толщины» (свет справа-сверху).
+// Верх = последний. indexAt → верх (дроп в кучу = положить сверху). Отдельная стратегия, не костыль
+// над linear: у кучи своя семантика (нахлёст по обеим осям, стаггер может уходить в минус по y).
+export function pile(o: { dx?: number; dy?: number } = {}): Layout {
+  const dx = o.dx ?? 0.35;
+  const dy = o.dy ?? -0.3;
+  const nz = (v: number): number => (v === 0 ? 0 : v); // -0 → 0 (i*dy при i=0 даёт -0)
+  return {
+    place(sizes) {
+      const at = sizes.map((_, i) => ({ x: nz(i * dx), y: nz(i * dy) }));
+      let minX = 0;
+      let minY = 0;
+      let maxX = 0;
+      let maxY = 0;
+      sizes.forEach((s, i) => {
+        minX = Math.min(minX, at[i]!.x);
+        minY = Math.min(minY, at[i]!.y);
+        maxX = Math.max(maxX, at[i]!.x + s.w);
+        maxY = Math.max(maxY, at[i]!.y + s.h);
+      });
+      return { at, size: { w: maxX - minX, h: maxY - minY } };
+    },
+    indexAt(_cp, sizes) {
+      return sizes.length ? sizes.length - 1 : 0; // куча принимает сверху
+    },
+  };
+}
+
 // Абсолют — дети на фиксированных смещениях (Поле: колода + грид на своих местах). indexAt = хит-тест.
 export function absolute(offsets: Vec[]): Layout {
   return {

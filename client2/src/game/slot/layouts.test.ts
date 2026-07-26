@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { linear, grid, absolute } from "./layouts";
+import { linear, grid, absolute, pile } from "./layouts";
 import type { Size } from "./types";
 
 const CARD: Size = { w: 100, h: 140 };
@@ -37,6 +37,17 @@ describe("grid layout", () => {
     expect(g.indexAt({ x: 50, y: 70 }, many(4))).toBe(0);
     expect(g.indexAt({ x: 250, y: 70 }, many(4))).toBe(2);
     expect(g.indexAt({ x: 50, y: 210 }, many(4))).toBe(3); // второй ряд
+  });
+});
+
+describe("pile layout", () => {
+  it("диагональный стаггер толщины, верх = последний", () => {
+    const r = pile({ dx: 0.35, dy: -0.3 }).place(many(3));
+    expect(r.at).toEqual([{ x: 0, y: 0 }, { x: 0.35, y: -0.3 }, { x: 0.7, y: -0.6 }]);
+  });
+  it("indexAt всегда верх кучи (последний)", () => {
+    expect(pile().indexAt({ x: 0, y: 0 }, many(4))).toBe(3);
+    expect(pile().indexAt({ x: 0, y: 0 }, [])).toBe(0);
   });
 });
 

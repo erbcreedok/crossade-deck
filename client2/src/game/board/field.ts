@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { type FlowGeom } from "./dynamicGrid";
-import { grid as gridLayout, linear, absolute } from "../slot/layouts";
+import { grid as gridLayout, pile, absolute } from "../slot/layouts";
 import { leaf, group, type Group } from "../slot/types";
 import { figures, has, measure, homeOf as slotHomeOf } from "../slot/slot";
 import { dropInto } from "../slot/mutate";
@@ -101,8 +101,8 @@ export class Field {
     this.maxRows = this.config.maxRows;
 
     const cell = { w: this.grid.cell.w, h: this.grid.cell.h };
-    // Колода — 1D-группа: почти-стопка со стаггером «толщины» (нахлёст на ~0.5px).
-    this.deckGroup = group("field-deck", linear({ axis: "x", gap: 0.5 - cell.w }), o.stackIds.map((id) => leaf(id, id, cell)));
+    // Колода — куча со стаггером «толщины» (диагональ вверх-вправо, свет справа-сверху).
+    this.deckGroup = group("field-deck", pile(), o.stackIds.map((id) => leaf(id, id, cell)));
     // Грид — 2D flow-группа; minCols/maxRows ЖИВЫЕ (геттеры), реордер/дроп — способности. Дропзона
     // расширена на gridPad (тот же отступ, что рисует рамку) — дроп у края ловится ровно как рисуется.
     this.gridGroup = group(
