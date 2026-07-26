@@ -110,21 +110,42 @@ export function makeCardFaceTexture(
   return tex;
 }
 
-/** Жёлтый фон лица скрытой карты — «предупреждающий» жёлтый, максимальный контраст с тёмным пальцем. */
-const HIDDEN_BG = 0xf4c220;
+/** Жёлтый (амбер) фака — «масти» скрытой карты. Насыщенный, чтобы читался на кремовом лице. */
+const HIDDEN_FINGER = 0xe8a200;
+
+// Средний палец как «масть»: тот же примитив, что drawSuit, но со своим НЕквадратным холстом.
+const drawFinger = (root: Container, cx: number, cy: number, sizePx: number, color: number, flip = false): Graphics => drawSymbol(root, FINGER_PATH, cx, cy, sizePx, color, flip, FINGER_VIEWBOX);
 
 /**
- * Лицо СКРЫТОЙ карты: жёлтый фон + один средний палец (SVG-силуэт) по центру — юмор-пояснение
- * «не покажу». Переворот не раскрывает её по-настоящему.
+ * Лицо СКРЫТОЙ карты: обычная карта, но номинал — «?», а «масть» — средний палец (SVG-силуэт,
+ * жёлтый). Юмор-пояснение «не покажу»: достоинство неизвестно, а вместо масти — фак.
  */
 export function makeHiddenFaceTexture(app: Application): Texture {
   const root = new Container();
   const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: HIDDEN_BG });
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
-  // Средний палец (SVG-силуэт, холст 124×171) по центру, тёмный на жёлтом.
-  drawSymbol(root, FINGER_PATH, TEX_W / 2, TEX_H / 2, TEX_H * 0.62, 0x1a1a1a, false, FINGER_VIEWBOX);
+  // Углы: «?» вместо ранга, фак вместо масти (как в makeCardFaceTexture, только масть — палец).
+  const makeCorner = (): Container => {
+    const c = new Container();
+    const r = new Text({ text: "?", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: HIDDEN_FINGER } });
+    r.anchor.set(0.5);
+    r.position.set(0, -12);
+    c.addChild(r);
+    drawFinger(c, 0, 20, 22, HIDDEN_FINGER); // фак под «?» — SVG
+    return c;
+  };
+  const tl = makeCorner();
+  tl.position.set(28, 42);
+  root.addChild(tl);
+  const br = makeCorner();
+  br.position.set(TEX_W - 28, TEX_H - 42);
+  br.rotation = Math.PI;
+  root.addChild(br);
+
+  // Центр — крупный фак (как крупная масть на тузе).
+  drawFinger(root, TEX_W / 2, TEX_H / 2 + 6, 118, HIDDEN_FINGER);
 
   const shade = new Graphics();
   drawCardShade(shade);
