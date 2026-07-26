@@ -1,0 +1,21 @@
+client2/src/nav.ts
+  s_89d5ad20619017::t_75beeec71ed477 17-19
+client/src/VersionSwitch.tsx
+  s_89d5ad20619017::t_a8090b9a7a94be 2-3,5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c63f36c4e0d58d5f1bac2f57ee84b60a12433f30",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
