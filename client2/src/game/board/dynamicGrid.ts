@@ -57,12 +57,12 @@ export function flowLayout(count: number, g: FlowGeom, spec: GridSpec = {}): { c
   return { centers, size, cols, rows };
 }
 
-// Индекс ячейки под точкой cp в гриде из cols колонок и count карт (для реордера: куда встанет
-// перетаскиваемая). Колонка/ряд по позиции, зажаты в границы; итог зажат в [0, count-1].
-export function flowIndexAt(cp: { x: number; y: number }, g: FlowGeom, cols: number, count: number): number {
+// Индекс ВСТАВКИ под точкой cp в гриде из cols колонок × rows строк ОТОБРАЖЕНИЯ (с учётом резерва) и
+// count карт. Колонка/ряд по позиции, зажаты в сетку; итог — в [0, count] ВКЛЮЧИТЕЛЬНО, т.е. точка за
+// последней картой (в резервном слоте) даёт count → вставка В КОНЕЦ (append), а не «между».
+export function flowIndexAt(cp: { x: number; y: number }, g: FlowGeom, cols: number, rows: number, count: number): number {
   if (count <= 0) return 0;
   const col = Math.max(0, Math.min(cols - 1, Math.floor((cp.x - g.origin.x) / (g.cell.w + g.gap))));
-  const rows = Math.max(1, Math.ceil(count / cols));
-  const row = Math.max(0, Math.min(rows - 1, Math.floor((cp.y - g.origin.y) / (g.cell.h + g.gap))));
-  return Math.min(count - 1, row * cols + col);
+  const row = Math.max(0, Math.min(Math.max(1, rows) - 1, Math.floor((cp.y - g.origin.y) / (g.cell.h + g.gap))));
+  return Math.min(count, row * cols + col);
 }

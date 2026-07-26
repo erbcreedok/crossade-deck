@@ -43,7 +43,8 @@ export class Stack implements Configurable {
   hover(cp: { x: number; y: number }, draggedId?: string): boolean {
     const b = this.baseBounds();
     const over = cp.x >= b.x && cp.x <= b.x + b.w && cp.y >= b.y && cp.y <= b.y + b.h;
-    const k = over ? this.dropIndex(cp) : null;
+    // Карта стопки всегда «своя» (перенос между стопками не поддержан) → гэп только при реордере.
+    const k = over && this.reorder ? this.dropIndex(cp) : null;
     if (k === this.lastGap) return false;
     this.lastGap = k;
     this.cards.gap = k === null ? undefined : { index: k, size: this.cell, skip: draggedId };

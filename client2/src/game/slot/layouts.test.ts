@@ -18,11 +18,11 @@ describe("linear layout", () => {
     expect(r.at).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }]);
     expect(r.size).toEqual({ w: 120, h: 140 });
   });
-  it("indexAt по оси: точка → ближайший слот слева", () => {
-    const l = linear({ axis: "x", gap: 10 });
-    expect(l.indexAt({ x: 5, y: 0 }, many(3))).toBe(0);
-    expect(l.indexAt({ x: 115, y: 0 }, many(3))).toBe(1);
-    expect(l.indexAt({ x: 999, y: 0 }, many(3))).toBe(2);
+  it("indexAt — индекс ВСТАВКИ [0, N]: до центра карты → перед ней, за всеми → в КОНЕЦ", () => {
+    const l = linear({ axis: "x", gap: 10 }); // at=[0,110,220], центры=[50,160,270]
+    expect(l.indexAt({ x: 5, y: 0 }, many(3))).toBe(0); // до центра c0
+    expect(l.indexAt({ x: 115, y: 0 }, many(3))).toBe(1); // между центрами c0 и c1
+    expect(l.indexAt({ x: 999, y: 0 }, many(3))).toBe(3); // за всеми → append (BR1)
   });
 });
 

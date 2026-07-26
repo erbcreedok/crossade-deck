@@ -124,6 +124,47 @@ test.describe("песочница — Поле (flow-грид)", () => {
     expect(moved).toBe(true); // хотя бы одна карта сдвинулась (открылась дыра)
   });
 
+  test("BR1: тянешь карту в КОНЕЦ грида (за последнюю) → встаёт последней", async ({ page }) => {
+    await fillGrid(page, 4);
+    let h = await hooks(page);
+    const before = h.field!.gridCards.map((c) => c.id);
+    const c0 = h.field!.gridCards[0]!;
+    const last = h.field!.gridCards[before.length - 1]!;
+    const gr = h.field!.gridRect;
+    // дроп в правый край строки последней карты — резервный слот → вставка В КОНЕЦ (append).
+    await dragTo(page, { x: c0.x, y: c0.y }, { x: gr.x + gr.w - 12, y: last.y });
+    await page.waitForTimeout(500);
+    h = await hooks(page);
+    const after = h.field!.gridCards.map((c) => c.id);
+    expect(after[after.length - 1]).toBe(before[0]); // первая карта уехала в КОНЕЦ
+    expect(after).not.toEqual(before);
+  });
+
+  test("BR2: реордер выключен → карты грида НЕ раздвигаются под свою карту", async ({ page }) => {
+    await fillGrid(page, 4);
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    await page.mouse.click(box.x + h.field!.reorderToggleAt!.x, box.y + h.field!.reorderToggleAt!.y); // выкл реордер
+    await page.waitForTimeout(200);
+    h = await hooks(page);
+    expect(h.field!.reorder).toBe(false);
+    const rest = new Map(h.field!.gridCards.map((c) => [c.id, c]));
+    const dragged = h.field!.gridCards[3]!;
+    const first = h.field!.gridCards[0]!;
+    await page.mouse.move(box.x + dragged.x, box.y + dragged.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + first.x, box.y + first.y, { steps: 12 });
+    await page.waitForTimeout(400);
+    h = await hooks(page);
+    const spread = h.field!.gridCards.some((c) => {
+      if (c.id === dragged.id) return false;
+      const r = rest.get(c.id)!;
+      return Math.abs(c.x - r.x) > 20 || Math.abs(c.y - r.y) > 20;
+    });
+    await page.mouse.up();
+    expect(spread).toBe(false); // реордер off → гэпа нет, соседи стоят
+  });
+
   test("тоглер выключает реордер: порядок карт не меняется", async ({ page }) => {
     await fillGrid(page, 4);
     const box = (await page.locator("canvas").boundingBox())!;

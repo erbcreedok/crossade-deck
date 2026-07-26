@@ -82,21 +82,25 @@ describe("packGrid — симметричные границы", () => {
   });
 });
 
-describe("flowIndexAt (позиция дропа → индекс, cols=3, count=6)", () => {
+describe("flowIndexAt (индекс ВСТАВКИ, cols=3, rows=2, count=6)", () => {
   it("верхний ряд по колонкам: 0,1,2", () => {
-    expect(flowIndexAt({ x: 50, y: 50 }, geom, 3, 6)).toBe(0);
-    expect(flowIndexAt({ x: 150, y: 50 }, geom, 3, 6)).toBe(1);
-    expect(flowIndexAt({ x: 250, y: 50 }, geom, 3, 6)).toBe(2);
+    expect(flowIndexAt({ x: 50, y: 50 }, geom, 3, 2, 6)).toBe(0);
+    expect(flowIndexAt({ x: 150, y: 50 }, geom, 3, 2, 6)).toBe(1);
+    expect(flowIndexAt({ x: 250, y: 50 }, geom, 3, 2, 6)).toBe(2);
   });
   it("второй ряд: 3,4,5", () => {
-    expect(flowIndexAt({ x: 50, y: 150 }, geom, 3, 6)).toBe(3);
-    expect(flowIndexAt({ x: 250, y: 150 }, geom, 3, 6)).toBe(5);
+    expect(flowIndexAt({ x: 50, y: 150 }, geom, 3, 2, 6)).toBe(3);
+    expect(flowIndexAt({ x: 250, y: 150 }, geom, 3, 2, 6)).toBe(5);
   });
-  it("за краями зажимается в [0, count-1]", () => {
-    expect(flowIndexAt({ x: -99, y: -99 }, geom, 3, 6)).toBe(0);
-    expect(flowIndexAt({ x: 9999, y: 9999 }, geom, 3, 6)).toBe(5);
+  it("за краями зажимается в сетку (полный грид 6/6 → максимум count-1)", () => {
+    expect(flowIndexAt({ x: -99, y: -99 }, geom, 3, 2, 6)).toBe(0);
+    expect(flowIndexAt({ x: 9999, y: 9999 }, geom, 3, 2, 6)).toBe(5);
+  });
+  it("BR1: точка в резервном слоте (за последней картой) → count = вставка В КОНЕЦ", () => {
+    // 3 карты, дисплей 3 колонки × 2 ряда (с резервом): слот row1col0 (индекс 3) пуст → append.
+    expect(flowIndexAt({ x: 50, y: 150 }, geom, 3, 2, 3)).toBe(3); // = count
   });
   it("пустой грид → 0", () => {
-    expect(flowIndexAt({ x: 150, y: 50 }, geom, 3, 0)).toBe(0);
+    expect(flowIndexAt({ x: 150, y: 50 }, geom, 3, 1, 0)).toBe(0);
   });
 });

@@ -190,13 +190,19 @@ export class Field implements Configurable {
   hover(cp: { x: number; y: number }, draggedId?: string): boolean {
     const gr = this.dragBaseRect ?? this.gridRect();
     const over = cp.x >= gr.x && cp.x <= gr.x + gr.w && cp.y >= gr.y && cp.y <= gr.y + gr.h;
-    const k = over ? this.gridDropIndex(cp) : null;
-    if (k === this.lastGap) return false;
+    // Гэп — только там, куда дроп РЕАЛЬНО положит: вставка новой карты всегда возможна; своя карта
+    // (реордер) — лишь если реордер включён, иначе гэп был бы обманом (она никуда не встанет).
+    const inGrid = !!draggedId && this.gridGroup.children.some((c) => c.kind === "leaf" && c.figure === draggedId);
+    const canPlace = !inGrid || this.reorder;
+    const k = over && canPlace ? this.gridDropIndex(cp) : null;
+    const nextState: FieldDrag = over ? "hover" : "drag";
+    const gapChanged = k !== this.lastGap;
+    if (nextState === this.dragState && !gapChanged) return false;
+    this.dragState = nextState;
     this.lastGap = k;
-    this.dragState = over ? "hover" : "drag";
     this.gridGroup.gap = k === null ? undefined : { index: k, size: this.grid.cell, skip: draggedId };
     this.draw();
-    return true;
+    return gapChanged; // ре-спринг только если дыра сменилась
   }
 
   /** Драг закончился — покой, дыра закрыта. */

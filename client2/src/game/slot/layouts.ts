@@ -26,8 +26,12 @@ export function linear(o: { axis?: "x" | "y"; gap?: number } = {}): Layout {
       if (!sizes.length) return 0;
       const at = place(sizes).at;
       const coord = axis === "x" ? cp.x : cp.y;
-      let idx = 0;
-      for (let i = 0; i < sizes.length; i++) if (coord >= (axis === "x" ? at[i]!.x : at[i]!.y)) idx = i;
+      // Индекс ВСТАВКИ [0, N]: до центра карты i → перед ней; за всеми центрами → в КОНЕЦ (append).
+      let idx = sizes.length;
+      for (let i = sizes.length - 1; i >= 0; i--) {
+        const center = (axis === "x" ? at[i]!.x : at[i]!.y) + (axis === "x" ? sizes[i]!.w : sizes[i]!.h) / 2;
+        if (coord < center) idx = i;
+      }
       return idx;
     },
   };
@@ -60,7 +64,7 @@ export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: 
     },
     indexAt(cp, sizes) {
       const l = flowLayout(sizes.length, geom(sizes), spec());
-      return flowIndexAt(cp, geom(sizes), l.cols, sizes.length);
+      return flowIndexAt(cp, geom(sizes), l.cols, l.rows, sizes.length);
     },
   };
 }
