@@ -9,7 +9,7 @@ import { Toggle } from "./Toggle";
 // Любой Configurable (Поле, стопка, борд…) получает контроллеры даром.
 
 export type Param =
-  | { kind: "number"; label: string; min: number; max: number; get(): number; set(v: number): void }
+  | { kind: "number"; label: string; min: number; max: number; format?: (v: number) => string; get(): number; set(v: number): void }
   | { kind: "bool"; label: string; get(): boolean; set(v: boolean): void };
 
 export interface Configurable {
@@ -34,7 +34,7 @@ export function attachControls(cfg: Configurable, host: ControlsHost, at: { x: n
   let rowH = 0;
   for (const p of params) {
     if (p.kind !== "number") continue;
-    const s = new Stepper({ label: p.label, value: p.get(), min: p.min, max: p.max, onChange: (v) => (p.set(v), host.onChange()) });
+    const s = new Stepper({ label: p.label, value: p.get(), min: p.min, max: p.max, format: p.format, onChange: (v) => (p.set(v), host.onChange()) });
     s.place(x, at.y);
     host.layer.addChild(s.root);
     for (const b of s.buttons()) host.register(b);

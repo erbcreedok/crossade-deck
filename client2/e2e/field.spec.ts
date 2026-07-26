@@ -5,7 +5,7 @@ test.describe("песочница — Поле (flow-грид)", () => {
   test.use({ viewport: { width: 900, height: 5800 } });
 
   interface Hooks {
-    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
   }
   const hooks = (page: Page): Promise<Hooks> => page.evaluate(() => (window as unknown as { __fd: { testHooks(): Hooks } }).__fd.testHooks());
 
@@ -51,10 +51,12 @@ test.describe("песочница — Поле (flow-грид)", () => {
     expect(ys.size).toBe(2); // 2 ряда
   });
 
-  test("параметры поля: минимум 3 колонки, максимум 4 строки", async ({ page }) => {
+  test("параметры поля: мин 3 колонки, макс 4 строки, макс колонок без предела", async ({ page }) => {
     const h = await hooks(page);
-    expect(h.field!.minCols).toBe(3);
-    expect(h.field!.maxRows).toBe(4);
+    expect(h.field!.colsMin).toBe(3);
+    expect(h.field!.rowsMax).toBe(4);
+    expect(h.field!.colsMax).toBeUndefined(); // без предела → грид растёт вширь при упоре в строки
+    expect(h.field!.rowsMin).toBe(1);
   });
 
   test("упор в 4 строки: грид растёт вширь, а не вниз", async ({ page }) => {

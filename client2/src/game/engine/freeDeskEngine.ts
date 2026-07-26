@@ -406,7 +406,7 @@ export class FreeDeskEngine {
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
-    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
     cardW: number;
     draggingId: string | null;
   } {
@@ -460,7 +460,7 @@ export class FreeDeskEngine {
   }
 
   // Состояние Поля для e2e: размеры стопки/грида + экранные точки/рамка грида.
-  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; minCols: number; maxRows: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
+  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
     const f = this.fields[0];
     if (!f) return null;
     const gr = f.gridRect();
@@ -468,8 +468,10 @@ export class FreeDeskEngine {
     return {
       stack: f.stackIds.length,
       grid: f.gridIds.length,
-      minCols: f.minCols,
-      maxRows: f.maxRows,
+      colsMin: f.colsMin,
+      colsMax: f.colsMax,
+      rowsMin: f.rowsMin,
+      rowsMax: f.rowsMax,
       reorder: f.reorder,
       reorderToggleAt: this.fieldReorderToggle ? toScreen(this.fieldReorderToggle.hitCenter().x, this.fieldReorderToggle.hitCenter().y) : null,
       stackAt: toScreen(f.stackRect.x + f.stackRect.w / 2, f.stackRect.y + f.stackRect.h / 2),
@@ -894,7 +896,7 @@ export class FreeDeskEngine {
     // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
     // (при упоре грид растёт вширь) + реордер + зазор колода→грид под длинную стрелку-якорь (deckGap 132).
     // Раскладку (где колода/грид) Поле считает САМО из этих данных — движок только даёт позицию и размер.
-    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, reorder: true, deckGap: 132, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
+    const fieldCfg = { ...NORMAL_FIELD, colsMin: 3, rowsMax: 4, reorder: true, deckGap: 132, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
     const field = new Field({ left, top: gy, cell, stackIds, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
     this.scene.surface.addChild(field.frame, field.anchor, field.verb);
     this.fields.push(field);

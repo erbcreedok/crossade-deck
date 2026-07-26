@@ -10,7 +10,7 @@ const CARD: Size = { w: 100, h: 140 };
 const field = (gridCaps: Caps = { reorder: { enabled: true }, drop: {} }) =>
   group("field", absolute([{ x: 0, y: 0 }, { x: 200, y: 0 }]), [
     group("deck", linear({ gap: -90 }), [leaf("da", "a", CARD), leaf("db", "b", CARD), leaf("dc", "c", CARD)]),
-    group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD), leaf("ge", "e", CARD)], gridCaps),
+    group("grid", grid({ cols: { min: 3 }, gap: 0 }), [leaf("gd", "d", CARD), leaf("ge", "e", CARD)], gridCaps),
   ], { drop: {} });
 
 const gridOf = (f: ReturnType<typeof field>) => f.children[1] as Group;
@@ -18,12 +18,12 @@ const figuresOfGrid = (f: ReturnType<typeof field>) => figures(gridOf(f));
 
 describe("reorderChildren", () => {
   it("переставляет ребёнка from→to", () => {
-    const g = group("g", grid({ minCols: 3 }), [leaf("a", "a", CARD), leaf("b", "b", CARD), leaf("c", "c", CARD)]);
+    const g = group("g", grid({ cols: { min: 3 } }), [leaf("a", "a", CARD), leaf("b", "b", CARD), leaf("c", "c", CARD)]);
     expect(reorderChildren(g, 2, 0)).toBe(true);
     expect(figures(g)).toEqual(["c", "a", "b"]);
   });
   it("from===to → false, дерево не тронуто", () => {
-    const g = group("g", grid({ minCols: 3 }), [leaf("a", "a", CARD), leaf("b", "b", CARD)]);
+    const g = group("g", grid({ cols: { min: 3 } }), [leaf("a", "a", CARD), leaf("b", "b", CARD)]);
     expect(reorderChildren(g, 1, 1)).toBe(false);
     expect(figures(g)).toEqual(["a", "b"]);
   });

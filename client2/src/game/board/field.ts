@@ -46,8 +46,13 @@ export interface FieldDecor {
   colors: { line: number; hover: number; fill: number; verbDrag: number; verbHover: number; anchor: number };
 }
 export interface FieldConfig {
-  minCols: number; // минимум колонок грида (стартовое; можно менять контроллером)
-  maxRows?: number; // максимум строк — при упоре грид растёт вширь (undefined → без предела)
+  // Границы грида — СИММЕТРИЧНО по обеим осям (min/max; min==max → фикс; undefined max → без предела).
+  // Стартовые значения — контроллеры их меняют.
+  colsMin: number;
+  colsMax?: number;
+  rowsMin: number;
+  rowsMax?: number;
+  grow?: "square" | "down" | "right"; // куда растёт при свободе (по умолчанию square)
   reserve: boolean; // держать место под следующую карту
   gridPad: number; // отступ рамки/фона от карт (gap между картами не трогает)
   innerPad: number; // отступ от top-left бокса Поля до содержимого
@@ -58,12 +63,13 @@ export interface FieldConfig {
 }
 
 // Дефолт: ГОЛЫЙ грид без графики (то, что было до графических правок) — flow-паковка, без рамок/якорей.
-export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, innerPad: 14, cellGap: 8, deckGap: 24, decor: null };
+export const NAKED_FIELD: FieldConfig = { colsMin: 3, rowsMin: 1, reserve: true, gridPad: 8, innerPad: 14, cellGap: 8, deckGap: 24, decor: null };
 
 // Для «обычных сеток»: рамки при драге + глаголы наведи/брось. БЕЗ якоря — якорь это про конкретное
 // поле-источник (колода→грид), а не общая сетка; его добавляет своё поле поверх (anchorText). Будем редачить.
 export const NORMAL_FIELD: FieldConfig = {
-  minCols: 3,
+  colsMin: 3,
+  rowsMin: 1,
   reserve: true,
   gridPad: 13,
   innerPad: 14,
@@ -80,8 +86,11 @@ export const NORMAL_FIELD: FieldConfig = {
 };
 
 export class Field implements Configurable {
-  minCols: number; // ЖИВЫЕ параметры грида (стартуют из config, контроллер их меняет)
-  maxRows: number | undefined;
+  // ЖИВЫЕ границы грида (стартуют из config, контроллеры их меняют). undefined max → без предела.
+  colsMin: number;
+  colsMax: number | undefined;
+  rowsMin: number;
+  rowsMax: number | undefined;
   readonly frame = new Graphics(); // dashed-рамка Поля + фон/бордер грида + узел-якорь
   readonly anchor: Text; // текст узла-якоря (Поле создаёт и ведёт сам)
   readonly verb: Text; // глагол дропзоны «наведи»/«брось»
@@ -103,8 +112,10 @@ export class Field implements Configurable {
     this.cell = o.cell;
     this.layerBelow = o.layerBelow;
     this.layerAbove = o.layerAbove;
-    this.minCols = this.config.minCols;
-    this.maxRows = this.config.maxRows;
+    this.colsMin = this.config.colsMin;
+    this.colsMax = this.config.colsMax;
+    this.rowsMin = this.config.rowsMin;
+    this.rowsMax = this.config.rowsMax;
 
     // Раскладка Поля — СВОЯ (не инжектится движком): колода в углу бокса, грид правее на deckGap.
     const pad = this.config.innerPad;
@@ -124,7 +135,7 @@ export class Field implements Configurable {
     // расширена на gridPad (тот же отступ, что рисует рамку) — дроп у края ловится ровно как рисуется.
     this.gridGroup = group(
       "field-grid",
-      gridLayout({ minCols: () => this.minCols, maxRows: () => this.maxRows, gap: this.grid.gap, reserve: this.config.reserve }),
+      gridLayout({ cols: { min: () => this.colsMin, max: () => this.colsMax }, rows: { min: () => this.rowsMin, max: () => this.rowsMax }, grow: this.config.grow, gap: this.grid.gap, reserve: this.config.reserve }),
       [],
       { reorder: { enabled: this.config.reorder ?? false }, drop: { pad: this.config.gridPad } },
     );
@@ -152,9 +163,12 @@ export class Field implements Configurable {
   /** Настраиваемые параметры Поля как ДАННЫЕ — контроллеры строятся из этого (generic attachControls),
    *  а не хардкодом. Добавить настройку = добавить строчку здесь. */
   params(): Param[] {
+    const inf = (v: number) => (v === 0 ? "∞" : String(v)); // 0 в степпере макс = без предела
     return [
-      { kind: "number", label: "мин колонок", min: 1, max: 8, get: () => this.minCols, set: (v) => (this.minCols = v) },
-      { kind: "number", label: "макс строк", min: 1, max: 8, get: () => this.maxRows ?? 6, set: (v) => (this.maxRows = v) },
+      { kind: "number", label: "мин колонок", min: 1, max: 12, get: () => this.colsMin, set: (v) => (this.colsMin = v) },
+      { kind: "number", label: "макс колонок", min: 0, max: 12, format: inf, get: () => this.colsMax ?? 0, set: (v) => (this.colsMax = v === 0 ? undefined : v) },
+      { kind: "number", label: "мин строк", min: 1, max: 12, get: () => this.rowsMin, set: (v) => (this.rowsMin = v) },
+      { kind: "number", label: "макс строк", min: 0, max: 12, format: inf, get: () => this.rowsMax ?? 0, set: (v) => (this.rowsMax = v === 0 ? undefined : v) },
       { kind: "bool", label: "реордер в гриде", get: () => this.reorder, set: (v) => (this.reorder = v) },
     ];
   }
@@ -198,7 +212,7 @@ export class Field implements Configurable {
   /** Высота, которую Поле резервирует под себя (движку — чтобы класть контроллеры ниже): рамка +
    *  сетка на maxRows строк. Из данных config, а не магической константы в движке. */
   reservedHeight(): number {
-    const rows = this.maxRows ?? 4;
+    const rows = this.rowsMax ?? 4;
     return this.config.innerPad * 2 + this.cell.h * rows + Math.max(0, rows - 1) * this.config.cellGap;
   }
 

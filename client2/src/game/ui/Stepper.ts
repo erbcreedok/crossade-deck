@@ -12,6 +12,7 @@ export interface StepperOptions {
   value: number;
   min: number;
   max: number;
+  format?: (v: number) => string; // как показать значение (напр. 0 → «∞»)
   onChange: (v: number) => void;
 }
 
@@ -31,6 +32,7 @@ export class Stepper {
   private h0 = 0;
   private readonly min: number;
   private readonly max: number;
+  private readonly fmt: (v: number) => string;
   private readonly onChange: (v: number) => void;
   private readonly cap: Text;
   private readonly valText: Text;
@@ -41,10 +43,11 @@ export class Stepper {
     this.value = o.value;
     this.min = o.min;
     this.max = o.max;
+    this.fmt = o.format ?? String;
     this.onChange = o.onChange;
     this.cap = mkText(o.label, 13, 0x9aa89f);
     this.cap.anchor.set(0, 0.5);
-    this.valText = mkText(String(o.value), 20, 0xf2c14e);
+    this.valText = mkText(this.fmt(o.value), 20, 0xf2c14e);
     this.valText.anchor.set(0.5, 0.5);
     this.minus = new Button({ label: "−", variant: "text", size: "lg", onClick: () => this.bump(-1) });
     this.plus = new Button({ label: "+", variant: "text", size: "lg", onClick: () => this.bump(1) });
@@ -90,7 +93,7 @@ export class Stepper {
   }
 
   private refresh(): void {
-    this.valText.text = String(this.value);
+    this.valText.text = this.fmt(this.value);
     this.minus.disabled = this.value <= this.min;
     this.plus.disabled = this.value >= this.max;
     this.minus.root.alpha = this.minus.disabled ? 0.35 : 1;

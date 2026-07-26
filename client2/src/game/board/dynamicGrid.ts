@@ -1,5 +1,5 @@
-// Динамический FLOW-грид: карты пакуются по СВОЕМУ индексу в прямоугольник. Минимум колонок и
-// РЕЗЕРВ места под следующую карту — параметры. Чистые функции.
+// Динамический FLOW-грид: карты пакуются по СВОЕМУ индексу в прямоугольник. Размер грида задаётся
+// СИММЕТРИЧНО — границы min/max по ОБЕИМ осям (фикс = min==max) + направление роста. Чистые функции.
 
 export interface FlowGeom {
   cell: { w: number; h: number };
@@ -7,23 +7,48 @@ export interface FlowGeom {
   origin: { x: number; y: number };
 }
 
-export interface FlowOpts {
-  minCols?: number; // минимум колонок (грид не уже этого)
-  maxRows?: number; // максимум строк — при упоре грид растёт КОЛОНКАМИ, а не вниз
-  reserve?: boolean; // всегда держать место под ещё одну карту (визуально пустой слот в конце)
+export interface Bound {
+  min?: number; // нижняя граница (по умолчанию 1)
+  max?: number; // верхняя граница (по умолчанию без предела); min==max → фиксированное число
 }
 
-// Раскладка count карт: центры карт + габарит грида (с учётом minCols/maxRows и резерва). Число
-// колонок — по «отображаемому» количеству (count + резерв), не меньше minCols; при упоре в maxRows
-// колонок добавляем (растём вширь, а не вниз).
-export function flowLayout(count: number, g: FlowGeom, o: FlowOpts = {}): { centers: Array<{ x: number; y: number }>; size: { w: number; h: number }; cols: number; rows: number } {
-  const displayN = Math.max(1, count + (o.reserve ? 1 : 0));
-  let cols = Math.max(o.minCols ?? 1, Math.ceil(Math.sqrt(displayN)));
-  let rows = Math.ceil(displayN / cols);
-  if (o.maxRows && rows > o.maxRows) {
-    cols = Math.max(o.minCols ?? 1, Math.ceil(displayN / o.maxRows)); // упор в строки → шире
-    rows = Math.ceil(displayN / cols);
+export interface GridSpec {
+  cols?: Bound; // ограничения по колонкам
+  rows?: Bound; // ограничения по строкам
+  grow?: "square" | "down" | "right"; // куда растёт при свободе (по умолчанию square — балансируем)
+  reserve?: boolean; // держать место под ещё одну карту (пустой слот в конце)
+}
+
+// Выбрать число колонок/строк под count карт с учётом границ и направления роста. Политика
+// переполнения: если карт больше вместимости (обе оси на максимуме) — max МЯГКИЙ, грид перерастает
+// (карту не теряем). Всегда cols*rows ≥ count(+резерв), cols≥1, rows≥1.
+export function packGrid(count: number, spec: GridSpec = {}): { cols: number; rows: number } {
+  const n = Math.max(1, count + (spec.reserve ? 1 : 0));
+  const cMin = spec.cols?.min ?? 1;
+  const cMax = spec.cols?.max ?? Infinity;
+  const rMin = spec.rows?.min ?? 1;
+  const rMax = spec.rows?.max ?? Infinity;
+  const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(v, hi));
+  const grow = spec.grow ?? "square";
+
+  // Стартовое число колонок по направлению роста: down → минимум (растём вниз), right → максимум
+  // строк заполнено (растём вправо), square → квадратно (ceil√n).
+  let cols = grow === "down" ? cMin : grow === "right" ? Math.ceil(n / rMin) : Math.ceil(Math.sqrt(n));
+  cols = clamp(cols, cMin, cMax);
+  let rows = Math.max(rMin, Math.ceil(n / cols));
+
+  // Упор в макс. строк → добираем колонками (в пределах cMax). Если и колонки уперлись в cMax, а карт
+  // всё равно больше — rows перерастает rMax (мягкий max), карту не теряем.
+  if (rows > rMax) {
+    cols = clamp(Math.ceil(n / rMax), cMin, cMax);
+    rows = Math.max(rMin, Math.ceil(n / cols));
   }
+  return { cols, rows };
+}
+
+// Раскладка count карт: центры карт + габарит грида. Число колонок/строк — из packGrid(spec).
+export function flowLayout(count: number, g: FlowGeom, spec: GridSpec = {}): { centers: Array<{ x: number; y: number }>; size: { w: number; h: number }; cols: number; rows: number } {
+  const { cols, rows } = packGrid(count, spec);
   const centers = Array.from({ length: Math.max(0, count) }, (_, i) => ({
     x: g.origin.x + (i % cols) * (g.cell.w + g.gap) + g.cell.w / 2,
     y: g.origin.y + Math.floor(i / cols) * (g.cell.h + g.gap) + g.cell.h / 2,

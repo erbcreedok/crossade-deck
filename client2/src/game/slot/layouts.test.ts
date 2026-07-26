@@ -28,12 +28,12 @@ describe("linear layout", () => {
 
 describe("grid layout", () => {
   it("2 карты, minCols 3 → 3 колонки в ряд, at = top-left", () => {
-    const r = grid({ minCols: 3, gap: 0 }).place(many(2));
+    const r = grid({ cols: { min: 3 }, gap: 0 }).place(many(2));
     expect(r.at).toEqual([{ x: 0, y: 0 }, { x: 100, y: 0 }]);
     expect(r.size).toEqual({ w: 300, h: 140 });
   });
   it("indexAt: точка → ячейка", () => {
-    const g = grid({ minCols: 3, gap: 0 });
+    const g = grid({ cols: { min: 3 }, gap: 0 });
     expect(g.indexAt({ x: 50, y: 70 }, many(4))).toBe(0);
     expect(g.indexAt({ x: 250, y: 70 }, many(4))).toBe(2);
     expect(g.indexAt({ x: 50, y: 210 }, many(4))).toBe(3); // второй ряд

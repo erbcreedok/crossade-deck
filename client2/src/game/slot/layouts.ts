@@ -1,4 +1,4 @@
-import { flowLayout, flowIndexAt, type FlowGeom } from "../board/dynamicGrid";
+import { flowLayout, flowIndexAt, type FlowGeom, type GridSpec } from "../board/dynamicGrid";
 import type { Layout, Size, Vec } from "./types";
 
 // Layout-стратегии: вся геометрия группы. Новый «тип контейнера» = новая стратегия здесь, а не класс.
@@ -34,26 +34,26 @@ export function linear(o: { axis?: "x" | "y"; gap?: number } = {}): Layout {
 }
 
 // 2D — flow-грид (переиспользует flowLayout/flowIndexAt). Ячейка = максимальный ребёнок (грид ровный).
-// minCols/maxRows/reserve можно задать числом ИЛИ геттером — тогда параметр ЖИВОЙ (контроллер меняет
-// его на лету, раскладка перечитывает без пересоздания стратегии).
+// Границы cols/rows (min/max) и reserve можно задать числом ИЛИ геттером — тогда параметр ЖИВОЙ
+// (контроллер меняет его на лету, раскладка перечитывает без пересоздания стратегии).
 type Num = number | (() => number | undefined);
 type Bool = boolean | (() => boolean);
 const rNum = (n?: Num): number | undefined => (typeof n === "function" ? n() : n);
 const rBool = (b?: Bool): boolean | undefined => (typeof b === "function" ? b() : b);
 
-export function grid(o: { minCols?: Num; maxRows?: Num; gap?: number; reserve?: Bool } = {}): Layout {
+export function grid(o: { cols?: { min?: Num; max?: Num }; rows?: { min?: Num; max?: Num }; grow?: GridSpec["grow"]; gap?: number; reserve?: Bool } = {}): Layout {
   const gap = o.gap ?? 0;
   const cellOf = (sizes: Size[]): Size => (sizes.length ? { w: Math.max(...sizes.map((s) => s.w)), h: Math.max(...sizes.map((s) => s.h)) } : { w: 0, h: 0 });
   const geom = (sizes: Size[]): FlowGeom => ({ cell: cellOf(sizes), gap, origin: { x: 0, y: 0 } });
-  const opts = () => ({ minCols: rNum(o.minCols), maxRows: rNum(o.maxRows), reserve: rBool(o.reserve) });
+  const spec = (): GridSpec => ({ cols: { min: rNum(o.cols?.min), max: rNum(o.cols?.max) }, rows: { min: rNum(o.rows?.min), max: rNum(o.rows?.max) }, grow: o.grow, reserve: rBool(o.reserve) });
   return {
     place(sizes) {
       const cell = cellOf(sizes);
-      const l = flowLayout(sizes.length, geom(sizes), opts());
+      const l = flowLayout(sizes.length, geom(sizes), spec());
       return { at: l.centers.map((c) => ({ x: c.x - cell.w / 2, y: c.y - cell.h / 2 })), size: l.size };
     },
     indexAt(cp, sizes) {
-      const l = flowLayout(sizes.length, geom(sizes), opts());
+      const l = flowLayout(sizes.length, geom(sizes), spec());
       return flowIndexAt(cp, geom(sizes), l.cols, sizes.length);
     },
   };
