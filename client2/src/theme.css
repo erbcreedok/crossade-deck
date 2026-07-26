@@ -2,6 +2,11 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Подъём бренд-пилюли под Dynamic Island (см. .brand-badge). Крути это одно число под свой айфон. */
+  --brand-badge-lift: 110px;
+}
+
 html,
 body,
 #root {
@@ -78,32 +83,24 @@ body {
   z-index: 3;
 }
 
-/* Брендовая пилюля (как «2ГИС») — только в установленном PWA (standalone), в браузере скрыта.
-   Смысл — забрендировать мёртвую полосу статус-бара: жмётся СНИЗУ к чёлке/Dynamic Island, читаясь
-   как продолжение системного бара. Сдвиг подобран так, чтобы верх пилюли совпал с нижней кромкой
-   острова (inset − ~10px): выше (−32px) — лезет ПОД остров и торчит из-под него по краям; ниже
-   (под inset) — отрывается и висит в воздухе. Здесь — притёрта под остров. */
+/* Брендовая пилюля (как «2ГИС») в сейф-зоне статус-бара. КОГДА показывать (только PWA на iPhone с
+   вырезом) решает JS — см. BrandBadge.tsx; здесь только вид и место. Рычаг --brand-badge-lift —
+   насколько поднять пилюлю в полосу под остров (больше → выше/плотнее к острову). */
 .brand-badge {
-  display: none;
-}
-@media (display-mode: standalone) {
-  .brand-badge {
-    display: block;
-    position: fixed;
-    top: max(6px, calc(env(safe-area-inset-top) - 10px));
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
-    font-family: "VT323", monospace;
-    font-size: 0.95rem;
-    letter-spacing: 1px;
-    color: #2b1d0a;
-    background: #f2c14e;
-    padding: 1px 12px;
-    border-radius: 999px;
-    pointer-events: none;
-    white-space: nowrap;
-  }
+  position: fixed;
+  top: max(6px, calc(env(safe-area-inset-top) - var(--brand-badge-lift, 10px)));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-family: "VT323", monospace;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+  color: #2b1d0a;
+  background: #f2c14e;
+  padding: 1px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .fd-btn {
   font-family: "VT323", monospace;

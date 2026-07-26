@@ -29,9 +29,9 @@ test.describe("меню", () => {
     expect(href).toContain("5173"); // локально ведёт на порт соседнего клиента
   });
 
-  test("бренд-бейдж есть в DOM, но скрыт вне PWA (standalone)", async ({ page }) => {
-    await expect(page.locator(".brand-badge")).toHaveText(/crusade/);
-    await expect(page.locator(".brand-badge")).toBeHidden();
+  test("бренд-бейдж не рендерится вне PWA-айфона-с-вырезом", async ({ page }) => {
+    // Гейт в JS (standalone + iPhone + верхний вырез) — в десктоп-браузере пилюли нет вовсе.
+    await expect(page.locator(".brand-badge")).toHaveCount(0);
   });
 
   test("номер сборки виден в углу (vX.Y.Z+build)", async ({ page }) => {
