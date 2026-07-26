@@ -1,0 +1,35 @@
+client2/src/game/board/boardZone.test.ts
+  s_89d5ad20619017::t_83c0ef5ebb6a25 10-11
+  s_89d5ad20619017::t_7cb96128b3dadb 48-74
+client2/e2e/board.spec.ts
+  s_89d5ad20619017::t_aad5896b98b590 34,41,46,51-52
+client2/src/game/board/boardZone.ts
+  s_89d5ad20619017::t_9d70d1b101c84d 1-2
+  s_89d5ad20619017::t_8252e2d83b7916 31
+  s_89d5ad20619017::t_c7e2e49b970a24 12-14,20
+  s_89d5ad20619017::t_4b198330885963 38
+  s_89d5ad20619017::t_e6d2fe0a20ea37 70-72,78,83-120
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_bea78b19cfeca7 56-72
+  s_89d5ad20619017::t_1202376e01aca6 356-357
+  s_89d5ad20619017::t_b4f8be37e285a6 1111-1113
+  s_89d5ad20619017::t_c38d8cc53734d9 816-835,837-850,853,855-856,859-862,865-870,879-882
+  s_89d5ad20619017::t_5e4997f47323dc 5
+  s_89d5ad20619017::t_fb464d36985363 883
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "17754dba9df110b1a446844257205acc76a54055",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
