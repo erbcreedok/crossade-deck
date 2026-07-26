@@ -1,0 +1,39 @@
+client2/src/game/board/dynamicGrid.ts
+  s_89d5ad20619017::t_52fa75f1c09836 12,16-18,21-26
+client2/e2e/field.spec.ts
+  s_89d5ad20619017::t_78ea67eee4ec7b 8
+  s_89d5ad20619017::t_0a390e336adbfa 53-73
+client2/src/game/board/dynamicGrid.test.ts
+  s_89d5ad20619017::t_ed495a07255c9d 39-55
+client2/src/game/board/fieldControls.ts
+  s_89d5ad20619017::t_4d7a4511b55c95 1-51
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_66b514f4294741 894-896
+  s_89d5ad20619017::t_2a4b3b459d58c5 10
+  s_89d5ad20619017::t_6b5f0b284da863 459
+  s_89d5ad20619017::t_2818607903bdb6 406
+  s_89d5ad20619017::t_064deefa6b7c82 467-468
+  s_89d5ad20619017::t_3801d534a9dcd1 910-921
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_d3f51f6d58afa9 128
+  s_89d5ad20619017::t_f09cc6e2391635 43-44
+  s_89d5ad20619017::t_ad7eba06297713 72-73,93-94
+client2/src/game/ui/Stepper.ts
+  s_89d5ad20619017::t_6c8800a2bd98ff 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7183692ae462e89beab6e188c6afb9c8a41d48ae",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
