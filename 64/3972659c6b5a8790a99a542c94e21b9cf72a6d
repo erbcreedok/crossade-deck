@@ -1,0 +1,20 @@
+client2/e2e/layout.spec.ts
+  s_89d5ad20619017::t_e018f54640fbf2 1-11,19-22,30-98
+  s_89d5ad20619017::t_450f69202039ae 12-18,23-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "643972659c6b5a8790a99a542c94e21b9cf72a6d",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
