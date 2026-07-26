@@ -35,6 +35,9 @@ export function CensorDemoPage() {
         <button className="fd-btn" onClick={() => goApp("free-desk")}>
           ← в песочницу
         </button>
+        <button className="fd-btn" onClick={() => engineRef.current?.rerender()}>
+          ⟳ ререндер
+        </button>
         <label className="fd-zoom">
           скорость {speed.toFixed(1)}x
           <input type="range" min={0} max={3} step={0.1} value={speed} onChange={(e) => { const s = Number(e.target.value); setSpeed(s); engineRef.current?.setSpeed(s); }} />

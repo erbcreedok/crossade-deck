@@ -21,12 +21,20 @@ export class CensorField {
   private spec: CensorSpec;
   private work: boolean[]; // рабочая копия on[] — свапы мутируют её
   private swapStep = 0;
+  private seed = 0; // сдвиг последовательности свапов — «ререндер» даёт новый узор
 
   constructor(src: CensorSource, spec: CensorSpec) {
     this.src = src;
     this.spec = spec;
     this.work = src.on.slice();
     this.view.addChild(this.g);
+  }
+
+  // Сброс к исходной сетке + новая «сеть» свапов (seed). Вызывающий обычно ещё обнуляет своё время t.
+  reset(seed = 0): void {
+    this.work = this.src.on.slice();
+    this.swapStep = 0;
+    this.seed = seed;
   }
 
   get width(): number {
@@ -52,7 +60,7 @@ export class CensorField {
     const { cols, rows, block } = this.src;
     const target = Math.floor(t * this.spec.swapsPerSec);
     while (this.swapStep < target) {
-      const { a, b } = swapPairAt(this.swapStep, cols, rows);
+      const { a, b } = swapPairAt(this.swapStep + this.seed, cols, rows);
       const tmp = this.work[a]!;
       this.work[a] = this.work[b]!;
       this.work[b] = tmp;
@@ -88,7 +96,7 @@ export class CensorField {
     const W = cols * block;
     const target = Math.floor(t * this.spec.swapsPerSec);
     while (this.swapStep < target) {
-      const { a, b } = swapPairAt(this.swapStep, cols, rows);
+      const { a, b } = swapPairAt(this.swapStep + this.seed, cols, rows);
       const tmp = this.work[a]!;
       this.work[a] = this.work[b]!;
       this.work[b] = tmp;

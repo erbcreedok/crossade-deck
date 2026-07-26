@@ -236,6 +236,17 @@ export class CensorDemo {
     this.speed = s;
   }
 
+  // Ререндер: перезапуск с t=0 + новый узор свапов (seed) у всех полей.
+  private rerenderCount = 0;
+  rerender(): void {
+    this.t = 0;
+    this.rerenderCount++;
+    for (const c of this.cards) {
+      c.field?.reset(this.rerenderCount * 100003); // простое смещение → непересекающаяся последовательность
+      c.field?.update(0);
+    }
+  }
+
   // Живая настройка «танец ⚙». swaps/jitter — просто мутируем спек (CensorField читает его каждый кадр).
   // block меняет размер частиц → нужна пересборка источника-сетки и поля (в той же карте/маске).
   updateDance(p: Partial<DanceParams>): void {
