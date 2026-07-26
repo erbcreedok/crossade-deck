@@ -1,0 +1,22 @@
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_f0b0a7ad7b9ff0 227-229,231-248,250-251,255-278
+  s_89d5ad20619017::t_2138a127bc4c7f 188,191
+  s_89d5ad20619017::t_ae8a2c53e9ddd2 215-218
+  s_89d5ad20619017::t_a28dafa6eb4c46 279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "333b2bb171c251ab110b4e436b9f308d72bee8d0",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
