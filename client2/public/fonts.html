@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- ВРЕМЕННАЯ страница подбора пиксель-шрифта (кириллица + казахский). Удалить после выбора. -->
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Шрифты — подбор</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Handjet&family=Press+Start+2P&family=Pixelify+Sans&family=Jersey+10&family=Jersey+15&family=Jersey+20&family=Jersey+25&family=Micro+5&family=Doto:wght@400;700&family=DotGothic16&family=Silkscreen&family=Tiny5&family=Workbench&family=Bytesized&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body { margin: 0; background: #1e2a24; color: #f2e9d0; font-family: system-ui, sans-serif; padding: 20px 24px 60px; }
+      h1 { font-size: 18px; color: #cdb98f; }
+      .hint { color: #9aa89f; font-size: 14px; max-width: 720px; line-height: 1.5; }
+      .kzchars { color: #f2c14e; }
+      .card { border-top: 1px solid #3a4a41; padding: 14px 0; }
+      .meta { color: #9aa89f; font-size: 13px; font-family: system-ui, sans-serif; margin-bottom: 4px; }
+      .row { white-space: nowrap; overflow-x: auto; line-height: 1.25; }
+      .big { font-size: 34px; }
+      .kz { font-size: 34px; }
+      .kz .lbl { color: #7d8f84; font-size: 14px; font-family: system-ui, sans-serif; }
+      .lat { font-size: 24px; color: #cdb98f; }
+    </style>
+  </head>
+  <body>
+    <h1>Подбор пиксель-шрифта: кириллица + казахский</h1>
+    <p class="hint">
+      Смотри строку <b>КАЗАХ</b>. Где буквы <span class="kzchars">Әә Ғғ Ққ Ңң Өө Ұұ Үү Һһ Іі</span> нарисованы в стиле шрифта — поддержка есть.
+      Где они сериф/обычные (фолбэк) — нет. Текущий в приложении — <b>VT323</b> (кириллицы у него нет).
+    </p>
+    <div id="list"></div>
+    <script>
+      const FONTS = [
+        "VT323", "Handjet", "Press Start 2P", "Pixelify Sans",
+        "Jersey 10", "Jersey 15", "Jersey 20", "Jersey 25",
+        "Micro 5", "Doto", "DotGothic16", "Silkscreen", "Tiny5", "Workbench", "Bytesized",
+      ];
+      const SAMPLE = "Тяни карту сюда · ГОУ · соснуть · колода · сброс";
+      const KAZ = "Әә Ғғ Ққ Ңң Өө Ұұ Үү Һһ Іі";
+      const LAT = "AaBbQqKk 0123456789 ♠♥♦♣";
+      const list = document.getElementById("list");
+      for (const f of FONTS) {
+        const el = document.createElement("div");
+        el.className = "card";
+        el.innerHTML =
+          `<div class="meta">${f}</div>` +
+          `<div class="row big" style="font-family:'${f}'">${SAMPLE}</div>` +
+          `<div class="row kz"><span class="lbl">КАЗАХ&nbsp;</span><span style="font-family:'${f}'">${KAZ}</span></div>` +
+          `<div class="row lat" style="font-family:'${f}'">${LAT}</div>`;
+        list.appendChild(el);
+      }
+      // Форсим загрузку нужных подмножеств (латиница+кириллица+казахский) у каждого до просмотра.
+      const probe = SAMPLE + KAZ + LAT;
+      Promise.all(FONTS.map((f) => document.fonts.load(`34px '${f}'`, probe).catch(() => {}))).then(() => document.fonts.ready);
+    </script>
+  </body>
+</html>
