@@ -36,8 +36,9 @@ test.describe("песочница — фишки и фигуры", () => {
 
   test("ряд: 4 фишки + конь + пешка + стопка из 6 фишек; метки на соло-карте и коне", async ({ page }) => {
     const h = await hooks(page);
-    // Фигуры РЯДА (без фигур бордов chessb-*): 6 одиночных + 6 в стопке.
-    expect(h.pieces.filter((p) => !p.id.startsWith("chessb")).length).toBe(12);
+    // Фигуры РЯДА (без фигур бордов chessb-*/mix-*): 6 одиночных + 6 в стопке.
+    const rowPieces = h.pieces.filter((p) => !p.id.startsWith("chessb") && !p.id.startsWith("mix-"));
+    expect(rowPieces.length).toBe(12);
     for (const id of ["chip-5", "chip-25", "chip-100", "chip-500", "chess-knight", "chess-pawn"]) {
       expect(h.pieces.some((p) => p.id === id)).toBe(true);
     }

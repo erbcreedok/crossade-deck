@@ -714,9 +714,9 @@ export class FreeDeskEngine {
   }
 
   // Живой не-карточный элемент: расставляем как карту (snapTo → слой → реестр byId → список pieces).
-  private spawnPiece(id: string, home: { x: number; y: number }, w: number, h: number, build: (root: Container) => void, shadow: { rx: number; ry: number; dy: number }): void {
+  private spawnPiece(id: string, home: { x: number; y: number }, w: number, h: number, build: (root: Container) => void, shadow: { rx: number; ry: number; dy: number }, depth?: number): void {
     const piece = new Piece({ id, w, h, build, shadow });
-    piece.root.zIndex = 100 + this.pieces.length;
+    piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
     this.placeCard(piece);
     this.byId.set(id, piece);
@@ -843,6 +843,7 @@ export class FreeDeskEngine {
     });
     y = this.buildSelectDemo(left, y, BOARD_PRESETS.length) + 20;
     y = this.buildChessBoard(left, y) + 20;
+    y = this.buildMixedBoard(left, y) + 20;
     return y;
   }
 
@@ -1021,6 +1022,51 @@ export class FreeDeskEngine {
     });
     this.scene.surface.addChild(this.label("тащи фигуру на фигуру — съедает (capture)", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
     return bounds.y + bounds.h + 34;
+  }
+
+  // СМЕШАННЫЙ борд: в одном слоте стопка из РАЗНЫХ типов (карта + шахмата + фишка). Финальное
+  // доказательство генерика — контейнер держит что угодно вперемешку; z по позиции в стопке.
+  private buildMixedBoard(left: number, top: number): number {
+    const cols = 3;
+    const rows = 1;
+    const cell = { w: this.cardW * 1.15, h: this.cardH * 1.05 };
+    const gap = 8;
+    const gy = top + 22;
+    const positioned = gridSlots({ cols, cell, gap, origin: { x: left, y: gy } }, rows);
+    const w = cols * cell.w + (cols - 1) * gap;
+    const h = rows * cell.h + (rows - 1) * gap;
+    const bounds = { x: left, y: gy, w, h };
+    const r = Math.min(cell.w, cell.h) * 0.3;
+    type Def = { t: "card"; face: string } | { t: "chess"; glyph: string; dark: boolean } | { t: "chip"; denom: string; color: number };
+    const slotDefs: Record<string, Def[]> = {
+      "0,0": [{ t: "card", face: "A♠" }, { t: "chess", glyph: "♞", dark: true }, { t: "chip", denom: "5", color: 0xb23b34 }], // стопка вперемешку
+      "0,1": [{ t: "card", face: "K♥" }],
+      "0,2": [{ t: "chess", glyph: "♟", dark: false }],
+    };
+    const slots: Board["slots"] = {};
+    for (const [key, defs] of Object.entries(slotDefs)) slots[key] = { members: defs.map((_, j) => `mix-${key}-${j}`) };
+    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: "merge" });
+    this.boardZones.push(zone);
+    this.boardTitles.push("СМЕШАННЫЙ стек: карта+шахмата+фишка");
+
+    this.scene.surface.addChild(this.label("смешанный стек: карта + шахмата + фишка (generic)", left, top, 13, 0xcdb98f, undefined, 0));
+    const frame = new Graphics();
+    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
+    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
+    this.scene.surface.addChild(frame);
+
+    let depth = 500; // сквозной z по позиции в стопке (карта снизу, фишка сверху)
+    for (const [key, defs] of Object.entries(slotDefs)) {
+      defs.forEach((d, j) => {
+        const id = `mix-${key}-${j}`;
+        const home = zone.figureHome(id);
+        if (d.t === "card") this.cardSpecs.push({ opts: { id, card: d.face, rest: "idle", size: 0.78 }, home, depth: depth++, bobPhase: 0 });
+        else if (d.t === "chess") this.spawnPiece(id, home, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, d.dark, d.glyph), { rx: r * 0.55, ry: r * 0.18, dy: r * 0.7 }, depth++);
+        else this.spawnPiece(id, home, r * 2, r * 2, (root) => drawChip(root, r, d.color, d.denom), { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 }, depth++);
+      });
+    }
+    this.scene.surface.addChild(this.label("тащи любую фигуру из смешанной стопки в другой слот", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
+    return bounds.y + bounds.h + 30;
   }
 
   // Зона, которой принадлежит фигура (или null).

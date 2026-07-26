@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Игровая зона (борд): фигуры-карты в слотах, драг между слотами (BoardZone.dropAt), фигуры
 // заперты в рамке (clamp). Логический слот фигуры берём из хука (boardFigures[].key).
 test.describe("песочница — игровая зона (борд)", () => {
-  test.use({ viewport: { width: 900, height: 4400 } }); // высокий — видны и нижние борды (пасьянс/select/фигуры)
+  test.use({ viewport: { width: 900, height: 5000 } }); // высокий — видны все нижние борды
 
   interface Hooks {
     boardFigures: { id: string; key: string; x: number; y: number }[];
@@ -79,6 +79,20 @@ test.describe("песочница — игровая зона (борд)", () =>
     const gcb = g.boards[idx]!;
     expect(gcb.figures.find((f) => f.id === knight.id)!.key).toBe("0,2"); // конь занял слот
     expect(gcb.figures.some((f) => f.id === pawn.id)).toBe(false); // пешка съедена
+  });
+
+  test("СМЕШАННЫЙ стек: карта+шахмата+фишка в одном слоте; фигуру можно вынести", async ({ page }) => {
+    const h = await hooks(page);
+    const mb = h.boards.find((b) => b.title.includes("СМЕШАН"))!;
+    const idx = h.boards.indexOf(mb);
+    expect(mb.figures.filter((f) => f.key === "0,0")).toHaveLength(3); // 3 РАЗНОТИПНЫХ фигуры в одном слоте
+    const top = mb.figures.find((f) => f.id === "mix-0,0-2")!; // верх стопки (фишка)
+    const slot1 = mb.slots.find((s) => s.key === "0,1")!;
+    await dragTo(page, top, slot1);
+    await page.waitForTimeout(400);
+    const g = await hooks(page);
+    expect(g.boards[idx]!.figures.find((f) => f.id === "mix-0,0-2")!.key).toBe("0,1"); // вынесли фишку
+    expect(g.boards[idx]!.figures.filter((f) => f.key === "0,0")).toHaveLength(2); // в слоте осталось 2
   });
 
   // Изолированный мультиселект (selection.ts).
