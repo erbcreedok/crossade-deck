@@ -125,8 +125,8 @@ export class Field implements Configurable {
     this.grid = { cell: this.cell, gap: this.config.cellGap, origin: { x: this.stackRect.x + this.cell.w + this.config.deckGap, y: o.top + pad } };
 
     // Тексты декора Поле создаёт САМО (свои части); движок лишь даёт слои, куда их класть.
-    this.anchor = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0x9aa89f, align: "center" } });
-    this.anchor.anchor.set(0.5, 0);
+    this.anchor = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0x9aa89f, align: "left" } });
+    this.anchor.anchor.set(0, 0.5); // левый-центральный бок — прижимается к наконечнику стрелки
     this.verb = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 16, fill: 0x9aa89f, align: "center" } });
     this.verb.anchor.set(0.5, 0.5);
 

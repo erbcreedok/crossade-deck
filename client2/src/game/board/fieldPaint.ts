@@ -51,7 +51,8 @@ export function paintFieldDecor(d: FieldPaintDeps): void {
     const from = { x: d.stackRect.x + d.stackRect.w + 6, y: d.stackRect.y + 4 };
     const to = { x: first.x - cell.w * 0.32, y: first.y };
     drawKnot(d.frame, from, to, col.anchor, 1.5);
-    d.anchor.position.set((from.x + to.x) / 2 + 6, Math.min(from.y, to.y) - 30);
+    // Текст «на наконечнике», прижат левым-центральным боком: якорь текста (0, 0.5) в точке `to`.
+    d.anchor.position.set(to.x + 6, to.y);
   }
 
   // Глагол дропзоны: «наведи» (драг) — ПОД картами; «брось» (ховер) — НАД картами.
