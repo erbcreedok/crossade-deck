@@ -5,7 +5,6 @@ import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
-import { type FlowGeom } from "../board/dynamicGrid";
 import { Field, NORMAL_FIELD } from "../board/field";
 import { attachControls } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
@@ -886,21 +885,14 @@ export class FreeDeskEngine {
     this.registerButton(cfg);
 
     const gy = top + 84;
-    const pad = 14;
     const cell = { w: this.cardW * 0.95, h: this.cardH * 0.95 };
-    const stackRect = { x: left + pad, y: gy + pad, w: cell.w, h: cell.h };
-    // Зазор колода→грид в 3× — под длинную стрелку-якорь (грид отъезжает вправо на это расстояние).
-    const grid: FlowGeom = { cell, gap: 8, origin: { x: stackRect.x + cell.w + 132, y: gy + pad } };
-    const anchor = this.label("тяни карту сюда", 0, 0, 12, 0x9aa89f); // текст создаёт движок, Field им управляет
-    const verb = this.label("наведи", 0, 0, 16, 0x9aa89f); // глагол дропзоны (Field двигает между слоями)
-    verb.anchor.set(0.5, 0.5);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
     // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
-    // (при упоре грид растёт вширь) + реордер включён. Стартовые значения — их правят контроллеры снизу.
-    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, reorder: true, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
-    // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
-    const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
-    this.scene.surface.addChild(field.frame, anchor, verb);
+    // (при упоре грид растёт вширь) + реордер + зазор колода→грид под длинную стрелку-якорь (deckGap 132).
+    // Раскладку (где колода/грид) Поле считает САМО из этих данных — движок только даёт позицию и размер.
+    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, reorder: true, deckGap: 132, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
+    const field = new Field({ left, top: gy, cell, stackIds, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
+    this.scene.surface.addChild(field.frame, field.anchor, field.verb);
     this.fields.push(field);
 
     // 52 карты закрытой стопки (рубашкой вверх). Дома берём у Field; верх — макс. z (тянется он).
@@ -910,8 +902,8 @@ export class FreeDeskEngine {
     });
     field.draw();
 
-    const reservedH = pad * 2 + cell.h * 4 + 3 * 8;
     // Контроллеры грида строятся из field.params() генериком (мин колонок / макс строк / реордер).
+    // Место под ними — под зарезервированной Полем высотой (Field знает её сам).
     const controls = attachControls(field, {
       layer: this.scene.surface,
       register: (b) => this.registerButton(b),
@@ -920,10 +912,10 @@ export class FreeDeskEngine {
         field.draw();
         this.wake();
       },
-    }, { x: left + pad, y: gy + reservedH + 10 });
+    }, { x: field.stackRect.x, y: gy + field.reservedHeight() + 10 });
     this.fieldReorderToggle = controls.toggles[0] ?? null;
     let by = controls.bottom + 14;
-    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, by, 12, 0x9aa89f, this.contentW - left - pad));
+    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, by, 12, 0x9aa89f, this.contentW - field.stackRect.x));
     return by + 24;
   }
 

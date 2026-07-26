@@ -1,5 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { type FlowGeom } from "./dynamicGrid";
+import { PIXEL_FONT } from "../engine/constants";
 import { grid as gridLayout, pile, absolute } from "../slot/layouts";
 import { leaf, group, type Group } from "../slot/types";
 import { figures, has, measure, homeOf as slotHomeOf } from "../slot/slot";
@@ -21,11 +22,10 @@ export interface Rect4 {
 }
 
 export interface FieldOpts {
-  stackRect: Rect4; // область закрытой стопки
-  grid: FlowGeom; // геометрия ячейки/отступа/origin грида
+  left: number; // top-left бокса содержимого Поля (заголовок выше движок рисует сам)
+  top: number;
+  cell: { w: number; h: number }; // размер карточной ячейки (движок знает по размеру карты)
   stackIds: string[]; // карты стопки (низ→верх)
-  anchor: Text; // текст якоря «тяни карту сюда» (создаёт движок, Field им управляет)
-  verb: Text; // глагол дропзоны «наведи»/«брось»
   layerBelow: Container; // слой ПОД картами (сюда «наведи» — незаметно под картами)
   layerAbove: Container; // слой НАД картами (сюда «брось» — поверх карт при ховере)
   config?: FieldConfig; // стиль/поведение (по умолчанию NAKED_FIELD — голый грид)
@@ -50,12 +50,15 @@ export interface FieldConfig {
   maxRows?: number; // максимум строк — при упоре грид растёт вширь (undefined → без предела)
   reserve: boolean; // держать место под следующую карту
   gridPad: number; // отступ рамки/фона от карт (gap между картами не трогает)
+  innerPad: number; // отступ от top-left бокса Поля до содержимого
+  cellGap: number; // зазор между ячейками грида
+  deckGap: number; // зазор колода→грид (под стрелку-якорь; больше — длиннее стрелка)
   reorder?: boolean; // разрешить перестановку карт внутри грида (стартовое; тоглер меняет)
   decor: FieldDecor | null; // графика; null → голый грид
 }
 
 // Дефолт: ГОЛЫЙ грид без графики (то, что было до графических правок) — flow-паковка, без рамок/якорей.
-export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, decor: null };
+export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, innerPad: 14, cellGap: 8, deckGap: 24, decor: null };
 
 // Для «обычных сеток»: рамки при драге + глаголы наведи/брось. БЕЗ якоря — якорь это про конкретное
 // поле-источник (колода→грид), а не общая сетка; его добавляет своё поле поверх (anchorText). Будем редачить.
@@ -63,6 +66,9 @@ export const NORMAL_FIELD: FieldConfig = {
   minCols: 3,
   reserve: true,
   gridPad: 13,
+  innerPad: 14,
+  cellGap: 8,
+  deckGap: 24,
   decor: {
     outerBorder: true,
     dropzoneBorder: true,
@@ -77,10 +83,11 @@ export class Field implements Configurable {
   minCols: number; // ЖИВЫЕ параметры грида (стартуют из config, контроллер их меняет)
   maxRows: number | undefined;
   readonly frame = new Graphics(); // dashed-рамка Поля + фон/бордер грида + узел-якорь
-  readonly anchor: Text;
-  readonly verb: Text;
-  readonly stackRect: Rect4;
-  readonly grid: FlowGeom;
+  readonly anchor: Text; // текст узла-якоря (Поле создаёт и ведёт сам)
+  readonly verb: Text; // глагол дропзоны «наведи»/«брось»
+  readonly stackRect: Rect4; // область колоды — Поле СЧИТАЕТ само (не инжект)
+  readonly grid: FlowGeom; // геометрия грида — тоже своя
+  private readonly cell: { w: number; h: number };
   // Дерево слотов — ИСТОЧНИК ПОРЯДКА: field(absolute)[ колода(linear), грид(grid) ]. minCols/maxRows
   // грид читает ЖИВЫМИ (геттеры), реордер/дроп — способности (caps) грида.
   private readonly root: Group;
@@ -92,17 +99,25 @@ export class Field implements Configurable {
   private dragState: FieldDrag = "idle";
 
   constructor(o: FieldOpts) {
-    this.stackRect = o.stackRect;
-    this.grid = o.grid;
-    this.anchor = o.anchor;
-    this.verb = o.verb;
+    this.config = o.config ?? NAKED_FIELD; // по умолчанию — голый грид
+    this.cell = o.cell;
     this.layerBelow = o.layerBelow;
     this.layerAbove = o.layerAbove;
-    this.config = o.config ?? NAKED_FIELD; // по умолчанию — голый грид
     this.minCols = this.config.minCols;
     this.maxRows = this.config.maxRows;
 
-    const cell = { w: this.grid.cell.w, h: this.grid.cell.h };
+    // Раскладка Поля — СВОЯ (не инжектится движком): колода в углу бокса, грид правее на deckGap.
+    const pad = this.config.innerPad;
+    this.stackRect = { x: o.left + pad, y: o.top + pad, w: this.cell.w, h: this.cell.h };
+    this.grid = { cell: this.cell, gap: this.config.cellGap, origin: { x: this.stackRect.x + this.cell.w + this.config.deckGap, y: o.top + pad } };
+
+    // Тексты декора Поле создаёт САМО (свои части); движок лишь даёт слои, куда их класть.
+    this.anchor = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0x9aa89f, align: "center" } });
+    this.anchor.anchor.set(0.5, 0);
+    this.verb = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 16, fill: 0x9aa89f, align: "center" } });
+    this.verb.anchor.set(0.5, 0.5);
+
+    const cell = this.cell;
     // Колода — куча со стаггером «толщины» (диагональ вверх-вправо, свет справа-сверху).
     this.deckGroup = group("field-deck", pile(), o.stackIds.map((id) => leaf(id, id, cell)));
     // Грид — 2D flow-группа; minCols/maxRows ЖИВЫЕ (геттеры), реордер/дроп — способности. Дропзона
@@ -178,6 +193,13 @@ export class Field implements Configurable {
     const s = measure(this.gridGroup);
     const p = this.config.gridPad;
     return { x: this.grid.origin.x - p, y: this.grid.origin.y - p, w: s.w + 2 * p, h: s.h + 2 * p };
+  }
+
+  /** Высота, которую Поле резервирует под себя (движку — чтобы класть контроллеры ниже): рамка +
+   *  сетка на maxRows строк. Из данных config, а не магической константы в движке. */
+  reservedHeight(): number {
+    const rows = this.maxRows ?? 4;
+    return this.config.innerPad * 2 + this.cell.h * rows + Math.max(0, rows - 1) * this.config.cellGap;
   }
 
   /** Внешняя рамка Поля — объемлет стопку и грид (+ отступы, снизу/справа больше). */
