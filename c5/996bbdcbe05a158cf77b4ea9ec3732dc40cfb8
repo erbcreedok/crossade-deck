@@ -1,0 +1,29 @@
+client2/src/game/symbols.test.ts
+  s_89d5ad20619017::t_1f5043cd01358e 1-42
+client2/e2e/visual.spec.ts
+  s_89d5ad20619017::t_d1b5296f2e77c7 32-43
+client2/src/game/engine/cardTextures.ts
+  s_89d5ad20619017::t_e3575da734c85b 2-3
+  s_89d5ad20619017::t_ce65f3769404d0 27-40
+  s_89d5ad20619017::t_b0b6a3698b6d0b 94-96,100-101
+  s_89d5ad20619017::t_36b082b3dd6a95 78-79
+client2/src/game/symbols.ts
+  s_89d5ad20619017::t_2f16038b3aa8ed 25-27
+  s_89d5ad20619017::t_ef9a408a8dfd18 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c5996bbdcbe05a158cf77b4ea9ec3732dc40cfb8",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
