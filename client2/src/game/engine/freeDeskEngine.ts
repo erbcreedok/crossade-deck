@@ -178,6 +178,7 @@ export class FreeDeskEngine {
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
   private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
   private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
+  private boardTitles: string[] = []; // заголовки бордов (align с boardZones), для e2e
   private selMode = false; // режим изолированного мультиселекта (демо-борд)
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
@@ -388,7 +389,7 @@ export class FreeDeskEngine {
     selection: string[];
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
-    boards: { figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
+    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
     draggingId: string | null;
   } {
@@ -427,7 +428,8 @@ export class FreeDeskEngine {
             .filter((o): o is { id: string; el: Elem } => !!o.el)
             .map(({ id, el }) => ({ id, ...toScreen(el.body.px, el.body.py) }))
         : [],
-      boards: this.boardZones.map((z) => ({
+      boards: this.boardZones.map((z, zi) => ({
+        title: this.boardTitles[zi] ?? "",
         figures: Object.entries(z.board.slots).flatMap(([key, c]) =>
           c.members.map((id) => ({ id, key, el: this.byId.get(id) })).filter((o): o is { id: string; key: string; el: Elem } => !!o.el).map(({ id, key, el }) => ({ id, key, ...toScreen(el.body.px, el.body.py) })),
         ),
@@ -882,11 +884,12 @@ export class FreeDeskEngine {
       ? (ctx: AcceptCtx): boolean => {
           const c = ctx.board.slots[ctx.toKey];
           const topId = c && c.members[c.members.length - 1];
-          return preset.rule!(faces[ctx.figureId] ?? "", topId ? (faces[topId] ?? null) : null);
+          return preset.rule!(faces[ctx.figureId] ?? "", topId ? (faces[topId] ?? null) : null, ctx.toKey);
         }
       : undefined;
     const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied, rule });
     this.boardZones.push(zone);
+    this.boardTitles.push(preset.title);
 
     this.scene.surface.addChild(this.label(preset.title, left, top, 13, 0xcdb98f, undefined, 0));
     const frame = new Graphics();
@@ -1462,6 +1465,7 @@ export class FreeDeskEngine {
     this.solos = [];
     this.chipPile = null;
     this.boardZones = [];
+    this.boardTitles = [];
     this.selMode = false;
     this.sel = EMPTY;
     this.selZone = null;
@@ -1523,6 +1527,7 @@ export class FreeDeskEngine {
     this.solos = [];
     this.chipPile = null;
     this.boardZones = [];
+    this.boardTitles = [];
     this.selMode = false;
     this.sel = EMPTY;
     this.selZone = null;

@@ -1,4 +1,8 @@
 import type { OnOccupied } from "./boardZone";
+import { cardColor } from "./cardFace";
+import { foundationAccepts, tableauAccepts } from "./solitaireRules";
+
+export { cardColor, rankOf } from "./cardFace"; // общий re-export (движок берёт rankOf отсюда)
 
 // Пресеты бордов — ЧИСТЫЕ ДАННЫЕ (разные игры = разный конфиг, один движок). Задел под будущий
 // BoardFactory (ENGINE-UPGRADE.md): движок лишь читает эти данные и строит зоны.
@@ -11,20 +15,15 @@ export interface BoardPreset {
   layout?: "grid" | "ring";
   ringCount?: number; // число слотов кольца (layout: ring)
   maxSize?: number; // потолок стопки в слоте (дурак и т.п.)
-  rule?: (figFace: string, topFace: string | null) => boolean; // value-правило приёма (rules as data)
+  rule?: (figFace: string, topFace: string | null, toKey: string) => boolean; // value-правило приёма (key-aware)
   slots: Record<string, string[]>; // ключ ("r,c" | "ringN") → лица карт-фигур
 }
 
-// Цвет карты по масти — для value-правил (напр. «клади только свой цвет»).
-export const cardColor = (face: string): "red" | "black" => (face.endsWith("♥") || face.endsWith("♦") ? "red" : "black");
-
-// Ранг карты по лицу (для сорта набора «по номиналу»): 6..10 / J=11 / Q=12 / K=13 / A=14.
-export function rankOf(face: string): number {
-  const r = face.slice(0, -1); // без масти
-  const named = ({ J: 11, Q: 12, K: 13, A: 14 } as Record<string, number>)[r];
-  if (named !== undefined) return named;
-  const n = Number(r);
-  return Number.isNaN(n) ? 0 : n;
+// Правило пасьянса (Клондайк): колонки 0..2 — «стол» (tableau), колонки 3..4 — фундамент. Диспетч
+// по ключу слота "r,c" (rules as data, key-aware). Правила — чистые (solitaireRules.ts).
+function solitaireRule(fig: string, top: string | null, toKey: string): boolean {
+  const col = Number(toKey.split(",")[1]);
+  return col >= 3 ? foundationAccepts(fig, top) : tableauAccepts(fig, top);
 }
 
 export const BOARD_PRESETS: BoardPreset[] = [
@@ -34,4 +33,6 @@ export const BOARD_PRESETS: BoardPreset[] = [
   { title: "шахматы — съесть (capture)", cols: 3, rows: 1, onOccupied: "capture", slots: { "0,0": ["K♣"], "0,2": ["Q♥"] } },
   { title: "монополия — кольцо (ring, swap)", cols: 0, rows: 0, layout: "ring", ringCount: 8, onOccupied: "swap", slots: { ring0: ["A♣"], ring4: ["K♦"] } },
   { title: "правило: клади только свой цвет (rule)", cols: 3, rows: 1, onOccupied: "merge", rule: (fig, top) => top === null || cardColor(fig) === cardColor(top), slots: { "0,0": ["6♥"], "0,1": ["7♠"], "0,2": ["8♦"] } },
+  // Пасьянс-правила: стол (кол.0-2, вниз/разноцвет) + фундамент (кол.3-4, вверх/масть). Q♥→K♠, 2♣→A♣.
+  { title: "пасьянс: стол вниз-разноцвет, фундамент вверх-масть (rule)", cols: 5, rows: 1, onOccupied: "merge", rule: solitaireRule, slots: { "0,0": ["K♠"], "0,1": ["Q♥"], "0,2": ["2♣"], "0,3": ["A♣"] } },
 ];

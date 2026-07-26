@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Игровая зона (борд): фигуры-карты в слотах, драг между слотами (BoardZone.dropAt), фигуры
 // заперты в рамке (clamp). Логический слот фигуры берём из хука (boardFigures[].key).
 test.describe("песочница — игровая зона (борд)", () => {
-  test.use({ viewport: { width: 900, height: 3200 } }); // высокий — виден и нижний select-борд
+  test.use({ viewport: { width: 900, height: 3800 } }); // высокий — видны и нижние борды (пасьянс/select)
 
   interface Hooks {
     boardFigures: { id: string; key: string; x: number; y: number }[];
@@ -12,7 +12,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     selection: string[];
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
-    boards: { figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
+    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
     draggingId: string | null;
   }
@@ -88,8 +88,8 @@ test.describe("песочница — игровая зона (борд)", () =>
 
   test("value-правило (цвет): красную нельзя на чёрную, можно на красную", async ({ page }) => {
     const h = await hooks(page);
-    const idx = h.boards.length - 2; // rule-борд — предпоследний (последний — select-демо)
-    const rb = h.boards[idx]!;
+    const rb = h.boards.find((b) => b.title.includes("свой цвет"))!;
+    const idx = h.boards.indexOf(rb);
     // rule-борд: (0,0)=6♥ red, (0,1)=7♠ black, (0,2)=8♦ red
     const red = rb.figures.find((f) => f.key === "0,0")!;
     const blackSlot = rb.slots.find((s) => s.key === "0,1")!;
@@ -104,6 +104,25 @@ test.describe("песочница — игровая зона (борд)", () =>
     await page.waitForTimeout(400);
     g = await hooks(page);
     expect(g.boards[idx]!.figures.find((f) => f.id === red.id)!.key).toBe("0,2"); // переехала
+  });
+
+  test("пасьянс-правила: Q♥ на A♣-фундамент нельзя, на K♠-стол можно", async ({ page }) => {
+    const h = await hooks(page);
+    const rb = h.boards.find((b) => b.title.includes("пасьянс"))!;
+    const idx = h.boards.indexOf(rb);
+    const q = rb.figures.find((f) => f.key === "0,1")!; // Q♥
+    const kSlot = rb.slots.find((s) => s.key === "0,0")!; // K♠ (стол)
+    const foundSlot = rb.slots.find((s) => s.key === "0,3")!; // A♣ (фундамент)
+
+    await dragTo(page, q, foundSlot); // Q♥ на фундамент A♣ — нельзя (масть/ранг)
+    await page.waitForTimeout(400);
+    let g = await hooks(page);
+    expect(g.boards[idx]!.figures.find((f) => f.id === q.id)!.key).toBe("0,1"); // осталась
+
+    await dragTo(page, q, kSlot); // Q♥ на K♠ — можно (стол: на 1 ниже, разный цвет)
+    await page.waitForTimeout(400);
+    g = await hooks(page);
+    expect(g.boards[idx]!.figures.find((f) => f.id === q.id)!.key).toBe("0,0"); // легла на стол
   });
 
   test("драг НАБОРА: выделил две → потащил одну → обе переехали в целевой слот", async ({ page }) => {
