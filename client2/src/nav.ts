@@ -14,5 +14,6 @@ export function routePath(): string {
 }
 
 // Ссылка на СТАРЫЙ клиент (v1) — неприметный тумблер версий. Локально ведёт на порт соседнего
-// dev-сервера, в проде — на тот же origin '/'. Так переключение работает и локально, и на сервере.
-export const OLD_CLIENT_URL = import.meta.env.DEV ? "http://localhost:5173/" : "/";
+// dev-сервера, но по ТОМУ ЖЕ хосту, что открыт: зашёл по IP (с телефона) — ссылка на IP, зашёл
+// по localhost — на localhost. В проде — тот же origin '/'. Так переключение работает везде.
+export const OLD_CLIENT_URL = import.meta.env.DEV ? `http://${window.location.hostname}:5173/` : "/";
