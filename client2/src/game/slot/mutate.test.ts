@@ -1,17 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { leaf, group, type Group, type Size } from "./types";
+import { leaf, group, type Caps, type Group, type Size } from "./types";
 import { linear, grid, absolute } from "./layouts";
 import { figures, homeOf } from "./slot";
 import { reorderChildren, detach, dropInto } from "./mutate";
 
 const CARD: Size = { w: 100, h: 140 };
 
-// Поле: колода @0 + грид @200 (абсолют — предсказуемые точки для дропа).
-const field = (gridExtra: Partial<Group> = { reorder: true, dropZone: true }) =>
+// Поле: колода @0 + грид @200 (абсолют — предсказуемые точки для дропа). Способности грида — через caps.
+const field = (gridCaps: Caps = { reorder: { enabled: true }, drop: {} }) =>
   group("field", absolute([{ x: 0, y: 0 }, { x: 200, y: 0 }]), [
     group("deck", linear({ gap: -90 }), [leaf("da", "a", CARD), leaf("db", "b", CARD), leaf("dc", "c", CARD)]),
-    group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD), leaf("ge", "e", CARD)], gridExtra),
-  ], { dropZone: true });
+    group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD), leaf("ge", "e", CARD)], gridCaps),
+  ], { drop: {} });
 
 const gridOf = (f: ReturnType<typeof field>) => f.children[1] as Group;
 const figuresOfGrid = (f: ReturnType<typeof field>) => figures(gridOf(f));
@@ -55,22 +55,22 @@ describe("dropInto", () => {
     expect(figuresOfGrid(f)).toEqual(["e", "d"]);
   });
 
-  it("реордер выключен → фигура остаётся на месте", () => {
-    const f = field({ reorder: false, dropZone: true });
+  it("реордер выключен (нет способности) → фигура остаётся на месте", () => {
+    const f = field({ drop: {} });
     const r = dropInto(f, "e", { x: 250, y: 70 });
     expect(r.moved).toBe(false);
     expect(figuresOfGrid(f)).toEqual(["d", "e"]);
   });
 
-  it("cap — полная группа не принимает перенос", () => {
-    const f = field({ reorder: true, dropZone: true, cap: 2 });
+  it("cap (в способности drop) — полная зона не принимает перенос", () => {
+    const f = field({ reorder: { enabled: true }, drop: { cap: 2 } });
     const r = dropInto(f, "a", { x: 250, y: 70 });
     expect(r.moved).toBe(false);
     expect(figuresOfGrid(f)).toEqual(["d", "e"]);
   });
 
-  it("accept — группа отвергает неподходящую фигуру", () => {
-    const f = field({ reorder: true, dropZone: true, accept: (fig: string) => fig !== "a" });
+  it("accept (в способности drop) — зона отвергает неподходящую фигуру", () => {
+    const f = field({ reorder: { enabled: true }, drop: { accept: (fig: string) => fig !== "a" } });
     expect(dropInto(f, "a", { x: 250, y: 70 }).moved).toBe(false);
     expect(dropInto(f, "b", { x: 250, y: 70 }).moved).toBe(true);
   });

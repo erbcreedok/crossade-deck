@@ -1,4 +1,4 @@
-import type { Group, Size, Slot, Vec } from "./types";
+import { dropOf, type Group, type Size, type Slot, type Vec } from "./types";
 
 // Чистые ЧТЕНИЯ по дереву слотов. Вся геометрия ВЫТЕКАЕТ из дерева рекурсивно — per-container кода
 // «где чей дом» нет, движок берёт homeOf и ставит spring-таргет одинаково для стопки/грида/поля.
@@ -47,10 +47,10 @@ export function dropTarget(root: Slot, cp: Vec, origin: Vec = { x: 0, y: 0 }): {
   const idx = root.layout.indexAt(local, sizes);
   if (idx != null && idx >= 0 && idx < root.children.length) {
     const child = root.children[idx]!;
-    if (child.kind === "group" && child.dropZone) {
+    if (child.kind === "group" && dropOf(child)) {
       const deeper = dropTarget(child, cp, { x: origin.x + at[idx]!.x, y: origin.y + at[idx]!.y });
       if (deeper) return deeper;
     }
   }
-  return root.dropZone ? { group: root, index: idx ?? root.children.length } : null;
+  return dropOf(root) ? { group: root, index: idx ?? root.children.length } : null;
 }

@@ -10,8 +10,8 @@ const CARD: Size = { w: 100, h: 140 };
 const buildField = () =>
   group("field", absolute([{ x: 0, y: 0 }, { x: 200, y: 0 }]), [
     group("deck", linear({ gap: -90 }), [leaf("da", "a", CARD), leaf("db", "b", CARD), leaf("dc", "c", CARD)]),
-    group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD), leaf("ge", "e", CARD)], { reorder: true, dropZone: true }),
-  ], { dropZone: true });
+    group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD), leaf("ge", "e", CARD)], { reorder: { enabled: true }, drop: {} }),
+  ], { drop: {} });
 
 describe("slot: чтения", () => {
   it("measure — габарит вытекает из дерева снизу вверх", () => {

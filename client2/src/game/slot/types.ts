@@ -19,28 +19,50 @@ export interface Layout {
   indexAt(cp: Vec, childSizes: Size[]): number | null; // cp локальна к top-left группы; null — мимо
 }
 
+// ——— СПОСОБНОСТИ (компоненты, Entity-Component) ———
+// Каждая — самодостаточный конфиг, растущий НЕЗАВИСИМО и липнущий к любому слоту. Дорастить
+// способность = править ТОЛЬКО её интерфейс, а не тип слота; новая способность = новый ключ в Caps.
+// Операции (slot.ts/mutate.ts) — «системы», читающие эти компоненты.
+
+export interface DropZone {
+  // слот принимает дроп. Конфиг приёма растёт ЗДЕСЬ (accept/cap/… — не в типе слота).
+  accept?: (figure: string) => boolean;
+  cap?: number; // макс. фигур/детей в этой зоне (undefined — без предела)
+}
+export interface Reorderable {
+  // детей можно переставлять по позиции дропа. Конфиг реордера растёт ЗДЕСЬ.
+  enabled: boolean; // живой флаг (тоглер меняет)
+}
+
+// Набор способностей слота. Ключ = вид способности. Присутствие ключа = способность есть.
+export interface Caps {
+  drop?: DropZone;
+  reorder?: Reorderable;
+}
+
+interface SlotBase {
+  id: string;
+  caps?: Caps; // способности налипают ЗДЕСЬ, на любой слот (и лист, и группу)
+}
+
 export type Slot = Leaf | Group;
 
-export interface Leaf {
+export interface Leaf extends SlotBase {
   kind: "leaf";
-  id: string;
   figure: string | null; // фигура (карта/фишка/пешка) или её отсутствие
   size: Size; // футпринт ячейки (даже пустой лист резервирует место)
-  accept?: (figure: string) => boolean;
-  dropZone?: boolean;
 }
 
-export interface Group {
+export interface Group extends SlotBase {
   kind: "group";
-  id: string;
   children: Slot[];
   layout: Layout;
-  reorder?: boolean; // можно ли переставлять детей по позиции дропа
-  cap?: number; // макс. число детей (undefined — без предела)
-  accept?: (figure: string) => boolean;
-  dropZone?: boolean;
 }
 
-// Конструкторы — для читаемого построения дерева (в т.ч. в тестах).
-export const leaf = (id: string, figure: string | null, size: Size, extra: Partial<Leaf> = {}): Leaf => ({ kind: "leaf", id, figure, size, ...extra });
-export const group = (id: string, layout: Layout, children: Slot[], extra: Partial<Omit<Group, "kind" | "id" | "layout" | "children">> = {}): Group => ({ kind: "group", id, layout, children, ...extra });
+// Аксессоры способностей — операции ходят через них, не лезут в поля напрямую.
+export const dropOf = (s: Slot): DropZone | undefined => s.caps?.drop;
+export const reorderOn = (s: Slot): boolean => s.caps?.reorder?.enabled ?? false;
+
+// Конструкторы — для читаемого построения дерева (в т.ч. в тестах). caps — набор способностей.
+export const leaf = (id: string, figure: string | null, size: Size, caps?: Caps): Leaf => ({ kind: "leaf", id, figure, size, ...(caps ? { caps } : {}) });
+export const group = (id: string, layout: Layout, children: Slot[], caps?: Caps): Group => ({ kind: "group", id, layout, children, ...(caps ? { caps } : {}) });
