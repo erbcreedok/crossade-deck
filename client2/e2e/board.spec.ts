@@ -106,6 +106,27 @@ test.describe("песочница — игровая зона (борд)", () =>
     expect(g.boards[idx]!.figures.find((f) => f.id === red.id)!.key).toBe("0,2"); // переехала
   });
 
+  test("драг НАБОРА: выделил две → потащил одну → обе переехали в целевой слот", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, btn(h, "выделение"));
+    h = await hooks(page);
+    await clickAt(page, h.selFigures[0]!); // выбрать A♦ (0,0)
+    await clickAt(page, h.selFigures[1]!); // выбрать 7♣ (0,1)
+    h = await hooks(page);
+    expect(h.selection).toHaveLength(2);
+    const board = h.boards[h.boards.length - 1]!; // select-борд
+    const empty = board.slots.find((s) => s.key === "0,3")!; // пустой слот
+    // тащим выделенную фигуру (первую) в пустой слот — за ней едет весь набор
+    const f0 = h.selFigures[0]!;
+    await dragTo(page, f0, empty);
+    await page.waitForTimeout(500);
+    const g = await hooks(page);
+    const last = g.boards[g.boards.length - 1]!;
+    const at03 = last.figures.filter((f) => f.key === "0,3").map((f) => f.id).sort();
+    expect(at03).toEqual([f0.id, h.selFigures[1]!.id].sort()); // обе в (0,3)
+    expect(g.selection).toEqual([]); // набор сброшен после переноса
+  });
+
   test("ИЗОЛЯЦИЯ: в режиме выделения нельзя выбрать фигуру ЧУЖОЙ зоны", async ({ page }) => {
     let h = await hooks(page);
     await clickAt(page, btn(h, "выделение"));

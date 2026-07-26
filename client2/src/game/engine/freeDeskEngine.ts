@@ -5,7 +5,7 @@ import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied, type AcceptCtx } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
-import { BOARD_PRESETS, type BoardPreset } from "../board/boardPresets";
+import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
@@ -181,6 +181,9 @@ export class FreeDeskEngine {
   private selMode = false; // режим изолированного мультиселекта (демо-борд)
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
+  private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
+  private selGrabCp = { x: 0, y: 0 }; // точка захвата набора (тап vs драг)
+  private faceOf = new Map<string, string>(); // id фигуры → лицо карты (для сорта набора по номиналу)
   private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
@@ -871,6 +874,7 @@ export class FreeDeskEngine {
       });
       slots[key] = { members: ids, maxSize: preset.maxSize };
     }
+    for (const [id, f] of Object.entries(faces)) this.faceOf.set(id, f);
     // Value-правило: оборачиваем preset.rule (по лицам) в AcceptRule (по ids/слотам) через faces.
     const rule = preset.rule
       ? (ctx: AcceptCtx): boolean => {
@@ -907,7 +911,7 @@ export class FreeDeskEngine {
   // Демо ИЗОЛИРОВАННОГО мультиселекта: борд + кнопки «выделение» / «снять». В режиме тап по фигуре
   // ЭТОЙ зоны тогглит выделение (лифт), фигуры ДРУГИХ зон выделить нельзя (изоляция по scope).
   private buildSelectDemo(left: number, top: number, pi: number): number {
-    const preset: BoardPreset = { title: "выделение (изолировано, сорт по номиналу)", cols: 4, rows: 1, onOccupied: "merge", slots: { "0,0": ["A♦"], "0,1": ["7♣"], "0,2": ["Q♠"], "0,3": ["3♥"] } };
+    const preset: BoardPreset = { title: "выделение (изолир., тащи набор, сорт по номиналу)", cols: 4, rows: 1, onOccupied: "merge", slots: { "0,0": ["A♦"], "0,1": ["7♣"], "0,2": ["Q♠"] } };
     const { zone, bottom } = this.spawnBoard(preset, pi, left, top);
     this.selZone = zone;
     const bMode = new Button({ label: "выделение", variant: "secondary", size: "sm", onClick: () => this.toggleSelectMode() });
@@ -940,6 +944,11 @@ export class FreeDeskEngine {
     this.sel = toggle(this.sel, id, "sel");
     this.refreshSel();
     this.wake();
+  }
+
+  // Порядок выноса набора — по номиналу (конфиг контейнера selectSort: rank).
+  private sortSet(ids: string[]): string[] {
+    return [...ids].sort((a, b) => rankOf(this.faceOf.get(a) ?? "") - rankOf(this.faceOf.get(b) ?? ""));
   }
 
   // Подсветка: выделенные — приподняты (floating), остальные — на столе.
@@ -1161,12 +1170,22 @@ export class FreeDeskEngine {
         }
         return el;
       },
-      // В режиме выделения фигуры демо-зоны не тащатся — тап по ним тогглит выделение (onCardBlocked).
-      cardDraggable: (c) => (this.selMode && this.selZone?.locate(c.id) ? false : c.draggable),
+      // В режиме выделения: ВЫДЕЛЕННУЮ фигуру демо-зоны можно тащить (тянется весь набор),
+      // НЕвыделенную — нет (тап тогглит выбор через onCardBlocked). Вне режима — обычная драгабельность.
+      cardDraggable: (c) => (this.selMode && this.selZone?.locate(c.id) ? hasSel(this.sel, c.id) : c.draggable),
       pickButton: (cx, cy) => this.hitButton(cx, cy),
       buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
       onCardGrab: (card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
+        // Драг выделенного НАБОРА: тянем все выбранные фигуры разом (GroupDrag), врассыпную.
+        if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
+          const cards = this.sel.ids.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
+          this.selDragging = [...this.sel.ids];
+          this.selGrabCp = { x: cp.x, y: cp.y };
+          this.drag = new GroupDrag(cards, cards.map((c) => ({ dx: c.body.px - cp.x, dy: c.body.py - cp.y })), this.dragCtx);
+          this.drag.move(cp);
+          return;
+        }
         const payload = this.pendingHost?.makePayload?.(cp) ?? null; // груз всей пачки (или null)
         this.pendingHost = null;
         if (payload) {
@@ -1187,8 +1206,26 @@ export class FreeDeskEngine {
         this.grabbedMarker?.followTo(p);
         for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
       },
-      onCardDrop: (_card, cp) => {
+      onCardDrop: (card, cp) => {
         if (this.drag) {
+          if (this.selDragging && this.selZone) {
+            const dragged = Math.hypot(cp.x - this.selGrabCp.x, cp.y - this.selGrabCp.y) > 8; // тап vs драг
+            if (dragged) {
+              // Набор перенесён: все выбранные в целевой слот (сорт по номиналу), затем гасим выбор.
+              this.selZone.dropSetAt(this.sortSet(this.selDragging), cp.x, cp.y);
+              this.refreshZoneHomes(this.selZone);
+              this.drag.release();
+              this.sel = begin("sel"); // очистить набор, остаться в режиме
+            } else {
+              this.drag.release(); // тап по выделенной — снять её из набора
+              this.toggleSelectFigure(card.id);
+            }
+            this.refreshSel();
+            this.selDragging = null;
+            this.drag = null;
+            for (const z of this.zones) z.zone.setHot(false);
+            return;
+          }
           const bz = this.boardZoneOf(this.drag.lead.id);
           if (bz) {
             // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим с борда.
@@ -1408,6 +1445,8 @@ export class FreeDeskEngine {
     this.selMode = false;
     this.sel = EMPTY;
     this.selZone = null;
+    this.selDragging = null;
+    this.faceOf.clear();
     this.selButtons = [];
     this.grabbers = [];
     this.grabbedMarker = null;
@@ -1467,6 +1506,8 @@ export class FreeDeskEngine {
     this.selMode = false;
     this.sel = EMPTY;
     this.selZone = null;
+    this.selDragging = null;
+    this.faceOf.clear();
     this.selButtons = [];
     this.grabbers = [];
     this.grabbedMarker = null;

@@ -87,6 +87,21 @@ describe("BoardZone — accept-правило (rules as data)", () => {
   });
 });
 
+describe("BoardZone — dropSetAt (перенос НАБОРА)", () => {
+  it("переносит все фигуры набора в целевой слот (в порядке набора)", () => {
+    const z = make({ "0,0": { members: ["a"] }, "0,1": { members: ["b"] } });
+    const r = z.dropSetAt(["a", "b"], 250, 50); // (0,2) пустой
+    expect(r.moved).toBe(true);
+    expect(z.locate("a")?.key).toBe("0,2");
+    expect(z.locate("b")?.key).toBe("0,2");
+    expect(z.board.slots["0,2"]!.members).toEqual(["a", "b"]); // порядок набора сохранён
+  });
+  it("вне слотов — не переносит", () => {
+    const z = make({ "0,0": { members: ["a"] } });
+    expect(z.dropSetAt(["a"], 9999, 9999).moved).toBe(false);
+  });
+});
+
 describe("BoardZone — запертость", () => {
   it("clamp держит фигуру в рамке зоны", () => {
     const z = make({});

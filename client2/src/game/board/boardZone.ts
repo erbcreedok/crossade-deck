@@ -134,6 +134,21 @@ export class BoardZone {
     return { moved: true, captured: tgtMembers };
   }
 
+  /** Перенести НАБОР фигур (мультиселект) в слот под точкой: каждую, кто принят, в порядке набора. */
+  dropSetAt(ids: string[], x: number, y: number): { moved: boolean } {
+    const target = this.slotRects().find(({ rect }) => x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h);
+    if (!target) return { moved: false };
+    let moved = false;
+    for (const id of ids) {
+      const from = this.locate(id);
+      if (!from || from.key === target.key) continue;
+      if (!this.slotAccepts(target.key, from.key, id)) continue;
+      this.board = move(this.board, from.key, target.key, [id]);
+      moved = true;
+    }
+    return { moved };
+  }
+
   /** Держать фигуру в рамке контейнера (запертость). */
   clamp(pos: { x: number; y: number }, half: { w: number; h: number }): { x: number; y: number } {
     return clampToBounds(pos, half, this.bounds);
