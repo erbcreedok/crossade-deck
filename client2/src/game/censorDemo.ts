@@ -85,64 +85,37 @@ export class CensorDemo {
     const staticSpec: CensorSpec = { kind: "row-shear", block: 2.4, speedPxSec: 0, flipEverySec: 1, rowBias: 0, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1 };
     // Настраиваемый танец: swap-dance с дефолтом «чётче» (мельче блок, реже свапы, меньше дрожание).
     const danceSpec: CensorSpec = { kind: "swap-dance", block: DANCE_DEFAULT.block, speedPxSec: 0, flipEverySec: 0.3, rowBias: 0, swapsPerSec: DANCE_DEFAULT.swapsPerSec, jitterAmp: DANCE_DEFAULT.jitterAmp, jitterFreq: DANCE_DEFAULT.jitterFreq, shearMix: 0 };
-    const variants: Array<{ label: string; spec: CensorSpec; animated: boolean; tunable?: boolean }> = [
+    // Ряд 1 — НЕконфигурируемые пресеты (эталон + сдвиг рядов + комбо). Одиночный свап-пресет удалён —
+    // он не крутится рычагами, а его роль закрывает настраиваемый «танец ⚙» ниже.
+    const presets: Array<{ label: string; spec: CensorSpec; animated: boolean }> = [
       { label: "статика (пиксели)", spec: staticSpec, animated: false },
-      { label: "танец / свапы", spec: CENSOR_PRESETS.swap!, animated: true },
       { label: "ряды ← → (крупно)", spec: CENSOR_PRESETS.shearCoarse!, animated: true },
       { label: "ряды ← → (мельче)", spec: CENSOR_PRESETS.shearFine!, animated: true },
       { label: "комбо (ряды+свапы)", spec: CENSOR_PRESETS.combo!, animated: true },
-      { label: "танец ⚙ слайдеры", spec: danceSpec, animated: true, tunable: true },
     ];
 
     const gap = 34;
-    const scale = 1;
-    const cardW = TEX_W * scale;
-    const cardH = TEX_H * scale;
+    const cardW = TEX_W;
+    const cardH = TEX_H;
+    const y1 = 40;
     let x = 28;
-    const y = 40;
-
-    for (const v of variants) {
-      const card = new Container();
-      card.position.set(x, y);
-      card.scale.set(scale);
-      this.world.addChild(card);
-
-      // Фон карты + рамка (статичные, чёткие).
-      const bg = new Graphics();
-      bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
-      card.addChild(bg);
-
-      const src = buildFingerSource(app, v.spec.block);
-      const field = new CensorField(src, v.spec);
-      // Центрируем сетку в карте (сетка ≈ TEX по размеру, но округление блоков даёт пару px).
-      field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
-      // Маскируем по форме карты, чтобы сдвиг рядов не вылезал за края.
-      const mask = new Graphics();
-      mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
-      card.addChild(mask);
-      field.view.mask = mask;
-      card.addChild(field.view);
-      field.update(0); // первый статичный кадр
-
-      this.cards.push({ field, animated: v.animated });
-      if (v.tunable) this.tunable = { card, mask, spec: v.spec, cardIdx: this.cards.length - 1 };
-
-      // Подпись под картой.
-      const label = new Text({ text: v.label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
-      label.anchor.set(0.5, 0);
-      label.position.set(x + cardW / 2, y + cardH + 8);
-      this.world.addChild(label);
-
+    for (const v of presets) {
+      this.buildFieldCard(app, v.spec, v.label, x, y1, v.animated);
       x += cardW + gap;
     }
+    const row1Right = x;
 
-    // ——— Второй ряд: GPU-варианты (вся анимация на видеокарте, CPU ≈ 0). Частица 2.5 без нагрузки. ———
+    // Ряд 2 — ВСЕ конфигурируемые свапы в один ряд: настраиваемый CPU-танец + два GPU-варианта. Все под рычагами.
+    const y2 = y1 + cardH + 46;
+    let x2 = 28;
+    const tun = this.buildFieldCard(app, danceSpec, "танец ⚙ слайдеры", x2, y2, true);
+    this.tunable = { card: tun.card, mask: tun.mask, spec: danceSpec, cardIdx: this.cards.length - 1 };
+    x2 += cardW + gap;
+
     const gpuVariants: Array<{ label: string; mode: "remap" | "pingpong" }> = [
       { label: "GPU шейдер (ремап, моргает)", mode: "remap" },
       { label: "GPU ping-pong (накопление)", mode: "pingpong" },
     ];
-    const y2 = y + cardH + 46;
-    let x2 = 28;
     for (const gv of gpuVariants) {
       const card = new Container();
       card.position.set(x2, y2);
@@ -170,8 +143,8 @@ export class CensorDemo {
       x2 += cardW + gap;
     }
 
-    // Фит-по-ширине: на входе весь ряд помещается в экран (на телефоне видно все 5 карт).
-    const contentW = x; // правый край последней карты + запас справа
+    // Фит-по-ширине: самый длинный из двух рядов помещается в экран.
+    const contentW = Math.max(row1Right, x2); // правый край длиннейшего ряда + запас справа
     const pad = 14;
     const s0 = Math.min(1, (width - pad) / contentW);
     this.fitScale = s0;
@@ -183,6 +156,38 @@ export class CensorDemo {
 
     app.ticker.add(this.tick);
     app.start();
+  }
+
+  // Построить CPU-карту-поле (фон + рамка + сетка + маска + подпись) в точке (x,y). Возвращает части,
+  // нужные настраиваемому танцу для пересборки. Пушит запись в this.cards.
+  private buildFieldCard(app: Application, spec: CensorSpec, label: string, x: number, y: number, animated: boolean): { card: Container; mask: Graphics; field: CensorField } {
+    const card = new Container();
+    card.position.set(x, y);
+    this.world.addChild(card);
+
+    const bg = new Graphics();
+    bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
+    card.addChild(bg);
+
+    const src = buildFingerSource(app, spec.block);
+    const field = new CensorField(src, spec);
+    // Центрируем сетку в карте (сетка ≈ TEX по размеру, но округление блоков даёт пару px).
+    field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
+    // Маскируем по форме карты, чтобы сдвиг рядов не вылезал за края.
+    const mask = new Graphics();
+    mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
+    card.addChild(mask);
+    field.view.mask = mask;
+    card.addChild(field.view);
+    field.update(0); // первый статичный кадр
+    this.cards.push({ field, animated });
+
+    const lbl = new Text({ text: label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
+    lbl.anchor.set(0.5, 0);
+    lbl.position.set(x + TEX_W / 2, y + TEX_H + 8);
+    this.world.addChild(lbl);
+
+    return { card, mask, field };
   }
 
   private applyCam(): void {
