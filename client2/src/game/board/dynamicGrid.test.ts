@@ -1,38 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { packDims, flowCenters, flowSize } from "./dynamicGrid";
+import { flowLayout } from "./dynamicGrid";
 
-// FLOW-грид: паковка по индексу, растёт под контент. Чисто.
-describe("packDims", () => {
-  it("растёт как задумано: 1×1, 1×2, 1×3, 2×2, 2×3, 3×3", () => {
-    expect(packDims(1)).toEqual({ rows: 1, cols: 1 });
-    expect(packDims(2)).toEqual({ rows: 1, cols: 2 });
-    expect(packDims(3)).toEqual({ rows: 1, cols: 3 });
-    expect(packDims(4)).toEqual({ rows: 2, cols: 2 });
-    expect(packDims(5)).toEqual({ rows: 2, cols: 3 });
-    expect(packDims(6)).toEqual({ rows: 2, cols: 3 });
-    expect(packDims(9)).toEqual({ rows: 3, cols: 3 });
-    expect(packDims(0)).toEqual({ rows: 0, cols: 0 });
+// FLOW-грид: паковка по индексу, minCols + резерв места под след. карту. Чисто.
+const geom = { cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } };
+const opt = { minCols: 3, reserve: true };
+
+describe("flowLayout (minCols=3, reserve)", () => {
+  it("пустой грид → 3 колонки × 1 ряд (место под карты), центров нет", () => {
+    const l = flowLayout(0, geom, opt);
+    expect(l.cols).toBe(3);
+    expect(l.rows).toBe(1);
+    expect(l.centers).toEqual([]);
+    expect(l.size).toEqual({ w: 300, h: 100 });
   });
-});
-
-describe("flowCenters", () => {
-  const geom = { cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } };
-  it("карты по индексу row-major (n=4 → 2×2)", () => {
-    expect(flowCenters(4, geom)).toEqual([
+  it("3 карты заполняют 1 ряд, но резерв держит 2-й ряд (3×2)", () => {
+    const l = flowLayout(3, geom, opt);
+    expect(l.cols).toBe(3);
+    expect(l.rows).toBe(2); // резерв под 4-ю
+    expect(l.centers).toEqual([
       { x: 50, y: 50 },
       { x: 150, y: 50 },
-      { x: 50, y: 150 },
-      { x: 150, y: 150 },
+      { x: 250, y: 50 },
     ]);
+    expect(l.size).toEqual({ w: 300, h: 200 });
   });
-  it("одна карта — по центру старт-ячейки", () => {
-    expect(flowCenters(1, geom)).toEqual([{ x: 50, y: 50 }]);
+  it("4 карты → 3×2, 4-я в начале 2-го ряда", () => {
+    const l = flowLayout(4, geom, opt);
+    expect(l.cols).toBe(3);
+    expect(l.centers[3]).toEqual({ x: 50, y: 150 });
   });
-});
-
-describe("flowSize", () => {
-  it("пустой грид → минимум 1×1; n=4 → 2×2", () => {
-    expect(flowSize(0, { cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } })).toEqual({ w: 100, h: 100 });
-    expect(flowSize(4, { cell: { w: 100, h: 100 }, gap: 10, origin: { x: 0, y: 0 } })).toEqual({ w: 210, h: 210 });
+  it("минимум 3 колонки даже для 1 карты", () => {
+    expect(flowLayout(1, geom, opt).cols).toBe(3);
+  });
+  it("растёт за 3 колонки на больших n (>~9)", () => {
+    expect(flowLayout(12, geom, opt).cols).toBeGreaterThan(3);
   });
 });

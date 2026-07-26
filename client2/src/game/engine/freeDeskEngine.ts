@@ -5,7 +5,7 @@ import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
-import { flowCenters, flowSize, type FlowGeom } from "../board/dynamicGrid";
+import { flowLayout, type FlowGeom } from "../board/dynamicGrid";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -941,29 +941,37 @@ export class FreeDeskEngine {
     return this.fields.find((f) => f.stackIds.includes(id) || f.gridIds.includes(id)) ?? null;
   }
 
+  // Раскладка грида Поля: минимум 3 колонки + всегда резерв места под следующую карту.
+  private gridLayout(f: FieldState) {
+    return flowLayout(f.gridIds.length, f.grid, { minCols: 3, reserve: true });
+  }
+
   // Дом фигуры Поля: в стопке — колода со стаггером «толщины»; в гриде — flow-позиция по индексу.
   private fieldHome(f: FieldState, id: string): { x: number; y: number } {
     const base = { x: f.stackRect.x + f.stackRect.w / 2, y: f.stackRect.y + f.stackRect.h / 2 };
     const si = f.stackIds.indexOf(id);
     if (si >= 0) return { x: base.x + si * 0.35, y: base.y - si * 0.3 };
     const gi = f.gridIds.indexOf(id);
-    if (gi >= 0) return flowCenters(f.gridIds.length, f.grid)[gi] ?? base;
+    if (gi >= 0) return this.gridLayout(f).centers[gi] ?? base;
     return base;
   }
 
-  // Габарит грида (для dashed-рамки; пустой — минимум 1×1).
+  // Габарит грида (для dashed-рамки) — с резервом места под следующую карту.
   private fieldGridRect(f: FieldState): Rect4 {
-    const s = flowSize(f.gridIds.length, f.grid);
+    const s = this.gridLayout(f).size;
     return { x: f.grid.origin.x, y: f.grid.origin.y, w: s.w, h: s.h };
   }
 
-  // Внешняя рамка Поля — объемлет стопку и грид + отступ.
+  // Внешняя рамка Поля — объемлет стопку и грид + отступы (снизу/справа больше — по просьбе).
   private fieldOuterRect(f: FieldState): Rect4 {
     const g = this.fieldGridRect(f);
-    const minX = Math.min(f.stackRect.x, g.x) - 14;
-    const minY = Math.min(f.stackRect.y, g.y) - 14;
-    const maxX = Math.max(f.stackRect.x + f.stackRect.w, g.x + g.w) + 14;
-    const maxY = Math.max(f.stackRect.y + f.stackRect.h, g.y + g.h) + 14;
+    const padTL = 14;
+    const padR = 30;
+    const padB = 30;
+    const minX = Math.min(f.stackRect.x, g.x) - padTL;
+    const minY = Math.min(f.stackRect.y, g.y) - padTL;
+    const maxX = Math.max(f.stackRect.x + f.stackRect.w, g.x + g.w) + padR;
+    const maxY = Math.max(f.stackRect.y + f.stackRect.h, g.y + g.h) + padB;
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 

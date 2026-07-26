@@ -35,19 +35,19 @@ test.describe("песочница — Поле (flow-грид)", () => {
     expect(h.field!.grid).toBe(1);
   });
 
-  test("кладёшь 4 карты → flow-грид пакует их 2×2 (2 колонки × 2 ряда)", async ({ page }) => {
-    for (let i = 0; i < 4; i++) {
+  test("минимум 3 колонки: 6 карт пакуются 3×2", async ({ page }) => {
+    for (let i = 0; i < 6; i++) {
       const h = await hooks(page);
       await dragTo(page, h.field!.stackAt, gridMid(h));
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(250);
     }
     await page.waitForTimeout(500); // дать картам осесть по flow-позициям
     const h = await hooks(page);
-    expect(h.field!.grid).toBe(4);
-    // кластеризуем с допуском (пружина даёт суб-пиксельный джиттер): 2 колонки × 2 ряда
+    expect(h.field!.grid).toBe(6);
+    // кластеризуем с допуском (пружина даёт суб-пиксельный джиттер): 3 колонки × 2 ряда
     const xs = new Set(h.field!.gridCards.map((c) => Math.round(c.x / 50)));
     const ys = new Set(h.field!.gridCards.map((c) => Math.round(c.y / 50)));
-    expect(xs.size).toBe(2); // 2 колонки
+    expect(xs.size).toBe(3); // минимум 3 колонки
     expect(ys.size).toBe(2); // 2 ряда
   });
 });
