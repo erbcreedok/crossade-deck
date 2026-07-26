@@ -4,11 +4,11 @@ import { grid as gridLayout, pile, absolute } from "../slot/layouts";
 import { leaf, group, type Group } from "../slot/types";
 import { figures, has, measure, homeOf as slotHomeOf } from "../slot/slot";
 import { dropInto } from "../slot/mutate";
-import { paintFieldChrome } from "./fieldPaint";
+import { paintFieldDecor } from "./fieldPaint";
 
 // ПОЛЕ — обособленный модуль механики (программируется ЗДЕСЬ, движок только импортит и делегирует).
 // ПОРЯДОК карт держит ДЕРЕВО СЛОТОВ: field(absolute)[ колода(linear), грид(grid, reorder+drop) ] —
-// то же дерево, что и любой контейнер (slot/). Field — тонкий адаптер: даёт «хром»-графику
+// то же дерево, что и любой контейнер (slot/). Field — тонкий адаптер: даёт «декор»-графику
 // (dashed-рамка + якорь), геометрию дропзоны и делегирует порядок/дом дереву (homeOf/reorder/detach).
 // Карточные визуалы (Card) остаются в движке — Field лишь говорит, где им отдыхать и кто ему принадлежит.
 
@@ -35,8 +35,8 @@ export interface FieldOpts {
 export type FieldDrag = "idle" | "drag" | "hover";
 
 // ——— КОНФИГ Поля (стиль/поведение как ДАННЫЕ, не жёсткое правило) ———
-// «Хром» — вся графика поверх голого грида (рамки/якорь/глаголы). null → голый грид без графики.
-export interface FieldChrome {
+// «Декор» — вся графика поверх голого грида (рамки/якорь/глаголы). null → голый грид без графики.
+export interface FieldDecor {
   outerBorder: boolean; // внешняя dashed-рамка Поля (при драге)
   dropzoneBorder: boolean; // рамка грида-дропзоны (при драге: dashed вне / solid+фон над)
   anchorText: string | null; // текст узла-якоря на пустом гриде (null → без якоря)
@@ -50,11 +50,11 @@ export interface FieldConfig {
   reserve: boolean; // держать место под следующую карту
   gridPad: number; // отступ рамки/фона от карт (gap между картами не трогает)
   reorder?: boolean; // разрешить перестановку карт внутри грида (стартовое; тоглер меняет)
-  chrome: FieldChrome | null; // графика; null → голый грид
+  decor: FieldDecor | null; // графика; null → голый грид
 }
 
 // Дефолт: ГОЛЫЙ грид без графики (то, что было до графических правок) — flow-паковка, без рамок/якорей.
-export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, chrome: null };
+export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, decor: null };
 
 // Для «обычных сеток»: рамки при драге + глаголы наведи/брось. БЕЗ якоря — якорь это про конкретное
 // поле-источник (колода→грид), а не общая сетка; его добавляет своё поле поверх (anchorText). Будем редачить.
@@ -62,7 +62,7 @@ export const NORMAL_FIELD: FieldConfig = {
   minCols: 3,
   reserve: true,
   gridPad: 13,
-  chrome: {
+  decor: {
     outerBorder: true,
     dropzoneBorder: true,
     anchorText: null,
@@ -196,16 +196,16 @@ export class Field {
     return { moved: r.moved, flip: r.moved && !r.reordered };
   }
 
-  /** Нарисовать «хром» — вся графика в fieldPaint.ts (SRP: Field держит механику, не чертит).
+  /** Нарисовать «декор» — вся графика в fieldPaint.ts (SRP: Field держит механику, не чертит).
    *  Собираем геометрию/состояние и делегируем. */
   draw(): void {
-    paintFieldChrome({
+    paintFieldDecor({
       frame: this.frame,
       anchor: this.anchor,
       verb: this.verb,
       layerBelow: this.layerBelow,
       layerAbove: this.layerAbove,
-      chrome: this.config.chrome,
+      decor: this.config.decor,
       dragState: this.dragState,
       gridRect: this.gridRect(),
       outerRect: this.outerRect(),

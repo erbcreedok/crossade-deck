@@ -897,7 +897,7 @@ export class FreeDeskEngine {
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
     // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
     // (при упоре грид растёт вширь) + реордер включён. Стартовые значения — их правят контроллеры снизу.
-    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, reorder: true, chrome: { ...NORMAL_FIELD.chrome!, anchorText: "тяни карту сюда" } };
+    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, reorder: true, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
     // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
     const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
     this.scene.surface.addChild(field.frame, anchor, verb);

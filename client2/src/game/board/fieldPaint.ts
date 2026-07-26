@@ -1,10 +1,10 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { type FlowGeom } from "./dynamicGrid";
-import type { FieldChrome, FieldDrag, Rect4 } from "./field";
+import type { FieldDecor, FieldDrag, Rect4 } from "./field";
 
-// PAINT Поля — вся Pixi-графика «хрома» (рамки/фон/якорь-узел/глаголы). Отделено от МЕХАНИКИ (field.ts
+// PAINT Поля — вся Pixi-графика «декора» (рамки/фон/якорь-узел/глаголы). Отделено от МЕХАНИКИ (field.ts
 // держит порядок/дроп через дерево слотов): рисование — своя ответственность, свой файл. Field.draw
-// лишь собирает геометрию/состояние и зовёт paintFieldChrome; сам ничего не чертит.
+// лишь собирает геометрию/состояние и зовёт paintFieldDecor; сам ничего не чертит.
 
 export interface FieldPaintDeps {
   frame: Graphics; // куда рисуем рамки/фон/узел
@@ -12,7 +12,7 @@ export interface FieldPaintDeps {
   verb: Text; // глагол дропзоны (переселяется между слоями)
   layerBelow: Container; // «наведи» — под картами
   layerAbove: Container; // «брось» — над картами
-  chrome: FieldChrome | null; // null → голый грид (ничего не рисуем)
+  decor: FieldDecor | null; // null → голый грид (ничего не рисуем)
   dragState: FieldDrag;
   gridRect: Rect4; // рамка/фон дропзоны
   outerRect: Rect4; // внешняя рамка Поля
@@ -21,31 +21,31 @@ export interface FieldPaintDeps {
   stackRect: Rect4; // область колоды (начало узла-якоря)
 }
 
-/** Нарисовать «хром»: в ПОКОЕ бордеров нет (только узел-якорь на пустом гриде). При драге — внешняя
+/** Нарисовать «декор»: в ПОКОЕ бордеров нет (только узел-якорь на пустом гриде). При драге — внешняя
  *  рамка Поля + грид-дропзона (вне зоны dashed, над зоной solid + фон) + глагол «наведи»/«брось». */
-export function paintFieldChrome(d: FieldPaintDeps): void {
+export function paintFieldDecor(d: FieldPaintDeps): void {
   d.frame.clear();
-  const chrome = d.chrome;
-  if (!chrome) {
+  const decor = d.decor;
+  if (!decor) {
     d.anchor.visible = false;
     d.verb.visible = false;
     return;
   }
   const gr = d.gridRect;
-  const col = chrome.colors;
+  const col = decor.colors;
   if (d.dragState !== "idle") {
-    if (chrome.outerBorder) dashRect(d.frame, d.outerRect, 11, 7, col.line, 2, 1, 12); // рамка Поля на драге
-    if (chrome.dropzoneBorder) {
+    if (decor.outerBorder) dashRect(d.frame, d.outerRect, 11, 7, col.line, 2, 1, 12); // рамка Поля на драге
+    if (decor.dropzoneBorder) {
       if (d.dragState === "hover") d.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: col.fill, alpha: 0.16 }).stroke({ width: 2.5, color: col.hover }); // над зоной — solid + фон
       else dashRect(d.frame, gr, 9, 6, col.line, 1.5, 1, 8); // драг вне зоны — dashed (тот же радиус, что у solid)
     }
   }
 
   // Узел-якорь — только в покое, на пустом гриде и если задан текст.
-  const idleEmpty = d.dragState === "idle" && d.gridEmpty && chrome.anchorText !== null;
+  const idleEmpty = d.dragState === "idle" && d.gridEmpty && decor.anchorText !== null;
   d.anchor.visible = idleEmpty;
   if (idleEmpty) {
-    d.anchor.text = chrome.anchorText!;
+    d.anchor.text = decor.anchorText!;
     const cell = d.grid.cell;
     const first = { x: d.grid.origin.x + cell.w / 2, y: d.grid.origin.y + cell.h / 2 };
     const from = { x: d.stackRect.x + d.stackRect.w + 6, y: d.stackRect.y + 4 };
@@ -59,7 +59,7 @@ export function paintFieldChrome(d: FieldPaintDeps): void {
   d.verb.visible = showVerb;
   if (showVerb) {
     const over = d.dragState === "hover";
-    d.verb.text = over ? chrome.verbHover : chrome.verbDrag;
+    d.verb.text = over ? decor.verbHover : decor.verbDrag;
     d.verb.style.fill = over ? col.verbHover : col.verbDrag;
     d.verb.style.fontSize = over ? 20 : 16;
     // «брось» лежит ПОВЕРХ карт — без обводки/тени сливается с лицами. «наведи» под картами — тихий.
@@ -70,7 +70,7 @@ export function paintFieldChrome(d: FieldPaintDeps): void {
   }
 }
 
-// ——— примитивы «хрома» (dashed-рамка + узел-стрелка) ———
+// ——— примитивы «декора» (dashed-рамка + узел-стрелка) ———
 
 // Пройтись пунктиром по ломаной (замкнутой): узор dash/gap НЕПРЕРЫВЕН через углы (carry переносит
 // фазу в следующий сегмент), поэтому скруглённые углы выходят ровными, а не «рвутся» на стыках.
