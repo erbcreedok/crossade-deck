@@ -142,14 +142,16 @@ function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; 
     py = -py;
   }
   const at = (a: number, h: number) => ({ x: from.x + ux * a + px * h, y: from.y + uy * a + py * h });
-  const ac = L * 0.5; // центр = перекрестие
-  const W = L * 0.26; // разброс контролов вбок (капля шире вверху)
-  const H = L * 0.62; // высота петли
-  const X = at(ac, 0);
+  const ac = L * 0.5; // центр
+  const w = L * 0.12; // разнос точек ВЗЛЁТА (левее) и ПОСАДКИ (правее) — не в одной точке
+  const W = L * 0.28; // разброс контролов вбок (капля шире вверху; W>w → перекрестие между A и B)
+  const H = L * 0.58; // высота петли
+  const A = at(ac - w, 0); // взлёт — левее центра
+  const B = at(ac + w, 0); // посадка — правее центра
   const c1 = at(ac + W, H); // контрол вверх-вправо
-  const c2 = at(ac - W, H); // контрол вверх-влево (свап c1/c2 → самопересечение у X)
-  g.moveTo(from.x, from.y).lineTo(X.x, X.y);
-  g.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, X.x, X.y); // петля назад в X
+  const c2 = at(ac - W, H); // контрол вверх-влево (свап → самопересечение между A и B)
+  g.moveTo(from.x, from.y).lineTo(A.x, A.y);
+  g.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, B.x, B.y); // петля A→B с перекрестием
   g.lineTo(to.x, to.y).stroke({ width, color });
   // наконечник у `to` вдоль оси стрелки.
   const s = 11;
