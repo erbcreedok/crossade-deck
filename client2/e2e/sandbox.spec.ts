@@ -203,6 +203,30 @@ test.describe("песочница — действия", () => {
     expect(after[0]).toBe(before[before.length - 1]); // верхняя встала в начало
     expect(after).not.toEqual(before);
   });
+
+  test("раступание стопки: при наведении карты (кроме перетаскиваемой) раздвигаются", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    const ids = h.stackIds[0]!;
+    const sc = h.stackCards[0]!;
+    const restById = new Map(ids.map((id, i) => [id, sc[i]!]));
+    const dragged = ids[ids.length - 1]!; // верхняя (крайняя справа)
+    const top = sc[sc.length - 1]!;
+    const first = sc[0]!;
+    // хватаем верхнюю и ЗАВИСАЕМ над началом стопки (не отпуская)
+    await page.mouse.move(box.x + top.x, box.y + top.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + first.x + 20, box.y + first.y, { steps: 14 });
+    await page.waitForTimeout(450);
+    h = await hooks(page);
+    const spread = h.stackIds[0]!.some((id, i) => {
+      if (id === dragged) return false; // перетаскиваемая у пальца — её не считаем
+      const r = restById.get(id)!;
+      return Math.abs(h.stackCards[0]![i]!.x - r.x) > 15 || Math.abs(h.stackCards[0]![i]!.y - r.y) > 15;
+    });
+    await page.mouse.up();
+    expect(spread).toBe(true); // соседи раздвинулись под дыру
+  });
 });
 
 // Топбар (HTML): рестарты и возврат в меню.

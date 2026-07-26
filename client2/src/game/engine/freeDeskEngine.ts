@@ -943,9 +943,11 @@ export class FreeDeskEngine {
     return this.stacks.find((s) => s.stack.owns(id)) ?? null;
   }
 
-  // После реордера в стопке: новые дома + z по индексу (верх справа = выше), пружиной.
-  private applyStackHomes(st: SandboxStack): void {
+  // После реордера/наведения в стопке: новые дома + z по индексу (верх справа = выше), пружиной.
+  // except — перетаскиваемую не трогаем (она у пальца).
+  private applyStackHomes(st: SandboxStack, except?: string): void {
     st.stack.ids.forEach((id, i) => {
+      if (id === except) return;
       const home = st.stack.homeOf(id);
       const placed = this.cards.find((p) => p.card.id === id);
       if (placed) {
@@ -1419,11 +1421,20 @@ export class FreeDeskEngine {
         this.drag?.move(p);
         this.grabbedMarker?.followTo(p);
         if (this.drag) {
-          // грид: над ним → «брось» + фон + ДЫРА под падающую карту; при смене индекса раздвигаем карты.
+          // грид: над ним → «брось» + фон + ДЫРА под падающую; при смене индекса раздвигаем карты.
           const fld = this.fieldForCard(this.drag.lead.id);
-          if (fld?.hover(p, this.drag.lead.id)) {
-            this.applyFieldHomes(fld, this.drag.lead.id);
-            this.wake();
+          if (fld) {
+            if (fld.hover(p, this.drag.lead.id)) {
+              this.applyFieldHomes(fld, this.drag.lead.id);
+              this.wake();
+            }
+          } else if (!(this.drag instanceof GroupDrag)) {
+            // одиночная карта стопки → над своей стопкой карты РАСТУПАЮТСЯ под падающую.
+            const stk = this.stackForCard(this.drag.lead.id);
+            if (stk?.stack.hover(p, this.drag.lead.id)) {
+              this.applyStackHomes(stk, this.drag.lead.id);
+              this.wake();
+            }
           }
         }
         for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
@@ -1471,6 +1482,7 @@ export class FreeDeskEngine {
             // Стопка: ОДИНОЧНый драг, упавший НА свою стопку → реордер по позиции. Пачка (GroupDrag)
             // и дропы мимо стопки — не реордер, идут дальше в зоны (переворот/сжечь/вернуть домой).
             const stk = this.drag instanceof GroupDrag ? null : this.stackForCard(this.drag.lead.id);
+            stk?.stack.clearGap(); // закрыть дыру перед применением домов
             if (stk && stk.stack.place(this.drag.lead.id, cp).moved) {
               this.applyStackHomes(stk);
               this.drag.release();
@@ -1478,6 +1490,7 @@ export class FreeDeskEngine {
               const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
               zone?.onDrop(this.drag); // зона реагирует на СПОСОБНОСТИ груза (flip/burn), не на тип
               if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
+              if (stk) this.applyStackHomes(stk); // дыру закрыли — вернуть раздвинутые карты на место
             }
           }
           this.drag = null;
@@ -1491,6 +1504,12 @@ export class FreeDeskEngine {
         if (fld) {
           fld.endDrag(); // закрыть дыру
           this.applyFieldHomes(fld); // и вернуть раздвинутые карты на место
+        } else if (this.drag) {
+          const stk = this.stackForCard(this.drag.lead.id);
+          if (stk) {
+            stk.stack.clearGap();
+            this.applyStackHomes(stk);
+          }
         }
         this.drag?.release();
         this.drag = null;

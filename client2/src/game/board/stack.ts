@@ -11,12 +11,48 @@ export class Stack implements Configurable {
   private readonly root: Group;
   private readonly cards: Group;
   private readonly fallback: { x: number; y: number };
+  private readonly origin: { x: number; y: number };
+  private readonly cell: { w: number; h: number };
+  private readonly pad: number;
+  private lastGap: number | null = null;
 
   constructor(o: { left: number; top: number; cell: { w: number; h: number }; step: number; ids: string[]; reorder?: boolean; pad?: number }) {
     this.fallback = { x: o.left + o.cell.w / 2, y: o.top + o.cell.h / 2 };
+    this.origin = { x: o.left, y: o.top };
+    this.cell = o.cell;
+    this.pad = o.pad ?? 8;
     // gap = step − cell.w → нахлёст (шаг соседа = step). reorder/drop — способности.
-    this.cards = group("stack-cards", linear({ axis: "x", gap: o.step - o.cell.w }), o.ids.map((id) => leaf(id, id, o.cell)), { reorder: { enabled: o.reorder ?? false }, drop: { pad: o.pad ?? 8 } });
+    this.cards = group("stack-cards", linear({ axis: "x", gap: o.step - o.cell.w }), o.ids.map((id) => leaf(id, id, o.cell)), { reorder: { enabled: o.reorder ?? false }, drop: { pad: this.pad } });
     this.root = group("stack-root", absolute([{ x: o.left, y: o.top }]), [this.cards]);
+  }
+
+  private sizes(): { w: number; h: number }[] {
+    return this.cards.children.map((c) => (c.kind === "leaf" ? c.size : { w: 0, h: 0 }));
+  }
+  // Габарит стопки БЕЗ дыры (для теста «над стопкой ли»).
+  private baseBounds(): { x: number; y: number; w: number; h: number } {
+    const s = this.cards.layout.place(this.sizes()).size;
+    return { x: this.origin.x - this.pad, y: this.origin.y - this.pad, w: s.w + 2 * this.pad, h: s.h + 2 * this.pad };
+  }
+  private dropIndex(cp: { x: number; y: number }): number {
+    return this.cards.layout.indexAt({ x: cp.x - this.origin.x, y: cp.y - this.origin.y }, this.sizes()) ?? this.cards.children.length;
+  }
+
+  /** Наведение: над стопкой → карты РАСТУПАЮТСЯ (дыра на индексе дропа), skip исключается. Возвращает,
+   *  изменилась ли раскладка (движку — ре-спринг только при смене индекса). */
+  hover(cp: { x: number; y: number }, draggedId?: string): boolean {
+    const b = this.baseBounds();
+    const over = cp.x >= b.x && cp.x <= b.x + b.w && cp.y >= b.y && cp.y <= b.y + b.h;
+    const k = over ? this.dropIndex(cp) : null;
+    if (k === this.lastGap) return false;
+    this.lastGap = k;
+    this.cards.gap = k === null ? undefined : { index: k, size: this.cell, skip: draggedId };
+    return true;
+  }
+  /** Закрыть дыру (на дропе/отмене). */
+  clearGap(): void {
+    this.cards.gap = undefined;
+    this.lastGap = null;
   }
 
   get ids(): string[] {
