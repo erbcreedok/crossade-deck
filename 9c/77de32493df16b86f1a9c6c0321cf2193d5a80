@@ -1,0 +1,41 @@
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_1fc2ffdeff7173 1209,1212-1222,1224
+  s_89d5ad20619017::t_cec9e958456d40 877
+  s_89d5ad20619017::t_917decab73dc0c 949-953
+  s_89d5ad20619017::t_eb24d553bde68d 1173-1175
+  s_89d5ad20619017::t_0a88eea8f45ccf 1184
+  s_89d5ad20619017::t_4c402e87e2c2b6 184,186
+  s_89d5ad20619017::t_bc8e19943ed113 1180-1183,1185-1188
+  s_89d5ad20619017::t_0216051edb738f 1448-1449,1509-1510
+  s_89d5ad20619017::t_521188dd0c89cb 914
+  s_89d5ad20619017::t_6119a73f261f9c 8
+  s_89d5ad20619017::t_f35cc184821118 1211,1223,1225-1228
+  s_89d5ad20619017::t_1b2c93e5e86c69 185
+client2/e2e/board.spec.ts
+  s_89d5ad20619017::t_f5d0a0a3557c2b 109-129
+client2/src/game/board/boardPresets.test.ts
+  s_89d5ad20619017::t_2e30ebce89f3f1 1-19
+client2/src/game/board/boardZone.ts
+  s_89d5ad20619017::t_16799670f160fe 137-151
+client2/src/game/board/boardZone.test.ts
+  s_89d5ad20619017::t_8ca2f1abdacc37 90-104
+client2/src/game/board/boardPresets.ts
+  s_89d5ad20619017::t_ff5f40a72ac5de 21-23,28-29
+  s_89d5ad20619017::t_ae6abc84f5c53b 24-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9c77de32493df16b86f1a9c6c0321cf2193d5a80",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
