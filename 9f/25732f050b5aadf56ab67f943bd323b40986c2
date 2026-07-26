@@ -1,0 +1,25 @@
+client2/src/game/engine/censorField.ts
+  s_89d5ad20619017::t_a571c145b24fee 63,99
+  s_89d5ad20619017::t_4db2efb6fc5499 24
+  s_89d5ad20619017::t_8ece1ed702a126 33-39
+client2/src/CensorDemo.tsx
+  s_89d5ad20619017::t_fd8310c75b5e51 38-40
+client2/src/game/censorDemo.ts
+  s_89d5ad20619017::t_095619d4c1d509 239-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9f25732f050b5aadf56ab67f943bd323b40986c2",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
