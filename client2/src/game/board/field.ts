@@ -130,22 +130,19 @@ export class Field {
     return { moved: false };
   }
 
-  /** Нарисовать «хром»: рамку Поля + аффорданс грида-дропзоны по состоянию драга + узел-якорь. */
+  /** Нарисовать «хром»: в ПОКОЕ бордеров НЕТ (только узел-якорь). Бордеры появляются при драге:
+   *  внешняя рамка Поля + грид-дропзона (драг вне зоны — dashed; ховер над зоной — solid + фон). */
   draw(): void {
     this.frame.clear();
     const gr = this.gridRect();
-    // Грид-дропзона по состоянию: покой — оч.слабо (dashed); драг вне зоны — DASHED отчётливее;
-    // ховер над зоной — SOLID-рамка + фон.
-    if (this.dragState === "hover") {
-      this.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: 0x8fa39a, alpha: 0.16 }).stroke({ width: 2.5, color: 0xf2c14e });
-    } else if (this.dragState === "drag") {
-      dashRect(this.frame, gr, 9, 6, 0x8fa39a, 1.5);
-    } else {
-      dashRect(this.frame, gr, 6, 7, 0x5d6b64, 1); // покой — очень слабо
+    if (this.dragState !== "idle") {
+      dashRect(this.frame, this.outerRect(), 11, 7, 0x8fa39a, 2); // внешняя рамка Поля (появляется на драге)
+      if (this.dragState === "hover") {
+        this.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: 0x8fa39a, alpha: 0.16 }).stroke({ width: 2.5, color: 0xf2c14e }); // над зоной — solid + фон
+      } else {
+        dashRect(this.frame, gr, 9, 6, 0x8fa39a, 1.5); // драг вне зоны — dashed
+      }
     }
-    // Внешняя рамка Поля: в драге — отчётливее, в покое — приглушённо.
-    const outerAlpha = this.dragState === "idle" ? 0.55 : 1;
-    dashRect(this.frame, this.outerRect(), 11, 7, 0x8fa39a, this.dragState === "idle" ? 1.5 : 2, outerAlpha);
 
     // Узел-якорь — только в покое и на пустом гриде.
     const idleEmpty = this.dragState === "idle" && this.gridIds.length === 0;
