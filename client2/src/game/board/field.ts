@@ -106,6 +106,8 @@ export class Field implements Configurable {
   private readonly layerAbove: Container;
   private readonly config: FieldConfig;
   private dragState: FieldDrag = "idle";
+  private dragBaseRect: Rect4 | null = null; // gridRect БЕЗ дыры на время драга (карт count не меняется)
+  private lastGap: number | null = null; // последний индекс дыры (чтобы не пересчитывать зря)
 
   constructor(o: FieldOpts) {
     this.config = o.config ?? NAKED_FIELD; // по умолчанию — голый грид
@@ -173,24 +175,44 @@ export class Field implements Configurable {
     ];
   }
 
-  /** Драг начался — грид показывает бордер отчётливее + глагол «наведи». */
+  /** Драг начался — бордер отчётливее + глагол; кэшируем базовый gridRect (без дыры). */
   beginDrag(): void {
     this.dragState = "drag";
+    this.lastGap = null;
+    this.gridGroup.gap = undefined;
+    this.dragBaseRect = this.gridRect(); // база: карт count не меняется до дропа
     this.draw();
   }
 
-  /** Груз двигается — над гридом ли (тогда фон + «брось», иначе «наведи»). */
-  hover(cp: { x: number; y: number }): void {
-    const gr = this.gridRect();
+  /** Груз двигается: над гридом → резервируем ДЫРУ на индексе дропа (соседи раздвигаются), иначе
+   *  закрываем. draggedId исключается из раскладки (её тащат). Возвращает, изменилась ли раскладка
+   *  (движку — чтобы ре-спрингнуть карты только при смене индекса). */
+  hover(cp: { x: number; y: number }, draggedId?: string): boolean {
+    const gr = this.dragBaseRect ?? this.gridRect();
     const over = cp.x >= gr.x && cp.x <= gr.x + gr.w && cp.y >= gr.y && cp.y <= gr.y + gr.h;
+    const k = over ? this.gridDropIndex(cp) : null;
+    if (k === this.lastGap) return false;
+    this.lastGap = k;
     this.dragState = over ? "hover" : "drag";
+    this.gridGroup.gap = k === null ? undefined : { index: k, size: this.grid.cell, skip: draggedId };
     this.draw();
+    return true;
   }
 
-  /** Драг закончился — обратно в покой. */
+  /** Драг закончился — покой, дыра закрыта. */
   endDrag(): void {
     this.dragState = "idle";
+    this.gridGroup.gap = undefined;
+    this.lastGap = null;
+    this.dragBaseRect = null;
     this.draw();
+  }
+
+  // Индекс ячейки грида под точкой (как при дропе) — через раскладку грида, а не второй экземпляр.
+  private gridDropIndex(cp: { x: number; y: number }): number {
+    const sizes = this.gridGroup.children.map(measure);
+    const local = { x: cp.x - this.grid.origin.x, y: cp.y - this.grid.origin.y };
+    return this.gridGroup.layout.indexAt(local, sizes) ?? this.gridGroup.children.length;
   }
 
   owns(id: string): boolean {

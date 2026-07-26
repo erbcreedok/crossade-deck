@@ -105,6 +105,25 @@ test.describe("песочница — Поле (flow-грид)", () => {
     expect(after).not.toEqual(before);
   });
 
+  test("призрачная карта: при наведении карты грида раздвигаются под дыру", async ({ page }) => {
+    await fillGrid(page, 4);
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    const rest = new Map(h.field!.gridCards.map((c) => [c.id, c]));
+    // тащим карту из колоды и ЗАВИСАЕМ над гридом слева (не отпуская)
+    await page.mouse.move(box.x + h.field!.stackAt.x, box.y + h.field!.stackAt.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + h.field!.gridRect.x + 70, box.y + h.field!.gridRect.y + 60, { steps: 14 });
+    await page.waitForTimeout(450); // дать соседям раздвинуться
+    h = await hooks(page);
+    const moved = h.field!.gridCards.some((c) => {
+      const r = rest.get(c.id)!;
+      return Math.abs(c.x - r.x) > 25 || Math.abs(c.y - r.y) > 25;
+    });
+    await page.mouse.up();
+    expect(moved).toBe(true); // хотя бы одна карта сдвинулась (открылась дыра)
+  });
+
   test("тоглер выключает реордер: порядок карт не меняется", async ({ page }) => {
     await fillGrid(page, 4);
     const box = (await page.locator("canvas").boundingBox())!;

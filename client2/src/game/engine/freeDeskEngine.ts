@@ -930,8 +930,9 @@ export class FreeDeskEngine {
   }
 
   // Применить дома фигур Поля к их картам (после дропа/реордера карты переезжают пружиной).
-  private applyFieldHomes(f: Field): void {
+  private applyFieldHomes(f: Field, except?: string): void {
     for (const id of f.allIds()) {
+      if (id === except) continue; // перетаскиваемую не трогаем (она у пальца)
       const home = f.homeOf(id);
       this.setFigureHome(id, home);
       this.byId.get(id)?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
@@ -1417,7 +1418,14 @@ export class FreeDeskEngine {
         const p = bz ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
         this.drag?.move(p);
         this.grabbedMarker?.followTo(p);
-        if (this.drag) this.fieldForCard(this.drag.lead.id)?.hover(p); // грид: над ним → «брось» + фон
+        if (this.drag) {
+          // грид: над ним → «брось» + фон + ДЫРА под падающую карту; при смене индекса раздвигаем карты.
+          const fld = this.fieldForCard(this.drag.lead.id);
+          if (fld?.hover(p, this.drag.lead.id)) {
+            this.applyFieldHomes(fld, this.drag.lead.id);
+            this.wake();
+          }
+        }
         for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
       },
       onCardDrop: (card, cp) => {
@@ -1450,8 +1458,8 @@ export class FreeDeskEngine {
               const el = this.byId.get(this.drag.lead.id);
               if (el && "requestFlip" in el) (el as { requestFlip(): boolean }).requestFlip(); // раскрыть в гриде
             }
+            fld.endDrag(); // СНАЧАЛА закрыть дыру (иначе дома лягут в раздвинутые позиции)
             this.applyFieldHomes(fld);
-            fld.endDrag(); // назад в покой (перерисует грид/якорь)
             this.drag.release(); // тащимая едет в свой (возможно новый) home
           } else if (bz) {
             // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим.
@@ -1479,7 +1487,11 @@ export class FreeDeskEngine {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
-        if (this.drag) this.fieldForCard(this.drag.lead.id)?.endDrag(); // грид — обратно в покой
+        const fld = this.drag ? this.fieldForCard(this.drag.lead.id) : null;
+        if (fld) {
+          fld.endDrag(); // закрыть дыру
+          this.applyFieldHomes(fld); // и вернуть раздвинутые карты на место
+        }
         this.drag?.release();
         this.drag = null;
         this.grabbedMarker?.endFollow();

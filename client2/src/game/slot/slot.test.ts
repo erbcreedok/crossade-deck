@@ -41,6 +41,31 @@ describe("slot: чтения", () => {
   });
 });
 
+describe("slot: gap (призрачная карта — дыра под падающую)", () => {
+  const row = () => group("row", linear({ axis: "x", gap: 0 }), [leaf("la", "a", { w: 100, h: 100 }), leaf("lb", "b", { w: 100, h: 100 }), leaf("lc", "c", { w: 100, h: 100 })]);
+  it("дыра на индексе 1 → соседи справа раздвигаются, габарит растёт", () => {
+    const g = row();
+    g.gap = { index: 1, size: { w: 100, h: 100 } };
+    expect(homeOf(g, "a")).toEqual({ x: 50, y: 50 }); // слот 0
+    expect(homeOf(g, "b")).toEqual({ x: 250, y: 50 }); // сдвинут на слот 2 (дыра — слот 1)
+    expect(homeOf(g, "c")).toEqual({ x: 350, y: 50 }); // слот 3
+    expect(measure(g)).toEqual({ w: 400, h: 100 }); // 4 слота (3 карты + дыра)
+  });
+  it("skip — перетаскиваемая исключена из раскладки, её дом = null", () => {
+    const g = row();
+    g.gap = { index: 1, size: { w: 100, h: 100 }, skip: "b" };
+    expect(homeOf(g, "b")).toBeNull(); // тащат — из раскладки убрана
+    expect(homeOf(g, "a")).toEqual({ x: 50, y: 50 }); // слот 0
+    expect(homeOf(g, "c")).toEqual({ x: 250, y: 50 }); // слот 2 (a + дыра + c)
+    expect(measure(g)).toEqual({ w: 300, h: 100 }); // 2 карты + дыра = 3 слота
+  });
+  it("без gap — обычная раскладка", () => {
+    const g = row();
+    expect(homeOf(g, "b")).toEqual({ x: 150, y: 50 });
+    expect(measure(g)).toEqual({ w: 300, h: 100 });
+  });
+});
+
 describe("slot: dropTarget (глубочайшая дропзона под точкой)", () => {
   it("над гридом → сам грид + индекс ячейки", () => {
     const t = dropTarget(buildField(), { x: 250, y: 70 });
