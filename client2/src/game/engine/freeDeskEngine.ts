@@ -4,6 +4,7 @@ import { Card, type CardOptions, type CardState, type RestState, type ShadowShap
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
+import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
@@ -192,6 +193,10 @@ export class FreeDeskEngine {
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
   private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
   private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
+  private selMode = false; // режим изолированного мультиселекта (демо-борд)
+  private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
+  private selZone: BoardZone | null = null; // зона демо-выделения
+  private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
   private grabbedMarker: Marker | null = null; // за какую метку сейчас тянут (для follow/endFollow)
@@ -389,6 +394,10 @@ export class FreeDeskEngine {
     pileGrip: { x: number; y: number } | null;
     boardFigures: { id: string; key: string; x: number; y: number }[];
     boardSlots: { key: string; x: number; y: number }[];
+    selMode: boolean;
+    selection: string[];
+    selButtons: { label: string; x: number; y: number }[];
+    selFigures: { id: string; x: number; y: number }[];
     cardW: number;
     draggingId: string | null;
   } {
@@ -417,6 +426,16 @@ export class FreeDeskEngine {
       })),
       boardFigures: this.boardFiguresHook(toScreen),
       boardSlots: this.boardZones[0]?.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })) ?? [],
+      selMode: this.selMode,
+      selection: [...this.sel.ids],
+      selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
+      selFigures: this.selZone
+        ? Object.values(this.selZone.board.slots)
+            .flatMap((c) => c.members)
+            .map((id) => ({ id, el: this.byId.get(id) }))
+            .filter((o): o is { id: string; el: Elem } => !!o.el)
+            .map(({ id, el }) => ({ id, ...toScreen(el.body.px, el.body.py) }))
+        : [],
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
@@ -823,10 +842,13 @@ export class FreeDeskEngine {
     BOARD_PRESETS.forEach((preset, pi) => {
       y = this.buildOneBoard(left, y, preset, pi) + 20;
     });
+    y = this.buildSelectDemo(left, y, BOARD_PRESETS.length) + 20;
     return y;
   }
 
-  private buildOneBoard(left: number, top: number, preset: BoardPreset, pi: number): number {
+  // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
+  // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
+  private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
     const cell = { w: this.cardW * 1.15, h: this.cardH * 1.02 };
     const gap = 8;
     const gy = top + 22;
@@ -835,7 +857,6 @@ export class FreeDeskEngine {
     const h = preset.rows * cell.h + (preset.rows - 1) * gap;
     const bounds = { x: left, y: gy, w, h };
 
-    // Из пресета-данных рождаем логический board (id фигур уникальны по борду) + карты faces.
     const slots: Board["slots"] = {};
     const faces: Record<string, string> = {};
     let n = 0;
@@ -862,12 +883,62 @@ export class FreeDeskEngine {
         this.cardSpecs.push({ opts: { id, card: faces[id] ?? "A♠", rest: "idle", size: 0.86 }, home: zone.figureHome(id), depth: depth++, bobPhase: 0 });
       }
     }
+    return { zone, bottom: bounds.y + bounds.h + 8 };
+  }
 
-    // Тоглер исхода на занятый слот — переключает onOccupied зоны на лету.
+  private buildOneBoard(left: number, top: number, preset: BoardPreset, pi: number): number {
+    const { zone, bottom } = this.spawnBoard(preset, pi, left, top);
     const modes: OnOccupied[] = ["merge", "swap", "capture", "reject"];
-    const toggleY = bounds.y + bounds.h + 8;
-    this.segToggle(left, toggleY, "на занятый слот:", modes, modes.indexOf(zone.onOccupied), (i) => (zone.onOccupied = modes[i]!));
-    return toggleY + 26;
+    this.segToggle(left, bottom, "на занятый слот:", modes, modes.indexOf(zone.onOccupied), (i) => (zone.onOccupied = modes[i]!));
+    return bottom + 26;
+  }
+
+  // Демо ИЗОЛИРОВАННОГО мультиселекта: борд + кнопки «выделение» / «снять». В режиме тап по фигуре
+  // ЭТОЙ зоны тогглит выделение (лифт), фигуры ДРУГИХ зон выделить нельзя (изоляция по scope).
+  private buildSelectDemo(left: number, top: number, pi: number): number {
+    const preset: BoardPreset = { title: "выделение (изолировано, сорт по номиналу)", cols: 4, rows: 1, onOccupied: "merge", slots: { "0,0": ["A♦"], "0,1": ["7♣"], "0,2": ["Q♠"], "0,3": ["3♥"] } };
+    const { zone, bottom } = this.spawnBoard(preset, pi, left, top);
+    this.selZone = zone;
+    const bMode = new Button({ label: "выделение", variant: "secondary", size: "sm", onClick: () => this.toggleSelectMode() });
+    const bClear = new Button({ label: "снять", variant: "ghost", size: "sm", onClick: () => this.clearSelection() });
+    bMode.place(left + bMode.w / 2, bottom + 12);
+    bClear.place(left + bMode.w + 10 + bClear.w / 2, bottom + 12);
+    this.registerButton(bMode);
+    this.registerButton(bClear);
+    this.selButtons = [{ label: "выделение", btn: bMode }, { label: "снять", btn: bClear }];
+    return bottom + 30;
+  }
+
+  // ——— изолированный мультиселект (selection.ts) ———
+  private toggleSelectMode(): void {
+    this.selMode = !this.selMode;
+    this.sel = this.selMode ? begin("sel") : clearSel();
+    this.refreshSel();
+    this.wake();
+  }
+
+  private clearSelection(): void {
+    if (this.selMode) this.sel = begin("sel"); // остаёмся в режиме, гасим набор
+    this.refreshSel();
+    this.wake();
+  }
+
+  // Тап по фигуре демо-зоны в режиме → тоггл. owner="sel" всегда совпадает со scope (изоляция:
+  // сюда доходят ТОЛЬКО фигуры selZone, чужие зоны остаются драгабельными и не выделяются).
+  private toggleSelectFigure(id: string): void {
+    this.sel = toggle(this.sel, id, "sel");
+    this.refreshSel();
+    this.wake();
+  }
+
+  // Подсветка: выделенные — приподняты (floating), остальные — на столе.
+  private refreshSel(): void {
+    if (!this.selZone) return;
+    for (const key of Object.keys(this.selZone.board.slots)) {
+      for (const id of this.selZone.board.slots[key]!.members) {
+        this.byId.get(id)?.setState(hasSel(this.sel, id) ? "floating" : "idle");
+      }
+    }
   }
 
   // Зона, которой принадлежит фигура (или null).
@@ -1079,7 +1150,8 @@ export class FreeDeskEngine {
         }
         return el;
       },
-      cardDraggable: (c) => c.draggable,
+      // В режиме выделения фигуры демо-зоны не тащатся — тап по ним тогглит выделение (onCardBlocked).
+      cardDraggable: (c) => (this.selMode && this.selZone?.locate(c.id) ? false : c.draggable),
       pickButton: (cx, cy) => this.hitButton(cx, cy),
       buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
       onCardGrab: (card, cp, sp) => {
@@ -1130,7 +1202,10 @@ export class FreeDeskEngine {
         this.grabbedMarker?.endFollow();
         this.grabbedMarker = null;
       },
-      onCardBlocked: (card) => card.blockNudge(),
+      onCardBlocked: (card) => {
+        if (this.selMode && this.selZone?.locate(card.id)) this.toggleSelectFigure(card.id); // тап-выбор
+        else card.blockNudge();
+      },
       onButtonDown: (b) => b.setPressed(true),
       onButtonMove: (b, inside) => b.setPressed(inside),
       onButtonUp: (b, inside) => {
@@ -1319,6 +1394,10 @@ export class FreeDeskEngine {
     this.solos = [];
     this.chipPile = null;
     this.boardZones = [];
+    this.selMode = false;
+    this.sel = EMPTY;
+    this.selZone = null;
+    this.selButtons = [];
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
@@ -1374,6 +1453,10 @@ export class FreeDeskEngine {
     this.solos = [];
     this.chipPile = null;
     this.boardZones = [];
+    this.selMode = false;
+    this.sel = EMPTY;
+    this.selZone = null;
+    this.selButtons = [];
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;

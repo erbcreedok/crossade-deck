@@ -3,11 +3,15 @@ import { test, expect, type Page } from "@playwright/test";
 // Игровая зона (борд): фигуры-карты в слотах, драг между слотами (BoardZone.dropAt), фигуры
 // заперты в рамке (clamp). Логический слот фигуры берём из хука (boardFigures[].key).
 test.describe("песочница — игровая зона (борд)", () => {
-  test.use({ viewport: { width: 900, height: 1500 } });
+  test.use({ viewport: { width: 900, height: 2400 } }); // высокий — виден и нижний select-борд
 
   interface Hooks {
     boardFigures: { id: string; key: string; x: number; y: number }[];
     boardSlots: { key: string; x: number; y: number }[];
+    selMode: boolean;
+    selection: string[];
+    selButtons: { label: string; x: number; y: number }[];
+    selFigures: { id: string; x: number; y: number }[];
     cardW: number;
     draggingId: string | null;
   }
@@ -50,5 +54,43 @@ test.describe("песочница — игровая зона (борд)", () =>
     await page.mouse.up();
     expect(g.draggingId).toBe(a.id);
     expect(fig(g, a.id).x).toBeLessThan(rightmost + h.cardW); // прижата к рамке, не на +4000
+  });
+
+  // Изолированный мультиселект (selection.ts).
+  const clickAt = async (page: Page, p: { x: number; y: number }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    await page.mouse.click(box.x + p.x, box.y + p.y);
+  };
+  const btn = (h: Hooks, label: string) => h.selButtons.find((b) => b.label === label)!;
+
+  test("выделение: вход в режим, тап-выбор (тоггл), снять", async ({ page }) => {
+    let h = await hooks(page);
+    expect(h.selMode).toBe(false);
+    await clickAt(page, btn(h, "выделение")); // вход в режим
+    h = await hooks(page);
+    expect(h.selMode).toBe(true);
+
+    await clickAt(page, h.selFigures[0]!); // выбрать первую
+    await clickAt(page, h.selFigures[1]!); // и вторую
+    h = await hooks(page);
+    expect(h.selection.sort()).toEqual([h.selFigures[0]!.id, h.selFigures[1]!.id].sort());
+
+    await clickAt(page, h.selFigures[0]!); // тоггл первой — снять
+    h = await hooks(page);
+    expect(h.selection).toEqual([h.selFigures[1]!.id]);
+
+    await clickAt(page, btn(h, "снять"));
+    h = await hooks(page);
+    expect(h.selection).toEqual([]); // набор пуст
+    expect(h.selMode).toBe(true); // но режим остался
+  });
+
+  test("ИЗОЛЯЦИЯ: в режиме выделения нельзя выбрать фигуру ЧУЖОЙ зоны", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, btn(h, "выделение"));
+    // тап по фигуре первого борда (не selZone) — не должна попасть в набор
+    await clickAt(page, { x: h.boardFigures[0]!.x, y: h.boardFigures[0]!.y });
+    h = await hooks(page);
+    expect(h.selection).toEqual([]); // чужая зона не выделяется
   });
 });
