@@ -185,10 +185,10 @@ export class Field {
     const gr = this.gridRect();
     const col = chrome.colors;
     if (this.dragState !== "idle") {
-      if (chrome.outerBorder) dashRect(this.frame, this.outerRect(), 11, 7, col.line, 2); // рамка Поля на драге
+      if (chrome.outerBorder) dashRect(this.frame, this.outerRect(), 11, 7, col.line, 2, 1, 12); // рамка Поля на драге
       if (chrome.dropzoneBorder) {
         if (this.dragState === "hover") this.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: col.fill, alpha: 0.16 }).stroke({ width: 2.5, color: col.hover }); // над зоной — solid + фон
-        else dashRect(this.frame, gr, 9, 6, col.line, 1.5); // драг вне зоны — dashed
+        else dashRect(this.frame, gr, 9, 6, col.line, 1.5, 1, 8); // драг вне зоны — dashed (тот же радиус, что у solid)
       }
     }
 
@@ -212,6 +212,10 @@ export class Field {
       const over = this.dragState === "hover";
       this.verb.text = over ? chrome.verbHover : chrome.verbDrag;
       this.verb.style.fill = over ? col.verbHover : col.verbDrag;
+      this.verb.style.fontSize = over ? 20 : 16;
+      // «брось» лежит ПОВЕРХ карт — без обводки/тени сливается с лицами. «наведи» под картами — тихий.
+      this.verb.style.stroke = over ? { color: 0x14201b, width: 4 } : { color: 0, width: 0 };
+      this.verb.style.dropShadow = over ? { color: 0x000000, alpha: 0.55, blur: 5, distance: 0, angle: 0 } : false;
       this.verb.position.set(gr.x + gr.w / 2, gr.y + gr.h / 2);
       (over ? this.layerAbove : this.layerBelow).addChild(this.verb);
     }
@@ -220,23 +224,57 @@ export class Field {
 
 // ——— «хром» Поля (dashed-рамка + узел-якорь) ———
 
-// Dashed-прямоугольник (сегменты по 4 рёбрам).
-export function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number, alpha = 1): void {
+// Пройтись пунктиром по ломаной (замкнутой): узор dash/gap НЕПРЕРЫВЕН через углы (carry переносит
+// фазу в следующий сегмент), поэтому скруглённые углы выходят ровными, а не «рвутся» на стыках.
+function dashPath(g: Graphics, pts: Array<{ x: number; y: number }>, dash: number, gap: number, color: number, width: number, alpha: number): void {
   const seg = dash + gap;
-  const line = (x1: number, y1: number, x2: number, y2: number): void => {
-    const len = Math.hypot(x2 - x1, y2 - y1);
-    const ux = (x2 - x1) / len;
-    const uy = (y2 - y1) / len;
-    for (let d = 0; d < len; d += seg) {
-      const e = Math.min(d + dash, len);
-      g.moveTo(x1 + ux * d, y1 + uy * d).lineTo(x1 + ux * e, y1 + uy * e);
+  let carry = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len === 0) continue;
+    const ux = (b.x - a.x) / len;
+    const uy = (b.y - a.y) / len;
+    let d = 0;
+    while (d < len) {
+      const patPos = (carry + d) % seg;
+      if (patPos < dash) {
+        const draw = Math.min(dash - patPos, len - d);
+        g.moveTo(a.x + ux * d, a.y + uy * d).lineTo(a.x + ux * (d + draw), a.y + uy * (d + draw));
+        d += draw;
+      } else {
+        d += seg - patPos;
+      }
+    }
+    carry = (carry + len) % seg;
+  }
+  g.stroke({ width, color, alpha });
+}
+
+// Точки контура прямоугольника: острого или скруглённого (углы — короткими дугами).
+function rectPoints(r: Rect4, radius: number): Array<{ x: number; y: number }> {
+  if (radius <= 0) return [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }, { x: r.x, y: r.y }];
+  const rr = Math.min(radius, r.w / 2, r.h / 2);
+  const pts: Array<{ x: number; y: number }> = [];
+  const arc = (cx: number, cy: number, a0: number, a1: number): void => {
+    const N = 5;
+    for (let i = 0; i <= N; i++) {
+      const a = a0 + ((a1 - a0) * i) / N;
+      pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr });
     }
   };
-  line(r.x, r.y, r.x + r.w, r.y);
-  line(r.x + r.w, r.y, r.x + r.w, r.y + r.h);
-  line(r.x + r.w, r.y + r.h, r.x, r.y + r.h);
-  line(r.x, r.y + r.h, r.x, r.y);
-  g.stroke({ width, color, alpha });
+  arc(r.x + rr, r.y + rr, Math.PI, Math.PI * 1.5); // верх-лево
+  arc(r.x + r.w - rr, r.y + rr, Math.PI * 1.5, Math.PI * 2); // верх-право
+  arc(r.x + r.w - rr, r.y + r.h - rr, 0, Math.PI * 0.5); // низ-право
+  arc(r.x + rr, r.y + r.h - rr, Math.PI * 0.5, Math.PI); // низ-лево
+  pts.push({ ...pts[0]! }); // замкнуть
+  return pts;
+}
+
+// Dashed-прямоугольник (со скруглением углов при radius>0 — как у solid-рамки дропзоны).
+export function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number, alpha = 1, radius = 0): void {
+  dashPath(g, rectPoints(r, radius), dash, gap, color, width, alpha);
 }
 
 // Точки пути-УЗЛА: базовая линия from→to с петлёй посередине (перекрещивается — «узел»).
