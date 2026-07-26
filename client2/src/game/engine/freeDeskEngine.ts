@@ -4,7 +4,8 @@ import { Card, type CardOptions, type CardState, type RestState, type ShadowShap
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
-import { gridSlots } from "../board/layout/slots";
+import { gridSlots, type PositionedSlot } from "../board/layout/slots";
+import { frontierCells, dynamicSlots, type DynGeom } from "../board/dynamicGrid";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -181,6 +182,8 @@ export class FreeDeskEngine {
   private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
   private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
   private boardTitles: string[] = []; // заголовки бордов (align с boardZones), для e2e
+  // ПОЛЕ (новая механика): один владелец с гридами внутри; динамический грид растёт под контент.
+  private fields: { zone: BoardZone; gridGeom: DynGeom; stackKey: string; stackSlot: PositionedSlot; frame: Graphics }[] = [];
   private selMode = false; // режим изолированного мультиселекта (демо-борд)
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
@@ -351,8 +354,11 @@ export class FreeDeskEngine {
     // Ряд «Фишки и фигуры» — НЕ карты (Piece), но тот же драг/тени/метки. Доказательство generic.
     const piecesBottom = this.buildPieces(pad, stacksBottom + 6);
 
+    // ПОЛЕ (новая механика) — НАД контейнерами: один владелец, динамический грид + закрытая стопка.
+    const fieldBottom = this.buildField(pad, piecesBottom + 6);
+
     // Игровые зоны (борды): ряд пресетов, драг между слотами, заперты в рамке, тоглер исхода.
-    const boardBottom = this.buildBoardZones(pad, piecesBottom + 6);
+    const boardBottom = this.buildBoardZones(pad, fieldBottom + 12);
 
     // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
     const dzTitleY = boardBottom + 6;
@@ -419,7 +425,7 @@ export class FreeDeskEngine {
         ...toScreen(s.dragger.gfx.position.x, s.dragger.gfx.position.y),
       })),
       boardFigures: this.boardFiguresHook(toScreen),
-      boardSlots: this.boardZones[0]?.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })) ?? [],
+      boardSlots: this.firstBoard()?.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })) ?? [],
       selMode: this.selMode,
       selection: [...this.sel.ids],
       selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
@@ -442,9 +448,14 @@ export class FreeDeskEngine {
     };
   }
 
-  // Экранные позиции фигур первой зоны + их ЛОГИЧЕСКИЙ слот (для e2e: проверить переезд).
+  // Первый НЕ-Поле борд (Поле — отдельная механика без клампа; для e2e клампа/переезда нужен борд).
+  private firstBoard(): BoardZone | undefined {
+    return this.boardZones.find((z) => !this.fields.some((f) => f.zone === z));
+  }
+
+  // Экранные позиции фигур первого борда + их ЛОГИЧЕСКИЙ слот (для e2e: проверить переезд).
   private boardFiguresHook(toScreen: (x: number, y: number) => { x: number; y: number }): { id: string; key: string; x: number; y: number }[] {
-    const z = this.boardZones[0];
+    const z = this.firstBoard();
     if (!z) return [];
     const out: { id: string; key: string; x: number; y: number }[] = [];
     for (const key of Object.keys(z.board.slots)) {
@@ -831,6 +842,73 @@ export class FreeDeskEngine {
     });
     this.scene.surface.addChild(mark);
     setMark(initial);
+  }
+
+  // ——— ПОЛЕ (новая механика: один владелец, гриды внутри, динамический грид) ———
+  // Поле = заголовок + кнопки глобальных конфигов (заглушка) + грид 1 (динамический, растёт под
+  // контент, карту на карту нельзя) + рядом закрытая стопка (тянешь только верхнюю карту).
+  private buildField(left: number, top: number): number {
+    this.scene.surface.addChild(this.label("Поле", left, top, 26, 0xcdb98f, undefined, 0));
+    // Кнопки глобальных конфигов поля — заглушка (обсудим позже).
+    this.scene.surface.addChild(this.label("глобальные конфиги поля (обсудим)", left, top + 34, 12, 0x9aa89f, undefined, 0));
+    const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", disabled: true });
+    cfg.place(left + cfg.w / 2, top + 60);
+    this.registerButton(cfg);
+
+    const gy = top + 88;
+    const cell = { w: this.cardW * 1.1, h: this.cardH * 1.02 };
+    const gap = 8;
+    // Закрытая стопка — слева, фиксированная ячейка "stack". Динамический грид — правее.
+    const stackSlot: PositionedSlot = { key: "stack", rect: { x: left, y: gy, w: cell.w, h: cell.h }, center: { x: left + cell.w / 2, y: gy + cell.h / 2 } };
+    const gridGeom: DynGeom = { cell, gap, origin: { x: left + cell.w + 40, y: gy } };
+
+    const N = 6;
+    const stackIds = Array.from({ length: N }, (_, i) => `field-s-${i}`);
+    const board: Board = { slots: { stack: { members: stackIds } }, onEmpty: "keep" };
+    // Резервируем под Поле вертикаль на РОСТ грида (растёт вниз от origin.y); дальше — след. секция.
+    const reservedH = cell.h * 4 + gap * 3;
+    const bounds = { x: left, y: gy, w: cell.w + 40 + 6 * (cell.w + gap), h: reservedH };
+    // onOccupied "reject" → на занятую ячейку класть нельзя (карту на карту), пустой фронтир принимает.
+    const zone = new BoardZone({ slots: [stackSlot, ...dynamicSlots(frontierCells([]), gridGeom)], board, bounds, onOccupied: "reject" });
+    this.boardZones.push(zone);
+    this.boardTitles.push("Поле");
+    const frame = new Graphics();
+    this.scene.surface.addChild(frame);
+    const f = { zone, gridGeom, stackKey: "stack", stackSlot, frame };
+    this.fields.push(f);
+    this.drawField(f);
+
+    // Карты закрытой стопки (рубашкой вверх), тянется только верхняя (перекрыта сверху).
+    stackIds.forEach((id, i) => {
+      this.cardSpecs.push({ opts: { id, card: "A♠", faceUp: false, rest: "idle", size: 0.9 }, home: zone.figureHome(id), depth: 700 + i, bobPhase: 0 });
+    });
+    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — грид растёт; на карту класть нельзя", left, gy + reservedH + 8, 12, 0x9aa89f, bounds.w));
+    return gy + reservedH + 30;
+  }
+
+  // Позиции слотов поля: фикс. стопка + динамический грид (занятые ∪ фронтир).
+  private fieldPositioned(f: { zone: BoardZone; gridGeom: DynGeom; stackKey: string; stackSlot: PositionedSlot }): PositionedSlot[] {
+    const occ = Object.keys(f.zone.board.slots).filter((k) => k !== f.stackKey && f.zone.board.slots[k]!.members.length > 0);
+    const cells = [...new Set([...occ, ...frontierCells(occ)])];
+    return [f.stackSlot, ...dynamicSlots(cells, f.gridGeom)];
+  }
+
+  // Отрисовать рамку поля: контур стопки (плотный) + контуры ячеек грида (фронтир — пунктирно-легко).
+  private drawField(f: { zone: BoardZone; stackKey: string; frame: Graphics }): void {
+    const g = f.frame;
+    g.clear();
+    for (const { key, rect } of f.zone.slotRects()) {
+      if (key === f.stackKey) g.roundRect(rect.x, rect.y, rect.w, rect.h, 8).fill({ color: 0x000000, alpha: 0.14 }).stroke({ width: 2, color: 0x4a5b50 });
+      else g.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64, alpha: 0.7 });
+    }
+  }
+
+  // После дропа в грид — пересчитать фронтир, переразметить, обновить home и перерисовать рамку.
+  private regrowField(f: { zone: BoardZone; gridGeom: DynGeom; stackKey: string; stackSlot: PositionedSlot; frame: Graphics }): void {
+    f.zone.relayout(this.fieldPositioned(f));
+    this.refreshZoneHomes(f.zone);
+    this.drawField(f);
+    this.wake();
   }
 
   // Игровые зоны (борды): РЯД пресетов (data-driven). Каждый борд — сетка слотов + фигуры-карты,
@@ -1287,9 +1365,10 @@ export class FreeDeskEngine {
       },
       onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
-        // Фигура борда заперта в рамке зоны — клампим точку драга по полурзмеру карты.
+        // Фигура борда заперта в рамке зоны (clamp) — НО не в Поле (там владение, а не стена).
         const bz = this.drag ? this.boardZoneOf(this.drag.lead.id) : null;
-        const p = bz ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
+        const isField = !!bz && this.fields.some((f) => f.zone === bz);
+        const p = bz && !isField ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
         this.drag?.move(p);
         this.grabbedMarker?.followTo(p);
         for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
@@ -1317,10 +1396,12 @@ export class FreeDeskEngine {
           }
           const bz = this.boardZoneOf(this.drag.lead.id);
           if (bz) {
-            // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим с борда.
+            // Борд/Поле: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим.
             const res = bz.dropAt(this.drag.lead.id, cp.x, cp.y);
             if (res.captured) this.exileFigures(res.captured);
             this.refreshZoneHomes(bz);
+            const field = this.fields.find((f) => f.zone === bz);
+            if (field && res.moved) this.regrowField(field); // грид подрос — пересчитать/перерисовать
             this.drag.release(); // летит в (возможно новый) home
           } else {
             const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
@@ -1532,6 +1613,7 @@ export class FreeDeskEngine {
     this.chipPile = null;
     this.boardZones = [];
     this.boardTitles = [];
+    this.fields = [];
     this.selMode = false;
     this.sel = EMPTY;
     this.selZone = null;
@@ -1594,6 +1676,7 @@ export class FreeDeskEngine {
     this.chipPile = null;
     this.boardZones = [];
     this.boardTitles = [];
+    this.fields = [];
     this.selMode = false;
     this.sel = EMPTY;
     this.selZone = null;

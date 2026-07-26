@@ -37,10 +37,10 @@ const STACK_STEP = { dx: 6, dy: -4 };
 
 export class BoardZone {
   board: Board;
-  readonly slotList: PositionedSlot[];
+  slotList: PositionedSlot[]; // может переразмечаться (динамический грид — relayout)
   readonly bounds: Rect;
   onOccupied: OnOccupied; // изменяем на лету (тоглер песочницы)
-  private readonly centers: Map<string, { x: number; y: number }>;
+  private centers: Map<string, { x: number; y: number }>;
   private readonly rule?: AcceptRule;
 
   constructor(o: BoardZoneOpts) {
@@ -50,6 +50,12 @@ export class BoardZone {
     this.onOccupied = o.onOccupied ?? "merge";
     this.centers = new Map(o.slots.map((s) => [s.key, s.center]));
     this.rule = o.rule;
+  }
+
+  /** Переразметить слоты (динамический грид: рост меняет набор/позиции ячеек). */
+  relayout(slots: PositionedSlot[]): void {
+    this.slotList = slots;
+    this.centers = new Map(slots.map((s) => [s.key, s.center]));
   }
 
   /** В каком слоте и на какой глубине лежит фигура. */
