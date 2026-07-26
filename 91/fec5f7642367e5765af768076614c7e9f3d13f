@@ -1,0 +1,39 @@
+client2/src/game/board/solitaireRules.test.ts
+  s_89d5ad20619017::t_4f0fcdd92acf41 1-27
+client2/src/game/board/solitaireRules.ts
+  s_89d5ad20619017::t_587b999e394c82 1
+  s_89d5ad20619017::t_303744a0aeadcf 2-25
+client2/e2e/board.spec.ts
+  s_89d5ad20619017::t_a51e9be12ffdba 109-127
+  s_89d5ad20619017::t_cff083994c608d 91-92
+  s_89d5ad20619017::t_885333e3a856d4 6
+  s_89d5ad20619017::t_220b36d79ac284 15
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_6136b879e5a60c 887
+  s_89d5ad20619017::t_594a3be24a7a4c 892
+  s_89d5ad20619017::t_c0a27650e2bdbe 392
+  s_89d5ad20619017::t_0a7f5f6abb479f 1468,1530
+  s_89d5ad20619017::t_bc808aee3cee9c 181
+  s_89d5ad20619017::t_25b4a122b935d8 431-432
+client2/src/game/board/boardPresets.ts
+  s_89d5ad20619017::t_f248a02ad23efe 2-5,18,22-26
+  s_89d5ad20619017::t_2f7d8289c83f75 36-37
+client2/src/game/board/cardFace.ts
+  s_89d5ad20619017::t_31db7cbdff4bfc 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "91fec5f7642367e5765af768076614c7e9f3d13f",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
