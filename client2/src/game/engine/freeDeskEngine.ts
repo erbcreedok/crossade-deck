@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
-import { BoardZone } from "../board/boardZone";
+import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
@@ -51,6 +51,23 @@ const STORIES: Story[] = [
   { caption: "удерживаемая", opts: { card: "8♦", rest: "held" } },
   { caption: "приподнятая (в руке)", opts: { card: "9♠", rest: "floating" } },
   { caption: "джокер", opts: { joker: true } },
+];
+
+// Пресет борда — ЧИСТЫЕ ДАННЫЕ (разные игры = разный конфиг, один движок). slots: ключ→грани карт.
+interface BoardPreset {
+  title: string;
+  cols: number;
+  rows: number;
+  onOccupied: OnOccupied;
+  maxSize?: number; // потолок стопки в слоте (дурак и т.п.)
+  slots: Record<string, string[]>; // "r,c" → лица карт-фигур
+}
+
+const BOARD_PRESETS: BoardPreset[] = [
+  { title: "свободно (merge)", cols: 3, rows: 2, onOccupied: "merge", slots: { "0,0": ["A♠"], "0,2": ["K♥", "Q♦"], "1,1": ["10♣"] } },
+  { title: "дурак — стопка ≤2 (merge+maxSize)", cols: 3, rows: 1, onOccupied: "merge", maxSize: 2, slots: { "0,0": ["6♦"], "0,1": ["7♦"], "0,2": ["8♦"] } },
+  { title: "пятнашки (swap)", cols: 3, rows: 2, onOccupied: "swap", slots: { "0,0": ["2♠"], "0,1": ["3♠"], "0,2": ["4♠"], "1,0": ["5♠"], "1,1": ["6♠"] } },
+  { title: "шахматы — съесть (capture)", cols: 3, rows: 1, onOccupied: "capture", slots: { "0,0": ["K♣"], "0,2": ["Q♥"] } },
 ];
 
 interface Placed {
@@ -336,8 +353,8 @@ export class FreeDeskEngine {
     // Ряд «Фишки и фигуры» — НЕ карты (Piece), но тот же драг/тени/метки. Доказательство generic.
     const piecesBottom = this.buildPieces(pad, stacksBottom + 6);
 
-    // Игровая зона (борд): фигуры в слотах, драг между слотами, заперты в рамке.
-    const boardBottom = this.buildBoardZone(pad, piecesBottom + 6);
+    // Игровые зоны (борды): ряд пресетов, драг между слотами, заперты в рамке, тоглер исхода.
+    const boardBottom = this.buildBoardZones(pad, piecesBottom + 6);
 
     // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
     const dzTitleY = boardBottom + 6;
@@ -796,53 +813,72 @@ export class FreeDeskEngine {
     setMark(initial);
   }
 
-  // Игровая зона (борд): сетка слотов, фигуры-карты в них, драг между слотами через BoardZone
-  // (логика в board/boardZone.ts). Фигуры заперты в рамке. Демо-полигон для будущего BoardFactory.
-  private buildBoardZone(left: number, top: number): number {
-    this.scene.surface.addChild(this.label("Игровая зона (борд)", left, top, 26, 0xcdb98f, undefined, 0));
-    const cols = 3;
-    const rows = 2;
-    const cell = { w: this.cardW * 1.3, h: this.cardH * 1.15 };
-    const gap = 10;
-    const gy = top + 44;
-    const spec = { cols, cell, gap, origin: { x: left, y: gy } };
-    const w = cols * cell.w + (cols - 1) * gap;
-    const h = rows * cell.h + (rows - 1) * gap;
+  // Игровые зоны (борды): РЯД пресетов (data-driven). Каждый борд — сетка слотов + фигуры-карты,
+  // драг между слотами через BoardZone (логика в board/boardZone.ts), фигуры заперты в рамке.
+  // Тоглер под каждым меняет исход дропа на занятый слот (merge/swap/capture/reject). Демо-полигон
+  // будущего BoardFactory: разные борды = разные ДАННЫЕ, один движок.
+  private buildBoardZones(left: number, top: number): number {
+    this.scene.surface.addChild(this.label("Игровые зоны (борды)", left, top, 26, 0xcdb98f, undefined, 0));
+    let y = top + 44;
+    BOARD_PRESETS.forEach((preset, pi) => {
+      y = this.buildOneBoard(left, y, preset, pi) + 20;
+    });
+    return y;
+  }
+
+  private buildOneBoard(left: number, top: number, preset: BoardPreset, pi: number): number {
+    const cell = { w: this.cardW * 1.15, h: this.cardH * 1.02 };
+    const gap = 8;
+    const gy = top + 22;
+    const spec = { cols: preset.cols, cell, gap, origin: { x: left, y: gy } };
+    const w = preset.cols * cell.w + (preset.cols - 1) * gap;
+    const h = preset.rows * cell.h + (preset.rows - 1) * gap;
     const bounds = { x: left, y: gy, w, h };
-    // Начальная раскладка: карты в слотах, один слот со стопкой из 2 (peek).
-    const board: Board = {
-      slots: {
-        "0,0": { members: ["bz-a"] },
-        "0,2": { members: ["bz-b", "bz-c"] },
-        "1,1": { members: ["bz-d"] },
-      },
-      onEmpty: "keep",
-    };
-    const zone = new BoardZone({ spec, rows, board, bounds });
+
+    // Из пресета-данных рождаем логический board (id фигур уникальны по борду) + карты faces.
+    const slots: Board["slots"] = {};
+    const faces: Record<string, string> = {};
+    let n = 0;
+    for (const [key, arr] of Object.entries(preset.slots)) {
+      const ids = arr.map((face) => {
+        const id = `bz${pi}-${n++}`;
+        faces[id] = face;
+        return id;
+      });
+      slots[key] = { members: ids, maxSize: preset.maxSize };
+    }
+    const zone = new BoardZone({ spec, rows: preset.rows, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied });
     this.boardZones.push(zone);
 
-    // Рамка контейнера + сетка слотов (на поверхности, под картами).
+    this.scene.surface.addChild(this.label(preset.title, left, top, 13, 0xcdb98f, undefined, 0));
     const frame = new Graphics();
-    frame.roundRect(bounds.x - 6, bounds.y - 6, bounds.w + 12, bounds.h + 12, 12).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
-    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 8).stroke({ width: 1, color: 0x5d6b64 });
+    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
+    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
     this.scene.surface.addChild(frame);
 
-    // Фигуры-карты в слотах (home = позиция покоя из зоны). depth растёт — верх стопки поверх.
-    const faces: Record<string, string> = { "bz-a": "A♠", "bz-b": "K♥", "bz-c": "Q♦", "bz-d": "10♣" };
-    let depth = 300;
-    for (const key of Object.keys(board.slots)) {
-      for (const id of board.slots[key]!.members) {
-        this.cardSpecs.push({ opts: { id, card: faces[id] ?? "A♠", rest: "idle", size: 0.9 }, home: zone.figureHome(id), depth: depth++, bobPhase: 0 });
+    let depth = 300 + pi * 100;
+    for (const key of Object.keys(slots)) {
+      for (const id of slots[key]!.members) {
+        this.cardSpecs.push({ opts: { id, card: faces[id] ?? "A♠", rest: "idle", size: 0.86 }, home: zone.figureHome(id), depth: depth++, bobPhase: 0 });
       }
     }
-    this.scene.surface.addChild(this.label("тащи карты между слотами; из рамки не выйти", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
-    return bounds.y + bounds.h + 34;
+
+    // Тоглер исхода на занятый слот — переключает onOccupied зоны на лету.
+    const modes: OnOccupied[] = ["merge", "swap", "capture", "reject"];
+    const toggleY = bounds.y + bounds.h + 8;
+    this.segToggle(left, toggleY, "на занятый слот:", modes, modes.indexOf(zone.onOccupied), (i) => (zone.onOccupied = modes[i]!));
+    return toggleY + 26;
   }
 
   // Зона, которой принадлежит фигура (или null).
   private boardZoneOf(id: string): BoardZone | null {
     for (const z of this.boardZones) if (z.locate(id)) return z;
     return null;
+  }
+
+  // Увести вытесненные (capture) фигуры с борда — сжечь (как «ушли из игры»).
+  private exileFigures(ids: string[]): void {
+    for (const id of ids) this.cards.find((p) => p.card.id === id)?.card.burn();
   }
 
   // Пересчитать home всех фигур зоны (после переезда стек-смещения меняются).
@@ -1072,8 +1108,9 @@ export class FreeDeskEngine {
         if (this.drag) {
           const bz = this.boardZoneOf(this.drag.lead.id);
           if (bz) {
-            // Борд: резолвим целевой слот и переносим (или возврат, если слот не принял).
-            bz.dropAt(this.drag.lead.id, cp.x, cp.y);
+            // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим с борда.
+            const res = bz.dropAt(this.drag.lead.id, cp.x, cp.y);
+            if (res.captured) this.exileFigures(res.captured);
             this.refreshZoneHomes(bz);
             this.drag.release(); // летит в (возможно новый) home
           } else {

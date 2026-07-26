@@ -31,24 +31,24 @@ test.describe("песочница — игровая зона (борд)", () =>
 
   test("фигура переезжает в пустой слот (логический key меняется)", async ({ page }) => {
     const h = await hooks(page);
-    const a = fig(h, "bz-a");
+    const a = h.boardFigures[0]!; // первая фигура первого борда
     const occupied = new Set(h.boardFigures.map((f) => f.key));
     const empty = h.boardSlots.find((s) => !occupied.has(s.key))!; // первый свободный слот
     expect(empty).toBeTruthy();
     await dragTo(page, a, empty);
     await page.waitForTimeout(500);
     const g = await hooks(page);
-    expect(fig(g, "bz-a").key).toBe(empty.key); // переехала
+    expect(fig(g, a.id).key).toBe(empty.key); // переехала
   });
 
   test("фигура заперта в рамке — клампится, не убегает за край", async ({ page }) => {
     const h = await hooks(page);
-    const a = fig(h, "bz-a");
+    const a = h.boardFigures[0]!;
     const rightmost = Math.max(...h.boardSlots.map((s) => s.x));
     await dragTo(page, a, { x: a.x + 4000, y: a.y }, true); // тянем далеко вправо и держим
     const g = await hooks(page);
     await page.mouse.up();
-    expect(g.draggingId).toBe("bz-a");
-    expect(fig(g, "bz-a").x).toBeLessThan(rightmost + h.cardW); // прижата к рамке, не на +4000
+    expect(g.draggingId).toBe(a.id);
+    expect(fig(g, a.id).x).toBeLessThan(rightmost + h.cardW); // прижата к рамке, не на +4000
   });
 });

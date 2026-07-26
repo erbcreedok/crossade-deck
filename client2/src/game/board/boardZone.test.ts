@@ -7,7 +7,8 @@ import type { GridSpec } from "./layout/grid";
 // размещение фигур + резолв дропа между слотами + запертость. Визуал потом читает отсюда.
 const spec: GridSpec = { cols: 3, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } };
 const bounds = { x: 0, y: 0, w: 300, h: 200 }; // 3×2
-const make = (slots: Board["slots"]) => new BoardZone({ spec, rows: 2, board: { slots, onEmpty: "keep" }, bounds });
+const make = (slots: Board["slots"], onOccupied?: "merge" | "swap" | "capture" | "reject") =>
+  new BoardZone({ spec, rows: 2, board: { slots, onEmpty: "keep" }, bounds, onOccupied });
 
 describe("BoardZone — размещение", () => {
   it("locate находит слот и индекс фигуры", () => {
@@ -41,6 +42,33 @@ describe("BoardZone — дроп между слотами", () => {
   it("дроп вне всех слотов — не переезд", () => {
     const z = make({ "0,0": { members: ["a"] } });
     expect(z.dropAt("a", 9999, 9999).moved).toBe(false);
+  });
+});
+
+describe("BoardZone — onOccupied (исход на занятый слот)", () => {
+  const two = (oo?: "merge" | "swap" | "capture" | "reject") => make({ "0,0": { members: ["a"] }, "0,1": { members: ["b"] } }, oo);
+  it("merge (дефолт): ложится поверх занятого", () => {
+    const z = two();
+    expect(z.dropAt("a", 150, 50).moved).toBe(true); // (0,1)
+    expect(z.board.slots["0,1"]!.members).toEqual(["b", "a"]);
+  });
+  it("swap: меняются местами", () => {
+    const z = two("swap");
+    expect(z.dropAt("a", 150, 50).moved).toBe(true);
+    expect(z.locate("a")?.key).toBe("0,1");
+    expect(z.locate("b")?.key).toBe("0,0");
+  });
+  it("capture: цель вытеснена (captured), новичок занял слот", () => {
+    const z = two("capture");
+    const r = z.dropAt("a", 150, 50);
+    expect(r).toEqual({ moved: true, captured: ["b"] });
+    expect(z.locate("a")?.key).toBe("0,1");
+    expect(z.locate("b")).toBeNull(); // ушла с борда
+  });
+  it("reject: занятый слот отказывает", () => {
+    const z = two("reject");
+    expect(z.dropAt("a", 150, 50).moved).toBe(false);
+    expect(z.locate("a")?.key).toBe("0,0");
   });
 });
 
