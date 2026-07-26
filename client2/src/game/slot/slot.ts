@@ -37,20 +37,30 @@ export function pathTo(s: Slot, figure: string): number[] | null {
   return null;
 }
 
-// Глубочайшая группа-дропзона под АБСОЛЮТНОЙ точкой + локальный индекс вставки. Спускаемся сквозь
-// вложенные дропзоны (слот-дропзона, у которой дети тоже дропзоны). null — под точкой дропзоны нет.
+const within = (cp: Vec, tl: Vec, s: Size): boolean => cp.x >= tl.x && cp.x <= tl.x + s.w && cp.y >= tl.y && cp.y <= tl.y + s.h;
+
+// Глубочайшая группа-дропзона под АБСОЛЮТНОЙ точкой + локальный индекс вставки. Два разных вопроса,
+// нарочно раздельно: (1) В КАКОГО ребёнка-дропзону спуститься — по накрытию его области, расширенной
+// его же DropZone.pad; (2) КУДА вставить внутри выбранной группы — её собственной layout.indexAt.
+// Спускаемся сквозь вложенные дропзоны (слот-дропзона, у которой дети тоже дропзоны).
 export function dropTarget(root: Slot, cp: Vec, origin: Vec = { x: 0, y: 0 }): { group: Group; index: number } | null {
   if (root.kind === "leaf") return null;
   const sizes = root.children.map(measure);
   const { at } = root.layout.place(sizes);
-  const local = { x: cp.x - origin.x, y: cp.y - origin.y };
-  const idx = root.layout.indexAt(local, sizes);
-  if (idx != null && idx >= 0 && idx < root.children.length) {
-    const child = root.children[idx]!;
-    if (child.kind === "group" && dropOf(child)) {
-      const deeper = dropTarget(child, cp, { x: origin.x + at[idx]!.x, y: origin.y + at[idx]!.y });
-      if (deeper) return deeper;
+  for (let i = 0; i < root.children.length; i++) {
+    const child = root.children[i]!;
+    const dz = child.kind === "group" ? dropOf(child) : undefined;
+    if (child.kind === "group" && dz) {
+      const co = { x: origin.x + at[i]!.x, y: origin.y + at[i]!.y };
+      const pad = dz.pad ?? 0;
+      const cs = measure(child);
+      if (within(cp, { x: co.x - pad, y: co.y - pad }, { w: cs.w + 2 * pad, h: cs.h + 2 * pad })) {
+        const deeper = dropTarget(child, cp, co);
+        if (deeper) return deeper;
+      }
     }
   }
-  return dropOf(root) ? { group: root, index: idx ?? root.children.length } : null;
+  if (!dropOf(root)) return null;
+  const idx = root.layout.indexAt({ x: cp.x - origin.x, y: cp.y - origin.y }, sizes);
+  return { group: root, index: idx ?? root.children.length };
 }

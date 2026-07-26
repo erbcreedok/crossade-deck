@@ -55,4 +55,18 @@ describe("slot: dropTarget (глубочайшая дропзона под то�
     const t = dropTarget(buildField(), { x: 9999, y: 9999 });
     expect(t?.group.id).toBe("field");
   });
+
+  it("DropZone.pad расширяет зону попадания: точка в отступе слева всё равно попадает в грид", () => {
+    const f = group("field", absolute([{ x: 0, y: 0 }, { x: 200, y: 0 }]), [
+      group("deck", linear({ gap: -90 }), [leaf("da", "a", CARD)]),
+      group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD)], { drop: { pad: 20 } }),
+    ], { drop: {} });
+    // грид bbox x∈[200,500]; точка x=190 ВНЕ него, но в pad 20 (180..520) — цель всё равно грид.
+    expect(dropTarget(f, { x: 190, y: 70 })?.group.id).toBe("grid");
+    // без pad та же точка ушла бы во внешнее Поле (демонстрация, что решает именно pad):
+    const noPad = group("field", absolute([{ x: 200, y: 0 }]), [
+      group("grid", grid({ minCols: 3, gap: 0 }), [leaf("gd", "d", CARD)], { drop: {} }),
+    ], { drop: {} });
+    expect(dropTarget(noPad, { x: 190, y: 70 })?.group.id).toBe("field");
+  });
 });

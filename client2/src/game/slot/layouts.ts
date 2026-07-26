@@ -36,7 +36,7 @@ export function linear(o: { axis?: "x" | "y"; gap?: number } = {}): Layout {
 // 2D — flow-грид (переиспользует flowLayout/flowIndexAt). Ячейка = максимальный ребёнок (грид ровный).
 // minCols/maxRows/reserve можно задать числом ИЛИ геттером — тогда параметр ЖИВОЙ (контроллер меняет
 // его на лету, раскладка перечитывает без пересоздания стратегии).
-type Num = number | (() => number);
+type Num = number | (() => number | undefined);
 type Bool = boolean | (() => boolean);
 const rNum = (n?: Num): number | undefined => (typeof n === "function" ? n() : n);
 const rBool = (b?: Bool): boolean | undefined => (typeof b === "function" ? b() : b);
