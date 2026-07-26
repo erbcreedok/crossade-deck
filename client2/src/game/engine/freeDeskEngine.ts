@@ -150,7 +150,8 @@ interface FieldState {
   gridIds: string[]; // порядок по индексу (flow-паковка)
   stackRect: Rect4;
   grid: FlowGeom;
-  frame: Graphics; // два dashed-бордера: вокруг Поля + вокруг грида
+  frame: Graphics; // dashed-рамка вокруг Поля + якорь-стрелка (когда грид пуст)
+  anchorLabel: Text; // текст якоря «тяни карту сюда»
 }
 
 // Dashed-прямоугольник (сегменты по 4 рёбрам) — единственные рамки Поля.
@@ -170,6 +171,23 @@ function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: numbe
   line(r.x + r.w, r.y + r.h, r.x, r.y + r.h);
   line(r.x, r.y + r.h, r.x, r.y);
   g.stroke({ width, color });
+}
+
+// Искривлённая стрелка (квадратичная кривая + наконечник) — якорь «тяни карту сюда».
+function drawArrow(g: Graphics, start: { x: number; y: number }, ctrl: { x: number; y: number }, end: { x: number; y: number }, color: number, width: number): void {
+  g.moveTo(start.x, start.y).quadraticCurveTo(ctrl.x, ctrl.y, end.x, end.y).stroke({ width, color });
+  const tx = end.x - ctrl.x;
+  const ty = end.y - ctrl.y;
+  const len = Math.hypot(tx, ty) || 1;
+  const ux = tx / len;
+  const uy = ty / len;
+  const px = -uy;
+  const py = ux;
+  const s = 14;
+  g.moveTo(end.x - ux * s + px * s * 0.55, end.y - uy * s + py * s * 0.55)
+    .lineTo(end.x, end.y)
+    .lineTo(end.x - ux * s - px * s * 0.55, end.y - uy * s - py * s * 0.55)
+    .stroke({ width, color });
 }
 
 // Иконки меток (в локальных координатах, центр 0,0) — драггер-грип и три разных якоря для демо.
@@ -921,8 +939,11 @@ export class FreeDeskEngine {
     const grid: FlowGeom = { cell, gap, origin: { x: stackRect.x + cell.w + 44, y: gy + pad } };
     const frame = new Graphics();
     this.scene.surface.addChild(frame);
+    const anchorLabel = this.label("тяни карту из колоды сюда", 0, 0, 13, 0xd9b154);
+    anchorLabel.visible = false;
+    this.scene.surface.addChild(anchorLabel);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
-    const f: FieldState = { stackIds, gridIds: [], stackRect, grid, frame };
+    const f: FieldState = { stackIds, gridIds: [], stackRect, grid, frame, anchorLabel };
     this.fields.push(f);
 
     // 52 карты закрытой стопки (рубашкой вверх, разные лица под низом). Верх — с макс. z (тянется он).
@@ -975,11 +996,23 @@ export class FreeDeskEngine {
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
-  // Единственные рамки Поля: два DASHED-контура — вокруг всего Поля и вокруг грида.
+  // Рамка Поля: DASHED-контур вокруг всего Поля. У грида рамки НЕТ — вместо неё якорь-стрелка
+  // «тяни карту сюда» (когда грид пуст), чтобы юзер видел, куда тянуть карту из колоды.
   private drawField(f: FieldState): void {
     f.frame.clear();
     dashRect(f.frame, this.fieldOuterRect(f), 11, 7, 0x8fa39a, 2);
-    dashRect(f.frame, this.fieldGridRect(f), 8, 6, 0x6b7d72, 1.5);
+    const empty = f.gridIds.length === 0;
+    f.anchorLabel.visible = empty;
+    if (empty) {
+      const cell = f.grid.cell;
+      const firstX = f.grid.origin.x + cell.w / 2;
+      const firstY = f.grid.origin.y + cell.h / 2;
+      const start = { x: f.stackRect.x + f.stackRect.w + 2, y: f.stackRect.y - 8 };
+      const end = { x: firstX, y: firstY - cell.h * 0.46 };
+      const ctrl = { x: (start.x + end.x) / 2 + 14, y: Math.min(start.y, end.y) - 58 }; // длинная дуга вверх
+      drawArrow(f.frame, start, ctrl, end, 0xd9b154, 2.5);
+      f.anchorLabel.position.set((start.x + end.x) / 2, ctrl.y - 20);
+    }
   }
 
   // Пересчитать дома всех фигур Поля (после реордера) — стопка + грид переезжают.
