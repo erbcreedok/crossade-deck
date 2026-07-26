@@ -1,0 +1,31 @@
+client2/public/fonts.html
+  s_89d5ad20619017::t_9420603162b85b 11
+  s_89d5ad20619017::t_ff39cc2f9e685e 40-42
+client2/src/theme.css
+  s_89d5ad20619017::t_42d1e338d4048b 18,37,53,92,103,200
+client2/e2e/menu.spec.ts
+  s_89d5ad20619017::t_fea90b20d6ba37 13-14,16
+client2/index.html
+  s_89d5ad20619017::t_42d1e338d4048b 21
+client2/src/game/engine/canvasHost.ts
+  s_89d5ad20619017::t_f9784f81e3a805 5-9,14
+client2/src/game/engine/constants.ts
+  s_89d5ad20619017::t_28d4ee63bc90b5 24
+  s_89d5ad20619017::t_29eb96a1e66f34 107-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b73da83c5f8dae8751e35cd5156cd7809c0670f5",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
