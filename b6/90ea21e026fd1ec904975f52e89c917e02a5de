@@ -1,0 +1,52 @@
+client2/src/game/ui/Button.ts
+  s_89d5ad20619017::t_f605eda47934c3 91-100
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_31513a7d604cd2 155,159,162-164,167-168,170
+  s_89d5ad20619017::t_4ba922bd20d5b1 51
+  s_89d5ad20619017::t_fbf0cef9f94842 2
+  s_89d5ad20619017::t_374eab27043179 3-6,9-12
+  s_89d5ad20619017::t_b52864cff88e80 82-86,102-115,120-132
+  s_89d5ad20619017::t_7091f594575057 188-189,191,195-196,201-206,211-212
+  s_89d5ad20619017::t_f8dd002ec2475e 194,197,200,207-210,214
+  s_89d5ad20619017::t_873b160a186ab1 133
+client2/src/game/slot/layouts.ts
+  s_89d5ad20619017::t_1d6b3f312664bc 37-44,48,52,56
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_c73da2c75aced3 899-900
+  s_89d5ad20619017::t_6f5ee2c1bd1118 471-472
+  s_89d5ad20619017::t_47829f05214ba2 1430-1432
+  s_89d5ad20619017::t_d569ba5222be06 408,461
+  s_89d5ad20619017::t_8f785bf082404a 193
+  s_89d5ad20619017::t_c50f965149fc38 914-915,923-925
+  s_89d5ad20619017::t_28f1ad28527a91 11
+client2/src/game/board/dynamicGrid.ts
+  s_89d5ad20619017::t_aa59f92be5e307 34-43
+client2/src/game/ui/Toggle.ts
+  s_89d5ad20619017::t_9ed908eb28751f 1-78
+client2/src/game/board/fieldControls.ts
+  s_89d5ad20619017::t_4c1edc68e5d390 4
+  s_89d5ad20619017::t_c787a0495ebd1d 30-32,34,50,52-64
+client2/src/game/board/dynamicGrid.test.ts
+  s_89d5ad20619017::t_71428888557872 2
+  s_89d5ad20619017::t_06b05204326e18 56-73
+  s_89d5ad20619017::t_6bed51bdbad35c 74
+client2/e2e/field.spec.ts
+  s_89d5ad20619017::t_01f6566569d4c1 74-122
+  s_89d5ad20619017::t_582896a1e980e1 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b690ea21e026fd1ec904975f52e89c917e02a5de",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
