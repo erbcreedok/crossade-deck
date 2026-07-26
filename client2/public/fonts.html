@@ -45,11 +45,13 @@
       for (const f of FONTS) {
         const el = document.createElement("div");
         el.className = "card";
+        // Фолбэк ЯВНО Times New Roman: непокрытые буквы будут очевидным серифом (видно, где фолбэк).
+        const ff = `font-family:'${f}','Times New Roman',serif`;
         el.innerHTML =
           `<div class="meta">${f}</div>` +
-          `<div class="row big" style="font-family:'${f}'">${SAMPLE}</div>` +
-          `<div class="row kz"><span class="lbl">КАЗАХ&nbsp;</span><span style="font-family:'${f}'">${KAZ}</span></div>` +
-          `<div class="row lat" style="font-family:'${f}'">${LAT}</div>`;
+          `<div class="row big" style="${ff}">${SAMPLE}</div>` +
+          `<div class="row kz"><span class="lbl">КАЗАХ&nbsp;</span><span style="${ff}">${KAZ}</span></div>` +
+          `<div class="row lat" style="${ff}">${LAT}</div>`;
         list.appendChild(el);
       }
       // Форсим загрузку нужных подмножеств (латиница+кириллица+казахский) у каждого до просмотра.
