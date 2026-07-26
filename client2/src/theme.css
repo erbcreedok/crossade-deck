@@ -65,8 +65,10 @@ body {
   z-index: 3;
 }
 
-/* Брендовая пилюля в зоне статус-бара (как «2ГИС») — только в установленном PWA (standalone),
-   в обычном браузере скрыта. Сидит в строке статус-бара по центру. */
+/* Брендовая пилюля — только в установленном PWA (standalone), в браузере скрыта. Сидит ПОД
+   safe-area (под чёлкой/Dynamic Island), по центру. Раньше её отрицательным сдвигом затягивали
+   ВВЕРХ в строку статус-бара (inset − 32px), но там по центру сидит Dynamic Island — пилюля
+   вылезала из-под него. Центр верхней строки на DI-айфонах занят, поэтому бейдж живёт ниже. */
 .brand-badge {
   display: none;
 }
@@ -74,7 +76,7 @@ body {
   .brand-badge {
     display: block;
     position: fixed;
-    top: max(4px, calc(env(safe-area-inset-top) - 32px));
+    top: calc(env(safe-area-inset-top) + 4px);
     left: 50%;
     transform: translateX(-50%);
     z-index: 10;
