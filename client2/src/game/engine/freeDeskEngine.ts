@@ -4,7 +4,8 @@ import { Card, type CardOptions, type CardState, type RestState, type ShadowShap
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied, type AcceptCtx } from "../board/boardZone";
 import type { Board } from "../board/board";
-import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
+import { gridSlots } from "../board/layout/slots";
+import { layoutForPreset } from "../board/boardLayout";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
@@ -850,24 +851,8 @@ export class FreeDeskEngine {
   // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
   // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
   private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
-    const gap = 8;
-    const gy = top + 22;
-    // Раскладка — подключаемая стратегия (grid/ring). BoardZone её лишь потребляет.
-    let positioned: PositionedSlot[];
-    let bounds: { x: number; y: number; w: number; h: number };
-    if (preset.layout === "ring") {
-      const cell = { w: this.cardW * 0.82, h: this.cardH * 0.82 };
-      const radius = this.cardH * 1.35;
-      const cx = left + radius + cell.w / 2;
-      const cy = gy + radius + cell.h / 2;
-      positioned = ringSlots(preset.ringCount ?? 8, { cx, cy, radius, cell });
-      const d = 2 * radius + cell.w;
-      bounds = { x: left, y: gy, w: d, h: d };
-    } else {
-      const cell = { w: this.cardW * 1.15, h: this.cardH * 1.02 };
-      positioned = gridSlots({ cols: preset.cols, cell, gap, origin: { x: left, y: gy } }, preset.rows);
-      bounds = { x: left, y: gy, w: preset.cols * cell.w + (preset.cols - 1) * gap, h: preset.rows * cell.h + (preset.rows - 1) * gap };
-    }
+    // Раскладка — чистая геометрия из пресета (board/boardLayout.ts): стратегия grid/ring → слоты+рамка.
+    const { positioned, bounds } = layoutForPreset(preset, { left, top, cardW: this.cardW, cardH: this.cardH });
 
     const slots: Board["slots"] = {};
     const faces: Record<string, string> = {};
