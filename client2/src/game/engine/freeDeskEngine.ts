@@ -5,7 +5,8 @@ import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
-import { flowLayout, type FlowGeom } from "../board/dynamicGrid";
+import { type FlowGeom } from "../board/dynamicGrid";
+import { Field } from "../board/field";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -134,61 +135,8 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
-// Полная колода 52 (для закрытой стопки Поля).
+// Полная колода 52 (лица карт закрытой стопки Поля).
 const DECK52: string[] = ["♠", "♥", "♦", "♣"].flatMap((s) => ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"].map((r) => r + s));
-
-interface Rect4 {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-// ПОЛЕ: закрытая стопка + flow-грид (карты пакуются по индексу). Владелец, не BoardZone.
-interface FieldState {
-  stackIds: string[]; // низ→верх (верх = последний)
-  gridIds: string[]; // порядок по индексу (flow-паковка)
-  stackRect: Rect4;
-  grid: FlowGeom;
-  frame: Graphics; // dashed-рамка вокруг Поля + якорь-стрелка (когда грид пуст)
-  anchorLabel: Text; // текст якоря «тяни карту сюда»
-}
-
-// Dashed-прямоугольник (сегменты по 4 рёбрам) — единственные рамки Поля.
-function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number): void {
-  const seg = dash + gap;
-  const line = (x1: number, y1: number, x2: number, y2: number): void => {
-    const len = Math.hypot(x2 - x1, y2 - y1);
-    const ux = (x2 - x1) / len;
-    const uy = (y2 - y1) / len;
-    for (let d = 0; d < len; d += seg) {
-      const e = Math.min(d + dash, len);
-      g.moveTo(x1 + ux * d, y1 + uy * d).lineTo(x1 + ux * e, y1 + uy * e);
-    }
-  };
-  line(r.x, r.y, r.x + r.w, r.y);
-  line(r.x + r.w, r.y, r.x + r.w, r.y + r.h);
-  line(r.x + r.w, r.y + r.h, r.x, r.y + r.h);
-  line(r.x, r.y + r.h, r.x, r.y);
-  g.stroke({ width, color });
-}
-
-// Искривлённая стрелка (квадратичная кривая + наконечник) — якорь «тяни карту сюда».
-function drawArrow(g: Graphics, start: { x: number; y: number }, ctrl: { x: number; y: number }, end: { x: number; y: number }, color: number, width: number): void {
-  g.moveTo(start.x, start.y).quadraticCurveTo(ctrl.x, ctrl.y, end.x, end.y).stroke({ width, color });
-  const tx = end.x - ctrl.x;
-  const ty = end.y - ctrl.y;
-  const len = Math.hypot(tx, ty) || 1;
-  const ux = tx / len;
-  const uy = ty / len;
-  const px = -uy;
-  const py = ux;
-  const s = 14;
-  g.moveTo(end.x - ux * s + px * s * 0.55, end.y - uy * s + py * s * 0.55)
-    .lineTo(end.x, end.y)
-    .lineTo(end.x - ux * s - px * s * 0.55, end.y - uy * s - py * s * 0.55)
-    .stroke({ width, color });
-}
 
 // Иконки меток (в локальных координатах, центр 0,0) — драггер-грип и три разных якоря для демо.
 const MARK = 0xcdb98f;
@@ -238,8 +186,8 @@ export class FreeDeskEngine {
   private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
   private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
   private boardTitles: string[] = []; // заголовки бордов (align с boardZones), для e2e
-  // ПОЛЕ (новая механика): владелец с закрытой стопкой + flow-гридом (карты пакуются по индексу).
-  private fields: FieldState[] = [];
+  // ПОЛЕ (обособленный модуль board/field.ts): владелец с закрытой стопкой + flow-гридом.
+  private fields: Field[] = [];
   private selMode = false; // режим изолированного мультиселекта (демо-борд)
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
@@ -510,7 +458,7 @@ export class FreeDeskEngine {
   private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
     const f = this.fields[0];
     if (!f) return null;
-    const gr = this.fieldGridRect(f);
+    const gr = f.gridRect();
     const tl = toScreen(gr.x, gr.y);
     return {
       stack: f.stackIds.length,
@@ -920,10 +868,9 @@ export class FreeDeskEngine {
     setMark(initial);
   }
 
-  // ——— ПОЛЕ (новая механика: владелец = закрытая стопка + flow-грид) ———
-  // Поле = заголовок + кнопки глоб-конфигов (заглушка) + закрытая стопка на 52 карты (тянешь только
-  // верхнюю) + flow-грид (карты БЕЗ фикс. ячеек — пакуются по индексу: 1×1→1×2→1×3→2×2→2×3…, при
-  // добавлении/убыли переезжают). Единственные рамки — два DASHED-контура: вокруг Поля и вокруг грида.
+  // ——— ПОЛЕ — обвязка обособленного модуля board/field.ts (механика ЖИВЁТ там) ———
+  // Движок только: рисует заголовок/конфиг-кнопку, создаёт Field, спавнит его 52 карты (визуалы),
+  // применяет дома от Field и делегирует дроп. Всю логику Поля программируем в field.ts.
   private buildField(left: number, top: number): number {
     this.scene.surface.addChild(this.label("Поле", left, top, 26, 0xcdb98f, undefined, 0));
     this.scene.surface.addChild(this.label("глобальные конфиги поля (обсудим)", left, top + 34, 12, 0x9aa89f, undefined, 0));
@@ -934,110 +881,37 @@ export class FreeDeskEngine {
     const gy = top + 84;
     const pad = 14;
     const cell = { w: this.cardW * 0.95, h: this.cardH * 0.95 };
-    const gap = 8;
-    const stackRect: Rect4 = { x: left + pad, y: gy + pad, w: cell.w, h: cell.h };
-    const grid: FlowGeom = { cell, gap, origin: { x: stackRect.x + cell.w + 44, y: gy + pad } };
-    const frame = new Graphics();
-    this.scene.surface.addChild(frame);
-    const anchorLabel = this.label("тяни карту из колоды сюда", 0, 0, 13, 0xd9b154);
-    anchorLabel.visible = false;
-    this.scene.surface.addChild(anchorLabel);
+    const stackRect = { x: left + pad, y: gy + pad, w: cell.w, h: cell.h };
+    const grid: FlowGeom = { cell, gap: 8, origin: { x: stackRect.x + cell.w + 44, y: gy + pad } };
+    const anchor = this.label("тяни карту сюда", 0, 0, 12, 0x9aa89f); // текст создаёт движок, Field им управляет
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
-    const f: FieldState = { stackIds, gridIds: [], stackRect, grid, frame, anchorLabel };
-    this.fields.push(f);
+    const field = new Field({ stackRect, grid, stackIds, anchor });
+    this.scene.surface.addChild(field.frame, anchor);
+    this.fields.push(field);
 
-    // 52 карты закрытой стопки (рубашкой вверх, разные лица под низом). Верх — с макс. z (тянется он).
+    // 52 карты закрытой стопки (рубашкой вверх). Дома берём у Field; верх — макс. z (тянется он).
     stackIds.forEach((id, i) => {
       this.faceOf.set(id, DECK52[i]!);
-      this.cardSpecs.push({ opts: { id, card: DECK52[i]!, faceUp: false, rest: "idle", size: 0.85 }, home: this.fieldHome(f, id), depth: 700 + i, bobPhase: 0 });
+      this.cardSpecs.push({ opts: { id, card: DECK52[i]!, faceUp: false, rest: "idle", size: 0.85 }, home: field.homeOf(id), depth: 700 + i, bobPhase: 0 });
     });
-    this.drawField(f);
+    field.draw();
 
-    const reservedH = pad * 2 + cell.h * 4 + gap * 3; // место под рост грида; ниже — след. секция
+    const reservedH = pad * 2 + cell.h * 4 + 3 * 8;
     this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, gy + reservedH + 8, 12, 0x9aa89f, this.contentW - left - pad));
     return gy + reservedH + 30;
   }
 
-  private fieldOf(id: string): FieldState | null {
-    return this.fields.find((f) => f.stackIds.includes(id) || f.gridIds.includes(id)) ?? null;
+  private fieldForCard(id: string): Field | null {
+    return this.fields.find((f) => f.owns(id)) ?? null;
   }
 
-  // Раскладка грида Поля: минимум 3 колонки + всегда резерв места под следующую карту.
-  private gridLayout(f: FieldState) {
-    return flowLayout(f.gridIds.length, f.grid, { minCols: 3, reserve: true });
-  }
-
-  // Дом фигуры Поля: в стопке — колода со стаггером «толщины»; в гриде — flow-позиция по индексу.
-  private fieldHome(f: FieldState, id: string): { x: number; y: number } {
-    const base = { x: f.stackRect.x + f.stackRect.w / 2, y: f.stackRect.y + f.stackRect.h / 2 };
-    const si = f.stackIds.indexOf(id);
-    if (si >= 0) return { x: base.x + si * 0.35, y: base.y - si * 0.3 };
-    const gi = f.gridIds.indexOf(id);
-    if (gi >= 0) return this.gridLayout(f).centers[gi] ?? base;
-    return base;
-  }
-
-  // Габарит грида (для dashed-рамки) — с резервом места под следующую карту.
-  private fieldGridRect(f: FieldState): Rect4 {
-    const s = this.gridLayout(f).size;
-    return { x: f.grid.origin.x, y: f.grid.origin.y, w: s.w, h: s.h };
-  }
-
-  // Внешняя рамка Поля — объемлет стопку и грид + отступы (снизу/справа больше — по просьбе).
-  private fieldOuterRect(f: FieldState): Rect4 {
-    const g = this.fieldGridRect(f);
-    const padTL = 14;
-    const padR = 30;
-    const padB = 30;
-    const minX = Math.min(f.stackRect.x, g.x) - padTL;
-    const minY = Math.min(f.stackRect.y, g.y) - padTL;
-    const maxX = Math.max(f.stackRect.x + f.stackRect.w, g.x + g.w) + padR;
-    const maxY = Math.max(f.stackRect.y + f.stackRect.h, g.y + g.h) + padB;
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  }
-
-  // Рамка Поля: DASHED-контур вокруг всего Поля. У грида рамки НЕТ — вместо неё якорь-стрелка
-  // «тяни карту сюда» (когда грид пуст), чтобы юзер видел, куда тянуть карту из колоды.
-  private drawField(f: FieldState): void {
-    f.frame.clear();
-    dashRect(f.frame, this.fieldOuterRect(f), 11, 7, 0x8fa39a, 2);
-    const empty = f.gridIds.length === 0;
-    f.anchorLabel.visible = empty;
-    if (empty) {
-      const cell = f.grid.cell;
-      const firstX = f.grid.origin.x + cell.w / 2;
-      const firstY = f.grid.origin.y + cell.h / 2;
-      const start = { x: f.stackRect.x + f.stackRect.w + 2, y: f.stackRect.y - 8 };
-      const end = { x: firstX, y: firstY - cell.h * 0.46 };
-      const ctrl = { x: (start.x + end.x) / 2 + 14, y: Math.min(start.y, end.y) - 58 }; // длинная дуга вверх
-      drawArrow(f.frame, start, ctrl, end, 0xd9b154, 2.5);
-      f.anchorLabel.position.set((start.x + end.x) / 2, ctrl.y - 20);
-    }
-  }
-
-  // Пересчитать дома всех фигур Поля (после реордера) — стопка + грид переезжают.
-  private refreshFieldHomes(f: FieldState): void {
-    for (const id of [...f.stackIds, ...f.gridIds]) {
-      const home = this.fieldHome(f, id);
+  // Применить дома фигур Поля к их картам (после дропа/реордера карты переезжают пружиной).
+  private applyFieldHomes(f: Field): void {
+    for (const id of f.allIds()) {
+      const home = f.homeOf(id);
       this.setFigureHome(id, home);
       this.byId.get(id)?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
     }
-  }
-
-  // Дроп фигуры Поля: попал в грид → карта уходит в грид (append по индексу, раскрывается), грид
-  // пакует и растёт; мимо → вернуть на место (home не изменился). Затем drawField перерисует рамки.
-  private dropOnField(f: FieldState, id: string, cp: { x: number; y: number }): void {
-    const gr = this.fieldGridRect(f);
-    const inGrid = cp.x >= gr.x && cp.x <= gr.x + gr.w && cp.y >= gr.y && cp.y <= gr.y + gr.h;
-    if (inGrid && !f.gridIds.includes(id)) {
-      f.stackIds = f.stackIds.filter((x) => x !== id);
-      f.gridIds.push(id);
-      const el = this.byId.get(id);
-      if (el && "requestFlip" in el) (el as { requestFlip(): boolean }).requestFlip(); // раскрыть в гриде
-    }
-    this.refreshFieldHomes(f);
-    this.drawField(f);
-    this.wake();
   }
 
   // Игровые зоны (борды): РЯД пресетов (data-driven). Каждый борд — сетка слотов + фигуры-карты,
@@ -1522,11 +1396,17 @@ export class FreeDeskEngine {
             for (const z of this.zones) z.zone.setHot(false);
             return;
           }
-          const fld = this.fieldOf(this.drag.lead.id);
+          const fld = this.fieldForCard(this.drag.lead.id);
           const bz = fld ? null : this.boardZoneOf(this.drag.lead.id);
           if (fld) {
-            // ПОЛЕ: в грид → карта уходит в flow-грид (пакуется по индексу); мимо → вернуть на место.
-            this.dropOnField(fld, this.drag.lead.id, cp);
+            // ПОЛЕ: делегируем модулю (в грид → уходит в flow-грид; мимо → вернуть на место).
+            const { moved } = fld.place(this.drag.lead.id, cp);
+            if (moved) {
+              const el = this.byId.get(this.drag.lead.id);
+              if (el && "requestFlip" in el) (el as { requestFlip(): boolean }).requestFlip(); // раскрыть в гриде
+            }
+            this.applyFieldHomes(fld);
+            fld.draw();
             this.drag.release(); // тащимая едет в свой (возможно новый) home
           } else if (bz) {
             // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим.

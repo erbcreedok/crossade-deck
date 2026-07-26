@@ -1,0 +1,187 @@
+import { Graphics, Text } from "pixi.js";
+import { flowLayout, type FlowGeom } from "./dynamicGrid";
+
+// ПОЛЕ — обособленный модуль механики (программируется ЗДЕСЬ, движок только импортит и делегирует).
+// Владелец: закрытая стопка + flow-грид (карты пакуются по индексу, минимум 3 колонки, всегда резерв
+// места под следующую). Field хранит ЛОГИКУ (какие id в стопке/гриде) + ГЕОМЕТРИЮ + рисует свою
+// «хром»-графику (dashed-рамка Поля + якорь-узел). Карточные визуалы (Card) остаются в движке —
+// Field лишь говорит, где им отдыхать (homeOf), и кто ему принадлежит (owns).
+
+export interface Rect4 {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface FieldOpts {
+  stackRect: Rect4; // область закрытой стопки
+  grid: FlowGeom; // геометрия ячейки/отступа/origin грида
+  stackIds: string[]; // карты стопки (низ→верх)
+  anchor: Text; // текст якоря «тяни карту сюда» (создаёт движок, Field им управляет)
+}
+
+const MIN_COLS = 3;
+const RESERVE = true;
+
+export class Field {
+  stackIds: string[];
+  gridIds: string[] = [];
+  readonly frame = new Graphics(); // dashed-рамка Поля + узел-якорь
+  readonly anchor: Text;
+  readonly stackRect: Rect4;
+  readonly grid: FlowGeom;
+
+  constructor(o: FieldOpts) {
+    this.stackRect = o.stackRect;
+    this.grid = o.grid;
+    this.stackIds = [...o.stackIds];
+    this.anchor = o.anchor;
+    this.anchor.visible = false;
+  }
+
+  owns(id: string): boolean {
+    return this.stackIds.includes(id) || this.gridIds.includes(id);
+  }
+
+  allIds(): string[] {
+    return [...this.stackIds, ...this.gridIds];
+  }
+
+  private layout() {
+    return flowLayout(this.gridIds.length, this.grid, { minCols: MIN_COLS, reserve: RESERVE });
+  }
+
+  /** Габарит грида (с резервом места под следующую карту). */
+  gridRect(): Rect4 {
+    const s = this.layout().size;
+    return { x: this.grid.origin.x, y: this.grid.origin.y, w: s.w, h: s.h };
+  }
+
+  /** Внешняя рамка Поля — объемлет стопку и грид (+ отступы, снизу/справа больше). */
+  outerRect(): Rect4 {
+    const g = this.gridRect();
+    const padTL = 14;
+    const padR = 30;
+    const padB = 30;
+    const minX = Math.min(this.stackRect.x, g.x) - padTL;
+    const minY = Math.min(this.stackRect.y, g.y) - padTL;
+    const maxX = Math.max(this.stackRect.x + this.stackRect.w, g.x + g.w) + padR;
+    const maxY = Math.max(this.stackRect.y + this.stackRect.h, g.y + g.h) + padB;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  /** Где отдыхает карта: в стопке — колода со стаггером «толщины»; в гриде — flow-позиция по индексу. */
+  homeOf(id: string): { x: number; y: number } {
+    const base = { x: this.stackRect.x + this.stackRect.w / 2, y: this.stackRect.y + this.stackRect.h / 2 };
+    const si = this.stackIds.indexOf(id);
+    if (si >= 0) return { x: base.x + si * 0.35, y: base.y - si * 0.3 };
+    const gi = this.gridIds.indexOf(id);
+    if (gi >= 0) return this.layout().centers[gi] ?? base;
+    return base;
+  }
+
+  /** Дроп карты: попал в грид → уходит в грид (append по индексу). Возвращает, сдвинулась ли. */
+  place(id: string, cp: { x: number; y: number }): { moved: boolean } {
+    const gr = this.gridRect();
+    const inGrid = cp.x >= gr.x && cp.x <= gr.x + gr.w && cp.y >= gr.y && cp.y <= gr.y + gr.h;
+    if (inGrid && !this.gridIds.includes(id)) {
+      this.stackIds = this.stackIds.filter((x) => x !== id);
+      this.gridIds.push(id);
+      return { moved: true };
+    }
+    return { moved: false };
+  }
+
+  /** Нарисовать «хром»: dashed-рамку Поля + узел-якорь (когда грид пуст). */
+  draw(): void {
+    this.frame.clear();
+    dashRect(this.frame, this.outerRect(), 11, 7, 0x8fa39a, 2);
+    const empty = this.gridIds.length === 0;
+    this.anchor.visible = empty;
+    if (empty) {
+      const cell = this.grid.cell;
+      const first = { x: this.grid.origin.x + cell.w / 2, y: this.grid.origin.y + cell.h / 2 };
+      const from = { x: this.stackRect.x + this.stackRect.w + 6, y: this.stackRect.y + 4 };
+      const to = { x: first.x - cell.w * 0.32, y: first.y };
+      drawKnot(this.frame, from, to, 0x7d8f84, 1.5); // менее навязчивый: тускло, тонко, dashed, узлом
+      this.anchor.position.set((from.x + to.x) / 2 + 6, Math.min(from.y, to.y) - 30);
+    }
+  }
+}
+
+// ——— «хром» Поля (dashed-рамка + узел-якорь) ———
+
+// Dashed-прямоугольник (сегменты по 4 рёбрам).
+export function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number): void {
+  const seg = dash + gap;
+  const line = (x1: number, y1: number, x2: number, y2: number): void => {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const ux = (x2 - x1) / len;
+    const uy = (y2 - y1) / len;
+    for (let d = 0; d < len; d += seg) {
+      const e = Math.min(d + dash, len);
+      g.moveTo(x1 + ux * d, y1 + uy * d).lineTo(x1 + ux * e, y1 + uy * e);
+    }
+  };
+  line(r.x, r.y, r.x + r.w, r.y);
+  line(r.x + r.w, r.y, r.x + r.w, r.y + r.h);
+  line(r.x + r.w, r.y + r.h, r.x, r.y + r.h);
+  line(r.x, r.y + r.h, r.x, r.y);
+  g.stroke({ width, color });
+}
+
+// Точки пути-УЗЛА: базовая линия from→to с петлёй посередине (перекрещивается — «узел»).
+function knotPoints(from: { x: number; y: number }, to: { x: number; y: number }): Array<{ x: number; y: number }> {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  const R = 15; // радиус петли
+  const N = 56;
+  const pts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    let x = from.x + dx * t;
+    let y = from.y + dy * t;
+    const s = (t - 0.32) / 0.34; // петля активна на t∈[0.32,0.66]
+    if (s >= 0 && s <= 1) {
+      const ang = s * Math.PI * 2 - Math.PI / 2; // полный оборот → перекрещивание
+      x += px * Math.cos(ang) * R + ux * Math.sin(ang) * R * 0.65;
+      y += py * Math.cos(ang) * R + uy * Math.sin(ang) * R * 0.65;
+    }
+    pts.push({ x, y });
+  }
+  return pts;
+}
+
+// Узел-стрелка: dashed-петля + наконечник. Тонкая/тусклая — «менее навязчивая».
+function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; y: number }, color: number, width: number): void {
+  const pts = knotPoints(from, to);
+  // dashed по количеству точек (плотная выборка): рисуем 2 сегмента, пропускаем 2.
+  let i = 0;
+  while (i < pts.length - 1) {
+    g.moveTo(pts[i]!.x, pts[i]!.y);
+    for (let k = 0; k < 2 && i < pts.length - 1; k++, i++) g.lineTo(pts[i + 1]!.x, pts[i + 1]!.y);
+    i += 2;
+  }
+  g.stroke({ width, color });
+  // наконечник по касательной последнего сегмента.
+  const a = pts[pts.length - 2]!;
+  const b = pts[pts.length - 1]!;
+  const tx = b.x - a.x;
+  const ty = b.y - a.y;
+  const tl = Math.hypot(tx, ty) || 1;
+  const ux = tx / tl;
+  const uy = ty / tl;
+  const nx = -uy;
+  const ny = ux;
+  const s = 11;
+  g.moveTo(b.x - ux * s + nx * s * 0.5, b.y - uy * s + ny * s * 0.5)
+    .lineTo(b.x, b.y)
+    .lineTo(b.x - ux * s - nx * s * 0.5, b.y - uy * s - ny * s * 0.5)
+    .stroke({ width, color });
+}
