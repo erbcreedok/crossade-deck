@@ -1,0 +1,21 @@
+client2/src/game/board/fieldPaint.ts
+  s_89d5ad20619017::t_98cf740843ba29 54-55
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_614fbdeb7dcc8a 128-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e9fcfe0130f0e449a29051c67b1af38fedca2e86",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
