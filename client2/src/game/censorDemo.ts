@@ -2,6 +2,7 @@ import { Application, Container, Graphics, RenderTexture, Text } from "pixi.js";
 import { createPixiApp, ensureFonts } from "./engine/canvasHost";
 import { CensorField, type CensorSource } from "./engine/censorField";
 import { GpuCensorCard } from "./engine/censorGpu";
+import { ParticleField, type ParticleParams } from "./engine/censorParticles";
 import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { AMBER, buildContent } from "./fingerContent";
@@ -41,16 +42,30 @@ export interface DanceParams {
 }
 export const DANCE_DEFAULT: DanceParams = { block: 4, swapsPerSec: 26, jitterAmp: 1, jitterFreq: 6 };
 
+// Рычаги «танца» → параметры Telegram-частиц: частица=размер точки, дрожание=разлёт (velocityRange),
+// свапы=скорость churn (короче жизнь), частота=мерцание.
+function particleParams(d: DanceParams): ParticleParams {
+  return {
+    dot: Math.max(1.5, d.block * 0.8),
+    drift: d.jitterAmp * 14,
+    life: Math.max(0.35, 1.3 - d.swapsPerSec / 120),
+    twinkleHz: d.jitterFreq * 0.4,
+  };
+}
+
 export class CensorDemo {
   private app: Application | null = null;
   private cards: DemoCard[] = [];
-  private gpuCards: GpuCensorCard[] = []; // второй ряд — GPU-варианты (шейдер / ping-pong)
+  private gpuCards: GpuCensorCard[] = []; // GPU-варианты (шейдер / ping-pong)
+  private particleCards: ParticleField[] = []; // частицы в стиле Telegram-спойлера
+  private dance: DanceParams = { ...DANCE_DEFAULT }; // текущее состояние рычагов (для пересчёта частиц)
   private t = 0;
   private tick = (): void => {
     if (!this.app) return;
     this.t += (this.app.ticker.deltaMS / 1000) * this.speed;
     for (const c of this.cards) if (c.animated) c.field?.update(this.t);
     for (const g of this.gpuCards) g.update(this.t);
+    for (const p of this.particleCards) p.update(this.t);
   };
   speed = 1; // глобальный множитель скорости (задел под 1x/2x/слайдер) — просто масштаб времени
 
@@ -136,6 +151,47 @@ export class CensorDemo {
       this.gpuCards.push(gpu);
 
       const label = new Text({ text: gv.label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
+      label.anchor.set(0.5, 0);
+      label.position.set(x2 + cardW / 2, y2 + cardH + 8);
+      this.world.addChild(label);
+
+      x2 += cardW + gap;
+    }
+
+    // Четвёртая карта ряда — Telegram-стиль: облако частиц-точек по силуэту фака (не мозаика).
+    {
+      const card = new Container();
+      card.position.set(x2, y2);
+      this.world.addChild(card);
+
+      const bg = new Graphics();
+      bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
+      card.addChild(bg);
+
+      // On-точки силуэта (куда спавнить частицы), сетка 4px, по 2 частицы на клетку — плотное облако,
+      // сквозь которое читается форма (в TG плотность высокая: birthRate ~4000).
+      const step = 4;
+      const perCell = 2;
+      const src = buildFingerSource(app, step);
+      const pts: Array<{ x: number; y: number }> = [];
+      const offX = (TEX_W - src.cols * step) / 2;
+      const offY = (TEX_H - src.rows * step) / 2;
+      for (let r = 0; r < src.rows; r++) {
+        for (let c = 0; c < src.cols; c++) {
+          if (!src.on[r * src.cols + c]) continue;
+          for (let d = 0; d < perCell; d++) pts.push({ x: offX + c * step + 2, y: offY + r * step + 2 });
+        }
+      }
+      const pf = new ParticleField(pts, particleParams(this.dance));
+      const mask = new Graphics();
+      mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
+      card.addChild(mask);
+      pf.view.mask = mask;
+      card.addChild(pf.view);
+      pf.update(0);
+      this.particleCards.push(pf);
+
+      const label = new Text({ text: "частицы (TG-пыль)", style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
       label.anchor.set(0.5, 0);
       label.position.set(x2 + cardW / 2, y2 + cardH + 8);
       this.world.addChild(label);
@@ -272,12 +328,15 @@ export class CensorDemo {
       c.field?.update(0);
     }
     for (const g of this.gpuCards) g.reset();
+    for (const p of this.particleCards) p.reset();
   }
 
   // Живая настройка «танец ⚙». swaps/jitter — просто мутируем спек (CensorField читает его каждый кадр).
   // block меняет размер частиц → нужна пересборка источника-сетки и поля (в той же карте/маске).
   updateDance(p: Partial<DanceParams>): void {
+    Object.assign(this.dance, p);
     for (const g of this.gpuCards) g.setParams(p); // рычаги управляют и GPU-рядом
+    for (const pf of this.particleCards) pf.setParams(particleParams(this.dance)); // …и частицами
     const t = this.tunable;
     if (!t || !this.app) return;
     if (p.swapsPerSec !== undefined) t.spec.swapsPerSec = p.swapsPerSec;
@@ -301,8 +360,10 @@ export class CensorDemo {
     this.app.ticker.remove(this.tick);
     for (const c of this.cards) c.field?.destroy();
     for (const g of this.gpuCards) g.destroy();
+    for (const p of this.particleCards) p.destroy();
     this.cards = [];
     this.gpuCards = [];
+    this.particleCards = [];
     this.app.destroy(true, { children: true });
     this.app = null;
   }
