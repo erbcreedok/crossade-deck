@@ -1,14 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// ПОЛЕ (новая механика): динамический грид растёт под контент + закрытая стопка (тянешь верх).
-test.describe("песочница — Поле", () => {
-  test.use({ viewport: { width: 900, height: 5200 } });
+// ПОЛЕ: закрытая стопка на 52 + flow-грид (карты пакуются по индексу: 1→1×1, 4→2×2…).
+test.describe("песочница — Поле (flow-грид)", () => {
+  test.use({ viewport: { width: 900, height: 5800 } });
 
   interface Hooks {
-    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
+    field: { stack: number; grid: number; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
   }
   const hooks = (page: Page): Promise<Hooks> => page.evaluate(() => (window as unknown as { __fd: { testHooks(): Hooks } }).__fd.testHooks());
-  const field = (h: Hooks) => h.boards.find((b) => b.title === "Поле")!;
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/free-desk");
@@ -23,41 +22,32 @@ test.describe("песочница — Поле", () => {
     await page.mouse.move(box.x + to.x, box.y + to.y, { steps: 14 });
     await page.mouse.up();
   };
+  const gridMid = (h: Hooks) => ({ x: h.field!.gridRect.x + h.field!.gridRect.w / 2, y: h.field!.gridRect.y + h.field!.gridRect.h / 2 });
 
-  test("тянешь верх стопки в грид → карта в гриде, стопка -1, грид РАСТЁТ", async ({ page }) => {
-    const h = await hooks(page);
-    const f = field(h);
-    const idx = h.boards.indexOf(f);
-    expect(f.figures.filter((x) => x.key === "stack")).toHaveLength(6);
-    const slotsBefore = f.slots.length; // stack + 0,0 = 2
-    const stack = f.slots.find((s) => s.key === "stack")!;
-    const cell = f.slots.find((s) => s.key === "0,0")!;
-
-    await dragTo(page, stack, cell);
+  test("52 в стопке; тянешь верх в грид → в гриде +1, в стопке -1", async ({ page }) => {
+    let h = await hooks(page);
+    expect(h.field!.stack).toBe(52);
+    expect(h.field!.grid).toBe(0);
+    await dragTo(page, h.field!.stackAt, gridMid(h));
     await page.waitForTimeout(500);
-    const g = await hooks(page);
-    const gf = g.boards[idx]!;
-    expect(gf.figures.filter((x) => x.key === "stack")).toHaveLength(5); // -1 из стопки
-    expect(gf.figures.some((x) => x.key === "0,0")).toBe(true); // карта в гриде
-    expect(gf.slots.length).toBeGreaterThan(slotsBefore); // грид вырос (новые фронтир-ячейки)
+    h = await hooks(page);
+    expect(h.field!.stack).toBe(51);
+    expect(h.field!.grid).toBe(1);
   });
 
-  test("на карту класть нельзя — вторая карта в занятую ячейку возвращается в стопку", async ({ page }) => {
-    let h = await hooks(page);
-    let f = field(h);
-    const idx = h.boards.indexOf(f);
-    // первая карта в 0,0
-    await dragTo(page, f.slots.find((s) => s.key === "stack")!, f.slots.find((s) => s.key === "0,0")!);
-    await page.waitForTimeout(400);
-    h = await hooks(page);
-    f = h.boards[idx]!;
-    const occupied = f.slots.find((s) => s.key === "0,0")!;
-    const stackCount = f.figures.filter((x) => x.key === "stack").length; // 5
-    // вторая карта на ту же занятую ячейку → отказ → назад в стопку
-    await dragTo(page, f.slots.find((s) => s.key === "stack")!, occupied);
-    await page.waitForTimeout(500);
-    const g = h.boards[idx] ? (await hooks(page)).boards[idx]! : field(await hooks(page));
-    expect(g.figures.filter((x) => x.key === "stack").length).toBe(stackCount); // стопка не изменилась
-    expect(g.figures.filter((x) => x.key === "0,0").length).toBe(1); // в ячейке всё ещё одна
+  test("кладёшь 4 карты → flow-грид пакует их 2×2 (2 колонки × 2 ряда)", async ({ page }) => {
+    for (let i = 0; i < 4; i++) {
+      const h = await hooks(page);
+      await dragTo(page, h.field!.stackAt, gridMid(h));
+      await page.waitForTimeout(300);
+    }
+    await page.waitForTimeout(500); // дать картам осесть по flow-позициям
+    const h = await hooks(page);
+    expect(h.field!.grid).toBe(4);
+    // кластеризуем с допуском (пружина даёт суб-пиксельный джиттер): 2 колонки × 2 ряда
+    const xs = new Set(h.field!.gridCards.map((c) => Math.round(c.x / 50)));
+    const ys = new Set(h.field!.gridCards.map((c) => Math.round(c.y / 50)));
+    expect(xs.size).toBe(2); // 2 колонки
+    expect(ys.size).toBe(2); // 2 ряда
   });
 });
