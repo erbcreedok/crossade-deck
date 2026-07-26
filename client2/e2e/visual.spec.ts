@@ -29,3 +29,15 @@ test("Поле: узел-стрелка + декор (пустой грид, п�
     threshold: 0.15,
   });
 });
+
+test("Карты — SVG-масти на лицах (варианты)", async ({ page }) => {
+  await page.goto("/free-desk");
+  await settle(page);
+  const box = (await page.locator("canvas").boundingBox())!;
+  // Ряд «Карты — варианты»: туз (пики) + бубны — масти рисуются SVG. Статичная область.
+  await expect(page).toHaveScreenshot("cards-suits.png", {
+    clip: { x: box.x, y: 90, width: 640, height: 250 },
+    maxDiffPixels: 80,
+    threshold: 0.15,
+  });
+});

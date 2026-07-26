@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
-import { isCourt, parseCard, suitColor } from "../card";
+import { isCourt, parseCard, suitColor, type Suit } from "../card";
+import { SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
 import { COLORS, EMOJI_FONT, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
@@ -23,6 +24,20 @@ const CARD_SHADE = 0xd8c8a0;
  * справа, значит собственная толщина карты притеняет её снизу-слева. Одна «L» с
  * закруглённым нижним-левым углом, полупрозрачная — чтобы читалась как тень, а не рамка.
  */
+// Нарисовать SVG-символ (масть/палец) как Pixi-графику: центр в (cx,cy), высота sizePx, заливка color.
+// Единый источник путей — symbols.ts (тот же, что и для HTML). Заменяет глиф-символ шрифта.
+function drawSymbol(root: Container, path: string, cx: number, cy: number, sizePx: number, color: number, flip = false): Graphics {
+  const g = new Graphics();
+  g.svg(symbolCanvasSvg(path, color));
+  g.pivot.set(SVG_VIEWBOX / 2, SVG_VIEWBOX / 2);
+  g.scale.set(sizePx / SVG_VIEWBOX);
+  g.position.set(cx, cy);
+  if (flip) g.rotation = Math.PI;
+  root.addChild(g);
+  return g;
+}
+const drawSuit = (root: Container, suit: Suit, cx: number, cy: number, sizePx: number, color: number, flip = false): Graphics => drawSymbol(root, SUIT_PATH[suit], cx, cy, sizePx, color, flip);
+
 function drawCardShade(g: Graphics): void {
   const r = 16;
   const w = 3;
@@ -60,10 +75,8 @@ export function makeCardFaceTexture(
     const r = new Text({ text: rank, style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: color } });
     r.anchor.set(0.5);
     r.position.set(0, -12);
-    const s = new Text({ text: suit, style: { fontFamily: PIXEL_FONT, fontSize: 26, fill: color } });
-    s.anchor.set(0.5);
-    s.position.set(0, 15);
-    c.addChild(r, s);
+    c.addChild(r);
+    drawSuit(c, suit, 0, 18, 24, color); // масть под рангом — SVG
     return c;
   };
   const tl = makeCorner();
@@ -78,22 +91,14 @@ export function makeCardFaceTexture(
   // возвращает пусто, и они рисуются крупным центром (единый путь ниже).
   const pips = style === "pips" ? pipLayout(rank) : [];
   if (pips.length > 0) {
-    for (const p of pips) {
-      const pip = new Text({ text: suit, style: { fontFamily: PIXEL_FONT, fontSize: 46, fill: color } });
-      pip.anchor.set(0.5);
-      pip.position.set(p.x * TEX_W, p.y * TEX_H);
-      if (p.flip) pip.rotation = Math.PI;
-      root.addChild(pip);
-    }
-  } else {
-    const court = isCourt(rank);
-    const center = new Text({
-      text: court ? rank : suit,
-      style: { fontFamily: PIXEL_FONT, fontSize: court ? 96 : 120, fill: color },
-    });
+    for (const p of pips) drawSuit(root, suit, p.x * TEX_W, p.y * TEX_H, 44, color, p.flip);
+  } else if (isCourt(rank)) {
+    const center = new Text({ text: rank, style: { fontFamily: PIXEL_FONT, fontSize: 96, fill: color } });
     center.anchor.set(0.5);
     center.position.set(TEX_W / 2, TEX_H / 2 + 6);
     root.addChild(center);
+  } else {
+    drawSuit(root, suit, TEX_W / 2, TEX_H / 2 + 6, 118, color); // крупная масть по центру (туз/символ)
   }
 
   const shade = new Graphics();
