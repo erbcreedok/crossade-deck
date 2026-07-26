@@ -885,9 +885,12 @@ export class FreeDeskEngine {
     // Зазор колода→грид в 3× — под длинную стрелку-якорь (грид отъезжает вправо на это расстояние).
     const grid: FlowGeom = { cell, gap: 8, origin: { x: stackRect.x + cell.w + 132, y: gy + pad } };
     const anchor = this.label("тяни карту сюда", 0, 0, 12, 0x9aa89f); // текст создаёт движок, Field им управляет
+    const verb = this.label("наведи", 0, 0, 16, 0x9aa89f); // глагол дропзоны (Field двигает между слоями)
+    verb.anchor.set(0.5, 0.5);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
-    const field = new Field({ stackRect, grid, stackIds, anchor });
-    this.scene.surface.addChild(field.frame, anchor);
+    // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
+    const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb });
+    this.scene.surface.addChild(field.frame, anchor, verb);
     this.fields.push(field);
 
     // 52 карты закрытой стопки (рубашкой вверх). Дома берём у Field; верх — макс. z (тянется он).
@@ -1366,6 +1369,7 @@ export class FreeDeskEngine {
           this.drag = new SingleDrag(card, this.dragCtx, cp);
         }
         this.drag.move(cp);
+        this.fieldForCard(card.id)?.beginDrag(); // карта Поля — грид показывает дропзону + «наведи»
       },
       onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
@@ -1374,6 +1378,7 @@ export class FreeDeskEngine {
         const p = bz ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
         this.drag?.move(p);
         this.grabbedMarker?.followTo(p);
+        if (this.drag) this.fieldForCard(this.drag.lead.id)?.hover(p); // грид: над ним → «брось» + фон
         for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
       },
       onCardDrop: (card, cp) => {
@@ -1407,7 +1412,7 @@ export class FreeDeskEngine {
               if (el && "requestFlip" in el) (el as { requestFlip(): boolean }).requestFlip(); // раскрыть в гриде
             }
             this.applyFieldHomes(fld);
-            fld.draw();
+            fld.endDrag(); // назад в покой (перерисует грид/якорь)
             this.drag.release(); // тащимая едет в свой (возможно новый) home
           } else if (bz) {
             // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим.
@@ -1427,6 +1432,7 @@ export class FreeDeskEngine {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
+        if (this.drag) this.fieldForCard(this.drag.lead.id)?.endDrag(); // грид — обратно в покой
         this.drag?.release();
         this.drag = null;
         this.grabbedMarker?.endFollow();

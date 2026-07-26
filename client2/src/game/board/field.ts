@@ -1,4 +1,4 @@
-import { Graphics, Text } from "pixi.js";
+import { Container, Graphics, Text } from "pixi.js";
 import { flowLayout, type FlowGeom } from "./dynamicGrid";
 
 // ПОЛЕ — обособленный модуль механики (программируется ЗДЕСЬ, движок только импортит и делегирует).
@@ -19,25 +19,61 @@ export interface FieldOpts {
   grid: FlowGeom; // геометрия ячейки/отступа/origin грида
   stackIds: string[]; // карты стопки (низ→верх)
   anchor: Text; // текст якоря «тяни карту сюда» (создаёт движок, Field им управляет)
+  verb: Text; // глагол дропзоны «наведи»/«брось»
+  layerBelow: Container; // слой ПОД картами (сюда «наведи» — незаметно под картами)
+  layerAbove: Container; // слой НАД картами (сюда «брось» — поверх карт при ховере)
 }
+
+// Состояние аффорданса грида-дропзоны: покой / идёт драг (борд отчётливее + глагол) / ховер над
+// гридом (фон + яркий глагол «брось»).
+export type FieldDrag = "idle" | "drag" | "hover";
 
 const MIN_COLS = 3;
 const RESERVE = true;
+const GRID_PAD = 13; // отступ рамки/фона грида от карт (расстояния МЕЖДУ картами = gap, не трогаем)
 
 export class Field {
   stackIds: string[];
   gridIds: string[] = [];
-  readonly frame = new Graphics(); // dashed-рамка Поля + узел-якорь
+  readonly frame = new Graphics(); // dashed-рамка Поля + фон/бордер грида + узел-якорь
   readonly anchor: Text;
+  readonly verb: Text;
   readonly stackRect: Rect4;
   readonly grid: FlowGeom;
+  private readonly layerBelow: Container;
+  private readonly layerAbove: Container;
+  private dragState: FieldDrag = "idle";
 
   constructor(o: FieldOpts) {
     this.stackRect = o.stackRect;
     this.grid = o.grid;
     this.stackIds = [...o.stackIds];
     this.anchor = o.anchor;
+    this.verb = o.verb;
+    this.layerBelow = o.layerBelow;
+    this.layerAbove = o.layerAbove;
     this.anchor.visible = false;
+    this.verb.visible = false;
+  }
+
+  /** Драг начался — грид показывает бордер отчётливее + глагол «наведи». */
+  beginDrag(): void {
+    this.dragState = "drag";
+    this.draw();
+  }
+
+  /** Груз двигается — над гридом ли (тогда фон + «брось», иначе «наведи»). */
+  hover(cp: { x: number; y: number }): void {
+    const gr = this.gridRect();
+    const over = cp.x >= gr.x && cp.x <= gr.x + gr.w && cp.y >= gr.y && cp.y <= gr.y + gr.h;
+    this.dragState = over ? "hover" : "drag";
+    this.draw();
+  }
+
+  /** Драг закончился — обратно в покой. */
+  endDrag(): void {
+    this.dragState = "idle";
+    this.draw();
   }
 
   owns(id: string): boolean {
@@ -52,10 +88,11 @@ export class Field {
     return flowLayout(this.gridIds.length, this.grid, { minCols: MIN_COLS, reserve: RESERVE });
   }
 
-  /** Габарит грида (с резервом места под следующую карту). */
+  /** Габарит грид-рамки/фона: bounding box ячеек + отступ GRID_PAD со всех сторон (карты не прижаты
+   *  к границам). Позиции карт (flowLayout) отступ НЕ меняет — расстояния между картами прежние. */
   gridRect(): Rect4 {
     const s = this.layout().size;
-    return { x: this.grid.origin.x, y: this.grid.origin.y, w: s.w, h: s.h };
+    return { x: this.grid.origin.x - GRID_PAD, y: this.grid.origin.y - GRID_PAD, w: s.w + 2 * GRID_PAD, h: s.h + 2 * GRID_PAD };
   }
 
   /** Внешняя рамка Поля — объемлет стопку и грид (+ отступы, снизу/справа больше). */
@@ -93,19 +130,44 @@ export class Field {
     return { moved: false };
   }
 
-  /** Нарисовать «хром»: dashed-рамку Поля + узел-якорь (когда грид пуст). */
+  /** Нарисовать «хром»: рамку Поля + аффорданс грида-дропзоны по состоянию драга + узел-якорь. */
   draw(): void {
     this.frame.clear();
-    dashRect(this.frame, this.outerRect(), 11, 7, 0x8fa39a, 2);
-    const empty = this.gridIds.length === 0;
-    this.anchor.visible = empty;
-    if (empty) {
+    const gr = this.gridRect();
+    // Грид-дропзона по состоянию: покой — оч.слабо (dashed); драг вне зоны — DASHED отчётливее;
+    // ховер над зоной — SOLID-рамка + фон.
+    if (this.dragState === "hover") {
+      this.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: 0x8fa39a, alpha: 0.16 }).stroke({ width: 2.5, color: 0xf2c14e });
+    } else if (this.dragState === "drag") {
+      dashRect(this.frame, gr, 9, 6, 0x8fa39a, 1.5);
+    } else {
+      dashRect(this.frame, gr, 6, 7, 0x5d6b64, 1); // покой — очень слабо
+    }
+    // Внешняя рамка Поля: в драге — отчётливее, в покое — приглушённо.
+    const outerAlpha = this.dragState === "idle" ? 0.55 : 1;
+    dashRect(this.frame, this.outerRect(), 11, 7, 0x8fa39a, this.dragState === "idle" ? 1.5 : 2, outerAlpha);
+
+    // Узел-якорь — только в покое и на пустом гриде.
+    const idleEmpty = this.dragState === "idle" && this.gridIds.length === 0;
+    this.anchor.visible = idleEmpty;
+    if (idleEmpty) {
       const cell = this.grid.cell;
       const first = { x: this.grid.origin.x + cell.w / 2, y: this.grid.origin.y + cell.h / 2 };
       const from = { x: this.stackRect.x + this.stackRect.w + 6, y: this.stackRect.y + 4 };
       const to = { x: first.x - cell.w * 0.32, y: first.y };
-      drawKnot(this.frame, from, to, 0x7d8f84, 1.5); // менее навязчивый: тускло, тонко, dashed, узлом
+      drawKnot(this.frame, from, to, 0x7d8f84, 1.5);
       this.anchor.position.set((from.x + to.x) / 2 + 6, Math.min(from.y, to.y) - 30);
+    }
+
+    // Глагол дропзоны: «наведи» (драг) — ПОД картами (незаметно); «брось» (ховер) — НАД картами.
+    const showVerb = this.dragState !== "idle";
+    this.verb.visible = showVerb;
+    if (showVerb) {
+      const over = this.dragState === "hover";
+      this.verb.text = over ? "брось" : "наведи";
+      this.verb.style.fill = over ? 0xf2c14e : 0x9aa89f;
+      this.verb.position.set(gr.x + gr.w / 2, gr.y + gr.h / 2);
+      (over ? this.layerAbove : this.layerBelow).addChild(this.verb); // над картами только при ховере
     }
   }
 }
@@ -113,7 +175,7 @@ export class Field {
 // ——— «хром» Поля (dashed-рамка + узел-якорь) ———
 
 // Dashed-прямоугольник (сегменты по 4 рёбрам).
-export function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number): void {
+export function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number, alpha = 1): void {
   const seg = dash + gap;
   const line = (x1: number, y1: number, x2: number, y2: number): void => {
     const len = Math.hypot(x2 - x1, y2 - y1);
@@ -128,7 +190,7 @@ export function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color
   line(r.x + r.w, r.y, r.x + r.w, r.y + r.h);
   line(r.x + r.w, r.y + r.h, r.x, r.y + r.h);
   line(r.x, r.y + r.h, r.x, r.y);
-  g.stroke({ width, color });
+  g.stroke({ width, color, alpha });
 }
 
 // Точки пути-УЗЛА: базовая линия from→to с петлёй посередине (перекрещивается — «узел»).
