@@ -16,6 +16,7 @@ export function CensorDemoPage() {
     if (!host) return;
     const engine = new CensorDemo();
     engineRef.current = engine;
+    if (import.meta.env.DEV) (window as unknown as { __censor?: CensorDemo }).__censor = engine;
     void engine.mount(host, host.clientWidth || 1000, host.clientHeight || 340);
     return () => {
       engine.destroy();
@@ -29,33 +30,38 @@ export function CensorDemoPage() {
     engineRef.current?.updateDance({ [k]: v });
   };
 
+  // .fd-zoom в песочнице позиционируется absolute (один контрол над канвасом). Здесь контролов
+  // много — держим их обычными flex-детьми топбара, иначе они стакаются в одну точку и перекрывают
+  // друг друга (дотянуться можно лишь до верхнего). ctl сбрасывает position в static.
+  const ctl: React.CSSProperties = { position: "static", flex: "none" };
+
   return (
     <div className="table-screen freedesk">
-      <div className="fd-topbar" style={{ flexWrap: "wrap", gap: 10 }}>
+      <div className="fd-topbar" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
         <button className="fd-btn" onClick={() => goApp("free-desk")}>
           ← в песочницу
         </button>
         <button className="fd-btn" onClick={() => engineRef.current?.rerender()}>
           ⟳ ререндер
         </button>
-        <label className="fd-zoom">
+        <label className="fd-zoom" style={ctl}>
           скорость {speed.toFixed(1)}x
           <input type="range" min={0} max={3} step={0.1} value={speed} onChange={(e) => { const s = Number(e.target.value); setSpeed(s); engineRef.current?.setSpeed(s); }} />
         </label>
         <span style={{ opacity: 0.6, fontSize: 13 }}>танец ⚙:</span>
-        <label className="fd-zoom">
+        <label className="fd-zoom" style={ctl}>
           частица {dance.block}
           <input type="range" min={2} max={10} step={0.5} value={dance.block} onChange={setParam("block")} />
         </label>
-        <label className="fd-zoom">
+        <label className="fd-zoom" style={ctl}>
           свапы/с {dance.swapsPerSec}
           <input type="range" min={0} max={120} step={1} value={dance.swapsPerSec} onChange={setParam("swapsPerSec")} />
         </label>
-        <label className="fd-zoom">
+        <label className="fd-zoom" style={ctl}>
           дрожание {dance.jitterAmp}
           <input type="range" min={0} max={4} step={0.1} value={dance.jitterAmp} onChange={setParam("jitterAmp")} />
         </label>
-        <label className="fd-zoom">
+        <label className="fd-zoom" style={ctl}>
           частота {dance.jitterFreq}
           <input type="range" min={0} max={14} step={0.5} value={dance.jitterFreq} onChange={setParam("jitterFreq")} />
         </label>

@@ -97,11 +97,17 @@ export class CensorDemo {
 
   // Настраиваемый танец: держим карту/маску/спек, чтобы менять параметры вживую (block → пересборка).
   private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
+  private destroyed = false; // StrictMode: destroy() может прийти, пока mount() ещё в await'ах
 
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     await ensureFonts();
     const app = await createPixiApp(width, height);
     if (!app) return;
+    if (this.destroyed) {
+      // Компонент уже размонтирован, пока мы ждали init — не оставляем осиротевший канвас/тикер.
+      app.destroy(true, { children: true });
+      return;
+    }
     this.app = app;
     host.appendChild(app.canvas);
     app.stage.addChild(this.world);
@@ -268,6 +274,7 @@ export class CensorDemo {
   }
 
   destroy(): void {
+    this.destroyed = true; // если mount() ещё в await'ах — он увидит флаг и не оставит канвас
     if (!this.app) return;
     this.app.ticker.remove(this.tick);
     for (const c of this.cards) c.field?.destroy();
