@@ -2,11 +2,6 @@
   box-sizing: border-box;
 }
 
-:root {
-  /* Подъём бренд-пилюли под Dynamic Island (см. .brand-badge). Крути это одно число под свой айфон. */
-  --brand-badge-lift: 110px;
-}
-
 html,
 body,
 #root {
@@ -84,13 +79,15 @@ body {
 }
 
 /* Брендовая пилюля (как «2ГИС») в сейф-зоне статус-бара. КОГДА показывать (только PWA на iPhone с
-   вырезом) решает JS — см. BrandBadge.tsx; здесь только вид и место. Рычаг --brand-badge-lift —
-   насколько поднять пилюлю в полосу под остров (больше → выше/плотнее к острову). */
+   вырезом) решает JS — см. BrandBadge.tsx; здесь только вид и место. Позиция ОТНОСИТЕЛЬНАЯ, без
+   пиксельных констант: high safe-zone на разных айфонах разной высоты (остров ≈59, чёлка ≈47), а
+   пилюлю держим по ЦЕНТРУ этой зоны — top в её середину (inset/2), transform центрирует саму пилюлю
+   вокруг этой точки. Так одинаково садится на любом экране. */
 .brand-badge {
   position: fixed;
-  top: max(6px, calc(env(safe-area-inset-top) - var(--brand-badge-lift, 10px)));
+  top: calc(env(safe-area-inset-top) / 2);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 10;
   font-family: "VT323", monospace;
   font-size: 0.95rem;
