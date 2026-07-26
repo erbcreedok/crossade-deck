@@ -1,0 +1,40 @@
+client2/e2e/board.spec.ts
+  s_89d5ad20619017::t_37f88ab684c6a3 6
+client2/src/game/board/dynamicGrid.ts
+  s_89d5ad20619017::t_8ffd8327bb7f58 1-40
+client2/src/game/board/boardZone.ts
+  s_89d5ad20619017::t_ca56210743c8cc 40,43,55-58
+  s_89d5ad20619017::t_4b511ace6d4f9a 59-60
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_624c1181e26bcc 185-186
+  s_89d5ad20619017::t_6d203100b14137 847-867,871-884,887-913
+  s_89d5ad20619017::t_d4e0a790a0aef9 1368,1370-1371
+  s_89d5ad20619017::t_bc26d4c4a467df 1616,1679
+  s_89d5ad20619017::t_f3687f8c907cbf 357-359,361
+  s_89d5ad20619017::t_a6d6cebe085037 868-870
+  s_89d5ad20619017::t_85e3321992fa78 885-886
+  s_89d5ad20619017::t_83539d1301b86a 1399,1403-1404
+  s_89d5ad20619017::t_bc4a218ed9a6ff 7-8
+  s_89d5ad20619017::t_89db29487f1e2d 451-456,458
+  s_89d5ad20619017::t_4b64c8dfe625d5 428
+client2/e2e/field.spec.ts
+  s_89d5ad20619017::t_7710e3dfd8073a 1-63
+client2/src/game/board/dynamicGrid.test.ts
+  s_89d5ad20619017::t_124920922eb0f1 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2d1b512017f4576c8a9f6de076403f8ee53e678d",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
