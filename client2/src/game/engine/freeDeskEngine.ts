@@ -882,7 +882,8 @@ export class FreeDeskEngine {
     const pad = 14;
     const cell = { w: this.cardW * 0.95, h: this.cardH * 0.95 };
     const stackRect = { x: left + pad, y: gy + pad, w: cell.w, h: cell.h };
-    const grid: FlowGeom = { cell, gap: 8, origin: { x: stackRect.x + cell.w + 44, y: gy + pad } };
+    // Зазор колода→грид в 3× — под длинную стрелку-якорь (грид отъезжает вправо на это расстояние).
+    const grid: FlowGeom = { cell, gap: 8, origin: { x: stackRect.x + cell.w + 132, y: gy + pad } };
     const anchor = this.label("тяни карту сюда", 0, 0, 12, 0x9aa89f); // текст создаёт движок, Field им управляет
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
     const field = new Field({ stackRect, grid, stackIds, anchor });
