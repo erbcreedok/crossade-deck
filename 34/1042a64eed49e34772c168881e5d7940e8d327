@@ -1,0 +1,31 @@
+client2/src/game/engine/censorGpu.ts
+  s_89d5ad20619017::t_8f1c2923b4143e 102
+  s_89d5ad20619017::t_b235c1ba15ca5a 249-250,252-253
+  s_89d5ad20619017::t_ff2115dcb005d5 128-129,132
+  s_89d5ad20619017::t_37b2f4e9eff432 263,269
+  s_89d5ad20619017::t_71f997c23dd300 176,179-184
+  s_89d5ad20619017::t_92cc20bbfd8164 160-161
+client2/src/game/censorDemo.ts
+  s_89d5ad20619017::t_676e9b18cc4dc2 193-209,213
+  s_89d5ad20619017::t_4af4ee17175118 63-65
+  s_89d5ad20619017::t_c401958506ad4d 177-179
+client2/src/CensorDemo.tsx
+  s_89d5ad20619017::t_c355d4cff67823 12
+  s_89d5ad20619017::t_8ed9dc140eeedd 55-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "341042a64eed49e34772c168881e5d7940e8d327",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
