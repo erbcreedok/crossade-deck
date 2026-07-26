@@ -125,6 +125,21 @@ function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: numbe
   dashPath(g, rectPoints(r, radius), dash, gap, color, width, alpha);
 }
 
+// Кубическая безье P0..P3 → n+1 точек (для пунктира кривой по длине дуги).
+function cubicPts(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, p3: { x: number; y: number }, n: number): Array<{ x: number; y: number }> {
+  const pts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const mt = 1 - t;
+    const a = mt * mt * mt;
+    const b = 3 * mt * mt * t;
+    const c = 3 * mt * t * t;
+    const d = t * t * t;
+    pts.push({ x: a * p0.x + b * p1.x + c * p2.x + d * p3.x, y: a * p0.y + b * p1.y + c * p2.y + d * p3.y });
+  }
+  return pts;
+}
+
 // Узел-стрелка = МЁРТВАЯ ПЕТЛЯ: прямые хвосты from→X→to, в центре X — каплевидная петля с
 // ПЕРЕКРЕСТИЕМ у основания. Одна кубическая безье P0=P3=X с контролами вверх-ВПРАВО и вверх-ВЛЕВО
 // (свап) — кривая уходит вправо, возвращается слева и сама себя пересекает у X → капля (шире вверху).
@@ -160,11 +175,14 @@ function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; 
   // петли. Итог гладкий: ease-in подъём, петля, ease-out спуск — без излома на стыках.
   const tin = Math.hypot(A.x - from.x, A.y - from.y);
   const tout = Math.hypot(to.x - B.x, to.y - B.y);
-  g.moveTo(from.x, from.y);
-  g.bezierCurveTo(from.x + ux * tin * 0.55, from.y + uy * tin * 0.55, A.x - dA.x * tin * 0.4, A.y - dA.y * tin * 0.4, A.x, A.y);
-  g.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, B.x, B.y);
-  g.bezierCurveTo(B.x + dB.x * tout * 0.4, B.y + dB.y * tout * 0.4, to.x - ux * tout * 0.55, to.y - uy * tout * 0.55, to.x, to.y);
-  g.stroke({ width, color });
+  const tin1 = { x: from.x + ux * tin * 0.55, y: from.y + uy * tin * 0.55 };
+  const tin2 = { x: A.x - dA.x * tin * 0.4, y: A.y - dA.y * tin * 0.4 };
+  const tout1 = { x: B.x + dB.x * tout * 0.4, y: B.y + dB.y * tout * 0.4 };
+  const tout2 = { x: to.x - ux * tout * 0.55, y: to.y - uy * tout * 0.55 };
+  // Сэмплируем 3 безье в плотную ломаную (петлю гуще) и пунктирим ПО ДЛИНЕ ДУГИ (dashPath) — штрихи
+  // ровные по всей кривой, без «изломов» на изгибах (ЯБ1). Наконечник рисуем сплошным ниже.
+  const path = [...cubicPts(from, tin1, tin2, A, 16), ...cubicPts(A, c1, c2, B, 48).slice(1), ...cubicPts(B, tout1, tout2, to, 16).slice(1)];
+  dashPath(g, path, 6, 5, color, width, 1);
   // наконечник у `to` вдоль оси стрелки.
   const s = 11;
   const nx = -uy;
