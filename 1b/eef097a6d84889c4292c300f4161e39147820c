@@ -1,0 +1,32 @@
+client2/src/game/board/layout/slots.test.ts
+  s_89d5ad20619017::t_4fc2c902e5fc33 1-29
+client2/e2e/board.spec.ts
+  s_89d5ad20619017::t_8445887462db03 6
+client2/src/game/board/boardZone.ts
+  s_89d5ad20619017::t_40521081b4cae2 6-7,10-12,18,29,32,35,39,51,53,59-60
+client2/src/game/board/layout/slots.ts
+  s_89d5ad20619017::t_c557c0211f0035 1-29
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_4baf9eaaf4cbaf 859-874
+  s_89d5ad20619017::t_805feb86b433f4 58-59,62-63,65-66,68,76
+  s_89d5ad20619017::t_8c9ad24e3bc9b7 887
+  s_89d5ad20619017::t_d9a3445b484fee 7
+client2/src/game/board/boardZone.test.ts
+  s_89d5ad20619017::t_a5d81bc59033de 4,6,8-9,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "1beef097a6d84889c4292c300f4161e39147820c",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
