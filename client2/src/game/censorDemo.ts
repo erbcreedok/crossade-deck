@@ -79,12 +79,20 @@ export class CensorDemo {
   };
   speed = 1; // глобальный множитель скорости (задел под 1x/2x/слайдер) — просто масштаб времени
 
+  // Мини-камера: весь контент в `world`, жесты двигают/масштабируют его. Не тащим связанный
+  // freeDeskEngine ради временной страницы — тут хватает контейнера + пары обработчиков.
+  private world = new Container();
+  private cam = { scale: 1, x: 0, y: 0 };
+  private pointers = new Map<number, { x: number; y: number }>();
+  private pinchDist = 0;
+
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     await ensureFonts();
     const app = await createPixiApp(width, height);
     if (!app) return;
     this.app = app;
     host.appendChild(app.canvas);
+    app.stage.addChild(this.world);
 
     // Статичный эталон = row-shear с НУЛЕВЫМ движением (off=0 у всех рядов) → чистая пиксель-сетка.
     const staticSpec: CensorSpec = { kind: "row-shear", block: 2.4, speedPxSec: 0, flipEverySec: 1, rowBias: 0, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1 };
@@ -107,7 +115,7 @@ export class CensorDemo {
       const card = new Container();
       card.position.set(x, y);
       card.scale.set(scale);
-      app.stage.addChild(card);
+      this.world.addChild(card);
 
       // Фон карты + рамка (статичные, чёткие).
       const bg = new Graphics();
@@ -132,13 +140,80 @@ export class CensorDemo {
       const label = new Text({ text: v.label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
       label.anchor.set(0.5, 0);
       label.position.set(x + cardW / 2, y + cardH + 8);
-      app.stage.addChild(label);
+      this.world.addChild(label);
 
       x += cardW + gap;
     }
 
+    // Фит-по-ширине: на входе весь ряд помещается в экран (на телефоне видно все 5 карт).
+    const contentW = x; // правый край последней карты + запас справа
+    const pad = 14;
+    const s0 = Math.min(1, (width - pad) / contentW);
+    this.cam = { scale: s0, x: Math.max(pad, (width - contentW * s0) / 2), y: 8 };
+    this.applyCam();
+    this.bindCamera(app.canvas);
+
     app.ticker.add(this.tick);
     app.start();
+  }
+
+  private applyCam(): void {
+    this.world.scale.set(this.cam.scale);
+    this.world.position.set(this.cam.x, this.cam.y);
+  }
+
+  // Драг-пан (1 палец) + пинч-зум (2 пальца) + колесо (десктоп). Зум вокруг точки под курсором/центром.
+  private bindCamera(canvas: HTMLCanvasElement): void {
+    canvas.style.touchAction = "none";
+    const zoomAt = (sx: number, sy: number, factor: number): void => {
+      const ns = Math.max(0.15, Math.min(4, this.cam.scale * factor));
+      const wx = (sx - this.cam.x) / this.cam.scale;
+      const wy = (sy - this.cam.y) / this.cam.scale;
+      this.cam.scale = ns;
+      this.cam.x = sx - wx * ns;
+      this.cam.y = sy - wy * ns;
+      this.applyCam();
+    };
+    const mid = (): { x: number; y: number } => {
+      const p = [...this.pointers.values()];
+      return { x: (p[0]!.x + p[1]!.x) / 2, y: (p[0]!.y + p[1]!.y) / 2 };
+    };
+    const dist = (): number => {
+      const p = [...this.pointers.values()];
+      return Math.hypot(p[0]!.x - p[1]!.x, p[0]!.y - p[1]!.y);
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      this.pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+      if (this.pointers.size === 2) this.pinchDist = dist();
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      const prev = this.pointers.get(e.pointerId);
+      if (!prev) return;
+      const now = { x: e.offsetX, y: e.offsetY };
+      if (this.pointers.size === 1) {
+        this.cam.x += now.x - prev.x; // пан
+        this.cam.y += now.y - prev.y;
+        this.applyCam();
+      }
+      this.pointers.set(e.pointerId, now);
+      if (this.pointers.size === 2 && this.pinchDist > 0) {
+        const d = dist();
+        const m = mid();
+        zoomAt(m.x, m.y, d / this.pinchDist); // пинч
+        this.pinchDist = d;
+      }
+    });
+    const up = (e: PointerEvent): void => {
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinchDist = 0;
+    };
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.1 : 1 / 1.1);
+    }, { passive: false });
   }
 
   setSpeed(s: number): void {
