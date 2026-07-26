@@ -7,7 +7,7 @@ import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
 import { type FlowGeom } from "../board/dynamicGrid";
 import { Field, NORMAL_FIELD } from "../board/field";
-import { attachFieldControls } from "../board/fieldControls";
+import { attachControls } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
@@ -911,17 +911,17 @@ export class FreeDeskEngine {
     field.draw();
 
     const reservedH = pad * 2 + cell.h * 4 + 3 * 8;
-    // Контроллеры грида (мин колонок / макс строк + тоглер реордера) — насаживает ПРОКЛАДКА (переиспользуемо).
-    const controls = attachFieldControls(field, {
+    // Контроллеры грида строятся из field.params() генериком (мин колонок / макс строк / реордер).
+    const controls = attachControls(field, {
       layer: this.scene.surface,
       register: (b) => this.registerButton(b),
-      relayout: (f) => {
-        this.applyFieldHomes(f);
-        f.draw();
+      onChange: () => {
+        this.applyFieldHomes(field);
+        field.draw();
         this.wake();
       },
     }, { x: left + pad, y: gy + reservedH + 10 });
-    this.fieldReorderToggle = controls.reorder;
+    this.fieldReorderToggle = controls.toggles[0] ?? null;
     let by = controls.bottom + 14;
     this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, by, 12, 0x9aa89f, this.contentW - left - pad));
     return by + 24;

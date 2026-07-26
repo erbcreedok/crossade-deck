@@ -5,6 +5,7 @@ import { leaf, group, type Group } from "../slot/types";
 import { figures, has, measure, homeOf as slotHomeOf } from "../slot/slot";
 import { dropInto } from "../slot/mutate";
 import { paintFieldDecor } from "./fieldPaint";
+import type { Configurable, Param } from "../ui/controls";
 
 // ПОЛЕ — обособленный модуль механики (программируется ЗДЕСЬ, движок только импортит и делегирует).
 // ПОРЯДОК карт держит ДЕРЕВО СЛОТОВ: field(absolute)[ колода(linear), грид(grid, reorder+drop) ] —
@@ -72,7 +73,7 @@ export const NORMAL_FIELD: FieldConfig = {
   },
 };
 
-export class Field {
+export class Field implements Configurable {
   minCols: number; // ЖИВЫЕ параметры грида (стартуют из config, контроллер их меняет)
   maxRows: number | undefined;
   readonly frame = new Graphics(); // dashed-рамка Поля + фон/бордер грида + узел-якорь
@@ -131,6 +132,16 @@ export class Field {
   }
   set reorder(v: boolean) {
     if (this.gridGroup.caps?.reorder) this.gridGroup.caps.reorder.enabled = v;
+  }
+
+  /** Настраиваемые параметры Поля как ДАННЫЕ — контроллеры строятся из этого (generic attachControls),
+   *  а не хардкодом. Добавить настройку = добавить строчку здесь. */
+  params(): Param[] {
+    return [
+      { kind: "number", label: "мин колонок", min: 1, max: 8, get: () => this.minCols, set: (v) => (this.minCols = v) },
+      { kind: "number", label: "макс строк", min: 1, max: 8, get: () => this.maxRows ?? 6, set: (v) => (this.maxRows = v) },
+      { kind: "bool", label: "реордер в гриде", get: () => this.reorder, set: (v) => (this.reorder = v) },
+    ];
   }
 
   /** Драг начался — грид показывает бордер отчётливее + глагол «наведи». */
