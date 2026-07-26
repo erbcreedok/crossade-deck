@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flowLayout } from "./dynamicGrid";
+import { flowLayout, flowIndexAt } from "./dynamicGrid";
 
 // FLOW-грид: паковка по индексу, minCols + резерв места под след. карту. Чисто.
 const geom = { cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } };
@@ -51,5 +51,24 @@ describe("flowLayout (maxRows=4)", () => {
   it("без maxRows строки не ограничены", () => {
     const l = flowLayout(21, geom, { minCols: 3, reserve: false });
     expect(l.rows).toBe(5);
+  });
+});
+
+describe("flowIndexAt (позиция дропа → индекс, cols=3, count=6)", () => {
+  it("верхний ряд по колонкам: 0,1,2", () => {
+    expect(flowIndexAt({ x: 50, y: 50 }, geom, 3, 6)).toBe(0);
+    expect(flowIndexAt({ x: 150, y: 50 }, geom, 3, 6)).toBe(1);
+    expect(flowIndexAt({ x: 250, y: 50 }, geom, 3, 6)).toBe(2);
+  });
+  it("второй ряд: 3,4,5", () => {
+    expect(flowIndexAt({ x: 50, y: 150 }, geom, 3, 6)).toBe(3);
+    expect(flowIndexAt({ x: 250, y: 150 }, geom, 3, 6)).toBe(5);
+  });
+  it("за краями зажимается в [0, count-1]", () => {
+    expect(flowIndexAt({ x: -99, y: -99 }, geom, 3, 6)).toBe(0);
+    expect(flowIndexAt({ x: 9999, y: 9999 }, geom, 3, 6)).toBe(5);
+  });
+  it("пустой грид → 0", () => {
+    expect(flowIndexAt({ x: 150, y: 50 }, geom, 3, 0)).toBe(0);
   });
 });

@@ -88,6 +88,16 @@ export class Button {
     this.root.position.set(x, y);
   }
 
+  /** Сменить подпись на лету (для тоглеров «вкл/выкл» и т.п.). Текст-кнопка пересчитывает размер. */
+  setLabel(text: string): void {
+    this.label.text = text;
+    if (this.variant === "text") {
+      this.customW = this.label.width + 22;
+      this.customH = this.label.height + 12;
+    }
+    this.draw();
+  }
+
   hitTest(cx: number, cy: number): boolean {
     return !this.disabled && Math.abs(cx - this.x) <= this.w / 2 && Math.abs(cy - this.y) <= this.h / 2;
   }

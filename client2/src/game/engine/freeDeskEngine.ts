@@ -8,6 +8,7 @@ import { gridSlots } from "../board/layout/slots";
 import { type FlowGeom } from "../board/dynamicGrid";
 import { Field, NORMAL_FIELD } from "../board/field";
 import { attachFieldControls } from "../board/fieldControls";
+import type { Toggle } from "../ui/Toggle";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -189,6 +190,7 @@ export class FreeDeskEngine {
   private boardTitles: string[] = []; // заголовки бордов (align с boardZones), для e2e
   // ПОЛЕ (обособленный модуль board/field.ts): владелец с закрытой стопкой + flow-гридом.
   private fields: Field[] = [];
+  private fieldReorderToggle: Toggle | null = null;
   private selMode = false; // режим изолированного мультиселекта (демо-борд)
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
@@ -403,7 +405,7 @@ export class FreeDeskEngine {
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
-    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
     cardW: number;
     draggingId: string | null;
   } {
@@ -456,7 +458,7 @@ export class FreeDeskEngine {
   }
 
   // Состояние Поля для e2e: размеры стопки/грида + экранные точки/рамка грида.
-  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; minCols: number; maxRows: number | undefined; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
+  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; minCols: number; maxRows: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
     const f = this.fields[0];
     if (!f) return null;
     const gr = f.gridRect();
@@ -466,6 +468,8 @@ export class FreeDeskEngine {
       grid: f.gridIds.length,
       minCols: f.minCols,
       maxRows: f.maxRows,
+      reorder: f.reorder,
+      reorderToggleAt: this.fieldReorderToggle ? toScreen(this.fieldReorderToggle.hitCenter().x, this.fieldReorderToggle.hitCenter().y) : null,
       stackAt: toScreen(f.stackRect.x + f.stackRect.w / 2, f.stackRect.y + f.stackRect.h / 2),
       gridRect: { x: tl.x, y: tl.y, w: gr.w * this.viewport.zoom, h: gr.h * this.viewport.zoom },
       gridCards: f.gridIds
@@ -892,8 +896,8 @@ export class FreeDeskEngine {
     verb.anchor.set(0.5, 0.5);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
     // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
-    // (при упоре грид растёт вширь). Стартовые значения — их правит контроллер снизу.
-    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, chrome: { ...NORMAL_FIELD.chrome!, anchorText: "тяни карту сюда" } };
+    // (при упоре грид растёт вширь) + реордер включён. Стартовые значения — их правят контроллеры снизу.
+    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, reorder: true, chrome: { ...NORMAL_FIELD.chrome!, anchorText: "тяни карту сюда" } };
     // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
     const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
     this.scene.surface.addChild(field.frame, anchor, verb);
@@ -907,8 +911,8 @@ export class FreeDeskEngine {
     field.draw();
 
     const reservedH = pad * 2 + cell.h * 4 + 3 * 8;
-    // Контроллеры грида (мин колонок / макс строк) — насаживает ПРОКЛАДКА (переиспользуемо на любом Поле).
-    let by = attachFieldControls(field, {
+    // Контроллеры грида (мин колонок / макс строк + тоглер реордера) — насаживает ПРОКЛАДКА (переиспользуемо).
+    const controls = attachFieldControls(field, {
       layer: this.scene.surface,
       register: (b) => this.registerButton(b),
       relayout: (f) => {
@@ -916,7 +920,9 @@ export class FreeDeskEngine {
         f.draw();
         this.wake();
       },
-    }, { x: left + pad, y: gy + reservedH + 10 }) + 14;
+    }, { x: left + pad, y: gy + reservedH + 10 });
+    this.fieldReorderToggle = controls.reorder;
+    let by = controls.bottom + 14;
     this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, by, 12, 0x9aa89f, this.contentW - left - pad));
     return by + 24;
   }
@@ -1421,9 +1427,9 @@ export class FreeDeskEngine {
           const fld = this.fieldForCard(this.drag.lead.id);
           const bz = fld ? null : this.boardZoneOf(this.drag.lead.id);
           if (fld) {
-            // ПОЛЕ: делегируем модулю (в грид → уходит в flow-грид; мимо → вернуть на место).
-            const { moved } = fld.place(this.drag.lead.id, cp);
-            if (moved) {
+            // ПОЛЕ: делегируем модулю (стопка→грид → раскрыть; в гриде + реордер → переставить; мимо → назад).
+            const { flip } = fld.place(this.drag.lead.id, cp);
+            if (flip) {
               const el = this.byId.get(this.drag.lead.id);
               if (el && "requestFlip" in el) (el as { requestFlip(): boolean }).requestFlip(); // раскрыть в гриде
             }

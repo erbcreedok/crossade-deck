@@ -1,11 +1,15 @@
 import { Container, Graphics, Text } from "pixi.js";
-import { flowLayout, type FlowGeom } from "./dynamicGrid";
+import { flowLayout, flowIndexAt, type FlowGeom } from "./dynamicGrid";
+import { grid as gridLayout, linear, absolute } from "../slot/layouts";
+import { leaf, group, type Group } from "../slot/types";
+import { figures, has, measure, homeOf as slotHomeOf } from "../slot/slot";
+import { detach, reorderChildren } from "../slot/mutate";
 
 // ПОЛЕ — обособленный модуль механики (программируется ЗДЕСЬ, движок только импортит и делегирует).
-// Владелец: закрытая стопка + flow-грид (карты пакуются по индексу, минимум 3 колонки, всегда резерв
-// места под следующую). Field хранит ЛОГИКУ (какие id в стопке/гриде) + ГЕОМЕТРИЮ + рисует свою
-// «хром»-графику (dashed-рамка Поля + якорь-узел). Карточные визуалы (Card) остаются в движке —
-// Field лишь говорит, где им отдыхать (homeOf), и кто ему принадлежит (owns).
+// ПОРЯДОК карт держит ДЕРЕВО СЛОТОВ: field(absolute)[ колода(linear), грид(grid, reorder+drop) ] —
+// то же дерево, что и любой контейнер (slot/). Field — тонкий адаптер: даёт «хром»-графику
+// (dashed-рамка + якорь), геометрию дропзоны и делегирует порядок/дом дереву (homeOf/reorder/detach).
+// Карточные визуалы (Card) остаются в движке — Field лишь говорит, где им отдыхать и кто ему принадлежит.
 
 export interface Rect4 {
   x: number;
@@ -44,6 +48,7 @@ export interface FieldConfig {
   maxRows?: number; // максимум строк — при упоре грид растёт вширь (undefined → без предела)
   reserve: boolean; // держать место под следующую карту
   gridPad: number; // отступ рамки/фона от карт (gap между картами не трогает)
+  reorder?: boolean; // разрешить перестановку карт внутри грида (стартовое; тоглер меняет)
   chrome: FieldChrome | null; // графика; null → голый грид
 }
 
@@ -67,8 +72,6 @@ export const NORMAL_FIELD: FieldConfig = {
 };
 
 export class Field {
-  stackIds: string[];
-  gridIds: string[] = [];
   minCols: number; // ЖИВЫЕ параметры грида (стартуют из config, контроллер их меняет)
   maxRows: number | undefined;
   readonly frame = new Graphics(); // dashed-рамка Поля + фон/бордер грида + узел-якорь
@@ -76,6 +79,11 @@ export class Field {
   readonly verb: Text;
   readonly stackRect: Rect4;
   readonly grid: FlowGeom;
+  // Дерево слотов — ИСТОЧНИК ПОРЯДКА: field(absolute)[ колода(linear), грид(grid) ]. minCols/maxRows
+  // грид читает ЖИВЫМИ (геттеры), реордер/дроп — способности (caps) грида.
+  private readonly root: Group;
+  private readonly deckGroup: Group;
+  private readonly gridGroup: Group;
   private readonly layerBelow: Container;
   private readonly layerAbove: Container;
   private readonly config: FieldConfig;
@@ -84,7 +92,6 @@ export class Field {
   constructor(o: FieldOpts) {
     this.stackRect = o.stackRect;
     this.grid = o.grid;
-    this.stackIds = [...o.stackIds];
     this.anchor = o.anchor;
     this.verb = o.verb;
     this.layerBelow = o.layerBelow;
@@ -92,8 +99,36 @@ export class Field {
     this.config = o.config ?? NAKED_FIELD; // по умолчанию — голый грид
     this.minCols = this.config.minCols;
     this.maxRows = this.config.maxRows;
+
+    const cell = { w: this.grid.cell.w, h: this.grid.cell.h };
+    // Колода — 1D-группа: почти-стопка со стаггером «толщины» (нахлёст на ~0.5px).
+    this.deckGroup = group("field-deck", linear({ axis: "x", gap: 0.5 - cell.w }), o.stackIds.map((id) => leaf(id, id, cell)));
+    // Грид — 2D flow-группа; minCols/maxRows ЖИВЫЕ (геттеры), реордер/дроп — способности.
+    this.gridGroup = group(
+      "field-grid",
+      gridLayout({ minCols: () => this.minCols, maxRows: () => this.maxRows ?? Infinity, gap: this.grid.gap, reserve: this.config.reserve }),
+      [],
+      { reorder: { enabled: this.config.reorder ?? false }, drop: {} },
+    );
+    // Поле — абсолют: колода на своём месте, грид на своём (origin из FlowGeom).
+    this.root = group("field-root", absolute([{ x: this.stackRect.x, y: this.stackRect.y }, { x: this.grid.origin.x, y: this.grid.origin.y }]), [this.deckGroup, this.gridGroup]);
+
     this.anchor.visible = false;
     this.verb.visible = false;
+  }
+
+  // Порядок и реордер — ВЫВОДЯТСЯ из дерева/способностей (публичная поверхность прежняя).
+  get stackIds(): string[] {
+    return figures(this.deckGroup);
+  }
+  get gridIds(): string[] {
+    return figures(this.gridGroup);
+  }
+  get reorder(): boolean {
+    return this.gridGroup.caps!.reorder!.enabled;
+  }
+  set reorder(v: boolean) {
+    this.gridGroup.caps!.reorder!.enabled = v;
   }
 
   /** Драг начался — грид показывает бордер отчётливее + глагол «наведи». */
@@ -117,21 +152,22 @@ export class Field {
   }
 
   owns(id: string): boolean {
-    return this.stackIds.includes(id) || this.gridIds.includes(id);
+    return has(this.root, id);
   }
 
   allIds(): string[] {
-    return [...this.stackIds, ...this.gridIds];
+    return figures(this.root);
   }
 
-  private layout() {
-    return flowLayout(this.gridIds.length, this.grid, { minCols: this.minCols, maxRows: this.maxRows, reserve: this.config.reserve });
+  // Число колонок грида при текущем составе/параметрах (для индекса дропа).
+  private gridCols(): number {
+    return flowLayout(this.gridIds.length, this.grid, { minCols: this.minCols, maxRows: this.maxRows, reserve: this.config.reserve }).cols;
   }
 
-  /** Габарит грид-рамки/фона: bounding box ячеек + отступ GRID_PAD со всех сторон (карты не прижаты
-   *  к границам). Позиции карт (flowLayout) отступ НЕ меняет — расстояния между картами прежние. */
+  /** Габарит грид-рамки/фона: bounding box ячеек (из дерева) + отступ GRID_PAD со всех сторон (карты
+   *  не прижаты к границам). Позиции карт отступ НЕ меняет — расстояния между картами прежние. */
   gridRect(): Rect4 {
-    const s = this.layout().size;
+    const s = measure(this.gridGroup);
     const p = this.config.gridPad;
     return { x: this.grid.origin.x - p, y: this.grid.origin.y - p, w: s.w + 2 * p, h: s.h + 2 * p };
   }
@@ -149,26 +185,33 @@ export class Field {
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
-  /** Где отдыхает карта: в стопке — колода со стаггером «толщины»; в гриде — flow-позиция по индексу. */
+  /** Где отдыхает карта — берётся из ДЕРЕВА (дом вытекает из раскладок по пути корень→лист).
+   *  Неизвестная карта → центр стопки (запасной). */
   homeOf(id: string): { x: number; y: number } {
-    const base = { x: this.stackRect.x + this.stackRect.w / 2, y: this.stackRect.y + this.stackRect.h / 2 };
-    const si = this.stackIds.indexOf(id);
-    if (si >= 0) return { x: base.x + si * 0.35, y: base.y - si * 0.3 };
-    const gi = this.gridIds.indexOf(id);
-    if (gi >= 0) return this.layout().centers[gi] ?? base;
-    return base;
+    return slotHomeOf(this.root, id) ?? { x: this.stackRect.x + this.stackRect.w / 2, y: this.stackRect.y + this.stackRect.h / 2 };
   }
 
-  /** Дроп карты: попал в грид → уходит в грид (append по индексу). Возвращает, сдвинулась ли. */
-  place(id: string, cp: { x: number; y: number }): { moved: boolean } {
+  /** Дроп карты. Из стопки в грид → добавляет в конец И раскрывает (flip). Уже в гриде и реордер
+   *  включён → переставляет по позиции дропа (БЕЗ flip — карта уже открыта). Порядок меняется В ДЕРЕВЕ.
+   *  Возвращает, сдвинулась ли (moved → перелайаут) и надо ли перевернуть (flip → только вход из стопки). */
+  place(id: string, cp: { x: number; y: number }): { moved: boolean; flip: boolean } {
     const gr = this.gridRect();
     const inGrid = cp.x >= gr.x && cp.x <= gr.x + gr.w && cp.y >= gr.y && cp.y <= gr.y + gr.h;
-    if (inGrid && !this.gridIds.includes(id)) {
-      this.stackIds = this.stackIds.filter((x) => x !== id);
-      this.gridIds.push(id);
-      return { moved: true };
+    if (!inGrid) return { moved: false, flip: false };
+    const cur = this.gridGroup.children.findIndex((c) => c.kind === "leaf" && c.figure === id);
+    if (cur < 0) {
+      // стопка → грид: переносим лист в дереве (в конец) и раскрываем.
+      const l = detach(this.root, id);
+      if (!l) return { moved: false, flip: false };
+      this.gridGroup.children.push(l);
+      return { moved: true, flip: true };
     }
-    return { moved: false };
+    // Уже в гриде: перестановка по позиции дропа, если реордер включён.
+    if (this.reorder) {
+      const target = flowIndexAt(cp, this.grid, this.gridCols(), this.gridGroup.children.length);
+      if (target !== cur && reorderChildren(this.gridGroup, cur, target)) return { moved: true, flip: false };
+    }
+    return { moved: false, flip: false };
   }
 
   /** Нарисовать «хром»: в ПОКОЕ бордеров НЕТ (только узел-якорь). Бордеры появляются при драге:

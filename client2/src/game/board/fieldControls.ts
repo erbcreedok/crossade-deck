@@ -1,6 +1,7 @@
 import type { Container } from "pixi.js";
 import type { Button } from "../ui/Button";
 import { Stepper } from "../ui/Stepper";
+import { Toggle } from "../ui/Toggle";
 import type { Field } from "./field";
 
 // ПРОКЛАДКА: насаживает контроллеры (Stepper) на ЖИВЫЕ параметры грида Поля (minCols/maxRows) и после
@@ -26,10 +27,11 @@ const PARAMS: ParamSpec[] = [
   { label: "макс строк", min: 1, max: 8, get: (f) => f.maxRows ?? 6, set: (f, v) => (f.maxRows = v) },
 ];
 
-/** Насадить контроллеры под гридом (в ряд от точки at). Возвращает нижний край. */
-export function attachFieldControls(field: Field, host: FieldControlsHost, at: { x: number; y: number }): number {
+/** Насадить контроллеры под гридом: ряд степперов (minCols/maxRows) + ниже тоглер реордера.
+ *  Возвращает нижний край и сам тоглер (движку — для e2e-хука состояния/позиции). */
+export function attachFieldControls(field: Field, host: FieldControlsHost, at: { x: number; y: number }): { bottom: number; reorder: Toggle } {
   let x = at.x;
-  let h = 0;
+  let rowH = 0;
   for (const p of PARAMS) {
     const s = new Stepper({
       label: p.label,
@@ -45,7 +47,19 @@ export function attachFieldControls(field: Field, host: FieldControlsHost, at: {
     host.layer.addChild(s.root);
     for (const b of s.buttons()) host.register(b);
     x += s.w + 28;
-    h = Math.max(h, s.h);
+    rowH = Math.max(rowH, s.h);
   }
-  return at.y + h;
+
+  // Ниже — тоглер перестановки карт в гриде. Меняет живой флаг field.reorder; перелайаут не нужен.
+  const reorder = new Toggle({
+    label: "реордер в гриде",
+    value: field.reorder,
+    onChange: (v) => (field.reorder = v),
+  });
+  const toggleY = at.y + rowH + 10;
+  reorder.place(at.x, toggleY);
+  host.layer.addChild(reorder.root);
+  for (const b of reorder.buttons()) host.register(b);
+
+  return { bottom: toggleY + reorder.h, reorder };
 }

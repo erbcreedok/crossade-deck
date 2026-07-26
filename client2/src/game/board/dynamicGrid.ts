@@ -31,3 +31,13 @@ export function flowLayout(count: number, g: FlowGeom, o: FlowOpts = {}): { cent
   const size = { w: cols * g.cell.w + (cols - 1) * g.gap, h: rows * g.cell.h + (rows - 1) * g.gap };
   return { centers, size, cols, rows };
 }
+
+// Индекс ячейки под точкой cp в гриде из cols колонок и count карт (для реордера: куда встанет
+// перетаскиваемая). Колонка/ряд по позиции, зажаты в границы; итог зажат в [0, count-1].
+export function flowIndexAt(cp: { x: number; y: number }, g: FlowGeom, cols: number, count: number): number {
+  if (count <= 0) return 0;
+  const col = Math.max(0, Math.min(cols - 1, Math.floor((cp.x - g.origin.x) / (g.cell.w + g.gap))));
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const row = Math.max(0, Math.min(rows - 1, Math.floor((cp.y - g.origin.y) / (g.cell.h + g.gap))));
+  return Math.min(count - 1, row * cols + col);
+}

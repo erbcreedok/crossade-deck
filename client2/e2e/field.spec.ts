@@ -5,7 +5,7 @@ test.describe("песочница — Поле (flow-грид)", () => {
   test.use({ viewport: { width: 900, height: 5800 } });
 
   interface Hooks {
-    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
   }
   const hooks = (page: Page): Promise<Hooks> => page.evaluate(() => (window as unknown as { __fd: { testHooks(): Hooks } }).__fd.testHooks());
 
@@ -70,5 +70,54 @@ test.describe("песочница — Поле (flow-грид)", () => {
     const xs = new Set(h.field!.gridCards.map((c) => Math.round(c.x / 50)));
     expect(ys.size).toBeLessThanOrEqual(4); // строк не больше 4
     expect(xs.size).toBeGreaterThan(4); // растёт колонками
+  });
+
+  // Положить n карт из стопки в грид (по центру).
+  const fillGrid = async (page: Page, n: number) => {
+    for (let i = 0; i < n; i++) {
+      const h = await hooks(page);
+      await dragTo(page, h.field!.stackAt, gridMid(h));
+      await page.waitForTimeout(220);
+    }
+    await page.waitForTimeout(500);
+  };
+
+  test("реордер включён по умолчанию", async ({ page }) => {
+    const h = await hooks(page);
+    expect(h.field!.reorder).toBe(true);
+    expect(h.field!.reorderToggleAt).not.toBeNull();
+  });
+
+  test("реордер: тянешь карту грида на место первой → она встаёт в начало", async ({ page }) => {
+    await fillGrid(page, 4);
+    let h = await hooks(page);
+    expect(h.field!.grid).toBe(4);
+    const before = h.field!.gridCards.map((c) => c.id);
+    const last = h.field!.gridCards[3]!;
+    const first = h.field!.gridCards[0]!;
+    await dragTo(page, { x: last.x, y: last.y }, { x: first.x, y: first.y });
+    await page.waitForTimeout(500);
+    h = await hooks(page);
+    const after = h.field!.gridCards.map((c) => c.id);
+    expect(after[0]).toBe(before[3]); // переставилась в начало
+    expect(after).not.toEqual(before);
+  });
+
+  test("тоглер выключает реордер: порядок карт не меняется", async ({ page }) => {
+    await fillGrid(page, 4);
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    const t = h.field!.reorderToggleAt!;
+    await page.mouse.click(box.x + t.x, box.y + t.y); // выключаем реордер
+    await page.waitForTimeout(200);
+    h = await hooks(page);
+    expect(h.field!.reorder).toBe(false);
+    const before = h.field!.gridCards.map((c) => c.id);
+    const last = h.field!.gridCards[3]!;
+    const first = h.field!.gridCards[0]!;
+    await dragTo(page, { x: last.x, y: last.y }, { x: first.x, y: first.y });
+    await page.waitForTimeout(500);
+    h = await hooks(page);
+    expect(h.field!.gridCards.map((c) => c.id)).toEqual(before); // порядок прежний
   });
 });
