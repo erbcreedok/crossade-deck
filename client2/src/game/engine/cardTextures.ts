@@ -1,6 +1,6 @@
-import { Application, BlurFilter, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor, type Suit } from "../card";
-import { FINGER_PATH, SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
+import { FINGER_PATH, FINGER_VIEWBOX, SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
 import { COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
@@ -26,11 +26,11 @@ const CARD_SHADE = 0xd8c8a0;
  */
 // Нарисовать SVG-символ (масть/палец) как Pixi-графику: центр в (cx,cy), высота sizePx, заливка color.
 // Единый источник путей — symbols.ts (тот же, что и для HTML). Заменяет глиф-символ шрифта.
-function drawSymbol(root: Container, path: string, cx: number, cy: number, sizePx: number, color: number, flip = false): Graphics {
+function drawSymbol(root: Container, path: string, cx: number, cy: number, sizePx: number, color: number, flip = false, vb: { w: number; h: number } = { w: SVG_VIEWBOX, h: SVG_VIEWBOX }): Graphics {
   const g = new Graphics();
   g.svg(symbolCanvasSvg(path, color));
-  g.pivot.set(SVG_VIEWBOX / 2, SVG_VIEWBOX / 2);
-  g.scale.set(sizePx / SVG_VIEWBOX);
+  g.pivot.set(vb.w / 2, vb.h / 2); // центр холста символа
+  g.scale.set(sizePx / vb.h); // sizePx — ВЫСОТА (масти квадратные, палец 124×171 — по высоте)
   g.position.set(cx, cy);
   if (flip) g.rotation = Math.PI;
   root.addChild(g);
@@ -110,43 +110,21 @@ export function makeCardFaceTexture(
   return tex;
 }
 
+/** Жёлтый фон лица скрытой карты — «предупреждающий» жёлтый, максимальный контраст с тёмным пальцем. */
+const HIDDEN_BG = 0xf4c220;
+
 /**
- * Лицо СКРЫТОЙ карты: СЗАДИ — заблуренный плейсхолдер-«карта» (серая масть + неточный номинал «?»),
- * будто карта неизвестного достоинства; СПЕРЕДИ — один средний палец (SVG) как юмор-пояснение
+ * Лицо СКРЫТОЙ карты: жёлтый фон + один средний палец (SVG-силуэт) по центру — юмор-пояснение
  * «не покажу». Переворот не раскрывает её по-настоящему.
  */
 export function makeHiddenFaceTexture(app: Application): Texture {
   const root = new Container();
   const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: HIDDEN_BG });
   root.addChild(bg);
 
-  // СЗАДИ — размытый серый «призрак карты»: неточный номинал (?) в углах + крупная серая масть в
-  // центре, приглушённо и в блюре. Обрезается маской по форме карты (fixed frame держит размер ровным).
-  const ghost = new Container();
-  const grey = 0x9a9a9a;
-  for (const [x, y, rot] of [[30, 40, 0], [TEX_W - 30, TEX_H - 40, Math.PI]] as const) {
-    const c = new Container();
-    const q = new Text({ text: "?", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: grey } });
-    q.anchor.set(0.5);
-    q.position.set(0, -12);
-    c.addChild(q);
-    drawSuit(c, "♠", 0, 18, 24, grey);
-    c.position.set(x, y);
-    c.rotation = rot;
-    ghost.addChild(c);
-  }
-  drawSuit(ghost, "♠", TEX_W / 2, TEX_H / 2 + 6, 118, grey);
-  ghost.alpha = 0.6;
-  ghost.filters = [new BlurFilter({ strength: 5 })];
-  const mask = new Graphics();
-  mask.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xffffff });
-  root.addChild(mask);
-  ghost.mask = mask;
-  root.addChild(ghost);
-
-  // СПЕРЕДИ — один средний палец (SVG) по центру.
-  drawSymbol(root, FINGER_PATH, TEX_W / 2, TEX_H / 2 + 2, 140, 0x2b2b2b);
+  // Средний палец (SVG-силуэт, холст 124×171) по центру, тёмный на жёлтом.
+  drawSymbol(root, FINGER_PATH, TEX_W / 2, TEX_H / 2, TEX_H * 0.62, 0x1a1a1a, false, FINGER_VIEWBOX);
 
   const shade = new Graphics();
   drawCardShade(shade);
