@@ -5,7 +5,7 @@ test.describe("песочница — Поле (flow-грид)", () => {
   test.use({ viewport: { width: 900, height: 5800 } });
 
   interface Hooks {
-    field: { stack: number; grid: number; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
   }
   const hooks = (page: Page): Promise<Hooks> => page.evaluate(() => (window as unknown as { __fd: { testHooks(): Hooks } }).__fd.testHooks());
 
@@ -49,5 +49,26 @@ test.describe("песочница — Поле (flow-грид)", () => {
     const ys = new Set(h.field!.gridCards.map((c) => Math.round(c.y / 50)));
     expect(xs.size).toBe(3); // минимум 3 колонки
     expect(ys.size).toBe(2); // 2 ряда
+  });
+
+  test("параметры поля: минимум 3 колонки, максимум 4 строки", async ({ page }) => {
+    const h = await hooks(page);
+    expect(h.field!.minCols).toBe(3);
+    expect(h.field!.maxRows).toBe(4);
+  });
+
+  test("упор в 4 строки: грид растёт вширь, а не вниз", async ({ page }) => {
+    for (let i = 0; i < 20; i++) {
+      const h = await hooks(page);
+      await dragTo(page, h.field!.stackAt, gridMid(h));
+      await page.waitForTimeout(140);
+    }
+    await page.waitForTimeout(700); // дать flow-пружинам осесть
+    const h = await hooks(page);
+    expect(h.field!.grid).toBe(20);
+    const ys = new Set(h.field!.gridCards.map((c) => Math.round(c.y / 50)));
+    const xs = new Set(h.field!.gridCards.map((c) => Math.round(c.x / 50)));
+    expect(ys.size).toBeLessThanOrEqual(4); // строк не больше 4
+    expect(xs.size).toBeGreaterThan(4); // растёт колонками
   });
 });

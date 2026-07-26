@@ -36,3 +36,20 @@ describe("flowLayout (minCols=3, reserve)", () => {
     expect(flowLayout(12, geom, opt).cols).toBeGreaterThan(3);
   });
 });
+
+describe("flowLayout (maxRows=4)", () => {
+  const o = { minCols: 3, maxRows: 4, reserve: false };
+  it("до упора растёт вниз: 12 карт → 4×3 (≤4 строк)", () => {
+    const l = flowLayout(12, geom, o);
+    expect(l.rows).toBeLessThanOrEqual(4);
+  });
+  it("при упоре в 4 строки грид растёт КОЛОНКАМИ, не вниз", () => {
+    const l = flowLayout(21, geom, o); // 21 не влезает в 4 ряда при малых колонках
+    expect(l.rows).toBe(4);
+    expect(l.cols).toBe(6); // ceil(21/4)=6
+  });
+  it("без maxRows строки не ограничены", () => {
+    const l = flowLayout(21, geom, { minCols: 3, reserve: false });
+    expect(l.rows).toBe(5);
+  });
+});

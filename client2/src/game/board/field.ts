@@ -40,7 +40,8 @@ export interface FieldChrome {
   colors: { line: number; hover: number; fill: number; verbDrag: number; verbHover: number; anchor: number };
 }
 export interface FieldConfig {
-  minCols: number; // минимум колонок грида
+  minCols: number; // минимум колонок грида (стартовое; можно менять контроллером)
+  maxRows?: number; // максимум строк — при упоре грид растёт вширь (undefined → без предела)
   reserve: boolean; // держать место под следующую карту
   gridPad: number; // отступ рамки/фона от карт (gap между картами не трогает)
   chrome: FieldChrome | null; // графика; null → голый грид
@@ -68,6 +69,8 @@ export const NORMAL_FIELD: FieldConfig = {
 export class Field {
   stackIds: string[];
   gridIds: string[] = [];
+  minCols: number; // ЖИВЫЕ параметры грида (стартуют из config, контроллер их меняет)
+  maxRows: number | undefined;
   readonly frame = new Graphics(); // dashed-рамка Поля + фон/бордер грида + узел-якорь
   readonly anchor: Text;
   readonly verb: Text;
@@ -87,6 +90,8 @@ export class Field {
     this.layerBelow = o.layerBelow;
     this.layerAbove = o.layerAbove;
     this.config = o.config ?? NAKED_FIELD; // по умолчанию — голый грид
+    this.minCols = this.config.minCols;
+    this.maxRows = this.config.maxRows;
     this.anchor.visible = false;
     this.verb.visible = false;
   }
@@ -120,7 +125,7 @@ export class Field {
   }
 
   private layout() {
-    return flowLayout(this.gridIds.length, this.grid, { minCols: this.config.minCols, reserve: this.config.reserve });
+    return flowLayout(this.gridIds.length, this.grid, { minCols: this.minCols, maxRows: this.maxRows, reserve: this.config.reserve });
   }
 
   /** Габарит грид-рамки/фона: bounding box ячеек + отступ GRID_PAD со всех сторон (карты не прижаты

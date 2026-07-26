@@ -7,6 +7,7 @@ import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
 import { type FlowGeom } from "../board/dynamicGrid";
 import { Field, NORMAL_FIELD } from "../board/field";
+import { attachFieldControls } from "../board/fieldControls";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -402,7 +403,7 @@ export class FreeDeskEngine {
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
-    field: { stack: number; grid: number; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: { stack: number; grid: number; minCols: number; maxRows: number | undefined; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
     cardW: number;
     draggingId: string | null;
   } {
@@ -455,7 +456,7 @@ export class FreeDeskEngine {
   }
 
   // Состояние Поля для e2e: размеры стопки/грида + экранные точки/рамка грида.
-  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
+  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; minCols: number; maxRows: number | undefined; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
     const f = this.fields[0];
     if (!f) return null;
     const gr = f.gridRect();
@@ -463,6 +464,8 @@ export class FreeDeskEngine {
     return {
       stack: f.stackIds.length,
       grid: f.gridIds.length,
+      minCols: f.minCols,
+      maxRows: f.maxRows,
       stackAt: toScreen(f.stackRect.x + f.stackRect.w / 2, f.stackRect.y + f.stackRect.h / 2),
       gridRect: { x: tl.x, y: tl.y, w: gr.w * this.viewport.zoom, h: gr.h * this.viewport.zoom },
       gridCards: f.gridIds
@@ -888,8 +891,9 @@ export class FreeDeskEngine {
     const verb = this.label("наведи", 0, 0, 16, 0x9aa89f); // глагол дропзоны (Field двигает между слоями)
     verb.anchor.set(0.5, 0.5);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
-    // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид). Якорь в NORMAL_FIELD НЕ входит.
-    const fieldCfg = { ...NORMAL_FIELD, chrome: { ...NORMAL_FIELD.chrome!, anchorText: "тяни карту сюда" } };
+    // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
+    // (при упоре грид растёт вширь). Стартовые значения — их правит контроллер снизу.
+    const fieldCfg = { ...NORMAL_FIELD, minCols: 3, maxRows: 4, chrome: { ...NORMAL_FIELD.chrome!, anchorText: "тяни карту сюда" } };
     // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
     const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
     this.scene.surface.addChild(field.frame, anchor, verb);
@@ -903,8 +907,18 @@ export class FreeDeskEngine {
     field.draw();
 
     const reservedH = pad * 2 + cell.h * 4 + 3 * 8;
-    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, gy + reservedH + 8, 12, 0x9aa89f, this.contentW - left - pad));
-    return gy + reservedH + 30;
+    // Контроллеры грида (мин колонок / макс строк) — насаживает ПРОКЛАДКА (переиспользуемо на любом Поле).
+    let by = attachFieldControls(field, {
+      layer: this.scene.surface,
+      register: (b) => this.registerButton(b),
+      relayout: (f) => {
+        this.applyFieldHomes(f);
+        f.draw();
+        this.wake();
+      },
+    }, { x: left + pad, y: gy + reservedH + 10 }) + 14;
+    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, by, 12, 0x9aa89f, this.contentW - left - pad));
+    return by + 24;
   }
 
   private fieldForCard(id: string): Field | null {
