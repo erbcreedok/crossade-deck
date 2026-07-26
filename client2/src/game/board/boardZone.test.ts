@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { BoardZone } from "./boardZone";
 import type { Board } from "./board";
-import type { GridSpec } from "./layout/grid";
+import { gridSlots } from "./layout/slots";
 
-// BoardZone — сердце визуального полигона, но БЕЗ Pixi: логический board + геометрия слотов +
+// BoardZone — сердце визуального полигона, но БЕЗ Pixi: логический board + подключаемая раскладка +
 // размещение фигур + резолв дропа между слотами + запертость. Визуал потом читает отсюда.
-const spec: GridSpec = { cols: 3, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } };
-const bounds = { x: 0, y: 0, w: 300, h: 200 }; // 3×2
+const layout = gridSlots({ cols: 3, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } }, 2); // 3×2
+const bounds = { x: 0, y: 0, w: 300, h: 200 };
 const make = (slots: Board["slots"], onOccupied?: "merge" | "swap" | "capture" | "reject") =>
-  new BoardZone({ spec, rows: 2, board: { slots, onEmpty: "keep" }, bounds, onOccupied });
+  new BoardZone({ slots: layout, board: { slots, onEmpty: "keep" }, bounds, onOccupied });
 
 describe("BoardZone — размещение", () => {
   it("locate находит слот и индекс фигуры", () => {

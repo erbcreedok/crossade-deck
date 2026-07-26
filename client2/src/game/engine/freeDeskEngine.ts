@@ -4,6 +4,7 @@ import { Card, type CardOptions, type CardState, type RestState, type ShadowShap
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
+import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
@@ -54,14 +55,17 @@ const STORIES: Story[] = [
   { caption: "джокер", opts: { joker: true } },
 ];
 
-// Пресет борда — ЧИСТЫЕ ДАННЫЕ (разные игры = разный конфиг, один движок). slots: ключ→грани карт.
+// Пресет борда — ЧИСТЫЕ ДАННЫЕ (разные игры = разный конфиг, один движок). layout: стратегия
+// раскладки (grid по умолчанию / ring). slots: ключ слота → лица карт-фигур.
 interface BoardPreset {
   title: string;
-  cols: number;
-  rows: number;
+  cols: number; // для grid
+  rows: number; // для grid
   onOccupied: OnOccupied;
+  layout?: "grid" | "ring";
+  ringCount?: number; // число слотов кольца (layout: ring)
   maxSize?: number; // потолок стопки в слоте (дурак и т.п.)
-  slots: Record<string, string[]>; // "r,c" → лица карт-фигур
+  slots: Record<string, string[]>; // ключ ("r,c" | "ringN") → лица карт-фигур
 }
 
 const BOARD_PRESETS: BoardPreset[] = [
@@ -69,6 +73,7 @@ const BOARD_PRESETS: BoardPreset[] = [
   { title: "дурак — стопка ≤2 (merge+maxSize)", cols: 3, rows: 1, onOccupied: "merge", maxSize: 2, slots: { "0,0": ["6♦"], "0,1": ["7♦"], "0,2": ["8♦"] } },
   { title: "пятнашки (swap)", cols: 3, rows: 2, onOccupied: "swap", slots: { "0,0": ["2♠"], "0,1": ["3♠"], "0,2": ["4♠"], "1,0": ["5♠"], "1,1": ["6♠"] } },
   { title: "шахматы — съесть (capture)", cols: 3, rows: 1, onOccupied: "capture", slots: { "0,0": ["K♣"], "0,2": ["Q♥"] } },
+  { title: "монополия — кольцо (ring, swap)", cols: 0, rows: 0, layout: "ring", ringCount: 8, onOccupied: "swap", slots: { ring0: ["A♣"], ring4: ["K♦"] } },
 ];
 
 interface Placed {
@@ -849,13 +854,24 @@ export class FreeDeskEngine {
   // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
   // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
   private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
-    const cell = { w: this.cardW * 1.15, h: this.cardH * 1.02 };
     const gap = 8;
     const gy = top + 22;
-    const spec = { cols: preset.cols, cell, gap, origin: { x: left, y: gy } };
-    const w = preset.cols * cell.w + (preset.cols - 1) * gap;
-    const h = preset.rows * cell.h + (preset.rows - 1) * gap;
-    const bounds = { x: left, y: gy, w, h };
+    // Раскладка — подключаемая стратегия (grid/ring). BoardZone её лишь потребляет.
+    let positioned: PositionedSlot[];
+    let bounds: { x: number; y: number; w: number; h: number };
+    if (preset.layout === "ring") {
+      const cell = { w: this.cardW * 0.82, h: this.cardH * 0.82 };
+      const radius = this.cardH * 1.35;
+      const cx = left + radius + cell.w / 2;
+      const cy = gy + radius + cell.h / 2;
+      positioned = ringSlots(preset.ringCount ?? 8, { cx, cy, radius, cell });
+      const d = 2 * radius + cell.w;
+      bounds = { x: left, y: gy, w: d, h: d };
+    } else {
+      const cell = { w: this.cardW * 1.15, h: this.cardH * 1.02 };
+      positioned = gridSlots({ cols: preset.cols, cell, gap, origin: { x: left, y: gy } }, preset.rows);
+      bounds = { x: left, y: gy, w: preset.cols * cell.w + (preset.cols - 1) * gap, h: preset.rows * cell.h + (preset.rows - 1) * gap };
+    }
 
     const slots: Board["slots"] = {};
     const faces: Record<string, string> = {};
@@ -868,7 +884,7 @@ export class FreeDeskEngine {
       });
       slots[key] = { members: ids, maxSize: preset.maxSize };
     }
-    const zone = new BoardZone({ spec, rows: preset.rows, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied });
+    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied });
     this.boardZones.push(zone);
 
     this.scene.surface.addChild(this.label(preset.title, left, top, 13, 0xcdb98f, undefined, 0));
