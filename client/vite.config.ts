@@ -23,8 +23,22 @@ function buildNumber(): string {
   return process.env.APP_BUILD || git("git rev-list --count HEAD", "dev");
 }
 
+// В DEV define вшивает номер/коммит ОДИН раз при старте vite и «замораживает» их (config при HMR
+// заново не выполняется). Чтобы после коммита не рестартить сервер, в dev на КАЖДУЮ загрузку
+// страницы впрыскиваем свежие значения в window.__BUILD_LIVE__ — version.ts предпочитает их define'у.
+function liveBuildInfo() {
+  return {
+    name: "live-build-info",
+    apply: "serve" as const,
+    transformIndexHtml() {
+      const live = { build: git("git rev-list --count HEAD", "dev"), commit: git("git rev-parse --short HEAD", "dev") };
+      return [{ tag: "script", injectTo: "head-prepend" as const, children: `window.__BUILD_LIVE__=${JSON.stringify(live)}` }];
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), liveBuildInfo()],
   server: { port: 5173, host: true },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version ?? "0.0.0"),
