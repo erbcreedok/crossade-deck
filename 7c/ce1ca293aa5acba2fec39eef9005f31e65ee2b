@@ -1,0 +1,26 @@
+client2/src/game/board/dynamicGrid.ts
+  s_89d5ad20619017::t_ac3ad1e0a1ad08 1-2,10-12,15-26
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_15f16fd66d3d33 8
+  s_89d5ad20619017::t_6f68613a675236 944-948,955,959,961,965,968-974
+client2/src/game/board/dynamicGrid.test.ts
+  s_89d5ad20619017::t_c5f9355d781960 2,4-6,8-20,23,25,27-30,32-36
+client2/e2e/field.spec.ts
+  s_89d5ad20619017::t_3a95a1ea9ec947 38-39,42,46-47,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7cce1ca293aa5acba2fec39eef9005f31e65ee2b",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
