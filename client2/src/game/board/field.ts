@@ -49,7 +49,8 @@ export interface FieldConfig {
 // Дефолт: ГОЛЫЙ грид без графики (то, что было до графических правок) — flow-паковка, без рамок/якорей.
 export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, chrome: null };
 
-// Для «обычных сеток»: текущий вид (рамки при драге, узел-якорь, глаголы наведи/брось). Будем редачить.
+// Для «обычных сеток»: рамки при драге + глаголы наведи/брось. БЕЗ якоря — якорь это про конкретное
+// поле-источник (колода→грид), а не общая сетка; его добавляет своё поле поверх (anchorText). Будем редачить.
 export const NORMAL_FIELD: FieldConfig = {
   minCols: 3,
   reserve: true,
@@ -57,7 +58,7 @@ export const NORMAL_FIELD: FieldConfig = {
   chrome: {
     outerBorder: true,
     dropzoneBorder: true,
-    anchorText: "тяни карту сюда",
+    anchorText: null,
     verbDrag: "наведи",
     verbHover: "брось",
     colors: { line: 0x8fa39a, hover: 0xf2c14e, fill: 0x8fa39a, verbDrag: 0x9aa89f, verbHover: 0xf2c14e, anchor: 0x7d8f84 },

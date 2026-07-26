@@ -888,9 +888,10 @@ export class FreeDeskEngine {
     const verb = this.label("наведи", 0, 0, 16, 0x9aa89f); // глагол дропзоны (Field двигает между слоями)
     verb.anchor.set(0.5, 0.5);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
+    // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид). Якорь в NORMAL_FIELD НЕ входит.
+    const fieldCfg = { ...NORMAL_FIELD, chrome: { ...NORMAL_FIELD.chrome!, anchorText: "тяни карту сюда" } };
     // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
-    // config: NORMAL_FIELD — «обычная сетка» (текущий вид). Без config Field = голый грид (NAKED_FIELD).
-    const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: NORMAL_FIELD });
+    const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
     this.scene.surface.addChild(field.frame, anchor, verb);
     this.fields.push(field);
 
