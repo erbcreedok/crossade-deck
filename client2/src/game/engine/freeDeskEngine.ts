@@ -6,6 +6,7 @@ import { BoardZone, type OnOccupied, type AcceptCtx } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
 import { layoutForPreset } from "../board/boardLayout";
+import { buildBoardModel } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
@@ -854,17 +855,8 @@ export class FreeDeskEngine {
     // Раскладка — чистая геометрия из пресета (board/boardLayout.ts): стратегия grid/ring → слоты+рамка.
     const { positioned, bounds } = layoutForPreset(preset, { left, top, cardW: this.cardW, cardH: this.cardH });
 
-    const slots: Board["slots"] = {};
-    const faces: Record<string, string> = {};
-    let n = 0;
-    for (const [key, arr] of Object.entries(preset.slots)) {
-      const ids = arr.map((face) => {
-        const id = `bz${pi}-${n++}`;
-        faces[id] = face;
-        return id;
-      });
-      slots[key] = { members: ids, maxSize: preset.maxSize };
-    }
+    // Логическая модель (id фигур + faces) — чистая (board/boardModel.ts).
+    const { slots, faces } = buildBoardModel(preset, `bz${pi}`);
     for (const [id, f] of Object.entries(faces)) this.faceOf.set(id, f);
     // Value-правило: оборачиваем preset.rule (по лицам) в AcceptRule (по ids/слотам) через faces.
     const rule = preset.rule
