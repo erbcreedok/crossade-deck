@@ -1,0 +1,23 @@
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_0b35e40296ed22 138
+client2/src/game/slot/layouts.test.ts
+  s_89d5ad20619017::t_4df0e416e11768 41-46
+client2/src/game/slot/layouts.ts
+  s_89d5ad20619017::t_469bf407584b3b 44,46-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2bb02761e1bb836d6161049dc1f57f901ab70472",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
