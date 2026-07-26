@@ -1,0 +1,181 @@
+import { Container, Graphics, Text } from "pixi.js";
+import { type FlowGeom } from "./dynamicGrid";
+import type { FieldChrome, FieldDrag, Rect4 } from "./field";
+
+// PAINT Поля — вся Pixi-графика «хрома» (рамки/фон/якорь-узел/глаголы). Отделено от МЕХАНИКИ (field.ts
+// держит порядок/дроп через дерево слотов): рисование — своя ответственность, свой файл. Field.draw
+// лишь собирает геометрию/состояние и зовёт paintFieldChrome; сам ничего не чертит.
+
+export interface FieldPaintDeps {
+  frame: Graphics; // куда рисуем рамки/фон/узел
+  anchor: Text; // текст якоря
+  verb: Text; // глагол дропзоны (переселяется между слоями)
+  layerBelow: Container; // «наведи» — под картами
+  layerAbove: Container; // «брось» — над картами
+  chrome: FieldChrome | null; // null → голый грид (ничего не рисуем)
+  dragState: FieldDrag;
+  gridRect: Rect4; // рамка/фон дропзоны
+  outerRect: Rect4; // внешняя рамка Поля
+  gridEmpty: boolean; // пустой ли грид (для показа якоря)
+  grid: FlowGeom; // геометрия ячейки/origin (для узла-якоря)
+  stackRect: Rect4; // область колоды (начало узла-якоря)
+}
+
+/** Нарисовать «хром»: в ПОКОЕ бордеров нет (только узел-якорь на пустом гриде). При драге — внешняя
+ *  рамка Поля + грид-дропзона (вне зоны dashed, над зоной solid + фон) + глагол «наведи»/«брось». */
+export function paintFieldChrome(d: FieldPaintDeps): void {
+  d.frame.clear();
+  const chrome = d.chrome;
+  if (!chrome) {
+    d.anchor.visible = false;
+    d.verb.visible = false;
+    return;
+  }
+  const gr = d.gridRect;
+  const col = chrome.colors;
+  if (d.dragState !== "idle") {
+    if (chrome.outerBorder) dashRect(d.frame, d.outerRect, 11, 7, col.line, 2, 1, 12); // рамка Поля на драге
+    if (chrome.dropzoneBorder) {
+      if (d.dragState === "hover") d.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: col.fill, alpha: 0.16 }).stroke({ width: 2.5, color: col.hover }); // над зоной — solid + фон
+      else dashRect(d.frame, gr, 9, 6, col.line, 1.5, 1, 8); // драг вне зоны — dashed (тот же радиус, что у solid)
+    }
+  }
+
+  // Узел-якорь — только в покое, на пустом гриде и если задан текст.
+  const idleEmpty = d.dragState === "idle" && d.gridEmpty && chrome.anchorText !== null;
+  d.anchor.visible = idleEmpty;
+  if (idleEmpty) {
+    d.anchor.text = chrome.anchorText!;
+    const cell = d.grid.cell;
+    const first = { x: d.grid.origin.x + cell.w / 2, y: d.grid.origin.y + cell.h / 2 };
+    const from = { x: d.stackRect.x + d.stackRect.w + 6, y: d.stackRect.y + 4 };
+    const to = { x: first.x - cell.w * 0.32, y: first.y };
+    drawKnot(d.frame, from, to, col.anchor, 1.5);
+    d.anchor.position.set((from.x + to.x) / 2 + 6, Math.min(from.y, to.y) - 30);
+  }
+
+  // Глагол дропзоны: «наведи» (драг) — ПОД картами; «брось» (ховер) — НАД картами.
+  const showVerb = d.dragState !== "idle";
+  d.verb.visible = showVerb;
+  if (showVerb) {
+    const over = d.dragState === "hover";
+    d.verb.text = over ? chrome.verbHover : chrome.verbDrag;
+    d.verb.style.fill = over ? col.verbHover : col.verbDrag;
+    d.verb.style.fontSize = over ? 20 : 16;
+    // «брось» лежит ПОВЕРХ карт — без обводки/тени сливается с лицами. «наведи» под картами — тихий.
+    d.verb.style.stroke = over ? { color: 0x14201b, width: 4 } : { color: 0, width: 0 };
+    d.verb.style.dropShadow = over ? { color: 0x000000, alpha: 0.55, blur: 5, distance: 0, angle: 0 } : false;
+    d.verb.position.set(gr.x + gr.w / 2, gr.y + gr.h / 2);
+    (over ? d.layerAbove : d.layerBelow).addChild(d.verb);
+  }
+}
+
+// ——— примитивы «хрома» (dashed-рамка + узел-стрелка) ———
+
+// Пройтись пунктиром по ломаной (замкнутой): узор dash/gap НЕПРЕРЫВЕН через углы (carry переносит
+// фазу в следующий сегмент), поэтому скруглённые углы выходят ровными, а не «рвутся» на стыках.
+function dashPath(g: Graphics, pts: Array<{ x: number; y: number }>, dash: number, gap: number, color: number, width: number, alpha: number): void {
+  const seg = dash + gap;
+  let carry = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len === 0) continue;
+    const ux = (b.x - a.x) / len;
+    const uy = (b.y - a.y) / len;
+    let d = 0;
+    while (d < len) {
+      const patPos = (carry + d) % seg;
+      if (patPos < dash) {
+        const draw = Math.min(dash - patPos, len - d);
+        g.moveTo(a.x + ux * d, a.y + uy * d).lineTo(a.x + ux * (d + draw), a.y + uy * (d + draw));
+        d += draw;
+      } else {
+        d += seg - patPos;
+      }
+    }
+    carry = (carry + len) % seg;
+  }
+  g.stroke({ width, color, alpha });
+}
+
+// Точки контура прямоугольника: острого или скруглённого (углы — короткими дугами).
+function rectPoints(r: Rect4, radius: number): Array<{ x: number; y: number }> {
+  if (radius <= 0) return [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }, { x: r.x, y: r.y }];
+  const rr = Math.min(radius, r.w / 2, r.h / 2);
+  const pts: Array<{ x: number; y: number }> = [];
+  const arc = (cx: number, cy: number, a0: number, a1: number): void => {
+    const N = 5;
+    for (let i = 0; i <= N; i++) {
+      const a = a0 + ((a1 - a0) * i) / N;
+      pts.push({ x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr });
+    }
+  };
+  arc(r.x + rr, r.y + rr, Math.PI, Math.PI * 1.5); // верх-лево
+  arc(r.x + r.w - rr, r.y + rr, Math.PI * 1.5, Math.PI * 2); // верх-право
+  arc(r.x + r.w - rr, r.y + r.h - rr, 0, Math.PI * 0.5); // низ-право
+  arc(r.x + rr, r.y + r.h - rr, Math.PI * 0.5, Math.PI); // низ-лево
+  pts.push({ ...pts[0]! }); // замкнуть
+  return pts;
+}
+
+// Dashed-прямоугольник (со скруглением углов при radius>0 — как у solid-рамки дропзоны).
+function dashRect(g: Graphics, r: Rect4, dash: number, gap: number, color: number, width: number, alpha = 1, radius = 0): void {
+  dashPath(g, rectPoints(r, radius), dash, gap, color, width, alpha);
+}
+
+// Точки пути-УЗЛА: базовая линия from→to с петлёй посередине (перекрещивается — «узел»).
+function knotPoints(from: { x: number; y: number }, to: { x: number; y: number }): Array<{ x: number; y: number }> {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  const R = 15; // радиус петли
+  const N = 56;
+  const pts: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    let x = from.x + dx * t;
+    let y = from.y + dy * t;
+    const s = (t - 0.32) / 0.34; // петля активна на t∈[0.32,0.66]
+    if (s >= 0 && s <= 1) {
+      const ang = s * Math.PI * 2 - Math.PI / 2; // полный оборот → перекрещивание
+      x += px * Math.cos(ang) * R + ux * Math.sin(ang) * R * 0.65;
+      y += py * Math.cos(ang) * R + uy * Math.sin(ang) * R * 0.65;
+    }
+    pts.push({ x, y });
+  }
+  return pts;
+}
+
+// Узел-стрелка: dashed-петля + наконечник. Тонкая/тусклая — «менее навязчивая».
+function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; y: number }, color: number, width: number): void {
+  const pts = knotPoints(from, to);
+  // dashed по количеству точек (плотная выборка): рисуем 2 сегмента, пропускаем 2.
+  let i = 0;
+  while (i < pts.length - 1) {
+    g.moveTo(pts[i]!.x, pts[i]!.y);
+    for (let k = 0; k < 2 && i < pts.length - 1; k++, i++) g.lineTo(pts[i + 1]!.x, pts[i + 1]!.y);
+    i += 2;
+  }
+  g.stroke({ width, color });
+  // наконечник по касательной последнего сегмента.
+  const a = pts[pts.length - 2]!;
+  const b = pts[pts.length - 1]!;
+  const tx = b.x - a.x;
+  const ty = b.y - a.y;
+  const tl = Math.hypot(tx, ty) || 1;
+  const ux = tx / tl;
+  const uy = ty / tl;
+  const nx = -uy;
+  const ny = ux;
+  const s = 11;
+  g.moveTo(b.x - ux * s + nx * s * 0.5, b.y - uy * s + ny * s * 0.5)
+    .lineTo(b.x, b.y)
+    .lineTo(b.x - ux * s - nx * s * 0.5, b.y - uy * s - ny * s * 0.5)
+    .stroke({ width, color });
+}
