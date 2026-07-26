@@ -849,6 +849,14 @@ export class FreeDeskEngine {
     return y;
   }
 
+  // Рамка контейнера + сетка слотов (на поверхности, под фигурами). Общая для всех бордов (DRY).
+  private drawBoardFrame(zone: BoardZone, bounds: { x: number; y: number; w: number; h: number }): void {
+    const frame = new Graphics();
+    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
+    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
+    this.scene.surface.addChild(frame);
+  }
+
   // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
   // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
   private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
@@ -864,10 +872,7 @@ export class FreeDeskEngine {
     this.boardTitles.push(preset.title);
 
     this.scene.surface.addChild(this.label(preset.title, left, top, 13, 0xcdb98f, undefined, 0));
-    const frame = new Graphics();
-    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
-    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
-    this.scene.surface.addChild(frame);
+    this.drawBoardFrame(zone, bounds);
 
     let depth = 300 + pi * 100;
     for (const key of Object.keys(slots)) {
@@ -980,10 +985,7 @@ export class FreeDeskEngine {
     this.boardTitles.push("шахматы из ФИГУР (Piece, capture)");
 
     this.scene.surface.addChild(this.label("шахматы из ФИГУР (Piece, capture)", left, top, 13, 0xcdb98f, undefined, 0));
-    const frame = new Graphics();
-    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
-    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
-    this.scene.surface.addChild(frame);
+    this.drawBoardFrame(zone, bounds);
 
     const r = Math.min(cell.w, cell.h) * 0.34;
     specs.forEach((s, i) => {
@@ -1020,10 +1022,7 @@ export class FreeDeskEngine {
     this.boardTitles.push("СМЕШАННЫЙ стек: карта+шахмата+фишка");
 
     this.scene.surface.addChild(this.label("смешанный стек: карта + шахмата + фишка (generic)", left, top, 13, 0xcdb98f, undefined, 0));
-    const frame = new Graphics();
-    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
-    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
-    this.scene.surface.addChild(frame);
+    this.drawBoardFrame(zone, bounds);
 
     let depth = 500; // сквозной z по позиции в стопке (карта снизу, фишка сверху)
     for (const [key, defs] of Object.entries(slotDefs)) {
