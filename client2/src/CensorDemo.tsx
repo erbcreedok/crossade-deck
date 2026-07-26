@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { CensorDemo, DANCE_DEFAULT, type DanceParams } from "./game/censorDemo";
 import { goApp } from "./nav";
 
-// ВРЕМЕННАЯ страница «/censor» — витрина анимации цензуры скрытой карты. Выбираем вид глазами.
-// Удалить после выбора (страница + роут в main.tsx). Слайдеры: общая скорость + живая настройка
-// карты «танец ⚙» (размер частиц / частота свапов / амплитуда дрожания).
+// Стенд анимаций «/motion» — испытательная площадка для движущихся объектов/эффектов (то, что не
+// проверить статичными скриншотами). Сейчас на ней витрина «цензурной» анимации скрытой карты.
+// Слайдеры: общая скорость + живая настройка карты «танец ⚙» (частица / свапы / дрожание / частота).
 export function CensorDemoPage() {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CensorDemo | null>(null);

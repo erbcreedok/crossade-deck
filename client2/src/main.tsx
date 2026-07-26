@@ -9,10 +9,10 @@ import { routePath } from "./nav";
 import "./theme.css";
 
 // client2 — новый автономный клиент, ЦЕЛИКОМ на канвасе. Роут по пути ОТНОСИТЕЛЬНО базы
-// (в проде приложение под /v2/): free-desk — песочница, table — стол, censor — ВРЕМЕННАЯ витрина
-// анимации цензуры (удалить после выбора), иначе — главное меню.
+// (в проде приложение под /v2/): free-desk — песочница, table — стол, motion — стенд анимаций
+// (испытываем движущиеся объекты/эффекты), иначе — главное меню.
 const rel = routePath();
-const view = rel.startsWith("free-desk") ? <FreeDesk /> : rel.startsWith("censor") ? <CensorDemoPage /> : rel.startsWith("table") ? <Table /> : <Menu />;
+const view = rel.startsWith("free-desk") ? <FreeDesk /> : rel.startsWith("motion") ? <CensorDemoPage /> : rel.startsWith("table") ? <Table /> : <Menu />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

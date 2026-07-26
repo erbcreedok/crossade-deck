@@ -5,7 +5,7 @@ import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { FINGER_PATH, FINGER_VIEWBOX, symbolCanvasSvg } from "./symbols";
 
-// ВРЕМЕННАЯ витрина «цензурной» анимации скрытой карты (/censor). Показывает варианты в ряд, чтобы
+// Витрина «цензурной» анимации скрытой карты на стенде /motion. Показывает варианты в ряд, чтобы
 // выбрать вид глазами. Реального в проде — модули censorMotion.ts + engine/censorField.ts; здесь только
 // сборка источника-фака и раскладка карточек. Тестов нет намеренно — визуал сверяет человек.
 
