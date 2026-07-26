@@ -1,0 +1,32 @@
+client2/src/game/slot/mutate.ts
+  s_89d5ad20619017::t_d600d4d20ceb5b 1-47
+client2/src/game/slot/slot.test.ts
+  s_89d5ad20619017::t_e65a3bf934acea 1-58
+client2/src/game/slot/layouts.ts
+  s_89d5ad20619017::t_856be84355d10f 1-77
+client2/src/game/slot/layouts.test.ts
+  s_89d5ad20619017::t_f0fc90d13c77d4 1-56
+client2/src/game/slot/slot.ts
+  s_89d5ad20619017::t_8e30b1c1e54dac 1-56
+client2/src/game/slot/types.ts
+  s_89d5ad20619017::t_83b000eac16f7a 1-46
+client2/src/game/slot/mutate.test.ts
+  s_89d5ad20619017::t_d59ceafd2faa25 1-2,4-8,10-77
+  s_89d5ad20619017::t_6f0845abd9782b 3,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6527e4f7d4b4de92b042cda20538c45f5bf1d7b1",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
