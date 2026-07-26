@@ -41,3 +41,15 @@ test("Карты — SVG-масти на лицах (варианты)", async (
     threshold: 0.15,
   });
 });
+
+test("Скрытая карта — SVG-🖕 поверх заблуренного плейсхолдера", async ({ page }) => {
+  await page.goto("/free-desk");
+  await settle(page);
+  const box = (await page.locator("canvas").boundingBox())!;
+  // Третья карта ряда «варианты» = «скрытая» (лицом): средний палец (SVG) + серый блюр-призрак сзади.
+  await expect(page).toHaveScreenshot("hidden-face.png", {
+    clip: { x: box.x + 448, y: 120, width: 130, height: 180 },
+    maxDiffPixels: 80,
+    threshold: 0.15,
+  });
+});

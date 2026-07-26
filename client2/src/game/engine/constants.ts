@@ -21,13 +21,8 @@ export const REDEAL_TEXT = "раздача!";
  * Клич «ГОУ!»: дилер объявил начало игры, и это видит весь стол. Родня «низяяя» по духу
  * (крупная надпись поверх карт), но противоположная по смыслу — поэтому огненная и
  * пролетающая через экран (поза — в engine/shout.ts).
- * Эмодзи вынесены отдельными надписями: пиксельный Handjet их не содержит, и рисует их
- * системный шрифт (см. buildOverlays).
  */
 export const SHOUT_TEXT = "ГОООООООООУУУ!!!";
-export const SHOUT_EMOJI = "🔥";
-/** Шрифт эмодзи: системный, пиксельного тут не существует. */
-export const EMOJI_FONT = "'Apple Color Emoji', 'Noto Color Emoji', 'Segoe UI Emoji', sans-serif";
 /** Огонь: жёлто-оранжевая заливка, тёмно-красная обводка. */
 export const SHOUT_COLORS = { fill: 0xffc233, stroke: 0x7d1b06 } as const;
 

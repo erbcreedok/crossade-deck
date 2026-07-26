@@ -1,9 +1,9 @@
-import { Application, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
+import { Application, BlurFilter, Container, Graphics, Rectangle, Text, Texture } from "pixi.js";
 import { isCourt, parseCard, suitColor, type Suit } from "../card";
-import { SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
+import { FINGER_PATH, SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
-import { COLORS, EMOJI_FONT, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
+import { COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
 
 // Вид лица числовых карт (меню → Графика):
 //  - "symbol": один крупный значок масти по центру (как было);
@@ -111,8 +111,9 @@ export function makeCardFaceTexture(
 }
 
 /**
- * Лицо СКРЫТОЙ карты: номинала нет — вместо ранга/масти по центру 🖕. Такую карту переворот
- * не раскрывает по-настоящему; она лишь показывает этот «сюрприз».
+ * Лицо СКРЫТОЙ карты: СЗАДИ — заблуренный плейсхолдер-«карта» (серая масть + неточный номинал «?»),
+ * будто карта неизвестного достоинства; СПЕРЕДИ — один средний палец (SVG) как юмор-пояснение
+ * «не покажу». Переворот не раскрывает её по-настоящему.
  */
 export function makeHiddenFaceTexture(app: Application): Texture {
   const root = new Container();
@@ -120,39 +121,32 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
-  // СЗАДИ — редкая мелочь факов, хаотично и приглушённо (как бы на заднем плане). Обрезаются
-  // маской по форме карты; fixed frame держит размер текстуры ровным.
-  const back = new Container();
-  back.alpha = 0.5;
-  const cols = 3;
-  const rows = 5;
-  const mx = 28;
-  const my = 28;
-  const stepX = (TEX_W - 2 * mx) / (cols - 1);
-  const stepY = (TEX_H - 2 * my) / (rows - 1);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const jx = (((c * 5 + r * 3) % 5) - 2) * 6;
-      const jy = (((c * 3 + r * 7) % 5) - 2) * 6;
-      const size = 20 + ((c + r) % 3) * 8;
-      const f = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: size } });
-      f.anchor.set(0.5);
-      f.position.set(mx + c * stepX + jx, my + r * stepY + jy);
-      f.rotation = (((c * 7 + r * 13) % 12) / 12) * Math.PI * 2;
-      back.addChild(f);
-    }
+  // СЗАДИ — размытый серый «призрак карты»: неточный номинал (?) в углах + крупная серая масть в
+  // центре, приглушённо и в блюре. Обрезается маской по форме карты (fixed frame держит размер ровным).
+  const ghost = new Container();
+  const grey = 0x9a9a9a;
+  for (const [x, y, rot] of [[30, 40, 0], [TEX_W - 30, TEX_H - 40, Math.PI]] as const) {
+    const c = new Container();
+    const q = new Text({ text: "?", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: grey } });
+    q.anchor.set(0.5);
+    q.position.set(0, -12);
+    c.addChild(q);
+    drawSuit(c, "♠", 0, 18, 24, grey);
+    c.position.set(x, y);
+    c.rotation = rot;
+    ghost.addChild(c);
   }
+  drawSuit(ghost, "♠", TEX_W / 2, TEX_H / 2 + 6, 118, grey);
+  ghost.alpha = 0.6;
+  ghost.filters = [new BlurFilter({ strength: 5 })];
   const mask = new Graphics();
   mask.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xffffff });
   root.addChild(mask);
-  back.mask = mask;
-  root.addChild(back);
+  ghost.mask = mask;
+  root.addChild(ghost);
 
-  // СПЕРЕДИ — один крупный 🖕 по центру.
-  const big = new Text({ text: "🖕", style: { fontFamily: EMOJI_FONT, fontSize: 118 } });
-  big.anchor.set(0.5);
-  big.position.set(TEX_W / 2, TEX_H / 2 + 4);
-  root.addChild(big);
+  // СПЕРЕДИ — один средний палец (SVG) по центру.
+  drawSymbol(root, FINGER_PATH, TEX_W / 2, TEX_H / 2 + 2, 140, 0x2b2b2b);
 
   const shade = new Graphics();
   drawCardShade(shade);

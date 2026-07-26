@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SUIT_PATH, SVG_VIEWBOX, suitSvg, symbolSvg, symbolCanvasSvg, hexColor } from "./symbols";
+import { FINGER_PATH, SUIT_PATH, SVG_VIEWBOX, suitSvg, symbolSvg, symbolCanvasSvg, hexColor } from "./symbols";
 import { SUITS } from "./card";
 
 describe("symbols — SVG-символы (единый источник для html+канваса)", () => {
@@ -9,6 +9,14 @@ describe("symbols — SVG-символы (единый источник для h
       expect(SUIT_PATH[s]).toMatch(/^M/); // moveto в начале
       expect(SUIT_PATH[s]).toMatch(/z$/i); // замкнут
     }
+  });
+
+  it("FINGER_PATH (🖕) — непустой замкнутый путь, тот же примитив что и масти", () => {
+    expect(FINGER_PATH).toMatch(/^M/); // moveto в начале
+    expect(FINGER_PATH).toMatch(/z$/i); // замкнут
+    // Рисуется тем же symbolCanvasSvg (канвас) и symbolSvg (html), что и масти.
+    expect(symbolCanvasSvg(FINGER_PATH, 0x2b2b2b)).toContain(FINGER_PATH);
+    expect(suitSvg("♠", 0)).not.toContain(FINGER_PATH); // не спутан с мастью
   });
 
   it("hexColor — #RRGGBB с ведущими нулями", () => {
