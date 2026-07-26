@@ -142,17 +142,29 @@ function drawKnot(g: Graphics, from: { x: number; y: number }, to: { x: number; 
     py = -py;
   }
   const at = (a: number, h: number) => ({ x: from.x + ux * a + px * h, y: from.y + uy * a + py * h });
+  const norm = (vx: number, vy: number) => {
+    const m = Math.hypot(vx, vy) || 1;
+    return { x: vx / m, y: vy / m };
+  };
   const ac = L * 0.5; // центр
-  const w = L * 0.12; // разнос точек ВЗЛЁТА (левее) и ПОСАДКИ (правее) — не в одной точке
-  const W = L * 0.28; // разброс контролов вбок (капля шире вверху; W>w → перекрестие между A и B)
-  const H = L * 0.58; // высота петли
-  const A = at(ac - w, 0); // взлёт — левее центра
-  const B = at(ac + w, 0); // посадка — правее центра
+  const w = L * 0.12; // разнос ВЗЛЁТА (левее) и ПОСАДКИ (правее)
+  const W = L * 0.26; // разброс контролов вбок (капля шире вверху; W>w → перекрестие между A и B)
+  const H = L * 0.42; // высота петли (пониже)
+  const A = at(ac - w, 0); // взлёт
+  const B = at(ac + w, 0); // посадка
   const c1 = at(ac + W, H); // контрол вверх-вправо
   const c2 = at(ac - W, H); // контрол вверх-влево (свап → самопересечение между A и B)
-  g.moveTo(from.x, from.y).lineTo(A.x, A.y);
-  g.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, B.x, B.y); // петля A→B с перекрестием
-  g.lineTo(to.x, to.y).stroke({ width, color });
+  const dA = norm(c1.x - A.x, c1.y - A.y); // касательная петли на взлёте
+  const dB = norm(B.x - c2.x, B.y - c2.y); // касательная петли на посадке
+  // ХВОСТЫ кубические с C1-непрерывностью: у from/to — вдоль оси (горизонтально), у A/B — по касательной
+  // петли. Итог гладкий: ease-in подъём, петля, ease-out спуск — без излома на стыках.
+  const tin = Math.hypot(A.x - from.x, A.y - from.y);
+  const tout = Math.hypot(to.x - B.x, to.y - B.y);
+  g.moveTo(from.x, from.y);
+  g.bezierCurveTo(from.x + ux * tin * 0.55, from.y + uy * tin * 0.55, A.x - dA.x * tin * 0.4, A.y - dA.y * tin * 0.4, A.x, A.y);
+  g.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, B.x, B.y);
+  g.bezierCurveTo(B.x + dB.x * tout * 0.4, B.y + dB.y * tout * 0.4, to.x - ux * tout * 0.55, to.y - uy * tout * 0.55, to.x, to.y);
+  g.stroke({ width, color });
   // наконечник у `to` вдоль оси стрелки.
   const s = 11;
   const nx = -uy;
