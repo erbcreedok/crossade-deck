@@ -1,0 +1,31 @@
+client2/src/game/censorDemo.ts
+  s_89d5ad20619017::t_538a7a7f1e4167 47,53
+  s_89d5ad20619017::t_669753d3afe0c7 4,7
+  s_89d5ad20619017::t_332e08ecb610c8 136-151,154-169
+  s_89d5ad20619017::t_62f11b53a6cc8c 152-153
+  s_89d5ad20619017::t_d04d3112dbd3ff 282,284
+  s_89d5ad20619017::t_ad1bfbddb2efb0 254
+client2/src/game/fingerContent.ts
+  s_89d5ad20619017::t_76db74ea1ea0ac 1-42
+client2/src/game/engine/censorGpu.ts
+  s_89d5ad20619017::t_1e25eaf141f009 152
+  s_89d5ad20619017::t_4b3f9d13c01215 106-108,111,115-116,127-129,132-134,144-148,156,160,163-176,182,184-185,187-192,197,200-205
+  s_89d5ad20619017::t_2e9588c580dac9 1-105,109-110,112-114,117-120,124-126,130-131,135-143,149-151,153-155,157-159,161-162,177-181,183,186,193-196,198-199,206-217
+  s_89d5ad20619017::t_c756e938cdf142 121-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f0856baff1c14a638f17b999f6f37df43fd3dd30",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
