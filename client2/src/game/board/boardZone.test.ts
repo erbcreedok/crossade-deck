@@ -72,6 +72,21 @@ describe("BoardZone — onOccupied (исход на занятый слот)", (
   });
 });
 
+describe("BoardZone — accept-правило (rules as data)", () => {
+  it("правило гейтит приём даже в пустой слот", () => {
+    const z = new BoardZone({
+      slots: layout,
+      board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" },
+      bounds,
+      rule: (ctx) => ctx.toKey === "0,1", // принимает только слот (0,1)
+    });
+    expect(z.dropAt("a", 150, 50).moved).toBe(true); // (0,1) — разрешён
+    expect(z.locate("a")?.key).toBe("0,1");
+    const z2 = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, rule: () => false });
+    expect(z2.dropAt("a", 250, 50).moved).toBe(false); // всё запрещено
+  });
+});
+
 describe("BoardZone — запертость", () => {
   it("clamp держит фигуру в рамке зоны", () => {
     const z = make({});

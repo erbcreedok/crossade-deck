@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
 import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
-import { BoardZone, type OnOccupied } from "../board/boardZone";
+import { BoardZone, type OnOccupied, type AcceptCtx } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
@@ -65,8 +65,12 @@ interface BoardPreset {
   layout?: "grid" | "ring";
   ringCount?: number; // число слотов кольца (layout: ring)
   maxSize?: number; // потолок стопки в слоте (дурак и т.п.)
+  rule?: (figFace: string, topFace: string | null) => boolean; // value-правило приёма (rules as data)
   slots: Record<string, string[]>; // ключ ("r,c" | "ringN") → лица карт-фигур
 }
+
+// Цвет карты по масти — для value-правил (напр. «клади только свой цвет»).
+const cardColor = (face: string): "red" | "black" => (face.endsWith("♥") || face.endsWith("♦") ? "red" : "black");
 
 const BOARD_PRESETS: BoardPreset[] = [
   { title: "свободно (merge)", cols: 3, rows: 2, onOccupied: "merge", slots: { "0,0": ["A♠"], "0,2": ["K♥", "Q♦"], "1,1": ["10♣"] } },
@@ -74,6 +78,7 @@ const BOARD_PRESETS: BoardPreset[] = [
   { title: "пятнашки (swap)", cols: 3, rows: 2, onOccupied: "swap", slots: { "0,0": ["2♠"], "0,1": ["3♠"], "0,2": ["4♠"], "1,0": ["5♠"], "1,1": ["6♠"] } },
   { title: "шахматы — съесть (capture)", cols: 3, rows: 1, onOccupied: "capture", slots: { "0,0": ["K♣"], "0,2": ["Q♥"] } },
   { title: "монополия — кольцо (ring, swap)", cols: 0, rows: 0, layout: "ring", ringCount: 8, onOccupied: "swap", slots: { ring0: ["A♣"], ring4: ["K♦"] } },
+  { title: "правило: клади только свой цвет (rule)", cols: 3, rows: 1, onOccupied: "merge", rule: (fig, top) => top === null || cardColor(fig) === cardColor(top), slots: { "0,0": ["6♥"], "0,1": ["7♠"], "0,2": ["8♦"] } },
 ];
 
 interface Placed {
@@ -403,6 +408,7 @@ export class FreeDeskEngine {
     selection: string[];
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
+    boards: { figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
     draggingId: string | null;
   } {
@@ -441,6 +447,12 @@ export class FreeDeskEngine {
             .filter((o): o is { id: string; el: Elem } => !!o.el)
             .map(({ id, el }) => ({ id, ...toScreen(el.body.px, el.body.py) }))
         : [],
+      boards: this.boardZones.map((z) => ({
+        figures: Object.entries(z.board.slots).flatMap(([key, c]) =>
+          c.members.map((id) => ({ id, key, el: this.byId.get(id) })).filter((o): o is { id: string; key: string; el: Elem } => !!o.el).map(({ id, key, el }) => ({ id, key, ...toScreen(el.body.px, el.body.py) })),
+        ),
+        slots: z.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })),
+      })),
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
@@ -884,7 +896,15 @@ export class FreeDeskEngine {
       });
       slots[key] = { members: ids, maxSize: preset.maxSize };
     }
-    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied });
+    // Value-правило: оборачиваем preset.rule (по лицам) в AcceptRule (по ids/слотам) через faces.
+    const rule = preset.rule
+      ? (ctx: AcceptCtx): boolean => {
+          const c = ctx.board.slots[ctx.toKey];
+          const topId = c && c.members[c.members.length - 1];
+          return preset.rule!(faces[ctx.figureId] ?? "", topId ? (faces[topId] ?? null) : null);
+        }
+      : undefined;
+    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied, rule });
     this.boardZones.push(zone);
 
     this.scene.surface.addChild(this.label(preset.title, left, top, 13, 0xcdb98f, undefined, 0));

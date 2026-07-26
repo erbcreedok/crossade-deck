@@ -14,11 +14,22 @@ import type { PositionedSlot } from "./layout/slots";
 // Исход дропа на ЗАНЯТЫЙ слот (GRID-DESIGN.md, onOccupied). Пресеты; кастомный Action — позже.
 export type OnOccupied = "merge" | "swap" | "capture" | "reject";
 
+// Value-aware ПРАВИЛО приёма (rules as data): финальный гейт поверх onOccupied. Знает ids/слоты и
+// текущий board; ЗНАЧЕНИЯ (ранг/масть) достаёт из своего замыкания. Основа правил игр (пасьянс и т.п.).
+export interface AcceptCtx {
+  figureId: string;
+  fromKey: string;
+  toKey: string;
+  board: Board;
+}
+export type AcceptRule = (ctx: AcceptCtx) => boolean;
+
 export interface BoardZoneOpts {
   slots: PositionedSlot[]; // раскладка (из любой стратегии)
   board: Board;
   bounds: Rect; // рамка контейнера — фигуры не выбираются за неё
   onOccupied?: OnOccupied; // что делать при дропе на занятый слот (дефолт merge)
+  rule?: AcceptRule; // доп. гейт приёма по значениям (опц.)
 }
 
 // Сдвиг стопки в слоте (peek): верх выше-правее. Малый, чисто чтобы читалась глубина.
@@ -30,6 +41,7 @@ export class BoardZone {
   readonly bounds: Rect;
   onOccupied: OnOccupied; // изменяем на лету (тоглер песочницы)
   private readonly centers: Map<string, { x: number; y: number }>;
+  private readonly rule?: AcceptRule;
 
   constructor(o: BoardZoneOpts) {
     this.slotList = o.slots;
@@ -37,6 +49,7 @@ export class BoardZone {
     this.bounds = o.bounds;
     this.onOccupied = o.onOccupied ?? "merge";
     this.centers = new Map(o.slots.map((s) => [s.key, s.center]));
+    this.rule = o.rule;
   }
 
   /** В каком слоте и на какой глубине лежит фигура. */
@@ -79,9 +92,14 @@ export class BoardZone {
     return this.commit(figureId, from.key, win.id);
   }
 
-  // Примет ли слот фигуру: пустой — да; тот же — нет; занятый — по onOccupied.
+  // Примет ли слот фигуру: структурно (пустой/onOccupied) И value-правило (если задано).
   private slotAccepts(key: string, fromKey: string, figureId: string): boolean {
     if (key === fromKey) return false; // реордер отдельно
+    if (!this.structuralAccepts(key, figureId)) return false;
+    return this.rule ? this.rule({ figureId, fromKey, toKey: key, board: this.board }) : true;
+  }
+
+  private structuralAccepts(key: string, figureId: string): boolean {
     const c = at(this.board, key);
     if (!c || c.members.length === 0) return true; // пустой
     switch (this.onOccupied) {

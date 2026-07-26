@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Игровая зона (борд): фигуры-карты в слотах, драг между слотами (BoardZone.dropAt), фигуры
 // заперты в рамке (clamp). Логический слот фигуры берём из хука (boardFigures[].key).
 test.describe("песочница — игровая зона (борд)", () => {
-  test.use({ viewport: { width: 900, height: 2800 } }); // высокий — виден и нижний select-борд
+  test.use({ viewport: { width: 900, height: 3200 } }); // высокий — виден и нижний select-борд
 
   interface Hooks {
     boardFigures: { id: string; key: string; x: number; y: number }[];
@@ -12,6 +12,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     selection: string[];
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
+    boards: { figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
     draggingId: string | null;
   }
@@ -83,6 +84,26 @@ test.describe("песочница — игровая зона (борд)", () =>
     h = await hooks(page);
     expect(h.selection).toEqual([]); // набор пуст
     expect(h.selMode).toBe(true); // но режим остался
+  });
+
+  test("value-правило (цвет): красную нельзя на чёрную, можно на красную", async ({ page }) => {
+    const h = await hooks(page);
+    const idx = h.boards.length - 2; // rule-борд — предпоследний (последний — select-демо)
+    const rb = h.boards[idx]!;
+    // rule-борд: (0,0)=6♥ red, (0,1)=7♠ black, (0,2)=8♦ red
+    const red = rb.figures.find((f) => f.key === "0,0")!;
+    const blackSlot = rb.slots.find((s) => s.key === "0,1")!;
+
+    await dragTo(page, red, blackSlot); // красную на чёрную — отказ
+    await page.waitForTimeout(400);
+    let g = await hooks(page);
+    expect(g.boards[idx]!.figures.find((f) => f.id === red.id)!.key).toBe("0,0"); // осталась
+
+    const redSlot = rb.slots.find((s) => s.key === "0,2")!;
+    await dragTo(page, red, redSlot); // красную на красную — принято
+    await page.waitForTimeout(400);
+    g = await hooks(page);
+    expect(g.boards[idx]!.figures.find((f) => f.id === red.id)!.key).toBe("0,2"); // переехала
   });
 
   test("ИЗОЛЯЦИЯ: в режиме выделения нельзя выбрать фигуру ЧУЖОЙ зоны", async ({ page }) => {
