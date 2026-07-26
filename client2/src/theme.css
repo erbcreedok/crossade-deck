@@ -15,7 +15,7 @@ body,
 body {
   background: #2f3d34;
   color: #cdb98f;
-  font-family: "VT323", monospace;
+  font-family: "Handjet", monospace;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -34,7 +34,7 @@ body {
   left: 10px;
   bottom: 8px;
   z-index: 5;
-  font-family: "VT323", monospace;
+  font-family: "Handjet", monospace;
   font-size: 0.85rem;
   color: #cdb98f;
   opacity: 0.22;
@@ -50,7 +50,7 @@ body {
   right: 10px;
   bottom: 8px;
   z-index: 5;
-  font-family: "VT323", monospace;
+  font-family: "Handjet", monospace;
   font-size: 0.85rem;
   color: #cdb98f;
   opacity: 0.22;
@@ -89,7 +89,7 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10;
-  font-family: "VT323", monospace;
+  font-family: "Handjet", monospace;
   font-size: 0.95rem;
   letter-spacing: 1px;
   color: #2b1d0a;
@@ -100,7 +100,7 @@ body {
   white-space: nowrap;
 }
 .fd-btn {
-  font-family: "VT323", monospace;
+  font-family: "Handjet", monospace;
   font-size: 1rem;
   color: #cdb98f;
   background: rgba(0, 0, 0, 0.3);
@@ -197,7 +197,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-family: "VT323", monospace;
+    font-family: "Handjet", monospace;
     font-size: 0.95rem;
     color: #cdb98f;
     background: rgba(0, 0, 0, 0.3);

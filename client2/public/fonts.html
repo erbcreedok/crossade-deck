@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=VT323&family=Handjet&family=Press+Start+2P&family=Pixelify+Sans&family=Jersey+10&family=Jersey+15&family=Jersey+20&family=Jersey+25&family=Micro+5&family=Doto:wght@400;700&family=DotGothic16&family=Silkscreen&family=Tiny5&family=Workbench&family=Bytesized&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Handjet&family=Tiny5&family=Press+Start+2P&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -37,11 +37,9 @@
     </p>
     <div id="list"></div>
     <script>
-      const FONTS = [
-        "VT323", "Handjet", "Press Start 2P", "Pixelify Sans",
-        "Jersey 10", "Jersey 15", "Jersey 20", "Jersey 25",
-        "Micro 5", "Doto", "DotGothic16", "Silkscreen", "Tiny5", "Workbench", "Bytesized",
-      ];
+      // Отобранные: Handjet — основной (пиксельный умеренно), Tiny5 — альт (очень пиксельный, квадратный),
+      // Press Start 2P — тоже с кириллицей, но крупный.
+      const FONTS = ["Handjet", "Tiny5", "Press Start 2P"];
       const SAMPLE = "Тяни карту сюда · ГОУ · соснуть · колода · сброс";
       const KAZ = "Әә Ғғ Ққ Ңң Өө Ұұ Үү Һһ Іі";
       const LAT = "AaBbQqKk 0123456789 ♠♥♦♣";

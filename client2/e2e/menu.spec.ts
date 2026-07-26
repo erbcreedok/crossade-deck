@@ -10,9 +10,10 @@ test.describe("меню", () => {
 
   test("канвас отрисован (графика не пустая)", async ({ page }) => {
     await expect(page.locator("canvas")).toBeVisible();
-    // Полный кадр с двумя кнопками весит заметно больше пустого фона.
+    // Полный кадр с двумя кнопками весит заметно больше пустого фона (порог грубый, зависит от
+    // «чернил» шрифта — Handjet тоньше прежнего VT323; пустой канвас сжимается в ~2КБ).
     const shot = await page.screenshot();
-    expect(shot.length).toBeGreaterThan(8000);
+    expect(shot.length).toBeGreaterThan(4000);
   });
 
   test("«сосать» запускает анимацию крика (кадр меняется)", async ({ page }) => {
