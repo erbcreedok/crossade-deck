@@ -1,0 +1,32 @@
+client2/e2e/field.spec.ts
+  s_89d5ad20619017::t_96068dcf95aae6 127-167
+client2/src/game/board/stack.ts
+  s_89d5ad20619017::t_e7c9bf326eeaa6 46-47
+client2/src/game/slot/layouts.ts
+  s_89d5ad20619017::t_b872a146fe12da 67
+  s_89d5ad20619017::t_313e028ee1cc55 29-34
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_435fd36e2a8f74 193-201,205
+client2/src/game/board/dynamicGrid.test.ts
+  s_89d5ad20619017::t_cc64c367193ce4 85,87-89,92-93,95-101,104
+client2/src/game/slot/layouts.test.ts
+  s_89d5ad20619017::t_37460f7b41992c 21-25
+client2/src/game/board/dynamicGrid.ts
+  s_89d5ad20619017::t_ca61cbbc97695f 60-63,66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "55a35a2057cd9f98b4ea4826c607d407e4c80d98",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
