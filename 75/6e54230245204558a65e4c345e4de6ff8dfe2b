@@ -1,0 +1,24 @@
+client2/src/game/board/boardModel.ts
+  s_89d5ad20619017::t_fdb2c9a11200a5 1-19
+client2/src/game/board/boardModel.test.ts
+  s_89d5ad20619017::t_f8b0b65deb7935 1-18
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_62ff1e908d8480 9
+  s_89d5ad20619017::t_3ea34cf1ecdafd 858-859
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "756e54230245204558a65e4c345e4de6ff8dfe2b",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
