@@ -6,7 +6,7 @@ import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
 import { type FlowGeom } from "../board/dynamicGrid";
-import { Field } from "../board/field";
+import { Field, NORMAL_FIELD } from "../board/field";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -889,7 +889,8 @@ export class FreeDeskEngine {
     verb.anchor.set(0.5, 0.5);
     const stackIds = DECK52.map((_, i) => `field-s-${i}`);
     // layerBelow = surface (под картами, «наведи» незаметно); layerAbove = verb-слой (над картами, «брось»).
-    const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb });
+    // config: NORMAL_FIELD — «обычная сетка» (текущий вид). Без config Field = голый грид (NAKED_FIELD).
+    const field = new Field({ stackRect, grid, stackIds, anchor, verb, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: NORMAL_FIELD });
     this.scene.surface.addChild(field.frame, anchor, verb);
     this.fields.push(field);
 

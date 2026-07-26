@@ -22,15 +22,47 @@ export interface FieldOpts {
   verb: Text; // глагол дропзоны «наведи»/«брось»
   layerBelow: Container; // слой ПОД картами (сюда «наведи» — незаметно под картами)
   layerAbove: Container; // слой НАД картами (сюда «брось» — поверх карт при ховере)
+  config?: FieldConfig; // стиль/поведение (по умолчанию NAKED_FIELD — голый грид)
 }
 
 // Состояние аффорданса грида-дропзоны: покой / идёт драг (борд отчётливее + глагол) / ховер над
 // гридом (фон + яркий глагол «брось»).
 export type FieldDrag = "idle" | "drag" | "hover";
 
-const MIN_COLS = 3;
-const RESERVE = true;
-const GRID_PAD = 13; // отступ рамки/фона грида от карт (расстояния МЕЖДУ картами = gap, не трогаем)
+// ——— КОНФИГ Поля (стиль/поведение как ДАННЫЕ, не жёсткое правило) ———
+// «Хром» — вся графика поверх голого грида (рамки/якорь/глаголы). null → голый грид без графики.
+export interface FieldChrome {
+  outerBorder: boolean; // внешняя dashed-рамка Поля (при драге)
+  dropzoneBorder: boolean; // рамка грида-дропзоны (при драге: dashed вне / solid+фон над)
+  anchorText: string | null; // текст узла-якоря на пустом гриде (null → без якоря)
+  verbDrag: string; // глагол при драге вне зоны
+  verbHover: string; // глагол при ховере над зоной
+  colors: { line: number; hover: number; fill: number; verbDrag: number; verbHover: number; anchor: number };
+}
+export interface FieldConfig {
+  minCols: number; // минимум колонок грида
+  reserve: boolean; // держать место под следующую карту
+  gridPad: number; // отступ рамки/фона от карт (gap между картами не трогает)
+  chrome: FieldChrome | null; // графика; null → голый грид
+}
+
+// Дефолт: ГОЛЫЙ грид без графики (то, что было до графических правок) — flow-паковка, без рамок/якорей.
+export const NAKED_FIELD: FieldConfig = { minCols: 3, reserve: true, gridPad: 8, chrome: null };
+
+// Для «обычных сеток»: текущий вид (рамки при драге, узел-якорь, глаголы наведи/брось). Будем редачить.
+export const NORMAL_FIELD: FieldConfig = {
+  minCols: 3,
+  reserve: true,
+  gridPad: 13,
+  chrome: {
+    outerBorder: true,
+    dropzoneBorder: true,
+    anchorText: "тяни карту сюда",
+    verbDrag: "наведи",
+    verbHover: "брось",
+    colors: { line: 0x8fa39a, hover: 0xf2c14e, fill: 0x8fa39a, verbDrag: 0x9aa89f, verbHover: 0xf2c14e, anchor: 0x7d8f84 },
+  },
+};
 
 export class Field {
   stackIds: string[];
@@ -42,6 +74,7 @@ export class Field {
   readonly grid: FlowGeom;
   private readonly layerBelow: Container;
   private readonly layerAbove: Container;
+  private readonly config: FieldConfig;
   private dragState: FieldDrag = "idle";
 
   constructor(o: FieldOpts) {
@@ -52,6 +85,7 @@ export class Field {
     this.verb = o.verb;
     this.layerBelow = o.layerBelow;
     this.layerAbove = o.layerAbove;
+    this.config = o.config ?? NAKED_FIELD; // по умолчанию — голый грид
     this.anchor.visible = false;
     this.verb.visible = false;
   }
@@ -85,14 +119,15 @@ export class Field {
   }
 
   private layout() {
-    return flowLayout(this.gridIds.length, this.grid, { minCols: MIN_COLS, reserve: RESERVE });
+    return flowLayout(this.gridIds.length, this.grid, { minCols: this.config.minCols, reserve: this.config.reserve });
   }
 
   /** Габарит грид-рамки/фона: bounding box ячеек + отступ GRID_PAD со всех сторон (карты не прижаты
    *  к границам). Позиции карт (flowLayout) отступ НЕ меняет — расстояния между картами прежние. */
   gridRect(): Rect4 {
     const s = this.layout().size;
-    return { x: this.grid.origin.x - GRID_PAD, y: this.grid.origin.y - GRID_PAD, w: s.w + 2 * GRID_PAD, h: s.h + 2 * GRID_PAD };
+    const p = this.config.gridPad;
+    return { x: this.grid.origin.x - p, y: this.grid.origin.y - p, w: s.w + 2 * p, h: s.h + 2 * p };
   }
 
   /** Внешняя рамка Поля — объемлет стопку и грид (+ отступы, снизу/справа больше). */
@@ -134,37 +169,45 @@ export class Field {
    *  внешняя рамка Поля + грид-дропзона (драг вне зоны — dashed; ховер над зоной — solid + фон). */
   draw(): void {
     this.frame.clear();
+    const chrome = this.config.chrome;
+    if (!chrome) {
+      // Голый грид — без графики (дефолт).
+      this.anchor.visible = false;
+      this.verb.visible = false;
+      return;
+    }
     const gr = this.gridRect();
+    const col = chrome.colors;
     if (this.dragState !== "idle") {
-      dashRect(this.frame, this.outerRect(), 11, 7, 0x8fa39a, 2); // внешняя рамка Поля (появляется на драге)
-      if (this.dragState === "hover") {
-        this.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: 0x8fa39a, alpha: 0.16 }).stroke({ width: 2.5, color: 0xf2c14e }); // над зоной — solid + фон
-      } else {
-        dashRect(this.frame, gr, 9, 6, 0x8fa39a, 1.5); // драг вне зоны — dashed
+      if (chrome.outerBorder) dashRect(this.frame, this.outerRect(), 11, 7, col.line, 2); // рамка Поля на драге
+      if (chrome.dropzoneBorder) {
+        if (this.dragState === "hover") this.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: col.fill, alpha: 0.16 }).stroke({ width: 2.5, color: col.hover }); // над зоной — solid + фон
+        else dashRect(this.frame, gr, 9, 6, col.line, 1.5); // драг вне зоны — dashed
       }
     }
 
-    // Узел-якорь — только в покое и на пустом гриде.
-    const idleEmpty = this.dragState === "idle" && this.gridIds.length === 0;
+    // Узел-якорь — только в покое, на пустом гриде и если задан текст.
+    const idleEmpty = this.dragState === "idle" && this.gridIds.length === 0 && chrome.anchorText !== null;
     this.anchor.visible = idleEmpty;
     if (idleEmpty) {
+      this.anchor.text = chrome.anchorText!;
       const cell = this.grid.cell;
       const first = { x: this.grid.origin.x + cell.w / 2, y: this.grid.origin.y + cell.h / 2 };
       const from = { x: this.stackRect.x + this.stackRect.w + 6, y: this.stackRect.y + 4 };
       const to = { x: first.x - cell.w * 0.32, y: first.y };
-      drawKnot(this.frame, from, to, 0x7d8f84, 1.5);
+      drawKnot(this.frame, from, to, col.anchor, 1.5);
       this.anchor.position.set((from.x + to.x) / 2 + 6, Math.min(from.y, to.y) - 30);
     }
 
-    // Глагол дропзоны: «наведи» (драг) — ПОД картами (незаметно); «брось» (ховер) — НАД картами.
+    // Глагол дропзоны: «наведи» (драг) — ПОД картами; «брось» (ховер) — НАД картами.
     const showVerb = this.dragState !== "idle";
     this.verb.visible = showVerb;
     if (showVerb) {
       const over = this.dragState === "hover";
-      this.verb.text = over ? "брось" : "наведи";
-      this.verb.style.fill = over ? 0xf2c14e : 0x9aa89f;
+      this.verb.text = over ? chrome.verbHover : chrome.verbDrag;
+      this.verb.style.fill = over ? col.verbHover : col.verbDrag;
       this.verb.position.set(gr.x + gr.w / 2, gr.y + gr.h / 2);
-      (over ? this.layerAbove : this.layerBelow).addChild(this.verb); // над картами только при ховере
+      (over ? this.layerAbove : this.layerBelow).addChild(this.verb);
     }
   }
 }
