@@ -842,6 +842,7 @@ export class FreeDeskEngine {
       y = this.buildOneBoard(left, y, preset, pi) + 20;
     });
     y = this.buildSelectDemo(left, y, BOARD_PRESETS.length) + 20;
+    y = this.buildChessBoard(left, y) + 20;
     return y;
   }
 
@@ -983,24 +984,74 @@ export class FreeDeskEngine {
     }
   }
 
+  // Борд из НЕ-карточных фигур (Piece): шахматы прямо на доске. Доказательство, что слоты держат
+  // любые фигуры, не только карты — весь драг/переезд/capture работает без правок «для фигур».
+  private buildChessBoard(left: number, top: number): number {
+    const cols = 4;
+    const rows = 2;
+    const cell = { w: this.cardW * 1.0, h: this.cardH * 0.92 };
+    const gap = 8;
+    const gy = top + 22;
+    const positioned = gridSlots({ cols, cell, gap, origin: { x: left, y: gy } }, rows);
+    const w = cols * cell.w + (cols - 1) * gap;
+    const h = rows * cell.h + (rows - 1) * gap;
+    const bounds = { x: left, y: gy, w, h };
+    const specs = [
+      { key: "0,0", glyph: "♞", dark: true },
+      { key: "0,2", glyph: "♟", dark: false },
+      { key: "1,1", glyph: "♜", dark: true },
+      { key: "1,3", glyph: "♙", dark: false },
+    ];
+    const slots: Board["slots"] = {};
+    specs.forEach((s, i) => (slots[s.key] = { members: [`chessb-${i}`] }));
+    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: "capture" });
+    this.boardZones.push(zone);
+    this.boardTitles.push("шахматы из ФИГУР (Piece, capture)");
+
+    this.scene.surface.addChild(this.label("шахматы из ФИГУР (Piece, capture)", left, top, 13, 0xcdb98f, undefined, 0));
+    const frame = new Graphics();
+    frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
+    for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
+    this.scene.surface.addChild(frame);
+
+    const r = Math.min(cell.w, cell.h) * 0.34;
+    specs.forEach((s, i) => {
+      const id = `chessb-${i}`;
+      this.spawnPiece(id, zone.figureHome(id), r * 2, r * 2, (root) => drawChessPiece(root, r * 2, s.dark, s.glyph), { rx: r * 0.55, ry: r * 0.18, dy: r * 0.7 });
+    });
+    this.scene.surface.addChild(this.label("тащи фигуру на фигуру — съедает (capture)", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
+    return bounds.y + bounds.h + 34;
+  }
+
   // Зона, которой принадлежит фигура (или null).
   private boardZoneOf(id: string): BoardZone | null {
     for (const z of this.boardZones) if (z.locate(id)) return z;
     return null;
   }
 
-  // Увести вытесненные (capture) фигуры с борда — сжечь (как «ушли из игры»).
+  // Увести вытесненные (capture) фигуры с борда — сжечь (как «ушли из игры»). Карта ИЛИ фигура.
   private exileFigures(ids: string[]): void {
-    for (const id of ids) this.cards.find((p) => p.card.id === id)?.card.burn();
+    for (const id of ids) {
+      const el = this.byId.get(id);
+      if (el && "burn" in el) (el as { burn(): void }).burn();
+    }
+  }
+
+  // Задать home фигуре борда — среди карт ИЛИ не-карточных фигур (обобщено под Piece-борды).
+  private setFigureHome(id: string, home: { x: number; y: number }): void {
+    const c = this.cards.find((p) => p.card.id === id);
+    if (c) {
+      c.home = home;
+      return;
+    }
+    const p = this.pieces.find((q) => q.el.id === id);
+    if (p) p.home = home;
   }
 
   // Пересчитать home всех фигур зоны (после переезда стек-смещения меняются).
   private refreshZoneHomes(zone: BoardZone): void {
     for (const key of Object.keys(zone.board.slots)) {
-      for (const id of zone.board.slots[key]!.members) {
-        const placed = this.cards.find((p) => p.card.id === id);
-        if (placed) placed.home = zone.figureHome(id);
-      }
+      for (const id of zone.board.slots[key]!.members) this.setFigureHome(id, zone.figureHome(id));
     }
   }
 

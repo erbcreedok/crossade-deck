@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Игровая зона (борд): фигуры-карты в слотах, драг между слотами (BoardZone.dropAt), фигуры
 // заперты в рамке (clamp). Логический слот фигуры берём из хука (boardFigures[].key).
 test.describe("песочница — игровая зона (борд)", () => {
-  test.use({ viewport: { width: 900, height: 3800 } }); // высокий — видны и нижние борды (пасьянс/select)
+  test.use({ viewport: { width: 900, height: 4400 } }); // высокий — видны и нижние борды (пасьянс/select/фигуры)
 
   interface Hooks {
     boardFigures: { id: string; key: string; x: number; y: number }[];
@@ -55,6 +55,30 @@ test.describe("песочница — игровая зона (борд)", () =>
     await page.mouse.up();
     expect(g.draggingId).toBe(a.id);
     expect(fig(g, a.id).x).toBeLessThan(rightmost + h.cardW); // прижата к рамке, не на +4000
+  });
+
+  test("борд из ФИГУР (Piece): конь переезжает и СЪЕДАЕТ пешку (capture)", async ({ page }) => {
+    let h = await hooks(page);
+    let cb = h.boards.find((b) => b.title.includes("ФИГУР"))!;
+    let idx = h.boards.indexOf(cb);
+    const knight = cb.figures.find((f) => f.key === "0,0")!; // ♞
+    const empty = cb.slots.find((s) => s.key === "0,1")!;
+    await dragTo(page, knight, empty); // переезд в пустой слот
+    await page.waitForTimeout(400);
+    h = await hooks(page);
+    expect(h.boards[idx]!.figures.find((f) => f.id === knight.id)!.key).toBe("0,1");
+
+    // теперь съесть пешку в (0,2)
+    cb = h.boards[idx]!;
+    const kNow = cb.figures.find((f) => f.id === knight.id)!;
+    const pawn = cb.figures.find((f) => f.key === "0,2")!;
+    const pawnSlot = cb.slots.find((s) => s.key === "0,2")!;
+    await dragTo(page, kNow, pawnSlot);
+    await page.waitForTimeout(1000); // capture → сжечь → reap
+    const g = await hooks(page);
+    const gcb = g.boards[idx]!;
+    expect(gcb.figures.find((f) => f.id === knight.id)!.key).toBe("0,2"); // конь занял слот
+    expect(gcb.figures.some((f) => f.id === pawn.id)).toBe(false); // пешка съедена
   });
 
   // Изолированный мультиселект (selection.ts).
@@ -133,15 +157,15 @@ test.describe("песочница — игровая зона (борд)", () =>
     await clickAt(page, h.selFigures[1]!); // выбрать 7♣ (0,1)
     h = await hooks(page);
     expect(h.selection).toHaveLength(2);
-    const board = h.boards[h.boards.length - 1]!; // select-борд
+    const board = h.boards.find((b) => b.title.includes("выделение"))!; // select-борд
     const empty = board.slots.find((s) => s.key === "0,3")!; // пустой слот
     // тащим выделенную фигуру (первую) в пустой слот — за ней едет весь набор
     const f0 = h.selFigures[0]!;
     await dragTo(page, f0, empty);
     await page.waitForTimeout(500);
     const g = await hooks(page);
-    const last = g.boards[g.boards.length - 1]!;
-    const at03 = last.figures.filter((f) => f.key === "0,3").map((f) => f.id).sort();
+    const sb = g.boards.find((b) => b.title.includes("выделение"))!;
+    const at03 = sb.figures.filter((f) => f.key === "0,3").map((f) => f.id).sort();
     expect(at03).toEqual([f0.id, h.selFigures[1]!.id].sort()); // обе в (0,3)
     expect(g.selection).toEqual([]); // набор сброшен после переноса
   });
