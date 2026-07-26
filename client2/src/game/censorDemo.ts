@@ -149,8 +149,8 @@ export class CensorDemo {
       bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
       card.addChild(bg);
 
-      // частица 2.5; remap 55 тиков/с; pingpong медленнее и с малой вероятностью свапа (ползёт, не мылит).
-      const gpu = gv.mode === "remap" ? new GpuCensorCard(app, "remap", 2.5, 55) : new GpuCensorCard(app, "pingpong", 2.5, 45, 0.05);
+      // Стартуют с тех же дефолтов, что слайдеры (DANCE_DEFAULT) → рычаги сверху управляют и ими.
+      const gpu = new GpuCensorCard(app, gv.mode, DANCE_DEFAULT);
       const mask = new Graphics();
       mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
       card.addChild(mask);
@@ -257,6 +257,7 @@ export class CensorDemo {
   // Живая настройка «танец ⚙». swaps/jitter — просто мутируем спек (CensorField читает его каждый кадр).
   // block меняет размер частиц → нужна пересборка источника-сетки и поля (в той же карте/маске).
   updateDance(p: Partial<DanceParams>): void {
+    for (const g of this.gpuCards) g.setParams(p); // рычаги управляют и GPU-рядом
     const t = this.tunable;
     if (!t || !this.app) return;
     if (p.swapsPerSec !== undefined) t.spec.swapsPerSec = p.swapsPerSec;
