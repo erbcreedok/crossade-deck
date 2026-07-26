@@ -1,0 +1,24 @@
+client2/src/game/board/fieldPaint.ts
+  s_89d5ad20619017::t_d90c8b6d7227e6 3,5,7,15,24,26,28-29,35,37-38,45,48,62,73
+client2/src/game/board/field.ts
+  s_89d5ad20619017::t_24989d78b695ad 7,39,202
+  s_89d5ad20619017::t_d90c8b6d7227e6 11,38,53,57,65,199,208
+client2/src/game/engine/freeDeskEngine.ts
+  s_89d5ad20619017::t_d90c8b6d7227e6 900
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "34d2c2bcb5a03381f7b097817343df836844e808",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
