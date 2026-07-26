@@ -46,6 +46,12 @@ async function expectInsideWidth(page: Page, selector: string) {
   expect(box.x + box.width, `${selector} не срезан справа`).toBeLessThanOrEqual(vw(page) + 1);
 }
 
+// Песочница (free-desk) — ТЯЖЁЛАЯ WebGL-сцена; гонять её на всех 10 профилях = слишком много
+// одновременных WebGL-контекстов за прогон (контекст теряется → канвас не появляется). Инварианты
+// вёрстки зависят от ШИРИНЫ вьюпорта, а не от конкретной модели — хватает репрезентативного набора
+// (широкий/узкий/остров/планшет). Меню (лёгкая сцена) остаётся на всех.
+const DESK_DEVICES = new Set(["десктоп 1440", "узкое окно 360", "iPhone 14 Pro (остров)", "iPad Pro 11 (планшет)"]);
+
 for (const d of MATRIX) {
   test.describe(d.name, () => {
     test.use(d.use);
@@ -73,6 +79,7 @@ for (const d of MATRIX) {
       expect(await horizOverflow(page), "нет горизонтального переполнения").toBeLessThanOrEqual(1);
     });
 
+    if (!DESK_DEVICES.has(d.name)) return; // песочницу — только на репрезентативном подмножестве
     test("песочница: канвас во всю ширину, кнопки топбара не обрезаны, без переполнения", async ({ page }) => {
       await page.goto("/free-desk");
       await settle(page);

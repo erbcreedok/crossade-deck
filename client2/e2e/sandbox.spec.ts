@@ -80,6 +80,7 @@ test.describe("песочница — действия", () => {
                 cardCount: number;
                 grips: ({ x: number; y: number } | null)[];
                 stackCards: { x: number; y: number }[][];
+                stackIds: string[][];
                 markerVis: { dragger: boolean; anchor: boolean }[];
                 cardW: number;
                 draggingId: string | null;
@@ -187,6 +188,20 @@ test.describe("песочница — действия", () => {
     const g = await hooks(page);
     await page.mouse.up();
     expect(g.draggingId).toBe("stk0c2"); // схвачена «8», а не «7» (stk0c1)
+  });
+
+  test("реордер стопки: тянешь верхнюю карту в начало → порядок меняется", async ({ page }) => {
+    let h = await hooks(page);
+    const before = h.stackIds[0]!;
+    const top = h.stackCards[0]![before.length - 1]!; // верх = крайняя справа
+    const first = h.stackCards[0]![0]!;
+    // левее центра c0 (карты внахлёст 0.4w) — чтобы индекс дропа был именно 0. Режим «по карте» (умолч.).
+    await dragTo(page, top, { x: first.x - h.cardW * 0.4, y: first.y });
+    await page.waitForTimeout(500);
+    h = await hooks(page);
+    const after = h.stackIds[0]!;
+    expect(after[0]).toBe(before[before.length - 1]); // верхняя встала в начало
+    expect(after).not.toEqual(before);
   });
 });
 

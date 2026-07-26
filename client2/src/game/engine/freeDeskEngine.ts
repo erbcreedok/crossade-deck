@@ -6,6 +6,7 @@ import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
 import { Field, NORMAL_FIELD } from "../board/field";
+import { Stack } from "../board/stack";
 import { attachControls } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import { layoutForPreset } from "../board/boardLayout";
@@ -100,10 +101,10 @@ interface Grabber {
   lead: () => Elem | null;
 }
 
-// Стопка песочницы: состав (ids), host для меток и её драггер-метка (для хит-теста захвата пачки).
+// Стопка песочницы: Stack (порядок/дом/реордер на дереве слотов), host для меток и её драггер-метка.
 // Драггер/якорь — generic Marker'ы (см. marker.ts), навешенные на host; хранятся в this.markers.
 interface SandboxStack {
-  ids: string[];
+  stack: Stack;
   host: MarkerHost;
   dragger: Marker;
   anchor: Marker;
@@ -392,6 +393,7 @@ export class FreeDeskEngine {
     cardCount: number;
     grips: ({ x: number; y: number } | null)[];
     stackCards: { x: number; y: number }[][];
+    stackIds: string[][];
     markerVis: { dragger: boolean; anchor: boolean }[];
     pieces: { id: string; x: number; y: number }[];
     pieceCount: number;
@@ -420,7 +422,8 @@ export class FreeDeskEngine {
       firstCard: first ? { ...toScreen(first.body.px, first.body.py), faceUp: first.faceUp } : null,
       cardCount: this.cards.length,
       grips: this.stacks.map((st) => toScreen(st.dragger.gfx.position.x, st.dragger.gfx.position.y)),
-      stackCards: this.stacks.map((st) => st.ids.map((id) => this.byId.get(id)).filter((c): c is Elem => !!c).map((c) => toScreen(c.body.px, c.body.py))),
+      stackCards: this.stacks.map((st) => st.stack.ids.map((id) => this.byId.get(id)).filter((c): c is Elem => !!c).map((c) => toScreen(c.body.px, c.body.py))),
+      stackIds: this.stacks.map((st) => st.stack.ids),
       markerVis: this.stacks.map((st) => ({ dragger: st.dragger.cfg.showWhen(st.host.state()), anchor: st.anchor.cfg.showWhen(st.host.state()) })),
       pieces: this.pieces.map((p) => ({ id: p.el.id, ...toScreen(p.el.body.px, p.el.body.py) })),
       pieceCount: this.pieces.length,
@@ -671,17 +674,17 @@ export class FreeDeskEngine {
     ];
     anchors.forEach((a, s) => {
       const ox = left + s * (footprint + gap);
-      const ids = ranks.map((r, i) => {
-        const id = `stk${s}c${i}`;
-        const cx = ox + this.cardW / 2 + i * step;
-        this.cardSpecs.push({ opts: { id, card: r, rest: "floating" }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.6 + s });
-        return id;
+      const ids = ranks.map((_, i) => `stk${s}c${i}`);
+      // Stack держит порядок/дом/реордер на дереве слотов; дома карт берём у него.
+      const stack = new Stack({ left: ox, top: cy - this.cardH / 2, cell: { w: this.cardW, h: this.cardH }, step, ids, reorder: true });
+      ids.forEach((id, i) => {
+        this.cardSpecs.push({ opts: { id, card: ranks[i]!, rest: "floating" }, home: stack.homeOf(id), depth: i, bobPhase: i * 0.6 + s });
       });
       const slot = { x: ox + footprint / 2, y: cy }; // центр стопки — дом для меток
       const host: MarkerHost = {
         slotPos: () => slot,
-        state: () => this.stackState(ids),
-        makePayload: (cp) => this.makeStackPayload(ids, cp),
+        state: () => this.stackState(stack.ids),
+        makePayload: (cp) => this.makeStackPayload(stack.ids, cp),
       };
       const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
         draw: drawGrip,
@@ -692,14 +695,15 @@ export class FreeDeskEngine {
       });
       const anchor = withAnchor(host, this.scene.surface, { draw: a.draw, showWhen: a.showWhen }); // якорь в центре, под картами
       this.markers.push(dragger, anchor);
-      this.stacks.push({ ids, host, dragger, anchor });
-      this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(ids[ids.length - 1]!) ?? null });
+      this.stacks.push({ stack, host, dragger, anchor });
+      this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(stack.top ?? "") ?? null });
       this.scene.surface.addChild(this.label(a.cap, ox, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
     });
     const toggleY = cy + this.cardH / 2 + 50;
     this.segToggle(left, toggleY, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
     this.segToggle(left, toggleY + 28, "при драге стопки:", ["рассыпью", "в руку"], this.dragSqueeze ? 1 : 0, (i) => (this.dragSqueeze = i === 1));
-    return toggleY + 70;
+    this.segToggle(left, toggleY + 56, "реордер стопок:", ["выкл", "вкл"], 1, (i) => this.stacks.forEach((st) => (st.stack.reorder = i === 1)));
+    return toggleY + 84;
   }
 
   // Ряд НЕ-карточных элементов: соло-карта с меткой + фишки номиналов + шахматы. Все — тот же
@@ -930,6 +934,25 @@ export class FreeDeskEngine {
       this.setFigureHome(id, home);
       this.byId.get(id)?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
     }
+  }
+
+  private stackForCard(id: string): SandboxStack | null {
+    return this.stacks.find((s) => s.stack.owns(id)) ?? null;
+  }
+
+  // После реордера в стопке: новые дома + z по индексу (верх справа = выше), пружиной.
+  private applyStackHomes(st: SandboxStack): void {
+    st.stack.ids.forEach((id, i) => {
+      const home = st.stack.homeOf(id);
+      const placed = this.cards.find((p) => p.card.id === id);
+      if (placed) {
+        placed.home = home;
+        placed.depth = i;
+        placed.card.root.zIndex = i;
+      }
+      this.byId.get(id)?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
+    });
+    this.wake();
   }
 
   // Игровые зоны (борды): РЯД пресетов (data-driven). Каждый борд — сетка слотов + фигуры-карты,
@@ -1349,7 +1372,7 @@ export class FreeDeskEngine {
         }
         const el = this.hitElement(cx, cy);
         if (el && this.stackMode === "whole") {
-          const owner = this.stacks.find((s) => el.id !== "" && s.ids.includes(el.id));
+          const owner = this.stacks.find((s) => el.id !== "" && s.stack.owns(el.id));
           if (owner) {
             this.pendingHost = owner.host;
             this.grabbedMarker = owner.dragger;
@@ -1435,9 +1458,17 @@ export class FreeDeskEngine {
             this.refreshZoneHomes(bz);
             this.drag.release(); // летит в (возможно новый) home
           } else {
-            const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
-            zone?.onDrop(this.drag); // зона реагирует на СПОСОБНОСТИ груза (flip/burn), не на тип
-            if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
+            // Стопка: ОДИНОЧНый драг, упавший НА свою стопку → реордер по позиции. Пачка (GroupDrag)
+            // и дропы мимо стопки — не реордер, идут дальше в зоны (переворот/сжечь/вернуть домой).
+            const stk = this.drag instanceof GroupDrag ? null : this.stackForCard(this.drag.lead.id);
+            if (stk && stk.stack.place(this.drag.lead.id, cp).moved) {
+              this.applyStackHomes(stk);
+              this.drag.release();
+            } else {
+              const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
+              zone?.onDrop(this.drag); // зона реагирует на СПОСОБНОСТИ груза (flip/burn), не на тип
+              if (!this.drag.consumed) this.drag.release(); // не поглощён (не горит) → вернуть на место
+            }
           }
           this.drag = null;
         }
@@ -1561,8 +1592,8 @@ export class FreeDeskEngine {
       p.card.root.zIndex = depths[j]!;
       p.card.requestFlip();
     });
-    const st = this.stacks.find((s) => els.every((el) => s.ids.includes(el.id)));
-    st?.ids.reverse();
+    const st = this.stacks.find((s) => els.every((el) => s.stack.owns(el.id)));
+    st?.stack.reverse();
     this.wake();
   }
 
