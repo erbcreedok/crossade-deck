@@ -31,7 +31,7 @@ body {
 /* Неприметный тумблер версий (client2 → старый клиент). Еле виден, ярче на наведении. */
 .ver-switch {
   position: fixed;
-  right: 10px;
+  left: 10px;
   bottom: 8px;
   z-index: 5;
   font-family: "VT323", monospace;
@@ -44,10 +44,10 @@ body {
   opacity: 0.7;
 }
 
-/* Номер сборки — угол снизу-слева, симметрично тумблеру версий, той же приглушённостью. */
+/* Номер сборки — угол снизу-справа, симметрично тумблеру версий, той же приглушённостью. */
 .ver-build {
   position: fixed;
-  left: 10px;
+  right: 10px;
   bottom: 8px;
   z-index: 5;
   font-family: "VT323", monospace;
