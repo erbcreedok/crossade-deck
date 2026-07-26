@@ -1,0 +1,30 @@
+client2/src/game/slot/slot.test.ts
+  s_89d5ad20619017::t_1e0b9db9228958 13-14
+client2/src/game/slot/mutate.ts
+  s_89d5ad20619017::t_b59d4636d78939 35-36,40,43
+  s_89d5ad20619017::t_3c32deb9bb9174 2
+client2/src/game/slot/types.ts
+  s_89d5ad20619017::t_3304f18d426590 22-47,50,56,62-68
+client2/src/game/slot/slot.ts
+  s_89d5ad20619017::t_909d3d26b6a6ad 50,55
+  s_89d5ad20619017::t_474e4cfd5b24e4 1
+client2/src/game/slot/mutate.test.ts
+  s_89d5ad20619017::t_003e537337624d 2,9-10,13-14
+  s_89d5ad20619017::t_3d763336e76c47 58-59,65-66,72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "71541af9c07b666371373c5a1db1bd716f3da49a",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
