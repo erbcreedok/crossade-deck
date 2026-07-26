@@ -33,4 +33,10 @@ test.describe("меню", () => {
     await expect(page.locator(".brand-badge")).toHaveText(/crusade/);
     await expect(page.locator(".brand-badge")).toBeHidden();
   });
+
+  test("номер сборки виден в углу (vX.Y.Z+build)", async ({ page }) => {
+    const badge = page.locator(".ver-build");
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText(/^v\d+\.\d+\.\d+\+.+$/);
+  });
 });

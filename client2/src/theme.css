@@ -44,6 +44,19 @@ body {
   opacity: 0.7;
 }
 
+/* Номер сборки — угол снизу-слева, симметрично тумблеру версий, той же приглушённостью. */
+.ver-build {
+  position: fixed;
+  left: 10px;
+  bottom: 8px;
+  z-index: 5;
+  font-family: "VT323", monospace;
+  font-size: 0.85rem;
+  color: #cdb98f;
+  opacity: 0.22;
+  pointer-events: none;
+}
+
 .table-hint {
   padding: 8px 12px;
   font-size: 1rem;

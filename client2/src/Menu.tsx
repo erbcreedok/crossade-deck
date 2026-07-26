@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { MenuEngine } from "./game/engine/menuEngine";
 import { goApp, OLD_CLIENT_URL } from "./nav";
+import { formatVersion } from "./version";
 
 // Главное меню — целиком на канвасе (MenuEngine). Кнопка «песочница» уводит в песочницу.
 export function Menu() {
@@ -22,6 +23,8 @@ export function Menu() {
       <a className="ver-switch" href={OLD_CLIENT_URL}>
         v1
       </a>
+      {/* Номер сборки — видно по скриншоту, что именно залилось. */}
+      <span className="ver-build">{formatVersion()}</span>
     </div>
   );
 }
