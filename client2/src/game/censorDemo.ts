@@ -60,6 +60,9 @@ export class CensorDemo {
   private cam = { scale: 1, x: 0, y: 0 };
   private pointers = new Map<number, { x: number; y: number }>();
   private pinchDist = 0;
+  private fitScale = 1; // масштаб «всё влезло по ширине» — точка отсчёта для слайдера размера
+  private viewW = 0;
+  private viewH = 0;
 
   // Настраиваемый танец: держим карту/маску/спек, чтобы менять параметры вживую (block → пересборка).
   private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
@@ -171,6 +174,9 @@ export class CensorDemo {
     const contentW = x; // правый край последней карты + запас справа
     const pad = 14;
     const s0 = Math.min(1, (width - pad) / contentW);
+    this.fitScale = s0;
+    this.viewW = width;
+    this.viewH = height;
     this.cam = { scale: s0, x: Math.max(pad, (width - contentW * s0) / 2), y: 8 };
     this.applyCam();
     this.bindCamera(app.canvas);
@@ -184,18 +190,27 @@ export class CensorDemo {
     this.world.position.set(this.cam.x, this.cam.y);
   }
 
+  // Зум вокруг экранной точки (sx,sy) в factor раз, с сохранением точки под пальцем/курсором.
+  private zoomAround(sx: number, sy: number, factor: number): void {
+    const ns = Math.max(0.15, Math.min(6, this.cam.scale * factor));
+    const wx = (sx - this.cam.x) / this.cam.scale;
+    const wy = (sy - this.cam.y) / this.cam.scale;
+    this.cam.scale = ns;
+    this.cam.x = sx - wx * ns;
+    this.cam.y = sy - wy * ns;
+    this.applyCam();
+  }
+
+  // Слайдер «размер карты»: 1 = «влезло по ширине», mul>1 — крупнее (зум вокруг центра экрана).
+  setViewZoom(mul: number): void {
+    const target = this.fitScale * mul;
+    this.zoomAround(this.viewW / 2, this.viewH / 2, target / this.cam.scale);
+  }
+
   // Драг-пан (1 палец) + пинч-зум (2 пальца) + колесо (десктоп). Зум вокруг точки под курсором/центром.
   private bindCamera(canvas: HTMLCanvasElement): void {
     canvas.style.touchAction = "none";
-    const zoomAt = (sx: number, sy: number, factor: number): void => {
-      const ns = Math.max(0.15, Math.min(4, this.cam.scale * factor));
-      const wx = (sx - this.cam.x) / this.cam.scale;
-      const wy = (sy - this.cam.y) / this.cam.scale;
-      this.cam.scale = ns;
-      this.cam.x = sx - wx * ns;
-      this.cam.y = sy - wy * ns;
-      this.applyCam();
-    };
+    const zoomAt = (sx: number, sy: number, factor: number): void => this.zoomAround(sx, sy, factor);
     const mid = (): { x: number; y: number } => {
       const p = [...this.pointers.values()];
       return { x: (p[0]!.x + p[1]!.x) / 2, y: (p[0]!.y + p[1]!.y) / 2 };

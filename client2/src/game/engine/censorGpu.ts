@@ -99,7 +99,7 @@ export class GpuCensorCard {
   private rows = 1;
   // общие
   private display!: Sprite;
-  private grid: RenderTexture | null = null; // источник-фак в сетке
+  private finger: RenderTexture | null = null; // источник-фак в ВЫСОКОМ разрешении (иначе апскейл «шакалит»)
   private filter: Filter | null = null; // remap: ремап; pingpong: дисплей
   // pingpong
   private stateA: RenderTexture | null = null;
@@ -125,11 +125,11 @@ export class GpuCensorCard {
     this.cols = Math.max(1, Math.round(TEX_W / this.p.block));
     this.rows = Math.max(1, Math.round(TEX_H / this.p.block));
     const grid = new Float32Array([this.cols, this.rows]);
-    this.grid = this.newGrid();
-    this.renderFinger(this.grid);
+    this.finger = this.newFinger();
+    this.renderFingerHi(this.finger);
 
     if (this.mode === "remap") {
-      const sprite = new Sprite(this.grid);
+      const sprite = new Sprite(this.finger);
       sprite.setSize(TEX_W, TEX_H);
       this.filter = makeFilter(REMAP_FRAG, {
         uGrid: { value: grid, type: "vec2<f32>" },
@@ -157,8 +157,8 @@ export class GpuCensorCard {
       this.stepSprite = new Sprite(this.stateA);
       this.stepSprite.filters = [this.stepFilter];
       this.copySprite = new Sprite(this.cur);
-      // дисплей: фак (uTexture) + поле смещений (uState = фикс. stateDisp)
-      const sprite = new Sprite(this.grid);
+      // дисплей: hi-res фак (uTexture) + поле смещений (uState = фикс. stateDisp)
+      const sprite = new Sprite(this.finger);
       sprite.setSize(TEX_W, TEX_H);
       this.filter = makeFilter(DISPLAY_FRAG, {
         uGrid: { value: grid, type: "vec2<f32>" },
@@ -173,12 +173,16 @@ export class GpuCensorCard {
 
   private newGrid(): RenderTexture {
     const rt = RenderTexture.create({ width: this.cols, height: this.rows });
-    rt.source.scaleMode = "nearest";
+    rt.source.scaleMode = "nearest"; // сетка смещений — низкоразрешающая, но это лишь оффсеты, не картинка
     return rt;
   }
-  private renderFinger(rt: RenderTexture): void {
+  // Фак в ВЫСОКОМ разрешении (полный размер карты ×2). Пикселизацию даёт шейдер (квант UV), а не низкий
+  // размер текстуры → блоки чёткие, без «шакала» от апскейла.
+  private newFinger(): RenderTexture {
+    return RenderTexture.create({ width: TEX_W, height: TEX_H, resolution: 2 });
+  }
+  private renderFingerHi(rt: RenderTexture): void {
     const content = buildContent();
-    content.scale.set(this.cols / TEX_W, this.rows / TEX_H);
     this.app.renderer.render({ container: content, target: rt, clear: true });
     content.destroy({ children: true });
   }
@@ -242,11 +246,11 @@ export class GpuCensorCard {
 
   reset(): void {
     this.step = 0;
-    if (this.mode === "pingpong") {
-      this.renderZeroOffset(this.stateA!);
+    if (this.mode === "pingpong" && this.stateA) {
+      this.renderZeroOffset(this.stateA);
       this.renderZeroOffset(this.stateDisp!);
-      this.cur = this.stateA!;
-      this.other = this.stateB!;
+      this.cur = this.stateA;
+      this.other = this.stateB;
     }
   }
 
@@ -256,13 +260,13 @@ export class GpuCensorCard {
     this.stepSprite?.destroy();
     this.copySprite?.destroy();
     this.display?.destroy();
-    this.grid?.destroy(true);
+    this.finger?.destroy(true);
     this.stateA?.destroy(true);
     this.stateB?.destroy(true);
     this.stateDisp?.destroy(true);
     this.filter = this.stepFilter = null;
     this.stepSprite = this.copySprite = null;
-    this.grid = this.stateA = this.stateB = this.stateDisp = this.cur = this.other = null;
+    this.finger = this.stateA = this.stateB = this.stateDisp = this.cur = this.other = null;
     this.view.removeChildren();
   }
 

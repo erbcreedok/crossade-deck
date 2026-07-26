@@ -9,6 +9,7 @@ export function CensorDemoPage() {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CensorDemo | null>(null);
   const [speed, setSpeed] = useState(1);
+  const [size, setSize] = useState(1);
   const [dance, setDance] = useState<DanceParams>(DANCE_DEFAULT);
 
   useEffect(() => {
@@ -50,6 +51,10 @@ export function CensorDemoPage() {
         <label className="fd-zoom" style={ctl}>
           <span style={cap}>скорость {speed.toFixed(1)}x</span>
           <input type="range" min={0} max={3} step={0.1} value={speed} onChange={(e) => { const s = Number(e.target.value); setSpeed(s); engineRef.current?.setSpeed(s); }} />
+        </label>
+        <label className="fd-zoom" style={ctl}>
+          <span style={cap}>размер {size.toFixed(1)}x</span>
+          <input type="range" min={0.5} max={6} step={0.1} value={size} onChange={(e) => { const s = Number(e.target.value); setSize(s); engineRef.current?.setViewZoom(s); }} />
         </label>
         <span style={{ opacity: 0.6, fontSize: 13 }}>танец ⚙:</span>
         <label className="fd-zoom" style={ctl}>
