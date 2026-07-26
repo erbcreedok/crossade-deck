@@ -1,0 +1,21 @@
+client2/public/fonts.html
+  s_89d5ad20619017::t_d8e54615d8dd68 26-27
+  s_89d5ad20619017::t_4f0ccf289b6360 34-36
+  s_89d5ad20619017::t_2949aed2c5104c 56,59-60,63,65-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c8b421b7f21290f9f2463d86a8613e11bff3e2e3",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
