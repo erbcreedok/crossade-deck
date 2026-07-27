@@ -11,6 +11,7 @@ import { Stack } from "../board/stack";
 import { attachControls, type Configurable } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import type { Stepper } from "../ui/Stepper";
+import type { Segmented } from "../ui/Segmented";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -22,7 +23,7 @@ import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
-import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP } from "./sandboxLayout";
+import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP, BLOCK_PAD } from "./sandboxLayout";
 import { wrapRow } from "./sandboxWrap";
 import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
@@ -210,6 +211,9 @@ export class FreeDeskEngine extends CanvasApp {
   private pieces: PiecePlaced[] = []; // не-карточные элементы (фишки, фигуры) — тот же драг/тени
   private cardSpecs: CardSpec[] = [];
   private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
+  private controlButtons: { cap: string; b: Button }[] = []; // flip/conceal/reveal/move — для e2e
+  private widgetDemo = { flag: false, level: 3, mode: 0 }; // витрина «виджеты контролов» — тривиальное состояние
+  private widgetControls: { toggles: Toggle[]; steppers: Stepper[]; segments: Segmented[] } | null = null;
   private byId = new Map<string, Elem>(); // реестр по id (карты + фишки + фигуры) для API/меток
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
   private stacks: SandboxStack[] = [];
@@ -453,6 +457,14 @@ export class FreeDeskEngine extends CanvasApp {
     stackModeAt: { x: number; y: number }[];
     stackSqueezeAt: { x: number; y: number }[];
     stackReorderAt: { x: number; y: number } | null;
+    controls: {
+      buttons: { cap: string; x: number; y: number }[];
+      flipFaceUp: boolean | null;
+      concealed: boolean | null;
+      revealValue: string | null;
+      moveCounts: { a: number; b: number } | null;
+      widgets: { flag: boolean; level: number; mode: number; toggleAt: { x: number; y: number } | null; stepperMinusAt: { x: number; y: number } | null; stepperPlusAt: { x: number; y: number } | null; segmentedAt: { x: number; y: number }[] } | null;
+    };
     cardW: number;
     draggingId: string | null;
   } {
@@ -504,6 +516,24 @@ export class FreeDeskEngine extends CanvasApp {
       stackModeAt: this.stackModeButtons.map((b) => toScreen(b.x, b.y)),
       stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
       stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
+      controls: {
+        buttons: this.controlButtons.map(({ cap, b }) => ({ cap, ...toScreen(b.x, b.y) })),
+        flipFaceUp: (this.byId.get("ctl-flip") as Card | undefined)?.faceUp ?? null,
+        concealed: (this.byId.get("ctl-conceal") as Card | undefined)?.concealed ?? null,
+        revealValue: (this.byId.get("ctl-reveal") as Card | undefined)?.card ?? null,
+        moveCounts: this.stackMove ? { a: this.stackMove.a.length, b: this.stackMove.b.length } : null,
+        widgets: this.widgetControls
+          ? {
+              flag: this.widgetDemo.flag,
+              level: this.widgetDemo.level,
+              mode: this.widgetDemo.mode,
+              toggleAt: this.widgetControls.toggles[0] ? toScreen(this.widgetControls.toggles[0].hitCenter().x, this.widgetControls.toggles[0].hitCenter().y) : null,
+              stepperMinusAt: this.widgetControls.steppers[0] ? toScreen(this.widgetControls.steppers[0].buttons()[0]!.x, this.widgetControls.steppers[0].buttons()[0]!.y) : null,
+              stepperPlusAt: this.widgetControls.steppers[0] ? toScreen(this.widgetControls.steppers[0].buttons()[1]!.x, this.widgetControls.steppers[0].buttons()[1]!.y) : null,
+              segmentedAt: this.widgetControls.segments[0] ? this.widgetControls.segments[0].buttons().map((b) => toScreen(b.x, b.y)) : [],
+            }
+          : null,
+      },
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
@@ -621,18 +651,30 @@ export class FreeDeskEngine extends CanvasApp {
   // ——— раздел «Управление» (демо API) ———
 
   private buildControls(left: number, top: number): number {
-    this.scene.surface.addChild(this.label("Управление", left, top, 26, 0xcdb98f, undefined, 0));
-    let y = top + 46;
-    y = this.buildFlipBlock(left, y) + 22;
-    y = this.buildConcealBlock(left, y) + 22;
-    y = this.buildRevealBlock(left, y) + 22;
-    y = this.buildMoveBlock(left, y);
-    return y;
+    return this.sectionFrame(left, top, "Управление", (contentLeft, contentTop) => {
+      let y = contentTop;
+      let width = 0;
+      const row = (bottom: number, w: number) => {
+        y = bottom + SB_ITEM_GAP;
+        width = Math.max(width, w);
+      };
+      const r1 = this.buildFlipBlock(contentLeft, y);
+      row(r1.bottom, r1.width);
+      const r2 = this.buildConcealBlock(contentLeft, y);
+      row(r2.bottom, r2.width);
+      const r3 = this.buildRevealBlock(contentLeft, y);
+      row(r3.bottom, r3.width);
+      const r4 = this.buildMoveBlock(contentLeft, y);
+      row(r4.bottom, r4.width);
+      const r5 = this.buildWidgetsBlock(contentLeft, y);
+      width = Math.max(width, r5.width);
+      return { bottom: r5.bottom, width };
+    });
   }
 
   // Общий каркас демо-блока «Управления»: fit-рамка + текст-кнопка + одна карта. Блоки различаются
   // лишь кнопкой (лейбл+действие) и пропсами карты — их даёт вызыватель. DRY для flip/conceal/reveal.
-  private singleCardControl(left: number, top: number, btn: Button, cardOpts: CardOptions): number {
+  private singleCardControl(left: number, top: number, btn: Button, cardOpts: CardOptions): { bottom: number; width: number } {
     const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
     this.blockFrame(left, top, box.boxW, box.boxH);
     const cx = left + box.boxW / 2;
@@ -641,45 +683,53 @@ export class FreeDeskEngine extends CanvasApp {
     const card = new Card({ ...cardOpts, rest: "idle" }, this.tex, this.baseScale);
     card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
     this.addControlCard(card);
-    return top + box.boxH;
+    return { bottom: top + box.boxH, width: box.boxW };
   }
 
   // Блок «перевернуть» — по тапу переворачивает карту (flipCard). Бокс подгоняется под контент (fit).
-  private buildFlipBlock(left: number, top: number): number {
-    const btn = this.textButton("перевернуть карту", () => this.flipCard("ctl-flip"));
+  private buildFlipBlock(left: number, top: number): { bottom: number; width: number } {
+    const cap = "перевернуть карту";
+    const btn = this.textButton(cap, () => this.flipCard("ctl-flip"));
+    this.controlButtons.push({ cap, b: btn });
     return this.singleCardControl(left, top, btn, { id: "ctl-flip", card: "A♥" });
   }
 
   // Блок «раскрыть/скрыть» (C3): карта в режиме секретности (живая «пыль»); тап снимает/ставит
   // скрытость через API — раскрытая показывает НАСТОЯЩЕЕ лицо (значение под пылью реально).
-  private buildConcealBlock(left: number, top: number): number {
+  private buildConcealBlock(left: number, top: number): { bottom: number; width: number } {
     let concealed = true;
-    const btn = this.textButton("раскрыть / скрыть", () => {
+    const cap = "раскрыть / скрыть";
+    const btn = this.textButton(cap, () => {
       concealed = !concealed;
       this.setConcealed("ctl-conceal", concealed);
     });
+    this.controlButtons.push({ cap, b: btn });
     return this.singleCardControl(left, top, btn, { id: "ctl-conceal", card: "K♠", hidden: true });
   }
 
   // Блок «раскрытие значения» (C1): карта с ПРИДЕРЖАННЫМ значением (card:"" → маска); тап проставляет
   // значение через API — карта показывает НАСТОЯЩЕЕ лицо (сервер раскрыл / снова придержал).
-  private buildRevealBlock(left: number, top: number): number {
+  private buildRevealBlock(left: number, top: number): { bottom: number; width: number } {
     let known = false;
-    const btn = this.textButton("узнать значение", () => {
+    const cap = "узнать значение";
+    const btn = this.textButton(cap, () => {
       known = !known;
       this.setCardValue("ctl-reveal", known ? "Q♦" : "");
     });
+    this.controlButtons.push({ cap, b: btn });
     return this.singleCardControl(left, top, btn, { id: "ctl-reveal", card: "" });
   }
 
   // Блок 2: две стопки (5 и 4). Тап — случайная карта летит из одной в другую и остаётся там;
   // следующий тап — случайная летит обратно. Направление чередуется. Бокс подгоняется под контент.
-  private buildMoveBlock(left: number, top: number): number {
+  private buildMoveBlock(left: number, top: number): { bottom: number; width: number } {
     const step = this.cardW * 0.4;
     const footprint = this.cardW + 4 * step; // до 5 карт внахлёст
     const stacksGap = this.cardW * 0.7;
     const stacksW = footprint * 2 + stacksGap;
-    const btn = this.textButton("перенос из стопки в стопку", () => this.doStackMove());
+    const cap = "перенос из стопки в стопку";
+    const btn = this.textButton(cap, () => this.doStackMove());
+    this.controlButtons.push({ cap, b: btn });
     const box = fitBlock(btn.w, stacksW, btn.h, this.cardH);
     this.blockFrame(left, top, box.boxW, box.boxH);
     const cx = left + box.boxW / 2;
@@ -694,7 +744,34 @@ export class FreeDeskEngine extends CanvasApp {
     this.stackMove = { a, b, ax, bx, y, toB: true };
     this.relayoutStack(a, ax, y, true);
     this.relayoutStack(b, bx, y, true);
-    return top + box.boxH;
+    return { bottom: top + box.boxH, width: box.boxW };
+  }
+
+  // Витрина «виджеты контролов» — Toggle/Stepper/Segmented на тривиальном локальном состоянии,
+  // ОТДЕЛЬНО от команд dispatch/flipCard/… выше: доказывает, что это переиспользуемые атомы UI-kit,
+  // а не то, что «прикрутили только к Полю/бордам». Тот же двухпроходный трюк, что у sectionFrame —
+  // размер бокса известен только после attachControls (Stepper/Toggle/Segmented сами решают свою ширину).
+  private buildWidgetsBlock(left: number, top: number): { bottom: number; width: number } {
+    const pad = BLOCK_PAD;
+    const frameIndex = this.scene.surface.children.length;
+    const cap = this.label("виджеты контролов (Toggle / Stepper / Segmented)", left + pad, top + pad, 13, 0xcdb98f, undefined, 0);
+    this.scene.surface.addChild(cap);
+    const contentTop = top + pad + cap.height + 12;
+    const cfg: Configurable = {
+      params: () => [
+        { kind: "bool", label: "флаг", get: () => this.widgetDemo.flag, set: (v) => (this.widgetDemo.flag = v) },
+        { kind: "number", label: "уровень", min: 0, max: 10, get: () => this.widgetDemo.level, set: (v) => (this.widgetDemo.level = v) },
+        { kind: "choice", label: "режим", options: ["a", "b", "c"], get: () => this.widgetDemo.mode, set: (v) => (this.widgetDemo.mode = v) },
+      ],
+    };
+    const rc = attachControls(cfg, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: () => this.wake() }, { x: left + pad, y: contentTop });
+    this.widgetControls = rc;
+    const width = Math.max(cap.width, rc.steppers[0]?.w ?? 0, rc.toggles[0]?.w ?? 0, rc.segments[0]?.w ?? 0) + pad * 2;
+    const height = rc.bottom - top + pad;
+    const frame = new Graphics();
+    frame.roundRect(left, top, width, height, 12).fill({ color: 0x000000, alpha: 0.1 }).stroke({ width: 1, color: 0x4a5b50 });
+    this.scene.surface.addChildAt(frame, frameIndex);
+    return { bottom: top + height, width };
   }
 
   private doStackMove(): void {
