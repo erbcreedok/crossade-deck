@@ -569,57 +569,46 @@ export class FreeDeskEngine extends CanvasApp {
     return y;
   }
 
-  // Блок 1: текст-кнопка «перевернуть карту» — по тапу переворачивает карту внутри блока.
-  // Бокс подгоняется под контент (fit): ширина = max(кнопка, карта) + отступы.
-  private buildFlipBlock(left: number, top: number): number {
-    const btn = this.textButton("перевернуть карту", () => this.flipCard("ctl-flip"));
+  // Общий каркас демо-блока «Управления»: fit-рамка + текст-кнопка + одна карта. Блоки различаются
+  // лишь кнопкой (лейбл+действие) и пропсами карты — их даёт вызыватель. DRY для flip/conceal/reveal.
+  private singleCardControl(left: number, top: number, btn: Button, cardOpts: CardOptions): number {
     const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
     this.blockFrame(left, top, box.boxW, box.boxH);
     const cx = left + box.boxW / 2;
     btn.place(cx, top + box.btnCY);
     this.registerButton(btn);
-    const card = new Card({ id: "ctl-flip", card: "A♥", rest: "idle" }, this.tex, this.baseScale);
+    const card = new Card({ ...cardOpts, rest: "idle" }, this.tex, this.baseScale);
     card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
     this.addControlCard(card);
     return top + box.boxH;
   }
 
-  // Блок «раскрыть/скрыть»: карта в режиме секретности (живая «пыль»); тап снимает/ставит скрытость
-  // через публичный API — раскрытая показывает НАСТОЯЩЕЕ лицо (значение под пылью реально). Демо C3.
+  // Блок «перевернуть» — по тапу переворачивает карту (flipCard). Бокс подгоняется под контент (fit).
+  private buildFlipBlock(left: number, top: number): number {
+    const btn = this.textButton("перевернуть карту", () => this.flipCard("ctl-flip"));
+    return this.singleCardControl(left, top, btn, { id: "ctl-flip", card: "A♥" });
+  }
+
+  // Блок «раскрыть/скрыть» (C3): карта в режиме секретности (живая «пыль»); тап снимает/ставит
+  // скрытость через API — раскрытая показывает НАСТОЯЩЕЕ лицо (значение под пылью реально).
   private buildConcealBlock(left: number, top: number): number {
     let concealed = true;
     const btn = this.textButton("раскрыть / скрыть", () => {
       concealed = !concealed;
       this.setConcealed("ctl-conceal", concealed);
     });
-    const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
-    this.blockFrame(left, top, box.boxW, box.boxH);
-    const cx = left + box.boxW / 2;
-    btn.place(cx, top + box.btnCY);
-    this.registerButton(btn);
-    const card = new Card({ id: "ctl-conceal", card: "K♠", hidden: true, rest: "idle" }, this.tex, this.baseScale);
-    card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
-    this.addControlCard(card);
-    return top + box.boxH;
+    return this.singleCardControl(left, top, btn, { id: "ctl-conceal", card: "K♠", hidden: true });
   }
 
-  // Блок «раскрытие значения» (C1): карта с ПРИДЕРЖАННЫМ значением (card:"" → маска, клиент не
-  // знает карту); тап проставляет значение через публичный API — карта показывает НАСТОЯЩЕЕ лицо.
+  // Блок «раскрытие значения» (C1): карта с ПРИДЕРЖАННЫМ значением (card:"" → маска); тап проставляет
+  // значение через API — карта показывает НАСТОЯЩЕЕ лицо (сервер раскрыл / снова придержал).
   private buildRevealBlock(left: number, top: number): number {
     let known = false;
     const btn = this.textButton("узнать значение", () => {
       known = !known;
-      this.setCardValue("ctl-reveal", known ? "Q♦" : ""); // сервер раскрыл / снова придержал
+      this.setCardValue("ctl-reveal", known ? "Q♦" : "");
     });
-    const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
-    this.blockFrame(left, top, box.boxW, box.boxH);
-    const cx = left + box.boxW / 2;
-    btn.place(cx, top + box.btnCY);
-    this.registerButton(btn);
-    const card = new Card({ id: "ctl-reveal", card: "", rest: "idle" }, this.tex, this.baseScale);
-    card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
-    this.addControlCard(card);
-    return top + box.boxH;
+    return this.singleCardControl(left, top, btn, { id: "ctl-reveal", card: "" });
   }
 
   // Блок 2: две стопки (5 и 4). Тап — случайная карта летит из одной в другую и остаётся там;
