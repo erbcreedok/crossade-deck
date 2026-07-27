@@ -1077,9 +1077,9 @@ export class FreeDeskEngine extends CanvasApp {
 
   // Спавн ОДНОГО элемента борда по дескриптору: карта → cardSpecs; фигура (chip/chess) → spawnPiece
   // (визуал из реестра pieceKinds). Единая точка, снявшая 3-веточный диспетч смешанного борда.
-  private spawnElement(id: string, home: { x: number; y: number }, def: ElementDef, depth: number, r: number): void {
+  private spawnElement(id: string, home: { x: number; y: number }, def: ElementDef, depth: number, r = 0): void {
     if (def.kind === "card") this.cardSpecs.push({ opts: { id, card: def.face, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
-    else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess)
+    else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess); r — только для фигур
   }
 
   // BOARDFACTORY (grid): из конфига-ДАННЫХ собираем хром + фигуры. «Новый grid-борд = конфиг».
@@ -1114,7 +1114,7 @@ export class FreeDeskEngine extends CanvasApp {
     let depth = 300 + pi * 100;
     for (const key of Object.keys(slots)) {
       for (const id of slots[key]!.members) {
-        this.cardSpecs.push({ opts: { id, card: faces[id] ?? "A♠", rest: "idle", size: 0.86 }, home: zone.figureHome(id), depth: depth++, bobPhase: 0 });
+        this.spawnElement(id, zone.figureHome(id), { kind: "card", face: faces[id] ?? "A♠" }, depth++);
       }
     }
     return { zone, bottom: bounds.y + bounds.h + 8 };
