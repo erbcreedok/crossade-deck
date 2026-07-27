@@ -86,6 +86,14 @@ interface PiecePlaced {
   depth: number;
 }
 
+// Дескриптор элемента ряда «Фишки и фигуры» (секция-как-данные): элемент + подпись + слот + опц. метка.
+interface PieceRowItem {
+  caption: string;
+  w: number; // ширина слота — и подписи, и шага x
+  el: { kind: "card"; id: string; card: string } | { kind: "piece"; id: string; spec: PieceSpec } | { kind: "stack" };
+  marker?: { draw: (g: Graphics) => void; show: ShowPolicy; label: string };
+}
+
 // Одиночная цель с меткой (соло-карта, соло-фигура): host + драггер/якорь + как достать лид.
 interface SoloTarget {
   host: MarkerHost;
@@ -764,42 +772,28 @@ export class FreeDeskEngine extends CanvasApp {
     let x = left + this.cardW / 2;
     const cap = (text: string, w = slotW) => this.scene.surface.addChild(this.label(text, x, cy + this.cardH / 2 + 8, 12, 0x9aa89f, w));
 
-    // 1) СОЛО-КАРТА с меткой (доказательство: withDragger/withAnchor на одиночной карте, не стопке).
-    const soloId = "solo-card";
-    this.cardSpecs.push({ opts: { id: soloId, card: "A♠", rest: "idle" }, home: { x, y: cy }, depth: 100, bobPhase: 0 });
-    this.attachSolo(soloId, { x, y: cy }, drawAnchorIcon, "away", "карта"); // якорь «когда унесли»
-    cap("карта + метка");
-    x += slotW;
-
-    // 2) ФИШКИ разных номиналов (Piece, круглые). Draggable + Burnable, но НЕ Flippable — значит
-    // «перевернуть» их проигнорирует, а «сжечь» сработает (зона реагирует на способности).
-    const chips = [
-      { v: "5", c: 0xb23b34 },
-      { v: "25", c: 0x2f6b34 },
-      { v: "100", c: 0x24242a },
-      { v: "500", c: 0x6c4bb0 },
+    // Ряд как ДАННЫЕ: соло-карта с меткой / фишки-номиналы / шахматы (конь с меткой) / стопка фишек.
+    // Все — тот же драг/тени/метки; фишки/фигуры Draggable+Burnable, но НЕ Flippable (зона реагирует
+    // на способности). `el.kind` диспетчится ниже одним циклом (задел под BoardFactory-контент).
+    const items: PieceRowItem[] = [
+      { caption: "карта + метка", w: slotW, el: { kind: "card", id: "solo-card", card: "A♠" }, marker: { draw: drawAnchorIcon, show: "away", label: "карта" } },
+      { caption: "фишка 5", w: slotW * 0.78, el: { kind: "piece", id: "chip-5", spec: { kind: "chip", color: 0xb23b34, denom: "5" } } },
+      { caption: "фишка 25", w: slotW * 0.78, el: { kind: "piece", id: "chip-25", spec: { kind: "chip", color: 0x2f6b34, denom: "25" } } },
+      { caption: "фишка 100", w: slotW * 0.78, el: { kind: "piece", id: "chip-100", spec: { kind: "chip", color: 0x24242a, denom: "100" } } },
+      { caption: "фишка 500", w: slotW * 0.78, el: { kind: "piece", id: "chip-500", spec: { kind: "chip", color: 0x6c4bb0, denom: "500" } } },
+      { caption: "чёрный конь", w: slotW * 0.9, el: { kind: "piece", id: "chess-knight", spec: { kind: "chess", dark: true, glyph: "♞" } }, marker: { draw: drawRingIcon, show: "empty", label: "конь" } },
+      { caption: "белая пешка", w: slotW * 0.9, el: { kind: "piece", id: "chess-pawn", spec: { kind: "chess", dark: false, glyph: "♟" } } },
+      { caption: "стопка фишек", w: slotW, el: { kind: "stack" } },
     ];
-    for (const ch of chips) {
-      this.spawnPiece(`chip-${ch.v}`, { x, y: cy }, { kind: "chip", color: ch.c, denom: ch.v }, r);
-      cap(`фишка ${ch.v}`, slotW * 0.78);
-      x += slotW * 0.78;
+    for (const it of items) {
+      const home = { x, y: cy };
+      if (it.el.kind === "card") this.cardSpecs.push({ opts: { id: it.el.id, card: it.el.card, rest: "idle" }, home, depth: 100, bobPhase: 0 });
+      else if (it.el.kind === "piece") this.spawnPiece(it.el.id, home, it.el.spec, r);
+      else this.buildChipStack(x, cy, r); // стопка фишек — группа за грип (GroupDrag)
+      if (it.marker && it.el.kind !== "stack") this.attachSolo(it.el.id, home, it.marker.draw, it.marker.show, it.marker.label);
+      cap(it.caption, it.w);
+      x += it.w;
     }
-
-    // 3) ШАХМАТЫ: сплошные силуэты (чёрный набор глифов), тень — плоский овал у ножки. Конь тоже
-    // с меткой — метка не про карты. Пешка тоже глиф чёрного набора, крашенный в «белую» команду.
-    this.spawnPiece("chess-knight", { x, y: cy }, { kind: "chess", dark: true, glyph: "♞" }, r);
-    this.attachSolo("chess-knight", { x, y: cy }, drawRingIcon, "empty", "конь"); // якорь «когда пусто» (сожжёшь → покажется)
-    cap("чёрный конь", slotW * 0.9);
-    x += slotW * 0.9;
-
-    this.spawnPiece("chess-pawn", { x, y: cy }, { kind: "chess", dark: false, glyph: "♟" }, r);
-    cap("белая пешка", slotW * 0.9);
-    x += slotW * 0.9;
-
-    // 4) СТОПКА ФИШЕК — тянется целиком за грип (GroupDrag на фишках, как пачка карт).
-    this.buildChipStack(x, cy, r);
-    cap("стопка фишек", slotW);
-    x += slotW;
 
     this.contentW = Math.max(this.contentW, x + left);
     return cy + this.cardH / 2 + 34;
