@@ -239,6 +239,15 @@ export function makeJokerFaceTexture(app: Application): Texture {
   return tex;
 }
 
+/**
+ * Реестр КАСТОМ-ЛИЦ: id → фабрика текстуры. «Джокер» — просто один зарегистрированный кастом,
+ * а не хардкод-ветка в Card (карта может быть чем угодно вне «ранг+масть»). Новое кастом-лицо =
+ * добавить фабрику сюда; Card/движок не трогаем. Задел под registry элементов (ENGINE-UPGRADE).
+ */
+export const CUSTOM_FACES: Record<string, (app: Application) => Texture> = {
+  joker: makeJokerFaceTexture,
+};
+
 /** Рубашка по выбранному скину (см. cardBack.ts — там палитра и геометрия узора). */
 export function makeCardBackTexture(app: Application, backId: CardBackId): Texture {
   const skin = cardBackSkin(backId);

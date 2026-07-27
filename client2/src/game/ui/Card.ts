@@ -50,7 +50,7 @@ export interface CardOptions {
   torn?: boolean;
   size?: number;
   hidden?: boolean; // НАЧАЛЬНАЯ скрытость (режим секретности); дальше переключается setConcealed()
-  joker?: boolean; // джокер: кастомное рисованное лицо
+  custom?: string; // id кастом-лица из реестра CUSTOM_FACES (напр. "joker"); "" — обычное число
   rest?: RestState; // план ПОКОЯ: idle (на столе) / floating (левитация, «в руке») / held (в руке держат)
 }
 
@@ -79,7 +79,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   readonly torn: boolean;
   readonly size: number;
   private _concealed: boolean; // режим секретности (изначально opts.hidden), переключается извне
-  readonly joker: boolean;
+  readonly custom: string; // id кастом-лица (реестр CUSTOM_FACES); "" — обычная числовая карта
 
   state: CardState = "idle";
   readonly rest: RestState;
@@ -109,7 +109,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
     this._concealed = opts.hidden ?? false;
-    this.joker = opts.joker ?? false;
+    this.custom = opts.custom ?? "";
     this.rest = opts.rest ?? "idle";
     this.state = this.rest; // стартуем в своём плане покоя
 
@@ -312,7 +312,10 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     if (!faceUp) return this.tex.back(this.back);
     // Особые лица: скрытая (чистый фон под живой «пылью»; статичный фак — запас) и джокер; иначе числовое.
     if (this._concealed) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
-    if (this.joker) return this.tex.jokerFace();
+    if (this.custom) {
+      const t = this.tex.customFace(this.custom);
+      if (t) return t; // неизвестный id → падаем на обычное число
+    }
     return this.tex.face(this.card, this.fourColor, this.faceStyle);
   }
 

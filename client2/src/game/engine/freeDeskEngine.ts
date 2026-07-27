@@ -59,7 +59,7 @@ const STORIES: Story[] = [
   { caption: "нельзя тащить", opts: { card: "7♣", draggable: false } },
   { caption: "удерживаемая", opts: { card: "8♦", rest: "held" } },
   { caption: "приподнятая (в руке)", opts: { card: "9♠", rest: "floating" } },
-  { caption: "джокер", opts: { joker: true } },
+  { caption: "джокер", opts: { custom: "joker" } }, // кастом-лицо из реестра CUSTOM_FACES, не хардкод-флаг
 ];
 
 interface Placed {

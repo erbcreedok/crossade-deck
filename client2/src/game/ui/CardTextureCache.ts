@@ -1,10 +1,10 @@
 import type { Application, Texture } from "pixi.js";
 import {
+  CUSTOM_FACES,
   makeCardBackTexture,
   makeCardFaceTexture,
   makeHiddenBgTexture,
   makeHiddenFaceTexture,
-  makeJokerFaceTexture,
   makeShadowTexture,
   type FaceStyle,
 } from "../engine/cardTextures";
@@ -19,7 +19,7 @@ export class CardTextureCache {
   private shadowTex: Texture | null = null;
   private hiddenTex: Texture | null = null;
   private hiddenBgTex: Texture | null = null;
-  private jokerTex: Texture | null = null;
+  private customTex = new Map<string, Texture>();
   private dustPts: Array<{ x: number; y: number }> | null = null;
 
   constructor(private readonly app: Application) {}
@@ -47,10 +47,16 @@ export class CardTextureCache {
     return this.dustPts;
   }
 
-  /** Кастомное лицо джокера. */
-  jokerFace(): Texture {
-    if (!this.jokerTex) this.jokerTex = makeJokerFaceTexture(this.app);
-    return this.jokerTex;
+  /** Кастом-лицо по id из реестра CUSTOM_FACES (напр. «joker»). null — id неизвестен (Card покажет число). */
+  customFace(id: string): Texture | null {
+    let t = this.customTex.get(id);
+    if (!t) {
+      const make = CUSTOM_FACES[id];
+      if (!make) return null;
+      t = make(this.app);
+      this.customTex.set(id, t);
+    }
+    return t;
   }
 
   face(card: string, fourColor: boolean, style: FaceStyle): Texture {
@@ -78,13 +84,13 @@ export class CardTextureCache {
     this.shadowTex?.destroy(true);
     this.hiddenTex?.destroy(true);
     this.hiddenBgTex?.destroy(true);
-    this.jokerTex?.destroy(true);
+    this.customTex.forEach((t) => t.destroy(true));
     this.faces.clear();
     this.backs.clear();
+    this.customTex.clear();
     this.shadowTex = null;
     this.hiddenTex = null;
     this.hiddenBgTex = null;
-    this.jokerTex = null;
     this.dustPts = null;
   }
 }
