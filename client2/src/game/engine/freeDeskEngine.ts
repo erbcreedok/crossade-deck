@@ -514,6 +514,15 @@ export class FreeDeskEngine extends CanvasApp {
     }
   }
 
+  /** Проставить/придержать ЗНАЧЕНИЕ карты по id (сервер раскрыл придержанное; "" — снова придержать). */
+  setCardValue(id: string, value: string): void {
+    const el = this.byId.get(id);
+    if (el && "setValue" in el) {
+      (el as { setValue(v: string): void }).setValue(value);
+      this.wake();
+    }
+  }
+
   // ——— раздел «Управление» (демо API) ———
 
   private buildControls(left: number, top: number): number {
@@ -521,6 +530,7 @@ export class FreeDeskEngine extends CanvasApp {
     let y = top + 46;
     y = this.buildFlipBlock(left, y) + 22;
     y = this.buildConcealBlock(left, y) + 22;
+    y = this.buildRevealBlock(left, y) + 22;
     y = this.buildMoveBlock(left, y);
     return y;
   }
@@ -554,6 +564,25 @@ export class FreeDeskEngine extends CanvasApp {
     btn.place(cx, top + box.btnCY);
     this.registerButton(btn);
     const card = new Card({ id: "ctl-conceal", card: "K♠", hidden: true, rest: "idle" }, this.tex, this.baseScale);
+    card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
+    this.addControlCard(card);
+    return top + box.boxH;
+  }
+
+  // Блок «раскрытие значения» (C1): карта с ПРИДЕРЖАННЫМ значением (card:"" → маска, клиент не
+  // знает карту); тап проставляет значение через публичный API — карта показывает НАСТОЯЩЕЕ лицо.
+  private buildRevealBlock(left: number, top: number): number {
+    let known = false;
+    const btn = this.textButton("узнать значение", () => {
+      known = !known;
+      this.setCardValue("ctl-reveal", known ? "Q♦" : ""); // сервер раскрыл / снова придержал
+    });
+    const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
+    this.blockFrame(left, top, box.boxW, box.boxH);
+    const cx = left + box.boxW / 2;
+    btn.place(cx, top + box.btnCY);
+    this.registerButton(btn);
+    const card = new Card({ id: "ctl-reveal", card: "", rest: "idle" }, this.tex, this.baseScale);
     card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
     this.addControlCard(card);
     return top + box.boxH;

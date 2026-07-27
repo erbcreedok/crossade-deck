@@ -42,6 +42,16 @@ export interface Concealable {
   setConcealed(v: boolean): void;
 }
 
+/**
+ * Значение (ранг/масть/кастом) отделено от КЛЮЧА (id) и может быть ПРИДЕРЖАНО: карта живёт с
+ * ключом, но без значения (клиент его не знает — чужая скрытая карта), пока сервер/игра не
+ * раскроют его через setValue. `hasValue === false` → значения нет, карта маскируется.
+ */
+export interface Valued {
+  readonly hasValue: boolean;
+  setValue(v: string): void;
+}
+
 /** Уничтожается «горением». */
 export interface Burnable {
   burn(): void;

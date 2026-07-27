@@ -7,7 +7,7 @@ import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
 import { ParticleField } from "../engine/censorParticles";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
-import type { Burnable, Concealable, Draggable, Flippable, TableElement } from "../engine/element";
+import type { Burnable, Concealable, Draggable, Flippable, TableElement, Valued } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -39,8 +39,8 @@ export interface ShadowShape {
 }
 
 export interface CardOptions {
-  id?: string; // ключ идентичности для публичного API (flipCard/moveCard по id)
-  card?: string;
+  id?: string; // КЛЮЧ идентичности (опаковый): по нему адресуем/анимируем. Значение — отдельно ↓
+  card?: string; // ЗНАЧЕНИЕ (ранг+масть). undefined → дефолт "A♠"; "" → значение придержано (маска)
   faceUp?: boolean;
   flippable?: boolean;
   draggable?: boolean; // можно ли тащить; false — драг блокируется «стоп»-анимацией
@@ -62,14 +62,14 @@ interface FlipAnim {
 
 const BOB_SPEED = 2.2;
 
-export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable {
+export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable, Valued {
   readonly root = new Container();
   readonly body = new CardBody();
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
 
-  readonly id: string;
-  readonly card: string;
+  readonly id: string; // ключ
+  private _card: string; // значение (придержано = ""), проставляется setValue (раскрытие)
   faceUp: boolean;
   readonly flippable: boolean;
   readonly draggable: boolean;
@@ -99,7 +99,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     private readonly baseScale: number,
   ) {
     this.id = opts.id ?? "";
-    this.card = opts.card ?? "A♠";
+    this._card = opts.card ?? "A♠";
     this.faceUp = opts.faceUp ?? true;
     this.flippable = opts.flippable ?? true;
     this.draggable = opts.draggable ?? true;
@@ -115,7 +115,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
-    if (this._concealed) this.buildDust();
+    if (this.masked) this.buildDust();
     if (this.torn) this.root.addChild(this.buildTear());
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
@@ -131,22 +131,49 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.root.addChild(this.dust.view, mask);
   }
 
+  /** Значение карты (ранг+масть); "" — придержано. Ключ — это id, не значение. */
+  get card(): string {
+    return this._card;
+  }
+
+  /** Есть ли у клиента значение (иначе оно придержано сервером). */
+  get hasValue(): boolean {
+    return this._card !== "";
+  }
+
   /** Скрыта ли карта (режим секретности). Снимается/ставится извне (BoardAPI: setConcealed). */
   get concealed(): boolean {
     return this._concealed;
   }
 
-  /** Переключить скрытость в рантайме: при первом включении лениво строим «пыль», перерисовываем лицо. */
-  setConcealed(v: boolean): void {
-    if (v === this._concealed) return;
-    if (v && !this.dust) this.buildDust();
-    this._concealed = v;
-    this.paint(); // скрыта → чистый фон под пылью; раскрыта → настоящее лицо (пыль гаснет в sync)
+  // Показывать ли МАСКУ вместо лица: активная скрытость ИЛИ значение придержано (нечего показывать).
+  private get masked(): boolean {
+    return this._concealed || !this.hasValue;
   }
 
-  /** Видна ли сейчас пыль (скрыта, лицом вверх, вне переворота/горения) — тогда её крутим, цикл не спит. */
+  /** Переключить скрытость в рантайме: перерисовать лицо (при надобности — лениво построить «пыль»). */
+  setConcealed(v: boolean): void {
+    if (v === this._concealed) return;
+    this._concealed = v;
+    this.refaceMasked();
+  }
+
+  /** Проставить/придержать значение (раскрытие сервером): "" прячет, непустое — показывает лицо. */
+  setValue(v: string): void {
+    if (v === this._card) return;
+    this._card = v;
+    this.refaceMasked();
+  }
+
+  // Лениво построить «пыль» если карта теперь маскируется, и перерисовать лицо.
+  private refaceMasked(): void {
+    if (this.masked && !this.dust) this.buildDust();
+    this.paint(); // маска → чистый фон под пылью; иначе — настоящее лицо (пыль гаснет в sync)
+  }
+
+  /** Видна ли сейчас пыль (маска, лицом вверх, вне переворота/горения) — тогда её крутим, цикл не спит. */
   private get dustActive(): boolean {
-    return this.dust !== null && this._concealed && this.faceUp && !this.flip && !this.dying && !this.dead;
+    return this.dust !== null && this.masked && this.faceUp && !this.flip && !this.dying && !this.dead;
   }
 
   get scaleFactor(): number {
@@ -311,12 +338,12 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   private faceTex(faceUp: boolean): Texture {
     if (!faceUp) return this.tex.back(this.back);
     // Особые лица: скрытая (чистый фон под живой «пылью»; статичный фак — запас) и джокер; иначе числовое.
-    if (this._concealed) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
+    if (this.masked) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
     if (this.custom) {
       const t = this.tex.customFace(this.custom);
       if (t) return t; // неизвестный id → падаем на обычное число
     }
-    return this.tex.face(this.card, this.fourColor, this.faceStyle);
+    return this.tex.face(this._card, this.fourColor, this.faceStyle);
   }
 
   private paint(): void {
