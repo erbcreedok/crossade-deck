@@ -1,0 +1,39 @@
+client2/src/game/engine/markerPolicy.ts
+  s_559e5ecc6d9c5b::t_5f37fcb4b5131e 1-34
+client2/src/game/engine/marker.ts
+  s_559e5ecc6d9c5b::t_ccc4e0b8474060 51-55,58
+  s_559e5ecc6d9c5b::t_11be62f7a0a95a 110-111,114-115
+  s_559e5ecc6d9c5b::t_a35180c2dd6980 2,8,10
+  s_559e5ecc6d9c5b::t_73cf64cc65f875 20-21
+client2/src/game/engine/freeDeskEngine.ts
+  s_559e5ecc6d9c5b::t_58cdebdb32acb8 21
+  s_559e5ecc6d9c5b::t_89846d16be17df 809
+  s_559e5ecc6d9c5b::t_ebe36f53aa0d34 748
+  s_559e5ecc6d9c5b::t_8d20e9544848e3 784
+  s_559e5ecc6d9c5b::t_5c40af1cf7fa1f 830
+  s_559e5ecc6d9c5b::t_5d6f8bf35ff5d8 799
+  s_559e5ecc6d9c5b::t_31c054ecc24195 427
+  s_559e5ecc6d9c5b::t_7a39fa89195f01 725
+  s_559e5ecc6d9c5b::t_9bfb6c21937506 433-434
+  s_559e5ecc6d9c5b::t_ecd988fef1fa0c 672-675
+  s_559e5ecc6d9c5b::t_2c528bf21fad76 698
+  s_559e5ecc6d9c5b::t_5e39d1ee608174 792
+client2/src/game/engine/markerPolicy.test.ts
+  s_559e5ecc6d9c5b::t_38b427a982e106 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "313a1bab6652877ff99ea7269fd3f0efb6c8a7ed",
+  "prompts": {},
+  "sessions": {
+    "s_559e5ecc6d9c5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11b562e-77c4-4c79-9a40-1f5a344b0148",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
