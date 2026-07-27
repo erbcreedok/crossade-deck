@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { createPixiApp, ensureFonts } from "./engine/canvasHost";
+import { CanvasApp } from "./engine/canvasApp";
 import { CensorField } from "./engine/censorField";
 import { buildFingerDustPoints, buildFingerGrid } from "./engine/censorSource";
 import { GpuCensorCard } from "./engine/censorGpu";
@@ -25,8 +25,7 @@ interface DemoCard {
   live?: () => boolean; // доп. условие анимации (напр. «тряска только когда играет»)
 }
 
-export class CensorDemo {
-  private app: Application | null = null;
+export class CensorDemo extends CanvasApp {
   private content = new Container();
   private pz: PanZoomHandle | null = null;
 
@@ -45,39 +44,28 @@ export class CensorDemo {
   private contentW = 1;
   private contentH = 1;
   private t = 0;
-  private destroyed = false;
   private onView: ((v: ViewState) => void) | null = null;
 
-  private tick = (): void => {
-    if (!this.app) return;
-    const dtMs = this.app.ticker.deltaMS;
+  // Кадр стенда: время (со скоростью/reduce-motion) → поля/частицы + кнопки + инерция пан/зума.
+  // Стенд крутится ВСЕГДА (return true) — idle-анимации цензуры не должны засыпать.
+  protected frame(dt: number): boolean {
     if (!this.reduceMotion) {
-      this.t += (dtMs / 1000) * this.speed;
+      this.t += dt * this.speed;
       for (const c of this.cards) if (c.animated && (c.live?.() ?? true)) c.field?.update(this.t);
       for (const g of this.gpuCards) g.update(this.t);
       for (const p of this.particleCards) p.update(this.t);
     }
     for (const b of this.buttons) {
-      b.step(dtMs / 1000);
+      b.step(dt);
       b.sync();
     }
-    if (this.pz?.step(dtMs)) this.emitView();
-  };
+    if (this.pz?.step(dt * 1000)) this.emitView();
+    return true;
+  }
 
-  async mount(host: HTMLElement, width: number, height: number): Promise<void> {
-    await ensureFonts();
-    const app = await createPixiApp(width, height);
-    if (!app) return;
-    if (this.destroyed) {
-      app.destroy(true, { children: true });
-      return;
-    }
-    this.app = app;
-    host.appendChild(app.canvas);
+  protected build(app: Application): void {
     app.stage.addChild(this.content);
-
-    this.build(app);
-
+    this.buildSections(app);
     this.pz = attachPanZoom(app, this.content, {
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
@@ -97,15 +85,16 @@ export class CensorDemo {
       },
       onChange: () => this.emitView(),
     });
-    this.pz.fitWidth();
-    this.emitView();
+  }
 
-    app.ticker.add(this.tick);
-    app.start();
+  protected onBooted(): void {
+    this.pz?.fitWidth();
+    this.emitView();
+    this.wake(); // стенд анимирован сразу
   }
 
   // ——— сборка сцены: секции сверху вниз ———
-  private build(app: Application): void {
+  private buildSections(app: Application): void {
     let y = 24;
     const left = 28;
 
@@ -312,10 +301,7 @@ export class CensorDemo {
     this.emitView();
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (!this.app) return;
-    this.app.ticker.remove(this.tick);
+  protected onTeardown(): void {
     this.pz?.detach();
     for (const c of this.cards) c.field?.destroy();
     for (const g of this.gpuCards) g.destroy();
@@ -324,7 +310,5 @@ export class CensorDemo {
     this.gpuCards = [];
     this.particleCards = [];
     this.buttons = [];
-    this.app.destroy(true, { children: true });
-    this.app = null;
   }
 }

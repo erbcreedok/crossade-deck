@@ -3,7 +3,7 @@ import { CardBody } from "../CardBody";
 import { SUITS } from "../card";
 import { ElementPool, type Slot } from "./elementPool";
 import { InputRouter, type InputHandlers } from "./inputRouter";
-import { createPixiApp, ensureFonts } from "./canvasHost";
+import { CanvasApp } from "./canvasApp";
 import { assembleTable } from "./tableAssemble";
 import { boxFaceUp } from "./tableSide";
 import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./cardTextures";
@@ -32,9 +32,7 @@ interface Zone {
   h: number;
 }
 
-export class TableEngine {
-  private app: Application | null = null;
-  private destroyed = false;
+export class TableEngine extends CanvasApp {
   private pool!: ElementPool<CardVisual>;
   private cardLayer!: Container;
   private shadowLayer!: Container;
@@ -59,24 +57,15 @@ export class TableEngine {
   private drag: { card: string; dx: number; dy: number } | null = null;
   private input = new InputRouter<string, never>(this.inputHandlers());
 
-  async mount(container: HTMLElement, width: number, height: number): Promise<void> {
-    if (this.destroyed) return;
-    this.W = Math.max(1, Math.round(width));
-    this.H = Math.max(1, Math.round(height));
-    this.cardW = Math.min(this.W * 0.16, this.H * 0.12);
+  protected onLayout(w: number, h: number): void {
+    this.W = w;
+    this.H = h;
+    this.cardW = Math.min(w * 0.16, h * 0.12);
     this.cardH = this.cardW * (TEX_H / TEX_W);
     this.baseScale = this.cardW / TEX_W;
+  }
 
-    await ensureFonts();
-    if (this.destroyed) return;
-    const app = await createPixiApp(this.W, this.H);
-    if (!app) return;
-    if (this.destroyed) {
-      app.destroy({ removeView: true }, { children: true, texture: true });
-      return;
-    }
-    container.appendChild(app.canvas);
-    this.app = app;
+  protected build(app: Application): void {
     this.backTex = makeCardBackTexture(app, "ruby");
     this.shadowTex = makeShadowTexture(app);
 
@@ -104,7 +93,10 @@ export class TableEngine {
     app.stage.on("pointerupoutside", this.onUp);
 
     this.rebuild(true);
-    app.ticker.add(this.tick);
+  }
+
+  // Стол статичен в покое — рисуем один кадр и НЕ будим цикл (проснётся на драге через wake()).
+  protected onBooted(): void {
     this.render();
   }
 
@@ -321,21 +313,15 @@ export class TableEngine {
 
   // ——— цикл ———
 
-  private wake(): void {
-    if (this.app && !this.app.ticker.started) this.app.ticker.start();
-  }
-
-  private tick = (): void => {
-    if (!this.app) return;
-    const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
+  protected frame(dt: number): boolean {
     let moving = this.drag !== null;
     for (const v of this.pool.all()) {
       v.body.step(dt);
       if (!v.body.isResting()) moving = true;
     }
     this.render();
-    if (!moving) this.app.ticker.stop();
-  };
+    return moving;
+  }
 
   private render(): void {
     for (const v of this.pool.all()) {
@@ -357,11 +343,4 @@ export class TableEngine {
     }
   }
 
-  destroy(): void {
-    this.destroyed = true;
-    if (!this.app) return;
-    this.app.ticker.remove(this.tick);
-    this.app.destroy({ removeView: true }, { children: true, texture: true });
-    this.app = null;
-  }
 }
