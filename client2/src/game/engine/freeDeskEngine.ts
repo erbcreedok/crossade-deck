@@ -28,7 +28,7 @@ import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
 import { topmostAt, type HitBox } from "./cardHit";
-import { PIXEL_FONT, TEX_H, TEX_W } from "./constants";
+import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
 
@@ -428,6 +428,7 @@ export class FreeDeskEngine extends CanvasApp {
     y = this.buildField(SB_MARGIN, y);
     y = this.buildControls(SB_MARGIN, y);
     y = this.buildBoardZones(SB_MARGIN, y);
+    y = this.sectionFrame(SB_MARGIN, y, "Дроп-индикатор: варианты подписи", (cl, ct) => this.buildDropIndicatorDemo(cl, ct));
     this.contentH = y + SB_MARGIN - SB_SECTION_GAP; // последняя секция уже добавила свой SB_SECTION_GAP
 
     // Карты рождаем ПОСЛЕ мебели — чтобы легли поверх подписей/зон.
@@ -1586,6 +1587,133 @@ export class FreeDeskEngine extends CanvasApp {
       x += b.w + gap;
     }
     return { bottom: y + rowH + 42, width: x - left - gap };
+  }
+
+  // «Дроп-индикатор»: 5 вариантов ОФОРМЛЕНИЯ подписи над бордом при наведении — юзер-тест перед
+  // выбором финального (прямой запрос владельца). REST — подпись лежит НИЖЕ карт борда, как
+  // сегодня (скрыта, z surface < idle) — baseline проблемы. ACTIVE переносит подпись на
+  // scene.verb — тот же слой, что уже несёт «глагол» DropZone (глагол дропзоны/наведение).
+  //
+  // Отклонение от тикета (по прямому решению владельца, 2026-07-28): тикет просил драг-карту
+  // (rest: "held" → drag-слой, самый верхний) поверх подписи ВО ВСЕХ пяти, смещённую на +20px.
+  // Но rest:"held" рисуется в DRAG_SCALE (×1.45, см. constants.ts) — при 20px карта того же
+  // плана целиком накрывает и борд, и подпись (ничего не видно, буквально проверено скриншотом),
+  // а с исправленным сдвигом (половина ширины ячейки) карта перекрывала ПОЧТИ ВСЮ подпись во всех
+  // пяти и мешала СРАВНИВАТЬ стили между собой — то, ради чего секция и существует. Поэтому драг-
+  // карта осталась только в ОДНОМ, последнем (6-м) слоте — «живой» сценарий «как это реально
+  // выглядит при наведении», стиль — победитель первых пяти (HUD-тег); в первых пяти подпись
+  // читается целиком, ничем не занавешенная. Все карты секции (борд + драг-карта 6-го слота) —
+  // драгабл (демо ощущается живее) и ничем не зажаты: эти «борды» — декоративная рамка
+  // cellFrame, не BoardZone, границ и не было. Отпущенная карта едет домой пружиной, как любой
+  // безхозный элемент (drag.release()), кроме случая, когда её унесли в «СЖЕЧЬ» — как и остальные
+  // карты песочницы.
+  private buildDropIndicatorDemo(left: number, top: number): { bottom: number; width: number } {
+    const cell = { w: this.cardW, h: this.cardH };
+    const dragOffsetX = cell.w * 0.5;
+    const text = "переместить сюда";
+    let depth = 0;
+
+    const cellFrame = (x: number, y: number): void => {
+      const g = new Graphics();
+      g.roundRect(x, y, cell.w, cell.h, 8).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 1, color: 0x4a5b50 });
+      this.scene.surface.addChild(g);
+    };
+    const boardCard = (id: string, x: number, y: number): void => {
+      this.cardSpecs.push({ opts: { id, card: "5♠", rest: "idle" }, home: { x: x + cell.w / 2, y: y + cell.h / 2 }, depth: depth++, bobPhase: 0 });
+    };
+    const dragCard = (id: string, x: number, y: number): void => {
+      this.cardSpecs.push({ opts: { id, card: "K♥", rest: "held" }, home: { x: x + cell.w / 2 + dragOffsetX, y: y + cell.h / 2 }, depth: depth++, bobPhase: 0 });
+    };
+
+    // REST: подпись стоит под картой борда — визуально скрыта, ровно как сегодня.
+    cellFrame(left, top);
+    boardCard("di-rest", left, top);
+    this.scene.surface.addChild(this.label(text, left + cell.w / 2, top + cell.h / 2 - 7, 12, 0xf2c14e, cell.w * 1.4));
+    this.scene.surface.addChild(this.label("REST (в покое)", left + cell.w / 2, top + cell.h + 10, 12, 0x9aa89f, cell.w * 1.6));
+    const restBottom = top + cell.h + 32;
+
+    // ACTIVE: 5 стилей БЕЗ карты сверху (подпись читается целиком — сравниваем стили между
+    // собой), плюс 6-й слот отдельно — единственное место, где реально видно наложение
+    // драг-карты на подпись (сценарий «на самом деле так и будет выглядеть при наведении»).
+    const variants: { name: string; paint: (cx: number, cy: number) => void }[] = [
+      { name: "оригинал: обводка 3px", paint: (cx, cy) => this.paintIndicatorOutline(cx, cy, text, 3) },
+      { name: "жёсткая тень", paint: (cx, cy) => this.paintIndicatorHardShadow(cx, cy, text) },
+      { name: "badge (подложка)", paint: (cx, cy) => this.paintIndicatorBadge(cx, cy, text, false) },
+      { name: "тонкий контур + тень", paint: (cx, cy) => this.paintIndicatorOutline(cx, cy, text, 1.5, true) },
+      { name: "HUD-тег", paint: (cx, cy) => this.paintIndicatorBadge(cx, cy, text, true) },
+    ];
+    const activeTop = restBottom + 26;
+    const plainCellW = cell.w + 16; // запас под подпись, если она чуть шире карты
+    const liveCellW = cell.w / 2 + dragOffsetX + (cell.w * DRAG_SCALE) / 2 + 20; // + до правого края увеличенной драг-карты
+    const widths = [...variants.map(() => plainCellW), liveCellW];
+    const { items, totalH } = wrapRow(widths, this.cardW * 8, cell.h + 40, SB_ITEM_GAP);
+    let width = cell.w;
+    variants.forEach((v, i) => {
+      const p = items[i]!;
+      const x = left + p.x;
+      const y = activeTop + p.y;
+      cellFrame(x, y);
+      boardCard(`di-active-${i}`, x, y);
+      v.paint(x + cell.w / 2, y + cell.h / 2);
+      this.scene.surface.addChild(this.label(v.name, x + cell.w / 2, y + cell.h + 10, 12, 0x9aa89f, plainCellW * 0.95));
+      width = Math.max(width, p.x + plainCellW);
+    });
+    // 6-й, «живой» слот — стиль HUD-тега (пятый) под настоящей драг-картой.
+    const live = items[variants.length]!;
+    const lx = left + live.x;
+    const ly = activeTop + live.y;
+    cellFrame(lx, ly);
+    boardCard("di-live-board", lx, ly);
+    this.paintIndicatorBadge(lx + cell.w / 2, ly + cell.h / 2, text, true);
+    dragCard("di-live-drag", lx, ly);
+    this.scene.surface.addChild(this.label("HUD-тег + наведение (реальный сценарий)", lx + cell.w / 2, ly + cell.h + 10, 12, 0x9aa89f, liveCellW * 0.95));
+    width = Math.max(width, live.x + liveCellW);
+
+    return { bottom: activeTop + totalH + 20, width };
+  }
+
+  // Толстая/тонкая обводка вокруг текста, опционально + мягкая тень (blur). fill — золото, как у
+  // существующего DropZone.verb — та же семья «глагол над картами».
+  private paintIndicatorOutline(cx: number, cy: number, text: string, strokeWidth: number, softShadow = false): void {
+    const t = new Text({
+      text,
+      style: {
+        fontFamily: PIXEL_FONT,
+        fontSize: 12,
+        fill: 0xf2c14e,
+        align: "center",
+        stroke: { color: 0x000000, width: strokeWidth },
+        ...(softShadow ? { dropShadow: { color: 0x000000, alpha: 0.5, blur: 3, distance: 1, angle: Math.PI / 4 } } : {}),
+      },
+    });
+    t.anchor.set(0.5);
+    t.position.set(cx, cy);
+    this.scene.verb.addChild(t);
+  }
+
+  // ЖЁСТКАЯ тень: сплошной чёрный дубль текста со смещением (-2/+2), без blur — не путать с
+  // мягким Pixi dropShadow (тот вариант — paintIndicatorOutline(softShadow=true)).
+  private paintIndicatorHardShadow(cx: number, cy: number, text: string): void {
+    const shadow = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0x000000, align: "center" } });
+    shadow.anchor.set(0.5);
+    shadow.position.set(cx - 2, cy + 2);
+    const main = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0xf2c14e, align: "center" } });
+    main.anchor.set(0.5);
+    main.position.set(cx, cy);
+    this.scene.verb.addChild(shadow, main);
+  }
+
+  // Подложка под текстом: badge — нейтральная полупрозрачная плашка; hud — та же плашка с
+  // акцентной рамкой и золотым текстом (игровой «шильдик»).
+  private paintIndicatorBadge(cx: number, cy: number, text: string, hud: boolean): void {
+    const t = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: hud ? 0xf2c14e : 0xe8e8e8, align: "center" } });
+    t.anchor.set(0.5);
+    t.position.set(cx, cy);
+    const pad = 6;
+    const bg = new Graphics();
+    bg.roundRect(cx - t.width / 2 - pad, cy - t.height / 2 - pad / 2, t.width + pad * 2, t.height + pad, 6).fill({ color: 0x1c2620, alpha: hud ? 0.85 : 0.55 });
+    if (hud) bg.stroke({ width: 2, color: 0xf2c14e });
+    this.scene.verb.addChild(bg, t);
   }
 
   // ——— вьюпорт ———
