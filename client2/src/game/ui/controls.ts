@@ -43,10 +43,11 @@ export interface ControlsHost {
 /** Насадить контроллеры из cfg.params(): числа — рядом в строку, булевы — строкой ниже, выбор
  *  из вариантов (choice) — ещё строкой ниже. Возвращает нижний край и созданные тоглеры/сегменты
  *  (движку — для e2e-хука состояния/позиции). */
-export function attachControls(cfg: Configurable, host: ControlsHost, at: { x: number; y: number }): { bottom: number; toggles: Toggle[]; segments: Segmented[] } {
+export function attachControls(cfg: Configurable, host: ControlsHost, at: { x: number; y: number }): { bottom: number; toggles: Toggle[]; segments: Segmented[]; steppers: Stepper[] } {
   const { numbers, bools, choices } = groupParams(cfg.params());
   const toggles: Toggle[] = [];
   const segments: Segmented[] = [];
+  const steppers: Stepper[] = [];
 
   // Строка чисел.
   let x = at.x;
@@ -56,6 +57,7 @@ export function attachControls(cfg: Configurable, host: ControlsHost, at: { x: n
     s.place(x, at.y);
     host.layer.addChild(s.root);
     for (const b of s.buttons()) host.register(b);
+    steppers.push(s);
     x += s.w + 28;
     rowH = Math.max(rowH, s.h);
   }
@@ -89,5 +91,5 @@ export function attachControls(cfg: Configurable, host: ControlsHost, at: { x: n
   }
   if (segments.length) bottom = cy - 10;
 
-  return { bottom, toggles, segments };
+  return { bottom, toggles, segments, steppers };
 }

@@ -10,6 +10,7 @@ import { Field, NORMAL_FIELD } from "../board/field";
 import { Stack } from "../board/stack";
 import { attachControls, type Configurable } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
+import type { Stepper } from "../ui/Stepper";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
@@ -219,6 +220,7 @@ export class FreeDeskEngine extends CanvasApp {
   // ПОЛЕ (обособленный модуль board/field.ts): владелец с закрытой стопкой + flow-гридом.
   private fields: Field[] = [];
   private fieldReorderToggle: Toggle | null = null;
+  private fieldSteppers: Stepper[] = []; // мин/макс колонок/строк — для e2e-хука координат +/-
   private selMode = false; // режим изолированного мультиселекта (демо-борд)
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
@@ -508,7 +510,7 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   // Состояние Поля для e2e: размеры стопки/грида + экранные точки/рамка грида.
-  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
+  private fieldHook(toScreen: (x: number, y: number) => { x: number; y: number }): { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; steppers: { label: string; value: number; minusAt: { x: number; y: number }; plusAt: { x: number; y: number } }[]; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null {
     const f = this.fields[0];
     if (!f) return null;
     const gr = f.gridRect();
@@ -522,6 +524,13 @@ export class FreeDeskEngine extends CanvasApp {
       rowsMax: f.rowsMax,
       reorder: f.reorder,
       reorderToggleAt: this.fieldReorderToggle ? toScreen(this.fieldReorderToggle.hitCenter().x, this.fieldReorderToggle.hitCenter().y) : null,
+      steppers: (() => {
+        const numberLabels = f.params().filter((p) => p.kind === "number").map((p) => p.label);
+        return this.fieldSteppers.map((s, i) => {
+          const [minus, plus] = s.buttons();
+          return { label: numberLabels[i] ?? "", value: s.value, minusAt: toScreen(minus!.x, minus!.y), plusAt: toScreen(plus!.x, plus!.y) };
+        });
+      })(),
       stackAt: toScreen(f.stackRect.x + f.stackRect.w / 2, f.stackRect.y + f.stackRect.h / 2),
       gridRect: { x: tl.x, y: tl.y, w: gr.w * this.viewport.zoom, h: gr.h * this.viewport.zoom },
       gridCards: f.gridIds
@@ -1021,46 +1030,51 @@ export class FreeDeskEngine extends CanvasApp {
   // Движок только: рисует заголовок/конфиг-кнопку, создаёт Field, спавнит его 52 карты (визуалы),
   // применяет дома от Field и делегирует дроп. Всю логику Поля программируем в field.ts.
   private buildField(left: number, top: number): number {
-    this.scene.surface.addChild(this.label("Поле", left, top, 26, 0xcdb98f, undefined, 0));
-    this.scene.surface.addChild(this.label("глобальные конфиги поля (обсудим)", left, top + 34, 12, 0x9aa89f, undefined, 0));
-    const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", disabled: true });
-    cfg.place(left + cfg.w / 2, top + 60);
-    this.registerButton(cfg);
+    return this.sectionFrame(left, top, "Поле", (contentLeft, contentTop) => {
+      this.scene.surface.addChild(this.label("глобальные конфиги поля (обсудим)", contentLeft, contentTop, 12, 0x9aa89f, undefined, 0));
+      const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", disabled: true });
+      cfg.place(contentLeft + cfg.w / 2, contentTop + 26);
+      this.registerButton(cfg);
 
-    const gy = top + 84;
-    const cell = { w: this.cardW * 0.95, h: this.cardH * 0.95 };
-    const stackIds = DECK52.map((_, i) => `field-s-${i}`);
-    // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
-    // (при упоре грид растёт вширь) + реордер + зазор колода→грид под длинную стрелку-якорь (deckGap 132).
-    // Раскладку (где колода/грид) Поле считает САМО из этих данных — движок только даёт позицию и размер.
-    const fieldCfg = { ...NORMAL_FIELD, colsMin: 3, rowsMax: 4, reorder: true, deckGap: 132, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
-    const field = new Field({ left, top: gy, cell, stackIds, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
-    this.scene.surface.addChild(field.frame, field.anchor, field.verb);
-    this.fields.push(field);
+      const gy = contentTop + 50;
+      const cell = { w: this.cardW * 0.95, h: this.cardH * 0.95 };
+      const stackIds = DECK52.map((_, i) => `field-s-${i}`);
+      // Конфиг ЭТОГО поля: обычная сетка + свой якорь-подсказка (колода→грид) + мин 3 колонки / макс 4 строки
+      // (при упоре грид растёт вширь) + реордер + зазор колода→грид под длинную стрелку-якорь (deckGap 132).
+      // Раскладку (где колода/грид) Поле считает САМО из этих данных — движок только даёт позицию и размер.
+      const fieldCfg = { ...NORMAL_FIELD, colsMin: 3, rowsMax: 4, reorder: true, deckGap: 132, decor: { ...NORMAL_FIELD.decor!, anchorText: "тяни карту сюда" } };
+      const field = new Field({ left: contentLeft, top: gy, cell, stackIds, layerBelow: this.scene.surface, layerAbove: this.scene.verb, config: fieldCfg });
+      this.scene.surface.addChild(field.frame, field.anchor, field.verb);
+      this.fields.push(field);
 
-    // 52 карты закрытой стопки (рубашкой вверх). Дома берём у Field; верх — макс. z (тянется он).
-    stackIds.forEach((id, i) => {
-      this.faceOf.set(id, DECK52[i]!);
-      this.cardSpecs.push({ opts: { id, card: DECK52[i]!, faceUp: false, rest: "idle", size: 0.85 }, home: field.homeOf(id), depth: 700 + i, bobPhase: 0 });
+      // 52 карты закрытой стопки (рубашкой вверх). Дома берём у Field; верх — макс. z (тянется он).
+      stackIds.forEach((id, i) => {
+        this.faceOf.set(id, DECK52[i]!);
+        this.cardSpecs.push({ opts: { id, card: DECK52[i]!, faceUp: false, rest: "idle", size: 0.85 }, home: field.homeOf(id), depth: 700 + i, bobPhase: 0 });
+      });
+      field.draw();
+
+      // Контроллеры грида строятся из field.params() генериком (мин колонок / макс строк / реордер).
+      // Место под ними — под зарезервированной Полем высотой (Field знает её сам).
+      const controls = attachControls(field, {
+        layer: this.scene.surface,
+        register: (b) => this.registerButton(b),
+        onChange: () => {
+          this.applyFieldHomes(field);
+          field.draw();
+          this.wake();
+        },
+      }, { x: field.stackRect.x, y: gy + field.reservedHeight() + 10 });
+      this.fieldReorderToggle = controls.toggles[0] ?? null;
+      this.fieldSteppers = controls.steppers;
+      let by = controls.bottom + 14;
+      const outer = field.outerRect();
+      this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", outer.x + outer.w / 2, by, 12, 0x9aa89f, outer.w));
+      const bottom = by + 24;
+      const controlsW = this.fieldSteppers.reduce((acc, s) => acc + s.w + 28, 0);
+      const width = Math.max(outer.x + outer.w - contentLeft, controlsW);
+      return { bottom, width };
     });
-    field.draw();
-
-    // Контроллеры грида строятся из field.params() генериком (мин колонок / макс строк / реордер).
-    // Место под ними — под зарезервированной Полем высотой (Field знает её сам).
-    const controls = attachControls(field, {
-      layer: this.scene.surface,
-      register: (b) => this.registerButton(b),
-      onChange: () => {
-        this.applyFieldHomes(field);
-        field.draw();
-        this.wake();
-      },
-    }, { x: field.stackRect.x, y: gy + field.reservedHeight() + 10 });
-    this.fieldReorderToggle = controls.toggles[0] ?? null;
-    let by = controls.bottom + 14;
-    const outer = field.outerRect();
-    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", outer.x + outer.w / 2, by, 12, 0x9aa89f, outer.w));
-    return by + 24;
   }
 
   private fieldForCard(id: string): Field | null {

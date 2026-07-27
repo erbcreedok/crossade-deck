@@ -5,7 +5,20 @@ test.describe("песочница — Поле (flow-грид)", () => {
   test.use({ viewport: { width: 900, height: 5800 } });
 
   interface Hooks {
-    field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    field: {
+      stack: number;
+      grid: number;
+      colsMin: number;
+      colsMax: number | undefined;
+      rowsMin: number;
+      rowsMax: number | undefined;
+      reorder: boolean;
+      reorderToggleAt: { x: number; y: number } | null;
+      steppers: { label: string; value: number; minusAt: { x: number; y: number }; plusAt: { x: number; y: number } }[];
+      stackAt: { x: number; y: number };
+      gridRect: { x: number; y: number; w: number; h: number };
+      gridCards: { id: string; x: number; y: number }[];
+    } | null;
   }
   const hooks = (page: Page): Promise<Hooks> => page.evaluate(() => (window as unknown as { __fd: { testHooks(): Hooks } }).__fd.testHooks());
 
@@ -181,5 +194,40 @@ test.describe("песочница — Поле (flow-грид)", () => {
     await page.waitForTimeout(500);
     h = await hooks(page);
     expect(h.field!.gridCards.map((c) => c.id)).toEqual(before); // порядок прежний
+  });
+
+  test("степпер «мин колонок»: клик + увеличивает значение", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    const s = h.field!.steppers.find((x) => x.label === "мин колонок")!;
+    expect(s.value).toBe(3);
+    await page.mouse.click(box.x + s.plusAt.x, box.y + s.plusAt.y);
+    await page.waitForTimeout(150);
+    h = await hooks(page);
+    expect(h.field!.colsMin).toBe(4);
+    expect(h.field!.steppers.find((x) => x.label === "мин колонок")!.value).toBe(4);
+  });
+
+  test("степпер «мин колонок»: клик + меняет фактическую паковку грида (4 карты → 4×1, не 3+1)", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    const s = h.field!.steppers.find((x) => x.label === "мин колонок")!;
+    await page.mouse.click(box.x + s.plusAt.x, box.y + s.plusAt.y); // 3 → 4
+    await page.waitForTimeout(150);
+    await fillGrid(page, 4);
+    await page.waitForTimeout(400);
+    h = await hooks(page);
+    const ys = new Set(h.field!.gridCards.map((c) => Math.round(c.y / 50)));
+    expect(ys.size).toBe(1); // все 4 в один ряд — минимум колонок теперь 4
+  });
+
+  test("степпер «мин колонок»: клик − возвращает значение назад (упирается в min=1)", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    const s = h.field!.steppers.find((x) => x.label === "мин колонок")!;
+    await page.mouse.click(box.x + s.minusAt.x, box.y + s.minusAt.y); // 3 → 2
+    await page.waitForTimeout(150);
+    h = await hooks(page);
+    expect(h.field!.colsMin).toBe(2);
   });
 });
