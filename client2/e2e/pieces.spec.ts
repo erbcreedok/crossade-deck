@@ -4,7 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Доказательство, что абстракция generic — withDragger/withAnchor и зоны работают на фишках и
 // шахматах без единой строчки «для фишек».
 test.describe("песочница — фишки и фигуры", () => {
-  test.use({ viewport: { width: 900, height: 1400 } });
+  test.use({ viewport: { width: 900, height: 2200 } }); // «Фигуры» теперь после Карт/Кнопок/Дропзон, ниже по странице
 
   interface Hooks {
     zones: Record<string, { x: number; y: number }>;

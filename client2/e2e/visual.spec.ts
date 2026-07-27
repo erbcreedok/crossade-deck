@@ -34,9 +34,10 @@ test("Карты — SVG-масти на лицах (варианты)", async (
   await page.goto("/free-desk");
   await settle(page);
   const box = (await page.locator("canvas").boundingBox())!;
-  // Ряд «Карты — варианты»: туз (пики) + бубны — масти рисуются SVG. Статичная область.
+  // Ряд «Карты — варианты»: туз (пики) + бубны — масти рисуются SVG. Статичная область — ТОЛЬКО
+  // первые два (третья, «скрытая (пыль)», «дышит» частицами — 640 её задевал, ловили флейк не по делу).
   await expect(page).toHaveScreenshot("cards-suits.png", {
-    clip: { x: box.x, y: 90, width: 640, height: 250 },
+    clip: { x: box.x, y: 90, width: 420, height: 250 },
     maxDiffPixels: 80,
     threshold: 0.15,
   });

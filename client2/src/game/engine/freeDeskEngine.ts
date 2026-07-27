@@ -22,7 +22,7 @@ import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
-import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP, BLOCK_PAD } from "./sandboxLayout";
+import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP, SB_MARGIN, BLOCK_PAD } from "./sandboxLayout";
 import { wrapRow, wrapFlow } from "./sandboxWrap";
 import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
@@ -382,57 +382,53 @@ export class FreeDeskEngine extends CanvasApp {
     const frame = new Graphics();
     frame.roundRect(left, top, box.boxW, box.boxH, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
     this.scene.surface.addChildAt(frame, frameIndex);
+    this.contentW = Math.max(this.contentW, left + box.boxW); // виджет самого широкого бокса задаёт полотно
     return top + box.boxH + SB_SECTION_GAP;
+  }
+
+  // Ряд «Карты — варианты»: копим спеки (позиция+пропсы), рисуем подписи. wrapRow переносит
+  // строки на узком экране — раньше 12 карточек росли вправо без ограничения (переполняли 390px).
+  private buildCardsRow(left: number, top: number): { bottom: number; width: number } {
+    const cellW = this.cardW * 2.15; // шаг под карту + подпись (было cardW + cardW*1.15)
+    const itemH = this.cardH + 40; // карта + место под подпись
+    const { items, totalH } = wrapRow(STORIES.map(() => cellW), this.cardW * 8, itemH, SB_ITEM_GAP);
+    let width = 0;
+    STORIES.forEach((s, i) => {
+      const p = items[i]!;
+      const cx = left + p.x + this.cardW / 2;
+      const cy = top + p.y + this.cardH / 2;
+      this.cardSpecs.push({ opts: s.opts, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.9 });
+      this.scene.surface.addChild(this.label(s.caption, cx, cy + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9));
+      width = Math.max(width, p.x + cellW);
+    });
+    return { bottom: top + totalH, width };
+  }
+
+  // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
+  private buildDropzonesBlock(left: number, top: number): { bottom: number; width: number } {
+    const zoneW = this.cardW * 2.4;
+    const zoneGap = this.cardW * 0.5;
+    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: left, y: top, w: zoneW, h: this.cardH } }), (p) => p.flip?.());
+    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: left + zoneW + zoneGap, y: top, w: zoneW, h: this.cardH } }), (p) => p.burn?.());
+    return { bottom: top + this.cardH, width: zoneW * 2 + zoneGap };
   }
 
   // Собрать песочницу: мебель (тексты, дропзоны, кнопки) — всегда заново; карты — из спеков,
   // при restore восстанавливая их положение/лицо (рестарт канваса), иначе в исходном виде.
+  // Порядок секций: Карты → Кнопки → Дропзоны → Фигуры → Стопки → Поле → Управление → Борды
+  // (борды — последними: самая тяжёлая секция, плотная сетка). Каждая секция — sectionFrame,
+  // единый SB_SECTION_GAP между низом одной и верхом следующей (было 8 разных чисел).
   private buildContent(restore?: Map<number, CardRuntime>): void {
-    const pad = 40;
-    const gap = this.cardW * 1.15;
-    const cellW = this.cardW + gap;
-    const capH = 40;
-    const titleH = 40;
-    const cardCY = pad + titleH + this.cardH / 2;
-
-    // Ряд «Карты — варианты»: копим спеки (позиция+пропсы), рисуем подписи.
-    STORIES.forEach((s, i) => {
-      const cx = pad + this.cardW / 2 + i * cellW;
-      this.cardSpecs.push({ opts: s.opts, home: { x: cx, y: cardCY }, depth: i, bobPhase: i * 0.9 });
-      this.scene.surface.addChild(this.label(s.caption, cx, cardCY + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9));
-    });
-
-    const rightEdge = pad + this.cardW / 2 + (STORIES.length - 1) * cellW + this.cardW / 2;
-    this.contentW = rightEdge + pad;
-
-    this.scene.surface.addChild(this.label("Карты — варианты", pad, pad, 26, 0xcdb98f, undefined, 0));
-
-    // Стопки (ряд под картами). Первая — левитирующая: 6 карт внахлёст, верхняя справа.
-    const stacksBottom = this.buildStacks(pad, cardCY + this.cardH / 2 + capH + 16);
-
-    // Ряд «Фишки и фигуры» — НЕ карты (Piece), но тот же драг/тени/метки. Доказательство generic.
-    const piecesBottom = this.buildPieces(pad, stacksBottom + 6);
-
-    // ПОЛЕ (новая механика) — НАД контейнерами: один владелец, динамический грид + закрытая стопка.
-    const fieldBottom = this.buildField(pad, piecesBottom + 6);
-
-    // Игровые зоны (борды): ряд пресетов, драг между слотами, заперты в рамке, тоглер исхода.
-    const boardBottom = this.buildBoardZones(pad, fieldBottom + 12);
-
-    // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
-    const dzTitleY = boardBottom + 6;
-    this.scene.surface.addChild(this.label("Дропзоны", pad, dzTitleY, 26, 0xcdb98f, undefined, 0));
-    const zoneY = dzTitleY + 44;
-    const zoneW = this.cardW * 2.4;
-    const zoneGap = this.cardW * 0.5;
-    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: pad, y: zoneY, w: zoneW, h: this.cardH } }), (p) => p.flip?.());
-    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: pad + zoneW + zoneGap, y: zoneY, w: zoneW, h: this.cardH } }), (p) => p.burn?.());
-
-    const buttonsBottom = this.buildButtons(pad, zoneY + this.cardH + 30);
-
-    // Раздел «Управление» — демонстрация публичного API (карты двигает движок, не палец).
-    const controlBottom = this.buildControls(pad, buttonsBottom + 24);
-    this.contentH = controlBottom + pad;
+    let y = SB_MARGIN;
+    y = this.sectionFrame(SB_MARGIN, y, "Карты — варианты", (cl, ct) => this.buildCardsRow(cl, ct));
+    y = this.buildButtons(SB_MARGIN, y);
+    y = this.sectionFrame(SB_MARGIN, y, "Дропзоны", (cl, ct) => this.buildDropzonesBlock(cl, ct));
+    y = this.buildPieces(SB_MARGIN, y);
+    y = this.buildStacks(SB_MARGIN, y);
+    y = this.buildField(SB_MARGIN, y);
+    y = this.buildControls(SB_MARGIN, y);
+    y = this.buildBoardZones(SB_MARGIN, y);
+    this.contentH = y + SB_MARGIN - SB_SECTION_GAP; // последняя секция уже добавила свой SB_SECTION_GAP
 
     // Карты рождаем ПОСЛЕ мебели — чтобы легли поверх подписей/зон.
     this.spawnCards(restore);
@@ -984,9 +980,7 @@ export class FreeDeskEngine extends CanvasApp {
         width = Math.max(width, p.x + it.w);
       });
 
-      const boxW = this.cardW / 2 + width;
-      this.contentW = Math.max(this.contentW, contentLeft + boxW + SB_BOX_PAD);
-      return { bottom: contentTop + totalH, width: boxW };
+      return { bottom: contentTop + totalH, width: this.cardW / 2 + width };
     });
   }
 

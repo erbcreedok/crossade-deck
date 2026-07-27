@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Игровая зона (борд): фигуры-карты в слотах, драг между слотами (BoardZone.dropAt), фигуры
 // заперты в рамке (clamp). Логический слот фигуры берём из хука (boardFigures[].key).
 test.describe("песочница — игровая зона (борд)", () => {
-  test.use({ viewport: { width: 900, height: 5800 } }); // высокий — видны все нижние борды (+ Поле сверху)
+  test.use({ viewport: { width: 900, height: 7600 } }); // борды теперь ПОСЛЕДНЯЯ секция (после всех остальных)
 
   interface Hooks {
     boardFigures: { id: string; key: string; x: number; y: number }[];

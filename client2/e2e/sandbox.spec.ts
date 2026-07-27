@@ -67,7 +67,7 @@ test.describe("песочница", () => {
 // Действия через дропзоны (флип/сжечь) — высокий вьюпорт, чтобы зоны были на экране.
 // Координаты берём из тест-хука движка (window.__fd.testHooks), а не пиксельным гаданием.
 test.describe("песочница — действия", () => {
-  test.use({ viewport: { width: 500, height: 1200 } });
+  test.use({ viewport: { width: 500, height: 1900 } }); // «Стопки» теперь после Карт/Кнопок/Дропзон/Фигур, ниже по странице
   const hooks = (page: import("@playwright/test").Page) =>
     page.evaluate(
       () =>
