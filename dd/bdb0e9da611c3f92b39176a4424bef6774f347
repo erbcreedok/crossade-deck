@@ -1,0 +1,21 @@
+client2/docs/HANDOFF.md
+  s_89d5ad20619017::t_72e2b99c02a6fd 1-70
+client2/docs/open-tasks.md
+  s_89d5ad20619017::t_804cf1c025b368 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ddbdb0e9da611c3f92b39176a4424bef6774f347",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
