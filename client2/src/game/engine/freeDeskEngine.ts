@@ -95,6 +95,25 @@ interface PieceRowItem {
   marker?: { draw: (g: Graphics) => void; show: ShowPolicy; label: string };
 }
 
+// Элемент борда КАК ДАННЫЕ: карта (лицо) ЛИБО фигура (PieceSpec: chip/chess). Основа BoardFactory.
+type ElementDef = { kind: "card"; face: string; size?: number } | PieceSpec;
+
+// Декларативный конфиг GRID-борда: вся геометрия/содержимое — данные. Фабрика mountBoard собирает
+// из него хром (registerBoardZone) и фигуры (spawnElement). «Новый борд = конфиг, не метод».
+interface BoardConfig {
+  title: string;
+  labelText?: string; // если экранная подпись ≠ title
+  cols: number;
+  rows: number;
+  cell: { w: number; h: number };
+  gap?: number; // дефолт 8
+  idPrefix: string; // id фигуры = `${idPrefix}-${key}-${j}`
+  onOccupied: OnOccupied;
+  slots: Record<string, ElementDef[]>; // ключ слота → стопка элементов (снизу вверх)
+  pieceRatio?: number; // радиус фигуры = min(cell)*ratio (дефолт 0.34)
+  hint?: string; // подпись-подсказка под бордом
+}
+
 // Одиночная цель с меткой (соло-карта, соло-фигура): host + драггер/якорь + как достать лид.
 interface SoloTarget {
   host: MarkerHost;
@@ -1056,6 +1075,30 @@ export class FreeDeskEngine extends CanvasApp {
     return zone;
   }
 
+  // Спавн ОДНОГО элемента борда по дескриптору: карта → cardSpecs; фигура (chip/chess) → spawnPiece
+  // (визуал из реестра pieceKinds). Единая точка, снявшая 3-веточный диспетч смешанного борда.
+  private spawnElement(id: string, home: { x: number; y: number }, def: ElementDef, depth: number, r: number): void {
+    if (def.kind === "card") this.cardSpecs.push({ opts: { id, card: def.face, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
+    else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess)
+  }
+
+  // BOARDFACTORY (grid): из конфига-ДАННЫХ собираем хром + фигуры. «Новый grid-борд = конфиг».
+  // depthBase — база z фигур (для смешанных стопок важен порядок: снизу вверх). Возвращает зону и низ.
+  private mountBoard(cfg: BoardConfig, left: number, top: number, depthBase: number): { zone: BoardZone; bottom: number } {
+    const { positioned, bounds } = this.gridBounds(left, top + 22, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
+    const r = Math.min(cfg.cell.w, cfg.cell.h) * (cfg.pieceRatio ?? 0.34);
+    const slots: Board["slots"] = {};
+    const keys = Object.keys(cfg.slots);
+    for (const key of keys) slots[key] = { members: cfg.slots[key]!.map((_, j) => `${cfg.idPrefix}-${key}-${j}`) };
+    const zone = this.registerBoardZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText });
+    let depth = depthBase;
+    for (const key of keys) {
+      cfg.slots[key]!.forEach((def, j) => this.spawnElement(`${cfg.idPrefix}-${key}-${j}`, zone.figureHome(`${cfg.idPrefix}-${key}-${j}`), def, depth++, r));
+    }
+    if (cfg.hint) this.scene.surface.addChild(this.label(cfg.hint, left, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
+    return { zone, bottom: bounds.y + bounds.h + 8 };
+  }
+
   // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
   // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
   private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
@@ -1157,52 +1200,55 @@ export class FreeDeskEngine extends CanvasApp {
   // Борд из НЕ-карточных фигур (Piece): шахматы прямо на доске. Доказательство, что слоты держат
   // любые фигуры, не только карты — весь драг/переезд/capture работает без правок «для фигур».
   private buildChessBoard(left: number, top: number): number {
-    const cell = { w: this.cardW * 1.0, h: this.cardH * 0.92 };
-    const specs = [
-      { key: "0,0", glyph: "♞", dark: true },
-      { key: "0,2", glyph: "♟", dark: false },
-      { key: "1,1", glyph: "♜", dark: true },
-      { key: "1,3", glyph: "♙", dark: false },
-    ];
-    const slots: Board["slots"] = {};
-    specs.forEach((s, i) => (slots[s.key] = { members: [`chessb-${i}`] }));
-    const { positioned, bounds } = this.gridBounds(left, top + 22, 4, 2, cell, 8);
-    const zone = this.registerBoardZone("шахматы из ФИГУР (Piece, capture)", left, top, positioned, bounds, slots, "capture");
-
-    const r = Math.min(cell.w, cell.h) * 0.34;
-    specs.forEach((s, i) => this.spawnPiece(`chessb-${i}`, zone.figureHome(`chessb-${i}`), { kind: "chess", dark: s.dark, glyph: s.glyph }, r));
-    this.scene.surface.addChild(this.label("тащи фигуру на фигуру — съедает (capture)", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
-    return bounds.y + bounds.h + 34;
+    const { bottom } = this.mountBoard(
+      {
+        title: "шахматы из ФИГУР (Piece, capture)",
+        cols: 4,
+        rows: 2,
+        cell: { w: this.cardW * 1.0, h: this.cardH * 0.92 },
+        idPrefix: "chessb",
+        onOccupied: "capture",
+        slots: {
+          "0,0": [{ kind: "chess", glyph: "♞", dark: true }],
+          "0,2": [{ kind: "chess", glyph: "♟", dark: false }],
+          "1,1": [{ kind: "chess", glyph: "♜", dark: true }],
+          "1,3": [{ kind: "chess", glyph: "♙", dark: false }],
+        },
+        hint: "тащи фигуру на фигуру — съедает (capture)",
+      },
+      left,
+      top,
+      480,
+    );
+    return bottom + 26;
   }
 
   // СМЕШАННЫЙ борд: в одном слоте стопка из РАЗНЫХ типов (карта + шахмата + фишка). Финальное
   // доказательство генерика — контейнер держит что угодно вперемешку; z по позиции в стопке.
   private buildMixedBoard(left: number, top: number): number {
-    const cell = { w: this.cardW * 1.15, h: this.cardH * 1.05 };
-    const r = Math.min(cell.w, cell.h) * 0.3;
-    type Def = { t: "card"; face: string } | { t: "chess"; glyph: string; dark: boolean } | { t: "chip"; denom: string; color: number };
-    const slotDefs: Record<string, Def[]> = {
-      "0,0": [{ t: "card", face: "A♠" }, { t: "chess", glyph: "♞", dark: true }, { t: "chip", denom: "5", color: 0xb23b34 }], // стопка вперемешку
-      "0,1": [{ t: "card", face: "K♥" }],
-      "0,2": [{ t: "chess", glyph: "♟", dark: false }],
-    };
-    const slots: Board["slots"] = {};
-    for (const [key, defs] of Object.entries(slotDefs)) slots[key] = { members: defs.map((_, j) => `mix-${key}-${j}`) };
-    const { positioned, bounds } = this.gridBounds(left, top + 22, 3, 1, cell, 8);
-    const zone = this.registerBoardZone("СМЕШАННЫЙ стек: карта+шахмата+фишка", left, top, positioned, bounds, slots, "merge", { labelText: "смешанный стек: карта + шахмата + фишка (generic)" });
-
-    let depth = 500; // сквозной z по позиции в стопке (карта снизу, фишка сверху)
-    for (const [key, defs] of Object.entries(slotDefs)) {
-      defs.forEach((d, j) => {
-        const id = `mix-${key}-${j}`;
-        const home = zone.figureHome(id);
-        if (d.t === "card") this.cardSpecs.push({ opts: { id, card: d.face, rest: "idle", size: 0.78 }, home, depth: depth++, bobPhase: 0 });
-        else if (d.t === "chess") this.spawnPiece(id, home, { kind: "chess", dark: d.dark, glyph: d.glyph }, r, depth++);
-        else this.spawnPiece(id, home, { kind: "chip", color: d.color, denom: d.denom }, r, depth++);
-      });
-    }
-    this.scene.surface.addChild(this.label("тащи любую фигуру из смешанной стопки в другой слот", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
-    return bounds.y + bounds.h + 30;
+    const { bottom } = this.mountBoard(
+      {
+        title: "СМЕШАННЫЙ стек: карта+шахмата+фишка",
+        labelText: "смешанный стек: карта + шахмата + фишка (generic)",
+        cols: 3,
+        rows: 1,
+        cell: { w: this.cardW * 1.15, h: this.cardH * 1.05 },
+        idPrefix: "mix",
+        onOccupied: "merge",
+        pieceRatio: 0.3,
+        slots: {
+          // стопка вперемешку (снизу вверх: карта → шахмата → фишка); z по позиции в стопке
+          "0,0": [{ kind: "card", face: "A♠", size: 0.78 }, { kind: "chess", glyph: "♞", dark: true }, { kind: "chip", denom: "5", color: 0xb23b34 }],
+          "0,1": [{ kind: "card", face: "K♥", size: 0.78 }],
+          "0,2": [{ kind: "chess", glyph: "♟", dark: false }],
+        },
+        hint: "тащи любую фигуру из смешанной стопки в другой слот",
+      },
+      left,
+      top,
+      500,
+    );
+    return bottom + 22;
   }
 
   // Зона, которой принадлежит фигура (или null).
