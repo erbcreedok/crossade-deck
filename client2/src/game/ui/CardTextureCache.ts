@@ -2,11 +2,13 @@ import type { Application, Texture } from "pixi.js";
 import {
   makeCardBackTexture,
   makeCardFaceTexture,
+  makeHiddenBgTexture,
   makeHiddenFaceTexture,
   makeJokerFaceTexture,
   makeShadowTexture,
   type FaceStyle,
 } from "../engine/cardTextures";
+import { buildFingerDustPoints } from "../engine/censorSource";
 import type { CardBackId } from "../cardBack";
 
 // Кэш текстур карт по параметрам: одна запечённая текстура на уникальную комбинацию
@@ -16,7 +18,9 @@ export class CardTextureCache {
   private backs = new Map<CardBackId, Texture>();
   private shadowTex: Texture | null = null;
   private hiddenTex: Texture | null = null;
+  private hiddenBgTex: Texture | null = null;
   private jokerTex: Texture | null = null;
+  private dustPts: Array<{ x: number; y: number }> | null = null;
 
   constructor(private readonly app: Application) {}
 
@@ -25,10 +29,22 @@ export class CardTextureCache {
     return this.shadowTex;
   }
 
-  /** Лицо скрытой карты (🖕 вместо номинала). */
+  /** Статичное лицо скрытой карты (🖕 вместо номинала) — запасной вид под «пылью». */
   hiddenFace(): Texture {
     if (!this.hiddenTex) this.hiddenTex = makeHiddenFaceTexture(this.app);
     return this.hiddenTex;
+  }
+
+  /** Чистый фон скрытой карты (без фака) — база под живую «пыль». */
+  hiddenBg(): Texture {
+    if (!this.hiddenBgTex) this.hiddenBgTex = makeHiddenBgTexture(this.app);
+    return this.hiddenBgTex;
+  }
+
+  /** Облако точек рождения «пыли» по силуэту фака, центрированное в центре карты (0,0). Кэш на комнату. */
+  dustPoints(): Array<{ x: number; y: number }> {
+    if (!this.dustPts) this.dustPts = buildFingerDustPoints(this.app, 4, 0, 0);
+    return this.dustPts;
   }
 
   /** Кастомное лицо джокера. */
@@ -61,11 +77,14 @@ export class CardTextureCache {
     this.backs.forEach((t) => t.destroy(true));
     this.shadowTex?.destroy(true);
     this.hiddenTex?.destroy(true);
+    this.hiddenBgTex?.destroy(true);
     this.jokerTex?.destroy(true);
     this.faces.clear();
     this.backs.clear();
     this.shadowTex = null;
     this.hiddenTex = null;
+    this.hiddenBgTex = null;
     this.jokerTex = null;
+    this.dustPts = null;
   }
 }

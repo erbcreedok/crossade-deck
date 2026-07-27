@@ -12,6 +12,7 @@ export interface ParticleParams {
   life: number; // время жизни частицы, с (меньше → чаще churn → живее)
   twinkleHz: number; // частота мерцания alpha
   flicker: boolean; // мерцание вкл/выкл (фото-чувствительность → можно погасить)
+  timeScale: number; // множитель времени: <1 замедляет ВСЮ пыль равномерно (жизнь/разлёт/мерцание)
 }
 
 interface P {
@@ -69,19 +70,21 @@ export class ParticleField {
   }
 
   // Позиция и alpha частицы — чистая функция от возраста (не от dt) → устойчиво к скачкам кадров/скорости.
+  // timeScale замедляет всю пыль равномерно: работаем не в реальном t, а в масштабированном tt.
   update(t: number): void {
     const g = this.g;
     g.clear();
     const s = this.prm.dot;
+    const tt = t * this.prm.timeScale;
     for (const p of this.ps) {
-      const age = t - p.born;
+      const age = tt - p.born;
       if (age >= p.life) {
-        this.spawn(p, t);
+        this.spawn(p, tt);
         continue;
       }
       const k = age / p.life; // 0..1
       const fade = Math.sin(Math.PI * k); // проявился к середине, погас к концу
-      const flick = this.prm.flicker ? 0.55 + 0.45 * Math.sin(t * this.prm.twinkleHz * 6.2832 + p.ph) : 1;
+      const flick = this.prm.flicker ? 0.55 + 0.45 * Math.sin(tt * this.prm.twinkleHz * 6.2832 + p.ph) : 1;
       const a = fade * flick;
       if (a <= 0.02) continue;
       const x = p.ox + p.vx * age;

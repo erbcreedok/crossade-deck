@@ -1,6 +1,6 @@
 import { Application, Container, Filter, GlProgram, Graphics, RenderTexture, Sprite } from "pixi.js";
 import { buildContent } from "../fingerContent";
-import type { DanceParams } from "../censorDemo";
+import type { DanceParams } from "../censorConfig";
 import { TEX_H, TEX_W } from "./constants";
 
 // GPU-варианты «цензуры»: вся анимация на видеокарте, CPU за кадр лишь двигает uniform'ы. Управляются

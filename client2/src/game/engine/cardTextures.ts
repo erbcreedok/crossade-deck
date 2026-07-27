@@ -168,6 +168,24 @@ export function makeHiddenFaceTexture(app: Application): Texture {
 }
 
 /**
+ * ФОН скрытой карты под живую «пыль»: чистое кремовое лицо + край, БЕЗ фака/«?». Силуэт рисуют
+ * сами частицы (ui/Card + engine/censorParticles) поверх этого фона; статичный фак (выше) остаётся
+ * запасным видом. Так «цензура» шевелится, а карта под ней читается как обычная карта.
+ */
+export function makeHiddenBgTexture(app: Application): Texture {
+  const root = new Container();
+  const bg = new Graphics();
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  root.addChild(bg);
+  const shade = new Graphics();
+  drawCardShade(shade);
+  root.addChild(shade);
+  const tex = app.renderer.generateTexture({ target: root, resolution: 2, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
+  root.destroy({ children: true });
+  return tex;
+}
+
+/**
  * Кастомное лицо ДЖОКЕРА: шутовской колпак с бубенцами + «JOKER». Полностью рисованное —
  * пример карты со своим лицом, не числовой и не эмодзи.
  */

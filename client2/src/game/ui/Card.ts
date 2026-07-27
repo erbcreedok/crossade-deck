@@ -5,6 +5,8 @@ import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
 import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
+import { ParticleField } from "../engine/censorParticles";
+import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
 import type { Burnable, Draggable, Flippable, TableElement } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
@@ -87,6 +89,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
   private block: { t: number; dur: number } | null = null; // «стоп»-покачивание при блоке драга
   private dying: { t: number; dur: number } | null = null; // «сжечь»: замирание → расход снизу вверх
   private burnMask: Graphics | null = null; // маска фронта горения (создаётся на фазе расхода)
+  private dust: ParticleField | null = null; // живая «пыль»-цензура скрытой карты (TG-спойлер)
+  private dustT = 0; // локальное время пыли (крутит только пока она видна)
   dead = false; // догорела — движок убирает её из песочницы
 
   constructor(
@@ -111,9 +115,25 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
+    if (this.hidden) this.buildDust();
     if (this.torn) this.root.addChild(this.buildTear());
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
+  }
+
+  // Живая «пыль»-цензура: облако амбер-частиц по силуэту фака (спавн-точки — общий кэш комнаты),
+  // поверх чистого фона (hiddenBg). Обрезано по карте маской-прямоугольником со скруглением.
+  private buildDust(): void {
+    this.dust = new ParticleField(this.tex.dustPoints(), dustParams(DANCE_DEFAULT, DUST_FLICKER));
+    const mask = new Graphics();
+    mask.roundRect(-TEX_W / 2, -TEX_H / 2, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
+    this.dust.view.mask = mask;
+    this.root.addChild(this.dust.view, mask);
+  }
+
+  /** Видна ли сейчас пыль (лицом вверх, вне переворота/горения) — тогда её надо крутить, а цикл не спит. */
+  private get dustActive(): boolean {
+    return this.dust !== null && this.faceUp && !this.flip && !this.dying && !this.dead;
   }
 
   get scaleFactor(): number {
@@ -167,6 +187,10 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
+    if (this.dustActive) {
+      this.dustT += dt;
+      this.dust!.update(this.dustT);
+    }
     if (this.flip) {
       this.flip.t += dt;
       if (this.flip.t >= this.flip.dur) {
@@ -188,12 +212,14 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
     }
   }
 
-  /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. */
+  /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. Живая
+   *  пыль тоже «шевелится» непрерывно: пока она видна, цикл держим бодрым. */
   get resting(): boolean {
-    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating";
+    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && !this.dustActive;
   }
 
   sync(): void {
+    if (this.dust) this.dust.view.visible = this.dustActive; // пыль видна только лицом вверх, вне переворота
     const render = this.body.scaleVal * this.scaleFactor;
     // «Парение»: покачивание вверх-вниз только у floating; выше поднялась — дальше тень.
     let bobY = 0;
@@ -271,8 +297,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
 
   private faceTex(faceUp: boolean): Texture {
     if (!faceUp) return this.tex.back(this.back);
-    // Особые лица: скрытая (🖕) и джокер (кастом); иначе обычное числовое.
-    if (this.hidden) return this.tex.hiddenFace();
+    // Особые лица: скрытая (чистый фон под живой «пылью»; статичный фак — запас) и джокер; иначе числовое.
+    if (this.hidden) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
     if (this.joker) return this.tex.jokerFace();
     return this.tex.face(this.card, this.fourColor, this.faceStyle);
   }

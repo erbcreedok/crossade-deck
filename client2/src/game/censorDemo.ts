@@ -1,12 +1,13 @@
-import { Application, Container, Graphics, RenderTexture, Text } from "pixi.js";
+import { Application, Container, Graphics, Text } from "pixi.js";
 import { createPixiApp, ensureFonts } from "./engine/canvasHost";
-import { CensorField, type CensorSource } from "./engine/censorField";
+import { CensorField } from "./engine/censorField";
+import { buildFingerDustPoints, buildFingerGrid } from "./engine/censorSource";
 import { GpuCensorCard } from "./engine/censorGpu";
-import { ParticleField, type ParticleParams } from "./engine/censorParticles";
+import { ParticleField } from "./engine/censorParticles";
 import { attachPanZoom, type PanZoomHandle } from "./engine/panZoom";
 import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
-import { AMBER, buildContent } from "./fingerContent";
+import { DANCE_DEFAULT, DUST_FLICKER, dustParams, type DanceParams } from "./censorConfig";
 import { Button } from "./ui/Button";
 import { attachControls, type Configurable, type Param } from "./ui/controls";
 import type { ViewState } from "./engine/viewport";
@@ -18,45 +19,10 @@ import type { ViewState } from "./engine/viewport";
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 4;
 
-// Извлечь из контента булеву пиксель-сетку под размер блока (рендер в RenderTexture cols×rows, чтение альфы).
-function buildFingerSource(app: Application, block: number): CensorSource {
-  const content = buildContent();
-  const cols = Math.max(1, Math.round(TEX_W / block));
-  const rows = Math.max(1, Math.round(TEX_H / block));
-  content.scale.set(cols / TEX_W, rows / TEX_H);
-  const rt = RenderTexture.create({ width: cols, height: rows });
-  app.renderer.render({ container: content, target: rt });
-  const { pixels } = app.renderer.extract.pixels(rt);
-  const on: boolean[] = new Array(cols * rows);
-  for (let i = 0; i < cols * rows; i++) on[i] = pixels[i * 4 + 3]! > 100;
-  content.destroy({ children: true });
-  rt.destroy(true);
-  return { cols, rows, block, on, color: AMBER };
-}
-
 interface DemoCard {
   field: CensorField | null;
   animated: boolean;
   live?: () => boolean; // доп. условие анимации (напр. «тряска только когда играет»)
-}
-
-export interface DanceParams {
-  block: number;
-  swapsPerSec: number;
-  jitterAmp: number;
-  jitterFreq: number;
-}
-export const DANCE_DEFAULT: DanceParams = { block: 4, swapsPerSec: 26, jitterAmp: 1, jitterFreq: 6 };
-
-// Рычаги «танца» → параметры Telegram-частиц.
-function particleParams(d: DanceParams, flicker: boolean): ParticleParams {
-  return {
-    dot: Math.max(1.5, d.block * 0.8),
-    drift: d.jitterAmp * 14,
-    life: Math.max(0.35, 1.3 - d.swapsPerSec / 120),
-    twinkleHz: d.jitterFreq * 0.4,
-    flicker,
-  };
 }
 
 export class CensorDemo {
@@ -72,7 +38,7 @@ export class CensorDemo {
   private dance: DanceParams = { ...DANCE_DEFAULT };
   private speed = 1;
   private reduceMotion = false; // master reduce-motion → замораживает время
-  private flicker = true; // мерцание частиц
+  private flicker = DUST_FLICKER; // мерцание частиц (дефолт — выкл)
   private shearPlay = true; // «тряска рядов» играет
 
   private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
@@ -223,7 +189,7 @@ export class CensorDemo {
 
   private fieldCard(app: Application, spec: CensorSpec, label: string, x: number, y: number, animated: boolean, live?: () => boolean): { card: Container; mask: Graphics; right: number } {
     const { card, mask } = this.cardChrome(x, y);
-    const src = buildFingerSource(app, spec.block);
+    const src = buildFingerGrid(app, spec.block);
     const field = new CensorField(src, spec);
     field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
     field.view.mask = mask;
@@ -247,18 +213,8 @@ export class CensorDemo {
 
   private particleCard(app: Application, label: string, x: number, y: number): number {
     const { card, mask } = this.cardChrome(x, y);
-    const step = 4;
-    const src = buildFingerSource(app, step);
-    const pts: Array<{ x: number; y: number }> = [];
-    const offX = (TEX_W - src.cols * step) / 2;
-    const offY = (TEX_H - src.rows * step) / 2;
-    for (let r = 0; r < src.rows; r++) {
-      for (let c = 0; c < src.cols; c++) {
-        if (!src.on[r * src.cols + c]) continue;
-        for (let d = 0; d < 2; d++) pts.push({ x: offX + c * step + 2, y: offY + r * step + 2 });
-      }
-    }
-    const pf = new ParticleField(pts, particleParams(this.dance, this.flicker));
+    const pts = buildFingerDustPoints(app, 4, TEX_W / 2, TEX_H / 2); // облако с центром в центре карты (контейнер в левом-верхе)
+    const pf = new ParticleField(pts, dustParams(this.dance, this.flicker));
     pf.view.mask = mask;
     card.addChild(pf.view);
     pf.update(0);
@@ -292,7 +248,7 @@ export class CensorDemo {
   }
 
   private applyParticles(): void {
-    for (const p of this.particleCards) p.setParams(particleParams(this.dance, this.flicker));
+    for (const p of this.particleCards) p.setParams(dustParams(this.dance, this.flicker));
   }
 
   // Живая настройка «цензуры»: gpu + частицы + пересборка CPU-мозаики при смене block.
@@ -308,7 +264,7 @@ export class CensorDemo {
     if (p.block !== undefined && p.block !== t.spec.block) {
       t.spec.block = p.block;
       this.cards[t.cardIdx]?.field?.destroy();
-      const src = buildFingerSource(this.app, p.block);
+      const src = buildFingerGrid(this.app, p.block);
       const field = new CensorField(src, t.spec);
       field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
       field.view.mask = t.mask;
