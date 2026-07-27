@@ -21,7 +21,7 @@ import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./dra
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
 import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
-import { createPixiApp, ensureFonts } from "./canvasHost";
+import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
 import { topmostAt, type HitBox } from "./cardHit";
 import { PIXEL_FONT, TEX_H, TEX_W } from "./constants";
@@ -159,11 +159,10 @@ function drawRingIcon(g: Graphics): void {
   g.circle(0, 0, 8).stroke({ width: 1.6, color: MARK }); // полое кольцо
 }
 
-export class FreeDeskEngine {
-  private app: Application | null = null;
-  private destroyed = false;
+export class FreeDeskEngine extends CanvasApp {
   private tex!: CardTextureCache;
   private content!: Container;
+  private pendingRestore?: Map<number, CardRuntime>; // снимок для рестарта канваса (build читает его)
 
   private scene!: SceneLayers;
 
@@ -175,7 +174,6 @@ export class FreeDeskEngine {
   private contentW = 1;
   private contentH = 1;
 
-  private container!: HTMLElement;
   private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
   private cards: Placed[] = [];
   private pieces: PiecePlaced[] = []; // не-карточные элементы (фишки, фигуры) — тот же драг/тени
@@ -227,15 +225,12 @@ export class FreeDeskEngine {
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
   private onView: ((v: ViewState) => void) | null = null;
 
-  async mount(container: HTMLElement, width: number, height: number): Promise<void> {
-    if (this.destroyed) return;
-    this.container = container;
-    this.W = Math.max(1, Math.round(width));
-    this.H = Math.max(1, Math.round(height));
+  protected onLayout(width: number, height: number): void {
+    this.W = width;
+    this.H = height;
     this.cardH = Math.max(48, Math.min(140, Math.min(this.W, this.H) * 0.16));
     this.baseScale = this.cardH / TEX_H;
     this.cardW = TEX_W * this.baseScale;
-    await this.bootApp();
   }
 
   private wire(app: Application): void {
@@ -248,30 +243,21 @@ export class FreeDeskEngine {
     app.canvas.addEventListener("wheel", this.onWheel, { passive: false });
   }
 
-  // Поднять новый Pixi-канвас и собрать сцену. restore — снимок состояния карт (для рестарта
-  // канваса); без него песочница строится в исходном виде. Шрифты ждём до отрисовки (canvasHost).
-  private async bootApp(restore?: Map<number, CardRuntime>): Promise<void> {
-    await ensureFonts();
-    if (this.destroyed) return;
-    const app = await createPixiApp(this.W, this.H);
-    if (!app) return;
-    if (this.destroyed) {
-      app.destroy({ removeView: true }, { children: true, texture: true });
-      return;
-    }
-    this.container.appendChild(app.canvas);
-    this.app = app;
+  // Собрать сцену в свежем канвасе (Host уже поднял app/канвас). pendingRestore — снимок карт для
+  // рестарта канваса; без него песочница строится в исходном виде.
+  protected build(app: Application): void {
     this.tex = new CardTextureCache(app);
-
     this.content = new Container();
     app.stage.addChild(this.content);
     this.buildLayers();
-    this.buildContent(restore);
+    this.buildContent(this.pendingRestore);
+    this.pendingRestore = undefined;
     this.wire(app);
+  }
 
+  protected onBooted(): void {
     this.clampView();
     this.applyView();
-    app.ticker.add(this.tick);
     this.render();
     this.wake();
     this.emitView();
@@ -294,10 +280,10 @@ export class FreeDeskEngine {
   // положение/лицо живых карт и вид, сносим app, поднимаем новый и восстанавливаемся.
   async restartCanvas(): Promise<void> {
     if (!this.app || this.destroyed) return;
-    const snap = this.snapshotCards();
     const savedView = { x: this.viewport.x, y: this.viewport.y, zoom: this.viewport.zoom };
-    this.teardownApp();
-    await this.bootApp(snap);
+    this.pendingRestore = this.snapshotCards(); // build его прочитает после boot
+    this.teardown();
+    await this.boot();
     if (this.app) {
       this.viewport.x = savedView.x;
       this.viewport.y = savedView.y;
@@ -1650,13 +1636,7 @@ export class FreeDeskEngine {
 
   // ——— цикл ———
 
-  private wake(): void {
-    if (this.app && !this.app.ticker.started) this.app.ticker.start();
-  }
-
-  private tick = (): void => {
-    if (!this.app) return;
-    const dt = Math.min(this.app.ticker.deltaMS / 1000, 0.05);
+  protected frame(dt: number): boolean {
     this.edgeScroll(dt);
     if (this.viewport.flinging) {
       this.syncVp();
@@ -1675,8 +1655,8 @@ export class FreeDeskEngine {
       if (!b.resting) moving = true;
     }
     this.render();
-    if (!moving) this.app.ticker.stop();
-  };
+    return moving;
+  }
 
   // Убрать догоревшие элементы (dead) — уничтожить узлы и вычистить из списков + byId (метки
   // увидят total--). Карты и фишки/фигуры реапаются одинаково.
@@ -1752,10 +1732,9 @@ export class FreeDeskEngine {
 
   // Снести Pixi-app и живые узлы (для рестарта канваса и окончательного destroy). Логические
   // спеки не сохраняем — при рестарте канваса состояние берётся из снимка ДО вызова.
-  private teardownApp(): void {
-    if (!this.app) return;
-    this.app.canvas.removeEventListener("wheel", this.onWheel);
-    this.app.ticker.remove(this.tick);
+  // Отвязать слушатели и почистить свои узлы/состояние перед сносом app (Host снимет тикер+app).
+  protected onTeardown(app: Application): void {
+    app.canvas.removeEventListener("wheel", this.onWheel);
     for (const p of this.cards) p.card.destroy();
     for (const p of this.pieces) p.el.destroy();
     for (const c of this.controlCards) c.destroy();
@@ -1787,12 +1766,5 @@ export class FreeDeskEngine {
     this.zones = [];
     this.input.reset();
     this.tex?.destroy();
-    this.app.destroy({ removeView: true }, { children: true, texture: true });
-    this.app = null;
-  }
-
-  destroy(): void {
-    this.destroyed = true;
-    this.teardownApp();
   }
 }
