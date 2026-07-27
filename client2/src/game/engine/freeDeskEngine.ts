@@ -1229,11 +1229,19 @@ export class FreeDeskEngine extends CanvasApp {
     if (p) p.home = home;
   }
 
-  // Пересчитать home всех фигур зоны (после переезда стек-смещения меняются).
+  // Пересчитать home всех фигур зоны И отправить их туда пружиной (после переезда/свапа/merge
+  // стек-смещения меняются). БЕЗ setTarget вытесненная свапом фигура оставалась в целевом слоте —
+  // «обе на одном слоте». Перетаскиваемую пропускаем: её домой везёт release.
   private refreshZoneHomes(zone: BoardZone): void {
+    const dragged = this.drag?.lead.id;
     for (const key of Object.keys(zone.board.slots)) {
-      for (const id of zone.board.slots[key]!.members) this.setFigureHome(id, zone.figureHome(id));
+      for (const id of zone.board.slots[key]!.members) {
+        const home = zone.figureHome(id);
+        this.setFigureHome(id, home);
+        if (id !== dragged) this.byId.get(id)?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
+      }
     }
+    this.wake();
   }
 
   // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
