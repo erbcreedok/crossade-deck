@@ -1,0 +1,21 @@
+client/src/game/dealing.test.ts
+  s_b6ac35acf00770::t_968a6358ccdaf1 33-40
+client/src/game/dealing.ts
+  s_b6ac35acf00770::t_fec23f617daec0 20-25,28,30-33,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "87310803c189464f1a10bb11e5146c2abb09cead",
+  "prompts": {},
+  "sessions": {
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
