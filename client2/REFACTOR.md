@@ -7,7 +7,10 @@
 Прогресс:
 - [x] E-инфра: e2e-обвязка Playwright (`playwright.config.ts`, `e2e/*.spec.ts`).
 - [x] E2 (частично): вынесен `Viewport` (чистая камера, 8 юнит-тестов).
-- [ ] E1 Host, E2 остальное (Input/Layers/ShadowPass), E3 интерфейсы, E4 Pool, E5 карта, E6, E7.
+- [x] E1 (частично): база `engine/canvasApp.ts` (Host: жизненный цикл + цикл кадра, хуки
+      onLayout/build/onBooted/onTeardown/frame). Мигрированы `CensorDemo` и `TableEngine`.
+      `FreeDeskEngine` — ПОСЛЕ E2 (его камера/ввод/restartCanvas сперва станут системами).
+- [ ] E1 остаток (FreeDesk на Host), E2 остальное (Input/Layers/ShadowPass), E3 интерфейсы, E4 Pool, E5 карта, E6, E7.
 - [x] Игровая зона (борд): весь логический слой `board/*` + визуал-полигон в песочнице (6 бордов-
       пресетов, onOccupied merge/swap/capture/reject, value-правила, ring-раскладка, изолированный
       мультиселект с драгом набора). ~198 юнитов + e2e. Дизайн/статус: `GRID-DESIGN.md`.
