@@ -1,0 +1,42 @@
+client2/e2e/board.spec.ts
+  s_b6ac35acf00770::t_40b66cc3f4ba9f 15-17
+  s_b6ac35acf00770::t_9a138046e09ec5 241-294,298,300-345
+  s_b6ac35acf00770::t_b922ba95fce387 295-297,299
+client2/src/game/engine/freeDeskEngine.ts
+  s_b6ac35acf00770::t_98be87ae77fdd6 117-120
+  s_b6ac35acf00770::t_46f406eb526013 1367
+  s_b6ac35acf00770::t_c0371ac2683d5c 466-467
+  s_b6ac35acf00770::t_91cce6e6dd703f 460
+  s_b6ac35acf00770::t_f1e1d1c0ecc772 1354-1355,1357-1359,1361,1368-1369
+  s_b6ac35acf00770::t_ec943acef53637 1383,1391-1392
+  s_b6ac35acf00770::t_c3c86d1d33e4f5 26
+  s_b6ac35acf00770::t_e423fe527cc47d 240-241
+  s_b6ac35acf00770::t_3e52902c865b15 521-522,527-528
+  s_b6ac35acf00770::t_c5d52877056414 242
+  s_b6ac35acf00770::t_391907b2bb2fe1 1360
+  s_b6ac35acf00770::t_0c085b90236b83 1291-1297,1303,1306-1307,1310,1312-1319,1328-1347,1349-1351
+  s_b6ac35acf00770::t_88b3dea7d8cc97 8,15
+  s_b6ac35acf00770::t_cf72420d19252b 1298-1300
+  s_b6ac35acf00770::t_f16dbe2d2c3358 1289,1435-1474,1478,1485
+  s_b6ac35acf00770::t_fe3dda21fe1f58 1204-1220,1222-1251
+  s_b6ac35acf00770::t_18a1d1565d1388 1285-1288
+  s_b6ac35acf00770::t_f8266f25eee424 1290
+client2/src/game/board/boardModel.test.ts
+  s_b6ac35acf00770::t_978d7393feae75 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5b2d1c2214557b667e8300132f399b799475870a",
+  "prompts": {},
+  "sessions": {
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
