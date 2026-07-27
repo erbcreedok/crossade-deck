@@ -5,6 +5,7 @@ import { resolveDrop, type DropCandidate } from "./dropResolve";
 import { clampToBounds } from "./bounds";
 import type { Rect } from "./layout/grid";
 import type { PositionedSlot } from "./layout/slots";
+import type { Configurable, Param } from "../ui/controls"; // ТОЛЬКО типы — стираются на сборке, Pixi сюда не тянется
 
 // BoardZone — стейт-ное ядро визуального полигона (ООП: состояние board + поведение), но БЕЗ Pixi.
 // Раскладка ПОДКЛЮЧАЕМА: зона принимает готовый список позиционированных слотов (grid/ring/points/
@@ -13,6 +14,7 @@ import type { PositionedSlot } from "./layout/slots";
 
 // Исход дропа на ЗАНЯТЫЙ слот (GRID-DESIGN.md, onOccupied). Пресеты; кастомный Action — позже.
 export type OnOccupied = "merge" | "swap" | "capture" | "reject";
+const MODES: OnOccupied[] = ["merge", "swap", "capture", "reject"];
 
 // Value-aware ПРАВИЛО приёма (rules as data): финальный гейт поверх onOccupied. Знает ids/слоты и
 // текущий board; ЗНАЧЕНИЯ (ранг/масть) достаёт из своего замыкания. Основа правил игр (пасьянс и т.п.).
@@ -35,7 +37,7 @@ export interface BoardZoneOpts {
 // Сдвиг стопки в слоте (peek): верх выше-правее. Малый, чисто чтобы читалась глубина.
 const STACK_STEP = { dx: 6, dy: -4 };
 
-export class BoardZone {
+export class BoardZone implements Configurable {
   board: Board;
   slotList: PositionedSlot[]; // может переразмечаться (динамический грид — relayout)
   readonly bounds: Rect;
@@ -50,6 +52,12 @@ export class BoardZone {
     this.onOccupied = o.onOccupied ?? "merge";
     this.centers = new Map(o.slots.map((s) => [s.key, s.center]));
     this.rule = o.rule;
+  }
+
+  /** Единственный настраиваемый параметр зоны — исход дропа на занятый слот. Даёт зоне
+   *  attachControls+Segmented «даром» вместо инлайновой отрисовки (была freeDeskEngine.ts::segToggle). */
+  params(): Param[] {
+    return [{ kind: "choice", label: "на занятый слот", options: MODES, get: () => MODES.indexOf(this.onOccupied), set: (i) => (this.onOccupied = MODES[i]!) }];
   }
 
   /** Переразметить слоты (динамический грид: рост меняет набор/позиции ячеек). */
