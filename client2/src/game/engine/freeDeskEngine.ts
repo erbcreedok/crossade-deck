@@ -234,6 +234,7 @@ export class FreeDeskEngine extends CanvasApp {
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
   private dragSqueeze = false; // плейсмент пачки при драге: false — врассыпную, true — сжать в руку
   private buttons: Button[] = [];
+  private buttonShowcase: { cap: string; b: Button }[] = []; // раздел «Кнопки» — для e2e-хука
   private zones: Array<{ zone: DropZone; onDrop: (p: DragPayload) => void }> = [];
 
   private input = new InputRouter<Elem, Button>(this.inputHandlers());
@@ -442,6 +443,7 @@ export class FreeDeskEngine extends CanvasApp {
     selFigures: { id: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
+    buttonShowcase: { cap: string; x: number; y: number; disabled: boolean }[];
     cardW: number;
     draggingId: string | null;
   } {
@@ -489,6 +491,7 @@ export class FreeDeskEngine extends CanvasApp {
         slots: z.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })),
       })),
       field: this.fieldHook(toScreen),
+      buttonShowcase: this.buttonShowcase.map(({ cap, b }) => ({ cap, disabled: b.disabled, ...toScreen(b.x, b.y) })),
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
@@ -1338,25 +1341,32 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
-  private buildButtons(left: number, startY: number): number {
-    this.scene.surface.addChild(this.label("Кнопки", left, startY, 26, 0xcdb98f, undefined, 0));
-    let y = startY + 48;
-    y = this.buttonRow(left, y, [
-      { opts: { label: "Основная", variant: "primary" }, cap: "primary" },
-      { opts: { label: "Вторичная", variant: "secondary" }, cap: "secondary" },
-      { opts: { label: "Опасно", variant: "danger" }, cap: "danger" },
-      { opts: { label: "Призрак", variant: "ghost" }, cap: "ghost" },
-    ]);
-    y = this.buttonRow(left, y, [
-      { opts: { label: "Мелкая", size: "sm" }, cap: "sm" },
-      { opts: { label: "Средняя", size: "md" }, cap: "md" },
-      { opts: { label: "Крупная", size: "lg" }, cap: "lg" },
-    ]);
-    y = this.buttonRow(left, y, [{ opts: { label: "Недоступна", disabled: true }, cap: "disabled" }]);
-    return y;
+  private buildButtons(left: number, top: number): number {
+    return this.sectionFrame(left, top, "Кнопки", (contentLeft, contentTop) => {
+      let y = contentTop;
+      let width = 0;
+      const row = (items: Array<{ opts: ButtonOptions; cap: string }>) => {
+        const r = this.buttonRow(contentLeft, y, items);
+        y = r.bottom;
+        width = Math.max(width, r.width);
+      };
+      row([
+        { opts: { label: "Основная", variant: "primary" }, cap: "primary" },
+        { opts: { label: "Вторичная", variant: "secondary" }, cap: "secondary" },
+        { opts: { label: "Опасно", variant: "danger" }, cap: "danger" },
+        { opts: { label: "Призрак", variant: "ghost" }, cap: "ghost" },
+      ]);
+      row([
+        { opts: { label: "Мелкая", size: "sm" }, cap: "sm" },
+        { opts: { label: "Средняя", size: "md" }, cap: "md" },
+        { opts: { label: "Крупная", size: "lg" }, cap: "lg" },
+      ]);
+      row([{ opts: { label: "Недоступна", disabled: true }, cap: "disabled" }]);
+      return { bottom: y, width };
+    });
   }
 
-  private buttonRow(left: number, y: number, items: Array<{ opts: ButtonOptions; cap: string }>): number {
+  private buttonRow(left: number, y: number, items: Array<{ opts: ButtonOptions; cap: string }>): { bottom: number; width: number } {
     const gap = 26;
     const made = items.map((it) => ({ b: new Button(it.opts), cap: it.cap }));
     const rowH = Math.max(...made.map((m) => m.b.h));
@@ -1366,10 +1376,11 @@ export class FreeDeskEngine extends CanvasApp {
       b.place(cx, y + rowH / 2);
       this.scene.surface.addChild(b.root);
       this.buttons.push(b);
+      this.buttonShowcase.push({ cap, b });
       this.scene.surface.addChild(this.label(cap, cx, y + rowH + 8, 13, 0x9aa89f));
       x += b.w + gap;
     }
-    return y + rowH + 42;
+    return { bottom: y + rowH + 42, width: x - left - gap };
   }
 
   // ——— вьюпорт ———
