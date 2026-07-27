@@ -5,15 +5,14 @@ import { Piece } from "../ui/Piece";
 import { pieceVisual, type PieceSpec } from "../ui/pieceKinds";
 import { BoardZone, type AcceptRule, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
-import { gridSlots, type PositionedSlot } from "../board/layout/slots";
+import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
 import { Field, NORMAL_FIELD } from "../board/field";
 import { Stack } from "../board/stack";
 import { attachControls, type Configurable } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import type { Stepper } from "../ui/Stepper";
 import type { Segmented } from "../ui/Segmented";
-import { layoutForPreset } from "../board/boardLayout";
-import { buildBoardModel, wrapRule } from "../board/boardModel";
+import { wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, rankOf, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import { DropZone } from "../ui/DropZone";
@@ -24,7 +23,7 @@ import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./dra
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
 import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP, BLOCK_PAD } from "./sandboxLayout";
-import { wrapRow } from "./sandboxWrap";
+import { wrapRow, wrapFlow } from "./sandboxWrap";
 import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -115,6 +114,10 @@ interface BoardConfig {
   slots: Record<string, ElementDef[]>; // ключ слота → стопка элементов (снизу вверх)
   pieceRatio?: number; // радиус фигуры = min(cell)*ratio (дефолт 0.34)
   hint?: string; // подпись-подсказка под бордом
+  layout?: "grid" | "ring"; // дефолт grid; ring игнорирует cols/rows/gap, использует ringCount
+  ringCount?: number; // число слотов кольца (layout: ring), дефолт 8
+  maxSize?: number; // потолок стопки в КАЖДОМ слоте борда (дурак и т.п.)
+  rule?: BoardPreset["rule"]; // value-правило по ЛИЦАМ (не по id) — mountBoard сам оборачивает в AcceptRule
 }
 
 // Одиночная цель с меткой (соло-карта, соло-фигура): host + драггер/якорь + как достать лид.
@@ -234,6 +237,9 @@ export class FreeDeskEngine extends CanvasApp {
   private selSortByRank = true; // конфиг: порядок выноса набора (номинал / порядок выбора)
   private faceOf = new Map<string, string>(); // id фигуры → лицо карты (для сорта набора по номиналу)
   private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
+  private selMultiButtons: Button[] = []; // тумблер «мультиселект» — для e2e
+  private selSortButtons: Button[] = []; // тумблер «сорт набора» — для e2e
+  private boardOnOccupiedSegments: Segmented[] = []; // тумблер «на занятый слот» каждого из 7 пресетов — для e2e
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
   private grabbedMarker: Marker | null = null; // за какую метку сейчас тянут (для follow/endFollow)
@@ -451,12 +457,14 @@ export class FreeDeskEngine extends CanvasApp {
     selection: string[];
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
-    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
+    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[]; onOccupied: OnOccupied; onOccupiedAt: { x: number; y: number }[] }[];
     field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
     buttonShowcase: { cap: string; x: number; y: number; disabled: boolean }[];
     stackModeAt: { x: number; y: number }[];
     stackSqueezeAt: { x: number; y: number }[];
     stackReorderAt: { x: number; y: number } | null;
+    selMultiAt: { x: number; y: number }[];
+    selSortAt: { x: number; y: number }[];
     controls: {
       buttons: { cap: string; x: number; y: number }[];
       flipFaceUp: boolean | null;
@@ -510,10 +518,14 @@ export class FreeDeskEngine extends CanvasApp {
           c.members.map((id) => ({ id, key, el: this.byId.get(id) })).filter((o): o is { id: string; key: string; el: Elem } => !!o.el).map(({ id, key, el }) => ({ id, key, ...toScreen(el.body.px, el.body.py) })),
         ),
         slots: z.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })),
+        onOccupied: z.onOccupied,
+        onOccupiedAt: this.boardOnOccupiedSegments[zi] ? this.boardOnOccupiedSegments[zi]!.buttons().map((b) => toScreen(b.x, b.y)) : [],
       })),
       field: this.fieldHook(toScreen),
       buttonShowcase: this.buttonShowcase.map(({ cap, b }) => ({ cap, disabled: b.disabled, ...toScreen(b.x, b.y) })),
       stackModeAt: this.stackModeButtons.map((b) => toScreen(b.x, b.y)),
+      selMultiAt: this.selMultiButtons.map((b) => toScreen(b.x, b.y)),
+      selSortAt: this.selSortButtons.map((b) => toScreen(b.x, b.y)),
       stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
       stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
       controls: {
@@ -1189,20 +1201,55 @@ export class FreeDeskEngine extends CanvasApp {
     this.wake();
   }
 
-  // Игровые зоны (борды): РЯД пресетов (data-driven). Каждый борд — сетка слотов + фигуры-карты,
-  // драг между слотами через BoardZone (логика в board/boardZone.ts), фигуры заперты в рамке.
-  // Тоглер под каждым меняет исход дропа на занятый слот (merge/swap/capture/reject). Демо-полигон
-  // будущего BoardFactory: разные борды = разные ДАННЫЕ, один движок.
+  // Ширина/высота борда ДО рендера — той же геометрией, что использует mountBoard (left=top=0,
+  // ничего не рисуя), плюс оценка места под хвостовые контролы (тумблер/хинт/кнопки под бордом) —
+  // не пиксель-в-пиксель, но безопасно с запасом (упаковка wrapFlow не должна давать нахлёст).
+  private measureBoardConfig(cfg: BoardConfig, extraH: number): { w: number; h: number } {
+    const { bounds } = cfg.layout === "ring" ? this.ringBounds(0, 22, cfg.cell, cfg.ringCount ?? 8) : this.gridBounds(0, 22, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
+    return { w: bounds.w, h: bounds.y + bounds.h + 8 + extraH };
+  }
+
+  private selectDemoPreset(): BoardPreset {
+    return { title: "выделение (изолир., тащи набор, сорт по номиналу)", cols: 4, rows: 1, onOccupied: "merge", slots: { "0,0": ["A♦"], "0,1": ["7♣"], "0,2": ["Q♠"] } };
+  }
+
+  // Игровые зоны (борды): ПЛОТНАЯ СЕТКА (data-driven), не вертикальный стек — 10 бордов меряются
+  // (measureBoardConfig/фиксированные размеры custom-бордов), паковка wrapFlow, потом рендер по
+  // готовым (x,y). Тоглер под каждым меняет исход дропа на занятый слот (merge/swap/capture/reject)
+  // через BoardZone.Configurable+Segmented. Демо-полигон BoardFactory: разные борды = разные ДАННЫЕ,
+  // один движок (все 10 — один путь mountBoard).
   private buildBoardZones(left: number, top: number): number {
-    this.scene.surface.addChild(this.label("Игровые зоны (борды)", left, top, 26, 0xcdb98f, undefined, 0));
-    let y = top + 44;
-    BOARD_PRESETS.forEach((preset, pi) => {
-      y = this.buildOneBoard(left, y, preset, pi) + 20;
+    return this.sectionFrame(left, top, "Игровые зоны (борды)", (contentLeft, contentTop) => {
+      const PRESET_EXTRA_H = 60; // тумблер «на занятый слот» (Segmented) + отступ
+      const SELECT_EXTRA_H = 95; // кнопки выделение/снять + 2 тумблера мультиселект/сорт
+      const CHROME_EXTRA_H = 50; // хинт-подсказка + отступ (шахматы/смешанный)
+
+      interface BoardItem {
+        size: { w: number; h: number };
+        render: (x: number, y: number) => number;
+      }
+      const items: BoardItem[] = BOARD_PRESETS.map((preset, pi) => ({
+        size: this.measureBoardConfig(this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset)), PRESET_EXTRA_H),
+        render: (x, y) => this.buildOneBoard(x, y, preset, pi),
+      }));
+      const selectPreset = this.selectDemoPreset();
+      items.push({
+        size: this.measureBoardConfig(this.presetToBoardConfig(selectPreset, `bz${BOARD_PRESETS.length}`, this.cellForPreset(selectPreset)), SELECT_EXTRA_H),
+        render: (x, y) => this.buildSelectDemo(x, y, BOARD_PRESETS.length),
+      });
+      items.push({ size: this.measureBoardConfig(this.chessBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildChessBoard(x, y) });
+      items.push({ size: this.measureBoardConfig(this.mixedBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildMixedBoard(x, y) });
+
+      const maxWidth = this.cardW * 8;
+      const { slots, totalH } = wrapFlow(items.map((it) => it.size), maxWidth, SB_ITEM_GAP);
+      let width = 0;
+      items.forEach((it, i) => {
+        const s = slots[i]!;
+        it.render(contentLeft + s.x, contentTop + s.y);
+        width = Math.max(width, s.x + it.size.w);
+      });
+      return { bottom: contentTop + totalH, width };
     });
-    y = this.buildSelectDemo(left, y, BOARD_PRESETS.length) + 20;
-    y = this.buildChessBoard(left, y) + 20;
-    y = this.buildMixedBoard(left, y) + 20;
-    return y;
   }
 
   // Рамка контейнера + сетка слотов (на поверхности, под фигурами). Общая для всех бордов (DRY).
@@ -1235,19 +1282,41 @@ export class FreeDeskEngine extends CanvasApp {
   // Спавн ОДНОГО элемента борда по дескриптору: карта → cardSpecs; фигура (chip/chess) → spawnPiece
   // (визуал из реестра pieceKinds). Единая точка, снявшая 3-веточный диспетч смешанного борда.
   private spawnElement(id: string, home: { x: number; y: number }, def: ElementDef, depth: number, r = 0): void {
-    if (def.kind === "card") this.cardSpecs.push({ opts: { id, card: def.face, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
-    else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess); r — только для фигур
+    if (def.kind === "card") {
+      this.cardSpecs.push({ opts: { id, card: def.face, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
+      this.faceOf.set(id, def.face); // для сорта набора по номиналу (rankOf) — любой карточный борд, не только select-демо
+    } else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess); r — только для фигур
   }
 
-  // BOARDFACTORY (grid): из конфига-ДАННЫХ собираем хром + фигуры. «Новый grid-борд = конфиг».
+  // Геометрия РИНГ-борда (монополия): n слотов по окружности. Радиус — по высоте ячейки, та же
+  // пропорция, что раньше была у layoutForPreset (cardH*1.35 при cell=cardH*0.82 → ratio≈1.65).
+  private ringBounds(left: number, gy: number, cell: { w: number; h: number }, count: number): { positioned: PositionedSlot[]; bounds: { x: number; y: number; w: number; h: number } } {
+    const radius = cell.h * 1.65;
+    const cx = left + radius + cell.w / 2;
+    const cy = gy + radius + cell.h / 2;
+    const positioned = ringSlots(count, { cx, cy, radius, cell });
+    // ширина/высота НЕ равны, если cell не квадратная (карты уже, чем выше) — раньше layoutForPreset
+    // считал d одной формулой на оба измерения, отсюда нижняя карта кольца заезжала на тумблер под ним.
+    return { positioned, bounds: { x: left, y: gy, w: 2 * radius + cell.w, h: 2 * radius + cell.h } };
+  }
+
+  // BOARDFACTORY: из конфига-ДАННЫХ собираем хром (grid ИЛИ ring) + фигуры. «Новый борд = конфиг».
   // depthBase — база z фигур (для смешанных стопок важен порядок: снизу вверх). Возвращает зону и низ.
   private mountBoard(cfg: BoardConfig, left: number, top: number, depthBase: number): { zone: BoardZone; bottom: number } {
-    const { positioned, bounds } = this.gridBounds(left, top + 22, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
+    const gy = top + 22;
+    const { positioned, bounds } = cfg.layout === "ring" ? this.ringBounds(left, gy, cfg.cell, cfg.ringCount ?? 8) : this.gridBounds(left, gy, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
     const r = Math.min(cfg.cell.w, cfg.cell.h) * (cfg.pieceRatio ?? 0.34);
     const slots: Board["slots"] = {};
+    const faces: Record<string, string> = {};
     const keys = Object.keys(cfg.slots);
-    for (const key of keys) slots[key] = { members: cfg.slots[key]!.map((_, j) => `${cfg.idPrefix}-${key}-${j}`) };
-    const zone = this.registerBoardZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText });
+    for (const key of keys) {
+      slots[key] = { members: cfg.slots[key]!.map((_, j) => `${cfg.idPrefix}-${key}-${j}`), maxSize: cfg.maxSize };
+      cfg.slots[key]!.forEach((def, j) => {
+        if (def.kind === "card") faces[`${cfg.idPrefix}-${key}-${j}`] = def.face;
+      });
+    }
+    const rule = cfg.rule ? wrapRule(cfg.rule, faces) : undefined;
+    const zone = this.registerBoardZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText, rule });
     let depth = depthBase;
     for (const key of keys) {
       cfg.slots[key]!.forEach((def, j) => this.spawnElement(`${cfg.idPrefix}-${key}-${j}`, zone.figureHome(`${cfg.idPrefix}-${key}-${j}`), def, depth++, r));
@@ -1256,39 +1325,48 @@ export class FreeDeskEngine extends CanvasApp {
     return { zone, bottom: bounds.y + bounds.h + 8 };
   }
 
-  // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
-  // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
-  private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
-    // Раскладка — чистая геометрия из пресета (board/boardLayout.ts): стратегия grid/ring → слоты+рамка.
-    const { positioned, bounds } = layoutForPreset(preset, { left, top, cardW: this.cardW, cardH: this.cardH });
-
-    // Логическая модель (id фигур + faces) — чистая (board/boardModel.ts).
-    const { slots, faces } = buildBoardModel(preset, `bz${pi}`);
-    for (const [id, f] of Object.entries(faces)) this.faceOf.set(id, f);
-    const rule = wrapRule(preset.rule, faces); // value-правило (по лицам) → AcceptRule (по ids)
-    const zone = this.registerBoardZone(preset.title, left, top, positioned, bounds, slots, preset.onOccupied, { rule });
-
-    let depth = 300 + pi * 100;
-    for (const key of Object.keys(slots)) {
-      for (const id of slots[key]!.members) {
-        this.spawnElement(id, zone.figureHome(id), { kind: "card", face: faces[id] ?? "A♠" }, depth++);
-      }
-    }
-    return { zone, bottom: bounds.y + bounds.h + 8 };
+  // Пресет-данные (BoardPreset) → декларативный BoardConfig — та же фабрика mountBoard для ВСЕХ
+  // 7 пресетов, что уже обслуживает шахматы/смешанный борд. cell передаёт вызыватель (grid/ring —
+  // разные пропорции, как раньше в layoutForPreset).
+  private presetToBoardConfig(preset: BoardPreset, idPrefix: string, cell: { w: number; h: number }): BoardConfig {
+    const slots: Record<string, ElementDef[]> = {};
+    for (const [key, faces] of Object.entries(preset.slots)) slots[key] = faces.map((face) => ({ kind: "card", face }));
+    return {
+      title: preset.title,
+      cols: preset.cols,
+      rows: preset.rows,
+      cell,
+      idPrefix,
+      onOccupied: preset.onOccupied,
+      slots,
+      layout: preset.layout,
+      ringCount: preset.ringCount,
+      maxSize: preset.maxSize,
+      rule: preset.rule,
+    };
   }
 
+  // Пропорции ячейки под пресет — те же, что раньше были в layoutForPreset (grid/ring разные).
+  private cellForPreset(preset: BoardPreset): { w: number; h: number } {
+    return preset.layout === "ring" ? { w: this.cardW * 0.82, h: this.cardH * 0.82 } : { w: this.cardW * 1.15, h: this.cardH * 1.02 };
+  }
+
+  // Борд-пресет → BoardConfig → mountBoard (единая фабрика, та же, что у шахмат/смешанного борда).
+  // «На занятый слот» — через BoardZone.Configurable+Segmented (attachControls), не segToggle.
   private buildOneBoard(left: number, top: number, preset: BoardPreset, pi: number): number {
-    const { zone, bottom } = this.spawnBoard(preset, pi, left, top);
-    const modes: OnOccupied[] = ["merge", "swap", "capture", "reject"];
-    this.segToggle(left, bottom, "на занятый слот:", modes, modes.indexOf(zone.onOccupied), (i) => (zone.onOccupied = modes[i]!));
-    return bottom + 26;
+    const cfg = this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset));
+    const { zone, bottom } = this.mountBoard(cfg, left, top, 300 + pi * 100);
+    const rc = attachControls(zone, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: () => this.wake() }, { x: left, y: bottom });
+    if (rc.segments[0]) this.boardOnOccupiedSegments[pi] = rc.segments[0];
+    return rc.bottom + 26;
   }
 
   // Демо ИЗОЛИРОВАННОГО мультиселекта: борд + кнопки «выделение» / «снять». В режиме тап по фигуре
   // ЭТОЙ зоны тогглит выделение (лифт), фигуры ДРУГИХ зон выделить нельзя (изоляция по scope).
   private buildSelectDemo(left: number, top: number, pi: number): number {
-    const preset: BoardPreset = { title: "выделение (изолир., тащи набор, сорт по номиналу)", cols: 4, rows: 1, onOccupied: "merge", slots: { "0,0": ["A♦"], "0,1": ["7♣"], "0,2": ["Q♠"] } };
-    const { zone, bottom } = this.spawnBoard(preset, pi, left, top);
+    const preset = this.selectDemoPreset();
+    const cfg = this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset));
+    const { zone, bottom } = this.mountBoard(cfg, left, top, 300 + pi * 100);
     this.selZone = zone;
     const bMode = new Button({ label: "выделение", variant: "secondary", size: "sm", onClick: () => this.toggleSelectMode() });
     const bClear = new Button({ label: "снять", variant: "ghost", size: "sm", onClick: () => this.clearSelection() });
@@ -1302,7 +1380,7 @@ export class FreeDeskEngine extends CanvasApp {
     this.multiSelectOn = true;
     this.selSortByRank = true;
     const t1 = bottom + 34;
-    this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
+    this.selMultiButtons = this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
       this.multiSelectOn = i === 0;
       if (!this.multiSelectOn && this.selMode) {
         this.selMode = false;
@@ -1310,8 +1388,8 @@ export class FreeDeskEngine extends CanvasApp {
         this.refreshSel();
         this.wake();
       }
-    });
-    this.segToggle(left, t1 + 26, "сорт набора:", ["номинал", "выбор"], 0, (i) => (this.selSortByRank = i === 0));
+    }).buttons;
+    this.selSortButtons = this.segToggle(left, t1 + 26, "сорт набора:", ["номинал", "выбор"], 0, (i) => (this.selSortByRank = i === 0)).buttons;
     return t1 + 52;
   }
 
@@ -1354,57 +1432,57 @@ export class FreeDeskEngine extends CanvasApp {
     }
   }
 
+  // Конфиги custom-бордов (шахматы/смешанный) — ВЫНЕСЕНЫ из build*, чтобы buildBoardZones мог их
+  // же смерить (measureBoardConfig) ДО рендера, не задавая геометрию дважды в двух местах.
+  private chessBoardConfig(): BoardConfig {
+    return {
+      title: "шахматы из ФИГУР (Piece, capture)",
+      cols: 4,
+      rows: 2,
+      cell: { w: this.cardW * 1.0, h: this.cardH * 0.92 },
+      idPrefix: "chessb",
+      onOccupied: "capture",
+      slots: {
+        "0,0": [{ kind: "chess", glyph: "♞", dark: true }],
+        "0,2": [{ kind: "chess", glyph: "♟", dark: false }],
+        "1,1": [{ kind: "chess", glyph: "♜", dark: true }],
+        "1,3": [{ kind: "chess", glyph: "♙", dark: false }],
+      },
+      hint: "тащи фигуру на фигуру — съедает (capture)",
+    };
+  }
+
+  private mixedBoardConfig(): BoardConfig {
+    return {
+      title: "СМЕШАННЫЙ стек: карта+шахмата+фишка",
+      labelText: "смешанный стек: карта + шахмата + фишка (generic)",
+      cols: 3,
+      rows: 1,
+      cell: { w: this.cardW * 1.15, h: this.cardH * 1.05 },
+      idPrefix: "mix",
+      onOccupied: "merge",
+      pieceRatio: 0.3,
+      slots: {
+        // стопка вперемешку (снизу вверх: карта → шахмата → фишка); z по позиции в стопке
+        "0,0": [{ kind: "card", face: "A♠", size: 0.78 }, { kind: "chess", glyph: "♞", dark: true }, { kind: "chip", denom: "5", color: 0xb23b34 }],
+        "0,1": [{ kind: "card", face: "K♥", size: 0.78 }],
+        "0,2": [{ kind: "chess", glyph: "♟", dark: false }],
+      },
+      hint: "тащи любую фигуру из смешанной стопки в другой слот",
+    };
+  }
+
   // Борд из НЕ-карточных фигур (Piece): шахматы прямо на доске. Доказательство, что слоты держат
   // любые фигуры, не только карты — весь драг/переезд/capture работает без правок «для фигур».
   private buildChessBoard(left: number, top: number): number {
-    const { bottom } = this.mountBoard(
-      {
-        title: "шахматы из ФИГУР (Piece, capture)",
-        cols: 4,
-        rows: 2,
-        cell: { w: this.cardW * 1.0, h: this.cardH * 0.92 },
-        idPrefix: "chessb",
-        onOccupied: "capture",
-        slots: {
-          "0,0": [{ kind: "chess", glyph: "♞", dark: true }],
-          "0,2": [{ kind: "chess", glyph: "♟", dark: false }],
-          "1,1": [{ kind: "chess", glyph: "♜", dark: true }],
-          "1,3": [{ kind: "chess", glyph: "♙", dark: false }],
-        },
-        hint: "тащи фигуру на фигуру — съедает (capture)",
-      },
-      left,
-      top,
-      480,
-    );
+    const { bottom } = this.mountBoard(this.chessBoardConfig(), left, top, 480);
     return bottom + 26;
   }
 
   // СМЕШАННЫЙ борд: в одном слоте стопка из РАЗНЫХ типов (карта + шахмата + фишка). Финальное
   // доказательство генерика — контейнер держит что угодно вперемешку; z по позиции в стопке.
   private buildMixedBoard(left: number, top: number): number {
-    const { bottom } = this.mountBoard(
-      {
-        title: "СМЕШАННЫЙ стек: карта+шахмата+фишка",
-        labelText: "смешанный стек: карта + шахмата + фишка (generic)",
-        cols: 3,
-        rows: 1,
-        cell: { w: this.cardW * 1.15, h: this.cardH * 1.05 },
-        idPrefix: "mix",
-        onOccupied: "merge",
-        pieceRatio: 0.3,
-        slots: {
-          // стопка вперемешку (снизу вверх: карта → шахмата → фишка); z по позиции в стопке
-          "0,0": [{ kind: "card", face: "A♠", size: 0.78 }, { kind: "chess", glyph: "♞", dark: true }, { kind: "chip", denom: "5", color: 0xb23b34 }],
-          "0,1": [{ kind: "card", face: "K♥", size: 0.78 }],
-          "0,2": [{ kind: "chess", glyph: "♟", dark: false }],
-        },
-        hint: "тащи любую фигуру из смешанной стопки в другой слот",
-      },
-      left,
-      top,
-      500,
-    );
+    const { bottom } = this.mountBoard(this.mixedBoardConfig(), left, top, 500);
     return bottom + 22;
   }
 

@@ -12,7 +12,9 @@ test.describe("песочница — игровая зона (борд)", () =>
     selection: string[];
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
-    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
+    boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[]; onOccupied: string; onOccupiedAt: { x: number; y: number }[] }[];
+    selMultiAt: { x: number; y: number }[];
+    selSortAt: { x: number; y: number }[];
     cardW: number;
     draggingId: string | null;
   }
@@ -235,5 +237,110 @@ test.describe("песочница — игровая зона (борд)", () =>
     await clickAt(page, { x: h.boardFigures[0]!.x, y: h.boardFigures[0]!.y });
     h = await hooks(page);
     expect(h.selection).toEqual([]); // чужая зона не выделяется
+  });
+
+  test("«дурак — стопка ≤2»: maxSize реально ограничивает — 3-я карта на занятый(2) слот отклонена", async ({ page }) => {
+    const h = await hooks(page);
+    const durak = h.boards.find((b) => b.title.includes("дурак"))!;
+    const a = durak.figures.find((f) => f.key === "0,0")!;
+    const target = durak.slots.find((s) => s.key === "0,1")!;
+    await dragTo(page, a, target); // 0,0 -> 0,1 (теперь 2 карты, maxSize=2 достигнут)
+    await page.waitForTimeout(400);
+    let g = await hooks(page);
+    let d = g.boards.find((b) => b.title.includes("дурак"))!;
+    expect(d.figures.filter((f) => f.key === "0,1")).toHaveLength(2);
+
+    const c = d.figures.find((f) => f.key === "0,2")!;
+    const target2 = d.slots.find((s) => s.key === "0,1")!;
+    await dragTo(page, c, target2); // 3-я карта на уже полный (2/2) слот — должна остаться на месте
+    await page.waitForTimeout(400);
+    g = await hooks(page);
+    d = g.boards.find((b) => b.title.includes("дурак"))!;
+    expect(d.figures.filter((f) => f.key === "0,1")).toHaveLength(2); // не выросло
+    expect(d.figures.find((f) => f.id === c.id)!.key).toBe("0,2"); // осталась на месте
+  });
+
+  test("«монополия — кольцо»: 8 слотов по окружности, фигура переезжает в пустой слот кольца", async ({ page }) => {
+    const h = await hooks(page);
+    const ring = h.boards.find((b) => b.title.includes("монополия"))!;
+    expect(ring.slots).toHaveLength(8);
+    const a = ring.figures.find((f) => f.key === "ring0")!;
+    const target = ring.slots.find((s) => s.key === "ring1")!; // соседний пустой слот кольца
+    await dragTo(page, a, target);
+    await page.waitForTimeout(400);
+    const g = await hooks(page);
+    const gring = g.boards.find((b) => b.title.includes("монополия"))!;
+    expect(gring.figures.find((f) => f.id === a.id)!.key).toBe("ring1");
+  });
+
+  test("Segmented-тумблер «на занятый слот»: клик «swap» реально меняет поведение дропа", async ({ page }) => {
+    const h = await hooks(page);
+    const free = h.boards.find((b) => b.title === "свободно (merge)")!;
+    expect(free.onOccupied).toBe("merge");
+    const swapBtn = free.onOccupiedAt[1]!; // порядок options: merge/swap/capture/reject
+    await clickAt(page, swapBtn);
+    await page.waitForTimeout(150);
+    let g = await hooks(page);
+    let gfree = g.boards.find((b) => b.title === "свободно (merge)")!;
+    expect(gfree.onOccupied).toBe("swap");
+
+    // теперь дроп на занятый слот должен СВАПНУТЬ, а не смёржить
+    const a = gfree.figures.find((f) => f.key === "0,0")!;
+    const target = gfree.slots.find((s) => s.key === "0,2")!; // занят 2 картами
+    const victims = gfree.figures.filter((f) => f.key === "0,2").map((f) => f.id);
+    await dragTo(page, a, target);
+    await page.waitForTimeout(400);
+    g = await hooks(page);
+    gfree = g.boards.find((b) => b.title === "свободно (merge)")!;
+    // swap меняет содержимое слотов ЦЕЛИКОМ: цель получает только переехавшую карту, а прежний
+    // жилец (обе карты) — исходный слот дракнутой. Не 3 карты в 0,2 (это было бы merge).
+    expect(gfree.figures.filter((f) => f.key === "0,2")).toHaveLength(1);
+    expect(gfree.figures.find((f) => f.id === a.id)!.key).toBe("0,2");
+    expect(victims.map((id) => gfree.figures.find((f) => f.id === id)!.key)).toEqual(["0,0", "0,0"]);
+  });
+
+  test("демо выделения: тумблер «мультиселект: выкл» — вход в режим выделения блокируется", async ({ page }) => {
+    const h = await hooks(page);
+    expect(h.selMultiAt.length).toBeGreaterThan(0);
+    await clickAt(page, h.selMultiAt[1]!); // "выкл"
+    await page.waitForTimeout(150);
+    await clickAt(page, btn(h, "выделение"));
+    const g = await hooks(page);
+    expect(g.selMode).toBe(false); // конфиг контейнера отключил мультиселект — режим не включился
+  });
+
+  test("демо выделения: тумблер «сорт набора: выбор» — набор выносится в порядке выбора, не по номиналу", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selSortAt[1]!); // "выбор" вместо "номинал"
+    await page.waitForTimeout(150);
+    await clickAt(page, btn(h, "выделение"));
+    h = await hooks(page);
+    // selFigures[0]=A♦(0,0), [1]=7♣(0,1), [2]=Q♠(0,2) — выбираем в обратном порядке (Q♠ затем A♦)
+    await clickAt(page, h.selFigures[2]!);
+    await clickAt(page, h.selFigures[0]!);
+    h = await hooks(page);
+    const board = h.boards.find((b) => b.title.includes("выделение"))!;
+    const empty = board.slots.find((s) => s.key === "0,3")!;
+    await dragTo(page, h.selFigures[2]!, empty);
+    await page.waitForTimeout(500);
+    const g = await hooks(page);
+    const sb = g.boards.find((b) => b.title.includes("выделение"))!;
+    const order03 = sb.figures.filter((f) => f.key === "0,3").map((f) => f.id);
+    expect(order03).toEqual([h.selFigures[2]!.id, h.selFigures[0]!.id]); // порядок выбора (Q♠, затем A♦), не по рангу
+  });
+
+  test("СМЕШАННЫЙ борд: дроп НА занятый смешанный слот — мёржится (onOccupied=merge)", async ({ page }) => {
+    const h = await hooks(page);
+    const mb = h.boards.find((b) => b.title.includes("СМЕШАН"))!;
+    const before = mb.figures.filter((f) => f.key === "0,0").length;
+    expect(before).toBe(3); // карта+шахмата+фишка
+    const outsider = mb.figures.find((f) => f.key === "0,1")!;
+    const target = mb.slots.find((s) => s.key === "0,0")!;
+    await dragTo(page, outsider, target);
+    await page.waitForTimeout(400);
+    const g = await hooks(page);
+    const gmb = g.boards.find((b) => b.title.includes("СМЕШАН"))!;
+    expect(gmb.figures.filter((f) => f.key === "0,0")).toHaveLength(4); // добавилась поверх (merge)
+    expect(gmb.figures.find((f) => f.id === outsider.id)!.key).toBe("0,0");
   });
 });
