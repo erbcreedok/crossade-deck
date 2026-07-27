@@ -32,6 +32,16 @@ export interface Flippable {
   requestFlip(): boolean;
 }
 
+/**
+ * Скрытость — РЕЖИМ секретности: прячет значение реальной карты (у неё есть истинная
+ * идентичность), включается/снимается ИЗВНЕ (хендлеры игры/сервера: раздал закрытым →
+ * по прилёте reveal). Видимое в скрытом виде — маскирующая заглушка, не настоящее лицо.
+ */
+export interface Concealable {
+  readonly concealed: boolean;
+  setConcealed(v: boolean): void;
+}
+
 /** Уничтожается «горением». */
 export interface Burnable {
   burn(): void;

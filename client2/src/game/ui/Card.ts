@@ -7,7 +7,7 @@ import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
 import { ParticleField } from "../engine/censorParticles";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
-import type { Burnable, Draggable, Flippable, TableElement } from "../engine/element";
+import type { Burnable, Concealable, Draggable, Flippable, TableElement } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -49,7 +49,7 @@ export interface CardOptions {
   fourColor?: boolean;
   torn?: boolean;
   size?: number;
-  hidden?: boolean; // скрытая карта: без номинала, «лицо» — 🖕 (обычно лежит рубашкой вверх)
+  hidden?: boolean; // НАЧАЛЬНАЯ скрытость (режим секретности); дальше переключается setConcealed()
   joker?: boolean; // джокер: кастомное рисованное лицо
   rest?: RestState; // план ПОКОЯ: idle (на столе) / floating (левитация, «в руке») / held (в руке держат)
 }
@@ -62,7 +62,7 @@ interface FlipAnim {
 
 const BOB_SPEED = 2.2;
 
-export class Card implements TableElement, Draggable, Flippable, Burnable {
+export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable {
   readonly root = new Container();
   readonly body = new CardBody();
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
@@ -78,7 +78,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
   readonly fourColor: boolean;
   readonly torn: boolean;
   readonly size: number;
-  readonly hidden: boolean;
+  private _concealed: boolean; // режим секретности (изначально opts.hidden), переключается извне
   readonly joker: boolean;
 
   state: CardState = "idle";
@@ -108,14 +108,14 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
     this.fourColor = opts.fourColor ?? false;
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
-    this.hidden = opts.hidden ?? false;
+    this._concealed = opts.hidden ?? false;
     this.joker = opts.joker ?? false;
     this.rest = opts.rest ?? "idle";
     this.state = this.rest; // стартуем в своём плане покоя
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
-    if (this.hidden) this.buildDust();
+    if (this._concealed) this.buildDust();
     if (this.torn) this.root.addChild(this.buildTear());
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
@@ -131,9 +131,22 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
     this.root.addChild(this.dust.view, mask);
   }
 
-  /** Видна ли сейчас пыль (лицом вверх, вне переворота/горения) — тогда её надо крутить, а цикл не спит. */
+  /** Скрыта ли карта (режим секретности). Снимается/ставится извне (BoardAPI: setConcealed). */
+  get concealed(): boolean {
+    return this._concealed;
+  }
+
+  /** Переключить скрытость в рантайме: при первом включении лениво строим «пыль», перерисовываем лицо. */
+  setConcealed(v: boolean): void {
+    if (v === this._concealed) return;
+    if (v && !this.dust) this.buildDust();
+    this._concealed = v;
+    this.paint(); // скрыта → чистый фон под пылью; раскрыта → настоящее лицо (пыль гаснет в sync)
+  }
+
+  /** Видна ли сейчас пыль (скрыта, лицом вверх, вне переворота/горения) — тогда её крутим, цикл не спит. */
   private get dustActive(): boolean {
-    return this.dust !== null && this.faceUp && !this.flip && !this.dying && !this.dead;
+    return this.dust !== null && this._concealed && this.faceUp && !this.flip && !this.dying && !this.dead;
   }
 
   get scaleFactor(): number {
@@ -298,7 +311,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable {
   private faceTex(faceUp: boolean): Texture {
     if (!faceUp) return this.tex.back(this.back);
     // Особые лица: скрытая (чистый фон под живой «пылью»; статичный фак — запас) и джокер; иначе числовое.
-    if (this.hidden) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
+    if (this._concealed) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
     if (this.joker) return this.tex.jokerFace();
     return this.tex.face(this.card, this.fourColor, this.faceStyle);
   }
