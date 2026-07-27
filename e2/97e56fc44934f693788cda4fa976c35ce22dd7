@@ -1,0 +1,33 @@
+client2/src/game/ui/Card.ts
+  s_559e5ecc6d9c5b::t_504252a6c7e6fc 82
+  s_559e5ecc6d9c5b::t_de965b0fecf66d 112
+  s_559e5ecc6d9c5b::t_262514f24cad20 53
+  s_559e5ecc6d9c5b::t_096f953a985ae4 315-318
+client2/src/game/engine/cardTextures.ts
+  s_559e5ecc6d9c5b::t_99e775825a3885 242-250
+client2/src/game/ui/CardTextureCache.ts
+  s_559e5ecc6d9c5b::t_e96bed41dc2709 50-59
+  s_559e5ecc6d9c5b::t_495beadf6b7de9 22
+  s_559e5ecc6d9c5b::t_f62c82d4874ddc 87,90
+  s_559e5ecc6d9c5b::t_0adfc52a87aedf 3
+client2/REFACTOR.md
+  s_559e5ecc6d9c5b::t_52896f274740aa 21-24
+client2/src/game/engine/freeDeskEngine.ts
+  s_559e5ecc6d9c5b::t_ae9127fc81b11e 62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e297e56fc44934f693788cda4fa976c35ce22dd7",
+  "prompts": {},
+  "sessions": {
+    "s_559e5ecc6d9c5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11b562e-77c4-4c79-9a40-1f5a344b0148",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
