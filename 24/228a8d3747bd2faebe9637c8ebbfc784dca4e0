@@ -1,0 +1,25 @@
+client2/src/game/engine/freeDeskEngine.ts
+  s_b6ac35acf00770::t_6fb517d7ffac64 1379
+  s_b6ac35acf00770::t_4ae1d238edf5d2 237
+  s_b6ac35acf00770::t_6d534b0f2345b8 446
+  s_b6ac35acf00770::t_3a7c5cabdc643b 494
+  s_b6ac35acf00770::t_64c6aaaa5d5fc6 1344-1366,1369,1383
+client2/e2e/buttons.spec.ts
+  s_b6ac35acf00770::t_2e5652bd1ab8cf 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "24228a8d3747bd2faebe9637c8ebbfc784dca4e0",
+  "prompts": {},
+  "sessions": {
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
