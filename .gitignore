@@ -13,3 +13,7 @@ client/.env.local
 
 # Отчёты тестировщика — локальные
 todo/
+
+# Производное от atoms-map.md — генерится через scripts/md-to-pdf.mjs, в git не нужно
+client2/docs/atoms-map.html
+client2/docs/atoms-map.pdf
