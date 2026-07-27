@@ -19,6 +19,7 @@ import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
+import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
 import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
@@ -497,39 +498,63 @@ export class FreeDeskEngine extends CanvasApp {
     return out;
   }
 
-  // ——— публичное API доски (то, чем СЕРВЕР или скрытая логика юзера двигает карты) ———
-  // Все движения — та же пружина, что и при драге. Одиночные вызовы или пачкой (см. doStackMove).
+  // ——— публичное API доски = ПОРТ КОМАНД (то, чем СЕРВЕР/консоль/скрытая логика двигают карты) ———
+  // Все действия проходят через один dispatch (choke-point для undo/сети/синка — см. CONTROL-DESIGN.md).
+  // Движения — та же пружина, что и при драге. Ниже — тонкие обёртки-удобства над dispatch.
+
+  /** Исполнить команду управления доской. Единая дверь для всех драйверов. */
+  dispatch(cmd: Command): void {
+    switch (cmd.t) {
+      case "flip": {
+        const el = this.byId.get(cmd.id);
+        if (el && "requestFlip" in el && (el as { requestFlip(): boolean }).requestFlip()) this.wake();
+        break;
+      }
+      case "move": {
+        const c = this.byId.get(cmd.id);
+        if (c) {
+          c.body.setTarget({ x: cmd.x, y: cmd.y, rot: 0 });
+          this.wake();
+        }
+        break;
+      }
+      case "conceal": {
+        const el = this.byId.get(cmd.id);
+        if (el && "setConcealed" in el) {
+          (el as { setConcealed(v: boolean): void }).setConcealed(cmd.v);
+          this.wake();
+        }
+        break;
+      }
+      case "setValue": {
+        const el = this.byId.get(cmd.id);
+        if (el && "setValue" in el) {
+          (el as { setValue(v: string): void }).setValue(cmd.value);
+          this.wake();
+        }
+        break;
+      }
+    }
+  }
 
   /** Перевернуть карту по id (напр. «игрок открыл карту»). Не-Flippable элемент игнорируем. */
   flipCard(id: string): void {
-    const el = this.byId.get(id);
-    if (el && "requestFlip" in el && (el as { requestFlip(): boolean }).requestFlip()) this.wake();
+    this.dispatch({ t: "flip", id });
   }
 
   /** Плавно (пружиной) переместить карту по id в точку контента (напр. «перенёс в дропзону»). */
   moveCard(id: string, x: number, y: number): void {
-    const c = this.byId.get(id);
-    if (!c) return;
-    c.body.setTarget({ x, y, rot: 0 });
-    this.wake();
+    this.dispatch({ t: "move", id, x, y });
   }
 
-  /** Скрыть/раскрыть карту по id (BoardAPI: секретность ставится/снимается ИЗВНЕ). Не-Concealable игнорим. */
+  /** Скрыть/раскрыть карту по id (секретность ставится/снимается ИЗВНЕ). Не-Concealable игнорим. */
   setConcealed(id: string, v: boolean): void {
-    const el = this.byId.get(id);
-    if (el && "setConcealed" in el) {
-      (el as { setConcealed(v: boolean): void }).setConcealed(v);
-      this.wake();
-    }
+    this.dispatch({ t: "conceal", id, v });
   }
 
   /** Проставить/придержать ЗНАЧЕНИЕ карты по id (сервер раскрыл придержанное; "" — снова придержать). */
   setCardValue(id: string, value: string): void {
-    const el = this.byId.get(id);
-    if (el && "setValue" in el) {
-      (el as { setValue(v: string): void }).setValue(value);
-      this.wake();
-    }
+    this.dispatch({ t: "setValue", id, value });
   }
 
   // ——— раздел «Управление» (демо API) ———
