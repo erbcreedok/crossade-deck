@@ -1,0 +1,33 @@
+scripts/md-to-pdf.mjs
+  s_e4c374b7028a73::t_aa285fa2cc7f4c 1-89
+.gitignore
+  s_7b34b3ad63f4af::t_a3070afa71a7d3 16-19
+client2/docs/atoms-map.md
+  s_e4c374b7028a73::t_7998646a53d793 37-38,40-42
+  s_e4c374b7028a73::t_f30eae301137f4 189-192,195-196
+  s_e4c374b7028a73::t_c9147f2d6a4c1a 1-36,39,43-188,193-194,197-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "aa6ea6ad8990cc55c5e35a0c9939c7eee9222210",
+  "prompts": {},
+  "sessions": {
+    "s_7b34b3ad63f4af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7316dd38-7220-474b-86fa-7a4c84f02b0a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_e4c374b7028a73": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dca64d43-7202-4d68-831a-c01673c080f4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
