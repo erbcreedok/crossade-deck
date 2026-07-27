@@ -21,7 +21,7 @@ import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
-import { fitBlock, squeezeOffsets } from "./sandboxLayout";
+import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -346,6 +346,26 @@ export class FreeDeskEngine extends CanvasApp {
     // ужимаем её ровно до ширины (масштаб вокруг якоря, центровка под картой сохраняется).
     if (wrap !== undefined && t.width > wrap) t.scale.set(wrap / t.width);
     return t;
+  }
+
+  // Единая рамка+заголовок секции песочницы (замена самопальных заголовков без контейнера —
+  // отсюда «теряются секции»). ВСЕГДА двухпроходно: заголовок кладём сразу, контент строит
+  // build() как обычно, а рамку рисуем ПОСЛЕ по фактическим bottom/width и вставляем ПОД
+  // заголовком/контентом (addChildAt на индекс, записанный до обеих отрисовок) — работает
+  // одинаково что для контента известного размера заранее, что для раскладки с динамической
+  // высотой (борды/поле), не нужно два разных пути.
+  private sectionFrame(left: number, top: number, title: string, build: (contentLeft: number, contentTop: number) => { bottom: number; width: number }): number {
+    const headerH = 26;
+    const contentLeft = left + SB_BOX_PAD;
+    const contentTop = top + SB_BOX_PAD + headerH + SB_HEADER_GAP;
+    const frameIndex = this.scene.surface.children.length;
+    this.scene.surface.addChild(this.label(title, contentLeft, top + SB_BOX_PAD, headerH, 0xcdb98f, undefined, 0));
+    const { bottom, width } = build(contentLeft, contentTop);
+    const box = fitSection(width, bottom - contentTop, SB_BOX_PAD, headerH, SB_HEADER_GAP);
+    const frame = new Graphics();
+    frame.roundRect(left, top, box.boxW, box.boxH, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
+    this.scene.surface.addChildAt(frame, frameIndex);
+    return top + box.boxH + SB_SECTION_GAP;
   }
 
   // Собрать песочницу: мебель (тексты, дропзоны, кнопки) — всегда заново; карты — из спеков,
