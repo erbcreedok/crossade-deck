@@ -1,0 +1,34 @@
+client2/src/game/engine/freeDeskEngine.ts
+  s_559e5ecc6d9c5b::t_0cd5b172956e56 533
+  s_559e5ecc6d9c5b::t_e48ff4bff3ee55 572-590
+  s_559e5ecc6d9c5b::t_9dec600581a594 517-525
+client2/src/game/engine/element.ts
+  s_559e5ecc6d9c5b::t_86968b9e9b63d1 45-54
+client2/src/game/ui/Card.ts
+  s_559e5ecc6d9c5b::t_c44b05c7b2782f 134-143,149-154,158-171,174,176
+  s_559e5ecc6d9c5b::t_efc162b02d77c0 42-43
+  s_559e5ecc6d9c5b::t_56ece12f6064f0 71-72
+  s_559e5ecc6d9c5b::t_b27d4aafb84f1c 341,346
+  s_559e5ecc6d9c5b::t_cf597b5fc698b3 118
+  s_559e5ecc6d9c5b::t_45c33756c44031 10
+  s_559e5ecc6d9c5b::t_e5a1473b181178 102
+  s_559e5ecc6d9c5b::t_83d93b92c97140 65
+client2/REFACTOR.md
+  s_559e5ecc6d9c5b::t_e21545a690c557 24-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8b6ea4b2128cb81310c4d3e73938866b18f77d5b",
+  "prompts": {},
+  "sessions": {
+    "s_559e5ecc6d9c5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11b562e-77c4-4c79-9a40-1f5a344b0148",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
