@@ -1,22 +1,13 @@
 import { Container, Graphics } from "pixi.js";
+import { shouldShow, type MarkerState, type ShowPolicy } from "./markerPolicy";
 import type { DragPayload } from "./drag";
 
 // Метки слота контейнера — «драггер» (ручка захвата) и «якорь» (где дом стопки). Обе — ОДНА
 // абстракция Marker, навешиваемая на что угодно через withDragger/withAnchor: соло-карту,
 // стопку карт, стопку фигур. Marker НЕ знает про Card — только про MarkerHost (слот, состояние,
-// как схватить цель) + иконку. Видимость — декларативный предикат по состоянию контейнера.
+// как схватить цель) + иконку. Видимость — ДАННЫЕ (ShowPolicy) + чистая shouldShow (markerPolicy).
 
-/** Состояние контейнера для меток: сколько элементов в родном слоте / всего живо. */
-export interface MarkerState {
-  atHome: number; // элементов, стоящих в своём слоте (не в драге)
-  total: number; // всего живых элементов
-}
-
-export type ShowWhen = (s: MarkerState) => boolean;
-export const showAlways: ShowWhen = () => true;
-export const showAway: ShowWhen = (s) => s.atHome === 0 && s.total > 0; // контейнер унесли (но не пуст)
-export const showEmpty: ShowWhen = (s) => s.total === 0; // все элементы уничтожены
-export const showGone: ShowWhen = (s) => s.atHome === 0; // ничего нет дома (унесли ИЛИ пусто)
+export type { MarkerState, ShowPolicy } from "./markerPolicy";
 
 // Минимум, что метке нужно от таргета. Реализует и соло-элемент, и контейнер — метка generic.
 export interface MarkerHost {
@@ -26,8 +17,8 @@ export interface MarkerHost {
 }
 
 export interface MarkerConfig {
-  draw: (g: Graphics) => void; // как нарисовать иконку в ЛОКАЛЬНЫХ координатах (центр 0,0)
-  showWhen: ShowWhen;
+  draw: (g: Graphics) => void; // как нарисовать иконку в ЛОКАЛЬНЫХ координатах (центр 0,0) — VIEW, не портируется
+  show: ShowPolicy; // когда метка видна — ДАННЫЕ (см. markerPolicy)
   offset?: { x: number; y: number }; // сдвиг метки от слота (драггер — ниже, якорь — по центру)
   hit?: { w: number; h: number }; // хит-зона (для interactive = у кого есть makePayload)
   restAlpha?: number; // прозрачность в покое (еле видно)
@@ -57,9 +48,14 @@ export class Marker {
     return !!this.host.makePayload && !!this.cfg.hit;
   }
 
+  /** Видна ли метка сейчас по политике (чистое решение; тесты/e2e читают его без render-цикла). */
+  shown(): boolean {
+    return shouldShow(this.cfg.show, this.host.state());
+  }
+
   /** Кадр: видимость по политике (свап драггер↔якорь) + позиция дома, если не в follow. */
   update(): void {
-    this.gfx.visible = this.cfg.showWhen(this.host.state());
+    this.gfx.visible = this.shown();
     if (!this.following) this.reposition();
   }
 
@@ -111,10 +107,10 @@ export class Marker {
 
 // «Приклеить» метку к таргету — как HOC, только императивно (attach компонента). Драггер
 // интерактивен (нужен makePayload у host); якорь — просто метка. Оба generic по MarkerHost.
-export function withDragger(host: MarkerHost, restLayer: Container, dragLayer: Container, cfg: Omit<MarkerConfig, "showWhen"> & { showWhen?: ShowWhen }): Marker {
-  return new Marker(host, restLayer, dragLayer, { showWhen: (s) => s.atHome > 0, ...cfg });
+export function withDragger(host: MarkerHost, restLayer: Container, dragLayer: Container, cfg: Omit<MarkerConfig, "show"> & { show?: ShowPolicy }): Marker {
+  return new Marker(host, restLayer, dragLayer, { show: "atHome", ...cfg });
 }
 
-export function withAnchor(host: MarkerHost, restLayer: Container, cfg: Omit<MarkerConfig, "showWhen" | "follow" | "hit"> & { showWhen?: ShowWhen }): Marker {
-  return new Marker(host, restLayer, restLayer, { showWhen: showGone, ...cfg });
+export function withAnchor(host: MarkerHost, restLayer: Container, cfg: Omit<MarkerConfig, "show" | "follow" | "hit"> & { show?: ShowPolicy }): Marker {
+  return new Marker(host, restLayer, restLayer, { show: "gone", ...cfg });
 }

@@ -18,7 +18,7 @@ import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
-import { Marker, withAnchor, withDragger, showAlways, showAway, showEmpty, type MarkerHost, type MarkerState, type ShowWhen } from "./marker";
+import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
 import { fitBlock, squeezeOffsets } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { createPixiApp, ensureFonts } from "./canvasHost";
@@ -424,14 +424,14 @@ export class FreeDeskEngine {
       grips: this.stacks.map((st) => toScreen(st.dragger.gfx.position.x, st.dragger.gfx.position.y)),
       stackCards: this.stacks.map((st) => st.stack.ids.map((id) => this.byId.get(id)).filter((c): c is Elem => !!c).map((c) => toScreen(c.body.px, c.body.py))),
       stackIds: this.stacks.map((st) => st.stack.ids),
-      markerVis: this.stacks.map((st) => ({ dragger: st.dragger.cfg.showWhen(st.host.state()), anchor: st.anchor.cfg.showWhen(st.host.state()) })),
+      markerVis: this.stacks.map((st) => ({ dragger: st.dragger.shown(), anchor: st.anchor.shown() })),
       pieces: this.pieces.map((p) => ({ id: p.el.id, ...toScreen(p.el.body.px, p.el.body.py) })),
       pieceCount: this.pieces.length,
       pileGrip: this.chipPile ? toScreen(this.chipPile.dragger.gfx.position.x, this.chipPile.dragger.gfx.position.y) : null,
       soloVis: this.solos.map((s) => ({
         label: s.label,
-        dragger: s.dragger.cfg.showWhen(s.host.state()),
-        anchor: s.anchor.cfg.showWhen(s.host.state()),
+        dragger: s.dragger.shown(),
+        anchor: s.anchor.shown(),
         ...toScreen(s.dragger.gfx.position.x, s.dragger.gfx.position.y),
       })),
       boardFigures: this.boardFiguresHook(toScreen),
@@ -669,10 +669,10 @@ export class FreeDeskEngine {
     const gap = this.cardW * 0.9;
     // Демо якорей: у трёх стопок РАЗНЫЕ политики видимости и разные иконки. Драггер у всех
     // одинаковый (грип, летит с пачкой). Драггер↔якорь свапаются по состоянию (см. marker.ts).
-    const anchors = [
-      { draw: drawAnchorIcon, showWhen: showAway, cap: "якорь: когда унесли" },
-      { draw: drawRingIcon, showWhen: showEmpty, cap: "кольцо: когда пусто" },
-      { draw: drawPinIcon, showWhen: showAlways, cap: "метка: всегда" },
+    const anchors: { draw: (g: Graphics) => void; show: ShowPolicy; cap: string }[] = [
+      { draw: drawAnchorIcon, show: "away", cap: "якорь: когда унесли" },
+      { draw: drawRingIcon, show: "empty", cap: "кольцо: когда пусто" },
+      { draw: drawPinIcon, show: "always", cap: "метка: всегда" },
     ];
     anchors.forEach((a, s) => {
       const ox = left + s * (footprint + gap);
@@ -695,7 +695,7 @@ export class FreeDeskEngine {
         follow: true,
         followOffset: { x: 0, y: this.cardH * 0.62 }, // едет под пачкой у пальца
       });
-      const anchor = withAnchor(host, this.scene.surface, { draw: a.draw, showWhen: a.showWhen }); // якорь в центре, под картами
+      const anchor = withAnchor(host, this.scene.surface, { draw: a.draw, show: a.show }); // якорь в центре, под картами
       this.markers.push(dragger, anchor);
       this.stacks.push({ stack, host, dragger, anchor });
       this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(stack.top ?? "") ?? null });
@@ -722,7 +722,7 @@ export class FreeDeskEngine {
     // 1) СОЛО-КАРТА с меткой (доказательство: withDragger/withAnchor на одиночной карте, не стопке).
     const soloId = "solo-card";
     this.cardSpecs.push({ opts: { id: soloId, card: "A♠", rest: "idle" }, home: { x, y: cy }, depth: 100, bobPhase: 0 });
-    this.attachSolo(soloId, { x, y: cy }, drawAnchorIcon, showAway, "карта"); // якорь «когда унесли»
+    this.attachSolo(soloId, { x, y: cy }, drawAnchorIcon, "away", "карта"); // якорь «когда унесли»
     cap("карта + метка");
     x += slotW;
 
@@ -745,7 +745,7 @@ export class FreeDeskEngine {
     // с меткой — метка не про карты. Пешка тоже глиф чёрного набора, крашенный в «белую» команду.
     const pieceShadow = { rx: r * 0.58, ry: r * 0.18, dy: r * 0.72 }; // стоящая фигура — узкий овал у основания
     this.spawnPiece("chess-knight", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, true, "♞"), pieceShadow);
-    this.attachSolo("chess-knight", { x, y: cy }, drawRingIcon, showEmpty, "конь"); // якорь «когда пусто» (сожжёшь → покажется)
+    this.attachSolo("chess-knight", { x, y: cy }, drawRingIcon, "empty", "конь"); // якорь «когда пусто» (сожжёшь → покажется)
     cap("чёрный конь", slotW * 0.9);
     x += slotW * 0.9;
 
@@ -781,7 +781,7 @@ export class FreeDeskEngine {
 
   // Навесить пару меток (драггер+якорь) на ЛЮБОЙ host (соло-элемент ИЛИ группу) — общая навеска:
   // грип едет с грузом, якорь стоит дома по политике. Регистрирует их в markers+grabbers.
-  private mountMarkers(host: MarkerHost, lead: () => Elem | null, anchorDraw: (g: Graphics) => void, anchorWhen: ShowWhen): { dragger: Marker; anchor: Marker } {
+  private mountMarkers(host: MarkerHost, lead: () => Elem | null, anchorDraw: (g: Graphics) => void, anchorShow: ShowPolicy): { dragger: Marker; anchor: Marker } {
     const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
       draw: drawGrip,
       offset: { x: 0, y: this.cardH / 2 + 9 },
@@ -789,14 +789,14 @@ export class FreeDeskEngine {
       follow: true,
       followOffset: { x: 0, y: this.cardH * 0.62 },
     });
-    const anchor = withAnchor(host, this.scene.surface, { draw: anchorDraw, showWhen: anchorWhen });
+    const anchor = withAnchor(host, this.scene.surface, { draw: anchorDraw, show: anchorShow });
     this.markers.push(dragger, anchor);
     this.grabbers.push({ marker: dragger, host, lead });
     return { dragger, anchor };
   }
 
   // Метки на ОДИНОЧНЫЙ элемент по id (host отдаёт SingleDrag). Соло-карта и соло-фигура одинаково.
-  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorWhen: ShowWhen, label: string): void {
+  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorShow: ShowPolicy, label: string): void {
     const lead = () => this.byId.get(id) ?? null;
     const host: MarkerHost = {
       slotPos: () => slot,
@@ -806,7 +806,7 @@ export class FreeDeskEngine {
         return el ? new SingleDrag(el, this.dragCtx, cp) : null;
       },
     };
-    const { dragger, anchor } = this.mountMarkers(host, lead, anchorDraw, anchorWhen);
+    const { dragger, anchor } = this.mountMarkers(host, lead, anchorDraw, anchorShow);
     this.solos.push({ host, dragger, anchor, lead, label });
   }
 
@@ -827,7 +827,7 @@ export class FreeDeskEngine {
       state: () => this.stackState(ids),
       makePayload: (cp) => this.makeStackPayload(ids, cp),
     };
-    const { dragger } = this.mountMarkers(host, () => this.byId.get(ids[ids.length - 1]!) ?? null, drawAnchorIcon, showAway);
+    const { dragger } = this.mountMarkers(host, () => this.byId.get(ids[ids.length - 1]!) ?? null, drawAnchorIcon, "away");
     this.chipPile = { ids, dragger };
   }
 
