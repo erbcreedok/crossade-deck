@@ -57,6 +57,50 @@ test.describe("песочница — игровая зона (борд)", () =>
     expect(fig(g, a.id).x).toBeLessThan(rightmost + h.cardW); // прижата к рамке, не на +4000
   });
 
+  // zIndex — приватное поле движка (byId), но это ЕДИНСТВЕННЫЙ способ проверить визуальный
+  // z-порядок в реальном e2e (не headless-vitest); window.__fd — тот же e2e-хук, что и testHooks.
+  const zIndexOf = (page: Page, id: string): Promise<number | undefined> =>
+    page.evaluate((cid) => (window as unknown as { __fd: { byId: Map<string, { root: { zIndex: number } }> } }).__fd.byId.get(cid)?.root.zIndex, id);
+
+  test("merge на занятый слот: новая карта визуально СВЕРХУ стопки (регрессия z-order-бага)", async ({ page }) => {
+    const h = await hooks(page);
+    const mb = h.boards.find((b) => b.title === "свободно (merge)")!;
+    const a = mb.figures.find((f) => f.key === "0,0")!; // одиночная карта
+    const target = mb.slots.find((s) => s.key === "0,2")!; // занят 2 картами
+    await dragTo(page, a, target);
+    await page.waitForTimeout(500);
+    const occupants = (await hooks(page)).boards.find((b) => b.title === "свободно (merge)")!.figures.filter((f) => f.key === "0,2");
+    expect(occupants.map((f) => f.id)).toContain(a.id);
+    const zs = await Promise.all(occupants.map((f) => zIndexOf(page, f.id)));
+    const aZ = zs[occupants.findIndex((f) => f.id === a.id)]!;
+    expect(aZ, "перенесённая карта — выше остальных в своём слоте").toBe(Math.max(...(zs as number[])));
+  });
+
+  test("swap на занятый слот: обе фигуры меняются местами (логика onOccupied)", async ({ page }) => {
+    const h = await hooks(page);
+    const sb = h.boards.find((b) => b.title.includes("пятнашки"))!;
+    const a = sb.figures.find((f) => f.key === "0,0")!;
+    const b2 = sb.figures.find((f) => f.key === "0,1")!;
+    await dragTo(page, a, b2);
+    await page.waitForTimeout(400);
+    const g = (await hooks(page)).boards.find((b) => b.title.includes("пятнашки"))!;
+    expect(g.figures.find((f) => f.id === a.id)!.key).toBe("0,1");
+    expect(g.figures.find((f) => f.id === b2.id)!.key).toBe("0,0");
+  });
+
+  test("card-пресет «шахматы — съесть»: дроп на занятый слот съедает фигуру (capture)", async ({ page }) => {
+    const h = await hooks(page);
+    const cb = h.boards.find((b) => b.title === "шахматы — съесть (capture)")!;
+    const k = cb.figures.find((f) => f.key === "0,0")!;
+    const target = cb.slots.find((s) => s.key === "0,2")!;
+    const victim = cb.figures.find((f) => f.key === "0,2")!;
+    await dragTo(page, k, target);
+    await page.waitForTimeout(600);
+    const g = (await hooks(page)).boards.find((b) => b.title === "шахматы — съесть (capture)")!;
+    expect(g.figures.find((f) => f.id === k.id)!.key).toBe("0,2"); // атакующий занял слот
+    expect(g.figures.some((f) => f.id === victim.id)).toBe(false); // жертва съедена
+  });
+
   test("борд из ФИГУР (Piece): конь переезжает и СЪЕДАЕТ пешку (capture)", async ({ page }) => {
     let h = await hooks(page);
     let cb = h.boards.find((b) => b.title.includes("ФИГУР"))!;

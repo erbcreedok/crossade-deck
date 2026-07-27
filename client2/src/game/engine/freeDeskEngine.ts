@@ -785,7 +785,7 @@ export class FreeDeskEngine extends CanvasApp {
       this.markers.push(dragger, anchor);
       this.stacks.push({ stack, host, dragger, anchor });
       this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(stack.top ?? "") ?? null });
-      this.scene.surface.addChild(this.label(a.cap, ox, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
+      this.scene.surface.addChild(this.label(a.cap, ox + footprint / 2, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
     });
     const toggleY = cy + this.cardH / 2 + 50;
     this.segToggle(left, toggleY, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
@@ -993,7 +993,8 @@ export class FreeDeskEngine extends CanvasApp {
     }, { x: field.stackRect.x, y: gy + field.reservedHeight() + 10 });
     this.fieldReorderToggle = controls.toggles[0] ?? null;
     let by = controls.bottom + 14;
-    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", left, by, 12, 0x9aa89f, this.contentW - field.stackRect.x));
+    const outer = field.outerRect();
+    this.scene.surface.addChild(this.label("тяни верхнюю карту из стопки в грид — карты пакуются по индексу и грид растёт", outer.x + outer.w / 2, by, 12, 0x9aa89f, outer.w));
     return by + 24;
   }
 
@@ -1095,7 +1096,7 @@ export class FreeDeskEngine extends CanvasApp {
     for (const key of keys) {
       cfg.slots[key]!.forEach((def, j) => this.spawnElement(`${cfg.idPrefix}-${key}-${j}`, zone.figureHome(`${cfg.idPrefix}-${key}-${j}`), def, depth++, r));
     }
-    if (cfg.hint) this.scene.surface.addChild(this.label(cfg.hint, left, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
+    if (cfg.hint) this.scene.surface.addChild(this.label(cfg.hint, left + bounds.w / 2, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
     return { zone, bottom: bounds.y + bounds.h + 8 };
   }
 
@@ -1276,16 +1277,41 @@ export class FreeDeskEngine extends CanvasApp {
     if (p) p.home = home;
   }
 
+  // Глубина хранится и в Pixi zIndex, и в трекинге (this.cards/this.pieces) — releaseElement/
+  // homeOf читают ИМЕННО трекинг, так что менять надо оба, иначе следующий release откатит zIndex
+  // назад к спавн-глубине (это и было причиной z-order бага на бордах после merge/swap/capture).
+  private setFigureDepth(id: string, depth: number): void {
+    const c = this.cards.find((p) => p.card.id === id);
+    if (c) {
+      c.depth = depth;
+      c.card.root.zIndex = depth;
+      return;
+    }
+    const p = this.pieces.find((q) => q.el.id === id);
+    if (p) {
+      p.depth = depth;
+      p.el.root.zIndex = depth;
+    }
+  }
+
   // Пересчитать home всех фигур зоны И отправить их туда пружиной (после переезда/свапа/merge
   // стек-смещения меняются). БЕЗ setTarget вытесненная свапом фигура оставалась в целевом слоте —
   // «обе на одном слоте». Перетаскиваемую пропускаем: её домой везёт release.
+  // zIndex тоже пересчитываем по позиции в members (как applyStackHomes для стопок) — иначе после
+  // merge z остаётся спавн-порядка, и свежая карта визуально прячется под старыми на своём слоте.
   private refreshZoneHomes(zone: BoardZone): void {
     const dragged = this.drag?.lead.id;
-    for (const key of Object.keys(zone.board.slots)) {
+    const keys = Object.keys(zone.board.slots);
+    const zs = keys.flatMap((k) => zone.board.slots[k]!.members.map((id) => this.byId.get(id)?.root.zIndex)).filter((z): z is number => z !== undefined);
+    const base = zs.length ? Math.min(...zs) : 0;
+    let i = 0;
+    for (const key of keys) {
       for (const id of zone.board.slots[key]!.members) {
         const home = zone.figureHome(id);
         this.setFigureHome(id, home);
-        if (id !== dragged) this.byId.get(id)?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
+        this.setFigureDepth(id, base + i++);
+        const el = this.byId.get(id);
+        if (id !== dragged) el?.body.setTarget({ x: home.x, y: home.y, rot: 0 });
       }
     }
     this.wake();
