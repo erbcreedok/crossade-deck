@@ -1642,34 +1642,43 @@ export class FreeDeskEngine extends CanvasApp {
       { name: "тонкий контур + тень", paint: (cx, cy) => this.paintIndicatorOutline(cx, cy, text, 1.5, true) },
       { name: "HUD-тег", paint: (cx, cy) => this.paintIndicatorBadge(cx, cy, text, true) },
     ];
+    // Матрица 3×2 (не wrapRow-лента): 6 ячеек — 5 стилей + «живой» слот, фиксированной сеткой
+    // строка/столбец, а не построчным переносом по ширине экрана (прямое решение владельца).
+    const GRID_COLS = 3;
     const activeTop = restBottom + 26;
     const plainCellW = cell.w + 16; // запас под подпись, если она чуть шире карты
     const liveCellW = cell.w / 2 + dragOffsetX + (cell.w * DRAG_SCALE) / 2 + 20; // + до правого края увеличенной драг-карты
-    const widths = [...variants.map(() => plainCellW), liveCellW];
-    const { items, totalH } = wrapRow(widths, this.cardW * 8, cell.h + 40, SB_ITEM_GAP);
-    let width = cell.w;
+    const colW = Math.max(plainCellW, liveCellW); // единая ширина колонки — иначе не матрица, а лесенка
+    const rowH = cell.h + 40;
+
     variants.forEach((v, i) => {
-      const p = items[i]!;
-      const x = left + p.x;
-      const y = activeTop + p.y;
+      const row = Math.floor(i / GRID_COLS);
+      const col = i % GRID_COLS;
+      const x = left + col * (colW + SB_ITEM_GAP);
+      const y = activeTop + row * (rowH + SB_ITEM_GAP);
       cellFrame(x, y);
       boardCard(`di-active-${i}`, x, y);
       v.paint(x + cell.w / 2, y + cell.h / 2);
       this.scene.surface.addChild(this.label(v.name, x + cell.w / 2, y + cell.h + 10, 12, 0x9aa89f, plainCellW * 0.95));
-      width = Math.max(width, p.x + plainCellW);
     });
-    // 6-й, «живой» слот — стиль HUD-тега (пятый) под настоящей драг-картой.
-    const live = items[variants.length]!;
-    const lx = left + live.x;
-    const ly = activeTop + live.y;
-    cellFrame(lx, ly);
-    boardCard("di-live-board", lx, ly);
-    this.paintIndicatorBadge(lx + cell.w / 2, ly + cell.h / 2, text, true);
-    dragCard("di-live-drag", lx, ly);
-    this.scene.surface.addChild(this.label("HUD-тег + наведение (реальный сценарий)", lx + cell.w / 2, ly + cell.h + 10, 12, 0x9aa89f, liveCellW * 0.95));
-    width = Math.max(width, live.x + liveCellW);
+    // 6-я ячейка (row1, col2) — «живой» слот: стиль HUD-тега под настоящей драг-картой.
+    {
+      const i = variants.length; // индекс 5 → row1,col2
+      const row = Math.floor(i / GRID_COLS);
+      const col = i % GRID_COLS;
+      const x = left + col * (colW + SB_ITEM_GAP);
+      const y = activeTop + row * (rowH + SB_ITEM_GAP);
+      cellFrame(x, y);
+      boardCard("di-live-board", x, y);
+      this.paintIndicatorBadge(x + cell.w / 2, y + cell.h / 2, text, true);
+      dragCard("di-live-drag", x, y);
+      this.scene.surface.addChild(this.label("HUD-тег + наведение (реальный сценарий)", x + cell.w / 2, y + cell.h + 10, 12, 0x9aa89f, liveCellW * 0.95));
+    }
 
-    return { bottom: activeTop + totalH + 20, width };
+    const rows = Math.ceil((variants.length + 1) / GRID_COLS);
+    const width = GRID_COLS * colW + (GRID_COLS - 1) * SB_ITEM_GAP;
+    const bottom = activeTop + rows * rowH + (rows - 1) * SB_ITEM_GAP;
+    return { bottom: bottom + 20, width: Math.max(cell.w, width) };
   }
 
   // Толстая/тонкая обводка вокруг текста, опционально + мягкая тень (blur). fill — золото, как у
