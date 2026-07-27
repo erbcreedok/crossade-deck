@@ -1,0 +1,23 @@
+client2/src/game/engine/sandboxWrap.test.ts
+  s_b6ac35acf00770::t_5dca165e04339b 14-15
+  s_b6ac35acf00770::t_3c9af705f0dafb 68-70
+  s_b6ac35acf00770::t_1d8b22f1266f6c 1-13,16-67,71-101
+client2/src/game/engine/sandboxWrap.ts
+  s_b6ac35acf00770::t_6f7227b1f44557 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f56e85a75fa2fd875ac0c8544c26ee5ef5e4a88f",
+  "prompts": {},
+  "sessions": {
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
