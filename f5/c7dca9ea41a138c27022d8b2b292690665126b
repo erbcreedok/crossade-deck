@@ -1,0 +1,30 @@
+client2/src/game/ui/controls.ts
+  s_b6ac35acf00770::t_a166a137b10e3a 21-35
+  s_b6ac35acf00770::t_e13b2497ac6b99 47,54,65,68,81-82
+  s_b6ac35acf00770::t_d3d44b2a5235a3 43-46,49,79-80,83-92
+  s_b6ac35acf00770::t_e4d6e7fa619028 5,8-10,14-15
+client2/src/game/board/boardZone.ts
+  s_b6ac35acf00770::t_a2fef6067b9b54 8,17
+  s_b6ac35acf00770::t_c7052ff054b35a 40,57-60
+  s_b6ac35acf00770::t_4f0c575711347a 61-62
+client2/src/game/ui/Segmented.ts
+  s_b6ac35acf00770::t_fbe64b5fb940c3 1-80
+client2/src/game/ui/controls.test.ts
+  s_b6ac35acf00770::t_d4054880c6e43e 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f5c7dca9ea41a138c27022d8b2b292690665126b",
+  "prompts": {},
+  "sessions": {
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
