@@ -3,16 +3,22 @@ import { createPixiApp, ensureFonts } from "./engine/canvasHost";
 import { CensorField, type CensorSource } from "./engine/censorField";
 import { GpuCensorCard } from "./engine/censorGpu";
 import { ParticleField, type ParticleParams } from "./engine/censorParticles";
+import { attachPanZoom, type PanZoomHandle } from "./engine/panZoom";
 import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { AMBER, buildContent } from "./fingerContent";
+import { Button } from "./ui/Button";
+import { attachControls, type Configurable, type Param } from "./ui/controls";
+import type { ViewState } from "./engine/viewport";
 
-// Витрина «цензурной» анимации скрытой карты на стенде /motion. Показывает варианты в ряд, чтобы
-// выбрать вид глазами. Реального в проде — модули censorMotion.ts + engine/censorField.ts; здесь только
-// сборка источника-фака и раскладка карточек. Тестов нет намеренно — визуал сверяет человек.
+// Стенд анимаций «/motion» — ЦЕЛИКОМ на канвасе (как весь client2). Секции-тесткейсы с заголовками,
+// у каждой свои контролы (Stepper/Toggle) прямо в сцене; пан/зам — общий приклеиваемый attachPanZoom
+// (тот же жест, что в песочнице). Единственный DOM — топбар-навигация и скроллбары (как в песочнице).
 
-// Извлечь из контента булеву пиксель-сетку под заданный размер блока: рендерим контент в маленькую
-// RenderTexture (cols×rows) и читаем альфу. on = где есть контент.
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 4;
+
+// Извлечь из контента булеву пиксель-сетку под размер блока (рендер в RenderTexture cols×rows, чтение альфы).
 function buildFingerSource(app: Application, block: number): CensorSource {
   const content = buildContent();
   const cols = Math.max(1, Math.round(TEX_W / block));
@@ -29,314 +35,271 @@ function buildFingerSource(app: Application, block: number): CensorSource {
 }
 
 interface DemoCard {
-  field: CensorField | null; // null → статичная карточка (эталон)
+  field: CensorField | null;
   animated: boolean;
+  live?: () => boolean; // доп. условие анимации (напр. «тряска только когда играет»)
 }
 
-// Живые параметры настраиваемого танца — крутятся слайдерами на странице.
 export interface DanceParams {
-  block: number; // размер частицы (меньше → больше частиц, чётче)
-  swapsPerSec: number; // реже свапы → силуэт цельнее
-  jitterAmp: number; // «биас» смещения: меньше → пиксели ближе к дому, читаемее
-  jitterFreq: number; // скорость дрожания
+  block: number;
+  swapsPerSec: number;
+  jitterAmp: number;
+  jitterFreq: number;
 }
 export const DANCE_DEFAULT: DanceParams = { block: 4, swapsPerSec: 26, jitterAmp: 1, jitterFreq: 6 };
 
-// Рычаги «танца» → параметры Telegram-частиц: частица=размер точки, дрожание=разлёт (velocityRange),
-// свапы=скорость churn (короче жизнь), частота=мерцание.
-function particleParams(d: DanceParams): ParticleParams {
+// Рычаги «танца» → параметры Telegram-частиц.
+function particleParams(d: DanceParams, flicker: boolean): ParticleParams {
   return {
     dot: Math.max(1.5, d.block * 0.8),
     drift: d.jitterAmp * 14,
     life: Math.max(0.35, 1.3 - d.swapsPerSec / 120),
     twinkleHz: d.jitterFreq * 0.4,
+    flicker,
   };
 }
 
 export class CensorDemo {
   private app: Application | null = null;
+  private content = new Container();
+  private pz: PanZoomHandle | null = null;
+
   private cards: DemoCard[] = [];
-  private gpuCards: GpuCensorCard[] = []; // GPU-варианты (шейдер / ping-pong)
-  private particleCards: ParticleField[] = []; // частицы в стиле Telegram-спойлера
-  private dance: DanceParams = { ...DANCE_DEFAULT }; // текущее состояние рычагов (для пересчёта частиц)
+  private gpuCards: GpuCensorCard[] = [];
+  private particleCards: ParticleField[] = [];
+  private buttons: Button[] = []; // все Button (в т.ч. внутри Stepper/Toggle) — для арбитража ввода
+
+  private dance: DanceParams = { ...DANCE_DEFAULT };
+  private speed = 1;
+  private reduceMotion = false; // master reduce-motion → замораживает время
+  private flicker = true; // мерцание частиц
+  private shearPlay = true; // «тряска рядов» играет
+
+  private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
+  private contentW = 1;
+  private contentH = 1;
   private t = 0;
+  private destroyed = false;
+  private onView: ((v: ViewState) => void) | null = null;
+
   private tick = (): void => {
     if (!this.app) return;
-    this.t += (this.app.ticker.deltaMS / 1000) * this.speed;
-    for (const c of this.cards) if (c.animated) c.field?.update(this.t);
-    for (const g of this.gpuCards) g.update(this.t);
-    for (const p of this.particleCards) p.update(this.t);
+    const dtMs = this.app.ticker.deltaMS;
+    if (!this.reduceMotion) {
+      this.t += (dtMs / 1000) * this.speed;
+      for (const c of this.cards) if (c.animated && (c.live?.() ?? true)) c.field?.update(this.t);
+      for (const g of this.gpuCards) g.update(this.t);
+      for (const p of this.particleCards) p.update(this.t);
+    }
+    for (const b of this.buttons) {
+      b.step(dtMs / 1000);
+      b.sync();
+    }
+    if (this.pz?.step(dtMs)) this.emitView();
   };
-  speed = 1; // глобальный множитель скорости (задел под 1x/2x/слайдер) — просто масштаб времени
-
-  // Мини-камера: весь контент в `world`, жесты двигают/масштабируют его. Не тащим связанный
-  // freeDeskEngine ради временной страницы — тут хватает контейнера + пары обработчиков.
-  private world = new Container();
-  private cam = { scale: 1, x: 0, y: 0 };
-  private pointers = new Map<number, { x: number; y: number }>();
-  private pinchDist = 0;
-  private fitScale = 1; // масштаб «всё влезло по ширине» — точка отсчёта для слайдера размера
-  private viewW = 0;
-  private viewH = 0;
-
-  // Настраиваемый танец: держим карту/маску/спек, чтобы менять параметры вживую (block → пересборка).
-  private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
-  private destroyed = false; // StrictMode: destroy() может прийти, пока mount() ещё в await'ах
 
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     await ensureFonts();
     const app = await createPixiApp(width, height);
     if (!app) return;
     if (this.destroyed) {
-      // Компонент уже размонтирован, пока мы ждали init — не оставляем осиротевший канвас/тикер.
       app.destroy(true, { children: true });
       return;
     }
     this.app = app;
     host.appendChild(app.canvas);
-    app.stage.addChild(this.world);
+    app.stage.addChild(this.content);
 
-    // Статичный эталон = row-shear с НУЛЕВЫМ движением (off=0 у всех рядов) → чистая пиксель-сетка.
-    const staticSpec: CensorSpec = { kind: "row-shear", block: 2.4, speedPxSec: 0, flipEverySec: 1, rowBias: 0, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1 };
-    // Настраиваемый танец: swap-dance с дефолтом «чётче» (мельче блок, реже свапы, меньше дрожание).
-    const danceSpec: CensorSpec = { kind: "swap-dance", block: DANCE_DEFAULT.block, speedPxSec: 0, flipEverySec: 0.3, rowBias: 0, swapsPerSec: DANCE_DEFAULT.swapsPerSec, jitterAmp: DANCE_DEFAULT.jitterAmp, jitterFreq: DANCE_DEFAULT.jitterFreq, shearMix: 0 };
-    // Ряд 1 — НЕконфигурируемые пресеты (эталон + сдвиг рядов + комбо). Одиночный свап-пресет удалён —
-    // он не крутится рычагами, а его роль закрывает настраиваемый «танец ⚙» ниже.
-    const presets: Array<{ label: string; spec: CensorSpec; animated: boolean }> = [
-      { label: "статика (пиксели)", spec: staticSpec, animated: false },
-      { label: "ряды ← → (крупно)", spec: CENSOR_PRESETS.shearCoarse!, animated: true },
-      { label: "ряды ← → (мельче)", spec: CENSOR_PRESETS.shearFine!, animated: true },
-      { label: "комбо (ряды+свапы)", spec: CENSOR_PRESETS.combo!, animated: true },
-    ];
+    this.build(app);
 
-    const gap = 34;
-    const cardW = TEX_W;
-    const cardH = TEX_H;
-    const y1 = 40;
-    let x = 28;
-    for (const v of presets) {
-      this.buildFieldCard(app, v.spec, v.label, x, y1, v.animated);
-      x += cardW + gap;
-    }
-    const row1Right = x;
-
-    // Ряд 2 — ВСЕ конфигурируемые свапы в один ряд: настраиваемый CPU-танец + два GPU-варианта. Все под рычагами.
-    const y2 = y1 + cardH + 46;
-    let x2 = 28;
-    const tun = this.buildFieldCard(app, danceSpec, "танец ⚙ слайдеры", x2, y2, true);
-    this.tunable = { card: tun.card, mask: tun.mask, spec: danceSpec, cardIdx: this.cards.length - 1 };
-    x2 += cardW + gap;
-
-    const gpuVariants: Array<{ label: string; mode: "remap" | "pingpong" }> = [
-      { label: "GPU шейдер (ремап, моргает)", mode: "remap" },
-      { label: "GPU ping-pong (накопление)", mode: "pingpong" },
-    ];
-    for (const gv of gpuVariants) {
-      const card = new Container();
-      card.position.set(x2, y2);
-      this.world.addChild(card);
-
-      const bg = new Graphics();
-      bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
-      card.addChild(bg);
-
-      // Стартуют с тех же дефолтов, что слайдеры (DANCE_DEFAULT) → рычаги сверху управляют и ими.
-      const gpu = new GpuCensorCard(app, gv.mode, DANCE_DEFAULT);
-      const mask = new Graphics();
-      mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
-      card.addChild(mask);
-      gpu.view.mask = mask;
-      card.addChild(gpu.view);
-      gpu.update(0);
-      this.gpuCards.push(gpu);
-
-      const label = new Text({ text: gv.label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
-      label.anchor.set(0.5, 0);
-      label.position.set(x2 + cardW / 2, y2 + cardH + 8);
-      this.world.addChild(label);
-
-      x2 += cardW + gap;
-    }
-
-    // Четвёртая карта ряда — Telegram-стиль: облако частиц-точек по силуэту фака (не мозаика).
-    {
-      const card = new Container();
-      card.position.set(x2, y2);
-      this.world.addChild(card);
-
-      const bg = new Graphics();
-      bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
-      card.addChild(bg);
-
-      // On-точки силуэта (куда спавнить частицы), сетка 4px, по 2 частицы на клетку — плотное облако,
-      // сквозь которое читается форма (в TG плотность высокая: birthRate ~4000).
-      const step = 4;
-      const perCell = 2;
-      const src = buildFingerSource(app, step);
-      const pts: Array<{ x: number; y: number }> = [];
-      const offX = (TEX_W - src.cols * step) / 2;
-      const offY = (TEX_H - src.rows * step) / 2;
-      for (let r = 0; r < src.rows; r++) {
-        for (let c = 0; c < src.cols; c++) {
-          if (!src.on[r * src.cols + c]) continue;
-          for (let d = 0; d < perCell; d++) pts.push({ x: offX + c * step + 2, y: offY + r * step + 2 });
-        }
-      }
-      const pf = new ParticleField(pts, particleParams(this.dance));
-      const mask = new Graphics();
-      mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
-      card.addChild(mask);
-      pf.view.mask = mask;
-      card.addChild(pf.view);
-      pf.update(0);
-      this.particleCards.push(pf);
-
-      const label = new Text({ text: "частицы (TG-пыль)", style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
-      label.anchor.set(0.5, 0);
-      label.position.set(x2 + cardW / 2, y2 + cardH + 8);
-      this.world.addChild(label);
-
-      x2 += cardW + gap;
-    }
-
-    // Фит-по-ширине: самый длинный из двух рядов помещается в экран.
-    const contentW = Math.max(row1Right, x2); // правый край длиннейшего ряда + запас справа
-    const pad = 14;
-    const s0 = Math.min(1, (width - pad) / contentW);
-    this.fitScale = s0;
-    this.viewW = width;
-    this.viewH = height;
-    this.cam = { scale: s0, x: Math.max(pad, (width - contentW * s0) / 2), y: 8 };
-    this.applyCam();
-    this.bindCamera(app.canvas);
+    this.pz = attachPanZoom(app, this.content, {
+      minZoom: MIN_ZOOM,
+      maxZoom: MAX_ZOOM,
+      contentSize: () => ({ w: this.contentW, h: this.contentH }),
+      buttons: {
+        pick: (cx, cy) => this.pickButton(cx, cy),
+        contains: (b, cx, cy) => b.hitTest(cx, cy),
+        down: (b) => b.setPressed(true),
+        move: (b, inside) => b.setPressed(inside),
+        up: (b, inside) => {
+          if (inside) b.click();
+          b.setPressed(false);
+        },
+        hover: (b) => {
+          for (const x of this.buttons) x.hover(x === b);
+        },
+      },
+      onChange: () => this.emitView(),
+    });
+    this.pz.fitWidth();
+    this.emitView();
 
     app.ticker.add(this.tick);
     app.start();
   }
 
-  // Построить CPU-карту-поле (фон + рамка + сетка + маска + подпись) в точке (x,y). Возвращает части,
-  // нужные настраиваемому танцу для пересборки. Пушит запись в this.cards.
-  private buildFieldCard(app: Application, spec: CensorSpec, label: string, x: number, y: number, animated: boolean): { card: Container; mask: Graphics; field: CensorField } {
+  // ——— сборка сцены: секции сверху вниз ———
+  private build(app: Application): void {
+    let y = 24;
+    const left = 28;
+
+    // Секция «Общее»: ререндер + скорость + reduce-motion.
+    y = this.title("Общее", left, y);
+    const rerenderBtn = new Button({ label: "⟳ ререндер", variant: "secondary", size: "sm", onClick: () => this.rerender() });
+    rerenderBtn.place(left + rerenderBtn.w / 2, y + rerenderBtn.h / 2);
+    this.register(rerenderBtn);
+    y = this.controls(this.globalCfg(), left + rerenderBtn.w + 28, y) + 30;
+
+    // Секция «Цензура — пыль / мозаика».
+    y = this.title("Цензура — пыль / мозаика", left, y);
+    y = this.controls(this.censorCfg(), left, y) + 12;
+    const dance: CensorSpec = { kind: "swap-dance", block: this.dance.block, speedPxSec: 0, flipEverySec: 0.3, rowBias: 0, swapsPerSec: this.dance.swapsPerSec, jitterAmp: this.dance.jitterAmp, jitterFreq: this.dance.jitterFreq, shearMix: 0 };
+    let x = left;
+    const tun = this.fieldCard(app, dance, "мозаика (CPU)", x, y, true);
+    this.tunable = { card: tun.card, mask: tun.mask, spec: dance, cardIdx: this.cards.length - 1 };
+    x += TEX_W + 34;
+    x = this.gpuCard(app, "remap", "GPU ремап", x, y);
+    x = this.gpuCard(app, "pingpong", "GPU ping-pong", x, y);
+    x = this.particleCard(app, "частицы (TG-пыль)", x, y);
+    const censorRight = x;
+    y += TEX_H + 40;
+
+    // Секция «Тряска рядов».
+    y = this.title("Тряска рядов", left, y);
+    y = this.controls(this.shearCfg(), left, y) + 12;
+    x = left;
+    x = this.fieldCard(app, CENSOR_PRESETS.shearCoarse!, "крупно", x, y, true, () => this.shearPlay).right;
+    x = this.fieldCard(app, CENSOR_PRESETS.shearFine!, "мельче", x, y, true, () => this.shearPlay).right;
+    y += TEX_H + 40;
+
+    this.contentW = Math.max(censorRight, x) + 6;
+    this.contentH = y + 6;
+  }
+
+  // Заголовок секции; возвращает y под ним.
+  private title(text: string, x: number, y: number): number {
+    const t = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 24, fill: 0xcdb98f } });
+    t.position.set(x, y);
+    this.content.addChild(t);
+    return y + 40;
+  }
+
+  // Насадить контролы Configurable в точке; возвращает нижний край.
+  private controls(cfg: Configurable, x: number, y: number): number {
+    const { bottom } = attachControls(cfg, { layer: this.content, register: (b) => this.register(b), onChange: () => this.emitView() }, { x, y });
+    return bottom;
+  }
+
+  private register(b: Button): void {
+    this.buttons.push(b);
+    this.content.addChild(b.root);
+  }
+
+  private pickButton(cx: number, cy: number): Button | null {
+    for (let i = this.buttons.length - 1; i >= 0; i--) if (this.buttons[i]!.hitTest(cx, cy)) return this.buttons[i]!;
+    return null;
+  }
+
+  // ——— карточки ———
+  private cardChrome(x: number, y: number): { card: Container; mask: Graphics } {
     const card = new Container();
     card.position.set(x, y);
-    this.world.addChild(card);
-
+    this.content.addChild(card);
     const bg = new Graphics();
     bg.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: COLORS.cardFace }).stroke({ width: 2, color: 0xcdbb90 });
     card.addChild(bg);
-
-    const src = buildFingerSource(app, spec.block);
-    const field = new CensorField(src, spec);
-    // Центрируем сетку в карте (сетка ≈ TEX по размеру, но округление блоков даёт пару px).
-    field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
-    // Маскируем по форме карты, чтобы сдвиг рядов не вылезал за края.
     const mask = new Graphics();
     mask.roundRect(0, 0, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
     card.addChild(mask);
+    return { card, mask };
+  }
+
+  private caption(text: string, cx: number, y: number): void {
+    const t = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 16, fill: 0xe8e0cc } });
+    t.anchor.set(0.5, 0);
+    t.position.set(cx, y);
+    this.content.addChild(t);
+  }
+
+  private fieldCard(app: Application, spec: CensorSpec, label: string, x: number, y: number, animated: boolean, live?: () => boolean): { card: Container; mask: Graphics; right: number } {
+    const { card, mask } = this.cardChrome(x, y);
+    const src = buildFingerSource(app, spec.block);
+    const field = new CensorField(src, spec);
+    field.view.position.set((TEX_W - field.width) / 2, (TEX_H - field.height) / 2);
     field.view.mask = mask;
     card.addChild(field.view);
-    field.update(0); // первый статичный кадр
-    this.cards.push({ field, animated });
-
-    const lbl = new Text({ text: label, style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe8e0cc } });
-    lbl.anchor.set(0.5, 0);
-    lbl.position.set(x + TEX_W / 2, y + TEX_H + 8);
-    this.world.addChild(lbl);
-
-    return { card, mask, field };
+    field.update(0);
+    this.cards.push({ field, animated, live });
+    this.caption(label, x + TEX_W / 2, y + TEX_H + 8);
+    return { card, mask, right: x + TEX_W + 34 };
   }
 
-  private applyCam(): void {
-    this.world.scale.set(this.cam.scale);
-    this.world.position.set(this.cam.x, this.cam.y);
+  private gpuCard(app: Application, mode: "remap" | "pingpong", label: string, x: number, y: number): number {
+    const { card, mask } = this.cardChrome(x, y);
+    const gpu = new GpuCensorCard(app, mode, DANCE_DEFAULT);
+    gpu.view.mask = mask;
+    card.addChild(gpu.view);
+    gpu.update(0);
+    this.gpuCards.push(gpu);
+    this.caption(label, x + TEX_W / 2, y + TEX_H + 8);
+    return x + TEX_W + 34;
   }
 
-  // Зум вокруг экранной точки (sx,sy) в factor раз, с сохранением точки под пальцем/курсором.
-  private zoomAround(sx: number, sy: number, factor: number): void {
-    const ns = Math.max(0.15, Math.min(6, this.cam.scale * factor));
-    const wx = (sx - this.cam.x) / this.cam.scale;
-    const wy = (sy - this.cam.y) / this.cam.scale;
-    this.cam.scale = ns;
-    this.cam.x = sx - wx * ns;
-    this.cam.y = sy - wy * ns;
-    this.applyCam();
-  }
-
-  // Слайдер «размер карты»: 1 = «влезло по ширине», mul>1 — крупнее (зум вокруг центра экрана).
-  setViewZoom(mul: number): void {
-    const target = this.fitScale * mul;
-    this.zoomAround(this.viewW / 2, this.viewH / 2, target / this.cam.scale);
-  }
-
-  // Драг-пан (1 палец) + пинч-зум (2 пальца) + колесо (десктоп). Зум вокруг точки под курсором/центром.
-  private bindCamera(canvas: HTMLCanvasElement): void {
-    canvas.style.touchAction = "none";
-    const zoomAt = (sx: number, sy: number, factor: number): void => this.zoomAround(sx, sy, factor);
-    const mid = (): { x: number; y: number } => {
-      const p = [...this.pointers.values()];
-      return { x: (p[0]!.x + p[1]!.x) / 2, y: (p[0]!.y + p[1]!.y) / 2 };
-    };
-    const dist = (): number => {
-      const p = [...this.pointers.values()];
-      return Math.hypot(p[0]!.x - p[1]!.x, p[0]!.y - p[1]!.y);
-    };
-    canvas.addEventListener("pointerdown", (e) => {
-      canvas.setPointerCapture(e.pointerId);
-      this.pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
-      if (this.pointers.size === 2) this.pinchDist = dist();
-    });
-    canvas.addEventListener("pointermove", (e) => {
-      const prev = this.pointers.get(e.pointerId);
-      if (!prev) return;
-      const now = { x: e.offsetX, y: e.offsetY };
-      if (this.pointers.size === 1) {
-        this.cam.x += now.x - prev.x; // пан
-        this.cam.y += now.y - prev.y;
-        this.applyCam();
+  private particleCard(app: Application, label: string, x: number, y: number): number {
+    const { card, mask } = this.cardChrome(x, y);
+    const step = 4;
+    const src = buildFingerSource(app, step);
+    const pts: Array<{ x: number; y: number }> = [];
+    const offX = (TEX_W - src.cols * step) / 2;
+    const offY = (TEX_H - src.rows * step) / 2;
+    for (let r = 0; r < src.rows; r++) {
+      for (let c = 0; c < src.cols; c++) {
+        if (!src.on[r * src.cols + c]) continue;
+        for (let d = 0; d < 2; d++) pts.push({ x: offX + c * step + 2, y: offY + r * step + 2 });
       }
-      this.pointers.set(e.pointerId, now);
-      if (this.pointers.size === 2 && this.pinchDist > 0) {
-        const d = dist();
-        const m = mid();
-        zoomAt(m.x, m.y, d / this.pinchDist); // пинч
-        this.pinchDist = d;
-      }
-    });
-    const up = (e: PointerEvent): void => {
-      this.pointers.delete(e.pointerId);
-      if (this.pointers.size < 2) this.pinchDist = 0;
-    };
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointercancel", up);
-    canvas.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.1 : 1 / 1.1);
-    }, { passive: false });
-  }
-
-  setSpeed(s: number): void {
-    this.speed = s;
-  }
-
-  // Ререндер: перезапуск с t=0 + новый узор свапов (seed) у всех полей.
-  private rerenderCount = 0;
-  rerender(): void {
-    this.t = 0;
-    this.rerenderCount++;
-    for (const c of this.cards) {
-      c.field?.reset(this.rerenderCount * 100003); // простое смещение → непересекающаяся последовательность
-      c.field?.update(0);
     }
-    for (const g of this.gpuCards) g.reset();
-    for (const p of this.particleCards) p.reset();
+    const pf = new ParticleField(pts, particleParams(this.dance, this.flicker));
+    pf.view.mask = mask;
+    card.addChild(pf.view);
+    pf.update(0);
+    this.particleCards.push(pf);
+    this.caption(label, x + TEX_W / 2, y + TEX_H + 8);
+    return x + TEX_W + 34;
   }
 
-  // Живая настройка «танец ⚙». swaps/jitter — просто мутируем спек (CensorField читает его каждый кадр).
-  // block меняет размер частиц → нужна пересборка источника-сетки и поля (в той же карте/маске).
+  // ——— конфиги секций (декларативные params для attachControls) ———
+  private globalCfg(): Configurable {
+    return {
+      params: (): Param[] => [
+        { kind: "number", label: "скорость", min: 0, max: 30, format: (v) => (v / 10).toFixed(1) + "x", get: () => Math.round(this.speed * 10), set: (v) => (this.speed = v / 10) },
+        { kind: "bool", label: "уменьшить движение", get: () => this.reduceMotion, set: (v) => (this.reduceMotion = v) },
+      ],
+    };
+  }
+  private censorCfg(): Configurable {
+    return {
+      params: (): Param[] => [
+        { kind: "number", label: "частица", min: 2, max: 10, get: () => this.dance.block, set: (v) => this.updateDance({ block: v }) },
+        { kind: "number", label: "свапы/с", min: 0, max: 120, get: () => this.dance.swapsPerSec, set: (v) => this.updateDance({ swapsPerSec: v }) },
+        { kind: "number", label: "дрожание", min: 0, max: 4, get: () => this.dance.jitterAmp, set: (v) => this.updateDance({ jitterAmp: v }) },
+        { kind: "number", label: "частота", min: 0, max: 14, get: () => this.dance.jitterFreq, set: (v) => this.updateDance({ jitterFreq: v }) },
+        { kind: "bool", label: "мерцание", get: () => this.flicker, set: (v) => ((this.flicker = v), this.applyParticles()) },
+      ],
+    };
+  }
+  private shearCfg(): Configurable {
+    return { params: (): Param[] => [{ kind: "bool", label: "двигать", get: () => this.shearPlay, set: (v) => (this.shearPlay = v) }] };
+  }
+
+  private applyParticles(): void {
+    for (const p of this.particleCards) p.setParams(particleParams(this.dance, this.flicker));
+  }
+
+  // Живая настройка «цензуры»: gpu + частицы + пересборка CPU-мозаики при смене block.
   updateDance(p: Partial<DanceParams>): void {
     Object.assign(this.dance, p);
-    for (const g of this.gpuCards) g.setParams(p); // рычаги управляют и GPU-рядом
-    for (const pf of this.particleCards) pf.setParams(particleParams(this.dance)); // …и частицами
+    for (const g of this.gpuCards) g.setParams(p);
+    this.applyParticles();
     const t = this.tunable;
     if (!t || !this.app) return;
     if (p.swapsPerSec !== undefined) t.spec.swapsPerSec = p.swapsPerSec;
@@ -354,16 +317,57 @@ export class CensorDemo {
     }
   }
 
+  private rerenderCount = 0;
+  rerender(): void {
+    this.t = 0;
+    this.rerenderCount++;
+    for (const c of this.cards) {
+      c.field?.reset(this.rerenderCount * 100003);
+      c.field?.update(0);
+    }
+    for (const g of this.gpuCards) g.reset();
+    for (const p of this.particleCards) p.reset();
+  }
+
+  // ——— DOM-мост: скроллбары/зум как в песочнице ———
+  setOnView(cb: ((v: ViewState) => void) | null): void {
+    this.onView = cb;
+    this.emitView();
+  }
+  private emitView(): void {
+    if (this.pz) this.onView?.(this.pz.viewport.state());
+  }
+  setZoom(z: number): void {
+    if (!this.pz) return;
+    this.pz.viewport.setZoom(z);
+    this.pz.apply();
+    this.emitView();
+  }
+  setScrollX(f: number): void {
+    if (!this.pz) return;
+    this.pz.viewport.setScrollX(f);
+    this.pz.apply();
+    this.emitView();
+  }
+  setScrollY(f: number): void {
+    if (!this.pz) return;
+    this.pz.viewport.setScrollY(f);
+    this.pz.apply();
+    this.emitView();
+  }
+
   destroy(): void {
-    this.destroyed = true; // если mount() ещё в await'ах — он увидит флаг и не оставит канвас
+    this.destroyed = true;
     if (!this.app) return;
     this.app.ticker.remove(this.tick);
+    this.pz?.detach();
     for (const c of this.cards) c.field?.destroy();
     for (const g of this.gpuCards) g.destroy();
     for (const p of this.particleCards) p.destroy();
     this.cards = [];
     this.gpuCards = [];
     this.particleCards = [];
+    this.buttons = [];
     this.app.destroy(true, { children: true });
     this.app = null;
   }

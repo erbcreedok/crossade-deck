@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { CensorDemo, DANCE_DEFAULT, type DanceParams } from "./game/censorDemo";
+import { CensorDemo } from "./game/censorDemo";
+import type { ViewState } from "./game/engine/viewport";
 import { goApp } from "./nav";
 
-// Стенд анимаций «/motion» — испытательная площадка для движущихся объектов/эффектов (то, что не
-// проверить статичными скриншотами). Сейчас на ней витрина «цензурной» анимации скрытой карты.
-// Слайдеры: общая скорость + живая настройка карты «танец ⚙» (частица / свапы / дрожание / частота).
+// Стенд анимаций «/motion» — ЦЕЛИКОМ на канвасе (заголовки, контролы, кнопка «ререндер» — в сцене).
+// DOM здесь только то же, что в песочнице: топбар-навигация + скроллбары/зум по ховеру (десктоп).
 export function CensorDemoPage() {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CensorDemo | null>(null);
-  const [speed, setSpeed] = useState(1);
-  const [size, setSize] = useState(1);
-  const [dance, setDance] = useState<DanceParams>(DANCE_DEFAULT);
+  const trackXRef = useRef<HTMLDivElement>(null);
+  const trackYRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ axis: "x" | "y"; start: number; scroll: number } | null>(null);
+  const [view, setView] = useState<ViewState | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -18,63 +19,71 @@ export function CensorDemoPage() {
     const engine = new CensorDemo();
     engineRef.current = engine;
     if (import.meta.env.DEV) (window as unknown as { __censor?: CensorDemo }).__censor = engine;
-    void engine.mount(host, host.clientWidth || 1000, host.clientHeight || 340);
+    engine.setOnView(setView);
+    void engine.mount(host, host.clientWidth || 1000, host.clientHeight || 640);
     return () => {
       engine.destroy();
       engineRef.current = null;
     };
   }, []);
 
-  const setParam = (k: keyof DanceParams) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = Number(e.target.value);
-    setDance((d) => ({ ...d, [k]: v }));
-    engineRef.current?.updateDance({ [k]: v });
+  const thumbDown = (axis: "x" | "y") => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { axis, start: axis === "x" ? e.clientX : e.clientY, scroll: view ? (axis === "x" ? view.scrollX : view.scrollY) : 0 };
   };
-
-  // .fd-zoom в песочнице позиционируется absolute (один контрол над канвасом). Здесь контролов
-  // много — держим их обычными flex-детьми топбара, иначе они стакаются в одну точку и перекрывают
-  // друг друга (дотянуться можно лишь до верхнего). ctl сбрасывает position в static.
-  const ctl: React.CSSProperties = { position: "static", flex: "none" };
-  // Подпись фикс-ширины: число значения меняет ширину («26»→«120») и толкало бы слайдер вбок —
-  // он «прыгал». Фикс-ширина + tabular-nums держат старт input'а на месте.
-  const cap: React.CSSProperties = { display: "inline-block", width: 104, fontVariantNumeric: "tabular-nums" };
+  const thumbMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || !view) return;
+    const track = d.axis === "x" ? trackXRef.current : trackYRef.current;
+    if (!track) return;
+    const size = d.axis === "x" ? track.clientWidth : track.clientHeight;
+    const thumb = d.axis === "x" ? view.thumbX : view.thumbY;
+    const range = size * (1 - thumb);
+    if (range <= 0) return;
+    const delta = (d.axis === "x" ? e.clientX : e.clientY) - d.start;
+    const next = Math.max(0, Math.min(1, d.scroll + delta / range));
+    if (d.axis === "x") engineRef.current?.setScrollX(next);
+    else engineRef.current?.setScrollY(next);
+  };
+  const thumbUp = (e: React.PointerEvent) => {
+    dragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* уже отпущен */
+    }
+  };
 
   return (
     <div className="table-screen freedesk">
-      <div className="fd-topbar" style={{ flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+      <div className="fd-topbar">
         <button className="fd-btn" onClick={() => goApp("free-desk")}>
           ← в песочницу
         </button>
-        <button className="fd-btn" onClick={() => engineRef.current?.rerender()}>
-          ⟳ ререндер
-        </button>
-        <label className="fd-zoom" style={ctl}>
-          <span style={cap}>скорость {speed.toFixed(1)}x</span>
-          <input type="range" min={0} max={3} step={0.1} value={speed} onChange={(e) => { const s = Number(e.target.value); setSpeed(s); engineRef.current?.setSpeed(s); }} />
-        </label>
-        <label className="fd-zoom" style={ctl}>
-          <span style={cap}>размер {size.toFixed(1)}x</span>
-          <input type="range" min={0.5} max={6} step={0.1} value={size} onChange={(e) => { const s = Number(e.target.value); setSize(s); engineRef.current?.setViewZoom(s); }} />
-        </label>
-        <span style={{ opacity: 0.6, fontSize: 13 }}>танец ⚙:</span>
-        <label className="fd-zoom" style={ctl}>
-          <span style={cap}>частица {dance.block}</span>
-          <input type="range" min={2} max={10} step={0.5} value={dance.block} onChange={setParam("block")} />
-        </label>
-        <label className="fd-zoom" style={ctl}>
-          <span style={cap}>свапы/с {dance.swapsPerSec}</span>
-          <input type="range" min={0} max={120} step={1} value={dance.swapsPerSec} onChange={setParam("swapsPerSec")} />
-        </label>
-        <label className="fd-zoom" style={ctl}>
-          <span style={cap}>дрожание {dance.jitterAmp}</span>
-          <input type="range" min={0} max={4} step={0.1} value={dance.jitterAmp} onChange={setParam("jitterAmp")} />
-        </label>
-        <label className="fd-zoom" style={ctl}>
-          <span style={cap}>частота {dance.jitterFreq}</span>
-          <input type="range" min={0} max={14} step={0.5} value={dance.jitterFreq} onChange={setParam("jitterFreq")} />
-        </label>
       </div>
-      <div ref={hostRef} className="table-host" style={{ overflow: "auto" }} />
+      <div ref={hostRef} className="table-host" />
+
+      {view && (
+        <div className="fd-controls">
+          <label className="fd-zoom">
+            зум
+            <input type="range" min={view.minZoom} max={view.maxZoom} step={0.01} value={view.zoom} onChange={(e) => engineRef.current?.setZoom(Number(e.target.value))} />
+          </label>
+
+          {view.scrollableX && (
+            <div className="fd-scrollbar fd-scrollbar-x" ref={trackXRef}>
+              <div className="fd-scrollbar-thumb" style={{ width: `${view.thumbX * 100}%`, left: `${view.scrollX * (1 - view.thumbX) * 100}%` }} onPointerDown={thumbDown("x")} onPointerMove={thumbMove} onPointerUp={thumbUp} onPointerCancel={thumbUp} />
+            </div>
+          )}
+
+          {view.scrollableY && (
+            <div className="fd-scrollbar fd-scrollbar-y" ref={trackYRef}>
+              <div className="fd-scrollbar-thumb" style={{ height: `${view.thumbY * 100}%`, top: `${view.scrollY * (1 - view.thumbY) * 100}%` }} onPointerDown={thumbDown("y")} onPointerMove={thumbMove} onPointerUp={thumbUp} onPointerCancel={thumbUp} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ export interface ParticleParams {
   drift: number; // разлёт: макс. скорость, px/с (аналог velocityRange≈20 у Telegram)
   life: number; // время жизни частицы, с (меньше → чаще churn → живее)
   twinkleHz: number; // частота мерцания alpha
+  flicker: boolean; // мерцание вкл/выкл (фото-чувствительность → можно погасить)
 }
 
 interface P {
@@ -80,7 +81,7 @@ export class ParticleField {
       }
       const k = age / p.life; // 0..1
       const fade = Math.sin(Math.PI * k); // проявился к середине, погас к концу
-      const flick = 0.55 + 0.45 * Math.sin(t * this.prm.twinkleHz * 6.2832 + p.ph);
+      const flick = this.prm.flicker ? 0.55 + 0.45 * Math.sin(t * this.prm.twinkleHz * 6.2832 + p.ph) : 1;
       const a = fade * flick;
       if (a <= 0.02) continue;
       const x = p.ox + p.vx * age;
