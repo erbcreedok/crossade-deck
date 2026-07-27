@@ -22,6 +22,7 @@ import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./dra
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
 import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP } from "./sandboxLayout";
+import { wrapRow } from "./sandboxWrap";
 import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -848,38 +849,47 @@ export class FreeDeskEngine extends CanvasApp {
   // драг/тени/метки, что и карты (Piece реализует те же способности). Конь тоже носит метку —
   // withDragger/withAnchor generic по элементу, не только по стопке.
   private buildPieces(left: number, top: number): number {
-    this.scene.surface.addChild(this.label("Фишки и фигуры", left, top, 26, 0xcdb98f, undefined, 0));
-    const cy = top + 44 + this.cardH / 2;
-    const r = this.cardH * 0.34; // радиус фишки/подставки
-    const slotW = this.cardW * 1.05;
-    let x = left + this.cardW / 2;
-    const cap = (text: string, w = slotW) => this.scene.surface.addChild(this.label(text, x, cy + this.cardH / 2 + 8, 12, 0x9aa89f, w));
+    return this.sectionFrame(left, top, "Фишки и фигуры", (contentLeft, contentTop) => {
+      const r = this.cardH * 0.34; // радиус фишки/подставки
+      const slotW = this.cardW * 1.05;
 
-    // Ряд как ДАННЫЕ: соло-карта с меткой / фишки-номиналы / шахматы (конь с меткой) / стопка фишек.
-    // Все — тот же драг/тени/метки; фишки/фигуры Draggable+Burnable, но НЕ Flippable (зона реагирует
-    // на способности). `el.kind` диспетчится ниже одним циклом (задел под BoardFactory-контент).
-    const items: PieceRowItem[] = [
-      { caption: "карта + метка", w: slotW, el: { kind: "card", id: "solo-card", card: "A♠" }, marker: { draw: drawAnchorIcon, show: "away", label: "карта" } },
-      { caption: "фишка 5", w: slotW * 0.78, el: { kind: "piece", id: "chip-5", spec: { kind: "chip", color: 0xb23b34, denom: "5" } } },
-      { caption: "фишка 25", w: slotW * 0.78, el: { kind: "piece", id: "chip-25", spec: { kind: "chip", color: 0x2f6b34, denom: "25" } } },
-      { caption: "фишка 100", w: slotW * 0.78, el: { kind: "piece", id: "chip-100", spec: { kind: "chip", color: 0x24242a, denom: "100" } } },
-      { caption: "фишка 500", w: slotW * 0.78, el: { kind: "piece", id: "chip-500", spec: { kind: "chip", color: 0x6c4bb0, denom: "500" } } },
-      { caption: "чёрный конь", w: slotW * 0.9, el: { kind: "piece", id: "chess-knight", spec: { kind: "chess", dark: true, glyph: "♞" } }, marker: { draw: drawRingIcon, show: "empty", label: "конь" } },
-      { caption: "белая пешка", w: slotW * 0.9, el: { kind: "piece", id: "chess-pawn", spec: { kind: "chess", dark: false, glyph: "♟" } } },
-      { caption: "стопка фишек", w: slotW, el: { kind: "stack" } },
-    ];
-    for (const it of items) {
-      const home = { x, y: cy };
-      if (it.el.kind === "card") this.cardSpecs.push({ opts: { id: it.el.id, card: it.el.card, rest: "idle" }, home, depth: 100, bobPhase: 0 });
-      else if (it.el.kind === "piece") this.spawnPiece(it.el.id, home, it.el.spec, r);
-      else this.buildChipStack(x, cy, r); // стопка фишек — группа за грип (GroupDrag)
-      if (it.marker && it.el.kind !== "stack") this.attachSolo(it.el.id, home, it.marker.draw, it.marker.show, it.marker.label);
-      cap(it.caption, it.w);
-      x += it.w;
-    }
+      // Ряд как ДАННЫЕ: соло-карта с меткой / фишки-номиналы / шахматы (конь с меткой) / стопка фишек.
+      // Все — тот же драг/тени/метки; фишки/фигуры Draggable+Burnable, но НЕ Flippable (зона реагирует
+      // на способности). `el.kind` диспетчится ниже одним циклом (задел под BoardFactory-контент).
+      const items: PieceRowItem[] = [
+        { caption: "карта + метка", w: slotW, el: { kind: "card", id: "solo-card", card: "A♠" }, marker: { draw: drawAnchorIcon, show: "away", label: "карта" } },
+        { caption: "фишка 5", w: slotW * 0.78, el: { kind: "piece", id: "chip-5", spec: { kind: "chip", color: 0xb23b34, denom: "5" } } },
+        { caption: "фишка 25", w: slotW * 0.78, el: { kind: "piece", id: "chip-25", spec: { kind: "chip", color: 0x2f6b34, denom: "25" } } },
+        { caption: "фишка 100", w: slotW * 0.78, el: { kind: "piece", id: "chip-100", spec: { kind: "chip", color: 0x24242a, denom: "100" } } },
+        { caption: "фишка 500", w: slotW * 0.78, el: { kind: "piece", id: "chip-500", spec: { kind: "chip", color: 0x6c4bb0, denom: "500" } } },
+        { caption: "чёрный конь", w: slotW * 0.9, el: { kind: "piece", id: "chess-knight", spec: { kind: "chess", dark: true, glyph: "♞" } }, marker: { draw: drawRingIcon, show: "empty", label: "конь" } },
+        { caption: "белая пешка", w: slotW * 0.9, el: { kind: "piece", id: "chess-pawn", spec: { kind: "chess", dark: false, glyph: "♟" } } },
+        { caption: "стопка фишек", w: slotW, el: { kind: "stack" } },
+      ];
 
-    this.contentW = Math.max(this.contentW, x + left);
-    return cy + this.cardH / 2 + 34;
+      // Перенос строк: ряд из 8 переполняет узкий экран (390px) — wrapRow пакует по maxWidth,
+      // itemH включает высоту карты/фишки + подпись под ней (тот же зазор, что был у одной строки).
+      const maxWidth = this.cardW * 8;
+      const itemH = this.cardH + 34;
+      const { items: placed, totalH } = wrapRow(items.map((it) => it.w), maxWidth, itemH, SB_ITEM_GAP);
+      let width = 0;
+      items.forEach((it, i) => {
+        const p = placed[i]!;
+        const x = contentLeft + this.cardW / 2 + p.x;
+        const cy = contentTop + p.y + this.cardH / 2;
+        const home = { x, y: cy };
+        if (it.el.kind === "card") this.cardSpecs.push({ opts: { id: it.el.id, card: it.el.card, rest: "idle" }, home, depth: 100, bobPhase: 0 });
+        else if (it.el.kind === "piece") this.spawnPiece(it.el.id, home, it.el.spec, r);
+        else this.buildChipStack(x, cy, r); // стопка фишек — группа за грип (GroupDrag)
+        if (it.marker && it.el.kind !== "stack") this.attachSolo(it.el.id, home, it.marker.draw, it.marker.show, it.marker.label);
+        this.scene.surface.addChild(this.label(it.caption, x, cy + this.cardH / 2 + 8, 12, 0x9aa89f, it.w));
+        width = Math.max(width, p.x + it.w);
+      });
+
+      const boxW = this.cardW / 2 + width;
+      this.contentW = Math.max(this.contentW, contentLeft + boxW + SB_BOX_PAD);
+      return { bottom: contentTop + totalH, width: boxW };
+    });
   }
 
   // Живой не-карточный элемент: визуал берём из реестра по спеке (pieceKinds), дальше как карту

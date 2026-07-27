@@ -133,4 +133,25 @@ test.describe("песочница — фишки и фигуры", () => {
     await page.mouse.up();
     expect(g.draggingId).toBe("solo-card"); // схвачена именно соло-карта через метку
   });
+
+  // Остальные элементы ряда (chip-25/chip-100/конь) уже покрыты выше индивидуально — эти три
+  // раньше существовали только «по факту наличия», без собственного драг/сжечь теста.
+  for (const id of ["chip-5", "chip-500", "chess-pawn"]) {
+    test(`«${id}» тянется индивидуально (тот же generic-драг)`, async ({ page }) => {
+      const h = await hooks(page);
+      const p = pieceOf(h, id);
+      await dragTo(page, p, { x: p.x + 60, y: p.y + 40 }, true);
+      const g = await hooks(page);
+      await page.mouse.up();
+      expect(g.draggingId).toBe(id);
+    });
+
+    test(`«${id}» можно сжечь — исчезает из ряда`, async ({ page }) => {
+      const h = await hooks(page);
+      await dragTo(page, pieceOf(h, id), h.zones["СЖЕЧЬ"]!);
+      await page.waitForTimeout(1000);
+      const g = await hooks(page);
+      expect(g.pieces.some((p) => p.id === id)).toBe(false);
+    });
+  }
 });
