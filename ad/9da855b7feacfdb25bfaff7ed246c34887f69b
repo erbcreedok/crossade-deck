@@ -1,0 +1,29 @@
+scripts/bootstrap-github-project.sh
+  s_7b34b3ad63f4af::t_42a1807c552023 1-45
+scripts/bootstrap-github-issues.sh
+  s_559e5ecc6d9c5b::t_0d9017f8c22a30 1-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ad9da855b7feacfdb25bfaff7ed246c34887f69b",
+  "prompts": {},
+  "sessions": {
+    "s_559e5ecc6d9c5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11b562e-77c4-4c79-9a40-1f5a344b0148",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_7b34b3ad63f4af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7316dd38-7220-474b-86fa-7a4c84f02b0a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
