@@ -3,9 +3,9 @@ import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
 import { Piece } from "../ui/Piece";
 import { pieceVisual, type PieceSpec } from "../ui/pieceKinds";
-import { BoardZone, type OnOccupied } from "../board/boardZone";
+import { BoardZone, type AcceptRule, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
-import { gridSlots } from "../board/layout/slots";
+import { gridSlots, type PositionedSlot } from "../board/layout/slots";
 import { Field, NORMAL_FIELD } from "../board/field";
 import { Stack } from "../board/stack";
 import { attachControls } from "../ui/controls";
@@ -1037,6 +1037,25 @@ export class FreeDeskEngine extends CanvasApp {
     this.scene.surface.addChild(frame);
   }
 
+  // Геометрия РУЧНОЙ сетки борда: позиционированные слоты + рамка-bounds. DRY для custom-бордов.
+  private gridBounds(left: number, gy: number, cols: number, rows: number, cell: { w: number; h: number }, gap: number): { positioned: PositionedSlot[]; bounds: { x: number; y: number; w: number; h: number } } {
+    const positioned = gridSlots({ cols, cell, gap, origin: { x: left, y: gy } }, rows);
+    const w = cols * cell.w + (cols - 1) * gap;
+    const h = rows * cell.h + (rows - 1) * gap;
+    return { positioned, bounds: { x: left, y: gy, w, h } };
+  }
+
+  // Обвязка борд-зоны: BoardZone + учёт в списках + заголовок + рамка. Общая для пресет-бордов
+  // (spawnBoard) и custom (шахматы/смешанный). Фигуры спавнит вызыватель. opts: value-правило + иная подпись.
+  private registerBoardZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: Board["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string }): BoardZone {
+    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied, rule: opts?.rule });
+    this.boardZones.push(zone);
+    this.boardTitles.push(title);
+    this.scene.surface.addChild(this.label(opts?.labelText ?? title, left, top, 13, 0xcdb98f, undefined, 0));
+    this.drawBoardFrame(zone, bounds);
+    return zone;
+  }
+
   // Родить зону из пресета-данных + отрисовать рамку/слоты/фигуры. Возвращает зону и нижний край
   // (без тоглера/кнопок — их вешает вызывающий). Переиспользуется борд-пресетами и демо выделения.
   private spawnBoard(preset: BoardPreset, pi: number, left: number, top: number): { zone: BoardZone; bottom: number } {
@@ -1047,12 +1066,7 @@ export class FreeDeskEngine extends CanvasApp {
     const { slots, faces } = buildBoardModel(preset, `bz${pi}`);
     for (const [id, f] of Object.entries(faces)) this.faceOf.set(id, f);
     const rule = wrapRule(preset.rule, faces); // value-правило (по лицам) → AcceptRule (по ids)
-    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: preset.onOccupied, rule });
-    this.boardZones.push(zone);
-    this.boardTitles.push(preset.title);
-
-    this.scene.surface.addChild(this.label(preset.title, left, top, 13, 0xcdb98f, undefined, 0));
-    this.drawBoardFrame(zone, bounds);
+    const zone = this.registerBoardZone(preset.title, left, top, positioned, bounds, slots, preset.onOccupied, { rule });
 
     let depth = 300 + pi * 100;
     for (const key of Object.keys(slots)) {
@@ -1143,15 +1157,7 @@ export class FreeDeskEngine extends CanvasApp {
   // Борд из НЕ-карточных фигур (Piece): шахматы прямо на доске. Доказательство, что слоты держат
   // любые фигуры, не только карты — весь драг/переезд/capture работает без правок «для фигур».
   private buildChessBoard(left: number, top: number): number {
-    const cols = 4;
-    const rows = 2;
     const cell = { w: this.cardW * 1.0, h: this.cardH * 0.92 };
-    const gap = 8;
-    const gy = top + 22;
-    const positioned = gridSlots({ cols, cell, gap, origin: { x: left, y: gy } }, rows);
-    const w = cols * cell.w + (cols - 1) * gap;
-    const h = rows * cell.h + (rows - 1) * gap;
-    const bounds = { x: left, y: gy, w, h };
     const specs = [
       { key: "0,0", glyph: "♞", dark: true },
       { key: "0,2", glyph: "♟", dark: false },
@@ -1160,34 +1166,19 @@ export class FreeDeskEngine extends CanvasApp {
     ];
     const slots: Board["slots"] = {};
     specs.forEach((s, i) => (slots[s.key] = { members: [`chessb-${i}`] }));
-    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: "capture" });
-    this.boardZones.push(zone);
-    this.boardTitles.push("шахматы из ФИГУР (Piece, capture)");
-
-    this.scene.surface.addChild(this.label("шахматы из ФИГУР (Piece, capture)", left, top, 13, 0xcdb98f, undefined, 0));
-    this.drawBoardFrame(zone, bounds);
+    const { positioned, bounds } = this.gridBounds(left, top + 22, 4, 2, cell, 8);
+    const zone = this.registerBoardZone("шахматы из ФИГУР (Piece, capture)", left, top, positioned, bounds, slots, "capture");
 
     const r = Math.min(cell.w, cell.h) * 0.34;
-    specs.forEach((s, i) => {
-      const id = `chessb-${i}`;
-      this.spawnPiece(id, zone.figureHome(id), { kind: "chess", dark: s.dark, glyph: s.glyph }, r);
-    });
-    this.scene.surface.addChild(this.label("тащи фигуру на фигуру — съедает (capture)", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
+    specs.forEach((s, i) => this.spawnPiece(`chessb-${i}`, zone.figureHome(`chessb-${i}`), { kind: "chess", dark: s.dark, glyph: s.glyph }, r));
+    this.scene.surface.addChild(this.label("тащи фигуру на фигуру — съедает (capture)", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
     return bounds.y + bounds.h + 34;
   }
 
   // СМЕШАННЫЙ борд: в одном слоте стопка из РАЗНЫХ типов (карта + шахмата + фишка). Финальное
   // доказательство генерика — контейнер держит что угодно вперемешку; z по позиции в стопке.
   private buildMixedBoard(left: number, top: number): number {
-    const cols = 3;
-    const rows = 1;
     const cell = { w: this.cardW * 1.15, h: this.cardH * 1.05 };
-    const gap = 8;
-    const gy = top + 22;
-    const positioned = gridSlots({ cols, cell, gap, origin: { x: left, y: gy } }, rows);
-    const w = cols * cell.w + (cols - 1) * gap;
-    const h = rows * cell.h + (rows - 1) * gap;
-    const bounds = { x: left, y: gy, w, h };
     const r = Math.min(cell.w, cell.h) * 0.3;
     type Def = { t: "card"; face: string } | { t: "chess"; glyph: string; dark: boolean } | { t: "chip"; denom: string; color: number };
     const slotDefs: Record<string, Def[]> = {
@@ -1197,12 +1188,8 @@ export class FreeDeskEngine extends CanvasApp {
     };
     const slots: Board["slots"] = {};
     for (const [key, defs] of Object.entries(slotDefs)) slots[key] = { members: defs.map((_, j) => `mix-${key}-${j}`) };
-    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied: "merge" });
-    this.boardZones.push(zone);
-    this.boardTitles.push("СМЕШАННЫЙ стек: карта+шахмата+фишка");
-
-    this.scene.surface.addChild(this.label("смешанный стек: карта + шахмата + фишка (generic)", left, top, 13, 0xcdb98f, undefined, 0));
-    this.drawBoardFrame(zone, bounds);
+    const { positioned, bounds } = this.gridBounds(left, top + 22, 3, 1, cell, 8);
+    const zone = this.registerBoardZone("СМЕШАННЫЙ стек: карта+шахмата+фишка", left, top, positioned, bounds, slots, "merge", { labelText: "смешанный стек: карта + шахмата + фишка (generic)" });
 
     let depth = 500; // сквозной z по позиции в стопке (карта снизу, фишка сверху)
     for (const [key, defs] of Object.entries(slotDefs)) {
@@ -1214,7 +1201,7 @@ export class FreeDeskEngine extends CanvasApp {
         else this.spawnPiece(id, home, { kind: "chip", color: d.color, denom: d.denom }, r, depth++);
       });
     }
-    this.scene.surface.addChild(this.label("тащи любую фигуру из смешанной стопки в другой слот", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
+    this.scene.surface.addChild(this.label("тащи любую фигуру из смешанной стопки в другой слот", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, bounds.w));
     return bounds.y + bounds.h + 30;
   }
 
