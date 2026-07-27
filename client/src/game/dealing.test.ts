@@ -30,6 +30,14 @@ describe("autoDealPlan", () => {
     expect(autoDealPlan([], 10)).toEqual([]);
     expect(autoDealPlan(["a"], 0)).toEqual([]);
   });
+
+  it("36 карт на 4 игроков — ровно по 9, а не 10/10/8/8", () => {
+    const order = ["a", "b", "c", "d"];
+    const plan = autoDealPlan(order, 36);
+    expect(plan).toHaveLength(36);
+    const counts = order.map((id) => plan.filter((x) => x === id).length);
+    expect(counts).toEqual([9, 9, 9, 9]);
+  });
 });
 
 

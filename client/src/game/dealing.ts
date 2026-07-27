@@ -17,17 +17,23 @@ export function dealOrder(seatIds: readonly string[], dealerId: string): string[
   return order;
 }
 
-// По две карты игроку, затем следующему по кругу. Повторять, пока не наберётся `total`.
-// Нечётный остаток — одна карта последнему в очереди.
+// По две карты игроку, затем следующему по кругу — целыми ПАРНЫМИ раундами (каждый
+// такой раунд раздаёт ВСЕМ поровну, по 2). Остаток меньше парного раунда (< 2×игроков)
+// дораздаётся по кругу ПО ОДНОЙ, с первого в очереди — иначе при total, кратном числу
+// игроков, но НЕЧЁТНОМ на игрока (36 на 4 = 9 каждому), парная раздача переходит в
+// последний неполный раунд и раздаёт лишнюю пару первым двум подряд вместо одной карты
+// каждому: было 10/10/8/8 вместо 9/9/9/9.
 export function autoDealPlan(order: readonly string[], total: number): string[] {
   if (order.length === 0 || total <= 0) return [];
+  const n = order.length;
   const plan: string[] = [];
+  const pairRounds = Math.floor(total / (2 * n));
+  for (let r = 0; r < pairRounds; r++) {
+    for (const id of order) plan.push(id, id);
+  }
   let oi = 0;
   while (plan.length < total) {
-    const id = order[oi % order.length]!;
-    plan.push(id);
-    if (plan.length >= total) break;
-    plan.push(id);
+    plan.push(order[oi % n]!);
     oi += 1;
   }
   return plan;
