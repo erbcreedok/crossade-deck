@@ -1,0 +1,60 @@
+client2/src/game/engine/censorSource.ts
+  s_559e5ecc6d9c5b::t_35127cdb092fd0 1-31
+client2/src/game/censorConfig.test.ts
+  s_559e5ecc6d9c5b::t_6eb4fea78d231d 1-63
+client2/src/game/engine/cardTextures.ts
+  s_559e5ecc6d9c5b::t_9b0815bd3a2c58 171-187
+  s_559e5ecc6d9c5b::t_05783de0a0d0b9 170
+client2/src/game/engine/freeDeskEngine.ts
+  s_559e5ecc6d9c5b::t_9f183e3900eccd 53
+client2/docs/HANDOFF.md
+  s_559e5ecc6d9c5b::t_f28bdfd2a0e873 32-40
+  s_559e5ecc6d9c5b::t_060a2cd47dc688 63-64,67-68
+client2/src/game/censorConfig.ts
+  s_559e5ecc6d9c5b::t_5d1a557ea7348c 1-59
+client2/src/game/censorDemo.ts
+  s_559e5ecc6d9c5b::t_0babcff82e5129 1,3-4,6,10
+  s_559e5ecc6d9c5b::t_aeb4c482f279b9 216-217
+  s_559e5ecc6d9c5b::t_02824de7e53d90 41
+  s_559e5ecc6d9c5b::t_eb52bd7f5b2a94 251
+  s_559e5ecc6d9c5b::t_65a25dcc824734 267
+  s_559e5ecc6d9c5b::t_283d4695e7c304 192
+client2/src/game/ui/CardTextureCache.ts
+  s_559e5ecc6d9c5b::t_3d3c12b7965d71 80,86,88
+  s_559e5ecc6d9c5b::t_6153298b1e7b8f 5,11
+  s_559e5ecc6d9c5b::t_6bcc349fd769cd 21,23,32,38-48
+  s_559e5ecc6d9c5b::t_a1c2de578efc4e 49
+client2/src/game/engine/censorGpu.ts
+  s_559e5ecc6d9c5b::t_f85d4abf8ac67c 3
+client2/src/game/engine/censorParticles.ts
+  s_559e5ecc6d9c5b::t_1e6ade9106208f 15
+  s_559e5ecc6d9c5b::t_6cbdbb2ae20cf7 73,78,80,82,87
+client2/src/game/ui/Card.ts
+  s_559e5ecc6d9c5b::t_17424b6211480d 8-9
+  s_559e5ecc6d9c5b::t_fa5eaea92ac476 190-193
+  s_559e5ecc6d9c5b::t_275fccdc2fab54 222
+  s_559e5ecc6d9c5b::t_d33130a0830da8 300-301
+  s_559e5ecc6d9c5b::t_3d6e2039d761ac 92-93
+  s_559e5ecc6d9c5b::t_eee07113a632d4 215-216,218
+  s_559e5ecc6d9c5b::t_076003235c95e2 118,124-137
+  s_559e5ecc6d9c5b::t_ab18bd7bcd36a1 138
+client2/docs/open-tasks.md
+  s_559e5ecc6d9c5b::t_7d4763b60a82c4 23-28
+  s_559e5ecc6d9c5b::t_84301c58ea05a7 12-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "50c7483b0f0398baba198e0b60b756601915e7af",
+  "prompts": {},
+  "sessions": {
+    "s_559e5ecc6d9c5b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11b562e-77c4-4c79-9a40-1f5a344b0148",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
