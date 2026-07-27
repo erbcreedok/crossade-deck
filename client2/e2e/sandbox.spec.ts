@@ -82,6 +82,9 @@ test.describe("песочница — действия", () => {
                 stackCards: { x: number; y: number }[][];
                 stackIds: string[][];
                 markerVis: { dragger: boolean; anchor: boolean }[];
+                stackModeAt: { x: number; y: number }[];
+                stackSqueezeAt: { x: number; y: number }[];
+                stackReorderAt: { x: number; y: number } | null;
                 cardW: number;
                 draggingId: string | null;
               };
@@ -226,6 +229,77 @@ test.describe("песочница — действия", () => {
     });
     await page.mouse.up();
     expect(spread).toBe(true); // соседи раздвинулись под дыру
+  });
+
+  test("тумблер «всю стопку»: тап по любой карте цепляет ВСЮ пачку, не только грип", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    await page.mouse.click(box.x + h.stackModeAt[1]!.x, box.y + h.stackModeAt[1]!.y); // «всю стопку»
+    await page.waitForTimeout(150);
+    h = await hooks(page);
+    const sIdx = 2; // третья стопка (якорь «всегда») — свободна от других тестов этого файла
+    const before = h.stackCards[sIdx]!;
+    const bottom = before[0]!; // нижняя карта — НЕ грип, тапаем карту напрямую
+    const dx = -40;
+    await page.mouse.move(box.x + bottom.x, box.y + bottom.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + bottom.x + dx, box.y + bottom.y + 20, { steps: 12 });
+    await page.waitForTimeout(200);
+    const g = await hooks(page);
+    await page.mouse.up();
+    const other = g.stackCards[sIdx]![1]!; // соседняя карта — за неё НЕ тянули
+    const otherBefore = before[1]!;
+    // В режиме «всю стопку» тап по ЛЮБОЙ карте цепляет драггер стопки — вся пачка едет синхронно.
+    expect(Math.sign(other.x - otherBefore.x)).toBe(Math.sign(dx));
+    expect(Math.abs(other.x - otherBefore.x)).toBeGreaterThan(10);
+  });
+
+  test("тумблер «в руку»: пачка сжимается тесно при драге (не врассыпную)", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    await page.mouse.click(box.x + h.stackSqueezeAt[1]!.x, box.y + h.stackSqueezeAt[1]!.y); // «в руку»
+    await page.waitForTimeout(150);
+    h = await hooks(page);
+    const grip = h.grips[0]!;
+    await page.mouse.move(box.x + grip.x, box.y + grip.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + grip.x + 40, box.y + grip.y - 140, { steps: 12 });
+    await page.waitForTimeout(200);
+    const g = await hooks(page);
+    await page.mouse.up();
+    const cards = g.stackCards[0]!;
+    const spreadX = Math.max(...cards.map((c) => c.x)) - Math.min(...cards.map((c) => c.x));
+    expect(spreadX).toBeLessThan(h.cardW * 0.5); // тесная пачка под пальцем, не раскрытый веер
+  });
+
+  test("тумблер «реордер стопок: выкл» — тянешь верхнюю карту, порядок НЕ меняется", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    let h = await hooks(page);
+    expect(h.stackReorderAt).not.toBeNull();
+    await page.mouse.click(box.x + h.stackReorderAt!.x, box.y + h.stackReorderAt!.y); // вкл → выкл
+    await page.waitForTimeout(150);
+    h = await hooks(page);
+    const before = h.stackIds[0]!;
+    const top = h.stackCards[0]![before.length - 1]!;
+    const first = h.stackCards[0]![0]!;
+    await dragTo(page, top, { x: first.x - h.cardW * 0.4, y: first.y });
+    await page.waitForTimeout(500);
+    const g = await hooks(page);
+    expect(g.stackIds[0]!).toEqual(before); // реордер выключен — порядок как был
+  });
+
+  test("якорь «когда унесли»: скрыт дома, показывается пока стопку держат вдали", async ({ page }) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    const h = await hooks(page);
+    expect(h.markerVis[0]!.anchor).toBe(false); // дома
+    const grip = h.grips[0]!;
+    await page.mouse.move(box.x + grip.x, box.y + grip.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + grip.x + 150, box.y + grip.y + 150, { steps: 12 });
+    await page.waitForTimeout(200);
+    const g = await hooks(page);
+    expect(g.markerVis[0]!.anchor).toBe(true); // унесли — якорь появился
+    await page.mouse.up();
   });
 });
 

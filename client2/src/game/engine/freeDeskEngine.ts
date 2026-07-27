@@ -8,7 +8,7 @@ import type { Board } from "../board/board";
 import { gridSlots, type PositionedSlot } from "../board/layout/slots";
 import { Field, NORMAL_FIELD } from "../board/field";
 import { Stack } from "../board/stack";
-import { attachControls } from "../ui/controls";
+import { attachControls, type Configurable } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import { layoutForPreset } from "../board/boardLayout";
 import { buildBoardModel, wrapRule } from "../board/boardModel";
@@ -21,7 +21,7 @@ import type { Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
-import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP } from "./sandboxLayout";
+import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SECTION_GAP, SB_ITEM_GAP } from "./sandboxLayout";
 import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
@@ -233,6 +233,9 @@ export class FreeDeskEngine extends CanvasApp {
   private pendingHost: MarkerHost | null = null; // host захватываемой цели (между pickCard и grab)
   private stackMode: "one" | "whole" = "one"; // режим драга карты стопки: одна карта / вся пачка
   private dragSqueeze = false; // плейсмент пачки при драге: false — врассыпную, true — сжать в руку
+  private stackModeButtons: Button[] = []; // «режим драга карты» — для e2e-хука
+  private stackSqueezeButtons: Button[] = []; // «при драге стопки» — для e2e-хука
+  private stackReorderToggle: Toggle | null = null; // «реордер стопок» — для e2e-хука
   private buttons: Button[] = [];
   private buttonShowcase: { cap: string; b: Button }[] = []; // раздел «Кнопки» — для e2e-хука
   private zones: Array<{ zone: DropZone; onDrop: (p: DragPayload) => void }> = [];
@@ -444,6 +447,9 @@ export class FreeDeskEngine extends CanvasApp {
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
     buttonShowcase: { cap: string; x: number; y: number; disabled: boolean }[];
+    stackModeAt: { x: number; y: number }[];
+    stackSqueezeAt: { x: number; y: number }[];
+    stackReorderAt: { x: number; y: number } | null;
     cardW: number;
     draggingId: string | null;
   } {
@@ -492,6 +498,9 @@ export class FreeDeskEngine extends CanvasApp {
       })),
       field: this.fieldHook(toScreen),
       buttonShowcase: this.buttonShowcase.map(({ cap, b }) => ({ cap, disabled: b.disabled, ...toScreen(b.x, b.y) })),
+      stackModeAt: this.stackModeButtons.map((b) => toScreen(b.x, b.y)),
+      stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
+      stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
     };
@@ -770,51 +779,69 @@ export class FreeDeskEngine extends CanvasApp {
   // Ряд из ТРЁХ стопок с разными «драггерами» захвата всей пачки: без ручки / грип / таб.
   // Плюс переключатель режима драга карты (одна / вся стопка). Верхняя карта справа, левитируют.
   private buildStacks(left: number, top: number): number {
-    this.scene.surface.addChild(this.label("Стопки", left, top, 26, 0xcdb98f, undefined, 0));
-    const cy = top + 44 + this.cardH / 2;
-    const step = this.cardW * 0.4; // сдвиг соседа вправо (перекрытие)
-    const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦"];
-    const footprint = this.cardW + (ranks.length - 1) * step;
-    const gap = this.cardW * 0.9;
-    // Демо якорей: у трёх стопок РАЗНЫЕ политики видимости и разные иконки. Драггер у всех
-    // одинаковый (грип, летит с пачкой). Драггер↔якорь свапаются по состоянию (см. marker.ts).
-    const anchors: { draw: (g: Graphics) => void; show: ShowPolicy; cap: string }[] = [
-      { draw: drawAnchorIcon, show: "away", cap: "якорь: когда унесли" },
-      { draw: drawRingIcon, show: "empty", cap: "кольцо: когда пусто" },
-      { draw: drawPinIcon, show: "always", cap: "метка: всегда" },
-    ];
-    anchors.forEach((a, s) => {
-      const ox = left + s * (footprint + gap);
-      const ids = ranks.map((_, i) => `stk${s}c${i}`);
-      // Stack держит порядок/дом/реордер на дереве слотов; дома карт берём у него.
-      const stack = new Stack({ left: ox, top: cy - this.cardH / 2, cell: { w: this.cardW, h: this.cardH }, step, ids, reorder: true });
-      ids.forEach((id, i) => {
-        this.cardSpecs.push({ opts: { id, card: ranks[i]!, rest: "floating" }, home: stack.homeOf(id), depth: i, bobPhase: i * 0.6 + s });
+    return this.sectionFrame(left, top, "Стопки", (contentLeft, contentTop) => {
+      const cy = contentTop + this.cardH / 2;
+      const step = this.cardW * 0.4; // сдвиг соседа вправо (перекрытие)
+      const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦"];
+      const footprint = this.cardW + (ranks.length - 1) * step;
+      const gap = this.cardW * 0.9;
+      // Демо якорей: у трёх стопок РАЗНЫЕ политики видимости и разные иконки. Драггер у всех
+      // одинаковый (грип, летит с пачкой). Драггер↔якорь свапаются по состоянию (см. marker.ts).
+      const anchors: { draw: (g: Graphics) => void; show: ShowPolicy; cap: string }[] = [
+        { draw: drawAnchorIcon, show: "away", cap: "якорь: когда унесли" },
+        { draw: drawRingIcon, show: "empty", cap: "кольцо: когда пусто" },
+        { draw: drawPinIcon, show: "always", cap: "метка: всегда" },
+      ];
+      anchors.forEach((a, s) => {
+        const ox = contentLeft + s * (footprint + gap);
+        const ids = ranks.map((_, i) => `stk${s}c${i}`);
+        // Stack держит порядок/дом/реордер на дереве слотов; дома карт берём у него.
+        const stack = new Stack({ left: ox, top: cy - this.cardH / 2, cell: { w: this.cardW, h: this.cardH }, step, ids, reorder: true });
+        ids.forEach((id, i) => {
+          this.cardSpecs.push({ opts: { id, card: ranks[i]!, rest: "floating" }, home: stack.homeOf(id), depth: i, bobPhase: i * 0.6 + s });
+        });
+        const slot = { x: ox + footprint / 2, y: cy }; // центр стопки — дом для меток
+        const host: MarkerHost = {
+          slotPos: () => slot,
+          state: () => this.stackState(stack.ids),
+          makePayload: (cp) => this.makeStackPayload(stack.ids, cp),
+        };
+        const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
+          draw: drawGrip,
+          offset: { x: 0, y: this.cardH / 2 + 9 }, // грип под стопкой
+          hit: { w: 44, h: 22 },
+          follow: true,
+          followOffset: { x: 0, y: this.cardH * 0.62 }, // едет под пачкой у пальца
+        });
+        const anchor = withAnchor(host, this.scene.surface, { draw: a.draw, show: a.show }); // якорь в центре, под картами
+        this.markers.push(dragger, anchor);
+        this.stacks.push({ stack, host, dragger, anchor });
+        this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(stack.top ?? "") ?? null });
+        this.scene.surface.addChild(this.label(a.cap, ox + footprint / 2, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
       });
-      const slot = { x: ox + footprint / 2, y: cy }; // центр стопки — дом для меток
-      const host: MarkerHost = {
-        slotPos: () => slot,
-        state: () => this.stackState(stack.ids),
-        makePayload: (cp) => this.makeStackPayload(stack.ids, cp),
+      const stacksRight = contentLeft + 2 * (footprint + gap) + footprint;
+      let y = cy + this.cardH / 2 + 50;
+      let width = stacksRight - contentLeft;
+      const r1 = this.segToggle(contentLeft, y, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
+      this.stackModeButtons = r1.buttons;
+      y = r1.bottom + SB_ITEM_GAP;
+      width = Math.max(width, r1.width);
+      const r2 = this.segToggle(contentLeft, y, "при драге стопки:", ["рассыпью", "в руку"], this.dragSqueeze ? 1 : 0, (i) => (this.dragSqueeze = i === 1));
+      this.stackSqueezeButtons = r2.buttons;
+      y = r2.bottom + SB_ITEM_GAP;
+      width = Math.max(width, r2.width);
+      // «реордер стопок:» — общий тумблер на ВСЕ три демо-стопки разом (Stack.Configurable сам
+      // по себе — про ОДНУ стопку; адаптер сверху даёт attachControls+Toggle вместо segToggle,
+      // не меняя поведение «один переключатель — все стопки»).
+      const reorderAll: Configurable = {
+        params: () => [{ kind: "bool", label: "реордер стопок:", get: () => this.stacks[0]?.stack.reorder ?? true, set: (v) => this.stacks.forEach((st) => (st.stack.reorder = v)) }],
       };
-      const dragger = withDragger(host, this.scene.verb, this.scene.cards.drag, {
-        draw: drawGrip,
-        offset: { x: 0, y: this.cardH / 2 + 9 }, // грип под стопкой
-        hit: { w: 44, h: 22 },
-        follow: true,
-        followOffset: { x: 0, y: this.cardH * 0.62 }, // едет под пачкой у пальца
-      });
-      const anchor = withAnchor(host, this.scene.surface, { draw: a.draw, show: a.show }); // якорь в центре, под картами
-      this.markers.push(dragger, anchor);
-      this.stacks.push({ stack, host, dragger, anchor });
-      this.grabbers.push({ marker: dragger, host, lead: () => this.byId.get(stack.top ?? "") ?? null });
-      this.scene.surface.addChild(this.label(a.cap, ox + footprint / 2, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
+      const rc = attachControls(reorderAll, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: () => this.wake() }, { x: contentLeft, y });
+      this.stackReorderToggle = rc.toggles[0] ?? null;
+      y = rc.bottom;
+      width = Math.max(width, rc.toggles[0]?.w ?? 0);
+      return { bottom: y, width };
     });
-    const toggleY = cy + this.cardH / 2 + 50;
-    this.segToggle(left, toggleY, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
-    this.segToggle(left, toggleY + 28, "при драге стопки:", ["рассыпью", "в руку"], this.dragSqueeze ? 1 : 0, (i) => (this.dragSqueeze = i === 1));
-    this.segToggle(left, toggleY + 56, "реордер стопок:", ["выкл", "вкл"], 1, (i) => this.stacks.forEach((st) => (st.stack.reorder = i === 1)));
-    return toggleY + 84;
   }
 
   // Ряд НЕ-карточных элементов: соло-карта с меткой + фишки номиналов + шахматы. Все — тот же
@@ -949,7 +976,9 @@ export class FreeDeskEngine extends CanvasApp {
 
   // Стильный сегментный переключатель режима драга: «по карте» | «всю стопку».
   // Стильный сегментный переключатель: подпись + текст-кнопки, под активной — золотая черта.
-  private segToggle(left: number, y: number, caption: string, labels: string[], initial: number, onPick: (i: number) => void): void {
+  // Остаётся для ДЕМО-флагов самого движка (не свойство переиспользуемого объекта) — там, где
+  // цель уже Configurable, тумблер идёт через attachControls+Segmented (см. раздел «Дизайн»).
+  private segToggle(left: number, y: number, caption: string, labels: string[], initial: number, onPick: (i: number) => void): { bottom: number; width: number; buttons: Button[] } {
     const cap = this.label(caption, left, y, 12, 0x9aa89f, undefined, 0);
     this.scene.surface.addChild(cap);
     const mark = new Graphics();
@@ -961,6 +990,7 @@ export class FreeDeskEngine extends CanvasApp {
       this.wake();
     };
     let x = left + cap.width + 14;
+    let rowH = 0;
     labels.forEach((lab, i) => {
       const b = this.textButton(lab, () => {
         onPick(i);
@@ -970,9 +1000,11 @@ export class FreeDeskEngine extends CanvasApp {
       this.registerButton(b);
       btns.push(b);
       x += b.w + 10;
+      rowH = Math.max(rowH, b.h);
     });
     this.scene.surface.addChild(mark);
     setMark(initial);
+    return { bottom: y + rowH, width: x - left - 10, buttons: btns };
   }
 
   // ——— ПОЛЕ — обвязка обособленного модуля board/field.ts (механика ЖИВЁТ там) ———
