@@ -1,0 +1,21 @@
+client2/src/game/engine/panZoom.ts
+  s_89d5ad20619017::t_12fdb5091f221c 1-198
+client2/docs/animation-levers.md
+  s_89d5ad20619017::t_26a4c82e385795 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4dc56940c5a69be23c3e438518b23f5b62206e1f",
+  "prompts": {},
+  "sessions": {
+    "s_89d5ad20619017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e038b9d6-2ebf-4c87-aedc-2a178ce2daa4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
