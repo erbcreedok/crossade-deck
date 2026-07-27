@@ -8,7 +8,7 @@
 
 ```bash
 cd client2
-npm test            # vitest — 270 тестов (юниты)
+npm test            # vitest — 283 теста (юниты)
 npx tsc --noEmit    # типы
 npx vite build      # прод-сборка
 npx vite            # dev-сервер
@@ -19,8 +19,33 @@ npx playwright test # e2e/визрегрессия (нужен запущенн�
 `motion` — стенд анимаций, иначе меню. Весь client2 — ЦЕЛИКОМ на канвасе (Pixi v8);
 DOM только для навигации-топбара и скроллбаров/зума (одинаково в песочнице и на `/motion`).
 
-**Git:** ветка `main`, ~49 коммитов ВПЕРЕДИ `origin/main`, НЕ запушено. Дерево чистое.
-Коммитим по-русски, префиксами (feat/fix/refactor/chore), с `Co-Authored-By`.
+**Git:** ветка `main`, всё ЗАПУШЕНО на `origin/main`, дерево чистое. CI на пуше гоняет гейт
+(server/client/client2 + e2e) и деплоит зелёный `main` на `/v2/`. Коммитим по-русски, префиксами
+(feat/fix/refactor/chore), с `Co-Authored-By`.
+
+## Последнее — сессия 2026-07-27 (рефакторная линия ЗАКРЫТА)
+
+Рефакторный план **E1–E7 (`REFACTOR.md`) закрыт или сделан по факту**. За сессию:
+- **Host `engine/canvasApp.ts`** (E1): все 3 движка (FreeDesk/Table/Censor) на общей базе —
+  жизненный цикл + цикл кадра, хуки `onLayout/build/onBooted/onTeardown/frame(dt):moving`.
+- **Модель карты (E5)** клиентски: `id` = опаковый КЛЮЧ; значение (`card`) отделено и может быть
+  ПРИДЕРЖАНО (`""` → маска); способности `Concealable`/`Valued` (element.ts) — скрытость это РЕЖИМ,
+  снимаемый извне. Хардкод `joker` убран → реестр `CUSTOM_FACES`.
+- **BoardFactory v1 (E6):** grid-борд = `BoardConfig` + `mountBoard`; реестр фигур `ui/pieceKinds.ts`;
+  единый `spawnElement` для ВСЕХ бордов. Пресеты (`BOARD_PRESETS`) — свой путь, свод (v2) отложен.
+- **Командный порт `FreeDeskEngine.dispatch(cmd)`** (СВЕРХ плана): единая дверь драйверов
+  (палец/консоль/сервер/AI). `flipCard/moveCard/setConcealed/setCardValue` — обёртки над ним.
+- **Фикс swap-бага:** `refreshZoneHomes` теперь зовёт `setTarget` (вытесненная фигура едет в слот).
+
+**Источники правды (читать ПЕРЕД работой):** `REFACTOR.md` (статус E1–E7 + что осталось = оверкил /
+после-геймплея) · **`CONTROL-DESIGN.md`** (видение управления/конфликтов/сети: 5 каналов
+Правда/Команды/Политика/FX/Presence + Ports&Adapters + «действия=команды, вид=f(state)» — читать
+перед дропом/анимациями/сетью/undo) · `GRID-DESIGN.md`, `ENGINE-UPGRADE.md` (борды/BoardFactory).
+
+**Что дальше:** ГЕЙМПЛЕЙ (правила поверх готовой механики) и под него — серверная линия из
+`CONTROL-DESIGN.md` (командная шина / политика / presence / undo; E5-серверная секретность:
+токен-ключ + протокол). Оставшийся рефактор — только оверкил (камера FreeDesk→`attachPanZoom`,
+BoardFactory v2, дальнейшее «ужать FreeDesk» — он ~1880 строк storybook-контента, механика уже вынесена).
 
 ## 1. Текущее состояние (evergreen)
 
