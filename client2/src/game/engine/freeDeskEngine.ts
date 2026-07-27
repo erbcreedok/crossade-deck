@@ -1,7 +1,8 @@
 import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
-import { Piece, drawChip, drawChessPiece } from "../ui/Piece";
+import { Piece } from "../ui/Piece";
+import { pieceVisual, type PieceSpec } from "../ui/pieceKinds";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots } from "../board/layout/slots";
@@ -778,22 +779,20 @@ export class FreeDeskEngine extends CanvasApp {
       { v: "100", c: 0x24242a },
       { v: "500", c: 0x6c4bb0 },
     ];
-    const chipShadow = { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 }; // фишка лежит — тень почти круглая под ней
     for (const ch of chips) {
-      this.spawnPiece(`chip-${ch.v}`, { x, y: cy }, r * 2, r * 2, (root) => drawChip(root, r, ch.c, ch.v), chipShadow);
+      this.spawnPiece(`chip-${ch.v}`, { x, y: cy }, { kind: "chip", color: ch.c, denom: ch.v }, r);
       cap(`фишка ${ch.v}`, slotW * 0.78);
       x += slotW * 0.78;
     }
 
     // 3) ШАХМАТЫ: сплошные силуэты (чёрный набор глифов), тень — плоский овал у ножки. Конь тоже
     // с меткой — метка не про карты. Пешка тоже глиф чёрного набора, крашенный в «белую» команду.
-    const pieceShadow = { rx: r * 0.58, ry: r * 0.18, dy: r * 0.72 }; // стоящая фигура — узкий овал у основания
-    this.spawnPiece("chess-knight", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, true, "♞"), pieceShadow);
+    this.spawnPiece("chess-knight", { x, y: cy }, { kind: "chess", dark: true, glyph: "♞" }, r);
     this.attachSolo("chess-knight", { x, y: cy }, drawRingIcon, "empty", "конь"); // якорь «когда пусто» (сожжёшь → покажется)
     cap("чёрный конь", slotW * 0.9);
     x += slotW * 0.9;
 
-    this.spawnPiece("chess-pawn", { x, y: cy }, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, false, "♟"), pieceShadow);
+    this.spawnPiece("chess-pawn", { x, y: cy }, { kind: "chess", dark: false, glyph: "♟" }, r);
     cap("белая пешка", slotW * 0.9);
     x += slotW * 0.9;
 
@@ -806,9 +805,11 @@ export class FreeDeskEngine extends CanvasApp {
     return cy + this.cardH / 2 + 34;
   }
 
-  // Живой не-карточный элемент: расставляем как карту (snapTo → слой → реестр byId → список pieces).
-  private spawnPiece(id: string, home: { x: number; y: number }, w: number, h: number, build: (root: Container) => void, shadow: { rx: number; ry: number; dy: number }, depth?: number): void {
-    const piece = new Piece({ id, w, h, build, shadow });
+  // Живой не-карточный элемент: визуал берём из реестра по спеке (pieceKinds), дальше как карту
+  // (snapTo → слой → реестр byId → список pieces). r — радиус; размер элемента r*2.
+  private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number): void {
+    const { build, shadow } = pieceVisual(spec, r);
+    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow });
     piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
     this.placeCard(piece);
@@ -862,7 +863,7 @@ export class FreeDeskEngine extends CanvasApp {
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
       const id = `pile-${i}`;
-      this.spawnPiece(id, { x, y: cy - i * r * 0.28 }, r * 2, r * 2, (root) => drawChip(root, r, 0xc79a3e, ""), { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 }); // одинаковые, друг на друге
+      this.spawnPiece(id, { x, y: cy - i * r * 0.28 }, { kind: "chip", color: 0xc79a3e, denom: "" }, r); // одинаковые, друг на друге
       ids.push(id);
     }
     const slot = { x, y: cy - ((n - 1) / 2) * r * 0.28 }; // центр столбика
@@ -1161,7 +1162,7 @@ export class FreeDeskEngine extends CanvasApp {
     const r = Math.min(cell.w, cell.h) * 0.34;
     specs.forEach((s, i) => {
       const id = `chessb-${i}`;
-      this.spawnPiece(id, zone.figureHome(id), r * 2, r * 2, (root) => drawChessPiece(root, r * 2, s.dark, s.glyph), { rx: r * 0.55, ry: r * 0.18, dy: r * 0.7 });
+      this.spawnPiece(id, zone.figureHome(id), { kind: "chess", dark: s.dark, glyph: s.glyph }, r);
     });
     this.scene.surface.addChild(this.label("тащи фигуру на фигуру — съедает (capture)", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
     return bounds.y + bounds.h + 34;
@@ -1201,8 +1202,8 @@ export class FreeDeskEngine extends CanvasApp {
         const id = `mix-${key}-${j}`;
         const home = zone.figureHome(id);
         if (d.t === "card") this.cardSpecs.push({ opts: { id, card: d.face, rest: "idle", size: 0.78 }, home, depth: depth++, bobPhase: 0 });
-        else if (d.t === "chess") this.spawnPiece(id, home, r * 2, r * 2, (root) => drawChessPiece(root, r * 2, d.dark, d.glyph), { rx: r * 0.55, ry: r * 0.18, dy: r * 0.7 }, depth++);
-        else this.spawnPiece(id, home, r * 2, r * 2, (root) => drawChip(root, r, d.color, d.denom), { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 }, depth++);
+        else if (d.t === "chess") this.spawnPiece(id, home, { kind: "chess", dark: d.dark, glyph: d.glyph }, r, depth++);
+        else this.spawnPiece(id, home, { kind: "chip", color: d.color, denom: d.denom }, r, depth++);
       });
     }
     this.scene.surface.addChild(this.label("тащи любую фигуру из смешанной стопки в другой слот", left, bounds.y + bounds.h + 12, 12, 0x9aa89f, w));
