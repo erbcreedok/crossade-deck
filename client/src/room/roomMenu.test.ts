@@ -5,6 +5,7 @@ const BASE: RoomMenuFlags = {
   freeMode: false,
   amIDealer: false,
   autoDealing: false,
+  deckCount: 36,
   phase: "lobby",
   handFanOpen: false,
   handSize: 0,
@@ -37,6 +38,17 @@ describe("roomMenu", () => {
     const dealer = ids({ amIDealer: true });
     expect(dealer).toEqual(expect.arrayContaining(["collect_hands", "reset_deck", "auto_deal"]));
     expect(ids({ amIDealer: false })).not.toContain("collect_hands");
+  });
+
+  it("пустая колода: раздавать нечего — пункта автораздачи нет", () => {
+    const empty = ids({ amIDealer: true, deckCount: 0 });
+    expect(empty).not.toContain("auto_deal");
+    // Собрать карты и сбросить колоду — наоборот, ровно то, чем чинят пустой стол.
+    expect(empty).toEqual(expect.arrayContaining(["collect_hands", "reset_deck"]));
+  });
+
+  it("идущую раздачу можно остановить и на последней карте", () => {
+    expect(ids({ amIDealer: true, autoDealing: true, deckCount: 0 })).toContain("auto_deal_stop");
   });
 
   it("во время автораздачи пункт становится «стопом»", () => {

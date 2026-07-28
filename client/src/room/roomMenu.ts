@@ -29,6 +29,8 @@ export interface RoomMenuFlags {
   amIDealer: boolean;
   /** Автораздача идёт прямо сейчас — пункт превращается в «стоп». */
   autoDealing: boolean;
+  /** Сколько карт осталось в колоде: из пустой раздавать нечего. */
+  deckCount: number;
   phase: "lobby" | "playing" | "finished";
   /** Веер своей руки раскрыт — только тогда сортировка имеет смысл. */
   handFanOpen: boolean;
@@ -51,11 +53,12 @@ export function roomMenu(f: RoomMenuFlags): MenuEntry[] {
   if (f.amIDealer && !f.freeMode) {
     items.push({ id: "collect_hands", label: "Собрать все карты" });
     items.push({ id: "reset_deck", label: "Сбросить колоду" });
-    items.push(
-      f.autoDealing
-        ? { id: "auto_deal_stop", label: "⏹ Стоп раздача" }
-        : { id: "auto_deal", label: "Автораздача" },
-    );
+    // Из пустой колоды раздавать нечего — пункт уходит совсем. А вот «стоп» остаётся
+    // всегда, пока раздача идёт: она может доедать последние карты, и обрывать её —
+    // единственное, что тут ещё имеет смысл. Собрать карты и сбросить колоду рядом
+    // остаются — это как раз то, чем пустой стол и чинят.
+    if (f.autoDealing) items.push({ id: "auto_deal_stop", label: "⏹ Стоп раздача" });
+    else if (f.deckCount > 0) items.push({ id: "auto_deal", label: "Автораздача" });
   }
   // Сортировать нечего, пока в руке одна карта или веер сложен.
   if (f.handFanOpen && f.handSize > 1) {

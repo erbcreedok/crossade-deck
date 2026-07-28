@@ -18,6 +18,17 @@ describe("barActionsFor — раздача", () => {
     expect(a.secondary?.label.trim()).not.toBe("");
   });
 
+  it("пустая колода: мешать нечего — слот пуст, но «ГОУ!» остаётся", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { amIDealer: true, deckCount: 0 });
+    expect(a.main).toBeNull();
+    expect(a.secondary?.id).toBe("go");
+  });
+
+  it("в колоде есть карты — «Перемешать» на месте", () => {
+    const a = barActionsFor(EMPTY_SELECTION, { amIDealer: true, deckCount: 1 });
+    expect(a.main?.id).toBe("shuffle");
+  });
+
   it("игрок: Готов / Ждите…", () => {
     const a = barActionsFor(EMPTY_SELECTION, { amIDealer: false, myReady: false });
     expect(a.main?.id).toBe("ready");

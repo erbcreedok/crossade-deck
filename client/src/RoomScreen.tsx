@@ -367,6 +367,7 @@ export function RoomScreen({
     freeMode,
     amIDealer,
     autoDealing,
+    deckCount: deck.length,
     phase,
     handFanOpen,
     handSize: myHand.length,
