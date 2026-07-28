@@ -1,0 +1,55 @@
+client2/src/Table.tsx
+  s_f67e66864dd957::t_6e099ebee82bcd 3,8-9,15,17-20,23-25
+  s_f67e66864dd957::t_e5abd26e219cf1 26
+client2/src/CensorDemo.tsx
+  s_f67e66864dd957::t_09a3018606d75f 4,6
+  s_f67e66864dd957::t_d6c932571b9812 17-18,27-29,37-39
+  s_f67e66864dd957::t_9309c4ea93bd0d 40
+client2/src/game/anim/reduceMotion.ts
+  s_f67e66864dd957::t_cd5a72b597c150 1-11
+client2/src/game/anim/reduceMotion.test.ts
+  s_f67e66864dd957::t_a85e6c3b2bf59e 1-19
+client2/src/FreeDesk.tsx
+  s_f67e66864dd957::t_c4b04d0ba93ca2 4
+  s_f67e66864dd957::t_fb84b17850c67e 16
+  s_f67e66864dd957::t_7bde430187b6af 32-35
+client2/src/game/ui/DropZone.ts
+  s_f67e66864dd957::t_2e55cc4f13e602 116-117
+client2/src/game/engine/canvasApp.ts
+  s_f67e66864dd957::t_6559d6fcb33a48 68-80
+  s_f67e66864dd957::t_c6e880868d6468 17-19
+client2/src/game/ui/Card.ts
+  s_f67e66864dd957::t_6f256275606fc0 340
+  s_f67e66864dd957::t_d220532b5f1d12 322-324,326-328
+  s_f67e66864dd957::t_b50cbbbd33d222 287
+  s_f67e66864dd957::t_8a297277267bbf 72-74
+client2/src/game/engine/freeDeskEngine.ts
+  s_f67e66864dd957::t_b3c0153374fdf8 214-215
+  s_f67e66864dd957::t_b3c402231f1cb9 939
+  s_f67e66864dd957::t_637cc5ff8e9118 897
+  s_f67e66864dd957::t_852665b1a44f49 2388-2393
+client2/src/game/censorDemo.ts
+  s_f67e66864dd957::t_71754f27f331f9 9
+  s_f67e66864dd957::t_75906dca89c862 279,281-288
+  s_f67e66864dd957::t_4fe403efe65666 224
+  s_f67e66864dd957::t_53d5ed6d517169 40-43
+  s_f67e66864dd957::t_f8240d2e3988b1 280
+client2/src/useReducedMotion.ts
+  s_f67e66864dd957::t_66462807a27a13 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "97ca63fffb85a4105d73384ae5020f3ca8f495cc",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
