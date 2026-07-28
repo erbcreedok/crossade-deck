@@ -1,4 +1,4 @@
-import type { Burnable, Concealable, Flippable, TableElement } from "./element";
+import type { Burnable, Flippable, Peekable, TableElement } from "./element";
 
 // Груз драга — ЧТО тащим: одну карту или пачку. Работает с абстракцией TableElement + её
 // способностями (Flippable/Burnable), а НЕ с Card. Поэтому те же payload/зоны обслуживают карты,
@@ -26,7 +26,7 @@ export interface DragPayload {
   readonly consumed: boolean; // элемент(ы) «поглощены» (горят/поглядели) — возвращать не надо
   flip?(): void; // если поддерживает переворот
   burn?(): void; // если поддерживает сжигание
-  peek?(): void; // если поддерживает скрытность («поглядеть» — только карты, см. Concealable)
+  peek?(): void; // если поддерживает «поглядеть» — только карты, см. Peekable
 }
 
 function asFlippable(el: TableElement): Flippable | null {
@@ -35,8 +35,8 @@ function asFlippable(el: TableElement): Flippable | null {
 function asBurnable(el: TableElement): Burnable | null {
   return "burn" in el ? (el as unknown as Burnable) : null;
 }
-function asConcealable(el: TableElement): Concealable | null {
-  return "setConcealed" in el ? (el as unknown as Concealable) : null;
+function asPeekable(el: TableElement): Peekable | null {
+  return "peekReveal" in el ? (el as unknown as Peekable) : null;
 }
 
 /** Драг одной карты/элемента. Способности flip/burn делегируются, если элемент их реализует. */
@@ -59,7 +59,7 @@ export class SingleDrag implements DragPayload {
     const f = asFlippable(el);
     if (f) this.flip = () => f.requestFlip();
     if (this.b) this.burn = () => this.b!.burn();
-    if (asConcealable(el))
+    if (asPeekable(el))
       this.peek = () => {
         this.peeked = ctx.startPeek([el]); // false, если карте уже нечего было подглядывать
       };
@@ -85,7 +85,7 @@ export class GroupDrag implements DragPayload {
   private peeked = false;
   flip?: () => void; // переворот всей пачки — делегируется движку (реверс + синхронный флип)
   burn?: () => void; // сжечь пачку — жжём каждый элемент (каждый своей анимацией)
-  peek?: () => void; // «поглядеть» всей пачкой — только если ВСЕ элементы Concealable (см. asConcealable)
+  peek?: () => void; // «поглядеть» всей пачкой — только если ВСЕ элементы Peekable (см. asPeekable)
 
   constructor(
     private readonly els: readonly TableElement[],
@@ -99,7 +99,7 @@ export class GroupDrag implements DragPayload {
     });
     if (els.every((el) => asFlippable(el))) this.flip = () => ctx.flipGroup(els);
     if (els.every((el) => asBurnable(el))) this.burn = () => els.forEach((el) => asBurnable(el)?.burn());
-    if (els.every((el) => asConcealable(el)))
+    if (els.every((el) => asPeekable(el)))
       this.peek = () => {
         this.peeked = ctx.startPeek(els); // false, если ни одной карте не было нужды подглядывать
       };

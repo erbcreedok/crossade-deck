@@ -18,7 +18,7 @@ import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection 
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
-import type { Concealable, Draggable, TableElement } from "./element";
+import type { Draggable, Peekable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
@@ -261,11 +261,12 @@ export class FreeDeskEngine extends CanvasApp {
 
   private input = new InputRouter<Elem, Button>(this.inputHandlers());
   private drag: DragPayload | null = null; // текущий груз драга (одна карта или пачка)
-  // «Подглядеть» (дропзона ПОДГЛЯДЕТЬ, см. buildDropzonesBlock): id -> элемент/прошедшее время
-  // показа. Абортнутая повторным драгом карта просто выпадает из этих двух map (см. onCardGrab) —
-  // тем самым теряет скрытность навсегда, ведь возвращает её только истёкший таймер в frame().
-  private peeking = new Map<string, Elem>();
-  private peekT = new Map<string, number>();
+  // «Подглядеть» (дропзона ПОДГЛЯДЕТЬ, см. buildDropzonesBlock): id -> сессия показа. undo —
+  // замыкание из Peekable.peekReveal, возвращающее карту КАК БЫЛО (лицо/скрытость/peekBob) — reveal
+  // и restore одной парой, рассинхрону неоткуда взяться. t — прошедшее время, grabbed — карту
+  // перехватили повторным драгом (тогда restore ждёт КОНЦА драга или истечения PEEK_DUR, см.
+  // onCardGrab / onCardDrop / frame; при истечении под пальцем карта остаётся в драге, домой НЕ едет).
+  private peeking = new Map<string, { el: Elem; undo: () => void; t: number; grabbed: boolean }>();
   // Контекст драга: поднять элемент в слой драга / вернуть домой (движок-специфика для payload).
   private dragCtx: DragContext = {
     raise: (el) => {
@@ -417,7 +418,7 @@ export class FreeDeskEngine extends CanvasApp {
       const cx = left + p.x + this.cardW / 2;
       const cy = top + p.y + this.cardH / 2;
       // Явный id обязателен: без него Card.id === "" (Card.ts:103) — и ЛЮБЫЕ две карты этого ряда
-      // делят один ключ идентичности. Всё, что адресует элементы по id (peeking/peekT «подглядеть»,
+      // делят один ключ идентичности. Всё, что адресует элементы по id (peeking «подглядеть»,
       // byId), тогда путает их между собой: показ одной карты снимал таймер у соседней.
       this.cardSpecs.push({ opts: { ...s.opts, id: s.opts.id ?? `story-${i}` }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.9 });
       const cap = this.label(s.caption, cx, cy + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9);
@@ -429,7 +430,7 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   // Ряд «Дропзоны»: перевернуть, сжечь, подглядеть. Фон+название — на поверхности, глагол — над картами.
-  // ПОДГЛЯДЕТЬ реагирует на способность peek (только Concealable — только карты, см. drag.ts) и
+  // ПОДГЛЯДЕТЬ реагирует на способность peek (только Peekable — только карты, см. drag.ts) и
   // единственная из трёх задействует armed («давай подсмотрим?») — зазывающий текст, пока драг
   // способной карты идёт где-то ещё на канвасе, не только когда её навели именно на эту зону. Текст
   // при этом ЗАВИСИТ от того, есть ли у ЭТОЙ карты что подглядывать (needsPeek) — уже раскрытой
@@ -1968,14 +1969,14 @@ export class FreeDeskEngine extends CanvasApp {
       buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
       onCardGrab: (card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
-        // Abort «поглядеть»: перехватили карту повторным драгом ДО истечения PEEK_DUR — снимаем
-        // таймер, и этого достаточно: скрытность не восстановится сама (её возвращает только
-        // истёкший таймер в frame()). Дальше карта — обычный груз драга и вернётся домой обычным
-        // releaseElement. «Улетает прочь» тут БЫЛО и убрано: карта уезжала под весь контент и
-        // становилась недоступна навсегда — потеря элемента, а не результат действия.
-        if (this.peeking.has(card.id)) {
-          this.peeking.delete(card.id);
-          this.peekT.delete(card.id);
+        // Перехват «поглядеть» повторным драгом: НЕ абортим мгновенно. Помечаем grabbed и гасим
+        // peekBob (под пальцем карта явно не «зависла» — резонанс-парение ни к чему); скрытность НЕ
+        // трогаем — она вернётся по КОНЦУ драга (onCardDrop/Cancel) или по истечении PEEK_DUR, что
+        // раньше. Так «показанную» карту можно утащить и она вернётся в исходный вид сама.
+        const pk = this.peeking.get(card.id);
+        if (pk) {
+          pk.grabbed = true;
+          if ("peekBob" in pk.el) pk.el.peekBob = false; // гасим резонанс-парение под пальцем (peekBob есть только у Card)
         }
         // Драг выделенного НАБОРА: тянем все выбранные фигуры разом (GroupDrag), врассыпную.
         if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
@@ -2031,6 +2032,7 @@ export class FreeDeskEngine extends CanvasApp {
       },
       onCardDrop: (card, cp) => {
         if (this.drag) {
+          this.resolveGrabbedPeeks(); // держали «показанную» карту → вернуть скрытость до диспатча дропа
           if (this.selDragging && this.selZone) {
             const dragged = Math.hypot(cp.x - this.selGrabCp.x, cp.y - this.selGrabCp.y) > 8; // тап vs драг
             if (dragged) {
@@ -2090,6 +2092,7 @@ export class FreeDeskEngine extends CanvasApp {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
+        if (this.drag) this.resolveGrabbedPeeks(); // отмена драга «показанной» карты — тоже вернуть скрытость
         const fld = this.drag ? this.fieldForCard(this.drag.lead.id) : null;
         if (fld) {
           fld.endDrag(); // закрыть дыру
@@ -2232,10 +2235,6 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   // Вернуть ЛЮБОЙ элемент (карта/фишка/фигура) домой — той же пружиной, что и обычный релиз.
-  // Абортнутый «поглядеть» тут НЕ особый случай: раньше такая карта летела под весь контент
-  // (contentH + 3 карты) — буквальное прочтение «падает в свободном падении» из тикета, — но на
-  // столе это читается не как действие, а как ПОТЕРЯ карты: найти её потом нельзя ничем, кроме
-  // перезагрузки страницы. Абортом теряется только скрытность (таймер снят в onCardGrab), место — нет.
   private releaseElement(el: Elem): void {
     const h = this.homeOf(el);
     if (!h) return;
@@ -2245,34 +2244,44 @@ export class FreeDeskEngine extends CanvasApp {
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
   }
 
-  // «Поглядеть»: снять скрытность на PEEK_DUR сек (флип лицом вверх, если нужно), карта замирает
-  // на месте (никто больше не зовёт setTarget — пружина уже стоит на точке дропа). Спустя
-  // PEEK_DUR — restorePeek() в frame() вернёт скрытность и отпустит элемент домой обычным
-  // releaseElement. Абортится в onCardGrab (повторный драг), см. releaseElement выше.
-  // Уже видно (не скрыта И лицом вверх) — подглядывать нечего: зона отвечает «зачем?»/«нет.»
-  // (см. buildDropzonesBlock) и НЕ запускает таймер — карта просто падает домой как обычно.
+  // Есть ли у карты что подглядеть (чистый предикат Peekable.canPeek) — зона ПОДГЛЯДЕТЬ читает его
+  // для armed-текста: уже видно (не скрыта И лицом вверх) → «зачем?»/«нет.» и дроп ничего не
+  // запускает (peekReveal вернёт null). КАК показать/вернуть — знает сам элемент, не движок.
   private needsPeek(el: TableElement): boolean {
-    const concealed = "concealed" in el ? (el as unknown as Concealable).concealed : false;
-    const faceUp = "faceUp" in el ? (el as unknown as { faceUp: boolean }).faceUp : true;
-    return concealed || !faceUp;
+    return "canPeek" in el ? (el as unknown as Peekable).canPeek : false;
   }
 
   // Возвращает true, если хоть один элемент реально ушёл в подглядывание — это и есть consumed
   // для SingleDrag/GroupDrag (см. drag.ts): не начали ни одного → карта(ы) летят домой как обычно.
+  // КАК раскрывать и как вернуть — знает сам элемент (peekReveal → undo); движок лишь держит undo.
   private startPeek(els: readonly TableElement[]): boolean {
     let any = false;
     for (const el of els) {
-      if (!this.needsPeek(el)) continue;
-      if ("faceUp" in el && !(el as unknown as { faceUp: boolean }).faceUp && "requestFlip" in el) {
-        (el as unknown as { requestFlip(): boolean }).requestFlip();
-      }
-      (el as unknown as Concealable).setConcealed(false);
-      this.peeking.set(el.id, el as Elem);
-      this.peekT.set(el.id, 0);
+      const undo = "peekReveal" in el ? (el as unknown as Peekable).peekReveal() : null;
+      if (!undo) continue; // раскрывать нечего (уже видно) — карта не поглощена, полетит домой
+      this.peeking.set(el.id, { el: el as Elem, undo, t: 0, grabbed: false });
       any = true;
     }
     if (any) this.wake();
     return any;
+  }
+
+  // Вернуть карту КАК БЫЛО и закрыть сессию показа. releaseHome — отпустить домой (истёк таймер и
+  // карту НЕ держат). Под пальцем (grabbed) домой не гоним — restore лишь возвращает скрытость,
+  // карта остаётся в драге; домой её увезёт обычный release по концу драга.
+  private endPeek(id: string, releaseHome: boolean): void {
+    const p = this.peeking.get(id);
+    if (!p) return;
+    this.peeking.delete(id);
+    p.undo();
+    if (releaseHome) this.releaseElement(p.el);
+  }
+
+  // Конец драга: карту(ы), что держали в «поглядеть», вернуть КАК БЫЛО (скрытость), НЕ отпуская
+  // домой — домой их увезёт обычный release/дроп. Зовётся ДО диспатча дропа, чтобы повторный дроп
+  // на ПОДГЛЯДЕТЬ раскрыл с уже восстановленного базового вида (иначе поймал бы «раскрытое»).
+  private resolveGrabbedPeeks(): void {
+    for (const [id, p] of this.peeking) if (p.grabbed) this.endPeek(id, false);
   }
 
   // ——— цикл ———
@@ -2297,16 +2306,11 @@ export class FreeDeskEngine extends CanvasApp {
     }
     if (this.peeking.size > 0) {
       moving = true; // держим тикер живым, иначе на успокоившейся сцене отсчёт «поглядеть» замрёт
-      for (const [id, el] of this.peeking) {
-        const t = (this.peekT.get(id) ?? 0) + dt;
-        if (t >= PEEK_DUR) {
-          this.peeking.delete(id);
-          this.peekT.delete(id);
-          (el as unknown as Concealable).setConcealed(true); // пыль возвращается (fade — Card.dustAlpha)
-          this.releaseElement(el);
-        } else {
-          this.peekT.set(id, t);
-        }
+      for (const [id, p] of this.peeking) {
+        p.t += dt;
+        // Истёк показ: вернуть КАК БЫЛО. Держат карту (grabbed) — restore лишь возвращает скрытость,
+        // карта остаётся в драге; не держат — отпускаем домой обычным releaseElement.
+        if (p.t >= PEEK_DUR) this.endPeek(id, !p.grabbed);
       }
     }
     // armed: перечитываем каждый кадр из this.drag, а не разбросанными вызовами по местам, где
@@ -2365,7 +2369,6 @@ export class FreeDeskEngine extends CanvasApp {
     this.buttons = [];
     this.zones = [];
     this.peeking.clear();
-    this.peekT.clear();
     this.input.reset();
     this.scene.surface.removeChildren().forEach((c) => c.destroy());
     this.scene.verb.removeChildren().forEach((c) => c.destroy());
@@ -2429,7 +2432,6 @@ export class FreeDeskEngine extends CanvasApp {
     this.buttons = [];
     this.zones = [];
     this.peeking.clear();
-    this.peekT.clear();
     this.input.reset();
     this.tex?.destroy();
   }

@@ -7,7 +7,7 @@ import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
 import { ParticleField } from "../engine/censorParticles";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
-import type { Burnable, Concealable, Draggable, Flippable, TableElement, Valued } from "../engine/element";
+import type { Burnable, Concealable, Draggable, Flippable, Peekable, TableElement, Valued } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
@@ -63,11 +63,12 @@ interface FlipAnim {
 const BOB_SPEED = 2.2;
 const DUST_FADE_DUR = 0.4; // fade вкл/выкл пыли — как у block (Card.ts blockNudge)
 
-export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable, Valued {
+export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable, Peekable, Valued {
   readonly root = new Container();
   readonly body = new CardBody();
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
+  peekBob = false; // висит в «подглядеть» — тот же bob, что у floating, чтобы не читалось как зависание
 
   readonly id: string; // ключ
   private _card: string; // значение (придержано = ""), проставляется setValue (раскрытие)
@@ -93,6 +94,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   private dust: ParticleField | null = null; // живая «пыль»-цензура скрытой карты (TG-спойлер)
   private dustT = 0; // локальное время пыли (крутит только пока она видна)
   private dustAlpha = 0; // сглаженная альфа пыли — плавный fade вместо мгновенного visible-тумблера
+  private fadeSprite: Sprite | null = null; // старая текстура лица, кросс-фейдится поверх новой при смене masked
+  private fadeT = 0;
   dead = false; // догорела — движок убирает её из песочницы
 
   constructor(
@@ -161,6 +164,36 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.refaceMasked();
   }
 
+  /** Есть ли что подглядеть: карта скрыта ИЛИ лежит рубашкой. ЧИСТЫЙ предикат (без мутаций) —
+   *  зона ПОДГЛЯДЕТЬ читает его для armed-текста («давай подсмотрим?» vs «зачем?»). */
+  get canPeek(): boolean {
+    return this._concealed || !this.faceUp;
+  }
+
+  /**
+   * «Подглядеть»: раскрыть карту (снять скрытость, перевернуть лицом вверх если лежала рубашкой) и
+   * ВЕРНУТЬ функцию-undo, восстанавливающую прежний вид. reveal и restore живут одной парой — движок
+   * лишь держит undo и зовёт его по таймеру / концу драга (см. freeDeskEngine.startPeek), так что
+   * «перевернул, но забыл перевернуть назад» взяться неоткуда. peekBob (парение показанной карты,
+   * чтобы не читалась зависшей) ставится и снимается тем же undo.
+   * Край: перехватить и повторно бросить карту ЗА <0.45с (reveal-флип ещё крутится) — встречный
+   * requestFlip в undo откажет (this.flip занят), рубашка не вернётся; PEEK_DUR=3 делает обычные
+   * пути безопасными, отдельный механизм на этот дабл-тап пока не заводим.
+   */
+  peekReveal(): (() => void) | null {
+    if (!this.canPeek) return null;
+    const wasFaceUp = this.faceUp;
+    const wasConcealed = this._concealed;
+    if (!wasFaceUp) this.requestFlip();
+    this.setConcealed(false);
+    this.peekBob = true;
+    return () => {
+      if (!wasFaceUp) this.requestFlip();
+      this.setConcealed(wasConcealed);
+      this.peekBob = false;
+    };
+  }
+
   /** Проставить/придержать значение (раскрытие сервером): "" прячет, непустое — показывает лицо. */
   setValue(v: string): void {
     if (v === this._card) return;
@@ -168,10 +201,21 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.refaceMasked();
   }
 
-  // Лениво построить «пыль» если карта теперь маскируется, и перерисовать лицо.
+  // Лениво построить «пыль» если карта теперь маскируется, и перерисовать лицо. Смена ЛИЦА
+  // (не только пыли) иначе была резкой: пыль плавно наплывала (dustAlpha/DUST_FADE_DUR), а
+  // текстура ПОД ней («лицо» ↔ «чистый фон под пылью») щёлкала мгновенно в момент вызова —
+  // на скрытии это читалось как рывок под ещё прозрачной в начале пылью. Старую текстуру держим
+  // тем же DUST_FADE_DUR кросс-фейдом поверх новой (см. fadeSprite/step/sync).
   private refaceMasked(): void {
     if (this.masked && !this.dust) this.buildDust();
+    const oldTex = this.baseSprite.texture;
     this.paint(); // маска → чистый фон под пылью; иначе — настоящее лицо (пыль гаснет в sync)
+    if (this.baseSprite.texture === oldTex) return;
+    this.fadeSprite?.destroy();
+    this.fadeSprite = new Sprite(oldTex);
+    this.fadeSprite.anchor.set(0.5);
+    this.root.addChildAt(this.fadeSprite, this.root.getChildIndex(this.baseSprite) + 1);
+    this.fadeT = 0;
   }
 
   /** Видна ли сейчас пыль (маска, лицом вверх, вне переворота/горения) — тогда её крутим, цикл не спит. */
@@ -210,6 +254,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   requestFlip(): boolean {
     if (!this.flippable || this.flip) return false;
     this.flip = { t: 0, dur: 0.45, fromFaceUp: this.faceUp };
+    this.fadeSprite?.destroy(); // флип сам сменит текстуру спином — кросс-фейд лица тут не к месту
+    this.fadeSprite = null;
     return true;
   }
 
@@ -258,12 +304,21 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
         this.dead = true;
       }
     }
+    if (this.fadeSprite) {
+      this.fadeT += dt;
+      if (this.fadeT >= DUST_FADE_DUR) {
+        this.fadeSprite.destroy();
+        this.fadeSprite = null;
+      } else {
+        this.fadeSprite.alpha = 1 - this.fadeT / DUST_FADE_DUR;
+      }
+    }
   }
 
   /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. Живая
    *  пыль тоже «шевелится» непрерывно: пока она видна ИЛИ ещё доезжает fade — цикл держим бодрым. */
   get resting(): boolean {
-    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && !this.dustActive && this.dustAlpha === 0;
+    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && !this.peekBob && !this.dustActive && this.dustAlpha === 0 && !this.fadeSprite;
   }
 
   sync(): void {
@@ -275,7 +330,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     // «Парение»: покачивание вверх-вниз только у floating; выше поднялась — дальше тень.
     let bobY = 0;
     let bobLift = 0;
-    if (this.state === "floating") {
+    if (this.state === "floating" || this.peekBob) {
       const b = Math.sin(this.age * BOB_SPEED + this.bobPhase);
       bobY = b * this.height * 0.05;
       bobLift = (b * 0.5 + 0.5) * 0.12;
