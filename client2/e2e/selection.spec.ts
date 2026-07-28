@@ -16,11 +16,14 @@ test.describe("песочница — выделение (issue #48)", () => {
       selectToggleAt: { x: number; y: number } | null;
       multiSelectEnabled: boolean;
       sortMode: "selection" | "rank";
+      collectOrder: "press" | "spatial" | "suit";
+      effectiveOrder: "press" | "rank" | "suit" | "spatial";
     };
     perf: { hoverRerenders: number };
     selFigures: { id: string; x: number; y: number }[];
     selMultiAt: { x: number; y: number }[];
     selSortAt: { x: number; y: number }[];
+    selCollectAt: { x: number; y: number }[];
     boardFigures: { id: string; key: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
@@ -243,6 +246,99 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(layers.state).toBe("floating"); // логически выделена
     expect(layers.inFloating).toBe(true); // спрайт в floating-слое — тень (тоже floating) под ним
     expect(layers.inIdle).toBe(false); // НЕ застрял в idle (иначе тень окажется выше карты)
+  });
+
+  // ——— сборка набора в РЯД + модификаторы порядка (issue #56) ———
+  // Индексы selFigures = порядок слотов: 0=10♠, 1=6♣(♣), 2=8♥(♥), 3=A♦(♦), 4=7♣, 5=Q♠.
+  // Держим драг и читаем позиции 3 тащимых карт: должны стоять в ОДНУ строку (равный y),
+  // x строго по возрастанию в порядке выбранной стратегии.
+  const rowXOrder = async (page: Page, ids: string[]) => {
+    const h = await hooks(page);
+    const pos = (id: string) => h.selFigures.find((f) => f.id === id)!;
+    const ys = ids.map((id) => pos(id).y);
+    const xs = ids.map((id) => pos(id).x);
+    return { ys, xs };
+  };
+  const selectByIdx = async (page: Page, idxs: number[]) => {
+    let h = await hooks(page);
+    const ids: string[] = [];
+    for (const i of idxs) {
+      const f = h.selFigures[i]!;
+      ids.push(f.id);
+      await clickAt(page, f);
+      h = await hooks(page);
+    }
+    return ids;
+  };
+
+  test("сборка в ряд «по нажатию»: карты встают в строку, x по порядку нажатия", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selSortAt[1]!); // сорт набора: выбор (ранг выкл → работает collectOrder)
+    await clickAt(page, h.selCollectAt[0]!); // сборка: нажатие
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.effectiveOrder).toBe("press");
+
+    const [cA, c6, c8] = await selectByIdx(page, [3, 1, 2]); // press-порядок: A♦, 6♣, 8♥
+    // старт драга за первую выбранную, держим
+    const box = (await page.locator("canvas").boundingBox())!;
+    let p = h.selFigures[3]!;
+    await page.mouse.move(box.x + p.x, box.y + p.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 250, box.y + 300, { steps: 12 }); // тянем в свободное место, держим
+    await page.waitForTimeout(450); // дать пружинам собрать ряд
+    const { ys, xs } = await rowXOrder(page, [cA!, c6!, c8!]);
+    await page.mouse.up();
+
+    const dy = Math.max(...ys) - Math.min(...ys);
+    expect(dy).toBeLessThan(12); // одна строка
+    expect(xs[0]).toBeLessThan(xs[1]!); // A♦ < 6♣ < 8♥ по нажатию
+    expect(xs[1]).toBeLessThan(xs[2]!);
+  });
+
+  test("сборка «по масти»: тот же набор в ряд по ♣<♦<♥", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selSortAt[1]!); // выбор (ранг выкл)
+    await clickAt(page, h.selCollectAt[2]!); // сборка: масть
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.collectOrder).toBe("suit");
+
+    const [cA, c6, c8] = await selectByIdx(page, [3, 1, 2]); // выбрали A♦(♦), 6♣(♣), 8♥(♥)
+    const box = (await page.locator("canvas").boundingBox())!;
+    const p = h.selFigures[3]!;
+    await page.mouse.move(box.x + p.x, box.y + p.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 250, box.y + 300, { steps: 12 });
+    await page.waitForTimeout(450);
+    // по масти ♣<♦<♥: 6♣ слева, A♦ середина, 8♥ справа
+    const { xs } = await rowXOrder(page, [c6!, cA!, c8!]);
+    await page.mouse.up();
+    expect(xs[0]).toBeLessThan(xs[1]!);
+    expect(xs[1]).toBeLessThan(xs[2]!);
+  });
+
+  test("ранговый тумблер перебивает сборку: сборка=масть, но сорт=номинал → порядок по рангу", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selCollectAt[2]!); // сборка: масть
+    // сорт набора оставляем «номинал» (дефолт, ранг ВКЛ)
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.collectOrder).toBe("suit");
+    expect(h.selectionState.effectiveOrder).toBe("rank"); // ранг перебивает
+
+    const [cA, c6, c8] = await selectByIdx(page, [3, 1, 2]); // A♦=14, 6♣=6, 8♥=8
+    const box = (await page.locator("canvas").boundingBox())!;
+    const p = h.selFigures[3]!;
+    await page.mouse.move(box.x + p.x, box.y + p.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 250, box.y + 300, { steps: 12 });
+    await page.waitForTimeout(450);
+    // по рангу 6<8<14: 6♣ слева, 8♥ середина, A♦ справа
+    const { xs } = await rowXOrder(page, [c6!, c8!, cA!]);
+    await page.mouse.up();
+    expect(xs[0]).toBeLessThan(xs[1]!);
+    expect(xs[1]).toBeLessThan(xs[2]!);
   });
 
   // Мультиселект выкл — вход в режим блокируется конфигом контейнера.
