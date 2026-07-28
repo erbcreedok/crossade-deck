@@ -1,0 +1,73 @@
+client2/src/game/engine/drag.ts
+  s_ac25156a635f20::t_3603996568fb0f 102
+  s_ac25156a635f20::t_754879bd08691a 38-39
+  s_ac25156a635f20::t_bfbca40d739ff7 29
+  s_ac25156a635f20::t_a2e8af8c565238 1
+  s_ac25156a635f20::t_a804d34b50e5d3 62
+  s_ac25156a635f20::t_1c0b9c86388195 88
+client2/src/game/engine/freeDeskEngine.ts
+  s_ac25156a635f20::t_f8e0323635e166 264-269
+  s_ac25156a635f20::t_9ba1ad2726e1f7 2309-2313
+  s_ac25156a635f20::t_5fcbd0905c6417 1979
+  s_ac25156a635f20::t_0653c4627b4cd5 21
+  s_ac25156a635f20::t_59d2350408a86e 2251,2256,2260-2262,2269-2277
+  s_ac25156a635f20::t_f5704fa62d6b91 2035
+  s_ac25156a635f20::t_a88cf75b83a545 433
+  s_ac25156a635f20::t_52e4b41df1669f 2095
+  s_ac25156a635f20::t_dc5e209234daf7 421
+  s_ac25156a635f20::t_5e4b0cbc5708f6 1972-1978
+  s_ac25156a635f20::t_9a760cd9159955 2278,2280-2286
+  s_ac25156a635f20::t_a0e927fe27dff3 2247-2249
+  s_ac25156a635f20::t_cefaa51c6cdf40 2279
+client2/src/game/engine/drag.test.ts
+  s_ac25156a635f20::t_3c16be469dffde 5-6
+  s_ac25156a635f20::t_18809960f102e9 25
+  s_ac25156a635f20::t_7dc1dbbbd72be9 75,80
+  s_5df380ef6c696a::t_2095d0204667b2 135,137,143-144
+client2/src/game/ui/Card.ts
+  s_b6ac35acf00770::t_40ba6164b12930 321
+  s_b6ac35acf00770::t_42c2628398f92d 71
+  s_b6ac35acf00770::t_8cad0a5ef2afea 307-315
+  s_ac25156a635f20::t_feb5982c3cbaf9 167-196
+  s_b6ac35acf00770::t_813f46c9121baa 204-208,211,213-218
+  s_ac25156a635f20::t_120b8facf290a4 66
+  s_b6ac35acf00770::t_12d746f94a6f51 97-98
+  s_b6ac35acf00770::t_05858bd8514683 257-258
+  s_ac25156a635f20::t_6a00c415e93062 333
+  s_ac25156a635f20::t_993f8a6bc5fba1 10
+client2/src/game/engine/element.ts
+  s_ac25156a635f20::t_7149ce6f0da551 46-56
+  s_ac25156a635f20::t_5529cf2aa3de8e 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "f3a753addc834a15809a5985e19ff26c05abb634",
+  "prompts": {},
+  "sessions": {
+    "s_5df380ef6c696a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4bb5380-0af0-4caf-97a9-76ab71d28992",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_ac25156a635f20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc881114-9b85-491f-b594-5c6bda1141d5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
