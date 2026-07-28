@@ -331,3 +331,70 @@ test.describe("песочница — топбар", () => {
     await expect(page.locator("canvas")).toBeVisible();
   });
 });
+
+// «Карты — варианты»: ряд из 12 карточек-примеров (STORIES в freeDeskEngine.ts). Раньше был
+// покрыт только индекс 0 («открытая», через firstCard в других тестах) — остальные 11 рендерились,
+// но ни одна их особенность не проверялась. storyCards в тест-хуке отдаёт живые пропы каждой карты
+// по тому же индексу, что и STORIES (ряд спавнится первым — см. комментарий у хука).
+test.describe("песочница — Карты: варианты", () => {
+  const hooks = (page: import("@playwright/test").Page) =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __fd: {
+              testHooks(): {
+                storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string }[];
+              };
+            };
+          }
+        ).__fd.testHooks(),
+    );
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/free-desk");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(600);
+  });
+
+  test("все 12 карточек ряда несут свой проп — открытая/закрытая/рубашка/лицо/4-цветная/порванная/×0.7/держат/приподнята/джокер", async ({ page }) => {
+    const h = await hooks(page);
+    expect(h.storyCards).toHaveLength(12);
+    const byCaption = new Map(h.storyCards.map((c) => [c.caption, c]));
+    expect(byCaption.get("открытая")!.faceUp).toBe(true);
+    expect(byCaption.get("закрытая")!.faceUp).toBe(false);
+    expect(byCaption.get("рубашка: изумруд")!.back).toBe("emerald");
+    expect(byCaption.get("лицо: символ")!.faceStyle).toBe("symbol");
+    expect(byCaption.get("4-цветная")!.fourColor).toBe(true);
+    expect(byCaption.get("порванная")!.torn).toBe(true);
+    expect(byCaption.get("меньше ×0.7")!.size).toBe(0.7);
+    expect(byCaption.get("нельзя тащить")!.draggable).toBe(false);
+    expect(byCaption.get("удерживаемая")!.rest).toBe("held");
+    expect(byCaption.get("приподнятая (в руке)")!.rest).toBe("floating");
+    expect(byCaption.get("джокер")!.custom).toBe("joker");
+  });
+
+  test("«нельзя тащить»: реальный драг не двигает карту", async ({ page }) => {
+    const h = await hooks(page);
+    const card = h.storyCards.find((c) => c.caption === "нельзя тащить")!;
+    const box = (await page.locator("canvas").boundingBox())!;
+    await page.mouse.move(box.x + card.x, box.y + card.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + card.x + 120, box.y + card.y + 60, { steps: 10 });
+    await page.waitForTimeout(150);
+    const during = (await hooks(page)).storyCards.find((c) => c.caption === "нельзя тащить")!;
+    await page.mouse.up();
+    // допуск на «стоп»-покачивание (block-анимация при попытке драга недрагабл-карты), не на реальный сдвиг
+    expect(Math.hypot(during.x - card.x, during.y - card.y)).toBeLessThan(6);
+  });
+
+  test("«джокер»: custom-лицо визуально отличается от обычной пронумерованной карты", async ({ page }) => {
+    const h = await hooks(page);
+    const joker = h.storyCards.find((c) => c.caption === "джокер")!;
+    const plain = h.storyCards.find((c) => c.caption === "открытая")!; // A♠, обычное числовое лицо
+    const clipAt = (c: { x: number; y: number }) => ({ x: c.x - 60, y: c.y - 85, width: 120, height: 170 });
+    const jokerShot = await page.screenshot({ clip: clipAt(joker) });
+    const plainShot = await page.screenshot({ clip: clipAt(plain) });
+    expect(Buffer.compare(jokerShot, plainShot)).not.toBe(0);
+  });
+});
