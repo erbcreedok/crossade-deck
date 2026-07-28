@@ -14,6 +14,9 @@ export abstract class CanvasApp {
   private host: HTMLElement | null = null;
   protected width = 1;
   protected height = 1;
+  /** Эффективный reduce-motion (OS + юзер-оверрайд, см. useReducedMotion) — единое поле для всех
+   *  трёх движков (issue #7), контент решает сам, что заморозить (см. onReduceMotionChange). */
+  protected reduceMotion = false;
 
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
@@ -61,6 +64,19 @@ export abstract class CanvasApp {
   protected wake(): void {
     if (this.app && !this.app.ticker.started) this.app.ticker.start();
   }
+
+  // Единая точка входа для reduce-motion во всех движках (React-хост зовёт после useReducedMotion).
+  // wake() обязателен: спящий тикер обязан перерисовать кадр в новом (за)мороженном виде — иначе
+  // выключение reduce-motion среди сна оставило бы старый статичный кадр висеть на экране.
+  setReduceMotion(v: boolean): void {
+    if (this.reduceMotion === v) return;
+    this.reduceMotion = v;
+    this.onReduceMotionChange(v);
+    this.wake();
+  }
+
+  /** Контент пробрасывает флаг в свои декоративные элементы (напр. Card.reduceMotion). Опц. */
+  protected onReduceMotionChange(_v: boolean): void {}
 
   private tick = (): void => {
     if (!this.app) return;

@@ -69,6 +69,9 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
   peekBob = false; // висит в «подглядеть» — тот же bob, что у floating, чтобы не читалось как зависание
+  /** OS/юзер reduce-motion (см. useReducedMotion): движок ставит на спавне и при смене (issue #7).
+   *  Замораживает bob и живую пыль в статичный кадр — не трогает флип/драг/полёты (не в скоупе). */
+  reduceMotion = false;
 
   readonly id: string; // ключ
   private _card: string; // значение (придержано = ""), проставляется setValue (раскрытие)
@@ -281,7 +284,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
       const step = dt / DUST_FADE_DUR;
       this.dustAlpha += Math.sign(dustTarget - this.dustAlpha) * Math.min(Math.abs(dustTarget - this.dustAlpha), step);
     }
-    if (this.dustActive || this.dustAlpha > 0) {
+    if ((this.dustActive || this.dustAlpha > 0) && !this.reduceMotion) {
       this.dustT += dt;
       this.dust!.update(this.dustT);
     }
@@ -316,9 +319,13 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   }
 
   /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. Живая
-   *  пыль тоже «шевелится» непрерывно: пока она видна ИЛИ ещё доезжает fade — цикл держим бодрым. */
+   *  пыль тоже «шевелится» непрерывно: пока она видна ИЛИ ещё доезжает fade — цикл держим бодрым.
+   *  Под reduceMotion bob и вращение пыли заморожены (step()/sync() выше), поэтому оба условия
+   *  здесь отпускают цикл в сон — иначе статичный кадр жёг бы 60fps вхолостую. */
   get resting(): boolean {
-    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && !this.peekBob && !this.dustActive && this.dustAlpha === 0 && !this.fadeSprite;
+    const bobSettled = this.reduceMotion || !this.peekBob;
+    const dustSettled = this.reduceMotion || (!this.dustActive && this.dustAlpha === 0);
+    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && bobSettled && dustSettled && !this.fadeSprite;
   }
 
   sync(): void {
@@ -330,7 +337,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     // «Парение»: покачивание вверх-вниз только у floating; выше поднялась — дальше тень.
     let bobY = 0;
     let bobLift = 0;
-    if (this.state === "floating" || this.peekBob) {
+    if (!this.reduceMotion && (this.state === "floating" || this.peekBob)) {
       const b = Math.sin(this.age * BOB_SPEED + this.bobPhase);
       bobY = b * this.height * 0.05;
       bobLift = (b * 0.5 + 0.5) * 0.12;

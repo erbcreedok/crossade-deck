@@ -113,9 +113,8 @@ export class DropZone {
   }
 
   // Покачивание armed/hot-текста — тот же язык, что у парящих карт (Card.ts, state==="floating"),
-  // применённый к Y текста, а не карты. reduceMotion — локальный флаг движка (задел на будущее;
-  // глобального reduced-motion/quality в client2 сегодня нет, см. issue #7/#8) — при true текст
-  // просто стоит на месте, без покачивания.
+  // применённый к Y текста, а не карты. reduceMotion — эффективный флаг движка (OS + юзер-оверрайд,
+  // см. useReducedMotion, issue #7) — при true текст просто стоит на месте, без покачивания.
   step(dt: number, reduceMotion: boolean): void {
     const cy = this.opts.rect.y + this.opts.rect.h / 2;
     if (reduceMotion) {

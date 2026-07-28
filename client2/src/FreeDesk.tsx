@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FreeDeskEngine, type ViewState } from "./game/engine/freeDeskEngine";
 import { goApp } from "./nav";
+import { useReducedMotion } from "./useReducedMotion";
 
 // UI-kit «/free-desk» — сторибук на канвасе (пан + зум + drag-and-drop карт/кнопок). На
 // телефоне управление жестами; на компе поверх канваса — скроллбары (гориз./верт., каждый
@@ -12,6 +13,7 @@ export function FreeDesk() {
   const trackYRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ axis: "x" | "y"; start: number; scroll: number } | null>(null);
   const [view, setView] = useState<ViewState | null>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const host = hostRef.current;
@@ -26,6 +28,10 @@ export function FreeDesk() {
       engineRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    engineRef.current?.setReduceMotion(reduceMotion);
+  }, [reduceMotion]);
 
   const thumbDown = (axis: "x" | "y") => (e: React.PointerEvent) => {
     e.preventDefault();

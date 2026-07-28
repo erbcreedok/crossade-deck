@@ -211,9 +211,8 @@ export class FreeDeskEngine extends CanvasApp {
   private contentW = 1;
   private contentH = 1;
   private lastSectionRight = 0; // правый край последней sectionFrame — для пар секций БОК О БОК (см. buildContent)
-  // Локальный флаг-заглушка: гасит покачивание armed/hot-текста дропзон (DropZone.step). НЕ связан
-  // с OS/батареей — глобального reduced-motion/quality в client2 сегодня нет (issue #7/#8 открыты).
-  private reduceMotion = false;
+  // reduceMotion — поле базового CanvasApp (issue #7): гасит покачивание armed/hot-текста дропзон
+  // (DropZone.step) и, через onReduceMotionChange ниже, bob/пыль каждой Card.
 
   private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
   private cards: Placed[] = [];
@@ -895,6 +894,7 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   private addControlCard(card: Card): void {
+    card.reduceMotion = this.reduceMotion;
     this.controlCards.push(card);
     if (card.id) this.byId.set(card.id, card);
     this.placeCard(card);
@@ -936,6 +936,7 @@ export class FreeDeskEngine extends CanvasApp {
       const r = restore?.get(i);
       if (restore && !r) return; // сгоревшую карту при рестарте канваса не воскрешаем
       const card = new Card(r ? { ...spec.opts, faceUp: r.faceUp } : spec.opts, this.tex, this.baseScale);
+      card.reduceMotion = this.reduceMotion;
       card.bobPhase = spec.bobPhase;
       card.root.zIndex = spec.depth;
       card.body.snapTo({ x: r ? r.x : spec.home.x, y: r ? r.y : spec.home.y, rot: 0, scale: card.restScale });
@@ -2382,6 +2383,12 @@ export class FreeDeskEngine extends CanvasApp {
     for (const p of this.cards) out.push(p.card);
     for (const p of this.pieces) out.push(p.el);
     return out;
+  }
+
+  // Пробросить reduce-motion в каждую живую Card (Piece decorативных циклов не имеет — нечего
+  // гасить). Новые карты получают флаг на спавне (addControlCard/spawnCards), не только тут.
+  protected onReduceMotionChange(v: boolean): void {
+    for (const el of this.everyElement()) if (el instanceof Card) el.reduceMotion = v;
   }
 
   private render(): void {

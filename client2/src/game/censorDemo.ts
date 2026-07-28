@@ -6,6 +6,7 @@ import { GpuCensorCard } from "./engine/censorGpu";
 import { ParticleField } from "./engine/censorParticles";
 import { attachPanZoom, type PanZoomHandle } from "./engine/panZoom";
 import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
+import type { ReduceMotionOverride } from "./anim/reduceMotion";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams, type DanceParams } from "./censorConfig";
 import { Button } from "./ui/Button";
@@ -36,7 +37,10 @@ export class CensorDemo extends CanvasApp {
 
   private dance: DanceParams = { ...DANCE_DEFAULT };
   private speed = 1;
-  private reduceMotion = false; // master reduce-motion → замораживает время
+  // reduceMotion — поле базового CanvasApp (issue #7). Тумблер ниже — источник ОВЕРРАЙДА
+  // поверх OS: React-хост резолвит auto/on через useReducedMotion и зовёт setReduceMotion().
+  private override: ReduceMotionOverride = "auto";
+  private onOverrideChange: ((o: ReduceMotionOverride) => void) | null = null;
   private flicker = DUST_FLICKER; // мерцание частиц (дефолт — выкл)
   private shearPlay = true; // «тряска рядов» играет
 
@@ -217,7 +221,7 @@ export class CensorDemo extends CanvasApp {
     return {
       params: (): Param[] => [
         { kind: "number", label: "скорость", min: 0, max: 30, format: (v) => (v / 10).toFixed(1) + "x", get: () => Math.round(this.speed * 10), set: (v) => (this.speed = v / 10) },
-        { kind: "bool", label: "уменьшить движение", get: () => this.reduceMotion, set: (v) => (this.reduceMotion = v) },
+        { kind: "bool", label: "уменьшить движение", get: () => this.override === "on", set: (v) => this.setOverride(v ? "on" : "auto") },
       ],
     };
   }
@@ -272,6 +276,16 @@ export class CensorDemo extends CanvasApp {
     }
     for (const g of this.gpuCards) g.reset();
     for (const p of this.particleCards) p.reset();
+  }
+
+  // ——— reduce-motion: канвас-тумблер как источник оверрайда для React-хоста (issue #7) ———
+  private setOverride(o: ReduceMotionOverride): void {
+    if (this.override === o) return;
+    this.override = o;
+    this.onOverrideChange?.(o);
+  }
+  setOnOverrideChange(cb: ((o: ReduceMotionOverride) => void) | null): void {
+    this.onOverrideChange = cb;
   }
 
   // ——— DOM-мост: скроллбары/зум как в песочнице ———
