@@ -1,0 +1,29 @@
+client/src/game/barActions.ts
+  s_f67e66864dd957::t_3326245eb3fdd7 65-69,71
+client/src/game/barActions.test.ts
+  s_f67e66864dd957::t_51438a6812f0ea 21-31
+client/src/RoomScreen.tsx
+  s_f67e66864dd957::t_d1a13c17b2d1b6 370
+client/src/room/roomMenu.ts
+  s_f67e66864dd957::t_431ffb721904a8 32-33
+  s_f67e66864dd957::t_fa29d4074aeb88 56-61
+client/src/room/roomMenu.test.ts
+  s_f67e66864dd957::t_808a27cfdc2cef 43-53
+  s_f67e66864dd957::t_2f603528b40e28 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "79bd5cc5a5d47f131b020678674e10788c67842d",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
