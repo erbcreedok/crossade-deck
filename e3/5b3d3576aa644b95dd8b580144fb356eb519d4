@@ -1,0 +1,112 @@
+client2/src/game/ui/dashedRectSegments.ts
+  s_b6ac35acf00770::t_ce24fa57df1154 1-33
+.gitignore
+  s_b6ac35acf00770::t_b90782282b1649 20-22
+client2/src/game/ui/dashedRectSegments.test.ts
+  s_b6ac35acf00770::t_6af23a5cdb9bcf 1-33
+client2/src/game/engine/drag.test.ts
+  s_b6ac35acf00770::t_0b74235da212a6 5-6
+  s_b6ac35acf00770::t_45ce0cb4f42ea8 74-87
+  s_b6ac35acf00770::t_be6cabccf94991 25,33,43
+  s_b6ac35acf00770::t_f476d1d378fee2 134-145
+  s_b6ac35acf00770::t_f17f53b9f6032d 38-41
+client2/src/game/engine/freeDeskEngine.ts
+  s_b6ac35acf00770::t_07e81f56f2689e 2252-2263,2265,2269,2272,2274-2276
+  s_b6ac35acf00770::t_7e679a230f5cf5 493
+  s_b6ac35acf00770::t_0fc92a4de7a1dc 443
+  s_b6ac35acf00770::t_c554ae35cd00b8 543-546,552-553
+  s_b6ac35acf00770::t_5787279d268234 920-921
+  s_b6ac35acf00770::t_0e439225a13ae2 2367-2368
+  s_b6ac35acf00770::t_9da60eac2f45a5 419,422
+  s_b6ac35acf00770::t_32478802ebbc59 420-421
+  s_b6ac35acf00770::t_f94781b36539e4 214-216
+  s_b6ac35acf00770::t_4be2aefbfe331a 531
+  s_b6ac35acf00770::t_06442ef73a152c 1976-1979
+  s_b6ac35acf00770::t_6d42bea2e58bd1 398
+  s_b6ac35acf00770::t_4ad0206458ac79 495-496
+  s_b6ac35acf00770::t_7bcc3b686a88b2 623
+  s_b6ac35acf00770::t_134fc22296883d 265-266
+  s_b6ac35acf00770::t_48da358cde2b89 465,472-474,476
+  s_b6ac35acf00770::t_d552258eed4489 213
+  s_b6ac35acf00770::t_646b512667bae2 260
+  s_b6ac35acf00770::t_8b1fe660bf2685 2298-2311
+  s_b6ac35acf00770::t_baefc93c6d28f3 617-622,624
+  s_b6ac35acf00770::t_b1ea5923313320 437-440,444-448,455
+  s_b6ac35acf00770::t_cd2c246f35de58 541-542,551
+  s_b6ac35acf00770::t_ee432913d7e926 404-409,423-426
+  s_b6ac35acf00770::t_4ca72d0a8656d8 460-462,467-471,475
+  s_b6ac35acf00770::t_4efc918e649a67 2312-2313
+  s_b6ac35acf00770::t_2c2e93beafc96f 69
+  s_b6ac35acf00770::t_ed70c7b84f24ea 21
+  s_b6ac35acf00770::t_d7c19c48b0d407 2314-2316,2318
+  s_b6ac35acf00770::t_c92e585ec69329 2234-2238
+  s_b6ac35acf00770::t_df5c754ddf6b73 431-433,449-452,454
+  s_b6ac35acf00770::t_c80902506f1d04 2027-2030
+  s_b6ac35acf00770::t_69daa1c9a57822 1971-1975
+  s_b6ac35acf00770::t_2cd39ae1cf9ca3 70
+  s_b6ac35acf00770::t_8fe39132798c7c 264
+  s_b6ac35acf00770::t_dd9f4986b19f4b 267-268,278
+  s_b6ac35acf00770::t_8095c146a71b7f 2025-2026
+  s_b6ac35acf00770::t_df222f0eb74638 2248-2251,2264,2266-2268,2270-2271,2273
+  s_b6ac35acf00770::t_970fe61ea274bb 922-926
+  s_b6ac35acf00770::t_4d63b069c23853 494
+  s_b6ac35acf00770::t_87728a3c62c633 2317
+  s_b6ac35acf00770::t_a15fa37288e298 2431-2432
+  s_b6ac35acf00770::t_4d3befe48edf30 929
+  s_b6ac35acf00770::t_c65b2552ff9f43 434-436,453
+  s_b6ac35acf00770::t_f267ac1736f083 539-540,550
+  s_b6ac35acf00770::t_bd1f536a174906 466
+  s_b6ac35acf00770::t_89db034e253044 2190-2193
+  s_b6ac35acf00770::t_26fd01c5ee52ca 2277
+client2/src/game/engine/drag.ts
+  s_b6ac35acf00770::t_27606d6dc790a2 64
+  s_b6ac35acf00770::t_2cfd69005bd708 1
+  s_b6ac35acf00770::t_0af3c4e6cbf157 118
+  s_b6ac35acf00770::t_34c75100a749c7 47,50,62-63,65,77
+  s_b6ac35acf00770::t_af5f8c1bb0de53 19
+  s_b6ac35acf00770::t_e05bbb05d1efa6 85,88,102-103,105
+  s_b6ac35acf00770::t_956010995f1b5a 26,29,38-39
+  s_b6ac35acf00770::t_71bfcab66d8dfd 104
+  s_b6ac35acf00770::t_1154e0744ba88f 40
+client2/src/game/ui/Card.ts
+  s_b6ac35acf00770::t_d0cfaa3609c049 95
+  s_b6ac35acf00770::t_0e7ab1419bacdb 124
+  s_b6ac35acf00770::t_dbbfe3e7d7c0a8 264,270-273
+  s_b6ac35acf00770::t_4df3a4426d507a 64
+  s_b6ac35acf00770::t_7778ddcb1125fa 266
+  s_b6ac35acf00770::t_087cf982d7c5a1 233-238
+client2/e2e/peek.spec.ts
+  s_b6ac35acf00770::t_91c7bc7225c9fd 97,99-100,102-105,108-109,111,171
+  s_b6ac35acf00770::t_30cd5bb2f1a3e9 1-2,4-7,18-26,31,33-52,54-57,59-72,74-76,78-80,82-92,96,172
+  s_b6ac35acf00770::t_96ed196670f2dc 13-14,16-17
+  s_b6ac35acf00770::t_9f1f12bf3ce9aa 27,32
+  s_b6ac35acf00770::t_219ae4e9e4dc5c 3,8-12,15,28,53,58,77,81,98,101,106-107,110,112-128,130-135,137-142
+  s_b6ac35acf00770::t_357ad8a026f32d 29-30
+  s_b6ac35acf00770::t_1d8d8653691b6d 93-95
+  s_b6ac35acf00770::t_face93b601d6b8 129,136,143-170
+  s_b6ac35acf00770::t_e4f82e6e287341 73
+client2/src/game/ui/DropZone.ts
+  s_b6ac35acf00770::t_6a3c4cf20fb8e3 16-18,22-28,32,36,63,66-72,96,100,103-112
+  s_b6ac35acf00770::t_107c18bb3e5ebe 3-6
+  s_b6ac35acf00770::t_02b367983c0e50 64-65
+  s_b6ac35acf00770::t_7746a6be804426 89-93,101-102
+  s_b6ac35acf00770::t_2262da20d77cb1 37
+  s_b6ac35acf00770::t_0ffedb31173298 113,115-131,135-141
+  s_b6ac35acf00770::t_4f53001b888073 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e35b3d3576aa644b95dd8b580144fb356eb519d4",
+  "prompts": {},
+  "sessions": {
+    "s_b6ac35acf00770": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ce3f89-1552-4fba-8383-9a57390e0acb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
