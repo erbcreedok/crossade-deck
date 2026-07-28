@@ -61,6 +61,7 @@ interface FlipAnim {
 }
 
 const BOB_SPEED = 2.2;
+const DUST_FADE_DUR = 0.4; // fade вкл/выкл пыли — как у block (Card.ts blockNudge)
 
 export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable, Valued {
   readonly root = new Container();
@@ -91,6 +92,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   private burnMask: Graphics | null = null; // маска фронта горения (создаётся на фазе расхода)
   private dust: ParticleField | null = null; // живая «пыль»-цензура скрытой карты (TG-спойлер)
   private dustT = 0; // локальное время пыли (крутит только пока она видна)
+  private dustAlpha = 0; // сглаженная альфа пыли — плавный fade вместо мгновенного visible-тумблера
   dead = false; // догорела — движок убирает её из песочницы
 
   constructor(
@@ -119,6 +121,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     if (this.torn) this.root.addChild(this.buildTear());
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
+    this.dustAlpha = this.dustActive ? 1 : 0; // без fade на спавне — сразу в целевом состоянии
   }
 
   // Живая «пыль»-цензура: облако амбер-частиц по силуэту фака (спавн-точки — общий кэш комнаты),
@@ -227,7 +230,12 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
-    if (this.dustActive) {
+    const dustTarget = this.dustActive ? 1 : 0;
+    if (this.dustAlpha !== dustTarget) {
+      const step = dt / DUST_FADE_DUR;
+      this.dustAlpha += Math.sign(dustTarget - this.dustAlpha) * Math.min(Math.abs(dustTarget - this.dustAlpha), step);
+    }
+    if (this.dustActive || this.dustAlpha > 0) {
       this.dustT += dt;
       this.dust!.update(this.dustT);
     }
@@ -253,13 +261,16 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   }
 
   /** Парящая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. Живая
-   *  пыль тоже «шевелится» непрерывно: пока она видна, цикл держим бодрым. */
+   *  пыль тоже «шевелится» непрерывно: пока она видна ИЛИ ещё доезжает fade — цикл держим бодрым. */
   get resting(): boolean {
-    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && !this.dustActive;
+    return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && !this.dustActive && this.dustAlpha === 0;
   }
 
   sync(): void {
-    if (this.dust) this.dust.view.visible = this.dustActive; // пыль видна только лицом вверх, вне переворота
+    if (this.dust) {
+      this.dust.view.visible = this.dustAlpha > 0.001;
+      this.dust.view.alpha = this.dustAlpha;
+    }
     const render = this.body.scaleVal * this.scaleFactor;
     // «Парение»: покачивание вверх-вниз только у floating; выше поднялась — дальше тень.
     let bobY = 0;

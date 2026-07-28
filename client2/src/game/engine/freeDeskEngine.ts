@@ -18,7 +18,7 @@ import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection 
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
-import type { Draggable, TableElement } from "./element";
+import type { Concealable, Draggable, TableElement } from "./element";
 import { SingleDrag, GroupDrag, type DragPayload, type DragContext } from "./drag";
 import type { Command } from "./command";
 import { Marker, withAnchor, withDragger, type MarkerHost, type MarkerState, type ShowPolicy } from "./marker";
@@ -65,6 +65,8 @@ const STORIES: Story[] = [
   { caption: "приподнятая (в руке)", opts: { card: "9♠", rest: "floating" } },
   { caption: "джокер", opts: { custom: "joker" } }, // кастом-лицо из реестра CUSTOM_FACES, не хардкод-флаг
 ];
+
+const PEEK_DUR = 3; // сек — сколько дропзона ПОДГЛЯДЕТЬ держит карту раскрытой перед автовозвратом
 
 interface Placed {
   card: Card;
@@ -208,6 +210,10 @@ export class FreeDeskEngine extends CanvasApp {
   private cardH = 1;
   private contentW = 1;
   private contentH = 1;
+  private lastSectionRight = 0; // правый край последней sectionFrame — для пар секций БОК О БОК (см. buildContent)
+  // Локальный флаг-заглушка: гасит покачивание armed/hot-текста дропзон (DropZone.step). НЕ связан
+  // с OS/батареей — глобального reduced-motion/quality в client2 сегодня нет (issue #7/#8 открыты).
+  private reduceMotion = false;
 
   private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
   private cards: Placed[] = [];
@@ -251,10 +257,15 @@ export class FreeDeskEngine extends CanvasApp {
   private stackReorderToggle: Toggle | null = null; // «реордер стопок» — для e2e-хука
   private buttons: Button[] = [];
   private buttonShowcase: { cap: string; b: Button }[] = []; // раздел «Кнопки» — для e2e-хука
-  private zones: Array<{ zone: DropZone; onDrop: (p: DragPayload) => void }> = [];
+  private zones: Array<{ zone: DropZone; onDrop: (p: DragPayload) => void; accepts: (p: DragPayload) => boolean; textFor?: (p: DragPayload) => { armed: string; hot: string } }> = [];
 
   private input = new InputRouter<Elem, Button>(this.inputHandlers());
   private drag: DragPayload | null = null; // текущий груз драга (одна карта или пачка)
+  // «Подглядеть» (дропзона ПОДГЛЯДЕТЬ, см. buildDropzonesBlock): id -> элемент/прошедшее время
+  // показа. Абортнутая повторным драгом карта просто выпадает из этих двух map (см. onCardGrab) —
+  // тем самым теряет скрытность навсегда, ведь возвращает её только истёкший таймер в frame().
+  private peeking = new Map<string, Elem>();
+  private peekT = new Map<string, number>();
   // Контекст драга: поднять элемент в слой драга / вернуть домой (движок-специфика для payload).
   private dragCtx: DragContext = {
     raise: (el) => {
@@ -264,6 +275,7 @@ export class FreeDeskEngine extends CanvasApp {
     },
     returnHome: (el) => this.releaseElement(el as Elem),
     flipGroup: (els) => this.flipGroup(els),
+    startPeek: (els) => this.startPeek(els),
   };
   private dragScreen = { x: 0, y: 0 }; // экранная позиция пальца при драге — для авто-скролла у кромки
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
@@ -383,11 +395,18 @@ export class FreeDeskEngine extends CanvasApp {
     frame.roundRect(left, top, box.boxW, box.boxH, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
     this.scene.surface.addChildAt(frame, frameIndex);
     this.contentW = Math.max(this.contentW, left + box.boxW); // виджет самого широкого бокса задаёт полотно
+    this.lastSectionRight = left + box.boxW;
     return top + box.boxH + SB_SECTION_GAP;
   }
 
   // Ряд «Карты — варианты»: копим спеки (позиция+пропсы), рисуем подписи. wrapRow переносит
   // строки на узком экране — раньше 12 карточек росли вправо без ограничения (переполняли 390px).
+  // cellW — ШАГ между картами (карта + запас под длинную подпись типа «приподнятая (в руке)», не
+  // задевающий соседа), НЕ ширина контента. Правый край бокса поэтому считаем по РЕАЛЬНОМУ краю
+  // последней карты/подписи в строке, а не по полному номинальному шагу — у шага справа от
+  // последней карты в строке нет соседа, чтобы его оправдывать, а у первой карты слева такого
+  // запаса и не было (не симметрично). Ту же ошибку другие ряды (buildPieces и т.п.) не повторяют:
+  // там per-item ширина уже равна фактической ширине элемента, не раздутому шагу.
   private buildCardsRow(left: number, top: number): { bottom: number; width: number } {
     const cellW = this.cardW * 2.15; // шаг под карту + подпись (было cardW + cardW*1.15)
     const itemH = this.cardH + 40; // карта + место под подпись
@@ -397,32 +416,65 @@ export class FreeDeskEngine extends CanvasApp {
       const p = items[i]!;
       const cx = left + p.x + this.cardW / 2;
       const cy = top + p.y + this.cardH / 2;
-      this.cardSpecs.push({ opts: s.opts, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.9 });
-      this.scene.surface.addChild(this.label(s.caption, cx, cy + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9));
-      width = Math.max(width, p.x + cellW);
+      // Явный id обязателен: без него Card.id === "" (Card.ts:103) — и ЛЮБЫЕ две карты этого ряда
+      // делят один ключ идентичности. Всё, что адресует элементы по id (peeking/peekT «подглядеть»,
+      // byId), тогда путает их между собой: показ одной карты снимал таймер у соседней.
+      this.cardSpecs.push({ opts: { ...s.opts, id: s.opts.id ?? `story-${i}` }, home: { x: cx, y: cy }, depth: i, bobPhase: i * 0.9 });
+      const cap = this.label(s.caption, cx, cy + this.cardH / 2 + 8, 14, 0x9aa89f, cellW * 0.9);
+      this.scene.surface.addChild(cap);
+      const rightEdge = Math.max(p.x + this.cardW, p.x + this.cardW / 2 + cap.width / 2);
+      width = Math.max(width, rightEdge);
     });
     return { bottom: top + totalH, width };
   }
 
-  // Ряд «Дропзоны»: перевернуть и сжечь. Фон+название — на поверхности, глагол — над картами.
+  // Ряд «Дропзоны»: перевернуть, сжечь, подглядеть. Фон+название — на поверхности, глагол — над картами.
+  // ПОДГЛЯДЕТЬ реагирует на способность peek (только Concealable — только карты, см. drag.ts) и
+  // единственная из трёх задействует armed («давай подсмотрим?») — зазывающий текст, пока драг
+  // способной карты идёт где-то ещё на канвасе, не только когда её навели именно на эту зону. Текст
+  // при этом ЗАВИСИТ от того, есть ли у ЭТОЙ карты что подглядывать (needsPeek) — уже раскрытой
+  // картой зона отвечает «зачем?»/«нет.» и после дропа не запускает подглядывание (см. startPeek).
+  // Одна колонка (пока что — задел под будущее расширение набора зон): каждая зона — невысокая
+  // кнопка-полоса, а не карточный слот. Высота — своя, не cardH (зона больше не притворяется
+  // местом ПОД карту, это список действий), но ширина по-прежнему от cardW — тот же язык
+  // масштабирования, что у всей песочницы.
   private buildDropzonesBlock(left: number, top: number): { bottom: number; width: number } {
     const zoneW = this.cardW * 2.4;
-    const zoneGap = this.cardW * 0.5;
-    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: left, y: top, w: zoneW, h: this.cardH } }), (p) => p.flip?.());
-    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: left + zoneW + zoneGap, y: top, w: zoneW, h: this.cardH } }), (p) => p.burn?.());
-    return { bottom: top + this.cardH, width: zoneW * 2 + zoneGap };
+    const zoneH = zoneW * (9 / 16); // 16:9 (ширина:высота) по прямому решению владельца
+    let y = top;
+    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: left, y, w: zoneW, h: zoneH } }), (p) => p.flip?.(), (p) => !!p.flip);
+    y += zoneH + SB_ITEM_GAP;
+    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: left, y, w: zoneW, h: zoneH } }), (p) => p.burn?.(), (p) => !!p.burn);
+    y += zoneH + SB_ITEM_GAP;
+    this.registerZone(
+      new DropZone({ name: "ПОДГЛЯДЕТЬ", verb: "Отпускай!", armed: "давай подсмотрим?", rect: { x: left, y, w: zoneW, h: zoneH } }),
+      (p) => p.peek?.(),
+      (p) => !!p.peek,
+      (p) => (this.needsPeek(p.lead) ? { armed: "давай подсмотрим?", hot: "Отпускай!" } : { armed: "зачем?", hot: "нет." }),
+    );
+    return { bottom: y + zoneH, width: zoneW };
   }
 
   // Собрать песочницу: мебель (тексты, дропзоны, кнопки) — всегда заново; карты — из спеков,
   // при restore восстанавливая их положение/лицо (рестарт канваса), иначе в исходном виде.
-  // Порядок секций: Карты → Кнопки → Дропзоны → Фигуры → Стопки → Поле → Управление → Борды
-  // (борды — последними: самая тяжёлая секция, плотная сетка). Каждая секция — sectionFrame,
-  // единый SB_SECTION_GAP между низом одной и верхом следующей (было 8 разных чисел).
+  // Порядок секций: (Карты + Дропзоны бок о бок) → Кнопки → Фигуры → Стопки → Поле → Управление
+  // → Борды (борды — последними: самая тяжёлая секция, плотная сетка). Каждая секция —
+  // sectionFrame, единый SB_SECTION_GAP между низом одной и верхом следующей (было 8 разных чисел).
   private buildContent(restore?: Map<number, CardRuntime>): void {
     let y = SB_MARGIN;
-    y = this.sectionFrame(SB_MARGIN, y, "Карты — варианты", (cl, ct) => this.buildCardsRow(cl, ct));
+    // Дропзоны — БОК О БОК с Картами (та же верхняя граница), не под ними: карты сами по себе
+    // узкие (wrapRow держит их в ~3 колонки, см. buildCardsRow), а дропзоны — одна колонка
+    // (buildDropzonesBlock), так что рядом остаётся место, которое иначе простаивало бы справа.
+    // Между ними SB_ITEM_GAP, не SB_SECTION_GAP: это не «следующая секция страницы» (та связь —
+    // вертикальная, SB_SECTION_GAP так и подписан), а два блока ОДНОГО ряда — тот же смысл, что
+    // у SB_ITEM_GAP везде внутри секции. Уже + меньше зазора = дропзонам физически хватает места
+    // рядом на телефонном экране вместо того, чтобы вылезать за его правый край.
+    const cardsTop = y;
+    const cardsBottom = this.sectionFrame(SB_MARGIN, cardsTop, "Карты — варианты", (cl, ct) => this.buildCardsRow(cl, ct));
+    const cardsRight = this.lastSectionRight;
+    const dzBottom = this.sectionFrame(cardsRight + SB_ITEM_GAP, cardsTop, "Дропзоны", (cl, ct) => this.buildDropzonesBlock(cl, ct));
+    y = Math.max(cardsBottom, dzBottom);
     y = this.buildButtons(SB_MARGIN, y);
-    y = this.sectionFrame(SB_MARGIN, y, "Дропзоны", (cl, ct) => this.buildDropzonesBlock(cl, ct));
     y = this.buildPieces(SB_MARGIN, y);
     y = this.buildStacks(SB_MARGIN, y);
     y = this.buildField(SB_MARGIN, y);
@@ -438,6 +490,10 @@ export class FreeDeskEngine extends CanvasApp {
   // Только для e2e: экранные точки зон + состояние первой карты + число карт. Дёшево, безвредно.
   testHooks(): {
     zones: Record<string, { x: number; y: number }>;
+    zoneHot: Record<string, boolean>;
+    zoneArmed: Record<string, boolean>;
+    zoneHotText: Record<string, string>;
+    zoneArmedText: Record<string, string>;
     firstCard: { x: number; y: number; faceUp: boolean } | null;
     cardCount: number;
     grips: ({ x: number; y: number } | null)[];
@@ -472,6 +528,7 @@ export class FreeDeskEngine extends CanvasApp {
     };
     cardW: number;
     draggingId: string | null;
+    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean }[];
   } {
     const toScreen = (cx: number, cy: number) => ({ x: this.viewport.x + cx * this.viewport.zoom, y: this.viewport.y + cy * this.viewport.zoom });
     const zones: Record<string, { x: number; y: number }> = {};
@@ -479,9 +536,21 @@ export class FreeDeskEngine extends CanvasApp {
       const r = z.zone.rect;
       zones[z.zone.label] = toScreen(r.x + r.w / 2, r.y + r.h / 2);
     }
+    const zoneHot: Record<string, boolean> = {};
+    for (const z of this.zones) zoneHot[z.zone.label] = z.zone.verb.visible;
+    const zoneArmed: Record<string, boolean> = {};
+    for (const z of this.zones) zoneArmed[z.zone.label] = z.zone.armedText?.visible ?? false;
+    const zoneHotText: Record<string, string> = {};
+    for (const z of this.zones) zoneHotText[z.zone.label] = z.zone.verb.text;
+    const zoneArmedText: Record<string, string> = {};
+    for (const z of this.zones) zoneArmedText[z.zone.label] = z.zone.armedText?.text ?? "";
     const first = this.cards[0]?.card;
     return {
       zones,
+      zoneHot,
+      zoneArmed,
+      zoneHotText,
+      zoneArmedText,
       firstCard: first ? { ...toScreen(first.body.px, first.body.py), faceUp: first.faceUp } : null,
       cardCount: this.cards.length,
       grips: this.stacks.map((st) => toScreen(st.dragger.gfx.position.x, st.dragger.gfx.position.y)),
@@ -545,6 +614,14 @@ export class FreeDeskEngine extends CanvasApp {
       },
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
+      // «Карты — варианты» всегда спавнятся ПЕРВЫМИ (buildCardsRow — первая секция buildContent),
+      // так что this.cards[i] для i < STORIES.length — тот же элемент, что и STORIES[i] (как уже
+      // делает firstCard = this.cards[0] выше).
+      storyCards: STORIES.map((s, i) => {
+        const c = this.cards[i]?.card;
+        if (!c) return null;
+        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, rest: c.rest, concealed: c.concealed };
+      }).filter((x): x is NonNullable<typeof x> => x !== null),
     };
   }
 
@@ -840,10 +917,16 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   // Кладём зону: фон+название — на поверхность (под картами), глагол — в слой над лежащими картами.
-  private registerZone(zone: DropZone, onDrop: (p: DragPayload) => void): void {
-    this.zones.push({ zone, onDrop });
+  // accepts — умеет ли ТЕКУЩИЙ груз то, что предлагает эта зона (flip/burn/peek); зона подсвечивается
+  // (glow + текст-обещание) ТОЛЬКО если груз реально способен — иначе зона «врёт» глаголом грузу,
+  // который она всё равно не примет (см. hot-циклы в onCardMove/edgeScroll). textFor — опционально:
+  // подпись зависит не только от способности, но и от ТЕКУЩЕГО состояния груза (ПОДГЛЯДЕТЬ уже
+  // раскрытой картой нечего подглядывать — см. needsPeek/buildDropzonesBlock).
+  private registerZone(zone: DropZone, onDrop: (p: DragPayload) => void, accepts: (p: DragPayload) => boolean, textFor?: (p: DragPayload) => { armed: string; hot: string }): void {
+    this.zones.push({ zone, onDrop, accepts, textFor });
     this.scene.surface.addChild(zone.base);
     this.scene.verb.addChild(zone.verb);
+    if (zone.armedText) this.scene.verb.addChild(zone.armedText);
   }
 
   // Живые Card из накопленных спеков. restore — снимок (положение/лицо), сгоревшие пропускаем.
@@ -1885,6 +1968,15 @@ export class FreeDeskEngine extends CanvasApp {
       buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
       onCardGrab: (card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
+        // Abort «поглядеть»: перехватили карту повторным драгом ДО истечения PEEK_DUR — снимаем
+        // таймер, и этого достаточно: скрытность не восстановится сама (её возвращает только
+        // истёкший таймер в frame()). Дальше карта — обычный груз драга и вернётся домой обычным
+        // releaseElement. «Улетает прочь» тут БЫЛО и убрано: карта уезжала под весь контент и
+        // становилась недоступна навсегда — потеря элемента, а не результат действия.
+        if (this.peeking.has(card.id)) {
+          this.peeking.delete(card.id);
+          this.peekT.delete(card.id);
+        }
         // Драг выделенного НАБОРА: тянем все выбранные фигуры разом (GroupDrag), врассыпную.
         if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
           const cards = this.sel.ids.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
@@ -1930,7 +2022,12 @@ export class FreeDeskEngine extends CanvasApp {
             }
           }
         }
-        for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y)); // подсветка зоны под грузом
+        // подсветка зоны под грузом — ТОЛЬКО если груз реально способен на её действие (иначе зона
+        // «обещает» глаголом то, что после дропа не сделает, см. registerZone).
+        for (const z of this.zones) {
+          const eligible = this.drag !== null && z.accepts(this.drag);
+          z.zone.setHot(eligible && z.zone.contains(p.x, p.y), eligible && z.textFor ? z.textFor(this.drag!).hot : undefined);
+        }
       },
       onCardDrop: (card, cp) => {
         if (this.drag) {
@@ -2090,7 +2187,10 @@ export class FreeDeskEngine extends CanvasApp {
     this.applyView();
     const p = this.screenToContent(sx, sy);
     this.drag.move(p); // груз (карта/пачка) остаётся под пальцем на открывшейся области
-    for (const z of this.zones) z.zone.setHot(z.zone.contains(p.x, p.y));
+    for (const z of this.zones) {
+      const eligible = z.accepts(this.drag);
+      z.zone.setHot(eligible && z.zone.contains(p.x, p.y), eligible && z.textFor ? z.textFor(this.drag).hot : undefined);
+    }
     this.emitView();
   }
 
@@ -2131,7 +2231,11 @@ export class FreeDeskEngine extends CanvasApp {
     return p ? { home: p.home, depth: p.depth } : null;
   }
 
-  // Вернуть ЛЮБОЙ элемент (карта/фишка/фигура) домой.
+  // Вернуть ЛЮБОЙ элемент (карта/фишка/фигура) домой — той же пружиной, что и обычный релиз.
+  // Абортнутый «поглядеть» тут НЕ особый случай: раньше такая карта летела под весь контент
+  // (contentH + 3 карты) — буквальное прочтение «падает в свободном падении» из тикета, — но на
+  // столе это читается не как действие, а как ПОТЕРЯ карты: найти её потом нельзя ничем, кроме
+  // перезагрузки страницы. Абортом теряется только скрытность (таймер снят в onCardGrab), место — нет.
   private releaseElement(el: Elem): void {
     const h = this.homeOf(el);
     if (!h) return;
@@ -2139,6 +2243,36 @@ export class FreeDeskEngine extends CanvasApp {
     el.root.zIndex = h.depth; // и на свою глубину — не поверх соседей по стопке
     this.placeCard(el);
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
+  }
+
+  // «Поглядеть»: снять скрытность на PEEK_DUR сек (флип лицом вверх, если нужно), карта замирает
+  // на месте (никто больше не зовёт setTarget — пружина уже стоит на точке дропа). Спустя
+  // PEEK_DUR — restorePeek() в frame() вернёт скрытность и отпустит элемент домой обычным
+  // releaseElement. Абортится в onCardGrab (повторный драг), см. releaseElement выше.
+  // Уже видно (не скрыта И лицом вверх) — подглядывать нечего: зона отвечает «зачем?»/«нет.»
+  // (см. buildDropzonesBlock) и НЕ запускает таймер — карта просто падает домой как обычно.
+  private needsPeek(el: TableElement): boolean {
+    const concealed = "concealed" in el ? (el as unknown as Concealable).concealed : false;
+    const faceUp = "faceUp" in el ? (el as unknown as { faceUp: boolean }).faceUp : true;
+    return concealed || !faceUp;
+  }
+
+  // Возвращает true, если хоть один элемент реально ушёл в подглядывание — это и есть consumed
+  // для SingleDrag/GroupDrag (см. drag.ts): не начали ни одного → карта(ы) летят домой как обычно.
+  private startPeek(els: readonly TableElement[]): boolean {
+    let any = false;
+    for (const el of els) {
+      if (!this.needsPeek(el)) continue;
+      if ("faceUp" in el && !(el as unknown as { faceUp: boolean }).faceUp && "requestFlip" in el) {
+        (el as unknown as { requestFlip(): boolean }).requestFlip();
+      }
+      (el as unknown as Concealable).setConcealed(false);
+      this.peeking.set(el.id, el as Elem);
+      this.peekT.set(el.id, 0);
+      any = true;
+    }
+    if (any) this.wake();
+    return any;
   }
 
   // ——— цикл ———
@@ -2160,6 +2294,27 @@ export class FreeDeskEngine extends CanvasApp {
     for (const b of this.buttons) {
       b.step(dt);
       if (!b.resting) moving = true;
+    }
+    if (this.peeking.size > 0) {
+      moving = true; // держим тикер живым, иначе на успокоившейся сцене отсчёт «поглядеть» замрёт
+      for (const [id, el] of this.peeking) {
+        const t = (this.peekT.get(id) ?? 0) + dt;
+        if (t >= PEEK_DUR) {
+          this.peeking.delete(id);
+          this.peekT.delete(id);
+          (el as unknown as Concealable).setConcealed(true); // пыль возвращается (fade — Card.dustAlpha)
+          this.releaseElement(el);
+        } else {
+          this.peekT.set(id, t);
+        }
+      }
+    }
+    // armed: перечитываем каждый кадр из this.drag, а не разбросанными вызовами по местам, где
+    // драг стартует/кончается — так короче и не пропустит ни один выход (early return и т.п.).
+    for (const z of this.zones) {
+      const eligible = this.drag !== null && z.accepts(this.drag);
+      z.zone.setArmed(eligible, eligible && z.textFor ? z.textFor(this.drag!).armed : undefined);
+      z.zone.step(dt, this.reduceMotion); // покачивание armed/hot-текста
     }
     this.render();
     return moving;
@@ -2209,6 +2364,8 @@ export class FreeDeskEngine extends CanvasApp {
     this.drag = null;
     this.buttons = [];
     this.zones = [];
+    this.peeking.clear();
+    this.peekT.clear();
     this.input.reset();
     this.scene.surface.removeChildren().forEach((c) => c.destroy());
     this.scene.verb.removeChildren().forEach((c) => c.destroy());
@@ -2271,6 +2428,8 @@ export class FreeDeskEngine extends CanvasApp {
     this.drag = null;
     this.buttons = [];
     this.zones = [];
+    this.peeking.clear();
+    this.peekT.clear();
     this.input.reset();
     this.tex?.destroy();
   }

@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { SingleDrag, GroupDrag, type DragContext } from "./drag";
 import type { TableElement } from "./element";
 
-// Фейковый элемент: тело с записью setTarget, опциональные способности flip/burn.
-function elem(id: string, opts: { flip?: boolean; burn?: boolean; burning?: boolean } = {}): TableElement {
+// Фейковый элемент: тело с записью setTarget, опциональные способности flip/burn/conceal.
+function elem(id: string, opts: { flip?: boolean; burn?: boolean; burning?: boolean; conceal?: boolean } = {}): TableElement {
   const targets: unknown[] = [];
   const el: Record<string, unknown> = {
     id,
@@ -22,6 +22,7 @@ function elem(id: string, opts: { flip?: boolean; burn?: boolean; burning?: bool
     el.burn = vi.fn();
     Object.defineProperty(el, "burning", { get: () => !!opts.burning });
   }
+  if (opts.conceal) el.setConcealed = vi.fn();
   return el as unknown as TableElement;
 }
 
@@ -29,12 +30,17 @@ function ctx() {
   const raised: string[] = [];
   const homed: string[] = [];
   const flipped: string[][] = [];
+  const peeked: string[][] = [];
   const c: DragContext = {
     raise: (e) => raised.push(e.id),
     returnHome: (e) => homed.push(e.id),
     flipGroup: (els) => flipped.push(els.map((e) => e.id)),
+    startPeek: (els) => {
+      peeked.push(els.map((e) => e.id));
+      return true; // фейк всегда «есть что подглядеть» — needsPeek живёт в движке, не в drag.ts
+    },
   };
-  return { c, raised, homed, flipped };
+  return { c, raised, homed, flipped, peeked };
 }
 
 describe("SingleDrag", () => {
@@ -64,6 +70,20 @@ describe("SingleDrag", () => {
     const { c } = ctx();
     expect(new SingleDrag(elem("a", { burn: true, burning: false }), c, { x: 0, y: 0 }).consumed).toBe(false);
     expect(new SingleDrag(elem("b", { burn: true, burning: true }), c, { x: 0, y: 0 }).consumed).toBe(true);
+  });
+
+  it("peek есть только если элемент Concealable; вызов делегирует в ctx.startPeek и делает consumed=true", () => {
+    const { c, peeked } = ctx();
+    const plain = new SingleDrag(elem("p"), c, { x: 0, y: 0 });
+    expect(plain.peek).toBeUndefined();
+
+    const el = elem("h", { conceal: true });
+    const d = new SingleDrag(el, c, { x: 0, y: 0 });
+    expect(d.peek).toBeTypeOf("function");
+    expect(d.consumed).toBe(false);
+    d.peek!();
+    expect(peeked).toEqual([["h"]]);
+    expect(d.consumed).toBe(true); // «поглядели» — как и горение, не возвращать домой автоматически
   });
 });
 
@@ -110,5 +130,17 @@ describe("GroupDrag", () => {
 
     const burning = new GroupDrag([elem("x", { burn: true, burning: true })], [{ dx: 0, dy: 0 }], c);
     expect(burning.consumed).toBe(true);
+  });
+
+  it("peek есть только если ВСЕ элементы Concealable, делегируется в ctx.startPeek целиком", () => {
+    const { c, peeked } = ctx();
+    const yes = new GroupDrag([elem("a", { conceal: true }), elem("b", { conceal: true })], [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }], c);
+    expect(yes.peek).toBeTypeOf("function");
+    yes.peek!();
+    expect(peeked).toEqual([["a", "b"]]);
+    expect(yes.consumed).toBe(true);
+
+    const no = new GroupDrag([elem("a", { conceal: true }), elem("b")], [{ dx: 0, dy: 0 }, { dx: 0, dy: 0 }], c);
+    expect(no.peek).toBeUndefined(); // не все Concealable — пачка не «глядится»
   });
 });
