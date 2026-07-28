@@ -233,6 +233,17 @@ Machines sleep between visits (`min_machines_running = 0`), so the first request
 pause takes a few seconds to wake the server. That's expected — rooms live in memory only,
 and a restart already kicks everyone out anyway.
 
+### Where this is heading: the v2 stack
+
+Everything above is the v1 stack, and it is on its way out. The live stack moves into a
+SEPARATE app, `crusade-deck-v2` (one container: nginx + node server-v2, client2 at `/`,
+`/api/` proxied into node); v1 is not edited by a single line and is deleted wholesale
+later. The full analysis, ready-to-paste configs and the reason behind every trap are in
+`SERVER-V2-INFRA-HANDOFF.md`; the work breakdown is epic #43.
+
+Until then this section describes the current deploy: freezing v1 (#51) hasn't happened
+yet, and `scripts/deploy.sh` still deploys v1 by default.
+
 ### Two clients on one domain (`/` and `/v2/`)
 
 `crusade-deck-client` serves BOTH clients from one nginx image: the old client (`client/`)
