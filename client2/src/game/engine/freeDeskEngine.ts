@@ -244,6 +244,11 @@ export class FreeDeskEngine extends CanvasApp {
   private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
   private selMultiButtons: Button[] = []; // тумблер «мультиселект» — для e2e
   private selSortButtons: Button[] = []; // тумблер «сорт набора» — для e2e
+  private hoveredBtn: Button | null = null; // наведённая кнопка (ПК): чтобы гасить/зажигать только её, а не перебирать все (issue #48 баг №4)
+  private hoverRerenders = 0; // счётчик перерисовок кнопок от ховера — для e2e-замера отсутствия лагов
+  // Long-press по фигуре демо-зоны (issue #48 баг №3): удержание ~500мс без сдвига входит в режим
+  // выделения и берёт фигуру в набор — второй способ входа помимо кнопки «выделение».
+  private longPress: { id: string; sx: number; sy: number; timer: ReturnType<typeof setTimeout> } | null = null;
   private boardOnOccupiedSegments: Segmented[] = []; // тумблер «на занятый слот» каждого из 7 пресетов — для e2e
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
@@ -508,6 +513,17 @@ export class FreeDeskEngine extends CanvasApp {
     boardSlots: { key: string; x: number; y: number }[];
     selMode: boolean;
     selection: string[];
+    // Вложенная форма под e2e issue #48 (отдельный ключ, а не переопределение плоского selection:
+    // string[], от которого зависит board.spec.ts): всё про UI-состояние выделения в одном месте.
+    selectionState: {
+      active: boolean;
+      selected: string[];
+      clearButtonVisibleAt: { x: number; y: number } | null; // null, пока не в режиме — кнопки «снять» нет
+      selectToggleAt: { x: number; y: number } | null;
+      multiSelectEnabled: boolean;
+      sortMode: "selection" | "rank";
+    };
+    perf: { hoverRerenders: number }; // сколько кнопок перерисовалось от ховера — для замера отсутствия лагов (баг №4)
     selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[]; onOccupied: OnOccupied; onOccupiedAt: { x: number; y: number }[] }[];
@@ -570,6 +586,15 @@ export class FreeDeskEngine extends CanvasApp {
       boardSlots: this.firstBoard()?.slotRects().map(({ key, rect }) => ({ key, ...toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2) })) ?? [],
       selMode: this.selMode,
       selection: [...this.sel.ids],
+      selectionState: {
+        active: this.selMode,
+        selected: [...this.sel.ids],
+        clearButtonVisibleAt: this.selBtnScreen("снять", toScreen, this.selMode),
+        selectToggleAt: this.selBtnScreen("выделение", toScreen, true),
+        multiSelectEnabled: this.multiSelectOn,
+        sortMode: this.selSortByRank ? "rank" : "selection",
+      },
+      perf: { hoverRerenders: this.hoverRerenders },
       selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
       selFigures: this.selZone
         ? Object.values(this.selZone.board.slots)
@@ -1290,7 +1315,16 @@ export class FreeDeskEngine extends CanvasApp {
   }
 
   private selectDemoPreset(): BoardPreset {
-    return { title: "выделение (изолир., тащи набор, сорт по номиналу)", cols: 4, rows: 1, onOccupied: "merge", slots: { "0,0": ["A♦"], "0,1": ["7♣"], "0,2": ["Q♠"] } };
+    // 6 карт в сетке 4×2 (слоты 0,3 и 1,3 пусты — цель для драга набора). Ранги нарочно вразнобой
+    // (10/6/8/A/7/Q), в т.ч. 6/8/10 — чтобы «сорт по номиналу» был виден и на 6+ фигурах помещался
+    // без overflow (две короткие строки вместо одной длинной, см. issue #48, баги «6 карт» и «сорт»).
+    return {
+      title: "выделение (изолир., тащи набор, сорт по номиналу)",
+      cols: 4,
+      rows: 2,
+      onOccupied: "merge",
+      slots: { "0,0": ["10♠"], "0,1": ["6♣"], "0,2": ["8♥"], "1,0": ["A♦"], "1,1": ["7♣"], "1,2": ["Q♠"] },
+    };
   }
 
   // Игровые зоны (борды): ПЛОТНАЯ СЕТКА (data-driven), не вертикальный стек — 10 бордов меряются
@@ -1455,6 +1489,7 @@ export class FreeDeskEngine extends CanvasApp {
     this.registerButton(bMode);
     this.registerButton(bClear);
     this.selButtons = [{ label: "выделение", btn: bMode }, { label: "снять", btn: bClear }];
+    this.syncSelButtons(); // «снять» скрыта вне режима, «выделение» гаснет — исходное согласованное состояние
 
     // Глобальные конфиги контейнера (живут в зоне): мультиселект вкл/выкл, порядок выноса набора.
     this.multiSelectOn = true;
@@ -1465,6 +1500,7 @@ export class FreeDeskEngine extends CanvasApp {
       if (!this.multiSelectOn && this.selMode) {
         this.selMode = false;
         this.sel = clearSel();
+        this.syncSelButtons();
         this.refreshSel();
         this.wake();
       }
@@ -1478,6 +1514,7 @@ export class FreeDeskEngine extends CanvasApp {
     if (!this.multiSelectOn) return; // конфиг контейнера отключил мультиселект
     this.selMode = !this.selMode;
     this.sel = this.selMode ? begin("sel") : clearSel();
+    this.syncSelButtons();
     this.refreshSel();
     this.wake();
   }
@@ -1486,6 +1523,47 @@ export class FreeDeskEngine extends CanvasApp {
     if (this.selMode) this.sel = begin("sel"); // остаёмся в режиме, гасим набор
     this.refreshSel();
     this.wake();
+  }
+
+  // Кнопки режима следуют за selMode: «выделение» подсвечена, пока режим включён (иначе кликнул —
+  // а она серая, непонятно включилось ли, issue #48 баг №1); «снять» вообще не показываем вне
+  // режима — гасить нечего, а зависшая кнопка читается как «застряла» (баг №6).
+  private syncSelButtons(): void {
+    const bMode = this.selButtons.find((b) => b.label === "выделение")?.btn;
+    const bClear = this.selButtons.find((b) => b.label === "снять")?.btn;
+    bMode?.setActive(this.selMode);
+    if (bClear) bClear.root.visible = this.selMode;
+  }
+
+  // Экранная точка кнопки выделения по подписи (для e2e-хука selectionState) — null, если кнопки нет
+  // или она сейчас невидима (visible=false «снятой» вне режима).
+  private selBtnScreen(label: string, toScreen: (x: number, y: number) => { x: number; y: number }, visible: boolean): { x: number; y: number } | null {
+    const btn = this.selButtons.find((b) => b.label === label)?.btn;
+    return btn && visible ? toScreen(btn.x, btn.y) : null;
+  }
+
+  // Взвести таймер удержания по фигуре демо-зоны. sx/sy — экранная точка захвата (порог сдвига).
+  private armLongPress(id: string, sp: { x: number; y: number }): void {
+    this.cancelLongPress();
+    this.longPress = { id, sx: sp.x, sy: sp.y, timer: setTimeout(() => this.fireLongPress(), 500) };
+  }
+
+  private cancelLongPress(): void {
+    if (!this.longPress) return;
+    clearTimeout(this.longPress.timer);
+    this.longPress = null;
+  }
+
+  // Удержание доиграло: обрываем начатый было драг (фигура едет домой), входим в режим и берём фигуру.
+  private fireLongPress(): void {
+    const lp = this.longPress;
+    if (!lp || this.selMode) return this.cancelLongPress();
+    this.longPress = null;
+    this.drag?.release();
+    this.drag = null;
+    this.input.reset(); // палец ещё на экране, но жест уже «съеден» удержанием — не даём ему стать драгом
+    this.toggleSelectMode();
+    this.toggleSelectFigure(lp.id);
   }
 
   // Тап по фигуре демо-зоны в режиме → тоггл. owner="sel" всегда совпадает со scope (изоляция:
@@ -1502,12 +1580,17 @@ export class FreeDeskEngine extends CanvasApp {
     return [...ids].sort((a, b) => rankOf(this.faceOf.get(a) ?? "") - rankOf(this.faceOf.get(b) ?? ""));
   }
 
-  // Подсветка: выделенные — приподняты (floating), остальные — на столе.
+  // Подсветка: выделенные — приподняты (floating), остальные — на столе. setState меняет УРОВЕНЬ
+  // тени (levelOf → слой shadows.<level>), поэтому спрайт обязан переехать в ПАРНЫЙ слой того же
+  // уровня (placeCard) — иначе тень floating уедет выше спрайта, застрявшего в idle (issue #55).
   private refreshSel(): void {
     if (!this.selZone) return;
     for (const key of Object.keys(this.selZone.board.slots)) {
       for (const id of this.selZone.board.slots[key]!.members) {
-        this.byId.get(id)?.setState(hasSel(this.sel, id) ? "floating" : "idle");
+        const el = this.byId.get(id);
+        if (!el) continue;
+        el.setState(hasSel(this.sel, id) ? "floating" : "idle");
+        this.placeCard(el); // держим спрайт и его тень в одном уровне
       }
     }
   }
@@ -1979,6 +2062,10 @@ export class FreeDeskEngine extends CanvasApp {
           pk.grabbed = true;
           if ("peekBob" in pk.el) pk.el.peekBob = false; // гасим резонанс-парение под пальцем (peekBob есть только у Card)
         }
+        // Взвод long-press: фигуру демо-зоны держат вне режима → через 500мс без сдвига входим в
+        // выделение и берём её (issue #48 баг №3). Обычный драг продолжается параллельно; если палец
+        // поехал (onCardMove) или отпущен раньше (onCardDrop) — взвод снимается, драг остаётся драгом.
+        if (!this.selMode && this.multiSelectOn && this.selZone?.locate(card.id)) this.armLongPress(card.id, sp);
         // Драг выделенного НАБОРА: тянем все выбранные фигуры разом (GroupDrag), врассыпную.
         if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
           const cards = this.sel.ids.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
@@ -2002,6 +2089,8 @@ export class FreeDeskEngine extends CanvasApp {
       },
       onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
+        // Палец поехал (>10 экранных px) — это драг, а не удержание: снимаем взвод long-press.
+        if (this.longPress && Math.hypot(sp.x - this.longPress.sx, sp.y - this.longPress.sy) > 10) this.cancelLongPress();
         // Фигура БОРДА заперта в рамке зоны (clamp). Фигура Поля — не в boardZones → не клампится.
         const bz = this.drag ? this.boardZoneOf(this.drag.lead.id) : null;
         const p = bz ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
@@ -2032,6 +2121,7 @@ export class FreeDeskEngine extends CanvasApp {
         }
       },
       onCardDrop: (card, cp) => {
+        this.cancelLongPress(); // отпустили раньше 500мс — это обычный тап/драг, не удержание
         if (this.drag) {
           this.resolveGrabbedPeeks(); // держали «показанную» карту → вернуть скрытость до диспатча дропа
           if (this.selDragging && this.selZone) {
@@ -2093,6 +2183,7 @@ export class FreeDeskEngine extends CanvasApp {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
+        this.cancelLongPress(); // драг прерван (второй палец) — взвод удержания снимаем
         if (this.drag) this.resolveGrabbedPeeks(); // отмена драга «показанной» карты — тоже вернуть скрытость
         const fld = this.drag ? this.fieldForCard(this.drag.lead.id) : null;
         if (fld) {
@@ -2155,7 +2246,19 @@ export class FreeDeskEngine extends CanvasApp {
         this.emitView();
       },
       onHover: (b) => {
-        for (const btn of this.buttons) btn.hover(btn === b);
+        // Трогаем ТОЛЬКО две сменившиеся кнопки (снятую и наведённую), а не перебираем весь
+        // список каждый раз: на ПК с десятками кнопок цикл-по-всем при быстром ховере ронял FPS
+        // (issue #48 баг №4). Роутер и так шлёт onHover лишь при смене цели, так что b ≠ hoveredBtn.
+        if (b === this.hoveredBtn) return;
+        if (this.hoveredBtn) {
+          this.hoveredBtn.hover(false);
+          this.hoverRerenders++;
+        }
+        if (b) {
+          b.hover(true);
+          this.hoverRerenders++;
+        }
+        this.hoveredBtn = b;
         this.wake();
       },
       afterAny: () => this.wake(),
@@ -2361,6 +2464,8 @@ export class FreeDeskEngine extends CanvasApp {
     this.sel = EMPTY;
     this.selZone = null;
     this.selDragging = null;
+    this.cancelLongPress();
+    this.hoveredBtn = null;
     this.faceOf.clear();
     this.selButtons = [];
     this.grabbers = [];
@@ -2430,6 +2535,8 @@ export class FreeDeskEngine extends CanvasApp {
     this.sel = EMPTY;
     this.selZone = null;
     this.selDragging = null;
+    this.cancelLongPress();
+    this.hoveredBtn = null;
     this.faceOf.clear();
     this.selButtons = [];
     this.grabbers = [];

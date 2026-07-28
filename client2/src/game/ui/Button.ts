@@ -52,6 +52,7 @@ export class Button {
   private readonly label: Text;
   private readonly onClick?: () => void;
   private state: State = "rest";
+  private active = false; // «залипшее» вкл-состояние тоглер-кнопки (напр. режим выделения включён) — держится независимо от ховера/нажатия
   private press = 0; // 0..1 — сглаженное «нажатие» (масштаб/сдвиг вниз)
   private pressTarget = 0;
   private customW = 0; // текст-кнопка меряется по тексту, а не по SIZES
@@ -113,6 +114,17 @@ export class Button {
     this.pressTarget = on ? 1 : 0;
   }
 
+  /** Залипшее вкл/выкл для тоглер-кнопки (не ховер): аффорданс «режим включён» — ярче фон, золотая обводка. */
+  setActive(on: boolean): void {
+    if (on === this.active) return;
+    this.active = on;
+    this.draw();
+  }
+
+  get isActive(): boolean {
+    return this.active;
+  }
+
   click(): void {
     if (!this.disabled) this.onClick?.();
   }
@@ -154,14 +166,15 @@ export class Button {
     let fillColor = v.fill;
     let fillAlpha = 1;
     if (this.variant === "ghost") {
-      fillAlpha = this.state === "pressed" ? 0.22 : this.state === "hover" ? 0.12 : 0;
+      fillAlpha = this.active ? 0.3 : this.state === "pressed" ? 0.22 : this.state === "hover" ? 0.12 : 0;
     } else {
-      fillColor = this.state === "pressed" ? shade(v.fill, 0.88) : this.state === "hover" ? shade(v.fill, 1.1) : v.fill;
+      // active «перебивает» ховер/нажатие — режим включён видно всегда, а не только под курсором.
+      fillColor = this.active ? shade(v.fill, 1.25) : this.state === "pressed" ? shade(v.fill, 0.88) : this.state === "hover" ? shade(v.fill, 1.1) : v.fill;
     }
     this.bg.clear();
     this.bg
       .roundRect(-s.w / 2, -s.h / 2, s.w, s.h, s.radius)
       .fill({ color: fillColor, alpha: fillAlpha })
-      .stroke({ width: 2, color: v.border });
+      .stroke({ width: this.active ? 3 : 2, color: this.active ? 0xf2c14e : v.border });
   }
 }

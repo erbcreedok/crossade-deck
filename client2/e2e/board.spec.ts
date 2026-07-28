@@ -213,8 +213,8 @@ test.describe("песочница — игровая зона (борд)", () =>
     let h = await hooks(page);
     await clickAt(page, btn(h, "выделение"));
     h = await hooks(page);
-    await clickAt(page, h.selFigures[0]!); // выбрать A♦ (0,0)
-    await clickAt(page, h.selFigures[1]!); // выбрать 7♣ (0,1)
+    await clickAt(page, h.selFigures[0]!); // выбрать 10♠ (0,0)
+    await clickAt(page, h.selFigures[1]!); // выбрать 6♣ (0,1)
     h = await hooks(page);
     expect(h.selection).toHaveLength(2);
     const board = h.boards.find((b) => b.title.includes("выделение"))!; // select-борд
@@ -315,7 +315,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     await page.waitForTimeout(150);
     await clickAt(page, btn(h, "выделение"));
     h = await hooks(page);
-    // selFigures[0]=A♦(0,0), [1]=7♣(0,1), [2]=Q♠(0,2) — выбираем в обратном порядке (Q♠ затем A♦)
+    // selFigures[0]=10♠(0,0), [1]=6♣(0,1), [2]=8♥(0,2) — выбираем в обратном порядке (8♥ затем 10♠)
     await clickAt(page, h.selFigures[2]!);
     await clickAt(page, h.selFigures[0]!);
     h = await hooks(page);
