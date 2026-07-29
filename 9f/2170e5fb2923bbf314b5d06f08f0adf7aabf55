@@ -1,0 +1,48 @@
+client2/e2e/selection.spec.ts
+  s_f67e66864dd957::t_e1b05626a4bd55 14
+  s_f67e66864dd957::t_8cfb52aa33ba6c 61-62,65
+  s_f67e66864dd957::t_9cb4a8f7312277 74-86,89-96,98,101-103,105-116,118-120,122-144,293
+  s_f67e66864dd957::t_a8bb93a85035f8 121
+  s_f67e66864dd957::t_68cc722bfdbba5 205-206
+  s_f67e66864dd957::t_6c3d3600fa0f62 255,257,263-264,274,278-292
+  s_f67e66864dd957::t_2456e489cd1b36 300,330,416,442,465,508,526,541,556,568,594,678
+  s_f67e66864dd957::t_5a4690b94b8c30 294
+client2/e2e/board.spec.ts
+  s_f67e66864dd957::t_076fc5093c5d5c 213,234,305
+  s_f67e66864dd957::t_0107c68d6afc49 149,152,154,156-157,159,169
+client2/SELECTION-DESIGN.md
+  s_f67e66864dd957::t_c5dcbe251fcca3 133-139
+client2/src/game/engine/playgroundEngine.ts
+  s_f67e66864dd957::t_751de1114c0f10 1590-1595
+  s_f67e66864dd957::t_9200320ab1aff8 1743-1746
+  s_f67e66864dd957::t_99a9a84d72ef9d 2404
+  s_f67e66864dd957::t_68213a911f810a 17
+  s_f67e66864dd957::t_b140a53ffd00ef 2368-2384
+  s_f67e66864dd957::t_9060195ac12a6a 2646
+  s_f67e66864dd957::t_db2241e5965ed5 1713-1731
+  s_f67e66864dd957::t_86497fd3321292 2297-2303
+  s_f67e66864dd957::t_3e285fac93daf9 645
+  s_f67e66864dd957::t_5c75d963a21305 1700-1706,1708
+  s_f67e66864dd957::t_b12e96f0f341b6 2777,2849
+  s_f67e66864dd957::t_e096693e39c15f 562
+  s_f67e66864dd957::t_e726db8139c056 2327-2328
+  s_f67e66864dd957::t_22ee7aa1938f7c 2466
+  s_f67e66864dd957::t_3f62b910b52f62 249-253
+  s_f67e66864dd957::t_cac6c55de56544 1576-1577
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9f2170e5fb2923bbf314b5d06f08f0adf7aabf55",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
