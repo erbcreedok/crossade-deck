@@ -1,0 +1,21 @@
+client2/src/game/board/dropPolicy.test.ts
+  s_f67e66864dd957::t_6246f5b0685431 1-75
+client2/src/game/board/dropPolicy.ts
+  s_f67e66864dd957::t_aa7d1db238ee80 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c810dc6aa79845750bda641c8a4fe08a918f385a",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
