@@ -1,0 +1,57 @@
+client2/docs/open-tasks.md
+  s_f67e66864dd957::t_90befe3c503bf3 38-40
+client2/src/game/engine/canvasApp.ts
+  s_f67e66864dd957::t_b45139a438f431 80,84-99,103-104
+  s_f67e66864dd957::t_630b002a1c231e 20-24
+  s_f67e66864dd957::t_824a44faa0f9dc 105
+client2/src/game/ui/Card.ts
+  s_f67e66864dd957::t_ba781cb68d3cc2 400-403
+  s_f67e66864dd957::t_c68964a34268f1 77-78
+client2/src/game/ui/Piece.ts
+  s_f67e66864dd957::t_f225ba54adcecc 43-44
+  s_f67e66864dd957::t_8b2b7a332f2d8d 127-130
+client2/src/game/censorDemo.ts
+  s_f67e66864dd957::t_0aeb0e3f22713c 300,302-313
+  s_f67e66864dd957::t_6d48f904e1f9d9 230
+  s_f67e66864dd957::t_d2241ea8ece332 45-48
+  s_f67e66864dd957::t_aaec7be4f32107 249-253,255
+  s_f67e66864dd957::t_e37d107b4d6885 10
+  s_f67e66864dd957::t_da508271cfae55 215
+  s_f67e66864dd957::t_fa98258b30403b 301
+client2/src/CensorDemo.tsx
+  s_f67e66864dd957::t_11977282dca9d4 34
+  s_f67e66864dd957::t_39703307208b97 46-49
+  s_f67e66864dd957::t_a2145a8bcef0d5 21-22
+  s_f67e66864dd957::t_a60407bda303d3 5,8
+client2/src/game/engine/canvasApp.flash.test.ts
+  s_f67e66864dd957::t_c4d6d17d979afe 1-69
+client2/docs/animation-levers.md
+  s_f67e66864dd957::t_abd675235a5ac9 59-62
+client2/src/useReduceFlash.ts
+  s_f67e66864dd957::t_1256305b11389c 1-25
+client2/src/game/anim/reduceFlash.ts
+  s_f67e66864dd957::t_c0665f78f2f96f 1-12
+client2/src/game/engine/playgroundEngine.ts
+  s_f67e66864dd957::t_35706097d1566b 1035
+  s_f67e66864dd957::t_3113ad81a06962 992
+  s_f67e66864dd957::t_ecfcf7d79f79b8 1174
+  s_f67e66864dd957::t_91f47dee9bbd15 2822-2827
+client2/src/game/anim/reduceFlash.test.ts
+  s_f67e66864dd957::t_e0ea8fa4538334 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5c19219688a2dbbde588fd519b315c3a4674600d",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
