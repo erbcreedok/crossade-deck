@@ -1,0 +1,20 @@
+client2/e2e/sandbox.spec.ts
+  s_f67e66864dd957::t_a99138d29f01dd 360-399
+  s_f67e66864dd957::t_66fa9a2731f1bc 416,420-422
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2f5cdc3bcc706a94ce0a765006c6a579f587f2e8",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
