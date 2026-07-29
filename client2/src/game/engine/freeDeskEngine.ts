@@ -15,8 +15,8 @@ import type { Segmented } from "../ui/Segmented";
 import { wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
-import { orderSelection, type CollectItem, type CollectOrder, type ManualOrder } from "../board/collectOrder";
-import { rowAssembly } from "../board/rowAssembly";
+import type { CollectItem } from "../board/collectOrder";
+import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
@@ -241,13 +241,17 @@ export class FreeDeskEngine extends CanvasApp {
   private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
   private selGrabCp = { x: 0, y: 0 }; // точка захвата набора (тап vs драг)
   private multiSelectOn = true; // конфиг: доступен ли режim выделения
-  private selSortByRank = true; // конфиг: ранговый тумблер (ортогонален collectOrder — issue #56)
-  private selCollectOrder: ManualOrder = "press"; // конфиг: порядок сборки набора, когда ранг выкл (нажатие/расположение/масть)
+  // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Одна конфигурация вместо
+  // прежних «сорт набора»/«сборка» тумблеров; песочница крутит её рычаги, дефолт — пресет grab-to-hand.
+  private selAssembly: AssemblyConfig = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
+  private selPresetName: string = DEFAULT_PRESET; // последний выбранный пресет (для e2e-хука; манипуляции рычагами его не сбрасывают)
   private faceOf = new Map<string, string>(); // id фигуры → лицо карты (для сорта набора по номиналу)
   private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
   private selMultiButtons: Button[] = []; // тумблер «мультиселект» — для e2e
-  private selSortButtons: Button[] = []; // тумблер «сорт набора» — для e2e
-  private selCollectButtons: Button[] = []; // тумблер «сборка» (порядок сборки в ряд) — для e2e
+  private selPresetButtons: Button[] = []; // тумблер «пресет:» — для e2e
+  private selFormButtons: Button[] = []; // тумблер «форма:» — для e2e
+  private selOrderButtons: Button[] = []; // тумблер «порядок:» — для e2e
+  private selSortButtons: Button[] = []; // тумблер «сорт:» (override) — для e2e
   private hoveredBtn: Button | null = null; // наведённая кнопка (ПК): чтобы гасить/зажигать только её, а не перебирать все (issue #48 баг №4)
   private hoverRerenders = 0; // счётчик перерисовок кнопок от ховера — для e2e-замера отсутствия лагов
   // Long-press по фигуре демо-зоны (issue #48 баг №3): удержание ~500мс без сдвига входит в режим
@@ -525,9 +529,8 @@ export class FreeDeskEngine extends CanvasApp {
       clearButtonVisibleAt: { x: number; y: number } | null; // null, пока не в режиме — кнопки «снять» нет
       selectToggleAt: { x: number; y: number } | null;
       multiSelectEnabled: boolean;
-      sortMode: "selection" | "rank";
-      collectOrder: "press" | "spatial" | "suit"; // порядок сборки (когда ранг выкл)
-      effectiveOrder: "press" | "rank" | "suit" | "spatial"; // итоговая стратегия (ранг перебивает)
+      // Конфиг сборки набора как ДАННЫЕ (issue #56): рычаги form/order/sortOverride + последний пресет.
+      assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride };
     };
     perf: { hoverRerenders: number }; // сколько кнопок перерисовалось от ховера — для замера отсутствия лагов (баг №4)
     selButtons: { label: string; x: number; y: number }[];
@@ -539,8 +542,10 @@ export class FreeDeskEngine extends CanvasApp {
     stackSqueezeAt: { x: number; y: number }[];
     stackReorderAt: { x: number; y: number } | null;
     selMultiAt: { x: number; y: number }[];
-    selSortAt: { x: number; y: number }[];
-    selCollectAt: { x: number; y: number }[]; // тумблер «сборка» (нажатие/расположение/масть)
+    selPresetAt: { x: number; y: number }[]; // тумблер «пресет:»
+    selFormAt: { x: number; y: number }[]; // тумблер «форма:» (стопка/раскрыт/ряд)
+    selOrderAt: { x: number; y: number }[]; // тумблер «порядок:» (расположение/выбор)
+    selSortAt: { x: number; y: number }[]; // тумблер «сорт:» (—/номинал/масть — override)
     controls: {
       buttons: { cap: string; x: number; y: number }[];
       flipFaceUp: boolean | null;
@@ -599,9 +604,7 @@ export class FreeDeskEngine extends CanvasApp {
         clearButtonVisibleAt: this.selBtnScreen("снять", toScreen, this.selMode),
         selectToggleAt: this.selBtnScreen("выделение", toScreen, true),
         multiSelectEnabled: this.multiSelectOn,
-        sortMode: this.selSortByRank ? "rank" : "selection",
-        collectOrder: this.selCollectOrder,
-        effectiveOrder: this.effectiveOrder(),
+        assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
       },
       perf: { hoverRerenders: this.hoverRerenders },
       selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
@@ -625,8 +628,10 @@ export class FreeDeskEngine extends CanvasApp {
       buttonShowcase: this.buttonShowcase.map(({ cap, b }) => ({ cap, disabled: b.disabled, ...toScreen(b.x, b.y) })),
       stackModeAt: this.stackModeButtons.map((b) => toScreen(b.x, b.y)),
       selMultiAt: this.selMultiButtons.map((b) => toScreen(b.x, b.y)),
+      selPresetAt: this.selPresetButtons.map((b) => toScreen(b.x, b.y)),
+      selFormAt: this.selFormButtons.map((b) => toScreen(b.x, b.y)),
+      selOrderAt: this.selOrderButtons.map((b) => toScreen(b.x, b.y)),
       selSortAt: this.selSortButtons.map((b) => toScreen(b.x, b.y)),
-      selCollectAt: this.selCollectButtons.map((b) => toScreen(b.x, b.y)),
       stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
       stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
       controls: {
@@ -1201,7 +1206,7 @@ export class FreeDeskEngine extends CanvasApp {
   // Стильный сегментный переключатель: подпись + текст-кнопки, под активной — золотая черта.
   // Остаётся для ДЕМО-флагов самого движка (не свойство переиспользуемого объекта) — там, где
   // цель уже Configurable, тумблер идёт через attachControls+Segmented (см. раздел «Дизайн»).
-  private segToggle(left: number, y: number, caption: string, labels: string[], initial: number, onPick: (i: number) => void): { bottom: number; width: number; buttons: Button[] } {
+  private segToggle(left: number, y: number, caption: string, labels: string[], initial: number, onPick: (i: number) => void): { bottom: number; width: number; buttons: Button[]; setMark: (i: number) => void } {
     const cap = this.label(caption, left, y, 12, 0x9aa89f, undefined, 0);
     this.scene.surface.addChild(cap);
     const mark = new Graphics();
@@ -1227,7 +1232,8 @@ export class FreeDeskEngine extends CanvasApp {
     });
     this.scene.surface.addChild(mark);
     setMark(initial);
-    return { bottom: y + rowH, width: x - left - 10, buttons: btns };
+    // setMark наружу: пресет-тумблер пересинхронивает золотую черту остальных, НЕ дёргая их onPick.
+    return { bottom: y + rowH, width: x - left - 10, buttons: btns, setMark };
   }
 
   // ——— ПОЛЕ — обвязка обособленного модуля board/field.ts (механика ЖИВЁТ там) ———
@@ -1345,7 +1351,7 @@ export class FreeDeskEngine extends CanvasApp {
   private buildBoardZones(left: number, top: number): number {
     return this.sectionFrame(left, top, "Игровые зоны (борды)", (contentLeft, contentTop) => {
       const PRESET_EXTRA_H = 60; // тумблер «на занятый слот» (Segmented) + отступ
-      const SELECT_EXTRA_H = 121; // кнопки выделение/снять + 3 тумблера (мультиселект/сорт/сборка)
+      const SELECT_EXTRA_H = 173; // кнопки выделение/снять + 5 тумблеров (мультиселект/пресет/форма/порядок/сорт)
       const CHROME_EXTRA_H = 50; // хинт-подсказка + отступ (шахматы/смешанный)
 
       interface BoardItem {
@@ -1501,9 +1507,12 @@ export class FreeDeskEngine extends CanvasApp {
     this.selButtons = [{ label: "выделение", btn: bMode }, { label: "снять", btn: bClear }];
     this.syncSelButtons(); // «снять» скрыта вне режима, «выделение» гаснет — исходное согласованное состояние
 
-    // Глобальные конфиги контейнера (живут в зоне): мультиселект вкл/выкл, порядок выноса набора.
+    // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Один конфиг selAssembly
+    // вместо прежних «сорт набора»/«сборка»: тестер крутит рычаги ПО отдельности или берёт готовый
+    // пресет (тот пересинхронивает золотую черту form/order/sort). Дефолт — пресет grab-to-hand.
     this.multiSelectOn = true;
-    this.selSortByRank = true;
+    this.selAssembly = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
+    this.selPresetName = DEFAULT_PRESET;
     const t1 = bottom + 34;
     this.selMultiButtons = this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
       this.multiSelectOn = i === 0;
@@ -1515,12 +1524,33 @@ export class FreeDeskEngine extends CanvasApp {
         this.wake();
       }
     }).buttons;
-    this.selSortButtons = this.segToggle(left, t1 + 26, "сорт набора:", ["номинал", "выбор"], 0, (i) => (this.selSortByRank = i === 0)).buttons;
-    // Порядок сборки в ряд, когда «сорт набора: выбор» (ранг выкл): нажатие/расположение/масть.
-    this.selCollectOrder = "press";
-    const orders: ManualOrder[] = ["press", "spatial", "suit"];
-    this.selCollectButtons = this.segToggle(left, t1 + 52, "сборка:", ["нажатие", "расположение", "масть"], 0, (i) => (this.selCollectOrder = orders[i]!)).buttons;
-    return t1 + 78;
+
+    const forms: Form[] = ["stack-tight", "stack-open", "row"];
+    const orders: NaturalOrder[] = ["proximity", "selection"];
+    const overrides: SortOverride[] = ["none", "rank", "suit"];
+    const presets = ["grab-to-hand", "build-on-first", "tray-zone", "sorted-row"];
+    const formIdx = (f: Form) => Math.max(0, forms.indexOf(f)); // fan (v2) → 0: в пресетах песочницы не участвует
+    const orderIdx = (o: NaturalOrder) => (o === "proximity" ? 0 : 1); // append ≈ selection (оба «по нажатию»)
+    const overrideIdx = (s: SortOverride) => Math.max(0, overrides.indexOf(s)); // center (v2) → 0
+
+    const form = this.segToggle(left, t1 + 26, "форма:", ["стопка", "раскрыт", "ряд"], formIdx(this.selAssembly.form), (i) => (this.selAssembly.form = forms[i]!));
+    this.selFormButtons = form.buttons;
+    const order = this.segToggle(left, t1 + 52, "порядок:", ["расположение", "выбор"], orderIdx(this.selAssembly.order), (i) => (this.selAssembly.order = orders[i]!));
+    this.selOrderButtons = order.buttons;
+    const sort = this.segToggle(left, t1 + 78, "сорт:", ["—", "номинал", "масть"], overrideIdx(this.selAssembly.sortOverride), (i) => (this.selAssembly.sortOverride = overrides[i]!));
+    this.selSortButtons = sort.buttons;
+    // Пресет берёт ВЕСЬ конфиг из ASSEMBLY_PRESETS и пересинхронит черту остальных тумблеров (setMark
+    // не дёргает их onPick). Отдельные рычаги после этого дают гибрид, но selPresetName не сбрасывают.
+    const presetToggle = this.segToggle(left, t1 + 104, "пресет:", ["рука", "первая", "лоток", "ряд↑"], Math.max(0, presets.indexOf(this.selPresetName)), (i) => {
+      const name = presets[i]!;
+      this.selPresetName = name;
+      this.selAssembly = { ...ASSEMBLY_PRESETS[name]! };
+      form.setMark(formIdx(this.selAssembly.form));
+      order.setMark(orderIdx(this.selAssembly.order));
+      sort.setMark(overrideIdx(this.selAssembly.sortOverride));
+    });
+    this.selPresetButtons = presetToggle.buttons;
+    return t1 + 130;
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
@@ -1588,21 +1618,15 @@ export class FreeDeskEngine extends CanvasApp {
     this.wake();
   }
 
-  // Эффективная стратегия сборки набора: ранговый тумблер ортогонален и ПЕРЕБИВАЕТ collectOrder —
-  // включён → "rank", иначе выбранный порядок сборки (нажатие/расположение/масть). Одна стратегия
-  // уходит в чистый orderSelection (issue #56).
-  private effectiveOrder(): CollectOrder {
-    return this.selSortByRank ? "rank" : this.selCollectOrder;
-  }
-
-  // Упорядочить текущий набор по эффективной стратегии. press = позиция в sel.ids (порядок нажатия),
-  // x/y — позиция фигуры на столе (для spatial), face — лицо (для rank/suit).
-  private orderedSelection(): string[] {
+  // Собрать текущий набор по конфигу selAssembly (issue #56): упорядочить (order+override) и разложить
+  // по форме. press = позиция в sel.ids (порядок нажатия), x/y — позиция фигуры на столе (для proximity),
+  // face — лицо (для override rank/suit). orderedIds и offsets выровнены индекс-в-индекс (см. assemble).
+  private assembleSelection(): { orderedIds: string[]; offsets: { id: string; dx: number; dy: number }[] } {
     const items: CollectItem[] = this.sel.ids.map((id, press) => {
       const el = this.byId.get(id);
       return { id, press, x: el?.body.px ?? 0, y: el?.body.py ?? 0, face: this.faceOf.get(id) ?? "" };
     });
-    return orderSelection(items, this.effectiveOrder());
+    return assemble(items, this.selAssembly, this.cardW);
   }
 
   // Подсветка: выделенные — приподняты (floating), остальные — на столе. setState меняет УРОВЕНЬ
@@ -2091,16 +2115,23 @@ export class FreeDeskEngine extends CanvasApp {
         // выделение и берём её (issue #48 баг №3). Обычный драг продолжается параллельно; если палец
         // поехал (onCardMove) или отпущен раньше (onCardDrop) — взвод снимается, драг остаётся драгом.
         if (!this.selMode && this.multiSelectOn && this.selZone?.locate(card.id)) this.armLongPress(card.id, sp);
-        // Драг выделенного НАБОРА: упорядочиваем (collectOrder) и собираем В РЯД сразу при старте
-        // (issue #56) — не «врассыпную». Порядок решён здесь и запомнен в selDragging, дроп берёт
-        // его как есть (см. onCardDrop). GroupDrag ждёт cards и offsets выровненными индекс-в-индекс.
+        // Драг выделенного НАБОРА: собираем по конфигу selAssembly (порядок + форма) сразу при старте
+        // (issue #56) — не «врассыпную». Порядок решён здесь и запомнен в selDragging, дроп берёт его
+        // как есть (см. onCardDrop). GroupDrag ждёт cards и offsets выровненными индекс-в-индекс к orderedIds.
         if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
-          const ordered = this.orderedSelection();
-          const cards = ordered.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
-          const offsets = rowAssembly(ordered, this.cardW, this.cardW * 0.28); // зазор ~как в стопке
-          this.selDragging = ordered;
+          const { orderedIds, offsets } = this.assembleSelection();
+          const cards: Elem[] = [];
+          const off: { dx: number; dy: number }[] = [];
+          orderedIds.forEach((id, i) => {
+            const el = this.byId.get(id);
+            if (el) {
+              cards.push(el);
+              off.push({ dx: offsets[i]!.dx, dy: offsets[i]!.dy }); // индекс-в-индекс: пропускаем оба, если элемента нет
+            }
+          });
+          this.selDragging = cards.map((e) => e.id);
           this.selGrabCp = { x: cp.x, y: cp.y };
-          this.drag = new GroupDrag(cards, offsets.map((o) => ({ dx: o.dx, dy: o.dy })), this.dragCtx);
+          this.drag = new GroupDrag(cards, off, this.dragCtx);
           this.drag.move(cp);
           return;
         }

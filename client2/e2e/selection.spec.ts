@@ -15,15 +15,20 @@ test.describe("песочница — выделение (issue #48)", () => {
       clearButtonVisibleAt: { x: number; y: number } | null;
       selectToggleAt: { x: number; y: number } | null;
       multiSelectEnabled: boolean;
-      sortMode: "selection" | "rank";
-      collectOrder: "press" | "spatial" | "suit";
-      effectiveOrder: "press" | "rank" | "suit" | "spatial";
+      assembly: {
+        preset?: string;
+        form: "stack-tight" | "stack-open" | "row" | "fan";
+        order: "proximity" | "selection" | "append";
+        sortOverride: "none" | "rank" | "suit" | "center";
+      };
     };
     perf: { hoverRerenders: number };
     selFigures: { id: string; x: number; y: number }[];
     selMultiAt: { x: number; y: number }[];
+    selPresetAt: { x: number; y: number }[];
+    selFormAt: { x: number; y: number }[];
+    selOrderAt: { x: number; y: number }[];
     selSortAt: { x: number; y: number }[];
-    selCollectAt: { x: number; y: number }[];
     boardFigures: { id: string; key: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
@@ -157,12 +162,14 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(h.selectionState.clearButtonVisibleAt).toBeNull(); // «снять» исчезла
   });
 
-  // БАГ 7: вынос набора сортирует по НОМИНАЛУ (sortMode='rank' по умолчанию).
+  // Override по НОМИНАЛУ: включаем «сорт: номинал» (sortOverride=rank) — набор выносится [6,8,10].
   test("сорт по номиналу: набор [10,8,6] выносится как [6,8,10]", async ({ page }) => {
     let h = await hooks(page);
-    expect(h.selectionState.sortMode).toBe("rank");
+    await clickAt(page, h.selSortAt[1]!); // сорт: номинал (override)
+    await page.waitForTimeout(150);
     await clickAt(page, h.selectionState.selectToggleAt!);
     h = await hooks(page);
+    expect(h.selectionState.assembly.sortOverride).toBe("rank");
 
     // ключи → ранги: 0,0=10♠, 0,2=8♥, 0,1=6♣. Выбираем вразнобой (10, потом 8, потом 6).
     const byKey = (key: string) => {
@@ -185,14 +192,15 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(order03).toEqual([six.id, eight.id, ten.id]); // по возрастанию номинала: 6, 8, 10
   });
 
-  // Порядок ВЫБОРА (sortMode='selection') — тумблер «сорт набора: выбор» отменяет сорт по номиналу.
-  test("сорт «по выбору»: тумблер выключает сорт по номиналу — порядок как выделяли", async ({ page }) => {
+  // Порядок ВЫБОРА (order=selection, без override) — набор выносится как выделяли, не по номиналу.
+  test("сорт «по выбору»: порядок как выделяли (order=selection, override=none)", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, h.selSortAt[1]!); // "выбор"
+    await clickAt(page, h.selOrderAt[1]!); // порядок: выбор
     await page.waitForTimeout(150);
     await clickAt(page, h.selectionState.selectToggleAt!);
     h = await hooks(page);
-    expect(h.selectionState.sortMode).toBe("selection");
+    expect(h.selectionState.assembly.order).toBe("selection");
+    expect(h.selectionState.assembly.sortOverride).toBe("none");
 
     const byKey = (key: string) => {
       const fig = selBoard(h).figures.find((f) => f.key === key)!;
@@ -273,11 +281,12 @@ test.describe("песочница — выделение (issue #48)", () => {
 
   test("сборка в ряд «по нажатию»: карты встают в строку, x по порядку нажатия", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, h.selSortAt[1]!); // сорт набора: выбор (ранг выкл → работает collectOrder)
-    await clickAt(page, h.selCollectAt[0]!); // сборка: нажатие
+    await clickAt(page, h.selFormAt[2]!); // форма: ряд
+    await clickAt(page, h.selOrderAt[1]!); // порядок: выбор (order=selection)
     await clickAt(page, h.selectionState.selectToggleAt!);
     h = await hooks(page);
-    expect(h.selectionState.effectiveOrder).toBe("press");
+    expect(h.selectionState.assembly.form).toBe("row");
+    expect(h.selectionState.assembly.order).toBe("selection");
 
     const [cA, c6, c8] = await selectByIdx(page, [3, 1, 2]); // press-порядок: A♦, 6♣, 8♥
     // старт драга за первую выбранную, держим
@@ -298,11 +307,11 @@ test.describe("песочница — выделение (issue #48)", () => {
 
   test("сборка «по масти»: тот же набор в ряд по ♣<♦<♥", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, h.selSortAt[1]!); // выбор (ранг выкл)
-    await clickAt(page, h.selCollectAt[2]!); // сборка: масть
+    await clickAt(page, h.selFormAt[2]!); // форма: ряд
+    await clickAt(page, h.selSortAt[2]!); // сорт: масть (override)
     await clickAt(page, h.selectionState.selectToggleAt!);
     h = await hooks(page);
-    expect(h.selectionState.collectOrder).toBe("suit");
+    expect(h.selectionState.assembly.sortOverride).toBe("suit");
 
     const [cA, c6, c8] = await selectByIdx(page, [3, 1, 2]); // выбрали A♦(♦), 6♣(♣), 8♥(♥)
     const box = (await page.locator("canvas").boundingBox())!;
@@ -318,14 +327,15 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(xs[1]).toBeLessThan(xs[2]!);
   });
 
-  test("ранговый тумблер перебивает сборку: сборка=масть, но сорт=номинал → порядок по рангу", async ({ page }) => {
+  test("override перебивает естественный порядок: order=выбор, но сорт=номинал → порядок по рангу", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, h.selCollectAt[2]!); // сборка: масть
-    // сорт набора оставляем «номинал» (дефолт, ранг ВКЛ)
+    await clickAt(page, h.selFormAt[2]!); // форма: ряд
+    await clickAt(page, h.selOrderAt[1]!); // порядок: выбор (естественный = по нажатию)
+    await clickAt(page, h.selSortAt[1]!); // сорт: номинал (override ПОВЕРХ выбора)
     await clickAt(page, h.selectionState.selectToggleAt!);
     h = await hooks(page);
-    expect(h.selectionState.collectOrder).toBe("suit");
-    expect(h.selectionState.effectiveOrder).toBe("rank"); // ранг перебивает
+    expect(h.selectionState.assembly.order).toBe("selection");
+    expect(h.selectionState.assembly.sortOverride).toBe("rank"); // override перебивает
 
     const [cA, c6, c8] = await selectByIdx(page, [3, 1, 2]); // A♦=14, 6♣=6, 8♥=8
     const box = (await page.locator("canvas").boundingBox())!;
@@ -339,6 +349,21 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.mouse.up();
     expect(xs[0]).toBeLessThan(xs[1]!);
     expect(xs[1]).toBeLessThan(xs[2]!);
+  });
+
+  // Пресет-рычаг: выбор пресета «sorted-row» (индекс 3) выставляет весь конфиг разом (form=row,
+  // sortOverride=rank) и пересинхронивает остальные тумблеры — конфиг читается из хука assembly.
+  test("пресет sorted-row: выставляет form=row + sortOverride=rank разом", async ({ page }) => {
+    const h = await hooks(page);
+    expect(h.selectionState.assembly.preset).toBe("grab-to-hand"); // дефолт
+    expect(h.selectionState.assembly.form).toBe("stack-tight");
+    await clickAt(page, h.selPresetAt[3]!); // пресет: sorted-row
+    await page.waitForTimeout(150);
+    const g = await hooks(page);
+    expect(g.selectionState.assembly.preset).toBe("sorted-row");
+    expect(g.selectionState.assembly.form).toBe("row");
+    expect(g.selectionState.assembly.order).toBe("proximity");
+    expect(g.selectionState.assembly.sortOverride).toBe("rank");
   });
 
   // Мультиселект выкл — вход в режим блокируется конфигом контейнера.
