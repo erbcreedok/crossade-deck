@@ -1,0 +1,26 @@
+client2/src/game/censorDemo.ts
+  s_1683f4def88b5d::t_1f53e2796ec35a 15-16
+  s_1683f4def88b5d::t_ed5570d3dcac27 482-484
+  s_1683f4def88b5d::t_2f6399144c7826 200-221,226-285
+  s_1683f4def88b5d::t_ad95f01af86e29 92-101
+  s_1683f4def88b5d::t_3f480f681d8c1e 286,474-476,478-481,485-486
+  s_1683f4def88b5d::t_7249f9f2100000 521-525
+  s_1683f4def88b5d::t_6ba486154b30c6 66-71
+  s_1683f4def88b5d::t_82c17c17e1bb44 287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "95c55c824769ac0cff4bc0b4bfeabeb6a8f27fec",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
