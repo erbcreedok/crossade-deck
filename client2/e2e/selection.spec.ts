@@ -22,10 +22,11 @@ test.describe("песочница — выделение (issue #48)", () => {
         sortOverride: "none" | "rank" | "suit" | "center";
       };
       visual: { eligible: "cards" | "diamonds" | "any"; hintEligible: boolean; mark: "lift" | "outline" | "both" };
-      policy: { onDropOutside: "return-home" | "stay" | "dissolve" };
+      policy: { merge: "off" | "on" | "custom"; keepSelection: "off" | "on" | "custom"; mergeAnchor: "primary" };
     };
     perf: { hoverRerenders: number };
-    selDropOutsideAt: { x: number; y: number }[];
+    selMergeAt: { x: number; y: number }[];
+    selKeepAt: { x: number; y: number }[];
     selFigures: { id: string; key: string; x: number; y: number; selected: boolean; outlined: boolean; hinted: boolean }[];
     selMultiAt: { x: number; y: number }[];
     selPresetAt: { x: number; y: number }[];
@@ -461,22 +462,22 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(g.selFigures.some((f) => f.hinted)).toBe(false); // подсказок не осталось
   });
 
-  // ——— дроп набора МИМО зон: политика onDropOutside (issue #61) ———
-  // Выбираем 2 фигуры (слоты 0,0 и 0,1 — верх-лево), тащим набор ЗА пределы борд-зоны и отпускаем.
-  // Драг клампится рамкой зоны (boardZoneOf → clamp), поэтому «оставленные» карты оседают у КРАЯ
-  // зоны (не строго в точке пальца), а dropSetAt получает реальную точку СНАРУЖИ → moved=false →
-  // ветка onDropOutside. Инвариант, который проверяем: домой → назад к исходным слотам; остаться/
-  // распустить → НЕ домой (уехали и осели), плюс сохранение/сброс выделения.
-  const dropSetOutside = async (page: Page, policyIdx: number) => {
+  // ——— дроп набора МИМО зон: две оси merge + keepSelection (issue #63) ———
+  // Демо-борд анкламплен (#62): набор реально уезжает в точку пальца ЗА рамку борда, dropSetAt снаружи
+  // → moved=false → ветка двух осей. Тумблеры: «сшивать» [нет/да/только ♣] (default нет), «выделение
+  // после» [да/нет/только ♦] (default да). Инвариант: merge решает сшивку (осел НЕ дома) vs дом,
+  // keepSelection — остаётся ли карта выделенной. Оси per-card (custom смотрит масть карты).
+  const dropSetOutside = async (page: Page, opts: { merge?: number; keep?: number; figs?: number[] } = {}) => {
     let h = await hooks(page);
-    if (policyIdx !== 0) await clickAt(page, h.selDropOutsideAt[policyIdx]!); // 0=домой (дефолт), 1=остаться, 2=распустить
+    if (opts.merge) await clickAt(page, h.selMergeAt[opts.merge]!); // 0=нет(default) 1=да 2=только ♣
+    if (opts.keep) await clickAt(page, h.selKeepAt[opts.keep]!); // 0=да(default) 1=нет 2=только ♦
     await clickAt(page, h.selectionState.selectToggleAt!); // войти в режим
     h = await hooks(page);
-    await clickAt(page, h.selFigures[0]!); // слот 0,0 (10♠)
-    await clickAt(page, h.selFigures[1]!); // слот 0,1 (6♣)
+    const figs = opts.figs ?? [0, 1]; // по умолчанию 10♠ + 6♣
+    for (const i of figs) await clickAt(page, h.selFigures[i]!);
     h = await hooks(page);
-    expect(h.selectionState.selected).toHaveLength(2);
-    const selected = h.selFigures.filter((f) => f.selected);
+    expect(h.selectionState.selected).toHaveLength(figs.length);
+    const selected = figs.map((i) => h.selFigures[i]!); // в порядке слотов (id стабильны)
     const homes = new Map(selected.map((f) => [f.id, { x: f.x, y: f.y }])); // позиция покоя = дом
     const b = selBoard(h);
     const xs = b.slots.map((s) => s.x);
@@ -488,7 +489,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.mouse.move(box.x + start.x, box.y + start.y);
     await page.mouse.down();
     await page.mouse.move(box.x + release.x, box.y + release.y, { steps: 14 });
-    await page.waitForTimeout(450); // дать набору доехать до клампнутой позиции у края зоны
+    await page.waitForTimeout(450);
     await page.mouse.up();
     await page.waitForTimeout(900); // осесть пружинами (без клампа набор летит дальше → дольше возврат)
     return { homes, ids: selected.map((f) => f.id) };
@@ -496,10 +497,10 @@ test.describe("песочница — выделение (issue #48)", () => {
   const figById = (h: Hooks, id: string) => h.selFigures.find((f) => f.id === id)!;
   const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  test("мимо зон «домой»: набор возвращается на исходные слоты, остаётся выделенным", async ({ page }) => {
-    const { homes, ids } = await dropSetOutside(page, 0);
+  test("мимо зон — дефолт (merge off, keep on): набор домой, остаётся выделенным", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page); // дефолты
     const g = await hooks(page);
-    expect(g.selectionState.policy.onDropOutside).toBe("return-home");
+    expect(g.selectionState.policy).toMatchObject({ merge: "off", keepSelection: "on", mergeAnchor: "primary" });
     for (const id of ids) {
       const f = figById(g, id);
       expect(dist(f, homes.get(id)!)).toBeLessThan(14); // ≈ исходный слот
@@ -507,28 +508,45 @@ test.describe("песочница — выделение (issue #48)", () => {
     }
   });
 
-  test("мимо зон «остаться»: набор оседает не дома, остаётся выделенным", async ({ page }) => {
-    const { homes, ids } = await dropSetOutside(page, 1);
+  test("мимо зон сшить (merge on): набор оседает не дома, остаётся выделенным", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, { merge: 1 });
     const g = await hooks(page);
-    expect(g.selectionState.policy.onDropOutside).toBe("stay");
+    expect(g.selectionState.policy.merge).toBe("on");
     for (const id of ids) {
       const f = figById(g, id);
-      expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // уехал от дома и осел там
+      expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // сшит — уехал от дома и осел там
       expect(f.selected).toBe(true); // всё ещё в наборе
     }
   });
 
-  test("мимо зон «распустить»: набор оседает не дома И выделение снято", async ({ page }) => {
-    const { homes, ids } = await dropSetOutside(page, 2);
+  test("мимо зон сшить + снять выделение (merge on, keep off): осел не дома И выделение снято", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, { merge: 1, keep: 1 });
     const g = await hooks(page);
-    expect(g.selectionState.policy.onDropOutside).toBe("dissolve");
+    expect(g.selectionState.policy).toMatchObject({ merge: "on", keepSelection: "off" });
     expect(g.selectionState.selected).toEqual([]); // набор распущен
     for (const id of ids) {
       const f = figById(g, id);
       expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // осел не дома
       expect(f.selected).toBe(false); // ни одна не выделена
-      expect(f.outlined).toBe(false); // контур снят вместе с выделением (не осталось золотых рамок)
+      expect(f.outlined).toBe(false); // контур снят вместе с выделением
     }
+  });
+
+  test("мимо зон merge=custom «только ♣»: сшивается лишь трефа, остальные домой", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, { merge: 2, figs: [0, 1] }); // 10♠ + 6♣
+    const g = await hooks(page);
+    expect(g.selectionState.policy.merge).toBe("custom");
+    expect(dist(figById(g, ids[0]!), homes.get(ids[0]!)!)).toBeLessThan(14); // 10♠ — не ♣ → домой
+    expect(dist(figById(g, ids[1]!), homes.get(ids[1]!)!)).toBeGreaterThan(g.cardW); // 6♣ — сшит, не дома
+  });
+
+  test("мимо зон keep=custom «только ♦»: выделение остаётся лишь у бубны", async ({ page }) => {
+    const { ids } = await dropSetOutside(page, { keep: 2, figs: [0, 3] }); // 10♠ + A♦
+    const g = await hooks(page);
+    expect(g.selectionState.policy.keepSelection).toBe("custom");
+    expect(g.selectionState.selected).toEqual([ids[1]!]); // только A♦
+    expect(figById(g, ids[0]!).selected).toBe(false); // 10♠ снят
+    expect(figById(g, ids[1]!).selected).toBe(true); // A♦ остался
   });
 
   // ——— лог-дропбокс «называю масть» (issue #62) ———

@@ -2,27 +2,42 @@ import { describe, expect, it } from "vitest";
 import type { PileIdentity } from "./pileIdentity";
 import {
   capabilityZoneRule,
-  clearsSet,
   DEFAULT_DROP_POLICY,
   pileHasCapability,
   resolveDropChain,
-  returnsHome,
+  resolveMode,
   type DropRule,
 } from "./dropPolicy";
+import { hasTag } from "./tagQuery";
 
-describe("onDropOutside — семантика как данные", () => {
-  it("дефолт — return-home", () => {
-    expect(DEFAULT_DROP_POLICY.onDropOutside).toBe("return-home");
+describe("дроп мимо зон — две оси как данные (#63)", () => {
+  it("дефолты обязательны: merge off, keepSelection on, anchor primary", () => {
+    expect(DEFAULT_DROP_POLICY).toEqual({ merge: "off", keepSelection: "on", mergeAnchor: "primary" });
   });
-  it("returnsHome только для return-home", () => {
-    expect(returnsHome("return-home")).toBe(true);
-    expect(returnsHome("stay")).toBe(false);
-    expect(returnsHome("dissolve")).toBe(false);
+
+  const tags = new Set(["card", "suit:♣", "rank:7", "color:black"]);
+
+  it("resolveMode: off→false, on→true независимо от карты", () => {
+    expect(resolveMode("off", tags)).toBe(false);
+    expect(resolveMode("on", tags)).toBe(true);
   });
-  it("clearsSet только для dissolve", () => {
-    expect(clearsSet("dissolve")).toBe(true);
-    expect(clearsSet("return-home")).toBe(false);
-    expect(clearsSet("stay")).toBe(false);
+
+  it("resolveMode custom: предикат над тегами карты (напр. «только ♣ сшиваются»)", () => {
+    const onlyClubs = hasTag("suit:♣");
+    expect(resolveMode("custom", tags, onlyClubs)).toBe(true); // ♣ — сшивается
+    expect(resolveMode("custom", new Set(["card", "suit:♦"]), onlyClubs)).toBe(false); // ♦ — нет
+  });
+
+  it("resolveMode custom без предиката → off (безопасный дефолт)", () => {
+    expect(resolveMode("custom", tags)).toBe(false);
+  });
+
+  it("старые состояния #61 = комбинации осей", () => {
+    // домой=(off,on) остаться=(on,on) распустить=(on,off): merge решает дом/сшивка, keep — выделение.
+    expect(resolveMode("off", tags)).toBe(false); // домой
+    expect(resolveMode("on", tags)).toBe(true); // сшивка (остаться/распустить)
+    expect(resolveMode("on", tags)).toBe(true); // keepSelection on (остаться)
+    expect(resolveMode("off", tags)).toBe(false); // keepSelection off (распустить)
   });
 });
 

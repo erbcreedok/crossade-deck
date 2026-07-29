@@ -68,7 +68,17 @@ AcceptRule), а не заводит свою геометрию/политику
   (ранг — равный критерий override, НЕ привилегированная ось)
 
 ### F. Дроп-резолюция
-- `onDropOutside` · `return-home` / `dissolve` / `stay` · дефолт **`return-home`**
+- **Дроп МИМО зон — ДВЕ ортогональные оси** (issue #63, было `onDropOutside` #61):
+  - `merge` (сшивать при дропе) · `off` / `on` / `custom` · дефолт **`off`** · per-card:
+    `off`→карты домой, `on`→сшить стопкой (якорь `mergeAnchor`), `custom`→предикат игры над тегами
+    (напр. «только ♣»; «преобладающая масть»).
+  - `mergeAnchor` · дефолт **`primary`** = дроп-позиция ведущей/правой карты (`GroupDrag.lead`);
+    сшитые помнят структуру (сборка stack-tight уже кладёт их тесно). Расширяемо: `first`/`latest`/
+    `zone`/`point` (словарь anchor §4.C). «Когда сшивать» — отдельная ось `gatherOn` §4.B.
+  - `keepSelection` (оставить выделение после дропа) · `on` / `off` / `custom` · дефолт **`on`** ·
+    per-card: `custom`→предикат игры (напр. «остаются лишь ♦»).
+  - Старые состояния #61 = комбинации: домой=`(off,on)` · остаться=`(on,on)` · распустить=`(on,off)`;
+    плюс новая `(off,off)` = домой + снять выделение. Дефолты обязательны: `merge=off, keep=on, anchor=primary`.
 - `dropRules` · цепочка приоритета **элемент(нельзя нарушить) → зона → engine** · reuse `AcceptRule`/`onOccupied`
 
 ## 5. Пресеты (нормализованные, не копирка flow)
@@ -112,6 +122,10 @@ AcceptRule), а не заводит свою геометрию/политику
   лог-дропбокс «называю масть» — чисто лог мастей набора (`board/suitNames.ts`: дедуп + `???` для
   карт без масти, поверх `tagQuery.tagValues`), ничего не хранит; в демо добавлен джокер (кастом без
   масти) для живого `???`. Хук `lastNamedSuits`.
+- **Дроп мимо зон — две оси** (#63, развитие #61): `onDropOutside` (3 позиции) заменён на `merge`
+  (off/on/custom) + `keepSelection` (on/off/custom) + `mergeAnchor` (primary), см. §4.F.
+  `dropPolicy.resolveMode(mode, tags, custom?)` — per-card bool; движок применяет в `applyDropOutside`.
+  Песочница: тумблеры «сшивать» / «выделение после» с демо-custom («только ♣» / «только ♦»).
 - **v2 — хвост**: форма `fan` (сейчас раскладывается как `row`), `sortOverride` `center`, рычаги
   `gatherOn`/`anchor` отдельными тумблерами (пока живут в конфиге пресетов), применение цепочки
   `dropRules` в КАЖДОЙ зоне (ядро `resolveDropChain`/`capabilityZoneRule` готово). Прим.:

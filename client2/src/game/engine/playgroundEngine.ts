@@ -18,9 +18,14 @@ import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection 
 import type { CollectItem } from "../board/collectOrder";
 import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
 import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
-import { DEFAULT_DROP_POLICY, returnsHome, clearsSet, type OnDropOutside } from "../board/dropPolicy";
+import { DEFAULT_DROP_POLICY, resolveMode, type DropMode, type DropOutsidePolicy } from "../board/dropPolicy";
+import { hasTag } from "../board/tagQuery";
 import { pileIdentity } from "../board/pileIdentity";
 import { namedSuits } from "../board/suitNames";
+
+// Демо-предикаты custom-осей дропа (issue #63): игра задаёт СВОИ, тут — примеры для песочницы.
+const MERGE_CUSTOM = hasTag("suit:♣"); // «сшиваются только трефы» (остальные — домой)
+const KEEP_CUSTOM = hasTag("suit:♦"); // «выделение остаётся лишь у бубён»
 import { makeSelectOutline } from "./selectOutline";
 import { asDraggable } from "./capabilities";
 import { DropZone } from "../ui/DropZone";
@@ -267,9 +272,11 @@ export class PlaygroundEngine extends CanvasApp {
   private selEligibleButtons: Button[] = []; // тумблер «выбор:» (карты/буби/любые) — для e2e
   private selHintButtons: Button[] = []; // тумблер «подсказка:» (выкл/вкл) — для e2e
   private selMarkButtons: Button[] = []; // тумблер «метка:» (подъём/контур/оба) — для e2e
-  // Дроп набора МИМО зон как ПОЛИТИКА-ДАННЫЕ (issue #61, dropPolicy.ts): домой / остаться / распустить.
-  private selDropOutside: OnDropOutside = DEFAULT_DROP_POLICY.onDropOutside;
-  private selDropOutsideButtons: Button[] = []; // тумблер «мимо зон:» — для e2e
+  // Дроп набора МИМО зон как ПОЛИТИКА-ДАННЫЕ — ДВЕ ортогональные оси (issue #63, dropPolicy.ts):
+  // merge (сшивать: off/on/custom) + keepSelection (выделение после: on/off/custom) + якорь (primary).
+  private selDropPolicy: DropOutsidePolicy = { ...DEFAULT_DROP_POLICY };
+  private selMergeButtons: Button[] = []; // тумблер «сшивать:» — для e2e
+  private selKeepButtons: Button[] = []; // тумблер «выделение после:» — для e2e
   // Лог-дропбокс «называю масть» (issue #62) — ТЕСТ-обвязка #61: чисто лог мастей набора, без
   // политики хранения/возврата. selNameZone — сам бокс (для hit-теста дропа набора), lastNamedSuits —
   // последний выписанный список (дедуп + «???») для e2e.
@@ -556,8 +563,8 @@ export class PlaygroundEngine extends CanvasApp {
       assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride };
       // Отбор-визуал как ДАННЫЕ (issue #60): eligible по ИМЕНИ, подсветка выбираемых, метка выбранного.
       visual: { eligible: EligibleName; hintEligible: boolean; mark: Mark };
-      // Дроп мимо зон как ДАННЫЕ (issue #61): что делать с набором, отпущенным вне принимающих зон.
-      policy: { onDropOutside: OnDropOutside };
+      // Дроп мимо зон как ДАННЫЕ (issue #63): две оси merge/keepSelection + якорь сшивки.
+      policy: { merge: DropMode; keepSelection: DropMode; mergeAnchor: "primary" };
     };
     perf: { hoverRerenders: number }; // сколько кнопок перерисовалось от ховера — для замера отсутствия лагов (баг №4)
     selButtons: { label: string; x: number; y: number }[];
@@ -576,7 +583,8 @@ export class PlaygroundEngine extends CanvasApp {
     selEligibleAt: { x: number; y: number }[]; // тумблер «выбор:» (карты/буби/любые)
     selHintAt: { x: number; y: number }[]; // тумблер «подсказка:» (выкл/вкл)
     selMarkAt: { x: number; y: number }[]; // тумблер «метка:» (подъём/контур/оба)
-    selDropOutsideAt: { x: number; y: number }[]; // тумблер «мимо зон:» (домой/остаться/распустить — #61)
+    selMergeAt: { x: number; y: number }[]; // тумблер «сшивать:» (нет/да/custom — #63)
+    selKeepAt: { x: number; y: number }[]; // тумблер «выделение после:» (да/нет/custom — #63)
     controls: {
       buttons: { cap: string; x: number; y: number }[];
       flipFaceUp: boolean | null;
@@ -638,7 +646,7 @@ export class PlaygroundEngine extends CanvasApp {
         multiSelectEnabled: this.multiSelectOn,
         assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
         visual: { eligible: this.selEligibleName, hintEligible: this.selVisual.hintEligible, mark: this.selVisual.mark },
-        policy: { onDropOutside: this.selDropOutside },
+        policy: { merge: this.selDropPolicy.merge, keepSelection: this.selDropPolicy.keepSelection, mergeAnchor: this.selDropPolicy.mergeAnchor },
       },
       perf: { hoverRerenders: this.hoverRerenders },
       selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
@@ -675,7 +683,8 @@ export class PlaygroundEngine extends CanvasApp {
       selEligibleAt: this.selEligibleButtons.map((b) => toScreen(b.x, b.y)),
       selHintAt: this.selHintButtons.map((b) => toScreen(b.x, b.y)),
       selMarkAt: this.selMarkButtons.map((b) => toScreen(b.x, b.y)),
-      selDropOutsideAt: this.selDropOutsideButtons.map((b) => toScreen(b.x, b.y)),
+      selMergeAt: this.selMergeButtons.map((b) => toScreen(b.x, b.y)),
+      selKeepAt: this.selKeepButtons.map((b) => toScreen(b.x, b.y)),
       stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
       stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
       controls: {
@@ -1419,7 +1428,7 @@ export class PlaygroundEngine extends CanvasApp {
   private buildBoardZones(left: number, top: number): number {
     return this.sectionFrame(left, top, "Игровые зоны (борды)", (contentLeft, contentTop) => {
       const PRESET_EXTRA_H = 60; // тумблер «на занятый слот» (Segmented) + отступ
-      const SELECT_EXTRA_H = 277; // кнопки выделение/снять + 5 тумблеров сборки + 3 тумблера отбор-визуала + тумблер «мимо зон» (#61)
+      const SELECT_EXTRA_H = 305; // кнопки выделение/снять + тумблеры сборки/отбора + 2 тумблера дропа мимо зон (#63)
       const CHROME_EXTRA_H = 50; // хинт-подсказка + отступ (шахматы/смешанный)
 
       interface BoardItem {
@@ -1582,7 +1591,7 @@ export class PlaygroundEngine extends CanvasApp {
     // Отбор-визуал (issue #60) — дефолт как в примере: только карты, без подсказки, метка «оба».
     this.selVisual = { eligible: ELIGIBLE.cards!, hintEligible: false, mark: "both" };
     this.selEligibleName = "cards";
-    this.selDropOutside = DEFAULT_DROP_POLICY.onDropOutside; // #61 — дефолт «домой»
+    this.selDropPolicy = { ...DEFAULT_DROP_POLICY }; // #63 — дефолты: merge off, keep on, anchor primary
     this.selOutlines.clear(); // контуры прежнего билда уничтожены вместе с root карт при пересборке контента
     const t1 = bottom + 34;
     this.selMultiButtons = this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
@@ -1645,13 +1654,19 @@ export class PlaygroundEngine extends CanvasApp {
     });
     this.selMarkButtons = mark.buttons;
 
-    // Дроп набора МИМО зон (issue #61, dropPolicy.ts) — политика как ДАННЫЕ: домой / остаться / распустить.
-    const outsides: OnDropOutside[] = ["return-home", "stay", "dissolve"];
-    const outsideIdx = Math.max(0, outsides.indexOf(this.selDropOutside));
-    const outside = this.segToggle(left, t1 + 208, "мимо зон:", ["домой", "остаться", "распустить"], outsideIdx, (i) => {
-      this.selDropOutside = outsides[i]!;
+    // Дроп набора МИМО зон (issue #63, dropPolicy.ts) — ДВЕ ортогональные оси-ДАННЫЕ. «сшивать»:
+    // off домой / on сшить стопкой (якорь primary) / custom предикат (демо «только ♣»). «выделение
+    // после»: on сохранить / off снять / custom (демо «только ♦»). Дефолты: сшивать=нет, выделение=да.
+    const mergeModes: DropMode[] = ["off", "on", "custom"];
+    const merge = this.segToggle(left, t1 + 208, "сшивать:", ["нет", "да", "только ♣"], Math.max(0, mergeModes.indexOf(this.selDropPolicy.merge)), (i) => {
+      this.selDropPolicy.merge = mergeModes[i]!;
     });
-    this.selDropOutsideButtons = outside.buttons;
+    this.selMergeButtons = merge.buttons;
+    const keepModes: DropMode[] = ["on", "off", "custom"];
+    const keep = this.segToggle(left, t1 + 234, "выделение после:", ["да", "нет", "только ♦"], Math.max(0, keepModes.indexOf(this.selDropPolicy.keepSelection)), (i) => {
+      this.selDropPolicy.keepSelection = keepModes[i]!;
+    });
+    this.selKeepButtons = keep.buttons;
 
     // Лог-дропбокс «называю масть» (issue #62) — ТЕСТ-обвязка #61 СПРАВА от борда, на уровне его верха
     // (в зоне видимости — набор можно вытащить сюда наружу, демо-борд анкламплен). Принимает ТОЛЬКО
@@ -1661,7 +1676,7 @@ export class PlaygroundEngine extends CanvasApp {
     const box = new DropZone({ name: "называю масть", verb: "называю!", rect: { x: left + boardW + SB_ITEM_GAP, y: top + 22, w: this.selNameBoxW(), h: this.cardW * 1.1 } });
     this.selNameZone = box;
     this.registerZone(box, (p) => this.nameSuits([p.lead.id]), (p) => p.lead.tags.has("card"));
-    return t1 + 234;
+    return t1 + 260; // два тумблера дропа (#63): «сшивать» t1+208, «выделение после» t1+234
   }
 
   // Выписать уникальные масти набора в консоль + хук (issue #62). Идентичность (теги) → pileIdentity,
@@ -2359,25 +2374,15 @@ export class PlaygroundEngine extends CanvasApp {
               this.drag.release();
             } else if (dragged) {
               // Набор в целевой слот в УЖЕ решённом на грабе порядке (selDragging, issue #56). Дроп
-              // В ЗОНУ (moved) гасит выбор и остаётся как был. Дроп МИМО зон — по политике selDropOutside
-              // (issue #61, dropPolicy.ts): домой (вернуть на исходные места), остаться (осадить там, где
-              // отпущено, набор сохранить) или распустить (осадить там же И снять выделение).
+              // В ЗОНУ (moved) гасит выбор и остаётся как был. Дроп МИМО зон — по ДВУМ осям политики
+              // (issue #63, dropPolicy.ts): merge (сшить/домой) + keepSelection (оставить/снять), per-card.
               const { moved } = this.selZone.dropSetAt(this.selDragging, cp.x, cp.y);
               if (moved) {
                 this.refreshZoneHomes(this.selZone);
                 this.drag.release();
                 this.sel = begin("sel"); // очистить набор, остаться в режиме
-              } else if (returnsHome(this.selDropOutside)) {
-                this.refreshZoneHomes(this.selZone);
-                this.drag.release(); // домой — прежнее поведение
               } else {
-                // остаться / распустить — осадить набор на текущих (перетащенных) местах, не домой.
-                for (const id of this.selDragging) {
-                  const el = this.byId.get(id);
-                  if (el) this.restElementInPlace(el);
-                }
-                if (clearsSet(this.selDropOutside)) this.sel = begin("sel"); // распустить — снять выделение
-                this.wake();
+                this.applyDropOutside(this.selDragging); // мимо зон — две оси
               }
             } else {
               this.drag.release(); // тап по выделенной — снять её из набора
@@ -2601,9 +2606,28 @@ export class PlaygroundEngine extends CanvasApp {
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
   }
 
-  // «Оставить где отпущено» (onDropOutside: stay/dissolve, issue #61): осадить элемент в его план покоя
-  // прямо на ТЕКУЩЕЙ позиции, не гоня домой. Цель = текущая точка → пружина осядет там же, цикл уснёт
-  // (в отличие от releaseElement, что целит в home). Дом в состоянии зоны не меняем — это дисплей-жест.
+  // Дроп набора МИМО зон — ДВЕ ортогональные оси (issue #63, dropPolicy.ts), решаются per-card:
+  //   merge — сшить (осесть структурой на месте, якорь primary) или уйти домой;
+  //   keepSelection — остаётся ли карта выделенной после дропа.
+  // Якорь primary: сшитые карты ПОМНЯТ структуру (остаются на дропнутых местах, ведёт правая/lead-карта
+  // — сборка stack-tight уже кладёт их тесной стопкой у пальца). Релокация стопки под иной якорь
+  // (first/latest/zone/point) — задел на потом. custom-оси читают демо-предикаты MERGE/KEEP_CUSTOM.
+  private applyDropOutside(ids: readonly string[]): void {
+    let kept = begin("sel");
+    for (const id of ids) {
+      const el = this.byId.get(id);
+      if (!el) continue;
+      if (resolveMode(this.selDropPolicy.merge, el.tags, MERGE_CUSTOM)) this.restElementInPlace(el); // сшить — осесть на месте
+      else this.releaseElement(el); // не сшить — домой
+      if (resolveMode(this.selDropPolicy.keepSelection, el.tags, KEEP_CUSTOM)) kept = toggle(kept, id, "sel"); // оставить выделенной
+    }
+    this.sel = kept; // выделение = карты, прошедшие ось keepSelection (пустое → набор распущен)
+    this.wake();
+  }
+
+  // «Оставить где отпущено» (merge=on, issue #63): осадить элемент в его план покоя прямо на ТЕКУЩЕЙ
+  // позиции, не гоня домой. Цель = текущая точка → пружина осядет там же, цикл уснёт (в отличие от
+  // releaseElement, что целит в home). Дом в состоянии зоны не меняем — это дисплей-жест.
   private restElementInPlace(el: Elem): void {
     el.setState(el.rest);
     el.root.zIndex = this.homeOf(el)?.depth ?? el.root.zIndex; // снять драг-слой (1e6), лечь на плоскость стола
