@@ -28,6 +28,23 @@ export interface AssemblyConfig {
   sortOverride: SortOverride;
 }
 
+const ANCHORS_ALL: readonly Anchor[] = ["finger", "first", "latest", "zone"];
+const ANCHORS_NON_FINGER: readonly Anchor[] = ["first", "latest", "zone"];
+
+/**
+ * Допустимые якоря для данного `gatherOn` (issue #71, SELECTION-DESIGN §4.C): `finger` имеет смысл
+ * только когда собираем В МОМЕНТ старта драга (палец есть) — при любом другом `gatherOn` набор уже
+ * собран ДО того, как за него схватились, якорем служит карта/зона, не палец.
+ */
+export function validAnchorsFor(gatherOn: GatherOn): readonly Anchor[] {
+  return gatherOn === "drag-start" ? ANCHORS_ALL : ANCHORS_NON_FINGER;
+}
+
+/** Валидна ли связка `gatherOn`+`anchor` (§4.C). Чистая функция — источник правды для UI-блокировки рычагов. */
+export function isValidGatherAnchor(gatherOn: GatherOn, anchor: Anchor): boolean {
+  return validAnchorsFor(gatherOn).includes(anchor);
+}
+
 export interface Offset {
   id: string;
   dx: number;
@@ -111,6 +128,31 @@ export function assemble(
   return { orderedIds, offsets: formOffsets(orderedIds, config.form, cardW) };
 }
 
+// ——— gather-на-селект (issue #74): якорь-индекс + перенос офсетов ———
+
+/**
+ * Индекс якорной карты в `orderedIds` для gather-на-селект: `first` — стопка растёт от первой
+ * выбранной (якорь не двигается), `latest` — стопка «гоняется» за новейшей (якорь = последний
+ * индекс). `finger`/`zone` сюда не приходят (используются при `drag-start`/зонной сборке) —
+ * безопасный дефолт 0, чтобы функция была тотальной и не бросала. Пустой набор → 0.
+ */
+export function anchorIndexFor(anchor: Anchor, count: number): number {
+  if (count <= 0) return 0;
+  return anchor === "latest" ? count - 1 : 0;
+}
+
+/**
+ * Перенести офсеты так, чтобы `offsets[anchorIndex]` встал в (0,0), сохранив расстояния между
+ * картами (жёсткий сдвиг всего набора). `formOffsets` всегда считает офсеты относительно ПЕРВОГО
+ * элемента — для якоря `latest` набор нужно «перецепить» на последний, не переизобретая геометрию
+ * формы. Не мутирует вход.
+ */
+export function reanchorOffsets(offsets: readonly Offset[], anchorIndex: number): Offset[] {
+  const a = offsets[anchorIndex];
+  if (!a) return offsets.map((o) => ({ ...o }));
+  return offsets.map((o) => ({ ...o, dx: o.dx - a.dx, dy: o.dy - a.dy }));
+}
+
 // ——— пресеты (§5): именованные наборы значений рычагов ———
 export const ASSEMBLY_PRESETS: Record<string, AssemblyConfig> = {
   // Flow 1 (дефолт): схватил — собралось в сжатую стопку под пальцем, порядок по расположению.
@@ -127,6 +169,13 @@ export const ASSEMBLY_PRESETS: Record<string, AssemblyConfig> = {
   "fan-review": { gatherOn: "select-first", anchor: "zone", form: "fan", order: "selection", sortOverride: "none" },
   // Новое (под «подглядеть»): раскрытая стопка под пальцем.
   "inspect-open": { gatherOn: "drag-start", anchor: "finger", form: "stack-open", order: "proximity", sortOverride: "none" },
+
+  // Три именованные схемы issue #74 (SELECTION-DESIGN §5) под ИМЕНАМИ, которые ждут игры/песочница
+  // — псевдонимы существующих связок v1, не новая логика: `drag-start` = `grab-to-hand` (дефолт,
+  // поведение НЕ меняется), `follow-first` = `build-on-first`, `follow-last` = `magnet-latest`.
+  "drag-start": { gatherOn: "drag-start", anchor: "finger", form: "stack-tight", order: "proximity", sortOverride: "none" },
+  "follow-first": { gatherOn: "select-each", anchor: "first", form: "stack-tight", order: "selection", sortOverride: "none" },
+  "follow-last": { gatherOn: "select-each", anchor: "latest", form: "stack-tight", order: "selection", sortOverride: "none" },
 };
 
 export type PresetName = keyof typeof ASSEMBLY_PRESETS;

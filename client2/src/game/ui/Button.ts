@@ -99,6 +99,13 @@ export class Button {
     this.draw();
   }
 
+  /** Переключить disabled ПОСЛЕ монтирования (напр. невалидная связка рычагов, issue #71) и сразу перекрасить. */
+  setDisabled(on: boolean): void {
+    if (on === this.disabled) return;
+    this.disabled = on;
+    this.draw();
+  }
+
   hitTest(cx: number, cy: number): boolean {
     return !this.disabled && Math.abs(cx - this.x) <= this.w / 2 && Math.abs(cy - this.y) <= this.h / 2;
   }

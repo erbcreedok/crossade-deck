@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { CollectItem } from "./collectOrder";
-import { ASSEMBLY_PRESETS, assemble, formOffsets, orderItems, type AssemblyConfig } from "./assembly";
+import {
+  ASSEMBLY_PRESETS,
+  anchorIndexFor,
+  assemble,
+  formOffsets,
+  isValidGatherAnchor,
+  orderItems,
+  reanchorOffsets,
+  validAnchorsFor,
+  type AssemblyConfig,
+} from "./assembly";
 
 // набор: пресс-порядок 0..3, разные лица и позиции
 const items: CollectItem[] = [
@@ -122,5 +132,112 @@ describe("ASSEMBLY_PRESETS", () => {
     const overrides = new Set(Object.values(ASSEMBLY_PRESETS).map((c) => c.sortOverride));
     expect(overrides.has("none")).toBe(true);
     expect(overrides.has("rank")).toBe(true);
+  });
+});
+
+describe("isValidGatherAnchor — валидность связки gatherOn/anchor (§4.C)", () => {
+  it("finger валиден ТОЛЬКО при drag-start", () => {
+    expect(isValidGatherAnchor("drag-start", "finger")).toBe(true);
+    expect(isValidGatherAnchor("select-each", "finger")).toBe(false);
+    expect(isValidGatherAnchor("select-first", "finger")).toBe(false);
+    expect(isValidGatherAnchor("never", "finger")).toBe(false);
+  });
+  it("first/latest/zone валидны при select-*", () => {
+    for (const anchor of ["first", "latest", "zone"] as const) {
+      expect(isValidGatherAnchor("select-each", anchor)).toBe(true);
+      expect(isValidGatherAnchor("select-first", anchor)).toBe(true);
+    }
+  });
+  it("drag-start допускает и first/latest/zone (finger — не единственный вариант)", () => {
+    for (const anchor of ["first", "latest", "zone"] as const) {
+      expect(isValidGatherAnchor("drag-start", anchor)).toBe(true);
+    }
+  });
+  it("все пресеты (§5) — валидные связки", () => {
+    for (const [name, cfg] of Object.entries(ASSEMBLY_PRESETS)) {
+      expect(isValidGatherAnchor(cfg.gatherOn, cfg.anchor), name).toBe(true);
+    }
+  });
+  it("validAnchorsFor перечисляет допустимые якоря для gatherOn", () => {
+    expect(validAnchorsFor("drag-start")).toEqual(["finger", "first", "latest", "zone"]);
+    expect(validAnchorsFor("select-each")).toEqual(["first", "latest", "zone"]);
+    expect(validAnchorsFor("select-first")).toEqual(["first", "latest", "zone"]);
+    expect(validAnchorsFor("never")).toEqual(["first", "latest", "zone"]);
+  });
+});
+
+// ——— issue #74: gather-на-селект (select-each), анимация подстановки ———
+
+describe("anchorIndexFor — индекс якоря в упорядоченном наборе", () => {
+  it("first → всегда индекс 0", () => {
+    expect(anchorIndexFor("first", 1)).toBe(0);
+    expect(anchorIndexFor("first", 4)).toBe(0);
+  });
+  it("latest → последний индекс (растёт со стопкой)", () => {
+    expect(anchorIndexFor("latest", 1)).toBe(0);
+    expect(anchorIndexFor("latest", 4)).toBe(3);
+  });
+  it("finger/zone (не участвуют в select-each) — падают на 0, не бросают", () => {
+    expect(anchorIndexFor("finger", 4)).toBe(0);
+    expect(anchorIndexFor("zone", 4)).toBe(0);
+  });
+  it("пустой набор → 0 (защита от отрицательного индекса)", () => {
+    expect(anchorIndexFor("latest", 0)).toBe(0);
+  });
+});
+
+describe("reanchorOffsets — переносит нулевую точку на якорный индекс", () => {
+  const off = formOffsets(["a", "b", "c", "d"], "stack-tight", 100);
+
+  it("anchorIndex=0 — не меняет офсеты (уже относительно первого)", () => {
+    const re = reanchorOffsets(off, 0);
+    re.forEach((o, i) => {
+      expect(o.dx).toBeCloseTo(off[i]!.dx);
+      expect(o.dy).toBeCloseTo(off[i]!.dy);
+      expect(o.id).toBe(off[i]!.id);
+    });
+  });
+  it("anchorIndex=last — якорная карта встаёт в (0,0), остальные — относительно неё", () => {
+    const re = reanchorOffsets(off, 3);
+    expect(re[3]!.dx).toBe(0);
+    expect(re[3]!.dy).toBe(0);
+    // расстояния между соседями сохраняются (жёсткое смещение всего набора)
+    for (let i = 0; i < off.length; i++) {
+      expect(re[i]!.dx).toBeCloseTo(off[i]!.dx - off[3]!.dx);
+      expect(re[i]!.dy).toBeCloseTo(off[i]!.dy - off[3]!.dy);
+    }
+  });
+  it("сохраняет id и rot (веер) при переносе", () => {
+    const fan = formOffsets(["a", "b", "c"], "fan", 100);
+    const re = reanchorOffsets(fan, 2);
+    expect(re.map((o) => o.id)).toEqual(["a", "b", "c"]);
+    expect(re[2]!.rot).toBeCloseTo(fan[2]!.rot ?? 0);
+  });
+  it("не мутирует вход", () => {
+    const before = off.map((o) => ({ ...o }));
+    reanchorOffsets(off, 2);
+    expect(off).toEqual(before);
+  });
+});
+
+describe("именованные пресеты трёх схем (issue #74)", () => {
+  it("drag-start === grab-to-hand (дефолт, поведение не меняется)", () => {
+    expect(ASSEMBLY_PRESETS["drag-start"]).toEqual(ASSEMBLY_PRESETS["grab-to-hand"]);
+  });
+  it("follow-first: select-each + anchor=first", () => {
+    const c = ASSEMBLY_PRESETS["follow-first"]!;
+    expect(c.gatherOn).toBe("select-each");
+    expect(c.anchor).toBe("first");
+  });
+  it("follow-last: select-each + anchor=latest", () => {
+    const c = ASSEMBLY_PRESETS["follow-last"]!;
+    expect(c.gatherOn).toBe("select-each");
+    expect(c.anchor).toBe("latest");
+  });
+  it("все три — валидные связки gatherOn/anchor", () => {
+    for (const name of ["drag-start", "follow-first", "follow-last"] as const) {
+      const c = ASSEMBLY_PRESETS[name]!;
+      expect(isValidGatherAnchor(c.gatherOn, c.anchor), name).toBe(true);
+    }
   });
 });

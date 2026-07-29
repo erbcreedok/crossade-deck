@@ -16,11 +16,26 @@ import { wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import type { CollectItem } from "../board/collectOrder";
-import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
+import {
+  anchorIndexFor,
+  assemble,
+  ASSEMBLY_PRESETS,
+  DEFAULT_PRESET,
+  isValidGatherAnchor,
+  reanchorOffsets,
+  validAnchorsFor,
+  type AssemblyConfig,
+  type Anchor,
+  type Form,
+  type GatherOn,
+  type NaturalOrder,
+  type SortOverride,
+} from "../board/assembly";
 import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
 import { DEFAULT_DROP_POLICY, resolveMode, type DropMode, type DropOutsidePolicy } from "../board/dropPolicy";
 import { hasTag } from "../board/tagQuery";
 import { pileIdentity } from "../board/pileIdentity";
+import type { PileIdentity } from "../board/pileIdentity";
 import { namedSuits } from "../board/suitNames";
 
 // Демо-предикаты custom-осей дропа (issue #63): игра задаёт СВОИ, тут — примеры для песочницы.
@@ -133,6 +148,8 @@ interface BoardConfig {
   ringCount?: number; // число слотов кольца (layout: ring), дефолт 8
   maxSize?: number; // потолок стопки в КАЖДОМ слоте борда (дурак и т.п.)
   rule?: BoardPreset["rule"]; // value-правило по ЛИЦАМ (не по id) — mountBoard сам оборачивает в AcceptRule
+  requiresCapability?: keyof PileIdentity["capabilities"]; // зона-слой цепочки (§6, issue #73): слепая
+  // зона — принимает набор, только если ВСЕ его члены несут эту способность (BoardZoneOpts, dropPolicy.ts)
 }
 
 // Одиночная цель с меткой (соло-карта, соло-фигура): host + драггер/якорь + как достать лид.
@@ -272,6 +289,8 @@ export class PlaygroundEngine extends CanvasApp {
   private selFormButtons: Button[] = []; // тумблер «форма:» — для e2e
   private selOrderButtons: Button[] = []; // тумблер «порядок:» — для e2e
   private selSortButtons: Button[] = []; // тумблер «сорт:» (override) — для e2e
+  private selGatherButtons: Button[] = []; // тумблер «собирать:» (gatherOn) — для e2e (issue #71)
+  private selAnchorButtons: Button[] = []; // тумблер «якорь:» (anchor) — для e2e (issue #71); невалидные под gatherOn — disabled
   // Отбор-визуал набора как ДАННЫЕ (issue #60, SELECTION-DESIGN §4.A): что можно выбрать (eligible),
   // подсветка выбираемых (hintEligible), как метить выбранное (mark). Дефолт как в примере: только
   // карты, без подсказки, метка «оба» (подъём + контур).
@@ -565,7 +584,7 @@ export class PlaygroundEngine extends CanvasApp {
       selected: string[];
       resetButtonAt: { x: number; y: number } | null; // primary-кнопка сброса под боксом (#64); null, пока набор пуст
       // Конфиг сборки набора как ДАННЫЕ (issue #56): рычаги form/order/sortOverride + последний пресет.
-      assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride };
+      assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride; gatherOn: GatherOn; anchor: Anchor };
       // Отбор-визуал как ДАННЫЕ (issue #60): eligible по ИМЕНИ, подсветка выбираемых, метка выбранного.
       visual: { eligible: EligibleName; hintEligible: boolean; mark: Mark };
       // Дроп мимо зон как ДАННЫЕ (issue #63): две оси merge/keepSelection + якорь сшивки.
@@ -584,6 +603,8 @@ export class PlaygroundEngine extends CanvasApp {
     selFormAt: { x: number; y: number }[]; // тумблер «форма:» (стопка/раскрыт/ряд/веер)
     selOrderAt: { x: number; y: number }[]; // тумблер «порядок:» (расположение/выбор)
     selSortAt: { x: number; y: number }[]; // тумблер «сорт:» (—/номинал/масть/центр — override)
+    selGatherAt: { x: number; y: number }[]; // тумблер «собирать:» (gatherOn, issue #71)
+    selAnchorAt: { x: number; y: number; disabled: boolean }[]; // тумблер «якорь:» (anchor, issue #71) — disabled под невалидные при текущем gatherOn
     selEligibleAt: { x: number; y: number }[]; // тумблер «выбор:» (карты/буби/любые)
     selHintAt: { x: number; y: number }[]; // тумблер «подсказка:» (выкл/вкл)
     selMarkAt: { x: number; y: number }[]; // тумблер «метка:» (подъём/контур/оба)
@@ -647,7 +668,14 @@ export class PlaygroundEngine extends CanvasApp {
         trigger: this.selTrigger,
         selected: [...this.sel.ids],
         resetButtonAt: this.selResetButton && this.sel.ids.length >= 1 ? toScreen(this.selResetButton.x, this.selResetButton.y) : null,
-        assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
+        assembly: {
+          preset: this.selPresetName,
+          form: this.selAssembly.form,
+          order: this.selAssembly.order,
+          sortOverride: this.selAssembly.sortOverride,
+          gatherOn: this.selAssembly.gatherOn,
+          anchor: this.selAssembly.anchor,
+        },
         visual: { eligible: this.selEligibleName, hintEligible: this.selVisual.hintEligible, mark: this.selVisual.mark },
         policy: { merge: this.selDropPolicy.merge, keepSelection: this.selDropPolicy.keepSelection, mergeAnchor: this.selDropPolicy.mergeAnchor },
       },
@@ -682,6 +710,8 @@ export class PlaygroundEngine extends CanvasApp {
       selFormAt: this.selFormButtons.map((b) => toScreen(b.x, b.y)),
       selOrderAt: this.selOrderButtons.map((b) => toScreen(b.x, b.y)),
       selSortAt: this.selSortButtons.map((b) => toScreen(b.x, b.y)),
+      selGatherAt: this.selGatherButtons.map((b) => toScreen(b.x, b.y)),
+      selAnchorAt: this.selAnchorButtons.map((b) => ({ ...toScreen(b.x, b.y), disabled: b.disabled })),
       selEligibleAt: this.selEligibleButtons.map((b) => toScreen(b.x, b.y)),
       selHintAt: this.selHintButtons.map((b) => toScreen(b.x, b.y)),
       selMarkAt: this.selMarkButtons.map((b) => toScreen(b.x, b.y)),
@@ -1452,6 +1482,7 @@ export class PlaygroundEngine extends CanvasApp {
       });
       items.push({ size: this.measureBoardConfig(this.chessBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildChessBoard(x, y) });
       items.push({ size: this.measureBoardConfig(this.mixedBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildMixedBoard(x, y) });
+      items.push({ size: this.measureBoardConfig(this.capabilityBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildCapabilityBoard(x, y) });
 
       const maxWidth = this.cardW * 8;
       const { slots, totalH } = wrapFlow(items.map((it) => it.size), maxWidth, SB_ITEM_GAP);
@@ -1483,8 +1514,8 @@ export class PlaygroundEngine extends CanvasApp {
 
   // Обвязка борд-зоны: BoardZone + учёт в списках + заголовок + рамка. Общая для пресет-бордов
   // (spawnBoard) и custom (шахматы/смешанный). Фигуры спавнит вызыватель. opts: value-правило + иная подпись.
-  private registerBoardZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: Board["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string }): BoardZone {
-    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied, rule: opts?.rule });
+  private registerBoardZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: Board["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string; requiresCapability?: keyof PileIdentity["capabilities"] }): BoardZone {
+    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied, rule: opts?.rule, requiresCapability: opts?.requiresCapability });
     this.boardZones.push(zone);
     this.boardTitles.push(title);
     this.scene.surface.addChild(this.label(opts?.labelText ?? title, left, top, 13, 0xcdb98f, undefined, 0));
@@ -1529,7 +1560,7 @@ export class PlaygroundEngine extends CanvasApp {
       });
     }
     const rule = cfg.rule ? wrapRule(cfg.rule, faces) : undefined;
-    const zone = this.registerBoardZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText, rule });
+    const zone = this.registerBoardZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText, rule, requiresCapability: cfg.requiresCapability });
     let depth = depthBase;
     for (const key of keys) {
       cfg.slots[key]!.forEach((def, j) => this.spawnElement(`${cfg.idPrefix}-${key}-${j}`, zone.figureHome(`${cfg.idPrefix}-${key}-${j}`), def, depth++, r));
@@ -1587,7 +1618,7 @@ export class PlaygroundEngine extends CanvasApp {
     // вместо прежних «сорт набора»/«сборка»: тестер крутит рычаги ПО отдельности или берёт готовый
     // пресет (тот пересинхронивает золотую черту form/order/sort). Дефолт — пресет grab-to-hand.
     this.selAssembly = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
-    this.selPresetName = DEFAULT_PRESET;
+    this.selPresetName = "drag-start"; // = grab-to-hand (issue #74: имя схемы для UI, дефолт не меняется)
     // Отбор-визуал (issue #60) — дефолт как в примере: только карты, без подсказки, метка «оба».
     this.selVisual = { eligible: ELIGIBLE.cards!, hintEligible: false, mark: "both" };
     this.selEligibleName = "cards";
@@ -1607,7 +1638,10 @@ export class PlaygroundEngine extends CanvasApp {
     const forms: Form[] = ["stack-tight", "stack-open", "row", "fan"];
     const orders: NaturalOrder[] = ["proximity", "selection"];
     const overrides: SortOverride[] = ["none", "rank", "suit", "center"];
-    const presets = ["grab-to-hand", "build-on-first", "tray-zone", "sorted-row"];
+    // Три именованные схемы issue #74 (drag-start/follow-first/follow-last) — идут ПЕРВЫМИ, чтобы
+    // анимацию сборки было легко переключить и сравнить глазами; tray-zone/sorted-row — старые демо
+    // v1 остаются рядом (гибрид: пресет + отдельные рычаги поверх).
+    const presets = ["drag-start", "follow-first", "follow-last", "tray-zone", "sorted-row"];
     const formIdx = (f: Form) => Math.max(0, forms.indexOf(f));
     const orderIdx = (o: NaturalOrder) => (o === "proximity" ? 0 : 1); // append ≈ selection (оба «по нажатию»)
     const overrideIdx = (s: SortOverride) => Math.max(0, overrides.indexOf(s));
@@ -1618,35 +1652,71 @@ export class PlaygroundEngine extends CanvasApp {
     this.selOrderButtons = order.buttons;
     const sort = this.segToggle(left, t1 + 78, "сорт:", ["—", "номинал", "масть", "центр"], overrideIdx(this.selAssembly.sortOverride), (i) => (this.selAssembly.sortOverride = overrides[i]!));
     this.selSortButtons = sort.buttons;
+
+    // gatherOn/anchor (issue #71, SELECTION-DESIGN §4.B/§4.C) — самостоятельные рычаги, а не только
+    // поля внутри пресета. Связка валидируется ЧИСТОЙ функцией isValidGatherAnchor (assembly.ts):
+    // невалидные варианты якоря БЛОКИРУЮТСЯ (disabled), а не молча принимаются. Пресет по-прежнему
+    // выставляет оба рычага разом; после — гибрид (крутишь каждый рычаг отдельно поверх пресета).
+    const gatherModes: GatherOn[] = ["drag-start", "select-each", "select-first", "never"];
+    const anchors: Anchor[] = ["finger", "first", "latest", "zone"];
+    const gatherIdx = (g: GatherOn) => Math.max(0, gatherModes.indexOf(g));
+    const anchorIdx = (a: Anchor) => Math.max(0, anchors.indexOf(a));
+    // Перекрасить disabled на кнопках якоря под ТЕКУЩИЙ gatherOn; если текущий anchor стал невалиден,
+    // клампим на первый допустимый и подтягиваем золотую черту (не молчим — видимая перестройка).
+    const refreshAnchorValidity = (anchorToggle: { buttons: Button[]; setMark: (i: number) => void }) => {
+      const valid = validAnchorsFor(this.selAssembly.gatherOn);
+      anchors.forEach((a, i) => anchorToggle.buttons[i]!.setDisabled(!valid.includes(a)));
+      if (!isValidGatherAnchor(this.selAssembly.gatherOn, this.selAssembly.anchor)) {
+        this.selAssembly.anchor = valid[0]!;
+        anchorToggle.setMark(anchorIdx(this.selAssembly.anchor));
+      }
+      this.wake();
+    };
+    const gather = this.segToggle(left, t1 + 104, "собирать:", ["на драг", "на каждый выбор", "на первый выбор", "никогда"], gatherIdx(this.selAssembly.gatherOn), (i) => {
+      this.selAssembly.gatherOn = gatherModes[i]!;
+      refreshAnchorValidity(anchor);
+    });
+    this.selGatherButtons = gather.buttons;
+    const anchor = this.segToggle(left, t1 + 130, "якорь:", ["палец", "первая", "последняя", "зона"], anchorIdx(this.selAssembly.anchor), (i) => {
+      const picked = anchors[i]!;
+      if (!isValidGatherAnchor(this.selAssembly.gatherOn, picked)) return; // невалидная связка — клик игнорируется (кнопка и так disabled)
+      this.selAssembly.anchor = picked;
+    });
+    this.selAnchorButtons = anchor.buttons;
+    refreshAnchorValidity(anchor); // применить disabled сразу при монтировании (дефолт-пресет валиден, но рычаг должен красить с первого кадра)
+
     // Пресет берёт ВЕСЬ конфиг из ASSEMBLY_PRESETS и пересинхронит черту остальных тумблеров (setMark
     // не дёргает их onPick). Отдельные рычаги после этого дают гибрид, но selPresetName не сбрасывают.
-    const presetToggle = this.segToggle(left, t1 + 104, "пресет:", ["рука", "первая", "лоток", "ряд↑"], Math.max(0, presets.indexOf(this.selPresetName)), (i) => {
+    const presetToggle = this.segToggle(left, t1 + 156, "пресет:", ["драг", "1-я", "послед.", "лоток", "ряд↑"], Math.max(0, presets.indexOf(this.selPresetName)), (i) => {
       const name = presets[i]!;
       this.selPresetName = name;
       this.selAssembly = { ...ASSEMBLY_PRESETS[name]! };
       form.setMark(formIdx(this.selAssembly.form));
       order.setMark(orderIdx(this.selAssembly.order));
       sort.setMark(overrideIdx(this.selAssembly.sortOverride));
+      gather.setMark(gatherIdx(this.selAssembly.gatherOn));
+      refreshAnchorValidity(anchor);
+      anchor.setMark(anchorIdx(this.selAssembly.anchor));
     });
     this.selPresetButtons = presetToggle.buttons;
 
     // Отбор-визуал (issue #60, SELECTION-DESIGN §4.A) — три ортогональных рычага-ДАННЫХ рядом со сборкой.
     const eligibleNames: EligibleName[] = ["cards", "diamonds", "any"];
-    const eligible = this.segToggle(left, t1 + 130, "выбор:", ["карты", "буби", "любые"], Math.max(0, eligibleNames.indexOf(this.selEligibleName)), (i) => {
+    const eligible = this.segToggle(left, t1 + 182, "выбор:", ["карты", "буби", "любые"], Math.max(0, eligibleNames.indexOf(this.selEligibleName)), (i) => {
       this.selEligibleName = eligibleNames[i]!;
       this.selVisual.eligible = ELIGIBLE[this.selEligibleName]!;
       this.refreshSel(); // пересчитать подсказку/убрать контуры того, что стало неподходящим (набор сам не трогаем)
       this.wake();
     });
     this.selEligibleButtons = eligible.buttons;
-    const hint = this.segToggle(left, t1 + 156, "подсказка:", ["выкл", "вкл"], this.selVisual.hintEligible ? 1 : 0, (i) => {
+    const hint = this.segToggle(left, t1 + 208, "подсказка:", ["выкл", "вкл"], this.selVisual.hintEligible ? 1 : 0, (i) => {
       this.selVisual.hintEligible = i === 1;
       this.refreshSel();
       this.wake();
     });
     this.selHintButtons = hint.buttons;
     const marks: Mark[] = ["lift", "outline", "both"];
-    const mark = this.segToggle(left, t1 + 182, "метка:", ["подъём", "контур", "оба"], Math.max(0, marks.indexOf(this.selVisual.mark)), (i) => {
+    const mark = this.segToggle(left, t1 + 234, "метка:", ["подъём", "контур", "оба"], Math.max(0, marks.indexOf(this.selVisual.mark)), (i) => {
       this.selVisual.mark = marks[i]!;
       this.refreshSel();
       this.wake();
@@ -1657,12 +1727,12 @@ export class PlaygroundEngine extends CanvasApp {
     // off домой / on сшить стопкой (якорь primary) / custom предикат (демо «только ♣»). «выделение
     // после»: on сохранить / off снять / custom (демо «только ♦»). Дефолты: сшивать=нет, выделение=да.
     const mergeModes: DropMode[] = ["off", "on", "custom"];
-    const merge = this.segToggle(left, t1 + 208, "сшивать:", ["нет", "да", "только ♣"], Math.max(0, mergeModes.indexOf(this.selDropPolicy.merge)), (i) => {
+    const merge = this.segToggle(left, t1 + 260, "сшивать:", ["нет", "да", "только ♣"], Math.max(0, mergeModes.indexOf(this.selDropPolicy.merge)), (i) => {
       this.selDropPolicy.merge = mergeModes[i]!;
     });
     this.selMergeButtons = merge.buttons;
     const keepModes: DropMode[] = ["on", "off", "custom"];
-    const keep = this.segToggle(left, t1 + 234, "выделение после:", ["да", "нет", "только ♦"], Math.max(0, keepModes.indexOf(this.selDropPolicy.keepSelection)), (i) => {
+    const keep = this.segToggle(left, t1 + 286, "выделение после:", ["да", "нет", "только ♦"], Math.max(0, keepModes.indexOf(this.selDropPolicy.keepSelection)), (i) => {
       this.selDropPolicy.keepSelection = keepModes[i]!;
     });
     this.selKeepButtons = keep.buttons;
@@ -1684,7 +1754,7 @@ export class PlaygroundEngine extends CanvasApp {
     this.registerButton(reset);
     this.selResetButton = reset;
     this.syncResetButton(); // исходно скрыта (набор пуст)
-    return t1 + 260; // два тумблера дропа (#63): «сшивать» t1+208, «выделение после» t1+234
+    return t1 + 312; // два тумблера дропа (#63): «сшивать» t1+260, «выделение после» t1+286
   }
 
   // Кнопка сброса (#64) видна лишь при непустом наборе — иначе гасить нечего, а висящая кнопка
@@ -1752,7 +1822,34 @@ export class PlaygroundEngine extends CanvasApp {
     const base = this.sel.scope === null ? begin("sel") : this.sel;
     this.setSelection(toggle(base, id, "sel")); // тоггл + синк selMode (пустой → выход из сессии)
     this.refreshSel();
+    // gather-на-селект (issue #74): при select-each набор летит в форму СРАЗУ на тапе, не ждёт драга.
+    if (this.selAssembly.gatherOn === "select-each") this.gatherSelectEach();
     this.wake();
+  }
+
+  // Собрать выделенный набор В МЕСТЕ (без драга) для gatherOn=select-each (issue #74, follow-first/
+  // follow-last): пересчитывает order+override+форму (assembleSelection — те же чистые атомы, что и
+  // у drag-start), переносит офсеты на якорную карту (`reanchorOffsets`, first→сама не двигается,
+  // latest→растущий хвост подтягивается к новейшей) и реально АНИМИРУЕТ каждую карту к цели через
+  // `body.setTarget` — та же пружина, что у обычного возврата домой/мержа (releaseElement/
+  // mergeStackOnto), никакой новой физики. Якорь берёт СВОЙ дом (homeOf) — он не сдвигается сам по
+  // себе, вся стопка подстраивается ПОД него.
+  private gatherSelectEach(): void {
+    const { orderedIds, offsets } = this.assembleSelection();
+    if (orderedIds.length === 0) return;
+    const anchorIdx = anchorIndexFor(this.selAssembly.anchor, orderedIds.length);
+    const anchored = reanchorOffsets(offsets, anchorIdx);
+    const anchorEl = this.byId.get(orderedIds[anchorIdx]!);
+    const h = anchorEl && this.homeOf(anchorEl);
+    if (!h) return;
+    orderedIds.forEach((id, i) => {
+      const el = this.byId.get(id);
+      const off = anchored[i];
+      if (!el || !off) return;
+      el.root.zIndex = h.depth + 1 + i; // порядок сборки сверху = порядок в orderedIds
+      this.placeCard(el);
+      el.body.setTarget({ x: h.home.x + off.dx, y: h.home.y + off.dy, rot: off.rot ?? 0 });
+    });
   }
 
   // Подходит ли фигура под текущий eligible-предикат (по её тегам). Чужая/отсутствующая → нет.
@@ -1833,6 +1930,34 @@ export class PlaygroundEngine extends CanvasApp {
       },
       hint: "тащи фигуру на фигуру — съедает (capture)",
     };
+  }
+
+  // Слепая capability-gated зона (SELECTION-DESIGN §6, issue #73 — follow-up к #72): та же цепочка
+  // элемент→зона→engine, здесь ТОЛЬКО данные конфигурации. 0,0 — карта (Card реализует Peekable),
+  // 0,1 — фишка (Piece её НЕ реализует), 0,2 — пустой capability-gated слот. Дроп карты в 0,2
+  // принят, дроп фишки — отклонён (остаётся на месте), в точности как в boardZone.test.ts.
+  private capabilityBoardConfig(): BoardConfig {
+    return {
+      title: "слепая зона: «подглядеть» (requiresCapability=peekable, §6)",
+      cols: 3,
+      rows: 1,
+      cell: { w: this.cardW * 1.15, h: this.cardH * 1.02 },
+      idPrefix: "capz",
+      onOccupied: "merge",
+      pieceRatio: 0.3,
+      requiresCapability: "peekable",
+      slots: {
+        "0,0": [{ kind: "card", face: "Q♦" }],
+        "0,1": [{ kind: "chip", denom: "10", color: 0x2f6b34 }],
+      },
+      hint: "карта (peekable) ложится в 0,2 — фишка (не peekable) зона не видит, отскакивает домой",
+    };
+  }
+
+  // Демо слепой зоны: борд-фабрика та же, что у шахмат/смешанного борда — «новый борд = конфиг».
+  private buildCapabilityBoard(left: number, top: number): number {
+    const { bottom } = this.mountBoard(this.capabilityBoardConfig(), left, top, 520);
+    return bottom + 22;
   }
 
   private mixedBoardConfig(): BoardConfig {
@@ -2404,7 +2529,10 @@ export class PlaygroundEngine extends CanvasApp {
               // Набор в целевой слот в УЖЕ решённом на грабе порядке (selDragging, issue #56). Дроп
               // В ЗОНУ (moved) гасит выбор и остаётся как был. Дроп МИМО зон — по ДВУМ осям политики
               // (issue #63, dropPolicy.ts): merge (сшить/домой) + keepSelection (оставить/снять), per-card.
-              const { moved } = this.selZone.dropSetAt(this.selDragging, cp.x, cp.y);
+              // pile — идентичность ВСЕГО набора (issue #72): зона сама решает элемент→зона→engine,
+              // слепая зона (requiresCapability, §6) без неё не отличит гибрид от однородного набора.
+              const dragEls = this.selDragging.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
+              const { moved } = this.selZone.dropSetAt(this.selDragging, cp.x, cp.y, pileIdentity(dragEls));
               if (moved) {
                 this.refreshZoneHomes(this.selZone);
                 this.drag.release();
@@ -2442,8 +2570,10 @@ export class PlaygroundEngine extends CanvasApp {
             this.nameSuits([this.drag.lead.id]);
             this.drag.release();
           } else if (bz) {
-            // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим.
-            const res = bz.dropAt(this.drag.lead.id, cp.x, cp.y);
+            // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим. pile —
+            // идентичность тащимого (issue #73): зона-слой (requiresCapability, §6) без него оставалась
+            // бы всегда прозрачной для обычного одиночного драга — видимая слепая зона требует его тут же.
+            const res = bz.dropAt(this.drag.lead.id, cp.x, cp.y, pileIdentity([this.drag.lead]));
             if (res.captured) this.exileFigures(res.captured);
             this.refreshZoneHomes(bz);
             this.drag.release(); // летит в (возможно новый) home

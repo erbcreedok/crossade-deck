@@ -3,6 +3,8 @@ import { add, canAccept, size } from "./container";
 import { stackOffsets } from "./slotLayout";
 import { resolveDrop, type DropCandidate } from "./dropResolve";
 import { clampToBounds } from "./bounds";
+import { capabilityZoneRule, resolveDropChain, type DropRule } from "./dropPolicy";
+import type { PileIdentity } from "./pileIdentity";
 import type { Rect } from "./layout/grid";
 import type { PositionedSlot } from "./layout/slots";
 import type { Configurable, Param } from "../ui/controls"; // ТОЛЬКО типы — стираются на сборке, Pixi сюда не тянется
@@ -11,6 +13,11 @@ import type { Configurable, Param } from "../ui/controls"; // ТОЛЬКО ти�
 // Раскладка ПОДКЛЮЧАЕМА: зона принимает готовый список позиционированных слотов (grid/ring/points/
 // seats — см. layout/slots.ts), сама геометрию не считает. Отвечает «где отдыхает фигура», «куда её
 // перенёс дроп (по onOccupied)», «как не выпустить за рамку».
+//
+// Приём дропа идёт ЦЕПОЧКОЙ приоритета (SELECTION-DESIGN §4.F/§7, issue #72): элемент (rule, нельзя
+// нарушить) → зона (requiresCapability — слепые зоны §6, прозрачна без набора-Pile или без
+// требования) → engine (onOccupied/структура слота). resolveDropChain/capabilityZoneRule — общее
+// ядро (dropPolicy.ts), здесь только СБОРКА слоёв под конкретные BoardZone-примитивы.
 
 // Исход дропа на ЗАНЯТЫЙ слот (GRID-DESIGN.md, onOccupied). Пресеты; кастомный Action — позже.
 export type OnOccupied = "merge" | "swap" | "capture" | "reject";
@@ -31,7 +38,10 @@ export interface BoardZoneOpts {
   board: Board;
   bounds: Rect; // рамка контейнера — фигуры не выбираются за неё
   onOccupied?: OnOccupied; // что делать при дропе на занятый слот (дефолт merge)
-  rule?: AcceptRule; // доп. гейт приёма по значениям (опц.)
+  rule?: AcceptRule; // элемент-слой цепочки: доп. гейт приёма по значениям (опц.), нельзя нарушить
+  requiresCapability?: keyof PileIdentity["capabilities"]; // зона-слой: слепая зона (§6) — примет
+  // НАБОР, только если ВЕСЬ он несёт эту способность (Pile.capabilities); без Pile-аргумента в
+  // dropSetAt/dropAt требование не проверяется (обратная совместимость со старыми вызовами).
 }
 
 // Сдвиг стопки в слоте (peek): верх выше-правее. Малый, чисто чтобы читалась глубина.
@@ -44,6 +54,7 @@ export class BoardZone implements Configurable {
   onOccupied: OnOccupied; // изменяем на лету (тоглер песочницы)
   private centers: Map<string, { x: number; y: number }>;
   private readonly rule?: AcceptRule;
+  private readonly requiresCapability?: keyof PileIdentity["capabilities"];
 
   constructor(o: BoardZoneOpts) {
     this.slotList = o.slots;
@@ -52,6 +63,7 @@ export class BoardZone implements Configurable {
     this.onOccupied = o.onOccupied ?? "merge";
     this.centers = new Map(o.slots.map((s) => [s.key, s.center]));
     this.rule = o.rule;
+    this.requiresCapability = o.requiresCapability;
   }
 
   /** Единственный настраиваемый параметр зоны — исход дропа на занятый слот. Даёт зоне
@@ -91,10 +103,12 @@ export class BoardZone implements Configurable {
   }
 
   /** Дроп фигуры в точку: резолвим целевой слот (EC1), исход по onOccupied. captured — кого
-   *  вытеснили (capture): движок уводит их с борда. */
-  dropAt(figureId: string, x: number, y: number): { moved: boolean; captured?: string[] } {
+   *  вытеснили (capture): движок уводит их с борда. pile — идентичность переносимого набора
+   *  (обычно один элемент); задаётся, если зона требует способность (§6, requiresCapability). */
+  dropAt(figureId: string, x: number, y: number, pile?: PileIdentity): { moved: boolean; captured?: string[] } {
     const from = this.locate(figureId);
     if (!from) return { moved: false };
+    if (this.zoneBlind(pile)) return { moved: false }; // слепая зона: набор без нужной способности её не видит
     const cands: DropCandidate<null>[] = this.slotRects().map(({ key, rect }) => ({
       id: key,
       contains: (px, py) => px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h,
@@ -106,11 +120,24 @@ export class BoardZone implements Configurable {
     return this.commit(figureId, from.key, win.id);
   }
 
-  // Примет ли слот фигуру: структурно (пустой/onOccupied) И value-правило (если задано).
+  /** Зона-слой цепочки (§4.F/§6): без требования или без pile-аргумента — прозрачна (не решает,
+   *  ведёт себя как раньше). С требованием и pile — блокирует дроп в СЕБЯ, если набор не несёт
+   *  способность целиком (capabilityZoneRule возвращает "pass" → resolveDropChain падает в fallback
+   *  false — зона не приняла; "accept" → true, дроп идёт к engine-слою как обычно). */
+  private zoneBlind(pile?: PileIdentity): boolean {
+    if (!this.requiresCapability || !pile) return false;
+    const zoneLayer: DropRule<PileIdentity> = capabilityZoneRule(pile, this.requiresCapability);
+    return !resolveDropChain(pile, [zoneLayer], false);
+  }
+
+  // Примет ли слот фигуру — цепочка элемент(rule, нельзя нарушить) → engine(onOccupied/структура).
+  // Зона-слой (requiresCapability) решается ОДИН раз для всего набора, см. zoneBlind/dropAt/dropSetAt.
   private slotAccepts(key: string, fromKey: string, figureId: string): boolean {
     if (key === fromKey) return false; // реордер отдельно
-    if (!this.structuralAccepts(key, figureId)) return false;
-    return this.rule ? this.rule({ figureId, fromKey, toKey: key, board: this.board }) : true;
+    const ctx: AcceptCtx = { figureId, fromKey, toKey: key, board: this.board };
+    const elementLayer: DropRule<AcceptCtx> = () => (this.rule && !this.rule(ctx) ? "reject" : "pass");
+    const engineLayer: DropRule<AcceptCtx> = () => (this.structuralAccepts(key, figureId) ? "accept" : "reject");
+    return resolveDropChain(ctx, [elementLayer, engineLayer]);
   }
 
   private structuralAccepts(key: string, figureId: string): boolean {
@@ -148,10 +175,14 @@ export class BoardZone implements Configurable {
     return { moved: true, captured: tgtMembers };
   }
 
-  /** Перенести НАБОР фигур (мультиселект) в слот под точкой: каждую, кто принят, в порядке набора. */
-  dropSetAt(ids: string[], x: number, y: number): { moved: boolean } {
+  /** Перенести НАБОР фигур (мультиселект) в слот под точкой: каждую, кто принят, в порядке набора.
+   *  pile — идентичность всего набора (SELECTION-DESIGN §3); при requiresCapability слепая зона (§6)
+   *  без pile-аргумента остаётся прозрачной (обратная совместимость), с ним — не примет несущий не
+   *  весь набор способность. */
+  dropSetAt(ids: string[], x: number, y: number, pile?: PileIdentity): { moved: boolean } {
     const target = this.slotRects().find(({ rect }) => x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h);
     if (!target) return { moved: false };
+    if (this.zoneBlind(pile)) return { moved: false };
     let moved = false;
     for (const id of ids) {
       const from = this.locate(id);

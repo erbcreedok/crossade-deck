@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { BoardZone } from "./boardZone";
 import type { Board } from "./board";
 import { gridSlots } from "./layout/slots";
+import type { PileIdentity } from "./pileIdentity";
 
 // BoardZone — сердце визуального полигона, но БЕЗ Pixi: логический board + подключаемая раскладка +
 // размещение фигур + резолв дропа между слотами + запертость. Визуал потом читает отсюда.
@@ -99,6 +100,38 @@ describe("BoardZone — dropSetAt (перенос НАБОРА)", () => {
   it("вне слотов — не переносит", () => {
     const z = make({ "0,0": { members: ["a"] } });
     expect(z.dropSetAt(["a"], 9999, 9999).moved).toBe(false);
+  });
+});
+
+describe("BoardZone — цепочка приёма элемент→зона→engine (issue #72)", () => {
+  it("элемент-rule reject побеждает даже пустой слот (нельзя нарушить)", () => {
+    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, rule: () => false });
+    expect(z.dropSetAt(["a"], 150, 50).moved).toBe(false);
+  });
+
+  const pile = (peekable: boolean): PileIdentity => ({
+    size: 1,
+    tagsAll: new Set(["card"]),
+    tagsAny: new Set(["card"]),
+    facing: "down",
+    capabilities: { draggable: true, flippable: true, burnable: true, peekable },
+  });
+
+  it("слепая зона (requiresCapability): набор без способности зона не принимает — pass, engine не трогается", () => {
+    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, requiresCapability: "peekable" });
+    expect(z.dropSetAt(["a"], 250, 50, pile(false)).moved).toBe(false); // (0,2) пустой, структурно принял бы — но зона слепа
+    expect(z.locate("a")?.key).toBe("0,0"); // осталась на месте
+  });
+
+  it("слепая зона: набор С требуемой способностью проходит к engine как обычно", () => {
+    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, requiresCapability: "peekable" });
+    expect(z.dropSetAt(["a"], 250, 50, pile(true)).moved).toBe(true);
+    expect(z.locate("a")?.key).toBe("0,2");
+  });
+
+  it("без requiresCapability зона прозрачна к pile-аргументу — ведёт себя как раньше (engine-слой)", () => {
+    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds });
+    expect(z.dropSetAt(["a"], 250, 50, pile(false)).moved).toBe(true);
   });
 });
 

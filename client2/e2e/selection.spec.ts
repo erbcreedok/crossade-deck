@@ -485,9 +485,9 @@ test.describe("песочница — выделение (issue #48)", () => {
   // sortOverride=rank) и пересинхронивает остальные тумблеры — конфиг читается из хука assembly.
   test("пресет sorted-row: выставляет form=row + sortOverride=rank разом", async ({ page }) => {
     const h = await hooks(page);
-    expect(h.selectionState.assembly.preset).toBe("grab-to-hand"); // дефолт
+    expect(h.selectionState.assembly.preset).toBe("drag-start"); // дефолт (issue #74: имя схемы drag-start = grab-to-hand)
     expect(h.selectionState.assembly.form).toBe("stack-tight");
-    await clickAt(page, h.selPresetAt[3]!); // пресет: sorted-row
+    await clickAt(page, h.selPresetAt[4]!); // пресет: sorted-row (issue #74: индекс сдвинулся — drag-start/follow-first/follow-last теперь первыми)
     await page.waitForTimeout(150);
     const g = await hooks(page);
     expect(g.selectionState.assembly.preset).toBe("sorted-row");
@@ -741,5 +741,99 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.waitForTimeout(300);
     const g = await hooks(page);
     expect(g.lastNamedSuits).toEqual(["Пики"]);
+  });
+
+  // ——— gather-на-селект: три именованные схемы (issue #74) ———
+  // selPresetAt порядок = UI-порядок ["драг","1-я","послед.","лоток","ряд↑"] → индексы 0/1/2.
+  test.describe("три пресета сборки (issue #74)", () => {
+    test("drag-start (дефолт): выбор БЕЗ драга карты не двигает — старое поведение не меняется", async ({ page }) => {
+      let h = await hooks(page);
+      expect(h.selectionState.assembly.preset).toBe("drag-start");
+      await clickAt(page, h.selMultiAt[2]!); // вход «по нажатию»
+      h = await hooks(page);
+      const before = [h.selFigures[0]!, h.selFigures[1]!].map((f) => ({ id: f.id, x: f.x, y: f.y }));
+
+      await clickAt(page, h.selFigures[0]!);
+      await clickAt(page, h.selFigures[1]!);
+      await page.waitForTimeout(300);
+
+      const g = await hooks(page);
+      for (const b of before) {
+        const now = figById(g, b.id);
+        expect(dist(now, b)).toBeLessThan(2); // никуда не поехала — сборка ждёт старта драга
+      }
+    });
+
+    test("follow-first: первая выбранная стоит на месте, вторая летит и пристраивается к ней", async ({ page }) => {
+      let h = await hooks(page);
+      await clickAt(page, h.selPresetAt[1]!); // «1-я» = follow-first
+      h = await hooks(page);
+      expect(h.selectionState.assembly.preset).toBe("follow-first");
+      expect(h.selectionState.assembly.gatherOn).toBe("select-each");
+      expect(h.selectionState.assembly.anchor).toBe("first");
+      await clickAt(page, h.selMultiAt[2]!); // вход «по нажатию»
+      h = await hooks(page);
+
+      const first0 = h.selFigures[0]!;
+      const second0 = h.selFigures[1]!;
+      await clickAt(page, first0); // 1-й выбор — сессия открыта, карта на своём месте
+      let g = await hooks(page);
+      expect(dist(figById(g, first0.id), first0)).toBeLessThan(2); // якорь не двигается
+
+      await clickAt(page, second0); // 2-й выбор — ДОЛЖЕН полететь СРАЗУ, без драга
+      await page.waitForTimeout(450); // дать пружине долететь
+      g = await hooks(page);
+      const firstNow = figById(g, first0.id);
+      const secondNow = figById(g, second0.id);
+      expect(dist(firstNow, first0)).toBeLessThan(2); // якорь (первая) так и не сдвинулся
+      expect(dist(secondNow, second0)).toBeGreaterThan(10); // вторая уехала со своего слота
+      expect(dist(secondNow, firstNow)).toBeLessThan(g.cardW * 0.15); // и пристроилась вплотную к первой
+    });
+
+    test("follow-last: стопка гоняется за новейшей выбранной", async ({ page }) => {
+      let h = await hooks(page);
+      await clickAt(page, h.selPresetAt[2]!); // «послед.» = follow-last
+      h = await hooks(page);
+      expect(h.selectionState.assembly.preset).toBe("follow-last");
+      expect(h.selectionState.assembly.gatherOn).toBe("select-each");
+      expect(h.selectionState.assembly.anchor).toBe("latest");
+      await clickAt(page, h.selMultiAt[2]!); // вход «по нажатию»
+      h = await hooks(page);
+
+      const first0 = h.selFigures[0]!;
+      const second0 = h.selFigures[1]!;
+      await clickAt(page, first0); // 1-й выбор
+      await clickAt(page, second0); // 2-й выбор → он становится новым якорем; первая подтягивается к нему
+      await page.waitForTimeout(450);
+
+      const g = await hooks(page);
+      const firstNow = figById(g, first0.id);
+      const secondNow = figById(g, second0.id);
+      expect(dist(secondNow, second0)).toBeLessThan(2); // новейшая (якорь) осталась на своём месте
+      expect(dist(firstNow, first0)).toBeGreaterThan(10); // первая уехала со своего исходного слота
+      expect(dist(firstNow, secondNow)).toBeLessThan(g.cardW * 0.15); // и подтянулась к новейшей
+    });
+
+    test("follow-first и follow-last дают РАЗНУЮ раскладку на одном и том же выборе", async ({ page }) => {
+      const run = async (presetIdx: number) => {
+        await page.goto("/playground");
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(600);
+        let h = await hooks(page);
+        await clickAt(page, h.selPresetAt[presetIdx]!);
+        await clickAt(page, h.selMultiAt[2]!);
+        h = await hooks(page);
+        await clickAt(page, h.selFigures[0]!);
+        await clickAt(page, h.selFigures[1]!);
+        await page.waitForTimeout(450);
+        const g = await hooks(page);
+        return { first: figById(g, h.selFigures[0]!.id), second: figById(g, h.selFigures[1]!.id) };
+      };
+      const firstRun = await run(1); // follow-first
+      const lastRun = await run(2); // follow-last
+      // В follow-first стопка стоИт на первой карте; в follow-last — на второй. Разные абсолютные
+      // позиции якоря → видимо разное поведение (issue #74 приёмка).
+      expect(dist(firstRun.first, lastRun.first)).toBeGreaterThan(5);
+    });
   });
 });
