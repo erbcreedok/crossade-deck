@@ -1,0 +1,71 @@
+client2/docs/open-tasks.md
+  s_1683f4def88b5d::t_46673a430759d4 64-82
+client2/src/game/board/assembly.test.ts
+  s_1683f4def88b5d::t_b3713bee33e4db 168-192,199-243
+  s_1683f4def88b5d::t_3253e7036bbd52 3-4,6-9,11-13
+  s_1683f4def88b5d::t_d9552210aaa5b2 137-167
+  s_1683f4def88b5d::t_a70c0c6bfa992f 5,10
+  s_1683f4def88b5d::t_af109e3ceb0dbc 193-198
+client2/src/game/board/boardZone.test.ts
+  s_1683f4def88b5d::t_df8032eae8b3ce 106-137
+  s_1683f4def88b5d::t_d59df23e9f9d0b 5
+client2/src/game/board/boardZone.ts
+  s_1683f4def88b5d::t_4a376fbb257310 41-44
+  s_1683f4def88b5d::t_82473dbb6752cc 6
+  s_1683f4def88b5d::t_6245a78bab71f6 106-108,111,123-134,137-140
+  s_1683f4def88b5d::t_0f1ec7826c28e8 178-182,185
+  s_1683f4def88b5d::t_c513ad0a93d022 7,16-20
+  s_1683f4def88b5d::t_093b649ee1882c 57,66
+client2/e2e/selection.spec.ts
+  s_1683f4def88b5d::t_5b08cb37ed7c98 745-838
+  s_1683f4def88b5d::t_2af6466b584666 490
+  s_1683f4def88b5d::t_ceb995e5762862 488
+client2/src/game/board/assembly.ts
+  s_1683f4def88b5d::t_d5d33f8b5a9b50 172-178
+  s_1683f4def88b5d::t_8a623a696e72b0 131-155
+  s_1683f4def88b5d::t_80e541611d23c7 31-47
+client2/e2e/capabilityZone.spec.ts
+  s_1683f4def88b5d::t_81d4a458dbae15 1-55
+client2/src/game/engine/playgroundEngine.ts
+  s_1683f4def88b5d::t_f4c5dd75f54694 2573-2576
+  s_1683f4def88b5d::t_bea5f5ceb46aac 713-714
+  s_1683f4def88b5d::t_9540ec4a58c106 1621
+  s_1683f4def88b5d::t_3035c4fff77bbb 19,21-24,26-33
+  s_1683f4def88b5d::t_791099dd945358 1641-1644
+  s_1683f4def88b5d::t_749d880b2de296 1668
+  s_1683f4def88b5d::t_0a880c6ba4645a 2532-2535
+  s_1683f4def88b5d::t_c89818fa5f7a1d 38
+  s_1683f4def88b5d::t_4dfa35843d3251 20,25
+  s_1683f4def88b5d::t_1c8e0fc1a79209 587
+  s_1683f4def88b5d::t_ae6824e03698a1 671-678
+  s_1683f4def88b5d::t_45f1a0940720f6 606-607
+  s_1683f4def88b5d::t_2b710e034145c4 292-293
+  s_1683f4def88b5d::t_91dd962678b008 1690
+  s_1683f4def88b5d::t_95653ca8be2e14 1853,1935-1962
+  s_1683f4def88b5d::t_6a7708de4e4535 1517-1518
+  s_1683f4def88b5d::t_62cb1d5760ec8c 1655-1667,1669-1687,1697-1699
+  s_1683f4def88b5d::t_5e8660651432f2 151-152
+  s_1683f4def88b5d::t_c1ee354ee8a399 1563
+  s_1683f4def88b5d::t_dcc7f36e0a4124 1825-1826,1830-1852
+  s_1683f4def88b5d::t_b28bcde03dcc15 1485
+  s_1683f4def88b5d::t_fe4b576af15834 1705,1712,1719,1730,1735,1757
+  s_1683f4def88b5d::t_4dedea63d6535e 1854
+client2/src/game/ui/Button.ts
+  s_1683f4def88b5d::t_5ceb75a9fc3f3c 102-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "257304cb70cbe8c5715133f48eef9c3e1745be42",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
