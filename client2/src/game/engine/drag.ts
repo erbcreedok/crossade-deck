@@ -1,11 +1,13 @@
-import type { Burnable, Flippable, Peekable, TableElement } from "./element";
+import type { Burnable, TableElement } from "./element";
+import { asBurnable, asFlippable, asPeekable } from "./capabilities";
 
 // Груз драга — ЧТО тащим: одну карту или пачку. Работает с абстракцией TableElement + её
 // способностями (Flippable/Burnable), а НЕ с Card. Поэтому те же payload/зоны обслуживают карты,
 // фишки, шахматные фигуры — новый элемент лишь реализует интерфейс, новых хендлеров не пишем.
 //
-// Движок-специфичное (поднять в слой драга, вернуть домой) — в DragContext, чтобы payload не знал
-// про слои/дома конкретной сцены.
+// Приведение к способностям (asFlippable/asBurnable/asPeekable) — общий модуль capabilities.ts, тот
+// же, что питает агрегат Pile (pileIdentity). Движок-специфичное (поднять в слой драга, вернуть
+// домой) — в DragContext, чтобы payload не знал про слои/дома конкретной сцены.
 
 interface Pt {
   x: number;
@@ -27,16 +29,6 @@ export interface DragPayload {
   flip?(): void; // если поддерживает переворот
   burn?(): void; // если поддерживает сжигание
   peek?(): void; // если поддерживает «поглядеть» — только карты, см. Peekable
-}
-
-function asFlippable(el: TableElement): Flippable | null {
-  return "requestFlip" in el ? (el as unknown as Flippable) : null;
-}
-function asBurnable(el: TableElement): Burnable | null {
-  return "burn" in el ? (el as unknown as Burnable) : null;
-}
-function asPeekable(el: TableElement): Peekable | null {
-  return "peekReveal" in el ? (el as unknown as Peekable) : null;
 }
 
 /** Драг одной карты/элемента. Способности flip/burn делегируются, если элемент их реализует. */

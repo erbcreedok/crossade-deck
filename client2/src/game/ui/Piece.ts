@@ -20,6 +20,7 @@ export interface PieceOptions {
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
   shadow: { rx: number; ry: number; dy: number }; // эллипс тени у основания: полуоси + сдвиг вниз
   rest?: RestState;
+  tags?: string[]; // идентичность-ДАННЫЕ: chip, color:green, piece:♞ … (SELECTION-DESIGN §2)
 }
 
 export class Piece implements TableElement, Draggable, Burnable {
@@ -28,6 +29,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   shadowRect: ShadowShape | null = null;
 
   readonly id: string;
+  readonly tags: ReadonlySet<string>;
   readonly draggable = true;
   readonly rest: RestState;
   state: CardState;
@@ -41,6 +43,7 @@ export class Piece implements TableElement, Draggable, Burnable {
 
   constructor(opts: PieceOptions) {
     this.id = opts.id;
+    this.tags = new Set(opts.tags ?? []);
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;

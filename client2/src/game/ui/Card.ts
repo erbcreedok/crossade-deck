@@ -11,6 +11,7 @@ import type { Burnable, Concealable, Draggable, Flippable, Peekable, TableElemen
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
+import { cardTags, withTags } from "../board/elementTags";
 
 // Карта UI-kit — объект с пропсами (масштабируемый, расширяемый) И «высотой над столом».
 //
@@ -52,6 +53,7 @@ export interface CardOptions {
   hidden?: boolean; // НАЧАЛЬНАЯ скрытость (режим секретности); дальше переключается setConcealed()
   custom?: string; // id кастом-лица из реестра CUSTOM_FACES (напр. "joker"); "" — обычное число
   rest?: RestState; // план ПОКОЯ: idle (на столе) / floating (левитация, «в руке») / held (в руке держат)
+  tags?: string[]; // ИГРОВЫЕ теги поверх авто (card/suit/rank/color): role:trump, team:blue — SELECTION-DESIGN §2
 }
 
 interface FlipAnim {
@@ -85,6 +87,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   readonly size: number;
   private _concealed: boolean; // режим секретности (изначально opts.hidden), переключается извне
   readonly custom: string; // id кастом-лица (реестр CUSTOM_FACES); "" — обычная числовая карта
+  private readonly extraTags: ReadonlySet<string>; // игровые теги поверх авто (см. tags getter)
 
   state: CardState = "idle";
   readonly rest: RestState;
@@ -118,6 +121,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.size = opts.size ?? 1;
     this._concealed = opts.hidden ?? false;
     this.custom = opts.custom ?? "";
+    this.extraTags = new Set(opts.tags ?? []);
     this.rest = opts.rest ?? "idle";
     this.state = this.rest; // стартуем в своём плане покоя
 
@@ -128,6 +132,13 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
     this.dustAlpha = this.dustActive ? 1 : 0; // без fade на спавне — сразу в целевом состоянии
+  }
+
+  /** Идентичность-ДАННЫЕ (SELECTION-DESIGN §2): авто-теги по значению + игровые (extraTags). Живой
+   *  геттер — после setValue (раскрытия) масть/ранг обновляются сами. Кастом-лицо → card+custom:id. */
+  get tags(): ReadonlySet<string> {
+    const base = this.custom ? new Set(["card", `custom:${this.custom}`]) : cardTags(this._card);
+    return this.extraTags.size ? withTags(base, this.extraTags) : base;
   }
 
   // Живая «пыль»-цензура: облако амбер-частиц по силуэту фака (спавн-точки — общий кэш комнаты),

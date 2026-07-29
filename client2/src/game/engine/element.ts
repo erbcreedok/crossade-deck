@@ -10,6 +10,12 @@ import type { CardState, ShadowShape } from "../ui/Card";
 /** База: визуал, план (для слоёв), силуэт тени, участие в цикле. */
 export interface TableElement {
   readonly id: string;
+  /**
+   * Открытый словарь идентичности-ДАННЫХ (SELECTION-DESIGN §2): `card, suit:♦, rank:7, color:red`,
+   * игра домешивает свои (`role:trump`). Предикаты (tagQuery) читают эти строки — движок ВЫЧИСЛЯЕТ,
+   * не перечисляет. Отдельная ось от способностей (Peekable/Flippable — ISP-интерфейсы ниже).
+   */
+  readonly tags: ReadonlySet<string>;
   readonly root: Container;
   readonly body: CardBody; // пружинное тело: позиция/полёт (px/py/setTarget)
   state: CardState; // план — им levelOf раскладывает по слоям
