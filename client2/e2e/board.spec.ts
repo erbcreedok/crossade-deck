@@ -146,16 +146,17 @@ test.describe("песочница — игровая зона (борд)", () =>
     const box = (await page.locator("canvas").boundingBox())!;
     await page.mouse.click(box.x + p.x, box.y + p.y);
   };
-  test("выделение: вход через тоггл, тап-выбор (тоггл), сброс", async ({ page }) => {
+  test("выделение «по нажатию»: тап открывает сессию и тогглит; сброс закрывает (#66)", async ({ page }) => {
     let h = await hooks(page);
     expect(h.selMode).toBe(false);
-    await clickAt(page, h.selMultiAt[0]!); // тоггл «выделение: вкл» — вход в режим (#64)
+    await clickAt(page, h.selMultiAt[2]!); // «по нажатию» — задаёт триггер, сессия ещё не открыта
+    h = await hooks(page);
+    expect(h.selMode).toBe(false);
+
+    await clickAt(page, h.selFigures[0]!); // тап → вход + выбор первой
+    await clickAt(page, h.selFigures[1]!); // тап → добавить вторую
     h = await hooks(page);
     expect(h.selMode).toBe(true);
-
-    await clickAt(page, h.selFigures[0]!); // выбрать первую
-    await clickAt(page, h.selFigures[1]!); // и вторую
-    h = await hooks(page);
     expect(h.selection.sort()).toEqual([h.selFigures[0]!.id, h.selFigures[1]!.id].sort());
 
     await clickAt(page, h.selFigures[0]!); // тоггл первой — снять
@@ -165,7 +166,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     await clickAt(page, h.selectionState.resetButtonAt!); // primary-кнопка сброса под боксом (#64)
     h = await hooks(page);
     expect(h.selection).toEqual([]); // набор пуст
-    expect(h.selMode).toBe(true); // но режим остался
+    expect(h.selMode).toBe(false); // пустой набор = выход из сессии (#66)
   });
 
   test("value-правило (цвет): красную нельзя на чёрную, можно на красную", async ({ page }) => {
@@ -209,7 +210,7 @@ test.describe("песочница — игровая зона (борд)", () =>
 
   test("драг НАБОРА: выделил две → потащил одну → обе переехали в целевой слот", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     await clickAt(page, h.selFigures[0]!); // выбрать 10♠ (0,0)
     await clickAt(page, h.selFigures[1]!); // выбрать 6♣ (0,1)
@@ -230,7 +231,7 @@ test.describe("песочница — игровая зона (борд)", () =>
 
   test("ИЗОЛЯЦИЯ: в режиме выделения нельзя выбрать фигуру ЧУЖОЙ зоны", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     // тап по фигуре первого борда (не selZone) — не должна попасть в набор
     await clickAt(page, { x: h.boardFigures[0]!.x, y: h.boardFigures[0]!.y });
     h = await hooks(page);
@@ -301,7 +302,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     let h = await hooks(page);
     await clickAt(page, h.selSortAt[1]!); // "выбор" вместо "номинал"
     await page.waitForTimeout(150);
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     // selFigures[0]=10♠(0,0), [1]=6♣(0,1), [2]=8♥(0,2) — выбираем в обратном порядке (8♥ затем 10♠)
     await clickAt(page, h.selFigures[2]!);

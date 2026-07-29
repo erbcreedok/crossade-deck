@@ -11,6 +11,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     selMode: boolean;
     selectionState: {
       active: boolean;
+      trigger: "off" | "hold" | "tap";
       selected: string[];
       resetButtonAt: { x: number; y: number } | null;
       assembly: {
@@ -57,9 +58,11 @@ test.describe("песочница — выделение (issue #48)", () => {
     if (!hold) await page.mouse.up();
   };
   const selBoard = (h: Hooks) => h.boards.find((b) => b.title.includes("выделение"))!;
+  // Вход в выделение теперь через КАРТУ (#66). Для большинства тестов ставим режим «по нажатию»
+  // (selMultiAt[2]) — тогда тап по фигуре выбирает её и открывает сессию (как прежний вход + выбор).
   const enter = async (page: Page) => {
     const h = await hooks(page);
-    await clickAt(page, h.selMultiAt[0]!); // тоггл «выделение:» → вкл (единый гейт режима, #64)
+    await clickAt(page, h.selMultiAt[2]!); // «по нажатию»
   };
 
   test.beforeEach(async ({ page }) => {
@@ -68,21 +71,77 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.waitForTimeout(600);
   });
 
-  // Единый гейт «выделение:» (#64) — тоггл вкл/выкл включает режим выбора. Дефолт выкл; кнопка сброса
-  // скрыта пока набор пуст, появляется при ≥1 выбранном.
-  test("вход в режим: тоггл «выделение: вкл» → active; кнопка сброса появляется при выборе", async ({ page }) => {
+  // Долгое удержание фигуры без сдвига (для hold-mode входа, #66).
+  const longPress = async (page: Page, p: { x: number; y: number }, ms = 600) => {
+    const box = (await page.locator("canvas").boundingBox())!;
+    await page.mouse.move(box.x + p.x, box.y + p.y);
+    await page.mouse.down();
+    await page.waitForTimeout(ms);
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+  };
+
+  // Три способа входа (#66). «по нажатию»: тап по подходящей карте открывает сессию и выбирает её;
+  // сессия активна ⇔ набор непуст; кнопка сброса появляется при ≥1.
+  test("вход «по нажатию»: тап по карте открывает сессию и выбирает; кнопка сброса появляется", async ({ page }) => {
     let h = await hooks(page);
     expect(h.selectionState.active).toBe(false);
-    expect(h.selectionState.resetButtonAt).toBeNull(); // сброса нет — набор пуст
+    expect(h.selectionState.trigger).toBe("off");
+    expect(h.selectionState.resetButtonAt).toBeNull();
 
-    await clickAt(page, h.selMultiAt[0]!); // «выделение: вкл»
+    await clickAt(page, h.selMultiAt[2]!); // «по нажатию»
+    h = await hooks(page);
+    expect(h.selectionState.trigger).toBe("tap");
+    expect(h.selectionState.active).toBe(false); // тумблер задаёт триггер, но сессия ещё не открыта
+    expect(h.selectionState.resetButtonAt).toBeNull();
+
+    await clickAt(page, h.selFigures[0]!); // тап по карте → вход + выбор
     h = await hooks(page);
     expect(h.selectionState.active).toBe(true);
-    expect(h.selectionState.resetButtonAt).toBeNull(); // режим есть, но набор ещё пуст → кнопки нет
+    expect(h.selectionState.selected).toEqual([h.selFigures[0]!.id]);
+    expect(h.selectionState.resetButtonAt).not.toBeNull();
+  });
 
-    await clickAt(page, h.selFigures[0]!); // выбрали одну
+  test("вход «по зажатию»: быстрый тап НЕ входит; удержание входит и выбирает; дальше тап добавляет", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selMultiAt[1]!); // «по зажатию»
     h = await hooks(page);
-    expect(h.selectionState.resetButtonAt).not.toBeNull(); // теперь кнопка сброса видна
+    expect(h.selectionState.trigger).toBe("hold");
+
+    await clickAt(page, h.selFigures[0]!); // быстрый тап — вход НЕ должен сработать
+    h = await hooks(page);
+    expect(h.selectionState.active).toBe(false);
+    expect(h.selectionState.selected).toEqual([]);
+
+    await longPress(page, h.selFigures[0]!); // удержание → вход + выбор
+    h = await hooks(page);
+    expect(h.selectionState.active).toBe(true);
+    expect(h.selectionState.selected).toEqual([h.selFigures[0]!.id]);
+
+    await clickAt(page, h.selFigures[1]!); // в сессии тап добавляет (зажатие — только вход)
+    h = await hooks(page);
+    expect(h.selectionState.selected.sort()).toEqual([h.selFigures[0]!.id, h.selFigures[1]!.id].sort());
+  });
+
+  test("режим «выкл»: тап по карте ничего не выделяет", async ({ page }) => {
+    const h = await hooks(page); // дефолт off
+    expect(h.selectionState.trigger).toBe("off");
+    await clickAt(page, h.selFigures[0]!);
+    const g = await hooks(page);
+    expect(g.selectionState.active).toBe(false);
+    expect(g.selectionState.selected).toEqual([]);
+  });
+
+  test("пустой набор = выход из сессии: снял последнюю → active false", async ({ page }) => {
+    await enter(page); // по нажатию
+    let h = await hooks(page);
+    await clickAt(page, h.selFigures[0]!); // выбрал → сессия открыта
+    h = await hooks(page);
+    expect(h.selectionState.active).toBe(true);
+    await clickAt(page, h.selFigures[0]!); // снял ту же → набор пуст
+    h = await hooks(page);
+    expect(h.selectionState.selected).toEqual([]);
+    expect(h.selectionState.active).toBe(false); // сессия закрыта
   });
 
   // БАГ 2: карты выделяются и НЕ вылезают за рамку борда (сетка 4×2, а не одна длинная строка).
@@ -143,8 +202,8 @@ test.describe("песочница — выделение (issue #48)", () => {
     const sb = g.boards.find((x) => x.title.includes("выделение"))!;
     const at03 = sb.figures.filter((f) => f.key === "0,3").map((f) => f.id).sort();
     expect(at03).toEqual([f0.id, f1.id].sort()); // обе переехали
-    expect(g.selectionState.active).toBe(true); // режим остался
-    expect(g.selectionState.selected).toEqual([]); // набор сброшен после переноса
+    expect(g.selectionState.selected).toEqual([]); // набор ушёл в слот → пуст
+    expect(g.selectionState.active).toBe(false); // пустой набор = выход из сессии (#66)
   });
 
   // Тап-снятие выделения НЕ должен дёргать остальные карты (issue #65): набор трогается лишь когда
@@ -193,15 +252,16 @@ test.describe("песочница — выделение (issue #48)", () => {
     await clickAt(page, h.selFigures[0]!); // выбрали одну → кнопка сброса появилась
     h = await hooks(page);
     expect(h.selectionState.resetButtonAt).not.toBeNull();
-    await clickAt(page, h.selMultiAt[1]!); // «выделение: выкл» — выход
+    await clickAt(page, h.selMultiAt[0]!); // «выделение: выкл» — выход
     h = await hooks(page);
+    expect(h.selectionState.trigger).toBe("off");
     expect(h.selectionState.active).toBe(false);
     expect(h.selectionState.selected).toEqual([]); // набор сброшен на выходе
     expect(h.selectionState.resetButtonAt).toBeNull(); // кнопка сброса скрыта
   });
 
-  // Кнопка сброса гасит набор, оставаясь в режиме (клик по ней = clearSelection).
-  test("кнопка сброса: клик гасит набор, режим остаётся", async ({ page }) => {
+  // Кнопка сброса гасит набор; пустой набор = выход из сессии (#66).
+  test("кнопка сброса: клик гасит набор и закрывает сессию", async ({ page }) => {
     await enter(page);
     let h = await hooks(page);
     await clickAt(page, h.selFigures[0]!);
@@ -211,8 +271,25 @@ test.describe("песочница — выделение (issue #48)", () => {
     await clickAt(page, h.selectionState.resetButtonAt!); // сброс
     h = await hooks(page);
     expect(h.selectionState.selected).toEqual([]); // набор пуст
-    expect(h.selectionState.active).toBe(true); // но режим не покинут
+    expect(h.selectionState.active).toBe(false); // пустой набор → сессия закрыта (#66)
     expect(h.selectionState.resetButtonAt).toBeNull(); // и кнопка снова скрыта
+  });
+
+  // Вне сессии драг карты тащит ОДНУ карту (не выделяет), в т.ч. в режиме «по нажатию» (#66).
+  test("вне сессии: драг карты тащит одну карту, не открывает выделение", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selMultiAt[2]!); // «по нажатию», но сессия ещё не открыта
+    h = await hooks(page);
+    const b = selBoard(h);
+    const f0 = h.selFigures[0]!;
+    const empty = b.slots.find((s) => s.key === "0,3")!;
+    await dragTo(page, f0, empty); // драг (палец за порогом) — не вход
+    await page.waitForTimeout(500);
+    const g = await hooks(page);
+    expect(g.selectionState.active).toBe(false); // выделение НЕ открылось
+    expect(g.selectionState.selected).toEqual([]);
+    const sb = g.boards.find((x) => x.title.includes("выделение"))!;
+    expect(sb.figures.find((f) => f.id === f0.id)!.key).toBe("0,3"); // карта переехала одна
   });
 
   // Override по НОМИНАЛУ: включаем «сорт: номинал» (sortOverride=rank) — набор выносится [6,8,10].
@@ -220,7 +297,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     let h = await hooks(page);
     await clickAt(page, h.selSortAt[1]!); // сорт: номинал (override)
     await page.waitForTimeout(150);
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.assembly.sortOverride).toBe("rank");
 
@@ -250,7 +327,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     let h = await hooks(page);
     await clickAt(page, h.selOrderAt[1]!); // порядок: выбор
     await page.waitForTimeout(150);
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.assembly.order).toBe("selection");
     expect(h.selectionState.assembly.sortOverride).toBe("none");
@@ -336,7 +413,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     let h = await hooks(page);
     await clickAt(page, h.selFormAt[2]!); // форма: ряд
     await clickAt(page, h.selOrderAt[1]!); // порядок: выбор (order=selection)
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.assembly.form).toBe("row");
     expect(h.selectionState.assembly.order).toBe("selection");
@@ -362,7 +439,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     let h = await hooks(page);
     await clickAt(page, h.selFormAt[2]!); // форма: ряд
     await clickAt(page, h.selSortAt[2]!); // сорт: масть (override)
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.assembly.sortOverride).toBe("suit");
 
@@ -385,7 +462,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     await clickAt(page, h.selFormAt[2]!); // форма: ряд
     await clickAt(page, h.selOrderAt[1]!); // порядок: выбор (естественный = по нажатию)
     await clickAt(page, h.selSortAt[1]!); // сорт: номинал (override ПОВЕРХ выбора)
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.assembly.order).toBe("selection");
     expect(h.selectionState.assembly.sortOverride).toBe("rank"); // override перебивает
@@ -428,7 +505,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     let h = await hooks(page);
     await clickAt(page, h.selEligibleAt[1]!); // выбор: буби (eligible=diamonds)
     await page.waitForTimeout(120);
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.visual.eligible).toBe("diamonds");
 
@@ -446,7 +523,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     // контур: только рамка, карта на столе (idle)
     let h = await hooks(page);
     await clickAt(page, h.selMarkAt[1]!); // метка: контур
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.visual.mark).toBe("outline");
     await clickAt(page, h.selFigures[0]!);
@@ -461,7 +538,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.waitForTimeout(600);
     h = await hooks(page);
     await clickAt(page, h.selMarkAt[0]!); // метка: подъём
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.visual.mark).toBe("lift");
     await clickAt(page, h.selFigures[0]!);
@@ -476,7 +553,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.waitForTimeout(600);
     h = await hooks(page);
     expect(h.selectionState.visual.mark).toBe("both"); // дефолт
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     await clickAt(page, h.selFigures[0]!);
     g = await hooks(page);
@@ -488,7 +565,7 @@ test.describe("песочница — выделение (issue #48)", () => {
   test("подсказка: вкл — выбираемые-невыбранные подсвечены (hinted); выкл — ни одной подсказки", async ({ page }) => {
     let h = await hooks(page);
     await clickAt(page, h.selHintAt[1]!); // подсказка: вкл
-    await clickAt(page, h.selMultiAt[0]!);
+    await clickAt(page, h.selMultiAt[2]!);
     h = await hooks(page);
     expect(h.selectionState.visual.hintEligible).toBe(true);
 
@@ -514,7 +591,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     let h = await hooks(page);
     if (opts.merge) await clickAt(page, h.selMergeAt[opts.merge]!); // 0=нет(default) 1=да 2=только ♣
     if (opts.keep) await clickAt(page, h.selKeepAt[opts.keep]!); // 0=да(default) 1=нет 2=только ♦
-    await clickAt(page, h.selMultiAt[0]!); // войти в режим
+    await clickAt(page, h.selMultiAt[2]!); // войти в режим
     h = await hooks(page);
     const figs = opts.figs ?? [0, 1]; // по умолчанию 10♠ + 6♣
     for (const i of figs) await clickAt(page, h.selFigures[i]!);
@@ -598,7 +675,7 @@ test.describe("песочница — выделение (issue #48)", () => {
   // масти и НИЧЕГО не хранит: карты возвращаются домой, выделение сохраняется (можно называть снова).
   const dropOnNameBox = async (page: Page, idxs: number[]) => {
     let h = await hooks(page);
-    await clickAt(page, h.selMultiAt[0]!); // войти в режим
+    await clickAt(page, h.selMultiAt[2]!); // войти в режим
     h = await hooks(page);
     for (const i of idxs) await clickAt(page, h.selFigures[i]!);
     h = await hooks(page);

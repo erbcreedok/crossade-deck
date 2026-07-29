@@ -14,7 +14,7 @@ import type { Stepper } from "../ui/Stepper";
 import type { Segmented } from "../ui/Segmented";
 import { wrapRule } from "../board/boardModel";
 import { BOARD_PRESETS, type BoardPreset } from "../board/boardPresets";
-import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
+import { begin, toggle, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import type { CollectItem } from "../board/collectOrder";
 import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
 import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
@@ -246,7 +246,11 @@ export class PlaygroundEngine extends CanvasApp {
   private fields: Field[] = [];
   private fieldReorderToggle: Toggle | null = null;
   private fieldSteppers: Stepper[] = []; // мин/макс колонок/строк — для e2e-хука координат +/-
-  private selMode = false; // режим изолированного мультиселекта (демо-борд)
+  private selMode = false; // сессия выделения активна ⇔ набор непуст (#66); синхронизируется в setSelection
+  private selTrigger: "off" | "hold" | "tap" = "off"; // способ входа в выделение (#66): выкл / по зажатию / по нажатию
+  // Кандидат на ВХОД в выделение по карте (#66) вне сессии: tap-mode входит на тап-релизе, hold-mode —
+  // по таймеру удержания; сдвиг пальца (onCardMove) отменяет вход — карта тащится как обычная.
+  private selEntry: { id: string; grabCp: { x: number; y: number }; timer: ReturnType<typeof setTimeout> | null } | null = null;
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
   private selZone: BoardZone | null = null; // зона демо-выделения
   private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
@@ -555,6 +559,7 @@ export class PlaygroundEngine extends CanvasApp {
     // string[], от которого зависит board.spec.ts): всё про UI-состояние выделения в одном месте.
     selectionState: {
       active: boolean;
+      trigger: "off" | "hold" | "tap"; // способ входа в выделение (#66)
       selected: string[];
       resetButtonAt: { x: number; y: number } | null; // primary-кнопка сброса под боксом (#64); null, пока набор пуст
       // Конфиг сборки набора как ДАННЫЕ (issue #56): рычаги form/order/sortOverride + последний пресет.
@@ -637,6 +642,7 @@ export class PlaygroundEngine extends CanvasApp {
       selection: [...this.sel.ids],
       selectionState: {
         active: this.selMode,
+        trigger: this.selTrigger,
         selected: [...this.sel.ids],
         resetButtonAt: this.selResetButton && this.sel.ids.length >= 1 ? toScreen(this.selResetButton.x, this.selResetButton.y) : null,
         assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
@@ -1567,7 +1573,8 @@ export class PlaygroundEngine extends CanvasApp {
     const cfg = this.selectDemoConfig(`bz${pi}`, this.selectDemoCell());
     const { zone, bottom } = this.mountBoard(cfg, left, top, 300 + pi * 100);
     this.selZone = zone;
-    this.selMode = false; // единый гейт «выделение:» дефолтом ВЫКЛ — без явного действия режим не активен (#64)
+    this.selMode = false; // сессия закрыта; активируется при первом выбранном (#66)
+    this.selTrigger = "off"; // способ входа дефолтом ВЫКЛ — без явного действия выделения нет
 
     // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Один конфиг selAssembly
     // вместо прежних «сорт набора»/«сборка»: тестер крутит рычаги ПО отдельности или берёт готовый
@@ -1580,11 +1587,12 @@ export class PlaygroundEngine extends CanvasApp {
     this.selDropPolicy = { ...DEFAULT_DROP_POLICY }; // #63 — дефолты: merge off, keep on, anchor primary
     this.selOutlines.clear(); // контуры прежнего билда уничтожены вместе с root карт при пересборке контента
     const t1 = bottom + 34;
-    // Единый гейт «выделение:» (#64) — слил прежние «мультиселект» и кнопку «выделение» в ОДИН тоггл:
-    // вкл → режим выбора для карт ИМЕННО этой борды (selZone), выкл → выход и сброс набора. Дефолт выкл.
-    this.selMultiButtons = this.segToggle(left, t1, "выделение:", ["вкл", "выкл"], this.selMode ? 0 : 1, (i) => {
-      this.selMode = i === 0;
-      this.sel = this.selMode ? begin("sel") : clearSel();
+    // Три способа входа в выделение (#66): выкл / по зажатию (long-press) / по нажатию (tap). Тумблер
+    // задаёт ТРИГГЕР, а не активность — сессия открывается выбором карты (см. selEntry). off чистит набор.
+    const triggers: Array<"off" | "hold" | "tap"> = ["off", "hold", "tap"];
+    this.selMultiButtons = this.segToggle(left, t1, "выделение:", ["выкл", "по зажатию", "по нажатию"], Math.max(0, triggers.indexOf(this.selTrigger)), (i) => {
+      this.selTrigger = triggers[i]!;
+      if (this.selTrigger === "off") this.setSelection(begin("sel")); // выкл → закрыть сессию и погасить набор
       this.refreshSel();
       this.wake();
     }).buttons;
@@ -1689,11 +1697,36 @@ export class PlaygroundEngine extends CanvasApp {
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
-  // Единый гейт входа/выхода — тоггл «выделение:» (#64); отдельная кнопка и long-press-вход убраны.
+  // Единая запись набора (#66): сессия выделения активна ⇔ набор непуст. Все мутации идут сюда, чтобы
+  // selMode не разъезжался с составом (пустой набор = выход из сессии, карты снова обычные).
+  private setSelection(s: Selection): void {
+    this.sel = s;
+    this.selMode = s.ids.length > 0;
+  }
+
   private clearSelection(): void {
-    if (this.selMode) this.sel = begin("sel"); // остаёмся в режиме, гасим набор
+    this.setSelection(begin("sel")); // «сбросить» — пустой набор → выход из сессии (#66)
     this.refreshSel();
     this.wake();
+  }
+
+  // Удержание доиграло (hold-mode, issue #66): обрываем начатый одиночный драг, входим в сессию,
+  // берём карту. Если палец успел поехать или отпустить — selEntry уже снят, сюда не доходим.
+  private fireHoldEntry(): void {
+    const e = this.selEntry;
+    if (!e || this.selMode) return;
+    this.selEntry = null;
+    this.drag?.release(); // карта возвращается домой (жест «съеден» удержанием)
+    this.drag = null;
+    this.input.reset(); // палец ещё на экране, но это уже не драг
+    this.toggleSelectFigure(e.id); // выбрать + открыть сессию
+    this.wake();
+  }
+
+  // Снять взвод входа-по-карте (issue #66): очистить таймер удержания и кандидата.
+  private cancelSelEntry(): void {
+    if (this.selEntry?.timer) clearTimeout(this.selEntry.timer);
+    this.selEntry = null;
   }
 
   // Тап по фигуре демо-зоны в режиме → тоггл. owner="sel" всегда совпадает со scope (изоляция:
@@ -1707,7 +1740,10 @@ export class PlaygroundEngine extends CanvasApp {
       this.wake();
       return;
     }
-    this.sel = toggle(this.sel, id, "sel");
+    // Вход-по-карте (#66) открывает сессию БЕЗ отдельной кнопки: если scope ещё не задан (sel.scope
+    // null), begin его здесь — иначе toggle изоляции сделал бы no-op (см. selection.toggle).
+    const base = this.sel.scope === null ? begin("sel") : this.sel;
+    this.setSelection(toggle(base, id, "sel")); // тоггл + синк selMode (пустой → выход из сессии)
     this.refreshSel();
     this.wake();
   }
@@ -2258,6 +2294,13 @@ export class PlaygroundEngine extends CanvasApp {
           this.selPending = { cards, offsets: off, leadId: card.id };
           return;
         }
+        // ВХОД в выделение по карте (issue #66) вне сессии: подходящую карту selZone помечаем кандидатом.
+        // tap-mode — вход на тап-релизе (onCardDrop); hold-mode — по таймеру удержания; сдвиг пальца
+        // (onCardMove) отменяет вход. НЕ return: обычный SingleDrag стартует ниже — драг тащит одну карту.
+        if (!this.selMode && this.selTrigger !== "off" && this.selZone?.locate(card.id) && this.canSelectId(card.id)) {
+          this.selEntry = { id: card.id, grabCp: { x: cp.x, y: cp.y }, timer: null };
+          if (this.selTrigger === "hold") this.selEntry.timer = setTimeout(() => this.fireHoldEntry(), 500);
+        }
         const payload = this.pendingHost?.makePayload?.(cp) ?? null; // груз всей пачки (или null)
         this.pendingHost = null;
         if (payload) {
@@ -2281,6 +2324,8 @@ export class PlaygroundEngine extends CanvasApp {
           this.selDragging = p.cards.map((e) => e.id);
           this.drag = new GroupDrag(p.cards, p.offsets, this.dragCtx);
         }
+        // Палец поехал за порог → это обычный драг одной карты, а не вход в выделение (#66): снять взвод.
+        if (this.selEntry && Math.hypot(cp.x - this.selEntry.grabCp.x, cp.y - this.selEntry.grabCp.y) > 8) this.cancelSelEntry();
         // Фигура БОРДА заперта в рамке зоны (clamp). Фигура Поля — не в boardZones → не клампится.
         // Демо-борд «Выделение» (selZone) — БЕЗ клампа (issue #62): набор нужно вытащить наружу к
         // лог-боксу «называю масть»; прочие борды клампятся как были.
@@ -2320,6 +2365,23 @@ export class PlaygroundEngine extends CanvasApp {
           this.toggleSelectFigure(card.id);
           return;
         }
+        // Вход-тап по карте (issue #66): в tap-mode тап (без сдвига) по подходящей карте открывает
+        // сессию и выбирает её; обычный одиночный драг отменяем (карта домой). В hold-mode тап входа
+        // не даёт — падаем в обычную обработку ниже (карта домой). Драг (сдвиг) сюда не доходит: selEntry
+        // снят в onCardMove, гейст идёт как одиночный драг.
+        if (this.selEntry) {
+          const e = this.selEntry;
+          this.cancelSelEntry();
+          if (this.selTrigger === "tap" && Math.hypot(cp.x - e.grabCp.x, cp.y - e.grabCp.y) <= 8) {
+            this.drag?.release();
+            this.drag = null;
+            this.toggleSelectFigure(e.id);
+            this.grabbedMarker?.endFollow();
+            this.grabbedMarker = null;
+            for (const z of this.zones) z.zone.setHot(false);
+            return;
+          }
+        }
         if (this.drag) {
           this.resolveGrabbedPeeks(); // держали «показанную» карту → вернуть скрытость до диспатча дропа
           if (this.selDragging && this.selZone) {
@@ -2339,7 +2401,7 @@ export class PlaygroundEngine extends CanvasApp {
               if (moved) {
                 this.refreshZoneHomes(this.selZone);
                 this.drag.release();
-                this.sel = begin("sel"); // очистить набор, остаться в режиме
+                this.setSelection(begin("sel")); // набор ушёл в зону → пусто → выход из сессии (#66)
               } else {
                 this.applyDropOutside(this.selDragging); // мимо зон — две оси
               }
@@ -2401,6 +2463,7 @@ export class PlaygroundEngine extends CanvasApp {
       },
       onCardCancel: () => {
         this.selPending = null; // отложенный драг набора (#65) отменён — соседи и так не двигались
+        this.cancelSelEntry(); // взвод входа-по-карте (#66) снят
         if (this.drag) this.resolveGrabbedPeeks(); // отмена драга «показанной» карты — тоже вернуть скрытость
         const fld = this.drag ? this.fieldForCard(this.drag.lead.id) : null;
         if (fld) {
@@ -2580,7 +2643,7 @@ export class PlaygroundEngine extends CanvasApp {
       else this.releaseElement(el); // не сшить — домой
       if (resolveMode(this.selDropPolicy.keepSelection, el.tags, KEEP_CUSTOM)) kept = toggle(kept, id, "sel"); // оставить выделенной
     }
-    this.sel = kept; // выделение = карты, прошедшие ось keepSelection (пустое → набор распущен)
+    this.setSelection(kept); // выделение = карты keepSelection (пустое → распущен → выход из сессии #66)
     this.wake();
   }
 
@@ -2711,6 +2774,7 @@ export class PlaygroundEngine extends CanvasApp {
     this.selZone = null;
     this.selDragging = null;
     this.selPending = null;
+    this.cancelSelEntry();
     this.hoveredBtn = null;
     this.faceOf.clear();
     this.selResetButton = null;
@@ -2782,6 +2846,7 @@ export class PlaygroundEngine extends CanvasApp {
     this.selZone = null;
     this.selDragging = null;
     this.selPending = null;
+    this.cancelSelEntry();
     this.hoveredBtn = null;
     this.faceOf.clear();
     this.selResetButton = null;
