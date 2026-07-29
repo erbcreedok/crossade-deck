@@ -1,0 +1,41 @@
+client2/src/game/board/fanAssembly.test.ts
+  s_f67e66864dd957::t_3f752198d0412c 1-55
+client2/SELECTION-DESIGN.md
+  s_f67e66864dd957::t_466fc798ffa796 141-147
+client2/src/game/engine/drag.ts
+  s_f67e66864dd957::t_af34d88beb223b 84
+  s_f67e66864dd957::t_3ec1ea0d566949 103
+client2/src/game/board/fanAssembly.ts
+  s_f67e66864dd957::t_d5f400809cc1f8 1-19,23,25-40
+  s_f67e66864dd957::t_55c1f68c4989ad 20-22,24
+client2/src/game/board/assembly.test.ts
+  s_f67e66864dd957::t_2705661a78e178 66-70
+client2/src/game/engine/playgroundEngine.ts
+  s_f67e66864dd957::t_af084c31d88911 1607
+  s_f67e66864dd957::t_27585db4d9a260 263
+  s_f67e66864dd957::t_5c3bcc15898190 1611
+  s_f67e66864dd957::t_17f2e5cb64e47d 1615
+  s_f67e66864dd957::t_7abe85b72eb8c5 1767
+  s_f67e66864dd957::t_7dc66e1245642f 2292,2297
+  s_f67e66864dd957::t_1e216e861b5b7c 584
+client2/src/game/board/assembly.ts
+  s_f67e66864dd957::t_d2bc4d685288da 71,74-75
+  s_f67e66864dd957::t_e633c3db0c1a9a 3
+  s_f67e66864dd957::t_ae97a2d00b50d7 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3050d168a7b7cd9d9d7a2466c3f76c74a2dd8826",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
