@@ -12,6 +12,8 @@ import type { ProfileOverride } from "./anim/quality";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams, type DanceParams } from "./censorConfig";
 import { Button } from "./ui/Button";
+import { Card } from "./ui/Card";
+import { CardTextureCache } from "./ui/CardTextureCache";
 import { attachControls, type Configurable, type Param } from "./ui/controls";
 import type { ViewState } from "./engine/viewport";
 
@@ -61,6 +63,12 @@ export class CensorDemo extends CanvasApp {
   private stressMs = 0;
   private fpsText: Text | null = null;
 
+  // Секции D.11 (issue #12): флип и «сжечь» вызывают РЕАЛЬНЫЕ эффекты ui/Card, не переизобретают их.
+  private tex: CardTextureCache | null = null;
+  private flipCard: Card | null = null;
+  private burnCard: Card | null = null;
+  private burnSlot: { x: number; y: number } = { x: 0, y: 0 }; // где пересобрать сгоревшую карту
+
   private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
   private contentW = 1;
   private contentH = 1;
@@ -80,6 +88,16 @@ export class CensorDemo extends CanvasApp {
     for (const b of this.buttons) {
       b.step(dt);
       b.sync();
+    }
+    // Флип/сжечь читают reduceMotion/flashOff САМИ (Card-поля) — step/sync всегда, не под !reduceMotion.
+    if (this.flipCard) {
+      this.flipCard.step(dt);
+      this.flipCard.sync();
+    }
+    if (this.burnCard) {
+      this.burnCard.step(dt);
+      this.burnCard.sync();
+      if (this.burnCard.dead) this.respawnBurnCard();
     }
     this.updateFpsText();
     if (this.pz?.step(dt * 1000)) this.emitView();
@@ -179,8 +197,92 @@ export class CensorDemo extends CanvasApp {
     x = this.fieldCard(app, shearFine, "мельче", x, y, true, () => this.shearPlay).right;
     y += TEX_H + 40;
 
+    // Секция «Флип карты» (issue #12, D.11) — вызывает Card.requestFlip(), тот же эффект,
+    // что и обычный переворот на /playground (flip.ts: spinAngle/spinScale). Не переизобретаем.
+    this.tex = new CardTextureCache(app);
+    y = this.title("Флип карты", left, y);
+    x = left;
+    x = this.flipSection(x, y);
+    y += Math.max(TEX_H, this.buttons.length ? 40 : 0) + 40;
+
+    // Секция «Сжечь» (issue #12, D.11) — вызывает Card.burn() (effects/burn.ts: burnFrame,
+    // замирание+дрожь → расход снизу вверх). После догорания карта пересобирается для повтора.
+    y = this.title("Сжечь", left, y);
+    x = left;
+    x = this.burnSection(x, y);
+    y += TEX_H + 40;
+
+    // Секция «Idle-дыхание» — ЗАГЛУШКА: ANIM.idle (anim/config.ts, rotAmp/scaleAmp/…) объявлен,
+    // но нигде в движке не читается (ни Card, ни Piece, ни playgroundEngine) — эффекта нет,
+    // только план. TODO: применить ANIM.idle к картам в покое (rest==="idle") в Card.step/sync,
+    // приоритет idle=0 из ANIM.priority уже зарезервирован под это.
+    y = this.title("Idle-дыхание (заглушка)", left, y);
+    y = this.idleStubNote(left, y);
+
     this.contentW = Math.max(censorRight, x) + 6;
     this.contentH = y + 6;
+  }
+
+  // ——— Флип карты (issue #12): реальная Card + кнопка «перевернуть» → card.requestFlip() ———
+  private flipSection(x: number, y: number): number {
+    const cardX = x + TEX_W / 2;
+    const cardY = y + TEX_H / 2;
+    this.flipCard = new Card({ id: "motion-flip", card: "Q♥", faceUp: true, rest: "idle" }, this.tex!, 1);
+    this.flipCard.reduceMotion = this.reduceMotion;
+    this.flipCard.flashOff = this.flashOff;
+    this.flipCard.body.snapTo({ x: cardX, y: cardY, rot: 0, scale: this.flipCard.restScale });
+    this.flipCard.sync();
+    this.content.addChild(this.flipCard.root);
+    this.caption("флип", cardX, y + TEX_H + 8);
+    const btn = new Button({ label: "перевернуть", variant: "secondary", size: "sm", onClick: () => this.flipCard?.requestFlip() });
+    btn.place(x + TEX_W + 34 + btn.w / 2, cardY);
+    this.register(btn);
+    return x + TEX_W + 34 + btn.w + 34;
+  }
+
+  // ——— Сжечь (issue #12): реальная Card + кнопка «сжечь» → card.burn(); после догорания
+  // (card.dead) пересобираем свежую карту на том же месте, чтобы демо можно было повторять ———
+  private burnSection(x: number, y: number): number {
+    this.burnSlot = { x: x + TEX_W / 2, y: y + TEX_H / 2 };
+    this.spawnBurnCard();
+    this.caption("сжечь", this.burnSlot.x, y + TEX_H + 8);
+    const btn = new Button({ label: "сжечь", variant: "danger", size: "sm", onClick: () => this.burnCard?.burn() });
+    btn.place(x + TEX_W + 34 + btn.w / 2, this.burnSlot.y);
+    this.register(btn);
+    return x + TEX_W + 34 + btn.w + 34;
+  }
+
+  private spawnBurnCard(): void {
+    const card = new Card({ id: "motion-burn", card: "9♣", faceUp: true, rest: "idle" }, this.tex!, 1);
+    card.reduceMotion = this.reduceMotion;
+    card.flashOff = this.flashOff;
+    card.body.snapTo({ x: this.burnSlot.x, y: this.burnSlot.y, rot: 0, scale: card.restScale });
+    card.sync();
+    this.content.addChild(card.root);
+    this.burnCard = card;
+  }
+
+  private respawnBurnCard(): void {
+    this.burnCard?.root.destroy({ children: true });
+    this.burnCard = null;
+    this.spawnBurnCard();
+  }
+
+  // ——— Idle-дыхание: заглушка (D.11) — эффект НЕ реализован в движке, только план в ANIM.idle ———
+  private idleStubNote(x: number, y: number): number {
+    const lines = [
+      "TODO: ANIM.idle (client2/src/game/anim/config.ts) объявлен, но нигде не читается —",
+      "ни в Card/Piece, ни в движках. Секция появится, когда idle-покачивание/пульс масштаба",
+      "будет применено к картам в покое (rest === \"idle\") в Card.step()/sync().",
+    ];
+    let ty = y;
+    for (const line of lines) {
+      const t = new Text({ text: line, style: { fontFamily: PIXEL_FONT, fontSize: 15, fill: 0x9a8f77 } });
+      t.position.set(x, ty);
+      this.content.addChild(t);
+      ty += 20;
+    }
+    return ty + 20;
   }
 
   // Заголовок секции; возвращает y под ним.
@@ -369,9 +471,19 @@ export class CensorDemo extends CanvasApp {
   setOnFlashOverrideChange(cb: ((o: ReduceFlashOverride) => void) | null): void {
     this.onFlashOverrideChange = cb;
   }
-  // База сменила производное flashOff → пересобрать частицы (мерцание могло погаснуть/вернуться).
-  protected onFlashChange(): void {
+  // База сменила производное flashOff → пересобрать частицы (мерцание могло погаснуть/вернуться),
+  // и пробросить в карты флип/сжечь (Card.flashOff гасит дрожь «сжечь», см. issue #9).
+  protected onFlashChange(v: boolean): void {
     this.applyParticles();
+    if (this.flipCard) this.flipCard.flashOff = v;
+    if (this.burnCard) this.burnCard.flashOff = v;
+  }
+
+  // reduceMotion (issue #7) — пробрасываем в карты флип/сжечь так же, как playgroundEngine делает
+  // для каждой созданной Card.
+  protected onReduceMotionChange(v: boolean): void {
+    if (this.flipCard) this.flipCard.reduceMotion = v;
+    if (this.burnCard) this.burnCard.reduceMotion = v;
   }
 
   // ——— DOM-мост: скроллбары/зум как в песочнице ———
@@ -406,6 +518,11 @@ export class CensorDemo extends CanvasApp {
     for (const c of this.cards) c.field?.destroy();
     for (const g of this.gpuCards) g.destroy();
     for (const p of this.particleCards) p.destroy();
+    this.flipCard?.root.destroy({ children: true });
+    this.burnCard?.root.destroy({ children: true });
+    this.flipCard = null;
+    this.burnCard = null;
+    this.tex = null;
     this.cards = [];
     this.gpuCards = [];
     this.particleCards = [];
