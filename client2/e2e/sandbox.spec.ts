@@ -357,21 +357,46 @@ test.describe("песочница — Карты: варианты", () => {
     await page.waitForTimeout(600);
   });
 
-  test("все 12 карточек ряда несут свой проп — открытая/закрытая/рубашка/лицо/4-цветная/порванная/×0.7/держат/приподнята/джокер", async ({ page }) => {
-    const h = await hooks(page);
-    expect(h.storyCards).toHaveLength(12);
-    const byCaption = new Map(h.storyCards.map((c) => [c.caption, c]));
-    expect(byCaption.get("открытая")!.faceUp).toBe(true);
-    expect(byCaption.get("закрытая")!.faceUp).toBe(false);
-    expect(byCaption.get("рубашка: изумруд")!.back).toBe("emerald");
-    expect(byCaption.get("лицо: символ")!.faceStyle).toBe("symbol");
-    expect(byCaption.get("4-цветная")!.fourColor).toBe(true);
-    expect(byCaption.get("порванная")!.torn).toBe(true);
-    expect(byCaption.get("меньше ×0.7")!.size).toBe(0.7);
-    expect(byCaption.get("нельзя тащить")!.draggable).toBe(false);
-    expect(byCaption.get("удерживаемая")!.rest).toBe("held");
-    expect(byCaption.get("приподнятая (в руке)")!.rest).toBe("floating");
-    expect(byCaption.get("джокер")!.custom).toBe("joker");
+  // Ряд «Карты — варианты» спавнится 12 карточками — по одной на STORIES. Дальше по одному
+  // ФОКУСНОМУ тесту на каждый непокрытый вариант (issue #37): падает — сразу видно КАКОЙ проп ушёл.
+  const find = async (page: import("@playwright/test").Page, caption: string) => (await hooks(page)).storyCards.find((c) => c.caption === caption)!;
+
+  test("ряд несёт все 12 карточек-примеров", async ({ page }) => {
+    expect((await hooks(page)).storyCards).toHaveLength(12);
+  });
+
+  test("«закрытая»: faceUp:false — рубашкой вверх, не в режиме секретности", async ({ page }) => {
+    const c = await find(page, "закрытая");
+    expect(c.faceUp).toBe(false);
+    expect(c.concealed).toBe(false); // это рубашка, а не «пыль»-цензура
+  });
+
+  test("«рубашка: изумруд»: back резолвится в изумрудный скин", async ({ page }) => {
+    expect((await find(page, "рубашка: изумруд")).back).toBe("emerald");
+  });
+
+  test("«лицо: символ»: faceStyle — крупный символ масти вместо пипсов", async ({ page }) => {
+    expect((await find(page, "лицо: символ")).faceStyle).toBe("symbol");
+  });
+
+  test("«4-цветная»: fourColor — четырёхцветная палитра мастей", async ({ page }) => {
+    expect((await find(page, "4-цветная")).fourColor).toBe(true);
+  });
+
+  test("«порванная»: torn — надорванный край", async ({ page }) => {
+    expect((await find(page, "порванная")).torn).toBe(true);
+  });
+
+  test("«меньше ×0.7»: size — масштаб 0.7", async ({ page }) => {
+    expect((await find(page, "меньше ×0.7")).size).toBe(0.7);
+  });
+
+  test("«удерживаемая»: rest — покой «held» (карту держат в руке)", async ({ page }) => {
+    expect((await find(page, "удерживаемая")).rest).toBe("held");
+  });
+
+  test("«приподнятая»: rest — покой «floating» (левитация над столом)", async ({ page }) => {
+    expect((await find(page, "приподнятая (в руке)")).rest).toBe("floating");
   });
 
   test("«нельзя тащить»: реальный драг не двигает карту", async ({ page }) => {
@@ -388,10 +413,13 @@ test.describe("песочница — Карты: варианты", () => {
     expect(Math.hypot(during.x - card.x, during.y - card.y)).toBeLessThan(6);
   });
 
-  test("«джокер»: custom-лицо визуально отличается от обычной пронумерованной карты", async ({ page }) => {
+  test("«джокер»: custom:\"joker\" резолвится через CUSTOM_FACES — лицо ≠ обычной числовой карты", async ({ page }) => {
     const h = await hooks(page);
     const joker = h.storyCards.find((c) => c.caption === "джокер")!;
     const plain = h.storyCards.find((c) => c.caption === "открытая")!; // A♠, обычное числовое лицо
+    expect(joker.custom).toBe("joker"); // id, который Card отдаёт в CardTextureCache.customFace → CUSTOM_FACES["joker"]
+    // Неизвестный custom-id откатился бы на числовое лицо (см. customFace → null). Раз джокер
+    // визуально отличается от обычной карты — id РЕАЛЬНО резолвнулся в реестре CUSTOM_FACES.
     const clipAt = (c: { x: number; y: number }) => ({ x: c.x - 60, y: c.y - 85, width: 120, height: 170 });
     const jokerShot = await page.screenshot({ clip: clipAt(joker) });
     const plainShot = await page.screenshot({ clip: clipAt(plain) });
