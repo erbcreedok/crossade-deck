@@ -22,8 +22,10 @@ test.describe("песочница — выделение (issue #48)", () => {
         sortOverride: "none" | "rank" | "suit" | "center";
       };
       visual: { eligible: "cards" | "diamonds" | "any"; hintEligible: boolean; mark: "lift" | "outline" | "both" };
+      policy: { onDropOutside: "return-home" | "stay" | "dissolve" };
     };
     perf: { hoverRerenders: number };
+    selDropOutsideAt: { x: number; y: number }[];
     selFigures: { id: string; key: string; x: number; y: number; selected: boolean; outlined: boolean; hinted: boolean }[];
     selMultiAt: { x: number; y: number }[];
     selPresetAt: { x: number; y: number }[];
@@ -454,6 +456,76 @@ test.describe("песочница — выделение (issue #48)", () => {
     g = await hooks(page);
     expect(g.selectionState.visual.hintEligible).toBe(false);
     expect(g.selFigures.some((f) => f.hinted)).toBe(false); // подсказок не осталось
+  });
+
+  // ——— дроп набора МИМО зон: политика onDropOutside (issue #61) ———
+  // Выбираем 2 фигуры (слоты 0,0 и 0,1 — верх-лево), тащим набор ЗА пределы борд-зоны и отпускаем.
+  // Драг клампится рамкой зоны (boardZoneOf → clamp), поэтому «оставленные» карты оседают у КРАЯ
+  // зоны (не строго в точке пальца), а dropSetAt получает реальную точку СНАРУЖИ → moved=false →
+  // ветка onDropOutside. Инвариант, который проверяем: домой → назад к исходным слотам; остаться/
+  // распустить → НЕ домой (уехали и осели), плюс сохранение/сброс выделения.
+  const dropSetOutside = async (page: Page, policyIdx: number) => {
+    let h = await hooks(page);
+    if (policyIdx !== 0) await clickAt(page, h.selDropOutsideAt[policyIdx]!); // 0=домой (дефолт), 1=остаться, 2=распустить
+    await clickAt(page, h.selectionState.selectToggleAt!); // войти в режим
+    h = await hooks(page);
+    await clickAt(page, h.selFigures[0]!); // слот 0,0 (10♠)
+    await clickAt(page, h.selFigures[1]!); // слот 0,1 (6♣)
+    h = await hooks(page);
+    expect(h.selectionState.selected).toHaveLength(2);
+    const selected = h.selFigures.filter((f) => f.selected);
+    const homes = new Map(selected.map((f) => [f.id, { x: f.x, y: f.y }])); // позиция покоя = дом
+    const b = selBoard(h);
+    const xs = b.slots.map((s) => s.x);
+    const ys = b.slots.map((s) => s.y);
+    const release = { x: Math.max(...xs) + h.cardW * 2, y: Math.max(...ys) + h.cardW * 2 }; // за низ-право борда
+
+    const box = (await page.locator("canvas").boundingBox())!;
+    const start = selected[0]!; // старт драга за выделенную → это ДРАГ НАБОРА
+    await page.mouse.move(box.x + start.x, box.y + start.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + release.x, box.y + release.y, { steps: 14 });
+    await page.waitForTimeout(450); // дать набору доехать до клампнутой позиции у края зоны
+    await page.mouse.up();
+    await page.waitForTimeout(500); // осесть пружинами
+    return { homes, ids: selected.map((f) => f.id) };
+  };
+  const figById = (h: Hooks, id: string) => h.selFigures.find((f) => f.id === id)!;
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  test("мимо зон «домой»: набор возвращается на исходные слоты, остаётся выделенным", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, 0);
+    const g = await hooks(page);
+    expect(g.selectionState.policy.onDropOutside).toBe("return-home");
+    for (const id of ids) {
+      const f = figById(g, id);
+      expect(dist(f, homes.get(id)!)).toBeLessThan(14); // ≈ исходный слот
+      expect(f.selected).toBe(true); // выделение сохранено
+    }
+  });
+
+  test("мимо зон «остаться»: набор оседает не дома, остаётся выделенным", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, 1);
+    const g = await hooks(page);
+    expect(g.selectionState.policy.onDropOutside).toBe("stay");
+    for (const id of ids) {
+      const f = figById(g, id);
+      expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // уехал от дома и осел там
+      expect(f.selected).toBe(true); // всё ещё в наборе
+    }
+  });
+
+  test("мимо зон «распустить»: набор оседает не дома И выделение снято", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, 2);
+    const g = await hooks(page);
+    expect(g.selectionState.policy.onDropOutside).toBe("dissolve");
+    expect(g.selectionState.selected).toEqual([]); // набор распущен
+    for (const id of ids) {
+      const f = figById(g, id);
+      expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // осел не дома
+      expect(f.selected).toBe(false); // ни одна не выделена
+      expect(f.outlined).toBe(false); // контур снят вместе с выделением (не осталось золотых рамок)
+    }
   });
 
   // Мультиселект выкл — вход в режим блокируется конфигом контейнера.

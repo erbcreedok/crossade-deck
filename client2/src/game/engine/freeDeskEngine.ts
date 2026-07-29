@@ -18,6 +18,7 @@ import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection 
 import type { CollectItem } from "../board/collectOrder";
 import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
 import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
+import { DEFAULT_DROP_POLICY, returnsHome, clearsSet, type OnDropOutside } from "../board/dropPolicy";
 import { makeSelectOutline } from "./selectOutline";
 import { asDraggable } from "./capabilities";
 import { DropZone } from "../ui/DropZone";
@@ -264,6 +265,9 @@ export class FreeDeskEngine extends CanvasApp {
   private selEligibleButtons: Button[] = []; // тумблер «выбор:» (карты/буби/любые) — для e2e
   private selHintButtons: Button[] = []; // тумблер «подсказка:» (выкл/вкл) — для e2e
   private selMarkButtons: Button[] = []; // тумблер «метка:» (подъём/контур/оба) — для e2e
+  // Дроп набора МИМО зон как ПОЛИТИКА-ДАННЫЕ (issue #61, dropPolicy.ts): домой / остаться / распустить.
+  private selDropOutside: OnDropOutside = DEFAULT_DROP_POLICY.onDropOutside;
+  private selDropOutsideButtons: Button[] = []; // тумблер «мимо зон:» — для e2e
   private hoveredBtn: Button | null = null; // наведённая кнопка (ПК): чтобы гасить/зажигать только её, а не перебирать все (issue #48 баг №4)
   private hoverRerenders = 0; // счётчик перерисовок кнопок от ховера — для e2e-замера отсутствия лагов
   // Long-press по фигуре демо-зоны (issue #48 баг №3): удержание ~500мс без сдвига входит в режим
@@ -545,6 +549,8 @@ export class FreeDeskEngine extends CanvasApp {
       assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride };
       // Отбор-визуал как ДАННЫЕ (issue #60): eligible по ИМЕНИ, подсветка выбираемых, метка выбранного.
       visual: { eligible: EligibleName; hintEligible: boolean; mark: Mark };
+      // Дроп мимо зон как ДАННЫЕ (issue #61): что делать с набором, отпущенным вне принимающих зон.
+      policy: { onDropOutside: OnDropOutside };
     };
     perf: { hoverRerenders: number }; // сколько кнопок перерисовалось от ховера — для замера отсутствия лагов (баг №4)
     selButtons: { label: string; x: number; y: number }[];
@@ -563,6 +569,7 @@ export class FreeDeskEngine extends CanvasApp {
     selEligibleAt: { x: number; y: number }[]; // тумблер «выбор:» (карты/буби/любые)
     selHintAt: { x: number; y: number }[]; // тумблер «подсказка:» (выкл/вкл)
     selMarkAt: { x: number; y: number }[]; // тумблер «метка:» (подъём/контур/оба)
+    selDropOutsideAt: { x: number; y: number }[]; // тумблер «мимо зон:» (домой/остаться/распустить — #61)
     controls: {
       buttons: { cap: string; x: number; y: number }[];
       flipFaceUp: boolean | null;
@@ -623,6 +630,7 @@ export class FreeDeskEngine extends CanvasApp {
         multiSelectEnabled: this.multiSelectOn,
         assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
         visual: { eligible: this.selEligibleName, hintEligible: this.selVisual.hintEligible, mark: this.selVisual.mark },
+        policy: { onDropOutside: this.selDropOutside },
       },
       perf: { hoverRerenders: this.hoverRerenders },
       selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
@@ -659,6 +667,7 @@ export class FreeDeskEngine extends CanvasApp {
       selEligibleAt: this.selEligibleButtons.map((b) => toScreen(b.x, b.y)),
       selHintAt: this.selHintButtons.map((b) => toScreen(b.x, b.y)),
       selMarkAt: this.selMarkButtons.map((b) => toScreen(b.x, b.y)),
+      selDropOutsideAt: this.selDropOutsideButtons.map((b) => toScreen(b.x, b.y)),
       stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
       stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
       controls: {
@@ -1378,7 +1387,7 @@ export class FreeDeskEngine extends CanvasApp {
   private buildBoardZones(left: number, top: number): number {
     return this.sectionFrame(left, top, "Игровые зоны (борды)", (contentLeft, contentTop) => {
       const PRESET_EXTRA_H = 60; // тумблер «на занятый слот» (Segmented) + отступ
-      const SELECT_EXTRA_H = 251; // кнопки выделение/снять + 5 тумблеров сборки + 3 тумблера отбор-визуала (выбор/подсказка/метка)
+      const SELECT_EXTRA_H = 277; // кнопки выделение/снять + 5 тумблеров сборки + 3 тумблера отбор-визуала + тумблер «мимо зон» (#61)
       const CHROME_EXTRA_H = 50; // хинт-подсказка + отступ (шахматы/смешанный)
 
       interface BoardItem {
@@ -1543,6 +1552,7 @@ export class FreeDeskEngine extends CanvasApp {
     // Отбор-визуал (issue #60) — дефолт как в примере: только карты, без подсказки, метка «оба».
     this.selVisual = { eligible: ELIGIBLE.cards!, hintEligible: false, mark: "both" };
     this.selEligibleName = "cards";
+    this.selDropOutside = DEFAULT_DROP_POLICY.onDropOutside; // #61 — дефолт «домой»
     this.selOutlines.clear(); // контуры прежнего билда уничтожены вместе с root карт при пересборке контента
     const t1 = bottom + 34;
     this.selMultiButtons = this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
@@ -1604,7 +1614,15 @@ export class FreeDeskEngine extends CanvasApp {
       this.wake();
     });
     this.selMarkButtons = mark.buttons;
-    return t1 + 208;
+
+    // Дроп набора МИМО зон (issue #61, dropPolicy.ts) — политика как ДАННЫЕ: домой / остаться / распустить.
+    const outsides: OnDropOutside[] = ["return-home", "stay", "dissolve"];
+    const outsideIdx = Math.max(0, outsides.indexOf(this.selDropOutside));
+    const outside = this.segToggle(left, t1 + 208, "мимо зон:", ["домой", "остаться", "распустить"], outsideIdx, (i) => {
+      this.selDropOutside = outsides[i]!;
+    });
+    this.selDropOutsideButtons = outside.buttons;
+    return t1 + 234;
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
@@ -2282,13 +2300,27 @@ export class FreeDeskEngine extends CanvasApp {
           if (this.selDragging && this.selZone) {
             const dragged = Math.hypot(cp.x - this.selGrabCp.x, cp.y - this.selGrabCp.y) > 8; // тап vs драг
             if (dragged) {
-              // Набор в целевой слот в УЖЕ решённом на грабе порядке (selDragging, issue #56). Гасим
-              // выбор ТОЛЬКО при успешном переносе — дроп «в никуда» возвращает набор и СОХРАНЯЕТ
-              // выделение (onInvalidDrop: keep).
+              // Набор в целевой слот в УЖЕ решённом на грабе порядке (selDragging, issue #56). Дроп
+              // В ЗОНУ (moved) гасит выбор и остаётся как был. Дроп МИМО зон — по политике selDropOutside
+              // (issue #61, dropPolicy.ts): домой (вернуть на исходные места), остаться (осадить там, где
+              // отпущено, набор сохранить) или распустить (осадить там же И снять выделение).
               const { moved } = this.selZone.dropSetAt(this.selDragging, cp.x, cp.y);
-              this.refreshZoneHomes(this.selZone);
-              this.drag.release();
-              if (moved) this.sel = begin("sel"); // очистить набор, остаться в режиме
+              if (moved) {
+                this.refreshZoneHomes(this.selZone);
+                this.drag.release();
+                this.sel = begin("sel"); // очистить набор, остаться в режиме
+              } else if (returnsHome(this.selDropOutside)) {
+                this.refreshZoneHomes(this.selZone);
+                this.drag.release(); // домой — прежнее поведение
+              } else {
+                // остаться / распустить — осадить набор на текущих (перетащенных) местах, не домой.
+                for (const id of this.selDragging) {
+                  const el = this.byId.get(id);
+                  if (el) this.restElementInPlace(el);
+                }
+                if (clearsSet(this.selDropOutside)) this.sel = begin("sel"); // распустить — снять выделение
+                this.wake();
+              }
             } else {
               this.drag.release(); // тап по выделенной — снять её из набора
               this.toggleSelectFigure(card.id);
@@ -2502,6 +2534,16 @@ export class FreeDeskEngine extends CanvasApp {
     el.root.zIndex = h.depth; // и на свою глубину — не поверх соседей по стопке
     this.placeCard(el);
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
+  }
+
+  // «Оставить где отпущено» (onDropOutside: stay/dissolve, issue #61): осадить элемент в его план покоя
+  // прямо на ТЕКУЩЕЙ позиции, не гоня домой. Цель = текущая точка → пружина осядет там же, цикл уснёт
+  // (в отличие от releaseElement, что целит в home). Дом в состоянии зоны не меняем — это дисплей-жест.
+  private restElementInPlace(el: Elem): void {
+    el.setState(el.rest);
+    el.root.zIndex = this.homeOf(el)?.depth ?? el.root.zIndex; // снять драг-слой (1e6), лечь на плоскость стола
+    this.placeCard(el);
+    el.body.setTarget({ x: el.body.px, y: el.body.py, rot: 0 });
   }
 
   // Есть ли у карты что подглядеть (чистый предикат Peekable.canPeek) — зона ПОДГЛЯДЕТЬ читает его
