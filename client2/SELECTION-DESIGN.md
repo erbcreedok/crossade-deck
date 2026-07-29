@@ -101,11 +101,19 @@ AcceptRule), а не заводит свою геометрию/политику
 - Pile → обобщение board-pile (`play:N`, дека, сброс) — единый концепт, а не параллельная структура
 
 ## 8. Этапы (не оверкилл)
-- **v1**: теги + Pile-идентичность (фундамент) → рычаги B/C/D/E + пресеты `grab-to-hand` /
-  `build-on-first` / `tray-zone`. Дефолт `grab-to-hand` (сжатая стопка, ближняя к пальцу сверху).
-- **v2**: `A.hintEligible`, форма `fan`, `sortOverride` полный набор, цепочка `dropRules`.
-- Уже закоммиченное `collectOrder`/`rowAssembly` мигрирует: press→`order=selection`, rank/suit→
-  `sortOverride`, ряд→`form=row`; отдельной привилегии у ранга нет.
+- **v1 — РЕАЛИЗОВАНО** (2026-07-29): теги + Pile-идентичность (#59, `board/elementTags.ts`/
+  `tagQuery.ts`/`pileIdentity.ts`/`engine/capabilities.ts`) → рычаги сборки B/C/D/E + пресеты
+  (#56, `board/assembly.ts`, дефолт `grab-to-hand`) → отбор-визуал eligible/mark/hint (#60,
+  `board/selectVisual.ts`/`engine/selectOutline.ts`) → дроп-политика onDropOutside + цепочка
+  элемент→зона→engine + слепые зоны через Pile (#61, `board/dropPolicy.ts`). Всё крутится в
+  песочнице `/free-desk` (секция «Выделение»); покрытие: юнит на каждый чистый модуль + e2e
+  `selection.spec.ts`.
+- **v2 — хвост**: форма `fan` (сейчас раскладывается как `row`), `sortOverride` `center`, рычаги
+  `gatherOn`/`anchor` отдельными тумблерами (пока живут в конфиге пресетов), применение цепочки
+  `dropRules` в КАЖДОЙ зоне (ядро `resolveDropChain`/`capabilityZoneRule` готово). Прим.:
+  `A.hintEligible` вынесен в v1 вместе с #60.
+- Прежние `collectOrder`/`rowAssembly` смигрированы в `assembly.ts`: press→`order=selection`,
+  rank/suit→`sortOverride`, ряд→`form=row`; отдельной привилегии у ранга нет.
 
 ## 9. Журнал решений
 - Идентичность — теги (открытый словарь), не enum движка. «green»/«только буби» = конфиг-предикат.
