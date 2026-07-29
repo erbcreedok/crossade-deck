@@ -8,6 +8,7 @@ import { attachPanZoom, type PanZoomHandle } from "./engine/panZoom";
 import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
 import type { ReduceMotionOverride } from "./anim/reduceMotion";
 import type { ReduceFlashOverride } from "./anim/reduceFlash";
+import type { ProfileOverride } from "./anim/quality";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams, type DanceParams } from "./censorConfig";
 import { Button } from "./ui/Button";
@@ -20,6 +21,8 @@ import type { ViewState } from "./engine/viewport";
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 4;
+// Порядок вариантов сегмента «профиль» ↔ ProfileOverride (индекс в тумблере).
+const PROFILE_OPTS: ProfileOverride[] = ["auto", "full", "reduced"];
 
 interface DemoCard {
   field: CensorField | null;
@@ -48,6 +51,10 @@ export class CensorDemo extends CanvasApp {
   private onFlashOverrideChange: ((o: ReduceFlashOverride) => void) | null = null;
   private flicker = DUST_FLICKER; // мерцание частиц (дефолт — выкл)
   private shearPlay = true; // «тряска рядов» играет
+  // Профиль качества (issue #8): индикатор FPS+тир и dev-«нагрузка» — искусственно жжём N мс/кадр,
+  // чтобы уронить FPS и увидеть авто-понижение до «лёгкий» вживую (стенд /motion не спит — метр всегда сэмплирует).
+  private stressMs = 0;
+  private fpsText: Text | null = null;
 
   private tunable: { card: Container; mask: Graphics; spec: CensorSpec; cardIdx: number } | null = null;
   private contentW = 1;
@@ -58,6 +65,7 @@ export class CensorDemo extends CanvasApp {
   // Кадр стенда: время (со скоростью/reduce-motion) → поля/частицы + кнопки + инерция пан/зума.
   // Стенд крутится ВСЕГДА (return true) — idle-анимации цензуры не должны засыпать.
   protected frame(dt: number): boolean {
+    if (this.stressMs > 0) this.burnMs(this.stressMs); // dev-нагрузка: роняем FPS для демонстрации авто-профиля
     if (!this.reduceMotion) {
       this.t += dt * this.speed;
       for (const c of this.cards) if (c.animated && (c.live?.() ?? true)) c.field?.update(this.t);
@@ -68,8 +76,25 @@ export class CensorDemo extends CanvasApp {
       b.step(dt);
       b.sync();
     }
+    this.updateFpsText();
     if (this.pz?.step(dt * 1000)) this.emitView();
     return true;
+  }
+
+  // Синхронно «сжечь» ms миллисекунд — искусственная нагрузка кадра (только dev-стенд).
+  private burnMs(ms: number): void {
+    const end = performance.now() + ms;
+    while (performance.now() < end) {
+      /* busy-wait */
+    }
+  }
+
+  private updateFpsText(): void {
+    if (!this.fpsText) return;
+    const fps = this.currentFps();
+    const tier = this.profile === "reduced" ? "лёгкий" : "полный";
+    const src = this.profileOverride === "auto" ? "авто" : "форс";
+    this.fpsText.text = `FPS: ${fps === null ? "—" : Math.round(fps)}   ·   профиль: ${tier} (${src})`;
   }
 
   protected build(app: Application): void {
@@ -112,7 +137,12 @@ export class CensorDemo extends CanvasApp {
     const rerenderBtn = new Button({ label: "⟳ ререндер", variant: "secondary", size: "sm", onClick: () => this.rerender() });
     rerenderBtn.place(left + rerenderBtn.w / 2, y + rerenderBtn.h / 2);
     this.register(rerenderBtn);
-    y = this.controls(this.globalCfg(), left + rerenderBtn.w + 28, y) + 30;
+    y = this.controls(this.globalCfg(), left + rerenderBtn.w + 28, y) + 12;
+    // Живой индикатор FPS + текущий профиль (issue #8): обновляется каждый кадр в updateFpsText.
+    this.fpsText = new Text({ text: "FPS: —", style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0x9ad1a0 } });
+    this.fpsText.position.set(left, y);
+    this.content.addChild(this.fpsText);
+    y += 34;
 
     // Секция «Цензура — пыль / мозаика».
     y = this.title("Цензура — пыль / мозаика", left, y);
@@ -226,8 +256,10 @@ export class CensorDemo extends CanvasApp {
     return {
       params: (): Param[] => [
         { kind: "number", label: "скорость", min: 0, max: 30, format: (v) => (v / 10).toFixed(1) + "x", get: () => Math.round(this.speed * 10), set: (v) => (this.speed = v / 10) },
+        { kind: "number", label: "нагрузка мс", min: 0, max: 40, get: () => this.stressMs, set: (v) => (this.stressMs = v) },
         { kind: "bool", label: "уменьшить движение", get: () => this.override === "on", set: (v) => this.setOverride(v ? "on" : "auto") },
         { kind: "bool", label: "без вспышек", get: () => this.flashOverride === "on", set: (v) => this.setFlashOverride(v ? "on" : "auto") },
+        { kind: "choice", label: "профиль", options: ["авто", "полный", "лёгкий"], get: () => PROFILE_OPTS.indexOf(this.profileOverride), set: (i) => this.setProfileOverride(PROFILE_OPTS[i] ?? "auto") },
       ],
     };
   }
@@ -349,5 +381,6 @@ export class CensorDemo extends CanvasApp {
     this.gpuCards = [];
     this.particleCards = [];
     this.buttons = [];
+    this.fpsText = null;
   }
 }

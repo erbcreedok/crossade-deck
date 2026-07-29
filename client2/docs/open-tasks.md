@@ -33,8 +33,9 @@
 
 6. **Master reduce-motion, читающий ОС** (`prefers-reduced-motion` / iOS/Android). Сейчас тумблер
    `/motion` есть, но он локальный и не читает системную настройку.
-7. **Авто-профиль по FPS** — автопонижение качества при просадке (есть профили `moderate`/`full`,
-   нет автопонижения).
+7. ~~**Авто-профиль по FPS** — автопонижение качества при просадке.~~ ✓ issue #8: `FpsMeter`+`nextTier`
+   (гистерезис 45/55) на базе `CanvasApp`, тир `full`↔`reduced`; `reduced` замораживает idle + гасит
+   shadow-пасс; оверрайд `auto/full/reduced`; индикатор + dev-нагрузка на `/motion`.
 8. ~~**Глобальный флаг вспышек/мерцания** (фото-чувствительность)~~ ✓ issue #9: `reduceFlash` на базе
    `CanvasApp`, `flashOff = reduceMotion || reduceFlash`; гасит мерцание частиц + дрожь «сжечь»; тумблер
    «без вспышек» на `/motion` (auto наследует `prefers-reduced-motion`).

@@ -55,7 +55,10 @@ mobile quality-tiers, Xbox/iOS accessibility (reduce-motion), веб `prefers-re
 ## 4. Что забыли учесть (чеклист)
 
 1. Master reduce-motion, читающий OS — бесплатно, стандарт, нет.
-2. Авто-профиль по FPS — есть `moderate`/`full`, нет автопонижения при просадке.
+2. ~~Авто-профиль по FPS — нет автопонижения при просадке.~~ ✓ issue #8: бинарный тир `full`↔`reduced`
+   на базе `CanvasApp` (`FpsMeter` в цикле + `nextTier` с гистерезисом 45/55fps, первый кадр после сна не
+   сэмплируется). `reduced` = idle-заморозок (bob/пыль/тряска зон, как reduce-motion) + выключение
+   shadow-пасса. Юзер-оверрайд `auto/full/reduced`. Индикатор FPS + сегмент + dev-«нагрузка» на `/motion`.
 3. ~~Флаг вспышек/мерцания (фото-чувствительность) — TG-пыль + «сжечь» мигают.~~ ✓ issue #9:
    отдельный `reduceFlash` (auto/on/off, auto наследует `prefers-reduced-motion`) на базе `CanvasApp`;
    `flashOff = reduceMotion || reduceFlash` — reduce-motion надмножество. Гасит мерцание частиц и дрожь

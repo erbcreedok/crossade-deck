@@ -226,6 +226,8 @@ export class PlaygroundEngine extends CanvasApp {
   private lastSectionRight = 0; // правый край последней sectionFrame — для пар секций БОК О БОК (см. buildContent)
   // reduceMotion — поле базового CanvasApp (issue #7): гасит покачивание armed/hot-текста дропзон
   // (DropZone.step) и, через onReduceMotionChange ниже, bob/пыль каждой Card.
+  // lowFx — зеркало profile==="reduced" (issue #8): тот же idle-заморозок + выключение shadow-пасса.
+  private lowFx = false;
 
   private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
   private cards: Placed[] = [];
@@ -990,6 +992,7 @@ export class PlaygroundEngine extends CanvasApp {
   private addControlCard(card: Card): void {
     card.reduceMotion = this.reduceMotion;
     card.flashOff = this.flashOff;
+    card.lowFx = this.lowFx;
     this.controlCards.push(card);
     if (card.id) this.byId.set(card.id, card);
     this.placeCard(card);
@@ -1033,6 +1036,7 @@ export class PlaygroundEngine extends CanvasApp {
       const card = new Card(r ? { ...spec.opts, faceUp: r.faceUp } : spec.opts, this.tex, this.baseScale);
       card.reduceMotion = this.reduceMotion;
       card.flashOff = this.flashOff;
+      card.lowFx = this.lowFx;
       card.bobPhase = spec.bobPhase;
       card.root.zIndex = spec.depth;
       card.body.snapTo({ x: r ? r.x : spec.home.x, y: r ? r.y : spec.home.y, rot: 0, scale: card.restScale });
@@ -2744,7 +2748,7 @@ export class PlaygroundEngine extends CanvasApp {
     for (const z of this.zones) {
       const eligible = this.drag !== null && z.accepts(this.drag);
       z.zone.setArmed(eligible, eligible && z.textFor ? z.textFor(this.drag!).armed : undefined);
-      z.zone.step(dt, this.reduceMotion); // покачивание armed/hot-текста
+      z.zone.step(dt, this.reduceMotion || this.lowFx); // покачивание armed/hot-текста (idle-заморозок)
     }
     this.render();
     return moving;
@@ -2825,6 +2829,14 @@ export class PlaygroundEngine extends CanvasApp {
     for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.flashOff = v;
   }
 
+  // Профиль качества (issue #8): reduced замораживает idle/пыль каждой Card (как reduce-motion) и
+  // выключает shadow-пасс (см. render). wake() — применить хотя бы одним кадром, если спали.
+  protected onProfileChange(p: "full" | "reduced"): void {
+    this.lowFx = p === "reduced";
+    for (const el of this.everyElement()) if (el instanceof Card) el.lowFx = this.lowFx;
+    this.wake();
+  }
+
   private render(): void {
     const els = this.everyElement();
     for (const el of els) el.sync();
@@ -2832,9 +2844,10 @@ export class PlaygroundEngine extends CanvasApp {
     for (const m of this.markers) m.update(); // видимость (свап драггер↔якорь) + позиция дома
 
     // Слитые тени по уровням: силуэты элементов уровня → одна маска+заливка (без потемнения наложений).
-    const shadows = els
-      .filter((c) => c.shadowRect)
-      .map((c) => ({ level: levelOf(c.state), rect: c.shadowRect! }));
+    // Лёгкий профиль (issue #8) выключает shadow-пасс целиком — пустой список гасит все уровни.
+    const shadows = this.lowFx
+      ? []
+      : els.filter((c) => c.shadowRect).map((c) => ({ level: levelOf(c.state), rect: c.shadowRect! }));
     this.scene.paintShadows(shadows, this.contentW, this.contentH);
   }
 

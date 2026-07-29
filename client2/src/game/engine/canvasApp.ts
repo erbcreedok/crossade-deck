@@ -1,5 +1,7 @@
 import { Application } from "pixi.js";
 import { createPixiApp, ensureFonts } from "./canvasHost";
+import { FpsMeter } from "../anim/fpsMeter";
+import { nextTier, resolveProfile, type ProfileOverride, type QualityTier } from "../anim/quality";
 
 // Тонкая база канвас-приложения (Host): владеет ТОЛЬКО жизненным циклом Pixi и циклом кадра —
 // монтирование свежего канваса (StrictMode-safe), тикер с wake/sleep, снос. Про карты/сцену НЕ
@@ -22,6 +24,14 @@ export abstract class CanvasApp {
   /** Производное «гасить вспышки» = reduceMotion || reduceFlash: reduce-motion — надмножество,
    *  оно гасит и мерцание/дрожь. Контент читает его через onFlashChange (напр. Card.flashOff). */
   protected flashOff = false;
+  /** Профиль качества (issue #8): full ↔ reduced. Юзер-оверрайд (auto/full/reduced) поверх авто-тира,
+   *  который считает FpsMeter в цикле кадра. Контент читает эффективный profile через onProfileChange. */
+  protected profileOverride: ProfileOverride = "auto";
+  protected profile: QualityTier = "full";
+  private autoTier: QualityTier = "full";
+  private fpsMeter = new FpsMeter();
+  // Первый кадр после старта тикера — wall-clock разрыв (сон/переключение вкладки), не сэмплируем.
+  private skipFpsSample = true;
 
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
@@ -103,10 +113,50 @@ export abstract class CanvasApp {
   /** Контент пробрасывает «без вспышек» в свои вспышечные элементы (напр. Card.flashOff). Опц. */
   protected onFlashChange(_v: boolean): void {}
 
+  /** Юзер-оверрайд профиля качества (issue #8): auto — следовать замеру FPS, full/reduced — форс. */
+  setProfileOverride(o: ProfileOverride): void {
+    if (this.profileOverride === o) return;
+    this.profileOverride = o;
+    this.refreshProfile();
+    this.wake(); // спящий тикер обязан применить новый профиль (тени/idle) хотя бы одним кадром
+  }
+
+  /** Сглаженный FPS (null пока мало данных) — для индикатора стенда. */
+  protected currentFps(): number | null {
+    return this.fpsMeter.fps();
+  }
+
+  // Один кадр в метр: замер → пересчёт авто-тира (гистерезис) → эффективный профиль. Вынесено из
+  // tick, чтобы тестировать авто-понижение без Pixi (см. canvasApp.profile.test.ts).
+  protected feedFrameSample(deltaMs: number): void {
+    this.fpsMeter.sample(deltaMs);
+    const t = nextTier(this.fpsMeter.fps(), this.autoTier);
+    if (t === this.autoTier) return;
+    this.autoTier = t;
+    this.refreshProfile();
+  }
+
+  private refreshProfile(): void {
+    const eff = resolveProfile(this.profileOverride, this.autoTier);
+    if (eff === this.profile) return;
+    this.profile = eff;
+    this.onProfileChange(eff);
+  }
+
+  /** Контент применяет профиль к своим элементам/пассам (напр. тени off, idle заморожен). Опц. */
+  protected onProfileChange(_p: QualityTier): void {}
+
   private tick = (): void => {
     if (!this.app) return;
-    const dt = Math.min(this.app.ticker.deltaMS / 1000, MAX_DT);
-    if (!this.frame(dt)) this.app.ticker.stop(); // ничто не движется → засыпаем
+    const raw = this.app.ticker.deltaMS;
+    const dt = Math.min(raw / 1000, MAX_DT);
+    // FPS-профиль (issue #8): первый кадр после пробуждения пропускаем (разрыв ≠ просадка).
+    if (this.skipFpsSample) this.skipFpsSample = false;
+    else this.feedFrameSample(raw);
+    if (!this.frame(dt)) {
+      this.app.ticker.stop(); // ничто не движется → засыпаем
+      this.skipFpsSample = true; // следующий кадр (на wake) — разрыв
+    }
   };
 
   // ——— хуки контента (template method) ———

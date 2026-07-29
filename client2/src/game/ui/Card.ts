@@ -76,6 +76,9 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   reduceMotion = false;
   /** «Без вспышек» (issue #9, фото-чувствительность): гасит дрожь «сжечь», оставляя плавный расход. */
   flashOff = false;
+  /** Лёгкий профиль качества (issue #8, reduced): замораживает idle-дыхание и живую пыль как
+   *  reduce-motion — движок ставит на спавне/смене при просадке FPS. Тени гасит сам движок (пасс). */
+  lowFx = false;
 
   readonly id: string; // ключ
   private _card: string; // значение (придержано = ""), проставляется setValue (раскрытие)
@@ -289,6 +292,11 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     return this.dying !== null;
   }
 
+  /** idle заморожен: reduce-motion (комфорт, issue #7) ИЛИ лёгкий профиль (перф, issue #8). */
+  private get idleFrozen(): boolean {
+    return this.reduceMotion || this.lowFx;
+  }
+
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
@@ -297,7 +305,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
       const step = dt / DUST_FADE_DUR;
       this.dustAlpha += Math.sign(dustTarget - this.dustAlpha) * Math.min(Math.abs(dustTarget - this.dustAlpha), step);
     }
-    if ((this.dustActive || this.dustAlpha > 0) && !this.reduceMotion) {
+    if ((this.dustActive || this.dustAlpha > 0) && !this.idleFrozen) {
       this.dustT += dt;
       this.dust!.update(this.dustT);
     }
@@ -336,8 +344,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
    *  Под reduceMotion bob и вращение пыли заморожены (step()/sync() выше), поэтому оба условия
    *  здесь отпускают цикл в сон — иначе статичный кадр жёг бы 60fps вхолостую. */
   get resting(): boolean {
-    const bobSettled = this.reduceMotion || !this.peekBob;
-    const dustSettled = this.reduceMotion || (!this.dustActive && this.dustAlpha === 0);
+    const bobSettled = this.idleFrozen || !this.peekBob;
+    const dustSettled = this.idleFrozen || (!this.dustActive && this.dustAlpha === 0);
     return this.body.isResting() && !this.flip && !this.block && !this.dying && this.state !== "floating" && bobSettled && dustSettled && !this.fadeSprite;
   }
 
@@ -350,7 +358,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     // «Парение»: покачивание вверх-вниз только у floating; выше поднялась — дальше тень.
     let bobY = 0;
     let bobLift = 0;
-    if (!this.reduceMotion && (this.state === "floating" || this.peekBob)) {
+    if (!this.idleFrozen && (this.state === "floating" || this.peekBob)) {
       const b = Math.sin(this.age * BOB_SPEED + this.bobPhase);
       bobY = b * this.height * 0.05;
       bobLift = (b * 0.5 + 0.5) * 0.12;
