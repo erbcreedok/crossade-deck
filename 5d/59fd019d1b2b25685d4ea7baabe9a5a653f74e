@@ -1,0 +1,24 @@
+client2/src/game/board/assembly.ts
+  s_f67e66864dd957::t_258061e998f352 1-112
+client2/src/game/board/collectOrder.ts
+  s_f67e66864dd957::t_16247e31dfca16 27,39-42
+  s_f67e66864dd957::t_dccd45b2463154 43
+client2/src/game/board/assembly.test.ts
+  s_f67e66864dd957::t_a9f18b2788c1df 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5d59fd019d1b2b25685d4ea7baabe9a5a653f74e",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
