@@ -251,6 +251,10 @@ export class PlaygroundEngine extends CanvasApp {
   private selZone: BoardZone | null = null; // зона демо-выделения
   private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
   private selGrabCp = { x: 0, y: 0 }; // точка захвата набора (тап vs драг)
+  // Отложенный драг набора (#65): на касании выделенной карты запоминаем состав/смещения/лид, но
+  // GroupDrag НЕ создаём — иначе тап-снятие успевает стянуть набор к пальцу и вернуть. Промоушен в
+  // GroupDrag — только когда палец реально вышел за порог тапа (onCardMove).
+  private selPending: { cards: Elem[]; offsets: { dx: number; dy: number }[]; leadId: string } | null = null;
   // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Одна конфигурация вместо
   // прежних «сорт набора»/«сборка» тумблеров; песочница крутит её рычаги, дефолт — пресет grab-to-hand.
   private selAssembly: AssemblyConfig = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
@@ -2235,9 +2239,10 @@ export class PlaygroundEngine extends CanvasApp {
           pk.grabbed = true;
           if ("peekBob" in pk.el) pk.el.peekBob = false; // гасим резонанс-парение под пальцем (peekBob есть только у Card)
         }
-        // Драг выделенного НАБОРА: собираем по конфигу selAssembly (порядок + форма) сразу при старте
-        // (issue #56) — не «врассыпную». Порядок решён здесь и запомнен в selDragging, дроп берёт его
-        // как есть (см. onCardDrop). GroupDrag ждёт cards и offsets выровненными индекс-в-индекс к orderedIds.
+        // Касание выделенной карты в режиме: НЕ формируем GroupDrag сразу (issue #65) — иначе тап,
+        // снимающий выделение, успел бы стянуть набор к пальцу и вернуть. Запоминаем состав/смещения
+        // (по selAssembly, issue #56) в selPending; промоушен в GroupDrag — при реальном сдвиге пальца
+        // (onCardMove). Тап без сдвига → onCardDrop снимет карту, соседей не трогая.
         if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
           const { orderedIds, offsets } = this.assembleSelection();
           const cards: Elem[] = [];
@@ -2249,10 +2254,8 @@ export class PlaygroundEngine extends CanvasApp {
               off.push({ dx: offsets[i]!.dx, dy: offsets[i]!.dy }); // индекс-в-индекс: пропускаем оба, если элемента нет
             }
           });
-          this.selDragging = cards.map((e) => e.id);
           this.selGrabCp = { x: cp.x, y: cp.y };
-          this.drag = new GroupDrag(cards, off, this.dragCtx);
-          this.drag.move(cp);
+          this.selPending = { cards, offsets: off, leadId: card.id };
           return;
         }
         const payload = this.pendingHost?.makePayload?.(cp) ?? null; // груз всей пачки (или null)
@@ -2269,6 +2272,15 @@ export class PlaygroundEngine extends CanvasApp {
       },
       onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
+        // Отложенный драг набора (#65): пока палец в пределах порога тапа — набор НЕ трогаем (соседи
+        // стоят). Вышел за порог → промоутим selPending в GroupDrag и с этого момента тащим.
+        if (this.selPending) {
+          if (Math.hypot(cp.x - this.selGrabCp.x, cp.y - this.selGrabCp.y) <= 8) return;
+          const p = this.selPending;
+          this.selPending = null;
+          this.selDragging = p.cards.map((e) => e.id);
+          this.drag = new GroupDrag(p.cards, p.offsets, this.dragCtx);
+        }
         // Фигура БОРДА заперта в рамке зоны (clamp). Фигура Поля — не в boardZones → не клампится.
         // Демо-борд «Выделение» (selZone) — БЕЗ клампа (issue #62): набор нужно вытащить наружу к
         // лог-боксу «называю масть»; прочие борды клампятся как были.
@@ -2301,6 +2313,13 @@ export class PlaygroundEngine extends CanvasApp {
         }
       },
       onCardDrop: (card, cp) => {
+        // Тап по выделенной карте: набор так и не начал движение (палец не вышел за порог, selPending
+        // жив, GroupDrag не создан) — просто снимаем карту из набора, соседей НЕ трогаем (issue #65).
+        if (this.selPending) {
+          this.selPending = null;
+          this.toggleSelectFigure(card.id);
+          return;
+        }
         if (this.drag) {
           this.resolveGrabbedPeeks(); // держали «показанную» карту → вернуть скрытость до диспатча дропа
           if (this.selDragging && this.selZone) {
@@ -2381,6 +2400,7 @@ export class PlaygroundEngine extends CanvasApp {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
+        this.selPending = null; // отложенный драг набора (#65) отменён — соседи и так не двигались
         if (this.drag) this.resolveGrabbedPeeks(); // отмена драга «показанной» карты — тоже вернуть скрытость
         const fld = this.drag ? this.fieldForCard(this.drag.lead.id) : null;
         if (fld) {
@@ -2690,6 +2710,7 @@ export class PlaygroundEngine extends CanvasApp {
     this.sel = EMPTY;
     this.selZone = null;
     this.selDragging = null;
+    this.selPending = null;
     this.hoveredBtn = null;
     this.faceOf.clear();
     this.selResetButton = null;
@@ -2760,6 +2781,7 @@ export class PlaygroundEngine extends CanvasApp {
     this.sel = EMPTY;
     this.selZone = null;
     this.selDragging = null;
+    this.selPending = null;
     this.hoveredBtn = null;
     this.faceOf.clear();
     this.selResetButton = null;

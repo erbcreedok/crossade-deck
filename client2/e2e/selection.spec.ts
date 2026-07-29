@@ -147,6 +147,45 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(g.selectionState.selected).toEqual([]); // набор сброшен после переноса
   });
 
+  // Тап-снятие выделения НЕ должен дёргать остальные карты (issue #65): набор трогается лишь когда
+  // ведущая карта реально поехала (палец за порогом тапа), а не на касании/снятии. Хелпер: касание
+  // ведущей карты с опциональным субпороговым сдвигом, проверка что СОСЕД не шелохнулся.
+  const tapDeselectKeepsNeighborStill = async (page: Page, jitter: number) => {
+    await enter(page);
+    let h = await hooks(page);
+    await clickAt(page, h.selFigures[0]!); // 10♠
+    await clickAt(page, h.selFigures[1]!); // 6♣ — сосед, его позицию стережём
+    h = await hooks(page);
+    expect(h.selectionState.selected).toHaveLength(2);
+    const neighborId = h.selFigures[1]!.id;
+    const nBefore = h.selFigures.find((f) => f.id === neighborId)!;
+    const home = { x: nBefore.x, y: nBefore.y };
+    const lead = h.selFigures[0]!;
+    const box = (await page.locator("canvas").boundingBox())!;
+
+    await page.mouse.move(box.x + lead.x, box.y + lead.y);
+    await page.mouse.down();
+    if (jitter) await page.mouse.move(box.x + lead.x + jitter, box.y + lead.y, { steps: 3 }); // субпороговый (<8px)
+    await page.waitForTimeout(220); // за это время старый код успел бы стянуть соседа к пальцу
+    const during = (await hooks(page)).selFigures.find((f) => f.id === neighborId)!;
+    expect(Math.hypot(during.x - home.x, during.y - home.y)).toBeLessThan(3); // сосед стоит НА МЕСТЕ во время касания
+    await page.mouse.up();
+    await page.waitForTimeout(220);
+
+    const after = await hooks(page);
+    expect(after.selectionState.selected).toEqual([neighborId]); // ведущую сняли тапом
+    const nAfter = after.selFigures.find((f) => f.id === neighborId)!;
+    expect(Math.hypot(nAfter.x - home.x, nAfter.y - home.y)).toBeLessThan(3); // и после — сосед не сдвинулся
+  };
+
+  test("тап-снятие (без сдвига) не двигает остальные карты набора (#65)", async ({ page }) => {
+    await tapDeselectKeepsNeighborStill(page, 0);
+  });
+
+  test("тап-снятие с субпороговым дрожанием (<8px) тоже не двигает соседей (#65)", async ({ page }) => {
+    await tapDeselectKeepsNeighborStill(page, 5);
+  });
+
   // Выход из режима (тоггл «выделение: выкл») гасит набор и прячет кнопку сброса.
   test("выход из режима: тоггл выкл → active=false, набор сброшен, кнопка сброса скрыта", async ({ page }) => {
     await enter(page);
