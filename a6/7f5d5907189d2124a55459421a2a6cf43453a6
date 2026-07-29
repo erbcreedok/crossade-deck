@@ -1,0 +1,26 @@
+client2/e2e/selection.spec.ts
+  s_f67e66864dd957::t_1cee205db0451f 150-188
+client2/src/game/engine/playgroundEngine.ts
+  s_f67e66864dd957::t_d86e937e8398f6 2242-2245,2258
+  s_f67e66864dd957::t_f1fe6b16a48f85 2403
+  s_f67e66864dd957::t_f43c5e39b7c021 2713,2784
+  s_f67e66864dd957::t_42fd9aacf69c79 2275-2283
+  s_f67e66864dd957::t_7cf4a9a3dabb37 254-257
+  s_f67e66864dd957::t_3e3429365746d5 2316-2322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a67f5d5907189d2124a55459421a2a6cf43453a6",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
