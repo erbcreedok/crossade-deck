@@ -1,0 +1,19 @@
+client2/docs/sleep/SLEEP_01.md
+  s_1683f4def88b5d::t_a639c05b3668a6 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2b748afe7e9207fbc0126ce7bd6c3a399341d792",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
