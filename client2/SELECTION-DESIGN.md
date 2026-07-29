@@ -126,6 +126,10 @@ AcceptRule), а не заводит свою геометрию/политику
   (off/on/custom) + `keepSelection` (on/off/custom) + `mergeAnchor` (primary), см. §4.F.
   `dropPolicy.resolveMode(mode, tags, custom?)` — per-card bool; движок применяет в `applyDropOutside`.
   Песочница: тумблеры «сшивать» / «выделение после» с демо-custom («только ♣» / «только ♦»).
+- **UX выделения — единый гейт** (#64): убраны кнопка «выделение», ghost-«снять» и long-press-вход
+  (мёртвый код после мержа с тумблером). `multiSelectOn` слит в `selMode`; тумблер «мультиселект» →
+  «выделение:» вкл/выкл (дефолт выкл) — единственный гейт режима ЭТОЙ борды. Сброс набора — новая
+  primary-кнопка под боксом «называю масть», видна лишь при непустом наборе (`syncResetButton`).
 - **v2 — хвост**: форма `fan` (сейчас раскладывается как `row`), `sortOverride` `center`, рычаги
   `gatherOn`/`anchor` отдельными тумблерами (пока живут в конфиге пресетов), применение цепочки
   `dropRules` в КАЖДОЙ зоне (ядро `resolveDropChain`/`capabilityZoneRule` готово). Прим.:

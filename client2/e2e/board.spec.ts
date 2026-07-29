@@ -10,7 +10,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     boardSlots: { key: string; x: number; y: number }[];
     selMode: boolean;
     selection: string[];
-    selButtons: { label: string; x: number; y: number }[];
+    selectionState: { resetButtonAt: { x: number; y: number } | null };
     selFigures: { id: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[]; onOccupied: string; onOccupiedAt: { x: number; y: number }[] }[];
     selMultiAt: { x: number; y: number }[];
@@ -146,12 +146,10 @@ test.describe("песочница — игровая зона (борд)", () =>
     const box = (await page.locator("canvas").boundingBox())!;
     await page.mouse.click(box.x + p.x, box.y + p.y);
   };
-  const btn = (h: Hooks, label: string) => h.selButtons.find((b) => b.label === label)!;
-
-  test("выделение: вход в режим, тап-выбор (тоггл), снять", async ({ page }) => {
+  test("выделение: вход через тоггл, тап-выбор (тоггл), сброс", async ({ page }) => {
     let h = await hooks(page);
     expect(h.selMode).toBe(false);
-    await clickAt(page, btn(h, "выделение")); // вход в режим
+    await clickAt(page, h.selMultiAt[0]!); // тоггл «выделение: вкл» — вход в режим (#64)
     h = await hooks(page);
     expect(h.selMode).toBe(true);
 
@@ -164,7 +162,7 @@ test.describe("песочница — игровая зона (борд)", () =>
     h = await hooks(page);
     expect(h.selection).toEqual([h.selFigures[1]!.id]);
 
-    await clickAt(page, btn(h, "снять"));
+    await clickAt(page, h.selectionState.resetButtonAt!); // primary-кнопка сброса под боксом (#64)
     h = await hooks(page);
     expect(h.selection).toEqual([]); // набор пуст
     expect(h.selMode).toBe(true); // но режим остался
@@ -211,7 +209,7 @@ test.describe("песочница — игровая зона (борд)", () =>
 
   test("драг НАБОРА: выделил две → потащил одну → обе переехали в целевой слот", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, btn(h, "выделение"));
+    await clickAt(page, h.selMultiAt[0]!);
     h = await hooks(page);
     await clickAt(page, h.selFigures[0]!); // выбрать 10♠ (0,0)
     await clickAt(page, h.selFigures[1]!); // выбрать 6♣ (0,1)
@@ -232,7 +230,7 @@ test.describe("песочница — игровая зона (борд)", () =>
 
   test("ИЗОЛЯЦИЯ: в режиме выделения нельзя выбрать фигуру ЧУЖОЙ зоны", async ({ page }) => {
     let h = await hooks(page);
-    await clickAt(page, btn(h, "выделение"));
+    await clickAt(page, h.selMultiAt[0]!);
     // тап по фигуре первого борда (не selZone) — не должна попасть в набор
     await clickAt(page, { x: h.boardFigures[0]!.x, y: h.boardFigures[0]!.y });
     h = await hooks(page);
@@ -299,21 +297,11 @@ test.describe("песочница — игровая зона (борд)", () =>
     expect(victims.map((id) => gfree.figures.find((f) => f.id === id)!.key)).toEqual(["0,0", "0,0"]);
   });
 
-  test("демо выделения: тумблер «мультиселект: выкл» — вход в режим выделения блокируется", async ({ page }) => {
-    const h = await hooks(page);
-    expect(h.selMultiAt.length).toBeGreaterThan(0);
-    await clickAt(page, h.selMultiAt[1]!); // "выкл"
-    await page.waitForTimeout(150);
-    await clickAt(page, btn(h, "выделение"));
-    const g = await hooks(page);
-    expect(g.selMode).toBe(false); // конфиг контейнера отключил мультиселект — режим не включился
-  });
-
   test("демо выделения: тумблер «сорт набора: выбор» — набор выносится в порядке выбора, не по номиналу", async ({ page }) => {
     let h = await hooks(page);
     await clickAt(page, h.selSortAt[1]!); // "выбор" вместо "номинал"
     await page.waitForTimeout(150);
-    await clickAt(page, btn(h, "выделение"));
+    await clickAt(page, h.selMultiAt[0]!);
     h = await hooks(page);
     // selFigures[0]=10♠(0,0), [1]=6♣(0,1), [2]=8♥(0,2) — выбираем в обратном порядке (8♥ затем 10♠)
     await clickAt(page, h.selFigures[2]!);

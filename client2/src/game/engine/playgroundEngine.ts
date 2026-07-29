@@ -251,14 +251,13 @@ export class PlaygroundEngine extends CanvasApp {
   private selZone: BoardZone | null = null; // зона демо-выделения
   private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
   private selGrabCp = { x: 0, y: 0 }; // точка захвата набора (тап vs драг)
-  private multiSelectOn = true; // конфиг: доступен ли режim выделения
   // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Одна конфигурация вместо
   // прежних «сорт набора»/«сборка» тумблеров; песочница крутит её рычаги, дефолт — пресет grab-to-hand.
   private selAssembly: AssemblyConfig = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
   private selPresetName: string = DEFAULT_PRESET; // последний выбранный пресет (для e2e-хука; манипуляции рычагами его не сбрасывают)
   private faceOf = new Map<string, string>(); // id фигуры → лицо карты (для сорта набора по номиналу)
-  private selButtons: { label: string; btn: Button }[] = []; // кнопки «выделение»/«снять» (для e2e)
-  private selMultiButtons: Button[] = []; // тумблер «мультиселект» — для e2e
+  private selResetButton: Button | null = null; // primary-кнопка сброса под боксом «называю масть» (#64), видна при ≥1 в наборе
+  private selMultiButtons: Button[] = []; // тумблер «выделение:» вкл/выкл (единый гейт режима, #64) — для e2e
   private selPresetButtons: Button[] = []; // тумблер «пресет:» — для e2e
   private selFormButtons: Button[] = []; // тумблер «форма:» — для e2e
   private selOrderButtons: Button[] = []; // тумблер «порядок:» — для e2e
@@ -284,9 +283,6 @@ export class PlaygroundEngine extends CanvasApp {
   private lastNamedSuits: string[] = [];
   private hoveredBtn: Button | null = null; // наведённая кнопка (ПК): чтобы гасить/зажигать только её, а не перебирать все (issue #48 баг №4)
   private hoverRerenders = 0; // счётчик перерисовок кнопок от ховера — для e2e-замера отсутствия лагов
-  // Long-press по фигуре демо-зоны (issue #48 баг №3): удержание ~500мс без сдвига входит в режим
-  // выделения и берёт фигуру в набор — второй способ входа помимо кнопки «выделение».
-  private longPress: { id: string; sx: number; sy: number; timer: ReturnType<typeof setTimeout> } | null = null;
   private boardOnOccupiedSegments: Segmented[] = []; // тумблер «на занятый слот» каждого из 7 пресетов — для e2e
   private markers: Marker[] = []; // все метки слотов (драггеры + якоря), generic
   private grabbers: Grabber[] = []; // всё, за что тянут через метку (стопки + соло) — для хит-теста
@@ -556,9 +552,7 @@ export class PlaygroundEngine extends CanvasApp {
     selectionState: {
       active: boolean;
       selected: string[];
-      clearButtonVisibleAt: { x: number; y: number } | null; // null, пока не в режиме — кнопки «снять» нет
-      selectToggleAt: { x: number; y: number } | null;
-      multiSelectEnabled: boolean;
+      resetButtonAt: { x: number; y: number } | null; // primary-кнопка сброса под боксом (#64); null, пока набор пуст
       // Конфиг сборки набора как ДАННЫЕ (issue #56): рычаги form/order/sortOverride + последний пресет.
       assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride };
       // Отбор-визуал как ДАННЫЕ (issue #60): eligible по ИМЕНИ, подсветка выбираемых, метка выбранного.
@@ -567,7 +561,6 @@ export class PlaygroundEngine extends CanvasApp {
       policy: { merge: DropMode; keepSelection: DropMode; mergeAnchor: "primary" };
     };
     perf: { hoverRerenders: number }; // сколько кнопок перерисовалось от ховера — для замера отсутствия лагов (баг №4)
-    selButtons: { label: string; x: number; y: number }[];
     selFigures: { id: string; key: string; x: number; y: number; selected: boolean; outlined: boolean; hinted: boolean }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[]; onOccupied: OnOccupied; onOccupiedAt: { x: number; y: number }[] }[];
     field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
@@ -641,15 +634,12 @@ export class PlaygroundEngine extends CanvasApp {
       selectionState: {
         active: this.selMode,
         selected: [...this.sel.ids],
-        clearButtonVisibleAt: this.selBtnScreen("снять", toScreen, this.selMode),
-        selectToggleAt: this.selBtnScreen("выделение", toScreen, true),
-        multiSelectEnabled: this.multiSelectOn,
+        resetButtonAt: this.selResetButton && this.sel.ids.length >= 1 ? toScreen(this.selResetButton.x, this.selResetButton.y) : null,
         assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
         visual: { eligible: this.selEligibleName, hintEligible: this.selVisual.hintEligible, mark: this.selVisual.mark },
         policy: { merge: this.selDropPolicy.merge, keepSelection: this.selDropPolicy.keepSelection, mergeAnchor: this.selDropPolicy.mergeAnchor },
       },
       perf: { hoverRerenders: this.hoverRerenders },
-      selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
       selFigures: this.selZone
         ? Object.entries(this.selZone.board.slots)
             .flatMap(([key, c]) => c.members.map((id) => ({ id, key, el: this.byId.get(id) })))
@@ -1573,19 +1563,11 @@ export class PlaygroundEngine extends CanvasApp {
     const cfg = this.selectDemoConfig(`bz${pi}`, this.selectDemoCell());
     const { zone, bottom } = this.mountBoard(cfg, left, top, 300 + pi * 100);
     this.selZone = zone;
-    const bMode = new Button({ label: "выделение", variant: "secondary", size: "sm", onClick: () => this.toggleSelectMode() });
-    const bClear = new Button({ label: "снять", variant: "ghost", size: "sm", onClick: () => this.clearSelection() });
-    bMode.place(left + bMode.w / 2, bottom + 12);
-    bClear.place(left + bMode.w + 10 + bClear.w / 2, bottom + 12);
-    this.registerButton(bMode);
-    this.registerButton(bClear);
-    this.selButtons = [{ label: "выделение", btn: bMode }, { label: "снять", btn: bClear }];
-    this.syncSelButtons(); // «снять» скрыта вне режима, «выделение» гаснет — исходное согласованное состояние
+    this.selMode = false; // единый гейт «выделение:» дефолтом ВЫКЛ — без явного действия режим не активен (#64)
 
     // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Один конфиг selAssembly
     // вместо прежних «сорт набора»/«сборка»: тестер крутит рычаги ПО отдельности или берёт готовый
     // пресет (тот пересинхронивает золотую черту form/order/sort). Дефолт — пресет grab-to-hand.
-    this.multiSelectOn = true;
     this.selAssembly = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
     this.selPresetName = DEFAULT_PRESET;
     // Отбор-визуал (issue #60) — дефолт как в примере: только карты, без подсказки, метка «оба».
@@ -1594,15 +1576,13 @@ export class PlaygroundEngine extends CanvasApp {
     this.selDropPolicy = { ...DEFAULT_DROP_POLICY }; // #63 — дефолты: merge off, keep on, anchor primary
     this.selOutlines.clear(); // контуры прежнего билда уничтожены вместе с root карт при пересборке контента
     const t1 = bottom + 34;
-    this.selMultiButtons = this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
-      this.multiSelectOn = i === 0;
-      if (!this.multiSelectOn && this.selMode) {
-        this.selMode = false;
-        this.sel = clearSel();
-        this.syncSelButtons();
-        this.refreshSel();
-        this.wake();
-      }
+    // Единый гейт «выделение:» (#64) — слил прежние «мультиселект» и кнопку «выделение» в ОДИН тоггл:
+    // вкл → режим выбора для карт ИМЕННО этой борды (selZone), выкл → выход и сброс набора. Дефолт выкл.
+    this.selMultiButtons = this.segToggle(left, t1, "выделение:", ["вкл", "выкл"], this.selMode ? 0 : 1, (i) => {
+      this.selMode = i === 0;
+      this.sel = this.selMode ? begin("sel") : clearSel();
+      this.refreshSel();
+      this.wake();
     }).buttons;
 
     const forms: Form[] = ["stack-tight", "stack-open", "row"];
@@ -1676,7 +1656,22 @@ export class PlaygroundEngine extends CanvasApp {
     const box = new DropZone({ name: "называю масть", verb: "называю!", rect: { x: left + boardW + SB_ITEM_GAP, y: top + 22, w: this.selNameBoxW(), h: this.cardW * 1.1 } });
     this.selNameZone = box;
     this.registerZone(box, (p) => this.nameSuits([p.lead.id]), (p) => p.lead.tags.has("card"));
+
+    // Primary-кнопка СБРОСА (issue #64) — под боксом «называю масть», по центру его rect. Клик гасит
+    // набор (остаётся в режиме). Видна ТОЛЬКО когда в наборе ≥1 (syncResetButton по refreshSel).
+    const reset = new Button({ label: "сбросить", variant: "primary", size: "sm", onClick: () => this.clearSelection() });
+    const r = box.rect;
+    reset.place(r.x + r.w / 2, r.y + r.h + 14 + reset.h / 2);
+    this.registerButton(reset);
+    this.selResetButton = reset;
+    this.syncResetButton(); // исходно скрыта (набор пуст)
     return t1 + 260; // два тумблера дропа (#63): «сшивать» t1+208, «выделение после» t1+234
+  }
+
+  // Кнопка сброса (#64) видна лишь при непустом наборе — иначе гасить нечего, а висящая кнопка
+  // читается как «застряла» (тот же довод, что был у ghost-«снять», issue #48 баг №6). Зовём из refreshSel.
+  private syncResetButton(): void {
+    if (this.selResetButton) this.selResetButton.root.visible = this.sel.ids.length >= 1;
   }
 
   // Выписать уникальные масти набора в консоль + хук (issue #62). Идентичность (теги) → pileIdentity,
@@ -1690,60 +1685,11 @@ export class PlaygroundEngine extends CanvasApp {
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
-  private toggleSelectMode(): void {
-    if (!this.multiSelectOn) return; // конфиг контейнера отключил мультиселект
-    this.selMode = !this.selMode;
-    this.sel = this.selMode ? begin("sel") : clearSel();
-    this.syncSelButtons();
-    this.refreshSel();
-    this.wake();
-  }
-
+  // Единый гейт входа/выхода — тоггл «выделение:» (#64); отдельная кнопка и long-press-вход убраны.
   private clearSelection(): void {
     if (this.selMode) this.sel = begin("sel"); // остаёмся в режиме, гасим набор
     this.refreshSel();
     this.wake();
-  }
-
-  // Кнопки режима следуют за selMode: «выделение» подсвечена, пока режим включён (иначе кликнул —
-  // а она серая, непонятно включилось ли, issue #48 баг №1); «снять» вообще не показываем вне
-  // режима — гасить нечего, а зависшая кнопка читается как «застряла» (баг №6).
-  private syncSelButtons(): void {
-    const bMode = this.selButtons.find((b) => b.label === "выделение")?.btn;
-    const bClear = this.selButtons.find((b) => b.label === "снять")?.btn;
-    bMode?.setActive(this.selMode);
-    if (bClear) bClear.root.visible = this.selMode;
-  }
-
-  // Экранная точка кнопки выделения по подписи (для e2e-хука selectionState) — null, если кнопки нет
-  // или она сейчас невидима (visible=false «снятой» вне режима).
-  private selBtnScreen(label: string, toScreen: (x: number, y: number) => { x: number; y: number }, visible: boolean): { x: number; y: number } | null {
-    const btn = this.selButtons.find((b) => b.label === label)?.btn;
-    return btn && visible ? toScreen(btn.x, btn.y) : null;
-  }
-
-  // Взвести таймер удержания по фигуре демо-зоны. sx/sy — экранная точка захвата (порог сдвига).
-  private armLongPress(id: string, sp: { x: number; y: number }): void {
-    this.cancelLongPress();
-    this.longPress = { id, sx: sp.x, sy: sp.y, timer: setTimeout(() => this.fireLongPress(), 500) };
-  }
-
-  private cancelLongPress(): void {
-    if (!this.longPress) return;
-    clearTimeout(this.longPress.timer);
-    this.longPress = null;
-  }
-
-  // Удержание доиграло: обрываем начатый было драг (фигура едет домой), входим в режим и берём фигуру.
-  private fireLongPress(): void {
-    const lp = this.longPress;
-    if (!lp || this.selMode) return this.cancelLongPress();
-    this.longPress = null;
-    this.drag?.release();
-    this.drag = null;
-    this.input.reset(); // палец ещё на экране, но жест уже «съеден» удержанием — не даём ему стать драгом
-    this.toggleSelectMode();
-    this.toggleSelectFigure(lp.id);
   }
 
   // Тап по фигуре демо-зоны в режиме → тоггл. owner="sel" всегда совпадает со scope (изоляция:
@@ -1800,6 +1746,7 @@ export class PlaygroundEngine extends CanvasApp {
         this.setSelOutline(el, kind);
       }
     }
+    this.syncResetButton(); // кнопка сброса (#64) следует за размером набора
   }
 
   // Держать контур-атом (selectOutline.ts) в актуальном виде: создать на выбор/подсказку, снять иначе,
@@ -2288,10 +2235,6 @@ export class PlaygroundEngine extends CanvasApp {
           pk.grabbed = true;
           if ("peekBob" in pk.el) pk.el.peekBob = false; // гасим резонанс-парение под пальцем (peekBob есть только у Card)
         }
-        // Взвод long-press: фигуру демо-зоны держат вне режима → через 500мс без сдвига входим в
-        // выделение и берём её (issue #48 баг №3). Обычный драг продолжается параллельно; если палец
-        // поехал (onCardMove) или отпущен раньше (onCardDrop) — взвод снимается, драг остаётся драгом.
-        if (!this.selMode && this.multiSelectOn && this.selZone?.locate(card.id)) this.armLongPress(card.id, sp);
         // Драг выделенного НАБОРА: собираем по конфигу selAssembly (порядок + форма) сразу при старте
         // (issue #56) — не «врассыпную». Порядок решён здесь и запомнен в selDragging, дроп берёт его
         // как есть (см. onCardDrop). GroupDrag ждёт cards и offsets выровненными индекс-в-индекс к orderedIds.
@@ -2326,8 +2269,6 @@ export class PlaygroundEngine extends CanvasApp {
       },
       onCardMove: (_card, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
-        // Палец поехал (>10 экранных px) — это драг, а не удержание: снимаем взвод long-press.
-        if (this.longPress && Math.hypot(sp.x - this.longPress.sx, sp.y - this.longPress.sy) > 10) this.cancelLongPress();
         // Фигура БОРДА заперта в рамке зоны (clamp). Фигура Поля — не в boardZones → не клампится.
         // Демо-борд «Выделение» (selZone) — БЕЗ клампа (issue #62): набор нужно вытащить наружу к
         // лог-боксу «называю масть»; прочие борды клампятся как были.
@@ -2360,7 +2301,6 @@ export class PlaygroundEngine extends CanvasApp {
         }
       },
       onCardDrop: (card, cp) => {
-        this.cancelLongPress(); // отпустили раньше 500мс — это обычный тап/драг, не удержание
         if (this.drag) {
           this.resolveGrabbedPeeks(); // держали «показанную» карту → вернуть скрытость до диспатча дропа
           if (this.selDragging && this.selZone) {
@@ -2441,7 +2381,6 @@ export class PlaygroundEngine extends CanvasApp {
         for (const z of this.zones) z.zone.setHot(false);
       },
       onCardCancel: () => {
-        this.cancelLongPress(); // драг прерван (второй палец) — взвод удержания снимаем
         if (this.drag) this.resolveGrabbedPeeks(); // отмена драга «показанной» карты — тоже вернуть скрытость
         const fld = this.drag ? this.fieldForCard(this.drag.lead.id) : null;
         if (fld) {
@@ -2751,10 +2690,9 @@ export class PlaygroundEngine extends CanvasApp {
     this.sel = EMPTY;
     this.selZone = null;
     this.selDragging = null;
-    this.cancelLongPress();
     this.hoveredBtn = null;
     this.faceOf.clear();
-    this.selButtons = [];
+    this.selResetButton = null;
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
@@ -2822,10 +2760,9 @@ export class PlaygroundEngine extends CanvasApp {
     this.sel = EMPTY;
     this.selZone = null;
     this.selDragging = null;
-    this.cancelLongPress();
     this.hoveredBtn = null;
     this.faceOf.clear();
-    this.selButtons = [];
+    this.selResetButton = null;
     this.grabbers = [];
     this.grabbedMarker = null;
     this.pendingHost = null;
