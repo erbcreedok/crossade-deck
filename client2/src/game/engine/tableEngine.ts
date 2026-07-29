@@ -6,9 +6,13 @@ import { InputRouter, type InputHandlers } from "./inputRouter";
 import { CanvasApp } from "./canvasApp";
 import { assembleTable } from "./tableAssemble";
 import { boxFaceUp } from "./tableSide";
-import { makeCardBackTexture, makeCardFaceTexture, makeShadowTexture } from "./cardTextures";
+import { makeCardBackTexture, makeCardFaceTexture, makeHiddenBgTexture, makeHiddenFaceTexture, makeShadowTexture } from "./cardTextures";
 import { DRAG_SCALE, SHADOW_ALPHA, TEX_H, TEX_W } from "./constants";
 import type { CardVisual } from "./types";
+import { ParticleField } from "./censorParticles";
+import { buildFingerDustPoints } from "./censorSource";
+import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
+import { hiddenVisualFor, resolveCardTextureKind } from "./hiddenVisual";
 
 // Новый движок стола (client2, автономный). Один пул карт по идентичности (TablePool):
 // боксы — только якоря, переход между боксами = setTarget на ТОМ ЖЕ спрайте. Управление —
@@ -41,6 +45,14 @@ export class TableEngine extends CanvasApp {
   private shadowTex!: Texture;
   private faceCache = new Map<string, Texture>();
   private shadowByCard = new Map<string, Sprite>();
+
+  // ——— скрытые карты (issue #3): понятие введено здесь, оверлей — тот же, что у ui/Card ———
+  private hiddenTex: Texture | null = null; // статичный fallback-лик (reduce-motion/lowFx)
+  private hiddenBgTex: Texture | null = null; // чистый фон под живую «пыль»
+  private dustPts: Array<{ x: number; y: number }> | null = null; // точки рождения пыли (кэш)
+  private hiddenCards = new Set<string>(); // какие карты сейчас скрыты (секретность игры)
+  private dustByCard = new Map<string, { field: ParticleField; mask: Graphics }>(); // живая «пыль»
+  private dustT = 0; // общее время анимации пыли (крутит только пока хоть одна карта скрыта)
 
   private W = 1;
   private H = 1;
@@ -158,6 +170,75 @@ export class TableEngine extends CanvasApp {
 
   // ——— спрайты ———
 
+  // ——— API скрытости (issue #3) ———
+
+  /** Скрыть/раскрыть карту (секретность игры, не «рубашкой вниз»): перекрашивает её и заводит/
+   *  гасит живую «пыль» — тот же контракт, что у Card.setConcealed. */
+  setHidden(card: string, v: boolean): void {
+    if (v === this.hiddenCards.has(card)) return;
+    if (v) this.hiddenCards.add(card);
+    else this.hiddenCards.delete(card);
+    const visual = this.pool?.get(card);
+    if (visual) this.paint(visual, this.slotOf(card)!);
+    this.wake();
+  }
+
+  private hiddenVisual(): "dust" | "static" {
+    return hiddenVisualFor(this.profile, this.reduceMotion);
+  }
+
+  private hiddenFaceTex(): Texture {
+    if (!this.hiddenTex && this.app) this.hiddenTex = makeHiddenFaceTexture(this.app);
+    return this.hiddenTex ?? this.backTex;
+  }
+
+  private hiddenBgTexture(): Texture {
+    if (!this.hiddenBgTex && this.app) this.hiddenBgTex = makeHiddenBgTexture(this.app);
+    return this.hiddenBgTex ?? this.backTex;
+  }
+
+  private dustPoints(): Array<{ x: number; y: number }> {
+    if (!this.dustPts && this.app) this.dustPts = buildFingerDustPoints(this.app, 4, 0, 0);
+    return this.dustPts ?? [];
+  }
+
+  private ensureDust(card: string): void {
+    if (this.dustByCard.has(card)) return;
+    const field = new ParticleField(this.dustPoints(), dustParams(DANCE_DEFAULT, DUST_FLICKER));
+    const mask = new Graphics();
+    mask.roundRect(-TEX_W / 2, -TEX_H / 2, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
+    field.view.mask = mask;
+    this.cardLayer.addChild(field.view, mask);
+    this.dustByCard.set(card, { field, mask });
+  }
+
+  private removeDust(card: string): void {
+    const d = this.dustByCard.get(card);
+    if (!d) return;
+    d.field.view.destroy({ children: true });
+    d.mask.destroy();
+    this.dustByCard.delete(card);
+  }
+
+  /** Профиль качества (issue #8) может переключить пыль ↔ статику для уже скрытых карт. */
+  protected onProfileChange(): void {
+    this.repaintHidden();
+  }
+
+  /** Reduce-motion (issue #7) — то же самое: fallback на статичный hiddenFace. */
+  protected onReduceMotionChange(): void {
+    this.repaintHidden();
+  }
+
+  private repaintHidden(): void {
+    if (!this.pool) return;
+    for (const card of this.hiddenCards) {
+      const v = this.pool.get(card);
+      const s = this.slotOf(card);
+      if (v && s) this.paint(v, s);
+    }
+  }
+
   private createCard(card: string): CardVisual {
     const sprite = new Sprite(this.backTex);
     sprite.anchor.set(0.5);
@@ -168,18 +249,39 @@ export class TableEngine extends CanvasApp {
     shadow.visible = false;
     this.shadowLayer.addChild(shadow);
     this.shadowByCard.set(card, shadow);
-    return { body: new CardBody(), sprite, card, phase: 0 };
+    return { body: new CardBody(), sprite, card, phase: 0, hidden: false };
   }
 
   private retire(v: CardVisual, card: string): void {
     v.sprite.destroy();
     this.shadowByCard.get(card)?.destroy();
     this.shadowByCard.delete(card);
+    this.removeDust(card);
   }
 
   private paint(v: CardVisual, s: Slot): void {
     v.sprite.zIndex = (s.box.startsWith("play") ? 1000 : 0) + s.within;
-    v.sprite.texture = boxFaceUp(s.box) ? this.faceFor(v.card) : this.backTex;
+    const faceUp = boxFaceUp(s.box);
+    v.hidden = this.hiddenCards.has(v.card);
+    const kind = resolveCardTextureKind({ faceUp, hidden: v.hidden, visual: this.hiddenVisual() });
+    switch (kind) {
+      case "back":
+        v.sprite.texture = this.backTex;
+        this.removeDust(v.card);
+        break;
+      case "face":
+        v.sprite.texture = this.faceFor(v.card);
+        this.removeDust(v.card);
+        break;
+      case "hiddenFace":
+        v.sprite.texture = this.hiddenFaceTex();
+        this.removeDust(v.card);
+        break;
+      case "hiddenBg":
+        v.sprite.texture = this.hiddenBgTexture();
+        this.ensureDust(v.card);
+        break;
+    }
   }
 
   private faceFor(card: string): Texture {
@@ -319,6 +421,12 @@ export class TableEngine extends CanvasApp {
       v.body.step(dt);
       if (!v.body.isResting()) moving = true;
     }
+    // Живая «пыль» крутится, пока хоть одна карта скрыта живьём (static-fallback тикер не будит).
+    if (this.dustByCard.size > 0) {
+      this.dustT += dt;
+      for (const d of this.dustByCard.values()) d.field.update(this.dustT);
+      moving = true;
+    }
     this.render();
     return moving;
   }
@@ -330,15 +438,25 @@ export class TableEngine extends CanvasApp {
       v.sprite.rotation = v.body.rotation;
       v.sprite.scale.set(s);
       const shadow = this.shadowByCard.get(v.card);
-      if (!shadow) continue;
-      const lift = v.body.scaleVal - 1;
-      if (lift > 0.001) {
-        shadow.visible = true;
-        shadow.position.set(v.body.px - this.cardH * lift * 0.12, v.body.py + this.cardH * lift * 0.18);
-        shadow.rotation = v.body.rotation;
-        shadow.scale.set(s);
-      } else {
-        shadow.visible = false;
+      if (shadow) {
+        const lift = v.body.scaleVal - 1;
+        if (lift > 0.001) {
+          shadow.visible = true;
+          shadow.position.set(v.body.px - this.cardH * lift * 0.12, v.body.py + this.cardH * lift * 0.18);
+          shadow.rotation = v.body.rotation;
+          shadow.scale.set(s);
+        } else {
+          shadow.visible = false;
+        }
+      }
+      const dust = this.dustByCard.get(v.card);
+      if (dust) {
+        dust.field.view.position.set(v.body.px, v.body.py);
+        dust.field.view.rotation = v.body.rotation;
+        dust.field.view.scale.set(s);
+        dust.mask.position.set(v.body.px, v.body.py);
+        dust.mask.rotation = v.body.rotation;
+        dust.mask.scale.set(s);
       }
     }
   }
