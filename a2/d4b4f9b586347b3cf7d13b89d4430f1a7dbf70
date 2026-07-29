@@ -1,0 +1,22 @@
+client2/src/game/board/tagQuery.ts
+  s_f67e66864dd957::t_8bb0f5577e2ab2 29-41
+client2/src/game/board/tagQuery.test.ts
+  s_f67e66864dd957::t_1bb662ddc25635 2
+  s_f67e66864dd957::t_96ffb89287b89f 39-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a2d4b4f9b586347b3cf7d13b89d4430f1a7dbf70",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
