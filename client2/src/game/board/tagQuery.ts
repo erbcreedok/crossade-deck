@@ -26,3 +26,16 @@ export const or = (...ps: TagPredicate[]): TagPredicate => (t) => ps.some((p) =>
 
 /** Всегда истинный предикат (дефолт «выбирать можно всё»). */
 export const any: TagPredicate = () => true;
+
+/**
+ * Значения СЕМЕЙСТВА тегов в наборе: для `family="suit"` из `suit:♠`/`suit:♥` вернёт `["♠","♥"]`.
+ * Дедуп не нужен на входе-Set, но порядок — вставки. Фундамент под правила, спрашивающие «какие
+ * масти/цвета/команды есть в наборе» (напр. tagValues(pile.tagsAny, "suit")). Элемент без тега
+ * семейства (кастом без масти) просто не даёт значения — сентинел «нет» решает вызывающий слой.
+ */
+export function tagValues(tags: TagSet, family: string): string[] {
+  const p = family.endsWith(":") ? family : `${family}:`;
+  const out: string[] = [];
+  for (const t of tags) if (t.startsWith(p)) out.push(t.slice(p.length));
+  return out;
+}

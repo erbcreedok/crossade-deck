@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { and, any, hasAllTags, hasAnyTag, hasTag, not, or } from "./tagQuery";
+import { and, any, hasAllTags, hasAnyTag, hasTag, not, or, tagValues } from "./tagQuery";
 
 const card7d = new Set(["card", "suit:♦", "rank:7", "color:red"]);
 const chip = new Set(["chip", "color:green"]);
@@ -35,5 +35,14 @@ describe("tagQuery", () => {
   it("any — всегда истина", () => {
     expect(any(card7d)).toBe(true);
     expect(any(new Set())).toBe(true);
+  });
+
+  it("tagValues — значения семейства тегов (масти/цвета)", () => {
+    const set = new Set(["card", "suit:♠", "suit:♥", "color:red"]);
+    expect(tagValues(set, "suit")).toEqual(["♠", "♥"]);
+    expect(tagValues(set, "suit:")).toEqual(["♠", "♥"]); // двоеточие в family опционально
+    expect(tagValues(set, "color")).toEqual(["red"]);
+    expect(tagValues(set, "team")).toEqual([]); // нет семейства → пусто
+    expect(tagValues(new Set(["card"]), "suit")).toEqual([]); // кастом без масти → пусто (сентинел решает вызывающий)
   });
 });
