@@ -1,0 +1,45 @@
+client2/src/game/engine/capabilities.ts
+  s_f67e66864dd957::t_fada22d714510d 1-18
+client2/src/game/board/pileIdentity.test.ts
+  s_f67e66864dd957::t_6d457a681430df 1-76
+client2/src/game/board/pileIdentity.ts
+  s_f67e66864dd957::t_72760d8ee95ae7 1-72
+client2/src/game/board/tagQuery.ts
+  s_f67e66864dd957::t_fb494b741ccca9 1-28
+client2/src/game/board/elementTags.test.ts
+  s_f67e66864dd957::t_46dabafa0f1de0 1-36
+client2/src/game/board/elementTags.ts
+  s_f67e66864dd957::t_6b344decfce64b 1-24
+client2/src/game/engine/element.ts
+  s_f67e66864dd957::t_6e36bc6862a0a4 13-18
+client2/src/game/engine/drag.ts
+  s_f67e66864dd957::t_1ab41ad3e9758e 1-2,8-10
+client2/src/game/ui/Piece.ts
+  s_f67e66864dd957::t_d611dcad25dc47 46
+  s_f67e66864dd957::t_b15ae5da763e8a 32
+  s_f67e66864dd957::t_1ed42248932fbd 23
+client2/src/game/ui/Card.ts
+  s_f67e66864dd957::t_708eb4bb337f8a 14
+  s_f67e66864dd957::t_bb1188fa8f5f2c 56
+  s_f67e66864dd957::t_a309a1ac63cf4c 124
+  s_f67e66864dd957::t_24827d79d76a83 90
+  s_f67e66864dd957::t_6f7fac7a8b7d1c 137-143
+client2/src/game/board/tagQuery.test.ts
+  s_f67e66864dd957::t_58baa308ef81a8 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "81984d03d393c518f5b26e1fb5cf1f63b0e73f86",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
