@@ -17,6 +17,11 @@ export abstract class CanvasApp {
   /** Эффективный reduce-motion (OS + юзер-оверрайд, см. useReducedMotion) — единое поле для всех
    *  трёх движков (issue #7), контент решает сам, что заморозить (см. onReduceMotionChange). */
   protected reduceMotion = false;
+  /** Отдельный флаг «без вспышек» (issue #9, фото-чувствительность, см. useReduceFlash). */
+  protected reduceFlash = false;
+  /** Производное «гасить вспышки» = reduceMotion || reduceFlash: reduce-motion — надмножество,
+   *  оно гасит и мерцание/дрожь. Контент читает его через onFlashChange (напр. Card.flashOff). */
+  protected flashOff = false;
 
   async mount(host: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
@@ -72,11 +77,31 @@ export abstract class CanvasApp {
     if (this.reduceMotion === v) return;
     this.reduceMotion = v;
     this.onReduceMotionChange(v);
+    this.refreshFlash(); // reduce-motion гасит и вспышки — пересчитать производное flashOff
     this.wake();
+  }
+
+  /** Юзер-флаг «без вспышек» (issue #9). Отдельный вход от reduce-motion, но итог — общий flashOff. */
+  setReduceFlash(v: boolean): void {
+    if (this.reduceFlash === v) return;
+    this.reduceFlash = v;
+    this.refreshFlash();
+    this.wake();
+  }
+
+  // Пересчёт производного flashOff из двух источников; хук зовём только на реальную смену.
+  private refreshFlash(): void {
+    const eff = this.reduceMotion || this.reduceFlash;
+    if (eff === this.flashOff) return;
+    this.flashOff = eff;
+    this.onFlashChange(eff);
   }
 
   /** Контент пробрасывает флаг в свои декоративные элементы (напр. Card.reduceMotion). Опц. */
   protected onReduceMotionChange(_v: boolean): void {}
+
+  /** Контент пробрасывает «без вспышек» в свои вспышечные элементы (напр. Card.flashOff). Опц. */
+  protected onFlashChange(_v: boolean): void {}
 
   private tick = (): void => {
     if (!this.app) return;

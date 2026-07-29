@@ -74,6 +74,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   /** OS/юзер reduce-motion (см. useReducedMotion): движок ставит на спавне и при смене (issue #7).
    *  Замораживает bob и живую пыль в статичный кадр — не трогает флип/драг/полёты (не в скоупе). */
   reduceMotion = false;
+  /** «Без вспышек» (issue #9, фото-чувствительность): гасит дрожь «сжечь», оставляя плавный расход. */
+  flashOff = false;
 
   readonly id: string; // ключ
   private _card: string; // значение (придержано = ""), проставляется setValue (раскрытие)
@@ -395,7 +397,10 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     // видимость съедает именно маска. Накладывается ПОВЕРХ обычного sync.
     if (this.dying) {
       const f = burnFrame(this.dying.t, this.age, this.width);
-      this.root.position.set(this.body.px + f.jitterX, this.body.py + f.jitterY);
+      // «Без вспышек»: дрожь — фото-триггер, гасим её (jitter→0), плавный расход маской остаётся.
+      const jx = this.flashOff ? 0 : f.jitterX;
+      const jy = this.flashOff ? 0 : f.jitterY;
+      this.root.position.set(this.body.px + jx, this.body.py + jy);
       if (f.dissolve) {
         // Маска оставляет видимой верхнюю часть; фронт горения едет вверх (см. burnFrame).
         if (!this.burnMask) {

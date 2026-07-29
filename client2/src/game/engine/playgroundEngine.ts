@@ -989,6 +989,7 @@ export class PlaygroundEngine extends CanvasApp {
 
   private addControlCard(card: Card): void {
     card.reduceMotion = this.reduceMotion;
+    card.flashOff = this.flashOff;
     this.controlCards.push(card);
     if (card.id) this.byId.set(card.id, card);
     this.placeCard(card);
@@ -1031,6 +1032,7 @@ export class PlaygroundEngine extends CanvasApp {
       if (restore && !r) return; // сгоревшую карту при рестарте канваса не воскрешаем
       const card = new Card(r ? { ...spec.opts, faceUp: r.faceUp } : spec.opts, this.tex, this.baseScale);
       card.reduceMotion = this.reduceMotion;
+      card.flashOff = this.flashOff;
       card.bobPhase = spec.bobPhase;
       card.root.zIndex = spec.depth;
       card.body.snapTo({ x: r ? r.x : spec.home.x, y: r ? r.y : spec.home.y, rot: 0, scale: card.restScale });
@@ -1169,6 +1171,7 @@ export class PlaygroundEngine extends CanvasApp {
   private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number): void {
     const { build, shadow } = pieceVisual(spec, r);
     const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow });
+    piece.flashOff = this.flashOff;
     piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
     this.placeCard(piece);
@@ -2814,6 +2817,12 @@ export class PlaygroundEngine extends CanvasApp {
   // гасить). Новые карты получают флаг на спавне (addControlCard/spawnCards), не только тут.
   protected onReduceMotionChange(v: boolean): void {
     for (const el of this.everyElement()) if (el instanceof Card) el.reduceMotion = v;
+  }
+
+  // Пробросить «без вспышек» (issue #9) в каждый горящий элемент — гасит дрожь «сжечь» и у Card, и
+  // у Piece (у фишки тоже есть jitter). Новые элементы получают флаг на спавне (addControlCard/spawnCards/piece).
+  protected onFlashChange(v: boolean): void {
+    for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.flashOff = v;
   }
 
   private render(): void {

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { CensorDemo } from "./game/censorDemo";
 import type { ViewState } from "./game/engine/viewport";
 import type { ReduceMotionOverride } from "./game/anim/reduceMotion";
+import type { ReduceFlashOverride } from "./game/anim/reduceFlash";
 import { goApp } from "./nav";
 import { useReducedMotion } from "./useReducedMotion";
+import { useReduceFlash } from "./useReduceFlash";
 
 // Стенд анимаций «/motion» — ЦЕЛИКОМ на канвасе (заголовки, контролы, кнопка «ререндер» — в сцене).
 // DOM здесь только то же, что в песочнице: топбар-навигация + скроллбары/зум по ховеру (десктоп).
@@ -16,6 +18,8 @@ export function CensorDemoPage() {
   const [view, setView] = useState<ViewState | null>(null);
   const [override, setOverride] = useState<ReduceMotionOverride>("auto");
   const reduceMotion = useReducedMotion(override);
+  const [flashOverride, setFlashOverride] = useState<ReduceFlashOverride>("auto");
+  const reduceFlash = useReduceFlash(flashOverride);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -27,6 +31,7 @@ export function CensorDemoPage() {
     // Тумблер «уменьшить движение» стенда рисуется В КАНВАСЕ (не React) — он источник оверрайда,
     // а не самого reduceMotion: эффективное значение всё ещё решает useReducedMotion (issue #7).
     engine.setOnOverrideChange(setOverride);
+    engine.setOnFlashOverrideChange(setFlashOverride);
     void engine.mount(host, host.clientWidth || 1000, host.clientHeight || 640);
     return () => {
       engine.destroy();
@@ -37,6 +42,10 @@ export function CensorDemoPage() {
   useEffect(() => {
     engineRef.current?.setReduceMotion(reduceMotion);
   }, [reduceMotion]);
+
+  useEffect(() => {
+    engineRef.current?.setReduceFlash(reduceFlash);
+  }, [reduceFlash]);
 
   const thumbDown = (axis: "x" | "y") => (e: React.PointerEvent) => {
     e.preventDefault();

@@ -7,6 +7,7 @@ import { ParticleField } from "./engine/censorParticles";
 import { attachPanZoom, type PanZoomHandle } from "./engine/panZoom";
 import { CENSOR_PRESETS, type CensorSpec } from "./censorMotion";
 import type { ReduceMotionOverride } from "./anim/reduceMotion";
+import type { ReduceFlashOverride } from "./anim/reduceFlash";
 import { COLORS, PIXEL_FONT, TEX_H, TEX_W } from "./engine/constants";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams, type DanceParams } from "./censorConfig";
 import { Button } from "./ui/Button";
@@ -41,6 +42,10 @@ export class CensorDemo extends CanvasApp {
   // поверх OS: React-хост резолвит auto/on через useReducedMotion и зовёт setReduceMotion().
   private override: ReduceMotionOverride = "auto";
   private onOverrideChange: ((o: ReduceMotionOverride) => void) | null = null;
+  // «Без вспышек» (issue #9): тумблер — источник ОВЕРРАЙДА поверх OS, эффективный флаг решает
+  // useReduceFlash и зовёт setReduceFlash(); база ORит его с reduceMotion в flashOff.
+  private flashOverride: ReduceFlashOverride = "auto";
+  private onFlashOverrideChange: ((o: ReduceFlashOverride) => void) | null = null;
   private flicker = DUST_FLICKER; // мерцание частиц (дефолт — выкл)
   private shearPlay = true; // «тряска рядов» играет
 
@@ -207,7 +212,7 @@ export class CensorDemo extends CanvasApp {
   private particleCard(app: Application, label: string, x: number, y: number): number {
     const { card, mask } = this.cardChrome(x, y);
     const pts = buildFingerDustPoints(app, 4, TEX_W / 2, TEX_H / 2); // облако с центром в центре карты (контейнер в левом-верхе)
-    const pf = new ParticleField(pts, dustParams(this.dance, this.flicker));
+    const pf = new ParticleField(pts, dustParams(this.dance, this.flickerOn()));
     pf.view.mask = mask;
     card.addChild(pf.view);
     pf.update(0);
@@ -222,6 +227,7 @@ export class CensorDemo extends CanvasApp {
       params: (): Param[] => [
         { kind: "number", label: "скорость", min: 0, max: 30, format: (v) => (v / 10).toFixed(1) + "x", get: () => Math.round(this.speed * 10), set: (v) => (this.speed = v / 10) },
         { kind: "bool", label: "уменьшить движение", get: () => this.override === "on", set: (v) => this.setOverride(v ? "on" : "auto") },
+        { kind: "bool", label: "без вспышек", get: () => this.flashOverride === "on", set: (v) => this.setFlashOverride(v ? "on" : "auto") },
       ],
     };
   }
@@ -240,8 +246,13 @@ export class CensorDemo extends CanvasApp {
     return { params: (): Param[] => [{ kind: "bool", label: "двигать", get: () => this.shearPlay, set: (v) => (this.shearPlay = v) }] };
   }
 
+  // Эффективное мерцание: тумблер «мерцание» И не задавлено флагом «без вспышек» (issue #9).
+  private flickerOn(): boolean {
+    return this.flicker && !this.flashOff;
+  }
+
   private applyParticles(): void {
-    for (const p of this.particleCards) p.setParams(dustParams(this.dance, this.flicker));
+    for (const p of this.particleCards) p.setParams(dustParams(this.dance, this.flickerOn()));
   }
 
   // Живая настройка «цензуры»: gpu + частицы + пересборка CPU-мозаики при смене block.
@@ -286,6 +297,20 @@ export class CensorDemo extends CanvasApp {
   }
   setOnOverrideChange(cb: ((o: ReduceMotionOverride) => void) | null): void {
     this.onOverrideChange = cb;
+  }
+
+  // ——— «без вспышек» (issue #9): тумблер-источник оверрайда, эффект пробрасывает база ———
+  private setFlashOverride(o: ReduceFlashOverride): void {
+    if (this.flashOverride === o) return;
+    this.flashOverride = o;
+    this.onFlashOverrideChange?.(o);
+  }
+  setOnFlashOverrideChange(cb: ((o: ReduceFlashOverride) => void) | null): void {
+    this.onFlashOverrideChange = cb;
+  }
+  // База сменила производное flashOff → пересобрать частицы (мерцание могло погаснуть/вернуться).
+  protected onFlashChange(): void {
+    this.applyParticles();
   }
 
   // ——— DOM-мост: скроллбары/зум как в песочнице ———

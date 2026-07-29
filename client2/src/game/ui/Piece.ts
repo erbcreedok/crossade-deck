@@ -40,6 +40,8 @@ export class Piece implements TableElement, Draggable, Burnable {
   private block: { t: number; dur: number } | null = null;
   private dying: { t: number; dur: number } | null = null;
   dead = false;
+  /** «Без вспышек» (issue #9): гасит дрожь «сжечь», оставляя затухание+сжатие. Движок ставит на спавне/смене. */
+  flashOff = false;
 
   constructor(opts: PieceOptions) {
     this.id = opts.id;
@@ -122,8 +124,10 @@ export class Piece implements TableElement, Draggable, Burnable {
     // «Сжечь»: без карточной маски — фишка дрожит, тускнеет и сжимается; затем dead → убирают.
     if (this.dying) {
       const p = this.dying.t / this.dying.dur;
-      const jx = Math.sin(this.age * 52) * this.w * 0.05 * (1 - p);
-      this.root.position.set(this.body.px + jx, this.body.py + Math.cos(this.age * 47) * this.h * 0.04 * (1 - p));
+      // «Без вспышек»: дрожь — фото-триггер, гасим (jitter→0); затухание+сжатие остаются.
+      const jx = this.flashOff ? 0 : Math.sin(this.age * 52) * this.w * 0.05 * (1 - p);
+      const jy = this.flashOff ? 0 : Math.cos(this.age * 47) * this.h * 0.04 * (1 - p);
+      this.root.position.set(this.body.px + jx, this.body.py + jy);
       this.root.alpha = 1 - p;
       this.root.scale.set(render * (1 - 0.4 * p));
       if (this.shadowRect) this.shadowRect.hh *= 1 - p;
