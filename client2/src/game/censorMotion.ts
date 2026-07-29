@@ -19,6 +19,11 @@ export interface CensorSpec {
   jitterFreq: number; // рад/с, частота дрожания
   // combo: доля сдвига рядов, добавляемая к свап-танцу (0..1)
   shearMix: number;
+  // row-shear/combo: множитель амплитуды всего сдвига ряда (motion+bias), НЕ трогает тайминг —
+  // 0 = ряды неподвижны, 1 = дефолт (текущее поведение, зафиксировано guard-тестом), >1 = сильнее.
+  // Вместе с speedPxSec (уже полем spec, просто раньше не крутился UI) это и есть issue #6:
+  // «интенсивность/скорость» тряски рядов, настраиваемые, а не константы.
+  intensity: number;
 }
 
 // Небольшой набор пресетов — чтобы витрина показала варианты, а реальная карта взяла один по имени.
@@ -26,10 +31,10 @@ export interface CensorSpec {
 // иррациональная доля блока, поэтому соседний ряд смещён на ~0.382 блока ВСЕГДА и в ноль не сходится.
 const GOLDEN = 0.381966;
 export const CENSOR_PRESETS: Record<string, CensorSpec> = {
-  swap: { kind: "swap-dance", block: 8, speedPxSec: 0, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 90, jitterAmp: 2.2, jitterFreq: 9, shearMix: 0 },
-  shearCoarse: { kind: "row-shear", block: 8, speedPxSec: 42, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1 },
-  shearFine: { kind: "row-shear", block: 5, speedPxSec: 30, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1 },
-  combo: { kind: "combo", block: 7, speedPxSec: 34, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 55, jitterAmp: 1.4, jitterFreq: 8, shearMix: 0.7 },
+  swap: { kind: "swap-dance", block: 8, speedPxSec: 0, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 90, jitterAmp: 2.2, jitterFreq: 9, shearMix: 0, intensity: 1 },
+  shearCoarse: { kind: "row-shear", block: 8, speedPxSec: 42, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1, intensity: 1 },
+  shearFine: { kind: "row-shear", block: 5, speedPxSec: 30, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 0, jitterAmp: 0, jitterFreq: 0, shearMix: 1, intensity: 1 },
+  combo: { kind: "combo", block: 7, speedPxSec: 34, flipEverySec: 0.3, rowBias: GOLDEN, swapsPerSec: 55, jitterAmp: 1.4, jitterFreq: 8, shearMix: 0.7, intensity: 1 },
 };
 
 // Знаковое «проинтегрированное время» треугольной волны: скорость постоянна по модулю, но знак
@@ -51,7 +56,7 @@ export function rowShearOffset(spec: CensorSpec, row: number, t: number): number
   const dir = row % 2 === 0 ? 1 : -1;
   const motion = dir * spec.speedPxSec * shearSignedTime(t, spec.flipEverySec);
   const bias = row * spec.rowBias * spec.block; // постоянная «расстройка» рядов
-  return motion + bias;
+  return (motion + bias) * spec.intensity;
 }
 
 // Детерминированный хеш (без Math.random — чисто и воспроизводимо). Возвращает [0,1).

@@ -51,6 +51,11 @@ export class CensorDemo extends CanvasApp {
   private onFlashOverrideChange: ((o: ReduceFlashOverride) => void) | null = null;
   private flicker = DUST_FLICKER; // мерцание частиц (дефолт — выкл)
   private shearPlay = true; // «тряска рядов» играет
+  // issue #6: интенсивность/скорость тряски рядов — настраиваемые множители поверх пресетов
+  // shearCoarse/shearFine (дефолт 1 = 100% = поведение ДО этой правки, guard в censorMotion.test.ts).
+  private shearIntensity = 1;
+  private shearSpeed = 1;
+  private shearCards: { spec: CensorSpec; baseSpeed: number }[] = [];
   // Профиль качества (issue #8): индикатор FPS+тир и dev-«нагрузка» — искусственно жжём N мс/кадр,
   // чтобы уронить FPS и увидеть авто-понижение до «лёгкий» вживую (стенд /motion не спит — метр всегда сэмплирует).
   private stressMs = 0;
@@ -147,7 +152,7 @@ export class CensorDemo extends CanvasApp {
     // Секция «Цензура — пыль / мозаика».
     y = this.title("Цензура — пыль / мозаика", left, y);
     y = this.controls(this.censorCfg(), left, y) + 12;
-    const dance: CensorSpec = { kind: "swap-dance", block: this.dance.block, speedPxSec: 0, flipEverySec: 0.3, rowBias: 0, swapsPerSec: this.dance.swapsPerSec, jitterAmp: this.dance.jitterAmp, jitterFreq: this.dance.jitterFreq, shearMix: 0 };
+    const dance: CensorSpec = { kind: "swap-dance", block: this.dance.block, speedPxSec: 0, flipEverySec: 0.3, rowBias: 0, swapsPerSec: this.dance.swapsPerSec, jitterAmp: this.dance.jitterAmp, jitterFreq: this.dance.jitterFreq, shearMix: 0, intensity: 1 };
     let x = left;
     const tun = this.fieldCard(app, dance, "мозаика (CPU)", x, y, true);
     this.tunable = { card: tun.card, mask: tun.mask, spec: dance, cardIdx: this.cards.length - 1 };
@@ -162,8 +167,16 @@ export class CensorDemo extends CanvasApp {
     y = this.title("Тряска рядов", left, y);
     y = this.controls(this.shearCfg(), left, y) + 12;
     x = left;
-    x = this.fieldCard(app, CENSOR_PRESETS.shearCoarse!, "крупно", x, y, true, () => this.shearPlay).right;
-    x = this.fieldCard(app, CENSOR_PRESETS.shearFine!, "мельче", x, y, true, () => this.shearPlay).right;
+    // Клонируем пресеты — spec живёт мутируемым внутри CensorField, править общий CENSOR_PRESETS
+    // объект напрямую нельзя (расшатает другие места, где он переиспользуется как есть).
+    const shearCoarse: CensorSpec = { ...CENSOR_PRESETS.shearCoarse! };
+    const shearFine: CensorSpec = { ...CENSOR_PRESETS.shearFine! };
+    this.shearCards = [
+      { spec: shearCoarse, baseSpeed: shearCoarse.speedPxSec },
+      { spec: shearFine, baseSpeed: shearFine.speedPxSec },
+    ];
+    x = this.fieldCard(app, shearCoarse, "крупно", x, y, true, () => this.shearPlay).right;
+    x = this.fieldCard(app, shearFine, "мельче", x, y, true, () => this.shearPlay).right;
     y += TEX_H + 40;
 
     this.contentW = Math.max(censorRight, x) + 6;
@@ -275,7 +288,23 @@ export class CensorDemo extends CanvasApp {
     };
   }
   private shearCfg(): Configurable {
-    return { params: (): Param[] => [{ kind: "bool", label: "двигать", get: () => this.shearPlay, set: (v) => (this.shearPlay = v) }] };
+    return {
+      params: (): Param[] => [
+        { kind: "bool", label: "двигать", get: () => this.shearPlay, set: (v) => (this.shearPlay = v) },
+        { kind: "number", label: "интенсивность", min: 0, max: 200, format: (v) => `${v}%`, get: () => Math.round(this.shearIntensity * 100), set: (v) => this.updateShear({ intensity: v / 100 }) },
+        { kind: "number", label: "скорость", min: 0, max: 200, format: (v) => `${v}%`, get: () => Math.round(this.shearSpeed * 100), set: (v) => this.updateShear({ speed: v / 100 }) },
+      ],
+    };
+  }
+
+  // issue #6: живая настройка тряски рядов — множители, а не пересборка карточек.
+  private updateShear(p: Partial<{ intensity: number; speed: number }>): void {
+    if (p.intensity !== undefined) this.shearIntensity = p.intensity;
+    if (p.speed !== undefined) this.shearSpeed = p.speed;
+    for (const c of this.shearCards) {
+      c.spec.intensity = this.shearIntensity;
+      c.spec.speedPxSec = c.baseSpeed * this.shearSpeed;
+    }
   }
 
   // Эффективное мерцание: тумблер «мерцание» И не задавлено флагом «без вспышек» (issue #9).
