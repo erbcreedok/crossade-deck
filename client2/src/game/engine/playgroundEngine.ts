@@ -260,7 +260,7 @@ export class PlaygroundEngine extends CanvasApp {
   // Отложенный драг набора (#65): на касании выделенной карты запоминаем состав/смещения/лид, но
   // GroupDrag НЕ создаём — иначе тап-снятие успевает стянуть набор к пальцу и вернуть. Промоушен в
   // GroupDrag — только когда палец реально вышел за порог тапа (onCardMove).
-  private selPending: { cards: Elem[]; offsets: { dx: number; dy: number }[]; leadId: string } | null = null;
+  private selPending: { cards: Elem[]; offsets: { dx: number; dy: number; rot?: number }[]; leadId: string } | null = null;
   // Сборка набора — рычаги как ДАННЫЕ (issue #56, SELECTION-DESIGN §4–5). Одна конфигурация вместо
   // прежних «сорт набора»/«сборка» тумблеров; песочница крутит её рычаги, дефолт — пресет grab-to-hand.
   private selAssembly: AssemblyConfig = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
@@ -581,7 +581,7 @@ export class PlaygroundEngine extends CanvasApp {
     stackReorderAt: { x: number; y: number } | null;
     selMultiAt: { x: number; y: number }[];
     selPresetAt: { x: number; y: number }[]; // тумблер «пресет:»
-    selFormAt: { x: number; y: number }[]; // тумблер «форма:» (стопка/раскрыт/ряд)
+    selFormAt: { x: number; y: number }[]; // тумблер «форма:» (стопка/раскрыт/ряд/веер)
     selOrderAt: { x: number; y: number }[]; // тумблер «порядок:» (расположение/выбор)
     selSortAt: { x: number; y: number }[]; // тумблер «сорт:» (—/номинал/масть — override)
     selEligibleAt: { x: number; y: number }[]; // тумблер «выбор:» (карты/буби/любые)
@@ -1604,15 +1604,15 @@ export class PlaygroundEngine extends CanvasApp {
       this.wake();
     }).buttons;
 
-    const forms: Form[] = ["stack-tight", "stack-open", "row"];
+    const forms: Form[] = ["stack-tight", "stack-open", "row", "fan"];
     const orders: NaturalOrder[] = ["proximity", "selection"];
     const overrides: SortOverride[] = ["none", "rank", "suit"];
     const presets = ["grab-to-hand", "build-on-first", "tray-zone", "sorted-row"];
-    const formIdx = (f: Form) => Math.max(0, forms.indexOf(f)); // fan (v2) → 0: в пресетах песочницы не участвует
+    const formIdx = (f: Form) => Math.max(0, forms.indexOf(f));
     const orderIdx = (o: NaturalOrder) => (o === "proximity" ? 0 : 1); // append ≈ selection (оба «по нажатию»)
     const overrideIdx = (s: SortOverride) => Math.max(0, overrides.indexOf(s)); // center (v2) → 0
 
-    const form = this.segToggle(left, t1 + 26, "форма:", ["стопка", "раскрыт", "ряд"], formIdx(this.selAssembly.form), (i) => (this.selAssembly.form = forms[i]!));
+    const form = this.segToggle(left, t1 + 26, "форма:", ["стопка", "раскрыт", "ряд", "веер"], formIdx(this.selAssembly.form), (i) => (this.selAssembly.form = forms[i]!));
     this.selFormButtons = form.buttons;
     const order = this.segToggle(left, t1 + 52, "порядок:", ["расположение", "выбор"], orderIdx(this.selAssembly.order), (i) => (this.selAssembly.order = orders[i]!));
     this.selOrderButtons = order.buttons;
@@ -1764,7 +1764,7 @@ export class PlaygroundEngine extends CanvasApp {
   // Собрать текущий набор по конфигу selAssembly (issue #56): упорядочить (order+override) и разложить
   // по форме. press = позиция в sel.ids (порядок нажатия), x/y — позиция фигуры на столе (для proximity),
   // face — лицо (для override rank/suit). orderedIds и offsets выровнены индекс-в-индекс (см. assemble).
-  private assembleSelection(): { orderedIds: string[]; offsets: { id: string; dx: number; dy: number }[] } {
+  private assembleSelection(): { orderedIds: string[]; offsets: { id: string; dx: number; dy: number; rot?: number }[] } {
     const items: CollectItem[] = this.sel.ids.map((id, press) => {
       const el = this.byId.get(id);
       return { id, press, x: el?.body.px ?? 0, y: el?.body.py ?? 0, face: this.faceOf.get(id) ?? "" };
@@ -2289,12 +2289,12 @@ export class PlaygroundEngine extends CanvasApp {
         if (this.selMode && this.selZone && hasSel(this.sel, card.id)) {
           const { orderedIds, offsets } = this.assembleSelection();
           const cards: Elem[] = [];
-          const off: { dx: number; dy: number }[] = [];
+          const off: { dx: number; dy: number; rot?: number }[] = [];
           orderedIds.forEach((id, i) => {
             const el = this.byId.get(id);
             if (el) {
               cards.push(el);
-              off.push({ dx: offsets[i]!.dx, dy: offsets[i]!.dy }); // индекс-в-индекс: пропускаем оба, если элемента нет
+              off.push({ dx: offsets[i]!.dx, dy: offsets[i]!.dy, rot: offsets[i]!.rot }); // индекс-в-индекс: пропускаем оба, если элемента нет
             }
           });
           this.selGrabCp = { x: cp.x, y: cp.y };

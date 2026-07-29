@@ -138,10 +138,13 @@ AcceptRule), а не заводит свою геометрию/политику
   сессии, tap-mode входит на тап-релизе, hold-mode — по таймеру удержания (long-press вернулся как
   ЯВНЫЙ режим). Сессия активна ⇔ набор непуст (`setSelection` синкает `selMode`; пустой = выход).
   `toggleSelectFigure` авто-`begin`-ит scope при первом выборе (иначе `selection.toggle` — no-op).
-- **v2 — хвост**: форма `fan` (сейчас раскладывается как `row`), `sortOverride` `center`, рычаги
-  `gatherOn`/`anchor` отдельными тумблерами (пока живут в конфиге пресетов), применение цепочки
-  `dropRules` в КАЖДОЙ зоне (ядро `resolveDropChain`/`capabilityZoneRule` готово). Прим.:
-  `A.hintEligible` вынесен в v1 вместе с #60.
+- **Форма `fan`** (#69, 2026-07-30): `board/fanAssembly.ts` — чистая дуга с наклоном (центр на якоре
+  `dx=dy=rot=0`, края расходятся и провисают, наклон наружу; размах капается `FAN_MAX_SPREAD`). `Offset`
+  получил опциональный `rot`; `GroupDrag` пробрасывает его в `setTarget` (был жёсткий `rot:0`). Тумблер
+  «форма:» на `/playground` получил 4-й вариант «веер».
+- **v2 — хвост**: `sortOverride` `center`, рычаги `gatherOn`/`anchor` отдельными тумблерами (пока живут
+  в конфиге пресетов), применение цепочки `dropRules` в КАЖДОЙ зоне (ядро
+  `resolveDropChain`/`capabilityZoneRule` готово). Прим.: `A.hintEligible` вынесен в v1 вместе с #60.
 - Прежние `collectOrder`/`rowAssembly` смигрированы в `assembly.ts`: press→`order=selection`,
   rank/suit→`sortOverride`, ряд→`form=row`; отдельной привилегии у ранга нет.
 

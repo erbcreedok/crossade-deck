@@ -63,8 +63,11 @@ describe("formOffsets — геометрия", () => {
     expect(off[1]!.dy).toBeGreaterThan(0);
     expect(off[1]!.dy).toBeGreaterThan(formOffsets(["a", "b"], "stack-tight", 100)[1]!.dy);
   });
-  it("fan пока раскладывается как row (v2)", () => {
-    expect(formOffsets(["a", "b"], "fan", 100)).toEqual(formOffsets(["a", "b"], "row", 100));
+  it("fan делегирует fanAssembly: карты наклонены (rot ≠ 0 на краях)", () => {
+    const off = formOffsets(["a", "b", "c"], "fan", 100);
+    expect(off[0]!.rot).toBeLessThan(0);
+    expect(off[2]!.rot).toBeGreaterThan(0);
+    expect(off[1]!.rot).toBeCloseTo(0, 6);
   });
   it("offsets индекс-в-индекс с порядком", () => {
     const off = formOffsets(["a", "b", "c"], "row", 100);

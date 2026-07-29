@@ -81,7 +81,7 @@ export class GroupDrag implements DragPayload {
 
   constructor(
     private readonly els: readonly TableElement[],
-    private readonly offsets: readonly { dx: number; dy: number }[],
+    private readonly offsets: readonly { dx: number; dy: number; rot?: number }[],
     private readonly ctx: DragContext,
   ) {
     this.lead = els[els.length - 1]!; // верхняя — представитель
@@ -100,7 +100,7 @@ export class GroupDrag implements DragPayload {
   move(cp: Pt): void {
     this.els.forEach((el, i) => {
       const o = this.offsets[i]!;
-      el.body.setTarget({ x: cp.x + o.dx, y: cp.y + o.dy, rot: 0 });
+      el.body.setTarget({ x: cp.x + o.dx, y: cp.y + o.dy, rot: o.rot ?? 0 });
     });
   }
   release(): void {

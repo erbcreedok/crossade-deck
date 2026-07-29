@@ -1,5 +1,6 @@
 import { comparatorFor, type CollectItem } from "./collectOrder";
 import { rowAssembly } from "./rowAssembly";
+import { fanAssembly } from "./fanAssembly";
 
 // Сборка выделенного НАБОРА — рычаги как ДАННЫЕ (SELECTION-DESIGN §4–5, issue #56). Ось порядка
 // РАЗДЕЛЕНА на два слоя: естественный `order` (proximity/selection/append) и принудительный
@@ -31,6 +32,7 @@ export interface Offset {
   id: string;
   dx: number;
   dy: number;
+  rot?: number; // наклон карты (рад); есть только у веера (issue #69), у ряда/стопки отсутствует = 0
 }
 
 // ——— порядок (два слоя) ———
@@ -66,11 +68,12 @@ function stackOffsets(orderedIds: readonly string[], cardW: number, tight: boole
   return orderedIds.map((id, i) => ({ id, dx: i * stepX, dy: tight ? -i * stepY : i * stepY }));
 }
 
-/** Оффсеты набора по форме. row делегирует rowAssembly; fan — v2 (пока как row). */
+/** Оффсеты набора по форме. row → rowAssembly, fan → fanAssembly (дуга + наклон, issue #69). */
 export function formOffsets(orderedIds: readonly string[], form: Form, cardW: number): Offset[] {
   switch (form) {
+    case "fan":
+      return fanAssembly(orderedIds, cardW);
     case "row":
-    case "fan": // v2: дуга через fan.ts; до тех пор — ряд (SELECTION-DESIGN §8)
       return rowAssembly(orderedIds, cardW, cardW * 0.28);
     case "stack-open":
       return stackOffsets(orderedIds, cardW, false);
