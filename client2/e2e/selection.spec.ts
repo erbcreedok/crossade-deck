@@ -21,14 +21,18 @@ test.describe("песочница — выделение (issue #48)", () => {
         order: "proximity" | "selection" | "append";
         sortOverride: "none" | "rank" | "suit" | "center";
       };
+      visual: { eligible: "cards" | "diamonds" | "any"; hintEligible: boolean; mark: "lift" | "outline" | "both" };
     };
     perf: { hoverRerenders: number };
-    selFigures: { id: string; x: number; y: number }[];
+    selFigures: { id: string; key: string; x: number; y: number; selected: boolean; outlined: boolean; hinted: boolean }[];
     selMultiAt: { x: number; y: number }[];
     selPresetAt: { x: number; y: number }[];
     selFormAt: { x: number; y: number }[];
     selOrderAt: { x: number; y: number }[];
     selSortAt: { x: number; y: number }[];
+    selEligibleAt: { x: number; y: number }[];
+    selHintAt: { x: number; y: number }[];
+    selMarkAt: { x: number; y: number }[];
     boardFigures: { id: string; key: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
     cardW: number;
@@ -364,6 +368,92 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(g.selectionState.assembly.form).toBe("row");
     expect(g.selectionState.assembly.order).toBe("proximity");
     expect(g.selectionState.assembly.sortOverride).toBe("rank");
+  });
+
+  // ——— отбор-визуал: eligible / mark / hintEligible (issue #60) ———
+  // Индексы selFigures = порядок слотов: 0=10♠, 1=6♣, 2=8♥, 3=A♦(♦, единственная буби), 4=7♣, 5=Q♠.
+  const stateOf = (page: Page, id: string): Promise<string> =>
+    page.evaluate((cid) => (window as unknown as { __fd: { byId: Map<string, { state: string }> } }).__fd.byId.get(cid)!.state, id);
+
+  test("выбор: буби — в набор берётся только A♦, не-буби не выделяется", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selEligibleAt[1]!); // выбор: буби (eligible=diamonds)
+    await page.waitForTimeout(120);
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.visual.eligible).toBe("diamonds");
+
+    await clickAt(page, h.selFigures[0]!); // 10♠ — не буби, взять НЕ должно
+    let g = await hooks(page);
+    expect(g.selectionState.selected).toEqual([]);
+
+    const diamond = h.selFigures[3]!; // A♦
+    await clickAt(page, diamond);
+    g = await hooks(page);
+    expect(g.selectionState.selected).toEqual([diamond.id]); // только буби вошла
+  });
+
+  test("метка: контур — выделенная в контуре и НЕ поднята (idle); подъём — поднята без контура; оба — и то, и то", async ({ page }) => {
+    // контур: только рамка, карта на столе (idle)
+    let h = await hooks(page);
+    await clickAt(page, h.selMarkAt[1]!); // метка: контур
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.visual.mark).toBe("outline");
+    await clickAt(page, h.selFigures[0]!);
+    let g = await hooks(page);
+    let f = g.selFigures[0]!;
+    expect(f.outlined).toBe(true);
+    expect(await stateOf(page, f.id)).toBe("idle"); // НЕ поднята
+
+    // подъём: floating без контура
+    await page.goto("/free-desk");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(600);
+    h = await hooks(page);
+    await clickAt(page, h.selMarkAt[0]!); // метка: подъём
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.visual.mark).toBe("lift");
+    await clickAt(page, h.selFigures[0]!);
+    g = await hooks(page);
+    f = g.selFigures[0]!;
+    expect(f.outlined).toBe(false);
+    expect(await stateOf(page, f.id)).toBe("floating"); // поднята
+
+    // дефолт «оба»: и контур, и подъём
+    await page.goto("/free-desk");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(600);
+    h = await hooks(page);
+    expect(h.selectionState.visual.mark).toBe("both"); // дефолт
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    await clickAt(page, h.selFigures[0]!);
+    g = await hooks(page);
+    f = g.selFigures[0]!;
+    expect(f.outlined).toBe(true);
+    expect(await stateOf(page, f.id)).toBe("floating");
+  });
+
+  test("подсказка: вкл — выбираемые-невыбранные подсвечены (hinted); выкл — ни одной подсказки", async ({ page }) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selHintAt[1]!); // подсказка: вкл
+    await clickAt(page, h.selectionState.selectToggleAt!);
+    h = await hooks(page);
+    expect(h.selectionState.visual.hintEligible).toBe(true);
+
+    await clickAt(page, h.selFigures[0]!); // выбрали одну → у остальных выбираемых должна зажечься подсказка
+    let g = await hooks(page);
+    const picked = g.selFigures.find((f) => f.selected)!;
+    const others = g.selFigures.filter((f) => !f.selected);
+    expect(picked.hinted).toBe(false); // сама выбранная — не подсказка (она выделена)
+    expect(others.every((f) => f.hinted)).toBe(true); // все выбираемые-невыбранные подсвечены (eligible=cards по дефолту)
+
+    await clickAt(page, g.selHintAt[0]!); // подсказка: выкл
+    g = await hooks(page);
+    expect(g.selectionState.visual.hintEligible).toBe(false);
+    expect(g.selFigures.some((f) => f.hinted)).toBe(false); // подсказок не осталось
   });
 
   // Мультиселект выкл — вход в режим блокируется конфигом контейнера.

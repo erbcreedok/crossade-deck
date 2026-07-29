@@ -17,6 +17,9 @@ import { BOARD_PRESETS, type BoardPreset } from "../board/boardPresets";
 import { begin, toggle, clear as clearSel, has as hasSel, EMPTY, type Selection } from "../board/selection";
 import type { CollectItem } from "../board/collectOrder";
 import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
+import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
+import { makeSelectOutline } from "./selectOutline";
+import { asDraggable } from "./capabilities";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
 import { SceneLayers, levelOf } from "./sceneLayers";
@@ -252,6 +255,15 @@ export class FreeDeskEngine extends CanvasApp {
   private selFormButtons: Button[] = []; // тумблер «форма:» — для e2e
   private selOrderButtons: Button[] = []; // тумблер «порядок:» — для e2e
   private selSortButtons: Button[] = []; // тумблер «сорт:» (override) — для e2e
+  // Отбор-визуал набора как ДАННЫЕ (issue #60, SELECTION-DESIGN §4.A): что можно выбрать (eligible),
+  // подсветка выбираемых (hintEligible), как метить выбранное (mark). Дефолт как в примере: только
+  // карты, без подсказки, метка «оба» (подъём + контур).
+  private selVisual: SelectVisualConfig = { eligible: ELIGIBLE.cards!, hintEligible: false, mark: "both" };
+  private selEligibleName: EligibleName = "cards"; // имя eligible-предиката рядом с ним самим — для e2e-хука
+  private selOutlines = new Map<string, { g: Graphics; kind: "select" | "hint" }>(); // контур-атомы по id фигуры
+  private selEligibleButtons: Button[] = []; // тумблер «выбор:» (карты/буби/любые) — для e2e
+  private selHintButtons: Button[] = []; // тумблер «подсказка:» (выкл/вкл) — для e2e
+  private selMarkButtons: Button[] = []; // тумблер «метка:» (подъём/контур/оба) — для e2e
   private hoveredBtn: Button | null = null; // наведённая кнопка (ПК): чтобы гасить/зажигать только её, а не перебирать все (issue #48 баг №4)
   private hoverRerenders = 0; // счётчик перерисовок кнопок от ховера — для e2e-замера отсутствия лагов
   // Long-press по фигуре демо-зоны (issue #48 баг №3): удержание ~500мс без сдвига входит в режим
@@ -531,10 +543,12 @@ export class FreeDeskEngine extends CanvasApp {
       multiSelectEnabled: boolean;
       // Конфиг сборки набора как ДАННЫЕ (issue #56): рычаги form/order/sortOverride + последний пресет.
       assembly: { preset?: string; form: Form; order: NaturalOrder; sortOverride: SortOverride };
+      // Отбор-визуал как ДАННЫЕ (issue #60): eligible по ИМЕНИ, подсветка выбираемых, метка выбранного.
+      visual: { eligible: EligibleName; hintEligible: boolean; mark: Mark };
     };
     perf: { hoverRerenders: number }; // сколько кнопок перерисовалось от ховера — для замера отсутствия лагов (баг №4)
     selButtons: { label: string; x: number; y: number }[];
-    selFigures: { id: string; x: number; y: number }[];
+    selFigures: { id: string; key: string; x: number; y: number; selected: boolean; outlined: boolean; hinted: boolean }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[]; onOccupied: OnOccupied; onOccupiedAt: { x: number; y: number }[] }[];
     field: { stack: number; grid: number; colsMin: number; colsMax: number | undefined; rowsMin: number; rowsMax: number | undefined; reorder: boolean; reorderToggleAt: { x: number; y: number } | null; stackAt: { x: number; y: number }; gridRect: { x: number; y: number; w: number; h: number }; gridCards: { id: string; x: number; y: number }[] } | null;
     buttonShowcase: { cap: string; x: number; y: number; disabled: boolean }[];
@@ -546,6 +560,9 @@ export class FreeDeskEngine extends CanvasApp {
     selFormAt: { x: number; y: number }[]; // тумблер «форма:» (стопка/раскрыт/ряд)
     selOrderAt: { x: number; y: number }[]; // тумблер «порядок:» (расположение/выбор)
     selSortAt: { x: number; y: number }[]; // тумблер «сорт:» (—/номинал/масть — override)
+    selEligibleAt: { x: number; y: number }[]; // тумблер «выбор:» (карты/буби/любые)
+    selHintAt: { x: number; y: number }[]; // тумблер «подсказка:» (выкл/вкл)
+    selMarkAt: { x: number; y: number }[]; // тумблер «метка:» (подъём/контур/оба)
     controls: {
       buttons: { cap: string; x: number; y: number }[];
       flipFaceUp: boolean | null;
@@ -605,15 +622,22 @@ export class FreeDeskEngine extends CanvasApp {
         selectToggleAt: this.selBtnScreen("выделение", toScreen, true),
         multiSelectEnabled: this.multiSelectOn,
         assembly: { preset: this.selPresetName, form: this.selAssembly.form, order: this.selAssembly.order, sortOverride: this.selAssembly.sortOverride },
+        visual: { eligible: this.selEligibleName, hintEligible: this.selVisual.hintEligible, mark: this.selVisual.mark },
       },
       perf: { hoverRerenders: this.hoverRerenders },
       selButtons: this.selButtons.map(({ label, btn }) => ({ label, ...toScreen(btn.x, btn.y) })),
       selFigures: this.selZone
-        ? Object.values(this.selZone.board.slots)
-            .flatMap((c) => c.members)
-            .map((id) => ({ id, el: this.byId.get(id) }))
-            .filter((o): o is { id: string; el: Elem } => !!o.el)
-            .map(({ id, el }) => ({ id, ...toScreen(el.body.px, el.body.py) }))
+        ? Object.entries(this.selZone.board.slots)
+            .flatMap(([key, c]) => c.members.map((id) => ({ id, key, el: this.byId.get(id) })))
+            .filter((o): o is { id: string; key: string; el: Elem } => !!o.el)
+            .map(({ id, key, el }) => ({
+              id,
+              key,
+              ...toScreen(el.body.px, el.body.py),
+              selected: hasSel(this.sel, id),
+              outlined: this.selOutlines.get(id)?.kind === "select",
+              hinted: this.selOutlines.get(id)?.kind === "hint",
+            }))
         : [],
       boards: this.boardZones.map((z, zi) => ({
         title: this.boardTitles[zi] ?? "",
@@ -632,6 +656,9 @@ export class FreeDeskEngine extends CanvasApp {
       selFormAt: this.selFormButtons.map((b) => toScreen(b.x, b.y)),
       selOrderAt: this.selOrderButtons.map((b) => toScreen(b.x, b.y)),
       selSortAt: this.selSortButtons.map((b) => toScreen(b.x, b.y)),
+      selEligibleAt: this.selEligibleButtons.map((b) => toScreen(b.x, b.y)),
+      selHintAt: this.selHintButtons.map((b) => toScreen(b.x, b.y)),
+      selMarkAt: this.selMarkButtons.map((b) => toScreen(b.x, b.y)),
       stackSqueezeAt: this.stackSqueezeButtons.map((b) => toScreen(b.x, b.y)),
       stackReorderAt: this.stackReorderToggle ? toScreen(this.stackReorderToggle.hitCenter().x, this.stackReorderToggle.hitCenter().y) : null,
       controls: {
@@ -1351,7 +1378,7 @@ export class FreeDeskEngine extends CanvasApp {
   private buildBoardZones(left: number, top: number): number {
     return this.sectionFrame(left, top, "Игровые зоны (борды)", (contentLeft, contentTop) => {
       const PRESET_EXTRA_H = 60; // тумблер «на занятый слот» (Segmented) + отступ
-      const SELECT_EXTRA_H = 173; // кнопки выделение/снять + 5 тумблеров (мультиселект/пресет/форма/порядок/сорт)
+      const SELECT_EXTRA_H = 251; // кнопки выделение/снять + 5 тумблеров сборки + 3 тумблера отбор-визуала (выбор/подсказка/метка)
       const CHROME_EXTRA_H = 50; // хинт-подсказка + отступ (шахматы/смешанный)
 
       interface BoardItem {
@@ -1513,6 +1540,10 @@ export class FreeDeskEngine extends CanvasApp {
     this.multiSelectOn = true;
     this.selAssembly = { ...ASSEMBLY_PRESETS[DEFAULT_PRESET]! };
     this.selPresetName = DEFAULT_PRESET;
+    // Отбор-визуал (issue #60) — дефолт как в примере: только карты, без подсказки, метка «оба».
+    this.selVisual = { eligible: ELIGIBLE.cards!, hintEligible: false, mark: "both" };
+    this.selEligibleName = "cards";
+    this.selOutlines.clear(); // контуры прежнего билда уничтожены вместе с root карт при пересборке контента
     const t1 = bottom + 34;
     this.selMultiButtons = this.segToggle(left, t1, "мультиселект:", ["вкл", "выкл"], 0, (i) => {
       this.multiSelectOn = i === 0;
@@ -1550,7 +1581,30 @@ export class FreeDeskEngine extends CanvasApp {
       sort.setMark(overrideIdx(this.selAssembly.sortOverride));
     });
     this.selPresetButtons = presetToggle.buttons;
-    return t1 + 130;
+
+    // Отбор-визуал (issue #60, SELECTION-DESIGN §4.A) — три ортогональных рычага-ДАННЫХ рядом со сборкой.
+    const eligibleNames: EligibleName[] = ["cards", "diamonds", "any"];
+    const eligible = this.segToggle(left, t1 + 130, "выбор:", ["карты", "буби", "любые"], Math.max(0, eligibleNames.indexOf(this.selEligibleName)), (i) => {
+      this.selEligibleName = eligibleNames[i]!;
+      this.selVisual.eligible = ELIGIBLE[this.selEligibleName]!;
+      this.refreshSel(); // пересчитать подсказку/убрать контуры того, что стало неподходящим (набор сам не трогаем)
+      this.wake();
+    });
+    this.selEligibleButtons = eligible.buttons;
+    const hint = this.segToggle(left, t1 + 156, "подсказка:", ["выкл", "вкл"], this.selVisual.hintEligible ? 1 : 0, (i) => {
+      this.selVisual.hintEligible = i === 1;
+      this.refreshSel();
+      this.wake();
+    });
+    this.selHintButtons = hint.buttons;
+    const marks: Mark[] = ["lift", "outline", "both"];
+    const mark = this.segToggle(left, t1 + 182, "метка:", ["подъём", "контур", "оба"], Math.max(0, marks.indexOf(this.selVisual.mark)), (i) => {
+      this.selVisual.mark = marks[i]!;
+      this.refreshSel();
+      this.wake();
+    });
+    this.selMarkButtons = mark.buttons;
+    return t1 + 208;
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
@@ -1613,9 +1667,23 @@ export class FreeDeskEngine extends CanvasApp {
   // Тап по фигуре демо-зоны в режиме → тоггл. owner="sel" всегда совпадает со scope (изоляция:
   // сюда доходят ТОЛЬКО фигуры selZone, чужие зоны остаются драгабельными и не выделяются).
   private toggleSelectFigure(id: string): void {
+    // Отбор ограничен eligible (issue #60): невыбранную-НЕподходящую в набор не берём — «стоп»-кивок,
+    // как у недвигаемой карты. Снятие уже выбранной не ограничиваем (иначе набор было бы не разобрать).
+    if (!hasSel(this.sel, id) && !this.canSelectId(id)) {
+      const el = this.byId.get(id);
+      if (el) asDraggable(el)?.blockNudge();
+      this.wake();
+      return;
+    }
     this.sel = toggle(this.sel, id, "sel");
     this.refreshSel();
     this.wake();
+  }
+
+  // Подходит ли фигура под текущий eligible-предикат (по её тегам). Чужая/отсутствующая → нет.
+  private canSelectId(id: string): boolean {
+    const el = this.byId.get(id);
+    return !!el && canSelect(el.tags, this.selVisual.eligible);
   }
 
   // Собрать текущий набор по конфигу selAssembly (issue #56): упорядочить (order+override) и разложить
@@ -1634,14 +1702,41 @@ export class FreeDeskEngine extends CanvasApp {
   // уровня (placeCard) — иначе тень floating уедет выше спрайта, застрявшего в idle (issue #55).
   private refreshSel(): void {
     if (!this.selZone) return;
+    const lift = shouldLift(this.selVisual.mark); // поднимать ли выбранное во floating
+    const outline = shouldOutline(this.selVisual.mark); // рисовать ли контур у выбранного
+    const hintOn = this.selVisual.hintEligible && this.sel.ids.length > 0; // подсветка выбираемых — только когда в наборе ≥1
     for (const key of Object.keys(this.selZone.board.slots)) {
       for (const id of this.selZone.board.slots[key]!.members) {
         const el = this.byId.get(id);
         if (!el) continue;
-        el.setState(hasSel(this.sel, id) ? "floating" : "idle");
+        const selected = hasSel(this.sel, id);
+        // Подъём — только если метка его разрешает (mark=outline держит карту на столе).
+        el.setState(selected && lift ? "floating" : "idle");
         this.placeCard(el); // держим спрайт и его тень в одном уровне
+        // Контур: у выбранного при mark∈{outline,both}; иначе — подсказка выбираемым-невыбранным; иначе снять.
+        const kind = selected && outline ? "select" : hintOn && !selected && this.canSelectId(id) ? "hint" : "none";
+        this.setSelOutline(el, kind);
       }
     }
+  }
+
+  // Держать контур-атом (selectOutline.ts) в актуальном виде: создать на выбор/подсказку, снять иначе,
+  // пересоздать при смене вида (select↔hint отличаются толщиной/прозрачностью). Атом — child root карты,
+  // поэтому едет и масштабируется с ней сам, пер-кадровая синхронизация не нужна.
+  private setSelOutline(el: Elem, kind: "select" | "hint" | "none"): void {
+    const cur = this.selOutlines.get(el.id);
+    if (kind === "none") {
+      if (cur) {
+        cur.g.destroy();
+        this.selOutlines.delete(el.id);
+      }
+      return;
+    }
+    if (cur && cur.kind === kind) return; // тот же вид — ничего не пересобираем
+    if (cur) cur.g.destroy();
+    const g = makeSelectOutline(kind === "hint" ? { alpha: 0.42, width: 4 } : { width: 6 });
+    el.root.addChild(g);
+    this.selOutlines.set(el.id, { g, kind });
   }
 
   // Конфиги custom-бордов (шахматы/смешанный) — ВЫНЕСЕНЫ из build*, чтобы buildBoardZones мог их
