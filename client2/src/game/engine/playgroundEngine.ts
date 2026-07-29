@@ -19,6 +19,8 @@ import type { CollectItem } from "../board/collectOrder";
 import { assemble, ASSEMBLY_PRESETS, DEFAULT_PRESET, type AssemblyConfig, type Form, type NaturalOrder, type SortOverride } from "../board/assembly";
 import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
 import { DEFAULT_DROP_POLICY, returnsHome, clearsSet, type OnDropOutside } from "../board/dropPolicy";
+import { pileIdentity } from "../board/pileIdentity";
+import { namedSuits } from "../board/suitNames";
 import { makeSelectOutline } from "./selectOutline";
 import { asDraggable } from "./capabilities";
 import { DropZone } from "../ui/DropZone";
@@ -106,7 +108,7 @@ interface PieceRowItem {
 }
 
 // Элемент борда КАК ДАННЫЕ: карта (лицо) ЛИБО фигура (PieceSpec: chip/chess). Основа BoardFactory.
-type ElementDef = { kind: "card"; face: string; size?: number } | PieceSpec;
+type ElementDef = { kind: "card"; face: string; size?: number; custom?: string } | PieceSpec;
 
 // Декларативный конфиг GRID-борда: вся геометрия/содержимое — данные. Фабрика mountBoard собирает
 // из него хром (registerBoardZone) и фигуры (spawnElement). «Новый борд = конфиг, не метод».
@@ -268,6 +270,11 @@ export class PlaygroundEngine extends CanvasApp {
   // Дроп набора МИМО зон как ПОЛИТИКА-ДАННЫЕ (issue #61, dropPolicy.ts): домой / остаться / распустить.
   private selDropOutside: OnDropOutside = DEFAULT_DROP_POLICY.onDropOutside;
   private selDropOutsideButtons: Button[] = []; // тумблер «мимо зон:» — для e2e
+  // Лог-дропбокс «называю масть» (issue #62) — ТЕСТ-обвязка #61: чисто лог мастей набора, без
+  // политики хранения/возврата. selNameZone — сам бокс (для hit-теста дропа набора), lastNamedSuits —
+  // последний выписанный список (дедуп + «???») для e2e.
+  private selNameZone: DropZone | null = null;
+  private lastNamedSuits: string[] = [];
   private hoveredBtn: Button | null = null; // наведённая кнопка (ПК): чтобы гасить/зажигать только её, а не перебирать все (issue #48 баг №4)
   private hoverRerenders = 0; // счётчик перерисовок кнопок от ховера — для e2e-замера отсутствия лагов
   // Long-press по фигуре демо-зоны (issue #48 баг №3): удержание ~500мс без сдвига входит в режим
@@ -580,6 +587,7 @@ export class PlaygroundEngine extends CanvasApp {
     };
     cardW: number;
     draggingId: string | null;
+    lastNamedSuits: string[]; // последний лог бокса «называю масть» (#62) — дедуп мастей + «???»
     storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean }[];
   } {
     const toScreen = (cx: number, cy: number) => ({ x: this.viewport.x + cx * this.viewport.zoom, y: this.viewport.y + cy * this.viewport.zoom });
@@ -690,6 +698,7 @@ export class PlaygroundEngine extends CanvasApp {
       },
       cardW: this.cardW * this.viewport.zoom,
       draggingId: this.drag?.lead.id ?? null,
+      lastNamedSuits: [...this.lastNamedSuits],
       // «Карты — варианты» всегда спавнятся ПЕРВЫМИ (buildCardsRow — первая секция buildContent),
       // так что this.cards[i] для i < STORIES.length — тот же элемент, что и STORIES[i] (как уже
       // делает firstCard = this.cards[0] выше).
@@ -1361,21 +1370,44 @@ export class PlaygroundEngine extends CanvasApp {
   // Ширина/высота борда ДО рендера — той же геометрией, что использует mountBoard (left=top=0,
   // ничего не рисуя), плюс оценка места под хвостовые контролы (тумблер/хинт/кнопки под бордом) —
   // не пиксель-в-пиксель, но безопасно с запасом (упаковка wrapFlow не должна давать нахлёст).
-  private measureBoardConfig(cfg: BoardConfig, extraH: number): { w: number; h: number } {
+  private measureBoardConfig(cfg: BoardConfig, extraH: number, extraW = 0): { w: number; h: number } {
     const { bounds } = cfg.layout === "ring" ? this.ringBounds(0, 22, cfg.cell, cfg.ringCount ?? 8) : this.gridBounds(0, 22, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
-    return { w: bounds.w, h: bounds.y + bounds.h + 8 + extraH };
+    return { w: bounds.w + extraW, h: bounds.y + bounds.h + 8 + extraH };
   }
 
-  private selectDemoPreset(): BoardPreset {
-    // 6 карт в сетке 4×2 (слоты 0,3 и 1,3 пусты — цель для драга набора). Ранги нарочно вразнобой
-    // (10/6/8/A/7/Q), в т.ч. 6/8/10 — чтобы «сорт по номиналу» был виден и на 6+ фигурах помещался
-    // без overflow (две короткие строки вместо одной длинной, см. issue #48, баги «6 карт» и «сорт»).
+  // Ширина лог-бокса «называю масть» (issue #62) — он живёт СПРАВА от select-демо, на уровне верха
+  // борда (в зоне видимости), поэтому footprint демо-айтема шире борда на бокс + зазор.
+  private selNameBoxW(): number {
+    return this.cardW * 2.4;
+  }
+
+  // Ячейка select-демо — как у grid-пресетов (cellForPreset без ring). Отдельный хелпер: демо
+  // строит BoardConfig напрямую (несёт джокер-custom, чего string-слоты BoardPreset не умеют).
+  private selectDemoCell(): { w: number; h: number } {
+    return { w: this.cardW * 1.15, h: this.cardH * 1.02 };
+  }
+
+  private selectDemoConfig(idPrefix: string, cell: { w: number; h: number }): BoardConfig {
+    // 6 карт + джокер в сетке 4×2 (слот 0,3 пуст — цель для драга набора; джокер в 1,3 — чтобы «???»
+    // лог-бокса #62 было видно живьём). Ранги нарочно вразнобой (10/6/8/A/7/Q), в т.ч. 6/8/10 — чтобы
+    // «сорт по номиналу» был виден и на 6+ фигурах помещался без overflow (issue #48, баги «6 карт»/«сорт»).
+    const card = (face: string): ElementDef => ({ kind: "card", face });
     return {
       title: "выделение (изолир., тащи набор, сорт по номиналу)",
       cols: 4,
       rows: 2,
+      cell,
+      idPrefix,
       onOccupied: "merge",
-      slots: { "0,0": ["10♠"], "0,1": ["6♣"], "0,2": ["8♥"], "1,0": ["A♦"], "1,1": ["7♣"], "1,2": ["Q♠"] },
+      slots: {
+        "0,0": [card("10♠")],
+        "0,1": [card("6♣")],
+        "0,2": [card("8♥")],
+        "1,0": [card("A♦")],
+        "1,1": [card("7♣")],
+        "1,2": [card("Q♠")],
+        "1,3": [{ kind: "card", face: "", custom: "joker" }], // джокер: card без масти → «???» в логе #62
+      },
     };
   }
 
@@ -1398,9 +1430,8 @@ export class PlaygroundEngine extends CanvasApp {
         size: this.measureBoardConfig(this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset)), PRESET_EXTRA_H),
         render: (x, y) => this.buildOneBoard(x, y, preset, pi),
       }));
-      const selectPreset = this.selectDemoPreset();
       items.push({
-        size: this.measureBoardConfig(this.presetToBoardConfig(selectPreset, `bz${BOARD_PRESETS.length}`, this.cellForPreset(selectPreset)), SELECT_EXTRA_H),
+        size: this.measureBoardConfig(this.selectDemoConfig(`bz${BOARD_PRESETS.length}`, this.selectDemoCell()), SELECT_EXTRA_H, SB_ITEM_GAP + this.selNameBoxW()),
         render: (x, y) => this.buildSelectDemo(x, y, BOARD_PRESETS.length),
       });
       items.push({ size: this.measureBoardConfig(this.chessBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildChessBoard(x, y) });
@@ -1449,7 +1480,7 @@ export class PlaygroundEngine extends CanvasApp {
   // (визуал из реестра pieceKinds). Единая точка, снявшая 3-веточный диспетч смешанного борда.
   private spawnElement(id: string, home: { x: number; y: number }, def: ElementDef, depth: number, r = 0): void {
     if (def.kind === "card") {
-      this.cardSpecs.push({ opts: { id, card: def.face, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
+      this.cardSpecs.push({ opts: { id, card: def.face, custom: def.custom, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
       this.faceOf.set(id, def.face); // для сорта набора по номиналу (rankOf) — любой карточный борд, не только select-демо
     } else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess); r — только для фигур
   }
@@ -1530,8 +1561,7 @@ export class PlaygroundEngine extends CanvasApp {
   // Демо ИЗОЛИРОВАННОГО мультиселекта: борд + кнопки «выделение» / «снять». В режиме тап по фигуре
   // ЭТОЙ зоны тогглит выделение (лифт), фигуры ДРУГИХ зон выделить нельзя (изоляция по scope).
   private buildSelectDemo(left: number, top: number, pi: number): number {
-    const preset = this.selectDemoPreset();
-    const cfg = this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset));
+    const cfg = this.selectDemoConfig(`bz${pi}`, this.selectDemoCell());
     const { zone, bottom } = this.mountBoard(cfg, left, top, 300 + pi * 100);
     this.selZone = zone;
     const bMode = new Button({ label: "выделение", variant: "secondary", size: "sm", onClick: () => this.toggleSelectMode() });
@@ -1622,7 +1652,26 @@ export class PlaygroundEngine extends CanvasApp {
       this.selDropOutside = outsides[i]!;
     });
     this.selDropOutsideButtons = outside.buttons;
+
+    // Лог-дропбокс «называю масть» (issue #62) — ТЕСТ-обвязка #61 СПРАВА от борда, на уровне его верха
+    // (в зоне видимости — набор можно вытащить сюда наружу, демо-борд анкламплен). Принимает ТОЛЬКО
+    // карты (тег `card`, кастомные тоже), НИЧЕГО не хранит: на дропе набора выписывает уникальные масти
+    // в консоль (и хук lastNamedSuits), карты летят домой.
+    const boardW = 4 * this.selectDemoCell().w + 3 * 8; // cols=4, gap=8 (как в gridBounds)
+    const box = new DropZone({ name: "называю масть", verb: "называю!", rect: { x: left + boardW + SB_ITEM_GAP, y: top + 22, w: this.selNameBoxW(), h: this.cardW * 1.1 } });
+    this.selNameZone = box;
+    this.registerZone(box, (p) => this.nameSuits([p.lead.id]), (p) => p.lead.tags.has("card"));
     return t1 + 234;
+  }
+
+  // Выписать уникальные масти набора в консоль + хук (issue #62). Идентичность (теги) → pileIdentity,
+  // подписи (дедуп, «???» для карт без масти) → suitNames. Чистый лог: состояние не трогаем.
+  private nameSuits(ids: string[]): void {
+    const els = ids.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
+    const names = namedSuits(pileIdentity(els).tagsAny, els.map((e) => e.tags));
+    this.lastNamedSuits = names;
+    // eslint-disable-next-line no-console
+    console.log("называю масть:", names.join(", "));
   }
 
   // ——— изолированный мультиселект (selection.ts) ———
@@ -2265,8 +2314,10 @@ export class PlaygroundEngine extends CanvasApp {
         // Палец поехал (>10 экранных px) — это драг, а не удержание: снимаем взвод long-press.
         if (this.longPress && Math.hypot(sp.x - this.longPress.sx, sp.y - this.longPress.sy) > 10) this.cancelLongPress();
         // Фигура БОРДА заперта в рамке зоны (clamp). Фигура Поля — не в boardZones → не клампится.
+        // Демо-борд «Выделение» (selZone) — БЕЗ клампа (issue #62): набор нужно вытащить наружу к
+        // лог-боксу «называю масть»; прочие борды клампятся как были.
         const bz = this.drag ? this.boardZoneOf(this.drag.lead.id) : null;
-        const p = bz ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
+        const p = bz && bz !== this.selZone ? bz.clamp(cp, { w: this.cardW / 2, h: this.cardH / 2 }) : cp;
         this.drag?.move(p);
         this.grabbedMarker?.followTo(p);
         if (this.drag) {
@@ -2299,7 +2350,14 @@ export class PlaygroundEngine extends CanvasApp {
           this.resolveGrabbedPeeks(); // держали «показанную» карту → вернуть скрытость до диспатча дропа
           if (this.selDragging && this.selZone) {
             const dragged = Math.hypot(cp.x - this.selGrabCp.x, cp.y - this.selGrabCp.y) > 8; // тап vs драг
-            if (dragged) {
+            if (dragged && this.selNameZone?.contains(cp.x, cp.y)) {
+              // Лог-бокс «называю масть» (issue #62): чисто лог мастей набора, без хранения/политики —
+              // карты летят домой, набор сохраняем (можно называть повторно). Проверяем ДО dropSetAt:
+              // бокс живёт вне борда, куда набор теперь можно вытащить (демо-борд анкламплен).
+              this.nameSuits(this.selDragging);
+              this.refreshZoneHomes(this.selZone);
+              this.drag.release();
+            } else if (dragged) {
               // Набор в целевой слот в УЖЕ решённом на грабе порядке (selDragging, issue #56). Дроп
               // В ЗОНУ (moved) гасит выбор и остаётся как был. Дроп МИМО зон — по политике selDropOutside
               // (issue #61, dropPolicy.ts): домой (вернуть на исходные места), остаться (осадить там, где
@@ -2343,6 +2401,13 @@ export class PlaygroundEngine extends CanvasApp {
             fld.endDrag(); // СНАЧАЛА закрыть дыру (иначе дома лягут в раздвинутые позиции)
             this.applyFieldHomes(fld);
             this.drag.release(); // тащимая едет в свой (возможно новый) home
+          } else if (bz && this.selNameZone?.contains(cp.x, cp.y) && this.drag.lead.tags.has("card")) {
+            // Лог-бокс «называю масть» (#62) принимает карты и ВНЕ селекта: одиночную карту БОРДА,
+            // брошенную на бокс, логируем и отпускаем домой (бокс ничего не хранит). Ловим ДО
+            // bz.dropAt — иначе карта борда ушла бы в резолв слота, минуя бокс (standalone-карты и
+            // стопки достигают бокса через генерик-ветку zone.onDrop ниже; у карты борда bz != null).
+            this.nameSuits([this.drag.lead.id]);
+            this.drag.release();
           } else if (bz) {
             // Борд: резолвим целевой слот, исход по onOccupied; вытесненных (capture) уводим.
             const res = bz.dropAt(this.drag.lead.id, cp.x, cp.y);

@@ -37,6 +37,8 @@ test.describe("песочница — выделение (issue #48)", () => {
     selMarkAt: { x: number; y: number }[];
     boardFigures: { id: string; key: string; x: number; y: number }[];
     boards: { title: string; figures: { id: string; key: string; x: number; y: number }[]; slots: { key: string; x: number; y: number }[] }[];
+    zones: Record<string, { x: number; y: number }>;
+    lastNamedSuits: string[];
     cardW: number;
   }
   const hooks = (page: Page): Promise<Hooks> =>
@@ -80,14 +82,15 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(h.selectionState.clearButtonVisibleAt).not.toBeNull(); // теперь видна
   });
 
-  // БАГ 2: 6 карт выделяются и НЕ вылезают за рамку борда (сетка 4×2, а не одна длинная строка).
-  test("6 карт: все выделяются и лежат в пределах рамки борда (нет overflow)", async ({ page }) => {
+  // БАГ 2: карты выделяются и НЕ вылезают за рамку борда (сетка 4×2, а не одна длинная строка).
+  // 7 фигур: 6 обычных + джокер в слоте 1,3 (issue #62 — «???» в логе; добавлен последним).
+  test("7 карт: все выделяются и лежат в пределах рамки борда (нет overflow)", async ({ page }) => {
     await enter(page);
     let h = await hooks(page);
-    expect(h.selFigures).toHaveLength(6);
-    for (const f of h.selFigures) await clickAt(page, f); // выбрать все шесть
+    expect(h.selFigures).toHaveLength(7);
+    for (const f of h.selFigures) await clickAt(page, f); // выбрать все семь
     h = await hooks(page);
-    expect(h.selectionState.selected).toHaveLength(6);
+    expect(h.selectionState.selected).toHaveLength(7);
 
     // ни одна фигура не ушла за прямоугольник, описанный слотами борда (± полкарты на габарит фигуры).
     const b = selBoard(h);
@@ -487,7 +490,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     await page.mouse.move(box.x + release.x, box.y + release.y, { steps: 14 });
     await page.waitForTimeout(450); // дать набору доехать до клампнутой позиции у края зоны
     await page.mouse.up();
-    await page.waitForTimeout(500); // осесть пружинами
+    await page.waitForTimeout(900); // осесть пружинами (без клампа набор летит дальше → дольше возврат)
     return { homes, ids: selected.map((f) => f.id) };
   };
   const figById = (h: Hooks, id: string) => h.selFigures.find((f) => f.id === id)!;
@@ -526,6 +529,64 @@ test.describe("песочница — выделение (issue #48)", () => {
       expect(f.selected).toBe(false); // ни одна не выделена
       expect(f.outlined).toBe(false); // контур снят вместе с выделением (не осталось золотых рамок)
     }
+  });
+
+  // ——— лог-дропбокс «называю масть» (issue #62) ———
+  // Индексы selFigures = порядок слотов: 0=10♠, 1=6♣, 2=8♥, 3=A♦, 4=7♣, 5=Q♠, 6=джокер (без масти).
+  // Тащим выбранный набор на бокс СПРАВА от борда (демо анкламплен) — бокс чисто логирует уникальные
+  // масти и НИЧЕГО не хранит: карты возвращаются домой, выделение сохраняется (можно называть снова).
+  const dropOnNameBox = async (page: Page, idxs: number[]) => {
+    let h = await hooks(page);
+    await clickAt(page, h.selectionState.selectToggleAt!); // войти в режим
+    h = await hooks(page);
+    for (const i of idxs) await clickAt(page, h.selFigures[i]!);
+    h = await hooks(page);
+    const selected = h.selFigures.filter((f) => f.selected);
+    const homes = new Map(selected.map((f) => [f.id, { x: f.x, y: f.y }]));
+    const boxPt = h.zones["называю масть"]!;
+    const box = (await page.locator("canvas").boundingBox())!;
+    const start = selected[0]!; // старт с выделенной → это ДРАГ НАБОРА
+    await page.mouse.move(box.x + start.x, box.y + start.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + boxPt.x, box.y + boxPt.y, { steps: 14 });
+    await page.waitForTimeout(200);
+    await page.mouse.up();
+    await page.waitForTimeout(900); // осесть (без клампа набор летит дальше → дольше возврат домой)
+    return { homes, ids: selected.map((f) => f.id) };
+  };
+
+  test("называю масть: дедуп — весь набор пик выписан один раз «Пики», карты домой", async ({ page }) => {
+    const { homes, ids } = await dropOnNameBox(page, [0, 5]); // 10♠ + Q♠ — обе пики
+    const g = await hooks(page);
+    expect(g.lastNamedSuits).toEqual(["Пики"]); // без повтора
+    expect(g.selectionState.selected).toHaveLength(2); // бокс не хранит/не гасит — выделение осталось
+    for (const id of ids) expect(dist(figById(g, id), homes.get(id)!)).toBeLessThan(14); // вернулись домой
+  });
+
+  test("называю масть: несколько мастей + джокер → уникальные масти и «???»", async ({ page }) => {
+    const { ids } = await dropOnNameBox(page, [0, 2, 6]); // 10♠ + 8♥ + джокер
+    const g = await hooks(page);
+    // порядок мастей зависит от порядка сборки набора — сверяем состав (уникальные масти + один «???»).
+    expect([...g.lastNamedSuits].sort()).toEqual(["???", "Пики", "Черви"].sort());
+    expect(ids).toHaveLength(3);
+  });
+
+  test("называю масть: только джокер → один «???»", async ({ page }) => {
+    await dropOnNameBox(page, [6]); // джокер (card без масти)
+    const g = await hooks(page);
+    expect(g.lastNamedSuits).toEqual(["???"]);
+  });
+
+  // Бокс принимает карты и ВНЕ селекта: одиночную карту БОРДА (режим выделения ВЫКЛ) тоже логирует —
+  // раньше она уходила в bz.dropAt, минуя бокс (в отличие от standalone-карт/стопок).
+  test("называю масть: одиночная карта борда без выделения тоже выводит масть", async ({ page }) => {
+    const h = await hooks(page); // режим НЕ включаем
+    const card = h.selFigures[0]!; // 10♠
+    const boxPt = h.zones["называю масть"]!;
+    await dragTo(page, card, boxPt); // просто драг карты на бокс
+    await page.waitForTimeout(300);
+    const g = await hooks(page);
+    expect(g.lastNamedSuits).toEqual(["Пики"]);
   });
 
   // Мультиселект выкл — вход в режим блокируется конфигом контейнера.
