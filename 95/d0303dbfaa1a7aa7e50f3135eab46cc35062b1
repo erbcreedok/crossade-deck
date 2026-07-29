@@ -1,0 +1,42 @@
+client2/e2e/selection.spec.ts
+  s_f67e66864dd957::t_a22d3ab1d28a52 25,28-29
+  s_f67e66864dd957::t_96bf56ad65ffe5 465-470,472-473,476-477,479-480,492
+  s_f67e66864dd957::t_616288d6bfaf94 500-501,503,511-512,514,517,522-523,525,531,535-550
+  s_f67e66864dd957::t_6c890023c3cd47 551
+client2/src/game/engine/playgroundEngine.ts
+  s_f67e66864dd957::t_7fb8c2302d5887 21-22,25-28
+  s_f67e66864dd957::t_1294475abaf650 1679
+  s_f67e66864dd957::t_0fd7d1d9f31087 649
+  s_f67e66864dd957::t_02aaf695daf8dc 1594
+  s_f67e66864dd957::t_7e1c1ebea3a50a 1657-1667,1669
+  s_f67e66864dd957::t_6949f3ee504889 586-587
+  s_f67e66864dd957::t_f557f56226b486 686-687
+  s_f67e66864dd957::t_efafad9648128f 566-567
+  s_f67e66864dd957::t_b14e3d2765ec56 1431
+  s_f67e66864dd957::t_88cfaec8c925e6 2377-2378,2385
+  s_f67e66864dd957::t_d5561543589aaf 275-279
+  s_f67e66864dd957::t_d57315a1f9f48f 2609-2630
+client2/src/game/board/dropPolicy.test.ts
+  s_f67e66864dd957::t_7fca0af0b03bb4 8,11,13-15,17-28,30-40
+client2/SELECTION-DESIGN.md
+  s_f67e66864dd957::t_d27eb56fbb7e48 71-81
+  s_f67e66864dd957::t_d76d6272fa6bba 125-128
+client2/src/game/board/dropPolicy.ts
+  s_f67e66864dd957::t_6396bd04900639 2,4-5,11,13-23,26-28,30-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "95d0303dbfaa1a7aa7e50f3135eab46cc35062b1",
+  "prompts": {},
+  "sessions": {
+    "s_f67e66864dd957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16928bd9-beab-49a0-b970-d64da37d559f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
