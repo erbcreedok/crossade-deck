@@ -2629,32 +2629,42 @@ export class PlaygroundEngine extends CanvasApp {
   }
 
   // Дроп набора МИМО зон — ДВЕ ортогональные оси (issue #63, dropPolicy.ts), решаются per-card:
-  //   merge — сшить (осесть структурой на месте, якорь primary) или уйти домой;
+  //   merge — сшить (собрать в стопку на слот-дом primary, #67) или уйти домой;
   //   keepSelection — остаётся ли карта выделенной после дропа.
-  // Якорь primary: сшитые карты ПОМНЯТ структуру (остаются на дропнутых местах, ведёт правая/lead-карта
-  // — сборка stack-tight уже кладёт их тесной стопкой у пальца). Релокация стопки под иной якорь
-  // (first/latest/zone/point) — задел на потом. custom-оси читают демо-предикаты MERGE/KEEP_CUSTOM.
+  // Якорь primary (дефолт): сшитые карты СОБИРАЮТСЯ на исходный слот ВЕДУЩЕЙ (правой/верхней по сборке)
+  // карты кластера — не оседают в точке дропа. Релокация под иной якорь (first/latest/zone/point) —
+  // задел на потом. custom-оси читают демо-предикаты MERGE/KEEP_CUSTOM.
   private applyDropOutside(ids: readonly string[]): void {
+    const mergers: Elem[] = [];
     let kept = begin("sel");
     for (const id of ids) {
       const el = this.byId.get(id);
       if (!el) continue;
-      if (resolveMode(this.selDropPolicy.merge, el.tags, MERGE_CUSTOM)) this.restElementInPlace(el); // сшить — осесть на месте
+      if (resolveMode(this.selDropPolicy.merge, el.tags, MERGE_CUSTOM)) mergers.push(el); // сшивается
       else this.releaseElement(el); // не сшить — домой
       if (resolveMode(this.selDropPolicy.keepSelection, el.tags, KEEP_CUSTOM)) kept = toggle(kept, id, "sel"); // оставить выделенной
     }
+    if (mergers.length) this.mergeStackOnto(mergers, mergers[mergers.length - 1]!); // primary = ведущая среди сшиваемых
     this.setSelection(kept); // выделение = карты keepSelection (пустое → распущен → выход из сессии #66)
     this.wake();
   }
 
-  // «Оставить где отпущено» (merge=on, issue #63): осадить элемент в его план покоя прямо на ТЕКУЩЕЙ
-  // позиции, не гоня домой. Цель = текущая точка → пружина осядет там же, цикл уснёт (в отличие от
-  // releaseElement, что целит в home). Дом в состоянии зоны не меняем — это дисплей-жест.
-  private restElementInPlace(el: Elem): void {
-    el.setState(el.rest);
-    el.root.zIndex = this.homeOf(el)?.depth ?? el.root.zIndex; // снять драг-слой (1e6), лечь на плоскость стола
-    this.placeCard(el);
-    el.body.setTarget({ x: el.body.px, y: el.body.py, rot: 0 });
+  // Собрать сшитые карты стопкой на СЛОТ-ДОМ primary-карты (issue #67, mergeAnchor=primary). primary
+  // ложится точно на свой дом (верх стопки), остальные — тесной стопкой под-влево от неё (геометрия
+  // stack-tight). Дисплей-жест: слоты зоны не меняем, как и прежний merge.
+  private mergeStackOnto(mergers: readonly Elem[], primary: Elem): void {
+    const h = this.homeOf(primary);
+    if (!h) return;
+    const stepX = this.cardW * 0.04; // тот же шаг, что у сборки stack-tight (assembly.ts)
+    const stepY = this.cardW * 0.05;
+    const top = mergers.length - 1; // индекс primary (ведущая — верх стопки)
+    mergers.forEach((el, k) => {
+      const fromTop = top - k; // primary → 0 (на своём доме), нижние — под-влево
+      el.setState(el.rest);
+      el.root.zIndex = h.depth + 1 + k; // стопка над слотом, primary сверху
+      this.placeCard(el);
+      el.body.setTarget({ x: h.home.x - fromTop * stepX, y: h.home.y + fromTop * stepY, rot: 0 });
+    });
   }
 
   // Есть ли у карты что подглядеть (чистый предикат Peekable.canPeek) — зона ПОДГЛЯДЕТЬ читает его

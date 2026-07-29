@@ -628,36 +628,52 @@ test.describe("песочница — выделение (issue #48)", () => {
     }
   });
 
-  test("мимо зон сшить (merge on): набор оседает не дома, остаётся выделенным", async ({ page }) => {
-    const { homes, ids } = await dropSetOutside(page, { merge: 1 });
+  // merge=on: сшитые карты СОБИРАЮТСЯ стопкой на слот-дом ведущей (primary), не оседают в точке дропа
+  // (issue #67). primary — на своём доме (~0), не-primary переезжает туда же; обе стоят стопкой рядом.
+  test("мимо зон сшить (merge on): набор собирается стопкой на дом primary, остаётся выделенным", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, { merge: 1 }); // 10♠ + 6♣, обе сшиваются
     const g = await hooks(page);
     expect(g.selectionState.policy.merge).toBe("on");
-    for (const id of ids) {
-      const f = figById(g, id);
-      expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // сшит — уехал от дома и осел там
-      expect(f.selected).toBe(true); // всё ещё в наборе
-    }
+    const f0 = figById(g, ids[0]!);
+    const f1 = figById(g, ids[1]!);
+    const d0 = dist(f0, homes.get(ids[0]!)!);
+    const d1 = dist(f1, homes.get(ids[1]!)!);
+    expect(Math.min(d0, d1)).toBeLessThan(14); // primary — на своём слот-доме
+    expect(Math.max(d0, d1)).toBeGreaterThan(g.cardW); // не-primary — переехала на дом primary
+    expect(dist(f0, f1)).toBeLessThan(g.cardW); // сшиты тесной стопкой рядом
+    for (const id of ids) expect(figById(g, id).selected).toBe(true);
   });
 
-  test("мимо зон сшить + снять выделение (merge on, keep off): осел не дома И выделение снято", async ({ page }) => {
+  test("мимо зон сшить + снять выделение (merge on, keep off): стопка на дом primary И выделение снято", async ({ page }) => {
     const { homes, ids } = await dropSetOutside(page, { merge: 1, keep: 1 });
     const g = await hooks(page);
     expect(g.selectionState.policy).toMatchObject({ merge: "on", keepSelection: "off" });
     expect(g.selectionState.selected).toEqual([]); // набор распущен
+    const f0 = figById(g, ids[0]!);
+    const f1 = figById(g, ids[1]!);
+    const d0 = dist(f0, homes.get(ids[0]!)!);
+    const d1 = dist(f1, homes.get(ids[1]!)!);
+    expect(Math.min(d0, d1)).toBeLessThan(14); // primary — на своём доме
+    expect(Math.max(d0, d1)).toBeGreaterThan(g.cardW); // не-primary переехала
+    expect(dist(f0, f1)).toBeLessThan(g.cardW); // сшиты стопкой
     for (const id of ids) {
-      const f = figById(g, id);
-      expect(dist(f, homes.get(id)!)).toBeGreaterThan(g.cardW); // осел не дома
-      expect(f.selected).toBe(false); // ни одна не выделена
-      expect(f.outlined).toBe(false); // контур снят вместе с выделением
+      expect(figById(g, id).selected).toBe(false);
+      expect(figById(g, id).outlined).toBe(false);
     }
   });
 
-  test("мимо зон merge=custom «только ♣»: сшивается лишь трефа, остальные домой", async ({ page }) => {
-    const { homes, ids } = await dropSetOutside(page, { merge: 2, figs: [0, 1] }); // 10♠ + 6♣
+  test("мимо зон merge=custom «только ♣»: клубы сшиты стопкой на дом primary-клуба, остальные домой", async ({ page }) => {
+    const { homes, ids } = await dropSetOutside(page, { merge: 2, figs: [1, 4, 0] }); // 6♣ + 7♣ + 10♠
     const g = await hooks(page);
     expect(g.selectionState.policy.merge).toBe("custom");
-    expect(dist(figById(g, ids[0]!), homes.get(ids[0]!)!)).toBeLessThan(14); // 10♠ — не ♣ → домой
-    expect(dist(figById(g, ids[1]!), homes.get(ids[1]!)!)).toBeGreaterThan(g.cardW); // 6♣ — сшит, не дома
+    expect(dist(figById(g, ids[2]!), homes.get(ids[2]!)!)).toBeLessThan(14); // 10♠ — не ♣ → домой
+    const c0 = figById(g, ids[0]!); // 6♣
+    const c1 = figById(g, ids[1]!); // 7♣
+    expect(dist(c0, c1)).toBeLessThan(g.cardW); // два клуба — сшиты стопкой рядом
+    const dc0 = dist(c0, homes.get(ids[0]!)!);
+    const dc1 = dist(c1, homes.get(ids[1]!)!);
+    expect(Math.min(dc0, dc1)).toBeLessThan(14); // primary-клуб на своём доме
+    expect(Math.max(dc0, dc1)).toBeGreaterThan(g.cardW); // другой клуб переехал на дом primary
   });
 
   test("мимо зон keep=custom «только ♦»: выделение остаётся лишь у бубны", async ({ page }) => {
