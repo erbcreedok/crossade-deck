@@ -39,8 +39,25 @@ describe("orderItems — override ПОВЕРХ естественного", () =
     // rank одинаков (7) → порядок остаётся естественным (по нажатию)
     expect(orderItems(same, "selection", "rank")).toEqual(["x", "y", "z"]);
   });
-  it("center/custom пока проходят как естественный (v2)", () => {
-    expect(orderItems(items, "selection", "center")).toEqual(["a", "b", "c", "d"]);
+  it("center: пирамида по рангу — старшая в центр, младшие к краям", () => {
+    // ранги 6,8,10,A(14); asc = b,c,a,d → пик d в середине, вниз к краям
+    expect(orderItems(items, "selection", "center")).toEqual(["b", "a", "d", "c"]);
+  });
+  it("center нечётный: пик ровно по центру", () => {
+    const three: CollectItem[] = [
+      { id: "x", press: 0, x: 0, y: 0, face: "6♣" },
+      { id: "y", press: 1, x: 0, y: 0, face: "10♣" },
+      { id: "z", press: 2, x: 0, y: 0, face: "8♣" },
+    ];
+    // asc 6,8,10 → [6,10,8]: пик 10 в центре
+    expect(orderItems(three, "selection", "center")).toEqual(["x", "y", "z"]);
+  });
+  it("center читается как «гора»: ранги нарастают к центру и спадают", () => {
+    const five: CollectItem[] = [2, 4, 6, 8, 10].map((r, i) => ({ id: `c${r}`, press: i, x: 0, y: 0, face: `${r}♣` }));
+    const ranks = orderItems(five, "selection", "center").map((id) => Number(id.slice(1)));
+    const peak = ranks.indexOf(Math.max(...ranks));
+    for (let i = 1; i <= peak; i++) expect(ranks[i]).toBeGreaterThan(ranks[i - 1]!);
+    for (let i = peak + 1; i < ranks.length; i++) expect(ranks[i]).toBeLessThan(ranks[i - 1]!);
   });
 });
 

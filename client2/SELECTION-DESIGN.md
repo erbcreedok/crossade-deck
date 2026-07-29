@@ -142,9 +142,12 @@ AcceptRule), а не заводит свою геометрию/политику
   `dx=dy=rot=0`, края расходятся и провисают, наклон наружу; размах капается `FAN_MAX_SPREAD`). `Offset`
   получил опциональный `rot`; `GroupDrag` пробрасывает его в `setTarget` (был жёсткий `rot:0`). Тумблер
   «форма:» на `/playground` получил 4-й вариант «веер».
-- **v2 — хвост**: `sortOverride` `center`, рычаги `gatherOn`/`anchor` отдельными тумблерами (пока живут
-  в конфиге пресетов), применение цепочки `dropRules` в КАЖДОЙ зоне (ядро
-  `resolveDropChain`/`capabilityZoneRule` готово). Прим.: `A.hintEligible` вынесен в v1 вместе с #60.
+- **`sortOverride: center`** (#70, 2026-07-30): «пирамида» — сорт по рангу возрастанию, затем разложить
+  «горой» (`organPipe` в `assembly.ts`): старшая карта в центр, младшие расходятся к краям (organ-pipe,
+  битоническая последовательность с пиком в середине). Тумблер «сорт:» на `/playground` получил вариант «центр».
+- **v2 — хвост**: рычаги `gatherOn`/`anchor` отдельными тумблерами (пока живут в конфиге пресетов),
+  применение цепочки `dropRules` в КАЖДОЙ зоне (ядро `resolveDropChain`/`capabilityZoneRule` готово).
+  Прим.: `A.hintEligible` вынесен в v1 вместе с #60.
 - Прежние `collectOrder`/`rowAssembly` смигрированы в `assembly.ts`: press→`order=selection`,
   rank/suit→`sortOverride`, ряд→`form=row`; отдельной привилегии у ранга нет.
 

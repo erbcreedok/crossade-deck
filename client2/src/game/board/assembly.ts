@@ -53,8 +53,26 @@ export function orderItems(items: readonly CollectItem[], order: NaturalOrder, s
     const ovCmp = comparatorFor(sortOverride);
     seq.sort((a, b) => ovCmp(a, b)); // стабильно → tie-break = естественный порядок выше
   }
-  // "center"/"custom" — v2 (SELECTION-DESIGN §8); пока проходят как естественный порядок.
+  if (sortOverride === "center") {
+    // «Пирамида»: сперва по рангу ВОЗРАСТАНИЮ (стабильно, tie-break = естественный), затем разложить
+    // «горой» — старшая карта в центр, младшие расходятся к краям (organ-pipe).
+    const rankCmp = comparatorFor("rank");
+    seq.sort((a, b) => rankCmp(a, b));
+    return organPipe(seq).map((i) => i.id);
+  }
   return seq.map((i) => i.id);
+}
+
+/**
+ * «Гора» из возрастающего массива: наименьшие расходятся по краям, наибольший встаёт в центр.
+ * Результат слева-направо — битоническая последовательность с пиком в середине (organ-pipe).
+ * Пример: [2,4,6,8,10] → [2,6,10,8,4].
+ */
+function organPipe<T>(asc: readonly T[]): T[] {
+  const left: T[] = [];
+  const right: T[] = [];
+  asc.forEach((v, i) => (i % 2 === 0 ? left : right).push(v)); // младшие — наружу
+  return [...left, ...right.reverse()]; // left: мал→больш, right (реверс): больш→мал
 }
 
 // ——— форма (геометрия) ———

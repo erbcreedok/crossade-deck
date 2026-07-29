@@ -583,7 +583,7 @@ export class PlaygroundEngine extends CanvasApp {
     selPresetAt: { x: number; y: number }[]; // тумблер «пресет:»
     selFormAt: { x: number; y: number }[]; // тумблер «форма:» (стопка/раскрыт/ряд/веер)
     selOrderAt: { x: number; y: number }[]; // тумблер «порядок:» (расположение/выбор)
-    selSortAt: { x: number; y: number }[]; // тумблер «сорт:» (—/номинал/масть — override)
+    selSortAt: { x: number; y: number }[]; // тумблер «сорт:» (—/номинал/масть/центр — override)
     selEligibleAt: { x: number; y: number }[]; // тумблер «выбор:» (карты/буби/любые)
     selHintAt: { x: number; y: number }[]; // тумблер «подсказка:» (выкл/вкл)
     selMarkAt: { x: number; y: number }[]; // тумблер «метка:» (подъём/контур/оба)
@@ -1606,17 +1606,17 @@ export class PlaygroundEngine extends CanvasApp {
 
     const forms: Form[] = ["stack-tight", "stack-open", "row", "fan"];
     const orders: NaturalOrder[] = ["proximity", "selection"];
-    const overrides: SortOverride[] = ["none", "rank", "suit"];
+    const overrides: SortOverride[] = ["none", "rank", "suit", "center"];
     const presets = ["grab-to-hand", "build-on-first", "tray-zone", "sorted-row"];
     const formIdx = (f: Form) => Math.max(0, forms.indexOf(f));
     const orderIdx = (o: NaturalOrder) => (o === "proximity" ? 0 : 1); // append ≈ selection (оба «по нажатию»)
-    const overrideIdx = (s: SortOverride) => Math.max(0, overrides.indexOf(s)); // center (v2) → 0
+    const overrideIdx = (s: SortOverride) => Math.max(0, overrides.indexOf(s));
 
     const form = this.segToggle(left, t1 + 26, "форма:", ["стопка", "раскрыт", "ряд", "веер"], formIdx(this.selAssembly.form), (i) => (this.selAssembly.form = forms[i]!));
     this.selFormButtons = form.buttons;
     const order = this.segToggle(left, t1 + 52, "порядок:", ["расположение", "выбор"], orderIdx(this.selAssembly.order), (i) => (this.selAssembly.order = orders[i]!));
     this.selOrderButtons = order.buttons;
-    const sort = this.segToggle(left, t1 + 78, "сорт:", ["—", "номинал", "масть"], overrideIdx(this.selAssembly.sortOverride), (i) => (this.selAssembly.sortOverride = overrides[i]!));
+    const sort = this.segToggle(left, t1 + 78, "сорт:", ["—", "номинал", "масть", "центр"], overrideIdx(this.selAssembly.sortOverride), (i) => (this.selAssembly.sortOverride = overrides[i]!));
     this.selSortButtons = sort.buttons;
     // Пресет берёт ВЕСЬ конфиг из ASSEMBLY_PRESETS и пересинхронит черту остальных тумблеров (setMark
     // не дёргает их onPick). Отдельные рычаги после этого дают гибрид, но selPresetName не сбрасывают.
