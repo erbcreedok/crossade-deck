@@ -234,7 +234,7 @@ TARGET (резолв EC1 + `accepts`) → COMMIT. Всё — те же `GroupDra
   rules as data) + dropAt/dropSetAt + clamp.
 - `board/boardPresets.ts` — пресеты-ДАННЫЕ + cardColor/rankOf.
 
-**Визуал в песочнице (freeDeskEngine):** борды-пресеты (свободно/дурак-maxSize/пятнашки-swap/
+**Визуал в песочнице (playgroundEngine):** борды-пресеты (свободно/дурак-maxSize/пятнашки-swap/
 шахматы-capture/монополия-ring/value-цвет/пасьянс-правила) с тоглером onOccupied; **борд из ФИГУР**
 (шахматы как Piece, не карты); **СМЕШАННЫЙ стек** (карта+шахмата+фишка в одном слоте — ultimate
 generic); изолированный мультиселект (кнопки, тап-выбор, драг НАБОРА в слот с сортом по номиналу,
@@ -244,7 +244,7 @@ generic); изолированный мультиселект (кнопки, т�
 борд-из-Piece/capture/смешанный-стек). tsc + прод-сборка зелёные.
 
 **Не сделано (задел):** run-grab, reorder-within-slot (UI), onEmpty как открытый Action (refill),
-вынос board-песочницы из freeDeskEngine в модуль (BoardFactory, см. ENGINE-UPGRADE.md) — главный
+вынос board-песочницы из playgroundEngine в модуль (BoardFactory, см. ENGINE-UPGRADE.md) — главный
 доктринный долг, риск-требующий (задевает драг-жизненный цикл), под присмотр.
 
 ## План (TDD, когда закончим дискуссию)

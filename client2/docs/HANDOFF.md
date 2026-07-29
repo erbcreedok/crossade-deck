@@ -15,7 +15,7 @@ npx vite            # dev-сервер
 npx playwright test # e2e/визрегрессия (нужен запущенный dev или свой baseURL)
 ```
 
-Роуты (`src/main.tsx`, в проде под `/v2/`): `free-desk` — песочница/UI-kit, `table` — стол,
+Роуты (`src/main.tsx`, в проде под `/v2/`): `playground` — песочница/UI-kit, `table` — стол,
 `motion` — стенд анимаций, иначе меню. Весь client2 — ЦЕЛИКОМ на канвасе (Pixi v8);
 DOM только для навигации-топбара и скроллбаров/зума (одинаково в песочнице и на `/motion`).
 
@@ -26,14 +26,14 @@ DOM только для навигации-топбара и скроллбар�
 ## Последнее — сессия 2026-07-27 (рефакторная линия ЗАКРЫТА)
 
 Рефакторный план **E1–E7 (`REFACTOR.md`) закрыт или сделан по факту**. За сессию:
-- **Host `engine/canvasApp.ts`** (E1): все 3 движка (FreeDesk/Table/Censor) на общей базе —
+- **Host `engine/canvasApp.ts`** (E1): все 3 движка (Playground/Table/Censor) на общей базе —
   жизненный цикл + цикл кадра, хуки `onLayout/build/onBooted/onTeardown/frame(dt):moving`.
 - **Модель карты (E5)** клиентски: `id` = опаковый КЛЮЧ; значение (`card`) отделено и может быть
   ПРИДЕРЖАНО (`""` → маска); способности `Concealable`/`Valued` (element.ts) — скрытость это РЕЖИМ,
   снимаемый извне. Хардкод `joker` убран → реестр `CUSTOM_FACES`.
 - **BoardFactory v1 (E6):** grid-борд = `BoardConfig` + `mountBoard`; реестр фигур `ui/pieceKinds.ts`;
   единый `spawnElement` для ВСЕХ бордов. Пресеты (`BOARD_PRESETS`) — свой путь, свод (v2) отложен.
-- **Командный порт `FreeDeskEngine.dispatch(cmd)`** (СВЕРХ плана): единая дверь драйверов
+- **Командный порт `PlaygroundEngine.dispatch(cmd)`** (СВЕРХ плана): единая дверь драйверов
   (палец/консоль/сервер/AI). `flipCard/moveCard/setConcealed/setCardValue` — обёртки над ним.
 - **Фикс swap-бага:** `refreshZoneHomes` теперь зовёт `setTarget` (вытесненная фигура едет в слот).
 
@@ -44,8 +44,8 @@ DOM только для навигации-топбара и скроллбар�
 
 **Что дальше:** ГЕЙМПЛЕЙ (правила поверх готовой механики) и под него — серверная линия из
 `CONTROL-DESIGN.md` (командная шина / политика / presence / undo; E5-серверная секретность:
-токен-ключ + протокол). Оставшийся рефактор — только оверкил (камера FreeDesk→`attachPanZoom`,
-BoardFactory v2, дальнейшее «ужать FreeDesk» — он ~1880 строк storybook-контента, механика уже вынесена).
+токен-ключ + протокол). Оставшийся рефактор — только оверкил (камера Playground→`attachPanZoom`,
+BoardFactory v2, дальнейшее «ужать Playground» — он ~1880 строк storybook-контента, механика уже вынесена).
 
 ## 1. Текущее состояние (evergreen)
 
@@ -60,7 +60,7 @@ BoardFactory v2, дальнейшее «ужать FreeDesk» — он ~1880 с�
   Дефолт-рычаги и `dustParams` — в `censorConfig.ts` (один источник для стенда И доски).
   Значения: частица 5 / свапы 25 / дрожание 1 / частота 1, мерцание ВЫКЛ, пыль замедлена ×3
   (`DUST_TIME_SCALE`, «как было на 0.3x» — множитель времени в частицах, а не глобальный
-  ползунок). Видно на `/free-desk` («скрытая (пыль)»). `/table` пока БЕЗ hidden — см. open-tasks §B.4.
+  ползунок). Видно на `/playground` («скрытая (пыль)»). `/table` пока БЕЗ hidden — см. open-tasks §B.4.
 - **Стенд `/motion`** — dev-витрина, целиком в канвасе, сравнивает варианты «цензуры»
   (остальные 3 = «фигуры для других кейсов»):
   - **CPU-мозаика** (настраиваемая рычагами) — `censorMotion.ts` + `engine/censorField.ts`;
@@ -73,8 +73,8 @@ BoardFactory v2, дальнейшее «ужать FreeDesk» — он ~1880 с�
 - Шрифт: **Handjet** (кириллица + казахский), не VT323.
 
 ### Прочее client2 (высокоуровнево, вне этой линии — детали в `CLAUDE.md`/памяти)
-- **Песочница `/free-desk`** — UI-kit/сторибук на канвасе (drag-and-drop, пан/зум,
-  скроллбары). Движок `engine/freeDeskEngine.ts`.
+- **Песочница `/playground`** — UI-kit/сторибук на канвасе (drag-and-drop, пан/зум,
+  скроллбары). Движок `engine/playgroundEngine.ts`.
 - **UI-kit** `src/game/ui/`: `Button`, `Toggle`, `Stepper`, `controls` (декларативные
   контроллеры), `Card`, `DropZone`, `Piece`, `ShadowLayer`.
 

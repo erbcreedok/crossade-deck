@@ -23,7 +23,7 @@ test.describe("песочница — игровая зона (борд)", () =>
   const fig = (h: Hooks, id: string) => h.boardFigures.find((f) => f.id === id)!;
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });

@@ -18,7 +18,7 @@ export interface DragContext {
   raise(el: TableElement): void; // поднять в слой драга (план drag, z-порядок)
   returnHome(el: TableElement): void; // вернуть на исходное место (пружиной)
   flipGroup(els: readonly TableElement[]): void; // перевернуть пачку целиком (реверс + синхронный флип)
-  startPeek(els: readonly TableElement[]): boolean; // «поглядеть»: снять скрытность на время; false = нечего было (уже видно), карта(ы) не поглощены (см. freeDeskEngine)
+  startPeek(els: readonly TableElement[]): boolean; // «поглядеть»: снять скрытность на время; false = нечего было (уже видно), карта(ы) не поглощены (см. playgroundEngine)
 }
 
 export interface DragPayload {

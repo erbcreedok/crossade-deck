@@ -15,7 +15,7 @@ export interface Rect {
 export interface DropZoneOptions {
   name: string; // подпись в ПОКОЕ (rest) — что это за зона
   verb: string; // обещание при НАВЕДЕНИИ (hot) — что произойдёт, если отпустить именно тут
-  armed?: string; // подпись, пока где-то на канвасе идёт СПОСОБНЫЙ на это действие драг, но ещё не над зоной (см. DropZone.setArmed, freeDeskEngine.frame). Опционально — без неё armed ведёт себя как rest.
+  armed?: string; // подпись, пока где-то на канвасе идёт СПОСОБНЫЙ на это действие драг, но ещё не над зоной (см. DropZone.setArmed, playgroundEngine.frame). Опционально — без неё armed ведёт себя как rest.
   rect: Rect;
 }
 
@@ -25,7 +25,7 @@ export interface DropZoneOptions {
 //            (опционален; без opts.armed зона просто остаётся на name, как раньше).
 //  • hot   — груз навели именно на эту зону → обещание (что случится, если отпустить).
 // Разнесена по ДВУМ планам слоёв: base (фон + название) — на поверхности стола, под картами;
-// verb/armedText — ВЫШЕ лежащих на зоне карт, с тенью текста, без idle-анимации (см. freeDeskEngine).
+// verb/armedText — ВЫШЕ лежащих на зоне карт, с тенью текста, без idle-анимации (см. playgroundEngine).
 export class DropZone {
   readonly base = new Container();
   readonly verb: Text;
@@ -87,7 +87,7 @@ export class DropZone {
   }
 
   // text — опциональная ПОДМЕНА обещания под ТЕКУЩИЙ груз (напр. «нет.» вместо «Отпускай!», если
-  // подглядывать нечему — см. freeDeskEngine.needsPeek). Применяется КАЖДЫЙ раз, когда передана —
+  // подглядывать нечему — см. playgroundEngine.needsPeek). Применяется КАЖДЫЙ раз, когда передана —
   // даже если hot/armed не изменился, иначе застрянет текст от предыдущего груза этой же сессии.
   setHot(hot: boolean, text?: string): void {
     if (text !== undefined) this.verb.text = text;

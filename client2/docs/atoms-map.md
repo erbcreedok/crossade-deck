@@ -2,7 +2,7 @@
 
 Справочник: какие атомы (модули) есть в `client2`, что каждый знает и чего НЕ знает, что
 конфигурируется/генерик, как масштабируется, и **кто их всех сшивает**. Плюс worked-example —
-как из этих атомов собрана песочница `/free-desk`.
+как из этих атомов собрана песочница `/playground`.
 
 Спутник [`HANDOFF.md`](./HANDOFF.md) (где мы сейчас) и [`open-tasks.md`](./open-tasks.md) (хвосты).
 Общая доктрина — корневой `CLAUDE.md`.
@@ -20,7 +20,7 @@
 
 1. **Кто сшивает: `CanvasApp` (Host).** «Глупая» база: владеет только жизнью Pixi и циклом кадра
    (`wake`/`sleep`). Про карты/сцену не знает — контент реализует хуки `build()`/`frame()`. Три
-   движка (`MenuEngine`, `FreeDeskEngine`, `TableEngine`) — это `extends CanvasApp`.
+   движка (`MenuEngine`, `PlaygroundEngine`, `TableEngine`) — это `extends CanvasApp`.
 2. **Атомы «глупые», общаются через контракты (DIP).** Драг/метки/пул/слои не знают про `Card` —
    они знают интерфейсы `element.ts` (`TableElement`, `Draggable`, `Flippable`…). `Card` и `Piece`
    их *реализуют* → встают в любую систему без её правок. Новый вид элемента = реализовать контракт.
@@ -38,10 +38,10 @@ graph TD
   helper["canvasHost.ts<br/>createPixiApp() · ensureFonts()"]
   Host -. использует .-> helper
   Host --> Menu["MenuEngine<br/>/меню"]
-  Host --> Free["FreeDeskEngine<br/>/free-desk (песочница)"]
+  Host --> Free["PlaygroundEngine<br/>/playground (песочница)"]
   Host --> Table["TableEngine<br/>/table (стол)"]
   Menu -.монтирует.-> MenuTsx["src/Menu.tsx"]
-  Free -.монтирует.-> FreeTsx["src/FreeDesk.tsx"]
+  Free -.монтирует.-> FreeTsx["src/Playground.tsx"]
   Table -.монтирует.-> TableTsx["src/Table.tsx"]
 ```
 
@@ -380,9 +380,9 @@ graph TD
 
 ---
 
-## 4. Worked example — как собрана песочница `/free-desk`
+## 4. Worked example — как собрана песочница `/playground`
 
-`FreeDeskEngine` (`engine/freeDeskEngine.ts`, ~1800 строк — самый большой атом, это Host всей
+`PlaygroundEngine` (`engine/playgroundEngine.ts`, ~1800 строк — самый большой атом, это Host всей
 песочницы) наглядно показывает всё вышесказанное в работе.
 
 ### 4.1 Жизненный цикл (наследует `CanvasApp`)
@@ -417,7 +417,7 @@ frame(dt)      → шаг пружин всех тел + камера (fling) �
 Всё через ту же пружину, что и палец (`body.setTarget` → `stepSpring`):
 
 ```ts
-// engine/freeDeskEngine.ts
+// engine/playgroundEngine.ts
 504  flipCard(id): void                    // «игрок открыл карту»; не-Flippable игнор
 510  moveCard(id, x, y): void              // body.setTarget({x,y,rot:0}) → пружина
 518  setConcealed(id, v): void             // скрытость ставится/снимается ИЗВНЕ (Concealable)
@@ -445,7 +445,7 @@ flipGroup:  (els) => this.flipGroup(els)
 
 ## 5. Census — полный список (быстрый индекс)
 
-Движки/Host: `canvasApp` · `canvasHost` · `freeDeskEngine` · `tableEngine` · `menuEngine`
+Движки/Host: `canvasApp` · `canvasHost` · `playgroundEngine` · `tableEngine` · `menuEngine`
 Ввод/камера/драг: `inputRouter` · `panZoom` · `viewport` · `cardHit` · `drag` · `marker` · `markerPolicy` · `elementPool` · `element`
 Тело/анимация: `CardBody` · `physics/spring` · `anim/config` · `anim/easing` · `flip` · `ui/plane`
 Слоты (фундамент): `slot/types` · `slot/slot` · `slot/layouts` · `slot/mutate`
@@ -456,4 +456,4 @@ UI-kit: `ui/Card` · `ui/Piece` · `ui/pieceKinds` · `ui/Button` · `ui/Toggle`
 
 > 💬 Не разобраны детально (минорные текстур-хелперы, вложены в `cardTextures`): `cardBack.ts`
 > (скины рубашки: lattice/mosaic), `pipLayout.ts` (раскладка «очков» на лице pips). React-хосты
-> (`FreeDesk.tsx`/`Table.tsx`/`Menu.tsx`/`main.tsx`/`nav.ts`) — тонкие: монтируют движок + топбар/скроллбары.
+> (`Playground.tsx`/`Table.tsx`/`Menu.tsx`/`main.tsx`/`nav.ts`) — тонкие: монтируют движок + топбар/скроллбары.

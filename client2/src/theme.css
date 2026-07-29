@@ -139,7 +139,7 @@ body {
     opacity: 0.25;
     transition: opacity 0.15s;
   }
-  .freedesk:hover .fd-controls {
+  .playground:hover .fd-controls {
     opacity: 1;
   }
   .fd-controls input {
@@ -147,7 +147,7 @@ body {
     accent-color: #f2c14e;
   }
   /* Настоящие скроллбары: трек + ползунок (размер = доля видимого), тащится мышью. Каждый
-     показывается лишь при переполнении своей оси (см. FreeDesk). В углу не пересекаются. */
+     показывается лишь при переполнении своей оси (см. Playground). В углу не пересекаются. */
   .fd-scrollbar {
     position: absolute;
     background: rgba(0, 0, 0, 0.28);

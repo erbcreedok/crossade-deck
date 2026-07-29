@@ -38,7 +38,7 @@ import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
 
-// UI-kit «/free-desk» — сторибук на канвасе. Один горизонтальный ряд карт-вариантов с
+// UI-kit «/playground» — сторибук на канвасе. Один горизонтальный ряд карт-вариантов с
 // подписями; контент панится и зумится (жесты/колесо/полосы). Управление drag-and-drop.
 //
 // СЛОИ (снизу вверх) — «высота над столом» + тени выше на нижних (см. Card):
@@ -202,7 +202,7 @@ function drawRingIcon(g: Graphics): void {
   g.circle(0, 0, 8).stroke({ width: 1.6, color: MARK }); // полое кольцо
 }
 
-export class FreeDeskEngine extends CanvasApp {
+export class PlaygroundEngine extends CanvasApp {
   private tex!: CardTextureCache;
   private content!: Container;
   private pendingRestore?: Map<number, CardRuntime>; // снимок для рестарта канваса (build читает его)

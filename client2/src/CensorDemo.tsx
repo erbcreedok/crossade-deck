@@ -67,9 +67,9 @@ export function CensorDemoPage() {
   };
 
   return (
-    <div className="table-screen freedesk">
+    <div className="table-screen playground">
       <div className="fd-topbar">
-        <button className="fd-btn" onClick={() => goApp("free-desk")}>
+        <button className="fd-btn" onClick={() => goApp("playground")}>
           ← в песочницу
         </button>
       </div>

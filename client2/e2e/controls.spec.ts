@@ -20,7 +20,7 @@ test.describe("песочница — секция «Управление»", ()
   const btn = (h: Hooks, cap: string) => h.controls.buttons.find((b) => b.cap === cap)!;
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });

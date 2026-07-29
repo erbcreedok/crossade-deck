@@ -13,7 +13,7 @@ test.describe("песочница — секция «Кнопки»", () => {
     page.evaluate(() => (window as unknown as { __fd: { testHooks(): Hooks } }).__fd.testHooks());
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });

@@ -106,7 +106,7 @@ AcceptRule), а не заводит свою геометрию/политику
   (#56, `board/assembly.ts`, дефолт `grab-to-hand`) → отбор-визуал eligible/mark/hint (#60,
   `board/selectVisual.ts`/`engine/selectOutline.ts`) → дроп-политика onDropOutside + цепочка
   элемент→зона→engine + слепые зоны через Pile (#61, `board/dropPolicy.ts`). Всё крутится в
-  песочнице `/free-desk` (секция «Выделение»); покрытие: юнит на каждый чистый модуль + e2e
+  песочнице `/playground` (секция «Выделение»); покрытие: юнит на каждый чистый модуль + e2e
   `selection.spec.ts`.
 - **v2 — хвост**: форма `fan` (сейчас раскладывается как `row`), `sortOverride` `center`, рычаги
   `gatherOn`/`anchor` отдельными тумблерами (пока живут в конфиге пресетов), применение цепочки

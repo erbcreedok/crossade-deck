@@ -17,7 +17,7 @@ const settle = async (page: Page) => {
 };
 
 test("Поле: узел-стрелка + декор (пустой грид, покой)", async ({ page }) => {
-  await page.goto("/free-desk");
+  await page.goto("/playground");
   await settle(page);
   const y = await page.evaluate(() => (window as unknown as { __fd: { testHooks(): { field: { gridRect: { y: number } } } } }).__fd.testHooks().field.gridRect.y);
   const box = (await page.locator("canvas").boundingBox())!;
@@ -31,7 +31,7 @@ test("Поле: узел-стрелка + декор (пустой грид, п�
 });
 
 test("Карты — SVG-масти на лицах (варианты)", async ({ page }) => {
-  await page.goto("/free-desk");
+  await page.goto("/playground");
   await settle(page);
   const box = (await page.locator("canvas").boundingBox())!;
   // Ряд «Карты — варианты»: туз (пики) + бубны — масти рисуются SVG. Статичная область — ТОЛЬКО
@@ -44,7 +44,7 @@ test("Карты — SVG-масти на лицах (варианты)", async (
 });
 
 test("Скрытая карта — номинал «?» + жёлтый фак вместо масти", async ({ page }) => {
-  await page.goto("/free-desk");
+  await page.goto("/playground");
   await settle(page);
   const box = (await page.locator("canvas").boundingBox())!;
   // Третья карта ряда «варианты» = «скрытая» (лицом): обычная карта, но ранг «?» и «масть» — жёлтый 🖕.

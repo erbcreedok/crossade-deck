@@ -62,7 +62,7 @@ test.describe("песочница — выделение (issue #48)", () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });
@@ -409,7 +409,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(await stateOf(page, f.id)).toBe("idle"); // НЕ поднята
 
     // подъём: floating без контура
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
     h = await hooks(page);
@@ -424,7 +424,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     expect(await stateOf(page, f.id)).toBe("floating"); // поднята
 
     // дефолт «оба»: и контур, и подъём
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
     h = await hooks(page);

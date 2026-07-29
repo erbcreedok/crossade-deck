@@ -9,21 +9,21 @@
 - [x] E2 (частично): вынесен `Viewport` (чистая камера, 8 юнит-тестов).
 - [x] E1: база `engine/canvasApp.ts` (Host: жизненный цикл + цикл кадра, хуки
       onLayout/build/onBooted/onTeardown/frame(dt):moving). ВСЕ три движка на ней —
-      `CensorDemo`, `TableEngine`, `FreeDeskEngine`. 3 копии скелета убраны.
+      `CensorDemo`, `TableEngine`, `PlaygroundEngine`. 3 копии скелета убраны.
 - [x] E2 по факту сделано в части систем: `Viewport`/`InputRouter`/`SceneLayers`/shadow-pass
-      у FreeDesk давно вынесены как has-a. Остаток E2 (опц.): унифицировать бэспоук-камеру
-      FreeDesk (pinch/fling/edgeScroll/wheel) на общий `attachPanZoom` — отдельный шаг, риск.
+      у Playground давно вынесены как has-a. Остаток E2 (опц.): унифицировать бэспоук-камеру
+      Playground (pinch/fling/edgeScroll/wheel) на общий `attachPanZoom` — отдельный шаг, риск.
 - [x] E5 (частично, C3): `Concealable` (engine/element.ts) — скрытость стала переключаемым в
       РАНТАЙМЕ режимом секретности, а не флагом-при-создании. `Card.setConcealed(v)` (лениво
       строит «пыль», перерисовывает лицо; раскрытая показывает НАСТОЯЩЕЕ значение), публичный
-      `FreeDeskEngine.setConcealed(id,v)` (BoardAPI-операция, как flipCard), демо-блок «раскрыть/
+      `PlaygroundEngine.setConcealed(id,v)` (BoardAPI-операция, как flipCard), демо-блок «раскрыть/
       скрыть» в «Управлении». Интерим C1: клиент ПОКА держит значение под скрытостью (песочница).
 - [x] E5/C2: убран хардкод `joker` — реестр кастом-лиц `CUSTOM_FACES` (id→фабрика) в
       cardTextures.ts; `CardOptions.custom: string` + `CardTextureCache.customFace(id)`. Джокер =
       один зарегистрированный кастом. Новое кастом-лицо = фабрика в реестр, Card не трогаем.
 - [x] E5/C1 (клиентская часть): ключ≠значение. `id` = опаковый КЛЮЧ; значение (`card`) отделено и
       МОЖЕТ БЫТЬ ПРИДЕРЖАНО (`card:""` → `hasValue=false` → маска). Способность `Valued`
-      (element.ts); `Card.setValue(v)` (раскрытие), публичный `FreeDeskEngine.setCardValue(id,v)`,
+      (element.ts); `Card.setValue(v)` (раскрытие), публичный `PlaygroundEngine.setCardValue(id,v)`,
       демо «узнать значение». Маска едина: скрыто (C3) ИЛИ значение придержано. Решение владельца:
       клиент НЕ держит придержанное значение (secure MP-модель). Серверный формат ключа/протокол —
       когда появится сервер (стол client2 пока локальный).
@@ -35,7 +35,7 @@
       `registerBoardZone`), **BoardFactory v1**: grid-борд = `BoardConfig` + `mountBoard`, единый
       `spawnElement` для ВСЕХ бордов. Остаток — **BoardFactory v2** (свод пресетов: ring-раскладка/
       maxSize/value-правила/живой тоглер onOccupied в конфиг) — ОТЛОЖЕН: крупно/рискованно, пресеты
-      уже декларативны (`BOARD_PRESETS`), отдача низкая. Также `mountBoard` живёт в freeDeskEngine,
+      уже декларативны (`BOARD_PRESETS`), отдача низкая. Также `mountBoard` живёт в playgroundEngine,
       не отдельным модулем — вынести при желании.
 - [x] E3 интерфейсы: `TableElement`/`Draggable`/`Flippable`/`Burnable` + `Concealable` + `Valued`
       (element.ts). Гранулярные ISP-сплиты (`ShadowCaster`/`HasBody`/`HasPlane`) — по надобности, не сейчас.
@@ -46,13 +46,13 @@
       синк) контейнирован R0. R4 (netplay: очередь/политика/presence/undo) — когда появится сервер.
 
 ИТОГ: изначальный план (E1–E7) закрыт или сделан по факту. Осталось только (а) оверкил/опц.
-(камера FreeDesk на attachPanZoom; BoardFactory v2; гранулярные интерфейсы; дальнейшее «ужать
-FreeDesk» — он всё ещё ~1880 строк storybook-контента, но механика факторизована) и (б) ПОСЛЕ
+(камера Playground на attachPanZoom; BoardFactory v2; гранулярные интерфейсы; дальнейшее «ужать
+Playground» — он всё ещё ~1880 строк storybook-контента, но механика факторизована) и (б) ПОСЛЕ
 геймплея/сервера (E5-серверная секретность: токен-ключ+протокол; R4-netplay; engine-kit как пакет N1/N2).
 - [x] Игровая зона (борд): весь логический слой `board/*` + визуал-полигон в песочнице (6 бордов-
       пресетов, onOccupied merge/swap/capture/reject, value-правила, ring-раскладка, изолированный
       мультиселект с драгом набора). ~198 юнитов + e2e. Дизайн/статус: `GRID-DESIGN.md`.
-      Осталось: вынести board-песочницу из freeDeskEngine в модуль (BoardFactory).
+      Осталось: вынести board-песочницу из playgroundEngine в модуль (BoardFactory).
 
 ## TODO / прочее (не сейчас)
 
@@ -172,7 +172,7 @@ FreeDesk» — он всё ещё ~1880 строк storybook-контента, �
 
 ## D. Декомпозиция файлов (что режем)
 
-- `freeDeskEngine.ts` (938) → Host + системы (Viewport/Input/Pool/Layers/ShadowPass) +
+- `playgroundEngine.ts` (938) → Host + системы (Viewport/Input/Pool/Layers/ShadowPass) +
   декларативный SandboxContent. Ядро ~150–200 строк.
 - `Card.ts` (327) → вид + capability-интерфейсы + вынесенный эффект `burn`; `sync()` разбить
   (transform/shadow/effects). Пункты C1–C3 сами ужмут класс.
@@ -185,7 +185,7 @@ FreeDesk» — он всё ещё ~1880 строк storybook-контента, �
 ## E. Порядок работ (поэтапно, без поломок; каждый шаг: tsc + тесты + визуал в Playwright)
 
 1. Выделить `BaseCanvasEngine`/Host — убрать DRY-дубли жизненного цикла/ввода (механически, low-risk).
-2. Вынести системы `Viewport`, `InputRouter`, `SceneLayers`+`ShadowPass` из freeDeskEngine (композиция).
+2. Вынести системы `Viewport`, `InputRouter`, `SceneLayers`+`ShadowPass` из playgroundEngine (композиция).
 3. Ввести интерфейсы элементов; `Card` реализует их; управление состоянием — наружу.
 4. Обобщить `ElementPool` (из `TablePool`); песочницу перевести на него.
 5. Модель карты: разделить ключ/значение (C1); кастом-лица, убрать `joker` (C2); режим `hidden` (C3).

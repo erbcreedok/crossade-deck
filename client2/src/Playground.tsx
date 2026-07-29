@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { FreeDeskEngine, type ViewState } from "./game/engine/freeDeskEngine";
+import { PlaygroundEngine, type ViewState } from "./game/engine/playgroundEngine";
 import { goApp } from "./nav";
 import { useReducedMotion } from "./useReducedMotion";
 
-// UI-kit «/free-desk» — сторибук на канвасе (пан + зум + drag-and-drop карт/кнопок). На
+// UI-kit «/playground» — сторибук на канвасе (пан + зум + drag-and-drop карт/кнопок). На
 // телефоне управление жестами; на компе поверх канваса — скроллбары (гориз./верт., каждый
 // только при переполнении своей оси) и слайдер зума, по ховеру.
-export function FreeDesk() {
+export function Playground() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const engineRef = useRef<FreeDeskEngine | null>(null);
+  const engineRef = useRef<PlaygroundEngine | null>(null);
   const trackXRef = useRef<HTMLDivElement>(null);
   const trackYRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ axis: "x" | "y"; start: number; scroll: number } | null>(null);
@@ -18,9 +18,9 @@ export function FreeDesk() {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const engine = new FreeDeskEngine();
+    const engine = new PlaygroundEngine();
     engineRef.current = engine;
-    if (import.meta.env.DEV) (window as unknown as { __fd?: FreeDeskEngine }).__fd = engine; // e2e-хук
+    if (import.meta.env.DEV) (window as unknown as { __fd?: PlaygroundEngine }).__fd = engine; // e2e-хук
     engine.setOnView(setView);
     void engine.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => {
@@ -66,7 +66,7 @@ export function FreeDesk() {
   };
 
   return (
-    <div className="table-screen freedesk">
+    <div className="table-screen playground">
       <div className="fd-topbar">
         <button className="fd-btn" onClick={() => goApp("")}>
           ← в меню

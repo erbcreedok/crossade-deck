@@ -1,6 +1,6 @@
 import { Application } from "pixi.js";
 
-// Общие куски жизненного цикла канвас-движков (DRY для menu/freeDesk/table).
+// Общие куски жизненного цикла канвас-движков (DRY для menu/playground/table).
 
 // Pixi рисует текст в текстуру ОДИН раз при создании — ждём веб-шрифт (Handjet) ДО отрисовки, иначе
 // берётся фолбэк и раскладка/размеры плывут. Google Fonts отдаёт Handjet ПОДМНОЖЕСТВАМИ по unicode-range:

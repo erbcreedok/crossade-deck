@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 // Песочница: движок рисует карты/тени, вьюпорт зумит и панится (поведение движка в целом).
 test.describe("песочница", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });
@@ -94,7 +94,7 @@ test.describe("песочница — действия", () => {
     );
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });
@@ -306,7 +306,7 @@ test.describe("песочница — действия", () => {
 // Топбар (HTML): рестарты и возврат в меню.
 test.describe("песочница — топбар", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });
@@ -332,7 +332,7 @@ test.describe("песочница — топбар", () => {
   });
 });
 
-// «Карты — варианты»: ряд из 12 карточек-примеров (STORIES в freeDeskEngine.ts). Раньше был
+// «Карты — варианты»: ряд из 12 карточек-примеров (STORIES в playgroundEngine.ts). Раньше был
 // покрыт только индекс 0 («открытая», через firstCard в других тестах) — остальные 11 рендерились,
 // но ни одна их особенность не проверялась. storyCards в тест-хуке отдаёт живые пропы каждой карты
 // по тому же индексу, что и STORIES (ряд спавнится первым — см. комментарий у хука).
@@ -352,7 +352,7 @@ test.describe("песочница — Карты: варианты", () => {
     );
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });

@@ -8,7 +8,7 @@
 
 ---
 
-## 1. Диагноз: 1220 строк `freeDeskEngine` — это НЕ «движок»
+## 1. Диагноз: 1220 строк `playgroundEngine` — это НЕ «движок»
 
 Если разложить файл по смыслу:
 
@@ -50,7 +50,7 @@ BoardFactory     — читает конфиг → создаёт элемент
 ## 3. Набросок «лёгкой мапы» (как это выглядит)
 
 ```ts
-export const freeDeskMode: BoardConfig = {
+export const playgroundMode: BoardConfig = {
   layout: rows([                       // декларативная раскладка вместо build*()
     { title: "Карты",  cells: STORIES.map(s => ({ el: { type: "card", ...s } })) },
     { title: "Стопки", cells: [ stack("stk0", 5), stack("stk1", 5) ] },
@@ -99,7 +99,7 @@ export const freeDeskMode: BoardConfig = {
 
 ## 6. Миграция (инкрементально, TDD, ничего не ломая; каждый шаг: tsc + vitest + e2e зелёные)
 
-1. Вынести `BoardHost` из `freeDeskEngine` (lifecycle + loop + input + render + shadow + hit +
+1. Вынести `BoardHost` из `playgroundEngine` (lifecycle + loop + input + render + shadow + hit +
    drag + marker-glue) — механически. Песочница становится тонким потребителем. **Поведение и
    e2e не меняются.**
 2. Ввести `BoardConfig` + `BoardFactory`; перегнать `buildStacks/buildPieces/zones` в

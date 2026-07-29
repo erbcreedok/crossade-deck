@@ -11,7 +11,7 @@ export function Menu() {
     const host = hostRef.current;
     if (!host) return;
     const engine = new MenuEngine();
-    engine.setOnOpenSandbox(() => goApp("free-desk"));
+    engine.setOnOpenSandbox(() => goApp("playground"));
     void engine.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => engine.destroy();
   }, []);

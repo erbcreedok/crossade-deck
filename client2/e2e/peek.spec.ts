@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // Дропзона «ПОДГЛЯДЕТЬ» (issue #47): временно снимает скрытность («пыль») с карты, чтобы её
 // рассмотреть, потом сама возвращает скрытность и карту домой. Повторный драг во время показа
-// (abort) — скрытность НЕ восстанавливается, карта не возвращается домой (см. freeDeskEngine.ts
+// (abort) — скрытность НЕ восстанавливается, карта не возвращается домой (см. playgroundEngine.ts
 // startPeek/releaseElement). Источник карты — «скрытая (пыль)» из ряда «Карты — варианты»
 // (STORIES[2]), тот же приём, что уже используют тесты ПЕРЕВОРОТ/СЖЕЧЬ в sandbox.spec.ts.
 //
@@ -45,7 +45,7 @@ test.describe("песочница — дропзона ПОДГЛЯДЕТЬ", ()
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/free-desk");
+    await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
   });
