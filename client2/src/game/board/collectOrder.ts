@@ -24,7 +24,7 @@ export function suitOf(face: string): string {
 }
 
 // Порядок мастей для сорта «по масти»: ♣ < ♦ < ♥ < ♠ (привычный бриджевый порядок).
-const SUIT_RANK: Record<string, number> = { "♣": 0, "♦": 1, "♥": 2, "♠": 3 };
+export const SUIT_RANK: Record<string, number> = { "♣": 0, "♦": 1, "♥": 2, "♠": 3 };
 
 // Ключ сравнения на стратегию. press — сам индекс нажатия (он же tie-break для всех прочих).
 // spatial даёт reading-order: сначала строка (y), потом столбец (x) — вес y кратно больше типичного
@@ -35,6 +35,11 @@ const COMPARATORS: Record<CollectOrder, (a: CollectItem, b: CollectItem) => numb
   suit: (a, b) => (SUIT_RANK[suitOf(a.face)] ?? 99) - (SUIT_RANK[suitOf(b.face)] ?? 99),
   spatial: (a, b) => a.y - b.y || a.x - b.x,
 };
+
+/** Компаратор одной стратегии (для двухслойного порядка в assembly: естественный + override). */
+export function comparatorFor(order: CollectOrder): (a: CollectItem, b: CollectItem) => number {
+  return COMPARATORS[order];
+}
 
 /** Упорядочить набор по стратегии. Не мутирует вход; при равенстве ключей — устойчиво по press. */
 export function orderSelection(items: readonly CollectItem[], order: CollectOrder): string[] {
