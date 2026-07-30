@@ -159,11 +159,19 @@ function DeckSection() {
 
 const ALL_SLOTS = ["stock", "waste", ...FOUNDATION_KEYS, ...TABLEAU_KEYS];
 
+type Picked = { slot: string; fromIndex: number; cards: string[] };
+
 // Индекс «верха» внутри слота зависит от смысла слота: waste/found/tableau копятся с конца
 // (members[последний] — то, что видно/берётся), а stock раздаёт с ПЕРЕДА (members[0] — то, что
 // уйдёт следующим через dealStock()). Смешать эти два понятия в одном кликабельном ряду —
 // показать пользователю неверную карту как «активную». У stock клика по карте поэтому нет вовсе:
 // единственный реальный способ её тронуть — кнопка dealStock(), как и в настоящем солитёре.
+//
+// allowRun (только tableau): движок умеет moveStack — переносить не только верхнюю карту, а
+// целый «ран» подряд идущих. Кликабельна ЛЮБАЯ карта колонки — выбор захватывает её и всё, что
+// выше (к хвосту массива). Легальность рана (чередование цвета, убывание ранга) проверяет сам
+// движок при таргете и ответит отказом, если ран внутри себя невалиден — тут ничего не фильтруем
+// заранее, чтобы такие невалидные попытки тоже можно было проверить на этом стенде.
 function Slot({
   slotKey,
   cards,
@@ -171,16 +179,17 @@ function Slot({
   onPick,
   onTarget,
   pickable = true,
+  allowRun = false,
 }: {
   slotKey: string;
   cards: string[];
-  selectedCard: { slot: string; card: string } | null;
-  onPick: (slot: string, card: string) => void;
+  selectedCard: Picked | null;
+  onPick: (slot: string, fromIndex: number, cards: string[]) => void;
   onTarget: (slot: string) => void;
   pickable?: boolean;
+  allowRun?: boolean;
 }) {
   const isTargetable = selectedCard !== null && selectedCard.slot !== slotKey;
-  const activeIndex = pickable ? cards.length - 1 : cards.length; // -1 → нет активной карты у stock
   return (
     <div
       style={{
@@ -193,22 +202,22 @@ function Slot({
         background: isTargetable ? "#3a2f1c" : "transparent",
       }}
       onClick={() => isTargetable && onTarget(slotKey)}
-      title={isTargetable ? `цель: перенести ${selectedCard!.card} сюда` : undefined}
+      title={isTargetable ? `цель: перенести ${selectedCard!.cards.join(",")} сюда` : undefined}
     >
       <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
         {slotKey} ({cards.length}) {!pickable && cards.length > 0 && "· следующая раздача: " + cards[0]}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
         {cards.map((c, i) => {
-          const isActive = i === activeIndex;
-          const picked = selectedCard?.slot === slotKey && selectedCard.card === c;
+          const isActive = pickable && (allowRun || i === cards.length - 1);
+          const picked = selectedCard?.slot === slotKey && i >= selectedCard.fromIndex;
           return (
             <button
               key={i}
               disabled={!isActive}
               onClick={(e) => {
                 e.stopPropagation();
-                if (isActive) onPick(slotKey, c);
+                if (isActive) onPick(slotKey, i, cards.slice(i));
               }}
               style={{
                 padding: "2px 6px",
@@ -235,7 +244,7 @@ function EngineSection() {
   const [engine] = useState(() => new SolitaireGameEngine());
   const [state, setState] = useState<SolitaireGameState>(() => engine.getState());
   const [seed, setSeed] = useState(1);
-  const [selected, setSelected] = useState<{ slot: string; card: string } | null>(null);
+  const [selected, setSelected] = useState<Picked | null>(null);
   const [lastResult, setLastResult] = useState<ActionResult | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [eventLog, setEventLog] = useState<string[]>([]);
@@ -274,14 +283,16 @@ function EngineSection() {
     sync("dealStock()", r);
   }
 
-  function handlePick(slot: string, card: string) {
-    setSelected((prev) => (prev?.slot === slot && prev.card === card ? null : { slot, card }));
+  function handlePick(slot: string, fromIndex: number, cards: string[]) {
+    setSelected((prev) => (prev?.slot === slot && prev.fromIndex === fromIndex ? null : { slot, fromIndex, cards }));
   }
 
   function handleTarget(toSlot: string) {
     if (!selected) return;
-    const r = engine.moveCard(selected.slot, toSlot, selected.card);
-    sync(`moveCard(${selected.slot} → ${toSlot}, ${selected.card})`, r);
+    // moveStack сам делегирует в moveCard при одной карте — единый вызов что для одиночной
+    // карты (waste/found/верх tableau), что для рана (несколько карт из tableau).
+    const r = engine.moveStack(selected.slot, toSlot, selected.cards);
+    sync(`moveStack(${selected.slot} → ${toSlot}, [${selected.cards.join(",")}])`, r);
     setSelected(null);
   }
 
@@ -296,10 +307,13 @@ function EngineSection() {
     <section style={{ marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid #4a5a4f" }}>
       <h2>#84–89 — SolitaireGameEngine (state + reducer + queries + методы)</h2>
       <p style={{ opacity: 0.7, fontSize: 13, maxWidth: 700 }}>
-        Живой движок: кликни верхнюю карту в любом слоте (кроме stock — её берут только кнопкой) —
-        выбор подсветится жёлтым; затем кликни слот-цель (появится пунктирная рамка) — вызовется{" "}
-        <code>engine.moveCard</code>. «Взять» триггерит <code>dealStock()</code> (сама решает
-        раздать или рециклить); карта, которую она возьмёт следующей, подсвечена в stock отдельно.
+        Живой движок: кликни карту (кроме stock — её берут только кнопкой). В waste/found —
+        только верхняя; в tableau — ЛЮБАЯ карта колонки, выбор захватывает её и весь ран выше
+        (несколько карт сразу, как реальный перенос стопки). Выбор подсветится жёлтым; затем
+        кликни слот-цель (пунктирная рамка) — вызовется <code>engine.moveStack</code> (сама
+        сводится к <code>moveCard</code> для одной карты). «Взять» триггерит{" "}
+        <code>dealStock()</code> (сама решает раздать или рециклить); карта, которую она возьмёт
+        следующей, подсвечена в stock отдельно.
       </p>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
@@ -307,7 +321,11 @@ function EngineSection() {
         <input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} style={{ width: 70 }} />
         <button onClick={() => handleReset(false)}>resetGame(случайно)</button>
         <button onClick={handleDealStock}>dealStock() — взять / рециклить</button>
-        {selected && <span style={{ color: "#d99a3f" }}>выбрано: {selected.card} из {selected.slot} — кликни цель</span>}
+        {selected && (
+          <span style={{ color: "#d99a3f" }}>
+            выбрано: [{selected.cards.join(", ")}] из {selected.slot} — кликни цель
+          </span>
+        )}
       </div>
 
       <div style={{ marginBottom: 8, fontSize: 13 }}>
@@ -329,7 +347,7 @@ function EngineSection() {
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         {TABLEAU_KEYS.map((k) => (
-          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} />
+          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} allowRun />
         ))}
       </div>
 
