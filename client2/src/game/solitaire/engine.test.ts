@@ -171,4 +171,57 @@ describe("SolitaireGameEngine", () => {
       expect(result.valid).toBe(false);
     });
   });
+
+  describe("isWinning / canMakeMove / getPossibleMoves", () => {
+    const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+    function fullFoundation(suit: string): string[] {
+      return RANKS.map((rank) => `${rank}${suit}`);
+    }
+
+    it("isWinning is true when all 4 foundations are full", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: {
+            "found:S": { members: fullFoundation("♠") },
+            "found:H": { members: fullFoundation("♥") },
+            "found:D": { members: fullFoundation("♦") },
+            "found:C": { members: fullFoundation("♣") },
+          },
+          onEmpty: "keep",
+        },
+      });
+      expect(engine.isWinning()).toBe(true);
+    });
+
+    it("canMakeMove is true when stock has cards", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { stock: { members: ["7♣"] } }, onEmpty: "keep" },
+      });
+      expect(engine.canMakeMove()).toBe(true);
+    });
+
+    it("canMakeMove is false when there is no move available", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: { stock: { members: [] }, waste: { members: [] }, "tab:0": { members: ["2♠"] } },
+          onEmpty: "keep",
+        },
+      });
+      expect(engine.canMakeMove()).toBe(false);
+    });
+
+    it("getPossibleMoves returns at least one move for waste -> tableau", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: { waste: { members: ["5♦"] }, "tab:0": { members: ["6♠"] }, stock: { members: [] } },
+          onEmpty: "keep",
+        },
+      });
+      expect(engine.getPossibleMoves().length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

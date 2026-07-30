@@ -1,8 +1,11 @@
 import {
   applyAction,
+  canMakeMove,
   createInitialState,
   dealNewGame,
   foundationKeyOf,
+  getPossibleMoves,
+  isWinning,
   type SolitaireAction,
   type SolitaireGameState,
 } from "../board/solitaireState";
@@ -109,6 +112,21 @@ export class SolitaireGameEngine {
 
     this.dispatch({ type: "moveStack", from: fromSlot, to: toSlot, cardIds });
     return { valid: true };
+  }
+
+  /** Победа: все 4 фундамента набрали по 13 карт. */
+  isWinning(): boolean {
+    return isWinning(this.state);
+  }
+
+  /** Есть ли ещё хоть какой-то ход. */
+  canMakeMove(): boolean {
+    return canMakeMove(this.state);
+  }
+
+  /** Все легальные одиночные ходы (для подсказок/тестов). */
+  getPossibleMoves(): Array<{ from: string; to: string; card: string }> {
+    return getPossibleMoves(this.state);
   }
 
   private requirePlaying(): ActionResult | null {
