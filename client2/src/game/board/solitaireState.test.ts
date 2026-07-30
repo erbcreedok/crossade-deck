@@ -137,9 +137,101 @@ describe("applyAction recycleStock", () => {
 });
 
 describe("applyAction default branch", () => {
-  it("returns state unchanged for not-yet-implemented action types", () => {
+  it("returns state unchanged for unknown target slots", () => {
     const s = stateWith(["2♠"], []);
-    const next = applyAction(s, { type: "moveCard", from: "tab:0", to: "tab:1", cardId: "2♠" });
+    const next = applyAction(s, { type: "moveCard", from: "stock", to: "bogus:0", cardId: "2♠" });
     expect(next).toBe(s);
+  });
+});
+
+function stateWithBoard(overrides: Record<string, string[]>): SolitaireGameState {
+  const s = createInitialState();
+  s.phase = "playing";
+  for (const [key, members] of Object.entries(overrides)) {
+    s.board.slots[key] = { members };
+  }
+  return s;
+}
+
+describe("applyAction moveCard", () => {
+  it("moves waste card onto tableau when rank/color are legal", () => {
+    const s = stateWithBoard({ waste: ["5♦"], "tab:0": ["6♠"] });
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "tab:0", cardId: "5♦" });
+    expect(next.board.slots["tab:0"]!.members).toEqual(["6♠", "5♦"]);
+    expect(next.board.slots.waste!.members).toEqual([]);
+    expect(next.movesCount).toBe(s.movesCount + 1);
+  });
+
+  it("rejects same-color tableau move (unchanged)", () => {
+    const s = stateWithBoard({ waste: ["5♦"], "tab:0": ["6♦"] });
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "tab:0", cardId: "5♦" });
+    expect(next).toBe(s);
+  });
+
+  it("moves ace from waste onto empty foundation", () => {
+    const s = stateWithBoard({ waste: ["A♠"], "found:S": [] });
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "found:S", cardId: "A♠" });
+    expect(next.board.slots["found:S"]!.members).toEqual(["A♠"]);
+    expect(next.movesCount).toBe(s.movesCount + 1);
+  });
+
+  it("rejects foundation move with mismatched suit (unchanged)", () => {
+    const s = stateWithBoard({ waste: ["A♥"], "found:S": [] });
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "found:S", cardId: "A♥" });
+    expect(next).toBe(s);
+  });
+
+  it("moves 2♣ onto A♣ on the club foundation", () => {
+    const s = stateWithBoard({ waste: ["2♣"], "found:C": ["A♣"] });
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "found:C", cardId: "2♣" });
+    expect(next.board.slots["found:C"]!.members).toEqual(["A♣", "2♣"]);
+    expect(next.movesCount).toBe(s.movesCount + 1);
+  });
+
+  it("returns unchanged when cardId is not present in from", () => {
+    const s = stateWithBoard({ waste: ["5♦"], "tab:0": ["6♠"] });
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "tab:0", cardId: "9♣" });
+    expect(next).toBe(s);
+  });
+
+  it("does not mutate the input state", () => {
+    const s = stateWithBoard({ waste: ["5♦"], "tab:0": ["6♠"] });
+    const snapshot = JSON.parse(JSON.stringify(s));
+    applyAction(s, { type: "moveCard", from: "waste", to: "tab:0", cardId: "5♦" });
+    expect(JSON.parse(JSON.stringify(s))).toEqual(snapshot);
+  });
+});
+
+describe("applyAction moveStack", () => {
+  it("moves a valid descending-alternating run to an empty tableau", () => {
+    const s = stateWithBoard({ "tab:2": [], "tab:3": ["K♠", "Q♥"] });
+    const next = applyAction(s, { type: "moveStack", from: "tab:3", to: "tab:2", cardIds: ["K♠", "Q♥"] });
+    expect(next.board.slots["tab:2"]!.members).toEqual(["K♠", "Q♥"]);
+    expect(next.board.slots["tab:3"]!.members).toEqual([]);
+    expect(next.movesCount).toBe(s.movesCount + 1);
+  });
+
+  it("rejects an internally invalid run (same-color pair, unchanged)", () => {
+    const s = stateWithBoard({ "tab:2": [], "tab:3": ["K♠", "Q♣"] });
+    const next = applyAction(s, { type: "moveStack", from: "tab:3", to: "tab:2", cardIds: ["K♠", "Q♣"] });
+    expect(next).toBe(s);
+  });
+
+  it("rejects a moveStack targeting a non-tableau slot (unchanged)", () => {
+    const s = stateWithBoard({ "found:S": [], "tab:3": ["K♠", "Q♥"] });
+    const next = applyAction(s, { type: "moveStack", from: "tab:3", to: "found:S", cardIds: ["K♠", "Q♥"] });
+    expect(next).toBe(s);
+  });
+});
+
+describe("applyAction resetGame", () => {
+  it("returns a fresh playing state with 28 tableau + 24 stock", () => {
+    const s = stateWithBoard({ "tab:0": ["5♦"] });
+    const next = applyAction(s, { type: "resetGame" });
+    expect(next.phase).toBe("playing");
+    let tableauTotal = 0;
+    for (let c = 0; c < 7; c++) tableauTotal += next.board.slots[`tab:${c}`]!.members.length;
+    expect(tableauTotal).toBe(28);
+    expect(next.board.slots.stock!.members.length).toBe(24);
   });
 });

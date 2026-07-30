@@ -1,5 +1,8 @@
 import * as board from "./board";
 import type { Board } from "./board";
+import { has, topId } from "./container";
+import { foundationAccepts, tableauAccepts } from "./solitaireRules";
+import { createDeck52 } from "./solitaireDeck";
 
 // Состояние партии солитёра (klondike, MVP) поверх Board (issue #84). Только карта состояния и
 // раздача — applyAction (проведение действий) реализуется отдельным тикетом.
@@ -79,6 +82,36 @@ export function applyAction(state: SolitaireGameState, action: SolitaireAction):
       const nextBoard = board.move(state.board, "waste", "stock", [...waste.members].reverse());
       return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
     }
+    case "moveCard": {
+      const { from, to, cardId } = action;
+      const fromC = board.at(state.board, from);
+      if (!fromC || !has(fromC, cardId)) return state;
+      const top = topId(board.at(state.board, to) ?? { members: [] }) ?? null;
+      if (to.startsWith("found:")) {
+        if (foundationKeyOf(cardId) !== to || !foundationAccepts(cardId, top)) return state;
+      } else if (to.startsWith("tab:")) {
+        if (!tableauAccepts(cardId, top)) return state;
+      } else {
+        return state;
+      }
+      const nextBoard = board.move(state.board, from, to, [cardId]);
+      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+    }
+    case "moveStack": {
+      const { from, to, cardIds } = action;
+      if (!to.startsWith("tab:") || cardIds.length === 0) return state;
+      const fromC = board.at(state.board, from);
+      if (!fromC || !cardIds.every((id) => has(fromC, id))) return state;
+      for (let i = 0; i < cardIds.length - 1; i++) {
+        if (!tableauAccepts(cardIds[i + 1]!, cardIds[i]!)) return state;
+      }
+      const top = topId(board.at(state.board, to) ?? { members: [] }) ?? null;
+      if (!tableauAccepts(cardIds[0]!, top)) return state;
+      const nextBoard = board.move(state.board, from, to, cardIds);
+      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+    }
+    case "resetGame":
+      return dealNewGame(createDeck52());
     default:
       return state;
   }
