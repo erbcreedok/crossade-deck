@@ -1,0 +1,21 @@
+client2/src/game/board/solitaireDeck.ts
+  s_1683f4def88b5d::t_ca662890d979d2 1-38
+client2/src/game/board/solitaireDeck.test.ts
+  s_1683f4def88b5d::t_fff0ef07ea8a4c 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ea3c7e888835d728774fb273e4362bb85507de86",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
