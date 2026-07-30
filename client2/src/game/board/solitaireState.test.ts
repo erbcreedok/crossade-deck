@@ -8,6 +8,7 @@ import {
   dealNewGame,
   foundationKeyOf,
   getPossibleMoves,
+  isFaceUp,
   isWinning,
   type SolitaireGameState,
 } from "./solitaireState";
@@ -309,6 +310,59 @@ describe("getPossibleMoves", () => {
         expect(tableauAccepts(m.card, top)).toBe(true);
       }
     }
+  });
+});
+
+describe("isFaceUp", () => {
+  const deck = createDeck52();
+  const state = dealNewGame(deck);
+
+  it("is true for the top card of a tableau column", () => {
+    const top = state.board.slots["tab:6"]!.members[6]!;
+    expect(isFaceUp(state, top)).toBe(true);
+  });
+
+  it("is false for the bottom card of a tableau column", () => {
+    const bottom = state.board.slots["tab:6"]!.members[0]!;
+    expect(isFaceUp(state, bottom)).toBe(false);
+  });
+
+  it("is false for every stock card", () => {
+    for (const card of state.board.slots.stock!.members) {
+      expect(isFaceUp(state, card)).toBe(false);
+    }
+  });
+
+  it("is true for a card that just landed in waste via dealStock", () => {
+    const s = stateWith(["2♠", "3♥"], []);
+    const next = applyAction(s, { type: "dealStock" });
+    expect(isFaceUp(next, "2♠")).toBe(true);
+  });
+
+  it("is false for every card back in stock after recycleStock", () => {
+    const s = stateWith([], ["2♠", "5♦"]);
+    const next = applyAction(s, { type: "recycleStock" });
+    expect(isFaceUp(next, "2♠")).toBe(false);
+    expect(isFaceUp(next, "5♦")).toBe(false);
+  });
+
+  it("is true for a card moved from waste onto a tableau column", () => {
+    const s = stateWithBoard({ "tab:0": ["6♠", "5♦"], waste: ["4♣"] });
+    s.faceUp = { "5♦": true, "4♣": true };
+    const next = applyAction(s, { type: "moveCard", from: "waste", to: "tab:0", cardId: "4♣" });
+    expect(isFaceUp(next, "4♣")).toBe(true);
+  });
+
+  it("flips the newly exposed top card of a tableau column face-up", () => {
+    const s = stateWithBoard({ "tab:0": ["6♠", "5♦"], "found:D": ["4♦"] });
+    s.faceUp = { "6♠": false, "5♦": true, "4♦": true };
+    const next = applyAction(s, { type: "moveCard", from: "tab:0", to: "found:D", cardId: "5♦" });
+    expect(isFaceUp(next, "6♠")).toBe(true);
+  });
+
+  it("returns false for a card never dealt", () => {
+    const s = createInitialState();
+    expect(isFaceUp(s, "9♣")).toBe(false);
   });
 });
 

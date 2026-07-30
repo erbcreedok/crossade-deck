@@ -180,6 +180,7 @@ function Slot({
   onTarget,
   pickable = true,
   allowRun = false,
+  isFaceUp,
 }: {
   slotKey: string;
   cards: string[];
@@ -188,6 +189,9 @@ function Slot({
   onTarget: (slot: string) => void;
   pickable?: boolean;
   allowRun?: boolean;
+  /** #100 — движок теперь знает, какая карта видна, а какая ещё не раскрыта; стенд обязан это
+   *  честно рисовать, а не показывать реальное лицо любой карты, лежащей в state. */
+  isFaceUp: (card: string) => boolean;
 }) {
   const isTargetable = selectedCard !== null && selectedCard.slot !== slotKey;
   return (
@@ -211,10 +215,12 @@ function Slot({
         {cards.map((c, i) => {
           const isActive = pickable && (allowRun || i === cards.length - 1);
           const picked = selectedCard?.slot === slotKey && i >= selectedCard.fromIndex;
+          const faceUp = isFaceUp(c);
           return (
             <button
               key={i}
               disabled={!isActive}
+              title={faceUp ? c : `${c} (рубашкой вверх, ещё не раскрыта)`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (isActive) onPick(slotKey, i, cards.slice(i));
@@ -224,14 +230,20 @@ function Slot({
                 fontFamily: "monospace",
                 fontSize: 13,
                 borderRadius: 4,
-                background: picked ? "#d99a3f" : isActive ? "#3a4a3f" : "#2a3a2f",
-                color: picked ? "#2f3d34" : (c.endsWith("♥") || c.endsWith("♦")) ? "#e08a8a" : "#cdb98f",
+                background: picked ? "#d99a3f" : faceUp ? (isActive ? "#3a4a3f" : "#2a3a2f") : "#1c2721",
+                color: picked
+                  ? "#2f3d34"
+                  : !faceUp
+                    ? "#5a6a5f"
+                    : c.endsWith("♥") || c.endsWith("♦")
+                      ? "#e08a8a"
+                      : "#cdb98f",
                 border: i === 0 && !pickable ? "1px solid #d99a3f" : "1px solid #4a5a4f",
                 opacity: isActive || (i === 0 && !pickable) ? 1 : 0.55,
                 cursor: isActive ? "pointer" : "default",
               }}
             >
-              {c}
+              {faceUp ? c : "🂠"}
             </button>
           );
         })}
@@ -339,15 +351,15 @@ function EngineSection() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <Slot slotKey="stock" cards={state.board.slots.stock?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} pickable={false} />
-        <Slot slotKey="waste" cards={state.board.slots.waste?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} />
+        <Slot slotKey="stock" cards={state.board.slots.stock?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} pickable={false} isFaceUp={(c) => engine.isFaceUp(c)} />
+        <Slot slotKey="waste" cards={state.board.slots.waste?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} isFaceUp={(c) => engine.isFaceUp(c)} />
         {FOUNDATION_KEYS.map((k) => (
-          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} />
+          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} isFaceUp={(c) => engine.isFaceUp(c)} />
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         {TABLEAU_KEYS.map((k) => (
-          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} allowRun />
+          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} allowRun isFaceUp={(c) => engine.isFaceUp(c)} />
         ))}
       </div>
 

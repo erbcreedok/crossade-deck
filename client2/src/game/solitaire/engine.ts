@@ -5,6 +5,7 @@ import {
   dealNewGame,
   foundationKeyOf,
   getPossibleMoves,
+  isFaceUp,
   isWinning,
   type SolitaireAction,
   type SolitaireGameState,
@@ -148,6 +149,11 @@ export class SolitaireGameEngine {
   /** Все легальные одиночные ходы (для подсказок/тестов). */
   getPossibleMoves(): Array<{ from: string; to: string; card: string }> {
     return getPossibleMoves(this.state);
+  }
+
+  /** Видна ли карта лицом вверх прямо сейчас. */
+  isFaceUp(cardId: string): boolean {
+    return isFaceUp(this.state, cardId);
   }
 
   private requirePlaying(): ActionResult | null {

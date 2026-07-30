@@ -225,6 +225,20 @@ describe("SolitaireGameEngine", () => {
     });
   });
 
+  describe("isFaceUp", () => {
+    it("returns false without throwing when nothing has been dealt yet", () => {
+      const engine = new SolitaireGameEngine();
+      expect(engine.isFaceUp("anything")).toBe(false);
+    });
+
+    it("returns true for the top card of tab:0 after resetGame", () => {
+      const engine = new SolitaireGameEngine();
+      engine.resetGame(1);
+      const top = engine.getState().board.slots["tab:0"]!.members.at(-1)!;
+      expect(engine.isFaceUp(top)).toBe(true);
+    });
+  });
+
   describe("events", () => {
     const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
     function fullSuitRun(suit: string): string[] {

@@ -12,6 +12,7 @@ export type GamePhase = "menu" | "setup" | "playing" | "won" | "lost";
 export interface SolitaireGameState {
   phase: GamePhase;
   board: Board;
+  faceUp: Record<string, boolean>; // face-строка карты -> видна ли лицом вверх
   deckRev: number; // зарезервировано под будущую server-sync; в MVP не используется
   movesCount: number;
   timeStarted: number;
@@ -44,23 +45,36 @@ export function createInitialState(): SolitaireGameState {
   return {
     phase: "menu",
     board: { slots, onEmpty: "keep" },
+    faceUp: {},
     deckRev: 1,
     movesCount: 0,
     timeStarted: Date.now(),
   };
 }
 
+/** Видна ли карта лицом вверх прямо сейчас. Отсутствующие в карте (не раздана и т.п.) — лицом вниз. */
+export function isFaceUp(state: SolitaireGameState, cardId: string): boolean {
+  return state.faceUp[cardId] === true;
+}
+
 /** Раздать полную колоду в свежее состояние PLAYING: tab:0 получает 1 карту, ..., tab:6 — 7
  *  (28 карт с НАЧАЛА deck); остаток (24) идёт в stock; waste и foundations пустые. */
 export function dealNewGame(deck: string[]): SolitaireGameState {
   const state = createInitialState();
+  const faceUp: Record<string, boolean> = {};
   let cursor = 0;
   for (let c = 0; c < TABLEAU_KEYS.length; c++) {
     const count = c + 1;
-    state.board.slots[TABLEAU_KEYS[c]!] = { members: deck.slice(cursor, cursor + count) };
+    const members = deck.slice(cursor, cursor + count);
+    state.board.slots[TABLEAU_KEYS[c]!] = { members };
+    members.forEach((id, i) => {
+      faceUp[id] = i === members.length - 1;
+    });
     cursor += count;
   }
   state.board.slots.stock = { members: deck.slice(cursor) };
+  for (const id of state.board.slots.stock!.members) faceUp[id] = false;
+  state.faceUp = faceUp;
   state.phase = "playing";
   return state;
 }
@@ -102,6 +116,27 @@ export function canMakeMove(state: SolitaireGameState): boolean {
   return getPossibleMoves(state).length > 0;
 }
 
+/** faceUp после moveCard/moveStack: перемещённые карты открываются в новом доме (кроме stock), а
+ *  если source была tab: и в ней остались карты, новый верх колонки тоже открывается. */
+function nextFaceUp(
+  prev: Record<string, boolean>,
+  nextBoard: Board,
+  from: string,
+  to: string,
+  movedIds: string[],
+): Record<string, boolean> {
+  const faceUp = { ...prev };
+  if (to !== "stock") {
+    for (const id of movedIds) faceUp[id] = true;
+  }
+  if (from.startsWith("tab:")) {
+    const remaining = board.at(nextBoard, from);
+    const newTop = remaining ? topId(remaining) : undefined;
+    if (newTop) faceUp[newTop] = true;
+  }
+  return faceUp;
+}
+
 /** Чистый редьюсер. Никогда не мутирует `state`, возвращает НОВОЕ состояние (или тот же объект,
  *  если действие — no-op). moveCard/moveStack/resetGame реализуются отдельным тикетом. */
 export function applyAction(state: SolitaireGameState, action: SolitaireAction): SolitaireGameState {
@@ -111,13 +146,16 @@ export function applyAction(state: SolitaireGameState, action: SolitaireAction):
       if (!stock || stock.members.length === 0) return state;
       const card = stock.members[0]!;
       const nextBoard = board.move(state.board, "stock", "waste", [card]);
-      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+      const faceUp = { ...state.faceUp, [card]: true };
+      return { ...state, board: nextBoard, faceUp, movesCount: state.movesCount + 1 };
     }
     case "recycleStock": {
       const waste = board.at(state.board, "waste");
       if (!waste || waste.members.length === 0) return state;
       const nextBoard = board.move(state.board, "waste", "stock", [...waste.members].reverse());
-      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+      const faceUp = { ...state.faceUp };
+      for (const id of waste.members) faceUp[id] = false;
+      return { ...state, board: nextBoard, faceUp, movesCount: state.movesCount + 1 };
     }
     case "moveCard": {
       const { from, to, cardId } = action;
@@ -132,7 +170,8 @@ export function applyAction(state: SolitaireGameState, action: SolitaireAction):
         return state;
       }
       const nextBoard = board.move(state.board, from, to, [cardId]);
-      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+      const faceUp = nextFaceUp(state.faceUp, nextBoard, from, to, [cardId]);
+      return { ...state, board: nextBoard, faceUp, movesCount: state.movesCount + 1 };
     }
     case "moveStack": {
       const { from, to, cardIds } = action;
@@ -145,7 +184,8 @@ export function applyAction(state: SolitaireGameState, action: SolitaireAction):
       const top = topId(board.at(state.board, to) ?? { members: [] }) ?? null;
       if (!tableauAccepts(cardIds[0]!, top)) return state;
       const nextBoard = board.move(state.board, from, to, cardIds);
-      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+      const faceUp = nextFaceUp(state.faceUp, nextBoard, from, to, cardIds);
+      return { ...state, board: nextBoard, faceUp, movesCount: state.movesCount + 1 };
     }
     case "resetGame":
       return dealNewGame(createDeck52());
