@@ -40,11 +40,42 @@ export abstract class CanvasApp {
     this.height = Math.max(1, Math.round(height));
     this.onLayout(this.width, this.height);
     await this.boot();
+    this.observeResize();
   }
 
   destroy(): void {
     this.destroyed = true;
+    this.ro?.disconnect();
+    this.ro = null;
     this.teardown();
+  }
+
+  // ——— ресайз (issue #49) ———
+  //
+  // Раньше размер читался ОДИН раз на mount и больше никогда: канвас оставался прежним при любом
+  // изменении окна (утащили край, открыли консоль сайдбаром, повернули телефон). Следим за ХОСТОМ,
+  // а не за window: движок и так монтируется в размеры хоста, и панели/врезки вокруг канваса
+  // меняют его размер без всякого resize у окна.
+  private ro: ResizeObserver | null = null;
+
+  private observeResize(): void {
+    if (this.ro || this.destroyed || !this.host) return;
+    if (typeof ResizeObserver === "undefined") return; // jsdom/старые движки — просто без ресайза
+    this.ro = new ResizeObserver(() => this.handleResize());
+    this.ro.observe(this.host);
+  }
+
+  private handleResize(): void {
+    if (this.destroyed || !this.app || !this.host) return;
+    const w = Math.max(1, Math.round(this.host.clientWidth));
+    const h = Math.max(1, Math.round(this.host.clientHeight));
+    if (w === this.width && h === this.height) return; // ResizeObserver стреляет и на подписку
+    this.width = w;
+    this.height = h;
+    this.app.renderer.resize(w, h);
+    this.onLayout(w, h);
+    this.onResize(w, h);
+    this.wake(); // спящий тикер обязан перерисовать кадр в новом размере
   }
 
   // Поднять свежий Pixi-канвас (новый WebGL-контекст на каждый mount — иначе StrictMode «теряет
@@ -162,6 +193,11 @@ export abstract class CanvasApp {
   // ——— хуки контента (template method) ———
   /** Производные размеры до boot (напр. размер карты от экрана). Опц. */
   protected onLayout(_w: number, _h: number): void {}
+
+  /** Экран изменился ПОСЛЕ сборки сцены (issue #49). Вызывается сразу за onLayout. Контент, чья
+   *  геометрия не зависит от экрана (песочница — размер карты из конфига), обходится обновлением
+   *  камеры и хит-зоны; движкам, считающим раскладку от W/H, здесь нужен пересчёт. */
+  protected onResize(_w: number, _h: number): void {}
   /** Собрать сцену в app.stage (+ навесить ввод). Обязателен. */
   protected abstract build(app: Application): void;
   /** После добавления тикера: первый render / wake / эмит вида. Опц. */

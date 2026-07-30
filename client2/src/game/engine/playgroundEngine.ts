@@ -56,7 +56,7 @@ import { Viewport, type ViewState } from "./viewport";
 import { CanvasApp } from "./canvasApp";
 import { InputRouter, type InputHandlers } from "./inputRouter";
 import { topmostAt, type HitBox } from "./cardHit";
-import { DRAG_SCALE, PIXEL_FONT, TEX_H, TEX_W } from "./constants";
+import { DRAG_SCALE, PIXEL_FONT, SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
 
@@ -246,8 +246,16 @@ export class PlaygroundEngine extends CanvasApp {
   // lowFx — зеркало profile==="reduced" (issue #8): тот же idle-заморозок + выключение shadow-пасса.
   private lowFx = false;
 
-  private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM);
+  // alignX: "left" — контент песочницы прижат к постоянной левой опоре, а не центрируется, когда
+  // он уже экрана (issue #49): иначе раскладка прыгала вбок при каждом изменении ширины окна.
+  private viewport = new Viewport(MIN_ZOOM, MAX_ZOOM, 24, "left");
   private cards: Placed[] = [];
+
+  /** Высота карты — конфиг сцены (issue #68). Дефолт SANDBOX_CARD_H; параметром удобно поднимать
+   *  песочницу с другим размером карты, не трогая движок. */
+  constructor(private readonly cardHeight: number = SANDBOX_CARD_H) {
+    super();
+  }
   private pieces: PiecePlaced[] = []; // не-карточные элементы (фишки, фигуры) — тот же драг/тени
   private cardSpecs: CardSpec[] = [];
   private controlCards: Card[] = []; // карты раздела «Управление» — двигаются API, не драгом
@@ -351,10 +359,13 @@ export class PlaygroundEngine extends CanvasApp {
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
   private onView: ((v: ViewState) => void) | null = null;
 
+  // Размер экрана меняется (mount + ресайз окна), размер КАРТЫ — нет: она приходит из конфига
+  // (issue #68). Пока карта считалась от вьюпорта, а кегли были константами, текст относительно
+  // карты выходил вдвое крупнее на телефоне. Не возвращать сюда зависимость от W/H.
   protected onLayout(width: number, height: number): void {
     this.W = width;
     this.H = height;
-    this.cardH = Math.max(48, Math.min(140, Math.min(this.W, this.H) * 0.16));
+    this.cardH = this.cardHeight;
     this.baseScale = this.cardH / TEX_H;
     this.cardW = TEX_W * this.baseScale;
   }
@@ -2258,6 +2269,17 @@ export class PlaygroundEngine extends CanvasApp {
   private applyView(): void {
     this.content.position.set(this.viewport.x, this.viewport.y);
     this.content.scale.set(this.viewport.zoom);
+  }
+
+  // Окно изменилось (issue #49). Пересобирать сцену НЕ нужно: её геометрия не зависит от экрана
+  // (размер карты — конфиг, issue #68), меняются только хит-зона сцены и границы камеры. Плюс
+  // emitView — иначе скроллбары остались бы с прежними долями видимого.
+  protected onResize(w: number, h: number): void {
+    if (!this.app) return;
+    this.app.stage.hitArea = new Rectangle(0, 0, w, h);
+    this.clampView();
+    this.applyView();
+    this.emitView();
   }
 
   private zoomAround(sx: number, sy: number, factor: number): void {

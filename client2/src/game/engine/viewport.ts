@@ -33,6 +33,12 @@ export class Viewport {
     readonly maxZoom: number,
     // Верхний отступ, когда контент ниже экрана и центрировать по вертикали не надо.
     private readonly topInset = 24,
+    // Как класть контент по X, когда он УЖЕ экрана (issue #49). "center" — исторический дефолт
+    // (стенд /motion, меню). "left" — прижать к постоянному левому отступу: у песочницы контент то
+    // уже, то шире экрана, и центрирование заставляло всю раскладку прыгать вбок при каждом
+    // изменении ширины окна (напр. открыли консоль сайдбаром) — единой опоры у элементов не было.
+    private readonly alignX: "center" | "left" = "center",
+    private readonly leftInset = 0,
   ) {}
 
   setScreen(w: number, h: number): void {
@@ -54,7 +60,7 @@ export class Viewport {
   clamp(): void {
     const cw = this.cw * this.zoom;
     const ch = this.ch * this.zoom;
-    this.x = cw <= this.W ? (this.W - cw) / 2 : clamp(this.x, this.W - cw, 0);
+    this.x = cw <= this.W ? (this.alignX === "left" ? this.leftInset : (this.W - cw) / 2) : clamp(this.x, this.W - cw, 0);
     this.y = ch <= this.H ? this.topInset : clamp(this.y, this.H - ch, 0);
   }
 

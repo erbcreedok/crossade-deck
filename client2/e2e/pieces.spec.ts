@@ -36,8 +36,11 @@ test.describe("песочница — фишки и фигуры", () => {
 
   test("ряд: 4 фишки + конь + пешка + стопка из 6 фишек; метки на соло-карте и коне", async ({ page }) => {
     const h = await hooks(page);
-    // Фигуры РЯДА (без фигур бордов chessb-*/mix-*): 6 одиночных + 6 в стопке.
-    const rowPieces = h.pieces.filter((p) => !p.id.startsWith("chessb") && !p.id.startsWith("mix-"));
+    // Фигуры РЯДА (без фигур бордов chessb-*/mix-*/capz-*): 6 одиночных + 6 в стопке.
+    // capz-* — борд «слепой зоны» (issue #73); его фигура появилась позже этого теста, а фильтр
+    // тогда не обновили, из-за чего тест падал на main ещё до задач #68/#49.
+    const BOARD_PREFIXES = ["chessb", "mix-", "capz"];
+    const rowPieces = h.pieces.filter((p) => !BOARD_PREFIXES.some((b) => p.id.startsWith(b)));
     expect(rowPieces.length).toBe(12);
     for (const id of ["chip-5", "chip-25", "chip-100", "chip-500", "chess-knight", "chess-pawn"]) {
       expect(h.pieces.some((p) => p.id === id)).toBe(true);
