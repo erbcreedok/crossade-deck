@@ -1,0 +1,21 @@
+client2/docs/SOLITAIRE-HANDOFF.md
+  s_1683f4def88b5d::t_198310c1dc972e 1-112
+client2/docs/HANDOFF.md
+  s_1683f4def88b5d::t_66766f6e60d4f6 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "59c3416e72e19dabd4e5d528bd42b30ff54ea66b",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
