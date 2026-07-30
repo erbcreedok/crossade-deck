@@ -1,0 +1,112 @@
+# SOLITAIRE-HANDOFF — где мы в пасьянсе (Косынка), что дальше
+
+Живой документ конкретно под линию Solitaire/Klondike. Общий client2-хендофф — отдельно,
+[`HANDOFF.md`](./HANDOFF.md); тот описывает движок/канвас/анимации client2 в целом, этот —
+только пасьянсный трек поверх него. Не сливать.
+
+## 0. Как войти именно в этот трек
+
+```bash
+cd client2
+npx vitest run src/game/board/solitaireDeck.test.ts src/game/board/solitaireState.test.ts src/game/solitaire/engine.test.ts
+npx tsc --noEmit
+npm run dev   # → /no-ui — живой играбельный дебаг-стенд движка (см. §3)
+```
+
+Борд: GitHub Projects #1, owner `erbcreedok`. Эпики — issues с меткой `[epic]`, каждый владеет
+своим списком файлов и НЕ трогает файлы других эпиков (см. «Modules / paths (owned)» в теле
+каждого epic-issue). Саб-таски эпика — «Sub-issues» на самом epic-issue.
+
+## 1. Что сделано (E1 + E2, оба Done, всё запушено в main)
+
+- **E1 — Core Game State & Rules** (issue #75, saб-таски #83–87): 52-card колода + seedable
+  Fisher–Yates shuffle (`solitaireDeck.ts`), `SolitaireGameState`/`SolitaireAction` типы,
+  `createInitialState`/`dealNewGame`, чистый `applyAction` reducer (`dealStock`, `recycleStock`,
+  `moveCard`, `moveStack`, `resetGame`, все с валидацией по `solitaireRules.ts`), запросы
+  `isWinning`/`canMakeMove`/`getPossibleMoves`. Всё в `client2/src/game/board/solitaireState.ts`
+  (+ `.test.ts`).
+- **E2 — Game Engine & Control** (issue #76, саб-таски #88–91): `SolitaireGameEngine` —
+  стейтфул-обёртка (`client2/src/game/solitaire/engine.ts`): `getState`, `resetGame(seed?)`,
+  `dealStock()`/`moveCard()`/`moveStack()` (валидируют ДО dispatch, возвращают
+  `{valid,error?}`), делегаты `isWinning()`/`canMakeMove()`/`getPossibleMoves()`, событийная шина
+  `on`/`off` (`move`/`win`/`lose`, эмитятся из приватного `dispatch`).
+- **Внеплановая доработка** (issue #100, не входила в исходный E1/E2-скоуп плана — заведена
+  отдельно по факту находки): `faceUp: Record<string, boolean>` в `SolitaireGameState` — какие
+  карты видны. Stock всегда закрыт, tableau открывает только верх колонки, waste/foundation
+  всегда открыты. `applyAction` держит это в синхроне на каждом действии (включая «раскрытие»
+  карты под снятой верхней картой tableau). `engine.isFaceUp(cardId)` — тонкий делегат.
+- 523 юнит-теста зелёные, `tsc --noEmit` чист. Всё в main, запушено.
+
+## 2. Design-доки (ВАЖНО: были не в main, теперь ЗАВЕЗЕНЫ)
+
+Issue-спеки E1–E8 ссылаются на `SOLITAIRE-MVP-PLAN.md`, `-ARCHITECTURE.md`, `-TECHNICAL-SPEC.md`,
+`-OVERVIEW.md`, `-INDEX.md` — эти файлы были написаны на отдельной ветке
+(`claude/solitaire-mvp-design-jo2akg`) и НЕ доехали до main вместе с самими эпиками. Затронуто
+это не было (issue-спеки самодостаточны — я реализовывал E1/E2 без них), но для E3+ они полезны
+как более широкий контекст. Довёз их коммитом `c0aa4d8` (docs-only cherry-pick, без конфликтов) —
+теперь лежат в `client2/SOLITAIRE-*.md`, начинай с `SOLITAIRE-INDEX.md` (карта разделов).
+`client2/MINI-GAMES-SUITE.md` (5 доп. пасьянсов после MVP) — НЕ довозил, того же автора черновик,
+на ветке `claude/solitaire-mvp-design-jo2akg`, следующий коммит `7b99174`; забирай при необходимости
+тем же способом (`git cherry-pick 7b99174`), это чистый docs-only файл без зависимостей.
+
+## 3. `/no-ui` — играбельный дебаг-стенд (держать в курсе по мере роста эпиков)
+
+`client2/src/NoUi.tsx`, роут `/no-ui` (добавлен в `main.tsx` рядом с `playground`/`motion`/`table`).
+Не имеет отношения к финальному UI (`/v2/solitaire`, это позже — E8) — существует ТОЛЬКО чтобы
+глазами ловить баги логики раньше, чем она обрастёт визуалом/Pixi. Секции:
+- **#83** — колода/тасовка: создать/перемешать/проверить детерминизм.
+- **#84–91 (+100)** — живой `SolitaireGameEngine`: resetGame(seed), клик по карте (в tableau —
+  любая карта колонки, целый ран; в waste/found — только верх) → клик по цели → `moveStack`;
+  «взять/рециклить»; live `phase`/`movesCount`/`isWinning`/`canMakeMove`/`getPossibleMoves`;
+  журнал UI-действий отдельно от журнала реальных событий движка (`on`/`off`); скрытые карты
+  рисуются как `🂠`, наведение показывает реальное лицо (это ЧИТ для отладки, не баг).
+
+Когда E3 (геометрия) и дальше E4 (рендер) поедут — они НЕ обязаны трогать `/no-ui`, у него нет
+Pixi и это специально (там где движок нуждается в визуальной проверке, добавляй туда, а не жди
+полноценный UI). Расширяй `/no-ui` новыми секциями по мере готовности следующих эпиков, тем же
+паттерном (см. историю коммитов с `#84-89`, `#90`, `#91`, `#100` в `git log -- client2/src/NoUi.tsx`).
+
+## 4. Что дальше — E3, готов к старту
+
+**Epic #77 — Board Geometry & Layout.** Чистая математика геометрии слотов под вьюпорт, БЕЗ
+Pixi — полностью юнит-тестируема в node. Владеет `client2/src/game/board/solitaireLayout.ts`
+(+ `.test.ts`), ничего больше. Зависимостей нет (может идти параллельно с чем угодно).
+
+Саб-таски уже заведены и полностью расписаны (Context/API/acceptance/test-cases/TDD-steps, тот
+же формат, что у #83–91/#100 — просто открой issue и читай):
+- **#92** — `LAYOUT_PROFILES`, `selectProfile`, `getSolitaireLayout` (14 слотов:
+  `stock`,`waste`,`found:S..C`,`tab:0..6`, без пересечений, три профиля mobile/tablet/desktop
+  по ширине вьюпорта).
+- **#93** — `calculateFanPositions` (раскладка N карт по дуге веера tableau-колонки),
+  blocked_by #92.
+
+Оба сейчас в статусе **Todo** на борде (не Ready for dev) — переведи в Ready for dev перед
+стартом, как обычно.
+
+## 5. Порядок эпиков после E3 (справочно, не начинать раньше времени)
+
+E4 (Visual Rendering & UI, issue #78) зависит от E1+E2+E3 — это первый эпик, который реально
+трогает Pixi/канвас и монтирует движок на реальный борд (`SolitaireGame.tsx`). E5 (Animations,
+#79) и E7 (Testing & QA, #81) в плане **DEFERRED — 0 MVP subtasks** (см. заголовки issue) — не
+заводить саб-таски без явного решения владельца. E6 (Game Flow & Screens, #80) и E8 (Navigation,
+#82) идут после E4. Полная цепочка зависимостей и оценки — `SOLITAIRE-MVP-PLAN.md` §XI.
+
+## 6. Рабочий процесс (тот же, что для E1/E2 — если он поменяется, обнови ЗДЕСЬ)
+
+1. Sense: `gh project item-list 1 --owner erbcreedok --format json --limit 200 --jq '.items[] | select(.status=="Ready for dev")'`
+   (или переведи из Todo в Ready for dev вручную, если начинаешь новый эпик).
+2. Взять issue, прочитать спеку целиком (Context/API/semantics/acceptance/test-cases уже готовы
+   для #92/#93 — можно сразу спускать субагенту).
+3. Субагент реализует по TDD (тесты сначала, RED → GREEN), БЕЗ вложенных субагентов.
+4. Верифицировать ЛИЧНО: `cd client2 && npm test && npx tsc --noEmit` (плюс `npx playwright test`,
+   если задача трогала что-то с UI/e2e).
+5. Если у эпика есть визуальная составляющая — расширить `/no-ui` соответствующей секцией и
+   проверить глазами через Playwright MCP (`mcp__playwright__browser_navigate` на `/no-ui`),
+   не просто поверить тестам.
+6. Атомарный коммит, `git push` — с owner-ом здесь пуш уже разрешён явно (в отличие от
+   me-sleep-режима, где пуш придержан по умолчанию); если работаешь автономно ночью — вернись к
+   правилу «не пушить» из `~/.claude/skills/me-sleep/SKILL.md`.
+7. Перевести issue в Ready for test с комментарием: что реализовано, КАК проверить локально
+   (конкретные команды + URL, не только «запусти тесты»), список новых тестов с тем, что именно
+   каждый проверяет (не просто цифра) — см. любой комментарий на #83–91/#100 как образец формата.
+8. По приёмке владельцем — перевести в Done, issue close `-r completed`.
