@@ -1,0 +1,21 @@
+client2/src/NoUi.tsx
+  s_1683f4def88b5d::t_94fe3c4bc1d1f0 1-178
+client2/src/main.tsx
+  s_1683f4def88b5d::t_db3d4b039306ce 7,14-15,17-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "407d53ee33a310213e5e6ad65bc5998341b68a8c",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
