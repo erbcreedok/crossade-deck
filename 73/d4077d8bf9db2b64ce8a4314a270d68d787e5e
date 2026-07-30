@@ -1,0 +1,25 @@
+client2/src/game/board/solitaireState.ts
+  s_1683f4def88b5d::t_94735a0419bc4f 68-98,100-104
+  s_1683f4def88b5d::t_e7b7b7c5e6b6cd 99
+client2/src/game/board/solitaireState.test.ts
+  s_1683f4def88b5d::t_a07b18a5961529 242-303,305-306,310-314
+  s_1683f4def88b5d::t_6cc5b2e2c5210f 4-18
+  s_1683f4def88b5d::t_906fab9433cfa1 304,307-309
+  s_1683f4def88b5d::t_4356f47dd1675e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "73d4077d8bf9db2b64ce8a4314a270d68d787e5e",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
