@@ -1,9 +1,19 @@
 import { useState } from "react";
 import { createDeck52, makeRng, shuffle } from "./game/board/solitaireDeck";
+import {
+  FOUNDATION_KEYS,
+  TABLEAU_KEYS,
+  canMakeMove,
+  getPossibleMoves,
+  isWinning,
+  type SolitaireGameState,
+} from "./game/board/solitaireState";
+import { SolitaireGameEngine, type ActionResult } from "./game/solitaire/engine";
 
 // Дебаг-стенд БЕЗ канваса/Pixi — просто читаемые объекты и кнопки, чтобы глазами поймать
-// баги в чистой игровой логике до того, как она обрастёт UI. По одной секции на задачу
-// (сейчас — #83, колода + тасовка). Секция следующей задачи добавляется рядом, не вместо.
+// баги в чистой игровой логике до того, как она обрастёт UI. По одной секции на пласт задач:
+// #83 (колода/тасовка), #84–89 (state/reducer/queries/engine — единый живой движок, играбельный
+// кликами). Секция следующей задачи добавляется рядом, не вместо.
 
 function isPermutation(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
@@ -154,6 +164,184 @@ function DeckSection() {
   );
 }
 
+const ALL_SLOTS = ["stock", "waste", ...FOUNDATION_KEYS, ...TABLEAU_KEYS];
+
+// Индекс «верха» внутри слота зависит от смысла слота: waste/found/tableau копятся с конца
+// (members[последний] — то, что видно/берётся), а stock раздаёт с ПЕРЕДА (members[0] — то, что
+// уйдёт следующим через dealStock()). Смешать эти два понятия в одном кликабельном ряду —
+// показать пользователю неверную карту как «активную». У stock клика по карте поэтому нет вовсе:
+// единственный реальный способ её тронуть — кнопка dealStock(), как и в настоящем солитёре.
+function Slot({
+  slotKey,
+  cards,
+  selectedCard,
+  onPick,
+  onTarget,
+  pickable = true,
+}: {
+  slotKey: string;
+  cards: string[];
+  selectedCard: { slot: string; card: string } | null;
+  onPick: (slot: string, card: string) => void;
+  onTarget: (slot: string) => void;
+  pickable?: boolean;
+}) {
+  const isTargetable = selectedCard !== null && selectedCard.slot !== slotKey;
+  const activeIndex = pickable ? cards.length - 1 : cards.length; // -1 → нет активной карты у stock
+  return (
+    <div
+      style={{
+        border: isTargetable ? "1px dashed #d99a3f" : "1px solid #4a5a4f",
+        borderRadius: 6,
+        padding: 6,
+        minWidth: 120,
+        minHeight: 40,
+        cursor: isTargetable ? "pointer" : "default",
+        background: isTargetable ? "#3a2f1c" : "transparent",
+      }}
+      onClick={() => isTargetable && onTarget(slotKey)}
+      title={isTargetable ? `цель: перенести ${selectedCard!.card} сюда` : undefined}
+    >
+      <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
+        {slotKey} ({cards.length}) {!pickable && cards.length > 0 && "· следующая раздача: " + cards[0]}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+        {cards.map((c, i) => {
+          const isActive = i === activeIndex;
+          const picked = selectedCard?.slot === slotKey && selectedCard.card === c;
+          return (
+            <button
+              key={i}
+              disabled={!isActive}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isActive) onPick(slotKey, c);
+              }}
+              style={{
+                padding: "2px 6px",
+                fontFamily: "monospace",
+                fontSize: 13,
+                borderRadius: 4,
+                background: picked ? "#d99a3f" : isActive ? "#3a4a3f" : "#2a3a2f",
+                color: picked ? "#2f3d34" : (c.endsWith("♥") || c.endsWith("♦")) ? "#e08a8a" : "#cdb98f",
+                border: i === 0 && !pickable ? "1px solid #d99a3f" : "1px solid #4a5a4f",
+                opacity: isActive || (i === 0 && !pickable) ? 1 : 0.55,
+                cursor: isActive ? "pointer" : "default",
+              }}
+            >
+              {c}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EngineSection() {
+  const [engine] = useState(() => new SolitaireGameEngine());
+  const [state, setState] = useState<SolitaireGameState>(() => engine.getState());
+  const [seed, setSeed] = useState(1);
+  const [selected, setSelected] = useState<{ slot: string; card: string } | null>(null);
+  const [lastResult, setLastResult] = useState<ActionResult | null>(null);
+  const [log, setLog] = useState<string[]>([]);
+
+  function sync(actionLabel: string, result?: ActionResult) {
+    setState({ ...engine.getState() });
+    if (result) setLastResult(result);
+    setLog((prev) => [`${actionLabel}${result ? (result.valid ? " → ok" : ` → отклонено: ${result.error}`) : ""}`, ...prev].slice(0, 12));
+  }
+
+  function handleReset(withSeed: boolean) {
+    engine.resetGame(withSeed ? seed : undefined);
+    setSelected(null);
+    setLastResult(null);
+    sync(withSeed ? `resetGame(${seed})` : "resetGame(случайно)");
+  }
+
+  function handleDealStock() {
+    const r = engine.dealStock();
+    sync("dealStock()", r);
+  }
+
+  function handlePick(slot: string, card: string) {
+    setSelected((prev) => (prev?.slot === slot && prev.card === card ? null : { slot, card }));
+  }
+
+  function handleTarget(toSlot: string) {
+    if (!selected) return;
+    const r = engine.moveCard(selected.slot, toSlot, selected.card);
+    sync(`moveCard(${selected.slot} → ${toSlot}, ${selected.card})`, r);
+    setSelected(null);
+  }
+
+  const win = isWinning(state);
+  const canMove = canMakeMove(state);
+  const moves = getPossibleMoves(state);
+
+  return (
+    <section style={{ marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid #4a5a4f" }}>
+      <h2>#84–89 — SolitaireGameEngine (state + reducer + queries + методы)</h2>
+      <p style={{ opacity: 0.7, fontSize: 13, maxWidth: 700 }}>
+        Живой движок: кликни верхнюю карту в любом слоте (кроме stock — её берут только кнопкой) —
+        выбор подсветится жёлтым; затем кликни слот-цель (появится пунктирная рамка) — вызовется{" "}
+        <code>engine.moveCard</code>. «Взять» триггерит <code>dealStock()</code> (сама решает
+        раздать или рециклить); карта, которую она возьмёт следующей, подсвечена в stock отдельно.
+      </p>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+        <button onClick={() => handleReset(true)}>resetGame(seed)</button>
+        <input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} style={{ width: 70 }} />
+        <button onClick={() => handleReset(false)}>resetGame(случайно)</button>
+        <button onClick={handleDealStock}>dealStock() — взять / рециклить</button>
+        {selected && <span style={{ color: "#d99a3f" }}>выбрано: {selected.card} из {selected.slot} — кликни цель</span>}
+      </div>
+
+      <div style={{ marginBottom: 8, fontSize: 13 }}>
+        <b>phase:</b> {state.phase} &nbsp; <b>movesCount:</b> {state.movesCount} &nbsp;
+        <b>isWinning():</b> {win ? <span style={{ color: "#8fcf8f" }}>true ✓</span> : "false"} &nbsp;
+        <b>canMakeMove():</b> {canMove ? <span style={{ color: "#8fcf8f" }}>true</span> : <span style={{ color: "#e08a8a" }}>false — тупик</span>}
+        &nbsp; <b>getPossibleMoves():</b> {moves.length}
+        {lastResult && !lastResult.valid && (
+          <div style={{ color: "#e08a8a", marginTop: 4 }}>⚠ последний ход отклонён: {lastResult.error}</div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <Slot slotKey="stock" cards={state.board.slots.stock?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} pickable={false} />
+        <Slot slotKey="waste" cards={state.board.slots.waste?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} />
+        {FOUNDATION_KEYS.map((k) => (
+          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} />
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {TABLEAU_KEYS.map((k) => (
+          <Slot key={k} slotKey={k} cards={state.board.slots[k]?.members ?? []} selectedCard={selected} onPick={handlePick} onTarget={handleTarget} />
+        ))}
+      </div>
+
+      <details>
+        <summary style={{ cursor: "pointer" }}>getPossibleMoves() — сырой список ({moves.length})</summary>
+        <pre style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{JSON.stringify(moves, null, 2)}</pre>
+      </details>
+
+      <div style={{ marginTop: 12, fontSize: 12 }}>
+        <b>Журнал последних действий:</b>
+        <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+          {log.map((l, i) => (
+            <li key={i}>{l}</li>
+          ))}
+        </ul>
+      </div>
+
+      <details style={{ marginTop: 8 }}>
+        <summary style={{ cursor: "pointer" }}>Все ключи слотов (для сверки, {ALL_SLOTS.length})</summary>
+        <pre style={{ fontSize: 12 }}>{ALL_SLOTS.join(", ")}</pre>
+      </details>
+    </section>
+  );
+}
+
 export function NoUiPage() {
   return (
     <div
@@ -173,6 +361,7 @@ export function NoUiPage() {
         места, где спецификация задачи не продумана.
       </p>
       <DeckSection />
+      <EngineSection />
     </div>
   );
 }
