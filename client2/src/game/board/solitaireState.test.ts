@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDeck52 } from "./solitaireDeck";
-import { createInitialState, dealNewGame, foundationKeyOf } from "./solitaireState";
+import { applyAction, createInitialState, dealNewGame, foundationKeyOf, type SolitaireGameState } from "./solitaireState";
 
 describe("createInitialState", () => {
   it("starts in menu phase with all 13 slots present and onEmpty:keep", () => {
@@ -84,5 +84,62 @@ describe("dealNewGame", () => {
     expect(state.phase).toBe("playing");
     expect(state.movesCount).toBe(0);
     expect(state.board.onEmpty).toBe("keep");
+  });
+});
+
+function stateWith(stock: string[], waste: string[]): SolitaireGameState {
+  const s = createInitialState();
+  s.phase = "playing";
+  s.board.slots.stock = { members: stock };
+  s.board.slots.waste = { members: waste };
+  return s;
+}
+
+describe("applyAction dealStock", () => {
+  it("moves stock front card to top of waste, movesCount +1", () => {
+    const s = stateWith(["2♠", "3♥"], []);
+    const next = applyAction(s, { type: "dealStock" });
+    expect(next.board.slots.waste!.members).toEqual(["2♠"]);
+    expect(next.board.slots.stock!.members).toEqual(["3♥"]);
+    expect(next.movesCount).toBe(s.movesCount + 1);
+  });
+
+  it("on empty stock returns state unchanged", () => {
+    const s = stateWith([], ["9♣"]);
+    const next = applyAction(s, { type: "dealStock" });
+    expect(next).toBe(s);
+    expect(next.movesCount).toBe(s.movesCount);
+  });
+
+  it("does not mutate the input state", () => {
+    const s = stateWith(["2♠", "3♥"], []);
+    const snapshot = JSON.parse(JSON.stringify(s));
+    applyAction(s, { type: "dealStock" });
+    expect(JSON.parse(JSON.stringify(s))).toEqual(snapshot);
+  });
+});
+
+describe("applyAction recycleStock", () => {
+  it("moves all waste back to stock reversed, movesCount +1", () => {
+    const s = stateWith([], ["2♠", "5♦", "9♣"]);
+    const next = applyAction(s, { type: "recycleStock" });
+    expect(next.board.slots.stock!.members).toEqual(["9♣", "5♦", "2♠"]);
+    expect(next.board.slots.waste!.members).toEqual([]);
+    expect(next.movesCount).toBe(s.movesCount + 1);
+  });
+
+  it("on empty waste returns state unchanged", () => {
+    const s = stateWith(["A♠"], []);
+    const next = applyAction(s, { type: "recycleStock" });
+    expect(next).toBe(s);
+    expect(next.movesCount).toBe(s.movesCount);
+  });
+});
+
+describe("applyAction default branch", () => {
+  it("returns state unchanged for not-yet-implemented action types", () => {
+    const s = stateWith(["2♠"], []);
+    const next = applyAction(s, { type: "moveCard", from: "tab:0", to: "tab:1", cardId: "2♠" });
+    expect(next).toBe(s);
   });
 });

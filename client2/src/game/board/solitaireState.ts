@@ -1,3 +1,4 @@
+import * as board from "./board";
 import type { Board } from "./board";
 
 // Состояние партии солитёра (klondike, MVP) поверх Board (issue #84). Только карта состояния и
@@ -59,4 +60,26 @@ export function dealNewGame(deck: string[]): SolitaireGameState {
   state.board.slots.stock = { members: deck.slice(cursor) };
   state.phase = "playing";
   return state;
+}
+
+/** Чистый редьюсер. Никогда не мутирует `state`, возвращает НОВОЕ состояние (или тот же объект,
+ *  если действие — no-op). moveCard/moveStack/resetGame реализуются отдельным тикетом. */
+export function applyAction(state: SolitaireGameState, action: SolitaireAction): SolitaireGameState {
+  switch (action.type) {
+    case "dealStock": {
+      const stock = board.at(state.board, "stock");
+      if (!stock || stock.members.length === 0) return state;
+      const card = stock.members[0]!;
+      const nextBoard = board.move(state.board, "stock", "waste", [card]);
+      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+    }
+    case "recycleStock": {
+      const waste = board.at(state.board, "waste");
+      if (!waste || waste.members.length === 0) return state;
+      const nextBoard = board.move(state.board, "waste", "stock", [...waste.members].reverse());
+      return { ...state, board: nextBoard, movesCount: state.movesCount + 1 };
+    }
+    default:
+      return state;
+  }
 }
