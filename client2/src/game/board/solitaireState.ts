@@ -1,0 +1,62 @@
+import type { Board } from "./board";
+
+// Состояние партии солитёра (klondike, MVP) поверх Board (issue #84). Только карта состояния и
+// раздача — applyAction (проведение действий) реализуется отдельным тикетом.
+
+export type GamePhase = "menu" | "setup" | "playing" | "won" | "lost";
+
+export interface SolitaireGameState {
+  phase: GamePhase;
+  board: Board;
+  deckRev: number; // зарезервировано под будущую server-sync; в MVP не используется
+  movesCount: number;
+  timeStarted: number;
+}
+
+export type SolitaireAction =
+  | { type: "dealStock" }
+  | { type: "moveCard"; from: string; to: string; cardId: string }
+  | { type: "moveStack"; from: string; to: string; cardIds: string[] }
+  | { type: "recycleStock" }
+  | { type: "resetGame" };
+
+/** Фиксированные id слотов, всегда присутствуют (рендер + запросы ходов). */
+export const FOUNDATION_KEYS: readonly string[] = ["found:S", "found:H", "found:D", "found:C"];
+export const TABLEAU_KEYS: readonly string[] = ["tab:0", "tab:1", "tab:2", "tab:3", "tab:4", "tab:5", "tab:6"];
+
+const SUIT_LETTER: Record<string, string> = { "♠": "S", "♥": "H", "♦": "D", "♣": "C" };
+
+/** Масть карты → её foundation-слот, напр. "5♦" -> "found:D". */
+export function foundationKeyOf(face: string): string {
+  const suit = face[face.length - 1]!;
+  return `found:${SUIT_LETTER[suit] ?? suit}`;
+}
+
+/** Пустая доска со всеми 13 слотами и onEmpty:"keep", чтобы слоты никогда не исчезали. */
+export function createInitialState(): SolitaireGameState {
+  const slots: Board["slots"] = { stock: { members: [] }, waste: { members: [] } };
+  for (const key of FOUNDATION_KEYS) slots[key] = { members: [] };
+  for (const key of TABLEAU_KEYS) slots[key] = { members: [] };
+  return {
+    phase: "menu",
+    board: { slots, onEmpty: "keep" },
+    deckRev: 1,
+    movesCount: 0,
+    timeStarted: Date.now(),
+  };
+}
+
+/** Раздать полную колоду в свежее состояние PLAYING: tab:0 получает 1 карту, ..., tab:6 — 7
+ *  (28 карт с НАЧАЛА deck); остаток (24) идёт в stock; waste и foundations пустые. */
+export function dealNewGame(deck: string[]): SolitaireGameState {
+  const state = createInitialState();
+  let cursor = 0;
+  for (let c = 0; c < TABLEAU_KEYS.length; c++) {
+    const count = c + 1;
+    state.board.slots[TABLEAU_KEYS[c]!] = { members: deck.slice(cursor, cursor + count) };
+    cursor += count;
+  }
+  state.board.slots.stock = { members: deck.slice(cursor) };
+  state.phase = "playing";
+  return state;
+}
