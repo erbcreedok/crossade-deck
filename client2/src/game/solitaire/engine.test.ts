@@ -27,4 +27,148 @@ describe("SolitaireGameEngine", () => {
     expect(state.board.slots.stock?.members.length).toBe(24);
     expect(state.phase).toBe("playing");
   });
+
+  describe("dealStock", () => {
+    it("moves the top stock card to waste when stock is non-empty", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { stock: { members: ["2♠", "3♥"] }, waste: { members: [] } }, onEmpty: "keep" },
+      });
+      const result = engine.dealStock();
+      expect(result).toEqual({ valid: true });
+      expect(engine.getState().board.slots.waste?.members).toEqual(["2♠"]);
+    });
+
+    it("recycles waste back to stock when stock is empty and waste is not", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { stock: { members: [] }, waste: { members: ["9♣"] } }, onEmpty: "keep" },
+      });
+      const result = engine.dealStock();
+      expect(result).toEqual({ valid: true });
+      expect(engine.getState().board.slots.stock?.members).toEqual(["9♣"]);
+      expect(engine.getState().board.slots.waste?.members).toEqual([]);
+    });
+
+    it("fails when both stock and waste are empty", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { stock: { members: [] }, waste: { members: [] } }, onEmpty: "keep" },
+      });
+      const result = engine.dealStock();
+      expect(result).toEqual({ valid: false, error: "No cards to deal" });
+    });
+
+    it("fails when phase is not playing", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "menu",
+        board: { slots: { stock: { members: ["2♠"] }, waste: { members: [] } }, onEmpty: "keep" },
+      });
+      const result = engine.dealStock();
+      expect(result.valid).toBe(false);
+      expect(engine.getState().board.slots.stock?.members).toEqual(["2♠"]);
+    });
+  });
+
+  describe("moveCard", () => {
+    it("moves a legal card from waste to tableau", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { waste: { members: ["5♦"] }, "tab:0": { members: ["6♠"] } }, onEmpty: "keep" },
+      });
+      const result = engine.moveCard("waste", "tab:0", "5♦");
+      expect(result).toEqual({ valid: true });
+      expect(engine.getState().board.slots["tab:0"]?.members).toEqual(["6♠", "5♦"]);
+    });
+
+    it("rejects an illegal move and does not bump movesCount", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { waste: { members: ["5♦"] }, "tab:0": { members: ["6♦"] } }, onEmpty: "keep" },
+      });
+      const before = engine.getState().movesCount;
+      const result = engine.moveCard("waste", "tab:0", "5♦");
+      expect(result.valid).toBe(false);
+      expect(engine.getState().movesCount).toBe(before);
+    });
+
+    it("rejects a foundation suit mismatch", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { waste: { members: ["A♥"] }, "found:S": { members: [] } }, onEmpty: "keep" },
+      });
+      const result = engine.moveCard("waste", "found:S", "A♥");
+      expect(result.valid).toBe(false);
+    });
+
+    it("fails when phase is not playing", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "menu",
+        board: { slots: { waste: { members: ["5♦"] }, "tab:0": { members: ["6♠"] } }, onEmpty: "keep" },
+      });
+      const result = engine.moveCard("waste", "tab:0", "5♦");
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  describe("moveStack", () => {
+    it("delegates to moveCard when cardIds has a single element", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { waste: { members: ["5♦"] }, "tab:0": { members: ["6♠"] } }, onEmpty: "keep" },
+      });
+      const result = engine.moveStack("waste", "tab:0", ["5♦"]);
+      expect(result).toEqual({ valid: true });
+      expect(engine.getState().board.slots["tab:0"]?.members).toEqual(["6♠", "5♦"]);
+    });
+
+    it("moves a valid run of cards to another tableau", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: { "tab:0": { members: ["9♦", "8♣"] }, "tab:1": { members: ["10♠"] } },
+          onEmpty: "keep",
+        },
+      });
+      const result = engine.moveStack("tab:0", "tab:1", ["9♦", "8♣"]);
+      expect(result).toEqual({ valid: true });
+      expect(engine.getState().board.slots["tab:1"]?.members).toEqual(["10♠", "9♦", "8♣"]);
+    });
+
+    it("rejects a run whose internal ordering is invalid", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: { "tab:0": { members: ["9♦", "7♣"] }, "tab:1": { members: ["9♠"] } },
+          onEmpty: "keep",
+        },
+      });
+      const result = engine.moveStack("tab:0", "tab:1", ["9♦", "7♣"]);
+      expect(result.valid).toBe(false);
+    });
+
+    it("rejects a target slot that is not a tableau", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: { "tab:0": { members: ["9♦", "8♣"] }, "found:D": { members: [] } },
+          onEmpty: "keep",
+        },
+      });
+      const result = engine.moveStack("tab:0", "found:D", ["9♦", "8♣"]);
+      expect(result).toEqual({ valid: false, error: "Invalid target slot found:D" });
+    });
+
+    it("fails when phase is not playing", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "menu",
+        board: {
+          slots: { "tab:0": { members: ["9♦", "8♣"] }, "tab:1": { members: ["9♠"] } },
+          onEmpty: "keep",
+        },
+      });
+      const result = engine.moveStack("tab:0", "tab:1", ["9♦", "8♣"]);
+      expect(result.valid).toBe(false);
+    });
+  });
 });
