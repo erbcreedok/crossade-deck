@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createDeck52, makeRng, shuffle } from "./game/board/solitaireDeck";
 import { FOUNDATION_KEYS, TABLEAU_KEYS, type SolitaireGameState } from "./game/board/solitaireState";
 import { SolitaireGameEngine, type ActionResult } from "./game/solitaire/engine";
@@ -238,6 +238,23 @@ function EngineSection() {
   const [selected, setSelected] = useState<{ slot: string; card: string } | null>(null);
   const [lastResult, setLastResult] = useState<ActionResult | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [eventLog, setEventLog] = useState<string[]>([]);
+
+  // Подписка на реальную событийную шину движка (#91) — отдельно от ручного sync() выше,
+  // чтобы глазами видеть, что move/win/lose реально стреляют, а не просто верить sync().
+  useEffect(() => {
+    const onMove = (action: { type: string }) => setEventLog((prev) => [`event move: ${action.type}`, ...prev].slice(0, 12));
+    const onWin = () => setEventLog((prev) => [`event win 🏆`, ...prev].slice(0, 12));
+    const onLose = () => setEventLog((prev) => [`event lose 💀`, ...prev].slice(0, 12));
+    engine.on("move", onMove);
+    engine.on("win", onWin);
+    engine.on("lose", onLose);
+    return () => {
+      engine.off("move", onMove);
+      engine.off("win", onWin);
+      engine.off("lose", onLose);
+    };
+  }, [engine]);
 
   function sync(actionLabel: string, result?: ActionResult) {
     setState({ ...engine.getState() });
@@ -321,13 +338,23 @@ function EngineSection() {
         <pre style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>{JSON.stringify(moves, null, 2)}</pre>
       </details>
 
-      <div style={{ marginTop: 12, fontSize: 12 }}>
-        <b>Журнал последних действий:</b>
-        <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-          {log.map((l, i) => (
-            <li key={i}>{l}</li>
-          ))}
-        </ul>
+      <div style={{ display: "flex", gap: 24, marginTop: 12, fontSize: 12 }}>
+        <div>
+          <b>Журнал действий (UI):</b>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+            {log.map((l, i) => (
+              <li key={i}>{l}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <b>Журнал событий движка (#91: on/off):</b>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+            {eventLog.map((l, i) => (
+              <li key={i}>{l}</li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <details style={{ marginTop: 8 }}>
