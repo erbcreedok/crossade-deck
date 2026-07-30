@@ -1,0 +1,23 @@
+client2/src/game/solitaire/engine.ts
+  s_1683f4def88b5d::t_f201e291aacc6e 5,10-17
+  s_1683f4def88b5d::t_155bc104e12ef9 41-120
+client2/src/game/solitaire/engine.test.ts
+  s_1683f4def88b5d::t_acdfc93124370a 30-128,130-134,136-173
+  s_1683f4def88b5d::t_7b2b92fa972ddb 129,135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d54799c70a9ce62577c5a5f31953546d446c4b7b",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
