@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { createDeck52, makeRng, shuffle } from "./game/board/solitaireDeck";
-import {
-  FOUNDATION_KEYS,
-  TABLEAU_KEYS,
-  canMakeMove,
-  getPossibleMoves,
-  isWinning,
-  type SolitaireGameState,
-} from "./game/board/solitaireState";
+import { FOUNDATION_KEYS, TABLEAU_KEYS, type SolitaireGameState } from "./game/board/solitaireState";
 import { SolitaireGameEngine, type ActionResult } from "./game/solitaire/engine";
 
 // Дебаг-стенд БЕЗ канваса/Pixi — просто читаемые объекты и кнопки, чтобы глазами поймать
@@ -275,9 +268,12 @@ function EngineSection() {
     setSelected(null);
   }
 
-  const win = isWinning(state);
-  const canMove = canMakeMove(state);
-  const moves = getPossibleMoves(state);
+  // note: read via `state` too, только чтобы React перерисовал секцию при его смене (методы
+  // движка сами читают приватный this.state, не принимают аргумент).
+  void state;
+  const win = engine.isWinning();
+  const canMove = engine.canMakeMove();
+  const moves = engine.getPossibleMoves();
 
   return (
     <section style={{ marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid #4a5a4f" }}>
