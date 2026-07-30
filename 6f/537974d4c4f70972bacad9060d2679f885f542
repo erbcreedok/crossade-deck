@@ -1,0 +1,39 @@
+client2/src/game/board/solitaireState.ts
+  s_1683f4def88b5d::t_f91f5ac5e5dae6 64,68-72,76-77
+  s_1683f4def88b5d::t_c3bbc4a514725f 149-150,156-158
+  s_1683f4def88b5d::t_074c2660fe9896 15
+  s_1683f4def88b5d::t_922d1ef744cb40 48,55-57
+  s_1683f4def88b5d::t_38e32f6c0cb770 58,119-139
+  s_1683f4def88b5d::t_be9033b542c42c 173-174
+  s_1683f4def88b5d::t_f398a3a903f2f0 187-188
+  s_1683f4def88b5d::t_747f8eed24675a 59
+client2/src/game/board/solitaireState.test.ts
+  s_1683f4def88b5d::t_3f1646ccb8787b 11
+  s_1683f4def88b5d::t_77586530d5e25d 357-358
+  s_1683f4def88b5d::t_23a72cabc48203 316-356,359-368
+client2/src/game/solitaire/engine.test.ts
+  s_1683f4def88b5d::t_917c8068e9e21b 228-241
+client2/src/game/solitaire/engine.ts
+  s_1683f4def88b5d::t_9a48c943aa5cf2 8
+  s_1683f4def88b5d::t_705db56a05c088 154-158
+client2/src/NoUi.tsx
+  s_1683f4def88b5d::t_36f276fb455259 354-355,357,362
+  s_1683f4def88b5d::t_681fa0e0307858 218,223,233-240,246
+  s_1683f4def88b5d::t_97360157cc28f4 183,192-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6f537974d4c4f70972bacad9060d2679f885f542",
+  "prompts": {},
+  "sessions": {
+    "s_1683f4def88b5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e121dba-82b9-47c9-b21e-45ffd1f727c1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
