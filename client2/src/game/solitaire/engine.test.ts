@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SolitaireGameEngine } from "./engine";
 
 describe("SolitaireGameEngine", () => {
@@ -222,6 +222,91 @@ describe("SolitaireGameEngine", () => {
         },
       });
       expect(engine.getPossibleMoves().length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("events", () => {
+    const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+    function fullSuitRun(suit: string): string[] {
+      return RANKS.map((rank) => `${rank}${suit}`);
+    }
+
+    it("fires 'move' once per successful dispatched action", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { stock: { members: ["2♠", "3♥"] }, waste: { members: [] } }, onEmpty: "keep" },
+      });
+      const spy = vi.fn();
+      engine.on("move", spy);
+      engine.dealStock();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ type: "dealStock" });
+    });
+
+    it("fires 'win' and sets phase to 'won' when the last foundation completes", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: {
+            "found:S": { members: fullSuitRun("♠") },
+            "found:H": { members: fullSuitRun("♥") },
+            "found:D": { members: fullSuitRun("♦") },
+            "found:C": { members: fullSuitRun("♣").slice(0, 12) },
+            waste: { members: ["K♣"] },
+          },
+          onEmpty: "keep",
+        },
+      });
+      const spy = vi.fn();
+      engine.on("win", spy);
+      const result = engine.moveCard("waste", "found:C", "K♣");
+      expect(result).toEqual({ valid: true });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(engine.getState().phase).toBe("won");
+    });
+
+    it("fires 'lose' and sets phase to 'lost' when no legal moves remain after a move", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: {
+          slots: {
+            stock: { members: ["9♣"] },
+            waste: { members: [] },
+            "tab:0": { members: ["2♠"] },
+          },
+          onEmpty: "keep",
+        },
+      });
+      const spy = vi.fn();
+      engine.on("lose", spy);
+      const result = engine.dealStock();
+      expect(result).toEqual({ valid: true });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(engine.getState().phase).toBe("lost");
+    });
+
+    it("off() unsubscribes a handler so it no longer fires", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { stock: { members: ["2♠"] }, waste: { members: [] } }, onEmpty: "keep" },
+      });
+      const spy = vi.fn();
+      engine.on("move", spy);
+      engine.off("move", spy);
+      engine.dealStock();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("does not fire 'move' for an illegal moveCard call", () => {
+      const engine = new SolitaireGameEngine({
+        phase: "playing",
+        board: { slots: { waste: { members: ["5♦"] }, "tab:0": { members: ["6♦"] } }, onEmpty: "keep" },
+      });
+      const spy = vi.fn();
+      engine.on("move", spy);
+      const result = engine.moveCard("waste", "tab:0", "5♦");
+      expect(result.valid).toBe(false);
+      expect(spy).not.toHaveBeenCalled();
     });
   });
 });

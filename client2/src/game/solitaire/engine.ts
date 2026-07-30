@@ -19,15 +19,36 @@ export interface ActionResult {
   error?: string;
 }
 
+export type MoveHandler = (action: SolitaireAction) => void;
+export type VoidHandler = () => void;
+
 // Тонкая обёртка вокруг чистого редьюсера solitaireState (issue #88): владеет текущим
 // состоянием партии и даёт объектный API (вместо ручного applyAction на каждый вызов).
 // Ходы/запросы (moveCard, getPossibleMoves и т.п.) — отдельными тикетами поверх dispatch.
 
 export class SolitaireGameEngine {
   private state: SolitaireGameState;
+  private listeners = {
+    move: [] as MoveHandler[],
+    win: [] as VoidHandler[],
+    lose: [] as VoidHandler[],
+  };
 
   constructor(initialState?: Partial<SolitaireGameState>) {
     this.state = { ...createInitialState(), ...initialState };
+  }
+
+  on(event: "move", handler: MoveHandler): void;
+  on(event: "win", handler: VoidHandler): void;
+  on(event: "lose", handler: VoidHandler): void;
+  on(event: "move" | "win" | "lose", handler: (...args: any[]) => void): void {
+    (this.listeners[event] as Array<(...args: any[]) => void>).push(handler);
+  }
+
+  off(event: "move" | "win" | "lose", handler: (...args: any[]) => void): void {
+    this.listeners[event] = (this.listeners[event] as Array<(...args: any[]) => void>).filter(
+      (h) => h !== handler
+    ) as any;
   }
 
   getState(): SolitaireGameState {
@@ -138,6 +159,13 @@ export class SolitaireGameEngine {
 
   private dispatch(action: SolitaireAction): void {
     this.state = applyAction(this.state, action);
-    // TODO(issue TBD): эмитить событие об изменении состояния для подписчиков (позже).
+    this.listeners.move.forEach((h) => h(action));
+    if (isWinning(this.state)) {
+      this.state = { ...this.state, phase: "won" };
+      this.listeners.win.forEach((h) => h());
+    } else if (!canMakeMove(this.state)) {
+      this.state = { ...this.state, phase: "lost" };
+      this.listeners.lose.forEach((h) => h());
+    }
   }
 }
