@@ -65,6 +65,43 @@ export function dealNewGame(deck: string[]): SolitaireGameState {
   return state;
 }
 
+/** Победа: все 4 фундамента набрали по 13 карт (A→K). */
+export function isWinning(state: SolitaireGameState): boolean {
+  return FOUNDATION_KEYS.every((key) => board.at(state.board, key)?.members.length === 13);
+}
+
+/** Все легальные одиночные ходы (для подсказок/тестов). Кандидаты-источники: верх waste и верх
+ *  каждой tableau-колонки; цели — только тот found:X, что соответствует масти карты, и все tab:N. */
+export function getPossibleMoves(state: SolitaireGameState): Array<{ from: string; to: string; card: string }> {
+  const sources: Array<{ from: string; card: string }> = [];
+  const wasteTop = topId(board.at(state.board, "waste") ?? { members: [] });
+  if (wasteTop) sources.push({ from: "waste", card: wasteTop });
+  for (const key of TABLEAU_KEYS) {
+    const top = topId(board.at(state.board, key) ?? { members: [] });
+    if (top) sources.push({ from: key, card: top });
+  }
+
+  const moves: Array<{ from: string; to: string; card: string }> = [];
+  for (const { from, card } of sources) {
+    const foundKey = foundationKeyOf(card);
+    const foundTop = topId(board.at(state.board, foundKey) ?? { members: [] }) ?? null;
+    if (foundationAccepts(card, foundTop)) moves.push({ from, to: foundKey, card });
+
+    for (const tabKey of TABLEAU_KEYS) {
+      if (tabKey === from) continue;
+      const tabTop = topId(board.at(state.board, tabKey) ?? { members: [] }) ?? null;
+      if (tableauAccepts(card, tabTop)) moves.push({ from, to: tabKey, card });
+    }
+  }
+  return moves;
+}
+
+/** Есть ли ещё хоть какой-то ход: непустой stock, либо легальный ход с верха waste/tableau. */
+export function canMakeMove(state: SolitaireGameState): boolean {
+  if (board.at(state.board, "stock")?.members.length) return true;
+  return getPossibleMoves(state).length > 0;
+}
+
 /** Чистый редьюсер. Никогда не мутирует `state`, возвращает НОВОЕ состояние (или тот же объект,
  *  если действие — no-op). moveCard/moveStack/resetGame реализуются отдельным тикетом. */
 export function applyAction(state: SolitaireGameState, action: SolitaireAction): SolitaireGameState {

@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { createDeck52 } from "./solitaireDeck";
-import { applyAction, createInitialState, dealNewGame, foundationKeyOf, type SolitaireGameState } from "./solitaireState";
+import { foundationAccepts, tableauAccepts } from "./solitaireRules";
+import {
+  applyAction,
+  canMakeMove,
+  createInitialState,
+  dealNewGame,
+  foundationKeyOf,
+  getPossibleMoves,
+  isWinning,
+  type SolitaireGameState,
+} from "./solitaireState";
+
+const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+function fullSuitRun(suit: string): string[] {
+  return RANKS.map((r) => `${r}${suit}`);
+}
 
 describe("createInitialState", () => {
   it("starts in menu phase with all 13 slots present and onEmpty:keep", () => {
@@ -221,6 +236,79 @@ describe("applyAction moveStack", () => {
     const s = stateWithBoard({ "found:S": [], "tab:3": ["K♠", "Q♥"] });
     const next = applyAction(s, { type: "moveStack", from: "tab:3", to: "found:S", cardIds: ["K♠", "Q♥"] });
     expect(next).toBe(s);
+  });
+});
+
+describe("isWinning", () => {
+  it("is true when all 4 foundations hold 13 cards each", () => {
+    const s = stateWithBoard({
+      "found:S": fullSuitRun("♠"),
+      "found:H": fullSuitRun("♥"),
+      "found:D": fullSuitRun("♦"),
+      "found:C": fullSuitRun("♣"),
+    });
+    expect(isWinning(s)).toBe(true);
+  });
+
+  it("is false when one foundation is short a card", () => {
+    const s = stateWithBoard({
+      "found:S": fullSuitRun("♠").slice(0, 12),
+      "found:H": fullSuitRun("♥"),
+      "found:D": fullSuitRun("♦"),
+      "found:C": fullSuitRun("♣"),
+    });
+    expect(isWinning(s)).toBe(false);
+  });
+});
+
+describe("canMakeMove", () => {
+  it("is true whenever stock has at least one card", () => {
+    const s = stateWithBoard({ stock: ["7♣"] });
+    expect(canMakeMove(s)).toBe(true);
+  });
+
+  it("is false with empty stock/waste and a locked tableau", () => {
+    const s = stateWithBoard({ stock: [], waste: [], "tab:0": ["2♠"] });
+    expect(canMakeMove(s)).toBe(false);
+  });
+
+  it("is true when waste top has a legal move", () => {
+    const s = stateWithBoard({ stock: [], waste: ["A♠"], "found:S": [] });
+    expect(canMakeMove(s)).toBe(true);
+  });
+});
+
+describe("getPossibleMoves", () => {
+  it("includes a waste-to-tableau move when legal", () => {
+    const s = stateWithBoard({ stock: [], waste: ["5♦"], "tab:0": ["6♠"] });
+    const moves = getPossibleMoves(s);
+    expect(moves).toContainEqual({ from: "waste", to: "tab:0", card: "5♦" });
+  });
+
+  it("includes a waste-to-foundation move when legal", () => {
+    const s = stateWithBoard({ stock: [], waste: ["2♣"], "found:C": ["A♣"] });
+    const moves = getPossibleMoves(s);
+    expect(moves).toContainEqual({ from: "waste", to: "found:C", card: "2♣" });
+  });
+
+  it("contains no illegal moves", () => {
+    const s = stateWithBoard({
+      stock: [],
+      waste: ["5♦"],
+      "tab:0": ["6♠"],
+      "tab:1": ["6♣"],
+      "found:D": [],
+    });
+    const moves = getPossibleMoves(s);
+    for (const m of moves) {
+      const top = s.board.slots[m.to]?.members.at(-1) ?? null;
+      if (m.to.startsWith("found:")) {
+        expect(foundationKeyOf(m.card)).toBe(m.to);
+        expect(foundationAccepts(m.card, top)).toBe(true);
+      } else if (m.to.startsWith("tab:")) {
+        expect(tableauAccepts(m.card, top)).toBe(true);
+      }
+    }
   });
 });
 
