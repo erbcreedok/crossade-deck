@@ -7,8 +7,12 @@ import { SB_MARGIN } from "./sandboxLayout";
 import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
 import type { TableElement } from "./element";
+import { attachControls } from "../ui/controls";
 import { makeLabel, type SectionContext } from "../kit/context";
 import { extentOf, fitZoom } from "./kitExtent";
+import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
+
+export type { KitSceneOptions };
 
 // ВИТРИНА ОДНОГО КОМПОНЕНТА на общей обвязке стола.
 //
@@ -55,13 +59,6 @@ export interface KitContext extends SectionContext {
 
 export type KitBuild = (ctx: KitContext) => void;
 
-export interface KitSceneOptions {
-  cardHeight?: number;
-  camera?: CameraConfig;
-  padding?: number;
-  /** Вписать витрину в экран зумом при сборке (дефолт true — витрина должна быть видна целиком). */
-  fitOnBuild?: boolean;
-}
 
 interface Placed {
   el: SceneElement;
@@ -90,9 +87,9 @@ export class KitScene extends SceneEngine {
     this.fitOnBuild = opts.fitOnBuild ?? true;
   }
 
-  /** Ключ пула: витрины с разными опциями не должны переиспользовать друг друга. */
+  /** Ключ пула. Реализация и её ОБРАТНАЯ сторона — в kitSceneKey.ts (там же тест обратимости). */
   static key(o: KitSceneOptions = {}): string {
-    return JSON.stringify([o.cardHeight ?? SANDBOX_CARD_H, o.padding ?? SB_MARGIN, o.fitOnBuild ?? true, o.camera ?? null]);
+    return kitSceneKey(o);
   }
 
   /** Что собрать при ближайшем boot. Зовётся ДО mount (сцена ещё не поднята). */
@@ -199,6 +196,19 @@ export class KitScene extends SceneEngine {
         return z;
       },
       needsPeek: (el) => this.needsPeek(el),
+      controls: (cfg, at, onChange) =>
+        attachControls(
+          cfg,
+          {
+            layer: this.scene.surface,
+            register: (b) => {
+              this.scene.surface.addChild(b.root);
+              this.buttons.push(b);
+            },
+            onChange: onChange ?? (() => this.wake()),
+          },
+          at,
+        ),
       wake: () => this.wake(),
       extent: (w, h) => void (this.explicitExtent = { w, h }),
     };

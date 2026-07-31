@@ -5,6 +5,10 @@ import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
 import type { DragPayload } from "../engine/drag";
 import type { TableElement } from "../engine/element";
+import type { Configurable } from "../ui/controls";
+import type { Toggle } from "../ui/Toggle";
+import type { Stepper } from "../ui/Stepper";
+import type { Segmented } from "../ui/Segmented";
 import { PIXEL_FONT } from "../engine/constants";
 
 // ОБЩИЙ ЗНАМЕНАТЕЛЬ ДВУХ ХОЗЯЕВ СЕКЦИИ: песочницы (/playground) и витрины каталога (KitScene).
@@ -58,8 +62,25 @@ export interface SectionContext {
   zone(z: DropZone, onDrop: (p: DragPayload) => void, accepts: (p: DragPayload) => boolean, textFor?: (p: DragPayload) => { armed: string; hot: string }): DropZone;
   /** Есть ли грузу что подглядывать — зона «ПОДГЛЯДЕТЬ» меняет от этого свою подпись. */
   needsPeek(el: TableElement): boolean;
+  /**
+   * Канвасные виджеты параметров из Configurable (ui/controls.ts): number → Stepper, bool → Toggle,
+   * choice → Segmented. Второй модели «что можно крутить» в проекте нет — из тех же params()
+   * строится и панель сторибука (stories/harness/paramArgs.ts), поэтому разъехаться им негде.
+   *
+   * onChange не задан — просто будим цикл. Задан — хозяин обязан сам разбудить: раскладку после
+   * правки параметра пересчитывает вызывающий (у Поля это переезд карт по новым домам).
+   */
+  controls(cfg: Configurable, at: Pt, onChange?: () => void): ControlsResult;
   /** Разбудить цикл после правки, сделанной секцией вне кадра. */
   wake(): void;
+}
+
+/** Что вернул attachControls: низ блока и сами виджеты (секции меряют их ширину, e2e — центры). */
+export interface ControlsResult {
+  bottom: number;
+  toggles: Toggle[];
+  segments: Segmented[];
+  steppers: Stepper[];
 }
 
 /** Секция стенда: расставить содержимое от точки at и сказать, сколько места заняла. */

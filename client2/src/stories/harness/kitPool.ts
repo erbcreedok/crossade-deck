@@ -1,4 +1,5 @@
 import { KitScene, type KitSceneOptions } from "../../game/engine/kitScene";
+import { parseKitSceneKey } from "../../game/engine/kitSceneKey";
 import { ResourcePool } from "./canvasPool";
 
 // Пул живых витрин. Единственная его задача — чтобы переключение стори было ПЕРЕИСПОЛЬЗОВАНИЕМ
@@ -23,7 +24,10 @@ type Holder = { [KEY]?: ResourcePool<string, Slot> };
 
 function makePool(cap: number): ResourcePool<string, Slot> {
   return new ResourcePool<string, Slot>({
-    create: (key) => ({ scene: new KitScene(JSON.parse(key) as KitSceneOptions), mounted: false }),
+    // Ключ — единственное, что есть у пула на руках, поэтому он обязан разбираться обратно в
+    // опции. Разбором ведает kitSceneKey.ts, у него на это тест: раньше здесь стоял голый
+    // JSON.parse, ключ был массивом, и КАЖДАЯ опция стори молча подменялась дефолтом.
+    create: (key) => ({ scene: new KitScene(parseKitSceneKey(key)), mounted: false }),
     dispose: (slot) => slot.scene.destroy(),
     cap,
   });
