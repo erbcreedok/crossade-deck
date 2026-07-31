@@ -89,14 +89,19 @@ for (const d of MATRIX) {
       const cb = (await canvas.boundingBox())!;
       expect(cb.width, "канвас занимает всю ширину").toBeGreaterThanOrEqual(vw(page) - 2);
 
-      // Все кнопки топбара помещаются по ширине (ни одна не уезжает за край).
-      const btns = page.locator(".fd-topbar .fd-btn");
-      const n = await btns.count();
-      expect(n).toBeGreaterThan(0);
-      for (let i = 0; i < n; i++) {
-        const box = (await btns.nth(i).boundingBox())!;
-        expect(box.x, `кнопка ${i} не срезана слева`).toBeGreaterThanOrEqual(-1);
-        expect(box.x + box.width, `кнопка ${i} не срезана справа`).toBeLessThanOrEqual(vw(page) + 1);
+      // Все кнопки топбара помещаются по ширине (ни одна не уезжает за край). Топбар канвасный —
+      // DOM-узлов нет, экранные прямоугольники берём из дев-хука движка.
+      const bar = await page.evaluate(
+        () =>
+          (window as unknown as { __fd: { testHooks(): { topbar: Record<string, { x: number; y: number; w: number; h: number }> } } }).__fd.testHooks()
+            .topbar,
+      );
+      const keys = Object.keys(bar);
+      expect(keys.length).toBeGreaterThan(0);
+      for (const k of keys) {
+        const b = bar[k]!;
+        expect(b.x - b.w / 2, `кнопка ${k} не срезана слева`).toBeGreaterThanOrEqual(-1);
+        expect(b.x + b.w / 2, `кнопка ${k} не срезана справа`).toBeLessThanOrEqual(vw(page) + 1);
       }
 
       expect(await horizOverflow(page), "нет горизонтального переполнения").toBeLessThanOrEqual(1);

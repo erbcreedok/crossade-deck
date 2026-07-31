@@ -309,7 +309,9 @@ test.describe("песочница — действия", () => {
   });
 });
 
-// Топбар (HTML): рестарты и возврат в меню.
+// Топбар — НА КАНВАСЕ (ui/TopBar.ts), DOM-узлов и ролей у него нет: экранные прямоугольники кнопок
+// отдаёт дев-хук __fd.testHooks().topbar, по нему и кликаем. Это не «тест под реализацию»: канвас
+// в принципе не отдаёт селекторов, и тот же приём уже используют все прочие тесты песочницы.
 test.describe("песочница — топбар", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/playground");
@@ -317,24 +319,73 @@ test.describe("песочница — топбар", () => {
     await page.waitForTimeout(600);
   });
 
+  const topbar = (page: import("@playwright/test").Page) =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __fd: { testHooks(): { topbar: Record<string, { x: number; y: number; w: number; h: number }> } } }).__fd.testHooks()
+          .topbar,
+    );
+
+  const clickTopbar = async (page: import("@playwright/test").Page, key: string) => {
+    const bar = await topbar(page);
+    const b = bar[key];
+    expect(b, `кнопка топбара «${key}» есть`).toBeTruthy();
+    const box = (await page.locator("canvas").boundingBox())!;
+    await page.mouse.click(box.x + b!.x, box.y + b!.y);
+  };
+
+  test("кнопки топбара нарисованы и лежат в своей полосе", async ({ page }) => {
+    const bar = await topbar(page);
+    expect(Object.keys(bar).sort()).toEqual(["back", "restart-canvas", "restart-sandbox"]);
+    for (const [key, b] of Object.entries(bar)) {
+      expect(b.x - b.w / 2, `${key} не срезана слева`).toBeGreaterThanOrEqual(0);
+      expect(b.y + b.h / 2, `${key} внутри полосы панели`).toBeLessThanOrEqual(52);
+    }
+  });
+
   test("рестарт песочницы — сцена остаётся", async ({ page }) => {
-    await page.locator(".fd-btn", { hasText: "рестарт песочницы" }).click();
+    await clickTopbar(page, "restart-sandbox");
     await page.waitForTimeout(400);
     expect((await page.screenshot()).length).toBeGreaterThan(20000);
   });
 
   test("рестарт канваса — сцена остаётся", async ({ page }) => {
-    await page.locator(".fd-btn", { hasText: "рестарт канваса" }).click();
+    await clickTopbar(page, "restart-canvas");
     await page.waitForTimeout(700);
     expect((await page.screenshot()).length).toBeGreaterThan(20000);
   });
 
   test("← в меню уводит на главный экран", async ({ page }) => {
-    await page.locator(".fd-btn", { hasText: "в меню" }).click();
+    await clickTopbar(page, "back");
     await page.waitForURL((u) => u.pathname === "/");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(400);
     await expect(page.locator("canvas")).toBeVisible();
+  });
+
+  test("тап по кнопке топбара НЕ хватает карту под ней и не панит стол", async ({ page }) => {
+    const before = await page.evaluate(
+      () => (window as unknown as { __fd: { testHooks(): { draggingId: string | null; cardW: number } } }).__fd.testHooks(),
+    );
+    const bar = await topbar(page);
+    const box = (await page.locator("canvas").boundingBox())!;
+    // Нажали на кнопку и увели палец ВНИЗ, на стол: если бы HUD не выигрывал у сцены, это стало бы
+    // паном (или драгом карты под панелью). Уводим за пределы кнопки — значит клика на отпускании
+    // тоже не будет, и мы обязаны остаться в песочнице.
+    await page.mouse.move(box.x + bar["back"]!.x, box.y + bar["back"]!.y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + bar["back"]!.x + 40, box.y + bar["back"]!.y + 220, { steps: 5 });
+    const during = await page.evaluate(
+      () => (window as unknown as { __fd: { testHooks(): { draggingId: string | null } } }).__fd.testHooks(),
+    );
+    expect(during.draggingId, "панель не отдала палец сцене").toBeNull();
+    await page.mouse.up(); // увели с кнопки — клика нет, остаёмся в песочнице
+    await page.waitForTimeout(200);
+    expect(page.url()).toContain("playground");
+    const after = await page.evaluate(
+      () => (window as unknown as { __fd: { testHooks(): { cardW: number } } }).__fd.testHooks(),
+    );
+    expect(after.cardW, "зум не поехал").toBeCloseTo(before.cardW, 5);
   });
 });
 

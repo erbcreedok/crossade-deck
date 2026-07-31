@@ -45,6 +45,7 @@ import { makeSelectOutline } from "./selectOutline";
 import { asDraggable } from "./capabilities";
 import { DropZone } from "../ui/DropZone";
 import { Button, type ButtonOptions } from "../ui/Button";
+import { TopBar, TOPBAR_H } from "../ui/TopBar";
 import type { TableElement } from "./element";
 import { GroupDrag, SingleDrag, type DragPayload } from "./drag";
 import type { Command } from "./command";
@@ -222,8 +223,12 @@ export class PlaygroundEngine extends SceneEngine {
   private cards: Placed[] = [];
 
   /** Высота карты — конфиг сцены (issue #68). Дефолт SANDBOX_CARD_H; параметром удобно поднимать
-   *  песочницу с другим размером карты, не трогая движок. */
-  constructor(private readonly cardHeight: number = SANDBOX_CARD_H) {
+   *  песочницу с другим размером карты, не трогая движок. onBack — куда уводит кнопка «в меню»:
+   *  движок не знает про роутинг приложения, его подаёт хост. */
+  constructor(
+    private readonly cardHeight: number = SANDBOX_CARD_H,
+    private readonly onBack: () => void = () => {},
+  ) {
     // alignX: "left" — контент песочницы прижат к постоянной левой опоре, а не центрируется, когда
     // он уже экрана (issue #49): иначе раскладка прыгала вбок при каждом изменении ширины окна.
     super({ align: "left" });
@@ -300,6 +305,7 @@ export class PlaygroundEngine extends SceneEngine {
   private stackSqueezeButtons: Button[] = []; // «при драге стопки» — для e2e-хука
   private stackReorderToggle: Toggle | null = null; // «реордер стопок» — для e2e-хука
   private buttonShowcase: { cap: string; b: Button }[] = []; // раздел «Кнопки» — для e2e-хука
+  private topbar: TopBar | null = null; // верхняя панель — на канвасе, не в HTML (см. ui/TopBar.ts)
 
   // Размер экрана меняется (mount + ресайз окна), размер КАРТЫ — нет: она приходит из конфига
   // (issue #68). Пока карта считалась от вьюпорта, а кегли были константами, текст относительно
@@ -314,8 +320,31 @@ export class PlaygroundEngine extends SceneEngine {
   // pendingRestore — снимок карт для рестарта канваса; без него песочница строится в исходном виде.
   protected buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
+    this.buildTopBar();
     this.buildContent(this.pendingRestore);
     this.pendingRestore = undefined;
+  }
+
+  // Верхняя панель — на КАНВАСЕ (общий ui/TopBar), а не в HTML: приложение целиком рисует движок.
+  // Живёт в экранном слое chrome, поэтому не ездит с паном и не растёт от зума.
+  private buildTopBar(): void {
+    this.topbar = new TopBar([
+      { key: "back", label: "← в меню", onClick: () => this.onBack() },
+      { key: "restart-sandbox", label: "⟲ песочница", onClick: () => this.restartSandbox() },
+      { key: "restart-canvas", label: "⟳ канвас", onClick: () => void this.restartCanvas() },
+    ]);
+    this.chrome.addChild(this.topbar.root);
+    this.chromeButtons = this.topbar.buttons;
+  }
+
+  protected layoutChrome(w: number, _h: number): void {
+    this.topbar?.layout(w);
+  }
+
+  // Стол начинается ПОД панелью: камера должна оставлять её полосу свободной, иначе верх контента
+  // навсегда уезжает под непрозрачный HUD и до него не доскроллить.
+  protected chromeInsetTop(): number {
+    return TOPBAR_H;
   }
 
   // Полный сброс песочницы к исходному состоянию (карты, стопки, зоны) — канвас не пересоздаём.
@@ -539,11 +568,14 @@ export class PlaygroundEngine extends SceneEngine {
       widgets: { flag: boolean; level: number; mode: number; toggleAt: { x: number; y: number } | null; stepperMinusAt: { x: number; y: number } | null; stepperPlusAt: { x: number; y: number } | null; segmentedAt: { x: number; y: number }[] } | null;
     };
     cardW: number;
+    topbar: Record<string, { x: number; y: number; w: number; h: number }>; // канвасный топбар — DOM-узлов у него нет
     draggingId: string | null;
     lastNamedSuits: string[]; // последний лог бокса «называю масть» (#62) — дедуп мастей + «???»
     storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean }[];
   } {
-    const toScreen = (cx: number, cy: number) => ({ x: this.viewport.x + cx * this.viewport.zoom, y: this.viewport.y + cy * this.viewport.zoom });
+    // Перевод контент→экран берём у общего слоя: он один знает про инсет HUD (топбар), и своя
+    // формула тут разъехалась бы с реальным положением карт ровно на высоту панели.
+    const toScreen = (cx: number, cy: number) => this.contentToScreen(cx, cy);
     const zones: Record<string, { x: number; y: number }> = {};
     for (const z of this.zones) {
       const r = z.zone.rect;
@@ -658,6 +690,7 @@ export class PlaygroundEngine extends SceneEngine {
           : null,
       },
       cardW: this.cardW * this.viewport.zoom,
+      topbar: this.topbar?.rects() ?? {},
       draggingId: this.drag?.lead.id ?? null,
       lastNamedSuits: [...this.lastNamedSuits],
       // «Карты — варианты» всегда спавнятся ПЕРВЫМИ (buildCardsRow — первая секция buildContent),

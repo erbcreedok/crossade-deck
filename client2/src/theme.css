@@ -170,7 +170,7 @@ body {
   }
   .fd-scrollbar-y {
     right: 9px;
-    top: 46px;
+    top: 98px;
     bottom: 28px;
     width: 11px;
   }
@@ -198,9 +198,11 @@ body {
     background: #f2c14e;
     cursor: grabbing;
   }
+  /* Топбар стенда переехал НА КАНВАС (ui/TopBar.ts) и занимает верхние 52px канваса — дев-контролы
+     стенда начинаются под ним, иначе слайдер лёг бы поверх кнопок панели. */
   .fd-zoom {
     position: absolute;
-    top: 10px;
+    top: 62px;
     right: 12px;
     display: flex;
     align-items: center;

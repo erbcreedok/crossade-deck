@@ -3,9 +3,12 @@ import { PlaygroundEngine, type ViewState } from "./game/engine/playgroundEngine
 import { goApp } from "./nav";
 import { useReducedMotion } from "./useReducedMotion";
 
-// UI-kit «/playground» — сторибук на канвасе (пан + зум + drag-and-drop карт/кнопок). На
-// телефоне управление жестами; на компе поверх канваса — скроллбары (гориз./верт., каждый
-// только при переполнении своей оси) и слайдер зума, по ховеру.
+// UI-kit «/playground» — сторибук на канвасе (пан + зум + drag-and-drop карт/кнопок). Хост —
+// голый контейнер под канвас: топбар (в меню / рестарты) рисует сам движок в экранном слое
+// (ui/TopBar.ts), HTML тут не остаётся.
+//
+// Скроллбары и слайдер зума — сознательное исключение «дев/тест-назначения»: это аффорданс
+// СТЕНДА для мыши, а не элемент приложения. В игровых сценах их нет.
 export function Playground() {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PlaygroundEngine | null>(null);
@@ -18,7 +21,8 @@ export function Playground() {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const engine = new PlaygroundEngine();
+    // onBack — движок не знает про роутинг приложения; кнопка «в меню» его топбара зовёт хост.
+    const engine = new PlaygroundEngine(undefined, () => goApp(""));
     engineRef.current = engine;
     if (import.meta.env.DEV) (window as unknown as { __fd?: PlaygroundEngine }).__fd = engine; // e2e-хук
     engine.setOnView(setView);
@@ -67,17 +71,6 @@ export function Playground() {
 
   return (
     <div className="table-screen playground">
-      <div className="fd-topbar">
-        <button className="fd-btn" onClick={() => goApp("")}>
-          ← в меню
-        </button>
-        <button className="fd-btn" onClick={() => engineRef.current?.restartSandbox()}>
-          ⟲ рестарт песочницы
-        </button>
-        <button className="fd-btn" onClick={() => void engineRef.current?.restartCanvas()}>
-          ⟳ рестарт канваса
-        </button>
-      </div>
       <div ref={hostRef} className="table-host" />
 
       {view && (

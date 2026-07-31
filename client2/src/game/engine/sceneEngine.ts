@@ -78,6 +78,10 @@ export abstract class SceneEngine extends CanvasApp {
   // ——— полотно и слои ———
   protected content!: Container;
   protected scene!: SceneLayers;
+  /** Экранный слой поверх сцены: топбар и прочий HUD. Живёт ВНЕ камеры — не панится и не зумится. */
+  protected chrome!: Container;
+  /** Кнопки экранного слоя: хит-тест в ЭКРАННЫХ координатах, приоритет выше карт (см. pickOverlay). */
+  protected chromeButtons: Button[] = [];
   /** Размер полотна контента (не экрана) — от него считаются клампы камеры и тени. */
   protected contentW = 1;
   protected contentH = 1;
@@ -133,10 +137,21 @@ export abstract class SceneEngine extends CanvasApp {
 
   protected build(app: Application): void {
     this.content = new Container();
-    app.stage.addChild(this.content);
+    this.chrome = new Container();
+    // Порядок: контент под камерой, HUD поверх него и БЕЗ трансформа камеры.
+    app.stage.addChild(this.content, this.chrome);
     this.scene = new SceneLayers(this.content);
     this.buildScene(app);
+    this.layoutChrome(this.width, this.height);
     this.wire(app);
+  }
+
+  /** Разложить экранный слой под размер экрана. Зовётся после сборки и на каждом ресайзе. Опц. */
+  protected layoutChrome(_w: number, _h: number): void {}
+
+  /** Экранный отступ сверху, занятый HUD: сцена вычитает его из полезной высоты стола. */
+  protected chromeInsetTop(): number {
+    return 0;
   }
 
   /** Собрать СВОЮ сцену в this.scene/this.content (полотно и слои уже готовы). Обязателен. */
@@ -170,14 +185,23 @@ export abstract class SceneEngine extends CanvasApp {
   // Камера
   // ——————————————————————————————————————————————————————————————————————
 
+  // Камера работает не во всём канвасе, а в ПОДПРЯМОУГОЛЬНИКЕ под HUD: экран для неё ниже на
+  // chromeInsetTop, а контент рисуется со сдвигом на ту же величину. Без этого верх стола навсегда
+  // заезжал бы под непрозрачную панель и доскроллить до него было бы нечем (кламп упирается в 0).
+  // Сцене без HUD инсет = 0, и всё вырождается в прежнее поведение.
+  private camPoint(sx: number, sy: number): Pt {
+    return { x: sx, y: sy - this.chromeInsetTop() };
+  }
+
   // Синхронизировать границы камеры перед операцией (экран/контент меняются при сборке и ресайзе).
   protected syncVp(): void {
-    this.viewport.setScreen(this.width, this.height);
+    this.viewport.setScreen(this.width, this.height - this.chromeInsetTop());
     this.viewport.setContent(this.contentW, this.contentH);
   }
 
   protected screenToContent(sx: number, sy: number): Pt {
-    return this.viewport.screenToContent(sx, sy);
+    const c = this.camPoint(sx, sy);
+    return this.viewport.screenToContent(c.x, c.y);
   }
 
   protected clampView(): void {
@@ -186,7 +210,7 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   protected applyView(): void {
-    this.content.position.set(this.viewport.x, this.viewport.y);
+    this.content.position.set(this.viewport.x, this.viewport.y + this.chromeInsetTop());
     this.content.scale.set(this.viewport.zoom);
   }
 
@@ -196,6 +220,7 @@ export abstract class SceneEngine extends CanvasApp {
   protected onResize(w: number, h: number): void {
     if (!this.app) return;
     this.app.stage.hitArea = new Rectangle(0, 0, w, h);
+    this.layoutChrome(w, h);
     this.onSceneResize(w, h);
     this.clampView();
     this.applyView();
@@ -207,7 +232,8 @@ export abstract class SceneEngine extends CanvasApp {
 
   private zoomAround(sx: number, sy: number, factor: number): void {
     this.syncVp();
-    this.viewport.zoomAround(sx, sy, factor);
+    const c = this.camPoint(sx, sy);
+    this.viewport.zoomAround(c.x, c.y, factor);
     this.applyView();
     this.wake();
     this.emitView();
@@ -407,6 +433,19 @@ export abstract class SceneEngine extends CanvasApp {
     return null;
   }
 
+  /** Кнопка HUD под ЭКРАННОЙ точкой. Роутер спрашивает это первым — HUD нарисован поверх сцены. */
+  protected hitChrome(sx: number, sy: number): Button | null {
+    for (const b of this.chromeButtons) if (b.hitTest(sx, sy)) return b;
+    return null;
+  }
+
+  // Кнопка HUD живёт в ЭКРАННЫХ координатах, а роутер ведёт нажатие в координатах КОНТЕНТА (общий
+  // случай — кнопка на столе). Переводим точку обратно, чтобы «увёл палец с кнопки» работало
+  // одинаково для обеих: инверсия screenToContent, ровно та же камера.
+  protected contentToScreen(cx: number, cy: number): Pt {
+    return { x: cx * this.viewport.zoom + this.viewport.x, y: cy * this.viewport.zoom + this.viewport.y + this.chromeInsetTop() };
+  }
+
   // Ввод: стейт-машину ведёт InputRouter, движок лишь форвардит события и отдаёт домен в колбэки.
   private onDown = (e: { global: Pt; pointerId: number }): void => {
     this.viewport.stopFling(); // касание гасит инерцию
@@ -484,7 +523,12 @@ export abstract class SceneEngine extends CanvasApp {
       pickCard: (cx, cy) => this.pickElement(cx, cy),
       cardDraggable: (el) => this.canDrag(el),
       pickButton: (cx, cy) => this.hitButton(cx, cy),
-      buttonContains: (b, cx, cy) => b.hitTest(cx, cy),
+      pickOverlay: (sx, sy) => this.hitChrome(sx, sy),
+      buttonContains: (b, cx, cy) => {
+        if (!this.chromeButtons.includes(b)) return b.hitTest(cx, cy);
+        const s = this.contentToScreen(cx, cy);
+        return b.hitTest(s.x, s.y);
+      },
 
       onCardGrab: (el, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
@@ -563,9 +607,10 @@ export abstract class SceneEngine extends CanvasApp {
         this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y };
       },
       onPinch: (mx, my, dist) => {
+        const c = this.camPoint(mx, my);
         this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, this.viewport.minZoom, this.viewport.maxZoom);
-        this.viewport.x = mx - this.pinch.midContentX * this.viewport.zoom;
-        this.viewport.y = my - this.pinch.midContentY * this.viewport.zoom;
+        this.viewport.x = c.x - this.pinch.midContentX * this.viewport.zoom;
+        this.viewport.y = c.y - this.pinch.midContentY * this.viewport.zoom;
         this.clampView();
         this.applyView();
         this.emitView();
@@ -627,6 +672,10 @@ export abstract class SceneEngine extends CanvasApp {
       b.step(dt);
       if (!b.resting) moving = true;
     }
+    for (const b of this.chromeButtons) {
+      b.step(dt);
+      if (!b.resting) moving = true;
+    }
     if (this.peeking.size > 0) {
       moving = true; // держим тикер живым, иначе на успокоившейся сцене отсчёт показа замрёт
       for (const [id, p] of this.peeking) {
@@ -660,6 +709,7 @@ export abstract class SceneEngine extends CanvasApp {
     const els = this.everyElement();
     for (const el of els) el.sync();
     for (const b of this.buttons) b.sync();
+    for (const b of this.chromeButtons) b.sync();
     this.renderScene();
 
     // Слитые тени по уровням: силуэты элементов уровня → одна маска+заливка (без потемнения
@@ -690,7 +740,8 @@ export abstract class SceneEngine extends CanvasApp {
     this.wake();
   }
 
-  /** Сбросить общее состояние ввода/драга/зон (рестарт контента и снос). Сцена зовёт из своего. */
+  /** Сбросить общее состояние ввода/драга/зон (рестарт контента и снос). Сцена зовёт из своего.
+   *  HUD тут НЕ трогаем: топбар переживает рестарт содержимого стола — он часть экрана, не сцены. */
   protected resetSceneState(): void {
     this.drag = null;
     this.buttons = [];
@@ -703,6 +754,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   protected onTeardown(app: Application): void {
     app.canvas.removeEventListener("wheel", this.onWheel);
+    this.chromeButtons = []; // сам HUD сносится вместе с app; список — чтобы не держать мёртвые узлы
     this.resetSceneState();
   }
 }

@@ -17,6 +17,13 @@ export interface InputHandlers<C, B> {
   pickButton(cx: number, cy: number): B | null;
   buttonContains(b: B, cx: number, cy: number): boolean;
 
+  /**
+   * Кнопка ЭКРАННОГО слоя (HUD/топбар) — в ЭКРАННЫХ координатах, не в координатах контента.
+   * Спрашивается ПЕРВОЙ, ещё до карт: HUD нарисован поверх сцены, и палец, попавший по кнопке,
+   * не должен вместо неё хватать лежащую под ней карту. Опц. — сцене без HUD передавать нечего.
+   */
+  pickOverlay?(sx: number, sy: number): B | null;
+
   onCardGrab(c: C, content: Pt, screen: Pt): void;
   onCardMove(c: C, content: Pt, screen: Pt): void;
   onCardDrop(c: C, content: Pt): void; // отпустили (дроп в зону/возврат)
@@ -59,6 +66,15 @@ export class InputRouter<C, B> {
       const g = this.pinchGeom();
       this.h.onPinchStart(g.midX, g.midY, g.dist);
     } else if (this.pointers.size === 1) {
+      // HUD выигрывает у всего: он нарисован ПОВЕРХ сцены и не ездит с камерой.
+      const hud = this.h.pickOverlay?.(sx, sy) ?? null;
+      if (hud) {
+        this.gesture = "button";
+        this.button = hud;
+        this.h.onButtonDown(hud);
+        this.h.afterAny();
+        return;
+      }
       const cp = this.h.screenToContent(sx, sy);
       const card = this.h.pickCard(cp.x, cp.y);
       if (card && !this.h.cardDraggable(card)) {
@@ -101,7 +117,7 @@ export class InputRouter<C, B> {
       this.panLast = { x: sx, y: sy };
     } else if (this.gesture === "none") {
       const cp = this.h.screenToContent(sx, sy);
-      const b = this.h.pickButton(cp.x, cp.y);
+      const b = this.h.pickOverlay?.(sx, sy) ?? this.h.pickButton(cp.x, cp.y); // HUD и на ховере первый
       if (b !== this.hovered) {
         this.hovered = b;
         this.h.onHover(b);

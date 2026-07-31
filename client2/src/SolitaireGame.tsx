@@ -79,7 +79,10 @@ export function SolitaireGame() {
   }
 
   return (
-    <div className="table-screen playground">
+    // Свой класс, а не заимствованный `playground`: пасьянс не должен наследовать правила стенда
+    // и ломаться от их правки. Сама эта обвязка временна — экраны Косынки переезжают на канвас
+    // (ui/TopBar.ts) вместе с переписью её визуального слоя, см. SOLITAIRE-REBUILD-HANDOFF §3.
+    <div className="table-screen solitaire-play">
       <div className="fd-topbar">
         <button className="fd-btn" onClick={() => goApp("")}>
           ← в меню
