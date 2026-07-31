@@ -61,6 +61,7 @@ import { wrapRow, wrapFlow } from "./sandboxWrap";
 import type { ViewState } from "./viewport";
 import { SceneEngine, clamp, type SceneElement } from "./sceneEngine";
 import { drawAnchorIcon, drawPinIcon, drawRingIcon, gripConfig } from "../kit/markerIcons";
+import { piecesSection } from "../kit/pieces";
 import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
@@ -203,7 +204,7 @@ export class PlaygroundEngine extends SceneEngine {
   private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
   private stacks: SandboxStack[] = [];
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
-  private chipPile: { ids: string[]; dragger: Marker } | null = null; // стопка фишек (для e2e-грипа)
+  private chipPile: { ids: readonly string[]; dragger: Marker } | null = null; // столбик фишек (для e2e-грипа)
   private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
   private boardTitles: string[] = []; // заголовки бордов (align с boardZones), для e2e
   // ПОЛЕ (обособленный модуль board/field.ts): владелец с закрытой стопкой + flow-гридом.
@@ -361,6 +362,16 @@ export class PlaygroundEngine extends SceneEngine {
       },
       decor: (node, layer = "surface") => void (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(node),
       card: (opts, home, depth = 0, bobPhase = 0) => void this.cardSpecs.push({ opts, home: { ...home }, depth, bobPhase }),
+      piece: (id, home, spec, r, depth) => this.spawnPiece(id, home, spec, r, depth),
+      solo: (id, slot, anchor, label) => this.attachSolo(id, slot, anchor.draw, anchor.show, label ?? id),
+      pile: (ids, slot, anchor) => {
+        const host: MarkerHost = {
+          slotPos: () => slot,
+          state: () => this.stackState(ids),
+          makePayload: (cp) => this.makeStackPayload(ids, cp),
+        };
+        return this.attachGrip(host, () => this.byId.get(ids[ids.length - 1] ?? "") ?? null, anchor.draw, anchor.show);
+      },
       button: (b, at) => {
         if (at) b.place(at.x, at.y);
         this.registerButton(b);
@@ -1008,45 +1019,12 @@ export class PlaygroundEngine extends SceneEngine {
   // Ряд НЕ-карточных элементов: соло-карта с меткой + фишки номиналов + шахматы. Все — тот же
   // драг/тени/метки, что и карты (Piece реализует те же способности). Конь тоже носит метку —
   // withDragger/withAnchor generic по элементу, не только по стопке.
+  // Ряд «Фишки и фигуры» — общая секция каталога (kit/pieces.ts).
   private buildPieces(left: number, top: number): number {
     return this.sectionFrame(left, top, "Фишки и фигуры", (contentLeft, contentTop) => {
-      const r = this.cardH * 0.34; // радиус фишки/подставки
-      const slotW = this.cardW * 1.05;
-
-      // Ряд как ДАННЫЕ: соло-карта с меткой / фишки-номиналы / шахматы (конь с меткой) / стопка фишек.
-      // Все — тот же драг/тени/метки; фишки/фигуры Draggable+Burnable, но НЕ Flippable (зона реагирует
-      // на способности). `el.kind` диспетчится ниже одним циклом (задел под BoardFactory-контент).
-      const items: PieceRowItem[] = [
-        { caption: "карта + метка", w: slotW, el: { kind: "card", id: "solo-card", card: "A♠" }, marker: { draw: drawAnchorIcon, show: "away", label: "карта" } },
-        { caption: "фишка 5", w: slotW * 0.78, el: { kind: "piece", id: "chip-5", spec: { kind: "chip", color: 0xb23b34, denom: "5" } } },
-        { caption: "фишка 25", w: slotW * 0.78, el: { kind: "piece", id: "chip-25", spec: { kind: "chip", color: 0x2f6b34, denom: "25" } } },
-        { caption: "фишка 100", w: slotW * 0.78, el: { kind: "piece", id: "chip-100", spec: { kind: "chip", color: 0x24242a, denom: "100" } } },
-        { caption: "фишка 500", w: slotW * 0.78, el: { kind: "piece", id: "chip-500", spec: { kind: "chip", color: 0x6c4bb0, denom: "500" } } },
-        { caption: "чёрный конь", w: slotW * 0.9, el: { kind: "piece", id: "chess-knight", spec: { kind: "chess", dark: true, glyph: "♞" } }, marker: { draw: drawRingIcon, show: "empty", label: "конь" } },
-        { caption: "белая пешка", w: slotW * 0.9, el: { kind: "piece", id: "chess-pawn", spec: { kind: "chess", dark: false, glyph: "♟" } } },
-        { caption: "стопка фишек", w: slotW, el: { kind: "stack" } },
-      ];
-
-      // Перенос строк: ряд из 8 переполняет узкий экран (390px) — wrapRow пакует по maxWidth,
-      // itemH включает высоту карты/фишки + подпись под ней (тот же зазор, что был у одной строки).
-      const maxWidth = this.cardW * 8;
-      const itemH = this.cardH + 34;
-      const { items: placed, totalH } = wrapRow(items.map((it) => it.w), maxWidth, itemH, SB_ITEM_GAP);
-      let width = 0;
-      items.forEach((it, i) => {
-        const p = placed[i]!;
-        const x = contentLeft + this.cardW / 2 + p.x;
-        const cy = contentTop + p.y + this.cardH / 2;
-        const home = { x, y: cy };
-        if (it.el.kind === "card") this.cardSpecs.push({ opts: { id: it.el.id, card: it.el.card, rest: "idle" }, home, depth: 100, bobPhase: 0 });
-        else if (it.el.kind === "piece") this.spawnPiece(it.el.id, home, it.el.spec, r);
-        else this.buildChipStack(x, cy, r); // стопка фишек — группа за грип (GroupDrag)
-        if (it.marker && it.el.kind !== "stack") this.attachSolo(it.el.id, home, it.marker.draw, it.marker.show, it.marker.label);
-        this.scene.surface.addChild(this.label(it.caption, x, cy + this.cardH / 2 + 8, 12, 0x9aa89f, it.w));
-        width = Math.max(width, p.x + it.w);
-      });
-
-      return { bottom: contentTop + totalH, width: this.cardW / 2 + width };
+      const r = piecesSection(this.sectionCtx(), { x: contentLeft, y: contentTop });
+      this.chipPile = r.pile; // грип столбика фишек — для e2e-хука pileGrip
+      return r;
     });
   }
 
@@ -1077,7 +1055,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Метки на ОДИНОЧНЫЙ элемент по id (host отдаёт SingleDrag). Соло-карта и соло-фигура одинаково.
-  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorShow: ShowPolicy, label: string): void {
+  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorShow: ShowPolicy, label: string): { dragger: Marker; anchor: Marker } {
     const lead = () => this.byId.get(id) ?? null;
     const host: MarkerHost = {
       slotPos: () => slot,
@@ -1089,33 +1067,13 @@ export class PlaygroundEngine extends SceneEngine {
     };
     const { dragger, anchor } = this.attachGrip(host, lead, anchorDraw, anchorShow);
     this.solos.push({ host, dragger, anchor, lead, label });
-  }
-
-  // Вертикальная СТОПКА ФИШЕК (как в покере), которую тянут ЦЕЛИКОМ за грип. Тот же host +
-  // makeStackPayload (GroupDrag), что у стопки карт — доказательство, что группировка generic по
-  // элементу. Флип пачки не сработает (фишки не Flippable → GroupDrag.flip пуст), сжечь — сработает.
-  private buildChipStack(x: number, cy: number, r: number): void {
-    const n = 6;
-    const ids: string[] = [];
-    for (let i = 0; i < n; i++) {
-      const id = `pile-${i}`;
-      this.spawnPiece(id, { x, y: cy - i * r * 0.28 }, { kind: "chip", color: 0xc79a3e, denom: "" }, r); // одинаковые, друг на друге
-      ids.push(id);
-    }
-    const slot = { x, y: cy - ((n - 1) / 2) * r * 0.28 }; // центр столбика
-    const host: MarkerHost = {
-      slotPos: () => slot,
-      state: () => this.stackState(ids),
-      makePayload: (cp) => this.makeStackPayload(ids, cp),
-    };
-    const { dragger } = this.attachGrip(host, () => this.byId.get(ids[ids.length - 1]!) ?? null, drawAnchorIcon, "away");
-    this.chipPile = { ids, dragger };
+    return { dragger, anchor };
   }
 
   // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом
   // стопки. Возвращает прямоугольник хит-зоны (в координатах контента) или null (без ручки).
   // Состояние стопки для меток: сколько карт живо (в byId) и сколько стоит дома (не в драге).
-  private stackState(ids: string[]): MarkerState {
+  private stackState(ids: readonly string[]): MarkerState {
     let atHome = 0;
     let total = 0;
     for (const id of ids) {
@@ -1128,7 +1086,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Груз для захвата всей стопки (по её живым картам).
-  private makeStackPayload(ids: string[], cp: { x: number; y: number }): DragPayload | null {
+  private makeStackPayload(ids: readonly string[], cp: { x: number; y: number }): DragPayload | null {
     const cards = ids.map((id) => this.byId.get(id)).filter((c): c is Elem => !!c);
     return cards.length ? new GroupDrag(cards, this.wholeOffsets(cards, cp), this.dragCtx) : null;
   }

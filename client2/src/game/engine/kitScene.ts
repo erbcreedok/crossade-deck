@@ -2,11 +2,16 @@ import { Application, Container } from "pixi.js";
 import { SceneEngine, type CameraConfig, type SceneElement } from "./sceneEngine";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card } from "../ui/Card";
+import { Piece } from "../ui/Piece";
+import { pieceVisual } from "../ui/pieceKinds";
 import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 import { SB_MARGIN } from "./sandboxLayout";
 import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
 import type { TableElement } from "./element";
+import { GroupDrag, SingleDrag } from "./drag";
+import type { MarkerHost, MarkerState } from "./marker";
+import { gripConfig } from "../kit/markerIcons";
 import { attachControls } from "../ui/controls";
 import { makeLabel, type SectionContext } from "../kit/context";
 import { extentOf, fitZoom } from "./kitExtent";
@@ -119,6 +124,19 @@ export class KitScene extends SceneEngine {
     return this.buttons[i];
   }
 
+  /** Состояние цели для меток: сколько её элементов живо и сколько стоит дома (не в драге). */
+  private presence(ids: readonly string[]): MarkerState {
+    let atHome = 0;
+    let total = 0;
+    for (const id of ids) {
+      const el = this.byId.get(id);
+      if (!el) continue; // уничтожен/сгорел
+      total++;
+      if (el.state !== "drag") atHome++;
+    }
+    return { atHome, total };
+  }
+
   /** Разбудить цикл после ВНЕШНЕЙ правки элемента (живой сеттер из панели контролов). Без этого
    *  спящий тикер оставил бы на экране прежний кадр, и контрол выглядел бы неработающим. */
   poke(): void {
@@ -184,6 +202,37 @@ export class KitScene extends SceneEngine {
         c.bobPhase = bobPhase;
         ctx.add(c, home, depth);
       },
+      piece: (id, home, spec, r, depth = 0) => {
+        const { build, shadow } = pieceVisual(spec, r);
+        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow }), home, depth);
+      },
+      // Метки. Механизм — общий (SceneEngine.mountMarkers), «как выглядит грип» — общее с
+      // песочницей (kit/markerIcons). Витрина отличается только тем, что груз собирается прямо
+      // из своего реестра: никаких стопок-объектов у неё нет, есть список id.
+      solo: (id, slot, anchor) => {
+        const host: MarkerHost = {
+          slotPos: () => slot,
+          state: () => this.presence([id]),
+          makePayload: (cp) => {
+            const el = this.byId.get(id);
+            return el ? new SingleDrag(el, this.dragCtx, cp) : null;
+          },
+        };
+        return this.mountMarkers(host, () => this.byId.get(id) ?? null, gripConfig(this.cardHeight), anchor);
+      },
+      pile: (ids, slot, anchor) => {
+        const host: MarkerHost = {
+          slotPos: () => slot,
+          state: () => this.presence(ids),
+          makePayload: (cp) => {
+            const els = ids.map((i) => this.byId.get(i)).filter((e): e is SceneElement => !!e);
+            // «Врассыпную»: пачка сохраняет свою форму относительно пальца. Сжатие в руку — рычаг
+            // песочницы (dragSqueeze), у витрины его нет и притворяться нечем.
+            return els.length ? new GroupDrag(els, els.map((e) => ({ dx: e.body.px - cp.x, dy: e.body.py - cp.y })), this.dragCtx) : null;
+          },
+        };
+        return this.mountMarkers(host, () => this.byId.get(ids[ids.length - 1] ?? "") ?? null, gripConfig(this.cardHeight), anchor);
+      },
       button: (b, at) => {
         if (at) b.place(at.x, at.y);
         this.scene.surface.addChild(b.root);
@@ -242,6 +291,7 @@ export class KitScene extends SceneEngine {
     for (const d of this.decors) d.destroy({ children: true });
     this.decors = [];
     this.ownZones = [];
+    this.clearMarkers();
     this.scene.surface.removeChildren().forEach((c) => c.destroy());
     this.scene.verb.removeChildren().forEach((c) => c.destroy());
     this.scene.clearCards(this.contentW, this.contentH);
@@ -283,6 +333,9 @@ export class KitScene extends SceneEngine {
     elements: { id: string; x: number; y: number; state: string; faceUp: boolean | null; concealed: boolean | null }[];
     zones: Record<string, { x: number; y: number; hot: boolean; armed: boolean }>;
     buttons: { label: string; x: number; y: number }[];
+    /** Экранные центры меток-грипов. Метка — не элемент и не кнопка; без этого за неё не потянуть
+     *  ни руками из консоли, ни из e2e: у канваса нет ни узлов, ни ролей. */
+    grips: { x: number; y: number; interactive: boolean }[];
     extent: { w: number; h: number };
     zoom: number;
   } {
@@ -312,6 +365,10 @@ export class KitScene extends SceneEngine {
       buttons: this.buttons.map((b) => {
         const s = this.contentToScreen(b.x, b.y);
         return { label: b.labelText, x: s.x, y: s.y };
+      }),
+      grips: this.grabbers.map((g) => {
+        const s = this.contentToScreen(g.marker.gfx.position.x, g.marker.gfx.position.y);
+        return { x: s.x, y: s.y, interactive: g.marker.interactive };
       }),
       extent: { w: this.contentW, h: this.contentH },
       zoom: this.viewport.zoom,

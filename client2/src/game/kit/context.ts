@@ -1,5 +1,7 @@
-import { Container, Text } from "pixi.js";
+import { Container, Graphics, Text } from "pixi.js";
 import type { CardTextureCache } from "../ui/CardTextureCache";
+import type { PieceSpec } from "../ui/pieceKinds";
+import type { Marker, ShowPolicy } from "../engine/marker";
 import type { CardOptions } from "../ui/Card";
 import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
@@ -38,6 +40,18 @@ export interface SectionSize {
 /** Слой стола, в который просится узел. Карты и тени в этот выбор не входят — их кладёт движок. */
 export type DecorLayer = "surface" | "verb";
 
+/** Как выглядит и когда видна метка-якорь. Драггер (грип) у стенда один на всех — см. markerIcons. */
+export interface MarkerLook {
+  draw: (g: Graphics) => void;
+  show: ShowPolicy;
+}
+
+/** Созданная пара меток. Хозяину она нужна для своих хуков (e2e читает координаты грипа). */
+export interface MarkerPair {
+  dragger: Marker;
+  anchor: Marker;
+}
+
 export interface SectionContext {
   /** Общий кэш текстур карт (переживает пересборку содержимого). */
   readonly tex: CardTextureCache;
@@ -56,6 +70,16 @@ export interface SectionContext {
    * (песочница копит спеки и спавнит карты ПОСЛЕ мебели). Секция про это знать не должна.
    */
   card(opts: CardOptions, home: Pt, depth?: number, bobPhase?: number): void;
+  /**
+   * Не-карточный элемент стола: фишка, шахматная фигура. Визуал берётся из реестра по спеке
+   * (ui/pieceKinds.ts), дальше он живёт ровно как карта — тот же драг, тени, слои, метки.
+   * r — радиус; габарит элемента r*2.
+   */
+  piece(id: string, home: Pt, spec: PieceSpec, r: number, depth?: number): void;
+  /** Метки на ОДИНОЧНЫЙ элемент по id: грип едет с ним, якорь стоит дома по своей политике. */
+  solo(id: string, slot: Pt, anchor: MarkerLook, label?: string): MarkerPair;
+  /** Метки на ГРУППУ по id: за грип тянется вся пачка целиком (GroupDrag). */
+  pile(ids: readonly string[], slot: Pt, anchor: MarkerLook): MarkerPair;
   /** Кнопка: рисуется в стол, ввод роутит движок. at не задан — значит вызывающий уже её поставил. */
   button(b: Button, at?: Pt): Button;
   /** Дроп-зона с приёмом по СПОСОБНОСТЯМ груза (см. sceneEngine.registerZone). */
