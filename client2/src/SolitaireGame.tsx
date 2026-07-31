@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { SolitaireApp } from "./game/solitaire/app";
+import { SolitaireScene } from "./game/solitaire/scene";
 import { goApp } from "./nav";
 
-// Хост «Косынки» (issue #97+#98): меню → игра → выигрыш/проигрыш, тем же паттерном, что и
-// Playground.tsx монтирует свой движок — useRef на host-div, `new` в useEffect, mount/destroy.
-// Канвас (SolitaireApp) поднимается ТОЛЬКО в фазе "playing" (условный useEffect ниже) — до
-// «Новой игры» рисовать нечего, а после победы/поражения полю всё равно нечего больше принимать.
+// Хост «Косынки»: меню → игра → выигрыш/проигрыш, тем же паттерном, что Playground.tsx монтирует
+// свой движок — useRef на host-div, `new` в useEffect, mount/destroy. Канвас поднимается ТОЛЬКО в
+// фазе "playing": до «Новой игры» рисовать нечего.
+//
+// Внутри игры HTML не осталось: топбар («в меню» / «новая» / счётчик ходов) рисует сам движок
+// (ui/TopBar на канвасе). Экраны фаз пока React — они переезжают на канвас следующим шагом
+// (SOLITAIRE-REBUILD-HANDOFF §4).
 type Phase = "menu" | "playing" | "won" | "lost";
 
 export function SolitaireGame() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<SolitaireApp | null>(null);
   const [phase, setPhase] = useState<Phase>("menu");
   const [moves, setMoves] = useState(0);
 
@@ -19,30 +21,28 @@ export function SolitaireGame() {
     const host = hostRef.current;
     if (!host) return;
 
-    const app = new SolitaireApp();
-    appRef.current = app;
-    app.newGame();
+    const scene = new SolitaireScene({ onBack: () => goApp("") });
+    scene.newGame();
     setMoves(0);
-    const onMove = () => setMoves(app.engine.getState().movesCount);
+    const onMove = () => setMoves(scene.engine.getState().movesCount);
     const onWin = () => setPhase("won");
     const onLose = () => setPhase("lost");
-    app.engine.on("move", onMove);
-    app.engine.on("win", onWin);
-    app.engine.on("lose", onLose);
+    scene.engine.on("move", onMove);
+    scene.engine.on("win", onWin);
+    scene.engine.on("lose", onLose);
 
-    // Дев-хук для e2e и ручной отладки — тот же приём, что `__fd` у песочницы (Playground.tsx).
-    // Без него проверить игру можно только «на глаз»: канвас не отдаёт ни DOM-узлов, ни ролей, и
-    // ровно на этом однажды прошла мимо неработающая раскладка — драг «не сломал доску» просто
-    // потому, что не делал ничего.
-    if (import.meta.env.DEV) (window as unknown as { __sol?: SolitaireApp }).__sol = app;
+    // Дев-хук для e2e и ручной отладки — тот же приём, что `__fd` у песочницы. Без него проверить
+    // игру можно только «на глаз»: канвас не отдаёт ни DOM-узлов, ни ролей, и ровно на этом
+    // однажды прошла мимо неработающая раскладка (драг «не сломал доску» просто потому, что не
+    // делал ничего). См. §6 хендоффа — обязательный минимум ручной проверки идёт через него.
+    if (import.meta.env.DEV) (window as unknown as { __sol?: SolitaireScene }).__sol = scene;
 
-    void app.mount(host, host.clientWidth || 360, host.clientHeight || 640);
+    void scene.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => {
-      app.engine.off("move", onMove);
-      app.engine.off("win", onWin);
-      app.engine.off("lose", onLose);
-      app.destroy();
-      appRef.current = null;
+      scene.engine.off("move", onMove);
+      scene.engine.off("win", onWin);
+      scene.engine.off("lose", onLose);
+      scene.destroy();
     };
   }, [phase]);
 
@@ -79,16 +79,7 @@ export function SolitaireGame() {
   }
 
   return (
-    // Свой класс, а не заимствованный `playground`: пасьянс не должен наследовать правила стенда
-    // и ломаться от их правки. Сама эта обвязка временна — экраны Косынки переезжают на канвас
-    // (ui/TopBar.ts) вместе с переписью её визуального слоя, см. SOLITAIRE-REBUILD-HANDOFF §3.
     <div className="table-screen solitaire-play">
-      <div className="fd-topbar">
-        <button className="fd-btn" onClick={() => goApp("")}>
-          ← в меню
-        </button>
-        <span className="solitaire-counter">Ходов: {moves}</span>
-      </div>
       <div ref={hostRef} className="table-host" />
     </div>
   );
