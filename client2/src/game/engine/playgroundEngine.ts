@@ -1,13 +1,13 @@
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { Card, type CardOptions, type CardState, type RestState, type ShadowShape } from "../ui/Card";
+import { Card, type CardOptions, type CardState, type RestState } from "../ui/Card";
 import { Piece } from "../ui/Piece";
 import { pieceVisual, type PieceSpec } from "../ui/pieceKinds";
 import { BoardZone, type AcceptRule, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
 import { Field, NORMAL_FIELD } from "../board/field";
-import { Stack } from "../board/stack";
+import type { Stack } from "../board/stack";
 import { attachControls, type Configurable } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import type { Stepper } from "../ui/Stepper";
@@ -62,6 +62,8 @@ import type { ViewState } from "./viewport";
 import { SceneEngine, clamp, type SceneElement } from "./sceneEngine";
 import { drawAnchorIcon, drawPinIcon, drawRingIcon, gripConfig } from "../kit/markerIcons";
 import { piecesSection } from "../kit/pieces";
+import { stacksSection } from "../kit/stacks";
+import { commandPortSection } from "../kit/commandPort";
 import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
@@ -96,14 +98,6 @@ interface PiecePlaced {
   el: Piece;
   home: { x: number; y: number };
   depth: number;
-}
-
-// Дескриптор элемента ряда «Фишки и фигуры» (секция-как-данные): элемент + подпись + слот + опц. метка.
-interface PieceRowItem {
-  caption: string;
-  w: number; // ширина слота — и подписи, и шага x
-  el: { kind: "card"; id: string; card: string } | { kind: "piece"; id: string; spec: PieceSpec } | { kind: "stack" };
-  marker?: { draw: (g: Graphics) => void; show: ShowPolicy; label: string };
 }
 
 // Элемент борда КАК ДАННЫЕ: карта (лицо) ЛИБО фигура (PieceSpec: chip/chess). Основа BoardFactory.
@@ -201,7 +195,7 @@ export class PlaygroundEngine extends SceneEngine {
   private controlButtons: { cap: string; b: Button }[] = []; // flip/conceal/reveal/move — для e2e
   private widgetDemo = makeWidgetDemoState(); // витрина «виджеты контролов» — тривиальное состояние
   private widgetControls: { toggles: Toggle[]; steppers: Stepper[]; segments: Segmented[] } | null = null;
-  private stackMove: { a: string[]; b: string[]; ax: number; bx: number; y: number; toB: boolean } | null = null;
+  private stackMove: { a: string[]; b: string[] } | null = null; // состав стопок «переноса» — для e2e-хука
   private stacks: SandboxStack[] = [];
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
   private chipPile: { ids: readonly string[]; dragger: Marker } | null = null; // столбик фишек (для e2e-грипа)
@@ -363,6 +357,12 @@ export class PlaygroundEngine extends SceneEngine {
       decor: (node, layer = "surface") => void (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(node),
       card: (opts, home, depth = 0, bobPhase = 0) => void this.cardSpecs.push({ opts, home: { ...home }, depth, bobPhase }),
       piece: (id, home, spec, r, depth) => this.spawnPiece(id, home, spec, r, depth),
+      apiCard: (opts, home) => {
+        const c = new Card({ ...opts, rest: opts.rest ?? "idle" }, this.tex, this.baseScale);
+        c.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: c.restScale });
+        this.addControlCard(c);
+      },
+      dispatch: (cmd) => this.dispatch(cmd),
       solo: (id, slot, anchor, label) => this.attachSolo(id, slot, anchor.draw, anchor.show, label ?? id),
       pile: (ids, slot, anchor) => {
         const host: MarkerHost = {
@@ -370,7 +370,7 @@ export class PlaygroundEngine extends SceneEngine {
           state: () => this.stackState(ids),
           makePayload: (cp) => this.makeStackPayload(ids, cp),
         };
-        return this.attachGrip(host, () => this.byId.get(ids[ids.length - 1] ?? "") ?? null, anchor.draw, anchor.show);
+        return { ...this.attachGrip(host, () => this.byId.get(ids[ids.length - 1] ?? "") ?? null, anchor.draw, anchor.show), host };
       },
       button: (b, at) => {
         if (at) b.place(at.x, at.y);
@@ -765,99 +765,14 @@ export class PlaygroundEngine extends SceneEngine {
 
   private buildControls(left: number, top: number): number {
     return this.sectionFrame(left, top, "Управление", (contentLeft, contentTop) => {
-      let y = contentTop;
-      let width = 0;
-      const row = (bottom: number, w: number) => {
-        y = bottom + SB_ITEM_GAP;
-        width = Math.max(width, w);
-      };
-      const r1 = this.buildFlipBlock(contentLeft, y);
-      row(r1.bottom, r1.width);
-      const r2 = this.buildConcealBlock(contentLeft, y);
-      row(r2.bottom, r2.width);
-      const r3 = this.buildRevealBlock(contentLeft, y);
-      row(r3.bottom, r3.width);
-      const r4 = this.buildMoveBlock(contentLeft, y);
-      row(r4.bottom, r4.width);
-      const r5 = this.buildWidgetsBlock(contentLeft, y);
-      width = Math.max(width, r5.width);
-      return { bottom: r5.bottom, width };
+      // Командные блоки — общая секция каталога (kit/commandPort.ts): раздел про ПОРТ КОМАНД, а он
+      // одинаков для песочницы и витрины. Витрина виджетов идёт ниже отдельной секцией.
+      const r = commandPortSection(this.sectionCtx(), { x: contentLeft, y: contentTop });
+      this.controlButtons = r.buttons;
+      this.stackMove = r.move;
+      const w = this.buildWidgetsBlock(contentLeft, r.bottom + SB_ITEM_GAP);
+      return { bottom: w.bottom, width: Math.max(r.width, w.width) };
     });
-  }
-
-  // Общий каркас демо-блока «Управления»: fit-рамка + текст-кнопка + одна карта. Блоки различаются
-  // лишь кнопкой (лейбл+действие) и пропсами карты — их даёт вызыватель. DRY для flip/conceal/reveal.
-  private singleCardControl(left: number, top: number, btn: Button, cardOpts: CardOptions): { bottom: number; width: number } {
-    const box = fitBlock(btn.w, this.cardW, btn.h, this.cardH);
-    this.blockFrame(left, top, box.boxW, box.boxH);
-    const cx = left + box.boxW / 2;
-    btn.place(cx, top + box.btnCY);
-    this.registerButton(btn);
-    const card = new Card({ ...cardOpts, rest: "idle" }, this.tex, this.baseScale);
-    card.body.snapTo({ x: cx, y: top + box.cardCY, rot: 0, scale: card.restScale });
-    this.addControlCard(card);
-    return { bottom: top + box.boxH, width: box.boxW };
-  }
-
-  // Блок «перевернуть» — по тапу переворачивает карту (flipCard). Бокс подгоняется под контент (fit).
-  private buildFlipBlock(left: number, top: number): { bottom: number; width: number } {
-    const cap = "перевернуть карту";
-    const btn = this.textButton(cap, () => this.flipCard("ctl-flip"));
-    this.controlButtons.push({ cap, b: btn });
-    return this.singleCardControl(left, top, btn, { id: "ctl-flip", card: "A♥" });
-  }
-
-  // Блок «раскрыть/скрыть» (C3): карта в режиме секретности (живая «пыль»); тап снимает/ставит
-  // скрытость через API — раскрытая показывает НАСТОЯЩЕЕ лицо (значение под пылью реально).
-  private buildConcealBlock(left: number, top: number): { bottom: number; width: number } {
-    let concealed = true;
-    const cap = "раскрыть / скрыть";
-    const btn = this.textButton(cap, () => {
-      concealed = !concealed;
-      this.setConcealed("ctl-conceal", concealed);
-    });
-    this.controlButtons.push({ cap, b: btn });
-    return this.singleCardControl(left, top, btn, { id: "ctl-conceal", card: "K♠", hidden: true });
-  }
-
-  // Блок «раскрытие значения» (C1): карта с ПРИДЕРЖАННЫМ значением (card:"" → маска); тап проставляет
-  // значение через API — карта показывает НАСТОЯЩЕЕ лицо (сервер раскрыл / снова придержал).
-  private buildRevealBlock(left: number, top: number): { bottom: number; width: number } {
-    let known = false;
-    const cap = "узнать значение";
-    const btn = this.textButton(cap, () => {
-      known = !known;
-      this.setCardValue("ctl-reveal", known ? "Q♦" : "");
-    });
-    this.controlButtons.push({ cap, b: btn });
-    return this.singleCardControl(left, top, btn, { id: "ctl-reveal", card: "" });
-  }
-
-  // Блок 2: две стопки (5 и 4). Тап — случайная карта летит из одной в другую и остаётся там;
-  // следующий тап — случайная летит обратно. Направление чередуется. Бокс подгоняется под контент.
-  private buildMoveBlock(left: number, top: number): { bottom: number; width: number } {
-    const step = this.cardW * 0.4;
-    const footprint = this.cardW + 4 * step; // до 5 карт внахлёст
-    const stacksGap = this.cardW * 0.7;
-    const stacksW = footprint * 2 + stacksGap;
-    const cap = "перенос из стопки в стопку";
-    const btn = this.textButton(cap, () => this.doStackMove());
-    this.controlButtons.push({ cap, b: btn });
-    const box = fitBlock(btn.w, stacksW, btn.h, this.cardH);
-    this.blockFrame(left, top, box.boxW, box.boxH);
-    const cx = left + box.boxW / 2;
-    btn.place(cx, top + box.btnCY);
-    this.registerButton(btn);
-    const y = top + box.cardCY;
-    const groupLeft = left + (box.boxW - stacksW) / 2; // группа стопок по центру блока
-    const ax = groupLeft;
-    const bx = groupLeft + footprint + stacksGap;
-    const a = ["6♣", "7♣", "8♣", "9♣", "10♣"].map((r, i) => this.makeStackCard(`sa${i}`, r));
-    const b = ["6♦", "7♦", "8♦", "9♦"].map((r, i) => this.makeStackCard(`sb${i}`, r));
-    this.stackMove = { a, b, ax, bx, y, toB: true };
-    this.relayoutStack(a, ax, y, true);
-    this.relayoutStack(b, bx, y, true);
-    return { bottom: top + box.boxH, width: box.boxW };
   }
 
   // Витрина «виджеты контролов» — общая секция каталога (kit/widgets.ts). Состояние тривиальное и
@@ -867,39 +782,6 @@ export class PlaygroundEngine extends SceneEngine {
     const r = widgetsSection(this.sectionCtx(), { x: left, y: top }, this.widgetDemo);
     this.widgetControls = r.controls;
     return { bottom: r.bottom, width: r.width };
-  }
-
-  private doStackMove(): void {
-    const s = this.stackMove;
-    if (!s) return;
-    const [from, to, fromX, toX] = s.toB ? [s.a, s.b, s.ax, s.bx] : [s.b, s.a, s.bx, s.ax];
-    if (from.length > 0) {
-      const [id] = from.splice(Math.floor(Math.random() * from.length), 1); // случайная карта
-      to.push(id); // ложится сверху (правее)
-      this.relayoutStack(from, fromX, s.y);
-      this.relayoutStack(to, toX, s.y);
-    }
-    s.toB = !s.toB; // следующий тап — в обратную сторону
-  }
-
-  // Разложить стопку: i-я карта левее→правее, правее = выше по z. snap — при первичной раскладке.
-  private relayoutStack(ids: string[], originX: number, y: number, snap = false): void {
-    const step = this.cardW * 0.4;
-    ids.forEach((id, i) => {
-      const c = this.byId.get(id);
-      if (!c) return;
-      c.root.zIndex = i;
-      const x = originX + this.cardW / 2 + i * step;
-      if (snap) c.body.snapTo({ x, y, rot: 0, scale: c.restScale });
-      else this.moveCard(id, x, y);
-    });
-    this.wake();
-  }
-
-  private makeStackCard(id: string, rank: string): string {
-    const card = new Card({ id, card: rank, rest: "idle" }, this.tex, this.baseScale);
-    this.addControlCard(card);
-    return id;
   }
 
   private addControlCard(card: Card): void {
@@ -918,14 +800,6 @@ export class PlaygroundEngine extends SceneEngine {
   private registerButton(b: Button): void {
     this.buttons.push(b);
     this.scene.surface.addChild(b.root);
-  }
-
-  private blockFrame(x: number, y: number, w: number, h: number): void {
-    const g = new Graphics();
-    g.roundRect(x, y, w, h, 12)
-      .fill({ color: 0x000000, alpha: 0.1 })
-      .stroke({ width: 1, color: 0x4a5b50 });
-    this.scene.surface.addChild(g);
   }
 
   // Живые Card из накопленных спеков. restore — снимок (положение/лицо), сгоревшие пропускаем.
@@ -961,39 +835,12 @@ export class PlaygroundEngine extends SceneEngine {
   // Плюс переключатель режима драга карты (одна / вся стопка). Верхняя карта справа, левитируют.
   private buildStacks(left: number, top: number): number {
     return this.sectionFrame(left, top, "Стопки", (contentLeft, contentTop) => {
-      const cy = contentTop + this.cardH / 2;
-      const step = this.cardW * 0.4; // сдвиг соседа вправо (перекрытие)
-      const ranks = ["6♦", "7♦", "8♦", "9♦", "10♦"];
-      const footprint = this.cardW + (ranks.length - 1) * step;
-      const gap = this.cardW * 0.9;
-      // Демо якорей: у трёх стопок РАЗНЫЕ политики видимости и разные иконки. Драггер у всех
-      // одинаковый (грип, летит с пачкой). Драггер↔якорь свапаются по состоянию (см. marker.ts).
-      const anchors: { draw: (g: Graphics) => void; show: ShowPolicy; cap: string }[] = [
-        { draw: drawAnchorIcon, show: "away", cap: "якорь: когда унесли" },
-        { draw: drawRingIcon, show: "empty", cap: "кольцо: когда пусто" },
-        { draw: drawPinIcon, show: "always", cap: "метка: всегда" },
-      ];
-      anchors.forEach((a, s) => {
-        const ox = contentLeft + s * (footprint + gap);
-        const ids = ranks.map((_, i) => `stk${s}c${i}`);
-        // Stack держит порядок/дом/реордер на дереве слотов; дома карт берём у него.
-        const stack = new Stack({ left: ox, top: cy - this.cardH / 2, cell: { w: this.cardW, h: this.cardH }, step, ids, reorder: true });
-        ids.forEach((id, i) => {
-          this.cardSpecs.push({ opts: { id, card: ranks[i]!, rest: "floating" }, home: stack.homeOf(id), depth: i, bobPhase: i * 0.6 + s });
-        });
-        const slot = { x: ox + footprint / 2, y: cy }; // центр стопки — дом для меток
-        const host: MarkerHost = {
-          slotPos: () => slot,
-          state: () => this.stackState(stack.ids),
-          makePayload: (cp) => this.makeStackPayload(stack.ids, cp),
-        };
-        const { dragger, anchor } = this.attachGrip(host, () => this.byId.get(stack.top ?? "") ?? null, a.draw, a.show);
-        this.stacks.push({ stack, host, dragger, anchor });
-        this.scene.surface.addChild(this.label(a.cap, ox + footprint / 2, cy + this.cardH / 2 + 26, 12, 0x9aa89f, footprint));
-      });
-      const stacksRight = contentLeft + 2 * (footprint + gap) + footprint;
-      let y = cy + this.cardH / 2 + 50;
-      let width = stacksRight - contentLeft;
+      // Сами стопки с метками — общая секция каталога (kit/stacks.ts). Ниже — рычаги, которые
+      // принадлежат ИМЕННО песочнице: это флаги демо самого движка, а не свойства стопки.
+      const r0 = stacksSection(this.sectionCtx(), { x: contentLeft, y: contentTop });
+      this.stacks = r0.stacks.map(({ stack, host, dragger, anchor }) => ({ stack, host, dragger, anchor }));
+      let y = r0.bottom;
+      let width = r0.width;
       const r1 = this.segToggle(contentLeft, y, "режим драга карты:", ["по карте", "всю стопку"], this.stackMode === "one" ? 0 : 1, (i) => (this.stackMode = i === 0 ? "one" : "whole"));
       this.stackModeButtons = r1.buttons;
       y = r1.bottom + SB_ITEM_GAP;
@@ -1002,23 +849,18 @@ export class PlaygroundEngine extends SceneEngine {
       this.stackSqueezeButtons = r2.buttons;
       y = r2.bottom + SB_ITEM_GAP;
       width = Math.max(width, r2.width);
-      // «реордер стопок:» — общий тумблер на ВСЕ три демо-стопки разом (Stack.Configurable сам
-      // по себе — про ОДНУ стопку; адаптер сверху даёт attachControls+Toggle вместо segToggle,
-      // не меняя поведение «один переключатель — все стопки»).
+      // «реордер стопок:» — общий тумблер на ВСЕ три демо-стопки разом (Stack.Configurable сам по
+      // себе — про ОДНУ стопку; адаптер сверху даёт attachControls+Toggle, не меняя поведение
+      // «один переключатель — все стопки»).
       const reorderAll: Configurable = {
         params: () => [{ kind: "bool", label: "реордер стопок:", get: () => this.stacks[0]?.stack.reorder ?? true, set: (v) => this.stacks.forEach((st) => (st.stack.reorder = v)) }],
       };
-      const rc = attachControls(reorderAll, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: () => this.wake() }, { x: contentLeft, y });
+      const rc = this.sectionCtx().controls(reorderAll, { x: contentLeft, y });
       this.stackReorderToggle = rc.toggles[0] ?? null;
-      y = rc.bottom;
-      width = Math.max(width, rc.toggles[0]?.w ?? 0);
-      return { bottom: y, width };
+      return { bottom: rc.bottom, width: Math.max(width, rc.toggles[0]?.w ?? 0) };
     });
   }
 
-  // Ряд НЕ-карточных элементов: соло-карта с меткой + фишки номиналов + шахматы. Все — тот же
-  // драг/тени/метки, что и карты (Piece реализует те же способности). Конь тоже носит метку —
-  // withDragger/withAnchor generic по элементу, не только по стопке.
   // Ряд «Фишки и фигуры» — общая секция каталога (kit/pieces.ts).
   private buildPieces(left: number, top: number): number {
     return this.sectionFrame(left, top, "Фишки и фигуры", (contentLeft, contentTop) => {
@@ -1055,7 +897,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Метки на ОДИНОЧНЫЙ элемент по id (host отдаёт SingleDrag). Соло-карта и соло-фигура одинаково.
-  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorShow: ShowPolicy, label: string): { dragger: Marker; anchor: Marker } {
+  private attachSolo(id: string, slot: { x: number; y: number }, anchorDraw: (g: Graphics) => void, anchorShow: ShowPolicy, label: string): { dragger: Marker; anchor: Marker; host: MarkerHost } {
     const lead = () => this.byId.get(id) ?? null;
     const host: MarkerHost = {
       slotPos: () => slot,
@@ -1067,7 +909,7 @@ export class PlaygroundEngine extends SceneEngine {
     };
     const { dragger, anchor } = this.attachGrip(host, lead, anchorDraw, anchorShow);
     this.solos.push({ host, dragger, anchor, lead, label });
-    return { dragger, anchor };
+    return { dragger, anchor, host };
   }
 
   // «Ручка» стопки: еле видна (аффорданс, не мусор). grip — три точки, tab — пилюля; обе под низом

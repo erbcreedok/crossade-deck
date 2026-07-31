@@ -1,8 +1,9 @@
 import { Container, Graphics, Text } from "pixi.js";
 import type { CardTextureCache } from "../ui/CardTextureCache";
 import type { PieceSpec } from "../ui/pieceKinds";
-import type { Marker, ShowPolicy } from "../engine/marker";
+import type { Marker, MarkerHost, ShowPolicy } from "../engine/marker";
 import type { CardOptions } from "../ui/Card";
+import type { Command } from "../engine/command";
 import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
 import type { DragPayload } from "../engine/drag";
@@ -46,10 +47,14 @@ export interface MarkerLook {
   show: ShowPolicy;
 }
 
-/** Созданная пара меток. Хозяину она нужна для своих хуков (e2e читает координаты грипа). */
+/**
+ * Созданная пара меток и host цели. Хозяину нужны и метки (его e2e-хуки читают координаты грипа),
+ * и host — чтобы цель можно было захватить не только за метку (напр. режим «тащить всю стопку»).
+ */
 export interface MarkerPair {
   dragger: Marker;
   anchor: Marker;
+  host: MarkerHost;
 }
 
 export interface SectionContext {
@@ -80,6 +85,18 @@ export interface SectionContext {
   solo(id: string, slot: Pt, anchor: MarkerLook, label?: string): MarkerPair;
   /** Метки на ГРУППУ по id: за грип тянется вся пачка целиком (GroupDrag). */
   pile(ids: readonly string[], slot: Pt, anchor: MarkerLook): MarkerPair;
+  /**
+   * Карта, которой двигает API, а не палец: разделы вроде «Управления» показывают ПОРТ КОМАНД
+   * (сервер/консоль/скрытая логика), и подставлять там драгабельную карту значило бы показывать
+   * другой сценарий. В хит-тест драга такая карта не попадает.
+   */
+  apiCard(opts: CardOptions, home: Pt): void;
+  /**
+   * Исполнить команду управления доской — единая дверь всех драйверов (engine/command.ts,
+   * CONTROL-DESIGN.md). Секция «Управление» демонстрирует именно её, а не прямые сеттеры: обход
+   * этой двери и есть то, чего в игре быть не должно.
+   */
+  dispatch(cmd: Command): void;
   /** Кнопка: рисуется в стол, ввод роутит движок. at не задан — значит вызывающий уже её поставил. */
   button(b: Button, at?: Pt): Button;
   /** Дроп-зона с приёмом по СПОСОБНОСТЯМ груза (см. sceneEngine.registerZone). */

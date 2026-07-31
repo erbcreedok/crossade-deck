@@ -11,6 +11,7 @@ import type { DropZone } from "../ui/DropZone";
 import type { TableElement } from "./element";
 import { GroupDrag, SingleDrag } from "./drag";
 import type { MarkerHost, MarkerState } from "./marker";
+import type { Command } from "./command";
 import { gripConfig } from "../kit/markerIcons";
 import { attachControls } from "../ui/controls";
 import { makeLabel, type SectionContext } from "../kit/context";
@@ -69,6 +70,8 @@ interface Placed {
   el: SceneElement;
   home: Pt;
   depth: number;
+  /** Двигается командами, а не пальцем (ctx.apiCard) — из хит-теста драга исключена. */
+  api?: boolean;
 }
 
 export class KitScene extends SceneEngine {
@@ -122,6 +125,31 @@ export class KitScene extends SceneEngine {
    *  правки из панели («подпись», «недоступна») применяются именно к экземпляру. */
   button(i = 0): Button | undefined {
     return this.buttons[i];
+  }
+
+  /**
+   * Исполнить команду управления доской. Тот же порт команд, что у песочницы (engine/command.ts):
+   * витрина обязана дёргать ИМЕННО его, иначе раздел «Управление» показывал бы обход двери, а не
+   * саму дверь.
+   */
+  dispatch(cmd: Command): void {
+    const el = this.byId.get(cmd.id);
+    if (!el) return;
+    switch (cmd.t) {
+      case "flip":
+        if ("requestFlip" in el && !(el as unknown as { requestFlip(): boolean }).requestFlip()) return;
+        break;
+      case "move":
+        el.body.setTarget({ x: cmd.x, y: cmd.y, rot: 0 });
+        break;
+      case "conceal":
+        if ("setConcealed" in el) (el as unknown as { setConcealed(v: boolean): void }).setConcealed(cmd.v);
+        break;
+      case "setValue":
+        if ("setValue" in el) (el as unknown as { setValue(v: string): void }).setValue(cmd.value);
+        break;
+    }
+    this.wake();
   }
 
   /** Состояние цели для меток: сколько её элементов живо и сколько стоит дома (не в драге). */
@@ -202,6 +230,14 @@ export class KitScene extends SceneEngine {
         c.bobPhase = bobPhase;
         ctx.add(c, home, depth);
       },
+      // Карта под управлением API: в реестре и в цикле она есть, в хит-тесте драга — нет.
+      apiCard: (opts, home) => {
+        const c = new Card({ ...opts, rest: opts.rest ?? "idle" }, this.tex, baseScale);
+        ctx.add(c, home);
+        const last = this.placed[this.placed.length - 1];
+        if (last) last.api = true;
+      },
+      dispatch: (cmd) => this.dispatch(cmd),
       piece: (id, home, spec, r, depth = 0) => {
         const { build, shadow } = pieceVisual(spec, r);
         ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow }), home, depth);
@@ -218,7 +254,7 @@ export class KitScene extends SceneEngine {
             return el ? new SingleDrag(el, this.dragCtx, cp) : null;
           },
         };
-        return this.mountMarkers(host, () => this.byId.get(id) ?? null, gripConfig(this.cardHeight), anchor);
+        return { ...this.mountMarkers(host, () => this.byId.get(id) ?? null, gripConfig(this.cardHeight), anchor), host };
       },
       pile: (ids, slot, anchor) => {
         const host: MarkerHost = {
@@ -231,7 +267,7 @@ export class KitScene extends SceneEngine {
             return els.length ? new GroupDrag(els, els.map((e) => ({ dx: e.body.px - cp.x, dy: e.body.py - cp.y })), this.dragCtx) : null;
           },
         };
-        return this.mountMarkers(host, () => this.byId.get(ids[ids.length - 1] ?? "") ?? null, gripConfig(this.cardHeight), anchor);
+        return { ...this.mountMarkers(host, () => this.byId.get(ids[ids.length - 1] ?? "") ?? null, gripConfig(this.cardHeight), anchor), host };
       },
       button: (b, at) => {
         if (at) b.place(at.x, at.y);
@@ -309,7 +345,7 @@ export class KitScene extends SceneEngine {
   // ——————————————————————————————————————————————————————————————————————
 
   protected draggables(): SceneElement[] {
-    return this.placed.map((p) => p.el);
+    return this.placed.filter((p) => !p.api).map((p) => p.el);
   }
 
   protected everyElement(): TableElement[] {
