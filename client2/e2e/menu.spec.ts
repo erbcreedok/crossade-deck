@@ -17,9 +17,17 @@ test.describe("меню", () => {
   });
 
   test("«сосать» запускает анимацию крика (кадр меняется)", async ({ page }) => {
-    const clip = { x: 100, y: 320, width: 300, height: 160 }; // центр, где вылетает лейбл
+    // Кнопку ищем ЧЕРЕЗ ДВИЖОК, а не по зашитым координатам: меню целиком на канвасе, DOM-узлов
+    // у кнопок нет, и прежний хардкод (250, 364) промахнулся мимо «сосать», как только в меню
+    // добавили третью кнопку («косынка», issue #99) и раскладка съехала.
+    const btn = await page.evaluate(() => {
+      const m = (window as unknown as { __menu: { testHooks(): { buttons: { label: string; x: number; y: number }[] } } }).__menu;
+      return m.testHooks().buttons.find((b) => b.label === "сосать")!;
+    });
+    const box = (await page.locator("canvas").boundingBox())!;
+    const clip = { x: box.x + btn.x - 150, y: box.y + btn.y - 40, width: 300, height: 160 }; // центр, где вылетает лейбл
     const before = await page.screenshot({ clip });
-    await page.mouse.click(250, 364); // верхняя кнопка «сосать»
+    await page.mouse.click(box.x + btn.x, box.y + btn.y);
     await page.waitForTimeout(140); // середина анимации появления
     const during = await page.screenshot({ clip });
     expect(Buffer.compare(before, during)).not.toBe(0); // что-то анимируется в центре

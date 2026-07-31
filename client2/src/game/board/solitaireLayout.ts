@@ -83,45 +83,62 @@ export function getSolitaireLayout(
     h: topRowH,
     layout: "single",
   };
-  // Двойной зазор перед фундаментами — визуально отделяет "рабочую" часть (stock/waste)
-  // от "целевой" (фундаменты).
-  topRowX += cardSize.w + slotGap.x * 2;
-
-  // Фундаменты (4 масти)
+  // Фундаменты — четвёркой у ПРАВОГО края, как в классической раскладке Клондайка: слева
+  // «рабочая» часть (сток/сброс), справа «целевая». Прижимаем к правому полю, а не отступаем
+  // от сброса, иначе на широком экране четвёрка повисает посреди пустоты.
   const foundSuits = ["S", "H", "D", "C"];
+  const foundBlockW = (cardSize.w + slotGap.x) * 4 - slotGap.x;
+  // Но не залезать на сброс, если экран узкий — тогда просто встаём следом за ним.
+  let foundX = Math.max(topRowX + cardSize.w + slotGap.x * 2, vpWidth - margins.right - foundBlockW);
   for (let i = 0; i < 4; i++) {
     result[`found:${foundSuits[i]}`] = {
-      x: topRowX,
+      x: foundX,
       y: topRowY,
       w: cardSize.w,
       h: topRowH,
       layout: "stack",
-      cardOffset: { x: 2, y: 2 },
+      cardOffset: { x: 0, y: 0 }, // в фундаменте важна только верхняя карта — стопка ровная
     };
-    topRowX += cardSize.w + slotGap.x;
+    foundX += cardSize.w + slotGap.x;
   }
 
-  // Ряд tableau (7 столбцов, центрирован по ширине viewport)
+  // Ряд tableau: 7 столбцов ВЕРТИКАЛЬНЫМ КАСКАДОМ.
+  //
+  // Раньше здесь стоял layout:"fan" — так требовал критерий приёмки issue #92 и §1.2. Это
+  // оказалось ошибкой спеки, а не задумкой: веер раскрывался по дуге радиусом в треть карты от
+  // угла 1.5π, то есть карты колонки уезжали ВВЕРХ, на верхний ряд, накрывая сток и фундаменты.
+  // Последствия были не косметические — клик по стоку попадал в наехавшую карту колонки вместо
+  // стока (карты «не раздавались»), а дроп искался по прямоугольнику колонки, который начинался
+  // НИЖЕ того места, где карты реально нарисованы (ничего никуда не переставлялось). Канон
+  // Клондайка — каскад: карты сдвинуты вниз на фиксированный шаг, без поворота, видны индексы.
   const tableauStartY = topRowY + topRowH + slotGap.y;
   const tableauW = (cardSize.w + slotGap.x) * 7 - slotGap.x;
-  const tableauStartX = (vpWidth - tableauW) / 2;
+  const tableauStartX = Math.max(margins.left, (vpWidth - tableauW) / 2);
+  const availH = Math.max(cardSize.h, vpHeight - tableauStartY - margins.bottom);
+
+  // Шаг каскада считаем ОТ ДОСТУПНОЙ ВЫСОТЫ, а не константой: иначе доска жила бы в верхней
+  // трети десктопа. CASCADE_FIT — на сколько карт колонки раскладка рассчитана «без тесноты»
+  // (длиннее бывает, но редко); дальше карты просто лягут плотнее нижней границы.
+  const cascadeStep = Math.max(14, Math.min(cardSize.h * 0.34, (availH - cardSize.h) / (CASCADE_FIT - 1)));
 
   for (let col = 0; col < 7; col++) {
     result[`tab:${col}`] = {
       x: tableauStartX + col * (cardSize.w + slotGap.x),
       y: tableauStartY,
       w: cardSize.w,
-      h: vpHeight - tableauStartY - margins.bottom,
-      layout: "fan",
-      fanRadius: cardSize.h / 3, // дистанция раскрытия веера
-      fanStartAngle: Math.PI * 1.5, // вверх
-      fanSpreadAngle: Math.PI / 3, // 60°
-      maxVisible: 10, // показываем не больше 10 карт до скролла
+      h: availH,
+      layout: "stack",
+      cardOffset: { x: 0, y: cascadeStep },
     };
   }
 
   return result;
 }
+
+// На столько карт в колонке рассчитан шаг каскада. Худший случай Клондайка — 19 (6 закрытых +
+// пробег от короля до туза), но растягивать шаг на него значит сплющить типичную партию в
+// нечитаемую полоску. 13 — компромисс: типичная колонка дышит, экстремальная слегка потеснится.
+const CASCADE_FIT = 13;
 
 // Брейкпоинты по ширине viewport — совпадают с общими медиа-запросами проекта.
 export function selectProfile(vpWidth: number, vpHeight: number): "mobile" | "tablet" | "desktop" {

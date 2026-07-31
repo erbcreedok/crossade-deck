@@ -15,6 +15,7 @@ export function Menu() {
     // Сверх спеки issue #99: сама спека роут не требует ссылку из меню, но без неё игра
     // достижима только руками по адресу — добавляем пункт по образцу «песочницы».
     engine.setOnOpenSolitaire(() => goApp("solitaire"));
+    if (import.meta.env.DEV) (window as unknown as { __menu?: MenuEngine }).__menu = engine; // e2e-хук
     void engine.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => engine.destroy();
   }, []);

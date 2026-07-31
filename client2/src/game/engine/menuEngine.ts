@@ -26,6 +26,7 @@ export class MenuEngine {
   private H = 1;
   private root!: Container;
   private buttons: Button[] = [];
+  private buttonLabels: string[] = [];
   private shoutText!: Text;
   private shout: { t: number } | null = null;
   private onOpenSandbox: (() => void) | null = null;
@@ -86,6 +87,7 @@ export class MenuEngine {
     const sandbox = new Button({ label: "песочница", variant: "secondary", size: "lg", onClick: () => this.onOpenSandbox?.() });
     sandbox.place(cx, cy + 72);
     this.buttons = [suck, solitaire, sandbox];
+    this.buttonLabels = ["сосать", "косынка", "песочница"]; // подпись внутри Button приватная
     for (const b of this.buttons) this.root.addChild(b.root);
 
     // Лейбл-крик — ПОВЕРХ всего, скрыт до вызова.
@@ -103,6 +105,12 @@ export class MenuEngine {
     this.shoutText.position.set(cx, cy);
     this.shoutText.visible = false;
     this.app!.stage.addChild(this.shoutText);
+  }
+
+  /** Позиции кнопок для e2e — меню целиком на канвасе, снаружи по нему кликать нечем.
+   *  Раньше тест бил по зашитым координатам и сломался, как только кнопок стало три. */
+  testHooks(): { buttons: { label: string; x: number; y: number }[] } {
+    return { buttons: this.buttons.map((b, i) => ({ label: this.buttonLabels[i] ?? "", x: b.x, y: b.y })) };
   }
 
   private startShout(): void {

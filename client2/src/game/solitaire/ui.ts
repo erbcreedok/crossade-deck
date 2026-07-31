@@ -1,4 +1,4 @@
-import { Application, Container } from "pixi.js";
+import { Application, Container, Graphics } from "pixi.js";
 import type { SolitaireGameState } from "../board/solitaireState";
 import {
   calculateFanPositions,
@@ -67,6 +67,10 @@ export function mountSolitaireBoard(
   for (const [slotId, geom] of Object.entries(slotGeometries)) {
     const slotContainer = new Container();
     slotContainer.position.set(geom.x, geom.y);
+    // Контур пустого слота кладём ПЕРВЫМ ребёнком, чтобы карты ложились поверх него. Без него
+    // доска читалась как «карты в пустоте»: четыре пустых фундамента и разобранная колонка
+    // просто исчезали с глаз, и было не видно, куда вообще можно ходить.
+    slotContainer.addChild(slotPlaceholder(geom.w, cardH(profile)));
     boardContainer.addChild(slotContainer);
     slotContainers[slotId] = slotContainer;
   }
@@ -82,14 +86,25 @@ export function mountSolitaireBoard(
     // ОБЯЗАН считаться от профиля: при baseScale=1 карта вылезала бы из слота почти втрое.
     baseScale: LAYOUT_PROFILES[profile].cardSize.h / TEX_H,
   };
-  updateBoardVisuals(ui, state);
+  updateBoardVisuals(ui, state, true); // монтирование — карты сразу на местах, без прилёта
   return ui;
+}
+
+const cardH = (profile: "mobile" | "tablet" | "desktop"): number => LAYOUT_PROFILES[profile].cardSize.h;
+
+/** Контур пустого слота — «здесь может лежать карта». Рисуем скруглённой рамкой в тон стола. */
+function slotPlaceholder(w: number, h: number): Graphics {
+  return new Graphics().roundRect(0, 0, w, h, Math.min(10, w * 0.12)).stroke({ width: 2, color: 0x6d8570, alpha: 0.45 });
 }
 
 /** Синхронизировать визуал со state.board.slots: создать/переиспользовать карты, расставить их
  *  по computeSlotCardLayout, снять те, которых на доске больше нет. faceUp закрытых карт (сток,
- *  закопанные в tableau) идёт рубашкой — берём из state.faceUp через реальный опшн Card.faceUp. */
-export function updateBoardVisuals(ui: SolitaireUIState, state: SolitaireGameState): void {
+ *  закопанные в tableau) идёт рубашкой — берём из state.faceUp через реальный опшн Card.faceUp.
+ *
+ *  `snap` — телепортировать вместо пружины. true нужен на монтировании и ресайзе (карты обязаны
+ *  сразу оказаться на местах), false — на ходах: карта должна ДОЛЕТАТЬ до цели пружиной CardBody,
+ *  как всё остальное в проекте. Раньше здесь всегда стоял snapTo, и ходы выглядели телепортом. */
+export function updateBoardVisuals(ui: SolitaireUIState, state: SolitaireGameState, snap = false): void {
   const seen = new Set<string>();
 
   for (const [slotId, geom] of Object.entries(ui.slotGeometries)) {
@@ -103,16 +118,33 @@ export function updateBoardVisuals(ui: SolitaireUIState, state: SolitaireGameSta
       const pos = positions[i]!;
       const faceUp = state.faceUp[cardId] === true;
       let node = ui.cardNodes.get(cardId);
+      let fresh = false;
       if (!node) {
-        node = new Card({ id: cardId, card: cardId, faceUp }, ui.tex, ui.baseScale);
+        node = new Card({ id: cardId, card: cardId, faceUp, flippable: true }, ui.tex, ui.baseScale);
         ui.cardNodes.set(cardId, node);
+        fresh = true;
       } else if (node.faceUp !== faceUp) {
-        // Карта уже открыта/закрыта на движке (флип домой/в столбец) — просто перерисовываем
-        // без анимации переворота: анимировать флип — забота более высокого уровня (движка).
-        node.faceUp = faceUp;
+        // Переворот — через requestFlip(), а НЕ присваиванием node.faceUp. Присваивание меняло
+        // только поле: текстуру кладёт приватный paint(), который зовётся из шага анимации, и
+        // карта продолжала лежать рубашкой при faceUp===true. Так «не открывалась» карта под
+        // снятой верхней в колонке и карта, ушедшая в сброс. Заодно получаем нормальный переворот
+        // вместо мгновенной подмены картинки.
+        node.requestFlip();
       }
-      if (node.root.parent !== slotContainer) slotContainer.addChild(node.root);
-      node.body.snapTo({ x: pos.x, y: pos.y, rot: pos.rotation, scale: node.restScale });
+      if (node.root.parent !== slotContainer) {
+        // Перенос между слотами меняет систему координат: чтобы карта полетела пружиной ОТТУДА,
+        // где она сейчас видна, а не прыгнула, переводим её текущую позицию в координаты нового
+        // родителя до смены цели.
+        if (!fresh && !snap) {
+          const global = node.root.getGlobalPosition();
+          const local = slotContainer.toLocal(global);
+          node.body.snapTo({ x: local.x, y: local.y });
+        }
+        slotContainer.addChild(node.root);
+      }
+      const targets = { x: pos.x, y: pos.y, rot: pos.rotation, scale: node.restScale };
+      if (snap || fresh) node.body.snapTo(targets);
+      else node.body.setTarget(targets);
       node.sync(); // применить body.px/py/rotation к root.position без ожидания тика тикера
     });
   }

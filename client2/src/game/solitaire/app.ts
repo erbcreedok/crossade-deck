@@ -70,7 +70,8 @@ export class SolitaireApp extends CanvasApp {
     if (!this.app || this.destroyed) return;
     this.drag = null; // геометрия слотов сменилась — старый драг-контекст (offsets и т.п.) невалиден
     this.ui?.boardContainer.destroy({ children: true });
-    this.ui = mountSolitaireBoard(this.app, this.engine.getState(), { width, height });
+    this.ui = mountSolitaireBoard(this.app, this.engine.getState(), { width, height }); // внутри snap
+
     this.app.stage.hitArea = new Rectangle(0, 0, width, height);
   }
 
@@ -83,15 +84,42 @@ export class SolitaireApp extends CanvasApp {
     this.drag = null;
   }
 
-  // Ничего не анимируется непрерывно (ходы — мгновенный снап, не пружина по кадрам) — кадр всегда
-  // «затих»: тикер уснёт сам, а render() дальше вызывается вручную через wake() по событию.
-  protected frame(): boolean {
-    return false;
+  // Карты двигаются ПРУЖИНАМИ CardBody, как всё остальное в проекте, поэтому кадр обязан их
+  // шагать. Раньше здесь стоял `return false` при том, что позиции ставились через snapTo, — ходы
+  // выглядели телепортом, а тикер спал. Возвращаем «ещё не улеглось»: пока хоть одна карта летит,
+  // цикл не уснёт; как только все осели — уснёт сам и перестанет жечь GPU.
+  protected frame(dt: number): boolean {
+    if (!this.ui) return false;
+    const faceUp = this.engine.getState().faceUp;
+    let busy = false;
+    for (const [id, node] of this.ui.cardNodes) {
+      // Именно node.step(), а не node.body.step(): у карты есть СВОИ анимации поверх пружин
+      // (переворот, «стоп»-кивок, горение), и они живут в Card.step. Шаг только по body тихо
+      // выключал переворот — карта не открывалась.
+      node.step(dt);
+      node.sync();
+      // Переворот в полёте — тоже «занято»: пока лицо не совпало с состоянием движка, цикл не спит.
+      if (!node.body.isResting() || node.faceUp !== (faceUp[id] === true)) busy = true;
+    }
+    return busy;
+  }
+
+  /** Раздать новую партию и ПЕРЕСОБРАТЬ картинку. Единственный правильный способ рестарта.
+   *
+   *  Звать `engine.resetGame()` напрямую нельзя: он молча подменяет состояние и не эмиттит
+   *  ничего (шина движка знает только move/win/lose), поэтому доска осталась бы висеть от
+   *  прошлой партии — со старыми позициями и старыми лицами. Сейчас это не всплывает через
+   *  интерфейс лишь потому, что «Новая игра» пересоздаёт весь SolitaireApp целиком. */
+  newGame(seed?: number): void {
+    this.engine.resetGame(seed);
+    if (!this.ui) return; // ещё не смонтированы — build() и так возьмёт свежее состояние
+    updateBoardVisuals(this.ui, this.engine.getState(), true); // новая раздача не «прилетает», а ложится
+    this.wake();
   }
 
   private handleEngineMove = (): void => {
     if (!this.ui) return;
-    updateBoardVisuals(this.ui, this.engine.getState());
+    updateBoardVisuals(this.ui, this.engine.getState()); // без snap — карта долетает пружиной
     this.wake();
   };
 
@@ -173,7 +201,7 @@ export class SolitaireApp extends CanvasApp {
       else this.engine.moveCard(drag.fromSlot, target, drag.cardIds[0]!);
     }
     // Успешный ход уже перерисован через "move"; неуспешный (нет цели/невалидный ход/дроп на
-    // свой же слот) движок не эмиттит — снапаем карты обратно на их прежние места вручную.
+    // свой же слот) движок не эмиттит — возвращаем карты домой той же пружиной, что и при ходе.
     updateBoardVisuals(this.ui, this.engine.getState());
     this.wake();
   };

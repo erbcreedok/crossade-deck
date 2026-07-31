@@ -11,6 +11,16 @@ import {
 const doRectsOverlap = (a: SlotGeometry, b: SlotGeometry) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+// Абсолютный y самой верхней карты слота при заполнении. Каскад кладёт карты ВНИЗ от начала
+// слота, поэтому верхняя карта = сам слот; веер уводил их выше, чем и ломал игру.
+const computeTopmostCardY = (geom: SlotGeometry, count = 8): number => {
+  const ys =
+    geom.layout === "fan"
+      ? calculateFanPositions(0, 0, count, geom).map((p) => p.y)
+      : Array.from({ length: count }, (_, i) => (geom.cardOffset?.y ?? 0) * i);
+  return geom.y + Math.min(...ys);
+};
+
 describe("getSolitaireLayout", () => {
   // Issue #92 в одном месте говорит "14 слотов", но тут же перечисляет ровно 13 ключей
   // (stock, waste, found:S/H/D/C — 4, tab:0..6 — 7 = 13). Явный список ключей — более точный
@@ -40,7 +50,7 @@ describe("getSolitaireLayout", () => {
     expect(Object.keys(layout).sort()).toEqual(expectedKeys.sort());
   });
 
-  it("ни одна пара из 14 прямоугольников не пересекается", () => {
+  it("ни одна пара из 13 прямоугольников не пересекается", () => {
     const layout = getSolitaireLayout(360, 640, "mobile");
     const slots = Object.values(layout);
     for (let i = 0; i < slots.length - 1; i++) {
@@ -50,9 +60,25 @@ describe("getSolitaireLayout", () => {
     }
   });
 
-  it("tab:0 использует раскладку 'fan'", () => {
+  // Тест намеренно ПЕРЕВЁРНУТ относительно исходного критерия приёмки issue #92, который
+  // требовал для колонок layout:"fan". Требование оказалось ошибкой спеки: веер уводил карты
+  // колонки по дуге ВВЕРХ, на верхний ряд, из-за чего клик по стоку попадал в наехавшую карту
+  // колонки, а дроп не находил колонку под курсором — играть было физически нельзя. Канон
+  // Клондайка (и решение владельца) — вертикальный каскад.
+  it("колонки tableau — вертикальный каскад, а не веер", () => {
     const layout = getSolitaireLayout(360, 640, "mobile");
-    expect(layout["tab:0"].layout).toBe("fan");
+    expect(layout["tab:0"].layout).toBe("stack");
+    expect(layout["tab:0"].cardOffset!.x).toBe(0); // строго вниз, без бокового расползания
+    expect(layout["tab:0"].cardOffset!.y).toBeGreaterThan(0);
+  });
+
+  it("колонки не наезжают на верхний ряд (карта колонки не может уйти выше своего слота)", () => {
+    const layout = getSolitaireLayout(360, 640, "mobile");
+    const tab = layout["tab:0"]!;
+    const top = layout.stock!;
+    // Каскад идёт вниз → самая верхняя карта колонки лежит ровно в начале слота. Именно это
+    // свойство сломал веер: первая карта оказывалась выше tab.y и накрывала сток.
+    expect(computeTopmostCardY(tab)).toBeGreaterThanOrEqual(top.y + top.h);
   });
 
   it("waste использует раскладку 'single'", () => {
@@ -80,9 +106,23 @@ describe("selectProfile", () => {
 });
 
 describe("calculateFanPositions", () => {
+  // Веерную геометрию строим ЗДЕСЬ, а не занимаем у tab:0. Раньше тесты брали её у колонки, и
+  // когда колонка стала каскадом (веер уводил карты на верхний ряд и ломал игру), эти тесты
+  // упали за компанию — хотя сама функция веера ни при чём. Помощник остаётся в API движка:
+  // раскладку слота задаёт конфиг, и веер пригодится другим играм (см. MINI-GAMES-SUITE).
+  const fanGeom: SlotGeometry = {
+    x: 0,
+    y: 0,
+    w: 60,
+    h: 85,
+    layout: "fan",
+    fanRadius: 28,
+    fanStartAngle: Math.PI * 1.5,
+    fanSpreadAngle: Math.PI / 3,
+  };
+
   it("длина результата равна числу карт", () => {
-    const geom = getSolitaireLayout(360, 640, "mobile")["tab:0"];
-    const positions = calculateFanPositions(100, 100, 5, geom);
+    const positions = calculateFanPositions(100, 100, 5, fanGeom);
     expect(positions).toHaveLength(5);
   });
 
@@ -97,16 +137,14 @@ describe("calculateFanPositions", () => {
   });
 
   it("fan геометрия раскладывает карты по дуге монотонно (позиции различаются)", () => {
-    const geom = getSolitaireLayout(360, 640, "mobile")["tab:0"];
-    const positions = calculateFanPositions(100, 100, 5, geom);
+    const positions = calculateFanPositions(100, 100, 5, fanGeom);
     expect(positions[0]).not.toEqual(positions[4]);
     // веер идёт от fanStartAngle = 270° (вверх) с раскрытием 60° — карты расходятся вниз по y.
     expect(positions[0].y).toBeLessThan(positions[2].y);
   });
 
   it("fan геометрия с одной картой не делит на ноль", () => {
-    const geom = getSolitaireLayout(360, 640, "mobile")["tab:0"];
-    const positions = calculateFanPositions(100, 100, 1, geom);
+    const positions = calculateFanPositions(100, 100, 1, fanGeom);
     expect(positions).toHaveLength(1);
   });
 });

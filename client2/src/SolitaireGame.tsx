@@ -21,7 +21,7 @@ export function SolitaireGame() {
 
     const app = new SolitaireApp();
     appRef.current = app;
-    app.engine.resetGame();
+    app.newGame();
     setMoves(0);
     const onMove = () => setMoves(app.engine.getState().movesCount);
     const onWin = () => setPhase("won");
@@ -29,6 +29,12 @@ export function SolitaireGame() {
     app.engine.on("move", onMove);
     app.engine.on("win", onWin);
     app.engine.on("lose", onLose);
+
+    // Дев-хук для e2e и ручной отладки — тот же приём, что `__fd` у песочницы (Playground.tsx).
+    // Без него проверить игру можно только «на глаз»: канвас не отдаёт ни DOM-узлов, ни ролей, и
+    // ровно на этом однажды прошла мимо неработающая раскладка — драг «не сломал доску» просто
+    // потому, что не делал ничего.
+    if (import.meta.env.DEV) (window as unknown as { __sol?: SolitaireApp }).__sol = app;
 
     void app.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => {
