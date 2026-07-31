@@ -16,7 +16,7 @@ import { CanvasStage } from "../harness/CanvasStage";
 // У столбика фишек за грип уезжает вся пачка. Проверяется только мышью.
 
 const meta: Meta<Record<string, never>> = {
-  title: "Механики/Фишки и фигуры",
+  title: "Mechanics/Pieces",
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Card, Record<string, never>>
@@ -33,13 +33,13 @@ export default meta;
 type Story = StoryObj<Record<string, never>>;
 
 /** Весь ряд — ТА ЖЕ секция, что «Фишки и фигуры» на /playground. */
-export const Ряд: Story = {};
+export const Row: Story = {};
 
 /**
  * Столбик фишек отдельно и крупно. Тяните за грип под ним — уедет вся пачка целиком (GroupDrag);
  * тяните за верхнюю фишку — поедет она одна. Это две разные цели захвата в одном месте.
  */
-export const СтолбикЗаГрип: Story = {
+export const PileByGrip: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}
@@ -58,7 +58,7 @@ export const СтолбикЗаГрип: Story = {
  * Три политики видимости якоря на одинаковых фигурах: «когда унесли» (away), «когда пусто» (empty),
  * «всегда» (always). Разница видна только в движении — унесите фигуру и посмотрите, что осталось.
  */
-export const ПолитикиЯкоря: Story = {
+export const AnchorPolicies: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}
@@ -87,7 +87,7 @@ export const ПолитикиЯкоря: Story = {
  * Фигуры против дроп-зон: «СЖЕЧЬ» их принимает, «ПЕРЕВОРОТ» — нет (не Flippable), «ПОДГЛЯДЕТЬ» —
  * нет (не Peekable, у фишки нечего прятать). Зоны — настоящая секция, не декорация.
  */
-export const ПротивЗон: Story = {
+export const AgainstZones: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}

@@ -12,7 +12,7 @@ import { CanvasStage } from "../harness/CanvasStage";
 // Карты настоящие и драгабл. Отпущенная едет домой пружиной.
 
 const meta: Meta<Record<string, never>> = {
-  title: "UI-kit/Карта — варианты",
+  title: "UI-kit/Card variants",
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Card, Record<string, never>>
@@ -29,10 +29,10 @@ export default meta;
 type Story = StoryObj<Record<string, never>>;
 
 /** Все варианты разом — ровно тот список, что рисует песочница. */
-export const Все: Story = {};
+export const All: Story = {};
 
 /** Тот же ряд карточкой покрупнее — разглядеть пыль скрытой карты и зигзаг порванной. */
-export const Крупно: Story = {
+export const Large: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}

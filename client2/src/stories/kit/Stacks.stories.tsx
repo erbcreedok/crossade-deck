@@ -17,7 +17,7 @@ import { CanvasStage } from "../harness/CanvasStage";
 // самого движка песочницы, а не свойства стопки. Каталог показывает компонент, а не стенд.
 
 const meta: Meta<Record<string, never>> = {
-  title: "Механики/Стопки",
+  title: "Mechanics/Stacks",
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Card, Record<string, never>>
@@ -34,10 +34,10 @@ export default meta;
 type Story = StoryObj<Record<string, never>>;
 
 /** Три стопки, три политики якоря. Ровно то, что показывает песочница. */
-export const ТриПолитики: Story = {};
+export const ThreeAnchorPolicies: Story = {};
 
 /** Крупно — разглядеть грип (три точки под пачкой) и перекрытие карт. */
-export const Крупно: Story = {
+export const Large: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}
@@ -55,7 +55,7 @@ export const Крупно: Story = {
  * «ПОДГЛЯДЕТЬ» тоже (карты умеют). Сравните со столбиком фишек в разделе «Фишки и фигуры»:
  * там та же группировка, но зона «ПЕРЕВОРОТ» бессильна — фишки не Flippable.
  */
-export const ПачкаВЗону: Story = {
+export const PileIntoZone: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}

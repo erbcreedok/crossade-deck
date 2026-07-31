@@ -14,7 +14,7 @@ import { CanvasStage } from "../harness/CanvasStage";
 // команда обошла физику, и по статичному скриншоту это неотличимо.
 
 const meta: Meta<Record<string, never>> = {
-  title: "Механики/Порт команд",
+  title: "Mechanics/Command port",
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Card, Record<string, never>>
@@ -31,10 +31,10 @@ export default meta;
 type Story = StoryObj<Record<string, never>>;
 
 /** Все четыре команды подряд: flip, conceal, setValue, move. */
-export const ВсеКоманды: Story = {};
+export const AllCommands: Story = {};
 
 /** `{t:"flip"}` — переворот настоящий, той же анимацией (0.45 с), что и при жесте. */
-export const Перевернуть: Story = {
+export const Flip: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}
@@ -51,7 +51,7 @@ export const Перевернуть: Story = {
  * `{t:"conceal"}` — РЕЖИМ секретности, а не «другая карта»: под живой пылью всё это время лежит
  * настоящее значение, и снятие скрытости показывает именно его.
  */
-export const Скрытость: Story = {
+export const Conceal: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}
@@ -68,7 +68,7 @@ export const Скрытость: Story = {
  * `{t:"setValue"}` — про ДРУГОЕ, чем скрытость: значения нет вовсе (card: ""), карта маскируется,
  * и команда его проставляет. Так выглядит «сервер раскрыл придержанное».
  */
-export const РаскрытьЗначение: Story = {
+export const SetValue: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}
@@ -82,7 +82,7 @@ export const РаскрытьЗначение: Story = {
 };
 
 /** `{t:"move"}` — карта летит пружиной, а не телепортируется. Проверяется только глазами. */
-export const Перенос: Story = {
+export const Move: Story = {
   render: () => (
     <CanvasStage<Card, Record<string, never>>
       args={{}}

@@ -14,7 +14,7 @@ import { CanvasStage } from "../harness/CanvasStage";
 // работающем запрете, и при полностью неработающем драге (docs/HANDOFF.md).
 
 interface Args {
-  подсказки: boolean;
+  captions: boolean;
 }
 
 const CAPS: { id: string; cap: string; opts: CardOptions }[] = [
@@ -26,14 +26,14 @@ const CAPS: { id: string; cap: string; opts: CardOptions }[] = [
 ];
 
 const meta: Meta<Args> = {
-  title: "Механики/Способности и дроп-зоны",
-  args: { подсказки: true },
-  argTypes: { подсказки: { name: "подписи под картами", control: { type: "boolean" } } },
+  title: "Mechanics/Capabilities & drop zones",
+  args: { captions: true },
+  argTypes: { captions: { name: "подписи под картами", control: { type: "boolean" } } },
   render: (args) => (
     <CanvasStage<Card, Args>
       args={args}
       // Подписи меняют раскладку — только пересборкой; живого сеттера тут и не бывает.
-      apply={{ подсказки: "rebuild" }}
+      apply={{ captions: "rebuild" }}
       opts={{ cardHeight: 118 }}
       build={(ctx, a) => {
         const gap = 22;
@@ -43,7 +43,7 @@ const meta: Meta<Args> = {
           const card = new Card({ id: c.id, rest: "idle", ...c.opts }, ctx.tex, ctx.baseScale);
           hh = card.footprint.hh;
           ctx.add(card, { x: x + card.footprint.hw, y: ctx.padding + hh });
-          if (a.подсказки) {
+          if (a.captions) {
             const t = new Text({
               text: c.cap,
               style: { fontFamily: PIXEL_FONT, fontSize: 13, fill: 0xcdb98f, wordWrap: true, wordWrapWidth: card.footprint.hw * 2 + gap },
@@ -66,7 +66,7 @@ const meta: Meta<Args> = {
         // то «зона обещает глаголом то, чего не сделает», от которого предостерегает весь остальной
         // код. В песочнице дефект не всплывал: там нет карты с flippable:false. Чинить его надо в
         // движке, и это решение владельца — поэтому каталог его ПОКАЗЫВАЕТ, а не прячет подписью.
-        const zonesTop = ctx.padding + hh * 2 + (a.подсказки ? 74 : 30);
+        const zonesTop = ctx.padding + hh * 2 + (a.captions ? 74 : 30);
         const z = dropzonesSection(ctx, { x: ctx.padding, y: zonesTop });
         ctx.extent(Math.max(x, ctx.padding + z.width) + ctx.padding, z.bottom + ctx.padding);
       }}
@@ -79,7 +79,7 @@ type Story = StoryObj<Args>;
 
 /** Пять карт с разными способностями и три зоны. Тащите карту к зоне — подсветится только та,
  *  что реально примет груз. «Стоп»-качание у недрагабельной видно только мышью. */
-export const Обзор: Story = {};
+export const Overview: Story = {};
 
 /** Без подписей — так витрину удобно рассматривать и снимать. */
-export const БезПодписей: Story = { args: { подсказки: false } };
+export const NoCaptions: Story = { args: { captions: false } };

@@ -16,15 +16,15 @@ import { CanvasStage } from "../harness/CanvasStage";
 // слева и виджеты на канвасе — два вида одного и того же описания.
 
 interface Args {
-  подпись: string;
+  caption: string;
 }
 
 /** Собрать витрину одного Configurable по центру верха и вписать габарит. */
 function stage(cfg: Configurable, caption: string) {
   return (
     <CanvasStage<Card, Args>
-      args={{ подпись: caption }}
-      apply={{ подпись: "rebuild" }}
+      args={{ caption }}
+      apply={{ caption: "rebuild" }}
       build={(ctx) => {
         const cap = ctx.label(caption, ctx.padding, ctx.padding, 13, 0xcdb98f, undefined, 0);
         const rc = ctx.controls(cfg, { x: ctx.padding, y: ctx.padding + cap.height + 14 });
@@ -36,7 +36,7 @@ function stage(cfg: Configurable, caption: string) {
 }
 
 const meta: Meta<Args> = {
-  title: "UI-kit/Виджеты параметров",
+  title: "UI-kit/Param widgets",
   parameters: { controls: { disable: true } },
 };
 export default meta;
@@ -44,7 +44,7 @@ export default meta;
 type Story = StoryObj<Args>;
 
 /** bool → Toggle. Один параметр, одна кнопка-переключатель с подписью. */
-export const Тумблер: Story = {
+export const BoolToggle: Story = {
   render: () => {
     const s = { on: false };
     const cfg: Configurable = { params: () => [{ kind: "bool", label: "показывать подсказки", get: () => s.on, set: (v) => (s.on = v) }] };
@@ -53,7 +53,7 @@ export const Тумблер: Story = {
 };
 
 /** number → Stepper. Минус/плюс с зажатыми границами; плавного слайдера на канвасе пока нет (#4). */
-export const Шаговик: Story = {
+export const NumberStepper: Story = {
   render: () => {
     const s = { n: 3 };
     const cfg: Configurable = { params: () => [{ kind: "number", label: "колонок", min: 1, max: 8, get: () => s.n, set: (v) => (s.n = v) }] };
@@ -62,7 +62,7 @@ export const Шаговик: Story = {
 };
 
 /** number с format: значение показывается не «как есть», а как решил компонент. */
-export const ШаговикСФорматом: Story = {
+export const NumberStepperFormatted: Story = {
   render: () => {
     const s = { n: 4 };
     const cfg: Configurable = {
@@ -73,7 +73,7 @@ export const ШаговикСФорматом: Story = {
 };
 
 /** choice → Segmented. Варианты рядом, под выбранным золотая черта. */
-export const Сегменты: Story = {
+export const ChoiceSegmented: Story = {
   render: () => {
     const s = { i: 1 };
     const cfg: Configurable = {
@@ -87,7 +87,7 @@ export const Сегменты: Story = {
  * Все три вида разом — ТА ЖЕ секция, что блок «виджеты контролов» в разделе «Управление» на
  * /playground (game/kit/widgets.ts). Видно и раскладку: числа в строку, булевы ниже, выбор — ещё ниже.
  */
-export const Витрина: Story = {
+export const Showcase: Story = {
   render: () => {
     const state = makeWidgetDemoState();
     return (

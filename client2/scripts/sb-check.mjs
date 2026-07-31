@@ -54,20 +54,20 @@ for (const id of targets) {
   const s = await stats();
   const hooks = await page.evaluate(() => {
     const h = globalThis.__kit?.scene?.testHooks?.();
-    return h ? { элементов: h.elements.length, зон: Object.keys(h.zones).length, кнопок: h.buttons.length, грипов: h.grips.length } : {};
+    return h ? { elements: h.elements.length, zones: Object.keys(h.zones).length, buttons: h.buttons.length, grips: h.grips.length } : {};
   });
-  rows.push({ id, ...s, ...hooks, кадр: crypto.createHash("sha1").update(shot).digest("hex").slice(0, 10) });
+  rows.push({ id, ...s, ...hooks, frame: crypto.createHash("sha1").update(shot).digest("hex").slice(0, 10) });
 }
 
 console.table(rows);
-const unique = new Set(rows.map((r) => r.кадр)).size;
+const unique = new Set(rows.map((r) => r.frame)).size;
 console.log(`стори: ${rows.length}, разных кадров: ${unique}, перезагрузок превью: ${reloads}`);
 console.log(`контекстов создано: ${rows.at(-1)?.created} (потолок браузера ~16); канвасов в документе одновременно: ${Math.max(...rows.map((r) => r.canvases))}`);
 
 if (withDrag) {
   // Доказать МЕХАНИКУ, а не картинку: «ничего не изменилось» одинаково выглядит и при работающем
   // запрете, и при полностью мёртвом драге.
-  const target = rows.find((r) => r.грипов > 0);
+  const target = rows.find((r) => r.grips > 0);
   if (!target) console.log("\n--drag: стори с метками не нашлось — пропускаю");
   else {
     await page.evaluate((sid) => window.__STORYBOOK_ADDONS_CHANNEL__.emit("setCurrentStory", { storyId: sid, viewMode: "story" }), target.id);
@@ -92,11 +92,11 @@ if (withDrag) {
       await page.waitForTimeout(1200);
       const after = await snap();
       drags.push({
-        метка: gi,
-        уехало: during.filter((d) => dist(d, before.find((b) => b.id === d.id) ?? d) > 20).length,
-        вДраге: during.filter((d) => d.state === "drag").length,
-        домой: after.filter((d) => dist(d, before.find((b) => b.id === d.id) ?? { x: 1e9, y: 1e9 }) < 6).length,
-        всего: before.length,
+        grip: gi,
+        moved: during.filter((d) => dist(d, before.find((b) => b.id === d.id) ?? d) > 20).length,
+        dragging: during.filter((d) => d.state === "drag").length,
+        home: after.filter((d) => dist(d, before.find((b) => b.id === d.id) ?? { x: 1e9, y: 1e9 }) < 6).length,
+        total: before.length,
       });
     }
     console.log(`\n--drag на «${target.id}»:`);

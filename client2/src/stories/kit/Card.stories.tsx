@@ -14,7 +14,7 @@ const { argTypes, apply } = pickArgs(KEYS);
 type Args = Pick<CardArgs, (typeof KEYS)[number]>;
 
 const meta: Meta<Args> = {
-  title: "UI-kit/Карта",
+  title: "UI-kit/Card",
   argTypes,
   args: {
     card: "A♠",
@@ -48,22 +48,22 @@ export default meta;
 type Story = StoryObj<Args>;
 
 /** Всё по умолчанию — точка отсчёта: как карта выглядит, если ничего не трогать. */
-export const Обычная: Story = {};
+export const Default: Story = {};
 
 /** Скрытость — РЕЖИМ секретности (Concealable), а не «другая карта»: значение прячется живой пылью. */
-export const Скрытая: Story = { args: { hidden: true } };
+export const Concealed: Story = { args: { hidden: true } };
 
 /** Рубашкой вверх — не то же самое, что скрытая: значение не придержано, карта просто перевёрнута. */
-export const Рубашкой: Story = { args: { faceUp: false } };
+export const FaceDown: Story = { args: { faceUp: false } };
 
 /** Нельзя тащить (Draggable=false): попытка драга отбивается «стоп»-качанием. Проверяется мышью. */
-export const НельзяТащить: Story = { args: { draggable: false } };
+export const NotDraggable: Story = { args: { draggable: false } };
 
 /** Не переворачивается (Flippable=false): на карте рисуется замок. */
-export const НельзяПеревернуть: Story = { args: { flippable: false, faceUp: false } };
+export const NotFlippable: Story = { args: { flippable: false, faceUp: false } };
 
 /** Левитирует («в руке»): сама покачивается, тень уходит дальше. */
-export const Левитирует: Story = { args: { rest: "floating" } };
+export const Floating: Story = { args: { rest: "floating" } };
 
 /** Значение ПРИДЕРЖАНО (пустая строка): сервер его ещё не раскрыл — карта маскируется. */
-export const БезЗначения: Story = { args: { card: "" } };
+export const ValueWithheld: Story = { args: { card: "" } };

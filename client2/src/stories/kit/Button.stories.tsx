@@ -18,7 +18,7 @@ const { argTypes, apply } = pickButtonArgs(KEYS);
 type Args = Pick<ButtonArgs, (typeof KEYS)[number]>;
 
 const meta: Meta<Args> = {
-  title: "UI-kit/Кнопка",
+  title: "UI-kit/Button",
   argTypes,
   args: { label: "Основная", variant: "primary", size: "md", disabled: false },
   render: (args) => (
@@ -42,28 +42,28 @@ export default meta;
 type Story = StoryObj<Args>;
 
 /** Основное действие экрана. Одна на экран — если их две, ни одна не читается как главная. */
-export const Основная: Story = {};
+export const Primary: Story = {};
 
 /** Обычное действие: приглушённая заливка, читается как «можно, но не обязательно». */
-export const Вторичная: Story = { args: { label: "Вторичная", variant: "secondary" } };
+export const Secondary: Story = { args: { label: "Вторичная", variant: "secondary" } };
 
 /** Разрушительное действие. Красный тут — предупреждение, а не украшение. */
-export const Опасная: Story = { args: { label: "Опасно", variant: "danger" } };
+export const Danger: Story = { args: { label: "Опасно", variant: "danger" } };
 
 /** Только контур: действие есть, но веса ему не добавляем. */
-export const Призрак: Story = { args: { label: "Призрак", variant: "ghost" } };
+export const Ghost: Story = { args: { label: "Призрак", variant: "ghost" } };
 
 /** Голый текст без фона и обводки — им набраны тумблеры песочницы (segToggle). */
-export const Текстовая: Story = { args: { label: "текстовая", variant: "text" } };
+export const Text: Story = { args: { label: "текстовая", variant: "text" } };
 
 /** Недоступна: гасится и глушит клик. Ховер и нажатие при этом не срабатывают — проверяется мышью. */
-export const Недоступна: Story = { args: { label: "Недоступна", disabled: true } };
+export const Disabled: Story = { args: { label: "Недоступна", disabled: true } };
 
 /**
  * Вся витрина кнопок целиком — ТА ЖЕ секция, что раздел «Кнопки» на /playground.
  * Контролы тут не действуют: секция строит свои кнопки сама, это её предмет.
  */
-export const Витрина: Story = {
+export const Showcase: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Button, Record<string, never>>

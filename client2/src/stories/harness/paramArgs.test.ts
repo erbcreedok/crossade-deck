@@ -104,6 +104,6 @@ describe("applyArgsToParams", () => {
 
   it("аргумент, которому нет параметра, просто пропускается", () => {
     const ps = [num("шаг")];
-    expect(applyArgsToParams(ps, { чужой: 1 })).toBe(false);
+    expect(applyArgsToParams(ps, { unknownKey: 1 })).toBe(false);
   });
 });

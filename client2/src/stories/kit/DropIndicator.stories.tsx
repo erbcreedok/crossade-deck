@@ -11,14 +11,14 @@ import { CanvasStage } from "../harness/CanvasStage";
 // единственная, где видно наложение реальной драг-карты на подпись.
 
 interface Args {
-  стиль: number;
+  style: number;
 }
 
 const meta: Meta<Args> = {
-  title: "Механики/Дроп-индикатор",
-  args: { стиль: INDICATOR_STYLES.length - 1 },
+  title: "Mechanics/Drop indicator",
+  args: { style: INDICATOR_STYLES.length - 1 },
   argTypes: {
-    стиль: {
+    style: {
       name: `стиль подписи — 0…${INDICATOR_STYLES.length - 1}: ${INDICATOR_STYLES.map((s, i) => `${i} ${s.name}`).join("; ")}`,
       control: { type: "range", min: 0, max: INDICATOR_STYLES.length - 1, step: 1 },
     },
@@ -26,11 +26,11 @@ const meta: Meta<Args> = {
   render: (args) => (
     <CanvasStage<Card, Args>
       args={args}
-      apply={{ стиль: "rebuild" }} // подпись рисуется узлами при сборке; живого сеттера у неё нет
+      apply={{ style: "rebuild" }} // подпись рисуется узлами при сборке; живого сеттера у неё нет
       build={(ctx, a) => {
         // Один стиль крупным планом: карта борда + подпись поверх + драг-карта рядом, как при
         // реальном наведении. Витрину со всеми шестью даёт стори «Сравнение».
-        const style = INDICATOR_STYLES[Math.min(a.стиль, INDICATOR_STYLES.length - 1)] ?? INDICATOR_STYLES[0]!;
+        const style = INDICATOR_STYLES[Math.min(a.style, INDICATOR_STYLES.length - 1)] ?? INDICATOR_STYLES[0]!;
         const cx = ctx.padding + ctx.cardW / 2;
         const cy = ctx.padding + ctx.cardH / 2;
         ctx.card({ id: "di-one-board", card: "5♠", rest: "idle" }, { x: cx, y: cy }, 0);
@@ -47,19 +47,19 @@ export default meta;
 type Story = StoryObj<Args>;
 
 /** Победитель сравнения — плашка с акцентной рамкой. Читается поверх любой карты. */
-export const HUDтег: Story = {};
+export const HudTag: Story = {};
 
 /** Исходный вариант: золото с толстой чёрной обводкой. Baseline, с которым сравнивали остальные. */
-export const Обводка: Story = { args: { стиль: 0 } };
+export const Outline: Story = { args: { style: 0 } };
 
 /** Жёсткая тень — сплошной дубль со сдвигом, без blur. Дёшево, но на пёстром фоне мылится. */
-export const ЖёсткаяТень: Story = { args: { стиль: 1 } };
+export const HardShadow: Story = { args: { style: 1 } };
 
 /**
  * Все шесть ячеек разом — ТА ЖЕ секция, что на /playground. Первая (REST) показывает исходную
  * проблему: подпись лежит НИЖЕ карт и потому невидима.
  */
-export const Сравнение: Story = {
+export const Comparison: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Card, Record<string, never>>
@@ -73,7 +73,7 @@ export const Сравнение: Story = {
 };
 
 /** Подпись на пустом столе — без карт и рамок, чтобы оценить сам шильдик. */
-export const ТолькоШильдик: Story = {
+export const BadgeOnly: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
     <CanvasStage<Card, Record<string, never>>
