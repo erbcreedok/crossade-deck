@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Text } from "pixi.js";
 import { Card, type CardOptions } from "../../game/ui/Card";
-import { DropZone } from "../../game/ui/DropZone";
 import { PIXEL_FONT } from "../../game/engine/constants";
+import { dropzonesSection } from "../../game/kit/dropzones";
 import { CanvasStage } from "../harness/CanvasStage";
 
 // ПРОВЕРОЧНЫЕ стори №2 и №3 (категории «способности элемента» и «механики сцены») — они здесь
@@ -55,43 +55,20 @@ const meta: Meta<Args> = {
           x += card.footprint.hw * 2 + gap;
         }
 
-        // Зоны — ровно те же три, что в песочнице, с теми же способностями груза. Приём идёт по
-        // СПОСОБНОСТИ (accepts), а не по типу элемента: зона обещает глаголом только то, что после
-        // отпускания реально сделает.
-        const zw = 190;
-        const zh = zw * (9 / 16);
-        const zy = ctx.padding + hh * 2 + (a.подсказки ? 74 : 30);
-        let zx = ctx.padding;
-        // НАЙДЕНО ЭТИМ КАТАЛОГОМ (поведение движка, не стори): `asFlippable` определяет способность
-        // по НАЛИЧИЮ метода requestFlip, который есть у любой карты — флаг `flippable` в расчёт не
-        // берётся. Поэтому груз всегда несёт `flip`, зона его принимает и подсвечивается, а
-        // requestFlip() потом возвращает false и ничего не делает. В песочнице это не всплывало:
-        // там нет карты с flippable:false. Чинить надо в движке (капабилити должна читать флаг),
-        // и это решение владельца (issue #103); пока — говорим правду подписью, а не молчим.
-        ctx.zone(
-          new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", armed: "перевернуть?", rect: { x: zx, y: zy, w: zw, h: zh } }),
-          (p) => p.flip?.(),
-          (p) => !!p.flip,
-          (p) =>
-            "flippable" in p.lead && !(p.lead as unknown as { flippable: boolean }).flippable
-              ? { armed: "она заперта", hot: "не переворачивается." }
-              : { armed: "перевернуть?", hot: "перевернуть" },
-        );
-        zx += zw + gap;
-        ctx.zone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: zx, y: zy, w: zw, h: zh } }), (p) => p.burn?.(), (p) => !!p.burn);
-        zx += zw + gap;
-        ctx.zone(
-          new DropZone({ name: "ПОДГЛЯДЕТЬ", verb: "Отпускай!", armed: "давай подсмотрим?", rect: { x: zx, y: zy, w: zw, h: zh } }),
-          (p) => p.peek?.(),
-          (p) => !!p.peek,
-          // Способность «подглядеть» есть у любой карты, а вот РАСКРЫВАТЬ бывает нечего: у
-          // открытой карты canPeek === false. Без этой развилки зона звала бы подсмотреть туда,
-          // где уже всё видно — то самое «зона обещает глаголом то, чего не сделает».
-          (p) =>
-            "canPeek" in p.lead && (p.lead as unknown as { canPeek: boolean }).canPeek
-              ? { armed: "давай подсмотрим?", hot: "Отпускай!" }
-              : { armed: "зачем?", hot: "нет." },
-        );
+        // Зоны — НАСТОЯЩАЯ секция песочницы (game/kit/dropzones.ts), а не её местная копия.
+        // Своих зон у стори быть не должно: копия разъедется с песочницей при первой же правке, и
+        // каталог начнёт врать именно там, где ему верят больше всего.
+        //
+        // ВНИМАНИЕ, здесь ВИДЕН ДЕФЕКТ ДВИЖКА (issue #103): `asFlippable` определяет способность по
+        // НАЛИЧИЮ метода requestFlip, который есть у любой карты, — флаг `flippable` в расчёт не
+        // берётся. Поэтому груз всегда несёт `flip`, зона ПЕРЕВОРОТ подсвечивается даже под
+        // «запертой» картой, а requestFlip() потом возвращает false и ничего не делает. Это ровно
+        // то «зона обещает глаголом то, чего не сделает», от которого предостерегает весь остальной
+        // код. В песочнице дефект не всплывал: там нет карты с flippable:false. Чинить его надо в
+        // движке, и это решение владельца — поэтому каталог его ПОКАЗЫВАЕТ, а не прячет подписью.
+        const zonesTop = ctx.padding + hh * 2 + (a.подсказки ? 74 : 30);
+        const z = dropzonesSection(ctx, { x: ctx.padding, y: zonesTop });
+        ctx.extent(Math.max(x, ctx.padding + z.width) + ctx.padding, z.bottom + ctx.padding);
       }}
     />
   ),

@@ -1,12 +1,13 @@
 import { Application, Container } from "pixi.js";
 import { SceneEngine, type CameraConfig, type SceneElement } from "./sceneEngine";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { SANDBOX_CARD_H, TEX_H } from "./constants";
+import { Card } from "../ui/Card";
+import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 import { SB_MARGIN } from "./sandboxLayout";
 import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
-import type { DragPayload } from "./drag";
 import type { TableElement } from "./element";
+import { makeLabel, type SectionContext } from "../kit/context";
 import { extentOf, fitZoom } from "./kitExtent";
 
 // ВИТРИНА ОДНОГО КОМПОНЕНТА на общей обвязке стола.
@@ -26,8 +27,14 @@ interface Pt {
   y: number;
 }
 
-/** Что витрине доступно при сборке. Намеренно узкий: стори РАССТАВЛЯЕТ, а не строит (см. ниже). */
-export interface KitContext {
+/**
+ * Что витрине доступно при сборке. Намеренно узкий: стори РАССТАВЛЯЕТ, а не строит (см. ниже).
+ *
+ * Расширяет SectionContext (kit/context.ts) — общий контракт витрины и песочницы. Ровно из-за него
+ * стори может позвать НАСТОЯЩУЮ секцию стенда (kit/buttons.ts и т.п.), а не её копию: обе сцены
+ * умеют одно и то же, различаясь лишь тем, куда именно ложится узел.
+ */
+export interface KitContext extends SectionContext {
   readonly app: Application;
   /** Общий кэш текстур. Переживает rebuild — иначе текстуры перепекались бы на каждое переключение. */
   readonly tex: CardTextureCache;
@@ -42,17 +49,6 @@ export interface KitContext {
   readonly padding: number;
   /** Поставить элемент: дом + глубина + учёт в хит-тесте, цикле, тенях и реестре по id. */
   add<T extends SceneElement>(el: T, home: Pt, depth?: number): T;
-  /** Недрагабельный визуал: подпись, рамка, декор. */
-  decor(node: Container, layer?: "surface" | "verb"): void;
-  /** Кнопка: рисуется в слой стола, ввод роутит движок (сама она событий не слушает). */
-  button(b: Button, at: Pt): Button;
-  /** Дроп-зона с приёмом по СПОСОБНОСТЯМ груза (см. sceneEngine.registerZone). */
-  zone(
-    z: DropZone,
-    onDrop: (p: DragPayload) => void,
-    accepts: (p: DragPayload) => boolean,
-    textFor?: (p: DragPayload) => { armed: string; hot: string },
-  ): DropZone;
   /** Задать габарит витрины явно. Не задан — считается по краям расставленных элементов. */
   extent(w: number, h: number): void;
 }
@@ -120,6 +116,12 @@ export class KitScene extends SceneEngine {
     return this.byId.get(id);
   }
 
+  /** Кнопка витрины по порядку постановки. У Button нет id — адресовать её иначе нечем, а живые
+   *  правки из панели («подпись», «недоступна») применяются именно к экземпляру. */
+  button(i = 0): Button | undefined {
+    return this.buttons[i];
+  }
+
   /** Разбудить цикл после ВНЕШНЕЙ правки элемента (живой сеттер из панели контролов). Без этого
    *  спящий тикер оставил бы на экране прежний кадр, и контрол выглядел бы неработающим. */
   poke(): void {
@@ -143,10 +145,13 @@ export class KitScene extends SceneEngine {
 
   private runBuild(app: Application): void {
     this.explicitExtent = null;
+    const baseScale = this.cardHeight / TEX_H;
     const ctx: KitContext = {
       app,
       tex: this.tex,
-      baseScale: this.cardHeight / TEX_H,
+      baseScale,
+      cardW: TEX_W * baseScale,
+      cardH: this.cardHeight,
       padding: this.padding,
       add: (el, home, depth = 0) => {
         this.placed.push({ el, home, depth });
@@ -168,8 +173,22 @@ export class KitScene extends SceneEngine {
         this.decors.push(node);
         (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(node);
       },
+      label: (text, x, y, size, fill, wrap, anchorX, layer = "surface") => {
+        const t = makeLabel(text, x, y, size, fill, wrap, anchorX);
+        this.decors.push(t);
+        (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(t);
+        return t;
+      },
+      // Витрина рождает карту СРАЗУ (в отличие от песочницы с её отложенными спеками): слои
+      // разведены контейнерами, так что подписи под картой не окажутся, в каком бы порядке
+      // секция ни строилась.
+      card: (opts, home, depth = 0, bobPhase = 0) => {
+        const c = new Card(opts, this.tex, baseScale);
+        c.bobPhase = bobPhase;
+        ctx.add(c, home, depth);
+      },
       button: (b, at) => {
-        b.place(at.x, at.y);
+        if (at) b.place(at.x, at.y);
         this.scene.surface.addChild(b.root);
         this.buttons.push(b);
         return b;
@@ -179,6 +198,8 @@ export class KitScene extends SceneEngine {
         this.ownZones.push(z);
         return z;
       },
+      needsPeek: (el) => this.needsPeek(el),
+      wake: () => this.wake(),
       extent: (w, h) => void (this.explicitExtent = { w, h }),
     };
     this.pending?.(ctx);

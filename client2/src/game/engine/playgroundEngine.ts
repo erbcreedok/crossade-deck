@@ -43,8 +43,12 @@ const MERGE_CUSTOM = hasTag("suit:♣"); // «сшиваются только т
 const KEEP_CUSTOM = hasTag("suit:♦"); // «выделение остаётся лишь у бубён»
 import { makeSelectOutline } from "./selectOutline";
 import { asDraggable } from "./capabilities";
+import { makeLabel, type SectionContext } from "../kit/context";
+import { buttonsSection } from "../kit/buttons";
+import { dropzonesSection } from "../kit/dropzones";
+import { dropIndicatorSection } from "../kit/dropIndicator";
 import { DropZone } from "../ui/DropZone";
-import { Button, type ButtonOptions } from "../ui/Button";
+import { Button } from "../ui/Button";
 import { TopBar, TOPBAR_H } from "../ui/TopBar";
 import type { TableElement } from "./element";
 import { GroupDrag, SingleDrag, type DragPayload } from "./drag";
@@ -54,7 +58,7 @@ import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SEC
 import { wrapRow, wrapFlow } from "./sandboxWrap";
 import type { ViewState } from "./viewport";
 import { SceneEngine, clamp, type SceneElement } from "./sceneEngine";
-import { DRAG_SCALE, PIXEL_FONT, SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
+import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 
 export type { ViewState };
 
@@ -380,18 +384,42 @@ export class PlaygroundEngine extends SceneEngine {
 
   // ——— контент ———
 
+  // Подпись стенда. Сама реализация — общая с витриной каталога (kit/context.makeLabel): подписи
+  // обоих стендов обязаны ужиматься и якориться ОДИНАКОВО, иначе каталог показывал бы не то, что
+  // песочница. Здесь остаётся только «создать, не добавляя» — этой формой пользуются места, где
+  // узел кладётся в конкретный индекс слоя (см. sectionFrame).
   private label(text: string, x: number, y: number, size: number, fill: number, wrap?: number, anchorX = 0.5): Text {
-    const t = new Text({
-      text,
-      style: { fontFamily: PIXEL_FONT, fontSize: size, fill, align: "center", wordWrap: wrap !== undefined, wordWrapWidth: wrap ?? 0 },
-    });
-    t.anchor.set(anchorX, 0);
-    t.position.set(x, y);
-    // На узком экране длинное слово без пробелов (напр. «удерживаемая») перенос не ловит и
-    // вылезает за свою ячейку, налезая на соседа. Гарантия: если подпись всё же шире ячейки —
-    // ужимаем её ровно до ширины (масштаб вокруг якоря, центровка под картой сохраняется).
-    if (wrap !== undefined && t.width > wrap) t.scale.set(wrap / t.width);
-    return t;
+    return makeLabel(text, x, y, size, fill, wrap, anchorX);
+  }
+
+  // Контракт секции стенда (kit/context.ts) в исполнении ПЕСОЧНИЦЫ. Витрина каталога отдаёт свой,
+  // и одна и та же секция строится на обоих. Ключевое отличие хозяев — card(): песочница копит
+  // спеки и рождает карты ПОСЛЕ мебели (иначе подписи легли бы поверх карт), витрина ставит сразу.
+  private sectionCtx(): SectionContext {
+    return {
+      tex: this.tex,
+      baseScale: this.baseScale,
+      cardW: this.cardW,
+      cardH: this.cardH,
+      label: (text, x, y, size, fill, wrap, anchorX, layer) => {
+        const t = makeLabel(text, x, y, size, fill, wrap, anchorX);
+        (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(t);
+        return t;
+      },
+      decor: (node, layer = "surface") => void (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(node),
+      card: (opts, home, depth = 0, bobPhase = 0) => void this.cardSpecs.push({ opts, home: { ...home }, depth, bobPhase }),
+      button: (b, at) => {
+        if (at) b.place(at.x, at.y);
+        this.registerButton(b);
+        return b;
+      },
+      zone: (z, onDrop, accepts, textFor) => {
+        this.registerZone(z, onDrop, accepts, textFor);
+        return z;
+      },
+      needsPeek: (el) => this.needsPeek(el),
+      wake: () => this.wake(),
+    };
   }
 
   // Единая рамка+заголовок секции песочницы (замена самопальных заголовков без контейнера —
@@ -445,31 +473,9 @@ export class PlaygroundEngine extends SceneEngine {
     return { bottom: top + totalH, width };
   }
 
-  // Ряд «Дропзоны»: перевернуть, сжечь, подглядеть. Фон+название — на поверхности, глагол — над картами.
-  // ПОДГЛЯДЕТЬ реагирует на способность peek (только Peekable — только карты, см. drag.ts) и
-  // единственная из трёх задействует armed («давай подсмотрим?») — зазывающий текст, пока драг
-  // способной карты идёт где-то ещё на канвасе, не только когда её навели именно на эту зону. Текст
-  // при этом ЗАВИСИТ от того, есть ли у ЭТОЙ карты что подглядывать (needsPeek) — уже раскрытой
-  // картой зона отвечает «зачем?»/«нет.» и после дропа не запускает подглядывание (см. startPeek).
-  // Одна колонка (пока что — задел под будущее расширение набора зон): каждая зона — невысокая
-  // кнопка-полоса, а не карточный слот. Высота — своя, не cardH (зона больше не притворяется
-  // местом ПОД карту, это список действий), но ширина по-прежнему от cardW — тот же язык
-  // масштабирования, что у всей песочницы.
+  // Ряд «Дропзоны» — общая секция каталога (kit/dropzones.ts).
   private buildDropzonesBlock(left: number, top: number): { bottom: number; width: number } {
-    const zoneW = this.cardW * 2.4;
-    const zoneH = zoneW * (9 / 16); // 16:9 (ширина:высота) по прямому решению владельца
-    let y = top;
-    this.registerZone(new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: left, y, w: zoneW, h: zoneH } }), (p) => p.flip?.(), (p) => !!p.flip);
-    y += zoneH + SB_ITEM_GAP;
-    this.registerZone(new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: left, y, w: zoneW, h: zoneH } }), (p) => p.burn?.(), (p) => !!p.burn);
-    y += zoneH + SB_ITEM_GAP;
-    this.registerZone(
-      new DropZone({ name: "ПОДГЛЯДЕТЬ", verb: "Отпускай!", armed: "давай подсмотрим?", rect: { x: left, y, w: zoneW, h: zoneH } }),
-      (p) => p.peek?.(),
-      (p) => !!p.peek,
-      (p) => (this.needsPeek(p.lead) ? { armed: "давай подсмотрим?", hot: "Отпускай!" } : { armed: "зачем?", hot: "нет." }),
-    );
-    return { bottom: y + zoneH, width: zoneW };
+    return dropzonesSection(this.sectionCtx(), { x: left, y: top });
   }
 
   // Собрать песочницу: мебель (тексты, дропзоны, кнопки) — всегда заново; карты — из спеков,
@@ -497,7 +503,7 @@ export class PlaygroundEngine extends SceneEngine {
     y = this.buildField(SB_MARGIN, y);
     y = this.buildControls(SB_MARGIN, y);
     y = this.buildBoardZones(SB_MARGIN, y);
-    y = this.sectionFrame(SB_MARGIN, y, "Дроп-индикатор: варианты подписи", (cl, ct) => this.buildDropIndicatorDemo(cl, ct));
+    y = this.sectionFrame(SB_MARGIN, y, "Дроп-индикатор: варианты подписи", (cl, ct) => dropIndicatorSection(this.sectionCtx(), { x: cl, y: ct }));
     this.contentH = y + SB_MARGIN - SB_SECTION_GAP; // последняя секция уже добавила свой SB_SECTION_GAP
 
     // Карты рождаем ПОСЛЕ мебели — чтобы легли поверх подписей/зон.
@@ -1999,184 +2005,17 @@ export class PlaygroundEngine extends SceneEngine {
     this.wake();
   }
 
-  // Витрина кнопок: варианты, размеры, состояние «недоступна» — рядами с подписями.
+  // Витрина кнопок — общая секция каталога (kit/buttons.ts), песочница даёт ей рамку и хук.
+  // Присваивание, а не push: при «⟲ песочница» контент пересобирается, и накопление оставляло бы
+  // в хуке уничтоженные кнопки прошлой сборки вперемешку с новыми.
   private buildButtons(left: number, top: number): number {
     return this.sectionFrame(left, top, "Кнопки", (contentLeft, contentTop) => {
-      let y = contentTop;
-      let width = 0;
-      const row = (items: Array<{ opts: ButtonOptions; cap: string }>) => {
-        const r = this.buttonRow(contentLeft, y, items);
-        y = r.bottom;
-        width = Math.max(width, r.width);
-      };
-      row([
-        { opts: { label: "Основная", variant: "primary" }, cap: "primary" },
-        { opts: { label: "Вторичная", variant: "secondary" }, cap: "secondary" },
-        { opts: { label: "Опасно", variant: "danger" }, cap: "danger" },
-        { opts: { label: "Призрак", variant: "ghost" }, cap: "ghost" },
-      ]);
-      row([
-        { opts: { label: "Мелкая", size: "sm" }, cap: "sm" },
-        { opts: { label: "Средняя", size: "md" }, cap: "md" },
-        { opts: { label: "Крупная", size: "lg" }, cap: "lg" },
-      ]);
-      row([{ opts: { label: "Недоступна", disabled: true }, cap: "disabled" }]);
-      return { bottom: y, width };
+      const r = buttonsSection(this.sectionCtx(), { x: contentLeft, y: contentTop });
+      this.buttonShowcase = r.showcase;
+      return { bottom: r.bottom, width: r.width };
     });
   }
 
-  private buttonRow(left: number, y: number, items: Array<{ opts: ButtonOptions; cap: string }>): { bottom: number; width: number } {
-    const gap = 26;
-    const made = items.map((it) => ({ b: new Button(it.opts), cap: it.cap }));
-    const rowH = Math.max(...made.map((m) => m.b.h));
-    let x = left;
-    for (const { b, cap } of made) {
-      const cx = x + b.w / 2;
-      b.place(cx, y + rowH / 2);
-      this.scene.surface.addChild(b.root);
-      this.buttons.push(b);
-      this.buttonShowcase.push({ cap, b });
-      this.scene.surface.addChild(this.label(cap, cx, y + rowH + 8, 13, 0x9aa89f));
-      x += b.w + gap;
-    }
-    return { bottom: y + rowH + 42, width: x - left - gap };
-  }
-
-  // «Дроп-индикатор»: 5 вариантов ОФОРМЛЕНИЯ подписи над бордом при наведении — юзер-тест перед
-  // выбором финального (прямой запрос владельца). REST — подпись лежит НИЖЕ карт борда, как
-  // сегодня (скрыта, z surface < idle) — baseline проблемы. ACTIVE переносит подпись на
-  // scene.verb — тот же слой, что уже несёт «глагол» DropZone (глагол дропзоны/наведение).
-  //
-  // Отклонение от тикета (по прямому решению владельца, 2026-07-28): тикет просил драг-карту
-  // (rest: "held" → drag-слой, самый верхний) поверх подписи ВО ВСЕХ пяти, смещённую на +20px.
-  // Но rest:"held" рисуется в DRAG_SCALE (×1.45, см. constants.ts) — при 20px карта того же
-  // плана целиком накрывает и борд, и подпись (ничего не видно, буквально проверено скриншотом),
-  // а с исправленным сдвигом (половина ширины ячейки) карта перекрывала ПОЧТИ ВСЮ подпись во всех
-  // пяти и мешала СРАВНИВАТЬ стили между собой — то, ради чего секция и существует. Поэтому драг-
-  // карта осталась только в ОДНОМ, последнем (6-м) слоте — «живой» сценарий «как это реально
-  // выглядит при наведении», стиль — победитель первых пяти (HUD-тег); в первых пяти подпись
-  // читается целиком, ничем не занавешенная. Все карты секции (борд + драг-карта 6-го слота) —
-  // драгабл (демо ощущается живее) и ничем не зажаты: эти «борды» — декоративная рамка
-  // cellFrame, не BoardZone, границ и не было. Отпущенная карта едет домой пружиной, как любой
-  // безхозный элемент (drag.release()), кроме случая, когда её унесли в «СЖЕЧЬ» — как и остальные
-  // карты песочницы.
-  private buildDropIndicatorDemo(left: number, top: number): { bottom: number; width: number } {
-    const cell = { w: this.cardW, h: this.cardH };
-    const dragOffsetX = cell.w * 0.5;
-    const text = "переместить сюда";
-    let depth = 0;
-
-    const cellFrame = (x: number, y: number): void => {
-      const g = new Graphics();
-      g.roundRect(x, y, cell.w, cell.h, 8).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 1, color: 0x4a5b50 });
-      this.scene.surface.addChild(g);
-    };
-    const boardCard = (id: string, x: number, y: number): void => {
-      this.cardSpecs.push({ opts: { id, card: "5♠", rest: "idle" }, home: { x: x + cell.w / 2, y: y + cell.h / 2 }, depth: depth++, bobPhase: 0 });
-    };
-    const dragCard = (id: string, x: number, y: number): void => {
-      this.cardSpecs.push({ opts: { id, card: "K♥", rest: "held" }, home: { x: x + cell.w / 2 + dragOffsetX, y: y + cell.h / 2 }, depth: depth++, bobPhase: 0 });
-    };
-
-    // REST: подпись стоит под картой борда — визуально скрыта, ровно как сегодня.
-    cellFrame(left, top);
-    boardCard("di-rest", left, top);
-    this.scene.surface.addChild(this.label(text, left + cell.w / 2, top + cell.h / 2 - 7, 12, 0xf2c14e, cell.w * 1.4));
-    this.scene.surface.addChild(this.label("REST (в покое)", left + cell.w / 2, top + cell.h + 10, 12, 0x9aa89f, cell.w * 1.6));
-    const restBottom = top + cell.h + 32;
-
-    // ACTIVE: 5 стилей БЕЗ карты сверху (подпись читается целиком — сравниваем стили между
-    // собой), плюс 6-й слот отдельно — единственное место, где реально видно наложение
-    // драг-карты на подпись (сценарий «на самом деле так и будет выглядеть при наведении»).
-    const variants: { name: string; paint: (cx: number, cy: number) => void }[] = [
-      { name: "оригинал: обводка 3px", paint: (cx, cy) => this.paintIndicatorOutline(cx, cy, text, 3) },
-      { name: "жёсткая тень", paint: (cx, cy) => this.paintIndicatorHardShadow(cx, cy, text) },
-      { name: "badge (подложка)", paint: (cx, cy) => this.paintIndicatorBadge(cx, cy, text, false) },
-      { name: "тонкий контур + тень", paint: (cx, cy) => this.paintIndicatorOutline(cx, cy, text, 1.5, true) },
-      { name: "HUD-тег", paint: (cx, cy) => this.paintIndicatorBadge(cx, cy, text, true) },
-    ];
-    // Матрица 3×2 (не wrapRow-лента): 6 ячеек — 5 стилей + «живой» слот, фиксированной сеткой
-    // строка/столбец, а не построчным переносом по ширине экрана (прямое решение владельца).
-    const GRID_COLS = 3;
-    const activeTop = restBottom + 26;
-    const plainCellW = cell.w + 16; // запас под подпись, если она чуть шире карты
-    const liveCellW = cell.w / 2 + dragOffsetX + (cell.w * DRAG_SCALE) / 2 + 20; // + до правого края увеличенной драг-карты
-    const colW = Math.max(plainCellW, liveCellW); // единая ширина колонки — иначе не матрица, а лесенка
-    const rowH = cell.h + 40;
-
-    variants.forEach((v, i) => {
-      const row = Math.floor(i / GRID_COLS);
-      const col = i % GRID_COLS;
-      const x = left + col * (colW + SB_ITEM_GAP);
-      const y = activeTop + row * (rowH + SB_ITEM_GAP);
-      cellFrame(x, y);
-      boardCard(`di-active-${i}`, x, y);
-      v.paint(x + cell.w / 2, y + cell.h / 2);
-      this.scene.surface.addChild(this.label(v.name, x + cell.w / 2, y + cell.h + 10, 12, 0x9aa89f, plainCellW * 0.95));
-    });
-    // 6-я ячейка (row1, col2) — «живой» слот: стиль HUD-тега под настоящей драг-картой.
-    {
-      const i = variants.length; // индекс 5 → row1,col2
-      const row = Math.floor(i / GRID_COLS);
-      const col = i % GRID_COLS;
-      const x = left + col * (colW + SB_ITEM_GAP);
-      const y = activeTop + row * (rowH + SB_ITEM_GAP);
-      cellFrame(x, y);
-      boardCard("di-live-board", x, y);
-      this.paintIndicatorBadge(x + cell.w / 2, y + cell.h / 2, text, true);
-      dragCard("di-live-drag", x, y);
-      this.scene.surface.addChild(this.label("HUD-тег + наведение (реальный сценарий)", x + cell.w / 2, y + cell.h + 10, 12, 0x9aa89f, liveCellW * 0.95));
-    }
-
-    const rows = Math.ceil((variants.length + 1) / GRID_COLS);
-    const width = GRID_COLS * colW + (GRID_COLS - 1) * SB_ITEM_GAP;
-    const bottom = activeTop + rows * rowH + (rows - 1) * SB_ITEM_GAP;
-    return { bottom: bottom + 20, width: Math.max(cell.w, width) };
-  }
-
-  // Толстая/тонкая обводка вокруг текста, опционально + мягкая тень (blur). fill — золото, как у
-  // существующего DropZone.verb — та же семья «глагол над картами».
-  private paintIndicatorOutline(cx: number, cy: number, text: string, strokeWidth: number, softShadow = false): void {
-    const t = new Text({
-      text,
-      style: {
-        fontFamily: PIXEL_FONT,
-        fontSize: 12,
-        fill: 0xf2c14e,
-        align: "center",
-        stroke: { color: 0x000000, width: strokeWidth },
-        ...(softShadow ? { dropShadow: { color: 0x000000, alpha: 0.5, blur: 3, distance: 1, angle: Math.PI / 4 } } : {}),
-      },
-    });
-    t.anchor.set(0.5);
-    t.position.set(cx, cy);
-    this.scene.verb.addChild(t);
-  }
-
-  // ЖЁСТКАЯ тень: сплошной чёрный дубль текста со смещением (-2/+2), без blur — не путать с
-  // мягким Pixi dropShadow (тот вариант — paintIndicatorOutline(softShadow=true)).
-  private paintIndicatorHardShadow(cx: number, cy: number, text: string): void {
-    const shadow = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0x000000, align: "center" } });
-    shadow.anchor.set(0.5);
-    shadow.position.set(cx - 2, cy + 2);
-    const main = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: 0xf2c14e, align: "center" } });
-    main.anchor.set(0.5);
-    main.position.set(cx, cy);
-    this.scene.verb.addChild(shadow, main);
-  }
-
-  // Подложка под текстом: badge — нейтральная полупрозрачная плашка; hud — та же плашка с
-  // акцентной рамкой и золотым текстом (игровой «шильдик»).
-  private paintIndicatorBadge(cx: number, cy: number, text: string, hud: boolean): void {
-    const t = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: hud ? 0xf2c14e : 0xe8e8e8, align: "center" } });
-    t.anchor.set(0.5);
-    t.position.set(cx, cy);
-    const pad = 6;
-    const bg = new Graphics();
-    bg.roundRect(cx - t.width / 2 - pad, cy - t.height / 2 - pad / 2, t.width + pad * 2, t.height + pad, 6).fill({ color: 0x1c2620, alpha: hud ? 0.85 : 0.55 });
-    if (hud) bg.stroke({ width: 2, color: 0xf2c14e });
-    this.scene.verb.addChild(bg, t);
-  }
 
   // ——————————————————————————————————————————————————————————————————————
   // Домен песочницы поверх общего слоя. Жест, камеру, зоны и цикл ведёт SceneEngine; здесь —

@@ -2,7 +2,8 @@ import type { Card, CardOptions, RestState } from "../../game/ui/Card";
 import type { CardBackId } from "../../game/cardBack";
 import type { FaceStyle } from "../../game/engine/cardTextures";
 import type { ArgTypeEntry } from "../harness/paramArgs";
-import type { Applier, ApplyPlan } from "../harness/argApply";
+import type { ApplyPlan } from "../harness/argApply";
+import { pickSpecs, type ArgSpec } from "../harness/argSpec";
 
 // ПОЛНАЯ карта опций карты — то самое место, которого в проекте не хватало. Сегодня «что у карты
 // есть» размазано по трём слоям: опции конструктора (CardOptions), изменяемые поля времени
@@ -22,14 +23,7 @@ export type CardArgs = {
   [K in keyof CardOptions]-?: CardOptions[K];
 };
 
-export interface CardArgSpec {
-  /** Контрол в панели. `false` — опция сознательно НЕ крутится (см. комментарии ниже). */
-  argType: ArgTypeEntry | false;
-  /** Как применить правку: живой сеттер или «пересобрать сцену» (см. harness/argApply.ts). */
-  apply: Applier<Card, CardArgs> | "rebuild";
-  /** Одной строкой: что опция делает. Идёт в описание контрола — это и есть «шпаргалка по карте». */
-  hint: string;
-}
+export type CardArgSpec = ArgSpec<Card, CardArgs>;
 
 const BACKS: CardBackId[] = ["ruby", "mosaic", "emerald", "amethyst", "ember", "steel", "sunburst", "bubble"];
 const REST: RestState[] = ["idle", "floating", "held"];
@@ -128,23 +122,9 @@ export const CARD_ARGS = {
 
 export type CardArgKey = keyof typeof CARD_ARGS;
 
-/**
- * Подмножество опций для конкретной стори: argTypes для панели + план применения.
- *
- * План типизирован РОВНО выбранным подмножеством (`Pick<CardArgs, K>`), а не всей картой: иначе
- * стори, берущая пять опций, обязана была бы объявлять все четырнадцать. Приведение внутри —
- * следствие того, что Applier параметризован значением `A[keyof A]`, и сузить его снаружи нельзя;
- * снаружи же тип остаётся точным, а это единственное, что видит автор стори.
- */
+/** Подмножество опций карты для конкретной стори (механика — harness/argSpec.pickSpecs). */
 export function pickArgs<K extends CardArgKey>(
   keys: readonly K[],
 ): { argTypes: Record<string, ArgTypeEntry>; apply: ApplyPlan<Card, Pick<CardArgs, K>> } {
-  const argTypes: Record<string, ArgTypeEntry> = {};
-  const apply: Record<string, CardArgSpec["apply"]> = {};
-  for (const k of keys) {
-    const spec: CardArgSpec = CARD_ARGS[k];
-    if (spec.argType) argTypes[k] = { ...spec.argType, name: `${spec.argType.name} — ${spec.hint}` };
-    apply[k] = spec.apply;
-  }
-  return { argTypes, apply: apply as ApplyPlan<Card, Pick<CardArgs, K>> };
+  return pickSpecs<Card, CardArgs, K>(CARD_ARGS, keys);
 }
