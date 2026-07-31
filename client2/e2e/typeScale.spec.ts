@@ -48,8 +48,10 @@ async function probe(page: Page): Promise<Probe> {
         __fd: {
           cardW: number;
           cardH: number;
-          W: number;
-          H: number;
+          // Размер экрана движок держит ОДИН раз — в CanvasApp (width/height). У песочницы был свой
+          // дубль W/H; с выносом общего слоя сцены (sceneEngine.ts) он убран, проба читает канон.
+          width: number;
+          height: number;
           content: { x: number };
           viewport: { zoom: number };
           app: { stage: unknown };
@@ -72,8 +74,8 @@ async function probe(page: Page): Promise<Probe> {
       cardW: fd.cardW,
       cardH: fd.cardH,
       contentX: fd.content.x,
-      screenW: fd.W,
-      screenH: fd.H,
+      screenW: fd.width,
+      screenH: fd.height,
       zoom: fd.viewport.zoom,
       labels,
     };
