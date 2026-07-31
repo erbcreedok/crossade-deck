@@ -324,3 +324,27 @@ A hard split that must not blur when adding new deck-related mechanics:
   through `stateWrite.ts` (that's where the `clear()+push()` rule is enforced once).
 - There are no game rules (tricks, trumps, win conditions, etc.) in the code — only the
   mechanics of owning and moving cards, on which rules can be layered later.
+
+## Closing an epic: the tidy-up protocol
+
+An epic isn't done when the code works — it's done when nothing is left lying around. Run this
+checklist every time, in this order (the order matters: history moves into the tickets BEFORE the
+files that hold it are deleted).
+
+1. **Fill in the epic's documentation — in the tickets.** The epic issue is the durable home for
+   what was built, why it ended up that shape, which traps were hit and how the thing is verified
+   by hand. Code comments that reference a design decision point at the issue number, not at a
+   file that is about to disappear.
+2. **Delete the handoff files of that epic.** `*-HANDOFF.md` is scaffolding for work in flight:
+   it exists so the next agent can pick up an unfinished track. Once the track is closed, a stale
+   handoff is worse than no handoff — it describes a project that no longer exists, and someone
+   will follow it. History stays in the tickets and in git (`git log --diff-filter=D -- path`).
+   The general, epic-independent lessons move into `client2/docs/HANDOFF.md` or into this file,
+   because they outlive the epic.
+3. **Close the epics and their sub-issues** (`gh issue close -r completed`, board → Done), with a
+   comment saying what was accepted, what merged and where it is deployed. Deferred epics are
+   closed as `not planned`, with a note on what of them arrived anyway.
+4. **Delete merged branches**, locally and on the remote. Unmerged branches are NOT deleted
+   silently — they are reported, with what is on them and why they are still alive.
+5. **Sweep the workspace**: stop dev servers started for the task, drop local build/test
+   artefacts (`test-results/`, `.playwright-mcp/`), check `git status` is clean.

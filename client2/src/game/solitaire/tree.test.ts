@@ -4,7 +4,7 @@ import { createDeck52 } from "../board/solitaireDeck";
 import { BOARD_H, BOARD_W, CARD, CASCADE_STEP, buildSolitaireTree } from "./tree";
 
 // Дерево слотов — единственный источник геометрии Косынки, поэтому тесты здесь про то, что уже
-// ломалось руками у владельца (SOLITAIRE-REBUILD-HANDOFF §5): каскад vs веер, центр карты vs угол
+// ломалось руками у владельца (список ловушек — в issue #78): каскад vs веер, центр карты vs угол
 // слота, пустой слот как цель дропа. Pixi тут нет вовсе — всё считается в node.
 
 function withSlots(slots: Record<string, string[]>): SolitaireGameState {
