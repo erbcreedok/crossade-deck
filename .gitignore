@@ -20,3 +20,7 @@ client2/docs/atoms-map.pdf
 
 # Артефакты Playwright MCP (скриншоты/логи браузера из отладочных сессий)
 .playwright-mcp/
+
+# Артефакты прогона Playwright (скриншоты/трейсы упавших тестов) — производные, пересоздаются
+test-results/
+client2/test-results/
