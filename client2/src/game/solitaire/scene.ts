@@ -6,6 +6,7 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { TopBar, TOPBAR_H } from "../ui/TopBar";
+import { OverlayPanel } from "../ui/OverlayPanel";
 import type { TableElement } from "../engine/element";
 import { SolitaireGameEngine } from "./engine";
 import { buildSolitaireTree, CARD, type SolitaireTree } from "./tree";
@@ -42,6 +43,7 @@ export class SolitaireScene extends SceneEngine {
   private tree: SolitaireTree = buildSolitaireTree(this.engine.getState());
   private readonly slotLayer = new Graphics();
   private topbar: TopBar | null = null;
+  private screen: OverlayPanel | null = null;
   private recycle: Button | null = null;
 
   // Текущий груз в терминах партии: откуда и какие карты. Держим отдельно от DragPayload —
@@ -56,6 +58,8 @@ export class SolitaireScene extends SceneEngine {
     // Подписка на движок — на весь жизненный цикл сцены, а не на build(): канвас может
     // пересобираться, и слушатель задваивался бы на каждой пересборке.
     this.engine.on("move", this.onEngineMove);
+    this.engine.on("win", this.onEngineWin);
+    this.engine.on("lose", this.onEngineLose);
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -76,12 +80,34 @@ export class SolitaireScene extends SceneEngine {
       { key: "back", label: "← в меню", onClick: () => this.opts.onBack?.() },
       { key: "new-game", label: "⟲ новая", onClick: () => this.newGame() },
     ]);
-    this.chrome.addChild(this.topbar.root);
-    this.chromeButtons = this.topbar.buttons;
+    // Экран фазы — тоже канвас (общий ui/OverlayPanel), а не React поверх канваса: приложение
+    // целиком рисует движок, и вёрстка не разъезжается между экраном игры и экраном итога.
+    this.screen = new OverlayPanel([{ key: "start", label: "Новая игра", onClick: () => this.newGame() }]);
+    // Панель НИЖЕ топбара: затемнение гасит стол, но полоса управления остаётся яркой и живой —
+    // «в меню» обязана работать одинаково на любом экране, а притушенная кликабельная кнопка врёт.
+    this.chrome.addChild(this.screen.root, this.topbar.root);
+    this.syncScreen();
   }
 
-  protected layoutChrome(w: number, _h: number): void {
+  protected layoutChrome(w: number, h: number): void {
     this.topbar?.layout(w);
+    this.screen?.layout(w, h);
+  }
+
+  // Экран фазы: меню до первой раздачи, итог — после победы/поражения. В «playing» панели нет.
+  // chromeButtons пересобираем здесь: скрытая панель не должна ловить тапы по столу.
+  private syncScreen(): void {
+    const panel = this.screen;
+    if (!panel || !this.topbar) return;
+    const state = this.engine.getState();
+    // Без эмодзи: в client2 их убрали — цветной глиф ломает пиксельный шрифт (см. HANDOFF §1).
+    if (state.phase === "won") panel.setText("Вы выиграли!", `Ходов: ${state.movesCount}`);
+    else if (state.phase === "lost") panel.setText("Нет ходов", `Ходов: ${state.movesCount}`);
+    else panel.setText("Косынка");
+    panel.setVisible(state.phase !== "playing");
+    // Счётчик — только в игре: до раздачи и после итога он показывал бы «Ходов: 0» ни о чём.
+    this.topbar.setStatus(state.phase === "playing" ? `Ходов: ${state.movesCount}` : "");
+    this.chromeButtons = [...this.topbar.buttons, ...panel.activeButtons()];
   }
 
   // Стол начинается ПОД панелью: иначе верх доски навсегда уезжает под непрозрачный HUD и
@@ -136,6 +162,17 @@ export class SolitaireScene extends SceneEngine {
     this.refresh();
   };
 
+  // Победа/поражение приходят из движка правил — сцена только показывает итог, сама его не считает.
+  private onEngineWin = (): void => {
+    this.syncScreen();
+    this.wake();
+  };
+
+  private onEngineLose = (): void => {
+    this.syncScreen();
+    this.wake();
+  };
+
   /** Свести доску с состоянием партии: дерево → дома → карты. snap — поставить сразу (раздача),
    *  иначе карта ДОЛЕТАЕТ пружиной, как всё в проекте. */
   private refresh(snap = false): void {
@@ -170,7 +207,7 @@ export class SolitaireScene extends SceneEngine {
 
     this.contentW = this.tree.size.w;
     this.contentH = this.tree.size.h;
-    this.topbar?.setStatus(`Ходов: ${state.movesCount}`);
+    this.syncScreen();
     this.syncRecycle();
     this.paintBoard();
     this.clampView();
@@ -214,6 +251,12 @@ export class SolitaireScene extends SceneEngine {
 
   protected draggables(): SceneElement[] {
     return [...this.nodes.values()];
+  }
+
+  /** Пока поверх стола висит экран фазы, карты не хватаются: панель нарисована над ними, и тап
+   *  сквозь неё был бы ходом по доске, которой игрок сейчас не видит. */
+  protected pickElement(cx: number, cy: number): SceneElement | null {
+    return this.screen?.visible ? null : super.pickElement(cx, cy);
   }
 
   protected everyElement(): TableElement[] {
@@ -324,6 +367,10 @@ export class SolitaireScene extends SceneEngine {
     slots: Record<string, { x: number; y: number; w: number; h: number }>;
     cards: Record<string, { x: number; y: number; faceUp: boolean; scale: number; rot: number; state: string }>;
     topbar: Record<string, { x: number; y: number; w: number; h: number }>;
+    screen: { visible: boolean; buttons: Record<string, { x: number; y: number; w: number; h: number }> };
+    /** ЭКРАННЫЙ размер нарисованной карты — считается от её baseScale, а не от ячейки доски:
+     *  только так тест ловит baseScale=1, при котором карта втрое вылезала из слота. */
+    cardSize: { w: number; h: number } | null;
     zoom: number;
   } {
     const z = this.viewport.zoom;
@@ -339,7 +386,15 @@ export class SolitaireScene extends SceneEngine {
       // пружиной от статичного перетаскивания, которым был первый заход.
       cards[id] = { x: p.x, y: p.y, faceUp: node.faceUp, scale: node.body.scaleVal, rot: node.body.rotation, state: node.state };
     }
-    return { slots, cards, topbar: this.topbar?.rects() ?? {}, zoom: z };
+    const sample = this.nodes.values().next().value as Card | undefined;
+    return {
+      slots,
+      cards,
+      cardSize: sample ? { w: sample.width * z, h: sample.height * z } : null,
+      topbar: this.topbar?.rects() ?? {},
+      screen: { visible: this.screen?.visible ?? false, buttons: this.screen?.rects() ?? {} },
+      zoom: z,
+    };
   }
 
   protected onTeardown(app: Application): void {
@@ -348,6 +403,7 @@ export class SolitaireScene extends SceneEngine {
     this.tex?.destroy();
     this.tex = null;
     this.topbar = null;
+    this.screen = null;
     this.recycle = null;
     super.onTeardown(app);
   }
