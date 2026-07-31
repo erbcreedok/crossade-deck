@@ -49,6 +49,12 @@ export interface SolitaireUIState {
   // updateBoardVisuals, иначе текстуры карт перепекались бы на каждый апдейт.
   tex: CardTextureCache;
   baseScale: number;
+  /** Полразмера карты. Карта позиционируется ЦЕНТРОМ, а слот задан прямоугольником от левого
+   *  верхнего угла — без этого перевода все карты стояли ровно на полкарты выше и левее своей
+   *  зоны, и дроп попадал не в тот слот. */
+  half: { w: number; h: number };
+  /** Габарит всей доски в координатах сцены — по нему камера считает вписывание и границы пана. */
+  content: { w: number; h: number };
 }
 
 /** Собрать корневой контейнер доски пасьянса и по контейнеру на каждый слот, по текущему viewport. */
@@ -81,6 +87,8 @@ export function mountSolitaireBoard(
     cardNodes: new Map(),
     slotGeometries,
     tex: new CardTextureCache(app),
+    half: { w: LAYOUT_PROFILES[profile].cardSize.w / 2, h: cardH(profile) / 2 },
+    content: contentSize(slotGeometries),
     // Карта печатается в текстуру фиксированного размера (TEX_W×TEX_H = 160×228), а слот меряется
     // в пикселях профиля (mobile 60×85). baseScale — переходник между этими двумя мерами, и он
     // ОБЯЗАН считаться от профиля: при baseScale=1 карта вылезала бы из слота почти втрое.
@@ -91,6 +99,17 @@ export function mountSolitaireBoard(
 }
 
 const cardH = (profile: "mobile" | "tablet" | "desktop"): number => LAYOUT_PROFILES[profile].cardSize.h;
+
+/** Габарит доски = самый правый и самый нижний край среди слотов (плюс поле справа/снизу). */
+function contentSize(geoms: Record<string, SlotGeometry>): { w: number; h: number } {
+  let w = 0;
+  let h = 0;
+  for (const g of Object.values(geoms)) {
+    w = Math.max(w, g.x + g.w);
+    h = Math.max(h, g.y + g.h);
+  }
+  return { w, h };
+}
 
 /** Контур пустого слота — «здесь может лежать карта». Рисуем скруглённой рамкой в тон стола. */
 function slotPlaceholder(w: number, h: number): Graphics {
@@ -142,7 +161,8 @@ export function updateBoardVisuals(ui: SolitaireUIState, state: SolitaireGameSta
         }
         slotContainer.addChild(node.root);
       }
-      const targets = { x: pos.x, y: pos.y, rot: pos.rotation, scale: node.restScale };
+      // pos — смещение от угла слота, а карта позиционируется ЦЕНТРОМ: добавляем полкарты.
+      const targets = { x: pos.x + ui.half.w, y: pos.y + ui.half.h, rot: pos.rotation, scale: node.restScale };
       if (snap || fresh) node.body.snapTo(targets);
       else node.body.setTarget(targets);
       node.sync(); // применить body.px/py/rotation к root.position без ожидания тика тикера

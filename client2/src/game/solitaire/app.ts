@@ -4,6 +4,7 @@ import { topmostAt, type HitBox } from "../engine/cardHit";
 import { SolitaireGameEngine } from "./engine";
 import { mountSolitaireBoard, updateBoardVisuals, type SolitaireUIState } from "./ui";
 import type { SlotGeometry } from "../board/solitaireLayout";
+import { Viewport } from "../engine/viewport";
 
 // Канвас-хост «Косынки» (issue #97): наследник CanvasApp (REFACTOR E1) — заводить второй
 // самодельный жизненный цикл канваса рядом с общим было бы неверно (см. поправку 1 в задании).
@@ -15,11 +16,14 @@ import type { SlotGeometry } from "../board/solitaireLayout";
 // уродливее прямых pointerdown/move/up. Порог «тап vs драг» (8px) и различение реализованы вручную.
 
 const DRAG_THRESHOLD = 8; // px — сдвиг пальца, после которого тап на карте становится драгом
+const MIN_ZOOM = 0.25; // доска целиком должна влезать даже в узкое окно телефона
+const MAX_ZOOM = 2.5;
 
 // Что именно тащим: либо кандидат «тап по стоку» (сдать/переработать), либо карта/пробег карт
 // колонки tableau, снятых с pointerdown и следующих за пальцем до pointerup.
 type DragState =
   | { kind: "stock-tap"; startScreen: { x: number; y: number }; cancelled: boolean }
+  | { kind: "pan"; last: { x: number; y: number } }
   | {
       kind: "card";
       fromSlot: string;
@@ -34,6 +38,11 @@ export class SolitaireApp extends CanvasApp {
   private ui: SolitaireUIState | null = null;
   private drag: DragState | null = null;
   private activePointerId: number | null = null;
+  // Камера доски. Раньше её не было вовсе: сцена рисовалась один-в-один в экранных координатах, и
+  // на узком окне часть доски просто оказывалась за краем без всякого способа туда добраться.
+  // alignX "left" — доска держится левого поля, а не прыгает в центр при каждом изменении ширины
+  // (та же причина, что и в песочнице, issue #49).
+  private readonly viewport = new Viewport(MIN_ZOOM, MAX_ZOOM, 0, "left", 0);
 
   constructor() {
     super();
@@ -52,13 +61,50 @@ export class SolitaireApp extends CanvasApp {
 
   protected build(app: Application): void {
     this.ui = mountSolitaireBoard(app, this.engine.getState(), { width: this.width, height: this.height });
+    this.fitView();
     app.stage.eventMode = "static";
     app.stage.hitArea = new Rectangle(0, 0, this.width, this.height);
     app.stage.on("pointerdown", this.onDown);
     app.stage.on("pointermove", this.onMove);
     app.stage.on("pointerup", this.onUp);
     app.stage.on("pointerupoutside", this.onUp);
+    app.canvas.addEventListener("wheel", this.onWheel, { passive: false });
   }
+
+  // ——— камера ———
+
+  /** Вписать доску в окно и применить. Зум не задираем выше 1: на большом экране доска рисуется
+   *  в своём размере, а ужимается только когда реально не влезает. */
+  private fitView(): void {
+    if (!this.ui) return;
+    const c = this.ui.content;
+    this.viewport.setScreen(this.width, this.height);
+    this.viewport.setContent(c.w, c.h);
+    this.viewport.setZoom(Math.min(1, this.width / c.w, this.height / c.h));
+    this.applyView();
+  }
+
+  private applyView(): void {
+    if (!this.ui) return;
+    this.viewport.clamp();
+    this.ui.boardContainer.position.set(this.viewport.x, this.viewport.y);
+    this.ui.boardContainer.scale.set(this.viewport.zoom);
+  }
+
+  /** Экран → координаты сцены. Всё попадание (по карте и по слоту) считается в координатах
+   *  сцены, иначе при любом зуме/пане клик уезжал бы мимо. */
+  private toContent(sx: number, sy: number): { x: number; y: number } {
+    return this.viewport.screenToContent(sx, sy);
+  }
+
+  private onWheel = (e: WheelEvent): void => {
+    if (!this.ui) return;
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
+    this.viewport.zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * 0.0015));
+    this.applyView();
+    this.wake();
+  };
 
   protected onBooted(): void {
     this.wake(); // отрисовать хотя бы один кадр только что смонтированной доски
@@ -71,11 +117,13 @@ export class SolitaireApp extends CanvasApp {
     this.drag = null; // геометрия слотов сменилась — старый драг-контекст (offsets и т.п.) невалиден
     this.ui?.boardContainer.destroy({ children: true });
     this.ui = mountSolitaireBoard(this.app, this.engine.getState(), { width, height }); // внутри snap
+    this.fitView(); // новая ширина — заново вписываем доску, иначе она уедет за край
 
     this.app.stage.hitArea = new Rectangle(0, 0, width, height);
   }
 
   protected onTeardown(app: Application): void {
+    app.canvas.removeEventListener("wheel", this.onWheel);
     app.stage.off("pointerdown", this.onDown);
     app.stage.off("pointermove", this.onMove);
     app.stage.off("pointerup", this.onUp);
@@ -128,11 +176,12 @@ export class SolitaireApp extends CanvasApp {
   private onDown = (e: FederatedPointerEvent): void => {
     if (this.activePointerId !== null || !this.ui) return; // ведём только один палец за раз
     this.activePointerId = e.pointerId;
-    const cp = { x: e.global.x, y: e.global.y }; // stage не трансформирован — контент = экран
+    const screen = { x: e.global.x, y: e.global.y };
+    const cp = this.toContent(screen.x, screen.y); // доска живёт под камерой — переводим
 
     const hit = this.pickCard(cp.x, cp.y);
     if (hit && hit.slot === "stock") {
-      this.drag = { kind: "stock-tap", startScreen: cp, cancelled: false };
+      this.drag = { kind: "stock-tap", startScreen: screen, cancelled: false };
       return;
     }
     if (hit) {
@@ -141,16 +190,29 @@ export class SolitaireApp extends CanvasApp {
     }
     const stockGeom = this.ui.slotGeometries.stock;
     if (stockGeom && this.pointInRect(cp, stockGeom)) {
-      this.drag = { kind: "stock-tap", startScreen: cp, cancelled: false };
+      this.drag = { kind: "stock-tap", startScreen: screen, cancelled: false };
+      return;
     }
+    // Пустое место — тащим саму доску. Так до дальнего края можно добраться и без колеса
+    // (на телефоне колеса нет вовсе).
+    this.drag = { kind: "pan", last: screen };
   };
 
   private onMove = (e: FederatedPointerEvent): void => {
     if (e.pointerId !== this.activePointerId || !this.drag || !this.ui) return;
-    const cp = { x: e.global.x, y: e.global.y };
+    const screen = { x: e.global.x, y: e.global.y };
+    const cp = this.toContent(screen.x, screen.y);
 
     if (this.drag.kind === "stock-tap") {
-      if (dist(cp, this.drag.startScreen) > DRAG_THRESHOLD) this.drag.cancelled = true;
+      if (dist(screen, this.drag.startScreen) > DRAG_THRESHOLD) this.drag.cancelled = true;
+      return;
+    }
+
+    if (this.drag.kind === "pan") {
+      this.viewport.panBy(screen.x - this.drag.last.x, screen.y - this.drag.last.y);
+      this.drag.last = screen;
+      this.applyView();
+      this.wake();
       return;
     }
 
@@ -183,7 +245,7 @@ export class SolitaireApp extends CanvasApp {
       if (e.pointerId === this.activePointerId) this.activePointerId = null;
       return;
     }
-    const cp = { x: e.global.x, y: e.global.y };
+    const cp = this.toContent(e.global.x, e.global.y);
     const drag = this.drag;
     this.drag = null;
     this.activePointerId = null;
@@ -192,6 +254,7 @@ export class SolitaireApp extends CanvasApp {
       if (!drag.cancelled) this.engine.dealStock(); // handleEngineMove перерисует на "move"
       return;
     }
+    if (drag.kind === "pan") return; // доску подвинули — ход тут ни при чём
 
     if (!drag.started) return; // тап без сдвига — не ход, визуально ничего не менялось
 
@@ -232,12 +295,15 @@ export class SolitaireApp extends CanvasApp {
     const meta: { cardId: string; slot: string }[] = [];
     let z = 0;
     for (const [slotId, members] of Object.entries(state.board.slots)) {
+      const geom = this.ui.slotGeometries[slotId];
+      if (!geom) continue;
       for (const cardId of members.members) {
         const node = this.ui.cardNodes.get(cardId);
         if (!node) continue;
-        const gp = node.root.getGlobalPosition();
+        // Позицию берём в координатах СЦЕНЫ (слот + локальная позиция карты), а не с экрана:
+        // экранная зависит от зума/пана камеры, и попадание разъезжалось бы при любом сдвиге.
         const fp = node.footprint;
-        boxes.push({ px: gp.x, py: gp.y, hw: fp.hw, hh: fp.hh, z: z++ });
+        boxes.push({ px: geom.x + node.body.px, py: geom.y + node.body.py, hw: fp.hw, hh: fp.hh, z: z++ });
         meta.push({ cardId, slot: slotId });
       }
     }
