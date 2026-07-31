@@ -56,9 +56,9 @@ const COLUMN_H = CARD.h + (CASCADE_FIT - 1) * CASCADE_STEP;
 export const BOARD_W = MARGIN.x * 2 + COLS * CARD.w + (COLS - 1) * GAP.x;
 export const BOARD_H = TABLEAU_Y + COLUMN_H + MARGIN.y;
 
-/** Левый верхний угол каждого слота на доске. Верхний ряд: сток и сброс слева, фундаменты — у
- *  правого поля (классическая раскладка: слева «рабочая» часть, справа «целевая»). */
-export function slotOrigins(): Record<string, Vec> {
+// Левый верхний угол каждого слота на доске. Верхний ряд: сток и сброс слева, фундаменты — у
+// правого поля (классическая раскладка: слева «рабочая» часть, справа «целевая»).
+function slotOrigins(): Record<string, Vec> {
   const o: Record<string, Vec> = {};
   o.stock = { x: MARGIN.x, y: MARGIN.y };
   o.waste = { x: MARGIN.x + CARD.w + GAP.x, y: MARGIN.y };

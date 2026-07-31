@@ -9,7 +9,7 @@ import { TopBar, TOPBAR_H } from "../ui/TopBar";
 import { OverlayPanel } from "../ui/OverlayPanel";
 import type { TableElement } from "../engine/element";
 import { SolitaireGameEngine } from "./engine";
-import { buildSolitaireTree, CARD, type SolitaireTree } from "./tree";
+import { buildSolitaireTree, CARD, CASCADE_STEP, type SolitaireTree } from "./tree";
 import { paintSlots } from "./slotPaint";
 
 // СЦЕНА «Косынки» поверх общего слоя. Всё, что есть у любого стола, берётся из SceneEngine и здесь
@@ -371,6 +371,9 @@ export class SolitaireScene extends SceneEngine {
     /** ЭКРАННЫЙ размер нарисованной карты — считается от её baseScale, а не от ячейки доски:
      *  только так тест ловит baseScale=1, при котором карта втрое вылезала из слота. */
     cardSize: { w: number; h: number } | null;
+    /** ЭКРАННЫЙ шаг каскада колонки: на столько выступает нижняя карта из-под верхней. Тесту он
+     *  нужен, чтобы целиться в ВИДИМУЮ полоску карты — центр в каскаде перекрыт следующей. */
+    cascadeStep: number;
     zoom: number;
   } {
     const z = this.viewport.zoom;
@@ -391,6 +394,7 @@ export class SolitaireScene extends SceneEngine {
       slots,
       cards,
       cardSize: sample ? { w: sample.width * z, h: sample.height * z } : null,
+      cascadeStep: CASCADE_STEP * z,
       topbar: this.topbar?.rects() ?? {},
       screen: { visible: this.screen?.visible ?? false, buttons: this.screen?.rects() ?? {} },
       zoom: z,

@@ -16,6 +16,7 @@ interface Hooks {
   slots: Record<string, { x: number; y: number; w: number; h: number }>;
   cards: Record<string, { x: number; y: number; faceUp: boolean; scale: number; rot: number; state: string }>;
   cardSize: { w: number; h: number } | null;
+  cascadeStep: number;
   topbar: Record<string, { x: number; y: number; w: number; h: number }>;
   screen: { visible: boolean; buttons: Record<string, { x: number; y: number; w: number; h: number }> };
   zoom: number;
@@ -66,8 +67,7 @@ async function deal(page: Page): Promise<void> {
 function grabPoint(h: Hooks, cardId: string, slot: string): { x: number; y: number } {
   const c = h.cards[cardId]!;
   if (!slot.startsWith("tab:")) return { x: c.x, y: c.y };
-  const step = 40 * h.zoom; // CASCADE_STEP из solitaire/tree.ts
-  return { x: c.x, y: c.y - h.cardSize!.h / 2 + step * 0.4 };
+  return { x: c.x, y: c.y - h.cardSize!.h / 2 + h.cascadeStep * 0.4 };
 }
 
 test.describe("Косынка", () => {
