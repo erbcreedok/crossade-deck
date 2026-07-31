@@ -43,6 +43,31 @@ export abstract class CanvasApp {
     this.observeResize();
   }
 
+  /**
+   * Перевесить ЖИВОЙ канвас в другой хост, не пересоздавая WebGL-контекст.
+   *
+   * Нужно там, где один движок обслуживает несколько сменяющихся мест монтирования — сейчас это
+   * сторибук (переключение story размонтирует React-хост, но контекст обязан пережить это). Браузер
+   * держит около 16 живых контекстов; вариант «на каждое монтирование новый» упирается в потолок
+   * через десяток переключений и гасит все канвасы разом.
+   *
+   * Отличие от mount(): не зовёт boot() — сцена уже собрана и остаётся как есть.
+   */
+  reattach(host: HTMLElement, width: number, height: number): void {
+    if (this.destroyed || !this.app) return;
+    this.ro?.disconnect();
+    this.ro = null;
+    this.host = host;
+    host.appendChild(this.app.canvas); // appendChild сам переносит узел из прежнего родителя
+    this.width = Math.max(1, Math.round(width));
+    this.height = Math.max(1, Math.round(height));
+    this.app.renderer.resize(this.width, this.height);
+    this.onLayout(this.width, this.height);
+    this.onResize(this.width, this.height);
+    this.observeResize();
+    this.wake(); // спящий тикер обязан перерисовать кадр в новом месте и размере
+  }
+
   destroy(): void {
     this.destroyed = true;
     this.ro?.disconnect();

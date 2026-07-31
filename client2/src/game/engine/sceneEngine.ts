@@ -3,6 +3,7 @@ import { CanvasApp } from "./canvasApp";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import { Viewport, type ViewState } from "./viewport";
 import { InputRouter, type InputHandlers } from "./inputRouter";
+import { Marker, withAnchor, withDragger, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./marker";
 import { SingleDrag, type DragContext, type DragPayload } from "./drag";
 import { topmostAt, type HitBox } from "./cardHit";
 import { Button } from "../ui/Button";
@@ -56,6 +57,13 @@ interface ZoneReg {
 
 /** Настройки камеры сцены. Умолчания — ровно те, на которых откатана песочница: контрол и жесты
  *  обязаны совпадать во всех сценах, поэтому расходиться тут можно только осознанно. */
+/** Всё, за что тянут ЧЕРЕЗ МЕТКУ (стопки, столбики, соло-цели) — единый список для хит-теста. */
+export interface Grabber {
+  marker: Marker;
+  host: MarkerHost;
+  lead: () => SceneElement | null;
+}
+
 export interface CameraConfig {
   minZoom?: number;
   maxZoom?: number;
@@ -116,6 +124,46 @@ export abstract class SceneEngine extends CanvasApp {
 
   // ——— дроп-зоны ———
   protected zones: ZoneReg[] = [];
+
+  // ——— МЕТКИ ЗАХВАТА (marker.ts) — общий механизм стола, не привилегия песочницы ———
+  //
+  // Метка — это «ручка» цели: драггер (грип) едет с грузом за пальцем, якорь стоит дома по своей
+  // политике видимости, и они свапаются по состоянию. Цель за меткой может быть чем угодно —
+  // стопкой карт, столбиком фишек, одиночной фигурой: host отдаёт слот, состояние и ГРУЗ
+  // (makePayload), а движок про её природу ничего не знает.
+  //
+  // Живёт здесь, а не в песочнице, потому что механизм generic по элементу и нужен каждой сцене,
+  // где за что-то тянут через ручку — в том числе витрине каталога. Держать его в PlaygroundEngine
+  // значило бы, что каталог обязан или копировать плумбинг, или показывать стопки без ручек.
+  protected markers: Marker[] = [];
+  protected grabbers: Grabber[] = [];
+  /** За какую метку сейчас тянут (follow/endFollow). */
+  protected grabbedMarker: Marker | null = null;
+  /** Host захватываемой цели — живёт между pickElement и beginDrag. */
+  protected pendingHost: MarkerHost | null = null;
+
+  /** Навесить пару меток (драггер + якорь) на ЛЮБОЙ host и учесть их в хит-тесте захвата. */
+  protected mountMarkers(
+    host: MarkerHost,
+    lead: () => SceneElement | null,
+    dragger: Omit<MarkerConfig, "show"> & { show?: ShowPolicy },
+    anchorCfg: Omit<MarkerConfig, "show" | "follow" | "hit"> & { show?: ShowPolicy },
+  ): { dragger: Marker; anchor: Marker } {
+    const d = withDragger(host, this.scene.verb, this.scene.cards.drag, dragger);
+    const a = withAnchor(host, this.scene.surface, anchorCfg);
+    this.markers.push(d, a);
+    this.grabbers.push({ marker: d, host, lead });
+    return { dragger: d, anchor: a };
+  }
+
+  /** Снести метки (пересборка содержимого). Зовут из своего clearContent. */
+  protected clearMarkers(): void {
+    for (const m of this.markers) m.destroy();
+    this.markers = [];
+    this.grabbers = [];
+    this.grabbedMarker = null;
+    this.pendingHost = null;
+  }
 
   // ——— «подглядеть» ———
   // id → сессия показа. undo — замыкание из Peekable.peekReveal, возвращающее элемент КАК БЫЛО:
@@ -458,6 +506,13 @@ export abstract class SceneEngine extends CanvasApp {
 
   /** Что схвачено в точке. По умолчанию — верхний элемент под пальцем. */
   protected pickElement(cx: number, cy: number): SceneElement | null {
+    // Сперва метка-драггер: за ручку тянут ЦЕЛЬ (стопку, столбик, фигуру), а не то, что под ней.
+    const g = this.grabbers.find((gr) => gr.marker.interactive && gr.marker.hitTest(cx, cy));
+    if (g) {
+      this.pendingHost = g.host;
+      this.grabbedMarker = g.marker;
+      return g.lead(); // лид: верхняя карта стопки / сам соло-элемент
+    }
     return this.hitElement(cx, cy);
   }
 
@@ -469,7 +524,16 @@ export abstract class SceneEngine extends CanvasApp {
   /** Начать драг. По умолчанию — обычный SingleDrag за одну карту. Переопределяют, чтобы тащить
    *  пачку/набор; вернуть true — «драг заведён сам», false — база заводит SingleDrag. */
   protected beginDrag(el: SceneElement, cp: Pt, _sp: Pt): boolean {
-    this.drag = new SingleDrag(el, this.dragCtx, cp);
+    // Цель захвачена за метку → груз делает её host (это может быть и пачка). Иначе — одна карта.
+    const payload = this.pendingHost?.makePayload?.(cp) ?? null;
+    this.pendingHost = null;
+    if (payload) {
+      this.drag = payload;
+      this.grabbedMarker?.beginFollow(); // грип едет за пальцем поверх пачки
+    } else {
+      this.grabbedMarker = null;
+      this.drag = new SingleDrag(el, this.dragCtx, cp);
+    }
     this.drag.move(cp);
     return true;
   }
@@ -484,8 +548,10 @@ export abstract class SceneEngine extends CanvasApp {
     return cp;
   }
 
-  /** Груз проехал в точку p (метки, раздвигание соседей, ховер-подсказки грида). Опц. */
-  protected onDragMoved(_p: Pt): void {}
+  /** Груз проехал в точку p. База ведёт за пальцем захваченную метку; наследник добавляет своё. */
+  protected onDragMoved(p: Pt): void {
+    this.grabbedMarker?.followTo(p);
+  }
 
   /** Перехватить дроп до разбора груза (вернуть true — дроп проглочен). Опц. */
   protected beforeDrop(_el: SceneElement, _cp: Pt): boolean {
@@ -505,8 +571,11 @@ export abstract class SceneEngine extends CanvasApp {
   /** Драг прерван (второй палец/уход указателя) — свернуть свои подсказки. Опц. */
   protected onDragCancel(): void {}
 
-  /** Конец любого драга — снять свои временные состояния (метки и т.п.). Опц. */
-  protected afterDragEnd(): void {}
+  /** Конец любого драга. База возвращает метку на место; наследник снимает своё. */
+  protected afterDragEnd(): void {
+    this.grabbedMarker?.endFollow();
+    this.grabbedMarker = null;
+  }
 
   /** Тапнули по недрагабельному элементу. По умолчанию — «стоп»-кивок. */
   protected onElementBlocked(el: SceneElement): void {
@@ -718,8 +787,10 @@ export abstract class SceneEngine extends CanvasApp {
     this.scene.paintShadows(shadows, this.contentW, this.contentH);
   }
 
-  /** Досинхронизировать свои визуалы (метки, индикаторы) перед теневым пассом. Опц. */
-  protected renderScene(): void {}
+  /** Досинхронизировать визуалы перед теневым пассом: база — метки, наследник — своё. */
+  protected renderScene(): void {
+    for (const m of this.markers) m.update();
+  }
 
   // ——— флаги доступности: одинаково во всех сценах ———
 
