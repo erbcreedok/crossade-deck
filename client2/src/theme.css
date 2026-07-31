@@ -216,3 +216,41 @@ body {
     width: 110px;
   }
 }
+
+/* Экраны фаз «Косынки» (меню/выигрыш/проигрыш, issue #98) — тот же язык, что у fd-topbar/fd-btn
+   (нет собственного HTML-меню в проекте: главное меню целиком на канвасе — см. Menu.tsx/MenuEngine),
+   но здесь эти экраны React-DOM поверх table-screen, канвас в фазе playing даже не монтируется. */
+.solitaire-screen {
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: max(12px, env(safe-area-inset-top)) 12px 12px;
+}
+.solitaire-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.solitaire-title {
+  font-family: "Handjet", monospace;
+  font-size: 2rem;
+  color: #f2c14e;
+  margin: 0;
+  text-align: center;
+}
+.solitaire-moves {
+  font-size: 1.1rem;
+  margin: 0;
+  opacity: 0.85;
+}
+.fd-btn-lg {
+  font-size: 1.3rem;
+  padding: 10px 22px;
+}
+.solitaire-counter {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  opacity: 0.85;
+}

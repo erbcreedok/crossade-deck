@@ -29,12 +29,19 @@ export class MenuEngine {
   private shoutText!: Text;
   private shout: { t: number } | null = null;
   private onOpenSandbox: (() => void) | null = null;
+  // Сверх исходной спеки меню (issue #99): без пункта в меню игра доступна только руками
+  // по адресу /solitaire — это делает готовый роут практически недостижимым для игрока.
+  private onOpenSolitaire: (() => void) | null = null;
 
   private pressed: Button | null = null;
   private hovered: Button | null = null;
 
   setOnOpenSandbox(cb: () => void): void {
     this.onOpenSandbox = cb;
+  }
+
+  setOnOpenSolitaire(cb: () => void): void {
+    this.onOpenSolitaire = cb;
   }
 
   async mount(container: HTMLElement, width: number, height: number): Promise<void> {
@@ -73,10 +80,12 @@ export class MenuEngine {
     const cx = this.W / 2;
     const cy = this.H / 2;
     const suck = new Button({ label: "сосать", variant: "primary", size: "lg", onClick: () => this.startShout() });
-    suck.place(cx, cy - 36);
+    suck.place(cx, cy - 72);
+    const solitaire = new Button({ label: "косынка", variant: "primary", size: "lg", onClick: () => this.onOpenSolitaire?.() });
+    solitaire.place(cx, cy);
     const sandbox = new Button({ label: "песочница", variant: "secondary", size: "lg", onClick: () => this.onOpenSandbox?.() });
-    sandbox.place(cx, cy + 36);
-    this.buttons = [suck, sandbox];
+    sandbox.place(cx, cy + 72);
+    this.buttons = [suck, solitaire, sandbox];
     for (const b of this.buttons) this.root.addChild(b.root);
 
     // Лейбл-крик — ПОВЕРХ всего, скрыт до вызова.

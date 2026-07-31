@@ -12,6 +12,9 @@ export function Menu() {
     if (!host) return;
     const engine = new MenuEngine();
     engine.setOnOpenSandbox(() => goApp("playground"));
+    // Сверх спеки issue #99: сама спека роут не требует ссылку из меню, но без неё игра
+    // достижима только руками по адресу — добавляем пункт по образцу «песочницы».
+    engine.setOnOpenSolitaire(() => goApp("solitaire"));
     void engine.mount(host, host.clientWidth || 360, host.clientHeight || 640);
     return () => engine.destroy();
   }, []);
