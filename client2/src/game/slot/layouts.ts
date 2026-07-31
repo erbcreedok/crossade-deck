@@ -72,12 +72,17 @@ export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: 
 // Куча/колода — почти совмещённые слоты с лёгким ДИАГОНАЛЬНЫМ стаггером «толщины» (свет справа-сверху).
 // Верх = последний. indexAt → верх (дроп в кучу = положить сверху). Отдельная стратегия, не костыль
 // над linear: у кучи своя семантика (нахлёст по обеим осям, стаггер может уходить в минус по y).
-export function pile(o: { dx?: number; dy?: number } = {}): Layout {
+//
+// cell — РЕЗЕРВ места для ПУСТОЙ кучи (тот же смысл, что явный cell у grid). Без него опустевшая
+// куча меряется в 0×0: она пропадает из раскладки родителя и перестаёт ловить дроп — а именно в
+// пустую кучу и надо уметь положить (пустая колонка Клондайка ждёт короля, пустой фундамент — туза).
+export function pile(o: { dx?: number; dy?: number; cell?: Size } = {}): Layout {
   const dx = o.dx ?? 0.35;
   const dy = o.dy ?? -0.3;
   const nz = (v: number): number => (v === 0 ? 0 : v); // -0 → 0 (i*dy при i=0 даёт -0)
   return {
     place(sizes) {
+      if (!sizes.length && o.cell) return { at: [], size: { ...o.cell } };
       const at = sizes.map((_, i) => ({ x: nz(i * dx), y: nz(i * dy) }));
       let minX = 0;
       let minY = 0;
