@@ -19,6 +19,7 @@ const EXPECTED = [
   "tags",
   "faceUp",
   "hidden",
+  "censored",
   "back",
   "faceStyle",
   "fourColor",

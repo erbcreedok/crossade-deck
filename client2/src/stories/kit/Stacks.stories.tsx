@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
-import { STACK_ANCHORS, stacksSection } from "../../game/kit/stacks";
+import { configurableStackSection, STACK_ANCHORS, stacksSection } from "../../game/kit/stacks";
 import { dropzonesSection } from "../../game/kit/dropzones";
 import { CanvasStage } from "../harness/CanvasStage";
 
@@ -35,6 +35,29 @@ type Story = StoryObj<Record<string, never>>;
 
 /** Три стопки, три политики якоря. Ровно то, что показывает песочница. */
 export const ThreeAnchorPolicies: Story = {};
+
+/**
+ * ОДНА стопка и все её рычаги рядом — витрина конфигурации.
+ *
+ * Рычаги построены из `Stack.params()`, то есть из самой стопки: список в панели не может разойтись
+ * с тем, что стопка умеет на самом деле. Крутится всё живьём, включая нахлёст и вид якоря, которые
+ * до этого задавались только при сборке.
+ *
+ * Это же и ответ на вопрос «где настраивается стопка»: раньше — в трёх местах (аргументы
+ * конструктора, `params()`, конфиг метки на стороне движка), теперь — в одном `StackConfig`.
+ */
+export const Configurable: Story = {
+  render: () => (
+    <CanvasStage<Card, Record<string, never>>
+      args={{}}
+      opts={{ cardHeight: 150 }}
+      build={(ctx) => {
+        const r = configurableStackSection(ctx, { x: ctx.padding, y: ctx.padding });
+        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
+      }}
+    />
+  ),
+};
 
 /** Крупно — разглядеть грип (три точки под пачкой) и перекрытие карт. */
 export const Large: Story = {

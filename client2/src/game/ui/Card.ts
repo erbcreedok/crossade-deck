@@ -51,6 +51,7 @@ export interface CardOptions {
   torn?: boolean;
   size?: number;
   hidden?: boolean; // НАЧАЛЬНАЯ скрытость (режим секретности); дальше переключается setConcealed()
+  censored?: boolean; // НАЧАЛЬНАЯ цензура (пыль ПОВЕРХ лица); дальше переключается setCensored()
   custom?: string; // id кастом-лица из реестра CUSTOM_FACES (напр. "joker"); "" — обычное число
   rest?: RestState; // план ПОКОЯ: idle (на столе) / floating (левитация, «в руке») / held (в руке держат)
   tags?: string[]; // ИГРОВЫЕ теги поверх авто (card/suit/rank/color): role:trump, team:blue — SELECTION-DESIGN §2
@@ -91,6 +92,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   readonly torn: boolean;
   readonly size: number;
   private _concealed: boolean; // режим секретности (изначально opts.hidden), переключается извне
+  private _censored: boolean; // цензура-фильтр (изначально opts.censored), переключается извне
   readonly custom: string; // id кастом-лица (реестр CUSTOM_FACES); "" — обычная числовая карта
   private readonly extraTags: ReadonlySet<string>; // игровые теги поверх авто (см. tags getter)
 
@@ -125,6 +127,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
     this._concealed = opts.hidden ?? false;
+    this._censored = opts.censored ?? false;
     this.custom = opts.custom ?? "";
     this.extraTags = new Set(opts.tags ?? []);
     this.rest = opts.rest ?? "idle";
@@ -132,7 +135,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
-    if (this.masked) this.buildDust();
+    if (this.dusty) this.buildDust();
     if (this.torn) this.root.addChild(this.buildTear());
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
@@ -171,9 +174,27 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     return this._concealed;
   }
 
-  // Показывать ли МАСКУ вместо лица: активная скрытость ИЛИ значение придержано (нечего показывать).
+  /** Зацензурена ли карта (фильтр-пыль поверх настоящего лица). Снимается/ставится извне. */
+  get censored(): boolean {
+    return this._censored;
+  }
+
+  // СКРЫТОСТЬ и ЦЕНЗУРА — два разных явления, и их нельзя путать:
+  //
+  //   masked  — показывать МАСКУ ВМЕСТО лица. Значения у клиента либо нет вовсе (сервер придержал),
+  //             либо оно объявлено секретным. Под пылью — чистый фон: показывать нечего.
+  //   censored — лицо рисуется НАСТОЯЩЕЕ, а пыль ложится ПОВЕРХ него фильтром. Значение у клиента
+  //             есть, но смотреть на него сейчас нельзя. Работает на ЛЮБОМ лице: числовом,
+  //             кастомном, каком угодно.
+  //
+  // Отсюда и разделение полей: masked меняет ТЕКСТУРУ, censored — только слой пыли над ней.
   private get masked(): boolean {
     return this._concealed || !this.hasValue;
+  }
+
+  /** Нужна ли этой карте пыль вообще (маска ИЛИ фильтр) — по этому признаку она лениво строится. */
+  private get dusty(): boolean {
+    return this.masked || this._censored;
   }
 
   /** Переключить скрытость в рантайме: перерисовать лицо (при надобности — лениво построить «пыль»). */
@@ -183,10 +204,18 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.refaceMasked();
   }
 
-  /** Есть ли что подглядеть: карта скрыта ИЛИ лежит рубашкой. ЧИСТЫЙ предикат (без мутаций) —
-   *  зона ПОДГЛЯДЕТЬ читает его для armed-текста («давай подсмотрим?» vs «зачем?»). */
+  /** Переключить ЦЕНЗУРУ в рантайме. Лицо при этом не меняется — меняется только слой пыли над ним,
+   *  поэтому кросс-фейд текстуры (refaceMasked) тут не нужен: пыль сама наплывает через dustAlpha. */
+  setCensored(v: boolean): void {
+    if (v === this._censored) return;
+    this._censored = v;
+    if (this.dusty && !this.dust) this.buildDust();
+  }
+
+  /** Есть ли что подглядеть: карта скрыта, зацензурена ИЛИ лежит рубашкой. ЧИСТЫЙ предикат (без
+   *  мутаций) — зона ПОДГЛЯДЕТЬ читает его для armed-текста («давай подсмотрим?» vs «зачем?»). */
   get canPeek(): boolean {
-    return this._concealed || !this.faceUp;
+    return this._concealed || this._censored || !this.faceUp;
   }
 
   /**
@@ -203,12 +232,15 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     if (!this.canPeek) return null;
     const wasFaceUp = this.faceUp;
     const wasConcealed = this._concealed;
+    const wasCensored = this._censored;
     if (!wasFaceUp) this.requestFlip();
     this.setConcealed(false);
+    this.setCensored(false); // фильтр снимаем тоже: иначе «подглядел» показывало бы пыль вместо лица
     this.peekBob = true;
     return () => {
       if (!wasFaceUp) this.requestFlip();
       this.setConcealed(wasConcealed);
+      this.setCensored(wasCensored);
       this.peekBob = false;
     };
   }
@@ -226,7 +258,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   // на скрытии это читалось как рывок под ещё прозрачной в начале пылью. Старую текстуру держим
   // тем же DUST_FADE_DUR кросс-фейдом поверх новой (см. fadeSprite/step/sync).
   private refaceMasked(): void {
-    if (this.masked && !this.dust) this.buildDust();
+    if (this.dusty && !this.dust) this.buildDust();
     const oldTex = this.baseSprite.texture;
     this.paint(); // маска → чистый фон под пылью; иначе — настоящее лицо (пыль гаснет в sync)
     if (this.baseSprite.texture === oldTex) return;
@@ -239,7 +271,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
 
   /** Видна ли сейчас пыль (маска, лицом вверх, вне переворота/горения) — тогда её крутим, цикл не спит. */
   private get dustActive(): boolean {
-    return this.dust !== null && this.masked && this.faceUp && !this.flip && !this.dying && !this.dead;
+    return this.dust !== null && this.dusty && this.faceUp && !this.flip && !this.dying && !this.dead;
   }
 
   get scaleFactor(): number {

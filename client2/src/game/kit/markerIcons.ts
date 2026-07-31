@@ -1,5 +1,6 @@
 import type { Graphics } from "pixi.js";
 import type { MarkerConfig, ShowPolicy } from "../engine/marker";
+import type { AnchorIconId } from "../engine/markerPolicy";
 
 // Иконки меток захвата и стандартная конфигурация грипа. В локальных координатах, центр (0,0).
 //
@@ -32,6 +33,17 @@ export function drawPinIcon(g: Graphics): void {
 export function drawRingIcon(g: Graphics): void {
   g.circle(0, 0, 8).stroke({ width: 1.6, color: MARK });
 }
+
+/**
+ * РЕЕСТР иконок якоря: id (данные, живут в markerPolicy.ts) → как это нарисовать. Разделение не
+ * ради красоты: конфиг цели ссылается на id и потому сериализуется, а функция рисования — нет.
+ * Новая иконка = строка в словаре id + фабрика здесь; всё остальное подхватит её само.
+ */
+export const ANCHOR_ICONS: Record<AnchorIconId, (g: Graphics) => void> = {
+  anchor: drawAnchorIcon,
+  ring: drawRingIcon,
+  pin: drawPinIcon,
+};
 
 /**
  * Стандартный грип стенда: под низом цели, хит-зона шире рисунка (в неё надо попадать пальцем),

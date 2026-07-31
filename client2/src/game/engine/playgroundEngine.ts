@@ -519,7 +519,7 @@ export class PlaygroundEngine extends SceneEngine {
     topbar: Record<string, { x: number; y: number; w: number; h: number }>; // канвасный топбар — DOM-узлов у него нет
     draggingId: string | null;
     lastNamedSuits: string[]; // последний лог бокса «называю масть» (#62) — дедуп мастей + «???»
-    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean }[];
+    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean; censored: boolean }[];
   } {
     // Перевод контент→экран берём у общего слоя: он один знает про инсет HUD (топбар), и своя
     // формула тут разъехалась бы с реальным положением карт ровно на высоту панели.
@@ -647,7 +647,7 @@ export class PlaygroundEngine extends SceneEngine {
       storyCards: CARD_VARIANTS.map((s, i) => {
         const c = this.cards[i]?.card;
         if (!c) return null;
-        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, rest: c.rest, concealed: c.concealed };
+        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, rest: c.rest, concealed: c.concealed, censored: c.censored };
       }).filter((x): x is NonNullable<typeof x> => x !== null),
     };
   }

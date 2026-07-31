@@ -372,6 +372,10 @@ export class KitScene extends SceneEngine {
     /** Экранные центры меток-грипов. Метка — не элемент и не кнопка; без этого за неё не потянуть
      *  ни руками из консоли, ни из e2e: у канваса нет ни узлов, ни ролей. */
     grips: { x: number; y: number; interactive: boolean }[];
+    /** ВСЕ метки (грипы и якоря) с габаритом рисунка и видимостью. Габарит нужен, чтобы отличить
+     *  ОДНУ иконку от другой: сравнение кадров тут не работает — карты стенда левитируют, и кадр
+     *  отличается сам по себе, что бы ни поменялось. */
+    markers: { x: number; y: number; w: number; h: number; shown: boolean; interactive: boolean }[];
     extent: { w: number; h: number };
     zoom: number;
   } {
@@ -405,6 +409,11 @@ export class KitScene extends SceneEngine {
       grips: this.grabbers.map((g) => {
         const s = this.contentToScreen(g.marker.gfx.position.x, g.marker.gfx.position.y);
         return { x: s.x, y: s.y, interactive: g.marker.interactive };
+      }),
+      markers: this.markers.map((m) => {
+        const s = this.contentToScreen(m.gfx.position.x, m.gfx.position.y);
+        const b = m.gfx.getLocalBounds();
+        return { x: s.x, y: s.y, w: Math.round(b.width), h: Math.round(b.height), shown: m.shown(), interactive: m.interactive };
       }),
       extent: { w: this.contentW, h: this.contentH },
       zoom: this.viewport.zoom,

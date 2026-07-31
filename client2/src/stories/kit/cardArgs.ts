@@ -1,6 +1,6 @@
 import type { Card, CardOptions, RestState } from "../../game/ui/Card";
 import type { CardBackId } from "../../game/cardBack";
-import type { FaceStyle } from "../../game/engine/cardTextures";
+import { CUSTOM_FACE_IDS, type FaceStyle } from "../../game/engine/cardTextures";
 import type { ArgTypeEntry } from "../harness/paramArgs";
 import type { ApplyPlan } from "../harness/argApply";
 import { pickSpecs, type ArgSpec } from "../harness/argSpec";
@@ -67,7 +67,12 @@ export const CARD_ARGS = {
   hidden: {
     argType: bool("скрыта (режим секретности)"),
     apply: (c, v) => c.setConcealed(Boolean(v)),
-    hint: "РЕЖИМ секретности: прячет значение реальной карты. Вид — чистый фон + живая «TG-пыль»",
+    hint: "РЕЖИМ секретности: значение объявлено секретным, лицо ЗАМЕНЯЕТСЯ чистым фоном под пылью. Не путать с censored",
+  },
+  censored: {
+    argType: bool("зацензурена (фильтр-пыль)"),
+    apply: (c, v) => c.setCensored(Boolean(v)),
+    hint: "ФИЛЬТР: настоящее лицо рисуется как есть, «TG-пыль» ложится ПОВЕРХ него. Работает на любом лице — числовом, джокере, каком угодно",
   },
   back: {
     argType: sel("рубашка", BACKS),
@@ -85,9 +90,11 @@ export const CARD_ARGS = {
     hint: "у каждой масти свой цвет, а не только красный/чёрный",
   },
   custom: {
-    argType: sel("кастом-лицо", ["", "joker"]),
+    // Список берём ИЗ РЕЕСТРА, а не переписываем рядом: иначе новое кастом-лицо появлялось бы в
+    // движке и молча отсутствовало в каталоге — ровно то расхождение, ради которого он заведён.
+    argType: sel("кастом-лицо", ["", ...CUSTOM_FACE_IDS]),
     apply: "rebuild",
-    hint: "id лица из реестра CUSTOM_FACES; пустая строка — обычное лицо по рангу",
+    hint: "id лица из реестра CUSTOM_FACES (joker / joker-bw / finger); пустая строка — обычное лицо по рангу",
   },
   torn: {
     argType: bool("порванная"),

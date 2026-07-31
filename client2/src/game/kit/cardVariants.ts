@@ -18,8 +18,11 @@ export interface CardVariant {
 export const CARD_VARIANTS: readonly CardVariant[] = [
   { caption: "открытая", opts: { faceUp: true } },
   { caption: "закрытая", opts: { faceUp: false } },
-  // Лицом — живая «пыль»-цензура (TG-спойлер); рубашка уже показана «закрытой».
-  { caption: "скрытая (пыль)", opts: { hidden: true, faceUp: true } },
+  // Два РАЗНЫХ явления рядом, иначе их путают:
+  //   скрытая  — значение объявлено секретным, лицо ЗАМЕНЕНО чистым фоном (показывать нечего);
+  //   цензура  — настоящее лицо на месте, пыль лежит ПОВЕРХ него фильтром.
+  { caption: "скрытая (нет лица)", opts: { hidden: true, faceUp: true } },
+  { caption: "цензура (фильтр)", opts: { card: "Q♥", censored: true } },
   { caption: "рубашка: изумруд", opts: { faceUp: false, back: "emerald" } },
   { caption: "лицо: символ", opts: { card: "K♥", faceStyle: "symbol" } },
   { caption: "4-цветная", opts: { card: "Q♦", fourColor: true } },
@@ -28,8 +31,11 @@ export const CARD_VARIANTS: readonly CardVariant[] = [
   { caption: "нельзя тащить", opts: { card: "7♣", draggable: false } },
   { caption: "удерживаемая", opts: { card: "8♦", rest: "held" } },
   { caption: "приподнятая (в руке)", opts: { card: "9♠", rest: "floating" } },
-  // Кастом-лицо из реестра CUSTOM_FACES, а не хардкод-флаг.
+  // Кастом-лица из реестра CUSTOM_FACES, а не хардкод-флаги. «Фак» — самостоятельная карта с таким
+  // лицом, а не режим: прятать ей нечего, поэтому и пикселизации на ней нет (см. скрытую выше).
   { caption: "джокер", opts: { custom: "joker" } },
+  { caption: "джокер ч/б", opts: { custom: "joker-bw" } },
+  { caption: "фак", opts: { custom: "finger" } },
 ];
 
 /**
