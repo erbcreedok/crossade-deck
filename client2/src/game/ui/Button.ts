@@ -89,6 +89,12 @@ export class Button {
     this.root.position.set(x, y);
   }
 
+  /** Текущая подпись — для дев-хуков и e2e: канвас не отдаёт ни DOM-узлов, ни ролей, и опознать
+   *  кнопку иначе как по её тексту нечем. */
+  get labelText(): string {
+    return this.label.text;
+  }
+
   /** Сменить подпись на лету (для тоглеров «вкл/выкл» и т.п.). Текст-кнопка пересчитывает размер. */
   setLabel(text: string): void {
     this.label.text = text;
