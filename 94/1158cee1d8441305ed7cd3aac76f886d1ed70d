@@ -1,0 +1,36 @@
+client2/src/game/kit/boardZoneScene.ts
+  s_849b1134095733::t_76c82fb2e505bb 72-76,80-82,86,88-94,97,99
+  s_849b1134095733::t_f0eff85bb6248a 24-26,34,39
+  s_849b1134095733::t_b79004963723bd 106-110,112
+  s_849b1134095733::t_8198a78b4f0534 5
+client2/src/stories/kit/Board.stories.tsx
+  s_849b1134095733::t_9edcbf9fccea2b 38-44
+  s_849b1134095733::t_654eab118a1762 59-65,68-70
+  s_849b1134095733::t_52c545f879a3c2 95-101
+client2/src/game/kit/context.ts
+  s_849b1134095733::t_9104a49ee56075 118
+client2/src/game/engine/kitScene.ts
+  s_849b1134095733::t_9373c2ca840f67 177-183,188
+client2/src/game/board/boardRules.test.ts
+  s_849b1134095733::t_db4d97ac11c25b 1-33
+client2/src/game/engine/sceneEngine.ts
+  s_849b1134095733::t_3878d2bc0104e2 56,409,583-586
+client2/src/game/board/boardRules.ts
+  s_849b1134095733::t_0275d4102e8430 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "941158cee1d8441305ed7cd3aac76f886d1ed70d",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
