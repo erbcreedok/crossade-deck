@@ -1,0 +1,25 @@
+client2/src/stories/kit/argNames.test.ts
+  s_849b1134095733::t_9c0675b398c6e6 38-84
+  s_849b1134095733::t_6f6962570ee2d2 2-3,6
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_c80daeee26562d 25,72-74,88
+  s_849b1134095733::t_4a104bbd2e4ff3 94-102
+client2/src/game/kit/stackLayout.test.ts
+  s_849b1134095733::t_b80f8fbf0f58de 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "dc4ecb79d872fae51be4611630e6aa8cf0ba7e86",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
