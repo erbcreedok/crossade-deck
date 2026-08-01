@@ -1,0 +1,27 @@
+client2/src/game/anim/moveStyles.test.ts
+  s_849b1134095733::t_48738d5ba125ad 1-87
+client2/src/game/anim/styleRegistry.test.ts
+  s_849b1134095733::t_3d96b581fba5ba 28,59
+  s_849b1134095733::t_231dc671ffd46b 1-27,29-58,60-81,84-88,93-95
+  s_849b1134095733::t_2bdcc7f3e80613 82-83,89-92
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_324d3ac07103d2 39,74-75
+client2/docs/sleep/SLEEP_2026-08-02.md
+  s_849b1134095733::t_8b4bba402dd19e 3,19-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "3cacc3e185afbc49f586508fabb8b65d59f15ea4",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
