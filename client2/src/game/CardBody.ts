@@ -1,4 +1,5 @@
-import { anim } from "./anim/config";
+import { anim, type SpringConfig } from "./anim/config";
+import { liftPixels, moveStyle, pointOnPath, type MoveStyle, type MoveStyleRef } from "./anim/moveStyles";
 import { stepSpring, isSettled, type SpringState } from "./physics/spring";
 
 export interface CardTargets {
@@ -24,6 +25,17 @@ export class CardBody {
 
   // Сила инерционного крена (juice). 1 — полный, 0 — выключен (умеренный/выкл режим).
   tiltScale = 1;
+
+  /**
+   * Пружины тела. По умолчанию — общий конфиг стола (`anim/config.ts`), то есть прежнее поведение
+   * для всех, кто про пресеты не знает. Пресет анимации перекрывает их поканально: «сухо и быстро»
+   * это в первую очередь жёсткие пружины, а не короткие длительности.
+   */
+  springs: { pos: SpringConfig; rot: SpringConfig; scale: SpringConfig } = {
+    pos: anim.posSpring,
+    rot: anim.rotSpring,
+    scale: anim.scaleSpring,
+  };
 
   constructor(x = 0, y = 0, rot = 0, scale = 1) {
     this.cx = { pos: x, vel: 0 };
@@ -52,12 +64,65 @@ export class CardBody {
     if (t.scale !== undefined) { this.cscale = { pos: t.scale, vel: 0 }; this.tscale = t.scale; }
   }
 
+  /**
+   * Полёт ПО РАСПИСАНИЮ стиля (anim/moveStyles.ts) вместо пружины. Живёт в теле, а не в карте:
+   * так его бесплатно получают и фишка, и фигура — летают они одинаково, различаясь лишь тем,
+   * что нарисовано.
+   */
+  private trip: { from: { x: number; y: number }; to: { x: number; y: number }; t: number; dur: number; style: MoveStyle } | null = null;
+
+  /** Летит ли по расписанию. Пока летит, цикл засыпать не имеет права. */
+  get travelling(): boolean {
+    return this.trip !== null;
+  }
+
+  /**
+   * ВЫСОТА полёта, px. Не координата: место на столе задаётся прямой, а это подъём над ней.
+   * Элемент переводит её в подъём картинки и в поведение тени (ui/elevation.ts).
+   */
+  liftPx = 0;
+
+  /**
+   * Отправить в точку выбранным стилем. `spring` (и любой стиль без расписания) отдаёт движение
+   * пружинам — то есть ведёт себя ровно как прежний setTarget, и это по-прежнему дефолт стола.
+   */
+  travelTo(to: { x: number; y: number }, style: MoveStyleRef, speed = 1): void {
+    const st = moveStyle(style);
+    if (!st.frame || st.dur <= 0) {
+      this.trip = null;
+      this.setTarget({ x: to.x, y: to.y });
+      return;
+    }
+    this.trip = { from: { x: this.cx.pos, y: this.cy.pos }, to: { ...to }, t: 0, dur: Math.max(0.001, st.dur / (speed > 0 ? speed : 1)), style: st };
+    this.tx = to.x;
+    this.ty = to.y;
+  }
+
   // Шаг физики. snap=true (анимации выключены) → мгновенно в цели.
   step(dt: number, snap = false): void {
-    this.cx = stepSpring(this.cx, this.tx, anim.posSpring, dt, snap);
-    this.cy = stepSpring(this.cy, this.ty, anim.posSpring, dt, snap);
-    this.crot = stepSpring(this.crot, this.trot, anim.rotSpring, dt, snap);
-    this.cscale = stepSpring(this.cscale, this.tscale, anim.scaleSpring, dt, snap);
+    if (this.trip) {
+      this.trip.t += dt;
+      const p = Math.min(1, this.trip.t / this.trip.dur);
+      const f = this.trip.style.frame!(p);
+      const pt = pointOnPath(this.trip.from, this.trip.to, f);
+      this.liftPx = liftPixels(this.trip.from, this.trip.to, f);
+      // Позицию ведёт расписание, поэтому пружины позиции синхронизируем НАСИЛЬНО: иначе, когда
+      // полёт кончится, они дёрнут элемент со своей накопленной скоростью.
+      this.cx = { pos: pt.x, vel: 0 };
+      this.cy = { pos: pt.y, vel: 0 };
+      this.trot = f.rot;
+      this.tscale = f.scale;
+      if (p >= 1) {
+        this.trip = null;
+        this.trot = 0;
+        this.tscale = 1;
+        this.liftPx = 0;
+      }
+    }
+    this.cx = stepSpring(this.cx, this.tx, this.springs.pos, dt, snap);
+    this.cy = stepSpring(this.cy, this.ty, this.springs.pos, dt, snap);
+    this.crot = stepSpring(this.crot, this.trot, this.springs.rot, dt, snap);
+    this.cscale = stepSpring(this.cscale, this.tscale, this.springs.scale, dt, snap);
   }
 
   // Все каналы осели у своих целей — карта «в покое». Движок по этому усыпляет рендер-цикл.

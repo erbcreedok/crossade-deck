@@ -1,10 +1,15 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { CardBody } from "../CardBody";
 import { scaleForState } from "./plane";
-import { pieceSilhouette } from "../effects/pieceShadow";
-import { BURN_DUR } from "../effects/burn";
+import { shadowOf } from "./shadow";
+import { BASE_PRESET, scaled, type AnimPreset } from "../anim/presets";
+import { destroyStyle } from "../anim/destroyStyles";
+import { appearStyle } from "../anim/appearStyles";
+import { applyEffect } from "../anim/effectApply";
+import type { EffectFrame } from "../anim/destroyStyles";
+import { bobOffset, idleBobs, scaleFromZ, screenLift, zFromScale } from "./elevation";
 import type { Burnable, Draggable, TableElement } from "../engine/element";
-import type { CardState, RestState, ShadowShape } from "./Card";
+import type { CardState, Pose, ShadowShape } from "./Card";
 
 // Обобщённый ЭЛЕМЕНТ стола, НЕ карта: фишка, шахматная фигура — что угодно с телом и тенью.
 // Реализует ровно те же способности, что и Card (TableElement + Draggable + Burnable), но НЕ
@@ -19,7 +24,9 @@ export interface PieceOptions {
   h: number;
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
   shadow: { rx: number; ry: number; dy: number }; // эллипс тени у основания: полуоси + сдвиг вниз
-  rest?: RestState;
+  pose?: Pose;
+  /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
+  idle?: boolean;
   tags?: string[]; // идентичность-ДАННЫЕ: chip, color:green, piece:♞ … (SELECTION-DESIGN §2)
 }
 
@@ -31,17 +38,31 @@ export class Piece implements TableElement, Draggable, Burnable {
   readonly id: string;
   readonly tags: ReadonlySet<string>;
   readonly draggable = true;
-  readonly rest: RestState;
+  readonly pose: Pose;
+  /** Явное «дышать / не дышать»; не задано — решает поза (`idleBobs`). */
+  readonly idle?: boolean;
+  /** Сдвиг фазы дыхания — чтобы соседи не качались в унисон. Ставит тот, кто расставляет. */
+  bobPhase = 0;
   state: CardState;
   private readonly w: number;
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
   private age = 0;
   private block: { t: number; dur: number } | null = null;
+  private born: { t: number; dur: number } | null = null;
   private dying: { t: number; dur: number } | null = null;
+  private mask: { g: import("pixi.js").Graphics | null } = { g: null };
+  /** Фил анимаций — тот же пресет, что у карты. Фишка не «упрощённый элемент», а такой же. */
+  private preset: AnimPreset = BASE_PRESET;
+  /** Высота над столом (ось z). У лежащего — 0. */
+  private zBase = 0;
   dead = false;
   /** «Без вспышек» (issue #9): гасит дрожь «сжечь», оставляя затухание+сжатие. Движок ставит на спавне/смене. */
   flashOff = false;
+  /** OS/юзер reduce-motion: замораживает дыхание в статичный кадр. Ставит движок, как у карты. */
+  reduceMotion = false;
+  /** Лёгкий профиль качества: тоже замораживает дыхание. Ставит движок при просадке FPS. */
+  lowFx = false;
 
   constructor(opts: PieceOptions) {
     this.id = opts.id;
@@ -49,8 +70,9 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
-    this.rest = opts.rest ?? "idle";
-    this.state = this.rest;
+    this.pose = opts.pose ?? "rest";
+    this.idle = opts.idle;
+    this.state = this.pose;
     opts.build(this.root);
   }
 
@@ -60,7 +82,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   }
 
   get restScale(): number {
-    return scaleForState(this.rest);
+    return scaleForState(this.pose);
   }
 
   setState(s: CardState): void {
@@ -72,8 +94,36 @@ export class Piece implements TableElement, Draggable, Burnable {
     if (!this.block) this.block = { t: 0, dur: 0.4 };
   }
 
+  setZ(v: number): void {
+    this.zBase = Math.max(0, v);
+  }
+
+  get animPreset(): AnimPreset {
+    return this.preset;
+  }
+
+  setAnimPreset(p: AnimPreset): void {
+    this.preset = p;
+    this.body.springs = p.springs;
+    this.body.tiltScale = p.tilt;
+  }
+
+  /** Появиться — тот же реестр, что у карты (anim/appearStyles.ts). Зовёт тот, кто её поставил. */
+  appear(): void {
+    if (this.dead) return;
+    const st = appearStyle(this.preset.appear.style);
+    this.born = { t: 0, dur: Math.max(0.001, scaled(st.dur * this.preset.appear.scale, this.preset.speed)) };
+  }
+
+  /**
+   * Уничтожить. Раньше у фишки был СВОЙ эффект — тускнение со сжатием, отдельный от карточного.
+   * Значит каждый новый способ («шреддер», «улёт») пришлось бы писать дважды. Теперь реестр общий:
+   * маска работает и на фишке, потому что это просто полигон в её локальных координатах.
+   */
   burn(): void {
-    if (!this.dying && !this.dead) this.dying = { t: 0, dur: BURN_DUR };
+    if (this.dying || this.dead) return;
+    const st = destroyStyle(this.preset.destroy.style);
+    this.dying = { t: 0, dur: Math.max(0.001, scaled(st.dur * this.preset.destroy.scale, this.preset.speed)) };
   }
 
   get burning(): boolean {
@@ -87,6 +137,10 @@ export class Piece implements TableElement, Draggable, Burnable {
       this.block.t += dt;
       if (this.block.t >= this.block.dur) this.block = null;
     }
+    if (this.born) {
+      this.born.t += dt;
+      if (this.born.t >= this.born.dur) this.born = null;
+    }
     if (this.dying) {
       this.dying.t += dt;
       if (this.dying.t >= this.dying.dur) {
@@ -97,7 +151,16 @@ export class Piece implements TableElement, Draggable, Burnable {
   }
 
   get resting(): boolean {
-    return this.body.isResting() && !this.block && !this.dying && this.state !== "floating";
+    // `born` тут обязателен: без него цикл засыпает ПОСРЕДИ появления и фишка застывает
+    // полупрозрачной (см. CLAUDE.md про EngineActivity — ровно эта ловушка). Дыхание — вторая
+    // непрерывная анимация фишки, и условие идёт по нему, а не по позе: неподвижная поднятая
+    // фишка отпускает цикл, дышащая лежащая — держит.
+    return this.body.isResting() && !this.body.travelling && !this.block && !this.born && !this.dying && !this.bobbing;
+  }
+
+  /** Качается ли прямо сейчас. Заморозка движения (reduce-motion / лёгкий профиль) её отменяет. */
+  private get bobbing(): boolean {
+    return !this.reduceMotion && !this.lowFx && idleBobs(this.state, this.idle) && this.preset.idle.amp > 0;
   }
 
   sync(): void {
@@ -107,31 +170,44 @@ export class Piece implements TableElement, Draggable, Burnable {
       const p = this.block.t / this.block.dur;
       shakeX = Math.sin(this.block.t * 42) * this.w * 0.06 * (1 - p);
     }
-    this.root.position.set(this.body.px + shakeX, this.body.py);
+    // Дыхание — ЭКРАННОЕ покачивание, как у карты: в `z` оно не идёт, иначе тень начнёт дышать
+    // размером под предметом, который не изменился.
+    const bob = this.bobbing ? bobOffset(Math.sin(this.age * this.preset.idle.speed + this.bobPhase), this.preset.idle.amp, this.h) : 0;
+    // Высота — та же ось, что у карты: поза покоя плюс подъём полёта плюс заданный z.
+    const z = zFromScale(this.body.scaleVal) + this.body.liftPx / Math.max(1, this.h) + this.zBase;
+    this.root.position.set(this.body.px + shakeX, this.body.py + screenLift(z, this.h) + bob);
     this.root.rotation = this.body.rotation;
-    this.root.scale.set(render);
+    this.root.scale.set(render * scaleFromZ(this.zBase));
 
-    this.shadowRect = pieceSilhouette({
-      px: this.body.px,
-      py: this.body.py,
-      shakeX,
-      rx: this.shadowCfg.rx,
-      ry: this.shadowCfg.ry,
-      baseDy: this.shadowCfg.dy,
-      elev: this.body.scaleVal - 1,
-    });
-
-    // «Сжечь»: без карточной маски — фишка дрожит, тускнеет и сжимается; затем dead → убирают.
+    // Эффект — ДО тени: она выводится из итогового состояния, а не правится под каждый способ.
+    let fx: EffectFrame | null = null;
     if (this.dying) {
-      const p = this.dying.t / this.dying.dur;
-      // «Без вспышек»: дрожь — фото-триггер, гасим (jitter→0); затухание+сжатие остаются.
-      const jx = this.flashOff ? 0 : Math.sin(this.age * 52) * this.w * 0.05 * (1 - p);
-      const jy = this.flashOff ? 0 : Math.cos(this.age * 47) * this.h * 0.04 * (1 - p);
-      this.root.position.set(this.body.px + jx, this.body.py + jy);
-      this.root.alpha = 1 - p;
-      this.root.scale.set(render * (1 - 0.4 * p));
-      if (this.shadowRect) this.shadowRect.hh *= 1 - p;
+      const st = destroyStyle(this.preset.destroy.style);
+      const f = st.frame(st.dur * (this.dying.t / this.dying.dur), { age: this.age, width: this.w });
+      // «Без вспышек»: дрожь — фото-триггер, гасим её; остальное движение стиля остаётся.
+      fx = this.flashOff ? { ...f, dx: 0, dy: 0 } : f;
+    } else if (this.born) {
+      const st = appearStyle(this.preset.appear.style);
+      fx = st.frame(st.dur * (this.born.t / this.born.dur), { age: this.age, width: this.w });
     }
+    if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask);
+
+    this.shadowRect = shadowOf(
+      {
+        px: this.body.px,
+        py: this.body.py,
+        shakeX: shakeX + (fx?.dx ?? 0),
+        z: z + Math.max(0, (fx?.scale ?? 1) - 1),
+        screenY: fx?.dy ?? 0,
+        hw: this.shadowCfg.rx,
+        hh: this.shadowCfg.ry,
+        baseDy: this.shadowCfg.dy,
+        round: true,
+        poly: fx?.mask ?? null,
+        fade: fx?.shadow ?? 1,
+      },
+      this.preset.shadow,
+    );
   }
 
   destroy(): void {

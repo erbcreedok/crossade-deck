@@ -1,5 +1,5 @@
 import { Container, Graphics } from "pixi.js";
-import { SHADOW_ALPHA, SHADOW_COLOR } from "../engine/constants";
+import { CARD_CORNER, SHADOW_ALPHA, SHADOW_COLOR, TEX_W } from "../engine/constants";
 import type { ShadowShape } from "./Card";
 
 // Слитая тень одного УРОВНЯ. Главное правило: тени НЕ складывают альфу. N полупрозрачных
@@ -26,20 +26,46 @@ export class ShadowLayer {
         this.mask.ellipse(s.x, s.y, s.hw, s.hh).fill({ color: 0xffffff });
         continue;
       }
-      // Восьмиугольник (прямоугольник со срезанными углами) — точные скругления маске не нужны.
-      const c = Math.min(s.hw, s.hh) * 0.22;
+      if (s.poly) {
+        // Форма от эффекта: полигоны приходят в координатах ТЕКСТУРЫ, поэтому переводим их в
+        // масштаб тени — она может быть крупнее предмета (высота) или мельче (догорание).
+        const k = s.hw / (TEX_W / 2);
+        const c0 = Math.cos(s.rot);
+        const s0 = Math.sin(s.rot);
+        for (const poly of s.poly) {
+          const pts: number[] = [];
+          for (let i = 0; i < poly.length; i += 2) {
+            const lx = poly[i]! * k;
+            const ly = poly[i + 1]! * k;
+            pts.push(s.x + lx * c0 - ly * s0, s.y + lx * s0 + ly * c0);
+          }
+          this.mask.poly(pts).fill({ color: 0xffffff });
+        }
+        continue;
+      }
+      // Скруглённый прямоугольник — по РАДИУСУ САМОЙ КАРТЫ, а не «на глаз».
+      //
+      // Раньше здесь был восьмиугольник со срезом в 22% короткой стороны: срез получался в разы
+      // крупнее скругления карты (16px на текстуре), и тень читалась как гранёная фигура под
+      // гладкой картой. Маске не нужны точные скругления, но нужен ТОТ ЖЕ силуэт — иначе тень
+      // выдаёт, что она не от этой карты.
       const cos = Math.cos(s.rot);
       const sin = Math.sin(s.rot);
-      const local: Array<[number, number]> = [
-        [-s.hw + c, -s.hh],
-        [s.hw - c, -s.hh],
-        [s.hw, -s.hh + c],
-        [s.hw, s.hh - c],
-        [s.hw - c, s.hh],
-        [-s.hw + c, s.hh],
-        [-s.hw, s.hh - c],
-        [-s.hw, -s.hh + c],
+      const r = CARD_CORNER * (s.hw / (TEX_W / 2));
+      const SEG = 4; // сегментов на угол: больше — незаметно, меньше — снова грани
+      const local: Array<[number, number]> = [];
+      const corners: Array<[number, number, number]> = [
+        [s.hw - r, -s.hh + r, -Math.PI / 2],
+        [s.hw - r, s.hh - r, 0],
+        [-s.hw + r, s.hh - r, Math.PI / 2],
+        [-s.hw + r, -s.hh + r, Math.PI],
       ];
+      for (const [cx, cy, a0] of corners) {
+        for (let k = 0; k <= SEG; k++) {
+          const a = a0 + (Math.PI / 2) * (k / SEG);
+          local.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+        }
+      }
       const pts: number[] = [];
       for (const [lx, ly] of local) pts.push(s.x + lx * cos - ly * sin, s.y + lx * sin + ly * cos);
       this.mask.poly(pts).fill({ color: 0xffffff });
