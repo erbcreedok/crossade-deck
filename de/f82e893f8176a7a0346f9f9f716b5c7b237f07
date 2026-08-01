@@ -1,0 +1,23 @@
+client2/src/stories/harness/argTable.ts
+  s_849b1134095733::t_82dc614a2e5761 1-59
+client2/src/stories/harness/argTable.test.ts
+  s_849b1134095733::t_e64ab83c72a193 1-73
+client2/.storybook/preview.tsx
+  s_849b1134095733::t_0fcdb59a11d657 4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "def82e893f8176a7a0346f9f9f716b5c7b237f07",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
