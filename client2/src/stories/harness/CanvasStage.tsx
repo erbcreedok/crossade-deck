@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KitBuild, KitScene, KitSceneOptions } from "../../game/engine/kitScene";
+import { fitCanvas } from "../../game/engine/kitExtent";
 import { acquireSlot, releaseSlot } from "./kitPool";
 import { planFor, type ApplyPlan } from "./argApply";
 import { useReducedMotion } from "../../useReducedMotion";
@@ -20,8 +21,30 @@ export interface CanvasStageProps<T, A extends object> {
   apply?: ApplyPlan<T, A>;
   /** По какому элементу применять живые правки. По умолчанию — первый расставленный. */
   target?: (scene: KitScene) => T | undefined;
+  /**
+   * Донастроить СЦЕНУ перед сборкой. Нужен тому, что настраивается не у элемента, а у сцены:
+   * пресет анимации (расписание переворота пачки — её дело, не карты). Зовётся до build и до
+   * каждой пересборки, иначе карты родились бы по старому филу.
+   */
+  onScene?: (scene: KitScene, args: A) => void;
   opts?: KitSceneOptions;
+  /** ПОТОЛОК высоты, а не высота: на docs-странице канвас ужимается до нужного витрине. */
   height?: number | string;
+}
+
+/**
+ * Открыт ли кадр на вкладке Docs, а не в режиме стори.
+ *
+ * Нужно не только вёрстке. Docs — это ЧИТАЮТ: там уместна галерея всех видов рядом, потому что
+ * вопрос «какой из них главный» решается только сравнением. В режиме стори тот же раздел
+ * ОТЛАЖИВАЮТ, и лишние соседи мешают: там нужна ровно одна вещь, которую крутит панель.
+ *
+ * Режим берём из адреса кадра — сторибук ставит `viewMode` сам, и это единственный признак,
+ * доступный компоненту внутри превью.
+ */
+export function isDocsMode(): boolean {
+  if (typeof location === "undefined") return false;
+  return new URLSearchParams(location.search).get("viewMode") === "docs";
 }
 
 export function CanvasStage<T, A extends object>({
@@ -29,6 +52,7 @@ export function CanvasStage<T, A extends object>({
   args,
   apply,
   target,
+  onScene,
   opts,
   // 100vh, а НЕ 100%: при layout:"fullscreen" у корня сторибука нет заданной высоты, и «100%»
   // разрешается в auto — хост разрастался до 2276px, канвас печатался во всю эту высоту, а
@@ -36,6 +60,13 @@ export function CanvasStage<T, A extends object>({
   height = "100vh",
 }: CanvasStageProps<T, A>) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  // Габарит витрины (сообщает сцена) и место, которое даёт страница. Коробка канваса — их
+  // произведение через fitCanvas. Меряем ФРЕЙМ, а не сам хост: хост мы и сжимаем, и мерить его
+  // значило бы кормить расчёт его же результатом.
+  const [extent, setExtent] = useState<{ w: number; h: number } | null>(null);
+  const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
+  const box = extent && frame ? fitCanvas(extent, frame) : null;
   const sceneRef = useRef<KitScene | null>(null);
   const prevArgs = useRef<A | undefined>(undefined);
   // Держим свежие build/args в ref: эффект монтирования должен сработать ОДИН раз на стори,
@@ -44,6 +75,8 @@ export function CanvasStage<T, A extends object>({
   buildRef.current = build;
   const argsRef = useRef(args);
   argsRef.current = args;
+  const onSceneRef = useRef(onScene);
+  onSceneRef.current = onScene;
 
   const reduceMotion = useReducedMotion();
   const reduceFlash = useReduceFlash();
@@ -60,6 +93,10 @@ export function CanvasStage<T, A extends object>({
       if (g.__kit) g.__kit.scene = slot.scene;
     }
     const run: KitBuild = (ctx) => buildRef.current(ctx, argsRef.current);
+    sceneRef.current && onSceneRef.current?.(slot.scene, argsRef.current);
+    // Витрина пулится, слушатель — нет: он про ЭТОТ хост. Снимаем его в cleanup, иначе следующая
+    // стори получала бы габарит от предыдущей.
+    slot.scene.onExtent = (e) => setExtent(e);
 
     if (!slot.mounted) {
       slot.mounted = true;
@@ -74,6 +111,7 @@ export function CanvasStage<T, A extends object>({
     prevArgs.current = undefined; // первый прогон аргументов после (пере)сборки — не диффим
 
     return () => {
+      slot.scene.onExtent = null;
       sceneRef.current = null;
       releaseSlot(key);
     };
@@ -89,6 +127,7 @@ export function CanvasStage<T, A extends object>({
     prevArgs.current = args;
     if (!prev) return; // сцену только что собрали этими же аргументами
 
+    onSceneRef.current?.(scene, args);
     const plan = planFor<T, A>(prev, args, apply ?? {});
     if (plan.rebuild) {
       scene.rebuild((ctx) => buildRef.current(ctx, args));
@@ -114,10 +153,48 @@ export function CanvasStage<T, A extends object>({
     sceneRef.current?.setReduceFlash(reduceFlash);
   }, [reduceFlash]);
 
+  // Сколько места даёт страница. Следим наблюдателем, а не разово: окно меняют руками, панель
+  // рычагов раскрывают и закрывают, и канвас, посчитанный по прежней ширине, уезжал бы за кромку.
+  useEffect(() => {
+    const frameEl = frameRef.current;
+    if (!frameEl) return;
+    // На Docs высота фрейма — это высота САМОГО канваса (страница там растёт вниз), и мерить её
+    // значило бы кормить расчёт его же результатом: коробка ужимала бы себя на каждом кадре.
+    // Потолком там служит окно — витрина не должна занимать больше экрана, даже если место есть.
+    const measure = () => setFrame({ w: frameEl.clientWidth, h: isDocsMode() ? window.innerHeight : frameEl.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(frameEl);
+    return () => ro.disconnect();
+  }, []);
+
   return (
+    // Фрейм — место, которое даёт страница; канвас внутри него занимает РОВНО витрину и стоит по
+    // центру. Раньше канвас растягивался на весь фрейм, и под одной картой лежало пол-экрана
+    // сукна, а широкий раздел на узком окне уходил за кромку без всякой возможности его достать.
     <div
-      ref={hostRef}
-      style={{ width: "100%", height, minHeight: 320, background: "#2f3d34", touchAction: "none", overflow: "hidden" }}
-    />
+      ref={frameRef}
+      style={{
+        width: "100%",
+        height: isDocsMode() ? "auto" : height,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: isDocsMode() ? "flex-start" : "center",
+      }}
+    >
+      <div
+        ref={hostRef}
+        style={{
+          // До первой сборки габарит витрины неизвестен — занимаем фрейм целиком: смонтироваться
+          // в нулевую коробку значит потерять первый кадр.
+          width: box ? box.w : "100%",
+          height: box ? box.h : height,
+          minHeight: box ? 0 : 320,
+          background: "#2f3d34",
+          touchAction: "none",
+          overflow: "hidden",
+        }}
+      />
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extentOf, fitZoom } from "./kitExtent";
+import { extentOf, fitCanvas, fitScale, fitZoom } from "./kitExtent";
 
 // Габарит витрины и вписывание её в экран. Это ЕДИНСТВЕННАЯ математика в хосте стори, поэтому
 // только она тут и покрыта: остальное в KitScene — работа с Pixi, которую node не исполняет.
@@ -75,5 +75,38 @@ describe("fitZoom", () => {
   it("вырожденная витрина не даёт Infinity", () => {
     const z = fitZoom({ w: 0, h: 0 }, { w: 100, h: 100 }, 0.6, 2.6);
     expect(Number.isFinite(z)).toBe(true);
+  });
+});
+
+// Коробка канваса. Правило владельца: канвас занимает витрину, а не фрейм — «сама стори не
+// требует такого широкого окна», а на узком окне широкая витрина не должна уезжать за кромку.
+describe("fitCanvas", () => {
+  it("витрина мельче фрейма — канвас по витрине, а не во весь фрейм", () => {
+    expect(fitCanvas({ w: 200, h: 300 }, { w: 1200, h: 900 })).toEqual({ w: 200, h: 300 });
+  });
+
+  it("НИКОГДА не крупнее 1:1: место во фрейме — не повод раздувать кнопку", () => {
+    const box = fitCanvas({ w: 100, h: 100 }, { w: 4000, h: 4000 });
+    expect(box).toEqual({ w: 100, h: 100 });
+    expect(fitScale({ w: 100, h: 100 }, { w: 4000, h: 4000 })).toBe(1);
+  });
+
+  it("витрина шире фрейма — ужимается целиком, а не обрезается по краю", () => {
+    const box = fitCanvas({ w: 1000, h: 400 }, { w: 500, h: 900 });
+    expect(box.w).toBeLessThanOrEqual(500);
+    expect(box.h).toBeLessThanOrEqual(900);
+    // пропорции витрины сохраняются: ужимаем, а не сплющиваем
+    expect(box.w / box.h).toBeCloseTo(1000 / 400, 1);
+  });
+
+  it("ужимает по ТОЙ оси, которой не хватает, — берётся меньший коэффициент", () => {
+    // по ширине влезло бы ×1, по высоте только ×0.5 → ×0.5
+    expect(fitScale({ w: 500, h: 800 }, { w: 500, h: 400 })).toBeCloseTo(0.5, 6);
+  });
+
+  it("вырожденная витрина не роняет коробку в ноль и не даёт NaN", () => {
+    const box = fitCanvas({ w: 0, h: 0 }, { w: 800, h: 600 });
+    expect(Number.isFinite(box.w) && Number.isFinite(box.h)).toBe(true);
+    expect(box.w).toBeGreaterThan(0);
   });
 });
