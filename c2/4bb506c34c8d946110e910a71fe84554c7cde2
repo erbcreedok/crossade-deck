@@ -1,0 +1,40 @@
+client2/src/game/ui/elevation.ts
+  s_849b1134095733::t_cf6ef1616c031e 19,43
+client2/src/stories/kit/Shadow.stories.tsx
+  s_849b1134095733::t_cf6ef1616c031e 69
+client2/src/game/engine/sceneEngine.ts
+  s_849b1134095733::t_bbc2d8b3f84be5 22,230
+  s_849b1134095733::t_2705f91672c6f2 824
+client2/src/stories/kit/stackArgs.ts
+  s_849b1134095733::t_cf6ef1616c031e 56
+client2/src/game/kit/motion.ts
+  s_849b1134095733::t_cf6ef1616c031e 185
+client2/src/game/ui/Card.ts
+  s_849b1134095733::t_2705f91672c6f2 29-35,84
+  s_849b1134095733::t_cf6ef1616c031e 417,552,555
+  s_849b1134095733::t_bbc2d8b3f84be5 427
+client2/src/stories/kit/cardArgs.ts
+  s_849b1134095733::t_cf6ef1616c031e 138
+client2/src/game/kit/stacks.ts
+  s_849b1134095733::t_cf6ef1616c031e 115
+client2/src/stories/kit/Stacks.stories.tsx
+  s_849b1134095733::t_cf6ef1616c031e 88
+client2/docs/atoms-map.md
+  s_849b1134095733::t_78b899290b87c3 358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "c24bb506c34c8d946110e910a71fe84554c7cde2",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
