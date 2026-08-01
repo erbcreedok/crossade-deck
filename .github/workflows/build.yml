@@ -1,0 +1,157 @@
+# Сборка образов и укладка их в GHCR.
+#
+# Образ — это артефакт: собран один раз, лежит в реестре под неизменяемым тегом и уезжает
+# оттуда куда угодно (Fly, стенд, свой сервер) БЕЗ пересборки. Поэтому выкатка отделена
+# отсюда в deploy.yml: собрать и выкатить — разные решения, и второе может случиться через
+# неделю после первого.
+#
+# Публичный репозиторий → и Actions, и хранение в GHCR бесплатны.
+#
+# Что собирать, берётся из deploy/components.json — того же файла, что читает
+# scripts/deploy.sh. Новый компонент (например, стек v2) добавляется туда, а не сюда.
+name: Образы
+
+on:
+  workflow_call:
+    inputs:
+      components:
+        description: Имена через пробел; пусто — все
+        type: string
+        default: ""
+    outputs:
+      tag:
+        description: Неизменяемый тег собранных образов
+        value: ${{ jobs.plan.outputs.tag }}
+  workflow_dispatch:
+    inputs:
+      components:
+        description: "Что собрать (через пробел), пусто — все: server web storybook"
+        type: string
+        default: ""
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Что собираем
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      tag: ${{ steps.plan.outputs.tag }}
+      build: ${{ steps.plan.outputs.build }}
+      commit: ${{ steps.plan.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ВСЯ история: номер сборки — это число коммитов. При обычном мелком клоне он был
+          # бы вечной единицей, и по подписи версии нельзя было бы отличить одну сборку от другой.
+          fetch-depth: 0
+
+      - id: plan
+        env:
+          COMPONENTS: ${{ inputs.components }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const all = JSON.parse(fs.readFileSync("deploy/components.json", "utf8"));
+            const names = Object.keys(all).filter((k) => !k.startsWith("$"));
+            const wanted = (process.env.COMPONENTS || "").split(/\s+/).filter(Boolean);
+            const unknown = wanted.filter((w) => !names.includes(w));
+            if (unknown.length) {
+              console.error(`неизвестные компоненты: ${unknown.join(", ")}. Есть: ${names.join(", ")}`);
+              process.exit(1);
+            }
+            const chosen = wanted.length ? wanted : names;
+            const matrix = chosen.map((name) => ({ name, ...all[name] }));
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\n`);
+            console.log(`Собираем: ${chosen.join(", ")}`);
+          '
+          # --short=7 фиксировано: тег sha-<7> должен получаться одинаковым у CI и у ноутбука,
+          # а длина по умолчанию у git плавает вместе с размером репозитория.
+          echo "build=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.component.name }}
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      # Упавший storybook не должен отменять уже почти собранный server: образы независимы,
+      # и половина готовых артефактов лучше, чем ноль.
+      fail-fast: false
+      matrix:
+        component: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: tags
+        env:
+          IMAGE: ${{ matrix.component.image }}
+          SHA_TAG: ${{ needs.plan.outputs.tag }}
+          BUILD: ${{ needs.plan.outputs.build }}
+        run: |
+          set -euo pipefail
+          # GHCR принимает только нижний регистр, GitHub-имена бывают любые.
+          repo="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          name="ghcr.io/${repo}/${IMAGE}"
+          # Ветка тоже тег — чтобы «последний с main» имел короткое имя, а сборку ветки
+          # можно было выкатить на стенд, не выясняя её sha. Слэши в теги нельзя.
+          branch="$(echo "${GITHUB_REF_NAME}" | tr '/' '-')"
+          {
+            echo "tags=${name}:${SHA_TAG},${name}:build-${BUILD},${name}:${branch}"
+            echo "name=${name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.component.context }}
+          file: ${{ matrix.component.dockerfile }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          # Fly крутит amd64. Собирать вторую архитектуру не за чем — это удвоенное время
+          # сборки ради образа, который некуда поставить.
+          platforms: linux/amd64
+          build-args: |
+            APP_BUILD=${{ needs.plan.outputs.build }}
+            APP_COMMIT=${{ needs.plan.outputs.commit }}
+          # scope на компонент: у сервера и сторибука общего кэша всё равно нет, а один общий
+          # scope они бы вытесняли друг у друга из 10 ГБ лимита.
+          cache-from: type=gha,scope=${{ matrix.component.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component.name }}
+          # Без attestation-манифестов: с ними в реестр уезжает OCI-индекс, а `fly deploy --image`
+          # и анонимная проверка образа ждут обычный однослойный манифест.
+          provenance: false
+          sbom: false
+
+      - name: Что уехало
+        env:
+          NAME: ${{ steps.tags.outputs.name }}
+          SHA_TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "${NAME}:${SHA_TAG}" --format '{{.Manifest.Digest}}')"
+          {
+            echo "### ${NAME}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| тег | \`${SHA_TAG}\` |"
+            echo "| сборка | \`build-${{ needs.plan.outputs.build }}\` |"
+            echo "| digest | \`${digest}\` |"
+            echo "| выкатить | \`IMAGE_TAG=${SHA_TAG} scripts/deploy.sh ${{ matrix.component.name }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

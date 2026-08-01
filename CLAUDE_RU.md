@@ -17,12 +17,16 @@
   будущее в коде (`client/src/firebase.ts`, `server/src/auth.ts`), не настроен и не
   используется, пока не подставлены ключи.
 - **Тесты**: vitest в обоих пакетах (`npm test` в `server/` и `client/`).
-- **Деплой**: прод — **Fly.io**, две аппы (`crusade-deck-server`, `crusade-deck-client`),
-  конфиги в пакетах (`*/fly.toml`). Выкатывать `scripts/deploy.sh`, а не голым
-  `fly deploy` (скрипт держит порядок «сервер первым» и передаёт номер сборки).
-  `.github/workflows/ci.yml` гоняет тесты на каждый пуш и выкатывает `main` после их
-  прохождения. Подробности — в `DEPLOY_RU.md` (раздел Fly.io плюс альтернативы:
-  Cloudflare Tunnel, обычный Docker).
+- **Деплой**: прод — **Fly.io**, три аппы (`crusade-deck-server`, `crusade-deck-client`,
+  `crusade-deck-storybook`). Сборка и выкатка РАЗДЕЛЕНЫ: образы собирает
+  `.github/workflows/build.yml` и кладёт в GHCR, выкатывает `scripts/deploy.sh` уже готовый
+  образ (`fly deploy --image`). Пуш в `main` производит артефакт, но прод не трогает — он
+  меняется кнопкой `Actions → Выкатка`. Откат — выкатка прошлого тега (`IMAGE_TAG=...`),
+  а не revert. Список компонентов — `deploy/components.json`, его читают и скрипт, и
+  workflow; новый компонент добавляется туда, а не в них. Адрес сервера не вшивается в
+  бандл, а приезжает в рантайме (`client/src/runtimeConfig.ts` ← `/config.js`) — поэтому
+  образ один на все окружения. Подробности — в `DEPLOY_RU.md` (раздел Fly.io плюс
+  альтернативы: Cloudflare Tunnel, обычный Docker).
 - **Версия**: `v<версия>+<сборка>` (напр. `v0.2.0+166`) — объявленная версия из
   `package.json` плюс число коммитов как номер сборки. `client/src/version.ts` и
   `server/src/version.ts` делят формат; видна внизу лобби, в меню настроек (полная) и в

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sessionEntry } from "./sessionEntry";
 import { addRecent, forgetRecent, loadRecent, saveRecent, type RecentAccount } from "./recentAccounts";
+import { HTTP_URL } from "./runtimeConfig";
 
 export interface Account {
   id: string;
@@ -9,7 +10,9 @@ export interface Account {
 }
 
 export const STORAGE_KEY = "crusade-deck:account";
-const SERVER_URL = import.meta.env.VITE_HTTP_URL || "http://localhost:2567";
+// Здесь под именем SERVER_URL исторически лежит HTTP-адрес, а не сокет — имя не трогаю,
+// чтобы правка осталась про одно (см. client/src/runtimeConfig.ts).
+const SERVER_URL = HTTP_URL;
 
 function loadLocal(): Account | null {
   const raw = localStorage.getItem(STORAGE_KEY);

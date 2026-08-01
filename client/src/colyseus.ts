@@ -1,8 +1,8 @@
 import { Client, Room } from "colyseus.js";
 import { retryJoin } from "./retryJoin";
+import { HTTP_URL, SERVER_URL } from "./runtimeConfig";
 
-const client = new Client(import.meta.env.VITE_SERVER_URL || "ws://localhost:2567");
-const HTTP_URL = import.meta.env.VITE_HTTP_URL || "http://localhost:2567";
+const client = new Client(SERVER_URL);
 
 export async function joinRoom(opts: {
   accountId?: string;
