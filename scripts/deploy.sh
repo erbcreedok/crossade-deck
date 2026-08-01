@@ -1,65 +1,196 @@
 #!/usr/bin/env bash
-# Выкатка на Fly.io обеих апп с проставленным номером сборки.
+# Выкатка ГОТОВОГО образа из GHCR на Fly.io.
 #
-# Зачем скрипт, а не два `fly deploy` руками:
-#   1) ПОРЯДОК. Клиент вшивает адрес сервера в бандл на этапе сборки, поэтому сервер
-#      выкатывается первым. Наоборот — и клиент уедет со старым адресом.
-#   2) НОМЕР СБОРКИ. В контекст образа .git не попадает, изнутри его не спросить. Здесь он
-#      считается снаружи и передаётся build-аргументом. Голый `fly deploy` соберёт образ с
-#      подписью "dev", и по проду нельзя будет понять, что именно на нём крутится.
+# Почему скрипт, а не `fly deploy` руками — причина та же, что и раньше: знание о деплое
+# должно жить в ОДНОМ месте, одинаковом на ноутбуке и в CI, иначе они расходятся молча.
+# Изменилось другое: раньше скрипт запускал сборку на стороне Fly, и артефакта наружу не
+# оставалось. Теперь образы собирает GitHub Actions и кладёт в GHCR, а скрипт только
+# указывает Fly, какой именно образ взять. Из этого следует всё остальное:
+#   - выкатить можно ЛЮБУЮ прошлую сборку по тегу — это же и есть откат;
+#   - тот самый артефакт, который проверяли, уедет и на Fly, и на свой сервер позже;
+#   - порядок «сервер раньше клиента» больше не нужен: адрес сервера не вшивается в бандл,
+#     он приезжает в рантайме (client/src/runtimeConfig.ts).
 #
 # Использование:
-#   scripts/deploy.sh            # обе аппы
-#   scripts/deploy.sh server     # только сервер
-#   scripts/deploy.sh client     # только клиент
+#   scripts/deploy.sh                          # все компоненты, последний образ с main
+#   scripts/deploy.sh web                      # один компонент
+#   scripts/deploy.sh server web               # несколько
+#   IMAGE_TAG=sha-abc1234 scripts/deploy.sh web    # конкретная сборка (откат — это она же)
+#   IMAGE_TAG=build-312 scripts/deploy.sh          # по номеру сборки, как в подписи версии
+#   DEPLOY_ENV=dev scripts/deploy.sh web            # другое окружение (ищет client/fly.dev.toml)
+#   BUILD_FROM_SOURCE=1 scripts/deploy.sh server    # запасной путь: собрать на Fly, минуя GHCR
+#
+# Список компонентов — deploy/components.json, его же читает .github/workflows/build.yml.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [[ -n "$(git status --porcelain)" ]]; then
-  echo "!! В рабочем дереве есть несохранённые правки — образ соберётся из них," >&2
-  echo "   а номер сборки будет от последнего коммита. Закоммить или отложи их." >&2
+MANIFEST="deploy/components.json"
+IMAGE_TAG="${IMAGE_TAG:-main}"
+DEPLOY_ENV="${DEPLOY_ENV:-prod}"
+BUILD_FROM_SOURCE="${BUILD_FROM_SOURCE:-}"
+
+# Владелец/репозиторий берутся из origin, чтобы форк не выкатывал чужие образы. GHCR
+# принимает только нижний регистр, а GitHub имена — нет: приводим сами.
+default_registry() {
+  local url slug
+  url="$(git config --get remote.origin.url || true)"
+  slug="$(printf '%s' "$url" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
+  [[ -n "$slug" ]] || { echo "не смог определить репозиторий из remote.origin.url" >&2; exit 1; }
+  printf 'ghcr.io/%s' "$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]')"
+}
+IMAGE_REGISTRY="${IMAGE_REGISTRY:-$(default_registry)}"
+
+# --- чтение манифеста ------------------------------------------------------------------
+# Через node, а не jq: node в этом репозитории есть заведомо, jq на macOS из коробки нет.
+
+all_components() {
+  node -e '
+    const all = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(Object.keys(all).filter((k) => !k.startsWith("$")).join("\n"));
+  ' "$MANIFEST"
+}
+
+field() {
+  node -e '
+    const all = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const component = all[process.argv[2]];
+    if (!component) {
+      console.error(`неизвестный компонент «${process.argv[2]}». Есть: ` +
+        Object.keys(all).filter((k) => !k.startsWith("$")).join(", "));
+      process.exit(1);
+    }
+    const value = component[process.argv[3]];
+    if (value === undefined) {
+      console.error(`у компонента «${process.argv[2]}» нет поля «${process.argv[3]}» в ${process.argv[1]}`);
+      process.exit(1);
+    }
+    process.stdout.write(String(value));
+  ' "$MANIFEST" "$1" "$2"
+}
+
+# Прод-конфиг лежит как есть, окружение подставляется в имя: client/fly.toml → client/fly.dev.toml.
+# Так стенд заводится добавлением файла, без правок скрипта и workflow.
+fly_config() {
+  local base="$1"
+  [[ "$DEPLOY_ENV" == "prod" ]] && { printf '%s' "$base"; return; }
+  printf '%s.%s.toml' "${base%.toml}" "$DEPLOY_ENV"
+}
+
+# Имя аппы на Fly по тому же правилу: crusade-deck-client → crusade-deck-client-dev.
+app_for_env() {
+  local app="$1"
+  [[ "$DEPLOY_ENV" == "prod" ]] && { printf '%s' "$app"; return; }
+  printf '%s-%s' "$app" "$DEPLOY_ENV"
+}
+
+# Адрес не хранится в манифесте, а выводится из имени аппы — иначе адрес каждого стенда
+# пришлось бы туда дописывать, и он бы разъезжался с реальностью.
+health_url() {
+  printf 'https://%s.fly.dev%s' "$(app_for_env "$(field "$1" app)")" "$(field "$1" healthPath)"
+}
+
+# --- проверки --------------------------------------------------------------------------
+
+# Fly тянет образ из GHCR АНОНИМНО. Пакет, оставшийся приватным (а GHCR делает такими все
+# новые пакеты, даже в публичном репозитории), даёт при выкатке невнятную ошибку доступа —
+# проверяем заранее и говорим, что именно нажать.
+assert_pullable() {
+  local repo="$1" tag="$2" token
+  token="$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull&service=ghcr.io" \
+    | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).token' 2>/dev/null)" || token=""
+  if [[ -z "$token" ]] || ! curl -fsSL -o /dev/null \
+      -H "Authorization: Bearer ${token}" \
+      -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+      "https://ghcr.io/v2/${repo}/manifests/${tag}"; then
+    cat >&2 <<MSG
+!! Образ ghcr.io/${repo}:${tag} не читается анонимно, а Fly тянет его именно так.
+
+   Обычно это одно из двух:
+     1) пакет приватный. GitHub → Packages → ${repo##*/} → Package settings →
+        Change visibility → Public (разово, на каждый образ);
+     2) такого тега нет — собери его: gh workflow run build.yml, или укажи другой IMAGE_TAG.
+
+   Что вообще есть: gh api /users/\${OWNER}/packages/container/\${PKG}/versions
+MSG
+    exit 1
+  fi
+}
+
+# --- выкатка ---------------------------------------------------------------------------
+
+deploy_from_image() {
+  local component="$1" image fly repo
+  image="$(field "$component" image)"
+  fly="$(fly_config "$(field "$component" fly)")"
+  repo="${IMAGE_REGISTRY#ghcr.io/}/${image}"
+
+  [[ -f "$fly" ]] || { echo "нет конфига $fly (окружение «$DEPLOY_ENV»)" >&2; exit 1; }
+  assert_pullable "$repo" "$IMAGE_TAG"
+
+  echo "==> ${component}: ${IMAGE_REGISTRY}/${image}:${IMAGE_TAG} → $(app_for_env "$(field "$component" app)")"
+  flyctl deploy --now --config "$fly" --image "${IMAGE_REGISTRY}/${image}:${IMAGE_TAG}"
+}
+
+# Запасной путь: Fly собирает из исходников, как было до перехода на GHCR. Нужен, когда CI
+# лежит, а выкатить надо. Артефакта наружу при этом НЕ остаётся — это осознанный размен.
+deploy_from_source() {
+  local component="$1" fly dockerfile context
+  fly="$(fly_config "$(field "$component" fly)")"
+  dockerfile="$(field "$component" dockerfile)"
+  context="$(field "$component" context)"
+
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "!! В рабочем дереве есть несохранённые правки — образ соберётся из них," >&2
+    echo "   а номер сборки будет от последнего коммита. Закоммить или отложи их." >&2
+    exit 1
+  fi
+
+  echo "==> ${component}: сборка на стороне Fly из ${dockerfile} (в обход GHCR)"
+  flyctl deploy --now \
+    --config "$fly" \
+    --dockerfile "$dockerfile" \
+    --build-arg "APP_BUILD=$(git rev-list --count HEAD)" \
+    --build-arg "APP_COMMIT=$(git rev-parse --short HEAD)" \
+    "$context"
+}
+
+targets=("$@")
+if [[ ${#targets[@]} -eq 0 ]]; then
+  # mapfile/readarray нет в bash 3.2, который стоит на macOS по умолчанию.
+  while IFS= read -r line; do targets+=("$line"); done < <(all_components)
+fi
+
+echo "==> Окружение: ${DEPLOY_ENV}; тег образа: ${IMAGE_TAG}${BUILD_FROM_SOURCE:+ (игнорируется: сборка из исходников)}"
+
+for component in "${targets[@]}"; do
+  if [[ -n "$BUILD_FROM_SOURCE" ]]; then
+    deploy_from_source "$component"
+  else
+    deploy_from_image "$component"
+  fi
+done
+
+# Проверка живёт здесь, а не в workflow: тогда «выкатил и убедился» — одно действие и на
+# ноутбуке, и в CI. Машины спят (min_machines_running = 0), первый запрос их будит — отсюда
+# щедрые --retry и таймаут, иначе проверка падала бы на холодном старте, а не на поломке.
+echo "==> Проверка"
+failed=""
+for component in "${targets[@]}"; do
+  url="$(health_url "$component")"
+  if code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 --retry 5 --retry-delay 5 \
+      --retry-all-errors "$url")" && [[ "$code" == 2* ]]; then
+    echo "    ok  ${code}  ${url}"
+  else
+    echo "    НЕ ОТВЕЧАЕТ (${code:-нет ответа})  ${url}"
+    failed="${failed} ${component}"
+  fi
+done
+
+if [[ -n "$failed" ]]; then
+  echo "!! После выкатки не отвечают:${failed}" >&2
+  echo "   Логи: flyctl logs -a <аппа>. Откат: IMAGE_TAG=<прошлый тег> $0${failed}" >&2
   exit 1
 fi
 
-APP_BUILD="$(git rev-list --count HEAD)"
-APP_COMMIT="$(git rev-parse --short HEAD)"
-VERSION="$(node -p "require('./client/package.json').version")"
-echo "==> Выкатываю v${VERSION}+${APP_BUILD} (${APP_COMMIT})"
-
-target="${1:-all}"
-
-deploy_one() {
-  local dir="$1"
-  echo "==> ${dir}"
-  (cd "$dir" && flyctl deploy --now \
-    --build-arg "APP_BUILD=${APP_BUILD}" \
-    --build-arg "APP_COMMIT=${APP_COMMIT}")
-}
-
-# Сервер всегда первым: см. пункт 1 выше.
-#
-# Именно if, а не `[[ ... ]] && deploy_one`: у такой связки с ложным условием код возврата
-# ненулевой, и если она стоит ПОСЛЕДНЕЙ, его наследует весь скрипт. `deploy.sh server`
-# честно выкатывал сервер и завершался с кодом 1 — на ноутбуке это незаметно, а в CI
-# означает красный шаг после успешной выкатки.
-if [[ "$target" == "all" || "$target" == "server" ]]; then
-  deploy_one server
-fi
-# Клиент — ОДИН образ на две версии: старый (v1) на «/», новый (v2) на «/v2/». Собирается из
-# КОРНЯ репо (нужны обе папки) общим deploy/web.Dockerfile; app-имя и адрес сервера (VITE_*)
-# берутся из client/fly.toml. Поэтому не deploy_one (у него контекст = папка), а вызов из корня.
-if [[ "$target" == "all" || "$target" == "client" ]]; then
-  echo "==> client (v1 → /, v2 → /v2 — общий образ из корня)"
-  flyctl deploy --now \
-    --config client/fly.toml \
-    --dockerfile deploy/web.Dockerfile \
-    --build-arg "APP_BUILD=${APP_BUILD}" \
-    --build-arg "APP_COMMIT=${APP_COMMIT}" \
-    .
-fi
-
-echo "==> Готово. Проверка:"
-echo "    curl -s https://crusade-deck-server.fly.dev/health"
-echo "    открыть https://crusade-deck-client.fly.dev/     — старый клиент (версия внизу)"
-echo "    открыть https://crusade-deck-client.fly.dev/v2/  — новый клиент (v2)"
+echo "==> Готово."

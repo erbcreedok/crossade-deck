@@ -1,17 +1,20 @@
-# Тесты на каждый пуш, выкатка на Fly.io — только с main и только после зелёных тестов.
+# Тесты на каждый пуш; на main — ещё и сборка образов в GHCR.
 #
-# Почему один файл, а не два: гейт «деплой после тестов» выражается только внутри ОДНОГО
-# workflow (`needs:`), между разными workflow такой связи нет — второй просто стартует
-# параллельно, и на прод уехало бы то, что ещё не проверено.
+# Почему сборка вызывается ОТСЮДА, а не отдельным workflow: гейт «после зелёных тестов»
+# выражается только внутри одного запуска (`needs:`). Два независимых workflow стартовали бы
+# параллельно, и в реестр уехал бы образ, который никто не проверял. Вызов reusable-workflow
+# (`uses:`) эту связь сохраняет, а файл при этом остаётся коротким.
+#
+# Выкатки здесь НЕТ намеренно. Раньше пуш в main уезжал прямо на прод; теперь main производит
+# АРТЕФАКТ, а куда его поставить — отдельное решение: Actions → Выкатка (.github/workflows/deploy.yml)
+# или `IMAGE_TAG=... scripts/deploy.sh` с ноутбука. Ценой лишнего клика прод перестаёт меняться
+# сам по себе, а откат становится выкаткой прошлого тега, а не revert'ом.
 name: CI
 
 on:
   push:
   pull_request:
 
-# Деплой прерывать нельзя: отменённый на середине flyctl оставит аппу в промежуточном
-# состоянии. Поэтому очередь, а не отмена предыдущего запуска (cancel-in-progress: false).
-# Ценой этого пуши в одну ветку ждут друг друга — на таком объёме это секунды.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: false
@@ -72,32 +75,17 @@ jobs:
       - run: npx tsc --noEmit
       # Сборка в prod-режиме — та же, что уедет в образ (base=/v2/). Ловит то, что не видят тесты/tsc.
       - run: npx vite build
+      # Сторибук ломается САМ по себе — своим конфигом, своими стори, своим docgen'ом, — и
+      # обычной сборкой клиента это не ловится. Без этого шага поломка всплывала бы только
+      # на main, при сборке образа, то есть после мержа.
+      - run: npm run build-storybook
 
-  deploy:
-    name: Выкатка на Fly.io
-    # client2 тоже в гейте: он теперь едет в тот же образ (на /v2/), сломанный — не должен уехать.
+  images:
+    name: Образы в GHCR
+    # client2 в гейте наравне с остальными: он едет и в web-образ (на /v2/), и в storybook.
     needs: [server, client, client2]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # ВСЯ история: номер сборки — это число коммитов (git rev-list --count HEAD).
-          # По умолчанию checkout берёт один коммит, и номер сборки был бы вечной единицей.
-          fetch-depth: 0
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      # Тот же скрипт, что и с ноутбука: порядок выкатки (сервер первым — клиент вшивает
-      # его адрес в бандл) и номер сборки живут в одном месте, а не в двух расходящихся.
-      - run: scripts/deploy.sh
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      - name: Проверить, что прод отвечает и версии сошлись
-        run: |
-          echo "Ожидаем сборку $(git rev-list --count HEAD) ($(git rev-parse --short HEAD))"
-          curl -sS --max-time 60 --retry 3 --retry-delay 5 \
-            https://crusade-deck-server.fly.dev/health
-          echo
-          curl -sS -o /dev/null -w "клиент v1: %{http_code}\n" --max-time 60 --retry 3 --retry-delay 5 \
-            https://crusade-deck-client.fly.dev/
-          curl -sS -o /dev/null -w "клиент v2: %{http_code}\n" --max-time 60 --retry 3 --retry-delay 5 \
-            https://crusade-deck-client.fly.dev/v2/
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build.yml

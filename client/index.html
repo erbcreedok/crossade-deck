@@ -21,6 +21,11 @@
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
       rel="stylesheet"
     />
+    <!-- Адрес игрового сервера в рантайме: в контейнере файл пишет entrypoint из переменных
+         окружения, в dev отдаётся пустая заглушка из public/. Обычный (не module) скрипт и
+         именно ЗДЕСЬ — он обязан выполниться до бандла, который читает window.__CRUSADE_CONFIG__.
+         Путь абсолютный: страница открывается и по /r/КОД, относительный ушёл бы в /r/config.js. -->
+    <script src="/config.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,0 +1,98 @@
+# Выкатка готового образа из GHCR на Fly.io — кнопкой.
+#
+# Отделено от сборки намеренно. Собранный образ лежит в реестре неизменяемым; решение
+# «пусть на проде будет вот этот» принимается отдельно и в любой момент. Из этого же следует
+# откат: он не «пересобрать прошлый коммит», а «выкатить тег, который уже лежит».
+#
+# Запуск: Actions → Выкатка → Run workflow. Или с ноутбука тем же скриптом:
+#   IMAGE_TAG=sha-abc1234 scripts/deploy.sh web
+name: Выкатка
+
+on:
+  workflow_call:
+    inputs:
+      components:
+        description: Имена через пробел; пусто — все
+        type: string
+        default: ""
+      tag:
+        description: Тег образа в GHCR
+        type: string
+        required: true
+      environment:
+        description: Окружение
+        type: string
+        default: prod
+    secrets:
+      FLY_API_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Тег образа: main | sha-abc1234 | build-312"
+        type: string
+        default: main
+      components:
+        description: "Что выкатить (через пробел), пусто — все: server web storybook"
+        type: string
+        default: ""
+      environment:
+        description: Окружение
+        type: choice
+        default: prod
+        # Пока один. Стенд добавляется сюда строкой — вместе с client/fly.dev.toml и
+        # аппой crusade-deck-client-dev (правило имён — в deploy/components.json).
+        options: [prod]
+
+# Выкатку прерывать нельзя: отменённый на середине flyctl оставит аппу в промежуточном
+# состоянии. Поэтому очередь, а не отмена предыдущего запуска.
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.environment }} ← ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    # Через GitHub Environments: сюда же вешаются обязательные ревьюеры, если однажды
+    # захочется, чтобы прод требовал подтверждения. Окружение создаётся само при первом запуске.
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Значение приходит из формы, а дальше уходит в командную строку без кавычек (нужно
+      # разбиение по пробелам). Проверка — чтобы туда нельзя было передать что-то кроме имён.
+      - name: Проверить список компонентов
+        env:
+          COMPONENTS: ${{ inputs.components }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$COMPONENTS" =~ ^[a-z0-9\ -]*$ ]]; then
+            echo "в списке компонентов допустимы только имена: буквы, цифры, дефис" >&2
+            exit 1
+          fi
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # Тот же скрипт, что и с ноутбука: и выкатка, и проверка живут в одном месте, а не в
+      # двух расходящихся. Он же сам проверит, что образ вообще читается анонимно.
+      - name: Выкатить
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          IMAGE_TAG: ${{ inputs.tag }}
+          DEPLOY_ENV: ${{ inputs.environment }}
+          COMPONENTS: ${{ inputs.components }}
+        run: scripts/deploy.sh $COMPONENTS
+
+      - name: Итог
+        if: always()
+        run: |
+          {
+            echo "### Выкатка ${{ inputs.environment }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| тег | \`${{ inputs.tag }}\` |"
+            echo "| компоненты | \`${{ inputs.components || 'все' }}\` |"
+            echo "| результат | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

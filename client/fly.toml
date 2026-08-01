@@ -1,19 +1,27 @@
-# Fly.io config for the static client. Deploy from THIS directory (client/), and
-# only AFTER the server is deployed — the build args below bake the server's Fly
-# hostname into the bundle:
-#   fly launch --copy-config --no-deploy   (pick a free unique app name if taken)
-#   fly deploy
+# Fly-конфиг веб-аппы: ОДИН nginx на двух клиентов — старый (v1) на «/», новый (client2) на «/v2/».
+# Образ приезжает готовым из GHCR, собирать Fly ничего не должен:
 #
-# If server/fly.toml's app name changes (because "crusade-deck-server" was taken),
-# update build.args below to match before deploying.
+#   scripts/deploy.sh web                        # последний образ с main
+#   IMAGE_TAG=sha-abc1234 scripts/deploy.sh web  # конкретная сборка (она же — откат)
+#
+# Раньше здесь лежали [build.args] с адресом сервера, и из-за них образ был привязан к
+# окружению: выкатить тот же артефакт на стенд означало пересобрать его, то есть выкатить
+# другой. Теперь адрес приезжает в рантайме через [env] ниже (client/src/runtimeConfig.ts),
+# а образ один на все окружения. Побочный эффект: порядок «сервер раньше клиента» больше
+# не обязателен — вшивать в бандл нечего.
+#
+# Секция [build] пустая намеренно: без неё flyctl идёт искать Dockerfile в контексте.
 
 app = "crusade-deck-client"
 primary_region = "fra"
 
 [build]
-  [build.args]
-    VITE_SERVER_URL = "wss://crusade-deck-server.fly.dev"
-    VITE_HTTP_URL = "https://crusade-deck-server.fly.dev"
+
+[env]
+  # Их читает deploy/runtime-config.sh и кладёт в /config.js при старте контейнера.
+  # wss:// и https:// без исключений: HTTPS-страница не откроет незащищённый сокет.
+  APP_SERVER_URL = "wss://crusade-deck-server.fly.dev"
+  APP_HTTP_URL = "https://crusade-deck-server.fly.dev"
 
 [http_service]
   internal_port = 80

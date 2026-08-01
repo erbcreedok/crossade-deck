@@ -1,0 +1,45 @@
+{
+  "$comment": [
+    "Единственный список того, что собирается и куда выкатывается. Читают его ОБА пути —",
+    "scripts/deploy.sh и .github/workflows/build.yml — чтобы ноутбук и CI не разъезжались:",
+    "именно ради этого в проекте изначально появился deploy.sh вместо двух `fly deploy`.",
+    "",
+    "Добавить компонент = добавить сюда запись. Так, когда появится server-v2, стек v2",
+    "заводится строкой { dockerfile: deploy/v2/Dockerfile, fly: deploy/v2/fly.toml } —",
+    "workflow и скрипт править не нужно (см. SERVER-V2-INFRA-HANDOFF.md §A5, A7).",
+    "",
+    "image      — имя в ghcr.io/<владелец>/<репозиторий>/<image>",
+    "dockerfile — путь ОТ КОРНЯ репозитория (его ждут и flyctl, и buildx)",
+    "context    — у сервера свой (его Dockerfile копирует package.json из корня контекста),",
+    "             у web и storybook — корень: им нужны обе папки клиентов",
+    "fly        — конфиг прода. Для окружения ENV ищется <имя>.<ENV>.toml рядом,",
+    "             то есть стенд появится как server/fly.dev.toml — без правок кода",
+    "app        — имя приложения на Fly; для окружения ENV к нему приписывается -<ENV>",
+    "healthPath — что дёрнуть после выкатки. Хост не хранится: он выводится из app,",
+    "             иначе адрес стенда пришлось бы дублировать в этом файле"
+  ],
+  "server": {
+    "image": "server",
+    "dockerfile": "server/Dockerfile",
+    "context": "server",
+    "fly": "server/fly.toml",
+    "app": "crusade-deck-server",
+    "healthPath": "/health"
+  },
+  "web": {
+    "image": "web",
+    "dockerfile": "deploy/web.Dockerfile",
+    "context": ".",
+    "fly": "client/fly.toml",
+    "app": "crusade-deck-client",
+    "healthPath": "/"
+  },
+  "storybook": {
+    "image": "storybook",
+    "dockerfile": "deploy/storybook.Dockerfile",
+    "context": ".",
+    "fly": "deploy/storybook.fly.toml",
+    "app": "crusade-deck-storybook",
+    "healthPath": "/"
+  }
+}

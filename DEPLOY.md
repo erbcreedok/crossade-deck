@@ -209,20 +209,85 @@ client will most likely need a hard reload.
 
 ## Fly.io (current production)
 
-Two apps, configs live in the packages themselves (`server/fly.toml`, `client/fly.toml`):
-`crusade-deck-server` and `crusade-deck-client`, region `fra`.
+Three apps, region `fra`:
 
-Deploy with the script, not with a bare `fly deploy`:
+| app | what it is | config |
+| --- | --- | --- |
+| `crusade-deck-server` | the v1 game server (Colyseus) | `server/fly.toml` |
+| `crusade-deck-client` | nginx: client v1 at `/`, client2 at `/v2/` | `client/fly.toml` |
+| `crusade-deck-storybook` | the canvas UI-kit catalogue | `deploy/storybook.fly.toml` |
 
-```bash
-scripts/deploy.sh          # both apps
-scripts/deploy.sh server   # one of them
+### The artifact is one decision, the deploy is another
+
+Fly no longer builds anything. GitHub Actions builds the images and puts them in GHCR;
+`fly deploy` only says which one to take. Everything else follows from that:
+
+- a **rollback** is deploying an older tag, not a revert plus a rebuild;
+- what reaches production is THE SAME image that was tested, not one "built from the same
+  commit";
+- that same image can go somewhere else — your own server, a staging box — unrebuilt.
+
+```
+push to main → green tests → ghcr.io/erbcreedok/crusade-deck/{server,web,storybook}
+                                       ↓ (a separate decision)
+                             Actions → Выкатка   |   scripts/deploy.sh
 ```
 
-It does two things a bare `fly deploy` can't. It keeps the ORDER (the server goes first —
-the client bakes the server's address into its bundle at build time), and it passes the
-BUILD NUMBER in as a build arg. `.git` isn't part of the image context, so a bare deploy
-produces a build labelled "dev" and you can't tell what's actually running in production.
+Every image carries three tags: `sha-<commit>` (immutable, the primary handle),
+`build-<number>` (the very number in the version signature) and `main` — a moving pointer
+at the latest build.
+
+### Deploying
+
+```bash
+scripts/deploy.sh                            # everything, latest build off main
+scripts/deploy.sh web                        # one component
+IMAGE_TAG=sha-abc1234 scripts/deploy.sh web  # a specific build; this is also the rollback
+DEPLOY_ENV=dev scripts/deploy.sh web         # another environment (looks for client/fly.dev.toml)
+BUILD_FROM_SOURCE=1 scripts/deploy.sh server # fallback: build on Fly, bypassing GHCR
+```
+
+The same via a button: Actions → **Выкатка** → Run workflow (tag, components, environment).
+The workflow calls exactly this script, so the deploy and the check that follows it live in
+one place rather than in two that drift apart — the same reason the script exists at all.
+
+Before deploying, the script checks the image is readable ANONYMOUSLY: that's how Fly pulls
+it, and a private package otherwise fails mid-deploy with an opaque permissions error.
+
+### The server address is runtime, not baked in
+
+`client/fly.toml` used to bake `VITE_SERVER_URL` into the bundle at build time, which tied
+the image to one environment: putting it on a staging box meant rebuilding it, i.e.
+deploying a DIFFERENT artifact. The address now arrives through environment variables:
+
+`[env]` in `client/fly.toml` → `deploy/runtime-config.sh` writes `/config.js` at container
+start → `client/src/runtimeConfig.ts` reads `window.__CRUSADE_CONFIG__`.
+
+Order: runtime → baked via `VITE_*` → `localhost`. The middle step is kept deliberately —
+`docker-compose.yml` builds the old way and works untouched. `/config.js` is served with
+`Cache-Control: no-store`: a cached copy would mean the browser keeps hitting the old
+address after the server moves, with a perfectly "correct" image deployed.
+
+A side effect: the server-before-client order is no longer required — there's nothing left
+to bake.
+
+### Adding a component
+
+`deploy/components.json` is the single list of what gets built and where it goes; both
+`scripts/deploy.sh` and `.github/workflows/build.yml` read it. A new component is an entry
+there, with no edits to the script or the workflow. The v2 stack arrives the same way once
+`server-v2/` exists.
+
+A staging environment follows the same naming rule: config `client/fly.dev.toml`, app
+`crusade-deck-client-dev`, invoked as `DEPLOY_ENV=dev scripts/deploy.sh web`.
+
+### One-time setup
+
+1. A `FLY_API_TOKEN` repository secret (`fly tokens create deploy`).
+2. `fly apps create crusade-deck-storybook`.
+3. After the first build, make the packages public: GitHub → Packages → each of
+   `crusade-deck/{server,web,storybook}` → Package settings → Change visibility → Public.
+   GHCR creates packages private even in a public repository, and Fly pulls anonymously.
 
 The version shows up in three places: at the bottom of the lobby screen, in the settings
 menu (full form, with commit and build time), and in the server's `/health`. If the client
@@ -242,7 +307,12 @@ later. The full analysis, ready-to-paste configs and the reason behind every tra
 `SERVER-V2-INFRA-HANDOFF.md`; the work breakdown is epic #43.
 
 Until then this section describes the current deploy: freezing v1 (#51) hasn't happened
-yet, and `scripts/deploy.sh` still deploys v1 by default.
+yet, and `scripts/deploy.sh` still deploys v1 by default. The pipeline is ready for the
+move: the v2 stack is added as an entry in `deploy/components.json`
+(`deploy/v2/Dockerfile`, `deploy/v2/fly.toml`), and freezing v1 comes down to removing the
+`server` and `web` entries from it — no edits to the script or the workflows. The handoff's
+§A7 wording about a new target in `deploy.sh` is stale by the same token: there are no
+targets any more, there is a list of components.
 
 ### Two clients on one domain (`/` and `/v2/`)
 
@@ -261,16 +331,31 @@ origin (`/v2/` and `/`); locally they point at the other dev port (5173 ↔ 5174
 
 ### CI
 
-`.github/workflows/ci.yml` runs the tests of both packages on every push, and on `main`
-deploys via the same `scripts/deploy.sh` — the deploy order and the build number live in
-one place rather than in two that drift apart.
+Three workflows, split along the seam between "an artifact exists" and "production changed":
 
-Two things the workflow has to get right, and both are easy to miss:
+- **`ci.yml`** — tests on every push. On `main`, once they're green, it calls `build.yml`
+  through `uses:`. It has to be a call and not a separate workflow: the `needs:` gate only
+  exists inside ONE run, and two independent workflows would start in parallel — an
+  unverified image would reach the registry.
+- **`build.yml`** — builds every component from `deploy/components.json` as a matrix and
+  pushes to GHCR. Also runnable by hand for any branch.
+- **`deploy.yml`** — the button. Takes a tag and components, runs `scripts/deploy.sh`.
+
+There is deliberately NO deploy on `main`. `main` produces an artifact; production changes
+as its own act. The cost is one extra click; what it buys is that production never moves on
+its own, and a rollback is a tag rather than a git revert.
+
+Four things the workflows have to get right, and all four are easy to miss:
 
 - `fetch-depth: 0` on checkout. The build number is the commit count; the default shallow
   clone would make it a permanent "1".
-- `cancel-in-progress: false`. A flyctl cancelled halfway leaves the app in a partial
-  state, so runs queue instead of superseding each other.
+- `cancel-in-progress: false` on the deploy. A flyctl cancelled halfway leaves the app in a
+  partial state, so runs queue instead of superseding each other.
+- `provenance: false` on the build. With attestation manifests what lands in the registry is
+  an OCI index, while `fly deploy --image` and the anonymous pull check expect a plain one.
+- `fail-fast: false` on the matrix. A broken storybook shouldn't cancel an almost-finished
+  server: the images are independent, and half the artifacts beat none.
 
 The deploy needs a `FLY_API_TOKEN` secret in the repository (Settings → Secrets and
-variables → Actions). Create one with `fly tokens create deploy`.
+variables → Actions). Create one with `fly tokens create deploy`. Pushing to GHCR needs no
+secret — the workflow's own `GITHUB_TOKEN` is enough.

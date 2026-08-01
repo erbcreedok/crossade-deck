@@ -19,12 +19,17 @@ rules can later be layered as configuration.
   for later (`client/src/firebase.ts`, `server/src/auth.ts`) but not configured or used
   until keys are supplied.
 - **Tests**: vitest in both packages (`npm test` in `server/` and `client/`).
-- **Deploy**: production is **Fly.io**, two apps (`crusade-deck-server`,
-  `crusade-deck-client`), configs in the packages (`*/fly.toml`). Deploy with
-  `scripts/deploy.sh` — never a bare `fly deploy` (it keeps the server-first order and
-  passes the build number in). `.github/workflows/ci.yml` runs tests on every push and
-  deploys `main` after they pass. See `DEPLOY.md` for the Fly section, and for the
-  Cloudflare Tunnel / plain-Docker alternatives.
+- **Deploy**: production is **Fly.io**, three apps (`crusade-deck-server`,
+  `crusade-deck-client`, `crusade-deck-storybook`). Building and deploying are SEPARATE:
+  `.github/workflows/build.yml` builds the images into GHCR, and `scripts/deploy.sh`
+  deploys a ready one (`fly deploy --image`). A push to `main` produces an artifact but
+  doesn't touch production — that changes via the `Actions → Выкатка` button. A rollback is
+  deploying an older tag (`IMAGE_TAG=...`), not a revert. The component list is
+  `deploy/components.json`, read by both the script and the workflow; a new component goes
+  there, not into them. The server address isn't baked into the bundle but arrives at
+  runtime (`client/src/runtimeConfig.ts` ← `/config.js`), which is what makes one image fit
+  every environment. See `DEPLOY.md` for the Fly section, and for the Cloudflare Tunnel /
+  plain-Docker alternatives.
 - **Version**: `v<version>+<build>` (e.g. `v0.2.0+166`) — declared version from
   `package.json` plus the commit count as the build number. `client/src/version.ts` and
   `server/src/version.ts` share the format; shown at the bottom of the lobby, in the
