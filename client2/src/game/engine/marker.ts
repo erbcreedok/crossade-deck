@@ -18,7 +18,7 @@ export interface MarkerHost {
 
 export interface MarkerConfig {
   draw: (g: Graphics) => void; // как нарисовать иконку в ЛОКАЛЬНЫХ координатах (центр 0,0) — VIEW, не портируется
-  show: ShowPolicy; // когда метка видна — ДАННЫЕ (см. markerPolicy)
+  show: ShowPolicy; // когда метка видна — ДАННЫЕ (см. markerPolicy); меняется в рантайме через setShow
   offset?: { x: number; y: number }; // сдвиг метки от слота (драггер — ниже, якорь — по центру)
   hit?: { w: number; h: number }; // хит-зона (для interactive = у кого есть makePayload)
   restAlpha?: number; // прозрачность в покое (еле видно)
@@ -46,6 +46,18 @@ export class Marker {
 
   get interactive(): boolean {
     return !!this.host.makePayload && !!this.cfg.hit;
+  }
+
+  /** Сменить политику видимости на лету (рычаг конфига цели). Кадр применит её сам. */
+  setShow(show: ShowPolicy): void {
+    this.cfg.show = show;
+  }
+
+  /** Перерисовать иконку на лету. Graphics переиспользуется — узел в слое остаётся тем же, а с ним
+   *  и позиция/альфа/родитель: пересоздание метки ради смены картинки было бы лишним. */
+  setIcon(draw: (g: Graphics) => void): void {
+    this.gfx.clear();
+    draw(this.gfx);
   }
 
   /** Видна ли метка сейчас по политике (чистое решение; тесты/e2e читают его без render-цикла). */

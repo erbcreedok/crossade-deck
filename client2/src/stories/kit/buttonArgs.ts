@@ -18,29 +18,34 @@ const SIZES: ButtonSize[] = ["sm", "md", "lg"];
 
 export const BUTTON_ARGS = {
   label: {
-    argType: { name: "подпись", control: { type: "text" } },
+    argType: { control: { type: "text" } },
+    label: "подпись",
     // Живьём: setLabel перерисовывает текст и пересчитывает ширину — ровно то, что делает игра,
     // когда подпись зоны меняется под грузом («сбросить» → «взять себе»).
     apply: (b, v) => b.setLabel(String(v ?? "")),
     hint: "текст на кнопке; ширина кнопки считается по нему (см. Button.w)",
   },
   variant: {
-    argType: { name: "вид", control: { type: "select" }, options: VARIANTS },
+    argType: { control: { type: "select" }, options: VARIANTS },
+    label: "вид",
     apply: "rebuild", // палитра и обводка выбираются в конструкторе
     hint: "primary — основное действие; secondary — обычное; danger — разрушительное; ghost — только контур; text — голый текст без фона",
   },
   size: {
-    argType: { name: "размер", control: { type: "select" }, options: SIZES },
+    argType: { control: { type: "select" }, options: SIZES },
+    label: "размер",
     apply: "rebuild", // габарит и кегль зашиты при создании
     hint: "sm 92×36 / md 124×46 / lg 168×58 — фиксированные габариты, не «от контента»",
   },
   disabled: {
-    argType: { name: "недоступна", control: { type: "boolean" } },
+    argType: { control: { type: "boolean" } },
+    label: "недоступна",
     apply: (b, v) => b.setDisabled(Boolean(v)),
     hint: "гасит кнопку и глушит клик; ховер и нажатие при этом не срабатывают",
   },
   onClick: {
     argType: false, // коллбек: контролом не выразить, а стори подставляет свой
+    label: "обработчик клика",
     apply: "rebuild",
     hint: "обработчик клика; сам Button событий не слушает — ввод в него роутит движок сцены",
   },

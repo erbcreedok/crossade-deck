@@ -19,6 +19,7 @@ const EXPECTED = [
   "tags",
   "faceUp",
   "hidden",
+  "censored",
   "back",
   "faceStyle",
   "fourColor",
@@ -71,9 +72,12 @@ describe("pickArgs", () => {
     expect(Object.keys(apply).sort()).toEqual(["hidden", "id"]); // ← иначе planFor решит, что ключ неизвестен
   });
 
-  it("подпись контрола несёт пояснение — оно и есть шпаргалка прямо в панели", () => {
+  it("имя контрола — НАСТОЯЩЕЕ имя опции, а пояснение уходит в description", () => {
+    // Наоборот было бы удобно читать и невозможно искать: в панели стояло бы слово, которого нет
+    // ни в коде компонента, ни в URL стори, ни в тесте.
     const { argTypes } = pickArgs(["hidden"]);
-    expect(argTypes.hidden.name).toContain("секретности");
+    expect(argTypes.hidden!.name).toBe("hidden");
+    expect(argTypes.hidden!.description).toContain("секретности");
   });
 
   it("пустой запрос — пустой результат, без падений", () => {

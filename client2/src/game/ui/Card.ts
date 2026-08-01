@@ -5,7 +5,7 @@ import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
 import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
-import { ParticleField } from "../engine/censorParticles";
+import { ParticleField, type ParticleParams } from "../engine/censorParticles";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
 import type { Burnable, Concealable, Draggable, Flippable, Peekable, TableElement, Valued } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
@@ -51,6 +51,7 @@ export interface CardOptions {
   torn?: boolean;
   size?: number;
   hidden?: boolean; // НАЧАЛЬНАЯ скрытость (режим секретности); дальше переключается setConcealed()
+  censored?: boolean; // НАЧАЛЬНАЯ цензура (пыль ПОВЕРХ лица); дальше переключается setCensored()
   custom?: string; // id кастом-лица из реестра CUSTOM_FACES (напр. "joker"); "" — обычное число
   rest?: RestState; // план ПОКОЯ: idle (на столе) / floating (левитация, «в руке») / held (в руке держат)
   tags?: string[]; // ИГРОВЫЕ теги поверх авто (card/suit/rank/color): role:trump, team:blue — SELECTION-DESIGN §2
@@ -91,6 +92,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   readonly torn: boolean;
   readonly size: number;
   private _concealed: boolean; // режим секретности (изначально opts.hidden), переключается извне
+  private _censored: boolean; // цензура-фильтр (изначально opts.censored), переключается извне
   readonly custom: string; // id кастом-лица (реестр CUSTOM_FACES); "" — обычная числовая карта
   private readonly extraTags: ReadonlySet<string>; // игровые теги поверх авто (см. tags getter)
 
@@ -125,6 +127,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
     this._concealed = opts.hidden ?? false;
+    this._censored = opts.censored ?? false;
     this.custom = opts.custom ?? "";
     this.extraTags = new Set(opts.tags ?? []);
     this.rest = opts.rest ?? "idle";
@@ -132,7 +135,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
-    if (this.masked) this.buildDust();
+    if (this.dusty) this.buildDust();
     if (this.torn) this.root.addChild(this.buildTear());
     if (!this.flippable) this.root.addChild(this.buildLock());
     this.paint();
@@ -146,14 +149,36 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     return this.extraTags.size ? withTags(base, this.extraTags) : base;
   }
 
-  // Живая «пыль»-цензура: облако амбер-частиц по силуэту фака (спавн-точки — общий кэш комнаты),
-  // поверх чистого фона (hiddenBg). Обрезано по карте маской-прямоугольником со скруглением.
+  // Живая «пыль»-цензура: облако частиц, построенное по НАСТОЯЩЕМУ лицу этой карты (цвет у каждой
+  // частицы свой), поверх чистой подложки. Обрезано по карте маской-прямоугольником со скруглением.
+  //
+  // Раньше облако было общим на всю комнату и строилось по силуэту фака: цензура выглядела
+  // одинаковой жёлтой крошкой поверх чего угодно — и туза пик, и джокера. Теперь пыль повторяет то,
+  // что прячет.
   private buildDust(): void {
-    this.dust = new ParticleField(this.tex.dustPoints(), dustParams(DANCE_DEFAULT, DUST_FLICKER));
+    this.dust = new ParticleField(this.dustSeeds(), dustParams(DANCE_DEFAULT, DUST_FLICKER));
     const mask = new Graphics();
-    mask.roundRect(-TEX_W / 2, -TEX_H / 2, TEX_W, TEX_H, 16).fill({ color: 0xffffff });
+    // Маска повторяет ПЛАСТИНУ карты, а не её габарит: лицо нарисовано с отступом 2 px от края
+    // (roundRect(2,2,…) в cardTextures), и без этого отступа пыль садилась в двухпиксельное кольцо
+    // ЗА пластиной — по краю карты шла заметная бахрома.
+    mask.roundRect(-TEX_W / 2 + 2, -TEX_H / 2 + 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xffffff });
     this.dust.view.mask = mask;
     this.root.addChild(this.dust.view, mask);
+  }
+
+  /** Точки рождения пыли для ТЕКУЩЕГО лица. Кэш общий на комнату и ключуется тем же ключом, что и
+   *  сама текстура, — одинаковые карты делят одно облако. */
+  private dustSeeds(): ReadonlyArray<{ x: number; y: number; color: number }> {
+    return this.tex.faceDustPoints(this.faceKey(), this.plainFaceTex(this.faceUp));
+  }
+
+  /** Ключ лица — ровно те параметры, от которых лицо зависит. Разъехаться с plainFaceTex не может:
+   *  ветки здесь и там перечислены в одном порядке и по одним условиям. */
+  private faceKey(): string {
+    if (!this.faceUp) return `back:${this.back}`;
+    if (this.masked) return "hidden";
+    if (this.custom && this.tex.customFace(this.custom)) return `custom:${this.custom}`;
+    return `face:${this._card}|${this.fourColor ? 1 : 0}|${this.faceStyle}`;
   }
 
   /** Значение карты (ранг+масть); "" — придержано. Ключ — это id, не значение. */
@@ -171,9 +196,27 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     return this._concealed;
   }
 
-  // Показывать ли МАСКУ вместо лица: активная скрытость ИЛИ значение придержано (нечего показывать).
+  /** Зацензурена ли карта (фильтр-пыль поверх настоящего лица). Снимается/ставится извне. */
+  get censored(): boolean {
+    return this._censored;
+  }
+
+  // СКРЫТОСТЬ и ЦЕНЗУРА — два разных явления, и их нельзя путать:
+  //
+  //   masked  — показывать МАСКУ ВМЕСТО лица. Значения у клиента либо нет вовсе (сервер придержал),
+  //             либо оно объявлено секретным. Под пылью — чистый фон: показывать нечего.
+  //   censored — лицо рисуется НАСТОЯЩЕЕ, а пыль ложится ПОВЕРХ него фильтром. Значение у клиента
+  //             есть, но смотреть на него сейчас нельзя. Работает на ЛЮБОМ лице: числовом,
+  //             кастомном, каком угодно.
+  //
+  // Отсюда и разделение полей: masked меняет ТЕКСТУРУ, censored — только слой пыли над ней.
   private get masked(): boolean {
     return this._concealed || !this.hasValue;
+  }
+
+  /** Нужна ли этой карте пыль вообще (маска ИЛИ фильтр) — по этому признаку она лениво строится. */
+  private get dusty(): boolean {
+    return this.masked || this._censored;
   }
 
   /** Переключить скрытость в рантайме: перерисовать лицо (при надобности — лениво построить «пыль»). */
@@ -183,10 +226,27 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.refaceMasked();
   }
 
-  /** Есть ли что подглядеть: карта скрыта ИЛИ лежит рубашкой. ЧИСТЫЙ предикат (без мутаций) —
-   *  зона ПОДГЛЯДЕТЬ читает его для armed-текста («давай подсмотрим?» vs «зачем?»). */
+  /** Покрутить рычаги живой пыли (размер частицы, разлёт, жизнь, мерцание). Нужен стенду и
+   *  каталогу: без него параметры пыли задаются только при рождении карты и «поиграться» с ними
+   *  нельзя — пришлось бы пересобирать сцену на каждый шаг ползунка. */
+  setDustParams(p: Partial<ParticleParams>): void {
+    this.dust?.setParams(p);
+  }
+
+  /** Переключить ЦЕНЗУРУ в рантайме. Лицо при этом не меняется — меняется только слой пыли над ним,
+   *  поэтому кросс-фейд текстуры (refaceMasked) тут не нужен: пыль сама наплывает через dustAlpha. */
+  setCensored(v: boolean): void {
+    if (v === this._censored) return;
+    this._censored = v;
+    // Через тот же путь, что и скрытость: под пылью печатается чистая подложка, и смену текстуры
+    // надо кросс-фейдить, иначе лицо щёлкает под ещё прозрачной пылью.
+    this.refaceMasked();
+  }
+
+  /** Есть ли что подглядеть: карта скрыта, зацензурена ИЛИ лежит рубашкой. ЧИСТЫЙ предикат (без
+   *  мутаций) — зона ПОДГЛЯДЕТЬ читает его для armed-текста («давай подсмотрим?» vs «зачем?»). */
   get canPeek(): boolean {
-    return this._concealed || !this.faceUp;
+    return this._concealed || this._censored || !this.faceUp;
   }
 
   /**
@@ -203,12 +263,15 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     if (!this.canPeek) return null;
     const wasFaceUp = this.faceUp;
     const wasConcealed = this._concealed;
+    const wasCensored = this._censored;
     if (!wasFaceUp) this.requestFlip();
     this.setConcealed(false);
+    this.setCensored(false); // фильтр снимаем тоже: иначе «подглядел» показывало бы пыль вместо лица
     this.peekBob = true;
     return () => {
       if (!wasFaceUp) this.requestFlip();
       this.setConcealed(wasConcealed);
+      this.setCensored(wasCensored);
       this.peekBob = false;
     };
   }
@@ -226,7 +289,8 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   // на скрытии это читалось как рывок под ещё прозрачной в начале пылью. Старую текстуру держим
   // тем же DUST_FADE_DUR кросс-фейдом поверх новой (см. fadeSprite/step/sync).
   private refaceMasked(): void {
-    if (this.masked && !this.dust) this.buildDust();
+    if (this.dusty && !this.dust) this.buildDust();
+    else this.dust?.setPoints(this.dustSeeds()); // лицо сменилось — пыль обязана поехать за ним
     const oldTex = this.baseSprite.texture;
     this.paint(); // маска → чистый фон под пылью; иначе — настоящее лицо (пыль гаснет в sync)
     if (this.baseSprite.texture === oldTex) return;
@@ -237,9 +301,17 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.fadeT = 0;
   }
 
-  /** Видна ли сейчас пыль (маска, лицом вверх, вне переворота/горения) — тогда её крутим, цикл не спит. */
+  /**
+   * Показываем ли пыль вообще. Требование «лицом вверх» здесь принципиально: рубашка ничего не
+   * прячет — она и так публична, — поэтому цензурить её нечего и незачем.
+   */
+  private get dustShown(): boolean {
+    return this.dust !== null && this.dusty && this.faceUp;
+  }
+
+  /** Видна ли сейчас пыль (вне переворота/горения) — тогда её крутим, цикл не спит. */
   private get dustActive(): boolean {
-    return this.dust !== null && this.masked && this.faceUp && !this.flip && !this.dying && !this.dead;
+    return this.dustShown && !this.flip && !this.dying && !this.dead;
   }
 
   get scaleFactor(): number {
@@ -314,6 +386,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
       if (this.flip.t >= this.flip.dur) {
         this.faceUp = !this.flip.fromFaceUp;
         this.flip = null;
+        this.dust?.setPoints(this.dustSeeds()); // сторона сменилась — пыль смазывает уже её
         this.paint();
       }
     }
@@ -432,15 +505,29 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
 
   // ——— отрисовка ———
 
-  private faceTex(faceUp: boolean): Texture {
+  /** Лицо БЕЗ учёта цензуры — то, что карта показала бы, не будь на ней пыли. Из него же строится
+   *  облако пыли: смазывать надо именно это. */
+  private plainFaceTex(faceUp: boolean): Texture {
     if (!faceUp) return this.tex.back(this.back);
-    // Особые лица: скрытая (чистый фон под живой «пылью»; статичный фак — запас) и джокер; иначе числовое.
-    if (this.masked) return this.dust ? this.tex.hiddenBg() : this.tex.hiddenFace();
+    if (this.masked) return this.tex.hiddenFace(); // значения нет/оно секретно → статичный фак
     if (this.custom) {
       const t = this.tex.customFace(this.custom);
       if (t) return t; // неизвестный id → падаем на обычное число
     }
     return this.tex.face(this._card, this.fourColor, this.faceStyle);
+  }
+
+  /**
+   * Что реально печатается в спрайт. Под живой пылью — ЧИСТАЯ подложка, а не лицо: иначе видно и
+   * то, и другое сразу, и цензура перестаёт быть цензурой. Всё, что должно читаться сквозь пыль,
+   * несут сами частицы (они и есть смаз этого лица).
+   */
+  private faceTex(faceUp: boolean): Texture {
+    // Подложку подменяем ровно тогда, когда пыль реально будет нарисована. Иначе перевёрнутая
+    // зацензуренная карта показывала бы чистую пластину вместо рубашки: пыль на ней не рисуется
+    // (прятать нечего), а лицо уже подменено — карта выходила пустой.
+    if (this.dustShown) return this.tex.hiddenBg();
+    return this.plainFaceTex(faceUp);
   }
 
   private paint(): void {

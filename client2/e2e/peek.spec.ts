@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 // рассмотреть, потом сама возвращает скрытность и карту домой. Повторный драг во время показа
 // не отменяет возврат: показ ВСЕГДА временный — скрытность вернётся по концу драга или по
 // истечении PEEK_DUR, что раньше (см. playgroundEngine.ts onCardGrab/resolveGrabbedPeeks).
-// Источник карты — «скрытая (пыль)» из ряда «Карты — варианты»
+// Источник карты — «скрытая (нет лица)» из ряда «Карты — варианты»
 // (STORIES[2]), тот же приём, что уже используют тесты ПЕРЕВОРОТ/СЖЕЧЬ в sandbox.spec.ts.
 //
 // Три состояния подписи зоны (rest/armed/hot — см. DropZone.ts): в покое — «ПОДГЛЯДЕТЬ»; пока
@@ -53,21 +53,21 @@ test.describe("песочница — дропзона ПОДГЛЯДЕТЬ", ()
 
   test("дроп на ПОДГЛЯДЕТЬ раскрывает карту, а спустя 3 сек сама прячет и возвращает домой", async ({ page }) => {
     const h1 = await hooks(page);
-    const home = h1.storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const home = h1.storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     expect(home).toBeTruthy();
 
     await dragTo(page, home, h1.zones["ПОДГЛЯДЕТЬ"]!);
     await page.waitForTimeout(700); // осесть на дроп-позиции
-    const revealed = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const revealed = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     expect(revealed.concealed).toBe(false);
     expect(revealed.faceUp).toBe(true);
 
     await page.waitForTimeout(3200); // пересечь PEEK_DUR=3с от дропа
-    const restored = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const restored = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     expect(restored.concealed).toBe(true); // пыль вернулась
 
     await page.waitForTimeout(600); // дать пружине доехать домой
-    const back = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const back = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     expect(Math.hypot(back.x - home.x, back.y - home.y)).toBeLessThan(20);
   });
 
@@ -77,12 +77,12 @@ test.describe("песочница — дропзона ПОДГЛЯДЕТЬ", ()
   // поведения, от которого в коде осознанно отказались (см. resolveGrabbedPeeks).
   test("abort: повторный драг во время показа — по концу драга скрытность ВОЗВРАЩАЕТСЯ, карта едет домой", async ({ page }) => {
     const h1 = await hooks(page);
-    const home = h1.storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const home = h1.storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
 
     await dragTo(page, home, h1.zones["ПОДГЛЯДЕТЬ"]!);
     await page.waitForTimeout(400); // заведомо меньше PEEK_DUR=3с
 
-    const midway = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const midway = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     expect(midway.concealed).toBe(false); // ещё «подсмотрели»
 
     // Реальный повторный драг — забираем карту с её текущей (замёрзшей) позиции.
@@ -93,7 +93,7 @@ test.describe("песочница — дропзона ПОДГЛЯДЕТЬ", ()
     await page.mouse.up();
 
     await page.waitForTimeout(4000); // далеко за PEEK_DUR — к этому моменту показ закрыт в любом случае
-    const after = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const after = (await hooks(page)).storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     expect(after.concealed).toBe(true); // пыль вернулась: показ временный, перехватом его не удержать
     // МЕСТО abort тоже не отнимает: карта возвращается домой обычной пружиной. Раньше она уезжала
     // под весь контент («свободное падение» из тикета буквально) и терялась насовсем — см. #47.
@@ -121,7 +121,7 @@ test.describe("песочница — дропзона ПОДГЛЯДЕТЬ", ()
     expect(h1.zoneArmed["ПОДГЛЯДЕТЬ"]).toBe(false);
     expect(h1.zoneHot["ПОДГЛЯДЕТЬ"]).toBe(false); // rest
 
-    const home = h1.storyCards.find((c) => c.caption === "скрытая (пыль)")!;
+    const home = h1.storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
     const zone = h1.zones["ПОДГЛЯДЕТЬ"]!;
     const box = (await page.locator("canvas").boundingBox())!;
 

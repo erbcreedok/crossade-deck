@@ -8,7 +8,7 @@ import { pickArgs, type CardArgs } from "./cardArgs";
 // канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
 // (какие элементы переезжают из песочницы, решает он).
 
-const KEYS = ["card", "faceUp", "hidden", "back", "faceStyle", "fourColor", "custom", "torn", "size", "rest", "draggable", "flippable"] as const;
+const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "rest", "draggable", "flippable"] as const;
 const { argTypes, apply } = pickArgs(KEYS);
 
 type Args = Pick<CardArgs, (typeof KEYS)[number]>;
@@ -20,6 +20,7 @@ const meta: Meta<Args> = {
     card: "A♠",
     faceUp: true,
     hidden: false,
+    censored: false,
     back: "ruby",
     faceStyle: "pips",
     fourColor: false,
@@ -50,8 +51,21 @@ type Story = StoryObj<Args>;
 /** Всё по умолчанию — точка отсчёта: как карта выглядит, если ничего не трогать. */
 export const Default: Story = {};
 
-/** Скрытость — РЕЖИМ секретности (Concealable), а не «другая карта»: значение прячется живой пылью. */
+/**
+ * СКРЫТАЯ — режим секретности: значение объявлено секретным, и лицо ЗАМЕНЯЕТСЯ чистым фоном.
+ * Под пылью показывать нечего — в этом и смысл. Не путать со следующей.
+ */
 export const Concealed: Story = { args: { hidden: true } };
+
+/**
+ * ЗАЦЕНЗУРЕНА — фильтр: настоящее лицо рисуется как есть, пыль ложится ПОВЕРХ него. Значение у
+ * клиента есть, смотреть на него сейчас нельзя. Разница со «скрытой» видна, если снять фильтр:
+ * под ним окажется та самая карта, а не пустой фон.
+ */
+export const Censored: Story = { args: { censored: true, card: "Q♥" } };
+
+/** Оба режима разом: лицо заменено маской И поверх неё фильтр. Так выглядела «скрытая» до разделения. */
+export const ConcealedAndCensored: Story = { args: { hidden: true, censored: true } };
 
 /** Рубашкой вверх — не то же самое, что скрытая: значение не придержано, карта просто перевёрнута. */
 export const FaceDown: Story = { args: { faceUp: false } };

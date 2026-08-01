@@ -1,6 +1,6 @@
 import type { Card, CardOptions, RestState } from "../../game/ui/Card";
 import type { CardBackId } from "../../game/cardBack";
-import type { FaceStyle } from "../../game/engine/cardTextures";
+import { CUSTOM_FACE_IDS, type FaceStyle } from "../../game/engine/cardTextures";
 import type { ArgTypeEntry } from "../harness/paramArgs";
 import type { ApplyPlan } from "../harness/argApply";
 import { pickSpecs, type ArgSpec } from "../harness/argSpec";
@@ -29,92 +29,116 @@ const BACKS: CardBackId[] = ["ruby", "mosaic", "emerald", "amethyst", "ember", "
 const REST: RestState[] = ["idle", "floating", "held"];
 const FACE_STYLES: FaceStyle[] = ["pips", "symbol"];
 
-function sel(name: string, options: string[]): ArgTypeEntry {
-  return { name, control: { type: "select" }, options };
+type Control = Omit<ArgTypeEntry, "name">;
+
+function sel(options: string[]): Control {
+  return { control: { type: "select" }, options };
 }
-function bool(name: string): ArgTypeEntry {
-  return { name, control: { type: "boolean" } };
+function bool(): Control {
+  return { control: { type: "boolean" } };
 }
 
 export const CARD_ARGS = {
   // ——— идентичность ———
   id: {
     argType: false, // ключ адресации, а не внешний вид: крутить его в панели бессмысленно
+    label: "ключ карты",
     apply: "rebuild",
     hint: "опаковый КЛЮЧ карты; по нему её адресуют и анимируют. Значение — отдельно, см. card",
   },
   card: {
     // Именно текст, а не выбор из 52 вариантов: карта живёт и с придержанным значением (""),
     // и с кастом-лицом — список вариантов тут врал бы о допустимом множестве.
-    argType: { name: "значение (ранг+масть)", control: { type: "text" } },
+    argType: { control: { type: "text" } },
+    label: "значение (ранг+масть)",
     apply: (c, v) => c.setValue(String(v ?? "")),
     hint: '«A♠», «10♥». Пустая строка — значение ПРИДЕРЖАНО (сервер его ещё не раскрыл), карта маскируется',
   },
   tags: {
     argType: false, // множество строк; контролом не выразить, а игровые теги задаёт игра, не стенд
+    label: "игровые теги",
     apply: "rebuild",
     hint: "игровые теги поверх авто (card/suit:♦/rank:7/color:red): role:trump, team:blue",
   },
 
   // ——— что видно ———
   faceUp: {
-    argType: bool("лицом вверх"),
+    argType: bool(),
+    label: "лицом вверх",
     // Живьём — настоящим переворотом (0.45 с), а не подменой текстуры: иначе каталог показывал бы
     // мгновенную смену, которой в игре не бывает. Непереворачиваемая карта требует пересборки.
     apply: (c, v) => (c.faceUp === Boolean(v) ? undefined : c.requestFlip() ? undefined : "rebuild"),
     hint: "лицо или рубашка. У flippable:false переворот запрещён — тогда только пересборкой",
   },
   hidden: {
-    argType: bool("скрыта (режим секретности)"),
+    argType: bool(),
+    label: "скрыта (режим секретности)",
     apply: (c, v) => c.setConcealed(Boolean(v)),
-    hint: "РЕЖИМ секретности: прячет значение реальной карты. Вид — чистый фон + живая «TG-пыль»",
+    hint: "РЕЖИМ секретности: значение объявлено секретным, лицо ЗАМЕНЯЕТСЯ чистым фоном под пылью. Не путать с censored",
+  },
+  censored: {
+    argType: bool(),
+    label: "зацензурена (фильтр-пыль)",
+    apply: (c, v) => c.setCensored(Boolean(v)),
+    hint: "ФИЛЬТР: настоящее лицо рисуется как есть, «TG-пыль» ложится ПОВЕРХ него. Работает на любом лице — числовом, джокере, каком угодно",
   },
   back: {
-    argType: sel("рубашка", BACKS),
+    argType: sel(BACKS),
+    label: "рубашка",
     apply: "rebuild", // текстура печётся при создании
     hint: "скин рубашки, 8 штук (cardBack.ts)",
   },
   faceStyle: {
-    argType: sel("стиль лица", FACE_STYLES),
+    argType: sel(FACE_STYLES),
+    label: "стиль лица",
     apply: "rebuild",
     hint: "pips — классическая раскладка значков; symbol — один крупный знак масти",
   },
   fourColor: {
-    argType: bool("4-цветная колода"),
+    argType: bool(),
+    label: "4-цветная колода",
     apply: "rebuild",
     hint: "у каждой масти свой цвет, а не только красный/чёрный",
   },
   custom: {
-    argType: sel("кастом-лицо", ["", "joker"]),
+    // Список берём ИЗ РЕЕСТРА, а не переписываем рядом: иначе новое кастом-лицо появлялось бы в
+    // движке и молча отсутствовало в каталоге — ровно то расхождение, ради которого он заведён.
+    argType: sel(["", ...CUSTOM_FACE_IDS]),
+    label: "кастом-лицо",
     apply: "rebuild",
-    hint: "id лица из реестра CUSTOM_FACES; пустая строка — обычное лицо по рангу",
+    hint: "id лица из реестра CUSTOM_FACES (joker / joker-bw / finger); пустая строка — обычное лицо по рангу",
   },
   torn: {
-    argType: bool("порванная"),
+    argType: bool(),
+    label: "порванная",
     apply: "rebuild",
     hint: "накладывает зигзаг разрыва поверх лица",
   },
 
   // ——— размер и план ———
   size: {
-    argType: { name: "размер ×", control: { type: "range", min: 0.4, max: 1.6, step: 0.05 } },
+    argType: { control: { type: "range", min: 0.4, max: 1.6, step: 0.05 } },
+    label: "размер ×",
     apply: "rebuild", // базовый масштаб зашит в текстуру и в габарит
     hint: "множитель размера поверх базового; на габарит витрины влияет сразу",
   },
   rest: {
-    argType: sel("план покоя", REST),
+    argType: sel(REST),
+    label: "план покоя",
     apply: "rebuild",
     hint: "idle — лежит на столе; floating — левитирует («в руке»), сама покачивается; held — её держат",
   },
 
   // ——— способности (ISP-интерфейсы из engine/element.ts) ———
   draggable: {
-    argType: bool("можно тащить"),
+    argType: bool(),
+    label: "можно тащить",
     apply: "rebuild", // способность фиксируется конструктором
     hint: "Draggable. false — драг отбивается «стоп»-качанием (blockNudge), карта остаётся на месте",
   },
   flippable: {
-    argType: bool("переворачивается"),
+    argType: bool(),
+    label: "переворачивается",
     apply: "rebuild",
     hint: "Flippable. false — рисуется замок, requestFlip() всегда возвращает false",
   },

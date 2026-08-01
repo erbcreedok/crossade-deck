@@ -47,7 +47,7 @@ type Story = StoryObj<Args>;
 export const BoolToggle: Story = {
   render: () => {
     const s = { on: false };
-    const cfg: Configurable = { params: () => [{ kind: "bool", label: "показывать подсказки", get: () => s.on, set: (v) => (s.on = v) }] };
+    const cfg: Configurable = { params: () => [{ kind: "bool", id: "showHints", label: "показывать подсказки", get: () => s.on, set: (v) => (s.on = v) }] };
     return stage(cfg, "bool → Toggle");
   },
 };
@@ -56,7 +56,7 @@ export const BoolToggle: Story = {
 export const NumberStepper: Story = {
   render: () => {
     const s = { n: 3 };
-    const cfg: Configurable = { params: () => [{ kind: "number", label: "колонок", min: 1, max: 8, get: () => s.n, set: (v) => (s.n = v) }] };
+    const cfg: Configurable = { params: () => [{ kind: "number", id: "cols", label: "колонок", min: 1, max: 8, get: () => s.n, set: (v) => (s.n = v) }] };
     return stage(cfg, "number → Stepper");
   },
 };
@@ -66,7 +66,7 @@ export const NumberStepperFormatted: Story = {
   render: () => {
     const s = { n: 4 };
     const cfg: Configurable = {
-      params: () => [{ kind: "number", label: "строк", min: 0, max: 9, format: (v) => (v === 0 ? "без предела" : String(v)), get: () => s.n, set: (v) => (s.n = v) }],
+      params: () => [{ kind: "number", id: "rows", label: "строк", min: 0, max: 9, format: (v) => (v === 0 ? "без предела" : String(v)), get: () => s.n, set: (v) => (s.n = v) }],
     };
     return stage(cfg, "number + format → Stepper");
   },
@@ -77,7 +77,7 @@ export const ChoiceSegmented: Story = {
   render: () => {
     const s = { i: 1 };
     const cfg: Configurable = {
-      params: () => [{ kind: "choice", label: "на занятый слот", options: ["сшить", "поменять", "забрать", "отказать"], get: () => s.i, set: (v) => (s.i = v) }],
+      params: () => [{ kind: "choice", id: "onOccupied", label: "на занятый слот", options: ["сшить", "поменять", "забрать", "отказать"], get: () => s.i, set: (v) => (s.i = v) }],
     };
     return stage(cfg, "choice → Segmented");
   },

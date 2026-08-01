@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { CARD_VARIANTS } from "../src/game/kit/cardVariants";
 
 // Песочница: движок рисует карты/тени, вьюпорт зумит и панится (поведение движка в целом).
 test.describe("песочница", () => {
@@ -63,6 +64,42 @@ test.describe("песочница", () => {
     expect(t1).toBeGreaterThan(t0); // после отпускания скролл продолжился по инерции
   });
 });
+
+/**
+ * Подвести цель под экран камерой песочницы.
+ *
+ * Тесты стенда раньше держались на том, что «всё влезает без прокрутки»: под это трижды поднимали
+ * высоту вьюпорта (см. историю комментария ниже), и каждое добавление контента ломало их снова —
+ * секции ниже уезжали за нижний край, клик уходил мимо канваса, а падал тест на совсем другую тему.
+ * Прокрутка убирает эту зависимость: сколько бы контента ни прибавилось выше, цель окажется на виду.
+ *
+ * Скролл считаем ЛИНЕЙНО по двум замерам, а не подбираем шагами: камера отображает долю в смещение
+ * линейно, поэтому двух точек достаточно и прогон не растягивается.
+ */
+async function bringIntoView(
+  page: import("@playwright/test").Page,
+  read: () => Promise<{ x: number; y: number } | null>,
+): Promise<void> {
+  const box = (await page.locator("canvas").boundingBox())!;
+  const setScroll = (f: number) => page.evaluate((v) => (window as unknown as { __fd: { setScrollY(f: number): void } }).__fd.setScrollY(v), f);
+  const targetY = box.height / 2;
+
+  const y0 = (await read())?.y;
+  if (y0 === undefined) return;
+  if (y0 > 60 && y0 < box.height - 60) return; // уже на виду — камеру не трогаем
+
+  await setScroll(0);
+  await page.waitForTimeout(120);
+  const a = (await read())?.y;
+  await setScroll(1);
+  await page.waitForTimeout(120);
+  const b = (await read())?.y;
+  if (a === undefined || b === undefined || a === b) return;
+
+  const f = Math.max(0, Math.min(1, (a - targetY) / (a - b)));
+  await setScroll(f);
+  await page.waitForTimeout(200);
+}
 
 // Действия через дропзоны (флип/сжечь) — высокий вьюпорт, чтобы зоны были на экране.
 // Координаты берём из тест-хука движка (window.__fd.testHooks), а не пиксельным гаданием.
@@ -261,6 +298,7 @@ test.describe("песочница — действия", () => {
   });
 
   test("тумблер «в руку»: пачка сжимается тесно при драге (не врассыпную)", async ({ page }) => {
+    await bringIntoView(page, async () => (await hooks(page)).stackSqueezeAt[1] ?? null);
     const box = (await page.locator("canvas").boundingBox())!;
     let h = await hooks(page);
     await page.mouse.click(box.x + h.stackSqueezeAt[1]!.x, box.y + h.stackSqueezeAt[1]!.y); // «в руку»
@@ -279,6 +317,7 @@ test.describe("песочница — действия", () => {
   });
 
   test("тумблер «реордер стопок: выкл» — тянешь верхнюю карту, порядок НЕ меняется", async ({ page }) => {
+    await bringIntoView(page, async () => (await hooks(page)).stackReorderAt);
     const box = (await page.locator("canvas").boundingBox())!;
     let h = await hooks(page);
     expect(h.stackReorderAt).not.toBeNull();
@@ -389,10 +428,10 @@ test.describe("песочница — топбар", () => {
   });
 });
 
-// «Карты — варианты»: ряд из 12 карточек-примеров (STORIES в playgroundEngine.ts). Раньше был
-// покрыт только индекс 0 («открытая», через firstCard в других тестах) — остальные 11 рендерились,
+// «Карты — варианты»: ряд карточек-примеров (CARD_VARIANTS в game/kit/cardVariants.ts). Раньше был
+// покрыт только индекс 0 («открытая», через firstCard в других тестах) — остальные рендерились,
 // но ни одна их особенность не проверялась. storyCards в тест-хуке отдаёт живые пропы каждой карты
-// по тому же индексу, что и STORIES (ряд спавнится первым — см. комментарий у хука).
+// по тому же индексу, что и CARD_VARIANTS (ряд спавнится первым — см. комментарий у хука).
 test.describe("песочница — Карты: варианты", () => {
   const hooks = (page: import("@playwright/test").Page) =>
     page.evaluate(
@@ -418,8 +457,10 @@ test.describe("песочница — Карты: варианты", () => {
   // ФОКУСНОМУ тесту на каждый непокрытый вариант (issue #37): падает — сразу видно КАКОЙ проп ушёл.
   const find = async (page: import("@playwright/test").Page, caption: string) => (await hooks(page)).storyCards.find((c) => c.caption === caption)!;
 
-  test("ряд несёт все 12 карточек-примеров", async ({ page }) => {
-    expect((await hooks(page)).storyCards).toHaveLength(12);
+  // Число берём ИЗ СПИСКА, а не константой: иначе каждый новый вариант карты ронял бы этот тест
+  // на ровном месте, и правкой числа занимались бы вместо разбора.
+  test("ряд несёт все карточки-примеры из CARD_VARIANTS", async ({ page }) => {
+    expect((await hooks(page)).storyCards).toHaveLength(CARD_VARIANTS.length);
   });
 
   test("«закрытая»: faceUp:false — рубашкой вверх, не в режиме секретности", async ({ page }) => {
@@ -470,16 +511,43 @@ test.describe("песочница — Карты: варианты", () => {
     expect(Math.hypot(during.x - card.x, during.y - card.y)).toBeLessThan(6);
   });
 
-  test("«джокер»: custom:\"joker\" резолвится через CUSTOM_FACES — лицо ≠ обычной числовой карты", async ({ page }) => {
+  // Кастом-лица: id обязан РЕЗОЛВИТЬСЯ в реестре, а не молча откатываться на числовое лицо
+  // (CardTextureCache.customFace возвращает null для неизвестного id — и карта тогда неотличима от
+  // обычной). Доказываем это картинкой: снимок кастома не совпадает со снимком обычной карты.
+  //
+  // Каждую карту подводим под экран ОТДЕЛЬНО: ряд вариантов выше вьюпорта, и одновременно на экране
+  // они не помещаются. Клип за пределами экрана — ошибка Playwright, а не «не совпало».
+  const shotOf = async (page: import("@playwright/test").Page, caption: string) => {
+    await bringIntoView(page, async () => (await hooks(page)).storyCards.find((c) => c.caption === caption) ?? null);
+    const c = (await hooks(page)).storyCards.find((x) => x.caption === caption)!;
+    return page.screenshot({ clip: { x: Math.max(0, c.x - 55), y: Math.max(0, c.y - 80), width: 110, height: 160 } });
+  };
+
+  for (const [caption, id] of [
+    ["джокер", "joker"],
+    ["джокер ч/б", "joker-bw"],
+    ["фак", "finger"],
+  ] as const) {
+    test(`«${caption}»: custom:"${id}" резолвится через CUSTOM_FACES — лицо ≠ обычной числовой карты`, async ({ page }) => {
+      expect((await hooks(page)).storyCards.find((c) => c.caption === caption)!.custom).toBe(id);
+      const custom = await shotOf(page, caption);
+      const plain = await shotOf(page, "открытая"); // A♠, обычное числовое лицо
+      expect(Buffer.compare(custom, plain)).not.toBe(0);
+    });
+  }
+
+  test("«джокер ч/б» и «джокер» — РАЗНЫЕ лица, а не один и тот же кастом под двумя подписями", async ({ page }) => {
+    expect(Buffer.compare(await shotOf(page, "джокер"), await shotOf(page, "джокер ч/б"))).not.toBe(0);
+  });
+
+  test("«цензура»: настоящее лицо на месте, отличается от «скрытой», у которой лица нет", async ({ page }) => {
     const h = await hooks(page);
-    const joker = h.storyCards.find((c) => c.caption === "джокер")!;
-    const plain = h.storyCards.find((c) => c.caption === "открытая")!; // A♠, обычное числовое лицо
-    expect(joker.custom).toBe("joker"); // id, который Card отдаёт в CardTextureCache.customFace → CUSTOM_FACES["joker"]
-    // Неизвестный custom-id откатился бы на числовое лицо (см. customFace → null). Раз джокер
-    // визуально отличается от обычной карты — id РЕАЛЬНО резолвнулся в реестре CUSTOM_FACES.
-    const clipAt = (c: { x: number; y: number }) => ({ x: c.x - 60, y: c.y - 85, width: 120, height: 170 });
-    const jokerShot = await page.screenshot({ clip: clipAt(joker) });
-    const plainShot = await page.screenshot({ clip: clipAt(plain) });
-    expect(Buffer.compare(jokerShot, plainShot)).not.toBe(0);
+    const censored = h.storyCards.find((c) => c.caption === "цензура (фильтр)")!;
+    const concealed = h.storyCards.find((c) => c.caption === "скрытая (нет лица)")!;
+    expect(censored.censored, "цензура — отдельный флаг").toBe(true);
+    expect(censored.concealed, "цензура НЕ делает карту скрытой").toBe(false);
+    expect(concealed.concealed).toBe(true);
+    expect(concealed.censored).toBe(false);
+    expect(Buffer.compare(await shotOf(page, "цензура (фильтр)"), await shotOf(page, "скрытая (нет лица)"))).not.toBe(0);
   });
 });

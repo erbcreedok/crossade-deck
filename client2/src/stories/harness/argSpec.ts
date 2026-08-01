@@ -11,8 +11,17 @@ import type { Applier, ApplyPlan } from "./argApply";
 // Обобщать её нечего и незачем: она про конкретный тип опций.
 
 export interface ArgSpec<T, A> {
-  /** Контрол в панели. `false` — опция сознательно НЕ крутится (ключ адресации, коллбек и т.п.). */
-  argType: ArgTypeEntry | false;
+  /**
+   * Контрол в панели. `false` — опция сознательно НЕ крутится (ключ адресации, коллбек и т.п.).
+   *
+   * `name` тут НЕ указывают: именем контрола всегда становится сам ключ опции — то, что написано в
+   * коде компонента. Человеческая подпись живёт в `label`, пояснение — в `hint`; оба уезжают в
+   * `description`. Иначе в панели стояло бы слово, которого в коде нет, и по нему нельзя ни искать,
+   * ни сослаться в тесте.
+   */
+  argType: Omit<ArgTypeEntry, "name"> | false;
+  /** Человеческая подпись параметра. Здесь и только здесь уместен русский текст. */
+  label: string;
   /** Как применить правку: живой сеттер или «пересобрать сцену» (см. argApply.ts). */
   apply: Applier<T, A> | "rebuild";
   /** Одной строкой: что опция делает. Уходит в подпись контрола — это и есть шпаргалка. */
@@ -35,9 +44,10 @@ export function pickSpecs<T, A extends object, K extends string>(
   const apply: Record<string, ArgSpec<T, A>["apply"]> = {};
   for (const k of keys) {
     const spec = specs[k];
-    // Подпись контрола = человеческое имя + пояснение. Панель тем самым отвечает на вопрос «что
-    // это вообще делает», не отсылая читать исходник компонента.
-    if (spec.argType) argTypes[k] = { ...spec.argType, name: `${spec.argType.name} — ${spec.hint}` };
+    // Имя контрола = ключ опции (её настоящее имя в коде), пояснение = подпись + подсказка.
+    // Панель тем самым и называет параметр так, как он зовётся, и отвечает на вопрос «что это
+    // вообще делает», не отсылая читать исходник компонента.
+    if (spec.argType) argTypes[k] = { ...spec.argType, name: k, description: `${spec.label} — ${spec.hint}` };
     apply[k] = spec.apply;
   }
   return { argTypes, apply: apply as ApplyPlan<T, Pick<A, K & keyof A>> };

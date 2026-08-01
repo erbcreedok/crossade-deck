@@ -8,7 +8,14 @@ import {
   makeShadowTexture,
   type FaceStyle,
 } from "../engine/cardTextures";
-import { buildFingerDustPoints } from "../engine/censorSource";
+import { buildFingerDustPoints, buildTextureDustPoints } from "../engine/censorSource";
+import type { DustPoint } from "../censorConfig";
+
+/** Шаг сетки сэмплирования лица и базовая плотность облака. Отдельно от DANCE_DEFAULT.block: тот —
+ *  рычаг ВИДА частицы, выбранный владельцем на стенде, а это — разрешение смаза. Связывать их одним
+ *  числом значило бы, что попытка укрупнить точку тайком огрубляет и рисунок. */
+const DUST_GRID = 4;
+const DUST_PER_CELL = 1;
 import type { CardBackId } from "../cardBack";
 
 // Кэш текстур карт по параметрам: одна запечённая текстура на уникальную комбинацию
@@ -21,6 +28,7 @@ export class CardTextureCache {
   private hiddenBgTex: Texture | null = null;
   private customTex = new Map<string, Texture>();
   private dustPts: Array<{ x: number; y: number }> | null = null;
+  private faceDust = new Map<string, DustPoint[]>();
 
   constructor(private readonly app: Application) {}
 
@@ -41,10 +49,27 @@ export class CardTextureCache {
     return this.hiddenBgTex;
   }
 
-  /** Облако точек рождения «пыли» по силуэту фака, центрированное в центре карты (0,0). Кэш на комнату. */
+  /** Облако точек по силуэту фака — запасной путь (стенд /motion, стол). Кэш на комнату. */
   dustPoints(): Array<{ x: number; y: number }> {
     if (!this.dustPts) this.dustPts = buildFingerDustPoints(this.app, 4, 0, 0);
     return this.dustPts;
+  }
+
+  /**
+   * Облако точек по КОНКРЕТНОМУ лицу: пыль должна быть смазом того, что под ней, а не универсальной
+   * жёлтой крошкой. Ключ — тот же, по которому лицо лежит в кэше текстур, поэтому одинаковые карты
+   * делят одно облако и пересчёт на каждую карту не нужен.
+   *
+   * Шаг сетки берём из DANCE_DEFAULT.block, а не из своей константы: «частица» — уже существующий
+   * рычаг цензуры, и второй источник правды тут разъехался бы с ним при первой правке.
+   */
+  faceDustPoints(key: string, tex: Texture): DustPoint[] {
+    let pts = this.faceDust.get(key);
+    if (!pts) {
+      pts = buildTextureDustPoints(this.app, tex, DUST_GRID, 0, 0, DUST_PER_CELL);
+      this.faceDust.set(key, pts);
+    }
+    return pts;
   }
 
   /** Кастом-лицо по id из реестра CUSTOM_FACES (напр. «joker»). null — id неизвестен (Card покажет число). */
@@ -92,5 +117,6 @@ export class CardTextureCache {
     this.hiddenTex = null;
     this.hiddenBgTex = null;
     this.dustPts = null;
+    this.faceDust.clear();
   }
 }

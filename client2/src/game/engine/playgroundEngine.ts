@@ -382,6 +382,7 @@ export class PlaygroundEngine extends SceneEngine {
         return z;
       },
       needsPeek: (el) => this.needsPeek(el),
+      element: (id) => this.byId.get(id),
       controls: (cfg, at, onChange) =>
         attachControls(cfg, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: onChange ?? (() => this.wake()) }, at),
       wake: () => this.wake(),
@@ -519,7 +520,7 @@ export class PlaygroundEngine extends SceneEngine {
     topbar: Record<string, { x: number; y: number; w: number; h: number }>; // канвасный топбар — DOM-узлов у него нет
     draggingId: string | null;
     lastNamedSuits: string[]; // последний лог бокса «называю масть» (#62) — дедуп мастей + «???»
-    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean }[];
+    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean; censored: boolean }[];
   } {
     // Перевод контент→экран берём у общего слоя: он один знает про инсет HUD (топбар), и своя
     // формула тут разъехалась бы с реальным положением карт ровно на высоту панели.
@@ -647,7 +648,7 @@ export class PlaygroundEngine extends SceneEngine {
       storyCards: CARD_VARIANTS.map((s, i) => {
         const c = this.cards[i]?.card;
         if (!c) return null;
-        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, rest: c.rest, concealed: c.concealed };
+        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, rest: c.rest, concealed: c.concealed, censored: c.censored };
       }).filter((x): x is NonNullable<typeof x> => x !== null),
     };
   }
@@ -853,7 +854,7 @@ export class PlaygroundEngine extends SceneEngine {
       // себе — про ОДНУ стопку; адаптер сверху даёт attachControls+Toggle, не меняя поведение
       // «один переключатель — все стопки»).
       const reorderAll: Configurable = {
-        params: () => [{ kind: "bool", label: "реордер стопок:", get: () => this.stacks[0]?.stack.reorder ?? true, set: (v) => this.stacks.forEach((st) => (st.stack.reorder = v)) }],
+        params: () => [{ kind: "bool", id: "reorderAll", label: "реордер стопок:", get: () => this.stacks[0]?.stack.reorder ?? true, set: (v) => this.stacks.forEach((st) => (st.stack.reorder = v)) }],
       };
       const rc = this.sectionCtx().controls(reorderAll, { x: contentLeft, y });
       this.stackReorderToggle = rc.toggles[0] ?? null;

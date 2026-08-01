@@ -123,21 +123,21 @@ const drawFinger = (root: Container, cx: number, cy: number, sizePx: number, col
  * Лицо СКРЫТОЙ карты: обычная карта, но номинал — «?», а «масть» — средний палец (SVG-силуэт,
  * жёлтый). Контент (фак+«?») слегка ПИКСЕЛИЗОВАН (не гаусс): «якобы зацензурено». Рамка/тень — чёткие.
  */
-export function makeHiddenFaceTexture(app: Application): Texture {
-  const root = new Container();
-  const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
-  root.addChild(bg);
-
-  // Контент (фак+«?») собираем ОТДЕЛЬНО, чтобы запечь его в низком разрешении → пиксель-блоки.
+/**
+ * Композиция «фак-лица»: угловые «?»+палец и крупный палец по центру, как масть на тузе.
+ * Возвращается ОТДЕЛЬНЫМ контейнером, потому что у неё два потребителя с разной судьбой:
+ * скрытая карта запекает её в низком разрешении (пиксель-блоки «зацензурено»), а кастом-лицо
+ * «фак» рисует как есть, чётко. Один силуэт на оба вида — иначе они разъедутся при первой правке.
+ */
+function buildFingerContent(color: number): Container {
   const content = new Container();
   const makeCorner = (): Container => {
     const c = new Container();
-    const r = new Text({ text: "?", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: HIDDEN_FINGER } });
+    const r = new Text({ text: "?", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: color } });
     r.anchor.set(0.5);
     r.position.set(0, -12);
     c.addChild(r);
-    drawFinger(c, 0, 20, 22, HIDDEN_FINGER); // фак под «?» — SVG
+    drawFinger(c, 0, 20, 22, color); // фак под «?» — SVG
     return c;
   };
   const tl = makeCorner();
@@ -147,7 +147,22 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   br.position.set(TEX_W - 28, TEX_H - 42);
   br.rotation = Math.PI;
   content.addChild(br);
-  drawFinger(content, TEX_W / 2, TEX_H / 2 + 6, 118, HIDDEN_FINGER); // крупный фак по центру (как масть на тузе)
+  drawFinger(content, TEX_W / 2, TEX_H / 2 + 6, 118, color); // крупный фак по центру (как масть на тузе)
+  return content;
+}
+
+/** Кремовое лицо карты с краем — общая подложка всех рисованных лиц. */
+function faceBackdrop(): Graphics {
+  const bg = new Graphics();
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  return bg;
+}
+
+export function makeHiddenFaceTexture(app: Application): Texture {
+  const root = new Container();
+  root.addChild(faceBackdrop());
+
+  const content = buildFingerContent(HIDDEN_FINGER);
 
   // Пикселизация: текстура контента в 1/HIDDEN_PIX плотности, потом растягиваем nearest'ом на весь размер.
   const contentTex = app.renderer.generateTexture({ target: content, resolution: 1 / HIDDEN_PIX, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
@@ -164,6 +179,26 @@ export function makeHiddenFaceTexture(app: Application): Texture {
   const tex = app.renderer.generateTexture({ target: root, resolution: 2, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
   root.destroy({ children: true });
   contentTex.destroy(true);
+  return tex;
+}
+
+/**
+ * Кастом-лицо «ФАК»: та же композиция, что у скрытой карты, но ЧЁТКАЯ — без пикселизации.
+ *
+ * Разница между ними смысловая, а не только визуальная. Скрытая карта — это РЕЖИМ: значение у неё
+ * есть, оно просто спрятано, и «подглядеть» его раскроет. Эта карта — обычная карта, у которой
+ * такое ЛИЦО; прятать ей нечего, и раскрывать нечего. Пикселизация у скрытой поэтому и стоит:
+ * она сообщает «тут что-то заретушировано», а на самостоятельном лице это была бы ложь.
+ */
+export function makeFingerFaceTexture(app: Application): Texture {
+  const root = new Container();
+  root.addChild(faceBackdrop());
+  root.addChild(buildFingerContent(HIDDEN_FINGER));
+  const shade = new Graphics();
+  drawCardShade(shade);
+  root.addChild(shade);
+  const tex = app.renderer.generateTexture({ target: root, resolution: 2, frame: new Rectangle(0, 0, TEX_W, TEX_H) });
+  root.destroy({ children: true });
   return tex;
 }
 
@@ -186,24 +221,38 @@ export function makeHiddenBgTexture(app: Application): Texture {
 }
 
 /**
+ * Палитра джокера. Вынесена в ДАННЫЕ, потому что вариантов лица уже два и композиция у них общая:
+ * цветной и чёрно-белый различаются ровно набором чернил, а не рисунком. Городить второй рисунок
+ * значило бы завести две картинки, которые обязаны совпадать, но ничем к этому не принуждены.
+ */
+interface JokerPalette {
+  ink: number; // «J» по углам и подпись JOKER
+  hats: [number, number, number]; // три треугольника колпака
+  bell: number; // заливка бубенца
+  bellEdge: number; // обводка бубенца
+}
+
+const JOKER_COLOR: JokerPalette = { ink: 0x7b3fa0, hats: [0xc0392b, 0xe0a63a, 0x2f7d4f], bell: 0xf4ecd8, bellEdge: 0x8a7a4a };
+// Ч/б — не «обесцвеченный цветной», а свой набор серых с РАЗНОЙ светлотой: механическая desaturation
+// сплющила бы три треугольника колпака в один тон, и рисунок перестал бы читаться.
+const JOKER_MONO: JokerPalette = { ink: 0x2e2e2e, hats: [0x1f1f1f, 0x6e6e6e, 0xb4b4b4], bell: 0xf2f2f2, bellEdge: 0x555555 };
+
+/**
  * Кастомное лицо ДЖОКЕРА: шутовской колпак с бубенцами + «JOKER». Полностью рисованное —
  * пример карты со своим лицом, не числовой и не эмодзи.
  */
-export function makeJokerFaceTexture(app: Application): Texture {
+export function makeJokerFaceTexture(app: Application, palette: JokerPalette = JOKER_COLOR): Texture {
   const root = new Container();
   const cx = TEX_W / 2;
-  const purple = 0x7b3fa0;
 
-  const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
-  root.addChild(bg);
+  root.addChild(faceBackdrop());
 
   // Угловые «J».
   for (const [x, y, rot] of [
     [26, 40, 0],
     [TEX_W - 26, TEX_H - 40, Math.PI],
   ] as const) {
-    const j = new Text({ text: "J", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: purple } });
+    const j = new Text({ text: "J", style: { fontFamily: PIXEL_FONT, fontSize: 40, fill: palette.ink } });
     j.anchor.set(0.5);
     j.position.set(x, y);
     j.rotation = rot;
@@ -217,15 +266,15 @@ export function makeJokerFaceTexture(app: Application): Texture {
     hat.poly([bx - 14, 96, bx + 14, 96, tx, ty]).fill({ color });
     bells.push([tx, ty]);
   };
-  tri(cx - 26, cx - 42, 52, 0xc0392b);
-  tri(cx, cx, 38, 0xe0a63a);
-  tri(cx + 26, cx + 42, 52, 0x2f7d4f);
+  tri(cx - 26, cx - 42, 52, palette.hats[0]);
+  tri(cx, cx, 38, palette.hats[1]);
+  tri(cx + 26, cx + 42, 52, palette.hats[2]);
   root.addChild(hat);
   const bellsG = new Graphics();
-  for (const [bx, by] of bells) bellsG.circle(bx, by, 6).fill({ color: 0xf4ecd8 }).stroke({ width: 2, color: 0x8a7a4a });
+  for (const [bx, by] of bells) bellsG.circle(bx, by, 6).fill({ color: palette.bell }).stroke({ width: 2, color: palette.bellEdge });
   root.addChild(bellsG);
 
-  const label = new Text({ text: "JOKER", style: { fontFamily: PIXEL_FONT, fontSize: 30, fill: purple } });
+  const label = new Text({ text: "JOKER", style: { fontFamily: PIXEL_FONT, fontSize: 30, fill: palette.ink } });
   label.anchor.set(0.5);
   label.position.set(cx, 152);
   root.addChild(label);
@@ -245,8 +294,13 @@ export function makeJokerFaceTexture(app: Application): Texture {
  * добавить фабрику сюда; Card/движок не трогаем. Задел под registry элементов (ENGINE-UPGRADE).
  */
 export const CUSTOM_FACES: Record<string, (app: Application) => Texture> = {
-  joker: makeJokerFaceTexture,
+  joker: (app) => makeJokerFaceTexture(app, JOKER_COLOR),
+  "joker-bw": (app) => makeJokerFaceTexture(app, JOKER_MONO),
+  finger: makeFingerFaceTexture,
 };
+
+/** Порядок для витрин и контролов. Ключи реестра — не массив, а перечислять их надо стабильно. */
+export const CUSTOM_FACE_IDS: readonly string[] = ["joker", "joker-bw", "finger"];
 
 /** Рубашка по выбранному скину (см. cardBack.ts — там палитра и геометрия узора). */
 export function makeCardBackTexture(app: Application, backId: CardBackId): Texture {

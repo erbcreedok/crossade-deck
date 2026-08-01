@@ -9,10 +9,18 @@ import { Segmented } from "./Segmented";
 // на каждый параметр. Добавить параметр = добавить строчку в params(); добавить тип параметра =
 // новый вариант Param. Любой Configurable (Поле, стопка, борд…) получает контроллеры даром.
 
+// У параметра ДВА имени, и путать их нельзя:
+//   id    — настоящее имя параметра. Английское, стабильное. Это ключ: он уезжает в URL стори, в
+//           панель контролов, в код теста. Кириллица в такой роли ломает всех, кто читает код.
+//   label — человеческая подпись. Русская, живёт на канвасе рядом с виджетом и может быть
+//           локализована. Ключом она быть не может: подписи меняют, ключи — нет.
+//
+// Раньше id не было, и ключ приходилось ВЫВОДИТЬ из русской подписи транслитерацией. Отсюда
+// брались и кириллические ключи в таблице перевода, и хрупкость: правка подписи молча меняла ключ.
 export type Param =
-  | { kind: "number"; label: string; min: number; max: number; format?: (v: number) => string; get(): number; set(v: number): void }
-  | { kind: "bool"; label: string; get(): boolean; set(v: boolean): void }
-  | { kind: "choice"; label: string; options: string[]; get(): number; set(v: number): void };
+  | { kind: "number"; id: string; label: string; min: number; max: number; format?: (v: number) => string; get(): number; set(v: number): void }
+  | { kind: "bool"; id: string; label: string; get(): boolean; set(v: boolean): void }
+  | { kind: "choice"; id: string; label: string; options: string[]; get(): number; set(v: number): void };
 
 export interface Configurable {
   params(): Param[];
