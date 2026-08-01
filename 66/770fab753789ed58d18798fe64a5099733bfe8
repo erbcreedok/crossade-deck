@@ -1,0 +1,43 @@
+client2/src/game/engine/censorSource.ts
+  s_3496f226116426::t_25b2262569df06 3,36-38,40-46,85-86
+  s_3496f226116426::t_9b8ac6768c934c 1,32-35,47-53,57,59-84,87
+  s_3496f226116426::t_59ef076b8168d9 39,54-56,58
+client2/src/game/engine/censorParticles.ts
+  s_3496f226116426::t_a4ddf572190f59 5-11,22-28,31,37,43,47-48,63,75,85-90,111
+client2/src/game/ui/Card.ts
+  s_3496f226116426::t_4e9131bd1624ec 234-236,382
+  s_3496f226116426::t_f72970c0522117 183,525
+  s_3496f226116426::t_960c64a170658a 152-157,159,169-181,286,501-503,505,513-518,523
+  s_3496f226116426::t_dd0d43f8c9fac4 161-164
+  s_3496f226116426::t_f6d21962bc1ec6 182,297-305,307,519-522,524
+client2/src/game/censorConfig.test.ts
+  s_3496f226116426::t_c341a8ba0797dd 2,64-106
+client2/src/game/censorConfig.ts
+  s_3496f226116426::t_75524411d99d1c 43-49,67-85,87-96,102-104,161
+  s_3496f226116426::t_25b2262569df06 97-100,126-144
+  s_3496f226116426::t_eac6f9a2a86a59 86,101,105-125,145-160
+client2/src/game/ui/CardTextureCache.ts
+  s_3496f226116426::t_4f12f14d0ff35e 120
+  s_3496f226116426::t_dfd4551951069c 11,31,52,58-68,70-74
+  s_3496f226116426::t_59ef076b8168d9 12-18,69
+client2/src/stories/kit/Censorship.stories.tsx
+  s_3496f226116426::t_f6d21962bc1ec6 27,81-85
+  s_3496f226116426::t_7142a749a06b46 1-26,28-54,56-80,86-88
+  s_3496f226116426::t_f4a3df6476a061 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "66770fab753789ed58d18798fe64a5099733bfe8",
+  "prompts": {},
+  "sessions": {
+    "s_3496f226116426": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36c43ffa-6505-483f-ad44-5fdafe777415",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
