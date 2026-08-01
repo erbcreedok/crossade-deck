@@ -1,0 +1,27 @@
+client2/.storybook/manager.tsx
+  s_849b1134095733::t_5ac12c5b099945 19,21,23-27,29-32,36,38,40-43
+  s_849b1134095733::t_74edcc01aecbd4 16-18,20,22,28,39
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_02a9c8fa50036d 89-90
+client2/src/stories/kit/Card.stories.tsx
+  s_849b1134095733::t_2bbfb6caf0c9eb 11
+  s_849b1134095733::t_b70a91eec76376 50,72
+client2/.storybook/preview.tsx
+  s_849b1134095733::t_b510cf355c9a50 95-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "3dcbacd80d3aab891ec83cff8fb358c364318c57",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
