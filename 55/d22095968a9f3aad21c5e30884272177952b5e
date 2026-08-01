@@ -1,0 +1,25 @@
+.github/workflows/build.yml
+  s_2530113c134f54::t_c621a82619768e 158-209
+DEPLOY.md
+  s_2530113c134f54::t_26739d66f48167 220-229
+DEPLOY_RU.md
+  s_2530113c134f54::t_3403c14147ec0b 216-224
+.github/workflows/ci.yml
+  s_2530113c134f54::t_8ce7c65230a926 91-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "55d22095968a9f3aad21c5e30884272177952b5e",
+  "prompts": {},
+  "sessions": {
+    "s_2530113c134f54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb0b921c-b6a7-48c1-8950-283125acb8af",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
