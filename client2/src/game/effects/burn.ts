@@ -5,6 +5,9 @@ import { TEX_H, TEX_W } from "../engine/constants";
 // дрожи. Возвращает описание кадра; элемент лишь применяет его (позиция/маска/тень). Тестируется.
 
 export const BURN_FREEZE = 0.14;
+/** Амплитуда волны «фронта горения» в долях высоты карты. Одно число на оба смысла: и размах
+ *  волны, и перелёт фронта за верхнюю кромку (см. frontY) — иначе они разъедутся при первой правке. */
+export const BURN_WAVE = 0.05;
 export const BURN_DISSOLVE = 0.5;
 export const BURN_DUR = BURN_FREEZE + BURN_DISSOLVE;
 
@@ -31,12 +34,17 @@ export function burnFrame(t: number, age: number, width: number): BurnFrame {
   }
 
   const p = Math.min(1, (t - BURN_FREEZE) / BURN_DISSOLVE);
-  const frontY = -TEX_H / 2 + TEX_H * (1 - p); // фронт едет вверх
-  const pts: number[] = [-TEX_W / 2, -TEX_H / 2, TEX_W / 2, -TEX_H / 2]; // верхняя кромка
+  const wave = TEX_H * BURN_WAVE;
+  const top = -TEX_H / 2;
+  // Фронт едет вверх и ПЕРЕЛЕТАЕТ верхнюю кромку на амплитуду волны. Без перелёта при p=1 фронт
+  // вставал ровно на кромку, а он волнистый: там, где синус положителен, он оказывался НИЖЕ неё —
+  // и от карты оставалась зубчатая полоска высотой до одной амплитуды. Карта «не догорала».
+  const frontY = top - wave + (TEX_H + wave) * (1 - p);
+  const pts: number[] = [-TEX_W / 2, top, TEX_W / 2, top]; // верхняя кромка
   const seg = 10;
   for (let k = 0; k <= seg; k++) {
     const x = TEX_W / 2 - TEX_W * (k / seg);
-    pts.push(x, frontY + Math.sin(x * 0.18 + age * 26 + k) * TEX_H * 0.05); // волнистый фронт
+    pts.push(x, frontY + Math.sin(x * 0.18 + age * 26 + k) * wave); // волнистый фронт
   }
   return {
     jitterX: jx,

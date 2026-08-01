@@ -2,7 +2,7 @@ import { Stack, type StackConfig } from "../board/stack";
 import type { Marker, MarkerHost } from "../engine/marker";
 import type { AnchorIconId, ShowPolicy } from "../engine/markerPolicy";
 import { ANCHOR_ICONS } from "./markerIcons";
-import type { ControlsResult, Pt, SectionContext, SectionSize } from "./context";
+import type { Pt, SectionContext, SectionSize } from "./context";
 
 // Стопки: карты внахлёст, каждая сдвинута вправо. Негласное правило стенда — ВЕРХНЯЯ карта СПРАВА
 // (правее = выше по z). Без веера, арки и перестановок: это про порядок и захват, а не про красоту.
@@ -45,13 +45,18 @@ export function stackAt(
   cfg: Partial<StackConfig> = {},
   count = RANKS.length,
   phase = 0,
+  /** Донастроить стопку ДО рождения карт. Нужно тем, кто задаёт конфиг не литералом, а извне
+   *  (панель контролов каталога): иначе карты родились бы по старым домам и поехали пружиной
+   *  при первом же кадре — витрина открывалась бы «на глазах собирающейся». */
+  tune?: (stack: Stack) => void,
 ): StackDemo & SectionSize {
   const step = cfg.step ?? ctx.cardW * STEP_RATIO;
   const ids = Array.from({ length: count }, (_, i) => `${idPrefix}c${i}`);
   const stack = new Stack({ left: at.x, top: at.y, cell: { w: ctx.cardW, h: ctx.cardH }, ids, ...cfg, step });
+  tune?.(stack);
   // Карты левитируют: стопка «в руке», а не лежит на столе — так виден зазор между ней и столом.
   ids.forEach((id, i) => ctx.card({ id, card: RANKS[i % RANKS.length]!, rest: "floating" }, stack.homeOf(id), i, i * 0.6 + phase));
-  const footprint = ctx.cardW + (count - 1) * step;
+  const footprint = ctx.cardW + (count - 1) * stack.step; // после tune шаг мог измениться
   const slot = { x: at.x + footprint / 2, y: at.y + ctx.cardH / 2 }; // центр стопки — дом для меток
   const { dragger, anchor, host } = ctx.pile(ids, slot, { draw: ANCHOR_ICONS[stack.anchor.icon], show: stack.anchor.show });
   return { stack, dragger, anchor, host, caption: "", bottom: at.y + ctx.cardH, width: footprint };
@@ -88,18 +93,4 @@ export function stacksSection(ctx: SectionContext, at: Pt, idPrefix = "stk"): Se
 
   const right = at.x + (STACK_ANCHORS.length - 1) * (footprint + gap) + footprint;
   return { bottom: at.y + ctx.cardH + 50, width: right - at.x, stacks };
-}
-
-/**
- * ОДНА стопка со всеми своими рычагами рядом — витрина конфигурации.
- *
- * Рычаги строятся из `stack.params()`, то есть из самой стопки: список в панели не может разойтись
- * с тем, что стопка на самом деле умеет. Живьём меняются все четыре — включая нахлёст и вид якоря,
- * которые до этого задавались только при сборке и требовали пересборки сцены.
- */
-export function configurableStackSection(ctx: SectionContext, at: Pt, idPrefix = "cfg"): SectionSize & { demo: StackDemo; controls: ControlsResult } {
-  const demo = stackAt(ctx, at, idPrefix, { reorder: true });
-  const controls = ctx.controls(demo.stack, { x: at.x, y: at.y + ctx.cardH + 22 }, () => applyStackConfig(ctx, demo));
-  const width = Math.max(demo.width, controls.steppers[0]?.w ?? 0, controls.toggles[0]?.w ?? 0, ...controls.segments.map((sg) => sg.w));
-  return { bottom: controls.bottom, width, demo, controls };
 }
