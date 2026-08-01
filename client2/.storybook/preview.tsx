@@ -1,6 +1,8 @@
 import type { Preview } from "@storybook/react-vite";
 import { addons, useEffect } from "storybook/preview-api";
 import { DocsPage } from "./DocsPage";
+// Арифметика таблицы рычагов живёт в src — она чистая и проверяется юнитом (argTable.test.ts).
+import { fillDefaults, fillTypes } from "../src/stories/harness/argTable";
 
 /** Канал «превью → менеджер» для панели «Код». Имя одно на обе стороны (см. .storybook/manager.tsx). */
 export const CODE_EVENT = "crusade/code";
@@ -51,57 +53,6 @@ function sourceFor(code: string, ctx: SourceCtx): string {
   if (!body) return own && own !== "{}" ? code : "// У раздела не описан parameters.code — показывать нечего.";
   return `// Аргументы этой стори. Кода компонента у раздела не описано (parameters.code).\n{\n${body}\n}`;
 }
-
-/**
- * Заполнить колонку Default в таблице контролов.
- *
- * Она была пустой ВЕЗДЕ (`-`), и это не косметика: без дефолта таблица не отвечает на «а как оно
- * себя ведёт из коробки». Storybook берёт её из `argTypes[k].table.defaultValue`, а мы её нигде не
- * задавали — ни руками, ни в мосте `Param → argTypes`. Проставляем автоматически из начальных
- * аргументов стори: другого источника правды о дефолте нет, и вручную его дублировать значило бы
- * заводить второй, который разойдётся.
- */
-function fillDefaults(ctx: { argTypes?: Record<string, { table?: { defaultValue?: unknown } }>; initialArgs?: Record<string, unknown> }): Record<string, unknown> {
-  const at = ctx.argTypes ?? {};
-  const args = ctx.initialArgs ?? {};
-  for (const [k, v] of Object.entries(at)) {
-    if (!v || v.table?.defaultValue !== undefined || !(k in args)) continue;
-    const d = args[k];
-    Object.assign(v, { table: { ...(v.table ?? {}), defaultValue: { summary: typeof d === "string" ? d : JSON.stringify(d) } } });
-  }
-  return at;
-}
-
-/**
- * Что писать в колонке типа — под русским описанием рычага.
- *
- * Storybook выводит тип из ЗНАЧЕНИЯ начального аргумента, и получается плашка, которая либо врёт,
- * либо не говорит ничего: у `target` со списком из четырёх вариантов она печатала `string`, у
- * тумблера — `boolean`, у слайдера — `number`. Первое неверно, второе и третье уже видно по самому
- * контролу.
- *
- * Поэтому тип остаётся только там, где он ЧТО-ТО СООБЩАЕТ, — у списка выбора, и тогда пишется
- * настоящим союзом. У остальных снимается: и `table.type` (её печатает таблица), и `type` (из неё
- * таблица берёт запасной вариант).
- */
-function fillTypes(ctx: { argTypes?: Record<string, { options?: unknown[]; type?: unknown; table?: { type?: unknown } }> }): Record<string, unknown> {
-  const at = ctx.argTypes ?? {};
-  for (const v of Object.values(at)) {
-    if (!v) continue;
-    if (v.options?.length) {
-      Object.assign(v, { table: { ...(v.table ?? {}), type: { summary: v.options.map((o) => JSON.stringify(o)).join(" | ") } } });
-      continue;
-    }
-    // Не `delete`, а ЯВНЫЙ null. Штатный вывод типов (`inferArgTypes`) идёт своим проходом и
-    // подставляет тип там, где ключа НЕТ, — удалённое он возвращал обратно. Проставленное
-    // значение он не трогает, а таблица печатает `table.type || type`: оба ложны — плашки нет.
-    Object.assign(v, { type: null, table: { ...(v.table ?? {}), type: null } });
-  }
-  return at;
-}
-// Вторым проходом: штатный вывод типов (`inferArgTypes`/`inferControls`) сам зарегистрирован
-// вторым, и снятое в первом он ставит обратно — плашка `number` у слайдера возвращалась.
-fillTypes.secondPass = true;
 
 /**
  * Отдать панели «Код» готовый текст.
