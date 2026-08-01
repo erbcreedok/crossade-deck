@@ -191,7 +191,7 @@ export class SolitaireScene extends SceneEngine {
         const home = this.tree.homeOf(cardId);
         if (!home) continue;
         node.root.zIndex = this.tree.depthOf(cardId);
-        node.setState(node.rest);
+        node.setState(node.pose);
         this.placeCard(node);
         const target = { x: home.x, y: home.y, rot: 0, scale: node.restScale };
         if (snap) node.body.snapTo(target);

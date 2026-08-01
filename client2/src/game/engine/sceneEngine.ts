@@ -7,10 +7,13 @@ import { Marker, withAnchor, withDragger, type MarkerConfig, type MarkerHost, ty
 import { SingleDrag, type DragContext, type DragPayload } from "./drag";
 import { topmostAt, type HitBox } from "./cardHit";
 import { Button } from "../ui/Button";
-import { Card, type RestState } from "../ui/Card";
+import { Card, type Pose } from "../ui/Card";
 import { Piece } from "../ui/Piece";
 import type { DropZone } from "../ui/DropZone";
 import type { Draggable, Peekable, TableElement } from "./element";
+import { flipSchedule } from "../anim/flipSchedule";
+import { moveStyle } from "../anim/moveStyles";
+import { BASE_PRESET, type AnimPreset } from "../anim/presets";
 
 // ОБЩАЯ ОБВЯЗКА СЦЕНЫ — слой между тонким Host'ом (CanvasApp: Pixi, тикер, ресайз) и конкретной
 // сценой (песочница, Косынка, будущие игры). Здесь живёт всё, что у любой сцены со столом ОДИНАКОВО
@@ -37,7 +40,7 @@ export type { ViewState };
 /** Элемент сцены: база TableElement + драгабельность + геометрия покоя (для хит-теста и возврата). */
 export type SceneElement = TableElement &
   Draggable & {
-    readonly rest: RestState;
+    readonly pose: Pose;
     readonly restScale: number;
     readonly footprint: { hw: number; hh: number };
   };
@@ -118,7 +121,7 @@ export abstract class SceneEngine extends CanvasApp {
       this.placeCard(el);
     },
     returnHome: (el) => this.releaseElement(el as SceneElement),
-    flipGroup: (els) => this.flipGroup(els),
+    flipGroup: (els) => this.flipGroup(els as readonly SceneElement[]),
     startPeek: (els) => this.startPeek(els),
   };
 
@@ -295,6 +298,19 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   private onWheel = (e: WheelEvent): void => {
+    // ГЛАВНОЕ ПРАВИЛО: не отбирать колесо, если двигать нечего.
+    //
+    // Раньше preventDefault стоял безусловно, и страница под канвасом переставала скроллиться —
+    // при том что панорамировать было некуда, контент влезал целиком. Со стороны это читается не
+    // как «канвас не хочет скроллиться», а как зависший сайт: колесо крутится, не происходит
+    // ничего. В каталоге это norma: витрина по умолчанию вписана целиком, переполнения нет.
+    //
+    // Зум с модификатором забираем всегда — он осмыслен и при вписанном контенте.
+    if (!this.wheelIsZoom(e)) {
+      this.syncVp();
+      const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
+      if (!canPan) return; // колесо уходит странице — она и проскроллится
+    }
     e.preventDefault();
     // deltaY в пиксели: в строчном/страничном режиме домножаем.
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
@@ -582,8 +598,97 @@ export abstract class SceneEngine extends CanvasApp {
     el.blockNudge();
   }
 
-  /** Перевернуть пачку целиком (реверс слотов + синхронный флип). По умолчанию — не умеем. */
-  protected flipGroup(_els: readonly TableElement[]): void {}
+  /**
+   * Перевернуть ПАЧКУ.
+   *
+   * Реализация общая — она нужна каждой сцене, где есть стопка, а не только песочнице. Раньше жила
+   * методом PlaygroundEngine, и витрина каталога переворот пачки не умела вовсе.
+   *
+   * Что делать — решает РАСПИСАНИЕ (anim/flipSchedule.ts, чистая функция под юнит-тестом): кто
+   * когда переворачивается и чей дом занимает. Здесь только исполнение. Поэтому «разом» и «волной»
+   * это не две ветки в движке, а два пресета — и третий добавляется без правки этого метода.
+   */
+  protected flipGroup(els: readonly SceneElement[]): void {
+    const homes = els.map((el) => this.homeOf(el));
+    if (homes.some((h) => !h)) return; // чужая пачка — молча не трогаем, лучше ничего, чем половина
+    // Фил берётся у САМОЙ пачки, если он у неё свой, и только иначе — у сцены. Иначе «разные
+    // стопки анимируются по-разному» было бы невозможно: на столе колода и сброс живут рядом, а
+    // ведут себя не одинаково (колода складывается сухо, сброс — вальяжно).
+    const own = (els[0] as unknown as { animPreset?: AnimPreset }).animPreset;
+    const plan = flipSchedule(els.map((el) => el.id), own ?? this.preset);
+
+    plan.forEach((stepPlan, i) => {
+      const el = els[i]!;
+      const dest = homes[stepPlan.toIndex]!;
+      // Дом переезжает СРАЗУ, а флип может быть отложен: карта успевает доехать к новому месту,
+      // пока до неё дойдёт волна. Если бы дом ехал вместе с флипом, каскад выглядел бы как
+      // «сначала все перевернулись, потом все поехали» — две анимации вместо одной.
+      this.setHome(el, dest.home, dest.depth);
+      if (stepPlan.delay <= 0) requestFlipOf(el);
+      else this.pendingFlips.push({ el, t: stepPlan.delay });
+    });
+    this.wake();
+  }
+
+  /** Переставить дом элемента. Знает только конкретная сцена — у неё свой реестр. */
+  protected setHome(_el: SceneElement, _home: { x: number; y: number }, _depth: number): void {}
+
+  /**
+   * Фил анимаций сцены (anim/presets.ts). Держит СЦЕНА, потому что расписание переворота пачки —
+   * её дело, а не отдельной карты. Картам он раздаётся при постановке (см. KitScene.add).
+   */
+  protected preset: AnimPreset = BASE_PRESET;
+
+  /**
+   * Отложенные действия сцены. Нужны сценариям: «съесть» — это переместить одного и уничтожить
+   * другого ПОСЛЕ прихода, и без общего таймера каждый сценарий заводил бы свой setTimeout — то
+   * есть время, не связанное с кадром, которое переживёт пересборку сцены и выстрелит в пустоту.
+   */
+  private timers: { t: number; fn: () => void }[] = [];
+
+  /** Выполнить через `delay` секунд ЖИЗНИ СЦЕНЫ (не настенного времени). */
+  after(delay: number, fn: () => void): void {
+    if (delay <= 0) return void fn();
+    this.timers.push({ t: delay, fn });
+    this.wake();
+  }
+
+  private stepTimers(dt: number): boolean {
+    if (!this.timers.length) return false;
+    const left: { t: number; fn: () => void }[] = [];
+    for (const x of this.timers) {
+      const t = x.t - dt;
+      if (t <= 0) x.fn();
+      else left.push({ t, fn: x.fn });
+    }
+    this.timers = left;
+    return true;
+  }
+
+  /** Сколько летит элемент при команде move — по стилю его пресета. */
+  moveDuration(id: string): number {
+    const el = this.byId.get(id);
+    const p = (el as unknown as { animPreset?: AnimPreset } | undefined)?.animPreset ?? this.preset;
+    const st = moveStyle(p.move.style);
+    // У пружины расписания нет — время задаёт физика; берём оценку, иначе сценарий сработал бы
+    // мгновенно и снял бы жертву до прихода.
+    return st.frame ? st.dur / (p.speed > 0 ? p.speed : 1) : 0.45;
+  }
+
+  /** Отложенные перевороты каскада. Шагаются в кадре — своего таймера у сцены нет и не нужно. */
+  private pendingFlips: { el: SceneElement; t: number }[] = [];
+
+  private stepPendingFlips(dt: number): boolean {
+    if (!this.pendingFlips.length) return false;
+    const left: { el: SceneElement; t: number }[] = [];
+    for (const p of this.pendingFlips) {
+      const t = p.t - dt;
+      if (t <= 0) requestFlipOf(p.el);
+      else left.push({ el: p.el, t });
+    }
+    this.pendingFlips = left;
+    return true; // пока очередь не пуста, цикл засыпать не имеет права
+  }
 
   // Хит-тесты и реакции на жесты. Стейт-машина — в InputRouter, домен — в швах выше.
   private inputHandlers(): InputHandlers<SceneElement, Button> {
@@ -713,10 +818,29 @@ export abstract class SceneEngine extends CanvasApp {
   protected releaseElement(el: SceneElement): void {
     const h = this.homeOf(el);
     if (!h) return;
-    el.setState(el.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
-    el.root.zIndex = h.depth; // и на свою глубину — не поверх соседей по стопке
+    el.setState(el.pose); // возврат в СВОЙ план покоя (стол / левитация / удержание)
     this.placeCard(el);
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
+    // Глубину возвращаем НЕ СЕЙЧАС, а по прилёту. Раньше она ставилась сразу, и отпущенная карта
+    // весь полёт домой ехала ПОД соседями — ныряла под стопку и выныривала на месте. Физически это
+    // бессмыслица: карта в воздухе, а рисуется под теми, что лежат на столе.
+    this.landing = this.landing.filter((l) => l.el !== el);
+    this.landing.push({ el, z: h.depth });
+  }
+
+  /** Кто летит домой и на какую глубину сядет. Разбирается в кадре, по факту приземления. */
+  private landing: { el: SceneElement; z: number }[] = [];
+
+  private stepLanding(): boolean {
+    if (!this.landing.length) return false;
+    const still: { el: SceneElement; z: number }[] = [];
+    for (const l of this.landing) {
+      if (l.el.dead) continue;
+      if (l.el.body.isResting()) l.el.root.zIndex = l.z;
+      else still.push(l);
+    }
+    this.landing = still;
+    return false; // сама по себе посадка кадров не требует — её двигают пружины
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -732,6 +856,9 @@ export abstract class SceneEngine extends CanvasApp {
       this.emitView();
     }
     let moving = this.input.gesture !== "none" || this.viewport.flinging;
+    if (this.stepPendingFlips(dt)) moving = true;
+    if (this.stepTimers(dt)) moving = true;
+    this.stepLanding();
     for (const el of this.everyElement()) {
       el.step(dt);
       if (!el.resting) moving = true;
@@ -794,9 +921,9 @@ export abstract class SceneEngine extends CanvasApp {
 
   // ——— флаги доступности: одинаково во всех сценах ———
 
-  /** Пробросить reduce-motion в каждую живую Card (Piece декоративных циклов не имеет). */
+  /** Пробросить reduce-motion всему, что дышит: дыхание — общая ось карты и фишки. */
   protected onReduceMotionChange(v: boolean): void {
-    for (const el of this.everyElement()) if (el instanceof Card) el.reduceMotion = v;
+    for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.reduceMotion = v;
   }
 
   /** Пробросить «без вспышек» (issue #9) — гасит дрожь «сжечь» и у Card, и у Piece. */
@@ -804,10 +931,10 @@ export abstract class SceneEngine extends CanvasApp {
     for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.flashOff = v;
   }
 
-  /** Профиль качества (issue #8): reduced замораживает idle каждой Card и гасит shadow-пасс. */
+  /** Профиль качества (issue #8): reduced замораживает дыхание всего живого и гасит shadow-пасс. */
   protected onProfileChange(p: "full" | "reduced"): void {
     this.lowFx = p === "reduced";
-    for (const el of this.everyElement()) if (el instanceof Card) el.lowFx = this.lowFx;
+    for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.lowFx = this.lowFx;
     this.wake();
   }
 
@@ -828,4 +955,10 @@ export abstract class SceneEngine extends CanvasApp {
     this.chromeButtons = []; // сам HUD сносится вместе с app; список — чтобы не держать мёртвые узлы
     this.resetSceneState();
   }
+}
+
+/** Перевернуть, если элемент это умеет. Способность, а не тип: фишка не Flippable — и не перевернётся. */
+function requestFlipOf(el: SceneElement): void {
+  const f = el as unknown as { requestFlip?: () => boolean };
+  f.requestFlip?.();
 }

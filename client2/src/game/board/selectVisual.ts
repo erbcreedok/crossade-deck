@@ -5,7 +5,7 @@
 
 import { any, hasAllTags, hasTag, type TagPredicate, type TagSet } from "./tagQuery";
 
-/** Как помечать ВЫБРАННЫЙ элемент: подъём (floating), контур (акцентная рамка) или оба. */
+/** Как помечать ВЫБРАННЫЙ элемент: подъём (lifted), контур (акцентная рамка) или оба. */
 export type Mark = "lift" | "outline" | "both";
 
 export interface SelectVisualConfig {
@@ -27,7 +27,7 @@ export type EligibleName = "cards" | "diamonds" | "any";
 /** Можно ли взять элемент в набор — просто применение предиката к его тегам. */
 export const canSelect = (tags: TagSet, eligible: TagPredicate): boolean => eligible(tags);
 
-/** Поднимать ли выбранное во floating (mark ≠ «только контур»). */
+/** Поднимать ли выбранное во lifted (mark ≠ «только контур»). */
 export const shouldLift = (mark: Mark): boolean => mark !== "outline";
 
 /** Рисовать ли контур вокруг выбранного (mark ≠ «только подъём»). */

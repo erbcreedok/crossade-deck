@@ -21,13 +21,23 @@ export const FAN_RADIUS_MULT = 2.6;
 export type FanOffset = Offset & { rot: number };
 
 /** Offsets веера для уже упорядоченного набора. Якорь — центральная карта. */
-export function fanAssembly(orderedIds: readonly string[], cardW: number): FanOffset[] {
+/** Настройки дуги. Не заданы — прежние умолчания стола, то есть поведение не менялось. */
+export interface FanOpts {
+  /** Угловой шаг между соседями, рад. */
+  step?: number;
+  /** Потолок суммарного размаха, рад: большой набор ужимает шаг, а не сворачивается в кольцо. */
+  maxSpread?: number;
+  /** Радиус дуги в ширинах карты: больше — площе веер. */
+  radiusMult?: number;
+}
+
+export function fanAssembly(orderedIds: readonly string[], cardW: number, o: FanOpts = {}): FanOffset[] {
   const n = orderedIds.length;
   if (n === 0) return [];
-  const R = cardW * FAN_RADIUS_MULT;
+  const R = cardW * (o.radiusMult ?? FAN_RADIUS_MULT);
   const mid = (n - 1) / 2; // индекс центра (дробный при чётном n)
-  // шаг ужимаем, если при FAN_STEP суммарный размах превысил бы кап
-  const step = n > 1 ? Math.min(FAN_STEP, FAN_MAX_SPREAD / (n - 1)) : 0;
+  // шаг ужимаем, если при заданном шаге суммарный размах превысил бы кап
+  const step = n > 1 ? Math.min(o.step ?? FAN_STEP, (o.maxSpread ?? FAN_MAX_SPREAD) / (n - 1)) : 0;
   return orderedIds.map((id, i) => {
     const angle = (i - mid) * step;
     return {

@@ -3,7 +3,16 @@
 // захвате/дропе карты, как зумить вьюпорт) — В КОЛБЭКАХ движка, поэтому роутер переиспользуем
 // (песочница/стол/будущее) и тестируется без Pixi. Обобщён по токенам карты C и кнопки B.
 
-export type Gesture = "none" | "drag" | "pan" | "pinch" | "button";
+export type Gesture = "none" | "drag" | "pan" | "pinch" | "button" | "blocked";
+
+/**
+ * Насколько надо увести палец, чтобы это считалось ПОПЫТКОЙ ТАЩИТЬ.
+ *
+ * Нужен «стоп»-качанию недрагабельного элемента: раньше оно срабатывало на нажатии, то есть на
+ * любом тыке. Тык по карте — не попытка её утащить, а «стоп» в ответ на него читается как ошибка
+ * там, где ошибки не было. Порог маленький: отказ должен быть быстрым, иначе его примут за лаг.
+ */
+const DRAG_SLOP = 6;
 
 interface Pt {
   x: number;
@@ -46,6 +55,9 @@ export interface InputHandlers<C, B> {
 
 export class InputRouter<C, B> {
   gesture: Gesture = "none";
+  /** Откуда начали давить на недрагабельный элемент и отбили ли уже. */
+  private blockedFrom: { x: number; y: number } | null = null;
+  private blockedFired = false;
   private pointers = new Map<number, Pt>();
   private card: C | null = null;
   private button: B | null = null;
@@ -78,8 +90,11 @@ export class InputRouter<C, B> {
       const cp = this.h.screenToContent(sx, sy);
       const card = this.h.pickCard(cp.x, cp.y);
       if (card && !this.h.cardDraggable(card)) {
-        this.h.onCardBlocked(card);
-        this.gesture = "none";
+        // НЕ отбиваем сразу: ждём, поедет ли палец. Сам по себе тык — не попытка тащить.
+        this.gesture = "blocked";
+        this.card = card;
+        this.blockedFrom = { x: sx, y: sy };
+        this.blockedFired = false;
       } else if (card) {
         this.gesture = "drag";
         this.card = card;
@@ -106,6 +121,13 @@ export class InputRouter<C, B> {
     if (this.gesture === "pinch" && this.pointers.size >= 2) {
       const g = this.pinchGeom();
       this.h.onPinch(g.midX, g.midY, g.dist);
+    } else if (this.gesture === "blocked" && this.card) {
+      // Палец поехал — вот теперь это попытка тащить, и на неё отвечаем отказом. Один раз за жест:
+      // иначе качание перезапускалось бы на каждом кадре движения и превратилось в дрожь.
+      if (!this.blockedFired && this.blockedFrom && Math.hypot(sx - this.blockedFrom.x, sy - this.blockedFrom.y) > DRAG_SLOP) {
+        this.blockedFired = true;
+        this.h.onCardBlocked(this.card);
+      }
     } else if (this.gesture === "drag" && this.card) {
       const cp = this.h.screenToContent(sx, sy);
       this.h.onCardMove(this.card, cp, { x: sx, y: sy });
@@ -131,6 +153,9 @@ export class InputRouter<C, B> {
     if (this.gesture === "drag" && this.card) {
       this.h.onCardDrop(this.card, this.h.screenToContent(sx, sy));
       this.card = null;
+    } else if (this.gesture === "blocked") {
+      this.card = null;
+      this.blockedFrom = null;
     } else if (this.gesture === "button" && this.button) {
       const cp = this.h.screenToContent(sx, sy);
       this.h.onButtonUp(this.button, this.h.buttonContains(this.button, cp.x, cp.y));

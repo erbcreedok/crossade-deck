@@ -112,7 +112,7 @@ export class DropZone {
     if (this.armedText) this.armedText.visible = showArmed;
   }
 
-  // Покачивание armed/hot-текста — тот же язык, что у парящих карт (Card.ts, state==="floating"),
+  // Покачивание armed/hot-текста — тот же язык, что у парящих карт (Card.ts, state==="lifted"),
   // применённый к Y текста, а не карты. reduceMotion — эффективный флаг движка (OS + юзер-оверрайд,
   // см. useReducedMotion, issue #7) — при true текст просто стоит на месте, без покачивания.
   step(dt: number, reduceMotion: boolean): void {

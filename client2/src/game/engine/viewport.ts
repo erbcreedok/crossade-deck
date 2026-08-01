@@ -56,6 +56,19 @@ export class Viewport {
     return { x: (sx - this.x) / this.zoom, y: (sy - this.y) / this.zoom };
   }
 
+  /**
+   * Есть ли КУДА двигать вид по этой оси: контент в текущем зуме шире/выше экрана.
+   *
+   * Нужно колесу. Пока сцена глотала колесо всегда, страница под канвасом не скроллилась — а
+   * двигать было нечего, и со стороны это выглядело как зависший сайт.
+   */
+  get overflowX(): boolean {
+    return this.cw * this.zoom > this.W + 0.5;
+  }
+  get overflowY(): boolean {
+    return this.ch * this.zoom > this.H + 0.5;
+  }
+
   /** Удержать вид в границах: контент уже экрана — центрируем/прижимаем к верху, иначе кламп. */
   clamp(): void {
     const cw = this.cw * this.zoom;

@@ -55,13 +55,35 @@ describe("InputRouter", () => {
     expect(r.gesture).toBe("none");
   });
 
-  it("недраг-карта → blocked, жест не начинается", () => {
+  // «Стоп»-отказ — ответ на ПОПЫТКУ ТАЩИТЬ, а не на прикосновение. Тык по недрагабельной карте не
+  // ошибка игрока, и качать её в ответ значит ругать за то, чего он не делал.
+  it("недраг-карта: тык НЕ отбивается — жест ждёт движения", () => {
     const card = { id: "X", drag: false };
     const { r, calls } = setup({ cardAt: () => card });
     r.down(1, 10, 10);
-    expect(r.gesture).toBe("none");
+    expect(r.gesture).toBe("blocked");
+    r.up(1, 10, 10);
+    expect(calls).toEqual([]); // отпустили не двинувшись — отказа не было
+  });
+
+  it("недраг-карта: отказ приходит, когда палец ПОЕХАЛ", () => {
+    const card = { id: "X", drag: false };
+    const { r, calls } = setup({ cardAt: () => card });
+    r.down(1, 10, 10);
+    r.move(1, 12, 10); // в пределах порога — ещё не попытка
+    expect(calls).toEqual([]);
     r.move(1, 40, 10);
-    expect(calls).toEqual(["blocked(X)"]); // move ничего не шлёт
+    expect(calls).toEqual(["blocked(X)"]);
+  });
+
+  it("отказ звучит ОДИН раз за жест — иначе качание превратилось бы в дрожь", () => {
+    const card = { id: "X", drag: false };
+    const { r, calls } = setup({ cardAt: () => card });
+    r.down(1, 10, 10);
+    r.move(1, 40, 10);
+    r.move(1, 80, 10);
+    r.move(1, 120, 10);
+    expect(calls).toEqual(["blocked(X)"]);
   });
 
   it("кнопка: клик только при отпускании ВНУТРИ", () => {

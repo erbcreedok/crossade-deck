@@ -33,7 +33,7 @@ export interface FieldOpts {
 
 // Состояние аффорданса грида-дропзоны: покой / идёт драг (борд отчётливее + глагол) / ховер над
 // гридом (фон + яркий глагол «брось»).
-export type FieldDrag = "idle" | "drag" | "hover";
+export type FieldDrag = "rest" | "drag" | "hover";
 
 // ——— КОНФИГ Поля (стиль/поведение как ДАННЫЕ, не жёсткое правило) ———
 // «Декор» — вся графика поверх голого грида (рамки/якорь/глаголы). null → голый грид без графики.
@@ -105,7 +105,7 @@ export class Field implements Configurable {
   private readonly layerBelow: Container;
   private readonly layerAbove: Container;
   private readonly config: FieldConfig;
-  private dragState: FieldDrag = "idle";
+  private dragState: FieldDrag = "rest";
   private dragBaseRect: Rect4 | null = null; // gridRect БЕЗ дыры на время драга (карт count не меняется)
   private lastGap: number | null = null; // последний индекс дыры (чтобы не пересчитывать зря)
 
@@ -207,7 +207,7 @@ export class Field implements Configurable {
 
   /** Драг закончился — покой, дыра закрыта. */
   endDrag(): void {
-    this.dragState = "idle";
+    this.dragState = "rest";
     this.gridGroup.gap = undefined;
     this.lastGap = null;
     this.dragBaseRect = null;

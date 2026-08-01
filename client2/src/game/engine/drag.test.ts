@@ -9,7 +9,7 @@ function elem(id: string, opts: { flip?: boolean; burn?: boolean; burning?: bool
     id,
     root: { zIndex: 0 },
     body: { px: 10, py: 20, targets, setTarget: (t: unknown) => targets.push(t), snapTo: () => {} },
-    state: "idle",
+    state: "rest",
     setState() {},
     shadowRect: null,
     resting: true,

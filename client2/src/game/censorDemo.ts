@@ -214,7 +214,7 @@ export class CensorDemo extends CanvasApp {
 
     // Секция «Idle-дыхание» — ЗАГЛУШКА: ANIM.idle (anim/config.ts, rotAmp/scaleAmp/…) объявлен,
     // но нигде в движке не читается (ни Card, ни Piece, ни playgroundEngine) — эффекта нет,
-    // только план. TODO: применить ANIM.idle к картам в покое (rest==="idle") в Card.step/sync,
+    // только план. TODO: применить ANIM.idle к картам в покое (rest==="rest") в Card.step/sync,
     // приоритет idle=0 из ANIM.priority уже зарезервирован под это.
     y = this.title("Idle-дыхание (заглушка)", left, y);
     y = this.idleStubNote(left, y);
@@ -227,7 +227,7 @@ export class CensorDemo extends CanvasApp {
   private flipSection(x: number, y: number): number {
     const cardX = x + TEX_W / 2;
     const cardY = y + TEX_H / 2;
-    this.flipCard = new Card({ id: "motion-flip", card: "Q♥", faceUp: true, rest: "idle" }, this.tex!, 1);
+    this.flipCard = new Card({ id: "motion-flip", card: "Q♥", faceUp: true, pose: "rest" }, this.tex!, 1);
     this.flipCard.reduceMotion = this.reduceMotion;
     this.flipCard.flashOff = this.flashOff;
     this.flipCard.body.snapTo({ x: cardX, y: cardY, rot: 0, scale: this.flipCard.restScale });
@@ -253,7 +253,7 @@ export class CensorDemo extends CanvasApp {
   }
 
   private spawnBurnCard(): void {
-    const card = new Card({ id: "motion-burn", card: "9♣", faceUp: true, rest: "idle" }, this.tex!, 1);
+    const card = new Card({ id: "motion-burn", card: "9♣", faceUp: true, pose: "rest" }, this.tex!, 1);
     card.reduceMotion = this.reduceMotion;
     card.flashOff = this.flashOff;
     card.body.snapTo({ x: this.burnSlot.x, y: this.burnSlot.y, rot: 0, scale: card.restScale });
