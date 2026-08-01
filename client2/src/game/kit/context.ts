@@ -115,7 +115,7 @@ export interface SectionContext {
   /** Кнопка: рисуется в стол, ввод роутит движок. at не задан — значит вызывающий уже её поставил. */
   button(b: Button, at?: Pt): Button;
   /** Дроп-зона с приёмом по СПОСОБНОСТЯМ груза (см. sceneEngine.registerZone). */
-  zone(z: DropZone, onDrop: (p: DragPayload) => void, accepts: (p: DragPayload) => boolean, textFor?: (p: DragPayload) => { armed: string; hot: string }): DropZone;
+  zone(z: DropZone, onDrop: (p: DragPayload, at: Pt) => void, accepts: (p: DragPayload) => boolean, textFor?: (p: DragPayload) => { armed: string; hot: string }): DropZone;
   /** Есть ли грузу что подглядывать — зона «ПОДГЛЯДЕТЬ» меняет от этого свою подпись. */
   needsPeek(el: TableElement): boolean;
   /**

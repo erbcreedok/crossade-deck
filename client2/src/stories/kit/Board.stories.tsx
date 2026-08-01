@@ -35,6 +35,13 @@ const meta: Meta<Args> = {
       control: { type: "select" },
       options: ["merge", "swap", "capture", "reject"],
     },
+    rule: {
+      name: "rule",
+      description:
+        "правило приёма ПОВЕРХ onOccupied — последний гейт, нарушить его нельзя ничем. sameColor: фигура встаёт только на клетку своего цвета, на чужую возвращается домой. Зона про цвета не знает: правило приходит снаружи функцией",
+      control: { type: "select" },
+      options: ["none", "sameColor"],
+    },
     figures: { name: "figures", description: "сколько фигур расставить", control: { type: "range", min: 1, max: 8, step: 1 } },
   },
   parameters: {
@@ -49,13 +56,18 @@ const zone = new BoardZone({
   slots,
   board,                        // что в каком слоте лежит
   bounds,                       // рамка: за неё фигуру не вытащить
-  onOccupied: ${JSON.stringify(a.onOccupied)},   // merge | swap | capture | reject
-  // rule: (ctx) => ...         // ЗНАЧЕНИЯ (ранг, масть) — основа правил пасьянсов
-  // requiresCapability: "flip" // «слепая» зона: не видит набор без нужной способности
+  onOccupied: ${JSON.stringify(a.onOccupied)},   // merge | swap | capture | reject${
+    a.rule === "sameColor"
+      ? `
+  // Правило приёма — ФУНКЦИЯ снаружи (board/boardRules.ts). Зона про цвета и ранги не знает.
+  rule: sameColorRule(figureDark, slotDark),`
+      : ""
+  }
 });
 
-// 3. ДРОП идёт в зону, а не в точку: она сама резолвит целевой слот и решает исход.
-const res = zone.dropAt(figureId, x, y);
+// 3. ДРОП идёт в зону, а не в точку: она сама резолвит целевой слот и решает исход. Координата —
+//    ПАЛЬЦА: тело фигуры едет пружиной и в момент отпускания отстаёт от него на пол-клетки.
+const res = zone.dropAt(figureId, dropX, dropY);
 if (res.moved) for (const id of ids) ctx.dispatch({ t: "move", id, ...zone.figureHome(id) });`,
   },
   render: (a) => (
@@ -80,6 +92,12 @@ export default meta;
  *   • `layout: ring` — та же зона, другой список слотов. Ни строчки в `BoardZone` для этого не
  *     нужно, и в этом весь смысл подключаемой раскладки;
  *   • отпустите фигуру между клетками — она всё равно встанет В СЛОТ: дроп резолвится в слот, а не
- *     в точку.
+ *     в точку;
+ *   • `rule: sameColor` — правило приёма поверх `onOccupied`. Тёмная фигура на светлую клетку не
+ *     встанет, даже если та свободна: правило — последний гейт цепочки, и обойти его нечем.
+ *
+ * Чего тут НЕТ: «слепой» зоны (`requiresCapability`). Она решает про НАБОР — примет его, только
+ * если вся пачка несёт нужную способность, — а в этом разделе тащат одиночные фигуры, и показывать
+ * на них было бы нечего.
  */
 export const Board: StoryObj<Args> = {};

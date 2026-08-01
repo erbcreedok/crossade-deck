@@ -53,7 +53,7 @@ interface Pt {
 /** Зарегистрированная дроп-зона: сама зона + что она делает и что принимает. */
 interface ZoneReg {
   zone: DropZone;
-  onDrop: (p: DragPayload) => void;
+  onDrop: (p: DragPayload, at: Pt) => void;
   accepts: (p: DragPayload) => boolean;
   textFor?: (p: DragPayload) => { armed: string; hot: string };
 }
@@ -406,7 +406,7 @@ export abstract class SceneEngine extends CanvasApp {
   /** Завести зону: она сама рисуется в слои сцены, движок лишь помнит её реакцию и приём. */
   protected registerZone(
     zone: DropZone,
-    onDrop: (p: DragPayload) => void,
+    onDrop: (p: DragPayload, at: Pt) => void,
     accepts: (p: DragPayload) => boolean,
     textFor?: (p: DragPayload) => { armed: string; hot: string },
   ): void {
@@ -580,7 +580,10 @@ export abstract class SceneEngine extends CanvasApp {
     const drag = this.drag;
     if (!drag) return;
     const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
-    zone?.onDrop(drag);
+    // Точку дропа даём ПАЛЬЦА, а не тела: тело едет пружиной и в момент отпускания отстаёт от
+    // пальца на пол-клетки. Зона под пальцем уже выбрана им же — разрешать внутри неё по другой
+    // координате значит спорить с самим собой (дроп в занятый слот доски промахивался в зазор).
+    zone?.onDrop(drag, cp);
     if (!drag.consumed) drag.release();
   }
 

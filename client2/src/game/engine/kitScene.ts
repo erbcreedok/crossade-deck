@@ -174,11 +174,18 @@ export class KitScene extends SceneEngine {
       case "flip":
         if ("requestFlip" in el && !(el as unknown as { requestFlip(): boolean }).requestFlip()) return;
         break;
-      case "move":
+      case "move": {
+        // Дом переезжает ВМЕСТЕ с предметом: «переместить» на столе значит «теперь он живёт здесь».
+        // Пока дом оставался прежним, любой дроп в слот доски отыгрывался назад — зона честно
+        // раскладывала фигуры командой move, а `resolveDrop` следом звал `release()`, и тот тянул
+        // фигуру на СТАРЫЙ дом. Со стороны это выглядело как «дроп не работает».
+        const h = this.homeOf(el);
+        if (h) this.setHome(el, { x: cmd.x, y: cmd.y }, h.depth);
         // Через СТИЛЬ, а не setTarget: «как элемент летит» — свойство фила, и решать это должен
         // пресет, а не место вызова. spring отдаёт движение пружинам, то есть прежнее поведение.
         el.body.travelTo({ x: cmd.x, y: cmd.y }, ((el as unknown as { animPreset?: AnimPreset }).animPreset ?? this.preset).move.style, this.preset.speed);
         break;
+      }
       case "conceal":
         if ("setConcealed" in el) (el as unknown as { setConcealed(v: boolean): void }).setConcealed(cmd.v);
         break;

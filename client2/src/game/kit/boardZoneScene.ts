@@ -2,6 +2,7 @@ import { Graphics } from "pixi.js";
 import { DropZone } from "../ui/DropZone";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import { place, type Board } from "../board/board";
+import { sameColorRule } from "../board/boardRules";
 import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
 import type { Pt, SectionContext, SectionSize } from "./context";
 
@@ -20,6 +21,9 @@ import type { Pt, SectionContext, SectionSize } from "./context";
 
 export type BoardLayoutKind = "grid" | "ring";
 
+/** Правило приёма поверх `onOccupied` — элемент-слой цепочки (board/boardRules.ts). */
+export type BoardRuleKind = "none" | "sameColor";
+
 export interface BoardSceneOpts {
   layout: BoardLayoutKind;
   cols: number;
@@ -27,11 +31,12 @@ export interface BoardSceneOpts {
   /** ring: сколько слотов по окружности. */
   ringCount: number;
   onOccupied: OnOccupied;
+  rule: BoardRuleKind;
   /** Сколько фигур расставить изначально. */
   figures: number;
 }
 
-export const BOARD_SCENE_DEFAULTS: BoardSceneOpts = { layout: "grid", cols: 4, rows: 3, ringCount: 10, onOccupied: "swap", figures: 4 };
+export const BOARD_SCENE_DEFAULTS: BoardSceneOpts = { layout: "grid", cols: 4, rows: 3, ringCount: 10, onOccupied: "swap", rule: "none", figures: 4 };
 
 /** Слоты выбранной раскладки. Обе стратегии — существующие (board/layout/slots.ts), своих тут нет. */
 function slotsFor(o: BoardSceneOpts, cell: { w: number; h: number }, at: Pt): PositionedSlot[] {
@@ -64,36 +69,47 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
   const slots = slotsFor(opts, cell, at);
   const bounds = boundsOf(slots, Math.round(cell.w * 0.15));
 
+  // Цвет клетки считается ОДИН раз и служит сразу двум: разметке и правилу приёма. Посчитай его
+  // правило само — картинка и правило разошлись бы при первой же смене раскладки, и витрина
+  // показывала бы одно, а зона делала другое.
+  const slotDark = new Map(slots.map((s, i) => [s.key, opts.layout === "grid" ? (Math.floor(i / opts.cols) + (i % opts.cols)) % 2 === 0 : i % 2 === 0]));
+
   // Разметка — декор: в неё не кликают, она только показывает, где клетки.
   const g = new Graphics();
   g.roundRect(bounds.x, bounds.y, bounds.w, bounds.h, 10).fill({ color: 0x2a352d });
-  slots.forEach((s, i) => {
-    // Шахматная раскраска для grid и ровные ячейки для ring — разметка обязана читаться как СЕТКА,
-    // иначе «встал в слот» неотличимо от «встал куда попало».
-    const dark = opts.layout === "grid" ? (Math.floor(i / opts.cols) + (i % opts.cols)) % 2 === 0 : i % 2 === 0;
-    g.roundRect(s.rect.x, s.rect.y, s.rect.w, s.rect.h, 6).fill({ color: dark ? 0x3f5145 : 0x4d5f52 });
-  });
+  // Шахматная раскраска для grid и ровные ячейки для ring — разметка обязана читаться как СЕТКА,
+  // иначе «встал в слот» неотличимо от «встал куда попало».
+  slots.forEach((s) => g.roundRect(s.rect.x, s.rect.y, s.rect.w, s.rect.h, 6).fill({ color: slotDark.get(s.key) ? 0x3f5145 : 0x4d5f52 }));
   ctx.decor(g);
 
   const ids = Array.from({ length: Math.min(opts.figures, slots.length) }, (_, i) => `${idPrefix}-${i}`);
+  const figureDark = new Map(ids.map((id, i) => [id, i % 2 === 0]));
   const board: Board = ids.reduce<Board>((b, id, i) => place(b, slots[i]!.key, { members: [id] }), { slots: {}, onEmpty: "keep" });
-  const zone = new BoardZone({ slots, board, bounds, onOccupied: opts.onOccupied });
+  const zone = new BoardZone({
+    slots,
+    board,
+    bounds,
+    onOccupied: opts.onOccupied,
+    ...(opts.rule === "sameColor" ? { rule: sameColorRule(figureDark, slotDark) } : {}),
+  });
 
   const r = Math.round(cell.w * 0.34);
-  ids.forEach((id, i) => {
+  ids.forEach((id) => {
     const c = zone.figureHome(id);
-    ctx.piece(id, { x: c.x, y: c.y }, { kind: "chess", dark: i % 2 === 0, glyph: ["♞", "♜", "♝", "♛", "♚", "♟"][i % 6]! }, r);
+    ctx.piece(id, { x: c.x, y: c.y }, { kind: "chess", dark: figureDark.get(id)!, glyph: ["♞", "♜", "♝", "♛", "♚", "♟"][ids.indexOf(id) % 6]! }, r);
   });
 
   // Драг обрабатывает движок; нам нужен только момент отпускания — его даёт дроп-зона по рамке
   // доски. Своей логики «куда встать» тут нет: это работа BoardZone.
   ctx.zone(
     new DropZone({ name: "", verb: "", rect: bounds }),
-    (payload) => {
-      // Груз может быть и одиночным, и набором — зона решает по КООРДИНАТЕ отпускания, а не по
-      // тому, за что тянули. Своей логики «куда встать» у секции нет: это работа BoardZone.
+    (payload, at) => {
+      // Слот выбирает ПАЛЕЦ, а не тело фигуры: тело едет пружиной и в момент отпускания отстаёт —
+      // на занятой клетке оно не доезжало до неё и попадало в зазор между слотами, отчего swap
+      // молча не случался. Груз при этом может быть и одиночным, и набором: «куда встать» решает
+      // координата отпускания, а не то, за что тянули.
       const el = payload.lead;
-      if (!zone.dropAt(el.id, el.body.px, el.body.py).moved) return;
+      if (!zone.dropAt(el.id, at.x, at.y).moved) return;
       // Разъехаться могли многие: swap меняет двоих местами, capture уводит вытесненного.
       for (const id of ids) {
         const p = zone.figureHome(id);
