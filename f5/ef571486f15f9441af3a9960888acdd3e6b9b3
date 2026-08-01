@@ -1,0 +1,90 @@
+client2/.storybook/manager.tsx
+  s_3496f226116426::t_ea72a6aecdd6de 2,19-22,24,35-39
+  s_3496f226116426::t_202891beb60eef 1,3-18,23,25-34,40-49
+client2/src/stories/kit/cardArgs.ts
+  s_849b1134095733::t_dd4850c01e37f6 1,140
+  s_849b1134095733::t_1885f1268d1bed 29,62
+  s_3496f226116426::t_6ba4412550d75e 56
+  s_3496f226116426::t_d1fde7ae998746 134-138
+  s_849b1134095733::t_8054d4ae4184db 57,139,142-148,150
+  s_3496f226116426::t_56aed0277dee1b 58-61
+  s_3496f226116426::t_495bf6de34800e 52-53,93-94,100-101,107
+client2/src/stories/kit/CommandPort.stories.tsx
+  s_3496f226116426::t_6ca368ec19a66f 2,4-5,8-9,11-13,15-48,57,59-68,70-71,73-81,83-84,86-88,91-94,96-98,100-103,108,111-118,120
+  s_3496f226116426::t_ce46d927943337 49-55,82,85,95
+  s_849b1134095733::t_dd4850c01e37f6 89
+client2/src/stories/kit/cardArgs.test.ts
+  s_849b1134095733::t_c16eb5294e581f 30
+  s_3496f226116426::t_91e4b4a85abc87 31
+  s_849b1134095733::t_e7f526eb56dd38 29
+  s_3496f226116426::t_af652f69ef40c0 32
+client2/src/stories/kit/Capabilities.stories.tsx
+  s_3496f226116426::t_bfe6129af0071c 30-42
+  s_3496f226116426::t_e7a887dff326f1 44
+  s_849b1134095733::t_dd4850c01e37f6 56
+  s_3496f226116426::t_79a18027d2cc76 93-101
+client2/src/stories/kit/ParamWidgets.stories.tsx
+  s_3496f226116426::t_961292cbcda75a 3,8-9,11,13-15,18-25,28-50,55-62,64-70,72-73,75-77,79-93,95,97,100-102,104
+client2/.storybook/preview.tsx
+  s_3496f226116426::t_43c5f777eb433b 2,115-116
+  s_849b1134095733::t_814ff2c029ae51 100-102
+  s_3496f226116426::t_1ab09e7572d1a9 22-41,43-46,50-72
+  s_3496f226116426::t_ea72a6aecdd6de 5-7,74-75,105-114,117-121,124
+  s_3496f226116426::t_66e365cbddc512 132
+  s_3496f226116426::t_21efc88946ca7f 137-140,154
+  s_3496f226116426::t_90b37edea2f083 129-131
+  s_849b1134095733::t_f50fb1c8666a67 152
+  s_849b1134095733::t_645864906852d0 76-99,103-104
+  s_3496f226116426::t_b2ea89dfff2ad1 11-21,42,47-49,73,122
+  s_849b1134095733::t_d2406948b8c3cc 153
+client2/src/stories/kit/DropIndicator.stories.tsx
+  s_849b1134095733::t_dd4850c01e37f6 53,57
+  s_3496f226116426::t_64db5879b5158c 3,14-18,23,26-29,31-43,48,50,54-56,69-74,76
+client2/src/stories/harness/paramArgs.ts
+  s_3496f226116426::t_687f87975ff2c2 20-23,25-26
+  s_3496f226116426::t_495bf6de34800e 27
+  s_3496f226116426::t_dc4fd6902f1228 47-50,65-68
+  s_3496f226116426::t_7a0f912ccf5708 69-70
+client2/src/stories/kit/Card.stories.tsx
+  s_849b1134095733::t_dd4850c01e37f6 49
+  s_3496f226116426::t_81b32f9d17bd2d 71-78,80
+  s_3496f226116426::t_9549661556b640 18-36
+  s_849b1134095733::t_8881bf1219dc10 11
+client2/src/stories/kit/Censorship.stories.tsx
+  s_3496f226116426::t_495bf6de34800e 52-54,68-71
+  s_3496f226116426::t_e7a887dff326f1 58
+  s_3496f226116426::t_4cdc356da49fc1 175,182,184-185,188
+  s_3496f226116426::t_d4af1ed99c42f5 75-86,88-96,118-124,127-128,132
+  s_849b1134095733::t_dd4850c01e37f6 130
+  s_3496f226116426::t_3568f075060205 21-22,24,39,57,59-62,129,131,133-164
+  s_3496f226116426::t_733e5385e1cc92 172-174,176-181,183,186
+  s_3496f226116426::t_4cc1144c1a350b 2-4,7-9,12-14,16-17,19-20,23,25-35,38,40-49,56,63-67,72,97-117,125-126,165-167,169
+client2/src/stories/kit/argNames.test.ts
+  s_3496f226116426::t_8d63e15f3e9eb1 1-35
+client2/.storybook/preview-head.html
+  s_3496f226116426::t_21efc88946ca7f 10-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "f5ef571486f15f9441af3a9960888acdd3e6b9b3",
+  "prompts": {},
+  "sessions": {
+    "s_3496f226116426": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36c43ffa-6505-483f-ad44-5fdafe777415",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
