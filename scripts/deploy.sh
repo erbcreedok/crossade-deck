@@ -90,46 +90,82 @@ health_url() {
   printf 'https://%s.fly.dev%s' "$(app_for_env "$(field "$1" app)")" "$(field "$1" healthPath)"
 }
 
-# --- проверки --------------------------------------------------------------------------
+# --- откуда Fly возьмёт образ ------------------------------------------------------------
+#
+# Хранилище артефактов — всегда GHCR. Но Fly тянет чужой реестр АНОНИМНО, а GHCR создаёт
+# пакеты приватными даже в публичном репозитории, и поменять это можно только кнопкой в
+# вебе — API у GitHub для видимости пакета нет. Полагаться на разовый ручной клик деплой не
+# должен, поэтому путей два:
+#
+#   публичный пакет → Fly тянет прямо из GHCR (быстро, ничего качать не надо);
+#   приватный       → образ перекладывается в реестр самого Fly и выкатывается оттуда.
+#
+# Артефакт при этом один и тот же: в registry.fly.io уезжает БАЙТ В БАЙТ тот образ, что
+# лежит в GHCR, — не пересборка. GHCR остаётся источником правды, из которого его можно
+# забрать куда угодно ещё.
 
-# Fly тянет образ из GHCR АНОНИМНО. Пакет, оставшийся приватным (а GHCR делает такими все
-# новые пакеты, даже в публичном репозитории), даёт при выкатке невнятную ошибку доступа —
-# проверяем заранее и говорим, что именно нажать.
-assert_pullable() {
+ghcr_public() {
   local repo="$1" tag="$2" token
   token="$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull&service=ghcr.io" \
-    | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).token' 2>/dev/null)" || token=""
-  if [[ -z "$token" ]] || ! curl -fsSL -o /dev/null \
-      -H "Authorization: Bearer ${token}" \
-      -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
-      "https://ghcr.io/v2/${repo}/manifests/${tag}"; then
+    | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).token' 2>/dev/null)" || return 1
+  [[ -n "$token" ]] || return 1
+  curl -fsSL -o /dev/null \
+    -H "Authorization: Bearer ${token}" \
+    -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
+    "https://ghcr.io/v2/${repo}/manifests/${tag}"
+}
+
+# Возвращает адрес, который надо отдать flyctl. Печатает пояснения в stderr, чтобы stdout
+# остался чистым — его читает вызывающая сторона.
+resolve_image() {
+  local repo="$1" tag="$2" app="$3"
+  local ghcr="ghcr.io/${repo}:${tag}" fly="registry.fly.io/${app}:${tag}"
+
+  if ghcr_public "$repo" "$tag"; then
+    echo "    образ публичный — Fly возьмёт его прямо из GHCR" >&2
+    printf '%s' "$ghcr"
+    return
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
     cat >&2 <<MSG
-!! Образ ghcr.io/${repo}:${tag} не читается анонимно, а Fly тянет его именно так.
+!! Образ ${ghcr} не читается анонимно (приватный пакет или нет такого тега), а docker,
+   которым его можно было бы переложить в реестр Fly, здесь недоступен.
 
-   Обычно это одно из двух:
-     1) пакет приватный. GitHub → Packages → ${repo##*/} → Package settings →
-        Change visibility → Public (разово, на каждый образ);
-     2) такого тега нет — собери его: gh workflow run build.yml, или укажи другой IMAGE_TAG.
-
-   Что вообще есть: gh api /users/\${OWNER}/packages/container/\${PKG}/versions
+   Варианты:
+     1) сделать пакет публичным один раз:
+        https://github.com/users/${repo%%/*}/packages/container/${repo#*/}/settings
+        → Change visibility → Public. Дальше docker не нужен вообще;
+     2) выкатывать из CI (Actions → Выкатка) — там docker есть и перекладка идёт сама;
+     3) проверить, что тег вообще существует: gh run list --workflow build.yml
 MSG
     exit 1
   fi
+
+  echo "    пакет приватный — перекладываю образ в реестр Fly (тот же образ, не пересборка)" >&2
+  # --platform: образы собираются под amd64 (Fly крутит только его), и на arm-ноутбуке
+  # docker без этого пытается найти arm-вариант и спотыкается.
+  docker pull --platform linux/amd64 --quiet "$ghcr" >&2
+  docker tag "$ghcr" "$fly"
+  flyctl auth docker >&2
+  docker push --quiet "$fly" >&2
+  printf '%s' "$fly"
 }
 
 # --- выкатка ---------------------------------------------------------------------------
 
 deploy_from_image() {
-  local component="$1" image fly repo
+  local component="$1" image fly repo app source
   image="$(field "$component" image)"
   fly="$(fly_config "$(field "$component" fly)")"
   repo="${IMAGE_REGISTRY#ghcr.io/}/${image}"
+  app="$(app_for_env "$(field "$component" app)")"
 
   [[ -f "$fly" ]] || { echo "нет конфига $fly (окружение «$DEPLOY_ENV»)" >&2; exit 1; }
-  assert_pullable "$repo" "$IMAGE_TAG"
 
-  echo "==> ${component}: ${IMAGE_REGISTRY}/${image}:${IMAGE_TAG} → $(app_for_env "$(field "$component" app)")"
-  flyctl deploy --now --config "$fly" --image "${IMAGE_REGISTRY}/${image}:${IMAGE_TAG}"
+  echo "==> ${component}: ${IMAGE_REGISTRY}/${image}:${IMAGE_TAG} → ${app}"
+  source="$(resolve_image "$repo" "$IMAGE_TAG" "$app")"
+  flyctl deploy --now --config "$fly" --image "$source"
 }
 
 # Запасной путь: Fly собирает из исходников, как было до перехода на GHCR. Нужен, когда CI

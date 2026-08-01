@@ -251,8 +251,10 @@ The same via a button: Actions → **Выкатка** → Run workflow (tag, com
 The workflow calls exactly this script, so the deploy and the check that follows it live in
 one place rather than in two that drift apart — the same reason the script exists at all.
 
-Before deploying, the script checks the image is readable ANONYMOUSLY: that's how Fly pulls
-it, and a private package otherwise fails mid-deploy with an opaque permissions error.
+Before deploying, the script checks whether the image is readable anonymously and picks the
+route from the answer: straight out of GHCR, or via a mirror into Fly's registry (above).
+Mirroring needs docker; if it's missing and the package is private, the script says so up
+front instead of collapsing halfway through the deploy.
 
 ### The server address is runtime, not baked in
 
@@ -341,9 +343,18 @@ Three workflows, split along the seam between "an artifact exists" and "producti
   pushes to GHCR. Also runnable by hand for any branch.
 - **`deploy.yml`** — the button. Takes a tag and components, runs `scripts/deploy.sh`.
 
-There is deliberately NO deploy on `main`. `main` produces an artifact; production changes
-as its own act. The cost is one extra click; what it buys is that production never moves on
-its own, and a rollback is a tag rather than a git revert.
+`main` does deploy automatically, but through that same `deploy.yml` and by the IMMUTABLE
+`sha-<commit>` tag rather than the moving `main` one: otherwise the pointer could already
+have moved on to the next build by deploy time, and something other than what was tested
+would ship. The same workflow is invoked by hand with any other tag — which is where the
+rollback comes from.
+
+The image reaches Fly by one of two routes, and `scripts/deploy.sh` picks it: a public
+package Fly pulls straight from GHCR; a private one the script mirrors BYTE FOR BYTE into
+`registry.fly.io` and deploys from there. That keeps deploys independent of a one-off
+"make the package public" click — GitHub has no API for package visibility, only a button in
+the web UI. GHCR stays the artifact store either way, the place the image can be taken from
+to anywhere else.
 
 Four things the workflows have to get right, and all four are easy to miss:
 

@@ -22,9 +22,11 @@ rules can later be layered as configuration.
 - **Deploy**: production is **Fly.io**, three apps (`crusade-deck-server`,
   `crusade-deck-client`, `crusade-deck-storybook`). Building and deploying are SEPARATE:
   `.github/workflows/build.yml` builds the images into GHCR, and `scripts/deploy.sh`
-  deploys a ready one (`fly deploy --image`). A push to `main` produces an artifact but
-  doesn't touch production — that changes via the `Actions → Выкатка` button. A rollback is
-  deploying an older tag (`IMAGE_TAG=...`), not a revert. The component list is
+  deploys a ready one (`fly deploy --image`). A push to `main` builds the images and deploys
+  them by the immutable `sha-<commit>` tag; the same workflow is invoked by hand with any
+  other tag — which is where the rollback comes from (`IMAGE_TAG=...`), no revert and no
+  rebuild. A private GHCR package the script mirrors into `registry.fly.io` on its own, so
+  deploys don't hang on a manual click. The component list is
   `deploy/components.json`, read by both the script and the workflow; a new component goes
   there, not into them. The server address isn't baked into the bundle but arrives at
   runtime (`client/src/runtimeConfig.ts` ← `/config.js`), which is what makes one image fit
