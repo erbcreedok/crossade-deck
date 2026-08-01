@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
-import { dropIndicatorSection, INDICATOR_STYLES, paintIndicatorBadge } from "../../game/kit/dropIndicator";
+import { indicatorStyle, INDICATOR_STYLES, INDICATOR_STYLE_IDS } from "../../game/kit/dropIndicator";
 import { CanvasStage } from "../harness/CanvasStage";
 
 // Витрина оформления подписи «переместить сюда» — та же секция, что раздел «Дроп-индикатор» на
@@ -11,31 +11,50 @@ import { CanvasStage } from "../harness/CanvasStage";
 // единственная, где видно наложение реальной драг-карты на подпись.
 
 interface Args {
-  style: number;
+  /** Ключ стиля, а не индекс: индекс молча сдвигается при вставке нового стиля в середину. */
+  style: string;
+  /** Что под подписью: карта на столе, пустой стол или карта в руке поверх неё. */
+  under: "card" | "empty" | "dragOver";
+  text: string;
 }
 
 const meta: Meta<Args> = {
   title: "Mechanics/Drop indicator",
-  args: { style: INDICATOR_STYLES.length - 1 },
+  args: { style: "hudTag", under: "dragOver", text: "переместить сюда" },
   argTypes: {
     style: {
-      name: `стиль подписи — 0…${INDICATOR_STYLES.length - 1}: ${INDICATOR_STYLES.map((s, i) => `${i} ${s.name}`).join("; ")}`,
-      control: { type: "range", min: 0, max: INDICATOR_STYLES.length - 1, step: 1 },
+      name: "style",
+      description: INDICATOR_STYLES.map((s) => `${s.id} — ${s.name}`).join("; "),
+      control: { type: "select" },
+      options: INDICATOR_STYLE_IDS,
     },
+    under: {
+      name: "under",
+      description: "на чём читать подпись: card — карта на столе; empty — пустой стол (виден сам шильдик); dragOver — карта в руке НАВЕДЕНА поверх, единственный честный тест читаемости",
+      control: { type: "select" },
+      options: ["card", "empty", "dragOver"],
+    },
+    text: { name: "text", description: "текст подписи; длинный проверяет, не разъезжается ли подложка", control: { type: "text" } },
+  },
+  parameters: {
+    code: (a: Record<string, unknown>) => `import { indicatorStyle } from "../../game/kit/dropIndicator";
+
+// Подпись рисуется УЗЛАМИ поверх карт, поэтому её стиль — функция рисования, а не набор чисел.
+indicatorStyle(${JSON.stringify(a.style)}).paint(ctx, cx, cy, ${JSON.stringify(a.text)});`,
   },
   render: (args) => (
     <CanvasStage<Card, Args>
       args={args}
-      apply={{ style: "rebuild" }} // подпись рисуется узлами при сборке; живого сеттера у неё нет
+      apply={{ style: "rebuild", under: "rebuild", text: "rebuild" }} // подпись рисуется узлами при сборке; живого сеттера у неё нет
       build={(ctx, a) => {
-        // Один стиль крупным планом: карта борда + подпись поверх + драг-карта рядом, как при
-        // реальном наведении. Витрину со всеми шестью даёт стори «Сравнение».
-        const style = INDICATOR_STYLES[Math.min(a.style, INDICATOR_STYLES.length - 1)] ?? INDICATOR_STYLES[0]!;
+        const style = indicatorStyle(a.style);
         const cx = ctx.padding + ctx.cardW / 2;
         const cy = ctx.padding + ctx.cardH / 2;
-        ctx.card({ id: "di-one-board", card: "5♠", rest: "idle" }, { x: cx, y: cy }, 0);
-        style.paint(ctx, cx, cy, "переместить сюда");
-        ctx.card({ id: "di-one-drag", card: "K♥", rest: "held" }, { x: cx + ctx.cardW * 0.5, y: cy }, 1);
+        if (a.under !== "empty") ctx.card({ id: "di-board", card: "5♠", pose: "rest" }, { x: cx, y: cy }, 0);
+        style.paint(ctx, cx, cy, a.text);
+        // Наведённая карта — единственный честный тест: подпись обязана читаться ПОД грузом, а не
+        // на пустом столе. Первая версия индикатора лежала ниже карт и была невидима именно тут.
+        if (a.under === "dragOver") ctx.card({ id: "di-drag", card: "K♥", pose: "held" }, { x: cx + ctx.cardW * 0.5, y: cy }, 1);
         ctx.label(style.name, cx, cy + ctx.cardH / 2 + 12, 13, 0x9aa89f, ctx.cardW * 2);
         ctx.extent(ctx.padding * 2 + ctx.cardW * 2.2, ctx.padding * 2 + ctx.cardH + 40);
       }}
@@ -46,42 +65,12 @@ export default meta;
 
 type Story = StoryObj<Args>;
 
-/** Победитель сравнения — плашка с акцентной рамкой. Читается поверх любой карты. */
-export const HudTag: Story = {};
-
-/** Исходный вариант: золото с толстой чёрной обводкой. Baseline, с которым сравнивали остальные. */
-export const Outline: Story = { args: { style: 0 } };
-
-/** Жёсткая тень — сплошной дубль со сдвигом, без blur. Дёшево, но на пёстром фоне мылится. */
-export const HardShadow: Story = { args: { style: 1 } };
-
 /**
- * Все шесть ячеек разом — ТА ЖЕ секция, что на /playground. Первая (REST) показывает исходную
- * проблему: подпись лежит НИЖЕ карт и потому невидима.
+ * Подпись «переместить сюда». Стиль, фон и текст — рычагами: страниц под каждый из пяти стилей тут
+ * нет, их различает ОДИН аргумент.
+ *
+ * Крутить надо `under`: единственный честный тест читаемости — подпись ПОД наведённой картой, а не
+ * на пустом столе. Первая версия индикатора рисовалась ниже карт и была невидима ровно в этом
+ * случае, при том что на пустом столе выглядела прекрасно.
  */
-export const Comparison: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <CanvasStage<Card, Record<string, never>>
-      args={{}}
-      build={(ctx) => {
-        const r = dropIndicatorSection(ctx, { x: ctx.padding, y: ctx.padding });
-        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
-      }}
-    />
-  ),
-};
-
-/** Подпись на пустом столе — без карт и рамок, чтобы оценить сам шильдик. */
-export const BadgeOnly: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <CanvasStage<Card, Record<string, never>>
-      args={{}}
-      build={(ctx) => {
-        paintIndicatorBadge(ctx, ctx.padding + 120, ctx.padding + 20, "переместить сюда", true);
-        ctx.extent(ctx.padding * 2 + 240, ctx.padding * 2 + 40);
-      }}
-    />
-  ),
-};
+export const DropIndicator: Story = {};

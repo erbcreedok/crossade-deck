@@ -1,4 +1,4 @@
-import type { Card, CardOptions, RestState } from "../../game/ui/Card";
+import type { Card, CardOptions, Pose } from "../../game/ui/Card";
 import type { CardBackId } from "../../game/cardBack";
 import { CUSTOM_FACE_IDS, type FaceStyle } from "../../game/engine/cardTextures";
 import type { ArgTypeEntry } from "../harness/paramArgs";
@@ -26,7 +26,7 @@ export type CardArgs = {
 export type CardArgSpec = ArgSpec<Card, CardArgs>;
 
 const BACKS: CardBackId[] = ["ruby", "mosaic", "emerald", "amethyst", "ember", "steel", "sunburst", "bubble"];
-const REST: RestState[] = ["idle", "floating", "held"];
+const REST: Pose[] = ["rest", "lifted", "held"];
 const FACE_STYLES: FaceStyle[] = ["pips", "symbol"];
 
 type Control = Omit<ArgTypeEntry, "name">;
@@ -49,10 +49,17 @@ export const CARD_ARGS = {
   card: {
     // Именно текст, а не выбор из 52 вариантов: карта живёт и с придержанным значением (""),
     // и с кастом-лицом — список вариантов тут врал бы о допустимом множестве.
-    argType: { control: { type: "text" } },
+    // Не действует при кастом-лице: там ранг и масть не рисуются вовсе.
+    argType: { control: { type: "text" }, if: { arg: "custom", eq: "" } },
     label: "значение (ранг+масть)",
     apply: (c, v) => c.setValue(String(v ?? "")),
-    hint: '«A♠», «10♥». Пустая строка — значение ПРИДЕРЖАНО (сервер его ещё не раскрыл), карта маскируется',
+    hint: '«A♠», «10♥». Масть можно набрать заглавной буквой: S H D C («AS» = «A♠», «10H» = «10♥») — символ с клавиатуры не набирается, а движок всё равно хранит символ. Пустая строка — значение ПРИДЕРЖАНО (сервер его ещё не раскрыл), карта маскируется',
+  },
+  selected: {
+    argType: { control: { type: "boolean" } },
+    label: "выделена",
+    apply: (c, v) => c.setSelected(Boolean(v)),
+    hint: "контур набора (метка outline). Вторая метка выделения — ПОДЪЁМ со стола (pose: lifted), она самостоятельна: набор бывает поднятым без контура и наоборот",
   },
   tags: {
     argType: false, // множество строк; контролом не выразить, а игровые теги задаёт игра, не стенд
@@ -83,19 +90,21 @@ export const CARD_ARGS = {
     hint: "ФИЛЬТР: настоящее лицо рисуется как есть, «TG-пыль» ложится ПОВЕРХ него. Работает на любом лице — числовом, джокере, каком угодно",
   },
   back: {
-    argType: sel(BACKS),
+    // Рубашку видно только когда карта лежит рубашкой вверх.
+    argType: { ...sel(BACKS), if: { arg: "faceUp", truthy: false } },
     label: "рубашка",
     apply: "rebuild", // текстура печётся при создании
     hint: "скин рубашки, 8 штук (cardBack.ts)",
   },
   faceStyle: {
-    argType: sel(FACE_STYLES),
+    // Стиль лица не виден ни у кастом-лица, ни у карты рубашкой вверх.
+    argType: { ...sel(FACE_STYLES), if: { arg: "custom", eq: "" } },
     label: "стиль лица",
     apply: "rebuild",
     hint: "pips — классическая раскладка значков; symbol — один крупный знак масти",
   },
   fourColor: {
-    argType: bool(),
+    argType: { ...bool(), if: { arg: "custom", eq: "" } },
     label: "4-цветная колода",
     apply: "rebuild",
     hint: "у каждой масти свой цвет, а не только красный/чёрный",
@@ -122,11 +131,23 @@ export const CARD_ARGS = {
     apply: "rebuild", // базовый масштаб зашит в текстуру и в габарит
     hint: "множитель размера поверх базового; на габарит витрины влияет сразу",
   },
-  rest: {
+  z: {
+    argType: { control: { type: "range", min: 0, max: 1, step: 0.02 } },
+    label: "высота над столом",
+    apply: (c, v) => c.setZ(Number(v)),
+    hint: "ось z (ui/elevation.ts). У всего, что ЛЕЖИТ на столе — 0. Складывается с планом покоя: удерживаемая карта с z=0.2 выше обычной удерживаемой. Показывается размером и тенью — других признаков высоты у плоской картинки нет",
+  },
+  pose: {
     argType: sel(REST),
-    label: "план покоя",
+    label: "поза покоя",
     apply: "rebuild",
-    hint: "idle — лежит на столе; floating — левитирует («в руке»), сама покачивается; held — её держат",
+    hint: "где предмет находится: на столе, поднят над ним или его держат. Задаёт слой отрисовки, размер и тень",
+  },
+  idle: {
+    argType: bool(),
+    label: "дышит в покое",
+    apply: "rebuild",
+    hint: "покачивание на месте — АНИМАЦИЯ, а не поза: доступна в любой позе, поднятая карта имеет её по умолчанию. Размера не меняет, поэтому высотой не считается и тень на неё не реагирует",
   },
 
   // ——— способности (ISP-интерфейсы из engine/element.ts) ———

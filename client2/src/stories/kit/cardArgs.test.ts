@@ -26,7 +26,10 @@ const EXPECTED = [
   "custom",
   "torn",
   "size",
-  "rest",
+  "pose",
+  "idle",
+  "z",
+  "selected",
   "draggable",
   "flippable",
 ] as const;

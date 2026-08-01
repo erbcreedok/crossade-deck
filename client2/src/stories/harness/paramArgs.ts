@@ -17,8 +17,14 @@ export interface ArgTypeEntry {
     | { type: "select" }
     // "text" из Param не приходит (там только number/bool/choice) — он нужен компонентам вроде
     // Card, у которых опции задаются не через Configurable, а объектом конструктора.
-    | { type: "text" };
+    | { type: "text" }
+    // "color" — для опций, которые ЯВЛЯЮТСЯ цветом (заливка фишки). Панель отдаёт строку "#rrggbb",
+    // движок хочет число: приведение — забота того, кто описал опцию (см. pieceArgs.toColor).
+    | { type: "color" };
   options?: string[];
+  /** Показывать контрол только при определённом значении другого — размеченные объединения
+   *  (PieceSpec: chip | chess) иначе показывали бы рычаги ветки, которая сейчас не выбрана. */
+  if?: { arg: string; eq?: string | number | boolean; neq?: string | number | boolean; truthy?: boolean };
 }
 
 /**
@@ -38,7 +44,10 @@ export function paramsToArgTypes(params: Param[]): Record<string, ArgTypeEntry> 
   params.forEach((p, i) => {
     // name — настоящее имя параметра, description — человеческое пояснение. Наоборот было бы
     // удобно читать и невозможно искать: в панели стояла бы подпись, которой нет в коде.
-    const meta = { name: p.id, description: p.label };
+    // `when` компонента → `if` панели: крутилка, которая сейчас ни на что не влияет, прячется.
+    // Условие объявляет САМ компонент — он один знает, что «без вспышек» бессмысленно, пока
+    // мерцание выключено.
+    const meta = { name: p.id, description: p.label, ...(p.when ? { if: whenToIf(p.when, keys, params) } : {}) };
     if (p.kind === "number") {
       // Канвасный аналог — Stepper с целым шагом (см. open-tasks §A.1: плавного слайдера в
       // канвасе нет). Держим тот же шаг, чтобы панель не предлагала значений, которых стенд
@@ -51,6 +60,12 @@ export function paramsToArgTypes(params: Param[]): Record<string, ArgTypeEntry> 
     }
   });
   return out;
+}
+
+/** id параметра в условии → КЛЮЧ аргумента панели: ключи могут отличаться от id (коллизии меток). */
+function whenToIf(w: NonNullable<Param["when"]>, keys: string[], params: Param[]): { arg: string; eq?: string | number | boolean; truthy?: boolean } {
+  const i = params.findIndex((p) => p.id === w.arg);
+  return { ...w, arg: i >= 0 ? keys[i]! : w.arg };
 }
 
 export function paramsToArgs(params: Param[]): Record<string, unknown> {

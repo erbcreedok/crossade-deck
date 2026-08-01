@@ -8,13 +8,32 @@ import { pickArgs, type CardArgs } from "./cardArgs";
 // канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
 // (какие элементы переезжают из песочницы, решает он).
 
-const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "rest", "draggable", "flippable"] as const;
+const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "pose", "z", "selected", "draggable", "flippable"] as const;
 const { argTypes, apply } = pickArgs(KEYS);
 
 type Args = Pick<CardArgs, (typeof KEYS)[number]>;
 
 const meta: Meta<Args> = {
   title: "UI-kit/Card",
+  parameters: {
+    // «Show code» печатает код КАРТЫ с аргументами этой стори, а не исходник стори.
+    code: (a: Record<string, unknown>) => `// В секции (game/kit/*.ts) карту ставит контекст: он решает, родить её сейчас (витрина)
+// или отложенно из спека (песочница копит спеки и спавнит карты после мебели).
+ctx.card(${JSON.stringify(a, null, 2)}, { x: cx, y: cy });
+
+// Напрямую, если сцены-секции нет:
+import { Card } from "../../game/ui/Card";
+const c = new Card(${JSON.stringify(a, null, 2)}, tex, baseScale);
+scene.surface.addChild(c.root);
+c.body.snapTo({ x: cx, y: cy, rot: 0, scale: c.restScale });
+
+// Живьём, без пересборки:
+c.setValue("K♥");        // масть можно буквой: "KH"
+c.setConcealed(true);    // режим секретности
+c.setCensored(true);     // пыль поверх настоящего лица
+c.setSelected(true);     // контур набора
+c.requestFlip();         // настоящий поворот, не подмена текстуры`,
+  },
   argTypes,
   args: {
     card: "A♠",
@@ -27,7 +46,7 @@ const meta: Meta<Args> = {
     custom: "",
     torn: false,
     size: 1,
-    rest: "idle",
+    pose: "rest",
     draggable: true,
     flippable: true,
   },
@@ -48,36 +67,14 @@ export default meta;
 
 type Story = StoryObj<Args>;
 
-/** Всё по умолчанию — точка отсчёта: как карта выглядит, если ничего не трогать. */
-export const Default: Story = {};
-
 /**
- * СКРЫТАЯ — режим секретности: значение объявлено секретным, и лицо ЗАМЕНЯЕТСЯ чистым фоном.
- * Под пылью показывать нечего — в этом и смысл. Не путать со следующей.
+ * Карта. Все четырнадцать опций — рычагами; страниц под «скрытую», «зацензуренную», «рубашкой
+ * вверх» тут нет: каждую из них включает один аргумент.
+ *
+ * Что стоит покрутить, потому что по картинке неочевидно:
+ *   • `hidden` против `censored` — режим секретности (лицо ЗАМЕНЕНО) против фильтра (лицо на месте,
+ *     пыль поверх). Под пылью выглядят одинаково, в состоянии карты разница принципиальная;
+ *   • `card: ""` — значение ПРИДЕРЖАНО: сервер его ещё не раскрыл. Это не то же, что скрытая карта;
+ *   • `flippable: false` — рисуется замок, и переворот не проходит даже программно.
  */
-export const Concealed: Story = { args: { hidden: true } };
-
-/**
- * ЗАЦЕНЗУРЕНА — фильтр: настоящее лицо рисуется как есть, пыль ложится ПОВЕРХ него. Значение у
- * клиента есть, смотреть на него сейчас нельзя. Разница со «скрытой» видна, если снять фильтр:
- * под ним окажется та самая карта, а не пустой фон.
- */
-export const Censored: Story = { args: { censored: true, card: "Q♥" } };
-
-/** Оба режима разом: лицо заменено маской И поверх неё фильтр. Так выглядела «скрытая» до разделения. */
-export const ConcealedAndCensored: Story = { args: { hidden: true, censored: true } };
-
-/** Рубашкой вверх — не то же самое, что скрытая: значение не придержано, карта просто перевёрнута. */
-export const FaceDown: Story = { args: { faceUp: false } };
-
-/** Нельзя тащить (Draggable=false): попытка драга отбивается «стоп»-качанием. Проверяется мышью. */
-export const NotDraggable: Story = { args: { draggable: false } };
-
-/** Не переворачивается (Flippable=false): на карте рисуется замок. */
-export const NotFlippable: Story = { args: { flippable: false, faceUp: false } };
-
-/** Левитирует («в руке»): сама покачивается, тень уходит дальше. */
-export const Floating: Story = { args: { rest: "floating" } };
-
-/** Значение ПРИДЕРЖАНО (пустая строка): сервер его ещё не раскрыл — карта маскируется. */
-export const ValueWithheld: Story = { args: { card: "" } };
+export const Card_: Story = { name: "Card" };

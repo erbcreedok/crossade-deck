@@ -27,8 +27,21 @@ const CAPS: { id: string; cap: string; opts: CardOptions }[] = [
 
 const meta: Meta<Args> = {
   title: "Mechanics/Capabilities & drop zones",
+  parameters: {
+    code: () => `import type { Burnable, Flippable, Peekable } from "../../game/engine/element";
+
+// Зона принимает груз по СПОСОБНОСТИ, а не по типу. Ни одного «если это карта» в движке нет —
+// иначе каждый новый вид элемента требовал бы правки каждой зоны.
+ctx.zone(
+  new DropZone({ label: "ПЕРЕВОРОТ", rect }),
+  (payload) => payload.els.forEach((el) => el.requestFlip()),
+  (payload) => payload.els.every((el) => "requestFlip" in el),   // ← вот и весь фильтр
+);
+
+// Поэтому фишка ГОРИТ (Burnable), но не переворачивается (не Flippable), и зона это видит сама.`,
+  },
   args: { captions: true },
-  argTypes: { captions: { name: "подписи под картами", control: { type: "boolean" } } },
+  argTypes: { captions: { name: "captions", description: "подписи под картами", control: { type: "boolean" } } },
   render: (args) => (
     <CanvasStage<Card, Args>
       args={args}
@@ -40,7 +53,7 @@ const meta: Meta<Args> = {
         let x = ctx.padding;
         let hh = 0;
         for (const c of CAPS) {
-          const card = new Card({ id: c.id, rest: "idle", ...c.opts }, ctx.tex, ctx.baseScale);
+          const card = new Card({ id: c.id, pose: "rest", ...c.opts }, ctx.tex, ctx.baseScale);
           hh = card.footprint.hh;
           ctx.add(card, { x: x + card.footprint.hw, y: ctx.padding + hh });
           if (a.captions) {
@@ -77,9 +90,12 @@ export default meta;
 
 type Story = StoryObj<Args>;
 
-/** Пять карт с разными способностями и три зоны. Тащите карту к зоне — подсветится только та,
- *  что реально примет груз. «Стоп»-качание у недрагабельной видно только мышью. */
-export const Overview: Story = {};
-
-/** Без подписей — так витрину удобно рассматривать и снимать. */
-export const NoCaptions: Story = { args: { captions: false } };
+/**
+ * СПОСОБНОСТИ против ТИПОВ. Зона принимает груз не по тому, «карта это или фишка», а по тому, что
+ * груз УМЕЕТ: «ПЕРЕВОРОТ» берёт Flippable, «ПОДГЛЯДЕТЬ» — Peekable, «СЖЕЧЬ» — Burnable. Поэтому
+ * фишка горит, но не переворачивается, и ни одной проверки типа в движке для этого не нужно.
+ *
+ * Проверяется только мышью: перетащите каждый груз в каждую зону и посмотрите, какая загорится.
+ * Тест «нелегальный дроп ничего не изменил» даёт тот же результат, что и полностью сломанный драг.
+ */
+export const Capabilities: Story = { name: "Capabilities" };
