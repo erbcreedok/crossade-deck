@@ -92,8 +92,10 @@ function fillTypes(ctx: { argTypes?: Record<string, { options?: unknown[]; type?
       Object.assign(v, { table: { ...(v.table ?? {}), type: { summary: v.options.map((o) => JSON.stringify(o)).join(" | ") } } });
       continue;
     }
-    delete v.type;
-    if (v.table) delete v.table.type;
+    // Не `delete`, а ЯВНЫЙ null. Штатный вывод типов (`inferArgTypes`) идёт своим проходом и
+    // подставляет тип там, где ключа НЕТ, — удалённое он возвращал обратно. Проставленное
+    // значение он не трогает, а таблица печатает `table.type || type`: оба ложны — плашки нет.
+    Object.assign(v, { type: null, table: { ...(v.table ?? {}), type: null } });
   }
   return at;
 }

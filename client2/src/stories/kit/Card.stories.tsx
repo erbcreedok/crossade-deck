@@ -8,7 +8,7 @@ import { pickArgs, type CardArgs } from "./cardArgs";
 // канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
 // (какие элементы переезжают из песочницы, решает он).
 
-const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "pose", "z", "selected", "draggable", "flippable"] as const;
+const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "pose", "idle", "z", "selected", "draggable", "flippable"] as const;
 const { argTypes, apply } = pickArgs(KEYS);
 
 type Args = Pick<CardArgs, (typeof KEYS)[number]>;
@@ -47,6 +47,7 @@ c.requestFlip();         // настоящий поворот, не подмен
     torn: false,
     size: 1,
     pose: "rest",
+    idle: false,
     draggable: true,
     flippable: true,
   },
@@ -68,7 +69,7 @@ export default meta;
 type Story = StoryObj<Args>;
 
 /**
- * Карта. Все четырнадцать опций — рычагами; страниц под «скрытую», «зацензуренную», «рубашкой
+ * Карта. Все опции — рычагами; страниц под «скрытую», «зацензуренную», «рубашкой
  * вверх» тут нет: каждую из них включает один аргумент.
  *
  * Что стоит покрутить, потому что по картинке неочевидно:
