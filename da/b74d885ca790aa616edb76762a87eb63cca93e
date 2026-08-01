@@ -1,0 +1,25 @@
+client2/.storybook/preview.tsx
+  s_3496f226116426::t_39c6a87d792d9f 12
+  s_3496f226116426::t_a3d2e4fdc83b82 1-11,13-31
+client2/.storybook/DocsPage.tsx
+  s_3496f226116426::t_c191184bc54f5e 4-17,35,52-65
+  s_3496f226116426::t_1e83ccbc680c7f 1-3,18-34,36-51,66-76
+client2/.storybook/main.ts
+  s_3496f226116426::t_a3d2e4fdc83b82 18-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "dab74d885ca790aa616edb76762a87eb63cca93e",
+  "prompts": {},
+  "sessions": {
+    "s_3496f226116426": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36c43ffa-6505-483f-ad44-5fdafe777415",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
