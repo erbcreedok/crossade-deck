@@ -167,11 +167,11 @@ export class Field implements Configurable {
   params(): Param[] {
     const inf = (v: number) => (v === 0 ? "∞" : String(v)); // 0 в степпере макс = без предела
     return [
-      { kind: "number", label: "мин колонок", min: 1, max: 12, get: () => this.colsMin, set: (v) => (this.colsMin = v) },
-      { kind: "number", label: "макс колонок", min: 0, max: 12, format: inf, get: () => this.colsMax ?? 0, set: (v) => (this.colsMax = v === 0 ? undefined : v) },
-      { kind: "number", label: "мин строк", min: 1, max: 12, get: () => this.rowsMin, set: (v) => (this.rowsMin = v) },
-      { kind: "number", label: "макс строк", min: 0, max: 12, format: inf, get: () => this.rowsMax ?? 0, set: (v) => (this.rowsMax = v === 0 ? undefined : v) },
-      { kind: "bool", label: "реордер в гриде", get: () => this.reorder, set: (v) => (this.reorder = v) },
+      { kind: "number", id: "colsMin", label: "мин колонок", min: 1, max: 12, get: () => this.colsMin, set: (v) => (this.colsMin = v) },
+      { kind: "number", id: "colsMax", label: "макс колонок", min: 0, max: 12, format: inf, get: () => this.colsMax ?? 0, set: (v) => (this.colsMax = v === 0 ? undefined : v) },
+      { kind: "number", id: "rowsMin", label: "мин строк", min: 1, max: 12, get: () => this.rowsMin, set: (v) => (this.rowsMin = v) },
+      { kind: "number", id: "rowsMax", label: "макс строк", min: 0, max: 12, format: inf, get: () => this.rowsMax ?? 0, set: (v) => (this.rowsMax = v === 0 ? undefined : v) },
+      { kind: "bool", id: "reorder", label: "реордер в гриде", get: () => this.reorder, set: (v) => (this.reorder = v) },
     ];
   }
 

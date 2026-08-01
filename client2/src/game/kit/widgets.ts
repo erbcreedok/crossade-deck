@@ -28,9 +28,9 @@ export function makeWidgetDemoState(): WidgetDemoState {
 export function widgetDemoConfig(state: WidgetDemoState): Configurable {
   return {
     params: () => [
-      { kind: "bool", label: "флаг", get: () => state.flag, set: (v) => (state.flag = v) },
-      { kind: "number", label: "уровень", min: 0, max: 10, get: () => state.level, set: (v) => (state.level = v) },
-      { kind: "choice", label: "режим", options: ["a", "b", "c"], get: () => state.mode, set: (v) => (state.mode = v) },
+      { kind: "bool", id: "flag", label: "флаг", get: () => state.flag, set: (v) => (state.flag = v) },
+      { kind: "number", id: "level", label: "уровень", min: 0, max: 10, get: () => state.level, set: (v) => (state.level = v) },
+      { kind: "choice", id: "mode", label: "режим", options: ["a", "b", "c"], get: () => state.mode, set: (v) => (state.mode = v) },
     ],
   };
 }

@@ -69,7 +69,7 @@ export class BoardZone implements Configurable {
   /** Единственный настраиваемый параметр зоны — исход дропа на занятый слот. Даёт зоне
    *  attachControls+Segmented «даром» вместо инлайновой отрисовки (была playgroundEngine.ts::segToggle). */
   params(): Param[] {
-    return [{ kind: "choice", label: "на занятый слот", options: MODES, get: () => MODES.indexOf(this.onOccupied), set: (i) => (this.onOccupied = MODES[i]!) }];
+    return [{ kind: "choice", id: "onOccupied", label: "на занятый слот", options: MODES, get: () => MODES.indexOf(this.onOccupied), set: (i) => (this.onOccupied = MODES[i]!) }];
   }
 
   /** Переразметить слоты (динамический грид: рост меняет набор/позиции ячеек). */

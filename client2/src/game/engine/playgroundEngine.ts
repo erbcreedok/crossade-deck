@@ -853,7 +853,7 @@ export class PlaygroundEngine extends SceneEngine {
       // себе — про ОДНУ стопку; адаптер сверху даёт attachControls+Toggle, не меняя поведение
       // «один переключатель — все стопки»).
       const reorderAll: Configurable = {
-        params: () => [{ kind: "bool", label: "реордер стопок:", get: () => this.stacks[0]?.stack.reorder ?? true, set: (v) => this.stacks.forEach((st) => (st.stack.reorder = v)) }],
+        params: () => [{ kind: "bool", id: "reorderAll", label: "реордер стопок:", get: () => this.stacks[0]?.stack.reorder ?? true, set: (v) => this.stacks.forEach((st) => (st.stack.reorder = v)) }],
       };
       const rc = this.sectionCtx().controls(reorderAll, { x: contentLeft, y });
       this.stackReorderToggle = rc.toggles[0] ?? null;

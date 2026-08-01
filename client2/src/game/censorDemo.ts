@@ -370,31 +370,31 @@ export class CensorDemo extends CanvasApp {
   private globalCfg(): Configurable {
     return {
       params: (): Param[] => [
-        { kind: "number", label: "скорость", min: 0, max: 30, format: (v) => (v / 10).toFixed(1) + "x", get: () => Math.round(this.speed * 10), set: (v) => (this.speed = v / 10) },
-        { kind: "number", label: "нагрузка мс", min: 0, max: 40, get: () => this.stressMs, set: (v) => (this.stressMs = v) },
-        { kind: "bool", label: "уменьшить движение", get: () => this.override === "on", set: (v) => this.setOverride(v ? "on" : "auto") },
-        { kind: "bool", label: "без вспышек", get: () => this.flashOverride === "on", set: (v) => this.setFlashOverride(v ? "on" : "auto") },
-        { kind: "choice", label: "профиль", options: ["авто", "полный", "лёгкий"], get: () => PROFILE_OPTS.indexOf(this.profileOverride), set: (i) => this.setProfileOverride(PROFILE_OPTS[i] ?? "auto") },
+        { kind: "number", id: "speed", label: "скорость", min: 0, max: 30, format: (v) => (v / 10).toFixed(1) + "x", get: () => Math.round(this.speed * 10), set: (v) => (this.speed = v / 10) },
+        { kind: "number", id: "stressMs", label: "нагрузка мс", min: 0, max: 40, get: () => this.stressMs, set: (v) => (this.stressMs = v) },
+        { kind: "bool", id: "reduceMotion", label: "уменьшить движение", get: () => this.override === "on", set: (v) => this.setOverride(v ? "on" : "auto") },
+        { kind: "bool", id: "reduceFlash", label: "без вспышек", get: () => this.flashOverride === "on", set: (v) => this.setFlashOverride(v ? "on" : "auto") },
+        { kind: "choice", id: "qualityProfile", label: "профиль", options: ["авто", "полный", "лёгкий"], get: () => PROFILE_OPTS.indexOf(this.profileOverride), set: (i) => this.setProfileOverride(PROFILE_OPTS[i] ?? "auto") },
       ],
     };
   }
   private censorCfg(): Configurable {
     return {
       params: (): Param[] => [
-        { kind: "number", label: "частица", min: 2, max: 10, get: () => this.dance.block, set: (v) => this.updateDance({ block: v }) },
-        { kind: "number", label: "свапы/с", min: 0, max: 120, get: () => this.dance.swapsPerSec, set: (v) => this.updateDance({ swapsPerSec: v }) },
-        { kind: "number", label: "дрожание", min: 0, max: 4, get: () => this.dance.jitterAmp, set: (v) => this.updateDance({ jitterAmp: v }) },
-        { kind: "number", label: "частота", min: 0, max: 14, get: () => this.dance.jitterFreq, set: (v) => this.updateDance({ jitterFreq: v }) },
-        { kind: "bool", label: "мерцание", get: () => this.flicker, set: (v) => ((this.flicker = v), this.applyParticles()) },
+        { kind: "number", id: "block", label: "частица", min: 2, max: 10, get: () => this.dance.block, set: (v) => this.updateDance({ block: v }) },
+        { kind: "number", id: "swapsPerSec", label: "свапы/с", min: 0, max: 120, get: () => this.dance.swapsPerSec, set: (v) => this.updateDance({ swapsPerSec: v }) },
+        { kind: "number", id: "jitterAmp", label: "дрожание", min: 0, max: 4, get: () => this.dance.jitterAmp, set: (v) => this.updateDance({ jitterAmp: v }) },
+        { kind: "number", id: "jitterFreq", label: "частота", min: 0, max: 14, get: () => this.dance.jitterFreq, set: (v) => this.updateDance({ jitterFreq: v }) },
+        { kind: "bool", id: "flicker", label: "мерцание", get: () => this.flicker, set: (v) => ((this.flicker = v), this.applyParticles()) },
       ],
     };
   }
   private shearCfg(): Configurable {
     return {
       params: (): Param[] => [
-        { kind: "bool", label: "двигать", get: () => this.shearPlay, set: (v) => (this.shearPlay = v) },
-        { kind: "number", label: "интенсивность", min: 0, max: 200, format: (v) => `${v}%`, get: () => Math.round(this.shearIntensity * 100), set: (v) => this.updateShear({ intensity: v / 100 }) },
-        { kind: "number", label: "скорость", min: 0, max: 200, format: (v) => `${v}%`, get: () => Math.round(this.shearSpeed * 100), set: (v) => this.updateShear({ speed: v / 100 }) },
+        { kind: "bool", id: "shearPlay", label: "двигать", get: () => this.shearPlay, set: (v) => (this.shearPlay = v) },
+        { kind: "number", id: "shearIntensity", label: "интенсивность", min: 0, max: 200, format: (v) => `${v}%`, get: () => Math.round(this.shearIntensity * 100), set: (v) => this.updateShear({ intensity: v / 100 }) },
+        { kind: "number", id: "speed", label: "скорость", min: 0, max: 200, format: (v) => `${v}%`, get: () => Math.round(this.shearSpeed * 100), set: (v) => this.updateShear({ speed: v / 100 }) },
       ],
     };
   }

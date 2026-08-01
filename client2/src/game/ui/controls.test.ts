@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { groupParams, type Param } from "./controls";
 
-const num = (label: string): Param => ({ kind: "number", label, min: 0, max: 10, get: () => 0, set: () => {} });
-const bool = (label: string): Param => ({ kind: "bool", label, get: () => false, set: () => {} });
-const choice = (label: string): Param => ({ kind: "choice", label, options: ["a", "b"], get: () => 0, set: () => {} });
+const num = (id: string): Param => ({ kind: "number", id, label: id, min: 0, max: 10, get: () => 0, set: () => {} });
+const bool = (id: string): Param => ({ kind: "bool", id, label: id, get: () => false, set: () => {} });
+const choice = (id: string): Param => ({ kind: "choice", id, label: id, options: ["a", "b"], get: () => 0, set: () => {} });
 
 describe("groupParams", () => {
   it("раскладывает по kind в три группы, порядок внутри группы сохранён", () => {

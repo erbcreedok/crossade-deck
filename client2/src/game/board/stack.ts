@@ -145,10 +145,10 @@ export class Stack implements Configurable {
     const anchorIcons = ANCHOR_ICON_IDS;
     const showPolicies: ShowPolicy[] = ["always", "atHome", "away", "empty", "gone"];
     return [
-      { kind: "number", label: "нахлёст, %", min: 15, max: 100, get: () => Math.round((this._step / this.cell.w) * 100), set: (v) => (this.step = (v / 100) * this.cell.w) },
-      { kind: "bool", label: "реордер", get: () => this.reorder, set: (v) => (this.reorder = v) },
-      { kind: "choice", label: "иконка якоря", options: [...anchorIcons], get: () => Math.max(0, anchorIcons.indexOf(this.anchor.icon)), set: (i) => (this.anchor.icon = anchorIcons[i] ?? anchorIcons[0]!) },
-      { kind: "choice", label: "якорь виден", options: [...showPolicies], get: () => Math.max(0, showPolicies.indexOf(this.anchor.show)), set: (i) => (this.anchor.show = showPolicies[i] ?? "away") },
+      { kind: "number", id: "overlap", label: "нахлёст, %", min: 15, max: 100, get: () => Math.round((this._step / this.cell.w) * 100), set: (v) => (this.step = (v / 100) * this.cell.w) },
+      { kind: "bool", id: "reorder", label: "реордер", get: () => this.reorder, set: (v) => (this.reorder = v) },
+      { kind: "choice", id: "anchorIcon", label: "иконка якоря", options: [...anchorIcons], get: () => Math.max(0, anchorIcons.indexOf(this.anchor.icon)), set: (i) => (this.anchor.icon = anchorIcons[i] ?? anchorIcons[0]!) },
+      { kind: "choice", id: "anchorShow", label: "якорь виден", options: [...showPolicies], get: () => Math.max(0, showPolicies.indexOf(this.anchor.show)), set: (i) => (this.anchor.show = showPolicies[i] ?? "away") },
     ];
   }
 }

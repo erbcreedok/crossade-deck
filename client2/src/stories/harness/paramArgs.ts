@@ -7,7 +7,10 @@ import type { Param } from "../../game/ui/controls";
 
 /** Минимум формы argTypes, который нам нужен; полный тип Storybook сюда тянуть незачем. */
 export interface ArgTypeEntry {
+  /** НАСТОЯЩЕЕ имя параметра — то, что написано в коде компонента. Английское. */
   name: string;
+  /** Человеческое пояснение. Здесь и только здесь уместен русский текст. */
+  description?: string;
   control:
     | { type: "range"; min: number; max: number; step: number }
     | { type: "boolean" }
@@ -18,53 +21,33 @@ export interface ArgTypeEntry {
   options?: string[];
 }
 
-const RU: Record<string, string> = {
-  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y",
-  к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f",
-  х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
-};
-
 /**
- * Ключ аргумента из метки параметра. Метки у нас русские, а ключ уезжает в URL стори и в имена
- * контролов — поэтому транслитерируем. `index` подмешивается только при столкновении: у двух
- * параметров может быть одинаковая подпись (например «шаг» у разных осей), и без этого они бы
- * схлопнулись в один контрол, молча перезаписывая друг друга.
+ * Ключ аргумента — это ИМЯ параметра, как оно объявлено компонентом. Никаких преобразований:
+ * ключ уезжает в URL стори и в код теста, и он обязан совпадать с тем, что написано в params().
+ *
+ * Раньше ключ выводился из русской подписи транслитерацией — отсюда была и таблица кириллических
+ * ключей в этом файле, и скрытая хрупкость: правка подписи молча меняла ключ стори.
  */
-export function argKey(label: string, index: number): string {
-  const base = label
-    .toLowerCase()
-    .split("")
-    .map((c) => RU[c] ?? c)
-    .join("")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return base || `param_${index}`;
-}
-
 function keysFor(params: Param[]): string[] {
-  const seen = new Map<string, number>();
-  return params.map((p, i) => {
-    const base = argKey(p.label, i);
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    return n === 0 ? base : `${base}_${i}`;
-  });
+  return params.map((p) => p.id);
 }
 
 export function paramsToArgTypes(params: Param[]): Record<string, ArgTypeEntry> {
   const keys = keysFor(params);
   const out: Record<string, ArgTypeEntry> = {};
   params.forEach((p, i) => {
-    // Русская метка идёт в name: ключ — технический (URL, код), подпись в панели — человеческая.
+    // name — настоящее имя параметра, description — человеческое пояснение. Наоборот было бы
+    // удобно читать и невозможно искать: в панели стояла бы подпись, которой нет в коде.
+    const meta = { name: p.id, description: p.label };
     if (p.kind === "number") {
       // Канвасный аналог — Stepper с целым шагом (см. open-tasks §A.1: плавного слайдера в
       // канвасе нет). Держим тот же шаг, чтобы панель не предлагала значений, которых стенд
       // выставить не может.
-      out[keys[i]] = { name: p.label, control: { type: "range", min: p.min, max: p.max, step: 1 } };
+      out[keys[i]] = { ...meta, control: { type: "range", min: p.min, max: p.max, step: 1 } };
     } else if (p.kind === "bool") {
-      out[keys[i]] = { name: p.label, control: { type: "boolean" } };
+      out[keys[i]] = { ...meta, control: { type: "boolean" } };
     } else {
-      out[keys[i]] = { name: p.label, control: { type: "select" }, options: [...p.options] };
+      out[keys[i]] = { ...meta, control: { type: "select" }, options: [...p.options] };
     }
   });
   return out;
