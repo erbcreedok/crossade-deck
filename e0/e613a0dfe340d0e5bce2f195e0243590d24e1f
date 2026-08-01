@@ -1,0 +1,24 @@
+client2/docs/HANDOFF.md
+  s_3496f226116426::t_a7ce1769e43e66 56-64
+client2/MINI-GAMES-SUITE.md
+  s_3496f226116426::t_625a1676e5548a 1-449
+client2/docs/open-tasks.md
+  s_3496f226116426::t_be8c732df9ed9e 17-26
+  s_3496f226116426::t_99b8b38a108b4d 42,45-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "e0e613a0dfe340d0e5bce2f195e0243590d24e1f",
+  "prompts": {},
+  "sessions": {
+    "s_3496f226116426": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36c43ffa-6505-483f-ad44-5fdafe777415",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
