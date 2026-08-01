@@ -44,10 +44,14 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:-$(default_registry)}"
 # --- чтение манифеста ------------------------------------------------------------------
 # Через node, а не jq: node в этом репозитории есть заведомо, jq на macOS из коробки нет.
 
+# Перевод строки в конце обязателен: список читается через `while read`, а тот отбрасывает
+# последнюю строку, если она не завершена. Без него молча пропускался последний компонент
+# манифеста — выкатка выглядела успешной, просто одна аппа оставалась нетронутой.
 all_components() {
   node -e '
     const all = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    process.stdout.write(Object.keys(all).filter((k) => !k.startsWith("$")).join("\n"));
+    const names = Object.keys(all).filter((k) => !k.startsWith("$"));
+    process.stdout.write(names.map((n) => n + "\n").join(""));
   ' "$MANIFEST"
 }
 
@@ -109,10 +113,12 @@ ghcr_public() {
   token="$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull&service=ghcr.io" \
     | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).token' 2>/dev/null)" || return 1
   [[ -n "$token" ]] || return 1
+  # 404 здесь — штатный ответ на приватный пакет, а не поломка: молчим, решение принимает
+  # вызывающая сторона.
   curl -fsSL -o /dev/null \
     -H "Authorization: Bearer ${token}" \
     -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" \
-    "https://ghcr.io/v2/${repo}/manifests/${tag}"
+    "https://ghcr.io/v2/${repo}/manifests/${tag}" 2>/dev/null
 }
 
 # Возвращает адрес, который надо отдать flyctl. Печатает пояснения в stderr, чтобы stdout
