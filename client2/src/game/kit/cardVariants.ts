@@ -29,8 +29,8 @@ export const CARD_VARIANTS: readonly CardVariant[] = [
   { caption: "порванная", opts: { card: "10♦", torn: true } },
   { caption: "меньше ×0.7", opts: { size: 0.7 } },
   { caption: "нельзя тащить", opts: { card: "7♣", draggable: false } },
-  { caption: "удерживаемая", opts: { card: "8♦", rest: "held" } },
-  { caption: "приподнятая (в руке)", opts: { card: "9♠", rest: "floating" } },
+  { caption: "удерживаемая", opts: { card: "8♦", pose: "held" } },
+  { caption: "приподнятая (в руке)", opts: { card: "9♠", pose: "lifted" } },
   // Кастом-лица из реестра CUSTOM_FACES, а не хардкод-флаги. «Фак» — самостоятельная карта с таким
   // лицом, а не режим: прятать ей нечего, поэтому и пикселизации на ней нет (см. скрытую выше).
   { caption: "джокер", opts: { custom: "joker" } },

@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
 import { Stack } from "../../game/board/stack";
-import { applyStackConfig, STACK_ANCHORS, stackAt, stacksSection, type StackDemo } from "../../game/kit/stacks";
+import { applyStackConfig, STACK_ANCHORS, stackAt, stackState, stacksSection, type StackDemo, type StackForm } from "../../game/kit/stacks";
+import type { Pose } from "../../game/ui/Card";
 import { dropzonesSection } from "../../game/kit/dropzones";
-import type { KitContext } from "../../game/engine/kitScene";
+import type { KitContext, KitScene } from "../../game/engine/kitScene";
 import { applyArgsToParams, paramsToArgs, paramsToArgTypes } from "../harness/paramArgs";
+import { STACK_ARGS, STACK_ARG_TYPES, stackOptsFrom, type StackArgs } from "./stackArgs";
 import { CanvasStage } from "../harness/CanvasStage";
 
 // Стопки — ТА ЖЕ секция, что раздел «Стопки» на /playground (game/kit/stacks.ts).
@@ -28,41 +30,50 @@ import { CanvasStage } from "../harness/CanvasStage";
 // Список рычагов берётся у САМОЙ стопки (`Stack.params()`) через мост harness/paramArgs. Поэтому
 // панель не может разойтись с тем, что стопка умеет: появился параметр у компонента — появился и
 // в панели, без правки этой стори.
-const PROBE = new Stack({ left: 0, top: 0, cell: { w: 100, h: 140 }, ids: ["probe"], step: 40, reorder: true });
-const PARAMS = PROBE.params();
-const stackArgTypes = paramsToArgTypes(PARAMS);
-
-type StackArgs = Record<string, unknown>;
-const stackArgs = paramsToArgs(PARAMS) as StackArgs;
 
 // Живая цель правок: стори строит стопку внутри `build`, а панель дёргает её потом. Витрина в
 // каталоге всегда одна (канвас один на весь сторибук), поэтому гонок тут неоткуда взяться.
-interface LiveStack {
-  ctx?: KitContext;
-  demo?: StackDemo;
-}
-const live: LiveStack = {};
-
 /** Все рычаги применяются одинаково: влить значение в параметр компонента и переразложить сцену. */
-const applyStackArgs = Object.fromEntries(
-  PARAMS.map((p) => [
-    p.id,
-    (h: LiveStack, v: unknown) => {
-      if (!h.ctx || !h.demo) return;
-      applyArgsToParams(h.demo.stack.params(), { [p.id]: v });
-      applyStackConfig(h.ctx, h.demo);
-    },
-  ]),
-);
+// ——— раскладка стопки: ОДНА стопка, разные аргументы ———
+//
+// Каждая стори ниже — этот же render с другими args, а не своя раскладка. Витрины «все восемь
+// вариантов в ряд» тут нет намеренно: сравнивать их — работа боковой навигации каталога, она для
+// того и есть. Ряд из восьми уменьшенных стопок дублирует навигацию и не даёт разглядеть ни одну.
+type LayoutArgs = StackArgs;
 
-const meta: Meta<Record<string, never>> = {
-  title: "Mechanics/Stacks",
-  parameters: { controls: { disable: true } },
-  render: () => (
-    <CanvasStage<Card, Record<string, never>>
-      args={{}}
-      build={(ctx) => {
-        const r = stacksSection(ctx, { x: ctx.padding, y: ctx.padding });
+// id расставленных карт — их знает только сборка, поэтому она их сюда и кладёт. Витрина в
+// каталоге одна (канвас один на весь сторибук), гонок тут неоткуда взяться.
+let liveIds: string[] = [];
+
+const meta: Meta<LayoutArgs> = {
+  title: "UI-kit/Stack",
+  parameters: {
+    code: (a: Record<string, unknown>) => `import { stackState } from "../../game/kit/stacks";
+
+// Раскладка стопки — три независимые оси: ЧТО ВИДНО (faceUp), КАК ЛЕЖИТ (form), ГДЕ ЛЕЖИТ (rest).
+const { ids } = stackState(ctx, { x, y }, ${JSON.stringify(a, null, 2)});
+
+// Перевернуть ПАЧКУ — своя операция, не N одиночных флипов: у неё расписание и, возможно,
+// разворот порядка (anim/flipSchedule.ts). Что именно произойдёт, решает пресет.
+ctx.flipStack(ids);`,
+  },
+  argTypes: STACK_ARG_TYPES,
+  args: { ...STACK_ARGS },
+  // Геометрия и состав — пересборка: пружиной «переехать» из тонкой стопки в веер нельзя, у веера
+  // другой набор домов И поворотов.
+  //
+  // А вот «лицом вверх» — НАСТОЯЩИЙ переворот пачки, через общий flipGroup. Пересборка показала бы
+  // мгновенную смену стороны, которой в игре не бывает; и обратите внимание, что вместе со
+  // стороной разворачивается ПОРЯДОК — базовый пресет переворачивает пачку как предмет. Как это
+  // настроить — раздел «Пресеты анимации».
+  render: (args) => (
+    <CanvasStage<KitScene, LayoutArgs>
+      args={args}
+      apply={{ faceUp: (scene) => void scene.flipStack(liveIds) }}
+      target={(scene) => scene}
+      build={(ctx, a) => {
+        const r = stackState(ctx, { x: ctx.padding, y: ctx.padding }, stackOptsFrom(a));
+        liveIds = r.ids;
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -70,75 +81,18 @@ const meta: Meta<Record<string, never>> = {
 };
 export default meta;
 
-type Story = StoryObj<Record<string, never>>;
-
-/** Три стопки, три политики якоря. Ровно то, что показывает песочница. */
-export const ThreeAnchorPolicies: Story = {};
-
-/** Крупно — разглядеть грип (три точки под пачкой) и перекрытие карт. */
-export const Large: Story = {
-  render: () => (
-    <CanvasStage<Card, Record<string, never>>
-      args={{}}
-      opts={{ cardHeight: 190 }}
-      build={(ctx) => {
-        const r = stacksSection(ctx, { x: ctx.padding, y: ctx.padding }, "big");
-        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
-      }}
-    />
-  ),
-};
+type Story = StoryObj<LayoutArgs>;
 
 /**
- * Стопка против дроп-зон. Пачка карт Flippable и Burnable — «ПЕРЕВОРОТ» и «СЖЕЧЬ» её примут,
- * «ПОДГЛЯДЕТЬ» тоже (карты умеют). Сравните со столбиком фишек в разделе «Фишки и фигуры»:
- * там та же группировка, но зона «ПЕРЕВОРОТ» бессильна — фишки не Flippable.
- */
-export const PileIntoZone: Story = {
-  render: () => (
-    <CanvasStage<Card, Record<string, never>>
-      args={{}}
-      opts={{ cardHeight: 110 }}
-      build={(ctx) => {
-        const r = stacksSection(ctx, { x: ctx.padding, y: ctx.padding }, "zn");
-        ctx.label(`политик якоря: ${STACK_ANCHORS.length}`, ctx.padding, r.bottom + 6, 12, 0x9aa89f, undefined, 0);
-        const z = dropzonesSection(ctx, { x: ctx.padding, y: r.bottom + 30 });
-        ctx.extent(Math.max(r.width, z.width) + ctx.padding * 2, z.bottom + ctx.padding);
-      }}
-    />
-  ),
-};
-
-/**
- * ОДНА стопка со всеми её рычагами — В ПАНЕЛИ СЛЕВА, а не пультом на канвасе.
+ * Стопка. Всё крутится рычагами: раскладка (направление, шаг, доворот, размах веера), чем вверх,
+ * план покоя, выделение, количество.
  *
- * Крутится всё живьём: нахлёст разводит и сводит карты пружиной, иконка и политика якоря меняют
- * метку на месте. Список рычагов взят у самой стопки, поэтому «что можно настроить» здесь не
- * мнение стори, а факт из кода компонента.
+ * Отдельных страниц под «закрытую», «раскрытую», «веер» тут нет: их различают ЧИСЛА одной и той же
+ * раскладки. Колода — это `linear` с шагом 0.06, столбец Косынки — она же под 90°, ряд — она же с
+ * шагом 1.12. Заводить под каждое сочетание свою страницу — то же, что заводить страницу под
+ * каждый цвет кнопки.
  *
- * Это же и ответ на вопрос «где настраивается стопка»: раньше — в трёх местах (аргументы
- * конструктора, `params()`, конфиг метки на стороне движка), теперь — в одном `StackConfig`.
+ * `faceUp` — НАСТОЯЩИЙ переворот пачки через общий `flipGroup`, а не пересборка с другой стороной.
+ * Вместе со стороной разворачивается ПОРЯДОК: базовый пресет переворачивает пачку как предмет.
  */
-export const Configurable: StoryObj<StackArgs> = {
-  parameters: { controls: { disable: false } },
-  argTypes: stackArgTypes,
-  args: stackArgs,
-  render: (args) => (
-    <CanvasStage<LiveStack, StackArgs>
-      args={args}
-      apply={applyStackArgs}
-      target={() => live}
-      opts={{ cardHeight: 150 }}
-      build={(ctx, a) => {
-        // Панель применяется ДО рождения карт: иначе они легли бы по старым домам и поехали
-        // пружиной первым же кадром — витрина открывалась бы «собирающейся на глазах».
-        const demo = stackAt(ctx, { x: ctx.padding, y: ctx.padding }, "cfg", { reorder: true }, 5, 0, (stack) =>
-          applyArgsToParams(stack.params(), a),
-        );
-        live.ctx = ctx;
-        live.demo = demo;
-        ctx.extent(demo.width + ctx.padding * 2, demo.bottom + ctx.padding);
-      }}
-    />
-  ),
-};
+export const Default: Story = {};

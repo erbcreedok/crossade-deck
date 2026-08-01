@@ -71,7 +71,7 @@ export function piecesSection(ctx: SectionContext, at: Pt): SectionSize & { pile
     const x = at.x + ctx.cardW / 2 + p.x;
     const cy = at.y + p.y + ctx.cardH / 2;
     const home = { x, y: cy };
-    if (it.el.kind === "card") ctx.card({ id: it.el.id, card: it.el.card, rest: "idle" }, home, 100);
+    if (it.el.kind === "card") ctx.card({ id: it.el.id, card: it.el.card, pose: "rest" }, home, 100);
     else if (it.el.kind === "piece") ctx.piece(it.el.id, home, it.el.spec, r);
     else pile = chipPile(ctx, home, r);
     if (it.marker && it.el.kind !== "stack") ctx.solo(it.el.id, home, { draw: it.marker.draw, show: it.marker.show }, it.marker.label);

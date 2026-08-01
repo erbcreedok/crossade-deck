@@ -33,7 +33,7 @@ function singleCardBlock(ctx: SectionContext, at: Pt, cap: string, onClick: () =
   blockFrame(ctx, at, box.boxW, box.boxH);
   const cx = at.x + box.boxW / 2;
   ctx.button(b, { x: cx, y: at.y + box.btnCY });
-  ctx.apiCard({ ...cardOpts, rest: "idle" }, { x: cx, y: at.y + box.cardCY });
+  ctx.apiCard({ ...cardOpts, pose: "rest" }, { x: cx, y: at.y + box.cardCY });
   return { bottom: at.y + box.boxH, width: box.boxW, button: { cap, b } };
 }
 

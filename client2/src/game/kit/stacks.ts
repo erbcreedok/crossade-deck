@@ -1,8 +1,12 @@
 import { Stack, type StackConfig } from "../board/stack";
+import { Button } from "../ui/Button";
 import type { Marker, MarkerHost } from "../engine/marker";
 import type { AnchorIconId, ShowPolicy } from "../engine/markerPolicy";
 import { ANCHOR_ICONS } from "./markerIcons";
 import type { Pt, SectionContext, SectionSize } from "./context";
+import { resolveLayout, type StackLayoutRef } from "./stackLayout";
+import { scaleForState } from "../ui/plane";
+import type { Pose } from "../ui/Card";
 
 // Стопки: карты внахлёст, каждая сдвинута вправо. Негласное правило стенда — ВЕРХНЯЯ карта СПРАВА
 // (правее = выше по z). Без веера, арки и перестановок: это про порядок и захват, а не про красоту.
@@ -55,7 +59,7 @@ export function stackAt(
   const stack = new Stack({ left: at.x, top: at.y, cell: { w: ctx.cardW, h: ctx.cardH }, ids, ...cfg, step });
   tune?.(stack);
   // Карты левитируют: стопка «в руке», а не лежит на столе — так виден зазор между ней и столом.
-  ids.forEach((id, i) => ctx.card({ id, card: RANKS[i % RANKS.length]!, rest: "floating" }, stack.homeOf(id), i, i * 0.6 + phase));
+  ids.forEach((id, i) => ctx.card({ id, card: RANKS[i % RANKS.length]!, pose: "lifted" }, stack.homeOf(id), i, i * 0.6 + phase));
   const footprint = ctx.cardW + (count - 1) * stack.step; // после tune шаг мог измениться
   const slot = { x: at.x + footprint / 2, y: at.y + ctx.cardH / 2 }; // центр стопки — дом для меток
   const { dragger, anchor, host } = ctx.pile(ids, slot, { draw: ANCHOR_ICONS[stack.anchor.icon], show: stack.anchor.show });
@@ -93,4 +97,95 @@ export function stacksSection(ctx: SectionContext, at: Pt, idPrefix = "stk"): Se
 
   const right = at.x + (STACK_ANCHORS.length - 1) * (footprint + gap) + footprint;
   return { bottom: at.y + ctx.cardH + 50, width: right - at.x, stacks };
+}
+
+// ——————————————————————————————————————————————————————————————————————
+// СОСТОЯНИЕ СТОПКИ — ОДНА стопка, разные параметры
+// ——————————————————————————————————————————————————————————————————————
+//
+// Витрины «всё сразу» тут намеренно НЕТ. Сравнивать варианты — работа боковой навигации каталога:
+// она для того и есть, чтобы смотреть их по одному и крупно. Ряд из восьми уменьшенных стопок
+// дублирует навигацию и при этом не даёт разглядеть ни одну.
+//
+// Раскладка стопки — ТРИ независимые оси, и сочетаются они свободно (лежащая закрытая раскрытая
+// стопка — законное сочетание, а не описка):
+//
+//   ЧТО ВИДНО   лицом вверх / рубашкой вверх            — `faceUp`;
+//   КАК ЛЕЖИТ   тонкая (нахлёст) / раскрытая / веер      — ГЕОМЕТРИЯ (шаг, а у веера ещё и наклон);
+//   ГДЕ ЛЕЖИТ   на столе / поднята / в руке / выделена   — план покоя плюс метка выделения.
+//
+// Про последнюю ось стоит сказать прямо: меток выделения ДВЕ и они самостоятельны
+// (SELECTION-DESIGN §4.A, `Mark`) — подъём (`lift`) и контур (`outline`). Стенд до сих пор рисовал
+// все стопки поднятыми, то есть по умолчанию показывал их выделенными, нигде этого не называя.
+
+/** Чем задана раскладка стопки — функцией или именем готовой (kit/stackLayout.ts). */
+export type StackForm = StackLayoutRef;
+
+export interface StackStateOpts {
+  /**
+   * КАК разложена. Функция «где i-я карта относительно первой» либо имя готовой.
+   *
+   * Раньше тут был закрытый список из трёх имён, и чтобы разложить колоду вниз или влево, надо
+   * было регистрировать новое имя. Направление и шаг — параметры, а не разные сущности.
+   */
+  form: StackForm;
+  faceUp: boolean;
+  pose: Pose;
+  /** Дышит ли стопка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
+  idle?: boolean;
+  /** Контур набора (метка `outline`). Подъём — отдельная метка, это `pose: "lifted"`. */
+  selected: boolean;
+  count: number;
+}
+
+export const STACK_STATE_DEFAULTS: StackStateOpts = { form: "tight", faceUp: true, pose: "rest", selected: false, count: 5 };
+
+export function stackState(ctx: SectionContext, at: Pt, o: Partial<StackStateOpts> = {}, idPrefix = "st"): SectionSize & { ids: string[] } {
+  const { form, faceUp, pose, idle, selected, count } = { ...STACK_STATE_DEFAULTS, ...o };
+  const ids = Array.from({ length: count }, (_, i) => `${idPrefix}-${i}`);
+  const layout = resolveLayout(form);
+  const cell = { w: ctx.cardW, h: ctx.cardH };
+  const offs = ids.map((_, i) => layout(i, count, cell));
+
+  // Габарит считаем ПО ФАКТУ раскладки: она может уйти в любую сторону, в том числе влево и вверх,
+  // а содержимое витрины живёт в положительной четверти — камера обрезает всё, что левее нуля.
+  const half = (o2: { rot: number }) => ({
+    hw: (Math.abs(Math.cos(o2.rot)) * ctx.cardW + Math.abs(Math.sin(o2.rot)) * ctx.cardH) / 2,
+    hh: (Math.abs(Math.sin(o2.rot)) * ctx.cardW + Math.abs(Math.cos(o2.rot)) * ctx.cardH) / 2,
+  });
+  const scale = scaleForState(pose);
+  const minX = Math.min(...offs.map((o2, i) => o2.dx - half(o2).hw * (i === 0 ? scale : 1)));
+  const maxX = Math.max(...offs.map((o2, i) => o2.dx + half(o2).hw * (i === 0 ? scale : 1)));
+  const minY = Math.min(...offs.map((o2) => o2.dy - half(o2).hh * scale));
+  const maxY = Math.max(...offs.map((o2) => o2.dy + half(o2).hh * scale));
+
+  // Первая карта ставится так, чтобы САМЫЙ ЛЕВЫЙ и САМЫЙ ВЕРХНИЙ края раскладки легли в at.
+  const ox = at.x - minX;
+  const oy = at.y - minY;
+  ids.forEach((id, i) => {
+    const o2 = offs[i]!;
+    ctx.card({ id, card: RANKS[i % RANKS.length]!, faceUp, pose, idle, selected }, { x: ox + o2.dx, y: oy + o2.dy, rot: o2.rot }, i, i * 0.6);
+  });
+
+  return { bottom: at.y + (maxY - minY), width: maxX - minX, ids };
+}
+
+/**
+ * Стопка с кнопкой «перевернуть» — витрина ПРЕСЕТА анимации.
+ *
+ * Переворот пачки идёт через общий `flipGroup` движка: что именно произойдёт (все разом или волной,
+ * развернётся ли порядок, с какой задержкой), решает расписание пресета, а не эта функция. Поэтому
+ * новый фил здесь — другой пресет, а не другая ветка кода.
+ */
+export function flipDemo(ctx: SectionContext, at: Pt, o: Partial<StackStateOpts> = {}, label = ""): SectionSize {
+  const r = stackState(ctx, at, o, "flip");
+  const b = new Button({ label: "перевернуть", variant: "secondary", size: "sm", onClick: () => ctx.flipStack(r.ids) });
+  const by = r.bottom + 34;
+  ctx.button(b, { x: at.x + r.width / 2, y: by });
+  let bottom = by + b.h / 2;
+  if (label) {
+    const cap = ctx.label(label, at.x + r.width / 2, bottom + 12, 12, 0x9aa89f, Math.max(r.width, ctx.cardW * 3));
+    bottom += 12 + cap.height;
+  }
+  return { bottom, width: Math.max(r.width, ctx.cardW * 3) };
 }
