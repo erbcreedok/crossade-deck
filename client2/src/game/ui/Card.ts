@@ -5,7 +5,7 @@ import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
 import { scaleForState, shadowSilhouette } from "./plane";
 import { burnFrame, BURN_DUR } from "../effects/burn";
-import { ParticleField } from "../engine/censorParticles";
+import { ParticleField, type ParticleParams } from "../engine/censorParticles";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
 import type { Burnable, Concealable, Draggable, Flippable, Peekable, TableElement, Valued } from "../engine/element";
 import type { FaceStyle } from "../engine/cardTextures";
@@ -224,6 +224,13 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     if (v === this._concealed) return;
     this._concealed = v;
     this.refaceMasked();
+  }
+
+  /** Покрутить рычаги живой пыли (размер частицы, разлёт, жизнь, мерцание). Нужен стенду и
+   *  каталогу: без него параметры пыли задаются только при рождении карты и «поиграться» с ними
+   *  нельзя — пришлось бы пересобирать сцену на каждый шаг ползунка. */
+  setDustParams(p: Partial<ParticleParams>): void {
+    this.dust?.setParams(p);
   }
 
   /** Переключить ЦЕНЗУРУ в рантайме. Лицо при этом не меняется — меняется только слой пыли над ним,

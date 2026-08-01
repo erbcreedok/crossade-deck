@@ -281,6 +281,7 @@ export class KitScene extends SceneEngine {
         return z;
       },
       needsPeek: (el) => this.needsPeek(el),
+      element: (id) => this.byId.get(id),
       controls: (cfg, at, onChange) =>
         attachControls(
           cfg,
