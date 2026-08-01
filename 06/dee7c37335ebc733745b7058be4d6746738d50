@@ -1,0 +1,20 @@
+scripts/deploy.sh
+  s_2530113c134f54::t_3c3b3b816aeafe 116-117,121
+  s_2530113c134f54::t_c97303cb9302bd 47-49,53-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "06dee7c37335ebc733745b7058be4d6746738d50",
+  "prompts": {},
+  "sessions": {
+    "s_2530113c134f54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb0b921c-b6a7-48c1-8950-283125acb8af",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
