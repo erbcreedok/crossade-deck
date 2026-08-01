@@ -1,0 +1,75 @@
+.github/workflows/ci.yml
+  s_2530113c134f54::t_88b3b19e8b07a7 1,3-11,78-81,83-85,88-91
+deploy/storybook.Dockerfile
+  s_2530113c134f54::t_2a1ef0973d8993 1-27
+client/fly.toml
+  s_2530113c134f54::t_676ee8a7d69877 1-2,4-13,19-24
+client/public/config.js
+  s_2530113c134f54::t_c80f10b0d17d4f 1-7
+scripts/deploy.sh
+  s_2530113c134f54::t_3d690206f829db 131
+  s_2530113c134f54::t_52bf678913a386 2,4-12,15-23,28-31,33-42,44-45,47-51,54-79,93-130,132-149,151-172,179,188
+  s_2530113c134f54::t_a47ab5c8d2d868 174-178,180-187,189-193,196
+  s_2530113c134f54::t_9d3ef1c3dac3e6 80-92
+  s_2530113c134f54::t_2dd852eb1e1b71 173
+.github/workflows/build.yml
+  s_2530113c134f54::t_c66f78d54320b8 1-157
+CLAUDE_RU.md
+  s_2530113c134f54::t_04b423b373d824 20-29
+CLAUDE.md
+  s_2530113c134f54::t_2f33f0c25c67fc 22-32
+client/nginx.conf
+  s_2530113c134f54::t_75e8bdb70fe5c7 13-16
+  s_2530113c134f54::t_8dbcb71d4b6fd9 9-12
+deploy/components.json
+  s_2530113c134f54::t_ead52aef0a64c8 11-19,27,35,43
+  s_2530113c134f54::t_876483899e84b6 1-10,20-26,28-34,36-42,44-45
+client/src/runtimeConfig.ts
+  s_2530113c134f54::t_ea8d92b164422e 1-60
+client/src/account.ts
+  s_2530113c134f54::t_f43ce30502fd4f 4
+  s_2530113c134f54::t_36c733b5358072 13-15
+DEPLOY_RU.md
+  s_2530113c134f54::t_315c680dc04ee1 208,210-234,237-241,244-282
+  s_2530113c134f54::t_98b87734c7a800 300-304
+  s_2530113c134f54::t_2cbc9d576d137a 308-320,322,324-331,334-335
+deploy/runtime-config.sh
+  s_2530113c134f54::t_3634a1e52a3bf3 1-34
+deploy/storybook.fly.toml
+  s_2530113c134f54::t_9dee61eb391739 1-33
+client/src/runtimeConfig.test.ts
+  s_2530113c134f54::t_4572c2f93ebec2 1-64
+client/index.html
+  s_2530113c134f54::t_304339915a7a74 24-28
+client/src/colyseus.ts
+  s_2530113c134f54::t_87874847762332 3,5
+deploy/storybook.nginx.conf
+  s_2530113c134f54::t_469b666a54d639 1-20
+deploy/web.Dockerfile
+  s_2530113c134f54::t_1f53f8ae6e1ffc 5-9
+  s_2530113c134f54::t_217d4c94c736ef 44-49
+deploy/nginx.conf
+  s_2530113c134f54::t_5d2d9e75b3471d 11-17
+.github/workflows/deploy.yml
+  s_2530113c134f54::t_a111c0537336d6 1-98
+DEPLOY.md
+  s_2530113c134f54::t_3a44b8816fc063 334-346,348,352-357,360-361
+  s_2530113c134f54::t_835bf726b8bbf6 212,214-240,243-247,250-290
+  s_2530113c134f54::t_a41dd93f7e9d9e 310-315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "06b9d07f483cb260578b0fd96f384d37a3f84138",
+  "prompts": {},
+  "sessions": {
+    "s_2530113c134f54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb0b921c-b6a7-48c1-8950-283125acb8af",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
