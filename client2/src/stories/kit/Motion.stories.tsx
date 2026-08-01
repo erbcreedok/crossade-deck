@@ -59,6 +59,23 @@ let sceneCtx: Parameters<NonNullable<Parameters<typeof CanvasStage>[0]["build"]>
 
 const meta: Meta<MotionArgs> = {
   title: "Mechanics/Motion",
+  parameters: {
+    code: () => `import { motionConfigurable, makeMotionLevers, applyMotionLevers, transitionsSection, statesSection } from "../../game/kit/motion";
+
+// Рычаги — ДАННЫЕ компонента, а не набор чисел стенда: из одного описания строятся и канвасные
+// виджеты /playground, и панель каталога (harness/paramArgs.ts). Второго набора значений нет.
+const levers = makeMotionLevers();
+const cfg = motionConfigurable(levers, () => applyMotionLevers(ctx, levers, ids));
+
+// ПЕРЕХОД запускают — он конечен и заканчивается сам:
+ctx.dispatch({ t: "flip", id });
+card.burn();
+
+// СОСТОЯНИЕ включают — оно бесконечно, у него есть интенсивность и нет конца:
+scene.setReduceMotion(true);   // замораживает СОСТОЯНИЯ, переходы не трогает
+scene.setReduceFlash(true);    // гасит мерцание, движение не трогает
+card.setDustParams(dustParams(levers.dance, levers.flicker));`,
+  },
   argTypes: motionArgTypes,
   args: motionArgs,
   render: (args) => (
@@ -85,36 +102,18 @@ export default meta;
 
 type Story = StoryObj<MotionArgs>;
 
-/** Переходы и состояния рядом — так видно, почему это разные вещи. */
-export const Overview: Story = {};
-
 /**
- * «Уменьшить движение» включено — тот же раздел глазами человека, которому анимация мешает.
- * Состояния обязаны замереть, переходы — остаться (иначе интерфейс перестанет отвечать на действия).
+ * ПЕРЕХОДЫ против СОСТОЯНИЙ — единственное, ради чего раздел существует, и единственная причина,
+ * по которой тут две группы в кадре: их смысл в противопоставлении.
+ *
+ *   ПЕРЕХОД   конечен: его ЗАПУСКАЮТ кнопкой, дальше он идёт сам и заканчивается.
+ *   СОСТОЯНИЕ бесконечно: его ВКЛЮЧАЮТ, у него есть интенсивность и нет конца.
+ *
+ * У перехода бессмысленны ползунки интенсивности, у состояния — кнопка «запустить». Отдельных
+ * страниц под «уменьшить движение», «без вспышек» и «громкую пыль» тут нет: это рычаги, и
+ * проверять их надо переключением на одной сцене, а не листанием между экранами.
+ *
+ * `reduceMotion` обязан заморозить СОСТОЯНИЯ и не тронуть ПЕРЕХОДЫ — иначе интерфейс перестанет
+ * отвечать на действия. Это и есть тест, который картинкой не проверяется.
  */
-export const ReducedMotion: Story = { args: { reduceMotion: true } };
-
-/** «Без вспышек» — отдельный флаг фото-чувствительности: гасит мерцание, движение не трогает. */
-export const NoFlashes: Story = { args: { reduceFlash: true, flicker: true } };
-
-/** Пыль на максимуме разлёта — так виден сам механизм частиц, а не аккуратный дефолт. */
-export const LoudDust: Story = { args: { jitterAmp: 4, swapsPerSec: 90, block: 8 } };
-
-/** Крупно: разглядеть, что переворот — это поворот, а «сжечь» — волнистый фронт, а не затухание. */
-export const Large: Story = {
-  render: (args) => (
-    <CanvasStage<KitScene, MotionArgs>
-      args={args}
-      apply={applyMotionArgs}
-      target={(scene) => scene}
-      opts={{ cardHeight: 240 }}
-      build={(ctx) => {
-        const t = transitionsSection(ctx, { x: ctx.padding, y: ctx.padding });
-        sceneCtx = ctx;
-        liveIds = t.ids;
-        applyMotionLevers(ctx, levers, liveIds);
-        ctx.extent(t.width + ctx.padding * 2, t.bottom + ctx.padding);
-      }}
-    />
-  ),
-};
+export const Motion: Story = { name: "Motion" };

@@ -3,6 +3,7 @@ import type { Card } from "../ui/Card";
 import { DANCE_DEFAULT, DUST_FLICKER, dustParams, type DanceParams } from "../censorConfig";
 import type { Configurable, Param } from "../ui/controls";
 import { SB_ITEM_GAP } from "../engine/sandboxLayout";
+import { scaleForState } from "../ui/plane";
 import type { Pt, SectionContext, SectionSize } from "./context";
 
 // ДВИЖЕНИЕ — всё, что на столе шевелится, собранное в одном месте.
@@ -57,10 +58,18 @@ export function motionConfigurable(l: MotionLevers, apply: () => void): Configur
       num("block", "размер частицы", 2, 10, () => l.dance.block, (v) => (l.dance.block = v)),
       num("swapsPerSec", "темп обновления", 0, 120, () => l.dance.swapsPerSec, (v) => (l.dance.swapsPerSec = v)),
       num("jitterAmp", "разлёт", 0, 4, () => l.dance.jitterAmp, (v) => (l.dance.jitterAmp = v)),
-      num("jitterFreq", "частота мерцания", 0, 14, () => l.dance.jitterFreq, (v) => (l.dance.jitterFreq = v)),
+      { ...num("jitterFreq", "частота мерцания", 0, 14, () => l.dance.jitterFreq, (v) => (l.dance.jitterFreq = v)), when: { arg: "flicker", truthy: true } },
       { kind: "bool", id: "flicker", label: "мерцание", get: () => l.flicker, set: (v) => ((l.flicker = v), apply()) },
       { kind: "bool", id: "reduceMotion", label: "уменьшить движение", get: () => l.reduceMotion, set: (v) => ((l.reduceMotion = v), apply()) },
-      { kind: "bool", id: "reduceFlash", label: "без вспышек", get: () => l.reduceFlash, set: (v) => ((l.reduceFlash = v), apply()) },
+      {
+        kind: "bool",
+        id: "reduceFlash",
+        label: "без вспышек",
+        // Гасит МЕРЦАНИЕ, поэтому пока мерцания нет — не значит ничего.
+        when: { arg: "flicker", truthy: true },
+        get: () => l.reduceFlash,
+        set: (v) => ((l.reduceFlash = v), apply()),
+      },
     ],
   };
 }
@@ -113,11 +122,17 @@ export function transitionsSection(ctx: SectionContext, at: Pt): SectionSize & {
   const stepX = ctx.cardW * 2.4;
   const ids: string[] = [];
   let maxBottom = at.y;
+  // Подпись центрирована под картой и ШИРЕ карты. У первой это значит левый край в минусе, а
+  // содержимое витрины живёт в положительной четверти — камера обрезает всё, что левее нуля.
+  // Поэтому ряд сдвигается вправо ровно на вылет подписи, и он же входит в заявленную ширину:
+  // секция, занижающая свой габарит, обрезается на узком экране без всякого признака потери.
+  const capHalf = (stepX * 0.92) / 2;
+  const over = Math.max(0, capHalf - ctx.cardW / 2);
 
   TRANSITIONS.forEach((tr, i) => {
-    const cx = at.x + ctx.cardW / 2 + i * stepX;
+    const cx = at.x + over + ctx.cardW / 2 + i * stepX;
     const cy = at.y + ctx.cardH / 2;
-    ctx.card({ id: tr.id, card: ["A♠", "K♥", "Q♦"][i] ?? "A♠", rest: "idle" }, { x: cx, y: cy }, i);
+    ctx.card({ id: tr.id, card: ["A♠", "K♥", "Q♦"][i] ?? "A♠", pose: "rest" }, { x: cx, y: cy }, i);
     ids.push(tr.id);
 
     const home = { x: cx, y: cy };
@@ -139,7 +154,7 @@ export function transitionsSection(ctx: SectionContext, at: Pt): SectionSize & {
     maxBottom = Math.max(maxBottom, by + b.h / 2 + 10 + cap.height);
   });
 
-  return { bottom: maxBottom, width: TRANSITIONS.length * stepX, ids };
+  return { bottom: maxBottom, width: over + (TRANSITIONS.length - 1) * stepX + Math.max(ctx.cardW, capHalf * 2), ids };
 }
 
 // ——————————————————————————————————————————————————————————————————————
@@ -148,23 +163,31 @@ export function transitionsSection(ctx: SectionContext, at: Pt): SectionSize & {
 
 /** Состояние = карта, которая уже чем-то живёт. Запускать нечего — оно идёт само. */
 const STATES: ReadonlyArray<{ id: string; caption: string; opts: Parameters<SectionContext["card"]>[0] }> = [
-  { id: "mo-idle", caption: "покой: лежит на столе, дышит еле заметно", opts: { card: "7♣", rest: "idle" } },
-  { id: "mo-float", caption: "левитирует («в руке»): качается, тень уходит дальше", opts: { card: "8♦", rest: "floating" } },
+  { id: "mo-idle", caption: "покой: лежит на столе, дышит еле заметно", opts: { card: "7♣", pose: "rest" } },
+  { id: "mo-float", caption: "левитирует («в руке»): качается, тень уходит дальше", opts: { card: "8♦", pose: "lifted" } },
   { id: "mo-dust", caption: "цензура: пыль — смаз настоящего лица, крутится бесконечно", opts: { card: "9♠", censored: true } },
-  { id: "mo-held", caption: "держат: приподнята и увеличена, тень самая длинная", opts: { card: "10♥", rest: "held" } },
+  { id: "mo-held", caption: "держат: приподнята и увеличена, тень самая длинная", opts: { card: "10♥", pose: "held" } },
 ];
 
 export function statesSection(ctx: SectionContext, at: Pt): SectionSize & { ids: string[] } {
   const stepX = ctx.cardW * 2.2;
   let maxBottom = at.y;
+  let maxRight = at.x;
   const ids: string[] = [];
+  const capHalf = (stepX * 0.92) / 2;
+  const over = Math.max(0, capHalf - ctx.cardW / 2); // тот же вылет подписи, что у переходов
+
   STATES.forEach((st, i) => {
-    const cx = at.x + ctx.cardW / 2 + i * stepX;
+    const cx = at.x + over + ctx.cardW / 2 + i * stepX;
     const cy = at.y + ctx.cardH / 2;
     ctx.card({ ...st.opts, id: st.id }, { x: cx, y: cy }, i, i * 0.7);
     ids.push(st.id);
+    // Карта в плане покоя `held`/`lifted` УВЕЛИЧЕНА — по номинальной ширине она вылезала за
+    // край витрины, и «держат» обрезалась ровно потому, что её и надо было разглядеть.
+    const halfW = (ctx.cardW * scaleForState(st.opts.pose ?? "rest")) / 2;
     const cap = ctx.label(st.caption, cx, cy + ctx.cardH / 2 + 12, 12, 0x9aa89f, stepX * 0.92);
     maxBottom = Math.max(maxBottom, cy + ctx.cardH / 2 + 12 + cap.height);
+    maxRight = Math.max(maxRight, cx + Math.max(halfW, capHalf));
   });
-  return { bottom: maxBottom + SB_ITEM_GAP, width: STATES.length * stepX, ids };
+  return { bottom: maxBottom + SB_ITEM_GAP, width: maxRight - at.x, ids };
 }
