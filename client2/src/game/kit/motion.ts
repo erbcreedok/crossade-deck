@@ -182,7 +182,7 @@ export function statesSection(ctx: SectionContext, at: Pt): SectionSize & { ids:
     const cy = at.y + ctx.cardH / 2;
     ctx.card({ ...st.opts, id: st.id }, { x: cx, y: cy }, i, i * 0.7);
     ids.push(st.id);
-    // Карта в плане покоя `held`/`lifted` УВЕЛИЧЕНА — по номинальной ширине она вылезала за
+    // Карта в позе покоя `held`/`lifted` УВЕЛИЧЕНА — по номинальной ширине она вылезала за
     // край витрины, и «держат» обрезалась ровно потому, что её и надо было разглядеть.
     const halfW = (ctx.cardW * scaleForState(st.opts.pose ?? "rest")) / 2;
     const cap = ctx.label(st.caption, cx, cy + ctx.cardH / 2 + 12, 12, 0x9aa89f, stepX * 0.92);

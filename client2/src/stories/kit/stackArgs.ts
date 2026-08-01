@@ -53,7 +53,7 @@ export const STACK_ARG_TYPES = {
   fanRadius: { name: "fan.radiusMult", description: "радиус дуги в ширинах карты: больше — площе веер", control: { type: "range" as const, min: 1, max: 8, step: 0.1 }, if: { arg: "layout", eq: "fan" } },
   heapSpread: { name: "heap.spread", description: "разброс кучи в долях карты", control: { type: "range" as const, min: 0, max: 0.8, step: 0.02 }, if: { arg: "layout", eq: "heap" } },
   faceUp: { name: "faceUp", description: "лицом или рубашкой. У закрытой пачки волна переворота читается только геометрией", control: { type: "boolean" as const } },
-  pose: { name: "pose", description: "план покоя: rest — лежит на столе, lifted — поднята, held — держат. Не путать с idle-анимацией (дыхание): rest это СОСТОЯНИЕ, idle — АНИМАЦИЯ", control: { type: "select" as const }, options: ["rest", "lifted", "held"] },
+  pose: { name: "pose", description: "поза покоя: rest — лежит на столе, lifted — поднята, held — держат. Не путать с idle-анимацией (дыхание): rest это СОСТОЯНИЕ, idle — АНИМАЦИЯ", control: { type: "select" as const }, options: ["rest", "lifted", "held"] },
   selected: { name: "selected", description: "контур набора (метка outline); подъём — отдельная метка, это pose: lifted", control: { type: "boolean" as const } },
   count: { name: "count", description: "сколько карт в пачке; от этого зависит и длина волны при перевороте", control: { type: "range" as const, min: 1, max: 10, step: 1 } },
 };

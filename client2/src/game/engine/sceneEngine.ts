@@ -19,7 +19,7 @@ import { BASE_PRESET, type AnimPreset } from "../anim/presets";
 // сценой (песочница, Косынка, будущие игры). Здесь живёт всё, что у любой сцены со столом ОДИНАКОВО
 // и потому не должно писаться заново:
 //
-//   • полотно контента + слои сцены (SceneLayers) и раскладка элементов по планам;
+//   • полотно контента + слои сцены (SceneLayers) и раскладка элементов по состояниям;
 //   • камера: пан/зум/пинч/колесо/инерция/клампы/скроллбары/авто-скролл у кромки;
 //   • ввод: InputRouter + хит-тест элементов и кнопок + ховер;
 //   • драг: DragContext (подъём в слой драга, возврат домой), SingleDrag по умолчанию;
@@ -227,7 +227,7 @@ export abstract class SceneEngine extends CanvasApp {
     this.emitView();
   }
 
-  /** Положить визуал элемента в слой его текущего плана. */
+  /** Положить визуал элемента в слой его текущего состояния. */
   protected placeCard(el: TableElement): void {
     this.scene.place(el.root, levelOf(el.state));
   }
@@ -821,7 +821,7 @@ export abstract class SceneEngine extends CanvasApp {
   protected releaseElement(el: SceneElement): void {
     const h = this.homeOf(el);
     if (!h) return;
-    el.setState(el.pose); // возврат в СВОЙ план покоя (стол / левитация / удержание)
+    el.setState(el.pose); // возврат в СВОЮ позу покоя (стол / поднят / держат)
     this.placeCard(el);
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
     // Глубину возвращаем НЕ СЕЙЧАС, а по прилёту. Раньше она ставилась сразу, и отпущенная карта

@@ -66,7 +66,7 @@ const meta: Meta<Args> = {
       options: ["card", "chip", "chess", "mixed"],
     },
     compare: { name: "compare", description: "показать три плана рядом. Высоту читают СРАВНЕНИЕМ: одна тень сама по себе ничего не сообщает", control: { type: "boolean" } },
-    pose: { name: "pose", description: "план покоя = слой отрисовки = высота", control: { type: "select" }, options: ["rest", "lifted", "held"], if: { arg: "compare", truthy: false } },
+    pose: { name: "pose", description: "поза покоя = слой отрисовки = высота", control: { type: "select" }, options: ["rest", "lifted", "held"], if: { arg: "compare", truthy: false } },
     overlap: { name: "overlap", description: "сколько карт внахлёст. На перекрытии видно, что тени СЛИВАЮТСЯ, а не темнят друг друга", control: { type: "range", min: 1, max: 6, step: 1 } },
     base: { name: "shadow.base", description: "размер тени у ЛЕЖАЩЕГО предмета, в долях его размера. 1 — ровно по нему; больше — тень торчит из-под карты со всех сторон", control: { type: "range", min: 0.8, max: 1.4, step: 0.01 } },
     growth: { name: "shadow.growth", description: "насколько тень крупнее с высотой. ОСМЫСЛЕННО ТОЛЬКО при follow≈0: у тени, лежащей на столе, пятно растёт, потому что источник близкий. У приклеенной (follow=1) размер меняться не должен — она едет с предметом, и рост читается как «живёт отдельно»", control: { type: "range", min: 0, max: 1, step: 0.01 } },
