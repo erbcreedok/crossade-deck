@@ -88,6 +88,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Для витрины сторибука на Pages — reusable-workflow не может расширить права сам.
+      pages: write
+      id-token: write
     uses: ./.github/workflows/build.yml
 
   deploy:

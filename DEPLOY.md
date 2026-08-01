@@ -217,6 +217,16 @@ Three apps, region `fra`:
 | `crusade-deck-client` | nginx: client v1 at `/`, client2 at `/v2/` | `client/fly.toml` |
 | `crusade-deck-storybook` | the canvas UI-kit catalogue | `deploy/storybook.fly.toml` |
 
+The storybook is additionally published to **GitHub Pages** —
+https://erbcreedok.github.io/crusade-deck/. That's not a duplicate but a split of roles: the
+image on Fly is an artifact like any other (same pipeline, same rollback by tag, deployable to
+your own server), while Pages is the shop window: free, no cold start, with a link you can hand
+to anyone. What goes to Pages is the static EXTRACTED FROM THE ALREADY BUILT IMAGE
+(`docker create` + `docker cp` in the `pages` job), not built a second time: a second build is a
+second artifact, and one day it diverges from the first. This works only because
+`.storybook/main.ts` sets `base: "./"` — Pages serves the site from the `/crusade-deck/`
+subpath, and an absolute base would 404 every asset.
+
 ### The artifact is one decision, the deploy is another
 
 Fly no longer builds anything. GitHub Actions builds the images and puts them in GHCR;
