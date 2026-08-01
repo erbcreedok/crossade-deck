@@ -35,7 +35,7 @@ const meta: Meta<Args> = {
   title: "Animations/Idle",
   args: { target: "card", pose: "lifted", idle: true, speed: 2.2, amp: 0.05, count: 5, step: 0.72, reduceMotion: false },
   argTypes: {
-    target: { name: "target", description: "на чём показывать", control: { type: "select" }, options: ["card", "stack", "deck", "piece"] },
+    target: { name: "target", description: "на чём: card — одна карта; stack — раскрытая пачка; deck — сомкнутая колода; piece — фишка", control: { type: "select" }, options: ["card", "stack", "deck", "piece"] },
     pose: { name: "pose", description: "где предмет находится. Задаёт размер, слой отрисовки и тень — но не дыхание", control: { type: "select" }, options: ["rest", "lifted", "held"] },
     idle: { name: "idle", description: "покачивается ли на месте. Своя ось: доступна в любой позе, поднятый предмет имеет её по умолчанию", control: { type: "boolean" } },
     speed: { name: "idle.speed", description: "скорость покачивания, рад/сек", control: { type: "range", min: 0, max: 8, step: 0.1 }, if: { arg: "idle", truthy: true } },
