@@ -1,0 +1,36 @@
+.github/workflows/ci.yml
+  s_2530113c134f54::t_48e5823e094ebe 92-105
+  s_2530113c134f54::t_0ce4ed824509be 8-11
+DEPLOY_RU.md
+  s_2530113c134f54::t_ae9dd158fd4f36 248-250
+  s_2530113c134f54::t_da0eee088c8c04 319-328
+.github/workflows/deploy.yml
+  s_2530113c134f54::t_554d264dd1f852 60-63,67-74
+  s_2530113c134f54::t_a4e6fc324e3dcc 75
+scripts/deploy.sh
+  s_2530113c134f54::t_52f83ced115d94 168
+  s_2530113c134f54::t_ba8938619c8b70 93-105,107,110-116,118-122,124-140,144-152,158,162,166-167
+DEPLOY.md
+  s_2530113c134f54::t_274bd75fcd9524 346-357
+  s_2530113c134f54::t_7f605d12c1a36c 254-257
+CLAUDE_RU.md
+  s_2530113c134f54::t_41c055303e4089 23-26
+CLAUDE.md
+  s_2530113c134f54::t_610fb86a48fe6e 25-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "e7e20b05380e81c9e6cae0ebfc0cc50a31a6abf0",
+  "prompts": {},
+  "sessions": {
+    "s_2530113c134f54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb0b921c-b6a7-48c1-8950-283125acb8af",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
