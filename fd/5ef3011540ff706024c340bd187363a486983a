@@ -1,0 +1,21 @@
+client2/src/stories/kit/catalogStructure.test.ts
+  s_849b1134095733::t_732c1768c7a1e8 1-68
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_3b78e56fe4c90f 15,19,26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "fd5ef3011540ff706024c340bd187363a486983a",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
