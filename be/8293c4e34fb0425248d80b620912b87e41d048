@@ -1,0 +1,22 @@
+client2/src/stories/kit/DropIndicator.stories.tsx
+  s_849b1134095733::t_ccfa51b6112c61 59-61
+  s_849b1134095733::t_24dfe60e5ce31c 57-58,62
+client2/src/game/kit/motion.ts
+  s_849b1134095733::t_73643b175c1606 187-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "be8293c4e34fb0425248d80b620912b87e41d048",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
