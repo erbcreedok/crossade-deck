@@ -1,5 +1,6 @@
 import { TEX_H, TEX_W } from "../engine/constants";
 import { screenLift } from "./elevation";
+import type { EffectFrame } from "../anim/destroyStyles";
 
 // ТЕНЬ — один закон на все предметы стола. Форма (прямоугольник карты, эллипс фишки) — параметр;
 // смещение, рост и следование за подъёмом общие.
@@ -20,7 +21,8 @@ export interface ShadowShape {
   polyKy?: number;
   /**
    * КАРТИНКА предмета вместо геометрии: тень фигуры — это она сама, только тёмная. Габарит
-   * (`bx/by/bw/bh`) — в локальных координатах визуала, `k` — во сколько он нарисован.
+   * (`bx/by/bw/bh`) — в локальных координатах визуала, `k` — во сколько он нарисован. Если рядом
+   * лежит `poly` (маска эффекта), она эту картинку режет — тем же кадром, что и сам предмет.
    */
   image?: { texture: unknown; bx: number; by: number; bw: number; bh: number; k: number };
 }
@@ -82,7 +84,7 @@ export interface ShadowSpec {
   reach?: number;
   /** Форма: маска эффекта (горение, шреддер). */
   poly?: number[][] | null;
-  /** Картинка предмета как его тень — точнее любой геометрии. Маска эффекта её вытесняет. */
+  /** Картинка предмета как его тень — точнее любой геометрии. Маска эффекта её РЕЖЕТ, а не заменяет. */
   image?: { texture: unknown; bx: number; by: number; bw: number; bh: number; k: number } | null;
   /** Множитель для `poly` по X. Не задан — форма карточная, в координатах текстуры. */
   polyK?: number;
@@ -90,6 +92,29 @@ export interface ShadowSpec {
   polyKy?: number;
   /** Угасание от эффекта, 0..1. null — тень пора убрать совсем. */
   fade?: number | null;
+}
+
+/**
+ * ОДНА провязка «кадр анимации → тень» на все предметы стола.
+ *
+ * Тень не анимируют — её ВЫВОДЯТ. Но раньше выводили в двух местах: карта складывала кадр эффекта
+ * со своим состоянием у себя, фигура — у себя, и любое новое поле кадра пришлось бы вписывать
+ * дважды. Здесь это делается один раз: предмет описывает СЕБЯ (место, высота, форма), эффект
+ * добавляется сверху, и всё, что появится в кадре завтра, доедет до тени само.
+ */
+export function withEffect<T extends { z: number; shakeX?: number; screenY?: number; rotation?: number }>(base: T, f: EffectFrame | null | undefined): T {
+  if (!f) return base;
+  return {
+    ...base,
+    shakeX: (base.shakeX ?? 0) + f.dx,
+    screenY: (base.screenY ?? 0) + f.dy,
+    // Масштаб эффекта — это ВЫСОТА: взлетевший предмет крупнее и выше над столом.
+    z: base.z + Math.max(0, f.scale - 1),
+    rotation: (base.rotation ?? 0) + f.rot,
+    // Маска эффекта не подменяет форму тени, а режет её — тем же кадром, что режет предмет.
+    poly: f.mask,
+    fade: f.shadow,
+  };
 }
 
 export function shadowOf(s: ShadowSpec, t: ShadowTuning = SHADOW_TUNING): ShadowShape | null {
@@ -112,7 +137,7 @@ export function shadowOf(s: ShadowSpec, t: ShadowTuning = SHADOW_TUNING): Shadow
     ...(s.poly ? { poly: s.poly } : {}),
     ...(s.poly && s.polyK !== undefined ? { polyK: s.polyK } : {}),
     ...(s.poly && s.polyKy !== undefined ? { polyKy: s.polyKy } : {}),
-    ...(!s.poly && s.image ? { image: s.image } : {}),
+    ...(s.image ? { image: s.image } : {}),
   };
 }
 

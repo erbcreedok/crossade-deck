@@ -18,8 +18,13 @@ export interface MaskRef {
 /**
  * Применить кадр к УЗЛУ элемента. Тени тут нет и быть не может: она ВЫВОДИТСЯ из состояния предмета
  * (позиция, масштаб, маска) один раз за кадр, а не описывается заново под каждый эффект.
+ *
+ * `unit` — во сколько вписать маску в коробку ЭТОГО элемента. Маски стилей нарисованы в координатах
+ * карточной текстуры (реестр один на всех), а фишка и фигура заметно мельче: без пересчёта полосы
+ * шреддера оказывались втрое шире предмета и резать было нечего — уничтожение выглядело совсем
+ * другой анимацией, чем у карты.
  */
-export function applyEffect(root: Container, px: number, py: number, f: EffectFrame, mask: MaskRef): void {
+export function applyEffect(root: Container, px: number, py: number, f: EffectFrame, mask: MaskRef, unit: { x: number; y: number } = { x: 1, y: 1 }): void {
   root.position.set(px + f.dx, py + f.dy);
   root.rotation += f.rot;
   root.alpha = f.alpha;
@@ -32,6 +37,7 @@ export function applyEffect(root: Container, px: number, py: number, f: EffectFr
       root.mask = mask.g;
     }
     mask.g.clear();
+    mask.g.scale.set(unit.x, unit.y);
     for (const poly of f.mask) mask.g.poly(poly).fill(0xffffff);
   } else if (mask.g) {
     // Маску обязательно снимать: появление заканчивается обычным элементом, и застывшая шторка

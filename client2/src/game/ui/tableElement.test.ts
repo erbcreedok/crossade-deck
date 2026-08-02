@@ -173,14 +173,43 @@ describe("тень выводится из состояния КАЖДЫЙ ка�
     expect(p.shadowRect!.image!.k).toBeGreaterThan(k0);
   });
 
-  it("пока предмет горит, форму задаёт ЭФФЕКТ: спорить двум формам не о чем", () => {
+  it("пока предмет горит, тень остаётся им же — маска эффекта её РЕЖЕТ, а не подменяет", () => {
     const p = standing();
     p.setAnimPreset({ ...BASE_PRESET, destroy: { ...BASE_PRESET.destroy, style: "shred" } });
     p.burn();
     for (let i = 0; i < 5 && !p.dead; i++) p.step(0.05);
     p.sync();
-    expect(p.shadowRect!.image).toBeUndefined();
-    expect(p.shadowRect!.poly).toBeTruthy();
+    expect(p.shadowRect!.image!.texture).toBe(OWN.texture); // картинка на месте
+    expect(p.shadowRect!.poly).toBeTruthy(); // и рядом та же маска, что режет предмет
+  });
+
+  it("маска эффекта пересчитывается в КОРОБКУ предмета: полосы шреддера нарисованы под карту", () => {
+    const p = standing();
+    p.setAnimPreset({ ...BASE_PRESET, destroy: { ...BASE_PRESET.destroy, style: "shred" } });
+    p.burn();
+    for (let i = 0; i < 5 && !p.dead; i++) p.step(0.05);
+    p.sync();
+    // Предмет 60×60, карточная текстура 160×228 — множитель обязан быть меньше единицы,
+    // иначе полосы шире предмета и резать нечего.
+    expect(p.shadowRect!.polyK!).toBeLessThan(1);
+    expect(p.shadowRect!.polyKy!).toBeLessThan(p.shadowRect!.polyK!);
+  });
+
+  it("маска эффекта не отменяет форму тени: горящая фишка остаётся круглой", () => {
+    const p = chip();
+    p.setAnimPreset({ ...BASE_PRESET, destroy: { ...BASE_PRESET.destroy, style: "shred" } });
+    p.burn();
+    for (let i = 0; i < 5 && !p.dead; i++) p.step(0.05);
+    p.sync();
+    expect(p.shadowRect!.round).toBe(true); // форма своя
+    expect(p.shadowRect!.poly).toBeTruthy(); // и рядом рез, а не подмена
+  });
+
+  it("тень поворачивается вместе с предметом, а не остаётся лежать по осям", () => {
+    const p = standing();
+    p.body.snapTo({ x: p.body.px, y: p.body.py, rot: 0.4, scale: 1 });
+    p.sync();
+    expect(p.shadowRect!.rot).toBeCloseTo(0.4, 6);
   });
 });
 

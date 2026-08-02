@@ -1,13 +1,14 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { CardBody } from "../CardBody";
 import { scaleForState } from "./plane";
-import { shadowOf } from "./shadow";
+import { shadowOf, withEffect } from "./shadow";
 import { BASE_PRESET, scaled, type AnimPreset } from "../anim/presets";
 import { destroyStyle } from "../anim/destroyStyles";
 import { appearStyle } from "../anim/appearStyles";
 import { applyEffect } from "../anim/effectApply";
 import type { EffectFrame } from "../anim/destroyStyles";
 import { bobOffset, idleBobs, scaleFromZ, screenLift, zFromScale } from "./elevation";
+import { TEX_H, TEX_W } from "../engine/constants";
 import type { Burnable, Draggable, TableElement } from "../engine/element";
 import type { CardState, Pose, ShadowShape } from "./Card";
 import type { OwnShadow } from "./silhouetteExtract";
@@ -200,30 +201,36 @@ export class Piece implements TableElement, Draggable, Burnable {
       const st = appearStyle(this.preset.appear.style);
       fx = st.frame(st.dur * (this.born.t / this.born.dur), { age: this.age, width: this.w });
     }
-    if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask);
+    // Маски стилей нарисованы в координатах карточной текстуры — вписываем их в коробку предмета.
+    const unit = { x: this.w / TEX_W, y: this.h / TEX_H };
+    if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask, unit);
 
-    // Свой снимок — только пока предмет цел: у горящего форму задаёт эффект, и спорить им не о чем.
-    const own = fx?.mask ? null : this.own;
+    const own = this.own;
     this.shadowRect = shadowOf(
-      {
-        px: this.body.px,
-        py: this.body.py,
-        shakeX: shakeX + (fx?.dx ?? 0),
-        z: z + Math.max(0, (fx?.scale ?? 1) - 1),
-        screenY: fx?.dy ?? 0,
-        // Силуэт — от НАРИСОВАННОГО размера, как у карты: поднятая фишка крупнее лежащей, и
-        // тень у неё крупнее во столько же.
-        hw: this.shadowCfg.rx * drawn,
-        hh: this.shadowCfg.ry * drawn,
-        // Снимку сдвиг не нужен: он ложится ровно туда, где нарисован предмет. Габаритной тени —
-        // нужен: пятно рисуется от центра, а стоит предмет на низу.
-        baseDy: own ? 0 : this.shadowCfg.dy * drawn,
-        reach: this.w * drawn,
-        round: true,
-        poly: fx?.mask ?? null,
-        image: own ? { texture: own.texture, bx: own.bounds.x, by: own.bounds.y, bw: own.bounds.width, bh: own.bounds.height, k: drawn } : null,
-        fade: fx?.shadow ?? 1,
-      },
+      withEffect(
+        {
+          px: this.body.px,
+          py: this.body.py,
+          shakeX,
+          z,
+          screenY: bob,
+          rotation: this.body.rotation,
+          // Силуэт — от НАРИСОВАННОГО размера, как у карты: поднятая фишка крупнее лежащей, и
+          // тень у неё крупнее во столько же.
+          hw: this.shadowCfg.rx * drawn,
+          hh: this.shadowCfg.ry * drawn,
+          // Снимку сдвиг не нужен: он ложится ровно туда, где нарисован предмет. Габаритной тени —
+          // нужен: пятно рисуется от центра, а стоит предмет на низу.
+          baseDy: own ? 0 : this.shadowCfg.dy * drawn,
+          reach: this.w * drawn,
+          round: !own,
+          // Маска эффекта режет тень в тех же единицах, в каких режет предмет.
+          polyK: drawn * unit.x,
+          polyKy: drawn * unit.y,
+          image: own ? { texture: own.texture, bx: own.bounds.x, by: own.bounds.y, bw: own.bounds.width, bh: own.bounds.height, k: drawn } : null,
+        },
+        fx,
+      ),
       this.preset.shadow,
     );
   }

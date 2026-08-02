@@ -4,7 +4,7 @@ import { spinAngle, spinScale, spinShowsOther } from "../flip";
 import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
 import { scaleForState } from "./plane";
-import { cardShadow, type ShadowShape } from "./shadow";
+import { cardShadow, withEffect, type ShadowShape } from "./shadow";
 export type { ShadowShape };
 import { bobOffset, idleBobs, scaleFromZ, screenLift, zFromScale } from "./elevation";
 
@@ -604,19 +604,19 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     // ТЕНЬ — всегда следствие состояния: место, высота, экранное смещение, форма. Отдельных
     // «теневых анимаций» нет и заводить их не нужно — эффект меняет предмет, тень идёт следом.
     this.shadowRect = cardShadow(
-      {
-        px: this.body.px,
-        py: this.body.py,
-        shakeX: shakeX + (fx?.dx ?? 0),
-        // Масштаб эффекта — это высота: взлетевшая карта крупнее и выше над столом.
-        z: z + Math.max(0, (fx?.scale ?? 1) - 1),
-        rotation: this.body.rotation + (fx?.rot ?? 0),
-        scaleFactor: render * scaleFromZ(this.zBase), // тот же множитель, что уехал в root.scale
-        screenY: bob + (fx?.dy ?? 0),
-        spinX,
-        poly: fx?.mask ?? null,
-        fade: fx?.shadow ?? 1,
-      },
+      withEffect(
+        {
+          px: this.body.px,
+          py: this.body.py,
+          shakeX,
+          z,
+          rotation: this.body.rotation,
+          scaleFactor: render * scaleFromZ(this.zBase), // тот же множитель, что уехал в root.scale
+          screenY: bob,
+          spinX,
+        },
+        fx,
+      ),
       this.preset.shadow,
     );
   }
