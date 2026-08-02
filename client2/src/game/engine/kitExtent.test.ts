@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extentOf, fitCanvas, fitScale, fitZoom } from "./kitExtent";
+import { extentOf, extentOfPlaced, fitCanvas, fitScale, fitZoom } from "./kitExtent";
 
 // Габарит витрины и вписывание её в экран. Это ЕДИНСТВЕННАЯ математика в хосте стори, поэтому
 // только она тут и покрыта: остальное в KitScene — работа с Pixi, которую node не исполняет.
@@ -108,5 +108,36 @@ describe("fitCanvas", () => {
     const box = fitCanvas({ w: 0, h: 0 }, { w: 800, h: 600 });
     expect(Number.isFinite(box.w) && Number.isFinite(box.h)).toBe(true);
     expect(box.w).toBeGreaterThan(0);
+  });
+});
+
+// Габарит по расставленным элементам. Правило пришло со скриншота телефона: у раздела «Тень»
+// удерживаемой карте срезало верх — она нарисована крупнее лежащей, а мерили её номинальным
+// размером.
+describe("extentOfPlaced", () => {
+  const at = (x: number, y: number, restScale = 1) => ({ home: { x, y }, footprint: { hw: 50, hh: 70 }, restScale });
+
+  it("лежащий элемент меряется своим размером", () => {
+    expect(extentOfPlaced([at(60, 80)], 10)).toEqual({ w: 120, h: 160 });
+  });
+
+  it("увеличенная поза расширяет габарит — ровно на то, насколько предмет крупнее", () => {
+    const rest = extentOfPlaced([at(60, 80)], 10);
+    const held = extentOfPlaced([at(60, 80, 1.45)], 10);
+    expect(held.w).toBeCloseTo(60 + 50 * 1.45 + 10, 6);
+    expect(held.w).toBeGreaterThan(rest.w);
+    expect(held.h).toBeGreaterThan(rest.h);
+  });
+
+  it("габарит берёт САМЫЙ дальний край, а не последний элемент", () => {
+    const e = extentOfPlaced([at(300, 40), at(60, 200)], 8);
+    expect(e.w).toBe(300 + 50 + 8);
+    expect(e.h).toBe(200 + 70 + 8);
+  });
+
+  it("пустая витрина всё равно имеет размер — камера делит на габарит", () => {
+    const e = extentOfPlaced([], 12);
+    expect(e.w).toBeGreaterThan(0);
+    expect(e.h).toBeGreaterThan(0);
   });
 });

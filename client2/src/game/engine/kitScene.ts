@@ -15,7 +15,7 @@ import type { Command } from "./command";
 import { gripConfig } from "../kit/markerIcons";
 import { attachControls } from "../ui/controls";
 import { makeLabel, type Pt, type SectionContext } from "../kit/context";
-import { extentOf, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } from "./kitExtent";
+import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } from "./kitExtent";
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 
@@ -391,15 +391,9 @@ export class KitScene extends SceneEngine {
     // переявлялась бы по десять раз подряд — шум, который прячет то, ради чего рычаг крутят.
     // Появление — СОБЫТИЕ доски (раздали, вернули, добрали), и запускает его тот, кто его вызвал.
     this.fresh = [];
-    // Полуразмеры берём В ПОЗЕ ЭЛЕМЕНТА, а не в покое: удерживаемая карта нарисована крупнее
-    // (DRAG_SCALE), и по номинальному размеру она вылезала за габарит — на канвасе, поджатом
-    // ровно по нему, ей срезало верх.
-    const e =
-      this.explicitExtent ??
-      extentOf(
-        this.placed.map((p) => ({ x: p.home.x, y: p.home.y, hw: p.el.footprint.hw * p.el.restScale, hh: p.el.footprint.hh * p.el.restScale })),
-        this.padding,
-      );
+    // Полуразмеры берутся В ПОЗЕ элемента (см. extentOfPlaced): удерживаемой карте иначе срезало
+    // верх на канвасе, поджатом ровно по габариту.
+    const e = this.explicitExtent ?? extentOfPlaced(this.placed.map((p) => ({ home: p.home, footprint: p.el.footprint, restScale: p.el.restScale })), this.padding);
     this.contentW = e.w;
     this.contentH = e.h;
     this.syncVp();
