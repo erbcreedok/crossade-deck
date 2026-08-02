@@ -1,0 +1,28 @@
+client2/src/game/ui/silhouette.test.ts
+  s_849b1134095733::t_cfea76ffb910d8 2
+client2/src/game/kit/shadowScene.ts
+  s_849b1134095733::t_a4628272d40f5f 84-85
+client2/src/game/ui/pieceKinds.ts
+  s_849b1134095733::t_970d163fab6bc2 34-37
+  s_849b1134095733::t_cfea76ffb910d8 18,24,43,64
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_f91da54c3bd516 69
+client2/src/game/ui/silhouette.ts
+  s_849b1134095733::t_a4628272d40f5f 8-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "248251510b4459e1e9dbf68cb566ca858ba6a0c3",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
