@@ -2,8 +2,7 @@ import { Application, Container } from "pixi.js";
 import { SceneEngine, type CameraConfig, type SceneElement } from "./sceneEngine";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card } from "../ui/Card";
-import { Piece } from "../ui/Piece";
-import { pieceVisual } from "../ui/pieceKinds";
+import { buildPiece } from "../ui/pieceKinds";
 import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 import { SB_MARGIN } from "./sandboxLayout";
 import type { Button } from "../ui/Button";
@@ -302,8 +301,7 @@ export class KitScene extends SceneEngine {
       dispatch: (cmd) => this.dispatch(cmd),
       piece: (id, home, spec, r, depth = 0, plan = {}) => {
         this.specs.set(id, () => ctx.piece(id, home, spec, r, depth, plan));
-        const { build, shadow, flatten } = pieceVisual(spec, r);
-        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, flatten, ...plan }), home, depth);
+        ctx.add(buildPiece(id, spec, r, this.app?.renderer, plan), home, depth);
       },
       // Метки. Механизм — общий (SceneEngine.mountMarkers), «как выглядит грип» — общее с
       // песочницей (kit/markerIcons). Витрина отличается только тем, что груз собирается прямо

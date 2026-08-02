@@ -24,8 +24,12 @@ export interface PieceOptions {
   h: number;
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
   shadow: { rx: number; ry: number; dy: number }; // габарит тени: полуоси + сдвиг вниз
-  /** Насколько форму приплюснуть по вертикали (тень стоящей фигуры лежит на столе). */
-  flatten?: number;
+  /**
+   * СОБСТВЕННАЯ форма тени в локальных координатах визуала — снятая с него же и уже положенная
+   * на стол (ui/silhouette.ts). Есть — тень повторяет предмет; нет — остаётся габарит выше.
+   * Второе не «запасной вариант»: лежащей фишке эллипс и есть её форма, снимать там нечего.
+   */
+  silhouette?: number[] | null;
   pose?: Pose;
   /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
   idle?: boolean;
@@ -49,7 +53,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly w: number;
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
-  private readonly flatten: number;
+  private readonly silhouette: number[] | null;
   private age = 0;
   private block: { t: number; dur: number } | null = null;
   private born: { t: number; dur: number } | null = null;
@@ -73,7 +77,7 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
-    this.flatten = opts.flatten ?? 1;
+    this.silhouette = opts.silhouette ?? null;
     this.pose = opts.pose ?? "rest";
     this.idle = opts.idle;
     this.state = this.pose;
@@ -197,6 +201,8 @@ export class Piece implements TableElement, Draggable, Burnable {
     }
     if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask);
 
+    // Своя форма — только пока предмет цел: у горящего форму задаёт эффект, и спорить им не о чем.
+    const own = fx?.mask ? null : this.silhouette;
     this.shadowRect = shadowOf(
       {
         px: this.body.px,
@@ -208,10 +214,13 @@ export class Piece implements TableElement, Draggable, Burnable {
         // тень у неё крупнее во столько же.
         hw: this.shadowCfg.rx * drawn,
         hh: this.shadowCfg.ry * drawn,
-        baseDy: this.shadowCfg.dy * drawn,
+        // Своей форме сдвиг не нужен: она уже положена на стол и опирается на ноги предмета
+        // (ui/silhouette.ts). Габаритной — нужен: пятно рисуется от центра, а стоит предмет на низу.
+        baseDy: own ? 0 : this.shadowCfg.dy * drawn,
         reach: this.w * drawn,
         round: true,
-        poly: fx?.mask ?? null,
+        poly: fx?.mask ?? (own ? [own] : null),
+        ...(own ? { polyK: drawn, polyKy: drawn } : {}),
         fade: fx?.shadow ?? 1,
       },
       this.preset.shadow,

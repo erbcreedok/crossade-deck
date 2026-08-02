@@ -26,7 +26,7 @@ import type { Pt, SectionContext, SectionSize } from "./context";
 export type ShadowSubject = "card" | "chip" | "chess" | "mixed";
 
 export interface ShadowSceneOpts {
-  /** На чём смотрим: у карты силуэт прямоугольный, у фишки и фигуры — эллипс. */
+  /** На чём смотрим: у карты форма прямоугольная, у лежащей фишки — эллипс, у фигуры — своя. */
   subject: ShadowSubject;
   /** План покоя — он же слой отрисовки и он же высота. */
   pose: Pose;
@@ -80,8 +80,9 @@ export function shadowScene(ctx: SectionContext, at: Pt, o: Partial<ShadowSceneO
       const cx = x + ctx.cardW / 2 + i * step;
       const kind = subject === "mixed" ? (["card", "chip", "chess"] as const)[i % 3]! : subject;
       if (kind === "card") ctx.card({ id, card: ["A♠", "K♥", "Q♦", "10♣"][i % 4]!, pose }, { x: cx, y: y + ctx.cardH / 2 }, i);
-      // У фишки и фигуры силуэт ЭЛЛИПТИЧЕСКИЙ, и у стоящей фигуры он узкий — тень у основания.
-      // Прямоугольная тень под круглой фишкой сразу читается как чужая.
+      // Форма тени — от предмета, а не от типа: у лежащей фишки эллипс (это и есть её форма), у
+      // стоящей фигуры — её собственный силуэт, снятый с визуала и положенный на стол. Прямоугольная
+      // тень под круглой фишкой сразу читается как чужая, а «пятно вообще» под конём — как ничья.
       else ctx.piece(id, { x: cx, y: y + ctx.cardH / 2 }, kind === "chip" ? { kind: "chip", color: 0xc79a3e, denom: "25" } : { kind: "chess", dark: i % 2 === 0, glyph: "♞" }, r);
       ids.push(id);
     }

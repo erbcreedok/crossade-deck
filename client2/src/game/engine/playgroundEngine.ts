@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type Pose } from "../ui/Card";
 import { Piece } from "../ui/Piece";
-import { pieceVisual, type PieceSpec } from "../ui/pieceKinds";
+import { buildPiece, type PieceSpec } from "../ui/pieceKinds";
 import { BoardZone, type AcceptRule, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
@@ -891,8 +891,7 @@ export class PlaygroundEngine extends SceneEngine {
   // Живой не-карточный элемент: визуал берём из реестра по спеке (pieceKinds), дальше как карту
   // (snapTo → слой → реестр byId → список pieces). r — радиус; размер элемента r*2.
   private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number, plan: PiecePlan = {}): void {
-    const { build, shadow, flatten } = pieceVisual(spec, r);
-    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow, flatten, ...plan });
+    const piece = buildPiece(id, spec, r, this.app?.renderer, plan);
     piece.flashOff = this.flashOff;
     piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });

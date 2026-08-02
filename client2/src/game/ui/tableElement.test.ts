@@ -19,6 +19,14 @@ const chip = (o: Partial<ConstructorParameters<typeof Piece>[0]> = {}) => {
   const { build, shadow } = pieceVisual({ kind: "chip", color: 0xc79a3e, denom: "25" }, r);
   return new Piece({ id: "p", w: r * 2, h: r * 2, build, shadow, ...o });
 };
+// Стоящий предмет со СВОЕЙ формой тени. Форма здесь задана руками: снимают её с визуала живым
+// рендерером (ui/silhouetteExtract.ts), а закон «тень идёт формой» от способа её добычи не зависит.
+const OWN = [-20, -10, 20, -10, 20, 10, -20, 10];
+const standing = (o: Partial<ConstructorParameters<typeof Piece>[0]> = {}) => {
+  const r = 30;
+  const { build, shadow } = pieceVisual({ kind: "chess", dark: true, glyph: "♞" }, r);
+  return new Piece({ id: "s", w: r * 2, h: r * 2, build, shadow, silhouette: OWN, ...o });
+};
 
 describe("высота (`z`) — свойство КАЖДОГО элемента", () => {
   it("у всего, что лежит на столе, высота нулевая", () => {
@@ -151,6 +159,26 @@ describe("тень выводится из состояния КАЖДЫЙ ка�
     p.sync();
     expect(c.shadowRect!.round).toBeUndefined();
     expect(p.shadowRect!.round).toBe(true);
+  });
+
+  it("у предмета со своей формой тень идёт ЕЮ, а не габаритом, и растёт вместе с ним", () => {
+    const p = standing();
+    p.sync();
+    expect(p.shadowRect!.poly).toEqual([OWN]);
+    const k0 = p.shadowRect!.polyK!;
+    p.setZ(0.5); // подняли — предмет нарисован крупнее, и его тень во столько же
+    p.sync();
+    expect(p.shadowRect!.polyK!).toBeGreaterThan(k0);
+    expect(p.shadowRect!.polyKy).toBe(p.shadowRect!.polyK); // форма уже лежит на столе, второй раз её не плющат
+  });
+
+  it("пока предмет горит, форму задаёт ЭФФЕКТ: спорить двум маскам не о чем", () => {
+    const p = standing();
+    p.setAnimPreset({ ...BASE_PRESET, destroy: { ...BASE_PRESET.destroy, style: "shred" } });
+    p.burn();
+    for (let i = 0; i < 5 && !p.dead; i++) p.step(0.05);
+    p.sync();
+    expect(p.shadowRect!.poly).not.toEqual([OWN]);
   });
 });
 
