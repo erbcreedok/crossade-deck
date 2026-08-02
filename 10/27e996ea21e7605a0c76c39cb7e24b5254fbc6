@@ -1,0 +1,26 @@
+client2/src/game/crossade/state.ts
+  s_849b1134095733::t_081acb6602e13d 1-157
+client2/src/game/crossade/tree.test.ts
+  s_849b1134095733::t_5e417aef787aee 1-151
+client2/src/game/crossade/state.test.ts
+  s_849b1134095733::t_c54c075cb0c200 1-158
+client2/src/game/crossade/tree.ts
+  s_849b1134095733::t_09993b43b82743 1-102,105-171
+  s_849b1134095733::t_c581f9e9e787d0 103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1027e996ea21e7605a0c76c39cb7e24b5254fbc6",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
