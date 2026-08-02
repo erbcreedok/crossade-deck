@@ -61,6 +61,35 @@ const toScreen = (canvasElement: HTMLElement, p: Pt): Pt => {
   return { x: r.x + v.x + p.x * v.zoom, y: r.y + v.y + p.y * v.zoom };
 };
 
+/** Снимок камеры: коробка канваса плюс сдвиг и масштаб витрины. */
+const cameraStamp = (canvasElement: HTMLElement): string => {
+  const cv = canvasElement.querySelector("canvas");
+  if (!cv) return "";
+  const r = cv.getBoundingClientRect();
+  const v = scene(canvasElement).viewport;
+  return [r.x, r.y, r.width, r.height, v.x, v.y, v.zoom].map((n) => Math.round(n)).join("/");
+};
+
+/**
+ * Дождаться, пока камера перестанет ехать.
+ *
+ * Кадр открывается раньше, чем встаёт его размер: панель Interactions разворачивается уже после
+ * старта сценария и ужимает превью, наблюдатель пересчитывает коробку, камера — сдвиг. Жест,
+ * посчитанный по камере ДО этого, ведёт палец мимо зоны: предмет поднимается и возвращается домой,
+ * а по панели это неотличимо от «дроп не работает».
+ */
+export async function waitForSteadyCamera(canvasElement: HTMLElement, timeoutMs = 5000): Promise<void> {
+  const started = Date.now();
+  let prev = "";
+  for (;;) {
+    const now = cameraStamp(canvasElement);
+    if (now && now === prev) return;
+    prev = now;
+    if (Date.now() - started > timeoutMs) return; // не повод валить сценарий: ведём жест по тому, что есть
+    await wait(120);
+  }
+}
+
 const fire = (canvasElement: HTMLElement, type: string, p: Pt): void => {
   const cv = canvasElement.querySelector("canvas")!;
   cv.dispatchEvent(new PointerEvent(type, { clientX: p.x, clientY: p.y, pointerId: 1, pointerType: "mouse", isPrimary: true, bubbles: true, cancelable: true, buttons: type === "pointerup" ? 0 : 1 }));
@@ -73,16 +102,20 @@ const fire = (canvasElement: HTMLElement, type: string, p: Pt): void => {
  * Шагов много и они мелкие не для красоты: движок отличает тап от драга по сдвигу пальца, а тело
  * едет пружиной — «прыжок» одним событием не проходит ни через порог, ни через хит-тест зоны.
  * Пауза в конце — чтобы пружина доехала: сразу после отпускания предмет ещё в полёте.
+ *
+ * Путь ведётся в координатах КОНТЕНТА и переводится камерой на каждом шаге, а не один раз вначале:
+ * коробка канваса меняется прямо во время сценария (раскрылась панель — превью ужалось), и
+ * посчитанный заранее экранный отрезок после такой перекладки указывает уже не туда.
  */
 export async function dragOnCanvas(canvasElement: HTMLElement, from: Pt, to: Pt, steps = 10): Promise<void> {
-  const a = toScreen(canvasElement, from);
-  const b = toScreen(canvasElement, to);
-  fire(canvasElement, "pointerdown", a);
+  await waitForSteadyCamera(canvasElement);
+  const lerp = (i: number): Pt => ({ x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps });
+  fire(canvasElement, "pointerdown", toScreen(canvasElement, from));
   await wait(40);
   for (let i = 1; i <= steps; i++) {
-    fire(canvasElement, "pointermove", { x: a.x + ((b.x - a.x) * i) / steps, y: a.y + ((b.y - a.y) * i) / steps });
+    fire(canvasElement, "pointermove", toScreen(canvasElement, lerp(i)));
     await wait(20);
   }
-  fire(canvasElement, "pointerup", b);
+  fire(canvasElement, "pointerup", toScreen(canvasElement, to));
   await wait(900);
 }
