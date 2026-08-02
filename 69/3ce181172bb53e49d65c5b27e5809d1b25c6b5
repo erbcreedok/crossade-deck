@@ -1,0 +1,32 @@
+client2/src/stories/kit/stackArgs.ts
+  s_849b1134095733::t_666763d9c39a6f 2,27-28,43,62-68,82-83
+client2/src/game/kit/gallery.ts
+  s_849b1134095733::t_995d9c1da66d59 1-63
+client2/src/game/kit/stacks.ts
+  s_849b1134095733::t_d5d6f2fc82fb22 6,140-145,148-154,159,162-165,171-172,185-196
+client2/src/stories/kit/Stacks.stories.tsx
+  s_849b1134095733::t_d8fa5bbf92b8e2 148-184
+client2/src/stories/kit/Shadow.stories.tsx
+  s_849b1134095733::t_306e3b4c9de99f 9-11,133-177
+client2/src/stories/kit/Censorship.stories.tsx
+  s_849b1134095733::t_49fa5912658304 6,193-238
+client2/src/stories/kit/Board.stories.tsx
+  s_849b1134095733::t_49fa5912658304 162-192,195,197,199,201-204
+  s_849b1134095733::t_9f97f9938d47d7 193-194,196,198,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "693ce181172bb53e49d65c5b27e5809d1b25c6b5",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
