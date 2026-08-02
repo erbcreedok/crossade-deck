@@ -1,0 +1,33 @@
+client2/src/game/engine/censorSource.ts
+  s_849b1134095733::t_63caa0bb0dee57 83-84
+  s_849b1134095733::t_50f5790b79ff0d 1,90-91
+  s_849b1134095733::t_d4e3199f73b283 58-82,109
+client2/src/game/ui/pieceKinds.ts
+  s_849b1134095733::t_504c2b19797f81 1,4,64-74,82
+  s_849b1134095733::t_d4e3199f73b283 75-81
+client2/src/game/ui/CardTextureCache.ts
+  s_849b1134095733::t_d4e3199f73b283 69
+client2/src/stories/kit/Censorship.stories.tsx
+  s_849b1134095733::t_804d7ae8272105 152-154,182-183
+client2/src/game/kit/context.ts
+  s_849b1134095733::t_ce1776f5781ab2 48-49
+client2/src/game/ui/Piece.ts
+  s_849b1134095733::t_47a22c16d7a3ad 37-43,68-71,96-97,102
+  s_849b1134095733::t_899fac5db15351 3-4,119-139,183-186,204-208,214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "2a052a68b40decc23dab2a265a9b7befb9c4ed3e",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
