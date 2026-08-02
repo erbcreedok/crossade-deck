@@ -1,0 +1,32 @@
+client2/src/net/runtimeConfig.ts
+  s_849b1134095733::t_3f2f07104d7327 1-43
+client2/src/net/connect.test.ts
+  s_849b1134095733::t_be5f4589af5f19 1-21
+client2/src/net/account.ts
+  s_849b1134095733::t_d1570903ce0336 1-119
+client2/src/net/runtimeConfig.test.ts
+  s_849b1134095733::t_10bbfc84584647 2-30,39-40,42-58,66-67
+  s_849b1134095733::t_8ee759a8aeea4e 1
+  s_849b1134095733::t_eecc074ab02818 31-38,41,59-65
+client2/src/net/account.test.ts
+  s_849b1134095733::t_1e695d8e970140 1,14-25
+  s_849b1134095733::t_71f2338d87e3f9 2-13,26-150
+client2/src/net/connect.ts
+  s_849b1134095733::t_98ea6009f358d5 1-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "60079c33eefcf64468fcdf6b403029d760aa63ae",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
