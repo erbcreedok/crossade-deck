@@ -3,6 +3,7 @@ import { Text } from "pixi.js";
 import { Card, type CardOptions } from "../../game/ui/Card";
 import { PIXEL_FONT } from "../../game/engine/constants";
 import { dropzonesSection } from "../../game/kit/dropzones";
+import { action } from "storybook/actions";
 import { CanvasStage } from "../harness/CanvasStage";
 
 // ПРОВЕРОЧНЫЕ стори №2 и №3 (категории «способности элемента» и «механики сцены») — они здесь
@@ -24,6 +25,8 @@ const CAPS: { id: string; cap: string; opts: CardOptions }[] = [
   { id: "cap-peek", cap: "Concealable+Peekable: скрыта, ПОДГЛЯДЕТЬ раскроет на время", opts: { card: "4♣", hidden: true } },
   { id: "cap-back", cap: "рубашкой вверх: тоже есть что подглядеть", opts: { card: "5♠", faceUp: false } },
 ];
+
+const onZone = action("зона приняла груз");
 
 const meta: Meta<Args> = {
   title: "Mechanics/Capabilities & drop zones",
@@ -80,7 +83,7 @@ ctx.zone(
         // код. В песочнице дефект не всплывал: там нет карты с flippable:false. Чинить его надо в
         // движке, и это решение владельца — поэтому каталог его ПОКАЗЫВАЕТ, а не прячет подписью.
         const zonesTop = ctx.padding + hh * 2 + (a.captions ? 74 : 30);
-        const z = dropzonesSection(ctx, { x: ctx.padding, y: zonesTop });
+        const z = dropzonesSection(ctx, { x: ctx.padding, y: zonesTop }, onZone);
         ctx.extent(Math.max(x, ctx.padding + z.width) + ctx.padding, z.bottom + ctx.padding);
       }}
     />

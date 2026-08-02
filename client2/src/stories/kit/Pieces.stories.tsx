@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
 import { chipPile } from "../../game/kit/pieces";
 import { dropzonesSection } from "../../game/kit/dropzones";
+import { action } from "storybook/actions";
 import { drawPinIcon, drawRingIcon } from "../../game/kit/markerIcons";
 import { CanvasStage } from "../harness/CanvasStage";
 import { piecesSection } from "../../game/kit/pieces";
@@ -16,6 +17,8 @@ import { PIECE_ARGS, PIECE_ARG_TYPES, specFrom, type PieceArgs } from "./pieceAr
 //
 // Метка — это «ручка»: грип (три точки) под целью, за него тянут ЦЕЛЬ, а не то, что под пальцем.
 // У столбика фишек за грип уезжает вся пачка. Проверяется только мышью.
+
+const onZone = action("зона приняла груз");
 
 const meta: Meta<PieceArgs> = {
   // UI-примитив, а не механика: фишка и фигура — такой же элемент стола, как карта и кнопка.
@@ -93,7 +96,7 @@ export const AgainstZones: Story = {
         ctx.piece("z-knight", { x: ctx.padding + r * 3.4, y: ctx.padding + r }, { kind: "chess", dark: true, glyph: "♞" }, r);
         ctx.card({ id: "z-card", card: "A♠", pose: "rest" }, { x: ctx.padding + r * 6.4, y: ctx.padding + ctx.cardH / 2 }, 5);
         ctx.label("фишка и конь горят, но не переворачиваются; карта умеет всё", ctx.padding, ctx.padding + ctx.cardH + 14, 12, 0x9aa89f, ctx.cardW * 5, 0);
-        const z = dropzonesSection(ctx, { x: ctx.padding, y: ctx.padding + ctx.cardH + 44 });
+        const z = dropzonesSection(ctx, { x: ctx.padding, y: ctx.padding + ctx.cardH + 44 }, onZone);
         ctx.extent(Math.max(ctx.cardW * 5, z.width) + ctx.padding * 2, z.bottom + ctx.padding);
       }}
     />

@@ -37,8 +37,8 @@ resolvePreset({ destroy: { style: {
     SPECS,
     (style) => ({ destroy: { style: style as string } }),
     (ctx) => [
-      { label: "уничтожить", variant: "danger", run: (ids) => { for (const id of ids) (ctx.element(id) as Card | undefined)?.burn?.(); ctx.wake(); } },
-      { label: "вернуть", variant: "ghost", run: (ids) => ctx.appear(ids) },
+      { label: "уничтожить", variant: "danger", kind: "destroy", run: (ids) => { for (const id of ids) (ctx.element(id) as Card | undefined)?.burn?.(); ctx.wake(); } },
+      { label: "вернуть", variant: "ghost", kind: "appear", run: (ids) => ctx.appear(ids) },
     ],
   ),
 };

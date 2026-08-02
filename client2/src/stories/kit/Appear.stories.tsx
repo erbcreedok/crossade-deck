@@ -38,7 +38,7 @@ resolvePreset({ appear: { style: { label: "моя", dur: 0.4, frame: (t, ctx) =>
   render: animStory(
     APPEAR_SPECS,
     (style) => ({ appear: { style } }),
-    (ctx) => [{ label: "появиться", variant: "ghost", run: (ids) => ctx.appear(ids) }],
+    (ctx) => [{ label: "появиться", variant: "ghost", kind: "appear", run: (ids) => ctx.appear(ids) }],
   ),
 };
 export default meta;

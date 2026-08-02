@@ -29,6 +29,11 @@ export interface AnimAction {
   label: string;
   variant?: "primary" | "secondary" | "danger" | "ghost";
   run: (ids: string[]) => void;
+  /**
+   * Какую анимацию действие запускает. Нужно, чтобы сообщить о её КОНЦЕ: переход конечен, и
+   * «доиграло» — половина того, что о нём стоит знать. Не задано — сообщается только начало.
+   */
+  kind?: "move" | "flip" | "destroy" | "appear";
 }
 
 export interface AnimSceneOpts {

@@ -56,7 +56,7 @@ ctx.flipStack(ids);                // ПАЧКА — своя операция �
       const x = a as FlipArgs;
       return { flip: { style, dur: x.dur, halfTurns: x.halfTurns }, stackFlip: { mode: x.mode, stagger: x.stagger, reverse: x.reverse } };
     },
-    (ctx) => [{ label: "перевернуть", run: (ids) => (ids.length > 1 ? ctx.flipStack(ids) : ctx.dispatch({ t: "flip", id: ids[0]! })) }],
+    (ctx) => [{ label: "перевернуть", kind: "flip", run: (ids) => (ids.length > 1 ? ctx.flipStack(ids) : ctx.dispatch({ t: "flip", id: ids[0]! })) }],
     (target) => (target === "piece" ? "фишка НЕ Flippable: у неё нет второй стороны. Кнопка отработает, элемент не шелохнётся — и это верное поведение, а не сломанная анимация." : ""),
   ),
 };

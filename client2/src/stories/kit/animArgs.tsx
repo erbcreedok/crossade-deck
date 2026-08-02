@@ -5,6 +5,7 @@ import { defaults, type StyleKnob } from "../../game/anim/appearStyles";
 import { resolvePreset, type PresetOverride } from "../../game/anim/presets";
 import { linear } from "../../game/kit/stackLayout";
 import { CanvasStage } from "../harness/CanvasStage";
+import { action } from "storybook/actions";
 
 // ОБЩЕЕ УСТРОЙСТВО РАЗДЕЛОВ «АНИМАЦИИ».
 //
@@ -80,6 +81,8 @@ export function animArgTypes<S>(specs: Record<string, StyleSpec<S>>, styleLabel:
 }
 
 /** Витрина раздела: цель по рычагу, кнопки — действие этого раздела. */
+const onAnim = action("анимация");
+
 export function animStory<S>(
   specs: Record<string, StyleSpec<S>>,
   override: (style: S, a: AnimArgs) => PresetOverride,
@@ -91,6 +94,17 @@ export function animStory<S>(
       args={a}
       opts={{ cardHeight: 150 }}
       build={(ctx, args) => {
+        // Панель Actions — про ИСХОД. У перехода их два: начали и доиграло; второе иначе
+        // доказывается только глазом. Обёртка одна на все разделы анимаций — расходиться нечему.
+        const watched = (list: AnimAction[]): AnimAction[] =>
+          list.map((it) => ({
+            ...it,
+            run: (ids: string[]) => {
+              it.run(ids);
+              onAnim({ действие: it.label, элементов: ids.length, фаза: "начали" });
+              if (it.kind && ids[0]) ctx.after(ctx.animDuration(ids[0], it.kind), () => onAnim({ действие: it.label, элементов: ids.length, фаза: "доиграло" }));
+            },
+          }));
         const spec = specs[args.style] ?? specs[Object.keys(specs)[0]!]!;
         const preset = resolvePreset({ ...override(spec.make(knobValues(args, specs, args.style)), args), speed: args.speed });
         const r = animScene(
@@ -104,7 +118,7 @@ export function animStory<S>(
             // сама, и подсовывать ей чужие рычаги значило бы называть колодой любую пачку.
             ...(args.target === "stack" ? { layout: linear({ step: args.step }), faceUp: args.faceUp } : {}),
           },
-          actions(ctx, args),
+          watched(actions(ctx, args)),
           note,
         );
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);

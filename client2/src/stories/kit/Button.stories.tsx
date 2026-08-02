@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, type ButtonOptions } from "../../game/ui/Button";
 import { buttonsSection } from "../../game/kit/buttons";
+import { action } from "storybook/actions";
 import { CanvasStage } from "../harness/CanvasStage";
 import { pickButtonArgs, type ButtonArgs } from "./buttonArgs";
 
@@ -66,6 +67,8 @@ function buttonOptsFrom(a: Args): ButtonOptions {
     padding: Number(a.padding),
   };
 }
+
+const onPress = action("нажата кнопка");
 
 const meta: Meta<Args> = {
   title: "UI-kit/Button",
@@ -140,14 +143,14 @@ export const Gallery: Story = {
     code: () => `import { buttonsSection } from "../../game/kit/buttons";
 
 // Виды и размеры перечислены ДАННЫМИ (BUTTON_ROWS), раскладка — общая с песочницей:
-const r = buttonsSection(ctx, { x: ctx.padding, y: ctx.padding });
+const r = buttonsSection(ctx, { x: ctx.padding, y: ctx.padding }, onPress);
 ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);`,
   },
   render: () => (
     <CanvasStage<Button, Record<string, never>>
       args={{}}
       build={(ctx) => {
-        const r = buttonsSection(ctx, { x: ctx.padding, y: ctx.padding });
+        const r = buttonsSection(ctx, { x: ctx.padding, y: ctx.padding }, onPress);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />

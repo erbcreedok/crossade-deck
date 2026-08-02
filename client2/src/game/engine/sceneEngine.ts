@@ -13,7 +13,12 @@ import type { DropZone } from "../ui/DropZone";
 import type { Draggable, Peekable, TableElement } from "./element";
 import { flipSchedule } from "../anim/flipSchedule";
 import { moveStyle } from "../anim/moveStyles";
+import { destroyStyle } from "../anim/destroyStyles";
+import { appearStyle } from "../anim/appearStyles";
 import { BASE_PRESET, type AnimPreset } from "../anim/presets";
+
+/** Какая из анимаций элемента: у каждой своё расписание в пресете. */
+export type AnimKind = "move" | "flip" | "destroy" | "appear";
 
 // ОБЩАЯ ОБВЯЗКА СЦЕНЫ — слой между тонким Host'ом (CanvasApp: Pixi, тикер, ресайз) и конкретной
 // сценой (песочница, Косынка, будущие игры). Здесь живёт всё, что у любой сцены со столом ОДИНАКОВО
@@ -673,14 +678,31 @@ export abstract class SceneEngine extends CanvasApp {
     return true;
   }
 
-  /** Сколько летит элемент при команде move — по стилю его пресета. */
-  moveDuration(id: string): number {
+  /**
+   * Сколько играет анимация элемента — по стилю ЕГО пресета.
+   *
+   * Одна дверь на все виды, а не четыре похожих метода: длительность считается по одной формуле
+   * (расписание стиля × множитель × скорость пресета), и расходиться им незачем.
+   */
+  animDuration(id: string, kind: AnimKind = "move"): number {
     const el = this.byId.get(id);
     const p = (el as unknown as { animPreset?: AnimPreset } | undefined)?.animPreset ?? this.preset;
-    const st = moveStyle(p.move.style);
-    // У пружины расписания нет — время задаёт физика; берём оценку, иначе сценарий сработал бы
-    // мгновенно и снял бы жертву до прихода.
-    return st.frame ? st.dur / (p.speed > 0 ? p.speed : 1) : 0.45;
+    const speed = p.speed > 0 ? p.speed : 1;
+    if (kind === "move") {
+      const st = moveStyle(p.move.style);
+      // У пружины расписания нет — время задаёт физика; берём оценку, иначе сценарий сработал бы
+      // мгновенно и снял бы жертву до прихода.
+      return st.frame ? st.dur / speed : 0.45;
+    }
+    if (kind === "destroy") return (destroyStyle(p.destroy.style).dur * p.destroy.scale) / speed;
+    if (kind === "appear") return (appearStyle(p.appear.style).dur * p.appear.scale) / speed;
+    // У переворота расписание живёт в ТАЙМИНГЕ пресета, а не в стиле: стиль решает форму движения.
+    return p.flip.dur / speed;
+  }
+
+  /** Сколько летит элемент при команде move. Оставлено как имя того, чем пользуются сценарии. */
+  moveDuration(id: string): number {
+    return this.animDuration(id, "move");
   }
 
   /** Отложенные перевороты каскада. Шагаются в кадре — своего таймера у сцены нет и не нужно. */

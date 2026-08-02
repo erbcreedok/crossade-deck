@@ -388,6 +388,7 @@ export class KitScene extends SceneEngine {
       },
       after: (delay, fn) => this.after(delay, fn),
       moveDuration: (id) => this.moveDuration(id),
+      animDuration: (id, kind) => this.animDuration(id, kind),
       wake: () => this.wake(),
       extent: (w, h) => void (this.explicitExtent = { w, h }),
     };

@@ -20,28 +20,45 @@ import type { Pt, SectionContext, SectionSize } from "./context";
 /** Пропорция полосы зоны — 16:9 (ширина:высота), прямое решение владельца. */
 const ZONE_RATIO = 9 / 16;
 
-export function dropzonesSection(ctx: SectionContext, at: Pt): SectionSize {
+/** Что зона СДЕЛАЛА с предметом. Пустая панель Actions значит «никто не подключил», а не «тихо». */
+export interface ZoneEvent {
+  zone: string;
+  element: string;
+  did: string;
+}
+
+export function dropzonesSection(ctx: SectionContext, at: Pt, onEvent?: (e: ZoneEvent) => void): SectionSize {
+  const said = (zone: string, did: string, p: { lead: { id: string } }) => onEvent?.({ zone, element: p.lead.id, did });
   const zoneW = ctx.cardW * 2.4;
   const zoneH = zoneW * ZONE_RATIO;
   let y = at.y;
 
   ctx.zone(
     new DropZone({ name: "ПЕРЕВОРОТ", verb: "перевернуть", rect: { x: at.x, y, w: zoneW, h: zoneH } }),
-    (p) => p.flip?.(),
+    (p) => {
+      p.flip?.();
+      said("ПЕРЕВОРОТ", "перевернула", p);
+    },
     (p) => !!p.flip,
   );
   y += zoneH + SB_ITEM_GAP;
 
   ctx.zone(
     new DropZone({ name: "СЖЕЧЬ", verb: "сжечь", rect: { x: at.x, y, w: zoneW, h: zoneH } }),
-    (p) => p.burn?.(),
+    (p) => {
+      p.burn?.();
+      said("СЖЕЧЬ", "сожгла", p);
+    },
     (p) => !!p.burn,
   );
   y += zoneH + SB_ITEM_GAP;
 
   ctx.zone(
     new DropZone({ name: "ПОДГЛЯДЕТЬ", verb: "Отпускай!", armed: "давай подсмотрим?", rect: { x: at.x, y, w: zoneW, h: zoneH } }),
-    (p) => p.peek?.(),
+    (p) => {
+      p.peek?.();
+      said("ПОДГЛЯДЕТЬ", ctx.needsPeek(p.lead) ? "открыла на время" : "отказала — нечего подглядывать", p);
+    },
     (p) => !!p.peek,
     (p) => (ctx.needsPeek(p.lead) ? { armed: "давай подсмотрим?", hot: "Отпускай!" } : { armed: "зачем?", hot: "нет." }),
   );

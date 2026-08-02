@@ -154,6 +154,8 @@ export interface SectionContext {
   after(delay: number, fn: () => void): void;
   /** Сколько летит элемент при команде move — по стилю его пресета. Сценариям нужен этот момент. */
   moveDuration(id: string): number;
+  /** Сколько играет анимация элемента: move | flip | destroy | appear. */
+  animDuration(id: string, kind: "move" | "flip" | "destroy" | "appear"): number;
   /** Разбудить цикл после правки, сделанной секцией вне кадра. */
   wake(): void;
 }

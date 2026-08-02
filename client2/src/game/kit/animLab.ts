@@ -31,12 +31,36 @@ export interface AnimRow {
  * Ряд: пачка + две кнопки. Обе операции идут через штатные двери движка (`flipStack`, `burn`),
  * поэтому здесь видно ровно то, что произойдёт в игре, а не отдельная демо-анимация.
  */
-export function animRow(ctx: SectionContext, at: Pt, row: AnimRow, idPrefix: string): SectionSize & { ids: string[] } {
+/**
+ * Что ряд СДЕЛАЛ. Переход конечен — у него есть начало и конец, и панель Actions существует ровно
+ * для того, чтобы конец было видно: «догорело» и «перевернулось» иначе доказываются только глазом.
+ */
+export interface AnimEvent {
+  what: "flip" | "destroy" | "appear";
+  /** `start` — нажали, `end` — доиграло. Пара показывает и длительность, и что конец наступил. */
+  phase: "start" | "end";
+  count: number;
+}
+
+export function animRow(ctx: SectionContext, at: Pt, row: AnimRow, idPrefix: string, onEvent?: (e: AnimEvent) => void): SectionSize & { ids: string[] } {
   const st = stackState(ctx, { x: at.x, y: at.y + 26 }, { form: row.form ?? "spread", faceUp: row.faceUp ?? true, count: row.count ?? 5 }, idPrefix);
   ctx.setAnimPreset(st.ids, row.preset);
   ctx.label(row.title, at.x, at.y, 13, 0xcdb98f, undefined, 0);
 
-  const flip = new Button({ label: "перевернуть", variant: "secondary", size: "sm", onClick: () => ctx.flipStack(st.ids) });
+  // Конец перехода берём не «примерно», а по длительности, которую движок и отыгрывает.
+  const said = (what: AnimEvent["what"], dur: number) => {
+    onEvent?.({ what, phase: "start", count: st.ids.length });
+    ctx.after(dur, () => onEvent?.({ what, phase: "end", count: st.ids.length }));
+  };
+  const flip = new Button({
+    label: "перевернуть",
+    variant: "secondary",
+    size: "sm",
+    onClick: () => {
+      ctx.flipStack(st.ids);
+      said("flip", ctx.animDuration(st.ids[0]!, "flip"));
+    },
+  });
   const kill = new Button({
     label: "уничтожить",
     variant: "danger",
@@ -46,13 +70,22 @@ export function animRow(ctx: SectionContext, at: Pt, row: AnimRow, idPrefix: str
     onClick: () => {
       for (const id of st.ids) (ctx.element(id) as Card | undefined)?.burn?.();
       ctx.wake();
+      said("destroy", ctx.animDuration(st.ids[0]!, "destroy"));
     },
   });
   // «Появиться» проигрывает появление ЗАНОВО — у живых карт. Воскрешать она не умеет и не должна:
   // догоревшая карта помечается dead и выбывает из реестра сцены (reapDead), это поведение стола,
   // а не витрины, и гнуть его ради демо значило бы показывать не тот движок, что в игре.
   // Уничтоженный ряд возвращается пересборкой — любой правкой рычага в панели.
-  const show = new Button({ label: "появиться", variant: "ghost", size: "sm", onClick: () => ctx.appear(st.ids) });
+  const show = new Button({
+    label: "появиться",
+    variant: "ghost",
+    size: "sm",
+    onClick: () => {
+      ctx.appear(st.ids);
+      said("appear", ctx.animDuration(st.ids[0]!, "appear"));
+    },
+  });
   const by = st.bottom + 28;
   let x = at.x;
   for (const b of [show, flip, kill]) {
