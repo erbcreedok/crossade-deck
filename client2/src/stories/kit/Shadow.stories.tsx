@@ -6,6 +6,9 @@ import { SHADOW_TUNING } from "../../game/ui/shadow";
 import type { Pose } from "../../game/ui/Card";
 import type { KitScene } from "../../game/engine/kitScene";
 import { CanvasStage } from "../harness/CanvasStage";
+import { gallerySection, type GalleryCell } from "../../game/kit/gallery";
+import { stackState } from "../../game/kit/stacks";
+import { Button } from "../../game/ui/Button";
 
 
 
@@ -127,3 +130,48 @@ export default meta;
  *     хотя слои отрисовки останутся прежними. Это и показывает, что объём несёт ТЕНЬ, а не порядок.
  */
 export const Shadow: StoryObj<Args> = {};
+
+/**
+ * ГАЛЕРЕЯ ТЕНЕЙ — предметы разной формы рядом, у каждого своя.
+ *
+ * Здесь видно то, чего не видно на одной витрине: тень не «карточный прямоугольник, натянутый на
+ * всё». У лежащей фишки это её круг, у стоящей фигуры — её собственная картинка, у карты —
+ * скруглённый прямоугольник её пластины. Форма приходит от ПРЕДМЕТА, а закон (смещение, рост с
+ * высотой, свет) — общий, и рядом это единственное, чем проверяется.
+ *
+ * Кнопка тут не для полноты: у неё тень СВОЯ, вне общего слитого пасса — попади её силуэт в общую
+ * маску, она затемняла бы карты под собой.
+ */
+export const Gallery: StoryObj<Args> = {
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { gallerySection } from "../../game/kit/gallery";
+
+// Виды — ДАННЫЕ: что нарисовать в ячейке и как подписать. Раскладка общая для всех галерей.
+gallerySection(ctx, at, [
+  { caption: "карта", w: ctx.cardW, h: ctx.cardH, draw: (c, p, i) => c.card({ id: \`g-\${i}\`, card: "A♠" }, p) },
+  { caption: "фишка", w: r * 2, h: r * 2, draw: (c, p, i) => c.piece(\`g-\${i}\`, p, { kind: "chip", color: 0xc79a3e, denom: "25" }, r) },
+  // …фигура, стопка, кнопка
+]);`,
+  },
+  render: () => (
+    <CanvasStage<Card, Record<string, never>>
+      args={{}}
+      opts={{ cardHeight: 130 }}
+      build={(ctx) => {
+        const r = ctx.cardH * 0.28;
+        const cells: GalleryCell[] = [
+          { caption: "карта лежит", w: ctx.cardW, h: ctx.cardH, draw: (c, p, i) => c.card({ id: `sg-${i}`, card: "A♠" }, p, i) },
+          { caption: "карта поднята", w: ctx.cardW * 1.2, h: ctx.cardH * 1.2, draw: (c, p, i) => c.card({ id: `sg-${i}`, card: "K♥", pose: "lifted" }, p, i) },
+          { caption: "карту держат", w: ctx.cardW * 1.45, h: ctx.cardH * 1.45, draw: (c, p, i) => c.card({ id: `sg-${i}`, card: "Q♦", pose: "held" }, p, i) },
+          { caption: "стопка: тени сливаются", w: ctx.cardW * 1.9, h: ctx.cardH, draw: (c, p, i) => stackState(c, { x: p.x - ctx.cardW * 0.95, y: p.y - ctx.cardH / 2 }, { form: "spread", count: 3 }, `sgs-${i}`) },
+          { caption: "фишка лежит: круг", w: r * 2, h: r * 2, draw: (c, p, i) => c.piece(`sg-${i}`, p, { kind: "chip", color: 0xc79a3e, denom: "25" }, r) },
+          { caption: "фигура стоит: своя форма", w: r * 2, h: r * 2, draw: (c, p, i) => c.piece(`sg-${i}`, p, { kind: "chess", dark: true, glyph: "♞" }, r) },
+          { caption: "кнопка: тень вне общего пасса", w: 150, h: 46, draw: (c, p) => c.button(new Button({ label: "своя тень", variant: "primary", size: "md", elevation: 12 }), p) },
+        ];
+        const g = gallerySection(ctx, { x: ctx.padding, y: ctx.padding }, cells);
+        ctx.extent(g.width + ctx.padding * 2, g.bottom + ctx.padding);
+      }}
+    />
+  ),
+};

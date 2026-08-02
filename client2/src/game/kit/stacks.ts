@@ -3,6 +3,7 @@ import { Button } from "../ui/Button";
 import type { Marker, MarkerHost } from "../engine/marker";
 import type { AnchorIconId, ShowPolicy } from "../engine/markerPolicy";
 import { ANCHOR_ICONS } from "./markerIcons";
+import type { PieceSpec } from "../ui/pieceKinds";
 import type { Pt, SectionContext, SectionSize } from "./context";
 import { resolveLayout, type StackLayoutRef } from "./stackLayout";
 import { scaleForState } from "../ui/plane";
@@ -136,22 +137,39 @@ export interface StackStateOpts {
   /** Контур набора (метка `outline`). Подъём — отдельная метка, это `pose: "lifted"`. */
   selected: boolean;
   count: number;
+  /**
+   * ИЗ ЧЕГО стопка. Пачка — это порядок и раскладка, а не «много карт»: так же складывают фишки в
+   * столбик и сваливают фигуры в кучу. Раскладка от содержимого не зависит вовсе — меняется только
+   * размер ячейки и то, какой предмет в ней стоит.
+   */
+  content?: StackContent;
 }
+
+/** Из чего сложена стопка. */
+export type StackContent = "cards" | "chips" | "pieces";
+
+const CHIP_COLORS = [0xc0392b, 0x2e8b57, 0x2f4f8f, 0x7d3cc0, 0xc79a3e];
+const CHIP_DENOMS = ["5", "25", "100", "500", "1000"];
+const PIECE_GLYPHS = ["♞", "♜", "♝", "♛", "♚", "♟"];
 
 export const STACK_STATE_DEFAULTS: StackStateOpts = { form: "tight", faceUp: true, pose: "rest", selected: false, count: 5 };
 
 export function stackState(ctx: SectionContext, at: Pt, o: Partial<StackStateOpts> = {}, idPrefix = "st"): SectionSize & { ids: string[] } {
   const { form, faceUp, pose, idle, selected, count } = { ...STACK_STATE_DEFAULTS, ...o };
+  const content = o.content ?? "cards";
   const ids = Array.from({ length: count }, (_, i) => `${idPrefix}-${i}`);
   const layout = resolveLayout(form);
-  const cell = { w: ctx.cardW, h: ctx.cardH };
+  // Ячейка — по ПРЕДМЕТУ, а не по карте: столбик фишек, разложенный в карточной сетке, разъезжается
+  // на полкарты, и «стопка» перестаёт читаться как стопка.
+  const pieceR = ctx.cardH * 0.26;
+  const cell = content === "cards" ? { w: ctx.cardW, h: ctx.cardH } : { w: pieceR * 2, h: pieceR * 2 };
   const offs = ids.map((_, i) => layout(i, count, cell));
 
   // Габарит считаем ПО ФАКТУ раскладки: она может уйти в любую сторону, в том числе влево и вверх,
   // а содержимое витрины живёт в положительной четверти — камера обрезает всё, что левее нуля.
   const half = (o2: { rot: number }) => ({
-    hw: (Math.abs(Math.cos(o2.rot)) * ctx.cardW + Math.abs(Math.sin(o2.rot)) * ctx.cardH) / 2,
-    hh: (Math.abs(Math.sin(o2.rot)) * ctx.cardW + Math.abs(Math.cos(o2.rot)) * ctx.cardH) / 2,
+    hw: (Math.abs(Math.cos(o2.rot)) * cell.w + Math.abs(Math.sin(o2.rot)) * cell.h) / 2,
+    hh: (Math.abs(Math.sin(o2.rot)) * cell.w + Math.abs(Math.cos(o2.rot)) * cell.h) / 2,
   });
   const scale = scaleForState(pose);
   const minX = Math.min(...offs.map((o2, i) => o2.dx - half(o2).hw * (i === 0 ? scale : 1)));
@@ -164,7 +182,18 @@ export function stackState(ctx: SectionContext, at: Pt, o: Partial<StackStateOpt
   const oy = at.y - minY;
   ids.forEach((id, i) => {
     const o2 = offs[i]!;
-    ctx.card({ id, card: RANKS[i % RANKS.length]!, faceUp, pose, idle, selected }, { x: ox + o2.dx, y: oy + o2.dy, rot: o2.rot }, i, i * 0.6);
+    const at2 = { x: ox + o2.dx, y: oy + o2.dy };
+    if (content === "cards") {
+      ctx.card({ id, card: RANKS[i % RANKS.length]!, faceUp, pose, idle, selected }, { ...at2, rot: o2.rot }, i, i * 0.6);
+      return;
+    }
+    // Доворот раскладки предметам не передаётся: `ctx.piece` его не принимает, и врать поворотом,
+    // которого не будет, хуже, чем показать пачку без него. Веер из фишек — отдельный разговор.
+    const spec: PieceSpec =
+      content === "chips"
+        ? { kind: "chip", color: CHIP_COLORS[i % CHIP_COLORS.length]!, denom: CHIP_DENOMS[i % CHIP_DENOMS.length]! }
+        : { kind: "chess", dark: i % 2 === 0, glyph: PIECE_GLYPHS[i % PIECE_GLYPHS.length]! };
+    ctx.piece(id, at2, spec, pieceR, i, { pose, idle });
   });
 
   return { bottom: at.y + (maxY - minY), width: maxX - minX, ids };

@@ -1,4 +1,5 @@
 import { fan, heap, linear, type StackLayout } from "../../game/kit/stackLayout";
+import type { StackContent } from "../../game/kit/stacks";
 import type { Pose } from "../../game/ui/Card";
 
 // РЫЧАГИ СТОПКИ — ОДНО описание на все разделы, где стопка вообще встречается.
@@ -23,6 +24,8 @@ export interface StackArgs {
   pose: Pose;
   selected: boolean;
   count: number;
+  /** Из чего сложена пачка: карты, фишки, фигуры. Раскладка от этого не зависит. */
+  content: StackContent;
 }
 
 export const STACK_ARGS: StackArgs = {
@@ -37,6 +40,7 @@ export const STACK_ARGS: StackArgs = {
   pose: "rest",
   selected: false,
   count: 5,
+  content: "cards",
 };
 
 export const STACK_ARG_TYPES = {
@@ -55,7 +59,13 @@ export const STACK_ARG_TYPES = {
   faceUp: { name: "faceUp", description: "лицом или рубашкой. У закрытой пачки волна переворота читается только геометрией", control: { type: "boolean" as const } },
   pose: { name: "pose", description: "поза покоя: rest — лежит на столе, lifted — поднята, held — держат. Не путать с idle-анимацией (дыхание): rest это СОСТОЯНИЕ, idle — АНИМАЦИЯ", control: { type: "select" as const }, options: ["rest", "lifted", "held"] },
   selected: { name: "selected", description: "контур набора (метка outline); подъём — отдельная метка, это pose: lifted", control: { type: "boolean" as const } },
-  count: { name: "count", description: "сколько карт в пачке; от этого зависит и длина волны при перевороте", control: { type: "range" as const, min: 1, max: 10, step: 1 } },
+  count: { name: "count", description: "сколько предметов в пачке; от этого зависит и длина волны при перевороте", control: { type: "range" as const, min: 1, max: 10, step: 1 } },
+  content: {
+    name: "content",
+    description: "из чего пачка. Стопка — это ПОРЯДОК и раскладка, а не «много карт»: так же складывают фишки в столбик и сваливают фигуры в кучу",
+    control: { type: "select" as const },
+    options: ["cards", "chips", "pieces"],
+  },
 };
 
 /**
@@ -69,6 +79,6 @@ export function layoutFrom(a: StackArgs): StackLayout {
 }
 
 /** То, что уходит в `stackState`: раскладка-функция плюс остальные поля как есть. */
-export function stackOptsFrom(a: StackArgs): { form: StackLayout; faceUp: boolean; pose: Pose; selected: boolean; count: number } {
-  return { form: layoutFrom(a), faceUp: a.faceUp, pose: a.pose, selected: a.selected, count: a.count };
+export function stackOptsFrom(a: StackArgs): { form: StackLayout; faceUp: boolean; pose: Pose; selected: boolean; count: number; content: StackContent } {
+  return { form: layoutFrom(a), faceUp: a.faceUp, pose: a.pose, selected: a.selected, count: a.count, content: a.content };
 }

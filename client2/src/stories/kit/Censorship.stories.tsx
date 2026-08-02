@@ -3,6 +3,7 @@ import type { Card } from "../../game/ui/Card";
 import { CUSTOM_FACE_IDS } from "../../game/engine/cardTextures";
 import { DANCE_DEFAULT, dustParams } from "../../game/censorConfig";
 import { CanvasStage } from "../harness/CanvasStage";
+import { gallerySection, type GalleryCell } from "../../game/kit/gallery";
 
 
 type Target = "card" | "stack" | "chip" | "chess" | "zone";
@@ -189,3 +190,49 @@ export default meta;
  *   • `faceUp: false` — рубашка пылью не покрывается: обратная сторона публична.
  */
 export const Censorship: StoryObj<Args> = {};
+
+/**
+ * ГАЛЕРЕЯ ЦЕНЗУРЫ — на чём она вообще бывает.
+ *
+ * Пыль не карточная фича: она размазывает НАСТОЯЩЕЕ лицо предмета, снятое с его же визуала. Рядом
+ * видно, что закон один: у карты смазана карта, у фишки — фишка, у фигуры — фигура, а у стопки
+ * прячется каждая карта отдельно, потому что своего лица у пачки нет.
+ */
+export const Gallery: StoryObj<Args> = {
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { gallerySection } from "../../game/kit/gallery";
+
+// Цензура — параметр предмета, а не отдельный объект. Один и тот же флаг у карты и у фигуры:
+gallerySection(ctx, at, [
+  { caption: "карта", …, draw: (c, p, i) => c.card({ id, card: "Q♥", censored: true }, p) },
+  { caption: "фигура", …, draw: (c, p, i) => c.piece(id, p, { kind: "chess", dark: true, glyph: "♞" }, r, 0, { censored: true }) },
+]);`,
+  },
+  render: () => (
+    <CanvasStage<Card, Record<string, never>>
+      args={{}}
+      opts={{ cardHeight: 150 }}
+      build={(ctx) => {
+        const r = ctx.cardH * 0.3;
+        const cells: GalleryCell[] = [
+          { caption: "карта: пыль поверх лица", w: ctx.cardW, h: ctx.cardH, draw: (c, p, i) => c.card({ id: `cg-${i}`, card: "Q♥", censored: true }, p, i) },
+          { caption: "карта скрыта: лица нет вовсе", w: ctx.cardW, h: ctx.cardH, draw: (c, p, i) => c.card({ id: `cg-${i}`, card: "A♠", hidden: true, censored: true }, p, i) },
+          {
+            caption: "стопка: прячется КАЖДАЯ карта",
+            w: ctx.cardW * 1.9,
+            h: ctx.cardH,
+            draw: (c, p, i) => {
+              const step = ctx.cardW * 0.5;
+              ["a", "b", "c"].forEach((k, j) => c.card({ id: `cgs-${i}-${k}`, card: ["7♠", "9♥", "K♦"][j]!, censored: true }, { x: p.x - step + j * step, y: p.y }, j));
+            },
+          },
+          { caption: "фишка", w: r * 2, h: r * 2, draw: (c, p, i) => c.piece(`cg-${i}`, p, { kind: "chip", color: 0xc79a3e, denom: "25" }, r, 0, { censored: true }) },
+          { caption: "фигура", w: r * 2, h: r * 2, draw: (c, p, i) => c.piece(`cg-${i}`, p, { kind: "chess", dark: true, glyph: "♞" }, r, 0, { censored: true }) },
+        ];
+        const g = gallerySection(ctx, { x: ctx.padding, y: ctx.padding }, cells);
+        ctx.extent(g.width + ctx.padding * 2, g.bottom + ctx.padding);
+      }}
+    />
+  ),
+};

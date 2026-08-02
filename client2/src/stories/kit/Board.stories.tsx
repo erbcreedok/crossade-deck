@@ -159,3 +159,46 @@ export const DropScenario: StoryObj<Args> = {
     });
   },
 };
+
+/**
+ * ГАЛЕРЕЯ ДОСОК — три раскладки рядом, с разным содержимым.
+ *
+ * Смысл ровно в том, что зона одна и та же. Сетка, кольцо и соты отличаются ТОЛЬКО списком слотов,
+ * а правила приёма, дроп и рамка у всех трёх общие. Содержимое тоже ничего не решает: на клетках
+ * стоят шахматы, фишки и карты, и зона про это не знает.
+ */
+export const Gallery: StoryObj<Args> = {
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { boardZoneScene } from "../../game/kit/boardZoneScene";
+
+// Раскладка и содержимое — параметры ОДНОЙ секции, а не три разных доски:
+boardZoneScene(ctx, at, { layout: "grid", content: "chess", cols: 3, rows: 3 }, "g1");
+boardZoneScene(ctx, at2, { layout: "ring", content: "chips", ringCount: 8 }, "g2");
+boardZoneScene(ctx, at3, { layout: "hex", content: "cards", cols: 3, rows: 3 }, "g3");`,
+  },
+  render: () => (
+    <CanvasStage<never, Record<string, never>>
+      args={{}}
+      opts={{ cardHeight: 96 }}
+      build={(ctx) => {
+        let x = ctx.padding;
+        let bottom = ctx.padding;
+        const boards: Array<{ o: Partial<BoardSceneOpts>; cap: string }> = [
+          { o: { layout: "grid", content: "chess", cols: 3, rows: 3, figures: 5 }, cap: "сетка · шахматы" },
+          { o: { layout: "ring", content: "chips", ringCount: 8, figures: 5 }, cap: "кольцо · фишки" },
+          { o: { layout: "hex", content: "cards", cols: 3, rows: 3, figures: 4 }, cap: "соты · карты" },
+        ];
+        boards.forEach((b, i) => {
+          // `width` секции — ШИРИНА ОТ ЕЁ НАЧАЛА, а не правый край сцены: следующая доска встаёт
+          // на x + width, иначе они наезжают друг на друга тем сильнее, чем левее начались.
+          const r = boardZoneScene(ctx, { x, y: ctx.padding }, b.o, `bg${i}`);
+          const cap = ctx.label(b.cap, x, r.bottom + 12, 13, 0x9aa89f, r.width, 0);
+          bottom = Math.max(bottom, r.bottom + 12 + cap.height);
+          x += r.width + ctx.cardW * 0.7;
+        });
+        ctx.extent(x - ctx.cardW * 0.7 + ctx.padding, bottom + ctx.padding);
+      }}
+    />
+  ),
+};
