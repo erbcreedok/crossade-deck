@@ -1,0 +1,23 @@
+client2/e2e/catalog/engine.spec.ts
+  s_849b1134095733::t_c38b416912020e 126-160
+client2/src/stories/kit/animArgs.tsx
+  s_849b1134095733::t_9d99adf62f4390 6,32-34,65,81-88,130-132
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_10fff2957de1d3 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "2d7b86d3dceea3d44d4165b4e11c2fba424598b6",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
