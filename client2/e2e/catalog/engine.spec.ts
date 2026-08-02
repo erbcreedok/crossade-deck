@@ -123,3 +123,38 @@ test.describe("витрина каталога — живой движок", () 
     expect(at(await state(page), top.id).z).toBe(top.z);
   });
 });
+
+test.describe("витрина каталога — появление это СОБЫТИЕ доски", () => {
+  test.use({ viewport: { width: 900, height: 800 } });
+
+  test("правка рычага не переигрывает появление: иначе раздел мигает на каждый сдвиг ползунка", async ({ page }) => {
+    await page.goto("/iframe.html?id=ui-kit-card--card&viewMode=story");
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(900); // появление на первой сборке успевает доиграть
+
+    const alive = () =>
+      page.evaluate(() => {
+        const s = (window as unknown as { __kit: { scene: { testHooks(): { elements: { id: string }[] }; element(id: string): { root: { alpha: number }; resting: boolean } | undefined } } }).__kit.scene;
+        const id = s.testHooks().elements[0]!.id;
+        const el = s.element(id)!;
+        return { id, alpha: el.root.alpha, resting: el.resting };
+      });
+
+    const before = await alive();
+    expect(before.alpha).toBeCloseTo(1, 2);
+    expect(before.resting).toBe(true);
+
+    // Крутим рычаг ровно так, как это делает панель.
+    await page.evaluate(() => {
+      const ch = (window as unknown as { __STORYBOOK_ADDONS_CHANNEL__: { emit(e: string, p: unknown): void } }).__STORYBOOK_ADDONS_CHANNEL__;
+      ch.emit("updateStoryArgs", { storyId: "ui-kit-card--card", updatedArgs: { fourColor: true } });
+    });
+    // Момент, в который появление было бы ВИДНО: сразу после пересборки.
+    await page.waitForTimeout(180);
+
+    const after = await alive();
+    // Карта не должна ни гаснуть, ни ползти: появление здесь никто не звал.
+    expect(after.alpha).toBeCloseTo(1, 2);
+    expect(after.resting).toBe(true);
+  });
+});

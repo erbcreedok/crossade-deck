@@ -3,7 +3,7 @@ import type { Card } from "../../game/ui/Card";
 import { animScene, type AnimAction, type AnimTarget, type TargetNote } from "../../game/kit/animScene";
 import { defaults, type StyleKnob } from "../../game/anim/appearStyles";
 import { resolvePreset, type PresetOverride } from "../../game/anim/presets";
-import { linear } from "../../game/kit/stackLayout";
+import { fan, heap, linear } from "../../game/kit/stackLayout";
 import { CanvasStage } from "../harness/CanvasStage";
 import { action } from "storybook/actions";
 
@@ -29,6 +29,9 @@ export interface AnimArgs {
   style: string;
   speed: number;
   count: number;
+  /** Раскладка пачки — ТЕ ЖЕ имена, что у раздела стопки: два разных набора рычагов на одну вещь
+   *  заставляли бы переучиваться при переходе между разделами. */
+  layout: "linear" | "fan" | "heap";
   step: number;
   faceUp: boolean;
   [knob: string]: unknown;
@@ -59,6 +62,7 @@ export function animArgTypes<S>(specs: Record<string, StyleSpec<S>>, styleLabel:
       style: ids[0]!,
       speed: 1,
       count: 5,
+      layout: "linear" as const,
       step: 0.72,
       faceUp: true,
       ...Object.assign({}, ...ids.map((id) => Object.fromEntries(Object.entries(defaults(specs[id]!.knobs)).map(([k, v]) => [`k_${k}`, v])))),
@@ -74,7 +78,14 @@ export function animArgTypes<S>(specs: Record<string, StyleSpec<S>>, styleLabel:
       speed: { name: "speed", description: "общий множитель скорости: сжимает и длительности, и задержки", control: { type: "range" as const, min: 0.25, max: 4, step: 0.05 } },
       count: { name: "count", description: "карт в пачке или колоде", control: { type: "range" as const, min: 2, max: 24, step: 1 }, if: { arg: "target", neq: "card" } },
       faceUp: { name: "faceUp", description: "чем вверх лежит пачка", control: { type: "boolean" as const }, if: { arg: "target", eq: "stack" } },
-      step: { name: "layout.step", description: "нахлёст пачки в долях карты: 0.06 — сомкнутая, 0.72 — раскрытая", control: { type: "range" as const, min: 0.04, max: 1.2, step: 0.02 }, if: { arg: "target", eq: "stack" } },
+      layout: {
+        name: "layout",
+        description: "вид раскладки пачки — те же имена, что в разделе стопки: linear (колода, ряд, столбец), fan (веер), heap (куча)",
+        control: { type: "select" as const },
+        options: ["linear", "fan", "heap"],
+        if: { arg: "target", eq: "stack" },
+      },
+      step: { name: "layout.step", description: "нахлёст пачки в долях карты: 0.06 — сомкнутая, 0.72 — раскрытая", control: { type: "range" as const, min: 0.04, max: 1.2, step: 0.02 }, if: { arg: "layout", eq: "linear" } },
       ...Object.assign({}, ...ids.map((id) => knobTypes(specs[id]!.knobs, id))),
     },
   };
@@ -116,7 +127,9 @@ export function animStory<S>(
             count: args.count,
             // Колода по определению сомкнута и лежит рубашкой вверх: свою раскладку она задаёт
             // сама, и подсовывать ей чужие рычаги значило бы называть колодой любую пачку.
-            ...(args.target === "stack" ? { layout: linear({ step: args.step }), faceUp: args.faceUp } : {}),
+            ...(args.target === "stack"
+              ? { layout: args.layout === "fan" ? fan({}) : args.layout === "heap" ? heap({}) : linear({ step: args.step }), faceUp: args.faceUp }
+              : {}),
           },
           watched(actions(ctx, args)),
           note,
