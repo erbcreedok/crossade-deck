@@ -303,10 +303,7 @@ export class KitScene extends SceneEngine {
       piece: (id, home, spec, r, depth = 0, plan = {}) => {
         this.specs.set(id, () => ctx.piece(id, home, spec, r, depth, plan));
         const { build, shadow, flatten } = pieceVisual(spec, r);
-        const piece = ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, flatten, ...plan }), home, depth);
-        // Снимок визуала для тени — сразу после рождения: снять его может только тот, у кого есть
-        // рендерер. Что нарисовано, то и отбрасывает тень; рукописных контуров по типу нет.
-        piece.setSilhouette(app.renderer.generateTexture({ target: piece.root, resolution: 2 }));
+        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, flatten, ...plan }), home, depth);
       },
       // Метки. Механизм — общий (SceneEngine.mountMarkers), «как выглядит грип» — общее с
       // песочницей (kit/markerIcons). Витрина отличается только тем, что груз собирается прямо

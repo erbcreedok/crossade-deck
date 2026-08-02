@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, type Texture } from "pixi.js";
+import { Container, Graphics } from "pixi.js";
 import { CARD_CORNER, SHADOW_ALPHA, SHADOW_COLOR, TEX_W } from "../engine/constants";
 import type { ShadowShape } from "./Card";
 
@@ -9,55 +9,21 @@ import type { ShadowShape } from "./Card";
 // ложится ровно один раз — стандартный приём merged shadows (как в боевом движке).
 export class ShadowLayer {
   readonly root = new Container();
-  /**
-   * Маска — КОНТЕЙНЕР, а не одна Graphics: кроме фигур в неё кладутся СНИМКИ предметов (тень
-   * шахматной фигуры — это она сама, приплюснутая). Заливка по-прежнему одна на весь слой, так что
-   * пересечения не темнеют.
-   */
-  private readonly mask = new Container();
-  private readonly shapes = new Graphics();
-  private readonly stamps: Sprite[] = []; // снимки: переиспользуем, а не пересоздаём каждый кадр
+  private readonly mask = new Graphics();
   private readonly fill = new Graphics();
 
   constructor() {
-    this.mask.addChild(this.shapes);
     this.root.addChild(this.mask, this.fill);
     this.fill.mask = this.mask;
   }
 
-  /** Свободный спрайт-снимок из пула (маска пересобирается каждый кадр — новые не плодим). */
-  private stamp(i: number): Sprite {
-    let sp = this.stamps[i];
-    if (!sp) {
-      sp = new Sprite();
-      sp.anchor.set(0.5);
-      this.stamps.push(sp);
-      this.mask.addChild(sp);
-    }
-    sp.visible = true;
-    return sp;
-  }
-
   /** Пересобрать тень уровня из силуэтов (каждый кадр — карты двигаются). */
   update(shapes: readonly ShadowShape[], w: number, h: number): void {
-    this.shapes.clear();
-    for (const sp of this.stamps) sp.visible = false;
-    let stampAt = 0;
+    this.mask.clear();
     for (const s of shapes) {
-      if (s.tex) {
-        // СНИМОК предмета: его собственный силуэт, приплюснутый и положенный туда, где предмет
-        // стоит. Ничего рукописного — что нарисовано, то и отбрасывает тень.
-        const sp = this.stamp(stampAt++);
-        sp.texture = s.tex as Texture;
-        sp.position.set(s.x, s.y);
-        sp.rotation = s.rot;
-        sp.width = s.hw * 2;
-        sp.height = s.hh * 2 * (s.flatten ?? 1);
-        continue;
-      }
       if (s.round && !s.poly) {
         // Эллипс — для круглых фишек и овальных подставок фигур (не карточный прямоугольник).
-        this.shapes.ellipse(s.x, s.y, s.hw, s.hh).fill({ color: 0xffffff });
+        this.mask.ellipse(s.x, s.y, s.hw, s.hh).fill({ color: 0xffffff });
         continue;
       }
       if (s.poly) {
@@ -76,7 +42,7 @@ export class ShadowLayer {
             const ly = poly[i + 1]! * ky;
             pts.push(s.x + lx * c0 - ly * s0, s.y + lx * s0 + ly * c0);
           }
-          this.shapes.poly(pts).fill({ color: 0xffffff });
+          this.mask.poly(pts).fill({ color: 0xffffff });
         }
         continue;
       }
@@ -105,7 +71,7 @@ export class ShadowLayer {
       }
       const pts: number[] = [];
       for (const [lx, ly] of local) pts.push(s.x + lx * cos - ly * sin, s.y + lx * sin + ly * cos);
-      this.shapes.poly(pts).fill({ color: 0xffffff });
+      this.mask.poly(pts).fill({ color: 0xffffff });
     }
     this.fill.clear();
     if (shapes.length > 0) {
