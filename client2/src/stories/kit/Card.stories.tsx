@@ -122,7 +122,7 @@ for (const [i, v] of MY_VARIANTS.entries()) {
     <CanvasStage<Card, Record<string, never>>
       args={{}}
       build={(ctx) => {
-        const r = cardVariantsSection(ctx, { x: ctx.padding, y: ctx.padding }, "gal");
+        const r = cardVariantsSection(ctx, { x: ctx.padding, y: ctx.padding }, "gal", true);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />

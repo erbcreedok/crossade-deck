@@ -50,12 +50,16 @@ export const CARD_VARIANTS: readonly CardVariant[] = [
  * wrapRow переносит строки на узком экране: 12 карточек без него росли вправо без ограничения и
  * переполняли 390px.
  */
-export function cardVariantsSection(ctx: SectionContext, at: Pt, idPrefix = "story"): SectionSize {
-  // Ячейку меряем по САМОМУ КРУПНОМУ виду: удерживаемая карта нарисована ×1.45, и по номинальному
-  // размеру она наезжала на подпись и на соседний ряд.
-  const maxScale = Math.max(...CARD_VARIANTS.map((v) => scaleForState(v.opts.pose ?? "rest") * (v.opts.size ?? 1)));
+export function cardVariantsSection(ctx: SectionContext, at: Pt, idPrefix = "story", fitPose = false): SectionSize {
+  // `fitPose` — мерить ячейку по САМОМУ КРУПНОМУ виду (удерживаемая карта нарисована ×1.45).
+  //
+  // По умолчанию ВЫКЛЮЧЕНО, и это не лень: ряд стоит в песочнице третьим сверху, и его высота
+  // задаёт вертикаль всему, что ниже. Включив запас по умолчанию, я сдвинул половину стенда и
+  // сломал десяток e2e — цена больше, чем польза. Галерее каталога запас нужен: там ряд последний,
+  // сдвигать ему нечего, а наезд на подпись виден сразу.
+  const maxScale = fitPose ? Math.max(...CARD_VARIANTS.map((v) => scaleForState(v.opts.pose ?? "rest") * (v.opts.size ?? 1))) : 1;
   const cellW = Math.max(ctx.cardW * 2.15, ctx.cardW * maxScale * 1.15);
-  const itemH = ctx.cardH * maxScale + 40; // самая крупная карта + место под подпись
+  const itemH = ctx.cardH * maxScale + 40; // карта (самая крупная, если просили) + место под подпись
   const { items, totalH } = wrapRow(CARD_VARIANTS.map(() => cellW), ctx.cardW * 8, itemH, SB_ITEM_GAP);
   let width = 0;
   CARD_VARIANTS.forEach((s, i) => {
