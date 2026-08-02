@@ -1,0 +1,43 @@
+client2/src/game/crossade/lobbyScene.ts
+  s_849b1134095733::t_097a0fbb6e833c 1-206
+client2/src/game/crossade/diff.ts
+  s_849b1134095733::t_acb9371dd8e385 1-32
+client2/src/game/crossade/diff.test.ts
+  s_849b1134095733::t_a0239bc63d110c 1-110
+client2/src/CrossadeGame.tsx
+  s_849b1134095733::t_8aecfc90595da3 1-64
+client2/src/Menu.tsx
+  s_849b1134095733::t_e434640a75a37b 18
+client2/src/main.tsx
+  s_849b1134095733::t_4de78bd3e623ac 10,17-18,24-25
+client2/src/game/engine/menuEngine.ts
+  s_849b1134095733::t_9b94814ed82532 36-38,51-52
+  s_849b1134095733::t_e96d607aa528ec 94-95,97-99
+  s_849b1134095733::t_814c6ebe96082b 53-54
+client2/src/net/account.ts
+  s_849b1134095733::t_e2b4664f4454b7 78-86,100,113,128
+client2/src/game/crossade/scene.ts
+  s_849b1134095733::t_8b9de3c71ad125 460
+  s_849b1134095733::t_21b8d5c9c3b52f 13
+  s_849b1134095733::t_40db7c42766f5e 216-219
+  s_849b1134095733::t_7427aad2261059 487
+  s_849b1134095733::t_e49cd02d25b757 1-12,14-215,220-459,461-486,488-551
+client2/src/game/crossade/slotPaint.ts
+  s_849b1134095733::t_7536e3d14e628d 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "b1095ffcd1bdee17b455fec6cdbfc84b38f1f3d4",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
