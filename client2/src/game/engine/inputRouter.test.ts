@@ -19,6 +19,7 @@ function setup(opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: 
     onCardDrop: (c) => calls.push(`drop(${c.id})`),
     onCardCancel: (c) => calls.push(`cancel(${c.id})`),
     onCardBlocked: (c) => calls.push(`blocked(${c.id})`),
+    onCardTap: (c) => calls.push(`tap(${c.id})`),
     onButtonDown: (b) => calls.push(`bdown(${b.id})`),
     onButtonMove: (b, inside) => calls.push(`bmove(${b.id},${inside})`),
     onButtonUp: (b, inside) => calls.push(`bup(${b.id},${inside})`),
@@ -57,13 +58,24 @@ describe("InputRouter", () => {
 
   // «Стоп»-отказ — ответ на ПОПЫТКУ ТАЩИТЬ, а не на прикосновение. Тык по недрагабельной карте не
   // ошибка игрока, и качать её в ответ значит ругать за то, чего он не делал.
-  it("недраг-карта: тык НЕ отбивается — жест ждёт движения", () => {
+  it("недраг-карта: тык НЕ отбивается, а приходит ТАПОМ", () => {
+    // Два разных события на одном проводе стоили песочнице выбора набора: стоило отложить отказ
+    // до сдвига пальца — и тап по невыделенной фигуре перестал доходить вовсе.
     const card = { id: "X", drag: false };
     const { r, calls } = setup({ cardAt: () => card });
     r.down(1, 10, 10);
     expect(r.gesture).toBe("blocked");
     r.up(1, 10, 10);
-    expect(calls).toEqual([]); // отпустили не двинувшись — отказа не было
+    expect(calls).toEqual(["tap(X)"]); // отказа не было, был тап
+  });
+
+  it("поехал пальцем — это ОТКАЗ, и тапа уже нет", () => {
+    const card = { id: "X", drag: false };
+    const { r, calls } = setup({ cardAt: () => card });
+    r.down(1, 10, 10);
+    r.move(1, 30, 10);
+    r.up(1, 30, 10);
+    expect(calls).toEqual(["blocked(X)"]);
   });
 
   it("недраг-карта: отказ приходит, когда палец ПОЕХАЛ", () => {

@@ -891,8 +891,8 @@ export class PlaygroundEngine extends SceneEngine {
   // Живой не-карточный элемент: визуал берём из реестра по спеке (pieceKinds), дальше как карту
   // (snapTo → слой → реестр byId → список pieces). r — радиус; размер элемента r*2.
   private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number, plan: PiecePlan = {}): void {
-    const { build, shadow } = pieceVisual(spec, r);
-    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow, ...plan });
+    const { build, shadow, silhouette } = pieceVisual(spec, r);
+    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow, silhouette, ...plan });
     piece.flashOff = this.flashOff;
     piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
@@ -991,7 +991,10 @@ export class PlaygroundEngine extends SceneEngine {
   private buildField(left: number, top: number): number {
     return this.sectionFrame(left, top, "Поле", (contentLeft, contentTop) => {
       this.scene.surface.addChild(this.label("глобальные конфиги поля (обсудим)", contentLeft, contentTop, 12, 0x9aa89f, undefined, 0));
-      const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", disabled: true });
+      // fit: "content" — подпись длиннее пресетной ширины, и по умолчанию её ужимало до 59% кегля:
+      // рядом с соседями того же уровня это читается как поломка, а не как кнопка. Пусть коробка
+      // растёт под текст, а не текст сжимается под коробку.
+      const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", fit: "content", disabled: true });
       cfg.place(contentLeft + cfg.w / 2, contentTop + 26);
       this.registerButton(cfg);
 
@@ -1956,8 +1959,14 @@ export class PlaygroundEngine extends SceneEngine {
     }
   }
 
+  /** Палец поехал по тому, что тащить нельзя, — отказ качанием. */
   protected onElementBlocked(el: Elem): void {
-    if (this.selMode && this.selZone?.locate(el.id)) this.toggleSelectFigure(el.id); // тап-выбор
+    el.blockNudge();
+  }
+
+  /** Тап по невыделенной фигуре демо-зоны — это ВЫБОР, а не отказ (issue #48/#66). */
+  protected onElementTapped(el: Elem): void {
+    if (this.selMode && this.selZone?.locate(el.id)) this.toggleSelectFigure(el.id);
     else el.blockNudge();
   }
 

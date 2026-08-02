@@ -275,12 +275,13 @@ export class SolitaireScene extends SceneEngine {
   }
 
   /** Тап по недрагабельной карте: в стоке это ХОД (сдать), в остальном — «стоп»-кивок. */
-  protected onElementBlocked(el: SceneElement): void {
+  /** ТАП по стоку — сдача. Именно тап, а не попытка тащить: сток не таскают, по нему щёлкают. */
+  protected onElementTapped(el: SceneElement): void {
     if (this.tree.slotOf(el.id) === "stock") {
       this.engine.dealStock();
       return;
     }
-    super.onElementBlocked(el);
+    super.onElementTapped(el);
   }
 
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {

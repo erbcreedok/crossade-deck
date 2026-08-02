@@ -336,6 +336,7 @@ export class TableEngine extends CanvasApp {
       screenToContent: (x, y) => ({ x, y }),
       pickCard: (x, y) => this.hitCard(x, y),
       cardDraggable: () => true,
+      onCardTap: () => {},
       pickButton: () => null,
       buttonContains: () => false,
       onCardGrab: (card, cp) => {

@@ -440,7 +440,7 @@ test.describe("песочница — Карты: варианты", () => {
           window as unknown as {
             __fd: {
               testHooks(): {
-                storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string }[];
+                storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; pose: string }[];
               };
             };
           }
@@ -489,12 +489,12 @@ test.describe("песочница — Карты: варианты", () => {
     expect((await find(page, "меньше ×0.7")).size).toBe(0.7);
   });
 
-  test("«удерживаемая»: rest — покой «held» (карту держат в руке)", async ({ page }) => {
-    expect((await find(page, "удерживаемая")).rest).toBe("held");
+  test("«удерживаемая»: pose — покой «held» (карту держат в руке)", async ({ page }) => {
+    expect((await find(page, "удерживаемая")).pose).toBe("held");
   });
 
-  test("«приподнятая»: rest — покой «floating» (левитация над столом)", async ({ page }) => {
-    expect((await find(page, "приподнятая (в руке)")).rest).toBe("floating");
+  test("«приподнятая»: pose — покой «lifted» (поднята над столом)", async ({ page }) => {
+    expect((await find(page, "приподнятая (в руке)")).pose).toBe("lifted");
   });
 
   test("«нельзя тащить»: реальный драг не двигает карту", async ({ page }) => {

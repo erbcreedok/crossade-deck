@@ -37,7 +37,15 @@ export interface InputHandlers<C, B> {
   onCardMove(c: C, content: Pt, screen: Pt): void;
   onCardDrop(c: C, content: Pt): void; // отпустили (дроп в зону/возврат)
   onCardCancel(c: C): void; // драг прерван вторым пальцем (пинч)
-  onCardBlocked(c: C): void; // недраг-карта — «стоп»-кивок
+  onCardBlocked(c: C): void; // палец ПОЕХАЛ по недрагабельной — «стоп»-кивок в ответ на попытку
+  /**
+   * ТАП по недрагабельному элементу: нажали и отпустили, не сдвинувшись.
+   *
+   * Отдельно от `onCardBlocked` намеренно. Пока смысл был один на оба случая, «стоп»-качание и
+   * «тап по невыделенной фигуре» ездили по одному проводу: стоило отложить качание до реального
+   * сдвига пальца — и тап перестал доходить, а с ним отвалился выбор набора в песочнице.
+   */
+  onCardTap(c: C): void;
 
   onButtonDown(b: B): void;
   onButtonMove(b: B, inside: boolean): void;
@@ -154,6 +162,8 @@ export class InputRouter<C, B> {
       this.h.onCardDrop(this.card, this.h.screenToContent(sx, sy));
       this.card = null;
     } else if (this.gesture === "blocked") {
+      // Палец не поехал — значит это был ТАП, а не попытка тащить.
+      if (!this.blockedFired && this.card) this.h.onCardTap(this.card);
       this.card = null;
       this.blockedFrom = null;
     } else if (this.gesture === "button" && this.button) {

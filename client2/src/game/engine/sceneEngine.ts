@@ -598,10 +598,13 @@ export abstract class SceneEngine extends CanvasApp {
     this.grabbedMarker = null;
   }
 
-  /** Тапнули по недрагабельному элементу. По умолчанию — «стоп»-кивок. */
+  /** Попытались утащить недрагабельный элемент (палец поехал). По умолчанию — «стоп»-кивок. */
   protected onElementBlocked(el: SceneElement): void {
     el.blockNudge();
   }
+
+  /** ТАП по недрагабельному элементу (без сдвига). По умолчанию — ничего: тык не отказ. */
+  protected onElementTapped(_el: SceneElement): void {}
 
   /**
    * Перевернуть ПАЧКУ.
@@ -751,6 +754,7 @@ export abstract class SceneEngine extends CanvasApp {
       },
 
       onCardBlocked: (el) => this.onElementBlocked(el),
+      onCardTap: (el) => this.onElementTapped(el),
 
       onButtonDown: (b) => b.setPressed(true),
       onButtonMove: (b, inside) => b.setPressed(inside),
