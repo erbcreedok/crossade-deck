@@ -1,0 +1,28 @@
+client2/src/stories/harness/CanvasStage.tsx
+  s_849b1134095733::t_1810ec0971e41b 172-179,187,195-197
+client2/src/game/engine/kitScene.ts
+  s_849b1134095733::t_363de8db9d0a08 117
+  s_849b1134095733::t_abf31a343b66c1 394-396,400
+client2/src/game/engine/sceneEngine.ts
+  s_849b1134095733::t_f2c472075816fa 75-76,184
+client2/src/game/engine/viewport.ts
+  s_849b1134095733::t_f2c472075816fa 42-46,82
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_b664511784df04 86,88-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "91c2145df4adaf1f24422a4dcd385b68cc4bc488",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
