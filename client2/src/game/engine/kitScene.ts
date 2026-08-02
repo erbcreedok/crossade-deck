@@ -294,8 +294,8 @@ export class KitScene extends SceneEngine {
       dispatch: (cmd) => this.dispatch(cmd),
       piece: (id, home, spec, r, depth = 0, plan = {}) => {
         this.specs.set(id, () => ctx.piece(id, home, spec, r, depth, plan));
-        const { build, shadow } = pieceVisual(spec, r);
-        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, ...plan }), home, depth);
+        const { build, shadow, silhouette } = pieceVisual(spec, r);
+        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, silhouette, ...plan }), home, depth);
       },
       // Метки. Механизм — общий (SceneEngine.mountMarkers), «как выглядит грип» — общее с
       // песочницей (kit/markerIcons). Витрина отличается только тем, что груз собирается прямо

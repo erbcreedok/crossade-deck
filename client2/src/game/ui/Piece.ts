@@ -23,7 +23,11 @@ export interface PieceOptions {
   w: number; // футпринт ПОКОЯ для хит-теста (полуразмеры × scaleVal)
   h: number;
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
-  shadow: { rx: number; ry: number; dy: number }; // эллипс тени у основания: полуоси + сдвиг вниз
+  shadow: { rx: number; ry: number; dy: number }; // габарит тени: полуоси + сдвиг вниз
+  /** Своя форма тени в долях радиуса. Не задана — эллипс по габариту (круглая фишка). */
+  silhouette?: number[][];
+  /** Насколько форму приплюснуть по вертикали (тень стоящей фигуры лежит на столе). */
+  flatten?: number;
   pose?: Pose;
   /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
   idle?: boolean;
@@ -47,6 +51,8 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly w: number;
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
+  private readonly silhouette?: number[][];
+  private readonly flatten: number;
   private age = 0;
   private block: { t: number; dur: number } | null = null;
   private born: { t: number; dur: number } | null = null;
@@ -70,6 +76,8 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
+    this.silhouette = opts.silhouette;
+    this.flatten = opts.flatten ?? 1;
     this.pose = opts.pose ?? "rest";
     this.idle = opts.idle;
     this.state = this.pose;
@@ -177,7 +185,8 @@ export class Piece implements TableElement, Draggable, Burnable {
     const z = zFromScale(this.body.scaleVal) + this.body.liftPx / Math.max(1, this.h) + this.zBase;
     this.root.position.set(this.body.px + shakeX, this.body.py + screenLift(z, this.h) + bob);
     this.root.rotation = this.body.rotation;
-    this.root.scale.set(render * scaleFromZ(this.zBase));
+    const drawn = render * scaleFromZ(this.zBase); // тот же множитель, что уходит в root.scale
+    this.root.scale.set(drawn);
 
     // Эффект — ДО тени: она выводится из итогового состояния, а не правится под каждый способ.
     let fx: EffectFrame | null = null;
@@ -199,11 +208,18 @@ export class Piece implements TableElement, Draggable, Burnable {
         shakeX: shakeX + (fx?.dx ?? 0),
         z: z + Math.max(0, (fx?.scale ?? 1) - 1),
         screenY: fx?.dy ?? 0,
-        hw: this.shadowCfg.rx,
-        hh: this.shadowCfg.ry,
-        baseDy: this.shadowCfg.dy,
-        round: true,
-        poly: fx?.mask ?? null,
+        // Силуэт — от НАРИСОВАННОГО размера, как у карты: поднятая фишка крупнее лежащей, и
+        // тень у неё крупнее во столько же.
+        hw: this.shadowCfg.rx * drawn,
+        hh: this.shadowCfg.ry * drawn,
+        baseDy: this.shadowCfg.dy * drawn,
+        reach: this.w * drawn,
+        // Эффект-маска важнее собственной формы: горящая фигура режется тем же контуром, что и её
+        // визуал, иначе от неё осталась бы целая тень.
+        round: !this.silhouette,
+        poly: fx?.mask ?? this.silhouette ?? null,
+        polyK: fx?.mask ? undefined : (this.w / 2) * drawn,
+        polyKy: fx?.mask ? undefined : (this.w / 2) * drawn * this.flatten,
         fade: fx?.shadow ?? 1,
       },
       this.preset.shadow,

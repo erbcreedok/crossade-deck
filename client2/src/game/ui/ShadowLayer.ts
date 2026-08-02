@@ -21,7 +21,7 @@ export class ShadowLayer {
   update(shapes: readonly ShadowShape[], w: number, h: number): void {
     this.mask.clear();
     for (const s of shapes) {
-      if (s.round) {
+      if (s.round && !s.poly) {
         // Эллипс — для круглых фишек и овальных подставок фигур (не карточный прямоугольник).
         this.mask.ellipse(s.x, s.y, s.hw, s.hh).fill({ color: 0xffffff });
         continue;
@@ -29,14 +29,17 @@ export class ShadowLayer {
       if (s.poly) {
         // Форма от эффекта: полигоны приходят в координатах ТЕКСТУРЫ, поэтому переводим их в
         // масштаб тени — она может быть крупнее предмета (высота) или мельче (догорание).
-        const k = s.hw / (TEX_W / 2);
+        // Карточная форма приходит в координатах текстуры, своя (силуэт предмета) — в своих:
+        // множитель приносит тот, кто форму задал.
+        const k = s.polyK ?? s.hw / (TEX_W / 2);
+        const ky = s.polyKy ?? k; // меньше k — силуэт приплюснут: тень легла на стол
         const c0 = Math.cos(s.rot);
         const s0 = Math.sin(s.rot);
         for (const poly of s.poly) {
           const pts: number[] = [];
           for (let i = 0; i < poly.length; i += 2) {
             const lx = poly[i]! * k;
-            const ly = poly[i + 1]! * k;
+            const ly = poly[i + 1]! * ky;
             pts.push(s.x + lx * c0 - ly * s0, s.y + lx * s0 + ly * c0);
           }
           this.mask.poly(pts).fill({ color: 0xffffff });

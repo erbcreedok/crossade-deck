@@ -11,13 +11,19 @@ describe("pieceVisual", () => {
     expect(pieceVisual({ kind: "chip", color: 0, denom: "" }, 20).shadow.rx).toBeCloseTo(19.6);
   });
 
-  it("шахматная фигура: узкий овал у основания (низкая ry, сдвиг вниз)", () => {
-    const s = pieceVisual({ kind: "chess", dark: true, glyph: "♞" }, 10).shadow;
-    expect(s.ry).toBeLessThan(s.rx); // узкий
-    expect(s.dy).toBeGreaterThan(s.ry); // у ножки, смещён вниз
-    expect(s.rx).toBeCloseTo(5.6);
-    expect(s.ry).toBeCloseTo(1.8);
-    expect(s.dy).toBeCloseTo(7);
+  // У фигуры форма СВОЯ, а не овал: овал у основания прятался под глифом, и тени будто не было.
+  it("шахматная фигура: собственный силуэт, габарит по самой фигуре", () => {
+    const v = pieceVisual({ kind: "chess", dark: true, glyph: "♞" }, 10);
+    expect(v.silhouette, "у фигуры есть свой контур").toBeDefined();
+    expect(v.silhouette![0]!.length % 2, "контур — пары координат").toBe(0);
+    expect(v.shadow.rx).toBeCloseTo(6.2); // уже фигуры по горизонтали
+    expect(v.shadow.ry).toBeCloseTo(10); // но во всю её высоту: тень повторяет предмет
+    expect(v.shadow.dy).toBeCloseTo(6.2); // сдвиг к ОСНОВАНИЮ: приплюснутый силуэт стоит подошвой там же
+    expect(v.flatten, "тень стоящей фигуры лежит на столе, а не висит копией").toBeLessThan(1);
+  });
+
+  it("круглой фишке своя форма не нужна — эллипс и есть её силуэт", () => {
+    expect(pieceVisual({ kind: "chip", color: 0, denom: "" }, 10).silhouette).toBeUndefined();
   });
 
   it("возвращает функцию отрисовки для каждого типа", () => {
