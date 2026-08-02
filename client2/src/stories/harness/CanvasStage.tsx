@@ -169,9 +169,14 @@ export function CanvasStage<T, A extends object>({
   }, []);
 
   return (
-    // Фрейм — место, которое даёт страница; канвас внутри него занимает РОВНО витрину и стоит по
-    // центру. Раньше канвас растягивался на весь фрейм, и под одной картой лежало пол-экрана
-    // сукна, а широкий раздел на узком окне уходил за кромку без всякой возможности его достать.
+    // ФРЕЙМ — место, которое даёт страница. Канвас его ЗАКРЫВАЕТ целиком: сукно — фон стола, и
+    // просвечивающая вокруг него шахматка читается как дыра в разделе, а не как поле страницы.
+    // Содержимое при этом остаётся в своём размере и по центру (камера сцены), так что крупные
+    // позы — удерживаемая карта — не упираются в кромку.
+    //
+    // На Docs иначе: там витрин на странице несколько, между ними текст и таблица рычагов, и
+    // канвас во весь экран под одной кнопкой отодвигал бы всё остальное за горизонт. Там коробка
+    // считается по содержимому (`fitCanvas`) и не бывает выше окна.
     <div
       ref={frameRef}
       style={{
@@ -179,7 +184,7 @@ export function CanvasStage<T, A extends object>({
         height: isDocsMode() ? "auto" : height,
         display: "flex",
         justifyContent: "center",
-        alignItems: isDocsMode() ? "flex-start" : "center",
+        alignItems: isDocsMode() ? "flex-start" : "stretch",
       }}
     >
       <div
@@ -187,9 +192,9 @@ export function CanvasStage<T, A extends object>({
         style={{
           // До первой сборки габарит витрины неизвестен — занимаем фрейм целиком: смонтироваться
           // в нулевую коробку значит потерять первый кадр.
-          width: box ? box.w : "100%",
-          height: box ? box.h : height,
-          minHeight: box ? 0 : 320,
+          width: isDocsMode() && box ? box.w : "100%",
+          height: isDocsMode() && box ? box.h : height,
+          minHeight: isDocsMode() && box ? 0 : 320,
           background: "#2f3d34",
           touchAction: "none",
           overflow: "hidden",

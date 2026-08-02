@@ -114,7 +114,7 @@ export class KitScene extends SceneEngine {
     // вписывать широкую секцию в узкий экран телефона, и пол 0.6 не давал этого сделать —
     // `fitZoom` честно считал 0.39, а `viewport.setZoom` молча поднимал его обратно до 0.6, и
     // витрина обрезалась по обоим краям без всякого признака, что часть её потеряна.
-    super({ align: "center", margin: 0, minZoom: MIN_FIT_ZOOM, maxZoom: MAX_KIT_ZOOM, ...(opts.camera ?? {}) });
+    super({ align: "center", alignY: "center", margin: 0, minZoom: MIN_FIT_ZOOM, maxZoom: MAX_KIT_ZOOM, ...(opts.camera ?? {}) });
     this.cardHeight = opts.cardHeight ?? SANDBOX_CARD_H;
     this.padding = opts.padding ?? SB_MARGIN;
     this.fitOnBuild = opts.fitOnBuild ?? true;
@@ -391,10 +391,13 @@ export class KitScene extends SceneEngine {
     // переявлялась бы по десять раз подряд — шум, который прячет то, ради чего рычаг крутят.
     // Появление — СОБЫТИЕ доски (раздали, вернули, добрали), и запускает его тот, кто его вызвал.
     this.fresh = [];
+    // Полуразмеры берём В ПОЗЕ ЭЛЕМЕНТА, а не в покое: удерживаемая карта нарисована крупнее
+    // (DRAG_SCALE), и по номинальному размеру она вылезала за габарит — на канвасе, поджатом
+    // ровно по нему, ей срезало верх.
     const e =
       this.explicitExtent ??
       extentOf(
-        this.placed.map((p) => ({ x: p.home.x, y: p.home.y, hw: p.el.footprint.hw, hh: p.el.footprint.hh })),
+        this.placed.map((p) => ({ x: p.home.x, y: p.home.y, hw: p.el.footprint.hw * p.el.restScale, hh: p.el.footprint.hh * p.el.restScale })),
         this.padding,
       );
     this.contentW = e.w;

@@ -72,6 +72,8 @@ export interface CameraConfig {
   maxZoom?: number;
   margin?: number;
   align?: "left" | "center";
+  /** Как класть контент по вертикали, когда он ниже экрана. По умолчанию — к верху. */
+  alignY?: "center" | "top";
 }
 
 export const MIN_ZOOM = 0.6;
@@ -179,7 +181,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   constructor(cam: CameraConfig = {}) {
     super();
-    this.viewport = new Viewport(cam.minZoom ?? MIN_ZOOM, cam.maxZoom ?? MAX_ZOOM, cam.margin ?? 24, cam.align ?? "left");
+    this.viewport = new Viewport(cam.minZoom ?? MIN_ZOOM, cam.maxZoom ?? MAX_ZOOM, cam.margin ?? 24, cam.align ?? "left", 0, cam.alignY ?? "top");
   }
 
   // ——————————————————————————————————————————————————————————————————————

@@ -39,6 +39,11 @@ export class Viewport {
     // изменении ширины окна (напр. открыли консоль сайдбаром) — единой опоры у элементов не было.
     private readonly alignX: "center" | "left" = "center",
     private readonly leftInset = 0,
+    // Как класть контент по Y, когда он НИЖЕ экрана. "top" — прижать к `topInset`: у ленты секций
+    // (песочница) содержимое обычно выше экрана, и прыгать по вертикали ей нельзя. "center" — у
+    // витрины каталога: там раздел один, канвас занимает весь кадр, и прижатый к верху раздел
+    // оставлял бы под собой пустое поле в пол-экрана.
+    private readonly alignY: "center" | "top" = "top",
   ) {}
 
   setScreen(w: number, h: number): void {
@@ -74,7 +79,7 @@ export class Viewport {
     const cw = this.cw * this.zoom;
     const ch = this.ch * this.zoom;
     this.x = cw <= this.W ? (this.alignX === "left" ? this.leftInset : (this.W - cw) / 2) : clamp(this.x, this.W - cw, 0);
-    this.y = ch <= this.H ? this.topInset : clamp(this.y, this.H - ch, 0);
+    this.y = ch <= this.H ? (this.alignY === "center" ? (this.H - ch) / 2 : this.topInset) : clamp(this.y, this.H - ch, 0);
   }
 
   /** Зум вокруг экранной точки — она остаётся на месте (фокус не «уползает»). */
