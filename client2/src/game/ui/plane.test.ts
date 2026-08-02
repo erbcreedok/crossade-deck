@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { scaleForState } from "./plane";
-import { cardShadow, SHADOW_ON_TABLE, type ShadowShape } from "./shadow";
+import { cardShadow, shadowOf, SHADOW_ON_TABLE, type ShadowShape } from "./shadow";
 import { DRAG_SCALE, LIFT_SCALE, TEX_H, TEX_W } from "../engine/constants";
 import { bobOffset, idleBobs, screenLift, zFromScale } from "./elevation";
 
@@ -134,5 +136,88 @@ describe("elevation: дыхание — своя ось, поза задаёт �
   it("явное значение перебивает умолчание позы — в обе стороны", () => {
     expect(idleBobs("rest", true)).toBe(true);
     expect(idleBobs("lifted", false)).toBe(false);
+  });
+});
+
+// ОДИН ЗАКОН НА ВСЕ ПРЕДМЕТЫ. Форма — параметр, а не второй файл: у фишки и у карты одна и та же
+// арифметика смещения и роста, различаются они силуэтом и тем, чем меряется «дальность».
+describe("shadow: форма — параметр общего закона", () => {
+  const card = { px: 100, py: 100, z: 0.3, hw: 50, hh: 70, reach: 140 };
+  const chip = { ...card, round: true };
+
+  it("силуэт объявляется флагом, а всё остальное считается одинаково", () => {
+    const a = shadowOf(card)!;
+    const b = shadowOf(chip)!;
+    expect(a.round).toBeUndefined(); // карта — прямоугольник
+    expect(b.round).toBe(true); // фишка — эллипс
+    expect({ x: b.x, y: b.y, hw: b.hw, hh: b.hh }).toEqual({ x: a.x, y: a.y, hw: a.hw, hh: a.hh });
+  });
+
+  it("«дальность» — параметр: у стоящей фигуры силуэт плоский, но смещение мерить надо не им", () => {
+    // Иначе тень узкого овала почти не отъезжает, и высота у фигуры перестаёт читаться.
+    const flat = { px: 100, py: 100, z: 0.3, hw: 40, hh: 10 };
+    const byOwnSize = shadowOf(flat)!;
+    const byReach = shadowOf({ ...flat, reach: 140 })!;
+    expect(Math.abs(byReach.y - flat.py)).toBeGreaterThan(Math.abs(byOwnSize.y - flat.py));
+  });
+
+  it("сдвиг к ОСНОВАНИЮ — тоже параметр: у стоящей фигуры тень под ножкой, а не под центром", () => {
+    const base = shadowOf({ px: 100, py: 100, z: 0, hw: 40, hh: 10, baseDy: 25 })!;
+    const none = shadowOf({ px: 100, py: 100, z: 0, hw: 40, hh: 10 })!;
+    expect(base.y - none.y).toBeCloseTo(25, 6);
+  });
+});
+
+// Эффект (горение, шреддер) ест предмет маской — и тень обязана резаться ТОЙ ЖЕ маской. Иначе от
+// сгоревшей карты остаётся её целая тень, и это единственное, что видно на столе.
+describe("shadow: эффект режет и тень", () => {
+  const spec = { px: 100, py: 100, z: 0.2, hw: 50, hh: 70 };
+
+  it("маска эффекта уезжает в силуэт тени как есть", () => {
+    const poly = [[0, 0, 10, 0, 10, 10]];
+    expect(shadowOf({ ...spec, poly })!.poly).toBe(poly);
+    expect(shadowOf(spec)!.poly).toBeUndefined();
+  });
+
+  it("угасание эффекта ужимает тень, а не только предмет", () => {
+    const full = shadowOf(spec)!;
+    const half = shadowOf({ ...spec, fade: 0.5 })!;
+    expect(half.hw).toBeCloseTo(full.hw * 0.5, 6);
+    expect(half.hh).toBeCloseTo(full.hh * 0.5, 6);
+  });
+
+  it("догоревший предмет тени не отбрасывает вовсе — null, а не нулевой прямоугольник", () => {
+    // Нулевой силуэт всё равно попал бы в общую маску слоя и оставил бы точку на сукне.
+    expect(shadowOf({ ...spec, fade: null })).toBeNull();
+  });
+});
+
+// Имена, которые уже приходилось переименовывать. Тест смотрит В ИСХОДНИКИ, потому что вернуть их
+// может любая новая строчка, а не только эти модули: ось звалась именем своего же значения
+// (`rest: "rest"`), а значение читалось как имя анимации (`floating`).
+describe("имена оси покоя не возвращаются", () => {
+  const dir = join(process.cwd(), "src");
+  const files = (function walk(d: string): string[] {
+    return readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+      const p = join(d, e.name);
+      if (e.isDirectory()) return walk(p);
+      // Сами тесты пропускаем: старые имена живут в них как ТЕКСТ проверки — этот файл первый.
+      return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : [];
+    });
+  })(dir);
+
+  it("тип зовётся `Pose`: `RestState` не воскрес", () => {
+    const bad = files.filter((f) => /\bRestState\b/.test(readFileSync(f, "utf8"))).map((f) => f.slice(dir.length + 1));
+    expect(bad, bad.join("\n")).toEqual([]);
+  });
+
+  it("значение зовётся `lifted`: строки «floating» в коде нет", () => {
+    const bad = files.filter((f) => /"floating"/.test(readFileSync(f, "utf8"))).map((f) => f.slice(dir.length + 1));
+    expect(bad, bad.join("\n")).toEqual([]);
+  });
+
+  it("свойство зовётся `pose`: объявлений `rest?: Pose` не осталось", () => {
+    const bad = files.filter((f) => /\brest\??:\s*Pose\b/.test(readFileSync(f, "utf8"))).map((f) => f.slice(dir.length + 1));
+    expect(bad, bad.join("\n")).toEqual([]);
   });
 });
