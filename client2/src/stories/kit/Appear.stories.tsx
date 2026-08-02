@@ -1,9 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { APPEAR_SPECS } from "../../game/anim/appearStyles";
+import { APPEAR_SPECS, APPEAR_STYLES } from "../../game/anim/appearStyles";
 import { animArgTypes, animStory, knobValues, type AnimArgs } from "./animArgs";
 
+// ВСЕ виды появления, а не только настраиваемые.
+//
+// Раздел перечислял `APPEAR_SPECS` — реестр стилей С ЧИСЛАМИ, а таких пока один («удар об стол»).
+// Готовые (раздача, падение, рост, шторка, проявление, «без анимации») в него не входят, и в панели
+// их не было вовсе — раздел выглядел так, будто у появления один вид. Готовому стилю крутить нечего,
+// поэтому у него пустой набор `knobs`: панель сама покажет только выбор.
+// Порядок ЗНАЧИМ: первый вид становится значением по умолчанию, и `none` («без анимации») в этой
+// роли превращает раздел в неработающий — кнопка нажимается, не происходит ничего.
+const APPEAR_ORDER = ["deal", "drop", "grow", "wipe", "fade", "none"];
 
-const { args, argTypes } = animArgTypes(APPEAR_SPECS, "appear.style");
+const SPECS = {
+  // Готовый стиль отдаётся ОБЪЕКТОМ, а не именем: пресет принимает и то и другое, но объект
+  // одного типа с фабричным — иначе у выбора получаются две разные природы значения.
+  ...Object.fromEntries(APPEAR_ORDER.filter((id) => APPEAR_STYLES[id]).map((id) => [id, { label: APPEAR_STYLES[id]!.label, knobs: {}, make: () => APPEAR_STYLES[id]! }])),
+  ...APPEAR_SPECS,
+};
+
+const { args, argTypes } = animArgTypes(SPECS, "appear.style");
 
 /**
  * ПОЯВЛЕНИЕ — как элемент приходит на стол. Раздача, добор, возврат в игру и восстановление
@@ -25,7 +41,7 @@ const meta: Meta<AnimArgs> = {
 import { resolvePreset } from "../../game/anim/presets";
 
 // Стиль — ФАБРИКА: числа снаружи. Ровно те, что сейчас в панели:
-const appear = APPEAR_SPECS.${x.style}.make(${JSON.stringify(knobValues(x, APPEAR_SPECS, x.style), null, 2)});
+const appear = ${Object.keys(APPEAR_SPECS).includes(x.style) ? `APPEAR_SPECS.${x.style}.make(${JSON.stringify(knobValues(x, SPECS, x.style), null, 2)})` : `APPEAR_STYLES.${x.style}`};
 
 ctx.setAnimPreset(ids, resolvePreset({ appear: { style: appear }, speed: ${x.speed} }));
 
@@ -38,7 +54,7 @@ resolvePreset({ appear: { style: { label: "моя", dur: 0.4, frame: (t, ctx) =>
     },
   },
   render: animStory(
-    APPEAR_SPECS,
+    SPECS,
     (style) => ({ appear: { style } }),
     (ctx) => [{ label: "появиться", variant: "ghost", kind: "appear", run: (ids) => ctx.appear(ids) }],
   ),
