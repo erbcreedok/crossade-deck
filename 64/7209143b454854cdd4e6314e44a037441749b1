@@ -1,0 +1,21 @@
+client2/src/game/crossade/net.test.ts
+  s_849b1134095733::t_9a2e2d0d31a27a 1-397
+client2/src/game/crossade/net.ts
+  s_849b1134095733::t_e5ed0f677553f4 1-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "647209143b454854cdd4e6314e44a037441749b1",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
