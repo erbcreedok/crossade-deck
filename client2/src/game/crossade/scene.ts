@@ -12,6 +12,7 @@ import type { CrossadeState } from "./state";
 import { makePort, bindRoom, type BindableRoom, type CrossadePort, type CrossadeSignal, type SendableRoom } from "./net";
 import { sameOrder, sameZones } from "./diff";
 import { paintSlots, ZONE_LABELS } from "./slotPaint";
+import { handOrderAfterDrop } from "./handOrder";
 
 // СЦЕНА CROSSADE — доктрина ровно та же, что у Косынки (см. solitaire/scene.ts): ввод/камера/
 // драг/цикл кадра/тени/HUD-каркас (TopBar) берутся из SceneEngine и здесь НЕ пишутся заново.
@@ -218,7 +219,7 @@ export class CrossadeScene extends SceneEngine {
     // HUD целиком собран (buildHud создаёт его и кнопки одним блоком).
     if (!this.topbar) return;
     const state = this.state;
-    const self = state.seats.find((s) => s.sessionId === state.selfSessionId) ?? null;
+    const self = this.selfSeat();
     const readyCount = state.seats.filter((s) => s.isReady).length;
     const room = state.inviteCode ? `Комната ${state.inviteCode}` : "Комната —";
     this.topbar?.setStatus(`${room} · за столом ${state.seats.length} · готовы ${readyCount}`);
@@ -232,6 +233,15 @@ export class CrossadeScene extends SceneEngine {
 
     this.layoutActions();
     this.chromeButtons = [...(this.topbar?.buttons ?? []), ...this.actionButtons];
+  }
+
+  /** Своё место за столом — то, откуда читаются isDealer/isReady для HUD и жестов раздачи. */
+  private selfSeat() {
+    return this.state.seats.find((s) => s.sessionId === this.state.selfSessionId) ?? null;
+  }
+
+  private isDealer(): boolean {
+    return this.selfSeat()?.isDealer ?? false;
   }
 
   private layoutActions(): void {
@@ -338,6 +348,14 @@ export class CrossadeScene extends SceneEngine {
   private paintBoard(): void {
     const ids = Object.keys(this.tree.origins).filter((id) => id === "deck" || id === "discard" || id.startsWith("play:"));
     paintSlots(this.slotLayer, { origins: this.tree.origins, ids, cell: CARD, armed: this.armedSlots, hot: this.hotSlot });
+    // Места игроков: контур ТОЛЬКО пока они armed/hot (раздача драгом, этап 5) — в покое место
+    // остаётся просто текстом (см. syncSeats), см. заголовок slotPaint.ts.
+    const seatIds = Object.keys(this.tree.origins).filter(
+      (id) => id.startsWith("seat:") && (this.armedSlots.has(id) || this.hotSlot === id),
+    );
+    if (seatIds.length) {
+      paintSlots(this.slotLayer, { origins: this.tree.origins, ids: seatIds, cell: SEAT, armed: this.armedSlots, hot: this.hotSlot, clear: false });
+    }
     for (const [id, text] of Object.entries(ZONE_LABELS)) {
       const at = this.tree.origins[id];
       if (!at) continue;
@@ -369,13 +387,20 @@ export class CrossadeScene extends SceneEngine {
     return home ? { home, depth: this.cardDepth.get(el.id) ?? 0 } : null;
   }
 
-  /** Тащить можно: карту своей руки — всегда; верх колоды/сброса/play-кучки — только в freeMode
-   *  (см. CROSSADE-DESIGN.md этап 4). Никакой другой элемент не драгается. */
+  /** Тащить можно: карту своей руки — всегда; верх колоды — либо в freeMode («взять себе», этап 4),
+   *  либо в лобби ДИЛЕРУ («раздать драгом», этап 5, только верхнюю карту — колода вслепую, см.
+   *  CLAUDE.md «Dealing is always on»); верх сброса/play-кучки — только в freeMode. Никакой другой
+   *  элемент не драгается. */
   protected canDrag(el: SceneElement): boolean {
     const slot = this.tree.slotOf(el.id);
     if (slot === "hand") return true;
-    if (!slot || !this.state.freeMode) return false;
-    if (slot === "deck") return topOf(this.state.deck) === el.id;
+    if (!slot) return false;
+    if (slot === "deck") {
+      if (topOf(this.state.deck) !== el.id) return false;
+      if (this.state.freeMode) return true;
+      return this.state.phase === "lobby" && this.isDealer();
+    }
+    if (!this.state.freeMode) return false;
     if (slot === "discard") return topOf(this.state.discard) === el.id;
     if (slot.startsWith("play:") && slot !== "play:new") {
       const stack = this.state.play[Number(slot.slice(5))];
@@ -425,6 +450,10 @@ export class CrossadeScene extends SceneEngine {
     } else if (from === "hand" && to.startsWith("play:")) {
       if (to === "play:new") this.port.playCard(el.id);
       else this.port.playCard(el.id, Number(to.slice(5)));
+    } else if (from === "deck" && to.startsWith("seat:")) {
+      // Раздача драгом (этап 5): сервер сам решит, ready ли получатель — сюда прилетает
+      // action_rejected, если нет (см. handMessages.ts#deal_card), и showNotice его покажет.
+      this.port.dealCard(el.id, to.slice(5));
     } else if (from === "deck" && to === "hand") {
       this.port.takeCard();
     } else if (from === "discard" && to === "hand") {
@@ -452,11 +481,7 @@ export class CrossadeScene extends SceneEngine {
    */
   private reorderHand(cardId: string, toIndex: number): void {
     const hand = this.state.selfHand;
-    const from = hand.indexOf(cardId);
-    if (from < 0) return;
-    const next = [...hand];
-    const [c] = next.splice(from, 1);
-    next.splice(Math.max(0, Math.min(next.length, toIndex)), 0, c!);
+    const next = handOrderAfterDrop(hand, cardId, toIndex); // чистая splice-логика — см. handOrder.ts
     if (sameOrder(next, hand)) return; // дропнули туда же — ничего не изменилось, слать нечего
     this.state.selfHand = next;
     this.rebuildBoard(false);
@@ -479,14 +504,17 @@ export class CrossadeScene extends SceneEngine {
   }
 
   /** Зоны, готовые принять груз из слота `from` — легальность считает сервер, здесь только
-   *  подсказка «куда можно»: рука отдаёт в сброс/любую play-кучку, а колода/сброс/play отдают
-   *  ТОЛЬКО в руку (см. CROSSADE-DESIGN.md §4). */
+   *  подсказка «куда можно»: рука отдаёт в сброс/любую play-кучку; колода/сброс/play отдают в руку
+   *  (этап 4); а колода дилера в лобби — на любое место за столом, включая своё (этап 5, «сдать
+   *  себе»); см. CROSSADE-DESIGN.md §4/§5. */
   private legalTargets(from: string): ReadonlySet<string> {
     const out = new Set<string>();
     if (from === "hand") {
       out.add("hand"); // реордер — тоже легальный переход, просто рука не носит контур (paintBoard)
       out.add("discard");
       for (const id of Object.keys(this.tree.origins)) if (id.startsWith("play:")) out.add(id);
+    } else if (from === "deck" && this.state.phase === "lobby") {
+      for (const id of Object.keys(this.tree.origins)) if (id.startsWith("seat:")) out.add(id);
     } else if (from === "deck" || from === "discard" || from.startsWith("play:")) {
       out.add("hand");
     }

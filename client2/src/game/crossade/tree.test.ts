@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CrossadeSeat, CrossadeState } from "./state";
-import { BOARD_H, BOARD_W, CARD, buildCrossadeTree } from "./tree";
+import { BOARD_H, BOARD_W, CARD, SEAT, buildCrossadeTree } from "./tree";
 
 // Дерево слотов — единственный источник геометрии стола Crossade, по образцу solitaire/tree.test.ts:
 // проверяем то, что ЛОМАЛОСЬ у Косынки (дом vs угол слота, пустой слот как цель дропа) плюс то, что
@@ -128,6 +128,27 @@ describe("buildCrossadeTree — места игроков", () => {
     expect(b).toBeDefined();
     expect(b.x).toBeGreaterThan(a.x);
     expect(a.y).toBe(b.y);
+  });
+
+  it("в лобби место — дропзона для раздачи драгом", () => {
+    const tree = buildCrossadeTree(state({ phase: "lobby", seats: [seat({ sessionId: "s1" })] }));
+    const at = tree.origins["seat:s1"]!;
+    const point = { x: at.x + 1, y: at.y + 1 };
+    expect(tree.slotAt(point)).toBe("seat:s1");
+  });
+
+  it("в игре место дроп не берёт — раздача только пока стол не размечен", () => {
+    const tree = buildCrossadeTree(state({ phase: "playing", seats: [seat({ sessionId: "s1" })] }));
+    const at = tree.origins["seat:s1"]!;
+    const point = { x: at.x + 1, y: at.y + 1 };
+    expect(tree.slotAt(point)).not.toBe("seat:s1");
+  });
+
+  it("пустое место всё равно держит габарит SEAT (пустая куча резервирует cell)", () => {
+    const tree = buildCrossadeTree(state({ phase: "lobby", seats: [seat({ sessionId: "s1" })] }));
+    const at = tree.origins["seat:s1"]!;
+    expect(tree.slotAt({ x: at.x + SEAT.w - 1, y: at.y + SEAT.h - 1 })).toBe("seat:s1");
+    expect(tree.slotAt({ x: at.x + SEAT.w + 5, y: at.y + SEAT.h + 5 })).not.toBe("seat:s1");
   });
 });
 

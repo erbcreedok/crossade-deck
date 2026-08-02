@@ -20,7 +20,12 @@ import type { CrossadeState } from "./state";
 //     промежуточном узле, см. slot/slot.ts#dropTarget).
 //
 // Места игроков в MVP — только счёт (handCount), без раскладки чужих карт: сами карты чужой руки
-// не рисуем, слот на месте игрока держит габарит для будущего драга дилера (стадия 5 CROSSADE-DESIGN.md).
+// не рисуем. Место игрока — ПУСТАЯ куча (pile() без детей), не лист: dropTarget (slot/slot.ts)
+// спускается только в group-детей (см. её же комментарий «Глубочайшая группа-дропзона»), лист
+// дропзоной стать не может в принципе — значит место обязано быть группой, даже без единой карты
+// внутри. cell у pile() резервирует габарит пустой куче (тот же приём, что у пустого сброса/play-
+// кучки). Дропзона — только в лобби (раздача дилера драгом, этап 5 CROSSADE-DESIGN.md): в игре
+// caps.drop у места нет вовсе, и dropTarget проходит место насквозь, как обычный пустой прямоугольник.
 
 export const CARD: Size = { w: 100, h: 143 };
 export const SEAT: Size = { w: 72, h: 92 };
@@ -115,14 +120,17 @@ function handSlot(state: CrossadeState): Placed {
   };
 }
 
-/** Полоса мест игроков — только счёт (handCount), без раскладки чужих карт (см. заголовок файла). */
+/** Полоса мест игроков — только счёт (handCount), без раскладки чужих карт (см. заголовок файла).
+ *  В лобби каждое место — дропзона: дилер тащит верхнюю карту колоды на любое место (в т.ч. своё
+ *  же — «сдать себе»), accept пропускает всё, легальность (isReady/isDealer) проверяет сервер. */
 function seatSlots(state: CrossadeState): Placed[] {
   const layout = linear({ axis: "x", gap: GAP.x });
   const { at } = layout.place(state.seats.map(() => SEAT));
+  const dealDropCaps = state.phase === "lobby" ? { drop: { accept: () => true } } : undefined;
   return state.seats.map((seat, i) => ({
     id: `seat:${seat.sessionId}`,
     origin: { x: MARGIN.x + at[i]!.x, y: SEATS_Y + at[i]!.y },
-    slot: leaf(`seat:${seat.sessionId}`, null, SEAT),
+    slot: group(`seat:${seat.sessionId}`, pile({ dx: 0, dy: 0, cell: SEAT }), [], dealDropCaps),
   }));
 }
 

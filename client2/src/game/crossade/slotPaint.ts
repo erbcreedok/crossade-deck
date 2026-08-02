@@ -3,8 +3,11 @@ import type { Size, Vec } from "../slot/types";
 
 // Контуры слотов доски Crossade — тот же язык, что у Косынки (solitaire/slotPaint.ts): покой
 // (слот просто размечен), armed (эта зона примет текущий груз) и hot (груз прямо над ней).
-// Рисуем ТОЛЬКО колоду/сброс/play-кучки: рука и места игроков размечаются иначе (карты руки и
-// так видны как ряд, а место игрока в MVP — это текст, не дропзона для руки, см. CROSSADE-DESIGN.md).
+// Рисуем колоду/сброс/play-кучки ВСЕГДА (свой контур в покое); места игроков — ТОЛЬКО armed/hot
+// (в покое место — просто текст, см. syncSeats в scene.ts, контур появляется только пока дилер
+// тащит верхнюю карту колоды, см. CROSSADE-DESIGN.md этап 5). Два прохода одним Graphics: у мест
+// своя ячейка (SEAT), у остальных — своя (CARD), а paintSlots красит любой набор id/cell разом —
+// clear:false у второго прохода, чтобы не стереть первый.
 
 const REST = 0x6d8570;
 const ARMED = 0x8fa39a;
@@ -12,17 +15,19 @@ const HOT = 0xf2c14e;
 
 export interface SlotPaintState {
   origins: Readonly<Record<string, Vec>>;
-  /** Какие слоты рисовать (deck/discard/play:N/play:new) — выбирает сцена по id. */
+  /** Какие слоты рисовать (deck/discard/play:N/play:new/seat:ID) — выбирает сцена по id. */
   ids: readonly string[];
   cell: Size;
   /** Зоны, готовые принять текущий груз (подсветка «куда можно»). */
   armed: ReadonlySet<string>;
   /** Зона прямо под грузом. */
   hot: string | null;
+  /** false — не звать g.clear() (второй проход поверх уже нарисованного, см. заголовок файла). */
+  clear?: boolean;
 }
 
 export function paintSlots(g: Graphics, s: SlotPaintState): void {
-  g.clear();
+  if (s.clear !== false) g.clear();
   const radius = Math.min(10, s.cell.w * 0.12);
   for (const id of s.ids) {
     const at = s.origins[id];
