@@ -1,0 +1,23 @@
+client2/src/stories/harness/CanvasStage.tsx
+  s_849b1134095733::t_b2973f48a0a457 89-92
+client2/src/stories/harness/kitPool.ts
+  s_849b1134095733::t_b2973f48a0a457 62-73
+client2/src/stories/harness/canvasDrag.ts
+  s_849b1134095733::t_b2973f48a0a457 34-35,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "121f2939757e8e0bab0f67c1579ca4ae7b7b97ef",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
