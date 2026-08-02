@@ -1,0 +1,42 @@
+client2/src/game/engine/inputRouter.test.ts
+  s_849b1134095733::t_4d8f0bac79d79c 61-63,69-78
+  s_849b1134095733::t_8c01a5eab23db0 22
+client2/src/game/solitaire/scene.ts
+  s_849b1134095733::t_4adc6ee87749ba 278-279,284
+client2/src/game/engine/inputRouter.ts
+  s_849b1134095733::t_958a89e10c26ca 40-48,165-166
+client2/src/game/engine/sceneEngine.ts
+  s_849b1134095733::t_958a89e10c26ca 601,606-608,757
+client2/e2e/sandbox.spec.ts
+  s_849b1134095733::t_f0bf441f47e8d1 492-493,496-497
+  s_849b1134095733::t_327f0b346fecd6 443
+client2/src/game/engine/panZoom.ts
+  s_849b1134095733::t_405fa4616cf439 69
+client2/src/game/engine/playgroundEngine.ts
+  s_849b1134095733::t_836e84756331d6 894-895
+  s_849b1134095733::t_3158fc0914defb 994-997
+  s_849b1134095733::t_958a89e10c26ca 1962,1964-1969
+client2/src/game/ui/TopBar.ts
+  s_849b1134095733::t_d8665e1247eb39 43-46
+client2/e2e/selection.spec.ts
+  s_849b1134095733::t_d7e02d71e57857 385
+  s_849b1134095733::t_68e01dc7ed683b 363-364,368,380,384,533,535,548,562
+client2/src/game/engine/tableEngine.ts
+  s_849b1134095733::t_405fa4616cf439 339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "90e589d8b0c0c650c7b71c42258bd0381b29795e",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
