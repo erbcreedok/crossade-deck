@@ -863,11 +863,15 @@ export abstract class SceneEngine extends CanvasApp {
     let moving = this.input.gesture !== "none" || this.viewport.flinging;
     if (this.stepPendingFlips(dt)) moving = true;
     if (this.stepTimers(dt)) moving = true;
-    this.stepLanding();
     for (const el of this.everyElement()) {
       el.step(dt);
       if (!el.resting) moving = true;
     }
+    // ПОСЛЕ шага элементов, а не до него. Пока посадка разбиралась первой, она читала состояние
+    // ПРОШЛОГО кадра: в тот кадр, когда карта долетала, цикл видел «все успокоились» и засыпал —
+    // следующего кадра не было, и глубина так и оставалась драговой (1e6). Карта возвращалась
+    // домой, но продолжала лежать поверх всей стопки.
+    this.stepLanding();
     this.reapDead();
     for (const b of this.buttons) {
       b.step(dt);
