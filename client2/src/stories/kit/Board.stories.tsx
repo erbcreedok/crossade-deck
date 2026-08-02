@@ -123,25 +123,30 @@ export const Board: StoryObj<Args> = {};
 export const DropScenario: StoryObj<Args> = {
   name: "Drop scenario",
   play: async ({ canvasElement, step }) => {
-    const cell = 99; // шаг сетки в координатах контента; первая клетка — (82, 82)
     await step("витрина собралась", async () => waitForElement(canvasElement, "bz-0"));
-    const home = elementAt(canvasElement, "bz-0");
 
-    await step("тащим фигуру в пустую клетку снизу", async () => {
-      await dragOnCanvas(canvasElement, home, { x: home.x, y: home.y + cell });
+    // Целимся в СОСЕДНЮЮ ФИГУРУ, а не в клетку по зашитому шагу: шаг зависит от размера карты, а
+    // ряд ниже на узком кадре (панель сценария открыта) может оказаться за кромкой — жест тогда
+    // уходит мимо канваса. Соседи же по определению видны: они стоят в одном ряду.
+    const a0 = elementAt(canvasElement, "bz-0");
+    const b0 = elementAt(canvasElement, "bz-1");
+
+    await step("тащим фигуру на ЗАНЯТУЮ клетку соседа", async () => {
+      await dragOnCanvas(canvasElement, a0, b0);
     });
 
-    await step("фигура ОСТАЛАСЬ в новой клетке, а не уползла домой", async () => {
-      const now = elementAt(canvasElement, "bz-0");
-      await expect(Math.round(now.y)).toBe(Math.round(home.y + cell));
-      await expect(Math.round(now.x)).toBe(Math.round(home.x));
+    await step("сосед уехал на её место, она — на его: это обмен (onOccupied: swap)", async () => {
+      const a1 = elementAt(canvasElement, "bz-0");
+      const b1 = elementAt(canvasElement, "bz-1");
+      await expect(Math.round(a1.x)).toBe(Math.round(b0.x));
+      await expect(Math.round(b1.x)).toBe(Math.round(a0.x));
     });
 
-    await step("следующий жест стартует уже от НОВОГО дома", async () => {
+    await step("следующий жест стартует уже от НОВОГО дома, а не от старого", async () => {
       const from = elementAt(canvasElement, "bz-0");
-      await dragOnCanvas(canvasElement, from, { x: from.x + cell, y: from.y });
-      const now = elementAt(canvasElement, "bz-0");
-      await expect(Math.round(now.x)).toBe(Math.round(from.x + cell));
+      await dragOnCanvas(canvasElement, from, a0);
+      const back = elementAt(canvasElement, "bz-0");
+      await expect(Math.round(back.x)).toBe(Math.round(a0.x));
     });
   },
 };
