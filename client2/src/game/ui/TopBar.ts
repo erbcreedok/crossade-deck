@@ -36,6 +36,7 @@ export class TopBar {
   private readonly status: Text;
   private readonly keys: string[] = [];
   private w = 1;
+  private rightInset = 0;
 
   constructor(items: readonly TopBarItem[], statusText = "") {
     this.root.addChild(this.bg);
@@ -60,6 +61,21 @@ export class TopBar {
     this.layout(this.w);
   }
 
+  /**
+   * Сколько места СПРАВА занято чужими кнопками.
+   *
+   * Панель знает только свои кнопки (слева), а сцена вправе положить свои действия в тот же ряд
+   * справа — «ГОУ!», «перераздача». Без этой цифры статус прижимался к правому краю и уезжал ПОД
+   * них: «Комната 1212 · за столом…» читалась как «Комна…». Гасить статус целиком было бы хуже —
+   * чаще всего он влезает между левыми и правыми кнопками.
+   */
+  setRightInset(px: number): void {
+    const v = Math.max(0, Math.round(px));
+    if (v === this.rightInset) return;
+    this.rightInset = v;
+    this.layout(this.w);
+  }
+
   /** Разложить под ширину экрана. Зовётся на старте и на каждом ресайзе. */
   layout(width: number): void {
     this.w = width;
@@ -74,9 +90,10 @@ export class TopBar {
       b.place(x + b.w / 2, TOPBAR_H / 2);
       x += b.w + GAP;
     }
-    const room = width - x - PAD;
+    const right = width - this.rightInset - PAD;
+    const room = right - x;
     this.status.visible = this.status.text.length > 0 && room > this.status.width;
-    this.status.position.set(width - PAD, TOPBAR_H / 2);
+    this.status.position.set(right, TOPBAR_H / 2);
   }
 
   /** Экранная позиция кнопки по ключу (для дев-хука/e2e — канвас не отдаёт ни DOM, ни ролей). */

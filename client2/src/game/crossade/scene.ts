@@ -253,6 +253,8 @@ export class CrossadeScene extends SceneEngine {
       b.place(x, TOPBAR_H / 2);
       x -= b.w / 2 + 8;
     }
+    // Сообщить панели, сколько справа занято: иначе её статус уезжает ПОД кнопки действий.
+    this.topbar?.setRightInset(this.width - (x + 8));
   }
 
   /** Свести доску со снимком: дерево → дома → карты. snap — поставить сразу (первый монтаж),
