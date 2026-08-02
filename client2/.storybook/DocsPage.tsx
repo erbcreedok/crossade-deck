@@ -29,6 +29,26 @@ function fileSource(importPath: string | undefined): string | null {
 // Если однажды захочется живых примеров под каждой стори, дешёвого пути нет: понадобится заглушка
 // «оживить по клику» с лимитом в один активный канвас. Пока цена не оправдана — код читают чаще,
 // чем крутят десятую стори раздела.
+/**
+ * Код примера для стори: `parameters.code` раздела, посчитанный на ЕЁ аргументах.
+ *
+ * Источник тот же, что у панели Code, — второй генератор кода разошёлся бы с первым в первый же
+ * день. Функция может и бросить (аргументы стори не те, что она ждёт) — тогда молча отдаём null и
+ * показываем штатный блок: страница из-за примера падать не должна.
+ */
+function codeOf(story: { parameters?: Record<string, unknown>; args?: Record<string, unknown>; initialArgs?: Record<string, unknown> }): string | null {
+  const code = story.parameters?.code;
+  // initialArgs — аргументы стори ВМЕСТЕ с общими из `meta`. У стори вида `export const X = {}`
+  // своих нет вовсе, и по `args` пример печатался с `undefined` в каждом поле.
+  const args = { ...(story.initialArgs ?? {}), ...(story.args ?? {}) };
+  try {
+    if (typeof code === "function") return (code as (a: Record<string, unknown>) => string)(args);
+    return typeof code === "string" ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 export function DocsPage() {
   const { componentStories } = useContext(DocsContext);
   const stories = componentStories();
@@ -68,7 +88,13 @@ export function DocsPage() {
         <section key={story.id}>
           <h3 className="sbdocs sbdocs-h3">{story.name}</h3>
           <Description of={story.moduleExport} />
-          <Source of={story.moduleExport} />
+          {/*
+            Код КОМПОНЕНТА с аргументами этой стори, если раздел его описал (`parameters.code`).
+            Иначе — сама стори. Порядок именно такой: у стори вида `export const X: Story = {}`
+            своего текста нет, и штатный блок печатает честный, но бесполезный `{}` — тот самый
+            пустой блок, из-за которого «Show code» и считался неработающим.
+          */}
+          {codeOf(story) ? <Source code={codeOf(story)!} language="tsx" /> : <Source of={story.moduleExport} />}
         </section>
       ))}
     </>
