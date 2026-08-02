@@ -100,7 +100,20 @@ ctx.dispatch(cmd);`,
         });
 
         // Дверь наружу — ТОТ ЖЕ `send`, что у кнопки: обходного пути консоль не получает.
-        (globalThis as unknown as { __cmd?: (c: Command) => void }).__cmd = send;
+        //
+        // Кладём её и в окно каталога (`parent`), а не только в окно превью. Консоль браузера по
+        // умолчанию стоит в ВЕРХНЕМ документе, и `__cmd` там просто не существовало: чтобы дверь
+        // нашлась, надо было сперва догадаться переключить контекст на iframe превью. Окна
+        // одного происхождения, так что записать в родителя можно; если однажды нельзя — молча
+        // остаёмся с дверью в превью.
+        const door = (globalThis as unknown as { __cmd?: (c: Command) => void });
+        door.__cmd = send;
+        try {
+          const top = (globalThis as unknown as { parent?: { __cmd?: (c: Command) => void } }).parent;
+          if (top && top !== globalThis) top.__cmd = send;
+        } catch {
+          // другое происхождение — дверь остаётся только внутри превью
+        }
         const hint = ctx.label('в консоли браузера:  __cmd({ t: "flip", id: "port" })', ctx.padding, home.y + ctx.cardH * 0.8 + 34, 13, 0xcdb98f, undefined, 0);
         ctx.extent(Math.max(hint.width, ctx.cardW * 3) + ctx.padding * 2, home.y + ctx.cardH * 0.8 + 34 + hint.height + ctx.padding);
       }}
