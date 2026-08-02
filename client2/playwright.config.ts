@@ -36,10 +36,25 @@ export default defineConfig({
   ],
   webServer: [
     {
+      // Порт НЕ 2567: это дефолт rантайм-конфига (net/runtimeConfig.ts) и, возможно, живой dev-
+      // сервер владельца. e2e поднимает СВОЙ игровой сервер на 2678 — команда/URL ниже нацелены
+      // именно туда, а клиенту (vite) адрес передан отдельно через env.
+      command: "npm run dev",
+      cwd: "../server",
+      url: "http://localhost:2678/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 60000,
+      env: { PORT: "2678" },
+    },
+    {
       command: "npx vite --port 5174 --strictPort",
       url: "http://localhost:5174",
       reuseExistingServer: true,
       timeout: 60000,
+      // Клиент должен зайти на e2e-сервер (2678), а НЕ на дефолт 2567 и НЕ на .env.local
+      // (у владельца он целится в LAN IP для проверки с телефона): vite мёржит process.env
+      // ПОСЛЕ .env-файлов (см. loadEnv в vite/dist/node), так что env процесса здесь побеждает.
+      env: { VITE_SERVER_URL: "ws://localhost:2678", VITE_HTTP_URL: "http://localhost:2678" },
     },
     {
       command: "npx storybook dev -p 6006 --no-open --quiet",
