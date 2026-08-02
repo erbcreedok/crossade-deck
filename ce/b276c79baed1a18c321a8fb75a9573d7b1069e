@@ -1,0 +1,22 @@
+client2/src/game/crossade/scene.ts
+  s_849b1134095733::t_bcd95c8cd9eea0 256-257
+client2/src/game/ui/TopBar.ts
+  s_849b1134095733::t_f0a17f5ebeded0 64-78,93-94,96
+  s_849b1134095733::t_bcd95c8cd9eea0 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "ceb276c79baed1a18c321a8fb75a9573d7b1069e",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
