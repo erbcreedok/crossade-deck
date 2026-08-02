@@ -75,6 +75,15 @@ function fromApiResponse(res: AccountApiResponse): StoredAccount {
 
 export type FetchLike = typeof fetch;
 
+/**
+ * Потолок ожидания HTTP-ручек аккаунта.
+ *
+ * Без него неотвечающий адрес (сервер за выключенным VPN, LAN-IP из чужой сети) держал запрос
+ * системные ~100 секунд, и лобби всё это время выглядело просто зависшим: ошибка появлялась
+ * тогда, когда её уже никто не ждал.
+ */
+const ACCOUNT_TIMEOUT_MS = 8000;
+
 async function readJsonOrThrow(res: Response, failure: string): Promise<AccountApiResponse> {
   if (!res.ok) throw new Error(failure);
   return (await res.json()) as AccountApiResponse;
@@ -88,6 +97,7 @@ export async function createAccount(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
+    signal: AbortSignal.timeout(ACCOUNT_TIMEOUT_MS),
   });
   return fromApiResponse(await readJsonOrThrow(res, "account_create_failed"));
 }
@@ -100,6 +110,7 @@ export async function restoreAccount(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ recoveryHash: normalizeCode(code) }),
+    signal: AbortSignal.timeout(ACCOUNT_TIMEOUT_MS),
   });
   return fromApiResponse(await readJsonOrThrow(res, "account_not_found"));
 }
@@ -114,6 +125,7 @@ export async function renameAccount(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, recoveryHash: normalizeCode(code) }),
+    signal: AbortSignal.timeout(ACCOUNT_TIMEOUT_MS),
   });
   return fromApiResponse(await readJsonOrThrow(res, "account_rename_failed"));
 }
