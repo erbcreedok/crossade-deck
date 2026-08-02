@@ -1,0 +1,21 @@
+client2/src/game/kit/cardVariants.ts
+  s_849b1134095733::t_0a96eb6262f228 53-60,62
+client2/src/stories/kit/Card.stories.tsx
+  s_849b1134095733::t_0a96eb6262f228 125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "45b5485ddae0e2190150f59b79137d534f33646c",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
