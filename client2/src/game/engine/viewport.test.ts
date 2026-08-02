@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Viewport } from "./viewport";
+import { Viewport, wheelGoesToScene } from "./viewport";
 
 // Хелпер: камера 400x600 экран, 1000x2000 контент (крупнее по обеим осям).
 function vp() {
@@ -197,5 +197,21 @@ describe("Viewport: есть ли куда панорамировать", () => 
     v.setContent(400, 600);
     expect(v.overflowX).toBe(false);
     expect(v.overflowY).toBe(false);
+  });
+});
+
+describe("кому достаётся колесо", () => {
+  it("зум с модификатором забирает сцена всегда — он осмыслен и при вписанном контенте", () => {
+    expect(wheelGoesToScene({ zoom: true, canPan: false, inDocument: true })).toBe(true);
+  });
+
+  it("внутри документа плоское колесо УХОДИТ СТРАНИЦЕ, даже когда сцене есть куда ехать", () => {
+    // Иначе маленький канвас посреди текста съедает прокрутку, и это читается как зависший сайт.
+    expect(wheelGoesToScene({ zoom: false, canPan: true, inDocument: true })).toBe(false);
+  });
+
+  it("в своём кадре сцена панорамирует — но только если есть куда", () => {
+    expect(wheelGoesToScene({ zoom: false, canPan: true, inDocument: false })).toBe(true);
+    expect(wheelGoesToScene({ zoom: false, canPan: false, inDocument: false })).toBe(false);
   });
 });

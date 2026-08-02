@@ -1,7 +1,7 @@
 import { Application, Container, Rectangle } from "pixi.js";
 import { CanvasApp } from "./canvasApp";
 import { SceneLayers, levelOf } from "./sceneLayers";
-import { Viewport, type ViewState } from "./viewport";
+import { Viewport, wheelGoesToScene, type ViewState } from "./viewport";
 import { InputRouter, type InputHandlers } from "./inputRouter";
 import { Marker, withAnchor, withDragger, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./marker";
 import { SingleDrag, type DragContext, type DragPayload } from "./drag";
@@ -313,11 +313,9 @@ export abstract class SceneEngine extends CanvasApp {
     // ничего. В каталоге это norma: витрина по умолчанию вписана целиком, переполнения нет.
     //
     // Зум с модификатором забираем всегда — он осмыслен и при вписанном контенте.
-    if (!this.wheelIsZoom(e)) {
-      this.syncVp();
-      const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
-      if (!canPan) return; // колесо уходит странице — она и проскроллится
-    }
+    this.syncVp();
+    const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
+    if (!wheelGoesToScene({ zoom: this.wheelIsZoom(e), canPan, inDocument: this.inDocument })) return; // колесо уходит странице
     e.preventDefault();
     // deltaY в пиксели: в строчном/страничном режиме домножаем.
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
@@ -333,6 +331,18 @@ export abstract class SceneEngine extends CanvasApp {
       this.emitView();
     }
   };
+
+  /**
+   * Сцена стоит ВНУТРИ документа (docs-страница каталога), а не владеет кадром.
+   *
+   * Ставит хост: сама сцена о том, что вокруг неё, знать не может, а поведение колеса зависит
+   * именно от этого — см. `wheelGoesToScene`.
+   */
+  private inDocument = false;
+
+  setInDocument(v: boolean): void {
+    this.inDocument = v;
+  }
 
   /** Подписка хоста на состояние вида (скроллбары/индикатор зума). */
   setOnView(cb: ((v: ViewState) => void) | null): void {

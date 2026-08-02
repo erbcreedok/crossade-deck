@@ -98,6 +98,9 @@ export function CanvasStage<T, A extends object>({
     // Витрина пулится, слушатель — нет: он про ЭТОТ хост. Снимаем его в cleanup, иначе следующая
     // стори получала бы габарит от предыдущей.
     slot.scene.onExtent = (e) => setExtent(e);
+    // Кадр принадлежит витрине только в режиме стори. На docs-странице она стоит ВНУТРИ текста, и
+    // колесо там принадлежит странице (см. wheelGoesToScene).
+    slot.scene.setInDocument(isDocsMode());
 
     if (!slot.mounted) {
       slot.mounted = true;
