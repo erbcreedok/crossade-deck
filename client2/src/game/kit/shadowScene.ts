@@ -81,8 +81,8 @@ export function shadowScene(ctx: SectionContext, at: Pt, o: Partial<ShadowSceneO
       const kind = subject === "mixed" ? (["card", "chip", "chess"] as const)[i % 3]! : subject;
       if (kind === "card") ctx.card({ id, card: ["A♠", "K♥", "Q♦", "10♣"][i % 4]!, pose }, { x: cx, y: y + ctx.cardH / 2 }, i);
       // Форма тени — от предмета, а не от типа: у лежащей фишки эллипс (это и есть её форма), у
-      // стоящей фигуры — её собственный силуэт, снятый с визуала и положенный на стол. Прямоугольная
-      // тень под круглой фишкой сразу читается как чужая, а «пятно вообще» под конём — как ничья.
+      // фигуры — её собственный силуэт, снятый с визуала. Прямоугольная тень под круглой фишкой
+      // сразу читается как чужая.
       else ctx.piece(id, { x: cx, y: y + ctx.cardH / 2 }, kind === "chip" ? { kind: "chip", color: 0xc79a3e, denom: "25" } : { kind: "chess", dark: i % 2 === 0, glyph: "♞" }, r);
       ids.push(id);
     }

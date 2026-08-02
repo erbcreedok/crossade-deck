@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { alphaSilhouette, castOnTable, type AlphaBitmap } from "./silhouette";
+import { alphaSilhouette, type AlphaBitmap } from "./silhouette";
 
 // Форма тени снимается с самого предмета. Здесь проверяется ровно это: по одной и той же картинке
 // контур обязан отличаться, если отличается предмет, — иначе мы вернулись к «контуру фигуры вообще».
@@ -69,33 +69,5 @@ describe("силуэт по альфе", () => {
 
   it("одной занятой полосы мало: два числа — это отрезок, а не форма", () => {
     expect(alphaSilhouette(bitmap(["#...", "#...", "#..."]), { columns: 4 })).toBeNull();
-  });
-});
-
-describe("силуэт, положенный на стол", () => {
-  // квадрат: пол на y=10, верх на y=0
-  const square = [0, 0, 10, 0, 10, 10, 0, 10];
-
-  it("ноги остаются на месте: предмет стоит именно там, где стоит", () => {
-    const cast = castOnTable(square, { flatten: 0.4, shear: 0.8 });
-    expect([cast[4], cast[5]]).toEqual([10, 10]); // нижние точки не сдвинулись
-    expect([cast[6], cast[7]]).toEqual([0, 10]);
-  });
-
-  it("верх уезжает от света и опускается — иначе тень стоит за предметом и её не видно", () => {
-    const cast = castOnTable(square, { flatten: 0.4, shear: 0.8 });
-    expect(cast[0]).toBe(-8); // верхняя левая точка ушла влево на высоту × shear
-    expect(cast[1]).toBe(6); // и опустилась к полу: 10 − 10 × 0.4
-  });
-
-  it("чем выше точка, тем дальше её тень: завал пропорционален высоте, а не одинаков для всех", () => {
-    const step = castOnTable([0, 0, 0, 5, 0, 10], { flatten: 1, shear: 1 });
-    expect(step[0]).toBe(-10); // самая верхняя
-    expect(step[2]).toBe(-5); // на полпути
-    expect(step[4]).toBe(0); // на полу
-  });
-
-  it("без завала и без сплющивания форма не меняется — общий закон, а не отдельный случай", () => {
-    expect(castOnTable(square, { flatten: 1, shear: 0 })).toEqual(square);
   });
 });
