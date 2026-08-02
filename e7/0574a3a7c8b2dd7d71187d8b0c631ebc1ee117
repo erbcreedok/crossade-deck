@@ -1,0 +1,31 @@
+client2/src/game/ui/Piece.ts
+  s_849b1134095733::t_972c4a894b1c65 13,29-31,33,57,81,205-206,218-219,223-224
+client2/src/game/ui/tableElement.test.ts
+  s_849b1134095733::t_da076e4925ee77 22-25,29,165,168-170,173,176,182-183
+client2/src/game/ui/pieceKinds.ts
+  s_849b1134095733::t_972c4a894b1c65 3,63-64
+client2/src/game/ui/shadow.ts
+  s_849b1134095733::t_1b5a90ce2a3154 15,19,21-25,83,85-86,115
+client2/src/game/ui/ShadowLayer.ts
+  s_849b1134095733::t_53a422bdb65ca3 1
+  s_849b1134095733::t_9560e002988e63 14-21,24,31,33-50
+  s_849b1134095733::t_3cd31c6dfd32bf 108-126
+client2/src/game/ui/silhouetteExtract.ts
+  s_849b1134095733::t_3806c92d2fd4db 1,4,6-12,15-19,22,24-25,33-35,39,46-47,49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "e70574a3a7c8b2dd7d71187d8b0c631ebc1ee117",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
