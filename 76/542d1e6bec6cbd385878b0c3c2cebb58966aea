@@ -1,0 +1,24 @@
+client2/playwright.config.ts
+  s_849b1134095733::t_83362e1d4f1e23 39-48,54-57
+  s_849b1134095733::t_5f1de402a80734 38
+client2/e2e/crossade.spec.ts
+  s_849b1134095733::t_1ef85a6d7378bb 81-82,88-92
+  s_849b1134095733::t_0e9e8f68097dd9 128,141,160,188
+  s_849b1134095733::t_e054711475f8b9 1-80,83-87,93-127,129-140,142-159,161-187,189-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "76542d1e6bec6cbd385878b0c3c2cebb58966aea",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
