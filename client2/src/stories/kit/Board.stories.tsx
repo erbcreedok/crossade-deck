@@ -3,6 +3,8 @@ import type { Card } from "../../game/ui/Card";
 import { boardZoneScene, BOARD_SCENE_DEFAULTS, type BoardSceneOpts } from "../../game/kit/boardZoneScene";
 import { CanvasStage } from "../harness/CanvasStage";
 import { action } from "storybook/actions";
+import { expect } from "storybook/test";
+import { dragOnCanvas, elementAt, waitForElement } from "../harness/canvasDrag";
 
 // ДОСКА — размеченный стол: слоты, в которые фигуры ВСТАЮТ, а не лежат где попало.
 //
@@ -106,3 +108,40 @@ export default meta;
  * на них было бы нечего.
  */
 export const Board: StoryObj<Args> = {};
+
+/**
+ * СЦЕНАРИЙ — то же, что делает палец, но записанное шагами.
+ *
+ * Панель Interactions показывает его по шагам и даёт отмотать назад; при падении видно, НА КАКОМ
+ * шаге разошлось, а не «где-то в драге». Жест собирается из pointer-событий (harness/canvasDrag),
+ * потому что на канвасе нет ни узлов, ни ролей, за которые мог бы взяться обычный сценарий.
+ *
+ * Проверяется ровно то, что чинилось руками: фигура ОСТАЁТСЯ в новой клетке. Пока команда `move`
+ * не переставляла дом, она доезжала до клетки и уползала обратно — и по одной картинке это
+ * неотличимо от «дроп не сработал».
+ */
+export const DropScenario: StoryObj<Args> = {
+  name: "Drop scenario",
+  play: async ({ canvasElement, step }) => {
+    const cell = 99; // шаг сетки в координатах контента; первая клетка — (82, 82)
+    await step("витрина собралась", async () => waitForElement(canvasElement, "bz-0"));
+    const home = elementAt(canvasElement, "bz-0");
+
+    await step("тащим фигуру в пустую клетку снизу", async () => {
+      await dragOnCanvas(canvasElement, home, { x: home.x, y: home.y + cell });
+    });
+
+    await step("фигура ОСТАЛАСЬ в новой клетке, а не уползла домой", async () => {
+      const now = elementAt(canvasElement, "bz-0");
+      await expect(Math.round(now.y)).toBe(Math.round(home.y + cell));
+      await expect(Math.round(now.x)).toBe(Math.round(home.x));
+    });
+
+    await step("следующий жест стартует уже от НОВОГО дома", async () => {
+      const from = elementAt(canvasElement, "bz-0");
+      await dragOnCanvas(canvasElement, from, { x: from.x + cell, y: from.y });
+      const now = elementAt(canvasElement, "bz-0");
+      await expect(Math.round(now.x)).toBe(Math.round(from.x + cell));
+    });
+  },
+};
