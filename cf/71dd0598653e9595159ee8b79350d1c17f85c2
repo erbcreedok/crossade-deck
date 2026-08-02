@@ -1,0 +1,33 @@
+deploy/components.json
+  s_849b1134095733::t_a4833ef0ce8333 1-45
+deploy/nginx.conf
+  s_849b1134095733::t_86a861595013ed 11-17
+deploy/runtime-config.sh
+  s_849b1134095733::t_0600da80b79584 1-34
+deploy/storybook.Dockerfile
+  s_849b1134095733::t_401b0cd03d9ce3 1-27
+deploy/storybook.fly.toml
+  s_849b1134095733::t_72a0384b1be483 1-33
+deploy/storybook.nginx.conf
+  s_849b1134095733::t_a004aaaee28bb7 1-20
+deploy/web.Dockerfile
+  s_849b1134095733::t_37357086802674 5-9,44-49
+scripts/deploy.sh
+  s_849b1134095733::t_9bf34158375e88 2,4-12,15-23,28-74,76-82,84-89,91-94,97,99-191,193-235,238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "cf71dd0598653e9595159ee8b79350d1c17f85c2",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
