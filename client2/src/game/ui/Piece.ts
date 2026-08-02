@@ -1,5 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { CardBody } from "../CardBody";
+import { ParticleField } from "../engine/censorParticles";
+import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
 import { scaleForState } from "./plane";
 import { shadowOf, withEffect } from "./shadow";
 import { BASE_PRESET, scaled, type AnimPreset } from "../anim/presets";
@@ -32,6 +34,13 @@ export interface PieceOptions {
    * «запасной вариант»: лежащей фишке эллипс и есть её форма, снимать там нечего.
    */
   own?: OwnShadow | null;
+  /**
+   * Точки рождения пыли-цензуры, снятые с ЭТОГО визуала. Цензура — не карточная фича: она
+   * размазывает настоящее лицо предмета, каким бы он ни был. Считает их тот, у кого есть рендерер
+   * (pieceKinds.buildPiece), — предмету остаётся крутить облако.
+   */
+  censorSeeds?: ReadonlyArray<{ x: number; y: number; color: number }> | null;
+  censored?: boolean;
   pose?: Pose;
   /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
   idle?: boolean;
@@ -56,6 +65,10 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
   private readonly own: OwnShadow | null;
+  private readonly censorSeeds: ReadonlyArray<{ x: number; y: number; color: number }> | null;
+  private dust: ParticleField | null = null;
+  private dustT = 0;
+  private _censored: boolean;
   private age = 0;
   private block: { t: number; dur: number } | null = null;
   private born: { t: number; dur: number } | null = null;
@@ -80,10 +93,13 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
     this.own = opts.own ?? null;
+    this.censorSeeds = opts.censorSeeds ?? null;
+    this._censored = opts.censored ?? false;
     this.pose = opts.pose ?? "rest";
     this.idle = opts.idle;
     this.state = this.pose;
     opts.build(this.root);
+    if (this._censored) this.buildDust();
   }
 
   /** Полуразмеры покоя — хит-тест берёт их × scaleVal. */
@@ -98,6 +114,27 @@ export class Piece implements TableElement, Draggable, Burnable {
   setState(s: CardState): void {
     this.state = s;
     this.body.setTarget({ scale: scaleForState(s) });
+  }
+
+  get censored(): boolean {
+    return this._censored;
+  }
+
+  /**
+   * Включить/выключить цензуру. Пыль ложится ПОВЕРХ настоящего лица предмета — она его смазывает,
+   * а не заменяет: это фильтр, а не «другая картинка» (то же разделение, что у карты).
+   */
+  setCensored(v: boolean): void {
+    if (v === this._censored) return;
+    this._censored = v;
+    if (v && !this.dust) this.buildDust();
+    if (this.dust) this.dust.view.visible = v;
+  }
+
+  private buildDust(): void {
+    if (!this.censorSeeds || this.censorSeeds.length === 0) return;
+    this.dust = new ParticleField(this.censorSeeds, dustParams(DANCE_DEFAULT, DUST_FLICKER));
+    this.root.addChild(this.dust.view);
   }
 
   blockNudge(): void {
@@ -143,6 +180,10 @@ export class Piece implements TableElement, Draggable, Burnable {
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
+    if (this.dusty) {
+      this.dustT += dt;
+      this.dust!.update(this.dustT);
+    }
     if (this.block) {
       this.block.t += dt;
       if (this.block.t >= this.block.dur) this.block = null;
@@ -160,12 +201,17 @@ export class Piece implements TableElement, Draggable, Burnable {
     }
   }
 
+  /** Крутится ли пыль прямо сейчас. Заморозка движения её останавливает — как и дыхание. */
+  private get dusty(): boolean {
+    return this.dust !== null && this._censored && !this.reduceMotion && !this.lowFx;
+  }
+
   get resting(): boolean {
     // `born` тут обязателен: без него цикл засыпает ПОСРЕДИ появления и фишка застывает
     // полупрозрачной (см. CLAUDE.md про EngineActivity — ровно эта ловушка). Дыхание — вторая
     // непрерывная анимация фишки, и условие идёт по нему, а не по позе: неподвижная поднятая
     // фишка отпускает цикл, дышащая лежащая — держит.
-    return this.body.isResting() && !this.body.travelling && !this.block && !this.born && !this.dying && !this.bobbing;
+    return this.body.isResting() && !this.body.travelling && !this.block && !this.born && !this.dying && !this.bobbing && !this.dusty;
   }
 
   /** Качается ли прямо сейчас. Заморозка движения (reduce-motion / лёгкий профиль) её отменяет. */

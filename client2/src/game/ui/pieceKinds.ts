@@ -1,6 +1,7 @@
-import type { Container, Renderer } from "pixi.js";
+import type { Container, Renderer, Texture } from "pixi.js";
 import { drawChip, drawChessPiece, Piece, type PieceOptions } from "./Piece";
 import { ownShadowOf } from "./silhouetteExtract";
+import { buildTextureDustPoints } from "../engine/censorSource";
 
 // Реестр НЕ-карточных элементов ПО ТИПУ (задел registry элементов для BoardFactory: type→фабрика).
 // Раньше создание фишек/фигур было раскидано по движку closures'ами `(root)=>drawChip/…` + дублями
@@ -60,6 +61,23 @@ export function pieceKey(spec: PieceSpec, r: number): string {
  */
 export function buildPiece(id: string, spec: PieceSpec, r: number, renderer: Renderer | null | undefined, plan: Partial<PieceOptions> = {}): Piece {
   const v = pieceVisual(spec, r);
-  const own = v.ownShadow ? ownShadowOf(renderer, pieceKey(spec, r), v.build) : null;
-  return new Piece({ id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, own, ...plan });
+  // Снимок визуала один на всё: и форма тени, и источник пыли-цензуры. Второй снимок того же
+  // предмета означал бы два разных «настоящих лица» у одной фигуры.
+  const shot = v.ownShadow || plan.censored ? ownShadowOf(renderer, pieceKey(spec, r), v.build) : null;
+  const own = v.ownShadow ? shot : null;
+  const censorSeeds = plan.censored && shot && renderer ? dustOf(renderer, shot, r) : null;
+  return new Piece({ id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, own, censorSeeds, ...plan });
+}
+
+/** Облако пыли по снимку предмета: сетка меряется ЕГО коробкой, а не карточной. */
+function dustOf(renderer: Renderer, shot: { texture: Texture; bounds: { width: number; height: number } }, r: number): ReturnType<typeof buildTextureDustPoints> {
+  const step = Math.max(2, Math.round((r * 2) / 22)); // ~22 клетки на предмет: как у карты по ширине
+  // Вес РАВНОМЕРНЫЙ: у фигуры общий тон — она сама, и карточное взвешивание по непохожести
+  // оставило бы пыль на одной обводке, ровно мимо того, что цензура обязана скрыть.
+  return buildTextureDustPoints(renderer, shot.texture, {
+    step,
+    perCell: 2,
+    size: { w: shot.bounds.width, h: shot.bounds.height },
+    weight: () => 1,
+  });
 }

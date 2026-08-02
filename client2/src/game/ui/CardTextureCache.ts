@@ -66,7 +66,7 @@ export class CardTextureCache {
   faceDustPoints(key: string, tex: Texture): DustPoint[] {
     let pts = this.faceDust.get(key);
     if (!pts) {
-      pts = buildTextureDustPoints(this.app, tex, DUST_GRID, 0, 0, DUST_PER_CELL);
+      pts = buildTextureDustPoints(this.app.renderer, tex, { step: DUST_GRID, perCell: DUST_PER_CELL });
       this.faceDust.set(key, pts);
     }
     return pts;
