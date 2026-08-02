@@ -1,0 +1,25 @@
+client2/docs/sleep/SLEEP_2026-08-02-day.md
+  s_849b1134095733::t_d722a95e80d2c9 1-73
+client2/src/stories/harness/canvasDrag.ts
+  s_849b1134095733::t_e3712c1ae82835 1-8,11-29,49-87
+  s_849b1134095733::t_e86b184f201c0b 9-10,30-48
+client2/src/stories/kit/Board.stories.tsx
+  s_849b1134095733::t_e86b184f201c0b 7,127
+  s_849b1134095733::t_14cf6b37f3a54c 6,111-126,128-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "dbe481dee2a88a01bceb1d42febb563daedb50fd",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
