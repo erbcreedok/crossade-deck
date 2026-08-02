@@ -2,7 +2,10 @@ import React from "react";
 import { addons, types, useChannel } from "storybook/manager-api";
 import { SyntaxHighlighter } from "storybook/internal/components";
 
-// ПАНЕЛЬ «КОД» — рядом с Controls, в режиме СТОРИ.
+// ПАНЕЛЬ CODE — рядом с Controls, в режиме СТОРИ.
+//
+// Имя латиницей, как у соседних вкладок сторибука (Controls, Actions, Interactions): одна русская
+// вкладка в их ряду читается как чужая, а не как своя.
 //
 // До неё код жил только на вкладке Docs: смотришь на компонент — код в другом месте, и чтобы его
 // увидеть, надо уйти со стори и найти её среди соседей. Панель убирает этот переход.
@@ -53,17 +56,22 @@ function CodePanel({ active }: { active?: boolean }) {
       </div>
     );
   }
+  // Панель узкая по своей природе (она делит низ экрана с канвасом), поэтому код не переносим по
+  // словам, а даём ему СВОЙ горизонтальный скролл: перенос ломает отступы примера, и он перестаёт
+  // быть кодом, который можно скопировать.
   return (
-    <SyntaxHighlighter language="tsx" copyable bordered>
-      {code}
-    </SyntaxHighlighter>
+    <div style={{ width: "100%", height: "100%", overflow: "auto" }}>
+      <SyntaxHighlighter language="tsx" copyable bordered wrapLongLines={false}>
+        {code}
+      </SyntaxHighlighter>
+    </div>
   );
 }
 
 addons.register(ADDON_ID, () => {
   addons.add(PANEL_ID, {
     type: types.PANEL,
-    title: "Код",
+    title: "Code",
     match: ({ viewMode }) => viewMode === "story",
     render: ({ active }) => <CodePanel active={active} />,
   });

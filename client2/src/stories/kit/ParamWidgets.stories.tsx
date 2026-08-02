@@ -3,16 +3,6 @@ import type { Card } from "../../game/ui/Card";
 import type { Configurable, Param } from "../../game/ui/controls";
 import { CanvasStage } from "../harness/CanvasStage";
 
-// Канвасные виджеты параметров: Toggle (bool), Stepper (number), Segmented (choice).
-//
-// Их НЕ строят руками. Компонент декларирует свои параметры ДАННЫМИ — `Configurable.params()` —
-// а адаптер (`ui/controls.ts` attachControls) сам решает, какой виджет какому параметру положен:
-// number → Stepper, bool → Toggle, choice → Segmented. Добавить параметр = добавить строчку;
-// добавить ВИД параметра = новый вариант `Param`.
-//
-// Поэтому рычаг тут один — ВИД параметра, и он же показывает главное: виджет не выбирают, его
-// выводят из описания. Панель слева строится из той же модели (harness/paramArgs.ts), так что
-// крутилки сторибука и виджеты на канвасе — два вида одного описания.
 
 interface Args {
   kind: "bool" | "number" | "choice";
@@ -50,6 +40,18 @@ function paramFrom(a: Args): Param {
   };
 }
 
+/**
+ * Канвасные виджеты параметров: Toggle (bool), Stepper (number), Segmented (choice).
+ *
+ * Их НЕ строят руками. Компонент декларирует свои параметры ДАННЫМИ — `Configurable.params()` —
+ * а адаптер (`ui/controls.ts` attachControls) сам решает, какой виджет какому параметру положен:
+ * number → Stepper, bool → Toggle, choice → Segmented. Добавить параметр = добавить строчку;
+ * добавить ВИД параметра = новый вариант `Param`.
+ *
+ * Поэтому рычаг тут один — ВИД параметра, и он же показывает главное: виджет не выбирают, его
+ * выводят из описания. Панель слева строится из той же модели (harness/paramArgs.ts), так что
+ * крутилки сторибука и виджеты на канвасе — два вида одного описания.
+ */
 const meta: Meta<Args> = {
   title: "UI-kit/Param widgets",
   args: { kind: "number", label: "строк", min: 0, max: 9, formatted: true, options: "сшить, поменять, забрать, отказать" },

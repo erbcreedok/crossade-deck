@@ -5,16 +5,6 @@ import { action } from "storybook/actions";
 import { CanvasStage } from "../harness/CanvasStage";
 import { pickButtonArgs, type ButtonArgs } from "./buttonArgs";
 
-// UI-примитив «Кнопка».
-//
-// В режиме СТОРИ — ровно одна кнопка, цель контролов: раздел тут отлаживают, и соседи мешают.
-// На вкладке DOCS под ней добавляется галерея всех видов и размеров: страницу читают, а «какой из
-// них главный на экране» — вопрос, который решается только сравнением рядом.
-//
-// Отдельной страницы под каждый вид по-прежнему нет: вид — это аргумент.
-//
-// Кнопка сама событий не слушает — ввод в неё роутит движок сцены (см. sceneEngine.hitButton).
-// Поэтому ховер и нажатие в витрине работают по-настоящему, мышью.
 
 const KEYS = ["label", "variant", "size", "disabled", "color", "borderColor", "fit", "textSize", "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "padding", "textShrink", "textGrow", "textFit", "textColor", "borderWidth", "radius", "fillAlpha", "borderAlpha", "textAlpha", "elevation"] as const;
 const { argTypes, apply } = pickButtonArgs(KEYS);
@@ -70,6 +60,18 @@ function buttonOptsFrom(a: Args): ButtonOptions {
 
 const onPress = action("нажата кнопка");
 
+/**
+ * UI-примитив «Кнопка».
+ *
+ * В режиме СТОРИ — ровно одна кнопка, цель контролов: раздел тут отлаживают, и соседи мешают.
+ * На вкладке DOCS под ней добавляется галерея всех видов и размеров: страницу читают, а «какой из
+ * них главный на экране» — вопрос, который решается только сравнением рядом.
+ *
+ * Отдельной страницы под каждый вид по-прежнему нет: вид — это аргумент.
+ *
+ * Кнопка сама событий не слушает — ввод в неё роутит движок сцены (см. sceneEngine.hitButton).
+ * Поэтому ховер и нажатие в витрине работают по-настоящему, мышью.
+ */
 const meta: Meta<Args> = {
   title: "UI-kit/Button",
   parameters: {

@@ -4,16 +4,18 @@ import { CanvasStage } from "../harness/CanvasStage";
 import { pickArgs, type CardArgs } from "./cardArgs";
 import { CARD_VARIANTS, cardVariantsSection } from "../../game/kit/cardVariants";
 
-// ПРОВЕРОЧНАЯ стори №1 из трёх (категория «UI-примитивы»). Её задача — доказать, что каркас
-// работает на настоящем компоненте: живые контролы, пересборка там, где живьём нельзя, один
-// канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
-// (какие элементы переезжают из песочницы, решает он).
 
 const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "pose", "idle", "z", "selected", "draggable", "flippable"] as const;
 const { argTypes, apply } = pickArgs(KEYS);
 
 type Args = Pick<CardArgs, (typeof KEYS)[number]>;
 
+/**
+ * ПРОВЕРОЧНАЯ стори №1 из трёх (категория «UI-примитивы»). Её задача — доказать, что каркас
+ * работает на настоящем компоненте: живые контролы, пересборка там, где живьём нельзя, один
+ * канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
+ * (какие элементы переезжают из песочницы, решает он).
+ */
 const meta: Meta<Args> = {
   title: "UI-kit/Card",
   parameters: {
