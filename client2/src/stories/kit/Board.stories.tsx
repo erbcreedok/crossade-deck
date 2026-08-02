@@ -30,10 +30,17 @@ const meta: Meta<Args> = {
       name: "layout",
       description: "стратегия раскладки слотов: grid — сетка (шахматы, планшет); ring — по окружности (монополия, круговой ход). Зона про стратегию не знает — ей дают готовый список слотов",
       control: { type: "select" },
-      options: ["grid", "ring"],
+      options: ["grid", "ring", "hex"],
     },
-    cols: { name: "grid.cols", description: "колонок", control: { type: "range", min: 1, max: 8, step: 1 }, if: { arg: "layout", eq: "grid" } },
-    rows: { name: "grid.rows", description: "строк", control: { type: "range", min: 1, max: 6, step: 1 }, if: { arg: "layout", eq: "grid" } },
+    content: {
+      name: "content",
+      description:
+        "ЧТО стоит на клетках. Доска не про шахматы: те же слоты и те же правила приёма держат фишки и карты — зона про содержимое не знает вовсе",
+      control: { type: "select" },
+      options: ["chess", "chips", "cards"],
+    },
+    cols: { name: "cols", description: "колонок (сетка и соты)", control: { type: "range", min: 1, max: 8, step: 1 }, if: { arg: "layout", neq: "ring" } },
+    rows: { name: "rows", description: "строк (сетка и соты)", control: { type: "range", min: 1, max: 6, step: 1 }, if: { arg: "layout", neq: "ring" } },
     ringCount: { name: "ring.count", description: "слотов по окружности", control: { type: "range", min: 3, max: 20, step: 1 }, if: { arg: "layout", eq: "ring" } },
     onOccupied: {
       name: "onOccupied",
@@ -53,10 +60,10 @@ const meta: Meta<Args> = {
   },
   parameters: {
     code: (a: Record<string, unknown>) => `import { BoardZone } from "../../game/board/boardZone";
-import { gridSlots, ringSlots } from "../../game/board/layout/slots";
+import { gridSlots, hexSlots, ringSlots } from "../../game/board/layout/slots";
 
 // 1. РАСКЛАДКА — отдельно от зоны. Стратегий несколько, зона про них не знает.
-const slots = ${a.layout === "ring" ? `ringSlots(${a.ringCount}, { cx, cy, radius, cell })` : `gridSlots({ cols: ${a.cols}, cell, gap, origin }, ${a.rows})`};
+const slots = ${a.layout === "ring" ? `ringSlots(${a.ringCount}, { cx, cy, radius, cell })` : a.layout === "hex" ? `hexSlots(${a.cols}, ${a.rows}, { cell, origin, gap })` : `gridSlots({ cols: ${a.cols}, cell, gap, origin }, ${a.rows})`};
 
 // 2. ЗОНА — состояние доски плюс правила приёма. Pixi внутри нет вовсе.
 const zone = new BoardZone({

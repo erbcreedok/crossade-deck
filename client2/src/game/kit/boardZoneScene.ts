@@ -3,7 +3,8 @@ import { DropZone } from "../ui/DropZone";
 import { BoardZone, type OnOccupied } from "../board/boardZone";
 import { place, type Board } from "../board/board";
 import { sameColorRule } from "../board/boardRules";
-import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
+import type { PieceSpec } from "../ui/pieceKinds";
+import { gridSlots, hexSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
 import type { Pt, SectionContext, SectionSize } from "./context";
 
 // ДОСКА — размеченный стол: слоты, в которые фигуры встают, а не лежат где попало.
@@ -19,7 +20,7 @@ import type { Pt, SectionContext, SectionSize } from "./context";
 //     swap (обмен), capture (взятие, как в шахматах), reject (нельзя);
 //   • за рамку доски фигуру не вытащить — `bounds` держит её внутри.
 
-export type BoardLayoutKind = "grid" | "ring";
+export type BoardLayoutKind = "grid" | "ring" | "hex";
 
 /** Что случилось на дропе. `moved: false` — зона отказала (занято при reject, чужой цвет и т.п.). */
 export interface BoardEvent {
@@ -33,8 +34,13 @@ export interface BoardEvent {
 /** Правило приёма поверх `onOccupied` — элемент-слой цепочки (board/boardRules.ts). */
 export type BoardRuleKind = "none" | "sameColor";
 
+/** Что СТОИТ на доске. Доска не про шахматы: та же зона держит фишки и карты. */
+export type BoardContentKind = "chess" | "chips" | "cards";
+
 export interface BoardSceneOpts {
   layout: BoardLayoutKind;
+  /** Чем занять клетки. Правила приёма от этого не зависят — зона про содержимое не знает. */
+  content: BoardContentKind;
   cols: number;
   rows: number;
   /** ring: сколько слотов по окружности. */
@@ -51,7 +57,7 @@ export interface BoardSceneOpts {
   figures: number;
 }
 
-export const BOARD_SCENE_DEFAULTS: BoardSceneOpts = { layout: "grid", cols: 4, rows: 3, ringCount: 10, onOccupied: "swap", rule: "none", figures: 4 };
+export const BOARD_SCENE_DEFAULTS: BoardSceneOpts = { layout: "grid", content: "chess", cols: 4, rows: 3, ringCount: 10, onOccupied: "swap", rule: "none", figures: 4 };
 
 /** Слоты выбранной раскладки. Обе стратегии — существующие (board/layout/slots.ts), своих тут нет. */
 function slotsFor(o: BoardSceneOpts, cell: { w: number; h: number }, at: Pt): PositionedSlot[] {
@@ -60,7 +66,15 @@ function slotsFor(o: BoardSceneOpts, cell: { w: number; h: number }, at: Pt): Po
     const radius = cell.w * 1.9;
     return ringSlots(o.ringCount, { cx: at.x + radius + cell.w / 2, cy: at.y + radius + cell.h / 2, radius, cell });
   }
+  if (o.layout === "hex") return hexSlots(o.cols, o.rows, { cell, origin: { x: at.x, y: at.y }, gap: Math.round(gap / 2) });
   return gridSlots({ cols: o.cols, cell, gap, origin: { x: at.x, y: at.y } }, o.rows);
+}
+
+/** Размер клетки по тому, что в ней стоит: предмет обязан помещаться с полем, а не наоборот. */
+function cellFor(ctx: SectionContext, content: BoardContentKind): { w: number; h: number } {
+  if (content === "cards") return { w: Math.round(ctx.cardW * 1.18), h: Math.round(ctx.cardH * 1.12) };
+  const side = Math.round(ctx.cardW * 0.8);
+  return { w: side, h: side };
 }
 
 /** Рамка доски по слотам — её же зона использует как `bounds`. */
@@ -80,7 +94,10 @@ function boundsOf(slots: readonly PositionedSlot[], pad: number) {
  */
 export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardSceneOpts> = {}, idPrefix = "bz"): SectionSize {
   const opts = { ...BOARD_SCENE_DEFAULTS, ...o };
-  const cell = { w: Math.round(ctx.cardW * 0.8), h: Math.round(ctx.cardW * 0.8) };
+  // КЛЕТКА СЧИТАЕТСЯ ОТ СОДЕРЖИМОГО, а не от карты (issue #101). Клетка «в карточных долях» —
+  // случайность: под фишку она вдвое велика, а под саму карту мала, и предмет вылезал за разметку,
+  // из-за чего «встал в слот» становилось неотличимо от «лёг куда попало».
+  const cell = cellFor(ctx, opts.content);
   const slots = slotsFor(opts, cell, at);
   const bounds = boundsOf(slots, Math.round(cell.w * 0.15));
 
@@ -88,13 +105,20 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
   // правило само — картинка и правило разошлись бы при первой же смене раскладки, и витрина
   // показывала бы одно, а зона делала другое.
   const slotDark = new Map(slots.map((s, i) => [s.key, opts.layout === "grid" ? (Math.floor(i / opts.cols) + (i % opts.cols)) % 2 === 0 : i % 2 === 0]));
+  
 
   // Разметка — декор: в неё не кликают, она только показывает, где клетки.
   const g = new Graphics();
   g.roundRect(bounds.x, bounds.y, bounds.w, bounds.h, 10).fill({ color: 0x2a352d });
   // Шахматная раскраска для grid и ровные ячейки для ring — разметка обязана читаться как СЕТКА,
   // иначе «встал в слот» неотличимо от «встал куда попало».
-  slots.forEach((s) => g.roundRect(s.rect.x, s.rect.y, s.rect.w, s.rect.h, 6).fill({ color: slotDark.get(s.key) ? 0x3f5145 : 0x4d5f52 }));
+  slots.forEach((s) => {
+    const color = slotDark.get(s.key) ? 0x3f5145 : 0x4d5f52;
+    // Клетка рисуется ФОРМОЙ своей раскладки: шестиугольник, нарисованный прямоугольником, врёт о
+    // том, сколько у клетки соседей, — а это единственное, ради чего соты и заводят.
+    if (opts.layout === "hex") g.poly(hexPoints(s.center.x, s.center.y, s.rect.w / 2)).fill({ color });
+    else g.roundRect(s.rect.x, s.rect.y, s.rect.w, s.rect.h, 6).fill({ color });
+  });
   ctx.decor(g);
 
   const ids = Array.from({ length: Math.min(opts.figures, slots.length) }, (_, i) => `${idPrefix}-${i}`);
@@ -108,10 +132,22 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
     ...(opts.rule === "sameColor" ? { rule: sameColorRule(figureDark, slotDark) } : {}),
   });
 
+  // ЧТО стоит на клетках — параметр. Доска не про шахматы: те же слоты и те же правила держат
+  // фишки и карты, и это видно только тогда, когда на них действительно стоит не фигура.
   const r = Math.round(cell.w * 0.34);
-  ids.forEach((id) => {
+  const CHIPS = [0xc0392b, 0x2e8b57, 0x2f4f8f, 0x7d3cc0, 0xc79a3e];
+  const CARDS = ["A♠", "K♥", "Q♦", "10♣", "7♠", "9♥"];
+  ids.forEach((id, i) => {
     const c = zone.figureHome(id);
-    ctx.piece(id, { x: c.x, y: c.y }, { kind: "chess", dark: figureDark.get(id)!, glyph: ["♞", "♜", "♝", "♛", "♚", "♟"][ids.indexOf(id) % 6]! }, r);
+    if (opts.content === "cards") {
+      ctx.card({ id, card: CARDS[i % CARDS.length]!, pose: "rest" }, { x: c.x, y: c.y }, i);
+      return;
+    }
+    const spec: PieceSpec =
+      opts.content === "chips"
+        ? { kind: "chip", color: CHIPS[i % CHIPS.length]!, denom: ["5", "25", "100", "500"][i % 4]! }
+        : { kind: "chess", dark: figureDark.get(id)!, glyph: ["♞", "♜", "♝", "♛", "♚", "♟"][i % 6]! };
+    ctx.piece(id, { x: c.x, y: c.y }, spec, r);
   });
 
   // Драг обрабатывает движок; нам нужен только момент отпускания — его даёт дроп-зона по рамке
@@ -138,4 +174,14 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
   );
 
   return { bottom: bounds.y + bounds.h, width: bounds.x + bounds.w - at.x };
+}
+
+/** Шесть точек правильного шестиугольника «плоской вершиной вверх» — форма клетки сот. */
+function hexPoints(cx: number, cy: number, r: number): number[] {
+  const pts: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = -Math.PI / 2 + (i / 6) * Math.PI * 2;
+    pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+  }
+  return pts;
 }
