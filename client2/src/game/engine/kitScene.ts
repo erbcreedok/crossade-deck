@@ -2,8 +2,7 @@ import { Application, Container } from "pixi.js";
 import { SceneEngine, type CameraConfig, type SceneElement } from "./sceneEngine";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card } from "../ui/Card";
-import { Piece } from "../ui/Piece";
-import { pieceVisual } from "../ui/pieceKinds";
+import { buildPiece } from "../ui/pieceKinds";
 import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 import { SB_MARGIN } from "./sandboxLayout";
 import type { Button } from "../ui/Button";
@@ -14,8 +13,9 @@ import type { MarkerHost, MarkerState } from "./marker";
 import type { Command } from "./command";
 import { gripConfig } from "../kit/markerIcons";
 import { attachControls } from "../ui/controls";
-import { makeLabel, type SectionContext } from "../kit/context";
-import { extentOf, fitZoom } from "./kitExtent";
+import { makeLabel, type Pt, type SectionContext } from "../kit/context";
+import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } from "./kitExtent";
+import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 
 export type { KitSceneOptions };
@@ -31,11 +31,6 @@ export type { KitSceneOptions };
 // раздел «механики» показывал бы картинку вместо поведения, а картинка не доказывает, что драг
 // работает (docs/HANDOFF.md: тест «нелегальный дроп ничего не изменил» даёт тот же результат,
 // что и полностью неработающий драг).
-
-interface Pt {
-  x: number;
-  y: number;
-}
 
 /**
  * Что витрине доступно при сборке. Намеренно узкий: стори РАССТАВЛЯЕТ, а не строит (см. ниже).
@@ -69,7 +64,8 @@ export type KitBuild = (ctx: KitContext) => void;
 interface Placed {
   el: SceneElement;
   home: Pt;
-  depth: number;
+  /** Экранная глубина: слой автора (`depth`) плюс порядок постановки. См. zOf. */
+  z: number;
   /** Двигается командами, а не пальцем (ctx.apiCard) — из хит-теста драга исключена. */
   api?: boolean;
 }
@@ -81,6 +77,30 @@ export class KitScene extends SceneEngine {
   private ownZones: DropZone[] = [];
   private pending: KitBuild | null = null;
   private explicitExtent: { w: number; h: number } | null = null;
+  /**
+   * Из чего был сделан каждый элемент. Переживает смерть владельца — в этом весь смысл.
+   *
+   * Догоревшая карта помечается `dead` и выбывает из реестра (`reapDead`) — это верное поведение
+   * стола, гнуть его нельзя. Но тогда «восстановить уничтоженное» становится невозможным в
+   * принципе: восстанавливать не из чего, спека жила в замыкании сборки и умерла вместе с картой.
+   * Поэтому спеки хранятся отдельно и чистятся только при пересборке содержимого.
+   */
+  private specs = new Map<string, () => void>();
+  /**
+   * Фил анимаций КОНКРЕТНОГО элемента. Живёт рядом со спекой и по той же причине: «вернуть»
+   * собирает уничтоженный элемент заново, и без этой памяти он воскресал с БАЗОВЫМ филом —
+   * выбранный стиль работал ровно один раз, а дальше раздел показывал не то, что выбрано.
+   */
+  private elPresets = new Map<string, AnimPreset>();
+  /** Элементы, поставленные текущей сборкой: им проигрывается появление, когда сборка закончится. */
+  private fresh: SceneElement[] = [];
+
+  /**
+   * Слушатель габарита — зовётся после каждой сборки. Нужен хосту: высоту канваса задаёт DOM, а
+   * сколько места витрине НА САМОМ ДЕЛЕ нужно, знает только сцена. Без этого стори с одной
+   * кнопкой печаталась во весь экран, и 90% канваса было пустым сукном.
+   */
+  onExtent: ((e: { w: number; h: number }) => void) | null = null;
 
   private readonly cardHeight: number;
   private readonly padding: number;
@@ -89,7 +109,17 @@ export class KitScene extends SceneEngine {
   constructor(opts: KitSceneOptions = {}) {
     // Камера по центру, а не по левой опоре: витрина — один компонент, ему уместно стоять
     // посередине. У песочницы align:"left", потому что там вертикальная лента секций.
-    super({ align: "center", ...(opts.camera ?? {}) });
+    //
+    // margin: 0 — тоже не косметика. Верхний отступ камеры (24 по умолчанию) осмыслен там, где
+    // контент выше экрана и его прижимают к верху: у песочницы. У витрины поле СВОЁ (`padding`) и
+    // уже сидит внутри габарита — вторая рамка поверх него только сдвигала содержимое вниз, ровно
+    // на столько же срезая его снизу. Кнопка от этого стояла не по центру.
+    // Пределы зума — СВОИ, а не игровые. Игровая камера не опускается ниже 0.6, и это верно для
+    // стола: там незачем разглядывать поле с высоты птичьего полёта. Витрине же приходится
+    // вписывать широкую секцию в узкий экран телефона, и пол 0.6 не давал этого сделать —
+    // `fitZoom` честно считал 0.39, а `viewport.setZoom` молча поднимал его обратно до 0.6, и
+    // витрина обрезалась по обоим краям без всякого признака, что часть её потеряна.
+    super({ align: "center", alignY: "center", margin: 0, minZoom: MIN_FIT_ZOOM, maxZoom: MAX_KIT_ZOOM, ...(opts.camera ?? {}) });
     this.cardHeight = opts.cardHeight ?? SANDBOX_CARD_H;
     this.padding = opts.padding ?? SB_MARGIN;
     this.fitOnBuild = opts.fitOnBuild ?? true;
@@ -121,6 +151,16 @@ export class KitScene extends SceneEngine {
     return this.byId.get(id);
   }
 
+  /**
+   * Экран сменился — вписать витрину заново. Раскладка от него не зависит (содержимое живёт в
+   * своих координатах), а вот ЗУМ зависит целиком: без этого хост, ужатый под габарит, оставался
+   * бы с зумом, посчитанным по прежней высоте, и картинка не совпадала бы с рамкой.
+   */
+  protected override onSceneResize(w: number, h: number): void {
+    if (!this.fitOnBuild) return;
+    this.viewport.setZoom(fitZoom({ w: this.contentW, h: this.contentH }, { w, h }, MIN_FIT_ZOOM, MAX_FIT_ZOOM));
+  }
+
   /** Кнопка витрины по порядку постановки. У Button нет id — адресовать её иначе нечем, а живые
    *  правки из панели («подпись», «недоступна») применяются именно к экземпляру. */
   button(i = 0): Button | undefined {
@@ -139,9 +179,18 @@ export class KitScene extends SceneEngine {
       case "flip":
         if ("requestFlip" in el && !(el as unknown as { requestFlip(): boolean }).requestFlip()) return;
         break;
-      case "move":
-        el.body.setTarget({ x: cmd.x, y: cmd.y, rot: 0 });
+      case "move": {
+        // Дом переезжает ВМЕСТЕ с предметом: «переместить» на столе значит «теперь он живёт здесь».
+        // Пока дом оставался прежним, любой дроп в слот доски отыгрывался назад — зона честно
+        // раскладывала фигуры командой move, а `resolveDrop` следом звал `release()`, и тот тянул
+        // фигуру на СТАРЫЙ дом. Со стороны это выглядело как «дроп не работает».
+        const h = this.homeOf(el);
+        if (h) this.setHome(el, { x: cmd.x, y: cmd.y }, h.depth);
+        // Через СТИЛЬ, а не setTarget: «как элемент летит» — свойство фила, и решать это должен
+        // пресет, а не место вызова. spring отдаёт движение пружинам, то есть прежнее поведение.
+        el.body.travelTo({ x: cmd.x, y: cmd.y }, ((el as unknown as { animPreset?: AnimPreset }).animPreset ?? this.preset).move.style, this.preset.speed);
         break;
+      }
       case "conceal":
         if ("setConcealed" in el) (el as unknown as { setConcealed(v: boolean): void }).setConcealed(cmd.v);
         break;
@@ -197,7 +246,8 @@ export class KitScene extends SceneEngine {
       cardH: this.cardHeight,
       padding: this.padding,
       add: (el, home, depth = 0) => {
-        this.placed.push({ el, home, depth });
+        const z = zOf(depth, this.placed.length);
+        this.placed.push({ el, home, z });
         this.byId.set(el.id, el);
         // Доступность и профиль качества — забота движка, а не автора витрины: иначе каждая
         // стори забывала бы их пробросить, и каталог врал бы про reduce-motion.
@@ -205,10 +255,20 @@ export class KitScene extends SceneEngine {
         if ("reduceMotion" in el) flags.reduceMotion = this.reduceMotion;
         if ("flashOff" in el) flags.flashOff = this.flashOff;
         if ("lowFx" in el) flags.lowFx = this.lowFx;
+        // Фил анимаций — тоже забота движка, а не автора витрины: иначе каждая стори забывала бы
+        // его пробросить, и половина стола жила бы по одному пресету, половина по другому.
+        // Пресет ЭЛЕМЕНТА (если ему такой назначали) важнее общего: он переживает пересборку и
+        // воскрешение из спеки.
+        (el as unknown as { setAnimPreset?: (a: AnimPreset) => void }).setAnimPreset?.(this.elPresets.get(el.id) ?? this.preset);
+        // Появление НЕ запускаем здесь: секция назначает пресет уже после того, как расставила
+        // элементы (ctx.setAnimPreset), и появление, начатое на постановке, играло бы базовым
+        // филом — то есть рычаг «стиль появления» выглядел бы неработающим. Копим и запускаем
+        // после сборки, когда пресеты уже розданы.
+        this.fresh.push(el);
         // Ставим СРАЗУ на место (snapTo), а не пружиной: витрина открывается уже собранной,
         // а не съезжается на глазах из угла.
-        el.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: el.restScale });
-        el.root.zIndex = depth;
+        el.body.snapTo({ x: home.x, y: home.y, rot: home.rot ?? 0, scale: el.restScale });
+        el.root.zIndex = z;
         this.placeCard(el);
         return el;
       },
@@ -226,21 +286,22 @@ export class KitScene extends SceneEngine {
       // разведены контейнерами, так что подписи под картой не окажутся, в каком бы порядке
       // секция ни строилась.
       card: (opts, home, depth = 0, bobPhase = 0) => {
+        if (opts.id) this.specs.set(opts.id, () => ctx.card(opts, home, depth, bobPhase));
         const c = new Card(opts, this.tex, baseScale);
         c.bobPhase = bobPhase;
         ctx.add(c, home, depth);
       },
       // Карта под управлением API: в реестре и в цикле она есть, в хит-тесте драга — нет.
       apiCard: (opts, home) => {
-        const c = new Card({ ...opts, rest: opts.rest ?? "idle" }, this.tex, baseScale);
+        const c = new Card({ ...opts, pose: opts.pose ?? "rest" }, this.tex, baseScale);
         ctx.add(c, home);
         const last = this.placed[this.placed.length - 1];
         if (last) last.api = true;
       },
       dispatch: (cmd) => this.dispatch(cmd),
-      piece: (id, home, spec, r, depth = 0) => {
-        const { build, shadow } = pieceVisual(spec, r);
-        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow }), home, depth);
+      piece: (id, home, spec, r, depth = 0, plan = {}) => {
+        this.specs.set(id, () => ctx.piece(id, home, spec, r, depth, plan));
+        ctx.add(buildPiece(id, spec, r, this.app?.renderer, plan), home, depth);
       },
       // Метки. Механизм — общий (SceneEngine.mountMarkers), «как выглядит грип» — общее с
       // песочницей (kit/markerIcons). Витрина отличается только тем, что груз собирается прямо
@@ -295,6 +356,39 @@ export class KitScene extends SceneEngine {
           },
           at,
         ),
+      flipStack: (ids) => {
+        const els = ids.map((id) => this.byId.get(id)).filter((e): e is SceneElement => !!e);
+        if (els.length === ids.length) this.flipGroup(els);
+      },
+      setAnimPreset: (ids, preset) => {
+        for (const id of ids) {
+          this.elPresets.set(id, preset);
+          (this.byId.get(id) as unknown as { setAnimPreset?: (a: AnimPreset) => void } | undefined)?.setAnimPreset?.(preset);
+        }
+        this.wake();
+      },
+      appear: (ids) => {
+        for (const id of ids) {
+          const el = this.byId.get(id) as unknown as { appear?: () => void } | undefined;
+          // Живой — проигрываем появление заново. Мёртвого сначала СОБИРАЕМ ЗАНОВО из спеки: без
+          // этого «восстановить уничтоженное» упиралось бы в то, что восстанавливать нечего.
+          if (el) {
+            el.appear?.();
+            continue;
+          }
+          // Мёртвого СОБИРАЕМ ЗАНОВО из спеки и сразу проигрываем ему появление: именно в этот
+          // момент анимация и нужна — карта возвращается на стол, а не мигает при загрузке.
+          const spec = this.specs.get(id);
+          if (!spec) continue;
+          spec();
+          (this.byId.get(id) as unknown as { appear?: () => void } | undefined)?.appear?.();
+          this.fresh = this.fresh.filter((e) => e.id !== id);
+        }
+        this.wake();
+      },
+      after: (delay, fn) => this.after(delay, fn),
+      moveDuration: (id) => this.moveDuration(id),
+      animDuration: (id, kind) => this.animDuration(id, kind),
       wake: () => this.wake(),
       extent: (w, h) => void (this.explicitExtent = { w, h }),
     };
@@ -303,26 +397,30 @@ export class KitScene extends SceneEngine {
 
   // Габарит и вписывание — после сборки, когда элементы уже расставлены.
   private afterBuild(): void {
-    const e =
-      this.explicitExtent ??
-      extentOf(
-        this.placed.map((p) => ({ x: p.home.x, y: p.home.y, hw: p.el.footprint.hw, hh: p.el.footprint.hh })),
-        this.padding,
-      );
+    // Появление тут НЕ запускается. Пересборка случается на каждую правку рычага, и карта
+    // переявлялась бы по десять раз подряд — шум, который прячет то, ради чего рычаг крутят.
+    // Появление — СОБЫТИЕ доски (раздали, вернули, добрали), и запускает его тот, кто его вызвал.
+    this.fresh = [];
+    // Полуразмеры берутся В ПОЗЕ элемента (см. extentOfPlaced): удерживаемой карте иначе срезало
+    // верх на канвасе, поджатом ровно по габариту.
+    const e = this.explicitExtent ?? extentOfPlaced(this.placed.map((p) => ({ home: p.home, footprint: p.el.footprint, restScale: p.el.restScale })), this.padding);
     this.contentW = e.w;
     this.contentH = e.h;
     this.syncVp();
-    if (this.fitOnBuild) this.viewport.setZoom(fitZoom(e, { w: this.width, h: this.height }, MIN_KIT_ZOOM, MAX_KIT_ZOOM));
+    if (this.fitOnBuild) this.viewport.setZoom(fitZoom(e, { w: this.width, h: this.height }, MIN_FIT_ZOOM, MAX_FIT_ZOOM));
     this.clampView();
     this.applyView();
     this.render();
     this.wake();
+    this.onExtent?.(e);
   }
 
   // Снос СОДЕРЖИМОГО (не приложения). Повторяет путь PlaygroundEngine.clearContent: сначала свои
   // узлы, потом слои сцены, потом общее состояние ввода/драга/зон. Второй путь сноса тут заводить
   // нельзя — разъедется с базовым и утечёт узлами.
   private clearContent(): void {
+    this.specs.clear();
+    this.elPresets.clear();
     for (const p of this.placed) p.el.root.destroy({ children: true });
     this.placed = [];
     for (const d of this.decors) d.destroy({ children: true });
@@ -353,15 +451,54 @@ export class KitScene extends SceneEngine {
     return this.placed.map((p) => p.el);
   }
 
+  /** Переставить дом и глубину — реестр витрины знает про них он один (см. flipGroup). */
+  protected override setHome(el: SceneElement, home: { x: number; y: number }, depth: number): void {
+    const p = this.placed.find((q) => q.el === el);
+    if (!p) return;
+    p.home = { ...home };
+    p.z = depth;
+    el.root.zIndex = depth;
+    el.body.setTarget({ x: home.x, y: home.y });
+  }
+
+  /**
+   * Перевернуть пачку по id — публичная дверь к общему `flipGroup`. Нужна каталогу: рычаг «лицом
+   * вверх» у стопки обязан быть НАСТОЯЩИМ переворотом, а не пересборкой с другой стороной.
+   */
+  flipStack(ids: readonly string[]): void {
+    const els = ids.map((id) => this.byId.get(id)).filter((e): e is SceneElement => !!e);
+    if (els.length === ids.length) this.flipGroup(els);
+  }
+
+  /** Тир качества движка. На `reduced` теневой пасс гаснет целиком, idle-анимации замирают. */
+  setProfile(p: "full" | "reduced"): void {
+    this.onProfileChange(p);
+  }
+
+  /** Сменить фил анимаций витрины: сцене — для расписания пачки, картам — для их собственных. */
+  setAnimPreset(p: AnimPreset): void {
+    this.preset = p;
+    for (const q of this.placed) (q.el as unknown as { setAnimPreset?: (a: AnimPreset) => void }).setAnimPreset?.(p);
+    this.wake();
+  }
+
   protected homeOf(el: SceneElement): { home: Pt; depth: number } | null {
     const p = this.placed.find((q) => q.el === el);
-    return p ? { home: p.home, depth: p.depth } : null;
+    return p ? { home: p.home, depth: p.z } : null;
   }
 
   protected reapDead(): void {
     const alive = this.placed.filter((p) => !p.el.dead);
     if (alive.length === this.placed.length) return;
-    for (const p of this.placed) if (p.el.dead) this.byId.delete(p.el.id);
+    for (const p of this.placed) {
+      if (!p.el.dead) continue;
+      this.byId.delete(p.el.id);
+      // УЗЕЛ ТОЖЕ СНОСИМ. Раньше мёртвый элемент выбывал только из реестров, а его Pixi-узел
+      // оставался в слое — и последний кадр эффекта («сжечь» доедает карту маской, но не в ноль)
+      // навсегда застывал на столе. Отсюда и «артефакт после сжигания»: догорала карта верно,
+      // просто её останки никто не убирал.
+      p.el.root.destroy({ children: true });
+    }
     this.placed = alive;
   }
 
@@ -422,7 +559,20 @@ export class KitScene extends SceneEngine {
   }
 }
 
-// Пределы зума витрины шире, чем у стола: компонент рассматривают вплотную (пиксели рубашки,
-// кромка карты), и упереться в потолок камеры игры тут было бы обидно.
-const MIN_KIT_ZOOM = 0.4;
-const MAX_KIT_ZOOM = 4;
+/**
+ * Глубина элемента витрины — УНИКАЛЬНАЯ, а не «слой, заданный автором».
+ *
+ * Слой (`depth`) задаёт автор секции, и в столбике фишек он у всех одинаковый — ноль. При равном
+ * zIndex порядок решает список детей контейнера, а `place()` кладёт узел через `addChild`, то есть
+ * В КОНЕЦ. Поэтому стоило взять фишку и отпустить, как она возвращалась на «свою» глубину — и всё
+ * равно оказывалась поверх соседей: возврат ставил ей тот же ноль, а в списке детей она была уже
+ * последней. Столбик терял порядок с первого же касания.
+ *
+ * Порядок постановки добавляется младшими разрядами: слой по-прежнему главнее (секция, положившая
+ * что-то на depth 1, останется выше всего с depth 0), но внутри слоя глубина у каждого своя, и
+ * возврат домой воспроизводит её точно. Тысяча элементов на слой — потолок, которого ни одна
+ * витрина близко не касается.
+ */
+export function zOf(depth: number, seq: number): number {
+  return depth * 1000 + seq;
+}

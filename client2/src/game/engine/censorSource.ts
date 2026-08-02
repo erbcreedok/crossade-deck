@@ -1,4 +1,4 @@
-import { Application, Container, RenderTexture, Sprite, type Texture } from "pixi.js";
+import { Application, Container, RenderTexture, Sprite, type Renderer, type Texture } from "pixi.js";
 import { AMBER, buildContent } from "../fingerContent";
 import { colorDustPoints, contrastWeight, dominantColor, dustPoints, thinPoints, type DustPoint } from "../censorConfig";
 import { TEX_H, TEX_W } from "./constants";
@@ -55,16 +55,40 @@ const MAX_POINTS = 900;
  * contrastWeight). Равномерная давала рябь, в которой рисунок тонул — краска занимает малую долю
  * лица, а кремовые частицы на кремовой подложке невидимы, и карта выглядела просто чистой.
  */
-export function buildTextureDustPoints(app: Application, tex: Texture, step: number, cx: number, cy: number, perCell = 1, gain = INK_GAIN): DustPoint[] {
-  const cols = Math.max(1, Math.round(TEX_W / step));
-  const rows = Math.max(1, Math.round(TEX_H / step));
+export interface TextureDustOpts {
+  /** Шаг сетки в единицах КОРОБКИ: во столько раз облако мельче предмета. */
+  step: number;
+  cx?: number;
+  cy?: number;
+  perCell?: number;
+  /** Коробка предмета. По умолчанию карточная — но пыль не карточная фича. */
+  size?: { w: number; h: number };
+  /**
+   * Сколько частиц рождает клетка по её цвету.
+   *
+   * По умолчанию — по НЕПОХОЖЕСТИ на общий тон: на лице карты краска занимает малую долю, и
+   * равномерное облако давало рябь, в которой рисунок тонул. У предмета с однородным телом закон
+   * обратный: «общий тон» — это он сам, и взвешивание вычёркивает ровно то, что надо скрыть,
+   * оставляя пыль на одной обводке. Поэтому там передают равномерный вес.
+   */
+  weight?: (color: number) => number;
+}
+
+export function buildTextureDustPoints(renderer: Renderer, tex: Texture, o: TextureDustOpts): DustPoint[] {
+  const { step } = o;
+  const size = o.size ?? { w: TEX_W, h: TEX_H };
+  const perCell = o.perCell ?? 1;
+  const cx = o.cx ?? 0;
+  const cy = o.cy ?? 0;
+  const cols = Math.max(1, Math.round(size.w / step));
+  const rows = Math.max(1, Math.round(size.h / step));
   const sprite = new Sprite(tex);
   sprite.setSize(cols, rows);
   const holder = new Container();
   holder.addChild(sprite);
   const rt = RenderTexture.create({ width: cols, height: rows });
-  app.renderer.render({ container: holder, target: rt });
-  const { pixels } = app.renderer.extract.pixels(rt);
+  renderer.render({ container: holder, target: rt });
+  const { pixels } = renderer.extract.pixels(rt);
   const cells = new Array<{ on: boolean; color: number }>(cols * rows);
   for (let i = 0; i < cols * rows; i++) {
     const a = pixels[i * 4 + 3]!;
@@ -82,6 +106,6 @@ export function buildTextureDustPoints(app: Application, tex: Texture, step: num
   }
   holder.destroy({ children: true });
   rt.destroy(true);
-  const pts = colorDustPoints(cells, cols, rows, step, perCell, cx, cy, contrastWeight(dominantColor(cells), gain, INK_FLOOR));
+  const pts = colorDustPoints(cells, cols, rows, step, perCell, cx, cy, o.weight ?? contrastWeight(dominantColor(cells), INK_GAIN, INK_FLOOR));
   return thinPoints(pts, MAX_POINTS);
 }

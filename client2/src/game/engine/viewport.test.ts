@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Viewport } from "./viewport";
+import { Viewport, wheelGoesToScene } from "./viewport";
 
 // Хелпер: камера 400x600 экран, 1000x2000 контент (крупнее по обеим осям).
 function vp() {
@@ -119,5 +119,99 @@ describe("Viewport", () => {
     fit.setContent(300, 300);
     expect(fit.state().scrollableX).toBe(false);
     expect(fit.state().scrollableY).toBe(false);
+  });
+});
+
+// Витрина каталога кладёт содержимое ИНАЧЕ, чем песочница, и это не косметика: у песочницы
+// вертикальная лента секций (её прижимают к верху), а у витрины раздел один и кадр принадлежит
+// ему целиком — прижатый к верху, он оставлял под собой пустое поле в пол-экрана.
+describe("Viewport: alignY", () => {
+  const withAlign = (alignY: "center" | "top") => {
+    const v = new Viewport(0.08, 4, 24, "center", 0, alignY);
+    v.setScreen(400, 600);
+    v.setContent(200, 300); // мельче экрана по обеим осям
+    return v;
+  };
+
+  it("alignY: center — контент ниже экрана центрируется по вертикали", () => {
+    const v = withAlign("center");
+    v.y = 999;
+    v.clamp();
+    expect(v.y).toBe((600 - 300) / 2);
+  });
+
+  it("alignY: top (умолчание) — прижимаем к верхнему отступу, как было у песочницы", () => {
+    const v = withAlign("top");
+    v.y = 999;
+    v.clamp();
+    expect(v.y).toBe(24);
+  });
+
+  it("центрирование не отменяет клампа: контент ВЫШЕ экрана держится в границах", () => {
+    const v = new Viewport(0.08, 4, 24, "center", 0, "center");
+    v.setScreen(400, 600);
+    v.setContent(200, 2000);
+    v.y = 999;
+    v.clamp();
+    expect(v.y).toBe(0); // максимум — верхний край, ниже уезжать некуда
+    v.y = -9999;
+    v.clamp();
+    expect(v.y).toBe(600 - 2000);
+  });
+
+  it("обе оси разом: узкий и низкий контент стоит по центру кадра", () => {
+    const v = withAlign("center");
+    v.clamp();
+    expect(v.x).toBe((400 - 200) / 2);
+    expect(v.y).toBe((600 - 300) / 2);
+  });
+});
+
+// Колесо: сцена глотала его всегда, и страница под канвасом не скроллилась — а двигать было
+// нечего. Со стороны это выглядело как зависший сайт, поэтому «есть ли куда двигать» —
+// отдельный вопрос, на который камера обязана отвечать честно.
+describe("Viewport: есть ли куда панорамировать", () => {
+  it("контент влезает — двигать некуда по обеим осям", () => {
+    const v = new Viewport(0.08, 4);
+    v.setScreen(400, 600);
+    v.setContent(300, 500);
+    expect(v.overflowX).toBe(false);
+    expect(v.overflowY).toBe(false);
+  });
+
+  it("переполнение считается В ТЕКУЩЕМ зуме, а не по исходному габариту", () => {
+    const v = new Viewport(0.08, 4);
+    v.setScreen(400, 600);
+    v.setContent(800, 400); // шире экрана в масштабе 1:1
+    expect(v.overflowX).toBe(true);
+    v.setZoom(0.4); // ужали — влез
+    expect(v.overflowX).toBe(false);
+    v.setZoom(2); // приблизили — вылез и по высоте тоже
+    expect(v.overflowX).toBe(true);
+    expect(v.overflowY).toBe(true);
+  });
+
+  it("ровно по кадру — это НЕ переполнение: полпикселя допуска, иначе дребезг на дробном зуме", () => {
+    const v = new Viewport(0.08, 4);
+    v.setScreen(400, 600);
+    v.setContent(400, 600);
+    expect(v.overflowX).toBe(false);
+    expect(v.overflowY).toBe(false);
+  });
+});
+
+describe("кому достаётся колесо", () => {
+  it("зум с модификатором забирает сцена всегда — он осмыслен и при вписанном контенте", () => {
+    expect(wheelGoesToScene({ zoom: true, canPan: false, inDocument: true })).toBe(true);
+  });
+
+  it("внутри документа плоское колесо УХОДИТ СТРАНИЦЕ, даже когда сцене есть куда ехать", () => {
+    // Иначе маленький канвас посреди текста съедает прокрутку, и это читается как зависший сайт.
+    expect(wheelGoesToScene({ zoom: false, canPan: true, inDocument: true })).toBe(false);
+  });
+
+  it("в своём кадре сцена панорамирует — но только если есть куда", () => {
+    expect(wheelGoesToScene({ zoom: false, canPan: true, inDocument: false })).toBe(true);
+    expect(wheelGoesToScene({ zoom: false, canPan: false, inDocument: false })).toBe(false);
   });
 });

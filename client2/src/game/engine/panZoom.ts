@@ -66,6 +66,7 @@ export function attachPanZoom<B>(app: Application, content: Container, opts: Pan
     screenToContent: (sx, sy) => vp.screenToContent(sx, sy),
     pickCard: () => null,
     cardDraggable: () => false,
+    onCardTap: () => {},
     pickButton: (cx, cy) => opts.buttons?.pick(cx, cy) ?? null,
     buttonContains: (b, cx, cy) => opts.buttons!.contains(b, cx, cy),
     onCardGrab: () => {},

@@ -55,7 +55,7 @@ function DeckSection() {
   const [seed, setSeed] = useState(42);
   const [shuffled, setShuffled] = useState<string[] | null>(null);
   const [prevShuffle, setPrevShuffle] = useState<string[] | null>(null);
-  const [repeatCheck, setRepeatCheck] = useState<"idle" | "match" | "mismatch">("idle");
+  const [repeatCheck, setRepeatCheck] = useState<"rest" | "match" | "mismatch">("rest");
 
   const dupes = hasDuplicates(deck);
 
@@ -64,7 +64,7 @@ function DeckSection() {
     setDeck(d);
     setShuffled(null);
     setPrevShuffle(null);
-    setRepeatCheck("idle");
+    setRepeatCheck("rest");
   }
 
   function handleShuffle() {
@@ -77,7 +77,7 @@ function DeckSection() {
     }
     setShuffled(result);
     setPrevShuffle(null);
-    setRepeatCheck("idle");
+    setRepeatCheck("rest");
   }
 
   function handleRepeatShuffle() {

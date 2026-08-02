@@ -59,11 +59,15 @@ if (import.meta.hot) {
   });
 }
 
-if (import.meta.env.DEV) {
-  (globalThis as unknown as { __kit?: unknown }).__kit = {
-    pool: {
-      stats: () => kitPool().stats(),
-      disposeAll: () => kitPool().disposeAll(),
-    },
-  };
-}
+// Хук объявляется ВСЕГДА, а не только в дев-сборке.
+//
+// Каталог — сам по себе стенд, и собранный он остаётся стендом: на выкатке им пользуются ровно
+// так же (сценарии `play()` в панели Interactions, ручная проверка из консоли). Пока хук стоял
+// под `import.meta.env.DEV`, сценарий на задеплоенном каталоге падал с «нет элемента»: витрина
+// собиралась, а достать её было нечем. Прятать тут нечего — это не игра, а витрина её же кода.
+(globalThis as unknown as { __kit?: unknown }).__kit = {
+  pool: {
+    stats: () => kitPool().stats(),
+    disposeAll: () => kitPool().disposeAll(),
+  },
+};

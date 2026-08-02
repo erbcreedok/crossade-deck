@@ -40,7 +40,10 @@ export class TopBar {
   constructor(items: readonly TopBarItem[], statusText = "") {
     this.root.addChild(this.bg);
     for (const it of items) {
-      const b = new Button({ ...it, size: it.size ?? "sm", variant: it.variant ?? "secondary" });
+      // fit: "content" — кнопки панели меряются ПО СВОЕЙ подписи. На пресетной ширине самая
+      // длинная («⟲ песочница») ужимала текст на 8%, и в одном ряду соседние подписи одного
+      // уровня оказывались разного кегля — то самое разъезжание, против которого заведён #68.
+      const b = new Button({ fit: "content", ...it, size: it.size ?? "sm", variant: it.variant ?? "secondary" });
       this.buttons.push(b);
       this.keys.push(it.key);
       this.root.addChild(b.root);

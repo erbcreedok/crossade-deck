@@ -1,10 +1,19 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { CardBody } from "../CardBody";
+import { ParticleField } from "../engine/censorParticles";
+import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
 import { scaleForState } from "./plane";
-import { pieceSilhouette } from "../effects/pieceShadow";
-import { BURN_DUR } from "../effects/burn";
+import { shadowOf, withEffect } from "./shadow";
+import { BASE_PRESET, scaled, type AnimPreset } from "../anim/presets";
+import { destroyStyle } from "../anim/destroyStyles";
+import { appearStyle } from "../anim/appearStyles";
+import { applyEffect } from "../anim/effectApply";
+import type { EffectFrame } from "../anim/destroyStyles";
+import { bobOffset, idleBobs, scaleFromZ, screenLift, zFromScale } from "./elevation";
+import { TEX_H, TEX_W } from "../engine/constants";
 import type { Burnable, Draggable, TableElement } from "../engine/element";
-import type { CardState, RestState, ShadowShape } from "./Card";
+import type { CardState, Pose, ShadowShape } from "./Card";
+import type { OwnShadow } from "./silhouetteExtract";
 
 // Обобщённый ЭЛЕМЕНТ стола, НЕ карта: фишка, шахматная фигура — что угодно с телом и тенью.
 // Реализует ровно те же способности, что и Card (TableElement + Draggable + Burnable), но НЕ
@@ -18,8 +27,23 @@ export interface PieceOptions {
   w: number; // футпринт ПОКОЯ для хит-теста (полуразмеры × scaleVal)
   h: number;
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
-  shadow: { rx: number; ry: number; dy: number }; // эллипс тени у основания: полуоси + сдвиг вниз
-  rest?: RestState;
+  shadow: { rx: number; ry: number; dy: number }; // габарит тени: полуоси + сдвиг вниз
+  /**
+   * СОБСТВЕННАЯ тень — снимок этого же визуала (ui/silhouetteExtract.ts): форма совпадает с
+   * предметом один в один, потому что это он и есть. Нет снимка — остаётся габарит выше; это не
+   * «запасной вариант»: лежащей фишке эллипс и есть её форма, снимать там нечего.
+   */
+  own?: OwnShadow | null;
+  /**
+   * Точки рождения пыли-цензуры, снятые с ЭТОГО визуала. Цензура — не карточная фича: она
+   * размазывает настоящее лицо предмета, каким бы он ни был. Считает их тот, у кого есть рендерер
+   * (pieceKinds.buildPiece), — предмету остаётся крутить облако.
+   */
+  censorSeeds?: ReadonlyArray<{ x: number; y: number; color: number }> | null;
+  censored?: boolean;
+  pose?: Pose;
+  /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
+  idle?: boolean;
   tags?: string[]; // идентичность-ДАННЫЕ: chip, color:green, piece:♞ … (SELECTION-DESIGN §2)
 }
 
@@ -31,17 +55,36 @@ export class Piece implements TableElement, Draggable, Burnable {
   readonly id: string;
   readonly tags: ReadonlySet<string>;
   readonly draggable = true;
-  readonly rest: RestState;
+  readonly pose: Pose;
+  /** Явное «дышать / не дышать»; не задано — решает поза (`idleBobs`). */
+  readonly idle?: boolean;
+  /** Сдвиг фазы дыхания — чтобы соседи не качались в унисон. Ставит тот, кто расставляет. */
+  bobPhase = 0;
   state: CardState;
   private readonly w: number;
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
+  private readonly own: OwnShadow | null;
+  private readonly censorSeeds: ReadonlyArray<{ x: number; y: number; color: number }> | null;
+  private dust: ParticleField | null = null;
+  private dustT = 0;
+  private _censored: boolean;
   private age = 0;
   private block: { t: number; dur: number } | null = null;
+  private born: { t: number; dur: number } | null = null;
   private dying: { t: number; dur: number } | null = null;
+  private mask: { g: import("pixi.js").Graphics | null } = { g: null };
+  /** Фил анимаций — тот же пресет, что у карты. Фишка не «упрощённый элемент», а такой же. */
+  private preset: AnimPreset = BASE_PRESET;
+  /** Высота над столом (ось z). У лежащего — 0. */
+  private zBase = 0;
   dead = false;
   /** «Без вспышек» (issue #9): гасит дрожь «сжечь», оставляя затухание+сжатие. Движок ставит на спавне/смене. */
   flashOff = false;
+  /** OS/юзер reduce-motion: замораживает дыхание в статичный кадр. Ставит движок, как у карты. */
+  reduceMotion = false;
+  /** Лёгкий профиль качества: тоже замораживает дыхание. Ставит движок при просадке FPS. */
+  lowFx = false;
 
   constructor(opts: PieceOptions) {
     this.id = opts.id;
@@ -49,9 +92,14 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
-    this.rest = opts.rest ?? "idle";
-    this.state = this.rest;
+    this.own = opts.own ?? null;
+    this.censorSeeds = opts.censorSeeds ?? null;
+    this._censored = opts.censored ?? false;
+    this.pose = opts.pose ?? "rest";
+    this.idle = opts.idle;
+    this.state = this.pose;
     opts.build(this.root);
+    if (this._censored) this.buildDust();
   }
 
   /** Полуразмеры покоя — хит-тест берёт их × scaleVal. */
@@ -60,7 +108,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   }
 
   get restScale(): number {
-    return scaleForState(this.rest);
+    return scaleForState(this.pose);
   }
 
   setState(s: CardState): void {
@@ -68,12 +116,61 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.body.setTarget({ scale: scaleForState(s) });
   }
 
+  get censored(): boolean {
+    return this._censored;
+  }
+
+  /**
+   * Включить/выключить цензуру. Пыль ложится ПОВЕРХ настоящего лица предмета — она его смазывает,
+   * а не заменяет: это фильтр, а не «другая картинка» (то же разделение, что у карты).
+   */
+  setCensored(v: boolean): void {
+    if (v === this._censored) return;
+    this._censored = v;
+    if (v && !this.dust) this.buildDust();
+    if (this.dust) this.dust.view.visible = v;
+  }
+
+  private buildDust(): void {
+    if (!this.censorSeeds || this.censorSeeds.length === 0) return;
+    this.dust = new ParticleField(this.censorSeeds, dustParams(DANCE_DEFAULT, DUST_FLICKER));
+    this.root.addChild(this.dust.view);
+  }
+
   blockNudge(): void {
     if (!this.block) this.block = { t: 0, dur: 0.4 };
   }
 
+  setZ(v: number): void {
+    this.zBase = Math.max(0, v);
+  }
+
+  get animPreset(): AnimPreset {
+    return this.preset;
+  }
+
+  setAnimPreset(p: AnimPreset): void {
+    this.preset = p;
+    this.body.springs = p.springs;
+    this.body.tiltScale = p.tilt;
+  }
+
+  /** Появиться — тот же реестр, что у карты (anim/appearStyles.ts). Зовёт тот, кто её поставил. */
+  appear(): void {
+    if (this.dead) return;
+    const st = appearStyle(this.preset.appear.style);
+    this.born = { t: 0, dur: Math.max(0.001, scaled(st.dur * this.preset.appear.scale, this.preset.speed)) };
+  }
+
+  /**
+   * Уничтожить. Раньше у фишки был СВОЙ эффект — тускнение со сжатием, отдельный от карточного.
+   * Значит каждый новый способ («шреддер», «улёт») пришлось бы писать дважды. Теперь реестр общий:
+   * маска работает и на фишке, потому что это просто полигон в её локальных координатах.
+   */
   burn(): void {
-    if (!this.dying && !this.dead) this.dying = { t: 0, dur: BURN_DUR };
+    if (this.dying || this.dead) return;
+    const st = destroyStyle(this.preset.destroy.style);
+    this.dying = { t: 0, dur: Math.max(0.001, scaled(st.dur * this.preset.destroy.scale, this.preset.speed)) };
   }
 
   get burning(): boolean {
@@ -83,9 +180,17 @@ export class Piece implements TableElement, Draggable, Burnable {
   step(dt: number): void {
     this.age += dt;
     this.body.step(dt);
+    if (this.dusty) {
+      this.dustT += dt;
+      this.dust!.update(this.dustT);
+    }
     if (this.block) {
       this.block.t += dt;
       if (this.block.t >= this.block.dur) this.block = null;
+    }
+    if (this.born) {
+      this.born.t += dt;
+      if (this.born.t >= this.born.dur) this.born = null;
     }
     if (this.dying) {
       this.dying.t += dt;
@@ -96,8 +201,22 @@ export class Piece implements TableElement, Draggable, Burnable {
     }
   }
 
+  /** Крутится ли пыль прямо сейчас. Заморозка движения её останавливает — как и дыхание. */
+  private get dusty(): boolean {
+    return this.dust !== null && this._censored && !this.reduceMotion && !this.lowFx;
+  }
+
   get resting(): boolean {
-    return this.body.isResting() && !this.block && !this.dying && this.state !== "floating";
+    // `born` тут обязателен: без него цикл засыпает ПОСРЕДИ появления и фишка застывает
+    // полупрозрачной (см. CLAUDE.md про EngineActivity — ровно эта ловушка). Дыхание — вторая
+    // непрерывная анимация фишки, и условие идёт по нему, а не по позе: неподвижная поднятая
+    // фишка отпускает цикл, дышащая лежащая — держит.
+    return this.body.isResting() && !this.body.travelling && !this.block && !this.born && !this.dying && !this.bobbing && !this.dusty;
+  }
+
+  /** Качается ли прямо сейчас. Заморозка движения (reduce-motion / лёгкий профиль) её отменяет. */
+  private get bobbing(): boolean {
+    return !this.reduceMotion && !this.lowFx && idleBobs(this.state, this.idle) && this.preset.idle.amp > 0;
   }
 
   sync(): void {
@@ -107,31 +226,59 @@ export class Piece implements TableElement, Draggable, Burnable {
       const p = this.block.t / this.block.dur;
       shakeX = Math.sin(this.block.t * 42) * this.w * 0.06 * (1 - p);
     }
-    this.root.position.set(this.body.px + shakeX, this.body.py);
+    // Дыхание — ЭКРАННОЕ покачивание, как у карты: в `z` оно не идёт, иначе тень начнёт дышать
+    // размером под предметом, который не изменился.
+    const bob = this.bobbing ? bobOffset(Math.sin(this.age * this.preset.idle.speed + this.bobPhase), this.preset.idle.amp, this.h) : 0;
+    // Высота — та же ось, что у карты: поза покоя плюс подъём полёта плюс заданный z.
+    const z = zFromScale(this.body.scaleVal) + this.body.liftPx / Math.max(1, this.h) + this.zBase;
+    this.root.position.set(this.body.px + shakeX, this.body.py + screenLift(z, this.h) + bob);
     this.root.rotation = this.body.rotation;
-    this.root.scale.set(render);
+    const drawn = render * scaleFromZ(this.zBase); // тот же множитель, что уходит в root.scale
+    this.root.scale.set(drawn);
 
-    this.shadowRect = pieceSilhouette({
-      px: this.body.px,
-      py: this.body.py,
-      shakeX,
-      rx: this.shadowCfg.rx,
-      ry: this.shadowCfg.ry,
-      baseDy: this.shadowCfg.dy,
-      elev: this.body.scaleVal - 1,
-    });
-
-    // «Сжечь»: без карточной маски — фишка дрожит, тускнеет и сжимается; затем dead → убирают.
+    // Эффект — ДО тени: она выводится из итогового состояния, а не правится под каждый способ.
+    let fx: EffectFrame | null = null;
     if (this.dying) {
-      const p = this.dying.t / this.dying.dur;
-      // «Без вспышек»: дрожь — фото-триггер, гасим (jitter→0); затухание+сжатие остаются.
-      const jx = this.flashOff ? 0 : Math.sin(this.age * 52) * this.w * 0.05 * (1 - p);
-      const jy = this.flashOff ? 0 : Math.cos(this.age * 47) * this.h * 0.04 * (1 - p);
-      this.root.position.set(this.body.px + jx, this.body.py + jy);
-      this.root.alpha = 1 - p;
-      this.root.scale.set(render * (1 - 0.4 * p));
-      if (this.shadowRect) this.shadowRect.hh *= 1 - p;
+      const st = destroyStyle(this.preset.destroy.style);
+      const f = st.frame(st.dur * (this.dying.t / this.dying.dur), { age: this.age, width: this.w });
+      // «Без вспышек»: дрожь — фото-триггер, гасим её; остальное движение стиля остаётся.
+      fx = this.flashOff ? { ...f, dx: 0, dy: 0 } : f;
+    } else if (this.born) {
+      const st = appearStyle(this.preset.appear.style);
+      fx = st.frame(st.dur * (this.born.t / this.born.dur), { age: this.age, width: this.w });
     }
+    // Маски стилей нарисованы в координатах карточной текстуры — вписываем их в коробку предмета.
+    const unit = { x: this.w / TEX_W, y: this.h / TEX_H };
+    if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask, unit);
+
+    const own = this.own;
+    this.shadowRect = shadowOf(
+      withEffect(
+        {
+          px: this.body.px,
+          py: this.body.py,
+          shakeX,
+          z,
+          screenY: bob,
+          rotation: this.body.rotation,
+          // Силуэт — от НАРИСОВАННОГО размера, как у карты: поднятая фишка крупнее лежащей, и
+          // тень у неё крупнее во столько же.
+          hw: this.shadowCfg.rx * drawn,
+          hh: this.shadowCfg.ry * drawn,
+          // Снимку сдвиг не нужен: он ложится ровно туда, где нарисован предмет. Габаритной тени —
+          // нужен: пятно рисуется от центра, а стоит предмет на низу.
+          baseDy: own ? 0 : this.shadowCfg.dy * drawn,
+          reach: this.w * drawn,
+          round: !own,
+          // Маска эффекта режет тень в тех же единицах, в каких режет предмет.
+          polyK: drawn * unit.x,
+          polyKy: drawn * unit.y,
+          image: own ? { texture: own.texture, bx: own.bounds.x, by: own.bounds.y, bw: own.bounds.width, bh: own.bounds.height, k: drawn } : null,
+        },
+        fx,
+      ),
+      this.preset.shadow,
+    );
   }
 
   destroy(): void {

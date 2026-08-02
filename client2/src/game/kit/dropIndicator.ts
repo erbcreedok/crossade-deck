@@ -1,6 +1,7 @@
 import { Graphics, Text } from "pixi.js";
 import { DRAG_SCALE, PIXEL_FONT } from "../engine/constants";
 import { SB_ITEM_GAP } from "../engine/sandboxLayout";
+import { fitBox } from "../ui/boxFit";
 import type { Pt, SectionContext, SectionSize } from "./context";
 
 // «Дроп-индикатор»: варианты ОФОРМЛЕНИЯ подписи над бордом при наведении — юзер-тест перед выбором
@@ -10,8 +11,8 @@ import type { Pt, SectionContext, SectionSize } from "./context";
 // проблемы. ACTIVE переносит подпись на слой verb — тот же, что уже несёт «глагол» DropZone.
 //
 // Отклонение от тикета (по прямому решению владельца, 2026-07-28): тикет просил драг-карту
-// (rest:"held" → drag-слой, самый верхний) поверх подписи ВО ВСЕХ пяти, смещённую на +20px. Но
-// rest:"held" рисуется в DRAG_SCALE (×1.45) — при 20px карта того же плана целиком накрывает и
+// (pose:"held" → drag-слой, самый верхний) поверх подписи ВО ВСЕХ пяти, смещённую на +20px. Но
+// pose:"held" рисуется в DRAG_SCALE (×1.45) — при 20px карта того же плана целиком накрывает и
 // борд, и подпись (проверено скриншотом), а с исправленным сдвигом перекрывает почти всю подпись во
 // всех пяти и мешает СРАВНИВАТЬ стили между собой — то, ради чего секция и существует. Поэтому
 // драг-карта осталась только в ОДНОМ, шестом слоте — «живой» сценарий с победителем первых пяти
@@ -27,6 +28,8 @@ const GRID_COLS = 3;
 
 /** Стиль подписи-индикатора: имя для витрины + как его нарисовать в точке (cx, cy). */
 export interface IndicatorStyle {
+  /** Ключ стиля. Выбирают ПО НЕМУ, а не по индексу: индекс молча меняется при вставке в середину. */
+  id: string;
   name: string;
   paint: (ctx: SectionContext, cx: number, cy: number, text: string) => void;
 }
@@ -76,8 +79,11 @@ export function paintIndicatorBadge(ctx: SectionContext, cx: number, cy: number,
   t.anchor.set(0.5);
   t.position.set(cx, cy);
   const pad = 6;
+  // Габарит подложки — общей арифметикой (ui/boxFit.ts), а не «плюс два поля» на месте: это та же
+  // коробка с текстом, что кнопка и дроп-зона, и считать её тремя способами незачем.
+  const box = fitBox({ preset: { w: 0, h: 0 }, text: { w: t.width, h: t.height }, fit: "content", padding: pad });
   const bg = new Graphics();
-  bg.roundRect(cx - t.width / 2 - pad, cy - t.height / 2 - pad / 2, t.width + pad * 2, t.height + pad, 6).fill({ color: 0x1c2620, alpha: hud ? 0.85 : 0.55 });
+  bg.roundRect(cx - box.w / 2, cy - box.h / 2, box.w, box.h, 6).fill({ color: 0x1c2620, alpha: hud ? 0.85 : 0.55 });
   if (hud) bg.stroke({ width: 2, color: GOLD });
   ctx.decor(bg, "verb");
   ctx.decor(t, "verb");
@@ -85,11 +91,11 @@ export function paintIndicatorBadge(ctx: SectionContext, cx: number, cy: number,
 
 /** Пять сравниваемых стилей ACTIVE-подписи. Победитель первых пяти — HUD-тег (последний). */
 export const INDICATOR_STYLES: readonly IndicatorStyle[] = [
-  { name: "оригинал: обводка 3px", paint: (c, cx, cy, t) => paintIndicatorOutline(c, cx, cy, t, 3) },
-  { name: "жёсткая тень", paint: (c, cx, cy, t) => paintIndicatorHardShadow(c, cx, cy, t) },
-  { name: "badge (подложка)", paint: (c, cx, cy, t) => paintIndicatorBadge(c, cx, cy, t, false) },
-  { name: "тонкий контур + тень", paint: (c, cx, cy, t) => paintIndicatorOutline(c, cx, cy, t, 1.5, true) },
-  { name: "HUD-тег", paint: (c, cx, cy, t) => paintIndicatorBadge(c, cx, cy, t, true) },
+  { id: "outline", name: "оригинал: обводка 3px", paint: (c, cx, cy, t) => paintIndicatorOutline(c, cx, cy, t, 3) },
+  { id: "hardShadow", name: "жёсткая тень", paint: (c, cx, cy, t) => paintIndicatorHardShadow(c, cx, cy, t) },
+  { id: "badge", name: "badge (подложка)", paint: (c, cx, cy, t) => paintIndicatorBadge(c, cx, cy, t, false) },
+  { id: "thinOutline", name: "тонкий контур + тень", paint: (c, cx, cy, t) => paintIndicatorOutline(c, cx, cy, t, 1.5, true) },
+  { id: "hudTag", name: "HUD-тег", paint: (c, cx, cy, t) => paintIndicatorBadge(c, cx, cy, t, true) },
 ];
 
 export function dropIndicatorSection(ctx: SectionContext, at: Pt): SectionSize {
@@ -103,10 +109,10 @@ export function dropIndicatorSection(ctx: SectionContext, at: Pt): SectionSize {
     ctx.decor(g);
   };
   const boardCard = (id: string, x: number, y: number): void => {
-    ctx.card({ id, card: "5♠", rest: "idle" }, { x: x + cell.w / 2, y: y + cell.h / 2 }, depth++);
+    ctx.card({ id, card: "5♠", pose: "rest" }, { x: x + cell.w / 2, y: y + cell.h / 2 }, depth++);
   };
   const dragCard = (id: string, x: number, y: number): void => {
-    ctx.card({ id, card: "K♥", rest: "held" }, { x: x + cell.w / 2 + dragOffsetX, y: y + cell.h / 2 }, depth++);
+    ctx.card({ id, card: "K♥", pose: "held" }, { x: x + cell.w / 2 + dragOffsetX, y: y + cell.h / 2 }, depth++);
   };
 
   // REST: подпись стоит под картой борда — визуально скрыта, ровно как сегодня.
@@ -150,4 +156,11 @@ export function dropIndicatorSection(ctx: SectionContext, at: Pt): SectionSize {
   const width = GRID_COLS * colW + (GRID_COLS - 1) * SB_ITEM_GAP;
   const bottom = activeTop + rows * rowH + (rows - 1) * SB_ITEM_GAP;
   return { bottom: bottom + 20, width: Math.max(cell.w, width) };
+}
+
+export const INDICATOR_STYLE_IDS: string[] = INDICATOR_STYLES.map((s) => s.id);
+
+/** Стиль по ключу. Неизвестный — первый: подпись «переместить сюда» обязана нарисоваться всегда. */
+export function indicatorStyle(id: string): IndicatorStyle {
+  return INDICATOR_STYLES.find((s) => s.id === id) ?? INDICATOR_STYLES[0]!;
 }

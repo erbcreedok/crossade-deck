@@ -7,3 +7,29 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Handjet&display=swap" rel="stylesheet" />
+
+<!--
+  ФОН СТРАНИЦЫ — «прозрачность» шахматкой, как в редакторах картинок.
+
+  Раньше он был того же цвета, что сукно внутри канваса (#2f3d34), и это скрывало ровно то, что
+  нужно видеть: где канвас кончается. Витрина, обрезанная по краю, выглядела точно так же, как
+  витрина, которой просто много места, — и обрезку на телефоне заметить было нечем.
+
+  Шахматка живёт на <html>, а не на <body>: аддон «backgrounds» пишет фон инлайном в body, и
+  выбранный там «transparent» гасит только цветовой слой — картинка снизу остаётся видна.
+-->
+<style>
+  html {
+    background-color: #e9e9e9;
+    background-image:
+      linear-gradient(45deg, #c9c9c9 25%, transparent 25%, transparent 75%, #c9c9c9 75%),
+      linear-gradient(45deg, #c9c9c9 25%, transparent 25%, transparent 75%, #c9c9c9 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    html { background-color: #2b2b2b; background-image:
+      linear-gradient(45deg, #3a3a3a 25%, transparent 25%, transparent 75%, #3a3a3a 75%),
+      linear-gradient(45deg, #3a3a3a 25%, transparent 25%, transparent 75%, #3a3a3a 75%); }
+  }
+</style>

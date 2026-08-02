@@ -5,8 +5,8 @@ import type { ShadowShape } from "../ui/Card";
 
 describe("sceneLayers.levelOf", () => {
   it("план → уровень (удержание и драг — в слой драга)", () => {
-    expect(levelOf("idle")).toBe("idle");
-    expect(levelOf("floating")).toBe("floating");
+    expect(levelOf("rest")).toBe("rest");
+    expect(levelOf("lifted")).toBe("lifted");
     expect(levelOf("fan")).toBe("fan");
     expect(levelOf("drag")).toBe("drag");
     expect(levelOf("held")).toBe("drag");
@@ -18,20 +18,20 @@ describe("sceneLayers.bucketByLevel", () => {
 
   it("группирует силуэты по уровню", () => {
     const items: { level: Level; rect: ShadowShape }[] = [
-      { level: "idle", rect: rect(1) },
+      { level: "rest", rect: rect(1) },
       { level: "drag", rect: rect(2) },
-      { level: "idle", rect: rect(3) },
+      { level: "rest", rect: rect(3) },
     ];
     const b = bucketByLevel(items);
-    expect(b.idle.map((r) => r.x)).toEqual([1, 3]);
+    expect(b.rest.map((r) => r.x)).toEqual([1, 3]);
     expect(b.drag.map((r) => r.x)).toEqual([2]);
-    expect(b.floating).toEqual([]);
+    expect(b.lifted).toEqual([]);
     expect(b.fan).toEqual([]);
   });
 
   it("пустой вход → все уровни пусты", () => {
     const b = bucketByLevel([]);
-    expect(b.idle).toEqual([]);
+    expect(b.rest).toEqual([]);
     expect(b.drag).toEqual([]);
   });
 });
@@ -52,12 +52,12 @@ describe("sceneLayers — тень под картами (issue #55)", () => {
     }
   });
 
-  it("уровни карт идут снизу вверх: idle < floating < fan < drag", () => {
+  it("уровни карт идут снизу вверх: idle < lifted < fan < drag", () => {
     const content = new Container();
     const scene = new SceneLayers(content);
     const idx = (l: Level) => content.getChildIndex(scene.cards[l]);
-    expect(idx("idle")).toBeLessThan(idx("floating"));
-    expect(idx("floating")).toBeLessThan(idx("fan"));
+    expect(idx("rest")).toBeLessThan(idx("lifted"));
+    expect(idx("lifted")).toBeLessThan(idx("fan"));
     expect(idx("fan")).toBeLessThan(idx("drag"));
   });
 
@@ -65,7 +65,7 @@ describe("sceneLayers — тень под картами (issue #55)", () => {
     const content = new Container();
     const scene = new SceneLayers(content);
     const sprite = new Container();
-    scene.place(sprite, "floating");
-    expect(sprite.parent).toBe(scene.cards.floating); // тот же уровень, что и levelOf("floating")
+    scene.place(sprite, "lifted");
+    expect(sprite.parent).toBe(scene.cards.lifted); // тот же уровень, что и levelOf("lifted")
   });
 });

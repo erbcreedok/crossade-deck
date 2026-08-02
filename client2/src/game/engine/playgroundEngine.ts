@@ -1,8 +1,8 @@
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { Card, type CardOptions, type CardState, type RestState } from "../ui/Card";
+import { Card, type CardOptions, type CardState, type Pose } from "../ui/Card";
 import { Piece } from "../ui/Piece";
-import { pieceVisual, type PieceSpec } from "../ui/pieceKinds";
+import { buildPiece, type PieceSpec } from "../ui/pieceKinds";
 import { BoardZone, type AcceptRule, type OnOccupied } from "../board/boardZone";
 import type { Board } from "../board/board";
 import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
@@ -43,7 +43,7 @@ const MERGE_CUSTOM = hasTag("suit:♣"); // «сшиваются только т
 const KEEP_CUSTOM = hasTag("suit:♦"); // «выделение остаётся лишь у бубён»
 import { makeSelectOutline } from "./selectOutline";
 import { asDraggable } from "./capabilities";
-import { makeLabel, type SectionContext } from "../kit/context";
+import { makeLabel, type PiecePlan, type SectionContext } from "../kit/context";
 import { buttonsSection } from "../kit/buttons";
 import { dropzonesSection } from "../kit/dropzones";
 import { dropIndicatorSection } from "../kit/dropIndicator";
@@ -60,6 +60,7 @@ import { fitBlock, squeezeOffsets, fitSection, SB_BOX_PAD, SB_HEADER_GAP, SB_SEC
 import { wrapRow, wrapFlow } from "./sandboxWrap";
 import type { ViewState } from "./viewport";
 import { SceneEngine, clamp, type SceneElement } from "./sceneEngine";
+import type { AnimPreset } from "../anim/presets";
 import { drawAnchorIcon, drawPinIcon, drawRingIcon, gripConfig } from "../kit/markerIcons";
 import { piecesSection } from "../kit/pieces";
 import { stacksSection } from "../kit/stacks";
@@ -356,11 +357,15 @@ export class PlaygroundEngine extends SceneEngine {
       },
       decor: (node, layer = "surface") => void (layer === "verb" ? this.scene.verb : this.scene.surface).addChild(node),
       card: (opts, home, depth = 0, bobPhase = 0) => void this.cardSpecs.push({ opts, home: { ...home }, depth, bobPhase }),
-      piece: (id, home, spec, r, depth) => this.spawnPiece(id, home, spec, r, depth),
+      piece: (id, home, spec, r, depth, plan) => this.spawnPiece(id, home, spec, r, depth, plan),
       apiCard: (opts, home) => {
-        const c = new Card({ ...opts, rest: opts.rest ?? "idle" }, this.tex, this.baseScale);
-        c.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: c.restScale });
+        const c = new Card({ ...opts, pose: opts.pose ?? "rest" }, this.tex, this.baseScale);
+        c.body.snapTo({ x: home.x, y: home.y, rot: home.rot ?? 0, scale: c.restScale });
         this.addControlCard(c);
+      },
+      flipStack: (ids) => {
+        const els = ids.map((id) => this.byId.get(id)).filter((e): e is Elem => !!e);
+        if (els.length === ids.length) this.flipGroup(els);
       },
       dispatch: (cmd) => this.dispatch(cmd),
       solo: (id, slot, anchor, label) => this.attachSolo(id, slot, anchor.draw, anchor.show, label ?? id),
@@ -385,6 +390,17 @@ export class PlaygroundEngine extends SceneEngine {
       element: (id) => this.byId.get(id),
       controls: (cfg, at, onChange) =>
         attachControls(cfg, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: onChange ?? (() => this.wake()) }, at),
+      setAnimPreset: (ids, preset) => {
+        for (const id of ids) (this.byId.get(id) as unknown as { setAnimPreset?: (a: AnimPreset) => void } | undefined)?.setAnimPreset?.(preset);
+        this.wake();
+      },
+      appear: (ids) => {
+        for (const id of ids) (this.byId.get(id) as unknown as { appear?: () => void } | undefined)?.appear?.();
+        this.wake();
+      },
+      after: (delay, fn) => this.after(delay, fn),
+      moveDuration: (id) => this.moveDuration(id),
+      animDuration: (id, kind) => this.animDuration(id, kind),
       wake: () => this.wake(),
     };
   }
@@ -520,7 +536,7 @@ export class PlaygroundEngine extends SceneEngine {
     topbar: Record<string, { x: number; y: number; w: number; h: number }>; // канвасный топбар — DOM-узлов у него нет
     draggingId: string | null;
     lastNamedSuits: string[]; // последний лог бокса «называю масть» (#62) — дедуп мастей + «???»
-    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; rest: string; concealed: boolean; censored: boolean }[];
+    storyCards: { caption: string; x: number; y: number; card: string; faceUp: boolean; draggable: boolean; back: string; faceStyle: string; fourColor: boolean; torn: boolean; size: number; custom: string; pose: string; concealed: boolean; censored: boolean }[];
   } {
     // Перевод контент→экран берём у общего слоя: он один знает про инсет HUD (топбар), и своя
     // формула тут разъехалась бы с реальным положением карт ровно на высоту панели.
@@ -648,7 +664,7 @@ export class PlaygroundEngine extends SceneEngine {
       storyCards: CARD_VARIANTS.map((s, i) => {
         const c = this.cards[i]?.card;
         if (!c) return null;
-        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, rest: c.rest, concealed: c.concealed, censored: c.censored };
+        return { caption: s.caption, ...toScreen(c.body.px, c.body.py), card: c.card, faceUp: c.faceUp, draggable: c.draggable, back: c.back, faceStyle: c.faceStyle, fourColor: c.fourColor, torn: c.torn, size: c.size, custom: c.custom, pose: c.pose, concealed: c.concealed, censored: c.censored };
       }).filter((x): x is NonNullable<typeof x> => x !== null),
     };
   }
@@ -718,7 +734,9 @@ export class PlaygroundEngine extends SceneEngine {
       case "move": {
         const c = this.byId.get(cmd.id);
         if (c) {
-          c.body.setTarget({ x: cmd.x, y: cmd.y, rot: 0 });
+          // Через СТИЛЬ (anim/moveStyles.ts): «как элемент летит» — свойство фила, а не места
+          // вызова. spring отдаёт движение пружинам, то есть прежнее поведение стенда.
+          c.body.travelTo({ x: cmd.x, y: cmd.y }, ((c as unknown as { animPreset?: AnimPreset }).animPreset ?? this.preset).move.style, this.preset.speed);
           this.wake();
         }
         break;
@@ -873,9 +891,8 @@ export class PlaygroundEngine extends SceneEngine {
 
   // Живой не-карточный элемент: визуал берём из реестра по спеке (pieceKinds), дальше как карту
   // (snapTo → слой → реестр byId → список pieces). r — радиус; размер элемента r*2.
-  private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number): void {
-    const { build, shadow } = pieceVisual(spec, r);
-    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow });
+  private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number, plan: PiecePlan = {}): void {
+    const piece = buildPiece(id, spec, r, this.app?.renderer, plan);
     piece.flashOff = this.flashOff;
     piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });
@@ -974,7 +991,10 @@ export class PlaygroundEngine extends SceneEngine {
   private buildField(left: number, top: number): number {
     return this.sectionFrame(left, top, "Поле", (contentLeft, contentTop) => {
       this.scene.surface.addChild(this.label("глобальные конфиги поля (обсудим)", contentLeft, contentTop, 12, 0x9aa89f, undefined, 0));
-      const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", disabled: true });
+      // fit: "content" — подпись длиннее пресетной ширины, и по умолчанию её ужимало до 59% кегля:
+      // рядом с соседями того же уровня это читается как поломка, а не как кнопка. Пусть коробка
+      // растёт под текст, а не текст сжимается под коробку.
+      const cfg = new Button({ label: "конфиг поля (скоро)", variant: "secondary", size: "sm", fit: "content", disabled: true });
       cfg.place(contentLeft + cfg.w / 2, contentTop + 26);
       this.registerButton(cfg);
 
@@ -992,7 +1012,7 @@ export class PlaygroundEngine extends SceneEngine {
       // 52 карты закрытой стопки (рубашкой вверх). Дома берём у Field; верх — макс. z (тянется он).
       stackIds.forEach((id, i) => {
         this.faceOf.set(id, DECK52[i]!);
-        this.cardSpecs.push({ opts: { id, card: DECK52[i]!, faceUp: false, rest: "idle", size: 0.85 }, home: field.homeOf(id), depth: 700 + i, bobPhase: 0 });
+        this.cardSpecs.push({ opts: { id, card: DECK52[i]!, faceUp: false, pose: "rest", size: 0.85 }, home: field.homeOf(id), depth: 700 + i, bobPhase: 0 });
       });
       field.draw();
 
@@ -1168,7 +1188,7 @@ export class PlaygroundEngine extends SceneEngine {
   // (визуал из реестра pieceKinds). Единая точка, снявшая 3-веточный диспетч смешанного борда.
   private spawnElement(id: string, home: { x: number; y: number }, def: ElementDef, depth: number, r = 0): void {
     if (def.kind === "card") {
-      this.cardSpecs.push({ opts: { id, card: def.face, custom: def.custom, rest: "idle", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
+      this.cardSpecs.push({ opts: { id, card: def.face, custom: def.custom, pose: "rest", size: def.size ?? 0.86 }, home, depth, bobPhase: 0 });
       this.faceOf.set(id, def.face); // для сорта набора по номиналу (rankOf) — любой карточный борд, не только select-демо
     } else this.spawnPiece(id, home, def, r, depth); // def здесь — PieceSpec (chip/chess); r — только для фигур
   }
@@ -1510,12 +1530,12 @@ export class PlaygroundEngine extends SceneEngine {
     return assemble(items, this.selAssembly, this.cardW);
   }
 
-  // Подсветка: выделенные — приподняты (floating), остальные — на столе. setState меняет УРОВЕНЬ
+  // Подсветка: выделенные — приподняты (lifted), остальные — на столе. setState меняет УРОВЕНЬ
   // тени (levelOf → слой shadows.<level>), поэтому спрайт обязан переехать в ПАРНЫЙ слой того же
-  // уровня (placeCard) — иначе тень floating уедет выше спрайта, застрявшего в idle (issue #55).
+  // уровня (placeCard) — иначе тень lifted уедет выше спрайта, застрявшего в idle (issue #55).
   private refreshSel(): void {
     if (!this.selZone) return;
-    const lift = shouldLift(this.selVisual.mark); // поднимать ли выбранное во floating
+    const lift = shouldLift(this.selVisual.mark); // поднимать ли выбранное во lifted
     const outline = shouldOutline(this.selVisual.mark); // рисовать ли контур у выбранного
     const hintOn = this.selVisual.hintEligible && this.sel.ids.length > 0; // подсветка выбираемых — только когда в наборе ≥1
     for (const key of Object.keys(this.selZone.board.slots)) {
@@ -1524,7 +1544,7 @@ export class PlaygroundEngine extends SceneEngine {
         if (!el) continue;
         const selected = hasSel(this.sel, id);
         // Подъём — только если метка его разрешает (mark=outline держит карту на столе).
-        el.setState(selected && lift ? "floating" : "idle");
+        el.setState(selected && lift ? "lifted" : "rest");
         this.placeCard(el); // держим спрайт и его тень в одном уровне
         // Контур: у выбранного при mark∈{outline,both}; иначе — подсказка выбираемым-невыбранным; иначе снять.
         const kind = selected && outline ? "select" : hintOn && !selected && this.canSelectId(id) ? "hint" : "none";
@@ -1939,8 +1959,14 @@ export class PlaygroundEngine extends SceneEngine {
     }
   }
 
+  /** Палец поехал по тому, что тащить нельзя, — отказ качанием. */
   protected onElementBlocked(el: Elem): void {
-    if (this.selMode && this.selZone?.locate(el.id)) this.toggleSelectFigure(el.id); // тап-выбор
+    el.blockNudge();
+  }
+
+  /** Тап по невыделенной фигуре демо-зоны — это ВЫБОР, а не отказ (issue #48/#66). */
+  protected onElementTapped(el: Elem): void {
+    if (this.selMode && this.selZone?.locate(el.id)) this.toggleSelectFigure(el.id);
     else el.blockNudge();
   }
 
@@ -1956,22 +1982,27 @@ export class PlaygroundEngine extends SceneEngine {
   // делает СИНХРОННЫЙ флип (requestFlip разом) — пачка переворачивается как одна плоскость вокруг
   // центральной карты (её слот=центр не меняется). Лицо↔рубашка меняет сам flip. В новые слоты
   // карты уезжают через release (вызывается после в onCardDrop). Порядок ids тоже реверсим.
-  protected flipGroup(els: readonly TableElement[]): void {
-    const n = els.length;
-    const placeds = els.map((el) => this.cards.find((c) => c.card === el)).filter((p): p is Placed => !!p);
-    if (placeds.length !== n) return;
-    const homes = placeds.map((p) => ({ ...p.home }));
-    const depths = placeds.map((p) => p.depth);
-    placeds.forEach((p, i) => {
-      const j = n - 1 - i;
-      p.home = homes[j]!;
-      p.depth = depths[j]!;
-      p.card.root.zIndex = depths[j]!;
-      p.card.requestFlip();
-    });
-    const st = this.stacks.find((s) => els.every((el) => s.stack.owns(el.id)));
-    st?.stack.reverse();
-    this.wake();
+  /**
+   * Переставить дом элемента. Своей реализации переворота пачки у песочницы больше нет — она
+   * общая (SceneEngine.flipGroup), и это тот же долг, что был у секций: одна сцена умела, вторая
+   * нет. Здесь остаётся ровно то, чего общий движок знать не может, — свой реестр и своя `Stack`.
+   */
+  protected override setHome(el: Elem, home: { x: number; y: number }, depth: number): void {
+    const p = this.cards.find((c) => c.card === el);
+    if (!p) return;
+    p.home = { ...home };
+    p.depth = depth;
+    el.root.zIndex = depth;
+  }
+
+  protected override flipGroup(els: readonly SceneElement[]): void {
+    super.flipGroup(els);
+    // Модель стопки о перевороте знать обязана: порядок карт — её данные, а не картинка.
+    // Реверс домов уже сделан общим движком; здесь разворачивается сама модель.
+    if (this.preset.stackFlip.reverse) {
+      const st = this.stacks.find((s) => els.every((el) => s.stack.owns(el.id)));
+      st?.stack.reverse();
+    }
   }
 
   // Дом элемента (позиция покоя + глубина) — среди карт или фишек/фигур. Возврат домой пружиной
@@ -2015,7 +2046,7 @@ export class PlaygroundEngine extends SceneEngine {
     const top = mergers.length - 1; // индекс primary (ведущая — верх стопки)
     mergers.forEach((el, k) => {
       const fromTop = top - k; // primary → 0 (на своём доме), нижние — под-влево
-      el.setState(el.rest);
+      el.setState(el.pose);
       el.root.zIndex = h.depth + 1 + k; // стопка над слотом, primary сверху
       this.placeCard(el);
       el.body.setTarget({ x: h.home.x - fromTop * stepX, y: h.home.y + fromTop * stepY, rot: 0 });

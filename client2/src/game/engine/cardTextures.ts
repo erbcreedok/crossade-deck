@@ -3,7 +3,7 @@ import { isCourt, parseCard, suitColor, type Suit } from "../card";
 import { FINGER_PATH, FINGER_VIEWBOX, SUIT_PATH, SVG_VIEWBOX, symbolCanvasSvg } from "../symbols";
 import { cardBackSkin, latticeCenters, mosaicTiles, type CardBackId } from "../cardBack";
 import { pipLayout } from "../pipLayout";
-import { COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W } from "./constants";
+import { COLORS, PIXEL_FONT, SHADOW_COLOR, TEX_H, TEX_W , CARD_CORNER} from "./constants";
 
 // Вид лица числовых карт (меню → Графика):
 //  - "symbol": один крупный значок масти по центру (как было);
@@ -65,7 +65,7 @@ export function makeCardFaceTexture(
   const root = new Container();
 
   const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, CARD_CORNER).fill({ color: COLORS.cardFace });
   root.addChild(bg);
 
   // Угол: ранг крупно, масть под ним заметно мельче — иначе угловая масть читается как ещё
@@ -154,7 +154,7 @@ function buildFingerContent(color: number): Container {
 /** Кремовое лицо карты с краем — общая подложка всех рисованных лиц. */
 function faceBackdrop(): Graphics {
   const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, CARD_CORNER).fill({ color: COLORS.cardFace });
   return bg;
 }
 
@@ -210,7 +210,7 @@ export function makeFingerFaceTexture(app: Application): Texture {
 export function makeHiddenBgTexture(app: Application): Texture {
   const root = new Container();
   const bg = new Graphics();
-  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: COLORS.cardFace });
+  bg.roundRect(2, 2, TEX_W - 4, TEX_H - 4, CARD_CORNER).fill({ color: COLORS.cardFace });
   root.addChild(bg);
   const shade = new Graphics();
   drawCardShade(shade);

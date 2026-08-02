@@ -11,13 +11,13 @@ describe("pieceVisual", () => {
     expect(pieceVisual({ kind: "chip", color: 0, denom: "" }, 20).shadow.rx).toBeCloseTo(19.6);
   });
 
-  it("шахматная фигура: узкий овал у основания (низкая ry, сдвиг вниз)", () => {
+  // Контур по ТИПУ не рисуем: один «контур фигуры вообще» дал бы коню тень пешки. У стоящей
+  // фигуры — пятно у основания: оно ничего не изображает и потому не врёт.
+  it("шахматная фигура: пятно у основания, видимое из-под глифа", () => {
     const s = pieceVisual({ kind: "chess", dark: true, glyph: "♞" }, 10).shadow;
-    expect(s.ry).toBeLessThan(s.rx); // узкий
-    expect(s.dy).toBeGreaterThan(s.ry); // у ножки, смещён вниз
-    expect(s.rx).toBeCloseTo(5.6);
-    expect(s.ry).toBeCloseTo(1.8);
-    expect(s.dy).toBeCloseTo(7);
+    expect(s.ry).toBeLessThan(s.rx); // приплюснуто: лежит на столе
+    expect(s.dy).toBeGreaterThan(s.ry); // у ножки, а не под центром
+    expect(s.rx).toBeGreaterThan(5); // шире прежнего: втрое уже — и его не видно под фигурой
   });
 
   it("возвращает функцию отрисовки для каждого типа", () => {

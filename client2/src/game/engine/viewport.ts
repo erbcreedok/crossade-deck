@@ -39,6 +39,11 @@ export class Viewport {
     // изменении ширины окна (напр. открыли консоль сайдбаром) — единой опоры у элементов не было.
     private readonly alignX: "center" | "left" = "center",
     private readonly leftInset = 0,
+    // Как класть контент по Y, когда он НИЖЕ экрана. "top" — прижать к `topInset`: у ленты секций
+    // (песочница) содержимое обычно выше экрана, и прыгать по вертикали ей нельзя. "center" — у
+    // витрины каталога: там раздел один, канвас занимает весь кадр, и прижатый к верху раздел
+    // оставлял бы под собой пустое поле в пол-экрана.
+    private readonly alignY: "center" | "top" = "top",
   ) {}
 
   setScreen(w: number, h: number): void {
@@ -56,12 +61,25 @@ export class Viewport {
     return { x: (sx - this.x) / this.zoom, y: (sy - this.y) / this.zoom };
   }
 
+  /**
+   * Есть ли КУДА двигать вид по этой оси: контент в текущем зуме шире/выше экрана.
+   *
+   * Нужно колесу. Пока сцена глотала колесо всегда, страница под канвасом не скроллилась — а
+   * двигать было нечего, и со стороны это выглядело как зависший сайт.
+   */
+  get overflowX(): boolean {
+    return this.cw * this.zoom > this.W + 0.5;
+  }
+  get overflowY(): boolean {
+    return this.ch * this.zoom > this.H + 0.5;
+  }
+
   /** Удержать вид в границах: контент уже экрана — центрируем/прижимаем к верху, иначе кламп. */
   clamp(): void {
     const cw = this.cw * this.zoom;
     const ch = this.ch * this.zoom;
     this.x = cw <= this.W ? (this.alignX === "left" ? this.leftInset : (this.W - cw) / 2) : clamp(this.x, this.W - cw, 0);
-    this.y = ch <= this.H ? this.topInset : clamp(this.y, this.H - ch, 0);
+    this.y = ch <= this.H ? (this.alignY === "center" ? (this.H - ch) / 2 : this.topInset) : clamp(this.y, this.H - ch, 0);
   }
 
   /** Зум вокруг экранной точки — она остаётся на месте (фокус не «уползает»). */
@@ -150,4 +168,18 @@ export class Viewport {
       scrollableY: oy > 1,
     };
   }
+}
+
+/**
+ * Кому достаётся колесо: сцене или странице.
+ *
+ * Правило одно — НЕ ОТБИРАТЬ колесо, если это мешает читать страницу. Зум с модификатором осмыслен
+ * всегда. Панорамирование — только там, где сцена и есть страница: в режиме стори кадр принадлежит
+ * витрине целиком. На docs-странице витрин несколько, между ними текст, и канвас, съедающий
+ * колесо, читается как зависший сайт, а не как «сцена не хочет скроллиться».
+ */
+export function wheelGoesToScene(o: { zoom: boolean; canPan: boolean; inDocument: boolean }): boolean {
+  if (o.zoom) return true;
+  if (o.inDocument) return false;
+  return o.canPan;
 }

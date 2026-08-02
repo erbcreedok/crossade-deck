@@ -9,8 +9,27 @@ export interface Card {
   suit: Suit;
 }
 
+/**
+ * Буквенные псевдонимы мастей — ВВОД, а не хранение. `♠♥♦♣` остаются единственной мастью движка:
+ * они уходят в состояние, в текстуры, в сравнения и в сеть. Буквы существуют потому, что набрать
+ * `10♠` с клавиатуры нельзя — ни в контроле каталога, ни в консоли, ни в e2e; каждый раз это был
+ * поход за символом.
+ *
+ * Только ЗАГЛАВНЫЕ и только в конце строки. Строчные брать нельзя: `c` — это ещё и «clubs», и
+ * начало `court`, а главное — ранга `c` не бывает, зато молчаливое приведение регистра однажды
+ * превратит опечатку в валидную карту вместо честной ошибки.
+ */
+const SUIT_ALIASES: Readonly<Record<string, Suit>> = { S: "♠", H: "♥", D: "♦", C: "♣" };
+
+/** Привести буквенную масть к символьной. Строка уже с символом возвращается как есть. */
+export function normalizeCard(s: string): string {
+  const alias = SUIT_ALIASES[s.slice(-1)];
+  return alias ? s.slice(0, -1) + alias : s;
+}
+
 export function parseCard(s: string): Card {
-  return { rank: s.slice(0, -1), suit: s.slice(-1) as Suit };
+  const n = normalizeCard(s);
+  return { rank: n.slice(0, -1), suit: n.slice(-1) as Suit };
 }
 
 export function isCourt(rank: string): boolean {

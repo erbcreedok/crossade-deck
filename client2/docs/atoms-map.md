@@ -355,7 +355,7 @@ graph TD
 | `engine/tableEngine.ts` | автономный стол: пул по идентичности + драг между deck/hand/play/discard | `CardBody`,`ElementPool`,`assembleTable`,`cardTextures` / **не знает сеть** («следующим слоем») | `ElementPool<CardVisual>`, `InputRouter<string,never>` | состояние — 4 массива → плоские слоты |
 | `engine/tableAssemble.ts` | чистая сборка плоского `Slot[]` из 4 массивов (карта не теряет id) | тип `Slot` / без Pixi/сети | `assembleTable(deck,hand,discard,play)` | `play` → боксы `play:N` |
 | `engine/tableSide.ts` | чистые правила: какой стороной лежит карта + переворот при переезде | ничего / display-правило клиента | `boxFaceUp`, `flipForMove` | hand/play → лицом |
-| `engine/sceneLayers.ts` | слои по «плану» (высота над столом) + слитые тени под уровнем | Pixi + `ShadowLayer` / не знает сеть | `Level = idle/floating/fan/drag`; `SceneLayers(content)` | добавить план = расширить `Level` |
+| `engine/sceneLayers.ts` | слои по «плану» (высота над столом) + слитые тени под уровнем | Pixi + `ShadowLayer` / не знает сеть | `Level = rest/lifted/fan/drag`; `SceneLayers(content)` | добавить план = расширить `Level` |
 | `engine/sandboxLayout.ts` | чистая вёрстка блоков «Управление» (fit) + сдвиги пачки | ничего / без Pixi | `fitBlock`, `squeezeOffsets` | — |
 | `engine/constants.ts` | общие числа/строки движка (текстура, тени, шрифт, палитра, z) | ничего / лист-модуль | `TEX_W/H`, `DRAG_SCALE`, `PIXEL_FONT`, `COLORS`, `Z` | одни числа для всех отрисовочных модулей |
 | `engine/types.ts` | общие типы (`CardVisual`, `BoardPile`, `FanGeom`…) | Pixi/`CardBody` / — | `BoardPile = deck/discard/play:N` | — |

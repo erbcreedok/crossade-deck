@@ -33,7 +33,7 @@ export function paintFieldDecor(d: FieldPaintDeps): void {
   }
   const gr = d.gridRect;
   const col = decor.colors;
-  if (d.dragState !== "idle") {
+  if (d.dragState !== "rest") {
     if (decor.outerBorder) dashRect(d.frame, d.outerRect, 11, 7, col.line, 2, 1, 12); // рамка Поля на драге
     if (decor.dropzoneBorder) {
       if (d.dragState === "hover") d.frame.roundRect(gr.x, gr.y, gr.w, gr.h, 8).fill({ color: col.fill, alpha: 0.16 }).stroke({ width: 2.5, color: col.hover }); // над зоной — solid + фон
@@ -42,7 +42,7 @@ export function paintFieldDecor(d: FieldPaintDeps): void {
   }
 
   // Узел-якорь — только в покое, на пустом гриде и если задан текст.
-  const idleEmpty = d.dragState === "idle" && d.gridEmpty && decor.anchorText !== null;
+  const idleEmpty = d.dragState === "rest" && d.gridEmpty && decor.anchorText !== null;
   d.anchor.visible = idleEmpty;
   if (idleEmpty) {
     d.anchor.text = decor.anchorText!;
@@ -56,7 +56,7 @@ export function paintFieldDecor(d: FieldPaintDeps): void {
   }
 
   // Глагол дропзоны: «наведи» (драг) — ПОД картами; «брось» (ховер) — НАД картами.
-  const showVerb = d.dragState !== "idle";
+  const showVerb = d.dragState !== "rest";
   d.verb.visible = showVerb;
   if (showVerb) {
     const over = d.dragState === "hover";

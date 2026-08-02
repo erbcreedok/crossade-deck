@@ -2,19 +2,41 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card, type CardOptions } from "../../game/ui/Card";
 import { CanvasStage } from "../harness/CanvasStage";
 import { pickArgs, type CardArgs } from "./cardArgs";
+import { CARD_VARIANTS, cardVariantsSection } from "../../game/kit/cardVariants";
 
-// ПРОВЕРОЧНАЯ стори №1 из трёх (категория «UI-примитивы»). Её задача — доказать, что каркас
-// работает на настоящем компоненте: живые контролы, пересборка там, где живьём нельзя, один
-// канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
-// (какие элементы переезжают из песочницы, решает он).
 
-const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "rest", "draggable", "flippable"] as const;
+const KEYS = ["card", "faceUp", "hidden", "censored", "back", "faceStyle", "fourColor", "custom", "torn", "size", "pose", "idle", "z", "selected", "draggable", "flippable"] as const;
 const { argTypes, apply } = pickArgs(KEYS);
 
 type Args = Pick<CardArgs, (typeof KEYS)[number]>;
 
+/**
+ * ПРОВЕРОЧНАЯ стори №1 из трёх (категория «UI-примитивы»). Её задача — доказать, что каркас
+ * работает на настоящем компоненте: живые контролы, пересборка там, где живьём нельзя, один
+ * канвас на все стори. Полноценное наполнение каталога — отдельными шагами, по указанию владельца
+ * (какие элементы переезжают из песочницы, решает он).
+ */
 const meta: Meta<Args> = {
   title: "UI-kit/Card",
+  parameters: {
+    // «Show code» печатает код КАРТЫ с аргументами этой стори, а не исходник стори.
+    code: (a: Record<string, unknown>) => `// В секции (game/kit/*.ts) карту ставит контекст: он решает, родить её сейчас (витрина)
+// или отложенно из спека (песочница копит спеки и спавнит карты после мебели).
+ctx.card(${JSON.stringify(a, null, 2)}, { x: cx, y: cy });
+
+// Напрямую, если сцены-секции нет:
+import { Card } from "../../game/ui/Card";
+const c = new Card(${JSON.stringify(a, null, 2)}, tex, baseScale);
+scene.surface.addChild(c.root);
+c.body.snapTo({ x: cx, y: cy, rot: 0, scale: c.restScale });
+
+// Живьём, без пересборки:
+c.setValue("K♥");        // масть можно буквой: "KH"
+c.setConcealed(true);    // режим секретности
+c.setCensored(true);     // пыль поверх настоящего лица
+c.setSelected(true);     // контур набора
+c.requestFlip();         // настоящий поворот, не подмена текстуры`,
+  },
   argTypes,
   args: {
     card: "A♠",
@@ -27,7 +49,8 @@ const meta: Meta<Args> = {
     custom: "",
     torn: false,
     size: 1,
-    rest: "idle",
+    pose: "rest",
+    idle: false,
     draggable: true,
     flippable: true,
   },
@@ -48,36 +71,62 @@ export default meta;
 
 type Story = StoryObj<Args>;
 
-/** Всё по умолчанию — точка отсчёта: как карта выглядит, если ничего не трогать. */
-export const Default: Story = {};
+/**
+ * Карта. Все опции — рычагами; страниц под «скрытую», «зацензуренную», «рубашкой
+ * вверх» тут нет: каждую из них включает один аргумент.
+ *
+ * Что стоит покрутить, потому что по картинке неочевидно:
+ *   • `hidden` против `censored` — режим секретности (лицо ЗАМЕНЕНО) против фильтра (лицо на месте,
+ *     пыль поверх). Под пылью выглядят одинаково, в состоянии карты разница принципиальная;
+ *   • `card: ""` — значение ПРИДЕРЖАНО: сервер его ещё не раскрыл. Это не то же, что скрытая карта;
+ *   • `flippable: false` — рисуется замок, и переворот не проходит даже программно.
+ */
+export const Card_: Story = { name: "Card" };
 
 /**
- * СКРЫТАЯ — режим секретности: значение объявлено секретным, и лицо ЗАМЕНЯЕТСЯ чистым фоном.
- * Под пылью показывать нечего — в этом и смысл. Не путать со следующей.
+ * ГАЛЕРЕЯ — все виды карты разом, чтобы глазами найти нужный и не крутить рычаги вслепую.
+ *
+ * Отдельной страницей, а не блоком под живым примером: страница карты — место, где ОДНУ карту
+ * отлаживают рычагами, и соседи там мешают. Здесь наоборот — сравнивают, и рычагов нет вовсе.
+ *
+ * Канвас всё равно ОДИН: у каталога общий пул витрин, и пятнадцать канвасов под пятнадцать карт
+ * означали бы пятнадцать WebGL-контекстов на одной странице (потолок браузера ~16).
  */
-export const Concealed: Story = { args: { hidden: true } };
+export const Gallery: Story = {
+  // Имя страницы английское, как у всех разделов каталога: русский живёт в описаниях, а не в
+  // идентификаторах (их видно в URL стори и в поиске по репозиторию).
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { CARD_VARIANTS, cardVariantsSection } from "../../game/kit/cardVariants";
 
-/**
- * ЗАЦЕНЗУРЕНА — фильтр: настоящее лицо рисуется как есть, пыль ложится ПОВЕРХ него. Значение у
- * клиента есть, смотреть на него сейчас нельзя. Разница со «скрытой» видна, если снять фильтр:
- * под ним окажется та самая карта, а не пустой фон.
- */
-export const Censored: Story = { args: { censored: true, card: "Q♥" } };
+// 1. СПИСОК ВИДОВ — данные, а не разметка: одна запись = одна заметная опция карты.
+//    Здесь он же кормит и песочницу, поэтому каталог не может разойтись с ней.
+const CARD_VARIANTS = [
+  { caption: "открытая", opts: { faceUp: true } },
+  { caption: "скрытая (нет лица)", opts: { hidden: true, faceUp: true } },
+  { caption: "цензура (фильтр)", opts: { card: "Q♥", censored: true } },
+  { caption: "удерживаемая", opts: { card: "8♦", pose: "held" } },
+  // …всего ${CARD_VARIANTS.length}
+];
 
-/** Оба режима разом: лицо заменено маской И поверх неё фильтр. Так выглядела «скрытая» до разделения. */
-export const ConcealedAndCensored: Story = { args: { hidden: true, censored: true } };
+// 2. РАСКЛАДКА — общая секция: сетка с переносом строк и подписью под каждой картой.
+//    Ячейка меряется по САМОМУ КРУПНОМУ виду (удерживаемая карта нарисована ×1.45).
+const r = cardVariantsSection(ctx, { x: ctx.padding, y: ctx.padding });
+ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
 
-/** Рубашкой вверх — не то же самое, что скрытая: значение не придержано, карта просто перевёрнута. */
-export const FaceDown: Story = { args: { faceUp: false } };
-
-/** Нельзя тащить (Draggable=false): попытка драга отбивается «стоп»-качанием. Проверяется мышью. */
-export const NotDraggable: Story = { args: { draggable: false } };
-
-/** Не переворачивается (Flippable=false): на карте рисуется замок. */
-export const NotFlippable: Story = { args: { flippable: false, faceUp: false } };
-
-/** Левитирует («в руке»): сама покачивается, тень уходит дальше. */
-export const Floating: Story = { args: { rest: "floating" } };
-
-/** Значение ПРИДЕРЖАНО (пустая строка): сервер его ещё не раскрыл — карта маскируется. */
-export const ValueWithheld: Story = { args: { card: "" } };
+// 3. Своя выборка — тот же приём, без всякой регистрации:
+for (const [i, v] of MY_VARIANTS.entries()) {
+  ctx.card({ ...v.opts, id: \`my-\${i}\` }, { x: cx(i), y: cy(i) });
+  ctx.label(v.caption, cx(i), cy(i) + ctx.cardH / 2 + 8, 14, 0x9aa89f);
+}`,
+  },
+  render: () => (
+    <CanvasStage<Card, Record<string, never>>
+      args={{}}
+      build={(ctx) => {
+        const r = cardVariantsSection(ctx, { x: ctx.padding, y: ctx.padding }, "gal", true);
+        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
+      }}
+    />
+  ),
+};

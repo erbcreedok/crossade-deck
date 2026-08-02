@@ -1,22 +1,30 @@
 import { Application, Container, Rectangle } from "pixi.js";
 import { CanvasApp } from "./canvasApp";
 import { SceneLayers, levelOf } from "./sceneLayers";
-import { Viewport, type ViewState } from "./viewport";
+import { Viewport, wheelGoesToScene, type ViewState } from "./viewport";
 import { InputRouter, type InputHandlers } from "./inputRouter";
 import { Marker, withAnchor, withDragger, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./marker";
 import { SingleDrag, type DragContext, type DragPayload } from "./drag";
 import { topmostAt, type HitBox } from "./cardHit";
 import { Button } from "../ui/Button";
-import { Card, type RestState } from "../ui/Card";
+import { Card, type Pose } from "../ui/Card";
 import { Piece } from "../ui/Piece";
 import type { DropZone } from "../ui/DropZone";
 import type { Draggable, Peekable, TableElement } from "./element";
+import { flipSchedule } from "../anim/flipSchedule";
+import { moveStyle } from "../anim/moveStyles";
+import { destroyStyle } from "../anim/destroyStyles";
+import { appearStyle } from "../anim/appearStyles";
+import { BASE_PRESET, type AnimPreset } from "../anim/presets";
+
+/** Какая из анимаций элемента: у каждой своё расписание в пресете. */
+export type AnimKind = "move" | "flip" | "destroy" | "appear";
 
 // ОБЩАЯ ОБВЯЗКА СЦЕНЫ — слой между тонким Host'ом (CanvasApp: Pixi, тикер, ресайз) и конкретной
 // сценой (песочница, Косынка, будущие игры). Здесь живёт всё, что у любой сцены со столом ОДИНАКОВО
 // и потому не должно писаться заново:
 //
-//   • полотно контента + слои сцены (SceneLayers) и раскладка элементов по планам;
+//   • полотно контента + слои сцены (SceneLayers) и раскладка элементов по состояниям;
 //   • камера: пан/зум/пинч/колесо/инерция/клампы/скроллбары/авто-скролл у кромки;
 //   • ввод: InputRouter + хит-тест элементов и кнопок + ховер;
 //   • драг: DragContext (подъём в слой драга, возврат домой), SingleDrag по умолчанию;
@@ -37,7 +45,7 @@ export type { ViewState };
 /** Элемент сцены: база TableElement + драгабельность + геометрия покоя (для хит-теста и возврата). */
 export type SceneElement = TableElement &
   Draggable & {
-    readonly rest: RestState;
+    readonly pose: Pose;
     readonly restScale: number;
     readonly footprint: { hw: number; hh: number };
   };
@@ -50,7 +58,7 @@ interface Pt {
 /** Зарегистрированная дроп-зона: сама зона + что она делает и что принимает. */
 interface ZoneReg {
   zone: DropZone;
-  onDrop: (p: DragPayload) => void;
+  onDrop: (p: DragPayload, at: Pt) => void;
   accepts: (p: DragPayload) => boolean;
   textFor?: (p: DragPayload) => { armed: string; hot: string };
 }
@@ -69,6 +77,8 @@ export interface CameraConfig {
   maxZoom?: number;
   margin?: number;
   align?: "left" | "center";
+  /** Как класть контент по вертикали, когда он ниже экрана. По умолчанию — к верху. */
+  alignY?: "center" | "top";
 }
 
 export const MIN_ZOOM = 0.6;
@@ -118,7 +128,7 @@ export abstract class SceneEngine extends CanvasApp {
       this.placeCard(el);
     },
     returnHome: (el) => this.releaseElement(el as SceneElement),
-    flipGroup: (els) => this.flipGroup(els),
+    flipGroup: (els) => this.flipGroup(els as readonly SceneElement[]),
     startPeek: (els) => this.startPeek(els),
   };
 
@@ -176,7 +186,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   constructor(cam: CameraConfig = {}) {
     super();
-    this.viewport = new Viewport(cam.minZoom ?? MIN_ZOOM, cam.maxZoom ?? MAX_ZOOM, cam.margin ?? 24, cam.align ?? "left");
+    this.viewport = new Viewport(cam.minZoom ?? MIN_ZOOM, cam.maxZoom ?? MAX_ZOOM, cam.margin ?? 24, cam.align ?? "left", 0, cam.alignY ?? "top");
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -224,7 +234,7 @@ export abstract class SceneEngine extends CanvasApp {
     this.emitView();
   }
 
-  /** Положить визуал элемента в слой его текущего плана. */
+  /** Положить визуал элемента в слой его текущего состояния. */
   protected placeCard(el: TableElement): void {
     this.scene.place(el.root, levelOf(el.state));
   }
@@ -295,6 +305,17 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   private onWheel = (e: WheelEvent): void => {
+    // ГЛАВНОЕ ПРАВИЛО: не отбирать колесо, если двигать нечего.
+    //
+    // Раньше preventDefault стоял безусловно, и страница под канвасом переставала скроллиться —
+    // при том что панорамировать было некуда, контент влезал целиком. Со стороны это читается не
+    // как «канвас не хочет скроллиться», а как зависший сайт: колесо крутится, не происходит
+    // ничего. В каталоге это norma: витрина по умолчанию вписана целиком, переполнения нет.
+    //
+    // Зум с модификатором забираем всегда — он осмыслен и при вписанном контенте.
+    this.syncVp();
+    const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
+    if (!wheelGoesToScene({ zoom: this.wheelIsZoom(e), canPan, inDocument: this.inDocument })) return; // колесо уходит странице
     e.preventDefault();
     // deltaY в пиксели: в строчном/страничном режиме домножаем.
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
@@ -310,6 +331,18 @@ export abstract class SceneEngine extends CanvasApp {
       this.emitView();
     }
   };
+
+  /**
+   * Сцена стоит ВНУТРИ документа (docs-страница каталога), а не владеет кадром.
+   *
+   * Ставит хост: сама сцена о том, что вокруг неё, знать не может, а поведение колеса зависит
+   * именно от этого — см. `wheelGoesToScene`.
+   */
+  private inDocument = false;
+
+  setInDocument(v: boolean): void {
+    this.inDocument = v;
+  }
 
   /** Подписка хоста на состояние вида (скроллбары/индикатор зума). */
   setOnView(cb: ((v: ViewState) => void) | null): void {
@@ -390,7 +423,7 @@ export abstract class SceneEngine extends CanvasApp {
   /** Завести зону: она сама рисуется в слои сцены, движок лишь помнит её реакцию и приём. */
   protected registerZone(
     zone: DropZone,
-    onDrop: (p: DragPayload) => void,
+    onDrop: (p: DragPayload, at: Pt) => void,
     accepts: (p: DragPayload) => boolean,
     textFor?: (p: DragPayload) => { armed: string; hot: string },
   ): void {
@@ -564,7 +597,10 @@ export abstract class SceneEngine extends CanvasApp {
     const drag = this.drag;
     if (!drag) return;
     const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
-    zone?.onDrop(drag);
+    // Точку дропа даём ПАЛЬЦА, а не тела: тело едет пружиной и в момент отпускания отстаёт от
+    // пальца на пол-клетки. Зона под пальцем уже выбрана им же — разрешать внутри неё по другой
+    // координате значит спорить с самим собой (дроп в занятый слот доски промахивался в зазор).
+    zone?.onDrop(drag, cp);
     if (!drag.consumed) drag.release();
   }
 
@@ -577,13 +613,122 @@ export abstract class SceneEngine extends CanvasApp {
     this.grabbedMarker = null;
   }
 
-  /** Тапнули по недрагабельному элементу. По умолчанию — «стоп»-кивок. */
+  /** Попытались утащить недрагабельный элемент (палец поехал). По умолчанию — «стоп»-кивок. */
   protected onElementBlocked(el: SceneElement): void {
     el.blockNudge();
   }
 
-  /** Перевернуть пачку целиком (реверс слотов + синхронный флип). По умолчанию — не умеем. */
-  protected flipGroup(_els: readonly TableElement[]): void {}
+  /** ТАП по недрагабельному элементу (без сдвига). По умолчанию — ничего: тык не отказ. */
+  protected onElementTapped(_el: SceneElement): void {}
+
+  /**
+   * Перевернуть ПАЧКУ.
+   *
+   * Реализация общая — она нужна каждой сцене, где есть стопка, а не только песочнице. Раньше жила
+   * методом PlaygroundEngine, и витрина каталога переворот пачки не умела вовсе.
+   *
+   * Что делать — решает РАСПИСАНИЕ (anim/flipSchedule.ts, чистая функция под юнит-тестом): кто
+   * когда переворачивается и чей дом занимает. Здесь только исполнение. Поэтому «разом» и «волной»
+   * это не две ветки в движке, а два пресета — и третий добавляется без правки этого метода.
+   */
+  protected flipGroup(els: readonly SceneElement[]): void {
+    const homes = els.map((el) => this.homeOf(el));
+    if (homes.some((h) => !h)) return; // чужая пачка — молча не трогаем, лучше ничего, чем половина
+    // Фил берётся у САМОЙ пачки, если он у неё свой, и только иначе — у сцены. Иначе «разные
+    // стопки анимируются по-разному» было бы невозможно: на столе колода и сброс живут рядом, а
+    // ведут себя не одинаково (колода складывается сухо, сброс — вальяжно).
+    const own = (els[0] as unknown as { animPreset?: AnimPreset }).animPreset;
+    const plan = flipSchedule(els.map((el) => el.id), own ?? this.preset);
+
+    plan.forEach((stepPlan, i) => {
+      const el = els[i]!;
+      const dest = homes[stepPlan.toIndex]!;
+      // Дом переезжает СРАЗУ, а флип может быть отложен: карта успевает доехать к новому месту,
+      // пока до неё дойдёт волна. Если бы дом ехал вместе с флипом, каскад выглядел бы как
+      // «сначала все перевернулись, потом все поехали» — две анимации вместо одной.
+      this.setHome(el, dest.home, dest.depth);
+      if (stepPlan.delay <= 0) requestFlipOf(el);
+      else this.pendingFlips.push({ el, t: stepPlan.delay });
+    });
+    this.wake();
+  }
+
+  /** Переставить дом элемента. Знает только конкретная сцена — у неё свой реестр. */
+  protected setHome(_el: SceneElement, _home: { x: number; y: number }, _depth: number): void {}
+
+  /**
+   * Фил анимаций сцены (anim/presets.ts). Держит СЦЕНА, потому что расписание переворота пачки —
+   * её дело, а не отдельной карты. Картам он раздаётся при постановке (см. KitScene.add).
+   */
+  protected preset: AnimPreset = BASE_PRESET;
+
+  /**
+   * Отложенные действия сцены. Нужны сценариям: «съесть» — это переместить одного и уничтожить
+   * другого ПОСЛЕ прихода, и без общего таймера каждый сценарий заводил бы свой setTimeout — то
+   * есть время, не связанное с кадром, которое переживёт пересборку сцены и выстрелит в пустоту.
+   */
+  private timers: { t: number; fn: () => void }[] = [];
+
+  /** Выполнить через `delay` секунд ЖИЗНИ СЦЕНЫ (не настенного времени). */
+  after(delay: number, fn: () => void): void {
+    if (delay <= 0) return void fn();
+    this.timers.push({ t: delay, fn });
+    this.wake();
+  }
+
+  private stepTimers(dt: number): boolean {
+    if (!this.timers.length) return false;
+    const left: { t: number; fn: () => void }[] = [];
+    for (const x of this.timers) {
+      const t = x.t - dt;
+      if (t <= 0) x.fn();
+      else left.push({ t, fn: x.fn });
+    }
+    this.timers = left;
+    return true;
+  }
+
+  /**
+   * Сколько играет анимация элемента — по стилю ЕГО пресета.
+   *
+   * Одна дверь на все виды, а не четыре похожих метода: длительность считается по одной формуле
+   * (расписание стиля × множитель × скорость пресета), и расходиться им незачем.
+   */
+  animDuration(id: string, kind: AnimKind = "move"): number {
+    const el = this.byId.get(id);
+    const p = (el as unknown as { animPreset?: AnimPreset } | undefined)?.animPreset ?? this.preset;
+    const speed = p.speed > 0 ? p.speed : 1;
+    if (kind === "move") {
+      const st = moveStyle(p.move.style);
+      // У пружины расписания нет — время задаёт физика; берём оценку, иначе сценарий сработал бы
+      // мгновенно и снял бы жертву до прихода.
+      return st.frame ? st.dur / speed : 0.45;
+    }
+    if (kind === "destroy") return (destroyStyle(p.destroy.style).dur * p.destroy.scale) / speed;
+    if (kind === "appear") return (appearStyle(p.appear.style).dur * p.appear.scale) / speed;
+    // У переворота расписание живёт в ТАЙМИНГЕ пресета, а не в стиле: стиль решает форму движения.
+    return p.flip.dur / speed;
+  }
+
+  /** Сколько летит элемент при команде move. Оставлено как имя того, чем пользуются сценарии. */
+  moveDuration(id: string): number {
+    return this.animDuration(id, "move");
+  }
+
+  /** Отложенные перевороты каскада. Шагаются в кадре — своего таймера у сцены нет и не нужно. */
+  private pendingFlips: { el: SceneElement; t: number }[] = [];
+
+  private stepPendingFlips(dt: number): boolean {
+    if (!this.pendingFlips.length) return false;
+    const left: { el: SceneElement; t: number }[] = [];
+    for (const p of this.pendingFlips) {
+      const t = p.t - dt;
+      if (t <= 0) requestFlipOf(p.el);
+      else left.push({ el: p.el, t });
+    }
+    this.pendingFlips = left;
+    return true; // пока очередь не пуста, цикл засыпать не имеет права
+  }
 
   // Хит-тесты и реакции на жесты. Стейт-машина — в InputRouter, домен — в швах выше.
   private inputHandlers(): InputHandlers<SceneElement, Button> {
@@ -641,6 +786,7 @@ export abstract class SceneEngine extends CanvasApp {
       },
 
       onCardBlocked: (el) => this.onElementBlocked(el),
+      onCardTap: (el) => this.onElementTapped(el),
 
       onButtonDown: (b) => b.setPressed(true),
       onButtonMove: (b, inside) => b.setPressed(inside),
@@ -713,10 +859,29 @@ export abstract class SceneEngine extends CanvasApp {
   protected releaseElement(el: SceneElement): void {
     const h = this.homeOf(el);
     if (!h) return;
-    el.setState(el.rest); // возврат в СВОЙ план покоя (стол / левитация / удержание)
-    el.root.zIndex = h.depth; // и на свою глубину — не поверх соседей по стопке
+    el.setState(el.pose); // возврат в СВОЮ позу покоя (стол / поднят / держат)
     this.placeCard(el);
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
+    // Глубину возвращаем НЕ СЕЙЧАС, а по прилёту. Раньше она ставилась сразу, и отпущенная карта
+    // весь полёт домой ехала ПОД соседями — ныряла под стопку и выныривала на месте. Физически это
+    // бессмыслица: карта в воздухе, а рисуется под теми, что лежат на столе.
+    this.landing = this.landing.filter((l) => l.el !== el);
+    this.landing.push({ el, z: h.depth });
+  }
+
+  /** Кто летит домой и на какую глубину сядет. Разбирается в кадре, по факту приземления. */
+  private landing: { el: SceneElement; z: number }[] = [];
+
+  private stepLanding(): boolean {
+    if (!this.landing.length) return false;
+    const still: { el: SceneElement; z: number }[] = [];
+    for (const l of this.landing) {
+      if (l.el.dead) continue;
+      if (l.el.body.isResting()) l.el.root.zIndex = l.z;
+      else still.push(l);
+    }
+    this.landing = still;
+    return false; // сама по себе посадка кадров не требует — её двигают пружины
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -732,10 +897,17 @@ export abstract class SceneEngine extends CanvasApp {
       this.emitView();
     }
     let moving = this.input.gesture !== "none" || this.viewport.flinging;
+    if (this.stepPendingFlips(dt)) moving = true;
+    if (this.stepTimers(dt)) moving = true;
     for (const el of this.everyElement()) {
       el.step(dt);
       if (!el.resting) moving = true;
     }
+    // ПОСЛЕ шага элементов, а не до него. Пока посадка разбиралась первой, она читала состояние
+    // ПРОШЛОГО кадра: в тот кадр, когда карта долетала, цикл видел «все успокоились» и засыпал —
+    // следующего кадра не было, и глубина так и оставалась драговой (1e6). Карта возвращалась
+    // домой, но продолжала лежать поверх всей стопки.
+    this.stepLanding();
     this.reapDead();
     for (const b of this.buttons) {
       b.step(dt);
@@ -794,9 +966,9 @@ export abstract class SceneEngine extends CanvasApp {
 
   // ——— флаги доступности: одинаково во всех сценах ———
 
-  /** Пробросить reduce-motion в каждую живую Card (Piece декоративных циклов не имеет). */
+  /** Пробросить reduce-motion всему, что дышит: дыхание — общая ось карты и фишки. */
   protected onReduceMotionChange(v: boolean): void {
-    for (const el of this.everyElement()) if (el instanceof Card) el.reduceMotion = v;
+    for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.reduceMotion = v;
   }
 
   /** Пробросить «без вспышек» (issue #9) — гасит дрожь «сжечь» и у Card, и у Piece. */
@@ -804,10 +976,10 @@ export abstract class SceneEngine extends CanvasApp {
     for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.flashOff = v;
   }
 
-  /** Профиль качества (issue #8): reduced замораживает idle каждой Card и гасит shadow-пасс. */
+  /** Профиль качества (issue #8): reduced замораживает дыхание всего живого и гасит shadow-пасс. */
   protected onProfileChange(p: "full" | "reduced"): void {
     this.lowFx = p === "reduced";
-    for (const el of this.everyElement()) if (el instanceof Card) el.lowFx = this.lowFx;
+    for (const el of this.everyElement()) if (el instanceof Card || el instanceof Piece) el.lowFx = this.lowFx;
     this.wake();
   }
 
@@ -828,4 +1000,10 @@ export abstract class SceneEngine extends CanvasApp {
     this.chromeButtons = []; // сам HUD сносится вместе с app; список — чтобы не держать мёртвые узлы
     this.resetSceneState();
   }
+}
+
+/** Перевернуть, если элемент это умеет. Способность, а не тип: фишка не Flippable — и не перевернётся. */
+function requestFlipOf(el: SceneElement): void {
+  const f = el as unknown as { requestFlip?: () => boolean };
+  f.requestFlip?.();
 }

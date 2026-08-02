@@ -360,12 +360,12 @@ test.describe("песочница — выделение (issue #48)", () => {
 
   // БАГ (issue #55): тень выделенной карты не должна оказаться ПОВЕРХ карты. Тень рисуется в слой
   // levelOf(state); значит спрайт карты обязан лежать в ПАРНОМ слое того же уровня — иначе тень
-  // (floating) уедет выше спрайта (застрявшего в idle). Проверяем совпадение слоя спрайта с уровнем.
-  test("тень под картой: спрайт выделённой карты в floating-слое (не idle)", async ({ page }) => {
+  // (lifted) уедет выше спрайта (застрявшего в rest). Проверяем совпадение слоя спрайта с уровнем.
+  test("тень под картой: спрайт выделённой карты в lifted-слое (не rest)", async ({ page }) => {
     await enter(page);
     const h = await hooks(page);
     const id = h.selFigures[0]!.id;
-    await clickAt(page, h.selFigures[0]!); // выбрать → floating
+    await clickAt(page, h.selFigures[0]!); // выбрать → lifted
 
     const layers = await page.evaluate((cid) => {
       const fd = window.__fd as unknown as {
@@ -377,12 +377,12 @@ test.describe("песочница — выделение (issue #48)", () => {
       return {
         state: el.state,
         inIdle: parent === fd.scene.cards.idle,
-        inFloating: parent === fd.scene.cards.floating,
+        inLifted: parent === fd.scene.cards.lifted,
       };
     }, id);
 
-    expect(layers.state).toBe("floating"); // логически выделена
-    expect(layers.inFloating).toBe(true); // спрайт в floating-слое — тень (тоже floating) под ним
+    expect(layers.state).toBe("lifted"); // логически выделена
+    expect(layers.inLifted).toBe(true); // спрайт в lifted-слое — тень (тоже lifted) под ним
     expect(layers.inIdle).toBe(false); // НЕ застрял в idle (иначе тень окажется выше карты)
   });
 
@@ -530,9 +530,9 @@ test.describe("песочница — выделение (issue #48)", () => {
     let g = await hooks(page);
     let f = g.selFigures[0]!;
     expect(f.outlined).toBe(true);
-    expect(await stateOf(page, f.id)).toBe("idle"); // НЕ поднята
+    expect(await stateOf(page, f.id)).toBe("rest"); // НЕ поднята
 
-    // подъём: floating без контура
+    // подъём: lifted без контура
     await page.goto("/playground");
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
@@ -545,7 +545,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     g = await hooks(page);
     f = g.selFigures[0]!;
     expect(f.outlined).toBe(false);
-    expect(await stateOf(page, f.id)).toBe("floating"); // поднята
+    expect(await stateOf(page, f.id)).toBe("lifted"); // поднята
 
     // дефолт «оба»: и контур, и подъём
     await page.goto("/playground");
@@ -559,7 +559,7 @@ test.describe("песочница — выделение (issue #48)", () => {
     g = await hooks(page);
     f = g.selFigures[0]!;
     expect(f.outlined).toBe(true);
-    expect(await stateOf(page, f.id)).toBe("floating");
+    expect(await stateOf(page, f.id)).toBe("lifted");
   });
 
   test("подсказка: вкл — выбираемые-невыбранные подсвечены (hinted); выкл — ни одной подсказки", async ({ page }) => {

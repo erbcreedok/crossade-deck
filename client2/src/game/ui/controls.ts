@@ -17,10 +17,26 @@ import { Segmented } from "./Segmented";
 //
 // Раньше id не было, и ключ приходилось ВЫВОДИТЬ из русской подписи транслитерацией. Отсюда
 // брались и кириллические ключи в таблице перевода, и хрупкость: правка подписи молча меняла ключ.
+/**
+ * Когда параметр вообще ЧТО-ТО ЗНАЧИТ. Объявляет сам компонент — он один и знает, что «без вспышек»
+ * бессмысленно, пока мерцание выключено.
+ *
+ * Нужно и панели каталога (скрыть крутилку, которая сейчас ни на что не влияет — иначе первое же
+ * «оно не работает» справедливо), и канвасным виджетам стенда, когда до них дойдут руки.
+ */
+export interface ParamWhen {
+  /** id другого параметра. */
+  arg: string;
+  eq?: string | number | boolean;
+  truthy?: boolean;
+}
+
+type ParamBase = { id: string; label: string; when?: ParamWhen };
+
 export type Param =
-  | { kind: "number"; id: string; label: string; min: number; max: number; format?: (v: number) => string; get(): number; set(v: number): void }
-  | { kind: "bool"; id: string; label: string; get(): boolean; set(v: boolean): void }
-  | { kind: "choice"; id: string; label: string; options: string[]; get(): number; set(v: number): void };
+  | (ParamBase & { kind: "number"; min: number; max: number; format?: (v: number) => string; get(): number; set(v: number): void })
+  | (ParamBase & { kind: "bool"; get(): boolean; set(v: boolean): void })
+  | (ParamBase & { kind: "choice"; options: string[]; get(): number; set(v: number): void });
 
 export interface Configurable {
   params(): Param[];

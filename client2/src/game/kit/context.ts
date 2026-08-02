@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from "pixi.js";
 import type { CardTextureCache } from "../ui/CardTextureCache";
 import type { PieceSpec } from "../ui/pieceKinds";
 import type { Marker, MarkerHost, ShowPolicy } from "../engine/marker";
-import type { CardOptions } from "../ui/Card";
+import type { CardOptions, Pose } from "../ui/Card";
 import type { Command } from "../engine/command";
 import type { Button } from "../ui/Button";
 import type { DropZone } from "../ui/DropZone";
@@ -13,6 +13,8 @@ import type { Toggle } from "../ui/Toggle";
 import type { Stepper } from "../ui/Stepper";
 import type { Segmented } from "../ui/Segmented";
 import { PIXEL_FONT } from "../engine/constants";
+import { fitText } from "../ui/boxFit";
+import type { AnimPreset } from "../anim/presets";
 
 // ОБЩИЙ ЗНАМЕНАТЕЛЬ ДВУХ ХОЗЯЕВ СЕКЦИИ: песочницы (/playground) и витрины каталога (KitScene).
 //
@@ -30,6 +32,21 @@ import { PIXEL_FONT } from "../engine/constants";
 export interface Pt {
   x: number;
   y: number;
+  /** Поворот дома, рад. Нужен раскладкам, где карта не только СДВИНУТА, но и НАКЛОНЕНА (веер).
+   *  Не задан — 0, то есть все прежние вызовы значат ровно то же, что значили. */
+  rot?: number;
+}
+
+/**
+ * Как фишка СТОИТ на столе: поза покоя и дыхание. Объектом, а не двумя хвостовыми аргументами, —
+ * у карты это тоже объект (`CardOptions`), и порядок позиционных флагов помнить незачем.
+ */
+export interface PiecePlan {
+  pose?: Pose;
+  /** Дышит ли. Не задано — по позе: поднятая дышит, лежащая нет (ui/elevation.ts). */
+  idle?: boolean;
+  /** Цензура — пыль поверх настоящего лица предмета. Не карточная фича: смазывает и фишку, и фигуру. */
+  censored?: boolean;
 }
 
 /** Что секция сообщает хозяину о занятом месте: нижняя граница и ширина содержимого. */
@@ -80,7 +97,7 @@ export interface SectionContext {
    * (ui/pieceKinds.ts), дальше он живёт ровно как карта — тот же драг, тени, слои, метки.
    * r — радиус; габарит элемента r*2.
    */
-  piece(id: string, home: Pt, spec: PieceSpec, r: number, depth?: number): void;
+  piece(id: string, home: Pt, spec: PieceSpec, r: number, depth?: number, plan?: PiecePlan): void;
   /** Метки на ОДИНОЧНЫЙ элемент по id: грип едет с ним, якорь стоит дома по своей политике. */
   solo(id: string, slot: Pt, anchor: MarkerLook, label?: string): MarkerPair;
   /** Метки на ГРУППУ по id: за грип тянется вся пачка целиком (GroupDrag). */
@@ -100,7 +117,7 @@ export interface SectionContext {
   /** Кнопка: рисуется в стол, ввод роутит движок. at не задан — значит вызывающий уже её поставил. */
   button(b: Button, at?: Pt): Button;
   /** Дроп-зона с приёмом по СПОСОБНОСТЯМ груза (см. sceneEngine.registerZone). */
-  zone(z: DropZone, onDrop: (p: DragPayload) => void, accepts: (p: DragPayload) => boolean, textFor?: (p: DragPayload) => { armed: string; hot: string }): DropZone;
+  zone(z: DropZone, onDrop: (p: DragPayload, at: Pt) => void, accepts: (p: DragPayload) => boolean, textFor?: (p: DragPayload) => { armed: string; hot: string }): DropZone;
   /** Есть ли грузу что подглядывать — зона «ПОДГЛЯДЕТЬ» меняет от этого свою подпись. */
   needsPeek(el: TableElement): boolean;
   /**
@@ -118,6 +135,29 @@ export interface SectionContext {
    * правки параметра пересчитывает вызывающий (у Поля это переезд карт по новым домам).
    */
   controls(cfg: Configurable, at: Pt, onChange?: () => void): ControlsResult;
+  /**
+   * Перевернуть ПАЧКУ по id. Отдельно от `dispatch({t:"flip"})` намеренно: тот переворачивает ОДИН
+   * элемент, а у пачки переворот — своя операция с расписанием и, возможно, реверсом порядка
+   * (anim/flipSchedule.ts). Свести их в одну команду значило бы спрятать это различие.
+   */
+  flipStack(ids: readonly string[]): void;
+  /**
+   * Назначить фил анимаций КОНКРЕТНЫМ элементам. Без этого пресет был бы свойством всей сцены, и
+   * две стопки на одном столе не могли бы вести себя по-разному — а именно этого от пресетов и
+   * ждут: колода складывается сухо, сброс вальяжно, оба на одном экране.
+   */
+  setAnimPreset(ids: readonly string[], preset: AnimPreset): void;
+  /** Проиграть появление заново — у ЖИВЫХ элементов. Мёртвых (сгоревших) в реестре уже нет. */
+  appear(ids: readonly string[]): void;
+  /**
+   * Выполнить через `delay` секунд жизни сцены. Именно сцены, а не setTimeout: своё время
+   * переживёт пересборку и выстрелит в уже несуществующие элементы.
+   */
+  after(delay: number, fn: () => void): void;
+  /** Сколько летит элемент при команде move — по стилю его пресета. Сценариям нужен этот момент. */
+  moveDuration(id: string): number;
+  /** Сколько играет анимация элемента: move | flip | destroy | appear. */
+  animDuration(id: string, kind: "move" | "flip" | "destroy" | "appear"): number;
   /** Разбудить цикл после правки, сделанной секцией вне кадра. */
   wake(): void;
 }
@@ -147,6 +187,8 @@ export function makeLabel(text: string, x: number, y: number, size: number, fill
   });
   t.anchor.set(anchorX, 0);
   t.position.set(x, y);
-  if (wrap !== undefined && t.width > wrap) t.scale.set(wrap / t.width);
+  // Ужимаем ТЕМ ЖЕ правилом, что кнопка и шильдик (ui/boxFit.ts): «влезло» должно значить одно и
+  // то же во всём столе, иначе подписи ужимаются по трём слегка разным формулам.
+  if (wrap !== undefined) t.scale.set(fitText({ box: { w: wrap, h: t.height }, text: { w: t.width, h: t.height }, axis: "horizontal" }));
   return t;
 }
