@@ -10,6 +10,7 @@ import type { EffectFrame } from "../anim/destroyStyles";
 import { bobOffset, idleBobs, scaleFromZ, screenLift, zFromScale } from "./elevation";
 import type { Burnable, Draggable, TableElement } from "../engine/element";
 import type { CardState, Pose, ShadowShape } from "./Card";
+import type { OwnShadow } from "./silhouetteExtract";
 
 // Обобщённый ЭЛЕМЕНТ стола, НЕ карта: фишка, шахматная фигура — что угодно с телом и тенью.
 // Реализует ровно те же способности, что и Card (TableElement + Draggable + Burnable), но НЕ
@@ -25,11 +26,11 @@ export interface PieceOptions {
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
   shadow: { rx: number; ry: number; dy: number }; // габарит тени: полуоси + сдвиг вниз
   /**
-   * СОБСТВЕННАЯ форма тени в локальных координатах визуала — снятая с него же и уже положенная
-   * на стол (ui/silhouette.ts). Есть — тень повторяет предмет; нет — остаётся габарит выше.
-   * Второе не «запасной вариант»: лежащей фишке эллипс и есть её форма, снимать там нечего.
+   * СОБСТВЕННАЯ тень — снимок этого же визуала (ui/silhouetteExtract.ts): форма совпадает с
+   * предметом один в один, потому что это он и есть. Нет снимка — остаётся габарит выше; это не
+   * «запасной вариант»: лежащей фишке эллипс и есть её форма, снимать там нечего.
    */
-  silhouette?: number[] | null;
+  own?: OwnShadow | null;
   pose?: Pose;
   /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
   idle?: boolean;
@@ -53,7 +54,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly w: number;
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
-  private readonly silhouette: number[] | null;
+  private readonly own: OwnShadow | null;
   private age = 0;
   private block: { t: number; dur: number } | null = null;
   private born: { t: number; dur: number } | null = null;
@@ -77,7 +78,7 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
-    this.silhouette = opts.silhouette ?? null;
+    this.own = opts.own ?? null;
     this.pose = opts.pose ?? "rest";
     this.idle = opts.idle;
     this.state = this.pose;
@@ -201,8 +202,8 @@ export class Piece implements TableElement, Draggable, Burnable {
     }
     if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask);
 
-    // Своя форма — только пока предмет цел: у горящего форму задаёт эффект, и спорить им не о чем.
-    const own = fx?.mask ? null : this.silhouette;
+    // Свой снимок — только пока предмет цел: у горящего форму задаёт эффект, и спорить им не о чем.
+    const own = fx?.mask ? null : this.own;
     this.shadowRect = shadowOf(
       {
         px: this.body.px,
@@ -214,13 +215,13 @@ export class Piece implements TableElement, Draggable, Burnable {
         // тень у неё крупнее во столько же.
         hw: this.shadowCfg.rx * drawn,
         hh: this.shadowCfg.ry * drawn,
-        // Своей форме сдвиг не нужен: она уже положена на стол и опирается на ноги предмета
-        // (ui/silhouette.ts). Габаритной — нужен: пятно рисуется от центра, а стоит предмет на низу.
+        // Снимку сдвиг не нужен: он ложится ровно туда, где нарисован предмет. Габаритной тени —
+        // нужен: пятно рисуется от центра, а стоит предмет на низу.
         baseDy: own ? 0 : this.shadowCfg.dy * drawn,
         reach: this.w * drawn,
         round: true,
-        poly: fx?.mask ?? (own ? [own] : null),
-        ...(own ? { polyK: drawn, polyKy: drawn } : {}),
+        poly: fx?.mask ?? null,
+        image: own ? { texture: own.texture, bx: own.bounds.x, by: own.bounds.y, bw: own.bounds.width, bh: own.bounds.height, k: drawn } : null,
         fade: fx?.shadow ?? 1,
       },
       this.preset.shadow,

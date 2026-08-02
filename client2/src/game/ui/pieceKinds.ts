@@ -1,6 +1,6 @@
 import type { Container, Renderer } from "pixi.js";
 import { drawChip, drawChessPiece, Piece, type PieceOptions } from "./Piece";
-import { ownShapeOf } from "./silhouetteExtract";
+import { ownShadowOf } from "./silhouetteExtract";
 
 // Реестр НЕ-карточных элементов ПО ТИПУ (задел registry элементов для BoardFactory: type→фабрика).
 // Раньше создание фишек/фигур было раскидано по движку closures'ами `(root)=>drawChip/…` + дублями
@@ -60,6 +60,6 @@ export function pieceKey(spec: PieceSpec, r: number): string {
  */
 export function buildPiece(id: string, spec: PieceSpec, r: number, renderer: Renderer | null | undefined, plan: Partial<PieceOptions> = {}): Piece {
   const v = pieceVisual(spec, r);
-  const own = v.ownShadow ? ownShapeOf(renderer, pieceKey(spec, r), v.build) : null;
-  return new Piece({ id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, silhouette: own?.poly ?? null, ...plan });
+  const own = v.ownShadow ? ownShadowOf(renderer, pieceKey(spec, r), v.build) : null;
+  return new Piece({ id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, own, ...plan });
 }
