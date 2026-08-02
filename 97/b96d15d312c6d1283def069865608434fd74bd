@@ -1,0 +1,39 @@
+client2/src/test/texStub.ts
+  s_849b1134095733::t_c8610fa5450f49 1-27
+client2/src/game/ui/tableElement.test.ts
+  s_849b1134095733::t_de4bf440a74357 6,159,172
+  s_849b1134095733::t_5c3c7c7ad40d91 1-5,7-15,17-158,160-171,173-177
+  s_849b1134095733::t_9a82d78e64da88 16
+client2/docs/catalog-rules.md
+  s_849b1134095733::t_6df6f371ea0d2c 38,49-50,60,69,82,89
+client2/src/game/engine/kitExtent.ts
+  s_849b1134095733::t_70034461b04bc7 87-108
+client2/src/game/ui/Button.disabled.test.ts
+  s_849b1134095733::t_630588a5ec1f9f 1-5
+  s_849b1134095733::t_e74a4d95e57f35 30-34
+  s_849b1134095733::t_e14088c374ccbb 6,14-29,35
+  s_849b1134095733::t_92ac35703707f9 7-13,36-52,54-55,57-79
+  s_849b1134095733::t_5768f4ebb17883 53,56
+client2/src/game/engine/kitExtent.test.ts
+  s_849b1134095733::t_29cfdd5c6cb438 127
+  s_849b1134095733::t_7560d08cbf3a87 2,113-126,128-142
+  s_849b1134095733::t_b344b533f8a0e3 143
+client2/src/game/engine/kitScene.ts
+  s_849b1134095733::t_7560d08cbf3a87 18,394-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "97b96d15d312c6d1283def069865608434fd74bd",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
