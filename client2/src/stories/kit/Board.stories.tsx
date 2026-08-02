@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
 import { boardZoneScene, BOARD_SCENE_DEFAULTS, type BoardSceneOpts } from "../../game/kit/boardZoneScene";
 import { CanvasStage } from "../harness/CanvasStage";
+import { action } from "storybook/actions";
 
 // ДОСКА — размеченный стол: слоты, в которые фигуры ВСТАЮТ, а не лежат где попало.
 //
@@ -14,6 +15,8 @@ import { CanvasStage } from "../harness/CanvasStage";
 // там, где отпустили» — а это и есть единственное, что здесь важно.
 
 interface Args extends BoardSceneOpts {}
+
+const onDrop = action("дроп в слот");
 
 const meta: Meta<Args> = {
   title: "Mechanics/Board",
@@ -75,7 +78,9 @@ if (res.moved) for (const id of ids) ctx.dispatch({ t: "move", id, ...zone.figur
       args={a}
       opts={{ cardHeight: 150 }}
       build={(ctx, args) => {
-        const r = boardZoneScene(ctx, { x: ctx.padding, y: ctx.padding }, args);
+        // Исход дропа уходит в панель Actions: по картинке видно, ЧТО получилось, а здесь — почему
+        // (встала, отказано, кого съела и в какой слот).
+        const r = boardZoneScene(ctx, { x: ctx.padding, y: ctx.padding }, { ...args, onEvent: onDrop });
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />

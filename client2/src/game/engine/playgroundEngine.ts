@@ -891,8 +891,11 @@ export class PlaygroundEngine extends SceneEngine {
   // Живой не-карточный элемент: визуал берём из реестра по спеке (pieceKinds), дальше как карту
   // (snapTo → слой → реестр byId → список pieces). r — радиус; размер элемента r*2.
   private spawnPiece(id: string, home: { x: number; y: number }, spec: PieceSpec, r: number, depth?: number, plan: PiecePlan = {}): void {
-    const { build, shadow, silhouette } = pieceVisual(spec, r);
-    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow, silhouette, ...plan });
+    const { build, shadow, flatten } = pieceVisual(spec, r);
+    const piece = new Piece({ id, w: r * 2, h: r * 2, build, shadow, flatten, ...plan });
+    // Тень — СНИМОК самого визуала (см. Piece.setSilhouette): рисовать контур по типу значит
+    // однажды дать коню тень пешки.
+    if (this.app) piece.setSilhouette(this.app.renderer.generateTexture({ target: piece.root, resolution: 2 }));
     piece.flashOff = this.flashOff;
     piece.root.zIndex = depth ?? 100 + this.pieces.length;
     piece.body.snapTo({ x: home.x, y: home.y, rot: 0, scale: piece.restScale });

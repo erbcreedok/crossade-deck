@@ -21,6 +21,15 @@ import type { Pt, SectionContext, SectionSize } from "./context";
 
 export type BoardLayoutKind = "grid" | "ring";
 
+/** Что случилось на дропе. `moved: false` — зона отказала (занято при reject, чужой цвет и т.п.). */
+export interface BoardEvent {
+  figure: string;
+  moved: boolean;
+  captured?: string[];
+  /** Слот, в который встала фигура; при отказе — тот, где она осталась. */
+  slot: string | null;
+}
+
 /** Правило приёма поверх `onOccupied` — элемент-слой цепочки (board/boardRules.ts). */
 export type BoardRuleKind = "none" | "sameColor";
 
@@ -32,6 +41,12 @@ export interface BoardSceneOpts {
   ringCount: number;
   onOccupied: OnOccupied;
   rule: BoardRuleKind;
+  /**
+   * Куда сообщать об исходе дропа. Секция не решает, что с этим делать: каталог отправляет в
+   * панель Actions, песочница может логировать, игра — слать на сервер. Без этого исход виден
+   * только глазами по картинке, и «почему не встала» приходится угадывать.
+   */
+  onEvent?: (e: BoardEvent) => void;
   /** Сколько фигур расставить изначально. */
   figures: number;
 }
@@ -109,7 +124,9 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
       // молча не случался. Груз при этом может быть и одиночным, и набором: «куда встать» решает
       // координата отпускания, а не то, за что тянули.
       const el = payload.lead;
-      if (!zone.dropAt(el.id, at.x, at.y).moved) return;
+      const res = zone.dropAt(el.id, at.x, at.y);
+      opts.onEvent?.({ figure: el.id, moved: res.moved, captured: res.captured, slot: zone.locate(el.id)?.key ?? null });
+      if (!res.moved) return;
       // Разъехаться могли многие: swap меняет двоих местами, capture уводит вытесненного.
       for (const id of ids) {
         const p = zone.figureHome(id);

@@ -24,9 +24,7 @@ export interface PieceOptions {
   h: number;
   build: (root: Container) => void; // нарисовать визуал в ЛОКАЛЬНЫХ координатах (центр 0,0)
   shadow: { rx: number; ry: number; dy: number }; // габарит тени: полуоси + сдвиг вниз
-  /** Своя форма тени в долях радиуса. Не задана — эллипс по габариту (круглая фишка). */
-  silhouette?: number[][];
-  /** Насколько форму приплюснуть по вертикали (тень стоящей фигуры лежит на столе). */
+  /** Насколько приплюснуть тень по вертикали: стоящая фигура кладёт её на стол, лежащая фишка — нет. */
   flatten?: number;
   pose?: Pose;
   /** Дышит ли фишка (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет. */
@@ -51,8 +49,12 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly w: number;
   private readonly h: number;
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
-  private readonly silhouette?: number[][];
   private readonly flatten: number;
+  /**
+   * СНИМОК собственного визуала для маски тени. Ставит движок сразу после рождения: снять его
+   * может только тот, у кого есть рендерер. Нет снимка — тень рисуется габаритной фигурой.
+   */
+  private silhouetteTex: { width: number; height: number } | null = null;
   private age = 0;
   private block: { t: number; dur: number } | null = null;
   private born: { t: number; dur: number } | null = null;
@@ -76,12 +78,16 @@ export class Piece implements TableElement, Draggable, Burnable {
     this.w = opts.w;
     this.h = opts.h;
     this.shadowCfg = opts.shadow;
-    this.silhouette = opts.silhouette;
     this.flatten = opts.flatten ?? 1;
     this.pose = opts.pose ?? "rest";
     this.idle = opts.idle;
     this.state = this.pose;
     opts.build(this.root);
+  }
+
+  /** Снимок визуала для тени: что нарисовано, то и отбрасывает тень (ставит движок). */
+  setSilhouette(tex: { width: number; height: number }): void {
+    this.silhouetteTex = tex;
   }
 
   /** Полуразмеры покоя — хит-тест берёт их × scaleVal. */
@@ -201,6 +207,15 @@ export class Piece implements TableElement, Draggable, Burnable {
     }
     if (fx) applyEffect(this.root, this.body.px, this.body.py, fx, this.mask);
 
+    // Со снимком силуэт меряется ПО НЕМУ, а не по габаритному эллипсу типа: снимок — это сам
+    // предмет, и втискивать его в чужую коробку значит рисовать не его форму, а её огрызок.
+    const tex = this.silhouetteTex;
+    const shw = tex ? (tex.width / 2) * drawn : this.shadowCfg.rx * drawn;
+    const shh = tex ? (tex.height / 2) * drawn : this.shadowCfg.ry * drawn;
+    // Приплюснутую тень кладём ПОДОШВОЙ туда, где предмет стоит: центр уезжает вниз ровно на
+    // половину съеденной высоты.
+    const shdy = tex ? tex.height * drawn * (1 - this.flatten) * 0.5 : this.shadowCfg.dy * drawn;
+
     this.shadowRect = shadowOf(
       {
         px: this.body.px,
@@ -208,18 +223,18 @@ export class Piece implements TableElement, Draggable, Burnable {
         shakeX: shakeX + (fx?.dx ?? 0),
         z: z + Math.max(0, (fx?.scale ?? 1) - 1),
         screenY: fx?.dy ?? 0,
-        // Силуэт — от НАРИСОВАННОГО размера, как у карты: поднятая фишка крупнее лежащей, и
-        // тень у неё крупнее во столько же.
-        hw: this.shadowCfg.rx * drawn,
-        hh: this.shadowCfg.ry * drawn,
-        baseDy: this.shadowCfg.dy * drawn,
+        // Размер тени идёт от НАРИСОВАННОГО размера: поднятая фишка крупнее лежащей, и тень у
+        // неё крупнее во столько же.
+        hw: shw,
+        hh: shh,
+        baseDy: shdy,
         reach: this.w * drawn,
-        // Эффект-маска важнее собственной формы: горящая фигура режется тем же контуром, что и её
-        // визуал, иначе от неё осталась бы целая тень.
-        round: !this.silhouette,
-        poly: fx?.mask ?? this.silhouette ?? null,
-        polyK: fx?.mask ? undefined : (this.w / 2) * drawn,
-        polyKy: fx?.mask ? undefined : (this.w / 2) * drawn * this.flatten,
+        // Эффект-маска важнее снимка: горящая фигура режется тем же контуром, что и её визуал,
+        // иначе от неё осталась бы целая тень.
+        round: !this.silhouetteTex,
+        poly: fx?.mask ?? null,
+        tex: fx?.mask ? undefined : this.silhouetteTex,
+        flatten: this.flatten,
         fade: fx?.shadow ?? 1,
       },
       this.preset.shadow,

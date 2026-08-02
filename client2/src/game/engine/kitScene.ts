@@ -87,6 +87,12 @@ export class KitScene extends SceneEngine {
    * Поэтому спеки хранятся отдельно и чистятся только при пересборке содержимого.
    */
   private specs = new Map<string, () => void>();
+  /**
+   * Фил анимаций КОНКРЕТНОГО элемента. Живёт рядом со спекой и по той же причине: «вернуть»
+   * собирает уничтоженный элемент заново, и без этой памяти он воскресал с БАЗОВЫМ филом —
+   * выбранный стиль работал ровно один раз, а дальше раздел показывал не то, что выбрано.
+   */
+  private elPresets = new Map<string, AnimPreset>();
   /** Элементы, поставленные текущей сборкой: им проигрывается появление, когда сборка закончится. */
   private fresh: SceneElement[] = [];
 
@@ -252,7 +258,9 @@ export class KitScene extends SceneEngine {
         if ("lowFx" in el) flags.lowFx = this.lowFx;
         // Фил анимаций — тоже забота движка, а не автора витрины: иначе каждая стори забывала бы
         // его пробросить, и половина стола жила бы по одному пресету, половина по другому.
-        (el as unknown as { setAnimPreset?: (a: AnimPreset) => void }).setAnimPreset?.(this.preset);
+        // Пресет ЭЛЕМЕНТА (если ему такой назначали) важнее общего: он переживает пересборку и
+        // воскрешение из спеки.
+        (el as unknown as { setAnimPreset?: (a: AnimPreset) => void }).setAnimPreset?.(this.elPresets.get(el.id) ?? this.preset);
         // Появление НЕ запускаем здесь: секция назначает пресет уже после того, как расставила
         // элементы (ctx.setAnimPreset), и появление, начатое на постановке, играло бы базовым
         // филом — то есть рычаг «стиль появления» выглядел бы неработающим. Копим и запускаем
@@ -294,8 +302,11 @@ export class KitScene extends SceneEngine {
       dispatch: (cmd) => this.dispatch(cmd),
       piece: (id, home, spec, r, depth = 0, plan = {}) => {
         this.specs.set(id, () => ctx.piece(id, home, spec, r, depth, plan));
-        const { build, shadow, silhouette } = pieceVisual(spec, r);
-        ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, silhouette, ...plan }), home, depth);
+        const { build, shadow, flatten } = pieceVisual(spec, r);
+        const piece = ctx.add(new Piece({ id, w: r * 2, h: r * 2, build, shadow, flatten, ...plan }), home, depth);
+        // Снимок визуала для тени — сразу после рождения: снять его может только тот, у кого есть
+        // рендерер. Что нарисовано, то и отбрасывает тень; рукописных контуров по типу нет.
+        piece.setSilhouette(app.renderer.generateTexture({ target: piece.root, resolution: 2 }));
       },
       // Метки. Механизм — общий (SceneEngine.mountMarkers), «как выглядит грип» — общее с
       // песочницей (kit/markerIcons). Витрина отличается только тем, что груз собирается прямо
@@ -355,7 +366,10 @@ export class KitScene extends SceneEngine {
         if (els.length === ids.length) this.flipGroup(els);
       },
       setAnimPreset: (ids, preset) => {
-        for (const id of ids) (this.byId.get(id) as unknown as { setAnimPreset?: (a: AnimPreset) => void } | undefined)?.setAnimPreset?.(preset);
+        for (const id of ids) {
+          this.elPresets.set(id, preset);
+          (this.byId.get(id) as unknown as { setAnimPreset?: (a: AnimPreset) => void } | undefined)?.setAnimPreset?.(preset);
+        }
         this.wake();
       },
       appear: (ids) => {
@@ -410,6 +424,7 @@ export class KitScene extends SceneEngine {
   // нельзя — разъедется с базовым и утечёт узлами.
   private clearContent(): void {
     this.specs.clear();
+    this.elPresets.clear();
     for (const p of this.placed) p.el.root.destroy({ children: true });
     this.placed = [];
     for (const d of this.decors) d.destroy({ children: true });

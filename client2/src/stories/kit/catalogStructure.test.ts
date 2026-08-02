@@ -29,22 +29,26 @@ describe("структура каталога", () => {
     expect(files.length).toBeGreaterThan(10);
   });
 
+  // Ищем ИМЕННО заголовок раздела — «Группа/Имя». Просто `title:` не годится: это же слово носят
+  // и внутренние подписи (например заголовок галереи), и тест ловил бы их вместо разделов.
+  const sectionTitles = (f: string) => [...src(f).matchAll(/title:\s*"([^"]+)"/g)].map((m) => m[1]!).filter((t) => t.includes("/"));
+
   it("каждый раздел лежит в одной из трёх групп: примитивы, механики, анимации", () => {
     const bad: string[] = [];
     for (const f of files) {
-      const m = src(f).match(/title:\s*"([^"]+)"/);
-      if (!m) {
-        bad.push(`${short(f)}: нет title`);
+      const titles = sectionTitles(f);
+      if (!titles.length) {
+        bad.push(`${short(f)}: нет title раздела`);
         continue;
       }
-      if (!SECTIONS.some((s) => m[1]!.startsWith(s))) bad.push(`${short(f)}: title = «${m[1]}»`);
+      for (const t of titles) if (!SECTIONS.some((s) => t.startsWith(s))) bad.push(`${short(f)}: title = «${t}»`);
     }
     expect(bad, bad.join("\n")).toEqual([]);
   });
 
-  it("у каждого раздела ОДИН title — два в файле значат два раздела из одного места", () => {
+  it("у каждого файла ОДИН заголовок раздела — два значат два раздела из одного места", () => {
     for (const f of files) {
-      expect([...src(f).matchAll(/title:\s*"/g)].length, short(f)).toBe(1);
+      expect(sectionTitles(f).length, short(f)).toBe(1);
     }
   });
 
