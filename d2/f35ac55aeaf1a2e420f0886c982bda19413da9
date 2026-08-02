@@ -1,0 +1,47 @@
+client2/src/stories/kit/catalogStructure.test.ts
+  s_849b1134095733::t_d43244a230ed99 32-35,39-41,44,49,51
+client2/src/game/ui/shadow.ts
+  s_849b1134095733::t_62219f923e51bd 17-26,94-97,122
+client2/src/game/ui/Piece.ts
+  s_849b1134095733::t_38a2be01eb3609 27,53-56,88,90,232-237
+  s_849b1134095733::t_40efba5ad49ef4 57,89,210-218,226-230
+  s_849b1134095733::t_1dcc83845ab69d 91-92
+client2/src/game/ui/pieceKinds.test.ts
+  s_849b1134095733::t_3a3df4f6520579 14-16,19-20,24-25
+client2/src/stories/kit/Board.stories.tsx
+  s_849b1134095733::t_cd7985e64bc665 5,19-20,81-83
+client2/src/game/ui/ShadowLayer.ts
+  s_849b1134095733::t_3ce789a67a8ca7 1,12-19,23,28-40,43-45,47-57,60,79,108
+client2/src/stories/kit/Card.stories.tsx
+  s_849b1134095733::t_58f1f78c511f11 5,96-120
+  s_849b1134095733::t_0ef28639b93063 94-95
+  s_849b1134095733::t_d2dc308dc28ca8 83-93,121-130
+client2/src/game/ui/pieceKinds.ts
+  s_849b1134095733::t_9672d5df358a41 17,35
+client2/src/game/engine/kitScene.ts
+  s_849b1134095733::t_5446f1472fbf97 90-95,261-263,369-372,427
+  s_849b1134095733::t_9672d5df358a41 305-309
+client2/src/game/engine/playgroundEngine.ts
+  s_849b1134095733::t_9672d5df358a41 894-898
+client2/src/game/kit/boardZoneScene.ts
+  s_849b1134095733::t_cd7985e64bc665 128
+  s_849b1134095733::t_ece203a0db9f8d 24-32,44-49,127,129
+client2/src/game/kit/cardVariants.ts
+  s_849b1134095733::t_d9385b00bc7d4a 5,54-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "d2f35ac55aeaf1a2e420f0886c982bda19413da9",
+  "prompts": {},
+  "sessions": {
+    "s_849b1134095733": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a99334-ad93-4f70-949d-4942e1d0ae4f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
