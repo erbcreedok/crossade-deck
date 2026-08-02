@@ -8,6 +8,7 @@ import type { KitContext, KitScene } from "../../game/engine/kitScene";
 import { applyArgsToParams, paramsToArgs, paramsToArgTypes } from "../harness/paramArgs";
 import { STACK_ARGS, STACK_ARG_TYPES, stackOptsFrom, type StackArgs } from "./stackArgs";
 import { CanvasStage } from "../harness/CanvasStage";
+import { STACK_LAYOUTS, STACK_LAYOUT_IDS } from "../../game/kit/stackLayout";
 
 // Стопки — ТА ЖЕ секция, что раздел «Стопки» на /playground (game/kit/stacks.ts).
 //
@@ -96,3 +97,49 @@ type Story = StoryObj<LayoutArgs>;
  * Вместе со стороной разворачивается ПОРЯДОК: базовый пресет переворачивает пачку как предмет.
  */
 export const Default: Story = {};
+
+/**
+ * ГАЛЕРЕЯ РАСКЛАДОК — все готовые имена реестра разом, с подписью под каждой.
+ *
+ * Отдельной страницей: на странице стопки крутят ОДНУ раскладку рычагами, а тут выбирают из
+ * готовых. Имена — не отдельные сущности: каждое это `linear`/`fan`/`heap` с разными числами
+ * (kit/stackLayout.ts), и видно это только рядом.
+ */
+export const Gallery: Story = {
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { STACK_LAYOUTS, resolveLayout } from "../../game/kit/stackLayout";
+import { STACK_LAYOUTS, STACK_LAYOUT_IDS } from "../../game/kit/stackLayout";
+import { stackState } from "../../game/kit/stacks";
+
+// Имя → функция раскладки; сама стопка одна и та же.
+for (const [id, { label }] of Object.entries(STACK_LAYOUTS)) {
+  stackState(ctx, at(id), { form: id, count: 5 });
+  ctx.label(label, x, y, 12, 0x9aa89f);
+}`,
+  },
+  render: () => (
+    <CanvasStage<Card, Record<string, never>>
+      args={{}}
+      opts={{ cardHeight: 110 }}
+      build={(ctx) => {
+        // Ячейка — по САМОЙ ШИРОКОЙ раскладке: «ряд» без нахлёста это 1 + (n−1)×1.12 карты, и на
+        // глазок подобранная ширина оставляла его наезжать на соседа.
+        const count = 4;
+        const cols = 3;
+        const cellW = ctx.cardW * (1 + (count - 1) * 1.12 + 0.5);
+        const cellH = ctx.cardH * 2.4;
+        let bottom = ctx.padding;
+        STACK_LAYOUT_IDS.forEach((id, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const at = { x: ctx.padding + col * cellW, y: ctx.padding + row * cellH };
+          const r = stackState(ctx, at, { form: id, count }, `gal-${id}`);
+          const cap = ctx.label(STACK_LAYOUTS[id]!.label, at.x, r.bottom + 10, 12, 0x9aa89f, cellW * 0.92, 0);
+          bottom = Math.max(bottom, r.bottom + 10 + cap.height);
+        });
+        ctx.extent(ctx.padding * 2 + cols * cellW, bottom + ctx.padding);
+      }}
+    />
+  ),
+};

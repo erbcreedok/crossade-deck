@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, type ButtonOptions } from "../../game/ui/Button";
 import { buttonsSection } from "../../game/kit/buttons";
-import { CanvasStage, isDocsMode } from "../harness/CanvasStage";
+import { CanvasStage } from "../harness/CanvasStage";
 import { pickButtonArgs, type ButtonArgs } from "./buttonArgs";
 
 // UI-примитив «Кнопка».
@@ -90,16 +90,7 @@ ctx.button(b, { x: cx, y: cy });
 // Напрямую в сцене обе строки обязательны: без addChild кнопки не видно, без регистрации
 // она не нажимается (ввод роутит движок, см. sceneEngine.hitButton).
 scene.surface.addChild(b.root);
-b.place(cx, cy);${
-      isDocsMode()
-        ? `
-
-// ——— галерея ниже (только на этой странице) ———
-// Все виды и размеры разом — ТА ЖЕ секция, что раздел «Кнопки» на /playground.
-import { buttonsSection } from "../../game/kit/buttons";
-buttonsSection(ctx, { x, y });`
-        : ""
-    }`,
+b.place(cx, cy);`,
   },
   argTypes,
   // 0 и пустая строка значат «не задано»: у Storybook нет «пустого числа», а вводить undefined
@@ -117,16 +108,7 @@ buttonsSection(ctx, { x, y });`
         const opts: ButtonOptions = { ...buttonOptsFrom(a) };
         const b = new Button(opts);
         ctx.button(b, { x: ctx.padding + b.w / 2, y: ctx.padding + b.h / 2 });
-        if (!isDocsMode()) {
-          ctx.extent(ctx.padding * 2 + b.w, ctx.padding * 2 + b.h);
-          return;
-        }
-        // Галерея — только на Docs, и это ТА ЖЕ секция, что раздел «Кнопки» на /playground
-        // (game/kit/buttons.ts). Не копия: разойтись им негде.
-        const gy = ctx.padding + b.h + 34;
-        const g = ctx.label("все виды и размеры — для сравнения друг с другом", ctx.padding, gy, 13, 0xcdb98f, undefined, 0);
-        const r = buttonsSection(ctx, { x: ctx.padding, y: gy + g.height + 12 });
-        ctx.extent(Math.max(b.w, r.width, g.width) + ctx.padding * 2, r.bottom + ctx.padding);
+        ctx.extent(ctx.padding * 2 + b.w, ctx.padding * 2 + b.h);
       }}
     />
   ),
@@ -144,3 +126,30 @@ type Story = StoryObj<Args>;
  * `disabled` при этом обязан и гасить вид, и глушить клик: раньше он гасил только клик.
  */
 export const Button_: Story = { name: "Button" };
+
+/**
+ * ГАЛЕРЕЯ — все виды и размеры разом: так выбирают нужный, а не перебирают рычаг вслепую.
+ *
+ * Отдельной страницей, как у карты: на странице кнопки ОДНУ кнопку крутят рычагами, и соседи
+ * там мешают. Секция та же, что раздел «Кнопки» на /playground (game/kit/buttons.ts) — не копия,
+ * поэтому разойтись им негде.
+ */
+export const Gallery: Story = {
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { buttonsSection } from "../../game/kit/buttons";
+
+// Виды и размеры перечислены ДАННЫМИ (BUTTON_ROWS), раскладка — общая с песочницей:
+const r = buttonsSection(ctx, { x: ctx.padding, y: ctx.padding });
+ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);`,
+  },
+  render: () => (
+    <CanvasStage<Button, Record<string, never>>
+      args={{}}
+      build={(ctx) => {
+        const r = buttonsSection(ctx, { x: ctx.padding, y: ctx.padding });
+        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
+      }}
+    />
+  ),
+};

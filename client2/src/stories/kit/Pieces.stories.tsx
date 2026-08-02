@@ -4,6 +4,7 @@ import { chipPile } from "../../game/kit/pieces";
 import { dropzonesSection } from "../../game/kit/dropzones";
 import { drawPinIcon, drawRingIcon } from "../../game/kit/markerIcons";
 import { CanvasStage } from "../harness/CanvasStage";
+import { piecesSection } from "../../game/kit/pieces";
 import { PIECE_ARGS, PIECE_ARG_TYPES, specFrom, type PieceArgs } from "./pieceArgs";
 
 // Не-карточные элементы стола: фишки номиналов, шахматные фигуры, столбик фишек за грип.
@@ -94,6 +95,34 @@ export const AgainstZones: Story = {
         ctx.label("фишка и конь горят, но не переворачиваются; карта умеет всё", ctx.padding, ctx.padding + ctx.cardH + 14, 12, 0x9aa89f, ctx.cardW * 5, 0);
         const z = dropzonesSection(ctx, { x: ctx.padding, y: ctx.padding + ctx.cardH + 44 });
         ctx.extent(Math.max(ctx.cardW * 5, z.width) + ctx.padding * 2, z.bottom + ctx.padding);
+      }}
+    />
+  ),
+};
+
+/**
+ * ГАЛЕРЕЯ — все элементы раздела разом: фишки номиналов, шахматные фигуры, столбик и карта рядом.
+ *
+ * Отдельной страницей, как у карты и кнопки: тут сравнивают, а не крутят рычаги. Секция та же,
+ * что раздел «Фишки и фигуры» на /playground (game/kit/pieces.ts) — не копия.
+ */
+export const Gallery: Story = {
+  parameters: {
+    controls: { disable: true },
+    code: () => `import { piecesSection } from "../../game/kit/pieces";
+
+// Список элементов — ДАННЫЕ (pieceRow), визуал каждого берётся из реестра по спеке
+// (ui/pieceKinds.ts): новый тип = ветка там, а не правка раскладки.
+const r = piecesSection(ctx, { x: ctx.padding, y: ctx.padding });
+ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);`,
+  },
+  render: () => (
+    <CanvasStage<Card, Record<string, never>>
+      args={{}}
+      opts={{ cardHeight: 130 }}
+      build={(ctx) => {
+        const r = piecesSection(ctx, { x: ctx.padding, y: ctx.padding });
+        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
   ),
