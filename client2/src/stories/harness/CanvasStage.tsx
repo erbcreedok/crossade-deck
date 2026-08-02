@@ -86,9 +86,10 @@ export function CanvasStage<T, A extends object>({
     if (!host) return;
     const { key, slot } = acquireSlot(opts ?? {});
     sceneRef.current = slot.scene;
-    // Дев-хук на ТЕКУЩУЮ витрину — та же идиома, что `__fd` у песочницы и `__sol` у Косынки:
-    // канвас не отдаёт ни DOM-узлов, ни ролей, и проверить руками/из e2e его иначе нечем.
-    if (import.meta.env.DEV) {
+    // Хук на ТЕКУЩУЮ витрину — та же идиома, что `__fd` у песочницы и `__sol` у Косынки: канвас
+    // не отдаёт ни DOM-узлов, ни ролей, и достать его иначе нечем. Ставится и в собранном каталоге
+    // (см. kitPool.ts): сценарии Interactions работают там же, где смотрят глазами.
+    {
       const g = globalThis as unknown as { __kit?: { scene?: unknown } };
       if (g.__kit) g.__kit.scene = slot.scene;
     }

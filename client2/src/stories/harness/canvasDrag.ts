@@ -31,9 +31,10 @@ export function scene(canvasElement: HTMLElement): SceneLike {
  * Дождаться, пока витрина соберётся и в ней появится нужный элемент.
  *
  * Сценарий стартует сразу после рендера React-хоста, а канвас поднимается асинхронно (пул витрин,
- * текстуры) — без ожидания первый же шаг падал с «нет элемента».
+ * текстуры) — без ожидания первый же шаг падал с «нет элемента». Запас щедрый: на выкатке машина
+ * просыпается с нуля, и первая сборка витрины там заметно дольше, чем на своём дев-сервере.
  */
-export async function waitForElement(canvasElement: HTMLElement, id: string, timeoutMs = 4000): Promise<void> {
+export async function waitForElement(canvasElement: HTMLElement, id: string, timeoutMs = 15000): Promise<void> {
   const started = Date.now();
   for (;;) {
     try {
