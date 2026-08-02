@@ -184,9 +184,13 @@ export function statesSection(ctx: SectionContext, at: Pt): SectionSize & { ids:
     ids.push(st.id);
     // Карта в позе покоя `held`/`lifted` УВЕЛИЧЕНА — по номинальной ширине она вылезала за
     // край витрины, и «держат» обрезалась ровно потому, что её и надо было разглядеть.
-    const halfW = (ctx.cardW * scaleForState(st.opts.pose ?? "rest")) / 2;
-    const cap = ctx.label(st.caption, cx, cy + ctx.cardH / 2 + 12, 12, 0x9aa89f, stepX * 0.92);
-    maxBottom = Math.max(maxBottom, cy + ctx.cardH / 2 + 12 + cap.height);
+    const scale = scaleForState(st.opts.pose ?? "rest");
+    const halfW = (ctx.cardW * scale) / 2;
+    // Подпись — под НАРИСОВАННЫМ низом карты, а не под номинальным: удерживаемая (×1.45) накрывала
+    // собственную подпись, и разобрать под ней было нечего.
+    const capY = cy + (ctx.cardH * scale) / 2 + 12;
+    const cap = ctx.label(st.caption, cx, capY, 12, 0x9aa89f, stepX * 0.92);
+    maxBottom = Math.max(maxBottom, capY + cap.height);
     maxRight = Math.max(maxRight, cx + Math.max(halfW, capHalf));
   });
   return { bottom: maxBottom + SB_ITEM_GAP, width: maxRight - at.x, ids };

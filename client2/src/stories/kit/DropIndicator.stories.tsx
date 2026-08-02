@@ -54,9 +54,12 @@ indicatorStyle(${JSON.stringify(a.style)}).paint(ctx, cx, cy, ${JSON.stringify(a
         style.paint(ctx, cx, cy, a.text);
         // Наведённая карта — единственный честный тест: подпись обязана читаться ПОД грузом, а не
         // на пустом столе. Первая версия индикатора лежала ниже карт и была невидима именно тут.
-        if (a.under === "dragOver") ctx.card({ id: "di-drag", card: "K♥", pose: "held" }, { x: cx + ctx.cardW * 0.5, y: cy }, 1);
-        ctx.label(style.name, cx, cy + ctx.cardH / 2 + 12, 13, 0x9aa89f, ctx.cardW * 2);
-        ctx.extent(ctx.padding * 2 + ctx.cardW * 2.2, ctx.padding * 2 + ctx.cardH + 40);
+        // Сдвиг с запасом на РАЗМЕР: удерживаемая карта нарисована ×1.45, и при сдвиге в полкарты
+        // она накрывала подпись целиком — раздел переставал показывать то, ради чего он есть.
+        if (a.under === "dragOver") ctx.card({ id: "di-drag", card: "K♥", pose: "held" }, { x: cx + ctx.cardW * 1.15, y: cy }, 1);
+        // Подпись — ниже НАРИСОВАННОГО низа удерживаемой карты (×1.45), иначе она под ней.
+        ctx.label(style.name, cx, cy + (ctx.cardH * 1.45) / 2 + 12, 13, 0x9aa89f, ctx.cardW * 2);
+        ctx.extent(ctx.padding * 2 + ctx.cardW * 2.7, ctx.padding * 2 + ctx.cardH * 1.45 + 40);
       }}
     />
   ),
