@@ -52,6 +52,26 @@ describe("структура каталога", () => {
     }
   });
 
+  // Требование владельца: «в каждом unit story должна быть секция галереи, где в сетку разложены
+  // разные виды, для быстрого глядения». Отдельной СТРАНИЦЕЙ: страница раздела принадлежит одной
+  // вещи, которую крутят рычагами.
+  it("у примитивов стола есть страница «Gallery»", () => {
+    const PRIMITIVES = ["Card.stories.tsx", "Button.stories.tsx", "Stacks.stories.tsx", "Pieces.stories.tsx"];
+    const bad: string[] = [];
+    for (const name of PRIMITIVES) {
+      const f = files.find((x) => x.endsWith(name));
+      if (!f) {
+        bad.push(`${name}: раздела нет вовсе`);
+        continue;
+      }
+      const src0 = src(f);
+      if (!/export const Gallery\b/.test(src0)) bad.push(`${name}: нет страницы Gallery`);
+      // У галереи рычагов быть не должно: там сравнивают, а не крутят.
+      else if (!/controls:\s*\{\s*disable:\s*true/.test(src0)) bad.push(`${name}: у галереи не отключены рычаги`);
+    }
+    expect(bad, bad.join("\n")).toEqual([]);
+  });
+
   it("служебных объектов в панели нет: рычаг — свойство, а не структура внутри компонента", () => {
     // `control: { type: "object" }` — это редактор JSON поверх внутренностей. Пресет адресуется
     // именем, раскладка — функцией из реестра; в панели им место только в таком виде.
