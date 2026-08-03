@@ -1,0 +1,63 @@
+client2/src/game/boards/boardTree.ts
+  s_e2a4c2b31d470a::t_90402253984abb 1-82,85-130,134-207
+  s_e2a4c2b31d470a::t_918f09d83b857c 83-84
+  s_e2a4c2b31d470a::t_662679165dada5 131-133
+client2/src/game/slotfield/slotField.test.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 2,4,6
+client2/src/game/engine/playgroundEngine.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 7,1178,1214
+client2/src/game/boards/scene.ts
+  s_e2a4c2b31d470a::t_59945f7fca376c 1-218,222-257,263,265-397
+  s_e2a4c2b31d470a::t_6207eeeaeaf41e 219-221
+  s_e2a4c2b31d470a::t_4b7a99741197bd 258-262,264
+client2/src/game/slotfield/fieldZone.test.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 3,11
+client2/src/stories/boards/Boards.stories.tsx
+  s_e2a4c2b31d470a::t_9bca33a7e26198 1-89
+client2/src/game/slotfield/slotField.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 3,10,19,23,28,33,38,45,55,63
+client2/src/game/boards/spec.ts
+  s_e2a4c2b31d470a::t_8ee5730637e15c 1-39,41-67,70-158
+  s_e2a4c2b31d470a::t_5ebffc86caf746 68-69
+  s_e2a4c2b31d470a::t_6b79cde692c9be 40
+client2/src/game/boards/mock.ts
+  s_e2a4c2b31d470a::t_5c9c1acc89900d 1-118
+client2/src/game/slotfield/edge.test.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 3,20
+client2/src/game/boards/mock.test.ts
+  s_e2a4c2b31d470a::t_a8aeaa5a38b80a 1-149
+client2/src/game/slotfield/fieldZone.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 1,32,38,51
+client2/src/game/kit/fieldZoneScene.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 4,126
+client2/src/game/slotfield/fieldModel.test.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 3,11,14
+client2/src/game/slotfield/fieldModel.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 1
+client2/src/game/boards/state.ts
+  s_e2a4c2b31d470a::t_e3c51fa2c59d92 1-74
+client2/src/game/boards/boardTree.test.ts
+  s_e2a4c2b31d470a::t_6ab42b2daf59d5 1-89
+client2/src/game/boards/presets.test.ts
+  s_e2a4c2b31d470a::t_f2448a3481bd4d 1-78
+client2/src/game/solitaire/solitaireState.ts
+  s_e2a4c2b31d470a::t_cb4e52c35318e8 2,7,14,42,123
+client2/src/game/boards/presets.ts
+  s_e2a4c2b31d470a::t_9b595bb36e1872 1-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "3ffdd29ea74c703fe05e1f3a983d7ba781d1ac0e",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
