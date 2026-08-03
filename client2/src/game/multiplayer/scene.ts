@@ -12,6 +12,13 @@ import { makePort, bindRoom, type BindableRoom, type CrossadePort, type Crossade
 import { sameOrder, sameZones } from "../crossade/diff";
 import { paintSlots } from "../crossade/slotPaint";
 import { handOrderAfterDrop } from "../crossade/handOrder";
+import {
+  approvedIn,
+  pendingDots,
+  rejectedCards,
+  PENDING_TIMEOUT_S,
+  type PendingKind,
+} from "./pending";
 
 // СЦЕНА ДЕБАГ-СТОЛА MULTIPLAYER — усечённый CrossadeScene (см. crossade/scene.ts, доктрина та же):
 // снимок сети — единственная правда, ход уходит в порт, сцена правил не дублирует. Всё, чего тут
@@ -65,6 +72,13 @@ export class MultiplayerScene extends SceneEngine {
   private hotSlot: string | null = null;
   private armedSlots: ReadonlySet<string> = new Set();
 
+  /** Ходы, ждущие одобрения сервера (pending.ts): карта висит в точке дропа поднятой, пока эхо
+   *  снимка не положит её в целевую зону (или отказ/таймаут не вернёт домой). token — страховка
+   *  таймеров after(): отменять их нечем, поэтому сработавший таймер сам проверяет, что ждёт всё
+   *  ЕЩЁ ТОТ ЖЕ ход, а не следующий той же картой. */
+  private readonly pending = new Map<string, { kind: PendingKind; token: number; age: number; label: Text | null }>();
+  private pendingToken = 0;
+
   constructor(opts: MultiplayerSceneOptions) {
     super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
     this.state = emptyState(opts.selfSessionId);
@@ -110,13 +124,20 @@ export class MultiplayerScene extends SceneEngine {
   private applyState = (next: CrossadeState): void => {
     const prev = this.state;
     this.state = next;
+    // Одобрения — ДО пересборки: снятая с ожидания карта должна лечь этим же rebuildBoard, иначе
+    // она осталась бы висеть до следующего чужого хода.
+    for (const [card, p] of this.pending) {
+      if (approvedIn(p.kind, card, { play: next.play, selfHand: next.selfHand })) this.clearPending(card);
+    }
     // Ленивый дифф — то же правило, что у Crossade: пересборка только когда зоны реально изменились.
     if (sameZones(prev, next)) return;
     this.rebuildBoard(false);
   };
 
   private applySignal = (signal: CrossadeSignal): void => {
-    if (signal.kind === "action_rejected") this.showNotice(signal.reason || signal.action || "нельзя");
+    if (signal.kind !== "action_rejected") return;
+    for (const card of rejectedCards(signal.cards, this.pending.keys())) this.failPending(card);
+    this.showNotice(signal.reason || signal.action || "нельзя");
   };
 
   private showNotice(text: string): void {
@@ -142,6 +163,9 @@ export class MultiplayerScene extends SceneEngine {
 
     const place = (cardId: string, indexInPile: number): void => {
       alive.add(cardId);
+      // Ожидающая карта НЕ разводится по дому: она висит в точке дропа (поза lifted, драговый z),
+      // пока сервер не ответит — см. pending.ts. alive при этом отмечен: сносить её нельзя.
+      if (this.pending.has(cardId)) return;
       const slot = this.tree.slotOf(cardId);
       const home = this.tree.homeOf(cardId);
       if (!slot || !home) return;
@@ -235,8 +259,10 @@ export class MultiplayerScene extends SceneEngine {
     return home ? { home, depth: this.cardDepth.get(el.id) ?? 0 } : null;
   }
 
-  /** Тащить можно карту своей руки и ВЕРХ любой кучки — общая зона, забирает любой игрок. */
+  /** Тащить можно карту своей руки и ВЕРХ любой кучки — общая зона, забирает любой игрок.
+   *  Ожидающую одобрения — нельзя: её судьбу уже решает сервер. */
   protected canDrag(el: SceneElement): boolean {
+    if (this.pending.has(el.id)) return false;
     const slot = this.tree.slotOf(el.id);
     if (slot === "hand") return true;
     if (slot?.startsWith("play:") && slot !== "play:new") {
@@ -262,7 +288,10 @@ export class MultiplayerScene extends SceneEngine {
     this.wake();
   }
 
-  /** Дроп — команда порту, правила решает мастер/сервер (см. crossade/scene.ts#resolveDrop). */
+  /** Дроп — команда порту, правила решает мастер/сервер (см. crossade/scene.ts#resolveDrop).
+   *  Переходы «в другую зону» НЕ отпускаются домой: карта повисает в точке дропа до ответа
+   *  сервера (beginPending) — иначе при заметной задержке она успевала долететь до руки и лишь
+   *  потом прыгала в зону. Реордер своей руки — локальный и оптимистичный, ему ждать нечего. */
   protected resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
     const drag = this.drag;
     if (!drag) return;
@@ -270,17 +299,86 @@ export class MultiplayerScene extends SceneEngine {
     const target = dropTarget(this.tree.root, cp);
     const to = target?.group.id ?? null;
 
-    if (from === "hand" && to === "hand") {
-      this.reorderHand(el.id, target!.index);
-    } else if (from === "hand" && to?.startsWith("play:")) {
+    if (from === "hand" && to?.startsWith("play:")) {
       if (to === "play:new") this.port.playCard(el.id);
       else this.port.playCard(el.id, Number(to.slice(5)));
-    } else if (from?.startsWith("play:") && to === "hand") {
-      this.port.takePlay(el.id);
+      this.beginPending(el.id, "play_card", cp);
+      return;
     }
+    if (from?.startsWith("play:") && to === "hand") {
+      this.port.takePlay(el.id);
+      this.beginPending(el.id, "take_play", cp);
+      return;
+    }
+    if (from === "hand" && to === "hand") this.reorderHand(el.id, target!.index);
     // Прочие переходы (кучка → кучка напрямую) — не этот стол: карта летит на прежнее место.
-
     drag.release();
+  }
+
+  // ——— ожидание одобрения (pending.ts) ———
+
+  private static readonly PENDING_TICK_S = 0.15;
+
+  /** Повесить карту в точке дропа до ответа сервера: поза lifted (дыхание и тень подъёма — её
+   *  собственные), драговый z остаётся, индикатор и таймаут ведёт tickPending/after.
+   *  Висит она в точке ПАЛЬЦА (cp), не тела: тело едет пружиной и на быстром жесте отстаёт —
+   *  замороженное по телу, ожидание выглядело бы «застрял на полпути» (то же правило, что у
+   *  разрешения дропа, см. catalog-rules.md). */
+  private beginPending(cardId: string, kind: PendingKind, cp: { x: number; y: number }): void {
+    const node = this.nodes.get(cardId);
+    if (!node) return;
+    const token = ++this.pendingToken;
+    this.pending.set(cardId, { kind, token, age: 0, label: null });
+    node.setState("lifted");
+    node.body.setTarget({ x: cp.x, y: cp.y, rot: 0 });
+    this.tickPending(cardId, token);
+    this.after(PENDING_TIMEOUT_S, () => {
+      const p = this.pending.get(cardId);
+      if (p?.token !== token) return;
+      this.failPending(cardId);
+      this.showNotice("нет ответа");
+    });
+  }
+
+  /** Пульс ожидания: растит возраст и после порога показывает «·· ·» над картой (pendingDots).
+   *  Тикает after()-цепочкой — общего cancel у таймеров сцены нет, поэтому каждый тик сам
+   *  проверяет, что его ход ещё ждёт (token). */
+  private tickPending(cardId: string, token: number): void {
+    const p = this.pending.get(cardId);
+    if (!p || p.token !== token) return;
+    p.age += MultiplayerScene.PENDING_TICK_S;
+    const dots = pendingDots(p.age);
+    const node = this.nodes.get(cardId);
+    if (dots && node) {
+      if (!p.label) {
+        p.label = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 24, fill: COLORS.gold, align: "center" } });
+        p.label.anchor.set(0.5, 1);
+        this.scene.surface.addChild(p.label);
+      }
+      p.label.text = dots;
+      // Над картой, с запасом на её lifted-масштаб: индикатор не должен утонуть под самой картой.
+      p.label.position.set(node.body.px, node.body.py - (CARD.h / 2) * 1.2);
+      this.wake();
+    }
+    this.after(MultiplayerScene.PENDING_TICK_S, () => this.tickPending(cardId, token));
+  }
+
+  /** Снять ожидание (одобрено или провалено) — карту дальше ведёт вызывающий. */
+  private clearPending(cardId: string): void {
+    const p = this.pending.get(cardId);
+    if (!p) return;
+    p.label?.destroy();
+    this.pending.delete(cardId);
+  }
+
+  /** Отказ или молчание: «стоп»-покачивание и домой той же пружиной, что обычный релиз. */
+  private failPending(cardId: string): void {
+    this.clearPending(cardId);
+    const node = this.nodes.get(cardId);
+    if (!node) return;
+    node.blockNudge();
+    this.releaseElement(node);
+    this.wake();
   }
 
   /** Оптимистичный реордер своей руки — дословно правило crossade/scene.ts#reorderHand: мутируем
@@ -325,6 +423,7 @@ export class MultiplayerScene extends SceneEngine {
     cards: Record<string, { x: number; y: number; slot: string | null }>;
     hand: string[];
     play: string[][];
+    pending: string[];
   } {
     const slots: Record<string, { x: number; y: number }> = {};
     for (const [id, at] of Object.entries(this.tree.origins)) slots[id] = this.contentToScreen(at.x, at.y);
@@ -333,11 +432,19 @@ export class MultiplayerScene extends SceneEngine {
       const p = this.contentToScreen(node.body.px, node.body.py);
       cards[id] = { x: p.x, y: p.y, slot: this.tree.slotOf(id) };
     }
-    return { slots, cards, hand: [...this.state.selfHand], play: this.state.play.map((s) => [...s]) };
+    return {
+      slots,
+      cards,
+      hand: [...this.state.selfHand],
+      play: this.state.play.map((s) => [...s]),
+      pending: [...this.pending.keys()],
+    };
   }
 
   protected onTeardown(app: Application): void {
     this.disposeRoom();
+    for (const p of this.pending.values()) p.label?.destroy();
+    this.pending.clear();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
     for (const label of this.seatLabels.values()) label.destroy();
