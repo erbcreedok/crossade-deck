@@ -1,0 +1,23 @@
+client2/src/stories/harness/canvasDrag.ts
+  s_73847489de6701::t_4f36442415ec2d 122-145
+client2/src/stories/kit/Stacks.stories.tsx
+  s_73847489de6701::t_9833c750d6e6f6 203-270
+  s_73847489de6701::t_0b7a883449fb37 12-13
+  s_73847489de6701::t_44664b88a6d9f6 202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1b3f4726096a9dd00a60e5621d3f9e7dc32ac982",
+  "prompts": {},
+  "sessions": {
+    "s_73847489de6701": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c73eb97d-4df4-4085-ad0c-cc0e1b0de62e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
