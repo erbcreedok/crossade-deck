@@ -33,6 +33,9 @@ export class MenuEngine {
   // Сверх исходной спеки меню (issue #99): без пункта в меню игра доступна только руками
   // по адресу /solitaire — это делает готовый роут практически недостижимым для игрока.
   private onOpenSolitaire: (() => void) | null = null;
+  // Тот же резон, что у Косынки: без пункта в меню /crossade достижим только руками по адресу
+  // (см. CROSSADE-DESIGN.md, этап 4).
+  private onOpenCrossade: (() => void) | null = null;
 
   private pressed: Button | null = null;
   private hovered: Button | null = null;
@@ -43,6 +46,10 @@ export class MenuEngine {
 
   setOnOpenSolitaire(cb: () => void): void {
     this.onOpenSolitaire = cb;
+  }
+
+  setOnOpenCrossade(cb: () => void): void {
+    this.onOpenCrossade = cb;
   }
 
   async mount(container: HTMLElement, width: number, height: number): Promise<void> {
@@ -84,10 +91,12 @@ export class MenuEngine {
     suck.place(cx, cy - 72);
     const solitaire = new Button({ label: "косынка", variant: "primary", size: "lg", onClick: () => this.onOpenSolitaire?.() });
     solitaire.place(cx, cy);
+    const crossade = new Button({ label: "crossade", variant: "primary", size: "lg", onClick: () => this.onOpenCrossade?.() });
+    crossade.place(cx, cy + 72);
     const sandbox = new Button({ label: "песочница", variant: "secondary", size: "lg", onClick: () => this.onOpenSandbox?.() });
-    sandbox.place(cx, cy + 72);
-    this.buttons = [suck, solitaire, sandbox];
-    this.buttonLabels = ["сосать", "косынка", "песочница"]; // подпись внутри Button приватная
+    sandbox.place(cx, cy + 144);
+    this.buttons = [suck, solitaire, crossade, sandbox];
+    this.buttonLabels = ["сосать", "косынка", "crossade", "песочница"]; // подпись внутри Button приватная
     for (const b of this.buttons) this.root.addChild(b.root);
 
     // Лейбл-крик — ПОВЕРХ всего, скрыт до вызова.
