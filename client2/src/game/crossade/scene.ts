@@ -133,12 +133,12 @@ export class CrossadeScene extends SceneEngine {
   protected layoutChrome(w: number, h: number): void {
     this.topbar?.layout(w);
     this.layoutActions();
-    this.notice.position.set(w / 2, TOPBAR_H + 8);
+    this.notice.position.set(w / 2, (this.topbar?.height ?? TOPBAR_H) + 8);
     this.shoutText.position.set(w / 2, h / 2);
   }
 
   protected chromeInsetTop(): number {
-    return TOPBAR_H;
+    return this.topbar?.height ?? TOPBAR_H;
   }
 
   protected onBooted(): void {
@@ -247,10 +247,11 @@ export class CrossadeScene extends SceneEngine {
   private layoutActions(): void {
     const all = [this.readyBtn, this.goBtn, this.dealAllBtn, this.collectBtn];
     for (const b of all) b.root.visible = this.actionButtons.includes(b);
+    const midY = this.topbar?.midY ?? TOPBAR_H / 2;
     let x = this.width - 12;
     for (const b of [...this.actionButtons].reverse()) {
       x -= b.w / 2;
-      b.place(x, TOPBAR_H / 2);
+      b.place(x, midY);
       x -= b.w / 2 + 8;
     }
     // Сообщить панели, сколько справа занято: иначе её статус уезжает ПОД кнопки действий.

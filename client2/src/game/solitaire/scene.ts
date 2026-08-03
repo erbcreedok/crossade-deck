@@ -113,7 +113,7 @@ export class SolitaireScene extends SceneEngine {
   // Стол начинается ПОД панелью: иначе верх доски навсегда уезжает под непрозрачный HUD и
   // доскроллить до него нечем (кламп упирается в 0).
   protected chromeInsetTop(): number {
-    return TOPBAR_H;
+    return this.topbar?.height ?? TOPBAR_H;
   }
 
   protected onBooted(): void {

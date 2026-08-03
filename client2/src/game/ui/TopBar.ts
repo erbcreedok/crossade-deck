@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import { Button, type ButtonOptions } from "./Button";
 import { PIXEL_FONT } from "../engine/constants";
+import { safeAreaTop } from "./safeArea";
 
 // Верхняя панель сцены — НА КАНВАСЕ, а не в HTML. Приложение целиком рисуется движком: так оно
 // одинаково выглядит на любой платформе и переносится туда, где DOM'а нет вовсе, а вёрстка не
@@ -37,6 +38,20 @@ export class TopBar {
   private readonly keys: string[] = [];
   private w = 1;
   private rightInset = 0;
+  // Верхний сейф-inset (чёлка/Dynamic Island в установленной PWA). Полоса опускается на него ВНИЗ,
+  // а фон дотягивается до края экрана — иначе кнопки садятся ПОД вырез. Обновляется в layout()
+  // (зовётся на ресайз), чтобы пережить поворот айфона. Вне PWA/выреза = 0.
+  private topInset = safeAreaTop();
+
+  /** Полная высота полосы с сейф-зоной: сцена вычитает её из полезной высоты стола. */
+  get height(): number {
+    return this.topInset + TOPBAR_H;
+  }
+
+  /** Экранный центр строки кнопок по вертикали (уже со сдвигом на сейф-зону). */
+  get midY(): number {
+    return this.topInset + TOPBAR_H / 2;
+  }
 
   constructor(items: readonly TopBarItem[], statusText = "") {
     this.root.addChild(this.bg);
@@ -79,21 +94,26 @@ export class TopBar {
   /** Разложить под ширину экрана. Зовётся на старте и на каждом ресайзе. */
   layout(width: number): void {
     this.w = width;
+    this.topInset = safeAreaTop();
+    const h = this.height;
+    const mid = this.midY;
     this.bg.clear();
-    this.bg.rect(0, 0, width, TOPBAR_H).fill({ color: BG });
-    this.bg.moveTo(0, TOPBAR_H).lineTo(width, TOPBAR_H).stroke({ width: 2, color: LINE });
+    // Фон от самого верха (0), а не от сейф-зоны: полоса закрашивает вырез в тон HUD, кнопки —
+    // ниже него. Разделительная линия — по низу всей полосы.
+    this.bg.rect(0, 0, width, h).fill({ color: BG });
+    this.bg.moveTo(0, h).lineTo(width, h).stroke({ width: 2, color: LINE });
 
     // Кнопки в ряд слева. Не влезли — вся панель уходит в размер sm (у Button ширина от size),
     // и статус гасим: важнее сохранить доступ к «назад»/«рестарт», чем показать счётчик.
     let x = PAD;
     for (const b of this.buttons) {
-      b.place(x + b.w / 2, TOPBAR_H / 2);
+      b.place(x + b.w / 2, mid);
       x += b.w + GAP;
     }
     const right = width - this.rightInset - PAD;
     const room = right - x;
     this.status.visible = this.status.text.length > 0 && room > this.status.width;
-    this.status.position.set(right, TOPBAR_H / 2);
+    this.status.position.set(right, mid);
   }
 
   /** Экранная позиция кнопки по ключу (для дев-хука/e2e — канвас не отдаёт ни DOM, ни ролей). */
@@ -107,7 +127,7 @@ export class TopBar {
 
   /** Попадает ли ЭКРАННАЯ точка в панель (её полосу) — чтобы сцена не считала это тапом по столу. */
   contains(sy: number): boolean {
-    return sy <= TOPBAR_H;
+    return sy <= this.height;
   }
 
   destroy(): void {
