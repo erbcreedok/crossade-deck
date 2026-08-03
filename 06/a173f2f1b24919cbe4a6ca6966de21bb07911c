@@ -1,0 +1,32 @@
+client2/src/game/ui/TopBar.ts
+  s_e2a4c2b31d470a::t_69a039c0bf94e1 97-99,101-104,110,116
+  s_e2a4c2b31d470a::t_8c67bdbbdf3416 130
+  s_e2a4c2b31d470a::t_1b3e60d64044d4 4
+  s_e2a4c2b31d470a::t_6026e03183548f 41-54
+client2/src/game/crossade/scene.ts
+  s_e2a4c2b31d470a::t_3ed69b2ed5f241 136
+  s_e2a4c2b31d470a::t_14609b217429a6 141
+  s_e2a4c2b31d470a::t_12658269704eaf 250,254
+client2/src/game/solitaire/scene.ts
+  s_e2a4c2b31d470a::t_fcbe6b7d53a811 116
+client2/src/game/ui/TopBar.safeArea.test.ts
+  s_e2a4c2b31d470a::t_cd5dfc76d6e3b4 1-62
+client2/src/game/ui/safeArea.ts
+  s_e2a4c2b31d470a::t_bc4947463cf269 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "06a173f2f1b24919cbe4a6ca6966de21bb07911c",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
