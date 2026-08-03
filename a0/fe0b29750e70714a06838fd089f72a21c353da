@@ -1,0 +1,30 @@
+client2/src/game/boards/boardTable.ts
+  s_e2a4c2b31d470a::t_b6326ea83d6dc4 1-72
+client2/src/game/boards/driver.ts
+  s_e2a4c2b31d470a::t_308491159e2ac7 1-35
+client2/src/game/boards/scene.ts
+  s_e2a4c2b31d470a::t_199735d51d3f43 13,39-41,60,72-77,85
+client2/src/game/boards/boardTable.test.ts
+  s_e2a4c2b31d470a::t_64df6146fd655d 1-50
+client2/src/stories/boards/Boards.stories.tsx
+  s_e2a4c2b31d470a::t_5024f94c35cd54 95-170
+  s_e2a4c2b31d470a::t_cdf1cb2ffdd075 1,5-6
+client2/docs/BOARDS-DESIGN.md
+  s_e2a4c2b31d470a::t_a6bfefa2f551b8 156-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "a0fe0b29750e70714a06838fd089f72a21c353da",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
