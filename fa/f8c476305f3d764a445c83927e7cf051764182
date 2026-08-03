@@ -1,0 +1,23 @@
+client2/docs/BOARDS-ANALYSIS.md
+  s_e2a4c2b31d470a::t_12cff991147ce0 1-116
+client2/docs/BOARDS-DESIGN.md
+  s_e2a4c2b31d470a::t_f14d664d6d79d2 1-37,39,42,48,50,70-135,155-336
+  s_e2a4c2b31d470a::t_7fc8a90fd02995 38,40-41,43-47,49,51-69
+  s_e2a4c2b31d470a::t_140156bd6c8baa 136-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "faf8c476305f3d764a445c83927e7cf051764182",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
