@@ -1,6 +1,6 @@
 import { Application, Graphics, Text } from "pixi.js";
 import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
-import { TEX_H, PIXEL_FONT, COLORS } from "../engine/constants";
+import { TEX_H, TEX_W, PIXEL_FONT, COLORS } from "../engine/constants";
 import { Card } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import type { TableElement } from "../engine/element";
@@ -14,8 +14,9 @@ import { paintSlots } from "../crossade/slotPaint";
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import {
   approvedIn,
-  pendingDots,
+  pendingIndicatorVisible,
   rejectedCards,
+  PENDING_SPINNER_SPEED,
   PENDING_TIMEOUT_S,
   type PendingKind,
 } from "./pending";
@@ -75,9 +76,24 @@ export class MultiplayerScene extends SceneEngine {
   /** Ходы, ждущие одобрения сервера (pending.ts): карта висит в точке дропа поднятой, пока эхо
    *  снимка не положит её в целевую зону (или отказ/таймаут не вернёт домой). token — страховка
    *  таймеров after(): отменять их нечем, поэтому сработавший таймер сам проверяет, что ждёт всё
-   *  ЕЩЁ ТОТ ЖЕ ход, а не следующий той же картой. */
-  private readonly pending = new Map<string, { kind: PendingKind; token: number; age: number; label: Text | null }>();
+   *  ЕЩЁ ТОТ ЖЕ ход, а не следующий той же картой. spinner/overlay — индикатор затянувшегося
+   *  запроса, оба живут ДЕТЬМИ node.root: наследуют все трансформы карты (дыхание, полёт,
+   *  масштаб позы) и потому не нуждаются в своей синхронизации позиции. touchLocal — точка
+   *  касания на карте в её ЛОКАЛЬНЫХ (текстурных) координатах: спиннер встаёт под палец. */
+  private readonly pending = new Map<
+    string,
+    {
+      kind: PendingKind;
+      token: number;
+      age: number;
+      touchLocal: { x: number; y: number };
+      spinner: Graphics | null;
+      overlay: Graphics | null;
+    }
+  >();
   private pendingToken = 0;
+  /** Смещение центра карты от пальца на СТАРТЕ драга — им считается точка касания на элементе. */
+  private grabOffset = { x: 0, y: 0 };
 
   constructor(opts: MultiplayerSceneOptions) {
     super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
@@ -273,6 +289,7 @@ export class MultiplayerScene extends SceneEngine {
   }
 
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
+    this.grabOffset = { x: el.body.px - cp.x, y: el.body.py - cp.y };
     this.armedSlots = this.legalTargets(this.tree.slotOf(el.id) ?? "");
     this.paintBoard();
     return super.beginDrag(el, cp, sp);
@@ -321,16 +338,26 @@ export class MultiplayerScene extends SceneEngine {
 
   /** Повесить карту в точке дропа до ответа сервера: поза lifted (дыхание и тень подъёма — её
    *  собственные), драговый z остаётся, индикатор и таймаут ведёт tickPending/after.
-   *  Висит она в точке ПАЛЬЦА (cp), не тела: тело едет пружиной и на быстром жесте отстаёт —
-   *  замороженное по телу, ожидание выглядело бы «застрял на полпути» (то же правило, что у
-   *  разрешения дропа, см. catalog-rules.md). */
+   *  Точка покоя — по ПАЛЬЦУ (cp + смещение захвата), не по телу: тело едет пружиной и на быстром
+   *  жесте отстаёт — замороженное по телу, ожидание выглядело бы «застрял на полпути» (то же
+   *  правило, что у разрешения дропа, см. catalog-rules.md). */
   private beginPending(cardId: string, kind: PendingKind, cp: { x: number; y: number }): void {
     const node = this.nodes.get(cardId);
     if (!node) return;
     const token = ++this.pendingToken;
-    this.pending.set(cardId, { kind, token, age: 0, label: null });
+    // Точка касания в локальных (текстурных) координатах карты: смещение захвата, снятое на
+    // pointerdown в мировых единицах, обратно через мировой масштаб карты в покое.
+    const worldScale = node.width / TEX_W;
+    this.pending.set(cardId, {
+      kind,
+      token,
+      age: 0,
+      touchLocal: { x: -this.grabOffset.x / worldScale, y: -this.grabOffset.y / worldScale },
+      spinner: null,
+      overlay: null,
+    });
     node.setState("lifted");
-    node.body.setTarget({ x: cp.x, y: cp.y, rot: 0 });
+    node.body.setTarget({ x: cp.x + this.grabOffset.x, y: cp.y + this.grabOffset.y, rot: 0 });
     this.tickPending(cardId, token);
     this.after(PENDING_TIMEOUT_S, () => {
       const p = this.pending.get(cardId);
@@ -340,34 +367,50 @@ export class MultiplayerScene extends SceneEngine {
     });
   }
 
-  /** Пульс ожидания: растит возраст и после порога показывает «·· ·» над картой (pendingDots).
-   *  Тикает after()-цепочкой — общего cancel у таймеров сцены нет, поэтому каждый тик сам
-   *  проверяет, что его ход ещё ждёт (token). */
+  /** Пульс ожидания: растит возраст и после порога (pendingIndicatorVisible) один раз собирает
+   *  индикатор — спиннер в точке касания + оверлей-притемнение, оба детьми node.root. Тикает
+   *  after()-цепочкой — общего cancel у таймеров сцены нет, поэтому каждый тик сам проверяет,
+   *  что его ход ещё ждёт (token). Вращает спиннер НЕ он, а stepScene — покадрово. */
   private tickPending(cardId: string, token: number): void {
     const p = this.pending.get(cardId);
     if (!p || p.token !== token) return;
     p.age += MultiplayerScene.PENDING_TICK_S;
-    const dots = pendingDots(p.age);
     const node = this.nodes.get(cardId);
-    if (dots && node) {
-      if (!p.label) {
-        p.label = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 24, fill: COLORS.gold, align: "center" } });
-        p.label.anchor.set(0.5, 1);
-        this.scene.surface.addChild(p.label);
-      }
-      p.label.text = dots;
-      // Над картой, с запасом на её lifted-масштаб: индикатор не должен утонуть под самой картой.
-      p.label.position.set(node.body.px, node.body.py - (CARD.h / 2) * 1.2);
+    if (node && !p.overlay && pendingIndicatorVisible(p.age)) {
+      // Оверлей — по контуру карты (та же геометрия, что маска пыли в Card.ts): «карта занята,
+      // сервер думает». Лёгкий: сквозь него читается и номинал, и дыхание.
+      p.overlay = new Graphics()
+        .roundRect(-TEX_W / 2 + 2, -TEX_H / 2 + 2, TEX_W - 4, TEX_H - 4, 16)
+        .fill({ color: 0x000000, alpha: 0.22 });
+      // Спиннер — незамкнутая дуга под пальцем (точка касания), классика «идёт запрос».
+      p.spinner = new Graphics()
+        .arc(0, 0, 26, 0, Math.PI * 1.5)
+        .stroke({ width: 7, color: COLORS.gold, cap: "round" });
+      p.spinner.position.set(p.touchLocal.x, p.touchLocal.y);
+      node.root.addChild(p.overlay, p.spinner);
       this.wake();
     }
     this.after(MultiplayerScene.PENDING_TICK_S, () => this.tickPending(cardId, token));
+  }
+
+  /** Вращение спиннеров ожидания — покадрово, пока хоть один виден (возврат true не даёт циклу
+   *  уснуть под ними). */
+  protected stepScene(dt: number): boolean {
+    let spinning = false;
+    for (const p of this.pending.values()) {
+      if (!p.spinner) continue;
+      p.spinner.rotation += dt * PENDING_SPINNER_SPEED;
+      spinning = true;
+    }
+    return spinning;
   }
 
   /** Снять ожидание (одобрено или провалено) — карту дальше ведёт вызывающий. */
   private clearPending(cardId: string): void {
     const p = this.pending.get(cardId);
     if (!p) return;
-    p.label?.destroy();
+    p.spinner?.destroy();
+    p.overlay?.destroy();
     this.pending.delete(cardId);
   }
 
@@ -443,7 +486,10 @@ export class MultiplayerScene extends SceneEngine {
 
   protected onTeardown(app: Application): void {
     this.disposeRoom();
-    for (const p of this.pending.values()) p.label?.destroy();
+    for (const p of this.pending.values()) {
+      p.spinner?.destroy();
+      p.overlay?.destroy();
+    }
     this.pending.clear();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();

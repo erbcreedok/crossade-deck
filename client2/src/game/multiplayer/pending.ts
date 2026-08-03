@@ -35,19 +35,17 @@ export function rejectedCards(signalCards: readonly string[], pending: Iterable<
   return [...pending].filter((c) => hit.has(c));
 }
 
-/** Через сколько секунд молчания запрос считается «затянувшимся» и получает индикатор.
- *  Быстрый ответ (локальный мастер без latency, хороший сокет) индикатора не заслуживает —
- *  мигание на каждый дроп читалось бы как нервный тик стола. */
+/** Через сколько секунд молчания запрос считается «затянувшимся» и получает индикатор
+ *  (спиннер в точке касания + оверлей-притемнение карты). Быстрый ответ (локальный мастер без
+ *  latency, хороший сокет) индикатора не заслуживает — мигание на каждый дроп читалось бы как
+ *  нервный тик стола. */
 export const PENDING_SLOW_AFTER_S = 0.4;
-/** Период смены кадра индикатора. */
-export const PENDING_DOT_PERIOD_S = 0.3;
+/** Скорость спиннера, рад/с (оборот ~0.9 с — быстрее читается как нервозность, медленнее — как зависание). */
+export const PENDING_SPINNER_SPEED = (Math.PI * 2) / 0.9;
 /** Молчание дольше этого — считаем, что ответа не будет: карта возвращается домой. */
 export const PENDING_TIMEOUT_S = 5;
 
-/** Кадр индикатора по возрасту ожидания: null — ещё рано (запрос не считается затянувшимся),
- *  дальше «·» → «··» → «···» по кругу. Текст, а не спиннер: пиксельному столу родной шрифт. */
-export function pendingDots(elapsedS: number): string | null {
-  if (elapsedS < PENDING_SLOW_AFTER_S) return null;
-  const frame = Math.floor((elapsedS - PENDING_SLOW_AFTER_S) / PENDING_DOT_PERIOD_S) % 3;
-  return "·".repeat(frame + 1);
+/** Пора ли показывать индикатор: до порога — рано, запрос ещё не «затянувшийся». */
+export function pendingIndicatorVisible(elapsedS: number): boolean {
+  return elapsedS >= PENDING_SLOW_AFTER_S;
 }

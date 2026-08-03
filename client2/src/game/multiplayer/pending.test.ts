@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  approvedIn,
-  pendingDots,
-  rejectedCards,
-  PENDING_DOT_PERIOD_S,
-  PENDING_SLOW_AFTER_S,
-} from "./pending";
+import { approvedIn, pendingIndicatorVisible, rejectedCards, PENDING_SLOW_AFTER_S } from "./pending";
 
 describe("approvedIn", () => {
   it("play_card одобрен, когда карта появилась в ЛЮБОЙ кучке зоны", () => {
@@ -26,17 +20,10 @@ describe("rejectedCards", () => {
   });
 });
 
-describe("pendingDots — индикатор затянувшегося запроса", () => {
-  it("быстрый ответ индикатора не заслуживает: до порога — null", () => {
-    expect(pendingDots(0)).toBeNull();
-    expect(pendingDots(PENDING_SLOW_AFTER_S - 0.01)).toBeNull();
-  });
-
-  it("после порога точки растут и идут по кругу: · → ·· → ··· → ·", () => {
-    const at = (n: number) => pendingDots(PENDING_SLOW_AFTER_S + PENDING_DOT_PERIOD_S * n + 0.01);
-    expect(at(0)).toBe("·");
-    expect(at(1)).toBe("··");
-    expect(at(2)).toBe("···");
-    expect(at(3)).toBe("·");
+describe("pendingIndicatorVisible — индикатор затянувшегося запроса", () => {
+  it("быстрый ответ индикатора не заслуживает: до порога скрыт, после — виден", () => {
+    expect(pendingIndicatorVisible(0)).toBe(false);
+    expect(pendingIndicatorVisible(PENDING_SLOW_AFTER_S - 0.01)).toBe(false);
+    expect(pendingIndicatorVisible(PENDING_SLOW_AFTER_S)).toBe(true);
   });
 });
