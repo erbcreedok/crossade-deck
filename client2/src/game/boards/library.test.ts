@@ -3,7 +3,7 @@ import { at } from "../slotfield/slotField";
 import { buildBoardTree } from "./boardTree";
 import { applyCommand, bootState } from "./mock";
 import { handOf, OFFBOARD_KEY } from "./state";
-import { BOARD_LIBRARY, chessBoard, krestovyiBoard, monopolyBoard } from "./presets";
+import { BOARD_LIBRARY, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, pokerBoard } from "./library";
 
 // Борды-пресеты — ДАННЫЕ: гварды на то, что каждая спека собирается в живой стол
 // (bootState + дерево) и её контраст действительно работает через общий редьюсер.
@@ -64,6 +64,29 @@ describe("монополия", () => {
     expect(handOf(s, "p1").length).toBe(3);
     s = applyCommand(spec, s, { t: "roll" }, rng);
     expect(s.dice).toEqual([4, 4]);
+  });
+});
+
+describe("вторая волна", () => {
+  it("дурак: пара стола держит две карты, третья не лезет (maxSize)", () => {
+    const spec = durakBoard();
+    let s = bootState(spec, 2);
+    const [a, b, c] = [handOf(s, "p1")[0]!, handOf(s, "p1")[1]!, handOf(s, "p1")[2]!];
+    s = applyCommand(spec, s, { t: "move", el: a, from: "hand:p1", to: "table:r0c0" }, rng);
+    s = applyCommand(spec, s, { t: "move", el: b, from: "hand:p1", to: "table:r0c0" }, rng);
+    const full = s;
+    s = applyCommand(spec, s, { t: "move", el: c, from: "hand:p1", to: "table:r0c0" }, rng);
+    expect(s).toEqual(full);
+    expect(at(s.field, "table:r0c0")?.members).toEqual([a, b]);
+  });
+
+  it("покер: колода 52 уникальных, борд отдаёт адресные слоты", () => {
+    const spec = pokerBoard();
+    const cards = spec.elements.filter((e) => e.kind === "card");
+    expect(cards.length).toBe(52);
+    expect(new Set(cards.map((c) => c.id)).size).toBe(52);
+    const tree = buildBoardTree(spec, bootState(spec, 2), "p1");
+    expect(tree.origins["board:r0c4"]).toBeDefined();
   });
 });
 

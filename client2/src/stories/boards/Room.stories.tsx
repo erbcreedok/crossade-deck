@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene";
-import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/presets";
+import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/library";
 import { seatCount } from "../../game/boards/state";
 import {
   applyRoomCommand,

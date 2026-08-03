@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene";
-import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/presets";
+import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/library";
 import type { BoardCommand } from "../../game/boards/spec";
 
 interface Args {
@@ -36,8 +36,8 @@ function BoardStage({ board, seats }: Args) {
  * раскладкой — грид, кольцо, стопка, цепочка), места игроков, панель действий и смарт-мок
  * вместо правил (`docs/BOARDS-DESIGN.md`).
  *
- * Конкретная игра — ДАННЫЕ (`game/boards/presets.ts`), не подкласс: шахматы, крестовый и
- * монополия не написали ни строчки движка. Правил игр нет НАМЕРЕННО: мок исполняет всё, что
+ * Конкретная игра — ДАННЫЕ (`game/boards/library/` — файл на игру), не подкласс: девять борд
+ * не написали ни строчки движка. Правил игр нет НАМЕРЕННО: мок исполняет всё, что
  * не рушит структуру (политики зон merge/swap/capture/reject — работают), а правила живут в
  * головах игроков. Кнопки панели — те же команды порта, что и палец: панель Actions показывает
  * каждый ход обоих драйверов.
@@ -64,7 +64,7 @@ const meta: Meta<Args> = {
   parameters: {
     layout: "fullscreen",
     code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene";
-import { BOARD_LIBRARY } from "../../game/boards/presets";
+import { BOARD_LIBRARY } from "../../game/boards/library";
 
 // Борда — данные (BoardSpec): зоны со своими раскладками, места, панель действий, смарт-мок.
 const scene = new BoardScene({ spec: BOARD_LIBRARY.${a.board}(), seats: ${a.seats} });
@@ -84,6 +84,9 @@ export default meta;
  *   • `board: krestovyi` — руки уже розданы (дилеру ♛ меньше — раздача «по кругу, себе
  *     последним»); ходите в цепочку: отбой ложится ПОВЕРХ звена, новое звено открывается само;
  *     «ход дальше»/«направление» гоняют золотой маркер по местам — индикация, не запрет;
- *   • `board: monopoly` — «бросить кубики», фишки по кольцу, деньги у мест.
+ *   • `board: monopoly` — «бросить кубики», фишки по кольцу, деньги у мест;
+ *   • вторая волна: дурак (пары стола maxSize 2 — третья карта в слот не лезет), белка (вся
+ *     колода всегда на руках), УНО (реверсы), манчкин (двери/сокровища/уровни), покер (борд
+ *     из пяти адресных слотов + банк), ДнД (энкаунтер-поле с миниатюрами и кубиками).
  */
 export const Boards: StoryObj<Args> = {};
