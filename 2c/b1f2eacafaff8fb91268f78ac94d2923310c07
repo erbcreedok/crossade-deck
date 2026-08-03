@@ -1,0 +1,31 @@
+client2/src/game/engine/inputRouter.ts
+  s_73847489de6701::t_39e38a6244dd6a 32-37
+  s_73847489de6701::t_d927df67fb96f8 133-138
+  s_73847489de6701::t_c81b9c70f41b5c 242-258,268-269
+  s_73847489de6701::t_de8df28707008b 172-180
+  s_73847489de6701::t_a336b6e52208ad 17-22
+  s_73847489de6701::t_4d7e21fc0a0f0e 6
+  s_73847489de6701::t_8a316cf273c66c 212-217
+  s_73847489de6701::t_58dccb2e19b614 92-94
+client2/src/game/engine/sceneEngine.ts
+  s_73847489de6701::t_a4976586656a3e 982
+client2/src/game/engine/inputRouter.test.ts
+  s_73847489de6701::t_03efa1e2a1af17 8-10,17
+  s_73847489de6701::t_19fc9ed51d6a40 143-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "2cb1f2eacafaff8fb91268f78ac94d2923310c07",
+  "prompts": {},
+  "sessions": {
+    "s_73847489de6701": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c73eb97d-4df4-4085-ad0c-cc0e1b0de62e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
