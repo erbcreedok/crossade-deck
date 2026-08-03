@@ -1,0 +1,125 @@
+.github/workflows/build.yml
+  s_e2a4c2b31d470a::t_d13958d155cd42 200
+client/public/config.js
+  s_e2a4c2b31d470a::t_d13958d155cd42 7
+client2/fly.toml
+  s_e2a4c2b31d470a::t_d13958d155cd42 7,10,15-16
+.github/workflows/deploy.yml
+  s_e2a4c2b31d470a::t_d13958d155cd42 44
+client2/package.json
+  s_e2a4c2b31d470a::t_d13958d155cd42 2
+client2/src/net/runtimeConfig.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,14,34
+README.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,15-16,62-63,65,76,83,119-120
+scripts/bootstrap-github-project.sh
+  s_e2a4c2b31d470a::t_d13958d155cd42 3,16-17
+client2/docs/CROSSADE-DESIGN.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 25
+SERVER-V2-INFRA-HANDOFF.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 31-32,34,169,190,298-299,310,314,320-321,324
+client2/.storybook/preview.tsx
+  s_e2a4c2b31d470a::t_d13958d155cd42 10
+client2/MINI-GAMES-SUITE.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 409
+client/src/account.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 12
+docker-compose.yml
+  s_e2a4c2b31d470a::t_d13958d155cd42 3,26-27
+CLAUDE.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,22-23
+README_RU.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,15-16,62-63,65,76,83,118-119
+client2/docs/PORTABILITY.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 9
+client/package.json
+  s_e2a4c2b31d470a::t_d13958d155cd42 2
+client2/src/net/runtimeConfig.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 49-50,56
+scripts/bootstrap-github-issues.sh
+  s_e2a4c2b31d470a::t_d13958d155cd42 3,16
+server/package.json
+  s_e2a4c2b31d470a::t_d13958d155cd42 2
+client/src/recentAccounts.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 11
+client2/CONTROL-DESIGN.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 94
+CLAUDE_RU.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,20-21
+client2/docs/sleep/SLEEP_2026-08-01.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 17
+client/src/useAnimationSettings.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 10-13
+client2/.storybook/manager.tsx
+  s_e2a4c2b31d470a::t_d13958d155cd42 17,19
+scripts/deploy.sh
+  s_e2a4c2b31d470a::t_d13958d155cd42 84
+server/fly.toml
+  s_e2a4c2b31d470a::t_d13958d155cd42 4,13,34
+client/fly.toml
+  s_e2a4c2b31d470a::t_d13958d155cd42 15,23-24
+client/src/useCardBack.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 6
+client2/docs/sleep/SLEEP_2026-07-31.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 12
+client/src/account.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 5
+client2/src/net/account.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 22
+deploy/storybook.fly.toml
+  s_e2a4c2b31d470a::t_d13958d155cd42 3,8
+client/src/useCardBack.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 5
+client/src/roomRoute.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 6
+client/src/useFaceStyle.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 7
+client/index.html
+  s_e2a4c2b31d470a::t_d13958d155cd42 26
+client/src/useFourColor.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 5
+client/src/sessionEntry.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 4
+deploy/runtime-config.sh
+  s_e2a4c2b31d470a::t_d13958d155cd42 28
+DEPLOY_RU.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,32-33,44-45,52,54-55,63,74,81,98-100,106,110,112,122,129,133,139,150,154,157,162,165,167,175,178,193,212-214,216,223,235,268,283,289,291,305
+client/src/runtimeConfig.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 26,38
+client2/docs/HANDOFF.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 8,190
+DEPLOY.md
+  s_e2a4c2b31d470a::t_d13958d155cd42 1,33-34,45-46,53,55-56,64,76,83,100-102,108,112,114,124,131,135,141,153,157,160,165,168,170,179,182,198,216-218,221,227,241,276,294,299,301,316,331
+client/src/runtimeConfig.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 9-10,16,21,26
+client/src/useAnimationSettings.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 5-8
+client/src/useFourColor.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 5
+client2/src/net/account.test.ts
+  s_e2a4c2b31d470a::t_d13958d155cd42 69
+deploy/components.json
+  s_e2a4c2b31d470a::t_d13958d155cd42 26,34,42
+client/package-lock.json
+  s_e2a4c2b31d470a::t_44c12471f98712 2,8
+client2/package-lock.json
+  s_e2a4c2b31d470a::t_7496b76572f260 2,8
+server/package-lock.json
+  s_e2a4c2b31d470a::t_e5c26b69898cd8 2,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "4f9be2763266d7fc07fead8fc00ed88e0ac15827",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
