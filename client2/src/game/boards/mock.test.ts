@@ -136,6 +136,16 @@ describe("круг хода, кубики, места", () => {
     expect(again.seats[1]!.occupant).toBe("красная панда"); // занятый стул не отдаётся
   });
 
+  it("reorderHand применяет перестановку и отвергает чужой состав", () => {
+    const withDeal = testSpec({ mock: { deal: { from: "deck", each: 2 } } });
+    let s = bootState(withDeal, 2);
+    const [a, b] = [handOf(s, "p1")[0]!, handOf(s, "p1")[1]!];
+    s = applyCommand(withDeal, s, { t: "reorderHand", seat: "p1", order: [b, a] }, rng);
+    expect(handOf(s, "p1")).toEqual([b, a]);
+    const same = applyCommand(withDeal, s, { t: "reorderHand", seat: "p1", order: [b, "A♠"] }, rng);
+    expect(same).toEqual(s);
+  });
+
   it("reset возвращает к setup + мок-раздаче, не трогая рассадку", () => {
     const withDeal = testSpec({ mock: { deal: { from: "deck", each: 1 } } });
     let s = bootState(withDeal, 2);

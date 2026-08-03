@@ -18,6 +18,9 @@ export function munchkinBoard(): BoardSpec {
       { id: "treasures", title: "сокровища", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: treasures } },
       { id: "discard", title: "сброс", layout: { kind: "pile" }, policy: { onOccupied: "merge" } },
       { id: "levels", title: "уровни", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: levels.map((l) => l.id) } },
+      // «Шмотки» — зона У КАЖДОГО МЕСТА (perSeat): свой мини-грид на игрока, виден всем.
+      { id: "gear", title: "шмотки", layout: { kind: "grid", cols: 3, rows: 1 }, cell: { w: 48, h: 68 },
+        policy: { onOccupied: "merge" }, perSeat: true },
     ],
     seats: { count: { min: 2, max: 6 }, show: "backs", swap: true },
     hand: { reorder: true },

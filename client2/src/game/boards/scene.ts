@@ -12,7 +12,8 @@ import { CARD } from "../crossade/tree";
 import { buildBoardTree, type BoardTree } from "./boardTree";
 import { applyCommand, bootState } from "./mock";
 import { handKey, type BoardState } from "./state";
-import { elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
+import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
+import { handOrderAfterDrop } from "../crossade/handOrder";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -245,42 +246,51 @@ export class BoardScene extends SceneEngine {
     }
   }
 
-  /** Декор: фон-клетки (шахматная раскраска), контуры зон, подписи зон. */
+  /** Декор: фон-клетки (шахматная раскраска), контуры зон, подписи. perSeat-экземпляры
+   *  («gear@p2») находят свою спеку через baseZoneId и получают КАЖДЫЙ свою подпись. */
   private paintDecor(): void {
     const g = this.decorLayer;
     g.clear();
-    for (const zone of this.spec.zones) {
-      if (zone.background === "chessboard") {
-        for (const [key, r] of Object.entries(this.tree.cellRects)) {
-          if (zoneOf(key) !== zone.id) continue;
+    // Рантайм-зоны: экземпляр → первый слот (для подписи).
+    const runtime = new Map<string, string>();
+    for (const key of Object.keys(this.tree.origins)) {
+      const z = zoneOf(key);
+      if (!runtime.has(z)) runtime.set(z, key);
+    }
+    const seen = new Set<string>();
+    for (const [zid, firstKey] of runtime) {
+      const zone = this.spec.zones.find((z) => z.id === baseZoneId(zid));
+      if (!zone) continue;
+      const cell = zone.cell ?? { w: 100, h: 143 };
+      for (const [key, at] of Object.entries(this.tree.origins)) {
+        if (zoneOf(key) !== zid) continue;
+        const r = this.tree.cellRects[key] ?? { x: at.x, y: at.y, w: cell.w, h: cell.h };
+        if (zone.background === "chessboard") {
           const m = key.match(/r(\d+)c(\d+)$/);
           const dark = m ? (Number(m[1]) + Number(m[2])) % 2 === 1 : false;
           g.rect(r.x, r.y, r.w, r.h).fill({ color: dark ? 0x27352c : 0x3a4a3f });
           g.rect(r.x, r.y, r.w, r.h).stroke({ width: 1, color: 0x1e2a23 });
-        }
-      } else {
-        // Контур каждого слота зоны. У грида/кольца прямоугольники даёт дерево (cellRects);
-        // у пила/цепочки — origin слота + cell зоны: пустой «сброс» обязан быть видимым,
-        // иначе класть первую карту некуда глазами.
-        const cell = zone.cell ?? { w: 100, h: 143 };
-        for (const [key, at] of Object.entries(this.tree.origins)) {
-          if (zoneOf(key) !== zone.id) continue;
-          const r = this.tree.cellRects[key] ?? { x: at.x, y: at.y, w: cell.w, h: cell.h };
+        } else {
           g.roundRect(r.x, r.y, r.w, r.h, 6).stroke({ width: 1.5, color: 0x50604f, alpha: 0.8 });
         }
       }
-      // Подпись зоны — над её первым слотом.
-      const first = Object.keys(this.tree.origins).find((k) => zoneOf(k) === zone.id);
-      if (!first) continue;
-      let label = this.zoneLabels.get(zone.id);
+      if (!zone.title) continue;
+      seen.add(zid);
+      let label = this.zoneLabels.get(zid);
       if (!label) {
         label = new Text({ text: zone.title, style: { fontFamily: PIXEL_FONT, fontSize: 13, fill: COLORS.gold } });
         label.anchor.set(0, 1);
         this.scene.surface.addChild(label);
-        this.zoneLabels.set(zone.id, label);
+        this.zoneLabels.set(zid, label);
       }
-      const at = this.tree.origins[first]!;
+      const at = this.tree.origins[firstKey]!;
       label.position.set(at.x, at.y - 6);
+    }
+    // Экземпляры, исчезнувшие с пересборкой (ушёл игрок) — снести подписи.
+    for (const [zid, label] of this.zoneLabels) {
+      if (seen.has(zid)) continue;
+      label.destroy();
+      this.zoneLabels.delete(zid);
     }
   }
 
@@ -349,8 +359,15 @@ export class BoardScene extends SceneEngine {
     const drag = this.drag;
     if (!drag) return;
     const from = this.tree.slotOf(el.id);
-    const to = dropTarget(this.tree.root, cp)?.group.id ?? null;
-    if (from && to && to !== from && zoneOf(to) !== "seat") {
+    const target = dropTarget(this.tree.root, cp);
+    const to = target?.group.id ?? null;
+    const myHand = handKey(this.selfSeat);
+    if (from === myHand && to === myHand && this.spec.hand?.reorder) {
+      // Реордер руки — та же дверь порта, что и любой ход (сервер потом получит эту же команду).
+      const members = this.state.field.slots[myHand]?.members ?? [];
+      const order = handOrderAfterDrop(members, el.id, target?.index ?? members.length);
+      this.dispatch({ t: "reorderHand", seat: this.selfSeat, order });
+    } else if (from && to && to !== from && zoneOf(to) !== "seat") {
       this.dispatch({ t: "move", el: el.id, from, to });
     }
     drag.release(); // состояние уже новое: дом = целевой слот, release долетает туда

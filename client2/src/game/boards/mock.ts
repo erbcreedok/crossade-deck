@@ -8,12 +8,12 @@
 import { at, move, place } from "../slotfield/slotField";
 import { topId } from "../slotfield/container";
 import { handKey, initialState, OFFBOARD_KEY, type BoardState } from "./state";
-import { slotKey, zoneOf, type BoardCommand, type BoardSpec, type SlotKey } from "./spec";
+import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type SlotKey } from "./spec";
 
 export type Rng = () => number;
 
 function zoneSpec(spec: BoardSpec, zoneId: string) {
-  return spec.zones.find((z) => z.id === zoneId);
+  return spec.zones.find((z) => z.id === baseZoneId(zoneId));
 }
 
 /** Дроп в занятый слот — политика зоны (slotfield: merge/swap/capture/reject) над SlotField. */
@@ -99,6 +99,13 @@ export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardComma
     case "roll": {
       const n = spec.mock?.dice ?? 0;
       return { ...state, dice: Array.from({ length: n }, () => 1 + Math.floor(rng() * 6)) };
+    }
+    case "reorderHand": {
+      const key = handKey(cmd.seat);
+      const current = at(state.field, key)?.members ?? [];
+      const same = current.length === cmd.order.length && [...current].sort().join(" ") === [...cmd.order].sort().join(" ");
+      if (!same) return state; // не перестановка того же состава — отказ без следа
+      return { ...state, field: place(state.field, key, { members: [...cmd.order] }) };
     }
     case "sit": {
       const seats = state.seats.map((s) => (s.id === cmd.seat && s.occupant === null ? { ...s, occupant: cmd.who } : s));

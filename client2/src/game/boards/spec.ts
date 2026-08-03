@@ -25,6 +25,17 @@ export function zoneOf(key: SlotKey): string {
   return at < 0 ? key : key.slice(0, at);
 }
 
+/** Спека зоны по её РАНТАЙМ-имени: экземпляр perSeat-зоны («gear@p2») ведёт к базовой («gear»). */
+export function baseZoneId(zoneId: string): string {
+  const at = zoneId.indexOf("@");
+  return at < 0 ? zoneId : zoneId.slice(0, at);
+}
+
+/** Рантайм-имя perSeat-зоны у конкретного места. */
+export function seatZoneId(zoneId: string, seatId: string): string {
+  return `${zoneId}@${seatId}`;
+}
+
 export function slotOf(key: SlotKey): string {
   const at = key.indexOf(":");
   return at < 0 ? "" : key.slice(at + 1);
@@ -67,6 +78,9 @@ export interface ZoneSpec {
   policy: ZonePolicySpec;
   /** Габарит ячейки зоны (шахматной клетке не нужен карточный прямоугольник). Дефолт — карта. */
   cell?: { w: number; h: number };
+  /** Зона У КАЖДОГО МЕСТА (манчкинские «шмотки»): дерево создаёт экземпляр на игрока с ключами
+   *  `id@seat:слот`; политика и раскладка общие. */
+  perSeat?: boolean;
   /** Ассет фона (шахматная доска, поле монополии) — рисует сцена, спека только называет. */
   background?: "chessboard" | "ringtrack";
   /** Начальные жители: слот → id элементов (низ → верх). Слоты вне списка пусты. */
@@ -108,7 +122,9 @@ export type BoardCommand =
   | { t: "sit"; who: string; seat: string }
   | { t: "stand"; who: string }
   /** Бросок кубиков — мок-рандом, результат ложится в state.dice. */
-  | { t: "roll" };
+  | { t: "roll" }
+  /** Переставить СВОЮ руку (перестановка того же состава — иначе отказ). */
+  | { t: "reorderHand"; seat: string; order: readonly string[] };
 
 export interface ActionSpec {
   id: string;

@@ -5,7 +5,7 @@ import { ringSlots } from "../slotfield/layout/slots";
 import { at as fieldAt } from "../slotfield/slotField";
 import { CARD } from "../crossade/tree";
 import { handKey, OFFBOARD_KEY, type BoardState } from "./state";
-import { slotKey, type BoardSpec, type ZoneSpec } from "./spec";
+import { seatZoneId, slotKey, type BoardSpec, type ZoneSpec } from "./spec";
 
 // ГЕОМЕТРИЯ БОРДЫ — ОДНО дерево слотов на рендер и дроп (канон всех сцен), собираемое из
 // BoardSpec: каждая зона — поддерево со СВОЕЙ раскладкой; id узлов = SlotKey состояния
@@ -56,8 +56,9 @@ function slotGroup(key: string, members: readonly string[], cell: Size, stagger 
 }
 
 /** Поддерево зоны + её габарит. origin выдаёт компоновщик, здесь — локальные координаты. */
-function zoneSubtrees(zone: ZoneSpec, state: BoardState): { placed: Placed[]; size: Size; cells: Record<string, { x: number; y: number; w: number; h: number }> } {
+function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): { placed: Placed[]; size: Size; cells: Record<string, { x: number; y: number; w: number; h: number }> } {
   const cell = zoneCell(zone);
+  const zid = instanceId;
   const placed: Placed[] = [];
   const cells: Record<string, { x: number; y: number; w: number; h: number }> = {};
 
@@ -66,7 +67,7 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState): { placed: Placed[]; si
       const { cols, rows } = zone.layout;
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          const key = slotKey(zone.id, `r${r}c${c}`);
+          const key = slotKey(zid, `r${r}c${c}`);
           const origin = { x: c * cell.w, y: r * cell.h };
           placed.push({ id: key, origin, slot: slotGroup(key, membersOf(state, key), cell, 0) });
           cells[key] = { x: origin.x, y: origin.y, w: cell.w, h: cell.h };
@@ -81,7 +82,7 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState): { placed: Placed[]; si
       const cy = radius + cell.h / 2;
       const slots = ringSlots(n, { cx, cy, radius, cell });
       for (const [i, s] of slots.entries()) {
-        const key = slotKey(zone.id, i); // индекс, не «ring7»: словарь ключей один — SlotKey
+        const key = slotKey(zid, i); // индекс, не «ring7»: словарь ключей один — SlotKey
         const origin = { x: s.rect.x, y: s.rect.y };
         placed.push({ id: key, origin, slot: slotGroup(key, membersOf(state, key), cell, 2) });
         cells[key] = { ...s.rect };
@@ -89,7 +90,7 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState): { placed: Placed[]; si
       return { placed, size: { w: cx * 2, h: cy * 2 }, cells };
     }
     case "pile": {
-      const key = slotKey(zone.id, 0);
+      const key = slotKey(zid, 0);
       placed.push({ id: key, origin: { x: 0, y: 0 }, slot: slotGroup(key, membersOf(state, key), cell) });
       return { placed, size: cell, cells };
     }
@@ -97,11 +98,11 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState): { placed: Placed[]; si
       // Живые слоты 0..k−1 из состояния + ВСЕГДА один пустой в конце («новое звено», как play:new).
       const keys: string[] = [];
       for (let i = 0; ; i++) {
-        const key = slotKey(zone.id, i);
+        const key = slotKey(zid, i);
         if (membersOf(state, key).length === 0) break;
         keys.push(key);
       }
-      keys.push(slotKey(zone.id, keys.length));
+      keys.push(slotKey(zid, keys.length));
       const linkGap = 14;
       keys.forEach((key, i) => {
         placed.push({ id: key, origin: { x: i * (cell.w * 0.72 + linkGap), y: 0 }, slot: slotGroup(key, membersOf(state, key), cell, 6) });
@@ -119,6 +120,7 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
   // 1. Полоса чужих мест: ряд рубашек/фишек их руки внахлёст + резерв под подпись.
   const others = state.seats.filter((s) => s.id !== selfSeat);
   let x = MARGIN.x;
+  let seatZonesH = 0;
   const seatsY = MARGIN.y + SEAT_LABEL_H;
   for (const seat of others) {
     const key = `seat:${seat.id}`;
@@ -128,17 +130,31 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
       origin: { x, y: seatsY },
       slot: group(key, pile({ dx: SEAT_STACK_DX, dy: 0, cell: { w: 58, h: 83 } }), members.map((m) => leaf(m, m, { w: 58, h: 83 }))),
     });
+    // Зоны ЭТОГО места (perSeat, манчкинские «шмотки») — сразу под его стрипом.
+    let seatZoneW = 0;
+    let zx = x;
+    for (const zone of spec.zones.filter((z) => z.perSeat)) {
+      const sub = zoneSubtrees(zone, state, seatZoneId(zone.id, seat.id));
+      for (const sp of sub.placed) {
+        placed.push({ ...sp, origin: { x: zx + sp.origin.x, y: seatsY + SEAT_CELL.h + 4 + sp.origin.y } });
+        const c = sub.cells[sp.id];
+        if (c) cellRects[sp.id] = { ...c, x: zx + c.x, y: seatsY + SEAT_CELL.h + 4 + c.y };
+      }
+      zx += sub.size.w + GAP.x;
+      seatZoneW += sub.size.w + GAP.x;
+      seatZonesH = Math.max(seatZonesH, sub.size.h + 4);
+    }
     // Ширина места ЖИВАЯ: ряд рубашек богатой руки шире номинала, сосед не должен наезжать.
-    const stripW = Math.max(SEAT_CELL.w, (members.length - 1) * SEAT_STACK_DX + 58);
+    const stripW = Math.max(SEAT_CELL.w, (members.length - 1) * SEAT_STACK_DX + 58, seatZoneW);
     x += stripW + GAP.x;
   }
-  const seatsBottom = seatsY + (others.length ? SEAT_CELL.h : 0);
+  const seatsBottom = seatsY + (others.length ? SEAT_CELL.h + seatZonesH : 0);
 
   // 2. Зоны стола: chain — своей строкой во всю ширину, остальные — в ряд. Правая колонка — offboard.
   let rowX = MARGIN.x;
   let rowBottom = seatsBottom + GAP.y;
   const rowTop = rowBottom;
-  for (const zone of spec.zones.filter((z) => z.layout.kind !== "chain")) {
+  for (const zone of spec.zones.filter((z) => z.layout.kind !== "chain" && !z.perSeat)) {
     const sub = zoneSubtrees(zone, state);
     for (const p of sub.placed) {
       placed.push({ ...p, origin: { x: rowX + p.origin.x, y: rowTop + p.origin.y } });
@@ -149,7 +165,7 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
     rowBottom = Math.max(rowBottom, rowTop + sub.size.h);
   }
   let chainBottom = rowBottom;
-  for (const zone of spec.zones.filter((z) => z.layout.kind === "chain")) {
+  for (const zone of spec.zones.filter((z) => z.layout.kind === "chain" && !z.perSeat)) {
     const sub = zoneSubtrees(zone, state);
     const y = rowBottom + GAP.y;
     for (const p of sub.placed) placed.push({ ...p, origin: { x: MARGIN.x + p.origin.x, y: y + p.origin.y } });
@@ -164,8 +180,23 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
     slot: group(OFFBOARD_KEY, pile({ dx: 0, dy: 26, cell: { w: 58, h: 83 } }), offboard.map((m) => leaf(m, m, { w: 58, h: 83 }))),
   });
 
-  // 3. Своя рука снизу (если у борды есть руки).
-  let handBottom = chainBottom;
+  // 3. Свои perSeat-зоны — строкой над рукой, потом сама рука снизу (если руки есть).
+  let selfZonesBottom = chainBottom;
+  {
+    let zx = MARGIN.x;
+    for (const zone of spec.zones.filter((z) => z.perSeat)) {
+      const sub = zoneSubtrees(zone, state, seatZoneId(zone.id, selfSeat));
+      const y = chainBottom + GAP.y;
+      for (const sp of sub.placed) {
+        placed.push({ ...sp, origin: { x: zx + sp.origin.x, y: y + sp.origin.y } });
+        const c = sub.cells[sp.id];
+        if (c) cellRects[sp.id] = { ...c, x: zx + c.x, y: y + c.y };
+      }
+      zx += sub.size.w + GAP.x * 2;
+      selfZonesBottom = Math.max(selfZonesBottom, y + sub.size.h);
+    }
+  }
+  let handBottom = selfZonesBottom;
   if (spec.hand) {
     const key = handKey(selfSeat);
     const members = membersOf(state, key);
@@ -173,10 +204,10 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
     const layout = cards.length ? linear({ axis: "x", gap: GAP.x }) : pile({ dx: 0, dy: 0, cell: CARD });
     placed.push({
       id: key,
-      origin: { x: MARGIN.x, y: chainBottom + GAP.y },
+      origin: { x: MARGIN.x, y: selfZonesBottom + GAP.y },
       slot: group(key, layout, cards, { drop: { accept: () => true }, reorder: { enabled: true } }),
     });
-    handBottom = chainBottom + GAP.y + CARD.h;
+    handBottom = selfZonesBottom + GAP.y + CARD.h;
   }
 
   const root = group(

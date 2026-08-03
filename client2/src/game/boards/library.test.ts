@@ -3,7 +3,7 @@ import { at } from "../slotfield/slotField";
 import { buildBoardTree } from "./boardTree";
 import { applyCommand, bootState } from "./mock";
 import { handOf, OFFBOARD_KEY } from "./state";
-import { BOARD_LIBRARY, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, pokerBoard } from "./library";
+import { BOARD_LIBRARY, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, munchkinBoard, pokerBoard } from "./library";
 
 // Борды-пресеты — ДАННЫЕ: гварды на то, что каждая спека собирается в живой стол
 // (bootState + дерево) и её контраст действительно работает через общий редьюсер.
@@ -87,6 +87,20 @@ describe("вторая волна", () => {
     expect(new Set(cards.map((c) => c.id)).size).toBe(52);
     const tree = buildBoardTree(spec, bootState(spec, 2), "p1");
     expect(tree.origins["board:r0c4"]).toBeDefined();
+  });
+});
+
+describe("perSeat-зоны (манчкин)", () => {
+  it("«шмотки» существуют У КАЖДОГО места своим экземпляром, политика общая", () => {
+    const spec = munchkinBoard();
+    let s = bootState(spec, 3);
+    const tree = buildBoardTree(spec, s, "p1");
+    expect(tree.origins["gear@p1:r0c0"]).toBeDefined(); // свои — над рукой
+    expect(tree.origins["gear@p2:r0c0"]).toBeDefined(); // чужие — под их стрипом
+    expect(tree.origins["gear@p3:r0c0"]).toBeDefined();
+    const card = handOf(s, "p1")[0]!;
+    s = applyCommand(spec, s, { t: "move", el: card, from: "hand:p1", to: "gear@p1:r0c1" }, rng);
+    expect(at(s.field, "gear@p1:r0c1")?.members).toEqual([card]);
   });
 });
 
