@@ -1,0 +1,32 @@
+client2/src/game/boards/boardTree.test.ts
+  s_e2a4c2b31d470a::t_4ffed4e18e1c0d 97-121
+client2/src/game/boards/library/belka.ts
+  s_e2a4c2b31d470a::t_86fb6e57ed8a3a 1-5,10-13,16-17,21,23-30,32,38
+client2/src/game/boards/library.test.ts
+  s_e2a4c2b31d470a::t_c886c97553f3e1 6
+  s_e2a4c2b31d470a::t_a699501e680d57 93-115
+  s_e2a4c2b31d470a::t_5824c9b258302f 116-117
+client2/src/game/boards/spec.ts
+  s_e2a4c2b31d470a::t_0d9097c8ad2cc0 185
+  s_e2a4c2b31d470a::t_19aa53cc68ab35 66-70
+client2/src/game/boards/boardTree.ts
+  s_e2a4c2b31d470a::t_a9b72bf27a6e82 349
+  s_e2a4c2b31d470a::t_7ac31b6be81b61 129-132
+  s_e2a4c2b31d470a::t_e8a188dcf73210 136-248,250-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "636b7cb746b42287ba92e3bd00c8b943e234f96b",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
