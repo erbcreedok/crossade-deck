@@ -90,5 +90,5 @@ app.get("/accounts/:id/last-room", (req, res) => {
 
 const PORT = Number(process.env.PORT) || 2567;
 httpServer.listen(PORT, () => {
-  console.log(`Crusade Deck ${formatVersion()} server listening on :${PORT}`);
+  console.log(`Crossade Deck ${formatVersion()} server listening on :${PORT}`);
 });

@@ -25,7 +25,7 @@ for value in "${APP_SERVER_URL:-}" "${APP_HTTP_URL:-}"; do
 done
 
 cat > "$ROOT/config.js" <<EOF
-window.__CRUSADE_CONFIG__ = {
+window.__CROSSADE_CONFIG__ = {
   serverUrl: "${APP_SERVER_URL:-}",
   httpUrl: "${APP_HTTP_URL:-}"
 };

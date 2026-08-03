@@ -81,7 +81,7 @@ fly_config() {
   printf '%s.%s.toml' "${base%.toml}" "$DEPLOY_ENV"
 }
 
-# Имя аппы на Fly по тому же правилу: crusade-deck-client → crusade-deck-client-dev.
+# Имя аппы на Fly по тому же правилу: crossade-deck-client → crossade-deck-client-dev.
 app_for_env() {
   local app="$1"
   [[ "$DEPLOY_ENV" == "prod" ]] && { printf '%s' "$app"; return; }

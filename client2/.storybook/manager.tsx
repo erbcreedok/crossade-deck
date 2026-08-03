@@ -14,9 +14,9 @@ import { SyntaxHighlighter } from "storybook/internal/components";
 // был бы худшим из возможных решений — два места, где пишется код примера, разъедутся в первый же
 // день, и заметить это будет нечем.
 
-const ADDON_ID = "crusade/code";
+const ADDON_ID = "crossade/code";
 const PANEL_ID = `${ADDON_ID}/panel`;
-const CODE_EVENT = "crusade/code";
+const CODE_EVENT = "crossade/code";
 
 /**
  * Код, присланный превью ДО того, как панель открыли.

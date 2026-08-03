@@ -1,4 +1,4 @@
-# Crusade Deck
+# Crossade Deck
 
 A multiplayer card game for mobile browsers. 2–32 players per session, 36- or 52-card
 deck. Pixel-casual style (Balatro-style) — not a literal "table with people", a virtual
@@ -19,8 +19,8 @@ rules can later be layered as configuration.
   for later (`client/src/firebase.ts`, `server/src/auth.ts`) but not configured or used
   until keys are supplied.
 - **Tests**: vitest in both packages (`npm test` in `server/` and `client/`).
-- **Deploy**: production is **Fly.io**, three apps (`crusade-deck-server`,
-  `crusade-deck-client`, `crusade-deck-storybook`). Building and deploying are SEPARATE:
+- **Deploy**: production is **Fly.io**, three apps (`crossade-deck-server`,
+  `crossade-deck-client`, `crossade-deck-storybook`). Building and deploying are SEPARATE:
   `.github/workflows/build.yml` builds the images into GHCR, and `scripts/deploy.sh`
   deploys a ready one (`fly deploy --image`). A push to `main` builds the images and deploys
   them by the immutable `sha-<commit>` tag; the same workflow is invoked by hand with any

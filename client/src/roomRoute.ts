@@ -3,7 +3,7 @@
 // Явный выход из комнаты этот персист чистит — тогда авто-возврата нет (но серверная
 // «последняя комната» для кнопки в лобби остаётся).
 
-const ACTIVE_ROOM_KEY = "crusade-deck:active-room";
+const ACTIVE_ROOM_KEY = "crossade-deck:active-room";
 
 // Достаёт код комнаты из пути (/room/213456 → "213456"), иначе null.
 export function parseRoomCode(path: string = window.location.pathname): string | null {

@@ -1,11 +1,11 @@
 # Fly-конфиг каталога UI-kit. Приложение создаётся один раз руками (образ уже готов, собирать
 # Fly ничего не должен):
-#   fly apps create crusade-deck-storybook
+#   fly apps create crossade-deck-storybook
 #   scripts/deploy.sh storybook
 #
 # Тома нет — сторибук чисто статический, переживать перезапуск нечему.
 
-app = "crusade-deck-storybook"
+app = "crossade-deck-storybook"
 primary_region = "fra"
 
 # Секция пустая намеренно: образ приезжает готовым из GHCR (fly deploy --image), собирать

@@ -6,24 +6,24 @@ describe("readRuntimeConfig", () => {
     expect(readRuntimeConfig({})).toEqual({ serverUrl: undefined, httpUrl: undefined });
   });
 
-  it("читает адреса из window.__CRUSADE_CONFIG__", () => {
-    const scope = { __CRUSADE_CONFIG__: { serverUrl: "wss://a", httpUrl: "https://a" } };
+  it("читает адреса из window.__CROSSADE_CONFIG__", () => {
+    const scope = { __CROSSADE_CONFIG__: { serverUrl: "wss://a", httpUrl: "https://a" } };
     expect(readRuntimeConfig(scope)).toEqual({ serverUrl: "wss://a", httpUrl: "https://a" });
   });
 
   // entrypoint пишет config.js всегда; незаданной переменной окружения соответствует "".
   it("пустая строка — это «не задано», а не адрес", () => {
-    const scope = { __CRUSADE_CONFIG__: { serverUrl: "", httpUrl: "" } };
+    const scope = { __CROSSADE_CONFIG__: { serverUrl: "", httpUrl: "" } };
     expect(readRuntimeConfig(scope)).toEqual({ serverUrl: undefined, httpUrl: undefined });
   });
 
   it("мусор вместо объекта не роняет клиент", () => {
-    expect(readRuntimeConfig({ __CRUSADE_CONFIG__: "нет" })).toEqual({});
+    expect(readRuntimeConfig({ __CROSSADE_CONFIG__: "нет" })).toEqual({});
     expect(readRuntimeConfig(null)).toEqual({});
   });
 
   it("один адрес задан, второй нет — половинчатый конфиг допустим", () => {
-    const scope = { __CRUSADE_CONFIG__: { serverUrl: "wss://a" } };
+    const scope = { __CROSSADE_CONFIG__: { serverUrl: "wss://a" } };
     expect(readRuntimeConfig(scope)).toEqual({ serverUrl: "wss://a", httpUrl: undefined });
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useAccount } from "./account";
 
-const STORAGE_KEY = "crusade-deck:account";
+const STORAGE_KEY = "crossade-deck:account";
 
 function mockFetchOnce(body: unknown, ok = true) {
   vi.stubGlobal(

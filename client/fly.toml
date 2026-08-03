@@ -12,7 +12,7 @@
 #
 # Секция [build] пустая намеренно: без неё flyctl идёт искать Dockerfile в контексте.
 
-app = "crusade-deck-client"
+app = "crossade-deck-client"
 primary_region = "fra"
 
 [build]
@@ -20,8 +20,8 @@ primary_region = "fra"
 [env]
   # Их читает deploy/runtime-config.sh и кладёт в /config.js при старте контейнера.
   # wss:// и https:// без исключений: HTTPS-страница не откроет незащищённый сокет.
-  APP_SERVER_URL = "wss://crusade-deck-server.fly.dev"
-  APP_HTTP_URL = "https://crusade-deck-server.fly.dev"
+  APP_SERVER_URL = "wss://crossade-deck-server.fly.dev"
+  APP_HTTP_URL = "https://crossade-deck-server.fly.dev"
 
 [http_service]
   internal_port = 80

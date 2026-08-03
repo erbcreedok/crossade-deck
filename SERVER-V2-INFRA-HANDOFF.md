@@ -28,10 +28,10 @@ supervisor'ом и префиксами `/api/v1` `/api/v2`. Отменено: v
 ## 1. Что должно получиться
 
 ```
-crusade-deck-server   (v1)   заморожен, живёт как есть → удалить, когда v1 умрёт
-crusade-deck-client   (v1)   заморожен, живёт как есть → удалить, когда v1 умрёт
+crossade-deck-server   (v1)   заморожен, живёт как есть → удалить, когда v1 умрёт
+crossade-deck-client   (v1)   заморожен, живёт как есть → удалить, когда v1 умрёт
 
-crusade-deck-v2              НОВОЕ приложение, один контейнер, одна машина
+crossade-deck-v2              НОВОЕ приложение, один контейнер, одна машина
 ├─ nginx :80
 │   ├─ /            → статика client2 (base '/', без префикса /v2/)
 │   ├─ /playground  → песочница (SPA-фоллбэк, отдельного правила не нужно)
@@ -166,7 +166,7 @@ exec nginx -g 'daemon off;'
 ### A5. `deploy/v2/fly.toml`
 
 ```toml
-app = "crusade-deck-v2"
+app = "crossade-deck-v2"
 primary_region = "fra"
 
 [build]
@@ -187,7 +187,7 @@ primary_region = "fra"
   memory = "256mb"            # node + nginx; поднять до 512, если словим OOM
 
 [mounts]
-  source = "crusade_v2_data"  # свой том, с v1 не пересекается
+  source = "crossade_v2_data"  # свой том, с v1 не пересекается
   destination = "/app/data"
 
 [[http_service.checks]]
@@ -295,8 +295,8 @@ server: {
 
 Локально:
 ```
-docker build -f deploy/v2/Dockerfile -t crusade-v2 .
-docker run --rm -p 8080:80 crusade-v2
+docker build -f deploy/v2/Dockerfile -t crossade-v2 .
+docker run --rm -p 8080:80 crossade-v2
 curl -s localhost:8080/health          # версия сервера v2
 open http://localhost:8080/            # client2 без префикса /v2/
 open http://localhost:8080/playground  # песочница
@@ -307,21 +307,21 @@ open http://localhost:8080/playground  # песочница
 На Fly:
 ```
 scripts/deploy.sh v2
-curl -s https://crusade-deck-v2.fly.dev/health
+curl -s https://crossade-deck-v2.fly.dev/health
 ```
 
 Старые адреса при этом обязаны продолжать работать без изменений:
-`crusade-deck-client.fly.dev/` и `crusade-deck-server.fly.dev/health`.
+`crossade-deck-client.fly.dev/` и `crossade-deck-server.fly.dev/health`.
 
 ---
 
 ## 7. Когда v1 умрёт
 
-1. `flyctl apps destroy crusade-deck-client`
-2. `flyctl apps destroy crusade-deck-server`
+1. `flyctl apps destroy crossade-deck-client`
+2. `flyctl apps destroy crossade-deck-server`
 3. Удалить из репо `client/`, `server/`, `deploy/web.Dockerfile`, `deploy/nginx.conf`,
    ветки CI под них, цели `server`/`client` в `scripts/deploy.sh`.
-4. `crusade-deck-v2` остаётся единственным. Навесить кастомный домен — и переименование
+4. `crossade-deck-v2` остаётся единственным. Навесить кастомный домен — и переименование
    приложения уже не понадобится (Fly-аппы не переименовываются, домен решает это чище).
 5. `VITE_BASE` из §A6 можно схлопнуть обратно в константу `/`.
 

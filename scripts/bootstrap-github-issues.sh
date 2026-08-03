@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# bootstrap-github-issues.sh — заводит трекинг задач Crusade Deck в GitHub Issues.
+# bootstrap-github-issues.sh — заводит трекинг задач Crossade Deck в GitHub Issues.
 # Консолидирует: todo/ (баги тестировщика) + client2/docs/open-tasks.md + HANDOFF.md.
 #
 # Запуск:
@@ -13,7 +13,7 @@
 # (В конце есть закомментированный блок «снести всё и начать заново».)
 
 set -euo pipefail
-REPO="erbcreedok/crusade-deck"
+REPO="erbcreedok/crossade-deck"
 
 echo "==> Репозиторий: $REPO"
 gh repo view "$REPO" >/dev/null || { echo "Нет доступа к $REPO — проверь gh auth status"; exit 1; }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useFourColor } from "./useFourColor";
 
-const KEY = "crusade-deck:four-color";
+const KEY = "crossade-deck:four-color";
 
 describe("useFourColor", () => {
   beforeEach(() => localStorage.clear());

@@ -6,7 +6,7 @@ Swift-приложения и из браузера играть на одном
 
 Родня: `docs/HANDOFF.md` (правило «HTML быть не должно»), `docs/atoms-map.md` §2 (шов «чистое ↔
 Pixi»), `CONTROL-DESIGN.md` (порт команд и драйверы), `ENGINE-UPGRADE.md` (`BoardConfig` как данные),
-эпик [#46](https://github.com/erbcreedok/crusade-deck/issues/46) (core-engine-kit).
+эпик [#46](https://github.com/erbcreedok/crossade-deck/issues/46) (core-engine-kit).
 
 ## 1. Перенесётся ли код на iPhone
 

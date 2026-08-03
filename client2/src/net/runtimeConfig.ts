@@ -1,4 +1,4 @@
-// Адрес игрового сервера: рантайм-инъекция (window.__CRUSADE_CONFIG__) побеждает над тем, что
+// Адрес игрового сервера: рантайм-инъекция (window.__CROSSADE_CONFIG__) побеждает над тем, что
 // вшито на сборке (import.meta.env.VITE_*), а вшитое — над жёстко зашитым дефолтом. Так собранный
 // бандл остаётся одним и тем же артефактом на всех окружениях — куда ему стучаться, решает
 // страница, которая его подаёт, а не пересборка. Форма перенесена из client/src/runtimeConfig.ts
@@ -11,7 +11,7 @@ export interface RuntimeConfig {
 
 declare global {
   interface Window {
-    __CRUSADE_CONFIG__?: RuntimeConfig;
+    __CROSSADE_CONFIG__?: RuntimeConfig;
   }
 }
 
@@ -31,7 +31,7 @@ export function resolveUrl(
 }
 
 function windowConfig(): RuntimeConfig {
-  return typeof window === "undefined" ? {} : window.__CRUSADE_CONFIG__ ?? {};
+  return typeof window === "undefined" ? {} : window.__CROSSADE_CONFIG__ ?? {};
 }
 
 export function serverUrl(): string {

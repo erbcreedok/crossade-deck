@@ -1,4 +1,4 @@
-# Деплой Crusade Deck через Cloudflare Tunnel
+# Деплой Crossade Deck через Cloudflare Tunnel
 
 Инструкция для того, кто разворачивает проект на своём сервере. Наружу ничего
 открывать не нужно: сервер держит исходящее соединение с Cloudflare, порты
@@ -29,8 +29,8 @@
              wss                                       └─ 127.0.0.1:2567  Colyseus (API + сокет)
 ```
 
-- `crusade.ПРИМЕР.com` → статика клиента
-- `api.crusade.ПРИМЕР.com` → игровой сервер
+- `crossade.ПРИМЕР.com` → статика клиента
+- `api.crossade.ПРИМЕР.com` → игровой сервер
 
 CORS уже разрешён на сервере (`Access-Control-Allow-Origin: *`), так что
 разные хосты для клиента и API — рабочая конфигурация, править код не надо.
@@ -41,18 +41,18 @@ CORS уже разрешён на сервере (`Access-Control-Allow-Origin: 
 ## 1. Собрать проект
 
 ```bash
-git clone <repo-url> ~/crusade-deck
-cd ~/crusade-deck/server && npm ci && npm run build
+git clone <repo-url> ~/crossade-deck
+cd ~/crossade-deck/server && npm ci && npm run build
 ```
 
 Клиент — только после того, как определились с доменами. Обязательно `wss://`
 и `https://`: страница по HTTPS не откроет незащищённый сокет.
 
 ```bash
-cd ~/crusade-deck/client
+cd ~/crossade-deck/client
 cat > .env.production <<'EOF'
-VITE_SERVER_URL=wss://api.crusade.ПРИМЕР.com
-VITE_HTTP_URL=https://api.crusade.ПРИМЕР.com
+VITE_SERVER_URL=wss://api.crossade.ПРИМЕР.com
+VITE_HTTP_URL=https://api.crossade.ПРИМЕР.com
 EOF
 npm ci && npm run build
 ```
@@ -60,7 +60,7 @@ npm ci && npm run build
 Проверить, что домен реально уехал в бандл:
 
 ```bash
-grep -c "api.crusade.ПРИМЕР.com" dist/assets/index-*.js
+grep -c "api.crossade.ПРИМЕР.com" dist/assets/index-*.js
 ```
 
 > ⚠️ Если рядом окажется `client/.env.local`, он перебьёт `.env.production` даже
@@ -71,14 +71,14 @@ grep -c "api.crusade.ПРИМЕР.com" dist/assets/index-*.js
 **Игровой сервер:**
 
 ```bash
-cd ~/crusade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
+cd ~/crossade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
 ```
 
 **Статика клиента** (нужен SPA-фоллбэк — ссылка-приглашение имеет вид `/r/КОД`,
 без фоллбэка при перезагрузке будет 404):
 
 ```bash
-npx serve -s ~/crusade-deck/client/dist -l 8080
+npx serve -s ~/crossade-deck/client/dist -l 8080
 ```
 
 Годится любой статик-сервер с фоллбэком на `index.html` — nginx, Caddy, что
@@ -95,21 +95,21 @@ curl -I http://127.0.0.1:8080/      # 200
 
 ```bash
 cloudflared tunnel login
-cloudflared tunnel create crusade-deck
-cloudflared tunnel route dns crusade-deck crusade.ПРИМЕР.com
-cloudflared tunnel route dns crusade-deck api.crusade.ПРИМЕР.com
+cloudflared tunnel create crossade-deck
+cloudflared tunnel route dns crossade-deck crossade.ПРИМЕР.com
+cloudflared tunnel route dns crossade-deck api.crossade.ПРИМЕР.com
 ```
 
 `~/.cloudflared/config.yml`:
 
 ```yaml
-tunnel: crusade-deck
+tunnel: crossade-deck
 credentials-file: /root/.cloudflared/<TUNNEL-UUID>.json
 
 ingress:
-  - hostname: api.crusade.ПРИМЕР.com
+  - hostname: api.crossade.ПРИМЕР.com
     service: http://127.0.0.1:2567
-  - hostname: crusade.ПРИМЕР.com
+  - hostname: crossade.ПРИМЕР.com
     service: http://127.0.0.1:8080
   - service: http_status:404
 ```
@@ -119,24 +119,24 @@ WebSocket через туннель работает из коробки, отд
 `tunnel route dns` так и создаёт.
 
 ```bash
-cloudflared tunnel run crusade-deck
+cloudflared tunnel run crossade-deck
 ```
 
 ## 4. Автозапуск
 
 Три сервиса: `cloudflared`, игровой сервер, статика. Для cloudflared есть
 штатное `cloudflared service install`. Для остальных двух — обычные unit-файлы
-systemd, например `/etc/systemd/system/crusade-deck.service`:
+systemd, например `/etc/systemd/system/crossade-deck.service`:
 
 ```ini
 [Unit]
-Description=Crusade Deck game server (Colyseus)
+Description=Crossade Deck game server (Colyseus)
 After=network.target
 
 [Service]
 Type=simple
 User=ПОЛЬЗОВАТЕЛЬ
-WorkingDirectory=/home/ПОЛЬЗОВАТЕЛЬ/crusade-deck/server
+WorkingDirectory=/home/ПОЛЬЗОВАТЕЛЬ/crossade-deck/server
 ExecStart=/usr/bin/node dist/index.js
 Environment=NODE_ENV=production
 Environment=PORT=2567
@@ -147,24 +147,24 @@ RestartSec=2
 WantedBy=multi-user.target
 ```
 
-Аналогичный unit для статики с `ExecStart=/usr/bin/npx serve -s /home/ПОЛЬЗОВАТЕЛЬ/crusade-deck/client/dist -l 8080`
+Аналогичный unit для статики с `ExecStart=/usr/bin/npx serve -s /home/ПОЛЬЗОВАТЕЛЬ/crossade-deck/client/dist -l 8080`
 (или отдать её nginx/Caddy, если они на машине уже есть).
 
 ```bash
-systemctl daemon-reload && systemctl enable --now crusade-deck
+systemctl daemon-reload && systemctl enable --now crossade-deck
 ```
 
-Логи: `journalctl -u crusade-deck -f`, `journalctl -u cloudflared -f`.
+Логи: `journalctl -u crossade-deck -f`, `journalctl -u cloudflared -f`.
 
 ## 5. Проверка
 
 ```bash
-curl https://api.crusade.ПРИМЕР.com/health
+curl https://api.crossade.ПРИМЕР.com/health
 ```
 
-Ожидается `{"status":"ok"}`. Дальше открыть `https://crusade.ПРИМЕР.com` в
+Ожидается `{"status":"ok"}`. Дальше открыть `https://crossade.ПРИМЕР.com` в
 браузере: создаётся профиль, в DevTools → Network должен быть апгрейд
-`101 Switching Protocols` на `wss://api.crusade.ПРИМЕР.com/...`.
+`101 Switching Protocols` на `wss://api.crossade.ПРИМЕР.com/...`.
 
 Если страница открывается, а игра не подключается — почти всегда в бандле
 остался неверный адрес (шаг 1) или сокет упёрся в хост без прокси Cloudflare.
@@ -172,10 +172,10 @@ curl https://api.crusade.ПРИМЕР.com/health
 ## 6. Обновление версии
 
 ```bash
-cd ~/crusade-deck && git pull
+cd ~/crossade-deck && git pull
 cd server && npm ci && npm run build
 cd ../client && npm ci && npm run build
-sudo systemctl restart crusade-deck
+sudo systemctl restart crossade-deck
 ```
 
 Статику перезапускать не нужно — `serve` отдаёт файлы с диска. Клиенту, скорее
@@ -190,7 +190,7 @@ sudo systemctl restart crusade-deck
 `server/data/` в `.gitignore`, `git pull` его не трогает. Раз в сутки в `crontab -e`:
 
 ```
-0 4 * * * mkdir -p ~/backups && cp ~/crusade-deck/server/data/accounts.json ~/backups/accounts-$(date +\%F).json
+0 4 * * * mkdir -p ~/backups && cp ~/crossade-deck/server/data/accounts.json ~/backups/accounts-$(date +\%F).json
 ```
 
 ## Известные мелочи
@@ -209,18 +209,18 @@ sudo systemctl restart crusade-deck
 
 | аппа | что это | конфиг |
 | --- | --- | --- |
-| `crusade-deck-server` | игровой сервер v1 (Colyseus) | `server/fly.toml` |
-| `crusade-deck-client` | nginx: клиент v1 на `/`, client2 на `/v2/` | `client/fly.toml` |
-| `crusade-deck-storybook` | каталог канвасного UI-kit | `deploy/storybook.fly.toml` |
+| `crossade-deck-server` | игровой сервер v1 (Colyseus) | `server/fly.toml` |
+| `crossade-deck-client` | nginx: клиент v1 на `/`, client2 на `/v2/` | `client/fly.toml` |
+| `crossade-deck-storybook` | каталог канвасного UI-kit | `deploy/storybook.fly.toml` |
 
-Сторибук вдобавок выкладывается на **GitHub Pages** — https://erbcreedok.github.io/crusade-deck/.
+Сторибук вдобавок выкладывается на **GitHub Pages** — https://erbcreedok.github.io/crossade-deck/.
 Это не дубль, а разделение ролей: образ на Fly — артефакт наравне с остальными (тот же
 конвейер, тот же откат по тегу, можно поставить на свой сервер), Pages — витрина: бесплатная,
 без холодного старта, со ссылкой, которую не жалко дать кому угодно. На Pages при этом уезжает
 статика, ВЫНУТАЯ ИЗ УЖЕ СОБРАННОГО ОБРАЗА (`docker create` + `docker cp` в джобе `pages`), а не
 собранная второй раз: вторая сборка — это второй артефакт, который однажды разойдётся с первым.
 Работает это только потому, что `.storybook/main.ts` ставит `base: "./"` — Pages отдаёт сайт из
-подпути `/crusade-deck/`, и с абсолютным `base` все ассеты дали бы 404.
+подпути `/crossade-deck/`, и с абсолютным `base` все ассеты дали бы 404.
 
 ### Артефакт отдельно, выкатка отдельно
 
@@ -232,7 +232,7 @@ Fly больше ничего не собирает. Образы собирае
 - его же можно поставить куда-то ещё — на свой сервер, на стенд — не пересобирая.
 
 ```
-пуш в main → зелёные тесты → ghcr.io/erbcreedok/crusade-deck/{server,web,storybook}
+пуш в main → зелёные тесты → ghcr.io/erbcreedok/crossade-deck/{server,web,storybook}
                                         ↓ (отдельным решением)
                               Actions → Выкатка   |   scripts/deploy.sh
 ```
@@ -265,7 +265,7 @@ BUILD_FROM_SOURCE=1 scripts/deploy.sh server # запасной путь: соб
 Теперь адрес приезжает переменными окружения:
 
 `[env]` в `client/fly.toml` → `deploy/runtime-config.sh` пишет `/config.js` при старте
-контейнера → `client/src/runtimeConfig.ts` читает `window.__CRUSADE_CONFIG__`.
+контейнера → `client/src/runtimeConfig.ts` читает `window.__CROSSADE_CONFIG__`.
 
 Порядок: рантайм → вшитое через `VITE_*` → `localhost`. Средняя ступень оставлена нарочно —
 `docker-compose.yml` собирается по-старому и работает без единой правки. `/config.js` отдаётся
@@ -280,15 +280,15 @@ BUILD_FROM_SOURCE=1 scripts/deploy.sh server # запасной путь: соб
 `scripts/deploy.sh`, и `.github/workflows/build.yml`. Новый компонент — запись в нём, без
 правок скрипта и workflow. Тем же способом заводится стек v2, когда появится `server-v2/`.
 
-Стенд — то же правило имён: конфиг `client/fly.dev.toml`, аппа `crusade-deck-client-dev`,
+Стенд — то же правило имён: конфиг `client/fly.dev.toml`, аппа `crossade-deck-client-dev`,
 запуск `DEPLOY_ENV=dev scripts/deploy.sh web`.
 
 ### Разовая настройка
 
 1. Секрет `FLY_API_TOKEN` в репозитории (`fly tokens create deploy`).
-2. `fly apps create crusade-deck-storybook`.
+2. `fly apps create crossade-deck-storybook`.
 3. После первой сборки сделать пакеты публичными: GitHub → Packages → каждый из
-   `crusade-deck/{server,web,storybook}` → Package settings → Change visibility → Public.
+   `crossade-deck/{server,web,storybook}` → Package settings → Change visibility → Public.
    GHCR создаёт пакеты приватными даже в публичном репозитории, а Fly тянет их анонимно.
 
 Версия видна в трёх местах: внизу экрана лобби, в меню настроек (полная — с коммитом и
@@ -302,7 +302,7 @@ BUILD_FROM_SOURCE=1 scripts/deploy.sh server # запасной путь: соб
 ### Куда это едет: стек v2
 
 Описанное выше — стек v1, и он доживает. Живой стек переезжает в ОТДЕЛЬНОЕ приложение
-`crusade-deck-v2` (один контейнер: nginx + node server-v2, client2 на `/`, `/api/` в node),
+`crossade-deck-v2` (один контейнер: nginx + node server-v2, client2 на `/`, `/api/` в node),
 v1 при этом не редактируется ни строчкой и потом удаляется целиком. Разбор, готовые конфиги
 и объяснение каждой грабли — `SERVER-V2-INFRA-HANDOFF.md`, состав работ — эпик #43.
 

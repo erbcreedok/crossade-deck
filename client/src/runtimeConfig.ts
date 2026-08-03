@@ -23,7 +23,7 @@ const DEFAULT_HTTP_URL = "http://localhost:2567";
 
 declare global {
   interface Window {
-    __CRUSADE_CONFIG__?: RuntimeConfig;
+    __CROSSADE_CONFIG__?: RuntimeConfig;
   }
 }
 
@@ -35,7 +35,7 @@ function nonEmpty(value: unknown): string | undefined {
 }
 
 export function readRuntimeConfig(scope: unknown = globalThis): RuntimeConfig {
-  const injected = (scope as { __CRUSADE_CONFIG__?: unknown } | null)?.__CRUSADE_CONFIG__;
+  const injected = (scope as { __CROSSADE_CONFIG__?: unknown } | null)?.__CROSSADE_CONFIG__;
   if (!injected || typeof injected !== "object") return {};
   const { serverUrl, httpUrl } = injected as Record<string, unknown>;
   return { serverUrl: nonEmpty(serverUrl), httpUrl: nonEmpty(httpUrl) };

@@ -4,7 +4,7 @@ import type { FaceStyle } from "./game/engine/cardTextures";
 // Вид лица числовых карт: "symbol" — один крупный значок по центру (как было),
 // "pips" — значков масти столько, сколько номинал. Хранится в localStorage, по
 // умолчанию "symbol"; неизвестное значение откатывается к нему же.
-const KEY = "crusade-deck:face-style";
+const KEY = "crossade-deck:face-style";
 
 function isFaceStyle(v: unknown): v is FaceStyle {
   return v === "symbol" || v === "pips";

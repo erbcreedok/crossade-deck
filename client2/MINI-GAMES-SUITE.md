@@ -406,7 +406,7 @@ cd client2 && npm run build
 scripts/deploy.sh
 
 # Live
-crusade-deck-client.fly.dev/v2/
+crossade-deck-client.fly.dev/v2/
   ├── solitaire
   ├── spider
   ├── lines

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# bootstrap-github-project.sh — заводит доску GitHub Projects (v2) для Crusade Deck
+# bootstrap-github-project.sh — заводит доску GitHub Projects (v2) для Crossade Deck
 # и закидывает в неё все открытые issues.
 #
 # Спутник bootstrap-github-issues.sh: тот создаёт задачи, этот — доску над ними.
@@ -13,8 +13,8 @@
 
 set -euo pipefail
 OWNER="erbcreedok"
-REPO="erbcreedok/crusade-deck"
-TITLE="Crusade Deck — доска"
+REPO="erbcreedok/crossade-deck"
+TITLE="Crossade Deck — доска"
 
 # ---------------------------------------------------------------- проект
 # Ищем проект по названию; если нет — создаём. Так повторный запуск не плодит доски.

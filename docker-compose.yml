@@ -1,6 +1,6 @@
 # Локальная проверка / прод без туннеля: `docker compose up -d --build`.
 #
-# CRUSADE_SERVER_URL/CRUSADE_HTTP_URL — публичные адреса игрового сервера, ими
+# CROSSADE_SERVER_URL/CROSSADE_HTTP_URL — публичные адреса игрового сервера, ими
 # собирается клиентский бандл (см. client/Dockerfile). Для локальной проверки
 # подойдут значения по умолчанию ниже; для прода задай их в .env рядом с этим
 # файлом (ws:// → wss://, http:// → https://) ДО первого `--build` — после
@@ -23,8 +23,8 @@ services:
     build:
       context: ./client
       args:
-        VITE_SERVER_URL: ${CRUSADE_SERVER_URL:-ws://localhost:2567}
-        VITE_HTTP_URL: ${CRUSADE_HTTP_URL:-http://localhost:2567}
+        VITE_SERVER_URL: ${CROSSADE_SERVER_URL:-ws://localhost:2567}
+        VITE_HTTP_URL: ${CROSSADE_HTTP_URL:-http://localhost:2567}
     restart: unless-stopped
     ports:
       - "8080:80"
