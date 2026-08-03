@@ -63,7 +63,11 @@ export type ZoneLayoutSpec =
   /** РЕОРДЕР-ГРИД (бывшее «Поле» песочницы): один живой контейнер, раскладка пересчитывает
    *  колонки/строки по числу жителей (min/max/grow), дроп — вставка на позицию или свап. */
   | { kind: "flow"; cols?: { min?: number; max?: number }; rows?: { min?: number; max?: number };
-      grow?: "square" | "down" | "right"; reserve?: boolean };
+      grow?: "square" | "down" | "right"; reserve?: boolean }
+  /** КРУГЛЫЙ СТОЛ: по одному слоту на КАЖДОЕ место, разложенных вокруг центра ОТНОСИТЕЛЬНО
+   *  зрителя (свой — снизу «перед тобой», остальные — крестом напротив/по бокам). Зона
+   *  неявно perSeat: слот места адресуется `id@seat:0`. Белка, покерный стол и т.п. */
+  | { kind: "seats" };
 
 export interface ZonePolicySpec {
   /** Исход дропа в ЗАНЯТЫЙ слот (slotfield/fieldZone.ts). merge — поверх; swap — обмен;
@@ -178,6 +182,7 @@ export function zoneSlotCount(zone: ZoneSpec): number | "dynamic" {
       return 1;
     case "chain":
     case "flow":
+    case "seats":
       return "dynamic";
   }
 }

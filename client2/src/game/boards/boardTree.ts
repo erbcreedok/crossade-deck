@@ -126,10 +126,130 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
       const w = (keys.length - 1) * (cell.w * 0.72 + linkGap) + cell.w;
       return { placed, size: { w, h: cell.h }, cells };
     }
+    case "seats":
+      // Круглый стол раскладывает buildBoardTree (нужны ВСЕ места и selfSeat); одиночный
+      // экземпляр сюда не приходит — заглушка ради полноты switch.
+      return { placed, size: cell, cells };
   }
 }
 
+/** Хвост сборки: одно дерево (absolute-раскладка по origin'ам) → индекс слотов, габарит, порт
+ *  запросов дерева. Общий для обеих компоновок (полосы-строки и круглый стол). */
+function finish(placed: Placed[], cellRects: Record<string, { x: number; y: number; w: number; h: number }>, hint: Size): BoardTree {
+  const root = group(
+    "board-root",
+    absolute(placed.map((p) => p.origin)),
+    placed.map((p) => p.slot),
+  );
+  const origins: Record<string, Vec> = {};
+  const slotIndex = new Map<string, string>();
+  placed.forEach((p) => {
+    origins[p.id] = p.origin;
+    figures(p.slot).forEach((id) => slotIndex.set(id, p.id));
+  });
+  const measured = measure(root);
+  const size = { w: Math.max(measured.w + MARGIN.x, hint.w), h: Math.max(measured.h + MARGIN.y, hint.h) };
+  return {
+    root,
+    size,
+    origins,
+    cellRects,
+    homeOf: (id) => leafHomeOf(root, id),
+    slotOf: (id) => slotIndex.get(id) ?? null,
+    slotAt: (cp) => dropTarget(root, cp)?.group.id ?? null,
+  };
+}
+
+/** Угол i-го места вокруг центра. Индекс 0 — свой, «на юге» (перед зрителем); дальше по кругу.
+ *  Экран: +y вниз, значит юг = +y. Для 4 мест: свой снизу, сосед слева, напротив сверху, справа. */
+function seatAngle(index: number, n: number): number {
+  return Math.PI / 2 + (index * 2 * Math.PI) / n;
+}
+
+/** КРУГЛЫЙ СТОЛ (layout kind "seats", BOARDS-DESIGN §4): по слоту на место вокруг центра
+ *  ОТНОСИТЕЛЬНО selfSeat — свой снизу «перед тобой», остальные крестом. Чужие руки — компактными
+ *  стопками рубашек за их слотом; своя рука — строкой снизу; прочие зоны и offboard — колонкой
+ *  справа. Слот места — perSeat-экземпляр `id@seat:0`, политику берёт из базовой зоны (reject —
+ *  «одна карта от игрока»). */
+function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, seatsZone: ZoneSpec): BoardTree {
+  const placed: Placed[] = [];
+  const cellRects: Record<string, { x: number; y: number; w: number; h: number }> = {};
+  const n = state.seats.length;
+  const cell = zoneCell(seatsZone);
+  const backCell: Size = { w: 58, h: 83 };
+
+  const selfIdx = Math.max(0, state.seats.findIndex((s) => s.id === selfSeat));
+  const ordered = Array.from({ length: n }, (_, k) => state.seats[(selfIdx + k) % n]!);
+
+  // Радиусы: слот места ближе к центру, стопка рубашек — дальше; квадрат стола вмещает оба.
+  const rSlot = Math.max(cell.w, cell.h) * 1.5;
+  const rBack = rSlot + cell.h * 0.55 + backCell.h * 0.5;
+  const reach = rBack + Math.max(SEAT_CELL.w, backCell.w) * 0.5;
+  const cx = MARGIN.x + reach;
+  const cyTop = MARGIN.y + SEAT_LABEL_H;
+  const cy = cyTop + reach;
+
+  ordered.forEach((seat, i) => {
+    const ang = seatAngle(i, n);
+    const sx = cx + rSlot * Math.cos(ang);
+    const sy = cy + rSlot * Math.sin(ang);
+    const key = slotKey(seatZoneId(seatsZone.id, seat.id), 0);
+    const origin = { x: sx - cell.w / 2, y: sy - cell.h / 2 };
+    placed.push({ id: key, origin, slot: slotGroup(key, membersOf(state, key), cell) });
+    cellRects[key] = { x: origin.x, y: origin.y, w: cell.w, h: cell.h };
+
+    if (seat.id === selfSeat) return; // своя рука — отдельной строкой снизу
+    const bx = cx + rBack * Math.cos(ang);
+    const by = cy + rBack * Math.sin(ang);
+    const members = membersOf(state, handKey(seat.id));
+    const seatKey = `seat:${seat.id}`;
+    const stripW = Math.max(0, members.length - 1) * SEAT_STACK_DX + backCell.w;
+    placed.push({
+      id: seatKey,
+      origin: { x: bx - stripW / 2, y: by - backCell.h / 2 },
+      slot: group(seatKey, pile({ dx: SEAT_STACK_DX, dy: 0, cell: backCell }), members.map((m) => leaf(m, m, backCell))),
+    });
+  });
+
+  const rightX = MARGIN.x + reach * 2 + GAP.x;
+
+  // Прочие зоны (не seats/perSeat/chain) — колонкой справа (белкины шестёрки лежат «рядом»).
+  let colY = cyTop;
+  for (const zone of spec.zones.filter((z) => z.layout.kind !== "seats" && !z.perSeat && z.layout.kind !== "chain")) {
+    const sub = zoneSubtrees(zone, state);
+    for (const p of sub.placed) {
+      placed.push({ ...p, origin: { x: rightX + p.origin.x, y: colY + p.origin.y } });
+      const c = sub.cells[p.id];
+      if (c) cellRects[p.id] = { ...c, x: rightX + c.x, y: colY + c.y };
+    }
+    colY += sub.size.h + SEAT_LABEL_H + GAP.y;
+  }
+
+  const offboard = membersOf(state, OFFBOARD_KEY);
+  placed.push({
+    id: OFFBOARD_KEY,
+    origin: { x: rightX, y: colY },
+    slot: group(OFFBOARD_KEY, pile({ dx: 0, dy: 26, cell: backCell }), offboard.map((m) => leaf(m, m, backCell))),
+  });
+
+  let handBottom = cy + reach;
+  if (spec.hand) {
+    const key = handKey(selfSeat);
+    const members = membersOf(state, key);
+    const cards = members.map((m) => leaf(m, m, CARD));
+    const layout = cards.length ? linear({ axis: "x", gap: GAP.x }) : pile({ dx: 0, dy: 0, cell: CARD });
+    const y = cy + reach + GAP.y;
+    placed.push({ id: key, origin: { x: MARGIN.x, y }, slot: group(key, layout, cards, { drop: { accept: () => true }, reorder: { enabled: true } }) });
+    handBottom = y + CARD.h;
+  }
+
+  return finish(placed, cellRects, { w: rightX + backCell.w + MARGIN.x, h: handBottom + MARGIN.y });
+}
+
 export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: string): BoardTree {
+  const seatsZone = spec.zones.find((z) => z.layout.kind === "seats");
+  if (seatsZone) return roundTableTree(spec, state, selfSeat, seatsZone);
+
   const placed: Placed[] = [];
   const cellRects: Record<string, { x: number; y: number; w: number; h: number }> = {};
 
@@ -226,29 +346,5 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
     handBottom = selfZonesBottom + GAP.y + CARD.h;
   }
 
-  const root = group(
-    "board-root",
-    absolute(placed.map((p) => p.origin)),
-    placed.map((p) => p.slot),
-  );
-
-  const origins: Record<string, Vec> = {};
-  const slotIndex = new Map<string, string>();
-  placed.forEach((p) => {
-    origins[p.id] = p.origin;
-    figures(p.slot).forEach((id) => slotIndex.set(id, p.id));
-  });
-
-  const measured = measure(root);
-  const size = { w: Math.max(measured.w + MARGIN.x, rowX), h: Math.max(measured.h + MARGIN.y, handBottom + MARGIN.y) };
-
-  return {
-    root,
-    size,
-    origins,
-    cellRects,
-    homeOf: (id) => leafHomeOf(root, id),
-    slotOf: (id) => slotIndex.get(id) ?? null,
-    slotAt: (cp) => dropTarget(root, cp)?.group.id ?? null,
-  };
+  return finish(placed, cellRects, { w: rowX, h: handBottom + MARGIN.y });
 }

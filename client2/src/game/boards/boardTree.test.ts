@@ -94,6 +94,31 @@ describe("buildBoardTree", () => {
     expect(h6.y).toBeGreaterThan(h1.y); // при grow:down шесть жителей легли в новые строки
   });
 
+  it("seats: слот на каждое место вокруг центра, свой — снизу, напротив — сверху (относительно selfSeat)", () => {
+    const roundSpec = spec({
+      zones: [{ id: "table", title: "", layout: { kind: "seats" }, policy: { onOccupied: "reject" } }],
+      seats: { count: { fixed: 4 }, show: "backs", swap: true },
+    });
+    const s = bootState(roundSpec, 4);
+    const tree = buildBoardTree(roundSpec, s, "p1");
+    // Экземпляр-слот на каждое место.
+    for (const p of ["p1", "p2", "p3", "p4"]) expect(tree.origins[`table@${p}:0`]).toBeDefined();
+    const self = tree.cellRects["table@p1:0"]!;
+    const across = tree.cellRects["table@p3:0"]!; // через одного = напротив
+    const left = tree.cellRects["table@p2:0"]!;
+    const right = tree.cellRects["table@p4:0"]!;
+    const cyMid = (self.y + across.y) / 2;
+    expect(self.y).toBeGreaterThan(cyMid); // свой слот НИЖЕ центра (перед зрителем)
+    expect(across.y).toBeLessThan(cyMid); // напротив — ВЫШЕ центра
+    expect(left.x).toBeLessThan(right.x); // сосед слева левее соседа справа
+
+    // Взгляд другого места: его слот тоже уезжает вниз (стол относителен зрителя).
+    const asP2 = buildBoardTree(roundSpec, s, "p2");
+    const self2 = asP2.cellRects["table@p2:0"]!;
+    const cy2 = (self2.y + asP2.cellRects["table@p4:0"]!.y) / 2;
+    expect(self2.y).toBeGreaterThan(cy2);
+  });
+
   it("ring раскладывает слоты по окружности с равным удалением от центра", () => {
     const ringSpec = spec({ zones: [
       { id: "track", title: "круг", layout: { kind: "ring", count: 8 }, policy: { onOccupied: "merge" }, cell: { w: 50, h: 50 } },

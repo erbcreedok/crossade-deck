@@ -3,7 +3,7 @@ import { at } from "../slotfield/slotField";
 import { buildBoardTree } from "./boardTree";
 import { applyCommand, bootState } from "./mock";
 import { handOf, OFFBOARD_KEY } from "./state";
-import { BOARD_LIBRARY, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, munchkinBoard, pokerBoard } from "./library";
+import { BOARD_LIBRARY, belkaBoard, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, munchkinBoard, pokerBoard } from "./library";
 
 // Борды-пресеты — ДАННЫЕ: гварды на то, что каждая спека собирается в живой стол
 // (bootState + дерево) и её контраст действительно работает через общий редьюсер.
@@ -87,6 +87,31 @@ describe("вторая волна", () => {
     expect(new Set(cards.map((c) => c.id)).size).toBe(52);
     const tree = buildBoardTree(spec, bootState(spec, 2), "p1");
     expect(tree.origins["board:r0c4"]).toBeDefined();
+  });
+});
+
+describe("белка", () => {
+  it("круглый стол на 4: раздача 32 без шестёрок по 8, шестёрки лежат отдельно парами", () => {
+    const spec = belkaBoard();
+    const s = bootState(spec); // fixed 4
+    expect(s.seats.length).toBe(4);
+    for (const seat of s.seats) expect(handOf(s, seat.id).length).toBe(8); // 32 / 4
+    // Шестёрок в руках нет — они в боковых зонах счёта.
+    for (const seat of s.seats) for (const id of handOf(s, seat.id)) expect(id.startsWith("6")).toBe(false);
+    expect(at(s.field, "score-red:0")?.members).toEqual(["6♥", "6♦"]);
+    expect(at(s.field, "score-black:0")?.members).toEqual(["6♠", "6♣"]);
+    expect(at(s.field, "deck:0")?.members ?? []).toEqual([]); // колода роздана целиком
+  });
+
+  it("на столе одна карта от игрока: свой слот принимает карту, вторую отвергает (reject)", () => {
+    const spec = belkaBoard();
+    let s = bootState(spec);
+    const [a, b] = [handOf(s, "p1")[0]!, handOf(s, "p1")[1]!];
+    s = applyCommand(spec, s, { t: "move", el: a, from: "hand:p1", to: "table@p1:0" }, rng);
+    expect(at(s.field, "table@p1:0")?.members).toEqual([a]);
+    const full = s;
+    s = applyCommand(spec, s, { t: "move", el: b, from: "hand:p1", to: "table@p1:0" }, rng);
+    expect(s).toEqual(full); // занят — вторая карта не легла
   });
 });
 
