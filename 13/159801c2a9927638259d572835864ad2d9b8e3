@@ -1,0 +1,35 @@
+client2/src/game/multiplayer/pending.test.ts
+  s_e2a4c2b31d470a::t_9beeacb72c98d1 1-42
+client2/src/game/multiplayer/scene.ts
+  s_e2a4c2b31d470a::t_7f4d2741e389a7 426
+  s_e2a4c2b31d470a::t_45a5f7b2ae56b6 262-263,265
+  s_e2a4c2b31d470a::t_57ec87f7ec9fa5 75-81
+  s_e2a4c2b31d470a::t_2a305a43507eb2 291-294,302,306-308,311,313,318-322,328-332,334-382
+  s_e2a4c2b31d470a::t_7490075fc20e8f 305,310
+  s_e2a4c2b31d470a::t_5defd6ef1666af 127-131,138-140
+  s_e2a4c2b31d470a::t_ecc2ce09574aa8 15-21
+  s_e2a4c2b31d470a::t_132269733786e5 166-168
+  s_e2a4c2b31d470a::t_5fc1b71e545d53 323-327,333
+  s_e2a4c2b31d470a::t_c9a0bceb46a0c9 435-441,446-447
+  s_e2a4c2b31d470a::t_57e3cc16ec3970 383
+client2/src/game/multiplayer/pending.ts
+  s_e2a4c2b31d470a::t_7c57081b77b383 1-53
+client2/docs/MULTIPLAYER-DESIGN.md
+  s_e2a4c2b31d470a::t_4adcfa04212244 63-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "13159801c2a9927638259d572835864ad2d9b8e3",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
