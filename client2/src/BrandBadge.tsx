@@ -25,5 +25,5 @@ export function BrandBadge() {
   const [show, setShow] = useState(false);
   useEffect(() => setShow(shouldShow()), []);
   if (!show) return null;
-  return <div className="brand-badge">🃏 crusade</div>;
+  return <div className="brand-badge">🃏 crossade</div>;
 }
