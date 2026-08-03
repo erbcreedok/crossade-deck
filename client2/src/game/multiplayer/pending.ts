@@ -12,11 +12,12 @@
 //   • отказ — action_rejected несёт карту (rejectedCards): «стоп»-покачивание и домой;
 //   • молчание — PENDING_TIMEOUT_S (сервер умер): то же, что отказ, плюс надпись.
 
-export type PendingKind = "play_card" | "take_play";
+export type PendingKind = "play_card" | "take_play" | "discard_card" | "take_discard";
 
-/** Кусок снимка, по которому решается одобрение — не весь CrossadeState, а ровно две зоны. */
+/** Кусок снимка, по которому решается одобрение — не весь CrossadeState, а ровно три зоны. */
 export interface PendingZones {
   play: readonly (readonly string[])[];
+  discard: readonly string[];
   selfHand: readonly string[];
 }
 
@@ -25,6 +26,7 @@ export interface PendingZones {
  *  отказе она тоже никуда не уходила, а при одобрении исходная зона меняется тем же снимком. */
 export function approvedIn(kind: PendingKind, card: string, zones: PendingZones): boolean {
   if (kind === "play_card") return zones.play.some((stack) => stack.includes(card));
+  if (kind === "discard_card") return zones.discard.includes(card);
   return zones.selfHand.includes(card);
 }
 

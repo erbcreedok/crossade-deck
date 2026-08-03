@@ -59,15 +59,15 @@ function topOf(arr: readonly string[]): string | undefined {
 
 export class MultiplayerScene extends SceneEngine {
   private tex: CardTextureCache | null = null;
-  private readonly nodes = new Map<string, Card>();
+  protected readonly nodes = new Map<string, Card>();
   private readonly cardDepth = new Map<string, number>();
-  private readonly seatLabels = new Map<string, Text>();
+  protected readonly seatLabels = new Map<string, Text>();
   private readonly slotLayer = new Graphics();
   private notice!: Text;
 
-  private state: CrossadeState;
-  private tree: MultiplayerTree;
-  private readonly port: CrossadePort;
+  protected state: CrossadeState;
+  protected tree: MultiplayerTree;
+  protected readonly port: CrossadePort;
   private readonly disposeRoom: () => void;
 
   private hotSlot: string | null = null;
@@ -98,11 +98,40 @@ export class MultiplayerScene extends SceneEngine {
   constructor(opts: MultiplayerSceneOptions) {
     super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
     this.state = emptyState(opts.selfSessionId);
-    this.tree = buildMultiplayerTree(this.state);
+    this.tree = this.buildTree(this.state);
     this.port = makePort(opts.room);
     const bound = bindRoom(opts.room, { self: opts.selfSessionId, onState: this.applyState, onSignal: this.applySignal });
     this.disposeRoom = bound.dispose;
   }
+
+  // ——— швы наследников (LiveTableScene): дерево, состав карт, вид карты, жесты ———
+
+  /** Какое дерево слотов строит эта сцена. Зовётся и из КОНСТРУКТОРА БАЗЫ — поля наследника в
+   *  этот момент ещё не инициализированы, переопределение обязано это переживать. */
+  protected buildTree(state: CrossadeState): MultiplayerTree {
+    return buildMultiplayerTree(state);
+  }
+
+  /** Раздать place() все карты доски. Сброс в базовом дереве слота не имеет и потому не рисуется
+   *  (place молча пропускает карту без слота) — наследник со сбросом получает его бесплатно. */
+  protected placeCards(state: CrossadeState, place: (cardId: string, indexInPile: number) => void): void {
+    state.play.forEach((stack) => stack.forEach((c, i) => place(c, i)));
+    state.discard.forEach((c, i) => place(c, i));
+    state.selfHand.forEach((c, i) => place(c, i));
+  }
+
+  /** Лицом или рубашкой создаётся карта. База — всё лицом (рука своя, зона открыта). */
+  protected faceUpFor(_cardId: string): boolean {
+    return true;
+  }
+
+  /** Масштаб карты по id — рубашки чужих рук у наследника мельче стольных. */
+  protected cardScaleFor(_cardId: string): number {
+    return CARD.h / TEX_H;
+  }
+
+  /** Жесты драга для трансляции (live-режим): база молчит. Фаза "release" приходит без точки. */
+  protected emitGesture(_phase: "grab" | "move" | "release", _cardId: string, _cp: { x: number; y: number } | null): void {}
 
   protected buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
@@ -143,7 +172,7 @@ export class MultiplayerScene extends SceneEngine {
     // Одобрения — ДО пересборки: снятая с ожидания карта должна лечь этим же rebuildBoard, иначе
     // она осталась бы висеть до следующего чужого хода.
     for (const [card, p] of this.pending) {
-      if (approvedIn(p.kind, card, { play: next.play, selfHand: next.selfHand })) this.clearPending(card);
+      if (approvedIn(p.kind, card, { play: next.play, discard: next.discard, selfHand: next.selfHand })) this.clearPending(card);
     }
     // Ленивый дифф — то же правило, что у Crossade: пересборка только когда зоны реально изменились.
     if (sameZones(prev, next)) return;
@@ -156,7 +185,7 @@ export class MultiplayerScene extends SceneEngine {
     this.showNotice(signal.reason || signal.action || "нельзя");
   };
 
-  private showNotice(text: string): void {
+  protected showNotice(text: string): void {
     this.notice.text = text;
     this.notice.visible = true;
     this.wake();
@@ -167,9 +196,9 @@ export class MultiplayerScene extends SceneEngine {
   }
 
   /** Свести доску со снимком (см. crossade/scene.ts#rebuildBoard — механика 1:1, состав слотов свой). */
-  private rebuildBoard(snap: boolean): void {
+  protected rebuildBoard(snap: boolean): void {
     const state = this.state;
-    this.tree = buildMultiplayerTree(state);
+    this.tree = this.buildTree(state);
     if (!this.tex) return; // сцена ещё не собрана — дерево уже актуально, рисовать не на чем
 
     const alive = new Set<string>();
@@ -196,8 +225,7 @@ export class MultiplayerScene extends SceneEngine {
       else node.body.setTarget(target);
     };
 
-    state.play.forEach((stack) => stack.forEach((c, i) => place(c, i)));
-    state.selfHand.forEach((c, i) => place(c, i));
+    this.placeCards(state, place);
 
     for (const [cardId, node] of this.nodes) {
       if (alive.has(cardId)) continue;
@@ -216,14 +244,17 @@ export class MultiplayerScene extends SceneEngine {
     this.wake();
   }
 
-  /** На этом столе всё лицом вверх: рука — своя (мастер чужих карт в снимок не кладёт),
-   *  play-зона открыта по определению. */
-  private nodeFor(cardId: string): Card {
+  /** Лицо/рубашку и масштаб решают швы faceUpFor/cardScaleFor (у базы — всё лицом стольного
+   *  размера: рука своя, зона открыта). flippable: true — НЕ приглашение переворачивать (сцена
+   *  flip не зовёт), а способ не носить замочек: flippable: false рисует lock-бейдж (Card.ts). */
+  protected nodeFor(cardId: string): Card {
     const existing = this.nodes.get(cardId);
     if (existing) return existing;
-    // flippable: true — НЕ приглашение переворачивать (сцена flip не зовёт), а способ не носить
-    // замочек: flippable: false рисует lock-бейдж (Card.ts#buildLock), лишний на открытом столе.
-    const node = new Card({ id: cardId, card: cardId, faceUp: true, flippable: true }, this.tex!, CARD.h / TEX_H);
+    const node = new Card(
+      { id: cardId, card: cardId, faceUp: this.faceUpFor(cardId), flippable: true },
+      this.tex!,
+      this.cardScaleFor(cardId),
+    );
     this.nodes.set(cardId, node);
     this.byId.set(cardId, node);
     return node;
@@ -233,7 +264,7 @@ export class MultiplayerScene extends SceneEngine {
    *  «другим не видно» здесь не правило отображения, а отсутствие данных (см. snapshotFrom). */
   private syncSeats(): void {
     const seen = new Set<string>();
-    for (const seat of this.state.seats) {
+    for (const seat of this.seatsToShow()) {
       seen.add(seat.sessionId);
       let label = this.seatLabels.get(seat.sessionId);
       if (!label) {
@@ -244,9 +275,9 @@ export class MultiplayerScene extends SceneEngine {
       }
       const mark = seat.sessionId === this.state.selfSessionId ? " ◄ вы" : "";
       label.text = `${seat.name}${mark}\n${seat.handCount}`;
-      label.style.fill = seat.sessionId === this.state.selfSessionId ? COLORS.gold : COLORS.seatName;
+      label.style.fill = this.seatLabelFill(seat.sessionId);
       const at = this.tree.origins[`seat:${seat.sessionId}`];
-      if (at) label.position.set(at.x + SEAT.w / 2, at.y);
+      if (at) label.position.set(at.x + this.seatCell().w / 2, at.y + this.seatLabelOffsetY());
     }
     for (const [id, label] of this.seatLabels) {
       if (seen.has(id)) continue;
@@ -255,8 +286,28 @@ export class MultiplayerScene extends SceneEngine {
     }
   }
 
+  /** Какие места показывать подписями. Live прячет своё — там «рука и есть индикатор себя». */
+  protected seatsToShow(): CrossadeState["seats"] {
+    return this.state.seats;
+  }
+
+  /** Цвет подписи места. Live красит в цвет игрока (presence). */
+  protected seatLabelFill(sessionId: string): number {
+    return sessionId === this.state.selfSessionId ? COLORS.gold : COLORS.seatName;
+  }
+
+  /** Габарит ячейки места — у Live он шире (ряд рубашек, не пустая рамка). */
+  protected seatCell(): { w: number; h: number } {
+    return SEAT;
+  }
+
+  /** Сдвиг подписи места от origin. У Live origin указывает на ряд рубашек, имя — строкой выше. */
+  protected seatLabelOffsetY(): number {
+    return 0;
+  }
+
   private paintBoard(): void {
-    const ids = Object.keys(this.tree.origins).filter((id) => id.startsWith("play:"));
+    const ids = Object.keys(this.tree.origins).filter((id) => id.startsWith("play:") || id === "discard");
     paintSlots(this.slotLayer, { origins: this.tree.origins, ids, cell: CARD, armed: this.armedSlots, hot: this.hotSlot });
   }
 
@@ -275,12 +326,13 @@ export class MultiplayerScene extends SceneEngine {
     return home ? { home, depth: this.cardDepth.get(el.id) ?? 0 } : null;
   }
 
-  /** Тащить можно карту своей руки и ВЕРХ любой кучки — общая зона, забирает любой игрок.
-   *  Ожидающую одобрения — нельзя: её судьбу уже решает сервер. */
+  /** Тащить можно карту своей руки, ВЕРХ любой кучки и ВЕРХ сброса (если он есть на этом столе) —
+   *  зоны общие, забирает любой игрок. Ожидающую одобрения — нельзя: её судьбу уже решает сервер. */
   protected canDrag(el: SceneElement): boolean {
     if (this.pending.has(el.id)) return false;
     const slot = this.tree.slotOf(el.id);
     if (slot === "hand") return true;
+    if (slot === "discard") return topOf(this.state.discard) === el.id;
     if (slot?.startsWith("play:") && slot !== "play:new") {
       const stack = this.state.play[Number(slot.slice(5))];
       return stack ? topOf(stack) === el.id : false;
@@ -292,10 +344,16 @@ export class MultiplayerScene extends SceneEngine {
     this.grabOffset = { x: el.body.px - cp.x, y: el.body.py - cp.y };
     this.armedSlots = this.legalTargets(this.tree.slotOf(el.id) ?? "");
     this.paintBoard();
+    this.dragCardId = el.id;
+    this.emitGesture("grab", el.id, cp);
     return super.beginDrag(el, cp, sp);
   }
 
+  /** Чью карту сейчас ведёт СВОЙ палец — для эмиссии release, у которого нет точки. */
+  private dragCardId: string | null = null;
+
   protected onDragMoved(p: { x: number; y: number }): void {
+    if (this.dragCardId) this.emitGesture("move", this.dragCardId, p);
     const target = dropTarget(this.tree.root, p);
     const id = target?.group.id ?? null;
     const hot = id && this.armedSlots.has(id) ? id : null;
@@ -322,9 +380,19 @@ export class MultiplayerScene extends SceneEngine {
       this.beginPending(el.id, "play_card", cp);
       return;
     }
+    if (from === "hand" && to === "discard") {
+      this.port.discardCard(el.id);
+      this.beginPending(el.id, "discard_card", cp);
+      return;
+    }
     if (from?.startsWith("play:") && to === "hand") {
       this.port.takePlay(el.id);
       this.beginPending(el.id, "take_play", cp);
+      return;
+    }
+    if (from === "discard" && to === "hand") {
+      this.port.takeDiscard();
+      this.beginPending(el.id, "take_discard", cp);
       return;
     }
     if (from === "hand" && to === "hand") this.reorderHand(el.id, target!.index);
@@ -406,7 +474,7 @@ export class MultiplayerScene extends SceneEngine {
   }
 
   /** Снять ожидание (одобрено или провалено) — карту дальше ведёт вызывающий. */
-  private clearPending(cardId: string): void {
+  protected clearPending(cardId: string): void {
     const p = this.pending.get(cardId);
     if (!p) return;
     p.spinner?.destroy();
@@ -436,11 +504,19 @@ export class MultiplayerScene extends SceneEngine {
   }
 
   protected onDragCancel(): void {
+    this.endOwnGesture();
     this.clearDragHints();
   }
 
   protected afterDragEnd(): void {
+    this.endOwnGesture();
     this.clearDragHints();
+  }
+
+  private endOwnGesture(): void {
+    if (!this.dragCardId) return;
+    this.emitGesture("release", this.dragCardId, null);
+    this.dragCardId = null;
   }
 
   private clearDragHints(): void {
@@ -451,10 +527,12 @@ export class MultiplayerScene extends SceneEngine {
 
   private legalTargets(from: string): ReadonlySet<string> {
     const out = new Set<string>();
+    const hasDiscard = this.tree.origins.discard !== undefined;
     if (from === "hand") {
       out.add("hand"); // реордер — легальный переход, контур рука не носит (paintBoard рисует play)
+      if (hasDiscard) out.add("discard");
       for (const id of Object.keys(this.tree.origins)) if (id.startsWith("play:")) out.add(id);
-    } else if (from.startsWith("play:")) {
+    } else if (from.startsWith("play:") || from === "discard") {
       out.add("hand");
     }
     return out;

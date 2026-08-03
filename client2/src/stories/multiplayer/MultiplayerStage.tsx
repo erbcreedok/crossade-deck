@@ -8,22 +8,33 @@ import { MultiplayerScene } from "../../game/multiplayer/scene";
 // сцена в useEffect, destroy в cleanup); пула, как у CanvasStage, тут нет намеренно — клиентов
 // переменное число, и живут они ровно столько, сколько живёт стори.
 
+/** Что умеет смонтированная сцена клиента — ровно контракт CanvasApp, которым живут обе сцены. */
+interface MountableScene {
+  mount(host: HTMLElement, width: number, height: number): Promise<void>;
+  destroy(): void;
+}
+
 export interface MultiplayerStageProps {
   players: number;
   latency: number;
   handSize: number;
   onTraffic?: (evt: LocalTraffic) => void;
+  /** Какую сцену поднимать в ячейке. По умолчанию — базовый стол (MultiplayerScene);
+   *  live-стори передаёт сюда LiveTableScene со своей палитрой. */
+  makeScene?: (client: LocalClient) => MountableScene;
 }
 
-function ClientCell({ client }: { client: LocalClient }) {
+function ClientCell({ client, makeScene }: { client: LocalClient; makeScene?: (client: LocalClient) => MountableScene }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const scene = new MultiplayerScene({ room: client, selfSessionId: client.sessionId });
+    const scene = makeScene
+      ? makeScene(client)
+      : new MultiplayerScene({ room: client, selfSessionId: client.sessionId });
     // Хук на живые сцены — та же идиома, что __kit/__sol: канвас не отдаёт ни DOM-узлов, ни ролей.
-    const g = globalThis as unknown as { __mp?: Record<string, MultiplayerScene> };
+    const g = globalThis as unknown as { __mp?: Record<string, MountableScene> };
     (g.__mp ??= {})[client.sessionId] = scene;
     void scene.mount(host, host.clientWidth || 360, host.clientHeight || 420);
     return () => {
@@ -42,7 +53,7 @@ function ClientCell({ client }: { client: LocalClient }) {
   );
 }
 
-export function MultiplayerStage({ players, latency, handSize, onTraffic }: MultiplayerStageProps) {
+export function MultiplayerStage({ players, latency, handSize, onTraffic, makeScene }: MultiplayerStageProps) {
   const onTrafficRef = useRef(onTraffic);
   onTrafficRef.current = onTraffic;
 
@@ -71,7 +82,7 @@ export function MultiplayerStage({ players, latency, handSize, onTraffic }: Mult
       }}
     >
       {table.clients.map((c) => (
-        <ClientCell key={`${c.sessionId}-${players}-${latency}-${handSize}`} client={c} />
+        <ClientCell key={`${c.sessionId}-${players}-${latency}-${handSize}`} client={c} makeScene={makeScene} />
       ))}
     </div>
   );

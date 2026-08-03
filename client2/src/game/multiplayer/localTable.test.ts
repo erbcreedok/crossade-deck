@@ -190,6 +190,93 @@ describe("latency", () => {
   });
 });
 
+describe("сброс", () => {
+  it("discard_card кладёт из руки наверх кучи, take_discard возвращает верхнюю любому игроку", () => {
+    const t = table(2);
+    const a = watch(t, 0);
+    const b = watch(t, 1);
+    const card = a.state!.selfHand[0]!;
+    t.clients[0]!.send("discard_card", { card });
+    expect(a.state!.selfHand).not.toContain(card);
+    expect(b.state!.discard).toEqual([card]);
+
+    t.clients[1]!.send("take_discard");
+    expect(b.state!.selfHand).toContain(card);
+    expect(a.state!.discard).toEqual([]);
+  });
+
+  it("чужую карту не сбросить, из пустой кучи не взять", () => {
+    const t = table(2);
+    const a = watch(t, 0);
+    const foreign = watch(t, 1).state!.selfHand[0]!;
+    t.clients[0]!.send("discard_card", { card: foreign });
+    t.clients[0]!.send("take_discard");
+    expect(a.signals.map((s) => (s.kind === "action_rejected" ? s.reason : s.kind))).toEqual(["not_in_hand", "empty"]);
+  });
+});
+
+describe("live-каналы: hands и gesture", () => {
+  function channel<T>(t: LocalTable, i: number, type: string): T[] {
+    const got: T[] = [];
+    t.clients[i]!.onMessage<T>(type, (m) => got.push(m));
+    return got;
+  }
+
+  it("hands: каждому — ЧУЖИЕ руки alias'ами в порядке владельца, без своей и без номиналов", () => {
+    const t = table(2);
+    const handsAt0 = channel<{ hands: Record<string, string[]> }>(t, 0, "hands");
+    t.clients[0]!.send("sync");
+    const hands = handsAt0[0]!.hands;
+    expect(Object.keys(hands)).toEqual(["p2"]);
+    expect(hands.p2!.length).toBe(2);
+    for (const alias of hands.p2!) expect(alias).toMatch(/^x\d+$/);
+  });
+
+  it("hands: реордер чужой руки виден перестановкой ТЕХ ЖЕ alias'ов", () => {
+    const t = table(2);
+    const handsAt0 = channel<{ hands: Record<string, string[]> }>(t, 0, "hands");
+    const b = watch(t, 1);
+    const [c1, c2] = [b.state!.selfHand[0]!, b.state!.selfHand[1]!];
+    t.clients[0]!.send("sync");
+    const before = handsAt0[0]!.hands.p2!;
+    t.clients[1]!.send("set_hand_order", { order: [c2, c1] });
+    const after = handsAt0[handsAt0.length - 1]!.hands.p2!;
+    expect(after).toEqual([before[1], before[0]]);
+  });
+
+  it("gesture: остальным без эха автору; карта руки идёт alias'ом, над рукой координаты срезаны", () => {
+    const t = table(3);
+    const a = watch(t, 0);
+    const atSelf = channel<object>(t, 0, "gesture");
+    const at1 = channel<{ from: string; kind: string; card: string; zone?: string; at?: object }>(t, 1, "gesture");
+    const card = a.state!.selfHand[0]!;
+
+    t.clients[0]!.send("gesture", { kind: "grab", card, zone: "hand", at: { x: 1, y: 2 } });
+
+    expect(atSelf).toEqual([]);
+    expect(at1.length).toBe(1);
+    expect(at1[0]!.from).toBe("p1");
+    expect(at1[0]!.card).toMatch(/^x\d+$/);
+    expect(at1[0]!.at).toBeUndefined();
+  });
+
+  it("gesture: над публичной зоной координаты идут как есть; публичная карта — под своим id", () => {
+    const t = table(2);
+    const a = watch(t, 0);
+    const at1 = channel<{ card: string; zone?: string; at?: { x: number; y: number } }>(t, 1, "gesture");
+    const card = a.state!.selfHand[0]!;
+    // Карта руки над столом: alias + координаты (фантом едет по столу).
+    t.clients[0]!.send("gesture", { kind: "move", card, zone: "board", at: { x: 10, y: 20 } });
+    expect(at1[0]!.card).toMatch(/^x\d+$/);
+    expect(at1[0]!.at).toEqual({ x: 10, y: 20 });
+
+    // Публичная карта (сыграна) — под настоящим id.
+    t.clients[0]!.send("play_card", { card });
+    t.clients[0]!.send("gesture", { kind: "grab", card, zone: "board", at: { x: 1, y: 1 } });
+    expect(at1[at1.length - 1]!.card).toBe(card);
+  });
+});
+
 describe("трафик и колода", () => {
   it("onTraffic видит каждый send с автором", () => {
     const log: unknown[] = [];

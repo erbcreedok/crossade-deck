@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { MultiplayerStage } from "./MultiplayerStage";
+import { LiveTableScene } from "../../game/multiplayer/liveScene";
 
 interface Args {
   players: number;
@@ -77,3 +78,78 @@ export default meta;
  *     реальный сокет, и повод ловить stale-echo уже сейчас.
  */
 export const Table: StoryObj<Args> = {};
+
+interface LiveArgs extends Args {
+  p1Color: string;
+  p2Color: string;
+  p3Color: string;
+  p4Color: string;
+  p5Color: string;
+  p6Color: string;
+}
+
+const LIVE_COLORS = { p1Color: "#e05555", p2Color: "#4c9ae0", p3Color: "#5ec46a", p4Color: "#e0a24c", p5Color: "#b06ae0", p6Color: "#4cc8c8" };
+
+function colorArg(i: number) {
+  return {
+    name: `p${i}Color`,
+    description: `цвет присутствия игрока ${i}: обводка карты, которую он трогает, и его имя у всех зрителей`,
+    control: { type: "color" as const },
+  };
+}
+
+/**
+ * ЖИВОЙ СТОЛ — тот же авторитетный мультиплеер, плюс presence как в Figma/Miro.
+ *
+ * Сцена у всех ОДНА (публичные зоны — общая и сброс — на одинаковых координатах у каждого
+ * зрителя), перспектива личная: своя рука снизу (она и есть индикатор себя), остальные сверху
+ * рядами РУБАШЕК. Номиналов чужих рук у зрителя нет ФИЗИЧЕСКИ: канал `hands` несёт стабильные
+ * opaque-alias, и реордер чужой руки виден движением рубашек, а не значениями.
+ *
+ * Канал `gesture` транслирует драги: grab/move/release. В публичных зонах карта едет у всех ровно
+ * так, как её ведёт автор; над рукой координаты срезаются — видно, ЧТО он драгает, но не куда.
+ * Карта под чьим-то пальцем носит обводку цвета игрока (настраивается ниже) — и у автора тоже.
+ *
+ * Проверяется двумя руками: тащите карту в одной ячейке и смотрите на соседние.
+ */
+export const LiveTable: StoryObj<LiveArgs> = {
+  name: "Live table",
+  args: { ...LIVE_COLORS },
+  argTypes: {
+    p1Color: colorArg(1),
+    p2Color: colorArg(2),
+    p3Color: colorArg(3),
+    p4Color: colorArg(4),
+    p5Color: colorArg(5),
+    p6Color: colorArg(6),
+  },
+  parameters: {
+    code: (a: Record<string, unknown>) => `import { createLocalTable } from "../../game/multiplayer/localTable";
+import { LiveTableScene } from "../../game/multiplayer/liveScene";
+
+const table = createLocalTable({ players: ${a.players}, latencyMs: ${a.latency}, handSize: ${a.handSize} });
+
+// Каналы live-режима у того же мастера: hands (чужие руки opaque-alias'ами) и gesture
+// (grab/move/release; над рукой координаты срезаются — приватность навязывает мастер).
+const colors = { p1: 0x${String(a.p1Color).slice(1)}, p2: 0x${String(a.p2Color).slice(1)}, /* … */ };
+for (const client of table.clients) {
+  const scene = new LiveTableScene({ room: client, selfSessionId: client.sessionId, colors });
+  void scene.mount(hostOf(client), width, height);
+}`,
+  },
+  render: (a) => {
+    const colors: Record<string, number> = {};
+    ([a.p1Color, a.p2Color, a.p3Color, a.p4Color, a.p5Color, a.p6Color] as string[]).forEach((hex, i) => {
+      colors[`p${i + 1}`] = parseInt((hex ?? "#ffffff").replace("#", ""), 16);
+    });
+    return (
+      <MultiplayerStage
+        players={a.players}
+        latency={a.latency}
+        handSize={a.handSize}
+        onTraffic={onTraffic}
+        makeScene={(client) => new LiveTableScene({ room: client, selfSessionId: client.sessionId, colors })}
+      />
+    );
+  },
+};
