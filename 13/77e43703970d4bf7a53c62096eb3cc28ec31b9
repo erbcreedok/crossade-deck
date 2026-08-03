@@ -1,0 +1,19 @@
+client2/src/stories/boards/Boards.stories.tsx
+  s_e2a4c2b31d470a::t_67cfb66a371a20 96-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1377e43703970d4bf7a53c62096eb3cc28ec31b9",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
