@@ -63,11 +63,15 @@ export type ZoneLayoutSpec =
   /** РЕОРДЕР-ГРИД (бывшее «Поле» песочницы): один живой контейнер, раскладка пересчитывает
    *  колонки/строки по числу жителей (min/max/grow), дроп — вставка на позицию или свап. */
   | { kind: "flow"; cols?: { min?: number; max?: number }; rows?: { min?: number; max?: number };
-      grow?: "square" | "down" | "right"; reserve?: boolean }
+      grow?: "square" | "down" | "right"; reserve?: boolean; center?: boolean }
   /** КРУГЛЫЙ СТОЛ: по одному слоту на КАЖДОЕ место, разложенных вокруг центра ОТНОСИТЕЛЬНО
    *  зрителя (свой — снизу «перед тобой», остальные — крестом напротив/по бокам). Зона
    *  неявно perSeat: слот места адресуется `id@seat:0`. Белка, покерный стол и т.п. */
-  | { kind: "seats" };
+  | { kind: "seats" }
+  /** СВОБОДНАЯ СТОПКА: один слот, который лежит в СВОБОДНОЙ позиции и таскается ЦЕЛИКОМ, как
+   *  физический блок по всему полю (сцена хранит его сдвиг). Одиночная карта из него не тянется —
+   *  жест берёт всю стопку. Рамка зоны (квадрат) остаётся на месте; уезжает сама стопка. */
+  | { kind: "free" };
 
 export interface ZonePolicySpec {
   /** Исход дропа в ЗАНЯТЫЙ слот (slotfield/fieldZone.ts). merge — поверх; swap — обмен;
@@ -93,6 +97,10 @@ export interface ZoneSpec {
   reorder?: "insert" | "swap";
   /** Ассет фона (шахматная доска, поле монополии) — рисует сцена, спека только называет. */
   background?: "chessboard" | "ringtrack";
+  /** Дабл-тап по зоне наводит на неё камеру (зум-к-зоне). Карты-элементы поверх зоны гасят жест. */
+  focusable?: boolean;
+  /** Стиль рамки зоны: solid — сплошной серый (по умолчанию); dashed — пунктир (стиль дроп-зоны). */
+  frame?: "solid" | "dashed";
   /** Начальные жители: слот → id элементов (низ → верх). Слоты вне списка пусты. */
   setup?: Readonly<Record<string, readonly string[]>>;
 }
@@ -179,6 +187,7 @@ export function zoneSlotCount(zone: ZoneSpec): number | "dynamic" {
     case "ring":
       return zone.layout.count;
     case "pile":
+    case "free":
       return 1;
     case "chain":
     case "flow":

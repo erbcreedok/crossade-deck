@@ -2,8 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { Menu } from "./Menu";
 import { Table } from "./Table";
-import { Playground } from "./Playground";
-import { CensorDemoPage } from "./CensorDemo";
+import { PlaygroundBoard } from "./PlaygroundBoard";
 import { NoUiPage } from "./NoUi";
 import { BrandBadge } from "./BrandBadge";
 import { SolitaireGame } from "./SolitaireGame";
@@ -12,19 +11,16 @@ import { routePath } from "./nav";
 import "./theme.css";
 
 // client2 — новый автономный клиент, ЦЕЛИКОМ на канвасе. Роут по пути ОТНОСИТЕЛЬНО базы
-// (в проде приложение под /v2/): playground — песочница, table — стол, motion — стенд анимаций
-// (испытываем движущиеся объекты/эффекты), no-ui — дебаг-стенд чистой логики без канваса,
-// solitaire — «Косынка» (issue #99), crossade — многопользовательский стол (CROSSADE-DESIGN.md),
-// иначе — главное меню.
+// (в проде приложение под /v2/): playground — песочница-борда, table — стол, no-ui — дебаг-стенд
+// чистой логики без канваса, solitaire — «Косынка» (issue #99), crossade — многопользовательский
+// стол (CROSSADE-DESIGN.md), иначе — главное меню.
 const rel = routePath();
 const view = rel.startsWith("playground") ? (
-  <Playground />
+  <PlaygroundBoard />
 ) : rel.startsWith("solitaire") ? (
   <SolitaireGame />
 ) : rel.startsWith("crossade") ? (
   <CrossadeGame />
-) : rel.startsWith("motion") ? (
-  <CensorDemoPage />
 ) : rel.startsWith("no-ui") ? (
   <NoUiPage />
 ) : rel.startsWith("table") ? (

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildBoardTree } from "./boardTree";
 import { applyCommand, bootState } from "./mock";
+import { sandboxBoard } from "./library/sandbox";
 import type { BoardSpec } from "./spec";
 
 const rng = () => 0.5;
@@ -132,5 +133,38 @@ describe("buildBoardTree", () => {
     const cy = centers.reduce((a, c) => a + c.y, 0) / 8;
     const dists = centers.map((c) => Math.hypot(c.x - cx, c.y - cy));
     for (const d of dists) expect(Math.abs(d - dists[0]!)).toBeLessThan(1e-6);
+  });
+
+  it("free — одна зона-бокс (cellRect по cell), колода-стопка сидит по ЦЕНТРУ бокса", () => {
+    const freeSpec = spec({ zones: [
+      { id: "deck", title: "", layout: { kind: "free" }, policy: { onOccupied: "merge" }, cell: { w: 480, h: 360 }, setup: { 0: ["c1", "c2"] } },
+    ], hand: undefined, seats: { count: { fixed: 1 }, show: "none", swap: false } });
+    const tree = buildBoardTree(freeSpec, bootState(freeSpec, 1), "p1");
+    // Один слот, рамка-бокс по cell.
+    const box = tree.cellRects["deck:0"]!;
+    expect(box.w).toBe(480);
+    expect(box.h).toBe(360);
+    expect(tree.origins["deck:1"]).toBeUndefined();
+    // Обе карты в одном слоте (стопка); стопка НЕ в углу бокса — сдвинута к центру.
+    expect(tree.slotOf("c1")).toBe("deck:0");
+    expect(tree.slotOf("c2")).toBe("deck:0");
+    const home = tree.homeOf("c1")!;
+    expect(home.x).toBeGreaterThan(box.x + 100);
+    expect(home.y).toBeGreaterThan(box.y + 80);
+  });
+
+  it("песочница: грид-стол отцентрован ВНУТРИ бокса-колоды (не в ряд рядом с ним)", () => {
+    const spec = sandboxBoard();
+    const tree = buildBoardTree(spec, bootState(spec, 1), "p1");
+    const box = tree.cellRects["deck:0"]!; // серый бокс
+    const grid = tree.cellRects["table:0"]!; // грид-стол
+    // Грид целиком внутри бокса.
+    expect(grid.x).toBeGreaterThanOrEqual(box.x);
+    expect(grid.y).toBeGreaterThanOrEqual(box.y);
+    expect(grid.x + grid.w).toBeLessThanOrEqual(box.x + box.w);
+    expect(grid.y + grid.h).toBeLessThanOrEqual(box.y + box.h);
+    // Центры совпадают (грид по центру бокса).
+    expect(grid.x + grid.w / 2).toBeCloseTo(box.x + box.w / 2, 3);
+    expect(grid.y + grid.h / 2).toBeCloseTo(box.y + box.h / 2, 3);
   });
 });

@@ -17,6 +17,7 @@ export interface GridSpec {
   rows?: Bound; // ограничения по строкам
   grow?: "square" | "down" | "right"; // куда растёт при свободе (по умолчанию square — балансируем)
   reserve?: boolean; // держать место под ещё одну карту (пустой слот в конце)
+  center?: boolean; // центрировать неполные ряды/недобор строк в min-боксе (1 карта → в центр)
 }
 
 // Выбрать число колонок/строк под count карт с учётом границ и направления роста. Политика
@@ -49,10 +50,19 @@ export function packGrid(count: number, spec: GridSpec = {}): { cols: number; ro
 // Раскладка count карт: центры карт + габарит грида. Число колонок/строк — из packGrid(spec).
 export function flowLayout(count: number, g: FlowGeom, spec: GridSpec = {}): { centers: Array<{ x: number; y: number }>; size: { w: number; h: number }; cols: number; rows: number } {
   const { cols, rows } = packGrid(count, spec);
-  const centers = Array.from({ length: Math.max(0, count) }, (_, i) => ({
-    x: g.origin.x + (i % cols) * (g.cell.w + g.gap) + g.cell.w / 2,
-    y: g.origin.y + Math.floor(i / cols) * (g.cell.h + g.gap) + g.cell.h / 2,
-  }));
+  const stepX = g.cell.w + g.gap;
+  const stepY = g.cell.h + g.gap;
+  // center: карты по индексу, но НЕПОЛНЫЙ ряд центрируется по горизонтали, а недобор строк — по
+  // вертикали, внутри min-бокса (1 карта → в центр, а не в угол). Позиция всё равно из count+index.
+  const usedRows = count > 0 ? Math.ceil(count / cols) : 0;
+  const offY = spec.center ? ((rows - usedRows) / 2) * stepY : 0;
+  const centers = Array.from({ length: Math.max(0, count) }, (_, i) => {
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    const cardsInRow = Math.min(cols, count - r * cols);
+    const offX = spec.center ? ((cols - cardsInRow) / 2) * stepX : 0;
+    return { x: g.origin.x + offX + c * stepX + g.cell.w / 2, y: g.origin.y + offY + r * stepY + g.cell.h / 2 };
+  });
   const size = { w: cols * g.cell.w + (cols - 1) * g.gap, h: rows * g.cell.h + (rows - 1) * g.gap };
   return { centers, size, cols, rows };
 }

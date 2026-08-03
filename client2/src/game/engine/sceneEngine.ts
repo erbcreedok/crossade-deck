@@ -16,6 +16,7 @@ import { moveStyle } from "../anim/moveStyles";
 import { destroyStyle } from "../anim/destroyStyles";
 import { appearStyle } from "../anim/appearStyles";
 import { BASE_PRESET, type AnimPreset } from "../anim/presets";
+import { fitBoundsView } from "./focusView";
 
 /** Какая из анимаций элемента: у каждой своё расписание в пресете. */
 export type AnimKind = "move" | "flip" | "destroy" | "appear";
@@ -110,6 +111,11 @@ export abstract class SceneEngine extends CanvasApp {
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
   private lastPanT = 0;
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
+
+  // ——— дабл-тап-зум на зону (общий механизм; сцена решает, что фокусируемо — focusTargetAt) ———
+  private lastTap: { t: number; x: number; y: number } | null = null;
+  private focusedKey: string | null = null; // на какую зону сейчас наведено (для тоггла)
+  private camTween: { fromX: number; fromY: number; fromZoom: number; toX: number; toY: number; toZoom: number; t: number; dur: number } | null = null;
 
   // ——— ввод ———
   protected readonly input = new InputRouter<SceneElement, Button>(this.inputHandlers());
@@ -272,6 +278,76 @@ export abstract class SceneEngine extends CanvasApp {
     this.content.scale.set(this.viewport.zoom);
   }
 
+  // ——————————————————————————————————————————————————————————————————————
+  // Дабл-тап-зум на зону (Figma-like). Общий механизм: сцена лишь говорит, что фокусируемо под
+  // точкой (focusTargetAt → границы в координатах контента, или null). Движок наводит камеру на эти
+  // границы по центру и зумит так, чтобы они влезали в 90% доступной области, плавно. Повторный
+  // дабл-тап по той же зоне — тоггл к полному виду.
+  // ——————————————————————————————————————————————————————————————————————
+
+  /** Границы фокусируемой цели под точкой (координаты КОНТЕНТА) или null — нечего фокусировать.
+   *  По умолчанию ничего не фокусируется; сцена включает нужные зоны/элементы (opt-in). */
+  protected focusTargetAt(_cp: Pt): { x: number; y: number; w: number; h: number } | null {
+    return null;
+  }
+
+  /** Колесо/скролл по цели под курсором (координаты КОНТЕНТА + дельты колеса). Вернуть true —
+   *  перехвачено (спред-стек и т.п.), пан/зум не выполняется. По умолчанию не перехватываем. */
+  protected wheelOnElement(_cp: Pt, _dx: number, _dy: number): boolean {
+    return false;
+  }
+
+  private handleTap(content: Pt, screen: Pt): void {
+    const now = performance.now();
+    const prev = this.lastTap;
+    this.lastTap = { t: now, x: screen.x, y: screen.y };
+    // Двойной тап: два подряд близко и быстро. Порог позиции щедрый — палец на телефоне гуляет.
+    if (prev && now - prev.t < 320 && Math.hypot(screen.x - prev.x, screen.y - prev.y) < 28) {
+      this.lastTap = null;
+      const b = this.focusTargetAt(content);
+      if (!b) return;
+      const key = `${Math.round(b.x)}:${Math.round(b.y)}:${Math.round(b.w)}:${Math.round(b.h)}`;
+      if (this.focusedKey === key) {
+        this.focusedKey = null;
+        this.focusBounds({ x: 0, y: 0, w: this.contentW, h: this.contentH }); // тоггл → полный вид стола
+      } else {
+        this.focusedKey = key;
+        this.focusBounds(b);
+      }
+    }
+  }
+
+  /** Навести камеру на границы: центр в центр доступной области, зум под 90% её размера. Плавно. */
+  protected focusBounds(b: { x: number; y: number; w: number; h: number }): void {
+    if (b.w <= 0 || b.h <= 0) return;
+    this.syncVp();
+    const target = fitBoundsView(b, { w: this.width, h: this.height - this.chromeInsetTop() }, { min: this.viewport.minZoom, max: this.viewport.maxZoom });
+    this.camTween = { fromX: this.viewport.x, fromY: this.viewport.y, fromZoom: this.viewport.zoom, toX: target.x, toY: target.y, toZoom: target.zoom, t: 0, dur: 0.3 };
+    this.wake();
+  }
+
+  /** Шаг анимации камеры за кадр (ease-out). Вернуть «ещё едет». */
+  private stepCamTween(dt: number): boolean {
+    const c = this.camTween;
+    if (!c) return false;
+    c.t += dt;
+    const k = Math.min(1, c.dur > 0 ? c.t / c.dur : 1);
+    const e = 1 - Math.pow(1 - k, 3); // easeOutCubic
+    this.viewport.zoom = c.fromZoom + (c.toZoom - c.fromZoom) * e;
+    this.viewport.x = c.fromX + (c.toX - c.fromX) * e;
+    this.viewport.y = c.fromY + (c.toY - c.fromY) * e;
+    this.applyView();
+    this.emitView();
+    if (k >= 1) this.camTween = null;
+    return true;
+  }
+
+  /** Прервать наведение камеры (ручной жест/зум перебивает и сбрасывает «наведено на зону»). */
+  private cancelFocus(): void {
+    this.camTween = null;
+    this.focusedKey = null;
+  }
+
   // Окно изменилось (issue #49). Пересобирать сцену НЕ нужно, если её геометрия не зависит от
   // экрана: меняются лишь хит-зона сцены и границы камеры. Плюс emitView — иначе скроллбары
   // остались бы с прежними долями видимого. Сцене, считающей раскладку от W/H, есть onSceneResize.
@@ -314,9 +390,20 @@ export abstract class SceneEngine extends CanvasApp {
     //
     // Зум с модификатором забираем всегда — он осмыслен и при вписанном контенте.
     this.syncVp();
+    // Колесо/скролл ПО элементу (без модификатора-зума): сцена вправе перехватить его на своей
+    // цели под курсором (спред-стек и т.п.) РАНЬШЕ пана/зума. Перехватила — колесо съедено.
+    if (!this.wheelIsZoom(e)) {
+      const rect = this.app!.canvas.getBoundingClientRect();
+      const cp = this.screenToContent(e.clientX - rect.left, e.clientY - rect.top);
+      if (this.wheelOnElement(cp, e.deltaX, e.deltaY)) {
+        e.preventDefault();
+        return;
+      }
+    }
     const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
     if (!wheelGoesToScene({ zoom: this.wheelIsZoom(e), canPan, inDocument: this.inDocument })) return; // колесо уходит странице
     e.preventDefault();
+    this.cancelFocus(); // колесо (зум/пан) перебивает наведение на зону
     // deltaY в пиксели: в строчном/страничном режиме домножаем.
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
     if (this.wheelIsZoom(e)) {
@@ -787,6 +874,7 @@ export abstract class SceneEngine extends CanvasApp {
 
       onCardBlocked: (el) => this.onElementBlocked(el),
       onCardTap: (el) => this.onElementTapped(el),
+      onTap: (content, screen) => this.handleTap(content, screen),
 
       onButtonDown: (b) => b.setPressed(true),
       onButtonMove: (b, inside) => b.setPressed(inside),
@@ -801,6 +889,7 @@ export abstract class SceneEngine extends CanvasApp {
         this.lastPanT = 0;
       },
       onPan: (dx, dy) => {
+        this.cancelFocus(); // реальный пан перебивает наведение и сбрасывает «наведено на зону»
         // Копим сглаженную скорость пана (px/сек) для инерции после отпускания.
         const t = performance.now();
         if (this.lastPanT) {
@@ -818,6 +907,7 @@ export abstract class SceneEngine extends CanvasApp {
         this.wake();
       },
       onPinchStart: (mx, my, dist) => {
+        this.cancelFocus();
         const c = this.screenToContent(mx, my);
         this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y };
       },
@@ -890,13 +980,14 @@ export abstract class SceneEngine extends CanvasApp {
 
   protected frame(dt: number): boolean {
     this.edgeScroll(dt);
+    const camMoving = this.stepCamTween(dt); // наведение камеры на зону: не спим, пока не доедет
     if (this.viewport.flinging) {
       this.syncVp();
       this.viewport.stepFling(dt);
       this.applyView();
       this.emitView();
     }
-    let moving = this.input.gesture !== "none" || this.viewport.flinging;
+    let moving = this.input.gesture !== "none" || this.viewport.flinging || camMoving;
     if (this.stepPendingFlips(dt)) moving = true;
     if (this.stepTimers(dt)) moving = true;
     for (const el of this.everyElement()) {

@@ -37,6 +37,24 @@ describe("flowLayout (cols.min=3, reserve)", () => {
   });
 });
 
+describe("flowLayout (center: неполные ряды/недобор строк — в центр min-бокса)", () => {
+  const c = { cols: { min: 3 }, rows: { min: 2 }, reserve: true, center: true };
+  it("1 карта — РОВНО в центр бокса 3×2 (не в угол)", () => {
+    const l = flowLayout(1, geom, c);
+    expect(l.size).toEqual({ w: 300, h: 200 });
+    expect(l.centers[0]).toEqual({ x: 150, y: 100 });
+  });
+  it("4 карты: ряд 0 полон, одиночная 4-я во 2-м ряду ЦЕНТРИРОВАНА (не в угол)", () => {
+    const l = flowLayout(4, geom, c);
+    expect(l.centers[0]).toEqual({ x: 50, y: 50 });
+    expect(l.centers[2]).toEqual({ x: 250, y: 50 });
+    expect(l.centers[3]).toEqual({ x: 150, y: 150 });
+  });
+  it("center выключен по умолчанию — от левого-верха (регресс прочих flow-зон)", () => {
+    expect(flowLayout(1, geom, { cols: { min: 3 }, rows: { min: 2 }, reserve: true }).centers[0]).toEqual({ x: 50, y: 50 });
+  });
+});
+
 describe("flowLayout (rows.max=4)", () => {
   const o = { cols: { min: 3 }, rows: { max: 4 }, reserve: false };
   it("до упора растёт вниз: 12 карт → ≤4 строк", () => {

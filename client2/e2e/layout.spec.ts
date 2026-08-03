@@ -46,12 +46,6 @@ async function expectInsideWidth(page: Page, selector: string) {
   expect(box.x + box.width, `${selector} не срезан справа`).toBeLessThanOrEqual(vw(page) + 1);
 }
 
-// Песочница (playground) — ТЯЖЁЛАЯ WebGL-сцена; гонять её на всех 10 профилях = слишком много
-// одновременных WebGL-контекстов за прогон (контекст теряется → канвас не появляется). Инварианты
-// вёрстки зависят от ШИРИНЫ вьюпорта, а не от конкретной модели — хватает репрезентативного набора
-// (широкий/узкий/остров/планшет). Меню (лёгкая сцена) остаётся на всех.
-const DESK_DEVICES = new Set(["десктоп 1440", "узкое окно 360", "iPhone 14 Pro (остров)", "iPad Pro 11 (планшет)"]);
-
 for (const d of MATRIX) {
   test.describe(d.name, () => {
     test.use(d.use);
@@ -75,34 +69,6 @@ for (const d of MATRIX) {
 
       // Бренд-пилюля в обычном браузере не должна рендериться (гейт standalone+iPhone+вырез).
       await expect(page.locator(".brand-badge")).toHaveCount(0);
-
-      expect(await horizOverflow(page), "нет горизонтального переполнения").toBeLessThanOrEqual(1);
-    });
-
-    if (!DESK_DEVICES.has(d.name)) return; // песочницу — только на репрезентативном подмножестве
-    test("песочница: канвас во всю ширину, кнопки топбара не обрезаны, без переполнения", async ({ page }) => {
-      await page.goto("/playground");
-      await settle(page);
-
-      const canvas = page.locator(".table-host canvas");
-      await expect(canvas).toBeVisible();
-      const cb = (await canvas.boundingBox())!;
-      expect(cb.width, "канвас занимает всю ширину").toBeGreaterThanOrEqual(vw(page) - 2);
-
-      // Все кнопки топбара помещаются по ширине (ни одна не уезжает за край). Топбар канвасный —
-      // DOM-узлов нет, экранные прямоугольники берём из дев-хука движка.
-      const bar = await page.evaluate(
-        () =>
-          (window as unknown as { __fd: { testHooks(): { topbar: Record<string, { x: number; y: number; w: number; h: number }> } } }).__fd.testHooks()
-            .topbar,
-      );
-      const keys = Object.keys(bar);
-      expect(keys.length).toBeGreaterThan(0);
-      for (const k of keys) {
-        const b = bar[k]!;
-        expect(b.x - b.w / 2, `кнопка ${k} не срезана слева`).toBeGreaterThanOrEqual(-1);
-        expect(b.x + b.w / 2, `кнопка ${k} не срезана справа`).toBeLessThanOrEqual(vw(page) + 1);
-      }
 
       expect(await horizOverflow(page), "нет горизонтального переполнения").toBeLessThanOrEqual(1);
     });

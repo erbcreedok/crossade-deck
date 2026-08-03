@@ -94,21 +94,38 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
       placed.push({ id: key, origin: { x: 0, y: 0 }, slot: slotGroup(key, membersOf(state, key), cell) });
       return { placed, size: cell, cells };
     }
+    case "free": {
+      // Одна зона — серый БОКС (cell = габарит бокса). Колода-стопка сидит по ЦЕНТРУ бокса и
+      // таскается целиком; рамка-бокс (cellRects[key]) стоит на месте, сама стопка уезжает сдвигом,
+      // который держит сцена. Дроп разрешён только в пределах этого бокса (см. scene.resolveDrop).
+      const key = slotKey(zid, 0);
+      // Колода у ВЕРХА бокса (по центру по X), чтобы грид в центре бокса был виден под ней.
+      const deckOrigin = { x: (cell.w - CARD.w) / 2, y: 40 };
+      placed.push({ id: key, origin: deckOrigin, slot: slotGroup(key, membersOf(state, key), CARD, 0.5) });
+      cells[key] = { x: 0, y: 0, w: cell.w, h: cell.h };
+      return { placed, size: cell, cells };
+    }
     case "flow": {
       // Реордер-грид: ОДИН живой контейнер, колонки/строки пересчитывает раскладка slot/grid
       // (min/max/grow/reserve — параметры ЖИВЫЕ, при явном cell пустой грид держит габарит).
       const key = slotKey(zid, 0);
       const members = membersOf(state, key);
-      const spec = zone.layout;
-      const layout = flowGrid({ cell, cols: spec.cols, rows: spec.rows, grow: spec.grow, gap: 12, reserve: spec.reserve });
+      const fspec = zone.layout;
+      const GAP_CELL = 16; // гэп между картами в гриде
+      const PAD = GAP_CELL; // внутренние отступы рамки = гэпу
+      const layout = flowGrid({ cell, cols: fspec.cols, rows: fspec.rows, grow: fspec.grow, gap: GAP_CELL, reserve: fspec.reserve, center: fspec.center });
       const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
         drop: { accept: () => true },
         reorder: { enabled: true },
       });
-      placed.push({ id: key, origin: { x: 0, y: 0 }, slot });
-      // Габарит — от самой раскладки: place() и есть источник размера.
+      // Карты сдвинуты внутрь на PAD; рамка грида (cellRect) — весь бокс с полями PAD со всех сторон
+      // (внутренние отступы = гэпу). Рисуется по ВСЕЙ сетке, а не по одной карте.
+      placed.push({ id: key, origin: { x: PAD, y: PAD }, slot });
       const { size } = layout.place(members.map(() => cell));
-      return { placed, size: { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) }, cells };
+      const inner = { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) };
+      const box = { w: inner.w + PAD * 2, h: inner.h + PAD * 2 };
+      cells[key] = { x: 0, y: 0, w: box.w, h: box.h };
+      return { placed, size: box, cells };
     }
     case "chain": {
       // Живые слоты 0..k−1 из состояния + ВСЕГДА один пустой в конце («новое звено», как play:new).
@@ -286,19 +303,35 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
   }
   const seatsBottom = seatsY + (others.length ? SEAT_CELL.h + seatZonesH : 0);
 
-  // 2. Зоны стола: chain — своей строкой во всю ширину, остальные — в ряд. Правая колонка — offboard.
+  // 2. Зоны стола: chain — своей строкой; свободный бокс — в ряд; ОСТАЛЬНЫЕ зоны при наличии бокса
+  //    вкладываются в его ЦЕНТР (грид-стол в центре бокса), иначе идут в ряд.
   let rowX = MARGIN.x;
   let rowBottom = seatsBottom + GAP.y;
   const rowTop = rowBottom;
-  for (const zone of spec.zones.filter((z) => z.layout.kind !== "chain" && !z.perSeat)) {
-    const sub = zoneSubtrees(zone, state);
+  const rowZones = spec.zones.filter((z) => z.layout.kind !== "chain" && !z.perSeat);
+  const freeZone = rowZones.find((z) => z.layout.kind === "free");
+  const placeSub = (sub: ReturnType<typeof zoneSubtrees>, ox: number, oy: number): void => {
     for (const p of sub.placed) {
-      placed.push({ ...p, origin: { x: rowX + p.origin.x, y: rowTop + p.origin.y } });
+      placed.push({ ...p, origin: { x: ox + p.origin.x, y: oy + p.origin.y } });
       const c = sub.cells[p.id];
-      if (c) cellRects[p.id] = { ...c, x: rowX + c.x, y: rowTop + c.y };
+      if (c) cellRects[p.id] = { ...c, x: ox + c.x, y: oy + c.y };
     }
+  };
+  let boxRect: { x: number; y: number; w: number; h: number } | null = null;
+  for (const zone of rowZones) {
+    if (freeZone && zone !== freeZone) continue; // вложим ниже, в центр бокса
+    const sub = zoneSubtrees(zone, state);
+    placeSub(sub, rowX, rowTop);
+    if (zone === freeZone) boxRect = cellRects[slotKey(zone.id, 0)] ?? { x: rowX, y: rowTop, w: sub.size.w, h: sub.size.h };
     rowX += sub.size.w + GAP.x * 2;
     rowBottom = Math.max(rowBottom, rowTop + sub.size.h);
+  }
+  if (freeZone && boxRect) {
+    for (const zone of rowZones) {
+      if (zone === freeZone) continue;
+      const sub = zoneSubtrees(zone, state);
+      placeSub(sub, boxRect.x + (boxRect.w - sub.size.w) / 2, boxRect.y + (boxRect.h - sub.size.h) / 2);
+    }
   }
   let chainBottom = rowBottom;
   for (const zone of spec.zones.filter((z) => z.layout.kind === "chain" && !z.perSeat)) {

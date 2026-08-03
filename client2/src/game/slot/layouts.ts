@@ -45,7 +45,7 @@ type Bool = boolean | (() => boolean);
 const rNum = (n?: Num): number | undefined => (typeof n === "function" ? n() : n);
 const rBool = (b?: Bool): boolean | undefined => (typeof b === "function" ? b() : b);
 
-export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: Num }; rows?: { min?: Num; max?: Num }; grow?: GridSpec["grow"]; gap?: number; reserve?: Bool } = {}): Layout {
+export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: Num }; rows?: { min?: Num; max?: Num }; grow?: GridSpec["grow"]; gap?: number; reserve?: Bool; center?: Bool } = {}): Layout {
   const gap = o.gap ?? 0;
   // Размер ячейки: ЯВНЫЙ (если задан) — тогда пустой грид тоже знает габарит и резервирует colsMin×rowsMin;
   // иначе выводим из детей (макс. ребёнок). Явный нужен там, где грид пустеет, но должен держать место.
@@ -55,7 +55,7 @@ export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: 
     return sizes.length ? { w: Math.max(...sizes.map((s) => s.w)), h: Math.max(...sizes.map((s) => s.h)) } : { w: 0, h: 0 };
   };
   const geom = (sizes: Size[]): FlowGeom => ({ cell: cellOf(sizes), gap, origin: { x: 0, y: 0 } });
-  const spec = (): GridSpec => ({ cols: { min: rNum(o.cols?.min), max: rNum(o.cols?.max) }, rows: { min: rNum(o.rows?.min), max: rNum(o.rows?.max) }, grow: o.grow, reserve: rBool(o.reserve) });
+  const spec = (): GridSpec => ({ cols: { min: rNum(o.cols?.min), max: rNum(o.cols?.max) }, rows: { min: rNum(o.rows?.min), max: rNum(o.rows?.max) }, grow: o.grow, reserve: rBool(o.reserve), center: rBool(o.center) });
   return {
     place(sizes) {
       const cell = cellOf(sizes);

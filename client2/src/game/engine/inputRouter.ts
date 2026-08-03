@@ -47,6 +47,10 @@ export interface InputHandlers<C, B> {
    */
   onCardTap(c: C): void;
 
+  /** Тап (клик без сдвига) в точку сцены — по ЛЮБОЙ цели (пустая зона, карта, что угодно). Двойной
+   *  тап движок собирает из двух подряд. Опц. — сцене без зума не нужен. */
+  onTap?(content: Pt, screen: Pt): void;
+
   onButtonDown(b: B): void;
   onButtonMove(b: B, inside: boolean): void;
   onButtonUp(b: B, inside: boolean): void; // inside → клик
@@ -71,11 +75,19 @@ export class InputRouter<C, B> {
   private button: B | null = null;
   private panLast: Pt = { x: 0, y: 0 };
   private hovered: B | null = null;
+  private downAt: Pt | null = null; // где нажали первый палец — для распознавания ТАПА (без сдвига)
+  private multi = false; // был ли второй палец за жест (тогда это не тап)
 
   constructor(private readonly h: InputHandlers<C, B>) {}
 
   down(id: number, sx: number, sy: number): void {
     this.pointers.set(id, { x: sx, y: sy });
+    if (this.pointers.size === 1) {
+      this.downAt = { x: sx, y: sy };
+      this.multi = false;
+    } else {
+      this.multi = true; // второй палец — жест уже не тап
+    }
     if (this.pointers.size === 2) {
       // Второй палец → пинч; текущий драг отменяем (карта уезжает домой).
       if (this.card) {
@@ -157,6 +169,7 @@ export class InputRouter<C, B> {
 
   up(id: number, sx: number, sy: number): void {
     const wasPan = this.gesture === "pan";
+    const g0 = this.gesture;
     this.pointers.delete(id);
     if (this.gesture === "drag" && this.card) {
       this.h.onCardDrop(this.card, this.h.screenToContent(sx, sy));
@@ -178,6 +191,13 @@ export class InputRouter<C, B> {
       this.panLast = { x: only.x, y: only.y };
     } else if (this.pointers.size === 0) {
       this.gesture = "none";
+      // ТАП: последний палец ушёл без сдвига и без второго пальца, и это не была кнопка. Цель любая
+      // (пустая зона/карта) — что делать с двойным, решает движок (onTap → детект дабл-тапа).
+      if (!this.multi && this.downAt && g0 !== "button" && g0 !== "pinch" && Math.hypot(sx - this.downAt.x, sy - this.downAt.y) <= DRAG_SLOP) {
+        this.h.onTap?.(this.h.screenToContent(sx, sy), { x: sx, y: sy });
+      }
+      this.downAt = null;
+      this.multi = false;
       if (wasPan) this.h.onPanEnd?.(); // пан отпущен последним пальцем → запускаем инерцию
     }
     this.h.afterAny();
@@ -190,6 +210,8 @@ export class InputRouter<C, B> {
     this.card = null;
     this.button = null;
     this.hovered = null;
+    this.downAt = null;
+    this.multi = false;
   }
 
   private pinchGeom(): { midX: number; midY: number; dist: number } {
