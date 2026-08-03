@@ -1,0 +1,28 @@
+client2/src/stories/kit/Stacks.stories.tsx
+  s_73847489de6701::t_78a78f399a7310 159-176
+  s_73847489de6701::t_e180edc80aa649 187-203
+  s_73847489de6701::t_9edc692bdf8dad 9,12
+client2/src/game/engine/kitScene.ts
+  s_73847489de6701::t_f9d54ce87b4728 20-21
+  s_73847489de6701::t_38f848db778452 61-66
+  s_73847489de6701::t_48dfcda23470aa 105-109
+  s_73847489de6701::t_f6ccd38c8ce129 440
+  s_73847489de6701::t_4790e9f2eefa81 407-409
+  s_73847489de6701::t_46efc097849f85 471-520
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "bb65d7bef0cc6573f5bcbfc67fecb4b9e587a7cc",
+  "prompts": {},
+  "sessions": {
+    "s_73847489de6701": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c73eb97d-4df4-4085-ad0c-cc0e1b0de62e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
