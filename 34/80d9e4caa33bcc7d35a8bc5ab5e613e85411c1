@@ -1,0 +1,35 @@
+client2/src/game/multiplayer/tree.ts
+  s_e2a4c2b31d470a::t_56dbf28ac8bb31 54-55,57-58,62
+  s_e2a4c2b31d470a::t_8bdd39af9b631b 1-53,56,59-61,63-116
+client2/src/stories/multiplayer/MultiplayerStage.tsx
+  s_e2a4c2b31d470a::t_8b41fd962cec9f 68-70
+  s_e2a4c2b31d470a::t_d00617be68fc45 1-67,71-78
+client2/src/game/multiplayer/scene.ts
+  s_e2a4c2b31d470a::t_711551325e7fe5 184-186
+  s_e2a4c2b31d470a::t_1946b2991d70d9 1-183,187-349
+client2/src/game/multiplayer/tree.test.ts
+  s_e2a4c2b31d470a::t_52365015069f32 1-86
+client2/src/stories/multiplayer/Multiplayer.stories.tsx
+  s_e2a4c2b31d470a::t_5bae1327173e99 1-79
+client2/docs/MULTIPLAYER-DESIGN.md
+  s_e2a4c2b31d470a::t_2ec1eaacea3a78 57-65
+  s_e2a4c2b31d470a::t_c22bdf4a9aa362 1-56,66-73
+client2/src/game/multiplayer/localTable.test.ts
+  s_e2a4c2b31d470a::t_ec60540c385de5 1-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "3480d9e4caa33bcc7d35a8bc5ab5e613e85411c1",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
