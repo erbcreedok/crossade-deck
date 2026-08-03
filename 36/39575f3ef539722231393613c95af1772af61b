@@ -1,0 +1,23 @@
+client2/src/game/ui/ShadowLayer.ts
+  s_e2a4c2b31d470a::t_4a56ff19cab1ef 125-149
+  s_e2a4c2b31d470a::t_770ce379d2f842 49-50,52-53
+  s_e2a4c2b31d470a::t_d1d5b7929a5bf3 150-151
+client2/src/game/ui/ShadowLayer.bounds.test.ts
+  s_e2a4c2b31d470a::t_2b8082525e6987 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "3639575f3ef539722231393613c95af1772af61b",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
