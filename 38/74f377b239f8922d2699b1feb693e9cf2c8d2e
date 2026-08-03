@@ -1,0 +1,57 @@
+client2/src/game/multiplayer/pending.test.ts
+  s_e2a4c2b31d470a::t_351257644f7b4a 5-6,8-15,18-20
+client2/src/stories/multiplayer/Multiplayer.stories.tsx
+  s_e2a4c2b31d470a::t_dda7282fa063c2 81-155
+  s_e2a4c2b31d470a::t_0febe2010d6a27 4
+client2/src/game/multiplayer/liveScene.ts
+  s_e2a4c2b31d470a::t_a504b3e92df10d 1-102,108-109,116-224
+  s_e2a4c2b31d470a::t_963ac814a0156a 103-107,110-115
+client2/src/stories/multiplayer/MultiplayerStage.tsx
+  s_e2a4c2b31d470a::t_55744e61d27501 11-16,22-24,27,33-35
+  s_e2a4c2b31d470a::t_b2ffb3e735548b 37,56,85
+client2/src/game/multiplayer/liveTree.test.ts
+  s_e2a4c2b31d470a::t_e437030e5540b4 1-77
+client2/src/game/multiplayer/pending.ts
+  s_e2a4c2b31d470a::t_1751cb5aa46000 15,17,20,29
+client2/docs/MULTIPLAYER-DESIGN.md
+  s_e2a4c2b31d470a::t_2b94534cfe3ddf 70-72
+  s_e2a4c2b31d470a::t_cbe988f9d8f633 75-100
+client2/src/game/multiplayer/localTable.test.ts
+  s_e2a4c2b31d470a::t_8f2c5b506aa921 193-279
+client2/src/game/multiplayer/scene.ts
+  s_e2a4c2b31d470a::t_ee4acea700f7d2 101,107-132,134
+  s_e2a4c2b31d470a::t_507fe934251e3c 280
+  s_e2a4c2b31d470a::t_1cd7baec88c9d0 383-387,393-397
+  s_e2a4c2b31d470a::t_a3cbf9ff28dcc9 302,507,512,516-521,530,533,535
+  s_e2a4c2b31d470a::t_adaa13976c0ac2 62,64,68-70,188,477
+  s_e2a4c2b31d470a::t_99d4537fce6e86 310
+  s_e2a4c2b31d470a::t_f1222f8fbf4a0d 247-250,253-257
+  s_e2a4c2b31d470a::t_1e35c29c5a417f 304-308
+  s_e2a4c2b31d470a::t_78fae3831ff8e3 267,278,289-301
+  s_e2a4c2b31d470a::t_e9d03180eafefa 347-348,352-354,356
+  s_e2a4c2b31d470a::t_3dd31d108d8c26 133
+  s_e2a4c2b31d470a::t_ddca5db4353f01 228
+  s_e2a4c2b31d470a::t_01117669a8c64a 175
+  s_e2a4c2b31d470a::t_aad0ac3dc5ba15 199,201
+  s_e2a4c2b31d470a::t_4ea704eedf7e4e 329-330,335
+  s_e2a4c2b31d470a::t_9b0ab952d33c12 135
+  s_e2a4c2b31d470a::t_ab30898b67ad95 303
+client2/src/game/multiplayer/liveTree.ts
+  s_e2a4c2b31d470a::t_d006a5cab8745f 1-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "3874f377b239f8922d2699b1feb693e9cf2c8d2e",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
