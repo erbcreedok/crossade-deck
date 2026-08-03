@@ -1,0 +1,31 @@
+client2/docs/MULTIPLAYER-DESIGN.md
+  s_e2a4c2b31d470a::t_634886b9a0686d 65-68
+client2/src/game/multiplayer/pending.ts
+  s_e2a4c2b31d470a::t_dcf5b40e3b1069 38-41,43-44,48-50
+client2/src/game/multiplayer/pending.test.ts
+  s_e2a4c2b31d470a::t_1c5d38749198c9 2
+  s_e2a4c2b31d470a::t_be3a408bb5638a 23-27
+client2/src/game/multiplayer/scene.ts
+  s_e2a4c2b31d470a::t_4196437d46ccca 292
+  s_e2a4c2b31d470a::t_19d4460cafd189 341-343,348-358,360,370-373,379-390,396-407,412-413
+  s_e2a4c2b31d470a::t_cd498f701720c4 3
+  s_e2a4c2b31d470a::t_34bc7b98d3aac1 17,19
+  s_e2a4c2b31d470a::t_02cbf4b7359bb2 79-93,95-96
+  s_e2a4c2b31d470a::t_da392912171a94 489-492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "dd2352a71363f6c7966eb96315df5a713930e115",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
