@@ -72,6 +72,28 @@ describe("buildBoardTree", () => {
     expect(t2.origins["hand:p1"]).toBeUndefined();
   });
 
+  it("flow-грид — один живой контейнер: жители в одном слоте, грид растёт с их числом", () => {
+    const flowSpec = spec({ zones: [
+      { id: "g", title: "грид", layout: { kind: "flow", cols: { min: 2, max: 3 }, grow: "down" }, policy: { onOccupied: "merge" },
+        cell: { w: 60, h: 84 }, setup: { 0: ["c1", "c2"] } },
+    ], hand: undefined });
+    const small = buildBoardTree(flowSpec, bootState(flowSpec, 2), "p1");
+    expect(small.slotOf("c1")).toBe("g:0");
+    expect(small.slotOf("c2")).toBe("g:0");
+    const sixSpec = spec({ zones: [
+      { id: "g", title: "грид", layout: { kind: "flow", cols: { min: 2, max: 3 }, grow: "down" }, policy: { onOccupied: "merge" },
+        cell: { w: 60, h: 84 }, setup: { 0: ["c1", "c2", "c3", "c4", "c5", "x1"] } },
+    ], hand: undefined, elements: [
+      { kind: "card", id: "c1", face: "6♠" }, { kind: "card", id: "c2", face: "7♠" },
+      { kind: "card", id: "c3", face: "8♠" }, { kind: "card", id: "c4", face: "9♠" },
+      { kind: "card", id: "c5", face: "10♠" }, { kind: "card", id: "x1", face: "J♠" },
+    ] });
+    const six = buildBoardTree(sixSpec, bootState(sixSpec, 2), "p1");
+    const h1 = small.homeOf("c1")!;
+    const h6 = six.homeOf("x1")!;
+    expect(h6.y).toBeGreaterThan(h1.y); // при grow:down шесть жителей легли в новые строки
+  });
+
   it("ring раскладывает слоты по окружности с равным удалением от центра", () => {
     const ringSpec = spec({ zones: [
       { id: "track", title: "круг", layout: { kind: "ring", count: 8 }, policy: { onOccupied: "merge" }, cell: { w: 50, h: 50 } },

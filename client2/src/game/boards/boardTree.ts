@@ -1,4 +1,4 @@
-import { absolute, linear, pile } from "../slot/layouts";
+import { absolute, grid as flowGrid, linear, pile } from "../slot/layouts";
 import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../slot/slot";
 import { group, leaf, type Group, type Size, type Slot, type Vec } from "../slot/types";
 import { ringSlots } from "../slotfield/layout/slots";
@@ -93,6 +93,22 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
       const key = slotKey(zid, 0);
       placed.push({ id: key, origin: { x: 0, y: 0 }, slot: slotGroup(key, membersOf(state, key), cell) });
       return { placed, size: cell, cells };
+    }
+    case "flow": {
+      // Реордер-грид: ОДИН живой контейнер, колонки/строки пересчитывает раскладка slot/grid
+      // (min/max/grow/reserve — параметры ЖИВЫЕ, при явном cell пустой грид держит габарит).
+      const key = slotKey(zid, 0);
+      const members = membersOf(state, key);
+      const spec = zone.layout;
+      const layout = flowGrid({ cell, cols: spec.cols, rows: spec.rows, grow: spec.grow, gap: 12, reserve: spec.reserve });
+      const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
+        drop: { accept: () => true },
+        reorder: { enabled: true },
+      });
+      placed.push({ id: key, origin: { x: 0, y: 0 }, slot });
+      // Габарит — от самой раскладки: place() и есть источник размера.
+      const { size } = layout.place(members.map(() => cell));
+      return { placed, size: { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) }, cells };
     }
     case "chain": {
       // Живые слоты 0..k−1 из состояния + ВСЕГДА один пустой в конце («новое звено», как play:new).

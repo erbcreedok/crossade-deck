@@ -77,6 +77,14 @@ function shuffle(state: BoardState, zoneId: string, rng: Rng): BoardState {
   return { ...state, field: place(state.field, key, { members }) };
 }
 
+/** Перестановка контейнера: тот же состав в новом порядке, чужой состав — отказ без следа. */
+function reorderContainer(state: BoardState, key: SlotKey, order: readonly string[]): BoardState {
+  const current = at(state.field, key)?.members ?? [];
+  const same = current.length === order.length && [...current].sort().join(" ") === [...order].sort().join(" ");
+  if (!same) return state;
+  return { ...state, field: place(state.field, key, { members: [...order] }) };
+}
+
 export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardCommand, rng: Rng): BoardState {
   switch (cmd.t) {
     case "move":
@@ -100,13 +108,10 @@ export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardComma
       const n = spec.mock?.dice ?? 0;
       return { ...state, dice: Array.from({ length: n }, () => 1 + Math.floor(rng() * 6)) };
     }
-    case "reorderHand": {
-      const key = handKey(cmd.seat);
-      const current = at(state.field, key)?.members ?? [];
-      const same = current.length === cmd.order.length && [...current].sort().join(" ") === [...cmd.order].sort().join(" ");
-      if (!same) return state; // не перестановка того же состава — отказ без следа
-      return { ...state, field: place(state.field, key, { members: [...cmd.order] }) };
-    }
+    case "reorderHand":
+      return reorderContainer(state, handKey(cmd.seat), cmd.order);
+    case "reorderSlot":
+      return reorderContainer(state, cmd.key, cmd.order);
     case "sit": {
       const seats = state.seats.map((s) => (s.id === cmd.seat && s.occupant === null ? { ...s, occupant: cmd.who } : s));
       return { ...state, seats };

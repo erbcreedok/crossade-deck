@@ -59,7 +59,11 @@ export type ZoneLayoutSpec =
   | { kind: "ring"; count: number }
   | { kind: "pile" }
   /** Цепочка/лента: слоты в ряд, новый слот открывается в конце (крестовый, доминошки). */
-  | { kind: "chain" };
+  | { kind: "chain" }
+  /** РЕОРДЕР-ГРИД (бывшее «Поле» песочницы): один живой контейнер, раскладка пересчитывает
+   *  колонки/строки по числу жителей (min/max/grow), дроп — вставка на позицию или свап. */
+  | { kind: "flow"; cols?: { min?: number; max?: number }; rows?: { min?: number; max?: number };
+      grow?: "square" | "down" | "right"; reserve?: boolean };
 
 export interface ZonePolicySpec {
   /** Исход дропа в ЗАНЯТЫЙ слот (slotfield/fieldZone.ts). merge — поверх; swap — обмен;
@@ -81,6 +85,8 @@ export interface ZoneSpec {
   /** Зона У КАЖДОГО МЕСТА (манчкинские «шмотки»): дерево создаёт экземпляр на игрока с ключами
    *  `id@seat:слот`; политика и раскладка общие. */
   perSeat?: boolean;
+  /** Что значит дроп ВНУТРИ зоны (flow-грид, рука): вставка на позицию или обмен местами. */
+  reorder?: "insert" | "swap";
   /** Ассет фона (шахматная доска, поле монополии) — рисует сцена, спека только называет. */
   background?: "chessboard" | "ringtrack";
   /** Начальные жители: слот → id элементов (низ → верх). Слоты вне списка пусты. */
@@ -124,7 +130,9 @@ export type BoardCommand =
   /** Бросок кубиков — мок-рандом, результат ложится в state.dice. */
   | { t: "roll" }
   /** Переставить СВОЮ руку (перестановка того же состава — иначе отказ). */
-  | { t: "reorderHand"; seat: string; order: readonly string[] };
+  | { t: "reorderHand"; seat: string; order: readonly string[] }
+  /** Переставить ЛЮБОЙ контейнер (flow-грид): та же дисциплина перестановки. */
+  | { t: "reorderSlot"; key: SlotKey; order: readonly string[] };
 
 export interface ActionSpec {
   id: string;
@@ -169,6 +177,7 @@ export function zoneSlotCount(zone: ZoneSpec): number | "dynamic" {
     case "pile":
       return 1;
     case "chain":
+    case "flow":
       return "dynamic";
   }
 }

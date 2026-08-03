@@ -146,6 +146,18 @@ describe("круг хода, кубики, места", () => {
     expect(same).toEqual(s);
   });
 
+  it("reorderSlot переставляет любой контейнер той же дисциплиной", () => {
+    const flow = testSpec({ zones: [
+      { id: "g", title: "грид", layout: { kind: "flow", cols: { min: 2, max: 4 } }, policy: { onOccupied: "merge" },
+        setup: { 0: ["c1", "c2", "c3"] } },
+    ] });
+    let s = initialState(flow, 2);
+    s = applyCommand(flow, s, { t: "reorderSlot", key: "g:0", order: ["c3", "c1", "c2"] }, rng);
+    expect(at(s.field, "g:0")?.members).toEqual(["c3", "c1", "c2"]);
+    const same = applyCommand(flow, s, { t: "reorderSlot", key: "g:0", order: ["c3", "c1"] }, rng);
+    expect(same).toEqual(s);
+  });
+
   it("reset возвращает к setup + мок-раздаче, не трогая рассадку", () => {
     const withDeal = testSpec({ mock: { deal: { from: "deck", each: 1 } } });
     let s = bootState(withDeal, 2);

@@ -43,6 +43,15 @@ export interface BoardSceneOptions {
 
 type BoardNode = Card | Piece;
 
+/** Обмен местами: перетащенный встаёт на позицию цели, вытесненный — на его прежнюю. */
+function swappedOrder(members: readonly string[], el: string, toIndex: number): string[] {
+  const fromIndex = members.indexOf(el);
+  if (fromIndex < 0 || toIndex < 0 || toIndex >= members.length || fromIndex === toIndex) return [...members];
+  const out = [...members];
+  [out[fromIndex], out[toIndex]] = [out[toIndex]!, out[fromIndex]!];
+  return out;
+}
+
 export class BoardScene extends SceneEngine {
   private tex: CardTextureCache | null = null;
   private readonly nodes = new Map<string, BoardNode>();
@@ -343,6 +352,8 @@ export class BoardScene extends SceneEngine {
     const zone = zoneOf(slot);
     if (zone === "seat") return false;
     if (slot === handKey(this.selfSeat)) return true;
+    // Реордер-зона (flow-грид): жители разложены веером по позициям — хватается ЛЮБОЙ, не верх.
+    if (this.reorderModeOf(slot)) return true;
     const members = this.state.field.slots[slot]?.members ?? [];
     return members[members.length - 1] === el.id;
   }
@@ -373,10 +384,45 @@ export class BoardScene extends SceneEngine {
       const members = this.state.field.slots[myHand]?.members ?? [];
       const order = handOrderAfterDrop(members, el.id, target?.index ?? members.length);
       this.dispatch({ t: "reorderHand", seat: this.selfSeat, order });
+    } else if (from && to === from && this.reorderModeOf(from)) {
+      // Дроп внутри реордер-зоны (flow-грид): вставка на позицию или обмен местами.
+      // У вставки индекс — ЩЕЛЬ (его даёт dropTarget), у обмена — КЛЕТКА: цель обмена ищется
+      // как ближайший к пальцу житель, индекс вставки тут соврал бы на полклетки.
+      const members = this.state.field.slots[from]?.members ?? [];
+      const mode = this.reorderModeOf(from)!;
+      const order =
+        mode === "swap"
+          ? swappedOrder(members, el.id, this.nearestMemberIndex(members, el.id, cp))
+          : handOrderAfterDrop(members, el.id, target?.index ?? members.length);
+      this.dispatch({ t: "reorderSlot", key: from, order });
     } else if (from && to && to !== from && zoneOf(to) !== "seat") {
       this.dispatch({ t: "move", el: el.id, from, to });
     }
     drag.release(); // состояние уже новое: дом = целевой слот, release долетает туда
+  }
+
+  /** Ближайший к точке дропа житель контейнера (кроме самого груза) — цель обмена. */
+  private nearestMemberIndex(members: readonly string[], dragged: string, cp: { x: number; y: number }): number {
+    let best = -1;
+    let bestD = Infinity;
+    members.forEach((m, i) => {
+      if (m === dragged) return;
+      const h = this.tree.homeOf(m);
+      if (!h) return;
+      const d = Math.hypot(h.x - cp.x, h.y - cp.y);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  /** Режим внутризонного реордера слота: из спеки зоны; flow-грид реордерится по умолчанию. */
+  private reorderModeOf(slot: string): "insert" | "swap" | null {
+    const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(slot)));
+    if (!zone) return null;
+    return zone.reorder ?? (zone.layout.kind === "flow" ? "insert" : null);
   }
 
   protected onDragCancel(): void {
