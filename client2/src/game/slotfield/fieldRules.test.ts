@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sameColorRule } from "./boardRules";
+import { sameColorRule } from "./fieldRules";
 
 // Правило приёма — последний гейт цепочки, и ошибаться оно обязано в сторону «нельзя».
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { createDeck52, makeRng, shuffle } from "./game/board/solitaireDeck";
-import { FOUNDATION_KEYS, TABLEAU_KEYS, type SolitaireGameState } from "./game/board/solitaireState";
+import { createDeck52, makeRng, shuffle } from "./game/solitaire/solitaireDeck";
+import { FOUNDATION_KEYS, TABLEAU_KEYS, type SolitaireGameState } from "./game/solitaire/solitaireState";
 import { SolitaireGameEngine, type ActionResult } from "./game/solitaire/engine";
 
 // Дебаг-стенд БЕЗ канваса/Pixi — просто читаемые объекты и кнопки, чтобы глазами поймать

@@ -1,4 +1,4 @@
-import { flowLayout, flowIndexAt, type FlowGeom, type GridSpec } from "../board/dynamicGrid";
+import { flowLayout, flowIndexAt, type FlowGeom, type GridSpec } from "../slotfield/dynamicGrid";
 import type { Layout, Size, Vec } from "./types";
 
 // Layout-стратегии: вся геометрия группы. Новый «тип контейнера» = новая стратегия здесь, а не класс.

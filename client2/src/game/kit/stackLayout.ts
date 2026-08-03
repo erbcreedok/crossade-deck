@@ -1,4 +1,4 @@
-import { fanAssembly, type FanOpts } from "../board/fanAssembly";
+import { fanAssembly, type FanOpts } from "../slotfield/fanAssembly";
 
 // РАСКЛАДКА СТОПКИ — ФУНКЦИЯ, а не имя из списка.
 //

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { canAccept, add, insert, remove } from "./container";
-import { at, move, reorder, removeFrom, type Board } from "./board";
+import { at, move, reorder, removeFrom, type SlotField } from "./slotField";
 import { foldAction } from "./actionFold";
 import { resolveDrop, type DropCandidate } from "./dropResolve";
-import { BoardZone } from "./boardZone";
+import { FieldZone } from "./fieldZone";
 import { gridSlots } from "./layout/slots";
 
 // Adversarial edge-кейсы логического слоя (self-review): границы, пустые входы, отсутствующие ключи.
@@ -17,7 +17,7 @@ describe("container edge", () => {
 });
 
 describe("board edge", () => {
-  const b = (): Board => ({ slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" });
+  const b = (): SlotField => ({ slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" });
   it("reorder/removeFrom по несуществующему слоту — no-op", () => {
     expect(reorder(b(), "9,9", ["a"], 0)).toEqual(b());
     expect(removeFrom(b(), "9,9", ["a"])).toEqual(b());
@@ -47,12 +47,12 @@ describe("boardZone edge", () => {
   const layout = gridSlots({ cols: 2, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } }, 1);
   const bounds = { x: 0, y: 0, w: 200, h: 100 };
   it("dropAt неизвестной фигуры / dropSetAt пустого набора — moved false", () => {
-    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds });
+    const z = new FieldZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds });
     expect(z.dropAt("zzz", 50, 50).moved).toBe(false);
     expect(z.dropSetAt([], 150, 50).moved).toBe(false);
   });
   it("figureHome неизвестной — центр рамки", () => {
-    const z = new BoardZone({ slots: layout, board: { slots: {} }, bounds });
+    const z = new FieldZone({ slots: layout, board: { slots: {} }, bounds });
     expect(z.figureHome("nope")).toEqual({ x: 100, y: 50 });
   });
 });

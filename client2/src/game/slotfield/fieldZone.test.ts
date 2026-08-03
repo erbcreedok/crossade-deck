@@ -1,17 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { BoardZone } from "./boardZone";
-import type { Board } from "./board";
+import { FieldZone } from "./fieldZone";
+import type { SlotField } from "./slotField";
 import { gridSlots } from "./layout/slots";
 import type { PileIdentity } from "./pileIdentity";
 
-// BoardZone — сердце визуального полигона, но БЕЗ Pixi: логический board + подключаемая раскладка +
+// FieldZone — сердце визуального полигона, но БЕЗ Pixi: логический board + подключаемая раскладка +
 // размещение фигур + резолв дропа между слотами + запертость. Визуал потом читает отсюда.
 const layout = gridSlots({ cols: 3, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } }, 2); // 3×2
 const bounds = { x: 0, y: 0, w: 300, h: 200 };
-const make = (slots: Board["slots"], onOccupied?: "merge" | "swap" | "capture" | "reject") =>
-  new BoardZone({ slots: layout, board: { slots, onEmpty: "keep" }, bounds, onOccupied });
+const make = (slots: SlotField["slots"], onOccupied?: "merge" | "swap" | "capture" | "reject") =>
+  new FieldZone({ slots: layout, board: { slots, onEmpty: "keep" }, bounds, onOccupied });
 
-describe("BoardZone — размещение", () => {
+describe("FieldZone — размещение", () => {
   it("locate находит слот и индекс фигуры", () => {
     const z = make({ "0,0": { members: ["a"] }, "1,2": { members: ["p", "q"] } });
     expect(z.locate("a")).toEqual({ key: "0,0", index: 0 });
@@ -24,7 +24,7 @@ describe("BoardZone — размещение", () => {
   });
 });
 
-describe("BoardZone — дроп между слотами", () => {
+describe("FieldZone — дроп между слотами", () => {
   it("дроп в ПУСТОЙ слот переносит фигуру (board обновляется)", () => {
     const z = make({ "0,0": { members: ["a"] } });
     expect(z.dropAt("a", 250, 50)).toEqual({ moved: true }); // точка в слоте (0,2)
@@ -46,7 +46,7 @@ describe("BoardZone — дроп между слотами", () => {
   });
 });
 
-describe("BoardZone — onOccupied (исход на занятый слот)", () => {
+describe("FieldZone — onOccupied (исход на занятый слот)", () => {
   const two = (oo?: "merge" | "swap" | "capture" | "reject") => make({ "0,0": { members: ["a"] }, "0,1": { members: ["b"] } }, oo);
   it("merge (дефолт): ложится поверх занятого", () => {
     const z = two();
@@ -73,9 +73,9 @@ describe("BoardZone — onOccupied (исход на занятый слот)", (
   });
 });
 
-describe("BoardZone — accept-правило (rules as data)", () => {
+describe("FieldZone — accept-правило (rules as data)", () => {
   it("правило гейтит приём даже в пустой слот", () => {
-    const z = new BoardZone({
+    const z = new FieldZone({
       slots: layout,
       board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" },
       bounds,
@@ -83,12 +83,12 @@ describe("BoardZone — accept-правило (rules as data)", () => {
     });
     expect(z.dropAt("a", 150, 50).moved).toBe(true); // (0,1) — разрешён
     expect(z.locate("a")?.key).toBe("0,1");
-    const z2 = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, rule: () => false });
+    const z2 = new FieldZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, rule: () => false });
     expect(z2.dropAt("a", 250, 50).moved).toBe(false); // всё запрещено
   });
 });
 
-describe("BoardZone — dropSetAt (перенос НАБОРА)", () => {
+describe("FieldZone — dropSetAt (перенос НАБОРА)", () => {
   it("переносит все фигуры набора в целевой слот (в порядке набора)", () => {
     const z = make({ "0,0": { members: ["a"] }, "0,1": { members: ["b"] } });
     const r = z.dropSetAt(["a", "b"], 250, 50); // (0,2) пустой
@@ -103,9 +103,9 @@ describe("BoardZone — dropSetAt (перенос НАБОРА)", () => {
   });
 });
 
-describe("BoardZone — цепочка приёма элемент→зона→engine (issue #72)", () => {
+describe("FieldZone — цепочка приёма элемент→зона→engine (issue #72)", () => {
   it("элемент-rule reject побеждает даже пустой слот (нельзя нарушить)", () => {
-    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, rule: () => false });
+    const z = new FieldZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, rule: () => false });
     expect(z.dropSetAt(["a"], 150, 50).moved).toBe(false);
   });
 
@@ -118,24 +118,24 @@ describe("BoardZone — цепочка приёма элемент→зона→
   });
 
   it("слепая зона (requiresCapability): набор без способности зона не принимает — pass, engine не трогается", () => {
-    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, requiresCapability: "peekable" });
+    const z = new FieldZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, requiresCapability: "peekable" });
     expect(z.dropSetAt(["a"], 250, 50, pile(false)).moved).toBe(false); // (0,2) пустой, структурно принял бы — но зона слепа
     expect(z.locate("a")?.key).toBe("0,0"); // осталась на месте
   });
 
   it("слепая зона: набор С требуемой способностью проходит к engine как обычно", () => {
-    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, requiresCapability: "peekable" });
+    const z = new FieldZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds, requiresCapability: "peekable" });
     expect(z.dropSetAt(["a"], 250, 50, pile(true)).moved).toBe(true);
     expect(z.locate("a")?.key).toBe("0,2");
   });
 
   it("без requiresCapability зона прозрачна к pile-аргументу — ведёт себя как раньше (engine-слой)", () => {
-    const z = new BoardZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds });
+    const z = new FieldZone({ slots: layout, board: { slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" }, bounds });
     expect(z.dropSetAt(["a"], 250, 50, pile(false)).moved).toBe(true);
   });
 });
 
-describe("BoardZone — запертость", () => {
+describe("FieldZone — запертость", () => {
   it("clamp держит фигуру в рамке зоны", () => {
     const z = make({});
     expect(z.clamp({ x: -50, y: 999 }, { w: 10, h: 10 })).toEqual({ x: 10, y: 190 });

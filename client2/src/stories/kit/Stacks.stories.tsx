@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
-import { Stack } from "../../game/board/stack";
+import { Stack } from "../../game/slotfield/stack";
 import { applyStackConfig, STACK_ANCHORS, stackAt, stackState, stacksSection, type StackDemo, type StackForm } from "../../game/kit/stacks";
 import type { Pose } from "../../game/ui/Card";
 import { dropzonesSection } from "../../game/kit/dropzones";

@@ -1,15 +1,15 @@
 import { Graphics } from "pixi.js";
 import { DropZone } from "../ui/DropZone";
-import { BoardZone, type OnOccupied } from "../board/boardZone";
-import { place, type Board } from "../board/board";
-import { sameColorRule } from "../board/boardRules";
+import { FieldZone, type OnOccupied } from "../slotfield/fieldZone";
+import { place, type SlotField } from "../slotfield/slotField";
+import { sameColorRule } from "../slotfield/fieldRules";
 import type { PieceSpec } from "../ui/pieceKinds";
-import { gridSlots, hexSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
+import { gridSlots, hexSlots, ringSlots, type PositionedSlot } from "../slotfield/layout/slots";
 import type { Pt, SectionContext, SectionSize } from "./context";
 
 // ДОСКА — размеченный стол: слоты, в которые фигуры встают, а не лежат где попало.
 //
-// В движке это `BoardZone` (board/boardZone.ts): состояние доски плюс правила приёма, БЕЗ Pixi.
+// В движке это `FieldZone` (board/boardZone.ts): состояние доски плюс правила приёма, БЕЗ Pixi.
 // Раскладка у неё ПОДКЛЮЧАЕМАЯ — зона получает готовый список позиционированных слотов и про
 // стратегию не знает вовсе. Поэтому «шахматы», «монополия» и «карточный планшет» отличаются не
 // кодом зоны, а тем, какой список слотов ей дали.
@@ -37,7 +37,7 @@ export type BoardRuleKind = "none" | "sameColor";
 /** Что СТОИТ на доске. Доска не про шахматы: та же зона держит фишки и карты. */
 export type BoardContentKind = "chess" | "chips" | "cards";
 
-export interface BoardSceneOpts {
+export interface FieldSceneOpts {
   layout: BoardLayoutKind;
   /** Чем занять клетки. Правила приёма от этого не зависят — зона про содержимое не знает. */
   content: BoardContentKind;
@@ -57,10 +57,10 @@ export interface BoardSceneOpts {
   figures: number;
 }
 
-export const BOARD_SCENE_DEFAULTS: BoardSceneOpts = { layout: "grid", content: "chess", cols: 4, rows: 3, ringCount: 10, onOccupied: "swap", rule: "none", figures: 4 };
+export const FIELD_SCENE_DEFAULTS: FieldSceneOpts = { layout: "grid", content: "chess", cols: 4, rows: 3, ringCount: 10, onOccupied: "swap", rule: "none", figures: 4 };
 
 /** Слоты выбранной раскладки. Обе стратегии — существующие (board/layout/slots.ts), своих тут нет. */
-function slotsFor(o: BoardSceneOpts, cell: { w: number; h: number }, at: Pt): PositionedSlot[] {
+function slotsFor(o: FieldSceneOpts, cell: { w: number; h: number }, at: Pt): PositionedSlot[] {
   const gap = Math.round(cell.w * 0.18);
   if (o.layout === "ring") {
     const radius = cell.w * 1.9;
@@ -89,11 +89,11 @@ function boundsOf(slots: readonly PositionedSlot[], pad: number) {
 /**
  * Витрина доски: слоты нарисованы, фигуры расставлены и перетаскиваются между клетками.
  *
- * Дроп идёт через `BoardZone.dropAt` — ту же дверь, что в игре. Секция ничего не решает сама:
+ * Дроп идёт через `FieldZone.dropAt` — ту же дверь, что в игре. Секция ничего не решает сама:
  * куда встанет фигура и что будет с занятой клеткой, отвечает зона.
  */
-export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardSceneOpts> = {}, idPrefix = "bz"): SectionSize {
-  const opts = { ...BOARD_SCENE_DEFAULTS, ...o };
+export function fieldZoneScene(ctx: SectionContext, at: Pt, o: Partial<FieldSceneOpts> = {}, idPrefix = "bz"): SectionSize {
+  const opts = { ...FIELD_SCENE_DEFAULTS, ...o };
   // КЛЕТКА СЧИТАЕТСЯ ОТ СОДЕРЖИМОГО, а не от карты (issue #101). Клетка «в карточных долях» —
   // случайность: под фишку она вдвое велика, а под саму карту мала, и предмет вылезал за разметку,
   // из-за чего «встал в слот» становилось неотличимо от «лёг куда попало».
@@ -123,8 +123,8 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
 
   const ids = Array.from({ length: Math.min(opts.figures, slots.length) }, (_, i) => `${idPrefix}-${i}`);
   const figureDark = new Map(ids.map((id, i) => [id, i % 2 === 0]));
-  const board: Board = ids.reduce<Board>((b, id, i) => place(b, slots[i]!.key, { members: [id] }), { slots: {}, onEmpty: "keep" });
-  const zone = new BoardZone({
+  const board: SlotField = ids.reduce<SlotField>((b, id, i) => place(b, slots[i]!.key, { members: [id] }), { slots: {}, onEmpty: "keep" });
+  const zone = new FieldZone({
     slots,
     board,
     bounds,
@@ -151,7 +151,7 @@ export function boardZoneScene(ctx: SectionContext, at: Pt, o: Partial<BoardScen
   });
 
   // Драг обрабатывает движок; нам нужен только момент отпускания — его даёт дроп-зона по рамке
-  // доски. Своей логики «куда встать» тут нет: это работа BoardZone.
+  // доски. Своей логики «куда встать» тут нет: это работа FieldZone.
   ctx.zone(
     new DropZone({ name: "", verb: "", rect: bounds }),
     (payload, at) => {

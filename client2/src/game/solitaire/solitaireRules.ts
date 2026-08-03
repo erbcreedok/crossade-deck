@@ -1,4 +1,4 @@
-import { cardColor, rankOf } from "./cardFace";
+import { cardColor, rankOf } from "../slotfield/cardFace";
 
 // Правила пасьянса (Клондайк) как ЧИСТЫЕ ДАННЫЕ/функции — rules as data. Дисплей/движок их лишь
 // зовут. Туз здесь НИЗКИЙ (A=1): и фундамент (A→K вверх), и «стол» (K→A вниз) идут от туза.

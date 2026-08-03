@@ -9,11 +9,11 @@ import {
   isWinning,
   type SolitaireAction,
   type SolitaireGameState,
-} from "../board/solitaireState";
-import { createDeck52, makeRng, shuffle } from "../board/solitaireDeck";
-import { at as boardAt } from "../board/board";
-import { has, topId } from "../board/container";
-import { foundationAccepts, tableauAccepts } from "../board/solitaireRules";
+} from "../solitaire/solitaireState";
+import { createDeck52, makeRng, shuffle } from "../solitaire/solitaireDeck";
+import { at as boardAt } from "../slotfield/slotField";
+import { has, topId } from "../slotfield/container";
+import { foundationAccepts, tableauAccepts } from "../solitaire/solitaireRules";
 
 export interface ActionResult {
   valid: boolean;

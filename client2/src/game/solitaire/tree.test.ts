@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createInitialState, dealNewGame, type SolitaireGameState } from "../board/solitaireState";
-import { createDeck52 } from "../board/solitaireDeck";
+import { createInitialState, dealNewGame, type SolitaireGameState } from "../solitaire/solitaireState";
+import { createDeck52 } from "../solitaire/solitaireDeck";
 import { BOARD_H, BOARD_W, CARD, CASCADE_STEP, buildSolitaireTree } from "./tree";
 
 // Дерево слотов — единственный источник геометрии Косынки, поэтому тесты здесь про то, что уже

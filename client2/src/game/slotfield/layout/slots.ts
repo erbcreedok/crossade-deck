@@ -1,7 +1,7 @@
 import { cellCenter, cellRect, keyOf, type GridSpec, type Rect } from "./grid";
 
 // Позиционированный слот — ЕДИНЫЙ результат любой стратегии раскладки (grid/ring/points/seats).
-// BoardZone потребляет список таких слотов, не зная стратегии — раскладка стала подключаемой.
+// FieldZone потребляет список таких слотов, не зная стратегии — раскладка стала подключаемой.
 export interface PositionedSlot {
   key: string;
   rect: Rect;

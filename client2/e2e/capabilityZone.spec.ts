@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // Слепая capability-gated зона (SELECTION-DESIGN §6, issue #73 — follow-up к #72). Демо-борд на
-// /playground объявляет BoardZoneOpts.requiresCapability: "peekable": слот 0,0 несёт КАРТУ
+// /playground объявляет FieldZoneOpts.requiresCapability: "peekable": слот 0,0 несёт КАРТУ
 // (Card реализует Peekable — peekReveal), слот 0,1 — ФИШКУ (Piece НЕ Peekable), слот 0,2 —
 // пустая capability-gated цель. Дроп карты в 0,2 принимается (карта несёт способность целиком),
 // дроп фишки в 0,2 отклоняется визуально — фишка остаётся на месте, зона её «не видит» (pass →

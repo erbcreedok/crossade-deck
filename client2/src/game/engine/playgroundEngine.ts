@@ -3,19 +3,19 @@ import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card, type CardOptions, type CardState, type Pose } from "../ui/Card";
 import { Piece } from "../ui/Piece";
 import { buildPiece, type PieceSpec } from "../ui/pieceKinds";
-import { BoardZone, type AcceptRule, type OnOccupied } from "../board/boardZone";
-import type { Board } from "../board/board";
-import { gridSlots, ringSlots, type PositionedSlot } from "../board/layout/slots";
-import { Field, NORMAL_FIELD } from "../board/field";
-import type { Stack } from "../board/stack";
+import { FieldZone, type AcceptRule, type OnOccupied } from "../slotfield/fieldZone";
+import type { SlotField } from "../slotfield/slotField";
+import { gridSlots, ringSlots, type PositionedSlot } from "../slotfield/layout/slots";
+import { Field, NORMAL_FIELD } from "../slotfield/field";
+import type { Stack } from "../slotfield/stack";
 import { attachControls, type Configurable } from "../ui/controls";
 import type { Toggle } from "../ui/Toggle";
 import type { Stepper } from "../ui/Stepper";
 import type { Segmented } from "../ui/Segmented";
-import { wrapRule } from "../board/boardModel";
-import { BOARD_PRESETS, type BoardPreset } from "../board/boardPresets";
-import { begin, toggle, has as hasSel, EMPTY, type Selection } from "../board/selection";
-import type { CollectItem } from "../board/collectOrder";
+import { wrapRule } from "../slotfield/fieldModel";
+import { FIELD_PRESETS, type FieldPreset } from "../slotfield/fieldPresets";
+import { begin, toggle, has as hasSel, EMPTY, type Selection } from "../slotfield/selection";
+import type { CollectItem } from "../slotfield/collectOrder";
 import {
   anchorIndexFor,
   assemble,
@@ -30,13 +30,13 @@ import {
   type GatherOn,
   type NaturalOrder,
   type SortOverride,
-} from "../board/assembly";
-import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../board/selectVisual";
-import { DEFAULT_DROP_POLICY, resolveMode, type DropMode, type DropOutsidePolicy } from "../board/dropPolicy";
-import { hasTag } from "../board/tagQuery";
-import { pileIdentity } from "../board/pileIdentity";
-import type { PileIdentity } from "../board/pileIdentity";
-import { namedSuits } from "../board/suitNames";
+} from "../slotfield/assembly";
+import { canSelect, ELIGIBLE, shouldLift, shouldOutline, type EligibleName, type Mark, type SelectVisualConfig } from "../slotfield/selectVisual";
+import { DEFAULT_DROP_POLICY, resolveMode, type DropMode, type DropOutsidePolicy } from "../slotfield/dropPolicy";
+import { hasTag } from "../slotfield/tagQuery";
+import { pileIdentity } from "../slotfield/pileIdentity";
+import type { PileIdentity } from "../slotfield/pileIdentity";
+import { namedSuits } from "../slotfield/suitNames";
 
 // Демо-предикаты custom-осей дропа (issue #63): игра задаёт СВОИ, тут — примеры для песочницы.
 const MERGE_CUSTOM = hasTag("suit:♣"); // «сшиваются только трефы» (остальные — домой)
@@ -105,7 +105,7 @@ interface PiecePlaced {
 type ElementDef = { kind: "card"; face: string; size?: number; custom?: string } | PieceSpec;
 
 // Декларативный конфиг GRID-борда: вся геометрия/содержимое — данные. Фабрика mountBoard собирает
-// из него хром (registerBoardZone) и фигуры (spawnElement). «Новый борд = конфиг, не метод».
+// из него хром (registerFieldZone) и фигуры (spawnElement). «Новый борд = конфиг, не метод».
 interface BoardConfig {
   title: string;
   labelText?: string; // если экранная подпись ≠ title
@@ -121,9 +121,9 @@ interface BoardConfig {
   layout?: "grid" | "ring"; // дефолт grid; ring игнорирует cols/rows/gap, использует ringCount
   ringCount?: number; // число слотов кольца (layout: ring), дефолт 8
   maxSize?: number; // потолок стопки в КАЖДОМ слоте борда (дурак и т.п.)
-  rule?: BoardPreset["rule"]; // value-правило по ЛИЦАМ (не по id) — mountBoard сам оборачивает в AcceptRule
+  rule?: FieldPreset["rule"]; // value-правило по ЛИЦАМ (не по id) — mountBoard сам оборачивает в AcceptRule
   requiresCapability?: keyof PileIdentity["capabilities"]; // зона-слой цепочки (§6, issue #73): слепая
-  // зона — принимает набор, только если ВСЕ его члены несут эту способность (BoardZoneOpts, dropPolicy.ts)
+  // зона — принимает набор, только если ВСЕ его члены несут эту способность (FieldZoneOpts, dropPolicy.ts)
 }
 
 // Одиночная цель с меткой (соло-карта, соло-фигура): host + драггер/якорь + как достать лид.
@@ -200,7 +200,7 @@ export class PlaygroundEngine extends SceneEngine {
   private stacks: SandboxStack[] = [];
   private solos: SoloTarget[] = []; // одиночные цели с метками (соло-карта, соло-фигура)
   private chipPile: { ids: readonly string[]; dragger: Marker } | null = null; // столбик фишек (для e2e-грипа)
-  private boardZones: BoardZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
+  private boardZones: FieldZone[] = []; // игровые зоны (борды): фигуры в слотах, драг между слотами
   private boardTitles: string[] = []; // заголовки бордов (align с boardZones), для e2e
   // ПОЛЕ (обособленный модуль board/field.ts): владелец с закрытой стопкой + flow-гридом.
   private fields: Field[] = [];
@@ -212,7 +212,7 @@ export class PlaygroundEngine extends SceneEngine {
   // по таймеру удержания; сдвиг пальца (onCardMove) отменяет вход — карта тащится как обычная.
   private selEntry: { id: string; grabCp: { x: number; y: number }; timer: ReturnType<typeof setTimeout> | null } | null = null;
   private sel: Selection = EMPTY; // выделенный набор, замкнут на selZone
-  private selZone: BoardZone | null = null; // зона демо-выделения
+  private selZone: FieldZone | null = null; // зона демо-выделения
   private selDragging: string[] | null = null; // набор, который сейчас тащат целиком
   private selGrabCp = { x: 0, y: 0 }; // точка захвата набора (тап vs драг)
   // Отложенный драг набора (#65): на касании выделенной карты запоминаем состав/смещения/лид, но
@@ -461,7 +461,7 @@ export class PlaygroundEngine extends SceneEngine {
     y = this.buildStacks(SB_MARGIN, y);
     y = this.buildField(SB_MARGIN, y);
     y = this.buildControls(SB_MARGIN, y);
-    y = this.buildBoardZones(SB_MARGIN, y);
+    y = this.buildFieldZones(SB_MARGIN, y);
     y = this.sectionFrame(SB_MARGIN, y, "Дроп-индикатор: варианты подписи", (cl, ct) => dropIndicatorSection(this.sectionCtx(), { x: cl, y: ct }));
     this.contentH = y + SB_MARGIN - SB_SECTION_GAP; // последняя секция уже добавила свой SB_SECTION_GAP
 
@@ -701,7 +701,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Первый борд (Поле — отдельная механика, НЕ в boardZones).
-  private firstBoard(): BoardZone | undefined {
+  private firstBoard(): FieldZone | undefined {
     return this.boardZones[0];
   }
 
@@ -1089,7 +1089,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Ячейка select-демо — как у grid-пресетов (cellForPreset без ring). Отдельный хелпер: демо
-  // строит BoardConfig напрямую (несёт джокер-custom, чего string-слоты BoardPreset не умеют).
+  // строит BoardConfig напрямую (несёт джокер-custom, чего string-слоты FieldPreset не умеют).
   private selectDemoCell(): { w: number; h: number } {
     return { w: this.cardW * 1.15, h: this.cardH * 1.02 };
   }
@@ -1121,9 +1121,9 @@ export class PlaygroundEngine extends SceneEngine {
   // Игровые зоны (борды): ПЛОТНАЯ СЕТКА (data-driven), не вертикальный стек — 10 бордов меряются
   // (measureBoardConfig/фиксированные размеры custom-бордов), паковка wrapFlow, потом рендер по
   // готовым (x,y). Тоглер под каждым меняет исход дропа на занятый слот (merge/swap/capture/reject)
-  // через BoardZone.Configurable+Segmented. Демо-полигон BoardFactory: разные борды = разные ДАННЫЕ,
+  // через FieldZone.Configurable+Segmented. Демо-полигон BoardFactory: разные борды = разные ДАННЫЕ,
   // один движок (все 10 — один путь mountBoard).
-  private buildBoardZones(left: number, top: number): number {
+  private buildFieldZones(left: number, top: number): number {
     return this.sectionFrame(left, top, "Игровые зоны (борды)", (contentLeft, contentTop) => {
       const PRESET_EXTRA_H = 60; // тумблер «на занятый слот» (Segmented) + отступ
       const SELECT_EXTRA_H = 305; // кнопки выделение/снять + тумблеры сборки/отбора + 2 тумблера дропа мимо зон (#63)
@@ -1133,13 +1133,13 @@ export class PlaygroundEngine extends SceneEngine {
         size: { w: number; h: number };
         render: (x: number, y: number) => number;
       }
-      const items: BoardItem[] = BOARD_PRESETS.map((preset, pi) => ({
+      const items: BoardItem[] = FIELD_PRESETS.map((preset, pi) => ({
         size: this.measureBoardConfig(this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset)), PRESET_EXTRA_H),
         render: (x, y) => this.buildOneBoard(x, y, preset, pi),
       }));
       items.push({
-        size: this.measureBoardConfig(this.selectDemoConfig(`bz${BOARD_PRESETS.length}`, this.selectDemoCell()), SELECT_EXTRA_H, SB_ITEM_GAP + this.selNameBoxW()),
-        render: (x, y) => this.buildSelectDemo(x, y, BOARD_PRESETS.length),
+        size: this.measureBoardConfig(this.selectDemoConfig(`bz${FIELD_PRESETS.length}`, this.selectDemoCell()), SELECT_EXTRA_H, SB_ITEM_GAP + this.selNameBoxW()),
+        render: (x, y) => this.buildSelectDemo(x, y, FIELD_PRESETS.length),
       });
       items.push({ size: this.measureBoardConfig(this.chessBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildChessBoard(x, y) });
       items.push({ size: this.measureBoardConfig(this.mixedBoardConfig(), CHROME_EXTRA_H), render: (x, y) => this.buildMixedBoard(x, y) });
@@ -1158,7 +1158,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Рамка контейнера + сетка слотов (на поверхности, под фигурами). Общая для всех бордов (DRY).
-  private drawBoardFrame(zone: BoardZone, bounds: { x: number; y: number; w: number; h: number }): void {
+  private drawBoardFrame(zone: FieldZone, bounds: { x: number; y: number; w: number; h: number }): void {
     const frame = new Graphics();
     frame.roundRect(bounds.x - 5, bounds.y - 5, bounds.w + 10, bounds.h + 10, 10).fill({ color: 0x000000, alpha: 0.12 }).stroke({ width: 2, color: 0x4a5b50 });
     for (const { rect } of zone.slotRects()) frame.roundRect(rect.x, rect.y, rect.w, rect.h, 6).stroke({ width: 1, color: 0x5d6b64 });
@@ -1173,10 +1173,10 @@ export class PlaygroundEngine extends SceneEngine {
     return { positioned, bounds: { x: left, y: gy, w, h } };
   }
 
-  // Обвязка борд-зоны: BoardZone + учёт в списках + заголовок + рамка. Общая для пресет-бордов
+  // Обвязка борд-зоны: FieldZone + учёт в списках + заголовок + рамка. Общая для пресет-бордов
   // (spawnBoard) и custom (шахматы/смешанный). Фигуры спавнит вызыватель. opts: value-правило + иная подпись.
-  private registerBoardZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: Board["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string; requiresCapability?: keyof PileIdentity["capabilities"] }): BoardZone {
-    const zone = new BoardZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied, rule: opts?.rule, requiresCapability: opts?.requiresCapability });
+  private registerFieldZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: SlotField["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string; requiresCapability?: keyof PileIdentity["capabilities"] }): FieldZone {
+    const zone = new FieldZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied, rule: opts?.rule, requiresCapability: opts?.requiresCapability });
     this.boardZones.push(zone);
     this.boardTitles.push(title);
     this.scene.surface.addChild(this.label(opts?.labelText ?? title, left, top, 13, 0xcdb98f, undefined, 0));
@@ -1207,11 +1207,11 @@ export class PlaygroundEngine extends SceneEngine {
 
   // BOARDFACTORY: из конфига-ДАННЫХ собираем хром (grid ИЛИ ring) + фигуры. «Новый борд = конфиг».
   // depthBase — база z фигур (для смешанных стопок важен порядок: снизу вверх). Возвращает зону и низ.
-  private mountBoard(cfg: BoardConfig, left: number, top: number, depthBase: number): { zone: BoardZone; bottom: number } {
+  private mountBoard(cfg: BoardConfig, left: number, top: number, depthBase: number): { zone: FieldZone; bottom: number } {
     const gy = top + 22;
     const { positioned, bounds } = cfg.layout === "ring" ? this.ringBounds(left, gy, cfg.cell, cfg.ringCount ?? 8) : this.gridBounds(left, gy, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
     const r = Math.min(cfg.cell.w, cfg.cell.h) * (cfg.pieceRatio ?? 0.34);
-    const slots: Board["slots"] = {};
+    const slots: SlotField["slots"] = {};
     const faces: Record<string, string> = {};
     const keys = Object.keys(cfg.slots);
     for (const key of keys) {
@@ -1221,7 +1221,7 @@ export class PlaygroundEngine extends SceneEngine {
       });
     }
     const rule = cfg.rule ? wrapRule(cfg.rule, faces) : undefined;
-    const zone = this.registerBoardZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText, rule, requiresCapability: cfg.requiresCapability });
+    const zone = this.registerFieldZone(cfg.title, left, top, positioned, bounds, slots, cfg.onOccupied, { labelText: cfg.labelText, rule, requiresCapability: cfg.requiresCapability });
     let depth = depthBase;
     for (const key of keys) {
       cfg.slots[key]!.forEach((def, j) => this.spawnElement(`${cfg.idPrefix}-${key}-${j}`, zone.figureHome(`${cfg.idPrefix}-${key}-${j}`), def, depth++, r));
@@ -1230,10 +1230,10 @@ export class PlaygroundEngine extends SceneEngine {
     return { zone, bottom: bounds.y + bounds.h + 8 };
   }
 
-  // Пресет-данные (BoardPreset) → декларативный BoardConfig — та же фабрика mountBoard для ВСЕХ
+  // Пресет-данные (FieldPreset) → декларативный BoardConfig — та же фабрика mountBoard для ВСЕХ
   // 7 пресетов, что уже обслуживает шахматы/смешанный борд. cell передаёт вызыватель (grid/ring —
   // разные пропорции, как раньше в layoutForPreset).
-  private presetToBoardConfig(preset: BoardPreset, idPrefix: string, cell: { w: number; h: number }): BoardConfig {
+  private presetToBoardConfig(preset: FieldPreset, idPrefix: string, cell: { w: number; h: number }): BoardConfig {
     const slots: Record<string, ElementDef[]> = {};
     for (const [key, faces] of Object.entries(preset.slots)) slots[key] = faces.map((face) => ({ kind: "card", face }));
     return {
@@ -1252,13 +1252,13 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Пропорции ячейки под пресет — те же, что раньше были в layoutForPreset (grid/ring разные).
-  private cellForPreset(preset: BoardPreset): { w: number; h: number } {
+  private cellForPreset(preset: FieldPreset): { w: number; h: number } {
     return preset.layout === "ring" ? { w: this.cardW * 0.82, h: this.cardH * 0.82 } : { w: this.cardW * 1.15, h: this.cardH * 1.02 };
   }
 
   // Борд-пресет → BoardConfig → mountBoard (единая фабрика, та же, что у шахмат/смешанного борда).
-  // «На занятый слот» — через BoardZone.Configurable+Segmented (attachControls), не segToggle.
-  private buildOneBoard(left: number, top: number, preset: BoardPreset, pi: number): number {
+  // «На занятый слот» — через FieldZone.Configurable+Segmented (attachControls), не segToggle.
+  private buildOneBoard(left: number, top: number, preset: FieldPreset, pi: number): number {
     const cfg = this.presetToBoardConfig(preset, `bz${pi}`, this.cellForPreset(preset));
     const { zone, bottom } = this.mountBoard(cfg, left, top, 300 + pi * 100);
     const rc = attachControls(zone, { layer: this.scene.surface, register: (b) => this.registerButton(b), onChange: () => this.wake() }, { x: left, y: bottom });
@@ -1573,7 +1573,7 @@ export class PlaygroundEngine extends SceneEngine {
     this.selOutlines.set(el.id, { g, kind });
   }
 
-  // Конфиги custom-бордов (шахматы/смешанный) — ВЫНЕСЕНЫ из build*, чтобы buildBoardZones мог их
+  // Конфиги custom-бордов (шахматы/смешанный) — ВЫНЕСЕНЫ из build*, чтобы buildFieldZones мог их
   // же смерить (measureBoardConfig) ДО рендера, не задавая геометрию дважды в двух местах.
   private chessBoardConfig(): BoardConfig {
     return {
@@ -1656,7 +1656,7 @@ export class PlaygroundEngine extends SceneEngine {
   }
 
   // Зона, которой принадлежит фигура (или null).
-  private boardZoneOf(id: string): BoardZone | null {
+  private boardZoneOf(id: string): FieldZone | null {
     for (const z of this.boardZones) if (z.locate(id)) return z;
     return null;
   }
@@ -1702,7 +1702,7 @@ export class PlaygroundEngine extends SceneEngine {
   // «обе на одном слоте». Перетаскиваемую пропускаем: её домой везёт release.
   // zIndex тоже пересчитываем по позиции в members (как applyStackHomes для стопок) — иначе после
   // merge z остаётся спавн-порядка, и свежая карта визуально прячется под старыми на своём слоте.
-  private refreshZoneHomes(zone: BoardZone): void {
+  private refreshZoneHomes(zone: FieldZone): void {
     const dragged = this.drag?.lead.id;
     const keys = Object.keys(zone.board.slots);
     const zs = keys.flatMap((k) => zone.board.slots[k]!.members.map((id) => this.byId.get(id)?.root.zIndex)).filter((z): z is number => z !== undefined);

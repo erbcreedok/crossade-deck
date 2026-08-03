@@ -14,7 +14,7 @@ import type { Burnable, Concealable, Draggable, Flippable, Peekable, TableElemen
 import type { FaceStyle } from "../engine/cardTextures";
 import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
-import { cardTags, withTags } from "../board/elementTags";
+import { cardTags, withTags } from "../slotfield/elementTags";
 import { normalizeCard } from "../card";
 import { BASE_PRESET, scaled, type AnimPreset } from "../anim/presets";
 import { destroyStyle } from "../anim/destroyStyles";
