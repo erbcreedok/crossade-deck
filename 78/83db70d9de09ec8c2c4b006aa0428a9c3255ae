@@ -1,0 +1,109 @@
+client2/src/game/engine/focusView.test.ts
+  s_e2a4c2b31d470a::t_ded0e3db4e5348 1-34
+client2/src/game/engine/focusView.ts
+  s_e2a4c2b31d470a::t_1db0b1108a6f87 1-28
+client2/src/game/kit/stackInteraction.ts
+  s_e2a4c2b31d470a::t_8e596fc69b80d7 1-172
+client2/src/game/engine/sceneEngine.ts
+  s_e2a4c2b31d470a::t_65106a335584b5 892
+  s_e2a4c2b31d470a::t_9be7edfb52be34 115-119
+  s_e2a4c2b31d470a::t_18c371556fb5c4 910
+  s_e2a4c2b31d470a::t_556fd530eded43 324-325
+  s_e2a4c2b31d470a::t_83f0f2a2affb71 990
+  s_e2a4c2b31d470a::t_9073490987a6aa 19
+  s_e2a4c2b31d470a::t_428291adc331f9 281-293,300-323,326-350
+  s_e2a4c2b31d470a::t_d6f2e9db67fa08 983
+  s_e2a4c2b31d470a::t_b3fa021bc96f3e 877
+  s_e2a4c2b31d470a::t_b6e08778503deb 294-299
+  s_e2a4c2b31d470a::t_53113716461da6 406
+  s_e2a4c2b31d470a::t_1d14996816908c 393-402
+client2/src/main.tsx
+  s_e2a4c2b31d470a::t_96620ba1a95b61 5
+  s_e2a4c2b31d470a::t_b50fde9fc18395 14-16,19
+client2/src/game/boards/library/sandbox.ts
+  s_e2a4c2b31d470a::t_a32fa73f3c1ee7 28-29
+  s_e2a4c2b31d470a::t_afa5d00c14d02b 23-27,30,32
+  s_e2a4c2b31d470a::t_15c2dbd5a3bf9f 4-6,34
+  s_e2a4c2b31d470a::t_55d4eb7bad0eb6 21
+  s_e2a4c2b31d470a::t_ac06c374523180 18
+  s_e2a4c2b31d470a::t_c92b036b51eeb9 1-3,7-17,19-20,22,33,35-37
+  s_e2a4c2b31d470a::t_eccf392cbd2595 31
+client2/src/game/kit/stackInteraction.test.ts
+  s_e2a4c2b31d470a::t_63d182b41e2a78 1-99
+client2/src/game/slot/layouts.ts
+  s_e2a4c2b31d470a::t_fe415ef34ec70d 48
+  s_e2a4c2b31d470a::t_6df6dca9566645 58
+client2/src/game/boards/scene.ts
+  s_e2a4c2b31d470a::t_26518aa2b9636b 171
+  s_e2a4c2b31d470a::t_2b1cb4a8d422ae 453,466-469
+  s_e2a4c2b31d470a::t_1c1be7b0558310 13
+  s_e2a4c2b31d470a::t_3f421fef438670 327-330
+  s_e2a4c2b31d470a::t_d2f96a968dbf79 79-86
+  s_e2a4c2b31d470a::t_d2e385bd6580a6 210,216-236
+  s_e2a4c2b31d470a::t_0b2f80367b4cbd 11
+  s_e2a4c2b31d470a::t_6190512e53c8cf 420-436
+  s_e2a4c2b31d470a::t_6459ff21c17f4b 399
+  s_e2a4c2b31d470a::t_ef9b5712dc6256 531
+  s_e2a4c2b31d470a::t_9314aa027d6803 457,463,465
+  s_e2a4c2b31d470a::t_7363c8b58b0738 265-273
+  s_e2a4c2b31d470a::t_41a9c714bae821 12
+  s_e2a4c2b31d470a::t_9cf49dd5228fa8 384-397
+  s_e2a4c2b31d470a::t_abe050303b4f46 441
+  s_e2a4c2b31d470a::t_7663614c9bcf21 454-456,458-462,464
+client2/src/game/boards/freeBox.test.ts
+  s_e2a4c2b31d470a::t_19a8c57993e7ef 1-50
+client2/src/game/boards/spec.ts
+  s_e2a4c2b31d470a::t_d92e3aae531a78 190
+  s_e2a4c2b31d470a::t_e8529a7dbad1db 70-74
+  s_e2a4c2b31d470a::t_5165e2e0f7f268 102-103
+  s_e2a4c2b31d470a::t_d374e5cda53381 100-101
+  s_e2a4c2b31d470a::t_5357320850da5a 66
+client2/src/game/slotfield/dynamicGrid.ts
+  s_e2a4c2b31d470a::t_2d6000b263e90b 20
+  s_e2a4c2b31d470a::t_473e5e11b4af46 53-65
+client2/src/game/boards/boardTree.test.ts
+  s_e2a4c2b31d470a::t_767aa36da205e1 154,169
+  s_e2a4c2b31d470a::t_a6ebeeaf1599fc 155-168
+  s_e2a4c2b31d470a::t_fb000c91a4c1fc 4
+  s_e2a4c2b31d470a::t_afd1f6e33b45d0 137,139,141-142,147,149-150
+  s_e2a4c2b31d470a::t_5cfe6ae57ed876 138,140,143-146,148,151-153
+client2/src/theme.css
+  s_e2a4c2b31d470a::t_3d572b41227166 135-143
+client2/src/game/boards/freeBox.ts
+  s_e2a4c2b31d470a::t_c47c32fbe668fe 1-46
+client2/src/PlaygroundBoard.tsx
+  s_e2a4c2b31d470a::t_d536df4dbbd82b 1-29
+client2/src/game/boards/boardTree.ts
+  s_e2a4c2b31d470a::t_06ba276f22661c 102-103
+  s_e2a4c2b31d470a::t_b106b889bb7089 97,101,105-107
+  s_e2a4c2b31d470a::t_c24a75342b2655 306-307,311-313,315,317,319-325,329-334
+  s_e2a4c2b31d470a::t_bb4722b9da0c10 113-116,121-123,125-126
+  s_e2a4c2b31d470a::t_e86baa609c7389 127-128
+  s_e2a4c2b31d470a::t_b9b44bc520a94a 98-100,104
+  s_e2a4c2b31d470a::t_7d16cf6b1e53a0 335
+client2/src/game/slotfield/dynamicGrid.test.ts
+  s_e2a4c2b31d470a::t_86586bc56812e1 40-57
+client2/src/game/engine/inputRouter.ts
+  s_e2a4c2b31d470a::t_6847649f15c9a1 194-200
+  s_e2a4c2b31d470a::t_139ca06cff38fa 213-214
+  s_e2a4c2b31d470a::t_5b8df79aff9db3 78-79
+  s_e2a4c2b31d470a::t_593c21b161feb2 172
+  s_e2a4c2b31d470a::t_4b4d02ee30d4f4 50-53
+  s_e2a4c2b31d470a::t_67632cf9d2dd01 85-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "7883db70d9de09ec8c2c4b006aa0428a9c3255ae",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
