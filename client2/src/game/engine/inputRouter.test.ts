@@ -5,13 +5,16 @@ import { InputRouter, type InputHandlers } from "./inputRouter";
 type C = { id: string; drag: boolean };
 type B = { id: string };
 
-function setup(opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: number, y: number) => B | null } = {}) {
+function setup(
+  opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: number, y: number) => B | null; holdToDrag?: (c: C) => boolean } = {}
+) {
   const calls: string[] = [];
   const rec = (name: string) => (...a: unknown[]) => calls.push(`${name}(${a.map(String).join(",")})`);
   const h: InputHandlers<C, B> = {
     screenToContent: (x, y) => ({ x, y }), // 1:1 для простоты
     pickCard: (x, y) => opts.cardAt?.(x, y) ?? null,
     cardDraggable: (c) => c.drag,
+    holdToDrag: opts.holdToDrag,
     pickButton: (x, y) => opts.btnAt?.(x, y) ?? null,
     buttonContains: (b, x) => x < 50, // «внутри» кнопки если x<50
     onCardGrab: (c) => calls.push(`grab(${c.id})`),
@@ -135,5 +138,51 @@ describe("InputRouter", () => {
     r.move(1, 20, 10); // та же кнопка → без повтора
     r.move(1, 300, 10); // ушли → null
     expect(calls).toEqual(["hover(b1)", "hover(null)"]);
+  });
+});
+
+describe("drag by hold", () => {
+  it("держим карту дольше HOLD_SEC → захват (grab), а не сразу на down", () => {
+    const card = { id: "A", drag: true };
+    const { r, calls } = setup({ cardAt: () => card, holdToDrag: () => true });
+    r.down(1, 10, 10);
+    expect(r.gesture).toBe("press");
+    r.tick(0.1);
+    r.tick(0.1);
+    expect(calls).toEqual([]); // ещё не набежало HOLD_SEC (0.35)
+    r.tick(0.2); // 0.1+0.1+0.2 = 0.4 ≥ 0.35 → повышаем в drag
+    expect(calls).toEqual(["grab(A)"]);
+    expect(r.gesture).toBe("drag");
+  });
+
+  it("сдвиг раньше HOLD_SEC → не драг, а пан (стопку листают/скроллят)", () => {
+    const card = { id: "A", drag: true };
+    const { r, calls } = setup({ cardAt: () => card, holdToDrag: () => true });
+    r.down(1, 10, 10);
+    r.tick(0.1); // ещё держим, не набежало
+    r.move(1, 40, 10); // уехали дальше DRAG_SLOP до истечения HOLD_SEC
+    expect(r.gesture).toBe("pan");
+    r.tick(1); // дальнейшее время уже не должно ничего повышать в drag
+    expect(calls.some((c) => c.startsWith("grab("))).toBe(false);
+    expect(calls).toContain("panStart()");
+  });
+
+  it("быстрый тап (отпустили до HOLD_SEC) → onCardTap, без grab", () => {
+    const card = { id: "A", drag: true };
+    const { r, calls } = setup({ cardAt: () => card, holdToDrag: () => true });
+    r.down(1, 10, 10);
+    r.tick(0.1);
+    r.up(1, 10, 10);
+    expect(calls).toEqual(["tap(A)"]);
+    expect(r.gesture).toBe("none");
+  });
+
+  it("регрессия: обычная драгабельная карта (holdToDrag отсутствует) хватается сразу, как раньше", () => {
+    const card = { id: "A", drag: true };
+    const { r, calls } = setup({ cardAt: () => card }); // holdToDrag не задан
+    r.down(1, 10, 10);
+    expect(r.gesture).toBe("drag");
+    r.move(1, 40, 10);
+    expect(calls).toEqual(["grab(A)", "move(A)"]);
   });
 });

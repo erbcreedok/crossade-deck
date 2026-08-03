@@ -979,6 +979,7 @@ export abstract class SceneEngine extends CanvasApp {
   // ——————————————————————————————————————————————————————————————————————
 
   protected frame(dt: number): boolean {
+    this.input.tick(dt); // «держи-чтобы-тащить»: копит heldFor, сама решает, когда повысить press → drag
     this.edgeScroll(dt);
     const camMoving = this.stepCamTween(dt); // наведение камеры на зону: не спим, пока не доедет
     if (this.viewport.flinging) {

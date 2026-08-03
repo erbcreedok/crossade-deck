@@ -3,7 +3,7 @@
 // захвате/дропе карты, как зумить вьюпорт) — В КОЛБЭКАХ движка, поэтому роутер переиспользуем
 // (песочница/стол/будущее) и тестируется без Pixi. Обобщён по токенам карты C и кнопки B.
 
-export type Gesture = "none" | "drag" | "pan" | "pinch" | "button" | "blocked";
+export type Gesture = "none" | "drag" | "pan" | "pinch" | "button" | "blocked" | "press";
 
 /**
  * Насколько надо увести палец, чтобы это считалось ПОПЫТКОЙ ТАЩИТЬ.
@@ -14,6 +14,12 @@ export type Gesture = "none" | "drag" | "pan" | "pinch" | "button" | "blocked";
  */
 const DRAG_SLOP = 6;
 
+/**
+ * «Держи, чтобы тащить»: сколько секунд палец должен простоять на карте, прежде чем это станет
+ * драгом. Опциональная фича (см. `holdToDrag`) — обычный тап-драг её не задевает.
+ */
+const HOLD_SEC = 0.35;
+
 interface Pt {
   x: number;
   y: number;
@@ -23,6 +29,12 @@ export interface InputHandlers<C, B> {
   screenToContent(sx: number, sy: number): Pt;
   pickCard(cx: number, cy: number): C | null;
   cardDraggable(c: C): boolean;
+  /**
+   * Опц.: для ЭТОЙ карты драг начинается не сразу, а после `HOLD_SEC` неподвижности. Пока палец
+   * стоит, жест — `press`; сдвиг раньше срока превращает его в пан (значит, тащить не хотели, а
+   * листали стопку), быстрое отпускание — в тап по карте. Отсутствует/false — поведение как раньше.
+   */
+  holdToDrag?(c: C): boolean;
   pickButton(cx: number, cy: number): B | null;
   buttonContains(b: B, cx: number, cy: number): boolean;
 
@@ -77,6 +89,9 @@ export class InputRouter<C, B> {
   private hovered: B | null = null;
   private downAt: Pt | null = null; // где нажали первый палец — для распознавания ТАПА (без сдвига)
   private multi = false; // был ли второй палец за жест (тогда это не тап)
+  /** Жест "press": сколько уже простояли и откуда — для промоции в drag по `tick()`. */
+  private heldFor = 0;
+  private pressFrom: Pt | null = null;
 
   constructor(private readonly h: InputHandlers<C, B>) {}
 
@@ -115,6 +130,12 @@ export class InputRouter<C, B> {
         this.card = card;
         this.blockedFrom = { x: sx, y: sy };
         this.blockedFired = false;
+      } else if (card && this.h.holdToDrag?.(card)) {
+        // Драгабельна, но требует «держи»: пока не набежит HOLD_SEC, это ещё не захват.
+        this.gesture = "press";
+        this.card = card;
+        this.pressFrom = { x: sx, y: sy };
+        this.heldFor = 0;
       } else if (card) {
         this.gesture = "drag";
         this.card = card;
@@ -148,6 +169,15 @@ export class InputRouter<C, B> {
         this.blockedFired = true;
         this.h.onCardBlocked(this.card);
       }
+    } else if (this.gesture === "press" && this.card) {
+      // Поехал раньше, чем настоялся — значит тащить не хотели, это пан/скролл стопки.
+      if (this.pressFrom && Math.hypot(sx - this.pressFrom.x, sy - this.pressFrom.y) > DRAG_SLOP) {
+        this.card = null;
+        this.pressFrom = null;
+        this.gesture = "pan";
+        this.panLast = { x: sx, y: sy };
+        this.h.onPanStart?.();
+      }
     } else if (this.gesture === "drag" && this.card) {
       const cp = this.h.screenToContent(sx, sy);
       this.h.onCardMove(this.card, cp, { x: sx, y: sy });
@@ -179,6 +209,12 @@ export class InputRouter<C, B> {
       if (!this.blockedFired && this.card) this.h.onCardTap(this.card);
       this.card = null;
       this.blockedFrom = null;
+    } else if (this.gesture === "press") {
+      // Отпустили до истечения HOLD_SEC — не «держали», а тыкнули: это ТАП по карте.
+      if (this.card) this.h.onCardTap(this.card);
+      this.card = null;
+      this.pressFrom = null;
+      this.heldFor = 0;
     } else if (this.gesture === "button" && this.button) {
       const cp = this.h.screenToContent(sx, sy);
       this.h.onButtonUp(this.button, this.h.buttonContains(this.button, cp.x, cp.y));
@@ -203,6 +239,23 @@ export class InputRouter<C, B> {
     this.h.afterAny();
   }
 
+  /**
+   * Раз в кадр: копит время удержания для «press» и повышает его в «drag», как только наберётся
+   * `HOLD_SEC`. Время приходит СНАРУЖИ (dt), а не из wall-clock — роутер держим чистым и
+   * тестируемым без Pixi.
+   */
+  tick(dt: number): void {
+    if (this.gesture !== "press" || !this.card || !this.pressFrom) return;
+    this.heldFor += dt;
+    if (this.heldFor < HOLD_SEC) return;
+    const card = this.card;
+    const at = this.pressFrom;
+    this.gesture = "drag";
+    this.pressFrom = null;
+    this.heldFor = 0;
+    this.h.onCardGrab(card, this.h.screenToContent(at.x, at.y), at);
+  }
+
   /** Сброс (teardown/рестарт): забыть указатели и жест. */
   reset(): void {
     this.pointers.clear();
@@ -212,6 +265,8 @@ export class InputRouter<C, B> {
     this.hovered = null;
     this.downAt = null;
     this.multi = false;
+    this.heldFor = 0;
+    this.pressFrom = null;
   }
 
   private pinchGeom(): { midX: number; midY: number; dist: number } {
