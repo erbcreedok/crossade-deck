@@ -8,6 +8,7 @@ import {
   type CardPick,
   type SpreadClose,
   type SpreadConfig,
+  type StackDrag,
   type Trigger,
 } from "../../game/kit/stackInteraction";
 
@@ -53,6 +54,11 @@ export interface StackArgs {
   cardPick: CardPick;
   /** Каким жестом берут карту: тап-и-тащи или «подержи». */
   cardDragTrigger: Extract<Trigger, "tap" | "hold">;
+  /**
+   * Форс-включатель драга ВСЕЙ стопки целиком (kit/stackInteraction.ts StackDrag), поверх того, что
+   * даёт пресет `interaction` (у `block` он и так есть). Жест — тот же `cardDragTrigger`.
+   */
+  stackDrag: boolean;
 }
 
 export const STACK_ARGS: StackArgs = {
@@ -77,6 +83,7 @@ export const STACK_ARGS: StackArgs = {
   spreadKeepDiagonal: true,
   cardPick: "any",
   cardDragTrigger: "tap",
+  stackDrag: false,
 };
 
 export const STACK_ARG_TYPES = {
@@ -159,6 +166,11 @@ export const STACK_ARG_TYPES = {
     options: ["tap", "hold"],
     if: { arg: "interaction", neq: "block" },
   },
+  stackDrag: {
+    name: "stackDrag",
+    description: "тащить стопку целиком за любую её карту, поверх пресета — как block, но на любой раскладке",
+    control: { type: "boolean" as const },
+  },
 };
 
 /**
@@ -174,7 +186,7 @@ const DEFAULT_CLOSE: Record<SpreadClose["kind"], SpreadClose> = {
   dribble: { kind: "dribble", buildSeconds: 1.4 },
 };
 
-export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; cardDrag: CardDrag | null } {
+export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; cardDrag: CardDrag | null; stackDrag: StackDrag | null } {
   const base = resolveInteraction(a.interaction);
   const spread: SpreadConfig | null = a.spread
     ? {
@@ -189,7 +201,9 @@ export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; ca
       }
     : null;
   const cardDrag: CardDrag | null = base.cardDrag ? { trigger: a.cardDragTrigger, pick: a.cardPick } : null;
-  return { spread, cardDrag };
+  // Форс-рычаг `stackDrag` перекрывает пресет; иначе — как у пресета (только `block` его даёт).
+  const stackDrag: StackDrag | null = a.stackDrag ? { trigger: a.cardDragTrigger } : base.stackDrag;
+  return { spread, cardDrag, stackDrag };
 }
 
 /**

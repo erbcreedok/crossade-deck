@@ -18,7 +18,7 @@ import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } fro
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 import type { StackLayout } from "../kit/stackLayout";
-import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type CardDrag, type SpreadConfig, type SpreadState } from "../kit/stackInteraction";
+import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type CardDrag, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -65,12 +65,15 @@ export interface KitContext extends SectionContext {
    */
   spreadStack(ids: string[], at: Pt, layout: StackLayout, cell: { w: number; h: number }, cfg: SpreadConfig): void;
   /**
-   * Включить ДРАГ КАРТ у стопки: каким жестом её берут (`tap`/`hold`) и какую карту отдают
-   * («любую» под пальцем / только верхнюю — `pick`). `null` — карты стопки не тащатся вовсе.
-   * Матчасть — `kit/stackInteraction.ts` CardDrag; тут только регистрация, решение — в
-   * `KitScene.canDrag`/`holdToDrag`.
+   * Включить ДРАГ КАРТ и/или ДРАГ ВСЕЙ СТОПКИ. `cardDrag`: каким жестом берут отдельную карту
+   * (`tap`/`hold`) и какую отдают («любую» под пальцем / только верхнюю — `pick`); `null` — карты
+   * по отдельности не тащатся. `stackDrag`: стопка тащится ЦЕЛИКОМ (любая карта — ручка для всей
+   * пачки); `null` — такого нет. У стопки бывает только один из двух (или ни одного) — конфликт не
+   * гейтится тут (kit/stackInteraction.ts StackInteraction), решает автор сборки.
+   * Матчасть — `kit/stackInteraction.ts`; тут только регистрация, решение — в
+   * `KitScene.canDrag`/`holdToDrag`/`beginDrag`.
    */
-  dragConfig(ids: string[], cardDrag: CardDrag | null): void;
+  dragConfig(ids: string[], cardDrag: CardDrag | null, stackDrag?: StackDrag | null): void;
 }
 
 export type KitBuild = (ctx: KitContext) => void;
@@ -119,7 +122,7 @@ export class KitScene extends SceneEngine {
    * это две НЕЗАВИСИМЫЕ механики (kit/stackInteraction.ts StackInteraction), у стопки может быть
    * только одна из них, обе или ни одной. См. holdToDrag/canDrag.
    */
-  private dragStacks: { ids: string[]; cardDrag: CardDrag | null }[] = [];
+  private dragStacks: { ids: string[]; cardDrag: CardDrag | null; stackDrag: StackDrag | null }[] = [];
 
   /**
    * Слушатель габарита — зовётся после каждой сборки. Нужен хосту: высоту канваса задаёт DOM, а
@@ -420,8 +423,8 @@ export class KitScene extends SceneEngine {
       spreadStack: (ids, at, layout, cell, cfg) => {
         this.spreadStacks.push({ ids, at, layout, cell, cfg, state: SPREAD_STATE0 });
       },
-      dragConfig: (ids, cardDrag) => {
-        this.dragStacks.push({ ids: [...ids], cardDrag });
+      dragConfig: (ids, cardDrag, stackDrag = null) => {
+        this.dragStacks.push({ ids: [...ids], cardDrag, stackDrag });
       },
     };
     this.pending?.(ctx);
@@ -518,11 +521,17 @@ export class KitScene extends SceneEngine {
   /** Шаг спред-стеков: анимация amount→target + close-поведение, раскладка карт поверх базовой. */
   protected override stepScene(dt: number): boolean {
     let moving = false;
+    // Стопка тащится ЦЕЛИКОМ (GroupDrag): её лид — верхняя карта (drag.ts GroupDrag.lead), но
+    // едут ВСЕ карты пачки. Спред обязан отпустить их всех, а не только лида — иначе руки тянут
+    // группу за пальцем, а спред тем же кадром тянет её карты обратно на раскладку, и группа рвётся.
+    const dragEntry = this.drag ? this.dragEntryOf(this.drag.lead.id) : undefined;
+    const groupDragIds = dragEntry?.stackDrag ? new Set(dragEntry.ids) : null;
     for (const entry of this.spreadStacks) {
       entry.state = spreadTick(entry.state, dt, entry.cfg);
       const n = entry.ids.length;
       entry.ids.forEach((id, i) => {
         if (id === this.drag?.lead.id) return; // тащат руками — спред её не двигает
+        if (groupDragIds?.has(id)) return; // карта пачки, которую тащат целиком — тоже не спредим
         const el = this.byId.get(id);
         if (!el) return;
         const base = entry.layout(i, n, entry.cell);
@@ -536,27 +545,50 @@ export class KitScene extends SceneEngine {
   }
 
   /** Запись драг-конфига стопки, в которой числится элемент, или undefined — элемент не в реестре. */
-  private dragEntryOf(id: string): { ids: string[]; cardDrag: CardDrag | null } | undefined {
+  private dragEntryOf(id: string): { ids: string[]; cardDrag: CardDrag | null; stackDrag: StackDrag | null } | undefined {
     return this.dragStacks.find((s) => s.ids.includes(id));
   }
 
   /**
-   * Пик карты по конфигу стопки (kit/stackInteraction.ts CardDrag.pick): `null` — карты не тащат
-   * вовсе, `"first"` — только ВЕРХНЯЯ (последняя в порядке id), `"any"` — любая под пальцем (базовое
-   * поведение). Элементы вне драг-реестра решаются базой — рычаг на них не распространяется.
+   * Пик карты по конфигу стопки: `stackDrag != null` — ЛЮБАЯ карта стопки хватается (ручка для
+   * всей пачки, см. beginDrag); иначе — по `cardDrag.pick` (kit/stackInteraction.ts): `null` —
+   * карты не тащат вовсе, `"first"` — только ВЕРХНЯЯ (последняя в порядке id), `"any"` — любая под
+   * пальцем (базовое поведение). Элементы вне драг-реестра решаются базой — рычаг на них не
+   * распространяется.
    */
   protected override canDrag(el: SceneElement): boolean {
     if (!super.canDrag(el)) return false;
     const entry = this.dragEntryOf(el.id);
     if (!entry) return true;
+    if (entry.stackDrag) return true;
     if (!entry.cardDrag) return false;
     if (entry.cardDrag.pick === "first") return el.id === entry.ids[entry.ids.length - 1];
     return true;
   }
 
-  /** «Держи, чтобы тащить» — только если у стопки элемента задан cardDrag.trigger==="hold". */
+  /** «Держи, чтобы тащить» — если у стопки элемента задан cardDrag.trigger либо stackDrag.trigger==="hold". */
   protected override holdToDrag(el: SceneElement): boolean {
-    return this.dragEntryOf(el.id)?.cardDrag?.trigger === "hold";
+    const entry = this.dragEntryOf(el.id);
+    return entry?.cardDrag?.trigger === "hold" || entry?.stackDrag?.trigger === "hold";
+  }
+
+  /**
+   * Драг ЦЕЛОЙ стопки (`stackDrag != null`, kit/stackInteraction.ts): взяли за любую карту — едет
+   * вся живая пачка группой, форма сохраняется (сдвиги от точки захвата, тот же приём, что у
+   * блок-драга песочницы — boards/scene.ts beginDrag). Иначе — база (SingleDrag/метка).
+   */
+  protected override beginDrag(el: SceneElement, cp: Pt, sp: Pt): boolean {
+    const entry = this.dragEntryOf(el.id);
+    if (entry?.stackDrag) {
+      const nodes = entry.ids.map((id) => this.byId.get(id)).filter((e): e is SceneElement => !!e);
+      if (nodes.length) {
+        const offsets = nodes.map((n) => ({ dx: n.body.px - cp.x, dy: n.body.py - cp.y }));
+        this.drag = new GroupDrag(nodes, offsets, this.dragCtx);
+        this.drag.move(cp);
+        return true;
+      }
+    }
+    return super.beginDrag(el, cp, sp);
   }
 
   /** Переставить дом и глубину — реестр витрины знает про них он один (см. flipGroup). */

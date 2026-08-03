@@ -80,9 +80,9 @@ ctx.flipStack(ids);`,
         liveIds = r.ids;
         // Спред/драг карт — рычаги панели (interaction + переопределения), не фикс-пресет: см.
         // interactionFrom в stackArgs.ts.
-        const { spread, cardDrag } = interactionFrom(a);
+        const { spread, cardDrag, stackDrag } = interactionFrom(a);
         if (spread) ctx.spreadStack(r.ids, at, layoutFrom(a), { w: ctx.cardW, h: ctx.cardH }, spread);
-        ctx.dragConfig(r.ids, cardDrag);
+        ctx.dragConfig(r.ids, cardDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -188,9 +188,9 @@ export const Deck: Story = {
         const cell = { w: ctx.cardW, h: ctx.cardH };
         const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
-        const { spread, cardDrag } = interactionFrom(a);
+        const { spread, cardDrag, stackDrag } = interactionFrom(a);
         if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
-        ctx.dragConfig(r.ids, cardDrag);
+        ctx.dragConfig(r.ids, cardDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -231,9 +231,9 @@ export const Discard: Story = {
         const cell = { w: ctx.cardW, h: ctx.cardH };
         const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
-        const { spread, cardDrag } = interactionFrom(a);
+        const { spread, cardDrag, stackDrag } = interactionFrom(a);
         if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
-        ctx.dragConfig(r.ids, cardDrag);
+        ctx.dragConfig(r.ids, cardDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
