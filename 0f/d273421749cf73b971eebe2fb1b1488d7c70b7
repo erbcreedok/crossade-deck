@@ -1,0 +1,49 @@
+client2/src/game/boards/library.test.ts
+  s_e2a4c2b31d470a::t_1858e6618b4061 6,67-89
+  s_e2a4c2b31d470a::t_7ce06b7c337a98 1-5,7-66,90-101
+client2/src/game/boards/library/belka.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-27
+client2/src/game/boards/library/uno.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-28
+client2/src/game/boards/library/poker.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-31
+client2/src/game/boards/library/decks.ts
+  s_e2a4c2b31d470a::t_96d3932afe67f1 1-21
+client2/src/game/boards/library/index.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-28
+client2/src/game/boards/library/munchkin.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-32
+client2/src/game/boards/library/krestovyi.ts
+  s_e2a4c2b31d470a::t_7499e744211522 1-33
+client2/src/stories/boards/Room.stories.tsx
+  s_e2a4c2b31d470a::t_7ce06b7c337a98 5
+client2/src/stories/boards/Boards.stories.tsx
+  s_e2a4c2b31d470a::t_7ce06b7c337a98 5,67
+  s_e2a4c2b31d470a::t_1858e6618b4061 39-40,87-90
+client2/src/game/boards/library/durak.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-31
+client2/src/game/boards/library/monopoly.ts
+  s_e2a4c2b31d470a::t_7499e744211522 1-40
+client2/src/game/boards/library/chess.ts
+  s_e2a4c2b31d470a::t_7499e744211522 1-51
+client2/src/game/boards/library/dnd.ts
+  s_e2a4c2b31d470a::t_3beb63e822da64 1-32
+client2/docs/BOARDS-DESIGN.md
+  s_e2a4c2b31d470a::t_967db9f2b68bec 3,219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "0fd273421749cf73b971eebe2fb1b1488d7c70b7",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
