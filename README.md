@@ -1,4 +1,4 @@
-# Crusade Deck
+# Crossade Deck
 
 A multiplayer card game for mobile browsers. A monorepo of two Node parts:
 
@@ -12,8 +12,8 @@ For architecture and game-mechanics details, see `CLAUDE.md`.
 ## Local development
 
 ```bash
-git clone <repo-url> crusade-deck
-cd crusade-deck
+git clone <repo-url> crossade-deck
+cd crossade-deck
 
 cd server && npm ci && npm run dev    # :2567, auto-restarts on changes
 ```
@@ -59,10 +59,10 @@ No tunnel: the server listens on a public IP/domain directly, ports 80/443 are o
 to the outside, TLS is your own (Let's Encrypt) or via a reverse proxy.
 
 ```bash
-git clone <repo-url> ~/crusade-deck
-cd ~/crusade-deck/server && npm ci && npm run build
+git clone <repo-url> ~/crossade-deck
+cd ~/crossade-deck/server && npm ci && npm run build
 
-cd ~/crusade-deck/client
+cd ~/crossade-deck/client
 cat > .env.production <<'EOF'
 VITE_SERVER_URL=wss://api.example.com
 VITE_HTTP_URL=https://api.example.com
@@ -73,14 +73,14 @@ npm ci && npm run build
 Game server:
 
 ```bash
-cd ~/crusade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
+cd ~/crossade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
 ```
 
 Static files (needs an SPA fallback to `index.html` — invite links like `/r/CODE`
 will 404 on a direct load without one):
 
 ```bash
-npx serve -s ~/crusade-deck/client/dist -l 8080
+npx serve -s ~/crossade-deck/client/dist -l 8080
 ```
 
 Then put any reverse proxy with TLS in front of these two ports (nginx, Caddy):
@@ -116,8 +116,8 @@ a `.env` next to `docker-compose.yml`:
 
 ```bash
 cat > .env <<'EOF'
-CRUSADE_SERVER_URL=wss://api.example.com
-CRUSADE_HTTP_URL=https://api.example.com
+CROSSADE_SERVER_URL=wss://api.example.com
+CROSSADE_HTTP_URL=https://api.example.com
 EOF
 docker compose up -d --build
 ```

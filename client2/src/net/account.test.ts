@@ -66,7 +66,7 @@ describe("account storage", () => {
   });
 
   it("uses the shared storage key from the mockup client, so an account survives switching clients", () => {
-    expect(ACCOUNT_STORAGE_KEY).toBe("crusade-deck:account");
+    expect(ACCOUNT_STORAGE_KEY).toBe("crossade-deck:account");
   });
 });
 

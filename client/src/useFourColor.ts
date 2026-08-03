@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 // Четырёхцветная колода (♦ оранжевый, ♣ голубой) — режим для слабовидящих. Хранится
 // в localStorage как "0"/"1", по умолчанию выключен.
-const KEY = "crusade-deck:four-color";
+const KEY = "crossade-deck:four-color";
 
 function initial(): boolean {
   return localStorage.getItem(KEY) === "1";

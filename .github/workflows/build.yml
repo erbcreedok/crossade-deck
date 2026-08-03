@@ -197,7 +197,7 @@ jobs:
           id="$(docker create "ghcr.io/${repo}/storybook:${SHA_TAG}")"
           docker cp "${id}:/usr/share/nginx/html" ./storybook-static
           docker rm "$id" > /dev/null
-          # Pages отдаёт сайт из подпути /crusade-deck/. Работает это только потому, что
+          # Pages отдаёт сайт из подпути /crossade-deck/. Работает это только потому, что
           # .storybook/main.ts ставит base: "./" — с абсолютным base все ассеты дали бы 404.
           test -f ./storybook-static/index.html
 

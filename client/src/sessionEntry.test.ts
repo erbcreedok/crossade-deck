@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildTransferLink, planEntry } from "./sessionEntry";
 
-const ORIGIN = "https://crusade-deck-client.fly.dev";
+const ORIGIN = "https://crossade-deck-client.fly.dev";
 
 describe("planEntry", () => {
   it("код переноса из hash: считывается, нормализуется, вычищается в /", () => {

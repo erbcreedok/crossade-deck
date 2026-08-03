@@ -1,4 +1,4 @@
-# Crusade Deck
+# Crossade Deck
 
 Мультиплеерная карточная игра для мобильных браузеров. Монорепо из двух частей на Node:
 
@@ -12,8 +12,8 @@
 ## Локальный запуск
 
 ```bash
-git clone <repo-url> crusade-deck
-cd crusade-deck
+git clone <repo-url> crossade-deck
+cd crossade-deck
 
 cd server && npm ci && npm run dev    # :2567, авто-рестарт на изменениях
 ```
@@ -59,10 +59,10 @@ cd client && npm test && npx tsc --noEmit   # 449 тестов
 TLS — сам (Let's Encrypt) или через обратный прокси.
 
 ```bash
-git clone <repo-url> ~/crusade-deck
-cd ~/crusade-deck/server && npm ci && npm run build
+git clone <repo-url> ~/crossade-deck
+cd ~/crossade-deck/server && npm ci && npm run build
 
-cd ~/crusade-deck/client
+cd ~/crossade-deck/client
 cat > .env.production <<'EOF'
 VITE_SERVER_URL=wss://api.example.com
 VITE_HTTP_URL=https://api.example.com
@@ -73,14 +73,14 @@ npm ci && npm run build
 Игровой сервер:
 
 ```bash
-cd ~/crusade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
+cd ~/crossade-deck/server && PORT=2567 NODE_ENV=production node dist/index.js
 ```
 
 Статика (нужен SPA-фоллбэк на `index.html` — ссылки-приглашения вида `/r/КОД` дадут
 404 при прямой загрузке без него):
 
 ```bash
-npx serve -s ~/crusade-deck/client/dist -l 8080
+npx serve -s ~/crossade-deck/client/dist -l 8080
 ```
 
 Дальше — любой обратный прокси с TLS перед этими двумя портами (nginx, Caddy):
@@ -115,8 +115,8 @@ docker compose up -d --build
 
 ```bash
 cat > .env <<'EOF'
-CRUSADE_SERVER_URL=wss://api.example.com
-CRUSADE_HTTP_URL=https://api.example.com
+CROSSADE_SERVER_URL=wss://api.example.com
+CROSSADE_HTTP_URL=https://api.example.com
 EOF
 docker compose up -d --build
 ```

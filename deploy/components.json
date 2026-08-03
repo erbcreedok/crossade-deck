@@ -23,7 +23,7 @@
     "dockerfile": "server/Dockerfile",
     "context": "server",
     "fly": "server/fly.toml",
-    "app": "crusade-deck-server",
+    "app": "crossade-deck-server",
     "healthPath": "/health"
   },
   "web": {
@@ -31,7 +31,7 @@
     "dockerfile": "deploy/web.Dockerfile",
     "context": ".",
     "fly": "client/fly.toml",
-    "app": "crusade-deck-client",
+    "app": "crossade-deck-client",
     "healthPath": "/"
   },
   "storybook": {
@@ -39,7 +39,7 @@
     "dockerfile": "deploy/storybook.Dockerfile",
     "context": ".",
     "fly": "deploy/storybook.fly.toml",
-    "app": "crusade-deck-storybook",
+    "app": "crossade-deck-storybook",
     "healthPath": "/"
   }
 }

@@ -7,10 +7,10 @@ import {
   type AnimationSpeed,
 } from "./game/anim/animationSettings";
 
-const LEVEL_KEY = "crusade-deck:anim-level";
-const SPEED_KEY = "crusade-deck:anim-speed";
-const SHADOWS_KEY = "crusade-deck:anim-shadows";
-const LEGACY_KEY = "crusade-deck:animations-enabled"; // старый boolean-тумблер
+const LEVEL_KEY = "crossade-deck:anim-level";
+const SPEED_KEY = "crossade-deck:anim-speed";
+const SHADOWS_KEY = "crossade-deck:anim-shadows";
+const LEGACY_KEY = "crossade-deck:animations-enabled"; // старый boolean-тумблер
 
 function systemPrefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;

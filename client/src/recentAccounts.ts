@@ -8,7 +8,7 @@ export interface RecentAccount {
   recoveryHash: string;
 }
 
-const KEY = "crusade-deck:recent-accounts";
+const KEY = "crossade-deck:recent-accounts";
 const CAP = 4;
 
 // ЧИСТО: поднять аккаунт в начало списка недавних (без дубля по id), обрезать до лимита.

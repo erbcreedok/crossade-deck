@@ -7,7 +7,7 @@ import { fillDefaults, fillTypes } from "../src/stories/harness/argTable";
 import { sourceFor } from "../src/stories/harness/storySource";
 
 /** Канал «превью → менеджер» для панели «Код». Имя одно на обе стороны (см. .storybook/manager.tsx). */
-export const CODE_EVENT = "crusade/code";
+export const CODE_EVENT = "crossade/code";
 
 // Глобального декоратора тут НЕТ намеренно: канвас поднимает сам стори через CanvasStage.
 // Глобальный декоратор навязал бы канвас и тем стори, которым он не нужен (чистые мапперы,

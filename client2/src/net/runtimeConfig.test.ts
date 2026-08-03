@@ -46,14 +46,14 @@ describe("serverUrl/httpUrl", () => {
     expect(httpUrl()).toBe("http://localhost:2567");
   });
 
-  it("reads window.__CRUSADE_CONFIG__ when present", () => {
-    vi.stubGlobal("window", { __CRUSADE_CONFIG__: { serverUrl: "ws://injected", httpUrl: "http://injected" } });
+  it("reads window.__CROSSADE_CONFIG__ when present", () => {
+    vi.stubGlobal("window", { __CROSSADE_CONFIG__: { serverUrl: "ws://injected", httpUrl: "http://injected" } });
     expect(serverUrl()).toBe("ws://injected");
     expect(httpUrl()).toBe("http://injected");
   });
 
   it("ignores an empty string injected at runtime", () => {
-    vi.stubGlobal("window", { __CRUSADE_CONFIG__: { serverUrl: "", httpUrl: "" } });
+    vi.stubGlobal("window", { __CROSSADE_CONFIG__: { serverUrl: "", httpUrl: "" } });
     expect(serverUrl()).toBe("ws://localhost:2567");
     expect(httpUrl()).toBe("http://localhost:2567");
   });

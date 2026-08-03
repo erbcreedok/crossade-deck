@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAnimationSettings } from "./useAnimationSettings";
 
-const LEVEL_KEY = "crusade-deck:anim-level";
-const SPEED_KEY = "crusade-deck:anim-speed";
-const SHADOWS_KEY = "crusade-deck:anim-shadows";
-const LEGACY_KEY = "crusade-deck:animations-enabled";
+const LEVEL_KEY = "crossade-deck:anim-level";
+const SPEED_KEY = "crossade-deck:anim-speed";
+const SHADOWS_KEY = "crossade-deck:anim-shadows";
+const LEGACY_KEY = "crossade-deck:animations-enabled";
 
 function mockMatchMedia(reducedMotion: boolean) {
   window.matchMedia = vi.fn().mockReturnValue({ matches: reducedMotion }) as unknown as typeof window.matchMedia;

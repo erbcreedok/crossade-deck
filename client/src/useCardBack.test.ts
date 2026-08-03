@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCardBack } from "./useCardBack";
 
-const KEY = "crusade-deck:card-back";
+const KEY = "crossade-deck:card-back";
 
 describe("useCardBack", () => {
   beforeEach(() => localStorage.clear());

@@ -4,4 +4,4 @@
 // из переменных окружения. Здесь он лежит пустым по двум причинам: чтобы в dev-сервере vite
 // тег <script src="/config.js"> не давал 404, и чтобы пустой конфиг честно пропускал ход
 // дальше — на адреса, вшитые через VITE_* (см. client/src/runtimeConfig.ts).
-window.__CRUSADE_CONFIG__ = {};
+window.__CROSSADE_CONFIG__ = {};

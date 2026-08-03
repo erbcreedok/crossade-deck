@@ -22,7 +22,7 @@
 
 ```
 client2/src/net/                 — сетевой слой, БЕЗ Pixi и React
-  runtimeConfig.ts               — SERVER_URL/HTTP_URL (window.__CRUSADE_CONFIG__ → VITE_* → localhost:2567)
+  runtimeConfig.ts               — SERVER_URL/HTTP_URL (window.__CROSSADE_CONFIG__ → VITE_* → localhost:2567)
   account.ts                     — аккаунт в localStorage + API (create/restore/rename), чистая логика отдельно
   connect.ts                     — colyseus Client, joinCardRoom/joinTestRoom/joinByCode, retry «разбудить сервер»
 

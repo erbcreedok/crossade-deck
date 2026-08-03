@@ -19,7 +19,7 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
-export const ACCOUNT_STORAGE_KEY = "crusade-deck:account";
+export const ACCOUNT_STORAGE_KEY = "crossade-deck:account";
 
 function isStoredAccount(value: unknown): value is StoredAccount {
   if (!value || typeof value !== "object") return false;

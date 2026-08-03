@@ -41,7 +41,7 @@ on:
         type: choice
         default: prod
         # Пока один. Стенд добавляется сюда строкой — вместе с client/fly.dev.toml и
-        # аппой crusade-deck-client-dev (правило имён — в deploy/components.json).
+        # аппой crossade-deck-client-dev (правило имён — в deploy/components.json).
         options: [prod]
 
 # Выкатку прерывать нельзя: отменённый на середине flyctl оставит аппу в промежуточном

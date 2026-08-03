@@ -4,16 +4,16 @@
 #   fly launch --copy-config --no-deploy   (pick a free unique app name if taken)
 #   fly deploy
 #
-# If server/fly.toml's app name changes (because "crusade-deck-server" was taken),
+# If server/fly.toml's app name changes (because "crossade-deck-server" was taken),
 # update build.args below to match before deploying.
 
-app = "crusade-deck-client"
+app = "crossade-deck-client"
 primary_region = "fra"
 
 [build]
   [build.args]
-    VITE_SERVER_URL = "wss://crusade-deck-server.fly.dev"
-    VITE_HTTP_URL = "https://crusade-deck-server.fly.dev"
+    VITE_SERVER_URL = "wss://crossade-deck-server.fly.dev"
+    VITE_HTTP_URL = "https://crossade-deck-server.fly.dev"
 
 [http_service]
   internal_port = 80

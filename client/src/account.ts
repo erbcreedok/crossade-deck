@@ -9,7 +9,7 @@ export interface Account {
   recoveryHash: string;
 }
 
-export const STORAGE_KEY = "crusade-deck:account";
+export const STORAGE_KEY = "crossade-deck:account";
 // Здесь под именем SERVER_URL исторически лежит HTTP-адрес, а не сокет — имя не трогаю,
 // чтобы правка осталась про одно (см. client/src/runtimeConfig.ts).
 const SERVER_URL = HTTP_URL;
