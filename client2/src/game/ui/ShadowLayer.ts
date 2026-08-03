@@ -46,10 +46,11 @@ export class ShadowLayer {
       if (alone(s)) continue;
       silhouette(this.mask, s);
     }
+    // Габарит заливки — по самим силуэтам (+контент как пол), а НЕ фиксированный прямоугольник
+    // w×h: карта в драге уходит за контент, и w×h обрезал бы её тень на кромке.
     this.fill.clear();
-    if (shapes.length > 0) {
-      this.fill.rect(-200, -200, w + 400, h + 400).fill({ color: SHADOW_COLOR, alpha: SHADOW_ALPHA });
-    }
+    const b = mergedFillBounds(shapes, w, h);
+    if (b) this.fill.rect(b.x, b.y, b.w, b.h).fill({ color: SHADOW_COLOR, alpha: SHADOW_ALPHA });
   }
 
   /** Тень, которой не место в общей маске: своя форма плюс, если предмет режут, свой рез. */
@@ -119,6 +120,33 @@ export class ShadowLayer {
 /** Рисуется ли тень отдельно от общей маски. */
 function alone(s: ShadowShape): boolean {
   return Boolean(s.image) || Boolean(s.poly);
+}
+
+/**
+ * Габарит заливки слитой тени: объединение силуэтов (кроме «одиночек») с полом в прямоугольник
+ * контента w×h. Заливка ОБЯЗАНА накрывать все силуэты — иначе тень карты, уведённой в драге за
+ * контент, обрезается по краю w×h. r с запасом на поворот силуэта. null — сливать нечего.
+ */
+export function mergedFillBounds(
+  shapes: readonly ShadowShape[],
+  w: number,
+  h: number,
+): { x: number; y: number; w: number; h: number } | null {
+  let minX = 0;
+  let minY = 0;
+  let maxX = w;
+  let maxY = h;
+  let any = false;
+  for (const s of shapes) {
+    if (alone(s)) continue;
+    any = true;
+    const r = Math.hypot(s.hw, s.hh) + 4;
+    if (s.x - r < minX) minX = s.x - r;
+    if (s.y - r < minY) minY = s.y - r;
+    if (s.x + r > maxX) maxX = s.x + r;
+    if (s.y + r > maxY) maxY = s.y + r;
+  }
+  return any ? { x: minX, y: minY, w: maxX - minX, h: maxY - minY } : null;
 }
 
 function rotate(x: number, y: number, a: number): { x: number; y: number } {
