@@ -93,6 +93,16 @@ export default meta;
  */
 export const Boards: StoryObj<Args> = {};
 
+/** Отдельная строка в сайдбаре — но это ТА ЖЕ borda-стори: `board` в контролах остаётся,
+ *  можно переключить на любую другую. Разница — только дефолт. */
+export const Chess: StoryObj<Args> = { args: { board: "chess", seats: 2 } };
+
+/** Белка: вся колода всегда на руках, места динамические. Дефолт другой, контрол `board` тот же. */
+export const Belka: StoryObj<Args> = { args: { board: "belka", seats: 4 } };
+
+/** Крестовый: цепочка отбоя, руки и раздача «дилеру меньше». Дефолт другой, контрол `board` тот же. */
+export const Krestovyi: StoryObj<Args> = { args: { board: "krestovyi", seats: 4 } };
+
 interface LiveArgs extends Args {
   latency: number;
 }
