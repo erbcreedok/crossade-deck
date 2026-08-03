@@ -374,25 +374,28 @@ export class MultiplayerScene extends SceneEngine {
     const target = dropTarget(this.tree.root, cp);
     const to = target?.group.id ?? null;
 
+    // Ожидание заводится ДО отправки: при нулевой задержке (локальный мастер) эхо приходит
+    // СИНХРОННО внутри port.*(), и одобрение должно застать pending уже заведённым — иначе оно
+    // пролетает мимо, карта виснет в lifted до таймаута и «грузится» на ровном месте.
     if (from === "hand" && to?.startsWith("play:")) {
+      this.beginPending(el.id, "play_card", cp);
       if (to === "play:new") this.port.playCard(el.id);
       else this.port.playCard(el.id, Number(to.slice(5)));
-      this.beginPending(el.id, "play_card", cp);
       return;
     }
     if (from === "hand" && to === "discard") {
-      this.port.discardCard(el.id);
       this.beginPending(el.id, "discard_card", cp);
+      this.port.discardCard(el.id);
       return;
     }
     if (from?.startsWith("play:") && to === "hand") {
-      this.port.takePlay(el.id);
       this.beginPending(el.id, "take_play", cp);
+      this.port.takePlay(el.id);
       return;
     }
     if (from === "discard" && to === "hand") {
-      this.port.takeDiscard();
       this.beginPending(el.id, "take_discard", cp);
+      this.port.takeDiscard();
       return;
     }
     if (from === "hand" && to === "hand") this.reorderHand(el.id, target!.index);
