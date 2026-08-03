@@ -1,0 +1,35 @@
+client2/src/game/boards/mock.ts
+  s_e2a4c2b31d470a::t_084f9cfc61bbcb 80-87,111-114
+client2/src/game/boards/scene.ts
+  s_e2a4c2b31d470a::t_bfa9bc28b0d705 355-356
+  s_e2a4c2b31d470a::t_7daa5c69611c84 46-54,387-388,391-392,397,421-425
+  s_e2a4c2b31d470a::t_c29066a7664127 389-390,393-396
+  s_e2a4c2b31d470a::t_846da6fa56194e 404-420,426
+  s_e2a4c2b31d470a::t_3eaf3325a856ce 427
+client2/src/stories/boards/Grid.stories.tsx
+  s_e2a4c2b31d470a::t_d17fcd126815fc 1-116
+client2/src/game/boards/spec.ts
+  s_e2a4c2b31d470a::t_084f9cfc61bbcb 62-66,88-89,133-135,180
+client2/src/game/boards/boardTree.ts
+  s_e2a4c2b31d470a::t_1472992fa78f2f 1,96-111
+client2/src/game/boards/boardTree.test.ts
+  s_e2a4c2b31d470a::t_30b7d1fd8f7dcb 75-96
+client2/src/game/boards/mock.test.ts
+  s_e2a4c2b31d470a::t_30b7d1fd8f7dcb 149-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "68316123e2047e186169fef08ca735c75fc31751",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
