@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { canAccept, add, insert, remove } from "./container";
-import { at, move, reorder, removeFrom, type Board } from "./slotField";
+import { at, move, reorder, removeFrom, type SlotField } from "./slotField";
 import { foldAction } from "./actionFold";
 import { resolveDrop, type DropCandidate } from "./dropResolve";
 import { FieldZone } from "./fieldZone";
@@ -17,7 +17,7 @@ describe("container edge", () => {
 });
 
 describe("board edge", () => {
-  const b = (): Board => ({ slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" });
+  const b = (): SlotField => ({ slots: { "0,0": { members: ["a"] } }, onEmpty: "keep" });
   it("reorder/removeFrom по несуществующему слоту — no-op", () => {
     expect(reorder(b(), "9,9", ["a"], 0)).toEqual(b());
     expect(removeFrom(b(), "9,9", ["a"])).toEqual(b());

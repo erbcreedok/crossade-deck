@@ -4,7 +4,7 @@ import { Card, type CardOptions, type CardState, type Pose } from "../ui/Card";
 import { Piece } from "../ui/Piece";
 import { buildPiece, type PieceSpec } from "../ui/pieceKinds";
 import { FieldZone, type AcceptRule, type OnOccupied } from "../slotfield/fieldZone";
-import type { Board } from "../slotfield/slotField";
+import type { SlotField } from "../slotfield/slotField";
 import { gridSlots, ringSlots, type PositionedSlot } from "../slotfield/layout/slots";
 import { Field, NORMAL_FIELD } from "../slotfield/field";
 import type { Stack } from "../slotfield/stack";
@@ -1175,7 +1175,7 @@ export class PlaygroundEngine extends SceneEngine {
 
   // Обвязка борд-зоны: FieldZone + учёт в списках + заголовок + рамка. Общая для пресет-бордов
   // (spawnBoard) и custom (шахматы/смешанный). Фигуры спавнит вызыватель. opts: value-правило + иная подпись.
-  private registerFieldZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: Board["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string; requiresCapability?: keyof PileIdentity["capabilities"] }): FieldZone {
+  private registerFieldZone(title: string, left: number, top: number, positioned: PositionedSlot[], bounds: { x: number; y: number; w: number; h: number }, slots: SlotField["slots"], onOccupied: OnOccupied, opts?: { rule?: AcceptRule; labelText?: string; requiresCapability?: keyof PileIdentity["capabilities"] }): FieldZone {
     const zone = new FieldZone({ slots: positioned, board: { slots, onEmpty: "keep" }, bounds, onOccupied, rule: opts?.rule, requiresCapability: opts?.requiresCapability });
     this.boardZones.push(zone);
     this.boardTitles.push(title);
@@ -1211,7 +1211,7 @@ export class PlaygroundEngine extends SceneEngine {
     const gy = top + 22;
     const { positioned, bounds } = cfg.layout === "ring" ? this.ringBounds(left, gy, cfg.cell, cfg.ringCount ?? 8) : this.gridBounds(left, gy, cfg.cols, cfg.rows, cfg.cell, cfg.gap ?? 8);
     const r = Math.min(cfg.cell.w, cfg.cell.h) * (cfg.pieceRatio ?? 0.34);
-    const slots: Board["slots"] = {};
+    const slots: SlotField["slots"] = {};
     const faces: Record<string, string> = {};
     const keys = Object.keys(cfg.slots);
     for (const key of keys) {

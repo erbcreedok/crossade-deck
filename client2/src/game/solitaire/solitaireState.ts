@@ -1,17 +1,17 @@
 import * as board from "../slotfield/slotField";
-import type { Board } from "../slotfield/slotField";
+import type { SlotField } from "../slotfield/slotField";
 import { has, topId } from "../slotfield/container";
 import { foundationAccepts, tableauAccepts } from "./solitaireRules";
 import { createDeck52 } from "./solitaireDeck";
 
-// Состояние партии солитёра (klondike, MVP) поверх Board (issue #84). Только карта состояния и
+// Состояние партии солитёра (klondike, MVP) поверх SlotField (issue #84). Только карта состояния и
 // раздача — applyAction (проведение действий) реализуется отдельным тикетом.
 
 export type GamePhase = "menu" | "setup" | "playing" | "won" | "lost";
 
 export interface SolitaireGameState {
   phase: GamePhase;
-  board: Board;
+  board: SlotField;
   faceUp: Record<string, boolean>; // face-строка карты -> видна ли лицом вверх
   deckRev: number; // зарезервировано под будущую server-sync; в MVP не используется
   movesCount: number;
@@ -39,7 +39,7 @@ export function foundationKeyOf(face: string): string {
 
 /** Пустая доска со всеми 13 слотами и onEmpty:"keep", чтобы слоты никогда не исчезали. */
 export function createInitialState(): SolitaireGameState {
-  const slots: Board["slots"] = { stock: { members: [] }, waste: { members: [] } };
+  const slots: SlotField["slots"] = { stock: { members: [] }, waste: { members: [] } };
   for (const key of FOUNDATION_KEYS) slots[key] = { members: [] };
   for (const key of TABLEAU_KEYS) slots[key] = { members: [] };
   return {
@@ -120,7 +120,7 @@ export function canMakeMove(state: SolitaireGameState): boolean {
  *  если source была tab: и в ней остались карты, новый верх колонки тоже открывается. */
 function nextFaceUp(
   prev: Record<string, boolean>,
-  nextBoard: Board,
+  nextBoard: SlotField,
   from: string,
   to: string,
   movedIds: string[],

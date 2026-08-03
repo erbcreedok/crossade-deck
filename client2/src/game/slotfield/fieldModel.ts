@@ -1,4 +1,4 @@
-import type { Board } from "./slotField";
+import type { SlotField } from "./slotField";
 import type { FieldPreset } from "./fieldPresets";
 import type { AcceptRule } from "./fieldZone";
 

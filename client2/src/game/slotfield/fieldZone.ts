@@ -1,4 +1,4 @@
-import { at, move, place, removeFrom, type Board } from "./slotField";
+import { at, move, place, removeFrom, type SlotField } from "./slotField";
 import { add, canAccept, size } from "./container";
 import { stackOffsets } from "./slotLayout";
 import { resolveDrop, type DropCandidate } from "./dropResolve";
@@ -29,13 +29,13 @@ export interface AcceptCtx {
   figureId: string;
   fromKey: string;
   toKey: string;
-  board: Board;
+  board: SlotField;
 }
 export type AcceptRule = (ctx: AcceptCtx) => boolean;
 
 export interface FieldZoneOpts {
   slots: PositionedSlot[]; // раскладка (из любой стратегии)
-  board: Board;
+  board: SlotField;
   bounds: Rect; // рамка контейнера — фигуры не выбираются за неё
   onOccupied?: OnOccupied; // что делать при дропе на занятый слот (дефолт merge)
   rule?: AcceptRule; // элемент-слой цепочки: доп. гейт приёма по значениям (опц.), нельзя нарушить
@@ -48,7 +48,7 @@ export interface FieldZoneOpts {
 const STACK_STEP = { dx: 6, dy: -4 };
 
 export class FieldZone implements Configurable {
-  board: Board;
+  board: SlotField;
   slotList: PositionedSlot[]; // может переразмечаться (динамический грид — relayout)
   readonly bounds: Rect;
   onOccupied: OnOccupied; // изменяем на лету (тоглер песочницы)

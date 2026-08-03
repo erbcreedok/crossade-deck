@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { at, isEmpty, occupiedKeys, place, removeFrom, move, reorder, type Board } from "./slotField";
+import { at, isEmpty, occupiedKeys, place, removeFrom, move, reorder, type SlotField } from "./slotField";
 
-// Board = слоты (по ключу "r,c") → Container. Чистые иммутабельные переходы; onEmpty (collapse/keep)
+// SlotField = слоты (по ключу "r,c") → Container. Чистые иммутабельные переходы; onEmpty (collapse/keep)
 // — структурный дефолт (кастом-refill вешается слоем выше через Action). Геометрия — отдельный layout.
-const board = (slots: Board["slots"], onEmpty: Board["onEmpty"] = "collapse"): Board => ({ slots, onEmpty });
+const board = (slots: SlotField["slots"], onEmpty: SlotField["onEmpty"] = "collapse"): SlotField => ({ slots, onEmpty });
 
 describe("board — доступ", () => {
   const b = board({ "0,0": { members: ["a", "b"] }, "0,1": { members: [] } });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FieldZone } from "./fieldZone";
-import type { Board } from "./slotField";
+import type { SlotField } from "./slotField";
 import { gridSlots } from "./layout/slots";
 import type { PileIdentity } from "./pileIdentity";
 
@@ -8,7 +8,7 @@ import type { PileIdentity } from "./pileIdentity";
 // размещение фигур + резолв дропа между слотами + запертость. Визуал потом читает отсюда.
 const layout = gridSlots({ cols: 3, cell: { w: 100, h: 100 }, gap: 0, origin: { x: 0, y: 0 } }, 2); // 3×2
 const bounds = { x: 0, y: 0, w: 300, h: 200 };
-const make = (slots: Board["slots"], onOccupied?: "merge" | "swap" | "capture" | "reject") =>
+const make = (slots: SlotField["slots"], onOccupied?: "merge" | "swap" | "capture" | "reject") =>
   new FieldZone({ slots: layout, board: { slots, onEmpty: "keep" }, bounds, onOccupied });
 
 describe("FieldZone — размещение", () => {

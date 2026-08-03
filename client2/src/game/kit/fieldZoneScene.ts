@@ -1,7 +1,7 @@
 import { Graphics } from "pixi.js";
 import { DropZone } from "../ui/DropZone";
 import { FieldZone, type OnOccupied } from "../slotfield/fieldZone";
-import { place, type Board } from "../slotfield/slotField";
+import { place, type SlotField } from "../slotfield/slotField";
 import { sameColorRule } from "../slotfield/fieldRules";
 import type { PieceSpec } from "../ui/pieceKinds";
 import { gridSlots, hexSlots, ringSlots, type PositionedSlot } from "../slotfield/layout/slots";
@@ -123,7 +123,7 @@ export function fieldZoneScene(ctx: SectionContext, at: Pt, o: Partial<FieldScen
 
   const ids = Array.from({ length: Math.min(opts.figures, slots.length) }, (_, i) => `${idPrefix}-${i}`);
   const figureDark = new Map(ids.map((id, i) => [id, i % 2 === 0]));
-  const board: Board = ids.reduce<Board>((b, id, i) => place(b, slots[i]!.key, { members: [id] }), { slots: {}, onEmpty: "keep" });
+  const board: SlotField = ids.reduce<SlotField>((b, id, i) => place(b, slots[i]!.key, { members: [id] }), { slots: {}, onEmpty: "keep" });
   const zone = new FieldZone({
     slots,
     board,
