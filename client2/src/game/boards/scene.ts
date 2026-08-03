@@ -10,7 +10,7 @@ import type { TableElement } from "../engine/element";
 import { dropTarget } from "../slot/slot";
 import { CARD } from "../crossade/tree";
 import { buildBoardTree, type BoardTree } from "./boardTree";
-import { applyCommand, bootState } from "./mock";
+import { localDriver, type BoardDriver } from "./driver";
 import { handKey, type BoardState } from "./state";
 import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
@@ -36,6 +36,9 @@ export interface BoardSceneOptions {
   occupants?: readonly (string | null)[];
   /** false — «только смотреть»: наблюдатель без права «мешать» (room.ts#canTouch). */
   interactive?: boolean;
+  /** Кто исполняет команды: без драйвера — локальный мок (standalone); live-стори передаёт
+   *  клиента общего мастера (boardTable.ts). Сцена разницы не видит. */
+  driver?: BoardDriver;
 }
 
 type BoardNode = Card | Piece;
@@ -54,6 +57,7 @@ export class BoardScene extends SceneEngine {
   private readonly spec: BoardSpec;
   private readonly defs: ReadonlyMap<string, ElementDef>;
   private readonly selfSeat: string;
+  private readonly driver: BoardDriver;
   private state: BoardState;
   private tree: BoardTree;
 
@@ -65,7 +69,12 @@ export class BoardScene extends SceneEngine {
     this.spec = opts.spec;
     this.defs = elementById(opts.spec);
     this.selfSeat = opts.selfSeat ?? "p1";
-    this.state = bootState(opts.spec, opts.seats, opts.occupants);
+    this.driver = opts.driver ?? localDriver(opts.spec, opts.seats, opts.occupants);
+    this.state = this.driver.boot();
+    this.driver.onState((s) => {
+      this.state = s;
+      this.rebuildBoard(false);
+    });
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat);
   }
 
@@ -73,10 +82,7 @@ export class BoardScene extends SceneEngine {
 
   dispatch(cmd: BoardCommand): void {
     this.opts.onCommand?.(cmd);
-    const next = applyCommand(this.spec, this.state, cmd, Math.random);
-    if (next === this.state) return;
-    this.state = next;
-    this.rebuildBoard(false);
+    this.driver.dispatch(cmd);
   }
 
   // ——— сборка ———

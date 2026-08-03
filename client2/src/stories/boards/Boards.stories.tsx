@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene";
+import { createBoardTable } from "../../game/boards/boardTable";
+import type { BoardDriver } from "../../game/boards/driver";
 import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/library";
 import type { BoardCommand } from "../../game/boards/spec";
 
@@ -90,3 +92,79 @@ export default meta;
  *     из пяти адресных слотов + банк), ДнД (энкаунтер-поле с миниатюрами и кубиками).
  */
 export const Boards: StoryObj<Args> = {};
+
+interface LiveArgs extends Args {
+  latency: number;
+}
+
+/** Грид клиентов одной борды: ОДИН мастер (boardTable), у каждой ячейки свой канвас, своё место
+ *  и свой драйвер. Сцена не знает, что мок общий, — тот же шов BoardDriver, что и standalone. */
+function LiveBoardsStage({ board, seats, latency }: LiveArgs) {
+  const table = useMemo(
+    () => createBoardTable({ spec: BOARD_LIBRARY[board](), seats, latencyMs: latency, onCommand: (from, cmd) => onCommand({ from, ...cmd }) }),
+    [board, seats, latency],
+  );
+  useEffect(() => () => table.destroy(), [table]);
+  const cols = table.drivers.length <= 2 ? table.drivers.length : Math.ceil(table.drivers.length / 2);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8, width: "100%", height: "100vh", boxSizing: "border-box", padding: 8, background: "#222b26" }}>
+      {table.drivers.map((d) => (
+        <LiveCell key={`${board}-${seats}-${latency}-${d.seat}`} board={board} driver={d} seat={d.seat} />
+      ))}
+    </div>
+  );
+}
+
+function LiveCell({ board, driver, seat }: { board: BoardLibraryId; driver: BoardDriver; seat: string }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const scene = new BoardScene({ spec: BOARD_LIBRARY[board](), driver, selfSeat: seat });
+    const g = globalThis as unknown as { __boards?: Record<string, BoardScene> };
+    (g.__boards ??= {})[seat] = scene;
+    void scene.mount(host, host.clientWidth || 480, host.clientHeight || 360);
+    return () => {
+      delete g.__boards?.[seat];
+      scene.destroy();
+    };
+    // Ячейка живёт под key от родителя — входы стабильны на время её жизни.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ font: "12px monospace", color: "#9aa89f", padding: "2px 6px" }}>{seat}</div>
+      <div ref={hostRef} style={{ flex: 1, minHeight: 220, background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />
+    </div>
+  );
+}
+
+/**
+ * ЖИВАЯ БОРДА — та же библиотека, но N клиентов над ОДНИМ мастером (boardTable.ts): ход в любой
+ * ячейке долетает всем (эхо автору включительно), политики зон решаются один раз мастером,
+ * `latency` эмулирует оба плеча доставки. Каждый клиент видит СВОЮ руку лицом, чужие — рубашками
+ * в полосе мест. Подключение реального сервера — замена boardTable, сцены и борды не меняются.
+ */
+export const BoardsLive: StoryObj<LiveArgs> = {
+  name: "Live",
+  args: { board: "krestovyi", seats: 3, latency: 0 },
+  argTypes: {
+    latency: {
+      name: "latency",
+      description: "задержка каждого плеча доставки (клиент→мастер и мастер→клиент), мс: свой ход возвращается эхом через 2×latency",
+      control: { type: "range", min: 0, max: 600, step: 50 },
+    },
+  },
+  parameters: {
+    code: (a: Record<string, unknown>) => `import { createBoardTable } from "../../game/boards/boardTable";
+import { BoardScene } from "../../game/boards/scene";
+
+// ОДИН мастер — авторитетное состояние; драйвер на каждое место.
+const table = createBoardTable({ spec: BOARD_LIBRARY.${a.board}(), seats: ${a.seats}, latencyMs: ${a.latency} });
+for (const driver of table.drivers) {
+  const scene = new BoardScene({ spec: BOARD_LIBRARY.${a.board}(), driver, selfSeat: driver.seat });
+  void scene.mount(hostOf(driver.seat), width, height);
+}`,
+  },
+  render: (a) => <LiveBoardsStage board={a.board} seats={a.seats} latency={a.latency} />,
+};
