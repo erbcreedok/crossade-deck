@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { wrapRule } from "./boardModel";
-import type { Board } from "./board";
+import { wrapRule } from "./fieldModel";
+import type { Board } from "./slotField";
 
 describe("wrapRule", () => {
   it("нет правила → undefined", () => {

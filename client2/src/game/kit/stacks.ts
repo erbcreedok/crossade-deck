@@ -1,4 +1,4 @@
-import { Stack, type StackConfig } from "../board/stack";
+import { Stack, type StackConfig } from "../slotfield/stack";
 import { Button } from "../ui/Button";
 import type { Marker, MarkerHost } from "../engine/marker";
 import type { AnchorIconId, ShowPolicy } from "../engine/markerPolicy";

@@ -1,10 +1,10 @@
-import type { Board } from "./board";
-import type { BoardPreset } from "./boardPresets";
-import type { AcceptRule } from "./boardZone";
+import type { Board } from "./slotField";
+import type { FieldPreset } from "./fieldPresets";
+import type { AcceptRule } from "./fieldZone";
 
 // Обернуть value-правило пресета (по ЛИЦАМ) в AcceptRule (по ids/слотам) через карту faces.
 // Правило видит лицо груза и лицо верхней карты целевого слота + ключ слота (key-aware).
-export function wrapRule(presetRule: BoardPreset["rule"], faces: Record<string, string>): AcceptRule | undefined {
+export function wrapRule(presetRule: FieldPreset["rule"], faces: Record<string, string>): AcceptRule | undefined {
   if (!presetRule) return undefined;
   return (ctx) => {
     const c = ctx.board.slots[ctx.toKey];

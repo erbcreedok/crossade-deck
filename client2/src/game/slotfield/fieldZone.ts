@@ -1,4 +1,4 @@
-import { at, move, place, removeFrom, type Board } from "./board";
+import { at, move, place, removeFrom, type Board } from "./slotField";
 import { add, canAccept, size } from "./container";
 import { stackOffsets } from "./slotLayout";
 import { resolveDrop, type DropCandidate } from "./dropResolve";
@@ -9,7 +9,7 @@ import type { Rect } from "./layout/grid";
 import type { PositionedSlot } from "./layout/slots";
 import type { Configurable, Param } from "../ui/controls"; // ТОЛЬКО типы — стираются на сборке, Pixi сюда не тянется
 
-// BoardZone — стейт-ное ядро визуального полигона (ООП: состояние board + поведение), но БЕЗ Pixi.
+// FieldZone — стейт-ное ядро визуального полигона (ООП: состояние board + поведение), но БЕЗ Pixi.
 // Раскладка ПОДКЛЮЧАЕМА: зона принимает готовый список позиционированных слотов (grid/ring/points/
 // seats — см. layout/slots.ts), сама геометрию не считает. Отвечает «где отдыхает фигура», «куда её
 // перенёс дроп (по onOccupied)», «как не выпустить за рамку».
@@ -17,7 +17,7 @@ import type { Configurable, Param } from "../ui/controls"; // ТОЛЬКО ти�
 // Приём дропа идёт ЦЕПОЧКОЙ приоритета (SELECTION-DESIGN §4.F/§7, issue #72): элемент (rule, нельзя
 // нарушить) → зона (requiresCapability — слепые зоны §6, прозрачна без набора-Pile или без
 // требования) → engine (onOccupied/структура слота). resolveDropChain/capabilityZoneRule — общее
-// ядро (dropPolicy.ts), здесь только СБОРКА слоёв под конкретные BoardZone-примитивы.
+// ядро (dropPolicy.ts), здесь только СБОРКА слоёв под конкретные FieldZone-примитивы.
 
 // Исход дропа на ЗАНЯТЫЙ слот (GRID-DESIGN.md, onOccupied). Пресеты; кастомный Action — позже.
 export type OnOccupied = "merge" | "swap" | "capture" | "reject";
@@ -33,7 +33,7 @@ export interface AcceptCtx {
 }
 export type AcceptRule = (ctx: AcceptCtx) => boolean;
 
-export interface BoardZoneOpts {
+export interface FieldZoneOpts {
   slots: PositionedSlot[]; // раскладка (из любой стратегии)
   board: Board;
   bounds: Rect; // рамка контейнера — фигуры не выбираются за неё
@@ -47,7 +47,7 @@ export interface BoardZoneOpts {
 // Сдвиг стопки в слоте (peek): верх выше-правее. Малый, чисто чтобы читалась глубина.
 const STACK_STEP = { dx: 6, dy: -4 };
 
-export class BoardZone implements Configurable {
+export class FieldZone implements Configurable {
   board: Board;
   slotList: PositionedSlot[]; // может переразмечаться (динамический грид — relayout)
   readonly bounds: Rect;
@@ -56,7 +56,7 @@ export class BoardZone implements Configurable {
   private readonly rule?: AcceptRule;
   private readonly requiresCapability?: keyof PileIdentity["capabilities"];
 
-  constructor(o: BoardZoneOpts) {
+  constructor(o: FieldZoneOpts) {
     this.slotList = o.slots;
     this.board = o.board;
     this.bounds = o.bounds;

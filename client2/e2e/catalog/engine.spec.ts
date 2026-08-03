@@ -73,7 +73,7 @@ test.describe("витрина каталога — живой движок", () 
   test("«переместить» значит «теперь предмет ЖИВЁТ здесь»: дом переезжает вместе с ним", async ({ page }) => {
     // Пока команда двигала только тело, возврат из драга тянул фигуру на СТАРЫЙ дом, и дроп
     // выглядел как «не работает»: фигура доезжала до клетки и уползала обратно.
-    await open(page, "mechanics-board--board");
+    await open(page, "mechanics-field-zone--field-zone");
     await drag(page, slot(0, 0), slot(0, 1));
     const after = at(await state(page), "bz-0");
     expect(after).toMatchObject({ px: slot(0, 1).x, py: slot(0, 1).y });
@@ -86,7 +86,7 @@ test.describe("витрина каталога — живой движок", () 
   test("дроп разрешается по координате ПАЛЬЦА, а не по отстающему телу", async ({ page }) => {
     // Тело едет пружиной и в момент отпускания отстаёт на пол-клетки: на ЗАНЯТОЙ клетке оно
     // попадало в зазор между слотами, и обмен молча не случался.
-    await open(page, "mechanics-board--board");
+    await open(page, "mechanics-field-zone--field-zone");
     const before = await state(page);
     await drag(page, slot(0, 0), slot(1, 0));
     const after = await state(page);
@@ -95,7 +95,7 @@ test.describe("витрина каталога — живой движок", () 
   });
 
   test("правило приёма — последний гейт: на чужой цвет фигура не встаёт", async ({ page }) => {
-    await open(page, "mechanics-board--board", "rule:sameColor");
+    await open(page, "mechanics-field-zone--field-zone", "rule:sameColor");
     const home = at(await state(page), "bz-0");
     await drag(page, slot(0, 0), slot(0, 1)); // соседняя клетка другого цвета
     expect(at(await state(page), "bz-0")).toMatchObject({ px: home.px, py: home.py });

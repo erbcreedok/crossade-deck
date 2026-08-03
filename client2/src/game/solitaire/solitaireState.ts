@@ -1,6 +1,6 @@
-import * as board from "./board";
-import type { Board } from "./board";
-import { has, topId } from "./container";
+import * as board from "../slotfield/slotField";
+import type { Board } from "../slotfield/slotField";
+import { has, topId } from "../slotfield/container";
 import { foundationAccepts, tableauAccepts } from "./solitaireRules";
 import { createDeck52 } from "./solitaireDeck";
 

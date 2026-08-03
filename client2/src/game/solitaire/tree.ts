@@ -1,7 +1,7 @@
-import { at as boardAt } from "../board/board";
-import { topId } from "../board/container";
-import { FOUNDATION_KEYS, TABLEAU_KEYS, foundationKeyOf, type SolitaireGameState } from "../board/solitaireState";
-import { foundationAccepts, tableauAccepts } from "../board/solitaireRules";
+import { at as boardAt } from "../slotfield/slotField";
+import { topId } from "../slotfield/container";
+import { FOUNDATION_KEYS, TABLEAU_KEYS, foundationKeyOf, type SolitaireGameState } from "../solitaire/solitaireState";
+import { foundationAccepts, tableauAccepts } from "../solitaire/solitaireRules";
 import { absolute, pile } from "../slot/layouts";
 import { dropTarget, homeOf as leafHomeOf, measure } from "../slot/slot";
 import { group, leaf, type Caps, type Group, type Size, type Vec } from "../slot/types";

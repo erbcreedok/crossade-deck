@@ -1,13 +1,13 @@
-import type { OnOccupied } from "./boardZone";
+import type { OnOccupied } from "./fieldZone";
 import { cardColor } from "./cardFace";
-import { foundationAccepts, tableauAccepts } from "./solitaireRules";
+import { foundationAccepts, tableauAccepts } from "../solitaire/solitaireRules";
 
 export { cardColor, rankOf } from "./cardFace"; // общий re-export (движок берёт rankOf отсюда)
 
 // Пресеты бордов — ЧИСТЫЕ ДАННЫЕ (разные игры = разный конфиг, один движок). Задел под будущий
 // BoardFactory (ENGINE-UPGRADE.md): движок лишь читает эти данные и строит зоны.
 // layout: стратегия раскладки (grid по умолчанию / ring). slots: ключ слота → лица карт-фигур.
-export interface BoardPreset {
+export interface FieldPreset {
   title: string;
   cols: number; // для grid
   rows: number; // для grid
@@ -26,7 +26,7 @@ function solitaireRule(fig: string, top: string | null, toKey: string): boolean 
   return col >= 3 ? foundationAccepts(fig, top) : tableauAccepts(fig, top);
 }
 
-export const BOARD_PRESETS: BoardPreset[] = [
+export const FIELD_PRESETS: FieldPreset[] = [
   { title: "свободно (merge)", cols: 3, rows: 2, onOccupied: "merge", slots: { "0,0": ["A♠"], "0,2": ["K♥", "Q♦"], "1,1": ["10♣"] } },
   { title: "дурак — стопка ≤2 (merge+maxSize)", cols: 3, rows: 1, onOccupied: "merge", maxSize: 2, slots: { "0,0": ["6♦"], "0,1": ["7♦"], "0,2": ["8♦"] } },
   { title: "пятнашки (swap)", cols: 3, rows: 2, onOccupied: "swap", slots: { "0,0": ["2♠"], "0,1": ["3♠"], "0,2": ["4♠"], "1,0": ["5♠"], "1,1": ["6♠"] } },

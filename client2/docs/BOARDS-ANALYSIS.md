@@ -3,6 +3,11 @@
 Спутник `BOARDS-DESIGN.md` (там — решения; здесь — сырьё: что реально есть в коде, паттерны и
 швы). Собрано автономной разведкой по ветке `boards` (= main на 2026-08-03).
 
+**Пометка после ревью:** тем же днём выполнено переименование — `game/board/` → `game/slotfield/`
+(`Board`→`SlotField`, `BoardZone`→`FieldZone`, `BoardPreset`→`FieldPreset`, стори
+`Mechanics/Board`→`Mechanics/Field zone`), правила пасьянса переехали в `game/solitaire/`.
+Слово **Board** освобождено под борды-сборки (`game/boards/`). Пути ниже — ИСТОРИЧЕСКИЕ.
+
 ## 1. `src/game/board/*` — ТРИ подсистемы под одной папкой
 
 ### A. Ядро доски («BoardZone», витринная)

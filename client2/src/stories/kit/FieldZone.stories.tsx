@@ -1,20 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Card } from "../../game/ui/Card";
-import { boardZoneScene, BOARD_SCENE_DEFAULTS, type BoardSceneOpts } from "../../game/kit/boardZoneScene";
+import { fieldZoneScene, FIELD_SCENE_DEFAULTS, type FieldSceneOpts } from "../../game/kit/fieldZoneScene";
 import { CanvasStage } from "../harness/CanvasStage";
 import { action } from "storybook/actions";
 import { expect } from "storybook/test";
 import { dragOnCanvas, elementAt, waitForElement } from "../harness/canvasDrag";
 
 
-interface Args extends BoardSceneOpts {}
+interface Args extends FieldSceneOpts {}
 
 const onDrop = action("дроп в слот");
 
 /**
  * ДОСКА — размеченный стол: слоты, в которые фигуры ВСТАЮТ, а не лежат где попало.
  *
- * В движке это `BoardZone` (board/boardZone.ts): состояние доски плюс правила приёма, БЕЗ Pixi.
+ * В движке это `FieldZone` (board/boardZone.ts): состояние доски плюс правила приёма, БЕЗ Pixi.
  * Раскладка у неё ПОДКЛЮЧАЕМАЯ — зона получает готовый список позиционированных слотов и про
  * стратегию не знает вовсе (board/layout/slots.ts). Поэтому «шахматы», «монополия» и «карточный
  * планшет» отличаются не кодом зоны, а тем, какой список слотов ей дали.
@@ -23,8 +23,8 @@ const onDrop = action("дроп в слот");
  * там, где отпустили» — а это и есть единственное, что здесь важно.
  */
 const meta: Meta<Args> = {
-  title: "Mechanics/Board",
-  args: BOARD_SCENE_DEFAULTS,
+  title: "Mechanics/Field zone",
+  args: FIELD_SCENE_DEFAULTS,
   argTypes: {
     layout: {
       name: "layout",
@@ -59,14 +59,14 @@ const meta: Meta<Args> = {
     figures: { name: "figures", description: "сколько фигур расставить", control: { type: "range", min: 1, max: 8, step: 1 } },
   },
   parameters: {
-    code: (a: Record<string, unknown>) => `import { BoardZone } from "../../game/board/boardZone";
-import { gridSlots, hexSlots, ringSlots } from "../../game/board/layout/slots";
+    code: (a: Record<string, unknown>) => `import { FieldZone } from "../../game/slotfield/fieldZone";
+import { gridSlots, hexSlots, ringSlots } from "../../game/slotfield/layout/slots";
 
 // 1. РАСКЛАДКА — отдельно от зоны. Стратегий несколько, зона про них не знает.
 const slots = ${a.layout === "ring" ? `ringSlots(${a.ringCount}, { cx, cy, radius, cell })` : a.layout === "hex" ? `hexSlots(${a.cols}, ${a.rows}, { cell, origin, gap })` : `gridSlots({ cols: ${a.cols}, cell, gap, origin }, ${a.rows})`};
 
 // 2. ЗОНА — состояние доски плюс правила приёма. Pixi внутри нет вовсе.
-const zone = new BoardZone({
+const zone = new FieldZone({
   slots,
   board,                        // что в каком слоте лежит
   bounds,                       // рамка: за неё фигуру не вытащить
@@ -91,7 +91,7 @@ if (res.moved) for (const id of ids) ctx.dispatch({ t: "move", id, ...zone.figur
       build={(ctx, args) => {
         // Исход дропа уходит в панель Actions: по картинке видно, ЧТО получилось, а здесь — почему
         // (встала, отказано, кого съела и в какой слот).
-        const r = boardZoneScene(ctx, { x: ctx.padding, y: ctx.padding }, { ...args, onEvent: onDrop });
+        const r = fieldZoneScene(ctx, { x: ctx.padding, y: ctx.padding }, { ...args, onEvent: onDrop });
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -105,7 +105,7 @@ export default meta;
  * Что стоит покрутить:
  *   • `onOccupied` — это ЧЕТЫРЕ РАЗНЫЕ ИГРЫ на одном коде. `swap` — шашки и шахматы «поменялись»,
  *     `capture` — взятие, `merge` — стопки в слоте, `reject` — ход запрещён;
- *   • `layout: ring` — та же зона, другой список слотов. Ни строчки в `BoardZone` для этого не
+ *   • `layout: ring` — та же зона, другой список слотов. Ни строчки в `FieldZone` для этого не
  *     нужно, и в этом весь смысл подключаемой раскладки;
  *   • отпустите фигуру между клетками — она всё равно встанет В СЛОТ: дроп резолвится в слот, а не
  *     в точку;
@@ -116,7 +116,7 @@ export default meta;
  * если вся пачка несёт нужную способность, — а в этом разделе тащат одиночные фигуры, и показывать
  * на них было бы нечего.
  */
-export const Board: StoryObj<Args> = {};
+export const FieldZone: StoryObj<Args> = { name: "Field zone" };
 
 /**
  * СЦЕНАРИЙ — то же, что делает палец, но записанное шагами.
@@ -170,12 +170,12 @@ export const DropScenario: StoryObj<Args> = {
 export const Gallery: StoryObj<Args> = {
   parameters: {
     controls: { disable: true },
-    code: () => `import { boardZoneScene } from "../../game/kit/boardZoneScene";
+    code: () => `import { fieldZoneScene } from "../../game/kit/fieldZoneScene";
 
 // Раскладка и содержимое — параметры ОДНОЙ секции, а не три разных доски:
-boardZoneScene(ctx, at, { layout: "grid", content: "chess", cols: 3, rows: 3 }, "g1");
-boardZoneScene(ctx, at2, { layout: "ring", content: "chips", ringCount: 8 }, "g2");
-boardZoneScene(ctx, at3, { layout: "hex", content: "cards", cols: 3, rows: 3 }, "g3");`,
+fieldZoneScene(ctx, at, { layout: "grid", content: "chess", cols: 3, rows: 3 }, "g1");
+fieldZoneScene(ctx, at2, { layout: "ring", content: "chips", ringCount: 8 }, "g2");
+fieldZoneScene(ctx, at3, { layout: "hex", content: "cards", cols: 3, rows: 3 }, "g3");`,
   },
   render: () => (
     <CanvasStage<never, Record<string, never>>
@@ -184,7 +184,7 @@ boardZoneScene(ctx, at3, { layout: "hex", content: "cards", cols: 3, rows: 3 }, 
       build={(ctx) => {
         let x = ctx.padding;
         let bottom = ctx.padding;
-        const boards: Array<{ o: Partial<BoardSceneOpts>; cap: string }> = [
+        const boards: Array<{ o: Partial<FieldSceneOpts>; cap: string }> = [
           { o: { layout: "grid", content: "chess", cols: 3, rows: 3, figures: 5 }, cap: "сетка · шахматы" },
           { o: { layout: "ring", content: "chips", ringCount: 8, figures: 5 }, cap: "кольцо · фишки" },
           { o: { layout: "hex", content: "cards", cols: 3, rows: 3, figures: 4 }, cap: "соты · карты" },
@@ -192,7 +192,7 @@ boardZoneScene(ctx, at3, { layout: "hex", content: "cards", cols: 3, rows: 3 }, 
         boards.forEach((b, i) => {
           // `width` секции — ШИРИНА ОТ ЕЁ НАЧАЛА, а не правый край сцены: следующая доска встаёт
           // на x + width, иначе они наезжают друг на друга тем сильнее, чем левее начались.
-          const r = boardZoneScene(ctx, { x, y: ctx.padding }, b.o, `bg${i}`);
+          const r = fieldZoneScene(ctx, { x, y: ctx.padding }, b.o, `bg${i}`);
           const cap = ctx.label(b.cap, x, r.bottom + 12, 13, 0x9aa89f, r.width, 0);
           bottom = Math.max(bottom, r.bottom + 12 + cap.height);
           x += r.width + ctx.cardW * 0.7;

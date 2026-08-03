@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { at, isEmpty, occupiedKeys, place, removeFrom, move, reorder, type Board } from "./board";
+import { at, isEmpty, occupiedKeys, place, removeFrom, move, reorder, type Board } from "./slotField";
 
 // Board = слоты (по ключу "r,c") → Container. Чистые иммутабельные переходы; onEmpty (collapse/keep)
 // — структурный дефолт (кастом-refill вешается слоем выше через Action). Геометрия — отдельный layout.

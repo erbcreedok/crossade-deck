@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cardColor, rankOf } from "./boardPresets";
+import { cardColor, rankOf } from "./fieldPresets";
 
 describe("boardPresets helpers", () => {
   it("cardColor — по масти", () => {
