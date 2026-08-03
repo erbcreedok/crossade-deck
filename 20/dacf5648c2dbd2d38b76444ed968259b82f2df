@@ -1,0 +1,36 @@
+client2/src/game/boards/room.test.ts
+  s_e2a4c2b31d470a::t_11ccfaca55b902 15,34-35,59,67
+  s_e2a4c2b31d470a::t_189a09c97b9063 1-14,16-33,36-58,60-66,68-75
+client2/src/stories/boards/Room.stories.tsx
+  s_e2a4c2b31d470a::t_c338b58591f82a 1
+  s_e2a4c2b31d470a::t_ea3be02685533a 2-31,34-119,145-178,180-197
+  s_e2a4c2b31d470a::t_11ccfaca55b902 32-33,179
+  s_e2a4c2b31d470a::t_73ce81e6af9451 120-127,131-144
+  s_e2a4c2b31d470a::t_3d7b1695d02d53 128-130
+client2/src/game/boards/scene.ts
+  s_e2a4c2b31d470a::t_04b6ed3f27c50e 34-37,67,324
+client2/src/game/boards/state.ts
+  s_e2a4c2b31d470a::t_6c7ad76823c6e5 52-55
+  s_e2a4c2b31d470a::t_bd55c437eaa390 66
+client2/src/game/boards/room.ts
+  s_e2a4c2b31d470a::t_11ccfaca55b902 40,93
+  s_e2a4c2b31d470a::t_17316cf9ae30b3 1-39,41-92,94-148
+client2/src/game/boards/mock.ts
+  s_e2a4c2b31d470a::t_04b6ed3f27c50e 115-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "20dacf5648c2dbd2d38b76444ed968259b82f2df",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
