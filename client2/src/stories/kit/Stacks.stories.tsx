@@ -6,10 +6,9 @@ import type { Pose } from "../../game/ui/Card";
 import { dropzonesSection } from "../../game/kit/dropzones";
 import type { KitContext, KitScene } from "../../game/engine/kitScene";
 import { applyArgsToParams, paramsToArgs, paramsToArgTypes } from "../harness/paramArgs";
-import { STACK_ARGS, STACK_ARG_TYPES, layoutFrom, stackOptsFrom, type StackArgs } from "./stackArgs";
+import { STACK_ARGS, STACK_ARG_TYPES, interactionFrom, layoutFrom, stackOptsFrom, type StackArgs } from "./stackArgs";
 import { CanvasStage } from "../harness/CanvasStage";
 import { STACK_LAYOUTS, STACK_LAYOUT_IDS } from "../../game/kit/stackLayout";
-import { resolveInteraction } from "../../game/kit/stackInteraction";
 
 /** Все рычаги применяются одинаково: влить значение в параметр компонента и переразложить сцену. */
 // ——— раскладка стопки: ОДНА стопка, разные аргументы ———
@@ -76,8 +75,14 @@ ctx.flipStack(ids);`,
       apply={{ faceUp: (scene) => void scene.flipStack(liveIds) }}
       target={(scene) => scene}
       build={(ctx, a) => {
-        const r = stackState(ctx, { x: ctx.padding, y: ctx.padding }, stackOptsFrom(a));
+        const at = { x: ctx.padding, y: ctx.padding };
+        const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
+        // Спред/драг карт — рычаги панели (interaction + переопределения), не фикс-пресет: см.
+        // interactionFrom в stackArgs.ts.
+        const { spread, cardDrag } = interactionFrom(a);
+        if (spread) ctx.spreadStack(r.ids, at, layoutFrom(a), { w: ctx.cardW, h: ctx.cardH }, spread);
+        ctx.dragConfig(r.ids, cardDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -155,9 +160,23 @@ for (const [id, { label }] of Object.entries(STACK_LAYOUTS)) {
  * раскладки при этом те же — своей геометрии у колоды нет.
  */
 export const Deck: Story = {
-  args: { ...STACK_ARGS, layout: "linear", angleDeg: 0, step: 0.06, faceUp: false, count: 10 },
-  // Спред вживую: колесо/скролл по колоде раздвигает её (снэп-пресет из STACK_INTERACTIONS),
-  // отпущенная цель липнет к ближайшему стопу. Рычаги спреда — отдельная задача, тут фикс-пресет.
+  args: {
+    ...STACK_ARGS,
+    layout: "linear",
+    angleDeg: 0,
+    step: 0.06,
+    faceUp: false,
+    count: 10,
+    interaction: "deck",
+    spread: true,
+    spreadTrigger: "always",
+    spreadMaxGap: 34,
+    spreadClose: "snap",
+    cardPick: "first",
+    cardDragTrigger: "tap",
+  },
+  // Спред вживую: колесо/скролл по колоде раздвигает её, отпущенная цель липнет к ближайшему
+  // стопу. Рычаги ниже — переопределения пресета "deck" (interactionFrom), не фикс-конфиг.
   render: (args) => (
     <CanvasStage<KitScene, LayoutArgs>
       args={args}
@@ -169,7 +188,9 @@ export const Deck: Story = {
         const cell = { w: ctx.cardW, h: ctx.cardH };
         const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
-        ctx.spreadStack(r.ids, at, form, cell, resolveInteraction("deck").spread!);
+        const { spread, cardDrag } = interactionFrom(a);
+        if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
+        ctx.dragConfig(r.ids, cardDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -183,8 +204,22 @@ export const Deck: Story = {
  * забывают, поэтому у него разброс и повороты: `heap`.
  */
 export const Discard: Story = {
-  args: { ...STACK_ARGS, layout: "heap", heapSpread: 0.3, faceUp: false, count: 7 },
-  // Тот же спред, крупнее и с close:"timer" (простой → схлоп) — пресет "discard".
+  args: {
+    ...STACK_ARGS,
+    layout: "heap",
+    heapSpread: 0.3,
+    faceUp: false,
+    count: 7,
+    interaction: "discard",
+    spread: true,
+    spreadTrigger: "always",
+    spreadMaxGap: 46,
+    spreadClose: "timer",
+    cardPick: "any",
+    cardDragTrigger: "tap",
+  },
+  // Тот же спред, крупнее и с close:"timer" (простой → схлоп) — пресет "discard", рычаги ниже
+  // его переопределяют (interactionFrom).
   render: (args) => (
     <CanvasStage<KitScene, LayoutArgs>
       args={args}
@@ -196,7 +231,9 @@ export const Discard: Story = {
         const cell = { w: ctx.cardW, h: ctx.cardH };
         const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
-        ctx.spreadStack(r.ids, at, form, cell, resolveInteraction("discard").spread!);
+        const { spread, cardDrag } = interactionFrom(a);
+        if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
+        ctx.dragConfig(r.ids, cardDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />

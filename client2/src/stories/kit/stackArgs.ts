@@ -1,6 +1,15 @@
 import { fan, heap, linear, type StackLayout } from "../../game/kit/stackLayout";
 import type { StackContent } from "../../game/kit/stacks";
 import type { Pose } from "../../game/ui/Card";
+import {
+  resolveInteraction,
+  STACK_INTERACTION_IDS,
+  type CardDrag,
+  type CardPick,
+  type SpreadClose,
+  type SpreadConfig,
+  type Trigger,
+} from "../../game/kit/stackInteraction";
 
 // РЫЧАГИ СТОПКИ — ОДНО описание на все разделы, где стопка вообще встречается.
 //
@@ -26,6 +35,24 @@ export interface StackArgs {
   count: number;
   /** Из чего сложена пачка: карты, фишки, фигуры. Раскладка от этого не зависит. */
   content: StackContent;
+  /**
+   * Механика взаимодействия — готовый пресет (kit/stackInteraction.ts STACK_INTERACTIONS). База
+   * для спреда и драга карт; рычаги ниже её ПЕРЕКРЫВАЮТ, а не задают с нуля — так «колода» на
+   * панели остаётся колодой, даже когда крутят зазор спреда.
+   */
+  interaction: string;
+  /** Спред включён? Отдельный тумблер, а не «спред есть у пресета»: у стопки его может не быть
+   *  вовсе (`plain`), и тогда крутить нечего — этим рычаг и прячется (if). */
+  spread: boolean;
+  spreadTrigger: Trigger;
+  spreadMaxGap: number;
+  spreadClose: SpreadClose["kind"];
+  spreadCenterX: boolean;
+  spreadKeepDiagonal: boolean;
+  /** Какую карту тащат: любую под пальцем или только верхнюю. */
+  cardPick: CardPick;
+  /** Каким жестом берут карту: тап-и-тащи или «подержи». */
+  cardDragTrigger: Extract<Trigger, "tap" | "hold">;
 }
 
 export const STACK_ARGS: StackArgs = {
@@ -41,6 +68,15 @@ export const STACK_ARGS: StackArgs = {
   selected: false,
   count: 5,
   content: "cards",
+  interaction: "plain",
+  spread: false,
+  spreadTrigger: "always",
+  spreadMaxGap: 34,
+  spreadClose: "snap",
+  spreadCenterX: false,
+  spreadKeepDiagonal: true,
+  cardPick: "any",
+  cardDragTrigger: "tap",
 };
 
 export const STACK_ARG_TYPES = {
@@ -66,7 +102,95 @@ export const STACK_ARG_TYPES = {
     control: { type: "select" as const },
     options: ["cards", "chips", "pieces"],
   },
+  interaction: {
+    name: "interaction",
+    description: "механика взаимодействия — готовый пресет (kit/stackInteraction.ts). База для спреда и драга карт; рычаги ниже её ПЕРЕКРЫВАЮТ, а не задают с нуля",
+    control: { type: "select" as const },
+    options: STACK_INTERACTION_IDS,
+  },
+  spread: {
+    name: "spread",
+    description: "спред включён — колесо/скролл по стопке раздвигает её поверх базовой раскладки",
+    control: { type: "boolean" as const },
+  },
+  spreadTrigger: {
+    name: "spread.trigger",
+    description: "как включается спред-режим: всегда / по тапу-тогглу / пока держат",
+    control: { type: "select" as const },
+    options: ["always", "tap", "hold"],
+    if: { arg: "spread", truthy: true },
+  },
+  spreadMaxGap: {
+    name: "spread.maxGap",
+    description: "предел доп. зазора по X на карту, px",
+    control: { type: "range" as const, min: 0, max: 120, step: 2 },
+    if: { arg: "spread", truthy: true },
+  },
+  spreadClose: {
+    name: "spread.close",
+    description: "что делает раскрытая стопка без взаимодействия: infinite — держится сама, timer — схлоп через паузу, snap — липнет к ближайшему стопу, dribble — «пляшет» и на пике собирается",
+    control: { type: "select" as const },
+    options: ["infinite", "timer", "snap", "dribble"],
+    if: { arg: "spread", truthy: true },
+  },
+  spreadCenterX: {
+    name: "spread.centerX",
+    description: "центрировать раздвиг по X, а не растить его от первой карты",
+    control: { type: "boolean" as const },
+    if: { arg: "spread", truthy: true },
+  },
+  spreadKeepDiagonal: {
+    name: "spread.keepDiagonal",
+    description: "сохранять диагональный стаггер базовой раскладки поверх спреда",
+    control: { type: "boolean" as const },
+    if: { arg: "spread", truthy: true },
+  },
+  cardPick: {
+    name: "cardDrag.pick",
+    description: "какую карту тащат: any — ту, на которую попал палец, first — только верхнюю",
+    control: { type: "select" as const },
+    options: ["any", "first"],
+    if: { arg: "interaction", neq: "block" },
+  },
+  cardDragTrigger: {
+    name: "cardDrag.trigger",
+    description: "каким жестом берут карту: tap — тап-и-тащи, hold — пока держат палец",
+    control: { type: "select" as const },
+    options: ["tap", "hold"],
+    if: { arg: "interaction", neq: "block" },
+  },
 };
+
+/**
+ * Спреду и драгу карт нужен пресет-БАЗА (kit/stackInteraction.ts STACK_INTERACTIONS) — панель
+ * его не задаёт с нуля, а перекрывает уровнем рычагов сверху. `spread: false` выключает спред
+ * целиком (даже если у пресета он есть), а cardPick/cardDragTrigger применяются, только когда у
+ * пресета вообще есть cardDrag (у `block` его нет — стопка тащится целиком).
+ */
+const DEFAULT_CLOSE: Record<SpreadClose["kind"], SpreadClose> = {
+  infinite: { kind: "infinite" },
+  timer: { kind: "timer", seconds: 4 },
+  snap: { kind: "snap", stops: [0, 0.4, 1] },
+  dribble: { kind: "dribble", buildSeconds: 1.4 },
+};
+
+export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; cardDrag: CardDrag | null } {
+  const base = resolveInteraction(a.interaction);
+  const spread: SpreadConfig | null = a.spread
+    ? {
+        trigger: a.spreadTrigger,
+        maxGap: a.spreadMaxGap,
+        keepDiagonal: a.spreadKeepDiagonal,
+        centerX: a.spreadCenterX,
+        // Стопы snap/секунды timer/дриббла берём у пресета, когда выбранный вид совпадает с его
+        // собственным (панель тогда лишь подтверждает пресет) — иначе разумные умолчания вида.
+        close: base.spread && base.spread.close.kind === a.spreadClose ? base.spread.close : DEFAULT_CLOSE[a.spreadClose],
+        spring: base.spread?.spring ?? 12,
+      }
+    : null;
+  const cardDrag: CardDrag | null = base.cardDrag ? { trigger: a.cardDragTrigger, pick: a.cardPick } : null;
+  return { spread, cardDrag };
+}
 
 /**
  * Раскладка из аргументов панели. Направление, шаг и доворот — параметры ОДНОЙ линейной функции:

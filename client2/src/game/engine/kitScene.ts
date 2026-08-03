@@ -18,7 +18,7 @@ import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } fro
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 import type { StackLayout } from "../kit/stackLayout";
-import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type SpreadConfig, type SpreadState } from "../kit/stackInteraction";
+import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type CardDrag, type SpreadConfig, type SpreadState } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -64,6 +64,13 @@ export interface KitContext extends SectionContext {
    * шаг и приём колеса живут в самой сцене (wheelOnElement/stepScene).
    */
   spreadStack(ids: string[], at: Pt, layout: StackLayout, cell: { w: number; h: number }, cfg: SpreadConfig): void;
+  /**
+   * Включить ДРАГ КАРТ у стопки: каким жестом её берут (`tap`/`hold`) и какую карту отдают
+   * («любую» под пальцем / только верхнюю — `pick`). `null` — карты стопки не тащатся вовсе.
+   * Матчасть — `kit/stackInteraction.ts` CardDrag; тут только регистрация, решение — в
+   * `KitScene.canDrag`/`holdToDrag`.
+   */
+  dragConfig(ids: string[], cardDrag: CardDrag | null): void;
 }
 
 export type KitBuild = (ctx: KitContext) => void;
@@ -107,6 +114,12 @@ export class KitScene extends SceneEngine {
    * элемента, и одна стопка тут может занимать несколько мест в `placed`. См. wheelOnElement/stepScene.
    */
   private spreadStacks: { ids: string[]; at: Pt; layout: StackLayout; cell: { w: number; h: number }; cfg: SpreadConfig; state: SpreadState }[] = [];
+  /**
+   * Стопки с настроенным драгом карт. Отдельный реестр от `spreadStacks` — спред и драг-карт
+   * это две НЕЗАВИСИМЫЕ механики (kit/stackInteraction.ts StackInteraction), у стопки может быть
+   * только одна из них, обе или ни одной. См. holdToDrag/canDrag.
+   */
+  private dragStacks: { ids: string[]; cardDrag: CardDrag | null }[] = [];
 
   /**
    * Слушатель габарита — зовётся после каждой сборки. Нужен хосту: высоту канваса задаёт DOM, а
@@ -407,6 +420,9 @@ export class KitScene extends SceneEngine {
       spreadStack: (ids, at, layout, cell, cfg) => {
         this.spreadStacks.push({ ids, at, layout, cell, cfg, state: SPREAD_STATE0 });
       },
+      dragConfig: (ids, cardDrag) => {
+        this.dragStacks.push({ ids: [...ids], cardDrag });
+      },
     };
     this.pending?.(ctx);
   }
@@ -438,6 +454,7 @@ export class KitScene extends SceneEngine {
     this.specs.clear();
     this.elPresets.clear();
     this.spreadStacks = [];
+    this.dragStacks = [];
     for (const p of this.placed) p.el.root.destroy({ children: true });
     this.placed = [];
     for (const d of this.decors) d.destroy({ children: true });
@@ -516,6 +533,30 @@ export class KitScene extends SceneEngine {
       if (entry.state.amount > 0.05 || entry.state.phase > 0) moving = true;
     }
     return moving;
+  }
+
+  /** Запись драг-конфига стопки, в которой числится элемент, или undefined — элемент не в реестре. */
+  private dragEntryOf(id: string): { ids: string[]; cardDrag: CardDrag | null } | undefined {
+    return this.dragStacks.find((s) => s.ids.includes(id));
+  }
+
+  /**
+   * Пик карты по конфигу стопки (kit/stackInteraction.ts CardDrag.pick): `null` — карты не тащат
+   * вовсе, `"first"` — только ВЕРХНЯЯ (последняя в порядке id), `"any"` — любая под пальцем (базовое
+   * поведение). Элементы вне драг-реестра решаются базой — рычаг на них не распространяется.
+   */
+  protected override canDrag(el: SceneElement): boolean {
+    if (!super.canDrag(el)) return false;
+    const entry = this.dragEntryOf(el.id);
+    if (!entry) return true;
+    if (!entry.cardDrag) return false;
+    if (entry.cardDrag.pick === "first") return el.id === entry.ids[entry.ids.length - 1];
+    return true;
+  }
+
+  /** «Держи, чтобы тащить» — только если у стопки элемента задан cardDrag.trigger==="hold". */
+  protected override holdToDrag(el: SceneElement): boolean {
+    return this.dragEntryOf(el.id)?.cardDrag?.trigger === "hold";
   }
 
   /** Переставить дом и глубину — реестр витрины знает про них он один (см. flipGroup). */

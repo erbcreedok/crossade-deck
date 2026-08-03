@@ -641,6 +641,14 @@ export abstract class SceneEngine extends CanvasApp {
     return el.draggable;
   }
 
+  /**
+   * «Держи, чтобы тащить» ДЛЯ ЭТОГО элемента (kit/stackInteraction.ts CardDrag.trigger==="hold").
+   * По умолчанию выключено — обычный тап-драг, как и раньше (see InputHandlers.holdToDrag).
+   */
+  protected holdToDrag(_el: SceneElement): boolean {
+    return false;
+  }
+
   /** Начать драг. По умолчанию — обычный SingleDrag за одну карту. Переопределяют, чтобы тащить
    *  пачку/набор; вернуть true — «драг заведён сам», false — база заводит SingleDrag. */
   protected beginDrag(el: SceneElement, cp: Pt, _sp: Pt): boolean {
@@ -823,6 +831,7 @@ export abstract class SceneEngine extends CanvasApp {
       screenToContent: (sx, sy) => this.screenToContent(sx, sy),
       pickCard: (cx, cy) => this.pickElement(cx, cy),
       cardDraggable: (el) => this.canDrag(el),
+      holdToDrag: (el) => this.holdToDrag(el),
       pickButton: (cx, cy) => this.hitButton(cx, cy),
       pickOverlay: (sx, sy) => this.hitChrome(sx, sy),
       buttonContains: (b, cx, cy) => {
