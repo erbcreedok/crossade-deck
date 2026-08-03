@@ -49,8 +49,10 @@ export function seatCount(spec: BoardSpec, wanted?: number): number {
 }
 
 /** Начальное состояние: слоты из setup-зон, места-фантомы, всё остальное пусто. Раздачу
- *  (mock.deal) выполняет команда reset/deal (mock.ts) — фабрика состояния про команды не знает. */
-export function initialState(spec: BoardSpec, seatsWanted?: number): BoardState {
+ *  (mock.deal) выполняет команда reset/deal (mock.ts) — фабрика состояния про команды не знает.
+ *  occupants — рассадка от КОМНАТЫ (room.ts): имя на стуле или null (свободен); без неё места
+ *  занимают фантомы «Игрок N» (standalone-режим). */
+export function initialState(spec: BoardSpec, seatsWanted?: number, occupants?: readonly (string | null)[]): BoardState {
   let field: SlotField = { slots: {}, onEmpty: "keep" };
   for (const zone of spec.zones) {
     for (const [slot, members] of Object.entries(zone.setup ?? {})) {
@@ -61,7 +63,7 @@ export function initialState(spec: BoardSpec, seatsWanted?: number): BoardState 
   const seats: SeatState[] = Array.from({ length: n }, (_, i) => ({
     id: `p${i + 1}`,
     name: `Игрок ${i + 1}`,
-    occupant: `Игрок ${i + 1}`,
+    occupant: occupants ? (occupants[i] ?? null) : `Игрок ${i + 1}`,
   }));
   const known = elementById(spec);
   // Санити на спеку: setup не должен селить неизвестные id (ловим опечатку данных сразу).

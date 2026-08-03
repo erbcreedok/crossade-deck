@@ -112,7 +112,7 @@ export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardComma
 }
 
 /** Стартовое состояние борды «как её открыли»: setup + мок-раздача. */
-export function bootState(spec: BoardSpec, seatsWanted?: number): BoardState {
-  const s = initialState(spec, seatsWanted);
+export function bootState(spec: BoardSpec, seatsWanted?: number, occupants?: readonly (string | null)[]): BoardState {
+  const s = initialState(spec, seatsWanted, occupants);
   return spec.mock?.deal ? deal(spec, s, spec.mock.deal.from, spec.mock.deal.each) : s;
 }

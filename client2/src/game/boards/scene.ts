@@ -31,6 +31,10 @@ export interface BoardSceneOptions {
   selfSeat?: string;
   /** Лог команд порта — в панель Actions стори. */
   onCommand?: (cmd: BoardCommand) => void;
+  /** Рассадка от комнаты: имя на стуле или null. Без неё — фантомы «Игрок N» (standalone). */
+  occupants?: readonly (string | null)[];
+  /** false — «только смотреть»: наблюдатель без права «мешать» (room.ts#canTouch). */
+  interactive?: boolean;
 }
 
 type BoardNode = Card | Piece;
@@ -60,7 +64,7 @@ export class BoardScene extends SceneEngine {
     this.spec = opts.spec;
     this.defs = elementById(opts.spec);
     this.selfSeat = opts.selfSeat ?? "p1";
-    this.state = bootState(opts.spec, opts.seats);
+    this.state = bootState(opts.spec, opts.seats, opts.occupants);
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat);
   }
 
@@ -317,6 +321,7 @@ export class BoardScene extends SceneEngine {
   /** Смарт-мок щедрый: тащится верх любого слота стола и любая карта своей руки. Чужая рука —
    *  нет (приватность), правила «чей ход» ничего не запрещают (индикация, BOARDS-DESIGN §3). */
   protected canDrag(el: SceneElement): boolean {
+    if (this.opts.interactive === false) return false;
     const slot = this.tree.slotOf(el.id);
     if (!slot) return false;
     const zone = zoneOf(slot);
