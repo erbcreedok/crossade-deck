@@ -17,6 +17,8 @@ import { makeLabel, type Pt, type SectionContext } from "../kit/context";
 import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } from "./kitExtent";
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
+import type { StackLayout } from "../kit/stackLayout";
+import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type SpreadConfig, type SpreadState } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -56,6 +58,12 @@ export interface KitContext extends SectionContext {
   add<T extends SceneElement>(el: T, home: Pt, depth?: number): T;
   /** Задать габарит витрины явно. Не задан — считается по краям расставленных элементов. */
   extent(w: number, h: number): void;
+  /**
+   * Включить СПРЕД у стопки: горизонтальный раздвиг по колесу/скроллу поверх базовой раскладки
+   * (kit/stackInteraction.ts). Матчасть там же — чистая, без Pixi; тут только регистрация записи,
+   * шаг и приём колеса живут в самой сцене (wheelOnElement/stepScene).
+   */
+  spreadStack(ids: string[], at: Pt, layout: StackLayout, cell: { w: number; h: number }, cfg: SpreadConfig): void;
 }
 
 export type KitBuild = (ctx: KitContext) => void;
@@ -94,6 +102,11 @@ export class KitScene extends SceneEngine {
   private elPresets = new Map<string, AnimPreset>();
   /** Элементы, поставленные текущей сборкой: им проигрывается появление, когда сборка закончится. */
   private fresh: SceneElement[] = [];
+  /**
+   * Стопки со спредом. Реестр отдельный от `placed`: спред — это ПОВЕРХ раскладки, а не свойство
+   * элемента, и одна стопка тут может занимать несколько мест в `placed`. См. wheelOnElement/stepScene.
+   */
+  private spreadStacks: { ids: string[]; at: Pt; layout: StackLayout; cell: { w: number; h: number }; cfg: SpreadConfig; state: SpreadState }[] = [];
 
   /**
    * Слушатель габарита — зовётся после каждой сборки. Нужен хосту: высоту канваса задаёт DOM, а
@@ -391,6 +404,9 @@ export class KitScene extends SceneEngine {
       animDuration: (id, kind) => this.animDuration(id, kind),
       wake: () => this.wake(),
       extent: (w, h) => void (this.explicitExtent = { w, h }),
+      spreadStack: (ids, at, layout, cell, cfg) => {
+        this.spreadStacks.push({ ids, at, layout, cell, cfg, state: SPREAD_STATE0 });
+      },
     };
     this.pending?.(ctx);
   }
@@ -421,6 +437,7 @@ export class KitScene extends SceneEngine {
   private clearContent(): void {
     this.specs.clear();
     this.elPresets.clear();
+    this.spreadStacks = [];
     for (const p of this.placed) p.el.root.destroy({ children: true });
     this.placed = [];
     for (const d of this.decors) d.destroy({ children: true });
@@ -449,6 +466,56 @@ export class KitScene extends SceneEngine {
 
   protected everyElement(): TableElement[] {
     return this.placed.map((p) => p.el);
+  }
+
+  /**
+   * Колесо/скролл по спред-стеку: первая стопка, чей габарит (по ТЕКУЩИМ позициям карт, надутый
+   * на полклетки) содержит точку, забирает жест — сдвигает ЦЕЛЬ раздвига, не пан/зум сцены.
+   */
+  protected override wheelOnElement(cp: Pt, dx: number, dy: number): boolean {
+    for (const entry of this.spreadStacks) {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const id of entry.ids) {
+        const el = this.byId.get(id);
+        if (!el) continue;
+        minX = Math.min(minX, el.body.px);
+        maxX = Math.max(maxX, el.body.px);
+        minY = Math.min(minY, el.body.py);
+        maxY = Math.max(maxY, el.body.py);
+      }
+      if (!Number.isFinite(minX)) continue; // все карты стопки уже сгорели/пересобраны
+      const hw = entry.cell.w / 2;
+      const hh = entry.cell.h / 2;
+      if (cp.x < minX - hw || cp.x > maxX + hw || cp.y < minY - hh || cp.y > maxY + hh) continue;
+      const deltaGap = (Math.abs(dx) >= Math.abs(dy) ? dx : dy) * 0.25;
+      entry.state = spreadInput(entry.state, deltaGap, entry.cfg);
+      this.wake();
+      return true;
+    }
+    return false;
+  }
+
+  /** Шаг спред-стеков: анимация amount→target + close-поведение, раскладка карт поверх базовой. */
+  protected override stepScene(dt: number): boolean {
+    let moving = false;
+    for (const entry of this.spreadStacks) {
+      entry.state = spreadTick(entry.state, dt, entry.cfg);
+      const n = entry.ids.length;
+      entry.ids.forEach((id, i) => {
+        if (id === this.drag?.lead.id) return; // тащат руками — спред её не двигает
+        const el = this.byId.get(id);
+        if (!el) return;
+        const base = entry.layout(i, n, entry.cell);
+        const wob = entry.cfg.close.kind === "dribble" ? dribbleWobble(i, entry.state.phase) : 0;
+        const off = offsetWithSpread(base, i, n, entry.state.amount, entry.cfg, wob);
+        el.body.setTarget({ x: entry.at.x + off.dx, y: entry.at.y + off.dy, rot: off.rot });
+      });
+      if (entry.state.amount > 0.05 || entry.state.phase > 0) moving = true;
+    }
+    return moving;
   }
 
   /** Переставить дом и глубину — реестр витрины знает про них он один (см. flipGroup). */
