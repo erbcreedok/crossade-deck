@@ -1,0 +1,31 @@
+client2/src/BrandBadge.tsx
+  s_e2a4c2b31d470a::t_7af0c898688dce 28
+client/index.html
+  s_e2a4c2b31d470a::t_b07281d19865bf 13
+  s_e2a4c2b31d470a::t_4f34e8d49bd346 17
+client2/index.html
+  s_e2a4c2b31d470a::t_61e837408f8fa6 13
+  s_e2a4c2b31d470a::t_1a4cc3917134e6 17
+client2/public/manifest.webmanifest
+  s_e2a4c2b31d470a::t_815232f1f1b206 2-3
+client/public/manifest.webmanifest
+  s_e2a4c2b31d470a::t_8ba7fa6e7baa47 2-3
+server/src/index.ts
+  s_e2a4c2b31d470a::t_05305d1aaf35df 93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "718a2254b3cc7650912d1acce2897c1c2459dc8c",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
