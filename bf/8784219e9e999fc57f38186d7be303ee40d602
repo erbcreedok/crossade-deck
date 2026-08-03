@@ -1,0 +1,19 @@
+client2/src/game/multiplayer/scene.ts
+  s_e2a4c2b31d470a::t_e758a160f46d7b 377-379,381,388,393,398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "bf8784219e9e999fc57f38186d7be303ee40d602",
+  "prompts": {},
+  "sessions": {
+    "s_e2a4c2b31d470a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1109b7b5-8a7b-4b6c-836a-6f9c99ead28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
