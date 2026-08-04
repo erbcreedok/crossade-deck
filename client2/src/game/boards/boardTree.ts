@@ -5,7 +5,8 @@ import { ringSlots } from "../slotfield/layout/slots";
 import { at as fieldAt } from "../slotfield/slotField";
 import { CARD } from "../crossade/tree";
 import { handKey, OFFBOARD_KEY, type BoardState } from "./state";
-import { seatZoneId, slotKey, type BoardSpec, type ZoneSpec } from "./spec";
+import { freeStackSize, FREE_STAGGER, looseOrigin } from "./freeDrop";
+import { seatZoneId, slotKey, zoneOf, type BoardSpec, type ZoneSpec } from "./spec";
 
 // ГЕОМЕТРИЯ БОРДЫ — ОДНО дерево слотов на рендер и дроп (канон всех сцен), собираемое из
 // BoardSpec: каждая зона — поддерево со СВОЕЙ раскладкой; id узлов = SlotKey состояния
@@ -23,6 +24,14 @@ const SEAT_LABEL_H = 22;
 /** Ячейка чужого места: ряд рубашек/фишек внахлёст. */
 const SEAT_CELL: Size = { w: 200, h: 84 };
 const SEAT_STACK_DX = 24;
+
+/** Локальные позиции свободных зон (держит СЦЕНА, дерево лишь читает): сдвиг колоды-блока по
+ *  зоне + центры свободных стопок по слотам (бокс-локальные координаты). Позиции — визуал этого
+ *  клиента (как cardFx); чужой клиент без них увидит стопку в центре бокса. */
+export interface FreePositions {
+  readonly offset: Readonly<Record<string, Vec>>;
+  readonly loose: Readonly<Record<string, Vec>>;
+}
 
 export interface BoardTree {
   readonly root: Group;
@@ -56,7 +65,7 @@ function slotGroup(key: string, members: readonly string[], cell: Size, stagger 
 }
 
 /** Поддерево зоны + её габарит. origin выдаёт компоновщик, здесь — локальные координаты. */
-function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): { placed: Placed[]; size: Size; cells: Record<string, { x: number; y: number; w: number; h: number }> } {
+function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id, free?: FreePositions): { placed: Placed[]; size: Size; cells: Record<string, { x: number; y: number; w: number; h: number }> } {
   const cell = zoneCell(zone);
   const zid = instanceId;
   const placed: Placed[] = [];
@@ -95,14 +104,24 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
       return { placed, size: cell, cells };
     }
     case "free": {
-      // Одна зона — серый БОКС (cell = габарит бокса). Колода-стопка сидит по ЦЕНТРУ бокса и
-      // таскается целиком; рамка-бокс (cellRects[key]) стоит на месте, сама стопка уезжает сдвигом,
-      // который держит сцена. Дроп разрешён только в пределах этого бокса (см. scene.resolveDrop).
+      // Одна зона — серый БОКС (cell = габарит бокса). Слот 0 — колода: сидит у верха бокса и
+      // таскается целиком; её сдвиг (free.offset) — часть геометрии, чтобы хит-тест и подсветка
+      // совпадали с визуалом. Остальные слоты зоны — СВОБОДНЫЕ стопки: карта, брошенная в бокс,
+      // лежит ГДЕ положили (free.loose, центр стопки); рамка-бокс (cellRects) стоит на месте.
       const key = slotKey(zid, 0);
+      const off = free?.offset[zid] ?? { x: 0, y: 0 };
       // Колода у ВЕРХА бокса (по центру по X), чтобы грид в центре бокса был виден под ней.
-      const deckOrigin = { x: (cell.w - CARD.w) / 2, y: 40 };
-      placed.push({ id: key, origin: deckOrigin, slot: slotGroup(key, membersOf(state, key), CARD, 0.5) });
+      const deckOrigin = { x: (cell.w - CARD.w) / 2 + off.x, y: 40 + off.y };
+      placed.push({ id: key, origin: deckOrigin, slot: slotGroup(key, membersOf(state, key), CARD, FREE_STAGGER) });
       cells[key] = { x: 0, y: 0, w: cell.w, h: cell.h };
+      for (const k of Object.keys(state.field.slots)) {
+        if (zoneOf(k) !== zid || k === key) continue;
+        const members = membersOf(state, k);
+        if (!members.length) continue;
+        const stack = freeStackSize(CARD, members.length);
+        const center = free?.loose[k] ?? { x: cell.w / 2, y: cell.h / 2 };
+        placed.push({ id: k, origin: looseOrigin(cell, center, stack), slot: slotGroup(k, members, CARD, FREE_STAGGER) });
+      }
       return { placed, size: cell, cells };
     }
     case "flow": {
@@ -210,7 +229,7 @@ function seatAngle(index: number, n: number): number {
  *  стопками рубашек за их слотом; своя рука — строкой снизу; прочие зоны и offboard — колонкой
  *  справа. Слот места — perSeat-экземпляр `id@seat:0`, политику берёт из базовой зоны (reject —
  *  «одна карта от игрока»). */
-function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, seatsZone: ZoneSpec): BoardTree {
+function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, seatsZone: ZoneSpec, free?: FreePositions): BoardTree {
   const placed: Placed[] = [];
   const cellRects: Record<string, { x: number; y: number; w: number; h: number }> = {};
   const n = state.seats.length;
@@ -271,7 +290,7 @@ function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, se
   if (freeZone && boxCell) {
     // Бокс-борда по центру круга посадок; остальные зоны — в центр бокса.
     const boxAt = { x: cx - boxCell.w / 2, y: cy - boxCell.h / 2 };
-    placeSub(zoneSubtrees(freeZone, state), boxAt.x, boxAt.y);
+    placeSub(zoneSubtrees(freeZone, state, undefined, free), boxAt.x, boxAt.y);
     for (const zone of tableZones) {
       if (zone === freeZone) continue;
       const sub = zoneSubtrees(zone, state);
@@ -307,9 +326,9 @@ function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, se
   return finish(placed, cellRects, { w: rightX + backCell.w + MARGIN.x, h: handBottom + MARGIN.y });
 }
 
-export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: string): BoardTree {
+export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: string, free?: FreePositions): BoardTree {
   const seatsZone = spec.zones.find((z) => z.layout.kind === "seats");
-  if (seatsZone) return roundTableTree(spec, state, selfSeat, seatsZone);
+  if (seatsZone) return roundTableTree(spec, state, selfSeat, seatsZone, free);
 
   const placed: Placed[] = [];
   const cellRects: Record<string, { x: number; y: number; w: number; h: number }> = {};
@@ -362,7 +381,7 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
   let boxRect: { x: number; y: number; w: number; h: number } | null = null;
   for (const zone of rowZones) {
     if (freeZone && zone !== freeZone) continue; // вложим ниже, в центр бокса
-    const sub = zoneSubtrees(zone, state);
+    const sub = zoneSubtrees(zone, state, undefined, free);
     placeSub(sub, rowX, rowTop);
     if (zone === freeZone) boxRect = cellRects[slotKey(zone.id, 0)] ?? { x: rowX, y: rowTop, w: sub.size.w, h: sub.size.h };
     rowX += sub.size.w + GAP.x * 2;

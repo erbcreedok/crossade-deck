@@ -11,12 +11,13 @@ import { dropTarget } from "../slot/slot";
 import { dashedRectSegments } from "../ui/dashedRectSegments";
 import { dashedCircleArcs } from "../ui/dashedCircleArcs";
 import { blockDropOffset } from "./freeBox";
+import { faceAfterDrop, freeStackSize, insideBox, nextLooseKey } from "./freeDrop";
 import { GroupDrag } from "../engine/drag";
 import { CARD } from "../crossade/tree";
-import { buildBoardTree, type BoardTree } from "./boardTree";
+import { buildBoardTree, type BoardTree, type FreePositions } from "./boardTree";
 import { localDriver, type BoardDriver } from "./driver";
 import { handKey, type BoardState } from "./state";
-import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
+import { baseZoneId, elementById, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
 import type { GlowShape } from "../ui/selection";
@@ -139,6 +140,9 @@ export class BoardScene extends SceneEngine {
   // в фиксированный origin (рамка-квадрат там и рисуется), а живёт она в origin + этот сдвиг —
   // так блок ездит по всему полю, не ломая слот-геометрию. Ключ — id базовой зоны.
   private readonly freeOffset = new Map<string, { x: number; y: number }>();
+  // Свободные стопки free-зоны (дроп «куда положили»): центр стопки в координатах бокса, ключ —
+  // слот. Как и freeOffset — локальный визуал этого клиента; дерево читает через FreePositions.
+  private readonly loosePos = new Map<string, { x: number; y: number }>();
   // Идёт блок-драг свободной стопки: её зона + точка захвата (для дельты сдвига на дропе).
   private blockZone: string | null = null;
   private blockGrab = { x: 0, y: 0 };
@@ -154,7 +158,7 @@ export class BoardScene extends SceneEngine {
       this.state = s;
       this.rebuildBoard(false);
     });
-    this.tree = buildBoardTree(this.spec, this.state, this.selfSeat);
+    this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
     opts.presence?.hub.onChange((v) => {
       this.presenceView = v;
       this.paintPresence();
@@ -306,7 +310,7 @@ export class BoardScene extends SceneEngine {
     const el = this.hitElement(cp.x, cp.y);
     const slot = el ? this.tree.slotOf(el.id) : null;
     if (el && slot) {
-      this.menuCtx = this.isFreeZone(baseZoneId(zoneOf(slot))) ? { kind: "deck", slot } : { kind: "card", id: el.id };
+      this.menuCtx = this.isDeckSlot(slot) ? { kind: "deck", slot } : { kind: "card", id: el.id };
     } else {
       const target = this.menuTargetAt(cp);
       if (!target) return;
@@ -415,7 +419,9 @@ export class BoardScene extends SceneEngine {
       this.after(step.delay, () => {
         const members = this.state.field.slots[slot]?.members ?? [];
         const top = members[members.length - 1];
-        if (top) this.dispatch({ t: "move", el: top, from: slot, to: handKey(step.seat) });
+        if (!top) return;
+        this.applyDropFace(top, slot, handKey(step.seat)); // рука сама решает сторону — снять оверрайд
+        this.dispatch({ t: "move", el: top, from: slot, to: handKey(step.seat) });
       });
     }
     this.wake();
@@ -426,6 +432,7 @@ export class BoardScene extends SceneEngine {
   reconfigure(spec: BoardSpec, seats?: number): void {
     this.spec = spec;
     this.defs = elementById(spec);
+    this.loosePos.clear(); // миграция пересыпает свободные стопки в колоду — позиции мертвы
     this.state = migrateState(this.state, spec, seats);
     this.driver = localDriver(spec, seats, undefined, this.state);
     this.driver.onState((s) => {
@@ -530,8 +537,19 @@ export class BoardScene extends SceneEngine {
 
   // ——— состояние → доска ———
 
+  /** Локальные позиции free-зон для дерева: сдвиг колоды + центры свободных стопок. */
+  private freeMaps(): FreePositions {
+    return { offset: Object.fromEntries(this.freeOffset), loose: Object.fromEntries(this.loosePos) };
+  }
+
   private rebuildBoard(snap: boolean): void {
-    this.tree = buildBoardTree(this.spec, this.state, this.selfSeat);
+    // Позиции опустевших свободных стопок больше никому не нужны (слот ЕСТЬ и пуст — карту унесли);
+    // слот, которого ещё нет в поле (live: команда в пути), позицию сохраняет — она вот-вот сыграет.
+    for (const key of this.loosePos.keys()) {
+      const cont = this.state.field.slots[key];
+      if (cont && cont.members.length === 0) this.loosePos.delete(key);
+    }
+    this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
     if (!this.tex) return;
 
     const alive = new Set<string>();
@@ -598,19 +616,26 @@ export class BoardScene extends SceneEngine {
     return this.spec.zones.find((z) => z.id === baseZoneId(zoneId))?.layout.kind === "free";
   }
 
-  /** Сдвиг свободной стопки для слота (0 для обычных зон). */
-  private offsetOf(slot: string): { x: number; y: number } {
-    const zone = baseZoneId(zoneOf(slot));
-    return (this.isFreeZone(zone) ? this.freeOffset.get(zone) : null) ?? { x: 0, y: 0 };
+  /** Слот-КОЛОДА free-зоны (слот 0). Остальные слоты зоны — свободные стопки: обычные карты. */
+  private isDeckSlot(slot: string): boolean {
+    return slotOf(slot) === "0" && this.isFreeZone(zoneOf(slot));
   }
 
-  /** Дом элемента = дерево-дом + сдвиг его свободной стопки. Общая точка для рендера и возврата. */
+  /** Free-зона, чей бокс (с учётом формы-круга) накрывает точку. Хит-тест ФОЛБЭКА: сперва сцена
+   *  спрашивает dropTarget (колода/стопки/центр — специфичнее), потом сам бокс. */
+  private freeZoneAt(cp: { x: number; y: number }): string | null {
+    for (const zone of this.spec.zones) {
+      if (zone.layout.kind !== "free") continue;
+      const box = this.tree.cellRects[slotKey(zone.id, 0)];
+      if (box && insideBox(box, zone.shape, cp)) return zone.id;
+    }
+    return null;
+  }
+
+  /** Дом элемента. Сдвиги free-зон (колода-блок, свободные стопки) уже В ДЕРЕВЕ (FreePositions) —
+   *  рендер, возврат и хит-тест читают одну геометрию. */
   private homeVec(id: string): { x: number; y: number } | null {
-    const base = this.tree.homeOf(id);
-    if (!base) return null;
-    const slot = this.tree.slotOf(id);
-    const off = slot ? this.offsetOf(slot) : { x: 0, y: 0 };
-    return { x: base.x + off.x, y: base.y + off.y };
+    return this.tree.homeOf(id);
   }
 
   /** Масштаб узла в слоте: в полосе чужого места карта ужимается до строки рубашек. */
@@ -700,6 +725,8 @@ export class BoardScene extends SceneEngine {
       const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
       for (const [key, at] of Object.entries(this.tree.origins)) {
         if (zoneOf(key) !== zid) continue;
+        // Свободные стопки free-зоны — карты, а не разметка: рамку рисует только бокс (слот 0).
+        if (zone.layout.kind === "free" && key !== slotKey(zid, 0)) continue;
         rects.set(key, this.tree.cellRects[key] ?? { x: at.x, y: at.y, w: cell.w, h: cell.h });
       }
       for (const [key, r] of Object.entries(this.tree.cellRects)) {
@@ -753,15 +780,34 @@ export class BoardScene extends SceneEngine {
   }
 
   /** Подсветка целевого слота под пальцем — по cellRects/размеру слота из дерева.
-   *  ФОРМА подсветки следует форме зоны: круглая зона подсвечивается КРУГОМ, не квадратом. */
+   *  ФОРМА подсветки следует форме зоны: круглая зона подсвечивается КРУГОМ, не квадратом.
+   *  Приоритет free-зоны: над колодой/стопкой светится ОНА (её футпринт), над пустым боксом —
+   *  весь бокс (карта ляжет свободно, куда положили). */
   private paintHints(): void {
     const g = this.hintLayer;
     g.clear();
     if (!this.dragging || !this.hotSlot) return;
     const accent = this.accentColor(); // в live подсветки — цвета ИГРОКА, не общее золото
+    const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(this.hotSlot!)));
+    if (zone?.layout.kind === "free") {
+      if (slotOf(this.hotSlot) === "box") {
+        // Наведение на сам бокс (мимо стопок): светится весь круг/бокс.
+        const box = this.tree.cellRects[slotKey(zone.id, 0)];
+        if (!box) return;
+        if (zone.shape === "circle") g.circle(box.x + box.w / 2, box.y + box.h / 2, Math.min(box.w, box.h) / 2 + 3).stroke({ width: 3, color: accent });
+        else g.roundRect(box.x - 2, box.y - 2, box.w + 4, box.h + 4, 8).stroke({ width: 3, color: accent });
+        return;
+      }
+      // Наведение на колоду/свободную стопку: светится её футпринт, НЕ бокс.
+      const at = this.tree.origins[this.hotSlot];
+      if (!at) return;
+      const n = this.state.field.slots[this.hotSlot]?.members.length ?? 0;
+      const s = freeStackSize(CARD, Math.max(1, n));
+      g.roundRect(at.x - 3, at.y - 3, s.w + 6, s.h + 6, 8).stroke({ width: 3, color: accent });
+      return;
+    }
     const r = this.tree.cellRects[this.hotSlot];
     if (r) {
-      const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(this.hotSlot!)));
       if (zone?.shape === "circle") {
         g.circle(r.x + r.w / 2, r.y + r.h / 2, Math.min(r.w, r.h) / 2 + 3).stroke({ width: 3, color: accent });
       } else {
@@ -828,10 +874,11 @@ export class BoardScene extends SceneEngine {
     return members[members.length - 1] === el.id;
   }
 
-  /** У жителей free-стопки ДВА драг-интента: тап тащит верхнюю карту, hold — всю колоду блоком. */
+  /** У жителей КОЛОДЫ ДВА драг-интента: тап тащит верхнюю карту, hold — всю колоду блоком.
+   *  Свободные стопки (слоты ≥ 1) блоком не таскаются — это просто карты, лежащие где положили. */
   protected dragOnHold(el: SceneElement): boolean {
     const slot = this.tree.slotOf(el.id);
-    return !!slot && this.isFreeZone(baseZoneId(zoneOf(slot)));
+    return !!slot && this.isDeckSlot(slot);
   }
 
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
@@ -845,7 +892,7 @@ export class BoardScene extends SceneEngine {
     this.dragging = true;
     const slot = this.tree.slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
-    if (slot && zone && this.isFreeZone(zone) && this.grabMode === "hold") {
+    if (slot && zone && this.isDeckSlot(slot) && this.grabMode === "hold") {
       // Тащим ВСЮ стопку как блок: жест берёт весь слот, а не верхнюю карту (одиночную не вынуть).
       // GroupDrag ведёт все карты жёстко за пальцем со СВОИМИ текущими сдвигами (форма стопки цела);
       // на дропе сцена сдвинет freeOffset, и release посадит каждую в новый дом.
@@ -876,7 +923,9 @@ export class BoardScene extends SceneEngine {
     }
     if (this.blockZone) return; // блок-драг колоды: бокс не подсвечиваем никак
     const target = dropTarget(this.tree.root, p);
-    const hot = target?.group.id ?? null;
+    // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
+    // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
+    const hot = target?.group.id ?? (this.freeZoneAt(p) ? slotKey(this.freeZoneAt(p)!, "box") : null);
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintHints();
@@ -910,12 +959,15 @@ export class BoardScene extends SceneEngine {
       // Вся геометрия — в чистой blockDropOffset (freeBox.ts), под юнит-тестом.
       const box = this.tree.cellRects[`${this.blockZone}:0`];
       const members = this.state.field.slots[`${this.blockZone}:0`]?.members ?? [];
-      const base = members.length ? this.tree.homeOf(members[0]!) : null;
-      if (box && base) {
-        const spread = 0.5 * Math.max(0, members.length - 1); // стаггер стопки (см. boardTree free)
-        const half = { w: CARD.w / 2 + spread, h: CARD.h / 2 + spread };
+      const home = members.length ? this.tree.homeOf(members[0]!) : null;
+      if (box && home) {
+        const stack = freeStackSize(CARD, members.length);
+        const half = { w: stack.w / 2, h: stack.h / 2 };
         const cur = this.freeOffset.get(this.blockZone) ?? { x: 0, y: 0 };
+        // Дерево уже включает текущий сдвиг — blockDropOffset ждёт дом БЕЗ него.
+        const base = { x: home.x - cur.x, y: home.y - cur.y };
         this.freeOffset.set(this.blockZone, blockDropOffset(box, cur, this.blockGrab, cp, base, half));
+        this.rebuildBoard(false); // новые дома — release сажает стопку по свежему дереву
       }
       this.blockZone = null;
       drag.release();
@@ -942,9 +994,53 @@ export class BoardScene extends SceneEngine {
           : handOrderAfterDrop(members, el.id, target?.index ?? members.length);
       this.dispatch({ t: "reorderSlot", key: from, order });
     } else if (from && to && to !== from && zoneOf(to) !== "seat") {
+      this.applyDropFace(el.id, from, to);
       this.dispatch({ t: "move", el: el.id, from, to });
+    } else if (from && !to) {
+      this.dropLoose(el, from, cp);
     }
     drag.release(); // состояние уже новое: дом = целевой слот, release долетает туда
+  }
+
+  /** Дроп мимо всех слотов, но внутрь бокса free-зоны: карта ложится СВОБОДНО — там же, куда
+   *  положили, той же стороной. Одинокая свободная стопка просто переезжает (состав не меняется);
+   *  иначе карта уходит в новый слот зоны, позиция которого — точка дропа. */
+  private dropLoose(el: SceneElement, from: string, cp: { x: number; y: number }): void {
+    const zid = this.freeZoneAt(cp);
+    if (!zid) return; // мимо и бокса — release вернёт домой
+    const box = this.tree.cellRects[slotKey(zid, 0)];
+    if (!box) return;
+    const local = { x: cp.x - box.x, y: cp.y - box.y };
+    const members = this.state.field.slots[from]?.members ?? [];
+    if (zoneOf(from) === zid && slotOf(from) !== "0" && members.length === 1) {
+      this.applyDropFace(el.id, from, from);
+      this.loosePos.set(from, local);
+      this.rebuildBoard(false);
+      return;
+    }
+    const taken = Object.keys(this.state.field.slots).filter((k) => (this.state.field.slots[k]?.members.length ?? 0) > 0);
+    const key = nextLooseKey(zid, taken);
+    this.applyDropFace(el.id, from, key);
+    this.loosePos.set(key, local); // ДО dispatch: синхронный драйвер пересоберёт дерево сразу
+    this.dispatch({ t: "move", el: el.id, from, to: key });
+  }
+
+  /** Сторона карты после дропа — чистое правило (freeDrop.faceAfterDrop); сцена лишь читает,
+   *  какой стороной карту НЕСЛИ, и пишет/снимает локальный оверрайд лица. */
+  private applyDropFace(id: string, from: string, to: string): void {
+    const node = this.nodes.get(id);
+    if (!(node instanceof Card)) return;
+    const face = faceAfterDrop({
+      fromFree: this.isFreeZone(zoneOf(from)),
+      toFree: this.isFreeZone(zoneOf(to)),
+      toDeck: this.isDeckSlot(to),
+      carried: node.faceUp,
+    });
+    const fx = { ...(this.cardFx.get(id) ?? {}) };
+    if (face === null) delete fx.face;
+    else fx.face = face;
+    if (fx.face === undefined && fx.rot === undefined) this.cardFx.delete(id);
+    else this.cardFx.set(id, fx);
   }
 
   /** Ближайший к точке дропа житель контейнера (кроме самого груза) — цель обмена. */

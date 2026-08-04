@@ -207,3 +207,55 @@ describe("buildBoardTree", () => {
     }
   });
 });
+
+describe("buildBoardTree: свободные стопки и сдвиги free-зоны (FreePositions)", () => {
+  const freeSpec = spec({ zones: [
+    { id: "board", title: "", layout: { kind: "free" }, policy: { onOccupied: "merge" }, cell: { w: 480, h: 360 }, setup: { 0: ["c1", "c2"] } },
+  ], hand: undefined, seats: { count: { fixed: 1 }, show: "none", swap: false } });
+
+  it("свободный слот (≥1) встаёт центром в заданную точку бокса и ловит дроп сам", () => {
+    let s = bootState(freeSpec, 1);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c2", from: "board:0", to: "board:1" }, rng);
+    const box = buildBoardTree(freeSpec, s, "p1").cellRects["board:0"]!;
+    const tree = buildBoardTree(freeSpec, s, "p1", { offset: {}, loose: { "board:1": { x: 360, y: 180 } } });
+    const home = tree.homeOf("c2")!;
+    expect(home.x).toBeCloseTo(box.x + 360);
+    expect(home.y).toBeCloseTo(box.y + 180);
+    expect(tree.slotOf("c2")).toBe("board:1");
+    expect(tree.slotAt({ x: home.x, y: home.y })).toBe("board:1"); // дроп-цель — ЕЁ слот
+  });
+
+  it("позиция у края прижимается — стопка целиком в боксе; без позиции — центр бокса (чужой клиент)", () => {
+    let s = bootState(freeSpec, 1);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c2", from: "board:0", to: "board:1" }, rng);
+    const clamped = buildBoardTree(freeSpec, s, "p1", { offset: {}, loose: { "board:1": { x: 0, y: 0 } } });
+    const box = clamped.cellRects["board:0"]!;
+    const h = clamped.homeOf("c2")!;
+    expect(h.x).toBeGreaterThan(box.x); // не вылез левым краем
+    expect(h.y).toBeGreaterThan(box.y);
+    const centered = buildBoardTree(freeSpec, s, "p1", { offset: {}, loose: {} });
+    const hc = centered.homeOf("c2")!;
+    expect(hc.x).toBeCloseTo(box.x + box.w / 2);
+    expect(hc.y).toBeCloseTo(box.y + box.h / 2);
+  });
+
+  it("пустой свободный слот не плодит узлов", () => {
+    let s = bootState(freeSpec, 1);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c2", from: "board:0", to: "board:1" }, rng);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c2", from: "board:1", to: "board:0" }, rng);
+    const tree = buildBoardTree(freeSpec, s, "p1", { offset: {}, loose: {} });
+    expect(tree.origins["board:1"]).toBeUndefined();
+  });
+
+  it("сдвиг колоды-блока двигает её дом и хит-тест, рамка-бокс стоит на месте", () => {
+    const s = bootState(freeSpec, 1);
+    const plain = buildBoardTree(freeSpec, s, "p1");
+    const moved = buildBoardTree(freeSpec, s, "p1", { offset: { board: { x: 50, y: 120 } }, loose: {} });
+    const a = plain.homeOf("c2")!;
+    const b = moved.homeOf("c2")!;
+    expect(b.x - a.x).toBeCloseTo(50);
+    expect(b.y - a.y).toBeCloseTo(120);
+    expect(moved.slotAt({ x: b.x, y: b.y })).toBe("board:0");
+    expect(moved.cellRects["board:0"]).toEqual(plain.cellRects["board:0"]);
+  });
+});
