@@ -2,7 +2,7 @@
 // рассадка стола, слоты, стакинг, посадки. Чистый модуль: строки меню и переключение значений —
 // функции без Pixi; смена спеки НЕ теряет карты — migrateState пересыпает жителей в новые слоты.
 
-import { baseZoneId, slotKey, zoneOf, zoneSlotCount, type BoardSpec } from "./spec";
+import { baseZoneId, elementById, slotKey, zoneOf, zoneSlotCount, type BoardSpec } from "./spec";
 import type { BoardState } from "./state";
 import type { SlotField } from "../slotfield/slotField";
 
@@ -17,6 +17,8 @@ export interface SandboxSettings {
   stacking: boolean;
   /** Посадочные места вокруг стола. */
   seats: number;
+  /** Размер колоды песочницы. Джокеры — позже (лицам карт нужен свой рендер). */
+  deck: 36 | 52;
 }
 
 export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
@@ -25,6 +27,7 @@ export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
   slots: "dynamic",
   stacking: true,
   seats: 4,
+  deck: 36,
 };
 
 /** По какой цели открыто меню: борда целиком (free-бокс) или грид-стол. */
@@ -74,6 +77,8 @@ export function applySetting(s: SandboxSettings, key: keyof SandboxSettings): Sa
       return { ...s, stacking: !s.stacking };
     case "seats":
       return { ...s, seats: next(SEAT_STEPS, s.seats) };
+    case "deck":
+      return { ...s, deck: s.deck === 36 ? 52 : 36 };
   }
 }
 
@@ -85,24 +90,36 @@ export function applySetting(s: SandboxSettings, key: keyof SandboxSettings): Sa
  */
 export function migrateState(old: BoardState, spec: BoardSpec, seatsWanted?: number): BoardState {
   const zoneIds = new Set(spec.zones.map((z) => z.id));
+  const known = elementById(spec);
   const pools = new Map<string, string[]>();
   const keep: Record<string, { members: string[] }> = {};
+  const placed = new Set<string>();
 
   const n = seatsWanted ?? old.seats.length;
   const liveSeats = new Set(old.seats.slice(0, n).map((s) => s.id));
 
   for (const [key, cont] of Object.entries(old.field.slots)) {
-    if (!cont.members.length) continue;
+    // Смена колоды (52 → 36) выкидывает исчезнувшие лица — незнакомых спеке жителей не тащим.
+    const members = cont.members.filter((id) => known.has(id));
+    members.forEach((id) => placed.add(id));
+    if (!members.length) continue;
     const zone = baseZoneId(zoneOf(key));
     if (zoneIds.has(zone)) {
-      pools.set(zone, [...(pools.get(zone) ?? []), ...cont.members]);
+      pools.set(zone, [...(pools.get(zone) ?? []), ...members]);
     } else if (zone === "hand" && !liveSeats.has(key.slice("hand:".length))) {
       // Рука исчезнувшего места — высыпать в первую зону спеки (карты не пропадают).
       const first = spec.zones[0]!.id;
-      pools.set(first, [...(pools.get(first) ?? []), ...cont.members]);
+      pools.set(first, [...(pools.get(first) ?? []), ...members]);
     } else {
-      keep[key] = { members: [...cont.members] };
+      keep[key] = { members };
     }
+  }
+
+  // Смена колоды (36 → 52): НОВЫЕ лица, которых старое состояние не знало, доезжают в первую зону.
+  const fresh = [...known.keys()].filter((id) => !placed.has(id));
+  if (fresh.length) {
+    const first = spec.zones[0]!.id;
+    pools.set(first, [...(pools.get(first) ?? []), ...fresh]);
   }
 
   const slots: SlotField["slots"] = { ...keep };

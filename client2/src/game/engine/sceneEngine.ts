@@ -649,12 +649,16 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   // Ввод: стейт-машину ведёт InputRouter, движок лишь форвардит события и отдаёт домен в колбэки.
-  private onDown = (e: { global: Pt; pointerId: number }): void => {
+  private onDown = (e: { global: Pt; pointerId: number; button?: number }): void => {
+    if (e.button === 2) return; // правая кнопка — целиком у contextmenu (меню), жестов не начинает
     this.viewport.stopFling(); // касание гасит инерцию
     this.input.down(e.pointerId, e.global.x, e.global.y);
   };
   private onMove = (e: { global: Pt; pointerId: number }): void => this.input.move(e.pointerId, e.global.x, e.global.y);
-  private onUp = (e: { global: Pt; pointerId: number }): void => this.input.up(e.pointerId, e.global.x, e.global.y);
+  private onUp = (e: { global: Pt; pointerId: number; button?: number }): void => {
+    if (e.button === 2) return;
+    this.input.up(e.pointerId, e.global.x, e.global.y);
+  };
 
   /** ПКМ: preventDefault (иначе браузерное меню) + контекстное меню сцены в точке курсора. */
   private onCtxMenu = (e: MouseEvent): void => {

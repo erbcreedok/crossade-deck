@@ -134,7 +134,7 @@ function RoundStage(a: RoundArgs) {
       onCommand: (cmd: BoardCommand) => onCommand(cmd),
       // Настройки меню = те же рычаги: long-press по гриду/борде (ПКМ на десктопе) крутит их живьём.
       configurable: {
-        settings: { shape: a.shape, table: a.table, slots: opts.slots ?? "dynamic", stacking: a.stacking ?? true, seats: a.seats },
+        settings: { shape: a.shape, table: a.table, slots: opts.slots ?? "dynamic", stacking: a.stacking ?? true, seats: a.seats, deck: 36 },
         build: (s) => roundTableBoard({ ...s, dealt: a.dealt }),
       },
     });

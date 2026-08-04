@@ -1,5 +1,5 @@
 import type { BoardSpec, ZoneLayoutSpec, ZoneSpec } from "../spec";
-import { deck36 } from "./decks";
+import { deck36, deck52 } from "./decks";
 
 // КРУГЛЫЙ СТОЛ ПЕСОЧНИЦЫ — конфигурируемый билдер (настройки-как-данные): те же рычаги, что
 // потом крутит контекстное меню песочницы. Дефолт владельца: ВСЁ круг и динамично.
@@ -21,6 +21,8 @@ export interface RoundTableOpts {
   seats?: number;
   /** Сколько карт разложить на стол сразу (витрине нужно что показывать). */
   dealt?: number;
+  /** Размер колоды. */
+  deck?: 36 | 52;
 }
 
 function tableLayout(o: Required<Pick<RoundTableOpts, "shape" | "table" | "slots">>): ZoneLayoutSpec {
@@ -46,10 +48,10 @@ function tableSetup(layout: ZoneLayoutSpec, dealt: readonly string[]): ZoneSpec[
 
 export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
   // Спред затирал бы дефолты явными undefined (скрытые рычаги Storybook отдают именно их).
-  const defaults = { shape: "circle", table: "radial", slots: "dynamic", stacking: true, seats: 4, dealt: 6 } as const;
+  const defaults = { shape: "circle", table: "radial", slots: "dynamic", stacking: true, seats: 4, dealt: 6, deck: 36 } as const;
   const given = Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined));
-  const o = { ...defaults, ...given } as typeof defaults & RoundTableOpts;
-  const { cards, ids } = deck36();
+  const o = { ...defaults, ...given } as Required<RoundTableOpts>;
+  const { cards, ids } = o.deck === 52 ? deck52() : deck36();
   const dealt = ids.slice(0, Math.max(0, Math.min(o.dealt, ids.length)));
   const layout = tableLayout(o);
   const boxSide = 760;

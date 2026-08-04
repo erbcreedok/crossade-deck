@@ -1,9 +1,16 @@
+import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
 import { stackState, type StackContent } from "../../game/kit/stacks";
 import type { KitScene } from "../../game/engine/kitScene";
 import { CanvasStage } from "../harness/CanvasStage";
 import { STACK_ARGS, STACK_ARG_TYPES, interactionFrom, layoutFrom, stackOptsFrom, type StackArgs } from "../kit/stackArgs";
 import { STACK_INTERACTIONS } from "../../game/kit/stackInteraction";
+import { BoardScene } from "../../game/boards/scene";
+import { roundTableBoard } from "../../game/boards/library";
+import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "../../game/boards/settings";
+
+const deckAction = action("dispatch → мок-порт");
 
 // МЕХАНИКА ВЗАИМОДЕЙСТВИЯ СО СТОПКОЙ — раздел «Механики», не «UI-kit».
 //
@@ -267,4 +274,74 @@ for (const content of ["cards", "chips"]) {
       }}
     />
   ),
+};
+
+// ————————————————————————————————————————————————————————————————————————————————
+// ДЕЙСТВИЯ КОЛОДЫ НА БОРДЕ: перемешивание и автораздача. Механика живёт в BoardScene
+// (мобильные фикс-дропзоны при драге, ПКМ-меню, «шурух» и «вшик-вшик»), витрина — здесь,
+// рядом с остальными механиками стопки.
+
+interface DeckArgs {
+  seats: number;
+  deck: 36 | 52;
+}
+
+function DeckActionsStage(a: DeckArgs) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const build = (s: SandboxSettings) => roundTableBoard({ ...s, dealt: 0 });
+    const settings: SandboxSettings = { ...DEFAULT_SANDBOX_SETTINGS, seats: a.seats, deck: a.deck };
+    const scene = new BoardScene({
+      spec: build(settings),
+      seats: a.seats,
+      onCommand: (cmd) => deckAction(cmd),
+      configurable: { settings, build },
+    });
+    const g = globalThis as unknown as { __board?: BoardScene };
+    g.__board = scene;
+    void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
+    return () => {
+      if (g.__board === scene) delete g.__board;
+      scene.destroy();
+    };
+  }, [a.seats, a.deck]);
+  return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
+}
+
+/**
+ * ДЕЙСТВИЯ КОЛОДЫ: возьмите колоду в драг — снизу прилипнут фикс-зоны «настройка» и «перемешать»
+ * (они НЕ зумятся и живут только пока элемент в пальцах); отпустите колоду над зоной. На десктопе
+ * то же самое — ПКМ по колоде. «Перемешать» — «шурух»: верх стопки разлетается детерминированным
+ * веером и слетается уже в новом порядке. «Раздать по 2» (в меню колоды) — всем занятым местам по
+ * паре почти синхронно («вшик-вшик»), следующему игроку с паузой; пустые стулья пропускаются.
+ * У одиночной карты меню тоже есть (ПКМ / фикс-зона при драге): поворот 90° и флип рубашки.
+ */
+export const DeckActions: StoryObj<DeckArgs> = {
+  name: "Deck actions",
+  args: { seats: 4, deck: 36 },
+  argTypes: {
+    seats: {
+      name: "seats",
+      description: "сколько мест за столом — автораздача идёт по занятым, пустые пропускаются",
+      control: { type: "range", min: 1, max: 8, step: 1 },
+    },
+    deck: {
+      name: "deck",
+      description: "размер колоды (36/52) — то же переключается строкой «колода» в меню колоды",
+      control: { type: "inline-radio" },
+      options: [36, 52],
+    },
+  },
+  parameters: {
+    layout: "fullscreen",
+    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene";
+import { roundTableBoard } from "../../game/boards/library";
+
+const scene = new BoardScene({ spec: roundTableBoard({ seats: ${a.seats}, deck: ${a.deck}, dealt: 0 }), seats: ${a.seats} });
+void scene.mount(host, width, height);
+// драг колоды → фикс-дропзоны «настройка»/«перемешать»; ПКМ по колоде → то же меню`,
+  },
+  render: (a) => <DeckActionsStage {...a} />,
 };
