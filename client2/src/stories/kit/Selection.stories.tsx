@@ -3,6 +3,7 @@ import type { KitScene } from "../../game/engine/kitScene";
 import { CanvasStage } from "../harness/CanvasStage";
 import { stackState } from "../../game/kit/stacks";
 import { resolveLayout } from "../../game/kit/stackLayout";
+import { watchFigureGlow, type FigureGlowPart } from "../../game/kit/figureGlow";
 import type { Texture } from "pixi.js";
 import type { Glowable } from "../../game/engine/element";
 import type { GlowShape } from "../../game/ui/selection";
@@ -69,25 +70,28 @@ cursor.place(x, y);`,
           // ОДИН контур на фигуру: несёт нижний элемент. Силуэты частей — из ТОЙ ЖЕ раскладки,
           // что положила карты (root'ы на момент сборки ещё не синканы — брать их было враньём);
           // erase-пасс выводит настоящий ступенчатый контур союза, как маска теней.
-          type El = Glowable & { footprint: { hw: number; hh: number }; glowSilhouette?: { texture: Texture; bounds: { x: number; y: number; width: number; height: number } } | null };
-          const parts = r.ids.map((id) => ctx.element(id) as unknown as El | undefined);
-          const base = parts[0];
+          // ЖИВАЯ фигура: контур союза — слоем сцены (ни к какой части не привязан), уехавшая
+          // часть рвёт силуэт и светится лично, на себе (watchFigureGlow). Потащите карту!
+          type El = Glowable & { root: { x: number; y: number }; footprint: { hw: number; hh: number }; glowSilhouette?: { texture: Texture; bounds: { x: number; y: number; width: number; height: number } } | null };
+          const els = r.ids.map((id) => ctx.element(id) as unknown as El | undefined);
+          const base = els[0];
           if (base) {
             const cell = { w: base.footprint.hw * 2, h: base.footprint.hh * 2 };
             const layout = resolveLayout("form" in f.opts ? f.opts.form : "tight");
             const o0 = layout(0, r.ids.length, cell);
-            const figure: GlowShape[] = r.ids.map((_, k) => {
+            const parts: FigureGlowPart[] = [];
+            r.ids.forEach((_, k) => {
+              const el = els[k];
+              if (!el) return;
               const o = layout(k, r.ids.length, cell);
-              const dx = o.dx - o0.dx;
-              const dy = o.dy - o0.dy;
-              const sil = parts[k]?.glowSilhouette;
-              if (sil) {
-                // Собственный силуэт: конь светится конём, пешка — пешкой (форма тени = форма свечения).
-                return { kind: "silhouette", x: dx + sil.bounds.x, y: dy + sil.bounds.y, w: sil.bounds.width, h: sil.bounds.height, texture: sil.texture };
-              }
-              return { x: dx - cell.w / 2, y: dy - cell.h / 2, w: cell.w, h: cell.h, radius: (Math.min(cell.w, cell.h) / 2) * (f.round ?? 0.16) };
+              const home = { x: at.x + cell.w / 2 + (o.dx - o0.dx), y: at.y + cell.h / 2 + (o.dy - o0.dy) };
+              const sil = el.glowSilhouette;
+              const shape: GlowShape = sil
+                ? { kind: "silhouette", x: home.x + sil.bounds.x, y: home.y + sil.bounds.y, w: sil.bounds.width, h: sil.bounds.height, texture: sil.texture }
+                : { x: home.x - cell.w / 2, y: home.y - cell.h / 2, w: cell.w, h: cell.h, radius: (Math.min(cell.w, cell.h) / 2) * (f.round ?? 0.16) };
+              parts.push({ el, home, shape });
             });
-            base.setGlow(color, r.ids.length === 1 ? undefined : figure);
+            watchFigureGlow(ctx, parts, color);
           }
           ctx.label(f.caption, at.x + r.width / 2, r.bottom + 16, 12, 0x9aa89f, Math.max(r.width * 1.6, 140));
           rowBottom = Math.max(rowBottom, r.bottom);
