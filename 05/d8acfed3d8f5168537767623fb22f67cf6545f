@@ -1,0 +1,28 @@
+client2/src/game/engine/kitScene.ts
+  s_73847489de6701::t_3f26a1c8be7e9a 504-506,524,526-545
+client2/src/game/engine/inputRouter.ts
+  s_73847489de6701::t_c7680595ce54e9 164
+  s_73847489de6701::t_4bc18007e3f32d 114
+  s_73847489de6701::t_5e4397f5b4200a 73-74
+  s_73847489de6701::t_f95eed627bddb4 272,274-276
+client2/src/game/engine/sceneEngine.ts
+  s_73847489de6701::t_0b4234433cc256 300-305
+  s_73847489de6701::t_a40b422135a0bb 924,927,929-934
+  s_73847489de6701::t_871934201c35ba 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "05d8acfed3d8f5168537767623fb22f67cf6545f",
+  "prompts": {},
+  "sessions": {
+    "s_73847489de6701": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c73eb97d-4df4-4085-ad0c-cc0e1b0de62e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
