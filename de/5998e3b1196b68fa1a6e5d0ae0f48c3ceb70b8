@@ -1,0 +1,24 @@
+client2/src/game/sandbox/liveSeats.ts
+  s_3dafb7cb3bdfba::t_694257290772aa 1-20
+client2/src/game/sandbox/liveSeats.test.ts
+  s_3dafb7cb3bdfba::t_46be0e521d246a 1-26
+client2/src/game/sandbox/live.ts
+  s_3dafb7cb3bdfba::t_3802e100925e45 14
+  s_3dafb7cb3bdfba::t_4ea56eeb359ca5 81-84,89-94,96,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "de5998e3b1196b68fa1a6e5d0ae0f48c3ceb70b8",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
