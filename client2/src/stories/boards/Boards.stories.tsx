@@ -6,6 +6,10 @@ import { createBoardTable } from "../../game/boards/boardTable";
 import type { BoardDriver } from "../../game/boards/driver";
 import { BOARD_LIBRARY, roundTableBoard, type BoardLibraryId } from "../../game/boards/library";
 import type { RoundTableOpts } from "../../game/boards/library/roundTable";
+import { sandboxBoard } from "../../game/boards/library/sandbox";
+import { createPresenceHub } from "../../game/boards/presence";
+import { DEFAULT_SANDBOX_SETTINGS } from "../../game/boards/settings";
+import { USER_COLORS } from "../../game/boards/room";
 import type { BoardCommand } from "../../game/boards/spec";
 
 interface Args {
@@ -257,6 +261,129 @@ function LiveCell({ board, driver, seat }: { board: BoardLibraryId; driver: Boar
     </div>
   );
 }
+
+interface SandboxLiveArgs {
+  seats: number;
+  latency: number;
+  ghost: boolean;
+}
+
+/** Split-screen live-песочницы: ОДИН мастер (boardTable) + ОДИН хаб присутствия (presence) на все
+ *  ячейки. У каждого игрока свой цвет; лок «кто первый схватил»; призрак смотрит и водит курсором. */
+function SandboxLiveStage({ seats, latency, ghost }: SandboxLiveArgs) {
+  const world = useMemo(() => {
+    const spec = sandboxBoard({ ...DEFAULT_SANDBOX_SETTINGS, seats });
+    const table = createBoardTable({ spec, seats, latencyMs: latency, onCommand: (from, cmd) => onCommand({ from, ...cmd }) });
+    const hub = createPresenceHub();
+    const palette = (who: string): number => (who.startsWith("p") ? USER_COLORS[(Number(who.slice(1)) - 1) % USER_COLORS.length]! : 0x9aa89f);
+    return { spec, table, hub, palette };
+  }, [seats, latency]);
+  useEffect(() => () => world.table.destroy(), [world]);
+  const cells = [
+    ...world.table.drivers.map((d) => ({ key: d.seat, who: d.seat, seat: d.seat, driver: d, ghost: false })),
+    ...(ghost ? [{ key: "ghost", who: "призрак", seat: "p1", driver: world.table.drivers[0]!, ghost: true }] : []),
+  ];
+  const cols = cells.length <= 2 ? cells.length : Math.ceil(cells.length / 2);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8, width: "100%", height: "100vh", boxSizing: "border-box", padding: 8, background: "#222b26" }}>
+      {cells.map((c) => (
+        <SandboxLiveCell key={`${seats}-${latency}-${c.key}`} world={world} who={c.who} seat={c.seat} driver={c.driver} ghost={c.ghost} />
+      ))}
+    </div>
+  );
+}
+
+function SandboxLiveCell({ world, who, seat, driver, ghost }: {
+  world: { spec: ReturnType<typeof sandboxBoard>; hub: ReturnType<typeof createPresenceHub>; palette: (who: string) => number };
+  who: string;
+  seat: string;
+  driver: BoardDriver;
+  ghost: boolean;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<BoardScene | null>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const scene = new BoardScene({
+      spec: world.spec,
+      driver,
+      selfSeat: seat,
+      interactive: !ghost,
+      presence: { hub: world.hub, who, palette: world.palette },
+    });
+    sceneRef.current = scene;
+    const g = globalThis as unknown as { __live?: Record<string, BoardScene> };
+    (g.__live ??= {})[who] = scene;
+    void scene.mount(host, host.clientWidth || 480, host.clientHeight || 360);
+    return () => {
+      delete g.__live?.[who];
+      sceneRef.current = null;
+      scene.destroy();
+    };
+    // Ячейка живёт под key от родителя — входы стабильны на время её жизни.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ font: "12px monospace", color: `#${world.palette(who).toString(16).padStart(6, "0")}`, padding: "2px 6px" }}>
+        {who}{ghost ? " (наблюдатель)" : ""}
+      </div>
+      <div
+        ref={hostRef}
+        style={{ flex: 1, minHeight: 220, background: "#2f3d34", touchAction: "none", overflow: "hidden" }}
+        onPointerMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          sceneRef.current?.reportCursor(e.clientX - r.left, e.clientY - r.top);
+        }}
+        onPointerLeave={() => sceneRef.current?.reportCursor(0, 0, false)}
+      />
+    </div>
+  );
+}
+
+/**
+ * LIVE-ПЕСОЧНИЦА без сервера — экран на секции (по клиенту на игрока + призрак-наблюдатель):
+ * один мастер состояния и один хаб присутствия. У каждого свой ЦВЕТ; кто первым схватил элемент —
+ * тот им и управляет (у остальных цветная рамка держателя, взять нельзя — админов в песочнице нет);
+ * призрак за столом места не занимает и ходит только курсором (его видно всем серым). Подключение
+ * реального сервера — замена boardTable+presence, сцены не меняются.
+ */
+export const SandboxLive: StoryObj<SandboxLiveArgs> = {
+  name: "Sandbox live",
+  args: { seats: 3, latency: 0, ghost: true },
+  argTypes: {
+    seats: {
+      name: "seats",
+      description: "сколько игроков-клиентов открыть (по ячейке на каждого)",
+      control: { type: "range", min: 2, max: 6, step: 1 },
+    },
+    latency: {
+      name: "latency",
+      description: "задержка каждого плеча доставки, мс — лок и ходы приходят с опозданием, как по сети",
+      control: { type: "range", min: 0, max: 600, step: 50 },
+    },
+    ghost: {
+      name: "ghost",
+      description: "добавить призрака-наблюдателя: смотрит, водит курсором, но трогать стол не может",
+      control: { type: "boolean" },
+    },
+  },
+  parameters: {
+    code: () => `import { createBoardTable } from "../../game/boards/boardTable";
+import { createPresenceHub } from "../../game/boards/presence";
+import { BoardScene } from "../../game/boards/scene";
+
+// Один мастер + один хаб присутствия; по сцене на клиента.
+const table = createBoardTable({ spec: sandboxBoard(), seats });
+const hub = createPresenceHub();
+for (const driver of table.drivers) {
+  const scene = new BoardScene({ spec, driver, selfSeat: driver.seat,
+    presence: { hub, who: driver.seat, palette } });
+}`,
+  },
+  render: (a) => <SandboxLiveStage {...a} />,
+};
 
 /**
  * ЖИВАЯ БОРДА — та же библиотека, но N клиентов над ОДНИМ мастером (boardTable.ts): ход в любой

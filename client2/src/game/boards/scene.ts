@@ -1,4 +1,4 @@
-import { Application, Graphics, Text } from "pixi.js";
+import { Application, Container, Graphics, Text } from "pixi.js";
 import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
 import { TEX_H, PIXEL_FONT, COLORS } from "../engine/constants";
 import { Card } from "../ui/Card";
@@ -23,6 +23,7 @@ import { DropBar } from "../ui/DropBar";
 import { applySetting, migrateState, settingRows, type MenuTargetKind, type SandboxSettings } from "./settings";
 import { autoDealPlan } from "./dealPlan";
 import { SHUFFLE_FX_SECONDS, shufflePoses } from "./shuffleFx";
+import type { PresenceHub, PresenceView } from "./presence";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -52,6 +53,9 @@ export interface BoardSceneOptions {
    *  спеки из них. Сцена сама циклит значения и мигрирует состояние (migrateState). Только
    *  standalone (свой localDriver); с внешним драйвером меню не включается. */
   configurable?: { settings: SandboxSettings; build: (s: SandboxSettings) => BoardSpec };
+  /** Live-присутствие (песочница, админов нет): лок «кто первый схватил», чужие курсоры и цвета.
+   *  Хаб общий на всех клиентов стола (presence.ts); своего цвета сцена не рисует — палец и так свой. */
+  presence?: { hub: PresenceHub; who: string; palette: (who: string) => number };
 }
 
 type BoardNode = Card | Piece;
@@ -95,6 +99,13 @@ export class BoardScene extends SceneEngine {
   // Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга.
   private readonly dropBar = new DropBar();
 
+  // Live-присутствие: слой чужих локов (цветная рамка на удержанном элементе) и курсоров.
+  private readonly presenceRoot = new Container();
+  private readonly presenceLayer = new Graphics();
+  private readonly cursorLabels = new Map<string, Text>();
+  private presenceView: PresenceView | null = null;
+  private grabbedEl: string | null = null;
+
   private hotSlot: string | null = null;
   private dragging = false;
 
@@ -119,6 +130,60 @@ export class BoardScene extends SceneEngine {
       this.rebuildBoard(false);
     });
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat);
+    opts.presence?.hub.onChange((v) => {
+      this.presenceView = v;
+      this.paintPresence();
+      this.wake();
+    });
+  }
+
+  // ——— live-присутствие: лок «кто первый», чужие курсоры ———
+
+  /** Курсор этого клиента для остальных (экранные координаты хоста; null — палец ушёл с борды). */
+  reportCursor(sx: number, sy: number, active = true): void {
+    const p = this.opts.presence;
+    if (!p) return;
+    p.hub.cursor(p.who, active ? this.screenToContent(sx, sy) : null);
+  }
+
+  private paintPresence(): void {
+    const g = this.presenceLayer;
+    g.clear();
+    const v = this.presenceView;
+    const p = this.opts.presence;
+    const seen = new Set<string>();
+    if (v && p) {
+      // Чужие локи: цветная рамка держателя вокруг элемента (свои не подсвечиваем — он в пальцах).
+      for (const [el, who] of Object.entries(v.held)) {
+        if (who === p.who) continue;
+        const node = this.nodes.get(el);
+        if (!node) continue;
+        const w = CARD.w * node.body.scaleVal + 10;
+        const h = CARD.h * node.body.scaleVal + 10;
+        g.roundRect(node.body.px - w / 2, node.body.py - h / 2, w, h, 8).stroke({ width: 3, color: p.palette(who), alpha: 0.9 });
+      }
+      // Чужие курсоры: цветная точка с именем (призрак ходит только курсором — это весь его след).
+      for (const [who, at] of Object.entries(v.cursors)) {
+        if (who === p.who) continue;
+        seen.add(who);
+        const color = p.palette(who);
+        g.circle(at.x, at.y, 7).fill({ color, alpha: 0.9 });
+        g.circle(at.x, at.y, 11).stroke({ width: 2, color, alpha: 0.5 });
+        let label = this.cursorLabels.get(who);
+        if (!label) {
+          label = new Text({ text: who, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: color } });
+          label.anchor.set(0, 0);
+          this.presenceRoot.addChild(label);
+          this.cursorLabels.set(who, label);
+        }
+        label.position.set(at.x + 12, at.y + 10);
+      }
+    }
+    for (const [who, label] of this.cursorLabels) {
+      if (seen.has(who)) continue;
+      label.destroy();
+      this.cursorLabels.delete(who);
+    }
   }
 
   // ——— контекстное меню настроек (long-press по гриду/борде, ПКМ на десктопе) ———
@@ -315,6 +380,8 @@ export class BoardScene extends SceneEngine {
   protected buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
     this.scene.surface.addChild(this.decorLayer, this.hintLayer);
+    this.presenceRoot.addChild(this.presenceLayer);
+    this.content.addChild(this.presenceRoot); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
     this.chrome.addChildAt(this.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
     this.buildActionBar();
     this.rebuildBoard(true);
@@ -408,6 +475,7 @@ export class BoardScene extends SceneEngine {
     this.syncSeats();
     this.paintDecor();
     this.paintHints();
+    this.paintPresence();
     this.syncDice();
     this.clampView();
     this.applyView();
@@ -625,6 +693,12 @@ export class BoardScene extends SceneEngine {
    *  нет (приватность), правила «чей ход» ничего не запрещают (индикация, BOARDS-DESIGN §3). */
   protected canDrag(el: SceneElement): boolean {
     if (this.opts.interactive === false) return false;
+    // Live: элемент в чужих руках не берётся — кто первый схватил, тот и управляет.
+    const p = this.opts.presence;
+    if (p) {
+      const owner = p.hub.heldBy(el.id);
+      if (owner && owner !== p.who) return false;
+    }
     const slot = this.tree.slotOf(el.id);
     if (!slot) return false;
     const zone = zoneOf(slot);
@@ -644,6 +718,12 @@ export class BoardScene extends SceneEngine {
 
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     this.closeMenu(); // начался драг — меню больше не к месту
+    // Live-лок: гонка на первом касании решается хабом; отказ — элемент уже у другого.
+    const p = this.opts.presence;
+    if (p) {
+      if (!p.hub.grab(p.who, el.id)) return false;
+      this.grabbedEl = el.id;
+    }
     this.dragging = true;
     const slot = this.tree.slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
@@ -785,6 +865,10 @@ export class BoardScene extends SceneEngine {
     this.hotSlot = null;
     this.blockZone = null; // отмена/конец блок-драга: не тащим сдвиг в следующий жест
     this.dropBar.hide(); // фикс-зоны живут только пока элемент в пальцах
+    if (this.grabbedEl && this.opts.presence) {
+      this.opts.presence.hub.release(this.opts.presence.who, this.grabbedEl);
+      this.grabbedEl = null;
+    }
     this.paintHints();
   }
 
@@ -809,6 +893,8 @@ export class BoardScene extends SceneEngine {
   protected onTeardown(app: Application): void {
     this.closeMenu();
     this.dropBar.destroy();
+    for (const l of this.cursorLabels.values()) l.destroy();
+    this.cursorLabels.clear();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
     for (const l of this.seatLabels.values()) l.destroy();

@@ -68,7 +68,7 @@ export function guestName(id: string): { name: string; color: number } {
   return { name: `${c.word} ${a}`, color: c.color };
 }
 
-const USER_COLORS = [0xe0a24c, 0x6a9ae0, 0x7ec46a, 0xd06ae0, 0x55c8b0, 0xe07a55];
+export const USER_COLORS = [0xe0a24c, 0x6a9ae0, 0x7ec46a, 0xd06ae0, 0x55c8b0, 0xe07a55];
 
 function colorForUser(index: number): number {
   return USER_COLORS[index % USER_COLORS.length]!;
