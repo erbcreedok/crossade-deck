@@ -1,0 +1,24 @@
+client2/docs/STACK-INTERACTIONS-HANDOFF.md
+  s_4a533e9779ccb0::t_daf01f5a6dcb10 3-4
+  s_4a533e9779ccb0::t_9c7a02218468d6 13-29,36-38,40,42-52
+  s_4a533e9779ccb0::t_8244613bd88bfd 115-119
+  s_4a533e9779ccb0::t_205ac0d00c1533 140
+  s_4a533e9779ccb0::t_e3b3f28a8f724e 63-67
+  s_4a533e9779ccb0::t_c5f0ab76e0acc8 91,93-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "2dd979673db87303adcd7004f549ae41c5fcc693",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
