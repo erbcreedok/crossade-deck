@@ -1,0 +1,51 @@
+client2/src/game/slot/layouts.test.ts
+  s_3dafb7cb3bdfba::t_af6abb1c30f83e 49-87
+  s_3dafb7cb3bdfba::t_efc23772fc545b 2
+client2/src/game/slot/layouts.ts
+  s_3dafb7cb3bdfba::t_529493882cf86b 82-85
+  s_3dafb7cb3bdfba::t_b3ffdade3b4478 72-81,86-111
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_5b71412fbdf899 12
+  s_3dafb7cb3bdfba::t_3732ffdbc1e692 328-340
+client2/src/game/boards/library/roundTable.ts
+  s_3dafb7cb3bdfba::t_3ef037283c1a8c 1-72,76-86
+  s_3dafb7cb3bdfba::t_6cb34dd286123a 73-75
+client2/src/game/boards/library/index.ts
+  s_3dafb7cb3bdfba::t_b2e293d54ac6b5 13,15
+  s_3dafb7cb3bdfba::t_43631b32fed356 27
+client2/src/game/ui/dashedCircleArcs.ts
+  s_3dafb7cb3bdfba::t_70d8bbf4c4fb98 1-23
+client2/src/game/boards/boardTree.test.ts
+  s_3dafb7cb3bdfba::t_02f2cf1f5e34c9 170-208
+client2/src/game/ui/dashedCircleArcs.test.ts
+  s_3dafb7cb3bdfba::t_b659d737a45ed7 1-25
+client2/src/game/boards/boardTree.ts
+  s_3dafb7cb3bdfba::t_7131b54e3b5b40 260,262,264-283
+  s_3dafb7cb3bdfba::t_fad29e24ede77b 144
+  s_3dafb7cb3bdfba::t_104d3943b159fe 219-227,229
+  s_3dafb7cb3bdfba::t_09bbdfd0fb8852 1
+  s_3dafb7cb3bdfba::t_a603609caae9f2 130-143,145-147
+client2/src/stories/boards/Boards.stories.tsx
+  s_3dafb7cb3bdfba::t_59ce550695434c 7-8
+  s_3dafb7cb3bdfba::t_ac5a97decc3e6d 107-205
+client2/src/game/boards/spec.ts
+  s_3dafb7cb3bdfba::t_ac34a34c0f3d45 107-108
+  s_3dafb7cb3bdfba::t_c752954e8b8760 70-72
+  s_3dafb7cb3bdfba::t_89b7929944131c 199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "51fe2dd50b910e6f4a0c3e4760c576c8aa443208",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
