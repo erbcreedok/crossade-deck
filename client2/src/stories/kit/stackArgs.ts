@@ -2,13 +2,13 @@ import { fan, heap, linear, type StackLayout } from "../../game/kit/stackLayout"
 import type { StackContent } from "../../game/kit/stacks";
 import type { Pose } from "../../game/ui/Card";
 import {
-  cardDragFrom,
+  pieceDragFrom,
   PICK_ANY,
   PICK_FIRST,
   resolveInteraction,
   stackDragFrom,
   STACK_INTERACTION_IDS,
-  type CardDrag,
+  type PieceDrag,
   type DragTrigger,
   type PointerSpread,
   type SpreadClose,
@@ -17,9 +17,9 @@ import {
   type TouchSpread,
 } from "../../game/kit/stackInteraction";
 
-/** Именованные режимы выбора карты для ПАНЕЛИ (предикат в контроль не передать): any/first
+/** Именованные режимы выбора фигуры для ПАНЕЛИ (предикат в контроль не передать): any/first
  *  разворачиваются в PICK_ANY/PICK_FIRST в interactionFrom. Клиент в коде даёт свой предикат. */
-export type CardPickMode = "any" | "first";
+export type PiecePickMode = "any" | "first";
 
 // РЫЧАГИ СТОПКИ — ОДНО описание на все разделы, где стопка вообще встречается.
 //
@@ -47,7 +47,7 @@ export interface StackArgs {
   content: StackContent;
   /**
    * Механика взаимодействия — готовый пресет (kit/stackInteraction.ts STACK_INTERACTIONS). База
-   * для спреда и драга карт; рычаги ниже её ПЕРЕКРЫВАЮТ, а не задают с нуля — так «колода» на
+   * для спреда и драга фигур; рычаги ниже её ПЕРЕКРЫВАЮТ, а не задают с нуля — так «колода» на
    * панели остаётся колодой, даже когда крутят зазор спреда.
    */
   interaction: string;
@@ -62,13 +62,13 @@ export interface StackArgs {
   spreadClose: SpreadClose["kind"];
   spreadCenterX: boolean;
   spreadKeepDiagonal: boolean;
-  /** Драг карты включён? На панели — тумблер (в коде поле принимает и предикат «какие карты»). */
-  cardDrag: boolean;
-  /** Какую карту тащат: любую под пальцем или только верхнюю (панель разворачивает в предикат). */
-  cardPick: CardPickMode;
-  /** Каким жестом берут карту: тап-и-тащи или «подержи». */
-  cardDragTrigger: DragTrigger;
-  /** Драг ВСЕЙ стопки целиком (kit/stackInteraction.ts StackDrag) — тащим за любую её карту. */
+  /** Драг фигуры включён? На панели — тумблер (в коде поле принимает и предикат «какие фигуры»). */
+  pieceDrag: boolean;
+  /** Какую фигуру тащат: любую под пальцем или только верхнюю (панель разворачивает в предикат). */
+  piecePick: PiecePickMode;
+  /** Каким жестом берут фигуру: тап-и-тащи или «подержи». */
+  pieceDragTrigger: DragTrigger;
+  /** Драг ВСЕЙ стопки целиком (kit/stackInteraction.ts StackDrag) — тащим за любую её фигуру. */
   stackDrag: boolean;
   /** Каким жестом берут всю стопку: тап-и-тащи или «подержи». */
   stackDragTrigger: DragTrigger;
@@ -95,9 +95,9 @@ export const STACK_ARGS: StackArgs = {
   spreadClose: "snap",
   spreadCenterX: false,
   spreadKeepDiagonal: true,
-  cardDrag: true,
-  cardPick: "any",
-  cardDragTrigger: "tap",
+  pieceDrag: true,
+  piecePick: "any",
+  pieceDragTrigger: "tap",
   stackDrag: false,
   stackDragTrigger: "tap",
 };
@@ -127,7 +127,7 @@ export const STACK_ARG_TYPES = {
   },
   interaction: {
     name: "interaction",
-    description: "механика взаимодействия — готовый пресет (kit/stackInteraction.ts). База для спреда и драга карт; рычаги ниже её ПЕРЕКРЫВАЮТ, а не задают с нуля",
+    description: "механика взаимодействия — готовый пресет (kit/stackInteraction.ts). База для спреда и драга фигур; рычаги ниже её ПЕРЕКРЫВАЮТ, а не задают с нуля",
     control: { type: "select" as const },
     options: STACK_INTERACTION_IDS,
   },
@@ -175,28 +175,28 @@ export const STACK_ARG_TYPES = {
     control: { type: "boolean" as const },
     if: { arg: "spread", truthy: true },
   },
-  cardDrag: {
-    name: "cardDrag",
-    description: "драг отдельной карты включён. В коде поле принимает и предикат «какие карты хватаются» (только пики и т.п.); на панели — тумблер + режим ниже",
+  pieceDrag: {
+    name: "pieceDrag",
+    description: "драг отдельной фигуры включён. В коде поле принимает и предикат «какие фигуры хватаются» (только верхняя, по правилу…); на панели — тумблер + режим ниже",
     control: { type: "boolean" as const },
   },
-  cardPick: {
-    name: "cardDrag.pick",
-    description: "какую карту тащат: any — ту, на которую попал палец, first — только верхнюю",
+  piecePick: {
+    name: "pieceDrag.pick",
+    description: "какую фигуру тащат: any — ту, на которую попал палец, first — только верхнюю",
     control: { type: "select" as const },
     options: ["any", "first"],
-    if: { arg: "cardDrag", truthy: true },
+    if: { arg: "pieceDrag", truthy: true },
   },
-  cardDragTrigger: {
-    name: "cardDrag.trigger",
-    description: "каким жестом берут карту: tap — тап-и-тащи, hold — пока держат палец",
+  pieceDragTrigger: {
+    name: "pieceDrag.trigger",
+    description: "каким жестом берут фигуру: tap — тап-и-тащи, hold — пока держат палец",
     control: { type: "select" as const },
     options: ["tap", "hold"],
-    if: { arg: "cardDrag", truthy: true },
+    if: { arg: "pieceDrag", truthy: true },
   },
   stackDrag: {
     name: "stackDrag",
-    description: "тащить стопку целиком за любую её карту, поверх пресета — как block, но на любой раскладке",
+    description: "тащить стопку целиком за любую её фигуру, поверх пресета — как block, но на любой раскладке",
     control: { type: "boolean" as const },
   },
   stackDragTrigger: {
@@ -210,7 +210,7 @@ export const STACK_ARG_TYPES = {
 
 /**
  * Спреду и драгу нужен пресет-БАЗА (kit/stackInteraction.ts STACK_INTERACTIONS) — панель его не
- * задаёт с нуля, а перекрывает уровнем рычагов сверху. `spread`/`cardDrag`/`stackDrag` — тумблеры,
+ * задаёт с нуля, а перекрывает уровнем рычагов сверху. `spread`/`pieceDrag`/`stackDrag` — тумблеры,
  * каждый перекрывает соответствующую часть пресета; форма спреда (maxGap/close/…) и способ выбора
  * карты (pick) берутся с панели, spring — у пресета.
  */
@@ -221,7 +221,7 @@ const DEFAULT_CLOSE: Record<SpreadClose["kind"], SpreadClose> = {
   dribble: { kind: "dribble", buildSeconds: 1.4 },
 };
 
-export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; cardDrag: CardDrag | null; stackDrag: StackDrag | null } {
+export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; pieceDrag: PieceDrag | null; stackDrag: StackDrag | null } {
   const base = resolveInteraction(a.interaction);
   const spread: SpreadConfig | null = a.spread
     ? {
@@ -237,9 +237,9 @@ export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; ca
       }
     : null;
   // Режим панели (any/first) разворачиваем в готовый предикат; в коде клиент даёт свой напрямую.
-  const cardDrag: CardDrag | null = cardDragFrom(a.cardDrag && (a.cardPick === "first" ? PICK_FIRST : PICK_ANY), a.cardDragTrigger);
+  const pieceDrag: PieceDrag | null = pieceDragFrom(a.pieceDrag && (a.piecePick === "first" ? PICK_FIRST : PICK_ANY), a.pieceDragTrigger);
   const stackDrag: StackDrag | null = stackDragFrom(a.stackDrag, a.stackDragTrigger);
-  return { spread, cardDrag, stackDrag };
+  return { spread, pieceDrag, stackDrag };
 }
 
 /**

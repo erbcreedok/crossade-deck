@@ -80,9 +80,9 @@ ctx.flipStack(ids);`,
         liveIds = r.ids;
         // Спред/драг карт — рычаги панели (interaction + переопределения), не фикс-пресет: см.
         // interactionFrom в stackArgs.ts.
-        const { spread, cardDrag, stackDrag } = interactionFrom(a);
+        const { spread, pieceDrag, stackDrag } = interactionFrom(a);
         if (spread) ctx.spreadStack(r.ids, at, layoutFrom(a), { w: ctx.cardW, h: ctx.cardH }, spread);
-        ctx.dragConfig(r.ids, cardDrag, stackDrag);
+        ctx.dragConfig(r.ids, pieceDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -171,8 +171,8 @@ export const Deck: Story = {
     spread: true,
     spreadMaxGap: 34,
     spreadClose: "snap",
-    cardPick: "first",
-    cardDragTrigger: "tap",
+    piecePick: "first",
+    pieceDragTrigger: "tap",
   },
   // Спред вживую: жест по колоде (два пальца на телефоне / Ctrl-колесо-тачпад на ПК — см.
   // spread.*Trigger) раздвигает её, отпущенная цель липнет к ближайшему стопу. Рычаги ниже —
@@ -188,9 +188,9 @@ export const Deck: Story = {
         const cell = { w: ctx.cardW, h: ctx.cardH };
         const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
-        const { spread, cardDrag, stackDrag } = interactionFrom(a);
+        const { spread, pieceDrag, stackDrag } = interactionFrom(a);
         if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
-        ctx.dragConfig(r.ids, cardDrag, stackDrag);
+        ctx.dragConfig(r.ids, pieceDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -220,8 +220,8 @@ export const Discard: Story = {
     spread: true,
     spreadMaxGap: 46,
     spreadClose: "timer",
-    cardPick: "any",
-    cardDragTrigger: "tap",
+    piecePick: "any",
+    pieceDragTrigger: "tap",
   },
   // Тот же спред, крупнее и с close:"timer" (простой → схлоп) — пресет "discard", рычаги ниже
   // его переопределяют (interactionFrom).
@@ -236,9 +236,9 @@ export const Discard: Story = {
         const cell = { w: ctx.cardW, h: ctx.cardH };
         const r = stackState(ctx, at, stackOptsFrom(a));
         liveIds = r.ids;
-        const { spread, cardDrag, stackDrag } = interactionFrom(a);
+        const { spread, pieceDrag, stackDrag } = interactionFrom(a);
         if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
-        ctx.dragConfig(r.ids, cardDrag, stackDrag);
+        ctx.dragConfig(r.ids, pieceDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />

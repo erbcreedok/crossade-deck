@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { InputRouter, type InputHandlers } from "./inputRouter";
 
-// Токены: карта — { id, drag }, кнопка — { id }. Хит-тесты настраиваются по позиции.
+// Токены: фигура — { id, drag }, кнопка — { id }. Хит-тесты настраиваются по позиции.
 type C = { id: string; drag: boolean };
 type B = { id: string };
 
@@ -12,18 +12,18 @@ function setup(
   const rec = (name: string) => (...a: unknown[]) => calls.push(`${name}(${a.map(String).join(",")})`);
   const h: InputHandlers<C, B> = {
     screenToContent: (x, y) => ({ x, y }), // 1:1 для простоты
-    pickCard: (x, y) => opts.cardAt?.(x, y) ?? null,
-    cardDraggable: (c) => c.drag,
+    pickPiece: (x, y) => opts.cardAt?.(x, y) ?? null,
+    pieceDraggable: (c) => c.drag,
     dragOnTap: opts.dragOnTap,
     dragOnHold: opts.dragOnHold,
     pickButton: (x, y) => opts.btnAt?.(x, y) ?? null,
     buttonContains: (b, x) => x < 50, // «внутри» кнопки если x<50
-    onCardGrab: (c, _cp, _sp, mode) => calls.push(`grab(${c.id},${mode})`),
-    onCardMove: (c) => calls.push(`move(${c.id})`),
-    onCardDrop: (c) => calls.push(`drop(${c.id})`),
-    onCardCancel: (c) => calls.push(`cancel(${c.id})`),
-    onCardBlocked: (c) => calls.push(`blocked(${c.id})`),
-    onCardTap: (c) => calls.push(`tap(${c.id})`),
+    onPieceGrab: (c, _cp, _sp, mode) => calls.push(`grab(${c.id},${mode})`),
+    onPieceMove: (c) => calls.push(`move(${c.id})`),
+    onPieceDrop: (c) => calls.push(`drop(${c.id})`),
+    onPieceCancel: (c) => calls.push(`cancel(${c.id})`),
+    onPieceBlocked: (c) => calls.push(`blocked(${c.id})`),
+    onPieceTap: (c) => calls.push(`tap(${c.id})`),
     onButtonDown: (b) => calls.push(`bdown(${b.id})`),
     onButtonMove: (b, inside) => calls.push(`bmove(${b.id},${inside})`),
     onButtonUp: (b, inside) => calls.push(`bup(${b.id},${inside})`),
@@ -49,7 +49,7 @@ describe("InputRouter", () => {
     expect(calls).toEqual(["panStart()", "pan(30,20)", "panEnd()"]);
   });
 
-  it("карта → grab/move/drop", () => {
+  it("фигура → grab/move/drop", () => {
     const card = { id: "A", drag: true };
     const { r, calls } = setup({ cardAt: () => card });
     r.down(1, 10, 10);
@@ -60,9 +60,9 @@ describe("InputRouter", () => {
     expect(r.gesture).toBe("none");
   });
 
-  // «Стоп»-отказ — ответ на ПОПЫТКУ ТАЩИТЬ, а не на прикосновение. Тык по недрагабельной карте не
+  // «Стоп»-отказ — ответ на ПОПЫТКУ ТАЩИТЬ, а не на прикосновение. Тык по недрагабельной фигуре не
   // ошибка игрока, и качать её в ответ значит ругать за то, чего он не делал.
-  it("недраг-карта: тык НЕ отбивается, а приходит ТАПОМ", () => {
+  it("недраг-фигура: тык НЕ отбивается, а приходит ТАПОМ", () => {
     // Два разных события на одном проводе стоили песочнице выбора набора: стоило отложить отказ
     // до сдвига пальца — и тап по невыделенной фигуре перестал доходить вовсе.
     const card = { id: "X", drag: false };
@@ -82,7 +82,7 @@ describe("InputRouter", () => {
     expect(calls).toEqual(["blocked(X)"]);
   });
 
-  it("недраг-карта: отказ приходит, когда палец ПОЕХАЛ", () => {
+  it("недраг-фигура: отказ приходит, когда палец ПОЕХАЛ", () => {
     const card = { id: "X", drag: false };
     const { r, calls } = setup({ cardAt: () => card });
     r.down(1, 10, 10);
@@ -145,7 +145,7 @@ describe("InputRouter", () => {
 describe("drag by hold (только hold-интент)", () => {
   const holdOnly = (card: C) => ({ cardAt: () => card, dragOnTap: () => false, dragOnHold: () => true });
 
-  it("держим карту дольше HOLD_SEC → захват (grab hold), а не сразу на down", () => {
+  it("держим фигуру дольше HOLD_SEC → захват (grab hold), а не сразу на down", () => {
     const card = { id: "A", drag: true };
     const { r, calls } = setup(holdOnly(card));
     r.down(1, 10, 10);
@@ -170,7 +170,7 @@ describe("drag by hold (только hold-интент)", () => {
     expect(calls).toContain("panStart()");
   });
 
-  it("быстрый тап (отпустили до HOLD_SEC) → onCardTap, без grab", () => {
+  it("быстрый тап (отпустили до HOLD_SEC) → onPieceTap, без grab", () => {
     const card = { id: "A", drag: true };
     const { r, calls } = setup(holdOnly(card));
     r.down(1, 10, 10);
@@ -180,7 +180,7 @@ describe("drag by hold (только hold-интент)", () => {
     expect(r.gesture).toBe("none");
   });
 
-  it("регрессия: обычная драгабельная карта (интенты не заданы) хватается сразу тапом, как раньше", () => {
+  it("регрессия: обычная драгабельная фигура (интенты не заданы) хватается сразу тапом, как раньше", () => {
     const card = { id: "A", drag: true };
     const { r, calls } = setup({ cardAt: () => card }); // dragOnTap/dragOnHold не заданы → default tap
     r.down(1, 10, 10);
@@ -191,7 +191,7 @@ describe("drag by hold (только hold-интент)", () => {
 });
 
 // Два интента на одном элементе: жест выбирает, какой сработает. Домен (KitScene) вешает на них
-// разные вещи (тап → карта, hold → стек, или наоборот) — здесь проверяем сам РАЗВОД по жесту.
+// разные вещи (тап → фигура, hold → стек, или наоборот) — здесь проверяем сам РАЗВОД по жесту.
 describe("два драг-интента (tap и hold) на одном элементе", () => {
   const both = (card: C) => ({ cardAt: () => card, dragOnTap: () => true, dragOnHold: () => true });
 
@@ -217,7 +217,7 @@ describe("два драг-интента (tap и hold) на одном элем�
     expect(r.gesture).toBe("drag");
   });
 
-  it("быстрый тап без сдвига → onCardTap (ни тот, ни другой драг)", () => {
+  it("быстрый тап без сдвига → onPieceTap (ни тот, ни другой драг)", () => {
     const card = { id: "A", drag: true };
     const { r, calls } = setup(both(card));
     r.down(1, 10, 10);

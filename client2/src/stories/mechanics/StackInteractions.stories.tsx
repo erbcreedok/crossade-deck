@@ -28,9 +28,9 @@ interface MechArgs {
   spreadClose: StackArgs["spreadClose"];
   spreadCenterX: StackArgs["spreadCenterX"];
   spreadKeepDiagonal: StackArgs["spreadKeepDiagonal"];
-  cardDrag: StackArgs["cardDrag"];
-  cardPick: StackArgs["cardPick"];
-  cardDragTrigger: StackArgs["cardDragTrigger"];
+  pieceDrag: StackArgs["pieceDrag"];
+  piecePick: StackArgs["piecePick"];
+  pieceDragTrigger: StackArgs["pieceDragTrigger"];
   stackDrag: StackArgs["stackDrag"];
   stackDragTrigger: StackArgs["stackDragTrigger"];
 }
@@ -57,9 +57,9 @@ function toStackArgs(a: MechArgs): StackArgs {
     spreadClose: a.spreadClose,
     spreadCenterX: a.spreadCenterX,
     spreadKeepDiagonal: a.spreadKeepDiagonal,
-    cardDrag: a.cardDrag,
-    cardPick: a.cardPick,
-    cardDragTrigger: a.cardDragTrigger,
+    pieceDrag: a.pieceDrag,
+    piecePick: a.piecePick,
+    pieceDragTrigger: a.pieceDragTrigger,
     stackDrag: a.stackDrag,
     stackDragTrigger: a.stackDragTrigger,
   };
@@ -75,9 +75,9 @@ const MECH_ARGS: MechArgs = {
   spreadClose: STACK_ARGS.spreadClose,
   spreadCenterX: STACK_ARGS.spreadCenterX,
   spreadKeepDiagonal: STACK_ARGS.spreadKeepDiagonal,
-  cardDrag: STACK_ARGS.cardDrag,
-  cardPick: "first",
-  cardDragTrigger: STACK_ARGS.cardDragTrigger,
+  pieceDrag: STACK_ARGS.pieceDrag,
+  piecePick: "first",
+  pieceDragTrigger: STACK_ARGS.pieceDragTrigger,
   stackDrag: STACK_ARGS.stackDrag,
   stackDragTrigger: STACK_ARGS.stackDragTrigger,
 };
@@ -100,9 +100,9 @@ const MECH_ARG_TYPES = {
   spreadClose: STACK_ARG_TYPES.spreadClose,
   spreadCenterX: STACK_ARG_TYPES.spreadCenterX,
   spreadKeepDiagonal: STACK_ARG_TYPES.spreadKeepDiagonal,
-  cardDrag: STACK_ARG_TYPES.cardDrag,
-  cardPick: STACK_ARG_TYPES.cardPick,
-  cardDragTrigger: STACK_ARG_TYPES.cardDragTrigger,
+  pieceDrag: STACK_ARG_TYPES.pieceDrag,
+  piecePick: STACK_ARG_TYPES.piecePick,
+  pieceDragTrigger: STACK_ARG_TYPES.pieceDragTrigger,
   stackDrag: STACK_ARG_TYPES.stackDrag,
   stackDragTrigger: STACK_ARG_TYPES.stackDragTrigger,
 };
@@ -115,9 +115,9 @@ import { interactionFrom } from "../kit/stackArgs";
 
 // Одна стопка, механика — готовый пресет (kit/stackInteraction.ts), рычаги ниже его перекрывают.
 const { ids } = stackState(ctx, { x, y }, ${JSON.stringify(a, null, 2)});
-const { spread, cardDrag, stackDrag } = interactionFrom(args);
+const { spread, pieceDrag, stackDrag } = interactionFrom(args);
 if (spread) ctx.spreadStack(ids, at, layout, cell, spread);
-ctx.dragConfig(ids, cardDrag, stackDrag);`,
+ctx.dragConfig(ids, pieceDrag, stackDrag);`,
   },
   argTypes: MECH_ARG_TYPES,
   args: { ...MECH_ARGS },
@@ -129,9 +129,9 @@ ctx.dragConfig(ids, cardDrag, stackDrag);`,
         const at = { x: ctx.padding, y: ctx.padding };
         const full = toStackArgs(a);
         const r = stackState(ctx, at, stackOptsFrom(full));
-        const { spread, cardDrag, stackDrag } = interactionFrom(full);
+        const { spread, pieceDrag, stackDrag } = interactionFrom(full);
         if (spread) ctx.spreadStack(r.ids, at, layoutFrom(full), { w: ctx.cardW, h: ctx.cardH }, spread);
-        ctx.dragConfig(r.ids, cardDrag, stackDrag);
+        ctx.dragConfig(r.ids, pieceDrag, stackDrag);
         ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
       }}
     />
@@ -164,7 +164,7 @@ const deck = STACK_INTERACTIONS.deck.make();
 for (const content of ["cards", "chips"]) {
   const { ids } = stackState(ctx, at(content), { content, count: 6 });
   ctx.spreadStack(ids, at(content), layout, cell, deck.spread);
-  ctx.dragConfig(ids, deck.cardDrag, deck.stackDrag);
+  ctx.dragConfig(ids, deck.pieceDrag, deck.stackDrag);
 }`,
   },
   render: () => (
@@ -188,7 +188,7 @@ for (const content of ["cards", "chips"]) {
           const at = { x, y: ctx.padding };
           const r = stackState(ctx, at, { form: layout, content: e.content, count: COUNT }, `ent-${e.content}`);
           if (inter.spread) ctx.spreadStack(r.ids, at, layout, cell, inter.spread);
-          ctx.dragConfig(r.ids, inter.cardDrag, inter.stackDrag);
+          ctx.dragConfig(r.ids, inter.pieceDrag, inter.stackDrag);
           const cap = ctx.label(e.caption, x + r.width / 2, r.bottom + 10, 12, 0x9aa89f, r.width);
           bottom = Math.max(bottom, r.bottom + 10 + cap.height);
           x += r.width + gap;

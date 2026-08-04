@@ -147,35 +147,36 @@ export function spreadTick(st: SpreadState, dt: number, cfg: SpreadConfig): Spre
 }
 
 // ———————————————————————————————————————————————————————————————————————————————————————————
-// ДРАГ: какую карту тащим и каким жестом; и тащится ли ВЕСЬ стек как один.
+// ДРАГ: какую ФИГУРУ стека тащим и каким жестом; и тащится ли ВЕСЬ стек как один. «Фигура» — любой
+// элемент стека: карта, фишка, тайл (стек generic, не только карточный).
 // ———————————————————————————————————————————————————————————————————————————————————————————
 
-/** Контекст выбора карты под драг: её id и позиция в стопке (0 — низ, n-1 — верх). */
+/** Контекст выбора фигуры под драг: её id и позиция в стопке (0 — низ, n-1 — верх). */
 export interface PickCtx {
   id: string;
   i: number;
   n: number;
 }
-/** Какие карты стопки хватаются под драг. ПРЕДИКАТ (true — эту тащим): клиент пишет свой (только
- *  пики, только цифры, кроме джокеров…). Готовые — ниже. Не строка-перечисление: это capability,
- *  а не закрытый список типов. */
-export type CardPick = (c: PickCtx) => boolean;
-/** Любая карта под пальцем (базовое поведение). */
-export const PICK_ANY: CardPick = () => true;
-/** Только верхняя карта (последняя в порядке). */
-export const PICK_FIRST: CardPick = ({ i, n }) => i === n - 1;
+/** Какие фигуры стопки хватаются под драг. ПРЕДИКАТ (true — эту тащим): клиент пишет свой (только
+ *  верхняя, по чётности позиции, свои правила…). Готовые — ниже. Не строка-перечисление: это
+ *  capability, а не закрытый список типов. */
+export type PiecePick = (c: PickCtx) => boolean;
+/** Любая фигура под пальцем (базовое поведение). */
+export const PICK_ANY: PiecePick = () => true;
+/** Только верхняя фигура (последняя в порядке). */
+export const PICK_FIRST: PiecePick = ({ i, n }) => i === n - 1;
 
-export interface CardDrag {
-  pick: CardPick; // какие карты хватаются
+export interface PieceDrag {
+  pick: PiecePick; // какие фигуры хватаются
   trigger: DragTrigger; // тап-и-тащи или пока зажат
 }
 export interface StackDrag {
   trigger: DragTrigger;
 }
 
-/** Нормализовать авторскую запись драга карт `boolean | предикат` в конфиг (или null — выключен).
- *  `true` → любая карта; `false` → нет драга; предикат → он сам. Так пресеты/клиенты пишут коротко. */
-export function cardDragFrom(pick: boolean | CardPick, trigger: DragTrigger): CardDrag | null {
+/** Нормализовать авторскую запись драга фигур `boolean | предикат` в конфиг (или null — выключен).
+ *  `true` → любая фигура; `false` → нет драга; предикат → он сам. Так пресеты/клиенты пишут коротко. */
+export function pieceDragFrom(pick: boolean | PiecePick, trigger: DragTrigger): PieceDrag | null {
   if (pick === false) return null;
   return { pick: pick === true ? PICK_ANY : pick, trigger };
 }
@@ -191,7 +192,7 @@ export function stackDragFrom(on: boolean, trigger: DragTrigger): StackDrag | nu
 
 export interface StackInteraction {
   spread: SpreadConfig | null;
-  cardDrag: CardDrag | null;
+  pieceDrag: PieceDrag | null;
   stackDrag: StackDrag | null;
 }
 
@@ -200,27 +201,27 @@ export interface StackInteraction {
 // База спреда: на обоих устройствах спред двигает ЗУМ-жест (тач-пинч / десктоп Ctrl-колесо/тачпад).
 const SPREAD_BASE: SpreadConfig = { pointerTrigger: "zoom", touchTrigger: "zoom", maxGap: 34, keepDiagonal: true, centerX: false, close: { kind: "snap", stops: [0, 0.4, 1] }, spring: 12 };
 
-/** Готовые механики по типу стека. Дефолт драга — «тап, любая карта» (как в стенде и сейчас). */
+/** Готовые механики по типу стека. Дефолт драга — «тап, любая фигура» (как в стенде и сейчас). */
 export const STACK_INTERACTIONS: Readonly<Record<string, { label: string; make: () => StackInteraction }>> = {
   deck: {
     label: "колода — спред зум-жестом (снэп), тащим верхнюю",
-    make: () => ({ spread: { ...SPREAD_BASE }, cardDrag: { pick: PICK_FIRST, trigger: "tap" }, stackDrag: null }),
+    make: () => ({ spread: { ...SPREAD_BASE }, pieceDrag: { pick: PICK_FIRST, trigger: "tap" }, stackDrag: null }),
   },
   discard: {
     label: "сброс — спред крупнее, тащим ту, на которую попал палец",
-    make: () => ({ spread: { ...SPREAD_BASE, maxGap: 46, close: { kind: "timer", seconds: 4 } }, cardDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
+    make: () => ({ spread: { ...SPREAD_BASE, maxGap: 46, close: { kind: "timer", seconds: 4 } }, pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
   },
   hand: {
     label: "рука — раскрыта, тащим любую, спред-дриббл в простое",
-    make: () => ({ spread: { ...SPREAD_BASE, maxGap: 40, close: { kind: "dribble", buildSeconds: 1.4 } }, cardDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
+    make: () => ({ spread: { ...SPREAD_BASE, maxGap: 40, close: { kind: "dribble", buildSeconds: 1.4 } }, pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
   },
   block: {
     label: "блок — тащим весь стек целиком, без спреда",
-    make: () => ({ spread: null, cardDrag: null, stackDrag: { trigger: "tap" } }),
+    make: () => ({ spread: null, pieceDrag: null, stackDrag: { trigger: "tap" } }),
   },
   plain: {
-    label: "простой — только тащим любую карту (дефолт)",
-    make: () => ({ spread: null, cardDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
+    label: "простой — только тащим любую фигуру (дефолт)",
+    make: () => ({ spread: null, pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
   },
 };
 

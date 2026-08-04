@@ -168,7 +168,7 @@ export abstract class SceneEngine extends CanvasApp {
   protected grabbedMarker: Marker | null = null;
   /** Host захватываемой цели — живёт между pickElement и beginDrag. */
   protected pendingHost: MarkerHost | null = null;
-  /** Каким жестом (tap/hold) захватили текущий драг — роутер сообщает при onCardGrab, а `beginDrag`
+  /** Каким жестом (tap/hold) захватили текущий драг — роутер сообщает при onPieceGrab, а `beginDrag`
    *  читает, чтобы выбрать нужный интент (у стека тап и hold могут тащить разное). */
   protected grabMode: DragMode = "tap";
 
@@ -866,8 +866,8 @@ export abstract class SceneEngine extends CanvasApp {
   private inputHandlers(): InputHandlers<SceneElement, Button> {
     return {
       screenToContent: (sx, sy) => this.screenToContent(sx, sy),
-      pickCard: (cx, cy) => this.pickElement(cx, cy),
-      cardDraggable: (el) => this.canDrag(el),
+      pickPiece: (cx, cy) => this.pickElement(cx, cy),
+      pieceDraggable: (el) => this.canDrag(el),
       dragOnTap: (el) => this.dragOnTap(el),
       dragOnHold: (el) => this.dragOnHold(el),
       pickButton: (cx, cy) => this.hitButton(cx, cy),
@@ -878,7 +878,7 @@ export abstract class SceneEngine extends CanvasApp {
         return b.hitTest(s.x, s.y);
       },
 
-      onCardGrab: (el, cp, sp, mode) => {
+      onPieceGrab: (el, cp, sp, mode) => {
         this.grabMode = mode; // какой жест сработал (tap/hold) — beginDrag выберет по нему интент
         this.dragScreen = { x: sp.x, y: sp.y };
         // Перехват показа повторным драгом: НЕ абортим мгновенно. Помечаем grabbed и гасим peekBob
@@ -893,7 +893,7 @@ export abstract class SceneEngine extends CanvasApp {
         this.beginDrag(el, cp, sp);
       },
 
-      onCardMove: (el, cp, sp) => {
+      onPieceMove: (el, cp, sp) => {
         this.dragScreen = { x: sp.x, y: sp.y };
         if (this.beforeDragMove(el, cp)) return;
         const p = this.dragPoint(cp);
@@ -902,7 +902,7 @@ export abstract class SceneEngine extends CanvasApp {
         this.refreshZoneHot(p);
       },
 
-      onCardDrop: (el, cp) => {
+      onPieceDrop: (el, cp) => {
         if (!this.beforeDrop(el, cp) && this.drag) {
           this.resolveGrabbedPeeks(); // держали показанный элемент → вернуть вид ДО диспатча дропа
           this.resolveDrop(el, cp);
@@ -912,7 +912,7 @@ export abstract class SceneEngine extends CanvasApp {
         for (const z of this.zones) z.zone.setHot(false);
       },
 
-      onCardCancel: () => {
+      onPieceCancel: () => {
         if (this.drag) this.resolveGrabbedPeeks(); // отмена драга показанного — тоже вернуть вид
         this.onDragCancel();
         this.drag?.release();
@@ -920,8 +920,8 @@ export abstract class SceneEngine extends CanvasApp {
         this.afterDragEnd();
       },
 
-      onCardBlocked: (el) => this.onElementBlocked(el),
-      onCardTap: (el) => this.onElementTapped(el),
+      onPieceBlocked: (el) => this.onElementBlocked(el),
+      onPieceTap: (el) => this.onElementTapped(el),
       onTap: (content, screen) => this.handleTap(content, screen),
 
       onButtonDown: (b) => b.setPressed(true),

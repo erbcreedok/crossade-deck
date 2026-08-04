@@ -64,16 +64,16 @@ export function attachPanZoom<B>(app: Application, content: Container, opts: Pan
 
   const h: InputHandlers<never, B> = {
     screenToContent: (sx, sy) => vp.screenToContent(sx, sy),
-    pickCard: () => null,
-    cardDraggable: () => false,
-    onCardTap: () => {},
+    pickPiece: () => null,
+    pieceDraggable: () => false,
+    onPieceTap: () => {},
     pickButton: (cx, cy) => opts.buttons?.pick(cx, cy) ?? null,
     buttonContains: (b, cx, cy) => opts.buttons!.contains(b, cx, cy),
-    onCardGrab: () => {},
-    onCardMove: () => {},
-    onCardDrop: () => {},
-    onCardCancel: () => {},
-    onCardBlocked: () => {},
+    onPieceGrab: () => {},
+    onPieceMove: () => {},
+    onPieceDrop: () => {},
+    onPieceCancel: () => {},
+    onPieceBlocked: () => {},
     onButtonDown: (b) => {
       opts.buttons?.down(b);
       wake();

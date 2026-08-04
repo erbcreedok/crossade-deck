@@ -18,7 +18,7 @@ import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } fro
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 import type { StackLayout } from "../kit/stackLayout";
-import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type CardDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
+import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type PieceDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -65,7 +65,7 @@ export interface KitContext extends SectionContext {
    */
   spreadStack(ids: string[], at: Pt, layout: StackLayout, cell: { w: number; h: number }, cfg: SpreadConfig): void;
   /**
-   * Включить ДРАГ КАРТ и/или ДРАГ ВСЕЙ СТОПКИ. `cardDrag`: каким жестом берут отдельную карту
+   * Включить ДРАГ КАРТ и/или ДРАГ ВСЕЙ СТОПКИ. `pieceDrag`: каким жестом берут отдельную карту
    * (`tap`/`hold`) и какую отдают («любую» под пальцем / только верхнюю — `pick`); `null` — карты
    * по отдельности не тащатся. `stackDrag`: стопка тащится ЦЕЛИКОМ (любая карта — ручка для всей
    * пачки); `null` — такого нет. Оба МОГУТ быть включены разом: у каждого свой триггер (tap/hold), и
@@ -73,7 +73,7 @@ export interface KitContext extends SectionContext {
    * `kit/stackInteraction.ts`; тут только регистрация, решение — в
    * `KitScene.canDrag`/`dragOnTap`/`dragOnHold`/`beginDrag`.
    */
-  dragConfig(ids: string[], cardDrag: CardDrag | null, stackDrag?: StackDrag | null): void;
+  dragConfig(ids: string[], pieceDrag: PieceDrag | null, stackDrag?: StackDrag | null): void;
 }
 
 export type KitBuild = (ctx: KitContext) => void;
@@ -122,7 +122,7 @@ export class KitScene extends SceneEngine {
    * это две НЕЗАВИСИМЫЕ механики (kit/stackInteraction.ts StackInteraction), у стопки может быть
    * только одна из них, обе или ни одной. См. dragOnTap/dragOnHold/canDrag.
    */
-  private dragStacks: { ids: string[]; cardDrag: CardDrag | null; stackDrag: StackDrag | null }[] = [];
+  private dragStacks: { ids: string[]; pieceDrag: PieceDrag | null; stackDrag: StackDrag | null }[] = [];
 
   /**
    * Двигал ли ТЕКУЩИЙ жест спред. Нужно для ДЕТЕНТА на пределе: жест, который сам наполнил спред,
@@ -439,8 +439,8 @@ export class KitScene extends SceneEngine {
         const anchor = first ? { x: first.body.px - b0.dx, y: first.body.py - b0.dy } : at;
         this.spreadStacks.push({ ids, at: anchor, layout, cell, cfg, state: SPREAD_STATE0 });
       },
-      dragConfig: (ids, cardDrag, stackDrag = null) => {
-        this.dragStacks.push({ ids: [...ids], cardDrag, stackDrag });
+      dragConfig: (ids, pieceDrag, stackDrag = null) => {
+        this.dragStacks.push({ ids: [...ids], pieceDrag, stackDrag });
       },
     };
     this.pending?.(ctx);
@@ -595,14 +595,14 @@ export class KitScene extends SceneEngine {
   }
 
   /** Запись драг-конфига стопки, в которой числится элемент, или undefined — элемент не в реестре. */
-  private dragEntryOf(id: string): { ids: string[]; cardDrag: CardDrag | null; stackDrag: StackDrag | null } | undefined {
+  private dragEntryOf(id: string): { ids: string[]; pieceDrag: PieceDrag | null; stackDrag: StackDrag | null } | undefined {
     return this.dragStacks.find((s) => s.ids.includes(id));
   }
 
   /**
    * Пик карты по конфигу стопки: `stackDrag != null` — ЛЮБАЯ карта стопки хватается (ручка для всей
-   * пачки, см. beginDrag); иначе — по ПРЕДИКАТУ `cardDrag.pick` (kit/stackInteraction.ts): его
-   * зовём с позицией карты в стопке (0 — низ, n-1 — верх). `cardDrag == null` — карты не тащат вовсе.
+   * пачки, см. beginDrag); иначе — по ПРЕДИКАТУ `pieceDrag.pick` (kit/stackInteraction.ts): его
+   * зовём с позицией карты в стопке (0 — низ, n-1 — верх). `pieceDrag == null` — карты не тащат вовсе.
    * Готовые предикаты — PICK_ANY/PICK_FIRST; клиент может дать свой (только пики и т.п.). Элементы
    * вне драг-реестра решаются базой — рычаг на них не распространяется.
    */
@@ -611,18 +611,18 @@ export class KitScene extends SceneEngine {
     const entry = this.dragEntryOf(el.id);
     if (!entry) return true;
     if (entry.stackDrag) return true;
-    if (!entry.cardDrag) return false;
+    if (!entry.pieceDrag) return false;
     const i = entry.ids.indexOf(el.id);
     if (i < 0) return false; // карты уже нет в живом порядке стопки
-    return entry.cardDrag.pick({ id: el.id, i, n: entry.ids.length });
+    return entry.pieceDrag.pick({ id: el.id, i, n: entry.ids.length });
   }
 
   /**
    * Драг карты и драг всей стопки — ДВА НЕЗАВИСИМЫХ интента, у каждого свой триггер (tap/hold). Роутер
    * зовёт `dragOnTap`/`dragOnHold`, чтобы узнать, что доступно этим жестом, и выбирает по жесту —
-   * поэтому `stackDrag` больше НЕ перебивает `cardDrag`: если триггеры разные, тап делает одно, hold
+   * поэтому `stackDrag` больше НЕ перебивает `pieceDrag`: если триггеры разные, тап делает одно, hold
    * другое; если совпали — выигрывает стек (см. beginDrag). Интент «доступен» = его триггер равен
-   * жесту И он применим к этому элементу (у cardDrag — предикат pick; stackDrag берётся за любую карту).
+   * жесту И он применим к этому элементу (у pieceDrag — предикат pick; stackDrag берётся за любую карту).
    */
   protected override dragOnTap(el: SceneElement): boolean {
     return this.hasDragIntent(el, "tap");
@@ -637,20 +637,20 @@ export class KitScene extends SceneEngine {
     const entry = this.dragEntryOf(el.id);
     if (!entry) return trigger === "tap";
     if (entry.stackDrag?.trigger === trigger) return true;
-    return entry.cardDrag?.trigger === trigger && this.cardPickApplies(entry, el);
+    return entry.pieceDrag?.trigger === trigger && this.piecePickApplies(entry, el);
   }
 
-  /** Хватается ли ИМЕННО эта карта по предикату cardDrag.pick (0 — низ, n-1 — верх). */
-  private cardPickApplies(entry: { ids: string[]; cardDrag: CardDrag | null }, el: SceneElement): boolean {
-    if (!entry.cardDrag) return false;
+  /** Хватается ли ИМЕННО эта карта по предикату pieceDrag.pick (0 — низ, n-1 — верх). */
+  private piecePickApplies(entry: { ids: string[]; pieceDrag: PieceDrag | null }, el: SceneElement): boolean {
+    if (!entry.pieceDrag) return false;
     const i = entry.ids.indexOf(el.id);
-    return i >= 0 && entry.cardDrag.pick({ id: el.id, i, n: entry.ids.length });
+    return i >= 0 && entry.pieceDrag.pick({ id: el.id, i, n: entry.ids.length });
   }
 
   /**
    * Начать драг ТЕМ интентом, чей триггер совпал с сработавшим жестом (`grabMode`): `stackDrag` →
    * едет вся живая пачка группой (`GroupDrag`, форма сохраняется — тот же приём, что у блок-драга
-   * песочницы, boards/scene.ts); `cardDrag` → одиночная карта (база). При совпадении триггеров у
+   * песочницы, boards/scene.ts); `pieceDrag` → одиночная карта (база). При совпадении триггеров у
    * обоих выигрывает стек. Если жесту не отвечает ни один интент (страховка — роутер и так не должен
    * был захватывать) — возвращаем false, база тоже не заводит драг.
    */
@@ -667,7 +667,7 @@ export class KitScene extends SceneEngine {
         }
       }
       // Не стек этим жестом → карта, но лишь если карточный интент отвечает этому жесту и применим.
-      if (!(entry.cardDrag?.trigger === this.grabMode && this.cardPickApplies(entry, el))) return false;
+      if (!(entry.pieceDrag?.trigger === this.grabMode && this.piecePickApplies(entry, el))) return false;
     }
     return super.beginDrag(el, cp, sp);
   }

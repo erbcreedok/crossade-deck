@@ -334,12 +334,12 @@ export class TableEngine extends CanvasApp {
   private inputHandlers(): InputHandlers<string, never> {
     return {
       screenToContent: (x, y) => ({ x, y }),
-      pickCard: (x, y) => this.hitCard(x, y),
-      cardDraggable: () => true,
-      onCardTap: () => {},
+      pickPiece: (x, y) => this.hitCard(x, y),
+      pieceDraggable: () => true,
+      onPieceTap: () => {},
       pickButton: () => null,
       buttonContains: () => false,
-      onCardGrab: (card, cp) => {
+      onPieceGrab: (card, cp) => {
         const v = this.pool.get(card);
         if (!v) return;
         this.drag = { card, dx: v.body.px - cp.x, dy: v.body.py - cp.y };
@@ -347,23 +347,23 @@ export class TableEngine extends CanvasApp {
         v.sprite.texture = this.faceFor(card); // в руке видно, что берёшь
         v.body.setTarget({ x: cp.x + this.drag.dx, y: cp.y + this.drag.dy, scale: DRAG_SCALE, rot: 0 });
       },
-      onCardMove: (card, cp) => {
+      onPieceMove: (card, cp) => {
         const d = this.drag;
         const v = this.pool.get(card);
         if (!d || !v) return;
         v.body.setTarget({ x: cp.x + d.dx, y: cp.y + d.dy, scale: DRAG_SCALE, rot: 0 });
       },
-      onCardDrop: (card, cp) => {
+      onPieceDrop: (card, cp) => {
         this.drag = null;
         const zone = this.zoneAt(cp.x, cp.y);
         if (zone) this.moveCardTo(card, zone, cp.x);
         this.rebuild(); // попал — переедет; мимо — спружинит домой (scale→1), тот же спрайт
       },
-      onCardCancel: () => {
+      onPieceCancel: () => {
         this.drag = null;
         this.rebuild();
       },
-      onCardBlocked: () => {},
+      onPieceBlocked: () => {},
       onButtonDown: () => {},
       onButtonMove: () => {},
       onButtonUp: () => {},

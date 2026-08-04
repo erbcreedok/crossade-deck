@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { KitScene } from "./kitScene";
 import type { SceneElement } from "./sceneEngine";
-import { PICK_ANY, PICK_FIRST, type CardDrag, type StackDrag } from "../kit/stackInteraction";
+import { PICK_ANY, PICK_FIRST, type PieceDrag, type StackDrag } from "../kit/stackInteraction";
 
-// ГВАРД РАЗВОДА ДРАГА (#116): cardDrag и stackDrag — ДВА независимых интента, каждый со своим
+// ГВАРД РАЗВОДА ДРАГА (#116): pieceDrag и stackDrag — ДВА независимых интента, каждый со своим
 // триггером (tap/hold). Роутер спрашивает dragOnTap/dragOnHold, что доступно этим жестом, и выбирает
-// по жесту — поэтому stackDrag больше НЕ перебивает cardDrag. Тут проверяем именно доступность
+// по жесту — поэтому stackDrag больше НЕ перебивает pieceDrag. Тут проверяем именно доступность
 // интентов по жесту (то, что было сломано); сам захват (beginDrag: стек группой vs одиночная карта)
 // трогает Pixi и проверяется в браузере.
 //
@@ -17,19 +17,19 @@ import { PICK_ANY, PICK_FIRST, type CardDrag, type StackDrag } from "../kit/stac
 
 interface Entry {
   ids: string[];
-  cardDrag: CardDrag | null;
+  pieceDrag: PieceDrag | null;
   stackDrag: StackDrag | null;
 }
 
 class Probe extends KitScene {
-  seed(cardDrag: CardDrag | null, stackDrag: StackDrag | null, n = 3): void {
+  seed(pieceDrag: PieceDrag | null, stackDrag: StackDrag | null, n = 3): void {
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
       const id = `c${i}`;
       ids.push(id);
       this.byId.set(id, { id, draggable: true, body: { px: i, py: 0 } } as unknown as SceneElement);
     }
-    (this as unknown as { dragStacks: Entry[] }).dragStacks.push({ ids, cardDrag, stackDrag });
+    (this as unknown as { dragStacks: Entry[] }).dragStacks.push({ ids, pieceDrag, stackDrag });
   }
 
   private el(id: string): SceneElement {
@@ -81,7 +81,7 @@ describe("KitScene: доступность драг-интентов по жес
 });
 
 describe("KitScene: только один интент", () => {
-  it("только cardDrag(tap, any) → тап у любой карты, hold нет", () => {
+  it("только pieceDrag(tap, any) → тап у любой карты, hold нет", () => {
     const p = new Probe();
     p.seed({ pick: PICK_ANY, trigger: "tap" }, null);
     expect(p.tap(MID)).toBe(true);

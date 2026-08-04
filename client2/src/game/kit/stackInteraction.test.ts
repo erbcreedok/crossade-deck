@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cardDragFrom,
+  pieceDragFrom,
   PICK_ANY,
   PICK_FIRST,
   SPREAD_STATE0,
@@ -115,11 +115,11 @@ describe("resolveInteraction / пресеты", () => {
   it("по имени возвращает готовую механику; по объекту — как есть", () => {
     const deck = resolveInteraction("deck");
     expect(deck.spread).not.toBeNull();
-    expect(deck.cardDrag?.trigger).toBe("tap");
-    expect(deck.cardDrag?.pick).toBe(PICK_FIRST); // предикат — по идентичности готового
-    const obj = { spread: null, cardDrag: null, stackDrag: { trigger: "hold" as const } };
+    expect(deck.pieceDrag?.trigger).toBe("tap");
+    expect(deck.pieceDrag?.pick).toBe(PICK_FIRST); // предикат — по идентичности готового
+    const obj = { spread: null, pieceDrag: null, stackDrag: { trigger: "hold" as const } };
     expect(resolveInteraction(obj)).toBe(obj);
-    expect(resolveInteraction("нет такого").cardDrag?.pick).toBe(PICK_ANY); // → plain
+    expect(resolveInteraction("нет такого").pieceDrag?.pick).toBe(PICK_ANY); // → plain
   });
   it("все пресеты собираются без ошибок", () => {
     for (const id of Object.keys(STACK_INTERACTIONS)) expect(STACK_INTERACTIONS[id]!.make()).toBeTruthy();
@@ -134,14 +134,14 @@ describe("pick-предикаты и нормализаторы драга", () 
     expect(PICK_FIRST({ id: "a", i: 0, n: 4 })).toBe(false); // низ
   });
   it("клиентский предикат работает как любая функция (напр. только чётные позиции)", () => {
-    const evens = cardDragFrom(({ i }) => i % 2 === 0, "tap");
+    const evens = pieceDragFrom(({ i }) => i % 2 === 0, "tap");
     expect(evens?.pick({ id: "a", i: 2, n: 5 })).toBe(true);
     expect(evens?.pick({ id: "a", i: 1, n: 5 })).toBe(false);
   });
-  it("cardDragFrom: false → null, true → PICK_ANY, предикат → он сам; триггер сохраняется", () => {
-    expect(cardDragFrom(false, "tap")).toBeNull();
-    expect(cardDragFrom(true, "hold")).toEqual({ pick: PICK_ANY, trigger: "hold" });
-    expect(cardDragFrom(PICK_FIRST, "tap")).toEqual({ pick: PICK_FIRST, trigger: "tap" });
+  it("pieceDragFrom: false → null, true → PICK_ANY, предикат → он сам; триггер сохраняется", () => {
+    expect(pieceDragFrom(false, "tap")).toBeNull();
+    expect(pieceDragFrom(true, "hold")).toEqual({ pick: PICK_ANY, trigger: "hold" });
+    expect(pieceDragFrom(PICK_FIRST, "tap")).toEqual({ pick: PICK_FIRST, trigger: "tap" });
   });
   it("stackDragFrom: false → null, true → конфиг с триггером", () => {
     expect(stackDragFrom(false, "tap")).toBeNull();

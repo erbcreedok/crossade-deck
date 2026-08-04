@@ -1,7 +1,7 @@
 // Стейт-машина ввода: none/drag/pan/pinch/button + ховер. Владеет указателями, жестом,
 // геометрией пинча и bookkeeping'ом пана — самая ошибкоёмкая часть. Домен (что делать при
-// захвате/дропе карты, как зумить вьюпорт) — В КОЛБЭКАХ движка, поэтому роутер переиспользуем
-// (песочница/стол/будущее) и тестируется без Pixi. Обобщён по токенам карты C и кнопки B.
+// захвате/дропе фигуры, как зумить вьюпорт) — В КОЛБЭКАХ движка, поэтому роутер переиспользуем
+// (песочница/стол/будущее) и тестируется без Pixi. Обобщён по токенам фигуры C и кнопки B.
 
 export type Gesture = "none" | "drag" | "pan" | "pinch" | "button" | "blocked" | "press";
 
@@ -13,13 +13,13 @@ export type DragMode = "tap" | "hold";
  * Насколько надо увести палец, чтобы это считалось ПОПЫТКОЙ ТАЩИТЬ.
  *
  * Нужен «стоп»-качанию недрагабельного элемента: раньше оно срабатывало на нажатии, то есть на
- * любом тыке. Тык по карте — не попытка её утащить, а «стоп» в ответ на него читается как ошибка
+ * любом тыке. Тык по фигуре — не попытка её утащить, а «стоп» в ответ на него читается как ошибка
  * там, где ошибки не было. Порог маленький: отказ должен быть быстрым, иначе его примут за лаг.
  */
 const DRAG_SLOP = 6;
 
 /**
- * «Держи, чтобы тащить»: сколько секунд палец должен простоять на карте, прежде чем это станет
+ * «Держи, чтобы тащить»: сколько секунд палец должен простоять на фигуре, прежде чем это станет
  * драгом. Опциональная фича (см. `holdToDrag`) — обычный тап-драг её не задевает.
  */
 const HOLD_SEC = 0.35;
@@ -31,16 +31,16 @@ interface Pt {
 
 export interface InputHandlers<C, B> {
   screenToContent(sx: number, sy: number): Pt;
-  pickCard(cx: number, cy: number): C | null;
-  cardDraggable(c: C): boolean;
+  pickPiece(cx: number, cy: number): C | null;
+  pieceDraggable(c: C): boolean;
   /**
    * Два НЕЗАВИСИМЫХ драг-интента у одного элемента; роутер выбирает по жесту, домен — что тащить:
    *  • `dragOnTap` — быстрый драг: тащим сразу, как палец поехал (default true — обычное поведение);
    *  • `dragOnHold` — драг после `HOLD_SEC` неподвижности (default false).
    * Если ЕСТЬ оба — палец, поехавший до срока, запускает ТАП-драг, а достоявший — HOLD-драг (домен
-   * может привязать к ним разные вещи: тап тащит карту, hold — весь стек, или наоборот). Только hold:
+   * может привязать к ним разные вещи: тап тащит фигуру, hold — весь стек, или наоборот). Только hold:
    * ранний сдвиг — пан (листаем стопку, тащить не хотели). Только tap: как раньше. Ни того ни
-   * другого при `cardDraggable` — быстрое отпускание даёт тап по карте (`onCardTap`).
+   * другого при `pieceDraggable` — быстрое отпускание даёт тап по фигуре (`onPieceTap`).
    */
   dragOnTap?(c: C): boolean;
   dragOnHold?(c: C): boolean;
@@ -49,26 +49,26 @@ export interface InputHandlers<C, B> {
 
   /**
    * Кнопка ЭКРАННОГО слоя (HUD/топбар) — в ЭКРАННЫХ координатах, не в координатах контента.
-   * Спрашивается ПЕРВОЙ, ещё до карт: HUD нарисован поверх сцены, и палец, попавший по кнопке,
-   * не должен вместо неё хватать лежащую под ней карту. Опц. — сцене без HUD передавать нечего.
+   * Спрашивается ПЕРВОЙ, ещё до фигур: HUD нарисован поверх сцены, и палец, попавший по кнопке,
+   * не должен вместо неё хватать лежащую под ней фигуру. Опц. — сцене без HUD передавать нечего.
    */
   pickOverlay?(sx: number, sy: number): B | null;
 
-  onCardGrab(c: C, content: Pt, screen: Pt, mode: DragMode): void;
-  onCardMove(c: C, content: Pt, screen: Pt): void;
-  onCardDrop(c: C, content: Pt): void; // отпустили (дроп в зону/возврат)
-  onCardCancel(c: C): void; // драг прерван вторым пальцем (пинч)
-  onCardBlocked(c: C): void; // палец ПОЕХАЛ по недрагабельной — «стоп»-кивок в ответ на попытку
+  onPieceGrab(c: C, content: Pt, screen: Pt, mode: DragMode): void;
+  onPieceMove(c: C, content: Pt, screen: Pt): void;
+  onPieceDrop(c: C, content: Pt): void; // отпустили (дроп в зону/возврат)
+  onPieceCancel(c: C): void; // драг прерван вторым пальцем (пинч)
+  onPieceBlocked(c: C): void; // палец ПОЕХАЛ по недрагабельной — «стоп»-кивок в ответ на попытку
   /**
    * ТАП по недрагабельному элементу: нажали и отпустили, не сдвинувшись.
    *
-   * Отдельно от `onCardBlocked` намеренно. Пока смысл был один на оба случая, «стоп»-качание и
+   * Отдельно от `onPieceBlocked` намеренно. Пока смысл был один на оба случая, «стоп»-качание и
    * «тап по невыделенной фигуре» ездили по одному проводу: стоило отложить качание до реального
    * сдвига пальца — и тап перестал доходить, а с ним отвалился выбор набора в песочнице.
    */
-  onCardTap(c: C): void;
+  onPieceTap(c: C): void;
 
-  /** Тап (клик без сдвига) в точку сцены — по ЛЮБОЙ цели (пустая зона, карта, что угодно). Двойной
+  /** Тап (клик без сдвига) в точку сцены — по ЛЮБОЙ цели (пустая зона, фигура, что угодно). Двойной
    *  тап движок собирает из двух подряд. Опц. — сцене без зума не нужен. */
   onTap?(content: Pt, screen: Pt): void;
 
@@ -92,7 +92,7 @@ export class InputRouter<C, B> {
   private blockedFrom: { x: number; y: number } | null = null;
   private blockedFired = false;
   private pointers = new Map<number, Pt>();
-  private card: C | null = null;
+  private piece: C | null = null;
   private button: B | null = null;
   private panLast: Pt = { x: 0, y: 0 };
   private hovered: B | null = null;
@@ -115,10 +115,10 @@ export class InputRouter<C, B> {
       this.multi = true; // второй палец — жест уже не тап
     }
     if (this.pointers.size === 2) {
-      // Второй палец → пинч; текущий драг отменяем (карта уезжает домой).
-      if (this.card) {
-        this.h.onCardCancel(this.card);
-        this.card = null;
+      // Второй палец → пинч; текущий драг отменяем (фигура уезжает домой).
+      if (this.piece) {
+        this.h.onPieceCancel(this.piece);
+        this.piece = null;
       }
       this.gesture = "pinch";
       const g = this.pinchGeom();
@@ -134,34 +134,34 @@ export class InputRouter<C, B> {
         return;
       }
       const cp = this.h.screenToContent(sx, sy);
-      const card = this.h.pickCard(cp.x, cp.y);
-      const tapDrag = card ? (this.h.dragOnTap?.(card) ?? true) : false;
-      const holdDrag = card ? (this.h.dragOnHold?.(card) ?? false) : false;
-      if (card && !this.h.cardDraggable(card)) {
+      const piece = this.h.pickPiece(cp.x, cp.y);
+      const tapDrag = piece ? (this.h.dragOnTap?.(piece) ?? true) : false;
+      const holdDrag = piece ? (this.h.dragOnHold?.(piece) ?? false) : false;
+      if (piece && !this.h.pieceDraggable(piece)) {
         // НЕ отбиваем сразу: ждём, поедет ли палец. Сам по себе тык — не попытка тащить.
         this.gesture = "blocked";
-        this.card = card;
+        this.piece = piece;
         this.blockedFrom = { x: sx, y: sy };
         this.blockedFired = false;
-      } else if (card && holdDrag && !tapDrag) {
+      } else if (piece && holdDrag && !tapDrag) {
         // Только hold: пока не набежит HOLD_SEC — не захват; ранний сдвиг уйдёт в пан (см. move).
         this.gesture = "press";
-        this.card = card;
+        this.piece = piece;
         this.pressFrom = { x: sx, y: sy };
         this.heldFor = 0;
         this.pressTap = false;
-      } else if (card && holdDrag && tapDrag) {
+      } else if (piece && holdDrag && tapDrag) {
         // Есть ОБА интента: ждём в press. Ранний сдвиг → тап-драг, достоял HOLD_SEC → hold-драг.
         this.gesture = "press";
-        this.card = card;
+        this.piece = piece;
         this.pressFrom = { x: sx, y: sy };
         this.heldFor = 0;
         this.pressTap = true;
-      } else if (card) {
+      } else if (piece) {
         // Только tap (или обычная драгабельная без интентов) — тащим сразу.
         this.gesture = "drag";
-        this.card = card;
-        this.h.onCardGrab(card, cp, { x: sx, y: sy }, "tap");
+        this.piece = piece;
+        this.h.onPieceGrab(piece, cp, { x: sx, y: sy }, "tap");
       } else {
         const btn = this.h.pickButton(cp.x, cp.y);
         if (btn) {
@@ -184,36 +184,36 @@ export class InputRouter<C, B> {
     if (this.gesture === "pinch" && this.pointers.size >= 2) {
       const g = this.pinchGeom();
       this.h.onPinch(g.midX, g.midY, g.dist, g.spanX);
-    } else if (this.gesture === "blocked" && this.card) {
+    } else if (this.gesture === "blocked" && this.piece) {
       // Палец поехал — вот теперь это попытка тащить, и на неё отвечаем отказом. Один раз за жест:
       // иначе качание перезапускалось бы на каждом кадре движения и превратилось в дрожь.
       if (!this.blockedFired && this.blockedFrom && Math.hypot(sx - this.blockedFrom.x, sy - this.blockedFrom.y) > DRAG_SLOP) {
         this.blockedFired = true;
-        this.h.onCardBlocked(this.card);
+        this.h.onPieceBlocked(this.piece);
       }
-    } else if (this.gesture === "press" && this.card) {
+    } else if (this.gesture === "press" && this.piece) {
       // Поехал раньше, чем настоялся.
       if (this.pressFrom && Math.hypot(sx - this.pressFrom.x, sy - this.pressFrom.y) > DRAG_SLOP) {
         if (this.pressTap) {
           // У элемента есть и тап-драг: ранний сдвиг — это ОН (hold так и не наступил).
-          const card = this.card;
+          const piece = this.piece;
           const cp = this.h.screenToContent(sx, sy);
           this.gesture = "drag";
           this.pressFrom = null;
           this.heldFor = 0;
-          this.h.onCardGrab(card, cp, { x: sx, y: sy }, "tap");
+          this.h.onPieceGrab(piece, cp, { x: sx, y: sy }, "tap");
         } else {
           // Только hold: сдвиг раньше срока — тащить не хотели, это пан/скролл стопки.
-          this.card = null;
+          this.piece = null;
           this.pressFrom = null;
           this.gesture = "pan";
           this.panLast = { x: sx, y: sy };
           this.h.onPanStart?.();
         }
       }
-    } else if (this.gesture === "drag" && this.card) {
+    } else if (this.gesture === "drag" && this.piece) {
       const cp = this.h.screenToContent(sx, sy);
-      this.h.onCardMove(this.card, cp, { x: sx, y: sy });
+      this.h.onPieceMove(this.piece, cp, { x: sx, y: sy });
     } else if (this.gesture === "button" && this.button) {
       const cp = this.h.screenToContent(sx, sy);
       this.h.onButtonMove(this.button, this.h.buttonContains(this.button, cp.x, cp.y));
@@ -234,18 +234,18 @@ export class InputRouter<C, B> {
     const wasPan = this.gesture === "pan";
     const g0 = this.gesture;
     this.pointers.delete(id);
-    if (this.gesture === "drag" && this.card) {
-      this.h.onCardDrop(this.card, this.h.screenToContent(sx, sy));
-      this.card = null;
+    if (this.gesture === "drag" && this.piece) {
+      this.h.onPieceDrop(this.piece, this.h.screenToContent(sx, sy));
+      this.piece = null;
     } else if (this.gesture === "blocked") {
       // Палец не поехал — значит это был ТАП, а не попытка тащить.
-      if (!this.blockedFired && this.card) this.h.onCardTap(this.card);
-      this.card = null;
+      if (!this.blockedFired && this.piece) this.h.onPieceTap(this.piece);
+      this.piece = null;
       this.blockedFrom = null;
     } else if (this.gesture === "press") {
-      // Отпустили до истечения HOLD_SEC — не «держали», а тыкнули: это ТАП по карте.
-      if (this.card) this.h.onCardTap(this.card);
-      this.card = null;
+      // Отпустили до истечения HOLD_SEC — не «держали», а тыкнули: это ТАП по фигуре.
+      if (this.piece) this.h.onPieceTap(this.piece);
+      this.piece = null;
       this.pressFrom = null;
       this.heldFor = 0;
     } else if (this.gesture === "button" && this.button) {
@@ -261,7 +261,7 @@ export class InputRouter<C, B> {
     } else if (this.pointers.size === 0) {
       this.gesture = "none";
       // ТАП: последний палец ушёл без сдвига и без второго пальца, и это не была кнопка. Цель любая
-      // (пустая зона/карта) — что делать с двойным, решает движок (onTap → детект дабл-тапа).
+      // (пустая зона/фигура) — что делать с двойным, решает движок (onTap → детект дабл-тапа).
       if (!this.multi && this.downAt && g0 !== "button" && g0 !== "pinch" && Math.hypot(sx - this.downAt.x, sy - this.downAt.y) <= DRAG_SLOP) {
         this.h.onTap?.(this.h.screenToContent(sx, sy), { x: sx, y: sy });
       }
@@ -278,22 +278,22 @@ export class InputRouter<C, B> {
    * тестируемым без Pixi.
    */
   tick(dt: number): void {
-    if (this.gesture !== "press" || !this.card || !this.pressFrom) return;
+    if (this.gesture !== "press" || !this.piece || !this.pressFrom) return;
     this.heldFor += dt;
     if (this.heldFor < HOLD_SEC) return;
-    const card = this.card;
+    const piece = this.piece;
     const at = this.pressFrom;
     this.gesture = "drag";
     this.pressFrom = null;
     this.heldFor = 0;
-    this.h.onCardGrab(card, this.h.screenToContent(at.x, at.y), at, "hold");
+    this.h.onPieceGrab(piece, this.h.screenToContent(at.x, at.y), at, "hold");
   }
 
   /** Сброс (teardown/рестарт): забыть указатели и жест. */
   reset(): void {
     this.pointers.clear();
     this.gesture = "none";
-    this.card = null;
+    this.piece = null;
     this.button = null;
     this.hovered = null;
     this.downAt = null;
@@ -306,7 +306,7 @@ export class InputRouter<C, B> {
   private pinchGeom(): { midX: number; midY: number; dist: number; spanX: number } {
     const [a, b] = [...this.pointers.values()];
     // spanX — ГОРИЗОНТАЛЬНОЕ разведение пальцев; им сцена управляет горизонтальным спредом стека
-    // (жест «раздвинуть по X прямо на картах»), отдельно от полного dist (зум камеры).
+    // (жест «раздвинуть по X прямо на фигурах»), отдельно от полного dist (зум камеры).
     return { midX: (a!.x + b!.x) / 2, midY: (a!.y + b!.y) / 2, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), spanX: Math.abs(a!.x - b!.x) };
   }
 }
