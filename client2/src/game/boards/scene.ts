@@ -19,7 +19,7 @@ import { handKey, type BoardState } from "./state";
 import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
-import { paintHighlight, unionRect, type Rect as SelRect } from "../ui/selection";
+import { unionRect } from "../ui/selection";
 import { PresenceCursor } from "../ui/PresenceCursor";
 import { DropBar } from "../ui/DropBar";
 import { migrateState } from "./migrate";
@@ -181,38 +181,56 @@ export class BoardScene extends SceneEngine {
     this.wake();
   }
 
-  /** Видимый габарит узла: позиция из root (учтён ПОДЪЁМ/лифт — тело в px/py «ниже» рисунка),
-   *  размер — СОБСТВЕННЫЙ футпринт элемента (карта, фишка, фигура — каждый мерит себя сам). */
-  private nodeRect(id: string): SelRect | null {
-    const node = this.nodes.get(id);
-    if (!node) return null;
-    // Существующий контракт footprint (полуразмеры × текущий масштаб) — карта, фишка и фигура
-    // меряют себя сами, подсветка не прикладывает карту к фишке.
-    const w = node.footprint.hw * 2;
-    const h = node.footprint.hh * 2;
-    return { x: node.root.x - w / 2, y: node.root.y - h / 2, w, h };
+  /** Свечение локов — НА ЭЛЕМЕНТАХ (Glowable), не слоем: атом в root'е едет с картой/фишкой сам,
+   *  как тень. Светится ровно то, что держат: одиночная карта — ОДНА (колода не подсвечивается);
+   *  свой блок-драг — все карты стопки (их свечения сливаются в контур фигуры, как тени). */
+  private applyGlow(): void {
+    const p = this.opts.presence;
+    type Span = { w: number; h: number; dx: number; dy: number };
+    const want = new Map<string, { color: number; span?: Span }>();
+    if (p && this.presenceView) {
+      for (const [el, who] of Object.entries(this.presenceView.held)) {
+        const color = p.palette(who);
+        const mineBlock = who === p.who && this.blockZone !== null;
+        const slot = this.tree.slotOf(el);
+        if (!mineBlock || !slot) {
+          want.set(el, { color });
+          continue;
+        }
+        // Свой блок-драг: ОДИН контур на целую стопку — несёт его НИЖНЯЯ карта (её root под
+        // всеми), размер — union домов фигуры (форма стопки жёсткая, glow едет с блоком сам).
+        const ids = this.state.field.slots[slot]?.members ?? [el];
+        const base = ids[0]!;
+        const baseHome = this.homeVec(base);
+        const rects = ids
+          .map((id) => {
+            const home = this.homeVec(id);
+            const node = this.nodes.get(id);
+            if (!home || !node) return null;
+            return { x: home.x - node.footprint.hw, y: home.y - node.footprint.hh, w: node.footprint.hw * 2, h: node.footprint.hh * 2 };
+          })
+          .filter((r): r is NonNullable<typeof r> => !!r);
+        const u = rects.length && baseHome ? unionRect(rects) : null;
+        if (u && baseHome) {
+          want.set(base, { color, span: { w: u.w, h: u.h, dx: u.x + u.w / 2 - baseHome.x, dy: u.y + u.h / 2 - baseHome.y } });
+        } else {
+          want.set(el, { color });
+        }
+      }
+    }
+    for (const [id, node] of this.nodes) {
+      const g = want.get(id);
+      node.setGlow(g?.color ?? null, g?.span);
+    }
   }
 
   private paintPresence(): void {
-    const g = this.presenceLayer;
-    g.clear();
+    this.presenceLayer.clear();
+    this.applyGlow();
     const v = this.presenceView;
     const p = this.opts.presence;
     const seen = new Set<string>();
     if (v && p) {
-      // Локи: атом-подсветка (мягкое свечение) вокруг удержанной ФИГУРЫ. Свободная стопка
-      // (колода) выделяется ЦЕЛИКОМ единым контуром по unionRect, а не рамкой на верхней карте.
-      const seenFigures = new Set<string>();
-      for (const [el, who] of Object.entries(v.held)) {
-        const slot = this.tree.slotOf(el);
-        const stack = slot && this.isFreeZone(baseZoneId(zoneOf(slot)));
-        const ids = stack ? (this.state.field.slots[slot]?.members ?? [el]) : [el];
-        const figure = stack ? slot! : el;
-        if (seenFigures.has(figure)) continue;
-        seenFigures.add(figure);
-        const u = unionRect(ids.map((id) => this.nodeRect(id)).filter((r): r is SelRect => !!r));
-        if (u) paintHighlight(g, u, { color: p.palette(who) });
-      }
       // Свой курсор — атом без подписи (своё имя под пальцем — шум); чужие — с именем.
       if (this.ownCursor) {
         seen.add(p.who);
@@ -830,6 +848,7 @@ export class BoardScene extends SceneEngine {
         this.drag.move(cp);
         // Колода в пальцах → снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
         this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height, this.accentColor());
+        this.applyGlow(); // grab эмитил присутствие ДО того, как стало известно, что это блок-драг
         return true;
       }
     }
@@ -837,13 +856,6 @@ export class BoardScene extends SceneEngine {
     // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка».
     if (ok) this.dropBar.show([{ key: "menu", label: "настройка" }], this.width, this.height, this.accentColor());
     return ok;
-  }
-
-  /** Пока что-то удержано, слой присутствия перерисовывается ПОКАДРОВО: тела едут пружинами
-   *  после события, и рамка, снятая в момент move, отставала бы от груза. */
-  protected stepScene(dt: number): boolean {
-    if (this.opts.presence && this.presenceView && Object.keys(this.presenceView.held).length) this.paintPresence();
-    return super.stepScene(dt);
   }
 
   protected onDragMoved(p: { x: number; y: number }): void {

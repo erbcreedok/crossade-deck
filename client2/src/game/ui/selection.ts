@@ -46,6 +46,19 @@ const GLOW_LAYERS = [
   { width: 2, alpha: 0.8, spread: 0 },
 ] as const;
 
+/**
+ * СВЕЧЕНИЕ-НА-ЭЛЕМЕНТЕ — тот же приём, что у собственной тени: узел рисуется в ЛОКАЛЬНЫХ
+ * координатах элемента (центр 0,0) и добавляется НИЖНИМ ребёнком его root — дальше оно едет,
+ * наклоняется и масштабируется ВМЕСТЕ с элементом без пер-кадровой синхронизации. В стопке
+ * внутренние края свечений накрыты картами выше — снаружи остаётся общий контур фигуры
+ * (ровно как сливаются тени). Есть shadow — есть и glow.
+ */
+export function makeGlow(w: number, h: number, s: HighlightStyle): Graphics {
+  const g = new Graphics();
+  paintHighlight(g, { x: -w / 2, y: -h / 2, w, h }, s);
+  return g;
+}
+
 export function paintHighlight(g: Graphics, r: Rect, s: HighlightStyle): void {
   const pad = s.pad ?? 6;
   const radius = s.radius ?? 12;

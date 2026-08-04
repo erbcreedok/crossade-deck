@@ -14,6 +14,7 @@ import { TEX_H, TEX_W } from "../engine/constants";
 import type { Burnable, Draggable, TableElement } from "../engine/element";
 import type { CardState, Pose, ShadowShape } from "./Card";
 import type { OwnShadow } from "./silhouetteExtract";
+import { makeGlow } from "./selection";
 
 // Обобщённый ЭЛЕМЕНТ стола, НЕ карта: фишка, шахматная фигура — что угодно с телом и тенью.
 // Реализует ровно те же способности, что и Card (TableElement + Draggable + Burnable), но НЕ
@@ -67,6 +68,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
   private readonly own: OwnShadow | null;
   private readonly censorSeeds: ReadonlyArray<{ x: number; y: number; color: number }> | null;
+  private glowNode: import("pixi.js").Graphics | null = null; // свечение выделения (setGlow)
   private dust: ParticleField | null = null;
   private dustT = 0;
   private _censored: boolean;
@@ -104,6 +106,20 @@ export class Piece implements TableElement, Draggable, Burnable {
   }
 
   /** Полуразмеры покоя — хит-тест берёт их × scaleVal. */
+  /** Свечение выделения (Glowable) — тот же атом, что у карты, в футпринте ЭТОЙ фишки/фигуры;
+   *  span (координаты контента) — один контур на целую фигуру-стопку, без полос. */
+  setGlow(color: number | null, span?: { w: number; h: number; dx: number; dy: number }): void {
+    this.glowNode?.destroy();
+    this.glowNode = null;
+    if (color === null) return;
+    const f = this.body.scaleVal || 1;
+    const w = span ? span.w / f : this.w;
+    const h = span ? span.h / f : this.h;
+    this.glowNode = makeGlow(w, h, { color, pad: 8, radius: Math.min(w, h) * 0.3 });
+    if (span) this.glowNode.position.set(span.dx / f, span.dy / f);
+    this.root.addChildAt(this.glowNode, 0);
+  }
+
   get footprint(): { hw: number; hh: number } {
     return { hw: this.w / 2, hh: this.h / 2 };
   }

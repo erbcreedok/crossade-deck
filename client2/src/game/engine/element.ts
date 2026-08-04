@@ -75,3 +75,10 @@ export interface Burnable {
   burn(): void;
   readonly burning: boolean;
 }
+
+/** Способность СВЕТИТЬСЯ выделением (лок присутствия, будущий отбор набора). Свечение — атом в
+ *  root'е элемента (ui/selection.makeGlow): едет с ним само, как собственная тень. */
+export interface Glowable {
+  /** span (координаты контента, центр относительно элемента) — светиться фигурой больше себя. */
+  setGlow(color: number | null, span?: { w: number; h: number; dx: number; dy: number }): void;
+}
