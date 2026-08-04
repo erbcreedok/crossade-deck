@@ -19,6 +19,8 @@ import { handKey, type BoardState } from "./state";
 import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
+import { paintHighlight, unionRect, type Rect as SelRect } from "../ui/selection";
+import { PresenceCursor } from "../ui/PresenceCursor";
 import { DropBar } from "../ui/DropBar";
 import { migrateState } from "./migrate";
 import { autoDealPlan } from "./dealPlan";
@@ -122,10 +124,10 @@ export class BoardScene extends SceneEngine {
   // Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга.
   private readonly dropBar = new DropBar();
 
-  // Live-присутствие: слой чужих локов (цветная рамка на удержанном элементе) и курсоров.
+  // Live-присутствие: слой локов (подсветка-атом на удержанной фигуре) и курсоров-атомов.
   private readonly presenceRoot = new Container();
   private readonly presenceLayer = new Graphics();
-  private readonly cursorLabels = new Map<string, Text>();
+  private readonly cursors = new Map<string, PresenceCursor>();
   private presenceView: PresenceView | null = null;
   private grabbedEl: string | null = null;
   private ownCursor: { x: number; y: number } | null = null;
@@ -179,6 +181,15 @@ export class BoardScene extends SceneEngine {
     this.wake();
   }
 
+  /** Видимый габарит узла: позиция из root (учтён ПОДЪЁМ/лифт — тело в px/py «ниже» рисунка). */
+  private nodeRect(id: string): SelRect | null {
+    const node = this.nodes.get(id);
+    if (!node) return null;
+    const w = CARD.w * node.body.scaleVal;
+    const h = CARD.h * node.body.scaleVal;
+    return { x: node.root.x - w / 2, y: node.root.y - h / 2, w, h };
+  }
+
   private paintPresence(): void {
     const g = this.presenceLayer;
     g.clear();
@@ -186,41 +197,46 @@ export class BoardScene extends SceneEngine {
     const p = this.opts.presence;
     const seen = new Set<string>();
     if (v && p) {
-      // Локи: цветная рамка держателя вокруг элемента. СВОЙ захват — тоже своим цветом
-      // (выделение колоды/карты в пальцах читается «это моё»), рамка едет за драгом (onDragMoved).
+      // Локи: атом-подсветка (мягкое свечение) вокруг удержанной ФИГУРЫ. Свободная стопка
+      // (колода) выделяется ЦЕЛИКОМ единым контуром по unionRect, а не рамкой на верхней карте.
+      const seenFigures = new Set<string>();
       for (const [el, who] of Object.entries(v.held)) {
-        const node = this.nodes.get(el);
-        if (!node) continue;
-        const w = CARD.w * node.body.scaleVal + 10;
-        const h = CARD.h * node.body.scaleVal + 10;
-        g.roundRect(node.body.px - w / 2, node.body.py - h / 2, w, h, 8).stroke({ width: 3, color: p.palette(who), alpha: 0.9 });
+        const slot = this.tree.slotOf(el);
+        const stack = slot && this.isFreeZone(baseZoneId(zoneOf(slot)));
+        const ids = stack ? (this.state.field.slots[slot]?.members ?? [el]) : [el];
+        const figure = stack ? slot! : el;
+        if (seenFigures.has(figure)) continue;
+        seenFigures.add(figure);
+        const u = unionRect(ids.map((id) => this.nodeRect(id)).filter((r): r is SelRect => !!r));
+        if (u) paintHighlight(g, u, { color: p.palette(who) });
       }
-      // Свой курсор — точкой своего цвета (без подписи: своё имя под пальцем — шум).
+      // Свой курсор — атом без подписи (своё имя под пальцем — шум); чужие — с именем.
       if (this.ownCursor) {
-        g.circle(this.ownCursor.x, this.ownCursor.y, 6).fill({ color: p.palette(p.who), alpha: 0.85 });
+        seen.add(p.who);
+        this.cursorFor(p.who, p.palette(p.who), null).place(this.ownCursor.x, this.ownCursor.y);
       }
-      // Чужие курсоры: цветная точка с именем (призрак ходит только курсором — это весь его след).
       for (const [who, at] of Object.entries(v.cursors)) {
         if (who === p.who) continue;
         seen.add(who);
-        const color = p.palette(who);
-        g.circle(at.x, at.y, 7).fill({ color, alpha: 0.9 });
-        g.circle(at.x, at.y, 11).stroke({ width: 2, color, alpha: 0.5 });
-        let label = this.cursorLabels.get(who);
-        if (!label) {
-          label = new Text({ text: p.label?.(who) ?? who, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: color } });
-          label.anchor.set(0, 0);
-          this.presenceRoot.addChild(label);
-          this.cursorLabels.set(who, label);
-        }
-        label.position.set(at.x + 12, at.y + 10);
+        this.cursorFor(who, p.palette(who), p.label?.(who) ?? who).place(at.x, at.y);
       }
     }
-    for (const [who, label] of this.cursorLabels) {
+    for (const [who, cursor] of this.cursors) {
       if (seen.has(who)) continue;
-      label.destroy();
-      this.cursorLabels.delete(who);
+      cursor.destroy();
+      this.cursors.delete(who);
     }
+  }
+
+  private cursorFor(who: string, color: number, label: string | null): PresenceCursor {
+    let c = this.cursors.get(who);
+    if (!c) {
+      c = new PresenceCursor({ color, label: label ?? undefined });
+      this.presenceRoot.addChild(c.root);
+      this.cursors.set(who, c);
+    }
+    c.setColor(color);
+    return c;
   }
 
   // ——— контекстное меню настроек (long-press по гриду/борде, ПКМ на десктопе) ———
@@ -970,8 +986,8 @@ export class BoardScene extends SceneEngine {
   protected onTeardown(app: Application): void {
     this.closeMenu();
     this.dropBar.destroy();
-    for (const l of this.cursorLabels.values()) l.destroy();
-    this.cursorLabels.clear();
+    for (const c of this.cursors.values()) c.destroy();
+    this.cursors.clear();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
     for (const l of this.seatLabels.values()) l.destroy();
