@@ -2,15 +2,24 @@ import { fan, heap, linear, type StackLayout } from "../../game/kit/stackLayout"
 import type { StackContent } from "../../game/kit/stacks";
 import type { Pose } from "../../game/ui/Card";
 import {
+  cardDragFrom,
+  PICK_ANY,
+  PICK_FIRST,
   resolveInteraction,
+  stackDragFrom,
   STACK_INTERACTION_IDS,
   type CardDrag,
-  type CardPick,
+  type DragTrigger,
+  type PointerSpread,
   type SpreadClose,
   type SpreadConfig,
   type StackDrag,
-  type Trigger,
+  type TouchSpread,
 } from "../../game/kit/stackInteraction";
+
+/** Именованные режимы выбора карты для ПАНЕЛИ (предикат в контроль не передать): any/first
+ *  разворачиваются в PICK_ANY/PICK_FIRST в interactionFrom. Клиент в коде даёт свой предикат. */
+export type CardPickMode = "any" | "first";
 
 // РЫЧАГИ СТОПКИ — ОДНО описание на все разделы, где стопка вообще встречается.
 //
@@ -45,20 +54,24 @@ export interface StackArgs {
   /** Спред включён? Отдельный тумблер, а не «спред есть у пресета»: у стопки его может не быть
    *  вовсе (`plain`), и тогда крутить нечего — этим рычаг и прячется (if). */
   spread: boolean;
-  spreadTrigger: Trigger;
+  /** Чем двигают спред на десктопе: зум-жестом (Ctrl/тачпад), обычным колесом (pan) или ничем. */
+  spreadPointerTrigger: PointerSpread;
+  /** Чем двигают спред на тачскрине: двухпальцевым пинчем (zoom) или ничем. */
+  spreadTouchTrigger: TouchSpread;
   spreadMaxGap: number;
   spreadClose: SpreadClose["kind"];
   spreadCenterX: boolean;
   spreadKeepDiagonal: boolean;
-  /** Какую карту тащат: любую под пальцем или только верхнюю. */
-  cardPick: CardPick;
+  /** Драг карты включён? На панели — тумблер (в коде поле принимает и предикат «какие карты»). */
+  cardDrag: boolean;
+  /** Какую карту тащат: любую под пальцем или только верхнюю (панель разворачивает в предикат). */
+  cardPick: CardPickMode;
   /** Каким жестом берут карту: тап-и-тащи или «подержи». */
-  cardDragTrigger: Extract<Trigger, "tap" | "hold">;
-  /**
-   * Форс-включатель драга ВСЕЙ стопки целиком (kit/stackInteraction.ts StackDrag), поверх того, что
-   * даёт пресет `interaction` (у `block` он и так есть). Жест — тот же `cardDragTrigger`.
-   */
+  cardDragTrigger: DragTrigger;
+  /** Драг ВСЕЙ стопки целиком (kit/stackInteraction.ts StackDrag) — тащим за любую её карту. */
   stackDrag: boolean;
+  /** Каким жестом берут всю стопку: тап-и-тащи или «подержи». */
+  stackDragTrigger: DragTrigger;
 }
 
 export const STACK_ARGS: StackArgs = {
@@ -76,14 +89,17 @@ export const STACK_ARGS: StackArgs = {
   content: "cards",
   interaction: "plain",
   spread: false,
-  spreadTrigger: "always",
+  spreadPointerTrigger: "zoom",
+  spreadTouchTrigger: "zoom",
   spreadMaxGap: 34,
   spreadClose: "snap",
   spreadCenterX: false,
   spreadKeepDiagonal: true,
+  cardDrag: true,
   cardPick: "any",
   cardDragTrigger: "tap",
   stackDrag: false,
+  stackDragTrigger: "tap",
 };
 
 export const STACK_ARG_TYPES = {
@@ -117,14 +133,21 @@ export const STACK_ARG_TYPES = {
   },
   spread: {
     name: "spread",
-    description: "спред включён — колесо/скролл по стопке раздвигает её поверх базовой раскладки",
+    description: "спред включён — стопка раздвигается жестом поверх базовой раскладки; каким именно жестом на телефоне и ПК — рычаги spread.touchTrigger/spread.pointerTrigger; на пределе жест переходит камере",
     control: { type: "boolean" as const },
   },
-  spreadTrigger: {
-    name: "spread.trigger",
-    description: "как включается спред-режим: всегда / по тапу-тогглу / пока держат",
+  spreadPointerTrigger: {
+    name: "spread.pointerTrigger",
+    description: "чем двигать спред на ПК (указатель): zoom — Ctrl-колесо/тачпад-пинч, pan — обычное колесо/скролл, false — ничем (жест уходит камере)",
     control: { type: "select" as const },
-    options: ["always", "tap", "hold"],
+    options: [false, "zoom", "pan"],
+    if: { arg: "spread", truthy: true },
+  },
+  spreadTouchTrigger: {
+    name: "spread.touchTrigger",
+    description: "чем двигать спред на телефоне: zoom — двухпальцевый пинч, false — ничем (пинч уходит в зум камеры). Пан одним пальцем всегда у камеры",
+    control: { type: "select" as const },
+    options: [false, "zoom"],
     if: { arg: "spread", truthy: true },
   },
   spreadMaxGap: {
@@ -152,32 +175,44 @@ export const STACK_ARG_TYPES = {
     control: { type: "boolean" as const },
     if: { arg: "spread", truthy: true },
   },
+  cardDrag: {
+    name: "cardDrag",
+    description: "драг отдельной карты включён. В коде поле принимает и предикат «какие карты хватаются» (только пики и т.п.); на панели — тумблер + режим ниже",
+    control: { type: "boolean" as const },
+  },
   cardPick: {
     name: "cardDrag.pick",
     description: "какую карту тащат: any — ту, на которую попал палец, first — только верхнюю",
     control: { type: "select" as const },
     options: ["any", "first"],
-    if: { arg: "interaction", neq: "block" },
+    if: { arg: "cardDrag", truthy: true },
   },
   cardDragTrigger: {
     name: "cardDrag.trigger",
     description: "каким жестом берут карту: tap — тап-и-тащи, hold — пока держат палец",
     control: { type: "select" as const },
     options: ["tap", "hold"],
-    if: { arg: "interaction", neq: "block" },
+    if: { arg: "cardDrag", truthy: true },
   },
   stackDrag: {
     name: "stackDrag",
     description: "тащить стопку целиком за любую её карту, поверх пресета — как block, но на любой раскладке",
     control: { type: "boolean" as const },
   },
+  stackDragTrigger: {
+    name: "stackDrag.trigger",
+    description: "каким жестом берут всю стопку: tap — тап-и-тащи, hold — пока держат палец",
+    control: { type: "select" as const },
+    options: ["tap", "hold"],
+    if: { arg: "stackDrag", truthy: true },
+  },
 };
 
 /**
- * Спреду и драгу карт нужен пресет-БАЗА (kit/stackInteraction.ts STACK_INTERACTIONS) — панель
- * его не задаёт с нуля, а перекрывает уровнем рычагов сверху. `spread: false` выключает спред
- * целиком (даже если у пресета он есть), а cardPick/cardDragTrigger применяются, только когда у
- * пресета вообще есть cardDrag (у `block` его нет — стопка тащится целиком).
+ * Спреду и драгу нужен пресет-БАЗА (kit/stackInteraction.ts STACK_INTERACTIONS) — панель его не
+ * задаёт с нуля, а перекрывает уровнем рычагов сверху. `spread`/`cardDrag`/`stackDrag` — тумблеры,
+ * каждый перекрывает соответствующую часть пресета; форма спреда (maxGap/close/…) и способ выбора
+ * карты (pick) берутся с панели, spring — у пресета.
  */
 const DEFAULT_CLOSE: Record<SpreadClose["kind"], SpreadClose> = {
   infinite: { kind: "infinite" },
@@ -190,7 +225,8 @@ export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; ca
   const base = resolveInteraction(a.interaction);
   const spread: SpreadConfig | null = a.spread
     ? {
-        trigger: a.spreadTrigger,
+        pointerTrigger: a.spreadPointerTrigger,
+        touchTrigger: a.spreadTouchTrigger,
         maxGap: a.spreadMaxGap,
         keepDiagonal: a.spreadKeepDiagonal,
         centerX: a.spreadCenterX,
@@ -200,9 +236,9 @@ export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; ca
         spring: base.spread?.spring ?? 12,
       }
     : null;
-  const cardDrag: CardDrag | null = base.cardDrag ? { trigger: a.cardDragTrigger, pick: a.cardPick } : null;
-  // Форс-рычаг `stackDrag` перекрывает пресет; иначе — как у пресета (только `block` его даёт).
-  const stackDrag: StackDrag | null = a.stackDrag ? { trigger: a.cardDragTrigger } : base.stackDrag;
+  // Режим панели (any/first) разворачиваем в готовый предикат; в коде клиент даёт свой напрямую.
+  const cardDrag: CardDrag | null = cardDragFrom(a.cardDrag && (a.cardPick === "first" ? PICK_FIRST : PICK_ANY), a.cardDragTrigger);
+  const stackDrag: StackDrag | null = stackDragFrom(a.stackDrag, a.stackDragTrigger);
   return { spread, cardDrag, stackDrag };
 }
 

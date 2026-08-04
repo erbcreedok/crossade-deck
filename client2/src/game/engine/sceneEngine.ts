@@ -2,7 +2,7 @@ import { Application, Container, Rectangle } from "pixi.js";
 import { CanvasApp } from "./canvasApp";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import { Viewport, wheelGoesToScene, type ViewState } from "./viewport";
-import { InputRouter, type InputHandlers } from "./inputRouter";
+import { InputRouter, type DragMode, type InputHandlers } from "./inputRouter";
 import { Marker, withAnchor, withDragger, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./marker";
 import { SingleDrag, type DragContext, type DragPayload } from "./drag";
 import { topmostAt, type HitBox } from "./cardHit";
@@ -86,6 +86,14 @@ export const MIN_ZOOM = 0.6;
 export const MAX_ZOOM = 2.6;
 /** Чувствительность зума колесом/тачпадом: exp(-deltaY * ZOOM_SENS). */
 export const ZOOM_SENS = 0.0015;
+/** Спред жестом колеса/тачпада: прирост зазора = -deltaY * WHEEL_SPREAD_SENS (движение раздвигает). */
+export const WHEEL_SPREAD_SENS = 0.6;
+/** Пауза между «порциями» жеста колеса, после которой это уже НОВЫЙ жест (граница детента), мс. */
+export const WHEEL_GESTURE_GAP_MS = 140;
+
+/** Каким устройством/жестом пришёл спред: тач-пинч, десктопный зум-жест (Ctrl/тачпад) или обычное
+ *  колесо/скролл. Сцена по конфигу стека решает, реагирует ли на этот source (spread.*Trigger). */
+export type SpreadSource = "touch-zoom" | "pointer-zoom" | "pointer-pan";
 /** Сколько секунд дропзона «подглядеть» держит карту раскрытой до авто-возврата. */
 export const PEEK_DUR = 3;
 
@@ -111,6 +119,9 @@ export abstract class SceneEngine extends CanvasApp {
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
   private lastPanT = 0;
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0, spanX: 0 };
+  // Метка последнего жеста спреда колесом/тачпадом — для синтетической ГРАНИЦЫ жеста. У колеса нет
+  // pointerdown/up: пауза дольше WHEEL_GESTURE_GAP_MS = новый жест (сброс детента спреда, onSpreadBegin).
+  private lastWheelSpreadT = 0;
 
   // ——— дабл-тап-зум на зону (общий механизм; сцена решает, что фокусируемо — focusTargetAt) ———
   private lastTap: { t: number; x: number; y: number } | null = null;
@@ -157,6 +168,9 @@ export abstract class SceneEngine extends CanvasApp {
   protected grabbedMarker: Marker | null = null;
   /** Host захватываемой цели — живёт между pickElement и beginDrag. */
   protected pendingHost: MarkerHost | null = null;
+  /** Каким жестом (tap/hold) захватили текущий драг — роутер сообщает при onCardGrab, а `beginDrag`
+   *  читает, чтобы выбрать нужный интент (у стека тап и hold могут тащить разное). */
+  protected grabMode: DragMode = "tap";
 
   /** Навесить пару меток (драггер + якорь) на ЛЮБОЙ host и учесть их в хит-тесте захвата. */
   protected mountMarkers(
@@ -291,17 +305,20 @@ export abstract class SceneEngine extends CanvasApp {
     return null;
   }
 
-  /** Колесо/скролл по цели под курсором (координаты КОНТЕНТА + дельты колеса). Вернуть true —
-   *  перехвачено (спред-стек и т.п.), пан/зум не выполняется. По умолчанию не перехватываем. */
-  protected wheelOnElement(_cp: Pt, _dx: number, _dy: number): boolean {
+  /**
+   * Жест спреда ПО цели под точкой (координаты КОНТЕНТА). Один шов на ВСЕ входы; чем именно пришёл
+   * жест — в `source`: `touch-zoom` (два пальца по тачскрину), `pointer-zoom` (десктоп Ctrl/⌘-колесо
+   * или тачпад-пинч), `pointer-pan` (десктоп обычное колесо/скролл). `dGap` — прирост зазора за кадр.
+   * Сцена сама решает по конфигу стека, реагирует ли на этот source. Вернуть true — спред взял жест,
+   * камера его НЕ получает. По умолчанию не берём — жест целиком уходит камере/странице.
+   */
+  protected spreadOnElement(_cp: Pt, _dGap: number, _source: SpreadSource): boolean {
     return false;
   }
 
-  /** Пинч (два пальца) ПРЯМО НА цели под серединой жеста: dSpanX — прирост ГОРИЗОНТАЛЬНОГО разведения
-   *  пальцев за кадр. Вернуть true — перехвачено (спред стека), зум камеры не выполняется. */
-  protected pinchOnElement(_cp: Pt, _dSpanX: number): boolean {
-    return false;
-  }
+  /** Начался НОВЫЙ жест спреда (палец лёг / у колеса — новый залп после паузы). Сцена сбрасывает
+   *  per-gesture-состояние (напр. «этот жест уже двигал спред» — для детента на пределе). Опц. */
+  protected onSpreadBegin(): void {}
 
   private handleTap(content: Pt, screen: Pt): void {
     const now = performance.now();
@@ -387,42 +404,46 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   private onWheel = (e: WheelEvent): void => {
-    // ГЛАВНОЕ ПРАВИЛО: не отбирать колесо, если двигать нечего.
-    //
-    // Раньше preventDefault стоял безусловно, и страница под канвасом переставала скроллиться —
-    // при том что панорамировать было некуда, контент влезал целиком. Со стороны это читается не
-    // как «канвас не хочет скроллиться», а как зависший сайт: колесо крутится, не происходит
-    // ничего. В каталоге это norma: витрина по умолчанию вписана целиком, переполнения нет.
-    //
-    // Зум с модификатором забираем всегда — он осмыслен и при вписанном контенте.
+    // ГЛАВНОЕ ПРАВИЛО: не отбирать колесо, если двигать нечего (иначе страница под канвасом
+    // перестаёт скроллиться и сайт читается как зависший). В каталоге витрина вписана целиком.
     this.syncVp();
-    // Колесо/скролл ПО элементу (без модификатора-зума): сцена вправе перехватить его на своей
-    // цели под курсором (спред-стек и т.п.) РАНЬШЕ пана/зума. Перехватила — колесо съедено.
-    if (!this.wheelIsZoom(e)) {
-      const rect = this.app!.canvas.getBoundingClientRect();
-      const cp = this.screenToContent(e.clientX - rect.left, e.clientY - rect.top);
-      if (this.wheelOnElement(cp, e.deltaX, e.deltaY)) {
+    const rect = this.app!.canvas.getBoundingClientRect();
+    const cp = this.screenToContent(e.clientX - rect.left, e.clientY - rect.top);
+    const dyPx = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
+    // Граница жеста для детента: у колеса нет pointerdown/up, поэтому новый «залп» после паузы —
+    // новый жест (сброс детента). deltaY<0 (движение к себе / зум-ин) РАЗДВИГАЕТ.
+    const t = performance.now();
+    if (t - this.lastWheelSpreadT > WHEEL_GESTURE_GAP_MS) this.onSpreadBegin();
+    this.lastWheelSpreadT = t;
+    const dGap = -dyPx * WHEEL_SPREAD_SENS;
+
+    if (this.wheelIsZoom(e)) {
+      // Десктопный ЗУМ-жест (Ctrl/⌘-колесо; тачпад-пинч браузер шлёт как ровно такое колесо). НАД
+      // стеком со spread.pointerTrigger==="zoom" он ведёт спред; иначе (или на пределе) — зум камеры.
+      if (this.spreadOnElement(cp, dGap, "pointer-zoom")) {
         e.preventDefault();
         return;
       }
+      e.preventDefault();
+      this.cancelFocus();
+      this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dyPx * ZOOM_SENS));
+      return;
+    }
+
+    // Обычное колесо/скролл (без модификатора). НАД стеком со spread.pointerTrigger==="pan" он ведёт
+    // спред; иначе (или на пределе) — пан камеры (если есть куда двигать, иначе колесо уходит странице).
+    if (this.spreadOnElement(cp, dGap, "pointer-pan")) {
+      e.preventDefault();
+      return;
     }
     const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
-    if (!wheelGoesToScene({ zoom: this.wheelIsZoom(e), canPan, inDocument: this.inDocument })) return; // колесо уходит странице
+    if (!wheelGoesToScene({ zoom: false, canPan, inDocument: this.inDocument })) return; // колесо уходит странице
     e.preventDefault();
-    this.cancelFocus(); // колесо (зум/пан) перебивает наведение на зону
-    // deltaY в пиксели: в строчном/страничном режиме домножаем.
-    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
-    if (this.wheelIsZoom(e)) {
-      const rect = this.app!.canvas.getBoundingClientRect();
-      this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dy * ZOOM_SENS));
-    } else {
-      // Тачпад: двумя пальцами тащим канвас (пан), а не зумим.
-      this.syncVp();
-      this.viewport.panBy(-e.deltaX, -dy);
-      this.applyView();
-      this.wake();
-      this.emitView();
-    }
+    this.cancelFocus(); // пан перебивает наведение на зону
+    this.viewport.panBy(-e.deltaX, -dyPx);
+    this.applyView();
+    this.wake();
+    this.emitView();
   };
 
   /**
@@ -647,11 +668,14 @@ export abstract class SceneEngine extends CanvasApp {
     return el.draggable;
   }
 
-  /**
-   * «Держи, чтобы тащить» ДЛЯ ЭТОГО элемента (kit/stackInteraction.ts CardDrag.trigger==="hold").
-   * По умолчанию выключено — обычный тап-драг, как и раньше (see InputHandlers.holdToDrag).
-   */
-  protected holdToDrag(_el: SceneElement): boolean {
+  /** Два драг-интента элемента (InputHandlers.dragOnTap/dragOnHold): есть ли быстрый драг (тащим
+   *  сразу) и/или драг-по-удержанию. По умолчанию только быстрый — обычный тап-драг, как и раньше.
+   *  Сцена переопределяет, чтобы развести жесты (тап — одно, hold — другое). Режим сработавшего
+   *  жеста доезжает до beginDrag через `grabMode`. */
+  protected dragOnTap(_el: SceneElement): boolean {
+    return true;
+  }
+  protected dragOnHold(_el: SceneElement): boolean {
     return false;
   }
 
@@ -837,7 +861,8 @@ export abstract class SceneEngine extends CanvasApp {
       screenToContent: (sx, sy) => this.screenToContent(sx, sy),
       pickCard: (cx, cy) => this.pickElement(cx, cy),
       cardDraggable: (el) => this.canDrag(el),
-      holdToDrag: (el) => this.holdToDrag(el),
+      dragOnTap: (el) => this.dragOnTap(el),
+      dragOnHold: (el) => this.dragOnHold(el),
       pickButton: (cx, cy) => this.hitButton(cx, cy),
       pickOverlay: (sx, sy) => this.hitChrome(sx, sy),
       buttonContains: (b, cx, cy) => {
@@ -846,7 +871,8 @@ export abstract class SceneEngine extends CanvasApp {
         return b.hitTest(s.x, s.y);
       },
 
-      onCardGrab: (el, cp, sp) => {
+      onCardGrab: (el, cp, sp, mode) => {
+        this.grabMode = mode; // какой жест сработал (tap/hold) — beginDrag выберет по нему интент
         this.dragScreen = { x: sp.x, y: sp.y };
         // Перехват показа повторным драгом: НЕ абортим мгновенно. Помечаем grabbed и гасим peekBob
         // (под пальцем элемент явно не «завис» — резонанс-парение ни к чему); скрытность НЕ трогаем,
@@ -925,13 +951,24 @@ export abstract class SceneEngine extends CanvasApp {
         this.cancelFocus();
         const c = this.screenToContent(mx, my);
         this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y, spanX };
+        this.onSpreadBegin(); // сброс per-gesture-состояния сцены (детент спреда)
       },
       onPinch: (mx, my, dist, spanX) => {
-        // Пинч ПРЯМО НА цели (стек карт): горизонтальное разведение пальцев ведёт спред, а не зум
-        // камеры. Дельта по X (spanX) уходит в сцену; если она перехватила — камеру не трогаем.
+        // Пинч ПРЯМО НА цели (стек карт): горизонтальное разведение пальцев ведёт СПРЕД (внутренний
+        // слой зума), а не камеру. Дельта по X (spanX) уходит в сцену; перехватила — камеру не трогаем.
         const dSpanX = spanX - this.pinch.spanX;
         this.pinch.spanX = spanX;
-        if (this.pinchOnElement(this.screenToContent(mx, my), dSpanX)) return;
+        const cp = this.screenToContent(mx, my);
+        if (this.spreadOnElement(cp, dSpanX, "touch-zoom")) {
+          // Спред поглотил кадр. Держим камерный якорь на ТЕКУЩЕМ расстоянии и зуме: иначе, когда
+          // спред упрётся в предел и жест провалится в зум камеры (spreadOnElement вернёт false),
+          // формула zoom*dist/pinch.dist прыгнула бы на всю дельту dist, накопленную за спред-фазу.
+          this.pinch.dist = dist;
+          this.pinch.zoom = this.viewport.zoom;
+          this.pinch.midContentX = cp.x;
+          this.pinch.midContentY = cp.y;
+          return;
+        }
         const c = this.camPoint(mx, my);
         this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, this.viewport.minZoom, this.viewport.maxZoom);
         this.viewport.x = c.x - this.pinch.midContentX * this.viewport.zoom;

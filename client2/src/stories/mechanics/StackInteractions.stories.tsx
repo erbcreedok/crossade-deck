@@ -22,14 +22,17 @@ interface MechArgs {
   entity: Extract<StackContent, "cards" | "chips">;
   interaction: StackArgs["interaction"];
   spread: StackArgs["spread"];
-  spreadTrigger: StackArgs["spreadTrigger"];
+  spreadPointerTrigger: StackArgs["spreadPointerTrigger"];
+  spreadTouchTrigger: StackArgs["spreadTouchTrigger"];
   spreadMaxGap: StackArgs["spreadMaxGap"];
   spreadClose: StackArgs["spreadClose"];
   spreadCenterX: StackArgs["spreadCenterX"];
   spreadKeepDiagonal: StackArgs["spreadKeepDiagonal"];
+  cardDrag: StackArgs["cardDrag"];
   cardPick: StackArgs["cardPick"];
   cardDragTrigger: StackArgs["cardDragTrigger"];
   stackDrag: StackArgs["stackDrag"];
+  stackDragTrigger: StackArgs["stackDragTrigger"];
 }
 
 const COUNT = 6;
@@ -48,14 +51,17 @@ function toStackArgs(a: MechArgs): StackArgs {
     content: a.entity,
     interaction: a.interaction,
     spread: a.spread,
-    spreadTrigger: a.spreadTrigger,
+    spreadPointerTrigger: a.spreadPointerTrigger,
+    spreadTouchTrigger: a.spreadTouchTrigger,
     spreadMaxGap: a.spreadMaxGap,
     spreadClose: a.spreadClose,
     spreadCenterX: a.spreadCenterX,
     spreadKeepDiagonal: a.spreadKeepDiagonal,
+    cardDrag: a.cardDrag,
     cardPick: a.cardPick,
     cardDragTrigger: a.cardDragTrigger,
     stackDrag: a.stackDrag,
+    stackDragTrigger: a.stackDragTrigger,
   };
 }
 
@@ -63,14 +69,17 @@ const MECH_ARGS: MechArgs = {
   entity: "cards",
   interaction: "deck",
   spread: true,
-  spreadTrigger: STACK_ARGS.spreadTrigger,
+  spreadPointerTrigger: STACK_ARGS.spreadPointerTrigger,
+  spreadTouchTrigger: STACK_ARGS.spreadTouchTrigger,
   spreadMaxGap: STACK_ARGS.spreadMaxGap,
   spreadClose: STACK_ARGS.spreadClose,
   spreadCenterX: STACK_ARGS.spreadCenterX,
   spreadKeepDiagonal: STACK_ARGS.spreadKeepDiagonal,
+  cardDrag: STACK_ARGS.cardDrag,
   cardPick: "first",
   cardDragTrigger: STACK_ARGS.cardDragTrigger,
   stackDrag: STACK_ARGS.stackDrag,
+  stackDragTrigger: STACK_ARGS.stackDragTrigger,
 };
 
 // Рычаги спреда/драга — те же argTypes, что у «UI-kit/Stack» (одно описание на все разделы, где
@@ -85,14 +94,17 @@ const MECH_ARG_TYPES = {
   },
   interaction: STACK_ARG_TYPES.interaction,
   spread: STACK_ARG_TYPES.spread,
-  spreadTrigger: STACK_ARG_TYPES.spreadTrigger,
+  spreadPointerTrigger: STACK_ARG_TYPES.spreadPointerTrigger,
+  spreadTouchTrigger: STACK_ARG_TYPES.spreadTouchTrigger,
   spreadMaxGap: STACK_ARG_TYPES.spreadMaxGap,
   spreadClose: STACK_ARG_TYPES.spreadClose,
   spreadCenterX: STACK_ARG_TYPES.spreadCenterX,
   spreadKeepDiagonal: STACK_ARG_TYPES.spreadKeepDiagonal,
+  cardDrag: STACK_ARG_TYPES.cardDrag,
   cardPick: STACK_ARG_TYPES.cardPick,
   cardDragTrigger: STACK_ARG_TYPES.cardDragTrigger,
   stackDrag: STACK_ARG_TYPES.stackDrag,
+  stackDragTrigger: STACK_ARG_TYPES.stackDragTrigger,
 };
 
 const meta: Meta<MechArgs> = {

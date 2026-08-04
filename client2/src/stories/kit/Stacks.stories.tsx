@@ -9,8 +9,6 @@ import { applyArgsToParams, paramsToArgs, paramsToArgTypes } from "../harness/pa
 import { STACK_ARGS, STACK_ARG_TYPES, interactionFrom, layoutFrom, stackOptsFrom, type StackArgs } from "./stackArgs";
 import { CanvasStage } from "../harness/CanvasStage";
 import { STACK_LAYOUTS, STACK_LAYOUT_IDS } from "../../game/kit/stackLayout";
-import { expect, waitFor } from "storybook/test";
-import { dragOnCanvas, elementAt, waitForElement, wheelOnCanvas } from "../harness/canvasDrag";
 
 /** Все рычаги применяются одинаково: влить значение в параметр компонента и переразложить сцену. */
 // ——— раскладка стопки: ОДНА стопка, разные аргументы ———
@@ -171,14 +169,14 @@ export const Deck: Story = {
     count: 10,
     interaction: "deck",
     spread: true,
-    spreadTrigger: "always",
     spreadMaxGap: 34,
     spreadClose: "snap",
     cardPick: "first",
     cardDragTrigger: "tap",
   },
-  // Спред вживую: колесо/скролл по колоде раздвигает её, отпущенная цель липнет к ближайшему
-  // стопу. Рычаги ниже — переопределения пресета "deck" (interactionFrom), не фикс-конфиг.
+  // Спред вживую: жест по колоде (два пальца на телефоне / Ctrl-колесо-тачпад на ПК — см.
+  // spread.*Trigger) раздвигает её, отпущенная цель липнет к ближайшему стопу. Рычаги ниже —
+  // переопределения пресета "deck" (interactionFrom).
   render: (args) => (
     <CanvasStage<KitScene, LayoutArgs>
       args={args}
@@ -199,74 +197,11 @@ export const Deck: Story = {
   ),
 };
 
-/**
- * СЦЕНАРИЙ — колесо/скролл над колодой раздвигает карты (спред), а не листает страницу.
- *
- * Панель Interactions пишет это шагами: без сценария разница между «раздвинулась» и «стоит
- * колодой» видна только глазом на живом канвасе, а на скриншоте колода со спредом 0 и колода без
- * спреда неотличимы (обе — ровная стопка).
- *
- * Конфиг — тот же, что у стори «Колода» (`interaction: "deck"`, `spread: true`,
- * `spreadTrigger: "always"`): жест `wheelOnCanvas` целится в ТОЧКУ НАД СТОПКОЙ (координата первой
- * карты), это и есть то место, за которое колесо «берёт» спред-стек (см. `wheelOnElement` в
- * `kitScene.ts` — попадание проверяется по габариту стопки, надутому на полклетки).
- */
-export const SpreadScenario: Story = {
-  args: {
-    ...STACK_ARGS,
-    layout: "linear",
-    angleDeg: 0,
-    step: 0.06,
-    faceUp: false,
-    count: 10,
-    interaction: "deck",
-    spread: true,
-    spreadTrigger: "always",
-    spreadMaxGap: 34,
-    spreadClose: "snap",
-    cardPick: "first",
-    cardDragTrigger: "tap",
-  },
-  render: (args) => (
-    <CanvasStage<KitScene, LayoutArgs>
-      args={args}
-      apply={{ faceUp: (scene) => void scene.flipStack(liveIds) }}
-      target={(scene) => scene}
-      build={(ctx, a) => {
-        const at = { x: ctx.padding, y: ctx.padding };
-        const form = layoutFrom(a);
-        const cell = { w: ctx.cardW, h: ctx.cardH };
-        const r = stackState(ctx, at, stackOptsFrom(a));
-        liveIds = r.ids;
-        const { spread, cardDrag, stackDrag } = interactionFrom(a);
-        if (spread) ctx.spreadStack(r.ids, at, form, cell, spread);
-        ctx.dragConfig(r.ids, cardDrag, stackDrag);
-        ctx.extent(r.width + ctx.padding * 2, r.bottom + ctx.padding);
-      }}
-    />
-  ),
-  play: async ({ canvasElement, step }) => {
-    await step("витрина собралась", async () => waitForElement(canvasElement, "st-0"));
-
-    // Сомкнутая колода: соседние карты лежат почти вплотную, зазор — доли пикселя шага раскладки.
-    const gapClosed = () => elementAt(canvasElement, "st-1").x - elementAt(canvasElement, "st-0").x;
-    const closedGap = gapClosed();
-    const overStack = elementAt(canvasElement, "st-0");
-
-    await step("крутим колесо над колодой — она раздвигается", async () => {
-      for (let i = 0; i < 6; i++) {
-        await wheelOnCanvas(canvasElement, overStack, { dx: 40 });
-      }
-    });
-
-    await step("зазор между соседними картами вырос — это и есть спред", async () => {
-      await waitFor(() => {
-        const gap = gapClosed();
-        void expect(gap).toBeGreaterThan(closedGap + 1);
-      });
-    });
-  },
-};
+// Play-сценарий спреда здесь СНЯТ (#116): спред двигает жест (тач-пинч / десктоп зум-жест или
+// колесо — см. spread.*Trigger), а его симуляция через pointer/wheel-события требует play-раннера
+// (@storybook/test-runner не установлен) — писать непроверяемый сценарий значит сдавать
+// непрогнанное. Спред проверяется руками в браузере (оба стенда); play-версию завести, когда
+// появится раннер (см. docs/STACK-INTERACTIONS-HANDOFF.md).
 
 /**
  * СБРОС — куча, а не стопка.
@@ -283,7 +218,6 @@ export const Discard: Story = {
     count: 7,
     interaction: "discard",
     spread: true,
-    spreadTrigger: "always",
     spreadMaxGap: 46,
     spreadClose: "timer",
     cardPick: "any",

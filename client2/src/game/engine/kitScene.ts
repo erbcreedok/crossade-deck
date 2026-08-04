@@ -1,5 +1,5 @@
 import { Application, Container } from "pixi.js";
-import { SceneEngine, type CameraConfig, type SceneElement } from "./sceneEngine";
+import { SceneEngine, type CameraConfig, type SceneElement, type SpreadSource } from "./sceneEngine";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Card } from "../ui/Card";
 import { buildPiece } from "../ui/pieceKinds";
@@ -18,7 +18,7 @@ import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } fro
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 import type { StackLayout } from "../kit/stackLayout";
-import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type CardDrag, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
+import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type CardDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -59,19 +59,19 @@ export interface KitContext extends SectionContext {
   /** Задать габарит витрины явно. Не задан — считается по краям расставленных элементов. */
   extent(w: number, h: number): void;
   /**
-   * Включить СПРЕД у стопки: горизонтальный раздвиг по колесу/скроллу поверх базовой раскладки
-   * (kit/stackInteraction.ts). Матчасть там же — чистая, без Pixi; тут только регистрация записи,
-   * шаг и приём колеса живут в самой сцене (wheelOnElement/stepScene).
+   * Включить СПРЕД у стопки: горизонтальный раздвиг жестом (kit/stackInteraction.ts — spread.*Trigger
+   * решает, каким устройством) поверх базовой раскладки. Матчасть там же — чистая, без Pixi; тут
+   * только регистрация записи, шаг и приём жеста живут в самой сцене (spreadOnElement/stepScene).
    */
   spreadStack(ids: string[], at: Pt, layout: StackLayout, cell: { w: number; h: number }, cfg: SpreadConfig): void;
   /**
    * Включить ДРАГ КАРТ и/или ДРАГ ВСЕЙ СТОПКИ. `cardDrag`: каким жестом берут отдельную карту
    * (`tap`/`hold`) и какую отдают («любую» под пальцем / только верхнюю — `pick`); `null` — карты
    * по отдельности не тащатся. `stackDrag`: стопка тащится ЦЕЛИКОМ (любая карта — ручка для всей
-   * пачки); `null` — такого нет. У стопки бывает только один из двух (или ни одного) — конфликт не
-   * гейтится тут (kit/stackInteraction.ts StackInteraction), решает автор сборки.
-   * Матчасть — `kit/stackInteraction.ts`; тут только регистрация, решение — в
-   * `KitScene.canDrag`/`holdToDrag`/`beginDrag`.
+   * пачки); `null` — такого нет. Оба МОГУТ быть включены разом: у каждого свой триггер (tap/hold), и
+   * жест выбирает интент (разные триггеры → тап тащит одно, hold другое; совпали → стек). Матчасть —
+   * `kit/stackInteraction.ts`; тут только регистрация, решение — в
+   * `KitScene.canDrag`/`dragOnTap`/`dragOnHold`/`beginDrag`.
    */
   dragConfig(ids: string[], cardDrag: CardDrag | null, stackDrag?: StackDrag | null): void;
 }
@@ -114,15 +114,22 @@ export class KitScene extends SceneEngine {
   private fresh: SceneElement[] = [];
   /**
    * Стопки со спредом. Реестр отдельный от `placed`: спред — это ПОВЕРХ раскладки, а не свойство
-   * элемента, и одна стопка тут может занимать несколько мест в `placed`. См. wheelOnElement/stepScene.
+   * элемента, и одна стопка тут может занимать несколько мест в `placed`. См. spreadOnElement/stepScene.
    */
   private spreadStacks: { ids: string[]; at: Pt; layout: StackLayout; cell: { w: number; h: number }; cfg: SpreadConfig; state: SpreadState }[] = [];
   /**
    * Стопки с настроенным драгом карт. Отдельный реестр от `spreadStacks` — спред и драг-карт
    * это две НЕЗАВИСИМЫЕ механики (kit/stackInteraction.ts StackInteraction), у стопки может быть
-   * только одна из них, обе или ни одной. См. holdToDrag/canDrag.
+   * только одна из них, обе или ни одной. См. dragOnTap/dragOnHold/canDrag.
    */
   private dragStacks: { ids: string[]; cardDrag: CardDrag | null; stackDrag: StackDrag | null }[] = [];
+
+  /**
+   * Двигал ли ТЕКУЩИЙ жест спред. Нужно для ДЕТЕНТА на пределе: жест, который сам наполнил спред,
+   * дойдя до края, ОСТАНАВЛИВАЕТСЯ (не отдаёт зум/пан камере) — чтобы палец «почувствовал» лимит.
+   * Камеру активирует лишь СЛЕДУЮЩИЙ жест, начатый уже на пределе. Сбрасывается на onSpreadBegin.
+   */
+  private spreadMovedThisGesture = false;
 
   /**
    * Слушатель габарита — зовётся после каждой сборки. Нужен хосту: высоту канваса задаёт DOM, а
@@ -497,12 +504,8 @@ export class KitScene extends SceneEngine {
     return this.placed.map((p) => p.el);
   }
 
-  /**
-   * Колесо/скролл по спред-стеку: первая стопка, чей габарит (по ТЕКУЩИМ позициям карт, надутый
-   * на полклетки) содержит точку, забирает жест — сдвигает ЦЕЛЬ раздвига, не пан/зум сцены.
-   */
-  /** Спред-стек под точкой контента (по габариту живых карт + половина ячейки) или null. Общий
-   *  хит-тест для колеса (десктоп-зум) и пинча (тач-зум). */
+  /** Спред-стек под точкой контента (по габариту живых карт + половина ячейки) или null. Хит-тест
+   *  жеста спреда: первая стопка, чей габарит содержит точку жеста, забирает его. */
   private spreadStackAt(cp: Pt): (typeof this.spreadStacks)[number] | null {
     for (const entry of this.spreadStacks) {
       let minX = Infinity;
@@ -526,23 +529,43 @@ export class KitScene extends SceneEngine {
     return null;
   }
 
-  /** Десктоп-зум колесом ПО стеку → спред (горизонтальная дельта колеса приоритетна). */
-  protected override wheelOnElement(cp: Pt, dx: number, dy: number): boolean {
+  /**
+   * Жест ПО стеку → спред. Вход один для всех устройств; чем пришёл жест — в `source`. Реагируем ли
+   * на него, решает КОНФИГ стека (kit/stackInteraction.ts): `touch-zoom` — по `touchTrigger==="zoom"`;
+   * `pointer-zoom` (десктоп Ctrl/тачпад) — по `pointerTrigger==="zoom"`; `pointer-pan` (обычное
+   * колесо) — по `pointerTrigger==="pan"`. Не тот жест для этого стека → возвращаем false, и он
+   * целиком уходит камере (зум/пан вьюпорта — дефолтный фоллтру).
+   *
+   * СПРЕД — ВНУТРЕННИЙ слой, камера — ВНЕШНИЙ. Пока спреду есть куда двигаться, жест его и ведёт
+   * (true — камеру не трогаем). Обратный жест сразу снова ведёт спред (правило «изменился ли target»).
+   *
+   * На ПРЕДЕЛЕ (target упёрся в 0/maxGap и жест давит дальше — `target` за кадр не изменился) есть
+   * ДЕТЕНТ: если ЭТОТ жест сам двигал спред (`spreadMovedThisGesture`), он тут ОСТАНАВЛИВАЕТСЯ —
+   * глотаем (true), камеру не трогаем, чтобы почувствовать лимит. Камеру активирует лишь СЛЕДУЮЩИЙ
+   * жест, начатый уже на пределе (тогда флаг ещё false → false, и камера получает жест). Так «дойти
+   * до края спреда» и «двигать камеру» — два раздельных жеста, а не один непрерывный.
+   */
+  protected override spreadOnElement(cp: Pt, dGap: number, source: SpreadSource): boolean {
     const entry = this.spreadStackAt(cp);
     if (!entry) return false;
-    const deltaGap = (Math.abs(dx) >= Math.abs(dy) ? dx : dy) * 0.25;
-    entry.state = spreadInput(entry.state, deltaGap, entry.cfg);
-    this.wake();
-    return true;
+    const sp = entry.cfg;
+    const armed = source === "touch-zoom" ? sp.touchTrigger === "zoom" : source === "pointer-zoom" ? sp.pointerTrigger === "zoom" : sp.pointerTrigger === "pan";
+    if (!armed) return false; // этот жест на этом стеке спред не трогает — уходит камере
+    const next = spreadInput(entry.state, dGap * 0.5, sp);
+    if (next.target !== entry.state.target) {
+      entry.state = next;
+      this.spreadMovedThisGesture = true;
+      this.wake();
+      return true;
+    }
+    // Спред на пределе. Детент: жест, который сам его наполнил, тут стоит (глотаем, камеру не трогаем).
+    // Жест, начатый уже на пределе (спред им не двигали), отдаёт себя камере.
+    return this.spreadMovedThisGesture;
   }
 
-  /** Тач-зум: два пальца ПО стеку, горизонтальное разведение (dSpanX) → спред. Камеру не зумим. */
-  protected override pinchOnElement(cp: Pt, dSpanX: number): boolean {
-    const entry = this.spreadStackAt(cp);
-    if (!entry) return false;
-    entry.state = spreadInput(entry.state, dSpanX * 0.5, entry.cfg);
-    this.wake();
-    return true;
+  /** Новый жест — забываем, двигал ли прошлый спред (детент на пределе, см. spreadOnElement). */
+  protected override onSpreadBegin(): void {
+    this.spreadMovedThisGesture = false;
   }
 
   /** Шаг спред-стеков: анимация amount→target + close-поведение, раскладка карт поверх базовой. */
@@ -577,11 +600,11 @@ export class KitScene extends SceneEngine {
   }
 
   /**
-   * Пик карты по конфигу стопки: `stackDrag != null` — ЛЮБАЯ карта стопки хватается (ручка для
-   * всей пачки, см. beginDrag); иначе — по `cardDrag.pick` (kit/stackInteraction.ts): `null` —
-   * карты не тащат вовсе, `"first"` — только ВЕРХНЯЯ (последняя в порядке id), `"any"` — любая под
-   * пальцем (базовое поведение). Элементы вне драг-реестра решаются базой — рычаг на них не
-   * распространяется.
+   * Пик карты по конфигу стопки: `stackDrag != null` — ЛЮБАЯ карта стопки хватается (ручка для всей
+   * пачки, см. beginDrag); иначе — по ПРЕДИКАТУ `cardDrag.pick` (kit/stackInteraction.ts): его
+   * зовём с позицией карты в стопке (0 — низ, n-1 — верх). `cardDrag == null` — карты не тащат вовсе.
+   * Готовые предикаты — PICK_ANY/PICK_FIRST; клиент может дать свой (только пики и т.п.). Элементы
+   * вне драг-реестра решаются базой — рычаг на них не распространяется.
    */
   protected override canDrag(el: SceneElement): boolean {
     if (!super.canDrag(el)) return false;
@@ -589,31 +612,62 @@ export class KitScene extends SceneEngine {
     if (!entry) return true;
     if (entry.stackDrag) return true;
     if (!entry.cardDrag) return false;
-    if (entry.cardDrag.pick === "first") return el.id === entry.ids[entry.ids.length - 1];
-    return true;
-  }
-
-  /** «Держи, чтобы тащить» — если у стопки элемента задан cardDrag.trigger либо stackDrag.trigger==="hold". */
-  protected override holdToDrag(el: SceneElement): boolean {
-    const entry = this.dragEntryOf(el.id);
-    return entry?.cardDrag?.trigger === "hold" || entry?.stackDrag?.trigger === "hold";
+    const i = entry.ids.indexOf(el.id);
+    if (i < 0) return false; // карты уже нет в живом порядке стопки
+    return entry.cardDrag.pick({ id: el.id, i, n: entry.ids.length });
   }
 
   /**
-   * Драг ЦЕЛОЙ стопки (`stackDrag != null`, kit/stackInteraction.ts): взяли за любую карту — едет
-   * вся живая пачка группой, форма сохраняется (сдвиги от точки захвата, тот же приём, что у
-   * блок-драга песочницы — boards/scene.ts beginDrag). Иначе — база (SingleDrag/метка).
+   * Драг карты и драг всей стопки — ДВА НЕЗАВИСИМЫХ интента, у каждого свой триггер (tap/hold). Роутер
+   * зовёт `dragOnTap`/`dragOnHold`, чтобы узнать, что доступно этим жестом, и выбирает по жесту —
+   * поэтому `stackDrag` больше НЕ перебивает `cardDrag`: если триггеры разные, тап делает одно, hold
+   * другое; если совпали — выигрывает стек (см. beginDrag). Интент «доступен» = его триггер равен
+   * жесту И он применим к этому элементу (у cardDrag — предикат pick; stackDrag берётся за любую карту).
+   */
+  protected override dragOnTap(el: SceneElement): boolean {
+    return this.hasDragIntent(el, "tap");
+  }
+  protected override dragOnHold(el: SceneElement): boolean {
+    return this.hasDragIntent(el, "hold");
+  }
+
+  /** Есть ли у элемента драг-интент (card или stack) с данным триггером. Вне реестра — обычный
+   *  тап-драг базы (тап есть, hold нет). */
+  private hasDragIntent(el: SceneElement, trigger: DragTrigger): boolean {
+    const entry = this.dragEntryOf(el.id);
+    if (!entry) return trigger === "tap";
+    if (entry.stackDrag?.trigger === trigger) return true;
+    return entry.cardDrag?.trigger === trigger && this.cardPickApplies(entry, el);
+  }
+
+  /** Хватается ли ИМЕННО эта карта по предикату cardDrag.pick (0 — низ, n-1 — верх). */
+  private cardPickApplies(entry: { ids: string[]; cardDrag: CardDrag | null }, el: SceneElement): boolean {
+    if (!entry.cardDrag) return false;
+    const i = entry.ids.indexOf(el.id);
+    return i >= 0 && entry.cardDrag.pick({ id: el.id, i, n: entry.ids.length });
+  }
+
+  /**
+   * Начать драг ТЕМ интентом, чей триггер совпал с сработавшим жестом (`grabMode`): `stackDrag` →
+   * едет вся живая пачка группой (`GroupDrag`, форма сохраняется — тот же приём, что у блок-драга
+   * песочницы, boards/scene.ts); `cardDrag` → одиночная карта (база). При совпадении триггеров у
+   * обоих выигрывает стек. Если жесту не отвечает ни один интент (страховка — роутер и так не должен
+   * был захватывать) — возвращаем false, база тоже не заводит драг.
    */
   protected override beginDrag(el: SceneElement, cp: Pt, sp: Pt): boolean {
     const entry = this.dragEntryOf(el.id);
-    if (entry?.stackDrag) {
-      const nodes = entry.ids.map((id) => this.byId.get(id)).filter((e): e is SceneElement => !!e);
-      if (nodes.length) {
-        const offsets = nodes.map((n) => ({ dx: n.body.px - cp.x, dy: n.body.py - cp.y }));
-        this.drag = new GroupDrag(nodes, offsets, this.dragCtx);
-        this.drag.move(cp);
-        return true;
+    if (entry) {
+      if (entry.stackDrag?.trigger === this.grabMode) {
+        const nodes = entry.ids.map((id) => this.byId.get(id)).filter((e): e is SceneElement => !!e);
+        if (nodes.length) {
+          const offsets = nodes.map((n) => ({ dx: n.body.px - cp.x, dy: n.body.py - cp.y }));
+          this.drag = new GroupDrag(nodes, offsets, this.dragCtx);
+          this.drag.move(cp);
+          return true;
+        }
       }
+      // Не стек этим жестом → карта, но лишь если карточный интент отвечает этому жесту и применим.
+      if (!(entry.cardDrag?.trigger === this.grabMode && this.cardPickApplies(entry, el))) return false;
     }
     return super.beginDrag(el, cp, sp);
   }

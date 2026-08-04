@@ -119,27 +119,3 @@ export async function dragOnCanvas(canvasElement: HTMLElement, from: Pt, to: Pt,
   fire(canvasElement, "pointerup", toScreen(canvasElement, to));
   await wait(900);
 }
-
-/**
- * Крутануть колесо НАД точкой КОНТЕНТА — так же, как палец тащит: точка переводится в экранные
- * координаты живой камерой (канвас + сдвиг/масштаб витрины), а не берётся один раз в начале, потому
- * что коробка канваса может смениться прямо во время сценария (см. `dragOnCanvas`).
- *
- * Сцена читает `deltaX`/`deltaY` из живого `WheelEvent` (`sceneEngine.onWheel`), поэтому здесь не
- * подделываются координаты канваса — дублируется ровно то же событие, которое посылает браузер.
- */
-export async function wheelOnCanvas(canvasElement: HTMLElement, at: Pt, delta: { dx?: number; dy?: number }): Promise<void> {
-  await waitForSteadyCamera(canvasElement);
-  const cv = canvasElement.querySelector("canvas")!;
-  const p = toScreen(canvasElement, at);
-  cv.dispatchEvent(
-    new WheelEvent("wheel", {
-      deltaX: delta.dx ?? 0,
-      deltaY: delta.dy ?? 0,
-      clientX: p.x,
-      clientY: p.y,
-      bubbles: true,
-      cancelable: true,
-    })
-  );
-}

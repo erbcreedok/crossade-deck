@@ -5,6 +5,10 @@
 
 export type Gesture = "none" | "drag" | "pan" | "pinch" | "button" | "blocked" | "press";
 
+/** Каким жестом захватили элемент: быстрым сдвигом (`tap`) или после удержания (`hold`). Домен
+ *  решает, ЧТО каждый из них тащит (у одного элемента это могут быть разные вещи). */
+export type DragMode = "tap" | "hold";
+
 /**
  * Насколько надо увести палец, чтобы это считалось ПОПЫТКОЙ ТАЩИТЬ.
  *
@@ -30,11 +34,16 @@ export interface InputHandlers<C, B> {
   pickCard(cx: number, cy: number): C | null;
   cardDraggable(c: C): boolean;
   /**
-   * Опц.: для ЭТОЙ карты драг начинается не сразу, а после `HOLD_SEC` неподвижности. Пока палец
-   * стоит, жест — `press`; сдвиг раньше срока превращает его в пан (значит, тащить не хотели, а
-   * листали стопку), быстрое отпускание — в тап по карте. Отсутствует/false — поведение как раньше.
+   * Два НЕЗАВИСИМЫХ драг-интента у одного элемента; роутер выбирает по жесту, домен — что тащить:
+   *  • `dragOnTap` — быстрый драг: тащим сразу, как палец поехал (default true — обычное поведение);
+   *  • `dragOnHold` — драг после `HOLD_SEC` неподвижности (default false).
+   * Если ЕСТЬ оба — палец, поехавший до срока, запускает ТАП-драг, а достоявший — HOLD-драг (домен
+   * может привязать к ним разные вещи: тап тащит карту, hold — весь стек, или наоборот). Только hold:
+   * ранний сдвиг — пан (листаем стопку, тащить не хотели). Только tap: как раньше. Ни того ни
+   * другого при `cardDraggable` — быстрое отпускание даёт тап по карте (`onCardTap`).
    */
-  holdToDrag?(c: C): boolean;
+  dragOnTap?(c: C): boolean;
+  dragOnHold?(c: C): boolean;
   pickButton(cx: number, cy: number): B | null;
   buttonContains(b: B, cx: number, cy: number): boolean;
 
@@ -45,7 +54,7 @@ export interface InputHandlers<C, B> {
    */
   pickOverlay?(sx: number, sy: number): B | null;
 
-  onCardGrab(c: C, content: Pt, screen: Pt): void;
+  onCardGrab(c: C, content: Pt, screen: Pt, mode: DragMode): void;
   onCardMove(c: C, content: Pt, screen: Pt): void;
   onCardDrop(c: C, content: Pt): void; // отпустили (дроп в зону/возврат)
   onCardCancel(c: C): void; // драг прерван вторым пальцем (пинч)
@@ -92,6 +101,8 @@ export class InputRouter<C, B> {
   /** Жест "press": сколько уже простояли и откуда — для промоции в drag по `tick()`. */
   private heldFor = 0;
   private pressFrom: Pt | null = null;
+  /** Есть ли у ЭТОГО press ещё и тап-драг: тогда ранний сдвиг запускает его, а не уходит в пан. */
+  private pressTap = false;
 
   constructor(private readonly h: InputHandlers<C, B>) {}
 
@@ -124,22 +135,33 @@ export class InputRouter<C, B> {
       }
       const cp = this.h.screenToContent(sx, sy);
       const card = this.h.pickCard(cp.x, cp.y);
+      const tapDrag = card ? (this.h.dragOnTap?.(card) ?? true) : false;
+      const holdDrag = card ? (this.h.dragOnHold?.(card) ?? false) : false;
       if (card && !this.h.cardDraggable(card)) {
         // НЕ отбиваем сразу: ждём, поедет ли палец. Сам по себе тык — не попытка тащить.
         this.gesture = "blocked";
         this.card = card;
         this.blockedFrom = { x: sx, y: sy };
         this.blockedFired = false;
-      } else if (card && this.h.holdToDrag?.(card)) {
-        // Драгабельна, но требует «держи»: пока не набежит HOLD_SEC, это ещё не захват.
+      } else if (card && holdDrag && !tapDrag) {
+        // Только hold: пока не набежит HOLD_SEC — не захват; ранний сдвиг уйдёт в пан (см. move).
         this.gesture = "press";
         this.card = card;
         this.pressFrom = { x: sx, y: sy };
         this.heldFor = 0;
+        this.pressTap = false;
+      } else if (card && holdDrag && tapDrag) {
+        // Есть ОБА интента: ждём в press. Ранний сдвиг → тап-драг, достоял HOLD_SEC → hold-драг.
+        this.gesture = "press";
+        this.card = card;
+        this.pressFrom = { x: sx, y: sy };
+        this.heldFor = 0;
+        this.pressTap = true;
       } else if (card) {
+        // Только tap (или обычная драгабельная без интентов) — тащим сразу.
         this.gesture = "drag";
         this.card = card;
-        this.h.onCardGrab(card, cp, { x: sx, y: sy });
+        this.h.onCardGrab(card, cp, { x: sx, y: sy }, "tap");
       } else {
         const btn = this.h.pickButton(cp.x, cp.y);
         if (btn) {
@@ -170,13 +192,24 @@ export class InputRouter<C, B> {
         this.h.onCardBlocked(this.card);
       }
     } else if (this.gesture === "press" && this.card) {
-      // Поехал раньше, чем настоялся — значит тащить не хотели, это пан/скролл стопки.
+      // Поехал раньше, чем настоялся.
       if (this.pressFrom && Math.hypot(sx - this.pressFrom.x, sy - this.pressFrom.y) > DRAG_SLOP) {
-        this.card = null;
-        this.pressFrom = null;
-        this.gesture = "pan";
-        this.panLast = { x: sx, y: sy };
-        this.h.onPanStart?.();
+        if (this.pressTap) {
+          // У элемента есть и тап-драг: ранний сдвиг — это ОН (hold так и не наступил).
+          const card = this.card;
+          const cp = this.h.screenToContent(sx, sy);
+          this.gesture = "drag";
+          this.pressFrom = null;
+          this.heldFor = 0;
+          this.h.onCardGrab(card, cp, { x: sx, y: sy }, "tap");
+        } else {
+          // Только hold: сдвиг раньше срока — тащить не хотели, это пан/скролл стопки.
+          this.card = null;
+          this.pressFrom = null;
+          this.gesture = "pan";
+          this.panLast = { x: sx, y: sy };
+          this.h.onPanStart?.();
+        }
       }
     } else if (this.gesture === "drag" && this.card) {
       const cp = this.h.screenToContent(sx, sy);
@@ -253,7 +286,7 @@ export class InputRouter<C, B> {
     this.gesture = "drag";
     this.pressFrom = null;
     this.heldFor = 0;
-    this.h.onCardGrab(card, this.h.screenToContent(at.x, at.y), at);
+    this.h.onCardGrab(card, this.h.screenToContent(at.x, at.y), at, "hold");
   }
 
   /** Сброс (teardown/рестарт): забыть указатели и жест. */
@@ -267,6 +300,7 @@ export class InputRouter<C, B> {
     this.multi = false;
     this.heldFor = 0;
     this.pressFrom = null;
+    this.pressTap = false;
   }
 
   private pinchGeom(): { midX: number; midY: number; dist: number; spanX: number } {
