@@ -3,17 +3,20 @@ import {
   pieceDragFrom,
   PICK_ANY,
   PICK_FIRST,
+  pivotFrom,
   SPREAD_STATE0,
-  offsetWithSpread,
   resolveInteraction,
   spreadInput,
-  spreadTarget,
+  recenterShift,
+  spreadOffsetAt,
   spreadTick,
   stackDragFrom,
   STACK_INTERACTIONS,
+  wobbleOffset,
   type SpreadConfig,
+  type SpreadShapeCtx,
 } from "./stackInteraction";
-import { linear } from "./stackLayout";
+import { linear, type StackLayout } from "./stackLayout";
 
 const cfg = (over: Partial<SpreadConfig> = {}): SpreadConfig => ({
   gain: 5,
@@ -23,32 +26,79 @@ const cfg = (over: Partial<SpreadConfig> = {}): SpreadConfig => ({
   ...over,
 });
 
-describe("spreadTarget (полная позиция при amount=1)", () => {
-  it("дефолт-цель = rest×gain (масштаб от якоря); rot не трогаем", () => {
-    const base = { dx: 4, dy: 3, rot: 0.1 };
-    expect(spreadTarget(base, 2, 5, { w: 60, h: 90 }, cfg({ gain: 3 }))).toEqual({ dx: 12, dy: 9, rot: 0.1 });
+const mkCtx = (over: Partial<SpreadShapeCtx> = {}): SpreadShapeCtx => ({
+  i: 2,
+  n: 5,
+  cell: { w: 60, h: 90 },
+  gain: 4,
+  base: { dx: 4, dy: 3, rot: 0.1 },
+  pivot: { dx: 0, dy: 0, rot: 0 },
+  layout: linear({ angleDeg: 0, step: 0.5 }),
+  angleDeg: 0,
+  ...over,
+});
+
+describe("SpreadShapes / spreadOffsetAt", () => {
+  it("inherit — растит натуральный параметр раскладки (linear step ×gain); amount 0 = rest", () => {
+    const layout: StackLayout = linear({ angleDeg: 0, step: 0.5 });
+    const cell = { w: 60, h: 90 };
+    const ctx = mkCtx({ i: 3, layout, base: layout(3, 5, cell), gain: 4 });
+    const rest = spreadOffsetAt(cfg({ shape: "inherit" }), ctx, 0);
+    const full = spreadOffsetAt(cfg({ shape: "inherit" }), ctx, 1);
+    expect(rest.dx).toBeCloseTo(layout(3, 5, cell).dx); // amount 0 = rest (strength 1)
+    expect(full.dx).toBeCloseTo(layout(3, 5, cell, 4).dx); // amount 1 = strength gain
+    expect(full.dx).toBeCloseTo(rest.dx * 4); // step×4 → dx×4
   });
-  it("override target = другая раскладка, gain при этом не при чём", () => {
-    const base = { dx: 4, dy: 3, rot: 0.1 };
-    const t = spreadTarget(base, 1, 3, { w: 10, h: 10 }, cfg({ gain: 99, target: linear({ angleDeg: 0, step: 1 }) }));
-    expect(t.dy).toBe(0); // linear(0): чистая горизонталь
-    expect(t.dx).toBeGreaterThan(0);
-    expect(t.dx).toBeLessThan(99 * 4); // это раскладка, а не rest×99
+  it("radial — масштаб rest ВОКРУГ pivot (k=1+(gain-1)*amount)", () => {
+    const ctx = mkCtx({ i: 1, n: 3, base: { dx: 4, dy: 2, rot: 0 }, pivot: { dx: 0, dy: 0, rot: 0 }, gain: 3 });
+    expect(spreadOffsetAt(cfg({ shape: "radial" }), ctx, 1)).toMatchObject({ dx: 12, dy: 6 }); // ×3
+    expect(spreadOffsetAt(cfg({ shape: "radial" }), ctx, 0.5).dx).toBe(8); // k=2 → 4*2
+    expect(spreadOffsetAt(cfg({ shape: "radial" }), ctx, 0).dx).toBe(4); // amount 0 = rest
+  });
+  it("radial вокруг НЕнулевого pivot", () => {
+    const ctx = mkCtx({ base: { dx: 10, dy: 0, rot: 0 }, pivot: { dx: 4, dy: 0, rot: 0 }, gain: 2 });
+    expect(spreadOffsetAt(cfg({ shape: "radial" }), ctx, 1).dx).toBe(16); // 4 + (10-4)*2
+  });
+  it("linear-форма — в прямую по углу (dy≈0 при angleDeg 0); amount 0 = база", () => {
+    const ctx = mkCtx({ i: 2, n: 4, base: { dx: 9, dy: 9, rot: 0.2 }, angleDeg: 0 });
+    const full = spreadOffsetAt(cfg({ shape: "linear" }), ctx, 1);
+    expect(full.dy).toBeCloseTo(0); // ряд по горизонтали
+    expect(full.dx).toBeGreaterThan(0);
+    expect(spreadOffsetAt(cfg({ shape: "linear" }), ctx, 0)).toEqual({ dx: 9, dy: 9, rot: 0.2 });
+  });
+  it("wobbleOffset качает по чётности индекса (dy/rot)", () => {
+    expect(wobbleOffset(0, 1).dy).toBe(6); // чётный i → +
+    expect(wobbleOffset(1, 1).dy).toBe(-6); // нечётный → −
+    expect(wobbleOffset(2, 1).dy).toBe(6);
   });
 });
 
-describe("offsetWithSpread (lerp rest→цель по amount)", () => {
-  it("amount 0 → rest, amount 1 → цель, 0.5 → середина", () => {
-    const base = { dx: 0, dy: 0, rot: 0 };
-    const target = { dx: 10, dy: 20, rot: 0.4 };
-    expect(offsetWithSpread(base, target, 0)).toEqual({ dx: 0, dy: 0, rot: 0 });
-    expect(offsetWithSpread(base, target, 1, 0, 0)).toEqual({ dx: 10, dy: 20, rot: 0.4 });
-    expect(offsetWithSpread(base, target, 0.5).dx).toBe(5);
+describe("recenterShift (origin на месте)", () => {
+  it("сдвиг совмещает origin по rest и по спред-офсетам", () => {
+    const rests = [
+      { dx: 0, dy: 0, rot: 0 },
+      { dx: 10, dy: 0, rot: 0 },
+    ];
+    const spreads = [
+      { dx: 5, dy: 0, rot: 0 },
+      { dx: 25, dy: 0, rot: 0 },
+    ]; // центр rest=5, центр спреда=15
+    expect(recenterShift("center", rests, spreads)).toEqual({ dx: -10, dy: 0 }); // 5 - 15
+    expect(recenterShift("bottom", rests, spreads)).toEqual({ dx: -5, dy: 0 }); // index0: 0 - 5
   });
-  it("wobble качает по чётности индекса (dy/rot)", () => {
-    const z = { dx: 0, dy: 0, rot: 0 };
-    expect(offsetWithSpread(z, z, 0, 0, 1).dy).toBe(6); // чётный i → +
-    expect(offsetWithSpread(z, z, 0, 1, 1).dy).toBe(-6); // нечётный → −
+});
+
+describe("pivotFrom", () => {
+  const rests = [
+    { dx: 0, dy: 0, rot: 0 },
+    { dx: 10, dy: 4, rot: 0 },
+    { dx: 20, dy: 8, rot: 0 },
+  ];
+  it("bottom=index0, top=последний, right=макс dx, center=среднее", () => {
+    expect(pivotFrom("bottom", rests)).toEqual(rests[0]);
+    expect(pivotFrom("top", rests)).toEqual(rests[2]);
+    expect(pivotFrom("right", rests).dx).toBe(20);
+    expect(pivotFrom("center", rests)).toEqual({ dx: 10, dy: 4, rot: 0 });
   });
 });
 

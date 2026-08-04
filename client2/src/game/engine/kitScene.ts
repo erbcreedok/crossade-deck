@@ -17,8 +17,8 @@ import { makeLabel, type Pt, type SectionContext } from "../kit/context";
 import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } from "./kitExtent";
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
-import type { StackLayout } from "../kit/stackLayout";
-import { dribbleWobble, offsetWithSpread, spreadInput, spreadTarget, spreadTick, DEFAULT_SPREAD_SENSITIVITY, SPREAD_STATE0, type PieceDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
+import type { StackLayout, StackOffset } from "../kit/stackLayout";
+import { dribbleWobble, pivotFrom, recenterShift, spreadInput, spreadOffsetAt, spreadTick, wobbleOffset, DEFAULT_SPREAD_SENSITIVITY, SPREAD_STATE0, type PieceDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -586,6 +586,19 @@ export class KitScene extends SceneEngine {
     this.spreadMovedThisGesture = false;
   }
 
+  /** Форма спреда по ВСЕМ фигурам стека при текущем amount + рецентровка на `origin` (точка отброса
+   *  стоит на месте — веер/линия/кольцо расширяются вокруг неё). Без wobble — его накладывает вызов. */
+  private spreadOffsets(entry: { ids: string[]; layout: StackLayout; cell: { w: number; h: number }; cfg: SpreadConfig; state: SpreadState }): StackOffset[] {
+    const n = entry.ids.length;
+    const origin = entry.cfg.origin ?? "bottom";
+    const angleDeg = entry.cfg.angleDeg ?? 0;
+    const rests = entry.ids.map((_, i) => entry.layout(i, n, entry.cell));
+    const pivot = pivotFrom(origin, rests);
+    const spreads = rests.map((base, i) => spreadOffsetAt(entry.cfg, { i, n, cell: entry.cell, gain: entry.cfg.gain, base, pivot, layout: entry.layout, angleDeg }, entry.state.amount));
+    const shift = recenterShift(origin, rests, spreads);
+    return spreads.map((o) => ({ dx: o.dx + shift.dx, dy: o.dy + shift.dy, rot: o.rot }));
+  }
+
   /** Шаг спред-стеков: анимация amount→target + close-поведение, раскладка карт поверх базовой. */
   protected override stepScene(dt: number): boolean {
     let moving = false;
@@ -596,17 +609,16 @@ export class KitScene extends SceneEngine {
     const groupDragIds = dragEntry?.stackDrag ? new Set(dragEntry.ids) : null;
     for (const entry of this.spreadStacks) {
       entry.state = spreadTick(entry.state, dt, entry.cfg);
-      const n = entry.ids.length;
+      const spreads = this.spreadOffsets(entry); // форма по всем + рецентровка на origin
       entry.ids.forEach((id, i) => {
         if (id === this.drag?.lead.id) return; // тащат руками — спред её не двигает
         if (groupDragIds?.has(id)) return; // карта пачки, которую тащат целиком — тоже не спредим
         const el = this.byId.get(id);
         if (!el) return;
-        const base = entry.layout(i, n, entry.cell);
-        const target = spreadTarget(base, i, n, entry.cell, entry.cfg);
+        const o = spreads[i]!;
         const wob = entry.cfg.close.kind === "dribble" ? dribbleWobble(i, entry.state.phase) : 0;
-        const off = offsetWithSpread(base, target, entry.state.amount, i, wob);
-        el.body.setTarget({ x: entry.at.x + off.dx, y: entry.at.y + off.dy, rot: off.rot });
+        const w = wobbleOffset(i, wob);
+        el.body.setTarget({ x: entry.at.x + o.dx, y: entry.at.y + o.dy + w.dy, rot: o.rot + w.rot });
       });
       if (entry.state.amount > 0.05 || entry.state.phase > 0) moving = true;
     }
@@ -738,13 +750,11 @@ export class KitScene extends SceneEngine {
     const entry = this.spreadStacks.find((s) => s.ids.includes(id));
     if (!entry) return null;
     const i = entry.ids.indexOf(id);
-    const n = entry.ids.length;
-    const base = entry.layout(i, n, entry.cell);
-    const target = spreadTarget(base, i, n, entry.cell, entry.cfg);
+    const off = this.spreadOffsets(entry)[i]!;
     const wob = entry.cfg.close.kind === "dribble" ? dribbleWobble(i, entry.state.phase) : 0;
-    const off = offsetWithSpread(base, target, entry.state.amount, i, wob);
+    const w = wobbleOffset(i, wob);
     const z = this.placed.find((q) => q.el.id === id)?.z ?? 0;
-    return { home: { x: entry.at.x + off.dx, y: entry.at.y + off.dy }, depth: z };
+    return { home: { x: entry.at.x + off.dx, y: entry.at.y + off.dy + w.dy }, depth: z };
   }
 
   protected reapDead(): void {

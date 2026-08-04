@@ -1,4 +1,4 @@
-import { resolveLayout, type StackLayout, type StackLayoutRef, type StackOffset } from "./stackLayout";
+import type { StackLayout, StackOffset } from "./stackLayout";
 
 interface Cell {
   w: number;
@@ -62,41 +62,130 @@ export interface SpreadInput {
   sensitivity?: number; // прогресс на пиксель (по умолчанию DEFAULT_SPREAD_SENSITIVITY)
 }
 
+/** Точка отброса спреда (pivot): откуда расходятся фигуры. bottom — якорь (нижняя, index 0), center —
+ *  центр стопки, top — верхняя, right — самая правая. Влияет на radial/circle/spiral. Для inherit
+ *  неактуально — центрирование там задаёт сама раскладка. */
+export type SpreadOrigin = "bottom" | "center" | "top" | "right";
+export const SPREAD_ORIGINS: readonly SpreadOrigin[] = ["bottom", "center", "top", "right"];
+
 /**
- * СПРЕД как ИНТЕРПОЛЯЦИЯ раскладки → «спред-цель» по amount (0..1). Направление/шаг берутся из самой
- * раскладки, поэтому отдельного угла/centerX/keepDiagonal нет — они выражаются спред-целью.
- *  • `gain` (дефолт-цель): полный спред = rest-офсеты, масштабированные ВОКРУГ ЯКОРЯ (index 0) в gain
- *    раз. Якорь стоит, остальные разъезжаются по лучам от него → направление из layout.angleDeg даром,
- *    heap разлетается радиально, fan-дуга шире.
- *  • `target` (override): полный спред = ДРУГАЯ раскладка (fan→linear, fan шире и т.п.). Тогда gain не
- *    при чём — интерполируем прямо в target.
+ * СПРЕД параметризуется ФОРМОЙ (`shape`, шаблон) — как раскладка выражается функцией, а не именем.
+ * Дефолт `inherit` растит НАТУРАЛЬНЫЙ параметр раскладки (fan по центру, linear по углу, heap
+ * радиально) — направление/центр даром. Клиент переопределяет любой формой (radial/linear/circle/
+ * spiral/своя). `gain` — усиление на полном спреде; `origin` — точка отброса; `angleDeg` — направление
+ * для linear-формы. Ввод (жест/ось/инверсия/чувствит.) — отдельно, в `input`.
  */
 export interface SpreadConfig {
-  gain: number; // дефолт-цель: во сколько раз растянуть rest-офсеты от якоря в полном спреде
-  target?: StackLayoutRef; // override спред-цели отдельной раскладкой (fan→linear и пр.)
+  gain: number; // усиление на полном спреде (множитель параметра/разлёта)
+  shape?: SpreadShapeRef; // форма спреда (шаблон); по умолчанию inherit — растит параметр раскладки
+  origin?: SpreadOrigin; // точка отброса для radial/circle/spiral (по умолчанию bottom = якорь)
+  angleDeg?: number; // направление для shape="linear" (град; по умолчанию 0 — вправо)
   close: SpreadClose;
   spring: number; // скорость подтяжки amount→target (1/сек); больше — резче
   input: SpreadInput;
 }
 
-/** Полная (amount=1) позиция фигуры i: дефолт — rest×gain от якоря; override — target-раскладка. Чистая. */
-export function spreadTarget(base: StackOffset, i: number, n: number, cell: Cell, cfg: SpreadConfig): StackOffset {
-  if (cfg.target !== undefined) {
-    const layout: StackLayout = resolveLayout(cfg.target);
-    return layout(i, n, cell);
-  }
-  return { dx: base.dx * cfg.gain, dy: base.dy * cfg.gain, rot: base.rot };
+// ——— ФОРМЫ СПРЕДА (шаблоны) — именованные, экспортируемые; в Storybook select по id ———
+// Форма = полная позиция фигуры i при прогрессе amount (0..1). Клиент даёт свою; готовые ниже.
+
+export interface SpreadShapeCtx {
+  i: number;
+  n: number;
+  cell: Cell;
+  gain: number;
+  base: StackOffset; // rest-офсет фигуры (раскладка при strength=1)
+  pivot: StackOffset; // точка отброса (см. SpreadOrigin), в координатах base
+  layout: StackLayout; // сама раскладка (для inherit — зовём с усилением)
+  angleDeg: number; // направление для linear-формы
+}
+export type SpreadShape = (ctx: SpreadShapeCtx, amount: number) => StackOffset;
+
+function lerpOff(a: StackOffset, b: StackOffset, t: number): StackOffset {
+  return { dx: lerp(a.dx, b.dx, t), dy: lerp(a.dy, b.dy, t), rot: lerp(a.rot, b.rot, t) };
 }
 
-/** Позиция фигуры i при данном amount (0..1): lerp(rest → спред-цель) + (в дриббле) покачивание по
- *  чётности индекса. Чистая. */
-export function offsetWithSpread(base: StackOffset, target: StackOffset, amount: number, i = 0, wobble = 0): StackOffset {
+/** inherit — растит НАТУРАЛЬНЫЙ параметр раскладки (зовём layout с усилением 1→gain). Направление и
+ *  центрирование — от самой раскладки (fan по центру, linear по углу, heap радиально). */
+const inheritShape: SpreadShape = (ctx, amount) => ctx.layout(ctx.i, ctx.n, ctx.cell, 1 + (ctx.gain - 1) * amount);
+
+/** radial — фигуры разлетаются от pivot наружу по своим лучам (rest×gain вокруг pivot). Хорош для heap. */
+const radialShape: SpreadShape = (ctx, amount) => {
+  const k = 1 + (ctx.gain - 1) * amount;
+  return { dx: ctx.pivot.dx + (ctx.base.dx - ctx.pivot.dx) * k, dy: ctx.pivot.dy + (ctx.base.dy - ctx.pivot.dy) * k, rot: ctx.base.rot };
+};
+
+/** linear — выстраивает фигуры в ПРЯМУЮ линию по углу angleDeg от pivot (веер → ряд). Игнорит базу. */
+const linearShape: SpreadShape = (ctx, amount) => {
+  const a = (ctx.angleDeg * Math.PI) / 180;
+  const len = Math.abs(Math.cos(a)) * ctx.cell.w + Math.abs(Math.sin(a)) * ctx.cell.h;
+  const s = 0.6 * len; // шаг ряда на полном спреде (доля карты)
+  const full: StackOffset = { dx: ctx.pivot.dx + Math.cos(a) * s * ctx.i, dy: ctx.pivot.dy + Math.sin(a) * s * ctx.i, rot: 0 };
+  return lerpOff(ctx.base, full, amount);
+};
+
+/** circle — фигуры уходят в кольцо вокруг pivot (радиус вмещает n штук). */
+const circleShape: SpreadShape = (ctx, amount) => {
+  const theta = ctx.n > 1 ? (2 * Math.PI * ctx.i) / ctx.n : 0;
+  const R = (ctx.n * ctx.cell.w * 0.5) / (2 * Math.PI) + ctx.cell.w * 0.5;
+  const full: StackOffset = { dx: ctx.pivot.dx + R * Math.cos(theta), dy: ctx.pivot.dy + R * Math.sin(theta), rot: 0 };
+  return lerpOff(ctx.base, full, amount);
+};
+
+/** spiral — фигуры по спирали (золотой угол) от pivot. */
+const spiralShape: SpreadShape = (ctx, amount) => {
+  const GOLDEN = 2.399963229728653;
+  const theta = ctx.i * GOLDEN;
+  const r = 0.55 * Math.sqrt(ctx.i) * Math.max(ctx.cell.w, ctx.cell.h);
+  const full: StackOffset = { dx: ctx.pivot.dx + r * Math.cos(theta), dy: ctx.pivot.dy + r * Math.sin(theta), rot: 0 };
+  return lerpOff(ctx.base, full, amount);
+};
+
+export const SPREAD_SHAPES: Readonly<Record<string, { label: string; make: () => SpreadShape }>> = {
+  inherit: { label: "как раскладка — растит её параметр (fan по центру, linear по углу, heap радиально)", make: () => inheritShape },
+  radial: { label: "разлёт от точки отброса наружу", make: () => radialShape },
+  linear: { label: "в прямую линию по углу (веер → ряд)", make: () => linearShape },
+  circle: { label: "в кольцо вокруг точки отброса", make: () => circleShape },
+  spiral: { label: "по спирали (золотой угол)", make: () => spiralShape },
+};
+export const SPREAD_SHAPE_IDS: string[] = Object.keys(SPREAD_SHAPES);
+
+/** Чем задана форма спреда: САМОЙ функцией или именем готовой. */
+export type SpreadShapeRef = SpreadShape | string;
+export function resolveShape(v: SpreadShapeRef): SpreadShape {
+  if (typeof v !== "string") return v;
+  return (SPREAD_SHAPES[v] ?? SPREAD_SHAPES.inherit!).make();
+}
+
+/** Точка отброса (pivot) из origin и rest-офсетов всех фигур. Чистая. */
+export function pivotFrom(origin: SpreadOrigin, rests: readonly StackOffset[]): StackOffset {
+  if (rests.length === 0) return { dx: 0, dy: 0, rot: 0 };
+  if (origin === "bottom") return rests[0]!;
+  if (origin === "top") return rests[rests.length - 1]!;
+  if (origin === "right") return rests.reduce((m, o) => (o.dx > m.dx ? o : m), rests[0]!);
+  const sx = rests.reduce((s, o) => s + o.dx, 0) / rests.length; // center — среднее
+  const sy = rests.reduce((s, o) => s + o.dy, 0) / rests.length;
+  return { dx: sx, dy: sy, rot: 0 };
+}
+
+/** Позиция фигуры i при прогрессе amount ПО ФОРМЕ (без рецентровки/покачивания — их накладывает сцена,
+ *  т.к. рецентровка нужна по ВСЕМ фигурам сразу). Чистая. */
+export function spreadOffsetAt(cfg: SpreadConfig, ctx: SpreadShapeCtx, amount: number): StackOffset {
+  return resolveShape(cfg.shape ?? "inherit")(ctx, amount);
+}
+
+/** Сдвиг, удерживающий точку `origin` НА МЕСТЕ при спреде: origin по rest-офсетам должен совпасть с
+ *  origin по спред-офсетам. Так fan/линия/кольцо расширяются вокруг выбранной точки (центр не уезжает).
+ *  `spreads` — офсеты формы для ВСЕХ фигур при текущем amount. Чистая. */
+export function recenterShift(origin: SpreadOrigin, rests: readonly StackOffset[], spreads: readonly StackOffset[]): { dx: number; dy: number } {
+  const rp = pivotFrom(origin, rests);
+  const sp = pivotFrom(origin, spreads);
+  return { dx: rp.dx - sp.dx, dy: rp.dy - sp.dy };
+}
+
+/** Покачивание дриббла для фигуры i (dy/rot) по чётности индекса. Сцена добавляет поверх позиции. */
+export function wobbleOffset(i: number, wobble: number): { dy: number; rot: number } {
   const par = i % 2 ? -1 : 1;
-  return {
-    dx: lerp(base.dx, target.dx, amount),
-    dy: lerp(base.dy, target.dy, amount) + wobble * par * 6,
-    rot: lerp(base.rot, target.rot, amount) + wobble * par * 0.08,
-  };
+  return { dy: wobble * par * 6, rot: wobble * par * 0.08 };
 }
 
 // ——— живое состояние спреда + чистый шаг (анимация amount→target + поведение close при простое) ———

@@ -7,6 +7,8 @@ import {
   PICK_FIRST,
   resolveInteraction,
   stackDragFrom,
+  SPREAD_ORIGINS,
+  SPREAD_SHAPE_IDS,
   STACK_INTERACTION_IDS,
   type PieceDrag,
   type DragTrigger,
@@ -14,6 +16,7 @@ import {
   type SpreadAxis,
   type SpreadClose,
   type SpreadConfig,
+  type SpreadOrigin,
   type StackDrag,
   type TouchSpread,
 } from "../../game/kit/stackInteraction";
@@ -59,8 +62,14 @@ export interface StackArgs {
   spreadPointerTrigger: PointerSpread;
   /** Чем двигают спред на тачскрине: двухпальцевым пинчем (zoom) или ничем. */
   spreadTouchTrigger: TouchSpread;
-  /** Во сколько растянуть rest-раскладку от якоря в полном спреде (направление берётся из раскладки). */
+  /** Усиление на полном спреде (множитель параметра раскладки / разлёта). */
   spreadGain: number;
+  /** Форма спреда (шаблон): inherit растит параметр раскладки; radial/linear/circle/spiral — свои. */
+  spreadShape: string;
+  /** Точка отброса для radial/circle/spiral: bottom/center/top/right. */
+  spreadOrigin: SpreadOrigin;
+  /** Направление для shape="linear" (град). */
+  spreadAngleDeg: number;
   spreadClose: SpreadClose["kind"];
   /** pan-путь: какой осью двигать спред (auto — горизонталь-приоритет). */
   spreadAxis: SpreadAxis;
@@ -98,6 +107,9 @@ export const STACK_ARGS: StackArgs = {
   spreadPointerTrigger: "zoom",
   spreadTouchTrigger: "zoom",
   spreadGain: 10,
+  spreadShape: "inherit",
+  spreadOrigin: "bottom",
+  spreadAngleDeg: 0,
   spreadClose: "snap",
   spreadAxis: "auto",
   spreadInvert: false,
@@ -159,8 +171,28 @@ export const STACK_ARG_TYPES = {
   },
   spreadGain: {
     name: "spread.gain",
-    description: "во сколько растянуть раскладку от якоря (нижней фигуры) в полном спреде: множитель rest-офсетов. Направление/центр — из самой раскладки, поэтому отдельного угла/centerX/keepDiagonal нет",
+    description: "усиление на полном спреде: множитель натурального параметра раскладки (шаг/дуга/разброс) для inherit, либо разлёта для остальных форм",
     control: { type: "range" as const, min: 1, max: 20, step: 0.5 },
+    if: { arg: "spread", truthy: true },
+  },
+  spreadShape: {
+    name: "spread.shape",
+    description: "ФОРМА спреда (шаблон): inherit — растит параметр самой раскладки (fan по центру, linear по углу, heap радиально); radial — разлёт от точки; linear — в прямую линию по углу; circle — в кольцо; spiral — по спирали",
+    control: { type: "select" as const },
+    options: SPREAD_SHAPE_IDS,
+    if: { arg: "spread", truthy: true },
+  },
+  spreadOrigin: {
+    name: "spread.origin",
+    description: "точка отброса для radial/circle/spiral: bottom (якорь, нижняя), center (центр), top (верхняя), right (самая правая)",
+    control: { type: "select" as const },
+    options: SPREAD_ORIGINS,
+    if: { arg: "spread", truthy: true },
+  },
+  spreadAngleDeg: {
+    name: "spread.angleDeg",
+    description: "направление для формы linear (град): 0 — вправо, 90 — вниз, 180 — влево",
+    control: { type: "range" as const, min: 0, max: 359, step: 5 },
     if: { arg: "spread", truthy: true },
   },
   spreadClose: {
@@ -240,9 +272,9 @@ export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; pi
   const spread: SpreadConfig | null = a.spread
     ? {
         gain: a.spreadGain,
-        // target (override спред-цели раскладкой) — код-левел (пресеты/клиенты), в панель функцию не
-        // положишь; у пресета берём, если он его задал.
-        ...(base.spread?.target !== undefined ? { target: base.spread.target } : {}),
+        shape: a.spreadShape, // форма спреда (шаблон): inherit/radial/linear/circle/spiral
+        origin: a.spreadOrigin, // точка отброса для radial/circle/spiral
+        angleDeg: a.spreadAngleDeg, // направление для shape="linear"
         // Стопы snap/секунды timer/дриббла берём у пресета, когда выбранный вид совпадает с его
         // собственным (панель тогда лишь подтверждает пресет) — иначе разумные умолчания вида.
         close: base.spread && base.spread.close.kind === a.spreadClose ? base.spread.close : DEFAULT_CLOSE[a.spreadClose],
