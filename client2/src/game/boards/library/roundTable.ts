@@ -45,7 +45,10 @@ function tableSetup(layout: ZoneLayoutSpec, dealt: readonly string[]): ZoneSpec[
 }
 
 export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
-  const o = { shape: "circle", table: "radial", slots: "dynamic", stacking: true, seats: 4, dealt: 6, ...opts } as const;
+  // Спред затирал бы дефолты явными undefined (скрытые рычаги Storybook отдают именно их).
+  const defaults = { shape: "circle", table: "radial", slots: "dynamic", stacking: true, seats: 4, dealt: 6 } as const;
+  const given = Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined));
+  const o = { ...defaults, ...given } as typeof defaults & RoundTableOpts;
   const { cards, ids } = deck36();
   const dealt = ids.slice(0, Math.max(0, Math.min(o.dealt, ids.length)));
   const layout = tableLayout(o);

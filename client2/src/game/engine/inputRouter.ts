@@ -72,6 +72,14 @@ export interface InputHandlers<C, B> {
    *  тап движок собирает из двух подряд. Опц. — сцене без зума не нужен. */
   onTap?(content: Pt, screen: Pt): void;
 
+  /**
+   * Long-press по ПУСТОМУ месту (не по фигуре и не по кнопке): контекстное меню грида/борды.
+   * `longPressAt` — есть ли под точкой цель с меню (иначе жест сразу уходит в пан, как раньше);
+   * `onLongPress` — палец простоял `HOLD_SEC` без сдвига. Ранний сдвиг — обычный пан. Обе опц.
+   */
+  longPressAt?(cx: number, cy: number): boolean;
+  onLongPress?(content: Pt, screen: Pt): void;
+
   onButtonDown(b: B): void;
   onButtonMove(b: B, inside: boolean): void;
   onButtonUp(b: B, inside: boolean): void; // inside → клик
@@ -168,6 +176,12 @@ export class InputRouter<C, B> {
           this.gesture = "button";
           this.button = btn;
           this.h.onButtonDown(btn);
+        } else if (this.h.longPressAt?.(cp.x, cp.y)) {
+          // Пустое место с контекстным меню: ждём в press БЕЗ фигуры. Ранний сдвиг → пан (см. move).
+          this.gesture = "press";
+          this.pressFrom = { x: sx, y: sy };
+          this.heldFor = 0;
+          this.pressTap = false;
         } else {
           this.gesture = "pan";
           this.panLast = { x: sx, y: sy };
@@ -191,10 +205,10 @@ export class InputRouter<C, B> {
         this.blockedFired = true;
         this.h.onPieceBlocked(this.piece);
       }
-    } else if (this.gesture === "press" && this.piece) {
+    } else if (this.gesture === "press") {
       // Поехал раньше, чем настоялся.
       if (this.pressFrom && Math.hypot(sx - this.pressFrom.x, sy - this.pressFrom.y) > DRAG_SLOP) {
-        if (this.pressTap) {
+        if (this.piece && this.pressTap) {
           // У элемента есть и тап-драг: ранний сдвиг — это ОН (hold так и не наступил).
           const piece = this.piece;
           const cp = this.h.screenToContent(sx, sy);
@@ -203,7 +217,7 @@ export class InputRouter<C, B> {
           this.heldFor = 0;
           this.h.onPieceGrab(piece, cp, { x: sx, y: sy }, "tap");
         } else {
-          // Только hold: сдвиг раньше срока — тащить не хотели, это пан/скролл стопки.
+          // Только hold (или пустой press под меню): сдвиг раньше срока — это пан/скролл, не намерение.
           this.piece = null;
           this.pressFrom = null;
           this.gesture = "pan";
@@ -278,15 +292,23 @@ export class InputRouter<C, B> {
    * тестируемым без Pixi.
    */
   tick(dt: number): void {
-    if (this.gesture !== "press" || !this.piece || !this.pressFrom) return;
+    if (this.gesture !== "press" || !this.pressFrom) return;
     this.heldFor += dt;
     if (this.heldFor < HOLD_SEC) return;
-    const piece = this.piece;
     const at = this.pressFrom;
-    this.gesture = "drag";
     this.pressFrom = null;
     this.heldFor = 0;
-    this.h.onPieceGrab(piece, this.h.screenToContent(at.x, at.y), at, "hold");
+    if (this.piece) {
+      const piece = this.piece;
+      this.gesture = "drag";
+      this.h.onPieceGrab(piece, this.h.screenToContent(at.x, at.y), at, "hold");
+      return;
+    }
+    // Пустой press настоялся → контекстное меню. Жест закончен: отпускание не должно дать ТАП
+    // (тап тут же закрыл бы только что открытое меню) — downAt гасим.
+    this.gesture = "none";
+    this.downAt = null;
+    this.h.onLongPress?.(this.h.screenToContent(at.x, at.y), at);
   }
 
   /** Сброс (teardown/рестарт): забыть указатели и жест. */

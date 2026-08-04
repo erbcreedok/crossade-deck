@@ -16,9 +16,10 @@ export interface BoardDriver {
   dispose?(): void;
 }
 
-/** Локальный драйвер — standalone-режим: смарт-мок прямо под сценой, без сети и задержек. */
-export function localDriver(spec: BoardSpec, seats?: number, occupants?: readonly (string | null)[]): BoardDriver {
-  let state = bootState(spec, seats, occupants);
+/** Локальный драйвер — standalone-режим: смарт-мок прямо под сценой, без сети и задержек.
+ *  `initial` — готовый снимок вместо setup-спеки (реконфигурация песочницы мигрирует состояние). */
+export function localDriver(spec: BoardSpec, seats?: number, occupants?: readonly (string | null)[], initial?: BoardState): BoardDriver {
+  let state = initial ?? bootState(spec, seats, occupants);
   const subs: ((s: BoardState) => void)[] = [];
   return {
     boot: () => state,

@@ -128,7 +128,16 @@ function RoundStage(a: RoundArgs) {
       seats: a.seats,
       dealt: a.dealt,
     };
-    const scene = new BoardScene({ spec: roundTableBoard(opts), seats: a.seats, onCommand: (cmd: BoardCommand) => onCommand(cmd) });
+    const scene = new BoardScene({
+      spec: roundTableBoard(opts),
+      seats: a.seats,
+      onCommand: (cmd: BoardCommand) => onCommand(cmd),
+      // Настройки меню = те же рычаги: long-press по гриду/борде (ПКМ на десктопе) крутит их живьём.
+      configurable: {
+        settings: { shape: a.shape, table: a.table, slots: opts.slots ?? "dynamic", stacking: a.stacking ?? true, seats: a.seats },
+        build: (s) => roundTableBoard({ ...s, dealt: a.dealt }),
+      },
+    });
     const g = globalThis as unknown as { __board?: BoardScene };
     g.__board = scene;
     void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);

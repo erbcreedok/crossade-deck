@@ -18,6 +18,8 @@ import { localDriver, type BoardDriver } from "./driver";
 import { handKey, type BoardState } from "./state";
 import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
+import { ContextMenu } from "../ui/ContextMenu";
+import { applySetting, migrateState, settingRows, type MenuTargetKind, type SandboxSettings } from "./settings";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -43,6 +45,10 @@ export interface BoardSceneOptions {
   /** Кто исполняет команды: без драйвера — локальный мок (standalone); live-стори передаёт
    *  клиента общего мастера (boardTable.ts). Сцена разницы не видит. */
   driver?: BoardDriver;
+  /** Контекстное меню настроек (long-press по гриду-борде / ПКМ): текущие настройки + билдер
+   *  спеки из них. Сцена сама циклит значения и мигрирует состояние (migrateState). Только
+   *  standalone (свой localDriver); с внешним драйвером меню не включается. */
+  configurable?: { settings: SandboxSettings; build: (s: SandboxSettings) => BoardSpec };
 }
 
 type BoardNode = Card | Piece;
@@ -67,12 +73,18 @@ export class BoardScene extends SceneEngine {
   private actionButtons: Button[] = [];
   private diceText: Text | null = null;
 
-  private readonly spec: BoardSpec;
-  private readonly defs: ReadonlyMap<string, ElementDef>;
+  private spec: BoardSpec;
+  private defs: ReadonlyMap<string, ElementDef>;
   private readonly selfSeat: string;
-  private readonly driver: BoardDriver;
+  private driver: BoardDriver;
   private state: BoardState;
   private tree: BoardTree;
+
+  // Контекстное меню настроек (opt-in через opts.configurable).
+  private settings: SandboxSettings | null;
+  private menu: ContextMenu | null = null;
+  private menuAt = { x: 0, y: 0 };
+  private menuTarget: MenuTargetKind = "table";
 
   private hotSlot: string | null = null;
   private dragging = false;
@@ -90,6 +102,7 @@ export class BoardScene extends SceneEngine {
     this.spec = opts.spec;
     this.defs = elementById(opts.spec);
     this.selfSeat = opts.selfSeat ?? "p1";
+    this.settings = opts.configurable?.settings ?? null;
     this.driver = opts.driver ?? localDriver(opts.spec, opts.seats, opts.occupants);
     this.state = this.driver.boot();
     this.driver.onState((s) => {
@@ -97,6 +110,102 @@ export class BoardScene extends SceneEngine {
       this.rebuildBoard(false);
     });
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat);
+  }
+
+  // ——— контекстное меню настроек (long-press по гриду/борде, ПКМ на десктопе) ———
+
+  /** Цель меню под точкой: НЕ-free зона с рамкой (грид-стол) → "table"; free-бокс → "board".
+   *  Область зоны — ОБЪЕДИНЕНИЕ её ячеек: у фикс-слотов (ring/grid) rect'ы лежат по слотам,
+   *  и «стол» — это вся их рамка, а не первая клетка. */
+  private menuTargetAt(cp: { x: number; y: number }): MenuTargetKind | null {
+    if (!this.settings) return null;
+    let best: { kind: MenuTargetKind; area: number } | null = null;
+    for (const zone of this.spec.zones) {
+      let r: { x0: number; y0: number; x1: number; y1: number } | null = null;
+      for (const [key, cell] of Object.entries(this.tree.cellRects)) {
+        if (baseZoneId(zoneOf(key)) !== zone.id) continue;
+        r = r
+          ? { x0: Math.min(r.x0, cell.x), y0: Math.min(r.y0, cell.y), x1: Math.max(r.x1, cell.x + cell.w), y1: Math.max(r.y1, cell.y + cell.h) }
+          : { x0: cell.x, y0: cell.y, x1: cell.x + cell.w, y1: cell.y + cell.h };
+      }
+      if (!r || cp.x < r.x0 || cp.x > r.x1 || cp.y < r.y0 || cp.y > r.y1) continue;
+      const kind: MenuTargetKind = zone.layout.kind === "free" ? "board" : "table";
+      const area = (r.x1 - r.x0) * (r.y1 - r.y0);
+      // Самая внутренняя (меньшая) цель побеждает: грид лежит в центре бокса.
+      if (!best || area < best.area) best = { kind, area };
+    }
+    return best?.kind ?? null;
+  }
+
+  protected hasContextAt(cp: { x: number; y: number }): boolean {
+    return this.menuTargetAt(cp) !== null;
+  }
+
+  protected openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
+    const target = this.menuTargetAt(cp);
+    this.closeMenu();
+    if (!target || !this.settings) return;
+    this.menuTarget = target;
+    this.menuAt = { x: sp.x, y: sp.y };
+    this.showMenu();
+  }
+
+  private showMenu(): void {
+    if (!this.settings) return;
+    const rows = settingRows(this.menuTarget, this.settings).map((r) => ({
+      key: r.key,
+      label: r.label,
+      value: r.value,
+      onSelect: () => this.cycleSetting(r.key),
+    }));
+    this.menu = new ContextMenu({ title: this.menuTarget === "board" ? "борда" : "стол", rows });
+    this.menu.place(this.menuAt.x, this.menuAt.y, this.width, this.height);
+    this.chrome.addChild(this.menu.root);
+    this.chromeButtons = [...this.actionButtons, ...this.menu.buttons];
+    this.wake();
+  }
+
+  private closeMenu(): void {
+    if (!this.menu) return;
+    // Ховер мог указывать на строку меню: забыть ДО destroy, иначе снятие ховера трогает мёртвую Graphics.
+    if (this.hoveredBtn && this.menu.buttons.includes(this.hoveredBtn)) this.hoveredBtn = null;
+    this.menu.destroy();
+    this.menu = null;
+    this.chromeButtons = this.actionButtons;
+    this.wake();
+  }
+
+  /** Тап по строке меню: перещёлкнуть настройку, пересобрать борду БЕЗ потери карт, меню обновить. */
+  private cycleSetting(key: keyof SandboxSettings): void {
+    const build = this.opts.configurable?.build;
+    if (!build || !this.settings) return;
+    this.settings = applySetting(this.settings, key);
+    this.reconfigure(build(this.settings), this.settings.seats);
+    this.closeMenu();
+    this.showMenu(); // тот же якорь: значения в строках обновились, состав строк мог смениться
+  }
+
+  /** Сменить спеку на лету: жители пересыпаются migrateState, драйвер пересоздаётся с готовым
+   *  снимком. Работает только со СВОИМ localDriver (см. opts.configurable). */
+  private reconfigure(spec: BoardSpec, seats?: number): void {
+    this.spec = spec;
+    this.defs = elementById(spec);
+    this.state = migrateState(this.state, spec, seats);
+    this.driver = localDriver(spec, seats, undefined, this.state);
+    this.driver.onState((s) => {
+      this.state = s;
+      this.rebuildBoard(false);
+    });
+    this.rebuildBoard(false);
+  }
+
+  /** Тап мимо меню закрывает его (по строкам меню тап не доходит — их ловит chromeButtons). */
+  protected onSceneTap(content: { x: number; y: number }, screen: { x: number; y: number }): void {
+    if (this.menu && !this.menu.contains(screen.x, screen.y)) {
+      this.closeMenu();
+      return; // закрытие меню — весь смысл тапа, дабл-тап-зум не кормим
+    }
+    super.onSceneTap(content, screen);
   }
 
   // ——— порт команд: одна дверь для пальца, кнопок, консоли и (потом) сервера ———
@@ -430,6 +539,7 @@ export class BoardScene extends SceneEngine {
   }
 
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
+    this.closeMenu(); // начался драг — меню больше не к месту
     this.dragging = true;
     const slot = this.tree.slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;

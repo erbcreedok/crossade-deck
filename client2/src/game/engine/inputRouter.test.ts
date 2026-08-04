@@ -226,3 +226,69 @@ describe("два драг-интента (tap и hold) на одном элем�
     expect(calls).toEqual(["tap(A)"]);
   });
 });
+
+describe("long-press по пустому месту (контекстное меню)", () => {
+  function setupLP() {
+    const calls: string[] = [];
+    const base = setupHandlers(calls);
+    const h = {
+      ...base,
+      longPressAt: () => true,
+      onLongPress: (_c: { x: number; y: number }, s: { x: number; y: number }) => calls.push(`longPress(${s.x},${s.y})`),
+      onTap: (_c: { x: number; y: number }, s: { x: number; y: number }) => calls.push(`tapAt(${s.x},${s.y})`),
+    };
+    return { r: new InputRouter<C, B>(h), calls };
+  }
+  function setupHandlers(calls: string[]): InputHandlers<C, B> {
+    const rec = (name: string) => (...a: unknown[]) => calls.push(`${name}(${a.map(String).join(",")})`);
+    return {
+      screenToContent: (x, y) => ({ x, y }),
+      pickPiece: () => null,
+      pieceDraggable: () => false,
+      pickButton: () => null,
+      buttonContains: () => false,
+      onPieceGrab: () => {},
+      onPieceMove: () => {},
+      onPieceDrop: () => {},
+      onPieceCancel: () => {},
+      onPieceBlocked: () => {},
+      onPieceTap: () => {},
+      onButtonDown: () => {},
+      onButtonMove: () => {},
+      onButtonUp: () => {},
+      onPanStart: rec("panStart"),
+      onPan: rec("pan"),
+      onPanEnd: rec("panEnd"),
+      onPinchStart: () => {},
+      onPinch: () => {},
+      onHover: () => {},
+      afterAny: () => {},
+    };
+  }
+
+  it("палец настоялся → onLongPress, и отпускание НЕ даёт тап (не закрыть меню тут же)", () => {
+    const { r, calls } = setupLP();
+    r.down(1, 100, 100);
+    expect(r.gesture).toBe("press");
+    r.tick(0.2);
+    r.tick(0.2); // 0.4 ≥ HOLD_SEC
+    expect(calls).toEqual(["longPress(100,100)"]);
+    expect(r.gesture).toBe("none");
+    r.up(1, 100, 100);
+    expect(calls).toEqual(["longPress(100,100)"]); // тапа после меню нет
+  });
+
+  it("ранний сдвиг — это пан, как раньше; быстрый тык остаётся тапом", () => {
+    const { r, calls } = setupLP();
+    r.down(1, 100, 100);
+    r.move(1, 120, 100); // > DRAG_SLOP до срока: сдвиг-слоп съеден, дальше — обычный пан
+    expect(r.gesture).toBe("pan");
+    r.move(1, 130, 100);
+    r.up(1, 130, 100);
+    expect(calls).toEqual(["panStart()", "pan(10,0)", "panEnd()"]);
+
+    r.down(1, 50, 50);
+    r.up(1, 50, 50); // отпустили до HOLD_SEC без сдвига
+    expect(calls.slice(3)).toEqual(["tapAt(50,50)"]);
+  });
+});

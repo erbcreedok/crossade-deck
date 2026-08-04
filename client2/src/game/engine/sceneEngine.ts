@@ -242,6 +242,8 @@ export abstract class SceneEngine extends CanvasApp {
     app.stage.on("pointerup", this.onUp);
     app.stage.on("pointerupoutside", this.onUp);
     app.canvas.addEventListener("wheel", this.onWheel, { passive: false });
+    // ПКМ на десктопе = long-press на таче: контекстное меню сцены (если сцене есть что показать).
+    app.canvas.addEventListener("contextmenu", this.onCtxMenu);
   }
 
   protected onBooted(): void {
@@ -654,6 +656,28 @@ export abstract class SceneEngine extends CanvasApp {
   private onMove = (e: { global: Pt; pointerId: number }): void => this.input.move(e.pointerId, e.global.x, e.global.y);
   private onUp = (e: { global: Pt; pointerId: number }): void => this.input.up(e.pointerId, e.global.x, e.global.y);
 
+  /** ПКМ: preventDefault (иначе браузерное меню) + контекстное меню сцены в точке курсора. */
+  private onCtxMenu = (e: MouseEvent): void => {
+    e.preventDefault();
+    const sp = { x: e.offsetX, y: e.offsetY };
+    this.openContextMenu(this.screenToContent(sp.x, sp.y), sp);
+  };
+
+  // ——— контекстное меню (long-press по пустому месту / ПКМ): сцена включает opt-in ———
+
+  /** Есть ли у сцены меню для точки (координаты КОНТЕНТА). false — long-press уходит в пан. */
+  protected hasContextAt(_cp: Pt): boolean {
+    return false;
+  }
+
+  /** Открыть меню в точке. По умолчанию — никакого меню; сцена переопределяет. */
+  protected openContextMenu(_cp: Pt, _sp: Pt): void {}
+
+  /** Тап по сцене (любая цель). База ведёт дабл-тап-зум; сцена может перехватить (закрыть меню). */
+  protected onSceneTap(content: Pt, screen: Pt): void {
+    this.handleTap(content, screen);
+  }
+
   // ——— швы домена: сцена переопределяет только то, что у неё своё ———
 
   /** Что схвачено в точке. По умолчанию — верхний элемент под пальцем. */
@@ -920,13 +944,17 @@ export abstract class SceneEngine extends CanvasApp {
 
       onPieceBlocked: (el) => this.onElementBlocked(el),
       onPieceTap: (el) => this.onElementTapped(el),
-      onTap: (content, screen) => this.handleTap(content, screen),
+      onTap: (content, screen) => this.onSceneTap(content, screen),
+      longPressAt: (cx, cy) => this.hasContextAt({ x: cx, y: cy }),
+      onLongPress: (cp, sp) => this.openContextMenu(cp, sp),
 
       onButtonDown: (b) => b.setPressed(true),
       onButtonMove: (b, inside) => b.setPressed(inside),
       onButtonUp: (b, inside) => {
-        if (inside) b.click();
+        // Сначала визуально отпустить, ПОТОМ действие: click() может снести саму кнопку
+        // (строка контекстного меню закрывает меню), и трогать её после — падение по мёртвой Graphics.
         b.setPressed(false);
+        if (inside) b.click();
       },
 
       onPanStart: () => {
@@ -1151,6 +1179,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   protected onTeardown(app: Application): void {
     app.canvas.removeEventListener("wheel", this.onWheel);
+    app.canvas.removeEventListener("contextmenu", this.onCtxMenu);
     this.chromeButtons = []; // сам HUD сносится вместе с app; список — чтобы не держать мёртвые узлы
     this.resetSceneState();
   }
