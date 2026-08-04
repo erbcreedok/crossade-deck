@@ -421,7 +421,16 @@ export class KitScene extends SceneEngine {
       wake: () => this.wake(),
       extent: (w, h) => void (this.explicitExtent = { w, h }),
       spreadStack: (ids, at, layout, cell, cfg) => {
-        this.spreadStacks.push({ ids, at, layout, cell, cfg, state: SPREAD_STATE0 });
+        // ЯКОРЬ спреда берём из ФАКТИЧЕСКОЙ позиции первой карты (её уже положил stackState), а не из
+        // сырого `at`: stackState сдвигает стопку на -minX/-minY (левый-верхний край в at — конвенция
+        // каталога), а раскладка спреда этого сдвига не знает. Без выравнивания первое пробуждение
+        // петли (первый клик) разом двигало бы весь стек на (minX,minY) — вверх-влево. anchor такой,
+        // что at + layout(0) == позиция первой карты, и при amount=0 контроллер точно повторяет
+        // раскладку stackState (нулевой прыжок).
+        const first = this.byId.get(ids[0] ?? "");
+        const b0 = layout(0, ids.length, cell);
+        const anchor = first ? { x: first.body.px - b0.dx, y: first.body.py - b0.dy } : at;
+        this.spreadStacks.push({ ids, at: anchor, layout, cell, cfg, state: SPREAD_STATE0 });
       },
       dragConfig: (ids, cardDrag, stackDrag = null) => {
         this.dragStacks.push({ ids: [...ids], cardDrag, stackDrag });
