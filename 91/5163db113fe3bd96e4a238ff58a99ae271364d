@@ -1,0 +1,34 @@
+client2/src/game/slot/layouts.test.ts
+  s_3dafb7cb3bdfba::t_f15277013b52ca 76-88
+client2/src/game/slot/layouts.ts
+  s_3dafb7cb3bdfba::t_18f92a9f355895 73-93,95-97,99,101-104,111-112,115
+client2/src/game/boards/spec.ts
+  s_3dafb7cb3bdfba::t_90358b72bd6f9e 71-73
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_004034a55f6f6e 595-597,600-604
+  s_3dafb7cb3bdfba::t_36cd85ae0db462 605
+client2/src/game/boards/library/roundTable.ts
+  s_3dafb7cb3bdfba::t_bbb0f2ad719df1 28,31
+  s_3dafb7cb3bdfba::t_f843cd5e3d5d02 78-81,86-93
+client2/src/game/boards/boardTree.ts
+  s_3dafb7cb3bdfba::t_ea8684901e9fbf 132-133,136,138,143-145,147-148,150-153
+  s_3dafb7cb3bdfba::t_01e5706daf076d 1
+  s_3dafb7cb3bdfba::t_faf36d0a3d3de8 362-364
+  s_3dafb7cb3bdfba::t_76b82717d97ad9 269-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "915163db113fe3bd96e4a238ff58a99ae271364d",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
