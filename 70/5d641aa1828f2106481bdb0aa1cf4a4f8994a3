@@ -1,0 +1,25 @@
+client2/src/PlaygroundBoard.tsx
+  s_3dafb7cb3bdfba::t_9c411a2870b7c9 4,7-10,17-21
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_9cf067e7a32f4b 639-644,650
+client2/src/game/boards/boardTree.test.ts
+  s_3dafb7cb3bdfba::t_adfd98210736ea 156,158-162,165-168
+client2/src/game/boards/library/sandbox.ts
+  s_3dafb7cb3bdfba::t_9019ccd7480961 2-3,5-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "705d641aa1828f2106481bdb0aa1cf4a4f8994a3",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
