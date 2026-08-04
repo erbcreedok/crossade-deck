@@ -1,0 +1,39 @@
+client2/src/theme.css
+  s_3dafb7cb3bdfba::t_61e3e7dc061579 234-266
+server/src/SandboxRoom.ts
+  s_3dafb7cb3bdfba::t_52404a3ff014ad 1-43,59-150
+  s_3dafb7cb3bdfba::t_f1d0041761daa4 44-58
+server/src/index.ts
+  s_3dafb7cb3bdfba::t_d9e67831c1615f 9,34-35
+server/src/SandboxRoom.test.ts
+  s_3dafb7cb3bdfba::t_8af5b824f3fd5c 13
+  s_3dafb7cb3bdfba::t_a7ebc9326bb9cd 1-12,14-66
+server/src/sandboxNames.ts
+  s_3dafb7cb3bdfba::t_d2ed61ee8df1cc 1-29
+client2/src/PlaygroundBoard.tsx
+  s_3dafb7cb3bdfba::t_3756958e0bbbcd 1,5,11-15,18-22,27-48,51-71,75-84,88-121
+server/src/roomHarness.ts
+  s_3dafb7cb3bdfba::t_d9e67831c1615f 7,33,40
+client2/src/net/sandboxLive.ts
+  s_3dafb7cb3bdfba::t_abf2ae54d3b933 1-68,74-175
+  s_3dafb7cb3bdfba::t_e81bb17897e31b 69-73
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_9d0ed23bca697f 174
+  s_3dafb7cb3bdfba::t_2a3a06b8d5cb3e 58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "0f8cb05a530a6a0c371a8d0c478696264f8dbc57",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
