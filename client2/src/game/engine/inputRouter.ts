@@ -70,8 +70,8 @@ export interface InputHandlers<C, B> {
   onPanStart?(): void; // начался пан (для сброса инерции/скорости)
   onPan(dx: number, dy: number): void; // экранная дельта
   onPanEnd?(): void; // пан отпущен (для запуска инерции)
-  onPinchStart(midX: number, midY: number, dist: number): void;
-  onPinch(midX: number, midY: number, dist: number): void;
+  onPinchStart(midX: number, midY: number, dist: number, spanX: number): void;
+  onPinch(midX: number, midY: number, dist: number, spanX: number): void;
 
   onHover(b: B | null): void; // только при смене (комп)
   afterAny(): void; // разбудить цикл
@@ -111,7 +111,7 @@ export class InputRouter<C, B> {
       }
       this.gesture = "pinch";
       const g = this.pinchGeom();
-      this.h.onPinchStart(g.midX, g.midY, g.dist);
+      this.h.onPinchStart(g.midX, g.midY, g.dist, g.spanX);
     } else if (this.pointers.size === 1) {
       // HUD выигрывает у всего: он нарисован ПОВЕРХ сцены и не ездит с камерой.
       const hud = this.h.pickOverlay?.(sx, sy) ?? null;
@@ -161,7 +161,7 @@ export class InputRouter<C, B> {
 
     if (this.gesture === "pinch" && this.pointers.size >= 2) {
       const g = this.pinchGeom();
-      this.h.onPinch(g.midX, g.midY, g.dist);
+      this.h.onPinch(g.midX, g.midY, g.dist, g.spanX);
     } else if (this.gesture === "blocked" && this.card) {
       // Палец поехал — вот теперь это попытка тащить, и на неё отвечаем отказом. Один раз за жест:
       // иначе качание перезапускалось бы на каждом кадре движения и превратилось в дрожь.
@@ -269,8 +269,10 @@ export class InputRouter<C, B> {
     this.pressFrom = null;
   }
 
-  private pinchGeom(): { midX: number; midY: number; dist: number } {
+  private pinchGeom(): { midX: number; midY: number; dist: number; spanX: number } {
     const [a, b] = [...this.pointers.values()];
-    return { midX: (a!.x + b!.x) / 2, midY: (a!.y + b!.y) / 2, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y) };
+    // spanX — ГОРИЗОНТАЛЬНОЕ разведение пальцев; им сцена управляет горизонтальным спредом стека
+    // (жест «раздвинуть по X прямо на картах»), отдельно от полного dist (зум камеры).
+    return { midX: (a!.x + b!.x) / 2, midY: (a!.y + b!.y) / 2, dist: Math.hypot(a!.x - b!.x, a!.y - b!.y), spanX: Math.abs(a!.x - b!.x) };
   }
 }

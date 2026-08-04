@@ -110,7 +110,7 @@ export abstract class SceneEngine extends CanvasApp {
   private onView: ((v: ViewState) => void) | null = null;
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
   private lastPanT = 0;
-  private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0 };
+  private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0, spanX: 0 };
 
   // ——— дабл-тап-зум на зону (общий механизм; сцена решает, что фокусируемо — focusTargetAt) ———
   private lastTap: { t: number; x: number; y: number } | null = null;
@@ -294,6 +294,12 @@ export abstract class SceneEngine extends CanvasApp {
   /** Колесо/скролл по цели под курсором (координаты КОНТЕНТА + дельты колеса). Вернуть true —
    *  перехвачено (спред-стек и т.п.), пан/зум не выполняется. По умолчанию не перехватываем. */
   protected wheelOnElement(_cp: Pt, _dx: number, _dy: number): boolean {
+    return false;
+  }
+
+  /** Пинч (два пальца) ПРЯМО НА цели под серединой жеста: dSpanX — прирост ГОРИЗОНТАЛЬНОГО разведения
+   *  пальцев за кадр. Вернуть true — перехвачено (спред стека), зум камеры не выполняется. */
+  protected pinchOnElement(_cp: Pt, _dSpanX: number): boolean {
     return false;
   }
 
@@ -915,12 +921,17 @@ export abstract class SceneEngine extends CanvasApp {
         this.viewport.startFling(this.panVel.x, this.panVel.y);
         this.wake();
       },
-      onPinchStart: (mx, my, dist) => {
+      onPinchStart: (mx, my, dist, spanX) => {
         this.cancelFocus();
         const c = this.screenToContent(mx, my);
-        this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y };
+        this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y, spanX };
       },
-      onPinch: (mx, my, dist) => {
+      onPinch: (mx, my, dist, spanX) => {
+        // Пинч ПРЯМО НА цели (стек карт): горизонтальное разведение пальцев ведёт спред, а не зум
+        // камеры. Дельта по X (spanX) уходит в сцену; если она перехватила — камеру не трогаем.
+        const dSpanX = spanX - this.pinch.spanX;
+        this.pinch.spanX = spanX;
+        if (this.pinchOnElement(this.screenToContent(mx, my), dSpanX)) return;
         const c = this.camPoint(mx, my);
         this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, this.viewport.minZoom, this.viewport.maxZoom);
         this.viewport.x = c.x - this.pinch.midContentX * this.viewport.zoom;

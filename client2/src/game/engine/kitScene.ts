@@ -501,7 +501,9 @@ export class KitScene extends SceneEngine {
    * Колесо/скролл по спред-стеку: первая стопка, чей габарит (по ТЕКУЩИМ позициям карт, надутый
    * на полклетки) содержит точку, забирает жест — сдвигает ЦЕЛЬ раздвига, не пан/зум сцены.
    */
-  protected override wheelOnElement(cp: Pt, dx: number, dy: number): boolean {
+  /** Спред-стек под точкой контента (по габариту живых карт + половина ячейки) или null. Общий
+   *  хит-тест для колеса (десктоп-зум) и пинча (тач-зум). */
+  private spreadStackAt(cp: Pt): (typeof this.spreadStacks)[number] | null {
     for (const entry of this.spreadStacks) {
       let minX = Infinity;
       let maxX = -Infinity;
@@ -519,12 +521,28 @@ export class KitScene extends SceneEngine {
       const hw = entry.cell.w / 2;
       const hh = entry.cell.h / 2;
       if (cp.x < minX - hw || cp.x > maxX + hw || cp.y < minY - hh || cp.y > maxY + hh) continue;
-      const deltaGap = (Math.abs(dx) >= Math.abs(dy) ? dx : dy) * 0.25;
-      entry.state = spreadInput(entry.state, deltaGap, entry.cfg);
-      this.wake();
-      return true;
+      return entry;
     }
-    return false;
+    return null;
+  }
+
+  /** Десктоп-зум колесом ПО стеку → спред (горизонтальная дельта колеса приоритетна). */
+  protected override wheelOnElement(cp: Pt, dx: number, dy: number): boolean {
+    const entry = this.spreadStackAt(cp);
+    if (!entry) return false;
+    const deltaGap = (Math.abs(dx) >= Math.abs(dy) ? dx : dy) * 0.25;
+    entry.state = spreadInput(entry.state, deltaGap, entry.cfg);
+    this.wake();
+    return true;
+  }
+
+  /** Тач-зум: два пальца ПО стеку, горизонтальное разведение (dSpanX) → спред. Камеру не зумим. */
+  protected override pinchOnElement(cp: Pt, dSpanX: number): boolean {
+    const entry = this.spreadStackAt(cp);
+    if (!entry) return false;
+    entry.state = spreadInput(entry.state, dSpanX * 0.5, entry.cfg);
+    this.wake();
+    return true;
   }
 
   /** Шаг спред-стеков: анимация amount→target + close-поведение, раскладка карт поверх базовой. */
