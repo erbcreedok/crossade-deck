@@ -169,3 +169,56 @@ describe("круг хода, кубики, места", () => {
     expect(r.seats[1]!.occupant).toBeNull(); // рассадка пережила reset
   });
 });
+
+describe("визуалы в состоянии: free-позиции и оверрайды карт (стол одинаков у всех)", () => {
+  const freeSpec = testSpec({ zones: [
+    { id: "board", title: "", layout: { kind: "free" }, policy: { onOccupied: "merge" }, cell: { w: 480, h: 360 },
+      setup: { 0: ["c1", "c2", "c3"] } },
+  ] });
+
+  it("move с at кладёт позицию свободной стопки в state.free.loose", () => {
+    let s = initialState(freeSpec, 2);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c3", from: "board:0", to: "board:1", at: { x: 100, y: 200 } }, rng);
+    expect(at(s.field, "board:1")?.members).toEqual(["c3"]);
+    expect(s.free.loose["board:1"]).toEqual({ x: 100, y: 200 });
+  });
+
+  it("move с face ставит оверрайд стороны; move без face — снимает (зона решает сама)", () => {
+    let s = initialState(freeSpec, 2);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c3", from: "board:0", to: "board:1", at: { x: 1, y: 1 }, face: true }, rng);
+    expect(s.fx["c3"]).toEqual({ face: true });
+    s = applyCommand(freeSpec, s, { t: "move", el: "c3", from: "board:1", to: "hand:p1" }, rng);
+    expect(s.fx["c3"]).toBeUndefined();
+  });
+
+  it("поворот переживает переезд, позиция опустевшей стопки чистится", () => {
+    let s = initialState(freeSpec, 2);
+    s = applyCommand(freeSpec, s, { t: "cardFx", el: "c3", fx: { rot: 1.5 } }, rng);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c3", from: "board:0", to: "board:1", at: { x: 5, y: 5 } }, rng);
+    expect(s.fx["c3"]).toEqual({ rot: 1.5 });
+    s = applyCommand(freeSpec, s, { t: "move", el: "c3", from: "board:1", to: "board:0" }, rng);
+    expect(s.free.loose["board:1"]).toBeUndefined(); // стопку унесли — позиция мертва
+  });
+
+  it("placeFree двигает существующую стопку, пустой слот — отказ; offsetFree пишет сдвиг колоды", () => {
+    let s = initialState(freeSpec, 2);
+    s = applyCommand(freeSpec, s, { t: "move", el: "c3", from: "board:0", to: "board:1", at: { x: 5, y: 5 } }, rng);
+    s = applyCommand(freeSpec, s, { t: "placeFree", key: "board:1", at: { x: 42, y: 24 } }, rng);
+    expect(s.free.loose["board:1"]).toEqual({ x: 42, y: 24 });
+    const same = applyCommand(freeSpec, s, { t: "placeFree", key: "board:9", at: { x: 1, y: 1 } }, rng);
+    expect(same).toEqual(s);
+    s = applyCommand(freeSpec, s, { t: "offsetFree", zone: "board", offset: { x: -30, y: 60 } }, rng);
+    expect(s.free.offset["board"]).toEqual({ x: -30, y: 60 });
+  });
+
+  it("cardFx — полная замена записи, пустой fx снимает оверрайд; deal снимает лицо, поворот оставляет", () => {
+    let s = initialState(freeSpec, 2);
+    s = applyCommand(freeSpec, s, { t: "cardFx", el: "c3", fx: { face: true, rot: 1 } }, rng);
+    expect(s.fx["c3"]).toEqual({ face: true, rot: 1 });
+    s = applyCommand(freeSpec, s, { t: "deal", from: "board", each: 1 }, rng);
+    expect(handOf(s, "p1").concat(handOf(s, "p2"))).toContain("c3");
+    expect(s.fx["c3"]).toEqual({ rot: 1 }); // лицо снято раздачей, поворот едет с картой
+    s = applyCommand(freeSpec, s, { t: "cardFx", el: "c3", fx: {} }, rng);
+    expect(s.fx["c3"]).toBeUndefined();
+  });
+});

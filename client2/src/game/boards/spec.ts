@@ -134,7 +134,16 @@ export interface HandSpec {
 /** Команды мок-порта борды. Сериализуемый юнион: кнопка ActionBar и палец — два драйвера
  *  одного порта (CONTROL-DESIGN). Правил тут нет — мок исполняет честно (BOARDS-DESIGN §3). */
 export type BoardCommand =
-  | { t: "move"; el: string; from: SlotKey; to: SlotKey }
+  /** Переезд элемента. `at` — центр свободной стопки в боксе free-зоны (дроп «куда положили»).
+   *  `face` — принудительная сторона после хода; ОТСУТСТВИЕ поля снимает прежний оверрайд
+   *  (переехавшая карта по умолчанию слушается правил новой зоны). */
+  | { t: "move"; el: string; from: SlotKey; to: SlotKey; at?: { x: number; y: number }; face?: boolean }
+  /** Передвинуть СУЩЕСТВУЮЩУЮ свободную стопку free-зоны (состав не меняется). */
+  | { t: "placeFree"; key: SlotKey; at: { x: number; y: number } }
+  /** Сдвиг колоды-блока free-зоны (итог блок-драга). */
+  | { t: "offsetFree"; zone: string; offset: { x: number; y: number } }
+  /** Оверрайд визуала карты (поворот/лицо): полная замена записи; пустой fx — снять. */
+  | { t: "cardFx"; el: string; fx: { rot?: number; face?: boolean } }
   /** Раздать: from-зона → руки. each: число или «всю колоду поровну, дилеру последним». */
   | { t: "deal"; from: string; each: number | "all-even-dealer-last" }
   | { t: "shuffle"; zone: string }

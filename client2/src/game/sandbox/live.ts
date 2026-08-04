@@ -15,6 +15,7 @@ import { seatOccupants, withOccupants } from "./liveSeats";
 import type { BoardDriver } from "../boards/driver";
 import type { PresenceHub, PresenceView } from "../boards/presence";
 import type { BoardSpec } from "../boards/spec";
+import { ensureVisuals } from "../boards/state";
 import type { BoardState } from "../boards/state";
 
 export interface LiveMember {
@@ -81,7 +82,8 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
   // Рассадку ЛЮБОГО снимка переписывает ростер комнаты: никаких мок-фантомов «Игрок N» и
   // никакого доверия чужому представлению мест — авторитет по стульям один (комната).
   const occupants = (): (string | null)[] => seatOccupants([...members.values()], welcome.seats);
-  let state: BoardState = withOccupants(welcome.state ?? bootState(spec, welcome.seats), occupants());
+  // Снимок из сети нормируем: старый формат без free/fx (стол у всех одинаковый) не роняет клиента.
+  let state: BoardState = withOccupants(ensureVisuals(welcome.state ?? bootState(spec, welcome.seats)), occupants());
   const stateSubs: ((s: BoardState) => void)[] = [];
   const emitState = (): void => {
     for (const cb of stateSubs) cb(state);
@@ -93,7 +95,7 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
     emitState();
   });
   room.onMessage("cmd", (msg: { state: BoardState }) => {
-    state = withOccupants(msg.state, occupants());
+    state = withOccupants(ensureVisuals(msg.state), occupants());
     emitState();
   });
   const driver: BoardDriver = {

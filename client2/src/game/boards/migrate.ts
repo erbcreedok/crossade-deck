@@ -65,5 +65,9 @@ export function migrateState(old: BoardState, spec: BoardSpec, seatsWanted?: num
   }
 
   const seats = Array.from({ length: n }, (_, i) => old.seats[i] ?? { id: `p${i + 1}`, name: `Игрок ${i + 1}`, occupant: `Игрок ${i + 1}` });
-  return { ...old, field: { ...old.field, slots }, seats, turn: { at: Math.min(old.turn.at, n - 1), dir: old.turn.dir } };
+  // Визуалы едут за жителями: оверрайды исчезнувших карт и позиции слитых/пустых стопок — мертвы.
+  const fx = Object.fromEntries(Object.entries(old.fx).filter(([id]) => known.has(id)));
+  const loose = Object.fromEntries(Object.entries(old.free.loose).filter(([key]) => slots[key]?.members.length));
+  const offset = Object.fromEntries(Object.entries(old.free.offset).filter(([z]) => zoneIds.has(z)));
+  return { ...old, field: { ...old.field, slots }, seats, turn: { at: Math.min(old.turn.at, n - 1), dir: old.turn.dir }, free: { offset, loose }, fx };
 }

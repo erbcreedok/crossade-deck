@@ -21,6 +21,25 @@ export interface TurnState {
   dir: 1 | -1;
 }
 
+export interface Vec {
+  x: number;
+  y: number;
+}
+
+/** Позиции free-зон — ЧАСТЬ СОСТОЯНИЯ (стол у всех одинаковый): сдвиг колоды-блока по зоне и
+ *  центры свободных стопок по слотам (координаты локальны боксу зоны). */
+export interface FreeVisual {
+  offset: Record<string, Vec>;
+  loose: Record<string, Vec>;
+}
+
+/** Оверрайд визуала карты (меню/дроп): поворот и принудительное лицо/рубашка. Тоже состояние —
+ *  перевёрнутая в колоде карта обязана быть перевёрнутой у ВСЕХ. */
+export interface CardFx {
+  rot?: number;
+  face?: boolean;
+}
+
 export interface BoardState {
   field: SlotField;
   seats: SeatState[];
@@ -29,6 +48,14 @@ export interface BoardState {
   turn: TurnState;
   /** Последний бросок кубиков ([] — не бросали). */
   dice: number[];
+  free: FreeVisual;
+  fx: Record<string, CardFx>;
+}
+
+/** Донормировать снимок из сети/архива: старый формат без free/fx получает пустые поля. */
+export function ensureVisuals(s: BoardState): BoardState {
+  if (s.free && s.fx) return s;
+  return { ...s, free: s.free ?? { offset: {}, loose: {} }, fx: s.fx ?? {} };
 }
 
 /** Ключ руки места. Рука — обычная зона поля (см. заголовок). */
@@ -72,5 +99,5 @@ export function initialState(spec: BoardSpec, seatsWanted?: number, occupants?: 
       if (!known.has(id)) throw new Error(`setup: неизвестный элемент "${id}" в ${key}`);
     }
   }
-  return { field, seats, dealer: "p1", turn: { at: 0, dir: 1 }, dice: [] };
+  return { field, seats, dealer: "p1", turn: { at: 0, dir: 1 }, dice: [], free: { offset: {}, loose: {} }, fx: {} };
 }

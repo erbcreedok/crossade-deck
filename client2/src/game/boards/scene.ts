@@ -119,9 +119,6 @@ export class BoardScene extends SceneEngine {
   private menuAt = { x: 0, y: 0 };
   private menuCtx: { kind: MenuTargetKind } | { kind: "deck"; slot: string } | { kind: "card"; id: string } = { kind: "table" };
 
-  // Локальные visual-оверрайды карт (меню одиночной карты): поворот и принудительное лицо/рубашка.
-  private readonly cardFx = new Map<string, { rot?: number; face?: boolean }>();
-
   // Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга.
   private readonly dropBar = new DropBar();
 
@@ -136,13 +133,8 @@ export class BoardScene extends SceneEngine {
   private hotSlot: string | null = null;
   private dragging = false;
 
-  // Свободные стопки (zone.layout.kind === "free"): их сдвиг от дерева-дома. Дерево кладёт стопку
-  // в фиксированный origin (рамка-квадрат там и рисуется), а живёт она в origin + этот сдвиг —
-  // так блок ездит по всему полю, не ломая слот-геометрию. Ключ — id базовой зоны.
-  private readonly freeOffset = new Map<string, { x: number; y: number }>();
-  // Свободные стопки free-зоны (дроп «куда положили»): центр стопки в координатах бокса, ключ —
-  // слот. Как и freeOffset — локальный визуал этого клиента; дерево читает через FreePositions.
-  private readonly loosePos = new Map<string, { x: number; y: number }>();
+  // Позиции free-зон (сдвиг колоды, свободные стопки) и оверрайды карт живут В СОСТОЯНИИ
+  // (state.free / state.fx): стол у всех игроков одинаковый, меняются командами порта.
   // Идёт блок-драг свободной стопки: её зона + точка захвата (для дельты сдвига на дропе).
   private blockZone: string | null = null;
   private blockGrab = { x: 0, y: 0 };
@@ -331,7 +323,7 @@ export class BoardScene extends SceneEngine {
       return { title: "колода", rows };
     }
     if (ctx.kind === "card") {
-      const fx = this.cardFx.get(ctx.id) ?? {};
+      const fx = this.state.fx[ctx.id] ?? {};
       const turned = (fx.rot ?? 0) !== 0;
       const slot = this.tree.slotOf(ctx.id);
       const faceUp = fx.face ?? (slot ? this.faceUpIn(ctx.id, slot) : true);
@@ -374,17 +366,19 @@ export class BoardScene extends SceneEngine {
     this.showMenu();
   }
 
-  /** Меню одиночной карты: поворот 90° / принудительный флип. Локальный визуал (cardFx). */
+  /** Меню одиночной карты: поворот 90° / принудительный флип. Оверрайд — команда порта:
+   *  перевёрнутая карта перевёрнута у ВСЕХ (и в live, и у поздних гостей). */
   private toggleCardFx(id: string, what: "rot" | "face"): void {
-    const fx = { ...(this.cardFx.get(id) ?? {}) };
-    if (what === "rot") fx.rot = (fx.rot ?? 0) === 0 ? Math.PI / 2 : 0;
-    else {
+    const fx = { ...(this.state.fx[id] ?? {}) };
+    if (what === "rot") {
+      if ((fx.rot ?? 0) === 0) fx.rot = Math.PI / 2;
+      else delete fx.rot;
+    } else {
       const slot = this.tree.slotOf(id);
       const cur = fx.face ?? (slot ? this.faceUpIn(id, slot) : true);
       fx.face = !cur;
     }
-    this.cardFx.set(id, fx);
-    this.rebuildBoard(false);
+    this.dispatch({ t: "cardFx", el: id, fx });
   }
 
   private closeMenu(): void {
@@ -419,9 +413,8 @@ export class BoardScene extends SceneEngine {
       this.after(step.delay, () => {
         const members = this.state.field.slots[slot]?.members ?? [];
         const top = members[members.length - 1];
-        if (!top) return;
-        this.applyDropFace(top, slot, handKey(step.seat)); // рука сама решает сторону — снять оверрайд
-        this.dispatch({ t: "move", el: top, from: slot, to: handKey(step.seat) });
+        // move без face снимает оверрайд лица — рука сама решает сторону (mock.moveVisuals).
+        if (top) this.dispatch({ t: "move", el: top, from: slot, to: handKey(step.seat) });
       });
     }
     this.wake();
@@ -432,8 +425,7 @@ export class BoardScene extends SceneEngine {
   reconfigure(spec: BoardSpec, seats?: number): void {
     this.spec = spec;
     this.defs = elementById(spec);
-    this.loosePos.clear(); // миграция пересыпает свободные стопки в колоду — позиции мертвы
-    this.state = migrateState(this.state, spec, seats);
+    this.state = migrateState(this.state, spec, seats); // визуалы чистит сама миграция
     this.driver = localDriver(spec, seats, undefined, this.state);
     this.driver.onState((s) => {
       this.state = s;
@@ -537,18 +529,12 @@ export class BoardScene extends SceneEngine {
 
   // ——— состояние → доска ———
 
-  /** Локальные позиции free-зон для дерева: сдвиг колоды + центры свободных стопок. */
+  /** Позиции free-зон для дерева — прямо из состояния (стол одинаков у всех клиентов). */
   private freeMaps(): FreePositions {
-    return { offset: Object.fromEntries(this.freeOffset), loose: Object.fromEntries(this.loosePos) };
+    return this.state.free;
   }
 
   private rebuildBoard(snap: boolean): void {
-    // Позиции опустевших свободных стопок больше никому не нужны (слот ЕСТЬ и пуст — карту унесли);
-    // слот, которого ещё нет в поле (live: команда в пути), позицию сохраняет — она вот-вот сыграет.
-    for (const key of this.loosePos.keys()) {
-      const cont = this.state.field.slots[key];
-      if (cont && cont.members.length === 0) this.loosePos.delete(key);
-    }
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
     if (!this.tex) return;
 
@@ -569,7 +555,7 @@ export class BoardScene extends SceneEngine {
       node.setState(node.pose);
       this.placeCard(node);
       const scale = this.scaleIn(node, slot);
-      const fx = this.cardFx.get(id);
+      const fx = this.state.fx[id];
       const wantFace = fx?.face ?? this.faceUpIn(id, slot);
       if (node instanceof Card && node.faceUp !== wantFace) node.requestFlip();
       const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale };
@@ -895,7 +881,7 @@ export class BoardScene extends SceneEngine {
     if (slot && zone && this.isDeckSlot(slot) && this.grabMode === "hold") {
       // Тащим ВСЮ стопку как блок: жест берёт весь слот, а не верхнюю карту (одиночную не вынуть).
       // GroupDrag ведёт все карты жёстко за пальцем со СВОИМИ текущими сдвигами (форма стопки цела);
-      // на дропе сцена сдвинет freeOffset, и release посадит каждую в новый дом.
+      // на дропе сцена отправит offsetFree, и release посадит каждую в новый дом.
       const members = this.state.field.slots[slot]?.members ?? [];
       const nodes = members.map((id) => this.nodes.get(id)).filter((n): n is BoardNode => !!n);
       if (nodes.length) {
@@ -963,11 +949,13 @@ export class BoardScene extends SceneEngine {
       if (box && home) {
         const stack = freeStackSize(CARD, members.length);
         const half = { w: stack.w / 2, h: stack.h / 2 };
-        const cur = this.freeOffset.get(this.blockZone) ?? { x: 0, y: 0 };
+        const cur = this.state.free.offset[this.blockZone] ?? { x: 0, y: 0 };
         // Дерево уже включает текущий сдвиг — blockDropOffset ждёт дом БЕЗ него.
         const base = { x: home.x - cur.x, y: home.y - cur.y };
-        this.freeOffset.set(this.blockZone, blockDropOffset(box, cur, this.blockGrab, cp, base, half));
-        this.rebuildBoard(false); // новые дома — release сажает стопку по свежему дереву
+        const next = blockDropOffset(box, cur, this.blockGrab, cp, base, half);
+        // Команда порта: сдвиг колоды — общее состояние (снимок пересоберёт дерево, release
+        // посадит стопку по свежим домам).
+        if (next.x !== cur.x || next.y !== cur.y) this.dispatch({ t: "offsetFree", zone: this.blockZone, offset: next });
       }
       this.blockZone = null;
       drag.release();
@@ -994,8 +982,7 @@ export class BoardScene extends SceneEngine {
           : handOrderAfterDrop(members, el.id, target?.index ?? members.length);
       this.dispatch({ t: "reorderSlot", key: from, order });
     } else if (from && to && to !== from && zoneOf(to) !== "seat") {
-      this.applyDropFace(el.id, from, to);
-      this.dispatch({ t: "move", el: el.id, from, to });
+      this.dispatch({ t: "move", el: el.id, from, to, face: this.faceForMove(el.id, from, to) });
     } else if (from && !to) {
       this.dropLoose(el, from, cp);
     }
@@ -1013,34 +1000,26 @@ export class BoardScene extends SceneEngine {
     const local = { x: cp.x - box.x, y: cp.y - box.y };
     const members = this.state.field.slots[from]?.members ?? [];
     if (zoneOf(from) === zid && slotOf(from) !== "0" && members.length === 1) {
-      this.applyDropFace(el.id, from, from);
-      this.loosePos.set(from, local);
-      this.rebuildBoard(false);
+      this.dispatch({ t: "placeFree", key: from, at: local });
       return;
     }
     const taken = Object.keys(this.state.field.slots).filter((k) => (this.state.field.slots[k]?.members.length ?? 0) > 0);
     const key = nextLooseKey(zid, taken);
-    this.applyDropFace(el.id, from, key);
-    this.loosePos.set(key, local); // ДО dispatch: синхронный драйвер пересоберёт дерево сразу
-    this.dispatch({ t: "move", el: el.id, from, to: key });
+    this.dispatch({ t: "move", el: el.id, from, to: key, at: local, face: this.faceForMove(el.id, from, key) });
   }
 
   /** Сторона карты после дропа — чистое правило (freeDrop.faceAfterDrop); сцена лишь читает,
-   *  какой стороной карту НЕСЛИ, и пишет/снимает локальный оверрайд лица. */
-  private applyDropFace(id: string, from: string, to: string): void {
+   *  какой стороной карту НЕСЛИ. undefined — оверрайд снимается, зона сама решит. */
+  private faceForMove(id: string, from: string, to: string): boolean | undefined {
     const node = this.nodes.get(id);
-    if (!(node instanceof Card)) return;
+    if (!(node instanceof Card)) return undefined;
     const face = faceAfterDrop({
       fromFree: this.isFreeZone(zoneOf(from)),
       toFree: this.isFreeZone(zoneOf(to)),
       toDeck: this.isDeckSlot(to),
       carried: node.faceUp,
     });
-    const fx = { ...(this.cardFx.get(id) ?? {}) };
-    if (face === null) delete fx.face;
-    else fx.face = face;
-    if (fx.face === undefined && fx.rot === undefined) this.cardFx.delete(id);
-    else this.cardFx.set(id, fx);
+    return face ?? undefined;
   }
 
   /** Ближайший к точке дропа житель контейнера (кроме самого груза) — цель обмена. */
