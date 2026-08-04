@@ -3,7 +3,7 @@ import { CardBody } from "../CardBody";
 import { spinAngle, spinScale, spinShowsOther } from "../flip";
 import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
-import { makeGlow } from "./selection";
+import { makeFigureGlow, type GlowShape } from "./selection";
 import { scaleForState } from "./plane";
 import { cardShadow, withEffect, type ShadowShape } from "./shadow";
 export type { ShadowShape };
@@ -103,7 +103,7 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   readonly root = new Container();
   readonly body = new CardBody();
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
-  private glowNode: import("pixi.js").Graphics | null = null; // свечение выделения (setGlow)
+  private glowNode: import("pixi.js").Container | null = null; // свечение выделения (setGlow)
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
   peekBob = false; // висит в «подглядеть» — тот же bob, что у lifted, чтобы не читалось как зависание
   /** OS/юзер reduce-motion (см. useReducedMotion): движок ставит на спавне и при смене (issue #7).
@@ -427,18 +427,18 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   }
 
   /** Свечение выделения (Glowable): атом нижним ребёнком root — едет/наклоняется/масштабируется
-   *  с картой само, как собственная тень. span (координаты КОНТЕНТА, центр относительно карты) —
-   *  светиться фигурой БОЛЬШЕ себя: нижняя карта стопки несёт ОДИН контур всей фигуры, и полос
-   *  от свечений верхних карт не бывает (ровно как сливаются тени). null — погасить. */
-  setGlow(color: number | null, span?: { w: number; h: number; dx: number; dy: number }): void {
+   *  с картой само, как собственная тень. figure (части фигуры в КОНТЕНТ-единицах относительно
+   *  центра этой карты) — светиться ЦЕЛОЙ стопкой: контур по настоящему ступенчатому союзу
+   *  силуэтов (erase-пасс, как маска теней). null — погасить. */
+  setGlow(color: number | null, figure?: readonly GlowShape[]): void {
     this.glowNode?.destroy();
     this.glowNode = null;
     if (color === null) return;
     const f = this.baseScale * this.body.scaleVal; // контент-px на локальную единицу текстуры
-    const w = span ? span.w / f : TEX_W;
-    const h = span ? span.h / f : TEX_H;
-    this.glowNode = makeGlow(w, h, { color, pad: 14, radius: 16 });
-    if (span) this.glowNode.position.set(span.dx / f, span.dy / f);
+    const shapes: GlowShape[] = figure
+      ? figure.map((sh) => ({ x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f }))
+      : [{ x: -TEX_W / 2, y: -TEX_H / 2, w: TEX_W, h: TEX_H, radius: 16 }];
+    this.glowNode = makeFigureGlow(shapes, { color });
     this.root.addChildAt(this.glowNode, 0);
   }
 

@@ -14,7 +14,7 @@ import { TEX_H, TEX_W } from "../engine/constants";
 import type { Burnable, Draggable, TableElement } from "../engine/element";
 import type { CardState, Pose, ShadowShape } from "./Card";
 import type { OwnShadow } from "./silhouetteExtract";
-import { makeGlow } from "./selection";
+import { makeFigureGlow, type GlowShape } from "./selection";
 
 // Обобщённый ЭЛЕМЕНТ стола, НЕ карта: фишка, шахматная фигура — что угодно с телом и тенью.
 // Реализует ровно те же способности, что и Card (TableElement + Draggable + Burnable), но НЕ
@@ -68,7 +68,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
   private readonly own: OwnShadow | null;
   private readonly censorSeeds: ReadonlyArray<{ x: number; y: number; color: number }> | null;
-  private glowNode: import("pixi.js").Graphics | null = null; // свечение выделения (setGlow)
+  private glowNode: import("pixi.js").Container | null = null; // свечение выделения (setGlow)
   private dust: ParticleField | null = null;
   private dustT = 0;
   private _censored: boolean;
@@ -107,16 +107,16 @@ export class Piece implements TableElement, Draggable, Burnable {
 
   /** Полуразмеры покоя — хит-тест берёт их × scaleVal. */
   /** Свечение выделения (Glowable) — тот же атом, что у карты, в футпринте ЭТОЙ фишки/фигуры;
-   *  span (координаты контента) — один контур на целую фигуру-стопку, без полос. */
-  setGlow(color: number | null, span?: { w: number; h: number; dx: number; dy: number }): void {
+   *  figure (контент-единицы отн. центра) — один контур на целую фигуру-стопку по союзу силуэтов. */
+  setGlow(color: number | null, figure?: readonly GlowShape[]): void {
     this.glowNode?.destroy();
     this.glowNode = null;
     if (color === null) return;
     const f = this.body.scaleVal || 1;
-    const w = span ? span.w / f : this.w;
-    const h = span ? span.h / f : this.h;
-    this.glowNode = makeGlow(w, h, { color, pad: 8, radius: Math.min(w, h) * 0.3 });
-    if (span) this.glowNode.position.set(span.dx / f, span.dy / f);
+    const shapes: GlowShape[] = figure
+      ? figure.map((sh) => ({ x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f }))
+      : [{ x: -this.w / 2, y: -this.h / 2, w: this.w, h: this.h, radius: Math.min(this.w, this.h) * 0.3 }];
+    this.glowNode = makeFigureGlow(shapes, { color });
     this.root.addChildAt(this.glowNode, 0);
   }
 

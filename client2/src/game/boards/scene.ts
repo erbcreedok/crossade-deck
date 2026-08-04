@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
-import { TEX_H, PIXEL_FONT, COLORS } from "../engine/constants";
+import { TEX_H, TEX_W, PIXEL_FONT, COLORS } from "../engine/constants";
 import { Card } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Button } from "../ui/Button";
@@ -19,7 +19,7 @@ import { handKey, type BoardState } from "./state";
 import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
-import { unionRect } from "../ui/selection";
+import type { GlowShape } from "../ui/selection";
 import { PresenceCursor } from "../ui/PresenceCursor";
 import { DropBar } from "../ui/DropBar";
 import { migrateState } from "./migrate";
@@ -186,8 +186,7 @@ export class BoardScene extends SceneEngine {
    *  свой блок-драг — все карты стопки (их свечения сливаются в контур фигуры, как тени). */
   private applyGlow(): void {
     const p = this.opts.presence;
-    type Span = { w: number; h: number; dx: number; dy: number };
-    const want = new Map<string, { color: number; span?: Span }>();
+    const want = new Map<string, { color: number; figure?: GlowShape[] }>();
     if (p && this.presenceView) {
       for (const [el, who] of Object.entries(this.presenceView.held)) {
         const color = p.palette(who);
@@ -197,30 +196,33 @@ export class BoardScene extends SceneEngine {
           want.set(el, { color });
           continue;
         }
-        // Свой блок-драг: ОДИН контур на целую стопку — несёт его НИЖНЯЯ карта (её root под
-        // всеми), размер — union домов фигуры (форма стопки жёсткая, glow едет с блоком сам).
+        // Свой блок-драг: ОДИН контур на целую стопку — несёт его НИЖНЯЯ карта (root под всеми).
+        // Фигура — СИЛУЭТЫ всех карт (контент-единицы отн. центра нижней): erase-пасс выведет
+        // контур настоящего ступенчатого союза, а не прямоугольник (как сливаются тени).
         const ids = this.state.field.slots[slot]?.members ?? [el];
         const base = ids[0]!;
         const baseHome = this.homeVec(base);
-        const rects = ids
-          .map((id) => {
-            const home = this.homeVec(id);
-            const node = this.nodes.get(id);
-            if (!home || !node) return null;
-            return { x: home.x - node.footprint.hw, y: home.y - node.footprint.hh, w: node.footprint.hw * 2, h: node.footprint.hh * 2 };
-          })
-          .filter((r): r is NonNullable<typeof r> => !!r);
-        const u = rects.length && baseHome ? unionRect(rects) : null;
-        if (u && baseHome) {
-          want.set(base, { color, span: { w: u.w, h: u.h, dx: u.x + u.w / 2 - baseHome.x, dy: u.y + u.h / 2 - baseHome.y } });
-        } else {
+        if (!baseHome) {
           want.set(el, { color });
+          continue;
         }
+        const figure: GlowShape[] = [];
+        for (const id of ids) {
+          const home = this.homeVec(id);
+          const node = this.nodes.get(id);
+          if (!home || !node) continue;
+          const w = node.footprint.hw * 2;
+          const h = node.footprint.hh * 2;
+          const radius = node instanceof Card ? (16 * w) / TEX_W : Math.min(w, h) * 0.3;
+          figure.push({ x: home.x - baseHome.x - w / 2, y: home.y - baseHome.y - h / 2, w, h, radius });
+        }
+        if (figure.length) want.set(base, { color, figure });
+        else want.set(el, { color });
       }
     }
     for (const [id, node] of this.nodes) {
       const g = want.get(id);
-      node.setGlow(g?.color ?? null, g?.span);
+      node.setGlow(g?.color ?? null, g?.figure);
     }
   }
 

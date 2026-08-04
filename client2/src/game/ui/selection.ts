@@ -1,10 +1,11 @@
-import { Graphics } from "pixi.js";
+import { Container, Graphics } from "pixi.js";
 
-// ПОДСВЕТКА-АТОМ (выделение элемента/фигуры): АККУРАТНОЕ свечение вместо грубого бордера —
-// широкая полупрозрачная кайма в несколько слоёв + тонкая яркая линия. Один атом на все
-// применения: лок присутствия (своего и чужого), будущие выделения набора и т.п.
-// Стопка выделяется как ОДНА ФИГУРА: габарит считает unionRect по всем её картам (чистая
-// функция, тестируется без Pixi), рисуется один контур, а не рамка на каждой карте.
+// СВЕЧЕНИЕ ВЫДЕЛЕНИЯ — атом, устроенный КАК ТЕНИ: контур фигуры выводится РЕНДЕРОМ, а не
+// геометрией. Расширенные силуэты всех частей фигуры заливаются цветом (слои свечения — данные),
+// затем ТОЧНЫЕ силуэты стираются erase-блендом — остаётся ободок по НАСТОЯЩЕМУ ступенчатому
+// контуру стопки (union-полигон бесплатно, на GPU, с любыми поворотами частей). Контейнер
+// кешируется в текстуру: erase не дырявит фон, а форма пересчитывается только при смене состава.
+// Узел добавляется нижним ребёнком root ЭЛЕМЕНТА — едет/наклоняется/масштабируется с ним сам.
 
 export interface Rect {
   x: number;
@@ -13,17 +14,19 @@ export interface Rect {
   h: number;
 }
 
-export interface HighlightStyle {
+/** Часть фигуры: прямоугольник со скруглением, координаты — как договорится вызывающий
+ *  (сцена передаёт КОНТЕНТ-единицы относительно центра несущего элемента). */
+export interface GlowShape extends Rect {
+  radius: number;
+}
+
+export interface GlowStyle {
   color: number;
-  /** Отступ подсветки от габарита фигуры, px. */
-  pad?: number;
-  /** Скругление, px. */
-  radius?: number;
-  /** Общая насыщенность свечения 0..1 (домножает альфы слоёв). */
+  /** Насыщенность свечения 0..1 (домножает альфы слоёв). */
   strength?: number;
 }
 
-/** Габарит ФИГУРЫ: объединение прямоугольников всех её частей (карт стопки). */
+/** Габарит фигуры: объединение прямоугольников её частей. Чистая (тестируется без Pixi). */
 export function unionRect(rects: readonly Rect[]): Rect | null {
   if (!rects.length) return null;
   let x0 = Infinity;
@@ -39,33 +42,31 @@ export function unionRect(rects: readonly Rect[]): Rect | null {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** Слои свечения: от широкого прозрачного к тонкому яркому. Данные, не ветки кода. */
-const GLOW_LAYERS = [
-  { width: 12, alpha: 0.08, spread: 5 },
-  { width: 7, alpha: 0.14, spread: 2 },
-  { width: 2, alpha: 0.8, spread: 0 },
+/** Слои свечения — данные: от широкого прозрачного к узкому яркому (расширение в px фигуры). */
+const GLOW_FILL_LAYERS = [
+  { expand: 16, alpha: 0.1 },
+  { expand: 10, alpha: 0.18 },
+  { expand: 5, alpha: 0.85 },
 ] as const;
 
-/**
- * СВЕЧЕНИЕ-НА-ЭЛЕМЕНТЕ — тот же приём, что у собственной тени: узел рисуется в ЛОКАЛЬНЫХ
- * координатах элемента (центр 0,0) и добавляется НИЖНИМ ребёнком его root — дальше оно едет,
- * наклоняется и масштабируется ВМЕСТЕ с элементом без пер-кадровой синхронизации. В стопке
- * внутренние края свечений накрыты картами выше — снаружи остаётся общий контур фигуры
- * (ровно как сливаются тени). Есть shadow — есть и glow.
- */
-export function makeGlow(w: number, h: number, s: HighlightStyle): Graphics {
-  const g = new Graphics();
-  paintHighlight(g, { x: -w / 2, y: -h / 2, w, h }, s);
-  return g;
-}
-
-export function paintHighlight(g: Graphics, r: Rect, s: HighlightStyle): void {
-  const pad = s.pad ?? 6;
-  const radius = s.radius ?? 12;
+export function makeFigureGlow(shapes: readonly GlowShape[], s: GlowStyle): Container {
   const strength = s.strength ?? 1;
-  for (const layer of GLOW_LAYERS) {
-    const off = pad + layer.spread;
-    g.roundRect(r.x - off, r.y - off, r.w + off * 2, r.h + off * 2, radius + off / 2)
-      .stroke({ width: layer.width, color: s.color, alpha: layer.alpha * strength });
+  const c = new Container();
+  const fill = new Graphics();
+  for (const layer of GLOW_FILL_LAYERS) {
+    for (const sh of shapes) {
+      fill
+        .roundRect(sh.x - layer.expand, sh.y - layer.expand, sh.w + layer.expand * 2, sh.h + layer.expand * 2, sh.radius + layer.expand)
+        .fill({ color: s.color, alpha: layer.alpha * strength });
+    }
   }
+  // Точные силуэты стираются: свечение остаётся ТОЛЬКО ободком вокруг фигуры (как маска теней).
+  const erase = new Graphics();
+  for (const sh of shapes) erase.roundRect(sh.x, sh.y, sh.w, sh.h, sh.radius).fill({ color: 0xffffff });
+  erase.blendMode = "erase";
+  c.addChild(fill, erase);
+  // Кеш в текстуру: erase действует внутри кеша и не дырявит стол; перерисовка — только при
+  // пересоздании узла (смена состава фигуры), не по кадрам.
+  (c as unknown as { cacheAsTexture?: (v: boolean) => void }).cacheAsTexture?.(true);
+  return c;
 }

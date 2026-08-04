@@ -53,26 +53,30 @@ cursor.place(x, y);`,
         // Фигуры-как-данные: карта, стопка карт, стопка фишек, куча фигур. Свечение включается
         // НА ЭЛЕМЕНТАХ — в стопке контуры сливаются в одну фигуру (как тени), не рамка на каждой.
         const FIGURES = [
-          { caption: "card", opts: { count: 1 } },
-          { caption: "stack — one figure", opts: { count: 5 } },
-          { caption: "chips", opts: { content: "chips" as const, count: 6 } },
-          { caption: "pieces pile", opts: { content: "pieces" as const, count: 4 } },
-        ];
+          { caption: "card", opts: { count: 1 }, round: 0.16 },
+          { caption: "stack — one figure", opts: { count: 5 }, round: 0.16 },
+          { caption: "chips", opts: { content: "chips" as const, count: 6 }, round: 1 },
+          { caption: "pieces pile", opts: { content: "pieces" as const, count: 4 }, round: 0.3 },
+        ] as const;
         let x = ctx.padding;
         let rowBottom = ctx.padding;
         FIGURES.forEach((f, i) => {
           const at = { x, y: ctx.padding };
           const r = stackState(ctx, at, f.opts, `sel-${i}`);
-          // ОДИН контур на фигуру: несёт нижний элемент (span = габарит целой стопки), как тени.
-          const base = ctx.element(r.ids[0]!) as unknown as (Glowable & { footprint: { hw: number; hh: number } }) | undefined;
+          // ОДИН контур на фигуру: несёт нижний элемент, фигура — СИЛУЭТЫ всех частей (их root'ы),
+          // erase-пасс выводит настоящий ступенчатый контур союза, как маска теней.
+          type El = Glowable & { footprint: { hw: number; hh: number }; root: { x: number; y: number } };
+          const parts = r.ids.map((id) => ctx.element(id) as unknown as El | undefined).filter((e): e is El => !!e);
+          const base = parts[0];
           if (base) {
-            const fig = { w: r.width, h: r.bottom - at.y };
-            base.setGlow(color, r.ids.length === 1 ? undefined : {
-              w: fig.w,
-              h: fig.h,
-              dx: at.x + fig.w / 2 - (at.x + base.footprint.hw),
-              dy: at.y + fig.h / 2 - (at.y + base.footprint.hh),
-            });
+            const figure = parts.map((e) => ({
+              x: e.root.x - base.root.x - e.footprint.hw,
+              y: e.root.y - base.root.y - e.footprint.hh,
+              w: e.footprint.hw * 2,
+              h: e.footprint.hh * 2,
+              radius: Math.min(e.footprint.hw, e.footprint.hh) * (f.round ?? 0.16),
+            }));
+            base.setGlow(color, r.ids.length === 1 ? undefined : figure);
           }
           ctx.label(f.caption, at.x + r.width / 2, r.bottom + 16, 12, 0x9aa89f, Math.max(r.width * 1.6, 140));
           rowBottom = Math.max(rowBottom, r.bottom);
