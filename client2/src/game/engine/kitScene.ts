@@ -623,8 +623,27 @@ export class KitScene extends SceneEngine {
   }
 
   protected homeOf(el: SceneElement): { home: Pt; depth: number } | null {
+    // Карта спред-стека живёт в СПРЕД-позиции (её каждый кадр ставит stepScene), а не в статичном
+    // доме stackState. Возврат после граба/дропа обязан вести туда же — иначе клик/микро-драг
+    // верхней карты дёргает её к нераздвинутой раскладке (вверх-влево), и стопка «прыгает».
+    const sp = this.spreadHomeOf(el.id);
+    if (sp) return sp;
     const p = this.placed.find((q) => q.el === el);
     return p ? { home: p.home, depth: p.z } : null;
+  }
+
+  /** Дом карты в спред-стеке = якорь + текущий раздвиг (та же формула, что в stepScene). null —
+   *  карта не в спред-стеке. Глубину берём из placed. */
+  private spreadHomeOf(id: string): { home: Pt; depth: number } | null {
+    const entry = this.spreadStacks.find((s) => s.ids.includes(id));
+    if (!entry) return null;
+    const i = entry.ids.indexOf(id);
+    const n = entry.ids.length;
+    const base = entry.layout(i, n, entry.cell);
+    const wob = entry.cfg.close.kind === "dribble" ? dribbleWobble(i, entry.state.phase) : 0;
+    const off = offsetWithSpread(base, i, n, entry.state.amount, entry.cfg, wob);
+    const z = this.placed.find((q) => q.el.id === id)?.z ?? 0;
+    return { home: { x: entry.at.x + off.dx, y: entry.at.y + off.dy }, depth: z };
   }
 
   protected reapDead(): void {
