@@ -20,11 +20,17 @@ import { STACK_INTERACTIONS } from "../../game/kit/stackInteraction";
 interface MechArgs {
   /** Из чего сложена демо-стопка. Раскладка от этого не зависит — меняется только предмет. */
   entity: Extract<StackContent, "cards" | "chips">;
+  /** Раскладка-основа. У Default/Entities фиксирована (linear), у Spreading — выбирается рычагом. */
+  layout: StackArgs["layout"];
+  count: number;
   interaction: StackArgs["interaction"];
   spread: StackArgs["spread"];
   spreadPointerTrigger: StackArgs["spreadPointerTrigger"];
   spreadTouchTrigger: StackArgs["spreadTouchTrigger"];
   spreadGain: StackArgs["spreadGain"];
+  spreadShape: StackArgs["spreadShape"];
+  spreadOrigin: StackArgs["spreadOrigin"];
+  spreadAngleDeg: StackArgs["spreadAngleDeg"];
   spreadClose: StackArgs["spreadClose"];
   spreadAxis: StackArgs["spreadAxis"];
   spreadInvert: StackArgs["spreadInvert"];
@@ -43,18 +49,21 @@ const COUNT = 6;
 function toStackArgs(a: MechArgs): StackArgs {
   return {
     ...STACK_ARGS,
-    layout: "linear",
+    layout: a.layout,
     angleDeg: 0,
     step: 0.06,
     rotStep: 0,
     faceUp: true,
-    count: COUNT,
+    count: a.count,
     content: a.entity,
     interaction: a.interaction,
     spread: a.spread,
     spreadPointerTrigger: a.spreadPointerTrigger,
     spreadTouchTrigger: a.spreadTouchTrigger,
     spreadGain: a.spreadGain,
+    spreadShape: a.spreadShape,
+    spreadOrigin: a.spreadOrigin,
+    spreadAngleDeg: a.spreadAngleDeg,
     spreadClose: a.spreadClose,
     spreadAxis: a.spreadAxis,
     spreadInvert: a.spreadInvert,
@@ -69,11 +78,16 @@ function toStackArgs(a: MechArgs): StackArgs {
 
 const MECH_ARGS: MechArgs = {
   entity: "cards",
+  layout: "linear",
+  count: COUNT,
   interaction: "deck",
   spread: true,
   spreadPointerTrigger: STACK_ARGS.spreadPointerTrigger,
   spreadTouchTrigger: STACK_ARGS.spreadTouchTrigger,
   spreadGain: STACK_ARGS.spreadGain,
+  spreadShape: STACK_ARGS.spreadShape,
+  spreadOrigin: STACK_ARGS.spreadOrigin,
+  spreadAngleDeg: STACK_ARGS.spreadAngleDeg,
   spreadClose: STACK_ARGS.spreadClose,
   spreadAxis: STACK_ARGS.spreadAxis,
   spreadInvert: STACK_ARGS.spreadInvert,
@@ -96,6 +110,13 @@ const MECH_ARG_TYPES = {
     options: ["cards", "chips"],
   },
   interaction: STACK_ARG_TYPES.interaction,
+  // Раскладка/форма/состав скрыты по умолчанию (у Default/Entities раскладка фиксирована — философия
+  // стенда); стори Spreading переопределяет их видимыми контролами.
+  layout: { table: { disable: true } },
+  count: { table: { disable: true } },
+  spreadShape: { table: { disable: true } },
+  spreadOrigin: { table: { disable: true } },
+  spreadAngleDeg: { table: { disable: true } },
   spread: STACK_ARG_TYPES.spread,
   spreadPointerTrigger: STACK_ARG_TYPES.spreadPointerTrigger,
   spreadTouchTrigger: STACK_ARG_TYPES.spreadTouchTrigger,
@@ -157,6 +178,51 @@ export const Default: Story = {};
  * карточной стопке и на столбике фишек, рядом. Отдельной страницей, а не значением рычага: тут
  * сравнивают, а не крутят — та же роль, что у `Gallery` в «UI-kit/Stack».
  */
+/**
+ * СПРЕД-ФОРМЫ — playground раскрытия стопки. Одна стопка, раскладка выбирается рычагом (для `inherit`
+ * важна: linear растит шаг, fan ширится дугой по центру, heap разлетается; `radial`/`circle`/`spiral`
+ * раскладку ИГНОРИРУЮТ и накладывают свою форму). Рычаги: `spread.shape` (шаблон формы), `origin`
+ * (точка отброса для radial/circle/spiral), `angleDeg` (для linear-формы), `gain` (усиление) и ввод
+ * (каким жестом/осью двигать, инверсия, чувствительность). Драг тут скрыт — стори про РАСКРЫТИЕ.
+ *
+ * Жест: тач-пинч на телефоне, Ctrl-колесо/тачпад-пинч на ПК (при `pointerTrigger: "zoom"`) или обычный
+ * скролл (при `"pan"`). `close: infinite` — раскрытие держится, чтобы разглядеть форму.
+ */
+export const Spreading: Story = {
+  args: {
+    entity: "cards",
+    layout: "fan",
+    count: 9,
+    interaction: "deck",
+    spread: true,
+    spreadShape: "inherit",
+    spreadOrigin: "center",
+    spreadAngleDeg: 0,
+    spreadGain: 3,
+    spreadClose: "infinite",
+    pieceDrag: false,
+    stackDrag: false,
+  },
+  argTypes: {
+    layout: {
+      name: "layout",
+      description: "раскладка-основа. Для inherit важна (linear→шаг, fan→дуга по центру, heap→разлёт); radial/circle/spiral её игнорируют",
+      control: { type: "select" as const },
+      options: ["linear", "fan", "heap"],
+    },
+    count: { name: "count", description: "сколько фигур в стопке", control: { type: "range" as const, min: 2, max: 12, step: 1 } },
+    spreadShape: STACK_ARG_TYPES.spreadShape,
+    spreadOrigin: STACK_ARG_TYPES.spreadOrigin,
+    spreadAngleDeg: STACK_ARG_TYPES.spreadAngleDeg,
+    // Драг скрыт — фокус на раскрытии.
+    pieceDrag: { table: { disable: true } },
+    piecePick: { table: { disable: true } },
+    pieceDragTrigger: { table: { disable: true } },
+    stackDrag: { table: { disable: true } },
+    stackDragTrigger: { table: { disable: true } },
+  },
+};
+
 export const Entities: Story = {
   parameters: {
     controls: { disable: true },
