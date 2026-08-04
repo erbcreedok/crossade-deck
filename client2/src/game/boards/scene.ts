@@ -128,6 +128,7 @@ export class BoardScene extends SceneEngine {
   private readonly cursorLabels = new Map<string, Text>();
   private presenceView: PresenceView | null = null;
   private grabbedEl: string | null = null;
+  private ownCursor: { x: number; y: number } | null = null;
 
   private hotSlot: string | null = null;
   private dragging = false;
@@ -159,13 +160,23 @@ export class BoardScene extends SceneEngine {
     });
   }
 
-  // ——— live-присутствие: лок «кто первый», чужие курсоры ———
+  // ——— live-присутствие: лок «кто первый», курсоры (свой — тоже своим цветом) ———
 
-  /** Курсор этого клиента для остальных (экранные координаты хоста; null — палец ушёл с борды). */
+  /** Акцент сцены: в live — ЦВЕТ ЭТОГО игрока (профиль, свой курсор, подсветки), иначе золото. */
+  protected accentColor(): number {
+    const p = this.opts.presence;
+    return p ? p.palette(p.who) : COLORS.gold;
+  }
+
+  /** Курсор этого клиента: остальным — в хаб, себе — точкой своего цвета на борде. */
   reportCursor(sx: number, sy: number, active = true): void {
     const p = this.opts.presence;
     if (!p) return;
-    p.hub.cursor(p.who, active ? this.screenToContent(sx, sy) : null);
+    const cp = active ? this.screenToContent(sx, sy) : null;
+    this.ownCursor = cp;
+    p.hub.cursor(p.who, cp);
+    this.paintPresence();
+    this.wake();
   }
 
   private paintPresence(): void {
@@ -175,14 +186,18 @@ export class BoardScene extends SceneEngine {
     const p = this.opts.presence;
     const seen = new Set<string>();
     if (v && p) {
-      // Чужие локи: цветная рамка держателя вокруг элемента (свои не подсвечиваем — он в пальцах).
+      // Локи: цветная рамка держателя вокруг элемента. СВОЙ захват — тоже своим цветом
+      // (выделение колоды/карты в пальцах читается «это моё»), рамка едет за драгом (onDragMoved).
       for (const [el, who] of Object.entries(v.held)) {
-        if (who === p.who) continue;
         const node = this.nodes.get(el);
         if (!node) continue;
         const w = CARD.w * node.body.scaleVal + 10;
         const h = CARD.h * node.body.scaleVal + 10;
         g.roundRect(node.body.px - w / 2, node.body.py - h / 2, w, h, 8).stroke({ width: 3, color: p.palette(who), alpha: 0.9 });
+      }
+      // Свой курсор — точкой своего цвета (без подписи: своё имя под пальцем — шум).
+      if (this.ownCursor) {
+        g.circle(this.ownCursor.x, this.ownCursor.y, 6).fill({ color: p.palette(p.who), alpha: 0.85 });
       }
       // Чужие курсоры: цветная точка с именем (призрак ходит только курсором — это весь его след).
       for (const [who, at] of Object.entries(v.cursors)) {
@@ -425,6 +440,7 @@ export class BoardScene extends SceneEngine {
   setBadge(text: string): void {
     if (!this.badgeText) return;
     this.badgeText.text = text;
+    this.badgeText.style.fill = this.accentColor(); // профиль — цветом игрока
     this.layoutChrome(this.width, this.height);
     this.wake();
   }
@@ -603,7 +619,9 @@ export class BoardScene extends SceneEngine {
       const who = seat.occupant ?? "свободно";
       const dealer = seat.id === this.state.dealer ? " ♛" : "";
       label.text = `${isTurn ? "► " : ""}${who}${dealer}`;
-      label.style.fill = isTurn ? COLORS.gold : seat.occupant ? COLORS.seatName : COLORS.seatNameOff;
+      const p = this.opts.presence;
+      const isMe = !!p && seat.occupant !== null && seat.occupant === (p.label?.(p.who) ?? p.who);
+      label.style.fill = isMe ? this.accentColor() : isTurn ? COLORS.gold : seat.occupant ? COLORS.seatName : COLORS.seatNameOff;
       label.position.set(origin.x, origin.y - 6);
     }
     for (const [id, label] of this.seatLabels) {
@@ -692,18 +710,19 @@ export class BoardScene extends SceneEngine {
     const g = this.hintLayer;
     g.clear();
     if (!this.dragging || !this.hotSlot) return;
+    const accent = this.accentColor(); // в live подсветки — цвета ИГРОКА, не общее золото
     const r = this.tree.cellRects[this.hotSlot];
     if (r) {
       const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(this.hotSlot!)));
       if (zone?.shape === "circle") {
-        g.circle(r.x + r.w / 2, r.y + r.h / 2, Math.min(r.w, r.h) / 2 + 3).stroke({ width: 3, color: COLORS.gold });
+        g.circle(r.x + r.w / 2, r.y + r.h / 2, Math.min(r.w, r.h) / 2 + 3).stroke({ width: 3, color: accent });
       } else {
-        g.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 8).stroke({ width: 3, color: COLORS.gold });
+        g.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 8).stroke({ width: 3, color: accent });
       }
       return;
     }
     const at = this.tree.origins[this.hotSlot];
-    if (at) g.roundRect(at.x - 4, at.y - 4, CARD.w + 8, CARD.h + 8, 8).stroke({ width: 3, color: COLORS.gold });
+    if (at) g.roundRect(at.x - 4, at.y - 4, CARD.w + 8, CARD.h + 8, 8).stroke({ width: 3, color: accent });
   }
 
   private syncDice(): void {
@@ -791,14 +810,21 @@ export class BoardScene extends SceneEngine {
         this.drag = new GroupDrag(nodes, offsets, this.dragCtx);
         this.drag.move(cp);
         // Колода в пальцах → снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
-        this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height);
+        this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height, this.accentColor());
         return true;
       }
     }
     const ok = super.beginDrag(el, cp, sp);
     // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка».
-    if (ok) this.dropBar.show([{ key: "menu", label: "настройка" }], this.width, this.height);
+    if (ok) this.dropBar.show([{ key: "menu", label: "настройка" }], this.width, this.height, this.accentColor());
     return ok;
+  }
+
+  /** Пока что-то удержано, слой присутствия перерисовывается ПОКАДРОВО: тела едут пружинами
+   *  после события, и рамка, снятая в момент move, отставала бы от груза. */
+  protected stepScene(dt: number): boolean {
+    if (this.opts.presence && this.presenceView && Object.keys(this.presenceView.held).length) this.paintPresence();
+    return super.stepScene(dt);
   }
 
   protected onDragMoved(p: { x: number; y: number }): void {

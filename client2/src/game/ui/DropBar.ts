@@ -9,7 +9,7 @@ import { PIXEL_FONT } from "../engine/constants";
 
 const BG = 0x18211c;
 const BORDER = 0x5f7a6d;
-const HOT = 0xf2c14e;
+const DEFAULT_HOT = 0xf2c14e;
 
 const BAR_H = 58;
 const BAR_BOTTOM = 64; // над ActionBar
@@ -32,6 +32,7 @@ interface Cell {
 export class DropBar {
   readonly root = new Container();
   private cells: Cell[] = [];
+  private hotColor = DEFAULT_HOT;
 
   constructor() {
     this.root.visible = false;
@@ -41,9 +42,11 @@ export class DropBar {
     return this.root.visible;
   }
 
-  /** Показать зоны на время драга. Раскладка — от ширины экрана, ровно по центру. */
-  show(zones: readonly DropBarZone[], screenW: number, screenH: number): void {
+  /** Показать зоны на время драга. Раскладка — от ширины экрана, ровно по центру.
+   *  accent — цвет hot-подсветки: в live это ЦВЕТ игрока, не общее золото. */
+  show(zones: readonly DropBarZone[], screenW: number, screenH: number, accent = DEFAULT_HOT): void {
     this.clear();
+    this.hotColor = accent;
     const zw = Math.min(MAX_ZONE_W, (screenW - GAP * (zones.length + 1)) / Math.max(1, zones.length));
     const total = zw * zones.length + GAP * (zones.length - 1);
     const x0 = (screenW - total) / 2;
@@ -87,8 +90,8 @@ export class DropBar {
       c.g.clear();
       c.g.roundRect(c.rect.x, c.rect.y, c.rect.w, c.rect.h, 10)
         .fill({ color: BG, alpha: 0.92 })
-        .stroke({ width: c.hot ? 3 : 1.5, color: c.hot ? HOT : BORDER, alpha: 0.95 });
-      c.t.style.fill = c.hot ? HOT : 0xcdb98f;
+        .stroke({ width: c.hot ? 3 : 1.5, color: c.hot ? this.hotColor : BORDER, alpha: 0.95 });
+      c.t.style.fill = c.hot ? this.hotColor : 0xcdb98f;
     }
   }
 
