@@ -435,9 +435,11 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.glowNode = null;
     if (color === null) return;
     const f = this.baseScale * this.body.scaleVal; // контент-px на локальную единицу текстуры
-    const shapes: GlowShape[] = figure
-      ? figure.map((sh) => ({ x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f }))
-      : [{ x: -TEX_W / 2, y: -TEX_H / 2, w: TEX_W, h: TEX_H, radius: 16 }];
+    const scale = (sh: GlowShape): GlowShape =>
+      sh.kind === "silhouette"
+        ? { ...sh, x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f }
+        : { ...sh, x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f };
+    const shapes: GlowShape[] = figure ? figure.map(scale) : [{ x: -TEX_W / 2, y: -TEX_H / 2, w: TEX_W, h: TEX_H, radius: 16 }];
     this.glowNode = makeFigureGlow(shapes, { color });
     this.root.addChildAt(this.glowNode, 0);
   }

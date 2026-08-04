@@ -106,16 +106,28 @@ export class Piece implements TableElement, Draggable, Burnable {
   }
 
   /** Полуразмеры покоя — хит-тест берёт их × scaleVal. */
-  /** Свечение выделения (Glowable) — тот же атом, что у карты, в футпринте ЭТОЙ фишки/фигуры;
+  /** Силуэт для свечения: БЕЛАЯ версия собственного снимка (форма тени, цвет под tint) — конь
+   *  светится конём. Нет снимка или белой версии (фишка) — null: фишке круг и есть её форма. */
+  get glowSilhouette(): { texture: import("pixi.js").Texture; bounds: OwnShadow["bounds"] } | null {
+    return this.own?.white ? { texture: this.own.white, bounds: this.own.bounds } : null;
+  }
+
+  /** Свечение выделения (Glowable): по СОБСТВЕННОМУ силуэту (есть снимок) или кругу-футпринту;
    *  figure (контент-единицы отн. центра) — один контур на целую фигуру-стопку по союзу силуэтов. */
   setGlow(color: number | null, figure?: readonly GlowShape[]): void {
     this.glowNode?.destroy();
     this.glowNode = null;
     if (color === null) return;
     const f = this.body.scaleVal || 1;
-    const shapes: GlowShape[] = figure
-      ? figure.map((sh) => ({ x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f }))
-      : [{ x: -this.w / 2, y: -this.h / 2, w: this.w, h: this.h, radius: Math.min(this.w, this.h) * 0.3 }];
+    const scale = (sh: GlowShape): GlowShape =>
+      sh.kind === "silhouette"
+        ? { ...sh, x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f }
+        : { ...sh, x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f };
+    const sil = this.glowSilhouette;
+    const ownDefault: GlowShape = sil
+      ? { kind: "silhouette", x: sil.bounds.x, y: sil.bounds.y, w: sil.bounds.width, h: sil.bounds.height, texture: sil.texture }
+      : { x: -this.w / 2, y: -this.h / 2, w: this.w, h: this.h, radius: Math.min(this.w, this.h) / 2 };
+    const shapes: GlowShape[] = figure ? figure.map(scale) : [ownDefault];
     this.glowNode = makeFigureGlow(shapes, { color });
     this.root.addChildAt(this.glowNode, 0);
   }

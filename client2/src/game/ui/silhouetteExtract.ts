@@ -1,4 +1,4 @@
-import { Container, Texture } from "pixi.js";
+import { ColorMatrixFilter, Container, Texture } from "pixi.js";
 import type { Renderer } from "pixi.js";
 
 // СНЯТЬ ТЕНЬ С САМОГО ПРЕДМЕТА: нарисовать его и оставить картинку.
@@ -15,6 +15,9 @@ import type { Renderer } from "pixi.js";
 export interface OwnShadow {
   /** Картинка предмета — она же его тень. */
   texture: Texture;
+  /** ОДНОЦВЕТНАЯ (белая) версия той же формы — для свечения: tint по белому даёт чистый цвет,
+   *  по рисунку с тёмными пикселями — грязь. Альфа один в один с предметом. */
+  white: Texture | null;
   /** Габарит визуала в его ЛОКАЛЬНЫХ координатах: по нему картинка ставится туда же, где предмет. */
   bounds: { x: number; y: number; width: number; height: number };
 }
@@ -32,7 +35,10 @@ export function ownShadowOf(renderer: Renderer | null | undefined, key: string, 
 
 /** Забыть снятые тени. Нужен тестам и пересборке витрины: тот же ключ — другой визуал. */
 export function clearOwnShadows(): void {
-  for (const s of cache.values()) s.texture.destroy(true);
+  for (const s of cache.values()) {
+    s.texture.destroy(true);
+    s.white?.destroy(true);
+  }
   cache.clear();
 }
 
@@ -44,7 +50,18 @@ function extract(renderer: Renderer | null | undefined, build: (root: Container)
     const b = root.getLocalBounds();
     if (!(b.width > 0) || !(b.height > 0)) return null;
     const texture = renderer.extract.texture({ target: root, resolution: 2 });
-    return { texture, bounds: { x: b.x, y: b.y, width: b.width, height: b.height } };
+    // Белая версия: та же форма, цвет выбелен фильтром (rgb = альфа, premultiplied) — для glow.
+    let white: Texture | null = null;
+    try {
+      const bleach = new ColorMatrixFilter();
+      bleach.matrix = [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+      root.filters = [bleach];
+      white = renderer.extract.texture({ target: root, resolution: 2 });
+      root.filters = [];
+    } catch {
+      white = null; // без белой формы glow обойдётся футпринтом — тень важнее, её не роняем
+    }
+    return { texture, white, bounds: { x: b.x, y: b.y, width: b.width, height: b.height } };
   } catch {
     // Снять нечем (нет контекста, шрифт ещё не готов) — не повод остаться без тени: предмет
     // обойдётся своим габаритом, а картинка снимется на следующей сборке.

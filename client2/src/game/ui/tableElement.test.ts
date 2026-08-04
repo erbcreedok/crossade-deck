@@ -22,7 +22,7 @@ const chip = (o: Partial<ConstructorParameters<typeof Piece>[0]> = {}) => {
 // Предмет со СВОЕЙ тенью-картинкой. Снимок здесь подставной: снимают его с визуала живым
 // рендерером (ui/silhouetteExtract.ts), а закон «тень идёт картинкой предмета» от способа её
 // добычи не зависит.
-const OWN = { texture: {} as never, bounds: { x: -20, y: -10, width: 40, height: 20 } };
+const OWN = { texture: {} as never, white: null, bounds: { x: -20, y: -10, width: 40, height: 20 } };
 const standing = (o: Partial<ConstructorParameters<typeof Piece>[0]> = {}) => {
   const r = 30;
   const { build, shadow } = pieceVisual({ kind: "chess", dark: true, glyph: "♞" }, r);

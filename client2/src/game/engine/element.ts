@@ -79,7 +79,8 @@ export interface Burnable {
 /** Способность СВЕТИТЬСЯ выделением (лок присутствия, будущий отбор набора). Свечение — атом в
  *  root'е элемента (ui/selection.makeGlow): едет с ним само, как собственная тень. */
 export interface Glowable {
-  /** figure — части фигуры (контент-единицы относительно центра элемента): один контур на целую
-   *  стопку по СОЮЗУ силуэтов (erase-пасс, как маска теней). Без figure — свой футпринт. */
-  setGlow(color: number | null, figure?: readonly { x: number; y: number; w: number; h: number; radius: number }[]): void;
+  /** figure — части фигуры (контент-единицы относительно центра элемента; прямоугольник или
+   *  СОБСТВЕННЫЙ силуэт-снимок): один контур на целую стопку по СОЮЗУ форм (erase-пасс, как
+   *  маска теней). Без figure — собственная форма элемента. */
+  setGlow(color: number | null, figure?: readonly import("../ui/selection").GlowShape[]): void;
 }

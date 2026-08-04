@@ -211,10 +211,19 @@ export class BoardScene extends SceneEngine {
           const home = this.homeVec(id);
           const node = this.nodes.get(id);
           if (!home || !node) continue;
+          const dx = home.x - baseHome.x;
+          const dy = home.y - baseHome.y;
+          const sil = node instanceof Card ? null : node.glowSilhouette;
+          if (sil) {
+            // Собственный силуэт: конь огибается как конь (та же форма, что у его тени).
+            figure.push({ kind: "silhouette", x: dx + sil.bounds.x, y: dy + sil.bounds.y, w: sil.bounds.width, h: sil.bounds.height, texture: sil.texture });
+            continue;
+          }
           const w = node.footprint.hw * 2;
           const h = node.footprint.hh * 2;
-          const radius = node instanceof Card ? (16 * w) / TEX_W : Math.min(w, h) * 0.3;
-          figure.push({ x: home.x - baseHome.x - w / 2, y: home.y - baseHome.y - h / 2, w, h, radius });
+          // Карта — скруглённый прямоугольник (это и есть её силуэт), круглая фишка — круг.
+          const radius = node instanceof Card ? (16 * w) / TEX_W : Math.min(w, h) / 2;
+          figure.push({ x: dx - w / 2, y: dy - h / 2, w, h, radius });
         }
         if (figure.length) want.set(base, { color, figure });
         else want.set(el, { color });
