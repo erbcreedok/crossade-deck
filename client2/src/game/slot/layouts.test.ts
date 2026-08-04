@@ -73,6 +73,19 @@ describe("radial layout", () => {
     expect(radial({ cell: CARD }).place([]).size).toEqual(CARD);
     expect(radial({}).place([]).size).toEqual({ w: 0, h: 0 });
   });
+  it("slots — минимум позиций (место каждому игроку): двое на круге четырёх стоят по четвертям", () => {
+    const l = radial({ slots: 4 });
+    const two = l.place(many(2));
+    const four = l.place(many(4));
+    // Круг размечен на 4 позиции: габарит тот же, что у полного стола.
+    expect(two.size).toEqual(four.size);
+    // Второй житель — на «востоке» (четверть круга), а не напротив (полкруга).
+    expect(two.at[1]!.x).toBeCloseTo(four.at[1]!.x, 6);
+    expect(two.at[1]!.y).toBeCloseTo(four.at[1]!.y, 6);
+    // Пустой контейнер со slots держит габарит полного круга.
+    expect(radial({ cell: CARD, slots: 4 }).place([]).size).toEqual(four.size);
+  });
+
   it("indexAt — индекс вставки по УГЛУ: север → 0, юг при 4 жителях → 2, чуть левее севера → append", () => {
     const l = radial({});
     const { size } = l.place(many(4));

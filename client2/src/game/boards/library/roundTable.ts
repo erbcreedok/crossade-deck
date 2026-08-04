@@ -25,10 +25,10 @@ export interface RoundTableOpts {
   deck?: 36 | 52;
 }
 
-function tableLayout(o: Required<Pick<RoundTableOpts, "shape" | "table" | "slots">>): ZoneLayoutSpec {
+function tableLayout(o: Required<Pick<RoundTableOpts, "shape" | "table" | "slots" | "seats">>): ZoneLayoutSpec {
   if (o.slots === "dynamic") {
     return o.table === "radial"
-      ? { kind: "radial" }
+      ? { kind: "radial", min: Math.max(1, o.seats) } // минимум позиций круга = числу игроков
       : { kind: "flow", cols: { min: 3, max: 4 }, grow: "square", center: true };
   }
   if (o.table === "radial") return { kind: "ring", count: o.slots };
@@ -75,14 +75,22 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         title: "",
         layout,
         frame: "dashed",
-        // Круг-рамка имеет смысл только у ЖИВОГО контейнера (radial/flow — рамка одна на зону);
-        // у фикс-слотов (ring/grid) рамки по ячейкам, круг там рисовал бы кружок на каждой клетке.
-        shape: o.shape === "circle" && o.slots === "dynamic" ? "circle" : undefined,
+        // Круг — И рамка живого контейнера (radial/flow), И ячейки фикс-слотов (ring), И пустые
+        // позиции-заготовки: слот-плейсхолдер читается кружком, не «квадратом». Сетка (grid) —
+        // намеренно прямоугольная: это сетка.
+        shape: o.shape === "circle" && layout.kind !== "grid" ? "circle" : undefined,
         policy: { onOccupied: o.stacking ? "merge" : "reject" },
         setup: tableSetup(layout, dealt),
         focusable: true,
       },
-      { id: "place", title: "", layout: { kind: "seats" }, policy: { onOccupied: "reject" } },
+      {
+        id: "place",
+        title: "",
+        layout: { kind: "seats" },
+        // Посадочные слоты вокруг стола — тоже кружки (владелец: всё по дефолту круг).
+        shape: o.shape === "circle" ? "circle" : undefined,
+        policy: { onOccupied: "reject" },
+      },
     ],
     seats: { count: { fixed: Math.max(1, o.seats) }, show: "backs", swap: true },
     hand: { reorder: true },

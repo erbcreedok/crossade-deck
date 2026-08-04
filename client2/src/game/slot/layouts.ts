@@ -70,41 +70,49 @@ export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: 
 }
 
 // РАДИУС — жители по окружности РОВНОГО круга (не овала), первый — «на севере», дальше по часовой.
-// Радиус живой: растёт с числом жителей так, чтобы соседние центры отстояли на ширину карты + gap
-// (хорда 2R·sin(π/n) ≥ w+gap). Один житель — в центре (R=0). indexAt — индекс ВСТАВКИ по углу
-// точки: [0..N], «щель» за последним жителем перед севером — append. cell — резерв пустой зоны
-// (тот же смысл, что у grid/pile: пустой круг не схлопывается в 0 и продолжает ловить дроп).
-export function radial(o: { cell?: Size; gap?: number } = {}): Layout {
+// Радиус живой: растёт с числом ПОЗИЦИЙ так, чтобы соседние центры отстояли на большую сторону
+// карты + gap (хорда 2R·sin(π/n) ≥ reach; ширины мало — вертикальные соседи наезжали бы).
+// `slots` — МИНИМУМ позиций круга (место каждому игроку): жителей меньше — круг всё равно размечен
+// на slots позиций, карты занимают первые по часовой, остальные позиции пустуют (их рисует борда).
+// Одна позиция — в центре (R=0). indexAt — индекс ВСТАВКИ по углу точки, зажатый в [0..n].
+
+/** Центры count позиций круга (top-left ячеек) + габарит. Общая математика раскладки radial и
+ *  отрисовки пустых позиций-заготовок (boardTree) — одна формула, а не две расползающиеся. */
+export function radialPositions(count: number, cell: Size, gap = 0): { at: Vec[]; size: Size } {
+  const n = Math.max(1, count);
+  const reach = Math.max(cell.w, cell.h) + gap;
+  const r = n < 2 ? 0 : reach / (2 * Math.sin(Math.PI / n));
+  const c = { x: r + cell.w / 2, y: r + cell.h / 2 };
+  const at = Array.from({ length: n }, (_, i) => {
+    const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+    return { x: c.x + r * Math.cos(a) - cell.w / 2, y: c.y + r * Math.sin(a) - cell.h / 2 };
+  });
+  return { at, size: { w: r * 2 + cell.w, h: r * 2 + cell.h } };
+}
+
+export function radial(o: { cell?: Size; gap?: number; slots?: number } = {}): Layout {
   const gap = o.gap ?? 0;
-  const radiusFor = (sizes: Size[]): number => {
-    const n = sizes.length;
-    if (n < 2) return 0;
-    // Хорда — от БОЛЬШЕЙ стороны: сосед может оказаться и сбоку, и сверху; ширины мало —
-    // вертикальные соседи высокой карты наезжали бы друг на друга.
-    const reach = Math.max(...sizes.map((s) => Math.max(s.w, s.h))) + gap;
-    return reach / (2 * Math.sin(Math.PI / n));
+  const cellOf = (sizes: Size[]): Size => {
+    if (sizes.length) return { w: Math.max(...sizes.map((s) => s.w)), h: Math.max(...sizes.map((s) => s.h)) };
+    return o.cell ? { ...o.cell } : { w: 0, h: 0 };
   };
+  const countOf = (sizes: Size[]): number => Math.max(sizes.length, o.slots ?? 0);
   const place = (sizes: Size[]): { at: Vec[]; size: Size } => {
-    if (!sizes.length) return { at: [], size: o.cell ? { ...o.cell } : { w: 0, h: 0 } };
-    const r = radiusFor(sizes);
-    const cw = Math.max(...sizes.map((s) => s.w));
-    const ch = Math.max(...sizes.map((s) => s.h));
-    const c = { x: r + cw / 2, y: r + ch / 2 };
-    const at = sizes.map((s, i) => {
-      const a = -Math.PI / 2 + (i / sizes.length) * Math.PI * 2;
-      return { x: c.x + r * Math.cos(a) - s.w / 2, y: c.y + r * Math.sin(a) - s.h / 2 };
-    });
-    return { at, size: { w: r * 2 + cw, h: r * 2 + ch } };
+    const count = countOf(sizes);
+    if (!count || (!sizes.length && !o.cell && !o.slots)) return { at: [], size: cellOf(sizes) };
+    const pos = radialPositions(count, cellOf(sizes), gap);
+    return { at: pos.at.slice(0, sizes.length), size: pos.size };
   };
   return {
     place,
     indexAt(cp, sizes) {
       const n = sizes.length;
       if (!n) return 0;
-      const { size } = place(sizes);
+      const count = countOf(sizes);
+      const { size } = radialPositions(count, cellOf(sizes), gap);
       const a = Math.atan2(cp.y - size.h / 2, cp.x - size.w / 2);
       const t = (a + Math.PI / 2) / (2 * Math.PI); // доля круга от «севера» по часовой
-      return Math.round(((t % 1) + 1) % 1 * n);
+      return Math.min(n, Math.round(((t % 1) + 1) % 1 * count));
     },
   };
 }

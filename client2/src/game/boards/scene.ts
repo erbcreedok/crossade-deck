@@ -592,9 +592,17 @@ export class BoardScene extends SceneEngine {
       const zone = this.spec.zones.find((z) => z.id === baseZoneId(zid));
       if (!zone) continue;
       const cell = zone.cell ?? { w: 100, h: 143 };
+      // Ячейки зоны: слоты (origins) ∪ декор-ячейки без слота (cellRects «:phN» — пустые позиции
+      // радиального круга). Заготовки — просто рамки, дроп в них решает контейнер, не они.
+      const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
       for (const [key, at] of Object.entries(this.tree.origins)) {
         if (zoneOf(key) !== zid) continue;
-        const r = this.tree.cellRects[key] ?? { x: at.x, y: at.y, w: cell.w, h: cell.h };
+        rects.set(key, this.tree.cellRects[key] ?? { x: at.x, y: at.y, w: cell.w, h: cell.h });
+      }
+      for (const [key, r] of Object.entries(this.tree.cellRects)) {
+        if (zoneOf(key) === zid && !rects.has(key)) rects.set(key, r);
+      }
+      for (const [key, r] of rects) {
         if (zone.background === "chessboard") {
           const m = key.match(/r(\d+)c(\d+)$/);
           const dark = m ? (Number(m[1]) + Number(m[2])) % 2 === 1 : false;

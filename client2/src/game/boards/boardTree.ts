@@ -1,4 +1,4 @@
-import { absolute, grid as flowGrid, linear, pile, radial } from "../slot/layouts";
+import { absolute, grid as flowGrid, linear, pile, radial, radialPositions } from "../slot/layouts";
 import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../slot/slot";
 import { group, leaf, type Group, type Size, type Slot, type Vec } from "../slot/types";
 import { ringSlots } from "../slotfield/layout/slots";
@@ -129,20 +129,28 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
     }
     case "radial": {
       // Динамичная радиальная рассадка: ОДИН живой контейнер (как flow), жители по окружности,
-      // радиус растёт с их числом. Рамка (cellRect) — квадрат-габарит; круг рисует сцена по shape.
+      // радиус растёт с их числом, но круг размечен МИНИМУМ на min позиций (место каждому игроку) —
+      // пустые позиции отдаются сцене заготовками-ячейками (`:phN`, это ДЕКОР, не слоты дропа).
       const key = slotKey(zid, 0);
       const members = membersOf(state, key);
+      const min = zone.layout.min ?? 0;
       const PAD = 16;
-      const layout = radial({ cell, gap: 12 });
+      const layout = radial({ cell, gap: 12, slots: min });
       const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
         drop: { accept: () => true },
         reorder: { enabled: true },
       });
-      const { size } = layout.place(members.map(() => cell));
-      const inner = { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) };
+      const count = Math.max(members.length, min);
+      const pos = radialPositions(count, cell, 12);
+      const inner = { w: Math.max(pos.size.w, cell.w), h: Math.max(pos.size.h, cell.h) };
       const side = Math.max(inner.w, inner.h) + PAD * 2; // рамка квадратная: круг ровный
-      placed.push({ id: key, origin: { x: (side - size.w) / 2, y: (side - size.h) / 2 }, slot });
+      const origin = { x: (side - pos.size.w) / 2, y: (side - pos.size.h) / 2 };
+      placed.push({ id: key, origin, slot });
       cells[key] = { x: 0, y: 0, w: side, h: side };
+      for (let i = members.length; i < count; i++) {
+        const p = pos.at[i]!;
+        cells[slotKey(zid, `ph${i}`)] = { x: origin.x + p.x, y: origin.y + p.y, w: cell.w, h: cell.h };
+      }
       return { placed, size: { w: side, h: side }, cells };
     }
     case "chain": {
@@ -258,11 +266,9 @@ function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, se
   const rightX = MARGIN.x + reach * 2 + GAP.x;
 
   const placeSub = (sub: ReturnType<typeof zoneSubtrees>, ox: number, oy: number): void => {
-    for (const p of sub.placed) {
-      placed.push({ ...p, origin: { x: ox + p.origin.x, y: oy + p.origin.y } });
-      const c = sub.cells[p.id];
-      if (c) cellRects[p.id] = { ...c, x: ox + c.x, y: oy + c.y };
-    }
+    for (const p of sub.placed) placed.push({ ...p, origin: { x: ox + p.origin.x, y: oy + p.origin.y } });
+    // ВСЕ ячейки, не только по слотам: у радиального круга есть декор-ячейки пустых позиций (:phN).
+    for (const [ck, c] of Object.entries(sub.cells)) cellRects[ck] = { ...c, x: ox + c.x, y: oy + c.y };
   };
 
   let colY = cyTop;
@@ -353,11 +359,9 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
   const rowZones = spec.zones.filter((z) => z.layout.kind !== "chain" && !z.perSeat);
   const freeZone = rowZones.find((z) => z.layout.kind === "free");
   const placeSub = (sub: ReturnType<typeof zoneSubtrees>, ox: number, oy: number): void => {
-    for (const p of sub.placed) {
-      placed.push({ ...p, origin: { x: ox + p.origin.x, y: oy + p.origin.y } });
-      const c = sub.cells[p.id];
-      if (c) cellRects[p.id] = { ...c, x: ox + c.x, y: oy + c.y };
-    }
+    for (const p of sub.placed) placed.push({ ...p, origin: { x: ox + p.origin.x, y: oy + p.origin.y } });
+    // ВСЕ ячейки, не только по слотам: у радиального круга есть декор-ячейки пустых позиций (:phN).
+    for (const [ck, c] of Object.entries(sub.cells)) cellRects[ck] = { ...c, x: ox + c.x, y: oy + c.y };
   };
   let boxRect: { x: number; y: number; w: number; h: number } | null = null;
   for (const zone of rowZones) {
