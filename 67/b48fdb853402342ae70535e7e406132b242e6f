@@ -1,0 +1,51 @@
+client2/src/game/ui/ContextMenu.ts
+  s_3dafb7cb3bdfba::t_94366a3cb0f4ec 29-31
+client2/src/game/sandbox/menus.ts
+  s_3dafb7cb3bdfba::t_91de801d4cad42 1-33
+client2/src/game/sandbox/settings.ts
+  s_3dafb7cb3bdfba::t_37203a58b0d7f6 1-77
+client2/src/game/boards/boardTree.ts
+  s_3dafb7cb3bdfba::t_bc8ed12a6c459c 132-134,148
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_e2989387fd30d9 23,70-77,114,217,249,260-262,279-280,286-296,303-305,307,362-363
+  s_3dafb7cb3bdfba::t_49fa8926a906a0 689-690,697-702
+  s_3dafb7cb3bdfba::t_0ad49923799c6b 256
+  s_3dafb7cb3bdfba::t_74c2994c78ce9a 37-54
+  s_3dafb7cb3bdfba::t_95d5ee525a59a6 103-104
+  s_3dafb7cb3bdfba::t_2b7197bd92bc13 299,329
+  s_3dafb7cb3bdfba::t_46c70c24f355cc 409-417,421-429,439-445
+client2/src/game/boards/migrate.test.ts
+  s_3dafb7cb3bdfba::t_ef906273fd1672 1-42
+client2/src/game/sandbox/live.ts
+  s_3dafb7cb3bdfba::t_7bb01490838d7e 1-175
+client2/src/game/sandbox/board.ts
+  s_3dafb7cb3bdfba::t_7bb01490838d7e 1-11
+client2/src/game/boards/boardTree.test.ts
+  s_3dafb7cb3bdfba::t_0ad49923799c6b 4
+client2/src/stories/boards/Boards.stories.tsx
+  s_3dafb7cb3bdfba::t_f324969db3e406 9,11-12,141-145
+client2/src/stories/mechanics/StackInteractions.stories.tsx
+  s_3dafb7cb3bdfba::t_f324969db3e406 11-12,297,302
+client2/src/game/boards/migrate.ts
+  s_3dafb7cb3bdfba::t_749685424088e6 1-69
+client2/src/game/sandbox/settings.test.ts
+  s_3dafb7cb3bdfba::t_ef906273fd1672 1-33
+client2/src/PlaygroundBoard.tsx
+  s_3dafb7cb3bdfba::t_38bf71e1973212 2-6,9-16,20,26-63,65-71,74-76,83,91,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "67b48fdb853402342ae70535e7e406132b242e6f",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
