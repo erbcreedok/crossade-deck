@@ -1,0 +1,35 @@
+client2/docs/STACK-INTERACTIONS-HANDOFF.md
+  s_4a533e9779ccb0::t_0253c03eeacac4 48-52
+  s_4a533e9779ccb0::t_d6d55721bad7fc 138-141
+  s_4a533e9779ccb0::t_508ee9c878f564 58
+  s_4a533e9779ccb0::t_cb7cee8e7aca2e 39-47
+  s_4a533e9779ccb0::t_38532a5dc10c97 63,65
+  s_4a533e9779ccb0::t_5fecbc57f84499 148
+  s_4a533e9779ccb0::t_ffc211709f295c 99-105
+  s_4a533e9779ccb0::t_20d36f9dc55063 124-126
+  s_4a533e9779ccb0::t_370684b27d8850 132-135
+  s_4a533e9779ccb0::t_66c3c4f5e8c370 151
+  s_4a533e9779ccb0::t_648a0085eec529 14-22,28-38
+  s_4a533e9779ccb0::t_23b6d05a93b06d 88-93
+  s_4a533e9779ccb0::t_18d6da8929d671 94-98
+  s_4a533e9779ccb0::t_2f13f48a36d232 111-117
+  s_4a533e9779ccb0::t_39de35e43c4d30 59-61
+  s_4a533e9779ccb0::t_5297a1ecb69715 106-110,118-120
+  s_4a533e9779ccb0::t_c1f6b232b12e5c 23-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "06c43dc513cb87265352bf8d3bda6992e306b01a",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
