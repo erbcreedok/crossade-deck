@@ -1,0 +1,58 @@
+client2/src/game/ui/ContextMenu.ts
+  s_3dafb7cb3bdfba::t_3c408020684315 9-11,41-42,49-51,64,69,73-77,82
+  s_3dafb7cb3bdfba::t_7860ab3bea5e34 1-8,12-40,43-48,52-63,65-68,70-72,78-81,83-88
+client2/src/game/boards/library/roundTable.ts
+  s_3dafb7cb3bdfba::t_f3447057dcccdf 48-51
+client2/src/game/boards/driver.ts
+  s_3dafb7cb3bdfba::t_59b90659e59a4c 19-22
+client2/src/game/engine/inputRouter.test.ts
+  s_3dafb7cb3bdfba::t_1ca686a985d237 284,286-288
+  s_3dafb7cb3bdfba::t_443e0e7f99023b 229-283,285,289-294
+client2/src/game/engine/inputRouter.ts
+  s_3dafb7cb3bdfba::t_a8c73642d182e3 75-82
+  s_3dafb7cb3bdfba::t_85499e0898c23e 179-184
+  s_3dafb7cb3bdfba::t_d36683b5fea895 220
+  s_3dafb7cb3bdfba::t_d8056bc15d5b1f 208,211
+  s_3dafb7cb3bdfba::t_b1714606bd0f19 295,301-311
+client2/src/game/engine/sceneEngine.ts
+  s_3dafb7cb3bdfba::t_b40bc340dbbc91 659-675
+  s_3dafb7cb3bdfba::t_f4b19eeb7cf8cb 676-680
+  s_3dafb7cb3bdfba::t_594dfc7d68485f 947
+  s_3dafb7cb3bdfba::t_cd68be88a2a611 948-949
+  s_3dafb7cb3bdfba::t_0ff2f9bd7f36de 954-955,957
+  s_3dafb7cb3bdfba::t_26100e42cc4edc 245-246
+  s_3dafb7cb3bdfba::t_e3667842b6ee5f 1182
+client2/src/game/boards/settings.ts
+  s_3dafb7cb3bdfba::t_2b65a7f50ce827 1-128
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_37fb72fa6298d2 542
+  s_3dafb7cb3bdfba::t_f348d09f3f04be 48-51
+  s_3dafb7cb3bdfba::t_c4c879e35f79c0 21-22
+  s_3dafb7cb3bdfba::t_15cb5d9e6767ef 76-77,79,83-87
+  s_3dafb7cb3bdfba::t_d88e0abd109ad9 117-119,124-131,133,135
+  s_3dafb7cb3bdfba::t_c1f4a3c9a221f8 105,115-116,120-123,132,134,136-169,172-209
+  s_3dafb7cb3bdfba::t_d2c10686062037 170-171
+  s_3dafb7cb3bdfba::t_4ec5097c80bce5 88
+  s_3dafb7cb3bdfba::t_498c30ad66fe5e 210
+client2/src/game/boards/settings.test.ts
+  s_3dafb7cb3bdfba::t_de626e1d2e31ad 1-65
+client2/src/stories/boards/Boards.stories.tsx
+  s_3dafb7cb3bdfba::t_2eb7b4c13ae6f0 131-136,138-140
+  s_3dafb7cb3bdfba::t_db149c64c867fb 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "478c88875300927677bf9a4f04faf9c0157daabf",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
