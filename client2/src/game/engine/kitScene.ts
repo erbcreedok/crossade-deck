@@ -18,7 +18,7 @@ import { extentOfPlaced, fitZoom, MAX_FIT_ZOOM, MAX_KIT_ZOOM, MIN_FIT_ZOOM } fro
 import type { AnimPreset } from "../anim/presets";
 import { kitSceneKey, type KitSceneOptions } from "./kitSceneKey";
 import type { StackLayout } from "../kit/stackLayout";
-import { dribbleWobble, offsetWithSpread, spreadInput, spreadTick, SPREAD_STATE0, type PieceDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
+import { dribbleWobble, offsetWithSpread, spreadInput, spreadTarget, spreadTick, DEFAULT_SPREAD_SENSITIVITY, SPREAD_STATE0, type PieceDrag, type DragTrigger, type SpreadConfig, type SpreadState, type StackDrag } from "../kit/stackInteraction";
 
 export type { KitSceneOptions };
 
@@ -545,13 +545,31 @@ export class KitScene extends SceneEngine {
    * жест, начатый уже на пределе (тогда флаг ещё false → false, и камера получает жест). Так «дойти
    * до края спреда» и «двигать камеру» — два раздельных жеста, а не один непрерывный.
    */
-  protected override spreadOnElement(cp: Pt, dGap: number, source: SpreadSource): boolean {
+  protected override spreadOnElement(cp: Pt, rawX: number, rawY: number, source: SpreadSource): boolean {
     const entry = this.spreadStackAt(cp);
     if (!entry) return false;
-    const sp = entry.cfg;
-    const armed = source === "touch-zoom" ? sp.touchTrigger === "zoom" : source === "pointer-zoom" ? sp.pointerTrigger === "zoom" : sp.pointerTrigger === "pan";
+    const inp = entry.cfg.input;
+    const armed = source === "touch-zoom" ? inp.touchTrigger === "zoom" : source === "pointer-zoom" ? inp.pointerTrigger === "zoom" : inp.pointerTrigger === "pan";
     if (!armed) return false; // этот жест на этом стеке спред не трогает — уходит камере
-    const next = spreadInput(entry.state, dGap * 0.5, sp);
+    // Device-дельты → «прогресс спреда» (0..1), где ПОЛОЖИТЕЛЬНОЕ = раздвигать. Конвенции знака:
+    //  • touch-zoom: пинч-span растёт (пальцы врозь) → раздвигать (+rawX);
+    //  • pointer-zoom: Ctrl-колесо к себе (deltaY<0) → раздвигать (−rawY);
+    //  • pointer-pan: раздвиг горизонтальный, ось выбирается (auto=доминирующая, горизонталь при
+    //    равенстве). По X: вправо (deltaX>0) раздвигает (+); по Y (fallback): к себе (deltaY<0) → (−).
+    const sens = inp.sensitivity ?? DEFAULT_SPREAD_SENSITIVITY;
+    let dProgress: number;
+    if (source === "pointer-pan") {
+      const axis = inp.axis ?? "auto";
+      const useX = axis === "x" || (axis === "auto" && Math.abs(rawX) >= Math.abs(rawY));
+      const sel = useX ? rawX : rawY;
+      dProgress = (useX ? sel : -sel) * sens;
+    } else if (source === "pointer-zoom") {
+      dProgress = -rawY * sens;
+    } else {
+      dProgress = rawX * sens; // touch-zoom
+    }
+    if (inp.invert) dProgress = -dProgress;
+    const next = spreadInput(entry.state, dProgress);
     if (next.target !== entry.state.target) {
       entry.state = next;
       this.spreadMovedThisGesture = true;
@@ -585,8 +603,9 @@ export class KitScene extends SceneEngine {
         const el = this.byId.get(id);
         if (!el) return;
         const base = entry.layout(i, n, entry.cell);
+        const target = spreadTarget(base, i, n, entry.cell, entry.cfg);
         const wob = entry.cfg.close.kind === "dribble" ? dribbleWobble(i, entry.state.phase) : 0;
-        const off = offsetWithSpread(base, i, n, entry.state.amount, entry.cfg, wob);
+        const off = offsetWithSpread(base, target, entry.state.amount, i, wob);
         el.body.setTarget({ x: entry.at.x + off.dx, y: entry.at.y + off.dy, rot: off.rot });
       });
       if (entry.state.amount > 0.05 || entry.state.phase > 0) moving = true;
@@ -721,8 +740,9 @@ export class KitScene extends SceneEngine {
     const i = entry.ids.indexOf(id);
     const n = entry.ids.length;
     const base = entry.layout(i, n, entry.cell);
+    const target = spreadTarget(base, i, n, entry.cell, entry.cfg);
     const wob = entry.cfg.close.kind === "dribble" ? dribbleWobble(i, entry.state.phase) : 0;
-    const off = offsetWithSpread(base, i, n, entry.state.amount, entry.cfg, wob);
+    const off = offsetWithSpread(base, target, entry.state.amount, i, wob);
     const z = this.placed.find((q) => q.el.id === id)?.z ?? 0;
     return { home: { x: entry.at.x + off.dx, y: entry.at.y + off.dy }, depth: z };
   }

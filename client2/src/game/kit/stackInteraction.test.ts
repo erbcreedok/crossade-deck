@@ -7,104 +7,115 @@ import {
   offsetWithSpread,
   resolveInteraction,
   spreadInput,
-  spreadOffset,
+  spreadTarget,
   spreadTick,
   stackDragFrom,
   STACK_INTERACTIONS,
   type SpreadConfig,
 } from "./stackInteraction";
+import { linear } from "./stackLayout";
 
 const cfg = (over: Partial<SpreadConfig> = {}): SpreadConfig => ({
-  pointerTrigger: "zoom",
-  touchTrigger: "zoom",
-  maxGap: 30,
-  keepDiagonal: true,
-  centerX: false,
+  gain: 5,
   close: { kind: "infinite" },
   spring: 12,
+  input: { pointerTrigger: "zoom", touchTrigger: "zoom" },
   ...over,
 });
 
-describe("spreadOffset / offsetWithSpread", () => {
-  it("зазор растёт линейно по индексу; centerX сдвигает на половину полного", () => {
-    expect(spreadOffset(0, 4, 10, false)).toBe(0);
-    expect(spreadOffset(3, 4, 10, false)).toBe(30);
-    // centerX: полный зазор = 10*(4-1)=30, половина 15
-    expect(spreadOffset(0, 4, 10, true)).toBe(-15);
-    expect(spreadOffset(3, 4, 10, true)).toBe(15);
+describe("spreadTarget (полная позиция при amount=1)", () => {
+  it("дефолт-цель = rest×gain (масштаб от якоря); rot не трогаем", () => {
+    const base = { dx: 4, dy: 3, rot: 0.1 };
+    expect(spreadTarget(base, 2, 5, { w: 60, h: 90 }, cfg({ gain: 3 }))).toEqual({ dx: 12, dy: 9, rot: 0.1 });
   });
-  it("keepDiagonal сохраняет вертикаль базы; false — гасит (чистый ряд)", () => {
-    const base = { dx: 5, dy: 7, rot: 0.1 };
-    expect(offsetWithSpread(base, 2, 4, 10, cfg({ keepDiagonal: true })).dy).toBe(7);
-    expect(offsetWithSpread(base, 2, 4, 10, cfg({ keepDiagonal: false })).dy).toBe(0);
-    expect(offsetWithSpread(base, 2, 4, 10, cfg()).dx).toBe(5 + 20); // база + раздвиг
+  it("override target = другая раскладка, gain при этом не при чём", () => {
+    const base = { dx: 4, dy: 3, rot: 0.1 };
+    const t = spreadTarget(base, 1, 3, { w: 10, h: 10 }, cfg({ gain: 99, target: linear({ angleDeg: 0, step: 1 }) }));
+    expect(t.dy).toBe(0); // linear(0): чистая горизонталь
+    expect(t.dx).toBeGreaterThan(0);
+    expect(t.dx).toBeLessThan(99 * 4); // это раскладка, а не rest×99
   });
 });
 
-describe("spreadInput", () => {
-  it("двигает target на дельту и зажимает в [0, maxGap], сбрасывает простой", () => {
-    const a = spreadInput({ ...SPREAD_STATE0, idle: 5 }, 12, cfg());
-    expect(a.target).toBe(12);
+describe("offsetWithSpread (lerp rest→цель по amount)", () => {
+  it("amount 0 → rest, amount 1 → цель, 0.5 → середина", () => {
+    const base = { dx: 0, dy: 0, rot: 0 };
+    const target = { dx: 10, dy: 20, rot: 0.4 };
+    expect(offsetWithSpread(base, target, 0)).toEqual({ dx: 0, dy: 0, rot: 0 });
+    expect(offsetWithSpread(base, target, 1, 0, 0)).toEqual({ dx: 10, dy: 20, rot: 0.4 });
+    expect(offsetWithSpread(base, target, 0.5).dx).toBe(5);
+  });
+  it("wobble качает по чётности индекса (dy/rot)", () => {
+    const z = { dx: 0, dy: 0, rot: 0 };
+    expect(offsetWithSpread(z, z, 0, 0, 1).dy).toBe(6); // чётный i → +
+    expect(offsetWithSpread(z, z, 0, 1, 1).dy).toBe(-6); // нечётный → −
+  });
+});
+
+describe("spreadInput (прогресс 0..1)", () => {
+  it("двигает target на дельту и зажимает в [0, 1], сбрасывает простой", () => {
+    const a = spreadInput({ ...SPREAD_STATE0, idle: 5 }, 0.3);
+    expect(a.target).toBeCloseTo(0.3);
     expect(a.idle).toBe(0);
-    expect(spreadInput(a, 100, cfg()).target).toBe(30); // упор в maxGap
-    expect(spreadInput(a, -100, cfg()).target).toBe(0); // упор в 0
+    expect(spreadInput(a, 5).target).toBe(1); // упор в 1
+    expect(spreadInput(a, -5).target).toBe(0); // упор в 0
   });
 });
 
-describe("spreadTick", () => {
-  it("amount пружиной тянется к target", () => {
-    let st = { amount: 0, target: 30, idle: 0, phase: 0, dir: 0 };
+describe("spreadTick (прогресс 0..1)", () => {
+  it("amount пружиной тянется к target(=1)", () => {
+    let st = { amount: 0, target: 1, idle: 0, phase: 0, dir: 0 };
     for (let i = 0; i < 60; i++) st = spreadTick(st, 1 / 60, cfg());
-    expect(st.amount).toBeGreaterThan(29);
-    expect(st.amount).toBeLessThanOrEqual(30);
+    expect(st.amount).toBeGreaterThan(0.95);
+    expect(st.amount).toBeLessThanOrEqual(1);
   });
   it("infinite — цель держится (без взаимодействия не схлопывается)", () => {
-    let st = { amount: 30, target: 30, idle: 0, phase: 0, dir: 0 };
+    let st = { amount: 1, target: 1, idle: 0, phase: 0, dir: 0 };
     for (let i = 0; i < 300; i++) st = spreadTick(st, 1 / 60, cfg({ close: { kind: "infinite" } }));
-    expect(st.target).toBe(30);
+    expect(st.target).toBe(1);
   });
   it("timer — после N секунд простоя цель уходит в 0", () => {
-    let st = { amount: 30, target: 30, idle: 0, phase: 0, dir: 0 };
+    let st = { amount: 1, target: 1, idle: 0, phase: 0, dir: 0 };
     const c = cfg({ close: { kind: "timer", seconds: 2 } });
     for (let i = 0; i < 60 * 1; i++) st = spreadTick(st, 1 / 60, c); // 1 сек
-    expect(st.target).toBe(30);
+    expect(st.target).toBe(1);
     for (let i = 0; i < 60 * 2; i++) st = spreadTick(st, 1 / 60, c); // ещё 2 сек → >2
     expect(st.target).toBe(0);
   });
   it("snap без направления (dir=0) — геометрически ближайший стоп", () => {
-    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } }); // стопы: 0,15,30
-    let st = { amount: 20, target: 20, idle: 0, phase: 0, dir: 0 };
+    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } });
+    let st = { amount: 0.4, target: 0.4, idle: 0, phase: 0, dir: 0 };
     for (let i = 0; i < 120; i++) st = spreadTick(st, 1 / 60, c);
-    expect(st.target).toBe(15); // 20 ближе к 15, чем к 30/0
+    expect(st.target).toBe(0.5); // 0.4 ближе к 0.5, чем к 0/1
   });
   it("snap НАПРАВЛЕННЫЙ: закрывали (dir<0) — не отбрасывает вверх к open, роняет к стопу ниже", () => {
-    // 24 геометрически БЛИЖЕ к 30 (это и был баг «улетает обратно»), но раз закрывали — идём к 15.
-    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } }); // стопы: 0,15,30
-    let st = { amount: 24, target: 24, idle: 0, phase: 0, dir: -1 };
+    // 0.8 геометрически БЛИЖЕ к 1 (это и был баг «улетает обратно»), но раз закрывали — идём к 0.5.
+    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } });
+    let st = { amount: 0.8, target: 0.8, idle: 0, phase: 0, dir: -1 };
     for (let i = 0; i < 120; i++) st = spreadTick(st, 1 / 60, c);
-    expect(st.target).toBe(15);
+    expect(st.target).toBe(0.5);
   });
   it("snap НАПРАВЛЕННЫЙ: открывали (dir>0) — идём к стопу выше, а не к геометрически ближнему нулю", () => {
-    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } }); // стопы: 0,15,30
-    let st = { amount: 6, target: 6, idle: 0, phase: 0, dir: 1 }; // 6 ближе к 0, но открывали → 15
+    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } });
+    let st = { amount: 0.2, target: 0.2, idle: 0, phase: 0, dir: 1 }; // 0.2 ближе к 0, но открывали → 0.5
     for (let i = 0; i < 120; i++) st = spreadTick(st, 1 / 60, c);
-    expect(st.target).toBe(15);
+    expect(st.target).toBe(0.5);
   });
   it("регрессия бага: полный→откат назад через spreadInput→снэп НЕ возвращает в open", () => {
-    // Живой путь: открыто в maxGap(30), недотянутый откат назад ставит dir=-1 и target≈24, снэп→15.
-    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } }); // стопы: 0,15,30
-    let st = { amount: 30, target: 30, idle: 0, phase: 0, dir: 0 };
-    st = spreadInput(st, -6, c); // откат назад: target 24, dir -1
+    // Живой путь: открыто в 1, недотянутый откат назад ставит dir=-1 и target 0.8, снэп→0.5.
+    const c = cfg({ close: { kind: "snap", stops: [0, 0.5, 1] } });
+    let st = { amount: 1, target: 1, idle: 0, phase: 0, dir: 0 };
+    st = spreadInput(st, -0.2); // откат назад: target 0.8, dir -1
     expect(st.dir).toBe(-1);
     for (let i = 0; i < 120; i++) st = spreadTick(st, 1 / 60, c);
-    expect(st.target).toBe(15); // а НЕ 30
+    expect(st.target).toBe(0.5); // а НЕ 1
   });
   it("dribble — фаза растёт и на пике buildSeconds цель схлопывается", () => {
     const c = cfg({ close: { kind: "dribble", buildSeconds: 1 } });
-    let st = { amount: 30, target: 30, idle: 0, phase: 0, dir: 0 };
+    let st = { amount: 1, target: 1, idle: 0, phase: 0, dir: 0 };
     st = spreadTick(st, 0.5, c);
     expect(st.phase).toBeGreaterThan(0);
-    expect(st.target).toBe(30);
+    expect(st.target).toBe(1);
     st = spreadTick(st, 0.6, c); // фаза перевалила за 1
     expect(st.target).toBe(0);
     expect(st.phase).toBe(0);

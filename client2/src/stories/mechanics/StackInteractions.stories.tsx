@@ -24,10 +24,11 @@ interface MechArgs {
   spread: StackArgs["spread"];
   spreadPointerTrigger: StackArgs["spreadPointerTrigger"];
   spreadTouchTrigger: StackArgs["spreadTouchTrigger"];
-  spreadMaxGap: StackArgs["spreadMaxGap"];
+  spreadGain: StackArgs["spreadGain"];
   spreadClose: StackArgs["spreadClose"];
-  spreadCenterX: StackArgs["spreadCenterX"];
-  spreadKeepDiagonal: StackArgs["spreadKeepDiagonal"];
+  spreadAxis: StackArgs["spreadAxis"];
+  spreadInvert: StackArgs["spreadInvert"];
+  spreadSensitivity: StackArgs["spreadSensitivity"];
   pieceDrag: StackArgs["pieceDrag"];
   piecePick: StackArgs["piecePick"];
   pieceDragTrigger: StackArgs["pieceDragTrigger"];
@@ -53,10 +54,11 @@ function toStackArgs(a: MechArgs): StackArgs {
     spread: a.spread,
     spreadPointerTrigger: a.spreadPointerTrigger,
     spreadTouchTrigger: a.spreadTouchTrigger,
-    spreadMaxGap: a.spreadMaxGap,
+    spreadGain: a.spreadGain,
     spreadClose: a.spreadClose,
-    spreadCenterX: a.spreadCenterX,
-    spreadKeepDiagonal: a.spreadKeepDiagonal,
+    spreadAxis: a.spreadAxis,
+    spreadInvert: a.spreadInvert,
+    spreadSensitivity: a.spreadSensitivity,
     pieceDrag: a.pieceDrag,
     piecePick: a.piecePick,
     pieceDragTrigger: a.pieceDragTrigger,
@@ -71,10 +73,11 @@ const MECH_ARGS: MechArgs = {
   spread: true,
   spreadPointerTrigger: STACK_ARGS.spreadPointerTrigger,
   spreadTouchTrigger: STACK_ARGS.spreadTouchTrigger,
-  spreadMaxGap: STACK_ARGS.spreadMaxGap,
+  spreadGain: STACK_ARGS.spreadGain,
   spreadClose: STACK_ARGS.spreadClose,
-  spreadCenterX: STACK_ARGS.spreadCenterX,
-  spreadKeepDiagonal: STACK_ARGS.spreadKeepDiagonal,
+  spreadAxis: STACK_ARGS.spreadAxis,
+  spreadInvert: STACK_ARGS.spreadInvert,
+  spreadSensitivity: STACK_ARGS.spreadSensitivity,
   pieceDrag: STACK_ARGS.pieceDrag,
   piecePick: "first",
   pieceDragTrigger: STACK_ARGS.pieceDragTrigger,
@@ -96,10 +99,11 @@ const MECH_ARG_TYPES = {
   spread: STACK_ARG_TYPES.spread,
   spreadPointerTrigger: STACK_ARG_TYPES.spreadPointerTrigger,
   spreadTouchTrigger: STACK_ARG_TYPES.spreadTouchTrigger,
-  spreadMaxGap: STACK_ARG_TYPES.spreadMaxGap,
+  spreadGain: STACK_ARG_TYPES.spreadGain,
   spreadClose: STACK_ARG_TYPES.spreadClose,
-  spreadCenterX: STACK_ARG_TYPES.spreadCenterX,
-  spreadKeepDiagonal: STACK_ARG_TYPES.spreadKeepDiagonal,
+  spreadAxis: STACK_ARG_TYPES.spreadAxis,
+  spreadInvert: STACK_ARG_TYPES.spreadInvert,
+  spreadSensitivity: STACK_ARG_TYPES.spreadSensitivity,
   pieceDrag: STACK_ARG_TYPES.pieceDrag,
   piecePick: STACK_ARG_TYPES.piecePick,
   pieceDragTrigger: STACK_ARG_TYPES.pieceDragTrigger,

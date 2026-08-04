@@ -86,8 +86,6 @@ export const MIN_ZOOM = 0.6;
 export const MAX_ZOOM = 2.6;
 /** Чувствительность зума колесом/тачпадом: exp(-deltaY * ZOOM_SENS). */
 export const ZOOM_SENS = 0.0015;
-/** Спред жестом колеса/тачпада: прирост зазора = -deltaY * WHEEL_SPREAD_SENS (движение раздвигает). */
-export const WHEEL_SPREAD_SENS = 0.6;
 /** Пауза между «порциями» жеста колеса, после которой это уже НОВЫЙ жест (граница детента), мс. */
 export const WHEEL_GESTURE_GAP_MS = 140;
 
@@ -308,11 +306,12 @@ export abstract class SceneEngine extends CanvasApp {
   /**
    * Жест спреда ПО цели под точкой (координаты КОНТЕНТА). Один шов на ВСЕ входы; чем именно пришёл
    * жест — в `source`: `touch-zoom` (два пальца по тачскрину), `pointer-zoom` (десктоп Ctrl/⌘-колесо
-   * или тачпад-пинч), `pointer-pan` (десктоп обычное колесо/скролл). `dGap` — прирост зазора за кадр.
-   * Сцена сама решает по конфигу стека, реагирует ли на этот source. Вернуть true — спред взял жест,
-   * камера его НЕ получает. По умолчанию не берём — жест целиком уходит камере/странице.
+   * или тачпад-пинч), `pointer-pan` (десктоп обычное колесо/скролл). `rawX`/`rawY` — СЫРЫЕ device-
+   * дельты за кадр (px): pointer-pan даёт обе оси (ось выбирает конфиг стека), zoom — вертикаль в rawY,
+   * пинч — прирост span в rawX. Как маппить в прогресс спреда — дело сцены/конфига. Вернуть true —
+   * спред взял жест, камера его НЕ получает. По умолчанию не берём — жест уходит камере/странице.
    */
-  protected spreadOnElement(_cp: Pt, _dGap: number, _source: SpreadSource): boolean {
+  protected spreadOnElement(_cp: Pt, _rawX: number, _rawY: number, _source: SpreadSource): boolean {
     return false;
   }
 
@@ -412,21 +411,20 @@ export abstract class SceneEngine extends CanvasApp {
     const dyPx = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
     // Граница жеста для детента: у колеса нет pointerdown/up, поэтому новый «залп» после паузы —
     // новый жест (сброс детента). deltaY<0 (движение к себе / зум-ин) РАЗДВИГАЕТ.
+    // Граница жеста для детента: у колеса нет pointerdown/up, поэтому новый «залп» после паузы —
+    // новый жест (сброс детента).
     const t = performance.now();
     if (t - this.lastWheelSpreadT > WHEEL_GESTURE_GAP_MS) this.onSpreadBegin();
     this.lastWheelSpreadT = t;
-    const dGap = -dyPx * WHEEL_SPREAD_SENS; // ЗУМ-жест: спред от вертикали (у пинча горизонтали нет).
-    // ПАН-путь (обычный скролл): спред РАЗДВИГ ГОРИЗОНТАЛЬНЫЙ, поэтому его ведёт ГОРИЗОНТАЛЬ. Берём
-    // доминирующую ось (при равенстве — горизонталь), вертикаль остаётся fallback. deltaX>0 РАЗДВИГАЕТ
-    // (знак легко инвертировать здесь). Горизонталь до нас доходит только потому, что back-навигация
-    // погашена overscroll-behavior (иначе браузер съедал бы этот жест).
+    // Спреду отдаём СЫРЫЕ device-дельты (px) — как их маппить (ось/инверсия/чувствительность), решает
+    // input-конфиг стека в spreadOnElement, не сцена. Горизонталь до нас доходит только потому, что
+    // back-навигация погашена overscroll-behavior (иначе браузер съедал бы горизонтальный жест).
     const dxPx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaMode === 2 ? e.deltaX * this.width : e.deltaX;
-    const panGap = (Math.abs(dxPx) >= Math.abs(dyPx) ? dxPx : -dyPx) * WHEEL_SPREAD_SENS;
 
     if (this.wheelIsZoom(e)) {
       // Десктопный ЗУМ-жест (Ctrl/⌘-колесо; тачпад-пинч браузер шлёт как ровно такое колесо). НАД
-      // стеком со spread.pointerTrigger==="zoom" он ведёт спред; иначе (или на пределе) — зум камеры.
-      if (this.spreadOnElement(cp, dGap, "pointer-zoom")) {
+      // стеком со spread.input.pointerTrigger==="zoom" он ведёт спред; иначе (или на пределе) — зум камеры.
+      if (this.spreadOnElement(cp, 0, dyPx, "pointer-zoom")) {
         e.preventDefault();
         return;
       }
@@ -436,10 +434,10 @@ export abstract class SceneEngine extends CanvasApp {
       return;
     }
 
-    // Обычное колесо/скролл (без модификатора). НАД стеком со spread.pointerTrigger==="pan" он ведёт
-    // спред ГОРИЗОНТАЛЬЮ (panGap); иначе (или на пределе) — пан камеры (если есть куда двигать, иначе
-    // колесо уходит странице).
-    if (this.spreadOnElement(cp, panGap, "pointer-pan")) {
+    // Обычное колесо/скролл (без модификатора). НАД стеком со spread.input.pointerTrigger==="pan" он
+    // ведёт спред (ось/знак — из input-конфига); иначе (или на пределе) — пан камеры (если есть куда
+    // двигать, иначе колесо уходит странице).
+    if (this.spreadOnElement(cp, dxPx, dyPx, "pointer-pan")) {
       e.preventDefault();
       return;
     }
@@ -966,7 +964,7 @@ export abstract class SceneEngine extends CanvasApp {
         const dSpanX = spanX - this.pinch.spanX;
         this.pinch.spanX = spanX;
         const cp = this.screenToContent(mx, my);
-        if (this.spreadOnElement(cp, dSpanX, "touch-zoom")) {
+        if (this.spreadOnElement(cp, dSpanX, 0, "touch-zoom")) {
           // Спред поглотил кадр. Держим камерный якорь на ТЕКУЩЕМ расстоянии и зуме: иначе, когда
           // спред упрётся в предел и жест провалится в зум камеры (spreadOnElement вернёт false),
           // формула zoom*dist/pinch.dist прыгнула бы на всю дельту dist, накопленную за спред-фазу.

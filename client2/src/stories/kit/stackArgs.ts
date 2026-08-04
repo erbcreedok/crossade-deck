@@ -11,6 +11,7 @@ import {
   type PieceDrag,
   type DragTrigger,
   type PointerSpread,
+  type SpreadAxis,
   type SpreadClose,
   type SpreadConfig,
   type StackDrag,
@@ -58,10 +59,15 @@ export interface StackArgs {
   spreadPointerTrigger: PointerSpread;
   /** Чем двигают спред на тачскрине: двухпальцевым пинчем (zoom) или ничем. */
   spreadTouchTrigger: TouchSpread;
-  spreadMaxGap: number;
+  /** Во сколько растянуть rest-раскладку от якоря в полном спреде (направление берётся из раскладки). */
+  spreadGain: number;
   spreadClose: SpreadClose["kind"];
-  spreadCenterX: boolean;
-  spreadKeepDiagonal: boolean;
+  /** pan-путь: какой осью двигать спред (auto — горизонталь-приоритет). */
+  spreadAxis: SpreadAxis;
+  /** Инвертировать направление скролла спреда. */
+  spreadInvert: boolean;
+  /** Чувствительность: прогресс спреда (0..1) на пиксель ввода. */
+  spreadSensitivity: number;
   /** Драг фигуры включён? На панели — тумблер (в коде поле принимает и предикат «какие фигуры»). */
   pieceDrag: boolean;
   /** Какую фигуру тащат: любую под пальцем или только верхнюю (панель разворачивает в предикат). */
@@ -91,10 +97,11 @@ export const STACK_ARGS: StackArgs = {
   spread: false,
   spreadPointerTrigger: "zoom",
   spreadTouchTrigger: "zoom",
-  spreadMaxGap: 34,
+  spreadGain: 10,
   spreadClose: "snap",
-  spreadCenterX: false,
-  spreadKeepDiagonal: true,
+  spreadAxis: "auto",
+  spreadInvert: false,
+  spreadSensitivity: 0.009,
   pieceDrag: true,
   piecePick: "any",
   pieceDragTrigger: "tap",
@@ -133,7 +140,7 @@ export const STACK_ARG_TYPES = {
   },
   spread: {
     name: "spread",
-    description: "спред включён — стопка раздвигается жестом поверх базовой раскладки; каким именно жестом на телефоне и ПК — рычаги spread.touchTrigger/spread.pointerTrigger; на пределе жест переходит камере",
+    description: "спред включён — стопка раздвигается ВДОЛЬ СВОЕЙ раскладки (растёт её шаг от якоря); направление берётся из layout.angleDeg. Каким жестом двигать — spread.pointerTrigger/touchTrigger; на пределе жест переходит камере",
     control: { type: "boolean" as const },
   },
   spreadPointerTrigger: {
@@ -150,10 +157,10 @@ export const STACK_ARG_TYPES = {
     options: [false, "zoom"],
     if: { arg: "spread", truthy: true },
   },
-  spreadMaxGap: {
-    name: "spread.maxGap",
-    description: "предел доп. зазора по X на карту, px",
-    control: { type: "range" as const, min: 0, max: 120, step: 2 },
+  spreadGain: {
+    name: "spread.gain",
+    description: "во сколько растянуть раскладку от якоря (нижней фигуры) в полном спреде: множитель rest-офсетов. Направление/центр — из самой раскладки, поэтому отдельного угла/centerX/keepDiagonal нет",
+    control: { type: "range" as const, min: 1, max: 20, step: 0.5 },
     if: { arg: "spread", truthy: true },
   },
   spreadClose: {
@@ -163,16 +170,23 @@ export const STACK_ARG_TYPES = {
     options: ["infinite", "timer", "snap", "dribble"],
     if: { arg: "spread", truthy: true },
   },
-  spreadCenterX: {
-    name: "spread.centerX",
-    description: "центрировать раздвиг по X, а не растить его от первой карты",
+  spreadAxis: {
+    name: "spread.input.axis",
+    description: "pan-путь (обычный скролл): какой осью двигать спред — auto (доминирующая, горизонталь при равенстве), x, y",
+    control: { type: "select" as const },
+    options: ["auto", "x", "y"],
+    if: { arg: "spread", truthy: true },
+  },
+  spreadInvert: {
+    name: "spread.input.invert",
+    description: "инвертировать направление скролла/жеста спреда",
     control: { type: "boolean" as const },
     if: { arg: "spread", truthy: true },
   },
-  spreadKeepDiagonal: {
-    name: "spread.keepDiagonal",
-    description: "сохранять диагональный стаггер базовой раскладки поверх спреда",
-    control: { type: "boolean" as const },
+  spreadSensitivity: {
+    name: "spread.input.sensitivity",
+    description: "чувствительность: прогресс спреда (0..1) на пиксель ввода",
+    control: { type: "range" as const, min: 0.001, max: 0.05, step: 0.001 },
     if: { arg: "spread", truthy: true },
   },
   pieceDrag: {
@@ -225,15 +239,21 @@ export function interactionFrom(a: StackArgs): { spread: SpreadConfig | null; pi
   const base = resolveInteraction(a.interaction);
   const spread: SpreadConfig | null = a.spread
     ? {
-        pointerTrigger: a.spreadPointerTrigger,
-        touchTrigger: a.spreadTouchTrigger,
-        maxGap: a.spreadMaxGap,
-        keepDiagonal: a.spreadKeepDiagonal,
-        centerX: a.spreadCenterX,
+        gain: a.spreadGain,
+        // target (override спред-цели раскладкой) — код-левел (пресеты/клиенты), в панель функцию не
+        // положишь; у пресета берём, если он его задал.
+        ...(base.spread?.target !== undefined ? { target: base.spread.target } : {}),
         // Стопы snap/секунды timer/дриббла берём у пресета, когда выбранный вид совпадает с его
         // собственным (панель тогда лишь подтверждает пресет) — иначе разумные умолчания вида.
         close: base.spread && base.spread.close.kind === a.spreadClose ? base.spread.close : DEFAULT_CLOSE[a.spreadClose],
         spring: base.spread?.spring ?? 12,
+        input: {
+          pointerTrigger: a.spreadPointerTrigger,
+          touchTrigger: a.spreadTouchTrigger,
+          axis: a.spreadAxis,
+          invert: a.spreadInvert,
+          sensitivity: a.spreadSensitivity,
+        },
       }
     : null;
   // Режим панели (any/first) разворачиваем в готовый предикат; в коде клиент даёт свой напрямую.

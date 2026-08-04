@@ -1,4 +1,12 @@
-import type { StackOffset } from "./stackLayout";
+import { resolveLayout, type StackLayout, type StackLayoutRef, type StackOffset } from "./stackLayout";
+
+interface Cell {
+  w: number;
+  h: number;
+}
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
 
 // АТОМАРНЫЕ МЕХАНИКИ ВЗАИМОДЕЙСТВИЯ СО СТЕКОМ — как ДАННЫЕ (типизированные, без stringly-typed).
 //
@@ -28,38 +36,66 @@ export type SpreadClose =
   | { kind: "dribble"; buildSeconds: number } // простой → карты «танцуют» всё быстрее, на пике собираются
   | { kind: "snap"; stops: readonly number[] }; // не висит между: цель липнет к ближайшему стопу (доли 0..1 от maxGap)
 
-/** Чем на ДЕСКТОПЕ (указатель: мышь/тачпад) двигается спред: зум-жестом (Ctrl/⌘-колесо, тачпад-
- *  пинч), обычным колесом/скроллом (`pan`) или ничем (`false`). Камере достаётся то, что спред НЕ
- *  взял (не тот жест / предел). `pan` — альтернатива `zoom`, НЕ спреду. */
+/** Чем на ДЕСКТОПЕ (указатель: мышь/тачпад) ДВИГАЮТ спред: зум-жестом (Ctrl/⌘-колесо, тачпад-пинч),
+ *  обычным колесом/скроллом (`pan`) или ничем (`false`). Камере достаётся то, что спред НЕ взял (не
+ *  тот жест / предел). `pan` — альтернатива `zoom`, НЕ спреду. */
 export type PointerSpread = false | "zoom" | "pan";
 export const POINTER_SPREADS: readonly PointerSpread[] = [false, "zoom", "pan"];
-/** Чем на ТАЧСКРИНЕ двигается спред: двухпальцевым пинчем (`zoom`) или ничем (`false`). Пан одним
+/** Чем на ТАЧСКРИНЕ двигают спред: двухпальцевым пинчем (`zoom`) или ничем (`false`). Пан одним
  *  пальцем — всегда камере/драгу, поэтому `pan` тут нет. */
 export type TouchSpread = false | "zoom";
 export const TOUCH_SPREADS: readonly TouchSpread[] = [false, "zoom"];
+/** Какой осью колеса/скролла двигать спред на pan-пути: auto — доминирующая (горизонталь при равенстве),
+ *  x/y — жёстко. (Раздвиг обычно горизонтальный, поэтому auto = «горизонталь ведёт».) */
+export type SpreadAxis = "auto" | "x" | "y";
+export const SPREAD_AXES: readonly SpreadAxis[] = ["auto", "x", "y"];
+/** Чувствительность по умолчанию: прогресс спреда (0..1) на пиксель ввода. */
+export const DEFAULT_SPREAD_SENSITIVITY = 0.009;
 
+/** ВВОД спреда — ОТДЕЛЬНО от геометрии: каким жестом двигать и как маппить (ось/инверсия/чувствит.).
+ *  Одна геометрия (gain/target) — разные способы её гнать. */
+export interface SpreadInput {
+  pointerTrigger: PointerSpread; // десктоп: зум-жест / обычное колесо / ничего
+  touchTrigger: TouchSpread; // тач: двухпальцевый пинч / ничего
+  axis?: SpreadAxis; // pan-путь: какой осью (по умолчанию auto — горизонталь-приоритет)
+  invert?: boolean; // инвертировать знак направления
+  sensitivity?: number; // прогресс на пиксель (по умолчанию DEFAULT_SPREAD_SENSITIVITY)
+}
+
+/**
+ * СПРЕД как ИНТЕРПОЛЯЦИЯ раскладки → «спред-цель» по amount (0..1). Направление/шаг берутся из самой
+ * раскладки, поэтому отдельного угла/centerX/keepDiagonal нет — они выражаются спред-целью.
+ *  • `gain` (дефолт-цель): полный спред = rest-офсеты, масштабированные ВОКРУГ ЯКОРЯ (index 0) в gain
+ *    раз. Якорь стоит, остальные разъезжаются по лучам от него → направление из layout.angleDeg даром,
+ *    heap разлетается радиально, fan-дуга шире.
+ *  • `target` (override): полный спред = ДРУГАЯ раскладка (fan→linear, fan шире и т.п.). Тогда gain не
+ *    при чём — интерполируем прямо в target.
+ */
 export interface SpreadConfig {
-  pointerTrigger: PointerSpread; // десктоп: зум-жест / обычное колесо / ничего двигают спред
-  touchTrigger: TouchSpread; // тач: двухпальцевый пинч / ничего двигают спред
-  maxGap: number; // предел ДОП. зазора по X на карту, px (небольшой — карты внахлёст, не вплотную)
-  keepDiagonal: boolean; // сохранять исходный диагональный стаггер базовой раскладки
-  centerX: boolean; // центрировать раздвиг по X (сдвиг на половину полного зазора)
+  gain: number; // дефолт-цель: во сколько раз растянуть rest-офсеты от якоря в полном спреде
+  target?: StackLayoutRef; // override спред-цели отдельной раскладкой (fan→linear и пр.)
   close: SpreadClose;
   spring: number; // скорость подтяжки amount→target (1/сек); больше — резче
+  input: SpreadInput;
 }
 
-/** Доп. смещение i-й карты от раздвига `amount` (px/карта по X). centerX — вычесть половину. */
-export function spreadOffset(i: number, n: number, amount: number, centerX: boolean): number {
-  return amount * i - (centerX ? (amount * (n - 1)) / 2 : 0);
+/** Полная (amount=1) позиция фигуры i: дефолт — rest×gain от якоря; override — target-раскладка. Чистая. */
+export function spreadTarget(base: StackOffset, i: number, n: number, cell: Cell, cfg: SpreadConfig): StackOffset {
+  if (cfg.target !== undefined) {
+    const layout: StackLayout = resolveLayout(cfg.target);
+    return layout(i, n, cell);
+  }
+  return { dx: base.dx * cfg.gain, dy: base.dy * cfg.gain, rot: base.rot };
 }
 
-/** Полное смещение карты = база (раскладка) + раздвиг + (в дриббле) покачивание. keepDiagonal=false
- *  гасит вертикаль базы, оставляя чистый горизонтальный ряд. Чистая. */
-export function offsetWithSpread(base: StackOffset, i: number, n: number, amount: number, cfg: SpreadConfig, wobble = 0): StackOffset {
+/** Позиция фигуры i при данном amount (0..1): lerp(rest → спред-цель) + (в дриббле) покачивание по
+ *  чётности индекса. Чистая. */
+export function offsetWithSpread(base: StackOffset, target: StackOffset, amount: number, i = 0, wobble = 0): StackOffset {
+  const par = i % 2 ? -1 : 1;
   return {
-    dx: base.dx + spreadOffset(i, n, amount, cfg.centerX),
-    dy: (cfg.keepDiagonal ? base.dy : 0) + wobble * ((i % 2 ? -1 : 1) * 6),
-    rot: base.rot + wobble * ((i % 2 ? -1 : 1) * 0.08),
+    dx: lerp(base.dx, target.dx, amount),
+    dy: lerp(base.dy, target.dy, amount) + wobble * par * 6,
+    rot: lerp(base.rot, target.rot, amount) + wobble * par * 0.08,
   };
 }
 
@@ -75,12 +111,12 @@ export interface SpreadState {
 
 export const SPREAD_STATE0: SpreadState = { amount: 0, target: 0, idle: 0, phase: 0, dir: 0 };
 
-/** Ввод спреда (жест по стеку, безразлично каким устройством): сдвинуть цель на deltaGap, зажать в
- *  [0, maxGap], сбросить простой, ЗАПОМНИТЬ направление (нужно снэпу — см. snapStop). Нулевую дельту
- *  не считаем сменой направления (держим прежнее). */
-export function spreadInput(st: SpreadState, deltaGap: number, cfg: SpreadConfig): SpreadState {
-  const dir = Math.sign(deltaGap) || st.dir;
-  return { amount: st.amount, target: clamp(st.target + deltaGap, 0, cfg.maxGap), idle: 0, phase: 0, dir };
+/** Ввод спреда (жест по стеку, безразлично каким устройством): сдвинуть ПРОГРЕСС-цель на dProgress,
+ *  зажать в [0, 1], сбросить простой, ЗАПОМНИТЬ направление (нужно снэпу — см. snapStop). Нулевую
+ *  дельту не считаем сменой направления (держим прежнее). */
+export function spreadInput(st: SpreadState, dProgress: number, _cfg?: SpreadConfig): SpreadState {
+  const dir = Math.sign(dProgress) || st.dir;
+  return { amount: st.amount, target: clamp(st.target + dProgress, 0, 1), idle: 0, phase: 0, dir };
 }
 
 /**
@@ -105,8 +141,9 @@ function snapStop(target: number, stopsPx: readonly number[], dir: number): numb
 }
 
 function nearestSnap(st: SpreadState, cfg: SpreadConfig & { close: { kind: "snap"; stops: readonly number[] } }): number {
-  const px = cfg.close.stops.map((s) => clamp(s, 0, 1) * cfg.maxGap);
-  return snapStop(st.target, px, st.dir);
+  // Стопы уже доли 0..1 — а amount/target тоже 0..1 (прогресс), так что стопы и есть цели снэпа.
+  const stops = cfg.close.stops.map((s) => clamp(s, 0, 1));
+  return snapStop(st.target, stops, st.dir);
 }
 
 /** Покачивание дриббла для i-й карты по фазе: частота и амплитуда растут с фазой (карты «танцуют»
@@ -199,21 +236,28 @@ export interface StackInteraction {
 // ——— именованные ПРЕСЕТЫ (экспортируются; в Storybook — select по id) ———
 
 // База спреда: на обоих устройствах спред двигает ЗУМ-жест (тач-пинч / десктоп Ctrl-колесо/тачпад).
-const SPREAD_BASE: SpreadConfig = { pointerTrigger: "zoom", touchTrigger: "zoom", maxGap: 34, keepDiagonal: true, centerX: false, close: { kind: "snap", stops: [0, 0.4, 1] }, spring: 12 };
+// gain — во сколько растянуть rest-раскладку от якоря в полном спреде (направление берётся из неё).
+const spreadBase = (over: Partial<SpreadConfig> = {}): SpreadConfig => ({
+  gain: 10,
+  close: { kind: "snap", stops: [0, 0.4, 1] },
+  spring: 12,
+  input: { pointerTrigger: "zoom", touchTrigger: "zoom" },
+  ...over,
+});
 
 /** Готовые механики по типу стека. Дефолт драга — «тап, любая фигура» (как в стенде и сейчас). */
 export const STACK_INTERACTIONS: Readonly<Record<string, { label: string; make: () => StackInteraction }>> = {
   deck: {
     label: "колода — спред зум-жестом (снэп), тащим верхнюю",
-    make: () => ({ spread: { ...SPREAD_BASE }, pieceDrag: { pick: PICK_FIRST, trigger: "tap" }, stackDrag: null }),
+    make: () => ({ spread: spreadBase(), pieceDrag: { pick: PICK_FIRST, trigger: "tap" }, stackDrag: null }),
   },
   discard: {
     label: "сброс — спред крупнее, тащим ту, на которую попал палец",
-    make: () => ({ spread: { ...SPREAD_BASE, maxGap: 46, close: { kind: "timer", seconds: 4 } }, pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
+    make: () => ({ spread: spreadBase({ gain: 13, close: { kind: "timer", seconds: 4 } }), pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
   },
   hand: {
     label: "рука — раскрыта, тащим любую, спред-дриббл в простое",
-    make: () => ({ spread: { ...SPREAD_BASE, maxGap: 40, close: { kind: "dribble", buildSeconds: 1.4 } }, pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
+    make: () => ({ spread: spreadBase({ gain: 12, close: { kind: "dribble", buildSeconds: 1.4 } }), pieceDrag: { pick: PICK_ANY, trigger: "tap" }, stackDrag: null }),
   },
   block: {
     label: "блок — тащим весь стек целиком, без спреда",
