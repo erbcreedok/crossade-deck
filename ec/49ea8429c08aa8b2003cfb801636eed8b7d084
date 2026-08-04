@@ -1,0 +1,45 @@
+client2/src/game/boards/migrate.ts
+  s_b2849f723d52bb::t_d522269d706a28 68-72
+client2/src/game/boards/scene.ts
+  s_b2849f723d52bb::t_2c671134a5cbdd 326
+  s_b2849f723d52bb::t_0795a254a560e8 558
+  s_b2849f723d52bb::t_c18e1dc6a8355e 952,955-958
+  s_b2849f723d52bb::t_acba130766b259 416-417
+  s_b2849f723d52bb::t_23f2067e316826 985,1003,1008,1012-1013,1015,1022
+  s_b2849f723d52bb::t_cca4dad3a85314 532,534
+  s_b2849f723d52bb::t_f2d720d49f423e 136-137
+  s_b2849f723d52bb::t_44345fe52e0ef9 884
+  s_b2849f723d52bb::t_09a5e9342baf35 369-370,372-376,381
+  s_b2849f723d52bb::t_8ab47cb5d92b29 428
+client2/src/game/boards/state.ts
+  s_b2849f723d52bb::t_0494fa1a2e5359 24-42,51-58
+  s_b2849f723d52bb::t_57c8921d8b490f 102
+client2/src/game/boards/spec.ts
+  s_b2849f723d52bb::t_38962ed1aba0cd 137-146
+client2/src/game/sandbox/live.ts
+  s_b2849f723d52bb::t_94e564bc30a11b 18,85-86,98
+client2/src/game/boards/mock.ts
+  s_b2849f723d52bb::t_e9443a119e50bf 82,89,92
+  s_b2849f723d52bb::t_71ad0622789959 19-40,42-43,51,58,65
+  s_b2849f723d52bb::t_777fd8e9dc2932 116-129
+client2/docs/SANDBOX-HANDOFF.md
+  s_b2849f723d52bb::t_55b86d39eef4ef 57-62,64-65
+client2/src/game/boards/mock.test.ts
+  s_b2849f723d52bb::t_d9f954b75ba215 172-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ec49ea8429c08aa8b2003cfb801636eed8b7d084",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
