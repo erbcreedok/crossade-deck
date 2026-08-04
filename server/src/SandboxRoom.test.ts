@@ -39,6 +39,19 @@ describe("SandboxRoom", () => {
     expect((late.welcome.state as { marker: number }).marker).toBe(42);
   });
 
+  it("настройки борды: остальным летит settings+снимок, поздний гость получает их в welcome", async () => {
+    const a = await join();
+    const b = await join();
+    const got = new Promise<Record<string, unknown>>((resolve) => b.client.onMessage("settings", resolve));
+    a.client.send("settings", { settings: { shape: "rect" }, state: { marker: 7 } });
+    const relayed = await got;
+    expect((relayed.settings as { shape: string }).shape).toBe("rect");
+    expect((relayed.state as { marker: number }).marker).toBe(7);
+    const late = await join();
+    expect((late.welcome.settings as { shape: string }).shape).toBe("rect");
+    expect((late.welcome.state as { marker: number }).marker).toBe(7);
+  });
+
   it("лок «кто первый схватил»: второму — grab_denied, после release элемент свободен", async () => {
     const a = await join();
     const b = await join();

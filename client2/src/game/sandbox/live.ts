@@ -11,6 +11,9 @@ import { Client, type Room } from "colyseus.js";
 import { httpUrl, serverUrl } from "../../net/runtimeConfig";
 import { browserAccountStorage, loadAccount } from "../../net/account";
 import { applyCommand, bootState } from "../boards/mock";
+import { migrateState } from "../boards/migrate";
+import { sandboxBoard } from "./board";
+import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "./settings";
 import { seatOccupants, withOccupants } from "./liveSeats";
 import type { BoardDriver } from "../boards/driver";
 import type { PresenceHub, PresenceView } from "../boards/presence";
@@ -29,6 +32,14 @@ export interface SandboxLiveSession {
   you: LiveMember;
   code: string;
   seats: number;
+  /** Актуальные настройки борды комнаты (welcome или дефолт). */
+  readonly settings: SandboxSettings;
+  /** Спека борды по этим настройкам (посадки — всегда комнатные). */
+  readonly spec: BoardSpec;
+  /** Сменить настройки: миграция снимка + раздача комнате (стол у всех одинаковый). */
+  changeSettings(s: SandboxSettings): void;
+  /** Спека сменилась (своя или чужая правка настроек): пересобрать сцену (applySpec). */
+  onSpec(cb: (spec: BoardSpec, s: SandboxSettings) => void): void;
   driver: BoardDriver;
   hub: PresenceHub;
   roster(): readonly LiveMember[];
@@ -51,10 +62,11 @@ interface Welcome {
   roomId: string;
   seats: number;
   state: BoardState | null;
+  settings: SandboxSettings | null;
   roster: LiveMember[];
 }
 
-export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } = {}): Promise<SandboxLiveSession> {
+export async function joinSandboxLive(opts: { code?: string } = {}): Promise<SandboxLiveSession> {
   const account = loadAccount(browserAccountStorage());
   const joinOpts = account ? { accountId: account.id, name: account.name } : {};
 
@@ -82,6 +94,14 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
   // Рассадку ЛЮБОГО снимка переписывает ростер комнаты: никаких мок-фантомов «Игрок N» и
   // никакого доверия чужому представлению мест — авторитет по стульям один (комната).
   const occupants = (): (string | null)[] => seatOccupants([...members.values()], welcome.seats);
+  // Настройки и спека — СЕССИИ (комната их синкает): посадки всегда комнатные, меню их не крутит.
+  const buildSpec = (s: SandboxSettings): BoardSpec => sandboxBoard({ ...s, seats: welcome.seats });
+  let settings: SandboxSettings = welcome.settings ?? { ...DEFAULT_SANDBOX_SETTINGS, seats: welcome.seats };
+  let spec: BoardSpec = buildSpec(settings);
+  const specSubs: ((sp: BoardSpec, s: SandboxSettings) => void)[] = [];
+  const emitSpec = (): void => {
+    for (const cb of specSubs) cb(spec, settings);
+  };
   // Снимок из сети нормируем: старый формат без free/fx (стол у всех одинаковый) не роняет клиента.
   let state: BoardState = withOccupants(ensureVisuals(welcome.state ?? bootState(spec, welcome.seats)), occupants());
   const stateSubs: ((s: BoardState) => void)[] = [];
@@ -96,6 +116,14 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
   });
   room.onMessage("cmd", (msg: { state: BoardState }) => {
     state = withOccupants(ensureVisuals(msg.state), occupants());
+    emitState();
+  });
+  // Чужая правка настроек: спека пересобирается, снимок (уже мигрированный автором) принимается.
+  room.onMessage("settings", (msg: { settings: SandboxSettings; state: BoardState }) => {
+    settings = msg.settings;
+    spec = buildSpec(settings);
+    if (msg.state) state = withOccupants(ensureVisuals(msg.state), occupants());
+    emitSpec();
     emitState();
   });
   const driver: BoardDriver = {
@@ -167,6 +195,23 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
     you: welcome.you,
     code: welcome.code,
     seats: welcome.seats,
+    get settings() {
+      return settings;
+    },
+    get spec() {
+      return spec;
+    },
+    changeSettings(next) {
+      settings = next;
+      spec = buildSpec(settings);
+      state = withOccupants(migrateState(state, spec, welcome.seats), occupants());
+      room.send("settings", { settings, state });
+      emitSpec();
+      emitState();
+    },
+    onSpec(cb) {
+      specSubs.push(cb);
+    },
     driver,
     hub,
     roster: () => [...members.values()],

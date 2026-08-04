@@ -12,8 +12,6 @@ import { goApp } from "./nav";
 // рандом-ник), бейдж «ник · комната КОД» всегда виден, «код…» — перейти в другую комнату.
 // HTML здесь только над-игровой: «← меню» (той же природы, что и раньше).
 
-const LIVE_SEATS = 4; // мест за столом в live-комнате (сервер SANDBOX_SEATS) — синк настроек позже
-
 export function PlaygroundBoard() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<BoardScene | null>(null);
@@ -28,7 +26,7 @@ export function PlaygroundBoard() {
     const connect = async (code?: string): Promise<void> => {
       sceneRef.current?.setBadge("подключение…");
       try {
-        const next = await joinSandboxLive(sandboxBoard({ ...DEFAULT_SANDBOX_SETTINGS, seats: LIVE_SEATS }), { code });
+        const next = await joinSandboxLive({ code });
         liveRef.current?.leave();
         setLive(next);
       } catch {
@@ -49,13 +47,21 @@ export function PlaygroundBoard() {
         ]
       : [{ key: "live", label: "live", onClick: () => void connect() }];
 
+    // Live-меню настроек: применяет СЕССИЯ (миграция + раздача комнате), посадки крутит комната.
+    const liveMenus = live
+      ? sandboxMenus(live.settings, (s) => sandboxBoard(s), () => sceneRef.current, {
+          onApply: (s) => liveRef.current?.changeSettings(s),
+          lockSeats: true,
+        })
+      : null;
     const scene = live
       ? new BoardScene({
-          spec: sandboxBoard({ ...DEFAULT_SANDBOX_SETTINGS, seats: LIVE_SEATS }),
+          spec: live.spec,
           driver: live.driver,
           selfSeat: live.you.seat ?? "p1",
           interactive: live.you.seat !== null, // без места — призрак: смотрит и водит курсором
           tools,
+          menus: liveMenus!,
           presence: {
             hub: live.hub,
             who: live.you.id,
@@ -70,6 +76,13 @@ export function PlaygroundBoard() {
           menus: sandboxMenus(DEFAULT_SANDBOX_SETTINGS, (s) => sandboxBoard(s), () => sceneRef.current),
         });
     sceneRef.current = scene;
+    // Смена настроек (своя или чужая): меню показывает свежие значения, сцена пересобирает спеку.
+    if (live) {
+      live.onSpec((spec, s) => {
+        liveMenus?.setSettings(s);
+        sceneRef.current?.applySpec(spec);
+      });
+    }
     if (import.meta.env.DEV) (window as unknown as { __sandbox?: unknown }).__sandbox = scene; // e2e-хук
     void scene.mount(host, host.clientWidth || 360, host.clientHeight || 640).then(() => {
       if (live) scene.setBadge(`${live.you.name} · комната ${live.code}${live.you.seat === null ? " · наблюдатель" : ""}`);

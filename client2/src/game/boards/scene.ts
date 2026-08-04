@@ -420,6 +420,14 @@ export class BoardScene extends SceneEngine {
     this.wake();
   }
 
+  /** Сменить СПЕКУ, не трогая драйвер (live: настройки и мигрированный снимок раздаёт комната —
+   *  сцена лишь пересобирает геометрию; свежий снимок приедет обычным onState следом). */
+  applySpec(spec: BoardSpec): void {
+    this.spec = spec;
+    this.defs = elementById(spec);
+    this.rebuildBoard(false);
+  }
+
   /** Сменить спеку на лету: жители пересыпаются migrateState, драйвер пересоздаётся с готовым
    *  снимком. Работает только со СВОИМ localDriver (standalone); зовёт хост меню (menus). */
   reconfigure(spec: BoardSpec, seats?: number): void {

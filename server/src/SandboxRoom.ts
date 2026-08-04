@@ -36,6 +36,7 @@ export class SandboxRoom extends Room {
   private members = new Map<string, SandboxMember>();
   private locks = new Map<string, string>(); // el → sessionId держателя
   private lastState: unknown = null; // последний снимок борды — для поздних гостей
+  private lastSettings: unknown = null; // последние настройки борды (меню песочницы) — им же
 
   onCreate(): void {
     this.code = registerInviteCode(this.roomId);
@@ -52,8 +53,18 @@ export class SandboxRoom extends Room {
         roomId: this.roomId,
         seats: SANDBOX_SEATS,
         state: this.lastState,
+        settings: this.lastSettings,
         roster: this.roster(),
       });
+    });
+
+    // Настройки борды (меню песочницы): как cmd — сервер не толкует, запоминает и раздаёт всем
+    // остальным вместе с мигрированным снимком (стол у всех одинаковый, поздние гости — из welcome).
+    this.onMessage("settings", (client, msg: { settings: unknown; state: unknown }) => {
+      if (!msg || typeof msg !== "object" || msg.settings === undefined) return;
+      this.lastSettings = msg.settings;
+      if (msg.state !== undefined) this.lastState = msg.state;
+      this.broadcast("settings", { from: client.sessionId, settings: msg.settings, state: msg.state }, { except: client });
     });
 
     // Команда борды: снимок запоминаем, остальным ретранслируем (эхо автору не шлём — он уже применил).
