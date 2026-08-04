@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { KitScene } from "../../game/engine/kitScene";
 import { CanvasStage } from "../harness/CanvasStage";
 import { stackState } from "../../game/kit/stacks";
+import { resolveLayout } from "../../game/kit/stackLayout";
 import type { Glowable } from "../../game/engine/element";
 import { PresenceCursor } from "../../game/ui/PresenceCursor";
 import { USER_COLORS } from "../../game/boards/room";
@@ -50,32 +51,38 @@ cursor.place(x, y);`,
       build={(ctx, a) => {
         const color = parseInt(a.color.replace("#", ""), 16);
 
-        // Фигуры-как-данные: карта, стопка карт, стопка фишек, куча фигур. Свечение включается
-        // НА ЭЛЕМЕНТАХ — в стопке контуры сливаются в одну фигуру (как тени), не рамка на каждой.
+        // Фигуры-как-данные: карта, ЛЕСЕНКА карт (ступени контура видны, не предполагаются),
+        // стопка фишек, куча фигур. Свечение — на элементах, контур один на фигуру.
         const FIGURES = [
           { caption: "card", opts: { count: 1 }, round: 0.16 },
-          { caption: "stack — one figure", opts: { count: 5 }, round: 0.16 },
+          { caption: "stack — one figure", opts: { count: 5, form: "diagonal" as const }, round: 0.16 },
           { caption: "chips", opts: { content: "chips" as const, count: 6 }, round: 1 },
-          { caption: "pieces pile", opts: { content: "pieces" as const, count: 4 }, round: 0.3 },
+          { caption: "pieces pile", opts: { content: "pieces" as const, count: 4, form: "heap" as const }, round: 0.3 },
         ] as const;
         let x = ctx.padding;
         let rowBottom = ctx.padding;
         FIGURES.forEach((f, i) => {
           const at = { x, y: ctx.padding };
           const r = stackState(ctx, at, f.opts, `sel-${i}`);
-          // ОДИН контур на фигуру: несёт нижний элемент, фигура — СИЛУЭТЫ всех частей (их root'ы),
+          // ОДИН контур на фигуру: несёт нижний элемент. Силуэты частей — из ТОЙ ЖЕ раскладки,
+          // что положила карты (root'ы на момент сборки ещё не синканы — брать их было враньём);
           // erase-пасс выводит настоящий ступенчатый контур союза, как маска теней.
-          type El = Glowable & { footprint: { hw: number; hh: number }; root: { x: number; y: number } };
-          const parts = r.ids.map((id) => ctx.element(id) as unknown as El | undefined).filter((e): e is El => !!e);
-          const base = parts[0];
+          type El = Glowable & { footprint: { hw: number; hh: number } };
+          const base = ctx.element(r.ids[0]!) as unknown as El | undefined;
           if (base) {
-            const figure = parts.map((e) => ({
-              x: e.root.x - base.root.x - e.footprint.hw,
-              y: e.root.y - base.root.y - e.footprint.hh,
-              w: e.footprint.hw * 2,
-              h: e.footprint.hh * 2,
-              radius: Math.min(e.footprint.hw, e.footprint.hh) * (f.round ?? 0.16),
-            }));
+            const cell = { w: base.footprint.hw * 2, h: base.footprint.hh * 2 };
+            const layout = resolveLayout("form" in f.opts ? f.opts.form : "tight");
+            const o0 = layout(0, r.ids.length, cell);
+            const figure = r.ids.map((_, k) => {
+              const o = layout(k, r.ids.length, cell);
+              return {
+                x: o.dx - o0.dx - cell.w / 2,
+                y: o.dy - o0.dy - cell.h / 2,
+                w: cell.w,
+                h: cell.h,
+                radius: Math.min(cell.w, cell.h) / 2 * (f.round ?? 0.16),
+              };
+            });
             base.setGlow(color, r.ids.length === 1 ? undefined : figure);
           }
           ctx.label(f.caption, at.x + r.width / 2, r.bottom + 16, 12, 0x9aa89f, Math.max(r.width * 1.6, 140));
