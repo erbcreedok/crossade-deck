@@ -1,4 +1,4 @@
-import { absolute, grid as flowGrid, linear, pile } from "../slot/layouts";
+import { absolute, grid as flowGrid, linear, pile, radial } from "../slot/layouts";
 import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../slot/slot";
 import { group, leaf, type Group, type Size, type Slot, type Vec } from "../slot/types";
 import { ringSlots } from "../slotfield/layout/slots";
@@ -127,6 +127,24 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
       cells[key] = { x: 0, y: 0, w: box.w, h: box.h };
       return { placed, size: box, cells };
     }
+    case "radial": {
+      // Динамичная радиальная рассадка: ОДИН живой контейнер (как flow), жители по окружности,
+      // радиус растёт с их числом. Рамка (cellRect) — квадрат-габарит; круг рисует сцена по shape.
+      const key = slotKey(zid, 0);
+      const members = membersOf(state, key);
+      const PAD = 16;
+      const layout = radial({ cell, gap: 12 });
+      const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
+        drop: { accept: () => true },
+        reorder: { enabled: true },
+      });
+      const { size } = layout.place(members.map(() => cell));
+      const inner = { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) };
+      const side = Math.max(inner.w, inner.h) + PAD * 2; // рамка квадратная: круг ровный
+      placed.push({ id: key, origin: { x: (side - size.w) / 2, y: (side - size.h) / 2 }, slot });
+      cells[key] = { x: 0, y: 0, w: side, h: side };
+      return { placed, size: { w: side, h: side }, cells };
+    }
     case "chain": {
       // Живые слоты 0..k−1 из состояния + ВСЕГДА один пустой в конце («новое звено», как play:new).
       const keys: string[] = [];
@@ -198,8 +216,17 @@ function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, se
   const selfIdx = Math.max(0, state.seats.findIndex((s) => s.id === selfSeat));
   const ordered = Array.from({ length: n }, (_, k) => state.seats[(selfIdx + k) % n]!);
 
+  // Борда-бокс (free-зона) в ЦЕНТРЕ стола: посадки раздвигаются, чтобы её не накрывать.
+  // Прочие зоны при боксе вкладываются в его центр (как в полосной компоновке), без бокса — колонкой справа.
+  const tableZones = spec.zones.filter((z) => z.layout.kind !== "seats" && !z.perSeat && z.layout.kind !== "chain");
+  const freeZone = tableZones.find((z) => z.layout.kind === "free");
+  const boxCell = freeZone ? zoneCell(freeZone) : null;
+  const boxClear = boxCell
+    ? (freeZone!.shape === "circle" ? Math.max(boxCell.w, boxCell.h) / 2 : Math.hypot(boxCell.w, boxCell.h) / 2)
+    : 0;
+
   // Радиусы: слот места ближе к центру, стопка рубашек — дальше; квадрат стола вмещает оба.
-  const rSlot = Math.max(cell.w, cell.h) * 1.5;
+  const rSlot = Math.max(Math.max(cell.w, cell.h) * 1.5, boxClear + cell.h * 0.6);
   const rBack = rSlot + cell.h * 0.55 + backCell.h * 0.5;
   const reach = rBack + Math.max(SEAT_CELL.w, backCell.w) * 0.5;
   const cx = MARGIN.x + reach;
@@ -230,16 +257,31 @@ function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: string, se
 
   const rightX = MARGIN.x + reach * 2 + GAP.x;
 
-  // Прочие зоны (не seats/perSeat/chain) — колонкой справа (белкины шестёрки лежат «рядом»).
-  let colY = cyTop;
-  for (const zone of spec.zones.filter((z) => z.layout.kind !== "seats" && !z.perSeat && z.layout.kind !== "chain")) {
-    const sub = zoneSubtrees(zone, state);
+  const placeSub = (sub: ReturnType<typeof zoneSubtrees>, ox: number, oy: number): void => {
     for (const p of sub.placed) {
-      placed.push({ ...p, origin: { x: rightX + p.origin.x, y: colY + p.origin.y } });
+      placed.push({ ...p, origin: { x: ox + p.origin.x, y: oy + p.origin.y } });
       const c = sub.cells[p.id];
-      if (c) cellRects[p.id] = { ...c, x: rightX + c.x, y: colY + c.y };
+      if (c) cellRects[p.id] = { ...c, x: ox + c.x, y: oy + c.y };
     }
-    colY += sub.size.h + SEAT_LABEL_H + GAP.y;
+  };
+
+  let colY = cyTop;
+  if (freeZone && boxCell) {
+    // Бокс-борда по центру круга посадок; остальные зоны — в центр бокса.
+    const boxAt = { x: cx - boxCell.w / 2, y: cy - boxCell.h / 2 };
+    placeSub(zoneSubtrees(freeZone, state), boxAt.x, boxAt.y);
+    for (const zone of tableZones) {
+      if (zone === freeZone) continue;
+      const sub = zoneSubtrees(zone, state);
+      placeSub(sub, cx - sub.size.w / 2, cy - sub.size.h / 2);
+    }
+  } else {
+    // Прочие зоны — колонкой справа (белкины шестёрки лежат «рядом»).
+    for (const zone of tableZones) {
+      const sub = zoneSubtrees(zone, state);
+      placeSub(sub, rightX, colY);
+      colY += sub.size.h + SEAT_LABEL_H + GAP.y;
+    }
   }
 
   const offboard = membersOf(state, OFFBOARD_KEY);

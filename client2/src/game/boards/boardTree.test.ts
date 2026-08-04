@@ -167,4 +167,43 @@ describe("buildBoardTree", () => {
     expect(grid.x + grid.w / 2).toBeCloseTo(box.x + box.w / 2, 3);
     expect(grid.y + grid.h / 2).toBeCloseTo(box.y + box.h / 2, 3);
   });
+
+  it("radial: один живой контейнер, рамка КВАДРАТНАЯ (круг ровный), жители по кругу внутри", () => {
+    const rSpec = spec({ zones: [
+      { id: "deck", title: "к", layout: { kind: "pile" }, policy: { onOccupied: "merge" } },
+      { id: "round", title: "круг", layout: { kind: "radial" }, policy: { onOccupied: "merge" }, setup: { 0: ["c1", "c2"] } },
+    ] });
+    const tree = buildBoardTree(rSpec, bootState(rSpec, 2), "p1");
+    const frame = tree.cellRects["round:0"]!;
+    expect(frame.w).toBeCloseTo(frame.h, 6); // квадрат-габарит — круг не овалится
+    expect(tree.slotOf("c1")).toBe("round:0");
+    expect(tree.origins["round:1"]).toBeUndefined();
+    for (const id of ["c1", "c2"]) {
+      const h = tree.homeOf(id)!;
+      expect(h.x).toBeGreaterThanOrEqual(frame.x);
+      expect(h.y).toBeGreaterThanOrEqual(frame.y);
+    }
+  });
+
+  it("круглый стол с бордой-боксом: бокс в ЦЕНТРЕ посадок, слоты мест не наезжают на бокс", () => {
+    const box = { w: 480, h: 480 };
+    const rt = spec({
+      zones: [
+        { id: "board", title: "", layout: { kind: "free" }, cell: box, shape: "circle", policy: { onOccupied: "merge" }, setup: { 0: ["c1", "c2"] } },
+        { id: "table", title: "", layout: { kind: "seats" }, policy: { onOccupied: "reject" } },
+      ],
+      seats: { count: { fixed: 4 }, show: "backs", swap: true },
+    });
+    const s = bootState(rt, 4);
+    const tree = buildBoardTree(rt, s, "p1");
+    const frame = tree.cellRects["board:0"]!;
+    const seatRects = s.seats.map((st) => tree.cellRects[`table@${st.id}:0`]!);
+    // Бокс равноудалён от слотов всех мест (он в центре круга посадок).
+    const c = { x: frame.x + frame.w / 2, y: frame.y + frame.h / 2 };
+    const dists = seatRects.map((r) => Math.hypot(r.x + r.w / 2 - c.x, r.y + r.h / 2 - c.y));
+    for (const d of dists) {
+      expect(d).toBeCloseTo(dists[0]!, 3);
+      expect(d).toBeGreaterThan(box.w / 2); // слот места ВНЕ круга борды
+    }
+  });
 });

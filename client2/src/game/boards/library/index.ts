@@ -10,8 +10,9 @@ import { unoBoard } from "./uno";
 import { munchkinBoard } from "./munchkin";
 import { pokerBoard } from "./poker";
 import { dndBoard } from "./dnd";
+import { roundTableBoard } from "./roundTable";
 
-export { chessBoard, krestovyiBoard, monopolyBoard, durakBoard, belkaBoard, unoBoard, munchkinBoard, pokerBoard, dndBoard };
+export { chessBoard, krestovyiBoard, monopolyBoard, durakBoard, belkaBoard, unoBoard, munchkinBoard, pokerBoard, dndBoard, roundTableBoard };
 
 export const BOARD_LIBRARY = {
   chess: chessBoard,
@@ -23,6 +24,7 @@ export const BOARD_LIBRARY = {
   munchkin: munchkinBoard,
   poker: pokerBoard,
   dnd: dndBoard,
+  roundtable: roundTableBoard,
 } as const;
 
 export type BoardLibraryId = keyof typeof BOARD_LIBRARY;

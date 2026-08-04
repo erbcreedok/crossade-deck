@@ -69,6 +69,46 @@ export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: 
   };
 }
 
+// РАДИУС — жители по окружности РОВНОГО круга (не овала), первый — «на севере», дальше по часовой.
+// Радиус живой: растёт с числом жителей так, чтобы соседние центры отстояли на ширину карты + gap
+// (хорда 2R·sin(π/n) ≥ w+gap). Один житель — в центре (R=0). indexAt — индекс ВСТАВКИ по углу
+// точки: [0..N], «щель» за последним жителем перед севером — append. cell — резерв пустой зоны
+// (тот же смысл, что у grid/pile: пустой круг не схлопывается в 0 и продолжает ловить дроп).
+export function radial(o: { cell?: Size; gap?: number } = {}): Layout {
+  const gap = o.gap ?? 0;
+  const radiusFor = (sizes: Size[]): number => {
+    const n = sizes.length;
+    if (n < 2) return 0;
+    // Хорда — от БОЛЬШЕЙ стороны: сосед может оказаться и сбоку, и сверху; ширины мало —
+    // вертикальные соседи высокой карты наезжали бы друг на друга.
+    const reach = Math.max(...sizes.map((s) => Math.max(s.w, s.h))) + gap;
+    return reach / (2 * Math.sin(Math.PI / n));
+  };
+  const place = (sizes: Size[]): { at: Vec[]; size: Size } => {
+    if (!sizes.length) return { at: [], size: o.cell ? { ...o.cell } : { w: 0, h: 0 } };
+    const r = radiusFor(sizes);
+    const cw = Math.max(...sizes.map((s) => s.w));
+    const ch = Math.max(...sizes.map((s) => s.h));
+    const c = { x: r + cw / 2, y: r + ch / 2 };
+    const at = sizes.map((s, i) => {
+      const a = -Math.PI / 2 + (i / sizes.length) * Math.PI * 2;
+      return { x: c.x + r * Math.cos(a) - s.w / 2, y: c.y + r * Math.sin(a) - s.h / 2 };
+    });
+    return { at, size: { w: r * 2 + cw, h: r * 2 + ch } };
+  };
+  return {
+    place,
+    indexAt(cp, sizes) {
+      const n = sizes.length;
+      if (!n) return 0;
+      const { size } = place(sizes);
+      const a = Math.atan2(cp.y - size.h / 2, cp.x - size.w / 2);
+      const t = (a + Math.PI / 2) / (2 * Math.PI); // доля круга от «севера» по часовой
+      return Math.round(((t % 1) + 1) % 1 * n);
+    },
+  };
+}
+
 // Куча/колода — почти совмещённые слоты с лёгким ДИАГОНАЛЬНЫМ стаггером «толщины» (свет справа-сверху).
 // Верх = последний. indexAt → верх (дроп в кучу = положить сверху). Отдельная стратегия, не костыль
 // над linear: у кучи своя семантика (нахлёст по обеим осям, стаггер может уходить в минус по y).

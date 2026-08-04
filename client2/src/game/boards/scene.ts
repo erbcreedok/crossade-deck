@@ -9,6 +9,7 @@ import type { Piece } from "../ui/Piece";
 import type { TableElement } from "../engine/element";
 import { dropTarget } from "../slot/slot";
 import { dashedRectSegments } from "../ui/dashedRectSegments";
+import { dashedCircleArcs } from "../ui/dashedCircleArcs";
 import { blockDropOffset } from "./freeBox";
 import { GroupDrag } from "../engine/drag";
 import { CARD } from "../crossade/tree";
@@ -324,6 +325,19 @@ export class BoardScene extends SceneEngine {
           const dark = m ? (Number(m[1]) + Number(m[2])) % 2 === 1 : false;
           g.rect(r.x, r.y, r.w, r.h).fill({ color: dark ? 0x27352c : 0x3a4a3f });
           g.rect(r.x, r.y, r.w, r.h).stroke({ width: 1, color: 0x1e2a23 });
+        } else if (zone.shape === "circle") {
+          // РОВНЫЙ круг, вписанный в бокс зоны; пунктир — дугами чистой функции (Pixi dash не умеет).
+          const cx = r.x + r.w / 2;
+          const cy = r.y + r.h / 2;
+          const rad = Math.min(r.w, r.h) / 2;
+          if (zone.frame === "dashed") {
+            for (const a of dashedCircleArcs(rad, 12, 9)) {
+              g.moveTo(cx + rad * Math.cos(a.start), cy + rad * Math.sin(a.start)).arc(cx, cy, rad, a.start, a.end);
+            }
+            g.stroke({ width: 1.5, color: 0x50604f, alpha: 0.85 });
+          } else {
+            g.circle(cx, cy, rad).stroke({ width: 1.5, color: 0x50604f, alpha: 0.8 });
+          }
         } else if (zone.frame === "dashed") {
           // Стиль дроп-зоны: пунктирная рамка (Pixi v8 dash сам не умеет — сегменты чистой функцией).
           for (const s of dashedRectSegments(r.x, r.y, r.w, r.h, 12, 9)) g.moveTo(s.x1, s.y1).lineTo(s.x2, s.y2);

@@ -4,7 +4,8 @@ import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene";
 import { createBoardTable } from "../../game/boards/boardTable";
 import type { BoardDriver } from "../../game/boards/driver";
-import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/library";
+import { BOARD_LIBRARY, roundTableBoard, type BoardLibraryId } from "../../game/boards/library";
+import type { RoundTableOpts } from "../../game/boards/library/roundTable";
 import type { BoardCommand } from "../../game/boards/spec";
 
 interface Args {
@@ -102,6 +103,105 @@ export const Belka: StoryObj<Args> = { args: { board: "belka", seats: 4 } };
 
 /** Крестовый: цепочка отбоя, руки и раздача «дилеру меньше». Дефолт другой, контрол `board` тот же. */
 export const Krestovyi: StoryObj<Args> = { args: { board: "krestovyi", seats: 4 } };
+
+interface RoundArgs {
+  shape: "circle" | "rect";
+  table: "radial" | "grid";
+  slots: "dynamic" | "fixed";
+  slotCount: number;
+  stacking: boolean;
+  seats: number;
+  dealt: number;
+}
+
+/** Тот же BoardStage-паттерн, но спека собирается из рычагов билдером roundTableBoard. */
+function RoundStage(a: RoundArgs) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const opts: RoundTableOpts = {
+      shape: a.shape,
+      table: a.table,
+      slots: a.slots === "fixed" ? a.slotCount : "dynamic",
+      stacking: a.stacking,
+      seats: a.seats,
+      dealt: a.dealt,
+    };
+    const scene = new BoardScene({ spec: roundTableBoard(opts), seats: a.seats, onCommand: (cmd: BoardCommand) => onCommand(cmd) });
+    const g = globalThis as unknown as { __board?: BoardScene };
+    g.__board = scene;
+    void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
+    return () => {
+      if (g.__board === scene) delete g.__board;
+      scene.destroy();
+    };
+  }, [a.shape, a.table, a.slots, a.slotCount, a.stacking, a.seats, a.dealt]);
+  return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
+}
+
+/**
+ * КРУГЛЫЙ СТОЛ ПЕСОЧНИЦЫ — борда-круг (ровный, не овал), посадки вокруг, в центре стол карт.
+ * Все рычаги — те же настройки, что позже крутит контекстное меню песочницы; дефолт владельца —
+ * ВСЁ круг и динамично. Слоты `fixed` показывают пару ring/grid и политику стакинга
+ * (можно/нельзя класть карты друг на друга); у динамики жители встраиваются в круг сами.
+ */
+export const Round: StoryObj<RoundArgs> = {
+  name: "Round table",
+  args: { shape: "circle", table: "radial", slots: "dynamic", slotCount: 8, stacking: true, seats: 4, dealt: 6 },
+  argTypes: {
+    shape: {
+      name: "shape",
+      description: "форма борды-бокса и стола: ровный круг (дефолт песочницы) или прямоугольник",
+      control: { type: "inline-radio" },
+      options: ["circle", "rect"],
+    },
+    table: {
+      name: "table",
+      description: "рассадка карт стола: по радиусу (круг растёт с числом карт) или сеткой",
+      control: { type: "inline-radio" },
+      options: ["radial", "grid"],
+    },
+    slots: {
+      name: "slots",
+      description: "слоты стола: динамичные (мест столько, сколько карт) или фиксированное число",
+      control: { type: "inline-radio" },
+      options: ["dynamic", "fixed"],
+    },
+    slotCount: {
+      name: "slotCount",
+      description: "сколько фикс-слотов разложить (кольцом при radial, сеткой при grid)",
+      control: { type: "range", min: 2, max: 12, step: 1 },
+      if: { arg: "slots", eq: "fixed" },
+    },
+    stacking: {
+      name: "stacking",
+      description: "можно ли класть карты друг на друга в фикс-слоте (merge) или слот один-жилец (reject)",
+      control: { type: "boolean" },
+      if: { arg: "slots", eq: "fixed" },
+    },
+    seats: {
+      name: "seats",
+      description: "посадочные места вокруг стола: свой слот снизу «перед тобой», остальные по кругу",
+      control: { type: "range", min: 1, max: 8, step: 1 },
+    },
+    dealt: {
+      name: "dealt",
+      description: "сколько карт разложить на стол сразу — витрине нужно что показывать",
+      control: { type: "range", min: 0, max: 12, step: 1 },
+    },
+  },
+  parameters: {
+    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene";
+import { roundTableBoard } from "../../game/boards/library";
+
+// Настройки-как-данные: те же рычаги потом крутит контекстное меню песочницы.
+const spec = roundTableBoard({ shape: "${a.shape}", table: "${a.table}", slots: ${a.slots === "fixed" ? a.slotCount : '"dynamic"'}, stacking: ${a.stacking}, seats: ${a.seats} });
+const scene = new BoardScene({ spec, seats: ${a.seats} });
+void scene.mount(host, width, height);`,
+  },
+  render: (a) => <RoundStage {...a} />,
+};
 
 interface LiveArgs extends Args {
   latency: number;

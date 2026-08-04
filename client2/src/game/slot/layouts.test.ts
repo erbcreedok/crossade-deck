@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { linear, grid, absolute, pile } from "./layouts";
+import { linear, grid, absolute, pile, radial } from "./layouts";
 import type { Size } from "./types";
 
 const CARD: Size = { w: 100, h: 140 };
@@ -43,6 +43,45 @@ describe("grid layout", () => {
     expect(withCell.size).toEqual({ w: 300, h: 140 }); // 3×1 зарезервировано
     const noCell = grid({ cols: { min: 3 }, gap: 0, reserve: true }).place([]);
     expect(noCell.size).toEqual({ w: 0, h: 0 }); // без ячейки — 0 (нет контекста размера)
+  });
+});
+
+describe("radial layout", () => {
+  it("карты по ОКРУЖНОСТИ: соседние центры на равном шаге, не ближе ширины карты + gap", () => {
+    const r = radial({ gap: 10 }).place(many(6));
+    const centers = r.at.map((a) => ({ x: a.x + CARD.w / 2, y: a.y + CARD.h / 2 }));
+    const d = (i: number, j: number) => Math.hypot(centers[i]!.x - centers[j]!.x, centers[i]!.y - centers[j]!.y);
+    for (let i = 0; i < 6; i++) {
+      expect(d(i, (i + 1) % 6)).toBeCloseTo(d(0, 1), 6); // равный шаг
+      expect(d(i, (i + 1) % 6)).toBeGreaterThanOrEqual(CARD.w + 10 - 1e-6); // без нахлёста
+    }
+  });
+  it("круг РОВНЫЙ (не овал) и растёт с числом жителей; первый — сверху", () => {
+    const l = radial({});
+    const r6 = l.place(many(6));
+    const r12 = l.place(many(12));
+    expect(r6.size.w - CARD.w).toBeCloseTo(r6.size.h - CARD.h, 6); // радиус одинаков по осям
+    expect(r12.size.w).toBeGreaterThan(r6.size.w);
+    const top = r6.at[0]!;
+    expect(top.x + CARD.w / 2).toBeCloseTo(r6.size.w / 2, 6); // слот 0 — на «севере»
+    expect(top.y).toBeCloseTo(0, 6);
+  });
+  it("один житель — в центре (нулевой радиус), пустой контейнер держит явную ячейку", () => {
+    const one = radial({}).place(many(1));
+    expect(one.at).toEqual([{ x: 0, y: 0 }]);
+    expect(one.size).toEqual(CARD);
+    expect(radial({ cell: CARD }).place([]).size).toEqual(CARD);
+    expect(radial({}).place([]).size).toEqual({ w: 0, h: 0 });
+  });
+  it("indexAt — индекс вставки по УГЛУ: север → 0, юг при 4 жителях → 2, чуть левее севера → append", () => {
+    const l = radial({});
+    const { size } = l.place(many(4));
+    const c = { x: size.w / 2, y: size.h / 2 };
+    const rad = (size.w - CARD.w) / 2;
+    expect(l.indexAt({ x: c.x, y: c.y - rad }, many(4))).toBe(0);
+    expect(l.indexAt({ x: c.x, y: c.y + rad }, many(4))).toBe(2);
+    expect(l.indexAt({ x: c.x - 10, y: c.y - rad }, many(4))).toBe(4); // за «последней щелью» — в конец
+    expect(l.indexAt({ x: 0, y: 0 }, [])).toBe(0);
   });
 });
 
