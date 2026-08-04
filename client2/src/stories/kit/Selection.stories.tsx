@@ -71,26 +71,32 @@ cursor.place(x, y);`,
       build={(ctx, a) => {
         const color = parseInt(a.color.replace("#", ""), 16);
         const style = { color, pad: a.pad, radius: a.radius, strength: a.strength };
-        const cell = { w: ctx.cardW, h: ctx.cardH };
         const g = new Graphics();
         ctx.decor(g);
 
-        // 1. Одиночная карта с подсветкой.
-        const soloAt = { x: ctx.padding, y: ctx.padding };
-        stackState(ctx, soloAt, { count: 1 }, "sel-solo");
-        paintHighlight(g, { x: soloAt.x, y: soloAt.y, w: cell.w, h: cell.h }, style);
-        const soloCap = ctx.label("card", soloAt.x + cell.w / 2, soloAt.y + cell.h + 14, 12, 0x9aa89f, cell.w);
+        // Фигуры-как-данные: карта, стопка карт, стопка фишек, куча фигур — подсветка у всех
+        // ОДНА (атом), контур — по габариту ЦЕЛОЙ фигуры (bounds стопки), не по каждой части.
+        const FIGURES = [
+          { caption: "card", opts: { count: 1 } },
+          { caption: "stack — one figure", opts: { count: 5 } },
+          { caption: "chips", opts: { content: "chips" as const, count: 6 } },
+          { caption: "pieces pile", opts: { content: "pieces" as const, count: 4 } },
+        ];
+        let x = ctx.padding;
+        let rowBottom = ctx.padding;
+        FIGURES.forEach((f, i) => {
+          const at = { x, y: ctx.padding };
+          const r = stackState(ctx, at, f.opts, `sel-${i}`);
+          const figure: Rect = { x: at.x, y: at.y, w: r.width, h: r.bottom - at.y };
+          paintHighlight(g, unionRect([figure])!, style);
+          ctx.label(f.caption, at.x + r.width / 2, r.bottom + 16, 12, 0x9aa89f, Math.max(r.width * 1.6, 140));
+          rowBottom = Math.max(rowBottom, r.bottom);
+          x += r.width + ctx.cardW * 0.9;
+        });
 
-        // 2. Стопка со стаггером — подсветка ОДНИМ контуром по unionRect (не рамка на каждой карте).
-        const stackAt = { x: soloAt.x + cell.w + ctx.cardW * 1.2, y: ctx.padding };
-        const stack = stackState(ctx, stackAt, { count: 5 }, "sel-stack");
-        const rects: Rect[] = Array.from({ length: 5 }, (_, i) => ({ x: stackAt.x + i * 0.5, y: stackAt.y + i * 0.5, w: cell.w, h: cell.h }));
-        paintHighlight(g, unionRect(rects)!, style);
-        ctx.label("stack — one figure", stackAt.x + stack.width / 2, stackAt.y + cell.h + 14, 12, 0x9aa89f, cell.w * 2);
-
-        // 3. Курсоры присутствия: чужие с именами (палитра live), свой — без имени.
+        // Курсоры присутствия: чужие с именами (палитра live), свой — без имени.
         const NAMES = ["Красная панда", "Синяя сова", "Зелёная выдра", "Лиловая рысь"];
-        const cy = stackAt.y + cell.h + 70;
+        const cy = rowBottom + 80;
         NAMES.forEach((name, i) => {
           const cursor = new PresenceCursor({ color: USER_COLORS[i]!, label: name });
           cursor.place(ctx.padding + 12 + i * 150, cy);
@@ -101,7 +107,7 @@ cursor.place(x, y);`,
         ctx.decor(own.root);
         ctx.label("presence cursors · последний без имени — свой", ctx.padding + 300, cy + 34, 12, 0x9aa89f, 600);
 
-        ctx.extent(Math.max(stackAt.x + cell.w * 2.4, ctx.padding + 24 + (NAMES.length + 1) * 150), cy + 60 + soloCap.height);
+        ctx.extent(Math.max(x, ctx.padding + 24 + (NAMES.length + 1) * 150), cy + 70);
       }}
     />
   ),

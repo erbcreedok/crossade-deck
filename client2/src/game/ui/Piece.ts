@@ -63,6 +63,7 @@ export class Piece implements TableElement, Draggable, Burnable {
   state: CardState;
   private readonly w: number;
   private readonly h: number;
+
   private readonly shadowCfg: { rx: number; ry: number; dy: number };
   private readonly own: OwnShadow | null;
   private readonly censorSeeds: ReadonlyArray<{ x: number; y: number; color: number }> | null;

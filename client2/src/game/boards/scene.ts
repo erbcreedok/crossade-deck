@@ -181,12 +181,15 @@ export class BoardScene extends SceneEngine {
     this.wake();
   }
 
-  /** Видимый габарит узла: позиция из root (учтён ПОДЪЁМ/лифт — тело в px/py «ниже» рисунка). */
+  /** Видимый габарит узла: позиция из root (учтён ПОДЪЁМ/лифт — тело в px/py «ниже» рисунка),
+   *  размер — СОБСТВЕННЫЙ футпринт элемента (карта, фишка, фигура — каждый мерит себя сам). */
   private nodeRect(id: string): SelRect | null {
     const node = this.nodes.get(id);
     if (!node) return null;
-    const w = CARD.w * node.body.scaleVal;
-    const h = CARD.h * node.body.scaleVal;
+    // Существующий контракт footprint (полуразмеры × текущий масштаб) — карта, фишка и фигура
+    // меряют себя сами, подсветка не прикладывает карту к фишке.
+    const w = node.footprint.hw * 2;
+    const h = node.footprint.hh * 2;
     return { x: node.root.x - w / 2, y: node.root.y - h / 2, w, h };
   }
 
