@@ -1,0 +1,20 @@
+client2/src/game/engine/sceneEngine.ts
+  s_4a533e9779ccb0::t_ee7819b7b4ecad 440-442
+  s_4a533e9779ccb0::t_9f0870ac3d7ccc 418-424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "2e4d7b2e37b730fab4e6582b3952edf11952f7ed",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
