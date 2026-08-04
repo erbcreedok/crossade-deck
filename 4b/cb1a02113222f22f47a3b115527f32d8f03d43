@@ -1,0 +1,52 @@
+client2/src/stories/kit/stackArgs.ts
+  s_4a533e9779ccb0::t_d7b694ef631b2c 14
+  s_4a533e9779ccb0::t_e0aca7d6f0caf1 62-63,65-70
+  s_4a533e9779ccb0::t_7db95316e78480 100,102-104
+  s_4a533e9779ccb0::t_850dd5dbb0f607 143,160-163,173-177,180-182,186-189
+  s_4a533e9779ccb0::t_4129f5e2e2456d 242-245,250-256
+  s_4a533e9779ccb0::t_26d9b1abf24278 190-191
+client2/src/game/engine/kitScene.spreadRouting.test.ts
+  s_4a533e9779ccb0::t_cd61e92090156c 4,8-10,12,17,20,36,39-40,55-60,81,84,91,98,100,106,108,114-115,118-125,128-129,131,134-136,142,149-151,163-165,172,174-175,182-184
+client2/src/stories/kit/Stacks.stories.tsx
+  s_4a533e9779ccb0::t_f030835a3a1433 172,221
+client2/src/game/kit/stackInteraction.ts
+  s_4a533e9779ccb0::t_ddbcb192223edb 239-246,252,256,260
+  s_4a533e9779ccb0::t_dbefe912611a40 39-41,44,48-63,65-73,75-76,79,82-88,96
+  s_4a533e9779ccb0::t_dad476a94294f3 91-94,97-98
+  s_4a533e9779ccb0::t_782c496f935253 1-9
+  s_4a533e9779ccb0::t_9f03167f29fb62 114-119
+  s_4a533e9779ccb0::t_d62e72936895c0 144-146
+client2/src/game/engine/kitScene.ts
+  s_4a533e9779ccb0::t_98fcaf63f8e7b4 743,745
+  s_4a533e9779ccb0::t_0b73159fa031b3 21
+  s_4a533e9779ccb0::t_c4779390bd6c33 606,608
+  s_4a533e9779ccb0::t_35a303681657e0 548,551-552,554-572
+client2/src/stories/mechanics/StackInteractions.stories.tsx
+  s_4a533e9779ccb0::t_d66dbf68bda615 102,104-106
+  s_4a533e9779ccb0::t_48cc1df678c8cb 27,29-31
+  s_4a533e9779ccb0::t_07a08b3198b5fe 57,59-61
+  s_4a533e9779ccb0::t_3d1e2266690681 76,78-80
+client2/src/game/kit/stackInteraction.test.ts
+  s_4a533e9779ccb0::t_35aa973def4c58 65-67,69-70,73,75,78,81,86-87,89,92-94,96,99-100,102,105-108,111,115,118
+  s_4a533e9779ccb0::t_1425c90365127f 10,16,19,22,26-29,31-36,40-58,60-61
+client2/src/game/engine/sceneEngine.ts
+  s_4a533e9779ccb0::t_82e9ca2035f0db 967
+  s_4a533e9779ccb0::t_213d901c226663 309-312,314
+  s_4a533e9779ccb0::t_b5dfe43cc86bbf 414-415,419-421,426-427,437-440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "4bcb1a02113222f22f47a3b115527f32d8f03d43",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
