@@ -415,7 +415,13 @@ export abstract class SceneEngine extends CanvasApp {
     const t = performance.now();
     if (t - this.lastWheelSpreadT > WHEEL_GESTURE_GAP_MS) this.onSpreadBegin();
     this.lastWheelSpreadT = t;
-    const dGap = -dyPx * WHEEL_SPREAD_SENS;
+    const dGap = -dyPx * WHEEL_SPREAD_SENS; // ЗУМ-жест: спред от вертикали (у пинча горизонтали нет).
+    // ПАН-путь (обычный скролл): спред РАЗДВИГ ГОРИЗОНТАЛЬНЫЙ, поэтому его ведёт ГОРИЗОНТАЛЬ. Берём
+    // доминирующую ось (при равенстве — горизонталь), вертикаль остаётся fallback. deltaX>0 РАЗДВИГАЕТ
+    // (знак легко инвертировать здесь). Горизонталь до нас доходит только потому, что back-навигация
+    // погашена overscroll-behavior (иначе браузер съедал бы этот жест).
+    const dxPx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaMode === 2 ? e.deltaX * this.width : e.deltaX;
+    const panGap = (Math.abs(dxPx) >= Math.abs(dyPx) ? dxPx : -dyPx) * WHEEL_SPREAD_SENS;
 
     if (this.wheelIsZoom(e)) {
       // Десктопный ЗУМ-жест (Ctrl/⌘-колесо; тачпад-пинч браузер шлёт как ровно такое колесо). НАД
@@ -431,8 +437,9 @@ export abstract class SceneEngine extends CanvasApp {
     }
 
     // Обычное колесо/скролл (без модификатора). НАД стеком со spread.pointerTrigger==="pan" он ведёт
-    // спред; иначе (или на пределе) — пан камеры (если есть куда двигать, иначе колесо уходит странице).
-    if (this.spreadOnElement(cp, dGap, "pointer-pan")) {
+    // спред ГОРИЗОНТАЛЬЮ (panGap); иначе (или на пределе) — пан камеры (если есть куда двигать, иначе
+    // колесо уходит странице).
+    if (this.spreadOnElement(cp, panGap, "pointer-pan")) {
       e.preventDefault();
       return;
     }
