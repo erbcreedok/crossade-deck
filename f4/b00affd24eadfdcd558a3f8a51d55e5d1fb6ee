@@ -1,0 +1,51 @@
+client2/src/game/boards/boardTree.test.ts
+  s_b2849f723d52bb::t_59883c62ce6478 210-219,221,224-261
+  s_b2849f723d52bb::t_f029560051ca90 220,222-223
+client2/src/game/boards/boardTree.ts
+  s_b2849f723d52bb::t_48c0f5d946ebf8 329,331
+  s_b2849f723d52bb::t_134ee71d899064 68
+  s_b2849f723d52bb::t_d06b5e63abbf42 293
+  s_b2849f723d52bb::t_1beb361ce43878 8-9
+  s_b2849f723d52bb::t_e1eeabc45088d4 384
+  s_b2849f723d52bb::t_ecf6dc89ff63b7 107-110,112,114-115,117-124
+  s_b2849f723d52bb::t_b242880031d0a6 28-35
+  s_b2849f723d52bb::t_1eecf79d46486c 232
+client2/src/game/boards/freeDrop.ts
+  s_b2849f723d52bb::t_0303f9c036fbb5 1-58
+client2/src/game/boards/freeDrop.test.ts
+  s_b2849f723d52bb::t_ed6618620d08c3 1-45
+client2/src/game/boards/scene.ts
+  s_b2849f723d52bb::t_55fe7530ddab3e 728-729
+  s_b2849f723d52bb::t_711613d8c27b68 926-928
+  s_b2849f723d52bb::t_c63dc83c514ae9 143-145
+  s_b2849f723d52bb::t_a4349cb8ba2d7b 619-632
+  s_b2849f723d52bb::t_93309362b33b74 635-636,638
+  s_b2849f723d52bb::t_de786407d025b8 997,999-1000,1005-1044
+  s_b2849f723d52bb::t_2914eafbb6836e 540-544,546-552
+  s_b2849f723d52bb::t_fd0cb904105b19 895
+  s_b2849f723d52bb::t_d19c9b894a21b8 313
+  s_b2849f723d52bb::t_70e6a6f8c1fca5 14,17,20
+  s_b2849f723d52bb::t_e9445235b89f02 435
+  s_b2849f723d52bb::t_a9ea1d3348e3c9 161
+  s_b2849f723d52bb::t_2a3d8d7ba7aa5e 783-785,791-808
+  s_b2849f723d52bb::t_629c4fba86c360 422-424
+  s_b2849f723d52bb::t_d39892d3fec6b6 877-878,881
+  s_b2849f723d52bb::t_478470ecec5bb5 962-965,967-968,970
+  s_b2849f723d52bb::t_ca12f39ca77b50 1045
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "f4b00affd24eadfdcd558a3f8a51d55e5d1fb6ee",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
