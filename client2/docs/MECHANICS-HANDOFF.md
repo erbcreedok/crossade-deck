@@ -11,6 +11,7 @@
 > 12 max) + клиент `net/sandboxLive.ts` (те же BoardDriver/PresenceHub). Витрины:
 > Mechanics/Boards → Round table / Sandbox live; Stack interactions → Deck actions.
 > Отложенное — в комментариях issues #120–#125. Разделы 1–2 действительны.
+> Свежий хендофф песочницы (03:30, glow-атомы, live, модуль sandbox/) — **SANDBOX-HANDOFF.md**.
 
 Дата: 2026-08-04. `tsc` чист, **1031 тест** зелёный (`npx vitest run`), всё
 закоммичено и запушено в `main`. Один файл на три темы — как просили. Средняя глубина:
