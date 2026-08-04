@@ -1,0 +1,44 @@
+client2/src/game/engine/kitScene.ts
+  s_4a533e9779ccb0::t_3f9eeee654f215 753,755,757
+  s_4a533e9779ccb0::t_71df4518e58df1 20
+  s_4a533e9779ccb0::t_a91ebf401865fb 589-601
+  s_4a533e9779ccb0::t_8fc19119384369 21
+  s_4a533e9779ccb0::t_c39992012927ee 612,618,620-621
+client2/src/stories/kit/stackArgs.ts
+  s_4a533e9779ccb0::t_767d9e9db620b6 174,178-197
+  s_4a533e9779ccb0::t_147f264afe8909 110-112
+  s_4a533e9779ccb0::t_82278315a6328a 10-11,19
+  s_4a533e9779ccb0::t_0744314c30df7f 275-277
+  s_4a533e9779ccb0::t_76e8dc866e4d02 65,67-72
+client2/src/game/kit/stackInteraction.ts
+  s_4a533e9779ccb0::t_da3d54c9170675 65-70,72-76,79-82,88-167
+  s_4a533e9779ccb0::t_fcd8f6c1234fc0 168,170-182,185-186,188
+  s_4a533e9779ccb0::t_325ccc87461d7b 1
+  s_4a533e9779ccb0::t_13360312d5cfd1 169
+client2/src/game/kit/stackInteraction.test.ts
+  s_4a533e9779ccb0::t_4d8e0d6a555484 6,11,17,19,29-56,58-68,89-101
+  s_4a533e9779ccb0::t_eff4a899d726bc 10,15
+  s_4a533e9779ccb0::t_946e623daf4f4b 69-72,76-87
+client2/src/game/kit/stackLayout.ts
+  s_4a533e9779ccb0::t_62be7424df6c16 80,84-86
+  s_4a533e9779ccb0::t_8e2b5ed9d2a37c 39,42,44-45
+  s_4a533e9779ccb0::t_0e798eb99fc9e8 1
+  s_4a533e9779ccb0::t_2d4deea986643d 23-26
+  s_4a533e9779ccb0::t_1948aa88d77b20 49-51,53-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "bbc9fd5c653a1b0b6c755f71a35eb9e4ed7feed6",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
