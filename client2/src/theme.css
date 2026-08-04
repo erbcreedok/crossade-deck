@@ -231,36 +231,3 @@ body {
 /* Экранов «Косынки» в CSS больше нет: топбар, счётчик ходов и экраны меню/победы/поражения рисует
    сам движок (ui/TopBar + ui/OverlayPanel на канвасе). HTML в приложении быть не должно — иначе
    вёрстка разъезжается между экраном игры и экраном итога, и на платформы без DOM это не едет. */
-
-/* Live-полоса песочницы: подключение/код комнаты/переход по коду. HTML тут допустим — это
-   НАД-игровая обвязка (как «← меню»), не стол; safe-area — чтобы в PWA не уехать под жест-бар. */
-.sandbox-live-bar {
-  position: fixed;
-  right: max(10px, env(safe-area-inset-right));
-  top: max(10px, env(safe-area-inset-top));
-  z-index: 5;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.sandbox-live-code {
-  font: 13px monospace;
-  color: #f2c14e;
-  background: rgba(14, 21, 18, 0.85);
-  border: 1px solid #5f7a6d;
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-.sandbox-live-input {
-  width: 64px;
-  font: 14px monospace;
-  color: #cdb98f;
-  background: rgba(14, 21, 18, 0.85);
-  border: 1px solid #5f7a6d;
-  border-radius: 8px;
-  padding: 6px 8px;
-}
-.sandbox-live-error {
-  font: 12px monospace;
-  color: #e0483f;
-}

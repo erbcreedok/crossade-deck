@@ -1,74 +1,86 @@
 import { useEffect, useRef, useState } from "react";
-import { BoardScene } from "./game/boards/scene";
-import { sandboxBoard } from "./game/boards/library/sandbox";
-import { DEFAULT_SANDBOX_SETTINGS } from "./game/boards/settings";
-import { joinSandboxLive, type SandboxLiveSession } from "./net/sandboxLive";
+import { BoardScene, type SceneTool } from "./game/boards/scene";
+import { sandboxBoard } from "./game/sandbox/board";
+import { DEFAULT_SANDBOX_SETTINGS } from "./game/sandbox/settings";
+import { sandboxMenus } from "./game/sandbox/menus";
+import { joinSandboxLive, type SandboxLiveSession } from "./game/sandbox/live";
 import { goApp } from "./nav";
 
-// Песочница — БОРДА (BoardScene + сборка sandboxBoard из настроек): круглый стол, посадки вокруг,
-// колода в центре, по дефолту всё круг и динамично. Настройки крутятся ПРЯМО в песочнице —
-// long-press по гриду/борде (ПКМ на десктопе), у колоды/карты свои меню и фикс-дропзоны при драге.
-//
-// LIVE: кнопка подключает к комнате sandbox_room (как Figma/Miro): без токена — рандом-ник
-// («Красная панда»), до 12 человек; КОД комнаты виден всегда, и по коду можно перейти в другую.
-// Кто первым схватил элемент — тот им и управляет; настройки борды в live пока заморожены
-// (меню настроек работает в одиночном режиме).
+// Песочница — тонкий React-хост НАД канвасом (как CrossadeGame): весь игровой UI рисует движок.
+// Соло по умолчанию (одно место, никаких фантомных игроков); настройки — long-press/ПКМ прямо на
+// борде (game/sandbox/menus). Live — канвас-кнопка: подключение к sandbox_room (без токена →
+// рандом-ник), бейдж «ник · комната КОД» всегда виден, «код…» — перейти в другую комнату.
+// HTML здесь только над-игровой: «← меню» (той же природы, что и раньше).
+
+const LIVE_SEATS = 4; // мест за столом в live-комнате (сервер SANDBOX_SEATS) — синк настроек позже
+
 export function PlaygroundBoard() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<BoardScene | null>(null);
+  const liveRef = useRef<SandboxLiveSession | null>(null);
   const [live, setLive] = useState<SandboxLiveSession | null>(null);
-  const [joining, setJoining] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const spec = sandboxBoard();
-    const scene = new BoardScene(
-      live
-        ? {
-            spec,
-            driver: live.driver,
-            selfSeat: live.you.seat ?? "p1",
-            interactive: live.you.seat !== null, // без места — призрак: смотрит и водит курсором
-            presence: {
-              hub: live.hub,
-              who: live.you.id,
-              palette: (who) => live.colorOf(who),
-              label: (who) => live.roster().find((m) => m.id === who)?.name ?? who,
-            },
-          }
-        : {
-            spec,
-            seats: DEFAULT_SANDBOX_SETTINGS.seats,
-            configurable: { settings: DEFAULT_SANDBOX_SETTINGS, build: (s) => sandboxBoard(s) },
+    liveRef.current = live;
+
+    const connect = async (code?: string): Promise<void> => {
+      sceneRef.current?.setBadge("подключение…");
+      try {
+        const next = await joinSandboxLive(sandboxBoard({ ...DEFAULT_SANDBOX_SETTINGS, seats: LIVE_SEATS }), { code });
+        liveRef.current?.leave();
+        setLive(next);
+      } catch {
+        sceneRef.current?.setBadge(code ? `комната ${code} не найдена` : "сервер недоступен");
+      }
+    };
+
+    // Временный мост для ввода кода: системный prompt (канвас-инпут — отдельная задача).
+    const askCode = (): void => {
+      const c = window.prompt("код комнаты (4 цифры)")?.trim();
+      if (c && /^\d{4}$/.test(c)) void connect(c);
+    };
+
+    const tools: SceneTool[] = live
+      ? [
+          { key: "code", label: "код…", onClick: askCode },
+          { key: "leave", label: "выйти", onClick: () => { liveRef.current?.leave(); setLive(null); } },
+        ]
+      : [{ key: "live", label: "live", onClick: () => void connect() }];
+
+    const scene = live
+      ? new BoardScene({
+          spec: sandboxBoard({ ...DEFAULT_SANDBOX_SETTINGS, seats: LIVE_SEATS }),
+          driver: live.driver,
+          selfSeat: live.you.seat ?? "p1",
+          interactive: live.you.seat !== null, // без места — призрак: смотрит и водит курсором
+          tools,
+          presence: {
+            hub: live.hub,
+            who: live.you.id,
+            palette: (who) => live.colorOf(who),
+            label: (who) => live.roster().find((m) => m.id === who)?.name ?? who,
           },
-    );
+        })
+      : new BoardScene({
+          spec: sandboxBoard(),
+          seats: DEFAULT_SANDBOX_SETTINGS.seats,
+          tools,
+          menus: sandboxMenus(DEFAULT_SANDBOX_SETTINGS, (s) => sandboxBoard(s), () => sceneRef.current),
+        });
     sceneRef.current = scene;
     if (import.meta.env.DEV) (window as unknown as { __sandbox?: unknown }).__sandbox = scene; // e2e-хук
-    void scene.mount(host, host.clientWidth || 360, host.clientHeight || 640);
+    void scene.mount(host, host.clientWidth || 360, host.clientHeight || 640).then(() => {
+      if (live) scene.setBadge(`${live.you.name} · комната ${live.code}${live.you.seat === null ? " · наблюдатель" : ""}`);
+    });
     return () => {
       sceneRef.current = null;
       scene.destroy();
     };
   }, [live]);
 
-  useEffect(() => () => live?.leave(), [live]);
-
-  async function connect(code?: string): Promise<void> {
-    setJoining(true);
-    setError(null);
-    try {
-      const next = await joinSandboxLive(sandboxBoard(), { code });
-      live?.leave();
-      setLive(next);
-    } catch {
-      setError(code ? `комната ${code} не найдена` : "сервер недоступен");
-    } finally {
-      setJoining(false);
-    }
-  }
+  useEffect(() => () => liveRef.current?.leave(), []);
 
   return (
     <div className="table-screen">
@@ -76,49 +88,15 @@ export function PlaygroundBoard() {
         ref={hostRef}
         className="table-host"
         onPointerMove={(e) => {
-          if (!live) return;
+          if (!liveRef.current) return;
           const r = e.currentTarget.getBoundingClientRect();
           sceneRef.current?.reportCursor(e.clientX - r.left, e.clientY - r.top);
         }}
-        onPointerLeave={() => live && sceneRef.current?.reportCursor(0, 0, false)}
+        onPointerLeave={() => liveRef.current && sceneRef.current?.reportCursor(0, 0, false)}
       />
       <button className="fd-btn back-float" onClick={() => goApp("")}>
         ← меню
       </button>
-      <div className="sandbox-live-bar">
-        {live ? (
-          <>
-            <span className="sandbox-live-code">
-              {live.you.name} · комната {live.code}
-              {live.you.seat === null ? " · наблюдатель" : ""}
-            </span>
-            <input
-              className="sandbox-live-input"
-              value={codeInput}
-              placeholder="код…"
-              maxLength={4}
-              onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, ""))}
-            />
-            <button className="fd-btn" disabled={joining || codeInput.length !== 4} onClick={() => void connect(codeInput)}>
-              перейти
-            </button>
-            <button
-              className="fd-btn"
-              onClick={() => {
-                live.leave();
-                setLive(null);
-              }}
-            >
-              выйти
-            </button>
-          </>
-        ) : (
-          <button className="fd-btn" disabled={joining} onClick={() => void connect()}>
-            {joining ? "подключение…" : "live"}
-          </button>
-        )}
-        {error && <span className="sandbox-live-error">{error}</span>}
-      </div>
     </div>
   );
 }

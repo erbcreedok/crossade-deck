@@ -8,13 +8,13 @@
 // аккаунт первого клиента (localStorage) едет как есть.
 
 import { Client, type Room } from "colyseus.js";
-import { httpUrl, serverUrl } from "./runtimeConfig";
-import { browserAccountStorage, loadAccount } from "./account";
-import { applyCommand, bootState } from "../game/boards/mock";
-import type { BoardDriver } from "../game/boards/driver";
-import type { PresenceHub, PresenceView } from "../game/boards/presence";
-import type { BoardSpec } from "../game/boards/spec";
-import type { BoardState } from "../game/boards/state";
+import { httpUrl, serverUrl } from "../../net/runtimeConfig";
+import { browserAccountStorage, loadAccount } from "../../net/account";
+import { applyCommand, bootState } from "../boards/mock";
+import type { BoardDriver } from "../boards/driver";
+import type { PresenceHub, PresenceView } from "../boards/presence";
+import type { BoardSpec } from "../boards/spec";
+import type { BoardState } from "../boards/state";
 
 export interface LiveMember {
   id: string;

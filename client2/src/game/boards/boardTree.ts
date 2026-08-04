@@ -129,8 +129,9 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
     }
     case "radial": {
       // Динамичная радиальная рассадка: ОДИН живой контейнер (как flow), жители по окружности,
-      // радиус растёт с их числом, но круг размечен МИНИМУМ на min позиций (место каждому игроку) —
-      // пустые позиции отдаются сцене заготовками-ячейками (`:phN`, это ДЕКОР, не слоты дропа).
+      // радиус растёт с их числом, но круг размечен МИНИМУМ на min позиций (место каждому игроку):
+      // min держит РАЗМЕР круга — пустой стол сразу очерчен под всех, без прыжков на первых картах.
+      // Никаких заготовок-«шариков» по позициям — размечен только сам круг (рамка зоны).
       const key = slotKey(zid, 0);
       const members = membersOf(state, key);
       const min = zone.layout.min ?? 0;
@@ -144,13 +145,8 @@ function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id): 
       const pos = radialPositions(count, cell, 12);
       const inner = { w: Math.max(pos.size.w, cell.w), h: Math.max(pos.size.h, cell.h) };
       const side = Math.max(inner.w, inner.h) + PAD * 2; // рамка квадратная: круг ровный
-      const origin = { x: (side - pos.size.w) / 2, y: (side - pos.size.h) / 2 };
-      placed.push({ id: key, origin, slot });
+      placed.push({ id: key, origin: { x: (side - pos.size.w) / 2, y: (side - pos.size.h) / 2 }, slot });
       cells[key] = { x: 0, y: 0, w: side, h: side };
-      for (let i = members.length; i < count; i++) {
-        const p = pos.at[i]!;
-        cells[slotKey(zid, `ph${i}`)] = { x: origin.x + p.x, y: origin.y + p.y, w: cell.w, h: cell.h };
-      }
       return { placed, size: { w: side, h: side }, cells };
     }
     case "chain": {

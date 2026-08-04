@@ -26,6 +26,9 @@ export interface MenuRow {
   /** Текущее значение справа. Нет значения — строка-действие. */
   value?: string;
   onSelect: () => void;
+  /** Строка-действие закрывает меню; строка-настройка (без close) обновляет его по месту.
+   *  Решает СЦЕНА-владелец — сам визуал флаг не трактует. */
+  close?: boolean;
 }
 
 export interface ContextMenuOptions {

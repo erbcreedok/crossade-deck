@@ -1,6 +1,6 @@
-import type { BoardSpec } from "../spec";
-import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "../settings";
-import { roundTableBoard } from "./roundTable";
+import type { BoardSpec } from "../boards/spec";
+import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "./settings";
+import { roundTableBoard } from "../boards/library/roundTable";
 
 // ПЕСОЧНИЦА — круглый стол по НАСТРОЙКАМ (по дефолту владельца: всё круг и динамично, одиночный
 // режим). Спека целиком собирается билдером roundTableBoard из SandboxSettings — ровно те же

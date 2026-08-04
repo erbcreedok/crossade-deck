@@ -20,7 +20,7 @@ import { baseZoneId, elementById, zoneOf, type BoardCommand, type BoardSpec, typ
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
 import { DropBar } from "../ui/DropBar";
-import { applySetting, migrateState, settingRows, type MenuTargetKind, type SandboxSettings } from "./settings";
+import { migrateState } from "./migrate";
 import { autoDealPlan } from "./dealPlan";
 import { SHUFFLE_FX_SECONDS, shufflePoses } from "./shuffleFx";
 import type { PresenceHub, PresenceView } from "./presence";
@@ -33,6 +33,24 @@ import type { PresenceHub, PresenceView } from "./presence";
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
 const SEAT_STRIP_CARD_H = 83;
+
+/** Пустая цель контекстного меню: борда целиком (free-бокс) или грид-стол. */
+export type MenuTargetKind = "board" | "table";
+
+/** Шов меню к хосту (DIP): сцена спрашивает строки, хост решает, что настраивается и как. */
+export interface SceneMenus {
+  /** Меню борды/стола. null — у хоста нет меню для этой цели. */
+  menuFor(target: MenuTargetKind): { title: string; rows: readonly MenuRow[] } | null;
+  /** Дорастить меню КОЛОДЫ строками хоста (напр. «колода · 36»). */
+  deckExtras?(): readonly MenuRow[];
+}
+
+/** Канвас-кнопка хоста (правый верхний угол). */
+export interface SceneTool {
+  key: string;
+  label: string;
+  onClick: () => void;
+}
 
 export interface BoardSceneOptions {
   spec: BoardSpec;
@@ -49,10 +67,14 @@ export interface BoardSceneOptions {
   /** Кто исполняет команды: без драйвера — локальный мок (standalone); live-стори передаёт
    *  клиента общего мастера (boardTable.ts). Сцена разницы не видит. */
   driver?: BoardDriver;
-  /** Контекстное меню настроек (long-press по гриду-борде / ПКМ): текущие настройки + билдер
-   *  спеки из них. Сцена сама циклит значения и мигрирует состояние (migrateState). Только
-   *  standalone (свой localDriver); с внешним драйвером меню не включается. */
-  configurable?: { settings: SandboxSettings; build: (s: SandboxSettings) => BoardSpec };
+  /** Контекстные меню настроек (long-press по гриду-борде / ПКМ) — ШОВ К ХОСТУ (DIP): сцена
+   *  не знает, ЧТО настраивается; хост (песочница) отдаёт готовые строки и сам вызывает
+   *  reconfigure. Меню колоды/карты у сцены свои (это её механика), хост может дорастить
+   *  меню колоды через deckExtras (напр. размер колоды). */
+  menus?: SceneMenus;
+  /** Канвас-кнопки хоста в правом верхнем углу (live-режим песочницы и т.п.). HTML в игровом
+   *  экране запрещён доктриной — интерфейс рисует движок. */
+  tools?: readonly SceneTool[];
   /** Live-присутствие (песочница, админов нет): лок «кто первый схватил», чужие курсоры и цвета.
    *  Хаб общий на всех клиентов стола (presence.ts); своего цвета сцена не рисует — палец и так свой. */
   presence?: { hub: PresenceHub; who: string; palette: (who: string) => number; label?: (who: string) => string };
@@ -78,6 +100,8 @@ export class BoardScene extends SceneEngine {
   private readonly decorLayer = new Graphics();
   private readonly hintLayer = new Graphics();
   private actionButtons: Button[] = [];
+  private toolButtons: Button[] = [];
+  private badgeText: Text | null = null;
   private diceText: Text | null = null;
 
   private spec: BoardSpec;
@@ -87,8 +111,7 @@ export class BoardScene extends SceneEngine {
   private state: BoardState;
   private tree: BoardTree;
 
-  // Контекстное меню настроек (opt-in через opts.configurable).
-  private settings: SandboxSettings | null;
+  // Контекстное меню настроек (opt-in через opts.menus).
   private menu: ContextMenu | null = null;
   private menuAt = { x: 0, y: 0 };
   private menuCtx: { kind: MenuTargetKind } | { kind: "deck"; slot: string } | { kind: "card"; id: string } = { kind: "table" };
@@ -122,7 +145,6 @@ export class BoardScene extends SceneEngine {
     this.spec = opts.spec;
     this.defs = elementById(opts.spec);
     this.selfSeat = opts.selfSeat ?? "p1";
-    this.settings = opts.configurable?.settings ?? null;
     this.driver = opts.driver ?? localDriver(opts.spec, opts.seats, opts.occupants);
     this.state = this.driver.boot();
     this.driver.onState((s) => {
@@ -192,7 +214,7 @@ export class BoardScene extends SceneEngine {
    *  Область зоны — ОБЪЕДИНЕНИЕ её ячеек: у фикс-слотов (ring/grid) rect'ы лежат по слотам,
    *  и «стол» — это вся их рамка, а не первая клетка. */
   private menuTargetAt(cp: { x: number; y: number }): MenuTargetKind | null {
-    if (!this.settings) return null;
+    if (!this.opts.menus) return null;
     let best: { kind: MenuTargetKind; area: number } | null = null;
     for (const zone of this.spec.zones) {
       let r: { x0: number; y0: number; x1: number; y1: number } | null = null;
@@ -224,23 +246,21 @@ export class BoardScene extends SceneEngine {
       this.menuCtx = this.isFreeZone(baseZoneId(zoneOf(slot))) ? { kind: "deck", slot } : { kind: "card", id: el.id };
     } else {
       const target = this.menuTargetAt(cp);
-      if (!target || !this.settings) return;
+      if (!target) return;
       this.menuCtx = { kind: target };
     }
     this.menuAt = { x: sp.x, y: sp.y };
     this.showMenu();
   }
 
-  private menuRows(): { title: string; rows: MenuRow[] } {
+  private menuRows(): { title: string; rows: readonly MenuRow[] } {
     const ctx = this.menuCtx;
     if (ctx.kind === "deck") {
       const rows: MenuRow[] = [
-        { key: "shuffle", label: "перемешать", onSelect: () => this.runAndClose(() => this.shuffleDeck(ctx.slot)) },
-        { key: "deal", label: "раздать по 2", onSelect: () => this.runAndClose(() => this.autoDeal(ctx.slot)) },
+        { key: "shuffle", label: "перемешать", close: true, onSelect: () => this.shuffleDeck(ctx.slot) },
+        { key: "deal", label: "раздать по 2", close: true, onSelect: () => this.autoDeal(ctx.slot) },
+        ...(this.opts.menus?.deckExtras?.() ?? []),
       ];
-      if (this.settings) {
-        rows.push({ key: "deck", label: "колода", value: String(this.settings.deck), onSelect: () => this.cycleSetting("deck") });
-      }
       return { title: "колода", rows };
     }
     if (ctx.kind === "card") {
@@ -256,30 +276,35 @@ export class BoardScene extends SceneEngine {
         ],
       };
     }
-    const rows = this.settings
-      ? settingRows(ctx.kind, this.settings).map((r) => ({
-          key: r.key,
-          label: r.label,
-          value: r.value,
-          onSelect: () => this.cycleSetting(r.key),
-        }))
-      : [];
-    return { title: ctx.kind === "board" ? "борда" : "стол", rows };
+    const hostMenu = this.opts.menus?.menuFor(ctx.kind);
+    return hostMenu ?? { title: ctx.kind === "board" ? "борда" : "стол", rows: [] };
   }
 
   private showMenu(): void {
     const { title, rows } = this.menuRows();
     if (!rows.length) return;
-    this.menu = new ContextMenu({ title, rows });
+    // После строки-настройки меню обновляется по месту (значение/состав строк сменились);
+    // строка-действие (close) закрывает меню — действию мешать незачем.
+    const wrapped = rows.map((row) => ({
+      ...row,
+      onSelect: () => {
+        row.onSelect();
+        if (row.close) this.closeMenu();
+        else this.refreshMenu();
+      },
+    }));
+    this.menu = new ContextMenu({ title, rows: wrapped });
     this.menu.place(this.menuAt.x, this.menuAt.y, this.width, this.height);
     this.chrome.addChild(this.menu.root);
-    this.chromeButtons = [...this.actionButtons, ...this.menu.buttons];
+    this.chromeButtons = [...this.actionButtons, ...this.toolButtons, ...this.menu.buttons];
     this.wake();
   }
 
-  private runAndClose(fn: () => void): void {
+  /** Обновить открытое меню по месту (после смены настройки состав/значения строк другие). */
+  private refreshMenu(): void {
+    if (!this.menu) return;
     this.closeMenu();
-    fn();
+    this.showMenu();
   }
 
   /** Меню одиночной карты: поворот 90° / принудительный флип. Локальный визуал (cardFx). */
@@ -293,8 +318,6 @@ export class BoardScene extends SceneEngine {
     }
     this.cardFx.set(id, fx);
     this.rebuildBoard(false);
-    this.closeMenu();
-    this.showMenu(); // значения строк обновились
   }
 
   private closeMenu(): void {
@@ -303,7 +326,7 @@ export class BoardScene extends SceneEngine {
     if (this.hoveredBtn && this.menu.buttons.includes(this.hoveredBtn)) this.hoveredBtn = null;
     this.menu.destroy();
     this.menu = null;
-    this.chromeButtons = this.actionButtons;
+    this.chromeButtons = [...this.actionButtons, ...this.toolButtons];
     this.wake();
   }
 
@@ -335,19 +358,9 @@ export class BoardScene extends SceneEngine {
     this.wake();
   }
 
-  /** Тап по строке меню: перещёлкнуть настройку, пересобрать борду БЕЗ потери карт, меню обновить. */
-  private cycleSetting(key: keyof SandboxSettings): void {
-    const build = this.opts.configurable?.build;
-    if (!build || !this.settings) return;
-    this.settings = applySetting(this.settings, key);
-    this.reconfigure(build(this.settings), this.settings.seats);
-    this.closeMenu();
-    this.showMenu(); // тот же якорь: значения в строках обновились, состав строк мог смениться
-  }
-
   /** Сменить спеку на лету: жители пересыпаются migrateState, драйвер пересоздаётся с готовым
-   *  снимком. Работает только со СВОИМ localDriver (см. opts.configurable). */
-  private reconfigure(spec: BoardSpec, seats?: number): void {
+   *  снимком. Работает только со СВОИМ localDriver (standalone); зовёт хост меню (menus). */
+  reconfigure(spec: BoardSpec, seats?: number): void {
     this.spec = spec;
     this.defs = elementById(spec);
     this.state = migrateState(this.state, spec, seats);
@@ -393,10 +406,27 @@ export class BoardScene extends SceneEngine {
       this.chrome.addChild(b.root);
       this.actionButtons.push(b);
     }
+    // Инструменты хоста (live и т.п.) — канвасом в правом верхнем углу: HTML в игре запрещён.
+    for (const tool of this.opts.tools ?? []) {
+      const b = new Button({ label: tool.label, size: "sm", variant: "secondary", onClick: tool.onClick });
+      this.chrome.addChild(b.root);
+      this.toolButtons.push(b);
+    }
+    this.badgeText = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 14, fill: COLORS.gold } });
+    this.badgeText.anchor.set(1, 0.5);
+    this.chrome.addChild(this.badgeText);
     this.diceText = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 20, fill: COLORS.gold } });
     this.diceText.anchor.set(1, 0.5);
     this.chrome.addChild(this.diceText);
-    this.chromeButtons = this.actionButtons;
+    this.chromeButtons = [...this.actionButtons, ...this.toolButtons];
+  }
+
+  /** Строка статуса хоста у инструментов (live: «ник · комната 1234»). Пустая строка — спрятать. */
+  setBadge(text: string): void {
+    if (!this.badgeText) return;
+    this.badgeText.text = text;
+    this.layoutChrome(this.width, this.height);
+    this.wake();
   }
 
   protected layoutChrome(w: number, h: number): void {
@@ -406,6 +436,13 @@ export class BoardScene extends SceneEngine {
       b.place(x + b.w / 2, y);
       x += b.w + 8;
     }
+    // Инструменты — от правого края, бейдж — слева от них.
+    let rx = w - 12;
+    for (const b of [...this.toolButtons].reverse()) {
+      b.place(rx - b.w / 2, 30);
+      rx -= b.w + 8;
+    }
+    this.badgeText?.position.set(rx, 30);
     this.diceText?.position.set(w - 12, y);
   }
 
@@ -649,14 +686,20 @@ export class BoardScene extends SceneEngine {
     }
   }
 
-  /** Подсветка целевого слота под пальцем — по cellRects/размеру слота из дерева. */
+  /** Подсветка целевого слота под пальцем — по cellRects/размеру слота из дерева.
+   *  ФОРМА подсветки следует форме зоны: круглая зона подсвечивается КРУГОМ, не квадратом. */
   private paintHints(): void {
     const g = this.hintLayer;
     g.clear();
     if (!this.dragging || !this.hotSlot) return;
     const r = this.tree.cellRects[this.hotSlot];
     if (r) {
-      g.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 8).stroke({ width: 3, color: COLORS.gold });
+      const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(this.hotSlot!)));
+      if (zone?.shape === "circle") {
+        g.circle(r.x + r.w / 2, r.y + r.h / 2, Math.min(r.w, r.h) / 2 + 3).stroke({ width: 3, color: COLORS.gold });
+      } else {
+        g.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 8).stroke({ width: 3, color: COLORS.gold });
+      }
       return;
     }
     const at = this.tree.origins[this.hotSlot];

@@ -8,7 +8,8 @@ import { STACK_ARGS, STACK_ARG_TYPES, interactionFrom, layoutFrom, stackOptsFrom
 import { STACK_INTERACTIONS } from "../../game/kit/stackInteraction";
 import { BoardScene } from "../../game/boards/scene";
 import { roundTableBoard } from "../../game/boards/library";
-import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "../../game/boards/settings";
+import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "../../game/sandbox/settings";
+import { sandboxMenus } from "../../game/sandbox/menus";
 
 const deckAction = action("dispatch → мок-порт");
 
@@ -293,13 +294,13 @@ function DeckActionsStage(a: DeckArgs) {
     if (!host) return;
     const build = (s: SandboxSettings) => roundTableBoard({ ...s, dealt: 0 });
     const settings: SandboxSettings = { ...DEFAULT_SANDBOX_SETTINGS, seats: a.seats, deck: a.deck };
+    const g = globalThis as unknown as { __board?: BoardScene };
     const scene = new BoardScene({
       spec: build(settings),
       seats: a.seats,
       onCommand: (cmd) => deckAction(cmd),
-      configurable: { settings, build },
+      menus: sandboxMenus(settings, build, () => g.__board ?? null),
     });
-    const g = globalThis as unknown as { __board?: BoardScene };
     g.__board = scene;
     void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
     return () => {

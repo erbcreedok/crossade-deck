@@ -6,9 +6,10 @@ import { createBoardTable } from "../../game/boards/boardTable";
 import type { BoardDriver } from "../../game/boards/driver";
 import { BOARD_LIBRARY, roundTableBoard, type BoardLibraryId } from "../../game/boards/library";
 import type { RoundTableOpts } from "../../game/boards/library/roundTable";
-import { sandboxBoard } from "../../game/boards/library/sandbox";
+import { sandboxBoard } from "../../game/sandbox/board";
 import { createPresenceHub } from "../../game/boards/presence";
-import { DEFAULT_SANDBOX_SETTINGS } from "../../game/boards/settings";
+import { DEFAULT_SANDBOX_SETTINGS } from "../../game/sandbox/settings";
+import { sandboxMenus } from "../../game/sandbox/menus";
 import { USER_COLORS } from "../../game/boards/room";
 import type { BoardCommand } from "../../game/boards/spec";
 
@@ -137,10 +138,11 @@ function RoundStage(a: RoundArgs) {
       seats: a.seats,
       onCommand: (cmd: BoardCommand) => onCommand(cmd),
       // Настройки меню = те же рычаги: long-press по гриду/борде (ПКМ на десктопе) крутит их живьём.
-      configurable: {
-        settings: { shape: a.shape, table: a.table, slots: opts.slots ?? "dynamic", stacking: a.stacking ?? true, seats: a.seats, deck: 36 },
-        build: (s) => roundTableBoard({ ...s, dealt: a.dealt }),
-      },
+      menus: sandboxMenus(
+        { shape: a.shape, table: a.table, slots: opts.slots ?? "dynamic", stacking: a.stacking ?? true, seats: a.seats, deck: 36 },
+        (s) => roundTableBoard({ ...s, dealt: a.dealt }),
+        () => g.__board ?? null,
+      ),
     });
     const g = globalThis as unknown as { __board?: BoardScene };
     g.__board = scene;
