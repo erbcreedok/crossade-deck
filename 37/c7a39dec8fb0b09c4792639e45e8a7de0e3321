@@ -1,0 +1,52 @@
+client2/src/stories/kit/Stacks.stories.tsx
+  s_4a533e9779ccb0::t_af68495e6b92bc 83,85,174-175,191,193,223-224,239,241
+client2/src/game/engine/inputRouter.ts
+  s_4a533e9779ccb0::t_c6d3ef7c23b5a0 95,119,121,138-139,143,146,149,153,156,160,163,187,194,199,207,214,237,239,243,248,281,284,296
+  s_4a533e9779ccb0::t_af68495e6b92bc 34-35,57-61,65,69,120,137,140,164,192,204,216,238,242,247,289
+  s_4a533e9779ccb0::t_33c6c07c75dcbd 3-4,16,22,41,43,52-53,71,118,246,264,309
+client2/src/game/engine/tableEngine.ts
+  s_4a533e9779ccb0::t_af68495e6b92bc 337-339,342,350,356,362,366
+client2/src/game/engine/kitScene.dragRouting.test.ts
+  s_4a533e9779ccb0::t_af68495e6b92bc 4,6,8,20,25,32,84
+client2/src/game/engine/inputRouter.test.ts
+  s_4a533e9779ccb0::t_33c6c07c75dcbd 4,52,63,65,85,148,183,194
+  s_4a533e9779ccb0::t_af68495e6b92bc 15-16,21-26,173,220
+client2/src/game/engine/kitScene.ts
+  s_4a533e9779ccb0::t_af68495e6b92bc 21,68,76,125,442-443,598,604-605,614,617,623,625,640,643-645,647,653,670
+client2/src/game/engine/panZoom.ts
+  s_4a533e9779ccb0::t_af68495e6b92bc 67-69,72-76
+client2/src/game/engine/sceneEngine.ts
+  s_4a533e9779ccb0::t_af68495e6b92bc 171,869-870,881,896,905,915,923-924
+client2/src/stories/kit/stackArgs.ts
+  s_4a533e9779ccb0::t_0051a101f174b1 20
+  s_4a533e9779ccb0::t_af68495e6b92bc 5,11,22,66,68,70,98-100,178-179,183-184,188,190-191,195,213,224,240,242
+  s_4a533e9779ccb0::t_d91a8c202c8f82 50,130
+  s_4a533e9779ccb0::t_4ba25d995b1efe 199
+  s_4a533e9779ccb0::t_e80cd6dc25a46c 65,67,69,71
+  s_4a533e9779ccb0::t_39e8ba083a513a 180,185,192
+client2/src/game/kit/stackInteraction.ts
+  s_4a533e9779ccb0::t_69cce1e532a8b9 150-151,154,160-162,164,166,170,177-178
+  s_4a533e9779ccb0::t_af68495e6b92bc 163,165,167-169,179,195,208,212,216,220,224
+  s_4a533e9779ccb0::t_fc6843c28504f1 223
+  s_4a533e9779ccb0::t_6944af610dce3f 204
+client2/src/stories/mechanics/StackInteractions.stories.tsx
+  s_4a533e9779ccb0::t_af68495e6b92bc 31-33,60-62,78-80,103-105,118,120,132,134,167,191
+client2/src/game/kit/stackInteraction.test.ts
+  s_4a533e9779ccb0::t_af68495e6b92bc 3,118-120,122,137,141-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "37c7a39dec8fb0b09c4792639e45e8a7de0e3321",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
