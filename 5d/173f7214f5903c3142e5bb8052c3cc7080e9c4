@@ -1,0 +1,35 @@
+client2/src/stories/kit/Selection.stories.tsx
+  s_3dafb7cb3bdfba::t_51905031993a1e 66-76
+  s_3dafb7cb3bdfba::t_4e809df904470e 5,14,16-21,25-26,30,34,39-40,53-54,104
+client2/src/game/ui/Card.ts
+  s_3dafb7cb3bdfba::t_18d65f33cd80d8 429-433,437-441
+  s_3dafb7cb3bdfba::t_9e2c00e15b57ef 6,106,434-436,442
+  s_3dafb7cb3bdfba::t_7cbd5456dec607 443-444
+client2/src/game/engine/element.ts
+  s_3dafb7cb3bdfba::t_18d65f33cd80d8 82-83
+  s_3dafb7cb3bdfba::t_4097340fe92034 78-81,84
+client2/src/game/ui/Piece.ts
+  s_3dafb7cb3bdfba::t_9e2c00e15b57ef 17,71,112-114,120-122
+  s_3dafb7cb3bdfba::t_18d65f33cd80d8 109-111,115-119
+client2/src/game/ui/selection.ts
+  s_3dafb7cb3bdfba::t_674f2f48084ec8 49-61
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_4097340fe92034 184-188,191-195,219-220,228-229,851
+  s_3dafb7cb3bdfba::t_0e0a61ac258789 22,189-190,196-218,221-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "5d173f7214f5903c3142e5bb8052c3cc7080e9c4",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
