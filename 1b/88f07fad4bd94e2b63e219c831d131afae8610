@@ -1,0 +1,19 @@
+client2/src/game/engine/kitScene.ts
+  s_73847489de6701::t_8a3674246322e2 424-433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1b88f07fad4bd94e2b63e219c831d131afae8610",
+  "prompts": {},
+  "sessions": {
+    "s_73847489de6701": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c73eb97d-4df4-4085-ad0c-cc0e1b0de62e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
