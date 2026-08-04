@@ -1,0 +1,21 @@
+client2/src/game/kit/figureGlow.ts
+  s_3dafb7cb3bdfba::t_1c13e32d65f810 1-51
+client2/src/stories/kit/Selection.stories.tsx
+  s_3dafb7cb3bdfba::t_f1d6dc693a083c 6,73-77,82-85,87-92,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "cc6073d2f2a54a6d4060eb409f42451efef26ff9",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
