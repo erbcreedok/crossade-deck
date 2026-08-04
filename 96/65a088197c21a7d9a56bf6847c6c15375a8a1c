@@ -1,0 +1,24 @@
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_b6851aff658433 189-192
+  s_3dafb7cb3bdfba::t_327828f8770899 184-185
+client2/src/game/ui/Piece.ts
+  s_3dafb7cb3bdfba::t_327828f8770899 66
+client2/src/stories/kit/Selection.stories.tsx
+  s_3dafb7cb3bdfba::t_93e92b3f8c42e4 77-95,97,99,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "9665a088197c21a7d9a56bf6847c6c15375a8a1c",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
