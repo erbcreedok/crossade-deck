@@ -1,0 +1,44 @@
+client2/src/game/boards/room.ts
+  s_3dafb7cb3bdfba::t_9daf3a31733dc1 71
+client2/src/stories/boards/Boards.stories.tsx
+  s_3dafb7cb3bdfba::t_6cf91455214590 265-274,276-387
+  s_3dafb7cb3bdfba::t_e92f0957a361f6 11
+  s_3dafb7cb3bdfba::t_9cb1bc414fc465 275
+  s_3dafb7cb3bdfba::t_38f82a330ff72e 9-10,12
+client2/src/game/boards/presence.test.ts
+  s_3dafb7cb3bdfba::t_feeef6fe6372fb 1-29
+client2/src/game/boards/scene.ts
+  s_3dafb7cb3bdfba::t_5f8232bfa28fdc 56-58
+  s_3dafb7cb3bdfba::t_771c87673ad590 133-160,163-175,177-186
+  s_3dafb7cb3bdfba::t_e983853c3747c4 161-162
+  s_3dafb7cb3bdfba::t_0fe59b90cdadf8 696-701
+  s_3dafb7cb3bdfba::t_c2511d4c3594c6 102,104-108
+  s_3dafb7cb3bdfba::t_f94a83f85eee3e 176
+  s_3dafb7cb3bdfba::t_fecce4e9ad79f0 896-897
+  s_3dafb7cb3bdfba::t_6cf811973e5be9 26
+  s_3dafb7cb3bdfba::t_cb250ade0b2eaa 384
+  s_3dafb7cb3bdfba::t_3aac481acacefc 103
+  s_3dafb7cb3bdfba::t_45ce4dc1be0541 383
+  s_3dafb7cb3bdfba::t_c727cce9dcc4e3 868-871
+  s_3dafb7cb3bdfba::t_4d1fc0d26c3d52 1
+  s_3dafb7cb3bdfba::t_a4f527bb008a51 721-726
+  s_3dafb7cb3bdfba::t_5724f9e8ae1c04 478
+client2/src/game/boards/presence.ts
+  s_3dafb7cb3bdfba::t_6efefd3b9cbc13 1-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "0ae635c0e3399aeb4c4b1e9da60343ce3283e9f0",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
