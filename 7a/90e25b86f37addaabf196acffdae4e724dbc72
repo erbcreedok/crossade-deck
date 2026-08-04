@@ -1,0 +1,21 @@
+client2/docs/SANDBOX-HANDOFF.md
+  s_3dafb7cb3bdfba::t_ba9ebb257c41c1 1-78
+client2/docs/MECHANICS-HANDOFF.md
+  s_3dafb7cb3bdfba::t_874ee1141f1bb8 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "7a90e25b86f37addaabf196acffdae4e724dbc72",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
