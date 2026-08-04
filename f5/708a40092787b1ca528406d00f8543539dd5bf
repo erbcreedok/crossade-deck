@@ -1,0 +1,19 @@
+client2/src/stories/kit/Selection.stories.tsx
+  s_3dafb7cb3bdfba::t_da5c29a8280ce3 5,54-55,58,60,67-68,70-71,73-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "f5708a40092787b1ca528406d00f8543539dd5bf",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
