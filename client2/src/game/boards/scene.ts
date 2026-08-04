@@ -55,7 +55,7 @@ export interface BoardSceneOptions {
   configurable?: { settings: SandboxSettings; build: (s: SandboxSettings) => BoardSpec };
   /** Live-присутствие (песочница, админов нет): лок «кто первый схватил», чужие курсоры и цвета.
    *  Хаб общий на всех клиентов стола (presence.ts); своего цвета сцена не рисует — палец и так свой. */
-  presence?: { hub: PresenceHub; who: string; palette: (who: string) => number };
+  presence?: { hub: PresenceHub; who: string; palette: (who: string) => number; label?: (who: string) => string };
 }
 
 type BoardNode = Card | Piece;
@@ -171,7 +171,7 @@ export class BoardScene extends SceneEngine {
         g.circle(at.x, at.y, 11).stroke({ width: 2, color, alpha: 0.5 });
         let label = this.cursorLabels.get(who);
         if (!label) {
-          label = new Text({ text: who, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: color } });
+          label = new Text({ text: p.label?.(who) ?? who, style: { fontFamily: PIXEL_FONT, fontSize: 12, fill: color } });
           label.anchor.set(0, 0);
           this.presenceRoot.addChild(label);
           this.cursorLabels.set(who, label);

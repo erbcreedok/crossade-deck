@@ -6,6 +6,7 @@ import colyseusPkg from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { CardRoom } from "./CardRoom.js";
 import { TestRoom } from "./TestRoom.js";
+import { SandboxRoom } from "./SandboxRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
 import { createAccount, findAccountByRecoveryHash, renameAccount, regenerateRecoveryHash } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
@@ -30,6 +31,8 @@ const gameServer = new Server({ transport: new WebSocketTransport({ server: http
 gameServer.define("card_room", CardRoom);
 // Тестовая комната с ботами за столом — площадка для посадки/вёрстки/дроп-зон.
 gameServer.define("test_room", TestRoom);
+// Песочница-live: отдельная комната-ретранслятор (снимки борды + присутствие), вход без токена.
+gameServer.define("sandbox_room", SandboxRoom);
 
 // Найти roomId по 4-значному коду — используется клиентом для join по коду
 app.get("/rooms/by-code/:code", (req, res) => {
