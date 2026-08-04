@@ -636,12 +636,18 @@ export class BoardScene extends SceneEngine {
     return members[members.length - 1] === el.id;
   }
 
+  /** У жителей free-стопки ДВА драг-интента: тап тащит верхнюю карту, hold — всю колоду блоком. */
+  protected dragOnHold(el: SceneElement): boolean {
+    const slot = this.tree.slotOf(el.id);
+    return !!slot && this.isFreeZone(baseZoneId(zoneOf(slot)));
+  }
+
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     this.closeMenu(); // начался драг — меню больше не к месту
     this.dragging = true;
     const slot = this.tree.slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
-    if (slot && zone && this.isFreeZone(zone)) {
+    if (slot && zone && this.isFreeZone(zone) && this.grabMode === "hold") {
       // Тащим ВСЮ стопку как блок: жест берёт весь слот, а не верхнюю карту (одиночную не вынуть).
       // GroupDrag ведёт все карты жёстко за пальцем со СВОИМИ текущими сдвигами (форма стопки цела);
       // на дропе сцена сдвинет freeOffset, и release посадит каждую в новый дом.

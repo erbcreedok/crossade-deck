@@ -153,19 +153,19 @@ describe("buildBoardTree", () => {
     expect(home.y).toBeGreaterThan(box.y + 80);
   });
 
-  it("песочница: грид-стол отцентрован ВНУТРИ бокса-колоды (не в ряд рядом с ним)", () => {
+  it("песочница: круглый стол по дефолту — бокс-борда в центре посадок, стол-круг внутри, колода в боксе", () => {
     const spec = sandboxBoard();
-    const tree = buildBoardTree(spec, bootState(spec, 1), "p1");
-    const box = tree.cellRects["deck:0"]!; // серый бокс
-    const grid = tree.cellRects["table:0"]!; // грид-стол
-    // Грид целиком внутри бокса.
-    expect(grid.x).toBeGreaterThanOrEqual(box.x);
-    expect(grid.y).toBeGreaterThanOrEqual(box.y);
-    expect(grid.x + grid.w).toBeLessThanOrEqual(box.x + box.w);
-    expect(grid.y + grid.h).toBeLessThanOrEqual(box.y + box.h);
-    // Центры совпадают (грид по центру бокса).
+    const s = bootState(spec, 4);
+    const tree = buildBoardTree(spec, s, "p1");
+    const box = tree.cellRects["board:0"]!;
+    const grid = tree.cellRects["table:0"]!;
+    // Стол-круг целиком внутри бокса, центры совпадают.
     expect(grid.x + grid.w / 2).toBeCloseTo(box.x + box.w / 2, 3);
     expect(grid.y + grid.h / 2).toBeCloseTo(box.y + box.h / 2, 3);
+    expect(grid.w).toBeLessThanOrEqual(box.w);
+    // Посадочные слоты есть у каждого места, колода лежит в боксе.
+    for (const seat of s.seats) expect(tree.cellRects[`place@${seat.id}:0`]).toBeDefined();
+    expect(tree.slotOf("6♠")).toBe("board:0");
   });
 
   it("radial: один живой контейнер, рамка КВАДРАТНАЯ (круг ровный), жители по кругу внутри", () => {
