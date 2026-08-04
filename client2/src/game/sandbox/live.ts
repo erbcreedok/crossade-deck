@@ -11,6 +11,7 @@ import { Client, type Room } from "colyseus.js";
 import { httpUrl, serverUrl } from "../../net/runtimeConfig";
 import { browserAccountStorage, loadAccount } from "../../net/account";
 import { applyCommand, bootState } from "../boards/mock";
+import { seatOccupants, withOccupants } from "./liveSeats";
 import type { BoardDriver } from "../boards/driver";
 import type { PresenceHub, PresenceView } from "../boards/presence";
 import type { BoardSpec } from "../boards/spec";
@@ -75,19 +76,24 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
   // ——— роստер: id → участник (имена и цвета для присутствия) ———
   let members = new Map(welcome.roster.map((m) => [m.id, m]));
   const rosterSubs: ((m: readonly LiveMember[]) => void)[] = [];
-  room.onMessage("roster", (msg: { members: LiveMember[] }) => {
-    members = new Map(msg.members.map((m) => [m.id, m]));
-    for (const cb of rosterSubs) cb([...members.values()]);
-  });
 
   // ——— драйвер борды поверх комнаты ———
-  let state: BoardState = welcome.state ?? bootState(spec, welcome.seats);
+  // Рассадку ЛЮБОГО снимка переписывает ростер комнаты: никаких мок-фантомов «Игрок N» и
+  // никакого доверия чужому представлению мест — авторитет по стульям один (комната).
+  const occupants = (): (string | null)[] => seatOccupants([...members.values()], welcome.seats);
+  let state: BoardState = withOccupants(welcome.state ?? bootState(spec, welcome.seats), occupants());
   const stateSubs: ((s: BoardState) => void)[] = [];
   const emitState = (): void => {
     for (const cb of stateSubs) cb(state);
   };
+  room.onMessage("roster", (msg: { members: LiveMember[] }) => {
+    members = new Map(msg.members.map((m) => [m.id, m]));
+    for (const cb of rosterSubs) cb([...members.values()]);
+    state = withOccupants(state, occupants());
+    emitState();
+  });
   room.onMessage("cmd", (msg: { state: BoardState }) => {
-    state = msg.state;
+    state = withOccupants(msg.state, occupants());
     emitState();
   });
   const driver: BoardDriver = {
@@ -95,7 +101,7 @@ export async function joinSandboxLive(spec: BoardSpec, opts: { code?: string } =
     dispatch(cmd) {
       const next = applyCommand(spec, state, cmd, Math.random);
       if (next === state) return;
-      state = next;
+      state = withOccupants(next, occupants());
       emitState();
       room.send("cmd", { cmd, state });
     },
