@@ -1,0 +1,23 @@
+client2/src/stories/mechanics/StackInteractions.stories.tsx
+  s_4a533e9779ccb0::t_40117cf2fd2e76 181-225
+  s_4a533e9779ccb0::t_38f7fb16589f79 23-25,31-33
+  s_4a533e9779ccb0::t_1f3a3346f74a3e 81-82,88-90
+  s_4a533e9779ccb0::t_6e87f5539438cd 52,57,64-66
+  s_4a533e9779ccb0::t_f6c7aa7232304a 113-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "5f97b2d064f89758136c28781e728ea8bb8d4ee4",
+  "prompts": {},
+  "sessions": {
+    "s_4a533e9779ccb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "615d0714-7b09-412d-8fde-d9a31d0109d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
