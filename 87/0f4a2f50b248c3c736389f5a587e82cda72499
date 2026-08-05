@@ -1,0 +1,19 @@
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_a5f08f83c352c2 217-218,282,313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "870f4a2f50b248c3c736389f5a587e82cda72499",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
