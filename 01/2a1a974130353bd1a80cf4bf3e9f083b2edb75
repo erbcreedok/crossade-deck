@@ -1,0 +1,42 @@
+client2/src/game/boards/geometry/dropPlan.test.ts
+  s_b2849f723d52bb::t_4d4a8ff0b8144b 1-80
+client2/src/game/boards/scene/decor.ts
+  s_b2849f723d52bb::t_dd06c79db30b0f 1-161
+client2/src/game/boards/geometry/roundTableTree.ts
+  s_b2849f723d52bb::t_11b3d2a5343c5c 1-119
+client2/src/game/boards/geometry/treeShared.ts
+  s_b2849f723d52bb::t_11b3d2a5343c5c 1-67
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_319b5cbd9a5993 1,3,19,22-25,99-102,149-187
+  s_b2849f723d52bb::t_5b8b2ab6d66262 11-12,405,407,493,556-557,607-617,619-620,623-631
+  s_b2849f723d52bb::t_f2d3da02e7e878 221,277-278,295,298-299,303,305,309,381,384,506
+  s_b2849f723d52bb::t_ab1aec07bceff7 417,423,578-579,675,678
+client2/src/game/boards/scene/nodeFactory.ts
+  s_b2849f723d52bb::t_62acbddfabf012 1-32
+client2/src/game/boards/geometry/dropPlan.ts
+  s_b2849f723d52bb::t_035fcc44633d5a 1-135
+client2/src/game/boards/scene/chrome.ts
+  s_b2849f723d52bb::t_8829bce595453a 1-83
+client2/src/game/boards/geometry/zoneSubtrees.ts
+  s_b2849f723d52bb::t_11b3d2a5343c5c 1-154
+client2/src/game/boards/scene/menu.ts
+  s_b2849f723d52bb::t_7f4aa20f4523df 1-155
+client2/src/game/boards/geometry/boardTree.ts
+  s_b2849f723d52bb::t_11b3d2a5343c5c 2-4,6-13,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "012a1a974130353bd1a80cf4bf3e9f083b2edb75",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
