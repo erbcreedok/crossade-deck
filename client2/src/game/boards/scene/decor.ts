@@ -9,6 +9,9 @@ import { dashedRectSegments } from "../../ui/dashedRectSegments";
 import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
 import type { BoardTree } from "../geometry/boardTree";
 import { baseZoneId, slotKey, zoneOf, type BoardSpec } from "../core/spec";
+import { handKey } from "../core/state";
+import { handConfig } from "../hand/handConfig";
+import { paintHandBand } from "../hand/handBandPaint";
 import type { BoardState } from "../core/state";
 
 export interface DecorSceneHost {
@@ -33,6 +36,15 @@ export class SceneDecor {
   sync(): void {
     this.syncSeats();
     this.paintZones();
+    this.paintHandBand();
+  }
+
+  /** Лента руки-на-борде в покое (rest) — тем же стилем, что экранный док (handBandPaint).
+   *  Armed/hot во время драга рисует жест поверх (hintLayer). */
+  private paintHandBand(): void {
+    if (handConfig(this.host.spec().hand)?.placement !== "board") return;
+    const band = this.host.tree().cellRects[handKey(this.host.selfSeat)];
+    if (band) paintHandBand(this.layer, band, "rest", this.host.accent());
   }
 
   /** Подписи мест: имя/«свободно», у чьего хода — золотая метка. Свой ход виден у руки. */

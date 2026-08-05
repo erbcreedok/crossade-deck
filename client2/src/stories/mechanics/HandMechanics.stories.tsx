@@ -45,18 +45,6 @@ function dockSpec(a: DockArgs): BoardSpec {
         drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(0, 18) },
       },
-      {
-        // Реордер-грид со SMART REORDER (opt-in preview): жители расступаются под гэп на индексе
-        // вставки, дроп из другой зоны ложится в показанный гэп — тот же примитив, что у руки.
-        id: "row",
-        title: "ряд",
-        layout: { kind: "flow" },
-        cell: { w: Math.round(CARD.w * 1.3), h: Math.round(CARD.h * 1.3) },
-        policy: { onOccupied: "merge" },
-        frame: "dashed",
-        preview: true,
-        setup: { 0: ids.slice(18, 21) },
-      },
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
     hand: { reorder: true, placement: a.pin, side: a.side, ...(a.flow === "по краю" ? {} : { flow: a.flow }), ...(a.fit > 0 ? { size: a.fit } : {}) },
@@ -88,12 +76,25 @@ const meta: Meta<DockArgs> = {
   title: "Mechanics/Hand",
   parameters: {
     layout: "fullscreen",
-    code: () => `import { BoardScene } from "../../game/boards/scene/scene";
+    code: () => `import { BoardScene } from "game/boards/scene/scene";
+import type { BoardSpec } from "game/boards/core/spec";
 
-// Рука — данные HandSpec: где живёт (placement), у какого края (side), вдоль какой оси (flow).
-// Дефолты — bottom и вдоль края; геометрию дока считает чистый boards/hand/handDock.ts.
-const spec = { ...boardSpec, hand: { reorder: true, placement: "screen", side: "right" } };
-void new BoardScene({ spec, seats: 1 }).mount(host, width, height);`,
+// РУКА — одно поле данных спеки. Добавь hand в BoardSpec — сцена соберёт всё сама:
+// раскладку, дроп-ленту rest/armed/hot, драг рука↔стол, реордер и гэп-превью вставки.
+const spec: BoardSpec = {
+  ...myBoard, // любая борда: зоны, места, элементы
+  hand: {
+    reorder: true,        // реордер внутри руки
+    placement: "screen",  // "screen" — прибита к экрану (док); "board" — зона на столе
+    side: "bottom",       // край дока: bottom | top | left | right
+    flow: "horizontal",   // ось: horizontal | vertical | grid (дефолт — вдоль края)
+    size: 5,              // адаптив «влезает N карт» (или { w, h } — фикс-ячейка)
+    hidden: true,         // значения не видны другим (фильтр порта, не краска)
+    locked: true,         // чужие руку не трогают (false — общая рука)
+    // preview: false,    // выключить smart reorder (гэп-превью вставки)
+  },
+};
+void new BoardScene({ spec, seats: 2 }).mount(host, width, height);`,
   },
   args: { pin: "screen", side: "bottom", flow: "по краю", handCards: 5, fit: 0 },
   argTypes: {
@@ -153,8 +154,57 @@ export const GridDock: Story = { args: { flow: "grid", handCards: 10, fit: 4 } }
 
 /**
  * Рука НА БОРДЕ (placement:"board"): та же рука зоной в дереве — зумится и ездит со столом, но
- * механика ПОЛНАЯ и та же: гэп-превью вставки (жители расступаются), дроп со стола в показанный
- * гэп, реордер. Общий примитив group.gap движка слотов — раскладке всё равно, рука это или грид:
- * пунктирный «ряд» в центре стола превьюится тем же кодом (у зон это opt-in `preview: true`).
+ * вид и механика ТЕ ЖЕ, что у дока: центрированный ряд, лента rest/armed/hot, гэп-превью
+ * вставки, дроп со стола в показанный гэп, реордер.
  */
 export const BoardHand: Story = { args: { pin: "board", handCards: 4 } };
+
+/** Мини-сцена SMART REORDER для ЗОНЫ (без руки): flow-«ряд» с opt-in `preview: true` — жители
+ *  расступаются под гэп, дроп из колоды ложится в показанный гэп. Тот же примитив, что у руки
+ *  (group.gap слот-дерева); без флага зона живёт по-старому (дроп в конец). */
+function zonePreviewSpec(): BoardSpec {
+  const { cards, ids } = deck36();
+  return {
+    id: "zone-preview",
+    title: "",
+    elements: cards,
+    zones: [
+      {
+        id: "board",
+        title: "",
+        layout: { kind: "free" },
+        cell: { w: Math.round(CARD.w * 5), h: Math.round(CARD.h * 3.6) },
+        policy: { onOccupied: "merge" },
+        drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
+        setup: { 0: ids.slice(0, 12) },
+      },
+      {
+        id: "row",
+        title: "ряд",
+        layout: { kind: "flow" },
+        cell: { w: Math.round(CARD.w * 1.3), h: Math.round(CARD.h * 1.3) },
+        policy: { onOccupied: "merge" },
+        frame: "dashed",
+        preview: true,
+        setup: { 0: ids.slice(12, 15) },
+      },
+    ],
+    seats: { count: { fixed: 1 }, show: "none", swap: false },
+    actions: [],
+  };
+}
+
+function ZoneStage() {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const scene = new BoardScene({ spec: zonePreviewSpec(), seats: 1, onCommand: (cmd) => handAction(cmd) });
+    (window as unknown as { __story?: BoardScene }).__story = scene;
+    void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
+    return () => scene.destroy();
+  }, []);
+  return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
+}
+
+export const ZonePreview: Story = { render: () => <ZoneStage /> };

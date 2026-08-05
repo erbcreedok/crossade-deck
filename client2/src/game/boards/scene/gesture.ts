@@ -3,12 +3,9 @@
 // дроп и что видят остальные клиенты.
 //
 // Правил тут нет — они данные и чистые планировщики (geometry/dropPlan.ts, geometry/sceneAreas.ts).
-// Здесь порядок действий вокруг них, и именно в нём легко ошибиться молча:
-//   • подсветка перекрашивается только когда цель СМЕНИЛАСЬ (иначе перерисовка на каждую точку);
-//   • блок-драг колоды не светит боксы вовсе — тащат стопку, а не карту в слот;
-//   • дроп в фикс-зону у низа экрана (мобильный заменитель ПКМ) разбирается ДО плана дропа: груз
-//     летит домой, а действие зоны выполняется;
-//   • конец жеста обязан снять всё: подсветку, фикс-зоны, сдвиг блок-драга и live-лок.
+// Здесь порядок действий вокруг них: подсветка перекрашивается только на СМЕНЕ цели; блок-драг
+// колоды боксы не светит; фикс-зоны низа экрана разбираются ДО плана дропа; конец жеста снимает
+// всё (подсветку, фикс-зоны, сдвиг блок-драга, live-лок).
 
 import { Graphics } from "pixi.js";
 import type { SceneElement } from "../../engine/sceneEngine";
@@ -21,6 +18,7 @@ import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from 
 import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
 import { handKey, type BoardState } from "../core/state";
 import { handConfig, handLocks } from "../hand/handConfig";
+import { paintHandBand } from "../hand/handBandPaint";
 import type { BoardTree } from "../geometry/boardTree";
 import { DropBar } from "../../ui/DropBar";
 import type { BoardNode } from "./nodeFactory";
@@ -120,8 +118,7 @@ export class SceneGesture {
       this.deps.presenceOwner.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок
       return true;
     }
-    // Карта своей руки: перевести ТУ ЖЕ ноду из руки (экран) в контент — дальше обычный драг.
-    if (this.deps.handMembers().includes(el.id)) this.deps.setDragSpace(el.id, "content");
+    if (this.deps.handMembers().includes(el.id)) this.deps.setDragSpace(el.id, "content"); // та же нода: рука → контент
     const ok = this.deps.defaultBeginDrag(el, cp, sp);
     // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка» (armed/hot зоны ведёт moved).
     if (ok) this.showBar([{ key: "menu", label: "настройка" }]);
@@ -134,8 +131,7 @@ export class SceneGesture {
       this.dropBar.hotAt(ds.x, ds.y);
       this.deps.wake();
     }
-    // Драг-стрим: остальным клиентам — ЦЕНТР карты в пальцах (не точка хвата), темп курсора.
-    // Блок-драг колоды — той же строкой с флагом block: зрители двигают ВСЮ стопку той же дельтой.
+    // Драг-стрим: остальным — ЦЕНТР карты в пальцах; блок-драг той же строкой с флагом block.
     const pr = this.deps.presence;
     const gn = pr && this.grabbedEl ? this.deps.node(this.grabbedEl) : null;
     if (pr && gn) pr.hub.drag(pr.who, this.grabbedEl!, { x: gn.body.px, y: gn.body.py }, this.deps.blockDrag.active());
@@ -245,7 +241,9 @@ export class SceneGesture {
   paintHints(): void {
     const g = this.hintLayer;
     g.clear();
+    this.paintBoardHandBand(g); // лента руки-на-борде: armed в драге, hot под грузом
     if (!this.dragging || !this.hotSlot) return;
+    if (this.hotSlot === handKey(this.deps.selfSeat)) return; // руке хватает её ленты — без золота
     const tree = this.deps.tree();
     const shape = hintShape({
       hotSlot: this.hotSlot,
@@ -265,6 +263,14 @@ export class SceneGesture {
     this.dropBar.destroy();
   }
 
+  /** Полоса руки-на-борде во время драга: тот же стиль, что у экранного дока (handBandPaint). */
+  private paintBoardHandBand(g: Graphics): void {
+    if (!this.dragging || handConfig(this.deps.spec().hand)?.placement !== "board") return;
+    const key = handKey(this.deps.selfSeat);
+    const b = this.deps.tree().cellRects[key];
+    if (b) paintHandBand(g, b, this.hotSlot === key ? "hot" : "armed", this.deps.accent());
+  }
+
   /** Слот-ИСТОЧНИК: дерево, а для карты экранной руки (её нет в дереве) — hand:self. */
   private fromSlotOf(id: string): string | null { return this.deps.tree().slotOf(id) ?? (this.deps.handMembers().includes(id) ? handKey(this.deps.selfSeat) : null); }
 
@@ -278,16 +284,11 @@ export class SceneGesture {
     if (!lead || !fp) return { rect: { x: p.x, y: p.y, w: 0, h: 0 }, finger: p };
     const hw = fp.hw * lead.body.scaleVal;
     const hh = fp.hh * lead.body.scaleVal;
-    return {
-      rect: { x: lead.body.targetX - hw, y: lead.body.targetY - hh, w: hw * 2, h: hh * 2 },
-      finger: p,
-      kind: this.deps.def(lead.id)?.kind,
-      tiltDeg: this.deps.state().fx[lead.id]?.rot,
-    };
+    const rect = { x: lead.body.targetX - hw, y: lead.body.targetY - hh, w: hw * 2, h: hh * 2 };
+    return { rect, finger: p, kind: this.deps.def(lead.id)?.kind, tiltDeg: this.deps.state().fx[lead.id]?.rot };
   }
 
-  /** Магнит цели: пока зона с magnet-политикой — цель дропа, груз пружиной ведётся к её центру
-   *  (визуально прилипает ещё до отпускания). Уводит палец — move перецелит на него же. */
+  /** Магнит цели: зона с magnet-политикой ведёт груз пружиной к центру (прилипает до отпускания). */
   private applyMagnet(target: { group: Group } | null): void {
     const lead = this.deps.drag()?.lead;
     const o = target ? this.deps.tree().origins[target.group.id] : undefined;

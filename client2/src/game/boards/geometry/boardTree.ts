@@ -4,6 +4,7 @@
 // (здесь): чужие места сверху → зоны стола → своя рука снизу; за бортом — колонка справа.
 
 import { linear, pile } from "../../slot/layouts";
+import { boardHandRow } from "./handRow";
 import { group, leaf } from "../../slot/types";
 import { CARD } from "../../crossade/tree";
 import { handKey, OFFBOARD_KEY, type BoardState } from "../core/state";
@@ -116,18 +117,13 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
     }
   }
   let handBottom = selfZonesBottom;
-  // Рука в дереве — только при placement:"board". «screen» уносит её в экранный HUD (handHud.ts).
+  // Рука в дереве — только при placement:"board"; «screen» уносит её в экранный HUD (handHud.ts).
+  // Вид — ЕДИНЫЙ стиль дока: центрированный ряд + лента-дропзона (geometry/handRow).
   if (handConfig(spec.hand)?.placement === "board") {
-    const key = handKey(selfSeat);
-    const members = membersOf(state, key);
-    const cards = members.map((m) => leaf(m, m, CARD));
-    const layout = cards.length ? linear({ axis: "x", gap: GAP.x }) : pile({ dx: 0, dy: 0, cell: CARD });
-    placed.push({
-      id: key,
-      origin: { x: MARGIN.x, y: selfZonesBottom + GAP.y },
-      slot: group(key, layout, cards, { drop: { accept: () => true }, reorder: { enabled: true } }),
-    });
-    handBottom = selfZonesBottom + GAP.y + CARD.h;
+    const hand = boardHandRow(state, selfSeat, selfZonesBottom + GAP.y + 12, rowX);
+    placed.push(hand.placed);
+    cellRects[hand.placed.id] = hand.band;
+    handBottom = hand.bottom;
   }
 
   return finish(placed, cellRects, { w: rowX, h: handBottom + MARGIN.y });

@@ -8,6 +8,7 @@ import { handKey, OFFBOARD_KEY, type BoardState } from "../core/state";
 import { seatZoneId, slotKey, type BoardSpec, type ZoneSpec } from "../core/spec";
 import { membersOf, slotGroup, zoneCell, zoneSubtrees } from "./zoneSubtrees";
 import { handConfig } from "../hand/handConfig";
+import { boardHandRow } from "./handRow";
 import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, SEAT_STACK_DX, type BoardTree, type FreePositions, type Placed } from "./treeShared";
 
 /** Кольцо между центром и внешним кругом — не тоньше трёх ширин карты (правило владельца). */
@@ -119,15 +120,12 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
   });
 
   let handBottom = cy + reach;
-  // Рука в дереве — только при placement:"board". «screen» уносит её в экранный HUD (handHud.ts).
+  // Рука в дереве — только при placement:"board"; вид — ЕДИНЫЙ стиль дока (geometry/handRow).
   if (handConfig(spec.hand)?.placement === "board") {
-    const key = handKey(selfSeat);
-    const members = membersOf(state, key);
-    const cards = members.map((m) => leaf(m, m, CARD));
-    const layout = cards.length ? linear({ axis: "x", gap: GAP.x }) : pile({ dx: 0, dy: 0, cell: CARD });
-    const y = cy + reach + GAP.y;
-    placed.push({ id: key, origin: { x: MARGIN.x, y }, slot: group(key, layout, cards, { drop: { accept: () => true }, reorder: { enabled: true } }) });
-    handBottom = y + CARD.h;
+    const hand = boardHandRow(state, selfSeat, cy + reach + GAP.y + 12, rightX + backCell.w + MARGIN.x);
+    placed.push(hand.placed);
+    cellRects[hand.placed.id] = hand.band;
+    handBottom = hand.bottom;
   }
 
   return finish(placed, cellRects, { w: rightX + backCell.w + MARGIN.x, h: handBottom + MARGIN.y });

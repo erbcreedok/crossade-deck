@@ -9,9 +9,8 @@ import { Container, Graphics } from "pixi.js";
 import { CARD } from "../../crossade/tree";
 import type { HandConfig } from "../hand/handConfig";
 import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, dockReserved, type DockFrame, type DockPose } from "../hand/handDock";
+import { paintHandBand } from "../hand/handBandPaint";
 import { ACTION_BAR_H } from "./chrome";
-
-const BG = 0x1a241e;
 
 /** Состояние дроп-зоны руки: покой / груз в полёте где-то / груз над рукой (владелец). */
 export type HandZone = "rest" | "armed" | "hot";
@@ -161,15 +160,8 @@ export class SceneHandHud {
     g.clear();
     const f = this.frame();
     if (!f) return;
-    const b = dockBand(f, this.laidIds().length);
-    g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: BG, alpha: 0.14 });
-    if (this.zoneState === "armed") {
-      dashedRoundRect(g, b.x, b.y, b.w, b.h, 12);
-      g.stroke({ width: 2, color: 0x9aa79c, alpha: 0.95 });
-    } else {
-      const hot = this.zoneState === "hot";
-      g.roundRect(b.x, b.y, b.w, b.h, 12).stroke({ width: hot ? 3 : 1.5, color: hot ? this.deps.accent() : 0x5f7a6d, alpha: hot ? 1 : 0.3 });
-    }
+    // Стиль — общий painter руки (handBandPaint): док и рука-на-борде обязаны выглядеть одинаково.
+    paintHandBand(g, dockBand(f, this.laidIds().length), this.zoneState, this.deps.accent());
   }
 
   /** Дев-хук: экранные ЦЕЛЕВЫЕ позиции карт руки по порядку. */
@@ -187,30 +179,3 @@ export class SceneHandHud {
   }
 }
 
-/** Пунктирная обводка скруглённого прямоугольника: прямые рёбра штрихами, углы — сплошными дугами.
- *  Путь копится в g; вызвать g.stroke() после. Pixi v8 dash-паттерна не имеет — рисуем сегментами. */
-function dashedRoundRect(g: Graphics, x: number, y: number, w: number, h: number, r: number, dash = 9, gap = 7): void {
-  const x2 = x + w;
-  const y2 = y + h;
-  dashLine(g, x + r, y, x2 - r, y, dash, gap);
-  dashLine(g, x2, y + r, x2, y2 - r, dash, gap);
-  dashLine(g, x2 - r, y2, x + r, y2, dash, gap);
-  dashLine(g, x, y2 - r, x, y + r, dash, gap);
-  g.moveTo(x2 - r, y).arc(x2 - r, y + r, r, -Math.PI / 2, 0);
-  g.moveTo(x2, y2 - r).arc(x2 - r, y2 - r, r, 0, Math.PI / 2);
-  g.moveTo(x + r, y2).arc(x + r, y2 - r, r, Math.PI / 2, Math.PI);
-  g.moveTo(x, y + r).arc(x + r, y + r, r, Math.PI, Math.PI * 1.5);
-}
-
-function dashLine(g: Graphics, x1: number, y1: number, x2: number, y2: number, dash: number, gap: number): void {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return;
-  const ux = dx / len;
-  const uy = dy / len;
-  for (let t = 0; t < len; t += dash + gap) {
-    const t2 = Math.min(t + dash, len);
-    g.moveTo(x1 + ux * t, y1 + uy * t).lineTo(x1 + ux * t2, y1 + uy * t2);
-  }
-}

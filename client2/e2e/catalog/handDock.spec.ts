@@ -96,8 +96,8 @@ test.describe("док руки по краям", () => {
     // Превью: правая сторона гэпа расступилась (linear левоякорный — левые стоят на месте).
     const spreadOf = (id: string): Promise<number> =>
       page.evaluate((cid) => Math.round(window.__story!.testHooks().cards[cid]!.x), id);
-    expect(await spreadOf(hand[1]!.id)).toBe(hand[1]!.x); // левее гэпа — на месте (linear левоякорный)
-    expect(await spreadOf(hand[2]!.id)).toBeGreaterThan(hand[2]!.x); // правее — уехала вправо
+    expect(await spreadOf(hand[1]!.id)).toBeLessThan(hand[1]!.x); // левее гэпа — уехала влево (ряд центрирован)
+    expect(await spreadOf(hand[2]!.id)).toBeGreaterThan(hand[2]!.x); // правее — вправо
     await page.mouse.up();
     await page.waitForTimeout(900);
     const order = await page.evaluate(() => {
@@ -113,7 +113,7 @@ test.describe("док руки по краям", () => {
   });
 
   test("flow-зона с preview:true: жители расступаются, дроп из колоды — в показанный гэп", async ({ page }) => {
-    await open(page, "bottom");
+    await open(page, "zone-preview");
     const row = await page.evaluate(() => {
       const s = window.__story!;
       return Object.entries(s.testHooks().cards)
