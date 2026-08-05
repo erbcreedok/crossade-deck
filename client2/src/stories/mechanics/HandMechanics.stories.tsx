@@ -214,7 +214,8 @@ function ZoneStage() {
   return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
 }
 
-export const ZonePreview: Story = { render: () => <ZoneStage /> };
+// Контролы отключены: сцена фиксированная, панель args тут врала бы.
+export const ZonePreview: Story = { render: () => <ZoneStage />, parameters: { controls: { disable: true } } };
 
 /** LIVE: ДВА ЭКРАНА над ОДНИМ портом (общий localDriver — минимум событий: один снимок на всех).
  *  Слева — экран p1, справа — p2; у каждого СВОЯ рука доком у низа, а рука соседа видна рубашками
@@ -278,7 +279,7 @@ function LiveStage() {
   );
 }
 
-export const LiveTwoScreens: Story = { render: () => <LiveStage /> };
+export const LiveTwoScreens: Story = { render: () => <LiveStage />, parameters: { controls: { disable: true } } };
 
 /** HUD С НЕСКОЛЬКИМИ ВИДЖЕТАМИ: рука делит НИЖНИЙ док с «реакциями» (flex: рука — auto-доля,
  *  реакции — 220px), «профиль» — у ВЕРХНЕГО края (justify:"end"). Виджеты-заглушки — макеты
@@ -309,4 +310,4 @@ function FlexHudStage() {
   return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
 }
 
-export const FlexHud: Story = { render: () => <FlexHudStage /> };
+export const FlexHud: Story = { render: () => <FlexHudStage />, parameters: { controls: { disable: true } } };
