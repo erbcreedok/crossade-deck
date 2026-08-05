@@ -2,7 +2,7 @@
 // Владеет map узлов и глубинами; создаёт узлы фабрикой (nodeFactory), сажает каждый в его дом
 // по дереву, снимает пропавших. Карту, которую ведёт чужой драг-стрим, снимок не дёргает.
 
-import { Card } from "../../ui/Card";
+
 import type { CardTextureCache } from "../../ui/CardTextureCache";
 import type { Renderer } from "pixi.js";
 import type { BoardState } from "../core/state";
@@ -70,7 +70,7 @@ export class SceneNodes {
       this.host.placeCard(node);
       const fx = state.fx[id];
       const wantFace = fx?.face ?? this.host.faceUpIn(id, slot);
-      if (node instanceof Card && node.faceUp !== wantFace) node.requestFlip();
+      if (node.kind === "card" && node.faceUp !== wantFace) node.requestFlip();
       const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale: nodeScaleIn(node, slot) };
       if (snap) node.body.snapTo(target);
       else node.body.setTarget(target);

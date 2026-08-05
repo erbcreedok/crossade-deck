@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { Card } from "./Card";
-import { Piece } from "./Piece";
+import { makeCard, type CardOptions } from "./Card";
+import type { TableItem } from "./tableItem";
+import { makeBuilt, type PieceOptions } from "./Piece";
 import { pieceVisual } from "./pieceKinds";
 import { texStub } from "../../test/texStub";
 import { BASE_PRESET } from "../anim/presets";
@@ -13,20 +14,20 @@ import { BASE_PRESET } from "../anim/presets";
 // подсовывает `texStub`. Всё, что ниже, движок считает на CPU — значит и тест считает то же самое.
 
 const tex = texStub();
-const card = (o: Partial<ConstructorParameters<typeof Card>[0]> = {}) => new Card({ id: "c", card: "A♠", ...o }, tex, 1);
-const chip = (o: Partial<ConstructorParameters<typeof Piece>[0]> = {}) => {
+const card = (o: Partial<CardOptions> = {}) => makeCard({ id: "c", card: "A♠", ...o }, tex, 1);
+const chip = (o: Partial<PieceOptions> = {}) => {
   const r = 30;
   const { build, shadow } = pieceVisual({ kind: "chip", color: 0xc79a3e, denom: "25" }, r);
-  return new Piece({ id: "p", w: r * 2, h: r * 2, build, shadow, ...o });
+  return makeBuilt("chip", { id: "p", w: r * 2, h: r * 2, build, shadow, ...o });
 };
 // Предмет со СВОЕЙ тенью-картинкой. Снимок здесь подставной: снимают его с визуала живым
 // рендерером (ui/silhouetteExtract.ts), а закон «тень идёт картинкой предмета» от способа её
 // добычи не зависит.
 const OWN = { texture: {} as never, white: null, bounds: { x: -20, y: -10, width: 40, height: 20 } };
-const standing = (o: Partial<ConstructorParameters<typeof Piece>[0]> = {}) => {
+const standing = (o: Partial<PieceOptions> = {}) => {
   const r = 30;
   const { build, shadow } = pieceVisual({ kind: "chess", dark: true, glyph: "♞" }, r);
-  return new Piece({ id: "s", w: r * 2, h: r * 2, build, shadow, own: OWN, ...o });
+  return makeBuilt("chess", { id: "s", w: r * 2, h: r * 2, build, shadow, own: OWN, ...o });
 };
 
 describe("высота (`z`) — свойство КАЖДОГО элемента", () => {
@@ -69,7 +70,7 @@ describe("высота (`z`) — свойство КАЖДОГО элемент�
 });
 
 describe("дыхание — тот же закон у карты и у фишки", () => {
-  const bobbed = (el: Card | Piece) => {
+  const bobbed = (el: TableItem) => {
     el.sync();
     const y0 = el.root.position.y;
     el.step(0.25);
@@ -214,7 +215,7 @@ describe("тень выводится из состояния КАЖДЫЙ ка�
 });
 
 describe("догоревший элемент умирает — иначе последний кадр застынет на столе", () => {
-  const burnTo = (el: Card | Piece) => {
+  const burnTo = (el: TableItem) => {
     el.setAnimPreset(BASE_PRESET);
     el.burn();
     for (let i = 0; i < 200 && !el.dead; i++) el.step(0.05);

@@ -2,7 +2,7 @@ import { Application, Graphics } from "pixi.js";
 import type { SceneElement } from "../../engine/sceneEngine";
 import { SceneRuntime, type SceneApi, type SceneDelegate } from "../../engine/sceneRuntime";
 import { COLORS } from "../../engine/constants";
-import { Card } from "../../ui/Card";
+
 import { CardTextureCache } from "../../ui/CardTextureCache";
 import type { TableElement } from "../../engine/element";
 import { dropTarget } from "../../slot/slot";
@@ -460,7 +460,7 @@ export class BoardScene implements SceneDelegate {
       handReorder: this.spec.hand?.reorder ?? false,
       carriedFaceUp: (() => {
         const node = this.nodeStore.get(el.id);
-        return node instanceof Card ? node.faceUp : null;
+        return node?.kind === "card" ? node.faceUp : null;
       })(),
     });
     if (plan.kind === "command") this.dispatch(plan.cmd);

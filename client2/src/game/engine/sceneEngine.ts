@@ -20,8 +20,8 @@ import { Marker, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./m
 import { SceneMarkers, type Grabber as MarkerGrabber } from "./sceneMarkers";
 import type { DragContext, DragPayload } from "./drag";
 import { Button } from "../ui/Button";
-import { Card, type Pose } from "../ui/Card";
-import { Piece } from "../ui/Piece";
+import type { Pose } from "../ui/Card";
+import { TableItem } from "../ui/tableItem";
 import type { Draggable, TableElement } from "./element";
 import { animDurationOf, type AnimKind } from "../anim/durations";
 import { BASE_PRESET, type AnimPreset } from "../anim/presets";
@@ -274,16 +274,16 @@ export class SceneEngine extends CanvasApp {
   // ——— флаги доступности: одинаково во всех сценах ———
 
   protected onReduceMotionChange(v: boolean): void {
-    for (const el of this.seams.everyElement()) if (el instanceof Card || el instanceof Piece) el.reduceMotion = v;
+    for (const el of this.seams.everyElement()) if (el instanceof TableItem) el.reduceMotion = v;
   }
 
   protected onFlashChange(v: boolean): void {
-    for (const el of this.seams.everyElement()) if (el instanceof Card || el instanceof Piece) el.flashOff = v;
+    for (const el of this.seams.everyElement()) if (el instanceof TableItem) el.flashOff = v;
   }
 
   protected onProfileChange(p: "full" | "reduced"): void {
     this.lowFx = p === "reduced";
-    for (const el of this.seams.everyElement()) if (el instanceof Card || el instanceof Piece) el.lowFx = this.lowFx;
+    for (const el of this.seams.everyElement()) if (el instanceof TableItem) el.lowFx = this.lowFx;
     this.wake();
   }
 

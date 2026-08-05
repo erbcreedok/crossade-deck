@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Card, type CardOptions } from "../../game/ui/Card";
+import { type Card, makeCard, type CardOptions } from "../../game/ui/Card";
 import { CanvasStage } from "../harness/CanvasStage";
 import { pickArgs, type CardArgs } from "./cardArgs";
 import { CARD_VARIANTS, cardVariantsSection } from "../../game/kit/cardVariants";
@@ -60,7 +60,7 @@ c.requestFlip();         // настоящий поворот, не подмен
       apply={apply}
       build={(ctx, a) => {
         const opts: CardOptions = { id: "story-card", ...a };
-        const card = new Card(opts, ctx.tex, ctx.baseScale);
+        const card = makeCard(opts, ctx.tex, ctx.baseScale);
         // Карта прибита за центр, витрина считается от левого верхнего угла — отсюда полуразмеры.
         ctx.add(card, { x: ctx.padding + card.footprint.hw, y: ctx.padding + card.footprint.hh });
       }}

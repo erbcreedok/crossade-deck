@@ -2,7 +2,7 @@ import { Application, Graphics, Text } from "pixi.js";
 import type { SceneElement } from "../engine/sceneEngine";
 import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/sceneRuntime";
 import { TEX_H, TEX_W, PIXEL_FONT, COLORS } from "../engine/constants";
-import { Card } from "../ui/Card";
+import { type Card, makeCard } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import type { TableElement } from "../engine/element";
 import { dropTarget } from "../slot/slot";
@@ -264,7 +264,7 @@ export class MultiplayerScene implements SceneDelegate {
   protected nodeFor(cardId: string): Card {
     const existing = this.nodes.get(cardId);
     if (existing) return existing;
-    const node = new Card(
+    const node = makeCard(
       { id: cardId, card: cardId, faceUp: this.faceUpFor(cardId), flippable: true },
       this.tex!,
       this.cardScaleFor(cardId),

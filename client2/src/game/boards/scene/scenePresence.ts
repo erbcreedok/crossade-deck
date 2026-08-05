@@ -5,13 +5,14 @@
 
 import { Container, Graphics } from "pixi.js";
 import { TEX_W } from "../../engine/constants";
-import { Card } from "../../ui/Card";
+
 import type { Piece } from "../../ui/Piece";
 import type { GlowShape } from "../../ui/selection";
 import { PresenceCursor } from "../../ui/PresenceCursor";
 import type { PresenceHub, PresenceView } from "../core/presence";
+import type { TableItem } from "../../ui/tableItem";
 
-export type PresenceNode = Card | Piece;
+export type PresenceNode = TableItem;
 
 export interface PresenceOpts {
   hub: PresenceHub;
@@ -68,7 +69,7 @@ export function glowTargets(
       if (!home || !node) continue;
       const dx = home.x - baseHome.x;
       const dy = home.y - baseHome.y;
-      const sil = node instanceof Card ? null : node.glowSilhouette;
+      const sil = node.glowSilhouette;
       if (sil) {
         // Собственный силуэт: конь огибается как конь (та же форма, что у его тени).
         figure.push({ kind: "silhouette", x: dx + sil.bounds.x, y: dy + sil.bounds.y, w: sil.bounds.width, h: sil.bounds.height, texture: sil.texture });
@@ -77,7 +78,7 @@ export function glowTargets(
       const w = node.footprint.hw * 2;
       const h = node.footprint.hh * 2;
       // Карта — скруглённый прямоугольник (это и есть её силуэт), круглая фишка — круг.
-      const radius = node instanceof Card ? (16 * w) / TEX_W : Math.min(w, h) / 2;
+      const radius = node.kind === "card" ? (16 * w) / TEX_W : Math.min(w, h) / 2;
       figure.push({ x: dx - w / 2, y: dy - h / 2, w, h, radius });
     }
     if (figure.length) want.set(base, { color, figure });

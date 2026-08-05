@@ -1,5 +1,6 @@
 import type { Container, Renderer, Texture } from "pixi.js";
-import { Piece, type PieceOptions } from "./Piece";
+import type { TableItem } from "./tableItem";
+import { makeBuilt, type BuiltOptions } from "./builtKind";
 import { drawChip, drawChessPiece } from "./pieceDraw";
 import { ownShadowOf } from "./silhouetteExtract";
 import { buildTextureDustPoints } from "../engine/censorSource";
@@ -60,14 +61,14 @@ export function pieceKey(spec: PieceSpec, r: number): string {
  * Собирается в ОДНОМ месте, а не у каждого движка: витрина и песочница создают предметы одинаково,
  * и «снять форму» — часть того, что значит создать предмет, а не отдельная забота вызывающего.
  */
-export function buildPiece(id: string, spec: PieceSpec, r: number, renderer: Renderer | null | undefined, plan: Partial<PieceOptions> = {}): Piece {
+export function buildPiece(id: string, spec: PieceSpec, r: number, renderer: Renderer | null | undefined, plan: Partial<BuiltOptions> = {}): TableItem {
   const v = pieceVisual(spec, r);
   // Снимок визуала один на всё: и форма тени, и источник пыли-цензуры. Второй снимок того же
   // предмета означал бы два разных «настоящих лица» у одной фигуры.
   const shot = v.ownShadow || plan.censored ? ownShadowOf(renderer, pieceKey(spec, r), v.build) : null;
   const own = v.ownShadow ? shot : null;
   const censorSeeds = plan.censored && shot && renderer ? dustOf(renderer, shot, r) : null;
-  return new Piece({ id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, own, censorSeeds, ...plan });
+  return makeBuilt(spec.kind, { id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, own, censorSeeds, ...plan });
 }
 
 /** Облако пыли по снимку предмета: сетка меряется ЕГО коробкой, а не карточной. */

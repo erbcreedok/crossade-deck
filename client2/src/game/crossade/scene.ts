@@ -3,7 +3,7 @@ import type { SceneElement } from "../engine/sceneEngine";
 import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/sceneRuntime";
 import { TEX_H, PIXEL_FONT, COLORS, SHOUT_TEXT, SHOUT_COLORS } from "../engine/constants";
 import { Button } from "../ui/Button";
-import { Card } from "../ui/Card";
+import { type Card, makeCard } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { TopBar, TOPBAR_H } from "../ui/TopBar";
 import type { TableElement } from "../engine/element";
@@ -332,7 +332,7 @@ export class CrossadeScene implements SceneDelegate {
   private nodeFor(cardId: string, faceUp: boolean): Card {
     const existing = this.nodes.get(cardId);
     if (existing) return existing;
-    const node = new Card({ id: cardId, card: cardId, faceUp, flippable: true }, this.tex!, CARD.h / TEX_H);
+    const node = makeCard({ id: cardId, card: cardId, faceUp, flippable: true }, this.tex!, CARD.h / TEX_H);
     this.nodes.set(cardId, node);
     this.api.byId.set(cardId, node);
     return node;

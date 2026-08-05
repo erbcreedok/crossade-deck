@@ -4,7 +4,7 @@ import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/scene
 import { GroupDrag } from "../engine/drag";
 import { TEX_H } from "../engine/constants";
 import { Button } from "../ui/Button";
-import { Card } from "../ui/Card";
+import { type Card, makeCard } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { TopBar, TOPBAR_H } from "../ui/TopBar";
 import { OverlayPanel } from "../ui/OverlayPanel";
@@ -236,7 +236,7 @@ export class SolitaireScene implements SceneDelegate {
     if (existing) return existing;
     // baseScale — переходник между текстурой карты (TEX_W×TEX_H) и ячейкой доски. При baseScale=1
     // карта была бы втрое больше слота (этот баг гейты не видят: Pixi в node не исполняется).
-    const node = new Card({ id: cardId, card: cardId, faceUp, flippable: true }, this.tex!, CARD.h / TEX_H);
+    const node = makeCard({ id: cardId, card: cardId, faceUp, flippable: true }, this.tex!, CARD.h / TEX_H);
     this.nodes.set(cardId, node);
     this.api.byId.set(cardId, node);
     return node;

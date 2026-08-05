@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Text } from "pixi.js";
-import { Card, type CardOptions } from "../../game/ui/Card";
+import { type Card, makeCard, type CardOptions } from "../../game/ui/Card";
 import { PIXEL_FONT } from "../../game/engine/constants";
 import { dropzonesSection } from "../../game/kit/dropzones";
 import { action } from "storybook/actions";
@@ -58,7 +58,7 @@ ctx.zone(
         let x = ctx.padding;
         let hh = 0;
         for (const c of CAPS) {
-          const card = new Card({ id: c.id, pose: "rest", ...c.opts }, ctx.tex, ctx.baseScale);
+          const card = makeCard({ id: c.id, pose: "rest", ...c.opts }, ctx.tex, ctx.baseScale);
           hh = card.footprint.hh;
           ctx.add(card, { x: x + card.footprint.hw, y: ctx.padding + hh });
           if (a.captions) {

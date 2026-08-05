@@ -2,7 +2,7 @@ import { Application, Container } from "pixi.js";
 import type { CameraConfig, SceneElement, SpreadSource } from "./sceneEngine";
 import { SceneRuntime, type SceneApi, type SceneDelegate } from "./sceneRuntime";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { Card } from "../ui/Card";
+import { type Card, makeCard } from "../ui/Card";
 import { buildPiece } from "../ui/pieceKinds";
 import { SANDBOX_CARD_H, TEX_H, TEX_W } from "./constants";
 import { SB_MARGIN } from "./sandboxLayout";
@@ -354,13 +354,13 @@ export class KitScene implements SceneDelegate {
       // секция ни строилась.
       card: (opts, home, depth = 0, bobPhase = 0) => {
         if (opts.id) this.specs.set(opts.id, () => ctx.card(opts, home, depth, bobPhase));
-        const c = new Card(opts, this.tex, baseScale);
+        const c = makeCard(opts, this.tex, baseScale);
         c.bobPhase = bobPhase;
         ctx.add(c, home, depth);
       },
       // Карта под управлением API: в реестре и в цикле она есть, в хит-тесте драга — нет.
       apiCard: (opts, home) => {
-        const c = new Card({ ...opts, pose: opts.pose ?? "rest" }, this.tex, baseScale);
+        const c = makeCard({ ...opts, pose: opts.pose ?? "rest" }, this.tex, baseScale);
         ctx.add(c, home);
         const last = this.placed[this.placed.length - 1];
         if (last) last.api = true;
