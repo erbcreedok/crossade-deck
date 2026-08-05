@@ -1,0 +1,32 @@
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_e38fa76f339eb7 138-141,143-153
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_c43aa91b91e768 197
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_89a68825ae6d52 102-111
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_afbf423171b36a 130-131
+  s_b2849f723d52bb::t_2a4cdc86645f6c 144-145
+  s_b2849f723d52bb::t_e3742e482021ff 63-64
+  s_b2849f723d52bb::t_a0b3a70a55ddb4 127-128
+  s_b2849f723d52bb::t_2c66a1f6f320b8 104
+  s_b2849f723d52bb::t_1ce8486d8d7374 156
+  s_b2849f723d52bb::t_b71dcbb8ec43bb 147,149-155,157-161,164
+  s_b2849f723d52bb::t_f8c442c5f811f0 270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d946b607ed01ead0d48b5d0eace58831e83beea5",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
