@@ -1,0 +1,45 @@
+client2/src/game/boards/library/ringPresets.ts
+  s_b9dcc12bda6464::t_67bab941015095 1-33
+client2/src/stories/boards/Boards.stories.tsx
+  s_b9dcc12bda6464::t_b44a7aaacfda45 9,121,137,146,157,169,211-217,224
+client2/src/game/boards/core/spec.ts
+  s_b9dcc12bda6464::t_5133f1698df043 73-76
+client2/src/game/boards/geometry/zoneSubtrees.ts
+  s_b9dcc12bda6464::t_02529660e3e441 4
+  s_b9dcc12bda6464::t_4c42b61a620e41 123,128-131,133
+client2/docs/REFACTOR-HANDOFF.md
+  s_b9dcc12bda6464::t_35f9587c09e0ba 87-95
+client2/src/game/boards/geometry/ringBox.test.ts
+  s_b9dcc12bda6464::t_efa8642274bf91 68-106
+  s_b9dcc12bda6464::t_06fb3ad0431280 6
+client2/src/game/slot/layouts.test.ts
+  s_b9dcc12bda6464::t_e0ba84b60e663b 89-118
+client2/src/game/boards/library/roundTable.ts
+  s_b9dcc12bda6464::t_a1af9cec20d226 3,38-40,43,45-46,48,68,73
+client2/src/game/sandbox/board.ts
+  s_b9dcc12bda6464::t_f60e672f111e32 9-12,14
+client2/src/game/slot/layouts.ts
+  s_b9dcc12bda6464::t_33510627033974 98,100
+  s_b9dcc12bda6464::t_2412e59d7c6dc7 109
+  s_b9dcc12bda6464::t_95c07e027f8dcd 118
+  s_b9dcc12bda6464::t_bb304a2e342579 77
+  s_b9dcc12bda6464::t_58c6cba0ef9bd9 81-85,88-89
+client2/docs/catalog-rules.md
+  s_b9dcc12bda6464::t_27a534bf46df39 110-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "56f74ff567dbf461b4fa78a9ae76e46b8a7da53e",
+  "prompts": {},
+  "sessions": {
+    "s_b9dcc12bda6464": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49c8b158-64cc-4522-942d-a663a9da83a1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
