@@ -1,0 +1,25 @@
+client2/src/game/boards/geometry/zoneSubtrees.ts
+  s_b2849f723d52bb::t_a450984bfdc76b 30
+  s_b2849f723d52bb::t_5642eeeed40d9f 4
+  s_b2849f723d52bb::t_4e177b195bdc15 122,124,131,133,136-141
+client2/src/game/boards/geometry/centerAnchor.test.ts
+  s_b2849f723d52bb::t_a68d9aee8cecd5 1-42
+client2/src/game/boards/geometry/roundTableTree.ts
+  s_b2849f723d52bb::t_8288b07e27a8db 51-53,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "30cbbdfd2cd9dc9ade3995343be189caca6eec87",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
