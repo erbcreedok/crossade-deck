@@ -1,95 +1,38 @@
-import { Container, Graphics, Sprite, type Texture } from "pixi.js";
+import { Container, Graphics, Sprite } from "pixi.js";
+import { type ShadowShape } from "./shadow";
+import { idleBobs } from "./elevation";
 import { CardBody } from "../CardBody";
-import { spinAngle, spinScale, spinShowsOther } from "../flip";
-import { easeOutQuad } from "../anim/easing";
 import { TEX_H, TEX_W } from "../engine/constants";
-import { makeFigureGlow, type GlowShape } from "./selection";
+import type { GlowShape } from "./selection";
 import { scaleForState } from "./plane";
-import { cardShadow, withEffect, type ShadowShape } from "./shadow";
-export type { ShadowShape };
-import { bobOffset, idleBobs, scaleFromZ, screenLift, zFromScale } from "./elevation";
-
-import { ParticleField, type ParticleParams } from "../engine/censorParticles";
-import { DANCE_DEFAULT, DUST_FLICKER, dustParams } from "../censorConfig";
+import type { ParticleParams } from "../engine/censorParticles";
 import type { Burnable, Concealable, Draggable, Flippable, Peekable, TableElement, Valued } from "../engine/element";
-import type { FaceStyle } from "../engine/cardTextures";
-import type { CardBackId } from "../cardBack";
 import type { CardTextureCache } from "./CardTextureCache";
 import { cardTags, withTags } from "../slotfield/elementTags";
-import { normalizeCard } from "../card";
-import { BASE_PRESET, scaled, type AnimPreset } from "../anim/presets";
-import { destroyStyle } from "../anim/destroyStyles";
-import { appearStyle } from "../anim/appearStyles";
-import type { EffectFrame } from "../anim/destroyStyles";
-import { applyEffect } from "../anim/effectApply";
-import { flipStyle } from "../anim/flipStyles";
+import { scaled, type AnimPreset } from "../anim/presets";
 import { makeSelectOutline } from "../engine/selectOutline";
+import { ElementLife } from "./elementLife";
+import { remountGlow } from "./elementGlow";
+import { CardSecrecy, repaintWithFade } from "./cardSecrecy";
+import { syncCard } from "./cardRender";
+import { buildLock, buildTear } from "./cardFace";
+import type { CardOptions, CardState, Pose } from "./cardTypes";
+
+export type { ShadowShape };
+export type { CardOptions, CardState, Pose } from "./cardTypes";
 
 // Карта UI-kit — объект с пропсами (масштабируемый, расширяемый) И «высотой над столом».
 //
-// Состояние (state) задаёт, в каком слое лежит карта и как высоко она над столом:
-//   rest   — лежит на столе (низкая тень);
-//   lifted — поднята (тень дальше и крупнее, сама чуть больше);
-//   held   — её держат (выше поднятой);
-//   drag   — в руке игрока (наивысшая, тень растёт сильнее всего);
-//   fan    — в веере (задел на будущее).
-// Смена состояния меняет целевой масштаб (пружина CardBody), поэтому размер/тень/позиция едут
-// ПЛАВНО. Тень карта НЕ рисует сама: в sync() она считает СИЛУЭТ тени (shadowRect) — его
-// движок собирает в общую маску уровня и заливает одной непрозрачной заливкой (см.
-// ShadowLayer). Так пересекающиеся тени сливаются в одну и не темнят. Смещение/размер силуэта
-// растут с «высотой» (elev): свет сверху справа → тень уходит вниз-влево, сильнее вниз.
-
-/**
- * Где элемент сейчас находится: слой отрисовки и высота над столом. `rest` — лежит на столе.
- *
- * Это СОСТОЯНИЕ, и его нельзя путать с `idle`-анимацией пресета (дыхание в покое): состояние
- * говорит, ГДЕ вещь, анимация — как она при этом шевелится. Выключение одного не должно гасить
- * другое, поэтому и слова разные.
- */
-export type CardState = "rest" | "lifted" | "held" | "drag" | "fan";
-
-/**
- * ПОЗА покоя — та часть состояний, которую элементу можно назначить спекой.
- *
- * `drag` и `fan` сюда не входят: они случаются с элементом по ходу дела (палец, веер), а не
- * объявляются при создании. Ось названа `pose`, а не `rest`, потому что `rest` — одно из её
- * ЗНАЧЕНИЙ, и `rest: "rest"` не читается.
- */
-export type Pose = "rest" | "lifted" | "held";
-
-export interface CardOptions {
-  id?: string; // КЛЮЧ идентичности (опаковый): по нему адресуем/анимируем. Значение — отдельно ↓
-  card?: string; // ЗНАЧЕНИЕ (ранг+масть). undefined → дефолт "A♠"; "" → значение придержано (маска)
-  faceUp?: boolean;
-  flippable?: boolean;
-  draggable?: boolean; // можно ли тащить; false — драг блокируется «стоп»-анимацией
-  back?: CardBackId;
-  faceStyle?: FaceStyle;
-  fourColor?: boolean;
-  torn?: boolean;
-  size?: number;
-  hidden?: boolean; // НАЧАЛЬНАЯ скрытость (режим секретности); дальше переключается setConcealed()
-  censored?: boolean; // НАЧАЛЬНАЯ цензура (пыль ПОВЕРХ лица); дальше переключается setCensored()
-  custom?: string; // id кастом-лица из реестра CUSTOM_FACES (напр. "joker"); "" — обычное число
-  pose?: Pose; // ПОЗА покоя: rest (лежит на столе) / lifted (поднята над столом) / held (держат)
-  /**
-   * Дышит ли карта (idle-покачивание). Не задано — по позе: поднятая дышит, лежащая нет.
-   *
-   * Ось отдельная от позы намеренно: дыхание — АНИМАЦИЯ и доступно чему угодно на столе, а поза —
-   * состояние. Лежащая карта имеет право покачиваться, если сцена этого просит.
-   */
-  idle?: boolean;
-  /**
-   * ВЫСОТА над столом (ось z, ui/elevation.ts). У всего, что лежит на столе, — 0.
-   *
-   * Не то же, что поза покоя: поза — это роль («её держат»), а `z` — число, которым высоту можно
-   * задать напрямую. Складываются: удерживаемая карта с z = 0.2 будет выше обычной удерживаемой.
-   */
-  z?: number;
-  tags?: string[]; // ИГРОВЫЕ теги поверх авто (card/suit/rank/color): role:trump, team:blue — SELECTION-DESIGN §2
-  /** НАЧАЛЬНАЯ выделенность (контур набора, SELECTION-DESIGN §4.A); дальше — setSelected(). */
-  selected?: boolean;
-}
+// Состояние (state) задаёт, в каком слое лежит карта и как высоко она над столом: rest → lifted →
+// held → drag (веер fan — задел). Смена состояния меняет целевой масштаб (пружина CardBody),
+// поэтому размер/тень/позиция едут ПЛАВНО. Тень карта НЕ рисует сама: в sync() она считает СИЛУЭТ
+// (shadowRect) — движок собирает силуэты в общую маску уровня и заливает одной заливкой
+// (ShadowLayer), так пересекающиеся тени сливаются и не темнят.
+//
+// ОБЩЕЕ с другими предметами стола вынесено способностями-коллабораторами, а не скопировано:
+// жизнь (block/born/dying, пресет) — ElementLife, свечение — elementGlow, секретность/цензура с
+// пылью и кросс-фейдом — CardSecrecy (+CardVeil), выбор текстуры — cardFace. Карта держит своё:
+// физику, флип, тень и связку способностей в один предмет.
 
 interface FlipAnim {
   t: number;
@@ -97,243 +40,106 @@ interface FlipAnim {
   fromFaceUp: boolean;
 }
 
-const DUST_FADE_DUR = 0.4; // fade вкл/выкл пыли — как у block (Card.ts blockNudge)
-
 export class Card implements TableElement, Draggable, Flippable, Burnable, Concealable, Peekable, Valued {
   readonly root = new Container();
   readonly body = new CardBody();
+  readonly life = new ElementLife(); // общая жизнь предмета: block/born/dying, возраст, пресет
+  readonly secrecy: CardSecrecy; // значение/скрытость/цензура/подглядеть (+ пыль-вуаль); двери ниже
   shadowRect: ShadowShape | null = null; // силуэт тени, обновляется в sync(); движок его собирает
-  private glowNode: import("pixi.js").Container | null = null; // свечение выделения (setGlow)
+  private glowNode: Container | null = null; // свечение выделения (setGlow)
   bobPhase = 0; // сдвиг фазы парения, чтобы карты не качались в унисон
-  peekBob = false; // висит в «подглядеть» — тот же bob, что у lifted, чтобы не читалось как зависание
-  /** OS/юзер reduce-motion (см. useReducedMotion): движок ставит на спавне и при смене (issue #7).
-   *  Замораживает bob и живую пыль в статичный кадр — не трогает флип/драг/полёты (не в скоупе). */
+  peekBob = false; // висит в «подглядеть» — тот же bob, что у lifted, чтобы не читалось зависанием
+  /** OS/юзер reduce-motion (issue #7): движок ставит на спавне и при смене. Замораживает bob и
+   *  живую пыль в статичный кадр — не трогает флип/драг/полёты (не в скоупе). */
   reduceMotion = false;
-  /** «Без вспышек» (issue #9, фото-чувствительность): гасит дрожь «сжечь», оставляя плавный расход. */
+  /** «Без вспышек» (issue #9, фото-чувствительность): гасит дрожь «сжечь», оставляя расход. */
   flashOff = false;
-  /** Лёгкий профиль качества (issue #8, reduced): замораживает idle-дыхание и живую пыль как
-   *  reduce-motion — движок ставит на спавне/смене при просадке FPS. Тени гасит сам движок (пасс). */
+  /** Лёгкий профиль качества (issue #8): замораживает idle и пыль как reduce-motion — движок
+   *  ставит при просадке FPS. Тени гасит сам движок (пасс). */
   lowFx = false;
 
-  readonly id: string; // ключ
-  private _card: string; // значение (придержано = ""), проставляется setValue (раскрытие)
+  readonly id: string; // КЛЮЧ идентичности (опаковый); значение живёт в secrecy и может быть придержано
   faceUp: boolean;
   readonly flippable: boolean;
   readonly draggable: boolean;
-  readonly back: CardBackId;
-  readonly faceStyle: FaceStyle;
-  readonly fourColor: boolean;
   readonly torn: boolean;
   readonly size: number;
-  private _concealed: boolean; // режим секретности (изначально opts.hidden), переключается извне
-  private _censored: boolean; // цензура-фильтр (изначально opts.censored), переключается извне
-  readonly custom: string; // id кастом-лица (реестр CUSTOM_FACES); "" — обычная числовая карта
   private readonly extraTags: ReadonlySet<string>; // игровые теги поверх авто (см. tags getter)
 
   state: CardState = "rest";
   readonly pose: Pose;
   /** Явное «дышать / не дышать». Не задано — решает поза (`idleBobs`). */
   readonly idle?: boolean;
-  private age = 0;
-  private readonly baseSprite = new Sprite();
-  private flip: FlipAnim | null = null;
-  private block: { t: number; dur: number } | null = null; // «стоп»-покачивание при блоке драга
-  private born: { t: number; dur: number } | null = null; // появление (anim/appearStyles.ts)
-  private dying: { t: number; dur: number } | null = null; // «сжечь»: замирание → расход снизу вверх
-  private burnMask: Graphics | null = null; // маска фронта горения (создаётся на фазе расхода)
-  private dust: ParticleField | null = null; // живая «пыль»-цензура скрытой карты (TG-спойлер)
-  private dustT = 0; // локальное время пыли (крутит только пока она видна)
-  private dustAlpha = 0; // сглаженная альфа пыли — плавный fade вместо мгновенного visible-тумблера
-  private fadeSprite: Sprite | null = null; // старая текстура лица, кросс-фейдится поверх новой при смене masked
-  private fadeT = 0;
+  // Поля кадра — публичны для модуля cardRender (поведение функциями над данными фасада);
+  // снаружи ui/ их не трогает никто: сценам хватает методов карты.
+  readonly baseSprite = new Sprite();
+  flip: FlipAnim | null = null;
+  burnMask: Graphics | null = null; // маска фронта горения (создаётся на фазе расхода)
   private selOutline: Graphics | null = null; // рамка выделения (setSelected)
-  /** Заданная снаружи высота над столом. 0 — лежит. */
-  private zBase: number;
-  /**
-   * Фил анимаций — ПРЕСЕТ, а не константы в коде (anim/presets.ts). Ставит движок: на спавне и при
-   * смене, тем же способом, что reduceMotion/lowFx. По умолчанию база, то есть ровно прежнее
-   * поведение — карта, поднятая вне сцены (тест, консоль), не обязана знать про пресеты.
-   */
-  private preset: AnimPreset = BASE_PRESET;
-  dead = false; // догорела — движок убирает её из песочницы
+  /** Заданная снаружи высота над столом (setZ). 0 — лежит. */
+  zBase: number;
 
-  constructor(
-    opts: CardOptions,
-    private readonly tex: CardTextureCache,
-    private readonly baseScale: number,
-  ) {
+  constructor(opts: CardOptions, tex: CardTextureCache, readonly baseScale: number) {
     this.id = opts.id ?? "";
-    // Нормализуем НА ВХОДЕ: буквенная масть («AS», «10H») — способ набрать карту с
-    // клавиатуры, а не второе представление. Дальше по движку — только «♠♥♦♣», иначе
-    // сравнения строк («эта карта уже на столе?») начали бы промахиваться мимо самих себя.
-    this._card = normalizeCard(opts.card ?? "A♠");
     this.faceUp = opts.faceUp ?? true;
     this.flippable = opts.flippable ?? true;
     this.draggable = opts.draggable ?? true;
-    this.back = opts.back ?? "ruby";
-    this.faceStyle = opts.faceStyle ?? "pips";
-    this.fourColor = opts.fourColor ?? false;
     this.torn = opts.torn ?? false;
     this.size = opts.size ?? 1;
-    this._concealed = opts.hidden ?? false;
-    this._censored = opts.censored ?? false;
-    this.custom = opts.custom ?? "";
     this.extraTags = new Set(opts.tags ?? []);
     this.pose = opts.pose ?? "rest";
     this.idle = opts.idle;
     this.zBase = opts.z ?? 0;
     this.state = this.pose; // стартуем в своей позе покоя
+    this.secrecy = new CardSecrecy(
+      this.root,
+      tex,
+      { back: opts.back ?? "ruby", faceStyle: opts.faceStyle ?? "pips", fourColor: opts.fourColor ?? false, custom: opts.custom ?? "" },
+      {
+        faceUp: () => this.faceUp,
+        busy: () => this.flip !== null || this.life.burning || this.life.dead,
+        requestFlip: () => void this.requestFlip(),
+        setPeekBob: (v) => {
+          this.peekBob = v;
+        },
+        repaint: () => repaintWithFade(this.secrecy.veil, this.baseSprite, this.secrecy.faceTex(this.faceUp)),
+      },
+      { card: opts.card ?? "A♠", hidden: opts.hidden ?? false, censored: opts.censored ?? false },
+    );
 
     this.baseSprite.anchor.set(0.5);
     this.root.addChild(this.baseSprite);
-    if (this.dusty) this.buildDust();
-    if (this.torn) this.root.addChild(this.buildTear());
-    if (!this.flippable) this.root.addChild(this.buildLock());
+    this.secrecy.prime();
+    if (this.torn) this.root.addChild(buildTear());
+    if (!this.flippable) this.root.addChild(buildLock());
     this.paint();
     if (opts.selected) this.setSelected(true);
-    this.dustAlpha = this.dustActive ? 1 : 0; // без fade на спавне — сразу в целевом состоянии
   }
 
   /** Идентичность-ДАННЫЕ (SELECTION-DESIGN §2): авто-теги по значению + игровые (extraTags). Живой
    *  геттер — после setValue (раскрытия) масть/ранг обновляются сами. Кастом-лицо → card+custom:id. */
   get tags(): ReadonlySet<string> {
-    const base = this.custom ? new Set(["card", `custom:${this.custom}`]) : cardTags(this._card);
+    const custom = this.secrecy.look.custom;
+    const base = custom ? new Set(["card", `custom:${custom}`]) : cardTags(this.secrecy.card);
     return this.extraTags.size ? withTags(base, this.extraTags) : base;
   }
 
-  // Живая «пыль»-цензура: облако частиц, построенное по НАСТОЯЩЕМУ лицу этой карты (цвет у каждой
-  // частицы свой), поверх чистой подложки. Обрезано по карте маской-прямоугольником со скруглением.
-  //
-  // Раньше облако было общим на всю комнату и строилось по силуэту фака: цензура выглядела
-  // одинаковой жёлтой крошкой поверх чего угодно — и туза пик, и джокера. Теперь пыль повторяет то,
-  // что прячет.
-  private buildDust(): void {
-    this.dust = new ParticleField(this.dustSeeds(), dustParams(DANCE_DEFAULT, DUST_FLICKER));
-    const mask = new Graphics();
-    // Маска повторяет ПЛАСТИНУ карты, а не её габарит: лицо нарисовано с отступом 2 px от края
-    // (roundRect(2,2,…) в cardTextures), и без этого отступа пыль садилась в двухпиксельное кольцо
-    // ЗА пластиной — по краю карты шла заметная бахрома.
-    mask.roundRect(-TEX_W / 2 + 2, -TEX_H / 2 + 2, TEX_W - 4, TEX_H - 4, 16).fill({ color: 0xffffff });
-    this.dust.view.mask = mask;
-    this.root.addChild(this.dust.view, mask);
-  }
-
-  /** Точки рождения пыли для ТЕКУЩЕГО лица. Кэш общий на комнату и ключуется тем же ключом, что и
-   *  сама текстура, — одинаковые карты делят одно облако. */
-  private dustSeeds(): ReadonlyArray<{ x: number; y: number; color: number }> {
-    return this.tex.faceDustPoints(this.faceKey(), this.plainFaceTex(this.faceUp));
-  }
-
-  /** Ключ лица — ровно те параметры, от которых лицо зависит. Разъехаться с plainFaceTex не может:
-   *  ветки здесь и там перечислены в одном порядке и по одним условиям. */
-  private faceKey(): string {
-    if (!this.faceUp) return `back:${this.back}`;
-    if (this.masked) return "hidden";
-    if (this.custom && this.tex.customFace(this.custom)) return `custom:${this.custom}`;
-    return `face:${this._card}|${this.fourColor ? 1 : 0}|${this.faceStyle}`;
-  }
-
-  /** Значение карты (ранг+масть); "" — придержано. Ключ — это id, не значение. */
-  get card(): string {
-    return this._card;
-  }
-
-  /** Есть ли у клиента значение (иначе оно придержано сервером). */
-  get hasValue(): boolean {
-    return this._card !== "";
-  }
-
-  /** Скрыта ли карта (режим секретности). Снимается/ставится извне (BoardAPI: setConcealed). */
-  get concealed(): boolean {
-    return this._concealed;
-  }
-
-  /** Зацензурена ли карта (фильтр-пыль поверх настоящего лица). Снимается/ставится извне. */
-  get censored(): boolean {
-    return this._censored;
-  }
-
-  // СКРЫТОСТЬ и ЦЕНЗУРА — два разных явления, и их нельзя путать:
-  //
-  //   masked  — показывать МАСКУ ВМЕСТО лица. Значения у клиента либо нет вовсе (сервер придержал),
-  //             либо оно объявлено секретным. Под пылью — чистый фон: показывать нечего.
-  //   censored — лицо рисуется НАСТОЯЩЕЕ, а пыль ложится ПОВЕРХ него фильтром. Значение у клиента
-  //             есть, но смотреть на него сейчас нельзя. Работает на ЛЮБОМ лице: числовом,
-  //             кастомном, каком угодно.
-  //
-  // Отсюда и разделение полей: masked меняет ТЕКСТУРУ, censored — только слой пыли над ней.
-  private get masked(): boolean {
-    return this._concealed || !this.hasValue;
-  }
-
-  /** Нужна ли этой карте пыль вообще (маска ИЛИ фильтр) — по этому признаку она лениво строится. */
-  private get dusty(): boolean {
-    return this.masked || this._censored;
-  }
-
-  /** Переключить скрытость в рантайме: перерисовать лицо (при надобности — лениво построить «пыль»). */
-  setConcealed(v: boolean): void {
-    if (v === this._concealed) return;
-    this._concealed = v;
-    this.refaceMasked();
-  }
-
-  /** Покрутить рычаги живой пыли (размер частицы, разлёт, жизнь, мерцание). Нужен стенду и
-   *  каталогу: без него параметры пыли задаются только при рождении карты и «поиграться» с ними
-   *  нельзя — пришлось бы пересобирать сцену на каждый шаг ползунка. */
-  setDustParams(p: Partial<ParticleParams>): void {
-    this.dust?.setParams(p);
-  }
-
-  /** Переключить ЦЕНЗУРУ в рантайме. Лицо при этом не меняется — меняется только слой пыли над ним,
-   *  поэтому кросс-фейд текстуры (refaceMasked) тут не нужен: пыль сама наплывает через dustAlpha. */
-  setCensored(v: boolean): void {
-    if (v === this._censored) return;
-    this._censored = v;
-    // Через тот же путь, что и скрытость: под пылью печатается чистая подложка, и смену текстуры
-    // надо кросс-фейдить, иначе лицо щёлкает под ещё прозрачной пылью.
-    this.refaceMasked();
-  }
-
-  /** Есть ли что подглядеть: карта скрыта, зацензурена ИЛИ лежит рубашкой. ЧИСТЫЙ предикат (без
-   *  мутаций) — зона ПОДГЛЯДЕТЬ читает его для armed-текста («давай подсмотрим?» vs «зачем?»). */
-  get canPeek(): boolean {
-    return this._concealed || this._censored || !this.faceUp;
-  }
-
-  /**
-   * «Подглядеть»: раскрыть карту (снять скрытость, перевернуть лицом вверх если лежала рубашкой) и
-   * ВЕРНУТЬ функцию-undo, восстанавливающую прежний вид. reveal и restore живут одной парой — движок
-   * лишь держит undo и зовёт его по таймеру / концу драга (см. playgroundEngine.startPeek), так что
-   * «перевернул, но забыл перевернуть назад» взяться неоткуда. peekBob (парение показанной карты,
-   * чтобы не читалась зависшей) ставится и снимается тем же undo.
-   * Край: перехватить и повторно бросить карту ЗА <0.45с (reveal-флип ещё крутится) — встречный
-   * requestFlip в undo откажет (this.flip занят), рубашка не вернётся; PEEK_DUR=3 делает обычные
-   * пути безопасными, отдельный механизм на этот дабл-тап пока не заводим.
-   */
-  peekReveal(): (() => void) | null {
-    if (!this.canPeek) return null;
-    const wasFaceUp = this.faceUp;
-    const wasConcealed = this._concealed;
-    const wasCensored = this._censored;
-    if (!wasFaceUp) this.requestFlip();
-    this.setConcealed(false);
-    this.setCensored(false); // фильтр снимаем тоже: иначе «подглядел» показывало бы пыль вместо лица
-    this.peekBob = true;
-    return () => {
-      if (!wasFaceUp) this.requestFlip();
-      this.setConcealed(wasConcealed);
-      this.setCensored(wasCensored);
-      this.peekBob = false;
-    };
-  }
+  // Значение и режимы секретности — целиком у коллаборатора; здесь тонкие двери способностей.
+  get card(): string { return this.secrecy.card; }
+  get hasValue(): boolean { return this.secrecy.hasValue; }
+  get concealed(): boolean { return this.secrecy.concealed; }
+  get censored(): boolean { return this.secrecy.censored; }
+  get canPeek(): boolean { return this.secrecy.canPeek; }
+  setConcealed(v: boolean): void { this.secrecy.setConcealed(v); }
+  setCensored(v: boolean): void { this.secrecy.setCensored(v); }
+  setValue(v: string): void { this.secrecy.setValue(v); }
+  setDustParams(p: Partial<ParticleParams>): void { this.secrecy.setDustParams(p); }
+  peekReveal(): (() => void) | null { return this.secrecy.peekReveal(); }
 
   /**
    * Контур выделения (SELECTION-DESIGN §4.A, метка `outline`). Рамка живёт В ROOT карты, поэтому
    * едет, крутится и масштабируется вместе с ней — без пер-кадровой синхронизации.
-   *
-   * Заметьте: `mark: "lift"` — это НЕ контур, а подъём карты со стола (`pose: "lifted"`). Обе
-   * метки самостоятельны, и «выделенная стопка» по умолчанию выглядит именно поднятой.
+   * `mark: "lift"` — НЕ контур, а подъём карты со стола (`pose: "lifted"`); метки самостоятельны.
    */
   setSelected(on: boolean): void {
     if (on === !!this.selOutline) return;
@@ -351,57 +157,13 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     this.zBase = Math.max(0, v);
   }
 
-  /** Фил анимаций этой карты. Пружины тела — часть пресета, поэтому уезжают в тело сразу. */
   /** Фил ЭТОЙ карты. Читает движок, когда решает, как переворачивать пачку, в которой она лежит. */
   get animPreset(): AnimPreset {
-    return this.preset;
+    return this.life.preset;
   }
 
   setAnimPreset(p: AnimPreset): void {
-    this.preset = p;
-    this.body.springs = p.springs;
-    // Крен — множитель ПОВЕРХ физики конфига, поэтому уезжает в тело, а не остаётся здесь:
-    // считает крен оно, из собственной скорости.
-    this.body.tiltScale = p.tilt;
-  }
-
-  /** Проставить/придержать значение (раскрытие сервером): "" прячет, непустое — показывает лицо. */
-  setValue(v: string): void {
-    const n = normalizeCard(v);
-    if (n === this._card) return;
-    this._card = n;
-    this.refaceMasked();
-  }
-
-  // Лениво построить «пыль» если карта теперь маскируется, и перерисовать лицо. Смена ЛИЦА
-  // (не только пыли) иначе была резкой: пыль плавно наплывала (dustAlpha/DUST_FADE_DUR), а
-  // текстура ПОД ней («лицо» ↔ «чистый фон под пылью») щёлкала мгновенно в момент вызова —
-  // на скрытии это читалось как рывок под ещё прозрачной в начале пылью. Старую текстуру держим
-  // тем же DUST_FADE_DUR кросс-фейдом поверх новой (см. fadeSprite/step/sync).
-  private refaceMasked(): void {
-    if (this.dusty && !this.dust) this.buildDust();
-    else this.dust?.setPoints(this.dustSeeds()); // лицо сменилось — пыль обязана поехать за ним
-    const oldTex = this.baseSprite.texture;
-    this.paint(); // маска → чистый фон под пылью; иначе — настоящее лицо (пыль гаснет в sync)
-    if (this.baseSprite.texture === oldTex) return;
-    this.fadeSprite?.destroy();
-    this.fadeSprite = new Sprite(oldTex);
-    this.fadeSprite.anchor.set(0.5);
-    this.root.addChildAt(this.fadeSprite, this.root.getChildIndex(this.baseSprite) + 1);
-    this.fadeT = 0;
-  }
-
-  /**
-   * Показываем ли пыль вообще. Требование «лицом вверх» здесь принципиально: рубашка ничего не
-   * прячет — она и так публична, — поэтому цензурить её нечего и незачем.
-   */
-  private get dustShown(): boolean {
-    return this.dust !== null && this.dusty && this.faceUp;
-  }
-
-  /** Видна ли сейчас пыль (вне переворота/горения) — тогда её крутим, цикл не спит. */
-  private get dustActive(): boolean {
-    return this.dustShown && !this.flip && !this.dying && !this.dead;
+    this.life.setPreset(p, this.body);
   }
 
   get scaleFactor(): number {
@@ -426,22 +188,11 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
     return { hw: this.width / 2, hh: this.height / 2 };
   }
 
-  /** Свечение выделения (Glowable): атом нижним ребёнком root — едет/наклоняется/масштабируется
-   *  с картой само, как собственная тень. figure (части фигуры в КОНТЕНТ-единицах относительно
-   *  центра этой карты) — светиться ЦЕЛОЙ стопкой: контур по настоящему ступенчатому союзу
-   *  силуэтов (erase-пасс, как маска теней). null — погасить. */
+  /** Свечение выделения (Glowable) — общий атом (elementGlow); своя тут только форма-фоллбэк:
+   *  пластина карты. figure — светиться ЦЕЛОЙ стопкой по союзу силуэтов; null — погасить. */
   setGlow(color: number | null, figure?: readonly GlowShape[]): void {
-    this.glowNode?.destroy();
-    this.glowNode = null;
-    if (color === null) return;
     const f = this.baseScale * this.body.scaleVal; // контент-px на локальную единицу текстуры
-    const scale = (sh: GlowShape): GlowShape =>
-      sh.kind === "silhouette"
-        ? { ...sh, x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f }
-        : { ...sh, x: sh.x / f, y: sh.y / f, w: sh.w / f, h: sh.h / f, radius: sh.radius / f };
-    const shapes: GlowShape[] = figure ? figure.map(scale) : [{ x: -TEX_W / 2, y: -TEX_H / 2, w: TEX_W, h: TEX_H, radius: 16 }];
-    this.glowNode = makeFigureGlow(shapes, { color });
-    this.root.addChildAt(this.glowNode, 0);
+    this.glowNode = remountGlow(this.root, this.glowNode, color, figure, f, { x: -TEX_W / 2, y: -TEX_H / 2, w: TEX_W, h: TEX_H, radius: 16 });
   }
 
   /** Сменить состояние: целевой масштаб едет пружиной, поэтому размер/тень/позиция — плавно. */
@@ -452,36 +203,29 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
 
   requestFlip(): boolean {
     if (!this.flippable || this.flip) return false;
-    this.flip = { t: 0, dur: Math.max(0.001, scaled(this.preset.flip.dur, this.preset.speed)), fromFaceUp: this.faceUp };
-    this.fadeSprite?.destroy(); // флип сам сменит текстуру спином — кросс-фейд лица тут не к месту
-    this.fadeSprite = null;
+    this.flip = { t: 0, dur: Math.max(0.001, scaled(this.life.preset.flip.dur, this.life.preset.speed)), fromFaceUp: this.faceUp };
+    this.secrecy.veil.dropFade(); // флип сам сменит текстуру спином — кросс-фейд лица тут не к месту
     return true;
   }
 
-  /** Лёгкая «стоп»-анимация: короткое затухающее покачивание — «эту карту тащить нельзя». */
   blockNudge(): void {
-    if (!this.block) this.block = { t: 0, dur: 0.4 };
+    this.life.blockNudge();
   }
 
-  /**
-   * Появиться. Зовёт тот, кто карту ПОСТАВИЛ: раздача, добор, возврат в игру — это события доски,
-   * и знать о них карта не может. Повторный вызов перезапускает эффект (в каталоге это кнопка).
-   */
   appear(): void {
-    if (this.dead) return;
-    const st = appearStyle(this.preset.appear.style);
-    this.born = { t: 0, dur: Math.max(0.001, scaled(st.dur * this.preset.appear.scale, this.preset.speed)) };
+    this.life.appear();
   }
 
-  /** Сжечь: карта замирает, потом расходится снизу вверх при сильной дрожи; затем dead → убирают. */
   burn(): void {
-    if (this.dying || this.dead) return;
-    const st = destroyStyle(this.preset.destroy.style);
-    this.dying = { t: 0, dur: Math.max(0.001, scaled(st.dur * this.preset.destroy.scale, this.preset.speed)) };
+    this.life.burn();
   }
 
   get burning(): boolean {
-    return this.dying !== null;
+    return this.life.burning;
+  }
+
+  get dead(): boolean {
+    return this.life.dead;
   }
 
   /** idle заморожен: reduce-motion (комфорт, issue #7) ИЛИ лёгкий профиль (перф, issue #8). */
@@ -490,216 +234,37 @@ export class Card implements TableElement, Draggable, Flippable, Burnable, Conce
   }
 
   step(dt: number): void {
-    this.age += dt;
     this.body.step(dt);
-    const dustTarget = this.dustActive ? 1 : 0;
-    if (this.dustAlpha !== dustTarget) {
-      const step = dt / DUST_FADE_DUR;
-      this.dustAlpha += Math.sign(dustTarget - this.dustAlpha) * Math.min(Math.abs(dustTarget - this.dustAlpha), step);
-    }
-    if ((this.dustActive || this.dustAlpha > 0) && !this.idleFrozen) {
-      this.dustT += dt;
-      this.dust!.update(this.dustT);
-    }
+    this.life.step(dt);
+    this.secrecy.veil.step(dt, this.secrecy.dustActive, this.idleFrozen);
     if (this.flip) {
       this.flip.t += dt;
       if (this.flip.t >= this.flip.dur) {
         this.faceUp = !this.flip.fromFaceUp;
         this.flip = null;
-        this.dust?.setPoints(this.dustSeeds()); // сторона сменилась — пыль смазывает уже её
+        this.secrecy.veil.setPoints(this.secrecy.dustSeeds()); // сторона сменилась — пыль едет за ней
         this.paint();
-      }
-    }
-    if (this.block) {
-      this.block.t += dt;
-      if (this.block.t >= this.block.dur) this.block = null;
-    }
-    if (this.born) {
-      this.born.t += dt;
-      if (this.born.t >= this.born.dur) this.born = null; // кончилось — карта просто стоит в доме
-    }
-    if (this.dying) {
-      this.dying.t += dt;
-      if (this.dying.t >= this.dying.dur) {
-        this.dying = null;
-        this.dead = true;
-      }
-    }
-    if (this.fadeSprite) {
-      this.fadeT += dt;
-      if (this.fadeT >= DUST_FADE_DUR) {
-        this.fadeSprite.destroy();
-        this.fadeSprite = null;
-      } else {
-        this.fadeSprite.alpha = 1 - this.fadeT / DUST_FADE_DUR;
       }
     }
   }
 
   /** Дышащая карта не «отдыхает» — она качается, значит цикл не должен засыпать под ней. Условие
-   *  идёт по САМОМУ дыханию, а не по позе: поднятая карта с выключенным дыханием неподвижна и
-   *  держать ради неё цикл незачем, а лежащая с включённым — качается, и заснуть под ней нельзя.
-   *  Живая пыль тоже «шевелится» непрерывно: пока она видна ИЛИ ещё доезжает fade — цикл бодр.
-   *  Под reduceMotion bob и вращение пыли заморожены (step()/sync() выше), поэтому все условия
-   *  здесь отпускают цикл в сон — иначе статичный кадр жёг бы 60fps вхолостую. */
+   *  идёт по САМОМУ дыханию, а не по позе. Живая пыль и доезжающий fade тоже держат цикл
+   *  (veil.settled); под reduce-motion всё заморожено — цикл отпускается в сон. */
   get resting(): boolean {
     const bobSettled = this.idleFrozen || !(idleBobs(this.state, this.idle) || this.peekBob);
-    const dustSettled = this.idleFrozen || (!this.dustActive && this.dustAlpha === 0);
-    return this.body.isResting() && !this.body.travelling && !this.flip && !this.block && !this.born && !this.dying && bobSettled && dustSettled && !this.fadeSprite;
+    return this.body.isResting() && !this.body.travelling && !this.flip && this.life.settled && bobSettled && this.secrecy.veil.settled(this.secrecy.dustActive, this.idleFrozen);
   }
 
   sync(): void {
-    if (this.dust) {
-      this.dust.view.visible = this.dustAlpha > 0.001;
-      this.dust.view.alpha = this.dustAlpha;
-    }
-    const render = this.body.scaleVal * this.scaleFactor;
-    // Дыхание: качается вверх-вниз тот, кому это назначено. По умолчанию — поднятая карта.
-    let bob = 0;
-    if (!this.idleFrozen && (idleBobs(this.state, this.idle) || this.peekBob)) {
-      // Дыхание — ЭКРАННОЕ покачивание, а не высота: размер карты при нём не меняется, слой тоже.
-      // Пока оно кормило `z`, тень дышала вместе с ним — меняла размер под неподвижной картой.
-      bob = bobOffset(Math.sin(this.age * this.preset.idle.speed + this.bobPhase), this.preset.idle.amp, this.height);
-    }
-
-    // «Стоп»-покачивание при заблокированном драге: затухающее мелкое смещение вбок.
-    let shakeX = 0;
-    if (this.block) {
-      const p = this.block.t / this.block.dur;
-      shakeX = Math.sin(this.block.t * 42) * this.width * 0.05 * (1 - p);
-    }
-
-    // ВЫСОТА — один источник: поза покоя (масштаб) плюс дыхание. Из неё выводится и подъём
-    // картинки, и поведение тени. Двигать карту по экрану «чтобы выглядела выше» в обход `z`
-    // нельзя: тогда одно событие описано дважды, и рано или поздно описания разойдутся.
-    // Высота: поза покоя плюс подъём полёта. Полёт даёт её в пикселях — переводим в доли высоты
-    // карты, чтобы `z` везде значил одно и то же.
-    const z = zFromScale(this.body.scaleVal) + this.body.liftPx / Math.max(1, this.height) + this.zBase;
-    this.root.position.set(this.body.px + shakeX, this.body.py + screenLift(z, this.height) + bob);
-    this.root.rotation = this.body.rotation;
-    let spinX = 1; // гориз. сжатие при перевороте — им же сужаем тень
-    if (this.flip) {
-      // ЧТО за движение — решает стиль из реестра (anim/flipStyles.ts). Он отдаёт угол и
-      // отклонения ОТ дома; дом карта уже заняла сама, поэтому отклонения складываются с ним.
-      const fr = flipStyle(this.preset.flip.style).frame(Math.min(1, this.flip.t / this.flip.dur), this.preset.flip.halfTurns);
-      const angle = fr.angle;
-      spinX = spinScale(angle);
-      this.root.scale.set(render * spinX * fr.scale * scaleFromZ(this.zBase), render * fr.scale * scaleFromZ(this.zBase));
-      this.root.position.set(this.root.position.x + fr.dx * this.width, this.root.position.y + fr.dy * this.height);
-      this.root.rotation += fr.rot;
-      const showOther = spinShowsOther(angle);
-      this.baseSprite.texture = this.faceTex(showOther ? !this.flip.fromFaceUp : this.flip.fromFaceUp);
-    } else {
-      // Высота показывается размером: подняли — стало крупнее. Иначе `z` двигал бы только тень.
-      this.root.scale.set(render * scaleFromZ(this.zBase));
-    }
-
-    // Силуэт тени. РАЗМЕР — от того, каким предмет НАРИСОВАН: поднятая карта крупнее лежащей, и
-    // тень у неё крупнее ровно во столько же. Пока размер брался от позы ПОКОЯ, у удерживаемой
-    // карты (×1.45) тень оставалась прежней и целиком пряталась под ней — предмет был, тени не было.
-    // Это не `growth`: тот про рост пятна С ВЫСОТОЙ у тени, лежащей на столе. Смещение по-прежнему
-    // растёт с высотой: выше предмет — дальше тень.
-    // ЭФФЕКТ применяется ДО тени: она выводится из итогового состояния предмета, а не правится
-    // отдельно под каждый способ появиться или сгинуть.
-    //
-    // Появление и уничтожение взаимоисключающи, и уничтожение важнее: оно решает, жива ли карта.
-    let fx: EffectFrame | null = null;
-    if (this.dying) {
-      const st = destroyStyle(this.preset.destroy.style);
-      // Стилю даём СВОЁ время (0..dur стиля), а не растянутое пресетом: иначе множитель скорости
-      // менял бы не темп, а саму форму движения — фронт горения не доходил бы до кромки.
-      const f = st.frame(st.dur * (this.dying.t / this.dying.dur), { age: this.age, width: this.width });
-      // «Без вспышек»: дрожь — фото-триггер, гасим её. Остальное движение стиля остаётся.
-      fx = this.flashOff ? { ...f, dx: 0, dy: 0 } : f;
-    } else if (this.born) {
-      const st = appearStyle(this.preset.appear.style);
-      fx = st.frame(st.dur * (this.born.t / this.born.dur), { age: this.age, width: this.width });
-    }
-    if (fx) {
-      const ref = { g: this.burnMask };
-      applyEffect(this.root, this.body.px, this.body.py, fx, ref);
-      this.burnMask = ref.g;
-    }
-
-    // ТЕНЬ — всегда следствие состояния: место, высота, экранное смещение, форма. Отдельных
-    // «теневых анимаций» нет и заводить их не нужно — эффект меняет предмет, тень идёт следом.
-    this.shadowRect = cardShadow(
-      withEffect(
-        {
-          px: this.body.px,
-          py: this.body.py,
-          shakeX,
-          z,
-          rotation: this.body.rotation,
-          scaleFactor: render * scaleFromZ(this.zBase), // тот же множитель, что уехал в root.scale
-          screenY: bob,
-          spinX,
-        },
-        fx,
-      ),
-      this.preset.shadow,
-    );
+    syncCard(this);
   }
 
   destroy(): void {
     this.root.destroy({ children: true });
   }
 
-  // ——— отрисовка ———
-
-  /** Лицо БЕЗ учёта цензуры — то, что карта показала бы, не будь на ней пыли. Из него же строится
-   *  облако пыли: смазывать надо именно это. */
-  private plainFaceTex(faceUp: boolean): Texture {
-    if (!faceUp) return this.tex.back(this.back);
-    if (this.masked) return this.tex.hiddenFace(); // значения нет/оно секретно → статичный фак
-    if (this.custom) {
-      const t = this.tex.customFace(this.custom);
-      if (t) return t; // неизвестный id → падаем на обычное число
-    }
-    return this.tex.face(this._card, this.fourColor, this.faceStyle);
-  }
-
-  /**
-   * Что реально печатается в спрайт. Под живой пылью — ЧИСТАЯ подложка, а не лицо: иначе видно и
-   * то, и другое сразу, и цензура перестаёт быть цензурой. Всё, что должно читаться сквозь пыль,
-   * несут сами частицы (они и есть смаз этого лица).
-   */
-  private faceTex(faceUp: boolean): Texture {
-    // Подложку подменяем ровно тогда, когда пыль реально будет нарисована. Иначе перевёрнутая
-    // зацензуренная карта показывала бы чистую пластину вместо рубашки: пыль на ней не рисуется
-    // (прятать нечего), а лицо уже подменено — карта выходила пустой.
-    if (this.dustShown) return this.tex.hiddenBg();
-    return this.plainFaceTex(faceUp);
-  }
-
   private paint(): void {
-    this.baseSprite.texture = this.faceTex(this.faceUp);
-  }
-
-  private buildTear(): Graphics {
-    const g = new Graphics();
-    const steps = 9;
-    const pts: number[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const y = -TEX_H / 2 + (TEX_H * i) / steps;
-      pts.push((i % 2 ? -1 : 1) * 12, y);
-    }
-    g.moveTo(pts[0]!, pts[1]!);
-    for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i]!, pts[i + 1]!);
-    g.stroke({ width: 10, color: 0xefe6d0 });
-    g.moveTo(pts[0]!, pts[1]!);
-    for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i]!, pts[i + 1]!);
-    g.stroke({ width: 3, color: 0x3a2f1f });
-    return g;
-  }
-
-  private buildLock(): Graphics {
-    const g = new Graphics();
-    const x = TEX_W / 2 - 30;
-    const y = -TEX_H / 2 + 36;
-    g.arc(x, y - 6, 9, Math.PI, 0).stroke({ width: 4, color: 0x1e1e1e });
-    g.roundRect(x - 14, y - 6, 28, 22, 4).fill({ color: 0x1e1e1e });
-    g.circle(x, y + 3, 3).fill({ color: 0xd0c090 });
-    return g;
+    this.baseSprite.texture = this.secrecy.faceTex(this.faceUp);
   }
 }

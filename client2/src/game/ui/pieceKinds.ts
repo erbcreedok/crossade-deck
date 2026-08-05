@@ -1,5 +1,6 @@
 import type { Container, Renderer, Texture } from "pixi.js";
-import { drawChip, drawChessPiece, Piece, type PieceOptions } from "./Piece";
+import { Piece, type PieceOptions } from "./Piece";
+import { drawChip, drawChessPiece } from "./pieceDraw";
 import { ownShadowOf } from "./silhouetteExtract";
 import { buildTextureDustPoints } from "../engine/censorSource";
 
