@@ -1,0 +1,41 @@
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_a9035af6dba0dc 50
+  s_b2849f723d52bb::t_a74d56630f2e5c 11
+  s_b2849f723d52bb::t_8c0c0f6795306e 39-40
+  s_b2849f723d52bb::t_10646ca2833fe1 77-78
+  s_b2849f723d52bb::t_98a50e964a2c6d 122-123,125-138,162
+  s_b2849f723d52bb::t_218d4f9fb6ce40 144,153,158-161
+  s_b2849f723d52bb::t_227bcef58c2eed 163
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_08f1d033b9db01 155
+  s_b2849f723d52bb::t_59dea8f0a8e6b1 203
+  s_b2849f723d52bb::t_7c25f044aa2ab7 204-205
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_7c2bf010c484db 84
+client2/src/game/boards/hand/handStrip.ts
+  s_b2849f723d52bb::t_82caad42272a3a 33-41
+client2/src/game/boards/hand/handStrip.test.ts
+  s_b2849f723d52bb::t_d232ec3f75fce1 42-62
+  s_b2849f723d52bb::t_b7b86db3af57d8 2
+client2/src/game/boards/scene/handHud.test.ts
+  s_b2849f723d52bb::t_d16cdbb1ae76ce 1-35,37-66
+  s_b2849f723d52bb::t_976e7131edea15 36
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_f50adf2c76a195 156-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2b3ea5074793bb739dc4ca16eac884f5c31fafca",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
