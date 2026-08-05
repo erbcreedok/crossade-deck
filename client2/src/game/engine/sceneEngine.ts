@@ -3,7 +3,9 @@ import { CanvasApp } from "./canvasApp";
 import { SceneLayers, levelOf } from "./sceneLayers";
 import { Viewport, wheelGoesToScene, type ViewState } from "./viewport";
 import { InputRouter, type DragMode, type InputHandlers } from "./inputRouter";
-import { Marker, withAnchor, withDragger, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./marker";
+import { buildSceneInput } from "./sceneInput";
+import { Marker, type MarkerConfig, type MarkerHost, type ShowPolicy } from "./marker";
+import { SceneMarkers, type Grabber as MarkerGrabber } from "./sceneMarkers";
 import { SingleDrag, type DragContext, type DragPayload } from "./drag";
 import { topmostAt, type HitBox } from "./cardHit";
 import { Button } from "../ui/Button";
@@ -16,6 +18,7 @@ import { animDurationOf, type AnimKind } from "../anim/durations";
 import { BASE_PRESET, type AnimPreset } from "../anim/presets";
 import { LandingQueue } from "./sceneLanding";
 import { SceneCamera, type SpreadSource } from "./sceneCamera";
+import type { SceneApi, SceneDelegate } from "./sceneContract";
 import { ScenePeeks } from "./scenePeeks";
 import { DelayQueue, SceneTimers } from "./sceneTimers";
 
@@ -68,11 +71,7 @@ interface ZoneReg {
 /** Настройки камеры сцены. Умолчания — ровно те, на которых откатана песочница: контрол и жесты
  *  обязаны совпадать во всех сценах, поэтому расходиться тут можно только осознанно. */
 /** Всё, за что тянут ЧЕРЕЗ МЕТКУ (стопки, столбики, соло-цели) — единый список для хит-теста. */
-export interface Grabber {
-  marker: Marker;
-  host: MarkerHost;
-  lead: () => SceneElement | null;
-}
+export type Grabber = MarkerGrabber<SceneElement>;
 
 export interface CameraConfig {
   minZoom?: number;
@@ -94,7 +93,7 @@ export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
-export abstract class SceneEngine extends CanvasApp {
+export class SceneEngine extends CanvasApp {
   // ——— полотно и слои ———
   protected content!: Container;
   protected scene!: SceneLayers;
@@ -168,37 +167,23 @@ export abstract class SceneEngine extends CanvasApp {
   // Живёт здесь, а не в песочнице, потому что механизм generic по элементу и нужен каждой сцене,
   // где за что-то тянут через ручку — в том числе витрине каталога. Держать его в PlaygroundEngine
   // значило бы, что каталог обязан или копировать плумбинг, или показывать стопки без ручек.
-  protected markers: Marker[] = [];
-  protected grabbers: Grabber[] = [];
-  /** За какую метку сейчас тянут (follow/endFollow). */
-  protected grabbedMarker: Marker | null = null;
-  /** Host захватываемой цели — живёт между pickElement и beginDrag. */
-  protected pendingHost: MarkerHost | null = null;
+  private readonly markerRig = new SceneMarkers<SceneElement>();
   /** Каким жестом (tap/hold) захватили текущий драг — роутер сообщает при onPieceGrab, а `beginDrag`
    *  читает, чтобы выбрать нужный интент (у стека тап и hold могут тащить разное). */
   protected grabMode: DragMode = "tap";
 
-  /** Навесить пару меток (драггер + якорь) на ЛЮБОЙ host и учесть их в хит-тесте захвата. */
+  /** Навесить пару меток (драггер + якорь) — см. sceneMarkers.ts. */
   protected mountMarkers(
     host: MarkerHost,
     lead: () => SceneElement | null,
     dragger: Omit<MarkerConfig, "show"> & { show?: ShowPolicy },
     anchorCfg: Omit<MarkerConfig, "show" | "follow" | "hit"> & { show?: ShowPolicy },
   ): { dragger: Marker; anchor: Marker } {
-    const d = withDragger(host, this.scene.verb, this.scene.cards.drag, dragger);
-    const a = withAnchor(host, this.scene.surface, anchorCfg);
-    this.markers.push(d, a);
-    this.grabbers.push({ marker: d, host, lead });
-    return { dragger: d, anchor: a };
+    return this.markerRig.mount({ verb: this.scene.verb, surface: this.scene.surface, dragLayer: this.scene.cards.drag }, host, lead, dragger, anchorCfg);
   }
 
-  /** Снести метки (пересборка содержимого). Зовут из своего clearContent. */
   protected clearMarkers(): void {
-    for (const m of this.markers) m.destroy();
-    this.markers = [];
-    this.grabbers = [];
-    this.grabbedMarker = null;
-    this.pendingHost = null;
+    this.markerRig.clear();
   }
 
   // ——— «подглядеть» ———
@@ -213,6 +198,181 @@ export abstract class SceneEngine extends CanvasApp {
   constructor(cam: CameraConfig = {}) {
     super();
     this.viewport = new Viewport(cam.minZoom ?? MIN_ZOOM, cam.maxZoom ?? MAX_ZOOM, cam.margin ?? 24, cam.align ?? "left", 0, cam.alignY ?? "top");
+  }
+
+  // ——— делегат сцены (композиция вместо наследования): сцена реализует SceneDelegate и получает
+  // SceneApi; нереализованный шов ведёт себя ПО-СТАРОМУ (coreX — поведение ядра) ———
+
+  private d!: SceneDelegate;
+
+  /** Привязать делегата ДО mount (сцена и движок создаются взаимно — двухфазная инициализация). */
+  attach(d: SceneDelegate): void {
+    this.d = d;
+  }
+
+  readonly api: SceneApi = {
+    width: () => this.width,
+    height: () => this.height,
+    renderer: () => this.app?.renderer ?? null,
+    app: () => this.app,
+    appReady: () => this.app !== null,
+    contentAdd: (c) => void this.content.addChild(c),
+    surfaceAdd: (c) => void this.scene.surface.addChild(c),
+    chromeAdd: (c) => void this.chrome.addChild(c),
+    chromeAddAt: (c, i) => void this.chrome.addChildAt(c, i),
+    setChromeButtons: (btns) => {
+      this.chromeButtons = [...btns];
+    },
+    forgetHovered: (btns) => {
+      if (this.hoveredBtn && btns.includes(this.hoveredBtn)) this.hoveredBtn = null;
+    },
+    byId: this.byId,
+    drag: () => this.drag,
+    setDrag: (d) => {
+      this.drag = d;
+    },
+    dragScreen: () => this.dragScreen,
+    grabMode: () => this.grabMode,
+    dragCtx: () => this.dragCtx,
+    viewport: () => this.viewport,
+    setContentSize: (w, h) => {
+      this.contentW = w;
+      this.contentH = h;
+    },
+    contentSize: () => ({ w: this.contentW, h: this.contentH }),
+    layers: () => this.scene,
+    setButtons: (btns) => {
+      this.buttons = [...btns];
+    },
+    buttonsRef: () => this.buttons,
+    preset: () => this.preset,
+    setPreset: (p) => {
+      this.preset = p;
+    },
+    reduceMotion: () => this.reduceMotion,
+    lowFx: () => this.lowFx,
+    flashOff: () => this.flashOff,
+    render: () => this.render(),
+    wake: () => this.wake(),
+    after: (sec, fn) => this.after(sec, fn),
+    animDuration: (id, kind) => this.animDuration(id, kind),
+    needsPeek: (el) => this.needsPeek(el),
+    flipGroup: (els) => this.flipGroup(els),
+    placeCard: (el) => this.placeCard(el),
+    releaseElement: (el) => this.releaseElement(el),
+    hitElement: (cx, cy) => this.hitElement(cx, cy),
+    screenToContent: (sx, sy) => this.screenToContent(sx, sy),
+    contentToScreen: (cx, cy) => this.contentToScreen(cx, cy),
+    syncVp: () => this.syncVp(),
+    clampView: () => this.clampView(),
+    applyView: () => this.applyView(),
+    emitView: () => this.emitView(),
+    focusBounds: (b) => this.focusBounds(b),
+    registerZone: (zone, onDrop, accepts, textFor) => this.registerZone(zone, onDrop, accepts, textFor),
+    mountMarkers: (host, lead, dragger, anchorCfg) => this.mountMarkers(host, lead, dragger, anchorCfg),
+    clearMarkers: () => this.clearMarkers(),
+    markersList: () => this.markerRig.list(),
+    grabbersList: () => this.markerRig.grabberList(),
+    resetSceneState: () => this.resetSceneState(),
+    setQualityProfile: (p) => this.onProfileChange(p),
+    defaultBeginDrag: (el, cp, sp) => this.coreBeginDrag(el, cp, sp),
+    defaultSceneTap: (content, screen) => this.coreOnSceneTap(content, screen),
+    defaultPickElement: (cx, cy) => this.corePickElement(cx, cy),
+    defaultElementTapped: (el) => this.coreOnElementTapped(el),
+    defaultCanDrag: (el) => this.coreCanDrag(el),
+  };
+
+  // ——— диспетчеры швов: делегат реализовал — его слово; нет — поведение ядра ———
+
+  protected buildScene(app: Application): void {
+    this.d.buildScene(app);
+  }
+  protected draggables(): SceneElement[] {
+    return this.d.draggables();
+  }
+  protected everyElement(): TableElement[] {
+    return this.d.everyElement();
+  }
+  protected homeOf(el: SceneElement): { home: Pt; depth: number } | null {
+    return this.d.homeOf(el);
+  }
+  protected layoutChrome(w: number, h: number): void {
+    this.d.layoutChrome ? this.d.layoutChrome(w, h) : this.coreLayoutChrome(w, h);
+  }
+  protected chromeInsetTop(): number {
+    return this.d.chromeInsetTop ? this.d.chromeInsetTop() : this.coreChromeInsetTop();
+  }
+  protected onSceneResize(w: number, h: number): void {
+    this.d.onSceneResize ? this.d.onSceneResize(w, h) : this.coreOnSceneResize(w, h);
+  }
+  protected focusTargetAt(cp: Pt): { x: number; y: number; w: number; h: number } | null {
+    return this.d.focusTargetAt ? this.d.focusTargetAt(cp) : this.coreFocusTargetAt(cp);
+  }
+  protected spreadOnElement(cp: Pt, rawX: number, rawY: number, source: SpreadSource): boolean {
+    return this.d.spreadOnElement ? this.d.spreadOnElement(cp, rawX, rawY, source) : this.coreSpreadOnElement(cp, rawX, rawY, source);
+  }
+  protected onSpreadBegin(): void {
+    this.d.onSpreadBegin ? this.d.onSpreadBegin() : this.coreOnSpreadBegin();
+  }
+  protected pickElement(cx: number, cy: number): SceneElement | null {
+    return this.d.pickElement ? this.d.pickElement(cx, cy) : this.corePickElement(cx, cy);
+  }
+  protected canDrag(el: SceneElement): boolean {
+    return this.d.canDrag ? this.d.canDrag(el) : this.coreCanDrag(el);
+  }
+  protected dragOnTap(el: SceneElement): boolean {
+    return this.d.dragOnTap ? this.d.dragOnTap(el) : this.coreDragOnTap(el);
+  }
+  protected dragOnHold(el: SceneElement): boolean {
+    return this.d.dragOnHold ? this.d.dragOnHold(el) : this.coreDragOnHold(el);
+  }
+  protected beginDrag(el: SceneElement, cp: Pt, sp: Pt): boolean {
+    return this.d.beginDrag ? this.d.beginDrag(el, cp, sp) : this.coreBeginDrag(el, cp, sp);
+  }
+  protected beforeDragMove(el: SceneElement, cp: Pt): boolean {
+    return this.d.beforeDragMove ? this.d.beforeDragMove(el, cp) : this.coreBeforeDragMove(el, cp);
+  }
+  protected dragPoint(cp: Pt): Pt {
+    return this.d.dragPoint ? this.d.dragPoint(cp) : this.coreDragPoint(cp);
+  }
+  protected onDragMoved(p: Pt): void {
+    this.d.onDragMoved ? this.d.onDragMoved(p) : this.coreOnDragMoved(p);
+  }
+  protected beforeDrop(el: SceneElement, cp: Pt): boolean {
+    return this.d.beforeDrop ? this.d.beforeDrop(el, cp) : this.coreBeforeDrop(el, cp);
+  }
+  protected resolveDrop(el: SceneElement, cp: Pt): void {
+    this.d.resolveDrop ? this.d.resolveDrop(el, cp) : this.coreResolveDrop(el, cp);
+  }
+  protected onDragCancel(): void {
+    this.d.onDragCancel ? this.d.onDragCancel() : this.coreOnDragCancel();
+  }
+  protected afterDragEnd(): void {
+    this.d.afterDragEnd ? this.d.afterDragEnd() : this.coreAfterDragEnd();
+  }
+  protected onElementBlocked(el: SceneElement): void {
+    this.d.onElementBlocked ? this.d.onElementBlocked(el) : this.coreOnElementBlocked(el);
+  }
+  protected onElementTapped(el: SceneElement): void {
+    this.d.onElementTapped ? this.d.onElementTapped(el) : this.coreOnElementTapped(el);
+  }
+  protected onSceneTap(content: Pt, screen: Pt): void {
+    this.d.onSceneTap ? this.d.onSceneTap(content, screen) : this.coreOnSceneTap(content, screen);
+  }
+  protected hasContextAt(cp: Pt): boolean {
+    return this.d.hasContextAt ? this.d.hasContextAt(cp) : this.coreHasContextAt(cp);
+  }
+  protected openContextMenu(cp: Pt, sp: Pt): void {
+    this.d.openContextMenu ? this.d.openContextMenu(cp, sp) : this.coreOpenContextMenu(cp, sp);
+  }
+  protected setHome(el: SceneElement, home: Pt, depth: number): void {
+    this.d.setHome ? this.d.setHome(el, home, depth) : this.coreSetHome(el, home, depth);
+  }
+  protected stepScene(dt: number): boolean {
+    return this.d.stepScene ? this.d.stepScene(dt) : this.coreStepScene(dt);
+  }
+  protected reapDead(): void {
+    this.d.reapDead ? this.d.reapDead() : this.coreReapDead();
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -231,15 +391,14 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   /** Разложить экранный слой под размер экрана. Зовётся после сборки и на каждом ресайзе. Опц. */
-  protected layoutChrome(_w: number, _h: number): void {}
+  private coreLayoutChrome(_w: number, _h: number): void {}
 
   /** Экранный отступ сверху, занятый HUD: сцена вычитает его из полезной высоты стола. */
-  protected chromeInsetTop(): number {
+  private coreChromeInsetTop(): number {
     return 0;
   }
 
   /** Собрать СВОЮ сцену в this.scene/this.content (полотно и слои уже готовы). Обязателен. */
-  protected abstract buildScene(app: Application): void;
 
   // Ввод и колесо вешаются на stage/канвас один раз за boot. hitArea обновляется на ресайзе.
   private wire(app: Application): void {
@@ -255,6 +414,7 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   protected onBooted(): void {
+    this.d.onBooted?.();
     this.clampView();
     this.applyView();
     this.render();
@@ -309,7 +469,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   /** Границы фокусируемой цели под точкой (координаты КОНТЕНТА) или null — нечего фокусировать.
    *  По умолчанию ничего не фокусируется; сцена включает нужные зоны/элементы (opt-in). */
-  protected focusTargetAt(_cp: Pt): { x: number; y: number; w: number; h: number } | null {
+  private coreFocusTargetAt(_cp: Pt): { x: number; y: number; w: number; h: number } | null {
     return null;
   }
 
@@ -321,13 +481,13 @@ export abstract class SceneEngine extends CanvasApp {
    * пинч — прирост span в rawX. Как маппить в прогресс спреда — дело сцены/конфига. Вернуть true —
    * спред взял жест, камера его НЕ получает. По умолчанию не берём — жест уходит камере/странице.
    */
-  protected spreadOnElement(_cp: Pt, _rawX: number, _rawY: number, _source: SpreadSource): boolean {
+  private coreSpreadOnElement(_cp: Pt, _rawX: number, _rawY: number, _source: SpreadSource): boolean {
     return false;
   }
 
   /** Начался НОВЫЙ жест спреда (палец лёг / у колеса — новый залп после паузы). Сцена сбрасывает
    *  per-gesture-состояние (напр. «этот жест уже двигал спред» — для детента на пределе). Опц. */
-  protected onSpreadBegin(): void {}
+  private coreOnSpreadBegin(): void {}
 
   /** Навести камеру на границы (плавный твин) — риг SceneCamera. */
   protected focusBounds(b: { x: number; y: number; w: number; h: number }): void {
@@ -348,7 +508,7 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   /** Пересчитать СВОЮ раскладку под новый экран (до клампа камеры). Опц. */
-  protected onSceneResize(_w: number, _h: number): void {}
+  private coreOnSceneResize(_w: number, _h: number): void {}
 
   /** Колесо/тачпад — целиком камерный риг (зум с модификатором, пан, спреды). */
   private onWheel = (e: WheelEvent): void => this.camera.handleWheel(e);
@@ -448,14 +608,10 @@ export abstract class SceneEngine extends CanvasApp {
   // Хит-тест и ввод
   // ——————————————————————————————————————————————————————————————————————
 
-  /** Все перетаскиваемые элементы сцены — единый список для хит-теста. Обязателен. */
-  protected abstract draggables(): SceneElement[];
 
   /** Все живые элементы сцены (в т.ч. недрагабельные) — для шага/рендера/теней. Обязателен. */
-  protected abstract everyElement(): TableElement[];
 
   /** Дом элемента: позиция покоя + глубина. null — дома нет (элемент вне раскладки). Обязателен. */
-  protected abstract homeOf(el: SceneElement): { home: Pt; depth: number } | null;
 
   protected hitElement(cx: number, cy: number): SceneElement | null {
     // Бокс по ВИДИМОМУ размеру (scaleVal), не раздутый DRAG_SCALE; из накрывших побеждает ВЕРХНЯЯ
@@ -510,34 +666,29 @@ export abstract class SceneEngine extends CanvasApp {
   // ——— контекстное меню (long-press по пустому месту / ПКМ): сцена включает opt-in ———
 
   /** Есть ли у сцены меню для точки (координаты КОНТЕНТА). false — long-press уходит в пан. */
-  protected hasContextAt(_cp: Pt): boolean {
+  private coreHasContextAt(_cp: Pt): boolean {
     return false;
   }
 
   /** Открыть меню в точке. По умолчанию — никакого меню; сцена переопределяет. */
-  protected openContextMenu(_cp: Pt, _sp: Pt): void {}
+  private coreOpenContextMenu(_cp: Pt, _sp: Pt): void {}
 
   /** Тап по сцене (любая цель). База ведёт дабл-тап-зум; сцена может перехватить (закрыть меню). */
-  protected onSceneTap(content: Pt, screen: Pt): void {
+  private coreOnSceneTap(content: Pt, screen: Pt): void {
     this.camera.handleTap(content, screen);
   }
 
   // ——— швы домена: сцена переопределяет только то, что у неё своё ———
 
-  /** Что схвачено в точке. По умолчанию — верхний элемент под пальцем. */
-  protected pickElement(cx: number, cy: number): SceneElement | null {
-    // Сперва метка-драггер: за ручку тянут ЦЕЛЬ (стопку, столбик, фигуру), а не то, что под ней.
-    const g = this.grabbers.find((gr) => gr.marker.interactive && gr.marker.hitTest(cx, cy));
-    if (g) {
-      this.pendingHost = g.host;
-      this.grabbedMarker = g.marker;
-      return g.lead(); // лид: верхняя карта стопки / сам соло-элемент
-    }
+  /** Что схвачено в точке: сперва метка-драггер (за ручку тянут ЦЕЛЬ), иначе верхний элемент. */
+  private corePickElement(cx: number, cy: number): SceneElement | null {
+    const byMarker = this.markerRig.pickAt(cx, cy);
+    if (byMarker !== undefined) return byMarker;
     return this.hitElement(cx, cy);
   }
 
   /** Можно ли тащить. По умолчанию — собственная драгабельность элемента. */
-  protected canDrag(el: SceneElement): boolean {
+  private coreCanDrag(el: SceneElement): boolean {
     return el.draggable;
   }
 
@@ -545,53 +696,46 @@ export abstract class SceneEngine extends CanvasApp {
    *  сразу) и/или драг-по-удержанию. По умолчанию только быстрый — обычный тап-драг, как и раньше.
    *  Сцена переопределяет, чтобы развести жесты (тап — одно, hold — другое). Режим сработавшего
    *  жеста доезжает до beginDrag через `grabMode`. */
-  protected dragOnTap(_el: SceneElement): boolean {
+  private coreDragOnTap(_el: SceneElement): boolean {
     return true;
   }
-  protected dragOnHold(_el: SceneElement): boolean {
+  private coreDragOnHold(_el: SceneElement): boolean {
     return false;
   }
 
   /** Начать драг. По умолчанию — обычный SingleDrag за одну карту. Переопределяют, чтобы тащить
    *  пачку/набор; вернуть true — «драг заведён сам», false — база заводит SingleDrag. */
-  protected beginDrag(el: SceneElement, cp: Pt, _sp: Pt): boolean {
+  private coreBeginDrag(el: SceneElement, cp: Pt, _sp: Pt): boolean {
     // Цель захвачена за метку → груз делает её host (это может быть и пачка). Иначе — одна карта.
-    const payload = this.pendingHost?.makePayload?.(cp) ?? null;
-    this.pendingHost = null;
-    if (payload) {
-      this.drag = payload;
-      this.grabbedMarker?.beginFollow(); // грип едет за пальцем поверх пачки
-    } else {
-      this.grabbedMarker = null;
-      this.drag = new SingleDrag(el, this.dragCtx, cp);
-    }
+    const payload = this.markerRig.takePayload(cp);
+    this.drag = payload ?? new SingleDrag(el, this.dragCtx, cp);
     this.drag.move(cp);
     return true;
   }
 
   /** Перехватить движение до того, как груз поедет (вернуть true — движение проглочено). Опц. */
-  protected beforeDragMove(_el: SceneElement, _cp: Pt): boolean {
+  private coreBeforeDragMove(_el: SceneElement, _cp: Pt): boolean {
     return false;
   }
 
   /** Поправить точку ведения (напр. запереть фигуру в рамке зоны). По умолчанию — как есть. */
-  protected dragPoint(cp: Pt): Pt {
+  private coreDragPoint(cp: Pt): Pt {
     return cp;
   }
 
   /** Груз проехал в точку p. База ведёт за пальцем захваченную метку; наследник добавляет своё. */
-  protected onDragMoved(p: Pt): void {
-    this.grabbedMarker?.followTo(p);
+  private coreOnDragMoved(p: Pt): void {
+    this.markerRig.followTo(p);
   }
 
   /** Перехватить дроп до разбора груза (вернуть true — дроп проглочен). Опц. */
-  protected beforeDrop(_el: SceneElement, _cp: Pt): boolean {
+  private coreBeforeDrop(_el: SceneElement, _cp: Pt): boolean {
     return false;
   }
 
   /** Что значит дроп. По умолчанию: зона под пальцем реагирует на СПОСОБНОСТИ груза (flip/burn/
    *  peek), не на его тип; не поглощён — возвращается домой пружиной. */
-  protected resolveDrop(_el: SceneElement, cp: Pt): void {
+  private coreResolveDrop(_el: SceneElement, cp: Pt): void {
     const drag = this.drag;
     if (!drag) return;
     const zone = this.zones.find((z) => z.zone.contains(cp.x, cp.y));
@@ -603,21 +747,20 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   /** Драг прерван (второй палец/уход указателя) — свернуть свои подсказки. Опц. */
-  protected onDragCancel(): void {}
+  private coreOnDragCancel(): void {}
 
   /** Конец любого драга. База возвращает метку на место; наследник снимает своё. */
-  protected afterDragEnd(): void {
-    this.grabbedMarker?.endFollow();
-    this.grabbedMarker = null;
+  private coreAfterDragEnd(): void {
+    this.markerRig.endFollow();
   }
 
   /** Попытались утащить недрагабельный элемент (палец поехал). По умолчанию — «стоп»-кивок. */
-  protected onElementBlocked(el: SceneElement): void {
+  private coreOnElementBlocked(el: SceneElement): void {
     el.blockNudge();
   }
 
   /** ТАП по недрагабельному элементу (без сдвига). По умолчанию — ничего: тык не отказ. */
-  protected onElementTapped(_el: SceneElement): void {}
+  private coreOnElementTapped(_el: SceneElement): void {}
 
   /**
    * Перевернуть ПАЧКУ.
@@ -651,7 +794,7 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   /** Переставить дом элемента. Знает только конкретная сцена — у неё свой реестр. */
-  protected setHome(_el: SceneElement, _home: { x: number; y: number }, _depth: number): void {}
+  private coreSetHome(_el: SceneElement, _home: { x: number; y: number }, _depth: number): void {}
 
   /**
    * Фил анимаций сцены (anim/presets.ts). Держит СЦЕНА, потому что расписание переворота пачки —
@@ -691,86 +834,22 @@ export abstract class SceneEngine extends CanvasApp {
   /** Отложенные перевороты каскада (волна доходит с задержкой). Шагается в кадре. */
   private readonly flipQueue = new DelayQueue<SceneElement>((el) => requestFlipOf(el));
 
-  // Хит-тесты и реакции на жесты. Стейт-машина — в InputRouter, домен — в швах выше.
+  // Связка ввода — sceneInput.ts: явный SceneInputHost вместо разбросанных приватных вызовов.
   private inputHandlers(): InputHandlers<SceneElement, Button> {
-    return {
+    return buildSceneInput<SceneElement>({
       screenToContent: (sx, sy) => this.screenToContent(sx, sy),
-      pickPiece: (cx, cy) => this.pickElement(cx, cy),
-      pieceDraggable: (el) => this.canDrag(el),
+      contentToScreen: (cx, cy) => this.contentToScreen(cx, cy),
+      camera: () => this.camera,
+      wake: () => this.wake(),
+      pickElement: (cx, cy) => this.pickElement(cx, cy),
+      canDrag: (el) => this.canDrag(el),
       dragOnTap: (el) => this.dragOnTap(el),
       dragOnHold: (el) => this.dragOnHold(el),
-      pickButton: (cx, cy) => this.hitButton(cx, cy),
-      pickOverlay: (sx, sy) => this.hitChrome(sx, sy),
-      buttonContains: (b, cx, cy) => {
-        if (!this.chromeButtons.includes(b)) return b.hitTest(cx, cy);
-        const s = this.contentToScreen(cx, cy);
-        return b.hitTest(s.x, s.y);
-      },
-
-      onPieceGrab: (el, cp, sp, mode) => {
-        this.grabMode = mode; // какой жест сработал (tap/hold) — beginDrag выберет по нему интент
-        this.dragScreen = { x: sp.x, y: sp.y };
-        // Перехват показа повторным драгом: НЕ абортим мгновенно. Помечаем grabbed и гасим peekBob
-        // (под пальцем элемент явно не «завис» — резонанс-парение ни к чему); скрытность НЕ трогаем,
-        // она вернётся по КОНЦУ драга или по истечении PEEK_DUR, что раньше. Так показанную карту
-        // можно утащить, и она вернётся в исходный вид сама.
-        this.peeks.markGrabbed(el.id);
-        this.beginDrag(el, cp, sp);
-      },
-
-      onPieceMove: (el, cp, sp) => {
-        this.dragScreen = { x: sp.x, y: sp.y };
-        if (this.beforeDragMove(el, cp)) return;
-        const p = this.dragPoint(cp);
-        this.drag?.move(p);
-        this.onDragMoved(p);
-        this.refreshZoneHot(p);
-      },
-
-      onPieceDrop: (el, cp) => {
-        if (!this.beforeDrop(el, cp) && this.drag) {
-          this.peeks.resolveGrabbed(); // держали показанный элемент → вернуть вид ДО диспатча дропа
-          this.resolveDrop(el, cp);
-          this.drag = null;
-        }
-        this.afterDragEnd();
-        for (const z of this.zones) z.zone.setHot(false);
-      },
-
-      onPieceCancel: () => {
-        if (this.drag) this.peeks.resolveGrabbed(); // отмена драга показанного — тоже вернуть вид
-        this.onDragCancel();
-        this.drag?.release();
-        this.drag = null;
-        this.afterDragEnd();
-      },
-
-      onPieceBlocked: (el) => this.onElementBlocked(el),
-      onPieceTap: (el) => this.onElementTapped(el),
-      onTap: (content, screen) => this.onSceneTap(content, screen),
-      longPressAt: (cx, cy) => this.hasContextAt({ x: cx, y: cy }),
-      onLongPress: (cp, sp) => this.openContextMenu(cp, sp),
-
-      onButtonDown: (b) => b.setPressed(true),
-      onButtonMove: (b, inside) => b.setPressed(inside),
-      onButtonUp: (b, inside) => {
-        // Сначала визуально отпустить, ПОТОМ действие: click() может снести саму кнопку
-        // (строка контекстного меню закрывает меню), и трогать её после — падение по мёртвой Graphics.
-        b.setPressed(false);
-        if (inside) b.click();
-      },
-
-      // Пан/пинч камеры — целиком камерный риг (инерция, спред-приоритет, якорь зума).
-      onPanStart: () => this.camera.panStart(),
-      onPan: (dx, dy) => this.camera.pan(dx, dy),
-      onPanEnd: () => this.camera.panEnd(),
-      onPinchStart: (mx, my, dist, spanX) => this.camera.pinchStart(mx, my, dist, spanX),
-      onPinch: (mx, my, dist, spanX) => this.camera.pinch(mx, my, dist, spanX),
-
-      onHover: (b) => {
-        // Трогаем ТОЛЬКО две сменившиеся кнопки (снятую и наведённую), а не перебираем весь список
-        // каждый раз: на ПК с десятками кнопок цикл-по-всем при быстром ховере ронял FPS (issue #48).
-        // Роутер и так шлёт onHover лишь при смене цели, так что b ≠ hoveredBtn.
+      hitButton: (cx, cy) => this.hitButton(cx, cy),
+      hitChrome: (sx, sy) => this.hitChrome(sx, sy),
+      isChromeButton: (b) => this.chromeButtons.includes(b),
+      hoverTo: (b) => {
+        // Трогаем ТОЛЬКО две сменившиеся кнопки — цикл-по-всем ронял FPS на ПК (issue #48).
         if (b === this.hoveredBtn) return;
         if (this.hoveredBtn) {
           this.hoveredBtn.hover(false);
@@ -783,8 +862,41 @@ export abstract class SceneEngine extends CanvasApp {
         this.hoveredBtn = b;
         this.wake();
       },
-      afterAny: () => this.wake(),
-    };
+      setGrabMode: (mode) => {
+        this.grabMode = mode;
+      },
+      setDragScreen: (sp) => {
+        this.dragScreen = { x: sp.x, y: sp.y };
+      },
+      peekMarkGrabbed: (id) => void this.peeks.markGrabbed(id),
+      peekResolveGrabbed: () => this.peeks.resolveGrabbed(),
+      beginDrag: (el, cp, sp) => void this.beginDrag(el, cp, sp),
+      beforeDragMove: (el, cp) => this.beforeDragMove(el, cp),
+      dragPoint: (cp) => this.dragPoint(cp),
+      moveDrag: (p) => this.drag?.move(p),
+      onDragMoved: (p) => this.onDragMoved(p),
+      refreshZoneHot: (p) => this.refreshZoneHot(p),
+      beforeDrop: (el, cp) => this.beforeDrop(el, cp),
+      hasDrag: () => this.drag !== null,
+      resolveDrop: (el, cp) => this.resolveDrop(el, cp),
+      clearDrag: () => {
+        this.drag = null;
+      },
+      releaseDrag: () => {
+        this.drag?.release();
+        this.drag = null;
+      },
+      afterDragEnd: () => this.afterDragEnd(),
+      coolZones: () => {
+        for (const z of this.zones) z.zone.setHot(false);
+      },
+      onDragCancel: () => this.onDragCancel(),
+      onElementBlocked: (el) => this.onElementBlocked(el),
+      onElementTapped: (el) => this.onElementTapped(el),
+      onSceneTap: (content, screen) => this.onSceneTap(content, screen),
+      hasContextAt: (cp) => this.hasContextAt(cp),
+      openContextMenu: (cp, sp) => this.openContextMenu(cp, sp),
+    });
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -853,12 +965,12 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   /** Свои анимации сцены за кадр; вернуть «что-то ещё движется». Опц. */
-  protected stepScene(_dt: number): boolean {
+  private coreStepScene(_dt: number): boolean {
     return false;
   }
 
   /** Убрать догоревшие/лишние элементы из своих списков. Опц. */
-  protected reapDead(): void {}
+  private coreReapDead(): void {}
 
   protected render(): void {
     const els = this.everyElement();
@@ -875,7 +987,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   /** Досинхронизировать визуалы перед теневым пассом: база — метки, наследник — своё. */
   protected renderScene(): void {
-    for (const m of this.markers) m.update();
+    for (const m of this.markerRig.list()) m.update();
   }
 
   // ——— флаги доступности: одинаково во всех сценах ———
@@ -910,6 +1022,7 @@ export abstract class SceneEngine extends CanvasApp {
   }
 
   protected onTeardown(app: Application): void {
+    this.d.onTeardown?.(app);
     app.canvas.removeEventListener("wheel", this.onWheel);
     app.canvas.removeEventListener("contextmenu", this.onCtxMenu);
     this.chromeButtons = []; // сам HUD сносится вместе с app; список — чтобы не держать мёртвые узлы
