@@ -1,27 +1,28 @@
-import { Application, Graphics, Text } from "pixi.js";
+import { Application, Graphics } from "pixi.js";
 import { SceneEngine, type SceneElement } from "../../engine/sceneEngine";
-import { TEX_H, PIXEL_FONT, COLORS } from "../../engine/constants";
+import { COLORS } from "../../engine/constants";
 import { Card } from "../../ui/Card";
 import { CardTextureCache } from "../../ui/CardTextureCache";
-import { Button } from "../../ui/Button";
-import { buildPiece, type PieceSpec } from "../../ui/pieceKinds";
-import type { Piece } from "../../ui/Piece";
 import type { TableElement } from "../../engine/element";
 import { dropTarget } from "../../slot/slot";
 import { dashedRectSegments } from "../../ui/dashedRectSegments";
 import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
 import { blockDropOffset } from "../geometry/freeBox";
-import { faceAfterDrop, freeStackSize, insideBox, nextLooseKey } from "../geometry/freeDrop";
+import { freeStackSize } from "../geometry/freeDrop";
+import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
 import { GroupDrag } from "../../engine/drag";
 import { CARD } from "../../crossade/tree";
 import { buildBoardTree, type BoardTree, type FreePositions } from "../geometry/boardTree";
 import { localDriver, type BoardDriver } from "../core/driver";
 import { handKey, type BoardState } from "../core/state";
 import { baseZoneId, elementById, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
-import { handOrderAfterDrop } from "../../crossade/handOrder";
-import { ContextMenu, type MenuRow } from "../../ui/ContextMenu";
+import type { MenuRow } from "../../ui/ContextMenu";
 import { DropBar } from "../../ui/DropBar";
 import { ScenePresence } from "./scenePresence";
+import { SceneChrome } from "./chrome";
+import { SceneMenu } from "./menu";
+import { SceneDecor } from "./decor";
+import { buildBoardNode, nodeScaleIn, type BoardNode } from "./nodeFactory";
 import { hintShape, menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
 import { migrateState } from "../core/migrate";
 import { autoDealPlan } from "../core/dealPlan";
@@ -82,29 +83,11 @@ export interface BoardSceneOptions {
   presence?: { hub: PresenceHub; who: string; palette: (who: string) => number; label?: (who: string) => string };
 }
 
-type BoardNode = Card | Piece;
-
-/** Обмен местами: перетащенный встаёт на позицию цели, вытесненный — на его прежнюю. */
-function swappedOrder(members: readonly string[], el: string, toIndex: number): string[] {
-  const fromIndex = members.indexOf(el);
-  if (fromIndex < 0 || toIndex < 0 || toIndex >= members.length || fromIndex === toIndex) return [...members];
-  const out = [...members];
-  [out[fromIndex], out[toIndex]] = [out[toIndex]!, out[fromIndex]!];
-  return out;
-}
-
 export class BoardScene extends SceneEngine {
   private tex: CardTextureCache | null = null;
   private readonly nodes = new Map<string, BoardNode>();
   private readonly cardDepth = new Map<string, number>();
-  private readonly seatLabels = new Map<string, Text>();
-  private readonly zoneLabels = new Map<string, Text>();
-  private readonly decorLayer = new Graphics();
   private readonly hintLayer = new Graphics();
-  private actionButtons: Button[] = [];
-  private toolButtons: Button[] = [];
-  private badgeText: Text | null = null;
-  private diceText: Text | null = null;
 
   private spec: BoardSpec;
   private defs: ReadonlyMap<string, ElementDef>;
@@ -113,10 +96,10 @@ export class BoardScene extends SceneEngine {
   private state: BoardState;
   private tree: BoardTree;
 
-  // Контекстное меню настроек (opt-in через opts.menus).
-  private menu: ContextMenu | null = null;
-  private menuAt = { x: 0, y: 0 };
-  private menuCtx: { kind: MenuTargetKind } | { kind: "deck"; slot: string } | { kind: "card"; id: string } = { kind: "table" };
+  // Экранный HUD, контекстное меню и декор — коллабораторы (композиция вместо роста класса).
+  private readonly chromeHud: SceneChrome;
+  private readonly menuOwner: SceneMenu;
+  private readonly decor: SceneDecor;
 
   // Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга.
   private readonly dropBar = new DropBar();
@@ -163,6 +146,45 @@ export class BoardScene extends SceneEngine {
       this.presence.paint();
       this.wake();
     });
+    this.chromeHud = new SceneChrome({
+      add: (c) => this.chrome.addChild(c),
+      dispatch: (cmd) => this.dispatch(cmd),
+      accent: () => this.accentColor(),
+      wake: () => this.wake(),
+    });
+    this.menuOwner = new SceneMenu({
+      menus: opts.menus,
+      size: () => ({ w: this.width, h: this.height }),
+      chromeAdd: (c) => this.chrome.addChild(c),
+      setMenuButtons: (btns) => {
+        this.chromeButtons = [...this.chromeHud.buttons(), ...btns];
+      },
+      forgetHovered: (btns) => {
+        if (this.hoveredBtn && btns.includes(this.hoveredBtn)) this.hoveredBtn = null;
+      },
+      wake: () => this.wake(),
+      slotOf: (id) => this.tree.slotOf(id),
+      isDeckSlot: (slot) => this.isDeckSlot(slot),
+      fx: (id) => this.state.fx[id],
+      faceUpIn: (id, slot) => this.faceUpIn(id, slot),
+      hitElementId: (cp) => this.hitElement(cp.x, cp.y)?.id ?? null,
+      menuTarget: (cp) => this.menuTarget(cp),
+      dispatch: (cmd) => this.dispatch(cmd),
+      shuffle: (slot) => this.shuffleDeck(slot),
+      deal: (slot) => this.autoDeal(slot),
+    });
+    this.decor = new SceneDecor({
+      surfaceAdd: (c) => this.scene.surface.addChild(c),
+      spec: () => this.spec,
+      tree: () => this.tree,
+      state: () => this.state,
+      selfSeat: this.selfSeat,
+      accent: () => this.accentColor(),
+      isMe: (occupant) => {
+        const p = this.opts.presence;
+        return !!p && occupant !== null && occupant === (p.label?.(p.who) ?? p.who);
+      },
+    });
   }
 
   // ——— live-присутствие: лок «кто первый», курсоры (свой — тоже своим цветом) ———
@@ -196,98 +218,7 @@ export class BoardScene extends SceneEngine {
   }
 
   protected openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
-    this.closeMenu();
-    // Сперва ЭЛЕМЕНТ под точкой: у колоды (free-стопки) и одиночной карты — свои меню действий.
-    const el = this.hitElement(cp.x, cp.y);
-    const slot = el ? this.tree.slotOf(el.id) : null;
-    if (el && slot) {
-      this.menuCtx = this.isDeckSlot(slot) ? { kind: "deck", slot } : { kind: "card", id: el.id };
-    } else {
-      const target = this.menuTarget(cp);
-      if (!target) return;
-      this.menuCtx = { kind: target };
-    }
-    this.menuAt = { x: sp.x, y: sp.y };
-    this.showMenu();
-  }
-
-  private menuRows(): { title: string; rows: readonly MenuRow[] } {
-    const ctx = this.menuCtx;
-    if (ctx.kind === "deck") {
-      const rows: MenuRow[] = [
-        { key: "shuffle", label: "перемешать", close: true, onSelect: () => this.shuffleDeck(ctx.slot) },
-        { key: "deal", label: "раздать по 2", close: true, onSelect: () => this.autoDeal(ctx.slot) },
-        ...(this.opts.menus?.deckExtras?.() ?? []),
-      ];
-      return { title: "колода", rows };
-    }
-    if (ctx.kind === "card") {
-      const fx = this.state.fx[ctx.id] ?? {};
-      const turned = (fx.rot ?? 0) !== 0;
-      const slot = this.tree.slotOf(ctx.id);
-      const faceUp = fx.face ?? (slot ? this.faceUpIn(ctx.id, slot) : true);
-      return {
-        title: "карта",
-        rows: [
-          { key: "turn", label: "поворот", value: turned ? "90°" : "0°", onSelect: () => this.toggleCardFx(ctx.id, "rot") },
-          { key: "flip", label: "лицом", value: faceUp ? "вверх" : "вниз", onSelect: () => this.toggleCardFx(ctx.id, "face") },
-        ],
-      };
-    }
-    const hostMenu = this.opts.menus?.menuFor(ctx.kind);
-    return hostMenu ?? { title: ctx.kind === "board" ? "борда" : "стол", rows: [] };
-  }
-
-  private showMenu(): void {
-    const { title, rows } = this.menuRows();
-    if (!rows.length) return;
-    // После строки-настройки меню обновляется по месту (значение/состав строк сменились);
-    // строка-действие (close) закрывает меню — действию мешать незачем.
-    const wrapped = rows.map((row) => ({
-      ...row,
-      onSelect: () => {
-        row.onSelect();
-        if (row.close) this.closeMenu();
-        else this.refreshMenu();
-      },
-    }));
-    this.menu = new ContextMenu({ title, rows: wrapped });
-    this.menu.place(this.menuAt.x, this.menuAt.y, this.width, this.height);
-    this.chrome.addChild(this.menu.root);
-    this.chromeButtons = [...this.actionButtons, ...this.toolButtons, ...this.menu.buttons];
-    this.wake();
-  }
-
-  /** Обновить открытое меню по месту (после смены настройки состав/значения строк другие). */
-  private refreshMenu(): void {
-    if (!this.menu) return;
-    this.closeMenu();
-    this.showMenu();
-  }
-
-  /** Меню одиночной карты: поворот 90° / принудительный флип. Оверрайд — команда порта:
-   *  перевёрнутая карта перевёрнута у ВСЕХ (и в live, и у поздних гостей). */
-  private toggleCardFx(id: string, what: "rot" | "face"): void {
-    const fx = { ...(this.state.fx[id] ?? {}) };
-    if (what === "rot") {
-      if ((fx.rot ?? 0) === 0) fx.rot = Math.PI / 2;
-      else delete fx.rot;
-    } else {
-      const slot = this.tree.slotOf(id);
-      const cur = fx.face ?? (slot ? this.faceUpIn(id, slot) : true);
-      fx.face = !cur;
-    }
-    this.dispatch({ t: "cardFx", el: id, fx });
-  }
-
-  private closeMenu(): void {
-    if (!this.menu) return;
-    // Ховер мог указывать на строку меню: забыть ДО destroy, иначе снятие ховера трогает мёртвую Graphics.
-    if (this.hoveredBtn && this.menu.buttons.includes(this.hoveredBtn)) this.hoveredBtn = null;
-    this.menu.destroy();
-    this.menu = null;
-    this.chromeButtons = [...this.actionButtons, ...this.toolButtons];
-    this.wake();
+    this.menuOwner.openAt(cp, sp);
   }
 
   /** «Шурух»: верх стопки разлетается детерминированным веером и слетается уже перемешанным. */
@@ -343,8 +274,8 @@ export class BoardScene extends SceneEngine {
 
   /** Тап мимо меню закрывает его (по строкам меню тап не доходит — их ловит chromeButtons). */
   protected onSceneTap(content: { x: number; y: number }, screen: { x: number; y: number }): void {
-    if (this.menu && !this.menu.contains(screen.x, screen.y)) {
-      this.closeMenu();
+    if (this.menuOwner.isOpen() && !this.menuOwner.contains(screen.x, screen.y)) {
+      this.menuOwner.close();
       return; // закрытие меню — весь смысл тапа, дабл-тап-зум не кормим
     }
     super.onSceneTap(content, screen);
@@ -361,58 +292,21 @@ export class BoardScene extends SceneEngine {
 
   protected buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
-    this.scene.surface.addChild(this.decorLayer, this.hintLayer);
+    this.scene.surface.addChild(this.decor.layer, this.hintLayer);
     this.content.addChild(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
     this.chrome.addChildAt(this.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
-    this.buildActionBar();
+    this.chromeHud.build(this.spec.actions, this.opts.tools ?? []);
+    this.chromeButtons = this.chromeHud.buttons();
     this.rebuildBoard(true);
   }
 
-  private buildActionBar(): void {
-    for (const action of this.spec.actions) {
-      const b = new Button({ label: action.label, size: "sm", variant: "secondary", onClick: () => this.dispatch(action.command) });
-      this.chrome.addChild(b.root);
-      this.actionButtons.push(b);
-    }
-    // Инструменты хоста (live и т.п.) — канвасом в правом верхнем углу: HTML в игре запрещён.
-    for (const tool of this.opts.tools ?? []) {
-      const b = new Button({ label: tool.label, size: "sm", variant: "secondary", onClick: tool.onClick });
-      this.chrome.addChild(b.root);
-      this.toolButtons.push(b);
-    }
-    this.badgeText = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 14, fill: COLORS.gold } });
-    this.badgeText.anchor.set(1, 0.5);
-    this.chrome.addChild(this.badgeText);
-    this.diceText = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 20, fill: COLORS.gold } });
-    this.diceText.anchor.set(1, 0.5);
-    this.chrome.addChild(this.diceText);
-    this.chromeButtons = [...this.actionButtons, ...this.toolButtons];
-  }
-
-  /** Строка статуса хоста у инструментов (live: «ник · комната 1234»). Пустая строка — спрятать. */
+  /** Строка статуса хоста у инструментов (live: «ник · комната 1234»). Пустая — спрятать. */
   setBadge(text: string): void {
-    if (!this.badgeText) return;
-    this.badgeText.text = text;
-    this.badgeText.style.fill = this.accentColor(); // профиль — цветом игрока
-    this.layoutChrome(this.width, this.height);
-    this.wake();
+    this.chromeHud.setBadge(text);
   }
 
   protected layoutChrome(w: number, h: number): void {
-    let x = 12;
-    const y = h - 26;
-    for (const b of this.actionButtons) {
-      b.place(x + b.w / 2, y);
-      x += b.w + 8;
-    }
-    // Инструменты — от правого края, бейдж — слева от них.
-    let rx = w - 12;
-    for (const b of [...this.toolButtons].reverse()) {
-      b.place(rx - b.w / 2, 30);
-      rx -= b.w + 8;
-    }
-    this.badgeText?.position.set(rx, 30);
-    this.diceText?.position.set(w - 12, y);
+    this.chromeHud.layout(w, h);
   }
 
   protected onBooted(): void {
@@ -484,11 +378,10 @@ export class BoardScene extends SceneEngine {
 
     this.contentW = this.tree.size.w;
     this.contentH = this.tree.size.h;
-    this.syncSeats();
-    this.paintDecor();
+    this.decor.sync();
     this.paintHints();
     this.presence.paint();
-    this.syncDice();
+    this.chromeHud.syncDice(this.state.dice);
     this.clampView();
     this.applyView();
     this.emitView();
@@ -509,20 +402,9 @@ export class BoardScene extends SceneEngine {
     return this.spec.zones.find((z) => z.id === baseZoneId(zoneId))?.layout.kind === "free";
   }
 
-  /** Слот-КОЛОДА free-зоны (слот 0). Остальные слоты зоны — свободные стопки: обычные карты. */
+  /** Слот-КОЛОДА free-зоны (слот 0) — правило чистого dropPlan. */
   private isDeckSlot(slot: string): boolean {
-    return slotOf(slot) === "0" && this.isFreeZone(zoneOf(slot));
-  }
-
-  /** Free-зона, чей бокс (с учётом формы-круга) накрывает точку. Хит-тест ФОЛБЭКА: сперва сцена
-   *  спрашивает dropTarget (колода/стопки/центр — специфичнее), потом сам бокс. */
-  private freeZoneAt(cp: { x: number; y: number }): string | null {
-    for (const zone of this.spec.zones) {
-      if (zone.layout.kind !== "free") continue;
-      const box = this.tree.cellRects[slotKey(zone.id, 0)];
-      if (box && insideBox(box, zone.shape, cp)) return zone.id;
-    }
-    return null;
+    return isDeckSlot(this.dropWorld(), slot);
   }
 
   /** Дом элемента. Сдвиги free-зон (колода-блок, свободные стопки) уже В ДЕРЕВЕ (FreePositions) —
@@ -531,145 +413,17 @@ export class BoardScene extends SceneEngine {
     return this.tree.homeOf(id);
   }
 
-  /** Масштаб узла в слоте: в полосе чужого места карта ужимается до строки рубашек. */
   private scaleIn(node: BoardNode, slot: string): number {
-    if (!(node instanceof Card)) return node.restScale;
-    const strip = zoneOf(slot) === "seat";
-    return (strip ? SEAT_STRIP_CARD_H / CARD.h : 1) * node.restScale;
+    return nodeScaleIn(node, slot);
   }
 
   private nodeFor(id: string): BoardNode {
     const existing = this.nodes.get(id);
     if (existing) return existing;
-    const def = this.defs.get(id);
-    let node: BoardNode;
-    if (!def || def.kind === "card") {
-      node = new Card({ id, card: def?.kind === "card" ? def.face : "A♠", faceUp: true, flippable: true }, this.tex!, CARD.h / TEX_H);
-    } else {
-      const spec: PieceSpec =
-        def.kind === "piece" ? { kind: "chess", dark: def.dark, glyph: def.glyph } : { kind: "chip", color: 0x2e6b45, denom: String(def.denom) };
-      node = buildPiece(id, spec, 30, this.app?.renderer ?? null);
-    }
+    const node = buildBoardNode(id, this.defs.get(id), this.tex!, this.app?.renderer ?? null);
     this.nodes.set(id, node);
     this.byId.set(id, node);
     return node;
-  }
-
-  /** Подписи мест: имя/«свободно», у чьего хода — золотая метка. Свой ход виден у руки. */
-  private syncSeats(): void {
-    // Соло-борда (одно место, песочница): ни хода, ни дилера, ни соседей — подпись места была бы
-    // шумом «► Игрок 1 ♛» под пустым столом. Гасим все метки мест и выходим.
-    if (this.state.seats.length <= 1) {
-      for (const [id, label] of this.seatLabels) {
-        label.destroy();
-        this.seatLabels.delete(id);
-      }
-      return;
-    }
-    const seen = new Set<string>();
-    for (const [i, seat] of this.state.seats.entries()) {
-      const isTurn = this.state.turn.at === i;
-      const key = seat.id === this.selfSeat ? `hand:${seat.id}` : `seat:${seat.id}`;
-      // У борды без рук (шахматы) своему месту негде жить в дереве — подпись встаёт в левый
-      // низ стола: маркер хода и «♛» обязаны быть видимы и там.
-      const origin = this.tree.origins[key] ?? (seat.id === this.selfSeat ? { x: 40, y: this.tree.size.h - 4 } : undefined);
-      if (!origin) continue;
-      seen.add(seat.id);
-      let label = this.seatLabels.get(seat.id);
-      if (!label) {
-        label = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 13, align: "left" } });
-        label.anchor.set(0, 1);
-        this.scene.surface.addChild(label);
-        this.seatLabels.set(seat.id, label);
-      }
-      const who = seat.occupant ?? "свободно";
-      const dealer = seat.id === this.state.dealer ? " ♛" : "";
-      label.text = `${isTurn ? "► " : ""}${who}${dealer}`;
-      const p = this.opts.presence;
-      const isMe = !!p && seat.occupant !== null && seat.occupant === (p.label?.(p.who) ?? p.who);
-      label.style.fill = isMe ? this.accentColor() : isTurn ? COLORS.gold : seat.occupant ? COLORS.seatName : COLORS.seatNameOff;
-      label.position.set(origin.x, origin.y - 6);
-    }
-    for (const [id, label] of this.seatLabels) {
-      if (seen.has(id)) continue;
-      label.destroy();
-      this.seatLabels.delete(id);
-    }
-  }
-
-  /** Декор: фон-клетки (шахматная раскраска), контуры зон, подписи. perSeat-экземпляры
-   *  («gear@p2») находят свою спеку через baseZoneId и получают КАЖДЫЙ свою подпись. */
-  private paintDecor(): void {
-    const g = this.decorLayer;
-    g.clear();
-    // Рантайм-зоны: экземпляр → первый слот (для подписи).
-    const runtime = new Map<string, string>();
-    for (const key of Object.keys(this.tree.origins)) {
-      const z = zoneOf(key);
-      if (!runtime.has(z)) runtime.set(z, key);
-    }
-    const seen = new Set<string>();
-    for (const [zid, firstKey] of runtime) {
-      const zone = this.spec.zones.find((z) => z.id === baseZoneId(zid));
-      if (!zone) continue;
-      const cell = zone.cell ?? { w: 100, h: 143 };
-      // Ячейки зоны: слоты (origins) ∪ декор-ячейки без слота (cellRects «:phN» — пустые позиции
-      // радиального круга). Заготовки — просто рамки, дроп в них решает контейнер, не они.
-      const rects = new Map<string, { x: number; y: number; w: number; h: number }>();
-      for (const [key, at] of Object.entries(this.tree.origins)) {
-        if (zoneOf(key) !== zid) continue;
-        // Свободные стопки free-зоны — карты, а не разметка: рамку рисует только бокс (слот 0).
-        if (zone.layout.kind === "free" && key !== slotKey(zid, 0)) continue;
-        rects.set(key, this.tree.cellRects[key] ?? { x: at.x, y: at.y, w: cell.w, h: cell.h });
-      }
-      for (const [key, r] of Object.entries(this.tree.cellRects)) {
-        if (zoneOf(key) === zid && !rects.has(key)) rects.set(key, r);
-      }
-      for (const [key, r] of rects) {
-        if (zone.background === "chessboard") {
-          const m = key.match(/r(\d+)c(\d+)$/);
-          const dark = m ? (Number(m[1]) + Number(m[2])) % 2 === 1 : false;
-          g.rect(r.x, r.y, r.w, r.h).fill({ color: dark ? 0x27352c : 0x3a4a3f });
-          g.rect(r.x, r.y, r.w, r.h).stroke({ width: 1, color: 0x1e2a23 });
-        } else if (zone.shape === "circle") {
-          // РОВНЫЙ круг, вписанный в бокс зоны; пунктир — дугами чистой функции (Pixi dash не умеет).
-          const cx = r.x + r.w / 2;
-          const cy = r.y + r.h / 2;
-          const rad = Math.min(r.w, r.h) / 2;
-          if (zone.frame === "dashed") {
-            for (const a of dashedCircleArcs(rad, 12, 9)) {
-              g.moveTo(cx + rad * Math.cos(a.start), cy + rad * Math.sin(a.start)).arc(cx, cy, rad, a.start, a.end);
-            }
-            g.stroke({ width: 1.5, color: 0x50604f, alpha: 0.85 });
-          } else {
-            g.circle(cx, cy, rad).stroke({ width: 1.5, color: 0x50604f, alpha: 0.8 });
-          }
-        } else if (zone.frame === "dashed") {
-          // Стиль дроп-зоны: пунктирная рамка (Pixi v8 dash сам не умеет — сегменты чистой функцией).
-          for (const s of dashedRectSegments(r.x, r.y, r.w, r.h, 12, 9)) g.moveTo(s.x1, s.y1).lineTo(s.x2, s.y2);
-          g.stroke({ width: 1.5, color: 0x50604f, alpha: 0.85 });
-        } else {
-          g.roundRect(r.x, r.y, r.w, r.h, 6).stroke({ width: 1.5, color: 0x50604f, alpha: 0.8 });
-        }
-      }
-      if (!zone.title) continue;
-      seen.add(zid);
-      let label = this.zoneLabels.get(zid);
-      if (!label) {
-        label = new Text({ text: zone.title, style: { fontFamily: PIXEL_FONT, fontSize: 13, fill: COLORS.gold } });
-        label.anchor.set(0, 1);
-        this.scene.surface.addChild(label);
-        this.zoneLabels.set(zid, label);
-      }
-      const at = this.tree.origins[firstKey]!;
-      label.position.set(at.x, at.y - 6);
-    }
-    // Экземпляры, исчезнувшие с пересборкой (ушёл игрок) — снести подписи.
-    for (const [zid, label] of this.zoneLabels) {
-      if (seen.has(zid)) continue;
-      label.destroy();
-      this.zoneLabels.delete(zid);
-    }
   }
 
   /** Подсветка целевого слота под пальцем: фигуру считает чистый hintShape (sceneAreas),
@@ -689,11 +443,6 @@ export class BoardScene extends SceneEngine {
     if (!shape) return;
     if (shape.kind === "circle") g.circle(shape.cx, shape.cy, shape.r).stroke({ width: 3, color: this.accentColor() });
     else g.roundRect(shape.x, shape.y, shape.w, shape.h, 8).stroke({ width: 3, color: this.accentColor() });
-  }
-
-  private syncDice(): void {
-    if (!this.diceText) return;
-    this.diceText.text = this.state.dice.length ? `🎲 ${this.state.dice.join(" + ")}` : "";
   }
 
   // ——— швы домена ———
@@ -741,7 +490,7 @@ export class BoardScene extends SceneEngine {
     if (zone === "seat") return false;
     if (slot === handKey(this.selfSeat)) return true;
     // Реордер-зона (flow-грид): жители разложены веером по позициям — хватается ЛЮБОЙ, не верх.
-    if (this.reorderModeOf(slot)) return true;
+    if (reorderModeOf(this.dropWorld(), slot)) return true;
     const members = this.state.field.slots[slot]?.members ?? [];
     return members[members.length - 1] === el.id;
   }
@@ -754,7 +503,7 @@ export class BoardScene extends SceneEngine {
   }
 
   protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
-    this.closeMenu(); // начался драг — меню больше не к месту
+    this.menuOwner.close(); // начался драг — меню больше не к месту
     // Live-лок: гонка на первом касании решается хабом; отказ — элемент уже у другого.
     const p = this.opts.presence;
     if (p) {
@@ -804,7 +553,8 @@ export class BoardScene extends SceneEngine {
     const target = dropTarget(this.tree.root, p);
     // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
     // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
-    const hot = target?.group.id ?? (this.freeZoneAt(p) ? slotKey(this.freeZoneAt(p)!, "box") : null);
+    const fz = freeZoneAt(this.dropWorld(), p);
+    const hot = target?.group.id ?? (fz ? slotKey(fz, "box") : null);
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintHints();
@@ -825,9 +575,8 @@ export class BoardScene extends SceneEngine {
         if (bar === "shuffle") {
           this.shuffleDeck(slot);
         } else {
-          this.menuCtx = wasBlock ? { kind: "deck", slot } : { kind: "card", id: el.id };
-          this.menuAt = { x: this.dragScreen.x, y: this.dragScreen.y - 200 };
-          this.showMenu();
+          const ctx = wasBlock ? ({ kind: "deck", slot } as const) : ({ kind: "card", id: el.id } as const);
+          this.menuOwner.openFor(ctx, { x: this.dragScreen.x, y: this.dragScreen.y - 200 });
         }
       }
       return;
@@ -854,89 +603,32 @@ export class BoardScene extends SceneEngine {
       drag.release();
       return;
     }
-    const from = this.tree.slotOf(el.id);
     const target = dropTarget(this.tree.root, cp);
-    const to = target?.group.id ?? null;
-    const myHand = handKey(this.selfSeat);
-    if (from === myHand && to === myHand && this.spec.hand?.reorder) {
-      // Реордер руки — та же дверь порта, что и любой ход (сервер потом получит эту же команду).
-      const members = this.state.field.slots[myHand]?.members ?? [];
-      const order = handOrderAfterDrop(members, el.id, target?.index ?? members.length);
-      this.dispatch({ t: "reorderHand", seat: this.selfSeat, order });
-    } else if (from && to === from && this.reorderModeOf(from)) {
-      // Дроп внутри реордер-зоны (flow-грид): вставка на позицию или обмен местами.
-      // У вставки индекс — ЩЕЛЬ (его даёт dropTarget), у обмена — КЛЕТКА: цель обмена ищется
-      // как ближайший к пальцу житель, индекс вставки тут соврал бы на полклетки.
-      const members = this.state.field.slots[from]?.members ?? [];
-      const mode = this.reorderModeOf(from)!;
-      const order =
-        mode === "swap"
-          ? swappedOrder(members, el.id, this.nearestMemberIndex(members, el.id, cp))
-          : handOrderAfterDrop(members, el.id, target?.index ?? members.length);
-      this.dispatch({ t: "reorderSlot", key: from, order });
-    } else if (from && to && to !== from && zoneOf(to) !== "seat") {
-      this.dispatch({ t: "move", el: el.id, from, to, face: this.faceForMove(el.id, from, to) });
-    } else if (from && !to) {
-      this.dropLoose(el, from, cp);
-    }
+    const plan = planDrop(this.dropWorld(), {
+      el: el.id,
+      from: this.tree.slotOf(el.id),
+      target: target ? { slot: target.group.id, index: target.index } : null,
+      cp,
+      myHand: handKey(this.selfSeat),
+      handReorder: this.spec.hand?.reorder ?? false,
+      carriedFaceUp: (() => {
+        const node = this.nodes.get(el.id);
+        return node instanceof Card ? node.faceUp : null;
+      })(),
+    });
+    if (plan.kind === "command") this.dispatch(plan.cmd);
     drag.release(); // состояние уже новое: дом = целевой слот, release долетает туда
   }
 
-  /** Дроп мимо всех слотов, но внутрь бокса free-зоны: карта ложится СВОБОДНО — там же, куда
-   *  положили, той же стороной. Одинокая свободная стопка просто переезжает (состав не меняется);
-   *  иначе карта уходит в новый слот зоны, позиция которого — точка дропа. */
-  private dropLoose(el: SceneElement, from: string, cp: { x: number; y: number }): void {
-    const zid = this.freeZoneAt(cp);
-    if (!zid) return; // мимо и бокса — release вернёт домой
-    const box = this.tree.cellRects[slotKey(zid, 0)];
-    if (!box) return;
-    const local = { x: cp.x - box.x, y: cp.y - box.y };
-    const members = this.state.field.slots[from]?.members ?? [];
-    if (zoneOf(from) === zid && slotOf(from) !== "0" && members.length === 1) {
-      this.dispatch({ t: "placeFree", key: from, at: local });
-      return;
-    }
-    const taken = Object.keys(this.state.field.slots).filter((k) => (this.state.field.slots[k]?.members.length ?? 0) > 0);
-    const key = nextLooseKey(zid, taken);
-    this.dispatch({ t: "move", el: el.id, from, to: key, at: local, face: this.faceForMove(el.id, from, key) });
-  }
-
-  /** Сторона карты после дропа — чистое правило (freeDrop.faceAfterDrop); сцена лишь читает,
-   *  какой стороной карту НЕСЛИ. undefined — оверрайд снимается, зона сама решит. */
-  private faceForMove(id: string, from: string, to: string): boolean | undefined {
-    const node = this.nodes.get(id);
-    if (!(node instanceof Card)) return undefined;
-    const face = faceAfterDrop({
-      fromFree: this.isFreeZone(zoneOf(from)),
-      toFree: this.isFreeZone(zoneOf(to)),
-      toDeck: this.isDeckSlot(to),
-      carried: node.faceUp,
-    });
-    return face ?? undefined;
-  }
-
-  /** Ближайший к точке дропа житель контейнера (кроме самого груза) — цель обмена. */
-  private nearestMemberIndex(members: readonly string[], dragged: string, cp: { x: number; y: number }): number {
-    let best = -1;
-    let bestD = Infinity;
-    members.forEach((m, i) => {
-      if (m === dragged) return;
-      const h = this.tree.homeOf(m);
-      if (!h) return;
-      const d = Math.hypot(h.x - cp.x, h.y - cp.y);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    });
-    return best;
-  }
-
-  /** Режим внутризонного реордера слота: из спеки зоны; flow-грид реордерится по умолчанию. */
-  private reorderModeOf(slot: string): "insert" | "swap" | null {
-    const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(slot)));
-    if (!zone) return null;
-    return zone.reorder ?? (zone.layout.kind === "flow" ? "insert" : null);
+  /** Мир дропа для чистых планировщиков (dropPlan): только чтение дерева и поля. */
+  private dropWorld(): DropWorld {
+    return {
+      zones: this.spec.zones,
+      cellRects: this.tree.cellRects,
+      members: (slot) => this.state.field.slots[slot]?.members ?? [],
+      homeOf: (id) => this.tree.homeOf(id),
+      occupiedKeys: () => Object.keys(this.state.field.slots).filter((k) => (this.state.field.slots[k]?.members.length ?? 0) > 0),
+    };
   }
 
   protected onDragCancel(): void {
@@ -980,15 +672,12 @@ export class BoardScene extends SceneEngine {
   }
 
   protected onTeardown(app: Application): void {
-    this.closeMenu();
+    this.menuOwner.destroy();
     this.dropBar.destroy();
     this.presence.destroy();
+    this.decor.destroy();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
-    for (const l of this.seatLabels.values()) l.destroy();
-    this.seatLabels.clear();
-    for (const l of this.zoneLabels.values()) l.destroy();
-    this.zoneLabels.clear();
     this.tex?.destroy();
     this.tex = null;
     super.onTeardown(app);
