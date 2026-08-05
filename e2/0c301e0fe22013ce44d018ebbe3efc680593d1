@@ -1,0 +1,39 @@
+client2/src/game/boards/scene/decor.ts
+  s_b2849f723d52bb::t_306af593bf3e27 12-14,39-47
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_306af593bf3e27 21,244,246,266-269
+  s_b2849f723d52bb::t_515a71d34bc22a 121
+  s_b2849f723d52bb::t_ab7db5ef904182 6-8,134,270-273,287-288,291
+client2/src/game/boards/geometry/roundTableTree.ts
+  s_b2849f723d52bb::t_019907e298c81e 11,123,125-128
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_d3b721d79049e9 79-80,82-97,157-158,161-210
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_d77023d1c61b4c 12,163-164
+client2/src/game/boards/geometry/handRow.ts
+  s_b2849f723d52bb::t_1fb91277d76526 1-39
+client2/src/game/boards/geometry/boardTree.ts
+  s_b2849f723d52bb::t_019907e298c81e 7,120-121,123-126
+client2/src/game/boards/hand/handRowLayout.ts
+  s_b2849f723d52bb::t_43806619319408 1-25
+client2/e2e/catalog/handDock.spec.ts
+  s_b2849f723d52bb::t_a95985473825fd 99-100,116
+client2/src/game/boards/hand/handBandPaint.ts
+  s_b2849f723d52bb::t_0146647acf4316 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e20c301e0fe22013ce44d018ebbe3efc680593d1",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
