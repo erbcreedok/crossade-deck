@@ -24,4 +24,14 @@ describe("topmostAt", () => {
     const rev = [box(0, 2), box(8, 5)]; // та же расстановка, порядок обратный
     expect(topmostAt(rev, 5, 0)).toBe(1); // всё равно z5
   });
+
+  it("невидимая коробка НЕ хитается, даже если она верхняя по z", () => {
+    // Регресс автораздачи: карта, ушедшая в экранную руку, оставляет скрытый (visible=false)
+    // двойник поверх колоды с ВЫСОКИМ z. Он не должен красть хит — берётся видимая карта под ним.
+    const ghost: HitBox = { px: 0, py: 0, hw: 10, hh: 10, z: 99, visible: false };
+    const deckTop: HitBox = { px: 0, py: 0, hw: 10, hh: 10, z: 1, visible: true };
+    expect(topmostAt([ghost, deckTop], 0, 0)).toBe(1); // видимый низ, а не невидимый верх
+    // Совсем нет видимых под точкой → промах.
+    expect(topmostAt([ghost], 0, 0)).toBe(-1);
+  });
 });

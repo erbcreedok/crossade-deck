@@ -129,7 +129,7 @@ export function hitElementAt(e: SceneEngine, cx: number, cy: number): SceneEleme
   const boxes: HitBox[] = els.map((el) => {
     const s = el.body.scaleVal;
     const f = el.footprint;
-    return { px: el.body.px, py: el.body.py, hw: f.hw * s, hh: f.hh * s, z: el.root.zIndex };
+    return { px: el.body.px, py: el.body.py, hw: f.hw * s, hh: f.hh * s, z: el.root.zIndex, visible: el.root.visible };
   });
   const i = topmostAt(boxes, cx, cy);
   return i >= 0 ? els[i]! : null;
