@@ -1,0 +1,28 @@
+client2/src/game/boards/hand/handStrip.test.ts
+  s_b2849f723d52bb::t_93b7d0aac17c63 2
+  s_b2849f723d52bb::t_899cf2e7bfebde 41-64
+client2/src/game/boards/hand/handStrip.ts
+  s_b2849f723d52bb::t_3aecd044f9eebc 15-32
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_c71c0755727e99 15,22-24
+  s_b2849f723d52bb::t_2ab8cc3f3a28b5 48-49
+  s_b2849f723d52bb::t_8e7b2700479a68 81-82,88
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_fec0c2103a3c12 202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a431f028101d8dd1a3f7b6909b206c5124309a77",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
