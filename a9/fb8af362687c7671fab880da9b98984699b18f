@@ -1,0 +1,33 @@
+client2/src/game/engine/sceneEngine.ts
+  s_b2849f723d52bb::t_634e63a18d9124 763-768
+  s_b2849f723d52bb::t_06d6cf23068ec9 15,17,683,801,804-806,832
+  s_b2849f723d52bb::t_2adb3c2dcb3cc2 23
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_78cb2f4a016dae 1-9,11-14,16-27,29-38,40,42-75,77,79-139,141-152
+  s_b2849f723d52bb::t_ab7b9d98b190c0 10,15,28,39,41,76,78,140
+client2/src/game/engine/sceneLanding.ts
+  s_b2849f723d52bb::t_06d6cf23068ec9 1-28
+client2/src/game/engine/sceneCamera.ts
+  s_b2849f723d52bb::t_634e63a18d9124 50-53,175-233
+  s_b2849f723d52bb::t_66d526c8577ecf 234
+client2/src/game/anim/durations.ts
+  s_b2849f723d52bb::t_06d6cf23068ec9 1-23
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_ab7b9d98b190c0 15-22,82-114,116-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a9fb8af362687c7671fab880da9b98984699b18f",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
