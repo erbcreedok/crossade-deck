@@ -12,16 +12,16 @@ import { CARD } from "../../crossade/tree";
 import type { CardTextureCache } from "../../ui/CardTextureCache";
 import type { ElementDef } from "../core/spec";
 import { buildBoardNode, type BoardNode } from "./nodeFactory";
-import { handStrip } from "../hand/handStrip";
+import { handStrip, handCardSize } from "../hand/handStrip";
 import { ACTION_BAR_H } from "./chrome";
 
 const SIDE = 16; // поля по краям экрана
 const GAP = 12; // зазор между картами в свободном ряду
 const PAD_BOTTOM = 8; // отступ полосы руки над полосой действий
 
-/** Высота карты руки по высоте экрана: не крупнее 150 и не мельче 72 (палец достаёт, но стол не съеден). */
-function handCardH(screenH: number): number {
-  return Math.round(Math.max(72, Math.min(150, screenH * 0.2)));
+/** Адаптивный размер карты руки под экран (узкий телефон → мельче). Ширина ряда — экран минус поля. */
+function handCell(w: number, h: number): { w: number; h: number } {
+  return handCardSize(w - SIDE * 2, h, CARD);
 }
 
 export interface HandHudDeps {
@@ -45,8 +45,8 @@ export class SceneHandHud {
   }
 
   /** Сколько снизу занимает band руки — стол вписывается в остаток (fitBoard). 0 — руки на экране нет. */
-  reservedBottom(screenH: number): number {
-    return this.deps.enabled() ? handCardH(screenH) + PAD_BOTTOM + ACTION_BAR_H : 0;
+  reservedBottom(screenW: number, screenH: number): number {
+    return this.deps.enabled() ? handCell(screenW, screenH).h + PAD_BOTTOM + ACTION_BAR_H : 0;
   }
 
   /** Пересобрать состав по снимку (добавить новые карты, снять ушедшие) и переразложить. */
@@ -78,15 +78,14 @@ export class SceneHandHud {
     this.size = { w, h };
     const members = this.deps.members();
     if (!this.deps.enabled() || !this.deps.tex() || !members.length) return;
-    const cardH = handCardH(h);
-    const cell = { w: cardH * (CARD.w / CARD.h), h: cardH };
-    const centerY = h - ACTION_BAR_H - PAD_BOTTOM - cardH / 2;
+    const cell = handCell(w, h);
+    const centerY = h - ACTION_BAR_H - PAD_BOTTOM - cell.h / 2;
     const poses = handStrip(members.length, cell, Math.max(cell.w, w - SIDE * 2), GAP);
     members.forEach((id, i) => {
       const node = this.nodes.get(id);
       const pose = poses[i];
       if (!node || !pose) return;
-      node.root.scale.set(cardH / CARD.h);
+      node.root.scale.set(cell.h / CARD.h);
       node.root.rotation = pose.rot;
       node.root.position.set(SIDE + pose.x, centerY);
       node.root.zIndex = i;

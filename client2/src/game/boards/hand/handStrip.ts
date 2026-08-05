@@ -12,6 +12,24 @@ export interface HandPose {
   rot: number;
 }
 
+/** Сколько карт влезает в ширину БЕЗ нахлёста (дальше уходят внахлёст) — задаёт ширину карты. */
+const HAND_FIT = 5;
+/** Доля высоты экрана под карту руки: на узком высоком телефоне рост ограничивает ИМЕННО высота. */
+const HAND_H_FRAC = 0.2;
+const HAND_W_MIN = 48;
+const HAND_W_MAX = 120;
+
+/** АДАПТИВНЫЙ размер карты руки под экран: ширина — меньшее из «влезает HAND_FIT штук по ширине» и
+ *  «не выше доли высоты», зажатое в пределы; высота — по аспекту cell. Так на телефоне (узко-высоко)
+ *  карты мельчают, на десктопе упираются в потолок. Чистая функция — сторожится без Pixi. */
+export function handCardSize(availWidth: number, screenH: number, cell: Size): Size {
+  const aspect = cell.h / cell.w;
+  const byWidth = Math.max(1, availWidth) / HAND_FIT;
+  const byHeight = (screenH * HAND_H_FRAC) / aspect;
+  const w = Math.max(HAND_W_MIN, Math.min(HAND_W_MAX, byWidth, byHeight));
+  return { w, h: w * aspect };
+}
+
 /** Ряд count карт шириной cell, вписанный в `width`. gap — зазор при свободном ряде. Возвращает
  *  ЦЕНТРЫ карт (y — середина полосы высотой cell.h). Один card — по центру; переполнение — нахлёст. */
 export function handStrip(count: number, cell: Size, width: number, gap = 12): HandPose[] {
