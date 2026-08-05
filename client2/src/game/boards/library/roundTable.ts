@@ -1,4 +1,5 @@
 import type { BoardSpec, ZoneLayoutSpec, ZoneSpec } from "../core/spec";
+import { CARD } from "../../crossade/tree";
 import { deck36, deck52 } from "./decks";
 
 // КРУГЛЫЙ СТОЛ ПЕСОЧНИЦЫ — конфигурируемый билдер (настройки-как-данные): те же рычаги, что
@@ -7,6 +8,16 @@ import { deck36, deck52 } from "./decks";
 // Борда — free-бокс (форма rect/circle), в его центре стол карт; вокруг — посадки (seats).
 // «Садить карты друг на друга» — это политика фикс-слотов (merge/reject): у динамичных раскладок
 // (radial/flow) жители встраиваются в круг/грид и не стопкуются по построению.
+
+// РАЗМЕТКА КРУПНЕЕ КАРТЫ (правило владельца: «карты слишком большие к масштабу зон»). Ячейка зоны
+// задаёт РАЗМЕТКУ и разнос слотов, а карта рисуется своим размером (CARD, nodeFactory) и в ячейке
+// центрируется — значит поле вокруг карты растёт, а сама она нет. Полтора размера карты.
+const ZONE_CELL = { w: Math.round(CARD.w * 1.5), h: Math.round(CARD.h * 1.5) };
+
+/** Внешний круг — МИНИМУМ габарита. Фактический считает дерево (`roundTableTree#ringBox`): кольцо
+ *  между центром и внешним кругом обязано быть не тоньше трёх карт, а центр живой — радиальный
+ *  круг растёт с числом жителей, и одно зашитое число правило не удержало бы. */
+const BOX_MIN = 1140;
 
 export interface RoundTableOpts {
   /** Форма борды-бокса и стола: ровный круг (дефолт) или прямоугольник. */
@@ -54,7 +65,6 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
   const { cards, ids } = o.deck === 52 ? deck52() : deck36();
   const dealt = ids.slice(0, Math.max(0, Math.min(o.dealt, ids.length)));
   const layout = tableLayout(o);
-  const boxSide = 760;
   return {
     id: "round-table",
     title: "",
@@ -64,7 +74,7 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         id: "board",
         title: "",
         layout: { kind: "free" },
-        cell: { w: boxSide, h: boxSide },
+        cell: { w: BOX_MIN, h: BOX_MIN },
         shape: o.shape === "circle" ? "circle" : undefined,
         policy: { onOccupied: "merge" },
         // Колода (слот 0): снеп по нахлёсту с магнитом, ТОЛЬКО карты и только ровные (≤30°) —
@@ -77,6 +87,7 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         id: "table",
         title: "",
         layout,
+        cell: ZONE_CELL,
         frame: "dashed",
         // Круг — И рамка живого контейнера (radial/flow), И ячейки фикс-слотов (ring), И пустые
         // позиции-заготовки: слот-плейсхолдер читается кружком, не «квадратом». Сетка (grid) —
@@ -96,6 +107,7 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         id: "place",
         title: "",
         layout: { kind: "seats" },
+        cell: ZONE_CELL,
         // Посадочные слоты вокруг стола — тоже кружки (владелец: всё по дефолту круг).
         shape: o.shape === "circle" ? "circle" : undefined,
         policy: { onOccupied: "reject" },

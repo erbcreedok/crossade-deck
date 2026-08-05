@@ -9,6 +9,19 @@ import { seatZoneId, slotKey, type BoardSpec, type ZoneSpec } from "../core/spec
 import { membersOf, slotGroup, zoneCell, zoneSubtrees } from "./zoneSubtrees";
 import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, SEAT_STACK_DX, type BoardTree, type FreePositions, type Placed } from "./treeShared";
 
+/** Кольцо между центром и внешним кругом — не тоньше трёх ширин карты (правило владельца). */
+export const RING_CLEAR = CARD.w * 3;
+
+/** ВНЕШНИЙ КРУГ по фактическому центру: карта, брошенная в кольцо, должна ложиться, не задевая ни
+ *  центр, ни край, — отсюда запас RING_CLEAR с каждой стороны. Меряем по ОХВАТУ центра (большая
+ *  сторона его габарита): вписанный в габарит круг к боксу ближе не подходит. Круг ровный, значит
+ *  бокс квадратный; `cell` зоны из спеки работает как МИНИМУМ. */
+export function ringBox(min: Size, centers: readonly Size[]): Size {
+  const reach = Math.max(0, ...centers.map((s) => Math.max(s.w, s.h)));
+  const side = Math.max(min.w, min.h, reach + RING_CLEAR * 2);
+  return { w: side, h: side };
+}
+
 /** Угол i-го места вокруг центра. Индекс 0 — свой, «на юге» (перед зрителем); дальше по кругу.
  *  Экран: +y вниз, значит юг = +y. Для 4 мест: свой снизу, сосед слева, напротив сверху, справа. */
 function seatAngle(index: number, n: number): number {
@@ -34,7 +47,10 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
   // Прочие зоны при боксе вкладываются в его центр (как в полосной компоновке), без бокса — колонкой справа.
   const tableZones = spec.zones.filter((z) => z.layout.kind !== "seats" && !z.perSeat && z.layout.kind !== "chain");
   const freeZone = tableZones.find((z) => z.layout.kind === "free");
-  const boxCell = freeZone ? zoneCell(freeZone) : null;
+  // Центр меряем ДО бокса: он живой (радиальный круг растёт с числом жителей), а кольцо вокруг него
+  // обязано остаться не тоньше трёх карт — значит бокс считается по центру, а не наоборот.
+  const centerSubs = tableZones.filter((z) => z !== freeZone).map((z) => zoneSubtrees(z, state));
+  const boxCell = freeZone ? ringBox(zoneCell(freeZone), centerSubs.map((s) => s.size)) : null;
   const boxClear = boxCell
     ? (freeZone!.shape === "circle" ? Math.max(boxCell.w, boxCell.h) / 2 : Math.hypot(boxCell.w, boxCell.h) / 2)
     : 0;
@@ -79,18 +95,14 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
 
   let colY = cyTop;
   if (freeZone && boxCell) {
-    // Бокс-борда по центру круга посадок; остальные зоны — в центр бокса.
+    // Бокс-борда по центру круга посадок; остальные зоны — в центр бокса. Габарит боксу даёт кольцо
+    // (boxCell), а не спека: зона — данные, подменить ей ячейку дешевле, чем плодить параметры.
     const boxAt = { x: cx - boxCell.w / 2, y: cy - boxCell.h / 2 };
-    placeSub(zoneSubtrees(freeZone, state, undefined, free), boxAt.x, boxAt.y);
-    for (const zone of tableZones) {
-      if (zone === freeZone) continue;
-      const sub = zoneSubtrees(zone, state);
-      placeSub(sub, cx - sub.size.w / 2, cy - sub.size.h / 2);
-    }
+    placeSub(zoneSubtrees({ ...freeZone, cell: boxCell }, state, undefined, free), boxAt.x, boxAt.y);
+    for (const sub of centerSubs) placeSub(sub, cx - sub.size.w / 2, cy - sub.size.h / 2);
   } else {
     // Прочие зоны — колонкой справа (белкины шестёрки лежат «рядом»).
-    for (const zone of tableZones) {
-      const sub = zoneSubtrees(zone, state);
+    for (const sub of centerSubs) {
       placeSub(sub, rightX, colY);
       colY += sub.size.h + SEAT_LABEL_H + GAP.y;
     }
