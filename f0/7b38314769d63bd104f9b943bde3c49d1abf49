@@ -1,0 +1,68 @@
+client2/src/game/engine/kitSpread.ts
+  s_b9dcc12bda6464::t_1181a48ab066f9 1-229
+client2/src/game/engine/kitExtent.ts
+  s_b9dcc12bda6464::t_3770d209c5d487 140-155
+client2/src/game/engine/kitPlaced.ts
+  s_b9dcc12bda6464::t_c52d9c1beefa3b 169-198
+  s_b9dcc12bda6464::t_2c21c34c9a15cd 55-57
+  s_b9dcc12bda6464::t_41011b6c733240 58
+  s_b9dcc12bda6464::t_3a649800cc58ba 9,12
+  s_b9dcc12bda6464::t_0bbe81c9cadfef 1-8,10-11,13-54,59-95,106-168,199-214
+  s_b9dcc12bda6464::t_90302d89d2250d 96-105
+client2/src/game/engine/kitCommands.ts
+  s_b9dcc12bda6464::t_083283692c4ede 1-49
+client2/src/game/engine/kitScene.ts
+  s_b9dcc12bda6464::t_2c21c34c9a15cd 17,52,74-75,123,213
+  s_b9dcc12bda6464::t_3fff6d9a41f030 2,5,11,15,23-24,29-30,35-38,45-49,53,164,177-186,189-199,201,212,217,220,224,258,274,280,284,288
+  s_b9dcc12bda6464::t_30a4d4131660ff 10
+  s_b9dcc12bda6464::t_134d529d8d7e6b 67-68,76-79
+  s_b9dcc12bda6464::t_d36e9074488bfa 16
+  s_b9dcc12bda6464::t_e63340da2389d1 146,148-154
+  s_b9dcc12bda6464::t_941cda4a9e8de2 279
+  s_b9dcc12bda6464::t_3b2c7606bcef17 1,31-33,57-59,118-119,132-134,261,263
+  s_b9dcc12bda6464::t_2bc9c90c8e0270 227,240
+  s_b9dcc12bda6464::t_c05915a6d3499f 229,232-233,237,242-244,246,248,250,253-254
+  s_b9dcc12bda6464::t_f3497cd3f8a16f 12,18-20,187-188,289
+  s_b9dcc12bda6464::t_c5891a51b22a4d 50-51
+  s_b9dcc12bda6464::t_b2111c377f84eb 56,225-226,238-239,257
+client2/src/game/engine/kitDrag.ts
+  s_b9dcc12bda6464::t_169908c34cbcf8 1-117
+client2/docs/REFACTOR-HANDOFF.md
+  s_b9dcc12bda6464::t_72eb150321da7b 34-39
+  s_b9dcc12bda6464::t_51d0c77ec2059e 3
+client2/src/game/engine/kitScene.dragRouting.test.ts
+  s_b9dcc12bda6464::t_4873926b2207bb 26-27
+client2/src/game/engine/kitHooks.ts
+  s_b9dcc12bda6464::t_3c8ccfbf1d69a8 1-64
+client2/src/game/engine/kitParts.ts
+  s_b9dcc12bda6464::t_89bf80b6798b4c 1-38
+  s_b9dcc12bda6464::t_2c21c34c9a15cd 39-56
+client2/src/game/engine/kitCommands.test.ts
+  s_b9dcc12bda6464::t_517c1d0a979155 1,6,13-15,18,20,22-23,26-28,31-37,39,41,46-48,52-55,59-61,64-69,72-77,81-85,89-92,96-100,104-106
+  s_b9dcc12bda6464::t_f3a913448e25c8 2-5,7-12,16-17,19,21,24-25,29-30,38,40,42-45,49-51,56-58,62-63,70-71,78-80,86-88,93-95,101-103,107-108
+client2/src/game/engine/kitScene.spreadRouting.test.ts
+  s_b9dcc12bda6464::t_58a2c65bffe689 3,5
+  s_b9dcc12bda6464::t_3c751ebab2a34b 31-33
+  s_b9dcc12bda6464::t_48042231ad0710 56-57
+client2/src/game/engine/kitContext.ts
+  s_b9dcc12bda6464::t_0019b8034e4744 139,150
+  s_b9dcc12bda6464::t_05e7151397e5f5 88-92
+  s_b9dcc12bda6464::t_1b3d82c12f556d 1-87,93-138,140-149,151-185,187-218
+  s_b9dcc12bda6464::t_3b2c7606bcef17 186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f07b38314769d63bd104f9b943bde3c49d1abf49",
+  "prompts": {},
+  "sessions": {
+    "s_b9dcc12bda6464": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49c8b158-64cc-4522-942d-a663a9da83a1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
