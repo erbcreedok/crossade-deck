@@ -17,6 +17,15 @@ export function levelOf(s: CardState): Level {
   return "rest";
 }
 
+/** Кто отбрасывает тень: элемент с силуэтом И ВИДИМЫЙ. Невидимый (напр. карта, ушедшая в экранную
+ *  руку, — её контентный двойник спрятан) тени не даёт: иначе от него остаётся осиротевшая тень на
+ *  старом месте, а сдвиг колоды её не забирает. Чистая — сторожится без Pixi. */
+export function shadowCasters(els: Iterable<{ shadowRect: ShadowShape | null; visible: boolean; state: CardState }>): { level: Level; rect: ShadowShape }[] {
+  const out: { level: Level; rect: ShadowShape }[] = [];
+  for (const c of els) if (c.shadowRect && c.visible) out.push({ level: levelOf(c.state), rect: c.shadowRect });
+  return out;
+}
+
 /** Сгруппировать силуэты теней по уровню (для слитого пасса). Чистая. */
 export function bucketByLevel(items: readonly { level: Level; rect: ShadowShape }[]): Record<Level, ShadowShape[]> {
   const out: Record<Level, ShadowShape[]> = { rest: [], lifted: [], fan: [], drag: [] };

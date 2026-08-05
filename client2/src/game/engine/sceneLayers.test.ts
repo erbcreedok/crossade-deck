@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Container } from "pixi.js";
-import { SceneLayers, LEVELS, levelOf, bucketByLevel, type Level } from "./sceneLayers";
-import type { ShadowShape } from "../ui/Card";
+import { SceneLayers, LEVELS, levelOf, bucketByLevel, shadowCasters, type Level } from "./sceneLayers";
+import type { CardState, ShadowShape } from "../ui/Card";
 
 describe("sceneLayers.levelOf", () => {
   it("план → уровень (удержание и драг — в слой драга)", () => {
@@ -33,6 +33,27 @@ describe("sceneLayers.bucketByLevel", () => {
     const b = bucketByLevel([]);
     expect(b.rest).toEqual([]);
     expect(b.drag).toEqual([]);
+  });
+});
+
+describe("sceneLayers.shadowCasters — невидимый не даёт тени", () => {
+  const rect = (x: number): ShadowShape => ({ x, y: 0, hw: 1, hh: 1, rot: 0 });
+  const el = (x: number, visible: boolean, state: CardState = "rest") => ({ shadowRect: rect(x), visible, state });
+
+  it("видимая карта отбрасывает тень своего уровня", () => {
+    const out = shadowCasters([el(1, true, "lifted")]);
+    expect(out).toEqual([{ level: "lifted", rect: rect(1) }]);
+  });
+
+  it("НЕвидимая карта тени НЕ даёт (регресс осиротевшей тени после раздачи в руку)", () => {
+    // Двойник ушедшей в руку карты: silhouette есть, но visible=false — тени быть не должно.
+    const out = shadowCasters([el(1, false), el(2, true)]);
+    expect(out.map((s) => s.rect.x)).toEqual([2]);
+  });
+
+  it("нет силуэта (shadowRect=null) → нет тени", () => {
+    const out = shadowCasters([{ shadowRect: null, visible: true, state: "rest" }]);
+    expect(out).toEqual([]);
   });
 });
 
