@@ -81,6 +81,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
     accent,
     wake: () => api.wake(),
+    retarget: () => nodeStore.retargetHand(), // лениво: nodeStore ниже, зовётся после сборки
   });
 
   const nodeStore = new SceneNodes({

@@ -30,6 +30,15 @@ export function handCardSize(availWidth: number, screenH: number, cell: Size): S
   return { w, h: w * aspect };
 }
 
+/** Ряд с ФАНТОМ-ГЭПОМ под вставку (груз навис над рукой): count карт занимают count+1 позиций
+ *  ряда, позиция gapIndex пустует — карты раздвигаются, показывая, куда ляжет груз. КАНОН: индекс
+ *  вставки считается по БАЗОВОМУ ряду (handStrip без гэпа) — подсказка не смеет двигать цель под
+ *  неподвижным пальцем, иначе индекс осциллирует (урок playHover старого клиента). */
+export function handStripWithGap(count: number, gapIndex: number, cell: Size, width: number, gap = 12): HandPose[] {
+  const g = Math.max(0, Math.min(gapIndex, count));
+  return handStrip(count + 1, cell, width, gap).filter((_, i) => i !== g);
+}
+
 /** Ряд count карт шириной cell, вписанный в `width`. gap — зазор при свободном ряде. Возвращает
  *  ЦЕНТРЫ карт (y — середина полосы высотой cell.h). Один card — по центру; переполнение — нахлёст. */
 export function handStrip(count: number, cell: Size, width: number, gap = 12): HandPose[] {

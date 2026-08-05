@@ -153,6 +153,16 @@ export class SceneNodes {
     this.space.set(id, space);
   }
 
+  /** Перецелить карты руки на СВЕЖИЕ позы (гэп-превью раздвинул/сомкнул ряд) — без полного sync.
+   *  Перетаскиваемая не трогается: handPose для неё null (она исключена из раскладки). */
+  retargetHand(): void {
+    for (const [id, node] of this.byId) {
+      if (this.space.get(id) !== "hand") continue;
+      const hp = this.host.handPose(id);
+      if (hp) node.body.setTarget({ x: hp.x, y: hp.y, rot: 0, scale: hp.scale });
+    }
+  }
+
   private nodeFor(id: string, tex: CardTextureCache): BoardNode {
     const existing = this.byId.get(id);
     if (existing) return existing;

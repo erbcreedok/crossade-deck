@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { handStrip, handCardSize } from "./handStrip";
+import { handStrip, handStripWithGap, handCardSize } from "./handStrip";
 
 const CELL = { w: 100, h: 143 };
 
@@ -36,6 +36,27 @@ describe("handStrip — ряд карт руки, вписанный в шири
     const rightEdge = poses[9]!.x + CELL.w / 2;
     expect(leftEdge).toBeCloseTo(0, 3);
     expect(rightEdge).toBeCloseTo(width, 3);
+  });
+});
+
+describe("handStripWithGap — гэп-превью вставки (груз навис над рукой)", () => {
+  it("карты занимают позиции ряда count+1, позиция gapIndex пустует", () => {
+    const gapped = handStripWithGap(3, 1, CELL, 800);
+    const full = handStrip(4, CELL, 800);
+    expect(gapped.length).toBe(3);
+    // Карта 0 — на позиции 0, карты 1..2 сдвинуты на позиции 2..3: гэп открыт под индексом 1.
+    expect(gapped.map((p) => p.x)).toEqual([full[0]!.x, full[2]!.x, full[3]!.x]);
+  });
+
+  it("гэп с краёв: 0 — все карты уехали вправо; count — влево (позиции без первой/последней)", () => {
+    const full = handStrip(4, CELL, 800);
+    expect(handStripWithGap(3, 0, CELL, 800).map((p) => p.x)).toEqual(full.slice(1).map((p) => p.x));
+    expect(handStripWithGap(3, 3, CELL, 800).map((p) => p.x)).toEqual(full.slice(0, 3).map((p) => p.x));
+  });
+
+  it("gapIndex за пределами — зажимается в [0..count], а не роняет раскладку", () => {
+    expect(handStripWithGap(3, 99, CELL, 800)).toEqual(handStripWithGap(3, 3, CELL, 800));
+    expect(handStripWithGap(3, -5, CELL, 800)).toEqual(handStripWithGap(3, 0, CELL, 800));
   });
 });
 

@@ -152,7 +152,7 @@ export class SceneGesture {
       this.deps.setDragSpace(lead.id, "hand");
       const pose = this.deps.handHud.dragPose(dsh.x);
       lead.body.setTarget({ x: pose.x, y: pose.y, scale: pose.scale, rot: 0 });
-      this.deps.handHud.setZone("hot");
+      this.deps.handHud.hoverAt(dsh.x); // hot + гэп-превью: ряд раздвигается под индекс вставки
       if (this.hotSlot !== null) { this.hotSlot = null; this.paintHints(); }
       this.deps.wake();
       return;
@@ -200,12 +200,12 @@ export class SceneGesture {
       const to = handKey(this.deps.selfSeat);
       const from = this.fromSlotOf(el.id);
       const idx = this.deps.handHud.insertIndexAt(dsr.x);
-      if (from === to) {
+      // Груз обязан лечь В ПОКАЗАННЫЙ ГЭП: со стола — move (аппенд) + реордер на индекс превью.
+      if (from && from !== to) this.deps.dispatch({ t: "move", el: el.id, from, to });
+      if (from) {
         const order = this.deps.handMembers().filter((m) => m !== el.id);
         order.splice(Math.min(idx, order.length), 0, el.id);
         this.deps.dispatch({ t: "reorderHand", seat: this.deps.selfSeat, order });
-      } else if (from) {
-        this.deps.dispatch({ t: "move", el: el.id, from, to });
       }
       drag.release();
       return;

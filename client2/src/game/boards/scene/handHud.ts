@@ -8,7 +8,7 @@
 
 import { Container, Graphics } from "pixi.js";
 import { CARD } from "../../crossade/tree";
-import { handStrip, handCardSize } from "../hand/handStrip";
+import { handStrip, handStripWithGap, handCardSize } from "../hand/handStrip";
 import { ACTION_BAR_H } from "./chrome";
 
 const SIDE = 16; // поля по краям экрана
@@ -36,6 +36,8 @@ export interface HandHudDeps {
   members(): readonly string[];
   accent(): number;
   wake(): void;
+  /** Перецелить карты руки на свежие позы (гэп-превью раздвинул/сомкнул ряд) — зовёт nodeStore. */
+  retarget(): void;
 }
 
 export class SceneHandHud {
@@ -45,6 +47,7 @@ export class SceneHandHud {
   private size = { w: 0, h: 0 };
   private zoneState: HandZone = "rest";
   private dragging: string | null = null; // карта, поднятая в драг: из строки исключается (гэп закрыт)
+  private preview: number | null = null; // гэп-превью: индекс вставки, под который ряд раздвинут
 
   constructor(private readonly deps: HandHudDeps) {
     this.root.sortableChildren = true; // правая карта поверх левой; зона — под всеми
@@ -71,7 +74,8 @@ export class SceneHandHud {
     if (i < 0) return null;
     const cell = handCell(this.size.w, this.size.h);
     const centerY = this.size.h - ACTION_BAR_H - PAD_BOTTOM - cell.h / 2;
-    const poses = handStrip(ids.length, cell, Math.max(cell.w, this.size.w - SIDE * 2), GAP);
+    const width = Math.max(cell.w, this.size.w - SIDE * 2);
+    const poses = this.preview === null ? handStrip(ids.length, cell, width, GAP) : handStripWithGap(ids.length, this.preview, cell, width, GAP);
     const p = poses[i]!;
     return { x: SIDE + p.x, y: centerY, scale: cell.h / CARD.h };
   }
@@ -115,19 +119,29 @@ export class SceneHandHud {
     return sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h;
   }
 
-  /** Индекс вставки в руку по X (сколько центров карт левее точки). Перетаскиваемую не считаем. */
+  /** Индекс вставки в руку по X: сколько центров карт левее точки в БАЗОВОМ ряду (без гэп-превью —
+   *  подсказка не двигает цель, см. handStripWithGap). Перетаскиваемую не считаем. */
   insertIndexAt(sx: number): number {
-    let idx = 0;
-    for (const id of this.laidIds()) {
-      const p = this.poseOf(id);
-      if (p && p.x < sx) idx++;
-    }
-    return idx;
+    const cell = handCell(this.size.w, this.size.h);
+    const poses = handStrip(this.laidIds().length, cell, Math.max(cell.w, this.size.w - SIDE * 2), GAP);
+    return poses.filter((p) => SIDE + p.x < sx).length;
+  }
+
+  /** Груз навис над рукой в экранной точке: зона hot + гэп-превью — ряд раздвигается под индекс
+   *  вставки, игрок ВИДИТ, куда ляжет карта, до отпускания. */
+  hoverAt(sx: number): void {
+    this.setZone("hot");
+    const idx = this.insertIndexAt(sx);
+    if (idx === this.preview) return;
+    this.preview = idx;
+    this.deps.retarget();
+    this.deps.wake();
   }
 
   setZone(state: HandZone): void {
     if (state === this.zoneState) return;
     this.zoneState = state;
+    if (state !== "hot") this.clearPreview(); // груз ушёл с руки — гэп смыкается
     this.paintZone();
     this.deps.wake();
   }
@@ -136,8 +150,15 @@ export class SceneHandHud {
   clearDragging(): void {
     this.dragging = null;
     this.zoneState = "rest";
+    this.clearPreview();
     this.paintZone();
     this.deps.wake();
+  }
+
+  private clearPreview(): void {
+    if (this.preview === null) return;
+    this.preview = null;
+    this.deps.retarget();
   }
 
   /** id карт руки, участвующих в РАСКЛАДКЕ (без перетаскиваемой — под неё гэп закрыт). */
