@@ -73,6 +73,13 @@ table / Sandbox live; Stack interactions → Deck actions.
 драгов) — коллаборатор `boards/scenePresence.ts` (композиция, шов PresenceSceneHost); «что под
 точкой»/«что светить» — чистый `boards/sceneAreas.ts` под тестами; scene.ts 1150 → 996 строк.
 
+**Движок как сервис (2026-08-05)**: наследование сцен от SceneEngine УБРАНО у всех пяти сцен
+(boards/solitaire/multiplayer+live/crossade/kit) — теперь композиция через engine/sceneRuntime.ts:
+SceneDelegate (бывшие вирт-швы; нереализованный шов = поведение ядра) + SceneApi (бывшие
+protected-поля/хелперы, включая дефолт-ветки defaultBeginDrag/CanDrag/PickElement/SceneTap).
+Protected-контракт SceneEngine теперь ВНУТРЕННИЙ (только SceneRuntime); слияние двух классов в
+один файл — косметика на потом. Новую сцену писать ТОЛЬКО делегатом.
+
 ## Отложено (по issues, кратко)
 Снап свободных стопок к зонам (владелец: «иметь возможность», сейчас чистый free-дроп) ·
 Приватность рук в live (снимок общий) · синк НАСТРОЕК борды в live (меню в live заморожено) ·

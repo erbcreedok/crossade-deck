@@ -79,7 +79,7 @@ export class LiveTableScene extends MultiplayerScene {
   }
 
   /** Чужую рубашку не потащить: она вообще не элемент взаимодействия, только отражение. */
-  protected canDrag(el: SceneElement): boolean {
+  canDrag(el: SceneElement): boolean {
     if (ALIAS_RE.test(el.id)) return false;
     return super.canDrag(el);
   }
@@ -140,7 +140,7 @@ export class LiveTableScene extends MultiplayerScene {
       .stroke({ width: 5, color });
     node.root.addChild(g);
     this.touches.set(cardId, { color, g });
-    this.wake();
+    this.api.wake();
   }
 
   private clearTouch(cardId: string): void {
@@ -148,7 +148,7 @@ export class LiveTableScene extends MultiplayerScene {
     if (!t) return;
     t.g.destroy();
     this.touches!.delete(cardId);
-    this.wake();
+    this.api.wake();
   }
 
   // ——— свои жесты: в сеть + свой цвет на карте ———
@@ -185,8 +185,8 @@ export class LiveTableScene extends MultiplayerScene {
       this.clearTouch(g.card);
       const node = this.nodes.get(g.card);
       // Домой пружиной; если ход примут, эхо состояния тут же перенаправит карту в новую зону.
-      if (node) this.releaseElement(node);
-      this.wake();
+      if (node) this.api.releaseElement(node);
+      this.api.wake();
       return;
     }
     this.remoteDrags?.set(g.from, { card: g.card, at: g.at ?? null });
@@ -195,7 +195,7 @@ export class LiveTableScene extends MultiplayerScene {
     if (!node) return;
     node.setState("lifted");
     node.root.zIndex = 9e5;
-    this.placeCard(node);
+    this.api.placeCard(node);
     if (g.at) {
       // Публичная зона: карта едет у всех ровно так, как её ведёт автор.
       node.body.setTarget({ x: g.at.x, y: g.at.y, rot: 0 });
@@ -205,7 +205,7 @@ export class LiveTableScene extends MultiplayerScene {
       const h = this.tree.homeOf(g.card);
       if (h) node.body.setTarget({ x: h.x, y: h.y, rot: 0 });
     }
-    this.wake();
+    this.api.wake();
   }
 
   private applyHands(m: HandsMessage): void {

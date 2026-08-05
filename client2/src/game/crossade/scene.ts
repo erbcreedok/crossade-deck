@@ -1,5 +1,6 @@
 import { Application, Graphics, Text } from "pixi.js";
-import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
+import type { SceneElement } from "../engine/sceneEngine";
+import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/sceneRuntime";
 import { TEX_H, PIXEL_FONT, COLORS, SHOUT_TEXT, SHOUT_COLORS } from "../engine/constants";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -57,7 +58,10 @@ function topOf(arr: readonly string[]): string | undefined {
   return arr[arr.length - 1];
 }
 
-export class CrossadeScene extends SceneEngine {
+export class CrossadeScene implements SceneDelegate {
+  /** Движок-рантайм (композиция): камера/ввод/кадр — его; сцена — делегат его швов. */
+  readonly rt: SceneRuntime;
+  private readonly api: SceneApi;
   private tex: CardTextureCache | null = null;
   private readonly nodes = new Map<string, Card>();
   private readonly cardDepth = new Map<string, number>();
@@ -85,7 +89,9 @@ export class CrossadeScene extends SceneEngine {
   private armedSlots: ReadonlySet<string> = new Set();
 
   constructor(private readonly opts: CrossadeSceneOptions) {
-    super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt = new SceneRuntime({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt.attach(this);
+    this.api = this.rt.api;
     this.state = emptyState(opts.selfSessionId);
     this.tree = buildCrossadeTree(this.state);
     this.port = makePort(opts.room);
@@ -93,26 +99,36 @@ export class CrossadeScene extends SceneEngine {
     this.disposeRoom = bound.dispose;
   }
 
+  // ——— хост-API (тонкие двери в рантайм): интерфейс хостов не изменился ———
+
+  mount(host: HTMLElement, width: number, height: number): Promise<void> {
+    return this.rt.mount(host, width, height);
+  }
+
+  destroy(): void {
+    this.rt.destroy();
+  }
+
   // ——————————————————————————————————————————————————————————————————————
   // Сборка
   // ——————————————————————————————————————————————————————————————————————
 
-  protected buildScene(app: Application): void {
+  buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
-    this.scene.surface.addChild(this.slotLayer);
+    this.api.surfaceAdd(this.slotLayer);
     this.buildHud();
     this.rebuildBoard(true);
   }
 
   private buildHud(): void {
     this.topbar = new TopBar([{ key: "back", label: "← меню", onClick: () => this.opts.onBack?.() }]);
-    this.chrome.addChild(this.topbar.root);
+    this.api.chromeAdd(this.topbar.root);
 
     this.readyBtn = new Button({ label: "готов", size: "sm", variant: "secondary", onClick: () => this.port.ready() });
     this.goBtn = new Button({ label: "ГОУ!", size: "sm", variant: "primary", onClick: () => this.port.go() });
     this.dealAllBtn = new Button({ label: "раздать всё", size: "sm", variant: "secondary", onClick: () => this.port.startGame() });
     this.collectBtn = new Button({ label: "перераздача", size: "sm", variant: "secondary", onClick: () => this.port.collectHands() });
-    for (const b of [this.readyBtn, this.goBtn, this.dealAllBtn, this.collectBtn]) this.chrome.addChild(b.root);
+    for (const b of [this.readyBtn, this.goBtn, this.dealAllBtn, this.collectBtn]) this.api.chromeAdd(b.root);
 
     // Notice (action_rejected) — короткая надпись под топбаром, сама себя гасит через after().
     this.notice = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe0483f, align: "center" } });
@@ -125,38 +141,38 @@ export class CrossadeScene extends SceneEngine {
     });
     this.shoutText.anchor.set(0.5);
     this.shoutText.visible = false;
-    this.chrome.addChild(this.notice, this.shoutText);
+    this.api.chromeAdd(this.notice);
+    this.api.chromeAdd(this.shoutText);
 
     this.syncHud();
   }
 
-  protected layoutChrome(w: number, h: number): void {
+  layoutChrome(w: number, h: number): void {
     this.topbar?.layout(w);
     this.layoutActions();
     this.notice.position.set(w / 2, (this.topbar?.height ?? TOPBAR_H) + 8);
     this.shoutText.position.set(w / 2, h / 2);
   }
 
-  protected chromeInsetTop(): number {
+  chromeInsetTop(): number {
     return this.topbar?.height ?? TOPBAR_H;
   }
 
-  protected onBooted(): void {
+  onBooted(): void {
     this.fitBoard();
-    super.onBooted();
   }
 
-  protected onSceneResize(): void {
+  onSceneResize(): void {
     this.fitBoard();
   }
 
   private fitBoard(): void {
-    this.syncVp();
-    const usableH = Math.max(1, this.height - this.chromeInsetTop());
-    this.viewport.setZoom(Math.min(1, this.width / this.tree.size.w, usableH / this.tree.size.h));
-    this.clampView();
-    this.applyView();
-    this.emitView();
+    this.api.syncVp();
+    const usableH = Math.max(1, this.api.height() - this.chromeInsetTop());
+    this.api.viewport().setZoom(Math.min(1, this.api.width() / this.tree.size.w, usableH / this.tree.size.h));
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -195,19 +211,19 @@ export class CrossadeScene extends SceneEngine {
   private showNotice(text: string): void {
     this.notice.text = text;
     this.notice.visible = true;
-    this.wake();
-    this.after(2, () => {
+    this.api.wake();
+    this.api.after(2, () => {
       this.notice.visible = false;
-      this.wake();
+      this.api.wake();
     });
   }
 
   private showShout(): void {
     this.shoutText.visible = true;
-    this.wake();
-    this.after(1.4, () => {
+    this.api.wake();
+    this.api.after(1.4, () => {
       this.shoutText.visible = false;
-      this.wake();
+      this.api.wake();
     });
   }
 
@@ -232,7 +248,7 @@ export class CrossadeScene extends SceneEngine {
     else this.actionButtons = [this.collectBtn];
 
     this.layoutActions();
-    this.chromeButtons = [...(this.topbar?.buttons ?? []), ...this.actionButtons];
+    this.api.setChromeButtons([...(this.topbar?.buttons ?? []), ...this.actionButtons]);
   }
 
   /** Своё место за столом — то, откуда читаются isDealer/isReady для HUD и жестов раздачи. */
@@ -248,14 +264,14 @@ export class CrossadeScene extends SceneEngine {
     const all = [this.readyBtn, this.goBtn, this.dealAllBtn, this.collectBtn];
     for (const b of all) b.root.visible = this.actionButtons.includes(b);
     const midY = this.topbar?.midY ?? TOPBAR_H / 2;
-    let x = this.width - 12;
+    let x = this.api.width() - 12;
     for (const b of [...this.actionButtons].reverse()) {
       x -= b.w / 2;
       b.place(x, midY);
       x -= b.w / 2 + 8;
     }
     // Сообщить панели, сколько справа занято: иначе её статус уезжает ПОД кнопки действий.
-    this.topbar?.setRightInset(this.width - (x + 8));
+    this.topbar?.setRightInset(this.api.width() - (x + 8));
   }
 
   /** Свести доску со снимком: дерево → дома → карты. snap — поставить сразу (первый монтаж),
@@ -286,7 +302,7 @@ export class CrossadeScene extends SceneEngine {
       this.cardDepth.set(cardId, depth);
       node.root.zIndex = depth;
       node.setState(node.pose);
-      this.placeCard(node);
+      this.api.placeCard(node);
       const target = { x: home.x, y: home.y, rot: 0, scale: node.restScale };
       if (snap) node.body.snapTo(target);
       else node.body.setTarget(target);
@@ -301,17 +317,16 @@ export class CrossadeScene extends SceneEngine {
       if (alive.has(cardId)) continue;
       node.destroy();
       this.nodes.delete(cardId);
-      this.byId.delete(cardId);
+      this.api.byId.delete(cardId);
     }
 
-    this.contentW = this.tree.size.w;
-    this.contentH = this.tree.size.h;
+    this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.syncSeats();
     this.paintBoard();
-    this.clampView();
-    this.applyView();
-    this.emitView();
-    this.wake();
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
+    this.api.wake();
   }
 
   private nodeFor(cardId: string, faceUp: boolean): Card {
@@ -319,7 +334,7 @@ export class CrossadeScene extends SceneEngine {
     if (existing) return existing;
     const node = new Card({ id: cardId, card: cardId, faceUp, flippable: true }, this.tex!, CARD.h / TEX_H);
     this.nodes.set(cardId, node);
-    this.byId.set(cardId, node);
+    this.api.byId.set(cardId, node);
     return node;
   }
 
@@ -332,7 +347,7 @@ export class CrossadeScene extends SceneEngine {
       if (!label) {
         label = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 13, align: "center" } });
         label.anchor.set(0.5, 0);
-        this.scene.surface.addChild(label);
+        this.api.surfaceAdd(label);
         this.seatLabels.set(seat.sessionId, label);
       }
       const dealerMark = seat.isDealer ? " ♛" : "";
@@ -366,7 +381,7 @@ export class CrossadeScene extends SceneEngine {
       if (!label) {
         label = new Text({ text, style: { fontFamily: PIXEL_FONT, fontSize: 13, fill: COLORS.gold, align: "center" } });
         label.anchor.set(0.5, 1);
-        this.scene.surface.addChild(label);
+        this.api.surfaceAdd(label);
         this.zoneLabels.set(id, label);
       }
       label.position.set(at.x + CARD.w / 2, at.y - 6);
@@ -377,15 +392,15 @@ export class CrossadeScene extends SceneEngine {
   // Швы домена: только то, чего у голой сцены со столом нет
   // ——————————————————————————————————————————————————————————————————————
 
-  protected draggables(): SceneElement[] {
+  draggables(): SceneElement[] {
     return [...this.nodes.values()];
   }
 
-  protected everyElement(): TableElement[] {
+  everyElement(): TableElement[] {
     return [...this.nodes.values()];
   }
 
-  protected homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
+  homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
     const home = this.tree.homeOf(el.id);
     return home ? { home, depth: this.cardDepth.get(el.id) ?? 0 } : null;
   }
@@ -394,7 +409,7 @@ export class CrossadeScene extends SceneEngine {
    *  либо в лобби ДИЛЕРУ («раздать драгом», этап 5, только верхнюю карту — колода вслепую, см.
    *  CLAUDE.md «Dealing is always on»); верх сброса/play-кучки — только в freeMode. Никакой другой
    *  элемент не драгается. */
-  protected canDrag(el: SceneElement): boolean {
+  canDrag(el: SceneElement): boolean {
     const slot = this.tree.slotOf(el.id);
     if (slot === "hand") return true;
     if (!slot) return false;
@@ -412,27 +427,27 @@ export class CrossadeScene extends SceneEngine {
     return false;
   }
 
-  protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
+  beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     this.dragFrom = this.tree.slotOf(el.id) ?? "";
     this.armedSlots = this.legalTargets(this.dragFrom);
     this.paintBoard();
-    return super.beginDrag(el, cp, sp);
+    return this.api.defaultBeginDrag(el, cp, sp);
   }
 
-  protected onDragMoved(p: { x: number; y: number }): void {
+  onDragMoved(p: { x: number; y: number }): void {
     const target = dropTarget(this.tree.root, p);
     const id = target?.group.id ?? null;
     const hot = id && this.armedSlots.has(id) ? id : null;
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintBoard();
-    this.wake();
+    this.api.wake();
   }
 
   /** Что значит дроп: слот под пальцем спрашивается у ДЕРЕВА (то же, что рисует карты), ход
    *  отдаётся серверу через CrossadePort — сцена ничьих правил не проверяет и не дублирует. */
-  protected resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
-    const drag = this.drag;
+  resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
+    const drag = this.api.drag();
     if (!drag) return;
     const from = this.tree.slotOf(el.id);
     const target = dropTarget(this.tree.root, cp);
@@ -491,11 +506,11 @@ export class CrossadeScene extends SceneEngine {
     this.port.setHandOrder(next);
   }
 
-  protected onDragCancel(): void {
+  onDragCancel(): void {
     this.clearDragHints();
   }
 
-  protected afterDragEnd(): void {
+  afterDragEnd(): void {
     this.clearDragHints();
   }
 
@@ -535,23 +550,23 @@ export class CrossadeScene extends SceneEngine {
     notice: string;
     zoom: number;
   } {
-    const z = this.viewport.zoom;
+    const z = this.api.viewport().zoom;
     const slots: Record<string, { x: number; y: number; w: number; h: number }> = {};
     for (const child of this.tree.root.children) {
       const at = this.tree.origins[child.id];
       if (!at) continue;
       const sz = measure(child);
-      const tl = this.contentToScreen(at.x, at.y);
+      const tl = this.api.contentToScreen(at.x, at.y);
       slots[child.id] = { x: tl.x, y: tl.y, w: sz.w * z, h: sz.h * z };
     }
     const cards: Record<string, { x: number; y: number; faceUp: boolean; state: string }> = {};
     for (const [id, node] of this.nodes) {
-      const p = this.contentToScreen(node.body.px, node.body.py);
+      const p = this.api.contentToScreen(node.body.px, node.body.py);
       cards[id] = { x: p.x, y: p.y, faceUp: node.faceUp, state: node.state };
     }
     const seats: Record<string, { x: number; y: number; text: string }> = {};
     for (const [id, label] of this.seatLabels) {
-      const p = this.contentToScreen(label.x, label.y);
+      const p = this.api.contentToScreen(label.x, label.y);
       seats[id] = { x: p.x, y: p.y, text: label.text };
     }
     const rectOf = (b: Button) => ({ x: b.x, y: b.y, w: b.w, h: b.h, visible: b.root.visible });
@@ -566,7 +581,7 @@ export class CrossadeScene extends SceneEngine {
     };
   }
 
-  protected onTeardown(app: Application): void {
+  onTeardown(app: Application): void {
     this.disposeRoom();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
@@ -577,6 +592,5 @@ export class CrossadeScene extends SceneEngine {
     this.tex?.destroy();
     this.tex = null;
     this.topbar = null;
-    super.onTeardown(app);
   }
 }

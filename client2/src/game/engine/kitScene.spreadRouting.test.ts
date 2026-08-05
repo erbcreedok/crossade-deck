@@ -35,7 +35,7 @@ class Probe extends KitScene {
 
   seed(inputOver: Partial<SpreadInput> = {}): void {
     const el = { id: "c0", body: { px: 0, py: 0 } } as unknown as SceneElement;
-    this.byId.set("c0", el);
+    this.api.byId.set("c0", el);
     const cfg: SpreadConfig = { ...CFG, input: { ...CFG.input, ...inputOver } };
     this.entries().push({ ids: ["c0"], at: { x: 0, y: 0 }, layout: () => ({ dx: 0, dy: 0, rot: 0 }), cell: { w: 60, h: 90 }, cfg, state: { ...SPREAD_STATE0 } });
   }

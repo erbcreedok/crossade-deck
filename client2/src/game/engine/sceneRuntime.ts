@@ -9,7 +9,11 @@ import type { Button } from "../ui/Button";
 import type { DragContext, DragPayload } from "./drag";
 import type { TableElement } from "./element";
 import type { DragMode } from "./inputRouter";
-import { SceneEngine, type CameraConfig, type SceneElement, type SpreadSource } from "./sceneEngine";
+import { SceneEngine, type CameraConfig, type Grabber, type SceneElement, type SpreadSource } from "./sceneEngine";
+import type { Marker, MarkerConfig, MarkerHost, ShowPolicy } from "./marker";
+import type { SceneLayers } from "./sceneLayers";
+import type { DropZone } from "../ui/DropZone";
+import type { AnimPreset } from "../anim/presets";
 import type { Viewport } from "./viewport";
 
 interface Pt {
@@ -89,11 +93,47 @@ export interface SceneApi {
   focusBounds(b: { x: number; y: number; w: number; h: number }): void;
   /** Кнопки В КООРДИНАТАХ КОНТЕНТА (на столе), в отличие от хрома (экран). */
   setButtons(btns: readonly Button[]): void;
+  /** ЖИВОЙ массив кнопок стола (каталог докидывает их по ходу сборки). */
+  buttonsRef(): Button[];
+  /** Слои сцены (surface/verb/clearCards) — каталог кладёт декор и глаголы сам. */
+  layers(): SceneLayers;
+  contentSize(): { w: number; h: number };
+  appReady(): boolean;
+  app(): Application | null;
+  preset(): AnimPreset;
+  setPreset(p: AnimPreset): void;
+  reduceMotion(): boolean;
+  lowFx(): boolean;
+  flashOff(): boolean;
+  /** Принудительный синк визуалов сейчас (витрина после сборки). */
+  render(): void;
+  animDuration(id: string, kind?: "move" | "flip" | "destroy" | "appear"): number;
+  needsPeek(el: TableElement): boolean;
+  flipGroup(els: readonly SceneElement[]): void;
+  registerZone(
+    zone: DropZone,
+    onDrop: (p: DragPayload, at: Pt) => void,
+    accepts: (p: DragPayload) => boolean,
+    textFor?: (p: DragPayload) => { armed: string; hot: string },
+  ): void;
+  mountMarkers(
+    host: MarkerHost,
+    lead: () => SceneElement | null,
+    dragger: Omit<MarkerConfig, "show"> & { show?: ShowPolicy },
+    anchorCfg: Omit<MarkerConfig, "show" | "follow" | "hit"> & { show?: ShowPolicy },
+  ): { dragger: Marker; anchor: Marker };
+  clearMarkers(): void;
+  markersList(): readonly Marker[];
+  grabbersList(): readonly Grabber[];
+  /** Сброс сценового состояния движка (пересборка витрины) и профиль качества. */
+  resetSceneState(): void;
+  setQualityProfile(p: "full" | "reduced"): void;
   /** Дефолтные ветки движка, которые делегат может звать из своих швов. */
   defaultBeginDrag(el: SceneElement, cp: Pt, sp: Pt): boolean;
   defaultSceneTap(content: Pt, screen: Pt): void;
   defaultPickElement(cx: number, cy: number): SceneElement | null;
   defaultElementTapped(el: SceneElement): void;
+  defaultCanDrag(el: SceneElement): boolean;
 }
 
 export class SceneRuntime extends SceneEngine {
@@ -150,10 +190,34 @@ export class SceneRuntime extends SceneEngine {
     setButtons: (btns) => {
       this.buttons = [...btns];
     },
+    buttonsRef: () => this.buttons,
+    layers: () => this.scene,
+    contentSize: () => ({ w: this.contentW, h: this.contentH }),
+    appReady: () => this.app !== null,
+    app: () => this.app,
+    preset: () => this.preset,
+    setPreset: (p) => {
+      this.preset = p;
+    },
+    reduceMotion: () => this.reduceMotion,
+    lowFx: () => this.lowFx,
+    flashOff: () => this.flashOff,
+    render: () => this.render(),
+    animDuration: (id, kind) => this.animDuration(id, kind),
+    needsPeek: (el) => this.needsPeek(el),
+    flipGroup: (els) => this.flipGroup(els),
+    registerZone: (zone, onDrop, accepts, textFor) => this.registerZone(zone, onDrop, accepts, textFor),
+    mountMarkers: (host, lead, dragger, anchorCfg) => this.mountMarkers(host, lead, dragger, anchorCfg),
+    clearMarkers: () => this.clearMarkers(),
+    markersList: () => this.markers,
+    grabbersList: () => this.grabbers,
     defaultBeginDrag: (el, cp, sp) => super.beginDrag(el, cp, sp),
     defaultSceneTap: (content, screen) => super.onSceneTap(content, screen),
     defaultPickElement: (cx, cy) => super.pickElement(cx, cy),
     defaultElementTapped: (el) => super.onElementTapped(el),
+    defaultCanDrag: (el) => super.canDrag(el),
+    resetSceneState: () => this.resetSceneState(),
+    setQualityProfile: (p) => this.onProfileChange(p),
   };
 
   // ——— форвардинг швов: делегат реализовал — его слово; нет — поведение ядра (super) ———

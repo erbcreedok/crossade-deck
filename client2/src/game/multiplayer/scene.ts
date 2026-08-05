@@ -1,5 +1,6 @@
 import { Application, Graphics, Text } from "pixi.js";
-import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
+import type { SceneElement } from "../engine/sceneEngine";
+import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/sceneRuntime";
 import { TEX_H, TEX_W, PIXEL_FONT, COLORS } from "../engine/constants";
 import { Card } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
@@ -57,7 +58,10 @@ function topOf(arr: readonly string[]): string | undefined {
   return arr[arr.length - 1];
 }
 
-export class MultiplayerScene extends SceneEngine {
+export class MultiplayerScene implements SceneDelegate {
+  /** Движок-рантайм (композиция). api — protected: live-наследник тоже ходит в движок через него. */
+  readonly rt: SceneRuntime;
+  protected readonly api: SceneApi;
   private tex: CardTextureCache | null = null;
   protected readonly nodes = new Map<string, Card>();
   private readonly cardDepth = new Map<string, number>();
@@ -96,12 +100,24 @@ export class MultiplayerScene extends SceneEngine {
   private grabOffset = { x: 0, y: 0 };
 
   constructor(opts: MultiplayerSceneOptions) {
-    super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt = new SceneRuntime({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt.attach(this);
+    this.api = this.rt.api;
     this.state = emptyState(opts.selfSessionId);
     this.tree = this.buildTree(this.state);
     this.port = makePort(opts.room);
     const bound = bindRoom(opts.room, { self: opts.selfSessionId, onState: this.applyState, onSignal: this.applySignal });
     this.disposeRoom = bound.dispose;
+  }
+
+  // ——— хост-API (тонкие двери в рантайм): интерфейс хостов не изменился ———
+
+  mount(host: HTMLElement, width: number, height: number): Promise<void> {
+    return this.rt.mount(host, width, height);
+  }
+
+  destroy(): void {
+    this.rt.destroy();
   }
 
   // ——— швы наследников (LiveTableScene): дерево, состав карт, вид карты, жесты ———
@@ -133,35 +149,34 @@ export class MultiplayerScene extends SceneEngine {
   /** Жесты драга для трансляции (live-режим): база молчит. Фаза "release" приходит без точки. */
   protected emitGesture(_phase: "grab" | "move" | "release", _cardId: string, _cp: { x: number; y: number } | null): void {}
 
-  protected buildScene(app: Application): void {
+  buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
-    this.scene.surface.addChild(this.slotLayer);
+    this.api.surfaceAdd(this.slotLayer);
     this.notice = new Text({ text: "", style: { fontFamily: PIXEL_FONT, fontSize: 18, fill: 0xe0483f, align: "center" } });
     this.notice.anchor.set(0.5, 0);
     this.notice.visible = false;
-    this.chrome.addChild(this.notice);
+    this.api.chromeAdd(this.notice);
     this.rebuildBoard(true);
   }
 
-  protected layoutChrome(w: number): void {
+  layoutChrome(w: number): void {
     this.notice.position.set(w / 2, 8);
   }
 
-  protected onBooted(): void {
+  onBooted(): void {
     this.fitBoard();
-    super.onBooted();
   }
 
-  protected onSceneResize(): void {
+  onSceneResize(): void {
     this.fitBoard();
   }
 
   private fitBoard(): void {
-    this.syncVp();
-    this.viewport.setZoom(Math.min(1, this.width / this.tree.size.w, this.height / this.tree.size.h));
-    this.clampView();
-    this.applyView();
-    this.emitView();
+    this.api.syncVp();
+    this.api.viewport().setZoom(Math.min(1, this.api.width() / this.tree.size.w, this.api.height() / this.tree.size.h));
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
   }
 
   // ——— сеть → доска ———
@@ -188,10 +203,10 @@ export class MultiplayerScene extends SceneEngine {
   protected showNotice(text: string): void {
     this.notice.text = text;
     this.notice.visible = true;
-    this.wake();
-    this.after(2, () => {
+    this.api.wake();
+    this.api.after(2, () => {
       this.notice.visible = false;
-      this.wake();
+      this.api.wake();
     });
   }
 
@@ -219,7 +234,7 @@ export class MultiplayerScene extends SceneEngine {
       this.cardDepth.set(cardId, depth);
       node.root.zIndex = depth;
       node.setState(node.pose);
-      this.placeCard(node);
+      this.api.placeCard(node);
       const target = { x: home.x, y: home.y, rot: 0, scale: node.restScale };
       if (snap) node.body.snapTo(target);
       else node.body.setTarget(target);
@@ -231,17 +246,16 @@ export class MultiplayerScene extends SceneEngine {
       if (alive.has(cardId)) continue;
       node.destroy();
       this.nodes.delete(cardId);
-      this.byId.delete(cardId);
+      this.api.byId.delete(cardId);
     }
 
-    this.contentW = this.tree.size.w;
-    this.contentH = this.tree.size.h;
+    this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.syncSeats();
     this.paintBoard();
-    this.clampView();
-    this.applyView();
-    this.emitView();
-    this.wake();
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
+    this.api.wake();
   }
 
   /** Лицо/рубашку и масштаб решают швы faceUpFor/cardScaleFor (у базы — всё лицом стольного
@@ -256,7 +270,7 @@ export class MultiplayerScene extends SceneEngine {
       this.cardScaleFor(cardId),
     );
     this.nodes.set(cardId, node);
-    this.byId.set(cardId, node);
+    this.api.byId.set(cardId, node);
     return node;
   }
 
@@ -270,7 +284,7 @@ export class MultiplayerScene extends SceneEngine {
       if (!label) {
         label = new Text({ style: { fontFamily: PIXEL_FONT, fontSize: 13, align: "center" } });
         label.anchor.set(0.5, 0);
-        this.scene.surface.addChild(label);
+        this.api.surfaceAdd(label);
         this.seatLabels.set(seat.sessionId, label);
       }
       const mark = seat.sessionId === this.state.selfSessionId ? " ◄ вы" : "";
@@ -313,22 +327,22 @@ export class MultiplayerScene extends SceneEngine {
 
   // ——— швы домена ———
 
-  protected draggables(): SceneElement[] {
+  draggables(): SceneElement[] {
     return [...this.nodes.values()];
   }
 
-  protected everyElement(): TableElement[] {
+  everyElement(): TableElement[] {
     return [...this.nodes.values()];
   }
 
-  protected homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
+  homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
     const home = this.tree.homeOf(el.id);
     return home ? { home, depth: this.cardDepth.get(el.id) ?? 0 } : null;
   }
 
   /** Тащить можно карту своей руки, ВЕРХ любой кучки и ВЕРХ сброса (если он есть на этом столе) —
    *  зоны общие, забирает любой игрок. Ожидающую одобрения — нельзя: её судьбу уже решает сервер. */
-  protected canDrag(el: SceneElement): boolean {
+  canDrag(el: SceneElement): boolean {
     if (this.pending.has(el.id)) return false;
     const slot = this.tree.slotOf(el.id);
     if (slot === "hand") return true;
@@ -340,19 +354,19 @@ export class MultiplayerScene extends SceneEngine {
     return false;
   }
 
-  protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
+  beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     this.grabOffset = { x: el.body.px - cp.x, y: el.body.py - cp.y };
     this.armedSlots = this.legalTargets(this.tree.slotOf(el.id) ?? "");
     this.paintBoard();
     this.dragCardId = el.id;
     this.emitGesture("grab", el.id, cp);
-    return super.beginDrag(el, cp, sp);
+    return this.api.defaultBeginDrag(el, cp, sp);
   }
 
   /** Чью карту сейчас ведёт СВОЙ палец — для эмиссии release, у которого нет точки. */
   private dragCardId: string | null = null;
 
-  protected onDragMoved(p: { x: number; y: number }): void {
+  onDragMoved(p: { x: number; y: number }): void {
     if (this.dragCardId) this.emitGesture("move", this.dragCardId, p);
     const target = dropTarget(this.tree.root, p);
     const id = target?.group.id ?? null;
@@ -360,15 +374,15 @@ export class MultiplayerScene extends SceneEngine {
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintBoard();
-    this.wake();
+    this.api.wake();
   }
 
   /** Дроп — команда порту, правила решает мастер/сервер (см. crossade/scene.ts#resolveDrop).
    *  Переходы «в другую зону» НЕ отпускаются домой: карта повисает в точке дропа до ответа
    *  сервера (beginPending) — иначе при заметной задержке она успевала долететь до руки и лишь
    *  потом прыгала в зону. Реордер своей руки — локальный и оптимистичный, ему ждать нечего. */
-  protected resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
-    const drag = this.drag;
+  resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
+    const drag = this.api.drag();
     if (!drag) return;
     const from = this.tree.slotOf(el.id);
     const target = dropTarget(this.tree.root, cp);
@@ -430,7 +444,7 @@ export class MultiplayerScene extends SceneEngine {
     node.setState("lifted");
     node.body.setTarget({ x: cp.x + this.grabOffset.x, y: cp.y + this.grabOffset.y, rot: 0 });
     this.tickPending(cardId, token);
-    this.after(PENDING_TIMEOUT_S, () => {
+    this.api.after(PENDING_TIMEOUT_S, () => {
       const p = this.pending.get(cardId);
       if (p?.token !== token) return;
       this.failPending(cardId);
@@ -459,14 +473,14 @@ export class MultiplayerScene extends SceneEngine {
         .stroke({ width: 7, color: COLORS.gold, cap: "round" });
       p.spinner.position.set(p.touchLocal.x, p.touchLocal.y);
       node.root.addChild(p.overlay, p.spinner);
-      this.wake();
+      this.api.wake();
     }
-    this.after(MultiplayerScene.PENDING_TICK_S, () => this.tickPending(cardId, token));
+    this.api.after(MultiplayerScene.PENDING_TICK_S, () => this.tickPending(cardId, token));
   }
 
   /** Вращение спиннеров ожидания — покадрово, пока хоть один виден (возврат true не даёт циклу
    *  уснуть под ними). */
-  protected stepScene(dt: number): boolean {
+  stepScene(dt: number): boolean {
     let spinning = false;
     for (const p of this.pending.values()) {
       if (!p.spinner) continue;
@@ -491,8 +505,8 @@ export class MultiplayerScene extends SceneEngine {
     const node = this.nodes.get(cardId);
     if (!node) return;
     node.blockNudge();
-    this.releaseElement(node);
-    this.wake();
+    this.api.releaseElement(node);
+    this.api.wake();
   }
 
   /** Оптимистичный реордер своей руки — дословно правило crossade/scene.ts#reorderHand: мутируем
@@ -506,12 +520,12 @@ export class MultiplayerScene extends SceneEngine {
     this.port.setHandOrder(next);
   }
 
-  protected onDragCancel(): void {
+  onDragCancel(): void {
     this.endOwnGesture();
     this.clearDragHints();
   }
 
-  protected afterDragEnd(): void {
+  afterDragEnd(): void {
     this.endOwnGesture();
     this.clearDragHints();
   }
@@ -550,10 +564,10 @@ export class MultiplayerScene extends SceneEngine {
     pending: string[];
   } {
     const slots: Record<string, { x: number; y: number }> = {};
-    for (const [id, at] of Object.entries(this.tree.origins)) slots[id] = this.contentToScreen(at.x, at.y);
+    for (const [id, at] of Object.entries(this.tree.origins)) slots[id] = this.api.contentToScreen(at.x, at.y);
     const cards: Record<string, { x: number; y: number; slot: string | null }> = {};
     for (const [id, node] of this.nodes) {
-      const p = this.contentToScreen(node.body.px, node.body.py);
+      const p = this.api.contentToScreen(node.body.px, node.body.py);
       cards[id] = { x: p.x, y: p.y, slot: this.tree.slotOf(id) };
     }
     return {
@@ -565,7 +579,7 @@ export class MultiplayerScene extends SceneEngine {
     };
   }
 
-  protected onTeardown(app: Application): void {
+  onTeardown(app: Application): void {
     this.disposeRoom();
     for (const p of this.pending.values()) {
       p.spinner?.destroy();
@@ -578,6 +592,5 @@ export class MultiplayerScene extends SceneEngine {
     this.seatLabels.clear();
     this.tex?.destroy();
     this.tex = null;
-    super.onTeardown(app);
   }
 }

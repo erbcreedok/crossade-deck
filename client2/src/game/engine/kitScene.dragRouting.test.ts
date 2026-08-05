@@ -27,13 +27,13 @@ class Probe extends KitScene {
     for (let i = 0; i < n; i++) {
       const id = `c${i}`;
       ids.push(id);
-      this.byId.set(id, { id, draggable: true, body: { px: i, py: 0 } } as unknown as SceneElement);
+      this.api.byId.set(id, { id, draggable: true, body: { px: i, py: 0 } } as unknown as SceneElement);
     }
     (this as unknown as { dragStacks: Entry[] }).dragStacks.push({ ids, pieceDrag, stackDrag });
   }
 
   private el(id: string): SceneElement {
-    return this.byId.get(id)!;
+    return this.api.byId.get(id)!;
   }
 
   tap(id: string): boolean {
