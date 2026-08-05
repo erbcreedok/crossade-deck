@@ -17,6 +17,7 @@ import type { SceneDecor } from "./decor";
 import type { SceneNodes } from "./nodesStore";
 import { buildBoardParts } from "./parts";
 import type { SceneGesture } from "./gesture";
+import type { SceneHandHud } from "./handHud";
 import { boardHooks, type BoardHooks } from "./hooks";
 import { ACTION_BAR_H } from "./chrome";
 import { fitZoom } from "../../engine/fitBoard";
@@ -58,6 +59,8 @@ export class BoardScene implements SceneDelegate {
   private readonly presence: ScenePresence;
   /** Жест над бордой целиком — свой владелец (gesture.ts): подсветка, фикс-зоны, план дропа. */
   private readonly gesture: SceneGesture;
+  /** Экранная рука (HUD, фикс к камере) — свой владелец; активна при hand.placement:"screen". */
+  private readonly handHud: SceneHandHud;
 
 
   constructor(private readonly opts: BoardSceneOptions) {
@@ -90,6 +93,7 @@ export class BoardScene implements SceneDelegate {
     this.menuOwner = parts.menuOwner;
     this.decor = parts.decor;
     this.gesture = parts.gesture;
+    this.handHud = parts.handHud;
   }
 
   // ——— хост-API (тонкие двери в рантайм): интерфейс хостов не изменился ———
@@ -98,9 +102,7 @@ export class BoardScene implements SceneDelegate {
     return this.rt.mount(host, width, height);
   }
 
-  destroy(): void {
-    this.rt.destroy();
-  }
+  destroy(): void { this.rt.destroy(); }
 
   /** Курсор этого клиента — ЭКРАННОЙ точкой от хоста; дальше его ведёт владелец присутствия. */
   reportCursor(sx: number, sy: number, active = true): void {
@@ -176,6 +178,7 @@ export class BoardScene implements SceneDelegate {
     this.api.surfaceAdd(this.gesture.hintLayer);
     this.api.contentAdd(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
     this.api.chromeAddAt(this.gesture.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
+    this.api.chromeAdd(this.handHud.root); // рука — над дроп-баром, под кнопками/меню
     this.chromeHud.build(this.spec.actions, this.opts.tools ?? []);
     this.api.setChromeButtons(this.chromeHud.buttons());
     this.rebuildBoard(true);
@@ -188,19 +191,15 @@ export class BoardScene implements SceneDelegate {
 
   layoutChrome(w: number, h: number): void {
     this.chromeHud.layout(w, h);
+    this.handHud.layout(w, h);
   }
 
-  onBooted(): void {
-    this.fitBoard();
-  }
-
-  onSceneResize(): void {
-    this.fitBoard();
-  }
+  onBooted(): void { this.fitBoard(); }
+  onSceneResize(): void { this.fitBoard(); }
 
   private fitBoard(): void {
     this.api.syncVp();
-    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: ACTION_BAR_H, size: this.tree.size };
+    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: ACTION_BAR_H, insetBottom: this.handHud.reservedBottom(this.api.height()), size: this.tree.size };
     this.api.viewport().setZoom(fitZoom(fit));
     this.showView();
   }
@@ -221,6 +220,7 @@ export class BoardScene implements SceneDelegate {
     this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.decor.sync();
     this.gesture.paintHints();
+    this.handHud.sync();
     this.presence.paint();
     this.chromeHud.syncDice(this.state.dice);
     this.showView();
@@ -283,12 +283,13 @@ export class BoardScene implements SceneDelegate {
 
   /** Дев-хук для стори/e2e — экранная геометрия и состояние (hooks.ts). */
   testHooks(): BoardHooks {
-    return boardHooks(this.state, this.tree, this.nodeStore.all(), (x, y) => this.api.contentToScreen(x, y));
+    return boardHooks(this.state, this.tree, this.nodeStore.all(), (x, y) => this.api.contentToScreen(x, y), this.handHud.screenPoses());
   }
 
   onTeardown(_app: Application): void {
     this.menuOwner.destroy();
     this.gesture.destroy();
+    this.handHud.destroy();
     this.presence.destroy();
     this.decor.destroy();
     this.nodeStore.destroy();

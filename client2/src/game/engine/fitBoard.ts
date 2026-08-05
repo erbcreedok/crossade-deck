@@ -12,10 +12,12 @@ export interface FitBoard {
   viewH: number;
   /** Сколько сверху занято хромом (0 — стол без хрома). */
   insetTop: number;
+  /** Сколько снизу занято хромом: полоса действий, а при экранной руке — её band (0 — ничего). */
+  insetBottom?: number;
   size: { w: number; h: number };
 }
 
-export function fitZoom({ viewW, viewH, insetTop, size }: FitBoard): number {
-  const usableH = Math.max(1, viewH - insetTop);
+export function fitZoom({ viewW, viewH, insetTop, insetBottom = 0, size }: FitBoard): number {
+  const usableH = Math.max(1, viewH - insetTop - insetBottom);
   return Math.min(1, viewW / size.w, usableH / size.h);
 }

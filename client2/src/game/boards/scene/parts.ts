@@ -20,6 +20,9 @@ import { SceneMenu } from "./menu";
 import { SceneNodes } from "./nodesStore";
 import { ScenePresence } from "./scenePresence";
 import { SceneGesture } from "./gesture";
+import { SceneHandHud } from "./handHud";
+import { handConfig } from "../hand/handConfig";
+import { handKey } from "../core/state";
 import { boardWorld, isDeckSlot, type DropWorld } from "../geometry/dropPlan";
 import { faceUpInSlot } from "../core/faceUp";
 import { menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
@@ -49,6 +52,7 @@ export interface BoardParts {
   menuOwner: SceneMenu;
   decor: SceneDecor;
   gesture: SceneGesture;
+  handHud: SceneHandHud;
 }
 
 export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): BoardParts {
@@ -118,6 +122,17 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     wake: () => api.wake(),
   });
 
+  // Экранная рука: своя рука фикс к камере. Активна только при placement:"screen" — иначе руку
+  // раскладывает дерево борды (зоной в контенте), а HUD пуст.
+  const handHud = new SceneHandHud({
+    enabled: () => handConfig(ctx.spec().hand)?.placement === "screen",
+    members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
+    def: (id) => ctx.def(id),
+    tex: () => ctx.tex(),
+    renderer: () => api.renderer(),
+    wake: () => api.wake(),
+  });
+
   const menuOwner = new SceneMenu({
     menus: opts.menus,
     size: () => ({ w: api.width(), h: api.height() }),
@@ -175,5 +190,5 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     presenceOwner: presence,
   });
 
-  return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture };
+  return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
 }

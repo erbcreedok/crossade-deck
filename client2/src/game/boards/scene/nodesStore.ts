@@ -60,8 +60,15 @@ export class SceneNodes {
       alive.add(id);
       const slot = tree.slotOf(id);
       const home = tree.homeOf(id);
-      if (!slot || !home) return;
+      if (!slot || !home) {
+        // Дом уехал из дерева (карту забрала экранная рука-HUD, placement:"screen") — прячем
+        // контентный двойник, чтобы он не висел бесхозным на последнем месте. Вернётся дом — покажем.
+        const twin = this.byId.get(id);
+        if (twin) twin.root.visible = false;
+        return;
+      }
       const node = this.nodeFor(id, tex);
+      node.root.visible = true;
       const depth = (slotOrder.get(slot) ?? 0) * 1000 + indexInPile;
       this.depths.set(id, depth);
       if (this.host.remoteDragged(id)) return; // карту ведёт чужой драг-стрим
