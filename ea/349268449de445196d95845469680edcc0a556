@@ -1,0 +1,40 @@
+client2/src/game/engine/sceneView.ts
+  s_b2849f723d52bb::t_28360046029ada 6-7,10,122-146
+  s_b2849f723d52bb::t_cc38c1249091a7 1-5,8-9,11-121,147
+client2/src/game/engine/canvasApp.ts
+  s_b2849f723d52bb::t_22573fced00c63 14,17-18,21,26,135
+client2/src/game/engine/sceneContract.ts
+  s_b2849f723d52bb::t_f05b136fa6d42b 24-31
+client2/src/game/engine/sceneInput.ts
+  s_b2849f723d52bb::t_28360046029ada 130-200
+client2/src/game/engine/kitScene.spreadRouting.test.ts
+  s_b2849f723d52bb::t_1d5033f486aa56 69-70
+client2/src/game/engine/sceneApiBuild.ts
+  s_b2849f723d52bb::t_e36aa526aa2a56 1-84
+client2/src/game/engine/sceneSeams.ts
+  s_b2849f723d52bb::t_2b28f14bd9e477 1-128
+client2/src/game/engine/sceneEngine.ts
+  s_b2849f723d52bb::t_0e12012ad027ee 234
+  s_b2849f723d52bb::t_a38fcc30ec7b50 1-10,13,17-18,21,25,29,33-36,41,43-45,47,58-59,76-112,118-120,123-127,134,136-137,140,148-150,154-156,162-163,167,170-175,178-186,189,191-193,196-197,200-201,204-205,212-219,222,227,237,241,243-244,247-250,253-254,257-259,261-263,265-266,269-271,277,281,286,290-292,295-296
+  s_b2849f723d52bb::t_d2e8995b96e24a 14,37,236,238
+  s_b2849f723d52bb::t_f05b136fa6d42b 30,42
+  s_b2849f723d52bb::t_9c20d0638891a1 11-12
+client2/src/game/engine/sceneFrame.ts
+  s_b2849f723d52bb::t_224edaf03eb02a 1-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ea349268449de445196d95845469680edcc0a556",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
