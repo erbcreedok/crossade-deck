@@ -1,0 +1,24 @@
+client2/e2e/catalog/handDock.spec.ts
+  s_b2849f723d52bb::t_f4e7ef800c4740 16,161-187
+  s_b2849f723d52bb::t_9c11d22945b799 188
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_a5906c76ef77c0 5,212-274
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_2292c9db50dc3a 111-113,118,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ca8bed3560d0a2d41c5d08510fcdce998a672f29",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
