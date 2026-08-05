@@ -10,16 +10,16 @@
 import { Client, type Room } from "colyseus.js";
 import { httpUrl, serverUrl } from "../../net/runtimeConfig";
 import { browserAccountStorage, loadAccount } from "../../net/account";
-import { applyCommand, bootState } from "../boards/mock";
-import { migrateState } from "../boards/migrate";
+import { applyCommand, bootState } from "../boards/core/mock";
+import { migrateState } from "../boards/core/migrate";
 import { sandboxBoard } from "./board";
 import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "./settings";
 import { seatOccupants, withOccupants } from "./liveSeats";
-import type { BoardDriver } from "../boards/driver";
-import type { PresenceHub, PresenceView } from "../boards/presence";
-import type { BoardSpec } from "../boards/spec";
-import { ensureVisuals } from "../boards/state";
-import type { BoardState } from "../boards/state";
+import type { BoardDriver } from "../boards/core/driver";
+import type { PresenceHub, PresenceView } from "../boards/core/presence";
+import type { BoardSpec } from "../boards/core/spec";
+import { ensureVisuals } from "../boards/core/state";
+import type { BoardState } from "../boards/core/state";
 
 export interface LiveMember {
   id: string;

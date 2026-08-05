@@ -2,7 +2,7 @@
 // динамические места, раздача всей колоды «дилеру последним — и меньше». Правила отбоя
 // (6 бьётся 8, взял — круг не закрыт) живут в головах игроков, борда даёт честный стол.
 
-import type { BoardSpec } from "../spec";
+import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
 export function krestovyiBoard(): BoardSpec {

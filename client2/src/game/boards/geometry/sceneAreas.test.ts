@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hintShape, menuTargetAt } from "./sceneAreas";
-import type { ZoneSpec } from "./spec";
+import type { ZoneSpec } from "../core/spec";
 
 // Геометрия областей сцены: цель меню под точкой и фигура подсветки дропа — чистые правила,
 // вынесенные из BoardScene (сцена только обводит готовую фигуру).

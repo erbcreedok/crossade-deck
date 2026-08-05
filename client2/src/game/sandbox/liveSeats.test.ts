@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { seatOccupants, withOccupants } from "./liveSeats";
 import { sandboxBoard } from "./board";
 import { DEFAULT_SANDBOX_SETTINGS } from "./settings";
-import { initialState } from "../boards/state";
+import { initialState } from "../boards/core/state";
 
 const member = (id: string, name: string, seat: string | null) => ({ id, name, color: 0xffffff, seat });
 

@@ -4,7 +4,7 @@
 
 import { baseZoneId, elementById, slotKey, zoneOf, zoneSlotCount, type BoardSpec } from "./spec";
 import type { BoardState } from "./state";
-import type { SlotField } from "../slotfield/slotField";
+import type { SlotField } from "../../slotfield/slotField";
 
 /**
  * Пересыпать жителей старого состояния в слоты НОВОЙ спеки (смена раскладки зоны не должна

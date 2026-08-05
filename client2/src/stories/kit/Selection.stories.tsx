@@ -8,7 +8,7 @@ import type { Texture } from "pixi.js";
 import type { Glowable } from "../../game/engine/element";
 import type { GlowShape } from "../../game/ui/selection";
 import { PresenceCursor } from "../../game/ui/PresenceCursor";
-import { USER_COLORS } from "../../game/boards/room";
+import { USER_COLORS } from "../../game/boards/core/room";
 
 interface Args {
   color: string;

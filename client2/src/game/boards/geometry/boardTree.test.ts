@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildBoardTree } from "./boardTree";
-import { applyCommand, bootState } from "./mock";
-import { sandboxBoard } from "../sandbox/board";
-import type { BoardSpec } from "./spec";
+import { applyCommand, bootState } from "../core/mock";
+import { sandboxBoard } from "../../sandbox/board";
+import type { BoardSpec } from "../core/spec";
 
 const rng = () => 0.5;
 

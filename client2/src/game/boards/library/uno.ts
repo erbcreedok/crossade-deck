@@ -1,7 +1,7 @@
 // УНО — колода + открытый сброс, направление круга меняется постоянно (реверсы) — ровно то,
 // зачем у мока есть reverse. Карты — обычные (кастом-лица УНО придут с ассетами).
 
-import type { BoardSpec } from "../spec";
+import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
 export function unoBoard(): BoardSpec {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { at } from "../slotfield/slotField";
+import { at } from "../../slotfield/slotField";
 import { applyCommand, bootState, dealOrder } from "./mock";
 import { handOf, initialState, OFFBOARD_KEY } from "./state";
 import { slotKey, type BoardSpec } from "./spec";

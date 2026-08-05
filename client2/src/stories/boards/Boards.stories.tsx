@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { BoardScene } from "../../game/boards/scene";
-import { createBoardTable } from "../../game/boards/boardTable";
-import type { BoardDriver } from "../../game/boards/driver";
+import { BoardScene } from "../../game/boards/scene/scene";
+import { createBoardTable } from "../../game/boards/core/boardTable";
+import type { BoardDriver } from "../../game/boards/core/driver";
 import { BOARD_LIBRARY, roundTableBoard, type BoardLibraryId } from "../../game/boards/library";
 import type { RoundTableOpts } from "../../game/boards/library/roundTable";
 import { sandboxBoard } from "../../game/sandbox/board";
-import { createPresenceHub } from "../../game/boards/presence";
+import { createPresenceHub } from "../../game/boards/core/presence";
 import { DEFAULT_SANDBOX_SETTINGS } from "../../game/sandbox/settings";
 import { sandboxMenus } from "../../game/sandbox/menus";
-import { USER_COLORS } from "../../game/boards/room";
-import type { BoardCommand } from "../../game/boards/spec";
+import { USER_COLORS } from "../../game/boards/core/room";
+import type { BoardCommand } from "../../game/boards/core/spec";
 
 interface Args {
   board: BoardLibraryId;
@@ -71,7 +71,7 @@ const meta: Meta<Args> = {
   },
   parameters: {
     layout: "fullscreen",
-    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene";
+    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene/scene";
 import { BOARD_LIBRARY } from "../../game/boards/library";
 
 // Борда — данные (BoardSpec): зоны со своими раскладками, места, панель действий, смарт-мок.
@@ -207,7 +207,7 @@ export const Round: StoryObj<RoundArgs> = {
     },
   },
   parameters: {
-    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene";
+    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene/scene";
 import { roundTableBoard } from "../../game/boards/library";
 
 // Настройки-как-данные: те же рычаги потом крутит контекстное меню песочницы.
@@ -372,9 +372,9 @@ export const SandboxLive: StoryObj<SandboxLiveArgs> = {
     },
   },
   parameters: {
-    code: () => `import { createBoardTable } from "../../game/boards/boardTable";
-import { createPresenceHub } from "../../game/boards/presence";
-import { BoardScene } from "../../game/boards/scene";
+    code: () => `import { createBoardTable } from "../../game/boards/core/boardTable";
+import { createPresenceHub } from "../../game/boards/core/presence";
+import { BoardScene } from "../../game/boards/scene/scene";
 
 // Один мастер + один хаб присутствия; по сцене на клиента.
 const table = createBoardTable({ spec: sandboxBoard(), seats });
@@ -404,8 +404,8 @@ export const BoardsLive: StoryObj<LiveArgs> = {
     },
   },
   parameters: {
-    code: (a: Record<string, unknown>) => `import { createBoardTable } from "../../game/boards/boardTable";
-import { BoardScene } from "../../game/boards/scene";
+    code: (a: Record<string, unknown>) => `import { createBoardTable } from "../../game/boards/core/boardTable";
+import { BoardScene } from "../../game/boards/scene/scene";
 
 // ОДИН мастер — авторитетное состояние; драйвер на каждое место.
 const table = createBoardTable({ spec: BOARD_LIBRARY.${a.board}(), seats: ${a.seats}, latencyMs: ${a.latency} });

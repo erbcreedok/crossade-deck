@@ -1,7 +1,7 @@
 // МАНЧКИН — две колоды (двери/сокровища) + общий сброс + фишки уровней в банке: игрок сам
 // берёт себе уровень (или «помогает» соседу — мок не запрещает, как и сама игра местами).
 
-import type { BoardSpec, ElementDef } from "../spec";
+import type { BoardSpec, ElementDef } from "../core/spec";
 import { deck36 } from "./decks";
 
 export function munchkinBoard(): BoardSpec {

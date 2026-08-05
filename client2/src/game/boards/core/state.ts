@@ -3,8 +3,8 @@
 // ЕДИНЫЙ словарь адресов: зоны стола, руки («hand:p1») и выход за борт («offboard:0») — слоты
 // одного поля; move между ними — одна операция, без спецслучаев.
 
-import type { SlotField } from "../slotfield/slotField";
-import { at, place } from "../slotfield/slotField";
+import type { SlotField } from "../../slotfield/slotField";
+import { at, place } from "../../slotfield/slotField";
 import { elementById, slotKey, type BoardSpec } from "./spec";
 
 export interface SeatState {

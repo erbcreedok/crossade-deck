@@ -3,7 +3,7 @@
 
 import type { Rect } from "./freeBox";
 import { freeStackSize, type Size } from "./freeDrop";
-import { baseZoneId, slotKey, slotOf, zoneOf, type ZoneSpec } from "./spec";
+import { baseZoneId, slotKey, slotOf, zoneOf, type ZoneSpec } from "../core/spec";
 
 export type MenuTargetKind = "board" | "table";
 

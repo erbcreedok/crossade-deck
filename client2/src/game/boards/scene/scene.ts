@@ -1,32 +1,32 @@
 import { Application, Graphics, Text } from "pixi.js";
-import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
-import { TEX_H, PIXEL_FONT, COLORS } from "../engine/constants";
-import { Card } from "../ui/Card";
-import { CardTextureCache } from "../ui/CardTextureCache";
-import { Button } from "../ui/Button";
-import { buildPiece, type PieceSpec } from "../ui/pieceKinds";
-import type { Piece } from "../ui/Piece";
-import type { TableElement } from "../engine/element";
-import { dropTarget } from "../slot/slot";
-import { dashedRectSegments } from "../ui/dashedRectSegments";
-import { dashedCircleArcs } from "../ui/dashedCircleArcs";
-import { blockDropOffset } from "./freeBox";
-import { faceAfterDrop, freeStackSize, insideBox, nextLooseKey } from "./freeDrop";
-import { GroupDrag } from "../engine/drag";
-import { CARD } from "../crossade/tree";
-import { buildBoardTree, type BoardTree, type FreePositions } from "./boardTree";
-import { localDriver, type BoardDriver } from "./driver";
-import { handKey, type BoardState } from "./state";
-import { baseZoneId, elementById, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
-import { handOrderAfterDrop } from "../crossade/handOrder";
-import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
-import { DropBar } from "../ui/DropBar";
+import { SceneEngine, type SceneElement } from "../../engine/sceneEngine";
+import { TEX_H, PIXEL_FONT, COLORS } from "../../engine/constants";
+import { Card } from "../../ui/Card";
+import { CardTextureCache } from "../../ui/CardTextureCache";
+import { Button } from "../../ui/Button";
+import { buildPiece, type PieceSpec } from "../../ui/pieceKinds";
+import type { Piece } from "../../ui/Piece";
+import type { TableElement } from "../../engine/element";
+import { dropTarget } from "../../slot/slot";
+import { dashedRectSegments } from "../../ui/dashedRectSegments";
+import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
+import { blockDropOffset } from "../geometry/freeBox";
+import { faceAfterDrop, freeStackSize, insideBox, nextLooseKey } from "../geometry/freeDrop";
+import { GroupDrag } from "../../engine/drag";
+import { CARD } from "../../crossade/tree";
+import { buildBoardTree, type BoardTree, type FreePositions } from "../geometry/boardTree";
+import { localDriver, type BoardDriver } from "../core/driver";
+import { handKey, type BoardState } from "../core/state";
+import { baseZoneId, elementById, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
+import { handOrderAfterDrop } from "../../crossade/handOrder";
+import { ContextMenu, type MenuRow } from "../../ui/ContextMenu";
+import { DropBar } from "../../ui/DropBar";
 import { ScenePresence } from "./scenePresence";
-import { hintShape, menuTargetAt, type MenuTargetKind } from "./sceneAreas";
-import { migrateState } from "./migrate";
-import { autoDealPlan } from "./dealPlan";
-import { SHUFFLE_FX_SECONDS, shufflePoses } from "./shuffleFx";
-import type { PresenceHub } from "./presence";
+import { hintShape, menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
+import { migrateState } from "../core/migrate";
+import { autoDealPlan } from "../core/dealPlan";
+import { SHUFFLE_FX_SECONDS, shufflePoses } from "../core/shuffleFx";
+import type { PresenceHub } from "../core/presence";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -37,7 +37,7 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
 const SEAT_STRIP_CARD_H = 83;
 
-export type { MenuTargetKind } from "./sceneAreas";
+export type { MenuTargetKind } from "../geometry/sceneAreas";
 
 /** Шов меню к хосту (DIP): сцена спрашивает строки, хост решает, что настраивается и как. */
 export interface SceneMenus {

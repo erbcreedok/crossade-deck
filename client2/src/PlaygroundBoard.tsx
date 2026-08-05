@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BoardScene, type SceneTool } from "./game/boards/scene";
+import { BoardScene, type SceneTool } from "./game/boards/scene/scene";
 import { sandboxBoard } from "./game/sandbox/board";
 import { DEFAULT_SANDBOX_SETTINGS } from "./game/sandbox/settings";
 import { sandboxMenus } from "./game/sandbox/menus";

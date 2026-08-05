@@ -1,7 +1,7 @@
 // Колоды-хелперы библиотеки борд: карты как ДАННЫЕ (ElementDef), id = лицо.
 
 import { SUITS } from "../../card";
-import type { ElementDef } from "../spec";
+import type { ElementDef } from "../core/spec";
 
 const RANKS_36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"] as const;
 const RANKS_52 = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"] as const;

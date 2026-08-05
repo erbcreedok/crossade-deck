@@ -1,12 +1,12 @@
-import { absolute, grid as flowGrid, linear, pile, radial, radialPositions } from "../slot/layouts";
-import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../slot/slot";
-import { group, leaf, type Group, type Size, type Slot, type Vec } from "../slot/types";
-import { ringSlots } from "../slotfield/layout/slots";
-import { at as fieldAt } from "../slotfield/slotField";
-import { CARD } from "../crossade/tree";
-import { handKey, OFFBOARD_KEY, type BoardState } from "./state";
+import { absolute, grid as flowGrid, linear, pile, radial, radialPositions } from "../../slot/layouts";
+import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../../slot/slot";
+import { group, leaf, type Group, type Size, type Slot, type Vec } from "../../slot/types";
+import { ringSlots } from "../../slotfield/layout/slots";
+import { at as fieldAt } from "../../slotfield/slotField";
+import { CARD } from "../../crossade/tree";
+import { handKey, OFFBOARD_KEY, type BoardState } from "../core/state";
 import { freeStackSize, FREE_STAGGER, looseOrigin } from "./freeDrop";
-import { seatZoneId, slotKey, zoneOf, type BoardSpec, type ZoneSpec } from "./spec";
+import { seatZoneId, slotKey, zoneOf, type BoardSpec, type ZoneSpec } from "../core/spec";
 
 // ГЕОМЕТРИЯ БОРДЫ — ОДНО дерево слотов на рендер и дроп (канон всех сцен), собираемое из
 // BoardSpec: каждая зона — поддерево со СВОЕЙ раскладкой; id узлов = SlotKey состояния

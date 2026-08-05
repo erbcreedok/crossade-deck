@@ -1,7 +1,7 @@
 // ДУРАК — грид пар «атака/защита»: слот держит не больше двух карт (maxSize 2 — третьей
 // физически некуда), козырь смотрит из-под колоды (мок: отдельный слот «козырь» лицом).
 
-import type { BoardSpec } from "../spec";
+import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
 export function durakBoard(): BoardSpec {

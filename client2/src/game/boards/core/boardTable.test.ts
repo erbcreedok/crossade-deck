@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { at } from "../slotfield/slotField";
+import { at } from "../../slotfield/slotField";
 import { createBoardTable } from "./boardTable";
 import { handOf } from "./state";
-import { durakBoard } from "./library";
+import { durakBoard } from "../library";
 
 // Общий стол борды: одно авторитетное состояние, команды клиентов применяются по одной,
 // снимок летит всем (эхо автору включительно), latency — на оба плеча.

@@ -1,7 +1,7 @@
 // ШАХМАТЫ — контраст каркасу: не-карточная борда, константные места, адресный грид,
 // capture с выносом за борт. Правил ходов нет (смарт-мок): фигуры двигаются как угодно.
 
-import type { BoardSpec, ElementDef } from "../spec";
+import type { BoardSpec, ElementDef } from "../core/spec";
 
 const BACK_ROW = ["♜", "♞", "♝", "♛", "♚", "♝", "♞", "♜"] as const;
 

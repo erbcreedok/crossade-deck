@@ -1,7 +1,7 @@
 // МОНОПОЛИЯ — контраст: кольцевая раскладка, смешанные элементы (фишки-токены, деньги,
 // карточки шанс/казна), кубики; у мест не рука с картами, а видимое имущество.
 
-import type { BoardSpec, ElementDef } from "../spec";
+import type { BoardSpec, ElementDef } from "../core/spec";
 
 const TOKEN_COLORS = [0xe05555, 0x4c9ae0, 0x5ec46a, 0xe0a24c, 0xb06ae0, 0x4cc8c8];
 

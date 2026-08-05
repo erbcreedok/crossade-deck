@@ -1,7 +1,7 @@
 // ДнД — поле энкаунтера: большой грид под миниатюры (герои светлые, монстры тёмные), резерв
 // мастера и кубики. Правил нет тем более — мастер и есть правила.
 
-import type { BoardSpec, ElementDef } from "../spec";
+import type { BoardSpec, ElementDef } from "../core/spec";
 
 const HEROES = ["♞", "♝", "♜", "♛"] as const;
 const MONSTERS = ["♟", "♟", "♟", "♞", "♜"] as const;

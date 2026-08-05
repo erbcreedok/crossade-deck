@@ -1,4 +1,4 @@
-import type { BoardSpec } from "../boards/spec";
+import type { BoardSpec } from "../boards/core/spec";
 import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "./settings";
 import { roundTableBoard } from "../boards/library/roundTable";
 

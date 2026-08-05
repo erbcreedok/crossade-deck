@@ -5,8 +5,8 @@
 // Чистый редьюсер: applyCommand(spec, state, cmd, rng) → state'. Rng инжектится (тесты —
 // детерминированные), сцена передаёт Math.random.
 
-import { at, move, place } from "../slotfield/slotField";
-import { topId } from "../slotfield/container";
+import { at, move, place } from "../../slotfield/slotField";
+import { topId } from "../../slotfield/container";
 import { handKey, initialState, OFFBOARD_KEY, type BoardState } from "./state";
 import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type SlotKey } from "./spec";
 

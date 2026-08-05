@@ -1,7 +1,7 @@
 // ПОКЕР — борд из пяти адресных слотов (флоп/тёрн/ривер ложатся на СВОИ места), банк фишек в
 // центре, у игроков по две карты и стек. Колода 52.
 
-import type { BoardSpec, ElementDef } from "../spec";
+import type { BoardSpec, ElementDef } from "../core/spec";
 import { deck52 } from "./decks";
 
 export function pokerBoard(): BoardSpec {

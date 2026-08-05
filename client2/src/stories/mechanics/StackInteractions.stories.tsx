@@ -6,7 +6,7 @@ import type { KitScene } from "../../game/engine/kitScene";
 import { CanvasStage } from "../harness/CanvasStage";
 import { STACK_ARGS, STACK_ARG_TYPES, interactionFrom, layoutFrom, stackOptsFrom, type StackArgs } from "../kit/stackArgs";
 import { STACK_INTERACTIONS } from "../../game/kit/stackInteraction";
-import { BoardScene } from "../../game/boards/scene";
+import { BoardScene } from "../../game/boards/scene/scene";
 import { roundTableBoard } from "../../game/boards/library";
 import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "../../game/sandbox/settings";
 import { sandboxMenus } from "../../game/sandbox/menus";
@@ -337,7 +337,7 @@ export const DeckActions: StoryObj<DeckArgs> = {
   },
   parameters: {
     layout: "fullscreen",
-    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene";
+    code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene/scene";
 import { roundTableBoard } from "../../game/boards/library";
 
 const scene = new BoardScene({ spec: roundTableBoard({ seats: ${a.seats}, deck: ${a.deck}, dealt: 0 }), seats: ${a.seats} });

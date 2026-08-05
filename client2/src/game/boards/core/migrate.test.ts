@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { migrateState } from "./migrate";
-import { roundTableBoard } from "./library/roundTable";
+import { roundTableBoard } from "../library/roundTable";
 import { initialState } from "./state";
 
 describe("migrateState — смена спеки не теряет карты", () => {

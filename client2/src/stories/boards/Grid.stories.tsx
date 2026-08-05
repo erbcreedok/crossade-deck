@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { BoardScene } from "../../game/boards/scene";
-import type { BoardSpec } from "../../game/boards/spec";
+import { BoardScene } from "../../game/boards/scene/scene";
+import type { BoardSpec } from "../../game/boards/core/spec";
 
 interface Args {
   count: number;

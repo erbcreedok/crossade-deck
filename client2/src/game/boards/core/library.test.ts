@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { at } from "../slotfield/slotField";
-import { buildBoardTree } from "./boardTree";
+import { at } from "../../slotfield/slotField";
+import { buildBoardTree } from "../geometry/boardTree";
 import { applyCommand, bootState } from "./mock";
 import { handOf, OFFBOARD_KEY } from "./state";
-import { BOARD_LIBRARY, belkaBoard, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, munchkinBoard, pokerBoard } from "./library";
+import { BOARD_LIBRARY, belkaBoard, chessBoard, durakBoard, krestovyiBoard, monopolyBoard, munchkinBoard, pokerBoard } from "../library";
 
 // Борды-пресеты — ДАННЫЕ: гварды на то, что каждая спека собирается в живой стол
 // (bootState + дерево) и её контраст действительно работает через общий редьюсер.

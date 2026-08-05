@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { BoardScene } from "../../game/boards/scene";
+import { BoardScene } from "../../game/boards/scene/scene";
 import { BOARD_LIBRARY, type BoardLibraryId } from "../../game/boards/library";
-import { seatCount } from "../../game/boards/state";
+import { seatCount } from "../../game/boards/core/state";
 import {
   applyRoomCommand,
   canTouch,
@@ -12,7 +12,7 @@ import {
   occupantsFor,
   type RoomCommand,
   type RoomState,
-} from "../../game/boards/room";
+} from "../../game/boards/core/room";
 
 interface Args {
   guestsAllowed: boolean;
@@ -172,8 +172,8 @@ const meta: Meta<Args> = {
   },
   parameters: {
     layout: "fullscreen",
-    code: (a: Record<string, unknown>) => `import { createRoom, applyRoomCommand } from "../../game/boards/room";
-import { BoardScene } from "../../game/boards/scene";
+    code: (a: Record<string, unknown>) => `import { createRoom, applyRoomCommand } from "../../game/boards/core/room";
+import { BoardScene } from "../../game/boards/scene/scene";
 
 let room = createRoom("5246", "chess", { guestsAllowed: ${a.guestsAllowed}, observersCanTouch: ${a.observersCanTouch} });
 room = applyRoomCommand(room, { t: "join", id: "u1", displayName: "Ербол" });   // первый — модератор

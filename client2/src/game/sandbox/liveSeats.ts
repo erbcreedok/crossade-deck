@@ -3,7 +3,7 @@
 // пустой стул — occupant null («свободно»). Снимки состояния приезжают от других клиентов
 // с ИХ представлением мест — рассадку всегда переписывает ростер (он авторитетнее).
 
-import type { BoardState } from "../boards/state";
+import type { BoardState } from "../boards/core/state";
 import type { LiveMember } from "./live";
 
 /** occupant-массив по местам p1..pN из ростера комнаты. */

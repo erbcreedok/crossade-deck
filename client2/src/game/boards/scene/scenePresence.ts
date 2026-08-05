@@ -4,12 +4,12 @@
 // вся логика «кого светить, кого куда вести» — здесь, у сцены остаётся только оркестровка.
 
 import { Container, Graphics } from "pixi.js";
-import { TEX_W } from "../engine/constants";
-import { Card } from "../ui/Card";
-import type { Piece } from "../ui/Piece";
-import type { GlowShape } from "../ui/selection";
-import { PresenceCursor } from "../ui/PresenceCursor";
-import type { PresenceHub, PresenceView } from "./presence";
+import { TEX_W } from "../../engine/constants";
+import { Card } from "../../ui/Card";
+import type { Piece } from "../../ui/Piece";
+import type { GlowShape } from "../../ui/selection";
+import { PresenceCursor } from "../../ui/PresenceCursor";
+import type { PresenceHub, PresenceView } from "../core/presence";
 
 export type PresenceNode = Card | Piece;
 

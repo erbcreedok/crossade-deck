@@ -4,7 +4,7 @@
 // по направлению колоды, из стола — той стороной, которой лежала (одна перевёрнутая в колоде — ок).
 
 import type { Rect, Vec } from "./freeBox";
-import { slotKey, slotOf, zoneOf } from "./spec";
+import { slotKey, slotOf, zoneOf } from "../core/spec";
 
 export interface Size {
   w: number;

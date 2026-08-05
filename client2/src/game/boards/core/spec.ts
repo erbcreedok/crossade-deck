@@ -6,7 +6,7 @@
 // Слово Board принадлежит ЭТОМУ слою; поле слотов — SlotField (game/slotfield/, переименовано
 // 2026-08-03 ровно ради этого).
 
-import type { OnOccupied } from "../slotfield/fieldZone";
+import type { OnOccupied } from "../../slotfield/fieldZone";
 
 // ---------------------------------------------------------------------------------------------
 // Ключи: единый словарь адресов вместо хардкода строк по деревьям (шов №3 из BOARDS-ANALYSIS)

@@ -4,7 +4,7 @@
 // слот (policy reject — «одна карта от игрока»); стол относителен зрителя — своя карта ложится
 // перед тобой снизу (boardTree kind "seats"). Правил нет (смарт-мок, BOARDS-DESIGN §3).
 
-import type { BoardSpec } from "../spec";
+import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
 const SIXES = ["6♠", "6♥", "6♦", "6♣"] as const;

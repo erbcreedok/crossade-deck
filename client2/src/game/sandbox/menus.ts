@@ -2,10 +2,10 @@
 // довесок меню колоды (размер 36/52). Настройки живут ЗДЕСЬ, generic-борда о них не знает;
 // смена значения пересобирает спеку и зовёт scene.reconfigure (миграция без потери карт).
 
-import type { SceneMenus } from "../boards/scene";
-import { BoardScene } from "../boards/scene";
+import type { SceneMenus } from "../boards/scene/scene";
+import { BoardScene } from "../boards/scene/scene";
 import type { MenuRow } from "../ui/ContextMenu";
-import type { BoardSpec } from "../boards/spec";
+import type { BoardSpec } from "../boards/core/spec";
 import { applySetting, settingRows, type SandboxSettings } from "./settings";
 
 export interface SandboxMenus extends SceneMenus {

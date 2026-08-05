@@ -1,4 +1,4 @@
-import type { BoardSpec, ZoneLayoutSpec, ZoneSpec } from "../spec";
+import type { BoardSpec, ZoneLayoutSpec, ZoneSpec } from "../core/spec";
 import { deck36, deck52 } from "./decks";
 
 // КРУГЛЫЙ СТОЛ ПЕСОЧНИЦЫ — конфигурируемый билдер (настройки-как-данные): те же рычаги, что
