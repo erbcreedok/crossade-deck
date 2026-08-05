@@ -1,0 +1,34 @@
+client2/src/game/solitaire/scene.ts
+  s_b2849f723d52bb::t_147e9b243d315f 15,260-279,281-283,349,356,361
+client2/src/game/engine/dropPick.ts
+  s_b2849f723d52bb::t_7f0f9a616bff00 1-64
+client2/src/game/engine/dropPick.test.ts
+  s_b2849f723d52bb::t_f1cbeff873bf2a 1-37
+client2/src/game/engine/sceneFrame.ts
+  s_b2849f723d52bb::t_78236908779cbe 8-9
+  s_b2849f723d52bb::t_507f8369422831 45-64,66,69
+client2/src/game/solitaire/slotPaint.ts
+  s_b2849f723d52bb::t_147e9b243d315f 19-20,33-40
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_bad60b6459c44c 8,401-410,425,463
+client2/src/game/engine/sceneSeams.ts
+  s_b2849f723d52bb::t_78236908779cbe 9,73-75,79
+client2/src/game/slot/slot.ts
+  s_b2849f723d52bb::t_24546613e4e034 73-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "20f872dcf3c06410d435812e2f3549f4773014b6",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
