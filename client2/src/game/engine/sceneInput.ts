@@ -15,6 +15,8 @@ export interface SceneInputHost<El extends { id: string }> {
   wake(): void;
   // элементы и их драгабельность (диспетчеры швов делегата)
   pickElement(cx: number, cy: number): El | null;
+  /** Карта ЭКРАННОЙ руки под экранной точкой (HUD) — драгабельная фигура поверх стола. */
+  pickHandCard(sx: number, sy: number): El | null;
   canDrag(el: El): boolean;
   dragOnTap(el: El): boolean;
   dragOnHold(el: El): boolean;
@@ -55,6 +57,7 @@ export function buildSceneInput<El extends { id: string }>(h: SceneInputHost<El>
   return {
     screenToContent: (sx, sy) => h.screenToContent(sx, sy),
     pickPiece: (cx, cy) => h.pickElement(cx, cy),
+    pickOverlayPiece: (sx, sy) => h.pickHandCard(sx, sy),
     pieceDraggable: (el) => h.canDrag(el),
     dragOnTap: (el) => h.dragOnTap(el),
     dragOnHold: (el) => h.dragOnHold(el),
@@ -142,6 +145,7 @@ export function makeEngineInput(e: SceneEngine): InputHandlers<import("./sceneEn
     camera: () => e.camera,
     wake: () => e.wake(),
     pickElement: (cx, cy) => e.seams.pickElement(cx, cy),
+    pickHandCard: (sx, sy) => e.seams.pickHandCard(sx, sy),
     canDrag: (el) => e.seams.canDrag(el),
     dragOnTap: (el) => e.seams.dragOnTap(el),
     dragOnHold: (el) => e.seams.dragOnHold(el),

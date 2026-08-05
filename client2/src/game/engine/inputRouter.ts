@@ -32,6 +32,13 @@ interface Pt {
 export interface InputHandlers<C, B> {
   screenToContent(sx: number, sy: number): Pt;
   pickPiece(cx: number, cy: number): C | null;
+  /**
+   * ФИГУРА ЭКРАННОГО слоя (HUD-рука) — в ЭКРАННЫХ координатах, спрашивается ПЕРВОЙ, до контентных
+   * фигур: карта руки нарисована поверх сцены и не ездит с камерой, палец по ней не должен хватать
+   * лежащую под ней фигуру стола. Возвращает обычную драгабельную фигуру C — дальше драг как всегда
+   * (домен сам переносит её из экрана в контент при захвате). Опц. — сцене без экранной руки не нужно.
+   */
+  pickOverlayPiece?(sx: number, sy: number): C | null;
   pieceDraggable(c: C): boolean;
   /**
    * Два НЕЗАВИСИМЫХ драг-интента у одного элемента; роутер выбирает по жесту, домен — что тащить:
@@ -142,7 +149,9 @@ export class InputRouter<C, B> {
         return;
       }
       const cp = this.h.screenToContent(sx, sy);
-      const piece = this.h.pickPiece(cp.x, cp.y);
+      // Экранная рука выигрывает у стола (нарисована поверх, не ездит с камерой), но, в отличие от
+      // HUD-кнопки, это ДРАГАБЕЛЬНАЯ фигура — дальше обычный путь захвата.
+      const piece = (this.h.pickOverlayPiece?.(sx, sy) ?? null) ?? this.h.pickPiece(cp.x, cp.y);
       const tapDrag = piece ? (this.h.dragOnTap?.(piece) ?? true) : false;
       const holdDrag = piece ? (this.h.dragOnHold?.(piece) ?? false) : false;
       if (piece && !this.h.pieceDraggable(piece)) {

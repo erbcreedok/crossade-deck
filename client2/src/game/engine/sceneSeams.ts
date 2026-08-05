@@ -26,6 +26,7 @@ export interface SceneSeams {
   spreadOnElement(cp: Pt, rawX: number, rawY: number, source: SpreadSource): boolean;
   onSpreadBegin(): void;
   pickElement(cx: number, cy: number): SceneElement | null;
+  pickHandCard(sx: number, sy: number): SceneElement | null;
   canDrag(el: SceneElement): boolean;
   dragOnTap(el: SceneElement): boolean;
   dragOnHold(el: SceneElement): boolean;
@@ -103,6 +104,7 @@ export function makeSeams(e: SceneEngine, d: SceneDelegate): SceneSeams {
     spreadOnElement: d.spreadOnElement ? (cp, rx, ry, src) => d.spreadOnElement!(cp, rx, ry, src) : () => false,
     onSpreadBegin: d.onSpreadBegin ? () => d.onSpreadBegin!() : () => {},
     pickElement: d.pickElement ? (cx, cy) => d.pickElement!(cx, cy) : (cx, cy) => corePickElement(e, cx, cy),
+    pickHandCard: d.pickHandCard ? (sx, sy) => d.pickHandCard!(sx, sy) : () => null,
     canDrag: d.canDrag ? (el) => d.canDrag!(el) : (el) => coreCanDrag(e, el),
     dragOnTap: d.dragOnTap ? (el) => d.dragOnTap!(el) : () => true,
     dragOnHold: d.dragOnHold ? (el) => d.dragOnHold!(el) : () => false,

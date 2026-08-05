@@ -117,9 +117,7 @@ export class BoardScene implements SceneDelegate {
     return this.opts.menus ? menuTargetAt(this.spec.zones, this.tree.cellRects, cp) : null;
   }
 
-  hasContextAt(cp: { x: number; y: number }): boolean {
-    return this.menuTarget(cp) !== null;
-  }
+  hasContextAt(cp: { x: number; y: number }): boolean { return this.menuTarget(cp) !== null; }
 
   openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
     this.menuOwner.openAt(cp, sp);
@@ -185,9 +183,7 @@ export class BoardScene implements SceneDelegate {
   }
 
   /** Строка статуса хоста у инструментов (live: «ник · комната 1234»). Пустая — спрятать. */
-  setBadge(text: string): void {
-    this.chromeHud.setBadge(text);
-  }
+  setBadge(text: string): void { this.chromeHud.setBadge(text); }
 
   layoutChrome(w: number, h: number): void {
     this.chromeHud.layout(w, h);
@@ -264,6 +260,9 @@ export class BoardScene implements SceneDelegate {
   beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     return this.gesture.begin(el, cp, sp);
   }
+
+  /** Карта ЭКРАННОЙ руки под точкой: её контентный двойник — лидер драга. */
+  pickHandCard(sx: number, sy: number): SceneElement | null { return this.handHud.pickAt(sx, sy); }
 
   onDragMoved(p: { x: number; y: number }): void {
     this.gesture.moved(p);

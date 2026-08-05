@@ -34,6 +34,7 @@ function HandStage(a: HandArgs) {
     const scene = new BoardScene({ spec: specFrom(a), seats: a.seats, onCommand: (cmd) => handAction(cmd) });
     void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480).then(() => {
       // Набить руку из колоды: те же move-команды порта, что и палец потом (драг руки↔борда — шаг 3).
+      // Набить руку из колоды: те же move-команды порта, что и палец (драг руки↔борды теперь живой).
       const hooks = scene.testHooks();
       const deck = Object.entries(hooks.cards).filter(([, c]) => c.slot === "board:0").map(([id]) => id);
       for (const id of deck.slice(0, Math.max(0, a.handCards))) {
@@ -79,6 +80,7 @@ type Story = StoryObj<HandArgs>;
 /**
  * ЭКРАННАЯ рука над лёгкой бордой. Рука прибита к камере: зумите и таскайте стол — рука стоит на
  * месте во всю ширину снизу. Крутите handCards: ряд центрируется, при переполнении карты уходят в
- * ровный нахлёст. Драг руки↔борда и кнопки-на-руке — следующие шаги лестницы.
+ * ровный нахлёст. ДРАГ живой: тащите карту руки на стол — сыграть; карту стола в полосу руки — взять;
+ * внутри руки — реордер. Полоса-дропзона руки светит rest → armed (груз в полёте) → hot (над рукой).
  */
 export const Default: Story = {};

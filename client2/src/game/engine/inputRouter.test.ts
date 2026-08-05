@@ -6,13 +6,14 @@ type C = { id: string; drag: boolean };
 type B = { id: string };
 
 function setup(
-  opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: number, y: number) => B | null; dragOnTap?: (c: C) => boolean; dragOnHold?: (c: C) => boolean } = {}
+  opts: { cardAt?: (x: number, y: number) => C | null; btnAt?: (x: number, y: number) => B | null; dragOnTap?: (c: C) => boolean; dragOnHold?: (c: C) => boolean; handAt?: (sx: number, sy: number) => C | null } = {}
 ) {
   const calls: string[] = [];
   const rec = (name: string) => (...a: unknown[]) => calls.push(`${name}(${a.map(String).join(",")})`);
   const h: InputHandlers<C, B> = {
     screenToContent: (x, y) => ({ x, y }), // 1:1 для простоты
     pickPiece: (x, y) => opts.cardAt?.(x, y) ?? null,
+    pickOverlayPiece: (sx, sy) => opts.handAt?.(sx, sy) ?? null,
     pieceDraggable: (c) => c.drag,
     dragOnTap: opts.dragOnTap,
     dragOnHold: opts.dragOnHold,
@@ -139,6 +140,18 @@ describe("InputRouter", () => {
     r.move(1, 20, 10); // та же кнопка → без повтора
     r.move(1, 300, 10); // ушли → null
     expect(calls).toEqual(["hover(b1)", "hover(null)"]);
+  });
+
+  it("экранная фигура руки (pickOverlayPiece) выигрывает у контентной и сразу тащится", () => {
+    // Мост драга руки↔борда: карта HUD-руки нарисована поверх стола и берётся ПЕРВОЙ, даже если под
+    // точкой есть контентная фигура. Дальше — обычный tap-драг (grab), а не захват стола.
+    const hand = { id: "hcard", drag: true };
+    const board = { id: "bcard", drag: true };
+    const { r, calls } = setup({ handAt: () => hand, cardAt: () => board });
+    r.down(1, 30, 30);
+    expect(r.gesture).toBe("drag");
+    expect(calls).toContain("grab(hcard,tap)");
+    expect(calls.some((c) => c.startsWith("grab(bcard"))).toBe(false);
   });
 });
 

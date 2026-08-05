@@ -44,6 +44,8 @@ export interface SceneDelegate {
   spreadOnElement?(cp: Pt, rawX: number, rawY: number, source: SpreadSource): boolean;
   onSpreadBegin?(): void;
   pickElement?(cx: number, cy: number): SceneElement | null;
+  /** Карта ЭКРАННОЙ руки под экранной точкой (HUD, вне камеры) — драгабельная фигура поверх стола. */
+  pickHandCard?(sx: number, sy: number): SceneElement | null;
   canDrag?(el: SceneElement): boolean;
   dragOnTap?(el: SceneElement): boolean;
   dragOnHold?(el: SceneElement): boolean;

@@ -130,6 +130,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     def: (id) => ctx.def(id),
     tex: () => ctx.tex(),
     renderer: () => api.renderer(),
+    contentNode: (id) => nodeStore.get(id),
+    accent,
     wake: () => api.wake(),
   });
 
@@ -188,6 +190,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     deckActions,
     menu: menuOwner,
     presenceOwner: presence,
+    handHud,
+    handMembers: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
   });
 
   return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
