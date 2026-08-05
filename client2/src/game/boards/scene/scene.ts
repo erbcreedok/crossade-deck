@@ -1,5 +1,6 @@
 import { Application, Graphics } from "pixi.js";
-import { SceneEngine, type SceneElement } from "../../engine/sceneEngine";
+import type { SceneElement } from "../../engine/sceneEngine";
+import { SceneRuntime, type SceneApi, type SceneDelegate } from "../../engine/sceneRuntime";
 import { COLORS } from "../../engine/constants";
 import { Card } from "../../ui/Card";
 import { CardTextureCache } from "../../ui/CardTextureCache";
@@ -36,7 +37,10 @@ const SEAT_STRIP_CARD_H = 83;
 export type { MenuTargetKind } from "../geometry/sceneAreas";
 export type { BoardSceneOptions, SceneMenus, SceneTool } from "./options";
 
-export class BoardScene extends SceneEngine {
+export class BoardScene implements SceneDelegate {
+  /** Движок-рантайм (композиция): камера/ввод/кадр/хром — его; сцена — делегат его швов. */
+  readonly rt: SceneRuntime;
+  private readonly api: SceneApi;
   private tex: CardTextureCache | null = null;
   private readonly nodeStore: SceneNodes;
   private readonly hintLayer = new Graphics();
@@ -68,7 +72,9 @@ export class BoardScene extends SceneEngine {
 
 
   constructor(private readonly opts: BoardSceneOptions) {
-    super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt = new SceneRuntime({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt.attach(this);
+    this.api = this.rt.api;
     this.spec = opts.spec;
     this.defs = elementById(opts.spec);
     this.selfSeat = opts.selfSeat ?? "p1";
@@ -86,31 +92,25 @@ export class BoardScene extends SceneEngine {
         spec: () => this.spec,
         def: (id) => this.defs.get(id),
         tex: () => this.tex,
-        renderer: () => this.app?.renderer ?? null,
+        renderer: () => this.api.renderer(),
         selfSeat: this.selfSeat,
         dispatch: (cmd) => this.dispatch(cmd),
-        wake: () => this.wake(),
-        after: (sec, fn) => this.after(sec, fn),
-        size: () => ({ w: this.width, h: this.height }),
+        wake: () => this.api.wake(),
+        after: (sec, fn) => this.api.after(sec, fn),
+        size: () => ({ w: this.api.width(), h: this.api.height() }),
         accent: () => this.accentColor(),
-        register: (id, node) => this.byId.set(id, node),
-        unregister: (id) => this.byId.delete(id),
-        placeCard: (node) => this.placeCard(node),
-        dragCtx: () => this.dragCtx,
-        setDrag: (d) => {
-          this.drag = d;
-        },
-        chromeAdd: (c) => this.chrome.addChild(c),
-        surfaceAdd: (c) => this.scene.surface.addChild(c),
-        setMenuButtons: (btns) => {
-          this.chromeButtons = [...this.chromeHud.buttons(), ...btns];
-        },
-        forgetHovered: (btns) => {
-          if (this.hoveredBtn && btns.includes(this.hoveredBtn)) this.hoveredBtn = null;
-        },
+        register: (id, node) => this.api.byId.set(id, node),
+        unregister: (id) => this.api.byId.delete(id),
+        placeCard: (node) => this.api.placeCard(node),
+        dragCtx: () => this.api.dragCtx(),
+        setDrag: (d) => this.api.setDrag(d),
+        chromeAdd: (c) => this.api.chromeAdd(c),
+        surfaceAdd: (c) => this.api.surfaceAdd(c),
+        setMenuButtons: (btns) => this.api.setChromeButtons([...this.chromeHud.buttons(), ...btns]),
+        forgetHovered: (btns) => this.api.forgetHovered(btns),
         faceUpIn: (id, slot) => this.faceUpIn(id, slot),
         isDeckSlot: (slot) => this.isDeckSlot(slot),
-        hitElementId: (cp) => this.hitElement(cp.x, cp.y)?.id ?? null,
+        hitElementId: (cp) => this.api.hitElement(cp.x, cp.y)?.id ?? null,
         menuTarget: (cp) => this.menuTarget(cp),
       },
       opts,
@@ -125,14 +125,24 @@ export class BoardScene extends SceneEngine {
     opts.presence?.hub.onChange((v) => {
       this.presence.view = v;
       this.presence.paint();
-      this.wake();
+      this.api.wake();
     });
+  }
+
+  // ——— хост-API (тонкие двери в рантайм): интерфейс хостов не изменился ———
+
+  mount(host: HTMLElement, width: number, height: number): Promise<void> {
+    return this.rt.mount(host, width, height);
+  }
+
+  destroy(): void {
+    this.rt.destroy();
   }
 
   // ——— live-присутствие: лок «кто первый», курсоры (свой — тоже своим цветом) ———
 
   /** Акцент сцены: в live — ЦВЕТ ЭТОГО игрока (профиль, свой курсор, подсветки), иначе золото. */
-  protected accentColor(): number {
+  private accentColor(): number {
     const p = this.opts.presence;
     return p ? p.palette(p.who) : COLORS.gold;
   }
@@ -141,11 +151,11 @@ export class BoardScene extends SceneEngine {
   reportCursor(sx: number, sy: number, active = true): void {
     const p = this.opts.presence;
     if (!p) return;
-    const cp = active ? this.screenToContent(sx, sy) : null;
+    const cp = active ? this.api.screenToContent(sx, sy) : null;
     this.presence.ownCursor = cp;
     p.hub.cursor(p.who, cp);
     this.presence.paint();
-    this.wake();
+    this.api.wake();
   }
 
   // ——— контекстное меню настроек (long-press по гриду/борде, ПКМ на десктопе) ———
@@ -155,11 +165,11 @@ export class BoardScene extends SceneEngine {
     return this.opts.menus ? menuTargetAt(this.spec.zones, this.tree.cellRects, cp) : null;
   }
 
-  protected hasContextAt(cp: { x: number; y: number }): boolean {
+  hasContextAt(cp: { x: number; y: number }): boolean {
     return this.menuTarget(cp) !== null;
   }
 
-  protected openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
+  openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
     this.menuOwner.openAt(cp, sp);
   }
 
@@ -186,12 +196,12 @@ export class BoardScene extends SceneEngine {
   }
 
   /** Тап мимо меню закрывает его (по строкам меню тап не доходит — их ловит chromeButtons). */
-  protected onSceneTap(content: { x: number; y: number }, screen: { x: number; y: number }): void {
+  onSceneTap(content: { x: number; y: number }, screen: { x: number; y: number }): void {
     if (this.menuOwner.isOpen() && !this.menuOwner.contains(screen.x, screen.y)) {
       this.menuOwner.close();
       return; // закрытие меню — весь смысл тапа, дабл-тап-зум не кормим
     }
-    super.onSceneTap(content, screen);
+    this.api.defaultSceneTap(content, screen);
   }
 
   // ——— порт команд: одна дверь для пальца, кнопок, консоли и (потом) сервера ———
@@ -203,13 +213,14 @@ export class BoardScene extends SceneEngine {
 
   // ——— сборка ———
 
-  protected buildScene(app: Application): void {
+  buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
-    this.scene.surface.addChild(this.decor.layer, this.hintLayer);
-    this.content.addChild(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
-    this.chrome.addChildAt(this.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
+    this.api.surfaceAdd(this.decor.layer);
+    this.api.surfaceAdd(this.hintLayer);
+    this.api.contentAdd(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
+    this.api.chromeAddAt(this.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
     this.chromeHud.build(this.spec.actions, this.opts.tools ?? []);
-    this.chromeButtons = this.chromeHud.buttons();
+    this.api.setChromeButtons(this.chromeHud.buttons());
     this.rebuildBoard(true);
   }
 
@@ -218,26 +229,25 @@ export class BoardScene extends SceneEngine {
     this.chromeHud.setBadge(text);
   }
 
-  protected layoutChrome(w: number, h: number): void {
+  layoutChrome(w: number, h: number): void {
     this.chromeHud.layout(w, h);
   }
 
-  protected onBooted(): void {
+  onBooted(): void {
     this.fitBoard();
-    super.onBooted();
   }
 
-  protected onSceneResize(): void {
+  onSceneResize(): void {
     this.fitBoard();
   }
 
   private fitBoard(): void {
-    this.syncVp();
-    const usableH = Math.max(1, this.height - 52); // низ занят ActionBar
-    this.viewport.setZoom(Math.min(1, this.width / this.tree.size.w, usableH / this.tree.size.h));
-    this.clampView();
-    this.applyView();
-    this.emitView();
+    this.api.syncVp();
+    const usableH = Math.max(1, this.api.height() - 52); // низ занят ActionBar
+    this.api.viewport().setZoom(Math.min(1, this.api.width() / this.tree.size.w, usableH / this.tree.size.h));
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
   }
 
   // ——— состояние → доска ———
@@ -251,16 +261,15 @@ export class BoardScene extends SceneEngine {
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
     if (!this.tex) return;
     this.nodeStore.sync(this.state, this.tree, snap);
-    this.contentW = this.tree.size.w;
-    this.contentH = this.tree.size.h;
+    this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.decor.sync();
     this.paintHints();
     this.presence.paint();
     this.chromeHud.syncDice(this.state.dice);
-    this.clampView();
-    this.applyView();
-    this.emitView();
-    this.wake();
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
+    this.api.wake();
   }
 
   /** Лицом или рубашкой лежит карта В ЭТОМ слоте: колода, свободная стопка и чужие руки — рубашкой. */
@@ -310,18 +319,18 @@ export class BoardScene extends SceneEngine {
 
   // ——— швы домена ———
 
-  protected draggables(): SceneElement[] {
+  draggables(): SceneElement[] {
     return this.nodeStore.list();
   }
 
-  protected everyElement(): TableElement[] {
+  everyElement(): TableElement[] {
     return this.nodeStore.list();
   }
 
   /** Что фокусируется дабл-тапом (opt-in): карта-элемент под пальцем ГАСИТ жест (колода не зумится);
    *  иначе — самая ВНУТРЕННЯЯ focusable-зона, чей бокс накрыл точку (грид раньше бокса). */
-  protected focusTargetAt(cp: { x: number; y: number }): { x: number; y: number; w: number; h: number } | null {
-    if (this.hitElement(cp.x, cp.y)) return null;
+  focusTargetAt(cp: { x: number; y: number }): { x: number; y: number; w: number; h: number } | null {
+    if (this.api.hitElement(cp.x, cp.y)) return null;
     let best: { x: number; y: number; w: number; h: number } | null = null;
     for (const zone of this.spec.zones) {
       if (!zone.focusable) continue;
@@ -332,14 +341,14 @@ export class BoardScene extends SceneEngine {
     return best;
   }
 
-  protected homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
+  homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
     const home = this.homeVec(el.id);
     return home ? { home, depth: this.nodeStore.depth(el.id) } : null;
   }
 
   /** Смарт-мок щедрый: тащится верх любого слота стола и любая карта своей руки. Чужая рука —
    *  нет (приватность), правила «чей ход» ничего не запрещают (индикация, BOARDS-DESIGN §3). */
-  protected canDrag(el: SceneElement): boolean {
+  canDrag(el: SceneElement): boolean {
     if (this.opts.interactive === false) return false;
     // Live: элемент в чужих руках не берётся — кто первый схватил, тот и управляет.
     const p = this.opts.presence;
@@ -360,12 +369,12 @@ export class BoardScene extends SceneEngine {
 
   /** У жителей КОЛОДЫ ДВА драг-интента: тап тащит верхнюю карту, hold — всю колоду блоком.
    *  Свободные стопки (слоты ≥ 1) блоком не таскаются — это просто карты, лежащие где положили. */
-  protected dragOnHold(el: SceneElement): boolean {
+  dragOnHold(el: SceneElement): boolean {
     const slot = this.tree.slotOf(el.id);
     return !!slot && this.isDeckSlot(slot);
   }
 
-  protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
+  beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     this.menuOwner.close(); // начался драг — меню больше не к месту
     // Live-лок: гонка на первом касании решается хабом; отказ — элемент уже у другого.
     const p = this.opts.presence;
@@ -376,23 +385,24 @@ export class BoardScene extends SceneEngine {
     this.dragging = true;
     const slot = this.tree.slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
-    if (slot && zone && this.isDeckSlot(slot) && this.grabMode === "hold" && this.blockDrag.begin(zone, slot, cp)) {
+    if (slot && zone && this.isDeckSlot(slot) && this.api.grabMode() === "hold" && this.blockDrag.begin(zone, slot, cp)) {
       // Тащим ВСЮ стопку как блок (SceneBlockDrag): жест берёт весь слот, а не верхнюю карту.
       // Колода в пальцах → снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
-      this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height, this.accentColor());
+      this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.api.width(), this.api.height(), this.accentColor());
       this.presence.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок-драг
       return true;
     }
-    const ok = super.beginDrag(el, cp, sp);
+    const ok = this.api.defaultBeginDrag(el, cp, sp);
     // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка».
-    if (ok) this.dropBar.show([{ key: "menu", label: "настройка" }], this.width, this.height, this.accentColor());
+    if (ok) this.dropBar.show([{ key: "menu", label: "настройка" }], this.api.width(), this.api.height(), this.accentColor());
     return ok;
   }
 
-  protected onDragMoved(p: { x: number; y: number }): void {
+  onDragMoved(p: { x: number; y: number }): void {
     if (this.dropBar.visible) {
-      this.dropBar.hotAt(this.dragScreen.x, this.dragScreen.y);
-      this.wake();
+      const ds = this.api.dragScreen();
+      this.dropBar.hotAt(ds.x, ds.y);
+      this.api.wake();
     }
     // Драг-стрим: остальным клиентам — ЦЕНТР карты в пальцах (не точка хвата), темп курсора.
     // Блок-драг колоды — той же строкой с флагом block: зрители двигают ВСЮ стопку той же дельтой.
@@ -410,14 +420,15 @@ export class BoardScene extends SceneEngine {
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintHints();
-    this.wake();
+    this.api.wake();
   }
 
-  protected resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
-    const drag = this.drag;
+  resolveDrop(el: SceneElement, cp: { x: number; y: number }): void {
+    const drag = this.api.drag();
     if (!drag) return;
+    const ds = this.api.dragScreen();
     // Дроп в фикс-зону у низа экрана: груз летит домой, действие зоны выполняется.
-    const bar = this.dropBar.visible ? this.dropBar.hotAt(this.dragScreen.x, this.dragScreen.y) : null;
+    const bar = this.dropBar.visible ? this.dropBar.hotAt(ds.x, ds.y) : null;
     if (bar) {
       const slot = this.tree.slotOf(el.id);
       const wasBlock = this.blockDrag.active();
@@ -428,7 +439,7 @@ export class BoardScene extends SceneEngine {
           this.deckActions.shuffle(slot);
         } else {
           const ctx = wasBlock ? ({ kind: "deck", slot } as const) : ({ kind: "card", id: el.id } as const);
-          this.menuOwner.openFor(ctx, { x: this.dragScreen.x, y: this.dragScreen.y - 200 });
+          this.menuOwner.openFor(ctx, { x: ds.x, y: ds.y - 200 });
         }
       }
       return;
@@ -467,11 +478,11 @@ export class BoardScene extends SceneEngine {
     };
   }
 
-  protected onDragCancel(): void {
+  onDragCancel(): void {
     this.clearDragHints();
   }
 
-  protected afterDragEnd(): void {
+  afterDragEnd(): void {
     this.clearDragHints();
   }
 
@@ -498,16 +509,16 @@ export class BoardScene extends SceneEngine {
     dice: number[];
   } {
     const slots: Record<string, { x: number; y: number }> = {};
-    for (const [id, at] of Object.entries(this.tree.origins)) slots[id] = this.contentToScreen(at.x, at.y);
+    for (const [id, at] of Object.entries(this.tree.origins)) slots[id] = this.api.contentToScreen(at.x, at.y);
     const cards: Record<string, { x: number; y: number; slot: string | null }> = {};
     for (const [id, node] of this.nodeStore.all()) {
-      const p = this.contentToScreen(node.body.px, node.body.py);
+      const p = this.api.contentToScreen(node.body.px, node.body.py);
       cards[id] = { x: p.x, y: p.y, slot: this.tree.slotOf(id) };
     }
     return { slots, cards, seats: this.state.seats, turn: this.state.turn, dice: [...this.state.dice] };
   }
 
-  protected onTeardown(app: Application): void {
+  onTeardown(_app: Application): void {
     this.menuOwner.destroy();
     this.dropBar.destroy();
     this.presence.destroy();
@@ -515,6 +526,5 @@ export class BoardScene extends SceneEngine {
     this.nodeStore.destroy();
     this.tex?.destroy();
     this.tex = null;
-    super.onTeardown(app);
   }
 }
