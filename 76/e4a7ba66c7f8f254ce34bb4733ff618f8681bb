@@ -1,0 +1,26 @@
+client2/src/game/engine/sceneLayers.test.ts
+  s_b2849f723d52bb::t_4b13bd60ab1cf3 3-4
+  s_b2849f723d52bb::t_252ca09caaf512 39-57
+  s_b2849f723d52bb::t_0fbad6b4a12f4a 37-38
+client2/src/game/engine/sceneFrame.ts
+  s_b2849f723d52bb::t_4c452e77b0e13f 124
+  s_b2849f723d52bb::t_51bc404f3d0496 7
+client2/src/game/engine/sceneLayers.ts
+  s_b2849f723d52bb::t_0790a12b496d6e 20-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "76e4a7ba66c7f8f254ce34bb4733ff618f8681bb",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
