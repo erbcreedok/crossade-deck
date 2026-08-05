@@ -3,6 +3,7 @@
 
 import { grid as flowGrid, pile, radial, radialPositions } from "../../slot/layouts";
 import { group, leaf, type Size, type Slot } from "../../slot/types";
+import type { DropPolicy } from "../../slot/dropPolicy";
 import { ringSlots } from "../../slotfield/layout/slots";
 import { at as fieldAt } from "../../slotfield/slotField";
 import { CARD } from "../../crossade/tree";
@@ -19,9 +20,9 @@ export function membersOf(state: BoardState, key: string): readonly string[] {
   return fieldAt(state.field, key)?.members ?? [];
 }
 
-export function slotGroup(key: string, members: readonly string[], cell: Size, stagger = 0.45): Slot {
+export function slotGroup(key: string, members: readonly string[], cell: Size, stagger = 0.45, policy?: DropPolicy): Slot {
   return group(key, pile({ dx: stagger, dy: stagger, cell }), members.map((m) => leaf(m, m, cell)), {
-    drop: { accept: () => true },
+    drop: { accept: () => true, ...(policy ? { policy } : {}) },
   });
 }
 
@@ -72,8 +73,9 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
       const key = slotKey(zid, 0);
       const off = free?.offset[zid] ?? { x: 0, y: 0 };
       // Колода у ВЕРХА бокса (по центру по X), чтобы грид в центре бокса был виден под ней.
+      // Политика зоны (drop) достаётся ЕЙ: снеп по нахлёсту, вид груза, наклон, магнит.
       const deckOrigin = { x: (cell.w - CARD.w) / 2 + off.x, y: 40 + off.y };
-      placed.push({ id: key, origin: deckOrigin, slot: slotGroup(key, membersOf(state, key), CARD, FREE_STAGGER) });
+      placed.push({ id: key, origin: deckOrigin, slot: slotGroup(key, membersOf(state, key), CARD, FREE_STAGGER, zone.drop) });
       cells[key] = { x: 0, y: 0, w: cell.w, h: cell.h };
       for (const k of Object.keys(state.field.slots)) {
         if (zoneOf(k) !== zid || k === key) continue;
@@ -81,7 +83,9 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
         if (!members.length) continue;
         const stack = freeStackSize(CARD, members.length);
         const center = free?.loose[k] ?? { x: cell.w / 2, y: cell.h / 2 };
-        placed.push({ id: k, origin: looseOrigin(cell, center, stack), slot: slotGroup(k, members, CARD, FREE_STAGGER) });
+        // Свободные стопки ловят ПАЛЬЦЕМ (как до снепа): карта в круге ложится где и как положили,
+        // случайный нахлёст соседней стопки не должен утаскивать в неё дроп.
+        placed.push({ id: k, origin: looseOrigin(cell, center, stack), slot: slotGroup(k, members, CARD, FREE_STAGGER, { hit: "finger" }) });
       }
       return { placed, size: cell, cells };
     }
@@ -95,7 +99,7 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
       const PAD = GAP_CELL; // внутренние отступы рамки = гэпу
       const layout = flowGrid({ cell, cols: fspec.cols, rows: fspec.rows, grow: fspec.grow, gap: GAP_CELL, reserve: fspec.reserve, center: fspec.center });
       const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
-        drop: { accept: () => true },
+        drop: { accept: () => true, ...(zone.drop ? { policy: zone.drop } : {}) },
         reorder: { enabled: true },
       });
       // Карты сдвинуты внутрь на PAD; рамка грида (cellRect) — весь бокс с полями PAD со всех сторон
@@ -118,7 +122,7 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
       const PAD = 16;
       const layout = radial({ cell, gap: 12, slots: min });
       const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
-        drop: { accept: () => true },
+        drop: { accept: () => true, ...(zone.drop ? { policy: zone.drop } : {}) },
         reorder: { enabled: true },
       });
       const count = Math.max(members.length, min);

@@ -1,4 +1,7 @@
+import { zoneHitScore, type DropProbe, type DropRect } from "./dropPolicy";
 import { dropOf, type GapSpec, type Group, type Size, type Slot, type Vec } from "./types";
+
+export type { DropProbe, DropRect } from "./dropPolicy";
 
 // Позиции детей группы с зарезервированным слотом (дырой) на gap.index — дети раздвигаются под
 // падающую карту. gap.skip (перетаскиваемая) исключается из раскладки. Возвращает позиции ВЫРОВНЕННО
@@ -71,13 +74,14 @@ const within = (cp: Vec, tl: Vec, s: Size): boolean => cp.x >= tl.x && cp.x <= t
 // его же DropZone.pad; (2) КУДА вставить внутри выбранной группы — её собственной layout.indexAt.
 // Спускаемся сквозь вложенные дропзоны (слот-дропзона, у которой дети тоже дропзоны).
 
-// То же, но попадание считает ПРЯМОУГОЛЬНИК фигуры (правило владельца: «фигура частично над
-// зоной — дроп засчитан»), палец решает ничьи. На каждом уровне из детей-дропзон выбирается
-// та, у кого нахлёст с фигурой больше (расширение pad зоны учитывается, как и у точечного
-// dropTarget); индекс вставки внутри победителя по-прежнему считает ПАЛЕЦ — вставка следует
-// за точкой, которой целится игрок.
-export function dropTargetRect(root: Slot, item: DropRect, cp: Vec, origin: Vec = { x: 0, y: 0 }): { group: Group; index: number } | null {
+// То же, но попадание считает ГРУЗ (DropProbe: прямоугольник фигуры, палец, вид, наклон) по
+// ПОЛИТИКЕ каждой зоны (dropPolicy.ts): дефолт — нахлёст фигуры, палец решает ничьи; зона может
+// требовать центр фигуры, только палец, вид груза или ровный наклон. Расширение pad зоны
+// учитывается, как и у точечного dropTarget; индекс вставки внутри победителя по-прежнему
+// считает ПАЛЕЦ — вставка следует за точкой, которой целится игрок.
+export function dropTargetRect(root: Slot, probe: DropProbe, origin: Vec = { x: 0, y: 0 }): { group: Group; index: number } | null {
   if (root.kind === "leaf") return null;
+  const cp = probe.finger;
   const sizes = root.children.map(measure);
   const { at } = root.layout.place(sizes);
   let best: { child: Group; co: Vec } | null = null;
@@ -90,17 +94,15 @@ export function dropTargetRect(root: Slot, item: DropRect, cp: Vec, origin: Vec 
     const pad = dz.pad ?? 0;
     const cs = measure(child);
     const box: DropRect = { x: co.x - pad, y: co.y - pad, w: cs.w + 2 * pad, h: cs.h + 2 * pad };
-    const area = rectOverlap(box, item);
-    const fingerIn = within(cp, { x: box.x, y: box.y }, { w: box.w, h: box.h });
-    if (area <= 0 && !fingerIn) continue;
-    const score = area + (fingerIn ? 0.5 : 0);
+    const score = zoneHitScore(dz.policy, box, probe);
+    if (score === null) continue;
     if (!best || score > bestScore) {
       best = { child, co };
       bestScore = score;
     }
   }
   if (best) {
-    const deeper = dropTargetRect(best.child, item, cp, best.co);
+    const deeper = dropTargetRect(best.child, probe, best.co);
     if (deeper) return deeper;
     if (dropOf(best.child)) {
       const bsizes = best.child.children.map(measure);
@@ -111,19 +113,6 @@ export function dropTargetRect(root: Slot, item: DropRect, cp: Vec, origin: Vec 
   if (!dropOf(root)) return null;
   const idx = root.layout.indexAt({ x: cp.x - origin.x, y: cp.y - origin.y }, sizes);
   return { group: root, index: idx ?? root.children.length };
-}
-
-export interface DropRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-function rectOverlap(a: DropRect, b: DropRect): number {
-  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
-  return w > 0 && h > 0 ? w * h : 0;
 }
 
 export function dropTarget(root: Slot, cp: Vec, origin: Vec = { x: 0, y: 0 }): { group: Group; index: number } | null {

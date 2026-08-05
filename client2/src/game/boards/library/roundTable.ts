@@ -67,6 +67,9 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         cell: { w: boxSide, h: boxSide },
         shape: o.shape === "circle" ? "circle" : undefined,
         policy: { onOccupied: "merge" },
+        // Колода (слот 0): снеп по нахлёсту с магнитом, ТОЛЬКО карты и только ровные (≤30°) —
+        // сильно наклонённую со стола можно впихнуть лишь пальцем; фишку — никак.
+        drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(dealt.length) },
         focusable: true,
       },
@@ -80,6 +83,12 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         // намеренно прямоугольная: это сетка.
         shape: o.shape === "circle" && layout.kind !== "grid" ? "circle" : undefined,
         policy: { onOccupied: o.stacking ? "merge" : "reject" },
+        // Центр ловит по ЦЕНТРУ карты: край, заехавший на круг, не перебивает внешний круг —
+        // рядом с центром по-прежнему можно класть свободно.
+        drop:
+          layout.kind === "radial" || layout.kind === "flow"
+            ? { hit: "center", shape: o.shape === "circle" ? "circle" : "rect" }
+            : undefined,
         setup: tableSetup(layout, dealt),
         focusable: true,
       },

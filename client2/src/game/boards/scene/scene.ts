@@ -5,7 +5,8 @@ import { COLORS } from "../../engine/constants";
 
 import { CardTextureCache } from "../../ui/CardTextureCache";
 import type { TableElement } from "../../engine/element";
-import { dropTargetRect, type DropRect } from "../../slot/slot";
+import { dropTargetRect, measure, type DropProbe } from "../../slot/slot";
+import { dropOf, type Group } from "../../slot/types";
 import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
 import { CARD } from "../../crossade/tree";
 import { buildBoardTree, type BoardTree, type FreePositions } from "../geometry/boardTree";
@@ -398,14 +399,30 @@ export class BoardScene implements SceneDelegate {
     return ok;
   }
 
-  /** Прямоугольник тащимой фигуры (видимый размер) — попадание в зоны считает ОН, не палец. */
-  private dragRect(p: { x: number; y: number }): DropRect {
+  /** ГРУЗ для дроп-политик: прямоугольник фигуры (по спринг-таргету — намерению руки, не
+   *  отставшему px), палец, вид элемента и наклон (fx.rot — как лежит на столе). */
+  private dragProbe(p: { x: number; y: number }): DropProbe {
     const lead = this.api.drag()?.lead;
     const fp = (lead as { footprint?: { hw: number; hh: number } } | undefined)?.footprint;
-    if (!lead || !fp) return { x: p.x, y: p.y, w: 0, h: 0 };
+    if (!lead || !fp) return { rect: { x: p.x, y: p.y, w: 0, h: 0 }, finger: p };
     const hw = fp.hw * lead.body.scaleVal;
     const hh = fp.hh * lead.body.scaleVal;
-    return { x: lead.body.px - hw, y: lead.body.py - hh, w: hw * 2, h: hh * 2 };
+    return {
+      rect: { x: lead.body.targetX - hw, y: lead.body.targetY - hh, w: hw * 2, h: hh * 2 },
+      finger: p,
+      kind: this.defs.get(lead.id)?.kind,
+      tiltDeg: this.state.fx[lead.id]?.rot,
+    };
+  }
+
+  /** Магнит цели: пока зона с magnet-политикой — цель дропа, груз пружиной ведётся к её центру
+   *  (визуально прилипает ещё до отпускания). Уводит палец — move перецелит на него же. */
+  private applyMagnet(target: { group: Group } | null): void {
+    const lead = this.api.drag()?.lead;
+    const o = target ? this.tree.origins[target.group.id] : undefined;
+    if (!lead || !target || !o || !dropOf(target.group)?.policy?.magnet) return;
+    const s = measure(target.group);
+    lead.body.setTarget({ x: o.x + s.w / 2, y: o.y + s.h / 2, rot: 0 });
   }
 
   onDragMoved(p: { x: number; y: number }): void {
@@ -422,7 +439,8 @@ export class BoardScene implements SceneDelegate {
       if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py }, this.blockDrag.active());
     }
     if (this.blockDrag.active()) return; // блок-драг колоды: бокс не подсвечиваем никак
-    const target = dropTargetRect(this.tree.root, this.dragRect(p), p);
+    const target = dropTargetRect(this.tree.root, this.dragProbe(p));
+    this.applyMagnet(target);
     // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
     // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
     const fz = freeZoneAt(this.dropWorld(), p);
@@ -460,7 +478,7 @@ export class BoardScene implements SceneDelegate {
       drag.release();
       return;
     }
-    const target = dropTargetRect(this.tree.root, this.dragRect(cp), cp);
+    const target = dropTargetRect(this.tree.root, this.dragProbe(cp));
     const plan = planDrop(this.dropWorld(), {
       el: el.id,
       from: this.tree.slotOf(el.id),

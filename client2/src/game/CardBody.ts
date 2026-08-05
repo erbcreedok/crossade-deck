@@ -56,6 +56,15 @@ export class CardBody {
     if (t.scale !== undefined) this.tscale = t.scale;
   }
 
+  /** Куда тело ВЕДУТ (спринг-таргет): хит-тест драга читает намерение руки, а не отставший px —
+   *  иначе магнит зоны, поставив цель на себя, удерживал бы фигуру в зоне и после ухода пальца. */
+  get targetX(): number {
+    return this.tx;
+  }
+  get targetY(): number {
+    return this.ty;
+  }
+
   // Телепорт: и текущее, и целевое сразу (расстановка при инициализации/ресайзе).
   snapTo(t: CardTargets): void {
     if (t.x !== undefined) { this.cx = { pos: t.x, vel: 0 }; this.tx = t.x; }
