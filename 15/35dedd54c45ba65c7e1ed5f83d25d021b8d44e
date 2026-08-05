@@ -1,0 +1,50 @@
+client2/src/game/boards/hand/handDock.ts
+  s_b2849f723d52bb::t_56960f37b3cdcb 2-3,5-8,12,26-27,47-49,51-52,54-56,64-73,76-79,82,84-102,104,107-120,123-129,132-133,135-141,144,148,150-153,158,160-161,163-165
+client2/src/game/boards/scene/handHud.test.ts
+  s_b2849f723d52bb::t_f593332be9eb67 11
+client2/src/game/boards/hand/handConfig.test.ts
+  s_b2849f723d52bb::t_598dcee2ada1d3 19,33-35
+  s_b2849f723d52bb::t_f07fd003f9cc90 2,36-53
+  s_b2849f723d52bb::t_f7988f96857d45 13,20
+client2/src/game/boards/hand/handStrip.ts
+  s_b2849f723d52bb::t_e6f05d6ff9ff52 20-23,25
+client2/src/game/boards/core/faceUp.test.ts
+  s_b2849f723d52bb::t_4d80b7ee449f53 52-57
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_550e9519070554 152-153
+  s_b2849f723d52bb::t_073919b0141365 149-151
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_d1cb3b520b0873 25-26,48,69,84,94,96,103-107,130-132
+client2/src/game/boards/core/faceUp.ts
+  s_b2849f723d52bb::t_550e9519070554 15-16,19,22
+client2/src/game/boards/hand/handDock.test.ts
+  s_b2849f723d52bb::t_f07fd003f9cc90 79-80,82-115
+  s_b2849f723d52bb::t_f593332be9eb67 8,61,71,74
+  s_b2849f723d52bb::t_fc225696573196 81
+client2/src/game/boards/hand/handConfig.ts
+  s_b2849f723d52bb::t_5220b87f871fbf 15-16,44
+  s_b2849f723d52bb::t_550e9519070554 5-6,17-18,24-29,45
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_bc63371c8e08e2 23,88-89
+  s_b2849f723d52bb::t_f7988f96857d45 95
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_bc63371c8e08e2 65
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_3722b99600d72b 50,57,110,164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1535dedd54c45ba65c7e1ed5f83d25d021b8d44e",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
