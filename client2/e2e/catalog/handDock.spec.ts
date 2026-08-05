@@ -13,6 +13,7 @@ interface StoryLike {
 declare global {
   interface Window {
     __story?: StoryLike;
+    __stories?: StoryLike[];
   }
 }
 
@@ -156,5 +157,33 @@ test.describe("док руки по краям", () => {
     });
     expect(order.indexOf(top.id)).toBe(shownGap); // ровно в показанный гэп
     expect(order.indexOf(top.id)).toBeLessThan(order.length - 1); // и не в конец
+  });
+
+  test("live-two-screens: два экрана над одним портом — своя рука лицом, у соседа она рубашками", async ({ page }) => {
+    await open(page, "live-two-screens");
+    const r = await page.evaluate(() => {
+      const [s1, s2] = window.__stories!;
+      const own = s1!.handHud.screenPoses().map((p) => ({ id: p.id, faceUp: s1!.rt.api.byId.get(p.id)!.faceUp }));
+      // Рука p1 глазами p2: карты живут на его МЕСТЕ (seat-стрип дерева) рубашками.
+      const atS2 = own.map((c) => {
+        const n = s2!.rt.api.byId.get(c.id);
+        return n ? { id: c.id, faceUp: n.faceUp } : null;
+      });
+      return { own, atS2 };
+    });
+    expect(r.own.length).toBe(3);
+    expect(r.own.every((c) => c.faceUp)).toBe(true); // себе — лицом
+    expect(r.atS2.every((c) => c && !c.faceUp)).toBe(true); // соседу — рубашками (hidden по умолчанию)
+
+    // Один порт: ход на левом экране виден правому (карта p1 вернулась в колоду — у обоих).
+    const deckAfter = await page.evaluate(() => {
+      const [s1, s2] = window.__stories!;
+      const id = s1!.handHud.screenPoses()[0]!.id;
+      (s1 as unknown as { dispatch(c: unknown): void }).dispatch({ t: "move", el: id, from: "hand:p1", to: "board:0" });
+      const deckOf = (s: StoryLike) => Object.entries(s.testHooks().cards).filter(([, c]) => c.slot === "board:0").length;
+      return { left: deckOf(s1!), right: deckOf(s2!), handLeft: s1!.handHud.screenPoses().length };
+    });
+    expect(deckAfter.left).toBe(deckAfter.right); // один снимок на всех
+    expect(deckAfter.handLeft).toBe(2);
   });
 });

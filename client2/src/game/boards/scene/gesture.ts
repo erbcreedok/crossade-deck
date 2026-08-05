@@ -20,10 +20,8 @@ import { handKey, type BoardState } from "../core/state";
 import { handConfig, handLocks } from "../hand/handConfig";
 import { paintHandBand } from "../hand/handBandPaint";
 import type { BoardTree } from "../geometry/boardTree";
-import { DropBar } from "../../ui/DropBar";
 import type { BoardNode } from "./nodeFactory";
 import type { SceneBlockDrag } from "./blockDrag";
-import type { SceneDeckActions } from "./deckActions";
 import type { SceneHandHud } from "./handHud";
 import type { SceneGapPreview } from "./gapPreview";
 import type { SceneMenu } from "./menu";
@@ -53,7 +51,6 @@ export interface GestureDeps {
   defaultBeginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean;
   // соседи-владельцы
   blockDrag: SceneBlockDrag;
-  deckActions: SceneDeckActions;
   menu: SceneMenu;
   presenceOwner: ScenePresence;
   /** Экранная рука-HUD: захват карты руки, дроп-зона «взять/реордер», состояния зоны. */
@@ -69,8 +66,6 @@ export interface GestureDeps {
 export class SceneGesture {
   /** Слой подсветки цели — свой, поверх декора: сцена кладёт его в surface. */
   readonly hintLayer = new Graphics();
-  /** Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга. */
-  readonly dropBar = new DropBar();
 
   private dragging = false;
   private hotSlot: string | null = null;
@@ -113,24 +108,17 @@ export class SceneGesture {
     const slot = this.deps.tree().slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
     if (slot && zone && isDeckSlot(this.deps.world(), slot) && this.deps.grabMode() === "hold" && this.deps.blockDrag.begin(zone, slot, cp)) {
-      // Тащим ВСЮ стопку блоком; колода в пальцах → снизу фикс-зоны её меню (мобильный ПКМ).
-      this.showBar([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }]);
+      // Тащим ВСЮ стопку блоком. Прежние фикс-зоны «настройка/перемешать» при драге СНЯТЫ
+      // (правило владельца: зона — не дефолт-механика, ничего «само везде» не появляется;
+      // настройки живут в long-press меню, а точечные кнопки приедут HUD-виджетами).
       this.deps.presenceOwner.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок
       return true;
     }
     if (this.deps.handMembers().includes(el.id)) this.deps.setDragSpace(el.id, "content"); // та же нода: рука → контент
-    const ok = this.deps.defaultBeginDrag(el, cp, sp);
-    // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка» (armed/hot зоны ведёт moved).
-    if (ok) this.showBar([{ key: "menu", label: "настройка" }]);
-    return ok;
+    return this.deps.defaultBeginDrag(el, cp, sp);
   }
 
   moved(p: { x: number; y: number }): void {
-    if (this.dropBar.visible) {
-      const ds = this.deps.dragScreen();
-      this.dropBar.hotAt(ds.x, ds.y);
-      this.deps.wake();
-    }
     // Драг-стрим: остальным — ЦЕНТР карты в пальцах; блок-драг той же строкой с флагом block.
     const pr = this.deps.presence;
     const gn = pr && this.grabbedEl ? this.deps.node(this.grabbedEl) : null;
@@ -167,19 +155,6 @@ export class SceneGesture {
   resolve(el: SceneElement, cp: { x: number; y: number }): void {
     const drag = this.deps.drag();
     if (!drag) return;
-    const ds = this.deps.dragScreen();
-    // Дроп в фикс-зону у низа экрана: груз летит домой, действие зоны выполняется.
-    const bar = this.dropBar.visible ? this.dropBar.hotAt(ds.x, ds.y) : null;
-    if (bar) {
-      const slot = this.deps.tree().slotOf(el.id);
-      const wasBlock = this.deps.blockDrag.active();
-      this.deps.blockDrag.cancel(); // сдвиг колоды не меняем — стопка вернётся, откуда поднята
-      drag.release();
-      if (!slot) return;
-      if (bar === "shuffle") this.deps.deckActions.shuffle(slot);
-      else this.deps.menu.openFor(wasBlock ? { kind: "deck", slot } : { kind: "card", id: el.id }, { x: ds.x, y: ds.y - 200 });
-      return;
-    }
     if (this.deps.blockDrag.active()) {
       // Блок-драг колоды: решает коллаборатор (внутри бокса — offsetFree, мимо — без изменений).
       this.deps.blockDrag.resolveAt(cp);
@@ -224,7 +199,6 @@ export class SceneGesture {
     this.dragging = false;
     this.hotSlot = null;
     this.deps.blockDrag.cancel(); // не тащим сдвиг в следующий жест
-    this.dropBar.hide(); // фикс-зоны живут только пока элемент в пальцах
     this.deps.handHud.clearDragging(); // вернуть HUD-спрайт руки и покой дроп-зоны
     this.deps.gapPreview.clear(); // закрыть дыру превью борды
     if (this.grabbedEl && this.deps.presence) {
@@ -259,9 +233,7 @@ export class SceneGesture {
     else g.roundRect(shape.x, shape.y, shape.w, shape.h, 8).stroke(stroke);
   }
 
-  destroy(): void {
-    this.dropBar.destroy();
-  }
+  destroy(): void {}
 
   /** Полоса руки-на-борде во время драга: тот же стиль, что у экранного дока (handBandPaint). */
   private paintBoardHandBand(g: Graphics): void {
@@ -273,8 +245,6 @@ export class SceneGesture {
 
   /** Слот-ИСТОЧНИК: дерево, а для карты экранной руки (её нет в дереве) — hand:self. */
   private fromSlotOf(id: string): string | null { return this.deps.tree().slotOf(id) ?? (this.deps.handMembers().includes(id) ? handKey(this.deps.selfSeat) : null); }
-
-  private showBar(zones: readonly { key: string; label: string }[]): void { this.dropBar.show([...zones], this.deps.width(), this.deps.height(), this.deps.accent()); }
 
   /** ГРУЗ для дроп-политик: прямоугольник фигуры (по спринг-таргету — намерению руки, не отставшему
    *  px), палец, вид элемента и наклон (fx.rot — как лежит на столе). */

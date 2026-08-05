@@ -173,7 +173,6 @@ export class BoardScene implements SceneDelegate {
     this.api.surfaceAdd(this.decor.layer);
     this.api.surfaceAdd(this.gesture.hintLayer);
     this.api.contentAdd(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
-    this.api.chromeAddAt(this.gesture.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
     this.api.chromeAdd(this.handHud.root); // рука — над дроп-баром, под кнопками/меню
     this.chromeHud.build(this.spec.actions, this.opts.tools ?? []);
     this.api.setChromeButtons(this.chromeHud.buttons());

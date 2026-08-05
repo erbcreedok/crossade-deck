@@ -201,7 +201,6 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     grabMode: () => api.grabMode(),
     defaultBeginDrag: (el, cp, sp) => api.defaultBeginDrag(el, cp, sp),
     blockDrag,
-    deckActions,
     menu: menuOwner,
     presenceOwner: presence,
     handHud,

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene/scene";
+import { localDriver } from "../../game/boards/core/driver";
 import { deck36 } from "../../game/boards/library/decks";
 import { CARD } from "../../game/crossade/tree";
 import type { BoardSpec, HandFlow, HandSide } from "../../game/boards/core/spec";
@@ -208,3 +209,66 @@ function ZoneStage() {
 }
 
 export const ZonePreview: Story = { render: () => <ZoneStage /> };
+
+/** LIVE: ДВА ЭКРАНА над ОДНИМ портом (общий localDriver — минимум событий: один снимок на всех).
+ *  Слева — экран p1, справа — p2; у каждого СВОЯ рука доком у низа, а рука соседа видна рубашками
+ *  на его месте (hidden по умолчанию — приватность). Тащите карту на любом экране — снимок один,
+ *  второй экран живёт тем же состоянием. */
+function liveSpec(): BoardSpec {
+  const { cards, ids } = deck36();
+  return {
+    id: "hand-live",
+    title: "",
+    elements: cards,
+    zones: [
+      {
+        id: "board",
+        title: "",
+        layout: { kind: "free" },
+        cell: { w: Math.round(CARD.w * 5), h: Math.round(CARD.h * 3.8) },
+        policy: { onOccupied: "merge" },
+        drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
+        setup: { 0: ids.slice(0, 16) },
+      },
+    ],
+    seats: { count: { fixed: 2 }, show: "backs", swap: false },
+    hand: { reorder: true, placement: "screen" },
+    actions: [],
+  };
+}
+
+function LiveStage() {
+  const leftRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const left = leftRef.current;
+    const right = rightRef.current;
+    if (!left || !right) return;
+    const spec = liveSpec();
+    const driver = localDriver(spec, 2); // ОДИН порт на оба экрана
+    const s1 = new BoardScene({ spec, driver, selfSeat: "p1", seats: 2, onCommand: (cmd) => handAction(cmd) });
+    const s2 = new BoardScene({ spec, driver, selfSeat: "p2", seats: 2 });
+    (window as unknown as { __stories?: BoardScene[] }).__stories = [s1, s2];
+    const w = () => Math.max(320, (left.parentElement?.clientWidth ?? 1280) / 2 - 2);
+    void Promise.all([s1.mount(left, w(), left.clientHeight || 720), s2.mount(right, w(), right.clientHeight || 720)]).then(() => {
+      // Раздать по 3 карты каждому — те же move-команды порта, что и палец.
+      const hooks = s1.testHooks();
+      const deck = Object.entries(hooks.cards).filter(([, c]) => c.slot === "board:0").map(([id]) => id);
+      deck.slice(0, 3).forEach((id) => s1.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p1" }));
+      deck.slice(3, 6).forEach((id) => s1.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p2" }));
+    });
+    return () => {
+      s1.destroy();
+      s2.destroy();
+    };
+  }, []);
+  const pane = { width: "50%", height: "100vh", touchAction: "none", overflow: "hidden" } as const;
+  return (
+    <div style={{ display: "flex", gap: 2, background: "#20291f" }}>
+      <div ref={leftRef} style={{ ...pane, background: "#2f3d34" }} />
+      <div ref={rightRef} style={{ ...pane, background: "#2c3a36" }} />
+    </div>
+  );
+}
+
+export const LiveTwoScreens: Story = { render: () => <LiveStage /> };
