@@ -48,7 +48,7 @@ export interface ItemVisual {
   /** БЕЛЫЙ силуэт-снимок (фигура) для свечения стопкой; null — формы-снимка нет. */
   glowSilhouette?(): { texture: import("pixi.js").Texture; bounds: OwnShadow["bounds"] } | null;
   // ——— способности-данные (собраны видом или отсутствуют) ———
-  flip?: { faceUp(): boolean; request(it: TableItem): boolean };
+  flip?: { faceUp(): boolean; target(): boolean; request(it: TableItem): boolean };
   secrecy?: CardSecrecy; // значение/скрытость/подглядеть (+ пыль-вуаль)
   censor?: { get(): boolean; set(v: boolean): void; params(p: Partial<ParticleParams>): void };
 }
@@ -119,6 +119,11 @@ export class TableItem implements TableElement, Draggable, Flippable, Burnable, 
   // ——— способности: двери у всех, «нет» — если вид способности не собрал ———
   get faceUp(): boolean {
     return this.visual.flip?.faceUp() ?? true; // без флипа предмет всегда «открыт»
+  }
+  /** НАМЕРЕНИЕ стороны: исход флипа в полёте, иначе текущая. Сравнивать с желаемой стороной надо
+   *  ИМЕННО его — faceUp переключается лишь по завершении анимации и в полёте отстаёт. */
+  get faceUpTarget(): boolean {
+    return this.visual.flip?.target() ?? true;
   }
   requestFlip(): boolean {
     return this.visual.flip?.request(this) ?? false;

@@ -77,7 +77,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
   // Экранная рука (placement:"screen") — РАСКЛАДКА и слой; сами карты руки — те же узлы nodeStore,
   // их root перекладывается на её экранный слой. Строится ДО nodeStore: тот спрашивает у неё позы.
   const handHud = new SceneHandHud({
-    enabled: () => handConfig(ctx.spec().hand)?.placement === "screen",
+    config: () => handConfig(ctx.spec().hand),
     members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
     accent,
     wake: () => api.wake(),

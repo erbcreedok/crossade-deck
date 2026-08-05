@@ -51,3 +51,31 @@ describe("способности — данные вида, а не тип", () 
     expect(p.concealed).toBe(false);
   });
 });
+
+describe("флип: намерение стороны против отставшего faceUp (гонка раздачи)", () => {
+  const settle = (c: ReturnType<typeof card>) => {
+    for (let i = 0; i < 200; i++) c.step(0.05);
+  };
+
+  it("faceUpTarget в полёте флипа — ИСХОД, faceUp ещё отстаёт", () => {
+    const c = card(); // рубашкой
+    expect(c.requestFlip()).toBe(true);
+    expect(c.faceUp).toBe(false); // флаг переключится только по завершении
+    expect(c.faceUpTarget).toBe(true); // намерение уже известно
+    settle(c);
+    expect(c.faceUp).toBe(true);
+  });
+
+  it("заказ во время флипа — инверсия исхода, а не молчаливая потеря (гонка «в руку после сборки»)", () => {
+    const c = card(); // рубашкой; узел создан лицом и его флипают вниз — эмулируем: флип вверх...
+    c.requestFlip();
+    expect(c.requestFlip()).toBe(true); // ...и тут же заказ обратно (как раздача в руку)
+    expect(c.faceUpTarget).toBe(false); // исход инвертирован
+    settle(c);
+    expect(c.faceUp).toBe(false); // карта довернулась ЗАКАЗАННОЙ стороной, заказ не потерян
+  });
+
+  it("у фишки faceUpTarget нейтрально-открыт, как faceUp", () => {
+    expect(chip().faceUpTarget).toBe(true);
+  });
+});

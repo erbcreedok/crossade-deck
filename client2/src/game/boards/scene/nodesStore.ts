@@ -109,7 +109,7 @@ export class SceneNodes {
     }
     node.root.zIndex = order;
     this.depths.set(id, order);
-    if (node.kind === "card" && !node.faceUp) node.requestFlip(); // своя рука — лицом владельцу
+    if (node.kind === "card" && !node.faceUpTarget) node.requestFlip(); // своя рука — лицом владельцу
     const target = { x: hp.x, y: hp.y, rot: 0, scale: hp.scale };
     if (snap) node.body.snapTo(target);
     else node.body.setTarget(target);
@@ -129,7 +129,7 @@ export class SceneNodes {
     this.host.placeCard(node);
     const fx = state.fx[id];
     const wantFace = fx?.face ?? this.host.faceUpIn(id, slot);
-    if (node.kind === "card" && node.faceUp !== wantFace) node.requestFlip();
+    if (node.kind === "card" && node.faceUpTarget !== wantFace) node.requestFlip();
     const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale: nodeScaleIn(node, slot) };
     if (snap) node.body.snapTo(target);
     else node.body.setTarget(target);

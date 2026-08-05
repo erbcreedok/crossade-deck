@@ -193,7 +193,8 @@ export class BoardScene implements SceneDelegate {
 
   private fitBoard(): void {
     this.api.syncVp();
-    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: ACTION_BAR_H, insetBottom: this.handHud.reservedBottom(this.api.width(), this.api.height()), size: this.tree.size };
+    const r = this.handHud.reserved(this.api.width(), this.api.height()); // док руки у любого края
+    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: ACTION_BAR_H + r.top, insetBottom: r.bottom, insetLeft: r.left, insetRight: r.right, size: this.tree.size };
     this.api.viewport().setZoom(fitZoom(fit));
     this.showView();
   }

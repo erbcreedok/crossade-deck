@@ -182,7 +182,9 @@ export class SolitaireScene implements SceneDelegate {
         const node = this.nodeFor(cardId, state.faceUp[cardId] === true);
         // Переворот — только через requestFlip(): присваивание node.faceUp меняет поле, но текстуру
         // кладёт приватный paint() из шага анимации, и карта продолжала лежать рубашкой (§5.4).
-        if (node.faceUp !== (state.faceUp[cardId] === true)) node.requestFlip();
+        // Сравниваем с faceUpTarget (намерением): faceUp в полёте флипа отстаёт, и повторный sync
+        // при нём заказывал бы инверсию — карта довернулась бы не той стороной.
+        if (node.faceUpTarget !== (state.faceUp[cardId] === true)) node.requestFlip();
         const home = this.tree.homeOf(cardId);
         if (!home) continue;
         node.root.zIndex = this.tree.depthOf(cardId);

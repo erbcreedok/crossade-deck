@@ -80,8 +80,19 @@ export class CardVisual implements ItemVisual {
   // Флип — способность-данные: без неё дверь requestFlip отвечает «нет» сама.
   readonly flip = {
     faceUp: (): boolean => this.faceUp,
+    /** НАМЕРЕНИЕ стороны: флип в полёте — его исход, иначе текущая. Сравнивать «куда повернётся»,
+     *  а не отставший faceUp (тот переключается лишь по завершении анимации) — иначе гонка:
+     *  заказ «лицом» во время флипа вниз молча теряется. */
+    target: (): boolean => (this.flipAnim ? !this.flipAnim.fromFaceUp : this.faceUp),
     request: (it: TableItem): boolean => {
-      if (!this.flippable || this.flipAnim) return false;
+      if (!this.flippable) return false;
+      if (this.flipAnim) {
+        // Флип уже в полёте: заказ — ИНВЕРСИЯ исхода (карта довернётся другой стороной), а не отказ.
+        // Текстура меняется только по завершении — визуально это безопасно; молчаливый отказ терял
+        // заказ «лицом» во время флипа вниз (гонка раздачи в руку сразу после сборки).
+        this.flipAnim.fromFaceUp = !this.flipAnim.fromFaceUp;
+        return true;
+      }
       this.flipAnim = { t: 0, dur: Math.max(0.001, scaled(it.life.preset.flip.dur, it.life.preset.speed)), fromFaceUp: this.faceUp };
       this.secrecy.veil.dropFade(); // флип сам сменит текстуру спином — кросс-фейд лица не к месту
       return true;

@@ -8,7 +8,7 @@ import { SceneHandHud } from "./handHud";
 function hud(members: string[]): { h: SceneHandHud; retargets: () => number } {
   let n = 0;
   const h = new SceneHandHud({
-    enabled: () => true,
+    config: () => ({ reorder: true, placement: "screen", side: "bottom", flow: "horizontal", hidden: false, locked: true }),
     members: () => members,
     accent: () => 0xffcc00,
     wake: () => {},
@@ -22,18 +22,19 @@ describe("SceneHandHud — гэп-превью не двигает цель", ()
   it("hoverAt раздвигает ряд (позы уезжают), а insertIndexAt по той же точке НЕ меняется", () => {
     const { h } = hud(["a", "b", "c"]);
     const sx = h.poseOf("b")!.x + 1; // чуть правее центра b → вставка после b
-    const before = h.insertIndexAt(sx);
+    const sy = h.poseOf("b")!.y;
+    const before = h.insertIndexAt(sx, sy);
     const posesBefore = ["a", "b", "c"].map((id) => h.poseOf(id)!.x);
-    h.hoverAt(sx);
+    h.hoverAt(sx, sy);
     const posesAfter = ["a", "b", "c"].map((id) => h.poseOf(id)!.x);
     expect(posesAfter).not.toEqual(posesBefore); // превью видно: ряд раздвинулся
-    expect(h.insertIndexAt(sx)).toBe(before); // цель стоит: индекс по базовому ряду
+    expect(h.insertIndexAt(sx, sy)).toBe(before); // цель стоит: индекс по базовому ряду
   });
 
   it("под гэпом ряд занимает позиции count+1: карты левее индекса уехали влево, правее — вправо", () => {
     const { h } = hud(["a", "b", "c", "d"]);
     const base = ["a", "b", "c", "d"].map((id) => h.poseOf(id)!.x);
-    h.hoverAt((base[1]! + base[2]!) / 2); // между b и c
+    h.hoverAt((base[1]! + base[2]!) / 2, h.poseOf("b")!.y); // между b и c
     expect(h.poseOf("b")!.x).toBeLessThan(base[1]!);
     expect(h.poseOf("c")!.x).toBeGreaterThan(base[2]!);
   });
@@ -41,7 +42,7 @@ describe("SceneHandHud — гэп-превью не двигает цель", ()
   it("груз ушёл с руки (armed) — гэп смыкается, позы вернулись; retarget звался на открытие и закрытие", () => {
     const { h, retargets } = hud(["a", "b", "c"]);
     const base = ["a", "b", "c"].map((id) => h.poseOf(id)!.x);
-    h.hoverAt(h.poseOf("a")!.x - 1);
+    h.hoverAt(h.poseOf("a")!.x - 1, h.poseOf("a")!.y);
     expect(retargets()).toBe(1);
     h.setZone("armed");
     expect(["a", "b", "c"].map((id) => h.poseOf(id)!.x)).toEqual(base);
@@ -51,15 +52,16 @@ describe("SceneHandHud — гэп-превью не двигает цель", ()
   it("hoverAt в той же точке повторно — retarget НЕ дёргается (перецел только на смене индекса)", () => {
     const { h, retargets } = hud(["a", "b", "c"]);
     const sx = h.poseOf("a")!.x - 1;
-    h.hoverAt(sx);
-    h.hoverAt(sx);
+    const sy = h.poseOf("a")!.y;
+    h.hoverAt(sx, sy);
+    h.hoverAt(sx, sy);
     expect(retargets()).toBe(1);
   });
 
   it("clearDragging смыкает гэп вместе со снятием драга", () => {
     const { h } = hud(["a", "b", "c"]);
     const base = ["a", "b", "c"].map((id) => h.poseOf(id)!.x);
-    h.hoverAt(h.poseOf("c")!.x + 1);
+    h.hoverAt(h.poseOf("c")!.x + 1, h.poseOf("c")!.y);
     h.clearDragging();
     expect(["a", "b", "c"].map((id) => h.poseOf(id)!.x)).toEqual(base);
   });
