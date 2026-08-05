@@ -1,0 +1,36 @@
+client2/e2e/solitaire.spec.ts
+  s_b9dcc12bda6464::t_b6ecb49e859963 239-245
+client2/e2e/catalog/engine.spec.ts
+  s_b9dcc12bda6464::t_49b7f8f3ce6356 27,35,39
+client2/docs/catalog-rules.md
+  s_b9dcc12bda6464::t_f62649286ad844 98
+client2/src/stories/harness/canvasDrag.ts
+  s_b9dcc12bda6464::t_09ea46d04d3c95 17-18,69
+  s_b9dcc12bda6464::t_1fbdbeda21d867 60
+client2/docs/REFACTOR-HANDOFF.md
+  s_b9dcc12bda6464::t_f57ed351b5949f 92-101
+client2/src/game/engine/kitHooks.ts
+  s_b9dcc12bda6464::t_2ebeb6ec146c13 21-26
+  s_b9dcc12bda6464::t_1a75e77ac1f6c6 67
+client2/src/game/engine/kitHooks.test.ts
+  s_b9dcc12bda6464::t_a8173876dacd22 1-72
+client2/e2e/crossade.spec.ts
+  s_b9dcc12bda6464::t_7739e9b7cd7999 58,62-85
+  s_b9dcc12bda6464::t_4e4ade8d53aa03 86-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "173e1bf330c417556deb374d4e7cc4975026e1db",
+  "prompts": {},
+  "sessions": {
+    "s_b9dcc12bda6464": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49c8b158-64cc-4522-942d-a663a9da83a1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
