@@ -119,9 +119,7 @@ export class BoardScene implements SceneDelegate {
 
   hasContextAt(cp: { x: number; y: number }): boolean { return this.menuTarget(cp) !== null; }
 
-  openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
-    this.menuOwner.openAt(cp, sp);
-  }
+  openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void { this.menuOwner.openAt(cp, sp); }
 
   /** Сменить СПЕКУ, не трогая драйвер (live: настройки и мигрированный снимок раздаёт комната —
    *  сцена лишь пересобирает геометрию; свежий снимок приедет обычным onState следом). */
@@ -212,11 +210,11 @@ export class BoardScene implements SceneDelegate {
   private rebuildBoard(snap: boolean): void {
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.state.free);
     if (!this.tex) return;
+    this.handHud.layout(this.api.width(), this.api.height()); // размер/зона руки — ДО синка (poseOf)
     this.nodeStore.sync(this.state, this.tree, snap);
     this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.decor.sync();
     this.gesture.paintHints();
-    this.handHud.sync();
     this.presence.paint();
     this.chromeHud.syncDice(this.state.dice);
     this.showView();
@@ -261,8 +259,11 @@ export class BoardScene implements SceneDelegate {
     return this.gesture.begin(el, cp, sp);
   }
 
-  /** Карта ЭКРАННОЙ руки под точкой: её контентный двойник — лидер драга. */
-  pickHandCard(sx: number, sy: number): SceneElement | null { return this.handHud.pickAt(sx, sy); }
+  /** Карта ЭКРАННОЙ руки под точкой: её ЖЕ нода (nodeStore) — лидер драга (одна нода на карту). */
+  pickHandCard(sx: number, sy: number): SceneElement | null {
+    const id = this.handHud.pickAt(sx, sy);
+    return id ? this.nodeStore.get(id) ?? null : null;
+  }
 
   onDragMoved(p: { x: number; y: number }): void {
     this.gesture.moved(p);
@@ -272,12 +273,11 @@ export class BoardScene implements SceneDelegate {
     this.gesture.resolve(el, cp);
   }
 
-  onDragCancel(): void {
-    this.gesture.end();
-  }
+  onDragCancel(): void { this.gesture.end(); }
 
   afterDragEnd(): void {
     this.gesture.end();
+    this.rebuildBoard(false); // вернуть узлы в их дома (отменённый драг карты руки — обратно в руку)
   }
 
   /** Дев-хук для стори/e2e — экранная геометрия и состояние (hooks.ts). */

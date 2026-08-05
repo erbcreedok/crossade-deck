@@ -73,6 +73,16 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
   const homeOf = (id: string): { x: number; y: number } | null => ctx.tree().homeOf(id);
 
   const api = ctx.api;
+
+  // Экранная рука (placement:"screen") — РАСКЛАДКА и слой; сами карты руки — те же узлы nodeStore,
+  // их root перекладывается на её экранный слой. Строится ДО nodeStore: тот спрашивает у неё позы.
+  const handHud = new SceneHandHud({
+    enabled: () => handConfig(ctx.spec().hand)?.placement === "screen",
+    members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
+    accent,
+    wake: () => api.wake(),
+  });
+
   const nodeStore = new SceneNodes({
     def: (id) => ctx.def(id),
     tex: () => ctx.tex(),
@@ -82,6 +92,11 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     placeCard: (node) => api.placeCard(node),
     faceUpIn,
     remoteDragged: (id) => presence.hasRemote(id),
+    handPose: (id) => handHud.poseOf(id),
+    placeHand: (node) => handHud.root.addChild(node.root),
+    toScreen: (x, y) => api.contentToScreen(x, y),
+    toContent: (sx, sy) => api.screenToContent(sx, sy),
+    zoom: () => api.viewport().zoom || 1,
   });
 
   const blockDrag = new SceneBlockDrag({
@@ -118,19 +133,6 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
   const chromeHud = new SceneChrome({
     add: (c) => api.chromeAdd(c),
     dispatch: (cmd) => ctx.dispatch(cmd),
-    accent,
-    wake: () => api.wake(),
-  });
-
-  // Экранная рука: своя рука фикс к камере. Активна только при placement:"screen" — иначе руку
-  // раскладывает дерево борды (зоной в контенте), а HUD пуст.
-  const handHud = new SceneHandHud({
-    enabled: () => handConfig(ctx.spec().hand)?.placement === "screen",
-    members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
-    def: (id) => ctx.def(id),
-    tex: () => ctx.tex(),
-    renderer: () => api.renderer(),
-    contentNode: (id) => nodeStore.get(id),
     accent,
     wake: () => api.wake(),
   });
@@ -192,6 +194,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     presenceOwner: presence,
     handHud,
     handMembers: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
+    liftHandCard: (id) => nodeStore.beginDragLift(id),
   });
 
   return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };

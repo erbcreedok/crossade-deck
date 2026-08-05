@@ -17,17 +17,29 @@ export interface NodesHost {
   /** Индекс движка для хит-тестов: узел появился/умер. */
   register(id: string, node: BoardNode): void;
   unregister(id: string): void;
-  /** Положить визуал в слой его текущего состояния (z-уровни движка). */
+  /** Положить визуал в слой его текущего состояния (z-уровни движка, контент под камерой). */
   placeCard(node: BoardNode): void;
   /** Лицом или рубашкой лежит карта в этом слоте (правило зоны). */
   faceUpIn(id: string, slot: string): boolean;
   /** Карту ведёт чужой драг-стрим — не трогать её позицию/глубину. */
   remoteDragged(id: string): boolean;
+  // ——— экранная рука (одна нода на карту): та же нода перекладывается на экранный слой ———
+  /** Экранная поза карты руки (центр + масштаб ноды) или null — карта не в экранной руке. */
+  handPose(id: string): { x: number; y: number; scale: number } | null;
+  /** Переложить root ноды на СЛОЙ РУКИ (chrome, экранно-фиксированный, не зумится). */
+  placeHand(node: BoardNode): void;
+  /** Контент↔экран и зум камеры — для непрерывной конверсии на границе борда↔рука. */
+  toScreen(x: number, y: number): { x: number; y: number };
+  toContent(sx: number, sy: number): { x: number; y: number };
+  zoom(): number;
 }
 
 export class SceneNodes {
   private readonly byId = new Map<string, BoardNode>();
   private readonly depths = new Map<string, number>();
+  /** Пространство КАЖДОЙ ноды сейчас: контент (борда, под камерой) или рука (экран). Смена
+   *  пространства = переложить root и КОНВЕРТИРОВАТЬ координаты/масштаб, чтобы полёт был непрерывен. */
+  private readonly space = new Map<string, "content" | "hand">();
 
   constructor(private readonly host: NodesHost) {}
 
@@ -58,29 +70,18 @@ export class SceneNodes {
 
     const place = (id: string, indexInPile: number): void => {
       alive.add(id);
+      const hp = this.host.handPose(id);
       const slot = tree.slotOf(id);
       const home = tree.homeOf(id);
-      if (!slot || !home) {
-        // Дом уехал из дерева (карту забрала экранная рука-HUD, placement:"screen") — прячем
-        // контентный двойник, чтобы он не висел бесхозным на последнем месте. Вернётся дом — покажем.
-        const twin = this.byId.get(id);
-        if (twin) twin.root.visible = false;
+      if (!hp && (!slot || !home)) {
+        // Ни в руке, ни в дереве — обычно эту ноду СЕЙЧАС ведёт драг (карта поднята): не трогаем.
         return;
       }
       const node = this.nodeFor(id, tex);
       node.root.visible = true;
-      const depth = (slotOrder.get(slot) ?? 0) * 1000 + indexInPile;
-      this.depths.set(id, depth);
       if (this.host.remoteDragged(id)) return; // карту ведёт чужой драг-стрим
-      node.root.zIndex = depth;
-      node.setState(node.pose);
-      this.host.placeCard(node);
-      const fx = state.fx[id];
-      const wantFace = fx?.face ?? this.host.faceUpIn(id, slot);
-      if (node.kind === "card" && node.faceUp !== wantFace) node.requestFlip();
-      const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale: nodeScaleIn(node, slot) };
-      if (snap) node.body.snapTo(target);
-      else node.body.setTarget(target);
+      if (hp) this.placeInHand(node, id, hp, indexInPile, snap);
+      else this.placeOnBoard(node, id, state, slot!, home!, (slotOrder.get(slot!) ?? 0) * 1000 + indexInPile, snap);
     };
 
     for (const key of Object.keys(state.field.slots)) {
@@ -91,7 +92,58 @@ export class SceneNodes {
       node.destroy();
       this.byId.delete(id);
       this.host.unregister(id);
+      this.space.delete(id);
     }
+  }
+
+  /** Карта РУКИ: та же нода на экранном слое. Смена пространства борда→рука — с конверсией текущего
+   *  положения (контент→экран) и масштаба (×zoom), чтобы полёт был непрерывным, а не телепортом. */
+  private placeInHand(node: BoardNode, id: string, hp: { x: number; y: number; scale: number }, order: number, snap: boolean): void {
+    if (this.space.get(id) !== "hand") {
+      if (!snap) {
+        const s = this.host.toScreen(node.body.px, node.body.py);
+        node.body.snapTo({ x: s.x, y: s.y, scale: node.body.scaleVal * this.host.zoom() });
+      }
+      this.host.placeHand(node);
+      this.space.set(id, "hand");
+    }
+    node.root.zIndex = order;
+    this.depths.set(id, order);
+    if (node.kind === "card" && !node.faceUp) node.requestFlip(); // своя рука — лицом владельцу
+    const target = { x: hp.x, y: hp.y, rot: 0, scale: hp.scale };
+    if (snap) node.body.snapTo(target);
+    else node.body.setTarget(target);
+  }
+
+  /** Карта БОРДЫ: нода на контент-слое (под камерой). Смена рука→борда — конверсия экран→контент и
+   *  масштаба (÷zoom), тоже непрерывным полётом. */
+  private placeOnBoard(node: BoardNode, id: string, state: BoardState, slot: string, home: { x: number; y: number }, depth: number, snap: boolean): void {
+    if (this.space.get(id) === "hand" && !snap) {
+      const c = this.host.toContent(node.body.px, node.body.py);
+      node.body.snapTo({ x: c.x, y: c.y, scale: node.body.scaleVal / this.host.zoom() });
+    }
+    this.space.set(id, "content");
+    this.depths.set(id, depth);
+    node.root.zIndex = depth;
+    node.setState(node.pose);
+    this.host.placeCard(node);
+    const fx = state.fx[id];
+    const wantFace = fx?.face ?? this.host.faceUpIn(id, slot);
+    if (node.kind === "card" && node.faceUp !== wantFace) node.requestFlip();
+    const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale: nodeScaleIn(node, slot) };
+    if (snap) node.body.snapTo(target);
+    else node.body.setTarget(target);
+  }
+
+  /** Захват карты РУКИ в драг: перевести её ноду из руки (экран) в контент (та же нода), конвертируя
+   *  координаты/масштаб, — драг дальше ведёт её в контентных координатах непрерывно. */
+  beginDragLift(id: string): void {
+    const node = this.byId.get(id);
+    if (!node || this.space.get(id) !== "hand") return;
+    const c = this.host.toContent(node.body.px, node.body.py);
+    node.body.snapTo({ x: c.x, y: c.y, scale: node.body.scaleVal / this.host.zoom() });
+    this.space.set(id, "content");
+    this.host.placeCard(node);
   }
 
   private nodeFor(id: string, tex: CardTextureCache): BoardNode {

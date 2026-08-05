@@ -1,20 +1,13 @@
-// ЭКРАННАЯ РУКА (HUD) — своя рука игрока/призрака, прибитая к КАМЕРЕ: живёт в chrome-слое (не
-// зумится, не ездит паном), во всю ширину снизу, статичный размер по экрану. Вне контентных
-// координат борды — у неё нет точки на столе (это интерфейс, как DropBar), поэтому дерево борды
-// при placement:"screen" руку-зону НЕ раскладывает: карты руки существуют только тут.
+// ЭКРАННАЯ РУКА (HUD) — РАСКЛАДКА и СЛОЙ, не владелец нод. Ключевой канон: одна нода на карту.
+// Карты руки — те же самые узлы nodeStore (в byId), просто их root перекладывается СЮДА, на
+// экранно-фиксированный слой (chrome, не зумится), и позиционируется в экранных координатах. Переход
+// борда↔рука — непрерывный полёт ОДНОЙ ноды (nodeStore конвертирует координаты/масштаб на границе).
 //
-// Карты строит КАНОННОЙ фабрикой (buildBoardNode → TableItem) ради визуального паритета со столом,
-// но без физики: трансформ root'а ставим руками при раскладке. Драг руки↔борда: карту руки под
-// пальцем отдаёт pickAt — её КОНТЕНТНЫЙ двойник (nodeStore) становится лидером обычного драга, а
-// HUD-спрайт на время прячется (setDragging). Дроп-зона руки (band) со состояниями rest/armed/hot —
-// для «взять со стола» и реордера: судит жест по экранной точке (overBand/insertIndexAt).
+// HandHud держит: слой (root, на chrome), полосу-дропзону со состояниями rest/armed/hot и ЧИСТУЮ
+// раскладку (poseOf/cardAt/overBand/insertIndexAt). Позиции узлам ставит nodeStore, спрашивая poseOf.
 
-import { Container, Graphics, type Renderer } from "pixi.js";
+import { Container, Graphics } from "pixi.js";
 import { CARD } from "../../crossade/tree";
-import { COLORS } from "../../engine/constants";
-import type { CardTextureCache } from "../../ui/CardTextureCache";
-import type { ElementDef } from "../core/spec";
-import { buildBoardNode, type BoardNode } from "./nodeFactory";
 import { handStrip, handCardSize } from "../hand/handStrip";
 import { ACTION_BAR_H } from "./chrome";
 
@@ -25,115 +18,83 @@ const BG = 0x1a241e;
 
 /** Состояние дроп-зоны руки: покой / груз в полёте где-то / груз над рукой (владелец). */
 export type HandZone = "rest" | "armed" | "hot";
+/** Экранная поза карты руки: центр (x,y) и МАСШТАБ ноды (body.scaleVal), чтобы карта была нужной высоты. */
+export interface HandPose {
+  x: number;
+  y: number;
+  scale: number;
+}
 
-/** Адаптивный размер карты руки под экран (узкий телефон → мельче). Ширина ряда — экран минус поля. */
 function handCell(w: number, h: number): { w: number; h: number } {
   return handCardSize(w - SIDE * 2, h, CARD);
 }
 
 export interface HandHudDeps {
-  /** Рука экранная (placement:"screen")? Иначе HUD пуст — руку раскладывает дерево борды. */
+  /** Рука экранная (placement:"screen")? Иначе руку раскладывает дерево борды. */
   enabled(): boolean;
   /** Карты своей руки по порядку (handKey(selfSeat)). */
   members(): readonly string[];
-  def(id: string): ElementDef | undefined;
-  tex(): CardTextureCache | null;
-  renderer(): Renderer | null;
-  /** Контентный двойник карты (nodeStore) — он становится лидером драга при захвате из руки. */
-  contentNode(id: string): BoardNode | undefined;
   accent(): number;
   wake(): void;
 }
 
 export class SceneHandHud {
+  /** Слой руки на chrome: сюда nodeStore перекладывает root'ы карт руки (экранно-фиксированные). */
   readonly root = new Container();
-  private readonly zone = new Graphics(); // полоса-дропзона под картами
-  private nodes = new Map<string, BoardNode>();
+  private readonly zone = new Graphics();
   private size = { w: 0, h: 0 };
   private zoneState: HandZone = "rest";
-  private dragging: string | null = null; // карта руки, поднятая в контент-драг: её HUD-спрайт прячем
+  private dragging: string | null = null; // карта, поднятая в драг: из строки исключается (гэп закрыт)
 
   constructor(private readonly deps: HandHudDeps) {
-    this.root.sortableChildren = true; // правая карта поверх левой (нахлёст ряда)
-    this.zone.zIndex = -1000; // под картами
+    this.root.sortableChildren = true; // правая карта поверх левой; зона — под всеми
+    this.zone.zIndex = -1000;
     this.root.addChild(this.zone);
   }
 
-  /** Сколько снизу занимает band руки — стол вписывается в остаток (fitBoard). 0 — руки на экране нет. */
+  /** Сколько снизу занимает band руки — стол вписывается в остаток (fitBoard). 0 — руки нет. */
   reservedBottom(screenW: number, screenH: number): number {
     return this.deps.enabled() ? handCell(screenW, screenH).h + PAD_BOTTOM + ACTION_BAR_H : 0;
   }
 
-  /** Пересобрать состав по снимку (добавить новые карты, снять ушедшие) и переразложить. */
-  sync(): void {
-    const tex = this.deps.tex();
-    if (!this.deps.enabled() || !tex) {
-      this.clear();
-      this.zone.clear();
-      return;
-    }
-    const want = new Set(this.deps.members());
-    for (const [id, node] of this.nodes) {
-      if (!want.has(id)) {
-        this.root.removeChild(node.root);
-        node.destroy();
-        this.nodes.delete(id);
-      }
-    }
-    for (const id of this.deps.members()) {
-      if (this.nodes.has(id)) continue;
-      const node = buildBoardNode(id, this.deps.def(id), tex, this.deps.renderer());
-      this.nodes.set(id, node);
-      this.root.addChild(node.root);
-    }
-    this.layout(this.size.w, this.size.h);
-  }
-
-  /** Разложить ряд по ширине экрана снизу; трансформ каждой карты ставим напрямую (без пружин). */
+  /** Перерисовать дроп-зону под текущий размер (позиции карт ставит nodeStore по poseOf). */
   layout(w: number, h: number): void {
     this.size = { w, h };
-    if (!this.deps.enabled() || !this.deps.tex()) return;
     this.paintZone();
-    const members = this.deps.members();
-    const cell = handCell(w, h);
-    const centerY = h - ACTION_BAR_H - PAD_BOTTOM - cell.h / 2;
-    const poses = handStrip(members.length, cell, Math.max(cell.w, w - SIDE * 2), GAP);
-    members.forEach((id, i) => {
-      const node = this.nodes.get(id);
-      const pose = poses[i];
-      if (!node || !pose) return;
-      node.root.visible = id !== this.dragging; // поднятую в контент-драг карту в руке не рисуем
-      node.root.scale.set(cell.h / CARD.h);
-      node.root.rotation = pose.rot;
-      node.root.position.set(SIDE + pose.x, centerY);
-      node.root.zIndex = i;
-    });
   }
 
-  // ——— драг руки↔борда: захват карты, дроп-зона, снятие ———
+  /** Экранная поза карты руки id (центр + scale ноды), либо null — она не в руке или её тащат. */
+  poseOf(id: string): HandPose | null {
+    if (!this.deps.enabled()) return null;
+    const ids = this.laidIds();
+    const i = ids.indexOf(id);
+    if (i < 0) return null;
+    const cell = handCell(this.size.w, this.size.h);
+    const centerY = this.size.h - ACTION_BAR_H - PAD_BOTTOM - cell.h / 2;
+    const poses = handStrip(ids.length, cell, Math.max(cell.w, this.size.w - SIDE * 2), GAP);
+    const p = poses[i]!;
+    return { x: SIDE + p.x, y: centerY, scale: cell.h / CARD.h };
+  }
 
-  /** Карта руки под ЭКРАННОЙ точкой (для захвата): её контентный двойник — лидер драга. Прячет
-   *  HUD-спрайт на время драга и отдаёт контентную ноду (её показывает и ведёт жест). */
-  pickAt(sx: number, sy: number): BoardNode | null {
+  // ——— драг руки↔борда: захват, дроп-зона, снятие ———
+
+  /** id карты руки под ЭКРАННОЙ точкой (верхняя по нахлёсту) — для захвата. Помечает её dragging. */
+  pickAt(sx: number, sy: number): string | null {
     const id = this.cardAt(sx, sy);
-    if (id === null) return null;
-    const node = this.deps.contentNode(id);
-    if (!node) return null;
-    this.dragging = id;
-    this.layout(this.size.w, this.size.h); // спрятать HUD-спрайт поднятой карты
-    return node;
+    if (id !== null) {
+      this.dragging = id;
+      this.deps.wake();
+    }
+    return id;
   }
 
-  /** id карты руки под точкой (верхняя по нахлёсту), иначе null. Перетаскиваемую пропускаем. */
+  /** id карты руки под точкой, иначе null. Перетаскиваемую пропускаем. */
   cardAt(sx: number, sy: number): string | null {
     const cell = handCell(this.size.w, this.size.h);
-    const hw = cell.w / 2;
-    const hh = cell.h / 2;
     let hit: string | null = null;
-    for (const [id, node] of this.nodes) {
-      if (id === this.dragging) continue;
-      const p = node.root.position;
-      if (Math.abs(sx - p.x) <= hw && Math.abs(sy - p.y) <= hh) hit = id; // последняя (верхняя) выигрывает
+    for (const id of this.laidIds()) {
+      const p = this.poseOf(id);
+      if (p && Math.abs(sx - p.x) <= cell.w / 2 && Math.abs(sy - p.y) <= cell.h / 2) hit = id;
     }
     return hit;
   }
@@ -147,15 +108,13 @@ export class SceneHandHud {
   /** Индекс вставки в руку по X (сколько центров карт левее точки). Перетаскиваемую не считаем. */
   insertIndexAt(sx: number): number {
     let idx = 0;
-    for (const id of this.deps.members()) {
-      if (id === this.dragging) continue;
-      const node = this.nodes.get(id);
-      if (node && node.root.position.x < sx) idx++;
+    for (const id of this.laidIds()) {
+      const p = this.poseOf(id);
+      if (p && p.x < sx) idx++;
     }
     return idx;
   }
 
-  /** Сменить состояние дроп-зоны (жест: armed на время драга, hot над рукой, rest в покое). */
   setZone(state: HandZone): void {
     if (state === this.zoneState) return;
     this.zoneState = state;
@@ -163,11 +122,17 @@ export class SceneHandHud {
     this.deps.wake();
   }
 
-  /** Снять пометку драга (карта вернулась или ушла на стол): вернуть HUD-спрайты и покой зоны. */
+  /** Снять пометку драга (карта вернулась/ушла на стол): вернуть покой зоны и полную строку. */
   clearDragging(): void {
     this.dragging = null;
     this.zoneState = "rest";
-    this.layout(this.size.w, this.size.h);
+    this.paintZone();
+    this.deps.wake();
+  }
+
+  /** id карт руки, участвующих в РАСКЛАДКЕ (без перетаскиваемой — под неё гэп закрыт). */
+  private laidIds(): string[] {
+    return this.deps.members().filter((id) => id !== this.dragging);
   }
 
   private bandRect(): { x: number; y: number; w: number; h: number } {
@@ -176,8 +141,6 @@ export class SceneHandHud {
     return { x: SIDE - GAP, y: cy - cell.h / 2 - GAP, w: this.size.w - 2 * (SIDE - GAP), h: cell.h + 2 * GAP };
   }
 
-  /** Рамка дроп-зоны: фон всегда low-opacity; бордер — rest (тускло solid) / armed (серый dashed) /
-   *  hot (акцент solid). Правило владельца. */
   private paintZone(): void {
     const g = this.zone;
     g.clear();
@@ -193,31 +156,22 @@ export class SceneHandHud {
     }
   }
 
-  /** Дев-хук: экранные ЦЕНТРЫ карт руки по порядку (chrome-слой — уже экранные координаты). */
+  /** Дев-хук: экранные ЦЕЛЕВЫЕ позиции карт руки по порядку. */
   screenPoses(): { id: string; x: number; y: number }[] {
     const out: { id: string; x: number; y: number }[] = [];
     for (const id of this.deps.members()) {
-      const node = this.nodes.get(id);
-      if (node) out.push({ id, x: node.root.position.x, y: node.root.position.y });
+      const p = this.poseOf(id);
+      if (p) out.push({ id, x: p.x, y: p.y });
     }
     return out;
   }
 
-  private clear(): void {
-    for (const node of this.nodes.values()) {
-      this.root.removeChild(node.root);
-      node.destroy();
-    }
-    this.nodes.clear();
-  }
-
   destroy(): void {
-    this.clear();
-    this.root.destroy();
+    this.root.destroy({ children: true });
   }
 }
 
-/** Пунктирная обводка скруглённого прямоугольника: прямые рёбра — штрихами, углы — сплошными дугами.
+/** Пунктирная обводка скруглённого прямоугольника: прямые рёбра штрихами, углы — сплошными дугами.
  *  Путь копится в g; вызвать g.stroke() после. Pixi v8 dash-паттерна не имеет — рисуем сегментами. */
 function dashedRoundRect(g: Graphics, x: number, y: number, w: number, h: number, r: number, dash = 9, gap = 7): void {
   const x2 = x + w;

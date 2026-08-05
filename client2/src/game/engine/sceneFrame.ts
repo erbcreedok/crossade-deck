@@ -121,6 +121,11 @@ export function renderAll(e: SceneEngine): void {
   for (const b of e.buttons) b.sync();
   for (const b of e.chromeButtons) b.sync();
   for (const m of e.markerRig.list()) m.update();
-  const shadows = e.lowFx ? [] : shadowCasters(els.map((c) => ({ shadowRect: c.shadowRect, visible: c.root.visible, state: c.state })));
+  // Тень — только у карт КОНТЕНТНЫХ слоёв (под камерой). Карта экранной руки (её root на chrome-слое)
+  // контентной тени не отбрасывает — иначе тень легла бы в чужом пространстве.
+  const contentCards = new Set(Object.values(e.scene.cards));
+  const shadows = e.lowFx
+    ? []
+    : shadowCasters(els.filter((c) => contentCards.has(c.root.parent!)).map((c) => ({ shadowRect: c.shadowRect, visible: c.root.visible, state: c.state })));
   e.scene.paintShadows(shadows, e.contentW, e.contentH);
 }

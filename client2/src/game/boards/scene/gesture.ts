@@ -60,6 +60,8 @@ export interface GestureDeps {
   handHud: SceneHandHud;
   /** Состав своей руки (для «карта руки?» и «from = рука»). */
   handMembers(): readonly string[];
+  /** Захват карты руки в драг: перевести ЕЁ ЖЕ ноду из руки (экран) в контент (nodeStore). */
+  liftHandCard(id: string): void;
 }
 
 export class SceneGesture {
@@ -125,10 +127,9 @@ export class SceneGesture {
       this.deps.presenceOwner.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок
       return true;
     }
-    // Карта своей руки: её двойник (pickAt спрятал HUD-спрайт) показываем под пальцем и снапим туда,
-    // чтобы драг начался ровно где палец, а не на прежнем скрытом месте.
-    const hn = this.deps.handMembers().includes(el.id) ? this.deps.node(el.id) : null;
-    if (hn) { hn.root.visible = true; hn.body.snapTo({ x: cp.x, y: cp.y, scale: hn.restScale }); if (hn.kind === "card" && !hn.faceUp) hn.requestFlip(); }
+    // Карта своей руки: перевести ТУ ЖЕ ноду из руки (экран) в контент (конверсия координат/масштаба),
+    // дальше — обычный драг. Одна нода на карту, без двойников.
+    if (this.deps.handMembers().includes(el.id)) this.deps.liftHandCard(el.id);
     const ok = this.deps.defaultBeginDrag(el, cp, sp);
     // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка»; рука светит «armed» (готова принять).
     if (ok) {
@@ -267,9 +268,7 @@ export class SceneGesture {
     return this.deps.tree().slotOf(id) ?? (this.deps.handMembers().includes(id) ? handKey(this.deps.selfSeat) : null);
   }
 
-  private showBar(zones: readonly { key: string; label: string }[]): void {
-    this.dropBar.show([...zones], this.deps.width(), this.deps.height(), this.deps.accent());
-  }
+  private showBar(zones: readonly { key: string; label: string }[]): void { this.dropBar.show([...zones], this.deps.width(), this.deps.height(), this.deps.accent()); }
 
   /** ГРУЗ для дроп-политик: прямоугольник фигуры (по спринг-таргету — намерению руки, не отставшему
    *  px), палец, вид элемента и наклон (fx.rot — как лежит на столе). */
