@@ -1,0 +1,39 @@
+client2/src/game/boards/presence.test.ts
+  s_b2849f723d52bb::t_f899500b49827e 30-40
+server/src/SandboxRoom.ts
+  s_b2849f723d52bb::t_973661cbcf672f 145
+  s_b2849f723d52bb::t_08460f803d9e04 101-107
+client2/src/game/boards/presence.ts
+  s_b2849f723d52bb::t_4421372134c9d0 12-17,23-24,34-35,43,46,71-73
+  s_b2849f723d52bb::t_d45dd19f27aa35 74-75
+server/src/SandboxRoom.test.ts
+  s_b2849f723d52bb::t_f899500b49827e 42-54
+client2/src/game/sandbox/live.ts
+  s_b2849f723d52bb::t_91962cb3a9172c 205
+  s_b2849f723d52bb::t_e3c56428c0b19b 144-148,151,163-167,175,198-203
+  s_b2849f723d52bb::t_955ca905b49c2f 204
+client2/src/game/boards/scene.ts
+  s_b2849f723d52bb::t_43d370a13e1ebf 132-134
+  s_b2849f723d52bb::t_e6b6887b7b9e5a 237-262,266
+  s_b2849f723d52bb::t_3c746bba54fff3 592
+  s_b2849f723d52bb::t_0ff82fd6707d65 949-955
+  s_b2849f723d52bb::t_9b187f0e06357c 1109-1111
+client2/docs/SANDBOX-HANDOFF.md
+  s_b2849f723d52bb::t_2706aa1ed52f1c 68-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b8cef2575240e6b9990bc5575542ac6f0f2207de",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
