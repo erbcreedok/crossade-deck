@@ -10,7 +10,7 @@ import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
 import type { BoardTree } from "../geometry/boardTree";
 import { baseZoneId, slotKey, zoneOf, type BoardSpec } from "../core/spec";
 import { handKey } from "../core/state";
-import { handConfig } from "../hand/handConfig";
+import { handOnBoard } from "../hud/hudLayout";
 import { paintHandBand } from "../hand/handBandPaint";
 import type { BoardState } from "../core/state";
 
@@ -42,7 +42,7 @@ export class SceneDecor {
   /** Лента руки-на-борде в покое (rest) — тем же стилем, что экранный док (handBandPaint).
    *  Armed/hot во время драга рисует жест поверх (hintLayer). */
   private paintHandBand(): void {
-    if (handConfig(this.host.spec().hand)?.placement !== "board") return;
+    if (!handOnBoard(this.host.spec())) return;
     const band = this.host.tree().cellRects[handKey(this.host.selfSeat)];
     if (band) paintHandBand(this.layer, band, "rest", this.host.accent());
   }

@@ -8,7 +8,7 @@
 // роняет док: ряд идёт по своей оси, по поперечной встаёт в центр экрана.
 
 import type { Size } from "../../slot/types";
-import type { HandFlow, HandSide } from "../core/spec";
+import type { HandFlow, HudSide } from "../core/spec";
 import { handCardSize, handStrip, type HandPose } from "./handStrip";
 
 const SIDE = 16; // поля дока от краёв экрана вдоль ряда
@@ -21,8 +21,9 @@ export interface DockFrame {
   /** Хром верха/низа экрана (топбар, полоса действий): док и его резерв их обходят. */
   insetTop: number;
   insetBottom: number;
-  side: HandSide;
-  flow: HandFlow;
+  side: HudSide;
+  /** null — вдоль края (flowAlong side). */
+  flow: HandFlow | null;
   /** Размер карт из конфига руки: адаптив-fit или фикс-ячейка дизайнера. */
   size: { fit: number } | { cell: Size };
   /** Эталонный габарит карты (аспект) — адаптивный размер держит его пропорции. */
@@ -45,8 +46,10 @@ export interface Rect {
 
 const swap = (s: Size): Size => ({ w: s.h, h: s.w });
 /** Ряд вдоль вертикали? Грид всегда течёт ВДОЛЬ края; явный vertical — как задан. */
-const vertical = (f: DockFrame): boolean =>
-  f.flow === "grid" ? f.side === "left" || f.side === "right" : f.flow === "vertical";
+const vertical = (f: DockFrame): boolean => {
+  const along = f.side === "left" || f.side === "right";
+  return f.flow === "grid" || f.flow === null ? along : f.flow === "vertical";
+};
 
 /** Карта дока: фикс-ячейка конфига как есть, иначе адаптив — вдоль оси влезает fit штук, поперёк
  *  не толще доли экрана. Вертикальный ряд — та же формула со свёрнутыми осями (swap туда-обратно). */

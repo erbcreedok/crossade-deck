@@ -18,6 +18,7 @@ import type { SceneNodes } from "./nodesStore";
 import { buildBoardParts } from "./parts";
 import type { SceneGesture } from "./gesture";
 import type { SceneHandHud } from "./handHud";
+import type { SceneHud } from "./hud";
 import { boardHooks, type BoardHooks } from "./hooks";
 import { ACTION_BAR_H } from "./chrome";
 import { fitZoom } from "../../engine/fitBoard";
@@ -59,7 +60,8 @@ export class BoardScene implements SceneDelegate {
   private readonly presence: ScenePresence;
   /** Жест над бордой целиком — свой владелец (gesture.ts): подсветка, фикс-зоны, план дропа. */
   private readonly gesture: SceneGesture;
-  /** Экранная рука (HUD, фикс к камере) — свой владелец; активна при hand.placement:"screen". */
+  /** Экранный HUD (доки-виджеты, фикс к камере) — свой владелец; рука — один из его виджетов. */
+  private readonly hud: SceneHud;
   private readonly handHud: SceneHandHud;
 
 
@@ -93,6 +95,7 @@ export class BoardScene implements SceneDelegate {
     this.menuOwner = parts.menuOwner;
     this.decor = parts.decor;
     this.gesture = parts.gesture;
+    this.hud = parts.hud;
     this.handHud = parts.handHud;
   }
 
@@ -173,7 +176,7 @@ export class BoardScene implements SceneDelegate {
     this.api.surfaceAdd(this.decor.layer);
     this.api.surfaceAdd(this.gesture.hintLayer);
     this.api.contentAdd(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
-    this.api.chromeAdd(this.handHud.root); // рука — над дроп-баром, под кнопками/меню
+    this.api.chromeAdd(this.hud.root); // HUD (рука и виджеты) — под кнопками/меню хрома
     this.chromeHud.build(this.spec.actions, this.opts.tools ?? []);
     this.api.setChromeButtons(this.chromeHud.buttons());
     this.rebuildBoard(true);
@@ -184,7 +187,7 @@ export class BoardScene implements SceneDelegate {
 
   layoutChrome(w: number, h: number): void {
     this.chromeHud.layout(w, h);
-    this.handHud.layout(w, h);
+    this.hud.layout(w, h);
   }
 
   onBooted(): void { this.fitBoard(); }
@@ -192,7 +195,7 @@ export class BoardScene implements SceneDelegate {
 
   private fitBoard(): void {
     this.api.syncVp();
-    const r = this.handHud.reserved(this.api.width(), this.api.height()); // док руки у любого края
+    const r = this.hud.reserved(this.api.width(), this.api.height()); // доки HUD у любых краёв
     const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: ACTION_BAR_H + r.top, insetBottom: r.bottom, insetLeft: r.left, insetRight: r.right, size: this.tree.size };
     this.api.viewport().setZoom(fitZoom(fit));
     this.showView();
@@ -210,7 +213,7 @@ export class BoardScene implements SceneDelegate {
   private rebuildBoard(snap: boolean): void {
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.state.free);
     if (!this.tex) return;
-    this.handHud.layout(this.api.width(), this.api.height()); // размер/зона руки — ДО синка (poseOf)
+    this.hud.layout(this.api.width(), this.api.height()); // доки/зона руки — ДО синка (poseOf)
     this.nodeStore.sync(this.state, this.tree, snap);
     this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.decor.sync();
@@ -288,7 +291,7 @@ export class BoardScene implements SceneDelegate {
   onTeardown(_app: Application): void {
     this.menuOwner.destroy();
     this.gesture.destroy();
-    this.handHud.destroy();
+    this.hud.destroy(); // включая слой руки-виджета
     this.presence.destroy();
     this.decor.destroy();
     this.nodeStore.destroy();

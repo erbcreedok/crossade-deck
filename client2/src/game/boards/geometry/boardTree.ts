@@ -11,7 +11,7 @@ import { handKey, OFFBOARD_KEY, type BoardState } from "../core/state";
 import { seatZoneId, slotKey, type BoardSpec } from "../core/spec";
 import { membersOf, zoneSubtrees } from "./zoneSubtrees";
 import { roundTableTree } from "./roundTableTree";
-import { handConfig } from "../hand/handConfig";
+import { handOnBoard } from "../hud/hudLayout";
 import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, SEAT_STACK_DX, type BoardTree, type FreePositions, type Placed } from "./treeShared";
 
 export type { BoardTree, FreePositions } from "./treeShared";
@@ -117,9 +117,8 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
     }
   }
   let handBottom = selfZonesBottom;
-  // Рука в дереве — только при placement:"board"; «screen» уносит её в экранный HUD (handHud.ts).
-  // Вид — ЕДИНЫЙ стиль дока: центрированный ряд + лента-дропзона (geometry/handRow).
-  if (handConfig(spec.hand)?.placement === "board") {
+  // Рука в дереве — только когда её НЕТ в HUD (hudLayout.handOnBoard); вид — единый стиль дока.
+  if (handOnBoard(spec)) {
     const hand = boardHandRow(state, selfSeat, selfZonesBottom + GAP.y + 12, rowX);
     placed.push(hand.placed);
     cellRects[hand.placed.id] = hand.band;

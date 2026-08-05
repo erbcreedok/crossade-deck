@@ -10,12 +10,10 @@ describe("handConfig — нормализатор руки-данных", () => 
     expect(handConfig(undefined)).toBeNull();
   });
 
-  it("дефолты: board + bottom + вдоль края (horizontal) + скрытая + запертая (приватность)", () => {
+  it("дефолты: вдоль края (flow null — решает док), скрытая и запертая (приватность)", () => {
     expect(handConfig({ reorder: true })).toEqual({
       reorder: true,
-      placement: "board",
-      side: "bottom",
-      flow: "horizontal",
+      flow: null,
       size: { fit: 5 },
       hidden: true,
       locked: true,
@@ -23,16 +21,16 @@ describe("handConfig — нормализатор руки-данных", () => 
     });
   });
 
-  it("ось по умолчанию следует КРАЮ: left/right → vertical, top/bottom → horizontal", () => {
-    expect(handConfig({ reorder: true, side: "left" })!.flow).toBe("vertical");
-    expect(handConfig({ reorder: true, side: "right" })!.flow).toBe("vertical");
-    expect(handConfig({ reorder: true, side: "top" })!.flow).toBe("horizontal");
+  it("ось вдоль края (для дока): left/right → vertical, top/bottom → horizontal", () => {
+    expect(flowAlong("left")).toBe("vertical");
+    expect(flowAlong("right")).toBe("vertical");
+    expect(flowAlong("top")).toBe("horizontal");
     expect(flowAlong("bottom")).toBe("horizontal");
   });
 
-  it("явные значения пробрасываются как есть (включая ось поперёк края)", () => {
-    const spec: HandSpec = { reorder: false, placement: "screen", side: "right", flow: "grid", size: 7, hidden: true, locked: false };
-    expect(handConfig(spec)).toEqual({ reorder: false, placement: "screen", side: "right", flow: "grid", size: { fit: 7 }, hidden: true, locked: false, preview: true });
+  it("явные значения пробрасываются как есть", () => {
+    const spec: HandSpec = { reorder: false, flow: "grid", size: 7, hidden: true, locked: false };
+    expect(handConfig(spec)).toEqual({ reorder: false, flow: "grid", size: { fit: 7 }, hidden: true, locked: false, preview: true });
     expect(handConfig({ reorder: true, size: { w: 60, h: 86 } })!.size).toEqual({ cell: { w: 60, h: 86 } });
   });
 });

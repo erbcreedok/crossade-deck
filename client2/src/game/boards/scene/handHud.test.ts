@@ -8,12 +8,13 @@ import { SceneHandHud } from "./handHud";
 function hud(members: string[]): { h: SceneHandHud; retargets: () => number } {
   let n = 0;
   const h = new SceneHandHud({
-    config: () => ({ reorder: true, placement: "screen", side: "bottom", flow: "horizontal", size: { fit: 5 }, hidden: false, locked: true, preview: true }),
+    config: () => ({ reorder: true, flow: "horizontal", size: { fit: 5 }, hidden: false, locked: true, preview: true }),
     members: () => members,
     accent: () => 0xffcc00,
     wake: () => {},
     retarget: () => n++,
   });
+  h.setDock("bottom", { from: 0, len: 800 });
   h.layout(800, 600);
   return { h, retargets: () => n };
 }

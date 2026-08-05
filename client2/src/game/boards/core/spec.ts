@@ -133,21 +133,43 @@ export interface SeatsSpec {
   swap: boolean;
 }
 
-/** Где живёт рука: зона в контентных координатах борды (дефолт) или экранный HUD, фикс к камере. */
-export type HandPlacement = "board" | "screen";
-/** Край экрана, к которому пришвартована ЭКРАННАЯ рука. Данные — крутит игрок/дизайнер. */
-export type HandSide = "top" | "bottom" | "left" | "right";
-/** Направление раскладки карт руки: ряд, колонка или сетка (grid — шаг 4b). Нет поля — по краю:
- *  top/bottom → horizontal, left/right → vertical (док вдоль края, а не поперёк). */
+// ---------------------------------------------------------------------------------------------
+// HUD — экранный слой мобильного удобства ПОВЕРХ борды (фикс к камере, не зумится, не ездит паном)
+// ---------------------------------------------------------------------------------------------
+
+/** Край экрана, к которому пришвартован док HUD. */
+export type HudSide = "top" | "bottom" | "left" | "right";
+/** Длина виджета вдоль дока: px-константа | {fr} — доля свободного | "auto" (= {fr:1}). */
+export type HudSize = number | { fr: number } | "auto";
+/** Виджет дока: рука, а дальше — дропзоны, кнопки, мешок, реакции... СВОЙСТВА руки живут в
+ *  spec.hand (рука остаётся рукой, где бы ни жила); placeholder — пустышка-лента для макетов. */
+export type HudWidget =
+  | { kind: "hand"; size?: HudSize }
+  | { kind: "placeholder"; label?: string; size?: HudSize };
+
+/** ДОК — ряд виджетов вдоль края, flex-семантика как данные: порядок — порядок массива, длины —
+ *  size (px | доля | auto), прижим ряда — justify, зазор — gap. Считает чистый hud/hudLayout. */
+export interface HudDock {
+  widgets: readonly HudWidget[];
+  justify?: "start" | "center" | "end" | "between";
+  gap?: number;
+}
+
+/** HUD целиком: доки по краям. Несколько виджетов делят ОДИН край (рука + реакции внизу),
+ *  другие живут у других краёв (профиль сверху). Рука без hud-виджета «hand» — зона на борде. */
+export interface HudSpec {
+  top?: HudDock;
+  bottom?: HudDock;
+  left?: HudDock;
+  right?: HudDock;
+}
+
+/** Направление раскладки карт руки: ряд, колонка или сетка. Нет поля — вдоль края дока:
+ *  top/bottom → horizontal, left/right → vertical. */
 export type HandFlow = "horizontal" | "vertical" | "grid";
 
 export interface HandSpec {
   reorder: boolean;
-  /** Где живёт рука. Нет поля — «board»: рука сидит зоной в дереве борды, как раньше. «screen» —
-   *  HUD-док у края экрана, фикс к камере, вне контентных координат (не зумится, не ездит паном). */
-  placement?: HandPlacement;
-  /** Край экрана для placement:"screen". Нет поля — «bottom» (прайм-зона большого пальца). */
-  side?: HandSide;
   /** Направление раскладки. Нет поля — вдоль края (см. HandFlow). */
   flow?: HandFlow;
   /** Размер карт: число — сколько влезает вдоль оси БЕЗ нахлёста (дефолт 5, адаптив по экрану),
@@ -221,8 +243,11 @@ export interface BoardSpec {
   elements: readonly ElementDef[];
   zones: readonly ZoneSpec[];
   seats: SeatsSpec;
-  /** Личная рука игрока. Нет поля — нет рук (шахматы). */
+  /** Личная рука игрока. Нет поля — нет рук (шахматы). ГДЕ она живёт, решает hud: есть виджет
+   *  «hand» — рука в экранном доке; нет — зоной на борде. */
   hand?: HandSpec;
+  /** Экранный HUD: доки виджетов по краям. Нет поля — HUD пуст, рука (если есть) на борде. */
+  hud?: HudSpec;
   actions: readonly ActionSpec[];
   mock?: MockSpec;
 }

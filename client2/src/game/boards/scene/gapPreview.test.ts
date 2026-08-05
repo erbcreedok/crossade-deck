@@ -16,7 +16,7 @@ function harness(zones: ZoneSpec[], slots: Record<string, { members: string[] }>
   const calls = { retargets: [] as string[], cmds: [] as unknown[] };
   const p = new SceneGapPreview({
     world: () => boardWorld({ zones, cellRects: {}, slots, homeOf: () => null }),
-    hand: () => ({ reorder: true, placement: "board", side: "bottom", flow: "horizontal", size: { fit: 5 }, hidden: true, locked: true, preview: handPreview }),
+    hand: () => ({ reorder: true, flow: "horizontal", size: { fit: 5 }, hidden: true, locked: true, preview: handPreview }),
     selfSeat: "p1",
     retargetSlot: (slot) => calls.retargets.push(slot),
     dispatch: (cmd) => calls.cmds.push(cmd),

@@ -18,6 +18,7 @@ import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from 
 import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
 import { handKey, type BoardState } from "../core/state";
 import { handConfig, handLocks } from "../hand/handConfig";
+import { handOnBoard } from "../hud/hudLayout";
 import { paintHandBand } from "../hand/handBandPaint";
 import type { BoardTree } from "../geometry/boardTree";
 import type { BoardNode } from "./nodeFactory";
@@ -237,7 +238,7 @@ export class SceneGesture {
 
   /** Полоса руки-на-борде во время драга: тот же стиль, что у экранного дока (handBandPaint). */
   private paintBoardHandBand(g: Graphics): void {
-    if (!this.dragging || handConfig(this.deps.spec().hand)?.placement !== "board") return;
+    if (!this.dragging || !handOnBoard(this.deps.spec())) return;
     const key = handKey(this.deps.selfSeat);
     const b = this.deps.tree().cellRects[key];
     if (b) paintHandBand(g, b, this.hotSlot === key ? "hot" : "armed", this.deps.accent());

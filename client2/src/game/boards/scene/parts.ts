@@ -22,6 +22,7 @@ import { ScenePresence } from "./scenePresence";
 import { SceneGesture } from "./gesture";
 import { SceneGapPreview } from "./gapPreview";
 import { SceneHandHud } from "./handHud";
+import { SceneHud } from "./hud";
 import { handConfig } from "../hand/handConfig";
 import { handKey } from "../core/state";
 import { boardWorld, isDeckSlot, type DropWorld } from "../geometry/dropPlan";
@@ -45,6 +46,7 @@ export interface BoardPartsCtx {
 }
 
 export interface BoardParts {
+  hud: SceneHud;
   nodeStore: SceneNodes;
   presence: ScenePresence;
   blockDrag: SceneBlockDrag;
@@ -75,8 +77,9 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
 
   const api = ctx.api;
 
-  // Экранная рука (placement:"screen") — РАСКЛАДКА и слой; сами карты руки — те же узлы nodeStore,
-  // их root перекладывается на её экранный слой. Строится ДО nodeStore: тот спрашивает у неё позы.
+  // Рука-виджет HUD — РАСКЛАДКА и слой; сами карты руки — те же узлы nodeStore, их root
+  // перекладывается на её слой. Строится ДО nodeStore: тот спрашивает у неё позы. Куда рука
+  // пришвартована, решает SceneHud (доки-виджеты из spec.hud).
   const handHud = new SceneHandHud({
     config: () => handConfig(ctx.spec().hand),
     members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
@@ -84,6 +87,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     wake: () => api.wake(),
     retarget: () => nodeStore.retargetHand(), // лениво: nodeStore ниже, зовётся после сборки
   });
+
+  const hud = new SceneHud({ spec: () => ctx.spec(), accent, wake: () => api.wake() }, handHud);
 
   const nodeStore = new SceneNodes({
     def: (id) => ctx.def(id),
@@ -209,5 +214,5 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     gapPreview,
   });
 
-  return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
+  return { hud, nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
 }

@@ -1,4 +1,6 @@
-// ЭКРАННАЯ РУКА (HUD) — СЛОЙ и КРАСКА, не владелец нод и не математика. Ключевые каноны:
+// РУКА-ВИДЖЕТ HUD — СЛОЙ и КРАСКА, не владелец нод и не математика. Куда пришвартована (край,
+// отрезок дока) решает SceneHud (scene/hud.ts): рука — один из виджетов дока, среди равных.
+// Ключевые каноны:
 //   • одна нода на карту: карты руки — те же узлы nodeStore, их root перекладывается СЮДА, на
 //     экранно-фиксированный слой (chrome, не зумится); переход борда↔рука — непрерывный полёт
 //     ОДНОЙ ноды (nodeStore конвертирует координаты/масштаб на границе);
@@ -8,7 +10,8 @@
 import { Container, Graphics } from "pixi.js";
 import { CARD } from "../../crossade/tree";
 import type { HandConfig } from "../hand/handConfig";
-import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, dockReserved, type DockFrame, type DockPose } from "../hand/handDock";
+import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, type DockFrame, type DockPose } from "../hand/handDock";
+import type { HudSide } from "../core/spec";
 import { paintHandBand } from "../hand/handBandPaint";
 import { ACTION_BAR_H } from "./chrome";
 
@@ -17,7 +20,7 @@ export type HandZone = "rest" | "armed" | "hot";
 export type { DockPose as HandPose } from "../hand/handDock";
 
 export interface HandHudDeps {
-  /** Разобранный конфиг руки (null — руки нет). Док активен при placement:"screen". */
+  /** Разобранный конфиг руки (null — руки нет). Активен виджет, только когда SceneHud дал док. */
   config(): HandConfig | null;
   /** Карты своей руки по порядку (handKey(selfSeat)). */
   members(): readonly string[];
@@ -32,6 +35,8 @@ export class SceneHandHud {
   readonly root = new Container();
   private readonly zone = new Graphics();
   private size = { w: 0, h: 0 };
+  private dockSide: HudSide | null = null; // назначение SceneHud: край…
+  private span: { from: number; len: number } | null = null; // …и отрезок дока вдоль края
   private zoneState: HandZone = "rest";
   private dragging: string | null = null; // карта, поднятая в драг: из строки исключается (гэп закрыт)
   private preview: number | null = null; // гэп-превью: индекс вставки, под который ряд раздвинут
@@ -42,18 +47,36 @@ export class SceneHandHud {
     this.root.addChild(this.zone);
   }
 
-  /** Рамка дока для чистой геометрии; null — рука не экранная (докa нет). */
-  private frame(): DockFrame | null {
-    const c = this.deps.config();
-    if (!c || c.placement !== "screen") return null;
-    return { w: this.size.w, h: this.size.h, insetTop: ACTION_BAR_H, insetBottom: ACTION_BAR_H, side: c.side, flow: c.flow, size: c.size, card: CARD };
+  /** Назначение от SceneHud: край и отрезок дока вдоль края. null — рука не в HUD (на борде). */
+  setDock(side: HudSide | null, span: { from: number; len: number } | null): void {
+    this.dockSide = side;
+    this.span = span;
   }
 
-  /** Сколько экрана резервирует док у своего края — стол вписывается в остаток (fitZoom). */
-  reserved(w: number, h: number): { top: number; bottom: number; left: number; right: number } {
-    const f = this.frame() ?? null;
-    const zero = { top: 0, bottom: 0, left: 0, right: 0 };
-    return f ? dockReserved({ ...f, w, h }, this.deps.members().length) : zero;
+  private vertical(): boolean {
+    return this.dockSide === "left" || this.dockSide === "right";
+  }
+
+  /** Смещение ОТРЕЗКА дока в экране: math дока живёт в локальной рамке отрезка. */
+  private origin(): { x: number; y: number } {
+    if (!this.span) return { x: 0, y: 0 };
+    return this.vertical() ? { x: 0, y: ACTION_BAR_H + this.span.from } : { x: this.span.from, y: 0 };
+  }
+
+  /** Рамка дока для чистой геометрии; null — рука не в HUD. Рамка ЛОКАЛЬНА отрезку (origin). */
+  private frame(): DockFrame | null {
+    const c = this.deps.config();
+    if (!c || !this.dockSide || !this.span) return null;
+    if (this.vertical()) return { w: this.size.w, h: this.span.len, insetTop: 0, insetBottom: 0, side: this.dockSide, flow: c.flow, size: c.size, card: CARD };
+    return { w: this.span.len, h: this.size.h, insetTop: ACTION_BAR_H, insetBottom: ACTION_BAR_H, side: this.dockSide, flow: c.flow, size: c.size, card: CARD };
+  }
+
+  /** Поперечная толщина ленты виджета — SceneHud складывает из неё глубину дока и резерв края. */
+  bandDepth(): number {
+    const f = this.frame();
+    if (!f) return 0;
+    const b = dockBand(f, this.laidIds().length);
+    return this.vertical() ? b.w : b.h;
   }
 
   /** Перерисовать дроп-зону под текущий размер (позиции карт ставит nodeStore по poseOf). */
@@ -68,7 +91,10 @@ export class SceneHandHud {
     if (!f) return null;
     const ids = this.laidIds();
     const i = ids.indexOf(id);
-    return i < 0 ? null : dockPoses(f, ids.length, this.preview)[i]!;
+    if (i < 0) return null;
+    const o = this.origin();
+    const p = dockPoses(f, ids.length, this.preview)[i]!;
+    return { x: p.x + o.x, y: p.y + o.y, scale: p.scale };
   }
 
   // ——— драг руки↔борда: захват, дроп-зона, снятие ———
@@ -99,21 +125,26 @@ export class SceneHandHud {
   /** Экранная поза перетаскиваемой карты над доком: следует за пальцем по оси ряда, в ряду. */
   dragPose(sx: number, sy: number): DockPose {
     const f = this.frame();
-    return f ? dockDragPose(f, { x: sx, y: sy }) : { x: sx, y: sy, scale: 1 };
+    if (!f) return { x: sx, y: sy, scale: 1 };
+    const o = this.origin();
+    const p = dockDragPose(f, { x: sx - o.x, y: sy - o.y });
+    return { x: p.x + o.x, y: p.y + o.y, scale: p.scale };
   }
 
   /** Экранная точка над полосой руки (дроп-зоной)? */
   overBand(sx: number, sy: number): boolean {
     const f = this.frame();
     if (!f) return false;
+    const o = this.origin();
     const b = dockBand(f, this.laidIds().length);
-    return sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h;
+    return sx - o.x >= b.x && sx - o.x <= b.x + b.w && sy - o.y >= b.y && sy - o.y <= b.y + b.h;
   }
 
   /** Индекс вставки по точке — по БАЗОВОМУ ряду (превью не двигает цель). Без перетаскиваемой. */
   insertIndexAt(sx: number, sy: number): number {
     const f = this.frame();
-    return f ? dockIndexAt(f, this.laidIds().length, { x: sx, y: sy }) : 0;
+    const o = this.origin();
+    return f ? dockIndexAt(f, this.laidIds().length, { x: sx - o.x, y: sy - o.y }) : 0;
   }
 
   /** Груз навис над рукой в экранной точке: зона hot + гэп-превью — ряд раздвигается под индекс
@@ -161,7 +192,9 @@ export class SceneHandHud {
     const f = this.frame();
     if (!f) return;
     // Стиль — общий painter руки (handBandPaint): док и рука-на-борде обязаны выглядеть одинаково.
-    paintHandBand(g, dockBand(f, this.laidIds().length), this.zoneState, this.deps.accent());
+    const o = this.origin();
+    const b = dockBand(f, this.laidIds().length);
+    paintHandBand(g, { ...b, x: b.x + o.x, y: b.y + o.y }, this.zoneState, this.deps.accent());
   }
 
   /** Дев-хук: экранные ЦЕЛЕВЫЕ позиции карт руки по порядку. */
