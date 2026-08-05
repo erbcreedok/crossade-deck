@@ -1,5 +1,6 @@
 import { Application, Graphics } from "pixi.js";
-import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
+import type { SceneElement } from "../engine/sceneEngine";
+import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/sceneRuntime";
 import { GroupDrag } from "../engine/drag";
 import { TEX_H } from "../engine/constants";
 import { Button } from "../ui/Button";
@@ -35,7 +36,10 @@ export interface SolitaireSceneOptions {
   onBack?: () => void;
 }
 
-export class SolitaireScene extends SceneEngine {
+export class SolitaireScene implements SceneDelegate {
+  /** Движок-рантайм (композиция): камера/ввод/кадр — его; сцена — делегат его швов. */
+  readonly rt: SceneRuntime;
+  private readonly api: SceneApi;
   readonly engine = new SolitaireGameEngine();
 
   private tex: CardTextureCache | null = null;
@@ -54,7 +58,9 @@ export class SolitaireScene extends SceneEngine {
   private armedSlots: ReadonlySet<string> = new Set();
 
   constructor(private readonly opts: SolitaireSceneOptions = {}) {
-    super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt = new SceneRuntime({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
+    this.rt.attach(this);
+    this.api = this.rt.api;
     // Подписка на движок — на весь жизненный цикл сцены, а не на build(): канвас может
     // пересобираться, и слушатель задваивался бы на каждой пересборке.
     this.engine.on("move", this.onEngineMove);
@@ -62,16 +68,26 @@ export class SolitaireScene extends SceneEngine {
     this.engine.on("lose", this.onEngineLose);
   }
 
+  // ——— хост-API (тонкие двери в рантайм): интерфейс хоста не изменился ———
+
+  mount(host: HTMLElement, width: number, height: number): Promise<void> {
+    return this.rt.mount(host, width, height);
+  }
+
+  destroy(): void {
+    this.rt.destroy();
+  }
+
   // ——————————————————————————————————————————————————————————————————————
   // Сборка
   // ——————————————————————————————————————————————————————————————————————
 
-  protected buildScene(app: Application): void {
+  buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
-    this.scene.surface.addChild(this.slotLayer);
+    this.api.surfaceAdd(this.slotLayer);
     this.buildTopBar();
     this.recycle = new Button({ label: "⟲", variant: "ghost", size: "sm", onClick: () => this.engine.dealStock() });
-    this.scene.surface.addChild(this.recycle.root);
+    this.api.surfaceAdd(this.recycle.root);
     this.refresh(true);
   }
 
@@ -85,11 +101,12 @@ export class SolitaireScene extends SceneEngine {
     this.screen = new OverlayPanel([{ key: "start", label: "Новая игра", onClick: () => this.newGame() }]);
     // Панель НИЖЕ топбара: затемнение гасит стол, но полоса управления остаётся яркой и живой —
     // «в меню» обязана работать одинаково на любом экране, а притушенная кликабельная кнопка врёт.
-    this.chrome.addChild(this.screen.root, this.topbar.root);
+    this.api.chromeAdd(this.screen.root);
+    this.api.chromeAdd(this.topbar.root);
     this.syncScreen();
   }
 
-  protected layoutChrome(w: number, h: number): void {
+  layoutChrome(w: number, h: number): void {
     this.topbar?.layout(w);
     this.screen?.layout(w, h);
   }
@@ -107,35 +124,34 @@ export class SolitaireScene extends SceneEngine {
     panel.setVisible(state.phase !== "playing");
     // Счётчик — только в игре: до раздачи и после итога он показывал бы «Ходов: 0» ни о чём.
     this.topbar.setStatus(state.phase === "playing" ? `Ходов: ${state.movesCount}` : "");
-    this.chromeButtons = [...this.topbar.buttons, ...panel.activeButtons()];
+    this.api.setChromeButtons([...this.topbar.buttons, ...panel.activeButtons()]);
   }
 
   // Стол начинается ПОД панелью: иначе верх доски навсегда уезжает под непрозрачный HUD и
   // доскроллить до него нечем (кламп упирается в 0).
-  protected chromeInsetTop(): number {
+  chromeInsetTop(): number {
     return this.topbar?.height ?? TOPBAR_H;
   }
 
-  protected onBooted(): void {
+  onBooted(): void {
     this.fitBoard();
-    super.onBooted();
   }
 
   // Раскладка доски от экрана НЕ зависит (размер карты — константа, issue #68): ресайз только
   // заново вписывает доску камерой, пересобирать сцену не нужно.
-  protected onSceneResize(): void {
+  onSceneResize(): void {
     this.fitBoard();
   }
 
   /** Вписать доску в свободную часть экрана. Зум не задираем выше 1: на большом мониторе доска
    *  рисуется в своём размере, а ужимается только когда реально не влезает. */
   private fitBoard(): void {
-    this.syncVp();
-    const usableH = Math.max(1, this.height - this.chromeInsetTop());
-    this.viewport.setZoom(Math.min(1, this.width / this.tree.size.w, usableH / this.tree.size.h));
-    this.clampView();
-    this.applyView();
-    this.emitView();
+    this.api.syncVp();
+    const usableH = Math.max(1, this.api.height() - this.chromeInsetTop());
+    this.api.viewport().setZoom(Math.min(1, this.api.width() / this.tree.size.w, usableH / this.tree.size.h));
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -152,7 +168,7 @@ export class SolitaireScene extends SceneEngine {
     this.engine.resetGame(seed);
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
-    this.byId.clear();
+    this.api.byId.clear();
     if (!this.tex) return; // ещё не смонтированы — buildScene и так возьмёт свежее состояние
     this.refresh(true);
     this.fitBoard();
@@ -165,12 +181,12 @@ export class SolitaireScene extends SceneEngine {
   // Победа/поражение приходят из движка правил — сцена только показывает итог, сама его не считает.
   private onEngineWin = (): void => {
     this.syncScreen();
-    this.wake();
+    this.api.wake();
   };
 
   private onEngineLose = (): void => {
     this.syncScreen();
-    this.wake();
+    this.api.wake();
   };
 
   /** Свести доску с состоянием партии: дерево → дома → карты. snap — поставить сразу (раздача),
@@ -192,7 +208,7 @@ export class SolitaireScene extends SceneEngine {
         if (!home) continue;
         node.root.zIndex = this.tree.depthOf(cardId);
         node.setState(node.pose);
-        this.placeCard(node);
+        this.api.placeCard(node);
         const target = { x: home.x, y: home.y, rot: 0, scale: node.restScale };
         if (snap) node.body.snapTo(target);
         else node.body.setTarget(target);
@@ -202,18 +218,17 @@ export class SolitaireScene extends SceneEngine {
       if (alive.has(cardId)) continue;
       node.destroy();
       this.nodes.delete(cardId);
-      this.byId.delete(cardId);
+      this.api.byId.delete(cardId);
     }
 
-    this.contentW = this.tree.size.w;
-    this.contentH = this.tree.size.h;
+    this.api.setContentSize(this.tree.size.w, this.tree.size.h);
     this.syncScreen();
     this.syncRecycle();
     this.paintBoard();
-    this.clampView();
-    this.applyView();
-    this.emitView();
-    this.wake();
+    this.api.clampView();
+    this.api.applyView();
+    this.api.emitView();
+    this.api.wake();
   }
 
   private nodeFor(cardId: string, faceUp: boolean): Card {
@@ -223,7 +238,7 @@ export class SolitaireScene extends SceneEngine {
     // карта была бы втрое больше слота (этот баг гейты не видят: Pixi в node не исполняется).
     const node = new Card({ id: cardId, card: cardId, faceUp, flippable: true }, this.tex!, CARD.h / TEX_H);
     this.nodes.set(cardId, node);
-    this.byId.set(cardId, node);
+    this.api.byId.set(cardId, node);
     return node;
   }
 
@@ -238,7 +253,7 @@ export class SolitaireScene extends SceneEngine {
     const at = this.tree.origins.stock!;
     b.place(at.x + CARD.w / 2, at.y + CARD.h / 2);
     b.root.visible = show;
-    this.buttons = show ? [b] : [];
+    this.api.setButtons(show ? [b] : []);
   }
 
   private paintBoard(): void {
@@ -249,42 +264,42 @@ export class SolitaireScene extends SceneEngine {
   // Швы домена: только то, чего у голой сцены со столом нет
   // ——————————————————————————————————————————————————————————————————————
 
-  protected draggables(): SceneElement[] {
+  draggables(): SceneElement[] {
     return [...this.nodes.values()];
   }
 
   /** Пока поверх стола висит экран фазы, карты не хватаются: панель нарисована над ними, и тап
    *  сквозь неё был бы ходом по доске, которой игрок сейчас не видит. */
-  protected pickElement(cx: number, cy: number): SceneElement | null {
-    return this.screen?.visible ? null : super.pickElement(cx, cy);
+  pickElement(cx: number, cy: number): SceneElement | null {
+    return this.screen?.visible ? null : this.api.defaultPickElement(cx, cy);
   }
 
-  protected everyElement(): TableElement[] {
+  everyElement(): TableElement[] {
     return [...this.nodes.values()];
   }
 
-  protected homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
+  homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
     const home = this.tree.homeOf(el.id);
     return home ? { home, depth: this.tree.depthOf(el.id) } : null;
   }
 
   /** Тащить можно только открытую карту и только не из стока: сток сдаёт по тапу. */
-  protected canDrag(el: SceneElement): boolean {
+  canDrag(el: SceneElement): boolean {
     const slot = this.tree.slotOf(el.id);
     return slot !== null && slot !== "stock" && this.engine.isFaceUp(el.id);
   }
 
   /** Тап по недрагабельной карте: в стоке это ХОД (сдать), в остальном — «стоп»-кивок. */
   /** ТАП по стоку — сдача. Именно тап, а не попытка тащить: сток не таскают, по нему щёлкают. */
-  protected onElementTapped(el: SceneElement): void {
+  onElementTapped(el: SceneElement): void {
     if (this.tree.slotOf(el.id) === "stock") {
       this.engine.dealStock();
       return;
     }
-    super.onElementTapped(el);
+    this.api.defaultElementTapped(el);
   }
 
-  protected beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
+  beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     const from = this.tree.slotOf(el.id) ?? "";
     const members = this.engine.getState().board.slots[from]?.members ?? [];
     const index = members.indexOf(el.id);
@@ -299,26 +314,27 @@ export class SolitaireScene extends SceneEngine {
     if (this.dragIds.length > 1) {
       const els = this.dragIds.map((id) => this.nodes.get(id)).filter((n): n is Card => !!n);
       const offsets = els.map((n) => ({ dx: n.body.px - cp.x, dy: n.body.py - cp.y }));
-      this.drag = new GroupDrag(els, offsets, this.dragCtx);
-      this.drag.move(cp);
+      const g = new GroupDrag(els, offsets, this.api.dragCtx());
+      g.move(cp);
+      this.api.setDrag(g);
       return true;
     }
-    return super.beginDrag(el, cp, sp);
+    return this.api.defaultBeginDrag(el, cp, sp);
   }
 
-  protected onDragMoved(p: { x: number; y: number }): void {
+  onDragMoved(p: { x: number; y: number }): void {
     const under = this.tree.slotAt(p);
     const hot = under && this.armedSlots.has(under) ? under : null;
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintBoard();
-    this.wake();
+    this.api.wake();
   }
 
   /** Что значит дроп: слот под пальцем спрашивается у ТОГО ЖЕ дерева, что рисует карты, и ход
    *  отдаётся движку правил. Он же и решает, легален ли ход — сцена правила не дублирует. */
-  protected resolveDrop(_el: SceneElement, cp: { x: number; y: number }): void {
-    const drag = this.drag;
+  resolveDrop(_el: SceneElement, cp: { x: number; y: number }): void {
+    const drag = this.api.drag();
     if (!drag) return;
     const to = this.tree.slotAt(cp);
     const from = this.dragFrom;
@@ -332,11 +348,11 @@ export class SolitaireScene extends SceneEngine {
     drag.release();
   }
 
-  protected onDragCancel(): void {
+  onDragCancel(): void {
     this.clearDragHints();
   }
 
-  protected afterDragEnd(): void {
+  afterDragEnd(): void {
     this.clearDragHints();
   }
 
@@ -377,15 +393,15 @@ export class SolitaireScene extends SceneEngine {
     cascadeStep: number;
     zoom: number;
   } {
-    const z = this.viewport.zoom;
+    const z = this.api.viewport().zoom;
     const slots: Record<string, { x: number; y: number; w: number; h: number }> = {};
     for (const [id, at] of Object.entries(this.tree.origins)) {
-      const tl = this.contentToScreen(at.x, at.y);
+      const tl = this.api.contentToScreen(at.x, at.y);
       slots[id] = { x: tl.x, y: tl.y, w: CARD.w * z, h: CARD.h * z };
     }
     const cards: Record<string, { x: number; y: number; faceUp: boolean; scale: number; rot: number; state: string }> = {};
     for (const [id, node] of this.nodes) {
-      const p = this.contentToScreen(node.body.px, node.body.py);
+      const p = this.api.contentToScreen(node.body.px, node.body.py);
       // scaleVal — «подъём» плана (покой 1, драг больше): по нему тест отличает живой драг с
       // пружиной от статичного перетаскивания, которым был первый заход.
       cards[id] = { x: p.x, y: p.y, faceUp: node.faceUp, scale: node.body.scaleVal, rot: node.body.rotation, state: node.state };
@@ -402,7 +418,7 @@ export class SolitaireScene extends SceneEngine {
     };
   }
 
-  protected onTeardown(app: Application): void {
+  onTeardown(app: Application): void {
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
     this.tex?.destroy();
@@ -410,6 +426,5 @@ export class SolitaireScene extends SceneEngine {
     this.topbar = null;
     this.screen = null;
     this.recycle = null;
-    super.onTeardown(app);
   }
 }

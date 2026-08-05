@@ -87,9 +87,13 @@ export interface SceneApi {
   applyView(): void;
   emitView(): void;
   focusBounds(b: { x: number; y: number; w: number; h: number }): void;
+  /** Кнопки В КООРДИНАТАХ КОНТЕНТА (на столе), в отличие от хрома (экран). */
+  setButtons(btns: readonly Button[]): void;
   /** Дефолтные ветки движка, которые делегат может звать из своих швов. */
   defaultBeginDrag(el: SceneElement, cp: Pt, sp: Pt): boolean;
   defaultSceneTap(content: Pt, screen: Pt): void;
+  defaultPickElement(cx: number, cy: number): SceneElement | null;
+  defaultElementTapped(el: SceneElement): void;
 }
 
 export class SceneRuntime extends SceneEngine {
@@ -143,8 +147,13 @@ export class SceneRuntime extends SceneEngine {
     applyView: () => this.applyView(),
     emitView: () => this.emitView(),
     focusBounds: (b) => this.focusBounds(b),
+    setButtons: (btns) => {
+      this.buttons = [...btns];
+    },
     defaultBeginDrag: (el, cp, sp) => super.beginDrag(el, cp, sp),
     defaultSceneTap: (content, screen) => super.onSceneTap(content, screen),
+    defaultPickElement: (cx, cy) => super.pickElement(cx, cy),
+    defaultElementTapped: (el) => super.onElementTapped(el),
   };
 
   // ——— форвардинг швов: делегат реализовал — его слово; нет — поведение ядра (super) ———
