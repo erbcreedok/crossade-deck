@@ -1,6 +1,7 @@
 import { absolute, grid, linear, pile } from "../slot/layouts";
 import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../slot/slot";
-import { group, leaf, type Group, type Size, type Slot, type Vec } from "../slot/types";
+import { group, leaf, type Size, type Slot, type Vec } from "../slot/types";
+import type { NetTree } from "./netTree";
 import type { CrossadeState } from "./state";
 
 // ГЕОМЕТРИЯ СТОЛА CROSSADE — одно дерево слотов (game/slot/) на всё сразу, по образцу
@@ -134,18 +135,8 @@ function seatSlots(state: CrossadeState): Placed[] {
   }));
 }
 
-export interface CrossadeTree {
-  readonly root: Group;
-  /** Габарит содержимого: не меньше доски, больше — если рука/play-зона переросли базовый габарит. */
-  readonly size: Size;
-  readonly origins: Readonly<Record<string, Vec>>;
-  /** Центр карты в координатах доски (позиция покоя). null — карты на доске нет. */
-  homeOf(cardId: string): Vec | null;
-  /** Слот, в котором лежит карта. */
-  slotOf(cardId: string): string | null;
-  /** Слот-дропзона под точкой доски (по тому же дереву, что и рендер). */
-  slotAt(cp: Vec): string | null;
-}
+/** Дерево этого стола — общий контракт сетевого стола (netTree.ts), своей формы у него нет. */
+export type CrossadeTree = NetTree;
 
 /** Построить дерево под ТЕКУЩИЙ снимок стола. Дерево — вид состояния, а не второй источник правды:
  *  любое изменение снимка пересобирает его целиком (дёшево — карт немного, слотов ещё меньше). */

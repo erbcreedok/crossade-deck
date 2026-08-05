@@ -3,6 +3,7 @@ import { TEX_H, TEX_W, COLORS } from "../engine/constants";
 import type { SceneElement } from "../engine/sceneEngine";
 import { CARD } from "../crossade/tree";
 import type { CrossadeState } from "../crossade/state";
+import type { SeatStyle } from "../crossade/seatLabels";
 import { MultiplayerScene, type MultiplayerSceneOptions } from "./scene";
 import type { MultiplayerTree } from "./tree";
 import { buildLiveTree, isSharedPoint, othersInRing, LIVE_SEAT, LIVE_SEAT_CARD } from "./liveTree";
@@ -84,20 +85,16 @@ export class LiveTableScene extends MultiplayerScene {
     return super.canDrag(el);
   }
 
-  protected seatsToShow(): CrossadeState["seats"] {
-    return this.state.seats.filter((s) => s.sessionId !== this.state.selfSessionId);
-  }
-
-  protected seatLabelFill(sessionId: string): number {
-    return this.colorOf(sessionId);
-  }
-
-  protected seatCell(): { w: number; h: number } {
-    return LIVE_SEAT;
-  }
-
-  protected seatLabelOffsetY(): number {
-    return -22; // origin места указывает на РЯД РУБАШЕК; имя стоит строкой выше
+  /** Своего места сверху нет — своя рука снизу и есть индикатор себя; каждое чужое место носит цвет
+   *  своего игрока, а origin указывает на РЯД РУБАШЕК, поэтому имя встаёт строкой выше. */
+  protected seatStyle(): SeatStyle {
+    return {
+      ...super.seatStyle(),
+      seats: this.state.seats.filter((s) => s.sessionId !== this.state.selfSessionId),
+      fill: (seat) => this.colorOf(seat.sessionId),
+      cell: LIVE_SEAT,
+      offsetY: -22,
+    };
   }
 
   /** После пересборки: вычистить осиротевший presence и вернуть чужим драгам их живые цели.

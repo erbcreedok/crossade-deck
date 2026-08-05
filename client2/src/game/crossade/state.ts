@@ -72,6 +72,30 @@ export interface CrossadeState {
   selfHand: string[];
 }
 
+/** Своё место за столом — оттуда читаются isDealer/isReady и для правил, и для HUD. */
+export function selfSeatOf(state: CrossadeState): CrossadeSeat | null {
+  return state.seats.find((s) => s.sessionId === state.selfSessionId) ?? null;
+}
+
+/** Стол до первого снимка: пусто и «я — это я». Столы расходятся стартовой фазой (дебаг-стол
+ *  открывается уже играющим и свободным) — она и приходит накладкой, остальное общее. */
+export function emptyTableState(selfSessionId: string, over: Partial<CrossadeState> = {}): CrossadeState {
+  return {
+    phase: "lobby",
+    freeMode: false,
+    deckFanned: false,
+    deckRev: 0,
+    inviteCode: "",
+    deck: [],
+    discard: [],
+    play: [],
+    seats: [],
+    selfSessionId,
+    selfHand: [],
+    ...over,
+  };
+}
+
 /**
  * Одна ли это стопка, только в другом порядке (перестановка). Своя копия правила
  * client/src/game/deckOrder.ts#isPermutationOf — форма та же, код свой.

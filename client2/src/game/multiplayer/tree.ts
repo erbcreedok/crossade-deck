@@ -1,7 +1,8 @@
 import { absolute, grid, linear, pile } from "../slot/layouts";
 import { dropTarget, figures, homeOf as leafHomeOf, measure } from "../slot/slot";
-import { group, leaf, type Group, type Size, type Slot, type Vec } from "../slot/types";
+import { group, leaf, type Slot, type Vec } from "../slot/types";
 import { CARD, SEAT } from "../crossade/tree";
+import type { NetTree } from "../crossade/netTree";
 import type { CrossadeState } from "../crossade/state";
 
 // ГЕОМЕТРИЯ ДЕБАГ-СТОЛА Multiplayer — дерево слотов по образцу crossade/tree.ts, но БЕЗ колоды,
@@ -76,14 +77,8 @@ function seatSlots(state: CrossadeState): Placed[] {
   }));
 }
 
-export interface MultiplayerTree {
-  readonly root: Group;
-  readonly size: Size;
-  readonly origins: Readonly<Record<string, Vec>>;
-  homeOf(cardId: string): Vec | null;
-  slotOf(cardId: string): string | null;
-  slotAt(cp: Vec): string | null;
-}
+/** Дерево дебаг-стола — тот же контракт сетевого стола (crossade/netTree.ts), состав слотов свой. */
+export type MultiplayerTree = NetTree;
 
 /** Дерево под ТЕКУЩИЙ снимок — вид состояния, не второй источник правды (см. crossade/tree.ts). */
 export function buildMultiplayerTree(state: CrossadeState): MultiplayerTree {
