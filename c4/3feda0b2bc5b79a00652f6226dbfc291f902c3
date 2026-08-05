@@ -1,0 +1,48 @@
+client2/src/game/boards/hand/handConfig.ts
+  s_b2849f723d52bb::t_626f2d87bc9ca3 22-23,49
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_a27dcf36ce5a4e 166-176
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_515180dacb0dcc 83-84
+  s_b2849f723d52bb::t_093b157f3437f5 118,145,159,193
+  s_b2849f723d52bb::t_a27dcf36ce5a4e 30,67-68,119,151,233
+  s_b2849f723d52bb::t_b957d1a244537c 221-222
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_a27dcf36ce5a4e 23,173-182,210
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_626f2d87bc9ca3 105-108,163-164
+client2/src/game/boards/geometry/dropPlan.ts
+  s_b2849f723d52bb::t_9cc815cd299b9b 64-70
+client2/src/game/boards/scene/gapPreview.ts
+  s_b2849f723d52bb::t_0aae31d3e73564 19
+  s_b2849f723d52bb::t_701e5d14e252d8 1-18,20-81
+client2/src/game/boards/scene/handHud.test.ts
+  s_b2849f723d52bb::t_093b157f3437f5 11
+client2/src/game/boards/scene/gapPreview.test.ts
+  s_b2849f723d52bb::t_afeca3038ed158 1-88
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_f2f018f98e047e 19-20,48-59,62,83,98,100-105,153-160
+client2/e2e/catalog/handDock.spec.ts
+  s_b2849f723d52bb::t_7c4c55f00793cf 73,78-79,97-100,107-109,121-122,142-143,153-155
+  s_b2849f723d52bb::t_4d2d1b83eee135 139-141,144-146,157-158
+  s_b2849f723d52bb::t_59ac6ffcc251cb 10,69-72,74-77,80-95,101-106,110-120,123-138,147-152,156,159
+  s_b2849f723d52bb::t_fe22aeb5f1ad89 96
+client2/src/game/boards/hand/handConfig.test.ts
+  s_b2849f723d52bb::t_515180dacb0dcc 22,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c43feda0b2bc5b79a00652f6226dbfc291f902c3",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
