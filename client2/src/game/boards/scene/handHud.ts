@@ -47,14 +47,14 @@ export class SceneHandHud {
   private frame(): DockFrame | null {
     const c = this.deps.config();
     if (!c || c.placement !== "screen") return null;
-    return { w: this.size.w, h: this.size.h, insetTop: ACTION_BAR_H, insetBottom: ACTION_BAR_H, side: c.side, flow: c.flow, card: CARD };
+    return { w: this.size.w, h: this.size.h, insetTop: ACTION_BAR_H, insetBottom: ACTION_BAR_H, side: c.side, flow: c.flow, size: c.size, card: CARD };
   }
 
   /** Сколько экрана резервирует док у своего края — стол вписывается в остаток (fitZoom). */
   reserved(w: number, h: number): { top: number; bottom: number; left: number; right: number } {
     const f = this.frame() ?? null;
     const zero = { top: 0, bottom: 0, left: 0, right: 0 };
-    return f ? dockReserved({ ...f, w, h }) : zero;
+    return f ? dockReserved({ ...f, w, h }, this.deps.members().length) : zero;
   }
 
   /** Перерисовать дроп-зону под текущий размер (позиции карт ставит nodeStore по poseOf). */
@@ -107,7 +107,7 @@ export class SceneHandHud {
   overBand(sx: number, sy: number): boolean {
     const f = this.frame();
     if (!f) return false;
-    const b = dockBand(f);
+    const b = dockBand(f, this.laidIds().length);
     return sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h;
   }
 
@@ -161,7 +161,7 @@ export class SceneHandHud {
     g.clear();
     const f = this.frame();
     if (!f) return;
-    const b = dockBand(f);
+    const b = dockBand(f, this.laidIds().length);
     g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: BG, alpha: 0.14 });
     if (this.zoneState === "armed") {
       dashedRoundRect(g, b.x, b.y, b.w, b.h, 12);

@@ -22,6 +22,8 @@ interface DockArgs {
   flow: HandFlow | "по краю";
   /** Сколько карт положить в руку из колоды. */
   handCards: number;
+  /** Размер карт: адаптив «влезает N» (fit) — 0 значит дефолт 5. */
+  fit: number;
 }
 
 /** Минимальная борда: free-бокс с колодой посередине — фон, чтобы было откуда/куда таскать. */
@@ -43,7 +45,7 @@ function dockSpec(a: DockArgs): BoardSpec {
       },
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
-    hand: { reorder: true, placement: "screen", side: a.side, ...(a.flow === "по краю" ? {} : { flow: a.flow }) },
+    hand: { reorder: true, placement: "screen", side: a.side, ...(a.flow === "по краю" ? {} : { flow: a.flow }), ...(a.fit > 0 ? { size: a.fit } : {}) },
     actions: [],
   };
 }
@@ -64,7 +66,7 @@ function DockStage(a: DockArgs) {
       }
     });
     return () => scene.destroy();
-  }, [a.side, a.flow, a.handCards]);
+  }, [a.side, a.flow, a.handCards, a.fit]);
   return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
 }
 
@@ -79,7 +81,7 @@ const meta: Meta<DockArgs> = {
 const spec = { ...boardSpec, hand: { reorder: true, placement: "screen", side: "right" } };
 void new BoardScene({ spec, seats: 1 }).mount(host, width, height);`,
   },
-  args: { side: "bottom", flow: "по краю", handCards: 5 },
+  args: { side: "bottom", flow: "по краю", handCards: 5, fit: 0 },
   argTypes: {
     side: {
       name: "side",
@@ -89,14 +91,19 @@ void new BoardScene({ spec, seats: 1 }).mount(host, width, height);`,
     },
     flow: {
       name: "flow",
-      description: "ось ряда; «по краю» — дефолт (top/bottom → ряд, left/right → колонка)",
+      description: "ось ряда; «по краю» — дефолт (top/bottom → ряд, left/right → колонка); grid — сетка рядами вглубь",
       control: { type: "inline-radio" },
-      options: ["по краю", "horizontal", "vertical"],
+      options: ["по краю", "horizontal", "vertical", "grid"],
     },
     handCards: {
       name: "handCards",
       description: "сколько карт в руке: ряд центрируется, при переполнении уходит в нахлёст",
       control: { type: "range", min: 0, max: 12, step: 1 },
+    },
+    fit: {
+      name: "fit",
+      description: "size руки: сколько карт влезает вдоль оси без нахлёста (0 — дефолт 5); меньше — крупнее",
+      control: { type: "range", min: 0, max: 10, step: 1 },
     },
   },
   render: (a) => <DockStage {...a} />,
@@ -120,3 +127,6 @@ export const TopRow: Story = { args: { side: "top", handCards: 4 } };
 
 /** Док у ЛЕВОГО края: колонка, зеркальная правой — левше или второй руке. */
 export const LeftColumn: Story = { args: { side: "left", handCards: 4 } };
+
+/** СЕТКА вглубь от края: колонки по длине края, ряды к центру — рука-склад (fit 4 — крупные). */
+export const GridDock: Story = { args: { flow: "grid", handCards: 10, fit: 4 } };

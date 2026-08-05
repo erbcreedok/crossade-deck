@@ -12,12 +12,14 @@ export interface FaceUpQuery {
   def: ElementDef | undefined;
   zones: readonly ZoneSpec[];
   slot: string;
+  /** Рука скрыта от других (конфиг hand.hidden, дефолт true)? false — открытая: лица видны всем. */
+  handHidden?: boolean;
 }
 
-export function faceUpInSlot({ def, zones, slot }: FaceUpQuery): boolean {
+export function faceUpInSlot({ def, zones, slot, handHidden }: FaceUpQuery): boolean {
   if (def?.kind !== "card") return true;
   const zone = zoneOf(slot);
-  if (zone === "seat") return false; // чужая рука: приватность
+  if (zone === "seat") return handHidden === false; // чужая рука: приватность, если не открыта конфигом
   const zs = zones.find((z) => z.id === baseZoneId(zone));
   return !((zs?.layout.kind === "pile" && zs.id === "deck") || zs?.layout.kind === "free");
 }

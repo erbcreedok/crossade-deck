@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flowAlong, handConfig } from "./handConfig";
+import { flowAlong, handConfig, handLocks } from "./handConfig";
 import type { HandSpec } from "../core/spec";
 
 // Сторож: дефолты руки живут в ОДНОМ месте — иначе потребители разъедутся. Дефолты — владельческие:
@@ -10,13 +10,14 @@ describe("handConfig — нормализатор руки-данных", () => 
     expect(handConfig(undefined)).toBeNull();
   });
 
-  it("дефолты: board + bottom + вдоль края (horizontal) + открытая + запертая", () => {
+  it("дефолты: board + bottom + вдоль края (horizontal) + скрытая + запертая (приватность)", () => {
     expect(handConfig({ reorder: true })).toEqual({
       reorder: true,
       placement: "board",
       side: "bottom",
       flow: "horizontal",
-      hidden: false,
+      size: { fit: 5 },
+      hidden: true,
       locked: true,
     });
   });
@@ -29,7 +30,26 @@ describe("handConfig — нормализатор руки-данных", () => 
   });
 
   it("явные значения пробрасываются как есть (включая ось поперёк края)", () => {
-    const spec: HandSpec = { reorder: false, placement: "screen", side: "right", flow: "grid", hidden: true, locked: false };
-    expect(handConfig(spec)).toEqual({ reorder: false, placement: "screen", side: "right", flow: "grid", hidden: true, locked: false });
+    const spec: HandSpec = { reorder: false, placement: "screen", side: "right", flow: "grid", size: 7, hidden: true, locked: false };
+    expect(handConfig(spec)).toEqual({ reorder: false, placement: "screen", side: "right", flow: "grid", size: { fit: 7 }, hidden: true, locked: false });
+    expect(handConfig({ reorder: true, size: { w: 60, h: 86 } })!.size).toEqual({ cell: { w: 60, h: 86 } });
+  });
+});
+
+describe("handLocks — чужая рука заперта по умолчанию", () => {
+  const cfg = (locked: boolean) => handConfig({ reorder: true, locked });
+
+  it("чужой hand-слот при locked — заперт; свой — никогда", () => {
+    expect(handLocks(cfg(true), "hand:p2", "p1")).toBe(true);
+    expect(handLocks(cfg(true), "hand:p1", "p1")).toBe(false);
+  });
+
+  it("отпертая рука (locked:false) — общая: чужой слот не заперт", () => {
+    expect(handLocks(cfg(false), "hand:p2", "p1")).toBe(false);
+  });
+
+  it("не-руки не запираются, а без конфига действует приватность (locked по умолчанию)", () => {
+    expect(handLocks(cfg(true), "board:0", "p1")).toBe(false);
+    expect(handLocks(null, "hand:p2", "p1")).toBe(true);
   });
 });

@@ -49,4 +49,10 @@ describe("faceUpInSlot", () => {
     const asDeck = faceUpInSlot({ def: card, zones: [{ ...zones[0]!, id: "discard" }], slot: "discard:0" });
     expect(asDeck).toBe(true);
   });
+
+  it("открытая рука (hand.hidden:false) показывает ЧУЖОЕ место лицом; скрытая/дефолт — рубашкой", () => {
+    expect(faceUpInSlot({ def: card, zones, slot: "seat:p2", handHidden: false })).toBe(true);
+    expect(faceUpInSlot({ def: card, zones, slot: "seat:p2", handHidden: true })).toBe(false);
+    expect(faceUpInSlot({ def: card, zones, slot: "seat:p2" })).toBe(false); // нет конфига — приватность
+  });
 });

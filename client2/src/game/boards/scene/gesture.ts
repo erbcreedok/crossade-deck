@@ -20,6 +20,7 @@ import { hintShape } from "../geometry/sceneAreas";
 import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
 import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
 import { handKey, type BoardState } from "../core/state";
+import { handConfig, handLocks } from "../hand/handConfig";
 import type { BoardTree } from "../geometry/boardTree";
 import { DropBar } from "../../ui/DropBar";
 import type { BoardNode } from "./nodeFactory";
@@ -84,15 +85,14 @@ export class SceneGesture {
   canDrag(el: SceneElement): boolean {
     if (!this.deps.interactive) return false;
     const p = this.deps.presence;
-    if (p) {
-      const owner = p.hub.heldBy(el.id);
-      if (owner && owner !== p.who) return false;
-    }
+    const owner = p?.hub.heldBy(el.id);
+    if (p && owner && owner !== p.who) return false;
     if (this.deps.handMembers().includes(el.id)) return true; // карта своей ЭКРАННОЙ руки (вне дерева)
     const slot = this.deps.tree().slotOf(el.id);
     if (!slot) return false;
     if (zoneOf(slot) === "seat") return false;
     if (slot === handKey(this.deps.selfSeat)) return true;
+    if (handLocks(handConfig(this.deps.spec().hand), slot, this.deps.selfSeat)) return false; // чужая рука
     // Реордер-зона (flow-грид): жители разложены веером по позициям — хватается ЛЮБОЙ, не верх.
     if (reorderModeOf(this.deps.world(), slot)) return true;
     const members = this.deps.state().field.slots[slot]?.members ?? [];

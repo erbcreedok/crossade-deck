@@ -62,7 +62,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     boardWorld({ zones: ctx.spec().zones, cellRects: ctx.tree().cellRects, slots: ctx.state().field.slots, homeOf: (id) => ctx.tree().homeOf(id) });
   /** Акцент сцены: в live — ЦВЕТ ЭТОГО игрока (профиль, курсор, подсветки), иначе золото. */
   const accent = (): number => (opts.presence ? opts.presence.palette(opts.presence.who) : COLORS.gold);
-  const faceUpIn = (id: string, slot: string): boolean => faceUpInSlot({ def: ctx.def(id), zones: ctx.spec().zones, slot });
+  const faceUpIn = (id: string, slot: string): boolean => faceUpInSlot({ def: ctx.def(id), zones: ctx.spec().zones, slot, handHidden: handConfig(ctx.spec().hand)?.hidden });
   const menuTarget = (cp: { x: number; y: number }): MenuTargetKind | null =>
     opts.menus ? menuTargetAt(ctx.spec().zones, ctx.tree().cellRects, cp) : null;
 
