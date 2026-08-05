@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { KitScene } from "./kitScene";
+import type { SpreadEntry } from "./kitSpread";
 import { SceneEngine, type SceneElement, type SpreadSource } from "./sceneEngine";
-import { SPREAD_STATE0, type SpreadConfig, type SpreadInput, type SpreadState } from "../kit/stackInteraction";
-import type { StackOffset } from "../kit/stackLayout";
+import { SPREAD_STATE0, type SpreadConfig, type SpreadInput } from "../kit/stackInteraction";
 
 // ГВАРД РОУТИНГА СПРЕДА (#116): спред двигает ЖЕСТ, а РЕАГИРУЕТ ли стек на конкретный жест — решает
 // его ВВОД-конфиг (spread.input.pointerTrigger / touchTrigger). Шов spreadOnElement(cp, rawX, rawY,
@@ -20,15 +20,6 @@ const CFG: SpreadConfig = {
   input: { pointerTrigger: "zoom", touchTrigger: "zoom" },
 };
 
-interface Entry {
-  ids: string[];
-  at: { x: number; y: number };
-  layout: () => StackOffset;
-  cell: { w: number; h: number };
-  cfg: SpreadConfig;
-  state: SpreadState;
-}
-
 /** Витрина с одной картой в (0,0) и спред-записью над ней; роут-метод открыт для вызова. */
 class Probe extends KitScene {
   readonly at = { x: 0, y: 0 };
@@ -37,7 +28,9 @@ class Probe extends KitScene {
     const el = { id: "c0", body: { px: 0, py: 0 } } as unknown as SceneElement;
     this.api.byId.set("c0", el);
     const cfg: SpreadConfig = { ...CFG, input: { ...CFG.input, ...inputOver } };
-    this.entries().push({ ids: ["c0"], at: { x: 0, y: 0 }, layout: () => ({ dx: 0, dy: 0, rot: 0 }), cell: { w: 60, h: 90 }, cfg, state: { ...SPREAD_STATE0 } });
+    // Сеем ЧЕРЕЗ ВЛАДЕЛЬЦА (kitSpread.ts) — тем же вызовом, которым это делает сборка витрины.
+    this.spreadOwner.register(["c0"], { x: 0, y: 0 }, () => ({ dx: 0, dy: 0, rot: 0 }), { w: 60, h: 90 }, cfg);
+    this.entries()[0]!.state = { ...SPREAD_STATE0 };
   }
 
   target(): number {
@@ -60,8 +53,8 @@ class Probe extends KitScene {
     return this.spreadOnElement(this.at, rawX, rawY, source);
   }
 
-  private entries(): Entry[] {
-    return (this as unknown as { spreadStacks: Entry[] }).spreadStacks;
+  private entries(): readonly SpreadEntry[] {
+    return this.spreadOwner.entries();
   }
 }
 

@@ -15,12 +15,6 @@ import { PICK_ANY, PICK_FIRST, type PieceDrag, type StackDrag } from "../kit/sta
 //   cd hold+ sd tap  → tap:стек,  hold:карта
 //   cd hold+ sd hold → tap:—,     hold:стек   (совпали → стек)
 
-interface Entry {
-  ids: string[];
-  pieceDrag: PieceDrag | null;
-  stackDrag: StackDrag | null;
-}
-
 class Probe extends KitScene {
   seed(pieceDrag: PieceDrag | null, stackDrag: StackDrag | null, n = 3): void {
     const ids: string[] = [];
@@ -29,7 +23,8 @@ class Probe extends KitScene {
       ids.push(id);
       this.api.byId.set(id, { id, draggable: true, body: { px: i, py: 0 } } as unknown as SceneElement);
     }
-    (this as unknown as { dragStacks: Entry[] }).dragStacks.push({ ids, pieceDrag, stackDrag });
+    // Сеем ЧЕРЕЗ ВЛАДЕЛЬЦА (kitDrag.ts) — тем же вызовом, которым это делает сборка витрины.
+    this.dragOwner.register(ids, pieceDrag, stackDrag);
   }
 
   private el(id: string): SceneElement {
