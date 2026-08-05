@@ -236,11 +236,13 @@ test.describe("Косынка", () => {
 
   test("#4 зум: Ctrl+колесо зумит, колесо без модификатора панит", async ({ page }) => {
     await deal(page);
-    const view = () =>
-      page.evaluate(() => {
-        const vp = (window as unknown as { __sol: { viewport: { x: number; y: number; zoom: number } } }).__sol.viewport;
-        return { x: Math.round(vp.x), y: Math.round(vp.y), zoom: +vp.zoom.toFixed(3) };
-      });
+    // Камеру спрашиваем не у сцены (своего вьюпорта у неё нет — он в движке), а по тому, что ВИДНО:
+    // масштаб отдаёт дев-хук, а «панит» доказывает экранный сдвиг слота. Это и есть проверка глазами,
+    // только числами: пан, не двигающий доску на экране, — не пан.
+    const view = async () => {
+      const h = await hooks(page);
+      return { y: Math.round(h.slots.stock!.y), zoom: +h.zoom.toFixed(3) };
+    };
     const start = await view();
 
     await page.mouse.move(250, 400);

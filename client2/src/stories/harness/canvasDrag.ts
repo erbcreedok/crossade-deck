@@ -14,8 +14,8 @@ interface Pt {
 }
 
 interface SceneLike {
-  viewport: { x: number; y: number; zoom: number };
-  testHooks(): { elements: { id: string }[] };
+  /** Камера приезжает ДЕВ-ХУКОМ: у сцены-делегата своего вьюпорта нет, он живёт в движке. */
+  testHooks(): { elements: { id: string }[]; camera: { x: number; y: number; zoom: number } };
   element(id: string): { body: { px: number; py: number } } | undefined;
 }
 
@@ -57,7 +57,7 @@ export function elementAt(canvasElement: HTMLElement, id: string): Pt {
 const toScreen = (canvasElement: HTMLElement, p: Pt): Pt => {
   const cv = canvasElement.querySelector("canvas")!;
   const r = cv.getBoundingClientRect();
-  const v = scene(canvasElement).viewport;
+  const v = scene(canvasElement).testHooks().camera;
   return { x: r.x + v.x + p.x * v.zoom, y: r.y + v.y + p.y * v.zoom };
 };
 
@@ -66,7 +66,7 @@ const cameraStamp = (canvasElement: HTMLElement): string => {
   const cv = canvasElement.querySelector("canvas");
   if (!cv) return "";
   const r = cv.getBoundingClientRect();
-  const v = scene(canvasElement).viewport;
+  const v = scene(canvasElement).testHooks().camera;
   return [r.x, r.y, r.width, r.height, v.x, v.y, v.zoom].map((n) => Math.round(n)).join("/");
 };
 

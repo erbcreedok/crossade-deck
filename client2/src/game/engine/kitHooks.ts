@@ -18,7 +18,12 @@ export interface KitHooks {
    *  сам по себе, что бы ни поменялось. */
   markers: { x: number; y: number; w: number; h: number; shown: boolean; interactive: boolean }[];
   extent: { w: number; h: number };
-  zoom: number;
+  /** КАМЕРА витрины (сдвиг и масштаб): контентная точка → экранная как `x + cx * zoom`. Нужна
+   *  всякому, кто ведёт палец в точку КОНТЕНТА (e2e, сценарии `play()`): канвас занимает весь кадр,
+   *  витрина стоит по центру и ужимается, так что «где предмет» и «куда ткнуть» — разные числа.
+   *  Раньше это читали прямо у сцены (`scene.viewport`) — с переходом на композицию камера уехала к
+   *  движку, и такие читатели молча сломались. Дев-хук — единственная дверь внутрь канваса. */
+  camera: { x: number; y: number; zoom: number };
 }
 
 export function kitHooks(api: SceneApi, placed: KitPlaced, zones: readonly DropZone[]): KitHooks {
@@ -59,6 +64,6 @@ export function kitHooks(api: SceneApi, placed: KitPlaced, zones: readonly DropZ
       return { x: s.x, y: s.y, w: Math.round(b.width), h: Math.round(b.height), shown: m.shown(), interactive: m.interactive };
     }),
     extent: api.contentSize(),
-    zoom: api.viewport().zoom,
+    camera: { x: api.viewport().x, y: api.viewport().y, zoom: api.viewport().zoom },
   };
 }

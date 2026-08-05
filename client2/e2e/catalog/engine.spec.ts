@@ -24,19 +24,19 @@ const state = (page: Page): Promise<El[]> =>
   });
 
 interface KitSceneLike {
-  testHooks(): { elements: { id: string }[] };
+  testHooks(): { elements: { id: string }[]; camera: { x: number; y: number; zoom: number } };
   element(id: string): { body: { px: number; py: number }; root: { zIndex: number } } | undefined;
-  viewport: { x: number; y: number; zoom: number };
 }
 
 /**
  * КОНТЕНТ → ЭКРАН. Канвас занимает весь кадр, а витрина стоит в нём по центру и при нехватке места
  * ужимается — значит координата предмета и координата пальца это разные вещи. Перевод берём у
  * камеры, а не считаем в тесте: иначе он разойдётся с движком при первой же правке вписывания.
+ * Камера — из ДЕВ-ХУКА: у сцены-делегата своего вьюпорта нет, он принадлежит движку.
  */
 const toScreen = (page: Page, p: { x: number; y: number }): Promise<{ x: number; y: number }> =>
   page.evaluate((pt) => {
-    const v = (window as unknown as { __kit: { scene: KitSceneLike } }).__kit.scene.viewport;
+    const v = (window as unknown as { __kit: { scene: KitSceneLike } }).__kit.scene.testHooks().camera;
     return { x: v.x + pt.x * v.zoom, y: v.y + pt.y * v.zoom };
   }, p);
 

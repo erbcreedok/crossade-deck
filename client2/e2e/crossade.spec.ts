@@ -55,7 +55,34 @@ async function waitForTable(page: Page): Promise<TableHooks> {
   await expect
     .poll(async () => isTable(await rawHooks(page)), { timeout: 15000 })
     .toBe(true);
+  await waitForSteadyBoard(page);
   return tableHooks(page);
+}
+
+/** Дождаться, пока ГЕОМЕТРИЯ стола перестанет ехать.
+ *
+ *  Хук переключается на стол по первому снимку, а вписывание доски (fitBoard) успевает переложить
+ *  камеру ещё раз — на непрогретом бандле это происходит уже ПОСЛЕ того, как тест прочитал слоты.
+ *  Жест, посчитанный по прежним числам, ведёт мышь мимо места: карта поднимается и возвращается
+ *  домой, что от «раздача не работает» неотличимо. Тот же приём, что `waitForSteadyCamera` у
+ *  сценариев витрины. Не валим тест по таймауту: лучше вести жест по тому, что есть, — падение
+ *  тогда покажет настоящую причину, а не «не дождался». */
+async function waitForSteadyBoard(page: Page, timeoutMs = 4000): Promise<void> {
+  const stamp = async (): Promise<string> => {
+    const h = await rawHooks(page);
+    if (!isTable(h)) return "";
+    const r = h.slots.deck;
+    return [h.zoom, r?.x, r?.y, r?.w, Object.keys(h.slots).length].map((n) => Math.round(Number(n) || 0)).join("/");
+  };
+  const started = Date.now();
+  let prev = "";
+  for (;;) {
+    const now = await stamp();
+    if (now && now === prev) return;
+    prev = now;
+    if (Date.now() - started > timeoutMs) return;
+    await page.waitForTimeout(120);
+  }
 }
 
 /** Зайти в тестовый стол (боты) со свежего лобби: своя чистая комната на каждый вызов. */
