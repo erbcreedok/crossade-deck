@@ -5,7 +5,7 @@ import { COLORS } from "../../engine/constants";
 
 import { CardTextureCache } from "../../ui/CardTextureCache";
 import type { TableElement } from "../../engine/element";
-import { dropTarget } from "../../slot/slot";
+import { dropTargetRect, type DropRect } from "../../slot/slot";
 import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
 import { CARD } from "../../crossade/tree";
 import { buildBoardTree, type BoardTree, type FreePositions } from "../geometry/boardTree";
@@ -398,6 +398,16 @@ export class BoardScene implements SceneDelegate {
     return ok;
   }
 
+  /** Прямоугольник тащимой фигуры (видимый размер) — попадание в зоны считает ОН, не палец. */
+  private dragRect(p: { x: number; y: number }): DropRect {
+    const lead = this.api.drag()?.lead;
+    const fp = (lead as { footprint?: { hw: number; hh: number } } | undefined)?.footprint;
+    if (!lead || !fp) return { x: p.x, y: p.y, w: 0, h: 0 };
+    const hw = fp.hw * lead.body.scaleVal;
+    const hh = fp.hh * lead.body.scaleVal;
+    return { x: lead.body.px - hw, y: lead.body.py - hh, w: hw * 2, h: hh * 2 };
+  }
+
   onDragMoved(p: { x: number; y: number }): void {
     if (this.dropBar.visible) {
       const ds = this.api.dragScreen();
@@ -412,7 +422,7 @@ export class BoardScene implements SceneDelegate {
       if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py }, this.blockDrag.active());
     }
     if (this.blockDrag.active()) return; // блок-драг колоды: бокс не подсвечиваем никак
-    const target = dropTarget(this.tree.root, p);
+    const target = dropTargetRect(this.tree.root, this.dragRect(p), p);
     // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
     // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
     const fz = freeZoneAt(this.dropWorld(), p);
@@ -450,7 +460,7 @@ export class BoardScene implements SceneDelegate {
       drag.release();
       return;
     }
-    const target = dropTarget(this.tree.root, cp);
+    const target = dropTargetRect(this.tree.root, this.dragRect(cp), cp);
     const plan = planDrop(this.dropWorld(), {
       el: el.id,
       from: this.tree.slotOf(el.id),

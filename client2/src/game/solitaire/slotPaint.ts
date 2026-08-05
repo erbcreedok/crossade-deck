@@ -16,6 +16,8 @@ const HOT = 0xf2c14e;
 export interface SlotPaintState {
   origins: Readonly<Record<string, Vec>>;
   cell: Size;
+  /** Высота зоны каждого слота: колонка растёт с каскадом (+запас под следующую карту). */
+  extents?: Readonly<Record<string, number>>;
   /** Зоны, готовые принять текущий груз (подсветка «куда можно»). */
   armed: ReadonlySet<string>;
   /** Зона прямо под грузом. */
@@ -28,9 +30,14 @@ export function paintSlots(g: Graphics, s: SlotPaintState): void {
   for (const [id, at] of Object.entries(s.origins)) {
     const isHot = id === s.hot;
     const isArmed = s.armed.has(id);
-    if (isHot) g.roundRect(at.x, at.y, s.cell.w, s.cell.h, radius).fill({ color: HOT, alpha: 0.18 });
-    g.roundRect(at.x, at.y, s.cell.w, s.cell.h, radius).stroke({
-      width: isHot ? 3 : 2,
+    // Зона рисуется по ВСЕЙ своей высоте (каскад + запас): подсветка видна у всего стека, а не
+    // только у первой карты. Небольшой выпуск наружу (2 px) — чтобы контур читался и там, где
+    // карты накрывают ячейку пиксель в пиксель.
+    const h = s.extents?.[id] ?? s.cell.h;
+    const pad = isHot || isArmed ? 2 : 0;
+    if (isHot) g.roundRect(at.x - pad, at.y - pad, s.cell.w + pad * 2, h + pad * 2, radius).fill({ color: HOT, alpha: 0.18 });
+    g.roundRect(at.x - pad, at.y - pad, s.cell.w + pad * 2, h + pad * 2, radius).stroke({
+      width: isHot ? 4 : isArmed ? 3 : 2,
       color: isHot ? HOT : isArmed ? ARMED : REST,
       alpha: isHot ? 1 : isArmed ? 0.9 : 0.45,
     });

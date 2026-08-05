@@ -12,6 +12,7 @@ import type { TableElement } from "../engine/element";
 import { SolitaireGameEngine } from "./engine";
 import { buildSolitaireTree, CARD, CASCADE_STEP, type SolitaireTree } from "./tree";
 import { paintSlots } from "./slotPaint";
+import { itemRect, pickDropZone, type DropRect } from "../engine/dropPick";
 
 // СЦЕНА «Косынки» поверх общего слоя. Всё, что есть у любого стола, берётся из SceneEngine и здесь
 // НЕ пишется: ввод (InputRouter с хит-тестом и ховером), камера (пан/зум/пинч/колесо/инерция/
@@ -256,8 +257,30 @@ export class SolitaireScene implements SceneDelegate {
     this.api.setButtons(show ? [b] : []);
   }
 
+  /** Прямоугольник зоны слота: колонка тянется на ВЕСЬ каскад плюс запас под следующую карту —
+   *  подсветка и попадание живут у всего стека, а не у базовой ячейки (жалоба владельца). */
+  private zoneRect(id: string): DropRect {
+    const o = this.tree.origins[id]!;
+    const n = this.engine.getState().board.slots[id]?.members.length ?? 0;
+    const reserve = id.startsWith("tab:") && n > 0 ? (n - 1) * CASCADE_STEP + CASCADE_STEP * 1.5 : 0;
+    return { x: o.x, y: o.y, w: CARD.w, h: CARD.h + reserve };
+  }
+
+  /** Слот-цель под грузом: попадание считает ФИГУРА (нахлёст, engine/dropPick), палец — ничьи.
+   *  Кандидаты — только слоты, легальные для текущего груза (armedSlots): геометрия правил не знает. */
+  private dropSlotAt(p: { x: number; y: number }): string | null {
+    const cands = [...this.armedSlots];
+    const lead = this.api.drag()?.lead;
+    const fp = (lead as { footprint?: { hw: number; hh: number } } | undefined)?.footprint;
+    const rect = lead && fp ? itemRect(lead.body.px, lead.body.py, fp.hw * lead.body.scaleVal, fp.hh * lead.body.scaleVal) : itemRect(p.x, p.y, 0, 0);
+    const i = pickDropZone(cands.map((id) => this.zoneRect(id)), rect, p);
+    return i >= 0 ? cands[i]! : null;
+  }
+
   private paintBoard(): void {
-    paintSlots(this.slotLayer, { origins: this.tree.origins, cell: CARD, armed: this.armedSlots, hot: this.hotSlot });
+    const extents: Record<string, number> = {};
+    for (const id of Object.keys(this.tree.origins)) extents[id] = this.zoneRect(id).h;
+    paintSlots(this.slotLayer, { origins: this.tree.origins, cell: CARD, extents, armed: this.armedSlots, hot: this.hotSlot });
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -323,20 +346,19 @@ export class SolitaireScene implements SceneDelegate {
   }
 
   onDragMoved(p: { x: number; y: number }): void {
-    const under = this.tree.slotAt(p);
-    const hot = under && this.armedSlots.has(under) ? under : null;
+    const hot = this.dropSlotAt(p);
     if (hot === this.hotSlot) return;
     this.hotSlot = hot;
     this.paintBoard();
     this.api.wake();
   }
 
-  /** Что значит дроп: слот под пальцем спрашивается у ТОГО ЖЕ дерева, что рисует карты, и ход
+  /** Что значит дроп: цель считает ФИГУРА (dropSlotAt — тот же выбор, что красит hot), ход
    *  отдаётся движку правил. Он же и решает, легален ли ход — сцена правила не дублирует. */
   resolveDrop(_el: SceneElement, cp: { x: number; y: number }): void {
     const drag = this.api.drag();
     if (!drag) return;
-    const to = this.tree.slotAt(cp);
+    const to = this.dropSlotAt(cp);
     const from = this.dragFrom;
     const ids = this.dragIds;
     if (to && from && to !== from) {

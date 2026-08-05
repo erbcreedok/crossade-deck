@@ -5,7 +5,8 @@
 import { flipSchedule } from "../anim/flipSchedule";
 import type { AnimPreset } from "../anim/presets";
 import { levelOf } from "./sceneLayers";
-import type { Pt } from "./sceneContract";
+import type { Pt, ZoneReg } from "./sceneContract";
+import { itemRect, pickDropZone, type DropRect } from "./dropPick";
 import type { SceneElement, SceneEngine } from "./sceneEngine";
 
 /** Перевернуть, если элемент это умеет. Способность, а не тип: фишка не Flippable — не перевернётся. */
@@ -41,11 +42,31 @@ export function flipGroup(e: SceneEngine, els: readonly SceneElement[]): void {
   e.wake();
 }
 
-/** Подсветка hot-зоны под грузом — ТОЛЬКО если груз способен на её действие. */
+/** Прямоугольник ТАЩИМОЙ фигуры (представитель груза, видимый размер). null — драга нет. */
+export function dragItemRect(e: SceneEngine): DropRect | null {
+  const lead = e.drag?.lead;
+  if (!lead) return null;
+  const f = (lead as { footprint?: { hw: number; hh: number } }).footprint;
+  const s = lead.body.scaleVal;
+  return itemRect(lead.body.px, lead.body.py, (f?.hw ?? 0) * s, (f?.hh ?? 0) * s);
+}
+
+/** Зона-цель под грузом: попадание считает ФИГУРА (нахлёст), палец решает ничьи (dropPick).
+ *  Кандидаты — только зоны, СПОСОБНЫЕ на действие груза. */
+export function dropZoneUnder(e: SceneEngine, p: Pt): ZoneReg | null {
+  if (!e.drag) return null;
+  const cands = e.zones.filter((z) => z.accepts(e.drag!));
+  const rect = dragItemRect(e) ?? itemRect(p.x, p.y, 0, 0);
+  const i = pickDropZone(cands.map((z) => z.zone.rect), rect, p);
+  return i >= 0 ? cands[i]! : null;
+}
+
+/** Подсветка hot-зоны под грузом: горит ОДНА — та, куда реально упадёт дроп прямо сейчас. */
 export function refreshZoneHot(e: SceneEngine, p: Pt): void {
+  const target = dropZoneUnder(e, p);
   for (const z of e.zones) {
     const eligible = e.drag !== null && z.accepts(e.drag);
-    z.zone.setHot(eligible && z.zone.contains(p.x, p.y), eligible && z.textFor ? z.textFor(e.drag!).hot : undefined);
+    z.zone.setHot(z === target, eligible && z.textFor ? z.textFor(e.drag!).hot : undefined);
   }
 }
 

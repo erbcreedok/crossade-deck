@@ -6,6 +6,7 @@
 
 import type { Application } from "pixi.js";
 import { SingleDrag } from "./drag";
+import { dropZoneUnder } from "./sceneFrame";
 import type { TableElement } from "./element";
 import type { Pt, SceneDelegate } from "./sceneContract";
 import type { SceneElement, SceneEngine } from "./sceneEngine";
@@ -69,13 +70,13 @@ export function coreBeginDrag(e: SceneEngine, el: SceneElement, cp: Pt, _sp: Pt)
   return true;
 }
 
-/** Что значит дроп. По умолчанию: зона под ПАЛЬЦЕМ (не телом — оно отстаёт пружиной) реагирует
- *  на способности груза; не поглощён — возвращается домой. */
+/** Что значит дроп. Попадание считает ФИГУРА: зона выбирается по нахлёсту тащимого предмета
+ *  (палец решает ничьи и ловит отставшую пружиной фигуру — engine/dropPick). Не поглощён —
+ *  возвращается домой. */
 export function coreResolveDrop(e: SceneEngine, _el: SceneElement, cp: Pt): void {
   const drag = e.drag;
   if (!drag) return;
-  const zone = e.zones.find((z) => z.zone.contains(cp.x, cp.y));
-  zone?.onDrop(drag, cp);
+  dropZoneUnder(e, cp)?.onDrop(drag, cp);
   if (!drag.consumed) drag.release();
 }
 
