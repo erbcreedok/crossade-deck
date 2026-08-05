@@ -66,8 +66,8 @@ class Probe extends KitScene {
 }
 
 describe("KitScene: роут спреда по source и триггеру стека", () => {
-  it("KitScene ПЕРЕопределяет spreadOnElement — иначе спред никогда не тронуть", () => {
-    expect(KitScene.prototype["spreadOnElement"]).not.toBe(SceneEngine.prototype["spreadOnElement"]);
+  it("KitScene реализует шов spreadOnElement делегатом — иначе спред никогда не тронуть", () => {
+    expect(typeof KitScene.prototype["spreadOnElement"]).toBe("function");
   });
 
   it("нет стека под точкой → false (жест уходит камере)", () => {

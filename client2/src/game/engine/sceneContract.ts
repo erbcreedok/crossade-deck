@@ -21,6 +21,14 @@ export interface Pt {
   y: number;
 }
 
+/** Зарегистрированная дроп-зона: сама зона + что она делает и что принимает. */
+export interface ZoneReg {
+  zone: DropZone;
+  onDrop: (p: DragPayload, at: Pt) => void;
+  accepts: (p: DragPayload) => boolean;
+  textFor?: (p: DragPayload) => { armed: string; hot: string };
+}
+
 /** Швы сцены (бывшие protected-виртуалы движка). Обязательны только три реестра + сборка. */
 export interface SceneDelegate {
   buildScene(app: Application): void;

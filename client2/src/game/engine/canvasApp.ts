@@ -11,19 +11,19 @@ import { nextTier, resolveProfile, type ProfileOverride, type QualityTier } from
 const MAX_DT = 0.05; // потолок шага: переключение вкладок/лаг не должны «телепортировать» физику
 
 export abstract class CanvasApp {
-  protected app: Application | null = null;
+  public app: Application | null = null;
   protected destroyed = false;
   private host: HTMLElement | null = null;
-  protected width = 1;
-  protected height = 1;
+  public width = 1;
+  public height = 1;
   /** Эффективный reduce-motion (OS + юзер-оверрайд, см. useReducedMotion) — единое поле для всех
    *  трёх движков (issue #7), контент решает сам, что заморозить (см. onReduceMotionChange). */
-  protected reduceMotion = false;
+  public reduceMotion = false;
   /** Отдельный флаг «без вспышек» (issue #9, фото-чувствительность, см. useReduceFlash). */
   protected reduceFlash = false;
   /** Производное «гасить вспышки» = reduceMotion || reduceFlash: reduce-motion — надмножество,
    *  оно гасит и мерцание/дрожь. Контент читает его через onFlashChange (напр. Card.flashOff). */
-  protected flashOff = false;
+  public flashOff = false;
   /** Профиль качества (issue #8): full ↔ reduced. Юзер-оверрайд (auto/full/reduced) поверх авто-тира,
    *  который считает FpsMeter в цикле кадра. Контент читает эффективный profile через onProfileChange. */
   protected profileOverride: ProfileOverride = "auto";
@@ -132,7 +132,7 @@ export abstract class CanvasApp {
 
   // autoStart=false → тикер спит, пока его не запустят. Будим при изменениях; будить ли на старте —
   // решает контент в onBooted (стол спит в покое, стенд крутится всегда).
-  protected wake(): void {
+  public wake(): void {
     if (this.app && !this.app.ticker.started) this.app.ticker.start();
   }
 

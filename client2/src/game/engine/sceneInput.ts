@@ -127,3 +127,74 @@ export function buildSceneInput<El extends { id: string }>(h: SceneInputHost<El>
     afterAny: () => h.wake(),
   };
 }
+
+// ——— сборка хоста из движка (данные — SceneEngine, швы — e.seams) ———
+
+import type { InputRouter } from "./inputRouter";
+import type { SceneEngine } from "./sceneEngine";
+import { refreshZoneHot } from "./sceneFrame";
+import { contentToScreen, hitButtonAt, hitChromeAt, screenToContent } from "./sceneView";
+
+export function makeEngineInput(e: SceneEngine): InputHandlers<import("./sceneEngine").SceneElement, Button> {
+  return buildSceneInput({
+    screenToContent: (sx, sy) => screenToContent(e, sx, sy),
+    contentToScreen: (cx, cy) => contentToScreen(e, cx, cy),
+    camera: () => e.camera,
+    wake: () => e.wake(),
+    pickElement: (cx, cy) => e.seams.pickElement(cx, cy),
+    canDrag: (el) => e.seams.canDrag(el),
+    dragOnTap: (el) => e.seams.dragOnTap(el),
+    dragOnHold: (el) => e.seams.dragOnHold(el),
+    hitButton: (cx, cy) => hitButtonAt(e, cx, cy),
+    hitChrome: (sx, sy) => hitChromeAt(e, sx, sy),
+    isChromeButton: (b) => e.chromeButtons.includes(b),
+    hoverTo: (b) => {
+      // Трогаем ТОЛЬКО две сменившиеся кнопки — цикл-по-всем ронял FPS на ПК (issue #48).
+      if (b === e.hoveredBtn) return;
+      if (e.hoveredBtn) {
+        e.hoveredBtn.hover(false);
+        e.hoverRerenders++;
+      }
+      if (b) {
+        b.hover(true);
+        e.hoverRerenders++;
+      }
+      e.hoveredBtn = b;
+      e.wake();
+    },
+    setGrabMode: (mode) => {
+      e.grabMode = mode;
+    },
+    setDragScreen: (sp) => {
+      e.dragScreen = { x: sp.x, y: sp.y };
+    },
+    peekMarkGrabbed: (id) => void e.peeks.markGrabbed(id),
+    peekResolveGrabbed: () => e.peeks.resolveGrabbed(),
+    beginDrag: (el, cp, sp) => void e.seams.beginDrag(el, cp, sp),
+    beforeDragMove: (el, cp) => e.seams.beforeDragMove(el, cp),
+    dragPoint: (cp) => e.seams.dragPoint(cp),
+    moveDrag: (p) => e.drag?.move(p),
+    onDragMoved: (p) => e.seams.onDragMoved(p),
+    refreshZoneHot: (p) => refreshZoneHot(e, p),
+    beforeDrop: (el, cp) => e.seams.beforeDrop(el, cp),
+    hasDrag: () => e.drag !== null,
+    resolveDrop: (el, cp) => e.seams.resolveDrop(el, cp),
+    clearDrag: () => {
+      e.drag = null;
+    },
+    releaseDrag: () => {
+      e.drag?.release();
+      e.drag = null;
+    },
+    afterDragEnd: () => e.seams.afterDragEnd(),
+    coolZones: () => {
+      for (const z of e.zones) z.zone.setHot(false);
+    },
+    onDragCancel: () => e.seams.onDragCancel(),
+    onElementBlocked: (el) => e.seams.onElementBlocked(el),
+    onElementTapped: (el) => e.seams.onElementTapped(el),
+    onSceneTap: (content, screen) => e.seams.onSceneTap(content, screen),
+    hasContextAt: (cp) => e.seams.hasContextAt(cp),
+    openContextMenu: (cp, sp) => e.seams.openContextMenu(cp, sp),
+  });
+}
