@@ -3,14 +3,13 @@
 // зависимостей (узлы ↔ присутствие) развязаны ленивыми замыканиями — все лямбды зовутся после
 // полной сборки.
 
-import type { Container, Renderer } from "pixi.js";
+import type { SceneApi } from "../../engine/sceneContract";
+import { COLORS } from "../../engine/constants";
 import type { Button } from "../../ui/Button";
 import type { CardTextureCache } from "../../ui/CardTextureCache";
-import type { DragContext, DragPayload } from "../../engine/drag";
 import type { BoardCommand, BoardSpec, ElementDef } from "../core/spec";
 import type { BoardState } from "../core/state";
 import type { BoardTree } from "../geometry/boardTree";
-import type { MenuTargetKind } from "../geometry/sceneAreas";
 import type { BoardSceneOptions } from "./options";
 import { nodeScaleIn, type BoardNode } from "./nodeFactory";
 import { SceneBlockDrag } from "./blockDrag";
@@ -20,36 +19,25 @@ import { SceneDecor } from "./decor";
 import { SceneMenu } from "./menu";
 import { SceneNodes } from "./nodesStore";
 import { ScenePresence } from "./scenePresence";
+import { SceneGesture } from "./gesture";
+import { boardWorld, isDeckSlot, type DropWorld } from "../geometry/dropPlan";
+import { faceUpInSlot } from "../core/faceUp";
+import { menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
 
-/** Доступ сцены для частей: только чтение её данных и двери движка. */
+/**
+ * Доступ сцены для частей: только чтение её данных плюс ОДНА дверь движка — `api`. Пробрасывать
+ * движок пятнадцатью лямбдами смысла нет: SceneApi и есть его публичный контракт, а сужать его
+ * повторно — заводить второй список того же самого, который разъедется с первым.
+ */
 export interface BoardPartsCtx {
+  api: SceneApi;
   state(): BoardState;
   tree(): BoardTree;
   spec(): BoardSpec;
   def(id: string): ElementDef | undefined;
   tex(): CardTextureCache | null;
-  renderer(): Renderer | null;
   selfSeat: string;
   dispatch(cmd: BoardCommand): void;
-  wake(): void;
-  after(sec: number, fn: () => void): void;
-  size(): { w: number; h: number };
-  accent(): number;
-  // движок: реестр хит-теста, слои, драг, хром
-  register(id: string, node: BoardNode): void;
-  unregister(id: string): void;
-  placeCard(node: BoardNode): void;
-  dragCtx(): DragContext;
-  setDrag(d: DragPayload): void;
-  chromeAdd(c: Container): void;
-  surfaceAdd(c: Container): void;
-  setMenuButtons(btns: readonly Button[]): void;
-  forgetHovered(btns: readonly Button[]): void;
-  // правила сцены
-  faceUpIn(id: string, slot: string): boolean;
-  isDeckSlot(slot: string): boolean;
-  hitElementId(cp: { x: number; y: number }): string | null;
-  menuTarget(cp: { x: number; y: number }): MenuTargetKind | null;
 }
 
 export interface BoardParts {
@@ -60,23 +48,35 @@ export interface BoardParts {
   chromeHud: SceneChrome;
   menuOwner: SceneMenu;
   decor: SceneDecor;
+  gesture: SceneGesture;
 }
 
 export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): BoardParts {
+  // Производное от спеки, дерева и снимка части считают САМИ — сцене незачем пробрасывать то, что
+  // складывается из данных, которые она уже отдала.
+  const world = (): DropWorld =>
+    boardWorld({ zones: ctx.spec().zones, cellRects: ctx.tree().cellRects, slots: ctx.state().field.slots, homeOf: (id) => ctx.tree().homeOf(id) });
+  /** Акцент сцены: в live — ЦВЕТ ЭТОГО игрока (профиль, курсор, подсветки), иначе золото. */
+  const accent = (): number => (opts.presence ? opts.presence.palette(opts.presence.who) : COLORS.gold);
+  const faceUpIn = (id: string, slot: string): boolean => faceUpInSlot({ def: ctx.def(id), zones: ctx.spec().zones, slot });
+  const menuTarget = (cp: { x: number; y: number }): MenuTargetKind | null =>
+    opts.menus ? menuTargetAt(ctx.spec().zones, ctx.tree().cellRects, cp) : null;
+
   // Узлы ↔ присутствие — цикл (снимок не трогает карту в чужом драге; присутствие водит узлы):
   // развязан let-замыканием, лямбды зовутся после полной сборки.
   let presence: ScenePresence;
   const members = (slot: string): readonly string[] => ctx.state().field.slots[slot]?.members ?? [];
   const homeOf = (id: string): { x: number; y: number } | null => ctx.tree().homeOf(id);
 
+  const api = ctx.api;
   const nodeStore = new SceneNodes({
     def: (id) => ctx.def(id),
     tex: () => ctx.tex(),
-    renderer: () => ctx.renderer(),
-    register: (id, node) => ctx.register(id, node),
-    unregister: (id) => ctx.unregister(id),
-    placeCard: (node) => ctx.placeCard(node),
-    faceUpIn: (id, slot) => ctx.faceUpIn(id, slot),
+    renderer: () => api.renderer(),
+    register: (id, node) => api.byId.set(id, node),
+    unregister: (id) => api.byId.delete(id),
+    placeCard: (node) => api.placeCard(node),
+    faceUpIn,
     remoteDragged: (id) => presence.hasRemote(id),
   });
 
@@ -84,8 +84,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     state: () => ctx.state(),
     tree: () => ctx.tree(),
     node: (id) => nodeStore.get(id),
-    dragCtx: () => ctx.dragCtx(),
-    setDrag: (d) => ctx.setDrag(d),
+    dragCtx: () => api.dragCtx(),
+    setDrag: (d) => api.setDrag(d),
     dispatch: (cmd) => ctx.dispatch(cmd),
   });
 
@@ -94,8 +94,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     node: (id) => nodeStore.get(id),
     homeOf,
     dispatch: (cmd) => ctx.dispatch(cmd),
-    after: (sec, fn) => ctx.after(sec, fn),
-    wake: () => ctx.wake(),
+    after: (sec, fn) => api.after(sec, fn),
+    wake: () => api.wake(),
   });
 
   presence = new ScenePresence(opts.presence, {
@@ -108,45 +108,72 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     restScaleIn: (node, slot) => (slot ? nodeScaleIn(node, slot) : node.restScale),
     depth: (id) => nodeStore.depth(id),
     ownBlockDrag: () => blockDrag.active(),
+    wake: () => api.wake(),
   });
 
   const chromeHud = new SceneChrome({
-    add: (c) => ctx.chromeAdd(c),
+    add: (c) => api.chromeAdd(c),
     dispatch: (cmd) => ctx.dispatch(cmd),
-    accent: () => ctx.accent(),
-    wake: () => ctx.wake(),
+    accent,
+    wake: () => api.wake(),
   });
 
   const menuOwner = new SceneMenu({
     menus: opts.menus,
-    size: () => ctx.size(),
-    chromeAdd: (c) => ctx.chromeAdd(c),
-    setMenuButtons: (btns) => ctx.setMenuButtons(btns),
-    forgetHovered: (btns) => ctx.forgetHovered(btns),
-    wake: () => ctx.wake(),
+    size: () => ({ w: api.width(), h: api.height() }),
+    chromeAdd: (c) => api.chromeAdd(c),
+    setMenuButtons: (btns) => api.setChromeButtons([...chromeHud.buttons(), ...btns]),
+    forgetHovered: (btns) => api.forgetHovered(btns),
+    wake: () => api.wake(),
     slotOf: (id) => ctx.tree().slotOf(id),
-    isDeckSlot: (slot) => ctx.isDeckSlot(slot),
+    isDeckSlot: (slot) => isDeckSlot(world(), slot),
     fx: (id) => ctx.state().fx[id],
-    faceUpIn: (id, slot) => ctx.faceUpIn(id, slot),
-    hitElementId: (cp) => ctx.hitElementId(cp),
-    menuTarget: (cp) => ctx.menuTarget(cp),
+    faceUpIn,
+    hitElementId: (cp) => api.hitElement(cp.x, cp.y)?.id ?? null,
+    menuTarget,
     dispatch: (cmd) => ctx.dispatch(cmd),
     shuffle: (slot) => deckActions.shuffle(slot),
     deal: (slot) => deckActions.deal(slot),
   });
 
   const decor = new SceneDecor({
-    surfaceAdd: (c) => ctx.surfaceAdd(c),
+    surfaceAdd: (c) => api.surfaceAdd(c),
     spec: () => ctx.spec(),
     tree: () => ctx.tree(),
     state: () => ctx.state(),
     selfSeat: ctx.selfSeat,
-    accent: () => ctx.accent(),
+    accent,
     isMe: (occupant) => {
       const p = opts.presence;
       return !!p && occupant !== null && occupant === (p.label?.(p.who) ?? p.who);
     },
   });
 
-  return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor };
+  // Жест — последним: ему нужны уже собранные соседи (блок-драг, меню, действия колоды, присутствие).
+  const gesture = new SceneGesture({
+    state: () => ctx.state(),
+    tree: () => ctx.tree(),
+    spec: () => ctx.spec(),
+    def: (id) => ctx.def(id),
+    world,
+    selfSeat: ctx.selfSeat,
+    interactive: opts.interactive !== false,
+    presence: opts.presence,
+    accent,
+    dispatch: (cmd) => ctx.dispatch(cmd),
+    node: (id) => nodeStore.get(id),
+    width: () => api.width(),
+    height: () => api.height(),
+    wake: () => api.wake(),
+    drag: () => api.drag(),
+    dragScreen: () => api.dragScreen(),
+    grabMode: () => api.grabMode(),
+    defaultBeginDrag: (el, cp, sp) => api.defaultBeginDrag(el, cp, sp),
+    blockDrag,
+    deckActions,
+    menu: menuOwner,
+    presenceOwner: presence,
+  });
+
+  return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture };
 }

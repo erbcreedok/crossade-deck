@@ -1,18 +1,16 @@
-import { Application, Graphics } from "pixi.js";
+import type { Application } from "pixi.js";
 import type { SceneElement } from "../engine/sceneEngine";
 import { SceneRuntime, type SceneApi, type SceneDelegate } from "../engine/sceneRuntime";
-import { GroupDrag } from "../engine/drag";
 import { TEX_H } from "../engine/constants";
-import { Button } from "../ui/Button";
 import { type Card, makeCard } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
-import { TopBar, TOPBAR_H } from "../ui/TopBar";
-import { OverlayPanel } from "../ui/OverlayPanel";
 import type { TableElement } from "../engine/element";
 import { SolitaireGameEngine } from "./engine";
-import { buildSolitaireTree, CARD, CASCADE_STEP, type SolitaireTree } from "./tree";
-import { paintSlots } from "./slotPaint";
-import { itemRect, pickDropZone, type DropRect } from "../engine/dropPick";
+import { buildSolitaireTree, CARD, type SolitaireTree } from "./tree";
+import { fitZoom } from "../engine/fitBoard";
+import { SolitaireGesture } from "./gesture";
+import { SolitaireChrome } from "./chrome";
+import { solitaireHooks, type SolitaireHooks } from "./hooks";
 
 // СЦЕНА «Косынки» поверх общего слоя. Всё, что есть у любого стола, берётся из SceneEngine и здесь
 // НЕ пишется: ввод (InputRouter с хит-тестом и ховером), камера (пан/зум/пинч/колесо/инерция/
@@ -46,17 +44,10 @@ export class SolitaireScene implements SceneDelegate {
   private tex: CardTextureCache | null = null;
   private readonly nodes = new Map<string, Card>();
   private tree: SolitaireTree = buildSolitaireTree(this.engine.getState());
-  private readonly slotLayer = new Graphics();
-  private topbar: TopBar | null = null;
-  private screen: OverlayPanel | null = null;
-  private recycle: Button | null = null;
-
-  // Текущий груз в терминах партии: откуда и какие карты. Держим отдельно от DragPayload —
-  // payload знает про визуалы, а ход отдаётся движку правил в терминах слотов и id.
-  private dragFrom = "";
-  private dragIds: string[] = [];
-  private hotSlot: string | null = null;
-  private armedSlots: ReadonlySet<string> = new Set();
+  /** Жест (что берётся, что зажигается, что значит дроп) и хром (полоса, экран фазы, переработка) —
+   *  свои владельцы: gesture.ts и chrome.ts. */
+  private readonly gesture: SolitaireGesture;
+  private readonly chrome: SolitaireChrome;
 
   constructor(private readonly opts: SolitaireSceneOptions = {}) {
     this.rt = new SceneRuntime({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
@@ -67,6 +58,26 @@ export class SolitaireScene implements SceneDelegate {
     this.engine.on("move", this.onEngineMove);
     this.engine.on("win", this.onEngineWin);
     this.engine.on("lose", this.onEngineLose);
+    this.gesture = new SolitaireGesture({
+      engine: this.engine,
+      tree: () => this.tree,
+      node: (id) => this.nodes.get(id),
+      wake: () => this.api.wake(),
+      drag: () => this.api.drag(),
+      dragCtx: () => this.api.dragCtx(),
+      setDrag: (d) => this.api.setDrag(d),
+      defaultBeginDrag: (el, cp, sp) => this.api.defaultBeginDrag(el, cp, sp),
+      defaultElementTapped: (el) => this.api.defaultElementTapped(el),
+    });
+    this.chrome = new SolitaireChrome({
+      chromeAdd: (node) => this.api.chromeAdd(node),
+      surfaceAdd: (node) => this.api.surfaceAdd(node),
+      setChromeButtons: (btns) => this.api.setChromeButtons(btns),
+      setTableButtons: (btns) => this.api.setButtons(btns),
+      onBack: () => this.opts.onBack?.(),
+      newGame: () => this.newGame(),
+      dealStock: () => this.engine.dealStock(),
+    });
   }
 
   // ——— хост-API (тонкие двери в рантайм): интерфейс хоста не изменился ———
@@ -85,53 +96,17 @@ export class SolitaireScene implements SceneDelegate {
 
   buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
-    this.api.surfaceAdd(this.slotLayer);
-    this.buildTopBar();
-    this.recycle = new Button({ label: "⟲", variant: "ghost", size: "sm", onClick: () => this.engine.dealStock() });
-    this.api.surfaceAdd(this.recycle.root);
+    this.api.surfaceAdd(this.gesture.slotLayer);
+    this.chrome.build();
     this.refresh(true);
   }
 
-  private buildTopBar(): void {
-    this.topbar = new TopBar([
-      { key: "back", label: "← в меню", onClick: () => this.opts.onBack?.() },
-      { key: "new-game", label: "⟲ новая", onClick: () => this.newGame() },
-    ]);
-    // Экран фазы — тоже канвас (общий ui/OverlayPanel), а не React поверх канваса: приложение
-    // целиком рисует движок, и вёрстка не разъезжается между экраном игры и экраном итога.
-    this.screen = new OverlayPanel([{ key: "start", label: "Новая игра", onClick: () => this.newGame() }]);
-    // Панель НИЖЕ топбара: затемнение гасит стол, но полоса управления остаётся яркой и живой —
-    // «в меню» обязана работать одинаково на любом экране, а притушенная кликабельная кнопка врёт.
-    this.api.chromeAdd(this.screen.root);
-    this.api.chromeAdd(this.topbar.root);
-    this.syncScreen();
-  }
-
   layoutChrome(w: number, h: number): void {
-    this.topbar?.layout(w);
-    this.screen?.layout(w, h);
+    this.chrome.layout(w, h);
   }
 
-  // Экран фазы: меню до первой раздачи, итог — после победы/поражения. В «playing» панели нет.
-  // chromeButtons пересобираем здесь: скрытая панель не должна ловить тапы по столу.
-  private syncScreen(): void {
-    const panel = this.screen;
-    if (!panel || !this.topbar) return;
-    const state = this.engine.getState();
-    // Без эмодзи: в client2 их убрали — цветной глиф ломает пиксельный шрифт (см. HANDOFF §1).
-    if (state.phase === "won") panel.setText("Вы выиграли!", `Ходов: ${state.movesCount}`);
-    else if (state.phase === "lost") panel.setText("Нет ходов", `Ходов: ${state.movesCount}`);
-    else panel.setText("Косынка");
-    panel.setVisible(state.phase !== "playing");
-    // Счётчик — только в игре: до раздачи и после итога он показывал бы «Ходов: 0» ни о чём.
-    this.topbar.setStatus(state.phase === "playing" ? `Ходов: ${state.movesCount}` : "");
-    this.api.setChromeButtons([...this.topbar.buttons, ...panel.activeButtons()]);
-  }
-
-  // Стол начинается ПОД панелью: иначе верх доски навсегда уезжает под непрозрачный HUD и
-  // доскроллить до него нечем (кламп упирается в 0).
   chromeInsetTop(): number {
-    return this.topbar?.height ?? TOPBAR_H;
+    return this.chrome.insetTop();
   }
 
   onBooted(): void {
@@ -148,8 +123,13 @@ export class SolitaireScene implements SceneDelegate {
    *  рисуется в своём размере, а ужимается только когда реально не влезает. */
   private fitBoard(): void {
     this.api.syncVp();
-    const usableH = Math.max(1, this.api.height() - this.chromeInsetTop());
-    this.api.viewport().setZoom(Math.min(1, this.api.width() / this.tree.size.w, usableH / this.tree.size.h));
+    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: this.chromeInsetTop(), size: this.tree.size };
+    this.api.viewport().setZoom(fitZoom(fit));
+    this.showView();
+  }
+
+  /** Показать текущий вид: пределы, трансформ, оповещение подписчиков — всегда этой тройкой. */
+  private showView(): void {
     this.api.clampView();
     this.api.applyView();
     this.api.emitView();
@@ -180,15 +160,13 @@ export class SolitaireScene implements SceneDelegate {
   };
 
   // Победа/поражение приходят из движка правил — сцена только показывает итог, сама его не считает.
-  private onEngineWin = (): void => {
-    this.syncScreen();
-    this.api.wake();
-  };
+  private onEngineWin = (): void => this.onEngineEnd();
+  private onEngineLose = (): void => this.onEngineEnd();
 
-  private onEngineLose = (): void => {
-    this.syncScreen();
+  private onEngineEnd(): void {
+    this.chrome.sync(this.engine.getState(), this.tree);
     this.api.wake();
-  };
+  }
 
   /** Свести доску с состоянием партии: дерево → дома → карты. snap — поставить сразу (раздача),
    *  иначе карта ДОЛЕТАЕТ пружиной, как всё в проекте. */
@@ -223,12 +201,9 @@ export class SolitaireScene implements SceneDelegate {
     }
 
     this.api.setContentSize(this.tree.size.w, this.tree.size.h);
-    this.syncScreen();
-    this.syncRecycle();
-    this.paintBoard();
-    this.api.clampView();
-    this.api.applyView();
-    this.api.emitView();
+    this.chrome.sync(state, this.tree);
+    this.gesture.paint();
+    this.showView();
     this.api.wake();
   }
 
@@ -243,46 +218,6 @@ export class SolitaireScene implements SceneDelegate {
     return node;
   }
 
-  // Пустой сток = кнопка «переработать сброс»: карты под пальцем там уже нет, а ход есть. Прячем
-  // её, когда перерабатывать нечего, и убираем из списка кнопок — иначе невидимая кнопка ловила бы
-  // тапы по пустому месту.
-  private syncRecycle(): void {
-    const b = this.recycle;
-    if (!b) return;
-    const state = this.engine.getState();
-    const show = (state.board.slots.stock?.members.length ?? 0) === 0 && (state.board.slots.waste?.members.length ?? 0) > 0;
-    const at = this.tree.origins.stock!;
-    b.place(at.x + CARD.w / 2, at.y + CARD.h / 2);
-    b.root.visible = show;
-    this.api.setButtons(show ? [b] : []);
-  }
-
-  /** Прямоугольник зоны слота: колонка тянется на ВЕСЬ каскад плюс запас под следующую карту —
-   *  подсветка и попадание живут у всего стека, а не у базовой ячейки (жалоба владельца). */
-  private zoneRect(id: string): DropRect {
-    const o = this.tree.origins[id]!;
-    const n = this.engine.getState().board.slots[id]?.members.length ?? 0;
-    const reserve = id.startsWith("tab:") && n > 0 ? (n - 1) * CASCADE_STEP + CASCADE_STEP * 1.5 : 0;
-    return { x: o.x, y: o.y, w: CARD.w, h: CARD.h + reserve };
-  }
-
-  /** Слот-цель под грузом: попадание считает ФИГУРА (нахлёст, engine/dropPick), палец — ничьи.
-   *  Кандидаты — только слоты, легальные для текущего груза (armedSlots): геометрия правил не знает. */
-  private dropSlotAt(p: { x: number; y: number }): string | null {
-    const cands = [...this.armedSlots];
-    const lead = this.api.drag()?.lead;
-    const fp = (lead as { footprint?: { hw: number; hh: number } } | undefined)?.footprint;
-    const rect = lead && fp ? itemRect(lead.body.px, lead.body.py, fp.hw * lead.body.scaleVal, fp.hh * lead.body.scaleVal) : itemRect(p.x, p.y, 0, 0);
-    const i = pickDropZone(cands.map((id) => this.zoneRect(id)), rect, p);
-    return i >= 0 ? cands[i]! : null;
-  }
-
-  private paintBoard(): void {
-    const extents: Record<string, number> = {};
-    for (const id of Object.keys(this.tree.origins)) extents[id] = this.zoneRect(id).h;
-    paintSlots(this.slotLayer, { origins: this.tree.origins, cell: CARD, extents, armed: this.armedSlots, hot: this.hotSlot });
-  }
-
   // ——————————————————————————————————————————————————————————————————————
   // Швы домена: только то, чего у голой сцены со столом нет
   // ——————————————————————————————————————————————————————————————————————
@@ -291,10 +226,8 @@ export class SolitaireScene implements SceneDelegate {
     return [...this.nodes.values()];
   }
 
-  /** Пока поверх стола висит экран фазы, карты не хватаются: панель нарисована над ними, и тап
-   *  сквозь неё был бы ходом по доске, которой игрок сейчас не видит. */
   pickElement(cx: number, cy: number): SceneElement | null {
-    return this.screen?.visible ? null : this.api.defaultPickElement(cx, cy);
+    return this.chrome.overlayVisible ? null : this.api.defaultPickElement(cx, cy);
   }
 
   everyElement(): TableElement[] {
@@ -306,147 +239,45 @@ export class SolitaireScene implements SceneDelegate {
     return home ? { home, depth: this.tree.depthOf(el.id) } : null;
   }
 
-  /** Тащить можно только открытую карту и только не из стока: сток сдаёт по тапу. */
   canDrag(el: SceneElement): boolean {
-    const slot = this.tree.slotOf(el.id);
-    return slot !== null && slot !== "stock" && this.engine.isFaceUp(el.id);
+    return this.gesture.canDrag(el);
   }
 
-  /** Тап по недрагабельной карте: в стоке это ХОД (сдать), в остальном — «стоп»-кивок. */
-  /** ТАП по стоку — сдача. Именно тап, а не попытка тащить: сток не таскают, по нему щёлкают. */
   onElementTapped(el: SceneElement): void {
-    if (this.tree.slotOf(el.id) === "stock") {
-      this.engine.dealStock();
-      return;
-    }
-    this.api.defaultElementTapped(el);
+    this.gesture.tapped(el);
   }
 
   beginDrag(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
-    const from = this.tree.slotOf(el.id) ?? "";
-    const members = this.engine.getState().board.slots[from]?.members ?? [];
-    const index = members.indexOf(el.id);
-    // Из колонки тянется весь пробег ОТ схваченной карты до верхней (в Клондайк открытый пробег
-    // всегда легален: карты попадают в колонку только валидным ходом). Из сброса/фундамента —
-    // ровно одна: там физически не ухватить ничего, кроме верха.
-    this.dragFrom = from;
-    this.dragIds = from.startsWith("tab:") && index >= 0 ? members.slice(index) : [el.id];
-    this.armedSlots = this.legalTargets(this.dragIds, from);
-    this.paintBoard();
-
-    if (this.dragIds.length > 1) {
-      const els = this.dragIds.map((id) => this.nodes.get(id)).filter((n): n is Card => !!n);
-      const offsets = els.map((n) => ({ dx: n.body.px - cp.x, dy: n.body.py - cp.y }));
-      const g = new GroupDrag(els, offsets, this.api.dragCtx());
-      g.move(cp);
-      this.api.setDrag(g);
-      return true;
-    }
-    return this.api.defaultBeginDrag(el, cp, sp);
+    return this.gesture.begin(el, cp, sp);
   }
 
   onDragMoved(p: { x: number; y: number }): void {
-    const hot = this.dropSlotAt(p);
-    if (hot === this.hotSlot) return;
-    this.hotSlot = hot;
-    this.paintBoard();
-    this.api.wake();
+    this.gesture.moved(p);
   }
 
-  /** Что значит дроп: цель считает ФИГУРА (dropSlotAt — тот же выбор, что красит hot), ход
-   *  отдаётся движку правил. Он же и решает, легален ли ход — сцена правила не дублирует. */
   resolveDrop(_el: SceneElement, cp: { x: number; y: number }): void {
-    const drag = this.api.drag();
-    if (!drag) return;
-    const to = this.dropSlotAt(cp);
-    const from = this.dragFrom;
-    const ids = this.dragIds;
-    if (to && from && to !== from) {
-      if (ids.length > 1) this.engine.moveStack(from, to, ids);
-      else this.engine.moveCard(from, to, ids[0]!);
-    }
-    // Успешный ход уже пересобрал дерево (событие "move"), неуспешный оставил прежнее — в обоих
-    // случаях карты едут ДОМОЙ по актуальному дереву той же пружиной.
-    drag.release();
+    this.gesture.resolve(cp);
   }
 
   onDragCancel(): void {
-    this.clearDragHints();
+    this.gesture.end();
   }
 
   afterDragEnd(): void {
-    this.clearDragHints();
+    this.gesture.end();
   }
 
-  private clearDragHints(): void {
-    this.dragFrom = "";
-    this.dragIds = [];
-    this.hotSlot = null;
-    this.armedSlots = new Set();
-    this.paintBoard();
-  }
-
-  /** Зоны, готовые принять этот груз, — спрашиваем сами зоны (caps.drop.accept), а не повторяем
-   *  правила: подсветка и легальность хода тогда не могут разойтись. Пачку (пробег колонки) берёт
-   *  только другая колонка — в фундамент карты кладут по одной, и подсвечивать его было бы обманом. */
-  private legalTargets(ids: readonly string[], from: string): ReadonlySet<string> {
-    const out = new Set<string>();
-    const stack = ids.length > 1;
-    for (const id of Object.keys(this.tree.origins)) {
-      if (id === from || (stack && !id.startsWith("tab:"))) continue;
-      if (this.tree.accepts(id, ids[0]!)) out.add(id);
-    }
-    return out;
-  }
-
-  /** Дев-хук для e2e и ручной проверки: ЭКРАННАЯ геометрия доски. Канвас не отдаёт ни DOM-узлов,
-   *  ни ролей, поэтому без него «проверено» означает «посмотрел на картинку» — а ровно так уже
-   *  прошёл незамеченным неработающий драг (§6 хендоффа). Тот же приём, что `__fd` у песочницы. */
-  testHooks(): {
-    slots: Record<string, { x: number; y: number; w: number; h: number }>;
-    cards: Record<string, { x: number; y: number; faceUp: boolean; scale: number; rot: number; state: string }>;
-    topbar: Record<string, { x: number; y: number; w: number; h: number }>;
-    screen: { visible: boolean; buttons: Record<string, { x: number; y: number; w: number; h: number }> };
-    /** ЭКРАННЫЙ размер нарисованной карты — считается от её baseScale, а не от ячейки доски:
-     *  только так тест ловит baseScale=1, при котором карта втрое вылезала из слота. */
-    cardSize: { w: number; h: number } | null;
-    /** ЭКРАННЫЙ шаг каскада колонки: на столько выступает нижняя карта из-под верхней. Тесту он
-     *  нужен, чтобы целиться в ВИДИМУЮ полоску карты — центр в каскаде перекрыт следующей. */
-    cascadeStep: number;
-    zoom: number;
-  } {
+  /** Дев-хук для e2e и ручной проверки (hooks.ts). */
+  testHooks(): SolitaireHooks {
     const z = this.api.viewport().zoom;
-    const slots: Record<string, { x: number; y: number; w: number; h: number }> = {};
-    for (const [id, at] of Object.entries(this.tree.origins)) {
-      const tl = this.api.contentToScreen(at.x, at.y);
-      slots[id] = { x: tl.x, y: tl.y, w: CARD.w * z, h: CARD.h * z };
-    }
-    const cards: Record<string, { x: number; y: number; faceUp: boolean; scale: number; rot: number; state: string }> = {};
-    for (const [id, node] of this.nodes) {
-      const p = this.api.contentToScreen(node.body.px, node.body.py);
-      // scaleVal — «подъём» плана (покой 1, драг больше): по нему тест отличает живой драг с
-      // пружиной от статичного перетаскивания, которым был первый заход.
-      cards[id] = { x: p.x, y: p.y, faceUp: node.faceUp, scale: node.body.scaleVal, rot: node.body.rotation, state: node.state };
-    }
-    const sample = this.nodes.values().next().value as Card | undefined;
-    return {
-      slots,
-      cards,
-      cardSize: sample ? { w: sample.width * z, h: sample.height * z } : null,
-      cascadeStep: CASCADE_STEP * z,
-      topbar: this.topbar?.rects() ?? {},
-      screen: { visible: this.screen?.visible ?? false, buttons: this.screen?.rects() ?? {} },
-      zoom: z,
-    };
+    return solitaireHooks(this.tree, this.nodes, this.chrome.rects(), z, (x, y) => this.api.contentToScreen(x, y));
   }
 
-  onTeardown(app: Application): void {
+  onTeardown(_app: Application): void {
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
     this.tex?.destroy();
     this.tex = null;
-    this.topbar = null;
-    this.screen = null;
-    this.recycle = null;
+    this.chrome.destroy();
   }
 }

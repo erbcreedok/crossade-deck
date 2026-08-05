@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hintShape, menuTargetAt } from "./sceneAreas";
+import { focusTargetIn, hintShape, menuTargetAt } from "./sceneAreas";
 import type { ZoneSpec } from "../core/spec";
 
 // Геометрия областей сцены: цель меню под точкой и фигура подсветки дропа — чистые правила,
@@ -17,6 +17,32 @@ describe("menuTargetAt", () => {
     expect(menuTargetAt([freeZone, tableZone], rects, { x: 200, y: 200 })).toBe("table");
     expect(menuTargetAt([freeZone, tableZone], rects, { x: 30, y: 30 })).toBe("board");
     expect(menuTargetAt([freeZone, tableZone], rects, { x: 500, y: 500 })).toBeNull();
+  });
+});
+
+describe("focusTargetIn", () => {
+  const rects = {
+    "board:0": { x: 0, y: 0, w: 400, h: 400 },
+    "table:0": { x: 150, y: 150, w: 100, h: 100 },
+  };
+  const focusableFree: ZoneSpec = { ...freeZone, focusable: true };
+  const focusableTable: ZoneSpec = { ...tableZone, focusable: true };
+
+  it("внутренняя (меньшая) зона побеждает — грид лежит внутри бокса", () => {
+    expect(focusTargetIn([focusableFree, focusableTable], rects, { x: 200, y: 200 })).toEqual(rects["table:0"]);
+  });
+
+  it("вне грида фокусируется бокс", () => {
+    expect(focusTargetIn([focusableFree, focusableTable], rects, { x: 30, y: 30 })).toEqual(rects["board:0"]);
+  });
+
+  it("зона без focusable не фокусируется вовсе", () => {
+    expect(focusTargetIn([freeZone, tableZone], rects, { x: 200, y: 200 })).toBeNull();
+    expect(focusTargetIn([freeZone, focusableTable], rects, { x: 30, y: 30 })).toBeNull();
+  });
+
+  it("мимо всех зон — ничего", () => {
+    expect(focusTargetIn([focusableFree, focusableTable], rects, { x: 500, y: 500 })).toBeNull();
   });
 });
 

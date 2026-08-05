@@ -32,6 +32,29 @@ export function menuTargetAt(
   return best?.kind ?? null;
 }
 
+/**
+ * Что фокусируется дабл-тапом: самая ВНУТРЕННЯЯ focusable-зона, чей бокс накрыл точку (грид раньше
+ * бокса, потому что лежит внутри него). Зона без `focusable` не участвует вовсе — приближать имеет
+ * смысл к тому, что мелкое и разглядывается, а не к любому прямоугольнику на столе.
+ *
+ * Карта под пальцем гасит жест НЕ здесь: это решает сцена (у неё хит-тест), и правило простое —
+ * колода не зумится, дабл-тап по ней ничего не значит.
+ */
+export function focusTargetIn(
+  zones: readonly ZoneSpec[],
+  cellRects: Readonly<Record<string, Rect>>,
+  cp: { x: number; y: number },
+): Rect | null {
+  let best: Rect | null = null;
+  for (const zone of zones) {
+    if (!zone.focusable) continue;
+    const r = cellRects[slotKey(zone.id, 0)];
+    if (!r || cp.x < r.x || cp.x > r.x + r.w || cp.y < r.y || cp.y > r.y + r.h) continue;
+    if (!best || r.w * r.h < best.w * best.h) best = r;
+  }
+  return best;
+}
+
 /** Фигура подсветки цели дропа: круг или скруглённый прямоугольник (сцена только обводит). */
 export type HintShape = { kind: "circle"; cx: number; cy: number; r: number } | { kind: "rect"; x: number; y: number; w: number; h: number };
 

@@ -8,6 +8,11 @@ import { Button } from "../../ui/Button";
 import type { ActionSpec, BoardCommand } from "../core/spec";
 import type { SceneTool } from "./scene";
 
+/** Высота нижней полосы действий: кнопки стоят по центру на 26 от низа, значит полоса занимает 52.
+ *  Доска вписывается в остаток экрана над ней (см. scene.ts#fitBoard) — иначе полоса накрывает
+ *  нижний ряд слотов. */
+export const ACTION_BAR_H = 52;
+
 export interface ChromeHost {
   add(child: Container): void;
   dispatch(cmd: BoardCommand): void;
@@ -66,7 +71,7 @@ export class SceneChrome {
   layout(w: number, h: number): void {
     this.size = { w, h };
     let x = 12;
-    const y = h - 26;
+    const y = h - ACTION_BAR_H / 2;
     for (const b of this.actionButtons) {
       b.place(x + b.w / 2, y);
       x += b.w + 8;

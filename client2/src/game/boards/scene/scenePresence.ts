@@ -36,6 +36,8 @@ export interface PresenceSceneHost {
   depth(id: string): number;
   /** Свой блок-драг сейчас? (глоу стопки одним контуром). */
   ownBlockDrag(): boolean;
+  /** Разбудить цикл: присутствие меняется чужими событиями, а не кадром сцены. */
+  wake(): void;
 }
 
 /** Свечение локов: держат одиночную — светится ОНА; свой блок-драг — союз силуэтов всей стопки
@@ -101,6 +103,13 @@ export class ScenePresence {
     private readonly host: PresenceSceneHost,
   ) {
     this.root.addChild(this.layer);
+    // Подписка на хаб — ЗДЕСЬ: чужое присутствие меняется само по себе, и сцене незачем быть
+    // посредником, который перекладывает вид в чужое поле.
+    opts?.hub.onChange((v) => {
+      this.view = v;
+      this.paint();
+      host.wake();
+    });
   }
 
   /** Карту ведёт чужой драг-стрим — rebuild не должен сажать её домой между кадрами. */
@@ -109,6 +118,15 @@ export class ScenePresence {
   }
 
   /** Полный проход вида: глоу локов, чужие драги, курсоры. Зовётся на каждый чих presence-вида. */
+  /** Курсор ЭТОГО клиента: остальным — в хаб, себе — точкой своего цвета на борде. Точка приходит
+   *  в координатах контента; null — палец ушёл со стола. */
+  reportOwnCursor(cp: { x: number; y: number } | null): void {
+    if (!this.opts) return;
+    this.ownCursor = cp;
+    this.opts.hub.cursor(this.opts.who, cp);
+    this.paint();
+  }
+
   paint(): void {
     this.layer.clear();
     this.applyGlow();

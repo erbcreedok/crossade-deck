@@ -16,6 +16,23 @@ export interface DropWorld {
   occupiedKeys(): readonly string[];
 }
 
+/** Мир дропа из спеки, дерева и снимка — единственный переходник «сцена → чистые планировщики».
+ *  Собирать его руками в сцене незачем: набор всегда один и тот же, а разойдётся он молча. */
+export function boardWorld(args: {
+  zones: readonly ZoneSpec[];
+  cellRects: Readonly<Record<string, Rect>>;
+  slots: Readonly<Record<string, { members: readonly string[] } | undefined>>;
+  homeOf(id: string): Vec | null;
+}): DropWorld {
+  return {
+    zones: args.zones,
+    cellRects: args.cellRects,
+    members: (slot) => args.slots[slot]?.members ?? [],
+    homeOf: args.homeOf,
+    occupiedKeys: () => Object.keys(args.slots).filter((k) => (args.slots[k]?.members.length ?? 0) > 0),
+  };
+}
+
 export interface DropArgs {
   el: string;
   from: string | null;

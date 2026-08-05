@@ -39,6 +39,13 @@ export class SceneMenu {
 
   constructor(private readonly host: MenuSceneHost) {}
 
+  /** Тап мимо открытого меню: закрыть и сказать, что тап израсходован. */
+  closeIfOutside(screen: { x: number; y: number }): boolean {
+    if (!this.isOpen() || this.contains(screen.x, screen.y)) return false;
+    this.close();
+    return true;
+  }
+
   isOpen(): boolean {
     return this.menu !== null;
   }

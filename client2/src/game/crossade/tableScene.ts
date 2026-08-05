@@ -25,7 +25,7 @@ import type { CrossadeSeat, CrossadeState } from "./state";
 import { makePort, bindRoom, type BindableRoom, type CrossadePort, type CrossadeSignal, type SendableRoom } from "./net";
 import { sameZones } from "./diff";
 import type { ServerMove } from "./moveIntent";
-import { fitZoom } from "./fitBoard";
+import { fitZoom } from "../engine/fitBoard";
 import { SceneBoardSync } from "./boardSync";
 import { SceneTableDrag, type DragHints, type OwnGesture } from "./tableDrag";
 import { SceneNotice } from "./notice";
