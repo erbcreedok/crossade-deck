@@ -12,16 +12,15 @@ import { Piece } from "../ui/Piece";
 import type { DropZone } from "../ui/DropZone";
 import type { Draggable, Peekable, TableElement } from "./element";
 import { flipSchedule } from "../anim/flipSchedule";
-import { moveStyle } from "../anim/moveStyles";
-import { destroyStyle } from "../anim/destroyStyles";
-import { appearStyle } from "../anim/appearStyles";
+import { animDurationOf, type AnimKind } from "../anim/durations";
 import { BASE_PRESET, type AnimPreset } from "../anim/presets";
+import { LandingQueue } from "./sceneLanding";
 import { SceneCamera, type SpreadSource } from "./sceneCamera";
 import { ScenePeeks } from "./scenePeeks";
 import { DelayQueue, SceneTimers } from "./sceneTimers";
 
 /** Какая из анимаций элемента: у каждой своё расписание в пресете. */
-export type AnimKind = "move" | "flip" | "destroy" | "appear";
+export type { AnimKind } from "../anim/durations";
 
 // ОБЩАЯ ОБВЯЗКА СЦЕНЫ — слой между тонким Host'ом (CanvasApp: Pixi, тикер, ресайз) и конкретной
 // сценой (песочница, Косынка, будущие игры). Здесь живёт всё, что у любой сцены со столом ОДИНАКОВО
@@ -129,9 +128,6 @@ export abstract class SceneEngine extends CanvasApp {
     dragInfo: () => ({ payload: this.drag, screen: this.dragScreen, dragging: this.input.gesture === "drag" }),
     refreshZoneHot: (pp) => this.refreshZoneHot(pp),
   });
-  private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
-  private lastPanT = 0;
-  private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0, spanX: 0 };
   // Метка последнего жеста спреда колесом/тачпадом — для синтетической ГРАНИЦЫ жеста. У колеса нет
   // pointerdown/up: пауза дольше WHEEL_GESTURE_GAP_MS = новый жест (сброс детента спреда, onSpreadBegin).
   private lastWheelSpreadT = 0;
@@ -684,17 +680,7 @@ export abstract class SceneEngine extends CanvasApp {
   animDuration(id: string, kind: AnimKind = "move"): number {
     const el = this.byId.get(id);
     const p = (el as unknown as { animPreset?: AnimPreset } | undefined)?.animPreset ?? this.preset;
-    const speed = p.speed > 0 ? p.speed : 1;
-    if (kind === "move") {
-      const st = moveStyle(p.move.style);
-      // У пружины расписания нет — время задаёт физика; берём оценку, иначе сценарий сработал бы
-      // мгновенно и снял бы жертву до прихода.
-      return st.frame ? st.dur / speed : 0.45;
-    }
-    if (kind === "destroy") return (destroyStyle(p.destroy.style).dur * p.destroy.scale) / speed;
-    if (kind === "appear") return (appearStyle(p.appear.style).dur * p.appear.scale) / speed;
-    // У переворота расписание живёт в ТАЙМИНГЕ пресета, а не в стиле: стиль решает форму движения.
-    return p.flip.dur / speed;
+    return animDurationOf(p, kind);
   }
 
   /** Сколько летит элемент при команде move. Оставлено как имя того, чем пользуются сценарии. */
@@ -774,59 +760,12 @@ export abstract class SceneEngine extends CanvasApp {
         if (inside) b.click();
       },
 
-      onPanStart: () => {
-        this.viewport.stopFling();
-        this.panVel = { x: 0, y: 0 };
-        this.lastPanT = 0;
-      },
-      onPan: (dx, dy) => {
-        this.camera.cancelFocus(); // реальный пан перебивает наведение и сбрасывает «наведено на зону»
-        // Копим сглаженную скорость пана (px/сек) для инерции после отпускания.
-        const t = performance.now();
-        if (this.lastPanT) {
-          const dtp = Math.min(0.1, (t - this.lastPanT) / 1000);
-          if (dtp > 0) this.panVel = { x: 0.5 * this.panVel.x + 0.5 * (dx / dtp), y: 0.5 * this.panVel.y + 0.5 * (dy / dtp) };
-        }
-        this.lastPanT = t;
-        this.syncVp();
-        this.viewport.panBy(dx, dy);
-        this.applyView();
-        this.emitView();
-      },
-      onPanEnd: () => {
-        this.viewport.startFling(this.panVel.x, this.panVel.y);
-        this.wake();
-      },
-      onPinchStart: (mx, my, dist, spanX) => {
-        this.camera.cancelFocus();
-        const c = this.screenToContent(mx, my);
-        this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y, spanX };
-        this.onSpreadBegin(); // сброс per-gesture-состояния сцены (детент спреда)
-      },
-      onPinch: (mx, my, dist, spanX) => {
-        // Пинч ПРЯМО НА цели (стек карт): горизонтальное разведение пальцев ведёт СПРЕД (внутренний
-        // слой зума), а не камеру. Дельта по X (spanX) уходит в сцену; перехватила — камеру не трогаем.
-        const dSpanX = spanX - this.pinch.spanX;
-        this.pinch.spanX = spanX;
-        const cp = this.screenToContent(mx, my);
-        if (this.spreadOnElement(cp, dSpanX, 0, "touch-zoom")) {
-          // Спред поглотил кадр. Держим камерный якорь на ТЕКУЩЕМ расстоянии и зуме: иначе, когда
-          // спред упрётся в предел и жест провалится в зум камеры (spreadOnElement вернёт false),
-          // формула zoom*dist/pinch.dist прыгнула бы на всю дельту dist, накопленную за спред-фазу.
-          this.pinch.dist = dist;
-          this.pinch.zoom = this.viewport.zoom;
-          this.pinch.midContentX = cp.x;
-          this.pinch.midContentY = cp.y;
-          return;
-        }
-        const c = this.camPoint(mx, my);
-        this.viewport.zoom = clamp((this.pinch.zoom * dist) / this.pinch.dist, this.viewport.minZoom, this.viewport.maxZoom);
-        this.viewport.x = c.x - this.pinch.midContentX * this.viewport.zoom;
-        this.viewport.y = c.y - this.pinch.midContentY * this.viewport.zoom;
-        this.clampView();
-        this.applyView();
-        this.emitView();
-      },
+      // Пан/пинч камеры — целиком камерный риг (инерция, спред-приоритет, якорь зума).
+      onPanStart: () => this.camera.panStart(),
+      onPan: (dx, dy) => this.camera.pan(dx, dy),
+      onPanEnd: () => this.camera.panEnd(),
+      onPinchStart: (mx, my, dist, spanX) => this.camera.pinchStart(mx, my, dist, spanX),
+      onPinch: (mx, my, dist, spanX) => this.camera.pinch(mx, my, dist, spanX),
 
       onHover: (b) => {
         // Трогаем ТОЛЬКО две сменившиеся кнопки (снятую и наведённую), а не перебираем весь список
@@ -859,27 +798,11 @@ export abstract class SceneEngine extends CanvasApp {
     el.setState(el.pose); // возврат в СВОЮ позу покоя (стол / поднят / держат)
     this.placeCard(el);
     el.body.setTarget({ x: h.home.x, y: h.home.y, rot: 0 });
-    // Глубину возвращаем НЕ СЕЙЧАС, а по прилёту. Раньше она ставилась сразу, и отпущенная карта
-    // весь полёт домой ехала ПОД соседями — ныряла под стопку и выныривала на месте. Физически это
-    // бессмыслица: карта в воздухе, а рисуется под теми, что лежат на столе.
-    this.landing = this.landing.filter((l) => l.el !== el);
-    this.landing.push({ el, z: h.depth });
+    this.landing.book(el, h.depth); // глубина вернётся ПО ПРИЛЁТУ (sceneLanding), не сейчас
   }
 
-  /** Кто летит домой и на какую глубину сядет. Разбирается в кадре, по факту приземления. */
-  private landing: { el: SceneElement; z: number }[] = [];
-
-  private stepLanding(): boolean {
-    if (!this.landing.length) return false;
-    const still: { el: SceneElement; z: number }[] = [];
-    for (const l of this.landing) {
-      if (l.el.dead) continue;
-      if (l.el.body.isResting()) l.el.root.zIndex = l.z;
-      else still.push(l);
-    }
-    this.landing = still;
-    return false; // сама по себе посадка кадров не требует — её двигают пружины
-  }
+  /** Кто летит домой и на какую глубину сядет — очередь посадки (разбирается в кадре). */
+  private readonly landing = new LandingQueue();
 
   // ——————————————————————————————————————————————————————————————————————
   // Цикл кадра
@@ -906,7 +829,7 @@ export abstract class SceneEngine extends CanvasApp {
     // ПРОШЛОГО кадра: в тот кадр, когда карта долетала, цикл видел «все успокоились» и засыпал —
     // следующего кадра не было, и глубина так и оставалась драговой (1e6). Карта возвращалась
     // домой, но продолжала лежать поверх всей стопки.
-    this.stepLanding();
+    this.landing.step();
     this.reapDead();
     for (const b of this.buttons) {
       b.step(dt);

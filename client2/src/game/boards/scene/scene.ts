@@ -12,14 +12,14 @@ import { localDriver, type BoardDriver } from "../core/driver";
 import { handKey, type BoardState } from "../core/state";
 import { baseZoneId, elementById, slotKey, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
 import { DropBar } from "../../ui/DropBar";
-import { ScenePresence } from "./scenePresence";
-import { SceneChrome } from "./chrome";
-import { SceneMenu } from "./menu";
-import { SceneDecor } from "./decor";
-import { SceneNodes } from "./nodesStore";
-import { SceneBlockDrag } from "./blockDrag";
-import { SceneDeckActions } from "./deckActions";
-import { nodeScaleIn } from "./nodeFactory";
+import type { ScenePresence } from "./scenePresence";
+import type { SceneChrome } from "./chrome";
+import type { SceneMenu } from "./menu";
+import type { SceneDecor } from "./decor";
+import type { SceneNodes } from "./nodesStore";
+import type { SceneBlockDrag } from "./blockDrag";
+import type { SceneDeckActions } from "./deckActions";
+import { buildBoardParts } from "./parts";
 import { hintShape, menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
 import { migrateState } from "../core/migrate";
 import type { BoardSceneOptions } from "./options";
@@ -79,88 +79,53 @@ export class BoardScene extends SceneEngine {
       this.rebuildBoard(false);
     });
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
-    this.nodeStore = new SceneNodes({
-      def: (id) => this.defs.get(id),
-      tex: () => this.tex,
-      renderer: () => this.app?.renderer ?? null,
-      register: (id, node) => this.byId.set(id, node),
-      unregister: (id) => this.byId.delete(id),
-      placeCard: (node) => this.placeCard(node),
-      faceUpIn: (id, slot) => this.faceUpIn(id, slot),
-      remoteDragged: (id) => this.presence.hasRemote(id),
-    });
-    this.blockDrag = new SceneBlockDrag({
-      state: () => this.state,
-      tree: () => this.tree,
-      node: (id) => this.nodeStore.get(id),
-      dragCtx: () => this.dragCtx,
-      setDrag: (d) => {
-        this.drag = d;
+    const parts = buildBoardParts(
+      {
+        state: () => this.state,
+        tree: () => this.tree,
+        spec: () => this.spec,
+        def: (id) => this.defs.get(id),
+        tex: () => this.tex,
+        renderer: () => this.app?.renderer ?? null,
+        selfSeat: this.selfSeat,
+        dispatch: (cmd) => this.dispatch(cmd),
+        wake: () => this.wake(),
+        after: (sec, fn) => this.after(sec, fn),
+        size: () => ({ w: this.width, h: this.height }),
+        accent: () => this.accentColor(),
+        register: (id, node) => this.byId.set(id, node),
+        unregister: (id) => this.byId.delete(id),
+        placeCard: (node) => this.placeCard(node),
+        dragCtx: () => this.dragCtx,
+        setDrag: (d) => {
+          this.drag = d;
+        },
+        chromeAdd: (c) => this.chrome.addChild(c),
+        surfaceAdd: (c) => this.scene.surface.addChild(c),
+        setMenuButtons: (btns) => {
+          this.chromeButtons = [...this.chromeHud.buttons(), ...btns];
+        },
+        forgetHovered: (btns) => {
+          if (this.hoveredBtn && btns.includes(this.hoveredBtn)) this.hoveredBtn = null;
+        },
+        faceUpIn: (id, slot) => this.faceUpIn(id, slot),
+        isDeckSlot: (slot) => this.isDeckSlot(slot),
+        hitElementId: (cp) => this.hitElement(cp.x, cp.y)?.id ?? null,
+        menuTarget: (cp) => this.menuTarget(cp),
       },
-      dispatch: (cmd) => this.dispatch(cmd),
-    });
-    this.deckActions = new SceneDeckActions({
-      state: () => this.state,
-      node: (id) => this.nodeStore.get(id),
-      homeOf: (id) => this.homeVec(id),
-      dispatch: (cmd) => this.dispatch(cmd),
-      after: (sec, fn) => this.after(sec, fn),
-      wake: () => this.wake(),
-    });
-    this.presence = new ScenePresence(opts.presence, {
-      node: (id) => this.nodeStore.get(id),
-      nodes: () => this.nodeStore.all(),
-      homeOf: (id) => this.homeVec(id),
-      slotOf: (id) => this.tree.slotOf(id),
-      members: (slot) => this.state.field.slots[slot]?.members ?? [],
-      fxRot: (id) => this.state.fx[id]?.rot ?? 0,
-      restScaleIn: (node, slot) => (slot ? nodeScaleIn(node, slot) : node.restScale),
-      depth: (id) => this.nodeStore.depth(id),
-      ownBlockDrag: () => this.blockDrag.active(),
-    });
+      opts,
+    );
+    this.nodeStore = parts.nodeStore;
+    this.presence = parts.presence;
+    this.blockDrag = parts.blockDrag;
+    this.deckActions = parts.deckActions;
+    this.chromeHud = parts.chromeHud;
+    this.menuOwner = parts.menuOwner;
+    this.decor = parts.decor;
     opts.presence?.hub.onChange((v) => {
       this.presence.view = v;
       this.presence.paint();
       this.wake();
-    });
-    this.chromeHud = new SceneChrome({
-      add: (c) => this.chrome.addChild(c),
-      dispatch: (cmd) => this.dispatch(cmd),
-      accent: () => this.accentColor(),
-      wake: () => this.wake(),
-    });
-    this.menuOwner = new SceneMenu({
-      menus: opts.menus,
-      size: () => ({ w: this.width, h: this.height }),
-      chromeAdd: (c) => this.chrome.addChild(c),
-      setMenuButtons: (btns) => {
-        this.chromeButtons = [...this.chromeHud.buttons(), ...btns];
-      },
-      forgetHovered: (btns) => {
-        if (this.hoveredBtn && btns.includes(this.hoveredBtn)) this.hoveredBtn = null;
-      },
-      wake: () => this.wake(),
-      slotOf: (id) => this.tree.slotOf(id),
-      isDeckSlot: (slot) => this.isDeckSlot(slot),
-      fx: (id) => this.state.fx[id],
-      faceUpIn: (id, slot) => this.faceUpIn(id, slot),
-      hitElementId: (cp) => this.hitElement(cp.x, cp.y)?.id ?? null,
-      menuTarget: (cp) => this.menuTarget(cp),
-      dispatch: (cmd) => this.dispatch(cmd),
-      shuffle: (slot) => this.deckActions.shuffle(slot),
-      deal: (slot) => this.deckActions.deal(slot),
-    });
-    this.decor = new SceneDecor({
-      surfaceAdd: (c) => this.scene.surface.addChild(c),
-      spec: () => this.spec,
-      tree: () => this.tree,
-      state: () => this.state,
-      selfSeat: this.selfSeat,
-      accent: () => this.accentColor(),
-      isMe: (occupant) => {
-        const p = this.opts.presence;
-        return !!p && occupant !== null && occupant === (p.label?.(p.who) ?? p.who);
-      },
     });
   }
 

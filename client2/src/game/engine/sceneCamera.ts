@@ -47,6 +47,10 @@ export interface CameraHost {
 }
 
 export class SceneCamera {
+  // Пан-инерция и пинч: сглаженная скорость (для флинга) и якорь двухпальцевого зума.
+  private panVel = { x: 0, y: 0 };
+  private lastPanT = 0;
+  private pinchAnchor = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0, spanX: 0 };
   private lastTap: { t: number; x: number; y: number } | null = null;
   private focusedKey: string | null = null; // на какую зону сейчас наведено (для тоггла)
   private tween: { fromX: number; fromY: number; fromZoom: number; toX: number; toY: number; toZoom: number; t: number; dur: number } | null = null;
@@ -165,6 +169,66 @@ export class SceneCamera {
     vp.panBy(-e.deltaX, -dyPx);
     this.host.applyView();
     this.host.wake();
+    this.host.emitView();
+  }
+
+  panStart(): void {
+    this.host.viewport().stopFling();
+    this.panVel = { x: 0, y: 0 };
+    this.lastPanT = 0;
+  }
+
+  pan(dx: number, dy: number): void {
+    this.cancelFocus(); // реальный пан перебивает наведение и сбрасывает «наведено на зону»
+    // Копим сглаженную скорость пана (px/сек) для инерции после отпускания.
+    const t = performance.now();
+    if (this.lastPanT) {
+      const dtp = Math.min(0.1, (t - this.lastPanT) / 1000);
+      if (dtp > 0) this.panVel = { x: 0.5 * this.panVel.x + 0.5 * (dx / dtp), y: 0.5 * this.panVel.y + 0.5 * (dy / dtp) };
+    }
+    this.lastPanT = t;
+    this.host.syncVp();
+    this.host.viewport().panBy(dx, dy);
+    this.host.applyView();
+    this.host.emitView();
+  }
+
+  panEnd(): void {
+    this.host.viewport().startFling(this.panVel.x, this.panVel.y);
+    this.host.wake();
+  }
+
+  pinchStart(mx: number, my: number, dist: number, spanX: number): void {
+    this.cancelFocus();
+    const c = this.host.screenToContent(mx, my);
+    this.pinchAnchor = { dist, zoom: this.host.viewport().zoom, midContentX: c.x, midContentY: c.y, spanX };
+    this.host.onSpreadBegin(); // сброс per-gesture-состояния сцены (детент спреда)
+  }
+
+  /** Пинч: горизонтальное разведение НА цели ведёт СПРЕД (внутренний слой зума), не камеру. */
+  pinch(mx: number, my: number, dist: number, spanX: number): void {
+    const a = this.pinchAnchor;
+    const dSpanX = spanX - a.spanX;
+    a.spanX = spanX;
+    const cp = this.host.screenToContent(mx, my);
+    if (this.host.spreadOnElement(cp, dSpanX, 0, "touch-zoom")) {
+      // Спред поглотил кадр. Держим камерный якорь на ТЕКУЩЕМ расстоянии и зуме: иначе, когда
+      // спред упрётся в предел и жест провалится в зум камеры, формула zoom*dist/dist0 прыгнула бы
+      // на всю дельту, накопленную за спред-фазу.
+      a.dist = dist;
+      a.zoom = this.host.viewport().zoom;
+      a.midContentX = cp.x;
+      a.midContentY = cp.y;
+      return;
+    }
+    const vp = this.host.viewport();
+    const cx = mx;
+    const cy = my - this.host.insetTop();
+    vp.zoom = clamp((a.zoom * dist) / a.dist, vp.minZoom, vp.maxZoom);
+    vp.x = cx - a.midContentX * vp.zoom;
+    vp.y = cy - a.midContentY * vp.zoom;
+    this.host.clampView();
+    this.host.applyView();
     this.host.emitView();
   }
 
