@@ -144,7 +144,7 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
   const view: {
     held: Record<string, string>;
     cursors: Record<string, { x: number; y: number }>;
-    drags: Record<string, { el: string; at: { x: number; y: number } }>;
+    drags: Record<string, { el: string; at: { x: number; y: number }; block?: boolean }>;
   } = { held: {}, cursors: {}, drags: {} };
   const viewSubs: ((v: PresenceView) => void)[] = [];
   const emitView = (): void => {
@@ -160,8 +160,8 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
     else delete view.cursors[msg.who];
     emitView();
   });
-  room.onMessage("drag", (msg: { who: string; el: string | null; at: { x: number; y: number } | null }) => {
-    if (msg.at && msg.el) view.drags[msg.who] = { el: msg.el, at: msg.at };
+  room.onMessage("drag", (msg: { who: string; el: string | null; at: { x: number; y: number } | null; block?: boolean }) => {
+    if (msg.at && msg.el) view.drags[msg.who] = msg.block ? { el: msg.el, at: msg.at, block: true } : { el: msg.el, at: msg.at };
     else delete view.drags[msg.who];
     emitView();
   });
@@ -195,12 +195,12 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
       lastCursorSent = now;
       room.send("cursor", { at });
     },
-    drag(_who, el, at) {
+    drag(_who, el, at, block) {
       // Свой драг по проводу, себе не эхо (карта и так в пальцах). Темп курсора; null — конец.
       const now = Date.now();
       if (at && now - lastDragSent < CURSOR_WIRE_INTERVAL_MS) return;
       lastDragSent = now;
-      room.send("drag", { el, at });
+      room.send("drag", { el, at, block });
     },
     view: () => ({ held: { ...view.held }, cursors: { ...view.cursors }, drags: { ...view.drags } }),
     onChange(cb) {

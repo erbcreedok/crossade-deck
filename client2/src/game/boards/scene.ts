@@ -1,6 +1,6 @@
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Graphics, Text } from "pixi.js";
 import { SceneEngine, type SceneElement } from "../engine/sceneEngine";
-import { TEX_H, TEX_W, PIXEL_FONT, COLORS } from "../engine/constants";
+import { TEX_H, PIXEL_FONT, COLORS } from "../engine/constants";
 import { Card } from "../ui/Card";
 import { CardTextureCache } from "../ui/CardTextureCache";
 import { Button } from "../ui/Button";
@@ -20,13 +20,13 @@ import { handKey, type BoardState } from "./state";
 import { baseZoneId, elementById, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "./spec";
 import { handOrderAfterDrop } from "../crossade/handOrder";
 import { ContextMenu, type MenuRow } from "../ui/ContextMenu";
-import type { GlowShape } from "../ui/selection";
-import { PresenceCursor } from "../ui/PresenceCursor";
 import { DropBar } from "../ui/DropBar";
+import { ScenePresence } from "./scenePresence";
+import { hintShape, menuTargetAt, type MenuTargetKind } from "./sceneAreas";
 import { migrateState } from "./migrate";
 import { autoDealPlan } from "./dealPlan";
 import { SHUFFLE_FX_SECONDS, shufflePoses } from "./shuffleFx";
-import type { PresenceHub, PresenceView } from "./presence";
+import type { PresenceHub } from "./presence";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -37,8 +37,7 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
 const SEAT_STRIP_CARD_H = 83;
 
-/** Пустая цель контекстного меню: борда целиком (free-бокс) или грид-стол. */
-export type MenuTargetKind = "board" | "table";
+export type { MenuTargetKind } from "./sceneAreas";
 
 /** Шов меню к хосту (DIP): сцена спрашивает строки, хост решает, что настраивается и как. */
 export interface SceneMenus {
@@ -122,16 +121,10 @@ export class BoardScene extends SceneEngine {
   // Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга.
   private readonly dropBar = new DropBar();
 
-  // Live-присутствие: слой локов (подсветка-атом на удержанной фигуре) и курсоров-атомов.
-  private readonly presenceRoot = new Container();
-  private readonly presenceLayer = new Graphics();
-  private readonly cursors = new Map<string, PresenceCursor>();
-  private presenceView: PresenceView | null = null;
+  // Live-присутствие — коллаборатор (glow локов, курсоры, ведение чужих драгов): сцена кормит
+  // его видом и данными через узкий шов, вся presence-логика — в scenePresence.ts.
+  private readonly presence: ScenePresence;
   private grabbedEl: string | null = null;
-  private ownCursor: { x: number; y: number } | null = null;
-  // Карты, которые прямо сейчас ведёт ЧУЖОЙ драг-стрим: их не трогает rebuild (снимок пришёл бы
-  // посреди чужого жеста и дёрнул карту домой между кадрами стрима).
-  private readonly remoteDragged = new Set<string>();
 
   private hotSlot: string | null = null;
   private dragging = false;
@@ -154,9 +147,20 @@ export class BoardScene extends SceneEngine {
       this.rebuildBoard(false);
     });
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
+    this.presence = new ScenePresence(opts.presence, {
+      node: (id) => this.nodes.get(id),
+      nodes: () => this.nodes.entries(),
+      homeOf: (id) => this.homeVec(id),
+      slotOf: (id) => this.tree.slotOf(id),
+      members: (slot) => this.state.field.slots[slot]?.members ?? [],
+      fxRot: (id) => this.state.fx[id]?.rot ?? 0,
+      restScaleIn: (node, slot) => (slot ? this.scaleIn(node, slot) : node.restScale),
+      depth: (id) => this.cardDepth.get(id) ?? 0,
+      ownBlockDrag: () => this.blockZone !== null,
+    });
     opts.presence?.hub.onChange((v) => {
-      this.presenceView = v;
-      this.paintPresence();
+      this.presence.view = v;
+      this.presence.paint();
       this.wake();
     });
   }
@@ -174,156 +178,21 @@ export class BoardScene extends SceneEngine {
     const p = this.opts.presence;
     if (!p) return;
     const cp = active ? this.screenToContent(sx, sy) : null;
-    this.ownCursor = cp;
+    this.presence.ownCursor = cp;
     p.hub.cursor(p.who, cp);
-    this.paintPresence();
+    this.presence.paint();
     this.wake();
-  }
-
-  /** Свечение локов — НА ЭЛЕМЕНТАХ (Glowable), не слоем: атом в root'е едет с картой/фишкой сам,
-   *  как тень. Светится ровно то, что держат: одиночная карта — ОДНА (колода не подсвечивается);
-   *  свой блок-драг — все карты стопки (их свечения сливаются в контур фигуры, как тени). */
-  private applyGlow(): void {
-    const p = this.opts.presence;
-    const want = new Map<string, { color: number; figure?: GlowShape[] }>();
-    if (p && this.presenceView) {
-      for (const [el, who] of Object.entries(this.presenceView.held)) {
-        const color = p.palette(who);
-        const mineBlock = who === p.who && this.blockZone !== null;
-        const slot = this.tree.slotOf(el);
-        if (!mineBlock || !slot) {
-          want.set(el, { color });
-          continue;
-        }
-        // Свой блок-драг: ОДИН контур на целую стопку — несёт его НИЖНЯЯ карта (root под всеми).
-        // Фигура — СИЛУЭТЫ всех карт (контент-единицы отн. центра нижней): erase-пасс выведет
-        // контур настоящего ступенчатого союза, а не прямоугольник (как сливаются тени).
-        const ids = this.state.field.slots[slot]?.members ?? [el];
-        const base = ids[0]!;
-        const baseHome = this.homeVec(base);
-        if (!baseHome) {
-          want.set(el, { color });
-          continue;
-        }
-        const figure: GlowShape[] = [];
-        for (const id of ids) {
-          const home = this.homeVec(id);
-          const node = this.nodes.get(id);
-          if (!home || !node) continue;
-          const dx = home.x - baseHome.x;
-          const dy = home.y - baseHome.y;
-          const sil = node instanceof Card ? null : node.glowSilhouette;
-          if (sil) {
-            // Собственный силуэт: конь огибается как конь (та же форма, что у его тени).
-            figure.push({ kind: "silhouette", x: dx + sil.bounds.x, y: dy + sil.bounds.y, w: sil.bounds.width, h: sil.bounds.height, texture: sil.texture });
-            continue;
-          }
-          const w = node.footprint.hw * 2;
-          const h = node.footprint.hh * 2;
-          // Карта — скруглённый прямоугольник (это и есть её силуэт), круглая фишка — круг.
-          const radius = node instanceof Card ? (16 * w) / TEX_W : Math.min(w, h) / 2;
-          figure.push({ x: dx - w / 2, y: dy - h / 2, w, h, radius });
-        }
-        if (figure.length) want.set(base, { color, figure });
-        else want.set(el, { color });
-      }
-    }
-    for (const [id, node] of this.nodes) {
-      const g = want.get(id);
-      node.setGlow(g?.color ?? null, g?.figure);
-    }
-  }
-
-  /** Чужие драги: вести карту спрингом к приезжающей точке (over всеми), кончился — домой. */
-  private applyRemoteDrags(): void {
-    const p = this.opts.presence;
-    const drags = (p && this.presenceView?.drags) ?? {};
-    const active = new Set<string>();
-    for (const [who, d] of Object.entries(drags)) {
-      if (!p || who === p.who) continue;
-      const node = this.nodes.get(d.el);
-      if (!node) continue;
-      active.add(d.el);
-      this.remoteDragged.add(d.el);
-      node.root.zIndex = 1e6; // в пальцах — над столом, как свой драг
-      node.body.setTarget({ x: d.at.x, y: d.at.y, rot: this.state.fx[d.el]?.rot ?? 0, scale: node.restScale });
-    }
-    for (const el of [...this.remoteDragged]) {
-      if (active.has(el)) continue;
-      this.remoteDragged.delete(el);
-      const node = this.nodes.get(el);
-      const home = this.homeVec(el);
-      const slot = this.tree.slotOf(el);
-      if (!node || !home) continue;
-      node.root.zIndex = this.cardDepth.get(el) ?? 0;
-      node.body.setTarget({ x: home.x, y: home.y, rot: this.state.fx[el]?.rot ?? 0, scale: slot ? this.scaleIn(node, slot) : node.restScale });
-    }
-  }
-
-  private paintPresence(): void {
-    this.presenceLayer.clear();
-    this.applyGlow();
-    this.applyRemoteDrags();
-    const v = this.presenceView;
-    const p = this.opts.presence;
-    const seen = new Set<string>();
-    if (v && p) {
-      // Свой курсор — атом без подписи (своё имя под пальцем — шум); чужие — с именем.
-      if (this.ownCursor) {
-        seen.add(p.who);
-        this.cursorFor(p.who, p.palette(p.who), null).place(this.ownCursor.x, this.ownCursor.y);
-      }
-      for (const [who, at] of Object.entries(v.cursors)) {
-        if (who === p.who) continue;
-        seen.add(who);
-        this.cursorFor(who, p.palette(who), p.label?.(who) ?? who).place(at.x, at.y);
-      }
-    }
-    for (const [who, cursor] of this.cursors) {
-      if (seen.has(who)) continue;
-      cursor.destroy();
-      this.cursors.delete(who);
-    }
-  }
-
-  private cursorFor(who: string, color: number, label: string | null): PresenceCursor {
-    let c = this.cursors.get(who);
-    if (!c) {
-      c = new PresenceCursor({ color, label: label ?? undefined });
-      this.presenceRoot.addChild(c.root);
-      this.cursors.set(who, c);
-    }
-    c.setColor(color);
-    return c;
   }
 
   // ——— контекстное меню настроек (long-press по гриду/борде, ПКМ на десктопе) ———
 
-  /** Цель меню под точкой: НЕ-free зона с рамкой (грид-стол) → "table"; free-бокс → "board".
-   *  Область зоны — ОБЪЕДИНЕНИЕ её ячеек: у фикс-слотов (ring/grid) rect'ы лежат по слотам,
-   *  и «стол» — это вся их рамка, а не первая клетка. */
-  private menuTargetAt(cp: { x: number; y: number }): MenuTargetKind | null {
-    if (!this.opts.menus) return null;
-    let best: { kind: MenuTargetKind; area: number } | null = null;
-    for (const zone of this.spec.zones) {
-      let r: { x0: number; y0: number; x1: number; y1: number } | null = null;
-      for (const [key, cell] of Object.entries(this.tree.cellRects)) {
-        if (baseZoneId(zoneOf(key)) !== zone.id) continue;
-        r = r
-          ? { x0: Math.min(r.x0, cell.x), y0: Math.min(r.y0, cell.y), x1: Math.max(r.x1, cell.x + cell.w), y1: Math.max(r.y1, cell.y + cell.h) }
-          : { x0: cell.x, y0: cell.y, x1: cell.x + cell.w, y1: cell.y + cell.h };
-      }
-      if (!r || cp.x < r.x0 || cp.x > r.x1 || cp.y < r.y0 || cp.y > r.y1) continue;
-      const kind: MenuTargetKind = zone.layout.kind === "free" ? "board" : "table";
-      const area = (r.x1 - r.x0) * (r.y1 - r.y0);
-      // Самая внутренняя (меньшая) цель побеждает: грид лежит в центре бокса.
-      if (!best || area < best.area) best = { kind, area };
-    }
-    return best?.kind ?? null;
+  /** Цель меню под точкой — чистая menuTargetAt (sceneAreas); без хост-меню цели нет. */
+  private menuTarget(cp: { x: number; y: number }): MenuTargetKind | null {
+    return this.opts.menus ? menuTargetAt(this.spec.zones, this.tree.cellRects, cp) : null;
   }
 
   protected hasContextAt(cp: { x: number; y: number }): boolean {
-    return this.menuTargetAt(cp) !== null;
+    return this.menuTarget(cp) !== null;
   }
 
   protected openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
@@ -334,7 +203,7 @@ export class BoardScene extends SceneEngine {
     if (el && slot) {
       this.menuCtx = this.isDeckSlot(slot) ? { kind: "deck", slot } : { kind: "card", id: el.id };
     } else {
-      const target = this.menuTargetAt(cp);
+      const target = this.menuTarget(cp);
       if (!target) return;
       this.menuCtx = { kind: target };
     }
@@ -493,8 +362,7 @@ export class BoardScene extends SceneEngine {
   protected buildScene(app: Application): void {
     this.tex = new CardTextureCache(app);
     this.scene.surface.addChild(this.decorLayer, this.hintLayer);
-    this.presenceRoot.addChild(this.presenceLayer);
-    this.content.addChild(this.presenceRoot); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
+    this.content.addChild(this.presence.root); // ПОСЛЕДНИМ ребёнком контента: локи и курсоры поверх карт
     this.chrome.addChildAt(this.dropBar.root, 0); // свой НИЖНИЙ слой HUD: меню и кнопки — поверх
     this.buildActionBar();
     this.rebuildBoard(true);
@@ -589,7 +457,7 @@ export class BoardScene extends SceneEngine {
       const node = this.nodeFor(id);
       const depth = (slotOrder.get(slot) ?? 0) * 1000 + indexInPile;
       this.cardDepth.set(id, depth);
-      if (this.remoteDragged.has(id)) return; // карту ведёт чужой драг-стрим — снимок её не дёргает
+      if (this.presence.hasRemote(id)) return; // карту ведёт чужой драг-стрим — снимок её не дёргает
       node.root.zIndex = depth;
       node.setState(node.pose);
       this.placeCard(node);
@@ -619,7 +487,7 @@ export class BoardScene extends SceneEngine {
     this.syncSeats();
     this.paintDecor();
     this.paintHints();
-    this.paintPresence();
+    this.presence.paint();
     this.syncDice();
     this.clampView();
     this.applyView();
@@ -804,44 +672,23 @@ export class BoardScene extends SceneEngine {
     }
   }
 
-  /** Подсветка целевого слота под пальцем — по cellRects/размеру слота из дерева.
-   *  ФОРМА подсветки следует форме зоны: круглая зона подсвечивается КРУГОМ, не квадратом.
-   *  Приоритет free-зоны: над колодой/стопкой светится ОНА (её футпринт), над пустым боксом —
-   *  весь бокс (карта ляжет свободно, куда положили). */
+  /** Подсветка целевого слота под пальцем: фигуру считает чистый hintShape (sceneAreas),
+   *  сцена только обводит акцентом (в live — цветом игрока, не общим золотом). */
   private paintHints(): void {
     const g = this.hintLayer;
     g.clear();
     if (!this.dragging || !this.hotSlot) return;
-    const accent = this.accentColor(); // в live подсветки — цвета ИГРОКА, не общее золото
-    const zone = this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(this.hotSlot!)));
-    if (zone?.layout.kind === "free") {
-      if (slotOf(this.hotSlot) === "box") {
-        // Наведение на сам бокс (мимо стопок): светится весь круг/бокс.
-        const box = this.tree.cellRects[slotKey(zone.id, 0)];
-        if (!box) return;
-        if (zone.shape === "circle") g.circle(box.x + box.w / 2, box.y + box.h / 2, Math.min(box.w, box.h) / 2 + 3).stroke({ width: 3, color: accent });
-        else g.roundRect(box.x - 2, box.y - 2, box.w + 4, box.h + 4, 8).stroke({ width: 3, color: accent });
-        return;
-      }
-      // Наведение на колоду/свободную стопку: светится её футпринт, НЕ бокс.
-      const at = this.tree.origins[this.hotSlot];
-      if (!at) return;
-      const n = this.state.field.slots[this.hotSlot]?.members.length ?? 0;
-      const s = freeStackSize(CARD, Math.max(1, n));
-      g.roundRect(at.x - 3, at.y - 3, s.w + 6, s.h + 6, 8).stroke({ width: 3, color: accent });
-      return;
-    }
-    const r = this.tree.cellRects[this.hotSlot];
-    if (r) {
-      if (zone?.shape === "circle") {
-        g.circle(r.x + r.w / 2, r.y + r.h / 2, Math.min(r.w, r.h) / 2 + 3).stroke({ width: 3, color: accent });
-      } else {
-        g.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 8).stroke({ width: 3, color: accent });
-      }
-      return;
-    }
-    const at = this.tree.origins[this.hotSlot];
-    if (at) g.roundRect(at.x - 4, at.y - 4, CARD.w + 8, CARD.h + 8, 8).stroke({ width: 3, color: accent });
+    const shape = hintShape({
+      hotSlot: this.hotSlot,
+      zone: this.spec.zones.find((z) => z.id === baseZoneId(zoneOf(this.hotSlot!))),
+      cellRects: this.tree.cellRects,
+      origins: this.tree.origins,
+      members: this.state.field.slots[this.hotSlot]?.members.length ?? 0,
+      card: CARD,
+    });
+    if (!shape) return;
+    if (shape.kind === "circle") g.circle(shape.cx, shape.cy, shape.r).stroke({ width: 3, color: this.accentColor() });
+    else g.roundRect(shape.x, shape.y, shape.w, shape.h, 8).stroke({ width: 3, color: this.accentColor() });
   }
 
   private syncDice(): void {
@@ -931,7 +778,7 @@ export class BoardScene extends SceneEngine {
         this.drag.move(cp);
         // Колода в пальцах → снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
         this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height, this.accentColor());
-        this.applyGlow(); // grab эмитил присутствие ДО того, как стало известно, что это блок-драг
+        this.presence.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок-драг
         return true;
       }
     }
@@ -947,11 +794,11 @@ export class BoardScene extends SceneEngine {
       this.wake();
     }
     // Драг-стрим: остальным клиентам — ЦЕНТР карты в пальцах (не точка хвата), темп курсора.
-    // Блок-драг колоды не стримится (стопка переедет снимком offsetFree на дропе).
+    // Блок-драг колоды — той же строкой с флагом block: зрители двигают ВСЮ стопку той же дельтой.
     const pr = this.opts.presence;
-    if (pr && this.grabbedEl && !this.blockZone) {
+    if (pr && this.grabbedEl) {
       const node = this.nodes.get(this.grabbedEl);
-      if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py });
+      if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py }, this.blockZone !== null);
     }
     if (this.blockZone) return; // блок-драг колоды: бокс не подсвечиваем никак
     const target = dropTarget(this.tree.root, p);
@@ -1135,8 +982,7 @@ export class BoardScene extends SceneEngine {
   protected onTeardown(app: Application): void {
     this.closeMenu();
     this.dropBar.destroy();
-    for (const c of this.cursors.values()) c.destroy();
-    this.cursors.clear();
+    this.presence.destroy();
     for (const node of this.nodes.values()) node.destroy();
     this.nodes.clear();
     for (const l of this.seatLabels.values()) l.destroy();

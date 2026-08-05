@@ -9,10 +9,12 @@ export interface PresenceCursor {
   y: number;
 }
 
-/** Таскаемый элемент участника: центр карты в координатах контента (темп курсора, без хранения). */
+/** Таскаемый элемент участника: центр карты в координатах контента (темп курсора, без хранения).
+ *  block — тащится ВСЯ стопка слота (hold-драг колоды): зрители двигают всех жителей той же дельтой. */
 export interface PresenceDrag {
   el: string;
   at: PresenceCursor;
+  block?: boolean;
 }
 
 export interface PresenceView {
@@ -32,7 +34,7 @@ export interface PresenceHub {
   heldBy(el: string): string | null;
   cursor(who: string, at: PresenceCursor | null): void;
   /** Стрим своего драга: позиция карты в пальцах (null — драг кончился, карту ведёт снимок). */
-  drag(who: string, el: string, at: PresenceCursor | null): void;
+  drag(who: string, el: string, at: PresenceCursor | null, block?: boolean): void;
   view(): PresenceView;
   onChange(cb: (v: PresenceView) => void): void;
 }
@@ -68,8 +70,8 @@ export function createPresenceHub(): PresenceHub {
       else delete cursors[who];
       emit();
     },
-    drag(who, el, at) {
-      if (at) drags[who] = { el, at };
+    drag(who, el, at, block) {
+      if (at) drags[who] = block ? { el, at, block } : { el, at };
       else delete drags[who];
       emit();
     },

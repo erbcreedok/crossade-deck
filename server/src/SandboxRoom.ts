@@ -99,10 +99,10 @@ export class SandboxRoom extends Room {
     });
 
     // Драг-стрим: позиция таскаемой карты, тот же канон, что курсор (ретрансляция, не храним).
-    this.onMessage("drag", (client, msg: { el?: string; at?: { x: number; y: number } | null }) => {
+    this.onMessage("drag", (client, msg: { el?: string; at?: { x: number; y: number } | null; block?: boolean }) => {
       const el = typeof msg?.el === "string" ? msg.el : null;
       if (!el) return;
-      this.broadcast("drag", { who: client.sessionId, el, at: msg?.at ?? null }, { except: client });
+      this.broadcast("drag", { who: client.sessionId, el, at: msg?.at ?? null, block: msg?.block === true }, { except: client });
     });
 
     // Профиль: сменить цвет, если он свободен.
