@@ -1,0 +1,23 @@
+client2/src/game/engine/cardHit.ts
+  s_b2849f723d52bb::t_35e4596e39e2ed 11,14-15,20
+client2/src/game/engine/cardHit.test.ts
+  s_b2849f723d52bb::t_02bb9b7a46230b 27-36
+client2/src/game/engine/sceneView.ts
+  s_b2849f723d52bb::t_4a52fcb2f33776 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "46da05507db2d2867250c3477128d1e16dd9b952",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
