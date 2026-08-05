@@ -1,0 +1,35 @@
+client2/src/game/engine/sceneContract.ts
+  s_b2849f723d52bb::t_0d6b0c9b89e114 1-138
+client2/src/game/engine/sceneMarkers.ts
+  s_b2849f723d52bb::t_254912e1af91fb 1-89
+client2/src/Table.tsx
+  s_b2849f723d52bb::t_8af0305303ff54 2-4,7-26,29,35-38,40-41,46,51
+client2/src/game/engine/sceneEngine.ts
+  s_b2849f723d52bb::t_92fa026ab46f37 96,394,397,417,472,484,490,511,669,674,677,684,691,699,702,708,717,722,727,732,738,750,753,758,763,797,968,973,1025
+  s_b2849f723d52bb::t_51202053b0701b 21,203-273,276-376
+  s_b2849f723d52bb::t_fa84a0c6101132 990
+  s_b2849f723d52bb::t_bbf20035ab9dab 6,837,839,841-845,848-852,865-899
+  s_b2849f723d52bb::t_398dde5a7a9d3e 7-8,74,170,175,182,186,274-275,683,685-686,710-711,728,754
+  s_b2849f723d52bb::t_84ba3dff2586c8 377
+client2/src/game/engine/sceneInput.ts
+  s_b2849f723d52bb::t_8210a68593d207 1-129
+client2/src/game/engine/sceneRuntime.ts
+  s_b2849f723d52bb::t_0d6b0c9b89e114 4
+  s_b2849f723d52bb::t_042262221f3326 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a7234a4919523b97c36191638c868e9a7128940b",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
