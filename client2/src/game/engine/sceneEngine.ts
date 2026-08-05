@@ -16,7 +16,9 @@ import { moveStyle } from "../anim/moveStyles";
 import { destroyStyle } from "../anim/destroyStyles";
 import { appearStyle } from "../anim/appearStyles";
 import { BASE_PRESET, type AnimPreset } from "../anim/presets";
-import { fitBoundsView } from "./focusView";
+import { SceneCamera, type SpreadSource } from "./sceneCamera";
+import { ScenePeeks } from "./scenePeeks";
+import { DelayQueue, SceneTimers } from "./sceneTimers";
 
 /** Какая из анимаций элемента: у каждой своё расписание в пресете. */
 export type AnimKind = "move" | "flip" | "destroy" | "appear";
@@ -84,16 +86,10 @@ export interface CameraConfig {
 
 export const MIN_ZOOM = 0.6;
 export const MAX_ZOOM = 2.6;
-/** Чувствительность зума колесом/тачпадом: exp(-deltaY * ZOOM_SENS). */
-export const ZOOM_SENS = 0.0015;
-/** Пауза между «порциями» жеста колеса, после которой это уже НОВЫЙ жест (граница детента), мс. */
-export const WHEEL_GESTURE_GAP_MS = 140;
-
-/** Каким устройством/жестом пришёл спред: тач-пинч, десктопный зум-жест (Ctrl/тачпад) или обычное
- *  колесо/скролл. Сцена по конфигу стека решает, реагирует ли на этот source (spread.*Trigger). */
-export type SpreadSource = "touch-zoom" | "pointer-zoom" | "pointer-pan";
+export { ZOOM_SENS, WHEEL_GESTURE_GAP_MS } from "./sceneCamera";
+export type { SpreadSource } from "./sceneCamera";
 /** Сколько секунд дропзона «подглядеть» держит карту раскрытой до авто-возврата. */
-export const PEEK_DUR = 3;
+export { PEEK_DUR } from "./scenePeeks";
 
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
@@ -114,6 +110,25 @@ export abstract class SceneEngine extends CanvasApp {
   // ——— камера ———
   protected readonly viewport: Viewport;
   private onView: ((v: ViewState) => void) | null = null;
+  protected readonly camera = new SceneCamera({
+    viewport: () => this.viewport,
+    size: () => ({ w: this.width, h: this.height }),
+    insetTop: () => this.chromeInsetTop(),
+    contentSize: () => ({ w: this.contentW, h: this.contentH }),
+    syncVp: () => this.syncVp(),
+    clampView: () => this.clampView(),
+    applyView: () => this.applyView(),
+    emitView: () => this.emitView(),
+    wake: () => this.wake(),
+    screenToContent: (sx, sy) => this.screenToContent(sx, sy),
+    canvasRect: () => this.app!.canvas.getBoundingClientRect(),
+    spreadOnElement: (cp, rx, ry, src) => this.spreadOnElement(cp, rx, ry, src),
+    onSpreadBegin: () => this.onSpreadBegin(),
+    focusTargetAt: (cp) => this.focusTargetAt(cp),
+    inDocument: () => this.inDocument,
+    dragInfo: () => ({ payload: this.drag, screen: this.dragScreen, dragging: this.input.gesture === "drag" }),
+    refreshZoneHot: (pp) => this.refreshZoneHot(pp),
+  });
   private panVel = { x: 0, y: 0 }; // сглаженная скорость пана (px/сек) — для инерции
   private lastPanT = 0;
   private pinch = { dist: 1, zoom: 1, midContentX: 0, midContentY: 0, spanX: 0 };
@@ -122,9 +137,6 @@ export abstract class SceneEngine extends CanvasApp {
   private lastWheelSpreadT = 0;
 
   // ——— дабл-тап-зум на зону (общий механизм; сцена решает, что фокусируемо — focusTargetAt) ———
-  private lastTap: { t: number; x: number; y: number } | null = null;
-  private focusedKey: string | null = null; // на какую зону сейчас наведено (для тоггла)
-  private camTween: { fromX: number; fromY: number; fromZoom: number; toX: number; toY: number; toZoom: number; t: number; dur: number } | null = null;
 
   // ——— ввод ———
   protected readonly input = new InputRouter<SceneElement, Button>(this.inputHandlers());
@@ -197,7 +209,7 @@ export abstract class SceneEngine extends CanvasApp {
   // id → сессия показа. undo — замыкание из Peekable.peekReveal, возвращающее элемент КАК БЫЛО:
   // reveal и restore одной парой, рассинхрону неоткуда взяться. grabbed — показанный элемент
   // перехватили повторным драгом; тогда восстановление ждёт КОНЦА драга или истечения PEEK_DUR.
-  protected peeking = new Map<string, { el: SceneElement; undo: () => void; t: number; grabbed: boolean }>();
+  protected readonly peeks = new ScenePeeks({ wake: () => this.wake(), releaseElement: (el) => this.releaseElement(el as SceneElement) });
 
   /** Лёгкий профиль качества (issue #8): выключает shadow-пасс и замораживает idle у карт. */
   protected lowFx = false;
@@ -321,55 +333,9 @@ export abstract class SceneEngine extends CanvasApp {
    *  per-gesture-состояние (напр. «этот жест уже двигал спред» — для детента на пределе). Опц. */
   protected onSpreadBegin(): void {}
 
-  private handleTap(content: Pt, screen: Pt): void {
-    const now = performance.now();
-    const prev = this.lastTap;
-    this.lastTap = { t: now, x: screen.x, y: screen.y };
-    // Двойной тап: два подряд близко и быстро. Порог позиции щедрый — палец на телефоне гуляет.
-    if (prev && now - prev.t < 320 && Math.hypot(screen.x - prev.x, screen.y - prev.y) < 28) {
-      this.lastTap = null;
-      const b = this.focusTargetAt(content);
-      if (!b) return;
-      const key = `${Math.round(b.x)}:${Math.round(b.y)}:${Math.round(b.w)}:${Math.round(b.h)}`;
-      if (this.focusedKey === key) {
-        this.focusedKey = null;
-        this.focusBounds({ x: 0, y: 0, w: this.contentW, h: this.contentH }); // тоггл → полный вид стола
-      } else {
-        this.focusedKey = key;
-        this.focusBounds(b);
-      }
-    }
-  }
-
-  /** Навести камеру на границы: центр в центр доступной области, зум под 90% её размера. Плавно. */
+  /** Навести камеру на границы (плавный твин) — риг SceneCamera. */
   protected focusBounds(b: { x: number; y: number; w: number; h: number }): void {
-    if (b.w <= 0 || b.h <= 0) return;
-    this.syncVp();
-    const target = fitBoundsView(b, { w: this.width, h: this.height - this.chromeInsetTop() }, { min: this.viewport.minZoom, max: this.viewport.maxZoom });
-    this.camTween = { fromX: this.viewport.x, fromY: this.viewport.y, fromZoom: this.viewport.zoom, toX: target.x, toY: target.y, toZoom: target.zoom, t: 0, dur: 0.3 };
-    this.wake();
-  }
-
-  /** Шаг анимации камеры за кадр (ease-out). Вернуть «ещё едет». */
-  private stepCamTween(dt: number): boolean {
-    const c = this.camTween;
-    if (!c) return false;
-    c.t += dt;
-    const k = Math.min(1, c.dur > 0 ? c.t / c.dur : 1);
-    const e = 1 - Math.pow(1 - k, 3); // easeOutCubic
-    this.viewport.zoom = c.fromZoom + (c.toZoom - c.fromZoom) * e;
-    this.viewport.x = c.fromX + (c.toX - c.fromX) * e;
-    this.viewport.y = c.fromY + (c.toY - c.fromY) * e;
-    this.applyView();
-    this.emitView();
-    if (k >= 1) this.camTween = null;
-    return true;
-  }
-
-  /** Прервать наведение камеры (ручной жест/зум перебивает и сбрасывает «наведено на зону»). */
-  private cancelFocus(): void {
-    this.camTween = null;
-    this.focusedKey = null;
+    this.camera.focusBounds(b);
   }
 
   // Окно изменилось (issue #49). Пересобирать сцену НЕ нужно, если её геометрия не зависит от
@@ -388,70 +354,8 @@ export abstract class SceneEngine extends CanvasApp {
   /** Пересчитать СВОЮ раскладку под новый экран (до клампа камеры). Опц. */
   protected onSceneResize(_w: number, _h: number): void {}
 
-  private zoomAround(sx: number, sy: number, factor: number): void {
-    this.syncVp();
-    const c = this.camPoint(sx, sy);
-    this.viewport.zoomAround(c.x, c.y, factor);
-    this.applyView();
-    this.wake();
-    this.emitView();
-  }
-
-  // Зум колесом — ТОЛЬКО с модификатором (кроссплатформенно): Ctrl на Windows/Linux/Mac или
-  // Cmd на Mac. Пинч тачпада браузер шлёт как колесо с ctrlKey — тоже зум. Без модификатора
-  // любое колесо/скролл (мышь и тачпад) — это ПАН. Shift не берём: в браузерах это гориз.скролл.
-  private wheelIsZoom(e: WheelEvent): boolean {
-    return e.ctrlKey || e.metaKey;
-  }
-
-  private onWheel = (e: WheelEvent): void => {
-    // ГЛАВНОЕ ПРАВИЛО: не отбирать колесо, если двигать нечего (иначе страница под канвасом
-    // перестаёт скроллиться и сайт читается как зависший). В каталоге витрина вписана целиком.
-    this.syncVp();
-    const rect = this.app!.canvas.getBoundingClientRect();
-    const cp = this.screenToContent(e.clientX - rect.left, e.clientY - rect.top);
-    const dyPx = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * this.height : e.deltaY;
-    // Граница жеста для детента: у колеса нет pointerdown/up, поэтому новый «залп» после паузы —
-    // новый жест (сброс детента). deltaY<0 (движение к себе / зум-ин) РАЗДВИГАЕТ.
-    // Граница жеста для детента: у колеса нет pointerdown/up, поэтому новый «залп» после паузы —
-    // новый жест (сброс детента).
-    const t = performance.now();
-    if (t - this.lastWheelSpreadT > WHEEL_GESTURE_GAP_MS) this.onSpreadBegin();
-    this.lastWheelSpreadT = t;
-    // Спреду отдаём СЫРЫЕ device-дельты (px) — как их маппить (ось/инверсия/чувствительность), решает
-    // input-конфиг стека в spreadOnElement, не сцена. Горизонталь до нас доходит только потому, что
-    // back-навигация погашена overscroll-behavior (иначе браузер съедал бы горизонтальный жест).
-    const dxPx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaMode === 2 ? e.deltaX * this.width : e.deltaX;
-
-    if (this.wheelIsZoom(e)) {
-      // Десктопный ЗУМ-жест (Ctrl/⌘-колесо; тачпад-пинч браузер шлёт как ровно такое колесо). НАД
-      // стеком со spread.input.pointerTrigger==="zoom" он ведёт спред; иначе (или на пределе) — зум камеры.
-      if (this.spreadOnElement(cp, 0, dyPx, "pointer-zoom")) {
-        e.preventDefault();
-        return;
-      }
-      e.preventDefault();
-      this.cancelFocus();
-      this.zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dyPx * ZOOM_SENS));
-      return;
-    }
-
-    // Обычное колесо/скролл (без модификатора). НАД стеком со spread.input.pointerTrigger==="pan" он
-    // ведёт спред (ось/знак — из input-конфига); иначе (или на пределе) — пан камеры (если есть куда
-    // двигать, иначе колесо уходит странице).
-    if (this.spreadOnElement(cp, dxPx, dyPx, "pointer-pan")) {
-      e.preventDefault();
-      return;
-    }
-    const canPan = (e.deltaX !== 0 && this.viewport.overflowX) || (e.deltaY !== 0 && this.viewport.overflowY);
-    if (!wheelGoesToScene({ zoom: false, canPan, inDocument: this.inDocument })) return; // колесо уходит странице
-    e.preventDefault();
-    this.cancelFocus(); // пан перебивает наведение на зону
-    this.viewport.panBy(-e.deltaX, -dyPx);
-    this.applyView();
-    this.wake();
-    this.emitView();
-  };
+  /** Колесо/тачпад — целиком камерный риг (зум с модификатором, пан, спреды). */
+  private onWheel = (e: WheelEvent): void => this.camera.handleWheel(e);
 
   /**
    * Сцена стоит ВНУТРИ документа (docs-страница каталога), а не владеет кадром.
@@ -504,39 +408,6 @@ export abstract class SceneEngine extends CanvasApp {
     this.emitView();
   }
 
-  // Авто-скролл у кромки: пока держишь элемент у края экрана, вид панится в ту сторону — скорость
-  // растёт с глубиной захода в кромку. Элемент остаётся ПОД пальцем (пересчёт по экранной точке
-  // при новом виде), так что он «уезжает» на открывшуюся область стола.
-  private edgeScroll(dt: number): void {
-    if (this.input.gesture !== "drag" || !this.drag) return;
-    const margin = Math.max(48, Math.min(this.width, this.height) * 0.12);
-    const SPEED = 780; // экранных px/сек на самой кромке
-    const { x: sx, y: sy } = this.dragScreen;
-    const ramp = (d: number): number => {
-      const r = clamp(d / margin, 0, 1);
-      return r * r; // мягче у границы зоны, резче у самого края
-    };
-    let dx = 0;
-    let dy = 0;
-    if (sx < margin) dx = ramp(margin - sx);
-    else if (sx > this.width - margin) dx = -ramp(sx - (this.width - margin));
-    if (sy < margin) dy = ramp(margin - sy);
-    else if (sy > this.height - margin) dy = -ramp(sy - (this.height - margin));
-    if (dx === 0 && dy === 0) return;
-
-    const bx = this.viewport.x;
-    const by = this.viewport.y;
-    this.viewport.x += dx * SPEED * dt;
-    this.viewport.y += dy * SPEED * dt;
-    this.clampView();
-    if (this.viewport.x === bx && this.viewport.y === by) return; // упёрлись в край — двигать нечего
-    this.applyView();
-    const p = this.screenToContent(sx, sy);
-    this.drag.move(p); // груз остаётся под пальцем на открывшейся области
-    this.refreshZoneHot(p);
-    this.emitView();
-  }
-
   // ——————————————————————————————————————————————————————————————————————
   // Дроп-зоны
   // ——————————————————————————————————————————————————————————————————————
@@ -567,41 +438,14 @@ export abstract class SceneEngine extends CanvasApp {
   // «Подглядеть»
   // ——————————————————————————————————————————————————————————————————————
 
-  /** Есть ли у элемента что раскрыть — ЧИСТЫЙ предикат (armed-текст зоны читает его без мутаций). */
+  /** Есть ли у элемента что раскрыть — ЧИСТЫЙ предикат (armed-текст зоны читает без мутаций). */
   protected needsPeek(el: TableElement): boolean {
-    return "canPeek" in el ? (el as unknown as Peekable).canPeek : false;
+    return this.peeks.needs(el);
   }
 
-  // true, если хоть один элемент реально ушёл в показ — это и есть consumed для SingleDrag/GroupDrag:
-  // не начали ни одного → элемент(ы) летят домой как обычно. КАК раскрывать и как вернуть — знает
-  // сам элемент (peekReveal → undo); движок лишь держит undo.
+  /** true — хоть один элемент ушёл в показ (consumed для драга); иначе полетят домой как обычно. */
   protected startPeek(els: readonly TableElement[]): boolean {
-    let any = false;
-    for (const el of els) {
-      const undo = "peekReveal" in el ? (el as unknown as Peekable).peekReveal() : null;
-      if (!undo) continue; // раскрывать нечего (уже видно) — элемент не поглощён, полетит домой
-      this.peeking.set(el.id, { el: el as SceneElement, undo, t: 0, grabbed: false });
-      any = true;
-    }
-    if (any) this.wake();
-    return any;
-  }
-
-  // Вернуть элемент КАК БЫЛО и закрыть сессию показа. releaseHome — отпустить домой (истёк таймер
-  // и элемент НЕ держат). Под пальцем домой не гоним: его увезёт обычный release по концу драга.
-  private endPeek(id: string, releaseHome: boolean): void {
-    const p = this.peeking.get(id);
-    if (!p) return;
-    this.peeking.delete(id);
-    p.undo();
-    if (releaseHome) this.releaseElement(p.el);
-  }
-
-  // Конец драга: показанные элементы, что держали, вернуть КАК БЫЛО, НЕ отпуская домой — домой их
-  // увезёт обычный release/дроп. Зовётся ДО диспатча дропа, чтобы повторный дроп на «подглядеть»
-  // раскрыл с уже восстановленного базового вида (иначе поймал бы «раскрытое»).
-  private resolveGrabbedPeeks(): void {
-    for (const [id, p] of this.peeking) if (p.grabbed) this.endPeek(id, false);
+    return this.peeks.start(els);
   }
 
   // ——————————————————————————————————————————————————————————————————————
@@ -679,7 +523,7 @@ export abstract class SceneEngine extends CanvasApp {
 
   /** Тап по сцене (любая цель). База ведёт дабл-тап-зум; сцена может перехватить (закрыть меню). */
   protected onSceneTap(content: Pt, screen: Pt): void {
-    this.handleTap(content, screen);
+    this.camera.handleTap(content, screen);
   }
 
   // ——— швы домена: сцена переопределяет только то, что у неё своё ———
@@ -805,8 +649,7 @@ export abstract class SceneEngine extends CanvasApp {
       // пока до неё дойдёт волна. Если бы дом ехал вместе с флипом, каскад выглядел бы как
       // «сначала все перевернулись, потом все поехали» — две анимации вместо одной.
       this.setHome(el, dest.home, dest.depth);
-      if (stepPlan.delay <= 0) requestFlipOf(el);
-      else this.pendingFlips.push({ el, t: stepPlan.delay });
+      this.flipQueue.push(el, stepPlan.delay);
     });
     this.wake();
   }
@@ -825,25 +668,11 @@ export abstract class SceneEngine extends CanvasApp {
    * другого ПОСЛЕ прихода, и без общего таймера каждый сценарий заводил бы свой setTimeout — то
    * есть время, не связанное с кадром, которое переживёт пересборку сцены и выстрелит в пустоту.
    */
-  private timers: { t: number; fn: () => void }[] = [];
+  private readonly sceneTimers = new SceneTimers(() => this.wake());
 
   /** Выполнить через `delay` секунд ЖИЗНИ СЦЕНЫ (не настенного времени). */
   after(delay: number, fn: () => void): void {
-    if (delay <= 0) return void fn();
-    this.timers.push({ t: delay, fn });
-    this.wake();
-  }
-
-  private stepTimers(dt: number): boolean {
-    if (!this.timers.length) return false;
-    const left: { t: number; fn: () => void }[] = [];
-    for (const x of this.timers) {
-      const t = x.t - dt;
-      if (t <= 0) x.fn();
-      else left.push({ t, fn: x.fn });
-    }
-    this.timers = left;
-    return true;
+    this.sceneTimers.after(delay, fn);
   }
 
   /**
@@ -873,20 +702,8 @@ export abstract class SceneEngine extends CanvasApp {
     return this.animDuration(id, "move");
   }
 
-  /** Отложенные перевороты каскада. Шагаются в кадре — своего таймера у сцены нет и не нужно. */
-  private pendingFlips: { el: SceneElement; t: number }[] = [];
-
-  private stepPendingFlips(dt: number): boolean {
-    if (!this.pendingFlips.length) return false;
-    const left: { el: SceneElement; t: number }[] = [];
-    for (const p of this.pendingFlips) {
-      const t = p.t - dt;
-      if (t <= 0) requestFlipOf(p.el);
-      else left.push({ el: p.el, t });
-    }
-    this.pendingFlips = left;
-    return true; // пока очередь не пуста, цикл засыпать не имеет права
-  }
+  /** Отложенные перевороты каскада (волна доходит с задержкой). Шагается в кадре. */
+  private readonly flipQueue = new DelayQueue<SceneElement>((el) => requestFlipOf(el));
 
   // Хит-тесты и реакции на жесты. Стейт-машина — в InputRouter, домен — в швах выше.
   private inputHandlers(): InputHandlers<SceneElement, Button> {
@@ -911,11 +728,7 @@ export abstract class SceneEngine extends CanvasApp {
         // (под пальцем элемент явно не «завис» — резонанс-парение ни к чему); скрытность НЕ трогаем,
         // она вернётся по КОНЦУ драга или по истечении PEEK_DUR, что раньше. Так показанную карту
         // можно утащить, и она вернётся в исходный вид сама.
-        const pk = this.peeking.get(el.id);
-        if (pk) {
-          pk.grabbed = true;
-          if ("peekBob" in pk.el) (pk.el as unknown as { peekBob: boolean }).peekBob = false;
-        }
+        this.peeks.markGrabbed(el.id);
         this.beginDrag(el, cp, sp);
       },
 
@@ -930,7 +743,7 @@ export abstract class SceneEngine extends CanvasApp {
 
       onPieceDrop: (el, cp) => {
         if (!this.beforeDrop(el, cp) && this.drag) {
-          this.resolveGrabbedPeeks(); // держали показанный элемент → вернуть вид ДО диспатча дропа
+          this.peeks.resolveGrabbed(); // держали показанный элемент → вернуть вид ДО диспатча дропа
           this.resolveDrop(el, cp);
           this.drag = null;
         }
@@ -939,7 +752,7 @@ export abstract class SceneEngine extends CanvasApp {
       },
 
       onPieceCancel: () => {
-        if (this.drag) this.resolveGrabbedPeeks(); // отмена драга показанного — тоже вернуть вид
+        if (this.drag) this.peeks.resolveGrabbed(); // отмена драга показанного — тоже вернуть вид
         this.onDragCancel();
         this.drag?.release();
         this.drag = null;
@@ -967,7 +780,7 @@ export abstract class SceneEngine extends CanvasApp {
         this.lastPanT = 0;
       },
       onPan: (dx, dy) => {
-        this.cancelFocus(); // реальный пан перебивает наведение и сбрасывает «наведено на зону»
+        this.camera.cancelFocus(); // реальный пан перебивает наведение и сбрасывает «наведено на зону»
         // Копим сглаженную скорость пана (px/сек) для инерции после отпускания.
         const t = performance.now();
         if (this.lastPanT) {
@@ -985,7 +798,7 @@ export abstract class SceneEngine extends CanvasApp {
         this.wake();
       },
       onPinchStart: (mx, my, dist, spanX) => {
-        this.cancelFocus();
+        this.camera.cancelFocus();
         const c = this.screenToContent(mx, my);
         this.pinch = { dist, zoom: this.viewport.zoom, midContentX: c.x, midContentY: c.y, spanX };
         this.onSpreadBegin(); // сброс per-gesture-состояния сцены (детент спреда)
@@ -1074,8 +887,8 @@ export abstract class SceneEngine extends CanvasApp {
 
   protected frame(dt: number): boolean {
     this.input.tick(dt); // «держи-чтобы-тащить»: копит heldFor, сама решает, когда повысить press → drag
-    this.edgeScroll(dt);
-    const camMoving = this.stepCamTween(dt); // наведение камеры на зону: не спим, пока не доедет
+    this.camera.edgeScroll(dt);
+    const camMoving = this.camera.stepTween(dt); // наведение камеры на зону: не спим, пока не доедет
     if (this.viewport.flinging) {
       this.syncVp();
       this.viewport.stepFling(dt);
@@ -1083,8 +896,8 @@ export abstract class SceneEngine extends CanvasApp {
       this.emitView();
     }
     let moving = this.input.gesture !== "none" || this.viewport.flinging || camMoving;
-    if (this.stepPendingFlips(dt)) moving = true;
-    if (this.stepTimers(dt)) moving = true;
+    if (this.flipQueue.step(dt)) moving = true;
+    if (this.sceneTimers.step(dt)) moving = true;
     for (const el of this.everyElement()) {
       el.step(dt);
       if (!el.resting) moving = true;
@@ -1103,15 +916,7 @@ export abstract class SceneEngine extends CanvasApp {
       b.step(dt);
       if (!b.resting) moving = true;
     }
-    if (this.peeking.size > 0) {
-      moving = true; // держим тикер живым, иначе на успокоившейся сцене отсчёт показа замрёт
-      for (const [id, p] of this.peeking) {
-        p.t += dt;
-        // Истёк показ: вернуть КАК БЫЛО. Держат элемент (grabbed) — restore лишь возвращает вид,
-        // элемент остаётся в драге; не держат — отпускаем домой обычным releaseElement.
-        if (p.t >= PEEK_DUR) this.endPeek(id, !p.grabbed);
-      }
-    }
+    if (this.peeks.step(dt)) moving = true; // живые показы держат тикер: отсчёт не должен замирать
     if (this.stepScene(dt)) moving = true;
     // armed: перечитываем каждый кадр из this.drag, а не разбросанными вызовами по местам, где драг
     // стартует/кончается — так короче и не пропустит ни один выход (early return и т.п.).
@@ -1177,7 +982,7 @@ export abstract class SceneEngine extends CanvasApp {
     this.zones = [];
     this.hoveredBtn = null;
     this.byId.clear();
-    this.peeking.clear();
+    this.peeks.clear();
     this.input.reset();
   }
 

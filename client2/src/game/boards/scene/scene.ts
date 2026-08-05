@@ -5,29 +5,24 @@ import { Card } from "../../ui/Card";
 import { CardTextureCache } from "../../ui/CardTextureCache";
 import type { TableElement } from "../../engine/element";
 import { dropTarget } from "../../slot/slot";
-import { dashedRectSegments } from "../../ui/dashedRectSegments";
-import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
-import { blockDropOffset } from "../geometry/freeBox";
-import { freeStackSize } from "../geometry/freeDrop";
 import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
-import { GroupDrag } from "../../engine/drag";
 import { CARD } from "../../crossade/tree";
 import { buildBoardTree, type BoardTree, type FreePositions } from "../geometry/boardTree";
 import { localDriver, type BoardDriver } from "../core/driver";
 import { handKey, type BoardState } from "../core/state";
-import { baseZoneId, elementById, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
-import type { MenuRow } from "../../ui/ContextMenu";
+import { baseZoneId, elementById, slotKey, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
 import { DropBar } from "../../ui/DropBar";
 import { ScenePresence } from "./scenePresence";
 import { SceneChrome } from "./chrome";
 import { SceneMenu } from "./menu";
 import { SceneDecor } from "./decor";
-import { buildBoardNode, nodeScaleIn, type BoardNode } from "./nodeFactory";
+import { SceneNodes } from "./nodesStore";
+import { SceneBlockDrag } from "./blockDrag";
+import { SceneDeckActions } from "./deckActions";
+import { nodeScaleIn } from "./nodeFactory";
 import { hintShape, menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
 import { migrateState } from "../core/migrate";
-import { autoDealPlan } from "../core/dealPlan";
-import { SHUFFLE_FX_SECONDS, shufflePoses } from "../core/shuffleFx";
-import type { PresenceHub } from "../core/presence";
+import type { BoardSceneOptions } from "./options";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -39,54 +34,11 @@ const MAX_ZOOM = 2.5;
 const SEAT_STRIP_CARD_H = 83;
 
 export type { MenuTargetKind } from "../geometry/sceneAreas";
-
-/** Шов меню к хосту (DIP): сцена спрашивает строки, хост решает, что настраивается и как. */
-export interface SceneMenus {
-  /** Меню борды/стола. null — у хоста нет меню для этой цели. */
-  menuFor(target: MenuTargetKind): { title: string; rows: readonly MenuRow[] } | null;
-  /** Дорастить меню КОЛОДЫ строками хоста (напр. «колода · 36»). */
-  deckExtras?(): readonly MenuRow[];
-}
-
-/** Канвас-кнопка хоста (правый верхний угол). */
-export interface SceneTool {
-  key: string;
-  label: string;
-  onClick: () => void;
-}
-
-export interface BoardSceneOptions {
-  spec: BoardSpec;
-  /** Сколько мест открыть (для динамических бордов). */
-  seats?: number;
-  /** Чьими глазами смотрим (его рука снизу). */
-  selfSeat?: string;
-  /** Лог команд порта — в панель Actions стори. */
-  onCommand?: (cmd: BoardCommand) => void;
-  /** Рассадка от комнаты: имя на стуле или null. Без неё — фантомы «Игрок N» (standalone). */
-  occupants?: readonly (string | null)[];
-  /** false — «только смотреть»: наблюдатель без права «мешать» (room.ts#canTouch). */
-  interactive?: boolean;
-  /** Кто исполняет команды: без драйвера — локальный мок (standalone); live-стори передаёт
-   *  клиента общего мастера (boardTable.ts). Сцена разницы не видит. */
-  driver?: BoardDriver;
-  /** Контекстные меню настроек (long-press по гриду-борде / ПКМ) — ШОВ К ХОСТУ (DIP): сцена
-   *  не знает, ЧТО настраивается; хост (песочница) отдаёт готовые строки и сам вызывает
-   *  reconfigure. Меню колоды/карты у сцены свои (это её механика), хост может дорастить
-   *  меню колоды через deckExtras (напр. размер колоды). */
-  menus?: SceneMenus;
-  /** Канвас-кнопки хоста в правом верхнем углу (live-режим песочницы и т.п.). HTML в игровом
-   *  экране запрещён доктриной — интерфейс рисует движок. */
-  tools?: readonly SceneTool[];
-  /** Live-присутствие (песочница, админов нет): лок «кто первый схватил», чужие курсоры и цвета.
-   *  Хаб общий на всех клиентов стола (presence.ts); своего цвета сцена не рисует — палец и так свой. */
-  presence?: { hub: PresenceHub; who: string; palette: (who: string) => number; label?: (who: string) => string };
-}
+export type { BoardSceneOptions, SceneMenus, SceneTool } from "./options";
 
 export class BoardScene extends SceneEngine {
   private tex: CardTextureCache | null = null;
-  private readonly nodes = new Map<string, BoardNode>();
-  private readonly cardDepth = new Map<string, number>();
+  private readonly nodeStore: SceneNodes;
   private readonly hintLayer = new Graphics();
 
   private spec: BoardSpec;
@@ -96,10 +48,12 @@ export class BoardScene extends SceneEngine {
   private state: BoardState;
   private tree: BoardTree;
 
-  // Экранный HUD, контекстное меню и декор — коллабораторы (композиция вместо роста класса).
+  // Экранный HUD, меню, декор, блок-драг и действия колоды — коллабораторы (композиция).
   private readonly chromeHud: SceneChrome;
   private readonly menuOwner: SceneMenu;
   private readonly decor: SceneDecor;
+  private readonly blockDrag: SceneBlockDrag;
+  private readonly deckActions: SceneDeckActions;
 
   // Фиксированные дроп-зоны у низа экрана (мобильный ПКМ): видны только во время драга.
   private readonly dropBar = new DropBar();
@@ -112,11 +66,6 @@ export class BoardScene extends SceneEngine {
   private hotSlot: string | null = null;
   private dragging = false;
 
-  // Позиции free-зон (сдвиг колоды, свободные стопки) и оверрайды карт живут В СОСТОЯНИИ
-  // (state.free / state.fx): стол у всех игроков одинаковый, меняются командами порта.
-  // Идёт блок-драг свободной стопки: её зона + точка захвата (для дельты сдвига на дропе).
-  private blockZone: string | null = null;
-  private blockGrab = { x: 0, y: 0 };
 
   constructor(private readonly opts: BoardSceneOptions) {
     super({ minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, margin: 0, align: "center" });
@@ -130,16 +79,44 @@ export class BoardScene extends SceneEngine {
       this.rebuildBoard(false);
     });
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
+    this.nodeStore = new SceneNodes({
+      def: (id) => this.defs.get(id),
+      tex: () => this.tex,
+      renderer: () => this.app?.renderer ?? null,
+      register: (id, node) => this.byId.set(id, node),
+      unregister: (id) => this.byId.delete(id),
+      placeCard: (node) => this.placeCard(node),
+      faceUpIn: (id, slot) => this.faceUpIn(id, slot),
+      remoteDragged: (id) => this.presence.hasRemote(id),
+    });
+    this.blockDrag = new SceneBlockDrag({
+      state: () => this.state,
+      tree: () => this.tree,
+      node: (id) => this.nodeStore.get(id),
+      dragCtx: () => this.dragCtx,
+      setDrag: (d) => {
+        this.drag = d;
+      },
+      dispatch: (cmd) => this.dispatch(cmd),
+    });
+    this.deckActions = new SceneDeckActions({
+      state: () => this.state,
+      node: (id) => this.nodeStore.get(id),
+      homeOf: (id) => this.homeVec(id),
+      dispatch: (cmd) => this.dispatch(cmd),
+      after: (sec, fn) => this.after(sec, fn),
+      wake: () => this.wake(),
+    });
     this.presence = new ScenePresence(opts.presence, {
-      node: (id) => this.nodes.get(id),
-      nodes: () => this.nodes.entries(),
+      node: (id) => this.nodeStore.get(id),
+      nodes: () => this.nodeStore.all(),
       homeOf: (id) => this.homeVec(id),
       slotOf: (id) => this.tree.slotOf(id),
       members: (slot) => this.state.field.slots[slot]?.members ?? [],
       fxRot: (id) => this.state.fx[id]?.rot ?? 0,
-      restScaleIn: (node, slot) => (slot ? this.scaleIn(node, slot) : node.restScale),
-      depth: (id) => this.cardDepth.get(id) ?? 0,
-      ownBlockDrag: () => this.blockZone !== null,
+      restScaleIn: (node, slot) => (slot ? nodeScaleIn(node, slot) : node.restScale),
+      depth: (id) => this.nodeStore.depth(id),
+      ownBlockDrag: () => this.blockDrag.active(),
     });
     opts.presence?.hub.onChange((v) => {
       this.presence.view = v;
@@ -170,8 +147,8 @@ export class BoardScene extends SceneEngine {
       hitElementId: (cp) => this.hitElement(cp.x, cp.y)?.id ?? null,
       menuTarget: (cp) => this.menuTarget(cp),
       dispatch: (cmd) => this.dispatch(cmd),
-      shuffle: (slot) => this.shuffleDeck(slot),
-      deal: (slot) => this.autoDeal(slot),
+      shuffle: (slot) => this.deckActions.shuffle(slot),
+      deal: (slot) => this.deckActions.deal(slot),
     });
     this.decor = new SceneDecor({
       surfaceAdd: (c) => this.scene.surface.addChild(c),
@@ -219,35 +196,6 @@ export class BoardScene extends SceneEngine {
 
   protected openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void {
     this.menuOwner.openAt(cp, sp);
-  }
-
-  /** «Шурух»: верх стопки разлетается детерминированным веером и слетается уже перемешанным. */
-  private shuffleDeck(slot: string): void {
-    const members = this.state.field.slots[slot]?.members ?? [];
-    const poses = shufflePoses(members.length);
-    poses.forEach((pose, i) => {
-      const id = members[members.length - 1 - i]!;
-      const node = this.nodes.get(id);
-      const home = this.homeVec(id);
-      if (!node || !home) return;
-      node.body.setTarget({ x: home.x + pose.dx, y: home.y + pose.dy, rot: pose.rot, scale: node.restScale });
-    });
-    this.after(SHUFFLE_FX_SECONDS, () => this.dispatch({ t: "shuffle", zone: baseZoneId(zoneOf(slot)) }));
-    this.wake();
-  }
-
-  /** Автораздача: ВСЕГДА по две карты каждому занятому месту, пара «вшик-вшик», дальше — пауза.
-   *  Каждый вылет — обычная команда move через порт: живой мастер увидит ровно те же ходы. */
-  private autoDeal(slot: string): void {
-    for (const step of autoDealPlan(this.state.seats, this.state.dealer)) {
-      this.after(step.delay, () => {
-        const members = this.state.field.slots[slot]?.members ?? [];
-        const top = members[members.length - 1];
-        // move без face снимает оверрайд лица — рука сама решает сторону (mock.moveVisuals).
-        if (top) this.dispatch({ t: "move", el: top, from: slot, to: handKey(step.seat) });
-      });
-    }
-    this.wake();
   }
 
   /** Сменить СПЕКУ, не трогая драйвер (live: настройки и мигрированный снимок раздаёт комната —
@@ -337,45 +285,7 @@ export class BoardScene extends SceneEngine {
   private rebuildBoard(snap: boolean): void {
     this.tree = buildBoardTree(this.spec, this.state, this.selfSeat, this.freeMaps());
     if (!this.tex) return;
-
-    const alive = new Set<string>();
-    this.cardDepth.clear();
-    const slotOrder = new Map<string, number>();
-    Object.keys(this.tree.origins).forEach((id, i) => slotOrder.set(id, i));
-
-    const place = (id: string, indexInPile: number): void => {
-      alive.add(id);
-      const slot = this.tree.slotOf(id);
-      const home = this.homeVec(id);
-      if (!slot || !home) return;
-      const node = this.nodeFor(id);
-      const depth = (slotOrder.get(slot) ?? 0) * 1000 + indexInPile;
-      this.cardDepth.set(id, depth);
-      if (this.presence.hasRemote(id)) return; // карту ведёт чужой драг-стрим — снимок её не дёргает
-      node.root.zIndex = depth;
-      node.setState(node.pose);
-      this.placeCard(node);
-      const scale = this.scaleIn(node, slot);
-      const fx = this.state.fx[id];
-      const wantFace = fx?.face ?? this.faceUpIn(id, slot);
-      if (node instanceof Card && node.faceUp !== wantFace) node.requestFlip();
-      const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale };
-      if (snap) node.body.snapTo(target);
-      else node.body.setTarget(target);
-    };
-
-    for (const key of Object.keys(this.state.field.slots)) {
-      const members = this.state.field.slots[key]!.members;
-      members.forEach((id, i) => place(id, i));
-    }
-
-    for (const [id, node] of this.nodes) {
-      if (alive.has(id)) continue;
-      node.destroy();
-      this.nodes.delete(id);
-      this.byId.delete(id);
-    }
-
+    this.nodeStore.sync(this.state, this.tree, snap);
     this.contentW = this.tree.size.w;
     this.contentH = this.tree.size.h;
     this.decor.sync();
@@ -413,18 +323,6 @@ export class BoardScene extends SceneEngine {
     return this.tree.homeOf(id);
   }
 
-  private scaleIn(node: BoardNode, slot: string): number {
-    return nodeScaleIn(node, slot);
-  }
-
-  private nodeFor(id: string): BoardNode {
-    const existing = this.nodes.get(id);
-    if (existing) return existing;
-    const node = buildBoardNode(id, this.defs.get(id), this.tex!, this.app?.renderer ?? null);
-    this.nodes.set(id, node);
-    this.byId.set(id, node);
-    return node;
-  }
 
   /** Подсветка целевого слота под пальцем: фигуру считает чистый hintShape (sceneAreas),
    *  сцена только обводит акцентом (в live — цветом игрока, не общим золотом). */
@@ -448,11 +346,11 @@ export class BoardScene extends SceneEngine {
   // ——— швы домена ———
 
   protected draggables(): SceneElement[] {
-    return [...this.nodes.values()];
+    return this.nodeStore.list();
   }
 
   protected everyElement(): TableElement[] {
-    return [...this.nodes.values()];
+    return this.nodeStore.list();
   }
 
   /** Что фокусируется дабл-тапом (opt-in): карта-элемент под пальцем ГАСИТ жест (колода не зумится);
@@ -471,7 +369,7 @@ export class BoardScene extends SceneEngine {
 
   protected homeOf(el: SceneElement): { home: { x: number; y: number }; depth: number } | null {
     const home = this.homeVec(el.id);
-    return home ? { home, depth: this.cardDepth.get(el.id) ?? 0 } : null;
+    return home ? { home, depth: this.nodeStore.depth(el.id) } : null;
   }
 
   /** Смарт-мок щедрый: тащится верх любого слота стола и любая карта своей руки. Чужая рука —
@@ -513,23 +411,12 @@ export class BoardScene extends SceneEngine {
     this.dragging = true;
     const slot = this.tree.slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
-    if (slot && zone && this.isDeckSlot(slot) && this.grabMode === "hold") {
-      // Тащим ВСЮ стопку как блок: жест берёт весь слот, а не верхнюю карту (одиночную не вынуть).
-      // GroupDrag ведёт все карты жёстко за пальцем со СВОИМИ текущими сдвигами (форма стопки цела);
-      // на дропе сцена отправит offsetFree, и release посадит каждую в новый дом.
-      const members = this.state.field.slots[slot]?.members ?? [];
-      const nodes = members.map((id) => this.nodes.get(id)).filter((n): n is BoardNode => !!n);
-      if (nodes.length) {
-        const offsets = nodes.map((n) => ({ dx: n.body.px - cp.x, dy: n.body.py - cp.y }));
-        this.blockZone = zone;
-        this.blockGrab = { x: cp.x, y: cp.y };
-        this.drag = new GroupDrag(nodes, offsets, this.dragCtx);
-        this.drag.move(cp);
-        // Колода в пальцах → снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
-        this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height, this.accentColor());
-        this.presence.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок-драг
-        return true;
-      }
+    if (slot && zone && this.isDeckSlot(slot) && this.grabMode === "hold" && this.blockDrag.begin(zone, slot, cp)) {
+      // Тащим ВСЮ стопку как блок (SceneBlockDrag): жест берёт весь слот, а не верхнюю карту.
+      // Колода в пальцах → снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
+      this.dropBar.show([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }], this.width, this.height, this.accentColor());
+      this.presence.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок-драг
+      return true;
     }
     const ok = super.beginDrag(el, cp, sp);
     // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка».
@@ -546,10 +433,10 @@ export class BoardScene extends SceneEngine {
     // Блок-драг колоды — той же строкой с флагом block: зрители двигают ВСЮ стопку той же дельтой.
     const pr = this.opts.presence;
     if (pr && this.grabbedEl) {
-      const node = this.nodes.get(this.grabbedEl);
-      if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py }, this.blockZone !== null);
+      const node = this.nodeStore.get(this.grabbedEl);
+      if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py }, this.blockDrag.active());
     }
-    if (this.blockZone) return; // блок-драг колоды: бокс не подсвечиваем никак
+    if (this.blockDrag.active()) return; // блок-драг колоды: бокс не подсвечиваем никак
     const target = dropTarget(this.tree.root, p);
     // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
     // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
@@ -568,12 +455,12 @@ export class BoardScene extends SceneEngine {
     const bar = this.dropBar.visible ? this.dropBar.hotAt(this.dragScreen.x, this.dragScreen.y) : null;
     if (bar) {
       const slot = this.tree.slotOf(el.id);
-      const wasBlock = this.blockZone;
-      this.blockZone = null; // сдвиг колоды не меняем — стопка вернётся, откуда поднята
+      const wasBlock = this.blockDrag.active();
+      this.blockDrag.cancel(); // сдвиг колоды не меняем — стопка вернётся, откуда поднята
       drag.release();
       if (slot) {
         if (bar === "shuffle") {
-          this.shuffleDeck(slot);
+          this.deckActions.shuffle(slot);
         } else {
           const ctx = wasBlock ? ({ kind: "deck", slot } as const) : ({ kind: "card", id: el.id } as const);
           this.menuOwner.openFor(ctx, { x: this.dragScreen.x, y: this.dragScreen.y - 200 });
@@ -581,25 +468,9 @@ export class BoardScene extends SceneEngine {
       }
       return;
     }
-    if (this.blockZone) {
-      // Блок-драг колоды: бросить можно ТОЛЬКО в её бокс (рамка зоны). Внутри — копим сдвиг, держа
-      // стопку целиком в боксе; мимо — сдвиг не меняем, release вернёт стопку к месту подъёма.
-      // Вся геометрия — в чистой blockDropOffset (freeBox.ts), под юнит-тестом.
-      const box = this.tree.cellRects[`${this.blockZone}:0`];
-      const members = this.state.field.slots[`${this.blockZone}:0`]?.members ?? [];
-      const home = members.length ? this.tree.homeOf(members[0]!) : null;
-      if (box && home) {
-        const stack = freeStackSize(CARD, members.length);
-        const half = { w: stack.w / 2, h: stack.h / 2 };
-        const cur = this.state.free.offset[this.blockZone] ?? { x: 0, y: 0 };
-        // Дерево уже включает текущий сдвиг — blockDropOffset ждёт дом БЕЗ него.
-        const base = { x: home.x - cur.x, y: home.y - cur.y };
-        const next = blockDropOffset(box, cur, this.blockGrab, cp, base, half);
-        // Команда порта: сдвиг колоды — общее состояние (снимок пересоберёт дерево, release
-        // посадит стопку по свежим домам).
-        if (next.x !== cur.x || next.y !== cur.y) this.dispatch({ t: "offsetFree", zone: this.blockZone, offset: next });
-      }
-      this.blockZone = null;
+    if (this.blockDrag.active()) {
+      // Блок-драг колоды: решает коллаборатор (внутри бокса — offsetFree, мимо — без изменений).
+      this.blockDrag.resolveAt(cp);
       drag.release();
       return;
     }
@@ -612,7 +483,7 @@ export class BoardScene extends SceneEngine {
       myHand: handKey(this.selfSeat),
       handReorder: this.spec.hand?.reorder ?? false,
       carriedFaceUp: (() => {
-        const node = this.nodes.get(el.id);
+        const node = this.nodeStore.get(el.id);
         return node instanceof Card ? node.faceUp : null;
       })(),
     });
@@ -642,7 +513,7 @@ export class BoardScene extends SceneEngine {
   private clearDragHints(): void {
     this.dragging = false;
     this.hotSlot = null;
-    this.blockZone = null; // отмена/конец блок-драга: не тащим сдвиг в следующий жест
+    this.blockDrag.cancel(); // отмена/конец блок-драга: не тащим сдвиг в следующий жест
     this.dropBar.hide(); // фикс-зоны живут только пока элемент в пальцах
     if (this.grabbedEl && this.opts.presence) {
       const p = this.opts.presence;
@@ -664,7 +535,7 @@ export class BoardScene extends SceneEngine {
     const slots: Record<string, { x: number; y: number }> = {};
     for (const [id, at] of Object.entries(this.tree.origins)) slots[id] = this.contentToScreen(at.x, at.y);
     const cards: Record<string, { x: number; y: number; slot: string | null }> = {};
-    for (const [id, node] of this.nodes) {
+    for (const [id, node] of this.nodeStore.all()) {
       const p = this.contentToScreen(node.body.px, node.body.py);
       cards[id] = { x: p.x, y: p.y, slot: this.tree.slotOf(id) };
     }
@@ -676,8 +547,7 @@ export class BoardScene extends SceneEngine {
     this.dropBar.destroy();
     this.presence.destroy();
     this.decor.destroy();
-    for (const node of this.nodes.values()) node.destroy();
-    this.nodes.clear();
+    this.nodeStore.destroy();
     this.tex?.destroy();
     this.tex = null;
     super.onTeardown(app);
