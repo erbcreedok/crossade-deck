@@ -99,6 +99,16 @@ export class SceneHandHud {
     return hit;
   }
 
+  /** Экранная поза перетаскиваемой карты, пока палец над рукой: следует за X (зажатым в полосу), на
+   *  уровне карт руки, масштабом руки — карта на слое руки, сверху, среди своих. */
+  dragPose(sx: number): HandPose {
+    const cell = handCell(this.size.w, this.size.h);
+    const centerY = this.size.h - ACTION_BAR_H - PAD_BOTTOM - cell.h / 2;
+    const min = SIDE + cell.w / 2;
+    const max = this.size.w - SIDE - cell.w / 2;
+    return { x: Math.max(min, Math.min(max, sx)), y: centerY, scale: cell.h / CARD.h };
+  }
+
   /** Экранная точка над полосой руки (дроп-зоной)? */
   overBand(sx: number, sy: number): boolean {
     const b = this.bandRect();

@@ -135,15 +135,22 @@ export class SceneNodes {
     else node.body.setTarget(target);
   }
 
-  /** Захват карты РУКИ в драг: перевести её ноду из руки (экран) в контент (та же нода), конвертируя
-   *  координаты/масштаб, — драг дальше ведёт её в контентных координатах непрерывно. */
-  beginDragLift(id: string): void {
+  /** ВЖИВУЮ во время драга: переложить ноду в нужное пространство (рука-экран ⇄ борда-контент) с
+   *  конверсией координат/масштаба. Идемпотентно (действует только на смене) — палец наводится на
+   *  руку → карта на слой руки (сверху), уводит → обратно на борду. Одна нода, непрерывно. */
+  setDragSpace(id: string, space: "content" | "hand"): void {
     const node = this.byId.get(id);
-    if (!node || this.space.get(id) !== "hand") return;
-    const c = this.host.toContent(node.body.px, node.body.py);
-    node.body.snapTo({ x: c.x, y: c.y, scale: node.body.scaleVal / this.host.zoom() });
-    this.space.set(id, "content");
-    this.host.placeCard(node);
+    if (!node || this.space.get(id) === space) return;
+    if (space === "hand") {
+      const s = this.host.toScreen(node.body.px, node.body.py);
+      node.body.snapTo({ x: s.x, y: s.y, scale: node.body.scaleVal * this.host.zoom() });
+      this.host.placeHand(node);
+    } else {
+      const c = this.host.toContent(node.body.px, node.body.py);
+      node.body.snapTo({ x: c.x, y: c.y, scale: node.body.scaleVal / this.host.zoom() });
+      this.host.placeCard(node); // state=drag → слой драга (контент)
+    }
+    this.space.set(id, space);
   }
 
   private nodeFor(id: string, tex: CardTextureCache): BoardNode {

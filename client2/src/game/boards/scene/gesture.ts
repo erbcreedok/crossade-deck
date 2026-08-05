@@ -60,8 +60,8 @@ export interface GestureDeps {
   handHud: SceneHandHud;
   /** Состав своей руки (для «карта руки?» и «from = рука»). */
   handMembers(): readonly string[];
-  /** Захват карты руки в драг: перевести ЕЁ ЖЕ ноду из руки (экран) в контент (nodeStore). */
-  liftHandCard(id: string): void;
+  /** Вживую переложить ноду драга в пространство руки (экран) или борды (контент) — nodeStore. */
+  setDragSpace(id: string, space: "content" | "hand"): void;
 }
 
 export class SceneGesture {
@@ -101,10 +101,7 @@ export class SceneGesture {
 
   /** У жителей КОЛОДЫ ДВА драг-интента: тап тащит верхнюю карту, hold — всю колоду блоком.
    *  Свободные стопки (слоты ≥ 1) блоком не таскаются — это просто карты, лежащие где положили. */
-  dragOnHold(el: SceneElement): boolean {
-    const slot = this.deps.tree().slotOf(el.id);
-    return !!slot && isDeckSlot(this.deps.world(), slot);
-  }
+  dragOnHold(el: SceneElement): boolean { const s = this.deps.tree().slotOf(el.id); return !!s && isDeckSlot(this.deps.world(), s); }
 
   begin(el: SceneElement, cp: { x: number; y: number }, sp: { x: number; y: number }): boolean {
     this.deps.menu.close(); // начался драг — меню больше не к месту
@@ -127,15 +124,11 @@ export class SceneGesture {
       this.deps.presenceOwner.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок
       return true;
     }
-    // Карта своей руки: перевести ТУ ЖЕ ноду из руки (экран) в контент (конверсия координат/масштаба),
-    // дальше — обычный драг. Одна нода на карту, без двойников.
-    if (this.deps.handMembers().includes(el.id)) this.deps.liftHandCard(el.id);
+    // Карта своей руки: перевести ТУ ЖЕ ноду из руки (экран) в контент — дальше обычный драг.
+    if (this.deps.handMembers().includes(el.id)) this.deps.setDragSpace(el.id, "content");
     const ok = this.deps.defaultBeginDrag(el, cp, sp);
-    // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка»; рука светит «armed» (готова принять).
-    if (ok) {
-      this.showBar([{ key: "menu", label: "настройка" }]);
-      this.deps.handHud.setZone("armed");
-    }
+    // Одиночная карта в пальцах: у неё тоже есть меню — зона «настройка» (armed/hot зоны ведёт moved).
+    if (ok) this.showBar([{ key: "menu", label: "настройка" }]);
     return ok;
   }
 
@@ -148,17 +141,27 @@ export class SceneGesture {
     // Драг-стрим: остальным клиентам — ЦЕНТР карты в пальцах (не точка хвата), темп курсора.
     // Блок-драг колоды — той же строкой с флагом block: зрители двигают ВСЮ стопку той же дельтой.
     const pr = this.deps.presence;
-    if (pr && this.grabbedEl) {
-      const node = this.deps.node(this.grabbedEl);
-      if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py }, this.deps.blockDrag.active());
-    }
+    const gn = pr && this.grabbedEl ? this.deps.node(this.grabbedEl) : null;
+    if (pr && gn) pr.hub.drag(pr.who, this.grabbedEl!, { x: gn.body.px, y: gn.body.py }, this.deps.blockDrag.active());
     if (this.deps.blockDrag.active()) return; // блок-драг колоды: бокс не подсвечиваем никак
-    // Дроп-зона руки: палец над полосой → hot (рука примет груз), иначе armed (груз просто в полёте).
+    const lead = this.deps.drag()?.lead;
     const dsh = this.deps.dragScreen();
-    this.deps.handHud.setZone(this.deps.handHud.overBand(dsh.x, dsh.y) ? "hot" : "armed");
+    // Взаимоисключающе: палец НАД РУКОЙ → карта на слой руки (сверху, среди своих), светится ТОЛЬКО
+    // рука, борду гасим. Иначе → карта на борде, светится стол, рука лишь «armed».
+    if (lead && this.deps.handHud.overBand(dsh.x, dsh.y)) {
+      this.deps.setDragSpace(lead.id, "hand");
+      const pose = this.deps.handHud.dragPose(dsh.x);
+      lead.body.setTarget({ x: pose.x, y: pose.y, scale: pose.scale, rot: 0 });
+      this.deps.handHud.setZone("hot");
+      if (this.hotSlot !== null) { this.hotSlot = null; this.paintHints(); }
+      this.deps.wake();
+      return;
+    }
+    if (lead) this.deps.setDragSpace(lead.id, "content");
+    this.deps.handHud.setZone("armed");
     const target = dropTargetRect(this.deps.tree().root, this.probe(p));
     this.applyMagnet(target);
-    // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
+    // Приоритет подсветки: конкретная цель (колода/стопка/центр) → сам бокс free-зоны
     // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
     const fz = freeZoneAt(this.deps.world(), p);
     const hot = target?.group.id ?? (fz ? slotKey(fz, "box") : null);
@@ -264,9 +267,7 @@ export class SceneGesture {
   }
 
   /** Слот-ИСТОЧНИК: дерево, а для карты экранной руки (её нет в дереве) — hand:self. */
-  private fromSlotOf(id: string): string | null {
-    return this.deps.tree().slotOf(id) ?? (this.deps.handMembers().includes(id) ? handKey(this.deps.selfSeat) : null);
-  }
+  private fromSlotOf(id: string): string | null { return this.deps.tree().slotOf(id) ?? (this.deps.handMembers().includes(id) ? handKey(this.deps.selfSeat) : null); }
 
   private showBar(zones: readonly { key: string; label: string }[]): void { this.dropBar.show([...zones], this.deps.width(), this.deps.height(), this.deps.accent()); }
 

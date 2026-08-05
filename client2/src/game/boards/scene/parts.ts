@@ -194,7 +194,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     presenceOwner: presence,
     handHud,
     handMembers: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
-    liftHandCard: (id) => nodeStore.beginDragLift(id),
+    setDragSpace: (id, space) => nodeStore.setDragSpace(id, space),
   });
 
   return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
