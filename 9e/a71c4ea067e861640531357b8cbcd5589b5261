@@ -1,0 +1,74 @@
+client2/src/game/solitaire/scene.ts
+  s_b9dcc12bda6464::t_dd6918b79ab61f 9,13,270-271,273
+  s_b9dcc12bda6464::t_d0ea0aaf950a38 1,10-12,47-50,61-80,99-100,105,109,126-132,163-164,166-167,169,204-206,230,243,247,251,255,259,263,267,276,281
+client2/docs/REFACTOR-HANDOFF.md
+  s_b9dcc12bda6464::t_4a67beb5d84f8a 3,81-86
+  s_b9dcc12bda6464::t_099fed0fc09a7e 40-47
+client2/src/game/boards/scene/parts.ts
+  s_b9dcc12bda6464::t_d57a1247a9fb8f 23-25,55-58,61-64,79,125,129,131,133,158
+  s_b9dcc12bda6464::t_d7fbdc83b43411 6,22,27-31,33,51,71,75-78,87-88,97-98,115,118,123-124,126-127,132,140,152-157,159-161,163-178
+  s_b9dcc12bda6464::t_dce7c3c5d14d4e 7,59-60,111,117,145,162
+client2/src/game/boards/scene/hooks.ts
+  s_b9dcc12bda6464::t_e30ec668bd4541 17-22,24,26-27
+  s_b9dcc12bda6464::t_3813cd617f5ea9 1-16,23,25,28-31
+client2/src/game/boards/scene/scenePresence.ts
+  s_b9dcc12bda6464::t_dce7c3c5d14d4e 39-40,106-112
+  s_b9dcc12bda6464::t_010035a2818437 121-129
+client2/src/game/engine/fitBoard.test.ts
+  s_b9dcc12bda6464::t_15f7a6013581b4 1-27
+client2/src/game/boards/geometry/sceneAreas.ts
+  s_b9dcc12bda6464::t_52b1bb9615f8d0 35-57
+client2/src/game/boards/scene/scene.ts
+  s_b9dcc12bda6464::t_6fd20cfaf7f181 105,107
+  s_b9dcc12bda6464::t_e30ec668bd4541 32-33,64,157-158,160,286
+  s_b9dcc12bda6464::t_f0ba9868af0950 1,9,11-12,20,22-23
+  s_b9dcc12bda6464::t_41762d1ab4e174 59-60,73,176,178,203-204,218,223,291
+  s_b9dcc12bda6464::t_dce7c3c5d14d4e 57
+  s_b9dcc12bda6464::t_64c60ddbec744e 240-241,244,248-250,254-255,257-259,261,265,269,273,277,281-285
+  s_b9dcc12bda6464::t_f40c28b2c58d1f 21
+  s_b9dcc12bda6464::t_d57a1247a9fb8f 72,129,136-142,145-151,205-209,226
+  s_b9dcc12bda6464::t_4d704e4527d91c 76,92
+  s_b9dcc12bda6464::t_06a1b6a37fc3ff 19
+client2/src/game/crossade/tableScene.ts
+  s_b9dcc12bda6464::t_15f7a6013581b4 28
+client2/src/game/boards/geometry/dropPlan.ts
+  s_b9dcc12bda6464::t_010035a2818437 19-35
+client2/src/game/solitaire/hooks.ts
+  s_b9dcc12bda6464::t_dd6918b79ab61f 1-50
+client2/src/game/boards/core/faceUp.ts
+  s_b9dcc12bda6464::t_9b133fbdb9930f 1-23
+client2/src/game/boards/geometry/sceneAreas.test.ts
+  s_b9dcc12bda6464::t_23a4a50f729abb 23-48
+  s_b9dcc12bda6464::t_6a2976ff48b4cd 2
+client2/src/game/boards/scene/gesture.ts
+  s_b9dcc12bda6464::t_448e9c27e49deb 21-22,30,41
+  s_b9dcc12bda6464::t_fb310728032e3a 1-20,23-29,31-40,42-260
+client2/src/game/boards/scene/menu.ts
+  s_b9dcc12bda6464::t_e30ec668bd4541 42-48
+client2/src/game/boards/scene/chrome.ts
+  s_b9dcc12bda6464::t_f40c28b2c58d1f 11-15,74
+client2/src/game/boards/core/faceUp.test.ts
+  s_b9dcc12bda6464::t_f2a98397aee2bc 1-7,10-52
+  s_b9dcc12bda6464::t_06a1b6a37fc3ff 8-9
+client2/src/game/solitaire/gesture.ts
+  s_b9dcc12bda6464::t_a60e0296d07d17 1-157
+client2/src/game/solitaire/chrome.ts
+  s_b9dcc12bda6464::t_482534ad6e6cc3 1-15,17-65,67-84,86-98,100-108
+  s_b9dcc12bda6464::t_3183339a471d26 16,66,85,99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9ea71c4ea067e861640531357b8cbcd5589b5261",
+  "prompts": {},
+  "sessions": {
+    "s_b9dcc12bda6464": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49c8b158-64cc-4522-942d-a663a9da83a1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
