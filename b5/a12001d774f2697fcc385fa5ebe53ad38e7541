@@ -1,0 +1,39 @@
+client2/src/game/engine/sceneFrame.ts
+  s_b2849f723d52bb::t_2120cd5672eeae 124-129
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_c3cebe78050cd0 73,76-77,83-84,95,99-147
+  s_b2849f723d52bb::t_dcf87c1a0da6e0 40-42
+  s_b2849f723d52bb::t_4757d075d0a233 20,26-34
+  s_b2849f723d52bb::t_550b7d2dc4b19a 148
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_a306ee75bfb427 197
+  s_b2849f723d52bb::t_96491824606a91 76-85,95-99
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_a487de758bcff5 130-132
+  s_b2849f723d52bb::t_a1099ba637b672 271
+  s_b2849f723d52bb::t_9e4824631f8f29 63-64
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_ecd8aab15f5ebe 1-4,6-7,9,21-26,33,42,44,47,50-51,55,60,66-79,81-82,84-88,91,95-97,111-113,125,129-135,159,163-164,170,174
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_aff5c4be76cb88 276
+  s_b2849f723d52bb::t_7fcfe4a57cb12b 280
+  s_b2849f723d52bb::t_df5fd9fd905d54 213
+  s_b2849f723d52bb::t_d336b04de1f04f 262-266
+  s_b2849f723d52bb::t_51955407393cdf 122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b5a12001d774f2697fcc385fa5ebe53ad38e7541",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
