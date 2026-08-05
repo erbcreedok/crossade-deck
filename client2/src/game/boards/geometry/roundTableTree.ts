@@ -48,9 +48,11 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
   const tableZones = spec.zones.filter((z) => z.layout.kind !== "seats" && !z.perSeat && z.layout.kind !== "chain");
   const freeZone = tableZones.find((z) => z.layout.kind === "free");
   // Центр меряем ДО бокса: он живой (радиальный круг растёт с числом жителей), а кольцо вокруг него
-  // обязано остаться не тоньше трёх карт — значит бокс считается по центру, а не наоборот.
+  // обязано остаться не тоньше трёх карт — значит бокс считается по центру, а не наоборот. Берём
+  // УСТОЙЧИВЫЙ габарит центра (envelope): при потолке круга он равен кругу-максимуму, поэтому бокс,
+  // посадки и cx/cy не ползут с каждой картой — центр стоит, кольцо растёт симметрично от него.
   const centerSubs = tableZones.filter((z) => z !== freeZone).map((z) => zoneSubtrees(z, state));
-  const boxCell = freeZone ? ringBox(zoneCell(freeZone), centerSubs.map((s) => s.size)) : null;
+  const boxCell = freeZone ? ringBox(zoneCell(freeZone), centerSubs.map((s) => s.envelope ?? s.size)) : null;
   const boxClear = boxCell
     ? (freeZone!.shape === "circle" ? Math.max(boxCell.w, boxCell.h) / 2 : Math.hypot(boxCell.w, boxCell.h) / 2)
     : 0;

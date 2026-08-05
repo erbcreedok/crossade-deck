@@ -1,7 +1,7 @@
 // ПОДДЕРЕВЬЯ ЗОН: раскладка ОДНОЙ зоны BoardSpec в слоты (grid/ring/pile/free/flow/radial/chain).
 // Композиторы (полоса, круглый стол) зовут её и расставляют результат. Чистая геометрия.
 
-import { grid as flowGrid, pile, radial } from "../../slot/layouts";
+import { grid as flowGrid, pile, radial, radialPositions } from "../../slot/layouts";
 import { group, leaf, type Size, type Slot } from "../../slot/types";
 import type { DropPolicy } from "../../slot/dropPolicy";
 import { ringSlots } from "../../slotfield/layout/slots";
@@ -27,7 +27,7 @@ export function slotGroup(key: string, members: readonly string[], cell: Size, s
 }
 
 /** Поддерево зоны + её габарит. origin выдаёт компоновщик, здесь — локальные координаты. */
-export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id, free?: FreePositions): { placed: Placed[]; size: Size; cells: Record<string, { x: number; y: number; w: number; h: number }> } {
+export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zone.id, free?: FreePositions): { placed: Placed[]; size: Size; cells: Record<string, { x: number; y: number; w: number; h: number }>; envelope?: Size } {
   const cell = zoneCell(zone);
   const zid = instanceId;
   const placed: Placed[] = [];
@@ -119,20 +119,26 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
       const key = slotKey(zid, 0);
       const members = membersOf(state, key);
       const min = zone.layout.min ?? 0;
+      const cap = zone.layout.max ?? 0;
       const PAD = 16;
-      const layout = radial({ cell, gap: 12, slots: min, max: zone.layout.max });
+      const layout = radial({ cell, gap: 12, slots: min, max: cap });
       const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
         drop: { accept: () => true, ...(zone.drop ? { policy: zone.drop } : {}) },
         reorder: { enabled: true },
       });
       // Габарит спрашиваем у САМОЙ раскладки (минимум позиций и потолок круга живут там): вторая
       // формула здесь разошлась бы с первой — рамка росла бы, пока карты стоят на потолке.
+      const squareSide = (s: Size): number => Math.max(Math.max(s.w, cell.w), Math.max(s.h, cell.h)) + PAD * 2; // рамка квадратная: круг ровный
       const { size } = layout.place(members.map(() => cell));
-      const inner = { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) };
-      const side = Math.max(inner.w, inner.h) + PAD * 2; // рамка квадратная: круг ровный
+      const side = squareSide(size);
       placed.push({ id: key, origin: { x: (side - size.w) / 2, y: (side - size.h) / 2 }, slot });
       cells[key] = { x: 0, y: 0, w: side, h: side };
-      return { placed, size: { w: side, h: side }, cells };
+      // УСТОЙЧИВЫЙ габарит (envelope): при потолке (capped) бокс/посадки/центр стола компоновщик
+      // считает по кругу-МАКСИМУМУ, а не по текущему числу карт, — тогда центр круга стоит на месте, а
+      // кольцо растёт СИММЕТРИЧНО от центра (владелец: «расти от центра»). Без потолка (grow, cap<2)
+      // envelope = текущий размер: стол растёт как прежде, вниз-вправо, — это конфиг другой игры.
+      const envSide = cap >= 2 ? squareSide(radialPositions(cap, cell, 12, cap).size) : side;
+      return { placed, size: { w: side, h: side }, cells, envelope: { w: envSide, h: envSide } };
     }
     case "chain": {
       // Живые слоты 0..k−1 из состояния + ВСЕГДА один пустой в конце («новое звено», как play:new).
