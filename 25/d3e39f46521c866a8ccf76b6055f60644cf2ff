@@ -1,0 +1,52 @@
+client2/src/game/slot/dropPolicy.test.ts
+  s_b2849f723d52bb::t_cde3d8d5d4aacb 1-67
+client2/src/stories/mechanics/DropMechanics.stories.tsx
+  s_b2849f723d52bb::t_7a84c0f25aa579 1-112
+client2/src/game/boards/geometry/zoneSubtrees.ts
+  s_b2849f723d52bb::t_0ebee44665f61a 23,25
+  s_b2849f723d52bb::t_468045c509aeca 102
+  s_b2849f723d52bb::t_5194bf36226549 76,78,86-88
+  s_b2849f723d52bb::t_161966d5d07b9c 125
+  s_b2849f723d52bb::t_54ddd810832924 6
+client2/src/game/boards/library/roundTable.ts
+  s_b2849f723d52bb::t_7bfe4f01a40ac2 70-72
+  s_b2849f723d52bb::t_9e94861e289abd 90
+  s_b2849f723d52bb::t_a1143aad421fd4 86-89,91
+client2/src/game/CardBody.ts
+  s_b2849f723d52bb::t_c88de0eedb64b0 59-67
+client2/src/game/slot/slot.ts
+  s_b2849f723d52bb::t_d9de529e2e5403 1,4
+  s_b2849f723d52bb::t_88917bb8cdeec5 77-82,84,97-98,105
+  s_b2849f723d52bb::t_185ee4678cff40 5
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_34a13540cdf0a1 10
+  s_b2849f723d52bb::t_bc45e5a251037b 103-105
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_f1d8476cd191f1 8-9
+  s_b2849f723d52bb::t_d9d5cb344b7523 481
+  s_b2849f723d52bb::t_318807641baf5d 402-404,407,410-425
+  s_b2849f723d52bb::t_7a06131d881a22 442-443
+client2/src/game/boards/geometry/dropPolicies.test.ts
+  s_b2849f723d52bb::t_5b95a1142ef2a8 1-76
+client2/src/game/slot/types.ts
+  s_b2849f723d52bb::t_502e595247a1c9 1-2
+  s_b2849f723d52bb::t_72d6fa531c2ec8 34
+client2/src/game/slot/dropPolicy.ts
+  s_b2849f723d52bb::t_ddddd226989e3a 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "25d3e39f46521c866a8ccf76b6055f60644cf2ff",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
