@@ -9,11 +9,19 @@ export interface PresenceCursor {
   y: number;
 }
 
+/** Таскаемый элемент участника: центр карты в координатах контента (темп курсора, без хранения). */
+export interface PresenceDrag {
+  el: string;
+  at: PresenceCursor;
+}
+
 export interface PresenceView {
   /** el → кто держит (id участника). */
   held: Readonly<Record<string, string>>;
   /** участник → курсор в координатах КОНТЕНТА (борда у всех одна — координаты общие). */
   cursors: Readonly<Record<string, PresenceCursor>>;
+  /** участник → его живой драг: зрители ведут карту к этой точке спрингом. */
+  drags: Readonly<Record<string, PresenceDrag>>;
 }
 
 export interface PresenceHub {
@@ -23,6 +31,8 @@ export interface PresenceHub {
   /** Кто держит элемент (null — свободен). */
   heldBy(el: string): string | null;
   cursor(who: string, at: PresenceCursor | null): void;
+  /** Стрим своего драга: позиция карты в пальцах (null — драг кончился, карту ведёт снимок). */
+  drag(who: string, el: string, at: PresenceCursor | null): void;
   view(): PresenceView;
   onChange(cb: (v: PresenceView) => void): void;
 }
@@ -30,9 +40,10 @@ export interface PresenceHub {
 export function createPresenceHub(): PresenceHub {
   const held: Record<string, string> = {};
   const cursors: Record<string, PresenceCursor> = {};
+  const drags: Record<string, PresenceDrag> = {};
   const subs: ((v: PresenceView) => void)[] = [];
 
-  const view = (): PresenceView => ({ held: { ...held }, cursors: { ...cursors } });
+  const view = (): PresenceView => ({ held: { ...held }, cursors: { ...cursors }, drags: { ...drags } });
   const emit = (): void => {
     const v = view();
     for (const cb of subs) cb(v);
@@ -55,6 +66,11 @@ export function createPresenceHub(): PresenceHub {
     cursor(who, at) {
       if (at) cursors[who] = at;
       else delete cursors[who];
+      emit();
+    },
+    drag(who, el, at) {
+      if (at) drags[who] = { el, at };
+      else delete drags[who];
       emit();
     },
     view,

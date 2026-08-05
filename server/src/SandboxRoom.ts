@@ -98,6 +98,13 @@ export class SandboxRoom extends Room {
       this.broadcast("cursor", { who: client.sessionId, at: msg?.at ?? null }, { except: client });
     });
 
+    // Драг-стрим: позиция таскаемой карты, тот же канон, что курсор (ретрансляция, не храним).
+    this.onMessage("drag", (client, msg: { el?: string; at?: { x: number; y: number } | null }) => {
+      const el = typeof msg?.el === "string" ? msg.el : null;
+      if (!el) return;
+      this.broadcast("drag", { who: client.sessionId, el, at: msg?.at ?? null }, { except: client });
+    });
+
     // Профиль: сменить цвет, если он свободен.
     this.onMessage("profile", (client, msg: { color?: number }) => {
       const me = this.members.get(client.sessionId);
@@ -135,6 +142,7 @@ export class SandboxRoom extends Room {
     this.broadcastRoster();
     this.broadcastPresence();
     this.broadcast("cursor", { who: client.sessionId, at: null });
+    this.broadcast("drag", { who: client.sessionId, el: null, at: null }); // оборванный драг не виснет
   }
 
   onDispose(): void {

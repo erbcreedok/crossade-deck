@@ -129,6 +129,9 @@ export class BoardScene extends SceneEngine {
   private presenceView: PresenceView | null = null;
   private grabbedEl: string | null = null;
   private ownCursor: { x: number; y: number } | null = null;
+  // Карты, которые прямо сейчас ведёт ЧУЖОЙ драг-стрим: их не трогает rebuild (снимок пришёл бы
+  // посреди чужого жеста и дёрнул карту домой между кадрами стрима).
+  private readonly remoteDragged = new Set<string>();
 
   private hotSlot: string | null = null;
   private dragging = false;
@@ -231,9 +234,36 @@ export class BoardScene extends SceneEngine {
     }
   }
 
+  /** Чужие драги: вести карту спрингом к приезжающей точке (over всеми), кончился — домой. */
+  private applyRemoteDrags(): void {
+    const p = this.opts.presence;
+    const drags = (p && this.presenceView?.drags) ?? {};
+    const active = new Set<string>();
+    for (const [who, d] of Object.entries(drags)) {
+      if (!p || who === p.who) continue;
+      const node = this.nodes.get(d.el);
+      if (!node) continue;
+      active.add(d.el);
+      this.remoteDragged.add(d.el);
+      node.root.zIndex = 1e6; // в пальцах — над столом, как свой драг
+      node.body.setTarget({ x: d.at.x, y: d.at.y, rot: this.state.fx[d.el]?.rot ?? 0, scale: node.restScale });
+    }
+    for (const el of [...this.remoteDragged]) {
+      if (active.has(el)) continue;
+      this.remoteDragged.delete(el);
+      const node = this.nodes.get(el);
+      const home = this.homeVec(el);
+      const slot = this.tree.slotOf(el);
+      if (!node || !home) continue;
+      node.root.zIndex = this.cardDepth.get(el) ?? 0;
+      node.body.setTarget({ x: home.x, y: home.y, rot: this.state.fx[el]?.rot ?? 0, scale: slot ? this.scaleIn(node, slot) : node.restScale });
+    }
+  }
+
   private paintPresence(): void {
     this.presenceLayer.clear();
     this.applyGlow();
+    this.applyRemoteDrags();
     const v = this.presenceView;
     const p = this.opts.presence;
     const seen = new Set<string>();
@@ -559,6 +589,7 @@ export class BoardScene extends SceneEngine {
       const node = this.nodeFor(id);
       const depth = (slotOrder.get(slot) ?? 0) * 1000 + indexInPile;
       this.cardDepth.set(id, depth);
+      if (this.remoteDragged.has(id)) return; // карту ведёт чужой драг-стрим — снимок её не дёргает
       node.root.zIndex = depth;
       node.setState(node.pose);
       this.placeCard(node);
@@ -915,6 +946,13 @@ export class BoardScene extends SceneEngine {
       this.dropBar.hotAt(this.dragScreen.x, this.dragScreen.y);
       this.wake();
     }
+    // Драг-стрим: остальным клиентам — ЦЕНТР карты в пальцах (не точка хвата), темп курсора.
+    // Блок-драг колоды не стримится (стопка переедет снимком offsetFree на дропе).
+    const pr = this.opts.presence;
+    if (pr && this.grabbedEl && !this.blockZone) {
+      const node = this.nodes.get(this.grabbedEl);
+      if (node) pr.hub.drag(pr.who, this.grabbedEl, { x: node.body.px, y: node.body.py });
+    }
     if (this.blockZone) return; // блок-драг колоды: бокс не подсвечиваем никак
     const target = dropTarget(this.tree.root, p);
     // Приоритет подсветки: конкретная цель (колода/стопка/центр/рука) → сам бокс free-зоны
@@ -1068,7 +1106,9 @@ export class BoardScene extends SceneEngine {
     this.blockZone = null; // отмена/конец блок-драга: не тащим сдвиг в следующий жест
     this.dropBar.hide(); // фикс-зоны живут только пока элемент в пальцах
     if (this.grabbedEl && this.opts.presence) {
-      this.opts.presence.hub.release(this.opts.presence.who, this.grabbedEl);
+      const p = this.opts.presence;
+      p.hub.drag(p.who, this.grabbedEl, null); // конец стрима: дальше карту ведёт снимок
+      p.hub.release(p.who, this.grabbedEl);
       this.grabbedEl = null;
     }
     this.paintHints();

@@ -141,10 +141,14 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
   };
 
   // ——— хаб присутствия поверх комнаты ———
-  const view: { held: Record<string, string>; cursors: Record<string, { x: number; y: number }> } = { held: {}, cursors: {} };
+  const view: {
+    held: Record<string, string>;
+    cursors: Record<string, { x: number; y: number }>;
+    drags: Record<string, { el: string; at: { x: number; y: number } }>;
+  } = { held: {}, cursors: {}, drags: {} };
   const viewSubs: ((v: PresenceView) => void)[] = [];
   const emitView = (): void => {
-    const v: PresenceView = { held: { ...view.held }, cursors: { ...view.cursors } };
+    const v: PresenceView = { held: { ...view.held }, cursors: { ...view.cursors }, drags: { ...view.drags } };
     for (const cb of viewSubs) cb(v);
   };
   room.onMessage("held", (msg: { held: Record<string, string> }) => {
@@ -156,6 +160,11 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
     else delete view.cursors[msg.who];
     emitView();
   });
+  room.onMessage("drag", (msg: { who: string; el: string | null; at: { x: number; y: number } | null }) => {
+    if (msg.at && msg.el) view.drags[msg.who] = { el: msg.el, at: msg.at };
+    else delete view.drags[msg.who];
+    emitView();
+  });
   room.onMessage("grab_denied", (msg: { el: string }) => {
     // Оптимистичный лок не подтвердился — первый успел не я: чужой захват уже едет в "held".
     delete view.held[msg.el];
@@ -163,6 +172,7 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
   });
 
   let lastCursorSent = 0;
+  let lastDragSent = 0;
   const hub: PresenceHub = {
     grab(who, el) {
       const owner = view.held[el];
@@ -185,7 +195,14 @@ export async function joinSandboxLive(opts: { code?: string } = {}): Promise<San
       lastCursorSent = now;
       room.send("cursor", { at });
     },
-    view: () => ({ held: { ...view.held }, cursors: { ...view.cursors } }),
+    drag(_who, el, at) {
+      // Свой драг по проводу, себе не эхо (карта и так в пальцах). Темп курсора; null — конец.
+      const now = Date.now();
+      if (at && now - lastDragSent < CURSOR_WIRE_INTERVAL_MS) return;
+      lastDragSent = now;
+      room.send("drag", { el, at });
+    },
+    view: () => ({ held: { ...view.held }, cursors: { ...view.cursors }, drags: { ...view.drags } }),
     onChange(cb) {
       viewSubs.push(cb);
     },

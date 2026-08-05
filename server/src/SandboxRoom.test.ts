@@ -39,6 +39,19 @@ describe("SandboxRoom", () => {
     expect((late.welcome.state as { marker: number }).marker).toBe(42);
   });
 
+  it("драг-стрим ретранслируется остальным; после выхода тащившего остальным летит null", async () => {
+    const a = await join();
+    const b = await join();
+    const got = new Promise<Record<string, unknown>>((resolve) => b.client.onMessage("drag", resolve));
+    a.client.send("drag", { el: "A♠", at: { x: 5, y: 6 } });
+    const relayed = await got;
+    expect(relayed.el).toBe("A♠");
+    expect((relayed.at as { x: number }).x).toBe(5);
+    const gone = new Promise<Record<string, unknown>>((resolve) => b.client.onMessage("drag", resolve));
+    await a.client.leave();
+    expect((await gone).at).toBeNull();
+  });
+
   it("настройки борды: остальным летит settings+снимок, поздний гость получает их в welcome", async () => {
     const a = await join();
     const b = await join();

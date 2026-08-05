@@ -27,3 +27,14 @@ describe("presence: лок «кто первый схватил»", () => {
     expect(seen.length).toBeGreaterThanOrEqual(4);
   });
 });
+
+it("драг-стрим: точка в view.drags, null убирает — карту дальше ведёт снимок", () => {
+  const hub = createPresenceHub();
+  const seen: unknown[] = [];
+  hub.onChange((v) => seen.push(v.drags));
+  hub.drag("u1", "A♠", { x: 10, y: 20 });
+  expect(hub.view().drags).toEqual({ u1: { el: "A♠", at: { x: 10, y: 20 } } });
+  hub.drag("u1", "A♠", null);
+  expect(hub.view().drags).toEqual({});
+  expect(seen).toHaveLength(2);
+});
