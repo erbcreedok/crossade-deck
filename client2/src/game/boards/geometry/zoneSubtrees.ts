@@ -1,7 +1,7 @@
 // ПОДДЕРЕВЬЯ ЗОН: раскладка ОДНОЙ зоны BoardSpec в слоты (grid/ring/pile/free/flow/radial/chain).
 // Композиторы (полоса, круглый стол) зовут её и расставляют результат. Чистая геометрия.
 
-import { grid as flowGrid, pile, radial, radialPositions } from "../../slot/layouts";
+import { grid as flowGrid, pile, radial } from "../../slot/layouts";
 import { group, leaf, type Size, type Slot } from "../../slot/types";
 import type { DropPolicy } from "../../slot/dropPolicy";
 import { ringSlots } from "../../slotfield/layout/slots";
@@ -120,16 +120,17 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
       const members = membersOf(state, key);
       const min = zone.layout.min ?? 0;
       const PAD = 16;
-      const layout = radial({ cell, gap: 12, slots: min });
+      const layout = radial({ cell, gap: 12, slots: min, max: zone.layout.max });
       const slot = group(key, layout, members.map((m) => leaf(m, m, cell)), {
         drop: { accept: () => true, ...(zone.drop ? { policy: zone.drop } : {}) },
         reorder: { enabled: true },
       });
-      const count = Math.max(members.length, min);
-      const pos = radialPositions(count, cell, 12);
-      const inner = { w: Math.max(pos.size.w, cell.w), h: Math.max(pos.size.h, cell.h) };
+      // Габарит спрашиваем у САМОЙ раскладки (минимум позиций и потолок круга живут там): вторая
+      // формула здесь разошлась бы с первой — рамка росла бы, пока карты стоят на потолке.
+      const { size } = layout.place(members.map(() => cell));
+      const inner = { w: Math.max(size.w, cell.w), h: Math.max(size.h, cell.h) };
       const side = Math.max(inner.w, inner.h) + PAD * 2; // рамка квадратная: круг ровный
-      placed.push({ id: key, origin: { x: (side - pos.size.w) / 2, y: (side - pos.size.h) / 2 }, slot });
+      placed.push({ id: key, origin: { x: (side - size.w) / 2, y: (side - size.h) / 2 }, slot });
       cells[key] = { x: 0, y: 0, w: side, h: side };
       return { placed, size: { w: side, h: side }, cells };
     }

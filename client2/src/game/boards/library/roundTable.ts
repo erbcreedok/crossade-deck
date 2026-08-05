@@ -1,5 +1,6 @@
 import type { BoardSpec, ZoneLayoutSpec, ZoneSpec } from "../core/spec";
 import { CARD } from "../../crossade/tree";
+import { ringPresetOf, type RingPreset, type RingPresetName } from "./ringPresets";
 import { deck36, deck52 } from "./decks";
 
 // КРУГЛЫЙ СТОЛ ПЕСОЧНИЦЫ — конфигурируемый билдер (настройки-как-данные): те же рычаги, что
@@ -34,12 +35,17 @@ export interface RoundTableOpts {
   dealt?: number;
   /** Размер колоды. */
   deck?: 36 | 52;
+  /** Как ведёт себя круг стола, когда карт прибавляется: пресет по имени (`grow` — растёт без
+   *  предела, `capped` — стартует просторным и упирается в потолок) или свои числа. */
+  ring?: RingPresetName | RingPreset;
 }
 
-function tableLayout(o: Required<Pick<RoundTableOpts, "shape" | "table" | "slots" | "seats">>): ZoneLayoutSpec {
+function tableLayout(o: Required<Pick<RoundTableOpts, "shape" | "table" | "slots" | "seats">>, ring: RingPreset): ZoneLayoutSpec {
   if (o.slots === "dynamic") {
+    // Минимум позиций круга — по числу игроков, но не теснее, чем просит пресет: место каждому
+    // игроку и сразу удобный простор. Потолок — от пресета: 0 значит «расти без предела».
     return o.table === "radial"
-      ? { kind: "radial", min: Math.max(1, o.seats) } // минимум позиций круга = числу игроков
+      ? { kind: "radial", min: Math.max(1, o.seats, ring.min), ...(ring.max ? { max: ring.max } : {}) }
       : { kind: "flow", cols: { min: 3, max: 4 }, grow: "square", center: true };
   }
   if (o.table === "radial") return { kind: "ring", count: o.slots };
@@ -59,12 +65,12 @@ function tableSetup(layout: ZoneLayoutSpec, dealt: readonly string[]): ZoneSpec[
 
 export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
   // Спред затирал бы дефолты явными undefined (скрытые рычаги Storybook отдают именно их).
-  const defaults = { shape: "circle", table: "radial", slots: "dynamic", stacking: true, seats: 4, dealt: 6, deck: 36 } as const;
+  const defaults = { shape: "circle", table: "radial", slots: "dynamic", stacking: true, seats: 4, dealt: 6, deck: 36, ring: "grow" } as const;
   const given = Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined));
   const o = { ...defaults, ...given } as Required<RoundTableOpts>;
   const { cards, ids } = o.deck === 52 ? deck52() : deck36();
   const dealt = ids.slice(0, Math.max(0, Math.min(o.dealt, ids.length)));
-  const layout = tableLayout(o);
+  const layout = tableLayout(o, ringPresetOf(o.ring));
   return {
     id: "round-table",
     title: "",

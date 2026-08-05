@@ -86,6 +86,36 @@ describe("radial layout", () => {
     expect(radial({ cell: CARD, slots: 4 }).place([]).size).toEqual(four.size);
   });
 
+  it("max — ПОТОЛОК круга: за ним радиус стоит, а жители ужимаются по нему плотнее", () => {
+    const l = radial({ max: 7 });
+    const seven = l.place(many(7));
+    const twelve = l.place(many(12));
+    // Круг перестал расти: тот же габарит и тот же радиус, что на потолке.
+    expect(twelve.size).toEqual(seven.size);
+    expect(radial({}).place(many(12)).size.w).toBeGreaterThan(twelve.size.w); // без потолка — рос бы
+    // Все двенадцать стоят на ОДНОЙ окружности, равным шагом, и шаг теснее, чем на потолке.
+    const rad = (twelve.size.w - CARD.w) / 2;
+    const c = { x: twelve.size.w / 2, y: twelve.size.h / 2 };
+    for (const a of twelve.at) {
+      const p = { x: a.x + CARD.w / 2, y: a.y + CARD.h / 2 };
+      expect(Math.hypot(p.x - c.x, p.y - c.y)).toBeCloseTo(rad, 6);
+    }
+    const step = (r: { at: { x: number; y: number }[] }) => Math.hypot(r.at[1]!.x - r.at[0]!.x, r.at[1]!.y - r.at[0]!.y);
+    expect(step(twelve)).toBeLessThan(step(seven)); // нахлёст: это и есть «ужимать плотнее»
+  });
+
+  it("потолок ниже двух — не потолок, а точка: игнорируется, круг растёт как обычно", () => {
+    expect(radial({ max: 1 }).place(many(6)).size).toEqual(radial({}).place(many(6)).size);
+  });
+
+  it("минимум и потолок работают вместе: старт просторный, рост до потолка, дальше стоп", () => {
+    const l = radial({ slots: 4, max: 7 });
+    const one = l.place(many(1));
+    expect(one.size).toEqual(l.place(many(4)).size); // один житель — круг уже под четырёх
+    expect(l.place(many(7)).size.w).toBeGreaterThan(one.size.w); // до потолка растёт
+    expect(l.place(many(30)).size).toEqual(l.place(many(7)).size); // и не выше
+  });
+
   it("indexAt — индекс вставки по УГЛУ: север → 0, юг при 4 жителях → 2, чуть левее севера → append", () => {
     const l = radial({});
     const { size } = l.place(many(4));

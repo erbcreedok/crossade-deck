@@ -6,6 +6,7 @@ import { createBoardTable } from "../../game/boards/core/boardTable";
 import type { BoardDriver } from "../../game/boards/core/driver";
 import { BOARD_LIBRARY, roundTableBoard, type BoardLibraryId } from "../../game/boards/library";
 import type { RoundTableOpts } from "../../game/boards/library/roundTable";
+import type { RingPresetName } from "../../game/boards/library/ringPresets";
 import { sandboxBoard } from "../../game/sandbox/board";
 import { createPresenceHub } from "../../game/boards/core/presence";
 import { DEFAULT_SANDBOX_SETTINGS } from "../../game/sandbox/settings";
@@ -117,6 +118,7 @@ interface RoundArgs {
   stacking: boolean;
   seats: number;
   dealt: number;
+  ring: RingPresetName;
 }
 
 /** Тот же BoardStage-паттерн, но спека собирается из рычагов билдером roundTableBoard. */
@@ -132,6 +134,7 @@ function RoundStage(a: RoundArgs) {
       stacking: a.stacking,
       seats: a.seats,
       dealt: a.dealt,
+      ring: a.ring,
     };
     const scene = new BoardScene({
       spec: roundTableBoard(opts),
@@ -140,7 +143,7 @@ function RoundStage(a: RoundArgs) {
       // Настройки меню = те же рычаги: long-press по гриду/борде (ПКМ на десктопе) крутит их живьём.
       menus: sandboxMenus(
         { shape: a.shape, table: a.table, slots: opts.slots ?? "dynamic", stacking: a.stacking ?? true, seats: a.seats, deck: 36 },
-        (s) => roundTableBoard({ ...s, dealt: a.dealt }),
+        (s) => roundTableBoard({ ...s, dealt: a.dealt, ring: a.ring }),
         () => g.__board ?? null,
       ),
     });
@@ -151,7 +154,7 @@ function RoundStage(a: RoundArgs) {
       if (g.__board === scene) delete g.__board;
       scene.destroy();
     };
-  }, [a.shape, a.table, a.slots, a.slotCount, a.stacking, a.seats, a.dealt]);
+  }, [a.shape, a.table, a.slots, a.slotCount, a.stacking, a.seats, a.dealt, a.ring]);
   return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
 }
 
@@ -163,7 +166,7 @@ function RoundStage(a: RoundArgs) {
  */
 export const Round: StoryObj<RoundArgs> = {
   name: "Round table",
-  args: { shape: "circle", table: "radial", slots: "dynamic", slotCount: 8, stacking: true, seats: 4, dealt: 6 },
+  args: { shape: "circle", table: "radial", slots: "dynamic", slotCount: 8, stacking: true, seats: 4, dealt: 6, ring: "capped" },
   argTypes: {
     shape: {
       name: "shape",
@@ -205,13 +208,20 @@ export const Round: StoryObj<RoundArgs> = {
       description: "сколько карт разложить на стол сразу — витрине нужно что показывать",
       control: { type: "range", min: 0, max: 12, step: 1 },
     },
+    ring: {
+      name: "ring",
+      description: "поведение круга при росте числа карт: capped — просторный старт и потолок (карты дальше ужимаются плотнее), grow — круг растёт без предела",
+      control: { type: "inline-radio" },
+      options: ["capped", "grow"],
+      if: { arg: "slots", eq: "dynamic" },
+    },
   },
   parameters: {
     code: (a: Record<string, unknown>) => `import { BoardScene } from "../../game/boards/scene/scene";
 import { roundTableBoard } from "../../game/boards/library";
 
 // Настройки-как-данные: те же рычаги потом крутит контекстное меню песочницы.
-const spec = roundTableBoard({ shape: "${a.shape}", table: "${a.table}", slots: ${a.slots === "fixed" ? a.slotCount : '"dynamic"'}, stacking: ${a.stacking}, seats: ${a.seats} });
+const spec = roundTableBoard({ shape: "${a.shape}", table: "${a.table}", slots: ${a.slots === "fixed" ? a.slotCount : '"dynamic"'}, stacking: ${a.stacking}, seats: ${a.seats}, ring: "${a.ring}" });
 const scene = new BoardScene({ spec, seats: ${a.seats} });
 void scene.mount(host, width, height);`,
   },

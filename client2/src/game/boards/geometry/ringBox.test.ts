@@ -3,6 +3,7 @@ import { ringBox, RING_CLEAR, roundTableTree } from "./roundTableTree";
 import { buildBoardTree } from "./boardTree";
 import { bootState } from "../core/mock";
 import { roundTableBoard } from "../library/roundTable";
+import { sandboxBoard } from "../../sandbox/board";
 import { CARD } from "../../crossade/tree";
 import { zoneOf, type BoardSpec } from "../core/spec";
 
@@ -61,6 +62,45 @@ describe("круглый стол: кольцо не тоньше трёх ка�
   it("фикс-слоты и сетка центра — то же правило", () => {
     expect(ringWidth(roundTableBoard({ slots: 12, dealt: 6 }), 4)).toBeGreaterThanOrEqual(CARD.w * 3);
     expect(ringWidth(roundTableBoard({ table: "grid", slots: 12, dealt: 6 }), 4)).toBeGreaterThanOrEqual(CARD.w * 3);
+  });
+});
+
+describe("пресет круга", () => {
+  /** Сторона рамки центра и внешнего бокса после того, как на стол доложили n карт. */
+  function grown(ring: "grow" | "capped", n: number, seats = 4): { center: number; box: number; ring: number } {
+    const spec = roundTableBoard({ seats, dealt: n, ring });
+    const s = bootState(spec, seats);
+    const tree = buildBoardTree(spec, s, s.seats[0]!.id);
+    const box = tree.cellRects["board:0"]!;
+    const ctr = tree.cellRects["table:0"]!;
+    return { center: Math.max(ctr.w, ctr.h), box: Math.min(box.w, box.h), ring: (Math.min(box.w, box.h) - Math.max(ctr.w, ctr.h)) / 2 };
+  }
+
+  it("capped: до потолка круг растёт, на седьмой карте встаёт — и внешний круг встаёт вместе с ним", () => {
+    const seven = grown("capped", 7);
+    expect(grown("capped", 5).center).toBeLessThan(seven.center);
+    expect(grown("capped", 12).center).toBe(seven.center);
+    expect(grown("capped", 12).box).toBe(seven.box);
+  });
+
+  it("capped: кольцо в три карты держится и на потолке — бокс считается от центра, а тот стоит", () => {
+    expect(grown("capped", 12).ring).toBeGreaterThanOrEqual(CARD.w * 3);
+  });
+
+  it("grow: прежний закон цел — круг растёт и за седьмой картой", () => {
+    expect(grown("grow", 12).center).toBeGreaterThan(grown("grow", 7).center);
+  });
+
+  it("capped: соло-стол стартует просторным — как под четыре карты, а не точкой", () => {
+    const solo = grown("capped", 0, 1);
+    expect(solo.center).toBe(grown("capped", 4, 1).center);
+    expect(solo.center).toBeGreaterThan(grown("grow", 0, 1).center);
+  });
+
+  it("песочница сидит на capped: пустой стол уже просторен, полный не раздувается", () => {
+    const spec = sandboxBoard();
+    const zone = spec.zones.find((z) => z.id === "table")!;
+    expect(zone.layout).toMatchObject({ kind: "radial", min: 4, max: 7 });
   });
 });
 

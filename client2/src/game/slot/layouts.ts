@@ -74,14 +74,19 @@ export function grid(o: { cell?: Size | (() => Size); cols?: { min?: Num; max?: 
 // карты + gap (хорда 2R·sin(π/n) ≥ reach; ширины мало — вертикальные соседи наезжали бы).
 // `slots` — МИНИМУМ позиций круга (место каждому игроку): жителей меньше — круг всё равно размечен
 // на slots позиций, карты занимают первые по часовой, остальные позиции пустуют (их рисует борда).
+// `max` — ПОТОЛОК: дальше круг не растёт, лишние жители ужимаются по нему плотнее (см. ниже).
 // Одна позиция — в центре (R=0). indexAt — индекс ВСТАВКИ по углу точки, зажатый в [0..n].
 
 /** Центры count позиций круга (top-left ячеек) + габарит. Общая математика раскладки radial и
- *  отрисовки пустых позиций-заготовок (boardTree) — одна формула, а не две расползающиеся. */
-export function radialPositions(count: number, cell: Size, gap = 0): { at: Vec[]; size: Size } {
+ *  отрисовки пустых позиций-заготовок (boardTree) — одна формула, а не две расползающиеся.
+ *  `max` — ПОТОЛОК числа позиций, которое держит РАДИУС: до него круг растёт с жителями, дальше
+ *  стоит на месте, а лишние ужимаются по нему плотнее (угловой шаг делится на всех, карты уходят в
+ *  нахлёст веером). Потолок меньше двух — не потолок, а точка: такое значение игнорируется. */
+export function radialPositions(count: number, cell: Size, gap = 0, max = 0): { at: Vec[]; size: Size } {
   const n = Math.max(1, count);
   const reach = Math.max(cell.w, cell.h) + gap;
-  const r = n < 2 ? 0 : reach / (2 * Math.sin(Math.PI / n));
+  const spread = max >= 2 ? Math.min(n, max) : n; // сколько позиций задаёт радиус
+  const r = spread < 2 ? 0 : reach / (2 * Math.sin(Math.PI / spread));
   const c = { x: r + cell.w / 2, y: r + cell.h / 2 };
   const at = Array.from({ length: n }, (_, i) => {
     const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
@@ -90,8 +95,9 @@ export function radialPositions(count: number, cell: Size, gap = 0): { at: Vec[]
   return { at, size: { w: r * 2 + cell.w, h: r * 2 + cell.h } };
 }
 
-export function radial(o: { cell?: Size; gap?: number; slots?: number } = {}): Layout {
+export function radial(o: { cell?: Size; gap?: number; slots?: number; max?: number } = {}): Layout {
   const gap = o.gap ?? 0;
+  const max = o.max ?? 0;
   const cellOf = (sizes: Size[]): Size => {
     if (sizes.length) return { w: Math.max(...sizes.map((s) => s.w)), h: Math.max(...sizes.map((s) => s.h)) };
     return o.cell ? { ...o.cell } : { w: 0, h: 0 };
@@ -100,7 +106,7 @@ export function radial(o: { cell?: Size; gap?: number; slots?: number } = {}): L
   const place = (sizes: Size[]): { at: Vec[]; size: Size } => {
     const count = countOf(sizes);
     if (!count || (!sizes.length && !o.cell && !o.slots)) return { at: [], size: cellOf(sizes) };
-    const pos = radialPositions(count, cellOf(sizes), gap);
+    const pos = radialPositions(count, cellOf(sizes), gap, max);
     return { at: pos.at.slice(0, sizes.length), size: pos.size };
   };
   return {
@@ -109,7 +115,7 @@ export function radial(o: { cell?: Size; gap?: number; slots?: number } = {}): L
       const n = sizes.length;
       if (!n) return 0;
       const count = countOf(sizes);
-      const { size } = radialPositions(count, cellOf(sizes), gap);
+      const { size } = radialPositions(count, cellOf(sizes), gap, max);
       const a = Math.atan2(cp.y - size.h / 2, cp.x - size.w / 2);
       const t = (a + Math.PI / 2) / (2 * Math.PI); // доля круга от «севера» по часовой
       return Math.min(n, Math.round(((t % 1) + 1) % 1 * count));
