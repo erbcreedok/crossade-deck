@@ -27,6 +27,7 @@ import type { BoardNode } from "./nodeFactory";
 import type { SceneBlockDrag } from "./blockDrag";
 import type { SceneDeckActions } from "./deckActions";
 import type { SceneHandHud } from "./handHud";
+import type { SceneGapPreview } from "./gapPreview";
 import type { SceneMenu } from "./menu";
 import type { ScenePresence } from "./scenePresence";
 import type { ScenePresenceOptions } from "./options";
@@ -63,6 +64,8 @@ export interface GestureDeps {
   handMembers(): readonly string[];
   /** Вживую переложить ноду драга в пространство руки (экран) или борды (контент) — nodeStore. */
   setDragSpace(id: string, space: "content" | "hand"): void;
+  /** Smart reorder контейнеров борды (гэп-превью вставки) — свой владелец. */
+  gapPreview: SceneGapPreview;
 }
 
 export class SceneGesture {
@@ -77,11 +80,8 @@ export class SceneGesture {
 
   constructor(private readonly deps: GestureDeps) {}
 
-  /**
-   * Смарт-мок щедрый: тащится верх любого слота стола и любая карта своей руки. Чужая рука — нет
-   * (приватность), правила «чей ход» ничего не запрещают (индикация, BOARDS-DESIGN §3). В live
-   * элемент в чужих руках не берётся: кто первый схватил, тот и управляет.
-   */
+  /** Смарт-мок щедрый: тащится верх любого слота и любая карта своей руки; чужая рука — по locked
+   *  (приватность). В live элемент в чужих руках не берётся: кто первый схватил, тот и управляет. */
   canDrag(el: SceneElement): boolean {
     if (!this.deps.interactive) return false;
     const p = this.deps.presence;
@@ -115,12 +115,8 @@ export class SceneGesture {
     const slot = this.deps.tree().slotOf(el.id);
     const zone = slot ? baseZoneId(zoneOf(slot)) : null;
     if (slot && zone && isDeckSlot(this.deps.world(), slot) && this.deps.grabMode() === "hold" && this.deps.blockDrag.begin(zone, slot, cp)) {
-      // Тащим ВСЮ стопку как блок: жест берёт весь слот, а не верхнюю карту. Колода в пальцах →
-      // снизу прилипают фикс-зоны её меню (мобильный заменитель ПКМ).
-      this.showBar([
-        { key: "menu", label: "настройка" },
-        { key: "shuffle", label: "перемешать" },
-      ]);
+      // Тащим ВСЮ стопку блоком; колода в пальцах → снизу фикс-зоны её меню (мобильный ПКМ).
+      this.showBar([{ key: "menu", label: "настройка" }, { key: "shuffle", label: "перемешать" }]);
       this.deps.presenceOwner.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок
       return true;
     }
@@ -146,13 +142,13 @@ export class SceneGesture {
     if (this.deps.blockDrag.active()) return; // блок-драг колоды: бокс не подсвечиваем никак
     const lead = this.deps.drag()?.lead;
     const dsh = this.deps.dragScreen();
-    // Взаимоисключающе: палец НАД РУКОЙ → карта на слой руки (сверху, среди своих), светится ТОЛЬКО
-    // рука, борду гасим. Иначе → карта на борде, светится стол, рука лишь «armed».
+    // Взаимоисключающе: палец НАД РУКОЙ → карта на слой руки, светится только она; иначе — стол.
     if (lead && this.deps.handHud.overBand(dsh.x, dsh.y)) {
       this.deps.setDragSpace(lead.id, "hand");
       const pose = this.deps.handHud.dragPose(dsh.x, dsh.y);
       lead.body.setTarget({ x: pose.x, y: pose.y, scale: pose.scale, rot: 0 });
       this.deps.handHud.hoverAt(dsh.x, dsh.y); // hot + гэп-превью: ряд раздвигается под индекс вставки
+      this.deps.gapPreview.clear(); // борда не превьюится, пока груз над экранной рукой
       if (this.hotSlot !== null) { this.hotSlot = null; this.paintHints(); }
       this.deps.wake();
       return;
@@ -160,6 +156,7 @@ export class SceneGesture {
     if (lead) this.deps.setDragSpace(lead.id, "content");
     this.deps.handHud.setZone("armed");
     const target = dropTargetRect(this.deps.tree().root, this.probe(p));
+    if (lead) this.deps.gapPreview.hover(lead.id, target); // жители цели расступаются под гэп
     this.applyMagnet(target);
     // Приоритет подсветки: конкретная цель (колода/стопка/центр) → сам бокс free-зоны
     // (псевдо-слот «zone:box»: карта ляжет свободно) → ничего.
@@ -193,8 +190,7 @@ export class SceneGesture {
       drag.release();
       return;
     }
-    // Дроп над полосой руки: «взять со стола» или реордер внутри руки. Экранная проверка — ДО плана
-    // борды: рука вне дерева, её судит HUD по экранной точке.
+    // Дроп над полосой руки (вне дерева, судит HUD по экранной точке) — ДО плана борды.
     const dsr = this.deps.dragScreen();
     if (this.deps.handHud.overBand(dsr.x, dsr.y)) {
       const to = handKey(this.deps.selfSeat);
@@ -222,6 +218,8 @@ export class SceneGesture {
       carriedFaceUp: node?.kind === "card" ? node.faceUp : null,
     });
     if (plan.kind === "command") this.deps.dispatch(plan.cmd);
+    // Дроп из чужой зоны в превьюируемый контейнер: move аппендит — доложить в показанный гэп.
+    if (plan.kind === "command" && plan.cmd.t === "move" && target) this.deps.gapPreview.afterCrossDrop(el.id, plan.cmd.to, target.index);
     drag.release(); // состояние уже новое: дом = целевой слот, release долетает туда
   }
 
@@ -232,6 +230,7 @@ export class SceneGesture {
     this.deps.blockDrag.cancel(); // не тащим сдвиг в следующий жест
     this.dropBar.hide(); // фикс-зоны живут только пока элемент в пальцах
     this.deps.handHud.clearDragging(); // вернуть HUD-спрайт руки и покой дроп-зоны
+    this.deps.gapPreview.clear(); // закрыть дыру превью борды
     if (this.grabbedEl && this.deps.presence) {
       const p = this.deps.presence;
       p.hub.drag(p.who, this.grabbedEl, null); // конец стрима: дальше карту ведёт снимок

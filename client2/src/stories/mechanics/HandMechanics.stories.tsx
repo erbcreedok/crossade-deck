@@ -16,6 +16,8 @@ const handAction = action("dispatch → мок-порт");
 // из дока на стол, реордер внутри. Кнопки и дропзоны В руке — следующий шаг (слияние dropBar).
 
 interface DockArgs {
+  /** Рука: экранный док (фикс к камере) или зона НА борде (в дереве, зумится со столом). */
+  pin: "screen" | "board";
   /** Край экрана, к которому пришвартован док. */
   side: HandSide;
   /** Ось ряда: по дефолту вдоль края (top/bottom → horizontal, left/right → vertical). */
@@ -43,9 +45,21 @@ function dockSpec(a: DockArgs): BoardSpec {
         drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(0, 18) },
       },
+      {
+        // Реордер-грид со SMART REORDER (opt-in preview): жители расступаются под гэп на индексе
+        // вставки, дроп из другой зоны ложится в показанный гэп — тот же примитив, что у руки.
+        id: "row",
+        title: "ряд",
+        layout: { kind: "flow" },
+        cell: { w: Math.round(CARD.w * 1.3), h: Math.round(CARD.h * 1.3) },
+        policy: { onOccupied: "merge" },
+        frame: "dashed",
+        preview: true,
+        setup: { 0: ids.slice(18, 21) },
+      },
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
-    hand: { reorder: true, placement: "screen", side: a.side, ...(a.flow === "по краю" ? {} : { flow: a.flow }), ...(a.fit > 0 ? { size: a.fit } : {}) },
+    hand: { reorder: true, placement: a.pin, side: a.side, ...(a.flow === "по краю" ? {} : { flow: a.flow }), ...(a.fit > 0 ? { size: a.fit } : {}) },
     actions: [],
   };
 }
@@ -66,7 +80,7 @@ function DockStage(a: DockArgs) {
       }
     });
     return () => scene.destroy();
-  }, [a.side, a.flow, a.handCards, a.fit]);
+  }, [a.pin, a.side, a.flow, a.handCards, a.fit]);
   return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
 }
 
@@ -81,8 +95,14 @@ const meta: Meta<DockArgs> = {
 const spec = { ...boardSpec, hand: { reorder: true, placement: "screen", side: "right" } };
 void new BoardScene({ spec, seats: 1 }).mount(host, width, height);`,
   },
-  args: { side: "bottom", flow: "по краю", handCards: 5, fit: 0 },
+  args: { pin: "screen", side: "bottom", flow: "по краю", handCards: 5, fit: 0 },
   argTypes: {
+    pin: {
+      name: "pin",
+      description: "screen — рука прибита к экрану (док); board — рука зоной НА борде (зумится со столом)",
+      control: { type: "inline-radio" },
+      options: ["screen", "board"],
+    },
     side: {
       name: "side",
       description: "край экрана: стол вписывается в остаток (снизу рука над полосой действий)",
@@ -130,3 +150,11 @@ export const LeftColumn: Story = { args: { side: "left", handCards: 4 } };
 
 /** СЕТКА вглубь от края: колонки по длине края, ряды к центру — рука-склад (fit 4 — крупные). */
 export const GridDock: Story = { args: { flow: "grid", handCards: 10, fit: 4 } };
+
+/**
+ * Рука НА БОРДЕ (placement:"board"): та же рука зоной в дереве — зумится и ездит со столом, но
+ * механика ПОЛНАЯ и та же: гэп-превью вставки (жители расступаются), дроп со стола в показанный
+ * гэп, реордер. Общий примитив group.gap движка слотов — раскладке всё равно, рука это или грид:
+ * пунктирный «ряд» в центре стола превьюится тем же кодом (у зон это opt-in `preview: true`).
+ */
+export const BoardHand: Story = { args: { pin: "board", handCards: 4 } };

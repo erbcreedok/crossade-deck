@@ -61,6 +61,13 @@ export function reorderModeOf(w: DropWorld, slot: string): "insert" | "swap" | n
   return zone.reorder ?? (zone.layout.kind === "flow" ? "insert" : null);
 }
 
+/** SMART REORDER зоны включён? Гэп-превью и «дроп в показанный гэп» — только insert-реордер
+ *  с явным preview:true в спеке (opt-in: без флага зона живёт по-старому). Рука — не отсюда:
+ *  её превью решает handConfig (дефолт true). */
+export function insertPreviewOn(w: DropWorld, slot: string): boolean {
+  return zoneSpec(w, slot)?.preview === true && reorderModeOf(w, slot) === "insert";
+}
+
 /** Free-зона, чей бокс (с учётом формы-круга) накрывает точку — фолбэк после dropTarget. */
 export function freeZoneAt(w: DropWorld, cp: Vec): string | null {
   for (const zone of w.zones) {

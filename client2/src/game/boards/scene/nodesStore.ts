@@ -163,6 +163,17 @@ export class SceneNodes {
     }
   }
 
+  /** Перецелить жителей СЛОТА на свежие дома дерева (гэп-превью раздвинул/сомкнул контейнер).
+   *  Перетаскиваемый исключён из раскладки — его дом null, не трогается. Карты руки-экрана тоже. */
+  retargetSlot(members: readonly string[], homeOf: (id: string) => { x: number; y: number } | null): void {
+    for (const id of members) {
+      const node = this.byId.get(id);
+      if (!node || this.space.get(id) === "hand") continue;
+      const h = homeOf(id);
+      if (h) node.body.setTarget({ x: h.x, y: h.y });
+    }
+  }
+
   private nodeFor(id: string, tex: CardTextureCache): BoardNode {
     const existing = this.byId.get(id);
     if (existing) return existing;

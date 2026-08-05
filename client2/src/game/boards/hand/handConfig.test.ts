@@ -19,6 +19,7 @@ describe("handConfig — нормализатор руки-данных", () => 
       size: { fit: 5 },
       hidden: true,
       locked: true,
+      preview: true,
     });
   });
 
@@ -31,7 +32,7 @@ describe("handConfig — нормализатор руки-данных", () => 
 
   it("явные значения пробрасываются как есть (включая ось поперёк края)", () => {
     const spec: HandSpec = { reorder: false, placement: "screen", side: "right", flow: "grid", size: 7, hidden: true, locked: false };
-    expect(handConfig(spec)).toEqual({ reorder: false, placement: "screen", side: "right", flow: "grid", size: { fit: 7 }, hidden: true, locked: false });
+    expect(handConfig(spec)).toEqual({ reorder: false, placement: "screen", side: "right", flow: "grid", size: { fit: 7 }, hidden: true, locked: false, preview: true });
     expect(handConfig({ reorder: true, size: { w: 60, h: 86 } })!.size).toEqual({ cell: { w: 60, h: 86 } });
   });
 });

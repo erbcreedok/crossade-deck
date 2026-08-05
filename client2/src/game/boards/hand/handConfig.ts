@@ -19,6 +19,8 @@ export interface HandConfig {
   hidden: boolean;
   /** Чужие не трогают руку. Дефолт true — приватность по умолчанию. */
   locked: boolean;
+  /** Smart reorder (гэп-превью вставки). Дефолт true. */
+  preview: boolean;
 }
 
 /** ЗАПИРАЕТ ли рука драг этого слота: чужая hand-зона при locked (дефолт — да, приватность).
@@ -44,5 +46,6 @@ export function handConfig(spec: HandSpec | undefined): HandConfig | null {
     size: typeof spec.size === "number" ? { fit: spec.size } : spec.size ? { cell: spec.size } : { fit: 5 },
     hidden: spec.hidden ?? true,
     locked: spec.locked ?? true,
+    preview: spec.preview ?? true,
   };
 }

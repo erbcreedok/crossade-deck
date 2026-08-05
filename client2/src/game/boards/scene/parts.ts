@@ -20,6 +20,7 @@ import { SceneMenu } from "./menu";
 import { SceneNodes } from "./nodesStore";
 import { ScenePresence } from "./scenePresence";
 import { SceneGesture } from "./gesture";
+import { SceneGapPreview } from "./gapPreview";
 import { SceneHandHud } from "./handHud";
 import { handConfig } from "../hand/handConfig";
 import { handKey } from "../core/state";
@@ -169,6 +170,16 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     },
   });
 
+  // Smart reorder контейнеров борды: гэп-превью вставки (рука-на-борде, flow с preview:true).
+  const gapPreview = new SceneGapPreview({
+    world,
+    hand: () => handConfig(ctx.spec().hand),
+    selfSeat: ctx.selfSeat,
+    retargetSlot: (slot) => nodeStore.retargetSlot(ctx.state().field.slots[slot]?.members ?? [], (id) => ctx.tree().homeOf(id)),
+    dispatch: (cmd) => ctx.dispatch(cmd),
+    wake: () => api.wake(),
+  });
+
   // Жест — последним: ему нужны уже собранные соседи (блок-драг, меню, действия колоды, присутствие).
   const gesture = new SceneGesture({
     state: () => ctx.state(),
@@ -196,6 +207,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     handHud,
     handMembers: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
     setDragSpace: (id, space) => nodeStore.setDragSpace(id, space),
+    gapPreview,
   });
 
   return { nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
