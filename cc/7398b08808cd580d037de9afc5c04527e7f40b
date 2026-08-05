@@ -1,0 +1,55 @@
+client2/src/game/boards/scene/hooks.ts
+  s_b2849f723d52bb::t_b1fa2dd9ccfb90 12-13,24,33
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_8f7701bbf011b7 63-69,71
+client2/src/game/boards/scene/handHud.ts
+  s_b2849f723d52bb::t_05c12a60d11f81 96-105
+  s_b2849f723d52bb::t_33dbc59de53dd4 1-95,106-118
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_7b95ba097f3835 125-135
+  s_b2849f723d52bb::t_94dd8fe266b4e7 193
+  s_b2849f723d52bb::t_bf96c9fb1c15d6 23-25
+  s_b2849f723d52bb::t_5a938c66228cd8 55
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_f9f62acecce5fa 1-84
+client2/src/game/sandbox/board.ts
+  s_b2849f723d52bb::t_8d8c169236bed7 14-17
+client2/src/game/engine/fitBoard.ts
+  s_b2849f723d52bb::t_d6d27653b8b109 15-16,20-21
+client2/src/game/boards/geometry/roundTableTree.ts
+  s_b2849f723d52bb::t_b3296ed5d58bef 122-123
+  s_b2849f723d52bb::t_9473cc70c3e846 10
+client2/src/game/boards/geometry/boardTree.ts
+  s_b2849f723d52bb::t_9c7a3c46645eb3 13
+  s_b2849f723d52bb::t_150e412a88504e 119-120
+client2/src/game/boards/hand/handPlacement.test.ts
+  s_b2849f723d52bb::t_1414ad498e0c32 1-28
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_df69afe8b8cf5e 197-198
+  s_b2849f723d52bb::t_0d5ef250bbd129 202
+  s_b2849f723d52bb::t_73063689beca88 96
+  s_b2849f723d52bb::t_312b735c8dd480 181
+  s_b2849f723d52bb::t_eecc1f9758d70d 223
+  s_b2849f723d52bb::t_640202afb272f0 286
+  s_b2849f723d52bb::t_e1f17945591840 62-63
+  s_b2849f723d52bb::t_c3a84d9558dfbf 105
+  s_b2849f723d52bb::t_8aa0976266f321 20
+  s_b2849f723d52bb::t_bb90dbe597f3c6 194
+  s_b2849f723d52bb::t_5b431d16b590dd 292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "cc7398b08808cd580d037de9afc5c04527e7f40b",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
