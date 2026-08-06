@@ -1,0 +1,80 @@
+client2/src/game/boards/scene/hudPlaceholders.ts
+  s_b2849f723d52bb::t_4cc8816cae20e3 1-73
+client2/src/game/boards/hud/hudLayout.test.ts
+  s_b2849f723d52bb::t_2ce25a33236392 2-3,5,7-9,11-25,32-43,45,47-56,59-67,71-140,144-148,152-153
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_db0e1751682435 11
+  s_b2849f723d52bb::t_7ea2a050008fa3 163-164,167
+client2/src/game/boards/hud/reserve.ts
+  s_b2849f723d52bb::t_37fcccc8c50292 1-42,44,46-47
+  s_b2849f723d52bb::t_c309a17a433dda 43,45
+client2/src/game/boards/strip/placement.test.ts
+  s_b2849f723d52bb::t_8b538b16936f04 6,8-11,13
+client2/src/game/boards/strip/dock.test.ts
+  s_b2849f723d52bb::t_3742a72f462bbb 127
+  s_b2849f723d52bb::t_85a704200f1b97 2,5-6
+  s_b2849f723d52bb::t_9f821e162f8c51 88-89
+  s_b2849f723d52bb::t_c09a1b77d5c75b 71-73
+client2/src/game/boards/scene/hud.ts
+  s_b2849f723d52bb::t_aa2bcaaca77cc9 1-7,9,11-13,16,23,25,38,44,53-55,58-82,84,86-89,92,94-95,103-104,107-111
+  s_b2849f723d52bb::t_1e4421b89af269 8
+client2/src/game/boards/strip/dock.ts
+  s_b2849f723d52bb::t_85ea9119efaab6 163-164
+client2/src/stories/mechanics/HudMechanics.stories.tsx
+  s_b2849f723d52bb::t_11ef0e4a9df51d 271,274-276
+  s_b2849f723d52bb::t_410d171099bef6 149,152-157
+  s_b2849f723d52bb::t_7944ef3807dced 55-60
+  s_b2849f723d52bb::t_3354d30e10a5a9 116
+  s_b2849f723d52bb::t_4c5769792b3cba 120
+  s_b2849f723d52bb::t_f18290272c3193 87,90-92,97-104,111
+  s_b2849f723d52bb::t_30d84a6140049f 9-10
+  s_b2849f723d52bb::t_e4a70c040c9350 132-133
+client2/src/game/boards/geometry/stripBand.test.ts
+  s_b2849f723d52bb::t_13859435f05efb 42,61
+client2/src/game/boards/scene/hud.test.ts
+  s_b2849f723d52bb::t_9c11f696ca416f 1-74
+client2/src/game/boards/core/hudSpec.ts
+  s_b2849f723d52bb::t_acd2816bb5bac5 1-106
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_a9d9553bfb4148 156-157
+  s_b2849f723d52bb::t_409fd616555859 210-212
+  s_b2849f723d52bb::t_6bc3046879d05a 25
+client2/src/game/sandbox/board.ts
+  s_b2849f723d52bb::t_e810ad260e10db 2
+  s_b2849f723d52bb::t_86484cc217821a 18
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_a1efb5c2d0b31e 257
+  s_b2849f723d52bb::t_fcb79cf443a453 56
+  s_b2849f723d52bb::t_30a80fe9614775 10
+  s_b2849f723d52bb::t_b44d8df8d025a1 105-106,108
+client2/src/game/boards/strip/config.test.ts
+  s_b2849f723d52bb::t_13859435f05efb 83
+client2/e2e/catalog/hudSection.spec.ts
+  s_b2849f723d52bb::t_b7c2c29e4af53f 55-72
+client2/src/game/boards/hud/reserve.test.ts
+  s_b2849f723d52bb::t_4ab42a3581a23c 1-61
+client2/src/game/boards/hud/hudLayout.ts
+  s_b2849f723d52bb::t_0affdc97f5b2f0 1-4,6-13,15-18,25-39,41-42,47-53,55,60-171,174-178,181-185,190,192
+client2/src/game/boards/hud/regions.ts
+  s_b2849f723d52bb::t_21674863531aef 1-82
+client2/src/game/boards/hud/validate.ts
+  s_b2849f723d52bb::t_bf43720c7ed3ce 1-28
+client2/src/game/boards/hud/validate.test.ts
+  s_b2849f723d52bb::t_b960575d2abb1e 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "929867c154e737693be8d2e94cc8beecb376c0be",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
