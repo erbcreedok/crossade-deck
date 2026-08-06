@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// Док ЛЮБОЙ зоны (Mechanics/Hud Docks): pile-колода в области HUD — стопка рубашками (лицо —
+// Док ЛЮБОЙ зоны (Mechanics/Hud, стори DeckDock): pile-колода в области HUD — стопка рубашками (лицо —
 // правило зоны, не дока), верхняя карта тащится на борд, дроп ложится сверху; переезд борд↔HUD
 // живой (applySpec: сцена та же). Дев-хук `__story` — идиома канваса.
 
@@ -17,7 +17,7 @@ declare global {
 }
 
 const open = async (page: Page, args = ""): Promise<void> => {
-  await page.goto(`/iframe.html?id=mechanics-hud-docks--deck-dock&viewMode=story${args ? `&args=${args}` : ""}`);
+  await page.goto(`/iframe.html?id=mechanics-hud--deck-dock&viewMode=story${args ? `&args=${args}` : ""}`);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 };

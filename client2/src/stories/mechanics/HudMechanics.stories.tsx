@@ -1,84 +1,10 @@
-import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { action } from "storybook/actions";
-import { BoardScene } from "../../game/boards/scene/scene";
-import { LiveTwoPane } from "./liveStage";
-import { deck36 } from "../../game/boards/library/decks";
-import { handZone } from "../../game/boards/library/strips";
-import { CARD } from "../../game/crossade/tree";
-import type { BoardSpec, ElementDef, HudArea, HudSide, HudSpec, HudWidget, ZoneSpec } from "../../game/boards/core/spec";
-import { pin as pinArea, placeholderW, region, zoneW } from "../../game/boards/core/hudSpec";
+import { DeckStage, LiveTwoStage, TwoStage, type DeckArgs, type LiveTwoArgs, type TwoArgs } from "./hudDockStages";
+import { FlexStage, RegionsStage, type FlexArgs, type RegionArgs } from "./hudStages";
 
-const hudAction = action("dispatch → мок-порт");
-// HUD — раздел «Механики»: экранный слой виджетов ПОВЕРХ борды. Доки по краям, flex-семантика
-// КАК ДАННЫЕ (порядок, size px|{fr}|"auto", justify, gap, inset) — hud/hudLayout. Виджет
-// {kind:"zone", zone:id} швартует СВОЙ экземпляр любой strip-зоны; без виджета зона на борде.
-// Миграция борд↔HUD — живьём (applySpec); safe-zone устройства — рычаг движка (setSafeArea).
-
-const stage = { width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" } as const;
-// ——— FlexDocks: флекс-площадка доков (контролы живые) ———
-
-interface FlexArgs {
-  handSide: HudSide;
-  /** Длина области руки вдоль лейна: auto — доля свободного, число — px-константа (рука
-   *  сжимает ряд и оставляет лейн пустым — эффект ВИДЕН, в отличие от прежнего fr2-без-соседа). */
-  handSize: "auto" | 320 | 480;
-  reactionsWidth: number;
-  gap: number;
-  profileJustify: "start" | "center" | "end";
-  /** Дальность дока руки от его края (HudDock.inset) — поверх safe-zone. */
-  dockInset: number;
-  /** Эмуляция safe-zone устройства (рычаг движка scene.setSafeArea / опция safeArea). */
-  safeBottom: number;
-  safeTop: number;
-  safeSide: number;
-}
-
-function flexSpec(a: FlexArgs): BoardSpec {
-  const { cards, ids } = deck36();
-  return {
-    id: "hud-flex",
-    title: "",
-    elements: cards,
-    zones: [
-      {
-        id: "board",
-        title: "",
-        layout: { kind: "free" },
-        cell: { w: Math.round(CARD.w * 5.4), h: Math.round(CARD.h * 4) },
-        policy: { onOccupied: "merge" },
-        drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
-        setup: { 0: ids.slice(0, 14) },
-      },
-      handZone({ setup: { p1: ids.slice(14, 18) } }),
-    ],
-    seats: { count: { fixed: 1 }, show: "none", swap: false },
-    hud: {
-      areas: [
-        region(a.handSide, "start", [zoneW("hand", a.handSize), placeholderW("реакции", a.reactionsWidth)], { gap: a.gap, inset: a.dockInset }),
-        // Прижим — ВЫБОРОМ региона (start/center/end): «профиль» живёт в своём регионе верха,
-        // рука на top не перезаписывает его (обе области — элементы одного массива areas).
-        region("top", a.profileJustify, [placeholderW("профиль", 180)]),
-      ],
-    },
-    actions: [],
-  };
-}
-
-function FlexStage(a: FlexArgs) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    // Safe-zone — рычаг ДВИЖКА, не HUD: хост читает поля устройства и кормит опцией/setSafeArea.
-    const safeArea = { top: a.safeTop, bottom: a.safeBottom, left: a.safeSide, right: a.safeSide };
-    const scene = new BoardScene({ spec: flexSpec(a), seats: 1, safeArea, onCommand: (cmd) => hudAction(cmd) });
-    (window as unknown as { __story?: BoardScene }).__story = scene;
-    void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
-    return () => scene.destroy();
-  }, [a.handSide, a.handSize, a.reactionsWidth, a.gap, a.profileJustify, a.dockInset, a.safeBottom, a.safeTop, a.safeSide]);
-  return <div ref={hostRef} style={stage} />;
-}
+// HUD — ОДНА секция «Механики»: экранный слой виджетов ПОВЕРХ борды, layout-система КАК ДАННЫЕ
+// (список областей: регионы краёв + пины; hud/hudLayout). Все стори живут здесь плоско; сцены и
+// спеки — в hudStages/hudDockStages (лимит 300 строк на файл).
 
 const meta: Meta<FlexArgs> = {
   title: "Mechanics/Hud",
@@ -128,96 +54,52 @@ scene.applySpec({ ...spec, hud: { areas: [region("right", "start", [zoneW("hand"
   render: (a) => <FlexStage {...a} />,
 };
 export default meta;
-type Story = StoryObj<FlexArgs>;
 
 /**
  * Флекс-площадка областей: рука (auto-доля) + «реакции» (px) внизу, «профиль» сверху (регион по
  * profileJustify). Панель — две категории: HUD (данные spec.hud) и Сцена/движок (safe-zone).
  */
-export const FlexDocks: Story = {};
+export const FlexDocks: StoryObj<FlexArgs> = {};
 /** Гасит контролы меты (FlexArgs) у стори с другим набором args — иначе панель врёт. */
 const flexArgsOff = Object.fromEntries(["handSide", "handSize", "reactionsWidth", "gap", "profileJustify", "dockInset", "safeBottom", "safeTop", "safeSide"]
   .map((k) => [k, { table: { disable: true } }]));
-// ——— TwoHands: две ленты (рука-карты + мешок-фишки) и живая миграция борд↔HUD ———
 
-const chipDefs: ElementDef[] = Array.from({ length: 8 }, (_, i) => ({ kind: "chip", id: `ch${i + 1}`, denom: 25 * (i + 1) }));
-const pouchZone = (setup?: ZoneSpec["setup"]): ZoneSpec =>
-  ({ id: "pouch", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" }, cell: { w: 48, h: 48 }, flow: "grid", setup });
-interface TwoArgs {
-  handPin: "hud" | "board";
-  pouchPin: "hud-bottom" | "hud-right" | "pin" | "board";
-}
-
-/** hud из пинов двух лент: обе могут делить нижний край, разъехаться по краям или лечь на борду. */
-function twoHud(a: TwoArgs): HudSpec | undefined {
-  const widgets: HudWidget[] = [];
-  if (a.handPin === "hud") widgets.push(zoneW("hand", "auto"));
-  if (a.pouchPin === "hud-bottom") widgets.push(zoneW("pouch", 260));
-  const areas: HudArea[] = [];
-  if (widgets.length) areas.push(region("bottom", "start", widgets));
-  if (a.pouchPin === "hud-right") areas.push(region("right", "start", [zoneW("pouch")]));
-  // Пин: фикс-позиция у якоря, ПОВЕРХ стола (в резерв не входит), offset отодвигает от угла.
-  if (a.pouchPin === "pin") areas.push(pinArea("bottom-right", [zoneW("pouch", 220)], { offset: { x: -12, y: -120 } }));
-  return areas.length ? { areas } : undefined;
-}
-
-function twoSpec(a: TwoArgs): BoardSpec {
-  const { cards, ids } = deck36();
-  return {
-    id: "hud-two-strips",
-    title: "",
-    elements: [...cards, ...chipDefs],
-    zones: [
-      {
-        id: "board",
-        title: "",
-        layout: { kind: "free" },
-        cell: { w: Math.round(CARD.w * 5.4), h: Math.round(CARD.h * 4) },
-        policy: { onOccupied: "merge" },
-        drop: { hit: "overlap", maxTilt: 30, magnet: true },
-        setup: { 0: ids.slice(0, 12) },
-      },
-      handZone({ setup: { p1: ids.slice(12, 16) } }),
-      pouchZone({ p1: chipDefs.map((c) => c.id) }),
-    ],
-    seats: { count: { fixed: 1 }, show: "none", swap: false },
-    hud: twoHud(a),
-    actions: [],
-  };
-}
-function TwoStage(a: TwoArgs) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<BoardScene | null>(null);
-  const pinsRef = useRef<TwoArgs>(a);
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    pinsRef.current = a;
-    const scene = new BoardScene({ spec: twoSpec(a), seats: 1, onCommand: (cmd) => hudAction(cmd) });
-    sceneRef.current = scene;
-    (window as unknown as { __story?: BoardScene }).__story = scene;
-    void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
-    return () => scene.destroy();
-  }, [a.handPin, a.pouchPin]);
-  // ЖИВАЯ миграция: тот же spec с другим hud через applySpec — сцена НЕ пересоздаётся,
-  // ноды те же, жители перелетают борд↔док непрерывно (канон «одна нода на жителя»).
-  const move = (patch: Partial<TwoArgs>): void => {
-    pinsRef.current = { ...pinsRef.current, ...patch };
-    sceneRef.current?.applySpec(twoSpec(pinsRef.current));
-  };
-  const btn = { padding: "4px 10px", background: "#1f2a22", color: "#d7e3d0", border: "1px solid #50604f", borderRadius: 6, cursor: "pointer", font: "12px monospace" } as const;
-  return (
-    <div style={{ position: "relative" }}>
-      <div ref={hostRef} style={stage} />
-      <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 8 }}>
-        <button style={btn} data-testid="hand-to-board" onClick={() => move({ handPin: "board" })}>рука → борд</button>
-        <button style={btn} data-testid="hand-to-hud" onClick={() => move({ handPin: "hud" })}>рука → HUD</button>
-        <button style={btn} data-testid="pouch-to-board" onClick={() => move({ pouchPin: "board" })}>мешок → борд</button>
-        <button style={btn} data-testid="pouch-to-hud" onClick={() => move({ pouchPin: "hud-bottom" })}>мешок → HUD</button>
-      </div>
-    </div>
-  );
-}
+/**
+ * ПЛОЩАДКА РЕГИОНОВ: восемь областей по краям (три региона верха, рука+реакции внизу, колонки по
+ * бокам). Углы — по владельцам (панель «Углы»): переключи bottom-left на left — колонка дотянется
+ * до низа, а рука подвинется; bleed вернёт её на полный лейн (явный наплыв). Наплывов по умолчанию
+ * НЕТ — это формула лейна, не дисциплина.
+ */
+export const RegionsPlayground: StoryObj<RegionArgs> = {
+  parameters: {
+    code: () => `// Три региона делят ЛЕЙН края: px-константы держатся, {fr}/auto делят свободное
+// ВСЕГО лейна, center клампится между соседями.
+hud: {
+  areas: [
+    region("top", "start",  [placeholderW("меню", 120)]),
+    region("top", "center", [placeholderW("статус", 160)]),   // центрирование = выбор региона
+    region("top", "end",    [placeholderW("профиль", 120)]),
+    region("bottom", "start", [zoneW("hand", "auto")], { gap: 10, inset: 12 }),
+    region("left", "start", [placeholderW("туллбар", 150)]),  // вертикальные области — те же данные
+  ],
+  // УГЛЫ: спорный угол принадлежит РОВНО одному краю (дефолт — горизонтали): наплыв соседних
+  // областей НЕВОЗМОЖЕН по формуле. Пустой угол отдаёт место сам. bleed: true — явная дверь.
+  corners: { "bottom-left": "left" }, // отдать угол левой колонке — низ уступит
+}`,
+  },
+  args: { handSlot: "start", handWidth: 300, cornerBottomLeft: "bottom", cornerBottomRight: "bottom", handBleed: false, gap: 10, inset: 0 },
+  argTypes: {
+    handSlot: { table: { category: "Область руки" }, description: "регион низа: прижим — выбором региона (start/center/end)", control: { type: "inline-radio" }, options: ["start", "center", "end"] },
+    handWidth: { table: { category: "Область руки" }, description: "px-длина области руки (константа держится, лейн пустеет)", control: { type: "range", min: 180, max: 520, step: 20 } },
+    handBleed: { table: { category: "Область руки" }, description: "ЯВНЫЙ наплыв: рука ложится по НЕурезанному лейну (игнорирует угловые вычеты)", control: { type: "boolean" } },
+    gap: { table: { category: "Область руки" }, description: "зазор виджетов области", control: { type: "range", min: 0, max: 40, step: 2 } },
+    inset: { table: { category: "Область руки" }, description: "дальность области от края (поверх safe-zone)", control: { type: "range", min: 0, max: 64, step: 4 } },
+    cornerBottomLeft: { table: { category: "Углы (corners)" }, description: "владелец нижне-левого угла: bottom — низ во всю ширину; left — колонка до низа, рука уступает", control: { type: "inline-radio" }, options: ["bottom", "left"] },
+    cornerBottomRight: { table: { category: "Углы (corners)" }, description: "владелец нижне-правого угла", control: { type: "inline-radio" }, options: ["bottom", "right"] },
+    ...flexArgsOff,
+  } as never,
+  render: (a) => <RegionsStage {...(a as unknown as RegionArgs)} />,
+};
 
 /**
  * ДВЕ ЛЕНТЫ у одного игрока: рука с картами и мешок фишек (другой контент, та же механика).
@@ -233,56 +115,6 @@ export const TwoHands: StoryObj<TwoArgs> = {
   } as never,
   render: (a) => <TwoStage {...(a as unknown as TwoArgs)} />,
 };
-// ——— LiveTwoHands: два экрана над одним портом, у каждого две ленты ———
-
-interface LiveTwoArgs {
-  handPin: "hud" | "board";
-  handHidden: boolean;
-  handAccess: "open" | "request" | "locked";
-  handAtSeat: "above" | "below" | "left" | "right";
-  pouchPin: "hud" | "board";
-}
-
-function liveTwoSpec(a: LiveTwoArgs): BoardSpec {
-  const { cards, ids } = deck36();
-  return {
-    id: "hud-live-two",
-    title: "",
-    elements: [...cards, ...chipDefs],
-    zones: [
-      {
-        id: "board",
-        title: "",
-        layout: { kind: "free" },
-        cell: { w: Math.round(CARD.w * 5), h: Math.round(CARD.h * 3.8) },
-        policy: { onOccupied: "merge" },
-        drop: { hit: "overlap", maxTilt: 30, magnet: true },
-        setup: { 0: ids.slice(0, 10) },
-      },
-      // Свойства руки — из контролов: hidden (рубашки/лица), access (open/request/locked;
-      // request пока ведёт себя как locked, чужая лента помечена «по запросу»), atSeat.
-      { ...handZone({ hidden: a.handHidden, access: a.handAccess, atSeat: a.handAtSeat }),
-        setup: { p1: ids.slice(10, 13), p2: ids.slice(13, 16) } },
-      // Мешки открыты (access-дефолт: дроп включён): у соседа две зоны владельца.
-      pouchZone({ p1: chipDefs.slice(0, 4).map((c) => c.id), p2: chipDefs.slice(4).map((c) => c.id) }),
-    ],
-    seats: { count: { fixed: 2 }, show: "backs", swap: false },
-    hud: hudOfPins(a),
-    actions: [],
-  };
-}
-
-/** hud из пинов: обе ленты могут делить нижний край или жить на борде. */
-function hudOfPins(a: LiveTwoArgs): HudSpec | undefined {
-  const widgets: HudWidget[] = [];
-  if (a.handPin === "hud") widgets.push(zoneW("hand", "auto"));
-  if (a.pouchPin === "hud") widgets.push(zoneW("pouch", 240));
-  return widgets.length ? { areas: [region("bottom", "start", widgets)] } : undefined;
-}
-
-function LiveTwoStage(a: LiveTwoArgs) {
-  return <LiveTwoPane spec={() => liveTwoSpec(a)} deps={[a.handPin, a.handHidden, a.handAccess, a.handAtSeat, a.pouchPin]} onCommand={hudAction} />;
-}
 
 /**
  * LIVE: два экрана над ОДНИМ портом, у каждого ДВЕ ленты. Контролы крутят СВОЙСТВА ТВОЕЙ руки —
@@ -301,4 +133,30 @@ export const LiveTwoHands: StoryObj<LiveTwoArgs> = {
     ...flexArgsOff,
   } as never,
   render: (a) => <LiveTwoStage {...(a as unknown as LiveTwoArgs)} />,
+};
+
+/**
+ * КОЛОДА В HUD: pile-зона стопкой у правого края — рубашками (правило зоны, не дока). Верхняя
+ * карта тащится на борд, карта с борда/руки ложится в стопку СВЕРХУ; кнопки перекидывают колоду
+ * борд↔HUD живьём (applySpec). Инструмент «ГОЛОС» — generic widget в пине.
+ */
+export const DeckDock: StoryObj<DeckArgs> = {
+  parameters: {
+    code: () => `// Докуется зона ЛЮБОГО вида с презентацией дока (strip/presentation):
+//   strip → ряд со вставкой и гэп-превью; pile → СТОПКА (взять верхнюю, дроп сверху).
+// Прочие виды пока живут на борде — zoneDockConfig честно отдаёт null.
+hud: { areas: [
+  region("bottom", "start", [zoneW("hand", "auto")]),
+  region("right", "start", [zoneW("deck")]),  // pile-колода колонкой-стопкой у правого края
+  pin("bottom-right", [zoneW("tools", 90)], { offset: { x: -8, y: -170 } }), // widget-инструмент
+] }
+// Лицо в доке — ПРАВИЛО зоны (faceUpInSlot): рука лицом, колода рубашками.
+// Переезд живой: scene.applySpec(specСДругимHud) — ноды те же, полёт непрерывный.`,
+  },
+  args: { deckPin: "hud" },
+  argTypes: {
+    deckPin: { description: "где колода: стопкой в области HUD или на борде", control: { type: "inline-radio" }, options: ["hud", "board"] },
+    ...flexArgsOff,
+  } as never,
+  render: (a) => <DeckStage {...(a as unknown as DeckArgs)} />,
 };

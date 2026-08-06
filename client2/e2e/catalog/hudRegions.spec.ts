@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// Регионная площадка (Mechanics/Hud Regions): углы по владельцам — наплывов нет по ФОРМУЛЕ.
+// Регионная площадка (Mechanics/Hud, стори RegionsPlayground): углы по владельцам — наплывов нет по ФОРМУЛЕ.
 // Сторожа держат сами рычаги панели: corners двигает руку, bleed возвращает полный лейн,
 // slot прижимает выбором региона. Дев-хук `__story` — идиома канваса.
 
@@ -18,7 +18,7 @@ declare global {
 }
 
 const open = async (page: Page, args = ""): Promise<void> => {
-  await page.goto(`/iframe.html?id=mechanics-hud-regions--regions-playground&viewMode=story${args ? `&args=${args}` : ""}`);
+  await page.goto(`/iframe.html?id=mechanics-hud--regions-playground&viewMode=story${args ? `&args=${args}` : ""}`);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 };
