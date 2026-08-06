@@ -1,0 +1,35 @@
+client2/src/stories/mechanics/HudMechanics.stories.tsx
+  s_b2849f723d52bb::t_a529ee94dd4bc9 5,275
+  s_b2849f723d52bb::t_b7ac2c22e53dc7 15-16
+  s_b2849f723d52bb::t_b24beca0f0b97f 141-143,145
+  s_b2849f723d52bb::t_cc3f0155e6de96 229-237,253-257,261,266-267,269-274,279-283,285-300
+  s_b2849f723d52bb::t_888bfed709ba41 9,268
+  s_b2849f723d52bb::t_29e17d03cf9f33 95-98
+client2/src/stories/mechanics/liveStage.tsx
+  s_b2849f723d52bb::t_f53d2af5e87bc8 1-43
+client2/src/game/boards/geometry/stripBand.ts
+  s_b2849f723d52bb::t_7b37813d36d6bf 124-125
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_2e8ccd1f4f623d 228-239,255,258,263,274-294
+  s_b2849f723d52bb::t_a529ee94dd4bc9 5,264-271
+client2/e2e/catalog/hudSection.spec.ts
+  s_b2849f723d52bb::t_159d69c0cc75d8 20-21
+  s_b2849f723d52bb::t_1ec492ad6bec98 126-127,129-149
+  s_b2849f723d52bb::t_f21712e10cfbc1 128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "61b9c59b1617f17d670b12771a9e8f4dd05eae12",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
