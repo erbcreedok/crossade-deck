@@ -80,7 +80,7 @@ describe("stripScale — единый масштаб жителей лент (ba
     expect(stripScale({ zones }, "hand:p1", "p1")).toBe(1);
     expect(stripScale({ zones }, "deck:0", "p1")).toBe(1);
     expect(stripScale({ zones }, "hand:p2", "p1")).toBe(STRIP_FOREIGN_SCALE);
-    const hud = { bottom: { widgets: [{ kind: "zone" as const, zone: "hand" }] } };
+    const hud = { areas: [{ place: { region: { side: "bottom" as const, slot: "start" as const } }, widgets: [{ kind: "zone" as const, zone: "hand" }] }] };
     expect(stripScale({ zones, hud }, "hand:p2", "p1")).toBe(STRIP_MINI_SCALE);
   });
 });

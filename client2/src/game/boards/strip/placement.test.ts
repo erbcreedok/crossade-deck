@@ -3,13 +3,14 @@ import { roundTableBoard, durakBoard } from "../library";
 import { initialState } from "../core/state";
 import { buildBoardTree } from "../geometry/boardTree";
 import type { BoardSpec, HudSpec } from "../core/spec";
+import { region, zoneW } from "../core/hudSpec";
 
-// Сторож: ГДЕ живёт лента, решает HUD (hudLayout.zoneOnBoard). Виджет {kind:"zone"} в любом доке
-// HUD убирает СВОЙ экземпляр зоны ИЗ ДЕРЕВА борды (обе компоновки — круглый стол и полоса):
-// его жители живут в экранном доке. Чужие экземпляры остаются в дереве всегда (для других это
-// обычные зоны у мест). Без виджета лента в дереве, как раньше.
+// Сторож: ГДЕ живёт лента, решает HUD (hudLayout.zoneOnBoard). Виджет {kind:"zone"} в любой
+// ОБЛАСТИ HUD убирает СВОЙ экземпляр зоны ИЗ ДЕРЕВА борды (обе компоновки — круглый стол и
+// полоса): его жители живут в экранной области. Чужие экземпляры остаются в дереве всегда (для
+// других это обычные зоны у мест). Без виджета лента в дереве, как раньше.
 
-const HAND_HUD: HudSpec = { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } };
+const HAND_HUD: HudSpec = { areas: [region("bottom", "start", [zoneW("hand")])] };
 
 function keysInTree(spec: BoardSpec, seats: number): string[] {
   const state = initialState(spec, seats);

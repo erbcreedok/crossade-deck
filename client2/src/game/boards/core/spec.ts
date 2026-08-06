@@ -8,6 +8,7 @@
 
 import type { OnOccupied } from "../../slotfield/fieldZone";
 import type { DropPolicy } from "../../slot/dropPolicy";
+import type { HudSpec } from "./hudSpec";
 
 // ---------------------------------------------------------------------------------------------
 // Ключи: единый словарь адресов вместо хардкода строк по деревьям (шов №3 из BOARDS-ANALYSIS)
@@ -159,39 +160,11 @@ export interface SeatsSpec {
 }
 
 // ---------------------------------------------------------------------------------------------
-// HUD — экранный слой мобильного удобства ПОВЕРХ борды (фикс к камере, не зумится, не ездит паном)
+// HUD — экранный слой мобильного удобства ПОВЕРХ борды (фикс к камере, не зумится, не ездит паном).
+// Модель — в core/hudSpec.ts: список ОБЛАСТЕЙ (регионы краевой сетки + пины), углы по владельцам.
 // ---------------------------------------------------------------------------------------------
 
-/** Край экрана, к которому пришвартован док HUD. */
-export type HudSide = "top" | "bottom" | "left" | "right";
-/** Длина виджета вдоль дока: px-константа | {fr} — доля свободного | "auto" (= {fr:1}). */
-export type HudSize = number | { fr: number } | "auto";
-/** Виджет дока: ЛЮБАЯ strip-зона борды по id (рука, мешок, личная дропзона — свойства живут в
- *  ЕЁ ZoneSpec: зона остаётся собой, где бы ни жила); placeholder — пустышка-лента для макетов
- *  (дальше — кнопки, реакции). Виджет есть → СВОЙ экземпляр зоны в экранном доке; нет → на борде. */
-export type HudWidget =
-  | { kind: "zone"; zone: string; size?: HudSize }
-  | { kind: "placeholder"; label?: string; size?: HudSize };
-
-/** ДОК — ряд виджетов вдоль края, flex-семантика как данные: порядок — порядок массива, длины —
- *  size (px | доля | auto), прижим ряда — justify, зазор — gap. Считает чистый hud/hudLayout. */
-export interface HudDock {
-  widgets: readonly HudWidget[];
-  justify?: "start" | "center" | "end" | "between";
-  gap?: number;
-  /** ДАЛЬНОСТЬ дока от его края экрана (px), ПОВЕРХ safe-zone сцены (та приходит рычагом
-   *  движка — scene.setSafeArea — и складывается с этим отступом). Нет поля — вплотную к хрому. */
-  inset?: number;
-}
-
-/** HUD целиком: доки по краям. Несколько виджетов делят ОДИН край (рука + реакции внизу),
- *  другие живут у других краёв (профиль сверху). Зона без своего виджета живёт на борде. */
-export interface HudSpec {
-  top?: HudDock;
-  bottom?: HudDock;
-  left?: HudDock;
-  right?: HudDock;
-}
+export type { EdgeInsets, HudAnchor, HudArea, HudCorner, HudPlace, HudSide, HudSize, HudSlot, HudSpec, HudWidget } from "./hudSpec";
 
 /** Направление раскладки ленты в доке: ряд, колонка или сетка. Нет поля — вдоль края дока:
  *  top/bottom → horizontal, left/right → vertical. */

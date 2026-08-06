@@ -22,6 +22,7 @@ import { boardHooks, type BoardHooks } from "./hooks";
 import { fitZoom } from "../../engine/fitBoard";
 import { focusTargetIn, menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
 import { migrateState } from "../core/migrate";
+import { validateHud } from "../hud/validate";
 import { NO_SAFE_AREA, type BoardSceneOptions, type SafeArea } from "./options";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
@@ -152,6 +153,8 @@ export class BoardScene implements SceneDelegate {
   private setSpec(spec: BoardSpec): void {
     this.spec = spec;
     this.defs = elementById(spec);
+    // Громкость вместо тишины: битый HUD (зона-призрак, дубль) раньше «тихо уезжал на борд».
+    for (const complaint of validateHud(spec)) console.warn(`[BoardScene] ${complaint}`);
   }
 
   /** Подписка на снимки — ОДНА на все три пути (первый драйвер, reconfigure, live): каждый снимок
@@ -204,8 +207,9 @@ export class BoardScene implements SceneDelegate {
 
   private fitBoard(): void {
     this.api.syncVp();
-    const r = this.hud.reserved(this.api.width(), this.api.height()); // доки HUD у любых краёв + safe
-    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: this.chromeHud.topH() + r.top, insetBottom: r.bottom, insetLeft: r.left, insetRight: r.right, size: this.tree.size };
+    // Резерв краёв — ОДНА формула (hud/reserve): области HUD, safe-zone и живой хром уже внутри.
+    const r = this.hud.reserved(this.api.width(), this.api.height());
+    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: r.top, insetBottom: r.bottom, insetLeft: r.left, insetRight: r.right, size: this.tree.size };
     this.api.viewport().setZoom(fitZoom(fit));
     this.showView();
   }

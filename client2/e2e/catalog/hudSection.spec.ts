@@ -52,6 +52,24 @@ test.describe("HUD: флекс-доки и ленты-виджеты", () => {
     expect(insetY - safeY).toBe(28);
   });
 
+  test("handSide:top НЕ роняет руку на стол: рука в ВЕРХНЕЙ области, «профиль» жив рядом (смерть бага коллизии ключей)", async ({ page }) => {
+    await open(page, "flex-docks", "handSide:top");
+    const hand = await dockedOf(page, "hand");
+    expect(hand.length).toBe(4); // рука пришвартована, а не уехала на борд
+    const vh = page.viewportSize()!.height;
+    for (const p of hand) expect(p.y).toBeLessThan(vh * 0.3); // у верхнего края
+  });
+
+  test("угол без наплыва: вертикальный док мешка заканчивается ВЫШЕ нижней ленты руки", async ({ page }) => {
+    await open(page, "two-hands", "pouchPin:hud-right");
+    const hand = await dockedOf(page, "hand");
+    const pouch = await dockedOf(page, "pouch");
+    expect(pouch.length).toBe(8);
+    const pouchLow = Math.max(...pouch.map((p) => p.y));
+    const handHigh = Math.min(...hand.map((p) => p.y));
+    expect(pouchLow).toBeLessThan(handHigh); // угол принадлежит низу — колонка не заезжает в него
+  });
+
   test("two-hands: обе ленты в HUD — рука картами, мешок фишками в своём отрезке дока", async ({ page }) => {
     await open(page, "two-hands");
     const hand = await dockedOf(page, "hand");

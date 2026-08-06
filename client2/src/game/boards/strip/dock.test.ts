@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, dockReserved, type DockFrame } from "./dock";
+import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, type DockFrame } from "./dock";
 
 // Сторож геометрии дока руки: край (side) и ось (flow) — данные; вертикальный док — та же
-// математика со свёрнутыми осями; резерв отдаёт ровно свой край.
+// математика со свёрнутыми осями. Резерв краёв живёт ОДНОЙ формулой в hud/reserve (свой сторож):
+// здесь только полоса (dockBand) — источник глубины для того резерва.
 
 const CARD = { w: 100, h: 143 };
 const frame = (side: DockFrame["side"], flow: DockFrame["flow"]): DockFrame => ({ w: 800, h: 600, insetTop: 40, insetBottom: 40, side, flow, size: { fit: 5 }, card: CARD });
@@ -67,13 +68,9 @@ describe("handDock — док руки у края экрана", () => {
     }
   });
 
-  it("резерв отдаёт РОВНО свой край: bottom — низ (с хромом низа), left — лево, остальное нули", () => {
-    const rb = dockReserved(frame("bottom", "horizontal"), 5);
-    expect(rb.bottom).toBeGreaterThan(0);
-    expect(rb.top + rb.left + rb.right).toBe(0);
-    const rl = dockReserved(frame("left", "vertical"), 5);
-    expect(rl.left).toBeGreaterThan(0);
-    expect(rl.top + rl.bottom + rl.right).toBe(0);
+  it("глубина полосы поперёк края > 0 — источник bandDepth для резерва (hud/reserve)", () => {
+    expect(dockBand(frame("bottom", "horizontal"), 5).h).toBeGreaterThan(0);
+    expect(dockBand(frame("left", "vertical"), 5).w).toBeGreaterThan(0);
   });
 });
 
@@ -88,10 +85,8 @@ describe("handDock — сетка (flow:grid) и размер (size)", () => {
     expect(poses.slice(0, 5).every((p) => Math.round(p.y) === row0)).toBe(true); // первые — в ряду 0
   });
 
-  it("резерв grid растёт с числом рядов (глубина дока — данные состава)", () => {
-    const one = dockReserved(gf(), 3).bottom;
-    const two = dockReserved(gf(), 8).bottom;
-    expect(two).toBeGreaterThan(one);
+  it("глубина grid растёт с числом рядов (глубина дока — данные состава)", () => {
+    expect(dockBand(gf(), 8).h).toBeGreaterThan(dockBand(gf(), 3).h);
   });
 
   it("гэп-превью в grid: позиции для count+1, индекс цели по БАЗОВЫМ позициям не дрожит", () => {
@@ -129,8 +124,5 @@ describe("dock edge — дальность полосы от края (safe-zone
     expect(shift(left).x).toBe(flat(left).x + 24);
   });
 
-  it("резерв края растёт ровно на edge — стол уступает столько же, насколько отъехал док", () => {
-    expect(dockReserved({ ...base, edge: 24 }, 3).bottom).toBe(dockReserved(base, 3).bottom + 24);
-    expect(dockReserved({ ...base, side: "left", edge: 24 }, 3).left).toBe(dockReserved({ ...base, side: "left" }, 3).left + 24);
-  });
+  // Рост резерва на edge сторожится в hud/reserve.test (inset в sideExtent) — формула одна.
 });

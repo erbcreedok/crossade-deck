@@ -6,7 +6,8 @@ import { LiveTwoPane } from "./liveStage";
 import { deck36 } from "../../game/boards/library/decks";
 import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
-import type { BoardSpec, ElementDef, HudSide, HudSpec, HudWidget, ZoneSpec } from "../../game/boards/core/spec";
+import type { BoardSpec, ElementDef, HudArea, HudSide, HudSpec, HudWidget, ZoneSpec } from "../../game/boards/core/spec";
+import { placeholderW, region, zoneW } from "../../game/boards/core/hudSpec";
 
 const hudAction = action("dispatch → мок-порт");
 // HUD — раздел «Механики»: экранный слой виджетов ПОВЕРХ борды. Доки по краям, flex-семантика
@@ -51,15 +52,12 @@ function flexSpec(a: FlexArgs): BoardSpec {
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
     hud: {
-      [a.handSide]: {
-        widgets: [
-          { kind: "zone", zone: "hand", size: a.handSize === "auto" ? "auto" : { fr: 2 } },
-          { kind: "placeholder", label: "реакции", size: a.reactionsWidth },
-        ],
-        gap: a.gap,
-        inset: a.dockInset,
-      },
-      top: { widgets: [{ kind: "placeholder", label: "профиль", size: 180 }], justify: a.profileJustify },
+      areas: [
+        region(a.handSide, "start", [zoneW("hand", a.handSize === "auto" ? "auto" : { fr: 2 }), placeholderW("реакции", a.reactionsWidth)], { gap: a.gap, inset: a.dockInset }),
+        // Прижим — ВЫБОРОМ региона (start/center/end): «профиль» живёт в своём регионе верха,
+        // рука на top не перезаписывает его (обе области — элементы одного массива areas).
+        region("top", a.profileJustify, [placeholderW("профиль", 180)]),
+      ],
     },
     actions: [],
   };
@@ -86,37 +84,40 @@ const meta: Meta<FlexArgs> = {
     layout: "fullscreen",
     code: () => `import { BoardScene } from "game/boards/scene/scene";
 import { handZone } from "game/boards/library/strips";
+import { region, pin, zoneW, placeholderW } from "game/boards/core/hudSpec";
 import type { BoardSpec } from "game/boards/core/spec";
 
-// HUD — доки виджетов по краям экрана; flex-семантика КАК ДАННЫЕ.
-// Любая strip-зона швартуется виджетом {kind:"zone", zone:id}; без виджета — на борде.
+// HUD — layout-система КАК ДАННЫЕ: список ОБЛАСТЕЙ (регионы краёв + пины).
+// Регион = {side, slot: start|center|end}; углы по владельцам (corners) — наплывов нет.
+// Любая strip-зона швартуется виджетом zoneW(id); без виджета — на борде.
 const spec: BoardSpec = {
   ...myBoard,
   zones: [...myBoard.zones, handZone()], // рука — strip-зона «hand»; мешок — ещё strip-зона
 
-  hud: {
-    bottom: { widgets: [
-      { kind: "zone", zone: "hand", size: "auto" },         // auto = вся доля свободного
-      { kind: "placeholder", label: "реакции", size: 220 }, // px-константа
-    ], gap: 10, inset: 12 },                                // дальность дока от края (поверх safe)
-    top: { widgets: [{ kind: "placeholder", label: "профиль", size: 180 }], justify: "end" },
-  },
+  hud: { areas: [
+    region("bottom", "start", [
+      zoneW("hand", "auto"),          // auto = доля свободного лейна
+      placeholderW("реакции", 220),   // px-константа
+    ], { gap: 10, inset: 12 }),       // inset — дальность от края (поверх safe)
+    region("top", "end", [placeholderW("профиль", 180)]), // прижим = ВЫБОР региона
+    pin("bottom-right", [zoneW("pouch", 72)], { offset: { x: -8, y: -90 } }), // фикс-позиция
+  ] },
 };
 // Safe-zone устройства — рычаг ДВИЖКА (не HUD): хост читает поля платформы и кормит сцену.
 const scene = new BoardScene({ spec, seats: 2, safeArea: { top: 0, bottom: 34, left: 0, right: 0 } });
 void scene.mount(host, width, height);
 scene.setSafeArea({ top: 47, bottom: 21, left: 0, right: 0 }); // живо: поворот экрана
 // Живая миграция: тот же spec с другим hud — жители ПЕРЕЛЕТАЮТ (ноды те же).
-scene.applySpec({ ...spec, hud: { right: { widgets: [{ kind: "zone", zone: "hand" }] } } });`,
+scene.applySpec({ ...spec, hud: { areas: [region("right", "start", [zoneW("hand")])] } });`,
   },
   args: { handSide: "bottom", handSize: "auto", reactionsWidth: 220, gap: 10, profileJustify: "end", dockInset: 0, safeBottom: 0, safeTop: 0, safeSide: 0 },
   // Панель разделена: свойства HUD-ДОКА (spec.hud) отдельно от РЫЧАГОВ ДВИЖКА (safe-zone сцены).
   argTypes: {
-    handSide: { table: { category: "HUD-док" }, description: "край дока руки (реакции едут с ней)", control: { type: "inline-radio" }, options: ["bottom", "top"] },
+    handSide: { table: { category: "HUD-док" }, description: "край области руки (реакции едут с ней); top делит верх с «профилем» без конфликтов", control: { type: "inline-radio" }, options: ["bottom", "top"] },
     handSize: { table: { category: "HUD-док" }, description: "доля руки в доке: auto ({fr:1}) или {fr:2} — вдвое жирнее свободного", control: { type: "inline-radio" }, options: ["auto", "fr2"] },
     reactionsWidth: { table: { category: "HUD-док" }, description: "px-константа виджета «реакции»: рука ужимается, константа держится", control: { type: "range", min: 80, max: 480, step: 20 } },
     gap: { table: { category: "HUD-док" }, description: "зазор между виджетами дока", control: { type: "range", min: 0, max: 40, step: 2 } },
-    profileJustify: { table: { category: "HUD-док" }, description: "прижим ряда «профиль» у верхнего края", control: { type: "inline-radio" }, options: ["start", "center", "end"] },
+    profileJustify: { table: { category: "HUD-док" }, description: "регион «профиля» у верхнего края: прижим — выбором региона start/center/end", control: { type: "inline-radio" }, options: ["start", "center", "end"] },
     dockInset: { table: { category: "HUD-док" }, description: "дальность дока от края (HudDock.inset), ПОВЕРХ safe-zone", control: { type: "range", min: 0, max: 64, step: 4 } },
     safeBottom: { table: { category: "Сцена (движок): safe-zone" }, description: "низ (home-индикатор): scene.setSafeArea — у каждого устройства свои поля", control: { type: "range", min: 0, max: 60, step: 4 } },
     safeTop: { table: { category: "Сцена (движок): safe-zone" }, description: "верх (чёлка)", control: { type: "range", min: 0, max: 60, step: 4 } },
@@ -128,9 +129,8 @@ export default meta;
 type Story = StoryObj<FlexArgs>;
 
 /**
- * Флекс-площадка доков: рука (auto-доля) + «реакции» (px) внизу, «профиль» сверху. Панель — две
- * категории: HUD-док (данные spec.hud, вкл. dockInset — дальность от края) и Сцена/движок
- * (эмуляция safe-zone: setSafeArea). Дефолты нулевые — док прибит к краю.
+ * Флекс-площадка областей: рука (auto-доля) + «реакции» (px) внизу, «профиль» сверху (регион по
+ * profileJustify). Панель — две категории: HUD (данные spec.hud) и Сцена/движок (safe-zone).
  */
 export const FlexDocks: Story = {};
 /** Гасит контролы меты (FlexArgs) у стори с другим набором args — иначе панель врёт. */
@@ -146,15 +146,15 @@ interface TwoArgs {
   pouchPin: "hud-bottom" | "hud-right" | "board";
 }
 
-/** hud из пинов двух лент: обе могут делить нижний док, разъехаться по краям или лечь на борду. */
+/** hud из пинов двух лент: обе могут делить нижний край, разъехаться по краям или лечь на борду. */
 function twoHud(a: TwoArgs): HudSpec | undefined {
   const widgets: HudWidget[] = [];
-  if (a.handPin === "hud") widgets.push({ kind: "zone", zone: "hand", size: "auto" });
-  if (a.pouchPin === "hud-bottom") widgets.push({ kind: "zone", zone: "pouch", size: 260 });
-  const hud: HudSpec = {};
-  if (widgets.length) hud.bottom = { widgets };
-  if (a.pouchPin === "hud-right") hud.right = { widgets: [{ kind: "zone", zone: "pouch" }] };
-  return Object.keys(hud).length ? hud : undefined;
+  if (a.handPin === "hud") widgets.push(zoneW("hand", "auto"));
+  if (a.pouchPin === "hud-bottom") widgets.push(zoneW("pouch", 260));
+  const areas: HudArea[] = [];
+  if (widgets.length) areas.push(region("bottom", "start", widgets));
+  if (a.pouchPin === "hud-right") areas.push(region("right", "start", [zoneW("pouch")]));
+  return areas.length ? { areas } : undefined;
 }
 
 function twoSpec(a: TwoArgs): BoardSpec {
@@ -268,12 +268,12 @@ function liveTwoSpec(a: LiveTwoArgs): BoardSpec {
   };
 }
 
-/** hud из пинов: обе ленты могут делить нижний док или жить на борде. */
+/** hud из пинов: обе ленты могут делить нижний край или жить на борде. */
 function hudOfPins(a: LiveTwoArgs): HudSpec | undefined {
   const widgets: HudWidget[] = [];
-  if (a.handPin === "hud") widgets.push({ kind: "zone", zone: "hand", size: "auto" });
-  if (a.pouchPin === "hud") widgets.push({ kind: "zone", zone: "pouch", size: 240 });
-  return widgets.length ? { bottom: { widgets } } : undefined;
+  if (a.handPin === "hud") widgets.push(zoneW("hand", "auto"));
+  if (a.pouchPin === "hud") widgets.push(zoneW("pouch", 240));
+  return widgets.length ? { areas: [region("bottom", "start", widgets)] } : undefined;
 }
 
 function LiveTwoStage(a: LiveTwoArgs) {

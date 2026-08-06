@@ -1,4 +1,5 @@
 import type { BoardSpec } from "../boards/core/spec";
+import { region, zoneW } from "../boards/core/hudSpec";
 import { DEFAULT_SANDBOX_SETTINGS, type SandboxSettings } from "./settings";
 import { roundTableBoard } from "../boards/library/roundTable";
 
@@ -14,5 +15,5 @@ export function sandboxBoard(settings: SandboxSettings = DEFAULT_SANDBOX_SETTING
   // Рука песочницы («hand» — обычная strip-зона из roundTableBoard) — в ЭКРАННОМ HUD: док у
   // низа, фикс к камере, во всю ширину (scene/zoneDock.ts).
   const base = roundTableBoard({ ...settings, dealt: 0, ring: "capped" });
-  return { ...base, id: "sandbox", hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } } };
+  return { ...base, id: "sandbox", hud: { areas: [region("bottom", "start", [zoneW("hand")])] } };
 }

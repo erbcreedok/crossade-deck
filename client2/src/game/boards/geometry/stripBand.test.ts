@@ -39,7 +39,7 @@ describe("чужая лента: полная-ужатая на борде, ми
 
   it("зона в HUD: чужая — мини (мельче ужатой) и ЗЕРКАЛЬНАЯ (первая карта владельца справа)", () => {
     const board = spec();
-    const docked = spec({ hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } } });
+    const docked = spec({ hud: { areas: [{ place: { region: { side: "bottom", slot: "start" } }, widgets: [{ kind: "zone", zone: "hand" }] }] } });
     const tBoard = buildBoardTree(board, initialState(board, 2), "p1");
     const tMini = buildBoardTree(docked, initialState(docked, 2), "p1");
     // Мини мельче ужатой: band ниже.
@@ -58,7 +58,7 @@ describe("чужая лента: полная-ужатая на борде, ми
           { id: "hand", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" }, atSeat,
             setup: { p2: ["c3"] } },
         ],
-        hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } },
+        hud: { areas: [{ place: { region: { side: "bottom", slot: "start" } }, widgets: [{ kind: "zone", zone: "hand" }] }] },
       });
     const above = buildBoardTree(mk("above"), initialState(mk("above"), 2), "p1");
     const below = buildBoardTree(mk("below"), initialState(mk("below"), 2), "p1");

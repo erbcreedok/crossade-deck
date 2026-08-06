@@ -160,16 +160,5 @@ export function dockDragPose(f: DockFrame, p: { x: number; y: number }): DockPos
   return toScreen(f, cell, { main, row });
 }
 
-/** Сколько экрана резервирует док у СВОЕГО края — стол вписывается в остаток (fitZoom). Полоса
- *  низа включает хром низа (полоса действий живёт под рукой); edge (safe+inset) — у всех краёв. */
-export function dockReserved(f: DockFrame, count: number): { top: number; bottom: number; left: number; right: number } {
-  const cell = dockCell(f);
-  const cSize = vertical(f) ? cell.w : cell.h;
-  const depth = rowsOf(f, count) * (cSize + GAP) - GAP;
-  const e = f.edge ?? 0;
-  const r = { top: 0, bottom: 0, left: 0, right: 0 };
-  if (f.side === "bottom") r.bottom = depth + PAD + f.insetBottom + e;
-  else if (f.side === "top") r.top = depth + PAD * 2 + e;
-  else r[f.side] = depth + SIDE * 2 + e;
-  return r;
-}
+// Резерв краёв под доки живёт ОДНОЙ формулой в hud/reserve (sideExtent/hudReserved): вторая
+// формула здесь дрейфовала от сценовой — источник глубины для резерва теперь только dockBand.

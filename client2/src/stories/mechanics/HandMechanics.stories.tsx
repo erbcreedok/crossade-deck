@@ -7,6 +7,7 @@ import { deck36 } from "../../game/boards/library/decks";
 import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
 import type { BoardSpec, HandFlow, HudSide } from "../../game/boards/core/spec";
+import { region, zoneW } from "../../game/boards/core/hudSpec";
 
 const handAction = action("dispatch → мок-порт");
 
@@ -52,7 +53,7 @@ function dockSpec(a: DockArgs): BoardSpec {
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
     // ГДЕ рука — решает HUD: виджет зоны в доке края = экранная; нет HUD = зона на борде.
-    hud: a.pin === "screen" ? { [a.side]: { widgets: [{ kind: "zone", zone: "hand" }] } } : undefined,
+    hud: a.pin === "screen" ? { areas: [region(a.side, "start", [zoneW("hand")])] } : undefined,
     actions: [],
   };
 }
@@ -101,12 +102,10 @@ const spec: BoardSpec = {
     //   atSeat: "above"     где мини-лента у аватара, когда зона в HUD (дефолт below)
     //   reorder: "none"     без реордера; preview: false — без гэп-превью
   ],
-  // HUD — экранный слой: доки по краям, в каждом РЯД виджетов (flex-как-данные:
-  // порядок массива, size: px | {fr} | "auto", justify, gap). Убери виджет — зона
+  // HUD — layout-система как данные: список ОБЛАСТЕЙ (регионы краёв start/center/end
+  // + пины); в области — ряд виджетов (size: px | {fr} | "auto"). Убери виджет — зона
   // вернётся НА борду (та же механика и вид). deal раздаёт в зону «hand» (to: id).
-  hud: {
-    bottom: { widgets: [{ kind: "zone", zone: "hand" }] },
-  },
+  hud: { areas: [region("bottom", "start", [zoneW("hand")])] },
 };
 void new BoardScene({ spec, seats: 2 }).mount(host, width, height);`,
   },
@@ -255,7 +254,7 @@ function liveSpec(a: LiveArgs): BoardSpec {
       handZone({ hidden: a.hidden, access: a.access, atSeat: a.atSeat }),
     ],
     seats: { count: { fixed: 2 }, show: "backs", swap: false },
-    hud: a.pin === "screen" ? { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } } : undefined,
+    hud: a.pin === "screen" ? { areas: [region("bottom", "start", [zoneW("hand")])] } : undefined,
     actions: [],
   };
 }
