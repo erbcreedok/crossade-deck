@@ -27,7 +27,9 @@ export interface StripConfig {
   preview: boolean;
 }
 
-const CARD = { w: 100, h: 143 };
+/** Эталонный габарит жителя без своего cell (аспект карты) — общий и для доков не-лент. */
+export const STRIP_CELL = { w: 100, h: 143 };
+const CARD = STRIP_CELL;
 
 /** Все ленты спеки (strip-зоны) в порядке объявления. */
 export function stripZones(spec: Pick<BoardSpec, "zones">): ZoneSpec[] {

@@ -101,6 +101,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     slotScale: (slot) => stripScale(ctx.spec(), slot, ctx.selfSeat),
     remoteDragged: (id) => presence.hasRemote(id),
     dockPose: (id) => hud.poseOf(id),
+    dockKey: (id) => hud.memberKey(id),
     placeDocked: (node) => hud.cardLayer.addChild(node.root),
     toScreen: (x, y) => api.contentToScreen(x, y),
     toContent: (sx, sy) => api.screenToContent(sx, sy),

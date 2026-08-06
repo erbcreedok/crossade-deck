@@ -28,6 +28,8 @@ export interface NodesHost {
   // ——— доки HUD (одна нода на жителя): та же нода перекладывается на экранный слой ———
   /** Экранная поза пришвартованного жителя (центр + масштаб) или null — он не в доках HUD. */
   dockPose(id: string): { x: number; y: number; scale: number } | null;
+  /** Ключ контейнера, чьим жителем id пришвартован («hand:p1», «deck:0»), или null. */
+  dockKey(id: string): string | null;
   /** Переложить root ноды на слой ДОКОВ HUD (chrome, экранно-фиксированный, не зумится). */
   placeDocked(node: BoardNode): void;
   /** Контент↔экран и зум камеры — для непрерывной конверсии на границе борда↔док. */
@@ -111,7 +113,11 @@ export class SceneNodes {
     }
     node.root.zIndex = order;
     this.depths.set(id, order);
-    if (node.kind === "card" && !node.faceUpTarget) node.requestFlip(); // свой док — лицом владельцу
+    // Лицо в доке — ПРАВИЛО ЗОНЫ (faceUpInSlot), как на борде: своя рука — лицом, докнутая
+    // колода (pile «deck») — рубашками. Без ключа (гонка синка) — прежний дефолт «лицом».
+    const key = this.host.dockKey(id);
+    const wantFace = key === null ? true : this.host.faceUpIn(id, key);
+    if (node.kind === "card" && node.faceUpTarget !== wantFace) node.requestFlip();
     const target = { x: hp.x, y: hp.y, rot: 0, scale: hp.scale };
     if (snap) node.body.snapTo(target);
     else node.body.setTarget(target);

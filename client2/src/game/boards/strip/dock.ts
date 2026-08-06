@@ -30,6 +30,9 @@ export interface DockFrame {
   card: Size;
   /** ДОП. ОТСТУП полосы от СВОЕГО края (safe-zone сцены + inset дока из спеки). Дефолт 0. */
   edge?: number;
+  /** СТОПКА: все жители в одной точке (каскад-микросдвиг), взятие — верхний, дроп — сверху.
+   *  Так докуются pile-зоны (колода в HUD); реордера и гэп-превью у стопки нет. */
+  stack?: boolean;
 }
 
 /** Экранная поза карты дока: центр + масштаб ноды (по высоте карты). */
@@ -88,6 +91,8 @@ function positionsOf(f: DockFrame, n: number): { main: number; row: number }[] {
   const m = vertical(f) ? swap(cell) : cell;
   const r = mainRange(f);
   const len = Math.max(m.w, r.to - r.from);
+  // Стопка: все в центре отрезка, микрокаскад читается как «толщина» (верхние чуть правее).
+  if (f.stack) return Array.from({ length: n }, (_, i) => ({ main: len / 2 + Math.min(i, 6) * 2, row: 0 }));
   if (f.flow !== "grid") return stripRow(n, m, len, GAP).map((p: StripPose) => ({ main: p.x, row: 0 }));
   const cols = Math.max(1, Math.floor((len + GAP) / (m.w + GAP)));
   const block = Math.min(n, cols) * (m.w + GAP) - GAP; // ширина блока колонок, центрируем по краю
@@ -139,6 +144,7 @@ export function dockBand(f: DockFrame, count: number): Rect {
 /** Индекс вставки по точке: сколько БАЗОВЫХ позиций (без превью) до неё в row-major порядке —
  *  сначала целые ряды ближе точки к краю, затем центры её ряда по main-оси. */
 export function dockIndexAt(f: DockFrame, count: number, p: { x: number; y: number }): number {
+  if (f.stack) return count; // стопка: дроп всегда СВЕРХУ, гэпов нет
   const cell = dockCell(f);
   const cb = crossBase(f, cell);
   const crossStep = (vertical(f) ? cell.w : cell.h) + GAP;

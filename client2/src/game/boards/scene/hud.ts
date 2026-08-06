@@ -11,7 +11,7 @@ import type { SafeArea } from "./options";
 import { areaFrames, type AreaFrame } from "../hud/hudLayout";
 import { hudReserved } from "../hud/reserve";
 import type { HudEnv } from "../hud/regions";
-import { stripConfig, stripKey } from "../strip/config";
+import { dockSlotKey, zoneDockConfig } from "../strip/presentation";
 import { SceneZoneDock } from "./zoneDock";
 import { PLACEHOLDER_DEPTH, ScenePlaceholders } from "./hudPlaceholders";
 
@@ -164,15 +164,15 @@ export class SceneHud {
     return this.list().flatMap((d) => d.screenPoses());
   }
 
-  /** Док зоны (создать при первом обращении). Не-лента или неизвестный id — null. */
+  /** Док зоны (создать при первом обращении). Недокуемый layout-kind или чужой id — null. */
   private dockFor(zoneId: string): SceneZoneDock | null {
     const existing = this.docks.get(zoneId);
     if (existing) return existing;
     const zone = this.deps.spec().zones.find((z) => z.id === zoneId);
-    if (zone?.layout.kind !== "strip") return null;
-    const key = stripKey(zoneId, this.deps.selfSeat);
+    if (!zone || !zoneDockConfig(zone)) return null;
+    const key = dockSlotKey(zone, this.deps.selfSeat);
     const dock = new SceneZoneDock(zoneId, key, {
-      config: () => stripConfig(this.deps.spec().zones.find((z) => z.id === zoneId) ?? zone),
+      config: () => zoneDockConfig(this.deps.spec().zones.find((z) => z.id === zoneId) ?? zone)!,
       members: () => this.deps.members(key),
       accent: this.deps.accent,
       wake: this.deps.wake,

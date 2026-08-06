@@ -8,7 +8,7 @@
 //     сторожится юнитами; здесь только Pixi-краска ленты rest/armed/hot и пометка драга.
 
 import { Graphics } from "pixi.js";
-import type { StripConfig } from "../strip/config";
+import type { DockConfig } from "../strip/presentation";
 import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, type DockFrame, type DockPose } from "../strip/dock";
 import type { HudSide } from "../core/spec";
 import { paintStripBand } from "../strip/bandPaint";
@@ -17,8 +17,8 @@ import { paintStripBand } from "../strip/bandPaint";
 export type BandState = "rest" | "armed" | "hot";
 
 export interface ZoneDockDeps {
-  /** Разобранный конфиг ленты (ZoneSpec → stripConfig). */
-  config(): StripConfig;
+  /** Разобранный конфиг дока зоны (ZoneSpec → zoneDockConfig: лента-ряд или стопка). */
+  config(): DockConfig;
   /** Жители СВОЕГО экземпляра зоны по порядку (stripKey(zone, selfSeat)). */
   members(): readonly string[];
   accent(): number;
@@ -73,8 +73,8 @@ export class SceneZoneDock {
   private frame(): DockFrame | null {
     if (!this.dockSide || !this.span) return null;
     const c = this.deps.config();
-    if (this.vertical()) return { w: this.size.w, h: this.span.len, insetTop: 0, insetBottom: 0, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell, edge: this.off.edge };
-    return { w: this.span.len, h: this.size.h, insetTop: this.off.chromeTop, insetBottom: this.off.chromeBottom, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell, edge: this.off.edge };
+    if (this.vertical()) return { w: this.size.w, h: this.span.len, insetTop: 0, insetBottom: 0, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell, edge: this.off.edge, stack: c.stack };
+    return { w: this.span.len, h: this.size.h, insetTop: this.off.chromeTop, insetBottom: this.off.chromeBottom, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell, edge: this.off.edge, stack: c.stack };
   }
 
   /** Поперечная толщина ленты — SceneHud складывает из неё глубину дока и резерв края. */
@@ -157,6 +157,7 @@ export class SceneZoneDock {
    *  вставки, игрок ВИДИТ, куда ляжет груз, до отпускания. */
   hoverAt(sx: number, sy: number): void {
     this.setBand("hot");
+    if (!this.deps.config().preview) return; // стопка/лента без превью: только подсветка
     const idx = this.insertIndexAt(sx, sy);
     if (idx === this.preview) return;
     this.preview = idx;

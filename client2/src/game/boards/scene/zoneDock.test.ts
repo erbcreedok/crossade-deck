@@ -8,7 +8,7 @@ import { SceneZoneDock } from "./zoneDock";
 function hud(members: string[]): { h: SceneZoneDock; retargets: () => number } {
   let n = 0;
   const h = new SceneZoneDock("hand", "hand:p1", {
-    config: () => ({ reorder: "insert" as const, flow: "horizontal" as const, size: { fit: 5 }, cell: { w: 100, h: 143 }, hidden: false, access: "open" as const, atSeat: "below" as const, preview: true }),
+    config: () => ({ reorder: "insert" as const, flow: "horizontal" as const, size: { fit: 5 }, cell: { w: 100, h: 143 }, hidden: false, access: "open" as const, atSeat: "below" as const, preview: true, stack: false }),
     members: () => members,
     accent: () => 0xffcc00,
     wake: () => {},
