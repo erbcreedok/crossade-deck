@@ -1,0 +1,172 @@
+client2/src/game/boards/core/mock.test.ts
+  s_b2849f723d52bb::t_b0c87b8c98264a 29,139,143,145,149-160
+  s_b2849f723d52bb::t_04771873d9f66b 161-162
+client2/src/game/boards/scene/hud.ts
+  s_b2849f723d52bb::t_4d10428cf760f3 2-6,12,14,23-27,31,33-34,37,40-41,43,46-51,55-59,62-67,70-74,76,80,88-90,96-167,173,198-199
+  s_b2849f723d52bb::t_f36986f9745b6d 13,176
+client2/src/game/boards/library/strips.ts
+  s_b2849f723d52bb::t_0c4f1be131237b 1-10
+client2/src/game/boards/geometry/boardTree.ts
+  s_b2849f723d52bb::t_b9bd0400d5236b 29-30,32,37-51,54,57,59,65-67
+  s_b2849f723d52bb::t_fbc82fad1098de 76
+  s_b2849f723d52bb::t_14769f6991a67a 115,119
+  s_b2849f723d52bb::t_d6b53c6767145b 131-139,142
+  s_b2849f723d52bb::t_25bf00d0e52e33 6-7,9,11,14,17-18
+  s_b2849f723d52bb::t_d1f49a09427917 19
+client2/src/game/boards/library/munchkin.ts
+  s_b2849f723d52bb::t_6498482531fa64 4,25
+client2/src/game/boards/scene/gapPreview.ts
+  s_b2849f723d52bb::t_2b39e558bcf296 4-5,17,35-36,62
+client2/src/game/boards/strip/bandPaint.ts
+  s_b2849f723d52bb::t_3b4311934b5be6 3
+  s_b2849f723d52bb::t_f36986f9745b6d 1-2,4-56
+client2/src/game/boards/strip/row.ts
+  s_b2849f723d52bb::t_f36986f9745b6d 5-7,9-50
+  s_b2849f723d52bb::t_8d637eb441a68b 1-4,8
+client2/src/game/boards/geometry/dropPlan.test.ts
+  s_b2849f723d52bb::t_c1583ff6c10ba8 10,51,53-54,59,66,72,76,78-83
+client2/src/game/boards/scene/zoneDock.test.ts
+  s_b2849f723d52bb::t_2b2620e5363e4c 1-47,49-69
+  s_b2849f723d52bb::t_f6cf9662394d4d 48
+client2/src/game/boards/geometry/roundTableTree.ts
+  s_b2849f723d52bb::t_c9d5d60812d8cf 4,7,9,11-12
+  s_b2849f723d52bb::t_d4fc66fe8fd160 128-136,139
+  s_b2849f723d52bb::t_45c3a27eb0b5ef 80-82,84-95
+  s_b2849f723d52bb::t_2e7f4b374ba7bf 51
+client2/src/game/boards/library/belka.ts
+  s_b2849f723d52bb::t_6498482531fa64 7,32
+client2/e2e/catalog/handDock.spec.ts
+  s_b2849f723d52bb::t_bccb9e3068a961 8,27,38,64,166,181,184
+client2/src/game/boards/strip/config.test.ts
+  s_b2849f723d52bb::t_c9022a5d6c730d 1,16-17,19-29,46-47,50-52,55,59-60,63-64,67-68
+  s_b2849f723d52bb::t_cb8aba337762b1 2-15,18,30-45,48-49,53-54,56-58,61-62,65-66
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_9efdf16ba9e847 26-31,42,73,83,99,101-102,107-108,112,118,121,138,140-141,144,147,156-158,160-161,167,171
+client2/src/game/boards/library/roundTable.ts
+  s_b2849f723d52bb::t_6498482531fa64 1,122
+client2/e2e/catalog/hudSection.spec.ts
+  s_b2849f723d52bb::t_1f2b9ff39df5ad 1-100
+client2/src/game/boards/strip/placement.test.ts
+  s_b2849f723d52bb::t_bbde5fb280a82a 7-10,12,14,17,20-21,23-26,29,31-32
+  s_b2849f723d52bb::t_c9022a5d6c730d 1-6,11,13,15-16,18-19,22,27-28,30,33-34
+client2/src/game/boards/hud/hudLayout.ts
+  s_b2849f723d52bb::t_1b7473bfe8aa39 5-7,9,50-51,53,59-66
+client2/src/stories/mechanics/HudMechanics.stories.tsx
+  s_b2849f723d52bb::t_054751583981a3 207-210
+  s_b2849f723d52bb::t_60c58afc13149b 1-137,140-206,211-277,279-294
+  s_b2849f723d52bb::t_829940f4f245b9 138-139,278
+client2/src/game/boards/scene/hooks.ts
+  s_b2849f723d52bb::t_e3f513dab323bf 12-13,24,33
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_796de1aed7c11f 164-166,168
+  s_b2849f723d52bb::t_422f16af0f036f 109-111
+  s_b2849f723d52bb::t_876338529d00c6 16-19
+  s_b2849f723d52bb::t_2b1da8bf8b3383 209-211
+  s_b2849f723d52bb::t_8f4ac130f092b7 180,188
+  s_b2849f723d52bb::t_b0aa229bb79817 79-82
+  s_b2849f723d52bb::t_22e0822b5c884b 222
+  s_b2849f723d52bb::t_34c5fa1c0cf334 248
+  s_b2849f723d52bb::t_479365a67f6fe7 271
+  s_b2849f723d52bb::t_18ac263c0a199b 116-128
+  s_b2849f723d52bb::t_8eee35783f1669 233
+client2/src/game/boards/strip/config.ts
+  s_b2849f723d52bb::t_ba49b52431ac0e 1-59,62-67,69
+  s_b2849f723d52bb::t_422f16af0f036f 61
+client2/src/game/boards/geometry/dropPlan.ts
+  s_b2849f723d52bb::t_848e4999b15346 43-44
+  s_b2849f723d52bb::t_422f16af0f036f 62
+  s_b2849f723d52bb::t_bcc7deee467106 140
+  s_b2849f723d52bb::t_cb20a7fce3c1c8 58,63,66-68,70-72
+  s_b2849f723d52bb::t_29444c45dfa5d7 8
+  s_b2849f723d52bb::t_b4508ab7678048 152-153
+client2/src/game/boards/library/krestovyi.ts
+  s_b2849f723d52bb::t_6498482531fa64 5,21
+client2/src/game/boards/scene/decor.ts
+  s_b2849f723d52bb::t_f36986f9745b6d 14
+  s_b2849f723d52bb::t_f8f4c04e271cd2 12-13,39,42,44-50,68-71
+client2/src/Table.tsx
+  s_b2849f723d52bb::t_69c88ed841d017 5
+  s_b2849f723d52bb::t_5ca561457f02c9 21
+client2/.env.local
+  s_3dafb7cb3bdfba::t_da9b6645bc5ca6 3-4
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_f36986f9745b6d 22,26,57-60,75-76,82,85-86,114,126-130,132-134,140,163,165-167,169,173,175,187,201,217,219-220,238-246
+  s_b2849f723d52bb::t_d79ed1c208589d 18-21,247,250-251
+client2/src/game/boards/strip/row.test.ts
+  s_b2849f723d52bb::t_f36986f9745b6d 1-85
+client2/src/game/boards/strip/rowLayout.ts
+  s_b2849f723d52bb::t_8d637eb441a68b 1-3
+  s_b2849f723d52bb::t_f36986f9745b6d 4-25
+client2/src/game/boards/strip/dock.test.ts
+  s_b2849f723d52bb::t_c9022a5d6c730d 1-115
+client2/src/game/boards/core/faceUp.ts
+  s_b2849f723d52bb::t_bf1aede21148d3 4-5,9,15-16,19,21-25
+client2/src/game/boards/geometry/stripBand.ts
+  s_b2849f723d52bb::t_b336799bc7cd79 1-5,9-11,13,15-16,18,25-28,30-34,38-39
+client2/src/game/boards/scene/zoneDock.ts
+  s_b2849f723d52bb::t_d3610a109efd51 1-5,7-8,10-12,14,17-18,20-23,27,31-33,37-38,41-46,48,54-57,68,70,72-73,76,84,87,90,102,104,114,127,136,145,152-153,155,163-167,171,174,176,186,191-192,196,199,202-204,207,213
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_32e8fb3ce3b422 62-64
+  s_b2849f723d52bb::t_b4b952135761c0 263,265,286,292
+client2/src/game/boards/library/durak.ts
+  s_b2849f723d52bb::t_6498482531fa64 4,20
+client2/src/game/boards/library/monopoly.ts
+  s_b2849f723d52bb::t_6498482531fa64 4,30
+  s_b2849f723d52bb::t_422f16af0f036f 31
+client2/src/game/boards/library/poker.ts
+  s_b2849f723d52bb::t_6498482531fa64 4,20
+client2/src/game/boards/geometry/zoneSubtrees.ts
+  s_b2849f723d52bb::t_5b6e42f21a8464 159,161-162
+client2/src/game/boards/core/faceUp.test.ts
+  s_b2849f723d52bb::t_df347ab6e3e0a5 6,16,19,31-33,43,51,55-57
+client2/src/game/boards/geometry/boardTree.test.ts
+  s_b2849f723d52bb::t_29e8303ce12eda 22,63,68-69,71-73,81,88,127,142,215
+client2/src/game/boards/strip/dock.ts
+  s_b2849f723d52bb::t_8d637eb441a68b 1-3
+  s_b2849f723d52bb::t_f36986f9745b6d 4-170
+client2/src/game/boards/scene/gapPreview.test.ts
+  s_b2849f723d52bb::t_9defaa9a9ecf2d 8-9,15-17,20,31,75,78
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_6c4fbd09911153 7,9,14-15,51,54-55,85,88-90,93-102,104-105,107,246,249,290
+client2/src/game/boards/library/uno.ts
+  s_b2849f723d52bb::t_6498482531fa64 4,17
+client2/e2e/hand.spec.ts
+  s_b2849f723d52bb::t_32e8fb3ce3b422 9-12,36,64,86,93,95
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_c4a60444a2c4ae 64,76-80,83-85,173
+  s_b2849f723d52bb::t_6c5d965f12f1fa 97-98,204,209
+client2/src/game/boards/core/migrate.ts
+  s_b2849f723d52bb::t_b759e9d42ba8d0 31-40,43
+client2/src/game/sandbox/board.ts
+  s_b2849f723d52bb::t_bf69bae4432142 14-15,17
+client2/src/game/boards/core/mock.ts
+  s_b2849f723d52bb::t_46c4888c6612c8 76
+  s_b2849f723d52bb::t_03aba6c87f1169 88-89
+  s_b2849f723d52bb::t_263a02612817f5 10,131,142,165
+client2/src/game/boards/hud/hudLayout.test.ts
+  s_b2849f723d52bb::t_284e1959dbd63c 2-3,6-7,11,32,38-44,46-50,53-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1e8c7221c446945379a5bc35ab349e34440302e2",
+  "prompts": {},
+  "sessions": {
+    "s_3dafb7cb3bdfba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "459f5635-5db6-4c38-b455-e0cb9124f5a9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
