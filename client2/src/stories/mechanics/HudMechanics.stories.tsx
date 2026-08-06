@@ -20,7 +20,9 @@ const stage = { width: "100%", height: "100vh", background: "#2f3d34", touchActi
 
 interface FlexArgs {
   handSide: HudSide;
-  handSize: "auto" | "fr2";
+  /** Длина области руки вдоль лейна: auto — доля свободного, число — px-константа (рука
+   *  сжимает ряд и оставляет лейн пустым — эффект ВИДЕН, в отличие от прежнего fr2-без-соседа). */
+  handSize: "auto" | 320 | 480;
   reactionsWidth: number;
   gap: number;
   profileJustify: "start" | "center" | "end";
@@ -53,7 +55,7 @@ function flexSpec(a: FlexArgs): BoardSpec {
     seats: { count: { fixed: 1 }, show: "none", swap: false },
     hud: {
       areas: [
-        region(a.handSide, "start", [zoneW("hand", a.handSize === "auto" ? "auto" : { fr: 2 }), placeholderW("реакции", a.reactionsWidth)], { gap: a.gap, inset: a.dockInset }),
+        region(a.handSide, "start", [zoneW("hand", a.handSize), placeholderW("реакции", a.reactionsWidth)], { gap: a.gap, inset: a.dockInset }),
         // Прижим — ВЫБОРОМ региона (start/center/end): «профиль» живёт в своём регионе верха,
         // рука на top не перезаписывает его (обе области — элементы одного массива areas).
         region("top", a.profileJustify, [placeholderW("профиль", 180)]),
@@ -114,7 +116,7 @@ scene.applySpec({ ...spec, hud: { areas: [region("right", "start", [zoneW("hand"
   // Панель разделена: свойства HUD-ДОКА (spec.hud) отдельно от РЫЧАГОВ ДВИЖКА (safe-zone сцены).
   argTypes: {
     handSide: { table: { category: "HUD-док" }, description: "край области руки (реакции едут с ней); top делит верх с «профилем» без конфликтов", control: { type: "inline-radio" }, options: ["bottom", "top"] },
-    handSize: { table: { category: "HUD-док" }, description: "доля руки в доке: auto ({fr:1}) или {fr:2} — вдвое жирнее свободного", control: { type: "inline-radio" }, options: ["auto", "fr2"] },
+    handSize: { table: { category: "HUD-док" }, description: "длина области руки: auto — вся доля свободного лейна; 320/480 — px-константа (рука сжимается, лейн пустеет)", control: { type: "inline-radio" }, options: ["auto", 320, 480] },
     reactionsWidth: { table: { category: "HUD-док" }, description: "px-константа виджета «реакции»: рука ужимается, константа держится", control: { type: "range", min: 80, max: 480, step: 20 } },
     gap: { table: { category: "HUD-док" }, description: "зазор между виджетами дока", control: { type: "range", min: 0, max: 40, step: 2 } },
     profileJustify: { table: { category: "HUD-док" }, description: "регион «профиля» у верхнего края: прижим — выбором региона start/center/end", control: { type: "inline-radio" }, options: ["start", "center", "end"] },
