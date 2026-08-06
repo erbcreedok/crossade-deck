@@ -2,20 +2,18 @@ import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene/scene";
-import { localDriver } from "../../game/boards/core/driver";
+import { LiveTwoPane } from "./liveStage";
 import { deck36 } from "../../game/boards/library/decks";
 import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
-import type { BoardSpec, ElementDef, HudSide, HudSpec, ZoneSpec } from "../../game/boards/core/spec";
+import type { BoardSpec, ElementDef, HudSide, HudSpec, HudWidget, ZoneSpec } from "../../game/boards/core/spec";
 
 const hudAction = action("dispatch → мок-порт");
 
 // HUD — раздел «Механики»: экранный слой виджетов (мобильное удобство) ПОВЕРХ борды. Доки по
 // краям, в каждом РЯД виджетов с flex-семантикой КАК ДАННЫМИ (порядок массива, size: px | {fr} |
-// "auto", justify, gap) — считает чистый hud/hudLayout. Виджет {kind:"zone", zone:id} швартует
-// СВОЙ экземпляр ЛЮБОЙ strip-зоны (рука, мешок фишек…); без виджета зона живёт на борде. Лент
-// сколько угодно, каждая со своими свойствами; перекинуть зону борд↔HUD можно ЖИВЬЁМ
-// (scene.applySpec с новым hud) — ноды те же, жители перелетают, не телепортируются.
+// "auto", justify, gap) — hud/hudLayout. Виджет {kind:"zone", zone:id} швартует СВОЙ экземпляр
+// ЛЮБОЙ strip-зоны; без виджета зона на борде. Миграция борд↔HUD — живьём (applySpec).
 
 const stage = { width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" } as const;
 
@@ -94,13 +92,10 @@ const spec: BoardSpec = {
       policy: { onOccupied: "merge" }, cell: { w: 48, h: 48 }, flow: "grid" },
   ],
   hud: {
-    bottom: {
-      widgets: [
-        { kind: "zone", zone: "hand", size: "auto" },      // auto = вся доля свободного
-        { kind: "placeholder", label: "реакции", size: 220 }, // px-константа
-      ],
-      gap: 10,
-    },
+    bottom: { widgets: [
+      { kind: "zone", zone: "hand", size: "auto" },         // auto = вся доля свободного
+      { kind: "placeholder", label: "реакции", size: 220 }, // px-константа
+    ], gap: 10 },
     right: { widgets: [{ kind: "zone", zone: "pouch" }] },  // мешок — колонкой справа
     top: { widgets: [{ kind: "placeholder", label: "профиль", size: 180 }], justify: "end" },
   },
@@ -130,11 +125,9 @@ type Story = StoryObj<FlexArgs>;
  * считает чистый hud/hudLayout, стол вписывается в остаток экрана.
  */
 export const FlexDocks: Story = {};
-
 // ——— TwoHands: две ленты (рука-карты + мешок-фишки) и живая миграция борд↔HUD ———
 
 const chipDefs: ElementDef[] = Array.from({ length: 8 }, (_, i) => ({ kind: "chip", id: `ch${i + 1}`, denom: 25 * (i + 1) }));
-
 const pouchZone = (setup?: ZoneSpec["setup"]): ZoneSpec =>
   ({ id: "pouch", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" }, cell: { w: 48, h: 48 }, flow: "grid", setup });
 
@@ -145,11 +138,11 @@ interface TwoArgs {
 
 /** hud из пинов двух лент: обе могут делить нижний док, разъехаться по краям или лечь на борду. */
 function twoHud(a: TwoArgs): HudSpec | undefined {
-  const bottom: HudSpec["bottom"] = { widgets: [] };
-  if (a.handPin === "hud") bottom.widgets = [...bottom.widgets, { kind: "zone", zone: "hand", size: "auto" }];
-  if (a.pouchPin === "hud-bottom") bottom.widgets = [...bottom.widgets, { kind: "zone", zone: "pouch", size: 260 }];
+  const widgets: HudWidget[] = [];
+  if (a.handPin === "hud") widgets.push({ kind: "zone", zone: "hand", size: "auto" });
+  if (a.pouchPin === "hud-bottom") widgets.push({ kind: "zone", zone: "pouch", size: 260 });
   const hud: HudSpec = {};
-  if (bottom.widgets.length) hud.bottom = bottom;
+  if (widgets.length) hud.bottom = { widgets };
   if (a.pouchPin === "hud-right") hud.right = { widgets: [{ kind: "zone", zone: "pouch" }] };
   return Object.keys(hud).length ? hud : undefined;
 }
@@ -178,7 +171,6 @@ function twoSpec(a: TwoArgs): BoardSpec {
     actions: [],
   };
 }
-
 function TwoStage(a: TwoArgs) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<BoardScene | null>(null);
@@ -232,10 +224,17 @@ export const TwoHands: StoryObj<TwoArgs> = {
   } as never,
   render: (a) => <TwoStage {...(a as unknown as TwoArgs)} />,
 };
-
 // ——— LiveTwoHands: два экрана над одним портом, у каждого две ленты ———
 
-function liveTwoSpec(): BoardSpec {
+interface LiveTwoArgs {
+  handPin: "hud" | "board";
+  handHidden: boolean;
+  handAccess: "open" | "request" | "locked";
+  handAtSeat: "above" | "below" | "left" | "right";
+  pouchPin: "hud" | "board";
+}
+
+function liveTwoSpec(a: LiveTwoArgs): BoardSpec {
   const { cards, ids } = deck36();
   return {
     id: "hud-live-two",
@@ -251,47 +250,51 @@ function liveTwoSpec(): BoardSpec {
         drop: { hit: "overlap", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(0, 10) },
       },
-      // Рука — «по запросу»: чужой дроп ждёт подтверждения владельца (пока ведёт себя как
-      // locked, лента помечена «по запросу»; флоу подтверждения — отдельный шаг).
-      handZone({ access: "request", setup: { p1: ids.slice(10, 13), p2: ids.slice(13, 16) } }),
-      // Мешки открыты (access-дефолт: дроп включён) и живут на борде: у соседа две его зоны.
+      // Свойства руки — из контролов: hidden (рубашки/лица), access (open/request/locked;
+      // request пока ведёт себя как locked, чужая лента помечена «по запросу»), atSeat.
+      { ...handZone({ hidden: a.handHidden, access: a.handAccess, atSeat: a.handAtSeat }),
+        setup: { p1: ids.slice(10, 13), p2: ids.slice(13, 16) } },
+      // Мешки открыты (access-дефолт: дроп включён): у соседа две зоны владельца.
       pouchZone({ p1: chipDefs.slice(0, 4).map((c) => c.id), p2: chipDefs.slice(4).map((c) => c.id) }),
     ],
     seats: { count: { fixed: 2 }, show: "backs", swap: false },
-    hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } },
+    hud: hudOfPins(a),
     actions: [],
   };
 }
 
-function LiveTwoStage() {
-  const leftRef = useRef<HTMLDivElement>(null);
-  const rightRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const left = leftRef.current;
-    const right = rightRef.current;
-    if (!left || !right) return;
-    const spec = liveTwoSpec();
-    const driver = localDriver(spec, 2); // ОДИН порт на оба экрана
-    const s1 = new BoardScene({ spec, driver, selfSeat: "p1", seats: 2, onCommand: (cmd) => hudAction(cmd) });
-    const s2 = new BoardScene({ spec, driver, selfSeat: "p2", seats: 2 });
-    (window as unknown as { __stories?: BoardScene[] }).__stories = [s1, s2];
-    const w = () => Math.max(320, (left.parentElement?.clientWidth ?? 1280) / 2 - 2);
-    void Promise.all([s1.mount(left, w(), left.clientHeight || 720), s2.mount(right, w(), right.clientHeight || 720)]);
-    return () => [s1, s2].forEach((s) => s.destroy());
-  }, []);
-  const pane = { width: "50%", height: "100vh", touchAction: "none", overflow: "hidden" } as const;
-  return (
-    <div style={{ display: "flex", gap: 2, background: "#20291f" }}>
-      <div ref={leftRef} style={{ ...pane, background: "#2f3d34" }} />
-      <div ref={rightRef} style={{ ...pane, background: "#2c3a36" }} />
-    </div>
-  );
+/** hud из пинов: обе ленты могут делить нижний док или жить на борде. */
+function hudOfPins(a: LiveTwoArgs): HudSpec | undefined {
+  const widgets: HudWidget[] = [];
+  if (a.handPin === "hud") widgets.push({ kind: "zone", zone: "hand", size: "auto" });
+  if (a.pouchPin === "hud") widgets.push({ kind: "zone", zone: "pouch", size: 240 });
+  return widgets.length ? { bottom: { widgets } } : undefined;
+}
+
+function LiveTwoStage(a: LiveTwoArgs) {
+  return <LiveTwoPane spec={() => liveTwoSpec(a)} deps={[a.handPin, a.handHidden, a.handAccess, a.handAtSeat, a.pouchPin]} onCommand={hudAction} />;
 }
 
 /**
- * LIVE: два экрана над ОДНИМ портом. У каждого игрока ДВЕ ленты: рука в HUD (мини-визави у его
- * места: мелко, детально, зеркально; access:"request" — чужой дроп по запросу, лента помечена)
- * и мешок фишек на борде (та же полоса, ужатая; access-дефолт open — дроп в мешок соседа
- * работает). Тащите на любом экране — снимок один на всех.
+ * LIVE: два экрана над ОДНИМ портом, у каждого игрока ДВЕ ленты (рука-карты + мешок-фишки).
+ * Контролы крутят СВОЙСТВА ТВОЕЙ руки — и на соседнем экране видно, как она выглядит у него:
+ * pin hud → мини-визави у аватара (зеркало, atSeat), pin board → та же полоса ужатой; hidden —
+ * рубашки/лица; access — open (дроп включён) / request (пометка «по запросу») / locked.
+ * Мешок всегда открыт: дроп в мешок соседа работает. Снимок один на всех.
  */
-export const LiveTwoHands: StoryObj = { render: () => <LiveTwoStage />, parameters: { controls: { disable: true } } };
+export const LiveTwoHands: StoryObj<LiveTwoArgs> = {
+  args: { handPin: "hud", handHidden: true, handAccess: "request", handAtSeat: "below", pouchPin: "board" },
+  argTypes: {
+    handPin: { description: "где ТВОЯ рука: hud — док у низа (соседу мини-визави); board — полоса на борде (соседу ужатая полоса)", control: { type: "inline-radio" }, options: ["hud", "board"] },
+    handHidden: { description: "приватность значений: сосед видит рубашки (true) или лица (false)", control: { type: "boolean" } },
+    handAccess: { description: "доступ соседа: open — дроп/взятие включены; request — по запросу (пометка); locked — заперто", control: { type: "inline-radio" }, options: ["open", "request", "locked"] },
+    handAtSeat: { description: "где мини-рука живёт у твоего аватара на чужом экране (pin hud)", control: { type: "inline-radio" }, options: ["above", "below", "left", "right"] },
+    pouchPin: { description: "где мешок фишек", control: { type: "inline-radio" }, options: ["hud", "board"] },
+    handSide: { table: { disable: true } },
+    handSize: { table: { disable: true } },
+    reactionsWidth: { table: { disable: true } },
+    gap: { table: { disable: true } },
+    profileJustify: { table: { disable: true } },
+  } as never,
+  render: (a) => <LiveTwoStage {...(a as unknown as LiveTwoArgs)} />,
+};

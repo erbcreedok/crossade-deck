@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene/scene";
-import { localDriver } from "../../game/boards/core/driver";
+import { LiveTwoPane } from "./liveStage";
 import { deck36 } from "../../game/boards/library/decks";
 import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
@@ -225,10 +225,18 @@ function ZoneStage() {
 export const ZonePreview: Story = { render: () => <ZoneStage />, parameters: { controls: { disable: true } } };
 
 /** LIVE: ДВА ЭКРАНА над ОДНИМ портом (общий localDriver — минимум событий: один снимок на всех).
- *  Слева — экран p1, справа — p2; у каждого СВОЯ рука доком у низа, а рука соседа видна рубашками
- *  на его месте (hidden по умолчанию — приватность). Тащите карту на любом экране — снимок один,
- *  второй экран живёт тем же состоянием. */
-function liveSpec(): BoardSpec {
+ *  Слева — экран p1, справа — p2. Контролы КРУТЯТ СВОЙСТВА РУКИ — и на соседнем экране видно,
+ *  как ТВОЯ рука выглядит у него: pin hud → мини-визави у аватара (зеркало), pin board → та же
+ *  полоса ужатой; hidden — рубашки или лица; access — зовёт ли чужая лента дроп. */
+interface LiveArgs {
+  pin: "screen" | "board";
+  handCards: number;
+  hidden: boolean;
+  access: "open" | "request" | "locked";
+  atSeat: "above" | "below" | "left" | "right";
+}
+
+function liveSpec(a: LiveArgs): BoardSpec {
   const { cards, ids } = deck36();
   return {
     id: "hand-live",
@@ -244,48 +252,45 @@ function liveSpec(): BoardSpec {
         drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(0, 16) },
       },
-      handZone(),
+      handZone({ hidden: a.hidden, access: a.access, atSeat: a.atSeat }),
     ],
     seats: { count: { fixed: 2 }, show: "backs", swap: false },
-    hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } },
+    hud: a.pin === "screen" ? { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } } : undefined,
     actions: [],
   };
 }
 
-function LiveStage() {
-  const leftRef = useRef<HTMLDivElement>(null);
-  const rightRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const left = leftRef.current;
-    const right = rightRef.current;
-    if (!left || !right) return;
-    const spec = liveSpec();
-    const driver = localDriver(spec, 2); // ОДИН порт на оба экрана
-    const s1 = new BoardScene({ spec, driver, selfSeat: "p1", seats: 2, onCommand: (cmd) => handAction(cmd) });
-    const s2 = new BoardScene({ spec, driver, selfSeat: "p2", seats: 2 });
-    (window as unknown as { __stories?: BoardScene[] }).__stories = [s1, s2];
-    const w = () => Math.max(320, (left.parentElement?.clientWidth ?? 1280) / 2 - 2);
-    void Promise.all([s1.mount(left, w(), left.clientHeight || 720), s2.mount(right, w(), right.clientHeight || 720)]).then(() => {
-      // Раздать по 3 карты каждому — те же move-команды порта, что и палец.
-      const hooks = s1.testHooks();
-      const deck = Object.entries(hooks.cards).filter(([, c]) => c.slot === "board:0").map(([id]) => id);
-      deck.slice(0, 3).forEach((id) => s1.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p1" }));
-      deck.slice(3, 6).forEach((id) => s1.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p2" }));
-    });
-    return () => {
-      s1.destroy();
-      s2.destroy();
-    };
-  }, []);
-  const pane = { width: "50%", height: "100vh", touchAction: "none", overflow: "hidden" } as const;
-  return (
-    <div style={{ display: "flex", gap: 2, background: "#20291f" }}>
-      <div ref={leftRef} style={{ ...pane, background: "#2f3d34" }} />
-      <div ref={rightRef} style={{ ...pane, background: "#2c3a36" }} />
-    </div>
-  );
+function LiveStage(a: LiveArgs) {
+  // Раздать по handCards карт каждому — те же move-команды порта, что и палец.
+  const deal = (s1: BoardScene): void => {
+    const deck = Object.entries(s1.testHooks().cards).filter(([, c]) => c.slot === "board:0").map(([id]) => id);
+    const n = Math.max(0, a.handCards);
+    deck.slice(0, n).forEach((id) => s1.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p1" }));
+    deck.slice(n, n * 2).forEach((id) => s1.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p2" }));
+  };
+  return <LiveTwoPane spec={() => liveSpec(a)} deps={[a.pin, a.handCards, a.hidden, a.access, a.atSeat]} onCommand={handAction} ready={deal} />;
 }
 
-export const LiveTwoScreens: Story = { render: () => <LiveStage />, parameters: { controls: { disable: true } } };
+export const LiveTwoScreens: Story = {
+  args: { pin: "screen", handCards: 3, hidden: true, access: "open", atSeat: "below" } as never,
+  argTypes: {
+    // pin и handCards — из меты (те же смыслы); side/flow/fit тут ни при чём.
+    side: { table: { disable: true } },
+    flow: { table: { disable: true } },
+    fit: { table: { disable: true } },
+    hidden: { description: "приватность ЗНАЧЕНИЙ: сосед видит рубашки (true) или лица (false)", control: { type: "boolean" } },
+    access: {
+      description: "доступ соседа к твоей руке: open — дроп/взятие включены; request — по запросу (пометка); locked — заперто",
+      control: { type: "inline-radio" },
+      options: ["open", "request", "locked"],
+    },
+    atSeat: {
+      description: "где у твоего аватара живёт мини-рука на ЧУЖОМ экране, когда она у тебя в HUD",
+      control: { type: "inline-radio" },
+      options: ["above", "below", "left", "right"],
+    },
+  } as never,
+  render: (a) => <LiveStage {...(a as unknown as LiveArgs)} />,
+};
 
 // HUD с несколькими виджетами, две ленты и живая миграция борд↔HUD — раздел Mechanics/Hud.

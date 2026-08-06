@@ -121,6 +121,8 @@ export function seatStripBlock(
   const at = (z: ZoneSpec): string => z.atSeat ?? "below";
   const strips = stripZones(spec);
   const stacked = center ? strips.filter((z) => at(z) === "above" || at(z) === "below") : strips.filter((z) => at(z) !== "left" && at(z) !== "right");
+  // В полосе (stack) «выше аватара» некуда — above-зоны идут ПЕРВЫМИ в стопке (ближе к подписи).
+  if (!center) stacked.sort((a, b) => (at(a) === "above" ? 0 : 1) - (at(b) === "above" ? 0 : 1));
   // Шаг стопки — ПОЛНЫЙ габарит band (ряд + дыхание pad с обеих сторон): ленты не перекрываются,
   // дроп между соседними band однозначен.
   for (const zone of stacked) {

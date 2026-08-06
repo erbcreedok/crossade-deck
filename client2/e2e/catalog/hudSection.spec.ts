@@ -17,8 +17,8 @@ declare global {
   }
 }
 
-const open = async (page: Page, story: string): Promise<void> => {
-  await page.goto(`/iframe.html?id=mechanics-hud--${story}&viewMode=story`);
+const open = async (page: Page, story: string, args = ""): Promise<void> => {
+  await page.goto(`/iframe.html?id=mechanics-hud--${story}&viewMode=story${args ? `&args=${args}` : ""}`);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1500);
 };
@@ -122,5 +122,29 @@ test.describe("HUD: флекс-доки и ленты-виджеты", () => {
     }, pts.card.id);
     expect(after.atS1).toBe("pouch:p2"); // легла в чужой мешок…
     expect(after.atS2).toBe("pouch:p2"); // …и у владельца тоже (один порт)
+  });
+
+  test("контролы live НЕ врут: hidden:false — сосед видит лица; handPin:board — полоса вместо мини", async ({ page }) => {
+    await open(page, "live-two-hands", "handHidden:!false");
+    const faces = await page.evaluate(() => {
+      const s2 = window.__stories![1]!;
+      return Object.entries(s2.testHooks().cards)
+        .filter(([, c]) => c.slot === "hand:p1")
+        .map(([id]) => s2.rt.api.byId.get(id)!.faceUp);
+    });
+    expect(faces).toEqual([true, true, true]); // открытая рука: лица видны соседу
+
+    await open(page, "live-two-hands", "handPin:board");
+    const r = await page.evaluate(() => {
+      const [s1, s2] = window.__stories!;
+      return {
+        dockedS1: s1!.hud.screenPoses().filter((p) => p.zone === "hand").length,
+        s1OwnInTree: Object.entries(s1!.testHooks().cards).filter(([, c]) => c.slot === "hand:p1").length,
+        s2SeesP1: Object.entries(s2!.testHooks().cards).filter(([, c]) => c.slot === "hand:p1").length,
+      };
+    });
+    expect(r.dockedS1).toBe(0); // рука не в HUD…
+    expect(r.s1OwnInTree).toBe(3); // …а полосой на борде
+    expect(r.s2SeesP1).toBe(3); // сосед видит её ужатой полосой (та же зона, те же карты)
   });
 });
