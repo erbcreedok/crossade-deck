@@ -15,15 +15,15 @@ import { dropOf, type Group } from "../../slot/types";
 import { CARD } from "../../crossade/tree";
 import { hintShape } from "../geometry/sceneAreas";
 import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
-import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
-import { handKey, type BoardState } from "../core/state";
-import { handConfig, handLocks } from "../hand/handConfig";
-import { handOnBoard } from "../hud/hudLayout";
-import { paintHandBand } from "../hand/handBandPaint";
+import { baseZoneId, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
+import type { BoardState } from "../core/state";
+import { stripKey, stripLocks, stripOf, stripZones } from "../strip/config";
+import { zoneOnBoard } from "../hud/hudLayout";
+import { paintStripBand } from "../strip/bandPaint";
 import type { BoardTree } from "../geometry/boardTree";
 import type { BoardNode } from "./nodeFactory";
 import type { SceneBlockDrag } from "./blockDrag";
-import type { SceneHandHud } from "./handHud";
+import type { SceneHud } from "./hud";
 import type { SceneGapPreview } from "./gapPreview";
 import type { SceneMenu } from "./menu";
 import type { ScenePresence } from "./scenePresence";
@@ -54,12 +54,10 @@ export interface GestureDeps {
   blockDrag: SceneBlockDrag;
   menu: SceneMenu;
   presenceOwner: ScenePresence;
-  /** Экранная рука-HUD: захват карты руки, дроп-зона «взять/реордер», состояния зоны. */
-  handHud: SceneHandHud;
-  /** Состав своей руки (для «карта руки?» и «from = рука»). */
-  handMembers(): readonly string[];
-  /** Вживую переложить ноду драга в пространство руки (экран) или борды (контент) — nodeStore. */
-  setDragSpace(id: string, space: "content" | "hand"): void;
+  /** Экранный HUD (доки зон): захват жителя дока, ленты-дропзоны, «палец над каким доком». */
+  hud: SceneHud;
+  /** Вживую переложить ноду драга в пространство дока (экран) или борды (контент) — nodeStore. */
+  setDragSpace(id: string, space: "content" | "dock"): void;
   /** Smart reorder контейнеров борды (гэп-превью вставки) — свой владелец. */
   gapPreview: SceneGapPreview;
 }
@@ -74,20 +72,18 @@ export class SceneGesture {
 
   constructor(private readonly deps: GestureDeps) {}
 
-  /** Смарт-мок щедрый: тащится верх любого слота и любая карта своей руки; чужая рука — по locked
-   *  (приватность). В live элемент в чужих руках не берётся: кто первый схватил, тот и управляет. */
+  /** Смарт-мок щедрый: тащится верх любого слота и любой житель своих лент; чужая лента — по
+   *  locked (приватность). В live элемент в чужих руках не берётся: кто схватил, тот и управляет. */
   canDrag(el: SceneElement): boolean {
     if (!this.deps.interactive) return false;
     const p = this.deps.presence;
     const owner = p?.hub.heldBy(el.id);
     if (p && owner && owner !== p.who) return false;
-    if (this.deps.handMembers().includes(el.id)) return true; // карта своей ЭКРАННОЙ руки (вне дерева)
+    if (this.deps.hud.memberKey(el.id)) return true; // житель СВОЕГО дока HUD (вне дерева)
     const slot = this.deps.tree().slotOf(el.id);
     if (!slot) return false;
-    if (zoneOf(slot) === "seat") return false;
-    if (slot === handKey(this.deps.selfSeat)) return true;
-    if (handLocks(handConfig(this.deps.spec().hand), slot, this.deps.selfSeat)) return false; // чужая рука
-    // Реордер-зона (flow-грид): жители разложены веером по позициям — хватается ЛЮБОЙ, не верх.
+    if (stripLocks(this.deps.spec(), slot, this.deps.selfSeat)) return false; // чужая запертая лента
+    // Реордер-контейнер (лента, flow-грид): жители разложены по позициям — хватается ЛЮБОЙ, не верх.
     if (reorderModeOf(this.deps.world(), slot)) return true;
     const members = this.deps.state().field.slots[slot]?.members ?? [];
     return members[members.length - 1] === el.id;
@@ -115,7 +111,7 @@ export class SceneGesture {
       this.deps.presenceOwner.paint(); // grab эмитил присутствие ДО того, как стало известно, что это блок
       return true;
     }
-    if (this.deps.handMembers().includes(el.id)) this.deps.setDragSpace(el.id, "content"); // та же нода: рука → контент
+    if (this.deps.hud.memberKey(el.id)) this.deps.setDragSpace(el.id, "content"); // та же нода: док → контент
     return this.deps.defaultBeginDrag(el, cp, sp);
   }
 
@@ -127,19 +123,21 @@ export class SceneGesture {
     if (this.deps.blockDrag.active()) return; // блок-драг колоды: бокс не подсвечиваем никак
     const lead = this.deps.drag()?.lead;
     const dsh = this.deps.dragScreen();
-    // Взаимоисключающе: палец НАД РУКОЙ → карта на слой руки, светится только она; иначе — стол.
-    if (lead && this.deps.handHud.overBand(dsh.x, dsh.y)) {
-      this.deps.setDragSpace(lead.id, "hand");
-      const pose = this.deps.handHud.dragPose(dsh.x, dsh.y);
+    // Взаимоисключающе: палец НАД ДОКОМ → нода на слой HUD, светится его лента; иначе — стол.
+    const dock = lead ? this.deps.hud.dockAt(dsh.x, dsh.y) : null;
+    if (lead && dock) {
+      this.deps.setDragSpace(lead.id, "dock");
+      const pose = dock.dragPose(dsh.x, dsh.y);
       lead.body.setTarget({ x: pose.x, y: pose.y, scale: pose.scale, rot: 0 });
-      this.deps.handHud.hoverAt(dsh.x, dsh.y); // hot + гэп-превью: ряд раздвигается под индекс вставки
-      this.deps.gapPreview.clear(); // борда не превьюится, пока груз над экранной рукой
+      dock.hoverAt(dsh.x, dsh.y); // hot + гэп-превью: ряд раздвигается под индекс вставки
+      this.deps.hud.armBands(dock); // остальные доки — armed
+      this.deps.gapPreview.clear(); // борда не превьюится, пока груз над доком
       if (this.hotSlot !== null) { this.hotSlot = null; this.paintHints(); }
       this.deps.wake();
       return;
     }
     if (lead) this.deps.setDragSpace(lead.id, "content");
-    this.deps.handHud.setZone("armed");
+    this.deps.hud.armBands();
     const target = dropTargetRect(this.deps.tree().root, this.probe(p));
     if (lead) this.deps.gapPreview.hover(lead.id, target); // жители цели расступаются под гэп
     this.applyMagnet(target);
@@ -162,18 +160,19 @@ export class SceneGesture {
       drag.release();
       return;
     }
-    // Дроп над полосой руки (вне дерева, судит HUD по экранной точке) — ДО плана борды.
+    // Дроп над лентой дока (вне дерева, судит HUD по экранной точке) — ДО плана борды.
     const dsr = this.deps.dragScreen();
-    if (this.deps.handHud.overBand(dsr.x, dsr.y)) {
-      const to = handKey(this.deps.selfSeat);
+    const dock = this.deps.hud.dockAt(dsr.x, dsr.y);
+    if (dock) {
+      const to = dock.key;
       const from = this.fromSlotOf(el.id);
-      const idx = this.deps.handHud.insertIndexAt(dsr.x, dsr.y);
+      const idx = dock.insertIndexAt(dsr.x, dsr.y);
       // Груз обязан лечь В ПОКАЗАННЫЙ ГЭП: со стола — move (аппенд) + реордер на индекс превью.
       if (from && from !== to) this.deps.dispatch({ t: "move", el: el.id, from, to });
       if (from) {
-        const order = this.deps.handMembers().filter((m) => m !== el.id);
+        const order = (this.deps.state().field.slots[to]?.members ?? []).filter((m) => m !== el.id);
         order.splice(Math.min(idx, order.length), 0, el.id);
-        this.deps.dispatch({ t: "reorderHand", seat: this.deps.selfSeat, order });
+        this.deps.dispatch({ t: "reorderSlot", key: to, order });
       }
       drag.release();
       return;
@@ -185,8 +184,7 @@ export class SceneGesture {
       from: this.fromSlotOf(el.id),
       target: target ? { slot: target.group.id, index: target.index } : null,
       cp,
-      myHand: handKey(this.deps.selfSeat),
-      handReorder: this.deps.spec().hand?.reorder ?? false,
+      selfSeat: this.deps.selfSeat,
       carriedFaceUp: node?.kind === "card" ? node.faceUp : null,
     });
     if (plan.kind === "command") this.deps.dispatch(plan.cmd);
@@ -200,7 +198,7 @@ export class SceneGesture {
     this.dragging = false;
     this.hotSlot = null;
     this.deps.blockDrag.cancel(); // не тащим сдвиг в следующий жест
-    this.deps.handHud.clearDragging(); // вернуть HUD-спрайт руки и покой дроп-зоны
+    this.deps.hud.clearDragging(); // вернуть ноды доков и покой их лент
     this.deps.gapPreview.clear(); // закрыть дыру превью борды
     if (this.grabbedEl && this.deps.presence) {
       const p = this.deps.presence;
@@ -216,9 +214,10 @@ export class SceneGesture {
   paintHints(): void {
     const g = this.hintLayer;
     g.clear();
-    this.paintBoardHandBand(g); // лента руки-на-борде: armed в драге, hot под грузом
+    this.paintBoardStripBands(g); // ленты-на-борде: armed в драге, hot под грузом
     if (!this.dragging || !this.hotSlot) return;
-    if (this.hotSlot === handKey(this.deps.selfSeat)) return; // руке хватает её ленты — без золота
+    // Своей ленте хватает её полосы — золотой обводкой не дублируем.
+    if (stripOf(this.deps.spec(), this.hotSlot) && slotOf(this.hotSlot) === this.deps.selfSeat) return;
     const tree = this.deps.tree();
     const shape = hintShape({
       hotSlot: this.hotSlot,
@@ -236,16 +235,20 @@ export class SceneGesture {
 
   destroy(): void {}
 
-  /** Полоса руки-на-борде во время драга: тот же стиль, что у экранного дока (handBandPaint). */
-  private paintBoardHandBand(g: Graphics): void {
-    if (!this.dragging || !handOnBoard(this.deps.spec())) return;
-    const key = handKey(this.deps.selfSeat);
-    const b = this.deps.tree().cellRects[key];
-    if (b) paintHandBand(g, b, this.hotSlot === key ? "hot" : "armed", this.deps.accent());
+  /** Полосы СВОИХ лент-на-борде во время драга: тот же стиль, что у доков (strip/bandPaint). */
+  private paintBoardStripBands(g: Graphics): void {
+    if (!this.dragging) return;
+    const spec = this.deps.spec();
+    for (const zone of stripZones(spec)) {
+      if (!zoneOnBoard(spec, zone.id)) continue;
+      const key = stripKey(zone.id, this.deps.selfSeat);
+      const b = this.deps.tree().cellRects[key];
+      if (b) paintStripBand(g, b, this.hotSlot === key ? "hot" : "armed", this.deps.accent());
+    }
   }
 
-  /** Слот-ИСТОЧНИК: дерево, а для карты экранной руки (её нет в дереве) — hand:self. */
-  private fromSlotOf(id: string): string | null { return this.deps.tree().slotOf(id) ?? (this.deps.handMembers().includes(id) ? handKey(this.deps.selfSeat) : null); }
+  /** Слот-ИСТОЧНИК: дерево, а для жителя дока HUD (его нет в дереве) — ключ его контейнера. */
+  private fromSlotOf(id: string): string | null { return this.deps.tree().slotOf(id) ?? this.deps.hud.memberKey(id); }
 
   /** ГРУЗ для дроп-политик: прямоугольник фигуры (по спринг-таргету — намерению руки, не отставшему
    *  px), палец, вид элемента и наклон (fx.rot — как лежит на столе). */

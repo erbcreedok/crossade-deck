@@ -26,9 +26,9 @@ function testSpec(over: Partial<BoardSpec> = {}): BoardSpec {
         setup: { 0: ["c1", "c2", "c3", "c4", "c5"] } },
       { id: "grid", title: "поле", layout: { kind: "grid", cols: 2, rows: 2 }, policy: { onOccupied: "capture" } },
       { id: "chain", title: "цепочка", layout: { kind: "chain" }, policy: { onOccupied: "merge" } },
+      { id: "hand", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" } },
     ],
     seats: { count: { min: 2, max: 4 }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [],
     ...over,
   };
@@ -136,14 +136,28 @@ describe("круг хода, кубики, места", () => {
     expect(again.seats[1]!.occupant).toBe("красная панда"); // занятый стул не отдаётся
   });
 
-  it("reorderHand применяет перестановку и отвергает чужой состав", () => {
+  it("reorderSlot ленты применяет перестановку и отвергает чужой состав", () => {
     const withDeal = testSpec({ mock: { deal: { from: "deck", each: 2 } } });
     let s = bootState(withDeal, 2);
     const [a, b] = [handOf(s, "p1")[0]!, handOf(s, "p1")[1]!];
-    s = applyCommand(withDeal, s, { t: "reorderHand", seat: "p1", order: [b, a] }, rng);
+    s = applyCommand(withDeal, s, { t: "reorderSlot", key: "hand:p1", order: [b, a] }, rng);
     expect(handOf(s, "p1")).toEqual([b, a]);
-    const same = applyCommand(withDeal, s, { t: "reorderHand", seat: "p1", order: [b, "A♠"] }, rng);
+    const same = applyCommand(withDeal, s, { t: "reorderSlot", key: "hand:p1", order: [b, "A♠"] }, rng);
     expect(same).toEqual(s);
+  });
+
+  it("deal to: раздача едет в НАЗВАННУЮ ленту (дефолт — «hand»)", () => {
+    const two = testSpec({
+      zones: [
+        { id: "deck", title: "", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ["c1", "c2"] } },
+        { id: "hand", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" } },
+        { id: "pouch", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" } },
+      ],
+    });
+    let s = bootState(two, 2);
+    s = applyCommand(two, s, { t: "deal", from: "deck", each: 1, to: "pouch" }, rng);
+    expect(s.field.slots["pouch:p1"]?.members.length).toBe(1);
+    expect(s.field.slots["hand:p1"]).toBeUndefined();
   });
 
   it("reorderSlot переставляет любой контейнер той же дисциплиной", () => {

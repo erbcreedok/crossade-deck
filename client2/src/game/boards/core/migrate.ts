@@ -28,10 +28,19 @@ export function migrateState(old: BoardState, spec: BoardSpec, seatsWanted?: num
     members.forEach((id) => placed.add(id));
     if (!members.length) continue;
     const zone = baseZoneId(zoneOf(key));
-    if (zoneIds.has(zone)) {
+    const zspec = spec.zones.find((z) => z.id === zone);
+    if (zspec?.layout.kind === "strip") {
+      // Лента (perSeat-контейнер `id:seat`): живое место везёт свой контейнер как есть,
+      // лента исчезнувшего места высыпается в первую зону спеки (карты не пропадают).
+      if (liveSeats.has(key.slice(zone.length + 1))) keep[key] = { members };
+      else {
+        const first = spec.zones[0]!.id;
+        pools.set(first, [...(pools.get(first) ?? []), ...members]);
+      }
+    } else if (zoneIds.has(zone)) {
       pools.set(zone, [...(pools.get(zone) ?? []), ...members]);
     } else if (zone === "hand" && !liveSeats.has(key.slice("hand:".length))) {
-      // Рука исчезнувшего места — высыпать в первую зону спеки (карты не пропадают).
+      // Архив со старым словарём (руки вне zones): та же судьба, что у ленты без места.
       const first = spec.zones[0]!.id;
       pools.set(first, [...(pools.get(first) ?? []), ...members]);
     } else {

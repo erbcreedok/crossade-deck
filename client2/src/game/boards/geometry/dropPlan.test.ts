@@ -7,6 +7,7 @@ import type { ZoneSpec } from "../core/spec";
 const zones: ZoneSpec[] = [
   { id: "board", title: "", layout: { kind: "free" }, policy: { onOccupied: "merge" }, shape: "circle", cell: { w: 400, h: 400 } },
   { id: "table", title: "", layout: { kind: "flow" }, policy: { onOccupied: "merge" } },
+  { id: "hand", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" } },
 ];
 
 function world(slots: Record<string, string[]>, homes: Record<string, { x: number; y: number }> = {}): DropWorld {
@@ -47,34 +48,38 @@ describe("правила слотов", () => {
 });
 
 describe("planDrop", () => {
-  it("рука → рука с reorder: команда reorderHand с новым порядком", () => {
+  it("лента → та же лента: reorderSlot с новым порядком (рука — обычный реордер-контейнер)", () => {
     const w = world({ "hand:p1": ["a", "b", "c"] });
-    const plan = planDrop(w, { el: "c", from: "hand:p1", target: { slot: "hand:p1", index: 0 }, cp: { x: 0, y: 0 }, myHand: "hand:p1", handReorder: true, carriedFaceUp: true });
-    expect(plan).toEqual({ kind: "command", cmd: { t: "reorderHand", seat: "p1", order: ["c", "a", "b"] } });
+    const plan = planDrop(w, { el: "c", from: "hand:p1", target: { slot: "hand:p1", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true });
+    expect(plan).toEqual({ kind: "command", cmd: { t: "reorderSlot", key: "hand:p1", order: ["c", "a", "b"] } });
   });
 
   it("переезд в другой слот: move; сторона undefined — зона решает сама", () => {
     const w = world({ "hand:p1": ["a"] });
-    const plan = planDrop(w, { el: "a", from: "hand:p1", target: { slot: "table:0", index: 0 }, cp: { x: 0, y: 0 }, myHand: "hand:p1", handReorder: true, carriedFaceUp: true });
+    const plan = planDrop(w, { el: "a", from: "hand:p1", target: { slot: "table:0", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true });
     expect(plan.kind).toBe("command");
     if (plan.kind === "command" && plan.cmd.t === "move") expect(plan.cmd.face).toBeUndefined();
   });
 
   it("мимо слотов, в круг: move в новый свободный слот с точкой и стороной как несли", () => {
     const w = world({ "board:0": ["x"], "hand:p1": ["a"] });
-    const plan = planDrop(w, { el: "a", from: "hand:p1", target: null, cp: { x: 200, y: 300 }, myHand: "hand:p1", handReorder: true, carriedFaceUp: true });
+    const plan = planDrop(w, { el: "a", from: "hand:p1", target: null, cp: { x: 200, y: 300 }, selfSeat: "p1", carriedFaceUp: true });
     expect(plan).toEqual({ kind: "command", cmd: { t: "move", el: "a", from: "hand:p1", to: "board:1", at: { x: 200, y: 300 }, face: true } });
   });
 
   it("одинокая свободная стопка внутри круга просто переезжает (placeFree)", () => {
     const w = world({ "board:1": ["a"] });
-    const plan = planDrop(w, { el: "a", from: "board:1", target: null, cp: { x: 100, y: 200 }, myHand: "hand:p1", handReorder: true, carriedFaceUp: false });
+    const plan = planDrop(w, { el: "a", from: "board:1", target: null, cp: { x: 100, y: 200 }, selfSeat: "p1", carriedFaceUp: false });
     expect(plan).toEqual({ kind: "command", cmd: { t: "placeFree", key: "board:1", at: { x: 100, y: 200 } } });
   });
 
-  it("мимо всего (вне круга) и дроп в чужое место — none", () => {
+  it("мимо всего (вне круга) — none; чужая ЗАПЕРТАЯ лента дроп не принимает, отпертая — принимает", () => {
     const w = world({ "hand:p1": ["a"] });
-    expect(planDrop(w, { el: "a", from: "hand:p1", target: null, cp: { x: 990, y: 990 }, myHand: "hand:p1", handReorder: true, carriedFaceUp: true }).kind).toBe("none");
-    expect(planDrop(w, { el: "a", from: "hand:p1", target: { slot: "seat:p2", index: 0 }, cp: { x: 0, y: 0 }, myHand: "hand:p1", handReorder: true, carriedFaceUp: true }).kind).toBe("none");
+    expect(planDrop(w, { el: "a", from: "hand:p1", target: null, cp: { x: 990, y: 990 }, selfSeat: "p1", carriedFaceUp: true }).kind).toBe("none");
+    expect(planDrop(w, { el: "a", from: "hand:p1", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true }).kind).toBe("none");
+    const open: ZoneSpec[] = zones.map((z) => (z.id === "hand" ? { ...z, locked: false } : z));
+    const wOpen: DropWorld = { ...w, zones: open };
+    const plan = planDrop(wOpen, { el: "a", from: "hand:p1", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true });
+    expect(plan.kind).toBe("command");
   });
 });

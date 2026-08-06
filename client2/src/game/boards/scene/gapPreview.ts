@@ -1,7 +1,8 @@
 // SMART REORDER КОНТЕЙНЕРОВ БОРДЫ (гэп-превью) — владелец «груз навис над реордер-зоной». Общий
 // паттерн со всеми контейнерами проекта: примитив — group.gap движка слотов (slot/slot.ts,
 // placeGapped: «работает для ЛЮБОЙ раскладки»; та же идиома в slotfield/stack и field). Здесь его
-// подключение к сцене борд: рука-на-борде, flow-грид, любой insert-реордер с preview:true.
+// подключение к сцене борд: ленты (превью по дефолту), flow-грид и любой insert-реордер с
+// preview:true (opt-in).
 //
 // Каноны:
 //   • индекс вставки — из dropTarget по БАЗОВОЙ раскладке (layout.indexAt над размерами, дыра его
@@ -13,16 +14,12 @@
 import type { Group } from "../../slot/types";
 import { measure } from "../../slot/slot";
 import { CARD } from "../../crossade/tree";
-import { handKey } from "../core/state";
-import { slotOf, type BoardCommand } from "../core/spec";
+import type { BoardCommand } from "../core/spec";
 import { insertPreviewOn, type DropWorld } from "../geometry/dropPlan";
 import { handOrderAfterDrop } from "../../crossade/handOrder";
-import type { HandConfig } from "../hand/handConfig";
 
 export interface GapPreviewDeps {
   world(): DropWorld;
-  hand(): HandConfig | null;
-  selfSeat: string;
   /** Перецелить жителей слота на свежие дома (дыра открылась/закрылась/переехала) — nodeStore. */
   retargetSlot(slot: string): void;
   dispatch(cmd: BoardCommand): void;
@@ -35,9 +32,9 @@ export class SceneGapPreview {
 
   constructor(private readonly deps: GapPreviewDeps) {}
 
-  /** Гэп-превью включено для этого контейнера? Рука — из конфига (дефолт true), зоны — opt-in. */
+  /** Гэп-превью включено для этого контейнера? Ленты — по дефолту, прочие зоны — opt-in
+   *  (правило целиком в dropPlan.insertPreviewOn — одна дверь для сцены и планировщика). */
   enabled(slot: string): boolean {
-    if (slot === handKey(this.deps.selfSeat)) return this.deps.hand()?.preview ?? true;
     return insertPreviewOn(this.deps.world(), slot);
   }
 
@@ -62,8 +59,7 @@ export class SceneGapPreview {
   afterCrossDrop(elId: string, to: string, index: number): void {
     if (!this.enabled(to)) return;
     const order = handOrderAfterDrop(this.deps.world().members(to), elId, index);
-    const seat = handKey(this.deps.selfSeat) === to ? slotOf(to) : null;
-    this.deps.dispatch(seat ? { t: "reorderHand", seat, order } : { t: "reorderSlot", key: to, order });
+    this.deps.dispatch({ t: "reorderSlot", key: to, order });
   }
 
   /** Конец жеста/дропа: закрыть дыру и вернуть жителей по местам. */

@@ -1,6 +1,7 @@
 // МОНОПОЛИЯ — контраст: кольцевая раскладка, смешанные элементы (фишки-токены, деньги,
 // карточки шанс/казна), кубики; у мест не рука с картами, а видимое имущество.
 
+import { handZone } from "./strips";
 import type { BoardSpec, ElementDef } from "../core/spec";
 
 const TOKEN_COLORS = [0xe05555, 0x4c9ae0, 0x5ec46a, 0xe0a24c, 0xb06ae0, 0x4cc8c8];
@@ -26,9 +27,10 @@ export function monopolyBoard(): BoardSpec {
       { id: "chance", title: "шанс", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: chance.map((c) => c.id) } },
       { id: "treasury", title: "казна", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: treasury.map((c) => c.id) } },
       { id: "bank", title: "банк", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: money.map((m) => m.id) } },
+      // «Рука» тут — деньги игрока: лента без реордера (порядок купюр не важен).
+      handZone({ reorder: "none" }),
     ],
     seats: { count: { min: 2, max: 6 }, show: "chips", swap: true },
-    hand: { reorder: false }, // «рука» тут — деньги игрока
     actions: [
       { id: "roll", label: "бросить кубики", command: { t: "roll" } },
       { id: "deal", label: "раздать деньги", command: { t: "deal", from: "bank", each: 3 } },

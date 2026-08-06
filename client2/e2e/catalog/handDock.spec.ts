@@ -5,7 +5,7 @@ import { test, expect, type Page } from "@playwright/test";
 // браузере. Дев-хук `__story` — идиома канваса (см. engine.spec.ts).
 
 interface StoryLike {
-  handHud: { screenPoses(): { id: string; x: number; y: number }[]; insertIndexAt(x: number, y: number): number };
+  hud: { screenPoses(): { zone: string; id: string; x: number; y: number }[]; list(): { insertIndexAt(x: number, y: number): number }[] };
   rt: { api: { byId: Map<string, { faceUp: boolean; body: { px: number; py: number } }>; contentToScreen(x: number, y: number): { x: number; y: number } } };
   testHooks(): { cards: Record<string, { slot: string | null; x: number; y: number }> };
 }
@@ -24,7 +24,7 @@ const open = async (page: Page, story: string): Promise<void> => {
 };
 
 const poses = (page: Page): Promise<{ id: string; x: number; y: number }[]> =>
-  page.evaluate(() => window.__story!.handHud.screenPoses().map((p) => ({ id: p.id, x: Math.round(p.x), y: Math.round(p.y) })));
+  page.evaluate(() => window.__story!.hud.screenPoses().map((p) => ({ id: p.id, x: Math.round(p.x), y: Math.round(p.y) })));
 
 test.describe("док руки по краям", () => {
   test("right-column: колонка у правого края, лица вверх, стол уступил ширину", async ({ page }) => {
@@ -35,7 +35,7 @@ test.describe("док руки по краям", () => {
     const vw = page.viewportSize()!.width;
     expect(ps[0]!.x).toBeGreaterThan(vw * 0.7); // у правого края
     expect(ps[0]!.y).toBeLessThan(ps[3]!.y); // порядок руки сверху вниз
-    const faces = await page.evaluate(() => window.__story!.handHud.screenPoses().map((p) => window.__story!.rt.api.byId.get(p.id)!.faceUp));
+    const faces = await page.evaluate(() => window.__story!.hud.screenPoses().map((p) => window.__story!.rt.api.byId.get(p.id)!.faceUp));
     expect(faces).toEqual([true, true, true, true]);
   });
 
@@ -61,7 +61,7 @@ test.describe("док руки по краям", () => {
     await page.mouse.down();
     await page.mouse.move(gapX, row0y, { steps: 14 });
     await page.waitForTimeout(400);
-    const idx = await page.evaluate(([x, y]) => window.__story!.handHud.insertIndexAt(x!, y!), [gapX, row0y]);
+    const idx = await page.evaluate(([x, y]) => window.__story!.hud.list()[0]!.insertIndexAt(x!, y!), [gapX, row0y]);
     await page.mouse.up();
     await page.waitForTimeout(900);
     const after = await poses(page);
@@ -163,7 +163,7 @@ test.describe("док руки по краям", () => {
     await open(page, "live-two-screens");
     const r = await page.evaluate(() => {
       const [s1, s2] = window.__stories!;
-      const own = s1!.handHud.screenPoses().map((p) => ({ id: p.id, faceUp: s1!.rt.api.byId.get(p.id)!.faceUp }));
+      const own = s1!.hud.screenPoses().map((p) => ({ id: p.id, faceUp: s1!.rt.api.byId.get(p.id)!.faceUp }));
       // Рука p1 глазами p2: карты живут на его МЕСТЕ (seat-стрип дерева) рубашками.
       const atS2 = own.map((c) => {
         const n = s2!.rt.api.byId.get(c.id);
@@ -178,10 +178,10 @@ test.describe("док руки по краям", () => {
     // Один порт: ход на левом экране виден правому (карта p1 вернулась в колоду — у обоих).
     const deckAfter = await page.evaluate(() => {
       const [s1, s2] = window.__stories!;
-      const id = s1!.handHud.screenPoses()[0]!.id;
+      const id = s1!.hud.screenPoses()[0]!.id;
       (s1 as unknown as { dispatch(c: unknown): void }).dispatch({ t: "move", el: id, from: "hand:p1", to: "board:0" });
       const deckOf = (s: StoryLike) => Object.entries(s.testHooks().cards).filter(([, c]) => c.slot === "board:0").length;
-      return { left: deckOf(s1!), right: deckOf(s2!), handLeft: s1!.handHud.screenPoses().length };
+      return { left: deckOf(s1!), right: deckOf(s2!), handLeft: s1!.hud.screenPoses().length };
     });
     expect(deckAfter.left).toBe(deckAfter.right); // один снимок на всех
     expect(deckAfter.handLeft).toBe(2);

@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { SceneHandHud } from "./handHud";
+import { SceneZoneDock } from "./zoneDock";
 
-// Сторож ГЭП-ПРЕВЬЮ вставки (владельческое правило + урок playHover): пока груз навис над рукой,
+// Сторож ГЭП-ПРЕВЬЮ вставки (владельческое правило + урок playHover): пока груз навис над доком,
 // ряд раздвигается, показывая индекс вставки, но ЦЕЛЬ (insertIndexAt) считается по базовому ряду —
 // подсказка не смеет двигать цель под неподвижным пальцем, иначе индекс осциллирует.
 
-function hud(members: string[]): { h: SceneHandHud; retargets: () => number } {
+function hud(members: string[]): { h: SceneZoneDock; retargets: () => number } {
   let n = 0;
-  const h = new SceneHandHud({
-    config: () => ({ reorder: true, flow: "horizontal", size: { fit: 5 }, hidden: false, locked: true, preview: true }),
+  const h = new SceneZoneDock("hand", "hand:p1", {
+    config: () => ({ reorder: "insert", flow: "horizontal", size: { fit: 5 }, cell: { w: 100, h: 143 }, hidden: false, locked: true, preview: true }),
     members: () => members,
     accent: () => 0xffcc00,
     wake: () => {},
@@ -19,7 +19,7 @@ function hud(members: string[]): { h: SceneHandHud; retargets: () => number } {
   return { h, retargets: () => n };
 }
 
-describe("SceneHandHud — гэп-превью не двигает цель", () => {
+describe("SceneZoneDock — гэп-превью не двигает цель", () => {
   it("hoverAt раздвигает ряд (позы уезжают), а insertIndexAt по той же точке НЕ меняется", () => {
     const { h } = hud(["a", "b", "c"]);
     const sx = h.poseOf("b")!.x + 1; // чуть правее центра b → вставка после b
@@ -45,7 +45,7 @@ describe("SceneHandHud — гэп-превью не двигает цель", ()
     const base = ["a", "b", "c"].map((id) => h.poseOf(id)!.x);
     h.hoverAt(h.poseOf("a")!.x - 1, h.poseOf("a")!.y);
     expect(retargets()).toBe(1);
-    h.setZone("armed");
+    h.setBand("armed");
     expect(["a", "b", "c"].map((id) => h.poseOf(id)!.x)).toEqual(base);
     expect(retargets()).toBe(2);
   });

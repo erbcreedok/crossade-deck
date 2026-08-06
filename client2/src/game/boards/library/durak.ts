@@ -1,6 +1,7 @@
 // ДУРАК — грид пар «атака/защита»: слот держит не больше двух карт (maxSize 2 — третьей
 // физически некуда), козырь смотрит из-под колоды (мок: отдельный слот «козырь» лицом).
 
+import { handZone } from "./strips";
 import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
@@ -16,9 +17,9 @@ export function durakBoard(): BoardSpec {
       { id: "deck", title: "колода", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ids.slice(0, -1) } },
       { id: "trump", title: "козырь", layout: { kind: "pile" }, policy: { onOccupied: "reject" }, setup: { 0: [trump] } },
       { id: "discard", title: "бито", layout: { kind: "pile" }, policy: { onOccupied: "merge" } },
+      handZone(),
     ],
     seats: { count: { min: 2, max: 6 }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [
       { id: "deal", label: "раздать по 6", command: { t: "deal", from: "deck", each: 6 } },
       { id: "draw", label: "добор по 1", command: { t: "deal", from: "deck", each: 1 } },

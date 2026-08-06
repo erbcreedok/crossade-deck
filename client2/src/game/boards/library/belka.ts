@@ -4,6 +4,7 @@
 // слот (policy reject — «одна карта от игрока»); стол относителен зрителя — своя карта ложится
 // перед тобой снизу (boardTree kind "seats"). Правил нет (смарт-мок, BOARDS-DESIGN §3).
 
+import { handZone } from "./strips";
 import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
@@ -28,9 +29,9 @@ export function belkaBoard(): BoardSpec {
       { id: "score-black", title: "чёрные", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: BLACK_SIXES } },
       // Колода — только источник раздачи (32 карты без шестёрок), на столе её слот пуст.
       { id: "deck", title: "", layout: { kind: "pile" }, policy: { onOccupied: "reject" }, setup: { 0: deckIds } },
+      handZone(),
     ],
     seats: { count: { fixed: 4 }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [
       { id: "turn", label: "ход дальше", command: { t: "turn" } },
       { id: "reset", label: "заново", command: { t: "reset" } },

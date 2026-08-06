@@ -7,7 +7,7 @@
 
 import { at, move, place } from "../../slotfield/slotField";
 import { topId } from "../../slotfield/container";
-import { handKey, initialState, OFFBOARD_KEY, type BoardState } from "./state";
+import { initialState, OFFBOARD_KEY, type BoardState } from "./state";
 import { baseZoneId, slotKey, zoneOf, type BoardCommand, type BoardSpec, type SlotKey } from "./spec";
 
 export type Rng = () => number;
@@ -73,7 +73,7 @@ export function dealOrder(seatIds: readonly string[], dealer: string): string[] 
   return seatIds.map((_, i) => seatIds[(start + i) % seatIds.length]!);
 }
 
-function deal(spec: BoardSpec, state: BoardState, fromZone: string, each: number | "all-even-dealer-last"): BoardState {
+function deal(spec: BoardSpec, state: BoardState, fromZone: string, each: number | "all-even-dealer-last", to = "hand"): BoardState {
   const fromKey = slotKey(fromZone, 0);
   const order = dealOrder(state.seats.map((s) => s.id), state.dealer);
   let field = state.field;
@@ -85,8 +85,8 @@ function deal(spec: BoardSpec, state: BoardState, fromZone: string, each: number
       const deck = at(field, fromKey);
       const top = deck && topId(deck);
       if (top === undefined) break;
-      field = move(field, fromKey, handKey(seat), [top]);
-      fx = withFace(fx, top, undefined); // рука сама решает сторону — оверрайд снимается
+      field = move(field, fromKey, slotKey(to, seat), [top]);
+      fx = withFace(fx, top, undefined); // лента сама решает сторону — оверрайд снимается
     }
   }
   return { ...state, field, fx };
@@ -128,7 +128,7 @@ export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardComma
       return { ...state, fx };
     }
     case "deal":
-      return deal(spec, state, cmd.from, cmd.each);
+      return deal(spec, state, cmd.from, cmd.each, cmd.to);
     case "shuffle":
       return shuffle(state, cmd.zone, rng);
     case "turn": {
@@ -139,15 +139,13 @@ export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardComma
       return { ...state, turn: { ...state.turn, dir: state.turn.dir === 1 ? -1 : 1 } };
     case "reset": {
       const fresh = initialState(spec, state.seats.length);
-      const withDeal = spec.mock?.deal ? deal(spec, { ...fresh, seats: state.seats }, spec.mock.deal.from, spec.mock.deal.each) : { ...fresh, seats: state.seats };
+      const withDeal = spec.mock?.deal ? deal(spec, { ...fresh, seats: state.seats }, spec.mock.deal.from, spec.mock.deal.each, spec.mock.deal.to) : { ...fresh, seats: state.seats };
       return withDeal;
     }
     case "roll": {
       const n = spec.mock?.dice ?? 0;
       return { ...state, dice: Array.from({ length: n }, () => 1 + Math.floor(rng() * 6)) };
     }
-    case "reorderHand":
-      return reorderContainer(state, handKey(cmd.seat), cmd.order);
     case "reorderSlot":
       return reorderContainer(state, cmd.key, cmd.order);
     case "sit": {
@@ -164,5 +162,5 @@ export function applyCommand(spec: BoardSpec, state: BoardState, cmd: BoardComma
 /** Стартовое состояние борды «как её открыли»: setup + мок-раздача. */
 export function bootState(spec: BoardSpec, seatsWanted?: number, occupants?: readonly (string | null)[]): BoardState {
   const s = initialState(spec, seatsWanted, occupants);
-  return spec.mock?.deal ? deal(spec, s, spec.mock.deal.from, spec.mock.deal.each) : s;
+  return spec.mock?.deal ? deal(spec, s, spec.mock.deal.from, spec.mock.deal.each, spec.mock.deal.to) : s;
 }

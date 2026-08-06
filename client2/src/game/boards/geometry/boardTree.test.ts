@@ -19,9 +19,9 @@ function spec(over: Partial<BoardSpec> = {}): BoardSpec {
       { id: "deck", title: "колода", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ["c1", "c2"] } },
       { id: "field", title: "поле", layout: { kind: "grid", cols: 2, rows: 2 }, policy: { onOccupied: "capture" },
         cell: { w: 76, h: 76 }, background: "chessboard", setup: { r0c0: ["n1"] } },
+      { id: "hand", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" } },
     ],
     seats: { count: { fixed: 2 }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [],
     ...over,
   };
@@ -60,16 +60,17 @@ describe("buildBoardTree", () => {
     expect(t1.origins["chain:1"]).toBeDefined(); // новое пустое звено открылось
   });
 
-  it("свои карты — в руке снизу, чужие — в полосе места; у борды без рук руки нет", () => {
+  it("свои карты — в ленте снизу, чужие ленты — у их мест РЕАЛЬНЫМИ ключами; без лент — ничего", () => {
     const withDeal = spec({ mock: { deal: { from: "deck", each: 1 } } });
     const s = bootState(withDeal, 2);
     const tree = buildBoardTree(withDeal, s, "p1");
     expect(tree.origins["hand:p1"]).toBeDefined();
-    expect(tree.origins["seat:p2"]).toBeDefined();
-    expect(tree.origins["seat:p1"]).toBeUndefined(); // себя в полосе нет
+    expect(tree.origins["hand:p2"]).toBeDefined(); // чужая лента — тем же словарём ключей
+    expect(tree.slotOf(s.field.slots["hand:p2"]!.members[0]!)).toBe("hand:p2");
 
-    const noHand = spec({ hand: undefined });
-    const t2 = buildBoardTree(noHand, bootState(noHand, 2), "p1");
+    const noHand = spec(); // фабрика без strip-зон в zones-оверрайде
+    const bare = { ...noHand, zones: noHand.zones.filter((z) => z.layout.kind !== "strip") };
+    const t2 = buildBoardTree(bare, bootState(bare, 2), "p1");
     expect(t2.origins["hand:p1"]).toBeUndefined();
   });
 
@@ -77,14 +78,14 @@ describe("buildBoardTree", () => {
     const flowSpec = spec({ zones: [
       { id: "g", title: "грид", layout: { kind: "flow", cols: { min: 2, max: 3 }, grow: "down" }, policy: { onOccupied: "merge" },
         cell: { w: 60, h: 84 }, setup: { 0: ["c1", "c2"] } },
-    ], hand: undefined });
+    ] });
     const small = buildBoardTree(flowSpec, bootState(flowSpec, 2), "p1");
     expect(small.slotOf("c1")).toBe("g:0");
     expect(small.slotOf("c2")).toBe("g:0");
     const sixSpec = spec({ zones: [
       { id: "g", title: "грид", layout: { kind: "flow", cols: { min: 2, max: 3 }, grow: "down" }, policy: { onOccupied: "merge" },
         cell: { w: 60, h: 84 }, setup: { 0: ["c1", "c2", "c3", "c4", "c5", "x1"] } },
-    ], hand: undefined, elements: [
+    ], elements: [
       { kind: "card", id: "c1", face: "6♠" }, { kind: "card", id: "c2", face: "7♠" },
       { kind: "card", id: "c3", face: "8♠" }, { kind: "card", id: "c4", face: "9♠" },
       { kind: "card", id: "c5", face: "10♠" }, { kind: "card", id: "x1", face: "J♠" },
@@ -123,7 +124,7 @@ describe("buildBoardTree", () => {
   it("ring раскладывает слоты по окружности с равным удалением от центра", () => {
     const ringSpec = spec({ zones: [
       { id: "track", title: "круг", layout: { kind: "ring", count: 8 }, policy: { onOccupied: "merge" }, cell: { w: 50, h: 50 } },
-    ], hand: undefined });
+    ] });
     const tree = buildBoardTree(ringSpec, bootState(ringSpec, 2), "p1");
     const centers = Array.from({ length: 8 }, (_, i) => {
       const r = tree.cellRects[`track:${i}`]!;
@@ -138,7 +139,7 @@ describe("buildBoardTree", () => {
   it("free — одна зона-бокс (cellRect по cell), колода-стопка сидит по ЦЕНТРУ бокса", () => {
     const freeSpec = spec({ zones: [
       { id: "deck", title: "", layout: { kind: "free" }, policy: { onOccupied: "merge" }, cell: { w: 480, h: 360 }, setup: { 0: ["c1", "c2"] } },
-    ], hand: undefined, seats: { count: { fixed: 1 }, show: "none", swap: false } });
+    ], seats: { count: { fixed: 1 }, show: "none", swap: false } });
     const tree = buildBoardTree(freeSpec, bootState(freeSpec, 1), "p1");
     // Один слот, рамка-бокс по cell.
     const box = tree.cellRects["deck:0"]!;
@@ -211,7 +212,7 @@ describe("buildBoardTree", () => {
 describe("buildBoardTree: свободные стопки и сдвиги free-зоны (FreePositions)", () => {
   const freeSpec = spec({ zones: [
     { id: "board", title: "", layout: { kind: "free" }, policy: { onOccupied: "merge" }, cell: { w: 480, h: 360 }, setup: { 0: ["c1", "c2"] } },
-  ], hand: undefined, seats: { count: { fixed: 1 }, show: "none", swap: false } });
+  ], seats: { count: { fixed: 1 }, show: "none", swap: false } });
 
   it("свободный слот (≥1) встаёт центром в заданную точку бокса и ловит дроп сам", () => {
     let s = bootState(freeSpec, 1);

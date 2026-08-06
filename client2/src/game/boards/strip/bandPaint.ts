@@ -1,6 +1,6 @@
 // КРАСКА ПОЛОСЫ РУКИ (дропзоны) — ОДИН стиль владельца для руки в любом placement: rest — тихий
 // сплошной контур, armed (груз в полёте где-то) — серый пунктир, hot (груз над рукой) — акцент.
-// Фон всегда слабый. Рисуют ею и экранный док (handHud), и рука-на-борде (decor/gesture) — стиль
+// Фон всегда слабый. Рисуют ею и доки HUD (zoneDock), и ленты-на-борде (decor/gesture) — стиль
 // не должен расходиться между «прибита к экрану» и «лежит на столе».
 
 import type { Graphics } from "pixi.js";
@@ -16,7 +16,7 @@ export interface BandRect {
   h: number;
 }
 
-export function paintHandBand(g: Graphics, b: BandRect, state: HandBandState, accent: number): void {
+export function paintStripBand(g: Graphics, b: BandRect, state: HandBandState, accent: number): void {
   g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: BG, alpha: 0.14 });
   if (state === "armed") {
     dashedRoundRect(g, b.x, b.y, b.w, b.h, 12);

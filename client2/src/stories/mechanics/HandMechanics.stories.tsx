@@ -4,13 +4,15 @@ import { action } from "storybook/actions";
 import { BoardScene } from "../../game/boards/scene/scene";
 import { localDriver } from "../../game/boards/core/driver";
 import { deck36 } from "../../game/boards/library/decks";
+import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
-import type { BoardSpec, HandFlow, HudSide, HudSpec } from "../../game/boards/core/spec";
+import type { BoardSpec, HandFlow, HudSide } from "../../game/boards/core/spec";
 
 const handAction = action("dispatch → мок-порт");
 
 // РУКА-ДОК — раздел «Механики», НЕЗАВИСИМЫЙ от песочницы: минимальная борда (только колода в
-// free-боксе), вся сцена — про руку и её конфиг-данные (spec.hand): край side, ось flow, реордер.
+// free-боксе), вся сцена — про руку. Рука — ОБЫЧНАЯ strip-зона (handZone()): свойства (flow,
+// fit, hidden, locked, preview) живут в её ZoneSpec; ГДЕ она — решает hud (виджет kind:"zone").
 // Док фикс к камере (placement:"screen"): зумите/таскайте стол — рука стоит; стол вписывается в
 // ОСТАТОК экрана (fitZoom с резервом дока: снизу, сверху, сбоку). Геометрия — чистый handDock.
 // ДРАГ живой: со стола в док (гэп-превью раздвигает ряд — карта ляжет ровно в показанный гэп),
@@ -46,11 +48,11 @@ function dockSpec(a: DockArgs): BoardSpec {
         drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(0, 18) },
       },
+      handZone({ ...(a.flow === "по краю" ? {} : { flow: a.flow }), ...(a.fit > 0 ? { fit: a.fit } : {}) }),
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
-    hand: { reorder: true, ...(a.flow === "по краю" ? {} : { flow: a.flow }), ...(a.fit > 0 ? { size: a.fit } : {}) },
-    // ГДЕ рука — решает HUD: hand-виджет в доке края = экранная; нет HUD = зона на борде.
-    hud: a.pin === "screen" ? { [a.side]: { widgets: [{ kind: "hand" }] } } : undefined,
+    // ГДЕ рука — решает HUD: виджет зоны в доке края = экранная; нет HUD = зона на борде.
+    hud: a.pin === "screen" ? { [a.side]: { widgets: [{ kind: "zone", zone: "hand" }] } } : undefined,
     actions: [],
   };
 }
@@ -80,25 +82,29 @@ const meta: Meta<DockArgs> = {
   parameters: {
     layout: "fullscreen",
     code: () => `import { BoardScene } from "game/boards/scene/scene";
+import { handZone } from "game/boards/library/strips";
 import type { BoardSpec } from "game/boards/core/spec";
 
-// РУКА и HUD — два РАЗНЫХ поля данных спеки.
-// hand — СВОЙСТВА руки (какая она), hud — ГДЕ она живёт на экране (и что живёт рядом).
+// РУКА — обычная strip-зона: никакого спецпонятия в словаре. Свойства руки живут
+// в ЕЁ ZoneSpec; ГДЕ она (борда или экранный док) — решает hud. Лент может быть
+// сколько угодно (вторая рука, мешок фишек…) — просто ещё strip-зоны с другим id.
 const spec: BoardSpec = {
   ...myBoard, // любая борда: зоны, места, элементы
-  hand: {
-    reorder: true,      // реордер внутри руки
-    flow: "horizontal", // ось ряда: horizontal | vertical | grid (дефолт — вдоль края дока)
-    size: 5,            // адаптив «влезает N карт» (или { w, h } — фикс-ячейка)
-    hidden: true,       // значения не видны другим (фильтр порта, не краска)
-    locked: true,       // чужие руку не трогают (false — общая рука)
-    // preview: false,  // выключить smart reorder (гэп-превью вставки)
-  },
+  zones: [
+    ...myBoard.zones,
+    handZone(), // = { id:"hand", layout:{kind:"strip"}, policy:{onOccupied:"merge"} }
+    // свойства — точечно, в самой зоне:
+    //   flow: "grid"        ось ряда в доке (дефолт — вдоль края)
+    //   fit: 5              адаптив «влезает N» (или cell: {w,h} — фикс)
+    //   hidden: false       открытая: другие видят лица (дефолт true)
+    //   locked: false       общая: чужие могут брать/класть (дефолт true)
+    //   reorder: "none"     без реордера; preview: false — без гэп-превью
+  ],
   // HUD — экранный слой: доки по краям, в каждом РЯД виджетов (flex-как-данные:
-  // порядок массива, size: px | {fr} | "auto", justify, gap). Убери hud — рука
-  // станет зоной НА борде (та же механика и вид).
+  // порядок массива, size: px | {fr} | "auto", justify, gap). Убери виджет — зона
+  // вернётся НА борду (та же механика и вид). deal раздаёт в зону «hand» (to: id).
   hud: {
-    bottom: { widgets: [{ kind: "hand" }] },
+    bottom: { widgets: [{ kind: "zone", zone: "hand" }] },
   },
 };
 void new BoardScene({ spec, seats: 2 }).mount(host, width, height);`,
@@ -237,10 +243,10 @@ function liveSpec(): BoardSpec {
         drop: { hit: "overlap", only: "card", maxTilt: 30, magnet: true },
         setup: { 0: ids.slice(0, 16) },
       },
+      handZone(),
     ],
     seats: { count: { fixed: 2 }, show: "backs", swap: false },
-    hand: { reorder: true },
-    hud: { bottom: { widgets: [{ kind: "hand" }] } },
+    hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } },
     actions: [],
   };
 }
@@ -281,33 +287,4 @@ function LiveStage() {
 
 export const LiveTwoScreens: Story = { render: () => <LiveStage />, parameters: { controls: { disable: true } } };
 
-/** HUD С НЕСКОЛЬКИМИ ВИДЖЕТАМИ: рука делит НИЖНИЙ док с «реакциями» (flex: рука — auto-доля,
- *  реакции — 220px), «профиль» — у ВЕРХНЕГО края (justify:"end"). Виджеты-заглушки — макеты
- *  будущих (кнопки, мешок, дропзона); их отрезки считает чистый hud/hudLayout. */
-function flexHudSpec(): BoardSpec {
-  const base = dockSpec({ pin: "board", side: "bottom", flow: "по краю", handCards: 4, fit: 0 });
-  const hud: HudSpec = {
-    bottom: { widgets: [{ kind: "hand", size: "auto" }, { kind: "placeholder", label: "реакции", size: 220 }] },
-    top: { widgets: [{ kind: "placeholder", label: "профиль", size: 180 }], justify: "end" },
-  };
-  return { ...base, hud };
-}
-
-function FlexHudStage() {
-  const hostRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const scene = new BoardScene({ spec: flexHudSpec(), seats: 1, onCommand: (cmd) => handAction(cmd) });
-    (window as unknown as { __story?: BoardScene }).__story = scene;
-    void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480).then(() => {
-      const hooks = scene.testHooks();
-      const deck = Object.entries(hooks.cards).filter(([, c]) => c.slot === "board:0").map(([id]) => id);
-      for (const id of deck.slice(0, 4)) scene.dispatch({ t: "move", el: id, from: "board:0", to: "hand:p1" });
-    });
-    return () => scene.destroy();
-  }, []);
-  return <div ref={hostRef} style={{ width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" }} />;
-}
-
-export const FlexHud: Story = { render: () => <FlexHudStage />, parameters: { controls: { disable: true } } };
+// HUD с несколькими виджетами, две ленты и живая миграция борд↔HUD — раздел Mechanics/Hud.

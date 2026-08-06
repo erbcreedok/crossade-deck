@@ -1,14 +1,15 @@
 // КРУГЛЫЙ СТОЛ (layout kind "seats"): компоновка мест вокруг центра ОТНОСИТЕЛЬНО зрителя,
 // бокс-борда в центре посадок, руки/оффборд. Чистая геометрия; зоны строит zoneSubtrees.
 
-import { linear, pile } from "../../slot/layouts";
+import { pile } from "../../slot/layouts";
 import { group, leaf, type Size } from "../../slot/types";
 import { CARD } from "../../crossade/tree";
-import { handKey, OFFBOARD_KEY, type BoardState } from "../core/state";
+import { OFFBOARD_KEY, type BoardState } from "../core/state";
 import { seatZoneId, slotKey, type BoardSpec, type ZoneSpec } from "../core/spec";
+import { stripKey, stripZones } from "../strip/config";
 import { membersOf, slotGroup, zoneCell, zoneSubtrees } from "./zoneSubtrees";
-import { handOnBoard } from "../hud/hudLayout";
-import { boardHandRow } from "./handRow";
+import { zoneOnBoard } from "../hud/hudLayout";
+import { boardStripBand } from "./stripBand";
 import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, SEAT_STACK_DX, type BoardTree, type FreePositions, type Placed } from "./treeShared";
 
 /** Кольцо между центром и внешним кругом — не тоньше трёх ширин карты (правило владельца). */
@@ -47,7 +48,7 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
 
   // Борда-бокс (free-зона) в ЦЕНТРЕ стола: посадки раздвигаются, чтобы её не накрывать.
   // Прочие зоны при боксе вкладываются в его центр (как в полосной компоновке), без бокса — колонкой справа.
-  const tableZones = spec.zones.filter((z) => z.layout.kind !== "seats" && !z.perSeat && z.layout.kind !== "chain");
+  const tableZones = spec.zones.filter((z) => z.layout.kind !== "seats" && z.layout.kind !== "strip" && !z.perSeat && z.layout.kind !== "chain");
   const freeZone = tableZones.find((z) => z.layout.kind === "free");
   // Центр меряем ДО бокса: он живой (радиальный круг растёт с числом жителей), а кольцо вокруг него
   // обязано остаться не тоньше трёх карт — значит бокс считается по центру, а не наоборот. Берём
@@ -76,17 +77,22 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
     placed.push({ id: key, origin, slot: slotGroup(key, membersOf(state, key), cell) });
     cellRects[key] = { x: origin.x, y: origin.y, w: cell.w, h: cell.h };
 
-    if (seat.id === selfSeat) return; // своя рука — отдельной строкой снизу
+    if (seat.id === selfSeat) return; // свои ленты — отдельными полосами снизу
+    // Ленты места (рука, мешок…) — рядами рубашек за его слотом, одна под другой, с РЕАЛЬНЫМИ
+    // ключами («hand:p2»): дроп в отпертую чужую ленту — той же дверью, что и всюду.
     const bx = cx + rBack * Math.cos(ang);
-    const by = cy + rBack * Math.sin(ang);
-    const members = membersOf(state, handKey(seat.id));
-    const seatKey = `seat:${seat.id}`;
-    const stripW = Math.max(0, members.length - 1) * SEAT_STACK_DX + backCell.w;
-    placed.push({
-      id: seatKey,
-      origin: { x: bx - stripW / 2, y: by - backCell.h / 2 },
-      slot: group(seatKey, pile({ dx: SEAT_STACK_DX, dy: 0, cell: backCell }), members.map((m) => leaf(m, m, backCell))),
-    });
+    let by = cy + rBack * Math.sin(ang);
+    for (const zone of stripZones(spec)) {
+      const key = stripKey(zone.id, seat.id);
+      const members = membersOf(state, key);
+      const stripW = Math.max(0, members.length - 1) * SEAT_STACK_DX + backCell.w;
+      placed.push({
+        id: key,
+        origin: { x: bx - stripW / 2, y: by - backCell.h / 2 },
+        slot: group(key, pile({ dx: SEAT_STACK_DX, dy: 0, cell: backCell }), members.map((m) => leaf(m, m, backCell))),
+      });
+      by += backCell.h + 4;
+    }
   });
 
   const rightX = MARGIN.x + reach * 2 + GAP.x;
@@ -119,15 +125,17 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
     slot: group(OFFBOARD_KEY, pile({ dx: 0, dy: 26, cell: backCell }), offboard.map((m) => leaf(m, m, backCell))),
   });
 
-  let handBottom = cy + reach;
-  // Рука в дереве — только когда её НЕТ в HUD (hudLayout.handOnBoard); вид — единый стиль дока.
-  if (handOnBoard(spec)) {
-    const hand = boardHandRow(state, selfSeat, cy + reach + GAP.y + 12, rightX + backCell.w + MARGIN.x);
-    placed.push(hand.placed);
-    cellRects[hand.placed.id] = hand.band;
-    handBottom = hand.bottom;
+  let stripsBottom = cy + reach;
+  // Свои ленты в дереве — только те, которых НЕТ в HUD (hudLayout.zoneOnBoard); полосами
+  // одна под другой, вид — единый стиль дока.
+  for (const zone of stripZones(spec)) {
+    if (!zoneOnBoard(spec, zone.id)) continue;
+    const band = boardStripBand(zone, state, selfSeat, stripsBottom + GAP.y + 12, rightX + backCell.w + MARGIN.x);
+    placed.push(band.placed);
+    cellRects[band.placed.id] = band.band;
+    stripsBottom = band.bottom;
   }
 
-  return finish(placed, cellRects, { w: rightX + backCell.w + MARGIN.x, h: handBottom + MARGIN.y });
+  return finish(placed, cellRects, { w: rightX + backCell.w + MARGIN.x, h: stripsBottom + MARGIN.y });
 }
 

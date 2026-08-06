@@ -5,6 +5,7 @@
 import { handOrderAfterDrop } from "../../crossade/handOrder";
 import { faceAfterDrop, insideBox, nextLooseKey } from "./freeDrop";
 import type { Rect, Vec } from "./freeBox";
+import { stripLocks } from "../strip/config";
 import { baseZoneId, slotKey, slotOf, zoneOf, type BoardCommand, type ZoneSpec } from "../core/spec";
 
 export interface DropWorld {
@@ -39,8 +40,8 @@ export interface DropArgs {
   /** Цель dropTarget: группа-слот и индекс вставки (null — мимо всех слотов). */
   target: { slot: string; index: number } | null;
   cp: Vec;
-  myHand: string;
-  handReorder: boolean;
+  /** Место зрителя: чужие ЗАПЕРТЫЕ ленты (locked, дефолт) его дроп не принимают. */
+  selfSeat: string;
   /** Какой стороной карту несли (null — не карта, сторона не пишется). */
   carriedFaceUp: boolean | null;
 }
@@ -54,18 +55,21 @@ const isFree = (w: DropWorld, slot: string): boolean => zoneSpec(w, slot)?.layou
 /** Слот-КОЛОДА free-зоны (слот 0); остальные слоты зоны — свободные стопки. */
 export const isDeckSlot = (w: DropWorld, slot: string): boolean => slotOf(slot) === "0" && isFree(w, slot);
 
-/** Режим внутризонного реордера: из спеки зоны; flow-грид реордерится по умолчанию. */
+/** Режим внутризонного реордера: из спеки зоны; flow-грид и лента реордерятся по умолчанию. */
 export function reorderModeOf(w: DropWorld, slot: string): "insert" | "swap" | null {
   const zone = zoneSpec(w, slot);
   if (!zone) return null;
-  return zone.reorder ?? (zone.layout.kind === "flow" ? "insert" : null);
+  if (zone.reorder === "none") return null;
+  return zone.reorder ?? (zone.layout.kind === "flow" || zone.layout.kind === "strip" ? "insert" : null);
 }
 
-/** SMART REORDER зоны включён? Гэп-превью и «дроп в показанный гэп» — только insert-реордер
- *  с явным preview:true в спеке (opt-in: без флага зона живёт по-старому). Рука — не отсюда:
- *  её превью решает handConfig (дефолт true). */
+/** SMART REORDER зоны включён? Гэп-превью и «дроп в показанный гэп» — только insert-реордер.
+ *  Лента живая ПО УМОЛЧАНИЮ (preview ?? true); прочие зоны — только с явным preview:true
+ *  (opt-in: без флага зона живёт по-старому, дроп в конец). */
 export function insertPreviewOn(w: DropWorld, slot: string): boolean {
-  return zoneSpec(w, slot)?.preview === true && reorderModeOf(w, slot) === "insert";
+  const zone = zoneSpec(w, slot);
+  if (!zone || reorderModeOf(w, slot) !== "insert") return false;
+  return zone.layout.kind === "strip" ? zone.preview ?? true : zone.preview === true;
 }
 
 /** Free-зона, чей бокс (с учётом формы-круга) накрывает точку — фолбэк после dropTarget. */
@@ -133,14 +137,8 @@ function planLoose(w: DropWorld, args: DropArgs, from: string): DropPlan {
 
 /** Главный вход: что значит отпустить `el` в `cp` (без фикс-зон экрана и блок-драга — они у сцены). */
 export function planDrop(w: DropWorld, args: DropArgs): DropPlan {
-  const { el, from, target, cp, myHand } = args;
+  const { el, from, target, cp } = args;
   const to = target?.slot ?? null;
-  if (from === myHand && to === myHand && args.handReorder) {
-    // Реордер руки — та же дверь порта, что и любой ход (сервер получит эту же команду).
-    const members = w.members(myHand);
-    const order = handOrderAfterDrop(members, el, target?.index ?? members.length);
-    return { kind: "command", cmd: { t: "reorderHand", seat: slotOf(myHand), order } };
-  }
   if (from && to === from && reorderModeOf(w, from)) {
     // Дроп внутри реордер-зоны: вставка (индекс-ЩЕЛЬ из dropTarget) или обмен (КЛЕТКА — ближайший
     // житель; индекс вставки тут соврал бы на полклетки).
@@ -151,7 +149,8 @@ export function planDrop(w: DropWorld, args: DropArgs): DropPlan {
         : handOrderAfterDrop(members, el, target?.index ?? members.length);
     return { kind: "command", cmd: { t: "reorderSlot", key: from, order } };
   }
-  if (from && to && to !== from && zoneOf(to) !== "seat") {
+  if (from && to && to !== from && !stripLocks(w, to, args.selfSeat)) {
+    // Чужая ЗАПЕРТАЯ лента дроп не принимает (приватность); отпертая — обычная цель.
     return { kind: "command", cmd: { t: "move", el, from, to, face: faceForMove(w, args, to) } };
   }
   if (from && !to) return planLoose(w, args, from);

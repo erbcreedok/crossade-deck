@@ -156,9 +156,10 @@ export function zoneSubtrees(zone: ZoneSpec, state: BoardState, instanceId = zon
       const w = (keys.length - 1) * (cell.w * 0.72 + linkGap) + cell.w;
       return { placed, size: { w, h: cell.h }, cells };
     }
+    case "strip":
     case "seats":
-      // Круглый стол раскладывает buildBoardTree (нужны ВСЕ места и selfSeat); одиночный
-      // экземпляр сюда не приходит — заглушка ради полноты switch.
+      // Ленты и круглый стол раскладывают КОМПОНОВЩИКИ (им нужны все места и selfSeat:
+      // boardStripBand / buildBoardTree); сюда не приходят — заглушка ради полноты switch.
       return { placed, size: cell, cells };
   }
 }

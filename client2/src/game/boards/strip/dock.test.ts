@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, dockReserved, type DockFrame } from "./handDock";
+import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, dockReserved, type DockFrame } from "./dock";
 
 // Сторож геометрии дока руки: край (side) и ось (flow) — данные; вертикальный док — та же
 // математика со свёрнутыми осями; резерв отдаёт ровно свой край.

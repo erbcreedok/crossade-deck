@@ -2,8 +2,11 @@
 // (px-константа | {fr} доля свободного | "auto" = {fr:1}), порядок — порядок массива, прижим
 // ряда — justify, зазор — gap. Тот же атомарный подход, что у слот-раскладок: математика отдельно,
 // сцена (SceneHud) лишь раздаёт виджетам посчитанные отрезки.
+//
+// ГДЕ живёт зона, решает HUD: виджет {kind:"zone", zone:id} есть → СВОЙ экземпляр зоны в экранном
+// доке; нет — зона на борде. Никакого спецслучая «руки»: любая strip-зона швартуется одинаково.
 
-import type { HudDock, HudSide, HudSize, HudSpec, HudWidget } from "../core/spec";
+import type { BoardSpec, HudDock, HudSide, HudSize, HudSpec } from "../core/spec";
 
 export interface HudSpan {
   from: number;
@@ -44,16 +47,21 @@ export function hudDocks(hud: HudSpec | undefined): { side: HudSide; dock: HudDo
   return sides.flatMap((side) => (hud[side]?.widgets.length ? [{ side, dock: hud[side]! }] : []));
 }
 
-/** Док, в котором живёт виджет kind (первый по порядку сторон), и индекс виджета в нём. */
-export function hudWidgetAt(hud: HudSpec | undefined, kind: HudWidget["kind"]): { side: HudSide; dock: HudDock; index: number } | null {
+/** Док, в котором пришвартована зона (первый по порядку сторон), и индекс её виджета в нём. */
+export function zoneDockAt(hud: HudSpec | undefined, zoneId: string): { side: HudSide; dock: HudDock; index: number } | null {
   for (const { side, dock } of hudDocks(hud)) {
-    const index = dock.widgets.findIndex((w) => w.kind === kind);
+    const index = dock.widgets.findIndex((w) => w.kind === "zone" && w.zone === zoneId);
     if (index >= 0) return { side, dock, index };
   }
   return null;
 }
 
-/** Рука живёт ЗОНОЙ НА БОРДЕ? (нет hand-виджета в HUD — дерево кладёт её вниз борды). */
-export function handOnBoard(spec: { hand?: unknown; hud?: HudSpec }): boolean {
-  return !!spec.hand && hudWidgetAt(spec.hud, "hand") === null;
+/** id всех зон, пришвартованных в HUD (в порядке сторон и виджетов). */
+export function dockedZones(hud: HudSpec | undefined): string[] {
+  return hudDocks(hud).flatMap(({ dock }) => dock.widgets.flatMap((w) => (w.kind === "zone" ? [w.zone] : [])));
+}
+
+/** Зона живёт НА БОРДЕ? (есть в спеке и нет её виджета в HUD — дерево кладёт её на стол). */
+export function zoneOnBoard(spec: Pick<BoardSpec, "zones" | "hud">, zoneId: string): boolean {
+  return spec.zones.some((z) => z.id === zoneId) && zoneDockAt(spec.hud, zoneId) === null;
 }

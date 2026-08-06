@@ -1,6 +1,7 @@
 // ПОКЕР — борд из пяти адресных слотов (флоп/тёрн/ривер ложатся на СВОИ места), банк фишек в
 // центре, у игроков по две карты и стек. Колода 52.
 
+import { handZone } from "./strips";
 import type { BoardSpec, ElementDef } from "../core/spec";
 import { deck52 } from "./decks";
 
@@ -16,9 +17,9 @@ export function pokerBoard(): BoardSpec {
       { id: "pot", title: "банк", layout: { kind: "pile" }, policy: { onOccupied: "merge" } },
       { id: "deck", title: "колода", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ids } },
       { id: "bank", title: "фишки", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: chips.map((c) => c.id) } },
+      handZone(),
     ],
     seats: { count: { min: 2, max: 6 }, show: "chips", swap: true },
-    hand: { reorder: true },
     actions: [
       { id: "deal", label: "раздать по 2", command: { t: "deal", from: "deck", each: 2 } },
       { id: "chips", label: "стеки по 3", command: { t: "deal", from: "bank", each: 3 } },

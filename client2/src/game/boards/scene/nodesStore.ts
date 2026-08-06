@@ -23,12 +23,12 @@ export interface NodesHost {
   faceUpIn(id: string, slot: string): boolean;
   /** Карту ведёт чужой драг-стрим — не трогать её позицию/глубину. */
   remoteDragged(id: string): boolean;
-  // ——— экранная рука (одна нода на карту): та же нода перекладывается на экранный слой ———
-  /** Экранная поза карты руки (центр + масштаб ноды) или null — карта не в экранной руке. */
-  handPose(id: string): { x: number; y: number; scale: number } | null;
-  /** Переложить root ноды на СЛОЙ РУКИ (chrome, экранно-фиксированный, не зумится). */
-  placeHand(node: BoardNode): void;
-  /** Контент↔экран и зум камеры — для непрерывной конверсии на границе борда↔рука. */
+  // ——— доки HUD (одна нода на жителя): та же нода перекладывается на экранный слой ———
+  /** Экранная поза пришвартованного жителя (центр + масштаб) или null — он не в доках HUD. */
+  dockPose(id: string): { x: number; y: number; scale: number } | null;
+  /** Переложить root ноды на слой ДОКОВ HUD (chrome, экранно-фиксированный, не зумится). */
+  placeDocked(node: BoardNode): void;
+  /** Контент↔экран и зум камеры — для непрерывной конверсии на границе борда↔док. */
   toScreen(x: number, y: number): { x: number; y: number };
   toContent(sx: number, sy: number): { x: number; y: number };
   zoom(): number;
@@ -39,7 +39,7 @@ export class SceneNodes {
   private readonly depths = new Map<string, number>();
   /** Пространство КАЖДОЙ ноды сейчас: контент (борда, под камерой) или рука (экран). Смена
    *  пространства = переложить root и КОНВЕРТИРОВАТЬ координаты/масштаб, чтобы полёт был непрерывен. */
-  private readonly space = new Map<string, "content" | "hand">();
+  private readonly space = new Map<string, "content" | "dock">();
 
   constructor(private readonly host: NodesHost) {}
 
@@ -70,7 +70,7 @@ export class SceneNodes {
 
     const place = (id: string, indexInPile: number): void => {
       alive.add(id);
-      const hp = this.host.handPose(id);
+      const hp = this.host.dockPose(id);
       const slot = tree.slotOf(id);
       const home = tree.homeOf(id);
       if (!hp && (!slot || !home)) {
@@ -80,7 +80,7 @@ export class SceneNodes {
       const node = this.nodeFor(id, tex);
       node.root.visible = true;
       if (this.host.remoteDragged(id)) return; // карту ведёт чужой драг-стрим
-      if (hp) this.placeInHand(node, id, hp, indexInPile, snap);
+      if (hp) this.placeInDock(node, id, hp, indexInPile, snap);
       else this.placeOnBoard(node, id, state, slot!, home!, (slotOrder.get(slot!) ?? 0) * 1000 + indexInPile, snap);
     };
 
@@ -96,29 +96,29 @@ export class SceneNodes {
     }
   }
 
-  /** Карта РУКИ: та же нода на экранном слое. Смена пространства борда→рука — с конверсией текущего
+  /** Житель ДОКА: та же нода на экранном слое. Смена пространства борда→док — с конверсией текущего
    *  положения (контент→экран) и масштаба (×zoom), чтобы полёт был непрерывным, а не телепортом. */
-  private placeInHand(node: BoardNode, id: string, hp: { x: number; y: number; scale: number }, order: number, snap: boolean): void {
-    if (this.space.get(id) !== "hand") {
+  private placeInDock(node: BoardNode, id: string, hp: { x: number; y: number; scale: number }, order: number, snap: boolean): void {
+    if (this.space.get(id) !== "dock") {
       if (!snap) {
         const s = this.host.toScreen(node.body.px, node.body.py);
         node.body.snapTo({ x: s.x, y: s.y, scale: node.body.scaleVal * this.host.zoom() });
       }
-      this.host.placeHand(node);
-      this.space.set(id, "hand");
+      this.host.placeDocked(node);
+      this.space.set(id, "dock");
     }
     node.root.zIndex = order;
     this.depths.set(id, order);
-    if (node.kind === "card" && !node.faceUpTarget) node.requestFlip(); // своя рука — лицом владельцу
+    if (node.kind === "card" && !node.faceUpTarget) node.requestFlip(); // свой док — лицом владельцу
     const target = { x: hp.x, y: hp.y, rot: 0, scale: hp.scale };
     if (snap) node.body.snapTo(target);
     else node.body.setTarget(target);
   }
 
-  /** Карта БОРДЫ: нода на контент-слое (под камерой). Смена рука→борда — конверсия экран→контент и
+  /** Житель БОРДЫ: нода на контент-слое (под камерой). Смена док→борда — конверсия экран→контент и
    *  масштаба (÷zoom), тоже непрерывным полётом. */
   private placeOnBoard(node: BoardNode, id: string, state: BoardState, slot: string, home: { x: number; y: number }, depth: number, snap: boolean): void {
-    if (this.space.get(id) === "hand" && !snap) {
+    if (this.space.get(id) === "dock" && !snap) {
       const c = this.host.toContent(node.body.px, node.body.py);
       node.body.snapTo({ x: c.x, y: c.y, scale: node.body.scaleVal / this.host.zoom() });
     }
@@ -135,16 +135,16 @@ export class SceneNodes {
     else node.body.setTarget(target);
   }
 
-  /** ВЖИВУЮ во время драга: переложить ноду в нужное пространство (рука-экран ⇄ борда-контент) с
+  /** ВЖИВУЮ во время драга: переложить ноду в нужное пространство (док-экран ⇄ борда-контент) с
    *  конверсией координат/масштаба. Идемпотентно (действует только на смене) — палец наводится на
-   *  руку → карта на слой руки (сверху), уводит → обратно на борду. Одна нода, непрерывно. */
-  setDragSpace(id: string, space: "content" | "hand"): void {
+   *  док → нода на слой HUD (сверху), уводит → обратно на борду. Одна нода, непрерывно. */
+  setDragSpace(id: string, space: "content" | "dock"): void {
     const node = this.byId.get(id);
     if (!node || this.space.get(id) === space) return;
-    if (space === "hand") {
+    if (space === "dock") {
       const s = this.host.toScreen(node.body.px, node.body.py);
       node.body.snapTo({ x: s.x, y: s.y, scale: node.body.scaleVal * this.host.zoom() });
-      this.host.placeHand(node);
+      this.host.placeDocked(node);
     } else {
       const c = this.host.toContent(node.body.px, node.body.py);
       node.body.snapTo({ x: c.x, y: c.y, scale: node.body.scaleVal / this.host.zoom() });
@@ -153,22 +153,22 @@ export class SceneNodes {
     this.space.set(id, space);
   }
 
-  /** Перецелить карты руки на СВЕЖИЕ позы (гэп-превью раздвинул/сомкнул ряд) — без полного sync.
-   *  Перетаскиваемая не трогается: handPose для неё null (она исключена из раскладки). */
-  retargetHand(): void {
+  /** Перецелить пришвартованные ноды на СВЕЖИЕ позы (гэп-превью раздвинул/сомкнул ряд) — без sync.
+   *  Перетаскиваемый не трогается: dockPose для него null (он исключён из раскладки). */
+  retargetDocked(): void {
     for (const [id, node] of this.byId) {
-      if (this.space.get(id) !== "hand") continue;
-      const hp = this.host.handPose(id);
+      if (this.space.get(id) !== "dock") continue;
+      const hp = this.host.dockPose(id);
       if (hp) node.body.setTarget({ x: hp.x, y: hp.y, rot: 0, scale: hp.scale });
     }
   }
 
   /** Перецелить жителей СЛОТА на свежие дома дерева (гэп-превью раздвинул/сомкнул контейнер).
-   *  Перетаскиваемый исключён из раскладки — его дом null, не трогается. Карты руки-экрана тоже. */
+   *  Перетаскиваемый исключён из раскладки — его дом null, не трогается. Ноды доков HUD тоже. */
   retargetSlot(members: readonly string[], homeOf: (id: string) => { x: number; y: number } | null): void {
     for (const id of members) {
       const node = this.byId.get(id);
-      if (!node || this.space.get(id) === "hand") continue;
+      if (!node || this.space.get(id) === "dock") continue;
       const h = homeOf(id);
       if (h) node.body.setTarget({ x: h.x, y: h.y });
     }

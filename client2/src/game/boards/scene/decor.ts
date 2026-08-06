@@ -9,9 +9,9 @@ import { dashedRectSegments } from "../../ui/dashedRectSegments";
 import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
 import type { BoardTree } from "../geometry/boardTree";
 import { baseZoneId, slotKey, zoneOf, type BoardSpec } from "../core/spec";
-import { handKey } from "../core/state";
-import { handOnBoard } from "../hud/hudLayout";
-import { paintHandBand } from "../hand/handBandPaint";
+import { stripKey, stripZones } from "../strip/config";
+import { zoneOnBoard } from "../hud/hudLayout";
+import { paintStripBand } from "../strip/bandPaint";
 import type { BoardState } from "../core/state";
 
 export interface DecorSceneHost {
@@ -36,15 +36,18 @@ export class SceneDecor {
   sync(): void {
     this.syncSeats();
     this.paintZones();
-    this.paintHandBand();
+    this.paintStripBands();
   }
 
-  /** Лента руки-на-борде в покое (rest) — тем же стилем, что экранный док (handBandPaint).
+  /** Свои ленты-на-борде в покое (rest) — тем же стилем, что экранный док (strip/bandPaint).
    *  Armed/hot во время драга рисует жест поверх (hintLayer). */
-  private paintHandBand(): void {
-    if (!handOnBoard(this.host.spec())) return;
-    const band = this.host.tree().cellRects[handKey(this.host.selfSeat)];
-    if (band) paintHandBand(this.layer, band, "rest", this.host.accent());
+  private paintStripBands(): void {
+    const spec = this.host.spec();
+    for (const zone of stripZones(spec)) {
+      if (!zoneOnBoard(spec, zone.id)) continue;
+      const band = this.host.tree().cellRects[stripKey(zone.id, this.host.selfSeat)];
+      if (band) paintStripBand(this.layer, band, "rest", this.host.accent());
+    }
   }
 
   /** Подписи мест: имя/«свободно», у чьего хода — золотая метка. Свой ход виден у руки. */
@@ -62,8 +65,10 @@ export class SceneDecor {
     const seen = new Set<string>();
     for (const [i, seat] of state.seats.entries()) {
       const isTurn = state.turn.at === i;
-      const key = seat.id === this.host.selfSeat ? `hand:${seat.id}` : `seat:${seat.id}`;
-      // У борды без рук (шахматы) своему месту негде жить в дереве — подпись встаёт в левый низ.
+      // Подпись места — над его ПЕРВОЙ лентой (рукой); у борды без лент (шахматы) своему месту
+      // негде жить в дереве — подпись встаёт в левый низ.
+      const first = stripZones(this.host.spec())[0];
+      const key = first ? stripKey(first.id, seat.id) : "";
       const origin = tree.origins[key] ?? (seat.id === this.host.selfSeat ? { x: 40, y: tree.size.h - 4 } : undefined);
       if (!origin) continue;
       seen.add(seat.id);

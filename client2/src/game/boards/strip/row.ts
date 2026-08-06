@@ -1,12 +1,12 @@
-// ГЕОМЕТРИЯ РУКИ-РЯДА — карты руки, вписанные в ШИРИНУ (экран HUD или док на борде): пока ряд
-// влезает целиком — стоят с гэпом; когда карт больше, чем помещается, уходят в РОВНЫЙ нахлёст и ряд
-// всегда центрируется по ширине. Чистая геометрия (как handRow старого клиента), без Pixi: её
-// одинаково зовёт экранный HandHud и бордовая рука-док. Веер (fan) — отдельная раскладка позже.
+// ГЕОМЕТРИЯ РЯДА ЛЕНТЫ — жители, вписанные в ШИРИНУ (док HUD или полоса на борде): пока ряд
+// влезает целиком — стоят с гэпом; когда жителей больше, чем помещается, уходят в РОВНЫЙ нахлёст и
+// ряд всегда центрируется по ширине. Чистая геометрия (как handRow старого клиента), без Pixi: её
+// одинаково зовут доки HUD и ленты-на-борде. Веер (fan) — отдельная раскладка позже.
 
 import type { Size } from "../../slot/types";
 
-/** Поза карты в руке: x/y — ЦЕНТР карты, rot — наклон (ряд ровный, rot=0). */
-export interface HandPose {
+/** Поза жителя в ряду: x/y — ЦЕНТР, rot — наклон (ряд ровный, rot=0). */
+export interface StripPose {
   x: number;
   y: number;
   rot: number;
@@ -20,7 +20,7 @@ const HAND_W_MAX = 120;
 /** АДАПТИВНЫЙ размер карты руки под экран: ширина — меньшее из «влезает fit штук по ширине» (конфиг
  *  size руки, дефолт 5) и «не выше доли высоты», зажатое в пределы; высота — по аспекту cell. Так на
  *  телефоне (узко-высоко) карты мельчают, на десктопе упираются в потолок. Чистая — без Pixi. */
-export function handCardSize(availWidth: number, screenH: number, cell: Size, fit = 5): Size {
+export function stripCellSize(availWidth: number, screenH: number, cell: Size, fit = 5): Size {
   const aspect = cell.h / cell.w;
   const byWidth = Math.max(1, availWidth) / Math.max(1, fit);
   const byHeight = (screenH * HAND_H_FRAC) / aspect;
@@ -30,16 +30,16 @@ export function handCardSize(availWidth: number, screenH: number, cell: Size, fi
 
 /** Ряд с ФАНТОМ-ГЭПОМ под вставку (груз навис над рукой): count карт занимают count+1 позиций
  *  ряда, позиция gapIndex пустует — карты раздвигаются, показывая, куда ляжет груз. КАНОН: индекс
- *  вставки считается по БАЗОВОМУ ряду (handStrip без гэпа) — подсказка не смеет двигать цель под
+ *  вставки считается по БАЗОВОМУ ряду (stripRow без гэпа) — подсказка не смеет двигать цель под
  *  неподвижным пальцем, иначе индекс осциллирует (урок playHover старого клиента). */
-export function handStripWithGap(count: number, gapIndex: number, cell: Size, width: number, gap = 12): HandPose[] {
+export function stripRowWithGap(count: number, gapIndex: number, cell: Size, width: number, gap = 12): StripPose[] {
   const g = Math.max(0, Math.min(gapIndex, count));
-  return handStrip(count + 1, cell, width, gap).filter((_, i) => i !== g);
+  return stripRow(count + 1, cell, width, gap).filter((_, i) => i !== g);
 }
 
 /** Ряд count карт шириной cell, вписанный в `width`. gap — зазор при свободном ряде. Возвращает
  *  ЦЕНТРЫ карт (y — середина полосы высотой cell.h). Один card — по центру; переполнение — нахлёст. */
-export function handStrip(count: number, cell: Size, width: number, gap = 12): HandPose[] {
+export function stripRow(count: number, cell: Size, width: number, gap = 12): StripPose[] {
   if (count <= 0) return [];
   const spread = cell.w + gap; // шаг между центрами в свободном ряду
   const full = cell.w + (count - 1) * spread; // ширина ряда без нахлёста

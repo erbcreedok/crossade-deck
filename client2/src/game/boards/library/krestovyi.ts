@@ -2,6 +2,7 @@
 // динамические места, раздача всей колоды «дилеру последним — и меньше». Правила отбоя
 // (6 бьётся 8, взял — круг не закрыт) живут в головах игроков, борда даёт честный стол.
 
+import { handZone } from "./strips";
 import type { BoardSpec } from "../core/spec";
 import { deck36 } from "./decks";
 
@@ -17,9 +18,9 @@ export function krestovyiBoard(): BoardSpec {
       { id: "chain", title: "цепочка", layout: { kind: "chain" }, policy: { onOccupied: "merge" } },
       { id: "discard", title: "сброс", layout: { kind: "pile" }, policy: { onOccupied: "merge" } },
       { id: "deck", title: "колода", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ids } },
+      handZone(),
     ],
     seats: { count: { min: 2, max: 8 }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [
       { id: "deal", label: "раздать", command: { t: "deal", from: "deck", each: "all-even-dealer-last" } },
       { id: "shuffle", label: "перетасовать", command: { t: "shuffle", zone: "deck" } },

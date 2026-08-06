@@ -1,15 +1,15 @@
-// ДОК РУКИ У КРАЯ ЭКРАНА — чистая геометрия (без Pixi): куда пришвартована полоса (side), вдоль
-// какой оси течёт ряд (flow: линия или сетка), какого размера карта (size: адаптив-fit или ячейка
-// дизайнера) и где чьи центры. HandHud (сцена) лишь рисует и перекладывает ноды по этим числам.
+// ДОК ЛЕНТЫ У КРАЯ ЭКРАНА — чистая геометрия (без Pixi): куда пришвартована полоса (side), вдоль
+// какой оси течёт ряд (flow: линия или сетка), какого размера ячейка (size: адаптив-fit или ячейка
+// дизайнера) и где чьи центры. SceneZoneDock (сцена) лишь рисует и перекладывает ноды по числам.
 //
 // Оси: main — вдоль края (x у top/bottom, y у left/right), cross — поперёк, ОТ края вглубь экрана.
 // Сетка (grid) растёт вглубь рядами: ряд 0 у края, следующие — внутрь; линия — сетка из одного
-// ряда с нахлёстом при переполнении (handStrip). Явный flow поперёк края (bottom+vertical) не
+// ряда с нахлёстом при переполнении (stripRow). Явный flow поперёк края (bottom+vertical) не
 // роняет док: ряд идёт по своей оси, по поперечной встаёт в центр экрана.
 
 import type { Size } from "../../slot/types";
 import type { HandFlow, HudSide } from "../core/spec";
-import { handCardSize, handStrip, type HandPose } from "./handStrip";
+import { stripCellSize, stripRow, type StripPose } from "./row";
 
 const SIDE = 16; // поля дока от краёв экрана вдоль ряда
 const GAP = 12; // зазор карт в свободном ряду и «дыхание» полосы-дропзоны
@@ -55,8 +55,8 @@ const vertical = (f: DockFrame): boolean => {
  *  не толще доли экрана. Вертикальный ряд — та же формула со свёрнутыми осями (swap туда-обратно). */
 export function dockCell(f: DockFrame): Size {
   if ("cell" in f.size) return f.size.cell;
-  if (!vertical(f)) return handCardSize(f.w - SIDE * 2, f.h, f.card, f.size.fit);
-  return swap(handCardSize(f.h - f.insetTop - f.insetBottom - PAD * 2, f.w, swap(f.card), f.size.fit));
+  if (!vertical(f)) return stripCellSize(f.w - SIDE * 2, f.h, f.card, f.size.fit);
+  return swap(stripCellSize(f.h - f.insetTop - f.insetBottom - PAD * 2, f.w, swap(f.card), f.size.fit));
 }
 
 /** Диапазон ряда вдоль main-оси (от края до края минус поля/хром). */
@@ -77,14 +77,14 @@ function crossBase(f: DockFrame, cell: Size): { at: number; dir: 1 | -1 } {
 }
 
 /** Позиции n жителей в осях дока: main + номер ряда (row-major — порядок руки читается вдоль
- *  края, ряд за рядом). Линия — один ряд (нахлёст при переполнении, handStrip); сетка — без
+ *  края, ряд за рядом). Линия — один ряд (нахлёст при переполнении, stripRow); сетка — без
  *  нахлёста, колонки по длине края, ряды вглубь. */
 function positionsOf(f: DockFrame, n: number): { main: number; row: number }[] {
   const cell = dockCell(f);
   const m = vertical(f) ? swap(cell) : cell;
   const r = mainRange(f);
   const len = Math.max(m.w, r.to - r.from);
-  if (f.flow !== "grid") return handStrip(n, m, len, GAP).map((p: HandPose) => ({ main: p.x, row: 0 }));
+  if (f.flow !== "grid") return stripRow(n, m, len, GAP).map((p: StripPose) => ({ main: p.x, row: 0 }));
   const cols = Math.max(1, Math.floor((len + GAP) / (m.w + GAP)));
   const block = Math.min(n, cols) * (m.w + GAP) - GAP; // ширина блока колонок, центрируем по краю
   const left = (len - block) / 2 + m.w / 2;

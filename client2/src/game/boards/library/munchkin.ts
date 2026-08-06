@@ -1,6 +1,7 @@
 // МАНЧКИН — две колоды (двери/сокровища) + общий сброс + фишки уровней в банке: игрок сам
 // берёт себе уровень (или «помогает» соседу — мок не запрещает, как и сама игра местами).
 
+import { handZone } from "./strips";
 import type { BoardSpec, ElementDef } from "../core/spec";
 import { deck36 } from "./decks";
 
@@ -21,9 +22,9 @@ export function munchkinBoard(): BoardSpec {
       // «Шмотки» — зона У КАЖДОГО МЕСТА (perSeat): свой мини-грид на игрока, виден всем.
       { id: "gear", title: "шмотки", layout: { kind: "grid", cols: 3, rows: 1 }, cell: { w: 48, h: 68 },
         policy: { onOccupied: "merge" }, perSeat: true },
+      handZone(),
     ],
     seats: { count: { min: 2, max: 6 }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [
       { id: "deal", label: "раздать 4+4", command: { t: "deal", from: "doors", each: 4 } },
       { id: "dealT", label: "сокровища по 4", command: { t: "deal", from: "treasures", each: 4 } },

@@ -11,8 +11,8 @@ import { roundTableBoard } from "../boards/library/roundTable";
 // стол не раздувался от каждой карты. Пресет — рычаг билдера, так что в меню он попадёт настройкой,
 // а не переписыванием песочницы.
 export function sandboxBoard(settings: SandboxSettings = DEFAULT_SANDBOX_SETTINGS): BoardSpec {
-  // Рука песочницы — в ЭКРАННОМ HUD (док у низа): фикс к камере, во всю ширину, вне борды
-  // (handHud.ts). До драга руки↔борды (шаг 3) она пуста, но HUD уже на месте.
+  // Рука песочницы («hand» — обычная strip-зона из roundTableBoard) — в ЭКРАННОМ HUD: док у
+  // низа, фикс к камере, во всю ширину (scene/zoneDock.ts).
   const base = roundTableBoard({ ...settings, dealt: 0, ring: "capped" });
-  return { ...base, id: "sandbox", hand: { reorder: true }, hud: { bottom: { widgets: [{ kind: "hand" }] } } };
+  return { ...base, id: "sandbox", hud: { bottom: { widgets: [{ kind: "zone", zone: "hand" }] } } };
 }

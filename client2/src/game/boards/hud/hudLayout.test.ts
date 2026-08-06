@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { handOnBoard, hudDocks, hudSpans, hudWidgetAt } from "./hudLayout";
-import type { HudSpec } from "../core/spec";
+import { dockedZones, hudDocks, hudSpans, zoneDockAt, zoneOnBoard } from "./hudLayout";
+import type { HudSpec, ZoneSpec } from "../core/spec";
 
 // Сторож flex-раскладки HUD: порядок — порядок массива, px-константы держатся, доли делят
-// свободное, justify прижимает ряд; где живёт рука — решает hudLayout, не рука.
+// свободное, justify прижимает ряд; где живёт зона — решает hudLayout (виджет kind:"zone"),
+// не сама зона.
 
 describe("hudSpans — flex-ряд дока как данные", () => {
   it("auto-доля забирает всё свободное рядом с px-константой", () => {
-    const [hand, panel] = hudSpans(1000, { widgets: [{ kind: "hand", size: "auto" }, { kind: "placeholder", size: 220 }], gap: 10 });
+    const [hand, panel] = hudSpans(1000, { widgets: [{ kind: "zone", zone: "hand", size: "auto" }, { kind: "placeholder", size: 220 }], gap: 10 });
     expect(hand!.from).toBe(0);
     expect(hand!.len).toBe(1000 - 220 - 10);
     expect(panel!.from).toBe(hand!.len + 10);
@@ -28,24 +29,32 @@ describe("hudSpans — flex-ряд дока как данные", () => {
   });
 
   it("переполнение констант не роняет ряд: доли ужимаются в ноль, from не уходит в минус", () => {
-    const spans = hudSpans(100, { widgets: [{ kind: "placeholder", size: 300 }, { kind: "hand", size: "auto" }], gap: 10 });
+    const spans = hudSpans(100, { widgets: [{ kind: "placeholder", size: 300 }, { kind: "zone", zone: "hand", size: "auto" }], gap: 10 });
     expect(spans[1]!.len).toBe(0);
     expect(spans[0]!.from).toBe(0);
   });
 });
 
-describe("hud-помощники: где рука", () => {
-  const hud: HudSpec = { bottom: { widgets: [{ kind: "placeholder" }, { kind: "hand" }] }, top: { widgets: [{ kind: "placeholder" }] } };
+describe("hud-помощники: где живут зоны", () => {
+  const hud: HudSpec = {
+    bottom: { widgets: [{ kind: "placeholder" }, { kind: "zone", zone: "hand" }] },
+    top: { widgets: [{ kind: "zone", zone: "pouch" }] },
+  };
+  const strip = (id: string): ZoneSpec => ({ id, title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" } });
+  const zones = [strip("hand"), strip("pouch"), strip("extra")];
 
-  it("hudWidgetAt находит руку с её краем и позицией в доке", () => {
-    expect(hudWidgetAt(hud, "hand")).toMatchObject({ side: "bottom", index: 1 });
-    expect(hudWidgetAt({}, "hand")).toBeNull();
+  it("zoneDockAt находит док зоны с её краем и позицией; dockedZones перечисляет все", () => {
+    expect(zoneDockAt(hud, "hand")).toMatchObject({ side: "bottom", index: 1 });
+    expect(zoneDockAt(hud, "extra")).toBeNull();
+    expect(zoneDockAt({}, "hand")).toBeNull();
+    expect(dockedZones(hud)).toEqual(["pouch", "hand"]); // порядок сторон: top раньше bottom
   });
 
-  it("handOnBoard: рука на борде ТОЛЬКО когда её нет в HUD", () => {
-    expect(handOnBoard({ hand: { reorder: true }, hud })).toBe(false);
-    expect(handOnBoard({ hand: { reorder: true } })).toBe(true);
-    expect(handOnBoard({})).toBe(false); // рук нет вовсе
+  it("zoneOnBoard: зона на борде ТОЛЬКО когда её нет в HUD; чужой id — не на борде вовсе", () => {
+    expect(zoneOnBoard({ zones, hud }, "hand")).toBe(false);
+    expect(zoneOnBoard({ zones, hud }, "extra")).toBe(true);
+    expect(zoneOnBoard({ zones }, "hand")).toBe(true);
+    expect(zoneOnBoard({ zones }, "нетакой")).toBe(false);
   });
 
   it("hudDocks отдаёт только непустые доки", () => {

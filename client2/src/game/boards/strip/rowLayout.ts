@@ -1,16 +1,16 @@
-// РАСКЛАДКА РУКИ-НА-БОРДЕ как Layout слот-дерева: тот же центрированный ряд handStrip, что у
-// экранного дока (свободный ряд → ровный нахлёст при переполнении), но живущий В ДЕРЕВЕ — им
-// пользуются деревья борд для hand-группы. Благодаря контракту Layout рука бесплатно получает
+// РАСКЛАДКА ЛЕНТЫ-НА-БОРДЕ как Layout слот-дерева: тот же центрированный ряд stripRow, что у
+// дока HUD (свободный ряд → ровный нахлёст при переполнении), но живущий В ДЕРЕВЕ — им
+// пользуются деревья борд для strip-групп. Благодаря контракту Layout лента бесплатно получает
 // весь конвейер дерева: homeOf, dropTarget.indexAt и гэп-превью placeGapped (group.gap).
 
 import type { Layout, Size, Vec } from "../../slot/types";
-import { handStrip } from "./handStrip";
+import { stripRow } from "./row";
 
 /** Ряд руки шириной `width` (борда минус поля): карты центрированы, при переполнении — нахлёст.
  *  Пустая рука держит бокс высотой fallback-ячейки — дропзона не схлопывается в ноль. */
-export function handRowLayout(width: number, cell: Size, gap = 12): Layout {
+export function stripRowLayout(width: number, cell: Size, gap = 12): Layout {
   const poses = (sizes: Size[]): Vec[] =>
-    handStrip(sizes.length, sizes[0] ?? cell, width, gap).map((p) => ({ x: p.x, y: p.y }));
+    stripRow(sizes.length, sizes[0] ?? cell, width, gap).map((p) => ({ x: p.x, y: p.y }));
   return {
     place(sizes) {
       const c = sizes[0] ?? cell;

@@ -21,10 +21,7 @@ import { SceneNodes } from "./nodesStore";
 import { ScenePresence } from "./scenePresence";
 import { SceneGesture } from "./gesture";
 import { SceneGapPreview } from "./gapPreview";
-import { SceneHandHud } from "./handHud";
 import { SceneHud } from "./hud";
-import { handConfig } from "../hand/handConfig";
-import { handKey } from "../core/state";
 import { boardWorld, isDeckSlot, type DropWorld } from "../geometry/dropPlan";
 import { faceUpInSlot } from "../core/faceUp";
 import { menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
@@ -55,7 +52,6 @@ export interface BoardParts {
   menuOwner: SceneMenu;
   decor: SceneDecor;
   gesture: SceneGesture;
-  handHud: SceneHandHud;
 }
 
 export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): BoardParts {
@@ -65,7 +61,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     boardWorld({ zones: ctx.spec().zones, cellRects: ctx.tree().cellRects, slots: ctx.state().field.slots, homeOf: (id) => ctx.tree().homeOf(id) });
   /** Акцент сцены: в live — ЦВЕТ ЭТОГО игрока (профиль, курсор, подсветки), иначе золото. */
   const accent = (): number => (opts.presence ? opts.presence.palette(opts.presence.who) : COLORS.gold);
-  const faceUpIn = (id: string, slot: string): boolean => faceUpInSlot({ def: ctx.def(id), zones: ctx.spec().zones, slot, handHidden: handConfig(ctx.spec().hand)?.hidden });
+  const faceUpIn = (id: string, slot: string): boolean => faceUpInSlot({ def: ctx.def(id), zones: ctx.spec().zones, slot, selfSeat: ctx.selfSeat });
   const menuTarget = (cp: { x: number; y: number }): MenuTargetKind | null =>
     opts.menus ? menuTargetAt(ctx.spec().zones, ctx.tree().cellRects, cp) : null;
 
@@ -77,18 +73,17 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
 
   const api = ctx.api;
 
-  // Рука-виджет HUD — РАСКЛАДКА и слой; сами карты руки — те же узлы nodeStore, их root
-  // перекладывается на её слой. Строится ДО nodeStore: тот спрашивает у неё позы. Куда рука
-  // пришвартована, решает SceneHud (доки-виджеты из spec.hud).
-  const handHud = new SceneHandHud({
-    config: () => handConfig(ctx.spec().hand),
-    members: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
+  // HUD — владелец доков зон (виджеты kind:"zone" из spec.hud): раскладка и слои; ноды
+  // пришвартованных зон — те же узлы nodeStore, их root перекладывается на его cardLayer.
+  // Строится ДО nodeStore: тот спрашивает у него позы.
+  const hud = new SceneHud({
+    spec: () => ctx.spec(),
     accent,
     wake: () => api.wake(),
-    retarget: () => nodeStore.retargetHand(), // лениво: nodeStore ниже, зовётся после сборки
+    selfSeat: ctx.selfSeat,
+    members,
+    retarget: () => nodeStore.retargetDocked(), // лениво: nodeStore ниже, зовётся после сборки
   });
-
-  const hud = new SceneHud({ spec: () => ctx.spec(), accent, wake: () => api.wake() }, handHud);
 
   const nodeStore = new SceneNodes({
     def: (id) => ctx.def(id),
@@ -99,8 +94,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     placeCard: (node) => api.placeCard(node),
     faceUpIn,
     remoteDragged: (id) => presence.hasRemote(id),
-    handPose: (id) => handHud.poseOf(id),
-    placeHand: (node) => handHud.root.addChild(node.root),
+    dockPose: (id) => hud.poseOf(id),
+    placeDocked: (node) => hud.cardLayer.addChild(node.root),
     toScreen: (x, y) => api.contentToScreen(x, y),
     toContent: (sx, sy) => api.screenToContent(sx, sy),
     zoom: () => api.viewport().zoom || 1,
@@ -175,11 +170,9 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     },
   });
 
-  // Smart reorder контейнеров борды: гэп-превью вставки (рука-на-борде, flow с preview:true).
+  // Smart reorder контейнеров борды: гэп-превью вставки (ленты — по дефолту, flow с preview:true).
   const gapPreview = new SceneGapPreview({
     world,
-    hand: () => handConfig(ctx.spec().hand),
-    selfSeat: ctx.selfSeat,
     retargetSlot: (slot) => nodeStore.retargetSlot(ctx.state().field.slots[slot]?.members ?? [], (id) => ctx.tree().homeOf(id)),
     dispatch: (cmd) => ctx.dispatch(cmd),
     wake: () => api.wake(),
@@ -208,11 +201,10 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     blockDrag,
     menu: menuOwner,
     presenceOwner: presence,
-    handHud,
-    handMembers: () => ctx.state().field.slots[handKey(ctx.selfSeat)]?.members ?? [],
+    hud,
     setDragSpace: (id, space) => nodeStore.setDragSpace(id, space),
     gapPreview,
   });
 
-  return { hud, nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture, handHud };
+  return { hud, nodeStore, presence, blockDrag, deckActions, chromeHud, menuOwner, decor, gesture };
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { BoardScene } from "./game/boards/scene/scene";
 import { deck36 } from "./game/boards/library/decks";
 import type { BoardSpec } from "./game/boards/core/spec";
+import { handZone } from "./game/boards/library/strips";
 import { useReducedMotion } from "./useReducedMotion";
 
 // «Простенькая песочница» /table — теперь ОБЫЧНАЯ борда (никакого своего движка): колода, стол
@@ -17,9 +18,9 @@ function tableSpec(): BoardSpec {
       { id: "deck", title: "колода", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ids } },
       { id: "play", title: "стол", layout: { kind: "flow", cols: { min: 3, max: 5 }, center: true }, policy: { onOccupied: "merge" }, frame: "dashed" },
       { id: "discard", title: "сброс", layout: { kind: "pile" }, policy: { onOccupied: "merge" } },
+      handZone(),
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
-    hand: { reorder: true },
     actions: [],
   };
 }

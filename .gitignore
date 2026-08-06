@@ -5,6 +5,7 @@ build/
 # Локальные данные и настройки — не для коммита
 server/data/
 client/.env.local
+client2/.env.local
 .claude/settings.local.json
 
 # ОС/редакторы

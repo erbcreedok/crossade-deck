@@ -6,10 +6,10 @@ import { test, expect, type Page } from "@playwright/test";
 // Дев-хук `__sandbox` — идиома канваса (см. e2e/catalog/engine.spec.ts): DOM-узлов у сцены нет.
 
 interface SandboxLike {
-  handHud: {
-    screenPoses(): { id: string; x: number; y: number }[];
-    insertIndexAt(x: number, y: number): number;
-    root: unknown;
+  hud: {
+    screenPoses(): { zone: string; id: string; x: number; y: number }[];
+    list(): { insertIndexAt(x: number, y: number): number }[];
+    cardLayer: unknown;
   };
   rt: { api: { byId: Map<string, { faceUp: boolean; root: { parent: unknown }; body: { px: number; py: number } }>; contentToScreen(x: number, y: number): { x: number; y: number } } };
   testHooks(): { cards: Record<string, { slot: string | null }> };
@@ -33,7 +33,7 @@ const deal = (page: Page, n: number): Promise<void> =>
   }, n);
 
 const poses = (page: Page): Promise<{ id: string; x: number; y: number }[]> =>
-  page.evaluate(() => window.__sandbox!.handHud.screenPoses().map((p) => ({ id: p.id, x: Math.round(p.x), y: Math.round(p.y) })));
+  page.evaluate(() => window.__sandbox!.hud.screenPoses().map((p) => ({ id: p.id, x: Math.round(p.x), y: Math.round(p.y) })));
 
 /** Экранная точка верхней карты колоды (лидер будущего драга). */
 const deckTop = (page: Page): Promise<{ id: string; x: number; y: number }> =>
@@ -61,7 +61,7 @@ test.describe("рука-док", () => {
     await deal(page, 3);
     await page.waitForTimeout(900);
     const faces = await page.evaluate(() =>
-      window.__sandbox!.handHud.screenPoses().map((p) => window.__sandbox!.rt.api.byId.get(p.id)!.faceUp),
+      window.__sandbox!.hud.screenPoses().map((p) => window.__sandbox!.rt.api.byId.get(p.id)!.faceUp),
     );
     expect(faces).toEqual([true, true, true]);
   });
@@ -83,16 +83,16 @@ test.describe("рука-док", () => {
     expect(spread.map((p) => p.x)).not.toEqual(base.map((p) => p.x)); // ряд раздвинулся
     // Устойчивость цели (канон playHover): микродрожь пальца не шатает индекс вставки.
     const jitter = await page.evaluate(
-      ([x, y]) => [window.__sandbox!.handHud.insertIndexAt(x! - 3, y!), window.__sandbox!.handHud.insertIndexAt(x!, y!), window.__sandbox!.handHud.insertIndexAt(x! + 3, y!)],
+      ([x, y]) => { const d = window.__sandbox!.hud.list()[0]!; return [d.insertIndexAt(x! - 3, y!), d.insertIndexAt(x!, y!), d.insertIndexAt(x! + 3, y!)]; },
       [gapX, bandY],
     );
     expect(new Set(jitter).size).toBe(1);
     // Живой реперент: груз над рукой лежит на СЛОЕ РУКИ (одна нода, поверх своих).
     const layer = await page.evaluate((id) => {
       const s = window.__sandbox!;
-      return s.rt.api.byId.get(id)!.root.parent === s.handHud.root ? "hand" : "content";
+      return s.rt.api.byId.get(id)!.root.parent === s.hud.cardLayer ? "dock" : "content";
     }, top.id);
-    expect(layer).toBe("hand");
+    expect(layer).toBe("dock");
 
     await page.mouse.up();
     await page.waitForTimeout(900);

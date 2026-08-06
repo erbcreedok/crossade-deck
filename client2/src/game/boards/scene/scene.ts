@@ -17,7 +17,6 @@ import type { SceneDecor } from "./decor";
 import type { SceneNodes } from "./nodesStore";
 import { buildBoardParts } from "./parts";
 import type { SceneGesture } from "./gesture";
-import type { SceneHandHud } from "./handHud";
 import type { SceneHud } from "./hud";
 import { boardHooks, type BoardHooks } from "./hooks";
 import { ACTION_BAR_H } from "./chrome";
@@ -60,9 +59,9 @@ export class BoardScene implements SceneDelegate {
   private readonly presence: ScenePresence;
   /** Жест над бордой целиком — свой владелец (gesture.ts): подсветка, фикс-зоны, план дропа. */
   private readonly gesture: SceneGesture;
-  /** Экранный HUD (доки-виджеты, фикс к камере) — свой владелец; рука — один из его виджетов. */
-  private readonly hud: SceneHud;
-  private readonly handHud: SceneHandHud;
+  /** Экранный HUD (доки-виджеты, фикс к камере) — свой владелец; доки зон — его виджеты.
+   *  Публичен как дев-хук стори/e2e (screenPoses, list().insertIndexAt): у канваса нет DOM. */
+  readonly hud: SceneHud;
 
 
   constructor(private readonly opts: BoardSceneOptions) {
@@ -96,7 +95,6 @@ export class BoardScene implements SceneDelegate {
     this.decor = parts.decor;
     this.gesture = parts.gesture;
     this.hud = parts.hud;
-    this.handHud = parts.handHud;
   }
 
   // ——— хост-API (тонкие двери в рантайм): интерфейс хостов не изменился ———
@@ -262,9 +260,9 @@ export class BoardScene implements SceneDelegate {
     return this.gesture.begin(el, cp, sp);
   }
 
-  /** Карта ЭКРАННОЙ руки под точкой: её ЖЕ нода (nodeStore) — лидер драга (одна нода на карту). */
+  /** Житель ДОКА HUD под точкой: его ЖЕ нода (nodeStore) — лидер драга (одна нода на жителя). */
   pickHandCard(sx: number, sy: number): SceneElement | null {
-    const id = this.handHud.pickAt(sx, sy);
+    const id = this.hud.pickAt(sx, sy);
     return id ? this.nodeStore.get(id) ?? null : null;
   }
 
@@ -285,13 +283,13 @@ export class BoardScene implements SceneDelegate {
 
   /** Дев-хук для стори/e2e — экранная геометрия и состояние (hooks.ts). */
   testHooks(): BoardHooks {
-    return boardHooks(this.state, this.tree, this.nodeStore.all(), (x, y) => this.api.contentToScreen(x, y), this.handHud.screenPoses());
+    return boardHooks(this.state, this.tree, this.nodeStore.all(), (x, y) => this.api.contentToScreen(x, y), this.hud.screenPoses());
   }
 
   onTeardown(_app: Application): void {
     this.menuOwner.destroy();
     this.gesture.destroy();
-    this.hud.destroy(); // включая слой руки-виджета
+    this.hud.destroy(); // включая доки зон и их слой
     this.presence.destroy();
     this.decor.destroy();
     this.nodeStore.destroy();

@@ -1,3 +1,4 @@
+import { handZone } from "./strips";
 import type { BoardSpec, ZoneLayoutSpec, ZoneSpec } from "../core/spec";
 import { CARD } from "../../crossade/tree";
 import { ringPresetOf, type RingPreset, type RingPresetName } from "./ringPresets";
@@ -118,9 +119,9 @@ export function roundTableBoard(opts: RoundTableOpts = {}): BoardSpec {
         shape: o.shape === "circle" ? "circle" : undefined,
         policy: { onOccupied: "reject" },
       },
+      handZone(),
     ],
     seats: { count: { fixed: Math.max(1, o.seats) }, show: "backs", swap: true },
-    hand: { reorder: true },
     actions: [],
   };
 }
