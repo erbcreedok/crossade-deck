@@ -28,6 +28,8 @@ export interface DockFrame {
   size: { fit: number } | { cell: Size };
   /** Эталонный габарит карты (аспект) — адаптивный размер держит его пропорции. */
   card: Size;
+  /** ДОП. ОТСТУП полосы от СВОЕГО края (safe-zone сцены + inset дока из спеки). Дефолт 0. */
+  edge?: number;
 }
 
 /** Экранная поза карты дока: центр + масштаб ноды (по высоте карты). */
@@ -64,15 +66,17 @@ function mainRange(f: DockFrame): { from: number; to: number } {
   return vertical(f) ? { from: f.insetTop + PAD, to: f.h - f.insetBottom - PAD } : { from: SIDE, to: f.w - SIDE };
 }
 
-/** Центр РЯДА 0 (у края) по cross-оси и направление роста рядов — ОТ края вглубь экрана. */
+/** Центр РЯДА 0 (у края) по cross-оси и направление роста рядов — ОТ края вглубь экрана.
+ *  edge (safe-zone + inset дока) отодвигает ряд 0 от СВОЕГО края. */
 function crossBase(f: DockFrame, cell: Size): { at: number; dir: 1 | -1 } {
+  const e = f.edge ?? 0;
   if (vertical(f)) {
-    if (f.side === "left") return { at: SIDE + cell.w / 2, dir: 1 };
-    if (f.side === "right") return { at: f.w - SIDE - cell.w / 2, dir: -1 };
+    if (f.side === "left") return { at: SIDE + e + cell.w / 2, dir: 1 };
+    if (f.side === "right") return { at: f.w - SIDE - e - cell.w / 2, dir: -1 };
     return { at: f.w / 2, dir: 1 }; // ось поперёк края: колонка в центре
   }
-  if (f.side === "top") return { at: f.insetTop + PAD + cell.h / 2, dir: 1 };
-  if (f.side === "bottom") return { at: f.h - f.insetBottom - PAD - cell.h / 2, dir: -1 };
+  if (f.side === "top") return { at: f.insetTop + e + PAD + cell.h / 2, dir: 1 };
+  if (f.side === "bottom") return { at: f.h - f.insetBottom - e - PAD - cell.h / 2, dir: -1 };
   return { at: f.h / 2, dir: 1 };
 }
 
@@ -157,14 +161,15 @@ export function dockDragPose(f: DockFrame, p: { x: number; y: number }): DockPos
 }
 
 /** Сколько экрана резервирует док у СВОЕГО края — стол вписывается в остаток (fitZoom). Полоса
- *  низа включает хром низа (полоса действий живёт под рукой), остальные края — только себя. */
+ *  низа включает хром низа (полоса действий живёт под рукой); edge (safe+inset) — у всех краёв. */
 export function dockReserved(f: DockFrame, count: number): { top: number; bottom: number; left: number; right: number } {
   const cell = dockCell(f);
   const cSize = vertical(f) ? cell.w : cell.h;
   const depth = rowsOf(f, count) * (cSize + GAP) - GAP;
+  const e = f.edge ?? 0;
   const r = { top: 0, bottom: 0, left: 0, right: 0 };
-  if (f.side === "bottom") r.bottom = depth + PAD + f.insetBottom;
-  else if (f.side === "top") r.top = depth + PAD * 2;
-  else r[f.side] = depth + SIDE * 2;
+  if (f.side === "bottom") r.bottom = depth + PAD + f.insetBottom + e;
+  else if (f.side === "top") r.top = depth + PAD * 2 + e;
+  else r[f.side] = depth + SIDE * 2 + e;
   return r;
 }

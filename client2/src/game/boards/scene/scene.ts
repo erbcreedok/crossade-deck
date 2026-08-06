@@ -19,11 +19,10 @@ import { buildBoardParts } from "./parts";
 import type { SceneGesture } from "./gesture";
 import type { SceneHud } from "./hud";
 import { boardHooks, type BoardHooks } from "./hooks";
-import { ACTION_BAR_H } from "./chrome";
 import { fitZoom } from "../../engine/fitBoard";
 import { focusTargetIn, menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
 import { migrateState } from "../core/migrate";
-import type { BoardSceneOptions } from "./options";
+import { NO_SAFE_AREA, type BoardSceneOptions, type SafeArea } from "./options";
 
 // СЦЕНА БОРДЫ — ОДНА, generic (BOARDS-DESIGN §4): конкретная борда — данные BoardSpec, не
 // подкласс. Доктрина сцен проекта: снимок состояния — единственная правда, ход уходит в ПОРТ
@@ -49,6 +48,8 @@ export class BoardScene implements SceneDelegate {
   private driver: BoardDriver;
   private state: BoardState;
   private tree: BoardTree;
+  /** Safe-zone приложения (рычаг движка): чёлки/индикаторы устройства — от хоста, не от платформы. */
+  private safe: SafeArea;
 
   // Экранный HUD, меню, декор, блок-драг и действия колоды — коллабораторы (композиция).
   private readonly chromeHud: SceneChrome;
@@ -69,6 +70,7 @@ export class BoardScene implements SceneDelegate {
     this.rt.attach(this);
     this.api = this.rt.api;
     this.spec = opts.spec;
+    this.safe = opts.safeArea ?? NO_SAFE_AREA;
     this.defs = elementById(opts.spec);
     this.selfSeat = opts.selfSeat ?? "p1";
     this.driver = opts.driver ?? localDriver(opts.spec, opts.seats, opts.occupants);
@@ -84,6 +86,7 @@ export class BoardScene implements SceneDelegate {
         def: (id) => this.defs.get(id),
         tex: () => this.tex,
         selfSeat: this.selfSeat,
+        safeArea: () => this.safe,
         dispatch: (cmd) => this.dispatch(cmd),
       },
       opts,
@@ -121,6 +124,14 @@ export class BoardScene implements SceneDelegate {
   hasContextAt(cp: { x: number; y: number }): boolean { return this.menuTarget(cp) !== null; }
 
   openContextMenu(cp: { x: number; y: number }, sp: { x: number; y: number }): void { this.menuOwner.openAt(cp, sp); }
+
+  /** Живой рычаг safe-zone: хост читает env(safe-area-inset-*)/API платформы и кормит сюда
+   *  (в т.ч. на поворот экрана). HUD-доки отъезжают от полей, стол вписывается в остаток. */
+  setSafeArea(safe: SafeArea): void {
+    this.safe = safe;
+    this.fitBoard();
+    this.rebuildBoard(false);
+  }
 
   /** Сменить СПЕКУ, не трогая драйвер (live: настройки и мигрированный снимок раздаёт комната —
    *  сцена лишь пересобирает геометрию; свежий снимок приедет обычным onState следом). */
@@ -193,8 +204,8 @@ export class BoardScene implements SceneDelegate {
 
   private fitBoard(): void {
     this.api.syncVp();
-    const r = this.hud.reserved(this.api.width(), this.api.height()); // доки HUD у любых краёв
-    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: ACTION_BAR_H + r.top, insetBottom: r.bottom, insetLeft: r.left, insetRight: r.right, size: this.tree.size };
+    const r = this.hud.reserved(this.api.width(), this.api.height()); // доки HUD у любых краёв + safe
+    const fit = { viewW: this.api.width(), viewH: this.api.height(), insetTop: this.chromeHud.topH() + r.top, insetBottom: r.bottom, insetLeft: r.left, insetRight: r.right, size: this.tree.size };
     this.api.viewport().setZoom(fitZoom(fit));
     this.showView();
   }

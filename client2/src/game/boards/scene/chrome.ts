@@ -54,6 +54,16 @@ export class SceneChrome {
     return [...this.actionButtons, ...this.toolButtons];
   }
 
+  /** ЖИВАЯ высота нижней полосы: есть кнопки действий — полоса, нет — 0 (док прибит к краю). */
+  bottomH(): number {
+    return this.actionButtons.length ? ACTION_BAR_H : 0;
+  }
+
+  /** Живая высота верхней полосы: инструменты/бейдж/кубики — иначе 0. */
+  topH(): number {
+    return this.toolButtons.length || this.badgeText?.text || this.diceText?.text ? ACTION_BAR_H : 0;
+  }
+
   /** Строка статуса хоста у инструментов (live: «ник · комната 1234»). Пустая строка — спрятать. */
   setBadge(text: string): void {
     if (!this.badgeText) return;

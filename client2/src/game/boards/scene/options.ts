@@ -30,8 +30,23 @@ export interface ScenePresenceOptions {
   label?: (who: string) => string;
 }
 
+/** SAFE-ZONE приложения: отступы от ФИЗИЧЕСКИХ краёв канваса, которые нельзя занимать (чёлки,
+ *  индикаторы, скруглния — у каждого устройства свои). Движок платформу не знает: хост читает
+ *  env(safe-area-inset-*) / API платформы и кормит сцену конфигом (и рычагом setSafeArea на
+ *  повороты). HUD-доки и вписывание стола отступают на эти поля. */
+export interface SafeArea {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+export const NO_SAFE_AREA: SafeArea = { top: 0, bottom: 0, left: 0, right: 0 };
+
 export interface BoardSceneOptions {
   spec: BoardSpec;
+  /** Safe-zone на старте (дефолт — нули: десктоп/стори). Живое обновление — scene.setSafeArea. */
+  safeArea?: SafeArea;
   /** Сколько мест открыть (для динамических бордов). */
   seats?: number;
   /** Чьими глазами смотрим (его рука снизу). */

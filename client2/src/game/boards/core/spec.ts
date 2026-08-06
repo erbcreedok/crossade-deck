@@ -179,6 +179,9 @@ export interface HudDock {
   widgets: readonly HudWidget[];
   justify?: "start" | "center" | "end" | "between";
   gap?: number;
+  /** ДАЛЬНОСТЬ дока от его края экрана (px), ПОВЕРХ safe-zone сцены (та приходит рычагом
+   *  движка — scene.setSafeArea — и складывается с этим отступом). Нет поля — вплотную к хрому. */
+  inset?: number;
 }
 
 /** HUD целиком: доки по краям. Несколько виджетов делят ОДИН край (рука + реакции внизу),

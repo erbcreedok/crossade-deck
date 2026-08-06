@@ -38,6 +38,20 @@ test.describe("HUD: флекс-доки и ленты-виджеты", () => {
     for (const p of hand) expect(p.x).toBeLessThan(vw - 220);
   });
 
+  test("inset и safe-zone: док отъезжает от края, стол уступает (рычаг движка, дефолты нулевые)", async ({ page }) => {
+    await open(page, "flex-docks");
+    const baseY = (await dockedOf(page, "hand"))[0]!.y;
+    // Дальность дока от края (HudDock.inset): полоса поднялась ровно на 40.
+    await open(page, "flex-docks", "dockInset:40");
+    const insetY = (await dockedOf(page, "hand"))[0]!.y;
+    expect(baseY - insetY).toBe(40);
+    // Эмуляция safe-zone устройства (движковый setSafeArea): ещё +28 от home-индикатора,
+    // отступы СКЛАДЫВАЮТСЯ (inset — поверх safe).
+    await open(page, "flex-docks", "dockInset:40;safeBottom:28");
+    const safeY = (await dockedOf(page, "hand"))[0]!.y;
+    expect(insetY - safeY).toBe(28);
+  });
+
   test("two-hands: обе ленты в HUD — рука картами, мешок фишками в своём отрезке дока", async ({ page }) => {
     await open(page, "two-hands");
     const hand = await dockedOf(page, "hand");

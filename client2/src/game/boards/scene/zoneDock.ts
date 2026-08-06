@@ -12,7 +12,6 @@ import type { StripConfig } from "../strip/config";
 import { dockBand, dockCell, dockDragPose, dockIndexAt, dockPoses, type DockFrame, type DockPose } from "../strip/dock";
 import type { HudSide } from "../core/spec";
 import { paintStripBand } from "../strip/bandPaint";
-import { ACTION_BAR_H } from "./chrome";
 
 /** Состояние ленты-дропзоны: покой / груз в полёте где-то / груз над лентой (владелец). */
 export type BandState = "rest" | "armed" | "hot";
@@ -34,6 +33,9 @@ export class SceneZoneDock {
   private size = { w: 0, h: 0 };
   private dockSide: HudSide | null = null; // назначение SceneHud: край…
   private span: { from: number; len: number } | null = null; // …и отрезок дока вдоль края
+  // Отступы от SceneHud: edge — от своего края (safe+inset), main — старт main-оси (safe/хром),
+  // chromeTop/Bottom — ЖИВЫЕ полосы хрома (0 без кнопок — док прибит к краю).
+  private off = { edge: 0, main: 0, chromeTop: 0, chromeBottom: 0 };
   private bandState: BandState = "rest";
   private dragging: string | null = null; // житель, поднятый в драг: из ряда исключается (гэп закрыт)
   private preview: number | null = null; // гэп-превью: индекс вставки, под который ряд раздвинут
@@ -45,10 +47,12 @@ export class SceneZoneDock {
     private readonly deps: ZoneDockDeps,
   ) {}
 
-  /** Назначение от SceneHud: край и отрезок дока вдоль края. null — зона не в HUD (на борде). */
-  setDock(side: HudSide | null, span: { from: number; len: number } | null): void {
+  /** Назначение от SceneHud: край, отрезок дока вдоль края и отступы (edge — от СВОЕГО края:
+   *  safe-zone сцены + inset дока; main — старт main-оси; chrome — живые полосы). null — на борде. */
+  setDock(side: HudSide | null, span: { from: number; len: number } | null, off = { edge: 0, main: 0, chromeTop: 0, chromeBottom: 0 }): void {
     this.dockSide = side;
     this.span = span;
+    this.off = off;
   }
 
   active(): boolean {
@@ -62,15 +66,15 @@ export class SceneZoneDock {
   /** Смещение ОТРЕЗКА дока в экране: math дока живёт в локальной рамке отрезка. */
   private origin(): { x: number; y: number } {
     if (!this.span) return { x: 0, y: 0 };
-    return this.vertical() ? { x: 0, y: ACTION_BAR_H + this.span.from } : { x: this.span.from, y: 0 };
+    return this.vertical() ? { x: 0, y: this.off.main + this.span.from } : { x: this.off.main + this.span.from, y: 0 };
   }
 
   /** Рамка дока для чистой геометрии; null — зона не в HUD. Рамка ЛОКАЛЬНА отрезку (origin). */
   private frame(): DockFrame | null {
     if (!this.dockSide || !this.span) return null;
     const c = this.deps.config();
-    if (this.vertical()) return { w: this.size.w, h: this.span.len, insetTop: 0, insetBottom: 0, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell };
-    return { w: this.span.len, h: this.size.h, insetTop: ACTION_BAR_H, insetBottom: ACTION_BAR_H, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell };
+    if (this.vertical()) return { w: this.size.w, h: this.span.len, insetTop: 0, insetBottom: 0, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell, edge: this.off.edge };
+    return { w: this.span.len, h: this.size.h, insetTop: this.off.chromeTop, insetBottom: this.off.chromeBottom, side: this.dockSide, flow: c.flow, size: c.size, card: c.cell, edge: this.off.edge };
   }
 
   /** Поперечная толщина ленты — SceneHud складывает из неё глубину дока и резерв края. */

@@ -9,14 +9,12 @@ import { CARD } from "../../game/crossade/tree";
 import type { BoardSpec, ElementDef, HudSide, HudSpec, HudWidget, ZoneSpec } from "../../game/boards/core/spec";
 
 const hudAction = action("dispatch → мок-порт");
-
-// HUD — раздел «Механики»: экранный слой виджетов (мобильное удобство) ПОВЕРХ борды. Доки по
-// краям, в каждом РЯД виджетов с flex-семантикой КАК ДАННЫМИ (порядок массива, size: px | {fr} |
-// "auto", justify, gap) — hud/hudLayout. Виджет {kind:"zone", zone:id} швартует СВОЙ экземпляр
-// ЛЮБОЙ strip-зоны; без виджета зона на борде. Миграция борд↔HUD — живьём (applySpec).
+// HUD — раздел «Механики»: экранный слой виджетов ПОВЕРХ борды. Доки по краям, flex-семантика
+// КАК ДАННЫЕ (порядок, size px|{fr}|"auto", justify, gap, inset) — hud/hudLayout. Виджет
+// {kind:"zone", zone:id} швартует СВОЙ экземпляр любой strip-зоны; без виджета зона на борде.
+// Миграция борд↔HUD — живьём (applySpec); safe-zone устройства — рычаг движка (setSafeArea).
 
 const stage = { width: "100%", height: "100vh", background: "#2f3d34", touchAction: "none", overflow: "hidden" } as const;
-
 // ——— FlexDocks: флекс-площадка доков (контролы живые) ———
 
 interface FlexArgs {
@@ -25,6 +23,12 @@ interface FlexArgs {
   reactionsWidth: number;
   gap: number;
   profileJustify: "start" | "center" | "end";
+  /** Дальность дока руки от его края (HudDock.inset) — поверх safe-zone. */
+  dockInset: number;
+  /** Эмуляция safe-zone устройства (рычаг движка scene.setSafeArea / опция safeArea). */
+  safeBottom: number;
+  safeTop: number;
+  safeSide: number;
 }
 
 function flexSpec(a: FlexArgs): BoardSpec {
@@ -53,6 +57,7 @@ function flexSpec(a: FlexArgs): BoardSpec {
           { kind: "placeholder", label: "реакции", size: a.reactionsWidth },
         ],
         gap: a.gap,
+        inset: a.dockInset,
       },
       top: { widgets: [{ kind: "placeholder", label: "профиль", size: 180 }], justify: a.profileJustify },
     },
@@ -65,11 +70,13 @@ function FlexStage(a: FlexArgs) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const scene = new BoardScene({ spec: flexSpec(a), seats: 1, onCommand: (cmd) => hudAction(cmd) });
+    // Safe-zone — рычаг ДВИЖКА, не HUD: хост читает поля устройства и кормит опцией/setSafeArea.
+    const safeArea = { top: a.safeTop, bottom: a.safeBottom, left: a.safeSide, right: a.safeSide };
+    const scene = new BoardScene({ spec: flexSpec(a), seats: 1, safeArea, onCommand: (cmd) => hudAction(cmd) });
     (window as unknown as { __story?: BoardScene }).__story = scene;
     void scene.mount(host, host.clientWidth || 640, host.clientHeight || 480);
     return () => scene.destroy();
-  }, [a.handSide, a.handSize, a.reactionsWidth, a.gap, a.profileJustify]);
+  }, [a.handSide, a.handSize, a.reactionsWidth, a.gap, a.profileJustify, a.dockInset, a.safeBottom, a.safeTop, a.safeSide]);
   return <div ref={hostRef} style={stage} />;
 }
 
@@ -85,52 +92,55 @@ import type { BoardSpec } from "game/boards/core/spec";
 // Любая strip-зона швартуется виджетом {kind:"zone", zone:id}; без виджета — на борде.
 const spec: BoardSpec = {
   ...myBoard,
-  zones: [
-    ...myBoard.zones,
-    handZone(),                                       // рука — strip-зона «hand»
-    { id: "pouch", title: "", layout: { kind: "strip" }, // мешок фишек — ещё лента
-      policy: { onOccupied: "merge" }, cell: { w: 48, h: 48 }, flow: "grid" },
-  ],
+  zones: [...myBoard.zones, handZone()], // рука — strip-зона «hand»; мешок — ещё strip-зона
+
   hud: {
     bottom: { widgets: [
       { kind: "zone", zone: "hand", size: "auto" },         // auto = вся доля свободного
       { kind: "placeholder", label: "реакции", size: 220 }, // px-константа
-    ], gap: 10 },
-    right: { widgets: [{ kind: "zone", zone: "pouch" }] },  // мешок — колонкой справа
+    ], gap: 10, inset: 12 },                                // дальность дока от края (поверх safe)
     top: { widgets: [{ kind: "placeholder", label: "профиль", size: 180 }], justify: "end" },
   },
 };
-const scene = new BoardScene({ spec, seats: 2 });
+// Safe-zone устройства — рычаг ДВИЖКА (не HUD): хост читает поля платформы и кормит сцену.
+const scene = new BoardScene({ spec, seats: 2, safeArea: { top: 0, bottom: 34, left: 0, right: 0 } });
 void scene.mount(host, width, height);
+scene.setSafeArea({ top: 47, bottom: 21, left: 0, right: 0 }); // живо: поворот экрана
 // Живая миграция: тот же spec с другим hud — жители ПЕРЕЛЕТАЮТ (ноды те же).
 scene.applySpec({ ...spec, hud: { right: { widgets: [{ kind: "zone", zone: "hand" }] } } });`,
   },
-  args: { handSide: "bottom", handSize: "auto", reactionsWidth: 220, gap: 10, profileJustify: "end" },
+  args: { handSide: "bottom", handSize: "auto", reactionsWidth: 220, gap: 10, profileJustify: "end", dockInset: 0, safeBottom: 0, safeTop: 0, safeSide: 0 },
+  // Панель разделена: свойства HUD-ДОКА (spec.hud) отдельно от РЫЧАГОВ ДВИЖКА (safe-zone сцены).
   argTypes: {
-    handSide: { description: "край дока руки (реакции едут с ней)", control: { type: "inline-radio" }, options: ["bottom", "top"] },
-    handSize: { description: "доля руки в доке: auto ({fr:1}) или {fr:2} — вдвое жирнее свободного", control: { type: "inline-radio" }, options: ["auto", "fr2"] },
-    reactionsWidth: { description: "px-константа виджета «реакции»: рука ужимается, константа держится", control: { type: "range", min: 80, max: 480, step: 20 } },
-    gap: { description: "зазор между виджетами дока", control: { type: "range", min: 0, max: 40, step: 2 } },
-    profileJustify: { description: "прижим ряда «профиль» у верхнего края", control: { type: "inline-radio" }, options: ["start", "center", "end"] },
+    handSide: { table: { category: "HUD-док" }, description: "край дока руки (реакции едут с ней)", control: { type: "inline-radio" }, options: ["bottom", "top"] },
+    handSize: { table: { category: "HUD-док" }, description: "доля руки в доке: auto ({fr:1}) или {fr:2} — вдвое жирнее свободного", control: { type: "inline-radio" }, options: ["auto", "fr2"] },
+    reactionsWidth: { table: { category: "HUD-док" }, description: "px-константа виджета «реакции»: рука ужимается, константа держится", control: { type: "range", min: 80, max: 480, step: 20 } },
+    gap: { table: { category: "HUD-док" }, description: "зазор между виджетами дока", control: { type: "range", min: 0, max: 40, step: 2 } },
+    profileJustify: { table: { category: "HUD-док" }, description: "прижим ряда «профиль» у верхнего края", control: { type: "inline-radio" }, options: ["start", "center", "end"] },
+    dockInset: { table: { category: "HUD-док" }, description: "дальность дока от края (HudDock.inset), ПОВЕРХ safe-zone", control: { type: "range", min: 0, max: 64, step: 4 } },
+    safeBottom: { table: { category: "Сцена (движок): safe-zone" }, description: "низ (home-индикатор): scene.setSafeArea — у каждого устройства свои поля", control: { type: "range", min: 0, max: 60, step: 4 } },
+    safeTop: { table: { category: "Сцена (движок): safe-zone" }, description: "верх (чёлка)", control: { type: "range", min: 0, max: 60, step: 4 } },
+    safeSide: { table: { category: "Сцена (движок): safe-zone" }, description: "бока (лендскейп-вырез)", control: { type: "range", min: 0, max: 60, step: 4 } },
   },
   render: (a) => <FlexStage {...a} />,
 };
 export default meta;
-
 type Story = StoryObj<FlexArgs>;
 
 /**
- * Флекс-площадка доков: рука (auto-доля) делит нижний док с «реакциями» (px-константа), «профиль»
- * прижат у верхнего края. Крутите контролы: край, доли, ширину константы, gap, justify — отрезки
- * считает чистый hud/hudLayout, стол вписывается в остаток экрана.
+ * Флекс-площадка доков: рука (auto-доля) + «реакции» (px) внизу, «профиль» сверху. Панель — две
+ * категории: HUD-док (данные spec.hud, вкл. dockInset — дальность от края) и Сцена/движок
+ * (эмуляция safe-zone: setSafeArea). Дефолты нулевые — док прибит к краю.
  */
 export const FlexDocks: Story = {};
+/** Гасит контролы меты (FlexArgs) у стори с другим набором args — иначе панель врёт. */
+const flexArgsOff = Object.fromEntries(["handSide", "handSize", "reactionsWidth", "gap", "profileJustify", "dockInset", "safeBottom", "safeTop", "safeSide"]
+  .map((k) => [k, { table: { disable: true } }]));
 // ——— TwoHands: две ленты (рука-карты + мешок-фишки) и живая миграция борд↔HUD ———
 
 const chipDefs: ElementDef[] = Array.from({ length: 8 }, (_, i) => ({ kind: "chip", id: `ch${i + 1}`, denom: 25 * (i + 1) }));
 const pouchZone = (setup?: ZoneSpec["setup"]): ZoneSpec =>
   ({ id: "pouch", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" }, cell: { w: 48, h: 48 }, flow: "grid", setup });
-
 interface TwoArgs {
   handPin: "hud" | "board";
   pouchPin: "hud-bottom" | "hud-right" | "board";
@@ -206,21 +216,16 @@ function TwoStage(a: TwoArgs) {
 }
 
 /**
- * ДВЕ ЛЕНТЫ у одного игрока: рука с картами и мешок фишек (чипсы — другой контент, та же
- * механика ленты). Контролы ставят стартовые пины; кнопки сверху перекидывают зоны борд↔HUD
- * ЖИВЬЁМ (applySpec): жители перелетают, сцена не пересоздаётся. Обе могут делить нижний док,
- * разъехаться по краям или обе лечь на борду полосами.
+ * ДВЕ ЛЕНТЫ у одного игрока: рука с картами и мешок фишек (другой контент, та же механика).
+ * Контролы ставят стартовые пины; кнопки сверху перекидывают зоны борд↔HUD ЖИВЬЁМ (applySpec):
+ * жители перелетают, сцена не пересоздаётся.
  */
 export const TwoHands: StoryObj<TwoArgs> = {
   args: { handPin: "hud", pouchPin: "hud-bottom" },
   argTypes: {
     handPin: { description: "где стартует рука", control: { type: "inline-radio" }, options: ["hud", "board"] },
     pouchPin: { description: "где стартует мешок фишек", control: { type: "inline-radio" }, options: ["hud-bottom", "hud-right", "board"] },
-    handSide: { table: { disable: true } },
-    handSize: { table: { disable: true } },
-    reactionsWidth: { table: { disable: true } },
-    gap: { table: { disable: true } },
-    profileJustify: { table: { disable: true } },
+    ...flexArgsOff,
   } as never,
   render: (a) => <TwoStage {...(a as unknown as TwoArgs)} />,
 };
@@ -276,10 +281,9 @@ function LiveTwoStage(a: LiveTwoArgs) {
 }
 
 /**
- * LIVE: два экрана над ОДНИМ портом, у каждого игрока ДВЕ ленты (рука-карты + мешок-фишки).
- * Контролы крутят СВОЙСТВА ТВОЕЙ руки — и на соседнем экране видно, как она выглядит у него:
- * pin hud → мини-визави у аватара (зеркало, atSeat), pin board → та же полоса ужатой; hidden —
- * рубашки/лица; access — open (дроп включён) / request (пометка «по запросу») / locked.
+ * LIVE: два экрана над ОДНИМ портом, у каждого ДВЕ ленты. Контролы крутят СВОЙСТВА ТВОЕЙ руки —
+ * на соседнем экране видно, как она выглядит у него: pin hud → мини-визави (зеркало, atSeat),
+ * pin board → полоса ужатой; hidden — рубашки/лица; access — open/request («по запросу»)/locked.
  * Мешок всегда открыт: дроп в мешок соседа работает. Снимок один на всех.
  */
 export const LiveTwoHands: StoryObj<LiveTwoArgs> = {
@@ -290,11 +294,7 @@ export const LiveTwoHands: StoryObj<LiveTwoArgs> = {
     handAccess: { description: "доступ соседа: open — дроп/взятие включены; request — по запросу (пометка); locked — заперто", control: { type: "inline-radio" }, options: ["open", "request", "locked"] },
     handAtSeat: { description: "где мини-рука живёт у твоего аватара на чужом экране (pin hud)", control: { type: "inline-radio" }, options: ["above", "below", "left", "right"] },
     pouchPin: { description: "где мешок фишек", control: { type: "inline-radio" }, options: ["hud", "board"] },
-    handSide: { table: { disable: true } },
-    handSize: { table: { disable: true } },
-    reactionsWidth: { table: { disable: true } },
-    gap: { table: { disable: true } },
-    profileJustify: { table: { disable: true } },
+    ...flexArgsOff,
   } as never,
   render: (a) => <LiveTwoStage {...(a as unknown as LiveTwoArgs)} />,
 };

@@ -7,12 +7,12 @@
 
 import { Container, Graphics, Text } from "pixi.js";
 import { PIXEL_FONT } from "../../engine/constants";
-import type { BoardSpec, HudSide } from "../core/spec";
+import type { BoardSpec, HudDock, HudSide } from "../core/spec";
+import type { SafeArea } from "./options";
 import { hudDocks, hudSpans, type HudSpan } from "../hud/hudLayout";
 import { stripConfig, stripKey } from "../strip/config";
 import { paintStripBand } from "../strip/bandPaint";
 import { SceneZoneDock } from "./zoneDock";
-import { ACTION_BAR_H } from "./chrome";
 
 const PLACEHOLDER_DEPTH = 56; // глубина ленты-заглушки (макет будущего виджета)
 
@@ -21,6 +21,10 @@ export interface HudDeps {
   accent(): number;
   wake(): void;
   selfSeat: string;
+  /** Safe-zone приложения (рычаг сцены setSafeArea): доки и резервы отступают от этих полей. */
+  safeArea(): SafeArea;
+  /** ЖИВЫЕ полосы хрома (SceneChrome.topH/bottomH): 0 без кнопок — доки прибиты к краю. */
+  chrome(): { top: number; bottom: number };
   /** Жители контейнера по ключу (снимок состояния). */
   members(slot: string): readonly string[];
   /** Перецелить пришвартованные ноды на свежие позы (гэп-превью) — зовёт nodeStore. */
@@ -48,7 +52,8 @@ export class SceneHud {
     return [...this.docks.values()];
   }
 
-  /** Раздать виджетам отрезки доков, пересобрать доки зон и перерисовать заглушки. */
+  /** Раздать виджетам отрезки доков, пересобрать доки зон и перерисовать заглушки. Каждый док
+   *  отодвинут от СВОЕГО края на edge = safe-zone + inset дока; main-ось стартует за safe/хромом. */
   layout(w: number, h: number): void {
     this.size = { w, h };
     this.decor.clear();
@@ -58,13 +63,14 @@ export class SceneHud {
     for (const dock of this.docks.values()) dock.setDock(null, null);
     for (const { side, dock } of hudDocks(spec.hud)) {
       const spans = hudSpans(this.dockLength(side), dock);
+      const off = this.dockOffsets(side, dock);
       dock.widgets.forEach((widget, i) => {
         if (widget.kind === "zone") {
           const zd = this.dockFor(widget.zone);
           if (!zd) return; // виджет ссылается на не-ленту/чужой id — молча не швартуем
           seenDocks.add(widget.zone);
-          zd.setDock(side, spans[i]!);
-        } else this.paintPlaceholder(side, spans[i]!, widget.label ?? "", seenLabels);
+          zd.setDock(side, spans[i]!, off);
+        } else this.paintPlaceholder(side, spans[i]!, widget.label ?? "", seenLabels, off);
       });
     }
     for (const [zid, dock] of this.docks) {
@@ -80,17 +86,31 @@ export class SceneHud {
     for (const dock of this.docks.values()) dock.layout(w, h);
   }
 
-  /** Резерв краёв под доки — стол вписывается в остаток (fitZoom). Низ включает полосу действий. */
+  /** Резерв краёв под доки И safe-zone — стол вписывается в остаток (fitZoom). Низ включает
+   *  полосу действий; края без доков резервируют свою safe-полосу (чёлку столом не накрываем). */
   reserved(w: number, h: number): { top: number; bottom: number; left: number; right: number } {
     this.layout(w, h);
-    const r = { top: 0, bottom: 0, left: 0, right: 0 };
+    const safe = this.deps.safeArea();
+    const r = { top: safe.top, bottom: safe.bottom, left: safe.left, right: safe.right };
     for (const { side, dock } of hudDocks(this.deps.spec().hud)) {
       const depth = Math.max(
         ...dock.widgets.map((wd) => (wd.kind === "zone" ? this.docks.get(wd.zone)?.bandDepth() ?? 0 : PLACEHOLDER_DEPTH)),
       );
-      r[side] = depth + (side === "bottom" ? ACTION_BAR_H : side === "top" ? 8 : 16);
+      const edge = this.dockOffsets(side, dock).edge;
+      const chrome = this.deps.chrome();
+      r[side] = depth + edge + (side === "bottom" ? chrome.bottom : side === "top" ? chrome.top + 8 : 16);
     }
     return r;
+  }
+
+  /** Отступы дока: edge — от СВОЕГО края (safe + inset спеки); main — старт вдоль края (safe и,
+   *  у вертикалей, живой хром верха); chrome — живые полосы (в рамку дока). */
+  private dockOffsets(side: HudSide, dock: HudDock): { edge: number; main: number; chromeTop: number; chromeBottom: number } {
+    const safe = this.deps.safeArea();
+    const chrome = this.deps.chrome();
+    const edge = (dock.inset ?? 0) + safe[side];
+    const main = side === "left" || side === "right" ? chrome.top + safe.top : safe.left;
+    return { edge, main, chromeTop: chrome.top, chromeBottom: chrome.bottom };
   }
 
   // ——— агрегат для жеста и nodeStore: спрашивают HUD, он находит нужный док ———
@@ -165,14 +185,18 @@ export class SceneHud {
     return dock;
   }
 
-  /** Длина дока вдоль края: горизонтали — вся ширина, вертикали — высота между полосами хрома. */
+  /** Длина дока вдоль края: горизонтали — ширина минус safe-поля; вертикали — высота между
+   *  живыми полосами хрома минус safe-поля верха/низа. */
   private dockLength(side: HudSide): number {
-    return side === "left" || side === "right" ? Math.max(0, this.size.h - ACTION_BAR_H * 2) : this.size.w;
+    const safe = this.deps.safeArea();
+    const chrome = this.deps.chrome();
+    if (side === "left" || side === "right") return Math.max(0, this.size.h - chrome.top - chrome.bottom - safe.top - safe.bottom);
+    return Math.max(0, this.size.w - safe.left - safe.right);
   }
 
   /** Лента-заглушка виджета: тот же стиль ленты + подпись (макет для сторибука). */
-  private paintPlaceholder(side: HudSide, span: HudSpan, text: string, seen: Set<string>): void {
-    const b = this.placeholderRect(side, span);
+  private paintPlaceholder(side: HudSide, span: HudSpan, text: string, seen: Set<string>, off: { edge: number; main: number; chromeTop: number; chromeBottom: number }): void {
+    const b = this.placeholderRect(side, span, off);
     paintStripBand(this.decor, b, "rest", this.deps.accent());
     const key = `${side}:${span.from}`;
     seen.add(key);
@@ -186,12 +210,12 @@ export class SceneHud {
     label.position.set(b.x + b.w / 2 - label.width / 2, b.y + b.h / 2 - label.height / 2);
   }
 
-  private placeholderRect(side: HudSide, span: HudSpan): { x: number; y: number; w: number; h: number } {
+  private placeholderRect(side: HudSide, span: HudSpan, off: { edge: number; main: number; chromeTop: number; chromeBottom: number }): { x: number; y: number; w: number; h: number } {
     const d = PLACEHOLDER_DEPTH;
-    if (side === "bottom") return { x: span.from, y: this.size.h - ACTION_BAR_H - d, w: span.len, h: d };
-    if (side === "top") return { x: span.from, y: ACTION_BAR_H + 8, w: span.len, h: d };
-    const y = ACTION_BAR_H + span.from;
-    return side === "left" ? { x: 16, y, w: d, h: span.len } : { x: this.size.w - 16 - d, y, w: d, h: span.len };
+    if (side === "bottom") return { x: off.main + span.from, y: this.size.h - off.chromeBottom - off.edge - d, w: span.len, h: d };
+    if (side === "top") return { x: off.main + span.from, y: off.chromeTop + off.edge + 8, w: span.len, h: d };
+    const y = off.main + span.from;
+    return side === "left" ? { x: 16 + off.edge, y, w: d, h: span.len } : { x: this.size.w - 16 - off.edge - d, y, w: d, h: span.len };
   }
 
   destroy(): void {

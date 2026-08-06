@@ -113,3 +113,24 @@ describe("handDock — сетка (flow:grid) и размер (size)", () => {
     expect(dockCell({ ...frame("bottom", "horizontal"), size: { cell: { w: 61, h: 87 } } })).toEqual({ w: 61, h: 87 });
   });
 });
+
+describe("dock edge — дальность полосы от края (safe-zone + inset дока)", () => {
+  const base: DockFrame = { w: 800, h: 600, insetTop: 52, insetBottom: 52, side: "bottom", flow: null, size: { fit: 5 }, card: { w: 100, h: 143 } };
+
+  it("edge отодвигает ряд 0 от края у всех четырёх сторон", () => {
+    const shift = (f: DockFrame) => dockPoses({ ...f, edge: 24 }, 1, null)[0]!;
+    const flat = (f: DockFrame) => dockPoses(f, 1, null)[0]!;
+    expect(shift(base).y).toBe(flat(base).y - 24); // bottom: вверх
+    const top: DockFrame = { ...base, side: "top" };
+    expect(shift(top).y).toBe(flat(top).y + 24); // top: вниз
+    const right: DockFrame = { ...base, side: "right", w: 200, h: 600 };
+    expect(shift(right).x).toBe(flat(right).x - 24);
+    const left: DockFrame = { ...base, side: "left", w: 200, h: 600 };
+    expect(shift(left).x).toBe(flat(left).x + 24);
+  });
+
+  it("резерв края растёт ровно на edge — стол уступает столько же, насколько отъехал док", () => {
+    expect(dockReserved({ ...base, edge: 24 }, 3).bottom).toBe(dockReserved(base, 3).bottom + 24);
+    expect(dockReserved({ ...base, side: "left", edge: 24 }, 3).left).toBe(dockReserved({ ...base, side: "left" }, 3).left + 24);
+  });
+});

@@ -10,7 +10,7 @@ import type { CardTextureCache } from "../../ui/CardTextureCache";
 import type { BoardCommand, BoardSpec, ElementDef } from "../core/spec";
 import type { BoardState } from "../core/state";
 import type { BoardTree } from "../geometry/boardTree";
-import type { BoardSceneOptions } from "./options";
+import type { BoardSceneOptions, SafeArea } from "./options";
 import { nodeScaleIn, type BoardNode } from "./nodeFactory";
 import { SceneBlockDrag } from "./blockDrag";
 import { SceneChrome } from "./chrome";
@@ -40,6 +40,8 @@ export interface BoardPartsCtx {
   def(id: string): ElementDef | undefined;
   tex(): CardTextureCache | null;
   selfSeat: string;
+  /** Safe-zone приложения (рычаг сцены setSafeArea) — HUD и вписывание отступают от полей. */
+  safeArea(): SafeArea;
   dispatch(cmd: BoardCommand): void;
 }
 
@@ -82,6 +84,8 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     accent,
     wake: () => api.wake(),
     selfSeat: ctx.selfSeat,
+    safeArea: () => ctx.safeArea(),
+    chrome: () => ({ top: chromeHud.topH(), bottom: chromeHud.bottomH() }), // лениво: chromeHud ниже
     members,
     retarget: () => nodeStore.retargetDocked(), // лениво: nodeStore ниже, зовётся после сборки
   });
