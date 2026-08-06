@@ -7,7 +7,7 @@ import { deck36 } from "../../game/boards/library/decks";
 import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
 import type { BoardSpec, ElementDef, HudArea, HudSide, HudSpec, HudWidget, ZoneSpec } from "../../game/boards/core/spec";
-import { placeholderW, region, zoneW } from "../../game/boards/core/hudSpec";
+import { pin as pinArea, placeholderW, region, zoneW } from "../../game/boards/core/hudSpec";
 
 const hudAction = action("dispatch → мок-порт");
 // HUD — раздел «Механики»: экранный слой виджетов ПОВЕРХ борды. Доки по краям, flex-семантика
@@ -143,7 +143,7 @@ const pouchZone = (setup?: ZoneSpec["setup"]): ZoneSpec =>
   ({ id: "pouch", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" }, cell: { w: 48, h: 48 }, flow: "grid", setup });
 interface TwoArgs {
   handPin: "hud" | "board";
-  pouchPin: "hud-bottom" | "hud-right" | "board";
+  pouchPin: "hud-bottom" | "hud-right" | "pin" | "board";
 }
 
 /** hud из пинов двух лент: обе могут делить нижний край, разъехаться по краям или лечь на борду. */
@@ -154,6 +154,8 @@ function twoHud(a: TwoArgs): HudSpec | undefined {
   const areas: HudArea[] = [];
   if (widgets.length) areas.push(region("bottom", "start", widgets));
   if (a.pouchPin === "hud-right") areas.push(region("right", "start", [zoneW("pouch")]));
+  // Пин: фикс-позиция у якоря, ПОВЕРХ стола (в резерв не входит), offset отодвигает от угла.
+  if (a.pouchPin === "pin") areas.push(pinArea("bottom-right", [zoneW("pouch", 220)], { offset: { x: -12, y: -120 } }));
   return areas.length ? { areas } : undefined;
 }
 
@@ -224,7 +226,7 @@ export const TwoHands: StoryObj<TwoArgs> = {
   args: { handPin: "hud", pouchPin: "hud-bottom" },
   argTypes: {
     handPin: { description: "где стартует рука", control: { type: "inline-radio" }, options: ["hud", "board"] },
-    pouchPin: { description: "где стартует мешок фишек", control: { type: "inline-radio" }, options: ["hud-bottom", "hud-right", "board"] },
+    pouchPin: { description: "где стартует мешок: край, пин-якорь (bottom-right, поверх стола) или борд", control: { type: "inline-radio" }, options: ["hud-bottom", "hud-right", "pin", "board"] },
     ...flexArgsOff,
   } as never,
   render: (a) => <TwoStage {...(a as unknown as TwoArgs)} />,

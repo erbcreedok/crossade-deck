@@ -5,7 +5,10 @@ import { test, expect, type Page } from "@playwright/test";
 // перелетают) и live-вид двух лент глазами соседа. Дев-хук `__story`/`__stories` — идиома канваса.
 
 interface StoryLike {
-  hud: { screenPoses(): { zone: string; id: string; x: number; y: number }[] };
+  hud: {
+    screenPoses(): { zone: string; id: string; x: number; y: number }[];
+    reserved(w: number, h: number): { top: number; bottom: number; left: number; right: number };
+  };
   rt: { api: { byId: Map<string, { faceUp: boolean }> } };
   testHooks(): { cards: Record<string, { slot: string | null; x: number; y: number }> };
 }
@@ -68,6 +71,39 @@ test.describe("HUD: флекс-доки и ленты-виджеты", () => {
     const pouchLow = Math.max(...pouch.map((p) => p.y));
     const handHigh = Math.min(...hand.map((p) => p.y));
     expect(pouchLow).toBeLessThan(handHigh); // угол принадлежит низу — колонка не заезжает в него
+  });
+
+  test("пин bottom-right: мешок у якоря с offset, ПОВЕРХ стола — резерв низа как без пина; дроп в пин работает", async ({ page }) => {
+    const rb = (): Promise<number> => page.evaluate(() => window.__story!.hud.reserved(window.innerWidth, window.innerHeight).bottom);
+    await open(page, "two-hands", "pouchPin:board");
+    const rBase = await rb();
+    await open(page, "two-hands", "pouchPin:pin");
+    expect(await rb()).toBe(rBase); // пин без reserve стол не двигает
+    const vw = page.viewportSize()!.width;
+    const vh = page.viewportSize()!.height;
+    const pouch = await dockedOf(page, "pouch");
+    expect(pouch.length).toBe(8);
+    for (const p of pouch) expect(p.x).toBeGreaterThan(vw * 0.5); // прижат к правому якорю…
+    const low = Math.max(...pouch.map((p) => p.y));
+    expect(low).toBeLessThan(vh - 120); // …и поднят offset'ом от низа
+    // Дроп в пин — та же дверь, что у любой области: карта руки ложится в мешок.
+    const pts = await page.evaluate(() => {
+      const s = window.__story!;
+      const hand = s.hud.screenPoses().filter((p) => p.zone === "hand");
+      const pouchPts = s.hud.screenPoses().filter((p) => p.zone === "pouch");
+      const cx = pouchPts.reduce((a, p) => a + p.x, 0) / pouchPts.length;
+      const cy = pouchPts.reduce((a, p) => a + p.y, 0) / pouchPts.length;
+      return { card: hand[0]!, to: { x: cx, y: cy } };
+    });
+    await page.mouse.move(pts.card.x, pts.card.y);
+    await page.mouse.down();
+    await page.mouse.move(pts.to.x, pts.to.y, { steps: 14 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await page.waitForTimeout(900);
+    // Мешок задокирован (пин) — его жители живут в HUD, не в дереве: проверяем состав дока.
+    const inPouch = await page.evaluate((id) => window.__story!.hud.screenPoses().some((p) => p.zone === "pouch" && p.id === id), pts.card.id);
+    expect(inPouch).toBe(true);
   });
 
   test("two-hands: обе ленты в HUD — рука картами, мешок фишками в своём отрезке дока", async ({ page }) => {
