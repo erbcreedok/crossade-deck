@@ -1,7 +1,7 @@
 import type { Container, Renderer, Texture } from "pixi.js";
 import type { TableItem } from "./tableItem";
 import { makeBuilt, type BuiltOptions } from "./builtKind";
-import { drawChip, drawChessPiece } from "./pieceDraw";
+import { drawChip, drawChessPiece, drawWidget } from "./pieceDraw";
 import { ownShadowOf } from "./silhouetteExtract";
 import { buildTextureDustPoints } from "../engine/censorSource";
 
@@ -12,7 +12,8 @@ import { buildTextureDustPoints } from "../engine/censorSource";
 
 export type PieceSpec =
   | { kind: "chip"; color: number; denom: string }
-  | { kind: "chess"; dark: boolean; glyph: string };
+  | { kind: "chess"; dark: boolean; glyph: string }
+  | { kind: "widget"; label: string; w: number; h: number };
 
 export interface PieceVisual {
   build: (root: Container) => void; // рисует в ЛОКАЛЬНЫХ координатах (центр 0,0) — VIEW
@@ -27,9 +28,12 @@ export interface PieceVisual {
   ownShadow?: boolean;
 }
 
-/** Визуал элемента по типу. r — радиус (от размера карты/ячейки). */
+/** Визуал элемента по типу. r — радиус (от размера карты/ячейки); у виджета — свои w/h. */
 export function pieceVisual(spec: PieceSpec, r: number): PieceVisual {
   switch (spec.kind) {
+    case "widget":
+      // Плашка лежит — тень габаритом под ней (как у фишки), своей формы снимать нечего.
+      return { build: (root) => drawWidget(root, spec.w, spec.h, spec.label), shadow: { rx: spec.w * 0.48, ry: spec.h * 0.4, dy: spec.h * 0.08 } };
     case "chip":
       // Фишка лежит — тень почти круглая под ней.
       return { build: (root) => drawChip(root, r, spec.color, spec.denom), shadow: { rx: r * 0.98, ry: r * 0.86, dy: r * 0.12 } };
@@ -51,6 +55,7 @@ export function pieceVisual(spec: PieceSpec, r: number): PieceVisual {
 /** Вид предмета одной строкой: тип, его отличия и размер. Ключ кэша снятых форм. */
 export function pieceKey(spec: PieceSpec, r: number): string {
   const size = Math.round(r * 100) / 100;
+  if (spec.kind === "widget") return `widget:${spec.label}:${spec.w}x${spec.h}`;
   return spec.kind === "chip" ? `chip:${spec.color}:${spec.denom}:${size}` : `chess:${spec.dark ? "dark" : "light"}:${spec.glyph}:${size}`;
 }
 
@@ -68,7 +73,8 @@ export function buildPiece(id: string, spec: PieceSpec, r: number, renderer: Ren
   const shot = v.ownShadow || plan.censored ? ownShadowOf(renderer, pieceKey(spec, r), v.build) : null;
   const own = v.ownShadow ? shot : null;
   const censorSeeds = plan.censored && shot && renderer ? dustOf(renderer, shot, r) : null;
-  return makeBuilt(spec.kind, { id, w: r * 2, h: r * 2, build: v.build, shadow: v.shadow, own, censorSeeds, ...plan });
+  const foot = spec.kind === "widget" ? { w: spec.w, h: spec.h } : { w: r * 2, h: r * 2 };
+  return makeBuilt(spec.kind, { id, ...foot, build: v.build, shadow: v.shadow, own, censorSeeds, ...plan });
 }
 
 /** Облако пыли по снимку предмета: сетка меряется ЕГО коробкой, а не карточной. */

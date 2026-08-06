@@ -21,7 +21,11 @@ export function buildBoardNode(id: string, def: ElementDef | undefined, tex: Car
     return makeCard({ id, card: def?.kind === "card" ? def.face : "A♠", faceUp: true, flippable: true }, tex, CARD.h / TEX_H);
   }
   const spec: PieceSpec =
-    def.kind === "piece" ? { kind: "chess", dark: def.dark, glyph: def.glyph } : { kind: "chip", color: 0x2e6b45, denom: String(def.denom) };
+    def.kind === "piece"
+      ? { kind: "chess", dark: def.dark, glyph: def.glyph }
+      : def.kind === "widget"
+        ? { kind: "widget", label: def.label, w: def.w, h: def.h }
+        : { kind: "chip", color: 0x2e6b45, denom: String(def.denom) };
   return buildPiece(id, spec, 30, renderer);
 }
 

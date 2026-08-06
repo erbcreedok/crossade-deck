@@ -31,6 +31,19 @@ export function drawChessPiece(root: Container, size: number, dark: boolean, sym
   root.addChild(glyph(sym, size * 1.15, fill, size * 0.045, ink));
 }
 
+/** ВИДЖЕТ-примитив (кнопка/инструмент/счётчик): скруглённая плашка + подпись. Настоящие виджеты
+ *  приедут своими видами; примитив даёт им ЖИЗНЬ уже сейчас — как обычному жителю зон/доков. */
+export function drawWidget(root: Container, w: number, h: number, label: string): void {
+  const g = new Graphics();
+  const r = Math.min(10, h * 0.2);
+  g.roundRect(-w / 2, -h / 2, w, h, r).fill({ color: 0x2b3a2e }).stroke({ width: 2, color: 0x59705a });
+  g.roundRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, Math.max(2, r - 3)).stroke({ width: 1, color: 0x41543f });
+  root.addChild(g);
+  const t = new Text({ text: label, style: { fontFamily: "monospace", fontSize: Math.min(14, h * 0.34), fill: 0xd7e3d0, align: "center" } });
+  t.anchor.set(0.5);
+  root.addChild(t);
+}
+
 // Текст-глиф по центру (0,0), с настраиваемым контуром.
 function glyph(text: string, size: number, color: number, strokeW: number, strokeColor = 0x000000): Container {
   const t = new Text({

@@ -5,8 +5,8 @@ import { BoardScene } from "../../game/boards/scene/scene";
 import { deck36 } from "../../game/boards/library/decks";
 import { handZone } from "../../game/boards/library/strips";
 import { CARD } from "../../game/crossade/tree";
-import { region, zoneW } from "../../game/boards/core/hudSpec";
-import type { BoardSpec } from "../../game/boards/core/spec";
+import { pin, region, zoneW } from "../../game/boards/core/hudSpec";
+import type { BoardSpec, ElementDef } from "../../game/boards/core/spec";
 
 const dockAction = action("dispatch → мок-порт");
 // Доки ЛЮБОЙ зоны: в области HUD швартуется не только лента — pile-КОЛОДА живёт стопкой
@@ -19,12 +19,16 @@ interface DeckArgs {
   deckPin: "hud" | "board";
 }
 
+// ИНСТРУМЕНТ — generic widget-элемент: обычный житель зоны, живёт в пине HUD, тащится на борд
+// и обратно той же непрерывной механикой nodesStore, что карты.
+const toolDefs: ElementDef[] = [{ kind: "widget", id: "w-vote", label: "ГОЛОС", w: 64, h: 40 }];
+
 function deckSpec(a: DeckArgs): BoardSpec {
   const { cards, ids } = deck36();
   return {
     id: "hud-deck-dock",
     title: "",
-    elements: cards,
+    elements: [...cards, ...toolDefs],
     zones: [
       {
         id: "board",
@@ -38,12 +42,15 @@ function deckSpec(a: DeckArgs): BoardSpec {
       // Колода — pile-зона «deck»: в доке лежит СТОПКОЙ рубашками (faceUpInSlot — правило зоны).
       { id: "deck", title: "", layout: { kind: "pile" }, policy: { onOccupied: "merge" }, setup: { 0: ids.slice(6, 18) } },
       handZone({ setup: { p1: ids.slice(18, 22) } }),
+      // Пояс инструментов — strip-зона из одного widget-жителя, живёт ПИНОМ у правого низа.
+      { id: "tools", title: "", layout: { kind: "strip" }, policy: { onOccupied: "merge" }, cell: { w: 72, h: 48 }, hidden: false, setup: { p1: toolDefs.map((t) => t.id) } },
     ],
     seats: { count: { fixed: 1 }, show: "none", swap: false },
     hud: {
       areas: [
         region("bottom", "start", [zoneW("hand", "auto")]),
         ...(a.deckPin === "hud" ? [region("right", "start", [zoneW("deck")])] : []),
+        pin("bottom-right", [zoneW("tools", 90)], { offset: { x: -8, y: -170 } }),
       ],
     },
     actions: [],

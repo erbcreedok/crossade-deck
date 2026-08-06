@@ -34,8 +34,9 @@ export class SceneZoneDock {
   private dockSide: HudSide | null = null; // назначение SceneHud: край…
   private span: { from: number; len: number } | null = null; // …и отрезок дока вдоль края
   // Отступы от SceneHud: edge — от своего края (safe+inset), main — старт main-оси (safe/хром),
-  // chromeTop/Bottom — ЖИВЫЕ полосы хрома (0 без кнопок — док прибит к краю).
-  private off = { edge: 0, main: 0, chromeTop: 0, chromeBottom: 0 };
+  // chromeTop/Bottom — ЖИВЫЕ полосы хрома (0 без кнопок — док прибит к краю), pinned — область-пин
+  // (живёт ПОВЕРХ: в споре полос за экранную точку пин выигрывает у региона).
+  private off = { edge: 0, main: 0, chromeTop: 0, chromeBottom: 0, pinned: false };
   private bandState: BandState = "rest";
   private dragging: string | null = null; // житель, поднятый в драг: из ряда исключается (гэп закрыт)
   private preview: number | null = null; // гэп-превью: индекс вставки, под который ряд раздвинут
@@ -49,14 +50,19 @@ export class SceneZoneDock {
 
   /** Назначение от SceneHud: край, отрезок дока вдоль края и отступы (edge — от СВОЕГО края:
    *  safe-zone сцены + inset дока; main — старт main-оси; chrome — живые полосы). null — на борде. */
-  setDock(side: HudSide | null, span: { from: number; len: number } | null, off = { edge: 0, main: 0, chromeTop: 0, chromeBottom: 0 }): void {
+  setDock(side: HudSide | null, span: { from: number; len: number } | null, off: { edge: number; main: number; chromeTop: number; chromeBottom: number; pinned?: boolean } = { edge: 0, main: 0, chromeTop: 0, chromeBottom: 0 }): void {
     this.dockSide = side;
     this.span = span;
-    this.off = off;
+    this.off = { ...off, pinned: off.pinned ?? false };
   }
 
   active(): boolean {
     return this.dockSide !== null && this.span !== null;
+  }
+
+  /** Область-пин? Пин живёт поверх — в споре за экранную точку выигрывает у региона. */
+  pinned(): boolean {
+    return this.off.pinned;
   }
 
   private vertical(): boolean {

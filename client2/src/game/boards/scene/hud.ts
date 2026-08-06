@@ -106,9 +106,9 @@ export class SceneHud {
 
   /** Отступы рамки для дока: edge — от СВОЕГО края (чистый areaFrames: safe+inset или якорь
    *  пина); хром двигает только регионы (пины живут поверх и хрома не знают). */
-  private frameOffsets(f: AreaFrame): { edge: number; main: number; chromeTop: number; chromeBottom: number } {
+  private frameOffsets(f: AreaFrame): { edge: number; main: number; chromeTop: number; chromeBottom: number; pinned: boolean } {
     const chrome = f.pinned ? { top: 0, bottom: 0 } : this.deps.chrome();
-    return { edge: f.edge, main: 0, chromeTop: chrome.top, chromeBottom: chrome.bottom };
+    return { edge: f.edge, main: 0, chromeTop: chrome.top, chromeBottom: chrome.bottom, pinned: f.pinned };
   }
 
   // ——— агрегат для жеста и nodeStore: спрашивают HUD, он находит нужный док ———
@@ -130,9 +130,14 @@ export class SceneHud {
     return null;
   }
 
-  /** Док, чья лента накрывает экранную точку (первый по порядку), или null — палец над бордой. */
+  /** Доки в порядке СПОРА за экранную точку: пины (поверх) раньше регионов. */
+  private byOverlay(): SceneZoneDock[] {
+    return [...this.docks.values()].sort((a, b) => Number(b.pinned()) - Number(a.pinned()));
+  }
+
+  /** Док, чья лента накрывает экранную точку, или null — палец над бордой. Пин выигрывает спор. */
   dockAt(sx: number, sy: number): SceneZoneDock | null {
-    for (const dock of this.docks.values()) {
+    for (const dock of this.byOverlay()) {
       if (dock.overBand(sx, sy)) return dock;
     }
     return null;
@@ -140,7 +145,7 @@ export class SceneHud {
 
   /** Житель дока под точкой — лидер драга (помечается dragging в его доке). */
   pickAt(sx: number, sy: number): string | null {
-    for (const dock of this.docks.values()) {
+    for (const dock of this.byOverlay()) {
       const id = dock.pickAt(sx, sy);
       if (id) return id;
     }

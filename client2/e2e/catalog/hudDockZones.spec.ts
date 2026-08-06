@@ -35,11 +35,15 @@ test.describe("HUD: док pile-колоды", () => {
     const ys = deck.map((p) => p.y);
     for (const x of xs) expect(x).toBeGreaterThan(vw * 0.6); // колонка у правого края
     expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(12); // стопка, не ряд
-    const faces = await page.evaluate(() => {
-      const s = window.__story!;
-      return s.hud.screenPoses().filter((p) => p.zone === "deck").map((p) => s.rt.api.byId.get(p.id)!.faceUp);
-    });
-    expect(faces.every((f) => f === false)).toBe(true); // рубашки — как на борде
+    // Рубашки — как на борде (poll: флип докатывается анимацией, под нагрузкой дольше).
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const s = window.__story!;
+          return s.hud.screenPoses().filter((p) => p.zone === "deck").every((p) => s.rt.api.byId.get(p.id)!.faceUp === false);
+        }),
+      )
+      .toBe(true);
   });
 
   test("верхняя карта стопки тащится на борд; карта руки дропается В стопку (сверху)", async ({ page }) => {
@@ -67,6 +71,35 @@ test.describe("HUD: док pile-колоды", () => {
     const after = await deckPoses(page);
     expect(after.length).toBe(12); // 12 − 1 (утащили) + 1 (положили)
     expect(after.at(-1)!.id).toBe(hand.id); // легла ВЕРХНЕЙ
+  });
+
+  test("инструмент (widget-элемент) в пине: тащится на борд и обратно — той же дверью, что карты", async ({ page }) => {
+    await open(page);
+    const tool = await page.evaluate(() => window.__story!.hud.screenPoses().find((p) => p.zone === "tools")!);
+    expect(tool.id).toBe("w-vote");
+    // Из пина — в док колоды (борд-зона этой стори принимает only:"card", а стопка — всех).
+    const deck = await deckPoses(page);
+    const cx = deck.reduce((a, p) => a + p.x, 0) / deck.length;
+    const cy = deck.reduce((a, p) => a + p.y, 0) / deck.length;
+    await page.mouse.move(tool.x, tool.y);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy, { steps: 14 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await page.waitForTimeout(900);
+    const inDeck = await page.evaluate(() => window.__story!.hud.screenPoses().some((p) => p.zone === "deck" && p.id === "w-vote"));
+    expect(inDeck).toBe(true); // виджет — обычный житель: лёг сверху стопки
+    // И обратно в свой пин (виджет сейчас — верхний в стопке).
+    const top = (await deckPoses(page)).at(-1)!;
+    const toolsBand = { x: tool.x, y: tool.y };
+    await page.mouse.move(top.x, top.y);
+    await page.mouse.down();
+    await page.mouse.move(toolsBand.x, toolsBand.y, { steps: 14 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await page.waitForTimeout(900);
+    const backHome = await page.evaluate(() => window.__story!.hud.screenPoses().some((p) => p.zone === "tools" && p.id === "w-vote"));
+    expect(backHome).toBe(true);
   });
 
   test("живой переезд колоды борд↔HUD: applySpec, сцена ТА ЖЕ, состав цел", async ({ page }) => {

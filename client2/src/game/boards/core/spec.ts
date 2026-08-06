@@ -52,7 +52,10 @@ export function slotOf(key: SlotKey): string {
 export type ElementDef =
   | { kind: "card"; id: string; face: string }
   | { kind: "piece"; id: string; glyph: string; dark: boolean }
-  | { kind: "chip"; id: string; denom: number };
+  | { kind: "chip"; id: string; denom: number }
+  /** Generic ВИДЖЕТ (инструмент/кнопка/счётчик): обычный житель зон — живёт на борде ИЛИ в
+   *  области HUD, переезжает той же непрерывной механикой nodesStore, что карты и фишки. */
+  | { kind: "widget"; id: string; label: string; w: number; h: number };
 
 // ---------------------------------------------------------------------------------------------
 // Зоны

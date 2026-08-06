@@ -20,8 +20,16 @@ describe("pieceVisual", () => {
     expect(s.rx).toBeGreaterThan(5); // шире прежнего: втрое уже — и его не видно под фигурой
   });
 
+  it("виджет: тень габаритом СВОЕЙ плашки (w/h), r реестра не участвует", () => {
+    const s = pieceVisual({ kind: "widget", label: "ГОЛОС", w: 100, h: 50 }, 8).shadow;
+    expect(s.rx).toBeCloseTo(48);
+    expect(s.ry).toBeCloseTo(20);
+    expect(s.ry).toBeLessThan(s.rx); // плашка лежит — тень приплюснута
+  });
+
   it("возвращает функцию отрисовки для каждого типа", () => {
     expect(typeof pieceVisual({ kind: "chip", color: 0, denom: "" }, 8).build).toBe("function");
     expect(typeof pieceVisual({ kind: "chess", dark: false, glyph: "♟" }, 8).build).toBe("function");
+    expect(typeof pieceVisual({ kind: "widget", label: "x", w: 10, h: 10 }, 8).build).toBe("function");
   });
 });
