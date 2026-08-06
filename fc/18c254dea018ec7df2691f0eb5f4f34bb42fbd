@@ -1,0 +1,71 @@
+client2/src/game/boards/strip/rowLayout.ts
+  s_b2849f723d52bb::t_8ff0f9c084f302 5-7,12-14,20-24,28-30
+client2/src/stories/mechanics/HandMechanics.stories.tsx
+  s_b2849f723d52bb::t_8a84d7d98dec55 99-101
+client2/e2e/catalog/hudSection.spec.ts
+  s_b2849f723d52bb::t_d28a4c4e875dc3 100-125
+client2/src/game/boards/strip/config.test.ts
+  s_b2849f723d52bb::t_35db262aea2cc3 6-8,14,21-22,35-36,55-56,58-60,63-66,69-70
+  s_b2849f723d52bb::t_85b87df594f222 73-84
+  s_b2849f723d52bb::t_67913541c9ebfa 2
+  s_b2849f723d52bb::t_048d88bcfb8fbe 71-72
+client2/src/game/boards/scene/gapPreview.test.ts
+  s_b2849f723d52bb::t_3ea18865fd842e 21
+client2/src/game/boards/geometry/stripBand.test.ts
+  s_b2849f723d52bb::t_8a84d7d98dec55 1-67
+client2/src/game/boards/scene/gapPreview.ts
+  s_b2849f723d52bb::t_3ea18865fd842e 17-18,24-25,39-40,42-44
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_b666636312170c 24-25,135
+client2/src/stories/mechanics/HudMechanics.stories.tsx
+  s_b2849f723d52bb::t_46bba4da05cb82 254-257,292-295
+client2/src/game/boards/strip/row.test.ts
+  s_b2849f723d52bb::t_8a84d7d98dec55 86-103
+client2/src/game/boards/geometry/dropPlan.test.ts
+  s_b2849f723d52bb::t_3ea18865fd842e 76,79-89
+client2/src/game/boards/strip/config.ts
+  s_b2849f723d52bb::t_b666636312170c 10,54-67
+  s_b2849f723d52bb::t_74259f3f0f621f 22-25,48-51,53,84-85
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_b666636312170c 25,97,131
+  s_b2849f723d52bb::t_3ea18865fd842e 178
+client2/src/game/boards/geometry/stripBand.ts
+  s_b2849f723d52bb::t_e357be040760fe 1-8,13-14,19,21-28,33,37-46,48,51-52,56,61-104,106,108-109,113-123,126-129,132,135-138,140-142,144-145
+  s_b2849f723d52bb::t_b666636312170c 12,107
+  s_b2849f723d52bb::t_baf75512b41c24 49-50
+  s_b2849f723d52bb::t_dce93e2efb26b4 105,110-111,124-125,130-131,133-134,139,143
+  s_b2849f723d52bb::t_b2e37db9f781fd 54-55,57
+client2/src/game/boards/geometry/boardTree.ts
+  s_b2849f723d52bb::t_df99806051c4fe 7,11,15,19-21,29-31,37-40,55-57
+  s_b2849f723d52bb::t_106cb667037236 124
+client2/src/game/boards/geometry/dropPlan.ts
+  s_b2849f723d52bb::t_74259f3f0f621f 8,142-143,145,153-154
+client2/src/game/boards/scene/zoneDock.test.ts
+  s_b2849f723d52bb::t_35db262aea2cc3 11
+client2/src/game/boards/scene/gesture.ts
+  s_b2849f723d52bb::t_c2671ed0d6ce61 20,237-238,242-244
+  s_b2849f723d52bb::t_74259f3f0f621f 84
+client2/src/game/boards/scene/decor.ts
+  s_b2849f723d52bb::t_34c403a26e3a04 56,58,62
+  s_b2849f723d52bb::t_c2671ed0d6ce61 11-12,31,42-44,47-55,57,59-61,63-67,195-196
+client2/src/game/boards/geometry/roundTableTree.ts
+  s_b2849f723d52bb::t_7b447c74141fc6 9,12,81-83,85-88
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_9a4ddedb7188cb 120-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "fc18c254dea018ec7df2691f0eb5f4f34bb42fbd",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
