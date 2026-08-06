@@ -1,0 +1,47 @@
+client2/src/game/ui/pieceDraw.ts
+  s_b2849f723d52bb::t_fed1aee908daba 34-46
+client2/e2e/catalog/hudDockZones.spec.ts
+  s_b2849f723d52bb::t_8b7ebb22895c66 80
+  s_b2849f723d52bb::t_94fdeab6f5a3a6 92
+  s_b2849f723d52bb::t_3706f408979b48 38-46
+  s_b2849f723d52bb::t_ea2212b6bdc889 76-79,81-91,93-104
+client2/src/game/ui/pieceKinds.test.ts
+  s_b2849f723d52bb::t_8b861ddc70e221 23-29,33
+client2/src/game/boards/scene/zoneDock.ts
+  s_b2849f723d52bb::t_b0dd99f70dc812 53,56,63-65
+  s_b2849f723d52bb::t_a2caa2bbbcfaf7 37-39
+  s_b2849f723d52bb::t_e5e850af074c5f 66-67
+client2/src/game/ui/pieceKinds.ts
+  s_b2849f723d52bb::t_e58ea8d34f9a33 31,34-36
+  s_b2849f723d52bb::t_040a52a1c8bd27 15-16
+  s_b2849f723d52bb::t_3c13ff2d24b9ee 4
+  s_b2849f723d52bb::t_1e6918b7425bb0 58
+  s_b2849f723d52bb::t_9507d8e5b02db2 76-77
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_1bc6945fa7025c 55-58
+client2/src/game/boards/scene/nodeFactory.ts
+  s_b2849f723d52bb::t_399de2193533dd 24-28
+client2/src/stories/mechanics/HudDocks.stories.tsx
+  s_b2849f723d52bb::t_9191deb01ec00b 22-25,31
+  s_b2849f723d52bb::t_fe39dff6f9d4b8 45-46,53
+  s_b2849f723d52bb::t_2efc2e0853f2de 8-9
+client2/src/game/boards/scene/hud.ts
+  s_b2849f723d52bb::t_deb3ea3adfed75 133-138,140,148
+  s_b2849f723d52bb::t_c52a91de05b2b3 109,111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "97eecc2ed770f320fab01fbac5d11284432c8e41",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
