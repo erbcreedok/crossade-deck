@@ -1,0 +1,48 @@
+client2/src/game/boards/scene/nodesStore.ts
+  s_b2849f723d52bb::t_7b2af70fa1f162 31-32
+  s_b2849f723d52bb::t_b906bf7ff0f5de 116-120
+client2/src/game/boards/strip/config.ts
+  s_b2849f723d52bb::t_67a8504a05b762 30-32
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_3f6aebb0add1e1 104
+client2/src/game/boards/strip/presentation.ts
+  s_b2849f723d52bb::t_086b28d0d5c9a9 1-40
+client2/src/game/boards/scene/zoneDock.test.ts
+  s_b2849f723d52bb::t_a139b574f10ccd 11
+client2/src/game/boards/scene/zoneDock.ts
+  s_b2849f723d52bb::t_6c1d57d7183b4e 11
+  s_b2849f723d52bb::t_03cc050aa8f9b4 20-21
+  s_b2849f723d52bb::t_0bba5716238808 76-77
+  s_b2849f723d52bb::t_2c566857a64823 160
+client2/src/stories/mechanics/HudDocks.stories.tsx
+  s_b2849f723d52bb::t_50658e826d50d9 79
+  s_b2849f723d52bb::t_db076114eaef4d 1-78,80-105
+client2/src/game/boards/strip/dock.ts
+  s_b2849f723d52bb::t_136b7d4c61bd1a 147
+  s_b2849f723d52bb::t_c5d7c6478dea00 94-95
+  s_b2849f723d52bb::t_29614ce41f07e0 33-35
+client2/e2e/catalog/hudDockZones.spec.ts
+  s_b2849f723d52bb::t_62257d0129103f 1-54,56-87
+  s_b2849f723d52bb::t_73e9014157a6f7 55
+client2/src/game/boards/strip/presentation.test.ts
+  s_b2849f723d52bb::t_5f80d88f02593a 1-41
+client2/src/game/boards/scene/hud.ts
+  s_b2849f723d52bb::t_cf4896e261a92a 14
+  s_b2849f723d52bb::t_e88704f10ada42 167,172-173,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "10510f315eafba4288a235482ab5f1ce1a24d7db",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
