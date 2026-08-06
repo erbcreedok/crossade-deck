@@ -1,0 +1,26 @@
+client2/e2e/catalog/hudSection.spec.ts
+  s_b2849f723d52bb::t_e2441121ec575f 76-103,107-108
+  s_b2849f723d52bb::t_ae8af4af2dd417 8-11
+  s_b2849f723d52bb::t_fcd6a8014990ec 104-106
+client2/src/stories/mechanics/HudMechanics.stories.tsx
+  s_b2849f723d52bb::t_5275cc36de3e97 229
+  s_b2849f723d52bb::t_5a99675a38a13c 10
+  s_b2849f723d52bb::t_588f2e2b7ee239 146
+  s_b2849f723d52bb::t_f4322382db5a59 157-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b5694077cf15c7996c3891a4f7c71938ba06f1e0",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
