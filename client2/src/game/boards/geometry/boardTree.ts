@@ -4,20 +4,20 @@
 // (здесь): чужие места сверху → зоны стола → своя рука снизу; за бортом — колонка справа.
 
 import { pile } from "../../slot/layouts";
-import { boardStripBand } from "./stripBand";
+import { boardStripBand, seatStripBlock } from "./stripBand";
 import { group, leaf } from "../../slot/types";
 import { OFFBOARD_KEY, type BoardState } from "../core/state";
 import { seatZoneId, slotKey, type BoardSpec } from "../core/spec";
-import { stripKey, stripZones } from "../strip/config";
+import { stripZones } from "../strip/config";
 import { membersOf, zoneSubtrees } from "./zoneSubtrees";
 import { roundTableTree } from "./roundTableTree";
 import { zoneOnBoard } from "../hud/hudLayout";
-import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, SEAT_STACK_DX, type BoardTree, type FreePositions, type Placed } from "./treeShared";
-
-/** Ячейка чужой ленты у места: житель ужат к масштабу посадочной полосы (58/83 от карты). */
-export const SEAT_SCALE = 0.58;
+import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, type BoardTree, type FreePositions, type Placed } from "./treeShared";
 
 export type { BoardTree, FreePositions } from "./treeShared";
+
+/** Поле блока лент от левой кромки места (band дышит влево на pad). */
+const STRIP_BAND_PAD_X = 14;
 
 export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: string, free?: FreePositions): BoardTree {
   const seatsZone = spec.zones.find((z) => z.layout.kind === "seats");
@@ -26,28 +26,18 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
   const placed: Placed[] = [];
   const cellRects: Record<string, { x: number; y: number; w: number; h: number }> = {};
 
-  // 1. Полоса чужих мест: ленты места (рука, мешок…) рядами рубашек внахлёст, ОДНА ПОД ДРУГОЙ,
-  //    с РЕАЛЬНЫМИ ключами («hand:p2») — дроп в отпертую чужую ленту той же дверью, что и всюду.
+  // 1. Полоса чужих мест: ленты места (рука, мешок…) — блоком seatStripBlock (на борде — полные
+  //    ужатые полосы, из HUD владельца — мини-визави), с РЕАЛЬНЫМИ ключами («hand:p2») — дроп в
+  //    открытую чужую ленту той же дверью, что и всюду.
   const others = state.seats.filter((s) => s.id !== selfSeat);
-  const strips = stripZones(spec);
   let x = MARGIN.x;
   let seatZonesH = 0;
   const seatsY = MARGIN.y + SEAT_LABEL_H;
   for (const seat of others) {
-    let rowY = seatsY;
-    let stripW = SEAT_CELL.w;
-    for (const zone of strips) {
-      const key = stripKey(zone.id, seat.id);
-      const members = membersOf(state, key);
-      const cell = { w: (zone.cell?.w ?? 100) * SEAT_SCALE, h: (zone.cell?.h ?? 143) * SEAT_SCALE };
-      placed.push({
-        id: key,
-        origin: { x, y: rowY },
-        slot: group(key, pile({ dx: SEAT_STACK_DX, dy: 0, cell }), members.map((m) => leaf(m, m, cell))),
-      });
-      stripW = Math.max(stripW, (members.length - 1) * SEAT_STACK_DX + cell.w);
-      rowY += cell.h + 4;
-    }
+    const block = seatStripBlock(spec, state, seat.id, { x: x + STRIP_BAND_PAD_X, y: seatsY }, "stack");
+    placed.push(...block.placed);
+    Object.assign(cellRects, block.bands);
+    const rowY = seatsY + block.size.h;
     // Зоны ЭТОГО места (perSeat, манчкинские «шмотки») — сразу под его лентами.
     let seatZoneW = 0;
     let zx = x;
@@ -62,9 +52,9 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
       seatZoneW += sub.size.w + GAP.x;
       seatZonesH = Math.max(seatZonesH, sub.size.h + 4);
     }
-    // Ширина места ЖИВАЯ: ряд рубашек богатой ленты шире номинала, сосед не должен наезжать.
-    x += Math.max(stripW, seatZoneW) + GAP.x;
-    seatZonesH = Math.max(seatZonesH, rowY - seatsY - SEAT_CELL.h);
+    // Ширина места ЖИВАЯ: полоса богатой ленты шире номинала, сосед не должен наезжать.
+    x += Math.max(SEAT_CELL.w, block.size.w + STRIP_BAND_PAD_X * 2, seatZoneW) + GAP.x;
+    seatZonesH = Math.max(seatZonesH, block.size.h - SEAT_CELL.h);
   }
   const seatsBottom = seatsY + (others.length ? SEAT_CELL.h + seatZonesH : 0);
 
@@ -131,7 +121,7 @@ export function buildBoardTree(spec: BoardSpec, state: BoardState, selfSeat: str
   let stripsBottom = selfZonesBottom;
   // Свои ленты в дереве — только те, которых НЕТ в HUD (hudLayout.zoneOnBoard); полосами
   // одна под другой, вид — единый стиль дока.
-  for (const zone of strips) {
+  for (const zone of stripZones(spec)) {
     if (!zoneOnBoard(spec, zone.id)) continue;
     const band = boardStripBand(zone, state, selfSeat, stripsBottom + GAP.y + 12, rowX);
     placed.push(band.placed);

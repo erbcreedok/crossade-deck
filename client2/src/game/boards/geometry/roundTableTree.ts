@@ -6,10 +6,10 @@ import { group, leaf, type Size } from "../../slot/types";
 import { CARD } from "../../crossade/tree";
 import { OFFBOARD_KEY, type BoardState } from "../core/state";
 import { seatZoneId, slotKey, type BoardSpec, type ZoneSpec } from "../core/spec";
-import { stripKey, stripZones } from "../strip/config";
+import { stripZones } from "../strip/config";
 import { membersOf, slotGroup, zoneCell, zoneSubtrees } from "./zoneSubtrees";
 import { zoneOnBoard } from "../hud/hudLayout";
-import { boardStripBand } from "./stripBand";
+import { boardStripBand, seatStripBlock } from "./stripBand";
 import { finish, GAP, MARGIN, SEAT_CELL, SEAT_LABEL_H, SEAT_STACK_DX, type BoardTree, type FreePositions, type Placed } from "./treeShared";
 
 /** Кольцо между центром и внешним кругом — не тоньше трёх ширин карты (правило владельца). */
@@ -78,21 +78,14 @@ export function roundTableTree(spec: BoardSpec, state: BoardState, selfSeat: str
     cellRects[key] = { x: origin.x, y: origin.y, w: cell.w, h: cell.h };
 
     if (seat.id === selfSeat) return; // свои ленты — отдельными полосами снизу
-    // Ленты места (рука, мешок…) — рядами рубашек за его слотом, одна под другой, с РЕАЛЬНЫМИ
-    // ключами («hand:p2»): дроп в отпертую чужую ленту — той же дверью, что и всюду.
+    // Ленты места (рука, мешок…) — блоком вокруг его аватара (на борде — полные ужатые полосы,
+    // из HUD владельца — мини-визави по atSeat), с РЕАЛЬНЫМИ ключами («hand:p2»): дроп в
+    // открытую чужую ленту — той же дверью, что и всюду.
     const bx = cx + rBack * Math.cos(ang);
-    let by = cy + rBack * Math.sin(ang);
-    for (const zone of stripZones(spec)) {
-      const key = stripKey(zone.id, seat.id);
-      const members = membersOf(state, key);
-      const stripW = Math.max(0, members.length - 1) * SEAT_STACK_DX + backCell.w;
-      placed.push({
-        id: key,
-        origin: { x: bx - stripW / 2, y: by - backCell.h / 2 },
-        slot: group(key, pile({ dx: SEAT_STACK_DX, dy: 0, cell: backCell }), members.map((m) => leaf(m, m, backCell))),
-      });
-      by += backCell.h + 4;
-    }
+    const by = cy + rBack * Math.sin(ang);
+    const block = seatStripBlock(spec, state, seat.id, { x: bx, y: by - backCell.h / 2 }, "around");
+    placed.push(...block.placed);
+    Object.assign(cellRects, block.bands);
   });
 
   const rightX = MARGIN.x + reach * 2 + GAP.x;

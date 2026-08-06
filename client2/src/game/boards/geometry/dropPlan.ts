@@ -5,7 +5,7 @@
 import { handOrderAfterDrop } from "../../crossade/handOrder";
 import { faceAfterDrop, insideBox, nextLooseKey } from "./freeDrop";
 import type { Rect, Vec } from "./freeBox";
-import { stripLocks } from "../strip/config";
+import { stripBlocked, stripOf } from "../strip/config";
 import { baseZoneId, slotKey, slotOf, zoneOf, type BoardCommand, type ZoneSpec } from "../core/spec";
 
 export interface DropWorld {
@@ -139,9 +139,10 @@ function planLoose(w: DropWorld, args: DropArgs, from: string): DropPlan {
 export function planDrop(w: DropWorld, args: DropArgs): DropPlan {
   const { el, from, target, cp } = args;
   const to = target?.slot ?? null;
-  if (from && to === from && reorderModeOf(w, from)) {
+  const ownContainer = !from || !stripOf(w, from) || slotOf(from) === args.selfSeat;
+  if (from && to === from && reorderModeOf(w, from) && ownContainer) {
     // Дроп внутри реордер-зоны: вставка (индекс-ЩЕЛЬ из dropTarget) или обмен (КЛЕТКА — ближайший
-    // житель; индекс вставки тут соврал бы на полклетки).
+    // житель). Порядок ЧУЖОЙ ленты — дело владельца (и её мини-вид зеркален): чужим не реордерится.
     const members = w.members(from);
     const order =
       reorderModeOf(w, from) === "swap"
@@ -149,8 +150,8 @@ export function planDrop(w: DropWorld, args: DropArgs): DropPlan {
         : handOrderAfterDrop(members, el, target?.index ?? members.length);
     return { kind: "command", cmd: { t: "reorderSlot", key: from, order } };
   }
-  if (from && to && to !== from && !stripLocks(w, to, args.selfSeat)) {
-    // Чужая ЗАПЕРТАЯ лента дроп не принимает (приватность); отпертая — обычная цель.
+  if (from && to && to !== from && !stripBlocked(w, to, args.selfSeat)) {
+    // Чужая лента при access ≠ open дроп не принимает; открытая (дефолт) — обычная цель.
     return { kind: "command", cmd: { t: "move", el, from, to, face: faceForMove(w, args, to) } };
   }
   if (from && !to) return planLoose(w, args, from);

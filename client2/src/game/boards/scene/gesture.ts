@@ -17,8 +17,7 @@ import { hintShape } from "../geometry/sceneAreas";
 import { freeZoneAt, isDeckSlot, planDrop, reorderModeOf, type DropWorld } from "../geometry/dropPlan";
 import { baseZoneId, slotKey, slotOf, zoneOf, type BoardCommand, type BoardSpec, type ElementDef } from "../core/spec";
 import type { BoardState } from "../core/state";
-import { stripKey, stripLocks, stripOf, stripZones } from "../strip/config";
-import { zoneOnBoard } from "../hud/hudLayout";
+import { stripBlocked, stripOf } from "../strip/config";
 import { paintStripBand } from "../strip/bandPaint";
 import type { BoardTree } from "../geometry/boardTree";
 import type { BoardNode } from "./nodeFactory";
@@ -82,7 +81,7 @@ export class SceneGesture {
     if (this.deps.hud.memberKey(el.id)) return true; // житель СВОЕГО дока HUD (вне дерева)
     const slot = this.deps.tree().slotOf(el.id);
     if (!slot) return false;
-    if (stripLocks(this.deps.spec(), slot, this.deps.selfSeat)) return false; // чужая запертая лента
+    if (stripBlocked(this.deps.spec(), slot, this.deps.selfSeat)) return false; // чужая лента: access ≠ open
     // Реордер-контейнер (лента, flow-грид): жители разложены по позициям — хватается ЛЮБОЙ, не верх.
     if (reorderModeOf(this.deps.world(), slot)) return true;
     const members = this.deps.state().field.slots[slot]?.members ?? [];
@@ -235,15 +234,14 @@ export class SceneGesture {
 
   destroy(): void {}
 
-  /** Полосы СВОИХ лент-на-борде во время драга: тот же стиль, что у доков (strip/bandPaint). */
+  /** Полосы лент-на-борде во время драга: тот же стиль, что у доков (strip/bandPaint). Светятся
+   *  свои и ДОСТУПНЫЕ чужие (access open — лента зовёт дроп); запертые остаются в rest. */
   private paintBoardStripBands(g: Graphics): void {
     if (!this.dragging) return;
     const spec = this.deps.spec();
-    for (const zone of stripZones(spec)) {
-      if (!zoneOnBoard(spec, zone.id)) continue;
-      const key = stripKey(zone.id, this.deps.selfSeat);
-      const b = this.deps.tree().cellRects[key];
-      if (b) paintStripBand(g, b, this.hotSlot === key ? "hot" : "armed", this.deps.accent());
+    for (const [key, b] of Object.entries(this.deps.tree().cellRects)) {
+      if (!stripOf(spec, key) || stripBlocked(spec, key, this.deps.selfSeat)) continue;
+      paintStripBand(g, b, this.hotSlot === key ? "hot" : "armed", this.deps.accent());
     }
   }
 

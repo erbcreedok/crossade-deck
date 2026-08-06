@@ -21,6 +21,8 @@ export interface NodesHost {
   placeCard(node: BoardNode): void;
   /** Лицом или рубашкой лежит карта в этом слоте (правило зоны). */
   faceUpIn(id: string, slot: string): boolean;
+  /** Масштаб жителя в слоте (чужая лента ужата/мини — strip/config.stripScale); обычно 1. */
+  slotScale(slot: string): number;
   /** Карту ведёт чужой драг-стрим — не трогать её позицию/глубину. */
   remoteDragged(id: string): boolean;
   // ——— доки HUD (одна нода на жителя): та же нода перекладывается на экранный слой ———
@@ -130,7 +132,7 @@ export class SceneNodes {
     const fx = state.fx[id];
     const wantFace = fx?.face ?? this.host.faceUpIn(id, slot);
     if (node.kind === "card" && node.faceUpTarget !== wantFace) node.requestFlip();
-    const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale: nodeScaleIn(node, slot) };
+    const target = { x: home.x, y: home.y, rot: fx?.rot ?? 0, scale: nodeScaleIn(node, slot) * this.host.slotScale(slot) };
     if (snap) node.body.snapTo(target);
     else node.body.setTarget(target);
   }

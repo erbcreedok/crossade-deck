@@ -73,13 +73,19 @@ describe("planDrop", () => {
     expect(plan).toEqual({ kind: "command", cmd: { t: "placeFree", key: "board:1", at: { x: 100, y: 200 } } });
   });
 
-  it("мимо всего (вне круга) — none; чужая ЗАПЕРТАЯ лента дроп не принимает, отпертая — принимает", () => {
+  it("мимо всего (вне круга) — none; чужая лента: open (дефолт) дроп принимает, locked/request — нет", () => {
     const w = world({ "hand:p1": ["a"] });
     expect(planDrop(w, { el: "a", from: "hand:p1", target: null, cp: { x: 990, y: 990 }, selfSeat: "p1", carriedFaceUp: true }).kind).toBe("none");
-    expect(planDrop(w, { el: "a", from: "hand:p1", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true }).kind).toBe("none");
-    const open: ZoneSpec[] = zones.map((z) => (z.id === "hand" ? { ...z, locked: false } : z));
-    const wOpen: DropWorld = { ...w, zones: open };
-    const plan = planDrop(wOpen, { el: "a", from: "hand:p1", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true });
-    expect(plan.kind).toBe("command");
+    expect(planDrop(w, { el: "a", from: "hand:p1", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true }).kind).toBe("command");
+    for (const access of ["locked", "request"] as const) {
+      const wAcc: DropWorld = { ...w, zones: zones.map((z) => (z.id === "hand" ? { ...z, access } : z)) };
+      expect(planDrop(wAcc, { el: "a", from: "hand:p1", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true }).kind).toBe("none");
+    }
+  });
+
+  it("реордер внутри ЧУЖОЙ ленты не планируется (порядок — дело владельца, мини-вид зеркален)", () => {
+    const w = world({ "hand:p2": ["a", "b"] });
+    const plan = planDrop(w, { el: "b", from: "hand:p2", target: { slot: "hand:p2", index: 0 }, cp: { x: 0, y: 0 }, selfSeat: "p1", carriedFaceUp: true });
+    expect(plan.kind).toBe("none");
   });
 });

@@ -14,12 +14,15 @@
 import type { Group } from "../../slot/types";
 import { measure } from "../../slot/slot";
 import { CARD } from "../../crossade/tree";
-import type { BoardCommand } from "../core/spec";
+import { slotOf, type BoardCommand } from "../core/spec";
+import { stripOf } from "../strip/config";
 import { insertPreviewOn, type DropWorld } from "../geometry/dropPlan";
 import { handOrderAfterDrop } from "../../crossade/handOrder";
 
 export interface GapPreviewDeps {
   world(): DropWorld;
+  /** Место зрителя: превью чужих лент не показывается (их порядок — дело владельца). */
+  selfSeat: string;
   /** Перецелить жителей слота на свежие дома (дыра открылась/закрылась/переехала) — nodeStore. */
   retargetSlot(slot: string): void;
   dispatch(cmd: BoardCommand): void;
@@ -33,9 +36,12 @@ export class SceneGapPreview {
   constructor(private readonly deps: GapPreviewDeps) {}
 
   /** Гэп-превью включено для этого контейнера? Ленты — по дефолту, прочие зоны — opt-in
-   *  (правило целиком в dropPlan.insertPreviewOn — одна дверь для сцены и планировщика). */
+   *  (dropPlan.insertPreviewOn). ЧУЖАЯ лента не превьюится: её порядок — дело владельца
+   *  (и мини-вид зеркален — индекс превью там соврал бы), дроп аппендит. */
   enabled(slot: string): boolean {
-    return insertPreviewOn(this.deps.world(), slot);
+    const w = this.deps.world();
+    if (stripOf({ zones: w.zones }, slot) && slotOf(slot) !== this.deps.selfSeat) return false;
+    return insertPreviewOn(w, slot);
   }
 
   /** Груз ведут над бордой: раздвинуть жителей цели (или закрыть дыру, если цель не превьюится).

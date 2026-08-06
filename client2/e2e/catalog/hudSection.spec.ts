@@ -97,4 +97,30 @@ test.describe("HUD: флекс-доки и ленты-виджеты", () => {
     expect(r.handFacesAtS2).toEqual([false, false, false]); // соседу — рубашками (hidden)
     expect(r.pouchCountAtS2).toBe(4); // мешок — отдельной зоной у места владельца
   });
+
+  test("дроп в ЧУЖУЮ открытую ленту (дефолт access:open): карта из руки ложится в мешок соседа", async ({ page }) => {
+    await open(page, "live-two-hands");
+    const pts = await page.evaluate(() => {
+      const s1 = window.__stories![0]!;
+      const hand = s1.hud.screenPoses().filter((p) => p.zone === "hand");
+      const foreign = Object.entries(s1.testHooks().cards)
+        .filter(([, c]) => c.slot === "pouch:p2")
+        .map(([, c]) => ({ x: c.x, y: c.y }));
+      const cx = foreign.reduce((a, p) => a + p.x, 0) / foreign.length;
+      const cy = foreign.reduce((a, p) => a + p.y, 0) / foreign.length;
+      return { card: hand[0]!, to: { x: cx, y: cy } };
+    });
+    await page.mouse.move(pts.card.x, pts.card.y);
+    await page.mouse.down();
+    await page.mouse.move(pts.to.x, pts.to.y, { steps: 14 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await page.waitForTimeout(900);
+    const after = await page.evaluate((id) => {
+      const [s1, s2] = window.__stories!;
+      return { atS1: s1!.testHooks().cards[id]!.slot, atS2: s2!.testHooks().cards[id]!.slot };
+    }, pts.card.id);
+    expect(after.atS1).toBe("pouch:p2"); // легла в чужой мешок…
+    expect(after.atS2).toBe("pouch:p2"); // …и у владельца тоже (один порт)
+  });
 });

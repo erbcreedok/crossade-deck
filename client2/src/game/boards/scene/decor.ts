@@ -8,9 +8,8 @@ import { PIXEL_FONT, COLORS } from "../../engine/constants";
 import { dashedRectSegments } from "../../ui/dashedRectSegments";
 import { dashedCircleArcs } from "../../ui/dashedCircleArcs";
 import type { BoardTree } from "../geometry/boardTree";
-import { baseZoneId, slotKey, zoneOf, type BoardSpec } from "../core/spec";
-import { stripKey, stripZones } from "../strip/config";
-import { zoneOnBoard } from "../hud/hudLayout";
+import { baseZoneId, slotKey, slotOf, zoneOf, type BoardSpec } from "../core/spec";
+import { stripOf, stripZones, stripKey } from "../strip/config";
 import { paintStripBand } from "../strip/bandPaint";
 import type { BoardState } from "../core/state";
 
@@ -29,6 +28,7 @@ export class SceneDecor {
   readonly layer = new Graphics();
   private readonly seatLabels = new Map<string, Text>();
   private readonly zoneLabels = new Map<string, Text>();
+  private readonly requestLabels = new Map<string, Text>();
   private mounted = false;
 
   constructor(private readonly host: DecorSceneHost) {}
@@ -39,14 +39,32 @@ export class SceneDecor {
     this.paintStripBands();
   }
 
-  /** Свои ленты-на-борде в покое (rest) — тем же стилем, что экранный док (strip/bandPaint).
-   *  Armed/hot во время драга рисует жест поверх (hintLayer). */
+  /** ВСЕ ленты борды в покое (rest) — тем же стилем, что доки HUD (strip/bandPaint): свои полосы,
+   *  чужие ужатые и мини-визави. Armed/hot во время драга рисует жест поверх (hintLayer). Чужая
+   *  request-лента помечена «по запросу» (сам флоу подтверждения — отдельный шаг). */
   private paintStripBands(): void {
     const spec = this.host.spec();
-    for (const zone of stripZones(spec)) {
-      if (!zoneOnBoard(spec, zone.id)) continue;
-      const band = this.host.tree().cellRects[stripKey(zone.id, this.host.selfSeat)];
-      if (band) paintStripBand(this.layer, band, "rest", this.host.accent());
+    const seen = new Set<string>();
+    for (const [key, band] of Object.entries(this.host.tree().cellRects)) {
+      const zone = stripOf(spec, key);
+      if (!zone) continue;
+      paintStripBand(this.layer, band, "rest", this.host.accent());
+      if ((zone.access ?? "open") !== "request" || slotOf(key) === this.host.selfSeat) continue;
+      seen.add(key);
+      let label = this.requestLabels.get(key);
+      if (!label) {
+        // НАД лентой справа (симметрично подписи места слева): внутри band её накрыли бы жители.
+        label = new Text({ text: "по запросу", style: { fontFamily: PIXEL_FONT, fontSize: 10, fill: 0x9aa79c } });
+        label.anchor.set(1, 1);
+        this.host.surfaceAdd(label);
+        this.requestLabels.set(key, label);
+      }
+      label.position.set(band.x + band.w - 2, band.y - 2);
+    }
+    for (const [key, label] of this.requestLabels) {
+      if (seen.has(key)) continue;
+      label.destroy();
+      this.requestLabels.delete(key);
     }
   }
 
@@ -174,5 +192,7 @@ export class SceneDecor {
     this.seatLabels.clear();
     for (const l of this.zoneLabels.values()) l.destroy();
     this.zoneLabels.clear();
+    for (const l of this.requestLabels.values()) l.destroy();
+    this.requestLabels.clear();
   }
 }

@@ -22,6 +22,7 @@ import { ScenePresence } from "./scenePresence";
 import { SceneGesture } from "./gesture";
 import { SceneGapPreview } from "./gapPreview";
 import { SceneHud } from "./hud";
+import { stripScale } from "../strip/config";
 import { boardWorld, isDeckSlot, type DropWorld } from "../geometry/dropPlan";
 import { faceUpInSlot } from "../core/faceUp";
 import { menuTargetAt, type MenuTargetKind } from "../geometry/sceneAreas";
@@ -93,6 +94,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     unregister: (id) => api.byId.delete(id),
     placeCard: (node) => api.placeCard(node),
     faceUpIn,
+    slotScale: (slot) => stripScale(ctx.spec(), slot, ctx.selfSeat),
     remoteDragged: (id) => presence.hasRemote(id),
     dockPose: (id) => hud.poseOf(id),
     placeDocked: (node) => hud.cardLayer.addChild(node.root),
@@ -126,7 +128,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
     slotOf: (id) => ctx.tree().slotOf(id),
     members,
     fxRot: (id) => ctx.state().fx[id]?.rot ?? 0,
-    restScaleIn: (node, slot) => (slot ? nodeScaleIn(node, slot) : node.restScale),
+    restScaleIn: (node, slot) => (slot ? nodeScaleIn(node, slot) * stripScale(ctx.spec(), slot, ctx.selfSeat) : node.restScale),
     depth: (id) => nodeStore.depth(id),
     ownBlockDrag: () => blockDrag.active(),
     wake: () => api.wake(),
@@ -173,6 +175,7 @@ export function buildBoardParts(ctx: BoardPartsCtx, opts: BoardSceneOptions): Bo
   // Smart reorder контейнеров борды: гэп-превью вставки (ленты — по дефолту, flow с preview:true).
   const gapPreview = new SceneGapPreview({
     world,
+    selfSeat: ctx.selfSeat,
     retargetSlot: (slot) => nodeStore.retargetSlot(ctx.state().field.slots[slot]?.members ?? [], (id) => ctx.tree().homeOf(id)),
     dispatch: (cmd) => ctx.dispatch(cmd),
     wake: () => api.wake(),

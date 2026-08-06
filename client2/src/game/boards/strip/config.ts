@@ -7,6 +7,7 @@
 // «рука» в словаре нет: «hand» — просто id зоны, к которому по умолчанию едет deal.
 
 import { slotKey, slotOf, zoneOf, type BoardSpec, type HandFlow, type HudSide, type ZoneSpec } from "../core/spec";
+import { zoneOnBoard } from "../hud/hudLayout";
 
 export interface StripConfig {
   reorder: "insert" | "swap" | null;
@@ -18,8 +19,10 @@ export interface StripConfig {
   cell: { w: number; h: number };
   /** Значения чужих экземпляров не видны (рубашки). Дефолт true — лента личная. */
   hidden: boolean;
-  /** Чужие не трогают экземпляры ленты. Дефолт true. */
-  locked: boolean;
+  /** Доступ чужих: open (дефолт — дроп/взятие включены) | request (пока как locked) | locked. */
+  access: "open" | "request" | "locked";
+  /** Где у аватара владельца живёт мини-лента для других, когда зона в HUD. Дефолт below. */
+  atSeat: "above" | "below" | "left" | "right";
   /** Smart reorder (гэп-превью вставки). Дефолт true — лента живая. */
   preview: boolean;
 }
@@ -42,11 +45,26 @@ export function stripOf(spec: Pick<BoardSpec, "zones">, slot: string): ZoneSpec 
   return zone?.layout.kind === "strip" ? zone : null;
 }
 
-/** ЗАПИРАЕТ ли лента драг этого слота: ЧУЖОЙ экземпляр при locked (дефолт — да, приватность).
- *  Своего не касается; отпертая (locked:false) лента — общая, чужие жители берутся. */
-export function stripLocks(spec: Pick<BoardSpec, "zones">, slot: string, selfSeat: string): boolean {
+/** БЛОКИРУЕТ ли лента интеракцию с этим слотом: ЧУЖОЙ экземпляр при access ≠ open. Дефолт open —
+ *  дроп и взятие у чужих лент ВКЛЮЧЕНЫ (владелец сам запирает или ставит request). request до
+ *  прихода флоу подтверждения ведёт себя как locked. Своего экземпляра не касается. */
+export function stripBlocked(spec: Pick<BoardSpec, "zones">, slot: string, selfSeat: string): boolean {
   const zone = stripOf(spec, slot);
-  return !!zone && slotOf(slot) !== selfSeat && (zone.locked ?? true);
+  return !!zone && slotOf(slot) !== selfSeat && (zone.access ?? "open") !== "open";
+}
+
+/** Чужая лента-на-борде: та же полноценная полоса, УЖАТАЯ (стол не раздувается от игроков). */
+export const STRIP_FOREIGN_SCALE = 0.7;
+/** Мини-визави у аватара (владелец держит зону в HUD): мелко, но детально. */
+export const STRIP_MINI_SCALE = 0.42;
+
+/** Масштаб ЖИТЕЛЯ в слоте относительно своего номинала: чужая лента ужимает (на борде) или
+ *  минимизирует (мини-визави при HUD владельца); свои и не-ленты — 1. ЕДИНЫЙ источник масштаба
+ *  лент: геометрия band (stripBand) и рендер нод (nodesStore) обязаны совпадать. */
+export function stripScale(spec: Pick<BoardSpec, "zones" | "hud">, slot: string, selfSeat: string): number {
+  const zone = stripOf(spec, slot);
+  if (!zone || slotOf(slot) === selfSeat) return 1;
+  return zoneOnBoard(spec, zone.id) ? STRIP_FOREIGN_SCALE : STRIP_MINI_SCALE;
 }
 
 /** Направление вдоль края: док лежит ВДОЛЬ своего края экрана, а не поперёк. */
@@ -63,7 +81,8 @@ export function stripConfig(zone: ZoneSpec): StripConfig {
     size: zone.cell ? { cell: zone.cell } : { fit: zone.fit ?? 5 },
     cell,
     hidden: zone.hidden ?? true,
-    locked: zone.locked ?? true,
+    access: zone.access ?? "open",
+    atSeat: zone.atSeat ?? "below",
     preview: zone.preview ?? true,
   };
 }

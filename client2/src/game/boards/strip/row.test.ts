@@ -83,3 +83,21 @@ describe("stripCellSize — адаптивный размер карты рук�
     expect(stripCellSize(1, 1, CELL).w).toBeGreaterThanOrEqual(48);
   });
 });
+
+describe("stripRowLayout — зеркало визави (чужая мини-лента)", async () => {
+  const { stripRowLayout } = await import("./rowLayout");
+  const cell = { w: 100, h: 143 };
+
+  it("mirror переворачивает ряд: первый житель владельца — справа; indexAt переводит в его порядок", () => {
+    const straight = stripRowLayout(600, cell, 12, false);
+    const mirrored = stripRowLayout(600, cell, 12, true);
+    const sizes = [cell, cell, cell];
+    const a = straight.place(sizes).at;
+    const b = mirrored.place(sizes).at;
+    expect(b[0]!.x).toBe(a[2]!.x); // житель 0 встал на место правого
+    expect(b[2]!.x).toBe(a[0]!.x);
+    // Точка левее всех центров: прямой ряд — вставка 0, зеркальный — В КОНЕЦ порядка владельца.
+    expect(straight.indexAt({ x: 0, y: 0 }, sizes)).toBe(0);
+    expect(mirrored.indexAt({ x: 0, y: 0 }, sizes)).toBe(3);
+  });
+});
