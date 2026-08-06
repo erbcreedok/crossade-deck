@@ -1,0 +1,53 @@
+client2/e2e/catalog/hudSection.spec.ts
+  s_b2849f723d52bb::t_5b09d3f6ab7271 41-54
+client2/src/game/boards/scene/parts.ts
+  s_b2849f723d52bb::t_05bf06077cef3a 88
+  s_b2849f723d52bb::t_af07d8733414f2 13,43-44,87
+client2/src/game/boards/scene/options.ts
+  s_b2849f723d52bb::t_462d0c61f4af9b 33-45,48-49
+client2/src/stories/mechanics/HudMechanics.stories.tsx
+  s_b2849f723d52bb::t_2ca10d42b6db5a 101,105-106,108
+  s_b2849f723d52bb::t_9d9586afefadac 12-15
+  s_b2849f723d52bb::t_0ed154064900fc 136,228,297
+  s_b2849f723d52bb::t_b9fae70a3ace9e 137-138,219-221,284-286
+  s_b2849f723d52bb::t_9a4f968e88077d 131-133
+  s_b2849f723d52bb::t_d43ac350e48f05 113
+  s_b2849f723d52bb::t_916cf6515e06a5 73
+  s_b2849f723d52bb::t_4da5a8173f6d1e 95-96
+  s_b2849f723d52bb::t_b4a6d753849634 26-31,60,74-75,79,112
+  s_b2849f723d52bb::t_e8f406c4b7eb80 115-123
+client2/src/game/boards/strip/dock.ts
+  s_b2849f723d52bb::t_1e50f6c2da4f60 31-32,69-70,72,74-75,78-79,164,169,171-173
+client2/src/game/boards/scene/chrome.ts
+  s_b2849f723d52bb::t_5fb13b7f5caeb8 57-66
+client2/src/game/boards/core/spec.ts
+  s_b2849f723d52bb::t_462d0c61f4af9b 182-184
+client2/src/game/boards/scene/hud.ts
+  s_b2849f723d52bb::t_05bf06077cef3a 26-27,100-101,107-108,110,112-113,189,192-193,198,213,215-216
+  s_b2849f723d52bb::t_c43914e670f730 10-11,24-25,55-56,66,72-73,89-90,93-94,99,106,109,111,114-115,188,191,194,199,217-218
+client2/src/game/boards/strip/dock.test.ts
+  s_b2849f723d52bb::t_5f9433d694fa08 116-136
+client2/src/game/boards/scene/zoneDock.ts
+  s_b2849f723d52bb::t_5fb13b7f5caeb8 36-38,51-52,77
+  s_b2849f723d52bb::t_46e16755302a02 50,55,69,76
+client2/src/game/boards/scene/scene.ts
+  s_b2849f723d52bb::t_af07d8733414f2 25,51-52,73,89,128-134
+  s_b2849f723d52bb::t_05bf06077cef3a 207-208
+  s_b2849f723d52bb::t_76b87e7aec2fbf 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "91d248a59092ea509136ba392501ed86ffdb2fbd",
+  "prompts": {},
+  "sessions": {
+    "s_b2849f723d52bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8bcbe2-d2a5-4121-8ffd-913dc0060c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
