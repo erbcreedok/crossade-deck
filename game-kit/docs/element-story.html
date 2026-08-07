@@ -1,0 +1,1704 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>game-kit · Elements/Element — story blueprint</title>
+
+<style>
+:root{
+  --app-bg:#f6f9fc; --sidebar:#fff; --panel:#fff; --canvas:#f6f9fc;
+  --border:#e6ecf0; --border-2:#d9e0e6;
+  --text:#2e3438; --muted:#5c6870; --faint:#8a949c;
+  --accent:#1ea7fd; --accent-weak:#e3f3ff;
+  --code-bg:#f7fafc; --code-text:#30404d;
+  --good:#66bf3c; --warn:#e69d00; --bad:#ff4400; --purple:#a284ff;
+  --mono:"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --app-bg:#1b1c1d; --sidebar:#222425; --panel:#1b1c1d; --canvas:#171819;
+    --border:#333537; --border-2:#2b2d2e;
+    --text:#c9cdcf; --muted:#8b9297; --faint:#6b7378;
+    --accent:#1ea7fd; --accent-weak:#12303f;
+    --code-bg:#0e1414; --code-text:#a7b6c2;
+  }
+}
+:root[data-theme="light"]{
+  --app-bg:#f6f9fc; --sidebar:#fff; --panel:#fff; --canvas:#f6f9fc;
+  --border:#e6ecf0; --border-2:#d9e0e6; --text:#2e3438; --muted:#5c6870; --faint:#8a949c;
+  --accent-weak:#e3f3ff; --code-bg:#f7fafc; --code-text:#30404d;
+}
+:root[data-theme="dark"]{
+  --app-bg:#1b1c1d; --sidebar:#222425; --panel:#1b1c1d; --canvas:#171819;
+  --border:#333537; --border-2:#2b2d2e; --text:#c9cdcf; --muted:#8b9297; --faint:#6b7378;
+  --accent-weak:#12303f; --code-bg:#0e1414; --code-text:#a7b6c2;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--sans);color:var(--text);background:var(--app-bg);
+  font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+code,pre{font-family:var(--mono)}
+
+.app{display:grid;grid-template-columns:238px 1fr;height:100vh;height:100dvh;overflow:hidden}
+
+/* ---------- sidebar ---------- */
+.sidebar{background:var(--sidebar);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden}
+.sb-brand{display:flex;align-items:center;gap:8px;padding:13px 14px;border-bottom:1px solid var(--border);
+  font-weight:800;letter-spacing:.2px}
+.sb-brand .logo{width:22px;height:22px;border-radius:5px;background:var(--accent);
+  display:grid;place-items:center;color:#fff;font-size:13px}
+.sb-brand small{font-weight:600;color:var(--faint);font-size:11px}
+.sb-search{margin:10px;padding:6px 9px;border:1px solid var(--border-2);border-radius:5px;
+  color:var(--faint);font-size:12px;display:flex;justify-content:space-between}
+.sb-search kbd{border:1px solid var(--border-2);border-radius:3px;padding:0 4px;font-size:10px}
+.tree{overflow:auto;padding:2px 8px 20px;flex:1}
+.tree .root{display:flex;align-items:center;gap:6px;padding:5px 6px;font-weight:800;
+  color:var(--text);cursor:default;margin-top:6px}
+.tree .grp{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 20px;color:var(--muted);
+  cursor:default;font-weight:600}
+.tree .story{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 38px;color:var(--muted);
+  cursor:pointer;border-radius:5px;width:100%;text-align:left;background:none;border:0;font:inherit}
+.tree .story:hover{background:var(--code-bg);color:var(--text)}
+.tree .story.on{background:var(--accent);color:#fff}
+.tree .ic{width:13px;height:13px;flex:none;opacity:.85;font-size:11px}
+.tree .story.on .ic{filter:brightness(3)}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;margin-left:auto}
+.story.on .dot{background:#fff}
+
+/* ---------- main ---------- */
+.main{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.toolbar{display:flex;align-items:center;gap:2px;padding:6px 10px;border-bottom:1px solid var(--border);
+  background:var(--panel);flex-wrap:wrap}
+.tb-tab{padding:5px 11px;border-radius:5px;border:0;background:none;font:inherit;font-weight:700;
+  color:var(--muted);cursor:pointer}
+.tb-tab.on{background:var(--accent-weak);color:var(--accent)}
+.tb-sep{width:1px;height:20px;background:var(--border);margin:0 8px}
+.tb-tool{width:28px;height:26px;border-radius:5px;border:0;background:none;color:var(--muted);
+  cursor:pointer;font-size:14px}
+.tb-tool:hover{background:var(--code-bg);color:var(--text)}
+.tb-spacer{flex:1}
+.tb-glob{display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--border-2);
+  border-radius:5px;color:var(--muted);font-size:11px;cursor:pointer;font-weight:600}
+.tb-glob b{color:var(--text)}
+
+.stage{flex:1;overflow:auto;display:flex;flex-direction:column;min-height:0}
+
+/* canvas view */
+.canvas-wrap{background:var(--canvas);flex:1;min-height:200px;position:relative;overflow:auto;
+  background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:22px 22px;
+  display:grid;place-items:center;align-content:center;padding:30px}
+.addons{border-top:1px solid var(--border);background:var(--panel);flex:0 0 auto;
+  height:42%;min-height:200px;display:flex;flex-direction:column}
+.sheet-handle{display:none}
+.mobilebar,.backdrop{display:none}
+.addons-tabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--border);
+  flex:0 0 auto;height:41px}
+.ad-tab{padding:6px 11px;border:0;background:none;font:inherit;font-weight:700;color:var(--muted);
+  cursor:pointer;border-bottom:2px solid transparent;display:flex;gap:6px;align-items:center}
+.ad-tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.ad-tab .badge{background:var(--accent);color:#fff;border-radius:20px;font-size:10px;padding:0 6px;font-weight:800}
+.addons-body{height:calc(100% - 41px);overflow:auto;padding:12px 14px}
+
+/* docs view */
+.docs{padding:34px 40px 90px;max-width:920px;margin:0 auto;width:100%}
+.docs h1{font-size:30px;margin:0 0 4px;letter-spacing:-.4px}
+.docs .lede{color:var(--muted);font-size:15px;margin:0 0 8px}
+.docs h2{font-size:19px;margin:40px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+.docs h3{font-size:13px;margin:22px 0 6px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.docs p{margin:9px 0}
+.docs ul{margin:8px 0;padding-left:20px}
+.docs li{margin:4px 0}
+.pathchip{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--muted);
+  background:var(--code-bg);border:1px solid var(--border);border-radius:5px;padding:2px 8px;margin-bottom:14px}
+
+/* args table */
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+.args th{text-align:left;color:var(--faint);font-weight:700;font-size:11px;text-transform:uppercase;
+  letter-spacing:.5px;padding:6px 10px;border-bottom:1px solid var(--border)}
+.args td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.args tr:last-child td{border-bottom:0}
+.args .nm{font-family:var(--mono);color:var(--accent);font-weight:600;white-space:nowrap}
+.args .ds{color:var(--muted)}
+.tog{width:34px;height:19px;border-radius:20px;background:var(--border-2);position:relative;
+  cursor:pointer;border:0;transition:background .12s}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;
+  background:#fff;transition:left .12s}
+.tog.on{background:var(--accent)}
+.tog.on::after{left:17px}
+select.mini{font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--border-2);
+  border-radius:5px;background:var(--panel);color:var(--text)}
+input.mini{font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--border-2);
+  border-radius:5px;background:var(--panel);color:var(--text);width:100%;max-width:150px}
+/* atom sub-argument rows: revealed only while the atom is on */
+.args tr.sub td{border-bottom:1px solid var(--border);background:var(--code-bg)}
+.args tr.sub td.snm{padding-left:22px;position:relative;font-family:var(--mono);
+  color:var(--muted);white-space:nowrap;font-size:11.5px}
+.args tr.sub td.snm::before{content:"└";position:absolute;left:8px;color:var(--faint)}
+.args tr.sub .req{color:var(--warn);font-weight:700;margin-left:4px}
+.args tr.sub td.shelp{color:var(--faint);font-size:11px;line-height:1.45}
+.args tr.sub.last td{border-bottom:2px solid var(--border-2)}
+
+/* actions log */
+.log{font-family:var(--mono);font-size:12px}
+.log .row{padding:5px 8px;border-bottom:1px solid var(--border);display:flex;gap:10px}
+.log .row:hover{background:var(--code-bg)}
+.log .ev{color:var(--accent);font-weight:600}
+.log .pl{color:var(--muted)}
+.log .empty{color:var(--faint);padding:8px}
+
+/* interactions steps */
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;position:relative;padding:8px 8px 8px 34px;border-bottom:1px solid var(--border)}
+.steps li::before{content:counter(s);position:absolute;left:8px;top:8px;width:19px;height:19px;
+  border-radius:50%;background:var(--accent-weak);color:var(--accent);font-weight:800;font-size:11px;
+  display:grid;place-items:center}
+.steps li.pass::before{content:"✓";background:var(--good);color:#fff}
+.steps li.fail::before{content:"!";background:var(--bad);color:#fff}
+
+/* cards / callouts */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{border:1px solid var(--border);border-radius:8px;padding:13px 15px;background:var(--panel)}
+.card h4{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:8px}
+.card .atoms{font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.7}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;
+  background:var(--code-bg);border:1px solid var(--border);color:var(--code-text);margin:1px}
+.tag.core{border-color:var(--accent);color:var(--accent)}
+pre.code{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;
+  overflow:auto;font-size:12.5px;color:var(--code-text);line-height:1.6}
+pre.code .c{color:var(--faint)}
+pre.code .k{color:var(--accent)}
+.callout{border-left:3px solid var(--accent);background:var(--accent-weak);border-radius:0 8px 8px 0;
+  padding:10px 14px;margin:12px 0;font-size:12.5px}
+.scroll{overflow-x:auto}
+
+/* verdict chips */
+.v{font-weight:800;font-size:11px;padding:1px 7px;border-radius:20px;white-space:nowrap}
+.v.ok{background:rgba(102,191,60,.16);color:var(--good)}
+.v.wn{background:rgba(230,157,0,.16);color:var(--warn)}
+.v.bd{background:rgba(255,68,0,.16);color:var(--bad)}
+
+/* test plan */
+.layer{border:1px solid var(--border);border-radius:9px;margin:12px 0;overflow:hidden}
+.layer > summary{list-style:none;cursor:pointer;padding:12px 15px;display:flex;align-items:center;
+  gap:11px;font-weight:700;background:var(--panel)}
+.layer > summary::-webkit-details-marker{display:none}
+.layer > summary::before{content:"▸";color:var(--faint);transition:.15s}
+.layer[open] > summary::before{transform:rotate(90deg)}
+.layer .kind{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 7px;
+  border-radius:5px;border:1px solid var(--border-2);color:var(--muted)}
+.layer .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
+.layer .body{padding:4px 16px 14px;border-top:1px solid var(--border);font-size:12.5px}
+.layer .tool{color:var(--faint);font-size:11.5px;margin:8px 0 2px}
+.gwt{list-style:none;padding:0;margin:6px 0}
+.gwt li{padding:7px 0 7px 0;border-bottom:1px dashed var(--border)}
+.gwt li:last-child{border-bottom:0}
+.gwt .id{font-family:var(--mono);font-size:10.5px;color:var(--purple);display:block;margin-bottom:2px}
+.gwt b.g{color:var(--muted);font-weight:700}
+.gwt b.w{color:var(--accent);font-weight:700}
+.gwt b.t{color:var(--good);font-weight:700}
+.summ{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0;padding:14px;border:1px solid var(--border);
+  border-radius:9px;background:var(--code-bg)}
+.summ div{display:flex;flex-direction:column}
+.summ .num{font-size:22px;font-weight:800;color:var(--text)}
+.summ .lab{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+/* ---------- the mock canvas element ---------- */
+.stagearea{display:flex;flex-direction:column;align-items:center;gap:18px}
+/* NO fixed size here: width/height are written inline from the footprint. */
+.elbox{position:relative;display:grid;place-items:center}
+.elshadow{position:absolute;border-radius:12px;background:rgba(20,30,40,.30);
+  pointer-events:none;transition:.16s}
+.el{border-radius:12px;position:relative;transition:.16s;
+  display:grid;place-items:center;color:var(--faint);font-family:var(--mono);font-size:11px;text-align:center}
+.el.bare{border:2px dashed var(--border-2);background:transparent}
+.el.bounded{border:1px solid var(--border-2)}
+.el.faced{background:linear-gradient(150deg,#fff,#eef4f8);border:1px solid #cdd7de;color:#2e3438}
+:root[data-theme="dark"] .el.faced{background:linear-gradient(150deg,#2b2f31,#212425);border-color:#3a3f42;color:#c9cdcf}
+@media(prefers-color-scheme:dark){.el.faced{background:linear-gradient(150deg,#2b2f31,#212425);border-color:#3a3f42;color:#c9cdcf}}
+.el.drag{cursor:grab}
+.derived{color:var(--faint);font-family:var(--mono);font-size:11.5px}
+.derived b{color:var(--muted);font-weight:600}
+.lockchip{font-size:10px;font-weight:800;letter-spacing:.4px;color:var(--muted);
+  border:1px solid var(--border-2);border-radius:20px;padding:1px 7px;white-space:nowrap}
+.args td code{color:var(--accent)}
+.el.sel{outline:2px dashed var(--purple);outline-offset:4px}
+/* debug layers — the VIEWER's plane; the node knows nothing about them */
+.dbg{position:absolute;pointer-events:none}
+.dbg-box{border:1px solid var(--accent);opacity:.75}
+.dbg-hit{border:1px dashed var(--good);background:rgba(102,191,60,.10)}
+.dbg-sil{border:1px solid var(--purple);background:rgba(162,132,255,.14);border-radius:44%}
+.dbg-at{width:9px;height:9px;border-radius:50%;background:var(--bad);
+  box-shadow:0 0 0 3px rgba(255,68,0,.22)}
+.dbg-z{width:2px;background:repeating-linear-gradient(to bottom,var(--warn) 0 4px,transparent 4px 8px);
+  left:50%;bottom:-2px;position:absolute}
+.dbg-slots{background:
+  repeating-linear-gradient(to right,transparent 0 48%,var(--border-2) 48% 52%,transparent 52% 100%),
+  repeating-linear-gradient(to bottom,transparent 0 48%,var(--border-2) 48% 52%,transparent 52% 100%)}
+.planehd{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);
+  padding:10px 10px 4px;font-weight:800}
+.staterow{display:flex;flex-wrap:wrap;gap:6px;padding:4px 10px 10px}
+.stbtn{border:1px solid var(--border-2);background:var(--panel);color:var(--muted);border-radius:20px;
+  padding:4px 11px;font:inherit;font-size:12px;cursor:pointer;font-family:var(--mono)}
+.stbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.stbtn.happens{border-style:dashed}
+.derivedtbl td{padding:6px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px}
+.derivedtbl .cls{color:var(--faint);font-size:11px}
+.inspector{font-family:var(--mono);font-size:12px;padding:4px 2px}
+.inode{border-left:2px solid var(--border);padding:6px 0 8px 10px;margin-bottom:4px}
+.inode.isroot{border-left-color:var(--accent)}
+.ihd{font-weight:800;color:var(--text);margin-bottom:4px;display:flex;gap:8px;align-items:center}
+.il{display:flex;gap:10px;padding:1px 0}
+.ik{color:var(--muted);min-width:82px}
+.iv{color:var(--text)}
+.ic{color:var(--faint);font-size:11px}
+/* ---- Container scene: ONE node with children. A slot is an address, so there is
+       nothing to draw for an empty one — only the children exist. ---- */
+.cbox{position:relative;border:1px solid var(--border-2);border-radius:12px;background:var(--code-bg)}
+.kid{position:absolute;border-radius:6px;border:1px solid #cdd7de;background:linear-gradient(150deg,#fff,#eef4f8);
+  display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:#2e3438;
+  transition:left .16s,top .16s,transform .16s;box-shadow:0 4px 10px -4px rgba(20,30,40,.35)}
+:root[data-theme="dark"] .kid{background:linear-gradient(150deg,#2b2f31,#212425);border-color:#3a3f42;color:#c9cdcf}
+@media(prefers-color-scheme:dark){.kid{background:linear-gradient(150deg,#2b2f31,#212425);border-color:#3a3f42;color:#c9cdcf}}
+.kid.phantom{background:none;border:1px dashed var(--accent);box-shadow:none}
+.kid.lift{box-shadow:0 14px 26px -8px rgba(20,30,40,.5);z-index:5}
+.armring{position:absolute;inset:4px;border:2px dashed var(--accent);border-radius:10px;pointer-events:none}
+.overbadge{position:absolute;right:8px;bottom:8px;background:var(--accent);color:#fff;border-radius:20px;
+  padding:2px 9px;font-family:var(--mono);font-size:11px;font-weight:800}
+.el .corner{position:absolute;top:0;right:0;width:0;height:0;border-style:solid;
+  border-width:0 26px 26px 0;border-color:transparent var(--border-2) transparent transparent;
+  border-top-right-radius:12px;display:none}
+.el.flip .corner{display:block}
+.el .val{position:absolute;top:8px;left:10px;font-size:22px;font-weight:800;font-family:var(--sans);display:none}
+.el .val.suit{bottom:8px;left:auto;right:10px;top:auto;font-size:16px}
+.el.valued .val{display:block}
+.el .label{position:absolute;bottom:10px;left:0;right:0;font-family:var(--sans);font-weight:700;
+  font-size:12px;color:var(--text);display:none}
+.el.labeled .label{display:block}
+.el .eye{position:absolute;top:7px;right:9px;font-size:13px;display:none}
+.el.private .eye{display:block}
+.el.action{outline:2px solid var(--accent);outline-offset:2px}
+.el .slots{position:absolute;inset:14px;display:none;grid-template-columns:1fr 1fr;gap:6px}
+.el.container .slots{display:grid}
+.el .slots i{border:1px dashed var(--border-2);border-radius:5px}
+.elcaption{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;max-width:560px}
+.elcaption b{color:var(--text)}
+.activeatoms{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;max-width:400px}
+
+/* ============ MOBILE — Storybook-style single column + bottom sheet ============ */
+@media(max-width:820px){
+  .app{grid-template-columns:1fr}
+  /* sidebar → full-height slide-in overlay */
+  .sidebar{position:fixed;top:0;left:0;bottom:0;width:84%;max-width:330px;z-index:60;
+    transform:translateX(-106%);transition:transform .22s ease;box-shadow:8px 0 40px rgba(0,0,0,.28)}
+  .sidebar.open{transform:none}
+  .backdrop{display:block;position:fixed;inset:0;background:rgba(10,15,20,.45);z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .2s}
+  .backdrop.on{opacity:1;pointer-events:auto}
+  .main{padding-bottom:54px}
+  .toolbar{position:sticky;top:0;z-index:20}
+  /* addons → bottom sheet */
+  .addons{position:fixed;left:0;right:0;bottom:54px;top:auto;height:72vh;height:72dvh;
+    max-height:72vh;max-height:72dvh;z-index:55;display:flex;flex-direction:column;overflow:hidden;
+    transform:translateY(112%);transition:transform .24s ease;border-radius:14px 14px 0 0;
+    box-shadow:0 -12px 40px rgba(0,0,0,.28)}
+  .addons.sheet-open{transform:none}
+  .sheet-handle{display:grid;place-items:center;height:24px;cursor:pointer;flex:0 0 auto}
+  .sheet-handle::before{content:"";width:42px;height:4px;border-radius:3px;background:var(--border-2)}
+  .addons-tabs{flex:0 0 auto}
+  /* explicit height so Safari doesn't zero a flex child inside a fixed column */
+  .addons-body{flex:none;height:calc(72vh - 66px);height:calc(72dvh - 66px);
+    overflow:auto;-webkit-overflow-scrolling:touch;padding-bottom:24px}
+  /* bottom navigation bar */
+  .mobilebar{display:flex;position:fixed;left:0;right:0;bottom:0;height:54px;z-index:58;
+    background:var(--panel);border-top:1px solid var(--border);align-items:center;padding:0 10px;gap:8px}
+  .mobilebar button{flex:0 0 auto;border:1px solid var(--border-2);background:var(--panel);
+    color:var(--text);border-radius:8px;padding:8px 13px;font:inherit;font-weight:700;
+    display:flex;align-items:center;gap:6px;cursor:pointer}
+  .mobilebar .prim{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .mobilebar .title{flex:1;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .docs{padding:26px 18px 90px}
+  .grid2{grid-template-columns:1fr}
+}
+</style>
+
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="sb-brand"><span class="logo">🃏</span>game-kit <small>catalog</small></div>
+    <div class="sb-search"><span>🔎 Find a story…</span><kbd>⌘K</kbd></div>
+    <nav class="tree" id="tree"></nav>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="toolbar">
+      <button class="tb-tab on" id="tabCanvas">⬚ Canvas</button>
+      <button class="tb-tab" id="tabDocs">📄 Docs</button>
+      <div class="tb-sep"></div>
+      <button class="tb-tool" title="Zoom">⤢</button>
+      <button class="tb-tool" title="Background">▦</button>
+      <button class="tb-tool" title="Viewport">▭</button>
+      <button class="tb-tool" title="Measure">📐</button>
+      <div class="tb-spacer"></div>
+      <!-- PLANE 3 — the viewer. Nothing here is state and nothing travels the wire. -->
+      <button class="tb-glob" id="layersBtn">debug layers <b id="layersN">1</b></button>
+      <button class="tb-glob" id="viewerBtn">viewer <b id="viewerV">owner</b></button>
+      <button class="tb-glob" id="unitBtn">hud unit <b id="unitV">46</b></button>
+      <button class="tb-glob" id="themeBtn">theme <b>auto</b></button>
+      <span class="tb-glob">locale <b>en</b></span>
+    </div>
+
+    <div class="stage" id="stage"></div>
+  </main>
+
+  <div class="backdrop" id="backdrop"></div>
+  <nav class="mobilebar">
+    <button id="mbStories">☰ Stories</button>
+    <span class="title" id="mbTitle">Element</span>
+    <button class="prim" id="mbAddons">⚙ Controls ▲</button>
+  </nav>
+</div>
+
+<script>
+// ============================================================
+//  TREE — the whole catalog (plan structure) so the sidebar
+//  reads like a real Storybook. ONE story is fully authored as
+//  the blueprint: Elements/Core/Element.
+// ============================================================
+const TREE = [
+  // Read top to bottom: it is a ladder, not a table of contents. Start explains what the
+  // world is made of; Atoms adds one capability at a time; Elements shows assemblies.
+  ["Start", [
+    ["Basics", ["Node ◆","Root ◆"]],
+  ]],
+  ["Atoms", [
+    ["Place",  ["Bounded ◆","Transformable","Tiltable","Oriented","Placeable"]],
+    ["Look",   ["Surfaced ◆","Skinnable","ShadowCaster"]],
+    ["Act",    ["Draggable","Flippable","Spinnable","Actionable","Focusable","Grip"]],
+    ["Hold",   ["Container ◆","Acceptor"]],
+    ["Data",   ["Valued","Labeled","Owned","Private"]],
+    ["Root-only", ["Lit","Viewable","Seated"]],
+  ]],
+  ["Elements", [
+    ["Assembled", ["Card","Piece","Chip","Bottle","Zone","Button"]],
+    ["Controls",  ["Text","Icon","Toggle","Input","Indicator","Menu"]],
+    ["Set",       ["Catalog","Skin","Box","Reconcile","Merge","Sort"]],
+  ]],
+  ["Canvas", [
+    ["Surface", ["Tabletop","Zone override"]],
+    ["Camera",  ["Pan-zoom-rotate","Auto-fit","Viewpoints","Gesture arbitration"]],
+    ["Frames",  ["Orientation & light"]],
+    ["Seats",   ["Seating","Viewpoint per seat"]],
+  ]],
+  ["HUD", [
+    ["Regions", ["Edge docks","Safe-area","Relocation","Pins"]],
+  ]],
+];
+
+const SCENES = {
+  "Start/Basics/Node ◆": "Node",
+  "Start/Basics/Root ◆": "Root",
+  "Atoms/Place/Bounded ◆": "Bounded",
+  "Atoms/Look/Surfaced ◆": "Surfaced",
+  "Atoms/Hold/Container ◆": "Container",
+};
+const RICH = "Start/Basics/Node ◆";
+
+// ---- render sidebar ----
+const tree = document.getElementById("tree");
+let html = "";
+for (const [root, groups] of TREE){
+  html += `<div class="root">📦 ${root}</div>`;
+  for (const [grp, stories] of groups){
+    html += `<div class="grp">📁 ${grp}</div>`;
+    for (const st of stories){
+      const path = `${root}/${grp}/${st}`;
+      const rich = path in SCENES;
+      html += `<button class="story ${rich?'on':''}" data-path="${path}">`+
+        `<span class="ic">${rich?'◆':'▪'}</span>${st.replace(' ◆','')}`+
+        `${rich?'<span class="dot"></span>':''}</button>`;
+    }
+  }
+}
+tree.innerHTML = html;
+tree.addEventListener("click", e=>{
+  const b = e.target.closest(".story"); if(!b) return;
+  document.querySelectorAll(".tree .story").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");
+  setSidebar(false);                         // mobile: pick a story → close the overlay
+  const name = b.dataset.path.split("/").pop().replace(" ◆","");
+  document.getElementById("mbTitle").textContent = name;
+  const s = SCENES[b.dataset.path];
+  if(!s) stub(b.dataset.path);
+  else {
+    scene = s; curAd = 0;
+    // The Container scene is ABOUT the atom, so the atom is on. Bounded comes with it:
+    // a container without a box has children and no frame to lay them out in.
+    // Each rung of the ladder turns on exactly its own atom — that is what it is about.
+    if(s === "Bounded")   state.bounded = true;
+    if(s === "Surfaced"){ state.bounded = true; state.surfaced = true; }
+    if(s === "Container"){ state.container = true; state.surfaced = true; }
+    mount();
+  }
+});
+
+// ============================================================
+//  Node / Element — the two load-bearing scenes.
+//
+//  THREE PLANES (CANONS.md §"Три ПЛОСКОСТИ стори"), never mixed into one list:
+//    Spec   — atom fields. The ONLY thing that is a control.
+//    State  — what HAPPENS to the thing. Cannot be authored, so it is not an arg.
+//    Viewer — how the onlooker looks. Never travels the wire.
+//
+//  `Element` is not a type and not a subclass: it is the PREDICATE "a Node that has
+//  Bounded". Switching Bounded off does not grey anything out — the atoms that stood on
+//  it disappear together with their fields.
+//
+//  Two names that are easy to get wrong:
+//    Surfaced — the atom that DRAWS a face (`surface` = a registry record).
+//    Viewable — the CAMERA atom. It belongs to a root, never to an element.
+// ============================================================
+
+// [key, name, requires, what it grants]
+const ATOMS = [
+  ["bounded","Bounded",null,"the box: hit area, layout slot and shadow silhouette are measured from it. Draws NOTHING by itself."],
+  ["transformable","Transformable",null,"at · z — where it sits and how high above the table."],
+  ["tiltable","Tiltable","transformable","angle — its own tilt. Truth, the same for everyone."],
+  ["oriented","Oriented",null,"orientation: world | viewer. Not set → taken from the owner."],
+  ["placeable","Placeable","bounded","can be put INTO a container: needs a footprint to occupy a slot."],
+  ["surfaced","Surfaced",["bounded","container"],"a registry record draws the face. Frame, fill, radius, colour live IN the record + theme tokens."],
+  ["skinnable","Skinnable","surfaced","skin is a VALUE on the element; a reskin rewrites it."],
+  ["shadowcaster","ShadowCaster","bounded","casts a shadow. Direction, lift and who-casts belong to others."],
+  ["draggable","Draggable","bounded","can be picked up; flies home when the acceptor says no."],
+  ["flippable","Flippable","surfaced","far side: back / same / mirror / alt."],
+  ["spinnable","Spinnable","bounded","spins with a random outcome (a bottle)."],
+  ["private","Private",null,"excluded from another viewer's picture ENTIRELY — not merely face-down."],
+  ["valued","Valued",null,"typed values the rules read off it."],
+  ["labeled","Labeled",null,"a locale key, never raw text."],
+  ["owned","Owned",null,"remembers its box — recall of one's own, reconcile."],
+  ["container","Container",null,"holds children at slot-addresses. A canvas is exactly this."],
+  ["acceptor","Acceptor","container","decides who is let in — an AcceptRule as data."],
+  ["actionable","Actionable","bounded","responds to a press."],
+  ["focusable","Focusable","bounded","takes focus; operable without a pointer."],
+];
+const state = Object.fromEntries(ATOMS.map(a=>[a[0],false]));
+
+// SCENE: "Node" hides Bounded and everything that stands on it — that IS the difference.
+let scene = "Element";
+
+// ---- PLANE 2: State. Only rest/lifted/held can be authored (`pose`); the rest happen.
+const WHERE = ["rest","lifted","held","drag","flying","settling"];
+const AUTHORABLE = new Set(["rest","lifted","held"]);
+const FLAGS = ["selected","focused","concealed","frozen"];
+let where = "rest";
+const flags = Object.fromEntries(FLAGS.map(f=>[f,false]));
+// Breathing is a SEPARATE axis from pose: it is decoration, it never feeds z — otherwise
+// the shadow breathes in size under a thing that is not actually moving (client2 elevation.ts:21).
+let idleOn = false;
+
+// ---- PLANE 3: Viewer. Nothing here is state and nothing travels.
+let viewer = "owner";                 // owner | other — without it Private is undemonstrable
+let hudUnit = 46;                     // the HUD etalon in px; the user may override it
+const LAYERS = { hit:false, box:true, silhouette:false, at:false, zladder:false, slots:false };
+const LAYER_LABEL = { hit:"hit area", box:"footprint box", silhouette:"silhouette",
+                      at:"point at", zladder:"z ladder", slots:"slots" };
+
+// ---- The OWNER node: an ordinary node with ordinary field names. There is no `parent.*`
+//      in the model — these are another node's fields, shown so inheritance is visible.
+const owner = { angle:0, z:0, orientation:"world" };
+
+// A minimal element to open on: a place that draws something and casts a shadow.
+["bounded","transformable","surfaced","shadowcaster"].forEach(k=>state[k]=true);
+
+let actions = [];
+
+// ---- Per-atom arguments: an atom that carries configuration reveals its
+//      controls when it is on. `req` marks an argument the atom cannot omit.
+const ATOM_ARGS = {
+  bounded: [
+    ["shape","shape",true,["rect","circle","poly"],
+      "a footprint is not always a rectangle — an air-hockey puck is a circle, a board piece may be a polygon"],
+    ["size","size",true,["1 × 1","1 × 1.4","1 × 1.7","2.5 × 3.5","2.8 × 4"],
+      "the element's OWN size, in units. Default comes stamped from the set record at birth"],
+    ["bounds","bounds?",false,["— (equals size)","tighter · 0.8×","looser · 1.2×"],
+      "an instance override of size. Not set → size is used; this is the only way one card differs from its record"],
+  ],
+  surfaced: [
+    ["record","surface record",true,["cardFace","chipFace","pieceGlyph","discFace","zonePlate","buttonPlate"],
+      "WHICH registry record draws it — the only argument. Its params (frame, fill, radius) live in the record + theme, never as fields"],
+    ["fit","fit",false,["contain","cover","repeat","original","fitX","fitY"],
+      "how the surface fills the box when the art's proportion differs from the size"],
+    ["align","align",false,["center","top","bottom","left","right"],
+      "where it sits inside the box once fitted"],
+  ],
+  transformable: [
+    ["z","z",false,["0 — resting","1 — lifted","2 — dragged","3 — over everything"],
+      "z is the SOURCE; lift, scale and the shadow are its CONSEQUENCES. Adds up the tree. Stack thickness is layout, not z"],
+    ["at","at",false,["resolved by the owner's layout (derive)","kept pose — travels the wire (keep)","stamped by the zone (stamp)"],
+      "in a container position is not authored: the layout resolves it. Only a `keep` pose puts `at` on the wire"],
+  ],
+  tiltable: [
+    ["angle","angle (own)",false,["0°","15°","45°","90°"],
+      "the element's OWN tilt — truth, shared by everyone. Adds up the tree; the shadow does NOT inherit it"],
+    ["snap","snap",false,["none","15°","45°","90°"],
+      "where the tilt settles when released"],
+  ],
+  oriented: [
+    ["orientation","orientation",false,["— (inherit from owner)","world","viewer"],
+      "world: turned relative to the TABLE. viewer: always 0° to your camera (a billboard). Not set → the owner's value"],
+  ],
+  skinnable: [
+    ["skin","skin",false,["classic","gilded","pixel"],
+      "a VALUE on the element, not a type: a reskin rewrites it and touches no entity"],
+  ],
+  shadowcaster: [
+    ["from","from",true,["footprint","silhouette"],
+      "a knight needs its CONTOUR, a card is happy with its box. Footprint ≠ silhouette, and both are needed"],
+    ["_dir","direction",false,null,
+      "root only — <code>Lit{ light: world | viewer }</code>. One light per table; per-element light does not exist"],
+    ["_lift","lift · scale",false,null,
+      "consequences of <code>z</code> (elevation law). Zoom is not height, and never derives lift"],
+    ["_cast","who casts",false,null,
+      "<code>cast: group | each</code> — a parameter of the owner's layout"],
+  ],
+  spinnable: [
+    ["turns","turns",false,["1–3","2–5","5–12"],
+      "the random outcome is the point: a bottle, a wheel"],
+  ],
+  owned: [
+    ["box","box",true,["box:d1","box:d2"],
+      "which owned instance it came from. Two boxes of the same set are DIFFERENT boxes: this is what recalls one's own"],
+  ],
+  focusable: [],
+  placeable: [],
+  acceptor: [
+    ["accept","accept",true,["anything","only-cards","only-checkers","chesslike","nothing"],
+      "a rule over the incoming element's traits + state — one mechanism for zone, container and drop"],
+  ],
+  draggable: [
+    ["trail","trail",false,["none","ink trail"],
+      "the seed of 'a pen that writes while dragging' — off for cards, on for a marker"],
+    ["onReject","on reject",false,["fly home","stay where dropped"],
+      "what happens when the acceptor says no; flying home is what makes an optimistic drop reversible"],
+  ],
+  flippable: [
+    ["reverse","reverse",true,["back","same","mirror","alt"],
+      "back = hidden (cards) · same (chips) · mirror (chess) · alt = other visible face (checker→king)"],
+    ["axis","axis",false,["y (left↔right)","x (top↔bottom)"],
+      "which way the 180° turn goes"],
+  ],
+  private: [
+    ["access","access",false,["owner only","named viewers","table"],
+      "who the element is projected to; everyone else never receives it"],
+  ],
+  valued: [
+    ["vocab","values",true,["rank + suit","denomination","custom keys"],
+      "the vocabulary rules read off the element — not free text"],
+  ],
+  labeled: [
+    ["key","locale key",true,["element.button","zone.hand","action.deal"],
+      "a key into the locale table, never a raw string"],
+  ],
+  actionable: [
+    ["command","on press",true,["ready","deal","clearPlay","custom…"],
+      "the command emitted when pressed; absent atom → no press at all"],
+  ],
+  // Fields are exactly the canon block (CANONS.md §"Контейнер"). Note what is NOT here:
+  // `interactive` was one of four names for `grab`; `cast` belongs to the layout registry
+  // entry (place + indexAt + cast), because who casts is known by whoever placed them.
+  container: [
+    ["layout","layout",true,["deckStack","fan","row","grid","free"],
+      "a registry entry: place(i,n,ctx) → pose AND indexAt(point,n,ctx) → i. Both directions, because only the layout knows its geometry"],
+    ["hot","hot?",false,["— (silent)","phantom","lift","arm"],
+      "the answer under the finger. NO FIELD = the container says nothing"],
+    ["maxGaps","· maxGaps",false,["3 then a badge","1","none"],
+      "a SHOW limit, not a capacity: a zone may accept twenty and draw three. Capacity is a rule"],
+    ["grab","grab?",false,["— (nothing leaves)","one","top","above"],
+      "the single question: what leaves from under the finger. No `split` — that difference lives in carry and in the target"],
+    ["intent","intent?",false,["— (plain drag)","swipe = shuffle"],
+      "how a gesture over this container is READ before anything moves"],
+    ["occupied","occupied?",false,["reject","capture","merge","swap"],
+      "what becomes of whoever already sits in the slot. NOT the AcceptRule's business — the rule only says who may enter"],
+    ["keeps","keeps?",false,["— (everything allowed)","drag only","flip only"],
+      "which of a child's capabilities work INSIDE. No field = all; the shape mirrors `bounds` — presence narrows"],
+    ["facing","facing?",false,["— (inherit)","own:up · others:same","own:down · others:back"],
+      "one facet of the pose, not a family of its own"],
+  ],
+};
+// arg state: default = the first option of each arg (read-only rows carry no options)
+const argState = {};
+for(const [atom,args] of Object.entries(ATOM_ARGS))
+  for(const a of args) if(a[3]) argState[atom+"."+a[0]] = a[3][0];
+
+// NO PRESETS HERE. Card / Piece / Chip / Zone / Button live in Elements/Assembled/*.
+// A preset in the base scene teaches "compose like a card" instead of teaching to compose.
+
+const ATOM = k => ATOMS.find(a=>a[0]===k);
+// A requirement says what an atom LACKS, not who its parent in a hierarchy is — so it can be
+// an ALTERNATIVE. Surfaced needs an AREA, and an area comes either from an own size (Bounded)
+// or from the extent of the content (Container). That is why a canvas can be Surfaced with no
+// Bounded at all; demanding Bounded here would outlaw the tabletop.
+const reqOf = k => { const r = ATOM(k)?.[2]; return r == null ? [] : (Array.isArray(r) ? r : [r]); };
+const reqLabel = k => reqOf(k).map(r=>ATOM(r)[1]).join(" or ");
+// An atom exists only if its requirements are satisfied — ANY of the alternatives is enough.
+// Missing → the atom is ABSENT with its fields, not disabled: negation flags do not exist.
+function has(k){
+  if(!state[k]) return false;
+  if(!inScene(k)) return false;
+  const req = reqOf(k);
+  return req.length === 0 || req.some(has);
+}
+// Which atoms this rung of the ladder is allowed to show at all.
+function inScene(k){
+  if(scene === "Node")    return !dependsOn(k,"bounded") && !dependsOn(k,"container");
+  if(scene === "Bounded") return !dependsOn(k,"surfaced") && k !== "surfaced";
+  return true;
+}
+// Does k stand on `root`, directly or through a chain (following ANY alternative)?
+function dependsOn(k, root){
+  if(k === root) return true;
+  return reqOf(k).some(r=>dependsOn(r, root));
+}
+// Toggled on by the author but silently absent because a requirement is off.
+const starved = k => state[k] && !has(k) && inScene(k);
+
+function caps(){
+  return ATOMS.filter(a=>has(a[0])).map(a=>{
+    const req = (ATOM_ARGS[a[0]]||[]).find(x=>x[2] && x[3]);
+    return req ? `${a[1]}(${argState[a[0]+"."+req[0]]})` : a[1];
+  });
+}
+
+// ---- RESOLVE. Inherited values are NOT stored on the node and never travel: they come
+//      from the context that walks down the tree, and they are read AT APPLY TIME.
+//      Four classes, and there is no fifth (CANONS.md §"Поля: типы, единицы и класс наследования").
+function resolve(){
+  const own = {
+    z:     has("transformable") ? parseInt(argState["transformable.z"]) : 0,
+    angle: has("tiltable")      ? parseInt(argState["tiltable.angle"])  : 0,
+    orientation: has("oriented") ? argState["oriented.orientation"] : "— (inherit from owner)",
+  };
+  const inheritedOrientation = own.orientation.startsWith("—");
+  return {
+    z:     { value: own.z + owner.z, own: own.z, from: owner.z, cls:"adds up" },
+    angle: { value: own.angle + owner.angle, own: own.angle, from: owner.angle, cls:"adds up" },
+    orientation: { value: inheritedOrientation ? owner.orientation : own.orientation,
+                   inherited: inheritedOrientation, cls:"from owner" },
+    unit:  { value: hudUnit, cls:"root only" },
+  };
+}
+
+// Footprint in screen px — from the element's OWN size field times the etalon. Never a constant.
+function footprintPx(){
+  if(!has("bounded")) return null;
+  const [w,h] = argState["bounded.size"].split("×").map(s=>parseFloat(s));
+  const k = argState["bounded.bounds"].startsWith("tighter") ? 0.8
+          : argState["bounded.bounds"].startsWith("looser")  ? 1.2 : 1;
+  const src = k === 1 ? `size ${w}×${h} unit × ${hudUnit}px`
+                      : `bounds ${k}× overrides size ${w}×${h} unit`;
+  return { w: w*hudUnit*k, h: h*hudUnit*k, shape: argState["bounded.shape"], src };
+}
+
+function conflicts(){
+  const n = [];
+  // A starved atom is the loudest thing the story can say: it was asked for and is not there.
+  ATOMS.filter(a=>starved(a[0])).forEach(a=>
+    n.push(["bad",`${a[1]} needs ${reqLabel(a[0])} — without it the atom does not exist at all (not "disabled").`]));
+  if(has("draggable") && !has("placeable")) n.push(["warn","Draggable without Placeable — it can be picked up but no container will take it."]);
+  if(has("valued") && !has("surfaced")) n.push(["warn","Valued without Surfaced — values exist but are invisible; rules still read them."]);
+  if(has("private") && !has("surfaced")) n.push(["warn","Private without a face — nothing to withhold."]);
+  if(has("shadowcaster") && !has("transformable")) n.push(["warn","ShadowCaster without Transformable — z lives there; with no z the shadow can never lift."]);
+  if(has("bounded") && !has("surfaced")) n.push(["ok","Bounded without Surfaced: a place that draws NOTHING. Turn on a debug layer to see it — that is the point."]);
+  if(!caps().length) n.push(["warn","No atoms — a bare Node: an id and a place in the tree. That is VALID."]);
+  return n;
+}
+
+// One short line each, capped: the canvas belongs to the node, not to prose.
+function argInsights(){
+  const out = [], r = resolve();
+  if(has("flippable")) out.push(({
+    "back":"reverse: back — the FACE is hidden; the thing itself is still on the table for everyone",
+    "same":"reverse: same — both sides identical: flipping shows nothing new",
+    "mirror":"reverse: mirror — the far side is the mirror image",
+    "alt":"reverse: alt — the far side is a DIFFERENT visible face",
+  })[argState["flippable.reverse"]]);
+  if(has("private")) out.push(`Private — the node is absent from the other viewer's picture entirely. Switch viewer to see.`);
+  if(has("transformable") || has("tiltable"))
+    out.push(`z ${r.z.own}+${r.z.from}=${r.z.value} · angle ${r.angle.own}°+${r.angle.from}°=${r.angle.value}° — both ADD up the tree`);
+  if(has("shadowcaster")) out.push(`shadow from ${argState["shadowcaster.from"]} — silhouette turns with the angle, the offset does not`);
+  if(scene === "Node") out.unshift("nothing is drawn, and nothing is missing — a node is an id and a place. Open the inspector to see it");
+  if(scene === "Container"){
+    out.length = 0;   // in this scene the container's own laws are what matters
+    const L = LAYOUTS[argState["container.layout"]];
+    out.push(`ONE node with ${kids} children — a slot is an ADDRESS, so an 8×8 board is one node, not 64`);
+    out.push(`cast <b>${L.cast}</b> — ${L.cast==="group"?"the pile casts a single silhouette":"every child casts its own"}; the layout knows, because the layout placed them`);
+    if(argState["container.grab"].startsWith("—"))
+      out.push(`no <b>grab</b> → nothing leaves from under the finger, and the gesture passes UP the tree by itself — a draught follows, it is not declared`);
+    else out.push(`grab <b>${argState["container.grab"]}</b> — the carry inherits the SOURCE layout, and what happens to it is the TARGET's occupied/accept`);
+  }
+  return out.filter(Boolean).slice(0,3);
+}
+// ============================================================
+//  LAYOUT REGISTRY — the contract runs BOTH ways:
+//    place(i, n, box)      → where child i rests
+//    indexAt(pt, n, box)   → which index a point means
+//  The inverse is not a convenience: only the layout knows its own geometry, and a fan
+//  answers differently from a row. `cast` lives here too — who casts the shadow is known
+//  by whoever placed them, so it is a property of the layout, not a field of the container.
+// ============================================================
+const CELL = { w: 34, h: 48 };
+const LAYOUTS = {
+  // Thickness is expressed through `at` — NEVER through z. Putting a card on the pile
+  // must not move the shadow one pixel.
+  deckStack: { cast:"group", addr:"none",
+    place:(i,n,b)=>({ x: b.w/2 + i*1.1, y: b.h/2 - i*1.3, rot:0 }),
+    indexAt:()=> Math.max(0,0) },                       // a pile answers with its top only
+  fan: { cast:"each", addr:"after",
+    place:(i,n,b)=>{ const spread=Math.min(26, 150/Math.max(1,n)); const c=(n-1)/2;
+      const a=(i-c)*spread*0.06; return { x:b.w/2+(i-c)*spread, y:b.h/2+Math.abs(i-c)*3, rot:a*18 }; },
+    indexAt:(p,n,b)=>{ const spread=Math.min(26,150/Math.max(1,n)); const c=(n-1)/2;
+      return clampIx(Math.round((p.x-b.w/2)/spread + c), n); } },
+  row: { cast:"each", addr:"after",
+    place:(i,n,b)=>{ const step=Math.min(CELL.w+6, (b.w-16)/Math.max(1,n)); const c=(n-1)/2;
+      return { x:b.w/2+(i-c)*step, y:b.h/2, rot:0 }; },
+    indexAt:(p,n,b)=>{ const step=Math.min(CELL.w+6,(b.w-16)/Math.max(1,n)); const c=(n-1)/2;
+      return clampIx(Math.round((p.x-b.w/2)/step + c), n); } },
+  grid: { cast:"each", addr:"coord",
+    place:(i,n,b)=>{ const cols=4, cw=b.w/cols, ch=CELL.h+8;
+      return { x: (i%cols)*cw + cw/2, y: Math.floor(i/cols)*ch + ch/2 + 6, rot:0 }; },
+    indexAt:(p,n,b)=>{ const cols=4, cw=b.w/cols, ch=CELL.h+8;
+      return clampIx(Math.floor(p.y/ch)*cols + Math.min(cols-1,Math.floor(p.x/cw)), n); } },
+  // The only layout a child can escape from — so clamping is a parameter HERE, not a
+  // field on the container (four layouts out of five have nothing to clamp).
+  free: { cast:"each", addr:"none",
+    place:(i,n,b)=>({ x: 30 + ((i*67)%Math.max(1,b.w-60)), y: 28 + ((i*43)%Math.max(1,b.h-56)), rot:(i*37)%40-20 }),
+    indexAt:()=> -1 },
+};
+const clampIx = (i,n)=> Math.max(0, Math.min(n, i));
+
+// Children are STATE, not spec — so they live in the State plane, next to the drag payload.
+let kids = 5;        // how many children the container holds
+let payload = 0;     // the drag load hovering over it: a LIST of 1..M, never a single card
+let hoverIx = null;  // where indexAt says the finger is
+
+// ============================================================
+//  inspect(root, ctx) — the ONE door the inspector goes through.
+//  The panel never reaches into engine internals and never writes its own tree walk:
+//  that is a guaranteed drift. It is a pure function over the same data the renderer
+//  uses, so a guard can assert the panel shows nothing the model does not have.
+// ============================================================
+function inspect(){
+  const r = resolve();
+  const own = [], derived = [];
+  if(has("bounded")){
+    own.push(["size", argState["bounded.size"] + " unit", "own"]);
+    if(!argState["bounded.bounds"].startsWith("—")) own.push(["bounds", argState["bounded.bounds"], "own · overrides size"]);
+    own.push(["shape", argState["bounded.shape"], "own"]);
+  }
+  if(has("surfaced")){
+    own.push(["surface", '"'+argState["surfaced.record"]+'"', "own"]);
+    own.push(["fit", argState["surfaced.fit"], "from owner"]);
+  }
+  if(has("container")) own.push(["layout", argState["container.layout"], "own"]);
+  if(has("owned")) own.push(["box", argState["owned.box"], "own"]);
+  derived.push(["z", r.z.value, `own ${r.z.own} + owner ${r.z.from}`, r.z.cls]);
+  derived.push(["angle", r.angle.value+"°", `own ${r.angle.own}° + owner ${r.angle.from}°`, r.angle.cls]);
+  derived.push(["orientation", r.orientation.value, r.orientation.inherited?"← owner":"set here", r.orientation.cls]);
+  const fp = footprintPx();
+  derived.push(["at", fp?"centred":"—", "← the owner's layout (derive · not sent)", "derive"]);
+
+  const node = { id:"node:a3f", atoms: caps(), own, derived,
+                 starved: ATOMS.filter(a=>starved(a[0])).map(a=>`${a[1]} (needs ${reqLabel(a[0])})`),
+                 state: { where, idle:idleOn, flags:FLAGS.filter(f=>flags[f]) },
+                 children: scene==="Container" ? kids : 0 };
+  // A root is a node that nobody places: no Placeable, and it cannot have one.
+  const rootNode = { id:"CanvasRoot", atoms:["Container(center)"], own:[["layout","center","own"]],
+                     derived:[["extent","from content","derived — a root has no size of its own"]],
+                     starved:[], state:{}, children: 1, isRoot:true };
+  return scene === "Root"
+    ? [rootNode, { id:"node:b71", atoms:[], own:[], derived:[], starved:[], state:{}, children:0 },
+                 { id:"node:c02", atoms:["Bounded(rect)"], own:[["size","1 × 1 unit","own"]], derived:[], starved:[], state:{}, children:0 }]
+    : [rootNode, node];
+}
+
+function logAct(ev, pl){ actions.unshift([ev,pl]); if(actions.length>40)actions.pop(); if(curAd===1)paintAddon(); }
+
+// ---------- MOUNT rich story ----------
+let curTab = 0;   // 0 canvas, 1 docs
+let curAd = 0;    // 0 controls, 1 actions, 2 interactions
+let sheetOpen = false;   // mobile: is the addons bottom-sheet up
+const stage = document.getElementById("stage");
+
+function mount(){ curTab=0; render(); }
+function render(){
+  if(curTab===0) renderCanvas(); else renderDocs();
+  document.getElementById("tabCanvas").classList.toggle("on",curTab===0);
+  document.getElementById("tabDocs").classList.toggle("on",curTab===1);
+}
+
+function elMock(){
+  const r = resolve();
+  // PLANE 3 first: Private means the node is ABSENT from the other viewer's picture. Not
+  // face-down, not dimmed — gone. This is the only way to tell it apart from reverse:back.
+  if(has("private") && viewer === "other")
+    return `<div class="elbox" style="width:220px;height:120px;border:1px dashed var(--border-2);
+      border-radius:12px;display:grid;place-items:center;color:var(--faint);font-family:var(--mono);
+      font-size:11px;text-align:center;padding:10px">Private · viewer = other<br>the node is not in this
+      picture at all<br>(not face-down — absent)</div>
+    <div class="derived">nothing is sent to this viewer</div>`;
+
+  const cls = ["el"];
+  cls.push(has("surfaced") ? "faced" : "bare");
+  if(has("draggable")) cls.push("drag");
+  if(has("flippable")) cls.push("flip");
+  if(has("valued")) cls.push("valued");
+  if(has("labeled")) cls.push("labeled");
+  if(has("private")) cls.push("private");
+  if(has("actionable")) cls.push("action");
+  if(has("container")) cls.push("container");
+  if(flags.selected) cls.push("sel");
+
+  const fp = footprintPx();
+  // No Bounded → the node has no size of its own. It still EXISTS: a place in the tree.
+  const box = fp ? `width:${fp.w}px;height:${fp.h}px` : `width:120px;height:78px`;
+  const radius = fp && fp.shape === "circle" ? "border-radius:50%;" : "";
+  const ang = r.angle.value, z = r.z.value;
+
+  // Everything below is a CONSEQUENCE of z — the elevation law, in one place.
+  const lift  = z * 6;
+  const scale = 1 + z * 0.03;
+  const inner = has("container")
+    ? `<div class="slots"><i></i><i></i><i></i><i></i></div>`
+    : (!has("surfaced") ? (has("bounded") ? "" : "node<br>· id ·") : "");
+
+  // Shadow: silhouette from the footprint, offset from the root light (viewer frame here —
+  // a constant screen offset), size and blur from z. A SIBLING, never a child of the
+  // rotated node, so it does not inherit the rotation.
+  const silhouette = has("shadowcaster") && argState["shadowcaster.from"] === "silhouette";
+  const shadow = (has("shadowcaster") && fp) ? `<div class="elshadow" style="
+      width:${fp.w}px;height:${fp.h}px;${radius}
+      ${silhouette ? `transform:translate(${4+z*3}px,${5+z*4}px) scale(${scale}) rotate(${ang}deg);`
+                   : `transform:translate(${4+z*3}px,${5+z*4}px) scale(${scale});`}
+      filter:blur(${5+z*4}px);opacity:${0.32 - z*0.04};"></div>` : "";
+
+  // Debug layers — the viewer's plane. The node knows nothing about them.
+  const L = [];
+  if(LAYERS.box && fp) L.push(`<div class="dbg dbg-box" style="${box};${radius}"></div>`);
+  if(LAYERS.hit && fp) L.push(`<div class="dbg dbg-hit" style="width:${fp.w+16}px;height:${fp.h+16}px;${radius}"></div>`);
+  if(LAYERS.silhouette && fp) L.push(`<div class="dbg dbg-sil" style="width:${fp.w*0.72}px;height:${fp.h*0.88}px;${radius}"></div>`);
+  if(LAYERS.at) L.push(`<div class="dbg dbg-at"></div>`);
+  if(LAYERS.zladder) L.push(`<div class="dbg dbg-z" style="height:${Math.max(2,lift)}px"></div>`);
+  if(LAYERS.slots && has("container")) L.push(`<div class="dbg dbg-slots" style="${box}"></div>`);
+
+  return `<div class="elbox" style="${box}">
+    ${shadow}
+    <div class="${cls.join(' ')}" style="${box};${radius}transform:translateY(${-lift}px) rotate(${ang}deg) scale(${scale})">
+      <span class="corner"></span>
+      <span class="val">7</span><span class="val suit">♠</span>
+      <span class="eye">🚫</span>
+      <span class="label">label</span>
+      ${inner}
+    </div>
+    ${L.join('')}
+  </div>
+  <div class="derived">footprint: <b>${fp ? `${Math.round(fp.w)}×${Math.round(fp.h)} px · ${fp.shape} — ${fp.src}`
+    : "none — no Bounded. This is a Node, not an Element."}</b></div>`;
+}
+
+// The Container scene: the first one with MORE THAN ONE node. Everything the two base
+// scenes could only fake — a real owner, `at` resolved by a layout, phantoms — is real here.
+function containerMock(){
+  const L = LAYOUTS[argState["container.layout"]];
+  const box = { w: 300, h: 180 };
+  const hot = argState["container.hot"];
+  const maxGaps = argState["container.maxGaps"].startsWith("3") ? 3
+                : argState["container.maxGaps"] === "1" ? 1 : 0;
+  // Spreading is not a mechanic and not an animation: the container simply lays out n+m and
+  // the phantoms stand at indexAt(finger). The springs are a consequence, not a feature.
+  const shown = Math.min(payload, maxGaps);
+  const over  = payload - shown;
+  const n = kids + (hot === "phantom" ? shown : 0);
+  const ix = hoverIx === null ? null : clampIx(hoverIx, kids);
+
+  const cells = [];
+  for(let i=0, k=0; i<n; i++){
+    const isPhantom = hot === "phantom" && ix !== null && i >= ix && i < ix + shown;
+    const p = L.place(i, n, box);
+    const lifted = hot === "lift" && ix === i;
+    cells.push(`<div class="kid ${isPhantom?'phantom':''} ${lifted?'lift':''}" style="
+      left:${p.x}px;top:${p.y}px;width:${CELL.w}px;height:${CELL.h}px;
+      transform:translate(-50%,-50%) rotate(${p.rot}deg) scale(${lifted?1.12:1})">${isPhantom?'':(++k)}</div>`);
+  }
+  const armed = hot === "arm" ? `<div class="armring"></div>` : "";
+  const badge = over > 0 ? `<div class="overbadge">+${over}</div>` : "";
+
+  return `<div class="cbox" id="cbox" style="width:${box.w}px;height:${box.h}px">
+      ${armed}${cells.join('')}${badge}
+    </div>
+    <div class="derived">
+      layout <b>${argState["container.layout"]}</b> · cast <b>${L.cast}</b> ·
+      slot address <b>${L.addr === "coord" ? "coordinate (e4)" : L.addr === "after" ? "neighbour (after: id)" : "none"}</b><br>
+      indexAt(finger) = <b>${ix === null ? "— move the pointer over the box" : ix}</b> ·
+      children <b>${kids}</b> (state) · payload <b>${payload}</b>${over>0?` · ${shown} gaps drawn, ${over} behind a badge`:""}
+    </div>`;
+}
+
+function renderCanvas(){
+  const notes = conflicts();
+  const capList = caps();
+  stage.innerHTML = `
+    <div class="canvas-wrap">
+      <div class="stagearea">
+        ${scene === "Container" ? containerMock() : elMock()}
+        <div class="activeatoms">
+          ${capList.length? capList.map(c=>`<span class="tag core">${c}</span>`).join('')
+            : `<span class="tag">Element { id } — and nothing else</span>`}
+        </div>
+        <div class="elcaption">
+          ${notes.length
+            ? notes.map(x=>`<div style="color:var(--${x[0]==='bad'?'bad':'warn'})">▲ ${x[1]}</div>`).join('')
+            : `<b>Valid composition.</b> The element can do exactly what its atoms add — no more, no less.`}
+          ${argInsights().map(t=>`<div style="color:var(--muted)">· ${t}</div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="addons${sheetOpen?' sheet-open':''}">
+      <div class="sheet-handle" id="sheetHandle"></div>
+      <div class="addons-tabs">
+        <button class="ad-tab ${curAd===6?'on':''}" data-ad="6">Inspector <span class="badge">${inspect().length}</span></button>
+        <button class="ad-tab ${curAd===0?'on':''}" data-ad="0">Controls <span class="badge">${ATOMS.filter(a=>inScene(a[0])).length+ATOMS.filter(a=>has(a[0])).reduce((s,a)=>s+((ATOM_ARGS[a[0]]||[]).length),0)}</span></button>
+        <button class="ad-tab ${curAd===4?'on':''}" data-ad="4">State</button>
+        <button class="ad-tab ${curAd===5?'on':''}" data-ad="5">Derived</button>
+        <button class="ad-tab ${curAd===1?'on':''}" data-ad="1">Actions <span class="badge">${actions.length}</span></button>
+        <button class="ad-tab ${curAd===2?'on':''}" data-ad="2">Interactions</button>
+        <button class="ad-tab ${curAd===3?'on':''}" data-ad="3">Elsewhere <span class="badge">5</span></button>
+      </div>
+      <div class="addons-body" id="adbody"></div>
+    </div>`;
+  paintAddon();
+  // indexAt is only demonstrable if a real pointer asks it — that is the whole point of
+  // the layout answering in two directions.
+  const cb = document.getElementById("cbox");
+  if(cb){
+    const L = LAYOUTS[argState["container.layout"]];
+    cb.onpointermove = e=>{
+      const r = cb.getBoundingClientRect();
+      const i = L.indexAt({x:e.clientX-r.left, y:e.clientY-r.top}, kids, {w:r.width,h:r.height});
+      if(i !== hoverIx){ hoverIx = i; renderCanvas(); }
+    };
+    cb.onpointerleave = ()=>{ if(hoverIx!==null){ hoverIx=null; renderCanvas(); } };
+  }
+  document.querySelectorAll(".ad-tab").forEach(t=>t.onclick=()=>{curAd=+t.dataset.ad;renderCanvas();});
+  const h = document.getElementById("sheetHandle");
+  if(h) h.onclick=()=>{ sheetOpen=false; syncSheet(); };
+}
+// mobile sheet + sidebar helpers
+function syncSheet(){
+  const a=document.querySelector(".addons");
+  if(a) a.classList.toggle("sheet-open",sheetOpen);
+  const btn=document.getElementById("mbAddons");
+  if(btn) btn.innerHTML = sheetOpen ? "⚙ Controls ▼" : "⚙ Controls ▲";
+}
+function setSidebar(open){
+  document.querySelector(".sidebar").classList.toggle("open",open);
+  document.getElementById("backdrop").classList.toggle("on",open);
+}
+
+function paintAddon(){
+  const b = document.getElementById("adbody"); if(!b) return;
+  if(curAd===0){
+    // PLANE 1 — Spec. Every row here is a FIELD. Nothing else may live in this tab.
+    const rowFor = a=>{
+      const on = has(a[0]), req = reqOf(a[0]);
+      const note = starved(a[0])
+        ? `<span class="lockchip" style="border-color:var(--bad);color:var(--bad)">needs ${reqLabel(a[0])}</span>` : "";
+      const main = `<tr>
+        <td class="nm">${a[1]}${req.length?`<span class="derived" style="display:block">└ requires ${reqLabel(a[0])}</span>`:""}</td>
+        <td class="ds">${a[3]} ${note}</td>
+        <td><button class="tog ${on?'on':''}" data-k="${a[0]}"></button></td></tr>`;
+      const args = ATOM_ARGS[a[0]];
+      if(!on || !args || !args.length) return main;
+      const subs = args.map((ar,i)=>{
+        const last = i===args.length-1 ? "last" : "";
+        const nm = `<td class="snm">${ar[1]}${ar[2]?'<span class="req" title="required">*</span>':''}</td>`;
+        // a row with no options is a POINTER at the real owner, not a control
+        if(!ar[3]) return `<tr class="sub ${last}">${nm}<td class="shelp">${ar[4]}</td>
+          <td><span class="lockchip">elsewhere</span></td></tr>`;
+        const key = a[0]+"."+ar[0];
+        const opts = ar[3].map(o=>`<option ${o===argState[key]?'selected':''}>${o}</option>`).join('');
+        return `<tr class="sub ${last}">${nm}<td class="shelp">${ar[4]}</td>
+          <td><select class="mini aarg" data-key="${key}">${opts}</select></td></tr>`;
+      }).join('');
+      return main+subs;
+    };
+    // In the Node scene Bounded and everything standing on it are not merely off — they are
+    // not part of the scene at all. That IS the difference between the two scenes.
+    const rows = ATOMS.filter(a=>inScene(a[0])).map(rowFor).join('');
+    b.innerHTML = `<table class="args"><thead><tr><th>Atom (field)</th><th>What it grants</th><th>Control</th></tr></thead><tbody>
+      ${rows}
+    </tbody></table>
+    <div class="planehd">owner node — another node's fields, shown so inheritance is visible</div>
+    <table class="args"><tbody>
+      <tr><td class="nm">angle</td><td class="ds">adds to the element's own angle</td>
+        <td><select class="mini ownr" data-k="angle">${[0,15,45,90].map(v=>`<option ${v===owner.angle?'selected':''}>${v}</option>`).join('')}</select></td></tr>
+      <tr><td class="nm">z</td><td class="ds">adds to the element's own z</td>
+        <td><select class="mini ownr" data-k="z">${[0,1,2].map(v=>`<option ${v===owner.z?'selected':''}>${v}</option>`).join('')}</select></td></tr>
+      <tr><td class="nm">orientation</td><td class="ds">taken by the element when it does not set its own</td>
+        <td><select class="mini ownr" data-k="orientation">${["world","viewer"].map(v=>`<option ${v===owner.orientation?'selected':''}>${v}</option>`).join('')}</select></td></tr>
+    </tbody></table>
+    <div style="padding:8px 10px;color:var(--faint);font-size:11px">
+      <span class="req" style="color:var(--warn);font-weight:700">*</span> required — the atom cannot exist without it.
+      &nbsp;·&nbsp; <span class="lockchip">elsewhere</span> authored on another object — the help text names which.
+      &nbsp;·&nbsp; There is no <code>parent.*</code>: the owner's fields are ordinary fields of another node.</div>`;
+    b.querySelectorAll(".tog").forEach(t=>t.onclick=()=>{
+      const k=t.dataset.k; state[k]=!state[k];
+      logAct(state[k]?"atomAdded":"atomRemoved", `{ atom: "${ATOM(k)[1]}" }`);
+      logAct("composed", `{ caps: [${caps().join(", ")}] }`);
+      renderCanvas();
+    });
+    b.querySelectorAll(".aarg").forEach(s=>s.onchange=()=>{
+      argState[s.dataset.key] = s.value;
+      const [atom,arg] = s.dataset.key.split(".");
+      logAct("fieldChanged", `{ atom: "${ATOM(atom)[1]}", ${arg}: "${s.value}" }`);
+      renderCanvas();
+    });
+    b.querySelectorAll(".ownr").forEach(s=>s.onchange=()=>{
+      const k = s.dataset.k;
+      owner[k] = k === "orientation" ? s.value : parseInt(s.value);
+      logAct("ownerChanged", `{ ${k}: "${owner[k]}" } — the element inherits, it is not told`);
+      renderCanvas();
+    });
+  } else if(curAd===4){
+    // PLANE 2 — State. Not fields: you cannot author `drag`.
+    b.innerHTML = `
+      <div class="planehd">where the node is — only rest / lifted / held can be authored (pose)</div>
+      <div class="staterow">${WHERE.map(w=>`<button class="stbtn ${w===where?'on':''} ${AUTHORABLE.has(w)?'':'happens'}" data-w="${w}">${w}${AUTHORABLE.has(w)?'':' ·'}</button>`).join('')}</div>
+      <div class="planehd">flags</div>
+      <div class="staterow">${FLAGS.map(f=>`<button class="stbtn ${flags[f]?'on':''}" data-f="${f}">${f}</button>`).join('')}</div>
+      ${scene === "Container" ? `
+      <div class="planehd">children — STATE, not spec: the config is authored, the contents are not</div>
+      <div class="staterow">
+        <button class="stbtn" data-kids="-1">−</button>
+        <span class="stbtn on">${kids} children</span>
+        <button class="stbtn" data-kids="1">+</button>
+      </div>
+      <div class="planehd">drag payload — a LIST (1..M), never a single card</div>
+      <div class="staterow">
+        <button class="stbtn" data-pay="-1">−</button>
+        <span class="stbtn ${payload?'on':''}">${payload} carried</span>
+        <button class="stbtn" data-pay="1">+</button>
+        <span class="derived" style="align-self:center">the container lays out <b>n+m</b> and phantoms stand at <b>indexAt(finger)</b> — spreading is a layout, not a mechanic</span>
+      </div>` : ""}
+      <div class="planehd">idle breathing — a SEPARATE axis from pose</div>
+      <div class="staterow">
+        <button class="stbtn ${idleOn?'on':''}" data-idle="1">idle ${idleOn?'on':'off'}</button>
+        <span class="derived" style="align-self:center">decoration only: it never feeds <b>z</b>, or the shadow would breathe in size under a thing that is not moving</span>
+      </div>
+      <div style="padding:4px 10px 14px;color:var(--faint);font-size:11px">
+        A dashed chip HAPPENS to the node (finger, flight, layout) — it is not a field, and it is
+        not in the spec. That is why State is its own plane.</div>`;
+    b.querySelectorAll("[data-w]").forEach(x=>x.onclick=()=>{
+      where = x.dataset.w; logAct("stateChanged", `{ where: "${where}"${AUTHORABLE.has(where)?'':' — happens, not authored'} }`); renderCanvas(); });
+    b.querySelectorAll("[data-f]").forEach(x=>x.onclick=()=>{
+      const f=x.dataset.f; flags[f]=!flags[f]; logAct("flagToggled", `{ ${f}: ${flags[f]} }`); renderCanvas(); });
+    b.querySelector("[data-idle]").onclick=()=>{ idleOn=!idleOn; logAct("idleToggled", `{ idle: ${idleOn} } — not z`); renderCanvas(); };
+    b.querySelectorAll("[data-kids]").forEach(x=>x.onclick=()=>{
+      kids = Math.max(0, Math.min(16, kids + (+x.dataset.kids)));
+      logAct("childrenChanged", `{ n: ${kids} } — state, never spec`); renderCanvas(); });
+    b.querySelectorAll("[data-pay]").forEach(x=>x.onclick=()=>{
+      payload = Math.max(0, Math.min(6, payload + (+x.dataset.pay)));
+      logAct("payloadChanged", `{ els: ${payload} } — a list, so n+m needs no special case`); renderCanvas(); });
+  } else if(curAd===6){
+    // The node tree with parameters. On Node and Root nothing is drawn at all, so this
+    // panel is not a convenience — it is the only way those scenes are scenes.
+    const rows = inspect().map((n,i)=>{
+      const lines = [];
+      if(n.atoms.length) lines.push(`<div class="il"><span class="ik">atoms</span><span class="iv">${n.atoms.join(" · ")}</span></div>`);
+      else lines.push(`<div class="il"><span class="ik">atoms</span><span class="iv" style="color:var(--faint)">none — an id and a place, and that is valid</span></div>`);
+      n.own.forEach(([k,v,c])=>lines.push(`<div class="il"><span class="ik">${k}</span><span class="iv">${v}</span><span class="ic">${c}</span></div>`));
+      n.derived.forEach(([k,v,how,c])=>lines.push(`<div class="il"><span class="ik">${k}</span><span class="iv">${v}</span><span class="ic">${how}${c?" · "+c:""}</span></div>`));
+      if(n.starved.length) lines.push(`<div class="il"><span class="ik" style="color:var(--bad)">absent</span><span class="iv" style="color:var(--bad)">${n.starved.join(" · ")}</span></div>`);
+      if(n.state && Object.keys(n.state).length){
+        const st = [n.state.where, n.state.idle?"idle":null, ...(n.state.flags||[])].filter(Boolean).join(" · ");
+        if(st) lines.push(`<div class="il"><span class="ik">state</span><span class="iv">${st}</span><span class="ic">happens · not authored</span></div>`);
+      }
+      return `<div class="inode ${n.isRoot?'isroot':''}" style="margin-left:${i?18:0}px">
+        <div class="ihd">${n.isRoot?"▣":"▪"} ${n.id}${n.children?` <span class="ic">· ${n.children} child${n.children>1?"ren":""}</span>`:""}
+          ${n.isRoot?'<span class="lockchip">root · nobody places it</span>':''}</div>
+        ${lines.join("")}</div>`;
+    }).join("");
+    b.innerHTML = `<div class="inspector">${rows}</div>
+      <div style="padding:10px;color:var(--faint);font-size:11px">
+        One door: <code>inspect(root, ctx)</code> — a pure function over the same data the renderer uses.
+        The panel never walks the tree itself, so it cannot drift; a guard asserts it shows nothing the
+        model does not have.</div>`;
+  } else if(curAd===5){
+    // Makes the inheritance law visible instead of documented.
+    const r = resolve();
+    const row = (name,val,how,cls)=>`<tr><td class="nm">${name}</td><td>${val}</td>
+      <td class="ds">${how}</td><td class="cls">${cls}</td></tr>`;
+    b.innerHTML = `<table class="args derivedtbl"><thead><tr><th>resolved</th><th>value</th><th>how it came out</th><th>class</th></tr></thead><tbody>
+      ${row("z", r.z.value, `own ${r.z.own} + owner ${r.z.from}`, r.z.cls)}
+      ${row("angle", r.angle.value+"°", `own ${r.angle.own}° + owner ${r.angle.from}°`, r.angle.cls)}
+      ${row("orientation", r.orientation.value, r.orientation.inherited ? "not set here → taken from the owner" : "set on this node — overrides the owner", r.orientation.cls)}
+      ${row("unit", r.unit.value+" px", "the HUD etalon; the viewer may override it", r.unit.cls)}
+      ${row("footprint", footprintPx() ? `${Math.round(footprintPx().w)}×${Math.round(footprintPx().h)} px` : "none", footprintPx() ? footprintPx().src : "no Bounded — this is a Node", "own")}
+      ${row("lift · scale", `${(r.z.value*6)}px · ${(1+r.z.value*0.03).toFixed(2)}`, "consequences of z — never set apart from it", "consequence")}
+    </tbody></table>
+    <div style="padding:10px;color:var(--faint);font-size:11px">
+      None of this is stored on the node and none of it travels: it comes from
+      <code>ResolveContext { unit, chain, config }</code> and is read AT APPLY TIME — freezing it
+      when an animation starts is exactly how the fan z-order broke three times in client1.</div>`;
+  } else if(curAd===1){
+    b.innerHTML = actions.length
+      ? `<div class="log">${actions.map(a=>`<div class="row"><span class="ev">${a[0]}</span><span class="pl">${a[1]}</span></div>`).join('')}</div>`
+      : `<div class="log"><div class="empty">Empty. Toggle an atom in Controls — events land here.</div></div>`;
+  } else if(curAd===3){
+    // Everything a reader looks for on the element and will NOT find here.
+    // It lives in the panel, not on the canvas: the canvas is for the element itself.
+    b.innerHTML = `<table class="args"><thead><tr><th>What you are looking for</th><th>Who authors it</th><th>Where</th></tr></thead><tbody>
+      <tr><td class="nm">where the shadow FALLS</td>
+        <td class="ds">one light per table — a per-element light does not exist. <code>world</code>: the lamp hangs over the table and shadows turn with it. <code>viewer</code>: always from the frame's top-right, so height reads the same from every seat.</td>
+        <td class="ds"><code>Canvas · Lit{ light }</code><br><span style="color:var(--faint)">Canvas / Frames / Orientation &amp; light</span></td></tr>
+      <tr><td class="nm">how high it lifts</td>
+        <td class="ds">z is the SOURCE; lift, scale and the shadow are its consequences and cannot be set apart from it. Stack thickness is layout, not z. Zoom is not height.</td>
+        <td class="ds"><code>Transformable.z</code> → composed down the tree<br><span style="color:var(--faint)">Capabilities / Container / Pose</span></td></tr>
+      <tr><td class="nm">who casts it</td>
+        <td class="ds">a pile as ONE silhouette, or every child on its own — a question about the pile, not about the card in it.</td>
+        <td class="ds"><code>cast: group | each</code> on the parent's layout<br><span style="color:var(--faint)">Capabilities / Container / Layout</span></td></tr>
+      <tr><td class="nm">where the element SITS</td>
+        <td class="ds">in a container position is not authored — the layout resolves it. Only a <code>keep</code> pose puts <code>at</code> on the wire; <code>derive</code> and <code>stamp</code> never travel.</td>
+        <td class="ds"><code>at</code> ← the parent's layout<br><span style="color:var(--faint)">Capabilities / Container / Pose</span></td></tr>
+      <tr><td class="nm">the table's <code>unit</code></td>
+        <td class="ds">the table has NO universal unit: sizes are plain world numbers and the camera fits them to the screen. <code>unit</code> exists only for the HUD, which does not ride the camera — an etalon as a fraction of the screen, with a user override. Here 1 unit = ${hudUnit}px.</td>
+        <td class="ds"><code>LayoutContext</code>, resolved once per canvas<br><span style="color:var(--faint)">Canvas / Misc / World unit</span></td></tr>
+    </tbody></table>`;
+  } else {
+    b.innerHTML = `<ol class="steps">
+      <li class="pass">Mount a bare <code>Element</code> — record <code>none</code>, no atoms: only the "id" frame. <code>caps(el)</code> is empty, no methods.</li>
+      <li class="pass">Choose <code>set record: standard52 · card</code> — footprint, face, vocabulary and reverse arrive together. Four rows turn into <b>from record</b>: they are no longer the story's to set.</li>
+      <li class="pass">Switch to <code>chessSet · king</code>, then <code>pawn</code> — the mock changes size on the spot. Nothing in the story holds a number: the size is per RECORD.</li>
+      <li class="pass">Enable <code>Transformable</code>, raise <code>z</code> 0 → 2 — the element lifts and the shadow grows and blurs with it. Lift, scale and shadow are consequences of z, never set apart from it.</li>
+      <li class="pass">Turn <code>angle</code> to 45° — the silhouette turns, the shadow's OFFSET does not. The shadow is a sibling of the rotated node, never its child.</li>
+      <li class="fail">Disable <code>Bounded</code> (record <code>none</code>) with <code>ShadowCaster</code> on — <b>conflict</b>: no footprint, so no silhouette. Expected, and named on the canvas.</li>
+      <li class="pass">Pick <code>preset: Button</code> — the same base Element, a different atom set, and NO record: <code>Bounded + Surfaced + Actionable + Labeled</code>. A button is not a second world, and its size comes from the layout + padding token, not from a number here.</li>
+    </ol>`;
+  }
+  document.querySelectorAll(".ad-tab").forEach(t=>t.classList.toggle("on",+t.dataset.ad===curAd));
+}
+
+// ---------- DOCS view ----------
+const TESTS = [
+  ["UNIT · Node and composition","vitest (headless, no WebGL)", 22, [
+    ["node.compose.empty","a bare <code>Node</code>","<code>caps(node)</code> is read","empty set; no capability methods on the object. A bare node is VALID"],
+    ["node.no-element-predicate","the whole src tree","scanned for <code>isElement</code> / an Element type","zero hits: systems ask for the atom they need, never for a category (source-scan)"],
+    ["node.canvas-has-no-box","the canvas root: Surfaced + Container, no Bounded","composed","legal — the surface takes its AREA from the content extent. A Surfaced→Bounded requirement would outlaw the tabletop"],
+    ["node.no-inheritance","the whole src tree","scanned for <code>extends</code>/<code>instanceof</code> on nodes","zero hits — composition only (source-scan)"],
+    ["node.not-everything-is-a-node","slot · layout phantom · shadow · camera","asked for an id","none of them has one; they are not nodes"],
+    ["node.transaction-is-not-a-node","a Transaction","asked for <code>z</code> / a shadow","a type error, not a value — it is ABOVE nodes, not one of them"],
+    ["bounded.minimal","a node with only <code>Bounded</code>","<code>caps</code> read","exactly [Bounded]: a place that occupies room and draws nothing"],
+    ["compose.add-atom","atom X is composed in","<code>caps(el).has(X)</code>","true; X's methods and events are present"],
+    ["compose.remove-atom","atom X is composed out","the method is called","it is <b>undefined</b> (absent), not a thrown 'disabled' error"],
+    ["compose.assoc","atoms a,b,c","<code>compose(a,compose(b,c))</code> vs <code>compose(a,b,c)</code>","identical caps set — composition is associative"],
+    ["compose.commut","the same atoms in any order","two compositions compared","equal — order does not change the node"],
+    ["compose.dedupe","the same atom twice","composed","present once; second is a no-op, not a duplicate"],
+    ["node.id.opaque","any id (hash, binary, compound)","the engine derives a property","it never parses the id: no split/startsWith/literal compare (source-scan)"],
+  ]],
+  ["UNIT · Root, host and the inspector","vitest + a DOM fake", 20, [
+    ["root.is-just-a-node","a root","its type inspected","an ordinary node with Container — there is no separate storage entity above it"],
+    ["root.nobody-places-it","a root","<code>Placeable</code> asked for","absent, and it cannot be added: Placeable requires Bounded, which a root has no business having"],
+    ["root.cannot-be-a-child","a root added to a container","the operation","rejected — it would stop being a root"],
+    ["root.two-and-one-difference","CanvasRoot and HudRoot","the camera applied","it transforms the first and does not touch the second; there is no <code>anchor</code> field anywhere (source-scan)"],
+    ["root.byid-derived","a node removed from the tree","<code>byId</code> asked","undefined — the index is derived from the tree, never a second store"],
+    ["root.render-follows-tree","a node with and without Surfaced under a mounted root","the frame","drawn / not drawn; both still exist and both appear in the inspector"],
+    ["host.owns-pixels","a node","asked for its pixel size","it does not know: a node lives in units. The host owns the view and its size"],
+    ["host.hud-unit-from-viewport","the viewport resized","the HUD etalon","recomputed by the host and put into the ResolveContext; table sizes do not move"],
+    ["host.single-pixi-import","the whole src tree","scanned for <code>from \"pixi.js\"</code>","exactly one file — everything else is headless data and maths (source-scan)"],
+    ["host.mount-unmount","mount then unmount","the view inspected","nothing left behind: no display objects, listeners or timers"],
+    ["inspector.one-door","the panel's source","scanned for engine internals / its own tree walk","zero — it only calls <code>inspect(root, ctx)</code>"],
+    ["inspector.reflects-model","a random tree","panel output vs the model","everything shown exists in caps/fields, and no field of the model is missing"],
+    ["inspector.no-invented-fields","the panel output","every key cross-checked against the field table","zero keys outside it"],
+    ["inspector.shows-absent","an atom toggled on with its requirement off","the panel","names it as ABSENT with what it lacks — the one place a starved atom is visible"],
+    ["inspector.three-planes","any node","the panel sections","own fields · resolved (with class and arrow) · state — kept apart, same law as the tabs"],
+    ["inspector.selection-two-way","a row clicked, then a node clicked on canvas","selection","stays in sync both directions"],
+  ]],
+  ["UNIT · requirement chains","vitest", 10, [
+    ["req.direct","<code>Flippable</code> with <code>Surfaced</code> off","composed","Flippable is ABSENT with its fields — not disabled, not inert"],
+    ["req.transitive","Flippable → Surfaced → Bounded, Bounded removed","caps read","the whole branch is gone in one step; no half-composed atom survives"],
+    ["req.alternative","<code>Surfaced</code> with Bounded off but Container on","composed","present: a requirement names what is LACKING, and an area may come from an own size OR from the content"],
+    ["req.alternative-none","<code>Surfaced</code> with neither Bounded nor Container","composed","absent — there is no area to paint on"],
+    ["req.closure","any declared atom","its requirement chain walked","terminates, has no cycle, every named requirement exists, and alternatives are followed as OR (source-scan)"],
+    ["req.no-disabled-path","the removal path","the absent atom's method called","<code>undefined</code>; nothing anywhere reports 'disabled'"],
+  ]],
+  ["UNIT · four classes of inheritance","vitest + a fake tree", 26, [
+    ["inherit.own.not-inherited","owner has <code>size</code>, child does not","the child's size resolved","undefined — an 'own' field never travels down"],
+    ["inherit.owner.nearest","a child without <code>orientation</code>, a grandparent that has it","resolved","the NEAREST set value up the chain wins"],
+    ["inherit.owner.override","child sets its own <code>orientation</code>","resolved","the child's value wins over the owner's"],
+    ["inherit.sum.adds","own z=2, owner z=1, root z=1","resolved","4 — sums the whole chain, not just the parent"],
+    ["inherit.sum.cannot-cancel","child tries to zero the inherited angle","resolved","impossible by construction: only its own term is authored"],
+    ["inherit.root-only.absent","a child asked for <code>light</code> / <code>camera</code>","the field read","it does not EXIST on a child — a validator error, not undefined"],
+    ["inherit.class-declared","every field in the model","its class looked up","all four classes covered; a field with no class fails the scan (source-scan)"],
+    ["inherit.billboard-terminates","child <code>orientation: viewer</code>, owner rotated 45°","angle resolved","own − camera.rotation; the owners' 45° is NOT added — viewer terminates the chain"],
+    ["inherit.shadow-ignores-angle","the node rotated","the shadow inspected","the silhouette turns, the offset does not: the shadow never inherits the rotation matrix"],
+  ]],
+  ["UNIT · ResolveContext","vitest + a fake clock", 12, [
+    ["ctx.not-stored","a resolved value","the node's own fields inspected","nothing inherited is stored on it"],
+    ["ctx.not-serialized","the node serialized","the payload inspected","resolved values are absent from the wire — only own fields travel"],
+    ["ctx.read-at-apply","an animation started, then the OWNER changed mid-flight","the applied value","the NEW value is used — this is the exact client1 fan-z regression, frozen bases are forbidden"],
+    ["ctx.chain-depth","a chain 5 deep","resolve run","correct at every level; no O(n²) walk"],
+  ]],
+  ["UNIT · per-atom contract","vitest", 34, [
+    ["atom.bounded.own-field","a node with <code>size</code>","footprint requested","it equals the node's OWN size field; the set record only stamped it at birth"],
+    ["atom.bounded.bounds-overrides","<code>size</code> 1×1.4 and <code>bounds</code> 0.8×","footprint requested","bounds wins — this is the only way an instance differs from its record"],
+    ["atom.bounded.per-record","a king and a pawn from the SAME set","both footprints read","they differ — size is declared per record, never per set"],
+    ["atom.bounded.shapes","<code>circle{r}</code> and <code>poly[]</code>","hit-test · shadow · layout","hit and shadow follow the real shape; layout reserves the bounding box"],
+    ["atom.bounded.no-pixels-in-spec","the whole src tree","scanned for px literals on a node spec","zero hits — sizes are in units (source-scan)"],
+    ["atom.bounded.draws-nothing","Bounded on, Surfaced off","the frame rendered","not a single pixel; the box is visible only through a debug layer"],
+    ["atom.bounded.clamp-not-here","a node without children","<code>clampChildren</code> looked up","absent: clamping belongs to Container, `bounds` is only about itself"],
+    ["atom.hit.derived","a 1×1 unit chip on a touch input","the hit area measured","max(box, the input theme's touch minimum); no <code>hit*</code> field exists in the spec"],
+    ["atom.hit.nearest-center","two neighbours whose expanded hit areas overlap","a press in the overlap","the nearer CENTRE wins — deterministic on a dense chess grid"],
+    ["atom.surfaced.registry","Surfaced{surface:\"cardFace\"}","the face drawn","the registry record draws it; no borderRadius/fill/colour field exists on the spec (source-scan)"],
+    ["atom.surfaced.fit","art whose proportion differs from the box","each of the six fits applied","contain letterboxes (the DEFAULT: the author's mistake stays visible), cover crops, repeat tiles, fitX/fitY pin one axis"],
+    ["atom.transformable.z-consequences","z raised 0→2","lift, scale and shadow measured","all three change; none can be set independently of z. Zoom changes neither"],
+    ["atom.layout.never-writes-z","every layout in the registry","scanned and run","none of them writes <code>z</code> — a stack expresses thickness through <code>at</code> (source-scan)"],
+    ["atom.z.container-lifts-children","a stack with z=1","children resolved","every child is +1: lifting the pile lifts the pile. Lying in it does not lift anything"],
+    ["atom.flippable.reverse","Flippable{reverse}","flip()","back→face hidden, same→identical, mirror→mirrored, alt→other visible face"],
+    ["atom.private.exclusion","Private + a viewer ≠ owner","the scene is projected","the node is ABSENT from that viewer's picture, not merely face-down"],
+    ["atom.private.vs-back","a face-down card next to a Private one","both projected to another viewer","back: present, face hidden. Private: not in the payload at all. Two different hidings"],
+    ["atom.private.subtree","a Private CONTAINER with children","projected to another viewer","the whole subtree is cut — children never appear ownerless"],
+    ["atom.owned.recall","two boxes of the SAME set on one table","<code>{eq:[el.box,target.box]}</code> evaluated","only one's own are recalled; identical cards from different boxes are different nodes"],
+    ["atom.valued.paths","Valued{rank,suit}","a rule reads <code>el.values.rank</code>","legal; <code>el.values.race</code> in a set without race → validator error"],
+    ["atom.actionable.press","Actionable","press()","emits the bound command; nothing when the atom is absent"],
+  ]],
+  ["UNIT · Container — slot, layout, spreading","vitest", 38, [
+    ["slot.is-an-address","an 8×8 board","the node count read","ONE node with a grid layout — not 64. An empty cell has no id and is not in the state"],
+    ["slot.address-form","grid · ordered · heap","the address asked for","grid → a coordinate (e4) · ordered → a NEIGHBOUR (after: id, survives someone else's reorder) · heap → none"],
+    ["slot.cell-needs-a-life","a cell that must hold its own state","modelled","a container is nested as a CHILD — recursion is already legal, no new entity"],
+    ["layout.both-directions","every layout in the registry","<code>place(i,n,ctx)</code> and <code>indexAt(point,n,ctx)</code>","both exist; indexAt(place(i)) === i for every i — the inverse is required, not a convenience"],
+    ["layout.fan-answers-differently","the same point over fan vs row","indexAt asked","different indices: only the layout knows its own geometry"],
+    ["layout.cast-lives-here","every layout entry","<code>cast</code> read","deckStack → group, fan/row/grid → each. It is a field of the LAYOUT, never of the container"],
+    ["layout.detached-child-casts","a child dragged out of a group-cast pile","the shadow","it casts on its own automatically — it is outside the container now"],
+    ["layout.thickness-not-z","a card added to a deckStack","the shadow measured","not one pixel moved: thickness is expressed through <code>at</code>. A layout writing z fails the scan"],
+    ["layout.swap-is-a-reference","layout switched deckStack → fan","children and sprites inspected","children untouched, sprites keyed by identity, springs really play. No state-diff, no state machine"],
+    ["layout.free-clamps-itself","a free layout with kept poses","a child pushed past the edge","the clamp is a parameter of THIS layout entry; grid/fan/row have nothing to clamp"],
+    ["spread.phantoms","a payload of m over a container of n","laid out","n+m with phantoms at indexAt(finger); neighbours are moved by springs — a consequence, not a feature"],
+    ["spread.payload-is-a-list","a payload of 1 and of 4","both hovered","identical code path: the load is always a LIST, so there is no single-card special case"],
+    ["spread.gap-holds-while-pending","a request still in flight","the gap","stays open — the phantom is pinned to <code>after</code> from the PendingRequest"],
+    ["hot.registry","phantom · lift · arm · none","each applied","phantom spreads, lift raises and grows the target, arm outlines only, none is silent"],
+    ["hot.absent-is-silent","<code>hot</code> field missing","a load hovered","the container says NOTHING — absence is the off switch, there is no `hot: none` flag needed"],
+    ["hot.maxgaps-is-show","maxGaps 3, payload 7","rendered","three honest gaps then a `+4` badge; the limit is a parameter, not a constant"],
+    ["hot.capacity-vs-maxgaps","a zone that accepts 20 and draws 3","both asked","capacity is a RULE (<code>{lt:[target.count,20]}</code>, refuses); maxGaps is a SHOW. Different questions"],
+    ["grab.three-entries","one · top · above","each grabbed","exactly what the entry names leaves; there is no separate `split`"],
+    ["grab.absent","<code>grab</code> field missing","a child pressed","nothing can be taken, and the gesture is not eaten"],
+    ["grab.draught-follows","a child with no grab","hit-test run","it walks UP the tree and the owner gets the gesture — a draught FOLLOWS, it is never declared"],
+    ["grab.carry-inherits-source","a sub-pile pulled from a deck, a fan card pulled from a hand","the load in flight","carry inherits the SOURCE layout: a pack flies as a pack, a fan as a fan. Nothing to declare"],
+    ["grab.two-levels","Container.grab vs Placeable+Draggable on the container itself","both exercised","one takes the CONTENT out, the other takes the CONTAINER out of its own owner — different levels, not two values of one field"],
+    ["grip.route-visible","a container with a Grip child","the layout run","the grip is given room (ear, spine, tray edge) and is NOT under the pile — otherwise it cannot be pressed"],
+    ["grip.escalation-never-alone","hold→whole configured as the only route","validated","rejected: an invisible affordance may only be an ADDITION to a grip or a draught"],
+    ["occupied.four-entries","capture · merge · swap · reject","a drop onto an occupied slot","each does what it names"],
+    ["occupied.not-the-rule","AcceptRule allows, occupied says swap","evaluated","the rule answers WHO may enter and is silent about the sitter; mixing the two is a client2 smell"],
+    ["keeps.narrows","<code>keeps: [\"drag\"]</code> on a discard","a child flipped in place","refused; carrying it out is allowed. No field = everything allowed"],
+    ["keeps.no-negation","the whole src tree","scanned for <code>allow_manual_flip: false</code>-shaped flags","zero — restriction is by absence, never by a negative flag"],
+    ["container.children-are-state","the spec serialized","the payload inspected","<code>children</code> is state and is absent from the spec; the config is spec and is sent once"],
+    ["container.is-a-figure","a container","drag / flip / selection / shadow applied to the whole","all work — it is a full figure, not a special case"],
+    ["container.no-state-diffs","the whole src tree","scanned for state-diff / mechanics registries","zero — 'deck ↔ fan' is a layout reference swap"],
+  ]],
+  ["UNIT · the two measures","vitest", 8, [
+    ["unit.table-has-none","the whole src tree","scanned for screen fractions outside HUD","zero hits — table sizes are world numbers, the camera fits them"],
+    ["unit.hud-etalon","the HUD etalon changed 46→60","HUD and table measured","HUD sizes change, table sizes do NOT — two different mechanisms, no interference"],
+    ["unit.override-local","a user lowers the etalon","the state inspected","nothing travels: sizes in units are the truth, pixels are per viewer"],
+    ["unit.boxfit-ported","a labelled box","preset vs content fit, min/max clamps","matches client2 <code>ui/boxFit</code> exactly — one arithmetic for button, drop zone and badge"],
+  ]],
+  ["PROPERTY-BASED","fast-check", 14, [
+    ["prop.compose.closure","a random subset of all 19 atoms, CLOSED over requirements","composed and mounted","never throws; caps equals the closure exactly"],
+    ["prop.compose.starved","a random subset NOT closed","composed","every atom whose requirement is missing is absent — never half-present"],
+    ["prop.caps.reflect","a random closed subset","<code>caps(el)</code> compared to it","exactly equal for every generated case"],
+    ["prop.conflict.stable","a random subset","conflict resolution run twice","same verdict both times — resolution is deterministic"],
+    ["prop.resolve.assoc","a random tree of depth ≤6","resolve run at every node","summed fields equal the path sum; inherited equal the nearest ancestor"],
+  ]],
+  ["ARCHITECTURAL GUARDS · source-scan","vitest + fs scan (like argNames.test.ts)", 14, [
+    ["guard.no-kind","the whole src tree","scanned for <code>def.kind ===</code> / kind switches","zero hits outside the visual registry"],
+    ["guard.no-negation","the whole src tree","scanned for <code>disabled</code> / <code>interactive:\"none\"</code> / <code>transparent</code>","zero hits — capability is by presence, restriction by absence"],
+    ["guard.caps-only-door","systems code","scanned for direct <code>def.flip/def.drag/...</code>","zero — only <code>elementCaps</code> may read them"],
+    ["guard.no-parent-namespace","the whole src tree","scanned for <code>parent.</code> as a field path","zero — an owner's fields are ordinary fields of another node"],
+    ["guard.field-has-class","every field in the model","cross-checked against the class table","every field declares one of the four; an undeclared field fails"],
+    ["guard.three-planes","every story in the catalog","its controls classified","Controls holds only fields; State holds nothing serializable as spec; Viewer writes no state"],
+    ["guard.english-only","identifiers & comments","scanned for Cyrillic","zero outside locale files"],
+  ]],
+  ["INTERACTION · play functions","@storybook/test + userEvent, Vitest browser mode", 28, [
+    ["play.drag.commit","a Draggable element on a board","userEvent drags it to a slot and releases","it lands in the pointed slot; <code>dragStarted</code>/<code>dropAccepted</code> fired in order"],
+    ["play.drag.reject-home","a drop the zone rule denies","released over the zone","flies home; ends at origin; <code>dropRejected</code> fired"],
+    ["play.flip.by-echo","a face-down card","flip requested","stays old-side until the server echo, then flips (never blinks the face)"],
+    ["play.keyboard.actionable","a Button (Actionable+Focusable)","Tab then Enter/Space","focuses, then fires the command — operable without a pointer"],
+    ["play.toggle-atom.live","the Element scene","Bounded toggled off in Controls","not just the shadow: Surfaced, Draggable and ShadowCaster VANISH with their fields, and the scene is no longer an Element"],
+    ["play.state-plane","the State tab","drag / flying picked","they apply, and they are absent from the spec payload — you cannot author them"],
+    ["play.viewer-plane","viewer switched owner → other on a Private node","the canvas","the node is gone from the picture; the spec is untouched and nothing was sent"],
+    ["play.debug-layer","Bounded on, Surfaced off, hit layer enabled","the canvas","an invisible node becomes inspectable — the only way to see a box"],
+  ]],
+  ["STATE MATRIX · combinatorics","generated table, vitest", 24, [
+    ["matrix.pairs","every declared atom × every other (curated interacting pairs, not the full 2^19)","each pair evaluated","the conflict table below is the oracle; each row is one assertion"],
+    ["matrix.transitions","atom sets swapped in sequence (Bounded→+Surfaced→+Container)","switched","caps change fully; the id is preserved across every transition"],
+    ["matrix.starved","every atom with a requirement, requirement removed","evaluated","absent, with its fields; never inert-but-present"],
+    ["matrix.state-x-spec","each State value × a few atom sets","evaluated","state never changes which atoms exist; the two planes do not leak into each other"],
+    ["matrix.dropped","the combinations NOT enumerated","logged explicitly","the report names what was skipped — no silent 'we covered everything'"],
+  ]],
+  ["STATE PLANE · what happens vs what is authored","vitest", 12, [
+    ["state.pose-authorable","rest · lifted · held","assigned from a spec","accepted — these three are a pose"],
+    ["state.happens-not-authorable","drag · flying · settling","assigned from a spec","rejected by the validator: they happen to the node, they are not written"],
+    ["state.idle-not-z","idle breathing on","z and the shadow measured","z unchanged, shadow unchanged in size — breathing is decoration (client2 elevation.ts:21)"],
+    ["state.flags-independent","selected · focused · concealed · frozen","toggled in every order","independent; none of them adds or removes an atom"],
+  ]],
+  ["VISUAL REGRESSION","Chromatic — pixel diff per story", 40, [
+    ["visual.states","each meaningful atom combination","snapshotted","diffed against baseline; a pixel change fails the build until approved"],
+    ["visual.themes","light and dark","both captured per state","the accent works on both grounds; contrast stays legible"],
+    ["visual.viewports","375 / 768 / 1280 px","captured","no horizontal body scroll; wide content scrolls inside its own box"],
+    ["visual.locales","en and ru","captured","the ru caption does not clip the button; layout survives longer strings"],
+  ]],
+  ["ACCESSIBILITY","axe-core via the a11y addon", 14, [
+    ["a11y.roles","interactive elements (Button, Toggle, Input)","axe scans the DOM","correct role/name/state; WCAG violations fail the run"],
+    ["a11y.focus-order","a form-like scene","tabbed through","focus order is logical; every focusable has a visible ring"],
+    ["a11y.contrast","text on every surface + both themes","measured","meets AA; the muted grey is not below threshold"],
+    ["a11y.motion","prefers-reduced-motion on","the settle animation","is reduced/instant, not forced"],
+  ]],
+  ["NETWORKING · truth vs pretty","vitest + a fake Colyseus room + a fake clock", 24, [
+    ["net.predict.position","a local drop","position applied","optimistic and immediate — reversible, so flying home reads as the answer"],
+    ["net.echo.facing","a flip","side change","waits for the echo — never predicted, so it cannot blink and hide"],
+    ["net.keep.travels","a free-table pose (angle 15°)","state serialized","the kept angle is on the wire; derive-facets (grid/fan) are not"],
+    ["net.late-joiner","player C joins after a move","C's projected scene","matches A and B exactly — truth is state, never a trajectory C never saw"],
+    ["net.revision.stale","an old echo arrives after a newer local rev","the incoming patch","is ignored (revision guard) — the picture does not jitter back"],
+    ["net.contenders","two players grab the same top card","messages processed one at a time","first gets the top, second the next — no extra logic, no double-take"],
+  ]],
+  ["LIFECYCLE & PERFORMANCE","vitest + a headless Pixi fake", 16, [
+    ["life.mount-unmount","mount then destroy","the scene inspected","nothing left behind: no sprites, listeners, or timers leak"],
+    ["life.idle-gate.sleep","no animation running","the render loop","goes to sleep — no draws while nothing moves"],
+    ["life.idle-gate.wake","a spin/settle starts","the loop","wakes; and every continuous animation is registered so it cannot fall asleep under one"],
+    ["perf.compose-budget","composing 500 elements","time measured","under the frame budget; no O(n²) in caps resolution"],
+    ["perf.no-leak-repeat","1000 mount/unmount cycles","heap watched","flat — no growth across cycles"],
+  ]],
+  ["SERIALIZATION / SCHEMA CONTRACT","vitest", 11, [
+    ["schema.no-functions","an element spec","serialized to JSON and back","round-trips — the spec is data, holds no functions"],
+    ["schema.spec-vs-state","spec vs state","classified","truth (deck order, facing) travels the schema; the spec is static, sent once"],
+    ["schema.set-array-write","writing a full set","done via clear()+push loop","length is exact; setAt-past-length appends — that trap is guarded"],
+    ["schema.permutation","a client-sent reorder","validated","<code>isPermutationOf</code> passes only if the card set is unchanged"],
+  ]],
+  ["REGRESSION GUARDS · known traps","vitest — one test per historical bug", 10, [
+    ["regress.deck-bloat","the setAt-past-length append bug","a full-deck write","never grows the array to 60 — the exact 'deck bloated' bug stays dead"],
+    ["regress.kind-ignored-caps","the client2 bug where the board read kind, not caps","behavior driven","reads caps only; a source-scan makes a relapse fail"],
+    ["regress.shadow-double","the 'shadow larger than the card' math bug","elevation computed","z (source) and screen-position stay separate; height counted once"],
+    ["regress.frozen-base","the client1 fan-z bug","a base read once at animation start","forbidden: resolve is read at APPLY time, and the fan may collapse mid-flight"],
+    ["regress.viewable-vs-surfaced","the atom whose toggle had no parameters","the model inspected","Surfaced draws, Viewable is the camera atom; no element carries Viewable"],
+  ]],
+  ["E2E","Playwright against the built Storybook", 12, [
+    ["e2e.story-smoke","every story in the catalog","opened in a real browser","renders without a console error — a smoke net over all ~62"],
+    ["e2e.scene-switch","Node → Element in the sidebar","atoms compared","Bounded and everything standing on it are absent from the Node scene entirely"],
+    ["e2e.element.starved","the Element scene","Surfaced toggled off via the real Controls UI","Flippable disappears with its fields and the canvas names the missing requirement"],
+    ["e2e.no-presets","the Node and Element scenes","the Controls tab scanned","no preset control exists — presets live in Elements/Assembled/*"],
+    ["e2e.a11y-smoke","key stories","axe run in-page","no critical violation blocks the pipeline"],
+  ]],
+];
+const TCOUNT = TESTS.reduce((s,l)=>s+l[2],0);
+
+// Each scene documents ITS OWN law. One shared body would say "an Element has only an id",
+// which is the definition of a Node — exactly the confusion these scenes exist to end.
+const DOC_HEAD = {
+  Node: `
+    <div class="pathchip">Elements / Core / Node</div>
+    <h1>Node — an id, a place in the tree, and nothing else</h1>
+    <p class="lede">A <code>Node</code> is the base of everything: an opaque <code>id</code> and a position
+      among other nodes. It is not abstract and not a stub — a bare node is a valid node. Everything else
+      is an atom: a composable interface with its own fields, methods and events.</p>
+
+    <h2>What it is</h2>
+    <p>In client2 a thing on the table was a closed union <code>card | piece | chip | widget</code>: a new
+      kind meant editing the union and chasing <code>switch</code> statements across eight files. Here there
+      is no kind and no base class. Behaviour reads <code>caps(node, ctx)</code>, never a "sort".</p>
+    <pre class="code"><span class="c">// the whole base — this is not a simplification, it is the definition:</span>
+interface Node { id: string }
+
+<span class="c">// atoms that need no box live directly on a node:</span>
+const marker = compose(
+  <span class="k">Transformable</span>(),   <span class="c">// at · z  (angle lives in Tiltable, which requires this)</span>
+  <span class="k">Valued</span>({ team: "blue" }),
+  <span class="k">Private</span>(),        <span class="c">// excluded from another viewer's picture entirely</span>
+)
+<span class="c">// systems ask for a CAPABILITY, never a type:</span>
+if (<span class="k">caps</span>(node).has(Tiltable)) node.rotateTo(15)  <span class="c">// no atom → no method, not "disabled"</span></pre>
+
+    <div class="callout"><b>Not everything is a node.</b> A slot is an ADDRESS, a spreading gap is a layout
+      phantom, a shadow is a layer, a camera is a way of looking — none of them has an <code>id</code>.
+      A <b>transaction</b> is not a node either, and not a descendant of one: asking it for its
+      <code>z</code> or its shadow is meaningless. It stands ABOVE nodes and uses them.</div>`,
+
+  Root: `
+    <div class="pathchip">Start / Basics / Root</div>
+    <h1>Root — the storage is just a node</h1>
+    <p class="lede">There is no separate "storage" entity. Every node hangs off a root, so the root IS the
+      storage — an ordinary node with <code>Container</code>. Nothing stands above the roots, so no word
+      was needed for "the thing that holds them".</p>
+
+    <h2>A root is a node that nobody places</h2>
+    <p>It has no <code>Placeable</code> — and cannot have one: <code>Placeable</code> requires
+      <code>Bounded</code>, and a root has no size of its own (its extent comes from its content). That is
+      also why a root can never become someone's child: it would stop being a root.</p>
+    <pre class="code">const root = <span class="k">node</span>()          <span class="c">// an id and a place in the tree — nothing else</span>
+<span class="k">mount</span>(view, root)                <span class="c">// empty on screen, and that is correct</span>
+
+root.add(<span class="k">node</span>(Bounded({ size: { w: 1, h: 1 } })))   <span class="c">// room taken, 0 pixels</span>
+root.<span class="k">byId</span>(id)                    <span class="c">// a DERIVED index over the tree, not a second store</span></pre>
+
+    <div class="callout"><b>There are exactly two roots, and one difference.</b> The camera transforms
+      <code>CanvasRoot</code> and does not touch <code>HudRoot</code>. That is the anchor law in full —
+      there is no <code>anchor</code> field, belonging to a root IS the answer. And "Canvas" is that
+      camera-driven root, not some separate storage.</div>
+
+    <div class="callout"><b>Pixels live in the HOST, not in a node.</b> A node knows units. The host owns
+      the <code>view</code> (the <code>HTMLCanvasElement</code> — never called <code>canvas</code> in code),
+      its size and the resize observer, and it computes the HUD etalon as a fraction of the viewport and
+      puts it into the <code>ResolveContext</code>. <code>pixi.js</code> is imported in exactly one file.</div>
+
+    <div class="callout"><b>What gets rendered is decided by the TREE, not by a list.</b> A node under the
+      mounted root that has <code>Surfaced</code> is drawn; one without it exists all the same and is
+      visible only to the inspector.</div>`,
+
+  Bounded: `
+    <div class="pathchip">Elements / Core / Bounded</div>
+    <h1>Bounded — a place that draws nothing</h1>
+    <p class="lede">Add one atom to a node and it starts occupying room. Not a pixel is painted: a box is
+      a place, and painting is a different atom's business. Everything you see here is an inspector layer.</p>
+
+    <h2>Why the box, and why a square</h2>
+    <p>Without a footprint three different things are undefined at once, and each belongs to someone else:
+      the <b>hit area</b> (the finger), the <b>silhouette</b> (the shadow), and the <b>slot</b> the owner's
+      layout reserves. That is why so many atoms name it as their requirement.</p>
+    <p>It is a square only because the default is <code>rect{ w: 1, h: 1 }</code> in table units — nothing
+      about a node is square by nature. Shapes are <code>rect | circle | poly</code>; an air-hockey puck is
+      a circle, and its hit area and shadow follow the circle, while the layout still reserves a bounding box.</p>
+    <pre class="code">const place = compose(
+  <span class="k">Bounded</span>({ size: { w: 1, h: 1 } }),   <span class="c">// units, never pixels — the etalon turns them into px</span>
+)
+<span class="c">// an instance may differ from what its set record stamped at birth:</span>
+compose(place, <span class="k">Bounded</span>({ bounds: { w: 0.8, h: 0.8 } }))  <span class="c">// bounds overrides size</span>
+
+<span class="c">// atoms that name it as their requirement are simply absent without it:</span>
+without(node, Bounded).<span class="k">Draggable</span>   <span class="c">// undefined — never a "disabled" error</span></pre>
+
+    <div class="callout"><b>«Element» is a word, not a definition.</b> A thing on the table is called an
+      element in speech, and that is the name of the catalog root — but there is no <code>isElement()</code>
+      in the code and no Element type. Systems ask for the atom they need (<code>Bounded</code> for a hit
+      test, <code>Surfaced</code> for drawing); a category with no independent use is a word we retire.</div>
+
+    <div class="callout"><b>The hit area is derived, not declared.</b> There is no <code>hit</code> field:
+      it is <code>max(box, the input theme's touch minimum)</code>. Otherwise a 1×1 chip would be unhittable
+      on a phone while a card of the same game was fine. Overlapping expansions are settled by the nearer
+      centre.</div>`,
+
+  Surfaced: `
+    <div class="pathchip">Elements / Core / Surfaced</div>
+    <h1>Surfaced — the border is not a field</h1>
+    <p class="lede">The same square as one rung below, now visible. Nothing about the node changed: an atom
+      was added that names a <b>registry record</b>, and the record paints. Swap the record and the border
+      is gone while the box stays exactly where it was.</p>
+
+    <h2>Why the border lives in the record</h2>
+    <p>Frame, fill, radius and colour are parameters of the <code>surface</code> entry plus theme tokens —
+      they never appear as fields on a node. A <code>borderRadius?: number</code> turning up in a spec is
+      the sign that the registry was bypassed. That is the whole reason a surface is a registry and not
+      a set of properties.</p>
+    <pre class="code">compose(
+  <span class="k">Bounded</span>({ size: { w: 1, h: 1 } }),
+  <span class="k">Surfaced</span>({ surface: "plate", fit: "contain" }),  <span class="c">// a NAME, not a picture</span>
+)
+<span class="c">// registry entry — this is where the border actually lives:</span>
+surfaces.plate = { stroke: theme.line, width: 1, radius: theme.radius.m }</pre>
+
+    <div class="callout"><b>A surface needs an AREA, not a box.</b> Its requirement is
+      <code>Bounded</code> <b>or</b> <code>Container</code>: an own size, or the extent of the content.
+      That is why the canvas — a tabletop with a surface and no footprint of its own — is legal. Demanding
+      <code>Bounded</code> here would outlaw it.</div>
+
+    <div class="callout"><b>Two names that collide, and must not.</b> <code>Surfaced</code> draws a face.
+      <code>Viewable</code> is the <b>camera</b> atom (<code>camera</code>, <code>viewpoints</code>,
+      <code>focusOn</code>, <code>fitAll</code>) and exists only on a root. This scene once called the first
+      one "Viewable" — which is exactly why its toggle had nothing to configure.</div>`,
+
+  Container: `
+    <div class="pathchip">Capabilities / Container / Layout</div>
+    <h1>Container — a slot is an address, not an element</h1>
+    <p class="lede">A chessboard is <b>one</b> node with a grid layout, not 64 entities. A cell has no
+      identity — it is a coordinate. Otherwise the state would hold, and the wire would carry, 64 empty
+      elements: paying for something that does not exist.</p>
+
+    <h2>The layout answers in BOTH directions</h2>
+    <p>A layout is a registry entry, and it owes two functions, not one. The inverse is not a convenience:
+      only the layout knows its own geometry, and a fan answers a point differently from a row. Who casts
+      the shadow lives here too — the one who placed them knows.</p>
+    <pre class="code">Container {
+  layout:    RegistryRef   <span class="c">// place(i,n,ctx) → pose  AND  indexAt(point,n,ctx) → i  AND  cast</span>
+  hot?:      RegistryRef   <span class="c">// the answer under the finger; NO FIELD = it stays silent</span>
+  grab?:     RegistryRef   <span class="c">// one | top | above; NO FIELD = nothing can be taken</span>
+  intent?:   RegistryRef   <span class="c">// how a gesture is READ (a swipe over a deck = a shuffle)</span>
+  occupied?: RegistryRef   <span class="c">// what becomes of whoever already sits there</span>
+  keeps?:    Capability[]  <span class="c">// which of a child's capabilities work inside; no field = all</span>
+  children:  ElementRef[]  <span class="c">// STATE, not spec</span>
+}</pre>
+
+    <div class="callout"><b>Spreading is not a mechanic.</b> The load is always a LIST, the container lays
+      out <code>n+m</code>, and the phantoms stand at <code>indexAt(finger)</code>. Neighbours moving apart
+      is a consequence of that, not a feature — and the gap stays open while a request is pending because
+      the phantom is pinned to its <code>after</code>.</div>
+
+    <div class="callout"><b>A draught follows, it is never declared.</b> There is no
+      <code>interactive: "none"</code> and no <code>transparent</code>: a child without <code>grab</code>
+      simply does not eat the gesture, so hit-testing walks up the tree and the owner gets it.</div>`,
+};
+
+function renderDocs(){
+  stage.innerHTML = `<div class="docs">
+    ${DOC_HEAD[scene]}
+
+    <div class="callout"><b>Capability by presence.</b> No <code>Draggable</code> atom — the node is not
+      pickable. Not "picking is forbidden": <b>the method is absent</b>. Negation flags
+      (<code>disabled</code>, <code>interactive:"none"</code>) do not exist in the model.</div>
+
+    <h2>Atoms — the whole set, and what each requires</h2>
+    <div class="scroll"><table class="args"><thead><tr><th>Atom</th><th>Requires</th><th>What it adds</th></tr></thead>
+      <tbody>${ATOMS.map(a=>`<tr><td class="nm">${a[1]}</td>
+        <td class="ds">${reqLabel(a[0])||"—"}</td><td class="ds">${a[3]}</td></tr>`).join('')}</tbody>
+    </table></div>
+
+    <h2>Four classes of inheritance — and there is no fifth</h2>
+    <p>A field name alone is not enough. Until a field declares its class, every call site works it out
+      again — that is how <code>z</code> argued with the shadow three times and <code>angle</code> lived
+      in two atoms at once. A field with no declared class fails the source-scan.</p>
+    <div class="scroll"><table class="args"><thead>
+      <tr><th>class</th><th>fields</th><th>override</th></tr></thead><tbody>
+      <tr><td class="nm">own</td><td class="ds"><code>size</code>, <code>bounds</code>, <code>surface</code>, <code>values</code>, <code>label</code>, <code>box</code></td><td class="ds">never inherited; no value → no field</td></tr>
+      <tr><td class="nm">from owner</td><td class="ds"><code>orientation</code>, <code>fit</code>, <code>skin</code></td><td class="ds">set it on the child</td></tr>
+      <tr><td class="nm">adds up</td><td class="ds"><code>z</code>, <code>angle</code></td><td class="ds">cannot be cancelled, only added to — and the shadow does NOT inherit the angle</td></tr>
+      <tr><td class="nm">root only</td><td class="ds"><code>light</code>, <code>camera</code>, HUD <code>unit</code></td><td class="ds">the field does not exist on a child</td></tr>
+    </tbody></table></div>
+    <div class="callout"><b>Nothing inherited is stored or sent.</b> It arrives through
+      <code>ResolveContext { unit, chain, config }</code> and is read AT APPLY TIME. There is no
+      <code>parent.*</code> in the model: an owner's fields are ordinary fields of another node.</div>
+
+    <h2>Atom interplay & conflicts</h2>
+    <p>Atoms are not independent: some require others, some override a third. Below are the meaningful pairs
+      (not the full cross-product — it grows as a product and is not needed). Each row is a test case, and is
+      the oracle for the state-matrix layer.</p>
+    <div class="scroll"><table class="args"><thead>
+      <tr><th>Pair / condition</th><th>Expected behavior</th><th>Model verdict</th></tr></thead><tbody>
+      <tr><td class="nm">Draggable × ¬Bounded</td><td class="ds">no footprint → hit area undefined; the atom does not exist</td><td><span class="v bd">requirement → absent</span></td></tr>
+      <tr><td class="nm">Tiltable × ¬Transformable</td><td class="ds">an angle with no place to be at</td><td><span class="v bd">requirement → absent</span></td></tr>
+      <tr><td class="nm">Draggable × ¬Placeable</td><td class="ds">pickable, but no container will take it</td><td><span class="v wn">legal but pointless</span></td></tr>
+      <tr><td class="nm">Flippable × ¬Surfaced</td><td class="ds">the far side has nothing to show</td><td><span class="v bd">requirement → absent</span></td></tr>
+      <tr><td class="nm">Valued × ¬Surfaced</td><td class="ds">values read by rules, but not drawn</td><td><span class="v wn">legal but mute</span></td></tr>
+      <tr><td class="nm">ShadowCaster × ¬Transformable</td><td class="ds">z lives there; with no z the shadow can never lift</td><td><span class="v wn">legal but flat</span></td></tr>
+      <tr><td class="nm">Bounded × ¬Surfaced</td><td class="ds">a place that occupies room and draws nothing — visible only via a debug layer</td><td><span class="v ok">valid and useful</span></td></tr>
+      <tr><td class="nm">Container × Acceptor</td><td class="ds">holds children AND decides who is let in — this is a ZONE</td><td><span class="v ok">standard composition</span></td></tr>
+      <tr><td class="nm">Private × reverse:back</td><td class="ds">two DIFFERENT hidings: back hides the face, Private removes the node from the picture</td><td><span class="v ok">orthogonal, both needed</span></td></tr>
+      <tr><td class="nm">Viewable on an element</td><td class="ds">Viewable is the camera atom — an element is never looked THROUGH</td><td><span class="v bd">category error → forbid</span></td></tr>
+      <tr><td class="nm">any atom × ¬requirement</td><td class="ds">the atom is ABSENT with its fields — never "disabled"</td><td><span class="v bd">negation flags do not exist</span></td></tr>
+    </tbody></table></div>
+
+    <h2>Test plan</h2>
+    <p>Organized as a testing pyramid so a failure localizes: every case carries a stable id
+      (<code>scope.scenario.condition</code>) and a Given / When / Then. When something breaks later, the
+      failing id names the scenario and the state.</p>
+    <div class="summ">
+      <div><span class="num">${TCOUNT}</span><span class="lab">cases · this story</span></div>
+      <div><span class="num">${TESTS.length}</span><span class="lab">layers</span></div>
+      <div><span class="num">2¹⁹</span><span class="lab">atom space, swept by closure</span></div>
+      <div><span class="num">4</span><span class="lab">themes × viewports snapshotted</span></div>
+    </div>
+    ${TESTS.map((L,i)=>`
+      <details class="layer" ${i===0?'open':''}>
+        <summary><span class="kind">${L[0].split(" · ")[0]}</span>${L[0].includes(" · ")?'<span style="color:var(--muted);font-weight:600">'+L[0].split(" · ")[1]+'</span>':''}<span class="cnt">${L[2]} cases</span></summary>
+        <div class="body">
+          <div class="tool">tooling: ${L[1]}</div>
+          <ul class="gwt">${L[3].map(t=>`<li>
+            <span class="id">${t[0]}</span>
+            <b class="g">Given</b> ${t[1]}. <b class="w">When</b> ${t[2]}. <b class="t">Then</b> ${t[3]}.
+          </li>`).join('')}</ul>
+        </div>
+      </details>`).join('')}
+
+    <div class="callout">This is the BLUEPRINT for one story's form. Each of the ~62 catalog stories gets the
+      same sections: a Canvas mock · Controls / Actions / Interactions · Docs (what it is · use cases ·
+      interplay · pseudo-code · a layered test plan). The test layers shown here are the template; per story
+      the concrete cases change, the layers do not. Every other story is a stub right now, and that is marked
+      honestly.</div>
+  </div>`;
+}
+
+// ---------- STUB for the not-yet-authored stories ----------
+function stub(path){
+  curTab=0;
+  document.getElementById("tabCanvas").classList.add("on");
+  document.getElementById("tabDocs").classList.remove("on");
+  stage.innerHTML = `<div class="canvas-wrap"><div class="stagearea">
+    <div class="el bare" style="border-style:dashed">soon</div>
+    <div class="elcaption"><b>${path}</b><br><br>This story is not yet authored to the blueprint. The form is
+      defined on <b>Elements/Core/Element</b> — open it, approve it, and the same template rolls out here:
+      Canvas mock, Controls / Actions / Interactions, and Docs with use cases, interplay and the layered test
+      plan.</div>
+  </div></div>`;
+}
+
+// tabs + theme
+document.getElementById("tabCanvas").onclick=()=>{curTab=0;render();syncSheet();};
+document.getElementById("tabDocs").onclick=()=>{curTab=1;sheetOpen=false;render();};
+
+// mobile bar
+document.getElementById("mbStories").onclick=()=>
+  setSidebar(!document.querySelector(".sidebar").classList.contains("open"));
+document.getElementById("backdrop").onclick=()=>setSidebar(false);
+document.getElementById("mbAddons").onclick=()=>{
+  if(curTab!==0){curTab=0;render();}      // Docs has no addons — jump to Canvas first
+  sheetOpen=!sheetOpen; syncSheet();
+};
+document.getElementById("themeBtn").onclick=()=>{
+  const r=document.documentElement; const cur=r.getAttribute("data-theme");
+  const next= cur==="dark"?"light":"dark";
+  r.setAttribute("data-theme",next);
+  document.querySelector("#themeBtn b").textContent=next;
+};
+
+// ---- PLANE 3 wiring. None of this is state; none of it travels.
+function syncGlobals(){
+  document.getElementById("viewerV").textContent = viewer;
+  document.getElementById("unitV").textContent = hudUnit;
+  document.getElementById("layersN").textContent = Object.values(LAYERS).filter(Boolean).length;
+}
+document.getElementById("viewerBtn").onclick=()=>{
+  viewer = viewer === "owner" ? "other" : "owner";
+  logAct("viewerSwitched", `{ viewer: "${viewer}" } — a view, never state`);
+  syncGlobals(); if(curTab===0) renderCanvas();
+};
+document.getElementById("unitBtn").onclick=()=>{
+  // The HUD etalon, and the accessibility knob: a user who finds the icons large turns it down.
+  hudUnit = hudUnit === 46 ? 60 : hudUnit === 60 ? 34 : 46;
+  logAct("hudUnitChanged", `{ unit: ${hudUnit}px } — sizes in units are the truth, pixels are per viewer`);
+  syncGlobals(); if(curTab===0) renderCanvas();
+};
+document.getElementById("layersBtn").onclick=()=>{
+  const keys = Object.keys(LAYERS);
+  const menu = document.createElement("div");
+  menu.style.cssText = "position:absolute;z-index:80;background:var(--panel);border:1px solid var(--border-2);"+
+    "border-radius:8px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:12px";
+  const btn = document.getElementById("layersBtn").getBoundingClientRect();
+  menu.style.top = (btn.bottom+6)+"px"; menu.style.left = Math.max(8,btn.left-60)+"px";
+  menu.innerHTML = keys.map(k=>`<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;cursor:pointer">
+    <input type="checkbox" data-l="${k}" ${LAYERS[k]?"checked":""}> ${LAYER_LABEL[k]}</label>`).join('')
+    + `<div style="padding:6px 8px;color:var(--faint);font-size:11px;max-width:210px">
+        a layer of the VIEWER: the node knows nothing about it, and it is off in production</div>`;
+  document.body.appendChild(menu);
+  menu.querySelectorAll("input").forEach(i=>i.onchange=()=>{
+    LAYERS[i.dataset.l]=i.checked; syncGlobals(); if(curTab===0) renderCanvas();
+  });
+  const close = e=>{ if(!menu.contains(e.target) && e.target.id!=="layersBtn"){ menu.remove(); document.removeEventListener("pointerdown",close);} };
+  setTimeout(()=>document.addEventListener("pointerdown",close),0);
+};
+
+syncGlobals();
+mount();
+</script>

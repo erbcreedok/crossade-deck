@@ -1,0 +1,11 @@
+{
+  "name": "crossade-deck",
+  "private": true,
+  "workspaces": [
+    "game-kit",
+    "apps/*"
+  ],
+  "scripts": {
+    "kit": "npm run dev --workspace game-kit"
+  }
+}
