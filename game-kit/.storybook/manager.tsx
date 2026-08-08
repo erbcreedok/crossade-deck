@@ -16,6 +16,7 @@ import { installTheme, type ThemeName } from "../src/index.js";
 import { catalogText, LOCALES, type CatalogLocale, type CatalogText } from "./locales/catalog.js";
 import { inspectorBodyStyle, inspectorMarkup } from "./devtools/inspectorPanel.js";
 import { type InspectReport } from "./devtools/inspectorBus.js";
+import { STORY_MISSING } from "storybook/internal/core-events";
 import { GK_INSPECT } from "./inspectChannel.js";
 import { dark, light } from "./theme.js";
 
@@ -127,7 +128,19 @@ const NodeTreePanel: React.FC<{ active: boolean }> = ({ active }) => {
   );
 };
 
-addons.register(ADDON_ID, () => {
+addons.register(ADDON_ID, (api) => {
+  // A NAME THAT NO LONGER EXISTS MUST NOT BE A DEAD END.
+  //
+  // Storybook remembers the last story a reader had open — in localStorage, per browser. The
+  // catalog on this address used to be a different one, so anybody who visited it before still
+  // asks for a story from it, and gets an error page instead of the catalog. On a phone the
+  // sidebar is collapsed, so that error page is a WHITE SCREEN with no way out and no hint —
+  // and clearing the browser's data is not a thing a reader should have to know to do.
+  //
+  // The same happens to every link ever shared: renaming a story is normal, and a link that
+  // dies quietly is worse than one that lands you somewhere sensible.
+  api.on(STORY_MISSING, () => api.selectFirstStory());
+
   addons.add(`${ADDON_ID}/catalog`, {
     type: types.experimental_SIDEBAR_TOP,
     render: CatalogSettings,

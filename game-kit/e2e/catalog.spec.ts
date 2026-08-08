@@ -187,6 +187,20 @@ test("e2e.id-is-an-input — a node is NAMED, and the catalog lets you name one"
   await expect(panel.getByText("discard", { exact: false }).first()).toBeVisible({ timeout: 30000 });
 });
 
+test("e2e.a-dead-link-lands-somewhere — a name that is gone is not a dead end", async ({ page }) => {
+  // Storybook remembers the last story a reader had open, in localStorage, per browser. This
+  // address used to serve a DIFFERENT catalog, so anyone who visited it before still asks for a
+  // story that no longer exists — and on a phone, where the sidebar is collapsed, the error
+  // page is a white screen with no way out. The same holds for every link ever shared.
+  await page.goto("/?path=/docs/mechanics-boards--docs");
+  await page.waitForFunction(() => window.location.search.includes("start-"), null, { timeout: 30000 });
+  expect(page.url()).toContain("start-");
+
+  // And it is a working story, not merely a different URL.
+  const preview = page.frameLocator("iframe#storybook-preview-iframe");
+  await preview.locator("[data-painted]").first().waitFor({ state: "attached", timeout: 30000 });
+});
+
 test("e2e.sidebar-is-the-ladder — the tree teaches in dependency order", async ({ page }) => {
   // Sorting happens in the MANAGER, so no headless test can see it: `index.json` carries the
   // stories in discovery order and knows nothing about how they are shown. This is the only
