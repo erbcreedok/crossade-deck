@@ -156,54 +156,13 @@ jobs:
             echo "| выкатить | \`IMAGE_TAG=${SHA_TAG} scripts/deploy.sh ${{ matrix.component.name }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Сторибук живёт в ДВУХ местах, и это не дублирование, а разделение ролей:
-  #   - образ на Fly — артефакт наравне с остальными: тот же конвейер, тот же откат по тегу,
-  #     его можно поставить на свой сервер;
-  #   - GitHub Pages — витрина: бесплатная, без холодного старта (аппа на Fly спит), с ссылкой,
-  #     которую можно кому-то дать не задумываясь.
+  # Витрина сторибука переехала в pages.yml и показывает game-kit.
   #
-  # Ключевое: на Pages уезжает статика, ВЫНУТАЯ ИЗ УЖЕ СОБРАННОГО ОБРАЗА, а не вторая сборка
-  # из тех же исходников. Вторая сборка — это второй артефакт, который однажды разъедется с
-  # первым, и разбираться, какой из них показывает правду, придётся в самый неудобный момент.
-  pages:
-    name: Сторибук на Pages
-    needs: [plan, build]
-    # Только с main: витрина должна показывать то, что влито, а не ветку, которую кто-то собрал
-    # руками через workflow_dispatch.
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Достать статику из образа
-        env:
-          SHA_TAG: ${{ needs.plan.outputs.tag }}
-        run: |
-          set -euo pipefail
-          repo="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
-          # create, а не run: контейнер не запускается, нужен только его слой с файлами.
-          id="$(docker create "ghcr.io/${repo}/storybook:${SHA_TAG}")"
-          docker cp "${id}:/usr/share/nginx/html" ./storybook-static
-          docker rm "$id" > /dev/null
-          # Pages отдаёт сайт из подпути /crossade-deck/. Работает это только потому, что
-          # .storybook/main.ts ставит base: "./" — с абсолютным base все ассеты дали бы 404.
-          test -f ./storybook-static/index.html
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./storybook-static
-
-      - id: deploy
-        uses: actions/deploy-pages@v4
+  # Образ client2-сторибука здесь ОСТАЁТСЯ: он артефакт наравне с остальными, собирается тем
+  # же конвейером, откатывается по тегу и по-прежнему уезжает на Fly. С Pages ушёл только он —
+  # витрина одна, и на ней стоит тот каталог, который сейчас развивают.
+  #
+  # Почему публикация не осталась здесь: game-kit образа не имеет, а правило «на Pages уезжает
+  # статика, вынутая из уже собранного образа» защищает от ДВУХ артефактов из одних исходников.
+  # Второго тут нет, защищать нечего — зато публикация витрины перестала тянуть за собой
+  # выкатку прода, а это решения разного веса.

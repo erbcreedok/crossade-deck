@@ -78,7 +78,29 @@ const preview: Preview = {
     // Our own page: prose comes from the bundles, so it follows the language switch.
     docs: { page: DocsPage, toc: true, source: storySource },
     options: {
-      storySort: { order: ["Start", "Atoms", "Elements", "Canvas", "HUD"] },
+      // THE SIDEBAR IS THE LADDER, not the alphabet. The catalog teaches in one direction: a
+      // node, then the box, then what paints it, then the pose, then the arrangement. Left to
+      // sort itself the tree reads `Atoms · Basics`, and inside Atoms `Bounded · Container ·
+      // Surfaced · Transformable` — `Container` arriving before the things it arranges and
+      // `Surfaced` before the area it needs. Every reader would meet the answers first.
+      //
+      // The previous list was FLAT (`["Start", "Atoms", …]`) while every name but the first had
+      // moved under `Start`. Nothing threw; the tree simply went back to sorting itself.
+      //
+      // Written out here rather than imported, and that is not a style choice: the index
+      // builder reads this file STATICALLY and cannot follow an identifier. Given one it warns,
+      // skips the index — and `storybook build` still exits 0, leaving a catalog with no
+      // `index.json` at all. Guarded by `order.*` in `storyOrder.test.ts`, which scans this
+      // literal rather than importing it, for the same reason.
+      storySort: {
+        order: [
+          "Start",
+          ["Basics", ["Node", "Root"], "Atoms", ["Bounded", "Surfaced", "Transformable", "Container"]],
+          "Elements",
+          "Canvas",
+          "HUD",
+        ],
+      },
     },
   },
 };

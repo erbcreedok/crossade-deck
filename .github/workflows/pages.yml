@@ -1,0 +1,77 @@
+# Витрина каталога на GitHub Pages.
+#
+# Отдельный workflow, а не job внутри сборки образов, и на то две причины:
+#
+#   1. Витрина — это game-kit, у которого НЕТ образа. Правило «на Pages уезжает статика,
+#      вынутая из уже собранного образа» существует, чтобы не держать два артефакта из одних
+#      исходников, которые однажды разъедутся. Здесь второго артефакта нет вовсе: эта сборка
+#      единственная, и вынимать не из чего.
+#
+#   2. Публикация витрины не должна тянуть за собой выкатку прода. В `ci.yml` пуш в main идёт
+#      цепочкой тесты → образы → прод, а поменять страницу с документацией и переставить
+#      продакшен — решения разного веса.
+#
+# Окружение `github-pages` принимает деплой только с main, поэтому файл живёт здесь и
+# запускается либо руками, либо изменением самого кита.
+name: Витрина
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "game-kit/**"
+      - ".github/workflows/pages.yml"
+
+# Витрина одна: параллельные публикации переписывали бы друг друга, и последней осталась бы
+# не последняя по времени, а последняя по удаче.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Собрать каталог и опубликовать
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Из КОРНЯ: репозиторий — npm workspaces, и лок там один. Установка внутри game-kit
+      # построила бы второе дерево рядом с первым.
+      - run: npm ci
+
+      # Тесты гоняются здесь же, а не «где-то раньше»: витрина показывает документацию, и
+      # опубликованная документация к сломанному киту хуже отсутствующей.
+      - run: npm run typecheck -w game-kit
+      - run: npm test -w game-kit
+
+      - run: npm run build:catalog -w game-kit
+
+      # Pages отдаёт сайт из подпути /crossade-deck/. Работает это только потому, что
+      # .storybook/main.ts ставит base: "./" — с абсолютным base все ассеты дали бы 404, и
+      # ровно на localhost этого не видно.
+      - name: Проверить, что каталог собрался целиком
+        run: |
+          set -euo pipefail
+          test -f game-kit/storybook-static/index.html
+          test -f game-kit/storybook-static/index.json
+          grep -q 'href="\./' game-kit/storybook-static/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: game-kit/storybook-static
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

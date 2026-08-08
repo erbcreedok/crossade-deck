@@ -22,7 +22,12 @@ describe("inspect", () => {
   });
 
   it("inspector.reflects-model — every present atom and field is shown", () => {
-    const B = defineAtom({ name: "Bounded", requires: [], defaults: { size: "1x1", shape: "rect" } });
+    const B = defineAtom({
+      name: "Bounded",
+      requires: [],
+      defaults: { size: "1x1", shape: "rect" },
+      classes: { size: "own", shape: "own" },
+    });
     const root = node("i3", B());
     const [n] = inspect(root);
     expect(n!.atoms).toEqual(["Bounded"]);
@@ -31,16 +36,26 @@ describe("inspect", () => {
   });
 
   it("inspector.shows-absent — a starved atom is named, with what it lacks", () => {
-    defineAtom({ name: "Bounded", requires: [], defaults: {} });
-    const S = defineAtom({ name: "Surfaced", requires: [["Bounded", "Container"]], defaults: { surface: "plate" } });
+    defineAtom({ name: "Bounded", requires: [], defaults: {}, classes: {} });
+    const S = defineAtom({
+      name: "Surfaced",
+      requires: [["Bounded", "Container"]],
+      defaults: { surface: "plate" },
+      classes: { surface: "own" },
+    });
     const [n] = inspect(node("i4", S()));
     expect(n!.atoms).toEqual([]);
     expect(n!.absent).toEqual(["Surfaced (needs Bounded or Container)"]);
   });
 
   it("inspector.no-invented-fields — an absent atom contributes no fields", () => {
-    defineAtom({ name: "Bounded", requires: [], defaults: {} });
-    const S = defineAtom({ name: "Surfaced", requires: ["Bounded"], defaults: { surface: "plate" } });
+    defineAtom({ name: "Bounded", requires: [], defaults: {}, classes: {} });
+    const S = defineAtom({
+      name: "Surfaced",
+      requires: ["Bounded"],
+      defaults: { surface: "plate" },
+      classes: { surface: "own" },
+    });
     const [n] = inspect(node("i5", S()));
     expect(n!.fields).toEqual([]);
   });

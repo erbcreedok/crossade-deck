@@ -11,6 +11,13 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+// Imported for the runtime guards below: some rules cannot be scanned for, only asked about.
+import { allAtoms } from "./core/atom.js";
+import { freeLayout, rowLayout } from "./core/atoms/layouts.js";
+import "./core/atoms/bounded.js";
+import "./core/atoms/container.js";
+import "./core/atoms/surfaced.js";
+import "./core/atoms/transformable.js";
 
 const SRC = new URL("./", import.meta.url).pathname;
 // The catalog is real code — its page, panels, scenes, stories and words — so the rules reach
@@ -69,7 +76,15 @@ function hits(re: RegExp, opts: { raw?: boolean; skip?: (rel: string) => boolean
 
 describe("guards", () => {
   it("guard.no-kind — behaviour never reads a sort", () => {
-    expect(hits(/\.kind\s*===|switch\s*\(\s*\w+\.kind\s*\)/)).toEqual([]);
+    // The rule is about NODES: nothing asks "what sort of element is this", it asks for the
+    // atom it needs (hit-testing → Bounded, painting → Surfaced). A `Shape` is not a node and
+    // has no atoms to ask, and a circle's extent cannot be computed without telling it from a
+    // rect — so the union is discriminated in exactly ONE file, the one that declares it.
+    // Everywhere else the answer is `extentOf`, which is what keeps the branching from
+    // spreading. Widening this exemption to a second file means the rule has stopped holding.
+    expect(hits(/\.kind\s*===|switch\s*\(\s*\w+\.kind\s*\)/, { skip: (r) => r === "core/atoms/bounded.ts" })).toEqual(
+      [],
+    );
   });
 
   it("guard.no-negation — capability is by presence, restriction by absence", () => {
@@ -85,10 +100,15 @@ describe("guards", () => {
     expect(hits(/\bclass\s+\w+\s+extends\b|\binstanceof\s+Node\b/)).toEqual([]);
   });
 
-  it("host.single-pixi-import — pixi lives in exactly one file (none yet: nothing paints)", () => {
-    const importers = files.filter((f) => /from\s+["']pixi\.js["']/.test(f.code)).map((f) => f.rel);
-    expect(importers.length).toBeLessThanOrEqual(1);
-    if (importers.length === 1) expect(importers[0]).toBe("render/pixi.ts");
+  it("host.single-pixi-import — pixi lives in exactly one file", () => {
+    // The day the renderer is swapped, exactly one file is rewritten. It also keeps the rules
+    // out of the one place no test can reach: jsdom has no WebGL, so whatever is decided
+    // inside the renderer is decided where nothing can hold it down.
+    // Against `raw`, not `code`: the scanner blanks string BODIES, so a module specifier is
+    // invisible there. This guard was written against `code` and could never have fired —
+    // it passed for months only because nothing imported pixi at all.
+    const importers = files.filter((f) => /from\s+["']pixi\.js["']/.test(f.raw)).map((f) => f.rel);
+    expect(importers).toEqual(["render/pixi.ts"]);
   });
 
   it("guard.view-not-canvas — the HTMLCanvasElement is never named canvas", () => {
@@ -160,7 +180,8 @@ describe("guards", () => {
     // assembled the tree. The node tree is assembled per client anyway: ids must agree
     // between players, wording need not.
     const kit = files.filter((f) => !inCatalog(f.rel));
-    expect(kit.filter((f) => /from\s+["'][^"']*\.json["']/.test(f.code)).map((f) => f.rel)).toEqual([]);
+    // `raw` for the same reason as the pixi guard: a specifier lives inside a string.
+    expect(kit.filter((f) => /from\s+["'][^"']*\.json["']/.test(f.raw)).map((f) => f.rel)).toEqual([]);
     expect(
       hits(/\btranslate\s*\(|\bcountLabel\s*\(|\bLOCALES\b|\bTextSource\b|\bi18n\b|\blocale\b/i, {
         skip: inCatalog,
@@ -177,12 +198,22 @@ describe("guards", () => {
   });
 
   it("guard.catalog-through-the-door — the catalog imports the kit like a standalone would", () => {
-    // If the catalog reached into `src/core/...`, the public API would stop being a door and
-    // become a suggestion, and nothing would notice when it drifted from what a game can use.
+    // TWO doors, and only two: the model (`index.ts`) and the renderer (`render/pixi.ts`).
+    // The second exists because importing `pixi.js` reaches for a canvas context at module
+    // load — so taking the renderer has to be a decision, not a side effect of touching the
+    // kit. Dynamic imports are scanned too, or the rule would be one `import()` away from
+    // meaningless.
+    const DOORS = ["index.js", "render/pixi.js"];
     const bad = files
       .filter((f) => inCatalog(f.rel))
-      .flatMap((f) => [...f.raw.matchAll(/from\s+"(\.\.\/)+src\/([^"]+)"/g)].map((m) => `${f.rel} → src/${m[2]}`))
-      .filter((line) => !line.endsWith("src/index.js"));
+      .flatMap((f) =>
+        [...f.raw.matchAll(/(?:from|import)\s*\(?\s*"(?:\.\.\/)+src\/([^"]+)"/g)].map((m) => ({
+          rel: f.rel,
+          target: m[1]!,
+        })),
+      )
+      .filter(({ target }) => !DOORS.includes(target))
+      .map(({ rel, target }) => `${rel} → src/${target}`);
     expect(bad).toEqual([]);
   });
 
@@ -211,6 +242,32 @@ describe("guards", () => {
     for (const palette of theme.split(/const (?:DARK|LIGHT): Palette =/).slice(1)) {
       const body = palette.slice(0, palette.indexOf("};"));
       expect(body.match(/accent/g) ?? []).toHaveLength(1);
+    }
+  });
+
+  it("guard.every-field-declares-a-class — there are four rules and no field without one", () => {
+    // Not a scan: a scan cannot see an atom assembled at runtime. Importing the real atoms
+    // and asking the registry is what actually covers them.
+    for (const def of allAtoms()) {
+      const declared = def.classes as Record<string, string>;
+      for (const field of Object.keys(def.defaults)) {
+        expect(declared[field], `${def.name}.${field} declares no inheritance class`).toBeTruthy();
+        expect(["own", "fromOwner", "addsUp", "rootOnly"]).toContain(declared[field]);
+      }
+    }
+  });
+
+  it("guard.layout-writes-only-at — a layout may move a child, never lift it", () => {
+    // `z` adds up along the chain, so a layout writing it would raise every child of a raised
+    // container twice. A stack expresses its thickness as an `at` offset, and this is why.
+    const children = [
+      { id: "a", footprint: { kind: "rect", w: 1, h: 1 } as const, at: undefined },
+      { id: "b", footprint: { kind: "rect", w: 1, h: 1 } as const, at: undefined },
+    ];
+    for (const record of [freeLayout, rowLayout({ gap: 0.2 })]) {
+      for (const pose of record.place(children)) {
+        if (pose) expect(Object.keys(pose).sort()).toEqual(["x", "y"]);
+      }
     }
   });
 

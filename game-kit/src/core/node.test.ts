@@ -22,11 +22,26 @@ import {
 // these cases are about. A requirement that is an ALTERNATIVE is the interesting one.
 function declareAtoms() {
   return {
-    Bounded: defineAtom({ name: "Bounded", requires: [], defaults: { size: "1x1" } }),
-    Container: defineAtom({ name: "Container", requires: [], defaults: { layout: "center" } }),
+    Bounded: defineAtom({ name: "Bounded", requires: [], defaults: { size: "1x1" }, classes: { size: "own" } }),
+    Container: defineAtom({
+      name: "Container",
+      requires: [],
+      defaults: { layout: "center" },
+      classes: { layout: "own" },
+    }),
     // An area comes from an own size OR from the extent of the content.
-    Surfaced: defineAtom({ name: "Surfaced", requires: [["Bounded", "Container"]], defaults: { surface: "plate" } }),
-    Flippable: defineAtom({ name: "Flippable", requires: ["Surfaced"], defaults: { reverse: "back" } }),
+    Surfaced: defineAtom({
+      name: "Surfaced",
+      requires: [["Bounded", "Container"]],
+      defaults: { surface: "plate" },
+      classes: { surface: "own" },
+    }),
+    Flippable: defineAtom({
+      name: "Flippable",
+      requires: ["Surfaced"],
+      defaults: { reverse: "back" },
+      classes: { reverse: "own" },
+    }),
   };
 }
 

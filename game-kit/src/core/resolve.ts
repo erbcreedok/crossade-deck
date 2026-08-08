@@ -8,17 +8,13 @@
 // There is no `parent.*` namespace in the model. An owner's fields are ordinary fields of
 // another node, read through the chain.
 
+import { type InheritClass } from "./atom.js";
 import { chainOf, fieldsOf, type Node } from "./node.js";
 import { DEFAULT_VIEWER, type ViewerSettings } from "./viewer.js";
 
-/**
- * Four classes, and there is no fifth. A field that declares none fails the guard.
- *  - own       — never inherited; no value means no field.
- *  - fromOwner — not set here → the nearest set value up the chain. Override = set it.
- *  - addsUp    — the sum along the chain. It cannot be cancelled, only added to.
- *  - rootOnly  — the field does not exist on a child; asking is meaningless.
- */
-export type InheritClass = "own" | "fromOwner" | "addsUp" | "rootOnly";
+// The four classes are declared with the ATOM (`atom.ts`), not here: a rule about a field
+// belongs where the field is, or the two drift. This module is what ACTS on them.
+export type { InheritClass };
 
 export interface ResolveContext {
   /** The HUD etalon in screen pixels. The HOST computes it, or the viewer overrides it. */

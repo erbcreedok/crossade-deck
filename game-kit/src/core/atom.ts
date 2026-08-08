@@ -14,6 +14,17 @@
  */
 export type Requirement = string | readonly string[];
 
+/**
+ * There are exactly FOUR, and there is no fifth. A name alone does not say enough about a
+ * field: until its inheritance rule is declared, every reader works it out again, and that is
+ * how `z` came to argue with the shadow three times in client1.
+ *  - own       — never inherited; no value means no field.
+ *  - fromOwner — not set here → the nearest set value up the chain. Override = set it.
+ *  - addsUp    — the sum along the chain. It cannot be cancelled, only added to.
+ *  - rootOnly  — the field does not exist on a child; asking is meaningless.
+ */
+export type InheritClass = "own" | "fromOwner" | "addsUp" | "rootOnly";
+
 export interface AtomDef<Fields extends object = object> {
   /** Name as it appears in caps() and in the catalog. Unique across the registry. */
   readonly name: string;
@@ -21,6 +32,12 @@ export interface AtomDef<Fields extends object = object> {
   readonly requires: readonly Requirement[];
   /** Field defaults. The spec is DATA: no functions may live here. */
   readonly defaults: Fields;
+  /**
+   * The inheritance class of EVERY field, declared once here and read everywhere. Enforced at
+   * definition time rather than by a scan alone: a scan cannot see an atom built at runtime,
+   * and a field that quietly defaults to `own` is the bug this field exists to prevent.
+   */
+  readonly classes: { readonly [K in keyof Fields]-?: InheritClass };
 }
 
 export interface Atom<Fields extends object = object> {
@@ -34,6 +51,7 @@ const REGISTRY = new Map<string, AtomDef>();
 export function defineAtom<Fields extends object>(def: AtomDef<Fields>): (fields?: Partial<Fields>) => Atom<Fields> {
   if (REGISTRY.has(def.name)) throw new Error(`atom "${def.name}" is already defined`);
   assertSerializable(def.name, def.defaults);
+  assertClassed(def);
   REGISTRY.set(def.name, def as AtomDef);
   return (fields?: Partial<Fields>) => {
     if (fields) assertSerializable(def.name, fields);
@@ -59,6 +77,16 @@ export function requirementMet(req: Requirement, present: ReadonlySet<string>): 
   return typeof req === "string" ? present.has(req) : req.some((r) => present.has(r));
 }
 
+/**
+ * The declared class of one field. Unknown atom or unknown field is `undefined` — the caller
+ * decides what that means, because "no such field" and "a field with no rule" are different
+ * failures and only the second one is a bug here.
+ */
+export function classOf(atom: string, field: string): InheritClass | undefined {
+  const def = REGISTRY.get(atom);
+  return def ? (def.classes as Record<string, InheritClass>)[field] : undefined;
+}
+
 /** Human-readable requirement, for the inspector and for failure messages. */
 export function requirementLabel(def: AtomDef): string {
   return def.requires.map((r) => (typeof r === "string" ? r : r.join(" or "))).join(" + ");
@@ -69,6 +97,24 @@ export function requirementLabel(def: AtomDef): string {
  * behaviour is attached by NAMING a registry entry instead. Guarded here rather than by a
  * scan alone, because the scan cannot see a value built at runtime.
  */
+/**
+ * Every default field must declare a class, and nothing may declare one for a field that does
+ * not exist — a rule attached to a misspelled name is a rule nobody applies.
+ */
+function assertClassed(def: AtomDef<object>): void {
+  const declared = def.classes as Record<string, InheritClass>;
+  for (const key of Object.keys(def.defaults)) {
+    if (!declared[key]) {
+      throw new Error(`atom "${def.name}": field "${key}" declares no inheritance class`);
+    }
+  }
+  for (const key of Object.keys(declared)) {
+    if (!(key in def.defaults)) {
+      throw new Error(`atom "${def.name}": class declared for unknown field "${key}"`);
+    }
+  }
+}
+
 function assertSerializable(atomName: string, fields: object): void {
   for (const [key, value] of Object.entries(fields)) {
     if (typeof value === "function") {

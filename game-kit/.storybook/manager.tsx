@@ -75,7 +75,7 @@ const CatalogSettings: React.FC = () => {
         placement="bottom"
         trigger="click"
         closeOnOutsideClick
-        tooltip={({ onHide }) => (
+        tooltip={({ onHide }: { onHide: () => void }) => (
           <TooltipLinkList
             links={LOCALES.map((l) => ({
               id: l,

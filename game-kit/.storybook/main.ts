@@ -1,4 +1,21 @@
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import type { StorybookConfig } from "@storybook/html-vite";
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Absolute paths for the framework and every addon.
+ *
+ * In a workspace npm is free to hoist `storybook` and `@storybook/core` to the repository root
+ * while leaving the framework here — and core then looks for the framework NEXT TO ITSELF and
+ * does not find it. The build says `Cannot find module "@storybook/html-vite/preset"`, exits 0,
+ * and produces a catalog with no index. Resolving from THIS file removes the guesswork: the
+ * config knows where its own dependencies are.
+ */
+function here(pkg: string): string {
+  return dirname(require.resolve(join(pkg, "package.json")));
+}
 
 // The catalog is the kit's documentation, so it is plain HTML: our scenes are a view plus
 // our own panels, and a framework renderer would only add a layer between them.
@@ -10,8 +27,18 @@ const config: StorybookConfig = {
   // language govern the whole catalog and belong above the story tree, while the hud etalon
   // is a scene knob and belongs next to zoom. addon-toolbars renders neither of those places,
   // so it is not installed.
-  addons: ["@storybook/addon-docs"],
-  framework: { name: "@storybook/html-vite", options: {} },
+  // Controls, because the alternative is a page of stories per value of one field — exactly
+  // what the canon forbids. An atom's fields ARE its arguments, so the reader changes a size
+  // and watches the box change rather than picking a screenshot off a list.
+  // Controls, because the alternative is a page of stories per value of one field — exactly
+  // what the canon forbids. An atom's FIELDS are its arguments: the reader changes a size and
+  // watches the box change, instead of picking a screenshot off a list.
+  addons: [here("@storybook/addon-docs"), here("@storybook/addon-controls")],
+  framework: { name: here("@storybook/html-vite"), options: {} },
+  // RELATIVE asset paths. The showcase is served from a SUBPATH (`/crossade-deck/` on GitHub
+  // Pages), and an absolute base turns every asset into a 404 there while looking perfectly
+  // fine on localhost — the failure only appears once it is published.
+  viteFinal: async (cfg) => ({ ...cfg, base: "./" }),
 };
 
 export default config;

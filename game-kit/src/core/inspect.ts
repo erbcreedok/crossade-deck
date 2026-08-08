@@ -9,7 +9,7 @@
 // traversal drifts from the first. This is a pure function over the same data the renderer
 // uses, so a guard can assert the panel shows nothing the model does not have.
 
-import { requirementLabel } from "./atom.js";
+import { classOf, requirementLabel } from "./atom.js";
 import { caps, isRoot, starved, walk, type Node } from "./node.js";
 import { type InheritClass } from "./resolve.js";
 
@@ -57,9 +57,10 @@ function fieldsOf(n: Node): InspectField[] {
   for (const name of [...caps(n)].sort()) {
     const atom = n.atoms.get(name)!;
     for (const [key, value] of Object.entries(atom.fields)) {
-      // Slice 1 declares no inherited fields yet; when an atom does, its class comes from
-      // the field table and is carried here rather than guessed at the panel.
-      out.push({ key: `${name}.${key}`, value: format(value), cls: "own" });
+      // The class is READ from the atom, never assumed. It used to be hard-coded `own` here,
+      // which was true only while no atom had an inherited field — and would have gone on
+      // reading true, silently, the moment one did.
+      out.push({ key: `${name}.${key}`, value: format(value), cls: classOf(name, key) ?? "own" });
     }
   }
   return out;

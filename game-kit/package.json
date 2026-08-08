@@ -12,9 +12,12 @@
     "storybook": "npm run dev",
     "build": "vite build && npm run build:types",
     "build:types": "tsc -p tsconfig.build.json",
-    "build:catalog": "storybook build"
+    "build:catalog": "storybook build",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@storybook/addon-controls": "^8.6.18",
     "@storybook/addon-docs": "^8.6.14",
     "@storybook/blocks": "^8.6.18",
     "@storybook/html": "^8.6.14",
@@ -22,6 +25,7 @@
     "@types/node": "^26.1.2",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
+    "http-server": "^14.1.1",
     "jsdom": "^25.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -41,6 +45,14 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./pixi": {
+      "development": "./src/render/pixi.ts",
+      "types": "./dist/render/pixi.d.ts",
+      "import": "./dist/render/pixi.js"
     }
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0"
   }
 }

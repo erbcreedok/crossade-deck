@@ -30,18 +30,24 @@ export interface ViewerSettings {
    * the sizes in units are untouched.
    */
   readonly hudUnit?: number;
+  /**
+   * Outline every footprint. The box is REAL and INVISIBLE — `Bounded` paints not one pixel,
+   * and no "bounds frame" exists anywhere in the model — so this layer is the ONLY way to see
+   * one. That is exactly why it is a viewer setting and not a field: it changes what an
+   * onlooker is shown, never what is true.
+   */
+  readonly debugBounds?: boolean;
 }
 
 export const DEFAULT_VIEWER: ViewerSettings = { theme: "dark" };
 
 /**
- * Not implemented yet, on purpose — each arrives with the thing it acts on, so a toggle is
- * never a control over nothing:
- *   debugLayers  — with `Surfaced`: layers overlay a picture, and nothing paints yet.
- *   viewer       — with `Private`: nothing to withhold from anyone.
+ * Still deferred, on purpose — each arrives with the thing it acts on, so a toggle is never a
+ * control over nothing:
+ *   viewer       — with `Private`: nothing to withhold from anyone yet.
  *   motionReduce — with the first animation.
- * Adding them here is one field and one toolbar entry each; the cascade below is what makes
- * that true.
+ * `debugBounds` sat on this list until `Surfaced` gave it a picture to overlay. Adding one is a
+ * field and a toolbar entry; the cascade below is what makes that true.
  */
 export function withViewer(base: ViewerSettings, patch: Partial<ViewerSettings>): ViewerSettings {
   return { ...base, ...patch };

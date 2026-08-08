@@ -12,17 +12,24 @@ import { s, t } from "../../src/index.js";
 import { type CatalogText } from "../locales/catalog.js";
 import { HUD_UNIT_CHOICES, type HudUnitChoice } from "./hudUnitChoices.js";
 
+export interface ToolbarState {
+  readonly text: CatalogText;
+  readonly hudUnit: HudUnitChoice;
+  readonly bounds: boolean;
+}
+
+export interface ToolbarHandlers {
+  onHudUnit(choice: HudUnitChoice): void;
+  onBounds(on: boolean): void;
+}
+
 export interface SceneToolbar {
   readonly el: HTMLElement;
   /** Re-read the captions after a language change. */
   refresh(): void;
 }
 
-export function sceneToolbar(
-  doc: Document,
-  read: () => { text: CatalogText; hudUnit: HudUnitChoice },
-  onHudUnit: (choice: HudUnitChoice) => void,
-): SceneToolbar {
+export function sceneToolbar(doc: Document, read: () => ToolbarState, on: ToolbarHandlers): SceneToolbar {
   const el = doc.createElement("div");
   el.setAttribute("data-scene-toolbar", "");
   el.style.cssText = [
@@ -45,6 +52,9 @@ export function sceneToolbar(
     `line-height:${s("font.line.normal")}`,
     `color:${t("textMuted")}`,
     "letter-spacing:.5px",
+    // One line. Wrapped to two it doubles the height of the row for no information at all.
+    "white-space:nowrap",
+    "flex:none",
   ].join(";");
   el.appendChild(label);
 
@@ -58,6 +68,15 @@ export function sceneToolbar(
     `border:1px solid ${t("panelBorder")}`,
     `border-radius:${s("radius.s")}`,
     `padding:2px ${s("space.xs")}`,
+    // A select sizes itself to its WIDEST option, and the widest here is a sentence — on a
+    // phone it took two thirds of the row and pushed the neighbouring toggle off the screen.
+    // Capped, the closed control shows as much as fits and the rest is an ellipsis; the OPEN
+    // list is drawn by the platform and still sizes to its content, so nothing is lost.
+    "max-width:14ch",
+    "min-width:0",
+    "flex:0 1 auto",
+    "overflow:hidden",
+    "text-overflow:ellipsis",
   ].join(";");
   for (const choice of HUD_UNIT_CHOICES) {
     const option = doc.createElement("option");
@@ -66,12 +85,46 @@ export function sceneToolbar(
   }
   select.addEventListener("change", () => {
     const raw = select.value;
-    onHudUnit(raw === "auto" ? "auto" : (Number(raw) as HudUnitChoice));
+    on.onHudUnit(raw === "auto" ? "auto" : (Number(raw) as HudUnitChoice));
   });
   el.appendChild(select);
 
+  // A TOGGLE, not a second dropdown: it has two states and it is pressed far more often than
+  // the etalon is chosen. `aria-pressed` carries the state, so the button says what it is
+  // rather than relying on a colour a reader may not be able to tell apart.
+  const bounds = doc.createElement("button");
+  bounds.setAttribute("data-debug-bounds", "");
+  bounds.type = "button";
+  el.appendChild(bounds);
+
+  const paintBounds = (onNow: boolean): void => {
+    bounds.style.cssText = [
+      `font-family:${s("font.mono")}`,
+      `font-size:${s("font.size.s")}`,
+      `color:${onNow ? t("debug") : t("textMuted")}`,
+      `background:${t("sunkBg")}`,
+      `border:1px solid ${onNow ? t("debug") : t("panelBorder")}`,
+      `border-radius:${s("radius.s")}`,
+      `padding:2px ${s("space.s")}`,
+      "white-space:nowrap",
+      "flex:none",
+      "cursor:pointer",
+    ].join(";");
+  };
+
+  bounds.addEventListener("click", () => {
+    const next = bounds.getAttribute("aria-pressed") !== "true";
+    bounds.setAttribute("aria-pressed", String(next));
+    paintBounds(next);
+    on.onBounds(next);
+  });
+
   const refresh = (): void => {
-    const { text, hudUnit } = read();
+    const { text, hudUnit, bounds: boundsOn } = read();
+    bounds.textContent = text.text("viewer.bounds");
+    bounds.title = text.text("viewer.bounds.hint");
+    bounds.setAttribute("aria-pressed", String(boundsOn));
+    paintBounds(boundsOn);
     label.textContent = text.text("viewer.hudUnit");
     select.title = text.text("viewer.hudUnit.hint");
     [...select.options].forEach((option, i) => {

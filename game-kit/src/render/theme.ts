@@ -39,6 +39,12 @@ export interface Palette {
   alert: string;
   /** The dotted stage grid. */
   grid: string;
+  /**
+   * Tooling drawn OVER the picture: the debug outline of a box. Its own token because its job
+   * is its own — it must never be mistaken for something an author put on the table, which is
+   * exactly what would happen if it borrowed the accent or a border colour.
+   */
+  debug: string;
 }
 
 const DARK: Palette = {
@@ -52,6 +58,7 @@ const DARK: Palette = {
   accent: "#4ea3ff",
   alert: "#ff6a52",
   grid: "#262b2f",
+  debug: "#ff4fd8",
 };
 
 const LIGHT: Palette = {
@@ -65,6 +72,7 @@ const LIGHT: Palette = {
   accent: "#0a74d6",
   alert: "#c0392b",
   grid: "#dbe1e6",
+  debug: "#c2189c",
 };
 
 export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, light: LIGHT };
@@ -110,6 +118,19 @@ export function t(token: keyof Palette): string {
 /** Read a scale step: `padding: ${s("space.m")}`. */
 export function s(path: ScaleStep): string {
   return `var(${varName(path)})`;
+}
+
+/**
+ * The value BEHIND a token, for a renderer that cannot read a CSS variable — a GPU canvas has
+ * no cascade to look the `var()` up in. A name that is not a token passes through unchanged,
+ * so a surface record may still carry a literal colour when a game genuinely wants one.
+ *
+ * This is the only exception to "call sites never see a hex", and it is narrow on purpose:
+ * the hexes still live only in the palette, and this hands one over rather than declaring it.
+ */
+export function paint(name: ThemeName, value: string): string {
+  const palette = PALETTES[name];
+  return value in palette ? palette[value as keyof Palette] : value;
 }
 
 /**
