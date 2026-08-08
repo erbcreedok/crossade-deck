@@ -1,0 +1,23 @@
+game-kit/.storybook/manager.tsx
+  s_8a89f581d5de84::t_a824c3288c8287 19,131-143
+wk.mjs
+  s_8a89f581d5de84::t_60949f9546937e 1-20
+game-kit/e2e/catalog.spec.ts
+  s_8a89f581d5de84::t_4b2bf5a18e0ca4 190-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "66fe1b4890b47e2c818bae3f63fc4ed7d2bf6a16",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
