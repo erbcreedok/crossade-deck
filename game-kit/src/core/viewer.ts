@@ -3,7 +3,7 @@
 // Spec is what the author writes and it goes on the wire. State is what happens to a node.
 // These are neither: they describe the ONLOOKER. Two players may hold different values and
 // still see the same truth — so nothing here may reach the state, and nothing here may be
-// asked of a node (CANONS.md, the three-planes rule).
+// asked of a node (docs/catalog.md, the three-planes rule).
 //
 // They cascade: the consumer produces them once, the host carries them, and the resolve
 // context hands them down the tree as defaults. A scene does not wire them one by one, or the

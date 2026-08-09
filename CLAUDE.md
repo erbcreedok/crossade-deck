@@ -1,405 +1,66 @@
-# Crossade Deck
+# Crossade Deck — repository root
 
-A multiplayer card game for mobile browsers. 2–32 players per session, 36- or 52-card
-deck. Pixel-casual style (Balatro-style) — not a literal "table with people", a virtual
-round table with a "П"-shaped seating layout.
+This file is loaded in EVERY session, so it holds only what is true for every part of the repo.
+Details live next to the code and load when you work there.
 
-There are no rules for any specific card game in the codebase — what's implemented is
-the full physical table mechanics (deck, dealing, hands, voting), on top of which game
-rules can later be layered as configuration.
+| where | what it is | its doc |
+|---|---|---|
+| `game-kit/` | **active work**: a library of presets and contracts for building board games | `game-kit/CANONS.md` |
+| `client/` | Crossade Deck client — React + Vite, imperative Pixi.js v8 table engine | `client/CLAUDE.md` |
+| `server/` | Crossade Deck server — Colyseus, custom accounts | `server/CLAUDE.md` |
+| `client2/` | previous client generation. **Reference only** — a behaviour benchmark and a source of test specification, not edited | `client2/docs/HANDOFF.md` |
+| `deploy/`, `scripts/` | Fly.io: three apps, build and deploy are SEPARATE steps | `DEPLOY.md` |
 
-## Stack
+## Working in game-kit
 
-- **Server**: Colyseus (Node.js, `@colyseus/schema` v2), custom accounts instead of
-  Firebase.
-- **Client**: React + Vite. The table is rendered by an imperative **Pixi.js v8**
-  engine (not `@pixi/react` — see why below); menus and static UI are plain React,
-  Framer Motion only there.
-- **Auth**: custom accounts (short recovery code, no password). Firebase is scaffolded
-  for later (`client/src/firebase.ts`, `server/src/auth.ts`) but not configured or used
-  until keys are supplied.
-- **Tests**: vitest in both packages (`npm test` in `server/` and `client/`).
-- **Deploy**: production is **Fly.io**, three apps (`crossade-deck-server`,
-  `crossade-deck-client`, `crossade-deck-storybook`). Building and deploying are SEPARATE:
-  `.github/workflows/build.yml` builds the images into GHCR, and `scripts/deploy.sh`
-  deploys a ready one (`fly deploy --image`). A push to `main` builds the images and deploys
-  them by the immutable `sha-<commit>` tag; the same workflow is invoked by hand with any
-  other tag — which is where the rollback comes from (`IMAGE_TAG=...`), no revert and no
-  rebuild. A private GHCR package the script mirrors into `registry.fly.io` on its own, so
-  deploys don't hang on a manual click. The component list is
-  `deploy/components.json`, read by both the script and the workflow; a new component goes
-  there, not into them. The server address isn't baked into the bundle but arrives at
-  runtime (`client/src/runtimeConfig.ts` ← `/config.js`), which is what makes one image fit
-  every environment. See `DEPLOY.md` for the Fly section, and for the Cloudflare Tunnel /
-  plain-Docker alternatives.
-- **Version**: `v<version>+<build>` (e.g. `v0.2.0+166`) — declared version from
-  `package.json` plus the commit count as the build number. `client/src/version.ts` and
-  `server/src/version.ts` share the format; shown at the bottom of the lobby, in the
-  settings menu (full form), and in the server's `/health`. Both packages declare the same
-  `version` (a test guards it) since they have separate build contexts.
+Entry point is `game-kit/CANONS.md` — it names every other document and says which one to open.
+Do not re-derive its rules and do not ask about them again: they are owner requirements, each written
+down after it was broken.
 
-## Commands
+`game-kit` is not part of the Crossade Deck client. It has its own stack, its own catalog and its own
+laws; nothing from `client/` or `client2/` carries over to it without being restated there.
 
-```bash
-cd server && npm test && npx tsc --noEmit   # 243 tests
-cd client && npm test && npx tsc --noEmit   # 868 tests
-cd client && npx vite build                 # production build
-```
+## Version
 
-`server/vitest.config.ts` restricts the run to the `src/` directory — without it,
-vitest also picked up compiled `dist/*.test.js` after `npm run build`, and two copies
-of the `CardRoom` test fought over the same test port. Room tests are split by theme
-(`CardRoom.deck.test.ts`, `.hands.`, `.visibility.`, `.free.`, `.votes.`, `.lifecycle.`, plus
-`TestRoom.test.ts`) and share `roomHarness.ts`. Each file boots on its OWN port
-(`TEST_PORTS`): vitest runs files in parallel, and `boot(server, port)` from
-`@colyseus/testing` silently ignores the port when handed a ready `Server`.
+`v<version>+<build>` (e.g. `v0.2.0+166`) — declared version from `package.json` plus the commit count
+as the build number. `client/src/version.ts` and `server/src/version.ts` share the format; shown at
+the bottom of the lobby, in the settings menu, and in the server's `/health`. Both packages declare
+the same `version` (a test guards it) since they have separate build contexts.
 
-The Bash tool's cwd tends to "drift" back to the repo root between calls — always `cd`
-into `client/` or `server/` explicitly before `tsc`/`vitest`/`vite`.
+## Rules for every task here
 
-## Table architecture (client)
-
-`client/src/game/RoomEngine.ts` (~4700 lines, ~236 methods averaging 19 lines) is an
-imperative engine: it owns a single
-Pixi `Application`, the ticker, and all visual objects (`CardVisual` — plain mutable
-structs, not React nodes). `RoomCanvas.tsx` is a thin React host: mounts the engine
-once, then forwards each prop with `useEngineEffect` (one line per binding) and pours
-everything in at once via `applyAllToEngine` right after mount. `RoomScreen.tsx`
-composes room state (`room/useRoomState.ts`), server events (`room/useRoomSignals.ts`),
-HTML-panel insets (`room/useInsets.ts`) and auto-dealing (`room/useAutoDeal.ts`).
-
-Everything the engine does that is NOT engine state lives in `client/src/game/engine/`,
-each with tests next to it: `constants.ts` (texture size, palette, layer zIndexes),
-`cardTextures.ts` (face/back/shadow factories), `faceTextureCache.ts` (cache + warm-up
-in batches), `fanGeometry.ts`, `seatChrome.ts`/`seatPaint.ts` (rules vs. drawing for
-other players' seats), `zoneChrome.ts`/`zonePaint.ts` (same split for drop zones),
-`collapseArrow.ts`, `scramble.ts`, `idleGate.ts`, `shadowPass.ts` (ONE shadow pass for
-every layer — there used to be three competing mechanisms), `shufflePose.ts`, `shout.ts`
-(the taunt bubbles «соснуть»/«сосать»), `moveAnchor.ts` (where a card flies to/from by
-`card_moved` label — pure), `boardPile.ts`, `clearPlayButton.ts`.
-
-Why not `@pixi/react`: an earlier attempt on it crashed under React StrictMode (double
-mount on a canvas whose WebGL context was already destroyed → "context lost"). The
-current engine creates a fresh canvas on every `mount()` instead.
-
-The render loop sleeps when idle (`wake()`/`sleep()`) — it only draws when something is
-actually moving. The sleep condition is `canSleep()` in `engine/idleGate.ts`: it lists
-every active animation explicitly as a typed field. Any new continuous animation must
-be added to `EngineActivity`, or it either won't play (the loop falls asleep under it)
-or will keep the engine awake and burn CPU/GPU for nothing.
-
-z-order inside a board pile ALWAYS goes through `RoomEngine.pileZ(pile, i)`, never a bare
-index. An open fan lives at `Z.boardFan` (3000+) and its shadow one layer below it, so any
-place that wrote a plain `i` dropped the card to z≈0 — under its own shadow, and the fan
-came out painted over by it. That's how fan shadows broke after a shuffle, a reorder, the
-scramble and the splash: each of them re-laid the cards out its own way, with its own bare
-index. The base is read AT APPLY TIME, not frozen when an animation starts — the fan can be
-collapsed mid-flight.
-
-The engine has a safety net: `RoomEngine.test.ts` mounts it headless against a Pixi
-fake (`src/test/pixiFake.ts`, `vi.mock("pixi.js")`) and checks structural invariants —
-one sprite per card, no duplicates, shuffle reuses sprites, the loop sleeps and wakes,
-`destroy()` leaves nothing behind. Real Pixi can't run in jsdom (no WebGL). Note the
-loop only ever sleeps on the "moderate" animation profile: on "full", idle breathing
-keeps it awake by design.
-
-The deck and your own hand are the same thing with a different layout, and both are
-`engine/CardPile` — order plus sprites keyed by **card identity**, not array index, so
-shuffles/reorders play back for real (each card flies from its old slot to its new one)
-instead of teleporting. The only difference between the two piles is two callbacks:
-where card `i` rests, and what to do with a freshly created sprite (z-order for the
-deck, "stay hidden while it's still flying" for the hand).
-
-A frame reads as a table of contents: `stepPhysics` (substeps: scramble, splash,
-flights, shuffle, springs) → `stepFanWiggle` → `stepDraggedCard` → `stepFlipAnim` →
-`stepOverlays` → `syncScene` → `maybeSleep`. `mount` is likewise split into
-`buildLayers` / `buildOverlays` / `buildShadows` / `buildHitAreas` / `bindStageEvents`.
-
-What a finger movement MEANS is a pure function: `pressIntent` in
-`engine/gestureIntent.ts` returns `wait | deal | collapse-hand | shuffle | glissando |
-grab`. That's where it's easiest to get it wrong — e.g. read a slow drag as a swipe and
-shuffle the deck while the player is just looking at the cards.
-
-Game math is factored out of the engine into small pure modules in
-`client/src/game/*.ts`, each with a matching `*.test.ts` — the engine just calls them
-and draws the result:
-- `fan.ts` — fan-arc geometry (tilt, crowding, finger hit-testing, pinned-edge spread
-  while dragging).
-- `flip.ts` — flipping a card/deck as an actual 180°/540° rotation (not "collapse to
-  zero" — that would leave the card mirrored), tilt during the gesture, rubber-band
-  resistance on a disallowed swipe.
-- `deckStack.ts` — stack layout (the front card sits higher and to the right, the back
-  card lower and to the left — mimicking light from the upper right), shadow.
-- `deckOrder.ts` — deck permutations: `moveCard`, `shuffleOrder`, `scatterCards`
-  (discarded cards are reinserted at random positions, the rest are left untouched),
-  `isPermutationOf` (verifies the client didn't swap the card set).
-- `swipeShuffle.ts` — swipe-gesture detection via a sliding window of velocities (not
-  the last two points — otherwise a jerk at the end of a slow drag would read as a
-  swipe).
-- `handRow.ts` / `handView.ts` — laying out a private hand as a "row", and visibility
-  rules for other players' cards.
-- `collapseButton.ts` — fitting the round "collapse" button into the pocket under the
-  fan's arc (the radius is computed, not a constant — otherwise the button either
-  overlapped the cards or floated in mid-air on other screen sizes).
-- `dealing.ts`, `dragMode.ts`, `dropZones.ts`, `selection.ts`, `barActions.ts` —
-  auto-deal queue, what can be dragged in which mode, drop zones, table-element
-  selection, which two buttons the bottom bar shows.
-- `deckFan.ts`, `topCard.ts`, `sortHand.ts`, `zoneLabels.ts`, `taunt.ts` — board-fan
-  geometry, which card of a pile is on top, sorting one's own hand, and what a drop zone
-  is CALLED at rest («стол», «сброс») versus what it PROMISES mid-drag («сбросить»,
-  «взять себе») — the label follows what's in the player's fingers, not just the zone.
-
-## The board: piles on the table
-
-In dealing (`phase: "lobby"`) the table is not marked up at all: the deck lies in the
-centre and `centerZone` IS the whole table. «ГОУ!» marks the board into boxes
-(`layout.ts`): `deckSlot` on the left, `centerZone` in the middle, `discardSlot` on the
-right. A box that doesn't exist is `null`, and `dropZones.ts` turns that into a
-zero-sized rect — so hit-testing and painting both drop it without a special case.
-
-- **`GameState.discard`** — cards played off the table. Always face up (they've been
-  played, there's nothing left to hide), the last element is the top card.
-  `discard_card` puts one there from a hand, `take_discard` pulls one back out.
-  `collect_hands` («Перераздача») returns both the discard and everyone's hands to the deck.
-- **The discard rests as a HEAP, not a stack** (`discardHeap.ts`): cards overlapping at
-  different angles, the freshly discarded one landing in the middle. A neat stack reads as
-  a deck — as something you TAKE from — and in the discard's resting state you don't; you
-  open the fan first. The pattern is FIXED, not random: a random one would have to be
-  stored (or the heap would re-shuffle itself on every repaint) and synchronised between
-  players so everyone sees the same pile. Seven cards are drawn and no more — the silhouette
-  stops changing after that; the rest count as lying underneath (the counter under the slot
-  shows the real number). At rest the heap lies FACE DOWN — it's "played and put away", not
-  a display case. That's a display rule, not state: on the server discard cards are face up
-  and there's nothing to really hide, since anyone can open the fan and look.
-- **A board pile fans out on tap.** `BoardPile` (`engine/types.ts`) is which pile THIS
-  viewer has open; it's local, unlike `GameState.deckFanned` (the dealer's blind-shuffle
-  fan, which appears and vanishes for everyone at once). Any board fan opens at
-  `layout.boardFanAnchor` — the centre of the play area — no matter which slot the pile
-  itself sits in, so an open fan never hangs off the edge of the screen and is always
-  where the eye expects it.
-- **Every side element of the board shares one width** (`boardSlotWidth`): the deck slot,
-  the discard slot and a side neighbour's seat read as a single column glued to the screen
-  edge, and a mismatch there reads as an accident rather than as layout. The reference is
-  the deck — the only one whose size is dictated by its contents. The discard keeps that
-  width while empty too: the box marks the table out, it doesn't report how full it is.
-- **The play zone** (`GameState.play`) is the middle box in game: a LIST OF STACKS, each
-  from one card to as many as you like, everything in it face up. The server stores only
-  what's in which stack — no geometry: where a stack lands on screen is `playGrid.ts`,
-  from its index. Rules for it are in `server/src/playRules.ts` (`play_card`, `take_play`,
-  `clear_play`); the zone is COMMON — any player may put into and take from any stack,
-  including someone else's card. Turn order (a queue lock) is a later layer on top.
-  - An emptied stack disappears from the list, on both sides. A grid cell with nothing in
-    it takes up room and has nothing to show.
-  - A stale stack index doesn't drop the action — the card just lands as a new stack. It
-    already left the hand visually, and bouncing it back with no explanation is worse than
-    landing it one cell over.
-  - In the engine the zone is the FOURTH `CardPile`, not N of them: the stacks flatten to
-    one order (`playFlat.ts`) and the layout turns a flat index back into "stack k, j-th
-    from the bottom". That's what keeps sprites bound to card identity, so a card moving
-    between stacks flies instead of teleporting.
-  - Stacks of the zone are ordinary board piles named `play:N` (`engine/boardPile.ts`), so
-    the whole board-fan mechanism came for free: a tap opens a stack at `boardFanAnchor`,
-    exactly where the deck and the discard open. A CLOSED stack also gives up its top card
-    to a plain drag — reaching for the fan on every move is a step too many, and the top
-    card is what's usually wanted. The two gestures don't argue: move the finger and you
-    drag the card, don't move it and you open the stack (the tap checks `dragHappened`).
-  - What happens to the REST of a pile when a card is dragged off it depends on the pile of
-    the GESTURE, not on "is the deck fanned". That used to read `!this.deckFanned`, so a
-    drag out of the open discard or a zone stack (a fan that isn't the deck's) quietly
-    re-laid the DECK out as n−1.
-  - A zone stack has its OWN geometry (`playStack.ts`), not the deck's: the deck's offset
-    is about the thickness of a pack, a zone stack is about what's IN it. Back cards peek
-    out from under the front one, the stack never gets wider than 1.2 cards (the grid is
-    tight), and the BOTTOM card juts out into the bottom-right corner far enough for its
-    corner index to read — you can see what's at the bottom without opening the fan. The
-    vertical spread is bigger than the horizontal one for exactly that reason: the index
-    glyph occupies the lower third of the face texture. Grid cells are therefore measured
-    by the stack's FOOTPRINT, not by the card, or neighbours would overlap on precisely
-    the edges the spread exists to show. Unlike the deck and discard, a zone stack draws
-    ALL of its cards — hiding them would mean rendering a spread nobody can see.
-  - While a card is being dragged over the zone the table ANSWERS (`playHover.ts`): the
-    stack under the finger lifts and grows (so its shadow travels further on its own —
-    lift IS the excess over the resting scale), and the immediate neighbours step aside,
-    opening its edges. Highlighting a border wouldn't do: the dragged card covers the very
-    stack it's aiming at. Hit-testing stays on the UNSHIFTED grid, so the feedback can't
-    make the target oscillate under a still finger.
-  - The grid picks the column count that makes the card biggest. When space runs out the
-    order of concessions is fixed: shrink the card down to `PLAY_MIN_SCALE`, and only then
-    scroll. The other way round, a player would be scrolling the table at ten stacks while
-    everything fits a little smaller. Room for the NEXT stack is always reserved — on a
-    grid filled to the edge there would otherwise be nowhere to start one.
-- Seating is a «П» (`seatLayout.ts`): at most one neighbour per side (and always either
-  two of them or none), everyone else goes into the scrolling top strip. Side neighbours
-  do NOT narrow the table — on a phone that would squeeze the play area into a slit;
-  instead the edge boxes yield (the deck slides lower, the discard gets shorter).
-
-## Networking: what's truth vs. just pretty
-
-A hard split that must not blur when adding new deck-related mechanics:
-
-1. **State is the source of truth.** Deck order and each card's facing
-   (`GameState.deck`, `GameState.faceUp`) travel over the Colyseus schema. Heavy
-   operations (shuffling, reordering) are computed by the client **itself**, which
-   sends the finished result — the server only checks it's actually a permutation of
-   the same card set (`isPermutationOf`) and does not recompute it. This is deliberate,
-   for instant feedback: if the client waited for an echo with the new order, the
-   animation would stutter on every round trip.
-2. **`deck_fx` is decoration only.** A separate message bus for effects (flips,
-   shuffling) that do NOT change state, only display for other viewers. The server
-   doesn't interpret it, just validates the message shape and relays it.
-3. **Revisions guard against stale echoes.** `GameState.deckRev` — only the dealer may
-   write it; the number is incremented on every action. The client ignores an incoming
-   state if its revision is older than what's already shown locally — otherwise its
-   own delayed echo would roll the picture back and it would visibly "jitter". The same
-   trick is applied to one's own hand order (`set_hand_order`): as long as the hand's
-   composition hasn't changed, the client keeps the order it already sent and doesn't
-   let an unrelated state patch (someone next to you hit "Ready") repaint it back to
-   the unsorted server order.
-4. **`ArraySchema.setAt` past the array's length APPENDS an element** rather than
-   writing "into a hole" (an array of length 3 becomes length 4 after `setAt(5, x)`).
-   This is the concrete source of a "deck bloated to 60 cards" bug that came up twice.
-   Writing the whole deck is always done as `clear()` + a `push()` loop, never `setAt`
-   across the full length.
-
-## Visibility rules and roles
-
-- **Open/closed hand** (`Player.handOpen`) — a per-player toggle: closed shows face-up
-  to the owner, face-down to everyone else. Open shows it to everyone the same way the
-  owner sees it.
-- **Hidden card** (`Player.handHidden`, an imperative per-card toggle) — invisible to
-  everyone but the owner, even when the hand is open.
-- **Dealing is always on.** The deck lives in the centre of the table face down: no
-  card's rank is visible to anyone, including the dealer, until that card ends up in
-  someone's hand. Only the dealer touches the deck (shuffle, table fan, `deal_card`,
-  auto-deal, `reset_deck`, `collect_hands`); the only way out of dealing is «ГОУ!» —
-  free mode below — and «Перераздача» brings it back.
-  There used to be a `dealMode` toggle, and switching it OFF revealed the whole deck and
-  turned the table into a second, pre-cards mechanic: the deck as one object dragged
-  between the centre, your hand and other players' seats, with flips. That toggle and
-  that mechanic are gone — with them went `move_deck`, `flip_deck`, `flip_cards`,
-  `reorder_deck` and, on the client, the whole-deck drag and the deck-in-hand fan
-  geometry. Card-flip animation itself stayed: incoming `deck_fx` and server-side facing
-  changes use it, and future rules will need "a card lying face up on the table".
-- **Free mode** (`GameState.freeMode`, off until the dealer presses «ГОУ!») — the first
-  brick of the future rules system (rules will later be configs). It flips the room into
-  `phase: "playing"` WITHOUT dealing the deck out: the deck stays in the centre face
-  down, and every player pulls a card for themselves — `take_card` takes the top one by
-  default but accepts a POSITION, because the deck can be fanned out locally and any card
-  in the fan is grabbable; `take_all` empties the deck into one hand. The bottom bar shows
-  these as the shouts «соснуть»/«сосать» rather than as buttons labelled "take" (they're
-  the only labels that fit a 375px phone without being cut — the underlying
-  label-shortening still measures characters while the button is measured in pixels, so a
-  long label will get clipped again).
-  Nobody may put a card into someone else's hand — the dealer included:
-  `deal_card` answers `action_rejected` with `free_mode`. Two simultaneous pulls need no
-  extra logic — Colyseus processes messages one at a time, so the first taker gets the
-  top card and the second gets the next one. The only way out is `collect_hands`
-  («Перераздача»), which returns the room to `lobby` and to dealing. Note the side
-  effect of the phase change: the `phase === "lobby"` deck handlers (shuffling,
-  `reset_deck`) go away on their own — that is the intent.
-- **Dealer vote weight** is 1.01 (`DEALER_VOTE_WEIGHT` in `handRules.ts`), not 1.5: the
-  dealer only decides tied votes, two regular players always outweigh them. The client
-  must show the SAME weight (`client/src/game/voteWeight.ts`) — it used to display 1.5,
-  so the banner's progress bar disagreed with the actual outcome.
-- **Card counts on other players' seats show only while DEALING.** The dealer needs them
-  to see who got how many; in game the number of cards in a hand is game information, and
-  putting it on the table as a figure decides for rules that don't exist yet. In game a
-  seat shows what a real table shows — the hand itself, and nothing else (an empty seat
-  loses its «—» too). The flag reaches the paint through `SeatPaintDeps.inGame` and
-  `layoutSeatHand({ showCounter })`; the cards themselves are laid out identically either
-  way. Note `setFreeMode` has to repaint the seats for this, otherwise the counter hangs
-  around until some unrelated redraw.
-- **Ready state gates dealing** — the server won't accept `deal_card` for a player with
-  `isReady === false` (except the dealer, who is always ready). This is intentional,
-  even though it diverges from the very first task description ("don't care if they're
-  ready or not") — a decision made consciously during the work.
-- The dealer has special powers: shuffling/flipping/fanning the table deck, resetting
-  the whole deck and collecting everyone's cards back (`collect_hands`, `reset_deck`),
-  round-robin auto-dealing (dealer receives last).
-
-## Known trade-offs (deliberate, not forgotten)
-
-- `RoomEngine.ts` is still ~4700 lines, but no longer a wall: ~236 methods averaging 19
-  lines, the longest being `dropCard` (~150 — it now routes drops for the deck, discard
-  and every play stack) and `beginCardDrag` (76). What keeps it big is
-  ~120 private fields shared across gestures and animations — cutting it further means
-  moving state out of the class (separate gesture and animation owners), which is a
-  bigger change than anything done so far and needs a real reason to start. A staged split
-  plan (through composition, not method-moving) lives in `refactor-progress.md`.
-- Server message handlers are split by theme (`server/src/messages/*`) and get what they
-  need from the room through the `RoomHost` interface; every write to the schema goes
-  through `stateWrite.ts` (that's where the `clear()+push()` rule is enforced once).
-- There are no game rules (tricks, trumps, win conditions, etc.) in the code — only the
-  mechanics of owning and moving cards, on which rules can be layered later.
+- **The Bash tool's cwd drifts back to the repo root between calls** — always `cd` into the package
+  explicitly before `tsc`/`vitest`/`vite`.
+- **`tsc --noEmit` and the full test run must be green before anything is called done.** A failing
+  run is a rollback, not a "I'll fix it later".
+- **Never push without explicit approval.** Committing per stage is fine; pushing is the owner's call.
+- **A rule without a guard lives until the next context rebuild.** Every new law is born together
+  with the test that enforces it, and the guard is checked by making it FAIL once.
+- **Report in the form "closed / left".** "Done" only after an actual run and with numbers. Declaring
+  the whole thing finished when part of it is closed is the worst thing you can hand over: a report
+  without a run cannot be read without re-checking it.
+- **Do not comment your own edit history in the code** ("this used to be…", names of deleted files).
+  It goes stale first and misleads.
+- **Fix rather than delete.** If a name or a lever is criticised, change what was criticised — do not
+  remove the feature.
+- **Do not add what was not asked for**, and do not narrow the ask either.
 
 ## Closing an epic: the tidy-up protocol
 
-An epic isn't done when the code works — it's done when nothing is left lying around. Run this
-checklist every time, in this order (the order matters: history moves into the tickets BEFORE the
-files that hold it are deleted).
+An epic is done when nothing is left lying around. In this order — history moves into the tickets
+BEFORE the files that hold it are deleted:
 
-1. **Fill in the epic's documentation — in the tickets.** The epic issue is the durable home for
-   what was built, why it ended up that shape, which traps were hit and how the thing is verified
-   by hand. Code comments that reference a design decision point at the issue number, not at a
-   file that is about to disappear.
-2. **Delete the handoff files of that epic.** `*-HANDOFF.md` is scaffolding for work in flight:
-   it exists so the next agent can pick up an unfinished track. Once the track is closed, a stale
-   handoff is worse than no handoff — it describes a project that no longer exists, and someone
-   will follow it. History stays in the tickets and in git (`git log --diff-filter=D -- path`).
-   The general, epic-independent lessons move into `client2/docs/HANDOFF.md` or into this file,
-   because they outlive the epic.
+1. **Fill in the epic's documentation in the TICKETS.** The epic issue is the durable home for what
+   was built, why it ended up that shape, which traps were hit and how it is verified by hand. Code
+   comments pointing at a design decision reference the issue number, not a file about to disappear.
+2. **Delete that epic's handoff files.** `*-HANDOFF.md` is scaffolding for work in flight. Once the
+   track is closed, a stale handoff is worse than none — it describes a project that no longer
+   exists, and someone will follow it. History stays in the tickets and in git
+   (`git log --diff-filter=D -- path`). General, epic-independent lessons move into the enduring docs.
 3. **Close the epics and their sub-issues** (`gh issue close -r completed`, board → Done), with a
-   comment saying what was accepted, what merged and where it is deployed. Deferred epics are
-   closed as `not planned`, with a note on what of them arrived anyway.
-4. **Delete merged branches**, locally and on the remote. Unmerged branches are NOT deleted
-   silently — they are reported, with what is on them and why they are still alive.
-5. **Sweep the workspace**: stop dev servers started for the task, drop local build/test
-   artefacts (`test-results/`, `.playwright-mcp/`), check `git status` is clean.
-
-## Работа в полёте — читать ПЕРВЫМ
-
-Ветка `storybook`, каталог `client2` (Storybook на 6006, `npm run storybook`). `tsc` чист,
-тесты зелёные, всё накопленное закоммичено (не запушено).
-
-**`client2/docs/catalog-rules.md`** — единственная точка входа. Там:
-- правила каталога и визуальной модели, каждое с колонкой «сторож»: имя теста или прочерк.
-  Прочерк значит «правило держится только вниманием» — это и есть список работы;
-- внизу два места, которые НЕ РАБОТАЮТ: дроп в слот на доске (`Mechanics/Board`) и панель «Код»
-  в режиме стори.
-
-Правила в этом файле — требования владельца, каждое высказано после того, как было нарушено.
-Не выясняйте их заново и не переспрашивайте: читайте файл.
-
-**ПОРЯДОК РАБОТ — не спрашивать, брать сверху:**
-
-1. **Дроп в слот на доске** (`Mechanics/Board`). Сломано по существу: фигура тащится и
-   возвращается домой, `BoardZone.dropAt` слот не отдаёт — проверено и на занятой клетке, и на
-   пустой. Заодно описание раздела рассказывает про `rule` и `requiresCapability`, которые никто
-   не проверял: либо проверить, либо убрать до проверенного.
-2. **Сторожа для правил** — прочерки в таблице `catalog-rules.md`. Начинать с тех, что
-   проверяются чистой логикой без Pixi: раскладка стопки, `z`, автовписывание канваса, режимы
-   витрины, стиль-объект без регистрации, `boxFit` для остальных виджетов.
-3. **Панель «Код»** в режиме стори. Это удобство, а не поломка — последним.
-
-### Как ломали каталог 2026-08-02 — чего не повторять
-
-Всё ниже происходило в один день, и каждый раз находил владелец, а не я.
-
-- **Объявлял готовым целое, закрыв часть.** «Раздел показывает всё о тенях» — показывал карты в
-  ряд. «Show code починен» — работал один блок из десяти. Отчёт без прогона нельзя читать без
-  перепроверки, и это худшее, что можно сдать.
-- **Заводил страницы-перечни.** Восемь стори под значения одного аргумента, «все варианты в ряд».
-  Снёс по требованию — и через два часа завёл их снова в другом разделе.
-- **Русские имена в `name`.** Правило было записано с первого дня, нарушено четыре раза. Теперь
-  сторожится `argNames.test.ts`, но покрыты не все модули.
-- **Трижды чинил одну формулу тени.** Тень больше лежащей карты; перевёрнутый знак подъёма;
-  двойной учёт высоты. Причина одна: «высота» и «положение на экране» были перемешаны в одном
-  выражении. Отсюда ось `z` в `ui/elevation.ts` — не трогать это разделение.
-- **Добавлял, чего не просили** (блок «Как это поставить» вместо починки «Show code»), и **удалял
-  вместо починки**, когда критиковали название (рычаг профиля качества).
-- **Комментировал свою историю правок**, а не код: «раньше было так», имена удалённых файлов. Это
-  устаревает первым и вводит в заблуждение.
-- **Не ставил сторожей сразу.** Правило без теста живёт до первой пересборки контекста — отсюда и
-  колонка «сторож» с прочерками в `catalog-rules.md`.
-
-Отчёт формой «закрыто / осталось». «Готово» — только после прогона в браузере и с цифрами.
+   comment on what was accepted, what merged and where it is deployed. Deferred epics close as
+   `not planned`, noting what of them arrived anyway.
+4. **Delete merged branches**, locally and on the remote. Unmerged branches are NOT deleted silently
+   — report them, with what is on them and why they are still alive.
+5. **Sweep the workspace**: stop dev servers started for the task, drop local build/test artefacts
+   (`test-results/`, `.playwright-mcp/`), check `git status` is clean.
