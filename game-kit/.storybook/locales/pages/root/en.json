@@ -1,0 +1,51 @@
+{
+  "docs.root.component": [
+    "A root is a node that nobody placed. It has no owner, and no size of its own — its extent",
+    "comes from what it holds.",
+    "",
+    "There is no separate storage object in the kit: every node hangs off a root, so the root is",
+    "the store. Nothing sits above roots, which is why there is no word for the thing that holds",
+    "them.",
+    "",
+    "```ts",
+    "import { node, add, byId } from \"game-kit\"",
+    "",
+    "const root = node(\"root\")",
+    "add(root, node(\"hand\"))   // a child; the root is still the one node nobody placed",
+    "",
+    "byId(root, \"hand\")        // an index derived from the tree, not a second store",
+    "```",
+    "",
+    "## One name per tree",
+    "",
+    "Adding a second `hand` throws, and so does adding a subtree that carries a taken name anywhere",
+    "inside it. Replacing the older node would be worse than the error: the picture would still",
+    "look right while the identity behind it was lost. Two separate trees may each hold a `hand` —",
+    "names only have to be unique within one tree.",
+    "",
+    "## Notes",
+    "",
+    "- Being a root is not a type or a flag; it is the absence of an owner. Detach a child and it",
+    "  becomes a root on the spot. A root cannot become someone's child — it would stop being one.",
+    "- There are two roots on screen, and one difference between them: the camera transforms the",
+    "  canvas root and leaves the HUD root alone. That is the whole anchoring rule — there is no",
+    "  `anchor` field, the root a node belongs to is the answer.",
+    "- Pixels live in the host. Nodes are measured in units; the host owns the view, its size and",
+    "  the resize observer, and works out the HUD etalon as a fraction of the viewport."
+  ],
+  "docs.root.withChildren": [
+    "A root with two children: `root`, and under it `hand` and `discard`. Only the first entry in",
+    "the tree is marked `root · nobody places it`; the other two have an owner, and that is the",
+    "entire difference.",
+    "",
+    "The names come from the spec rather than a generator, which is what lets two devices agree on",
+    "which node a move is about. Type them in the controls and the tree follows.",
+    "",
+    "No `Container` atom is involved. Parent and child are part of a node: a place in the tree has",
+    "two directions, and one without the other means nothing. `Container` adds how children are",
+    "arranged, not whether they can exist."
+  ],
+  "docs.root.alone": [
+    "The same node as `Node → Bare`, seen from the other side: nobody placed it, so it is a root."
+  ]
+}

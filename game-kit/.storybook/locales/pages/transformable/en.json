@@ -1,0 +1,41 @@
+{
+  "docs.transformable.component": [
+    "`Transformable` is a node's own pose: where it sits, and how high it stands. It works on a",
+    "bare node and needs no box — a node can be somewhere without occupying anything, and the",
+    "desk is exactly that.",
+    "",
+    "```ts",
+    "import { node, Transformable } from \"game-kit\"",
+    "",
+    "const card = node(\"card\", Transformable({ at: { x: 2, y: 0 }, z: 1 }))",
+    "```",
+    "",
+    "## Fields",
+    "",
+    "- `at` — a position in units, relative to the owner. It belongs to this node alone; inside a",
+    "  container the layout decides it instead.",
+    "- `z` — height. It adds up along the chain of owners, so lifting a stack lifts everything in",
+    "  it. A child can add to its owner's `z` but cannot cancel it, which is what you expect from",
+    "  picking up a pack of cards.",
+    "",
+    "## `z` and the thickness of a stack",
+    "",
+    "A card inside a resting stack does not stand higher than the stack — its thickness is an `at`",
+    "offset, not `z`. Layouts can only produce positions: `place()` returns points, and a point has",
+    "no `z` to write, so \"a layout cannot change height\" holds by construction rather than by",
+    "convention.",
+    "",
+    "## Notes",
+    "",
+    "- Nothing resolved is stored on the node or sent over the wire. `z` is summed when the frame",
+    "  is drawn, so a node that changes owner mid-animation gets the new answer immediately.",
+    "- Two nodes with the same `z` keep tree order: the later sibling is painted on top."
+  ],
+  "docs.transformable.lifted": [
+    "Two overlapping plates, one lifted. The higher `z` is painted last, and the lift is the only",
+    "difference between them — same box, same kind of surface.",
+    "",
+    "The container uses the `free` layout, so each plate keeps the `at` it was given. Under `row`",
+    "they would be pulled apart and there would be nothing to overlap."
+  ]
+}

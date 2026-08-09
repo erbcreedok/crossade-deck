@@ -5,7 +5,7 @@
 // it puts into the ResolveContext.
 //
 // NOTE on the name: the HTMLCanvasElement is called `view`, never `canvas` — "Canvas" in this
-// project means the table space, and the collision has bitten before.
+// project means the desk space, and the collision has bitten before.
 //
 // Slice 1 draws nothing: with only Node and Root there is no atom that paints. Pixi arrives
 // with `Surfaced`, in `render/pixi.ts`, and that will be its only import site in the tree.
@@ -25,7 +25,17 @@ export interface Viewport {
 
 export interface Host {
   readonly view: HTMLCanvasElement;
+  /** The tree currently on screen. Read on every draw, so it may be replaced under way. */
   readonly root: Node;
+  /**
+   * Show a different tree in the same view.
+   *
+   * New data — a move from the server, a save loaded, a spec edited — replaces what is drawn,
+   * it does not replace the canvas. Tearing the host down and building another would drop the
+   * WebGL context and every viewer setting with it, and a browser only hands out about a dozen
+   * contexts before it starts taking them back.
+   */
+  setRoot(next: Node): void;
   /** The viewer plane, carried once so a scene does not wire each toggle by hand. */
   viewer(): ViewerSettings;
   setViewer(next: ViewerSettings): void;
@@ -48,6 +58,7 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
   const listeners = new Set<() => void>();
   let box: Viewport = measure(container, view);
   let viewer: ViewerSettings = initialViewer;
+  let tree: Node = root;
 
   const sync = (): void => {
     box = measure(container, view);
@@ -64,11 +75,27 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
 
   // The viewer's override wins: this is the accessibility knob, and sizes in units are
   // untouched by it — only how many pixels one unit is worth for THIS onlooker.
-  const unit = (): number => viewer.hudUnit ?? Math.round(Math.min(box.width, box.height) * HUD_UNIT_FRACTION);
+  //
+  // AND NEVER ZERO. The viewport is already floored at one pixel, but a quarter of one pixel
+  // rounds to nothing — and an etalon of nothing says one world unit is worth no pixels at all.
+  // Nothing crashes: the plan guards its division and every quad comes out at zero scale, so a
+  // container measured before layout — or on a hidden tab — draws a blank canvas and reports
+  // success. One pixel is wrong too, but it is VISIBLY wrong, and it recovers on the next
+  // resize.
+  const unit = (): number =>
+    viewer.hudUnit ?? Math.max(1, Math.round(Math.min(box.width, box.height) * HUD_UNIT_FRACTION));
 
   return {
     view,
-    root,
+    // A getter, not the value it was mounted with: everything downstream reads `host.root` at
+    // draw time, so replacing the tree is enough to redraw a different one.
+    get root() {
+      return tree;
+    },
+    setRoot(next) {
+      tree = next;
+      for (const l of listeners) l();
+    },
     viewport: () => box,
     unit,
     viewer: () => viewer,

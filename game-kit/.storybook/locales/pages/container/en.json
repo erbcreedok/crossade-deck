@@ -1,0 +1,49 @@
+{
+  "docs.container.component": [
+    "`Container` decides how a node's children are arranged.",
+    "",
+    "It does not give a node children — a node can already hold them with no atoms composed on it",
+    "at all. An atom carrying only the link would carry nothing, so arrangement is the whole of it.",
+    "Where a node itself sits is a separate question, answered by `Transformable`.",
+    "",
+    "```ts",
+    "import { node, add, Container, Transformable, placeChildren } from \"game-kit\"",
+    "",
+    "const desk = node(\"desk\", Container({ layout: \"free\" }))   // places nobody",
+    "add(desk, node(\"card\", Transformable({ at: { x: 2, y: 0 } })))",
+    "",
+    "placeChildren(desk).get(\"card\")   // { x: 2, y: 0 } — the child's own pose stands",
+    "```",
+    "",
+    "## Fields",
+    "",
+    "- `layout` — the name of a registered layout record. Two come with the kit: `free`, which",
+    "  places nobody and leaves each child its own `at`, and `row`, which places everyone.",
+    "",
+    "## Notes",
+    "",
+    "- A layout that places overrides the child's `at` rather than adding to it.",
+    "- Options such as spacing belong to the layout record, not to the container. A gap means",
+    "  something in a row and nothing in a free layout, and a field most arrangements cannot use is",
+    "  a field that gets misread.",
+    "- A layout can only return positions, never heights — see `Transformable`.",
+    "- An unknown layout name places nobody rather than throwing, for the same reason an unknown",
+    "  surface is skipped: a content mistake should not take the scene down with it."
+  ],
+  "docs.container.free": [
+    "Three plates, each with a pose of its own, under a layout that declines to place them. This is",
+    "the \"put things anywhere\" canvas, and it is not a mode or a second kind of container — just",
+    "the smallest possible layout record, one that returns nothing for every child.",
+    "",
+    "Compare it with `Row`: the tree is identical, down to the poses. Only the layout's name is",
+    "different."
+  ],
+  "docs.container.row": [
+    "The same three plates with the same three poses, and none of those poses survive: a layout",
+    "that places, places.",
+    "",
+    "Each child takes as much room as its own footprint needs, so a row is not a grid of equal",
+    "cells. A child with no box takes no width and is still placed — removing a box should not",
+    "quietly shuffle its neighbours."
+  ]
+}

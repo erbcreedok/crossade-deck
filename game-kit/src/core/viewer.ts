@@ -37,6 +37,15 @@ export interface ViewerSettings {
    * onlooker is shown, never what is true.
    */
   readonly debugBounds?: boolean;
+  /**
+   * Rule the view with one line per unit.
+   *
+   * A second debug layer, and separate from `debugBounds` because it answers a different
+   * question: the outline says where a node is, the grid says how big anything is — without a
+   * node being involved at all. A reader describing a size in units can read it off the scene
+   * instead of counting on trust.
+   */
+  readonly debugGrid?: boolean;
 }
 
 export const DEFAULT_VIEWER: ViewerSettings = { theme: "dark" };

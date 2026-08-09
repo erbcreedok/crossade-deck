@@ -4,8 +4,9 @@ import { Bounded } from "./bounded.js";
 import { Container, contentExtent, placeChildren, registerLayout, resetLayouts } from "./container.js";
 import { freeLayout, rowLayout } from "./layouts.js";
 import { Transformable } from "./transformable.js";
+import { rect } from "../shapes.js";
 
-const box = (w: number, h: number) => Bounded({ size: { kind: "rect", w, h } });
+const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 
 beforeEach(() => {
   resetLayouts();
@@ -83,7 +84,7 @@ describe("Container", () => {
   });
 
   it("atom.container.content-extent — the other source of area, for a node with no box", () => {
-    // This is what lets the tabletop carry a surface: it has something to paint and no
+    // This is what lets the desk carry a surface: it has something to paint and no
     // footprint of its own.
     const root = node("c21", Container({ layout: "row" }));
     add(root, node("c22", box(1, 2)));
@@ -99,5 +100,17 @@ describe("Container", () => {
     const root = node("c25", Container({ layout: "free" }));
     add(root, node("c26"));
     expect(contentExtent(root)).toEqual({ w: 0, h: 0 });
+  });
+
+  it("layout.reserves-room-for-the-scaled-child — a card at twice the size is twice as wide", () => {
+    // A layout reserves room for what it is going to SEE. Measured at one and drawn at two, the
+    // card overlaps its neighbour — which looks like a broken layout and is a forgotten
+    // multiplication. It looked exactly like that on the canvas the day scale arrived.
+    const row = node("c40", Container({ layout: "row" }));
+    add(row, node("c41", Bounded({ bounds: rect(1, 1) }), Transformable({ scale: 2 })));
+    add(row, node("c42", Bounded({ bounds: rect(1, 1) })));
+    const [first, second] = [...placeChildren(row).values()];
+    // Half of the big one plus half of the small one, with the row's gap of zero: 1 + 0.5.
+    expect(second!.x - first!.x).toBeCloseTo(1.5, 9);
   });
 });

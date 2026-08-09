@@ -43,6 +43,23 @@ export function sumAlongChain(ctx: ResolveContext, atom: string, field: string):
   return total;
 }
 
+/**
+ * Product of one numeric field along the whole chain — the `multiplies` class.
+ *
+ * The neutral value is ONE, not zero, and that is the whole reason this is its own function
+ * rather than a flag on the sum: a missing scale means "unchanged", and a sum would read it as
+ * "gone".
+ */
+export function productAlongChain(ctx: ResolveContext, atom: string, field: string): number {
+  let total = 1;
+  for (const owner of ctx.chain) {
+    const f = fieldsOf<Record<string, unknown>>(owner, atom);
+    const v = f?.[field];
+    if (typeof v === "number") total *= v;
+  }
+  return total;
+}
+
 /** Nearest set value from the node upwards — the `fromOwner` class. */
 export function nearestAlongChain<T>(ctx: ResolveContext, atom: string, field: string): T | undefined {
   for (let i = ctx.chain.length - 1; i >= 0; i -= 1) {

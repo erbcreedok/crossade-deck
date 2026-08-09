@@ -2,63 +2,37 @@
 //
 // Its requirement is the reason requirements may be ALTERNATIVES at all. A surface needs an
 // AREA, and an area has two sources: an own box (`Bounded`) or the extent of the content
-// (`Container`). Demanding `Bounded` would outlaw the tabletop, which has something to paint
+// (`Container`). Demanding `Bounded` would outlaw the desk, which has something to paint
 // and no footprint of its own.
 //
 // `surface` is a REGISTRY REFERENCE, not a bag of colours on the node. Re-register the record
-// without a border and the border is gone from every card at once while the box stays exactly
-// where it was — that is the lesson, and inline fields cannot demonstrate it. It also keeps
-// the wire honest: `"plate"` is the same short string on every client, whereas a palette
+// without its stroke and the border is gone from every card at once while the box stays
+// exactly where it was — that is the lesson, and inline fields cannot demonstrate it. It also
+// keeps the wire honest: `"plate"` is the same short string on every client, whereas a palette
 // copied into each message is state two clients may legitimately disagree about.
+//
+// ONE FIELD, ON PURPOSE. `fit` and `align` used to live here — how a picture meets the area it
+// is given. They were declared before the record had layers or pictures at all, so nothing
+// ever read them: two controls a reader could move with no effect on anything. Their home is
+// the LAYER, where a picture and an area actually meet, and they come back with the picture.
+// A node-level copy would be a second place saying one thing, and an inherited one at that:
+// "why is this card's face cropped" would be answered by a zone three levels up.
 
 import { defineAtom } from "../atom.js";
 import { caps, fieldsOf, type Node } from "../node.js";
-import { nearestAlongChain, type ResolveContext } from "../resolve.js";
 import { extentOf, footprint } from "./bounded.js";
 import { contentExtent } from "./container.js";
 
-/** How the record's picture meets the area it is given. */
-export type Fit = "contain" | "cover" | "repeat" | "original" | "fitX" | "fitY";
-
-export type Align =
-  | "center"
-  | "top"
-  | "bottom"
-  | "left"
-  | "right"
-  | "topLeft"
-  | "topRight"
-  | "bottomLeft"
-  | "bottomRight";
-
 export interface SurfacedFields {
   readonly surface: string;
-  /**
-   * `fit` and `align` come FROM THE OWNER, so they are `undefined` by default rather than
-   * pre-filled with "contain": a field carrying the default on every node is a field that is
-   * always set, and nothing would ever be inherited. The fallback is applied at resolve time.
-   */
-  readonly fit: Fit | undefined;
-  readonly align: Align | undefined;
 }
 
 export const Surfaced = defineAtom<SurfacedFields>({
   name: "Surfaced",
   requires: [["Bounded", "Container"]],
-  defaults: { surface: "plate", fit: undefined, align: undefined },
-  classes: { surface: "own", fit: "fromOwner", align: "fromOwner" },
+  defaults: { surface: "plate" },
+  classes: { surface: "own" },
 });
-
-export const DEFAULT_FIT: Fit = "contain";
-export const DEFAULT_ALIGN: Align = "center";
-
-export function resolveFit(ctx: ResolveContext): Fit {
-  return nearestAlongChain<Fit>(ctx, "Surfaced", "fit") ?? DEFAULT_FIT;
-}
-
-export function resolveAlign(ctx: ResolveContext): Align {
-  return nearestAlongChain<Align>(ctx, "Surfaced", "align") ?? DEFAULT_ALIGN;
-}
 
 /**
  * The area a surface is painted onto, in units — an own box first, the content's extent

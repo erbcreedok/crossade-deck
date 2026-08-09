@@ -18,6 +18,7 @@ import "./core/atoms/bounded.js";
 import "./core/atoms/container.js";
 import "./core/atoms/surfaced.js";
 import "./core/atoms/transformable.js";
+import { rect } from "./core/shapes.js";
 
 const SRC = new URL("./", import.meta.url).pathname;
 // The catalog is real code — its page, panels, scenes, stories and words — so the rules reach
@@ -74,17 +75,49 @@ function hits(re: RegExp, opts: { raw?: boolean; skip?: (rel: string) => boolean
   return out;
 }
 
+/**
+ * A `name: { ... }` object literal out of source, as data. Brace-matched rather than regexed:
+ * the value is nested, and a regex that thinks it can read nested braces is a regex that reads
+ * half of one and reports success.
+ */
+function objectLiteral(source: string, name: string): Record<string, string[]> {
+  const at = source.indexOf(`${name}:`);
+  if (at < 0) return {};
+  const open = source.indexOf("{", at);
+  let depth = 0;
+  let end = open;
+  for (let i = open; i < source.length; i += 1) {
+    if (source[i] === "{") depth += 1;
+    if (source[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  const literal = source
+    .slice(open, end)
+    .replace(/\/\/[^\n]*/g, "")
+    .replace(/(\w+)\s*:/g, '"$1":')
+    .replace(/,(\s*[\]}])/g, "$1");
+  return JSON.parse(literal) as Record<string, string[]>;
+}
+
 describe("guards", () => {
   it("guard.no-kind — behaviour never reads a sort", () => {
     // The rule is about NODES: nothing asks "what sort of element is this", it asks for the
-    // atom it needs (hit-testing → Bounded, painting → Surfaced). A `Shape` is not a node and
-    // has no atoms to ask, and a circle's extent cannot be computed without telling it from a
-    // rect — so the union is discriminated in exactly ONE file, the one that declares it.
-    // Everywhere else the answer is `extentOf`, which is what keeps the branching from
-    // spreading. Widening this exemption to a second file means the rule has stopped holding.
-    expect(hits(/\.kind\s*===|switch\s*\(\s*\w+\.kind\s*\)/, { skip: (r) => r === "core/atoms/bounded.ts" })).toEqual(
-      [],
-    );
+    // atom it needs (hit-testing → Bounded, painting → Surfaced).
+    //
+    // It now holds with NO exemptions, and that is new. A `Shape` used to be a tagged union of
+    // four, so the file that declared it had to be let off — and the catalog's builder after it,
+    // and the rule was two files from meaningless. A shape is one thing now: a path. The tag
+    // bought nothing, cost a branch in every consumer, and the exemption it needed was the
+    // clearest sign of it.
+    //
+    // The catalog's `preset` is not a counter-example: it picks which HELPER to call, and the
+    // helpers return the same one type. Nothing reads a sort off a value.
+    expect(hits(/\.kind\s*===|switch\s*\(\s*\w+\.kind\s*\)/)).toEqual([]);
   });
 
   it("guard.no-negation — capability is by presence, restriction by absence", () => {
@@ -117,9 +150,16 @@ describe("guards", () => {
 
   it("guard.english-only — code is English; the words live in bundles", () => {
     // Raw on purpose: the rule covers comments too. The one place allowed to hold another
-    // alphabet is `locales/` — the bundles themselves and the test that asserts what they
-    // say. Everywhere else, identifiers English and captions as keys.
-    expect(hits(/[\u0400-\u04FF]/, { raw: true, skip: (r) => r.startsWith("catalog/locales/") })).toEqual([]);
+    // alphabet is `locales/` — the bundles themselves and the test that asserts what they say.
+    //
+    // `testPlan.test.ts` is the second, and by the same reasoning rather than as an escape: it
+    // PARSES a Russian document. The header it counts rows out of says «расписано», and a
+    // scanner forbidden from naming the word it looks for cannot look for it. The alternative
+    // was to make the plan's own headers English — the guard editing the owner's document to
+    // suit itself.
+    const readsAnotherLanguage = (r: string): boolean =>
+      r.startsWith("catalog/locales/") || r === "testPlan.test.ts";
+    expect(hits(/[\u0400-\u04FF]/, { raw: true, skip: readsAnotherLanguage })).toEqual([]);
   });
 
   it("guard.layering — imports point DOWN the ladder, never up", () => {
@@ -183,7 +223,10 @@ describe("guards", () => {
     // `raw` for the same reason as the pixi guard: a specifier lives inside a string.
     expect(kit.filter((f) => /from\s+["'][^"']*\.json["']/.test(f.raw)).map((f) => f.rel)).toEqual([]);
     expect(
-      hits(/\btranslate\s*\(|\bcountLabel\s*\(|\bLOCALES\b|\bTextSource\b|\bi18n\b|\blocale\b/i, {
+      // `translate` only as a FREE function: the renderer's `Matrix.translate` is geometry and
+      // has nothing to do with words. A guard that cannot tell a method call from an i18n
+      // helper is a guard someone deletes the first time it is right about nothing.
+      hits(/(?<![.\w])translate\s*\(|\bcountLabel\s*\(|\bLOCALES\b|\bTextSource\b|\bi18n\b|\blocale\b/i, {
         skip: inCatalog,
       }),
     ).toEqual([]);
@@ -245,14 +288,93 @@ describe("guards", () => {
     }
   });
 
-  it("guard.every-field-declares-a-class — there are four rules and no field without one", () => {
+  it("guard.every-field-declares-a-class — there are five rules and no field without one", () => {
     // Not a scan: a scan cannot see an atom assembled at runtime. Importing the real atoms
     // and asking the registry is what actually covers them.
     for (const def of allAtoms()) {
       const declared = def.classes as Record<string, string>;
       for (const field of Object.keys(def.defaults)) {
         expect(declared[field], `${def.name}.${field} declares no inheritance class`).toBeTruthy();
-        expect(["own", "fromOwner", "addsUp", "rootOnly"]).toContain(declared[field]);
+        expect(["own", "fromOwner", "addsUp", "multiplies", "rootOnly"]).toContain(declared[field]);
+      }
+    }
+  });
+
+  it("guard.no-desk-called-table — the word means a data table and nothing else", () => {
+    // Two meanings under one word is how `interface` and `canvas` went wrong before it, and
+    // the ambiguity is worst exactly where it matters: a comment saying "on the table" reads
+    // as furniture to one person and as a grid to the next. The desk is a Desk.
+    // A blanket ban would be wrong: a controls table and a table of contents are tables, and
+    // this file has to be able to tell them apart or it gets switched off. So it bans what is
+    // never anything else — `tabletop`, and the furniture phrases — plus the word as an
+    // IDENTIFIER, which is where the ambiguity actually costs something.
+    //
+    // Whole words, and `raw` for the prose ones: a substring scan flags `untestable` and
+    // `stable`, and a guard that fails on the word "unstable" gets ignored within a day.
+    expect(hits(/\btabletops?\b|\bon the tables?\b|\btable (surface|space)\b/i, { raw: true })).toEqual([]);
+    // TWO exemptions, both named and both the same one: `argTypes[name].table` is Storybook's
+    // own key for the controls TABLE, which is a table, and renaming someone else's API is not
+    // on offer. The second file is the test that reads that key back. Every other file means
+    // the rule has stopped holding.
+    const storybooksOwnKey = new Set(["catalog/stories/surfaceControls.ts", "catalog/stories/controls.test.ts"]);
+    expect(hits(/\btables?\b/, { skip: (r) => storybooksOwnKey.has(r) })).toEqual([]);
+
+    // AND THE PROSE, which is where it actually mattered. The scan above reads `.ts` and `.tsx`
+    // only, so the bundles — the words a reader sees — were never covered: the Introduction
+    // page opened on "tabletop games: the physical mechanics of a table" for as long as it had
+    // existed. A rule enforced everywhere except in front of the reader is not enforced.
+    //
+    // Russian too: `стол` is the desk and `таблица` is the table, and neither is ambiguous —
+    // what is banned here is the English word leaking into either bundle.
+    const bundles = readdirSync(join(CATALOG, "locales"), { recursive: true, encoding: "utf8" })
+      .filter((rel) => rel.endsWith(".json"))
+      .map((rel) => ({ rel, text: readFileSync(join(CATALOG, "locales", rel), "utf8") }));
+    // Not vacuous: a scan that found no files would agree with itself forever, and this file
+    // has been bitten by exactly that shape of nothing before.
+    expect(bundles.length).toBeGreaterThan(0);
+    const inProse = bundles.flatMap(({ rel, text }) =>
+      text
+        .split("\n")
+        .map((line, i) => ({ line, i }))
+        .filter(({ line }) => /\btabletops?\b|\bon the tables?\b|\btable (surface|space)\b|node\("table"/i.test(line))
+        .map(({ line, i }) => `locales/${rel}:${i + 1}  ${line.trim()}`),
+    );
+    expect(inProse).toEqual([]);
+  });
+
+  it("guard.every-field-has-a-control — an atom's field a reader cannot touch is invisible", () => {
+    // This is the rule the catalog broke: `Surfaced` declared three fields and its section
+    // offered one control, so two of them could not be found by reading the catalog at all.
+    // A story states which of its arguments serve which field, and the set of fields must be
+    // the atom's OWN set — so a new field fails here, on the day it is added.
+    for (const def of allAtoms()) {
+      const story = files.find((f) => f.rel.startsWith("catalog/stories/") && f.raw.includes(`gkAtom: "${def.name}"`));
+      expect(story, `no catalog section declares gkAtom: "${def.name}"`).toBeTruthy();
+
+      const covered = objectLiteral(story!.raw, "gkFields");
+      expect(Object.keys(covered).sort(), `${def.name}: gkFields does not match the atom's fields`).toEqual(
+        Object.keys(def.defaults).sort(),
+      );
+
+      for (const [field, serves] of Object.entries(covered)) {
+        expect(serves.length, `${def.name}.${field} is reachable from nowhere`).toBeGreaterThan(0);
+        for (const name of serves) {
+          // Either an argument of the catalog's sections, or a scene of its own: a field can be
+          // taught by two pictures side by side as honestly as by a dropdown, and
+          // `Container.layout` is, deliberately. What the guard will not accept is a field
+          // served by neither.
+          //
+          // Searched across the whole stories directory, not one file: the shape and record
+          // controls are declared once and shared, which is what stopped them drifting apart in
+          // the first place. That makes this check say "the catalog declares this control"
+          // rather than "this section does" — the stronger claim, that a control is actually
+          // wired into THIS story, is beyond a scan, and `controls.test.ts` carries the part of
+          // it that can be checked by running the code.
+          const declared = new RegExp(`\\b${name}\\s*:`);
+          const isArg = files.some((f) => f.rel.startsWith("catalog/stories/") && declared.test(f.code));
+          const isScene = new RegExp(`export const ${name}\\b`).test(story!.code);
+          expect(isArg || isScene, `${def.name}.${field}: nothing in the catalog is named ${name}`).toBe(true);
+        }
       }
     }
   });
@@ -261,8 +383,8 @@ describe("guards", () => {
     // `z` adds up along the chain, so a layout writing it would raise every child of a raised
     // container twice. A stack expresses its thickness as an `at` offset, and this is why.
     const children = [
-      { id: "a", footprint: { kind: "rect", w: 1, h: 1 } as const, at: undefined },
-      { id: "b", footprint: { kind: "rect", w: 1, h: 1 } as const, at: undefined },
+      { id: "a", footprint: rect(1, 1 ) , at: undefined },
+      { id: "b", footprint: rect(1, 1 ) , at: undefined },
     ];
     for (const record of [freeLayout, rowLayout({ gap: 0.2 })]) {
       for (const pose of record.place(children)) {
@@ -274,5 +396,25 @@ describe("guards", () => {
   it("guard.spec-holds-no-functions — enforced at runtime too, not by scan alone", () => {
     // A scan cannot see a value built at runtime, so atom.ts checks it as well.
     expect(files.find((f) => f.rel === "core/atom.ts")!.code).toMatch(/assertSerializable/);
+  });
+  it("container.no-state-diffs — a mechanic is a layout reference, not a machine", () => {
+    // client1's lesson, as a scan. "The deck becomes a fan" was a state machine there, with a
+    // diff between two shapes and a registry of mechanics to look them up in. Here it is one
+    // word changing on one field: the children never move, the sprites keep their identity, and
+    // the springs actually play. A `stateDiff` reappearing is that whole apparatus coming back.
+    expect(hits(/\bstateDiff\b|\bdiffState\b|\bmechanicRegistry\b|\bMECHANICS\b/i)).toEqual([]);
+  });
+
+  it("unit.the-desk-has-none — a screen fraction exists once, and it is the HUD's", () => {
+    // Two measures and one place they meet. A desk size is a WORLD number: a card is 1 unit
+    // wide wherever it is looked at, and fitting it on the glass is the camera's problem. The
+    // HUD is the exception on purpose — it is measured against the SCREEN — and it owns the one
+    // fraction in the kit. A second one would be a desk size that quietly follows the viewport.
+    const fractions = files
+      .filter((f) => !inCatalog(f.rel) && !f.rel.endsWith(".test.ts"))
+      .flatMap((f) =>
+        [...f.code.matchAll(/\b([A-Z_]*FRACTION[A-Z_]*)\b/g)].map((m) => `${f.rel}  ${m[1]}`),
+      );
+    expect([...new Set(fractions.map((r) => r.split("  ")[1]))]).toEqual(["HUD_UNIT_FRACTION"]);
   });
 });

@@ -46,8 +46,39 @@ export { allAtoms, classOf, defineAtom, type Atom, type AtomDef, type InheritCla
 // ---- core: the atoms ---------------------------------------------------------------------
 // The load-bearing ladder, in dependency order. Each one is a separate import so a consumer
 // can see, from this list alone, what the kit knows how to be.
-export { Bounded, extentOf, footprint, outlineOf, type BoundedFields, type Point, type Shape } from "./core/atoms/bounded.js";
+// `compose` is already taken, by the thing that composes ATOMS into a node — the older and more
+// central of the two meanings, so the geometry one yields rather than shadowing it.
+export {
+  apply,
+  chain as chainTransforms,
+  compose as composeTransforms,
+  IDENTITY,
+  invert,
+  move,
+  pose,
+  rotate,
+  scale,
+  type Transform,
+  type Vec,
+} from "./core/transform.js";
+export { Bounded, extentOf, footprint, outlineOf, type BoundedFields, type PathSegment, type Point, type Shape } from "./core/atoms/bounded.js";
+// The shapes a designer asks for, as ordinary functions. A `Shape` has no sorts; these build
+// one, so a new shape is a new function rather than a new branch in five files.
+export {
+  circle,
+  ellipse,
+  fromSvgPath,
+  polygon,
+  polyline,
+  rect,
+  roundedRect,
+  star,
+  transformShape,
+  type ShapeTransform,
+} from "./core/shapes.js";
 export { Transformable, resolveZ, type TransformableFields } from "./core/atoms/transformable.js";
+// The node's own answer to "fold my geometry, or hand it over as a matrix?" — see `attachPainter`.
+export { Bakeable, bakeable, type BakeableFields } from "./core/atoms/bakeable.js";
 export {
   Container,
   contentExtent,
@@ -59,18 +90,7 @@ export {
   type LayoutRecord,
 } from "./core/atoms/container.js";
 export { freeLayout, installStockLayouts, rowLayout, type RowOptions } from "./core/atoms/layouts.js";
-export {
-  Surfaced,
-  areaOf,
-  paintable,
-  resolveAlign,
-  resolveFit,
-  DEFAULT_ALIGN,
-  DEFAULT_FIT,
-  type Align,
-  type Fit,
-  type SurfacedFields,
-} from "./core/atoms/surfaced.js";
+export { Surfaced, areaOf, paintable, type SurfacedFields } from "./core/atoms/surfaced.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
@@ -79,13 +99,42 @@ export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from 
 // ---- render: pixels ---------------------------------------------------------------------
 export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/host.js";
 export { attachPainter } from "./render/stage.js";
-export { boundsMarks, scenePlan, originsOf, type Mark, type PlanInput, type Quad } from "./render/scenePlan.js";
+export {
+  bakePlan,
+  boundsMarks,
+  gridMarks,
+  scenePlan,
+  transformsOf,
+  viewTransform,
+  type Mark,
+  type PlanInput,
+  type Quad,
+  type QuadImage,
+  type QuadLayer,
+  type QuadStroke,
+} from "./render/scenePlan.js";
+export { dashContour, perimeter, surfaceOutline, type DashOptions } from "./render/contour.js";
+export { assetNames, assetRecord, registerAsset, resetAssets, type AssetRecord } from "./render/assets.js";
+export {
+  fitBox,
+  DEFAULT_ALIGN,
+  DEFAULT_FIT,
+  type Align,
+  type Fit,
+  type Placed,
+} from "./render/fitBox.js";
 export { type Painter } from "./render/painter.js";
 export {
   installStockSurfaces,
   registerSurface,
   surfaceNames,
   surfaceRecord,
+  type DashPattern,
+  type LineCap,
+  type LineJoin,
+  type Paint,
+  type PaintLayer,
+  type Stroke,
   type SurfaceRecord,
 } from "./render/surfaces.js";
 export {

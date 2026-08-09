@@ -1,0 +1,13 @@
+{
+  "docs.tests.node": [
+    "This section is the catalog CHECKING ITSELF, rung by rung. Open a story and its checks run right away — opening the page is the request. Each step ticks past in the Interactions panel below the canvas (or behind the drawer button on a phone), and a red step names the claim that broke, not just the story.",
+    "The steps make the one measurement no headless layer can: they read pixels off a real WebGL canvas. \"The plan says draw a square\" and \"a square is on the glass\" have been different statements in this project before.",
+    "Automation opens the same stories and asserts on the same steps — one body, two consumers, no second copy to keep in step."
+  ],
+  "docs.tests.node.lifecycle": "The first rung, and the one the rest stand on: a node is there, it goes, it comes back. The scene is fed a tree without the card and then one with it again — a new tree is new DATA, not a new showcase, so the canvas underneath never changes and no second WebGL context is spent. The last step runs twenty rounds and compares the first pixel to the final one: a renderer that ACCUMULATES looks right on frame one and wrong on frame twenty.",
+  "docs.tests.bounded": [
+    "The second rung: the box. Bounded is the one atom whose whole lesson is invisible — it declares room and paints nothing — so every claim here is made through the debug outline, the same way the Atoms/Bounded shelf shows it.",
+    "The measurements are whole-glass, not point probes: an outline is a stroke a couple of device pixels wide, and a check that samples points either misses it or has to know where the stroke runs. The steps read the full buffer and answer with a count of inked pixels and their bounding box — a size claim is a claim about that box."
+  ],
+  "docs.tests.bounded.outline": "Four claims on one canvas: the outline is the ONLY ink (the middle of the box still reads as desk — Bounded has no fill); a wider rect is a wider outline and no taller; square, circle, star and a hand-written path each leave a different pattern on the glass; and a node without Bounded leaves it bare — zero pixels, not merely fewer."
+}

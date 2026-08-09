@@ -3,7 +3,7 @@
 // A bare node is VALID. It draws nothing, does nothing, and that is not a stub — it is the
 // definition. Everything a node can do arrives as an atom.
 //
-// The word "element" is spoken language for a thing on the table, and the name of a catalog
+// The word "element" is spoken language for a thing on the desk, and the name of a catalog
 // root. There is no `isElement()` here and there must not be: systems ask for the atom they
 // need (`Bounded` for a hit test, `Surfaced` for drawing). A category with no independent
 // use is a word we retire.
@@ -63,6 +63,12 @@ export function localIds(prefix = "node"): IdSource {
 }
 
 export function node(id: NodeId, ...atoms: Atom[]): Node {
+  // AN ID IS HOW A NODE IS REFERRED TO, so there has to be something to say. The kit never
+  // parses one — any hash, any compound string, any alphabet is fine (`guard.id-is-opaque`) —
+  // but an empty one names nothing: it cannot be spoken between two clients, `byId` cannot
+  // tell two of them apart, and a tree holding several was legal until the check above was
+  // fixed. Loud at birth, where the caller is still on the stack.
+  if (id === "") throw new Error("a node needs an id: the empty string names nothing");
   const n: Node = { id, parent: null, children: [], atoms: new Map() };
   for (const a of atoms) compose(n, a);
   return n;
@@ -122,7 +128,11 @@ export function add(parent: Node, child: Node): Node {
   // still on the stack, rather than as a desync a week later. Replacing the older node
   // silently would be worse still: a plausible picture built on a lost identity.
   const clash = firstSharedId(rootOf(parent), child);
-  if (clash) throw new Error(`id ${clash} is already in this tree`);
+  // AGAINST `undefined`, NOT FOR TRUTH. `if (clash)` read false for the one id that is falsy —
+  // the empty string — so a tree accepted two nodes both answering to `""` and every `byId`
+  // after that was a coin toss. The check that exists to make a collision loud was the one
+  // place it could happen in silence.
+  if (clash !== undefined) throw new Error(`id ${clash} is already in this tree`);
   child.parent = parent;
   parent.children.push(child);
   return parent;

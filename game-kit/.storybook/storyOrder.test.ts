@@ -29,7 +29,13 @@ function declaredOrder(): unknown[] {
       }
     }
   }
-  return JSON.parse(src.slice(src.indexOf("[", start), end).replace(/,(\s*[\]}])/g, "$1")) as unknown[];
+  // Comments and trailing commas are legal in the source and not in JSON. Stripping them here
+  // beats forbidding them there: the list is exactly where an explanation is worth having.
+  const literal = src
+    .slice(src.indexOf("[", start), end)
+    .replace(/\/\/[^\n]*/g, "")
+    .replace(/,(\s*[\]}])/g, "$1");
+  return JSON.parse(literal) as unknown[];
 }
 
 function flatten(order: unknown[]): string[] {

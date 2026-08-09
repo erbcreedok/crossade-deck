@@ -2,7 +2,7 @@
 // under it, and nothing drawn on top of either.
 //
 // The tree used to sit beside the stage in the same box. On a phone that left a strip of
-// table and a column of text — so the scene now only REPORTS what it holds, and the catalog
+// desk and a column of text — so the scene now only REPORTS what it holds, and the catalog
 // draws it where there is room: the panel next to Controls in story mode, a block under the
 // canvas on a docs page.
 //
@@ -46,8 +46,17 @@ export interface Scene {
   readonly host: Host;
   /** Who this scene publishes as — the catalog matches a tree block to it by this. */
   readonly id: string;
+  /**
+   * Settled when the FIRST frame is genuinely on the glass, rejected if the renderer dies on
+   * the way up. An event, not a timeout: on a dev server the renderer arrives through a
+   * dynamic import that a cold cache can hold up for a minute, and any deadline a check
+   * could pick is either too short for that or long enough to hang a real failure on.
+   */
+  readonly ready: Promise<void>;
   /** Re-apply theme, language and the rest without rebuilding the scene. */
   setSettings(next: CatalogSettings): void;
+  /** Show a different tree in the same view — see `scene()` on why this is not a rebuild. */
+  setRoot(next: Node): void;
   /** Stop following the catalog and tear the view down. */
   dispose(): void;
 }
@@ -68,18 +77,42 @@ export type MakePainter = (view: HTMLCanvasElement, size: PainterSize) => Painte
 /**
  * The scene currently standing for each story id.
  *
- * Storybook rebuilds a story on every argument change and hands the renderer a fresh element;
- * it does not tell the old one to go away. Without this, moving a slider would leave a live
- * host, a live painter and a WebGL context behind on every step — and a browser gives out
- * about a dozen contexts before it starts taking them back.
+ * Storybook calls a story again on every argument change and expects an element back; it never
+ * tells the previous one to go away. This map is what makes the second call a FEED rather than
+ * a build — see `scene()` — so one story owns one host, one painter and one WebGL context for
+ * as long as it is open. A browser gives out about a dozen contexts before it starts taking
+ * them back, and a range control would have spent them in a single drag.
  *
  * Keyed by id rather than counted, because that is exactly the identity that repeats: the
  * catalog names a scene after its story, so a re-render collides with itself and nothing else.
  */
 const LIVE = new Map<string, Scene>();
 
+export interface SceneOptions {
+  /**
+   * Start with the debug outline switched on.
+   *
+   * It stays a VIEWER setting — the toolbar still owns it and the reader can turn it off. What
+   * this changes is where the switch STARTS, and one section genuinely needs that: `Bounded`
+   * paints nothing at all, so its scenes open on an empty stage and the reader has to be told
+   * to press a button before the page shows anything. A section about the invisible is the one
+   * place where "invisible by default" teaches nothing.
+   */
+  readonly bounds?: boolean;
+  /**
+   * Override who gets their matrix folded into their geometry.
+   *
+   * Absent means the kit's own default — ask each node, which is what a consumer gets without
+   * writing anything. A scene knob rather than a viewer setting: it changes nothing an onlooker
+   * sees, only WHO does the arithmetic, and `Engine/Baking nodes` uses it to put the
+   * override and the default in one picture.
+   */
+  readonly bake?: (node: Node) => boolean;
+}
+
 export function scene(
   root: Node,
+  options: SceneOptions = {},
   settings: CatalogSettings = currentSettings(),
   makePainter: MakePainter = lazyPixiPainter,
 ): Scene {
@@ -89,21 +122,48 @@ export function scene(
   installStockLayouts();
   installStockSurfaces();
   const id = takeSceneId();
-  LIVE.get(id)?.dispose();
+
+  // AN ARGUMENT CHANGE IS NEW DATA, NOT A NEW SCENE.
+  //
+  // Storybook calls the story again for every argument change and expects an element back. Take
+  // that literally and each keystroke builds another host, another painter and another WebGL
+  // context — and, less obviously, another toolbar: the etalon and the bounds layer are locals
+  // of this function, so they went back to their defaults every time an unrelated control moved.
+  //
+  // They are the viewer plane, and the viewer is not what changed. So the scene for a story is
+  // built once and afterwards only fed: the same element goes back, with a different tree in it.
+  // That is also the path real data takes — a move from the server, a save loaded — so the
+  // catalog exercises it rather than a mechanism only Storybook would ever use.
+  const standing = LIVE.get(id);
+  if (standing) {
+    standing.setRoot(root);
+    standing.setSettings(settings);
+    return standing;
+  }
 
   const el = document.createElement("div");
   el.style.cssText = [
-    "display:grid",
-    "grid-template-rows:auto 1fr",
+    "position:relative",
     "height:100%",
     "min-height:320px",
     `background:${t("stageBg")}`,
     `color:${t("text")}`,
   ].join(";");
 
+  // THE STAGE IS THE WHOLE BLOCK, and the toolbar floats in its corner.
+  //
+  // The row used to be a grid track above the view, which took its height out of the picture:
+  // the origin of a scene is the centre of the VIEW, so the square everything is measured from
+  // sat half a toolbar below the middle of the block a reader is actually looking at. Off by
+  // 15px at 900x640, and more on a phone, where the row is taller.
+  //
+  // Floating it is what the note at the other corner has always done. The scene keeps its
+  // corners free by construction — content is laid out around the origin — so chrome in one
+  // costs nothing, while a track costs every scene the same strip forever.
   const stage = document.createElement("div");
   stage.style.cssText = [
-    "position:relative",
+    "position:absolute",
+    "inset:0",
     "overflow:hidden",
     `background-image:radial-gradient(${t("grid")} 1px,transparent 1px)`,
     "background-size:22px 22px",
@@ -114,12 +174,15 @@ export function scene(
   let hudChoice: HudUnitChoice = "auto";
   // Same reasoning as the etalon: a debug layer belongs to the canvas it is drawn over, and a
   // page may hold several. One switch above them all would claim to speak for every one.
-  let boundsOn = false;
+  let boundsOn = options.bounds ?? false;
+  // Off by default, always. Unlike the outline, a grid has no section whose lesson is invisible
+  // without it — it is a ruler somebody reaches for, not a thing a page opens on.
+  let gridOn = false;
   let fromCatalog = settings;
 
   const bar = sceneToolbar(
     document,
-    () => ({ text: fromCatalog.text, hudUnit: hudChoice, bounds: boundsOn }),
+    () => ({ text: fromCatalog.text, hudUnit: hudChoice, bounds: boundsOn, grid: gridOn }),
     {
       onHudUnit(choice) {
         hudChoice = choice;
@@ -129,15 +192,22 @@ export function scene(
         boundsOn = on;
         pushViewer();
       },
+      onGrid(on) {
+        gridOn = on;
+        pushViewer();
+      },
     },
   );
-  el.appendChild(bar.el);
   el.appendChild(stage);
+  el.appendChild(bar.el); // after the stage, so the row is not painted over by it
 
   const host = mount(stage, root, viewerFor(settings.viewer));
   const first = host.viewport();
   const painter = makePainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
-  const stopPainting = attachPainter(host, painter);
+  // Handed straight through, ABSENCE INCLUDED — and absence has to stay absence rather than
+  // become `bake: undefined`: no `bake` means the kit's own default, and the catalog has no
+  // business inventing a different one for the reader to learn instead.
+  const stopPainting = attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
   // not observable from the outside without saying so. The flag is for the browser tests: the
@@ -145,8 +215,24 @@ export function scene(
   // TWO frames, not one: the first is the frame the draw was scheduled into, the second is
   // proof that it was actually presented. One frame was enough on an idle machine and not
   // enough on a busy one, which is the definition of a flaky signal.
-  void painter.ready.then(() => {
-    requestAnimationFrame(() => requestAnimationFrame(() => el.setAttribute("data-painted", "")));
+  const firstFrame = painter.ready.then(
+    () =>
+      new Promise<void>((shown) => {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            el.setAttribute("data-painted", "");
+            shown();
+          }),
+        );
+      }),
+  );
+  // The failure is LOUD in both places, because the silent version cost an evening. The
+  // renderer arrives through a dynamic import, and on a dev server that import can hang or
+  // fail — a stale dependency cache after an `npm install` did exactly that. Unhandled, the
+  // scene was a blank canvas under a note that said everything was fine, and every layer above
+  // reported "the scene never painted" about code that had no way to paint.
+  firstFrame.catch((reason: unknown) => {
+    note.textContent = `renderer failed to load: ${reason instanceof Error ? reason.message : String(reason)}`;
   });
 
   function pushViewer(): void {
@@ -155,7 +241,7 @@ export function scene(
 
   /** The catalog's settings plus the two that belong to THIS canvas. */
   function viewerFor(base: ViewerSettings): ViewerSettings {
-    return { ...withHudUnit(base, hudChoice), debugBounds: boundsOn };
+    return { ...withHudUnit(base, hudChoice), debugBounds: boundsOn, debugGrid: gridOn };
   }
 
   const note = document.createElement("div");
@@ -175,15 +261,20 @@ export function scene(
   const refresh = (): void => {
     const v = host.viewport();
     const text = fromCatalog.text;
+    // `host.root`, never the argument this shell was built with: the tree can be replaced under
+    // a standing scene, and a note or a report reading the original would describe a scene that
+    // is no longer on screen.
+    const showing = host.root;
     // The "nothing is drawn" line is EARNED, not assumed: it belongs to a scene whose plan is
     // genuinely empty. Printing it under a painted square would teach the opposite of the
     // lesson it exists for.
     const empty =
-      scenePlan({ root, unit: host.unit(), width: v.width, height: v.height, viewer: host.viewer() }).length === 0;
+      scenePlan({ root: showing, unit: host.unit(), width: v.width, height: v.height, viewer: host.viewer() })
+        .length === 0;
     const measured = text.text("scene.viewport", { w: v.width, h: v.height, unit: host.unit() });
     note.textContent = empty ? `${measured} — ${text.text("scene.nothingDrawn")}` : measured;
     bar.refresh();
-    publishInspect({ sceneId: id, nodes: inspect(root) });
+    publishInspect({ sceneId: id, nodes: inspect(showing) });
   };
   refresh();
   host.onChange(refresh);
@@ -201,7 +292,11 @@ export function scene(
     el,
     host,
     id,
+    ready: firstFrame,
     setSettings: applySettings,
+    setRoot(next) {
+      host.setRoot(next);   // notifies, so the note, the toolbar and the tree all re-read it
+    },
     dispose() {
       // Own resources go unconditionally; SHARED ones only while this scene still holds the
       // slot. A superseded scene that cleared the bus entry would silence the tree of the one
@@ -218,7 +313,25 @@ export function scene(
     },
   };
   LIVE.set(id, built);
+  BY_ELEMENT.set(el, built);
   return built;
+}
+
+/**
+ * The scene standing in an element — the seam a story's own checks reach it through.
+ *
+ * A story hands Storybook an ELEMENT and keeps nothing; a `play` function is handed that same
+ * element and nothing else. Without a way back, a check can only look at the picture, and half
+ * the claims worth making on this rung are about DRIVING the scene — feed it a tree without the
+ * card, feed it one with the card back — and then looking.
+ *
+ * A WeakMap rather than a property on the node: nothing is added to the DOM that a reader could
+ * find and mistake for part of the kit, and a discarded element takes its entry with it.
+ */
+const BY_ELEMENT = new WeakMap<HTMLElement, Scene>();
+
+export function sceneOf(el: HTMLElement): Scene | undefined {
+  return BY_ELEMENT.get(el);
 }
 
 /**

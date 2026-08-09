@@ -19,7 +19,7 @@ import { type ThemeName } from "../core/viewer.js";
 
 /** One job per token. Two tokens that would always hold the same value are one too many. */
 export interface Palette {
-  /** Behind everything: the table surface. */
+  /** Behind everything: the desk surface. */
   stageBg: string;
   /** Panels and cards sitting on the stage. */
   panelBg: string;
@@ -37,11 +37,17 @@ export interface Palette {
   accent: string;
   /** Something is wrong or missing: the inspector's "absent". */
   alert: string;
-  /** The dotted stage grid. */
+  /** The dotted stage grid, and the whole-unit lines of the coordinate layer. */
   grid: string;
   /**
+   * The TENTHS of that layer. Its own token rather than an opacity on the line, because a
+   * subdivision has to be quieter than the unit it divides — drawn in the same ink, the reader
+   * counts eleven lines where there are two kinds, and the scale stops being one.
+   */
+  gridMinor: string;
+  /**
    * Tooling drawn OVER the picture: the debug outline of a box. Its own token because its job
-   * is its own — it must never be mistaken for something an author put on the table, which is
+   * is its own — it must never be mistaken for something an author put on the desk, which is
    * exactly what would happen if it borrowed the accent or a border colour.
    */
   debug: string;
@@ -58,6 +64,7 @@ const DARK: Palette = {
   accent: "#4ea3ff",
   alert: "#ff6a52",
   grid: "#262b2f",
+  gridMinor: "#1b1f22",
   debug: "#ff4fd8",
 };
 
@@ -72,6 +79,7 @@ const LIGHT: Palette = {
   accent: "#0a74d6",
   alert: "#c0392b",
   grid: "#dbe1e6",
+  gridMinor: "#eef1f4",
   debug: "#c2189c",
 };
 

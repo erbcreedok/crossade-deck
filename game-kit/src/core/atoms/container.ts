@@ -16,6 +16,7 @@ import { defineAtom } from "../atom.js";
 import { fieldsOf, type Node, type NodeId } from "../node.js";
 import { extentOf, footprint, type Point, type Shape } from "./bounded.js";
 import { type TransformableFields } from "./transformable.js";
+import { transformShape } from "../shapes.js";
 
 export interface ContainerFields {
   /** A registry reference. The arrangement is a NAMED record, never a function on the node. */
@@ -74,11 +75,21 @@ export function resetLayouts(): void {
 export function placeChildren(parent: Node): Map<NodeId, Point> {
   const out = new Map<NodeId, Point>();
   const fields = fieldsOf<ContainerFields>(parent, "Container");
-  const children: LayoutChild[] = parent.children.map((c) => ({
-    id: c.id,
-    footprint: footprint(c),
-    at: fieldsOf<TransformableFields>(c, "Transformable")?.at,
-  }));
+  const children: LayoutChild[] = parent.children.map((c) => {
+    const pose = fieldsOf<TransformableFields>(c, "Transformable");
+    const box = footprint(c);
+    return {
+      id: c.id,
+      // SCALED, and that is not a detail. A layout reserves room for what it is going to see,
+      // and a card at twice the size that was measured at one overlaps its neighbour — which
+      // looks like a broken layout and is a forgotten multiplication.
+      //
+      // The child's OWN scale only: the owner's applies to the whole row equally, so it cannot
+      // change who sits where inside it.
+      footprint: box && pose?.scale !== undefined && pose.scale !== 1 ? transformShape(box, { scaleX: pose.scale, scaleY: pose.scale }) : box,
+      at: pose?.at,
+    };
+  });
 
   const placed = fields ? (layoutRecord(fields.layout)?.place(children) ?? []) : [];
   children.forEach((child, i) => {
@@ -91,7 +102,7 @@ export function placeChildren(parent: Node): Map<NodeId, Point> {
 
 /**
  * The extent of what a container HOLDS — the other source of area, and the reason `Surfaced`
- * requires "an area" rather than a box. The tabletop has a surface and no size of its own.
+ * requires "an area" rather than a box. The desk has a surface and no size of its own.
  */
 export function contentExtent(parent: Node): { readonly w: number; readonly h: number } {
   const poses = placeChildren(parent);

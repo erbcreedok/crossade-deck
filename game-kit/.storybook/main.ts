@@ -28,12 +28,14 @@ const config: StorybookConfig = {
   // is a scene knob and belongs next to zoom. addon-toolbars renders neither of those places,
   // so it is not installed.
   // Controls, because the alternative is a page of stories per value of one field — exactly
-  // what the canon forbids. An atom's fields ARE its arguments, so the reader changes a size
-  // and watches the box change rather than picking a screenshot off a list.
-  // Controls, because the alternative is a page of stories per value of one field — exactly
   // what the canon forbids. An atom's FIELDS are its arguments: the reader changes a size and
   // watches the box change, instead of picking a screenshot off a list.
-  addons: [here("@storybook/addon-docs"), here("@storybook/addon-controls")],
+  //
+  // Interactions, because a story is the only place some claims can be made at all: a WebGL
+  // canvas has no headless stand-in, and "the plan says draw a square" is not "a square is on
+  // the glass". Its play functions are OFF by default here — see `devtools/checks.ts` — so a
+  // reader flipping through the catalog is not silently driving a test suite.
+  addons: [here("@storybook/addon-docs"), here("@storybook/addon-controls"), here("@storybook/addon-interactions")],
   framework: { name: here("@storybook/html-vite"), options: {} },
   // RELATIVE asset paths. The showcase is served from a SUBPATH (`/crossade-deck/` on GitHub
   // Pages), and an absolute base turns every asset into a 404 there while looking perfectly

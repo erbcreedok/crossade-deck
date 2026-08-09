@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { Bounded, node, Surfaced, type Mark, type Painter, type Quad } from "../../src/index.js";
+import { Bounded, node, rect, Surfaced, type Mark, type Painter, type Quad } from "../../src/index.js";
 import { catalogText } from "../locales/catalog.js";
 import { currentSettings } from "./catalogSettings.js";
 import { liveReports, setNextSceneId } from "./inspectorBus.js";
@@ -25,7 +25,8 @@ function stubPainter(): Painter {
   };
 }
 
-const scene: typeof buildScene = (root, settings = currentSettings()) => buildScene(root, settings, stubPainter);
+const scene: typeof buildScene = (root, options = {}, settings = currentSettings()) =>
+  buildScene(root, options, settings, stubPainter);
 
 function hudSelect(el: HTMLElement): HTMLSelectElement {
   return el.querySelector("[data-hud-unit]") as HTMLSelectElement;
@@ -33,6 +34,10 @@ function hudSelect(el: HTMLElement): HTMLSelectElement {
 
 function boundsButton(el: HTMLElement): HTMLButtonElement {
   return el.querySelector("[data-debug-bounds]") as HTMLButtonElement;
+}
+
+function gridButton(el: HTMLElement): HTMLButtonElement {
+  return el.querySelector("[data-debug-grid]") as HTMLButtonElement;
 }
 
 function press(el: HTMLElement): void {
@@ -129,7 +134,11 @@ describe("a canvas carries its own settings", () => {
     expect(marked).toEqual([]);
 
     press(s.el);
-    expect(marked.map((m) => m.id)).toEqual(["s11"]);
+    // The box outline plus the two strokes of the origin cross: `(0,0)` is the point `at` puts
+    // somewhere and a rotation turns about, and until it was drawn nothing on screen said where
+    // it was — a pasted shape can sit far off its own origin.
+    expect(marked.map((m) => m.id)).toEqual(["s11", "s11", "s11"]);
+    expect(marked.filter((m) => m.closed)).toHaveLength(1);
     expect(drawn).toEqual([]); // still nothing PAINTED: tooling is not a surface
 
     press(s.el);
@@ -137,6 +146,24 @@ describe("a canvas carries its own settings", () => {
     s.dispose();
   });
 
+
+  it("scene.grid-toggle — a second debug layer, and it is this canvas's own", () => {
+    // Two layers that answer different questions: the outline says where a node is, the grid
+    // says how big anything is. Both are settings of the CANVAS, so a page holding two scenes
+    // gets two answers.
+    const a = scene(node("s24", Bounded()));
+    const b = scene(node("s25", Bounded()));
+    document.body.append(a.el, b.el);
+    expect(a.host.viewer().debugGrid).toBe(false);
+
+    gridButton(a.el).dispatchEvent(new Event("click"));
+    expect(a.host.viewer().debugGrid).toBe(true);
+    expect(b.host.viewer().debugGrid).toBe(false);
+    // And it did not switch the other layer on with it.
+    expect(a.host.viewer().debugBounds).toBe(false);
+    a.dispose();
+    b.dispose();
+  });
   it("scene.bounds-is-this-canvas-only — two scenes on a page, two answers", () => {
     // Same reasoning as the etalon: a debug layer belongs to the canvas it is drawn over, and
     // one switch above them all would claim to speak for every one.
@@ -175,33 +202,66 @@ describe("a canvas carries its own settings", () => {
     s.dispose();
   });
 
-  it("scene.rebuild-retires-the-old-one — a slider must not leak a GPU context per step", () => {
-    // Storybook rebuilds a story on every argument change and never tells the old element to
-    // go away. A browser hands out about a dozen WebGL contexts; a range control would spend
-    // them in one drag.
+  it("scene.a-rerender-feeds-the-scene — the same canvas, a different tree", () => {
+    // Storybook calls the story again for every argument change. Building a second scene per
+    // call spends a WebGL context per keystroke — a browser hands out about a dozen — and
+    // throws away the toolbar with it.
     setNextSceneId("story:x");
     const first = scene(node("s16"));
     document.body.appendChild(first.el);
 
     setNextSceneId("story:x");
-    const second = scene(node("s17"));
-    document.body.appendChild(second.el);
+    const again = scene(node("s17"));
 
-    // The first is gone: unmounted, unsubscribed, and no longer speaking for a tree.
-    expect(first.host.view.isConnected).toBe(false);
-    expect(second.host.view.isConnected).toBe(true);
+    expect(again).toBe(first);
+    expect(again.host.view).toBe(first.host.view);
+    // What changed is the DATA: the view now shows the tree that arrived second.
+    expect(again.host.root.id).toBe("s17");
     expect(liveReports().map((r) => r.sceneId)).toEqual(["story:x"]);
-    second.dispose();
+    again.dispose();
+  });
+
+  it("scene.settings-survive-new-data — the viewer is not what changed", () => {
+    // The etalon and the bounds layer belong to this canvas and to the person looking at it.
+    // An argument is neither, and it used to reset both by rebuilding the shell around them.
+    setNextSceneId("story:z");
+    const s = scene(node("s20"));
+    document.body.appendChild(s.el);
+    choose(hudSelect(s.el), "34");
+    press(s.el);
+
+    setNextSceneId("story:z");
+    scene(node("s21"));
+
+    expect(s.host.unit()).toBe(34);
+    expect(s.host.viewer().debugBounds).toBe(true);
+    s.dispose();
+  });
+
+  it("scene.a-tree-swap-redraws — a scene nobody told is a scene showing the old data", () => {
+    setNextSceneId("story:w");
+    const s = scene(node("s22", Bounded(), Surfaced()));
+    document.body.appendChild(s.el);
+    expect(drawn.length).toBe(1);
+
+    s.setRoot(node("s23"));
+    // A bare node paints nothing, so the plan empties — and it only empties if the swap
+    // announced itself the way a resize does.
+    expect(drawn).toEqual([]);
+    s.dispose();
   });
 
   it("scene.dispose-retires-only-itself — a stale handle cannot silence the live scene", () => {
     setNextSceneId("story:y");
     const first = scene(node("s18"));
+    first.dispose();
+    // The slot is free, so the next call builds rather than feeds.
     setNextSceneId("story:y");
     const second = scene(node("s19"));
     document.body.appendChild(second.el);
+    expect(second).not.toBe(first);
 
-    first.dispose(); // already replaced; must be a no-op for the slot
+    first.dispose(); // already retired; must not clear the slot the live scene holds
     expect(liveReports().map((r) => r.sceneId)).toEqual(["story:y"]);
     second.dispose();
     expect(liveReports()).toEqual([]);
@@ -214,5 +274,23 @@ describe("a canvas carries its own settings", () => {
     s.setSettings({ ...currentSettings(), text: catalogText("ru") });
     expect(s.el.querySelector("[data-scene-toolbar]")!.textContent).not.toBe(before);
     s.dispose();
+  });
+  it("scene.two-scenes-one-id — the second call FEEDS the first, it does not build a second", () => {
+    // The single most expensive mistake this shell can make. Storybook calls a story again for
+    // every argument change and expects an element back; take that literally and each keystroke
+    // builds another host, another painter and another WebGL context. A browser hands out about
+    // a dozen before it starts taking them back, so one drag of a range control spends them all
+    // and the canvas goes blank with a "context lost" nobody can trace to a slider.
+    //
+    // Same id, twice: one element, one host, and the tree of the second call showing in it.
+    setNextSceneId("shared");
+    const first = scene(node("one", Bounded({ bounds: rect(1, 1) })));
+    setNextSceneId("shared");
+    const again = scene(node("two", Bounded({ bounds: rect(2, 2) })));
+    expect(again).toBe(first);
+    expect(again.el).toBe(first.el);
+    expect(again.host).toBe(first.host);
+    expect(again.host.root.id).toBe("two");
+    first.dispose();
   });
 });

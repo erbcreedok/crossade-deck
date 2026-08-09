@@ -1,9 +1,14 @@
-// THE CATALOG'S OWN WORDS — all of them, and none of them known to the kit.
+// THE CATALOG'S CHROME — the words that are on every screen, and none of them known to the kit.
 //
-// Every string a reader sees is here, in `en.json` / `ru.json`, and it never crosses into the
-// kit as a key: the kit has no notion of a language, a dictionary or a placeholder. Captions
-// are resolved HERE and handed over already written — which is what a game does too, each one
-// with its own library, its own formats and its own set of languages.
+// Every string a reader sees is in this directory, and it never crosses into the kit as a key:
+// the kit has no notion of a language, a dictionary or a placeholder. Captions are resolved
+// HERE and handed over already written — which is what a game does too, each one with its own
+// library, its own formats and its own set of languages.
+//
+// This file holds only the CHROME: the toolbar, the tree, the inspector — a fixed set present
+// wherever the reader is, so it is imported statically and is ready before anything renders.
+// Prose is the part that grows without limit, one bundle per page, and it arrives on demand —
+// see `pages.ts`.
 //
 // JSON rather than a TypeScript module, one file per language: a translator is handed a file,
 // not a source tree, and a bundle can be swapped or loaded lazily without rebuilding code.
@@ -15,13 +20,13 @@
 // one/other; a two-form helper in the kit would have made "2 узлов" everywhere, which is
 // precisely what it used to do.
 
-import en from "./en.json";
-import ru from "./ru.json";
+import en from "./chrome/en.json";
+import ru from "./chrome/ru.json";
 
 export const LOCALES = ["en", "ru"] as const;
 export type CatalogLocale = (typeof LOCALES)[number];
 
-/** Keys are English by definition — `en.json` is the reference bundle. */
+/** Keys are English by definition — `chrome/en.json` is the reference bundle for the chrome. */
 export type CatalogKey = keyof typeof en;
 
 /** A base whose forms live under it: `inspector.nodes` + `.one` / `.few` / `.other`. */

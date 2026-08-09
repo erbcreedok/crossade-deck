@@ -216,3 +216,95 @@ describe("the tree and the root", () => {
     expect(seen.map(([, d]) => d)).toEqual([0, 1, 2]);
   });
 });
+
+// BOUNDARIES, BY THE GRID RATHER THAN BY WHAT CAME TO MIND.
+//
+// The suite above grew rule by rule: every test here answers a law somebody wrote down. That
+// leaves a whole class of case unwritten, because nobody writes down "and what if there are
+// none". These are ZOMBIES (zero · one · many · boundary · exception) crossed with CORRECT
+// (conformance · ordering · range · reference · existence · cardinality · time), walked over
+// the two things every tree operation takes: an ID and a PLACE.
+//
+// It paid for itself immediately. `if (clash)` — the duplicate-id check — read false for the
+// one id that is falsy, so a tree accepted two nodes both answering to `""`.
+describe("boundaries", () => {
+  it("node.id.empty-is-not-an-id — existence, and the one value that is falsy", () => {
+    expect(() => node("")).toThrow(/needs an id/);
+  });
+
+  it("node.id.any-shape-of-name — conformance is the caller's business, not the kit's", () => {
+    // The kit never parses an id (`guard.id-is-opaque`), so anything that is not empty is a
+    // name: a hash, a path-looking string, another alphabet, a very long one. A length limit
+    // here would be a rule invented by the wrong layer — an id may be a server's uuid.
+    // Not a Cyrillic sample, deliberately: `guard.english-only` bans this project's own
+    // language from code, and it is right to. Another alphabet is the point, not that one.
+    for (const id of ["a/b", "日", "0", " ", "x".repeat(10_000), "🂡"]) {
+      expect(node(id).id).toBe(id);
+    }
+  });
+
+  it("tree.duplicate-empty-ids — the collision that used to pass in silence", () => {
+    // Two nodes claiming one identity, and the identity is the empty string. Kept as its own
+    // case even though `node("")` now refuses it: the check that failed was the DUPLICATE one,
+    // and it would fail again for any other falsy id somebody introduces.
+    const root = node("bz1");
+    const first = node("dup");
+    add(root, first);
+    expect(() => add(root, node("dup"))).toThrow(/already in this tree/);
+  });
+
+  it("tree.remove-what-is-not-there — cardinality zero, twice over", () => {
+    // Removing a stranger, and removing the same child twice. Neither is an error: `remove` is
+    // a statement about the END state, and the end state is the same both times.
+    const root = node("bz2");
+    const child = node("bz3");
+    const stranger = node("bz4");
+    expect(() => remove(root, stranger)).not.toThrow();
+    add(root, child);
+    remove(root, child);
+    expect(() => remove(root, child)).not.toThrow();
+    expect(root.children).toEqual([]);
+    expect(child.parent).toBe(null);
+  });
+
+  it("tree.add-remove-repeats — the same node, in and out a hundred times", () => {
+    // Time, in the relative sense: an operation done once must be the same operation done a
+    // hundred times. A stale entry in the id index or a `parent` left set would show up here as
+    // a duplicate-id throw on the second pass, and nowhere else until a game did it.
+    const root = node("bz5");
+    const child = node("bz6");
+    for (let i = 0; i < 100; i += 1) {
+      add(root, child);
+      expect(byId(root, "bz6")).toBe(child);
+      remove(root, child);
+      expect(byId(root, "bz6")).toBeUndefined();
+    }
+    expect(root.children).toEqual([]);
+  });
+
+  it("tree.a-deep-chain-does-not-blow-the-stack — range, at 5000 deep", () => {
+    // A pile of a thousand cards is a chain a thousand deep, and a recursive walk dies on it
+    // with a stack overflow rather than a wrong answer — which is why the number is here and
+    // not left to be discovered by a game that deals a big deck.
+    let deepest = node("k0");
+    const top = deepest;
+    for (let i = 1; i < 5000; i += 1) {
+      const next = node(`k${i}`);
+      add(deepest, next);
+      deepest = next;
+    }
+    let visited = 0;
+    walk(top, () => (visited += 1));
+    expect(visited).toBe(5000);
+    expect(chainOf(deepest)).toHaveLength(5000);
+    expect(rootOf(deepest)).toBe(top);
+  });
+
+  it("compose.the-same-atom-twice-is-one — cardinality, and the second wins", () => {
+    // Not a duplicate and not a throw: an atom is a FIELD SET on a node, and composing it again
+    // is stating those fields again. The last statement is the one in force.
+    const n = node("bz7", Bounded({ size: "1x1" }), Bounded({ size: "2x2" }));
+    expect([...caps(n)]).toEqual(["Bounded"]);
+    expect(n.atoms.get("Bounded")!.fields).toEqual({ size: "2x2" });
+  });
+});

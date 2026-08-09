@@ -6,7 +6,7 @@
 // A requirement says what an atom LACKS, not who its parent in a hierarchy is. That is why
 // it can be an ALTERNATIVE: `Surfaced` needs an AREA, and an area comes either from an own
 // size (`Bounded`) or from the extent of the content (`Container`). Demanding `Bounded`
-// there would outlaw the tabletop, which has a surface and no footprint of its own.
+// there would outlaw the desk, which has a surface and no footprint of its own.
 
 /**
  * One requirement. A plain name must be present; an array is satisfied by ANY of its
@@ -21,9 +21,12 @@ export type Requirement = string | readonly string[];
  *  - own       — never inherited; no value means no field.
  *  - fromOwner — not set here → the nearest set value up the chain. Override = set it.
  *  - addsUp    — the sum along the chain. It cannot be cancelled, only added to.
+ *  - multiplies — the PRODUCT along the chain. Scale is the one field that composes this way:
+ *                a half-size hand holding a half-size card shows it at a quarter, and no sum
+ *                says that. Like `addsUp` it cannot be cancelled, only multiplied into.
  *  - rootOnly  — the field does not exist on a child; asking is meaningless.
  */
-export type InheritClass = "own" | "fromOwner" | "addsUp" | "rootOnly";
+export type InheritClass = "own" | "fromOwner" | "addsUp" | "multiplies" | "rootOnly";
 
 export interface AtomDef<Fields extends object = object> {
   /** Name as it appears in caps() and in the catalog. Unique across the registry. */

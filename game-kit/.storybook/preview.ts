@@ -3,25 +3,24 @@ import { addons } from "@storybook/preview-api";
 import { GLOBALS_UPDATED } from "storybook/internal/core-events";
 import { installTheme, t, type ThemeName } from "../src/index.js";
 import { catalogText, type CatalogLocale } from "./locales/catalog.js";
-import { setCatalogSettings } from "./devtools/catalogSettings.js";
+import { currentSettings, setCatalogSettings } from "./devtools/catalogSettings.js";
 import { onInspect, setNextSceneId } from "./devtools/inspectorBus.js";
 import { DocsPage } from "./DocsPage.js";
 import { GK_INSPECT } from "./inspectChannel.js";
 import { storySource } from "./devtools/storySource.js";
+import { pinTextSize } from "./devtools/textSize.js";
+import "./devtools/snippetValues.js";
 
 // The preview iframe wears the KIT's tokens, not a second palette kept in step by hand.
 // Installed once at module load so a story that does not fill the frame still sits on the
-// table surface rather than on white.
+// desk surface rather than on white.
 if (typeof document !== "undefined") {
   installTheme(document, "dark");
+  // Shared with the manager rather than written twice: the boost is a property of the
+  // DOCUMENT, and the catalog has two of them.
+  pinTextSize(document);
   const style = document.createElement("style");
-  // `text-size-adjust` is not cosmetics: on a phone Safari inflates the type in whatever it
-  // decides is the main column, and monospace blocks — listings, the node tree — are what it
-  // hits first. That is why the code came out roughly twice the height of the prose beside
-  // it. Held to 100%, every size in the catalog is the size we wrote.
-  style.textContent =
-    `html{-webkit-text-size-adjust:100%;text-size-adjust:100%}` +
-    `html,body,#storybook-root{height:100%;margin:0;background:${t("stageBg")};color:${t("text")}}`;
+  style.textContent = `html,body,#storybook-root{height:100%;margin:0;background:${t("stageBg")};color:${t("text")}}`;
   document.head.appendChild(style);
 }
 
@@ -37,11 +36,41 @@ const globalTypes = {
   locale: { description: "Catalog-wide: every caption and every page of prose" },
 };
 
+/**
+ * A LANGUAGE CHANGE RELOADS THE PREVIEW, and only a language change.
+ *
+ * Almost everything here follows the switch live: prose is resolved when it is drawn, and a
+ * scene re-reads its captions on notification. Control DESCRIPTIONS cannot — Storybook
+ * normalises `argTypes` once while a story is prepared and keeps the result, so a description
+ * read then is the description forever, whatever it was read from.
+ *
+ * The choice is between a screen half in one language and a reload. The catalog has held from
+ * the start that a half-translated screen is the outcome that teaches a reader to distrust the
+ * switch, so it reloads. The URL already carries the new value — it is Storybook's own globals
+ * syntax — which is what makes this terminate: after the reload the booted locale equals the
+ * global, and nothing fires again.
+ */
+function reloadForLocale(next: CatalogLocale): void {
+  const url = new URL(globalThis.location.href);
+  const globals = (url.searchParams.get("globals") ?? "")
+    .split(";")
+    .filter((pair) => pair && !pair.startsWith("locale:"))
+    .concat(`locale:${next}`)
+    .join(";");
+  url.searchParams.set("globals", globals);
+  globalThis.location.replace(url.toString());
+}
+
 function apply(globals: Record<string, unknown>): void {
   const theme = (globals["theme"] as ThemeName) ?? "dark";
   // The words travel BESIDE the viewer plane, not inside it: swapping the whole text object
   // is what makes a half-translated screen impossible, and the kit never sees either half.
-  setCatalogSettings({ viewer: { theme }, text: catalogText((globals["locale"] as CatalogLocale) ?? "en") });
+  const locale = (globals["locale"] as CatalogLocale) ?? "en";
+  if (locale !== currentSettings().text.locale) {
+    reloadForLocale(locale);
+    return;
+  }
+  setCatalogSettings({ viewer: { theme }, text: catalogText(locale) });
   installTheme(document, theme);
 }
 
@@ -92,13 +121,37 @@ const preview: Preview = {
       // skips the index — and `storybook build` still exits 0, leaving a catalog with no
       // `index.json` at all. Guarded by `order.*` in `storyOrder.test.ts`, which scans this
       // literal rather than importing it, for the same reason.
+      // The shape every well-worn library docs site has: what it is, then how to start, then
+      // the concepts, then the pieces. A reader landing here cold meets them in that order or
+      // not at all. A string followed by an array means "this group, and these are its
+      // children" — so everything below `Start` lives inside ONE array after it.
       storySort: {
         order: [
+          // FOUR GENRES, FOUR SECTIONS — Diátaxis, and the reason the ladder used to feel like
+          // one long note in one voice. A page that teaches, instructs, states facts and
+          // explains at once serves none of the four readers it is written for.
+          //
+          //   Start   — the lesson: what this is, and building the first desk.
+          //   Basics  — the model's own vocabulary.
+          //   Atoms   — reference: what a node can BE, field by field.
+          //   Engine  — explanation, for whoever works on the kit rather than with it.
+          //
+          // A how-to section ("Build a game") belongs between Atoms and Engine and is not here
+          // yet: an empty section teaches worse than a missing one.
           "Start",
-          ["Basics", ["Node", "Root"], "Atoms", ["Bounded", "Surfaced", "Transformable", "Container"]],
+          ["Introduction", "Getting Started"],
+          "Basics",
+          ["Node", "Root"],
+          "Atoms",
+          ["Bounded", "Surfaced", "Transformable", "Container"],
+          "Engine",
+          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes"],
           "Elements",
-          "Canvas",
           "HUD",
+          // Last, because it is ABOUT the catalog rather than of it: the pages that check the
+          // pictures above them. Opening one runs its checks — the section is the switch.
+          "Tests",
+          ["Node", "Bounded"],
         ],
       },
     },

@@ -59,4 +59,26 @@ describe("inspect", () => {
     const [n] = inspect(node("i5", S()));
     expect(n!.fields).toEqual([]);
   });
+  it("inspector.three-planes — own fields, their class, and nothing invented between them", () => {
+    // The panel's three columns exist because the three planes do. A row carries a field the
+    // author WROTE and the CLASS that says how it will be resolved — never the resolved number,
+    // which belongs to a place in a tree rather than to the node. Print that here and the panel
+    // becomes a second, staler copy of the resolver.
+    const T = defineAtom({
+      name: "Transformable",
+      requires: [],
+      defaults: { z: 0 },
+      classes: { z: "addsUp" },
+    });
+    const root = node("i6", T({ z: 5 }));
+    const child = node("i7", T({ z: 1 }));
+    add(root, child);
+    const seen = inspect(root).find((n) => n.id === "i7")!;
+    // Keyed by ATOM and field, never by the bare name: two atoms may both call something `z`,
+    // and a panel row that cannot say whose it is sends the reader to the wrong control.
+    const z = seen.fields.find((f) => f.key === "Transformable.z")!;
+    expect(z.value).toBe("1");     // its own term
+    expect(z.cls).toBe("addsUp");  // and the rule, so a reader can work out the 6 for themselves
+    expect(seen.fields.map((f) => f.value)).not.toContain("6");
+  });
 });

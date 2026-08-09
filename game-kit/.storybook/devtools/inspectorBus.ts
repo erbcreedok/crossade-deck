@@ -3,7 +3,7 @@
 // The inspector has two homes and neither is inside the scene: the catalog's bottom panel
 // (next to Controls, where resize, dock and hide already exist and are the reader's habit)
 // and, on a docs page where that panel does not exist at all, a block of its own under the
-// canvas. Drawing the tree over the stage is what made a phone show a strip of table and a
+// canvas. Drawing the tree over the stage is what made a phone show a strip of desk and a
 // column of text.
 //
 // Neither home may be reached from here. A scene knows what it holds and nothing about where

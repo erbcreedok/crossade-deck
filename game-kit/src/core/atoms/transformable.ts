@@ -1,7 +1,7 @@
 // TRANSFORMABLE — the node's OWN pose: where it sits and how high it stands.
 //
 // It lives on a bare `Node`, with no box required, because a node can be somewhere without
-// occupying anything — the tabletop itself is such a node.
+// occupying anything — the desk itself is such a node.
 //
 // The two fields are deliberately in DIFFERENT inheritance classes, and that is the whole
 // lesson of this atom:
@@ -23,13 +23,32 @@ import { type Point } from "./bounded.js";
 export interface TransformableFields {
   readonly at: Point;
   readonly z: number;
+  /**
+   * Turn, in degrees, clockwise on screen. `addsUp` for the same reason `z` does: turn a hand
+   * and everything in it turns with it, and a child cannot un-turn its owner.
+   *
+   * Only around Z. An out-of-plane flip has no state — it has a resulting FACE, and which face
+   * is showing is a different field on a different atom. A rotation you can be halfway through
+   * is an animation, not something a node stores.
+   */
+  readonly angle: number;
+  /**
+   * Size, as a multiplier. It MULTIPLIES along the chain — a half-size hand holding a half-size
+   * card shows it at a quarter, and no sum says that.
+   *
+   * One number, not two. A non-uniform scale is the only transform that destroys a shape's
+   * geometry: a circle becomes an ellipse, and a collider stops being answerable cheaply. Turn
+   * and uniform scale leave every shape what it was. Squashing belongs to the picture — a
+   * surface layer — where nothing has to bounce off the result.
+   */
+  readonly scale: number;
 }
 
 export const Transformable = defineAtom<TransformableFields>({
   name: "Transformable",
   requires: [],
-  defaults: { at: { x: 0, y: 0 }, z: 0 },
-  classes: { at: "own", z: "addsUp" },
+  defaults: { at: { x: 0, y: 0 }, z: 0, angle: 0, scale: 1 },
+  classes: { at: "own", z: "addsUp", angle: "addsUp", scale: "multiplies" },
 });
 
 /**
