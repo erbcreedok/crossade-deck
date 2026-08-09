@@ -1,0 +1,91 @@
+game-kit/CANONS.md
+  s_c98a72b52853a5::t_006565b5adccc9 4,26,595
+game-kit/docs/test-plan/README.md
+  s_c98a72b52853a5::t_24f25059957cdc 14-25
+  s_c98a72b52853a5::t_8bc673949e6506 53
+  s_c98a72b52853a5::t_07055e232b6530 1-13,26-52
+game-kit/src/core/node.test.ts
+  s_c98a72b52853a5::t_006565b5adccc9 1
+game-kit/e2e/catalog.spec.ts
+  s_c98a72b52853a5::t_006565b5adccc9 1
+game-kit/src/core/resolve.test.ts
+  s_c98a72b52853a5::t_006565b5adccc9 1
+game-kit/docs/TESTS-HANDOFF.md
+  s_c98a72b52853a5::t_d5d9297b257a24 4-5
+  s_c98a72b52853a5::t_8661516e555c0a 57-59,63
+game-kit/src/core/atoms/bounded.test.ts
+  s_c98a72b52853a5::t_006565b5adccc9 1
+game-kit/src/testPlan.test.ts
+  s_c98a72b52853a5::t_f2051a732633f8 219,221-241
+  s_c98a72b52853a5::t_a52a01c1cf7e9e 31-33
+  s_c98a72b52853a5::t_086c1f99fcabc7 3,9-12
+  s_c98a72b52853a5::t_7e1a30ef2f37a9 187,195,253,263,268
+  s_c98a72b52853a5::t_3c5220ef008596 43-44,54,58-64,67-100
+  s_c98a72b52853a5::t_9a113cba88cfca 201-203,206-208,213-218
+  s_c98a72b52853a5::t_74873fefe27e72 13
+  s_c98a72b52853a5::t_7be31d98ee5d61 220
+game-kit/docs/test-plan/09-container.md
+  s_c98a72b52853a5::t_d3b46333ccb336 1-49
+game-kit/docs/test-plan/10-scene-plan.md
+  s_c98a72b52853a5::t_34a7b2d718decd 1-47
+game-kit/docs/test-plan/01-fit-and-align.md
+  s_c98a72b52853a5::t_9c4ea634480050 1-18
+game-kit/docs/test-plan/02-contour-and-dashes.md
+  s_c98a72b52853a5::t_0972447d6bf06e 1-26
+game-kit/docs/test-plan/03-node-and-composition.md
+  s_c98a72b52853a5::t_072ba7ea4d6865 1-40
+game-kit/docs/test-plan/04-root-host-and-inspector.md
+  s_c98a72b52853a5::t_98c628b8a6652e 1-34
+game-kit/docs/test-plan/05-requirement-chains.md
+  s_c98a72b52853a5::t_3a531b4f9b41ad 1-12
+game-kit/docs/test-plan/06-inheritance-classes.md
+  s_c98a72b52853a5::t_f72dd46029e8ea 1-16
+game-kit/docs/test-plan/07-resolve-context.md
+  s_c98a72b52853a5::t_62bfe989e502d9 1-10
+game-kit/docs/test-plan/08-per-atom-contract.md
+  s_c98a72b52853a5::t_44b44b96d65514 1-85
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_c98a72b52853a5::t_fb04bd04f656f8 1-56
+game-kit/docs/test-plan/12-two-measures.md
+  s_c98a72b52853a5::t_12887a0f013531 1-11
+game-kit/docs/test-plan/13-zombies-correct-grid.md
+  s_c98a72b52853a5::t_91b8bb9c400409 1-29
+game-kit/docs/test-plan/14-property-based.md
+  s_c98a72b52853a5::t_1de7604b980b12 1-11
+game-kit/docs/test-plan/15-architectural-guards.md
+  s_c98a72b52853a5::t_ce08e5096edf8e 1-34
+game-kit/docs/test-plan/16-interaction-play.md
+  s_c98a72b52853a5::t_290603dca9c8ad 1-31
+game-kit/docs/test-plan/17-state-matrix.md
+  s_c98a72b52853a5::t_bcb9785a293a67 1-11
+game-kit/docs/test-plan/18-state-plane.md
+  s_c98a72b52853a5::t_741fddd68a8d08 1-10
+game-kit/docs/test-plan/19-visual-regression.md
+  s_c98a72b52853a5::t_9d08bc344a3f35 1-10
+game-kit/docs/test-plan/20-accessibility.md
+  s_c98a72b52853a5::t_8550e295a4b694 1-10
+game-kit/docs/test-plan/21-networking.md
+  s_c98a72b52853a5::t_e4065e6938fb88 1-12
+game-kit/docs/test-plan/22-lifecycle-and-performance.md
+  s_c98a72b52853a5::t_66d84824780949 1-11
+game-kit/docs/test-plan/23-serialization.md
+  s_c98a72b52853a5::t_bd0f17693d1d01 1-10
+game-kit/docs/test-plan/24-regression-guards.md
+  s_c98a72b52853a5::t_1e4a5173eea45e 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "faaca3560a689d4fb8b6ae77e907dc230705b1f2",
+  "prompts": {},
+  "sessions": {
+    "s_c98a72b52853a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07bb8807-9f79-4afe-928e-bb9c04b96f76",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
