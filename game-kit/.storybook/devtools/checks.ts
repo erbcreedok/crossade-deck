@@ -25,6 +25,24 @@ export type CheckContext = PlayFunctionContext & {
   readonly globals: Record<string, unknown>;
 };
 
+/**
+ * EVERY ASSERTION NAMES ITS READING, because the panel IS the report.
+ *
+ * The Interactions panel prints a call with its arguments, and `expect` takes a message as its
+ * second one — so `expect(0, "inked pixels").toBe(0)` reads as a sentence where `expect(0).toBe(0)`
+ * said nothing at all. Bare numbers are the failure mode this section exists to avoid: a reader
+ * watching the steps has only what is printed, and a green line nobody can read is worth as little
+ * as a red one.
+ *
+ * The message is not decoration — it is also what the failure says, since the same string is
+ * prefixed to the assertion error.
+ *
+ * KEEP IT UNDER FIFTY CHARACTERS. The panel ellipsizes a string argument at 50, and it does so
+ * silently — a longer message reads as a sentence that stops mid-word, which is worse than a
+ * short one. Numbers belong in it (`303px against 304px` is the whole point), so the words
+ * around them have to be few.
+ */
+
 /** One named step of a check, run in order and reported as its own line in the panel. */
 export interface Step {
   readonly name: string;
@@ -79,9 +97,50 @@ export async function painted(ctx: CheckContext): Promise<HTMLCanvasElement> {
     return undefined;
   }, "no scene ever mounted in this story");
   await scene.ready;
-  const view = scene.el.querySelector("canvas");
-  if (!view) throw new Error("the scene painted without a canvas");
-  return view as HTMLCanvasElement;
+  const found = scene.el.querySelector("canvas");
+  if (!found) throw new Error("the scene painted without a canvas");
+  const view = found as HTMLCanvasElement;
+  // A CANVAS WITH NO SIZE IS NOT A PICTURE, and `data-painted` cannot tell the difference.
+  //
+  // The shell mounts the scene into an element Storybook has NOT put in the document yet, so the
+  // host measures nothing and floors the view at one pixel — and the first frame, the one the
+  // painted flag goes up on, is drawn at that size. A `ResizeObserver` corrects it the moment the
+  // element lands, and every picture after it is right.
+  //
+  // A check that read the glass inside that gap measured a canvas one pixel wide, where the
+  // middle IS the corner: "the middle is the card" fails, and so would every other claim about a
+  // picture. It only lost the race on a loaded machine — the whole suite running at once — which
+  // is the shape of a flake nobody can reproduce on demand.
+  //
+  // AND THE WAIT IS AN EVENT, not a deadline, for the same reason `ready` is one: what is being
+  // waited for is the MANAGER laying its panels out, and how long that takes is a property of the
+  // machine, not of this catalog. A four-second budget was enough on an idle laptop and not enough
+  // with the whole suite running — which is to say the number was never a measurement of anything.
+  await sized(scene);
+  // One more frame, because the size arriving is not the redraw at that size.
+  await settled();
+  return view;
+}
+
+/**
+ * Settles when the host has a viewport worth reading — the scene's own notification, not a clock.
+ *
+ * The host re-measures on every resize and tells its listeners, so the question "does this page
+ * have a layout yet" has an event behind it. Nothing here polls, and nothing here gives up.
+ */
+async function sized(scene: Scene): Promise<void> {
+  const laidOut = (): boolean => {
+    const box = scene.host.viewport();
+    return box.width > 8 && box.height > 8;
+  };
+  if (laidOut()) return;
+  await new Promise<void>((done) => {
+    const stop = scene.host.onChange(() => {
+      if (!laidOut()) return;
+      stop();
+      done();
+    });
+  });
 }
 
 /** The live scene behind the element the story handed back — the handle a check DRIVES. */
@@ -191,6 +250,28 @@ export function inkOf(image: ImageData, background: readonly number[], by = 8): 
     }
   }
   return { count, minX, minY, maxX, maxY };
+}
+
+/**
+ * Two readings held against each other, ready to be SPREAD into `expect`: how far apart they are,
+ * and a message naming both.
+ *
+ * `expect(...gap("ink width", 129, 128)).toBeLessThan(15)` prints
+ * `expect(1, "ink width: 129px against 128px").toBeLessThan(15)` — the difference is what the
+ * claim is about, and the two measurements are what a reader needs to see to believe it. A bare
+ * difference against a bare tolerance says neither how big the thing was nor what it was compared
+ * with, which is exactly how a size check becomes unreadable.
+ *
+ * Rounded, because these are buffer pixels: a claim written to fifteen decimal places is a claim
+ * about floating point, not about a picture.
+ */
+export function gap(what: string, got: number, want: number): [number, string] {
+  return [Math.round(Math.abs(got - want)), `${what}: ${Math.round(got)}px against ${Math.round(want)}px`];
+}
+
+/** A tolerance in whole pixels, as a fraction of the etalon — so it scales with the picture. */
+export function nearly(perUnit: number, fraction: number): number {
+  return Math.round(perUnit * fraction);
 }
 
 /** Whether two snapshots show a different picture, anywhere at all. */

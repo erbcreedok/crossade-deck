@@ -5,6 +5,7 @@ import { scene } from "../devtools/scene.js";
 import {
   checks,
   differs,
+  gap,
   imagesDiffer,
   inkOf,
   painted,
@@ -75,8 +76,8 @@ export const Outline: StoryObj<OutlineArgs> = {
         // about what the atom does. The probe sits inside the box but OFF the exact centre,
         // because the layer marks the origin with a cross and its arms run along the centre
         // lines — dead centre is legitimately inked.
-        await expect(drawn.count).toBeGreaterThan(0);
-        await expect(differs(pixelAt(glass, 0.53, 0.53), pixelAt(glass, 0.02, 0.02))).toBe(false);
+        await expect(drawn.count, "inked pixels").toBeGreaterThan(0);
+        await expect(differs(pixelAt(glass, 0.53, 0.53), pixelAt(glass, 0.02, 0.02)), "inside the box is desk, not fill").toBe(false);
       },
     },
     {
@@ -94,8 +95,13 @@ export const Outline: StoryObj<OutlineArgs> = {
         // grows both ways on a one-axis change is a scale, not a size.
         const widthOf = (b: typeof square) => b.maxX - b.minX;
         const heightOf = (b: typeof square) => b.maxY - b.minY;
-        await expect(widthOf(wide)).toBeGreaterThan(widthOf(square) * 1.6);
-        await expect(Math.abs(heightOf(wide) - heightOf(square))).toBeLessThan(heightOf(square) * 0.2);
+        await expect(
+          Math.round(widthOf(wide)),
+          `outline ${Math.round(widthOf(wide))}px at 2×1 · ${Math.round(widthOf(square))}px at 1×1`,
+        ).toBeGreaterThan(Math.round(widthOf(square) * 1.6));
+        await expect(...gap("outline height, unchanged", heightOf(wide), heightOf(square))).toBeLessThan(
+          Math.round(heightOf(square) * 0.2),
+        );
         live.setRoot(tree(id, rect(1, 1)));
         await settled();
       },
@@ -109,14 +115,21 @@ export const Outline: StoryObj<OutlineArgs> = {
         // Each shape against the one before it, on the same canvas. A debug layer that ignored
         // the contour and boxed everything would pass a size check and fail exactly here: a
         // circle and its bounding square differ only in the pattern of the stroke.
-        const shelf: readonly Shape[] = [rect(1, 1), circle(0.7), star(5, 1, 0.42), chevron];
+        const shelf: readonly (readonly [string, Shape])[] = [
+          ["square", rect(1, 1)],
+          ["circle", circle(0.7)],
+          ["star", star(5, 1, 0.42)],
+          ["path", chevron],
+        ];
         let before = snapshot(glass);
-        for (const shape of shelf.slice(1)) {
+        let [wore] = shelf[0]!;
+        for (const [name, shape] of shelf.slice(1)) {
           live.setRoot(tree(id, shape));
           await settled();
           const after = snapshot(glass);
-          await expect(imagesDiffer(before, after)).toBe(true);
+          await expect(imagesDiffer(before, after), `the ${name} outline differs from the ${wore}`).toBe(true);
           before = after;
+          wore = name;
         }
         live.setRoot(tree(id, rect(1, 1)));
         await settled();
@@ -131,7 +144,7 @@ export const Outline: StoryObj<OutlineArgs> = {
         await settled();
         // Zero, not "less": with no box there is nothing to outline, and any surviving pixel is
         // a mark the layer forgot to take back.
-        await expect(ink(glass).count).toBe(0);
+        await expect(ink(glass).count, "inked pixels with no box to outline").toBe(0);
         live.setRoot(tree(ctx.args["id"] as string, rect(1, 1)));
         await settled();
       },

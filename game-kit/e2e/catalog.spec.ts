@@ -144,25 +144,6 @@ test("e2e.grid-reaches-the-glass — a ruler nobody can see is not a ruler", asy
   expect((await middle(page, canvas)).equals(before)).toBe(true);
 });
 
-test("e2e.story-smoke — every story opens without a word in the console", async ({ page, request }) => {
-  const index = (await (await request.get("/index.json")).json()) as {
-    entries: Record<string, { id: string; type: string }>;
-  };
-  const stories = Object.values(index.entries).filter((e) => e.type === "story");
-  expect(stories.length).toBeGreaterThan(0);
-
-  const complaints: string[] = [];
-  page.on("console", (m) => {
-    if (m.type() === "error") complaints.push(`${page.url()} :: ${m.text()}`);
-  });
-  page.on("pageerror", (e) => complaints.push(`${page.url()} :: ${e.message}`));
-
-  for (const story of stories) {
-    await openEntry(page, story.id);
-  }
-  expect(complaints).toEqual([]);
-});
-
 test("e2e.bounds-layer-reveals-the-box — the invisible becomes visible, on demand", async ({ page }) => {
   // `Bounded/Square` is the scene that draws nothing at all. The toggle has to put an outline on
   // the glass where the model always said a box was, and take it away again — and nothing above
@@ -874,47 +855,92 @@ test("e2e.the-manager-watches-its-own-bundles — nothing is the failure mode", 
   expect(loads).toBe(0);
 });
 
-test("e2e.checks-run-only-when-asked — the Tests section is the switch", async ({ page }) => {
-  // Twenty rounds of add-and-remove on a real GPU, plus the frames each one waits for: the one
-  // deliberately slow case in this suite, and the default 30s is not enough for it.
-  test.setTimeout(120_000);
+// THE TWO HEAVY PAGES, ONE AT A TIME.
+//
+// Serial not for the usual reason — neither test touches what the other looks at — but for the
+// machine. The smoke walk opens every story in the catalog back to back, each one a WebGL
+// context and a scene; the checks below open the manager and wait for IT to lay out before the
+// preview inside has any width at all. Run at the same time, the walk starves the layout, the
+// canvas stays one pixel wide for as long as a minute, and the suite reports a broken renderer.
+//
+// This is NOT the serialisation the config warns about: that one was an attempt to make a
+// capture across two navigations reliable, and it did not work because the fault was in the
+// capture. Here the fault is contention, and time is the only thing that separates them.
+test.describe.serial("the heavy pages", () => {
+  test("e2e.story-smoke — every story opens without a word in the console", async ({ page, request }) => {
+    const index = (await (await request.get("/index.json")).json()) as {
+      entries: Record<string, { id: string; type: string }>;
+    };
+    const stories = Object.values(index.entries).filter((e) => e.type === "story");
+    expect(stories.length).toBeGreaterThan(0);
 
-  // A CATALOG story carries no play at all — a reader turning a knob is not running a suite.
-  await page.goto("/?path=/story/basics-node--bare&addonPanel=storybook%2Finteractions%2Fpanel");
-  const panel = page.locator("#storybook-panel-root");
-  // Through the preview IFRAME: the manager page holds the panel, the story lives a document
-  // deeper, and a locator that never crosses that line reports "no scene" about a painted one.
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  await expect(preview.locator("[data-painted]")).toBeVisible({ timeout: 30000 });
-  await expect(panel.getByText("play.node.it-is-there")).toHaveCount(0);
+    const complaints: string[] = [];
+    page.on("console", (m) => {
+      if (m.type() === "error") complaints.push(`${page.url()} :: ${m.text()}`);
+    });
+    page.on("pageerror", (e) => complaints.push(`${page.url()} :: ${e.message}`));
 
-  // A TESTS story runs its checks the moment it opens — opening the page is the request, and
-  // the same steps a reader watches here are the ones this suite asserts on. EVERY step by
-  // name, not only the last one: waiting on the final step alone would pass on a run that had
-  // reordered or quietly dropped the three before it. Every RUNG the same way — a new Tests
-  // page joins this list, or it is a suite nothing ever runs.
-  const rungs: readonly [string, readonly string[]][] = [
-    [
-      "tests-node--lifecycle",
-      ["play.node.it-is-there", "play.node.it-goes", "play.node.it-comes-back", "play.node.repeats"],
-    ],
-    [
-      "tests-bounded--outline",
-      [
-        "play.bounded.the-outline-is-the-only-ink",
-        "play.bounded.size-is-on-the-glass",
-        "play.bounded.every-shape-draws-its-own-pattern",
-        "play.bounded.no-box-no-ink",
-      ],
-    ],
-  ];
-  for (const [story, steps] of rungs) {
-    await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
-    for (const step of steps) {
-      await expect(panel.getByText(step, { exact: false })).toBeVisible({ timeout: 60000 });
+    for (const story of stories) {
+      await openEntry(page, story.id);
     }
-    // And the panel says PASS rather than merely having run: a failed step is still a listed
-    // step.
-    await expect(panel.getByText(/Fail|Error|Exception/)).toHaveCount(0);
-  }
+    expect(complaints).toEqual([]);
+  });
+
+  test("e2e.checks-run-only-when-asked — the Tests section is the switch", async ({ page }) => {
+    // Twenty rounds of add-and-remove on a real GPU, plus the frames each one waits for: the one
+    // deliberately slow case in this suite, and the default 30s is not enough for it.
+    test.setTimeout(120_000);
+
+    // A CATALOG story carries no play at all — a reader turning a knob is not running a suite.
+    await page.goto("/?path=/story/basics-node--bare&addonPanel=storybook%2Finteractions%2Fpanel");
+    const panel = page.locator("#storybook-panel-root");
+    // Through the preview IFRAME: the manager page holds the panel, the story lives a document
+    // deeper, and a locator that never crosses that line reports "no scene" about a painted one.
+    const preview = page.frameLocator("#storybook-preview-iframe");
+    await expect(preview.locator("[data-painted]")).toBeVisible({ timeout: 30000 });
+    await expect(panel.getByText("play.node.it-is-there")).toHaveCount(0);
+
+    // A TESTS story runs its checks the moment it opens — opening the page is the request, and
+    // the same steps a reader watches here are the ones this suite asserts on. EVERY step by
+    // name, not only the last one: waiting on the final step alone would pass on a run that had
+    // reordered or quietly dropped the three before it. Every RUNG the same way — a new Tests
+    // page joins this list, or it is a suite nothing ever runs.
+    const rungs: readonly [string, readonly string[]][] = [
+      [
+        "tests-node--lifecycle",
+        ["play.node.it-is-there", "play.node.it-goes", "play.node.it-comes-back", "play.node.repeats"],
+      ],
+      [
+        "tests-bounded--outline",
+        [
+          "play.bounded.the-outline-is-the-only-ink",
+          "play.bounded.size-is-on-the-glass",
+          "play.bounded.every-shape-draws-its-own-pattern",
+          "play.bounded.no-box-no-ink",
+        ],
+      ],
+      [
+        "tests-surfaced--paint",
+        [
+          "play.surfaced.the-fill-is-the-box",
+          "play.surfaced.nothing-to-paint-with-or-on",
+          "play.surfaced.the-colour-is-the-record-s",
+          "play.surfaced.the-border-is-its-own-ink",
+          "play.surfaced.width-and-dashes-are-absolute",
+          "play.surfaced.a-different-record-is-a-different-picture",
+          "play.surfaced.the-paint-need-not-match-the-box",
+          "play.surfaced.a-desk-takes-its-area-from-what-it-holds",
+        ],
+      ],
+    ];
+    for (const [story, steps] of rungs) {
+      await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
+      for (const step of steps) {
+        await expect(panel.getByText(step, { exact: false })).toBeVisible({ timeout: 60000 });
+      }
+      // And the panel says PASS rather than merely having run: a failed step is still a listed
+      // step.
+      await expect(panel.getByText(/Fail|Error|Exception/)).toHaveCount(0);
+    }
+  });
 });

@@ -53,7 +53,7 @@ export const Lifecycle: StoryObj<BareArgs> = {
         // The middle of the canvas is where the card is, and it is not the desk behind it.
         const centre = pixelAt(glass, 0.5, 0.5);
         const corner = pixelAt(glass, 0.02, 0.02);
-        await expect(differs(centre, corner)).toBe(true);
+        await expect(differs(centre, corner), "the middle is the card, not the desk behind it").toBe(true);
       },
     },
     {
@@ -66,9 +66,9 @@ export const Lifecycle: StoryObj<BareArgs> = {
         await settled();
         const bare = pixelAt(glass, 0.5, 0.5);
         // The middle now reads like the desk it stands on, not like a card.
-        await expect(differs(withCard, bare)).toBe(true);
-        await expect(differs(bare, pixelAt(glass, 0.02, 0.02))).toBe(false);
-        await expect(scene.host.root.children).toHaveLength(0);
+        await expect(differs(withCard, bare), "the middle changed when the card left").toBe(true);
+        await expect(differs(bare, pixelAt(glass, 0.02, 0.02)), "the middle now reads as bare desk").toBe(false);
+        await expect(scene.host.root.children, "children left on the root").toHaveLength(0);
       },
     },
     {
@@ -78,11 +78,11 @@ export const Lifecycle: StoryObj<BareArgs> = {
         const scene = await standing(ctx);
         scene.setRoot(tree(ctx.args["id"] as string, true));
         await settled();
-        await expect(differs(pixelAt(glass, 0.5, 0.5), pixelAt(glass, 0.02, 0.02))).toBe(true);
+        await expect(differs(pixelAt(glass, 0.5, 0.5), pixelAt(glass, 0.02, 0.02)), "the card is back in the middle").toBe(true);
         // THE SAME canvas, which is the half of the claim a picture cannot make. A new tree is
         // new DATA: rebuilding the scene would spend another WebGL context, and a browser hands
         // out about a dozen before it starts taking them back.
-        await expect(await view(ctx)).toBe(glass);
+        await expect(await view(ctx), "the canvas the picture came back on").toBe(glass);
       },
     },
     {
@@ -101,8 +101,8 @@ export const Lifecycle: StoryObj<BareArgs> = {
           scene.setRoot(tree(id, true));
           await settled();
         }
-        await expect(differs(first, pixelAt(glass, 0.5, 0.5))).toBe(false);
-        await expect(scene.host.root.children).toHaveLength(1);
+        await expect(differs(first, pixelAt(glass, 0.5, 0.5)), "the middle drifted over twenty rounds").toBe(false);
+        await expect(scene.host.root.children, "children after twenty rounds").toHaveLength(1);
       },
     },
   ]),
