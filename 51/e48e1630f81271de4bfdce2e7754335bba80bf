@@ -1,0 +1,41 @@
+CLAUDE.md
+  s_c98a72b52853a5::t_fd7b52905bee63 1-46,50-51,53-59,61-66
+game-kit/src/core/viewer.ts
+  s_c98a72b52853a5::t_7c6941cff8050f 6
+game-kit/CANONS.md
+  s_c98a72b52853a5::t_e6e654c67719ed 388-389,391-395
+  s_c98a72b52853a5::t_5210f1679f52fb 3-16,20-41,43,46,50-56,61-69,71,73,75-87,89-91,93-94,96-98,100,102-113,115,117,119-120,122-124,126-128,130-132,134-136,138,140-141,143-181,183-185,187-190,192-196,198-199,201,203-208,210,212-215,219,221-224,228,235-242,245-367,374-375,377,379-382,384-386,397-399,401-483,487-511,515-601
+  s_c98a72b52853a5::t_eadd921dc57f4c 512-514
+game-kit/docs/catalog.md
+  s_c98a72b52853a5::t_331789893e916a 1-231
+server/CLAUDE.md
+  s_c98a72b52853a5::t_466fb993c9a7b5 1-47
+game-kit/docs/design/container.md
+  s_c98a72b52853a5::t_d0917839ba88dc 1-144
+game-kit/docs/design/hud.md
+  s_c98a72b52853a5::t_931db57d6bd5e6 1-85
+client/CLAUDE.md
+  s_c98a72b52853a5::t_c1afe16f333d6e 1-212
+game-kit/docs/design/camera.md
+  s_c98a72b52853a5::t_816c7c2087fc2d 1-100
+game-kit/docs/design/transaction.md
+  s_c98a72b52853a5::t_8c79e18963ed30 1-130
+game-kit/docs/design/sets.md
+  s_c98a72b52853a5::t_29ae265558ec0f 1-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "51e48e1630f81271de4bfdce2e7754335bba80bf",
+  "prompts": {},
+  "sessions": {
+    "s_c98a72b52853a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07bb8807-9f79-4afe-928e-bb9c04b96f76",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
