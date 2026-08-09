@@ -1,4 +1,4 @@
-// Ids follow docs/test-plan.md — a failing id names the scenario and the state.
+// Ids follow docs/test-plan/ — one file per layer — a failing id names the scenario and the state.
 //
 // No `resetAtoms()` here, unlike the stand-in suites: these are the REAL atoms, registered
 // when their module is imported. Clearing the registry would take their field classes with

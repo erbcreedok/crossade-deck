@@ -1,4 +1,4 @@
-// Ids follow docs/test-plan.md — a failing id names the scenario and the state.
+// Ids follow docs/test-plan/ — one file per layer — a failing id names the scenario and the state.
 //
 // These tests compare PICTURES against each other, never against a stored baseline. A baseline
 // would have to be looked at by a human to be worth anything, and a screenshot nobody looked at

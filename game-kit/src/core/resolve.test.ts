@@ -1,4 +1,4 @@
-// Ids follow docs/test-plan.md — a failing id names the scenario and the state.
+// Ids follow docs/test-plan/ — one file per layer — a failing id names the scenario and the state.
 //
 // RESOLUTION IS THE PART NOTHING ELSE CAN COVER. Every other suite watches a value arrive
 // somewhere; this one watches it being WORKED OUT — which of five rules applies, how far up the

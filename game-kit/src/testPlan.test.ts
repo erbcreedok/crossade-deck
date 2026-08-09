@@ -1,10 +1,15 @@
 // THE PLAN AND THE SUITE, HELD AGAINST EACH OTHER.
 //
-// `docs/test-plan.md` is where a law gets its guard (CANONS §0), and a document nobody checks
+// `docs/test-plan/` is where a law gets its guard (CANONS §0), and a document nobody checks
 // drifts from the code the way every document does. It had drifted: 145 rows named a test that
 // was never written, 51 tests ran under an id the plan had never heard of — and neither number
 // was visible from either side. Reading the file told you it was covered; reading the suite told
 // you nothing about what was missing.
+//
+// The plan is a DIRECTORY: one file per layer, plus `README.md` carrying the preamble and the
+// summary. It is consulted a layer at a time and was never read end to end, so a single file only
+// ever charged every reader for twenty-five layers to answer about one. The scan therefore reads
+// all of them and reports `<file>:<line>`, which is also what makes a failure clickable.
 //
 // So the two are compared, both ways, and the difference has to be spelled out in the document
 // rather than merely be true.
@@ -23,7 +28,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = new URL("../", import.meta.url).pathname;
-const PLAN = join(ROOT, "docs/test-plan.md");
+const PLAN_DIR = join(ROOT, "docs/test-plan");
+/** The preamble, the summary line and the ladder of layers. Holds no rows of its own. */
+const INDEX = "README.md";
 
 /** The mark on a row whose code is not written yet. One glyph, so a row is scannable by eye. */
 const PENDING = "⏳";
@@ -33,6 +40,8 @@ interface PlanRow {
   /** `⏳` — the plan describes it, nothing implements it, and no test is expected. */
   readonly pending: boolean;
   readonly section: string;
+  /** Name inside `docs/test-plan/`, so a failure points at the layer that has to change. */
+  readonly file: string;
   readonly line: number;
 }
 
@@ -42,37 +51,53 @@ interface PlanSection {
   readonly claimed: number;
   readonly spelled: number;
   readonly rows: PlanRow[];
+  readonly file: string;
   readonly line: number;
 }
 
+/** Every layer file, in ladder order — the numeric prefix is what makes sorting mean anything. */
+function planFiles(): string[] {
+  return readdirSync(PLAN_DIR)
+    .filter((n) => n.endsWith(".md") && n !== INDEX)
+    .sort();
+}
+
 function readPlan(): { sections: PlanSection[]; rows: PlanRow[] } {
-  const lines = readFileSync(PLAN, "utf8").split("\n");
   const sections: PlanSection[] = [];
-  let current: PlanSection | undefined;
-  lines.forEach((line, i) => {
-    const head = /^##\s+(.+)$/.exec(line);
-    if (head) {
-      current = { title: head[1]!.trim(), claimed: 0, spelled: 0, rows: [], line: i + 1 };
-      sections.push(current);
-      return;
-    }
-    // The runner line, which is also where the section's own arithmetic is stated.
-    const counts = /·\s*(\d+)\s+кейсов,\s*расписано\s+(\d+)/.exec(line);
-    if (counts && current) {
-      sections[sections.length - 1] = {
-        ...current,
-        claimed: Number(counts[1]),
-        spelled: Number(counts[2]),
-      };
-      current = sections[sections.length - 1];
-      return;
-    }
-    // A row: the id is the first cell, in backticks, optionally marked.
-    const row = /^\|\s*`([a-zA-Z0-9._-]+)`\s*(⏳)?\s*\|/.exec(line);
-    if (row && current) {
-      current.rows.push({ id: row[1]!, pending: Boolean(row[2]), section: current.title, line: i + 1 });
-    }
-  });
+  for (const file of planFiles()) {
+    const lines = readFileSync(join(PLAN_DIR, file), "utf8").split("\n");
+    let current: PlanSection | undefined;
+    lines.forEach((line, i) => {
+      const head = /^##\s+(.+)$/.exec(line);
+      if (head) {
+        current = { title: head[1]!.trim(), claimed: 0, spelled: 0, rows: [], file, line: i + 1 };
+        sections.push(current);
+        return;
+      }
+      // The runner line, which is also where the section's own arithmetic is stated.
+      const counts = /·\s*(\d+)\s+кейсов,\s*расписано\s+(\d+)/.exec(line);
+      if (counts && current) {
+        sections[sections.length - 1] = {
+          ...current,
+          claimed: Number(counts[1]),
+          spelled: Number(counts[2]),
+        };
+        current = sections[sections.length - 1];
+        return;
+      }
+      // A row: the id is the first cell, in backticks, optionally marked.
+      const row = /^\|\s*`([a-zA-Z0-9._-]+)`\s*(⏳)?\s*\|/.exec(line);
+      if (row && current) {
+        current.rows.push({
+          id: row[1]!,
+          pending: Boolean(row[2]),
+          section: current.title,
+          file,
+          line: i + 1,
+        });
+      }
+    });
+  }
   return { sections, rows: sections.flatMap((s) => s.rows) };
 }
 
@@ -159,7 +184,7 @@ describe("test plan", () => {
     // `⏳` is the only way out, and it says the CODE is missing rather than the test.
     const missing = plan.rows
       .filter((r) => !r.pending && !implemented.has(r.id))
-      .map((r) => `test-plan.md:${r.line}  ${r.id}  (${r.section})`)
+      .map((r) => `${r.file}:${r.line}  ${r.id}  (${r.section})`)
       .sort();
     expect(missing).toEqual([]);
   });
@@ -167,19 +192,51 @@ describe("test plan", () => {
   it("plan.a-kept-promise-stops-being-one — nothing waits for code it already has", () => {
     const stale = plan.rows
       .filter((r) => r.pending && implemented.has(r.id))
-      .map((r) => `test-plan.md:${r.line}  ${r.id} is marked ${PENDING} and is implemented in ${implemented.get(r.id)!.file}`)
+      .map((r) => `${r.file}:${r.line}  ${r.id} is marked ${PENDING} and is implemented in ${implemented.get(r.id)!.file}`)
       .sort();
     expect(stale).toEqual([]);
   });
 
   it("plan.ids-are-unique — one id, one scenario, in one place", () => {
-    const seen = new Map<string, number>();
+    // Cutting the plan into files made this the check that earns its keep: within one document a
+    // repeated id was at least visible by eye, and across twenty-five it is not visible at all.
+    const seen = new Map<string, string>();
     const dupes: string[] = [];
     for (const r of plan.rows) {
-      if (seen.has(r.id)) dupes.push(`${r.id}: lines ${seen.get(r.id)} and ${r.line}`);
-      else seen.set(r.id, r.line);
+      const at = `${r.file}:${r.line}`;
+      if (seen.has(r.id)) dupes.push(`${r.id}: ${seen.get(r.id)} and ${at}`);
+      else seen.set(r.id, at);
     }
     expect(dupes).toEqual([]);
+  });
+
+  it("plan.every-layer-is-in-the-index — a file nobody links is a file nobody opens", () => {
+    // The ladder is read from `README.md`, so a layer missing from it is invisible while still
+    // counting towards every total — the quietest way for the split to rot.
+    const index = readFileSync(join(PLAN_DIR, INDEX), "utf8");
+    const unlisted = planFiles().filter((f) => !index.includes(`(${f})`));
+    expect(unlisted).toEqual([]);
+  });
+
+  it("plan.the-index-repeats-the-numbers-truthfully — two places, one arithmetic", () => {
+    // Splitting the plan put every count in two places: the layer states its own, and the index
+    // repeats it. A repeated number is a number that will disagree, and the index is the one
+    // people read — so it is the one that would lie.
+    const rows = new Map<string, [number, number]>();
+    for (const line of readFileSync(join(PLAN_DIR, INDEX), "utf8").split("\n")) {
+      const m = /^\|\s*\[[^\]]+\]\(([^)]+)\)\s*\|[^|]*\|\s*(\d+)\s*\|\s*(\d+)\s*\|/.exec(line);
+      if (m) rows.set(m[1]!, [Number(m[2]), Number(m[3])]);
+    }
+    const wrong = plan.sections
+      .filter((s) => {
+        const stated = rows.get(s.file);
+        return !stated || stated[0] !== s.claimed || stated[1] !== s.rows.length;
+      })
+      .map((s) => {
+        const stated = rows.get(s.file);
+        return `${INDEX}: ${s.file} listed as ${stated?.join("/") ?? "absent"}, the layer says ${s.claimed}/${s.rows.length}`;
+      });
+    expect(wrong).toEqual([]);
   });
 
   it("plan.a-test-title-starts-with-its-id — or a failure names nothing", () => {
@@ -193,7 +250,7 @@ describe("test plan", () => {
     const wrong = plan.sections
       .filter((s) => s.rows.length > 0 || s.spelled > 0)
       .filter((s) => s.spelled !== s.rows.length)
-      .map((s) => `test-plan.md:${s.line}  ${s.title}: says расписано ${s.spelled}, has ${s.rows.length} rows`);
+      .map((s) => `${s.file}:${s.line}  ${s.title}: says расписано ${s.spelled}, has ${s.rows.length} rows`);
     expect(wrong).toEqual([]);
   });
 
@@ -203,12 +260,12 @@ describe("test plan", () => {
     const wrong = plan.sections
       .filter((s) => s.rows.length > 0)
       .filter((s) => s.claimed < s.spelled)
-      .map((s) => `test-plan.md:${s.line}  ${s.title}: claims ${s.claimed}, spells out ${s.spelled}`);
+      .map((s) => `${s.file}:${s.line}  ${s.title}: claims ${s.claimed}, spells out ${s.spelled}`);
     expect(wrong).toEqual([]);
   });
 
   it("plan.the-summary-adds-up — the line at the top is the sum of the sections", () => {
-    const header = readFileSync(PLAN, "utf8");
+    const header = readFileSync(join(PLAN_DIR, INDEX), "utf8");
     const stated = /\*\*(\d+)\s+слоя\s*·\s*(\d+)\s+кейсов заявлено\s*·\s*(\d+)\s+расписано поимённо\.\*\*/.exec(header);
     expect(stated, "the summary line is missing or reworded").toBeTruthy();
     const withRows = plan.sections.filter((s) => s.rows.length > 0 || s.claimed > 0);

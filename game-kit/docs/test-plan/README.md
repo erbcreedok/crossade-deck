@@ -1,0 +1,53 @@
+# game-kit — план тестов
+
+Покрытие. Спецификация ПОВЕДЕНИЯ — `docs/scenarios/*.md`, законы — `CANONS.md`; здесь то, что
+именно проверяется и на каком слое. Каждый закон обязан иметь тут строку: правило без сторожа
+живёт до первой пересборки контекста (§0 канонов).
+
+Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
+состояние. Строка — Дано / Когда / Тогда.
+
+**25 слоя · 652 кейсов заявлено · 477 расписано поимённо.**
+Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
+закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
+
+**Слой на файл, и читают ОДИН.** План — справочник, а не повесть: работая над контейнером, открывают
+`09-container.md`, и остальные двадцать четыре слоя не нужны. Целиком он не читается никогда —
+поэтому единого файла и нет. Порядковый номер в имени держит лестницу: слои идут от юнитов к
+браузеру, а алфавит перемешал бы их.
+
+**Строка отвечает на «что покрыто», а не на «почему так».** Обоснование живёт в шапке ТЕСТА, рядом с
+кодом, который его исполняет: там его находит тот, кто правит проверку, и оно не может разойтись с
+ней незаметно. Раньше «почему» писали сюда, и в старых строках оно ещё лежит — при следующей правке
+такой строки объяснение переезжает в тест, а здесь остаётся Дано / Когда / Тогда.
+
+> Данные плана и таблица в сторибуке — ОДИН массив: этот каталог из него выгружен, а когда появится
+> настоящий Storybook, стори будет читать эти файлы. Двух источников нет по построению.
+
+| слой | чем гоняется | заявлено | расписано |
+|---|---|---|---|
+| [UNIT · Fit and align](01-fit-and-align.md) | `vitest (headless, no WebGL)` | 12 | 12 |
+| [UNIT · Contour and dashes](02-contour-and-dashes.md) | `vitest (headless, no WebGL)` | 20 | 20 |
+| [UNIT · Node and composition](03-node-and-composition.md) | `vitest (headless, no WebGL)` | 35 | 34 |
+| [UNIT · Root, host and the inspector](04-root-host-and-inspector.md) | `vitest + a DOM fake` | 29 | 28 |
+| [UNIT · requirement chains](05-requirement-chains.md) | `vitest` | 10 | 6 |
+| [UNIT · four classes of inheritance](06-inheritance-classes.md) | `vitest + a fake tree` | 26 | 10 |
+| [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
+| [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 81 | 79 |
+| [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 49 | 43 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 38 | 37 |
+| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 46 | 46 |
+| [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
+| [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
+| [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
+| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 28 | 28 |
+| [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 36 | 25 |
+| [STATE MATRIX · combinatorics](17-state-matrix.md) | `generated table, vitest` | 24 | 5 |
+| [STATE PLANE · what happens vs what is authored](18-state-plane.md) | `vitest` | 12 | 4 |
+| [VISUAL REGRESSION](19-visual-regression.md) | `Chromatic — pixel diff per story` | 40 | 4 |
+| [ACCESSIBILITY](20-accessibility.md) | `axe-core via the a11y addon` | 14 | 4 |
+| [NETWORKING · truth vs pretty](21-networking.md) | `vitest + a fake Colyseus room + a fake clock` | 24 | 6 |
+| [LIFECYCLE & PERFORMANCE](22-lifecycle-and-performance.md) | `vitest + a headless Pixi fake` | 16 | 5 |
+| [SERIALIZATION / SCHEMA CONTRACT](23-serialization.md) | `vitest` | 11 | 4 |
+| [REGRESSION GUARDS · known traps](24-regression-guards.md) | `vitest — one test per historical bug` | 10 | 6 |
+| [E2E](25-e2e.md) | `Playwright against the built Storybook` | 42 | 42 |

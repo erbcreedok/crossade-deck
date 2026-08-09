@@ -1,4 +1,4 @@
-// Ids follow docs/test-plan.md — a failing id names the scenario and the state.
+// Ids follow docs/test-plan/ — one file per layer — a failing id names the scenario and the state.
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { defineAtom, resetAtoms } from "./atom.js";
