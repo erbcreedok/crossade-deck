@@ -1,0 +1,72 @@
+game-kit/.storybook/locales/pages/tests/ru.json
+  s_6977b525b4aab0::t_1009163d50158d 12-17
+game-kit/.storybook/stories/TestsBounded.stories.ts
+  s_6977b525b4aab0::t_e3ee33766f150d 100
+  s_6977b525b4aab0::t_b7482a02bcafd5 79-80
+  s_6977b525b4aab0::t_5d77b99add925f 98-99,101-104
+  s_6977b525b4aab0::t_0a7594dfdf86c7 8
+  s_6977b525b4aab0::t_1d40bc80008137 118-123,125-126,130,132
+  s_6977b525b4aab0::t_987f9ed1b361a2 147
+game-kit/.storybook/devtools/checks.ts
+  s_6977b525b4aab0::t_8a82409eaea9c8 123,255-276
+  s_6977b525b4aab0::t_a4bd3e4ccc71e2 122
+  s_6977b525b4aab0::t_682f98fa877bc0 39-43
+  s_6977b525b4aab0::t_aafdfa6ac16971 114-119
+  s_6977b525b4aab0::t_b57a2aceedd762 28-38,44-45
+  s_6977b525b4aab0::t_983532d7b3fe52 100-113,120-121
+  s_6977b525b4aab0::t_7513c8da9cd214 125-143
+  s_6977b525b4aab0::t_018c2807a9a67d 124
+game-kit/.storybook/locales/pages/tests/en.json
+  s_6977b525b4aab0::t_8d5b89e3ba6d69 12-17
+game-kit/.storybook/preview.ts
+  s_6977b525b4aab0::t_647b4726916982 154
+game-kit/docs/test-plan.md
+  s_6977b525b4aab0::t_5980da8e5191ad 512
+  s_6977b525b4aab0::t_da2694e71b36de 10
+  s_6977b525b4aab0::t_868936d14722e2 533-540
+game-kit/.storybook/stories/TestsNode.stories.ts
+  s_6977b525b4aab0::t_c4f7e342844567 69-71
+  s_6977b525b4aab0::t_9fe972508b270c 81,85
+  s_6977b525b4aab0::t_b972001612506f 104-105
+  s_6977b525b4aab0::t_585171b4aef79a 56
+game-kit/.storybook/stories/TestsSurfaced.stories.ts
+  s_6977b525b4aab0::t_4d49b9637a9509 18,21
+  s_6977b525b4aab0::t_d8bdcd51a0585c 165,168-169
+  s_6977b525b4aab0::t_991eeea7b66235 1-17,19-20,22-122,125-128,131-142,144-147,149-164,166-167,170-178,181-182,185-186,189-190,194-206,208,210-217,220-231,233-236,238,240-247,249-251,253-260,262,266-268,270,272,281,285-286,293-316,319-322,328-333
+  s_6977b525b4aab0::t_0e13080e16aeda 183-184,187-188,192-193
+  s_6977b525b4aab0::t_c51724c2880000 207,209
+  s_6977b525b4aab0::t_23a4e7061930c4 317
+  s_6977b525b4aab0::t_0365ec7dc38617 123-124
+  s_6977b525b4aab0::t_db32233e09a14e 326
+  s_6977b525b4aab0::t_97730ca020f5fd 218-219
+  s_6977b525b4aab0::t_be40179d839865 263-265
+  s_6977b525b4aab0::t_7daef6b94315e5 191
+  s_6977b525b4aab0::t_be9ea24abc7bb5 318,323-325,327
+  s_6977b525b4aab0::t_0b1a8d237c0914 179-180
+  s_6977b525b4aab0::t_ec42d452746a8f 232,237,239
+  s_6977b525b4aab0::t_1e0b7f8e45b005 129-130
+  s_6977b525b4aab0::t_d33a061b14ea96 269,273-280,282-284
+  s_6977b525b4aab0::t_6d89e3b2d44944 248,252,261,271,292
+  s_6977b525b4aab0::t_2660993b7757ab 143,148
+  s_6977b525b4aab0::t_04200986df6758 287-291
+game-kit/e2e/catalog.spec.ts
+  s_6977b525b4aab0::t_7c6feade748bec 858-875,877-880,889-912,914-920,922-943,945
+  s_6977b525b4aab0::t_32ccf202e19bd7 881-887
+  s_6977b525b4aab0::t_b390356b2b6850 888
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "bb93a48beb6e6f6b1e10fe6c42df940cbe1cf428",
+  "prompts": {},
+  "sessions": {
+    "s_6977b525b4aab0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9f6c8b2-6296-4ee4-ad22-f52c34523c72",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
