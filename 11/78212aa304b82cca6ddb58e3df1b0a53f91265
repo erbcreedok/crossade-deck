@@ -1,0 +1,28 @@
+game-kit/.storybook/locales/pages/container/en.json
+  s_8a89f581d5de84::t_78c9393c83fef9 20-28,36-37,43-45,47-49,52,56-58,62-67,71,74-82
+  s_8a89f581d5de84::t_0427ae52ea5c93 59-61
+  s_8a89f581d5de84::t_931ffa8c5513ba 68-70,72-73
+  s_8a89f581d5de84::t_6a7b97724d753c 38
+  s_8a89f581d5de84::t_b06752cefb6eba 29-32
+game-kit/.storybook/stories/Container.stories.ts
+  s_8a89f581d5de84::t_32e0f0b6b66dbd 2,6-21,24-31,41-42,46-53,55-69,72-84,87-124
+  s_8a89f581d5de84::t_707bca41c84af8 54
+game-kit/.storybook/locales/pages/container/ru.json
+  s_8a89f581d5de84::t_cd5ed78b050810 20-33,38-39,44-46,48-50,53,58-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1178212aa304b82cca6ddb58e3df1b0a53f91265",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
