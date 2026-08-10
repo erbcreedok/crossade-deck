@@ -151,7 +151,7 @@ const preview: Preview = {
           "Presets",
           ["Bounds", "Surfaces", "Poses", "Components"],
           "Engine",
-          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes"],
+          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records"],
           "Elements",
           "HUD",
           // Last, because it is ABOUT the catalog rather than of it: the pages that check the

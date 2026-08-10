@@ -903,6 +903,11 @@ test("e2e.the-manager-watches-its-own-bundles — nothing is the failure mode", 
 // capture. Here the fault is contention, and time is the only thing that separates them.
 test.describe.serial("the heavy pages", () => {
   test("e2e.story-smoke — every story opens without a word in the console", async ({ page, request }) => {
+    // The walk opens EVERY entry the index lists, so its budget grows with the catalog — and a
+    // prose page still pays the 1.5s "is there a scene" probe before moving on. Sized so the
+    // catalog can keep growing without this line moving again.
+    test.setTimeout(120_000);
+
     const index = (await (await request.get("/index.json")).json()) as {
       entries: Record<string, { id: string; type: string }>;
     };
