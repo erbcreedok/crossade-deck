@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**25 слоя · 684 кейсов заявлено · 509 расписано поимённо.**
+**25 слоя · 685 кейсов заявлено · 510 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -36,7 +36,7 @@
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 97 | 95 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 51 | 45 |
 | [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 38 | 37 |
-| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 49 | 49 |
+| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 50 | 50 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |

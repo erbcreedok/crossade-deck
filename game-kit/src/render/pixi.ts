@@ -48,6 +48,7 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
   let alive = true;
   let started = false;
   let pending: { plan: readonly Quad[]; marks: readonly Mark[]; theme: ThemeName } | null = null;
+  let lateSize: { width: number; height: number } | null = null;
 
   // PICTURES ARRIVE LATE, AND THE FRAME DOES NOT WAIT FOR THEM.
   //
@@ -67,7 +68,10 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
         .then((loaded: Texture) => {
           if (!alive) return;
           textures.set(src, loaded);
-          if (pending) apply(pending.plan, pending.marks, pending.theme);
+          // `started` too: a texture from a warm cache can land before `init` resolves, and an
+          // application that has not started has no stage to apply anything to. The re-apply
+          // at the end of `init` picks the texture up from the map.
+          if (started && pending) apply(pending.plan, pending.marks, pending.theme);
         })
         // A picture that never arrives is skipped, exactly as a dangling record is: one bad
         // reference must not take the scene down and hide every node that was fine.
@@ -100,6 +104,10 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
         app.destroy(true);
         return;
       }
+      // A resize that arrived while the renderer was still starting could not be applied then;
+      // dropped instead of queued, it left the canvas at the size it was MEASURED at — which on
+      // a page still laying itself out is one pixel, presented as an empty scene.
+      if (lateSize) app.renderer.resize(lateSize.width, lateSize.height);
       if (pending) apply(pending.plan, pending.marks, pending.theme);
     });
 
@@ -221,7 +229,9 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
       if (started) apply(plan, marks, theme);
     },
     resize(width, height) {
-      if (alive && started) app.renderer.resize(width, height);
+      if (!alive) return;
+      if (started) app.renderer.resize(width, height);
+      else lateSize = { width, height };
     },
     destroy() {
       alive = false;

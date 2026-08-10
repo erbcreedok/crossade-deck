@@ -347,7 +347,7 @@ export function sceneOf(el: HTMLElement): Scene | undefined {
  * and replays the LAST request when the renderer arrives. A scene that mounts and paints in
  * the same breath must not lose that first frame.
  */
-function lazyPixiPainter(view: HTMLCanvasElement, size: PainterSize): Painter {
+export function lazyPixiPainter(view: HTMLCanvasElement, size: PainterSize): Painter {
   let real: Painter | null = null;
   let pending: { plan: readonly Quad[]; marks: readonly Mark[]; theme: ThemeName } | null = null;
   let box = size;
@@ -358,6 +358,14 @@ function lazyPixiPainter(view: HTMLCanvasElement, size: PainterSize): Painter {
     real = pixiPainter(view, box);
     if (pending) real.draw(pending.plan, pending.marks, pending.theme);
     await real.ready;
+    if (dead) return;
+    // THE SIZE MAY HAVE MOVED WHILE THE RENDERER WAS STARTING — on a phone the layout often
+    // settles inside exactly this window, and a renderer that has not started yet cannot
+    // resize. Re-assert the latest size and frame now that it can listen, or the canvas keeps
+    // whatever it measured before layout — one pixel, presented as an empty scene that any
+    // later toggle mysteriously "fixes".
+    real.resize(box.width, box.height);
+    if (pending) real.draw(pending.plan, pending.marks, pending.theme);
   });
 
   return {

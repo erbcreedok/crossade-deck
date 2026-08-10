@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Bounded, node, rect, Surfaced, type Mark, type Painter, type Quad } from "../../src/index.js";
 import { catalogText } from "../locales/catalog.js";
 import { currentSettings } from "./catalogSettings.js";
 import { liveReports, setNextSceneId } from "./inspectorBus.js";
-import { scene as buildScene } from "./scene.js";
+import { lazyPixiPainter, scene as buildScene } from "./scene.js";
 
 // jsdom has no WebGL, so a real painter cannot be built here — it fails asynchronously, which
 // is worse than failing outright: the suite goes green with unhandled rejections behind it.
@@ -292,5 +292,77 @@ describe("a canvas carries its own settings", () => {
     expect(again.host).toBe(first.host);
     expect(again.host.root.id).toBe("two");
     first.dispose();
+  });
+});
+
+// The renderer arrives through a dynamic import and then STARTS asynchronously, and a resize
+// can land anywhere in that window — on a phone the page's layout usually settles exactly
+// there. The mock below keeps the real renderer's awkward contract (a resize before start is
+// refused), because that contract is what the wrapper has to survive.
+vi.mock("../../src/render/pixi.js", () => ({
+  pixiPainter: (_view: HTMLCanvasElement, size: { width: number; height: number }) => {
+    fake = {
+      initSize: { ...size },
+      sizedTo: [],
+      drawnAfterStart: 0,
+      started: false,
+      start: () => undefined,
+    };
+    const ready = new Promise<void>((release) => {
+      fake!.start = () => {
+        fake!.started = true;
+        release();
+      };
+    });
+    return {
+      ready,
+      draw: () => {
+        if (fake!.started) fake!.drawnAfterStart += 1;
+      },
+      resize: (w: number, h: number) => {
+        if (fake!.started) fake!.sizedTo.push([w, h]);
+      },
+      destroy: () => undefined,
+    };
+  },
+}));
+
+interface FakePixi {
+  initSize: { width: number; height: number };
+  sizedTo: [number, number][];
+  drawnAfterStart: number;
+  started: boolean;
+  start: () => void;
+}
+let fake: FakePixi | undefined;
+
+describe("the lazy painter against a renderer that starts late", () => {
+  it("scene.a-resize-mid-start-is-not-lost — the renderer wakes at the latest size", async () => {
+    // The failure this pins down was caught on a phone: the scene measured before layout — one
+    // pixel — the layout settled while the renderer was still starting, and the resize from
+    // that window was refused by a renderer that could not take it yet. Nothing ever resized
+    // again, so the canvas stayed one pixel: an empty scene that any later toggle "fixed".
+    fake = undefined;
+    const view = document.createElement("canvas");
+    const painter = lazyPixiPainter(view, { width: 1, height: 1, resolution: 1 });
+    const quad: Quad[] = [];
+    painter.draw(quad, [], "dark");
+
+    // Let the (mocked) import land so the real renderer exists but has NOT started.
+    await vi.waitFor(() => {
+      expect(fake, "the renderer was never constructed").toBeTruthy();
+    });
+    expect(fake!.initSize).toEqual({ width: 1, height: 1, resolution: 1 });
+
+    // The layout settles now — inside the start window — and the renderer refuses the call.
+    painter.resize(390, 500);
+    expect(fake!.sizedTo).toEqual([]);
+
+    fake!.start();
+    await painter.ready;
+
+    // The wrapper re-asserts the latest size and frame the moment the renderer can listen.
+    expect(fake!.sizedTo).toEqual([[390, 500]]);
+    expect(fake!.drawnAfterStart).toBeGreaterThan(0);
   });
 });
