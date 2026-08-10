@@ -142,6 +142,15 @@ export {
 // The figures a designer asks for, as ordinary functions. A `Shape` has no sorts; these build
 // one, so a new figure is a new function rather than a new branch in five files.
 export { circle, ellipse, polygon, rect, roundedRect, star } from "./presets/shapes.js";
+export {
+  cascade,
+  fan,
+  stack,
+  type CascadeOptions,
+  type DealtPose,
+  type FanOptions,
+  type StackOptions,
+} from "./presets/poses.js";
 // A line, and the little tree an arrow actually is. The heads are a REGISTRY of SHAPES: a fifth
 // one is a registration, not a case for anything to learn — and what it looks like is the record
 // its node wears, exactly like every other node in the kit.

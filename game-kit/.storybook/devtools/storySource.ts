@@ -47,6 +47,10 @@ const KIT_API = [
   "transformShape",
   "Transformable",
   "Container",
+  // The pose dealers: a snippet that says `fan(5, { spread: 60 })` has to import `fan`.
+  "fan",
+  "stack",
+  "cascade",
 ];
 
 /**

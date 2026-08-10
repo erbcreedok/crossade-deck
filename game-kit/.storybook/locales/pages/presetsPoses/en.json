@@ -1,0 +1,43 @@
+{
+  "docs.presetsPoses.component": [
+    "Ready-made arrangements of a hand of children: a fan, a stack, a cascade. Every one is an",
+    "ordinary function returning one pose per card for `Transformable` to wear — the same relation",
+    "`star(...)` has to `Bounded`.",
+    "",
+    "```ts",
+    "import { fan, node, Transformable } from \"game-kit\"",
+    "",
+    "fan(5, { spread: 60 }).forEach((pose, i) => {",
+    "  add(hand, node(`card${i}`, Bounded(), Surfaced(), Transformable(pose)))",
+    "})",
+    "```",
+    "",
+    "## What a dealt pose may say",
+    "",
+    "A position and a turn — never `z` and never a scale, and the TYPE has no room for either.",
+    "Siblings keep tree order at equal height, so the card dealt last already shows on top;",
+    "thickness is an `at` offset, and lifting the whole pile is its container's `z`, applied once.",
+    "A preset that lifted every card would raise a lifted hand twice — the same law layouts obey,",
+    "held by the same means."
+  ],
+  "docs.presetsPoses.fan": [
+    "A hand fan pivoting about a wrist below the picture. The middle card rests exactly where a",
+    "single card would — drop a fan into a scene and nothing else moves — and the ends swing down",
+    "and out, mirrored.",
+    "",
+    "`spread` is the whole arc, first card to last: more cards pack the same arc tighter. One card",
+    "is no fan and comes back unposed."
+  ],
+  "docs.presetsPoses.stack": [
+    "A resting stack: each card a whisker past the one under it. Thickness is position, not `z` —",
+    "the card dealt last shows on top because tree order says so, and nothing here is lifted.",
+    "",
+    "That is the lesson `Atoms/Transformable` states in prose, dealt: lift the whole pile by its",
+    "container's `z` and every card rises exactly once."
+  ],
+  "docs.presetsPoses.cascade": [
+    "The same march as a stack, spaced to be read: each card steps far enough that the one under",
+    "it still shows its top. A solitaire column is this straight down; turn the step sideways and",
+    "the column becomes a dealt river — one call either way."
+  ]
+}
