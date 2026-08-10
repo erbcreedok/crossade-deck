@@ -17,33 +17,68 @@
     "",
     "## Fields",
     "",
-    "- `layout` — the name of a registered layout record. Two come with the kit: `free`, which",
-    "  places nobody and leaves each child its own `at`, and `row`, which places everyone.",
+    "- `layout` — the name of a registered RECORD of layout. The kit comes with two: `free` places",
+    "  nobody and leaves each child its own `at`, `row` places everyone. Register your own through",
+    "  `registerLayout` — just like a surface through `registerSurface`.",
+    "",
+    "## Layout record",
+    "",
+    "- `place(children)` — pose for each child, in order; `undefined` means \"I don't place this\",",
+    "  then its own `at` stands. Only positions return — height, angle, or scale the record cannot",
+    "  write by design: a point holds none of them.",
+    "- Gap and padding belong to the record, not the container. In a row a gap means something, in",
+    "  a free layout — nothing, and a field most layouts cannot use gets misread.",
+    "- `padding` — air around the tight wrap of the content; only the second AREA reads it (see",
+    "  `Spread`), and even a record that places nobody has it.",
     "",
     "## Notes",
     "",
-    "- A layout that places overrides the child's `at` rather than adding to it.",
-    "- Options such as spacing belong to the layout record, not to the container. A gap means",
-    "  something in a row and nothing in a free layout, and a field most arrangements cannot use is",
-    "  a field that gets misread.",
-    "- A layout can only return positions, never heights — see `Transformable`.",
+    "- A layout that places overwrites the child's `at` rather than combining with it.",
+    "- Space is reserved for what will BE SEEN: a child with scale two takes two of its own widths",
+    "  in a row, else it would overlap its neighbour.",
     "- An unknown layout name places nobody rather than throwing, for the same reason an unknown",
     "  surface is skipped: a content mistake should not take the scene down with it."
   ],
   "docs.container.free": [
-    "Three plates, each with a pose of its own, under a layout that declines to place them. This is",
-    "the \"put things anywhere\" canvas, and it is not a mode or a second kind of container — just",
-    "the smallest possible layout record, one that returns nothing for every child.",
+    "A record that refuses to place: each child from the list stands where its own pose put it.",
+    "This is the \"put things anywhere\" canvas, and it is not a mode or a second kind of",
+    "container — just the smallest possible layout record, returning emptiness for each child.",
     "",
-    "Compare it with `Row`: the tree is identical, down to the poses. Only the layout's name is",
-    "different."
+    "Children here — a real list, one line per node: id and pose land on the node exactly as",
+    "written. Compare it with `Row`: the tree is the same, down to the poses, only the layout's",
+    "name differs."
   ],
   "docs.container.row": [
-    "The same three plates with the same three poses, and none of those poses survive: a layout",
-    "that places, places.",
+    "The same list and the same poses — and none of them survived: a layout that places, places.",
     "",
     "Each child takes as much room as its own footprint needs, so a row is not a grid of equal",
     "cells. A child with no box takes no width and is still placed — removing a box should not",
-    "quietly shuffle its neighbours."
+    "quietly shuffle its neighbors."
+  ],
+  "docs.container.gap": [
+    "A gap is a parameter of the RECORD, and here the record is registered in plain sight: a",
+    "`registerLayout` with a row of your own, while the container only names it. There is no `gap`",
+    "field on the node,",
+    "and do not search for it there: a field most layouts cannot use gets misread.",
+    "",
+    "A gap stands BETWEEN neighbors — there are one fewer of them than children: a row of three",
+    "cards has two gaps, a row of one has none, and the edge cards get no air on the sides."
+  ],
+  "docs.container.spread": [
+    "The other source of area. The desk has no box of its own — the surface lands on the tight",
+    "wrap of what it holds: drag a card away and the paint follows it; take the children away —",
+    "there is nothing left to paint on.",
+    "",
+    "`padding` — air around that wrap, and it too is a field of the record: here it is carried by",
+    "the FREE record, the one that places nobody. Padding grows only the area — the children",
+    "themselves do not move."
+  ],
+  "docs.container.reserve": [
+    "A promise the record keeps for each child: space is reserved for what will BE SEEN. The first",
+    "card carries a scale — grow it, and neighbors back away, because a row measures the scaled",
+    "footprint, not the declared box.",
+    "",
+    "The measure takes only the child's OWN scale: the owner's scale grows the whole row at once",
+    "and so does not change who sits where inside it."
   ]
 }
