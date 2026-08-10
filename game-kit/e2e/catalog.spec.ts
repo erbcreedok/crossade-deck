@@ -224,15 +224,14 @@ test("e2e.toolbar-fits-a-phone — every control on the row, on the narrowest sc
 test("e2e.controls-are-there-and-live — an atom's fields are its arguments", async ({ page }) => {
   // The panel promised in half the comments in this repo did not exist: only addon-docs was
   // installed, and no story declared a single argument. This is the check that says otherwise.
-  // `Starved`, not `Plate`: the atom's one FIELD is the record's name, and that is the scene
-  // where the reader picks one from a plain list. `Plate` (and `Zone`) write their own record,
-  // so their controls are the record's fields — worth having, and not what this test is about.
-  await page.goto("/?path=/story/atoms-surfaced--starved");
+  // `Plate` writes the whole record, so its panel is the fullest one in the catalog — the
+  // record's fields and the shape's, every one of them a control a reader can reach.
+  await page.goto("/?path=/story/atoms-surfaced--plate");
   const panel = page.locator("#storybook-panel-root");
   await panel.getByText("Controls", { exact: false }).first().waitFor({ timeout: 30000 });
 
   // And it is not the empty "this story is not configured" state: the fields are listed.
-  await expect(panel.getByText("surface", { exact: true }).first()).toBeVisible({ timeout: 30000 });
+  await expect(panel.getByText("radius", { exact: true }).first()).toBeVisible({ timeout: 30000 });
 });
 
 test("e2e.a-rebuild-does-not-leak-a-context — a slider is dragged, not clicked once", async ({ page }) => {
@@ -411,18 +410,36 @@ test("e2e.docs-has-controls-too — one card, two views of the same story", asyn
   // two ways of looking at one scene rather than two features.
   await page.goto("/?path=/docs/atoms-bounded--docs");
   const preview = page.frameLocator("iframe#storybook-preview-iframe");
-  const tree = preview.locator("[data-inspector-tree]").first();
-  await expect(tree).toBeVisible({ timeout: 30000 });
+  // The scene here PAINTS, so its card and its listing start folded: the page is prose first,
+  // and a card that opens itself under every canvas pushes the next paragraph below the fold.
+  // The listing hides behind its toggle — asserted through the toggle's own label, because
+  // `.docblock-source` is also what a PROSE code fence renders as, and those stay visible.
+  const tabs = preview.getByRole("tab", { name: "controls" });
+  await tabs.first().waitFor({ timeout: 30000 });
+  await expect(preview.locator("[data-inspector-tree]")).toHaveCount(0);
+  await expect(preview.getByRole("button", { name: "Show code" }).first()).toBeVisible();
+  await expect(preview.getByRole("button", { name: "Hide code" })).toHaveCount(0);
 
   // Every card on the page, not the first: a section may hold several stories, and a hidden
   // tree is REMOVED from the DOM — so `.first()` quietly slides to the next card's tree and the
-  // assertion passes or fails for a reason that has nothing to do with the claim.
-  const tabs = preview.getByRole("tab", { name: "controls" });
+  // assertion passes or fails for a reason that has nothing to do with the claim. Picking a
+  // view is asking to see it, so a tab click also unfolds the card.
   for (let i = 0; i < (await tabs.count()); i += 1) await tabs.nth(i).click();
 
   await expect(preview.locator("[data-story-controls]").first()).toBeVisible();
   // One body at a time: two views sharing a card means switching, not stacking.
   await expect(preview.locator("[data-inspector-tree]")).toHaveCount(0);
+});
+
+test("e2e.a-bare-canvas-opens-its-tree — a scene that paints nothing shows its proof", async ({ page }) => {
+  // `Basics/Node` draws nothing on purpose — a bare node has no paint — and a docs page where
+  // every block starts folded would read as a page that failed to load. A bare-canvas story
+  // opens its card ON THE TREE (the one place the scene is visible) and keeps its listing open.
+  await page.goto("/?path=/docs/basics-node--docs");
+  const preview = page.frameLocator("iframe#storybook-preview-iframe");
+  await expect(preview.locator("[data-inspector-tree]").first()).toBeVisible({ timeout: 30000 });
+  // "Hide code", not a class: an expanded listing is what offers to hide itself.
+  await expect(preview.getByRole("button", { name: "Hide code" }).first()).toBeVisible();
 });
 
 test("e2e.a-docs-page-never-scrolls-sideways — on the narrowest screen there is", async ({ page }) => {

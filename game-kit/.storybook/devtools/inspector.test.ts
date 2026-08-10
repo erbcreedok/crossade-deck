@@ -64,11 +64,14 @@ describe("where the tree is drawn", () => {
   });
 
   it("inspector.open-persists — folding the block is remembered across stories", () => {
-    expect(inspectorOpen()).toBe(true); // the tree is all a scene has to show in this slice
-    setInspectorOpen(false);
+    // Folded until asked: a docs page is prose first, and a card that opens itself on every
+    // story pushes the next paragraph below the fold. The one exception — a bare canvas, where
+    // the tree is all there is to show — is the page's call, not this preference's.
     expect(inspectorOpen()).toBe(false);
     setInspectorOpen(true);
     expect(inspectorOpen()).toBe(true);
+    setInspectorOpen(false);
+    expect(inspectorOpen()).toBe(false);
   });
 
   it("inspector.tab-starts-on-the-tree — the view a reader has not chosen yet", () => {

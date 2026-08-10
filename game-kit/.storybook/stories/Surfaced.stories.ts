@@ -11,8 +11,6 @@ import {
   registerSurface,
   rowLayout,
   Surfaced,
-  Transformable,
-  surfaceNames,
 } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import {
@@ -31,10 +29,12 @@ import {
   type ShapeArgs,
 } from "./surfaceControls.js";
 
-// The atom has ONE field, and its section has seven scenes — because what is worth learning here
+// The atom has ONE field, and its section has five scenes — because what is worth learning here
 // is not the field, it is what the name on the other end of it can be. Each scene is a different
 // ASSEMBLY or a differently built record; the values inside one are arguments, never a page of
-// stories per value.
+// stories per value. The two states with nothing to show — an atom starved of area, a name
+// nobody registered — are prose on this page's docs, not scenes: a blank canvas teaches
+// nothing a paragraph cannot.
 //
 // `Plate` is the whole model at once: any shape the box can be, every property the record can
 // hold. It used to be a rectangle with a colour picker, and `Shapes` was a separate scene with
@@ -52,10 +52,6 @@ import {
 // the fill is doing nothing; a container with no box of its own proves the AREA can come from
 // somewhere other than `bounds` at all.
 
-// The registries are filled by `surfaceControls`, which every section imports — see the note
-// there on why that has to happen at module load and not at the first render.
-const surfacePicker = documented("arg.surface", { control: "select", options: surfaceNames() });
-
 const meta: Meta = {
   title: "Atoms/Surfaced",
   parameters: {
@@ -64,7 +60,7 @@ const meta: Meta = {
     // `guard.every-field-has-a-control`. The day a second field is declared, the guard fails
     // here rather than the gap being noticed months later by a reader.
     gkAtom: "Surfaced",
-    gkFields: { surface: ["surface", "Plate"] },
+    gkFields: { surface: ["Plate"] },
   },
 };
 export default meta;
@@ -206,43 +202,6 @@ export const Zone: StoryObj<ZoneArgs> = {
     ...RECORD_ARG_TYPES,
   },
   parameters: { gkDocStory: "surfaced.zone" },
-};
-
-// ---- Starved: the atom is there and the area is not ----------------------------------------
-
-interface StarvedArgs {
-  box: boolean;
-  surface: string;
-}
-
-export const Starved: StoryObj<StarvedArgs> = {
-  // `Surfaced` needs an AREA, and a node can carry the atom without one. That is not an error
-  // and not a crash — it is a node that is simply not drawn. Give it a box and it appears.
-  render: ({ box, surface }) => scene(node("card", ...(box ? [Bounded()] : []), Surfaced({ surface }))).el,
-  args: { box: false, surface: "plate" },
-  argTypes: { surface: surfacePicker, box: documented("arg.box", {}) },
-  parameters: { gkDocStory: "surfaced.starved" },
-};
-
-// ---- Dangling: a name nobody registered ----------------------------------------------------
-
-interface DanglingArgs {
-  name: string;
-}
-
-export const Dangling: StoryObj<DanglingArgs> = {
-  // A reference to a record that does not exist. The node is skipped and the scene lives: one
-  // bad name must not hide every node that was fine. The inspector still reports the name, so
-  // the mistake is readable rather than merely invisible.
-  render: ({ name }) => {
-    const desk = node("desk", Container({ layout: "free" }));
-    add(desk, node("good", Bounded(), Surfaced(), Transformable({ at: { x: -0.8, y: 0 } })));
-    add(desk, node("dangling", Bounded(), Surfaced({ surface: name }), Transformable({ at: { x: 0.8, y: 0 } })));
-    return scene(desk).el;
-  },
-  args: { name: "nosuch" },
-  argTypes: { name: documented("arg.name", { control: "text" }) },
-  parameters: { gkDocStory: "surfaced.dangling" },
 };
 
 // ---- Restyle: the record is the unit of restyling -------------------------------------------

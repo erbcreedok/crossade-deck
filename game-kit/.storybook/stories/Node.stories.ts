@@ -22,5 +22,7 @@ export const Bare: StoryObj<BareArgs> = {
   // An empty box is a reader mid-edit, not a request for a node with no name. Naming is the
   // one thing this scene is about, so it must never be left without one.
   render: ({ id }) => scene(node(id.trim() || "root")).el,
-  parameters: { gkDocStory: "node.bare" },
+  // A bare node paints nothing, so the docs page opens the tree card for it — the tree is the
+  // only proof there is something on the page at all.
+  parameters: { gkDocStory: "node.bare", gkBareCanvas: true },
 };

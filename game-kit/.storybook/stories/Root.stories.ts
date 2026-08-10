@@ -4,7 +4,9 @@ import { scene } from "../devtools/scene.js";
 
 const meta: Meta = {
   title: "Basics/Root",
-  parameters: { gkDoc: "root.component" },
+  // Every scene on this page is names alone — no box, no paint — so the docs page opens each
+  // tree card: the tree is the only place the scene is visible at all.
+  parameters: { gkDoc: "root.component", gkBareCanvas: true },
 };
 export default meta;
 

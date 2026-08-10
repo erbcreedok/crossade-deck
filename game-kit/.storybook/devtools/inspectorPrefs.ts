@@ -3,8 +3,10 @@
 //
 // On a docs page that block is a card of its own: one hide/show, and TABS inside it, because
 // the tree and the controls are two views of the same story rather than two features. It starts
-// open on the tree: in this slice the tree is the ONLY thing a scene has to show, and a page
-// that opens with it folded away reads as a page with nothing in it.
+// FOLDED: a docs page is prose first, and a card that opens itself under every canvas pushes
+// the next paragraph below the fold. The exception is a bare canvas — a story that paints
+// nothing — where the page itself opens the card on the tree, so the reader sees there IS
+// something; that call belongs to the page, not to this preference.
 
 const OPEN_KEY = "gk.inspector.open";
 const TAB_KEY = "gk.inspector.tab";
@@ -15,8 +17,8 @@ export type PanelTab = "tree" | "controls";
 const TABS: PanelTab[] = ["tree", "controls"];
 
 export function inspectorOpen(): boolean {
-  if (typeof localStorage === "undefined") return true;
-  return localStorage.getItem(OPEN_KEY) !== "0";
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(OPEN_KEY) === "1";
 }
 
 export function setInspectorOpen(open: boolean): void {

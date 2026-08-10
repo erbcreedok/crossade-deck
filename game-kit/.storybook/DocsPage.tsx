@@ -162,9 +162,13 @@ const StoryPanels: React.FC<{
   report: InspectReport | undefined;
   text: CatalogText;
   story: { moduleExport: unknown };
-}> = ({ report, text, story }) => {
-  const [open, setOpen] = useState(inspectorOpen);
-  const [tab, setTab] = useState<PanelTab>(inspectorTab);
+  bare: boolean;
+}> = ({ report, text, story, bare }) => {
+  // A bare canvas opens its card, and opens it ON THE TREE: the scene above painted nothing,
+  // and the tree is the proof that something is there at all. Everywhere else the card starts
+  // as the reader left it — folded, until asked.
+  const [open, setOpen] = useState(() => bare || inspectorOpen());
+  const [tab, setTab] = useState<PanelTab>(() => (bare ? "tree" : inspectorTab()));
   const toggle = (): void => {
     setOpen((was) => {
       setInspectorOpen(!was);
@@ -339,7 +343,12 @@ export const DocsPage: React.FC = () => {
       {componentKey && prose ? <Markdown>{prose.text(componentKey)}</Markdown> : null}
 
       {proseOnly ? null : stories.map((story) => {
-        const storyKey = docKey(ctx.getStoryContext(story).parameters["gkDocStory"]);
+        const storyParams = ctx.getStoryContext(story).parameters;
+        const storyKey = docKey(storyParams["gkDocStory"]);
+        // A story that paints NOTHING — a node with no atoms, a tree of bare names. Its page
+        // opens the listing and the tree card, because the canvas alone reads as a page that
+        // failed to load; everywhere else both start folded and the prose leads.
+        const bare = storyParams["gkBareCanvas"] === true;
         return (
           <React.Fragment key={story.id}>
             <Subheading>{story.name}</Subheading>
@@ -348,11 +357,8 @@ export const DocsPage: React.FC = () => {
                 block's own chrome too, and "Show code" then inherits the page's base size —
                 which on a phone came out roughly twice as tall as the prose. The scene sets
                 its fonts on its own elements, so it needs no protection here. */}
-            {/* Open, not behind a "Show code" link. The catalog IS the documentation, and the
-                code is the half a reader came for — folded away it reads as absent, which is
-                exactly how it read. */}
-            <Canvas of={story.moduleExport} sourceState="shown" />
-            <StoryPanels report={reports[story.id]} text={text} story={story} />
+            <Canvas of={story.moduleExport} sourceState={bare ? "shown" : "hidden"} />
+            <StoryPanels report={reports[story.id]} text={text} story={story} bare={bare} />
           </React.Fragment>
         );
       })}

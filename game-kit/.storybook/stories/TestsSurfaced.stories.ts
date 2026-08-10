@@ -424,8 +424,8 @@ export const Area: StoryObj<PaintArgs> = {
         registerSurface(CARD, FLAT);
         // Nothing to derive an area FROM. The atom is there, the record is registered and
         // real — the same one that paints two lines down — and the node is simply not drawn.
-        // This is the desk's version of `Starved`, and it is the state a zone is in before its
-        // first card arrives.
+        // This is the desk's version of a starved atom, and it is the state a zone is in
+        // before its first card arrives.
         const empty = inkIn(glass, await shown(live, glass, desk(id, 0)));
         await expect(empty.count, "inked pixels for a desk holding nothing").toBe(0);
         // And it is not a latch: the area exists again the moment there is content.
