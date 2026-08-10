@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { dashContour, offsetContour, perimeter, surfaceOutline } from "./contour.js";
 import { type Point } from "../core/atoms/bounded.js";
-import { circle, polyline, rect } from "../core/shapes.js";
+import { polyline } from "../core/path.js";
+import { circle, rect } from "../presets/shapes.js";
 
 const lengthOf = (path: readonly Point[]): number => {
   let total = 0;

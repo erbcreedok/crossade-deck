@@ -130,6 +130,37 @@
     "- put a literal colour in `fillCustom`, then switch the theme. The token would have followed;",
     "  the literal does not."
   ],
+  "docs.surfaced.path": [
+    "One node, and the smallest interesting thing a surface can be asked to paint: a path.",
+    "",
+    "The places are `from` and `to`, and they are yours to move. `bend` is a number: at zero the",
+    "run is straight, and above it the middle is pulled sideways while both ends stay where they",
+    "were. There is no switch anywhere that says «straight» or «curved», and there is not going",
+    "to be one — a curve is where a path's places are, and `bend` puts one between the ends.",
+    "",
+    "A shape is a REGION, so the path closes itself: walked out and walked back it encloses",
+    "nothing, the fill has nothing to cover, and everything visible is the stroke. That is the",
+    "whole record below — the same one `Plate` builds, doing less because there is less to do.",
+    "",
+    "A line is a path and a stroke and nothing more. Put a head on it and you have an arrow, and",
+    "that is an ASSEMBLY of two such nodes rather than a cleverer line: it lives on `Presets/Line`."
+  ],
+  "docs.surfaced.arrowHead": [
+    "The other half of an arrow, on its own — because that is what it is: one node, one shape,",
+    "one record.",
+    "",
+    "The shape comes out of a registry by name. `pointer`, `begin`, `stop` and `diamond` are the",
+    "stock four; a fifth is a `registerHead` call with any closed shape at all behind it, which",
+    "is why a suit or a piece is not a special case and needs nothing added here.",
+    "",
+    "Unlike the path before it, THIS shape has an inside — so the fill is doing something, and",
+    "the same record can make the head solid, hollow, or a box with a picture on it. That is the",
+    "whole reason a head is its own node rather than a detour in the line's contour: one node",
+    "wears one record, and an arrow usually wants two.",
+    "",
+    "`turn` is the angle a path arriving at that angle would give it. On its own a head knows",
+    "nothing about paths — `Presets/Line` is where the two meet."
+  ],
   "docs.surfaced.desk": [
     "A surface on a node with no box of its own. The area comes from what the node holds, which is",
     "what the alternative requirement is for.",

@@ -2,13 +2,19 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { expect } from "@storybook/test";
 import {
   add,
+  arrow,
   Bounded,
   Container,
+  installStockHeads,
+  line,
   node,
+  polyline,
   rect,
   registerSurface,
   Surfaced,
+  type ArrowSpec,
   type Node,
+  type Shape,
   type SurfaceRecord,
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
@@ -67,6 +73,12 @@ const H = 1;
 /** The one record the steps re-register. Named once: the lesson is that the NAME outlives the look. */
 const CARD = "tests.surfaced.card";
 
+/** The two places every open-contour claim is made about — a shape with no inside. */
+const LINE: readonly { readonly x: number; readonly y: number }[] = [
+  { x: -1.1, y: 0 },
+  { x: 1.1, y: 0 },
+];
+
 /** A plain fill, no radius and no stroke — the paint that covers exactly the box and nothing else. */
 const FLAT: SurfaceRecord = { layers: [{ paint: "panelBg" }] };
 
@@ -101,6 +113,62 @@ async function paintWith(live: Scene, glass: HTMLCanvasElement, record: SurfaceR
   live.setRoot(root);
   await settled();
   return ink(glass);
+}
+
+/** A surfaced node whose shape is whatever a step is making a claim about. */
+function shaped(bounds: Shape, surface = CARD): Node {
+  return node("shape", Bounded({ bounds }), Surfaced({ surface }));
+}
+
+/** The run every claim about ends is made about — the two places of `LINE`, and nothing on them. */
+const RUN = { from: LINE[0]!, to: LINE[1]! } as const;
+
+/**
+ * Feed the scene and WAIT FOR THE GLASS TO CHANGE, then hand back the frame that changed.
+ *
+ * TWO FRAMES IS NOT A PROMISE. `settled()` waits a fixed two, which is enough whenever the redraw
+ * was already scheduled and is not when it was not — and the failure is the worst kind: the
+ * reading is a real picture, just not the one the step asked for.
+ *
+ * So the wait is the arrival itself. Every claim below is about a picture that CHANGES, which is
+ * what makes this usable: two readings that must be identical cannot be taken this way, and the
+ * one step that compares two identical pictures puts a third, different one between them.
+ */
+async function shown(live: Scene, glass: HTMLCanvasElement, root: Node): Promise<ImageData> {
+  const before = snapshot(glass);
+  live.setRoot(root);
+  return waitFor(
+    () => {
+      const now = snapshot(glass);
+      return imagesDiffer(before, now) ? now : undefined;
+    },
+    "the glass never changed",
+  );
+}
+
+/** A frame as ink over the corner reading — the background is measured, never assumed. */
+const inkIn = (glass: HTMLCanvasElement, image: ImageData): Ink => inkOf(image, pixelAt(glass, 0.02, 0.02));
+
+/** Show a shape under the record already registered, and read the frame it arrives on. */
+async function shapeOn(live: Scene, glass: HTMLCanvasElement, id: string, bounds: Shape): Promise<Ink> {
+  return inkIn(glass, await shown(live, glass, tree(id, shaped(bounds))));
+}
+
+/** The same, for the little tree an arrow comes out as: the run, and a node per end that has one. */
+async function paintedOn(live: Scene, glass: HTMLCanvasElement, id: string, spec: Partial<ArrowSpec>): Promise<Ink> {
+  return inkIn(glass, await shown(live, glass, tree(id, arrow({ ...RUN, surface: CARD, ...spec }))));
+}
+
+/**
+ * A desk: a surface with NO box of its own, holding `many` boxes that carry no surface.
+ *
+ * Every pixel it paints is therefore the desk's own, and its size is a statement about the
+ * AREA derived from content — the second thing `Surfaced` accepts in place of `Bounded`.
+ */
+function desk(id: string, many: number, layout = "row", side = 0.6): Node {
+  const held = node("desk", Container({ layout }), Surfaced({ surface: CARD }));
+  for (let i = 0; i < many; i += 1) add(held, node(`box${i}`, Bounded({ bounds: rect(side, side) })));
+  return tree(id, held);
 }
 
 export const Paint: StoryObj<PaintArgs> = {
@@ -327,6 +395,252 @@ export const Paint: StoryObj<PaintArgs> = {
         ).toBeLessThan(Math.round(widthOf(two) * 0.6));
         live.setRoot(tree(id, card()));
         await settled();
+      },
+    },
+  ]),
+};
+
+// ---- The area, when no box declares one -----------------------------------------------------
+//
+// `Surfaced` requires an AREA, and the requirement is ALTERNATIVE: a box gives one, and so does
+// the extent of what a container holds. `Paint` above makes its claims through `Bounded`, which
+// leaves the whole second branch resting on one step. This story is that branch taken apart —
+// what the derived area IS, when there is none at all, and who wins when both are present.
+
+export const Area: StoryObj<PaintArgs> = {
+  args: { id: "root" },
+  parameters: { gkDocStory: "tests.surfaced.area", controls: { include: ["id"] } },
+  render: ({ id }) => {
+    registerSurface(CARD, FLAT);
+    return scene(desk(id, 2)).el;
+  },
+  play: checks([
+    {
+      name: "play.surfaced.an-empty-desk-has-no-area — a container holding nothing paints nothing",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        registerSurface(CARD, FLAT);
+        // Nothing to derive an area FROM. The atom is there, the record is registered and
+        // real — the same one that paints two lines down — and the node is simply not drawn.
+        // This is the desk's version of `Starved`, and it is the state a zone is in before its
+        // first card arrives.
+        const empty = inkIn(glass, await shown(live, glass, desk(id, 0)));
+        await expect(empty.count, "inked pixels for a desk holding nothing").toBe(0);
+        // And it is not a latch: the area exists again the moment there is content.
+        const holding = inkIn(glass, await shown(live, glass, desk(id, 1)));
+        await expect(holding.count, "inked pixels once it holds one box").toBeGreaterThan(0);
+      },
+    },
+    {
+      name: "play.surfaced.content-without-boxes-is-no-area — children that reserve nothing",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        registerSurface(CARD, FLAT);
+        // CHILDREN ARE NOT THE AREA — their BOXES are. A container of nodes that carry no
+        // `Bounded` holds plenty and has reserved nothing, so there is still nothing to paint
+        // on. Without this the step above would also pass for a renderer that counted children.
+        const bare = node("desk", Container({ layout: "row" }), Surfaced({ surface: CARD }));
+        for (const name of ["a", "b", "c"]) add(bare, node(name));
+        const drawn = inkIn(glass, await shown(live, glass, tree(id, bare)));
+        await expect(drawn.count, "inked pixels over three boxless children").toBe(0);
+      },
+    },
+    {
+      name: "play.surfaced.a-box-of-its-own-wins — the derived area is the FALLBACK, not the sum",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        const px = perUnit(live);
+        registerSurface(CARD, FLAT);
+        // The same desk, now carrying a box of its own that is SMALLER than what it holds. The
+        // two answers are far apart — 0.5 against the row's 1.32 — so the reading says which
+        // rule fired rather than merely being consistent with one.
+        const held = node(
+          "desk",
+          Bounded({ bounds: rect(0.5, 0.5) }),
+          Container({ layout: "row" }),
+          Surfaced({ surface: CARD }),
+        );
+        for (const name of ["left", "right"]) add(held, node(name, Bounded({ bounds: rect(0.6, 0.6) })));
+        const drawn = inkIn(glass, await shown(live, glass, tree(id, held)));
+        await expect(...gap("paint width, own box", widthOf(drawn), 0.5 * px)).toBeLessThan(nearly(px, 0.1));
+        await expect(...gap("paint height, own box", heightOf(drawn), 0.5 * px)).toBeLessThan(nearly(px, 0.1));
+      },
+    },
+    {
+      name: "play.surfaced.the-layout-decides-the-area — the same two boxes, in a row and free",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        const px = perUnit(live);
+        registerSurface(CARD, FLAT);
+        // THE AREA IS NOT A PROPERTY OF THE CHILDREN. Two identical boxes, one container, one
+        // record — and the painted area changes because the LAYOUT put them somewhere else.
+        // `free` places nobody, so both keep the pose they never had and sit on the origin.
+        const row = inkIn(glass, await shown(live, glass, desk(id, 2, "row")));
+        const free = inkIn(glass, await shown(live, glass, desk(id, 2, "free")));
+        await expect(...gap("row width, two and a gap", widthOf(row), 1.32 * px)).toBeLessThan(nearly(px, 0.1));
+        await expect(...gap("free width, both at origin", widthOf(free), 0.6 * px)).toBeLessThan(nearly(px, 0.1));
+        // The height is the one that must NOT move: a row spends width, and a layout that
+        // spent both would be a scale.
+        await expect(...gap("height, unchanged by the layout", heightOf(free), heightOf(row))).toBeLessThan(3);
+      },
+    },
+  ]),
+};
+
+// ---- The contour, when the shape does not enclose anything -----------------------------------
+//
+// A `Shape` is a path and need not close over anything: two places are a line and one is a
+// point. Both are legal values that `Bounded` will hold — and what the SURFACE does with them is
+// a different question, answered nowhere else in the suite. It is the question behind the
+// `Line`, `Curved` and `Arrow` scenes on the `Atoms/Surfaced` shelf, so a claim here is what
+// keeps those three scenes honest.
+
+export const Openwork: StoryObj<PaintArgs> = {
+  args: { id: "root" },
+  parameters: { gkDocStory: "tests.surfaced.openwork", controls: { include: ["id"] } },
+  render: ({ id }) => {
+    registerSurface(CARD, FLAT);
+    return scene(tree(id, shaped(polyline(LINE)))).el;
+  },
+  play: checks([
+    {
+      name: "play.surfaced.one-place-is-not-a-contour — a shape of a single point paints nothing",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        // A fat stroke and a fill, so that anything the renderer was willing to draw would be
+        // impossible to miss.
+        registerSurface(CARD, { layers: [{ paint: "panelBg" }], stroke: { color: "accent", width: 0.24, alignment: 0.5, cap: "round" } });
+        // TWO PLACES FIRST, and it is not narrative order: the reading has to be a frame that
+        // arrived, and the only way to know one did is that the picture changed. Starting from
+        // the point — nothing, on a stage that is already nothing — there would be no change to
+        // wait for and no way to tell a drawn blank from a missed redraw.
+        const pair = await shapeOn(live, glass, id, polyline(LINE));
+        await expect(pair.count, "inked pixels for two places").toBeGreaterThan(0);
+        // Take one away and the whole picture goes with it: one place spans nothing and
+        // encloses nothing, so there is no contour to stroke and no area to fill.
+        const alone = await shapeOn(live, glass, id, polyline([{ x: 0, y: 0 }]));
+        await expect(alone.count, "inked pixels once only one place is left").toBe(0);
+      },
+    },
+    {
+      name: "play.surfaced.the-contour-closes-itself — a solid line has no end for a cap to shape",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        const rim = { color: "accent", width: 0.24, alignment: 0.5 } as const;
+        const line = () => tree(id, shaped(polyline(LINE)));
+        // A shape is a REGION, so the path closes: the line is walked out and walked back and
+        // has no free ends at all. The cap is therefore not merely invisible here — there is
+        // nothing for it to apply to, and the two pictures are the SAME picture.
+        //
+        // TWO IDENTICAL READINGS CANNOT BE WAITED FOR, so a third and obviously different one
+        // goes between them: each reading is then a frame known to have arrived, and "the same"
+        // is a measurement rather than a redraw nobody noticed was missing.
+        registerSurface(CARD, { layers: [], stroke: { ...rim, cap: "butt" } });
+        const butt = await shown(live, glass, line());
+        registerSurface(CARD, { layers: [], stroke: { ...rim, width: 0.5, cap: "butt" } });
+        await shown(live, glass, line());
+        registerSurface(CARD, { layers: [], stroke: { ...rim, cap: "round" } });
+        const round = await shown(live, glass, line());
+        await expect(imagesDiffer(butt, round), "a round cap changes the solid line").toBe(false);
+      },
+    },
+    {
+      name: "play.surfaced.a-dash-has-ends-of-its-own — cutting the line brings the cap back",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        const rim = { color: "accent", width: 0.24, alignment: 0.5, dash: { on: 0.3, off: 0.3 } } as const;
+        const line = () => tree(id, shaped(polyline(LINE)));
+        // THE OTHER HALF OF THE STEP ABOVE, and the reason it is not a claim that caps do
+        // nothing. A dash is an open polyline whatever the contour was, so every one of them
+        // has two ends — and a round cap now spends ink past each of them.
+        registerSurface(CARD, { layers: [], stroke: { ...rim, cap: "butt" } });
+        const flatShot = await shown(live, glass, line());
+        const flat = inkIn(glass, flatShot);
+        registerSurface(CARD, { layers: [], stroke: { ...rim, cap: "round" } });
+        const roundShot = await shown(live, glass, line());
+        await expect(imagesDiffer(flatShot, roundShot), "a round cap changes the dashed line").toBe(true);
+        await expect(inkIn(glass, roundShot).count, `ink round-capped against ${flat.count} flat`).toBeGreaterThan(flat.count);
+      },
+    },
+    {
+      name: "play.surfaced.an-arrow-is-a-run-and-two-nodes — a head is not a detour in the walk",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        const px = perUnit(live);
+        installStockHeads();
+        registerSurface(CARD, { layers: [], stroke: { color: "accent", width: 0.05, alignment: 0.5 } });
+        // A HEAD IS ITS OWN NODE, so the reading is the whole assembly on the glass: the run under
+        // one record and each end under another. Ink is what says a node arrived — a head sewn
+        // into the line's contour would look the same in a unit test and could not be filled.
+        const plain = await paintedOn(live, glass, id, {});
+        const one = await paintedOn(live, glass, id, { endHead: "pointer" });
+        const two = await paintedOn(live, glass, id, { startHead: "pointer", endHead: "pointer" });
+        await expect(one.count, `ink with one head against ${plain.count} with none`).toBeGreaterThan(plain.count);
+        await expect(two.count, `ink with two heads against ${one.count} with one`).toBeGreaterThan(one.count);
+        // AND THE TWO ENDS ARE ONE DESCRIPTION USED TWICE: the near end alone and the far end
+        // alone are mirror images, so they cost the same ink. Two blocks of nearly identical
+        // arithmetic is how a double-headed arrow ends up subtly lopsided.
+        const near = await paintedOn(live, glass, id, { startHead: "pointer" });
+        await expect(...gap("ink, one end or the other", near.count, one.count)).toBeLessThan(px * 0.1);
+        // Every one of them spans the run that was asked for: a head reaches BACK from the end,
+        // and a picture that grew past it would be a preset inventing room.
+        await expect(...gap("arrow span", widthOf(two), (RUN.to.x - RUN.from.x) * px)).toBeLessThan(nearly(px, 0.2));
+      },
+    },
+    {
+      name: "play.surfaced.a-head-wears-its-own-record — filled on a hairline, and the line untouched",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        installStockHeads();
+        // THE POINT OF THE HEAD BEING A NODE. `ink` is a hairline stroke with no layers; `mark` is
+        // solid accent. The same arrow under the two head records is a different picture, and the
+        // solid one spends more ink — while the run below it did not change at all.
+        registerSurface(CARD, FLAT);
+        const hairline = inkIn(glass, await shown(live, glass, tree(id, arrow({ ...RUN, endHead: "pointer", endSize: 0.5, surface: "ink" }))));
+        const filled = inkIn(
+          glass,
+          await shown(live, glass, tree(id, arrow({ ...RUN, endHead: "pointer", endSize: 0.5, surface: "ink", endSurface: "mark" }))),
+        );
+        await expect(hairline.count, "inked pixels, outlined head").toBeGreaterThan(0);
+        await expect(filled.count, `ink filled against ${hairline.count} outlined`).toBeGreaterThan(hairline.count);
+        // The run is the same run: dressing the head differently moved nothing.
+        await expect(...gap("span, either head record", widthOf(filled), widthOf(hairline))).toBeLessThan(perUnit(live) * 0.2);
+      },
+    },
+    {
+      name: "play.surfaced.the-pattern-lives-in-the-record — one walk under two stock names",
+      async run(ctx) {
+        const glass = await view(ctx);
+        const live = await standing(ctx);
+        const id = ctx.args["id"] as string;
+        // NOT A REGISTRATION OF ITS OWN: these are the stock records `ink` and `trail`, the two
+        // the kit ships for shapes that enclose nothing. Both are a stroke and no layers at all,
+        // and the only difference between them is a dash — so the same walk comes out solid or
+        // cut, and the geometry never heard of either.
+        const solid = inkIn(glass, await shown(live, glass, tree(id, shaped(line(RUN), "ink"))));
+        const dashed = inkIn(glass, await shown(live, glass, tree(id, shaped(line(RUN), "trail"))));
+        await expect(solid.count, "inked pixels under ink").toBeGreaterThan(0);
+        await expect(dashed.count, `ink dashed against ${solid.count} solid`).toBeLessThan(solid.count);
+        // And the run is the same run: cutting a line into dashes does not shorten it.
+        await expect(...gap("dashed span", widthOf(dashed), widthOf(solid))).toBeLessThan(perUnit(live) * 0.2);
       },
     },
   ]),

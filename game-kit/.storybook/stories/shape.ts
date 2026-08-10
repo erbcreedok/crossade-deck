@@ -15,6 +15,7 @@ import {
   circle,
   ellipse,
   fromSvgPath,
+  line,
   polygon,
   rect,
   roundedRect,
@@ -30,7 +31,7 @@ import {
  * Not a type in the model — a list of helper FUNCTIONS. Adding one here adds one function and
  * changes nothing downstream, which is the whole difference from the tagged union this replaced.
  */
-export const PRESETS = ["rect", "circle", "ellipse", "polygon", "star", "path", "svg"] as const;
+export const PRESETS = ["rect", "circle", "ellipse", "polygon", "star", "line", "path", "svg"] as const;
 export type Preset = (typeof PRESETS)[number];
 
 export interface ShapeArgs {
@@ -64,6 +65,19 @@ export interface ShapeArgs {
    * point. Both are legal shapes and neither has an inside.
    */
   vertices: string;
+  /**
+   * A RUN BETWEEN TWO PLACES, bowed by `bend` — and it belongs here, on the shelf about `bounds`,
+   * because a curve is geometry and nothing else. The surface that paints it and the heads that
+   * stand on it are later questions; this is the box being a path, and the box being twistable.
+   *
+   * `bend` is a number rather than a choice between "straight" and "curved": at zero the middle
+   * of the run sits on the straight line between the ends, and above zero it is pulled sideways.
+   */
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  bend: number;
   /** An SVG path's `d`, pasted straight out of a drawing tool. */
   d: string;
   /**
@@ -92,6 +106,11 @@ export const SHAPE_ARGS: ShapeArgs = {
   outerR: 1,
   innerR: 0.42,
   vertices: "-1.2,0 1.2,0",
+  fromX: -1.1,
+  fromY: 0,
+  toX: 1.1,
+  toY: 0,
+  bend: 0.35,
   d: "M -1 0 C -0.5 -1 0.5 -1 1 0 C 0.5 0.6 -0.5 0.6 -1 0 Z",
   scaleX: 1,
   scaleY: 1,
@@ -115,6 +134,8 @@ function presetOf(a: ShapeArgs): Shape {
       return polygon(a.corners, a.polyR);
     case "star":
       return star(a.points, a.outerR, a.innerR);
+    case "line":
+      return line({ from: { x: a.fromX, y: a.fromY }, to: { x: a.toX, y: a.toY }, bend: a.bend });
     case "path":
       return pathOf(a.vertices);
     case "svg":
@@ -182,6 +203,8 @@ export function shapeSource(a: ShapeArgs): string {
         return `polygon(${n(a.corners)}, ${n(a.polyR)})`;
       case "star":
         return `star(${n(a.points)}, ${n(a.outerR)}, ${n(a.innerR)})`;
+      case "line":
+        return `line({ from: { x: ${n(a.fromX)}, y: ${n(a.fromY)} }, to: { x: ${n(a.toX)}, y: ${n(a.toY)} }, bend: ${n(a.bend)} })`;
       case "path":
         // THE ONE PRESET PRINTED AS A VALUE, not as a call. Everywhere else a helper's name says
         // what the shape is and its coordinates would say nothing; here the coordinates ARE the

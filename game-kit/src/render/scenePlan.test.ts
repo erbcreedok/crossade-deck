@@ -12,8 +12,10 @@ import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply, IDENTITY } from "../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf } from "./scenePlan.js";
 import { registerAsset } from "./assets.js";
-import { installStockSurfaces, registerSurface, resetSurfaces } from "./surfaces.js";
-import { circle, polyline, rect } from "../core/shapes.js";
+import { registerSurface, resetSurfaces } from "./surfaces.js";
+import { installStockSurfaces } from "../presets/surfaces.js";
+import { polyline } from "../core/path.js";
+import { circle, rect } from "../presets/shapes.js";
 import { inspect } from "../core/inspect.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });

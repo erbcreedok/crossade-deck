@@ -10,10 +10,25 @@
 // takes the set whole. A scene that narrows them has to say so out loud, in one place.
 
 // The record's VALUE half — see `record.ts` on why it is a module of its own.
-export { ALIGNS, FITS, paintOf, recordOf, recordSource, RECORD_ARGS, type RecordArgs } from "./record.js";
+export {
+  ALIGNS,
+  FITS,
+  endRecordOf,
+  endRecordSource,
+  paintOf,
+  recordArgsAt,
+  recordOf,
+  recordSliceOf,
+  recordSource,
+  startRecordOf,
+  startRecordSource,
+  RECORD_ARGS,
+  type RecordArgs,
+} from "./record.js";
 import { ALIGNS, FITS, paintOf, recordOf, RECORD_ARGS, type RecordArgs } from "./record.js";
 import {
   assetNames,
+  installStockHeads,
   installStockSurfaces,
   PALETTES,
   type DashPattern,
@@ -39,6 +54,7 @@ import { type CatalogText } from "../locales/catalog.js";
 // Installing here is not a workaround. A consumer installs the records it means to use, and the
 // catalog is an ordinary consumer.
 installStockSurfaces();
+installStockHeads();
 installStockAssets();
 
 
@@ -85,20 +101,34 @@ export function documented(
   key: string,
   spec: Record<string, unknown>,
   /**
-   * The FIELD these controls make up, if they make up one.
+   * The FIELD these controls make up, if they make up one — `"field"` or `"field/part"`.
    *
    * A field of the model is rarely one control: `bounds` is a `Shape`, and a reader edits it
    * through seven. Left flat, the panel is a heap — `kind, w, h, r, corners…` with nothing
    * saying whose they are, and the field's own name appears nowhere at all. That is exactly
    * how a reader ends up unable to say what `bounds` even is.
+   *
+   * The half after the slash is a section INSIDE that one, and it exists because a field can be
+   * deep: a record holds layers, a stroke, and a dash pattern inside the stroke. Twenty rows
+   * under one heading are a heap with a title on it, which is barely better than a heap. The
+   * nesting shown is the value's OWN — `layers[0]`, `stroke`, `stroke.dash` — so the panel can
+   * be read as the object a reader would write.
    */
-  category?: string,
+  section?: string,
 ): Record<string, unknown> {
   const type = typeOf(spec);
+  const [category, subcategory] = section ? section.split("/") : [];
   return Object.defineProperties(
     // The inferred type row is suppressed, or the same word appears twice on every row — once
     // where it is useful and once where it is noise.
-    { ...spec, table: { type: { summary: null }, ...(category ? { category } : {}) } },
+    {
+      ...spec,
+      table: {
+        type: { summary: null },
+        ...(category ? { category } : {}),
+        ...(subcategory ? { subcategory } : {}),
+      },
+    },
     {
       description: {
         enumerable: true,
@@ -131,8 +161,6 @@ export function shapeArgTypes(category = "bounds"): Record<string, unknown> {
   return {
     // The PRESET, not a sort: every one of these is a helper the kit exports, and the snippet
     // shows the call. A `Shape` itself has no sorts to pick from.
-    // The PRESET, not a sort: every one of these is a helper the kit exports, and the snippet
-    // shows the call. A `Shape` itself has no sorts to pick from.
     preset: doc("preset", { control: "select", options: PRESETS }),
     w: doc("w", { ...number(0, 0.1), ...shown("rect") }),
     h: doc("h", { ...number(0, 0.1), ...shown("rect") }),
@@ -148,6 +176,11 @@ export function shapeArgTypes(category = "bounds"): Record<string, unknown> {
     // Text for both of these. A pasted `d` arrives through the clipboard and a form that made
     // somebody retype it would be used by nobody; a hand-written path is a list whose LENGTH is
     // the point — two pairs are a line, one is a point — and no numeric control has a length.
+    fromX: doc("fromX", { control: { type: "number", step: 0.05 }, ...shown("line") }),
+    fromY: doc("fromY", { control: { type: "number", step: 0.05 }, ...shown("line") }),
+    toX: doc("toX", { control: { type: "number", step: 0.05 }, ...shown("line") }),
+    toY: doc("toY", { control: { type: "number", step: 0.05 }, ...shown("line") }),
+    bend: doc("bend", { control: { type: "range", min: -1, max: 1, step: 0.05 }, ...shown("line") }),
     vertices: doc("vertices", { control: "text", ...shown("path") }),
     d: doc("d", { control: "text", ...shown("svg") }),
 
@@ -166,41 +199,77 @@ export function shapeArgs(over: Partial<ShapeArgs> = {}): ShapeArgs {
 // ---- the record -----------------------------------------------------------------------------
 
 /**
- * Grouped as `surface`, and that is a different KIND of group from `bounds`.
+ * THE RECORD'S CONTROLS, ONCE — and handed out again for every node that wears one.
  *
- * `bounds` is one field taken apart. These are the fields of a registered RECORD, which the
- * node does not hold at all — it holds the name the record is filed under. The section title
- * is what says so on the panel; without it the border's colour sits beside the box's width as
- * though they lived in the same place.
+ * `bounds` is one field taken apart. These are the fields of a registered RECORD, which the node
+ * does not hold at all — it holds the name the record is filed under. The section title is what
+ * says so on the panel; without it the border's colour sits beside the box's width as though they
+ * lived in the same place.
+ *
+ * EVERY ROW CARRIES ITS SECTION, and the guard `controls.every-record-control-names-its-field` is
+ * what keeps it that way. Only `fill` used to, so the panel showed a group called `surface` holding
+ * one control and nineteen loose rows above it with no heading at all — which reads as a group
+ * somebody meant something by rather than the omission it was.
+ *
+ * `field` is the group the rows land in, `prefix` is what their argument names start with, and
+ * `inside` is where they sit within that group. Together they are what lets a scene with THREE
+ * nodes give each of them the whole record: `recordArgTypes("start", "start", "surface")` puts
+ * `startFill` under `start → surface.layers[0]`, wearing the same word as every other `fill` on the
+ * site. Twenty-one declarations written three times would have drifted apart by the second one.
  */
-const rec = (key: string, spec: Record<string, unknown>): Record<string, unknown> =>
-  documented(key, spec, "surface");
+export function recordArgTypes(field = "surface", prefix = "", inside = ""): Record<string, unknown> {
+  const at = (name: string): string => (prefix ? `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}` : name);
+  const dot = inside ? `${inside}.` : "";
+  const rec = (key: string, spec: Record<string, unknown>, part = ""): Record<string, unknown> =>
+    documented(key, spec, part ? `${field}/${dot}${part}` : inside ? `${field}/${inside}` : field);
+  /** The layer the panel builds — a record holds a LIST, and these controls make its first one. */
+  const layer = (key: string, spec: Record<string, unknown>): Record<string, unknown> => rec(key, spec, "layers[0]");
+  /** Shown only when there IS a stroke: an absent stroke has no colour to be asked about. */
+  const stroked = (key: string, spec: Record<string, unknown>): Record<string, unknown> =>
+    rec(key, { ...spec, if: { arg: at("stroke") } }, "stroke");
+  /** The dash pattern, which lives INSIDE the stroke and disappears with it. */
+  const dashed = (key: string, spec: Record<string, unknown>): Record<string, unknown> =>
+    rec(key, { ...spec, if: { arg: at("dash") } }, "stroke.dash");
 
-export const RECORD_ARG_TYPES: Record<string, unknown> = {
-  fill: rec("arg.fill", { control: "select", options: PAINTS }),
-  // A literal beside the token on purpose. Switch the theme with a token and the surface
-  // follows; with a literal it does not, and that is the difference the palette exists for.
-  fillCustom: documented("arg.fillCustom", { control: "color" }),
-  fillOpacity: documented("arg.fillOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }),
-  // The list comes from the REGISTRY, plus the empty choice: a layer without a picture is the
-  // ordinary case, not a missing value.
-  image: documented("arg.image", { control: "select", options: ["", ...assetNames()] }),
-  fit: documented("arg.fit", { control: "select", options: FITS, if: { arg: "image", neq: "" } }),
-  align: documented("arg.align", { control: "select", options: ALIGNS, if: { arg: "image", neq: "" } }),
-  radius: documented("arg.radius", { control: { type: "number", min: 0, step: 0.02 } }),
-  strokeColor: documented("arg.strokeColor", { control: "select", options: PAINTS, if: { arg: "stroke" } }),
-  strokeCustom: documented("arg.strokeCustom", { control: "color", if: { arg: "stroke" } }),
-  strokeWidth: documented("arg.strokeWidth", { control: { type: "number", min: 0, step: 0.01 }, if: { arg: "stroke" } }),
-  strokeOpacity: documented("arg.strokeOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 }, if: { arg: "stroke" } }),
-  // Pixi's scale and SVG 2's stroke-alignment: 0 outside the contour, 0.5 on it, 1 inside.
-  alignment: documented("arg.alignment", { control: { type: "range", min: 0, max: 1, step: 0.5 }, if: { arg: "stroke" } }),
-  cap: documented("arg.cap", { control: "inline-radio", options: ["butt", "round", "square"], if: { arg: "stroke" } }),
-  join: documented("arg.join", { control: "inline-radio", options: ["miter", "round", "bevel"], if: { arg: "stroke" } }),
-  miterLimit: documented("arg.miterLimit", { control: { type: "number", min: 1, step: 1 }, if: { arg: "join", eq: "miter" } }),
-  dash: documented("arg.dash", { if: { arg: "stroke" } }),
-  dashOn: documented("arg.dashOn", { control: { type: "number", min: 0.01, step: 0.01 }, if: { arg: "dash" } }),
-  dashOff: documented("arg.dashOff", { control: { type: "number", min: 0.01, step: 0.01 }, if: { arg: "dash" } }),
-  dashAdjust: documented("arg.dashAdjust", { control: "inline-radio", options: ["stretch", "none"], if: { arg: "dash" } }),
-  dashCorner: documented("arg.dashCorner", { control: "inline-radio", options: ["dash", "none"], if: { arg: "dash" } }),
-};
+  return {
+    [at("fill")]: layer("arg.fill", { control: "select", options: ["", ...PAINTS] }),
+    // A literal beside the token on purpose. Switch the theme with a token and the surface
+    // follows; with a literal it does not, and that is the difference the palette exists for.
+    [at("fillCustom")]: layer("arg.fillCustom", { control: "color" }),
+    [at("fillOpacity")]: layer("arg.fillOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }),
+    // The list comes from the REGISTRY, plus the empty choice: a layer without a picture is the
+    // ordinary case, not a missing value.
+    [at("image")]: layer("arg.image", { control: "select", options: ["", ...assetNames()] }),
+    [at("fit")]: layer("arg.fit", { control: "select", options: FITS, if: { arg: at("image"), neq: "" } }),
+    [at("align")]: layer("arg.align", { control: "select", options: ALIGNS, if: { arg: at("image"), neq: "" } }),
+    [at("radius")]: rec("arg.radius", { control: { type: "number", min: 0, step: 0.02 } }),
+    // THE TOGGLE THE PANEL FORGOT. Fifteen rows below hang off `if: { arg: "stroke" }`, and the
+    // argument they are asking about had no declaration at all: Storybook inferred a checkbox
+    // from the default, so it arrived with no description, no type and no section — the one
+    // control on the page that decides whether the others exist.
+    [at("stroke")]: rec("arg.stroke", {}),
+    [at("strokeColor")]: stroked("arg.strokeColor", { control: "select", options: PAINTS }),
+    [at("strokeCustom")]: stroked("arg.strokeCustom", { control: "color" }),
+    [at("strokeWidth")]: stroked("arg.strokeWidth", { control: { type: "number", min: 0, step: 0.01 } }),
+    [at("strokeOpacity")]: stroked("arg.strokeOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }),
+    // Pixi's scale and SVG 2's stroke-alignment: 0 outside the contour, 0.5 on it, 1 inside.
+    [at("alignment")]: stroked("arg.alignment", { control: { type: "range", min: 0, max: 1, step: 0.5 } }),
+    [at("cap")]: stroked("arg.cap", { control: "inline-radio", options: ["butt", "round", "square"] }),
+    [at("join")]: stroked("arg.join", { control: "inline-radio", options: ["miter", "round", "bevel"] }),
+    // The one row whose condition is not the stroke: a miter limit is a property of a MITER, and
+    // it means nothing beside a round join.
+    [at("miterLimit")]: rec(
+      "arg.miterLimit",
+      { control: { type: "number", min: 1, step: 1 }, if: { arg: at("join"), eq: "miter" } },
+      "stroke",
+    ),
+    [at("dash")]: stroked("arg.dash", {}),
+    [at("dashOn")]: dashed("arg.dashOn", { control: { type: "number", min: 0.01, step: 0.01 } }),
+    [at("dashOff")]: dashed("arg.dashOff", { control: { type: "number", min: 0.01, step: 0.01 } }),
+    [at("dashAdjust")]: dashed("arg.dashAdjust", { control: "inline-radio", options: ["stretch", "none"] }),
+    [at("dashCorner")]: dashed("arg.dashCorner", { control: "inline-radio", options: ["dash", "none"] }),
+  };
+}
 
+/** The unprefixed set, for a scene with one node wearing one record. */
+export const RECORD_ARG_TYPES: Record<string, unknown> = recordArgTypes();

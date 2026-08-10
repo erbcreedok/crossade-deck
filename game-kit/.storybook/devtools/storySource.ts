@@ -39,6 +39,11 @@ const KIT_API = [
   "star",
   "polyline",
   "fromSvgPath",
+  // A line, the little tree an arrow is, and the registry that has to be filled before either
+  // end can be named.
+  "line",
+  "arrow",
+  "installStockHeads",
   "transformShape",
   "Transformable",
   "Container",

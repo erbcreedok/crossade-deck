@@ -2,10 +2,40 @@
 // this file guards: the catalog offered `rect` and `circle` while `poly` had been in the model
 // since the first day, and a reader has no way to tell "cannot" from "was not asked".
 
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { extentOf, outlineOf, transformShape } from "../../src/index.js";
 import { documented, PRESETS, SHAPE_ARGS, shapeArgTypes, shapeOf, shapeSource } from "./surfaceControls.js";
-import { recordOf, RECORD_ARGS } from "./surfaceControls.js";
+import { recordOf, RECORD_ARGS, RECORD_ARG_TYPES } from "./surfaceControls.js";
+
+const STORIES = new URL("./", import.meta.url).pathname;
+const CHROME = new URL("../locales/chrome/en.json", import.meta.url).pathname;
+
+describe("the words a control names", () => {
+  it("controls.every-word-a-control-names-exists — or the panel prints the key at the reader", () => {
+    // A MISSING WORD IS NOT A CRASH, which is exactly why this has to be scanned. The bundle's
+    // lookup falls back to the key, so the row arrives reading `— arg.headSurface` and the page
+    // stays up: a control with no description, in the one place a reader goes to find out what
+    // the control is. The locale suite cannot catch it either — both languages are equally
+    // complete, and neither has ever heard of the key.
+    const words = new Set(Object.keys(JSON.parse(readFileSync(CHROME, "utf8")) as Record<string, unknown>));
+    const missing: string[] = [];
+    for (const name of readdirSync(STORIES).filter((f) => f.endsWith(".ts"))) {
+      readFileSync(join(STORIES, name), "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          // EVERY `arg.` LITERAL, not only the ones handed straight to `documented`. Half the
+          // controls on the path scenes go through a two-line helper, so a scan tied to the call
+          // shape would have declared the page clean while three of its rows read as keys.
+          for (const m of line.matchAll(/"(arg\.[A-Za-z0-9_.-]+)"/g)) {
+            if (!words.has(m[1]!)) missing.push(`${name}:${i + 1}  ${m[1]}`);
+          }
+        });
+    }
+    expect(missing).toEqual([]);
+  });
+});
 
 describe("shape controls", () => {
   it("controls.every-preset-is-offered — the catalog does not narrow the kit", () => {
@@ -135,6 +165,23 @@ describe("the shape as a whole", () => {
 });
 
 describe("the record", () => {
+  it("controls.every-record-control-names-its-field — the panel says whose these are", () => {
+    // A ROW WITHOUT A SECTION IS A ROW WITHOUT AN OWNER. The record's twenty controls sat loose
+    // above a group called `surface` that held exactly one of them, so the panel read as a
+    // deliberate arrangement rather than the nineteen omissions it was — and `stroke`, the
+    // toggle fifteen of the others hang off, had no declaration at all: Storybook inferred it
+    // from the default and gave it no description, no type and no heading.
+    //
+    // Written against `RECORD_ARGS`, not against the declarations, so the failure is "a field
+    // nobody can read" rather than "a declaration nobody uses". The next field added to the
+    // record has to be introduced here or the panel says nothing about it.
+    for (const name of Object.keys(RECORD_ARGS)) {
+      const spec = RECORD_ARG_TYPES[name] as { table?: { category?: string } } | undefined;
+      expect(spec, `${name} has no control declared`).toBeDefined();
+      expect(spec?.table?.category, name).toBe("surface");
+    }
+  });
+
   it("controls.a-literal-colour-beats-the-token — that is the lesson, not a convenience", () => {
     // A CSS name rather than a hex, because `guard.no-raw-colour` is right: a literal colour
     // outside the theme is how a palette stops being one, and a test is not an exception.

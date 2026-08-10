@@ -134,6 +134,7 @@ const preview: Preview = {
           //   Start   — the lesson: what this is, and building the first desk.
           //   Basics  — the model's own vocabulary.
           //   Atoms   — reference: what a node can BE, field by field.
+          //   Presets — the ready-made, assembled out of those atoms and nothing else.
           //   Engine  — explanation, for whoever works on the kit rather than with it.
           //
           // A how-to section ("Build a game") belongs between Atoms and Engine and is not here
@@ -144,6 +145,10 @@ const preview: Preview = {
           ["Node", "Root"],
           "Atoms",
           ["Bounded", "Surfaced", "Transformable", "Container"],
+          // Presets stand on the atoms and are the first pages where a scene is allowed to be
+          // several nodes at once: an assembly is what a preset IS.
+          "Presets",
+          ["Line"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes"],
           "Elements",

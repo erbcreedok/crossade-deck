@@ -9,7 +9,8 @@ import { caps, fieldsOf, node } from "../node.js";
 import { Surfaced, type SurfacedFields } from "./surfaced.js";
 import { placeChildren } from "./container.js";
 import { Bounded, extentOf, footprint, outlineOf, type Shape } from "./bounded.js";
-import { circle, polyline, rect } from "../shapes.js";
+import { polyline } from "../path.js";
+import { circle, rect } from "../../presets/shapes.js";
 
 describe("Bounded", () => {
   it("atom.bounded.default-square — the plainest box there is, said out loud", () => {

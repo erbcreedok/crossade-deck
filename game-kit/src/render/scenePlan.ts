@@ -15,7 +15,7 @@
 
 import { caps, walk, type Node, type NodeId } from "../core/node.js";
 import { placeChildren } from "../core/atoms/container.js";
-import { footprint, outlineOf, type Point } from "../core/atoms/bounded.js";
+import { footprint, outlineOf, type Point, type Shape } from "../core/atoms/bounded.js";
 import { areaOf, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
 import { fieldsOf } from "../core/node.js";
@@ -25,7 +25,7 @@ import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
 import { fitBox } from "./fitBox.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
-import { rect } from "../core/shapes.js";
+import { polyline } from "../core/path.js";
 import { apply, compose, IDENTITY, move, pose, scale, type Transform } from "../core/transform.js";
 
 /** A picture placed in the area, in PIXELS — where it goes and whether it tiles. */
@@ -242,7 +242,10 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
     // The contour is built from the node's own shape when it has one, and from the extent of
     // its content when it does not — the desk case, which has plenty to paint and no
     // footprint of its own.
-    const shape = footprint(n) ?? rect(area.w, area.h);
+    // A box around the content extent when the node has no shape of its own. Built here from
+    // places rather than taken from the figures next door: those are presets, and they stand
+    // ABOVE the renderer — a plan that reached for one would invert the ladder.
+    const shape = footprint(n) ?? boxOf(area);
     // Every measurement in a record is in units too, and every one of them is converted HERE.
     // A single length left behind would be right on one screen and wrong on the next.
     const points = surfaceOutline(shape, record.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
@@ -264,6 +267,18 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
   // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames
   // for no reason the reader can see.
   return out.sort((a, b) => a.z - b.z);
+}
+
+/** The four corners of an area, centred on the origin — a shape for a node that declared none. */
+function boxOf(area: { readonly w: number; readonly h: number }): Shape {
+  const x = area.w / 2;
+  const y = area.h / 2;
+  return polyline([
+    { x: -x, y: -y },
+    { x, y: -y },
+    { x, y },
+    { x: -x, y },
+  ]);
 }
 
 /** One layer with its picture already fitted to the area and converted to pixels. */

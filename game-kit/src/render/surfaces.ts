@@ -122,34 +122,3 @@ export function surfaceNames(): readonly string[] {
 export function resetSurfaces(): void {
   SURFACES.clear();
 }
-
-/**
- * The stock records. `plate` is what `Surfaced` defaults to, so a node composed with no
- * arguments is visible rather than mysteriously blank; `bare` is the same plate with the
- * stroke taken away, which is what the catalog switches to in order to show that the box
- * outlives the look; `zone` is the marked-out area — see-through ground and a dashed edge.
- */
-// The tokens are the EXISTING ones, deliberately: the palette's rule is one job per token,
-// and a `surfaceFill` holding exactly what `panelBg` holds would be the second token for one
-// job that the rule forbids. When a real card face arrives its job genuinely differs, and it
-// gets its own token then — not now, on speculation.
-export function installStockSurfaces(): void {
-  registerSurface("plate", {
-    layers: [{ paint: "panelBg" }],
-    radius: 0.08,
-    // Inside the contour, so a bordered node occupies exactly the box it declared. Centred,
-    // half the stroke would hang over neighbours the layout carefully spaced it from.
-    stroke: { color: "accent", width: 0.03, alignment: 1 },
-  });
-  registerSurface("bare", { layers: [{ paint: "panelBg" }], radius: 0.08 });
-  registerSurface("zone", {
-    layers: [{ paint: "panelBg", opacity: 0.35 }],
-    radius: 0.08,
-    stroke: {
-      color: "accent",
-      width: 0.02,
-      alignment: 1,
-      dash: { on: 0.14, off: 0.09, adjust: "stretch", corner: "dash" },
-    },
-  });
-}

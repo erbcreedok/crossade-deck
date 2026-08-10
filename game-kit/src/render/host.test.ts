@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { node } from "../core/node.js";
 import { Bounded, footprint } from "../core/atoms/bounded.js";
-import { rect } from "../core/shapes.js";
+import { rect } from "../presets/shapes.js";
 import { HUD_UNIT_FRACTION, mount } from "./host.js";
 
 function container(w: number, h: number): HTMLElement {

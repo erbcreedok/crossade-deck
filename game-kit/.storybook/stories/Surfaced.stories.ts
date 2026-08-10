@@ -1,15 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import {
   add,
+  arrow,
   assetNames,
   Bounded,
   Container,
+  headNames,
+  headShape,
+  installStockHeads,
+  line,
   node,
   rect,
   registerSurface,
   Surfaced,
   Transformable,
   surfaceNames,
+  transformShape,
 } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import {
@@ -28,7 +34,7 @@ import {
   type ShapeArgs,
 } from "./surfaceControls.js";
 
-// The atom has ONE field, and its section has six scenes — because what is worth learning here
+// The atom has ONE field, and its section has eight scenes — because what is worth learning here
 // is not the field, it is what the name on the other end of it can be. Each scene is a different
 // ASSEMBLY or a differently built record; the values inside one are arguments, never a page of
 // stories per value.
@@ -37,6 +43,15 @@ import {
 // hold. It used to be a rectangle with a colour picker, and `Shapes` was a separate scene with
 // three fixed shapes and no record at all — so a reader could not tell what the kit cannot do
 // from what the catalog did not ask. Merged rather than duplicated.
+//
+// `Path` and `ArrowHead` are the two after it, and they are ONE NODE EACH — deliberately. Both are
+// halves of the same picture and they belong to opposite sides of one fact: a path walked out and
+// back encloses nothing, so its fill has nothing to cover and what appears is the stroke; a head
+// is a closed shape, so its fill is the picture. Two records, two nodes.
+//
+// PUT TOGETHER they are an arrow, and that assembly is not on this shelf: it is `Presets/Line`,
+// where a scene is free to be three nodes at once. This one is about the ATOM, and an atom is
+// shown one node at a time.
 
 // The registries are filled by `surfaceControls`, which every section imports — see the note
 // there on why that has to happen at module load and not at the first render.
@@ -83,6 +98,99 @@ export const Plate: StoryObj<PlateArgs> = {
     ...RECORD_ARG_TYPES,
   },
   parameters: { gkDocStory: "surfaced.plate" },
+};
+
+// ---- Path: one node, and a shape with no inside ---------------------------------------------
+
+interface PathArgs extends RecordArgs {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  bend: number;
+}
+
+// THE SECTION IS `line`, NOT `bounds`, and the difference is the point of naming sections at all.
+// These are the arguments of a CALL whose result becomes `bounds` — the same relation the
+// scale/turn/move controls have to a pasted shape on the `Bounded` shelf. Filed under `bounds` they
+// would be claiming the atom has a bend, and it has one field holding whatever it was handed.
+const place = (key: string, part: string): Record<string, unknown> =>
+  documented(key, { control: { type: "number", step: 0.05 } }, `line/${part}`);
+
+/** A path's record: a stroke and NO fill, because a walk out and back has no inside to paint. */
+const INK: Partial<RecordArgs> = {
+  fill: "",
+  radius: 0,
+  strokeWidth: 0.04,
+  alignment: 0.5,
+  cap: "round",
+  join: "round",
+};
+
+export const Path: StoryObj<PathArgs> = {
+  // ONE NODE, and the smallest interesting thing a surface can be asked to paint: a path. The
+  // places are `from` and `to` and they are yours to move; `bend` is a number, and at zero the run
+  // between them is straight. There is no switch anywhere that says "straight" or "curved" — a
+  // curve is where the places are, and `bend` puts one between the ends without moving either.
+  //
+  // A shape is a REGION, so the path closes itself: walked out and walked back it encloses nothing,
+  // the fill has nothing to cover, and everything visible is the stroke. That is the whole record
+  // below, the same one `Plate` builds — a line is a path and a stroke, and nothing else.
+  render: (a) => {
+    registerSurface("story.path", recordOf(a));
+    const run = line({ from: { x: a.fromX, y: a.fromY }, to: { x: a.toX, y: a.toY }, bend: a.bend });
+    return scene(node("path", Bounded({ bounds: run }), Surfaced({ surface: "story.path" }))).el;
+  },
+  args: {
+    fromX: -1.1,
+    fromY: 0,
+    toX: 1.1,
+    toY: 0,
+    bend: 0,
+    ...RECORD_ARGS,
+    ...INK,
+  },
+  argTypes: {
+    fromX: place("arg.fromX", "from"),
+    fromY: place("arg.fromY", "from"),
+    toX: place("arg.toX", "to"),
+    toY: place("arg.toY", "to"),
+    bend: documented("arg.bend", { control: { type: "range", min: -1, max: 1, step: 0.05 } }, "line"),
+    ...RECORD_ARG_TYPES,
+  },
+  parameters: { gkDocStory: "surfaced.path" },
+};
+
+// ---- ArrowHead: one node again, and a shape that DOES have an inside -------------------------
+
+interface HeadArgs extends RecordArgs {
+  head: string;
+  size: number;
+  turn: number;
+}
+
+export const ArrowHead: StoryObj<HeadArgs> = {
+  // THE OTHER HALF OF AN ARROW, on its own — because that is what it is: one node, one shape, one
+  // record. The shape comes out of a registry by name; a fifth head is `registerHead` with any
+  // closed shape at all behind it, which is why a suit or a piece is not a special case.
+  //
+  // Unlike the path above, this shape HAS an inside — so the fill is doing something here, and the
+  // same record can make it solid, hollow, or a box with a picture on it. `turn` is the angle it
+  // would be given by a path arriving at that angle; on its own the head has no idea about paths.
+  render: (a) => {
+    registerSurface("story.head", recordOf(a));
+    const mark = headShape(a.head) ?? line({ from: { x: 0, y: 0 }, to: { x: 0, y: 0 } });
+    const shape = transformShape(mark, { scaleX: a.size, scaleY: a.size, rotate: a.turn });
+    return scene(node("head", Bounded({ bounds: shape }), Surfaced({ surface: "story.head" }))).el;
+  },
+  args: { head: "pointer", size: 1.2, turn: 0, ...RECORD_ARGS, fill: "accent", radius: 0, stroke: false },
+  argTypes: {
+    head: documented("arg.head", { control: "select", options: headNames() }, "bounds"),
+    size: documented("arg.size", { control: { type: "number", min: 0, step: 0.1 } }, "builder"),
+    turn: documented("arg.turn", { control: { type: "number", step: 15 } }, "builder"),
+    ...RECORD_ARG_TYPES,
+  },
+  parameters: { gkDocStory: "surfaced.arrowHead" },
 };
 
 // ---- Desk: the area comes from the content -------------------------------------------------

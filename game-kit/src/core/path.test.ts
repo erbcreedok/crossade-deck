@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import { extentOf, outlineOf } from "./atoms/bounded.js";
-import { circle, ellipse, fromSvgPath, polygon, rect, roundedRect, star } from "./shapes.js";
+import { fromSvgPath, joinPath, polyline } from "./path.js";
 
 const box = (d: string) => extentOf(fromSvgPath(d)!);
 
@@ -67,53 +67,45 @@ describe("an SVG path, pasted", () => {
   });
 });
 
-describe("the shapes a designer asks for", () => {
-  // Helpers, not sorts. The tagged union they replaced put the vocabulary into the TYPE, so a
-  // new shape meant a new branch in five files; here it is a new function and nothing
-  // downstream changes.
+describe("two paths sewn into one", () => {
+  // A route out of pieces, a rail an animation runs along, a trail continued by another: all of
+  // them are one piece used again somewhere else, and the piece must not deform when it lands.
+  const first = polyline([
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+  ]);
+  const second = polyline([
+    { x: 5, y: 5 },
+    { x: 5.5, y: 1 },
+    { x: 6, y: 5 },
+  ]);
 
-  it("shapes.a-rect-is-four-runs — and it is centred on the origin", () => {
-    expect(extentOf(rect(2, 1))).toEqual({ w: 2, h: 1 });
-    for (const p of outlineOf(rect(2, 1))) {
-      expect(Math.abs(p.x)).toBeCloseTo(1, 9);
-      expect(Math.abs(p.y)).toBeCloseTo(0.5, 9);
-    }
+  it("path.joined-starts-where-the-first-ended — one place, not a gap and not a doubled point", () => {
+    const both = joinPath(first, second);
+    expect(both.start).toEqual(first.start);
+    // The seam contributes no segment of its own: two segments in, three in the join, and the
+    // place they meet at is the first path's end.
+    expect(both.segments).toHaveLength(first.segments.length + second.segments.length);
+    expect(both.segments[0]!.to).toEqual({ x: 1, y: 0 });
+    expect(both.segments[1]!.to).toEqual({ x: 1.5, y: -4 });
   });
 
-  it("shapes.a-circle-is-an-ellipse-with-equal-radii — not a sort, and not a scaled anything", () => {
-    expect(outlineOf(circle(1))).toEqual(outlineOf(ellipse(1, 1)));
-    // And it is round to the accuracy every drawing program ships: four cubics are within about
-    // three parts in ten thousand of a true circle.
-    for (const p of outlineOf(circle(1))) expect(Math.hypot(p.x, p.y)).toBeCloseTo(1, 3);
+  it("path.joining-moves-the-second-whole — it is picked up, not redrawn", () => {
+    const both = joinPath(first, second);
+    const before = second.segments.map((seg) => ({ x: seg.to.x - second.start.x, y: seg.to.y - second.start.y }));
+    const landed = both.segments.slice(first.segments.length);
+    const seam = both.segments[first.segments.length - 1]!.to;
+    // Every place of the second path sits exactly where it sat relative to its own start. A
+    // rebuilt path would be right at the ends and wrong in the middle, which is the failure
+    // nobody notices until the fifth piece of a rail.
+    expect(landed.map((seg) => ({ x: seg.to.x - seam.x, y: seg.to.y - seam.y }))).toEqual(before);
   });
 
-  it("shapes.an-ellipse-is-not-a-squashed-circle — it is the general case", () => {
-    expect(extentOf(ellipse(1.2, 0.8))).toEqual({ w: 2.4, h: 1.6 });
-  });
-
-  it("shapes.a-polygon-puts-n-corners-on-a-circle", () => {
-    expect(outlineOf(polygon(8, 1))).toHaveLength(8);
-    // Fewer than three has no inside; asking for two is a mistake, not a shape.
-    expect(outlineOf(polygon(1, 1))).toHaveLength(3);
-  });
-
-  it("shapes.a-star-alternates-two-radii — which is why it needs no new sort", () => {
-    const points = outlineOf(star(5, 1, 0.4));
-    expect(points).toHaveLength(10);
-    const radii = points.map((p) => Math.hypot(p.x, p.y));
-    expect(Math.max(...radii)).toBeCloseTo(1, 9);
-    expect(Math.min(...radii)).toBeCloseTo(0.4, 9);
-  });
-
-  it("shapes.a-rounded-rect-stays-inside-its-box — rounding takes area, it never adds any", () => {
-    for (const p of outlineOf(roundedRect(2, 1, 0.3))) {
-      expect(Math.abs(p.x)).toBeLessThanOrEqual(1 + 1e-9);
-      expect(Math.abs(p.y)).toBeLessThanOrEqual(0.5 + 1e-9);
-    }
-    // A radius past half the shorter side is clamped, not rejected: "as round as possible" is a
-    // legitimate ask and the answer is a stadium.
-    expect(extentOf(roundedRect(2, 1, 5))).toEqual({ w: 2, h: 1 });
-    // And zero is exactly the plain box, so nobody is rounded who did not ask.
-    expect(outlineOf(roundedRect(2, 1, 0))).toEqual(outlineOf(rect(2, 1)));
+  it("path.joining-is-a-chain — a third piece continues from the second", () => {
+    const chained = joinPath(joinPath(first, second), first);
+    const places = [chained.start, ...chained.segments.map((seg) => seg.to)];
+    // The last place is the first piece's own run laid down again from wherever the second ended
+    // — one unit on from the seam at (2, 0), and not back at the origin it was drawn around.
+    expect(places[places.length - 1]).toEqual({ x: 3, y: 0 });
   });
 });

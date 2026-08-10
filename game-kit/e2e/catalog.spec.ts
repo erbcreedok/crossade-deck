@@ -524,11 +524,11 @@ test("e2e.sidebar-is-the-ladder — the tree teaches in dependency order", async
   const labels = (await tree.locator("a, button").allInnerTexts()).map((t) => t.trim()).filter(Boolean);
   const at = (name: string) => labels.indexOf(name);
 
-  // FOUR SECTIONS, FOUR GENRES, in the order a reader needs them: the lesson, the vocabulary,
-  // the reference, and — last, and only for whoever works on the kit — the explanation. A
-  // top-level section is drawn in caps by the manager, which is also how the roots are told
-  // apart from the pages inside them.
-  const sections = ["START", "BASICS", "ATOMS", "ENGINE"].map(at);
+  // THE GENRES, in the order a reader needs them: the lesson, the vocabulary, the reference,
+  // what is already built out of it, and — last, and only for whoever works on the kit — the
+  // explanation. A top-level section is drawn in caps by the manager, which is also how the roots
+  // are told apart from the pages inside them.
+  const sections = ["START", "BASICS", "ATOMS", "PRESETS", "ENGINE"].map(at);
   expect(sections.every((i) => i >= 0), `sections missing from ${JSON.stringify(labels)}`).toBe(true);
   expect(sections).toEqual([...sections].sort((a, b) => a - b));
 
@@ -681,15 +681,26 @@ test("e2e.a-snippet-names-nothing-of-this-website", async ({ page }) => {
   //
   // Checked against a LIST rather than by eye: the failure is silent, it looks like code, and it
   // came back after being fixed once on the shape shelf.
-  await page.goto("/?path=/story/atoms-surfaced--plate");
   const preview = page.frameLocator("iframe#storybook-preview-iframe");
-  await expect(preview.locator("[data-painted]").first()).toBeAttached({ timeout: 30000 });
-  await page.getByRole("tab", { name: "Code" }).click();
-  const code = await page.locator("pre").first().innerText();
+  const snippetOf = async (story: string): Promise<string> => {
+    await page.goto(`/?path=/story/${story}`);
+    await expect(preview.locator("[data-painted]").first()).toBeAttached({ timeout: 30000 });
+    await page.getByRole("tab", { name: "Code" }).click();
+    return page.locator("pre").first().innerText();
+  };
 
-  for (const name of ["shapeArgs", "RECORD_ARGS", "SHAPE_ARGS", "recordOf", "shapeOf", "PLATE"]) {
-    expect(code.includes(name), `${name} is a name only this catalog has:\n${code}`).toBe(false);
+  // EVERY SCENE ON THE SHELF, not the one it was first caught on. The three path scenes built
+  // their arguments out of a shared const and printed its NAME — the same failure from the other
+  // side, in a panel that looked no different for it.
+  const local = ["shapeArgs", "RECORD_ARGS", "SHAPE_ARGS", "recordOf", "shapeOf", "PLATE", "PATH_ARGS"];
+  for (const story of ["atoms-surfaced--plate", "atoms-surfaced--path", "atoms-surfaced--arrow-head", "presets-line--curved-arrow"]) {
+    const snippet = await snippetOf(story);
+    for (const name of local) {
+      expect(snippet.includes(name), `${story}: ${name} is a name only this catalog has:\n${snippet}`).toBe(false);
+    }
   }
+
+  const code = await snippetOf("atoms-surfaced--plate");
   // And what should be there: a real registry call with the record written out as a value.
   expect(code).toContain('registerSurface("story.plate", {');
   expect(code).toContain("layers:");
@@ -930,6 +941,26 @@ test.describe.serial("the heavy pages", () => {
           "play.surfaced.a-different-record-is-a-different-picture",
           "play.surfaced.the-paint-need-not-match-the-box",
           "play.surfaced.a-desk-takes-its-area-from-what-it-holds",
+        ],
+      ],
+      [
+        "tests-surfaced--area",
+        [
+          "play.surfaced.an-empty-desk-has-no-area",
+          "play.surfaced.content-without-boxes-is-no-area",
+          "play.surfaced.a-box-of-its-own-wins",
+          "play.surfaced.the-layout-decides-the-area",
+        ],
+      ],
+      [
+        "tests-surfaced--openwork",
+        [
+          "play.surfaced.one-place-is-not-a-contour",
+          "play.surfaced.the-contour-closes-itself",
+          "play.surfaced.a-dash-has-ends-of-its-own",
+          "play.surfaced.an-arrow-is-a-run-and-two-nodes",
+          "play.surfaced.a-head-wears-its-own-record",
+          "play.surfaced.the-pattern-lives-in-the-record",
         ],
       ],
     ];

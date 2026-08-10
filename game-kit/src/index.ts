@@ -6,8 +6,10 @@
 // promise made by mistake, and taking it back is a breaking change.
 //
 // The layers below it point one way only (guarded by `guard.layering`):
-//   core   — the model: nodes, atoms, resolution, inspection. Knows nothing of pixels.
-//   render — pixels: the host that owns the view, and the theme tokens.
+//   core    — the model: nodes, atoms, resolution, inspection. Knows nothing of pixels.
+//   render  — pixels: the host that owns the view, and the theme tokens.
+//   presets — the ready-made: the figures a designer asks for and the records they wear. Data
+//             about what people draw, so it stands on both and neither stands on it.
 //
 // THE RENDERER IS A SECOND DOOR (`game-kit/pixi`), on purpose. Importing `pixi.js` reaches for
 // a canvas context at module load, so re-exporting the painter from here would pull a WebGL
@@ -62,20 +64,8 @@ export {
   type Vec,
 } from "./core/transform.js";
 export { Bounded, extentOf, footprint, outlineOf, type BoundedFields, type PathSegment, type Point, type Shape } from "./core/atoms/bounded.js";
-// The shapes a designer asks for, as ordinary functions. A `Shape` has no sorts; these build
-// one, so a new shape is a new function rather than a new branch in five files.
-export {
-  circle,
-  ellipse,
-  fromSvgPath,
-  polygon,
-  polyline,
-  rect,
-  roundedRect,
-  star,
-  transformShape,
-  type ShapeTransform,
-} from "./core/shapes.js";
+// What a path can do: be built from places, arrive from a drawing tool, and be moved.
+export { fromSvgPath, joinPath, polyline, transformShape, type ShapeTransform } from "./core/path.js";
 export { Transformable, resolveZ, type TransformableFields } from "./core/atoms/transformable.js";
 // The node's own answer to "fold my geometry, or hand it over as a matrix?" — see `attachPainter`.
 export { Bakeable, bakeable, type BakeableFields } from "./core/atoms/bakeable.js";
@@ -125,7 +115,6 @@ export {
 } from "./render/fitBox.js";
 export { type Painter } from "./render/painter.js";
 export {
-  installStockSurfaces,
   registerSurface,
   surfaceNames,
   surfaceRecord,
@@ -148,3 +137,24 @@ export {
   type Palette,
   type ScaleStep,
 } from "./render/theme.js";
+
+// ---- presets: the ready-made ---------------------------------------------------------------
+// The figures a designer asks for, as ordinary functions. A `Shape` has no sorts; these build
+// one, so a new figure is a new function rather than a new branch in five files.
+export { circle, ellipse, polygon, rect, roundedRect, star } from "./presets/shapes.js";
+// A line, and the little tree an arrow actually is. The heads are a REGISTRY of SHAPES: a fifth
+// one is a registration, not a case for anything to learn — and what it looks like is the record
+// its node wears, exactly like every other node in the kit.
+export {
+  arrow,
+  headNames,
+  headShape,
+  installStockHeads,
+  line,
+  outAndBack,
+  path,
+  registerHead,
+  type ArrowSpec,
+  type LineSpec,
+} from "./presets/line.js";
+export { installStockSurfaces } from "./presets/surfaces.js";

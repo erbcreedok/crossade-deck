@@ -17,7 +17,7 @@ import { Bounded } from "./atoms/bounded.js";
 import { Container } from "./atoms/container.js";
 import { Surfaced } from "./atoms/surfaced.js";
 import { Transformable } from "./atoms/transformable.js";
-import { rect } from "./shapes.js";
+import { rect } from "../presets/shapes.js";
 
 // THE TEST-LOCAL ATOMS ARE LEFT REGISTERED, and the registry is never cleared here. Vitest
 // gives each file its own module graph, so `TestOriented` exists in this file and nowhere else;

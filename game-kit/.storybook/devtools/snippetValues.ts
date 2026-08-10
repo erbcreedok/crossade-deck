@@ -11,7 +11,7 @@
 // in the preview reaches nothing. It failed exactly that way once — the snippet went on
 // printing `shapeOf(a)` while every test on the preview side passed.
 
-import { recordSource, type RecordArgs } from "../stories/record.js";
+import { endRecordSource, recordSource, startRecordSource, type RecordArgs } from "../stories/record.js";
 import { shapeSource, type ShapeArgs } from "../stories/shape.js";
 import { raw, registerSnippetValue } from "./storySource.js";
 
@@ -25,6 +25,13 @@ registerSnippetValue("shapeOf", (args) => raw(shapeSource(args as unknown as Sha
 // the page is asking to be copied from. A `SurfaceRecord` is a plain object, and a reader who
 // has read a whole section about records has still never seen one.
 registerSnippetValue("recordOf", (args) => raw(recordSource(args as unknown as RecordArgs)));
+
+// ONE PER NODE, because a scene can hold more than one. `arrow()` is three nodes and three
+// records, and the panel has to print all three as literals — `startRecordOf(a)` cannot be a call
+// with a prefix argument, or substitution (which matches a call taking the args object and nothing
+// else) would leave the name itself in the snippet.
+registerSnippetValue("startRecordOf", (args) => raw(startRecordSource(args)));
+registerSnippetValue("endRecordOf", (args) => raw(endRecordSource(args)));
 
 // `paintOf` is NOT registered, and cannot be: substitution matches a call with one identifier
 // argument, because a helper is handed the args object and there is exactly one of those.

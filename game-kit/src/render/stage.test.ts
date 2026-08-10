@@ -16,7 +16,8 @@ import { node, add } from "../core/node.js";
 import { IDENTITY } from "../core/transform.js";
 import { mount } from "./host.js";
 import { attachPainter, type PaintOptions } from "./stage.js";
-import { installStockSurfaces, resetSurfaces } from "./surfaces.js";
+import { resetSurfaces } from "./surfaces.js";
+import { installStockSurfaces } from "../presets/surfaces.js";
 import { type Painter } from "./painter.js";
 import { type Quad } from "./scenePlan.js";
 

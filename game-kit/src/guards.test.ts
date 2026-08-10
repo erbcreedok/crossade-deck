@@ -18,7 +18,7 @@ import "./core/atoms/bounded.js";
 import "./core/atoms/container.js";
 import "./core/atoms/surfaced.js";
 import "./core/atoms/transformable.js";
-import { rect } from "./core/shapes.js";
+import { rect } from "./presets/shapes.js";
 
 const SRC = new URL("./", import.meta.url).pathname;
 // The catalog is real code — its page, panels, scenes, stories and words — so the rules reach
@@ -164,18 +164,27 @@ describe("guards", () => {
 
   it("guard.layering — imports point DOWN the ladder, never up", () => {
     // core (the model) knows nothing of pixels, the catalog or a document; render knows
-    // pixels but not the catalog; devtools and stories stand on top and may look down.
-    // A flat folder cannot state this, which is why the layers exist at all.
+    // pixels but not the catalog; presets are the ready-made and stand on both; devtools and
+    // stories stand on top of everything and may look down. A flat folder cannot state this,
+    // which is why the layers exist at all.
     const ALLOWED: Record<string, string[]> = {
       core: ["core"], // the bottom: the model, and it may reach nothing but itself
       render: ["render", "core"], // pixels stand on the model, never the other way round
+      presets: ["presets", "render", "core"], // data about what people draw: it reaches down only
     };
+    // EVERY relative import is resolved, not just the one-level ones. Matching `../<folder>/`
+    // by eye let `../../render/x.js` through from inside `core/atoms` — the deeper a file sits,
+    // the further up it could reach, which is exactly backwards.
     const bad: string[] = [];
     for (const f of files) {
       const layer = f.rel.split("/")[0]!;
-      if (!(layer in ALLOWED) || inCatalog(f.rel)) continue;
-      for (const m of f.raw.matchAll(/from\s+"\.\.\/(\w+)\//g)) {
-        if (!ALLOWED[layer]!.includes(m[1]!)) bad.push(`${f.rel} → ${m[1]}`);
+      // A TEST IS A CONSUMER and stands above the lot: `core/atoms/container.test.ts` builds its
+      // fixtures out of `rect`, and a fixture reaching for a preset is a reader doing the same.
+      if (!(layer in ALLOWED) || inCatalog(f.rel) || f.rel.endsWith(".test.ts")) continue;
+      for (const m of f.raw.matchAll(/from\s+"(\.[^"]*)"/g)) {
+        const target = join(f.rel, "..", m[1]!);
+        const to = target.split("/")[0]!;
+        if (!ALLOWED[layer]!.includes(to)) bad.push(`${f.rel} → ${target}`);
       }
     }
     expect(bad).toEqual([]);

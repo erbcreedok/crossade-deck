@@ -23,6 +23,7 @@ import type container from "./pages/container/en.json";
 import type engine from "./pages/engine/en.json";
 import type gettingStarted from "./pages/gettingStarted/en.json";
 import type intro from "./pages/intro/en.json";
+import type line from "./pages/line/en.json";
 import type node from "./pages/node/en.json";
 import type root from "./pages/root/en.json";
 import type surfaced from "./pages/surfaced/en.json";
@@ -47,6 +48,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     ru: () => import("./pages/gettingStarted/ru.json"),
   },
   engine: { en: () => import("./pages/engine/en.json"), ru: () => import("./pages/engine/ru.json") },
+  line: { en: () => import("./pages/line/en.json"), ru: () => import("./pages/line/ru.json") },
   tests: { en: () => import("./pages/tests/en.json"), ru: () => import("./pages/tests/ru.json") },
 };
 
@@ -63,6 +65,7 @@ export type PageKey = keyof (typeof node &
   typeof container &
   typeof intro &
   typeof gettingStarted &
+  typeof line &
   typeof tests);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */

@@ -30,5 +30,5 @@
 | `guard.every-field-has-a-control` | каждый зарегистрированный атом | сверен с `gkFields` каталога | у каждого поля есть контроль или своя сцена. Именно это правило каталог и нарушил: `Surfaced` объявлял три поля и предлагал одно |
 | `guard.spec-holds-no-functions` | `core/atom.ts` | прочитан | проверка есть и в рантайме: значение, собранное на лету, скану не видно |
 | `guard.no-ambient-id-source` | the whole src tree | scanned | no module counter in `node.ts`, no `resetIds` anywhere (source-scan) |
-| `guard.layering` | every source file | its imports read | they point DOWN the ladder only: core→core, render→core (source-scan) |
+| `guard.layering` | every source file | КАЖДЫЙ относительный импорт разрешён до папки | вниз по лестнице и только: core→core, render→core, presets→render/core. Тест — ПОТРЕБИТЕЛЬ и стоит над всеми (source-scan) |
 | `guard.public-api` | `src/index.ts` | scanned for the names a consumer needs | all present: a standalone imports "game-kit", never a path into src (source-scan) |

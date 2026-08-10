@@ -16,7 +16,7 @@ import { defineAtom } from "../atom.js";
 import { fieldsOf, type Node, type NodeId } from "../node.js";
 import { extentOf, footprint, type Point, type Shape } from "./bounded.js";
 import { type TransformableFields } from "./transformable.js";
-import { transformShape } from "../shapes.js";
+import { transformShape } from "../path.js";
 
 export interface ContainerFields {
   /** A registry reference. The arrangement is a NAMED record, never a function on the node. */

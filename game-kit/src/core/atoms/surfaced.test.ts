@@ -4,7 +4,7 @@ import { Bounded } from "./bounded.js";
 import { Container, registerLayout, resetLayouts } from "./container.js";
 import { freeLayout, rowLayout } from "./layouts.js";
 import { areaOf, Surfaced, type SurfacedFields } from "./surfaced.js";
-import { rect } from "../shapes.js";
+import { rect } from "../../presets/shapes.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 

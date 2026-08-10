@@ -112,12 +112,13 @@ export const Rectangle: StoryObj<BoxArgs> = {
   parameters: { gkDocStory: "bounded.rectangle" },
 };
 
-// A real line: two points, zero height, no inside. It used to be a rect 0.04 units thick, and
-// the thickness was the tell — a tolerance somebody had to pick, which is the sign of a
-// substitution. Written as a path there is nothing to pick.
+// A REAL LINE: two places, no thickness anybody had to pick, and no inside. And the bend belongs
+// to the BOX — a curve is geometry and nothing else, so it is settled here rather than by whatever
+// paints it or stands on its ends. At `bend: 0` the run is straight, and that is not a second sort
+// of shape: it is the same call with a zero in it.
 export const Line: StoryObj<BoxArgs> = {
   render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "rule", preset: "path", vertices: "-1.2,0 1.2,0" },
+  args: { id: "rule", preset: "line", fromX: -1.2, fromY: 0, toX: 1.2, toY: 0, bend: 0 },
   parameters: { gkDocStory: "bounded.line" },
 };
 

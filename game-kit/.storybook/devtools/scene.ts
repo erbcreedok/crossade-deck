@@ -18,6 +18,7 @@
 import {
   attachPainter,
   inspect,
+  installStockHeads,
   installStockLayouts,
   installStockSurfaces,
   installTheme,
@@ -121,6 +122,7 @@ export function scene(
   // here rather than on import, so nothing depends on module order.
   installStockLayouts();
   installStockSurfaces();
+  installStockHeads();
   const id = takeSceneId();
 
   // AN ARGUMENT CHANGE IS NEW DATA, NOT A NEW SCENE.

@@ -1,120 +1,22 @@
-// THE SHAPES A DESIGNER ASKS FOR, as paths — and nothing in the model knows their names.
+// A PATH: how one is built from places, how one arrives from a drawing tool, and how one is
+// moved. Three mechanisms — the named figures a designer asks for are PRESETS and live in
+// `presets/`, because `rect` is data about what people draw and this is what a path can do.
 //
-// A `Shape` is one thing: a path. That is the geometry, and it has no sorts. But nobody writes
-// a card as four segments by hand, so what a reader reaches for lives here: `rect(1, 1.4)`,
-// `ellipse(1.2, 0.8)`, `polygon(8, 1)`, `star(5, 1, 0.42)`.
-//
-// They are ORDINARY FUNCTIONS, which is the whole point. A tagged union put the vocabulary into
-// the type, so every consumer branched on it and every new shape meant a new branch in five
-// files. Here a new shape is a new function and nothing downstream changes — a star is not a
-// case the renderer has to learn, it is a path that already flattens like every other.
-//
-// It is also what makes a snippet readable: `Bounded({ bounds: star(5, 1, 0.42) })` says what
-// it is, where a soup of twenty coordinates says nothing at all.
+// A `Shape` is one thing: a path. That is the geometry, and it has no sorts. A tagged union put
+// the vocabulary into the type, so every consumer branched on it and every new figure meant a
+// new branch in five files. Here a figure is an ordinary function that returns one of these,
+// and nothing downstream learns its name — a star is not a case the renderer has to handle, it
+// is a path that flattens like every other.
 //
 // Everything here is in UNITS and centred on the node's origin — the point `at` places and a
 // rotation turns about — unless the caller moves it.
 
 import { type PathSegment, type Point, type Shape } from "./atoms/bounded.js";
 
-/** How far a cubic's handles reach to draw a quarter of an ellipse. The constant every tool uses. */
-const KAPPA = 0.5522847498307936;
-
 /** A closed run of straight lines through the given corners. */
 export function polyline(points: readonly Point[]): Shape {
   if (points.length === 0) return { start: { x: 0, y: 0 }, segments: [] };
   return { start: points[0]!, segments: points.slice(1).map((to) => ({ to })) };
-}
-
-/** An axis-aligned box, centred on the origin. */
-export function rect(w: number, h: number): Shape {
-  return polyline([
-    { x: -w / 2, y: -h / 2 },
-    { x: w / 2, y: -h / 2 },
-    { x: w / 2, y: h / 2 },
-    { x: -w / 2, y: h / 2 },
-  ]);
-}
-
-/**
- * An ellipse, exactly: four cubics.
- *
- * A circle is this with equal radii — it is not a special sort and it is not a scaled anything.
- * Saying it the other way round was a mistake worth naming: it put a tag in the model for a
- * shape that is one line of arithmetic away from its neighbour.
- */
-export function ellipse(rx: number, ry: number): Shape {
-  const kx = rx * KAPPA;
-  const ky = ry * KAPPA;
-  return {
-    start: { x: 0, y: -ry },
-    segments: [
-      { c1: { x: kx, y: -ry }, c2: { x: rx, y: -ky }, to: { x: rx, y: 0 } },
-      { c1: { x: rx, y: ky }, c2: { x: kx, y: ry }, to: { x: 0, y: ry } },
-      { c1: { x: -kx, y: ry }, c2: { x: -rx, y: ky }, to: { x: -rx, y: 0 } },
-      { c1: { x: -rx, y: -ky }, c2: { x: -kx, y: -ry }, to: { x: 0, y: -ry } },
-    ],
-  };
-}
-
-/** An ellipse with equal radii. Kept as a name because that is the word people use. */
-export function circle(r: number): Shape {
-  return ellipse(r, r);
-}
-
-/** `n` corners on a circle of radius `r`, the first one at the top. */
-export function polygon(n: number, r: number): Shape {
-  const corners = Math.max(3, Math.round(n));
-  return polyline(
-    Array.from({ length: corners }, (_, i) => {
-      const a = -Math.PI / 2 + (i / corners) * Math.PI * 2;
-      return { x: Math.cos(a) * r, y: Math.sin(a) * r };
-    }),
-  );
-}
-
-/**
- * A star: `n` points on `outer`, the notches between them on `inner`.
- *
- * A polygon whose corners alternate between two radii — which is why it needs no new sort. The
- * kit does not know the word "star"; this function does, and it is the only place that has to.
- */
-export function star(n: number, outer: number, inner: number): Shape {
-  const points = Math.max(3, Math.round(n));
-  return polyline(
-    Array.from({ length: points * 2 }, (_, i) => {
-      const a = -Math.PI / 2 + (i * Math.PI) / points;
-      const r = i % 2 === 0 ? outer : inner;
-      return { x: Math.cos(a) * r, y: Math.sin(a) * r };
-    }),
-  );
-}
-
-/**
- * A box with rounded corners — as the SHAPE, not as paint.
- *
- * The surface record has a radius too, and they are different claims: that one rounds what is
- * painted and leaves the box sharp, this one rounds the box itself, so a layout and a finger
- * see the rounding as well. Both are legitimate; a rounded plate on a square box is the common
- * case, and a genuinely round-cornered token is this one.
- */
-export function roundedRect(w: number, h: number, radius: number): Shape {
-  const r = Math.min(radius, Math.min(w, h) / 2);
-  if (r <= 0) return rect(w, h);
-  const x = w / 2;
-  const y = h / 2;
-  const k = r * KAPPA;
-  const segments: PathSegment[] = [
-    { to: { x: x - r, y: -y } },
-    { c1: { x: x - r + k, y: -y }, c2: { x, y: -y + r - k }, to: { x, y: -y + r } },
-    { to: { x, y: y - r } },
-    { c1: { x, y: y - r + k }, c2: { x: x - r + k, y }, to: { x: x - r, y } },
-    { to: { x: -x + r, y } },
-    { c1: { x: -x + r - k, y }, c2: { x: -x, y: y - r + k }, to: { x: -x, y: y - r } },
-    { to: { x: -x, y: -y + r } },
-    { c1: { x: -x, y: -y + r - k }, c2: { x: -x + r - k, y: -y }, to: { x: -x + r, y: -y } },
-  ];
-  return { start: { x: -x + r, y: -y }, segments };
 }
 
 /**
@@ -307,4 +209,22 @@ export function transformShape(shape: Shape, t: ShapeTransform): Shape {
       seg.c1 && seg.c2 ? { c1: map(seg.c1), c2: map(seg.c2), to: map(seg.to) } : { to: map(seg.to) },
     ),
   };
+}
+
+/**
+ * TWO PATHS SEWN INTO ONE — the second picked up whole and set down where the first ended.
+ *
+ * The second path keeps its own shape exactly: it is MOVED, not redrawn, so every place in it
+ * stays where it was relative to its own start. That is the property this is for. A route built
+ * out of pieces, a rail an animation runs along, a trail continued by another trail — all of them
+ * are the same piece used again in a different place, and none of them may deform when it lands.
+ *
+ * The seam is a single place, not a gap and not a doubled point: the second's start IS the first's
+ * end after the move, so it contributes no segment of its own and nothing has to be trimmed.
+ */
+export function joinPath(first: Shape, second: Shape): Shape {
+  const places = [first.start, ...first.segments.map((seg) => seg.to)];
+  const end = places[places.length - 1]!;
+  const moved = transformShape(second, { offsetX: end.x - second.start.x, offsetY: end.y - second.start.y });
+  return { start: first.start, segments: [...first.segments, ...moved.segments] };
 }

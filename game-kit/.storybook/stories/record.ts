@@ -137,3 +137,42 @@ export function recordSource(a: RecordArgs): string {
   }
   return `{ ${parts.join(", ")} }`;
 }
+
+/**
+ * THE SAME ARGUMENTS, UNDER A PREFIX — for a scene where more than one node wears a record.
+ *
+ * `arrow()` comes back as three nodes, and each of them has a whole record of its own. The panel
+ * shows all three, so the arguments have to be told apart: `startFill` is the head's fill and
+ * `fill` is the line's. This is the one place that knows how the two names relate, and it is one
+ * function rather than a second copy of the twenty-one fields.
+ */
+export function recordArgsAt(prefix: string, over: Partial<RecordArgs> = {}): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries({ ...RECORD_ARGS, ...over })) {
+    out[`${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`] = value;
+  }
+  return out;
+}
+
+/** The prefixed slice of a story's arguments, as the plain `RecordArgs` every reader here takes. */
+export function recordSliceOf(a: object, prefix: string): RecordArgs {
+  const from = a as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const name of Object.keys(RECORD_ARGS)) {
+    out[name] = from[`${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`];
+  }
+  return out as unknown as RecordArgs;
+}
+
+/**
+ * A NAME PER PREFIX, and not one function taking the prefix as a second argument.
+ *
+ * The Code panel substitutes a call whose only argument is the args object — that is the whole
+ * mechanism, and a helper with two arguments cannot be substituted at all. It would then print as
+ * itself: a name that exists nowhere but this catalog, in the panel a reader copies from.
+ */
+export const startRecordOf = (a: object): SurfaceRecord => recordOf(recordSliceOf(a, "start"));
+export const endRecordOf = (a: object): SurfaceRecord => recordOf(recordSliceOf(a, "end"));
+
+export const startRecordSource = (a: object): string => recordSource(recordSliceOf(a, "start"));
+export const endRecordSource = (a: object): string => recordSource(recordSliceOf(a, "end"));
