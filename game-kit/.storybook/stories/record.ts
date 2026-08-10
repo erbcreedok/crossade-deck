@@ -176,3 +176,41 @@ export const endRecordOf = (a: object): SurfaceRecord => recordOf(recordSliceOf(
 
 export const startRecordSource = (a: object): string => recordSource(recordSliceOf(a, "start"));
 export const endRecordSource = (a: object): string => recordSource(recordSliceOf(a, "end"));
+
+/**
+ * THE SAME NAMES ONCE MORE, UNDER `over` — where EMPTY MEANS "AS THE BASE".
+ *
+ * An override panel cannot reuse the plain defaults: a control that always says a value always
+ * overrides, and the base under it would steer nothing. So every string here starts at "" and
+ * every number at nothing (an empty field), and the record's two toggles become three-way
+ * switches whose first position is the same "". An untouched panel therefore IS its base —
+ * guarded by `controls.an-untouched-override-is-its-base`.
+ */
+export const OVERRIDE_ARGS: Record<string, unknown> = (() => {
+  const out: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(RECORD_ARGS)) {
+    out[`over${name[0]!.toUpperCase()}${name.slice(1)}`] = typeof value === "number" ? undefined : "";
+  }
+  return out;
+})();
+
+/** The base slice with every SET override written over it — nothing set, nothing changed. */
+export function overriddenSliceOf(a: object, base: RecordArgs): RecordArgs {
+  const from = a as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...base };
+  for (const [name, fallback] of Object.entries(base)) {
+    const over = from[`over${name[0]!.toUpperCase()}${name.slice(1)}`];
+    if (over === undefined || over === "") continue;
+    // The record's own toggles ride the three-way switch: "on"/"off" is set, "" was skipped above.
+    out[name] = typeof fallback === "boolean" ? over === "on" : over;
+  }
+  return out as unknown as RecordArgs;
+}
+
+// One name per record, same as the arrow's ends: substitution matches a call taking the args
+// object and nothing else, so neither can be one function with a second argument.
+export const bothRecordOf = (a: object): SurfaceRecord => recordOf(recordSliceOf(a, "both"));
+export const cloneRecordOf = (a: object): SurfaceRecord => recordOf(overriddenSliceOf(a, recordSliceOf(a, "both")));
+
+export const bothRecordSource = (a: object): string => recordSource(recordSliceOf(a, "both"));
+export const cloneRecordSource = (a: object): string => recordSource(overriddenSliceOf(a, recordSliceOf(a, "both")));

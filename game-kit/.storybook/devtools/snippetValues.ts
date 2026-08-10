@@ -11,7 +11,7 @@
 // in the preview reaches nothing. It failed exactly that way once — the snippet went on
 // printing `shapeOf(a)` while every test on the preview side passed.
 
-import { endRecordSource, recordSource, startRecordSource, type RecordArgs } from "../stories/record.js";
+import { bothRecordSource, cloneRecordSource, endRecordSource, recordSource, startRecordSource, type RecordArgs } from "../stories/record.js";
 import { shapeSource, type ShapeArgs } from "../stories/shape.js";
 import { raw, registerSnippetValue } from "./storySource.js";
 
@@ -32,6 +32,12 @@ registerSnippetValue("recordOf", (args) => raw(recordSource(args as unknown as R
 // else) would leave the name itself in the snippet.
 registerSnippetValue("startRecordOf", (args) => raw(startRecordSource(args)));
 registerSnippetValue("endRecordOf", (args) => raw(endRecordSource(args)));
+
+// The base record and its overridden clone, from `Restyle`. The clone prints as the MERGED
+// literal — the record a reader would register to get the right-hand card — not as a base and
+// a patch, which is machinery of this panel and not of the kit.
+registerSnippetValue("bothRecordOf", (args) => raw(bothRecordSource(args)));
+registerSnippetValue("cloneRecordOf", (args) => raw(cloneRecordSource(args)));
 
 // `paintOf` is NOT registered, and cannot be: substitution matches a call with one identifier
 // argument, because a helper is handed the args object and there is exactly one of those.

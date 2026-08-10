@@ -13,8 +13,12 @@
 export {
   ALIGNS,
   FITS,
+  bothRecordOf,
+  cloneRecordOf,
   endRecordOf,
   endRecordSource,
+  overriddenSliceOf,
+  OVERRIDE_ARGS,
   paintOf,
   recordArgsAt,
   recordOf,
@@ -273,3 +277,50 @@ export function recordArgTypes(field = "surface", prefix = "", inside = ""): Rec
 
 /** The unprefixed set, for a scene with one node wearing one record. */
 export const RECORD_ARG_TYPES: Record<string, unknown> = recordArgTypes();
+
+/**
+ * The record's rows AS OVERRIDES — same fields, same sections, but every control can also say
+ * "as the base": "" on a select, an empty number field, and a three-way switch where the record
+ * has a toggle. Values live in `OVERRIDE_ARGS` / `overriddenSliceOf` (record.ts).
+ *
+ * Two deliberate differences from `recordArgTypes`. Sub-rows hide only when their part is
+ * overridden AWAY (`neq: "off"`), never when it is merely not overridden — the base may well
+ * have a stroke the override wants to retune. And `fit`/`align` are not chained to the image
+ * row: the base's own picture is exactly what a reader may want to seat differently.
+ */
+export function overrideArgTypes(field: string): Record<string, unknown> {
+  const at = (name: string): string => `over${name[0]!.toUpperCase()}${name.slice(1)}`;
+  const rec = (key: string, spec: Record<string, unknown>, part = ""): Record<string, unknown> =>
+    documented(key, spec, part ? `${field}/${part}` : field);
+  const layer = (key: string, spec: Record<string, unknown>): Record<string, unknown> => rec(key, spec, "layers[0]");
+  const stroked = (key: string, spec: Record<string, unknown>, part = "stroke"): Record<string, unknown> =>
+    rec(key, { ...spec, if: { arg: at("stroke"), neq: "off" } }, part);
+  const dashed = (key: string, spec: Record<string, unknown>): Record<string, unknown> =>
+    rec(key, { ...spec, if: { arg: at("dash"), neq: "off" } }, "stroke.dash");
+  const emptyOr = (options: readonly string[]): Record<string, unknown> => ({ control: "select", options: ["", ...options] });
+  const number = (spec: Record<string, unknown> = {}): Record<string, unknown> => ({ control: { type: "number", ...spec } });
+
+  return {
+    [at("fill")]: layer("arg.fill", emptyOr(PAINTS)),
+    [at("fillCustom")]: layer("arg.fillCustom", { control: "color" }),
+    [at("fillOpacity")]: layer("arg.fillOpacity", number({ min: 0, max: 1, step: 0.05 })),
+    [at("image")]: layer("arg.image", emptyOr(assetNames())),
+    [at("fit")]: layer("arg.fit", emptyOr(FITS)),
+    [at("align")]: layer("arg.align", emptyOr(ALIGNS)),
+    [at("radius")]: rec("arg.radius", number({ min: 0, step: 0.02 })),
+    [at("stroke")]: rec("arg.stroke", emptyOr(["on", "off"])),
+    [at("strokeColor")]: stroked("arg.strokeColor", emptyOr(PAINTS)),
+    [at("strokeCustom")]: stroked("arg.strokeCustom", { control: "color" }),
+    [at("strokeWidth")]: stroked("arg.strokeWidth", number({ min: 0, step: 0.01 })),
+    [at("strokeOpacity")]: stroked("arg.strokeOpacity", number({ min: 0, max: 1, step: 0.05 })),
+    [at("alignment")]: stroked("arg.alignment", number({ min: 0, max: 1, step: 0.5 })),
+    [at("cap")]: stroked("arg.cap", emptyOr(["butt", "round", "square"])),
+    [at("join")]: stroked("arg.join", emptyOr(["miter", "round", "bevel"])),
+    [at("miterLimit")]: stroked("arg.miterLimit", number({ min: 1, step: 1 })),
+    [at("dash")]: stroked("arg.dash", emptyOr(["on", "off"])),
+    [at("dashOn")]: dashed("arg.dashOn", number({ min: 0.01, step: 0.01 })),
+    [at("dashOff")]: dashed("arg.dashOff", number({ min: 0.01, step: 0.01 })),
+    [at("dashAdjust")]: dashed("arg.dashAdjust", emptyOr(["stretch", "none"])),
+    [at("dashCorner")]: dashed("arg.dashCorner", emptyOr(["dash", "none"])),
+  };
+}

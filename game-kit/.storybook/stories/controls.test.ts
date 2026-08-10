@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { extentOf, outlineOf, transformShape } from "../../src/index.js";
 import { documented, PRESETS, SHAPE_ARGS, shapeArgTypes, shapeOf, shapeSource } from "./surfaceControls.js";
-import { recordOf, RECORD_ARGS, RECORD_ARG_TYPES } from "./surfaceControls.js";
+import { overriddenSliceOf, OVERRIDE_ARGS, recordOf, RECORD_ARGS, RECORD_ARG_TYPES, type RecordArgs } from "./surfaceControls.js";
 
 const STORIES = new URL("./", import.meta.url).pathname;
 const CHROME = new URL("../locales/chrome/en.json", import.meta.url).pathname;
@@ -34,6 +34,22 @@ describe("the words a control names", () => {
         });
     }
     expect(missing).toEqual([]);
+  });
+});
+
+describe("record controls", () => {
+  it("controls.an-untouched-override-is-its-base — empty is inherit, for every field at once", () => {
+    // `Restyle` stands a base record beside its clone and claims the clone is the base plus
+    // ONLY what the reader set. Checked over a base with every optional part present — an
+    // image, a dash, a non-default cap — because a field the merge skips is invisible against
+    // a base that keeps its defaults.
+    const base: RecordArgs = { ...RECORD_ARGS, image: "tile", dash: true, cap: "round" };
+    expect(overriddenSliceOf(OVERRIDE_ARGS, base)).toEqual(base);
+    // A set field is an override, not a rebuild: one value set, one field changed.
+    expect(overriddenSliceOf({ ...OVERRIDE_ARGS, overStrokeWidth: 0.2 }, base)).toEqual({ ...base, strokeWidth: 0.2 });
+    // And the three-way switch reaches the record's own toggles, in both directions.
+    expect(overriddenSliceOf({ ...OVERRIDE_ARGS, overStroke: "off" }, base).stroke).toBe(false);
+    expect(overriddenSliceOf({ ...OVERRIDE_ARGS, overDash: "on" }, { ...base, dash: false }).dash).toBe(true);
   });
 });
 

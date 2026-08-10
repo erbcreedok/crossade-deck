@@ -192,12 +192,21 @@
     "layout in five that could actually use it."
   ],
   "docs.surfaced.restyle": [
-    "The lesson this atom is shaped around. Two cards name one record. Re-register it — take the",
-    "border away, change its colour — and both change in a single step.",
+    "Two nodes built the same — one box, one row, one base record — and the difference between",
+    "them is exactly what you type. The left card is the base; the right is its CLONE, wearing",
+    "the base plus your overrides and nothing else.",
     "",
-    "No box moves a unit while it happens. That is what makes the claim provable: with colours",
-    "written onto each node, restyling would mean walking the whole tree, and \"the boxes stayed\"",
-    "would prove nothing at all."
+    "The panel is three sections. `surface override` is the clone's own say, and EMPTY MEANS \"AS",
+    "THE BASE\": the blank choice on a select, an empty number field, the blank position of the",
+    "three-way `stroke` and `dash` switches. `bounds both` is the one box both cards wear —",
+    "any shape, and always the same shape, because a clone that changed its box would not be a",
+    "clone. `surface both` is the base record itself, every field of it, shared by both.",
+    "",
+    "Untouched, the override section leaves the two cards indistinguishable — a test holds the",
+    "merge to that, field by field. Set anything and the pair becomes a diff you can read:",
+    "whatever changed on the right is exactly what that one field buys, with the base standing",
+    "beside it as the reference. Restyle the BASE and both cards follow — that half is the old",
+    "lesson, still here: a record is a name, and re-registering it reaches everyone who wears it."
   ],
   "docs.surfaced.layers": [
     "A record is a LIST of coats, bottom first — not a single fill.",

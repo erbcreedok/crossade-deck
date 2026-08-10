@@ -16,11 +16,17 @@ import { scene } from "../devtools/scene.js";
 import {
   ALIGNS,
   FITS,
+  OVERRIDE_ARGS,
   PAINTS,
   RECORD_ARGS,
   RECORD_ARG_TYPES,
+  bothRecordOf,
+  cloneRecordOf,
   documented,
+  overrideArgTypes,
   paintOf,
+  recordArgTypes,
+  recordArgsAt,
   recordOf,
   shapeArgTypes,
   shapeArgs,
@@ -204,37 +210,29 @@ export const Zone: StoryObj<ZoneArgs> = {
   parameters: { gkDocStory: "surfaced.zone" },
 };
 
-// ---- Restyle: the record is the unit of restyling -------------------------------------------
+// ---- Restyle: one base record, and a clone overriding it ------------------------------------
 
-interface RestyleArgs {
-  bordered: boolean;
-  accent: string;
-  accentCustom: string;
-  width: number;
-}
-
-export const Restyle: StoryObj<RestyleArgs> = {
-  // THE lesson of this atom. Two cards name one record; re-register it and both change in a
-  // single step, while neither box moves a unit. Fields on the node could not show this — it
-  // would take a walk over every node, and "the boxes stayed" would prove nothing.
-  render: ({ bordered, accent, accentCustom, width }) => {
-    registerSurface("story.shared", {
-      layers: [{ paint: "panelBg" }],
-      radius: 0.08,
-      ...(bordered ? { stroke: { color: paintOf(accent, accentCustom), width, alignment: 1 } } : {}),
-    });
+export const Restyle: StoryObj<ShapeArgs> = {
+  // TWO NODES BUILT THE SAME — one box, one row, one base record — whose difference is exactly
+  // what the reader typed. Three sections, in reading order: `surface override` is the clone's
+  // own say, where EMPTY MEANS "AS THE BASE" ("" on a select, a blank number field, the ""
+  // position of a three-way switch); `bounds both` is the one box both cards wear; `surface
+  // both` is the base record both start from. An untouched override panel is two identical
+  // cards — guarded by `controls.an-untouched-override-is-its-base` — and every value set in
+  // it is a diff read against the base standing right beside it.
+  render: (a) => {
+    registerSurface("story.restyle.both", bothRecordOf(a));
+    registerSurface("story.restyle.clone", cloneRecordOf(a));
     const desk = node("desk", Container({ layout: "row" }));
-    for (const id of ["left", "right"]) {
-      add(desk, node(id, Bounded({ bounds: rect(1, 1.4) }), Surfaced({ surface: "story.shared" })));
-    }
+    add(desk, node("base", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.restyle.both" })));
+    add(desk, node("clone", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.restyle.clone" })));
     return scene(desk).el;
   },
-  args: { bordered: true, accent: "accent", accentCustom: "", width: 0.04 },
+  args: { ...OVERRIDE_ARGS, ...shapeArgs(), ...recordArgsAt("both") },
   argTypes: {
-    bordered: documented("arg.bordered", {}),
-    accent: documented("arg.accent", { control: "select", options: PAINTS, if: { arg: "bordered" } }),
-    accentCustom: documented("arg.accentCustom", { control: "color", if: { arg: "bordered" } }),
-    width: documented("arg.width", { control: { type: "number", min: 0, step: 0.01 }, if: { arg: "bordered" } }),
+    ...overrideArgTypes("surface override"),
+    ...shapeArgTypes("bounds both"),
+    ...recordArgTypes("surface both", "both"),
   },
   parameters: { gkDocStory: "surfaced.restyle" },
 };
