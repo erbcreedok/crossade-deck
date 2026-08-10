@@ -1,0 +1,41 @@
+game-kit/.storybook/preview.ts
+  s_8a89f581d5de84::t_e5e648c4ffee84 160
+game-kit/docs/test-plan/16-interaction-play.md
+  s_8a89f581d5de84::t_97dd4671b991e9 3
+  s_8a89f581d5de84::t_0feec7d2acd640 66
+  s_8a89f581d5de84::t_11dd62b027e8ef 56-65,67-68
+game-kit/.storybook/locales/pages/tests/en.json
+  s_8a89f581d5de84::t_851939abd4b838 33
+  s_8a89f581d5de84::t_7f040f160060c3 28,31-32
+  s_8a89f581d5de84::t_3f49df7469dc2a 27,29-30
+game-kit/.storybook/stories/TestsContainer.stories.ts
+  s_8a89f581d5de84::t_30facb9974e7d6 149,161-164,271,273-274,276-277,366,373,375
+  s_8a89f581d5de84::t_a27ec8a6cb325d 329,335-339,343-349,355
+  s_8a89f581d5de84::t_39ce066e2f1076 1-148,150-156,158-160,165-270,272,275,278-328,330-334,340-342,350-354,356-365,367-372,374,376-394
+  s_8a89f581d5de84::t_5f15c979905529 157
+game-kit/.storybook/locales/pages/tests/ru.json
+  s_8a89f581d5de84::t_851939abd4b838 33
+  s_8a89f581d5de84::t_fe5fe35d903697 27-32
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_16712defb54fb6 10
+  s_8a89f581d5de84::t_16a92852bfe562 44
+game-kit/e2e/catalog.spec.ts
+  s_8a89f581d5de84::t_5da8e1260c5a2f 1019-1041,1043-1046
+  s_8a89f581d5de84::t_9a80b6ba123877 1042
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "62b9d57ae3bb9f4ffda7febae507e8a84092ec0c",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
