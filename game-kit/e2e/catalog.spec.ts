@@ -1016,6 +1016,34 @@ test.describe.serial("the heavy pages", () => {
           "play.transformable.equal-z-keeps-tree-order",
         ],
       ],
+      [
+        "tests-container--row",
+        [
+          "play.container.a-row-is-the-sum-of-its-parts",
+          "play.container.the-gap-is-daylight",
+          "play.container.a-lone-card-centres",
+          "play.container.a-layout-swap-does-not-latch",
+          "play.container.reserved-room-on-the-glass",
+        ],
+      ],
+      [
+        "tests-container--flow",
+        [
+          "play.container.an-added-card-reflows-the-row",
+          "play.container.a-removal-closes-the-aisle",
+          "play.container.order-is-the-tree-on-the-glass",
+          "play.container.an-unknown-layout-keeps-the-scene",
+        ],
+      ],
+      [
+        "tests-container--spread",
+        [
+          "play.container.the-desk-wears-its-content",
+          "play.container.the-area-is-a-size-not-an-address",
+          "play.container.padding-is-air-around-the-wrap",
+          "play.container.bare-children-leave-nothing",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
