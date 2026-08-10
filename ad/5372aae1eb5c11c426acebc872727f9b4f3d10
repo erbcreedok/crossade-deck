@@ -1,0 +1,36 @@
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_8a89f581d5de84::t_9d27758ae130fa 19
+  s_8a89f581d5de84::t_c3bb627f6398b4 3
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_37a0a360d2d63c 10
+  s_8a89f581d5de84::t_33ac8b257aea0c 39
+game-kit/.storybook/devtools/scene.test.ts
+  s_8a89f581d5de84::t_75da025a97e0fc 352-354
+  s_8a89f581d5de84::t_6e2dec84b8de4d 3
+  s_8a89f581d5de84::t_b76e6d5fd86fed 297-351,355-368
+  s_8a89f581d5de84::t_46fe44df70ecca 8
+game-kit/.storybook/devtools/scene.ts
+  s_8a89f581d5de84::t_f9798e60b7ba57 361-368
+  s_8a89f581d5de84::t_77734c76a9a64a 350
+game-kit/src/render/pixi.ts
+  s_8a89f581d5de84::t_2020a1883891b3 71-74
+  s_8a89f581d5de84::t_05dca0887c4d14 107-110
+  s_8a89f581d5de84::t_2c9de8ae398ae2 51
+  s_8a89f581d5de84::t_cd21c4dd4fbc1f 232-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ad5372aae1eb5c11c426acebc872727f9b4f3d10",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
