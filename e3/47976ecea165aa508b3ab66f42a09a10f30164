@@ -1,0 +1,58 @@
+game-kit/.storybook/locales/chrome/ru.json
+  s_8a89f581d5de84::t_1e4fe869cf05dc 57-64
+game-kit/.storybook/locales/pages/presetsLayouts/en.json
+  s_8a89f581d5de84::t_86abfbf05064a0 1-80
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_ae2c006e17ad9f 82
+  s_8a89f581d5de84::t_1c8428b76b9446 170-179
+game-kit/.storybook/locales/pages.ts
+  s_8a89f581d5de84::t_20ef7f5d0f0824 67-70
+  s_8a89f581d5de84::t_a5f4ca4c7dfef9 94
+  s_8a89f581d5de84::t_5555003b2e8393 29
+game-kit/src/core/atoms/layouts.ts
+  s_8a89f581d5de84::t_c346c0f038c1d2 34-41,47-50,54-59,61,65-71,74-78
+game-kit/src/presets/layouts.test.ts
+  s_8a89f581d5de84::t_a8ef38417d236e 1-139
+game-kit/.storybook/stories/PresetsLayouts.stories.ts
+  s_8a89f581d5de84::t_524fe4451e1b26 58
+  s_8a89f581d5de84::t_06dfc9c9dc4f64 178
+  s_8a89f581d5de84::t_10ce9cb928c9bd 1-57,59-177,179-183
+game-kit/.storybook/preview.ts
+  s_8a89f581d5de84::t_78e6be517ed761 152
+game-kit/docs/test-plan/09-container.md
+  s_8a89f581d5de84::t_0fc6bd67ef2bc7 3
+  s_8a89f581d5de84::t_0abe73f92b7132 30-41
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_94a795a53a6228 10
+  s_8a89f581d5de84::t_34949f800b4bc8 37
+game-kit/.storybook/locales/pages/presetsLayouts/ru.json
+  s_8a89f581d5de84::t_2d01acd6ab870b 1-81
+game-kit/docs/catalog.md
+  s_8a89f581d5de84::t_26bb355b93cc16 106-109
+game-kit/.storybook/locales/pages/engine/en.json
+  s_8a89f581d5de84::t_4ee665bdd9dcf1 471
+game-kit/src/core/atoms/container.test.ts
+  s_8a89f581d5de84::t_4a75691bb7f9b7 218-248
+game-kit/src/presets/layouts.ts
+  s_8a89f581d5de84::t_ee1606802e81ab 1-128
+game-kit/.storybook/locales/pages/engine/ru.json
+  s_8a89f581d5de84::t_d9691c5a3449b6 467
+game-kit/.storybook/locales/chrome/en.json
+  s_8a89f581d5de84::t_c778e204c576b2 53-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e347976ecea165aa508b3ab66f42a09a10f30164",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
