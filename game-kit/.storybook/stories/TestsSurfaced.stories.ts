@@ -499,9 +499,9 @@ export const Area: StoryObj<PaintArgs> = {
 //
 // A `Shape` is a path and need not close over anything: two places are a line and one is a
 // point. Both are legal values that `Bounded` will hold — and what the SURFACE does with them is
-// a different question, answered nowhere else in the suite. It is the question behind the
-// `Line`, `Curved` and `Arrow` scenes on the `Atoms/Surfaced` shelf, so a claim here is what
-// keeps those three scenes honest.
+// a different question, answered nowhere else in the suite. It is the question behind `Path` on
+// the `Atoms/Surfaced` shelf and `ArrowHead`/`Arrow` on `Presets/Components`, so a claim here is
+// what keeps those scenes honest.
 
 export const Openwork: StoryObj<PaintArgs> = {
   args: { id: "root" },

@@ -95,7 +95,7 @@ test("e2e.a-box-alone-draws-nothing — the ladder's claim, on real glass", asyn
   // The outline is switched OFF first, because this section starts it on — a page about the
   // invisible that opens on an empty stage reads as broken. Off, the claim is unchanged: what
   // the hairline showed was tooling, not the box.
-  const canvas = await openScene(page, "atoms-bounded--square");
+  const canvas = await openScene(page, "atoms-bounded--point");
   await page.locator("[data-debug-bounds]").click();
   const [middle, beside] = await centreAndBeside(page, canvas);
   expect(middle.equals(beside)).toBe(true);
@@ -130,9 +130,9 @@ test("e2e.grid-reaches-the-glass — a ruler nobody can see is not a ruler", asy
   // Same argument as the bounds layer: the plan can say "nine lines" and be perfectly right
   // while nothing reaches the canvas. Only the glass settles it.
   //
-  // `Bounded/Square` because it starts with the outline ON and paints nothing else, so the only
+  // `Bounded/Point` because it starts with the outline ON and paints nothing else, so the only
   // thing that can change between these two captures is the grid.
-  const canvas = await openScene(page, "atoms-bounded--square");
+  const canvas = await openScene(page, "atoms-bounded--point");
   const before = await middle(page, canvas);
   await page.locator("[data-debug-grid]").click();
   const after = await middle(page, canvas);
@@ -145,13 +145,12 @@ test("e2e.grid-reaches-the-glass — a ruler nobody can see is not a ruler", asy
 });
 
 test("e2e.bounds-layer-reveals-the-box — the invisible becomes visible, on demand", async ({ page }) => {
-  // `Bounded/Square` is the scene that draws nothing at all. The toggle has to put an outline on
-  // the glass where the model always said a box was, and take it away again — and nothing above
-  // this line can show that, because nothing above this line draws.
+  // `Bounded/Path` draws nothing at all, and its box is a real nonzero shape — the toggle has to
+  // put an outline on the glass where the model always said a box was, and take it away again.
   //
   // The section starts the outline ON, so the round trip runs the other way round. Both halves
   // are asserted: a toggle that only ever adds would pass a test that never turned it off.
-  const canvas = await openScene(page, "atoms-bounded--square");
+  const canvas = await openScene(page, "atoms-bounded--path");
   const [shown] = await centreAndBeside(page, canvas);
 
   await page.locator("[data-debug-bounds]").click();
@@ -209,7 +208,7 @@ test("e2e.toolbar-fits-a-phone — every control on the row, on the narrowest sc
   // it clean off the screen. Nothing headless can see that: it is a layout answer, and it only
   // goes wrong at a width nobody develops at.
   await page.setViewportSize({ width: 390, height: 844 });
-  await openScene(page, "atoms-bounded--square");
+  await openScene(page, "atoms-bounded--point");
 
   const bar = page.locator("[data-scene-toolbar]").first();
   const box = (await bar.boundingBox())!;
@@ -225,10 +224,10 @@ test("e2e.toolbar-fits-a-phone — every control on the row, on the narrowest sc
 test("e2e.controls-are-there-and-live — an atom's fields are its arguments", async ({ page }) => {
   // The panel promised in half the comments in this repo did not exist: only addon-docs was
   // installed, and no story declared a single argument. This is the check that says otherwise.
-  // `Desk`, not `Plate`: the atom's one FIELD is the record's name, and that is the scene where
-  // the reader picks one. `Plate` writes its own record, so its controls are the record's
-  // fields — worth having, and not what this test is about.
-  await page.goto("/?path=/story/atoms-surfaced--desk");
+  // `Starved`, not `Plate`: the atom's one FIELD is the record's name, and that is the scene
+  // where the reader picks one from a plain list. `Plate` (and `Zone`) write their own record,
+  // so their controls are the record's fields — worth having, and not what this test is about.
+  await page.goto("/?path=/story/atoms-surfaced--starved");
   const panel = page.locator("#storybook-panel-root");
   await panel.getByText("Controls", { exact: false }).first().waitFor({ timeout: 30000 });
 
@@ -240,14 +239,14 @@ test("e2e.a-rebuild-does-not-leak-a-context — a slider is dragged, not clicked
   // Storybook rebuilds the story on every argument change and never retires the old element.
   // A browser gives out about a dozen WebGL contexts, so an undisposed scene per step is a
   // catalog that dies partway through a drag.
-  await page.goto("/iframe.html?id=atoms-bounded--square&viewMode=story&args=w:2");
+  await page.goto("/iframe.html?id=presets-bounds--rect&viewMode=story&args=w:2");
   await page.locator("[data-painted]").first().waitFor({ state: "attached" });
 
   const warnings: string[] = [];
   page.on("console", (m) => /context/i.test(m.text()) && warnings.push(m.text()));
 
   for (const w of [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 1.2, 2.4, 3.6, 0.8, 1.6, 2.8, 3.2]) {
-    await page.goto(`/iframe.html?id=atoms-bounded--square&viewMode=story&args=w:${w}`);
+    await page.goto(`/iframe.html?id=presets-bounds--rect&viewMode=story&args=w:${w}`);
     await page.locator("[data-painted]").first().waitFor({ state: "attached" });
   }
 
@@ -349,7 +348,7 @@ test("e2e.new-data-keeps-the-viewer — an argument is not a reason to reset the
   // place, which is the case that was broken. A fresh page load resets everything anyway and
   // would prove nothing.
   await page.setViewportSize({ width: 1100, height: 800 });
-  await page.goto("/?path=/story/atoms-bounded--square");
+  await page.goto("/?path=/story/presets-bounds--rect");
   const preview = page.frameLocator("iframe#storybook-preview-iframe");
   await preview.locator("[data-painted]").first().waitFor({ state: "attached", timeout: 30000 });
 
@@ -693,7 +692,15 @@ test("e2e.a-snippet-names-nothing-of-this-website", async ({ page }) => {
   // their arguments out of a shared const and printed its NAME — the same failure from the other
   // side, in a panel that looked no different for it.
   const local = ["shapeArgs", "RECORD_ARGS", "SHAPE_ARGS", "recordOf", "shapeOf", "PLATE", "PATH_ARGS"];
-  for (const story of ["atoms-surfaced--plate", "atoms-surfaced--path", "atoms-surfaced--arrow-head", "presets-line--curved-arrow"]) {
+  for (const story of [
+    "atoms-surfaced--plate",
+    "atoms-surfaced--path",
+    "atoms-surfaced--zone",
+    "presets-components--arrow-head",
+    "atoms-bounded--polygon",
+    "presets-bounds--rect",
+    "presets-components--arrow",
+  ]) {
     const snippet = await snippetOf(story);
     for (const name of local) {
       expect(snippet.includes(name), `${story}: ${name} is a name only this catalog has:\n${snippet}`).toBe(false);
@@ -782,7 +789,7 @@ test("e2e.controls-follow-the-language — a half-translated screen is the worst
   // Storybook normalises `argTypes` once, while a story is prepared, and keeps whatever it read.
   // So the preview reloads on a language change — and this is the test that says it worked, and
   // that it terminated rather than reloading forever.
-  await page.goto("/?path=/story/atoms-bounded--square");
+  await page.goto("/?path=/story/presets-bounds--rect");
   const panel = page.locator("#storybook-panel-root");
   await panel.getByText("Controls", { exact: false }).first().waitFor({ timeout: 30000 });
   await expect(panel).toContainText("in units", { timeout: 30000 });
@@ -851,7 +858,7 @@ test("e2e.the-manager-watches-its-own-bundles — nothing is the failure mode", 
   // check is only as good as the list it compares, and an empty list is not an error: it agrees
   // with itself forever. The first version selected `script[src]` — and Storybook's manager page
   // lists its bundles as `<link rel="modulepreload">`, so there was nothing to find.
-  await page.goto("/?path=/story/atoms-bounded--square");
+  await page.goto("/?path=/story/atoms-bounded--point");
   await page.locator("#storybook-panel-root").waitFor({ timeout: 30000 });
 
   const watched = Number(await page.locator("html").getAttribute("data-gk-watched"));

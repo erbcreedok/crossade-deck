@@ -1,21 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import {
   add,
-  arrow,
   assetNames,
   Bounded,
   Container,
-  headNames,
-  headShape,
-  installStockHeads,
   line,
   node,
   rect,
+  registerLayout,
   registerSurface,
+  rowLayout,
   Surfaced,
   Transformable,
   surfaceNames,
-  transformShape,
 } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import {
@@ -34,7 +31,7 @@ import {
   type ShapeArgs,
 } from "./surfaceControls.js";
 
-// The atom has ONE field, and its section has eight scenes — because what is worth learning here
+// The atom has ONE field, and its section has seven scenes — because what is worth learning here
 // is not the field, it is what the name on the other end of it can be. Each scene is a different
 // ASSEMBLY or a differently built record; the values inside one are arguments, never a page of
 // stories per value.
@@ -44,14 +41,16 @@ import {
 // three fixed shapes and no record at all — so a reader could not tell what the kit cannot do
 // from what the catalog did not ask. Merged rather than duplicated.
 //
-// `Path` and `ArrowHead` are the two after it, and they are ONE NODE EACH — deliberately. Both are
-// halves of the same picture and they belong to opposite sides of one fact: a path walked out and
-// back encloses nothing, so its fill has nothing to cover and what appears is the stroke; a head
-// is a closed shape, so its fill is the picture. Two records, two nodes.
+// `Path` is the one after it, and it is ONE NODE — a shape walked out and back, which encloses
+// nothing, so its fill has nothing to cover and what appears is the stroke. Its opposite number,
+// a closed shape wearing the SAME record, used to live here as `ArrowHead` — but the shape it
+// stood on came out of the head REGISTRY (`registerHead`/`headShape`), the same kind of thing
+// `rect` and `circle` are for `Bounded`. That makes it a PRESET, not a lesson about this atom, and
+// it moved to `Presets/Components`, next to the `Arrow` it is one end of.
 //
-// PUT TOGETHER they are an arrow, and that assembly is not on this shelf: it is `Presets/Line`,
-// where a scene is free to be three nodes at once. This one is about the ATOM, and an atom is
-// shown one node at a time.
+// `Zone`, below, is the other half of the fact `Path` half-taught: a shape with no inside proved
+// the fill is doing nothing; a container with no box of its own proves the AREA can come from
+// somewhere other than `bounds` at all.
 
 // The registries are filled by `surfaceControls`, which every section imports — see the note
 // there on why that has to happen at module load and not at the first render.
@@ -83,9 +82,9 @@ interface PlateArgs extends ShapeArgs, RecordArgs {
 // The registry name is written out twice rather than kept in a module const, for the same
 // reason: a const reads better in this file and prints as a bare identifier nobody has.
 export const Plate: StoryObj<PlateArgs> = {
-  // The same box as `Bounded → Square`, one atom later — and now it can be seen. Every property of
-  // the record is here, and so is every shape the box can be: a rect, a circle, a polygon of as
-  // many corners as you like, or one pasted in from somewhere else.
+  // `Bounded`'s own box, one atom later — and now it can be seen. Every property of the record is
+  // here, and so is every shape the box can be: a rect, a circle, a polygon of as many corners as
+  // you like, or one pasted in from somewhere else.
   render: (a) => {
     registerSurface("story.plate", recordOf(a));
     return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.plate" }))).el;
@@ -161,59 +160,52 @@ export const Path: StoryObj<PathArgs> = {
   parameters: { gkDocStory: "surfaced.path" },
 };
 
-// ---- ArrowHead: one node again, and a shape that DOES have an inside -------------------------
+// ---- Zone: the area comes from the content --------------------------------------------------
 
-interface HeadArgs extends RecordArgs {
-  head: string;
-  size: number;
-  turn: number;
+/** One real child, written out AS a node would be — never a count standing in for it. */
+interface ZoneChild {
+  readonly id: string;
 }
 
-export const ArrowHead: StoryObj<HeadArgs> = {
-  // THE OTHER HALF OF AN ARROW, on its own — because that is what it is: one node, one shape, one
-  // record. The shape comes out of a registry by name; a fifth head is `registerHead` with any
-  // closed shape at all behind it, which is why a suit or a piece is not a special case.
+interface ZoneArgs extends RecordArgs {
+  id: string;
+  children: ZoneChild[];
+  gap: number;
+  padding: number;
+}
+
+export const Zone: StoryObj<ZoneArgs> = {
+  // A surface with no box of its own: the area comes from what the node HOLDS, widened by
+  // `padding` around the tight wrap of it. Take the children away and there is nothing left to
+  // paint on; take padding to zero and the surface shrinks to that tight wrap exactly.
   //
-  // Unlike the path above, this shape HAS an inside — so the fill is doing something here, and the
-  // same record can make it solid, hollow, or a box with a picture on it. `turn` is the angle it
-  // would be given by a path arriving at that angle; on its own the head has no idea about paths.
+  // `children` is the real array a reader edits, one entry per node — not a count this render
+  // expands into anonymous boxes nobody asked for. Every id typed here is used EXACTLY as
+  // written; the ONE exception is a blank one, filled the same way the node's own `id` control
+  // is on every other story (`a.id.trim() || …`), and it is marked here for the same reason it is
+  // there: a story that quietly overwrites what a reader wrote is a story lying about its panel.
   render: (a) => {
-    registerSurface("story.head", recordOf(a));
-    const mark = headShape(a.head) ?? line({ from: { x: 0, y: 0 }, to: { x: 0, y: 0 } });
-    const shape = transformShape(mark, { scaleX: a.size, scaleY: a.size, rotate: a.turn });
-    return scene(node("head", Bounded({ bounds: shape }), Surfaced({ surface: "story.head" }))).el;
+    registerSurface("story.zone", recordOf(a));
+    registerLayout("story.zone.row", rowLayout({ gap: a.gap, padding: a.padding }));
+    const zone = node(a.id.trim() || "zone", Container({ layout: "story.zone.row" }), Surfaced({ surface: "story.zone" }));
+    a.children.forEach((child, i) => add(zone, node(child.id.trim() || `card${i}`, Bounded(), Surfaced())));
+    return scene(zone).el;
   },
-  args: { head: "pointer", size: 1.2, turn: 0, ...RECORD_ARGS, fill: "accent", radius: 0, stroke: false },
+  args: {
+    id: "zone",
+    children: [{ id: "card0" }, { id: "card1" }],
+    gap: 0.12,
+    padding: 0.2,
+    ...RECORD_ARGS,
+  },
   argTypes: {
-    head: documented("arg.head", { control: "select", options: headNames() }, "bounds"),
-    size: documented("arg.size", { control: { type: "number", min: 0, step: 0.1 } }, "builder"),
-    turn: documented("arg.turn", { control: { type: "number", step: 15 } }, "builder"),
+    id: documented("arg.id", { control: "text" }, "node"),
+    children: documented("arg.children", { control: "object" }, "container"),
+    gap: documented("arg.gap", { control: { type: "number", min: 0, step: 0.02 } }, "container"),
+    padding: documented("arg.padding", { control: { type: "number", min: 0, step: 0.02 } }, "container"),
     ...RECORD_ARG_TYPES,
   },
-  parameters: { gkDocStory: "surfaced.arrowHead" },
-};
-
-// ---- Desk: the area comes from the content -------------------------------------------------
-
-interface DeskArgs {
-  surface: string;
-  children: number;
-}
-
-export const Desk: StoryObj<DeskArgs> = {
-  // A surface with no box of its own: the area comes from what the node HOLDS. Take the
-  // children away and there is nothing left to paint on.
-  render: ({ surface, children }) => {
-    const desk = node("desk", Container({ layout: "row" }), Surfaced({ surface }));
-    for (let i = 0; i < children; i += 1) add(desk, node(`card${i}`, Bounded(), Surfaced()));
-    return scene(desk).el;
-  },
-  args: { surface: "zone", children: 2 },
-  argTypes: {
-    surface: surfacePicker,
-    children: documented("arg.children", { control: { type: "range", min: 0, max: 6, step: 1 } }),
-  },
-  parameters: { gkDocStory: "surfaced.desk" },
+  parameters: { gkDocStory: "surfaced.zone" },
 };
 
 // ---- Starved: the atom is there and the area is not ----------------------------------------

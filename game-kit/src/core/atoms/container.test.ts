@@ -102,6 +102,28 @@ describe("Container", () => {
     expect(contentExtent(root)).toEqual({ w: 0, h: 0 });
   });
 
+  it("atom.container.padding-is-the-record — room grows around the tight wrap, not the children", () => {
+    // A field on `Container` would be the same mistake `gap` already avoided: padding means
+    // something for a layout that packs and nothing for one that never touches its children.
+    registerLayout("row", rowLayout({ gap: 0, padding: 0.5 }));
+    const root = node("c30", Container({ layout: "row" }));
+    add(root, node("c31", box(1, 2)));
+    add(root, node("c32", box(1, 2)));
+    // Tight wrap is 2×2 (see `content-extent` above); padding adds 0.5 on every side.
+    expect(contentExtent(root)).toEqual({ w: 3, h: 3 });
+    // The children themselves did not move: padding grows the AREA, not the row.
+    expect(placeChildren(root).get("c31")).toEqual({ x: -0.5, y: 0 });
+    expect(placeChildren(root).get("c32")).toEqual({ x: 0.5, y: 0 });
+  });
+
+  it("atom.container.padding-is-optional — an unknown layout has no padding to read, not a crash", () => {
+    const root = node("c33", Container({ layout: "carousel" }));
+    add(root, node("c34", box(1, 2)));
+    // Unplaced children still sit at the origin (`unknown-layout`, above) and still measure —
+    // padding just falls back to zero rather than throwing on a record that is not there.
+    expect(contentExtent(root)).toEqual({ w: 1, h: 2 });
+  });
+
   it("layout.reserves-room-for-the-scaled-child — a card at twice the size is twice as wide", () => {
     // A layout reserves room for what it is going to SEE. Measured at one and drawn at two, the
     // card overlaps its neighbour — which looks like a broken layout and is a forgotten

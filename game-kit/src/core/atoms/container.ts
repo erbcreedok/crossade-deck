@@ -48,6 +48,13 @@ export interface LayoutRecord {
    * one" — the child's own `at` then stands, which is exactly what `free` does for everyone.
    */
   place(children: readonly LayoutChild[]): readonly (Point | undefined)[];
+  /**
+   * Room left AROUND the tight wrap of whatever got placed, in units, read only by
+   * `contentExtent`. Not a field of `Container` for the same reason `gap` is not one: it means
+   * something for a layout that packs children and nothing for one that never touches them, and
+   * a field four arrangements out of five cannot use is a field that gets misread.
+   */
+  readonly padding?: number;
 }
 
 const LAYOUTS = new Map<string, LayoutRecord>();
@@ -122,6 +129,10 @@ export function contentExtent(parent: Node): { readonly w: number; readonly h: n
     maxY = Math.max(maxY, at.y + h / 2);
   }
 
-  // Nothing measurable inside is a zero extent, not an infinite one.
-  return Number.isFinite(minX) ? { w: maxX - minX, h: maxY - minY } : { w: 0, h: 0 };
+  // Nothing measurable inside is a zero extent, not an infinite one — and nothing to pad, either.
+  if (!Number.isFinite(minX)) return { w: 0, h: 0 };
+
+  const fields = fieldsOf<ContainerFields>(parent, "Container");
+  const padding = (fields ? layoutRecord(fields.layout)?.padding : undefined) ?? 0;
+  return { w: maxX - minX + padding * 2, h: maxY - minY + padding * 2 };
 }

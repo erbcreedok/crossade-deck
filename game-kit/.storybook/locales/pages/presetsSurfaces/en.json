@@ -1,0 +1,42 @@
+{
+  "docs.presetsSurfaces.component": [
+    "The looks the kit already has, registered under a name: `plate`, `bare`, `zone`, `ink`, `mark`",
+    "and `trail`. See `presets/surfaces.ts` for the numbers each one holds.",
+    "",
+    "This is NOT the page to rebuild a record from its parts — that whole panel, every field a",
+    "`SurfaceRecord` can carry, already lives on `Atoms/Surfaced → Plate`. What this shelf answers",
+    "is a different question: \"what does this NAME already look like\", so the only control on each",
+    "page is the box or run it is shown on, never the record itself.",
+    "",
+    "`ink` and `trail` are shown on a `line`, because both are stroke-only — a path walked out and",
+    "back has no inside to fill. `mark` is shown on a `circle`, the opposite case: a shape that DOES",
+    "have one, filled solid."
+  ],
+  "docs.presetsSurfaces.plate": [
+    "The default look: a panel fill and a bordered edge. What a node draws when nothing else was",
+    "asked for."
+  ],
+  "docs.presetsSurfaces.bare": [
+    "The same fill, the stroke taken away. Reregister either name and every card wearing it changes",
+    "in one step, while neither box moves a unit — the record is the unit of restyling, not the node."
+  ],
+  "docs.presetsSurfaces.zone": [
+    "The marked-out area: see-through ground, a dashed edge. The look a desk or a drop target",
+    "reaches for to say \"here\" rather than \"this is a card\"."
+  ],
+  "docs.presetsSurfaces.ink": [
+    "A stroke and nothing else. `ink` and `trail` are the only two stock records with no fill layer",
+    "at all — the record a walk out and back actually needs, since everything visible is the line."
+  ],
+  "docs.presetsSurfaces.trail": [
+    "The same kind of run, dashed. The path did not change — the record did, and that is the whole",
+    "lesson: the pattern on a line lives in the SURFACE, never in the geometry."
+  ],
+  "docs.presetsSurfaces.mark": [
+    "Solid accent, no stroke, no radius — the other half of the `ink`/`mark` pair, on a shape that",
+    "HAS an inside to fill.",
+    "",
+    "This is also the reason a head is its own node rather than a detour in a line's own contour: a",
+    "filled mark standing on a hairline run is two records, and one node wears exactly one."
+  ]
+}

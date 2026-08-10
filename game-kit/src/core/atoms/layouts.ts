@@ -9,7 +9,9 @@
 //
 // Spacing is a parameter of the RECORD, not a field of the container: a gap means something
 // in a row and nothing in a free layout, and a field that four arrangements out of five
-// cannot use is a field that gets misread.
+// cannot use is a field that gets misread. `padding` — room `contentExtent` leaves around the
+// tight wrap, for a surface with no box of its own — is the same kind of parameter and lives
+// the same place.
 
 import { extentOf, type Point } from "./bounded.js";
 import { registerLayout, type LayoutChild, type LayoutRecord } from "./container.js";
@@ -32,6 +34,8 @@ export const freeLayout: LayoutRecord = {
 export interface RowOptions {
   /** Space between neighbours, in units. */
   readonly gap?: number;
+  /** Room left around the row's own tight wrap, in units — read by `contentExtent` alone. */
+  readonly padding?: number;
 }
 
 /**
@@ -39,8 +43,9 @@ export interface RowOptions {
  * footprint needs. A child with no box takes no width — it is still placed, so that removing
  * a box does not silently shuffle the neighbours.
  */
-export function rowLayout({ gap = 0 }: RowOptions = {}): LayoutRecord {
+export function rowLayout({ gap = 0, padding = 0 }: RowOptions = {}): LayoutRecord {
   return {
+    padding,
     place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
       const widths = children.map((c) => (c.footprint ? extentOf(c.footprint).w : 0));
       const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, children.length - 1);

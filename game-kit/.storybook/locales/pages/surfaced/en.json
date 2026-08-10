@@ -104,7 +104,7 @@
     "picture does not, and neither does a literal colour. That is the difference the palette is for."
   ],
   "docs.surfaced.plate": [
-    "The same box as `Bounded → Square`, one atom later, and now you can see it.",
+    "`Bounded`'s own box, one atom later, and now you can see it.",
     "",
     "Everything the model can hold is here: any shape the box can be — a rect, a circle, a polygon",
     "of as many corners as you like, or one pasted in from a design tool — and every property of",
@@ -143,7 +143,8 @@
     "whole record below — the same one `Plate` builds, doing less because there is less to do.",
     "",
     "A line is a path and a stroke and nothing more. Put a head on it and you have an arrow, and",
-    "that is an ASSEMBLY of two such nodes rather than a cleverer line: it lives on `Presets/Line`."
+    "that is an ASSEMBLY of two such nodes rather than a cleverer line: it lives on",
+    "`Presets/Components`."
   ],
   "docs.surfaced.arrowHead": [
     "The other half of an arrow, on its own — because that is what it is: one node, one shape,",
@@ -159,14 +160,23 @@
     "wears one record, and an arrow usually wants two.",
     "",
     "`turn` is the angle a path arriving at that angle would give it. On its own a head knows",
-    "nothing about paths — `Presets/Line` is where the two meet."
+    "nothing about paths — `Presets/Components` is where the two meet."
   ],
-  "docs.surfaced.desk": [
-    "A surface on a node with no box of its own. The area comes from what the node holds, which is",
-    "what the alternative requirement is for.",
+  "docs.surfaced.zone": [
+    "A surface on a node with no box of its own. The area comes from what the node HOLDS — which",
+    "is what the alternative requirement is for — widened by `padding` around the tight wrap of",
+    "it. Take padding to zero and the surface shrinks to exactly that wrap; take the children away",
+    "and there is nothing left to paint on at all.",
     "",
-    "This is the desk, and it is an ordinary node rather than a special canvas object. Remove the",
-    "children and there is nothing left to paint on — the extent of nothing is zero."
+    "`children` is a REAL list, one entry per node, edited as the object it is — not a count this",
+    "scene expands into anonymous boxes. Every id typed here lands on the node exactly as written;",
+    "nothing here renumbers or overwrites what a reader put in the panel. The one exception is a",
+    "blank id, filled the same way every node's own `id` control is on every other page in this",
+    "kit — and it is an exception worth naming, not a silent default.",
+    "",
+    "`gap` and `padding` both belong to the ROW rather than to this node: spacing is a parameter",
+    "of the arrangement, never a field the container itself would have to carry for the one",
+    "layout in five that could actually use it."
   ],
   "docs.surfaced.starved": [
     "`Surfaced` with neither a box nor content: the atom is on the node and there is no area to",

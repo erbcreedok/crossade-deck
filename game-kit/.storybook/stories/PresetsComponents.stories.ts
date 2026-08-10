@@ -1,8 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { arrow, headNames, installStockHeads, registerSurface } from "../../src/index.js";
+import {
+  arrow,
+  Bounded,
+  headNames,
+  headShape,
+  installStockHeads,
+  line,
+  node,
+  registerSurface,
+  Surfaced,
+  transformShape,
+} from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import {
   RECORD_ARGS,
+  RECORD_ARG_TYPES,
   documented,
   endRecordOf,
   recordArgTypes,
@@ -12,12 +24,19 @@ import {
   type RecordArgs,
 } from "./surfaceControls.js";
 
-// THE FIRST PRESET THAT IS AN ASSEMBLY, and the reason it is not on an atom's shelf.
+// PRESETS THAT GENERATE A COMPONENT — an assembly out of atoms, on its own shelf because a
+// component is a picture built of several nodes rather than one.
 //
-// `Atoms/Surfaced` shows one node at a time, because that is what an atom is. `arrow()` comes back
-// as THREE: the run, and a node for each end that has something standing on it. Nothing new was
-// needed to make that possible — no atom, no field, no sort. It is `Bounded + Surfaced` three times
-// over, and this page exists to show the nesting rather than hide it behind one picture.
+// `ArrowHead` opens the shelf and is not itself an assembly: one node, one shape out of the head
+// REGISTRY, one record. It used to live on `Atoms/Surfaced`, but the shape it stands on is a
+// PRESET — the same kind of thing `rect` and `circle` are for `Bounded` — so it belongs here, next
+// to what it is one end of.
+//
+// `Atoms/Surfaced` shows one node at a time, because that is what an atom is. `arrow()`, below,
+// comes back as THREE: the run, and a node for each end that has something standing on it.
+// Nothing new was needed to make that possible — no atom, no field, no sort. It is
+// `Bounded + Surfaced` three times over, and this page exists to show the nesting rather than
+// hide it behind one picture.
 //
 // So the panel holds three whole records, one per node. A hairline run under a solid point is two
 // of them disagreeing on purpose; a head with a picture on it is a third. Sewn into the line's own
@@ -27,12 +46,52 @@ import {
 // route, a run that draws itself on arrival, a silhouette traced round a contour — those are a
 // mechanic of their own, and keeping them out is what leaves this one simple enough to build them
 // from.
+//
+// A component is a registration away, exactly like a shape or a surface — this shelf grows the
+// same way the other two do.
 
 const meta: Meta = {
-  title: "Presets/Line",
-  parameters: { gkDoc: "line.component" },
+  title: "Presets/Components",
+  parameters: { gkDoc: "presetsComponents.component" },
 };
 export default meta;
+
+// ---- ArrowHead: one end of an arrow, alone ----------------------------------------------------
+
+interface HeadArgs extends RecordArgs {
+  head: string;
+  size: number;
+  turn: number;
+}
+
+// ONE NODE, ONE PRESET SHAPE, ONE RECORD — met before the whole family below. The shape comes out
+// of the head REGISTRY by name, exactly the way `rect` or `circle` would for a bound: a fifth head
+// is a `registerHead` call with any closed shape behind it, which is why a suit or a piece is not
+// a special case.
+//
+// Unlike a run, this shape HAS an inside — so the fill is doing something here, and the same
+// record can make it solid, hollow, or a box with a picture on it. `turn` is the angle a path
+// arriving at that angle would give it; on its own the head has no idea about paths, which is
+// exactly what `Arrow` below adds.
+export const ArrowHead: StoryObj<HeadArgs> = {
+  render: (a) => {
+    installStockHeads();
+    registerSurface("story.head", recordOf(a));
+    const mark = headShape(a.head) ?? line({ from: { x: 0, y: 0 }, to: { x: 0, y: 0 } });
+    const shape = transformShape(mark, { scaleX: a.size, scaleY: a.size, rotate: a.turn });
+    return scene(node("head", Bounded({ bounds: shape }), Surfaced({ surface: "story.head" }))).el;
+  },
+  args: { head: "pointer", size: 1.2, turn: 0, ...RECORD_ARGS, fill: "accent", radius: 0, stroke: false },
+  argTypes: {
+    head: documented("arg.head", { control: "select", options: headNames() }, "bounds"),
+    size: documented("arg.size", { control: { type: "number", min: 0, step: 0.1 } }, "builder"),
+    turn: documented("arg.turn", { control: { type: "number", step: 15 } }, "builder"),
+    ...RECORD_ARG_TYPES,
+  },
+  parameters: { gkDocStory: "presetsComponents.arrowHead" },
+};
+
+// ---- Arrow: the whole family ---------------------------------------------------------------
 
 interface ArrowArgs extends RecordArgs {
   fromX: number;
@@ -68,7 +127,7 @@ const INK: Partial<RecordArgs> = {
 /** And a head's: solid, no stroke — a closed shape standing on a line that has no inside at all. */
 const SOLID: Partial<RecordArgs> = { fill: "accent", radius: 0, stroke: false };
 
-export const CurvedArrow: StoryObj<ArrowArgs> = {
+export const Arrow: StoryObj<ArrowArgs> = {
   // THE WHOLE FAMILY IN ONE SCENE, opening on the case a reader came for: a dashed curve with a
   // hollow ring where it starts and a solid point where it lands.
   //
@@ -139,5 +198,5 @@ export const CurvedArrow: StoryObj<ArrowArgs> = {
     endSize: headSize("arg.endSize", "end"),
     ...recordArgTypes("end", "end", "surface"),
   },
-  parameters: { gkDocStory: "line.curvedArrow" },
+  parameters: { gkDocStory: "presetsComponents.arrow" },
 };

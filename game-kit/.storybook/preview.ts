@@ -146,9 +146,10 @@ const preview: Preview = {
           "Atoms",
           ["Bounded", "Surfaced", "Transformable", "Container"],
           // Presets stand on the atoms and are the first pages where a scene is allowed to be
-          // several nodes at once: an assembly is what a preset IS.
+          // several nodes at once: an assembly is what a preset IS. Split by what each preset
+          // GENERATES, not by which file of the kit it happens to live in.
           "Presets",
-          ["Line"],
+          ["Bounds", "Surfaces", "Components"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes"],
           "Elements",

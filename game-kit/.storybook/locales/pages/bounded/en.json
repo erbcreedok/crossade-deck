@@ -167,9 +167,12 @@
     "",
     "## The shelf below",
     "",
-    "Every story here has the SAME controls, because there is one field and one way to edit it.",
-    "What differs is where each one starts. The panel offers a PRESET — which helper builds the",
-    "shape — and that preset's parameters; the Code panel shows the call it makes."
+    "Every story here shows the FIELD, never a helper's result: `Path` is the value with no call in",
+    "sight, and `Point`, `Swoosh` and `Pawn` are the three ways a shape actually arrives — typed",
+    "places, a pasted SVG path, and (on `Swoosh`) the builder fitting it once it lands. The",
+    "ready-made figures a designer actually reaches for — `rect`, `circle`, `star` and the rest —",
+    "are one shelf over, on `Presets/Bounds`, one page per helper and no dropdown across all of",
+    "them: a page about `rect` that could turn into `star` was not honest about what it draws."
   ],
   "docs.bounded.path": [
     "The shape as it is — not a helper in sight. `bounds` is written out in the story:",
@@ -206,34 +209,20 @@
     "radius here would be precisely what it exists without. Edit the points in the source — the Code",
     "panel shows the whole of it."
   ],
-  "docs.bounded.square": [
-    "The plainest box there is, and the atom's own default: a 1×1 rect.",
+  "docs.bounded.rect": [
+    "The ordinary case: `w` and `h`, and nothing else to say. Bring `radius` up off zero and the",
+    "very same box becomes `roundedRect(w, h, radius)` — the same helper, rounded by a number.",
     "",
-    "The outline is TOOLING, not the box. Switch it off in the toolbar and the stage is empty",
-    "however large the numbers say the box is — a box is a place taken, not a look.",
-    "",
-    "A square by default has to be said out loud rather than left to be inferred. Read as a claim",
-    "about cards it would say \"elements are square\", which is not what it means: it is the",
-    "plainest shape that shows a box exists."
+    "The full set of everyday figures — this one plus `circle`, `ellipse`, `polygon`, `star` and the",
+    "bendable `line`, each with its own page and its own parameters — lives on `Presets/Bounds`."
   ],
-  "docs.bounded.rectangle": [
-    "The same sort, different numbers — 1 by 1.4, the proportions of a playing card.",
-    "",
-    "`w` and `h` are the whole of a rect. Units, not pixels: the host decides what a unit is worth",
-    "on screen, so this card is the same card on a phone and on a desk monitor."
+  "docs.bounded.circle": [
+    "One number, `r`. Four cubics inside, and nothing more — it becomes a polygon only at the",
+    "renderer, flattened to a tolerance measured in units."
   ],
-  "docs.bounded.line": [
-    "A run between two places — and the bend is part of the BOX.",
-    "",
-    "`from` and `to` are the ends; `bend` pulls the middle sideways and holds them where they are. At",
-    "zero it is a straight line, and that is not a second sort of shape: a curve is where a path's",
-    "places are, and `bend` puts one between the ends. `line({ … })` is what the snippet says, and it",
-    "is a kit function, not a helper of this website.",
-    "",
-    "The shape is walked out and back, so it encloses nothing and has no inside at all. That costs it",
-    "nothing here — `Bounded` paints no pixel either way, and the outline above is the debug layer",
-    "showing you the box. What a surface does with a shape like this is `Surfaced → Path`; what stands",
-    "on its ends is `Presets/Line`."
+  "docs.bounded.polygon": [
+    "`polygon(5, 0.9)` — N corners on a circle, the first one at the top. The same helper draws a",
+    "triangle, an octagon, a sixteen-sided coin: nothing about it is a special case."
   ],
   "docs.bounded.point": [
     "A point — a path of one point and no segments at all:",
@@ -258,44 +247,6 @@
     "So the tolerance for \"touched\" comes from the ASKER, never from here. A finger is wide, a cursor",
     "is not. Widening the point instead would mean the marker differs depending on who is looking at",
     "it — the mistake of the deleted `size`/`bounds` pair."
-  ],
-  "docs.bounded.circle": [
-    "One number, `r`. A circle has nothing else to say.",
-    "",
-    "Inside it is four cubics and nothing more. It becomes a polygon only at the renderer:",
-    "`outlineOf` flattens the curves to straight runs against a tolerance measured in units, and for",
-    "`r: 0.8` that comes out at 64 points. It happens below the model — what you set here is a",
-    "circle, and the tree below reports a circle.",
-    "",
-    "The tolerance is in units rather than pixels, so a small chip and a large one get the same",
-    "number of points. The number is chosen so the error is not resolvable by eye at the sizes a",
-    "shape is actually drawn."
-  ],
-  "docs.bounded.oval": [
-    "An ellipse — `ellipse(1.2, 0.8)` — and four cubics is exactly what one is.",
-    "",
-    "A circle is this with equal radii. Not a scaled circle, not a sort of its own: `circle(r)` is",
-    "one line that calls `ellipse(r, r)`. Saying it the other way round is what put a tag in the",
-    "model for a shape that was one argument away from its neighbour.",
-    "",
-    "A curve stays a curve at any size: what travels is a handful of handles, and flattening happens",
-    "once, at the renderer, for the size actually being drawn. Points computed in advance would be",
-    "somebody's frozen sampling — an ellipse right up until somebody zoomed in."
-  ],
-  "docs.bounded.pentagon": [
-    "`polygon(5, 0.9)` — N corners on a circle, the first one at the top.",
-    "",
-    "The same helper draws a triangle, an octagon and a sixteen-sided coin. Nothing about it is a",
-    "special case: it returns a path of straight runs, exactly like the one you would paste."
-  ],
-  "docs.bounded.star": [
-    "`star(5, 1, 0.42)` — five points on the outer circle, the notches between them on the inner.",
-    "",
-    "A polygon whose corners alternate between two radii, which is why it needs no new sort.",
-    "The kit does not know the word \"star\"; one helper does, and it is the only place that has to.",
-    "",
-    "Bring the inner radius up towards the outer and it becomes a cog; take it down and the points",
-    "turn to spikes. That is what the model would have had to enumerate if shapes were sorts."
   ],
   "docs.bounded.swoosh": [
     "The real Nike mark, pasted **as it sits in the file**: `viewBox=\"135.5 361.38 1000 356.39\"`,",

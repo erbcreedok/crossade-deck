@@ -3,24 +3,25 @@ import { Bounded, node, type Shape } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import { documented, shapeArgTypes, shapeOf, SHAPE_ARGS, type ShapeArgs } from "./surfaceControls.js";
 
-// ONE ATOM, ONE FIELD, AND A SHELF OF WORKED EXAMPLES.
+// ONE ATOM, ONE FIELD — A FEW ORDINARY BOXES, THEN THE FIELD'S OWN MECHANICS.
 //
-// `Bounded` holds `bounds` and nothing else. There were two fields here — `size`, and a
-// `bounds` that overrode it — and the section had a story per field to match. They taught a
-// distinction the kit did not have: `footprint()` was the only way in and always answered the
-// override, so nothing ever saw the declared shape. A reader saw two pages showing one thing
-// and said so within a minute of opening them.
+// `Bounded` holds `bounds` and nothing else. `Path` is the value written out with no call
+// anywhere near it — the first thing to meet, since it is what every call on this page and on
+// `Presets/Bounds` turns into. `Rect`, `Circle` and `Polygon` follow as the ordinary case: a
+// reader should meet a ROOM before the exotic edges of it, the way `Square` used to open this
+// shelf. `Point`, `Swoosh` and `Pawn` are the three ways a shape actually ARRIVES — built from
+// places typed by hand, pasted out of a drawing tool as an SVG path, and (on `Swoosh`) fitted
+// with the `builder` controls once it lands. Together they are `core/path.ts`'s own three
+// mechanisms, a page each.
 //
-// So the section is shaped the other way round now. Every story below carries the SAME
-// controls, because there is one field and one way to edit it; what differs is where each one
-// STARTS. `Path` is the one exception and says why in its own note: it teaches the VALUE, so
-// its panel hands over `bounds` whole and offers no builder at all. A shape written out in its arguments is a worked example — open the panel, read the
-// numbers that made it, change them. A page per argument VALUE would be a catalog of
-// screenshots; a page per shape, fully editable, is something a reader can copy and own.
+// The FULL catalog of ready-made figures — every preset, every one of its own parameters,
+// `ellipse` and `star` included — lives on `Presets/Bounds`. What is here is an anchor, not a
+// second copy of that shelf: three of the same helpers, so this page is not all raw values and
+// pasted paths before a reader has seen a plain box.
 //
-// The shapes are not a list of what the kit supports, and there is nothing here to support: a
-// `Shape` has NO sorts. Every name below is a helper that returns the same one type, so the
-// shelf is a set of worked examples rather than a catalogue of capabilities.
+// Each story below carries only ITS OWN controls, never a neighbour's: `controls.include` is
+// what keeps `Swoosh`'s five builder numbers off `Pawn`'s page, where they would do nothing, and
+// what keeps `Rect`'s `w`/`h` off `Circle`'s.
 
 interface BoxArgs extends ShapeArgs {
   id: string;
@@ -34,7 +35,22 @@ const meta: Meta<BoxArgs> = {
     // `guard.every-field-has-a-control`. One entry, because there is one field.
     gkAtom: "Bounded",
     gkFields: {
-      bounds: ["preset", "w", "h", "radius", "r", "rx", "ry", "corners", "polyR", "points", "outerR", "innerR", "d"],
+      bounds: [
+        "bounds",
+        "w",
+        "h",
+        "radius",
+        "r",
+        "corners",
+        "polyR",
+        "vertices",
+        "d",
+        "scaleX",
+        "scaleY",
+        "rotate",
+        "offsetX",
+        "offsetY",
+      ],
     },
   },
   // The shape's DEFAULTS live here, so a story's own arguments hold only what makes it that
@@ -42,9 +58,9 @@ const meta: Meta<BoxArgs> = {
   // snippet came out led by `...shapeArgs({ … })`: a name from this website, in the one place
   // that is supposed to be code a reader can take away.
   args: { ...SHAPE_ARGS },
-  // SHARED, so every story on the shelf has the identical panel. A control that exists on eight
-  // pages and not on the ninth reads as a limit of that shape, which is the exact
-  // misunderstanding this section was rebuilt to repair.
+  // DECLARED once at the meta level so nothing drifts between stories, then narrowed by each
+  // story's own `controls.include` — the panel shows only what that page's mechanism actually
+  // uses, never a neighbour's numbers sitting there doing nothing.
   argTypes: {
     // Not a field of `Bounded` — the node's own name, so it stands in its own group.
     id: documented("arg.id", { control: "text" }, "node"),
@@ -63,13 +79,13 @@ export default meta;
 // so a scene here opens on an empty stage, and left off by default the page's first impression
 // is that it is broken. The switch is still the reader's: the toolbar owns it.
 
-// THE SHAPE ITSELF, with no helper anywhere near it — and FIRST, before every story that calls
-// one.
+// THE SHAPE ITSELF, with no helper anywhere near it — and FIRST, before every story that shows
+// how one arrives.
 //
-// Everything below this line reaches for `rect`, `circle`, `star`. Read them in order and the
-// answer to "what IS a bound" never arrives: ten pages of calls, and the value they return
-// shown nowhere. The helpers are shortcuts TO this; a shortcut taught before the thing it
-// shortens teaches the shortcut.
+// `Point`, `Swoosh` and `Pawn` below all build a `Shape` some other way — typed places, a pasted
+// path — and none of them says what the thing they are building actually IS. Read them without
+// this page first and the answer never arrives: three arrivals, and the value they produce shown
+// nowhere.
 //
 // ONE CONTROL FOR ONE FIELD. `bounds` is a single value, so the panel hands over that value
 // whole rather than chopping it into a `start` box and a `segments` box — two controls for one
@@ -98,64 +114,34 @@ export const Path: StoryObj<{ id: string; bounds: Shape }> = {
   render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: a.bounds })), { bounds: true }).el,
 };
 
-// The plainest box there is, and the atom's own default. First of the SHAPES, because it is the
-// one a reader should meet before any of the ones that show off.
-export const Square: StoryObj<BoxArgs> = {
+// THE ORDINARY CASE, three of them — the same helpers `Presets/Bounds` shows in full, kept here
+// as the room a reader should stand in before the raw values and pasted paths below. Each story
+// carries only its own numbers: no `preset` dropdown, nothing borrowed from a neighbour.
+export const Rect: StoryObj<BoxArgs> = {
   render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "card", preset: "rect", w: 1, h: 1 },
-  parameters: { gkDocStory: "bounded.square" },
-};
-
-export const Rectangle: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "card", preset: "rect", w: 1, h: 1.4 },
-  parameters: { gkDocStory: "bounded.rectangle" },
-};
-
-// A REAL LINE: two places, no thickness anybody had to pick, and no inside. And the bend belongs
-// to the BOX — a curve is geometry and nothing else, so it is settled here rather than by whatever
-// paints it or stands on its ends. At `bend: 0` the run is straight, and that is not a second sort
-// of shape: it is the same call with a zero in it.
-export const Line: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "rule", preset: "line", fromX: -1.2, fromY: 0, toX: 1.2, toY: 0, bend: 0 },
-  parameters: { gkDocStory: "bounded.line" },
-};
-
-// The end of that road: one point and no segments at all. Legal, and not the same answer as a
-// node with no `Bounded` — `footprint()` tells a zero shape from `undefined`.
-export const Point: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "anchor", preset: "path", vertices: "0,0" },
-  parameters: { gkDocStory: "bounded.point" },
+  args: { id: "card", preset: "rect", w: 1, h: 1, radius: 0 },
+  parameters: { gkDocStory: "bounded.rect", controls: { include: ["id", "w", "h", "radius"] } },
 };
 
 export const Circle: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: (a) => scene(node(a.id.trim() || "chip", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
   args: { id: "chip", preset: "circle", r: 0.8 },
-  parameters: { gkDocStory: "bounded.circle" },
+  parameters: { gkDocStory: "bounded.circle", controls: { include: ["id", "r"] } },
 };
 
-// An oval is not a stretched circle — it is the general case, and `circle(r)` is `ellipse(r, r)`.
-// Four cubics either way; the two radii are the only difference between them.
-export const Oval: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "token", preset: "ellipse", rx: 1.2, ry: 0.8 },
-  parameters: { gkDocStory: "bounded.oval" },
-};
-
-// Computed rather than pasted: N corners on a circle, from a count and a radius. Nobody writes
-// five pairs of coordinates for a pentagon, and `polygon(5, 0.9)` says what it is.
-export const Pentagon: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+export const Polygon: StoryObj<BoxArgs> = {
+  render: (a) => scene(node(a.id.trim() || "badge", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
   args: { id: "badge", preset: "polygon", corners: 5, polyR: 0.9 },
-  parameters: { gkDocStory: "bounded.pentagon" },
+  parameters: { gkDocStory: "bounded.polygon", controls: { include: ["id", "corners", "polyR"] } },
 };
 
-export const Star: StoryObj<BoxArgs> = {
+// The end of the road a `Shape` can walk: one point and no segments at all. Legal, and not the
+// same answer as a node with no `Bounded` — `footprint()` tells a zero shape from `undefined`.
+// Built from a typed place rather than a helper, so its own control is the raw list of them.
+export const Point: StoryObj<BoxArgs> = {
   render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
-  args: { id: "star", preset: "star", points: 5, outerR: 1, innerR: 0.42 },
-  parameters: { gkDocStory: "bounded.star" },
+  args: { id: "anchor", preset: "path", vertices: "0,0" },
+  parameters: { gkDocStory: "bounded.point", controls: { include: ["id", "vertices"] } },
 };
 
 // A PASTED PATH, and the only story on the shelf that needs the builder. As a polygon this was
@@ -189,7 +175,10 @@ export const Swoosh: StoryObj<BoxArgs> = {
     offsetX: -1.7794,
     offsetY: -1.5108,
   },
-  parameters: { gkDocStory: "bounded.swoosh" },
+  parameters: {
+    gkDocStory: "bounded.swoosh",
+    controls: { include: ["id", "d", "scaleX", "scaleY", "rotate", "offsetX", "offsetY"] },
+  },
 };
 
 export const Pawn: StoryObj<BoxArgs> = {
@@ -208,5 +197,5 @@ export const Pawn: StoryObj<BoxArgs> = {
       "C -0.34 -0.48 -0.3 -0.36 -0.13 -0.3 C -0.16 -0.08 -0.3 -0.06 -0.3 0.05 " +
       "C -0.3 0.16 -0.16 0.2 -0.2 0.35 C -0.26 0.62 -0.5 0.72 -0.6 0.95 Z",
   },
-  parameters: { gkDocStory: "bounded.pawn" },
+  parameters: { gkDocStory: "bounded.pawn", controls: { include: ["id", "d"] } },
 };

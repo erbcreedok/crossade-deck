@@ -1,0 +1,76 @@
+{
+  "docs.presetsBounds.component": [
+    "The figures a designer actually reaches for, one page per helper: `rect`, `circle`, `ellipse`,",
+    "`polygon`, `star`, and the bendable `line`. Every one is an ORDINARY FUNCTION the kit exports,",
+    "returning the same `Shape` every other preset does — a start point and a list of segments, and",
+    "nothing that sorts one figure from another.",
+    "",
+    "```ts",
+    "import { node, Bounded, rect, star } from \"game-kit\"",
+    "",
+    "const card = node(\"card\", Bounded({ bounds: rect(1, 1.4) }))",
+    "const badge = node(\"badge\", Bounded({ bounds: star(5, 1, 0.42) }))",
+    "```",
+    "",
+    "These used to share one page with `Atoms/Bounded`, behind a `preset` dropdown that could turn",
+    "any of the eight into any other. Which meant a page named `Circle` could show a `star` with one",
+    "click — a story that can become a different story is not honest about what it draws. So each",
+    "helper is on its own page now, with only its own numbers on the panel: `Rect` offers `w`, `h`",
+    "and `radius`; `Circle` offers `r`; nothing more, nothing borrowed from a neighbour.",
+    "",
+    "The `preset` switcher itself still exists, unchanged, and is still exactly right for one page:",
+    "`Atoms/Surfaced → Plate`, whose whole lesson is \"any shape the box can be\". That is a different",
+    "claim from this shelf's \"here is what each helper gives you\", and the two are not the same page",
+    "wearing two names.",
+    "",
+    "What is NOT here: `Atoms/Bounded` keeps the pages about the FIELD rather than a named helper —",
+    "a raw value, a hand-typed path, a pasted SVG. This shelf is the ready-made half."
+  ],
+  "docs.presetsBounds.rect": [
+    "`w` and `h` are the whole of it. Units, not pixels: the host decides what a unit is worth on",
+    "screen, so this card is the same card on a phone and on a desk monitor.",
+    "",
+    "Bring `radius` up off zero and the very same call becomes `roundedRect(w, h, radius)` — one",
+    "preset, rounded by a number, rather than two sorts of box."
+  ],
+  "docs.presetsBounds.circle": [
+    "One number, `r`. A circle has nothing else to say.",
+    "",
+    "Inside it is four cubics and nothing more. It becomes a polygon only at the renderer:",
+    "`outlineOf` flattens the curves to straight runs against a tolerance measured in units, and for",
+    "`r: 0.8` that comes out at 64 points — below the model, which only ever holds a circle."
+  ],
+  "docs.presetsBounds.ellipse": [
+    "`ellipse(1.2, 0.8)` — four cubics, and that is exactly what one is.",
+    "",
+    "A circle is this with equal radii. Not a scaled circle, not a sort of its own: `circle(r)` is",
+    "one line that calls `ellipse(r, r)`. Saying it the other way round is what would put a tag in",
+    "the model for a shape one argument away from its neighbour."
+  ],
+  "docs.presetsBounds.polygon": [
+    "`polygon(5, 0.9)` — N corners on a circle, the first one at the top.",
+    "",
+    "The same helper draws a triangle, an octagon and a sixteen-sided coin. Nothing about it is a",
+    "special case: it returns a path of straight runs, exactly like the one you would paste."
+  ],
+  "docs.presetsBounds.star": [
+    "`star(5, 1, 0.42)` — five points on the outer circle, the notches between them on the inner.",
+    "",
+    "A polygon whose corners alternate between two radii, which is why it needs no new sort. The kit",
+    "does not know the word \"star\"; one helper does, and it is the only place that has to.",
+    "",
+    "Bring the inner radius up towards the outer and it becomes a cog; take it down and the points",
+    "turn to spikes."
+  ],
+  "docs.presetsBounds.line": [
+    "A run between two places — and the bend belongs to the BOX. `from` and `to` are the ends;",
+    "`bend` pulls the middle sideways and holds both ends where they are. At zero it is a straight",
+    "line, and that is not a second sort of shape: a curve is where a path's places are, and `bend`",
+    "puts one between the ends. `line({ … })` is what the snippet says — a kit function, not a",
+    "helper of this website.",
+    "",
+    "The shape is walked out and back, so it encloses nothing and has no inside at all. What a",
+    "surface does with a run like this is `Presets/Surfaces → Ink`; what stands on its ends is",
+    "`Presets/Components → Arrow`."
+  ]
+}
