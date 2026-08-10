@@ -74,6 +74,43 @@ describe("gridLayout", () => {
     expect(at("start", "start")).toEqual({ x: -1, y: -1 });
     expect(at("end", "end")).toEqual({ x: -1, y: 1 });
   });
+
+  it("preset.grid.columns-below-one-clamp-to-one — zero and negative both give a single column", () => {
+    // `Math.max(1, Math.floor(columns))` is the guard: a column count under one cannot make a
+    // grid with no columns (a divide-by-zero waiting to happen), so it clamps to one. The result
+    // is an honest vertical stack, not a throw and not an empty answer.
+    const stack = (columns: number) => {
+      resetLayouts();
+      registerLayout("grid", gridLayout({ columns }));
+      const root = node(`gz-${columns}`, Container({ layout: "grid" }));
+      ["a", "b", "c"].forEach((id) => add(root, node(`gz${columns}${id}`, box(1, 1))));
+      return placeChildren(root);
+    };
+    // One column, three unit rows: middles at −1, 0, 1 down the y-axis, all at x 0.
+    expect(stack(0).get("gz0a")).toEqual({ x: 0, y: -1 });
+    expect(stack(0).get("gz0c")).toEqual({ x: 0, y: 1 });
+    expect(stack(-3).get("gz-3a")).toEqual({ x: 0, y: -1 }); // negative clamps the same way
+  });
+
+  it("preset.grid.fractional-columns-floor-to-whole — 2.7 columns is 2, not 3 and not a fraction", () => {
+    // A cell count is a whole thing; `Math.floor` drops the fraction rather than rounding or
+    // erroring. 2.7 lays out exactly as 2 would — the same reading order, the same seams.
+    registerLayout("grid", gridLayout({ columns: 2.7 }));
+    const root = node("gf1", Container({ layout: "grid" }));
+    ["a", "b", "c", "d"].forEach((id) => add(root, node(`gf1${id}`, box(1, 1))));
+    const placed = placeChildren(root);
+    expect(placed.get("gf1a")).toEqual({ x: -0.5, y: -0.5 });
+    expect(placed.get("gf1b")).toEqual({ x: 0.5, y: -0.5 });
+    expect(placed.get("gf1c")).toEqual({ x: -0.5, y: 0.5 }); // wrapped after two, as a 2-grid does
+  });
+
+  it("preset.grid.empty-is-a-no-op — no children, no places, no throw", () => {
+    // The degenerate tree, the one where the row/column track loops run zero times: it must
+    // produce nothing rather than divide by an empty track set.
+    registerLayout("grid", gridLayout({ columns: 2 }));
+    const root = node("ge1", Container({ layout: "grid" }));
+    expect(placeChildren(root).size).toBe(0);
+  });
 });
 
 describe("slotsLayout", () => {
@@ -95,6 +132,29 @@ describe("slotsLayout", () => {
     add(root, node("s2late", box(1, 1), Transformable({ at: { x: 5, y: 5 } })));
     expect(placeChildren(root).get("s2a")).toEqual({ x: -2, y: 0 });
     expect(placeChildren(root).get("s2late")).toEqual({ x: 5, y: 5 });
+  });
+
+  it("preset.slots.empty-slots-keep-every-pose — no seats means the layout becomes `free`", () => {
+    // The overflow rule taken to its limit: with an empty slot list EVERY child is beyond the
+    // seats, so every child is answered `undefined` and keeps its own pose. A slots layout with
+    // nothing prepared degrades exactly into the canvas, not into a pile at the origin.
+    registerLayout("seats", slotsLayout({ slots: [] }));
+    const root = node("se1", Container({ layout: "seats" }));
+    add(root, node("se1a", box(1, 1), Transformable({ at: { x: 1, y: 1 } })));
+    add(root, node("se1b", box(1, 1), Transformable({ at: { x: 2, y: 2 } })));
+    expect(placeChildren(root).get("se1a")).toEqual({ x: 1, y: 1 });
+    expect(placeChildren(root).get("se1b")).toEqual({ x: 2, y: 2 });
+  });
+
+  it("preset.slots.spare-slots-go-unused — more seats than guests leaves the extra seats empty", () => {
+    // The other imbalance: three seats, one guest. The guest takes seat one and the two spare
+    // seats simply do nothing — a slot is offered, never forced, so there is no phantom to place.
+    registerLayout("seats", slotsLayout({ slots: [{ x: -2, y: 0 }, { x: 2, y: 0 }, { x: 5, y: 5 }] }));
+    const root = node("sp1", Container({ layout: "seats" }));
+    add(root, node("sp1a", box(1, 1)));
+    const placed = placeChildren(root);
+    expect(placed.get("sp1a")).toEqual({ x: -2, y: 0 });
+    expect(placed.size).toBe(1); // the two spare seats produced no entries
   });
 });
 
@@ -135,5 +195,53 @@ describe("radialLayout", () => {
     const placed = placeChildren(root).get("r3a")!;
     expect(placed.x).toBeCloseTo(1, 9);
     expect(placed.y).toBeCloseTo(0, 9);
+  });
+
+  it("preset.radial.zero-radius-stacks-at-the-origin — every seat collapses onto one point", () => {
+    // Radius scales the sin/cos, so a radius of zero puts every child at {0,0} — a legal degenerate
+    // circle, a stack. No throw, no NaN: the angles are still computed, they just land nowhere.
+    registerLayout("table", radialLayout({ radius: 0 }));
+    const root = node("rz1", Container({ layout: "table" }));
+    ["a", "b", "c", "d"].forEach((id) => add(root, node(`rz1${id}`, box(0.2, 0.2))));
+    const placed = placeChildren(root);
+    for (const id of ["a", "b", "c", "d"]) {
+      expect(placed.get(`rz1${id}`)!.x).toBeCloseTo(0, 9);
+      expect(placed.get(`rz1${id}`)!.y).toBeCloseTo(0, 9);
+    }
+  });
+
+  it("preset.radial.zero-sweep-stacks-on-one-seat — no arc means everyone at the start angle", () => {
+    // Sweep of zero over several children: the step is 0/(n−1) = 0, so every child sits at `start`.
+    // The seats overlap on a single point of the circle — degenerate, but deterministic and silent.
+    registerLayout("arc", radialLayout({ radius: 1, sweep: 0 }));
+    const root = node("rs1", Container({ layout: "arc" }));
+    ["a", "b", "c"].forEach((id) => add(root, node(`rs1${id}`, box(0.2, 0.2))));
+    const placed = placeChildren(root);
+    for (const id of ["a", "b", "c"]) {
+      expect(placed.get(`rs1${id}`)!.x).toBeCloseTo(0, 9); // start 0 → twelve o'clock
+      expect(placed.get(`rs1${id}`)!.y).toBeCloseTo(-1, 9);
+    }
+  });
+
+  it("preset.radial.negative-radius-mirrors — a radius below zero flips the seat through the centre", () => {
+    // Nothing forbids a negative radius; it just multiplies sin/cos by a negative, mirroring the
+    // point through the origin. The lone child that would sit ABOVE at radius 1 sits BELOW at −1.
+    registerLayout("table", radialLayout({ radius: -1 }));
+    const root = node("rn1", Container({ layout: "table" }));
+    add(root, node("rn1a", box(0.2, 0.2)));
+    const placed = placeChildren(root).get("rn1a")!;
+    expect(placed.x).toBeCloseTo(0, 9);
+    expect(placed.y).toBeCloseTo(1, 9); // +y is DOWN the screen — mirrored from the usual −1
+  });
+
+  it("preset.radial.nan-radius-poisons-the-seat — garbage radius flows through to NaN, no guard", () => {
+    // The preset shares the core's trait: no `Number.isFinite` check. A NaN radius makes both
+    // coordinates NaN and the call still returns — a poisoned point, not a thrown error.
+    registerLayout("table", radialLayout({ radius: NaN }));
+    const root = node("rp1", Container({ layout: "table" }));
+    add(root, node("rp1a", box(0.2, 0.2)));
+    const placed = placeChildren(root).get("rp1a")!;
+    expect(Number.isNaN(placed.x)).toBe(true);
+    expect(Number.isNaN(placed.y)).toBe(true);
   });
 });

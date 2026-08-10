@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { add, caps, fieldsOf, node, remove } from "../node.js";
 import { Bounded } from "./bounded.js";
 import { Container, contentExtent, placeChildren, registerLayout, resetLayouts } from "./container.js";
-import { freeLayout, rowLayout } from "./layouts.js";
+import { freeLayout, rowLayout, type LayoutAlign, type RowOptions } from "./layouts.js";
 import { Transformable, type TransformableFields } from "./transformable.js";
 import { rect } from "../../presets/shapes.js";
 
@@ -275,5 +275,114 @@ describe("Container", () => {
     expect(placeChildren(root).size).toBe(0);
     // Nothing inside means nothing to pad, either — zero, not padding×2.
     expect(contentExtent(root)).toEqual({ w: 0, h: 0 });
+  });
+
+  // --- Degenerate and invalid configs. Nothing in this subsystem THROWS: a bad config either
+  // degrades to well-defined geometry (a clamp, an overlap, a kept pose) or, for numeric
+  // garbage, poisons the answer with NaN — and there is no numeric guard anywhere to stop it.
+  // These lock which of the two each config lands on, so a future "helpful" throw is a decision,
+  // not an accident.
+
+  it("atom.container.negative-gap-overlaps — a gap below zero pulls neighbours together, silently", () => {
+    // A negative gap is not rejected: it is arithmetic, and the arithmetic makes the two cards
+    // overlap. The row does not clamp it to zero — that would be a decision no one wrote down.
+    registerLayout("row", rowLayout({ gap: -0.5 }));
+    const root = node("ng1", Container({ layout: "row" }));
+    add(root, node("ng2", box(1, 1)));
+    add(root, node("ng3", box(1, 1)));
+    // Total 2 − 0.5 = 1.5, centred: middles at ∓0.25, so the two unit cards overlap by 0.5.
+    expect(placeChildren(root).get("ng2")).toEqual({ x: -0.25, y: 0 });
+    expect(placeChildren(root).get("ng3")).toEqual({ x: 0.25, y: 0 });
+  });
+
+  it("atom.container.negative-padding-shrinks-the-wrap — the area can be pulled INSIDE the tight box", () => {
+    // Padding is added straight into the extent, so a negative one subtracts — the derived area
+    // shrinks below the children's own footprint. Not clamped to the tight wrap: garbage math in,
+    // garbage area out, with no floor to catch it.
+    registerLayout("row", rowLayout({ gap: 0, padding: -0.25 }));
+    const root = node("np1", Container({ layout: "row" }));
+    add(root, node("np2", box(1, 1)));
+    add(root, node("np3", box(1, 1)));
+    // Tight wrap 2×1; padding −0.25 on every side pulls it to 1.5×0.5.
+    expect(contentExtent(root)).toEqual({ w: 1.5, h: 0.5 });
+  });
+
+  it("atom.container.unknown-align-reads-as-end — the ternary's open door, silent", () => {
+    // `align` is a three-way ternary with no validation: center, else start, ELSE end. Any value
+    // the type forbids but the runtime still receives is read as `end`. This documents the door —
+    // an unrecognised align is not a throw and not a no-op, it is silently the last arm.
+    registerLayout("row", rowLayout({ align: "middle" as LayoutAlign }));
+    const root = node("ua1", Container({ layout: "row" }));
+    add(root, node("ua2", box(1, 1)));
+    add(root, node("ua3", box(1, 2)));
+    // The tall card sets the thickness (2); `end` drops the short card's middle by (2−1)/2 = 0.5.
+    expect(placeChildren(root).get("ua2")).toEqual({ x: -0.5, y: 0.5 });
+    expect(placeChildren(root).get("ua3")).toEqual({ x: 0.5, y: 0 });
+  });
+
+  it("atom.container.unknown-direction-reads-as-column — anything not 'row' walks the other axis", () => {
+    // `direction` is a two-way check `=== "row"`, so every value that is not exactly `row` — a
+    // typo, a future name — falls to the column walk. Silent, and worth pinning: the failure mode
+    // of a misspelt direction is not an error, it is a sideways layout.
+    registerLayout("row", rowLayout({ direction: "diagonal", gap: 0 } as unknown as RowOptions));
+    const root = node("ud1", Container({ layout: "row" }));
+    add(root, node("ud2", box(1, 2)));
+    add(root, node("ud3", box(2, 1)));
+    // Column walk reads HEIGHTS 2 and 1: total 3, middles at −0.5 and 1, cross-axis centred at 0.
+    expect(placeChildren(root).get("ud2")).toEqual({ x: 0, y: -0.5 });
+    expect(placeChildren(root).get("ud3")).toEqual({ x: 0, y: 1 });
+  });
+
+  it("atom.container.nan-gap-poisons-the-line — numeric garbage flows straight through to NaN", () => {
+    // There is no `Number.isFinite` guard on the record's numbers. A NaN gap makes `total` NaN and
+    // every along-axis position NaN — the call does NOT throw, it returns poisoned points. Garbage
+    // in, NaN out; the cross-axis, which the gap never touches, stays clean at 0.
+    registerLayout("row", rowLayout({ gap: NaN }));
+    const root = node("nn1", Container({ layout: "row" }));
+    add(root, node("nn2", box(1, 1)));
+    add(root, node("nn3", box(1, 1)));
+    const placed = placeChildren(root);
+    expect(Number.isNaN(placed.get("nn2")!.x)).toBe(true);
+    expect(Number.isNaN(placed.get("nn3")!.x)).toBe(true);
+    expect(placed.get("nn2")!.y).toBe(0); // the align axis is untouched by the gap
+  });
+
+  it("atom.container.zero-box-takes-no-room — a 0×0 child sits on the seam, like a boxless one", () => {
+    // A box of zero size is not the same object as no box, but it measures the same: zero width.
+    // So a zero-box child between two real cards takes no room and the reals adjoin across it,
+    // exactly as `boxless-child` promises for the no-box case.
+    registerLayout("row", rowLayout({ gap: 0 }));
+    const root = node("zb1", Container({ layout: "row" }));
+    add(root, node("zb2", box(1, 1)));
+    add(root, node("zb3", box(0, 0)));
+    add(root, node("zb4", box(1, 1)));
+    const placed = placeChildren(root);
+    expect(placed.get("zb2")).toEqual({ x: -0.5, y: 0 });
+    expect(placed.get("zb3")).toEqual({ x: 0, y: 0 }); // on the seam, no width spent
+    expect(placed.get("zb4")).toEqual({ x: 0.5, y: 0 });
+  });
+
+  it("atom.container.layout-under-answers-keeps-poses — a short answer array falls back per child", () => {
+    // The record may return FEWER points than there are children — a broken or partial layout.
+    // `placeChildren` pairs by index and falls back to the child's own pose where the layout was
+    // silent, so an under-answer never smears one child's point onto the next.
+    registerLayout("half", { place: () => [{ x: 4, y: 4 }] });
+    const root = node("un1", Container({ layout: "half" }));
+    add(root, node("un2", box(1, 1)));
+    add(root, node("un3", box(1, 1), Transformable({ at: { x: 2, y: 2 } })));
+    const placed = placeChildren(root);
+    expect(placed.get("un2")).toEqual({ x: 4, y: 4 }); // answered
+    expect(placed.get("un3")).toEqual({ x: 2, y: 2 }); // unanswered → own pose stands
+  });
+
+  it("atom.container.layout-over-answers-ignores-extra — surplus points are dropped, not a throw", () => {
+    // The mirror case: MORE points than children. The extra answers have no child to land on and
+    // are simply ignored — the walk is over the children, never over the array.
+    registerLayout("generous", { place: () => [{ x: 1, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 3 }] });
+    const root = node("ov1", Container({ layout: "generous" }));
+    add(root, node("ov2", box(1, 1)));
+    const placed = placeChildren(root);
+    expect(placed.get("ov2")).toEqual({ x: 1, y: 1 });
+    expect(placed.size).toBe(1); // the two surplus points produced no phantom entries
   });
 });

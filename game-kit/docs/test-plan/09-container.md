@@ -1,6 +1,6 @@
 ## UNIT · Container — slot, layout, spreading
 
-`vitest` · 75 кейсов, расписано 66
+`vitest` · 93 кейсов, расписано 83
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -39,6 +39,23 @@
 | `preset.radial.the-full-circle-shares-evenly` | четверо на радиусе 1 | позиции посчитаны | верх, право, низ, лево — по четвертям, без сдвоенного места на шве |
 | `preset.radial.an-arc-is-walked-end-to-end` | трое, `sweep: 180` от −90° | позиции посчитаны | оба конца ЗАНЯТЫ — лево, верх, право: частокол веера, не круга |
 | `preset.radial.a-seat-is-a-point` | одинокий гость, `start: 90`, своя поза 9·9 | позиции посчитаны | стоит справа, куда сказал `start`; угла в ответе нет по типу — куда смотреть, решает собственный `angle` |
+| `atom.container.negative-gap-overlaps` | ряд из двух карт 1×1, зазор −0.5 | позиции посчитаны | середины на ∓0.25 — карты наезжают на 0.5; отрицательный зазор не зажат в ноль, это арифметика |
+| `atom.container.negative-padding-shrinks-the-wrap` | ряд, `padding: -0.25`, две карты 1×1 | протяжённость посчитана | `1.5×0.5` — площадь ушла ВНУТРЬ тесной обёртки; пола под ней нет |
+| `atom.container.unknown-align-reads-as-end` | `align: "middle"` (тип запрещает), короткая и высокая | позиции посчитаны | читается как `end` — последняя ветвь тернарника; не бросок и не no-op, тихо |
+| `atom.container.unknown-direction-reads-as-column` | `direction: "diagonal"`, высоты 2 и 1 | позиции посчитаны | всё, что не ровно `"row"`, идёт колонкой: обход читает высоты, не ошибка — боковая раскладка |
+| `atom.container.nan-gap-poisons-the-line` | ряд из двух карт, `gap: NaN` | позиции посчитаны | вдоль оси NaN у всех, поперёк чисто; не бросает — мусор на входе, NaN на выходе, гварда нет |
+| `atom.container.zero-box-takes-no-room` | коробка 0×0 между двумя 1×1 | позиции посчитаны | стоит на шве в нуле, ширины не занял; реальные соседи смежны — как у ребёнка без коробки |
+| `atom.container.layout-under-answers-keeps-poses` | запись вернула ОДНУ точку на двух детей | позиции посчитаны | первому — точка, второму — своя поза; недоответ не размазывает точку на соседа |
+| `atom.container.layout-over-answers-ignores-extra` | запись вернула ТРИ точки на одного ребёнка | позиции посчитаны | лишние точки отброшены, размер карты 1; обход по детям, не по массиву — не бросок |
+| `preset.grid.columns-below-one-clamp-to-one` | `columns` 0 и −3 | позиции посчитаны | `Math.max(1, floor)` зажимает в одну колонку: честный вертикальный столбец, не деление на ноль |
+| `preset.grid.fractional-columns-floor-to-whole` | `columns: 2.7`, четыре карты | позиции посчитаны | как 2: floor роняет дробь, тот же порядок чтения и швы, не округление и не ошибка |
+| `preset.grid.empty-is-a-no-op` | сетка без детей | позиции посчитаны | пусто, без броска: циклы по дорожкам крутятся ноль раз |
+| `preset.slots.empty-slots-keep-every-pose` | пустой список слотов, дети со своими позами | позиции посчитаны | всем отвечают `undefined` — раскладка вырождается в `free`, а не в кучу в нуле |
+| `preset.slots.spare-slots-go-unused` | три слота, один гость | позиции посчитаны | гость на первом месте, два запасных ничего не ставят; размер карты 1 — место предлагают, не навязывают |
+| `preset.radial.zero-radius-stacks-at-the-origin` | четверо, `radius: 0` | позиции посчитаны | все в `{0,0}`: вырожденный круг-стопка, углы считаются, но ложатся в точку — не NaN |
+| `preset.radial.zero-sweep-stacks-on-one-seat` | трое, `sweep: 0` | позиции посчитаны | шаг `0/(n−1)=0`, все на `start`: места слиплись на одной точке круга, детерминированно |
+| `preset.radial.negative-radius-mirrors` | одинокий гость, `radius: -1` | позиции посчитаны | точка зеркалится через центр: кто был бы сверху, встал снизу (+y) |
+| `preset.radial.nan-radius-poisons-the-seat` | одинокий гость, `radius: NaN` | позиции посчитаны | обе координаты NaN, но возврат есть — как в ядре, `Number.isFinite`-проверки нет нигде |
 | `slot.is-an-address` ⏳ | an 8×8 board | the node count read | ONE node with a grid layout — not 64. An empty cell has no id and is not in the state |
 | `slot.address-form` ⏳ | grid · ordered · heap | the address asked for | grid → a coordinate (e4) · ordered → a NEIGHBOUR (after: id, survives someone else's reorder) · heap → none |
 | `slot.cell-needs-a-life` ⏳ | a cell that must hold its own state | modelled | a container is nested as a CHILD — recursion is already legal, no new entity |
