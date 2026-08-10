@@ -1,6 +1,6 @@
 ## UNIT · Container — slot, layout, spreading
 
-`vitest` · 102 кейсов, расписано 90
+`vitest` · 105 кейсов, расписано 93
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -62,6 +62,9 @@
 | `preset.radial.negative-radius-mirrors` | одинокий гость, `radius: -1` | позиции посчитаны | точка зеркалится через центр: кто был бы сверху, встал снизу (+y) |
 | `preset.radial.nan-radius-clamps-to-zero-and-shouts` | одинокий гость, `radius: NaN` | раскладка построена | нефинитный радиус зажат в 0 (стопка в центре) и криком (`radialLayout.radius`) |
 | `preset.radial.non-finite-sweep-falls-to-full-circle-and-shouts` | `sweep` NaN и Infinity | раскладка построена | оба зажаты в 360 и криком (`radialLayout.sweep`): места делят круг поровну, не кольцо NaN |
+| `preset.stack.thickness-is-the-offset` | стопка `offset {0,−0.1}`, три карты | позиции посчитаны | каждая на один offset от нижней через `at`: `{0,0}`,`{0,−0.1}`,`{0,−0.2}`; `place` не пишет `z` по типу — тень не шелохнётся |
+| `preset.stack.squared-is-the-default` | стопка без offset, три карты | позиции посчитаны | все в `{0,0}` — квадратная колода; толщина параметр записи, не константа пресета |
+| `preset.stack.no-address` | стопка с offset | `indexAt` прочитан | его нет — пайл это куча, места перекрыты: берут верх и роняют на целое, в погребённую карту не целятся |
 | `slot.is-an-address` ⏳ | an 8×8 board | the node count read | ONE node with a grid layout — not 64. An empty cell has no id and is not in the state |
 | `slot.address-form` ⏳ | grid · ordered · heap | the address asked for | grid → a coordinate (e4) · ordered → a NEIGHBOUR (after: id, survives someone else's reorder) · heap → none |
 | `slot.cell-needs-a-life` ⏳ | a cell that must hold its own state | modelled | a container is nested as a CHILD — recursion is already legal, no new entity |

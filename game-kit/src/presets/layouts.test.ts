@@ -4,7 +4,7 @@ import { Bounded } from "../core/atoms/bounded.js";
 import { Container, placeChildren, registerLayout, resetLayouts, type LayoutChild } from "../core/atoms/container.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
-import { gridLayout, radialLayout, slotsLayout } from "./layouts.js";
+import { gridLayout, radialLayout, slotsLayout, stackLayout } from "./layouts.js";
 import { rect } from "./shapes.js";
 
 // Placed through a real tree, not by calling `place` with hand-built children: what these
@@ -304,6 +304,37 @@ describe("radialLayout", () => {
       expect(errs.mock.calls[0]![0]).toContain("radialLayout.sweep");
       vi.restoreAllMocks();
     }
+  });
+});
+
+describe("stackLayout", () => {
+  it("preset.stack.thickness-is-the-offset — each card shifts one offset from the last, in at not z", () => {
+    // A pile shows its height by SHIFTING cards, never by raising them: the offset accumulates
+    // into `at`, and `place` cannot write `z` at all (it returns points by type). Add a card and
+    // the shadow does not move, because nothing rose.
+    registerLayout("deck", stackLayout({ offset: { x: 0, y: -0.1 } }));
+    const root = node("st1", Container({ layout: "deck" }));
+    ["a", "b", "c"].forEach((id) => add(root, node(`st1${id}`, box(1, 1))));
+    const placed = placeChildren(root);
+    expect(placed.get("st1a")).toEqual({ x: 0, y: 0 });
+    expect(placed.get("st1b")).toEqual({ x: 0, y: -0.1 });
+    expect(placed.get("st1c")).toEqual({ x: 0, y: -0.2 });
+  });
+
+  it("preset.stack.squared-is-the-default — no offset stacks every card on one point", () => {
+    // The neutral pile is squared: with no offset every card sits on the origin, a perfectly
+    // aligned deck. Thickness is a parameter of the record, not a constant baked into the preset.
+    registerLayout("deck", stackLayout());
+    const root = node("st2", Container({ layout: "deck" }));
+    ["a", "b", "c"].forEach((id) => add(root, node(`st2${id}`, box(1, 1))));
+    const placed = placeChildren(root);
+    for (const id of ["a", "b", "c"]) expect(placed.get(`st2${id}`)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("preset.stack.no-address — a pile is a heap, so it offers no indexAt", () => {
+    // Stacked seats overlap and carry no address: you grab the top and drop on the whole, never
+    // aim at a buried card. The pile expresses that the same way `free` does — no `indexAt` at all.
+    expect(stackLayout({ offset: { x: 0, y: -0.1 } }).indexAt).toBeUndefined();
   });
 });
 

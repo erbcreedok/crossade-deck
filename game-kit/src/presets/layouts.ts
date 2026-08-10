@@ -146,3 +146,29 @@ export function radialLayout({ radius, start = 0, sweep = 360, padding = 0 }: Ra
     indexAt: (point, children) => nearestSeat(place(children), point),
   };
 }
+
+export interface StackLayoutOptions {
+  /** How far each card sits from the one below, in units — the pile's visible thickness. `{0,0}` squares it. */
+  readonly offset?: Point;
+  /** Room left around the tight wrap, in units — read by `contentExtent` alone. */
+  readonly padding?: number;
+}
+
+/**
+ * A pile: every child on the same spot, each nudged from the one under it by `offset` so the stack
+ * shows its thickness. Thickness is expressed as `at` and NEVER as `z` (CANONS): dropping a card on
+ * a resting deck moves no shadow, because the cards do not rise, they shift. A pile is a HEAP — its
+ * seats overlap and carry no address — so it offers no `indexAt`: you grab the top and drop on the
+ * whole, you never aim a drop at a buried card.
+ */
+export function stackLayout({ offset = { x: 0, y: 0 }, padding = 0 }: StackLayoutOptions = {}): LayoutRecord {
+  const dx = finite(offset.x, 0, "stackLayout.offset.x");
+  const dy = finite(offset.y, 0, "stackLayout.offset.y");
+  const pad = finite(padding, 0, "stackLayout.padding");
+  return {
+    padding: pad,
+    // `|| 0` folds the −0 that `0 * −offset` yields at index 0 back to +0 — a negative zero is a
+    // real coordinate footgun (it fails `Object.is` equality and leaks into downstream math).
+    place: (children: readonly LayoutChild[]): readonly (Point | undefined)[] => children.map((_, i) => ({ x: i * dx || 0, y: i * dy || 0 })),
+  };
+}

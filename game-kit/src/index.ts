@@ -174,7 +174,9 @@ export {
   gridLayout,
   radialLayout,
   slotsLayout,
+  stackLayout,
   type GridOptions,
   type RadialOptions,
   type SlotsOptions,
+  type StackLayoutOptions,
 } from "./presets/layouts.js";
