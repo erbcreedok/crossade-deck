@@ -999,4 +999,37 @@ test.describe.serial("the heavy pages", () => {
       await expect(panel.getByText(/Fail|Error|Exception/)).toHaveCount(0);
     }
   });
+
+  test("e2e.checks-can-be-stepped — the pace belongs to the reader", async ({ page }) => {
+    // Storybook's own step buttons replay the whole play from a remount, blind to the one
+    // thing a reader pauses for: the state a step left on the glass. The strip on the canvas
+    // paces the SAME steps instead — pause after each, next, back (an honest replay), to the
+    // end — while the Interactions panel keeps ticking. Each transition below is a remount and
+    // a fresh WebGL start, so the waits are generous.
+    test.setTimeout(120_000);
+    await page.goto("/?path=/story/tests-bounded--outline&addonPanel=storybook%2Finteractions%2Fpanel");
+    const preview = page.frameLocator("#storybook-preview-iframe");
+
+    // The default pace ran everything; the strip now offers the OTHER pace.
+    await preview.locator("[data-checks-stepwise]").click({ timeout: 60000 });
+    // The remounted run pauses AFTER its first step, and says which one it is standing on.
+    const strip = preview.locator("[data-checks-strip]");
+    await expect(strip).toHaveAttribute("data-checks-step", "1", { timeout: 60000 });
+    // At the first step there is nothing to go back to, and the strip does not pretend.
+    await expect(preview.locator("[data-checks-back]")).toHaveCount(0);
+
+    await preview.locator("[data-checks-next]").click();
+    await expect(strip).toHaveAttribute("data-checks-step", "2", { timeout: 60000 });
+
+    // Back is a replay: the run comes back standing after step 1 again.
+    await preview.locator("[data-checks-back]").click();
+    await expect(strip).toHaveAttribute("data-checks-step", "1", { timeout: 60000 });
+
+    // To the end: the rest runs without pausing, and the panel closes green.
+    await preview.locator("[data-checks-to-end]").click();
+    await expect(strip).not.toHaveAttribute("data-checks-step", /.*/, { timeout: 60000 });
+    const panel = page.locator("#storybook-panel-root");
+    await expect(panel.getByText("play.bounded.no-box-no-ink", { exact: false })).toBeVisible({ timeout: 60000 });
+    await expect(panel.getByText(/Fail|Error|Exception/)).toHaveCount(0);
+  });
 });

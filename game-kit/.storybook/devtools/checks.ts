@@ -16,8 +16,13 @@
 // panel; automation opens the same story and asserts on the same steps. There is no second
 // copy to keep in step, and a check that passes for one cannot be failing for the other.
 
+import { addons } from "@storybook/preview-api";
+import { FORCE_REMOUNT } from "storybook/internal/core-events";
 import { type PlayFunctionContext } from "storybook/internal/types";
+import { s, t } from "../../src/index.js";
+import { currentSettings } from "./catalogSettings.js";
 import { sceneOf, type Scene } from "./scene.js";
+import { backTarget, paceOf, pausesAfter, setPace } from "./stepper.js";
 
 /** What a play function is handed. Narrowed to what the checks below actually use. */
 export type CheckContext = PlayFunctionContext & {
@@ -58,13 +63,163 @@ export function checks(steps: readonly Step[]) {
     // panel then showed nothing at all. An empty panel over a suite that ran and passed is
     // indistinguishable from a suite that never ran, which is exactly the report it produced.
     await new Promise((settle) => setTimeout(settle, 800));
-    for (const step of steps) {
+    const strip = paceStrip(ctx, steps.length);
+    // "To the end" is a promise for THIS run only: the pace itself stays step, so a restart
+    // pauses again — the reader asked to stop reading, not to unlearn the mode.
+    let sprint = false;
+    for (const [index, step] of steps.entries()) {
       // `ctx.step` groups the assertions under a name in the panel, so a failure says WHICH
       // claim broke instead of pointing at the story.
       await ctx.step(step.name, async () => {
         await step.run(ctx);
       });
+      // The pause comes AFTER the step, so whatever the step drew is standing on the glass
+      // while the reader looks at it — that is the whole point of the pace.
+      if (sprint || !pausesAfter(paceOf(ctx.id), index)) continue;
+      const order = await strip.pause(index);
+      // A replay was ordered: this run steps aside so the remount can happen at all.
+      if (order === "halt") return;
+      if (order === "end") sprint = true;
     }
+    strip.done();
+  };
+}
+
+/**
+ * THE PACE STRIP — the row of buttons a paused run stands behind, on the canvas itself.
+ *
+ * It lives in the PREVIEW, next to the picture it pauses, not in the Interactions panel: the
+ * panel is Storybook's own and its step buttons replay the whole play from a remount — slow,
+ * and blind to the one thing a reader pauses FOR, the state a step left on the glass.
+ *
+ * Back, restart and "all at once" go through a FORCE_REMOUNT: the scene is live, so the only
+ * honest rewind is a replay (see stepper.ts). The abandoned run is left parked on its pause —
+ * the remount tears its story down, and a promise nobody will resolve holds nothing hostage.
+ */
+function paceStrip(ctx: CheckContext, total: number) {
+  const doc = ctx.canvasElement.ownerDocument;
+  // Read at each render, not once: the strip may outlive a language switch.
+  const words = () => currentSettings().text;
+
+  // ONE strip per story root. A cold dev load renders a story twice, and the first play's strip
+  // is left behind when the root is rebuilt — an empty pill that LOOKS like the control and
+  // answers nothing. The run that is actually alive owns the corner.
+  for (const stale of ctx.canvasElement.querySelectorAll("[data-checks-strip]")) stale.remove();
+  const el = doc.createElement("div");
+  el.setAttribute("data-checks-strip", "");
+  el.style.cssText = [
+    // The corner the rest of the chrome left free: the toolbar is top-right, the note is
+    // bottom-left. Fixed, because the strip belongs to the RUN, not to one scene's stage.
+    "position:fixed",
+    `bottom:${s("space.s")}`,
+    `right:${s("space.s")}`,
+    "z-index:30",
+    "display:flex",
+    "align-items:center",
+    `gap:${s("space.s")}`,
+    `padding:${s("space.xs")} ${s("space.s")}`,
+    `background:${t("panelBg")}`,
+    `border:1px solid ${t("panelBorder")}`,
+    `border-radius:${s("radius.m")}`,
+  ].join(";");
+  ctx.canvasElement.appendChild(el);
+
+  const label = doc.createElement("span");
+  label.style.cssText = [
+    `font-family:${s("font.mono")}`,
+    `font-size:${s("font.size.s")}`,
+    `line-height:${s("font.line.normal")}`,
+    `color:${t("textMuted")}`,
+    "white-space:nowrap",
+  ].join(";");
+
+  const button = (attribute: string, onPress: () => void): HTMLButtonElement => {
+    const b = doc.createElement("button");
+    b.type = "button";
+    b.setAttribute(attribute, "");
+    b.style.cssText = [
+      `font-family:${s("font.mono")}`,
+      `font-size:${s("font.size.s")}`,
+      `color:${t("text")}`,
+      `background:${t("sunkBg")}`,
+      `border:1px solid ${t("panelBorder")}`,
+      `border-radius:${s("radius.s")}`,
+      `padding:2px ${s("space.s")}`,
+      "white-space:nowrap",
+      "cursor:pointer",
+    ].join(";");
+    b.addEventListener("click", onPress);
+    return b;
+  };
+
+  const remount = (): void => {
+    addons.getChannel().emit(FORCE_REMOUNT, { storyId: ctx.id });
+  };
+  const show = (...pieces: readonly (HTMLElement | null)[]): void => {
+    // Re-adopted on every render: Storybook may rebuild the root under a running play, and a
+    // strip populated on a detached element is a control nobody can see, let alone press.
+    if (!el.isConnected) ctx.canvasElement.appendChild(el);
+    el.replaceChildren(...pieces.filter((piece): piece is HTMLElement => piece !== null));
+  };
+
+  return {
+    /** Stand after step `index` until the reader says how to go on. */
+    pause(index: number): Promise<"next" | "end" | "halt"> {
+      return new Promise((order) => {
+        const text = words();
+        el.setAttribute("data-checks-step", String(index + 1));
+        label.textContent = text.text("checks.stepOf", { i: index + 1, n: total });
+        // A replay RELEASES this run before it asks for the remount: Storybook waits for the
+        // running play to finish before it remounts, so a pause that kept standing would hold
+        // the very replay it just ordered — the strip froze exactly that way once.
+        const replay = (pace: Parameters<typeof setPace>[1]): void => {
+          setPace(ctx.id, pace);
+          order("halt");
+          remount();
+        };
+        const to = backTarget(index);
+        const back =
+          to === null
+            ? null
+            : button("data-checks-back", () => replay({ mode: "step", fastForwardTo: to }));
+        if (back) back.textContent = text.text("checks.back");
+        const next = button("data-checks-next", () => order("next"));
+        next.textContent = text.text("checks.next");
+        const end = button("data-checks-to-end", () => order("end"));
+        end.textContent = text.text("checks.toEnd");
+        const again = button("data-checks-again", () => replay({ mode: "step", fastForwardTo: 0 }));
+        again.textContent = text.text("checks.again");
+        const all = button("data-checks-all", () => replay({ mode: "all", fastForwardTo: 0 }));
+        all.textContent = text.text("checks.together");
+        show(label, back, next, end, again, all);
+      });
+    },
+    /** The run is over: offer the OTHER pace, and a fresh start in this one. */
+    done(): void {
+      const text = words();
+      el.removeAttribute("data-checks-step");
+      label.textContent = text.text("checks.done");
+      if (paceOf(ctx.id).mode === "all") {
+        const stepwise = button("data-checks-stepwise", () => {
+          setPace(ctx.id, { mode: "step", fastForwardTo: 0 });
+          remount();
+        });
+        stepwise.textContent = text.text("checks.stepwise");
+        show(stepwise);
+        return;
+      }
+      const again = button("data-checks-again", () => {
+        setPace(ctx.id, { mode: "step", fastForwardTo: 0 });
+        remount();
+      });
+      again.textContent = text.text("checks.again");
+      const all = button("data-checks-all", () => {
+        setPace(ctx.id, { mode: "all", fastForwardTo: 0 });
+        remount();
+      });
+      all.textContent = text.text("checks.together");
+      show(label, again, all);
+    },
   };
 }
 
