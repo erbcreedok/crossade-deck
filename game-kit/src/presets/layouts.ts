@@ -10,6 +10,7 @@
 import { extentOf, type Point } from "../core/atoms/bounded.js";
 import type { LayoutChild, LayoutRecord } from "../core/atoms/container.js";
 import type { LayoutAlign } from "../core/atoms/layouts.js";
+import { finite, oneOf } from "../core/guard.js";
 
 export interface GridOptions {
   /** How many cells wide the grid is. Children fill it in reading order, left to right first. */
@@ -31,9 +32,13 @@ export interface GridOptions {
  * recentring, because a card that moves when its neighbour leaves is a card the reader loses.
  */
 export function gridLayout({ columns, gap = 0, padding = 0, justifyItems = "center", alignItems = "center" }: GridOptions): LayoutRecord {
-  const cols = Math.max(1, Math.floor(columns));
+  const cols = Math.max(1, Math.floor(finite(columns, 1, "gridLayout.columns")));
+  const g = finite(gap, 0, "gridLayout.gap");
+  const pad = finite(padding, 0, "gridLayout.padding");
+  const justify = oneOf(justifyItems, ["start", "center", "end"], "center", "gridLayout.justifyItems");
+  const alignY = oneOf(alignItems, ["start", "center", "end"], "center", "gridLayout.alignItems");
   return {
-    padding,
+    padding: pad,
     place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
       const sizes = children.map((c) => (c.footprint ? extentOf(c.footprint) : { w: 0, h: 0 }));
       const used = Math.min(cols, children.length);
@@ -47,11 +52,11 @@ export function gridLayout({ columns, gap = 0, padding = 0, justifyItems = "cent
 
       // Cell middles by cursor walk, the row's own arithmetic run once per axis.
       const centres = (tracks: readonly number[]): number[] => {
-        const total = tracks.reduce((a, b) => a + b, 0) + gap * Math.max(0, tracks.length - 1);
+        const total = tracks.reduce((a, b) => a + b, 0) + g * Math.max(0, tracks.length - 1);
         let cursor = -total / 2;
         return tracks.map((t) => {
           const mid = cursor + t / 2;
-          cursor += t + gap;
+          cursor += t + g;
           return mid;
         });
       };
@@ -65,8 +70,8 @@ export function gridLayout({ columns, gap = 0, padding = 0, justifyItems = "cent
         const c = i % cols;
         const r = Math.floor(i / cols);
         return {
-          x: cellX[c]! + within(justifyItems, sizes[i]!.w, colW[c]!),
-          y: cellY[r]! + within(alignItems, sizes[i]!.h, rowH[r]!),
+          x: cellX[c]! + within(justify, sizes[i]!.w, colW[c]!),
+          y: cellY[r]! + within(alignY, sizes[i]!.h, rowH[r]!),
         };
       });
     },
@@ -87,9 +92,14 @@ export interface SlotsOptions {
  * the six that fit must not shuffle to absorb it.
  */
 export function slotsLayout({ slots, padding = 0 }: SlotsOptions): LayoutRecord {
+  const pad = finite(padding, 0, "slotsLayout.padding");
+  const seats = slots.map((s, i) => ({
+    x: finite(s.x, 0, `slotsLayout.slots[${i}].x`),
+    y: finite(s.y, 0, `slotsLayout.slots[${i}].y`),
+  }));
   return {
-    padding,
-    place: (children) => children.map((_, i) => slots[i]),
+    padding: pad,
+    place: (children) => children.map((_, i) => seats[i]),
   };
 }
 
@@ -115,13 +125,17 @@ export interface RadialOptions {
  * its own `angle`.
  */
 export function radialLayout({ radius, start = 0, sweep = 360, padding = 0 }: RadialOptions): LayoutRecord {
+  const r = finite(radius, 0, "radialLayout.radius");
+  const st = finite(start, 0, "radialLayout.start");
+  const sw = finite(sweep, 360, "radialLayout.sweep");
+  const pad = finite(padding, 0, "radialLayout.padding");
   return {
-    padding,
+    padding: pad,
     place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
-      const step = sweep >= 360 ? sweep / Math.max(1, children.length) : children.length > 1 ? sweep / (children.length - 1) : 0;
+      const step = sw >= 360 ? sw / Math.max(1, children.length) : children.length > 1 ? sw / (children.length - 1) : 0;
       return children.map((_, i) => {
-        const angle = ((start + i * step) * Math.PI) / 180;
-        return { x: radius * Math.sin(angle), y: -radius * Math.cos(angle) };
+        const angle = ((st + i * step) * Math.PI) / 180;
+        return { x: r * Math.sin(angle), y: -r * Math.cos(angle) };
       });
     },
   };

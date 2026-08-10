@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { add, caps, fieldsOf, node, remove } from "../node.js";
 import { Bounded } from "./bounded.js";
 import { Container, contentExtent, placeChildren, registerLayout, resetLayouts } from "./container.js";
@@ -13,6 +13,10 @@ beforeEach(() => {
   registerLayout("free", freeLayout);
   registerLayout("row", rowLayout({ gap: 0 }));
 });
+
+// The guards shout through `console.error` on a dev build; the suite silences that channel and
+// asserts the call, so a clamp that stopped shouting is a red test, not a quiet regression.
+afterEach(() => vi.restoreAllMocks());
 
 describe("Container", () => {
   it("atom.container.is-the-arrangement — that link is BASE and needs no atom", () => {
@@ -277,11 +281,12 @@ describe("Container", () => {
     expect(contentExtent(root)).toEqual({ w: 0, h: 0 });
   });
 
-  // --- Degenerate and invalid configs. Nothing in this subsystem THROWS: a bad config either
-  // degrades to well-defined geometry (a clamp, an overlap, a kept pose) or, for numeric
-  // garbage, poisons the answer with NaN — and there is no numeric guard anywhere to stop it.
-  // These lock which of the two each config lands on, so a future "helpful" throw is a decision,
-  // not an accident.
+  // --- Degenerate and invalid configs. Nothing in this subsystem THROWS. A FINITE oddity is
+  // honest arithmetic and stands (a negative gap overlaps, a negative padding shrinks the area,
+  // a zero box takes no room). A value the TYPE cannot forbid — a non-finite number, an enum
+  // member cast past its union — is clamped to the documented default and SHOUTS on dev
+  // (`guard.ts`). These lock which of the two each config lands on: the clamp is a decision with
+  // a guard behind it, not silent poison.
 
   it("atom.container.negative-gap-overlaps — a gap below zero pulls neighbours together, silently", () => {
     // A negative gap is not rejected: it is arithmetic, and the arithmetic makes the two cards
@@ -307,44 +312,81 @@ describe("Container", () => {
     expect(contentExtent(root)).toEqual({ w: 1.5, h: 0.5 });
   });
 
-  it("atom.container.unknown-align-reads-as-end — the ternary's open door, silent", () => {
-    // `align` is a three-way ternary with no validation: center, else start, ELSE end. Any value
-    // the type forbids but the runtime still receives is read as `end`. This documents the door —
-    // an unrecognised align is not a throw and not a no-op, it is silently the last arm.
+  it("atom.container.unknown-align-falls-back-to-center-and-shouts — a cast-in enum clamps loudly", () => {
+    // `align` is typed `LayoutAlign`, so a typo cannot compile — the cast here is what a dynamic
+    // value (JSON, network) does at runtime. The guard clamps the stray value to the documented
+    // default `center` and shouts once on dev, rather than reading it as some silent last arm.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
     registerLayout("row", rowLayout({ align: "middle" as LayoutAlign }));
     const root = node("ua1", Container({ layout: "row" }));
     add(root, node("ua2", box(1, 1)));
     add(root, node("ua3", box(1, 2)));
-    // The tall card sets the thickness (2); `end` drops the short card's middle by (2−1)/2 = 0.5.
-    expect(placeChildren(root).get("ua2")).toEqual({ x: -0.5, y: 0.5 });
+    // `center`: the short card's middle sits on the line, the cross-axis spends nothing.
+    expect(placeChildren(root).get("ua2")).toEqual({ x: -0.5, y: 0 });
     expect(placeChildren(root).get("ua3")).toEqual({ x: 0.5, y: 0 });
+    expect(errs).toHaveBeenCalledOnce();
+    expect(errs.mock.calls[0]![0]).toContain("rowLayout.align");
   });
 
-  it("atom.container.unknown-direction-reads-as-column — anything not 'row' walks the other axis", () => {
-    // `direction` is a two-way check `=== "row"`, so every value that is not exactly `row` — a
-    // typo, a future name — falls to the column walk. Silent, and worth pinning: the failure mode
-    // of a misspelt direction is not an error, it is a sideways layout.
+  it("atom.container.unknown-direction-falls-back-to-row-and-shouts — a cast-in axis clamps loudly", () => {
+    // `direction` is typed `"row" | "column"`; a value past that union arrives only by cast or
+    // from dynamic data. The guard clamps it to `row` and shouts — the misspelt direction is a
+    // loud fallback, not a silent sideways layout.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
     registerLayout("row", rowLayout({ direction: "diagonal", gap: 0 } as unknown as RowOptions));
     const root = node("ud1", Container({ layout: "row" }));
     add(root, node("ud2", box(1, 2)));
     add(root, node("ud3", box(2, 1)));
-    // Column walk reads HEIGHTS 2 and 1: total 3, middles at −0.5 and 1, cross-axis centred at 0.
-    expect(placeChildren(root).get("ud2")).toEqual({ x: 0, y: -0.5 });
-    expect(placeChildren(root).get("ud3")).toEqual({ x: 0, y: 1 });
+    // Row walk reads WIDTHS 1 and 2: total 3, middles at −1 and 0.5, cross-axis centred at 0.
+    expect(placeChildren(root).get("ud2")).toEqual({ x: -1, y: 0 });
+    expect(placeChildren(root).get("ud3")).toEqual({ x: 0.5, y: 0 });
+    expect(errs).toHaveBeenCalledOnce();
+    expect(errs.mock.calls[0]![0]).toContain("rowLayout.direction");
   });
 
-  it("atom.container.nan-gap-poisons-the-line — numeric garbage flows straight through to NaN", () => {
-    // There is no `Number.isFinite` guard on the record's numbers. A NaN gap makes `total` NaN and
-    // every along-axis position NaN — the call does NOT throw, it returns poisoned points. Garbage
-    // in, NaN out; the cross-axis, which the gap never touches, stays clean at 0.
+  it("atom.container.nan-gap-clamps-to-zero-and-shouts — a non-finite number cannot reach the geometry", () => {
+    // `NaN` is still a `number`, so the type cannot stop it — the runtime guard does. A NaN gap is
+    // clamped to 0 (the documented default) and shouts once on dev; the line lays out exactly as a
+    // zero-gap row would, no NaN reaches a single coordinate.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
     registerLayout("row", rowLayout({ gap: NaN }));
     const root = node("nn1", Container({ layout: "row" }));
     add(root, node("nn2", box(1, 1)));
     add(root, node("nn3", box(1, 1)));
     const placed = placeChildren(root);
-    expect(Number.isNaN(placed.get("nn2")!.x)).toBe(true);
-    expect(Number.isNaN(placed.get("nn3")!.x)).toBe(true);
-    expect(placed.get("nn2")!.y).toBe(0); // the align axis is untouched by the gap
+    expect(placed.get("nn2")).toEqual({ x: -0.5, y: 0 });
+    expect(placed.get("nn3")).toEqual({ x: 0.5, y: 0 });
+    expect(errs).toHaveBeenCalledOnce();
+    expect(errs.mock.calls[0]![0]).toContain("rowLayout.gap");
+  });
+
+  it("atom.container.infinite-gap-clamps-to-zero-and-shouts — Infinity is caught too, not just NaN", () => {
+    // The guard is `Number.isFinite`, so ±Infinity falls the same way NaN does — a gap of Infinity
+    // (which would otherwise blow `total` up and place everyone at ±Infinity) clamps to 0 and
+    // shouts. Pinned separately because a NaN-only guard would let Infinity through.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
+    registerLayout("row", rowLayout({ gap: Infinity }));
+    const root = node("if1", Container({ layout: "row" }));
+    add(root, node("if2", box(1, 1)));
+    add(root, node("if3", box(1, 1)));
+    const placed = placeChildren(root);
+    expect(placed.get("if2")).toEqual({ x: -0.5, y: 0 });
+    expect(placed.get("if3")).toEqual({ x: 0.5, y: 0 });
+    expect(errs).toHaveBeenCalledOnce();
+    expect(errs.mock.calls[0]![0]).toContain("rowLayout.gap");
+  });
+
+  it("atom.container.valid-config-is-silent — the guard clamps garbage, it does not cry wolf", () => {
+    // A guard that warns on good input is a guard nobody reads. A row built from finite numbers and
+    // real enum members — including a NEGATIVE gap, which is finite and meaningful — must place its
+    // children and say nothing on the error channel.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
+    registerLayout("row", rowLayout({ gap: -0.5, padding: 0.25, align: "end", direction: "row" }));
+    const root = node("vc1", Container({ layout: "row" }));
+    add(root, node("vc2", box(1, 1)));
+    add(root, node("vc3", box(1, 1)));
+    expect(placeChildren(root).get("vc2")).toEqual({ x: -0.25, y: 0 });
+    expect(errs).not.toHaveBeenCalled();
   });
 
   it("atom.container.zero-box-takes-no-room — a 0×0 child sits on the seam, like a boxless one", () => {

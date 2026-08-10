@@ -15,6 +15,7 @@
 
 import { extentOf, type Point } from "./bounded.js";
 import { registerLayout, type LayoutChild, type LayoutRecord } from "./container.js";
+import { finite, oneOf } from "../guard.js";
 
 /**
  * Register both under the names `Container.layout` defaults to. Called by the consumer rather
@@ -59,13 +60,17 @@ export interface RowOptions {
  * RECORD, like `gap`, because a cross-axis means nothing to a layout that never places.
  */
 export function rowLayout({ gap = 0, padding = 0, align = "center", direction = "row" }: RowOptions = {}): LayoutRecord {
+  const g = finite(gap, 0, "rowLayout.gap");
+  const pad = finite(padding, 0, "rowLayout.padding");
+  const al = oneOf(align, ["start", "center", "end"], "center", "rowLayout.align");
+  const dir = oneOf(direction, ["row", "column"], "row", "rowLayout.direction");
   return {
-    padding,
+    padding: pad,
     place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
       const sizes = children.map((c) => (c.footprint ? extentOf(c.footprint) : { w: 0, h: 0 }));
-      const along = sizes.map((s) => (direction === "row" ? s.w : s.h));
-      const across = sizes.map((s) => (direction === "row" ? s.h : s.w));
-      const total = along.reduce((a, b) => a + b, 0) + gap * Math.max(0, children.length - 1);
+      const along = sizes.map((s) => (dir === "row" ? s.w : s.h));
+      const across = sizes.map((s) => (dir === "row" ? s.h : s.w));
+      const total = along.reduce((a, b) => a + b, 0) + g * Math.max(0, children.length - 1);
       // The line is only as thick as its thickest member — that is the edge `start`/`end`
       // press against. Screen axes: `start` is up in a row and left in a column.
       const thickest = across.reduce((a, b) => Math.max(a, b), 0);
@@ -73,9 +78,9 @@ export function rowLayout({ gap = 0, padding = 0, align = "center", direction = 
       let cursor = -total / 2;
       return along.map((size, i) => {
         const main = cursor + size / 2;
-        cursor += size + gap;
-        const cross = align === "center" ? 0 : align === "start" ? (across[i]! - thickest) / 2 : (thickest - across[i]!) / 2;
-        return direction === "row" ? { x: main, y: cross } : { x: cross, y: main };
+        cursor += size + g;
+        const cross = al === "center" ? 0 : al === "start" ? (across[i]! - thickest) / 2 : (thickest - across[i]!) / 2;
+        return dir === "row" ? { x: main, y: cross } : { x: cross, y: main };
       });
     },
   };

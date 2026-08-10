@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { add, node } from "../core/node.js";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, placeChildren, registerLayout, resetLayouts } from "../core/atoms/container.js";
@@ -12,6 +12,8 @@ import { rect } from "./shapes.js";
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 
 beforeEach(() => resetLayouts());
+// Guards shout on `console.error`; the suite silences and asserts the channel per test.
+afterEach(() => vi.restoreAllMocks());
 
 describe("gridLayout", () => {
   it("preset.grid.reading-order — left to right first, then the next row down", () => {
@@ -111,6 +113,26 @@ describe("gridLayout", () => {
     const root = node("ge1", Container({ layout: "grid" }));
     expect(placeChildren(root).size).toBe(0);
   });
+
+  it("preset.grid.non-finite-columns-clamp-to-one-and-shout — NaN and Infinity both fall to one column", () => {
+    // The finite guard runs BEFORE `Math.max(1, floor)`: a NaN column count would floor to NaN and
+    // Infinity would floor to Infinity and blow `Array.from({length})` — so both are clamped to the
+    // fallback 1 first, and shout. A single honest column, not a crash and not an empty answer.
+    for (const columns of [NaN, Infinity]) {
+      resetLayouts();
+      const errs = vi.spyOn(console, "error").mockImplementation(() => {});
+      registerLayout("grid", gridLayout({ columns }));
+      const root = node(`gnf-${columns}`, Container({ layout: "grid" }));
+      ["a", "b", "c"].forEach((id) => add(root, node(`gnf${columns}${id}`, box(1, 1))));
+      const placed = placeChildren(root);
+      // One column, three unit rows: middles at −1, 0, 1 down the y-axis, all at x 0.
+      expect(placed.get(`gnf${columns}a`)).toEqual({ x: 0, y: -1 });
+      expect(placed.get(`gnf${columns}c`)).toEqual({ x: 0, y: 1 });
+      expect(errs).toHaveBeenCalledOnce();
+      expect(errs.mock.calls[0]![0]).toContain("gridLayout.columns");
+      vi.restoreAllMocks();
+    }
+  });
 });
 
 describe("slotsLayout", () => {
@@ -155,6 +177,21 @@ describe("slotsLayout", () => {
     const placed = placeChildren(root);
     expect(placed.get("sp1a")).toEqual({ x: -2, y: 0 });
     expect(placed.size).toBe(1); // the two spare seats produced no entries
+  });
+
+  it("preset.slots.non-finite-seat-falls-to-origin-and-shouts — a poisoned coordinate cannot seat a child", () => {
+    // A slot is a `Point`, and a `Point` cannot forbid a NaN coordinate at the type level — so the
+    // guard clamps each axis at construction. A seat with a NaN x falls to the origin on that axis
+    // and shouts, naming the offending index; the finite seat beside it is untouched.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
+    registerLayout("seats", slotsLayout({ slots: [{ x: NaN, y: 3 }, { x: 2, y: 1 }] }));
+    const root = node("sn1", Container({ layout: "seats" }));
+    add(root, node("sn1a", box(1, 1)));
+    add(root, node("sn1b", box(1, 1)));
+    expect(placeChildren(root).get("sn1a")).toEqual({ x: 0, y: 3 }); // x clamped, y kept
+    expect(placeChildren(root).get("sn1b")).toEqual({ x: 2, y: 1 }); // the finite seat stands
+    expect(errs).toHaveBeenCalledOnce();
+    expect(errs.mock.calls[0]![0]).toContain("slotsLayout.slots[0].x");
   });
 });
 
@@ -234,14 +271,37 @@ describe("radialLayout", () => {
     expect(placed.y).toBeCloseTo(1, 9); // +y is DOWN the screen — mirrored from the usual −1
   });
 
-  it("preset.radial.nan-radius-poisons-the-seat — garbage radius flows through to NaN, no guard", () => {
-    // The preset shares the core's trait: no `Number.isFinite` check. A NaN radius makes both
-    // coordinates NaN and the call still returns — a poisoned point, not a thrown error.
+  it("preset.radial.nan-radius-clamps-to-zero-and-shouts — a non-finite radius cannot reach the seat", () => {
+    // The preset shares the core's guard now: a NaN radius is clamped to 0 (the origin-stack
+    // degenerate) and shouts once on dev, rather than multiplying sin/cos into a NaN point.
+    const errs = vi.spyOn(console, "error").mockImplementation(() => {});
     registerLayout("table", radialLayout({ radius: NaN }));
     const root = node("rp1", Container({ layout: "table" }));
     add(root, node("rp1a", box(0.2, 0.2)));
     const placed = placeChildren(root).get("rp1a")!;
-    expect(Number.isNaN(placed.x)).toBe(true);
-    expect(Number.isNaN(placed.y)).toBe(true);
+    expect(placed.x).toBeCloseTo(0, 9);
+    expect(placed.y).toBeCloseTo(0, 9);
+    expect(errs).toHaveBeenCalledOnce();
+    expect(errs.mock.calls[0]![0]).toContain("radialLayout.radius");
+  });
+
+  it("preset.radial.non-finite-sweep-falls-to-full-circle-and-shouts — NaN and Infinity both clamp to 360", () => {
+    // `sweep` defaults to the full circle, and that is where the guard sends garbage: a NaN or an
+    // Infinity sweep (either of which would make `step` NaN and every seat NaN) clamps to 360, so
+    // the seats share the circle evenly — a shouted fallback, not a ring of poisoned points.
+    for (const sweep of [NaN, Infinity]) {
+      resetLayouts();
+      const errs = vi.spyOn(console, "error").mockImplementation(() => {});
+      registerLayout("arc", radialLayout({ radius: 1, sweep }));
+      const root = node(`rw-${sweep}`, Container({ layout: "arc" }));
+      ["a", "b", "c", "d"].forEach((id) => add(root, node(`rw${sweep}${id}`, box(0.2, 0.2))));
+      const placed = placeChildren(root);
+      // Full circle of four from twelve o'clock: top, right, bottom, left — the even share.
+      expect(placed.get(`rw${sweep}a`)!.y).toBeCloseTo(-1, 9);
+      expect(placed.get(`rw${sweep}b`)!.x).toBeCloseTo(1, 9);
+      expect(errs).toHaveBeenCalledOnce();
+      expect(errs.mock.calls[0]![0]).toContain("radialLayout.sweep");
+      vi.restoreAllMocks();
+    }
   });
 });
