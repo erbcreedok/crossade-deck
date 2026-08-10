@@ -1,0 +1,49 @@
+game-kit/.storybook/locales/pages.ts
+  s_8a89f581d5de84::t_5e2625d31eb6c3 29
+  s_8a89f581d5de84::t_09a2a6e4cce293 89
+  s_8a89f581d5de84::t_22cc9a2f7f6e87 66-69
+game-kit/.storybook/preview.ts
+  s_8a89f581d5de84::t_f3b58125cd7182 152
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_4a8e8658ab404a 145-153
+game-kit/.storybook/locales/chrome/ru.json
+  s_8a89f581d5de84::t_6e3dcfdc3afcbe 57-63
+game-kit/docs/test-plan/08-per-atom-contract.md
+  s_8a89f581d5de84::t_e09873cb478a92 3
+  s_8a89f581d5de84::t_f7af3008b671d8 62-67
+game-kit/src/presets/poses.ts
+  s_8a89f581d5de84::t_7888f6a9e24c4b 1-61,63-71,78-84
+  s_8a89f581d5de84::t_356f0195b8801f 62
+  s_8a89f581d5de84::t_b818f48cce8bd4 72-77
+game-kit/.storybook/devtools/storySource.ts
+  s_8a89f581d5de84::t_76a0e6b4741762 50-53
+game-kit/src/presets/poses.test.ts
+  s_8a89f581d5de84::t_92b5a9c2970b53 1-57
+game-kit/.storybook/stories/PresetsPoses.stories.ts
+  s_8a89f581d5de84::t_ef3cfbbf56a06e 1-86
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_7fcc98fea7c5ec 10
+  s_8a89f581d5de84::t_1e83232bbf577d 36
+game-kit/.storybook/locales/chrome/en.json
+  s_8a89f581d5de84::t_14c50327992ae1 53-59
+game-kit/.storybook/locales/pages/presetsPoses/ru.json
+  s_8a89f581d5de84::t_21422ede61c020 1-43
+game-kit/.storybook/locales/pages/presetsPoses/en.json
+  s_8a89f581d5de84::t_ba42fbf9db6689 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b2a15309e565dbd0dc7617d11be23354715452a8",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
