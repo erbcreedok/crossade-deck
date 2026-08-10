@@ -1,0 +1,80 @@
+{
+  "docs.presetsLayouts.component": [
+    "The arrangements a game actually reaches for, one page per walk: the `row` opened up to its",
+    "cross-axis and its other direction, a `grid`, prepared `slots`, and a `radial` circle. Every",
+    "one is an ORDINARY FUNCTION the kit exports, returning the same still-nameless RECORD",
+    "`rowLayout` does — and the `registerLayout` call in every stand here is made in front of you",
+    "on purpose, because that call is the one move a game repeats for each arrangement of its own:",
+    "",
+    "```ts",
+    "import { Container, gridLayout, node, registerLayout } from \"game-kit\"",
+    "",
+    "registerLayout(\"game.court\", gridLayout({ columns: 3, gap: 0.2 }))",
+    "const court = node(\"court\", Container({ layout: \"game.court\" }))",
+    "```",
+    "",
+    "Two laws hold on every page of this shelf. Spacing and alignment are parameters of the RECORD,",
+    "never fields of the node — `gap` means something in a row and nothing in a free layout, and a",
+    "field four arrangements out of five cannot use is a field that gets misread. And a layout's",
+    "answer is POINTS and nothing else, by type: no walk here can turn a card, lift it, or scale it.",
+    "A seat in the circle that should face the middle says so with the child's own `angle`.",
+    "",
+    "The cards on these stands are sized differently on purpose: alignment is invisible over equal",
+    "boxes, and a row of equal cells would pass off `start`, `center` and `end` as one picture."
+  ],
+  "docs.presetsLayouts.row": [
+    "The stock walk with its cross-axis opened up. `align` says which edges line up across the",
+    "line: `start` is tops, `end` is bottoms, `center` — the default, and the stock record's only",
+    "answer — the middles. Flip through all three and watch the seams: the walk along the line",
+    "never spends a unit, alignment moves cards only across it.",
+    "",
+    "`start`/`end` are named for SCREEN edges, not for reading order: y runs down here, exactly as",
+    "in `Atoms/Transformable`, so `start` presses tops level the way a shelf presses books."
+  ],
+  "docs.presetsLayouts.column": [
+    "The same walk down the other axis — `direction` is a parameter of the record, not a second",
+    "preset. The walk now reads HEIGHTS, the gap stands between vertical neighbours, and `align`",
+    "turned with the line: `start` means left edges now, because it names the edge that lines up,",
+    "and the edge that can line up is always across the walk.",
+    "",
+    "```ts",
+    "registerLayout(\"game.spine\", rowLayout({ direction: \"column\", gap: 0.3, align: \"start\" }))",
+    "```"
+  ],
+  "docs.presetsLayouts.grid": [
+    "Cells in reading order, left to right first, centred on the container's origin. A track fits",
+    "its largest member — the column with the widest card is that wide for every row it crosses —",
+    "rather than cutting anyone to a constant cell.",
+    "",
+    "A cell is an ADDRESS: five cards on three columns leave the last row partial, under the first",
+    "columns, not recentred. A card that moves when its neighbour leaves is a card the reader",
+    "loses.",
+    "",
+    "`justifyItems` and `alignItems` place a card WITHIN its cell — across and down — and spend no",
+    "track space doing it. Shrink one card and press it into a corner of its cell: every other",
+    "card, and every track line, holds still."
+  ],
+  "docs.presetsLayouts.slots": [
+    "Prepared places, taken in tree order: seat one goes to the first child, a board drawn before",
+    "anyone sits down. The slots are data in the record — move one and its occupant follows on the",
+    "next frame, whoever that occupant is by then.",
+    "",
+    "This stand seats one card MORE than there are slots, on purpose. The guest beyond the last",
+    "slot is answered `undefined`, so its own pose stands — exactly the `free` answer — and the",
+    "seated cards do not shuffle to absorb it. Six seats and a seventh guest is a content",
+    "situation, not a crash."
+  ],
+  "docs.presetsLayouts.radial": [
+    "Seats on a circle — players around a table, options around a wheel. Degrees run clockwise",
+    "from twelve o'clock, the same sense `Transformable.angle` turns, so `startAngle: 90` stands",
+    "the first card on the right of the screen.",
+    "",
+    "The full 360 shares the circle evenly with NO doubled seat at the seam: four guests sit at",
+    "quarter turns, not at 0°, 120°, 240° and 360°-which-is-0° again. Pull `sweep` under 360 and",
+    "the walk becomes an arc taken end to end — the fan's fencepost, not the circle's.",
+    "",
+    "And the seat is a POINT. No card here faces the middle, whatever the count, because a place",
+    "answer has no angle in it by type — facing is the child's own `angle`, set by whoever owns",
+    "the child."
+  ]
+}

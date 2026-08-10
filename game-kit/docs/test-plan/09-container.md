@@ -1,6 +1,6 @@
 ## UNIT · Container — slot, layout, spreading
 
-`vitest` · 60 кейсов, расписано 54
+`vitest` · 75 кейсов, расписано 66
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -27,6 +27,18 @@
 | `atom.container.content-extent-spans-negatives` | ребёнок целиком в минусе | протяжённость посчитана | обёртка — объединение, не размер от нуля: минус тянет её ровно настолько, насколько сидит |
 | `atom.container.spreading-does-not-recurse` | внутри — контейнер без коробки с большой картой | протяжённость внешнего | ноль: обёртка объединяет КОРОБКИ, выведенная площадь вложенного — дело его поверхности |
 | `atom.container.an-empty-row-is-a-no-op` | ряд без детей, зазор и отступ заданы | позиции и протяжённость | пусто и ноль — не деление на N−1 и не отступ×2 |
+| `atom.container.align-is-the-record` | ряд из карт 1×1 и 1×2, `align` из записи | позиции посчитаны | `start` поднимает середину короткой до верхушек в уровень, `end` зеркально, `center` — ноль; ход ВДОЛЬ линии не тронут ни в одном ответе |
+| `atom.container.column-is-the-row-turned` | `direction: "column"`, высоты 2 и 1, зазор 0.5, `align: "start"` | позиции посчитаны | обход читает ВЫСОТЫ, `start` стал левыми краями: тот же пресет, ось — параметр записи |
+| `preset.grid.reading-order` | четыре единичных карты, `columns: 2` | позиции посчитаны | слева направо, потом следующий ряд вниз |
+| `preset.grid.tracks-fit-their-largest` | карта 2×1 в первой колонке, соседи единичные | позиции посчитаны | вся колонка стала шире — и в ряду, где широкой нет; узкая в ней центрируется |
+| `preset.grid.a-cell-is-an-address` | три карты на двух колонках | позиции посчитаны | третья стоит под ПЕРВОЙ колонкой: неполный последний ряд не перецентровывается |
+| `preset.grid.gap-stands-between-tracks` | сетка 2×2 единичных, зазор 0.5 | позиции посчитаны | шаг соседей 1.5 по обеим осям: зазоров N−1 на каждую ось |
+| `preset.grid.items-move-within-their-cell` | малая карта в дорожках, раздвинутых крупной соседкой | позиции посчитаны | `start`/`end` двигают её внутри клетки на ±1 по свободной оси; дорожки не сдвинулись ни на юнит |
+| `preset.slots.taken-in-tree-order` | два слота, два ребёнка | позиции посчитаны | место один — первому ребёнку, порядок дерева и есть рассадка |
+| `preset.slots.overflow-keeps-its-own-pose` | один слот, второй гость с позой 5·5 | позиции посчитаны | гостю за последним местом отвечают `undefined`: его поза стоит, севшие не пересаживаются |
+| `preset.radial.the-full-circle-shares-evenly` | четверо на радиусе 1 | позиции посчитаны | верх, право, низ, лево — по четвертям, без сдвоенного места на шве |
+| `preset.radial.an-arc-is-walked-end-to-end` | трое, `sweep: 180` от −90° | позиции посчитаны | оба конца ЗАНЯТЫ — лево, верх, право: частокол веера, не круга |
+| `preset.radial.a-seat-is-a-point` | одинокий гость, `start: 90`, своя поза 9·9 | позиции посчитаны | стоит справа, куда сказал `start`; угла в ответе нет по типу — куда смотреть, решает собственный `angle` |
 | `slot.is-an-address` ⏳ | an 8×8 board | the node count read | ONE node with a grid layout — not 64. An empty cell has no id and is not in the state |
 | `slot.address-form` ⏳ | grid · ordered · heap | the address asked for | grid → a coordinate (e4) · ordered → a NEIGHBOUR (after: id, survives someone else's reorder) · heap → none |
 | `slot.cell-needs-a-life` ⏳ | a cell that must hold its own state | modelled | a container is nested as a CHILD — recursion is already legal, no new entity |

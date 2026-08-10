@@ -215,6 +215,37 @@ describe("Container", () => {
     expect(spanAfter).toBeCloseTo(1 + 0.5, 9); // and the survivors adjoin: one width, one gap
   });
 
+  it("atom.container.align-is-the-record — edges line up across the line, and only across", () => {
+    // Cross-axis alignment is a parameter of the RECORD, like `gap`: it means nothing to a
+    // layout that never places. Heights differ on purpose — equal boxes line up under every
+    // answer, and a test that cannot fail teaches nothing.
+    const desk = (align: "start" | "center" | "end") => {
+      registerLayout("row", rowLayout({ align }));
+      const root = node(`a-${align}`, Container({ layout: "row" }));
+      add(root, node(`a-${align}-short`, box(1, 1)));
+      add(root, node(`a-${align}-tall`, box(1, 2)));
+      return placeChildren(root);
+    };
+    // `start` is TOPS in screen terms: the short card's middle rises to meet the tall one's top.
+    expect(desk("start").get("a-start-short")).toEqual({ x: -0.5, y: -0.5 });
+    expect(desk("start").get("a-start-tall")).toEqual({ x: 0.5, y: 0 });
+    expect(desk("end").get("a-end-short")).toEqual({ x: -0.5, y: 0.5 });
+    // And the walk along the line is untouched: alignment never spends a unit of width.
+    expect(desk("center").get("a-center-short")).toEqual({ x: -0.5, y: 0 });
+  });
+
+  it("atom.container.column-is-the-row-turned — the same walk down the other axis", () => {
+    // One preset, an axis as a parameter — not a second sort of line. The walk reads HEIGHTS
+    // now, the cross-axis reads widths, and `start` means left edges instead of tops.
+    registerLayout("row", rowLayout({ direction: "column", gap: 0.5, align: "start" }));
+    const root = node("col1", Container({ layout: "row" }));
+    add(root, node("col2", box(1, 2)));
+    add(root, node("col3", box(2, 1)));
+    // Heights 2 and 1 with a 0.5 gap: total 3.5, centred — middles at −0.75 and 1.25.
+    expect(placeChildren(root).get("col2")).toEqual({ x: -0.5, y: -0.75 });
+    expect(placeChildren(root).get("col3")).toEqual({ x: 0, y: 1.25 });
+  });
+
   it("atom.container.content-extent-spans-negatives — the wrap is a union, not a size from zero", () => {
     // Konva's classic: an empty-safe bounds routine that quietly anchors at the origin. A child
     // sitting entirely in the negatives must widen the wrap exactly as far as it sits.

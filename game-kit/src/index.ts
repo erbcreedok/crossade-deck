@@ -79,7 +79,7 @@ export {
   type LayoutChild,
   type LayoutRecord,
 } from "./core/atoms/container.js";
-export { freeLayout, installStockLayouts, rowLayout, type RowOptions } from "./core/atoms/layouts.js";
+export { freeLayout, installStockLayouts, rowLayout, type LayoutAlign, type RowOptions } from "./core/atoms/layouts.js";
 export { Surfaced, areaOf, paintable, type SurfacedFields } from "./core/atoms/surfaced.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
@@ -167,3 +167,13 @@ export {
   type LineSpec,
 } from "./presets/line.js";
 export { installStockSurfaces } from "./presets/surfaces.js";
+// Arrangements as functions, like `rowLayout`: each returns a still-nameless record, and the
+// consumer's `registerLayout` call is what gives it a name.
+export {
+  gridLayout,
+  radialLayout,
+  slotsLayout,
+  type GridOptions,
+  type RadialOptions,
+  type SlotsOptions,
+} from "./presets/layouts.js";

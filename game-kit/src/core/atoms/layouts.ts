@@ -31,30 +31,51 @@ export const freeLayout: LayoutRecord = {
   place: (children) => children.map(() => undefined),
 };
 
+/**
+ * Where a child sits ACROSS the line — the axis the walk does not travel. Named for the edge
+ * that lines up, in screen terms: `start` is tops in a row and left edges in a column, `end`
+ * the opposite edges, `center` the middles. Visible only when the footprints differ across —
+ * equal boxes line up under every answer.
+ */
+export type LayoutAlign = "start" | "center" | "end";
+
 export interface RowOptions {
   /** Space between neighbours, in units. */
   readonly gap?: number;
   /** Room left around the row's own tight wrap, in units — read by `contentExtent` alone. */
   readonly padding?: number;
+  /** Which edges line up across the line. `center` when unsaid. */
+  readonly align?: LayoutAlign;
+  /** The axis the line runs along: left to right, or top to bottom. `row` when unsaid. */
+  readonly direction?: "row" | "column";
 }
 
 /**
- * Left to right, centred on the container's origin, each child taking as much room as its own
- * footprint needs. A child with no box takes no width — it is still placed, so that removing
- * a box does not silently shuffle the neighbours.
+ * A line of children, centred on the container's origin, each taking as much room along the
+ * line as its own footprint needs. A child with no box takes no room — it is still placed, so
+ * that removing a box does not silently shuffle the neighbours.
+ *
+ * `direction` picks the axis and `align` settles the other one: both are parameters of the
+ * RECORD, like `gap`, because a cross-axis means nothing to a layout that never places.
  */
-export function rowLayout({ gap = 0, padding = 0 }: RowOptions = {}): LayoutRecord {
+export function rowLayout({ gap = 0, padding = 0, align = "center", direction = "row" }: RowOptions = {}): LayoutRecord {
   return {
     padding,
     place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
-      const widths = children.map((c) => (c.footprint ? extentOf(c.footprint).w : 0));
-      const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, children.length - 1);
+      const sizes = children.map((c) => (c.footprint ? extentOf(c.footprint) : { w: 0, h: 0 }));
+      const along = sizes.map((s) => (direction === "row" ? s.w : s.h));
+      const across = sizes.map((s) => (direction === "row" ? s.h : s.w));
+      const total = along.reduce((a, b) => a + b, 0) + gap * Math.max(0, children.length - 1);
+      // The line is only as thick as its thickest member — that is the edge `start`/`end`
+      // press against. Screen axes: `start` is up in a row and left in a column.
+      const thickest = across.reduce((a, b) => Math.max(a, b), 0);
 
       let cursor = -total / 2;
-      return widths.map((w) => {
-        const x = cursor + w / 2;
-        cursor += w + gap;
-        return { x, y: 0 };
+      return along.map((size, i) => {
+        const main = cursor + size / 2;
+        cursor += size + gap;
+        const cross = align === "center" ? 0 : align === "start" ? (across[i]! - thickest) / 2 : (thickest - across[i]!) / 2;
+        return direction === "row" ? { x: main, y: cross } : { x: cross, y: main };
       });
     },
   };

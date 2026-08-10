@@ -468,6 +468,6 @@
     "",
     "`arrow({ ... })` returns a `Node` — a run and two heads, three nodes wearing ordinary atoms. Not a new atom and not a record: a ready piece of tree that lives by the common laws from then on — walk it, repaint it, turn it like anything built by hand. Its heads take their shape from a registry of their own (`registerHead`) — an assembly stands ON both mechanisms rather than beside them.",
     "",
-    "The catalog's shelves split along exactly these three answer types: `Presets/Bounds` and `Presets/Poses` are data functions, `Presets/Surfaces` are records, `Presets/Components` are assemblies."
+    "The catalog's shelves split along exactly these three answer types: `Presets/Bounds` and `Presets/Poses` are data functions, `Presets/Surfaces` are records, `Presets/Layouts` are the bridge in shelf form (functions returning still-nameless records), `Presets/Components` are assemblies."
   ]
 }

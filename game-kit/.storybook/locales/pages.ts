@@ -26,6 +26,7 @@ import type intro from "./pages/intro/en.json";
 import type node from "./pages/node/en.json";
 import type presetsBounds from "./pages/presetsBounds/en.json";
 import type presetsComponents from "./pages/presetsComponents/en.json";
+import type presetsLayouts from "./pages/presetsLayouts/en.json";
 import type presetsPoses from "./pages/presetsPoses/en.json";
 import type presetsSurfaces from "./pages/presetsSurfaces/en.json";
 import type root from "./pages/root/en.json";
@@ -63,6 +64,10 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     en: () => import("./pages/presetsComponents/en.json"),
     ru: () => import("./pages/presetsComponents/ru.json"),
   },
+  presetsLayouts: {
+    en: () => import("./pages/presetsLayouts/en.json"),
+    ru: () => import("./pages/presetsLayouts/ru.json"),
+  },
   presetsPoses: {
     en: () => import("./pages/presetsPoses/en.json"),
     ru: () => import("./pages/presetsPoses/ru.json"),
@@ -86,6 +91,7 @@ export type PageKey = keyof (typeof node &
   typeof presetsBounds &
   typeof presetsSurfaces &
   typeof presetsComponents &
+  typeof presetsLayouts &
   typeof presetsPoses &
   typeof tests);
 
