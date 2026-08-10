@@ -945,6 +945,7 @@ test.describe.serial("the heavy pages", () => {
         "tests-node--lifecycle",
         ["play.node.it-is-there", "play.node.it-goes", "play.node.it-comes-back", "play.node.repeats"],
       ],
+      ["tests-node--growth", ["play.node.a-scene-grown-while-starting-still-paints"]],
       [
         "tests-bounded--outline",
         [

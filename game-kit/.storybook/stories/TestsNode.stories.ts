@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { expect } from "@storybook/test";
 import { add, Bounded, node, rect, Surfaced } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
-import { checks, differs, painted, pixelAt, settled, standing, type CheckContext } from "../devtools/checks.js";
+import { DEFAULT_VIEWER, scenePlan } from "../../src/index.js";
+import { checks, differs, inkOf, painted, pixelAt, settled, snapshot, standing, type CheckContext } from "../devtools/checks.js";
 
 interface BareArgs {
   id: string;
@@ -103,6 +104,61 @@ export const Lifecycle: StoryObj<BareArgs> = {
         }
         await expect(differs(first, pixelAt(glass, 0.5, 0.5)), "the middle drifted over twenty rounds").toBe(false);
         await expect(scene.host.root.children, "children after twenty rounds").toHaveLength(1);
+      },
+    },
+  ]),
+};
+
+export const Growth: StoryObj<BareArgs> = {
+  // THE PHONE-RELOAD CASE, replayed on demand. A page still laying itself out measures a scene
+  // at next to nothing; the renderer starts asynchronously; the real size arrives INSIDE that
+  // start window. A renderer that has not started cannot take a resize — so either somebody
+  // re-asserts the size once it can listen, or the canvas keeps the needle it was measured at:
+  // an empty scene that any later toggle mysteriously "fixes". This step builds a second scene
+  // of its own, in a two-pixel box grown the same breath, and reads the glass at the end.
+  args: { id: "root" },
+  parameters: { gkDocStory: "tests.node.growth", controls: { include: ["id"] } },
+  render: ({ id }) => scene(tree(id, true)).el,
+  play: checks([
+    {
+      name: "play.node.a-scene-grown-while-starting-still-paints — mounted at a needle, grown mid-start, and the card is on the glass at FULL size",
+      async run(ctx) {
+        // THE WINDOW IS HELD OPEN BY CONSTRUCTION, not caught by luck. On a phone the race is
+        // real time — layout settles while the renderer starts — but a probe that raced a real
+        // resize observer against a warm desktop GPU would only catch the bug on the machines
+        // nobody debugs on. So the probe speaks the painter's own contract: `init` is
+        // asynchronous and the next line is not, so the resize below lands before the renderer
+        // has started, EVERY run. Either the renderer keeps it for the start, or the glass
+        // keeps the needle it was measured at.
+        const { pixiPainter } = await import("../../src/render/pixi.js");
+        const doc = ctx.canvasElement.ownerDocument;
+        const holder = doc.createElement("div");
+        holder.style.cssText = "position:relative;width:360px;height:240px";
+        const view = doc.createElement("canvas");
+        view.style.cssText = "display:block;width:100%;height:100%";
+        holder.appendChild(view);
+        ctx.canvasElement.appendChild(holder);
+
+        // Two pixels: what a container measures on a page whose layout has not settled yet.
+        const painter = pixiPainter(view, { width: 2, height: 2, resolution: 1 });
+        try {
+          const size = { width: 360, height: 240 };
+          const input = { root: tree("probe", true), unit: 60, ...size, viewer: DEFAULT_VIEWER };
+          painter.draw(scenePlan(input), [], "dark");
+          // The layout settles NOW — inside the start window, deterministically.
+          painter.resize(size.width, size.height);
+          await painter.ready;
+          await settled();
+          await settled();
+          const seen = inkOf(snapshot(view), pixelAt(view, 0.02, 0.02));
+          await expect(seen.count, "inked pixels on a glass grown mid-start").toBeGreaterThan(500);
+          // Not merely SOME ink — card-sized ink. A renderer stuck at the needle would paint
+          // the whole scene into a corner smaller than this claim.
+          await expect(seen.maxX - seen.minX, "the ink spans a card, not a needle").toBeGreaterThan(size.width * 0.15);
+        } finally {
+          painter.destroy();
+          holder.remove();
+        }
       },
     },
   ]),
