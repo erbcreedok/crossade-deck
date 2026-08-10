@@ -143,6 +143,41 @@ export function documented(
 }
 
 export { PRESETS, SHAPE_ARGS, shapeOf, shapeSource, type Preset, type ShapeArgs } from "./shape.js";
+export {
+  cardPoseOf,
+  handPoseOf,
+  POSE_ARGS,
+  poseArgsAt,
+  poseOf,
+  poseSliceOf,
+  type PoseArgs,
+} from "./pose.js";
+import { type PoseArgs } from "./pose.js";
+
+// ---- the pose -------------------------------------------------------------------------------
+
+/**
+ * THE POSE'S CONTROLS, ONCE — the whole of `Transformable`, for every node that has one.
+ *
+ * `field` is the group the rows land in, and it NAMES THE ATOM: on a page where a bound and a
+ * record sit on the same panel, `hand transformable` against `surface` is what says which atom a
+ * row belongs to. `prefix` tells two posed nodes apart, exactly as the record's does.
+ */
+export function poseArgTypes(field = "transformable", prefix = ""): Record<string, unknown> {
+  const at = (name: keyof PoseArgs): string => (prefix ? `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}` : name);
+  const doc = (name: keyof PoseArgs, spec: Record<string, unknown>): Record<string, unknown> =>
+    documented(`arg.${name}`, spec, field);
+  return {
+    [at("x")]: doc("x", { control: { type: "range", min: -1.5, max: 1.5, step: 0.05 } }),
+    [at("y")]: doc("y", { control: { type: "range", min: -1.5, max: 1.5, step: 0.05 } }),
+    // Whole steps: `z` is an order, not a distance. Half a rung above a card means nothing.
+    [at("z")]: doc("z", { control: { type: "range", min: -2, max: 2, step: 1 } }),
+    // Fifteen at a time, because that is how anyone actually turns a card: by a notch, not to
+    // 37.4 degrees. A number and not a range, so a reader can type 450 and watch it equal 90.
+    [at("angle")]: doc("angle", { control: { type: "number", step: 15 } }),
+    [at("scale")]: doc("scale", { control: { type: "number", min: 0, step: 0.1 } }),
+  };
+}
 
 // ---- the shape ------------------------------------------------------------------------------
 

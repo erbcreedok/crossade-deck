@@ -12,6 +12,7 @@
 // printing `shapeOf(a)` while every test on the preview side passed.
 
 import { bothRecordSource, cloneRecordSource, endRecordSource, recordSource, startRecordSource, type RecordArgs } from "../stories/record.js";
+import { cardPoseSource, handPoseSource, poseSource } from "../stories/pose.js";
 import { shapeSource, type ShapeArgs } from "../stories/shape.js";
 import { raw, registerSnippetValue } from "./storySource.js";
 
@@ -38,6 +39,12 @@ registerSnippetValue("endRecordOf", (args) => raw(endRecordSource(args)));
 // a patch, which is machinery of this panel and not of the kit.
 registerSnippetValue("bothRecordOf", (args) => raw(bothRecordSource(args)));
 registerSnippetValue("cloneRecordOf", (args) => raw(cloneRecordSource(args)));
+
+// THE POSE, one name per posed node — `Transformable(poseOf(a))` prints as the fields the panel
+// actually set, and an untouched panel prints as `{}`: a default is not a decision.
+registerSnippetValue("poseOf", (args) => raw(poseSource(args)));
+registerSnippetValue("handPoseOf", (args) => raw(handPoseSource(args)));
+registerSnippetValue("cardPoseOf", (args) => raw(cardPoseSource(args)));
 
 // `paintOf` is NOT registered, and cannot be: substitution matches a call with one identifier
 // argument, because a helper is handed the args object and there is exactly one of those.

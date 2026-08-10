@@ -49,6 +49,7 @@
   "arg.offsetY": "Move it down the other axis. Together with `offsetX` this is how a shape drawn from its corner is brought onto its origin.",
   "arg.children": "The real children, one entry per node — edited as the list it is, not a count. Every id lands exactly as written; the area of a surface with no box of its own comes from these, and taking them all away leaves nothing to paint on.",
   "arg.gap": "Space between neighbours in the row, in units. A parameter of the arrangement, not a field of the node.",
+  "arg.layout": "The arrangement, by registry name. Under `free` every child keeps its own `at`; under `row` the layout writes `at` for each of them — and nothing else: height, turn and scale stay the child's own.",
   "arg.padding": "Room left around the tight wrap of the content, in units, before the surface is painted. Zero shrinks the area to exactly that wrap.",
   "arg.fromX": "Where the run starts, across. In units, on the node's own origin.",
   "arg.fromY": "And where it starts, down the screen.",

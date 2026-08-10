@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { extentOf, outlineOf, transformShape } from "../../src/index.js";
 import { documented, PRESETS, SHAPE_ARGS, shapeArgTypes, shapeOf, shapeSource } from "./surfaceControls.js";
 import { overriddenSliceOf, OVERRIDE_ARGS, recordOf, RECORD_ARGS, RECORD_ARG_TYPES, type RecordArgs } from "./surfaceControls.js";
+import { POSE_ARGS, poseArgsAt, poseFields, poseSliceOf, poseSourceOf } from "./pose.js";
 
 const STORIES = new URL("./", import.meta.url).pathname;
 const CHROME = new URL("../locales/chrome/en.json", import.meta.url).pathname;
@@ -50,6 +51,29 @@ describe("record controls", () => {
     // And the three-way switch reaches the record's own toggles, in both directions.
     expect(overriddenSliceOf({ ...OVERRIDE_ARGS, overStroke: "off" }, base).stroke).toBe(false);
     expect(overriddenSliceOf({ ...OVERRIDE_ARGS, overDash: "on" }, { ...base, dash: false }).dash).toBe(true);
+  });
+});
+
+describe("pose controls", () => {
+  it("controls.an-untouched-pose-is-not-printed — the default must be invisible", () => {
+    // The snippet's rule, the same one the shape builder obeys: a default is not a decision.
+    // `scale`'s neutral is ONE — a builder that compared everything to zero would print an
+    // untouched scale on every pose and hide a set zero.
+    expect(poseSourceOf(POSE_ARGS)).toBe("{}");
+    expect(poseFields(POSE_ARGS)).toEqual({});
+    expect(poseSourceOf({ ...POSE_ARGS, angle: 45 })).toBe("{ angle: 45 }");
+    expect(poseSourceOf({ ...POSE_ARGS, scale: 1 })).toBe("{}");
+    expect(poseFields({ ...POSE_ARGS, scale: 0 })).toEqual({ scale: 0 });
+    // Half a position is still a position: one axis set writes the whole `at`.
+    expect(poseFields({ ...POSE_ARGS, x: 0.4 })).toEqual({ at: { x: 0.4, y: 0 } });
+  });
+
+  it("controls.a-prefixed-pose-reads-its-own-rows — handAngle is the hand's, never the card's", () => {
+    // Two whole poses on one panel, told apart by prefix alone — a slice that read a neighbour's
+    // row would show one node wearing the other's turn, and no scene would say which.
+    const args = { ...poseArgsAt("hand", { angle: 30 }), ...poseArgsAt("card", { x: 0.5 }) };
+    expect(poseSliceOf(args, "hand")).toEqual({ ...POSE_ARGS, angle: 30 });
+    expect(poseSliceOf(args, "card")).toEqual({ ...POSE_ARGS, x: 0.5 });
   });
 });
 
