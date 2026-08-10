@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { add, caps, fieldsOf, node, remove } from "../node.js";
 import { Bounded } from "./bounded.js";
-import { Container, contentExtent, placeChildren, registerLayout, resetLayouts } from "./container.js";
+import { Container, contentExtent, placeChildren, registerLayout, resetLayouts, slotAt } from "./container.js";
 import { freeLayout, rowLayout, type LayoutAlign, type RowOptions } from "./layouts.js";
 import { Transformable, type TransformableFields } from "./transformable.js";
 import { rect } from "../../presets/shapes.js";
@@ -415,6 +415,24 @@ describe("Container", () => {
     const placed = placeChildren(root);
     expect(placed.get("un2")).toEqual({ x: 4, y: 4 }); // answered
     expect(placed.get("un3")).toEqual({ x: 2, y: 2 }); // unanswered → own pose stands
+  });
+
+  it("atom.container.slot-at-resolves-the-drop-target — a point picks the nearest seat by id, a heap picks none", () => {
+    // `slotAt` is `placeChildren` read backwards: it names the child whose seat a point lands on —
+    // the drop target under a finger. In a row the nearest centre wins; a free canvas keeps no
+    // seats, so a drop there resolves to nothing.
+    registerLayout("row", rowLayout({ gap: 0 }));
+    const row = node("sa1", Container({ layout: "row" }));
+    add(row, node("sa2", box(1, 1)));
+    add(row, node("sa3", box(1, 1)));
+    add(row, node("sa4", box(1, 1)));
+    // Centres at x −1, 0, 1: a point at 0.9 lands on the third child, at −0.9 on the first.
+    expect(slotAt(row, { x: 0.9, y: 0 })).toBe("sa4");
+    expect(slotAt(row, { x: -0.9, y: 0 })).toBe("sa2");
+    // free keeps no addresses (`layout.no-address-for-a-heap`): a drop resolves to none.
+    const heap = node("sa5", Container({ layout: "free" }));
+    add(heap, node("sa6", box(1, 1)));
+    expect(slotAt(heap, { x: 0, y: 0 })).toBeUndefined();
   });
 
   it("atom.container.layout-over-answers-ignores-extra — surplus points are dropped, not a throw", () => {

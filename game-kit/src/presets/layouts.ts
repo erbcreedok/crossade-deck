@@ -8,7 +8,7 @@
 // the child's own `angle`, set by whoever owns the child, not smuggled in by the arrangement.
 
 import { extentOf, type Point } from "../core/atoms/bounded.js";
-import type { LayoutChild, LayoutRecord } from "../core/atoms/container.js";
+import { nearestSeat, type LayoutChild, type LayoutRecord } from "../core/atoms/container.js";
 import type { LayoutAlign } from "../core/atoms/layouts.js";
 import { finite, oneOf } from "../core/guard.js";
 
@@ -37,9 +37,7 @@ export function gridLayout({ columns, gap = 0, padding = 0, justifyItems = "cent
   const pad = finite(padding, 0, "gridLayout.padding");
   const justify = oneOf(justifyItems, ["start", "center", "end"], "center", "gridLayout.justifyItems");
   const alignY = oneOf(alignItems, ["start", "center", "end"], "center", "gridLayout.alignItems");
-  return {
-    padding: pad,
-    place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
+  const place = (children: readonly LayoutChild[]): readonly (Point | undefined)[] => {
       const sizes = children.map((c) => (c.footprint ? extentOf(c.footprint) : { w: 0, h: 0 }));
       const used = Math.min(cols, children.length);
       const rows = Math.ceil(children.length / cols);
@@ -74,7 +72,11 @@ export function gridLayout({ columns, gap = 0, padding = 0, justifyItems = "cent
           y: cellY[r]! + within(alignY, sizes[i]!.h, rowH[r]!),
         };
       });
-    },
+  };
+  return {
+    padding: pad,
+    place,
+    indexAt: (point, children) => nearestSeat(place(children), point),
   };
 }
 
@@ -97,9 +99,11 @@ export function slotsLayout({ slots, padding = 0 }: SlotsOptions): LayoutRecord 
     x: finite(s.x, 0, `slotsLayout.slots[${i}].x`),
     y: finite(s.y, 0, `slotsLayout.slots[${i}].y`),
   }));
+  const place = (children: readonly LayoutChild[]): readonly (Point | undefined)[] => children.map((_, i) => seats[i]);
   return {
     padding: pad,
-    place: (children) => children.map((_, i) => seats[i]),
+    place,
+    indexAt: (point, children) => nearestSeat(place(children), point),
   };
 }
 
@@ -129,14 +133,16 @@ export function radialLayout({ radius, start = 0, sweep = 360, padding = 0 }: Ra
   const st = finite(start, 0, "radialLayout.start");
   const sw = finite(sweep, 360, "radialLayout.sweep");
   const pad = finite(padding, 0, "radialLayout.padding");
+  const place = (children: readonly LayoutChild[]): readonly (Point | undefined)[] => {
+    const step = sw >= 360 ? sw / Math.max(1, children.length) : children.length > 1 ? sw / (children.length - 1) : 0;
+    return children.map((_, i) => {
+      const angle = ((st + i * step) * Math.PI) / 180;
+      return { x: r * Math.sin(angle), y: -r * Math.cos(angle) };
+    });
+  };
   return {
     padding: pad,
-    place(children: readonly LayoutChild[]): readonly (Point | undefined)[] {
-      const step = sw >= 360 ? sw / Math.max(1, children.length) : children.length > 1 ? sw / (children.length - 1) : 0;
-      return children.map((_, i) => {
-        const angle = ((st + i * step) * Math.PI) / 180;
-        return { x: r * Math.sin(angle), y: -r * Math.cos(angle) };
-      });
-    },
+    place,
+    indexAt: (point, children) => nearestSeat(place(children), point),
   };
 }

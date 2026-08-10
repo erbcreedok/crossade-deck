@@ -1,6 +1,6 @@
 ## UNIT · Container — slot, layout, spreading
 
-`vitest` · 100 кейсов, расписано 88
+`vitest` · 102 кейсов, расписано 90
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -49,6 +49,7 @@
 | `atom.container.zero-box-takes-no-room` | коробка 0×0 между двумя 1×1 | позиции посчитаны | стоит на шве в нуле, ширины не занял; реальные соседи смежны — как у ребёнка без коробки |
 | `atom.container.layout-under-answers-keeps-poses` | запись вернула ОДНУ точку на двух детей | позиции посчитаны | первому — точка, второму — своя поза; недоответ не размазывает точку на соседа |
 | `atom.container.layout-over-answers-ignores-extra` | запись вернула ТРИ точки на одного ребёнка | позиции посчитаны | лишние точки отброшены, размер карты 1; обход по детям, не по массиву — не бросок |
+| `atom.container.slot-at-resolves-the-drop-target` | ряд из трёх карт, точки 0.9 и −0.9; и свободный холст | `slotAt` спрошен | ближайший центр даёт id третьей и первой; у `free` адресов нет — дроп резолвится в `undefined` |
 | `preset.grid.columns-below-one-clamp-to-one` | `columns` 0 и −3 | позиции посчитаны | `Math.max(1, floor)` зажимает в одну колонку: честный вертикальный столбец, не деление на ноль |
 | `preset.grid.non-finite-columns-clamp-to-one-and-shout` | `columns` NaN и Infinity | раскладка построена | finite-гвард ДО `Math.max(1, floor)` — оба зажаты в 1 и криком (`gridLayout.columns`): одна честная колонка, не падение |
 | `preset.grid.fractional-columns-floor-to-whole` | `columns: 2.7`, четыре карты | позиции посчитаны | как 2: floor роняет дробь, тот же порядок чтения и швы, не округление и не ошибка |
@@ -64,8 +65,9 @@
 | `slot.is-an-address` ⏳ | an 8×8 board | the node count read | ONE node with a grid layout — not 64. An empty cell has no id and is not in the state |
 | `slot.address-form` ⏳ | grid · ordered · heap | the address asked for | grid → a coordinate (e4) · ordered → a NEIGHBOUR (after: id, survives someone else's reorder) · heap → none |
 | `slot.cell-needs-a-life` ⏳ | a cell that must hold its own state | modelled | a container is nested as a CHILD — recursion is already legal, no new entity |
-| `layout.both-directions` ⏳ | every layout in the registry | `place(i,n,ctx)` and `indexAt(point,n,ctx)` | both exist; indexAt(place(i)) === i for every i — the inverse is required, not a convenience |
-| `layout.fan-answers-differently` ⏳ | the same point over fan vs row | indexAt asked | different indices: only the layout knows its own geometry |
+| `layout.both-directions` | пять детей через row/grid/radial/slots | `place` и `indexAt` вызваны | обе стороны есть; round-trip `indexAt(place()[i]) === i` для каждого места — инверсия читает ту же геометрию |
+| `layout.fan-answers-differently` | одна точка через radial и row | `indexAt` спрошен | разные индексы: только раскладка знает свою геометрию, инверсия не общая функция |
+| `layout.no-address-for-a-heap` | `free` | `indexAt` прочитан | его нет вовсе — точка на холсте это позиция, не место; отсутствие и есть ответ «куча → никакой» |
 | `layout.cast-lives-here` ⏳ | every layout entry | `cast` read | deckStack → group, fan/row/grid → each. It is a field of the LAYOUT, never of the container |
 | `layout.detached-child-casts` ⏳ | a child dragged out of a group-cast pile | the shadow | it casts on its own automatically — it is outside the container now |
 | `layout.thickness-not-z` ⏳ | a card added to a deckStack | the shadow measured | not one pixel moved: thickness is expressed through `at`. A layout writing z fails the scan |

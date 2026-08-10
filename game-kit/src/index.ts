@@ -75,6 +75,7 @@ export {
   layoutRecord,
   placeChildren,
   registerLayout,
+  slotAt,
   type ContainerFields,
   type LayoutChild,
   type LayoutRecord,

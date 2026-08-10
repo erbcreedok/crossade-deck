@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { add, node } from "../core/node.js";
 import { Bounded } from "../core/atoms/bounded.js";
-import { Container, placeChildren, registerLayout, resetLayouts } from "../core/atoms/container.js";
+import { Container, placeChildren, registerLayout, resetLayouts, type LayoutChild } from "../core/atoms/container.js";
 import { Transformable } from "../core/atoms/transformable.js";
+import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
 import { gridLayout, radialLayout, slotsLayout } from "./layouts.js";
 import { rect } from "./shapes.js";
 
@@ -303,5 +304,49 @@ describe("radialLayout", () => {
       expect(errs.mock.calls[0]![0]).toContain("radialLayout.sweep");
       vi.restoreAllMocks();
     }
+  });
+});
+
+describe("layout inverse", () => {
+  // The record's two directions, tested on the records directly: `place` seats children, `indexAt`
+  // names the seat under a point. Hand-built children carry a unit footprint each — enough for the
+  // geometry, no tree needed.
+  const kids = (n: number): LayoutChild[] =>
+    Array.from({ length: n }, (_, i) => ({ id: `k${i}`, footprint: rect(1, 1), at: undefined }));
+
+  it("layout.both-directions — indexAt is the exact inverse of place for every geometric layout", () => {
+    // The contract the design doc pins: `place` and `indexAt` both exist, and the law is a
+    // round-trip — the point `place` gave seat i must resolve back to i. It holds per geometry
+    // because each layout's `indexAt` reads that same geometry's own `place`.
+    const records = [
+      rowLayout({ gap: 0.1 }),
+      gridLayout({ columns: 3, gap: 0.1 }),
+      radialLayout({ radius: 2 }),
+      slotsLayout({ slots: [{ x: -2, y: 0 }, { x: 0, y: 2 }, { x: 2, y: 0 }, { x: 1, y: -2 }, { x: -1, y: -2 }] }),
+    ];
+    const children = kids(5);
+    for (const rec of records) {
+      const placed = rec.place(children);
+      placed.forEach((p, i) => {
+        if (!p) return;
+        expect(rec.indexAt!(p, children)).toBe(i);
+      });
+    }
+  });
+
+  it("layout.fan-answers-differently — the same point resolves to different seats under radial vs row", () => {
+    // Only the layout knows its geometry, so the inverse is not one shared function: a point to the
+    // right of centre is the third seat in a straight row and the second on a ring.
+    const children = kids(4);
+    const point = { x: 0.9, y: 0 };
+    const inRow = rowLayout({ gap: 0 }).indexAt!(point, children);
+    const inRing = radialLayout({ radius: 1 }).indexAt!(point, children);
+    expect(inRow).not.toBe(inRing);
+  });
+
+  it("layout.no-address-for-a-heap — free keeps no seats, so it offers no indexAt at all", () => {
+    // A free canvas is a heap: a point on it is a position, not a seat. `free` provides no
+    // `indexAt`, and that ABSENCE is how a heap's "no seat" is expressed — nothing to name.
+    expect(freeLayout.indexAt).toBeUndefined();
   });
 });

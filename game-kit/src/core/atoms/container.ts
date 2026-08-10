@@ -49,6 +49,15 @@ export interface LayoutRecord {
    */
   place(children: readonly LayoutChild[]): readonly (Point | undefined)[];
   /**
+   * The INVERSE of `place`: which child's seat a point falls on, by index — the address a drop
+   * resolves to. OPTIONAL, and absent on purpose where a layout has no addresses: a free canvas
+   * or a heap answers "no seat", a point there is a position and not an address (a heap keeps
+   * none, per the design doc). The law is a round-trip, `indexAt(place(children)[i]) === i` for every
+   * placed `i`, guarded in the test plan; a fan answers differently from a row because each reads
+   * its own `place`. `undefined` return means "no seat here" (no children, or none close enough).
+   */
+  indexAt?(point: Point, children: readonly LayoutChild[]): number | undefined;
+  /**
    * Room left AROUND the tight wrap of whatever got placed, in units, read only by
    * `contentExtent`. Not a field of `Container` for the same reason `gap` is not one: it means
    * something for a layout that packs children and nothing for one that never touches them, and
@@ -73,16 +82,11 @@ export function resetLayouts(): void {
 }
 
 /**
- * Where each child of this container comes to rest, by id.
- *
- * A container whose layout is not registered places nobody rather than throwing: a missing
- * record is a content error, and dropping the whole scene over one unknown name would hide
- * every other node that was perfectly fine. The inspector is where it should be visible.
+ * The children as a layout is told about them — data, never the tree to walk. One source, so
+ * `placeChildren` and `slotAt` measure the same footprints and cannot disagree about a seat.
  */
-export function placeChildren(parent: Node): Map<NodeId, Point> {
-  const out = new Map<NodeId, Point>();
-  const fields = fieldsOf<ContainerFields>(parent, "Container");
-  const children: LayoutChild[] = parent.children.map((c) => {
+function layoutChildrenOf(parent: Node): LayoutChild[] {
+  return parent.children.map((c) => {
     const pose = fieldsOf<TransformableFields>(c, "Transformable");
     const box = footprint(c);
     return {
@@ -97,6 +101,19 @@ export function placeChildren(parent: Node): Map<NodeId, Point> {
       at: pose?.at,
     };
   });
+}
+
+/**
+ * Where each child of this container comes to rest, by id.
+ *
+ * A container whose layout is not registered places nobody rather than throwing: a missing
+ * record is a content error, and dropping the whole scene over one unknown name would hide
+ * every other node that was perfectly fine. The inspector is where it should be visible.
+ */
+export function placeChildren(parent: Node): Map<NodeId, Point> {
+  const out = new Map<NodeId, Point>();
+  const fields = fieldsOf<ContainerFields>(parent, "Container");
+  const children = layoutChildrenOf(parent);
 
   const placed = fields ? (layoutRecord(fields.layout)?.place(children) ?? []) : [];
   children.forEach((child, i) => {
@@ -105,6 +122,40 @@ export function placeChildren(parent: Node): Map<NodeId, Point> {
     out.set(child.id, placed[i] ?? child.at ?? { x: 0, y: 0 });
   });
   return out;
+}
+
+/**
+ * Nearest placed seat to a point, by centre distance — the tie-break the canon already picks for
+ * two overlapping hit-zones (CANONS §4). `undefined`-placed children have no seat and are skipped;
+ * the answer is `undefined` when none was placed. Squared distance: monotonic, no `sqrt` needed.
+ */
+export function nearestSeat(placed: readonly (Point | undefined)[], point: Point): number | undefined {
+  let best: number | undefined;
+  let bestD = Infinity;
+  placed.forEach((p, i) => {
+    if (!p) return;
+    const dx = p.x - point.x;
+    const dy = p.y - point.y;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/**
+ * Which child's seat a point lands on, by id — the drop target under a finger. `undefined` when
+ * the layout keeps no addresses (a free canvas, a heap: `indexAt` is absent) or the container is
+ * empty. Delegates to the layout's own `indexAt`, so a fan answers differently from a row.
+ */
+export function slotAt(parent: Node, point: Point): NodeId | undefined {
+  const fields = fieldsOf<ContainerFields>(parent, "Container");
+  const record = fields ? layoutRecord(fields.layout) : undefined;
+  if (!record?.indexAt) return undefined;
+  const i = record.indexAt(point, layoutChildrenOf(parent));
+  return i === undefined ? undefined : parent.children[i]?.id;
 }
 
 /**
