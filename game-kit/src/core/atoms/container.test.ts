@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { add, caps, node } from "../node.js";
+import { add, caps, fieldsOf, node, remove } from "../node.js";
 import { Bounded } from "./bounded.js";
 import { Container, contentExtent, placeChildren, registerLayout, resetLayouts } from "./container.js";
 import { freeLayout, rowLayout } from "./layouts.js";
-import { Transformable } from "./transformable.js";
+import { Transformable, type TransformableFields } from "./transformable.js";
 import { rect } from "../../presets/shapes.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
@@ -134,5 +134,115 @@ describe("Container", () => {
     const [first, second] = [...placeChildren(row).values()];
     // Half of the big one plus half of the small one, with the row's gap of zero: 1 + 0.5.
     expect(second!.x - first!.x).toBeCloseTo(1.5, 9);
+  });
+
+  it("atom.container.gap-stands-between — N children get N−1 gaps, and the edges get none", () => {
+    // The classic fencepost: gap×N instead of gap×(N−1) survives every two-child test ever
+    // written, because there it is off by a constant the centring hides. One child is where it
+    // shows — a lone card with an outer gap would sit off-centre.
+    registerLayout("row", rowLayout({ gap: 1 }));
+    const root = node("f1", Container({ layout: "row" }));
+    add(root, node("f2", box(1, 1)));
+    expect(placeChildren(root).get("f2")).toEqual({ x: 0, y: 0 });
+  });
+
+  it("atom.container.neighbours-adjoin — each child starts where the last one ended, plus the gap", () => {
+    // Totals can be right while the seams drift: an accumulation bug redistributes the same
+    // total width unevenly. The claim is PAIRWISE — right edge to left edge, every seam.
+    registerLayout("row", rowLayout({ gap: 0.25 }));
+    const widths = [2, 1, 0.5];
+    const root = node("f3", Container({ layout: "row" }));
+    widths.forEach((w, i) => add(root, node(`f3c${i}`, box(w, 1))));
+    const xs = widths.map((_, i) => placeChildren(root).get(`f3c${i}`)!.x);
+    for (let i = 1; i < widths.length; i += 1) {
+      expect(xs[i]! - widths[i]! / 2).toBeCloseTo(xs[i - 1]! + widths[i - 1]! / 2 + 0.25, 9);
+    }
+  });
+
+  it("atom.container.order-is-the-tree — the row reads the slot, never the ids or the sizes", () => {
+    // The same two cards inserted both ways give mirrored pictures: position follows insertion
+    // order and nothing else. A layout sorting by id or by width would pass any single-order test.
+    const wide = () => box(2, 1);
+    const slim = () => box(1, 1);
+    const ab = node("f4", Container({ layout: "row" }));
+    add(ab, node("f5", wide()));
+    add(ab, node("f6", slim()));
+    const ba = node("f7", Container({ layout: "row" }));
+    add(ba, node("f6b", slim()));
+    add(ba, node("f5b", wide()));
+    expect(placeChildren(ab).get("f5")).toEqual({ x: -0.5, y: 0 });
+    expect(placeChildren(ab).get("f6")).toEqual({ x: 1, y: 0 });
+    expect(placeChildren(ba).get("f6b")).toEqual({ x: -1, y: 0 });
+    expect(placeChildren(ba).get("f5b")).toEqual({ x: 0.5, y: 0 });
+  });
+
+  it("atom.container.placing-is-pure — the answer is a map, and the tree is not written to", () => {
+    // A layout is GIVEN data and returns points; the day a shared code path "helpfully" writes
+    // the answer back into `at`, free stops meaning "the pose stands" — because the pose it
+    // keeps would be the one the last row wrote.
+    const root = node("f8", Container({ layout: "row" }));
+    const child = node("f9", box(1, 1), Transformable({ at: { x: 7, y: 7 } }));
+    add(root, child);
+    expect(placeChildren(root).get("f9")).toEqual({ x: 0, y: 0 }); // the row placed it…
+    expect(fieldsOf<TransformableFields>(child, "Transformable")?.at).toEqual({ x: 7, y: 7 }); // …and wrote nothing
+  });
+
+  it("atom.container.placing-twice-is-the-same-place — no feedback loop through what it wrote", () => {
+    // A layout that reads a position it itself computed converges nowhere; asking twice must be
+    // asking once. Cheap to hold today, and exactly the kind of promise that breaks silently.
+    registerLayout("row", rowLayout({ gap: 0.3 }));
+    const root = node("f12", Container({ layout: "row" }));
+    add(root, node("f13", box(2, 1), Transformable({ at: { x: 9, y: 9 } })));
+    add(root, node("f14", box(1, 1)));
+    expect(placeChildren(root)).toEqual(placeChildren(root));
+  });
+
+  it("atom.container.removal-closes-the-aisle — the row heals by exactly a width and a gap", () => {
+    // Stale cached measurement is the bug this catches: after a removal the survivors must
+    // adjoin again, and the total must shrink by the departed width plus ONE gap.
+    registerLayout("row", rowLayout({ gap: 0.5 }));
+    const root = node("f15", Container({ layout: "row" }));
+    const middle = node("f17", box(1, 1));
+    add(root, node("f16", box(1, 1)));
+    add(root, middle);
+    add(root, node("f18", box(1, 1)));
+    const before = placeChildren(root);
+    const spanBefore = before.get("f18")!.x - before.get("f16")!.x;
+    remove(root, middle);
+    const after = placeChildren(root);
+    const spanAfter = after.get("f18")!.x - after.get("f16")!.x;
+    expect(spanBefore - spanAfter).toBeCloseTo(1 + 0.5, 9);
+    expect(spanAfter).toBeCloseTo(1 + 0.5, 9); // and the survivors adjoin: one width, one gap
+  });
+
+  it("atom.container.content-extent-spans-negatives — the wrap is a union, not a size from zero", () => {
+    // Konva's classic: an empty-safe bounds routine that quietly anchors at the origin. A child
+    // sitting entirely in the negatives must widen the wrap exactly as far as it sits.
+    const root = node("f19", Container({ layout: "free" }));
+    add(root, node("f20", box(1, 2), Transformable({ at: { x: -3, y: 1 } })));
+    add(root, node("f21", box(1, 2), Transformable({ at: { x: 2, y: 0 } })));
+    expect(contentExtent(root).w).toBeCloseTo(6, 9); // −3.5 … 2.5
+    expect(contentExtent(root).h).toBeCloseTo(3, 9); // −1 … 2
+  });
+
+  it("atom.container.spreading-does-not-recurse — a boxless container inside occupies nothing", () => {
+    // The wrap unions BOXES, and a container with none contributes none — its derived area is
+    // what `Surfaced` may paint on, never a footprint the outer desk must reserve. If nesting is
+    // ever to occupy room, it will arrive as a stated law, not leak in through a measurement.
+    const outer = node("f22", Container({ layout: "free" }));
+    const inner = node("f23", Container({ layout: "free" }));
+    add(inner, node("f24", box(4, 4)));
+    add(outer, inner);
+    expect(contentExtent(outer)).toEqual({ w: 0, h: 0 });
+  });
+
+  it("atom.container.an-empty-row-is-a-no-op — no children, no places, no throw", () => {
+    // Flutter runs every alignment against the zero-child tree before asserting sizes, and for
+    // the same reason: the degenerate case is where a `total/(n-1)` divides by nothing.
+    registerLayout("row", rowLayout({ gap: 1, padding: 0.5 }));
+    const root = node("f25", Container({ layout: "row" }));
+    expect(placeChildren(root).size).toBe(0);
+    // Nothing inside means nothing to pad, either — zero, not padding×2.
+    expect(contentExtent(root)).toEqual({ w: 0, h: 0 });
   });
 });

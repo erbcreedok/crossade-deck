@@ -1,6 +1,6 @@
 ## UNIT · Container — slot, layout, spreading
 
-`vitest` · 51 кейсов, расписано 45
+`vitest` · 60 кейсов, расписано 54
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -18,6 +18,15 @@
 | `atom.container.content-extent-empty` | пустой контейнер | протяжённость посчитана | ноль, а не бесконечность |
 | `atom.container.content-extent-boxless` | ребёнок без коробки | протяжённость посчитана | ноль: мерить нечего |
 | `layout.reserves-room-for-the-scaled-child` | ряд, первый ребёнок с масштабом 2 | раскладка посчитана | шаг 1.5 — половина большого плюс половина малого. Раскладка держит место под то, что БУДЕТ видно, иначе карта наезжает на соседа |
+| `atom.container.gap-stands-between` | один ребёнок в ряду с зазором 1 | позиции посчитаны | стоит в нуле: зазоров N−1, краям воздуха не положено |
+| `atom.container.neighbours-adjoin` | ряд ширин 2 · 1 · 0.5, зазор 0.25 | позиции посчитаны | каждый шов попарно точен: правый край плюс зазор — левый край следующего |
+| `atom.container.order-is-the-tree` | те же две карты, вставленные в оба порядка | позиции посчитаны | зеркальные картинки: место следует за порядком вставки, не за id и не за шириной |
+| `atom.container.placing-is-pure` | ребёнок с позой 7·7 в ряду | позиции посчитаны | ответ — карта, дерево не тронуто: собственный `at` ребёнка остался 7·7 |
+| `atom.container.placing-twice-is-the-same-place` | тот же ряд | посчитано дважды | карты равны: обратной связи через собственный ответ нет |
+| `atom.container.removal-closes-the-aisle` | трое в ряду с зазором 0.5 | средний удалён | размах сжался ровно на ширину плюс ОДИН зазор, выжившие снова смежны |
+| `atom.container.content-extent-spans-negatives` | ребёнок целиком в минусе | протяжённость посчитана | обёртка — объединение, не размер от нуля: минус тянет её ровно настолько, насколько сидит |
+| `atom.container.spreading-does-not-recurse` | внутри — контейнер без коробки с большой картой | протяжённость внешнего | ноль: обёртка объединяет КОРОБКИ, выведенная площадь вложенного — дело его поверхности |
+| `atom.container.an-empty-row-is-a-no-op` | ряд без детей, зазор и отступ заданы | позиции и протяжённость | пусто и ноль — не деление на N−1 и не отступ×2 |
 | `slot.is-an-address` ⏳ | an 8×8 board | the node count read | ONE node with a grid layout — not 64. An empty cell has no id and is not in the state |
 | `slot.address-form` ⏳ | grid · ordered · heap | the address asked for | grid → a coordinate (e4) · ordered → a NEIGHBOUR (after: id, survives someone else's reorder) · heap → none |
 | `slot.cell-needs-a-life` ⏳ | a cell that must hold its own state | modelled | a container is nested as a CHILD — recursion is already legal, no new entity |
