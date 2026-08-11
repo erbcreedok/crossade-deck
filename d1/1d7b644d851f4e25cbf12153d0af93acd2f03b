@@ -1,0 +1,30 @@
+game-kit/docs/test-plan/33-grippable.md
+  s_8a89f581d5de84::t_a6be98b7a11889 1-17
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_ee81607ec21e72 61
+  s_8a89f581d5de84::t_fa84b85aadee24 10
+game-kit/src/core/atoms/grippable.test.ts
+  s_8a89f581d5de84::t_eecbba9495ae7c 1-46
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_8334490810956e 137-138
+game-kit/src/core/atoms/grippable.ts
+  s_8a89f581d5de84::t_0c2ec82d783d7e 1-35
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_adaf9e54323309 83-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d11d7b644d851f4e25cbf12153d0af93acd2f03b",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
