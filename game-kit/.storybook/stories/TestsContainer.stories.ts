@@ -47,6 +47,9 @@ interface RowArgs {
 const WIDE = 1;
 const SLIM = 0.5;
 const H = 0.5;
+/** The stock `"row"` layout's own gap, in units (see `installStockLayouts`). A sum of parts
+ *  through the stock record is the widths PLUS one of these per seam — the number the ink shows. */
+const GAP = 0.12;
 
 const CARD = "tests.row.card";
 const DESK = "tests.row.desk";
@@ -134,12 +137,13 @@ export const Row: StoryObj<RowArgs> = {
         const px = perUnit(live);
         surfaces();
         // The reference: the stock row, centred on the canvas's own middle. Two different
-        // widths, one exact sum — a row of equal cells would already be wrong here.
+        // widths, one exact sum plus the row's own gap between them — a row of equal cells, or
+        // one that forgot its gap, would already be wrong here.
         live.setRoot(row(id, "row", [card("wide", WIDE, H), card("slim", SLIM, H)]));
         await settled();
         const standing1 = ink(glass);
         await expect(standing1.count, "inked pixels").toBeGreaterThan(0);
-        await expect(...gap("row width", widthOf(standing1), (WIDE + SLIM) * px)).toBeLessThan(nearly(px, 0.12));
+        await expect(...gap("row width", widthOf(standing1), (WIDE + SLIM + GAP) * px)).toBeLessThan(nearly(px, 0.12));
         await expect(...gap("row height", heightOf(standing1), H * px)).toBeLessThan(nearly(px, 0.12));
         await expect(...gap("row center x", centerX(standing1), glass.width / 2)).toBeLessThan(nearly(px, 0.1));
         await expect(...gap("row center y", centerY(standing1), glass.height / 2)).toBeLessThan(nearly(px, 0.1));
@@ -205,9 +209,9 @@ export const Row: StoryObj<RowArgs> = {
         const px = perUnit(live);
         // The wide card carries scale 2. Measured at one and drawn at two it would sit UNDER
         // its neighbour — the row must reserve the scaled footprint, and the sum says whether
-        // it did: 2 + 0.5 units of ink, 1 unit tall, and the seam between them still exact.
+        // it did: 2 + 0.5 units of ink plus the stock gap, 1 unit tall, seam between them exact.
         const posed = inkIn(glass, await shown(live, glass, row(id, "row", [card("wide", WIDE, H, { scale: 2 }), card("slim", SLIM, H)])));
-        await expect(...gap("reserved width", widthOf(posed), (2 * WIDE + SLIM) * px)).toBeLessThan(nearly(px, 0.15));
+        await expect(...gap("reserved width", widthOf(posed), (2 * WIDE + SLIM + GAP) * px)).toBeLessThan(nearly(px, 0.15));
         await expect(...gap("reserved height", heightOf(posed), 2 * H * px)).toBeLessThan(nearly(px, 0.15));
       },
     },
