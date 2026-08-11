@@ -1,0 +1,30 @@
+game-kit/docs/test-plan/31-tiltable.md
+  s_8a89f581d5de84::t_c03613e7aa5f87 1-18
+game-kit/src/core/atoms/tiltable.ts
+  s_8a89f581d5de84::t_9e630ed93b9bac 1-54
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_32e95a1f3a9bb3 139-140
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_651354a44b61ea 10
+  s_8a89f581d5de84::t_9ffc171c5e5ef3 59
+game-kit/src/core/atoms/tiltable.test.ts
+  s_8a89f581d5de84::t_8e7ac03cc60459 1-46
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_51e7d7746c3478 55-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5cad04e4fc60252bee7c792386e9994eea982f58",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
