@@ -1,0 +1,38 @@
+game-kit/src/core/atoms/grab.ts
+  s_8a89f581d5de84::t_29cbb54deec57c 1-70
+game-kit/src/core/atoms/keeps.ts
+  s_8a89f581d5de84::t_49ec4f0066db81 1-31
+game-kit/src/core/atoms/keeps.test.ts
+  s_8a89f581d5de84::t_47f4cf7bb2ac5c 1-28
+game-kit/src/core/atoms/occupied.test.ts
+  s_8a89f581d5de84::t_08c59f9a9da59d 1-38
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_d19a58659d5371 55
+  s_8a89f581d5de84::t_11145e5df19c99 10
+game-kit/src/core/atoms/grab.test.ts
+  s_8a89f581d5de84::t_9c04cc81b84ca0 1-45
+game-kit/docs/test-plan/27-container-policies.md
+  s_8a89f581d5de84::t_2890456363a0ac 1-25
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_10e48fda2abb55 24-38
+game-kit/src/core/atoms/occupied.ts
+  s_8a89f581d5de84::t_94be9a86461edd 1-76
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_59da11ec80015a 99-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4a9761594080a7c57928949ec44211213b160acd",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
