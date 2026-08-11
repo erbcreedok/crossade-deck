@@ -1,0 +1,30 @@
+game-kit/src/core/actions.test.ts
+  s_8a89f581d5de84::t_244bd2212738ce 1-56
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_3f64fcc267ab11 141-150
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_c606bc0fd2584c 10
+  s_8a89f581d5de84::t_c67641f2c7585e 60
+game-kit/src/core/actions.ts
+  s_8a89f581d5de84::t_569475d5a3edc7 1-61
+game-kit/docs/test-plan/32-actions.md
+  s_8a89f581d5de84::t_3de9e3cae01255 1-18
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_85b16fca0e7380 69-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "72e7985cca354e6a724d2f6e38b1832e874f2612",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
