@@ -214,6 +214,8 @@ export {
 // The figures a designer asks for, as ordinary functions. A `Shape` has no sorts; these build
 // one, so a new figure is a new function rather than a new branch in five files.
 export { circle, ellipse, polygon, rect, roundedRect, star } from "./presets/shapes.js";
+// A set's cards, expanded: one node per physical card, where Bounded·Surfaced·Flippable·Valued meet.
+export { deck, type CardSpec, type DeckOptions } from "./presets/deck.js";
 export {
   cascade,
   fan,
