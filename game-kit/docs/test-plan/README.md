@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**26 слоя · 796 кейсов заявлено · 615 расписано поимённо.**
+**27 слоя · 811 кейсов заявлено · 630 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -52,3 +52,4 @@
 | [REGRESSION GUARDS · known traps](24-regression-guards.md) | `vitest — one test per historical bug` | 10 | 6 |
 | [E2E](25-e2e.md) | `Playwright against the built Storybook` | 44 | 44 |
 | [UNIT · AcceptRule — the zone's predicate](26-accept.md) | `vitest` | 18 | 18 |
+| [UNIT · Container policies — grab · occupied · keeps](27-container-policies.md) | `vitest` | 15 | 15 |

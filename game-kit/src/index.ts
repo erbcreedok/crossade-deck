@@ -96,6 +96,34 @@ export {
   type TargetSubject,
   type Verdict,
 } from "./core/accept.js";
+// Container policies, each a small atom over Container: what leaves, what displaces, what acts inside.
+export {
+  Grabber,
+  grabAbove,
+  grabFrom,
+  grabOne,
+  grabRule,
+  grabTop,
+  installStockGrabs,
+  registerGrab,
+  type GrabberFields,
+  type GrabRule,
+} from "./core/atoms/grab.js";
+export {
+  capture,
+  Displacer,
+  installStockOccupied,
+  merge,
+  occupiedRecord,
+  registerOccupied,
+  reject,
+  resolveOccupied,
+  swap,
+  type DisplacerFields,
+  type OccupiedOutcome,
+  type OccupiedRecord,
+} from "./core/atoms/occupied.js";
+export { Keeper, keepsAllows, type KeeperFields } from "./core/atoms/keeps.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
