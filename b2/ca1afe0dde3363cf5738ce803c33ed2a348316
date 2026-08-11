@@ -1,0 +1,38 @@
+game-kit/src/core/move.ts
+  s_8a89f581d5de84::t_28891037e9040c 1-19,21-69,72-76
+  s_8a89f581d5de84::t_0694b8a05ce8cc 70-71
+  s_8a89f581d5de84::t_0e911f65cbbb34 20
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_e437de3bcd55b4 155-156
+  s_8a89f581d5de84::t_3c9d8013f1fc47 113
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_5d35ae92261428 62
+  s_8a89f581d5de84::t_8f39bf73a5827d 10
+game-kit/src/core/atoms/occupied.ts
+  s_8a89f581d5de84::t_bcc4ef5c9dbb00 23-26,28,32-34,37
+  s_8a89f581d5de84::t_51f62cbf69d218 81-91
+game-kit/src/core/move.test.ts
+  s_8a89f581d5de84::t_9b4c698efdf87d 26
+  s_8a89f581d5de84::t_e7628ae788e77f 83
+  s_8a89f581d5de84::t_589dd08345c8a3 1-25,27-82,84-113
+game-kit/docs/test-plan/34-move.md
+  s_8a89f581d5de84::t_16bc4f6f8b7e9c 1-22
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_bd35b18601bafd 95-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b2ca1afe0dde3363cf5738ce803c33ed2a348316",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
