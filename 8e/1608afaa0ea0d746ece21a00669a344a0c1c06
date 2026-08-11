@@ -1,0 +1,46 @@
+game-kit/src/testPlan.test.ts
+  s_8a89f581d5de84::t_0869842661f456 17-19
+game-kit/src/core/atoms/flippable.ts
+  s_8a89f581d5de84::t_f168fe155bf715 1-2,4-8,10-11,18,25-26,30-32,34,37,39
+game-kit/.storybook/stories/Flippable.stories.ts
+  s_8a89f581d5de84::t_745f576c671c80 2,6,8,12-13,20-22,35-37,45,51,57
+game-kit/.storybook/locales/chrome/en.json
+  s_8a89f581d5de84::t_74b53752412656 37,39
+game-kit/docs/test-plan/08-per-atom-contract.md
+  s_8a89f581d5de84::t_4294413da868e1 101
+game-kit/.storybook/locales/pages/flippable/en.json
+  s_8a89f581d5de84::t_2638acbc98fc14 4,8,13,15-16,19,21,23-27,29,31-33,35,37-39,41,43-45,48,52-53,55-56
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_b13b987ccb0511 140-141
+game-kit/.storybook/locales/pages/flippable/ru.json
+  s_8a89f581d5de84::t_31383ebca8deff 4-5,8,13,15-16,19,21,23-27,29,31-33,35,37-40,42,44-46,50,53-54,56-57
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_194f0a0da9d912 10
+  s_8a89f581d5de84::t_ae8772f5f8734e 58
+game-kit/.storybook/locales/chrome/ru.json
+  s_8a89f581d5de84::t_9c5499465c7851 41,43
+game-kit/src/core/actions.test.ts
+  s_8a89f581d5de84::t_e487314a617119 20,25,36,46
+game-kit/docs/test-plan/30-flippable.md
+  s_8a89f581d5de84::t_fa5d0879f8d7b1 3,5-8,12-16
+game-kit/src/core/atoms/flippable.test.ts
+  s_8a89f581d5de84::t_e76b9ac8ae8fc7 6,12-13,16-17,20-21,25,28-29
+game-kit/src/presets/deck.ts
+  s_8a89f581d5de84::t_e396c2beeba630 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8e1608afaa0ea0d746ece21a00669a344a0c1c06",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
