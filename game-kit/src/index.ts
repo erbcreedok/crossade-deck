@@ -124,6 +124,12 @@ export {
   type OccupiedRecord,
 } from "./core/atoms/occupied.js";
 export { Keeper, keepsAllows, type KeeperFields } from "./core/atoms/keeps.js";
+// Element data: the values a rule reads, the box it came from, the caption it carries, the mark
+// that says it can be set into a slot.
+export { Valued, type ValuedFields } from "./core/atoms/valued.js";
+export { Owned, type OwnedFields } from "./core/atoms/owned.js";
+export { Labeled, type LabeledFields } from "./core/atoms/labeled.js";
+export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeable.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";

@@ -57,7 +57,7 @@ export function subjectOf(node: Node): Subject {
     values: valued?.values ?? {},
     traits: new Set(), // no trait atom yet — an honest empty set, so `has` denies until one exists
   };
-  if (owned?.box !== undefined) subject.box = owned.box;
+  if (owned?.box) subject.box = owned.box; // empty string = belongs to no box, so `el.box` is missing
   return subject;
 }
 
