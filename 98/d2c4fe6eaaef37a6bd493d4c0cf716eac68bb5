@@ -1,0 +1,33 @@
+game-kit/.storybook/locales/pages.ts
+  s_8a89f581d5de84::t_308e0d094af6b2 52
+  s_8a89f581d5de84::t_f32fd83be30553 35
+  s_8a89f581d5de84::t_b5ebde0947ad5b 94
+game-kit/.storybook/locales/chrome/en.json
+  s_8a89f581d5de84::t_bb71cb1ebe3bf5 40-43
+game-kit/.storybook/locales/pages/tiltable/ru.json
+  s_8a89f581d5de84::t_5388b4c0d2aa31 1-61
+game-kit/.storybook/preview.ts
+  s_8a89f581d5de84::t_5882e3cf4eb9b6 147
+game-kit/.storybook/locales/chrome/ru.json
+  s_8a89f581d5de84::t_f0f4bd3d834bc8 44-47
+game-kit/.storybook/stories/Tiltable.stories.ts
+  s_8a89f581d5de84::t_0e91655378cbb8 1-83
+game-kit/.storybook/locales/pages/tiltable/en.json
+  s_8a89f581d5de84::t_ff837311fbaf37 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "98d2c4fe6eaaef37a6bd493d4c0cf716eac68bb5",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
