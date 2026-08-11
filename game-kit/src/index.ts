@@ -138,6 +138,16 @@ export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js"
 export { Flippable, shownFace, type Face, type FlippableFields } from "./core/atoms/flippable.js";
 // The card tap: a turn to one of a few discrete angle stops, the runtime holding which stop.
 export { Tiltable, tiltAngle, tiltStops, nextTilt, type TiltableFields } from "./core/atoms/tiltable.js";
+// The context menu that emerges from what a node IS: a verb per capability, resolved from a registry.
+export {
+  actionNames,
+  actionRecord,
+  actionsOf,
+  installStockActions,
+  registerAction,
+  type Action,
+  type ActionRecord,
+} from "./core/actions.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";

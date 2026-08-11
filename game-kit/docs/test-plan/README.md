@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**31 слоя · 839 кейсов заявлено · 658 расписано поимённо.**
+**32 слоя · 846 кейсов заявлено · 665 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -57,3 +57,4 @@
 | [UNIT · Interaction & visibility atoms — Draggable · Focusable · Private](29-interaction-atoms.md) | `vitest` | 6 | 6 |
 | [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 8 | 8 |
 | [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 8 | 8 |
+| [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 7 | 7 |
