@@ -130,6 +130,10 @@ export { Valued, type ValuedFields } from "./core/atoms/valued.js";
 export { Owned, type OwnedFields } from "./core/atoms/owned.js";
 export { Labeled, type LabeledFields } from "./core/atoms/labeled.js";
 export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeable.js";
+// Interaction & visibility: what can be dragged, focused, and who a private subtree is shown to.
+export { Draggable, draggable, onRejectOf, type DraggableFields } from "./core/atoms/draggable.js";
+export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
+export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
