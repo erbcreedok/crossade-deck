@@ -32,6 +32,7 @@ import type presetsPoses from "./pages/presetsPoses/en.json";
 import type presetsSurfaces from "./pages/presetsSurfaces/en.json";
 import type root from "./pages/root/en.json";
 import type surfaced from "./pages/surfaced/en.json";
+import type tiltable from "./pages/tiltable/en.json";
 import type transformable from "./pages/transformable/en.json";
 import type tests from "./pages/tests/en.json";
 
@@ -48,6 +49,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   },
   container: { en: () => import("./pages/container/en.json"), ru: () => import("./pages/container/ru.json") },
   flippable: { en: () => import("./pages/flippable/en.json"), ru: () => import("./pages/flippable/ru.json") },
+  tiltable: { en: () => import("./pages/tiltable/en.json"), ru: () => import("./pages/tiltable/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -89,6 +91,7 @@ export type PageKey = keyof (typeof node &
   typeof transformable &
   typeof container &
   typeof flippable &
+  typeof tiltable &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &
