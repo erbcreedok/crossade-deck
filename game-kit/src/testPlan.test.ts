@@ -14,8 +14,9 @@
 // So the two are compared, both ways, and the difference has to be spelled out in the document
 // rather than merely be true.
 //
-// A row for code that does not exist yet is legitimate — the plan is also a design, and
-// `atom.flippable.reverse` describes an atom nobody has built. That row carries `⏳`, and the
+// A row whose OWN test does not exist yet is legitimate — the plan is also a design, and a
+// per-atom-contract row can name a field whose dedicated case is not written (its real coverage
+// living in another layer). That row carries `⏳`, and the
 // glyph is the whole convention: it says "no test, and that is the answer", so a bare row with
 // no test is a gap rather than a maybe. Writing the test and leaving the glyph fails too — a
 // promise that has been kept must stop reading as a promise.

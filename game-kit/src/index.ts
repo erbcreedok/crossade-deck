@@ -137,8 +137,8 @@ export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusab
 export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js";
 // Grip is privacy's permission twin: which seats may LIFT a subtree, the open table liftable by all.
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
-// The card turn: which face shows, as pure data — front up, and one of four reverses down.
-export { Flippable, shownFace, type Face, type FlippableFields } from "./core/atoms/flippable.js";
+// The card turn: which surface shows, as pure data — the front up, the back down.
+export { Flippable, shownSurface, type FlippableFields } from "./core/atoms/flippable.js";
 // The card tap: a turn to one of a few discrete angle stops, the runtime holding which stop.
 export { Tiltable, tiltAngle, tiltStops, nextTilt, type TiltableFields } from "./core/atoms/tiltable.js";
 // The context menu that emerges from what a node IS: a verb per capability, resolved from a registry.

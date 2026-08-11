@@ -98,7 +98,7 @@
 | `atom.transformable.two-classes` | the atom's two fields | their classes looked up | `at` own, `z` addsUp — this is the atom where the two classes meet |
 | `atom.transformable.z-consequences` ⏳ | z raised 0→2 | lift, scale and shadow measured | all three change; none can be set independently of z. Zoom changes neither |
 | `atom.z.container-lifts-children` | a stack with z=1 | children resolved | every child is +1: lifting the pile lifts the pile. Lying in it does not lift anything |
-| `atom.flippable.reverse` ⏳ | Flippable{reverse} | flip() | back→face hidden, same→identical, mirror→mirrored, alt→other visible face |
+| `atom.flippable.back` ⏳ | Flippable{back} | shownSurface(faceUp) | face-up→front, face-down→back, empty back→front (never blank). Full layer: [30](30-flippable.md) |
 | `atom.private.exclusion` ⏳ | Private + a viewer ≠ owner | the scene is projected | the node is ABSENT from that viewer's picture, not merely face-down |
 | `atom.private.vs-back` ⏳ | a face-down card next to a Private one | both projected to another viewer | back: present, face hidden. Private: not in the payload at all. Two different hidings |
 | `atom.private.subtree` ⏳ | a Private CONTAINER with children | projected to another viewer | the whole subtree is cut — children never appear ownerless |

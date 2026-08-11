@@ -45,7 +45,7 @@ export function deck(specs: readonly CardSpec[], opts: DeckOptions = {}): Node[]
     const copies = spec.count ?? 1;
     for (let n = 0; n < copies; n++) {
       const atoms: Atom[] = [bounds, Surfaced({ surface: spec.face })];
-      if (spec.back !== undefined) atoms.push(Flippable({ reverse: "back", back: spec.back }));
+      if (spec.back !== undefined) atoms.push(Flippable({ back: spec.back }));
       if (spec.values !== undefined) atoms.push(Valued({ values: spec.values }));
       cards.push(node(`${spec.face}#${n}`, ...atoms));
     }

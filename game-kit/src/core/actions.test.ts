@@ -17,12 +17,12 @@ afterEach(() => resetActions());
 
 describe("actions", () => {
   it("action.flip-offered-for-a-flippable — the verb follows the capability", () => {
-    const card = node("c", box, surface, Flippable({ reverse: "back", back: "b" }));
+    const card = node("c", box, surface, Flippable({ back: "b" }));
     expect(actionsOf(card).map((a) => a.name)).toEqual(["flip"]);
   });
 
   it("action.label-comes-from-the-record — an already-written verb", () => {
-    const card = node("c", box, surface, Flippable({ reverse: "back", back: "b" }));
+    const card = node("c", box, surface, Flippable({ back: "b" }));
     expect(actionsOf(card)[0]?.label).toBe("Flip");
   });
 
@@ -33,7 +33,7 @@ describe("actions", () => {
 
   it("action.only-capable-actions-and-stable-order — capabilities filter, registration orders", () => {
     // Flippable + Draggable, but NOT Tiltable: flip and drag, and flip before drag (register order).
-    const card = node("c", box, surface, Flippable({ reverse: "back", back: "b" }), Draggable({ onReject: "home" }));
+    const card = node("c", box, surface, Flippable({ back: "b" }), Draggable({ onReject: "home" }));
     expect(actionsOf(card).map((a) => a.name)).toEqual(["flip", "drag"]);
   });
 
@@ -43,7 +43,7 @@ describe("actions", () => {
 
   it("action.unregistered-nothing — no stock installed, no actions", () => {
     resetActions();
-    const card = node("c", box, surface, Flippable({ reverse: "back", back: "b" }));
+    const card = node("c", box, surface, Flippable({ back: "b" }));
     expect(actionsOf(card)).toEqual([]);
   });
 
