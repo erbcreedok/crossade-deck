@@ -1049,6 +1049,14 @@ test.describe.serial("the heavy pages", () => {
           "play.container.bare-children-leave-nothing",
         ],
       ],
+      [
+        "tests-tiltable--tap",
+        [
+          "play.tiltable.a-stop-turns-the-card",
+          "play.tiltable.every-stop-is-its-own-picture",
+          "play.tiltable.the-tap-clamps",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
