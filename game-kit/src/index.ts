@@ -134,6 +134,8 @@ export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeab
 export { Draggable, draggable, onRejectOf, type DraggableFields } from "./core/atoms/draggable.js";
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
 export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js";
+// Grip is privacy's permission twin: which seats may LIFT a subtree, the open table liftable by all.
+export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
 // The card turn: which face shows, as pure data — front up, and one of four reverses down.
 export { Flippable, shownFace, type Face, type FlippableFields } from "./core/atoms/flippable.js";
 // The card tap: a turn to one of a few discrete angle stops, the runtime holding which stop.
