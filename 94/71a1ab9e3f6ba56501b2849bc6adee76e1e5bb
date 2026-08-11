@@ -1,0 +1,31 @@
+game-kit/docs/test-plan/README.md
+  s_8a89f581d5de84::t_38652521a33350 10
+  s_8a89f581d5de84::t_11553600b1767a 58
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_8a811ce36e1fe8 39-54
+game-kit/src/core/atoms/flippable.ts
+  s_8a89f581d5de84::t_e9e6ab08602a7b 1-60
+game-kit/docs/test-plan/30-flippable.md
+  s_8a89f581d5de84::t_d0dae72cdf8bef 1-18
+game-kit/src/core/atoms/flippable.test.ts
+  s_8a89f581d5de84::t_ba6e64eafd27bc 1,3-8,10-60
+  s_8a89f581d5de84::t_f900a09c770dde 2,9
+game-kit/src/index.ts
+  s_8a89f581d5de84::t_721b4508b246b0 137-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "9471a1ab9e3f6ba56501b2849bc6adee76e1e5bb",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
