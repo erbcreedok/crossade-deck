@@ -1,0 +1,20 @@
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_8a89f581d5de84::t_70f37f7fb83840 53-56
+  s_8a89f581d5de84::t_29a69ccd757282 46-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fdb14d320d30fabd1d7df841069788c95b419482",
+  "prompts": {},
+  "sessions": {
+    "s_8a89f581d5de84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b40f449-e456-43c6-9391-58eeae81ee41",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
