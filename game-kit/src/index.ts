@@ -82,6 +82,20 @@ export {
 } from "./core/atoms/container.js";
 export { freeLayout, installStockLayouts, rowLayout, type LayoutAlign, type RowOptions } from "./core/atoms/layouts.js";
 export { Surfaced, areaOf, paintable, type SurfacedFields } from "./core/atoms/surfaced.js";
+// A zone is a container that judges what may enter. The rule is DATA; the verdict is three-valued.
+export { Acceptor, canAccept, wouldAccept, subjectOf, targetOf, type AcceptorFields } from "./core/atoms/acceptor.js";
+export {
+  evaluate,
+  needsRequest,
+  previewAllows,
+  validateRule,
+  type AcceptContext,
+  type AcceptRule,
+  type Operand,
+  type Subject,
+  type TargetSubject,
+  type Verdict,
+} from "./core/accept.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
