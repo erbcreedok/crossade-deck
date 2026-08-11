@@ -134,6 +134,8 @@ export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeab
 export { Draggable, draggable, onRejectOf, type DraggableFields } from "./core/atoms/draggable.js";
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
 export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js";
+// The card turn: which face shows, as pure data — front up, and one of four reverses down.
+export { Flippable, shownFace, type Face, type FlippableFields } from "./core/atoms/flippable.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
