@@ -1,0 +1,76 @@
+// MOVE — the whole drop, as one PLAN. Grab, grip, keeps, accept and occupied are each their own
+// small law; a move is where they meet. `planMove` reads them in the order a real drop tests them
+// and returns what WOULD happen — never mutating the tree. The runtime applies the plan; the plan
+// itself is data, like every other answer in the kit (the model is truth, the view is local).
+//
+// The order is not free — each gate can only DENY, so the first denial wins and the rest are moot:
+//   1. grab   — what even leaves the source? Nothing grabbed, nothing moves.
+//   2. grip   — may this seat lift that load at all? (skipped when no seat is given)
+//   3. keeps   — does the source let a `Draggable` be carried OUT, or is it pinned inside?
+//   4. accept  — does the target want it? A three-valued verdict: allow / ask / deny.
+//   5. occupied — if the target is a one-seat slot already filled, what happens to the sitter?
+// A target is a "slot" precisely when it carries a `Displacer`; a pile has none and simply grows.
+// See CANONS.md §3, docs/design/container.md and NIGHT-DECISIONS.md.
+
+import { caps, type Node, type NodeId } from "./node.js";
+import { canAccept } from "./atoms/acceptor.js";
+import { grabFrom } from "./atoms/grab.js";
+import { grippableBy } from "./atoms/grippable.js";
+import { keepsAllows } from "./atoms/keeps.js";
+import { admitsOccupied, resolveOccupied } from "./atoms/occupied.js";
+import { type OccupiedOutcome } from "./atoms/occupied.js";
+import { type Verdict } from "./accept.js";
+
+/** Why a move was denied, when it was — the gate that stopped it. */
+export type MoveBlock = "empty" | "gripped" | "kept" | "rejected";
+
+export interface MoveRequest {
+  /** The container the load leaves. */
+  readonly source: Node;
+  /** The child grabbed under the finger. */
+  readonly touched: Node;
+  /** The container it is dropped on. */
+  readonly target: Node;
+  /** Who is performing the move, for the grip check. Omit to skip grip entirely. */
+  readonly seat?: string;
+}
+
+export interface MovePlan {
+  /** allow / ask / deny — `ask` means the target wants a confirmation before it takes the load. */
+  readonly verdict: Verdict;
+  /** The ids that leave the source. Empty only when nothing was grabbed. */
+  readonly load: readonly NodeId[];
+  /** The gate that denied, present iff `verdict` is `deny`. */
+  readonly block?: MoveBlock;
+  /** What happens to a sitter, present iff the target is a filled slot the move may enter. */
+  readonly occupied?: OccupiedOutcome;
+}
+
+/** The capability a load needs to be carried out of a container: it is being dragged away. */
+const CARRY = "Draggable";
+
+/**
+ * What a drop of `touched` from `source` onto `target` would do. Pure — reads the policies, moves
+ * nothing. The first gate to deny wins; a target with no `Displacer` is a pile and never conflicts.
+ */
+export function planMove(req: MoveRequest): MovePlan {
+  const { source, touched, target, seat } = req;
+
+  const load = grabFrom(source, touched.id);
+  if (load.length === 0) return { verdict: "deny", load, block: "empty" };
+
+  if (seat !== undefined && !grippableBy(touched, seat)) return { verdict: "deny", load, block: "gripped" };
+
+  if (!keepsAllows(source, CARRY)) return { verdict: "deny", load, block: "kept" };
+
+  const verdict = canAccept(target, touched);
+  if (verdict === "deny") return { verdict, load, block: "rejected" };
+
+  if (target.children.length > 0 && caps(target).has("Displacer")) {
+    const occupied = resolveOccupied(target); // opaque plan data for the runtime — never dispatched on here
+    if (!admitsOccupied(target)) return { verdict: "deny", load, block: "rejected", occupied };
+    return { verdict, load, occupied };
+  }
+
+  return { verdict, load };
+}

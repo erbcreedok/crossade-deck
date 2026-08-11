@@ -20,17 +20,21 @@ export type OccupiedOutcome =
   /** The sitter is taken away to zone `to`, the incomer takes the slot. */
   | { readonly kind: "capture"; readonly to: string };
 
-/** A named record that answers with one outcome. Parameterised ones (capture) bake their argument. */
+// A record declares `admits` — does the incomer end up in the slot? — beside `resolve()`, so a
+// caller asks that yes/no directly and never has to READ the outcome's tag to learn it (the canon:
+// behaviour never reads a sort; `guard.no-kind`). Only `reject` turns the incomer away.
+/** A named record that answers with one outcome, and says up front whether it lets the incomer in. */
 export interface OccupiedRecord {
+  readonly admits: boolean;
   resolve(): OccupiedOutcome;
 }
 
-export const reject: OccupiedRecord = { resolve: () => ({ kind: "reject" }) };
-export const swap: OccupiedRecord = { resolve: () => ({ kind: "swap" }) };
-export const merge: OccupiedRecord = { resolve: () => ({ kind: "merge" }) };
+export const reject: OccupiedRecord = { admits: false, resolve: () => ({ kind: "reject" }) };
+export const swap: OccupiedRecord = { admits: true, resolve: () => ({ kind: "swap" }) };
+export const merge: OccupiedRecord = { admits: true, resolve: () => ({ kind: "merge" }) };
 /** The sitter is captured to zone `to` — e.g. a taken chess piece to its owner's tray. */
 export function capture(to: string): OccupiedRecord {
-  return { resolve: () => ({ kind: "capture", to }) };
+  return { admits: true, resolve: () => ({ kind: "capture", to }) };
 }
 
 const OCCUPIED = new Map<string, OccupiedRecord>();
@@ -73,4 +77,15 @@ export function resolveOccupied(container: Node): OccupiedOutcome {
   if (!fields) return { kind: "reject" };
   const record = occupiedRecord(fields.occupied);
   return record ? record.resolve() : { kind: "reject" };
+}
+
+/**
+ * Does a drop on this container's occupied slot let the incomer IN? `false` when the container is
+ * not a `Displacer`, its policy is unregistered, or that policy is `reject`. Lets a caller gate on
+ * admission without reading the outcome's tag.
+ */
+export function admitsOccupied(container: Node): boolean {
+  const fields = fieldsOf<DisplacerFields>(container, "Displacer");
+  if (!fields) return false;
+  return occupiedRecord(fields.occupied)?.admits ?? false;
 }
