@@ -1,0 +1,24 @@
+game-presets/cards/src/cards.test.ts
+  s_7a734f8e2f7730::t_f4cdde8c6dd17d 37-45
+  s_7a734f8e2f7730::t_0018c64142adc3 5
+game-presets/cards/src/cards.ts
+  s_7a734f8e2f7730::t_429e958bdfb565 30-39
+game-presets/cards/src/index.ts
+  s_7a734f8e2f7730::t_6dd507d86076de 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f15b29b1a9c8a3000c158239cf9b9af0a5849b3b",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
