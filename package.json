@@ -3,9 +3,14 @@
   "private": true,
   "workspaces": [
     "game-kit",
+    "game-presets/*",
     "apps/*"
   ],
   "scripts": {
-    "kit": "npm run dev --workspace game-kit"
+    "kit": "npm run dev --workspace game-kit",
+    "gen:preset": "node scripts/new-preset.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1"
   }
 }
