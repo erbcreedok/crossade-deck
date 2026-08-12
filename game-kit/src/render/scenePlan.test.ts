@@ -1,7 +1,7 @@
 // The plan is where every visual rule can still be held down by a test. Below it lies Pixi,
 // which jsdom cannot run at all — so a rule that slips past this file is a rule nobody checks.
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
@@ -12,6 +12,7 @@ import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply, IDENTITY } from "../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf } from "./scenePlan.js";
 import { registerAsset } from "./assets.js";
+import { registerEffect, resetEffects } from "./effects.js";
 import { registerSurface, resetSurfaces } from "./surfaces.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { polyline } from "../core/path.js";
@@ -134,6 +135,39 @@ describe("scenePlan", () => {
     const card = node("p16", box(1, 1), Surfaced(), Transformable({ z: 1 }));
     add(root, card);
     expect(plan(root)[0]!.z).toBe(11);
+  });
+});
+
+describe("the seam walks the SHOWN node", () => {
+  // The second half of the seam — children and surface both come from the SHOWN node: when an
+  // effect substitutes a node (a board's other face is a whole other subtree), the plan must draw
+  // the substitute's CHILDREN too, not paint the swapped surface over the original's children. The
+  // effect here is anonymous on purpose — this is the seam's contract, no recipe is named.
+  beforeEach(() => resetEffects());
+  afterEach(() => resetEffects());
+
+  const swapTo = (targetId: string, substitute: ReturnType<typeof node>) =>
+    registerEffect((n) => ({ node: n.id === targetId ? substitute : n, pre: IDENTITY }));
+
+  const swapped = () => {
+    const shown = node("ironBoard", box(4, 3), Surfaced());
+    add(shown, node("pizzaSlice", box(1, 1), Surfaced()));
+    swapTo("oakBoard", shown);
+    const board = node("oakBoard", box(4, 3), Surfaced());
+    add(board, node("oakStack", box(1, 1.4), Surfaced()));
+    return board;
+  };
+
+  it("plan.substitute-children-are-drawn — the swap brings its whole subtree", () => {
+    expect(plan(swapped()).map((q) => q.id)).toContain("pizzaSlice");
+  });
+
+  it("plan.original-children-are-not — the front's content does not bleed through the back", () => {
+    expect(plan(swapped()).map((q) => q.id)).not.toContain("oakStack");
+  });
+
+  it("plan.substitute-children-have-transforms — transformsOf covers the shown tree", () => {
+    expect(transformsOf(swapped()).has("pizzaSlice")).toBe(true);
   });
 });
 

@@ -223,8 +223,7 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
   const toView = viewTransform(unit, width, height);
   const out: Quad[] = [];
 
-  walk(root, (n) => {
-    if (!caps(n).has("Surfaced")) return;
+  const visit = (n: Node): void => {
     const ctx = contextFor(n, unit, viewer);
 
     // THE ONE SEAM. Every runtime mechanic reaches the paint through here and nowhere else: the
@@ -232,7 +231,22 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
     // surface (a highlight, a censor). The list is empty until a mechanic registers itself, and
     // then this walk still knows none of them by name. The pose shift a reflect asks for is folded
     // in `transformsOf` instead, so it reaches the CHILDREN too; here only the paint is mixed.
+    //
+    // The CHILDREN come from the shown node too — a substitute face brings its whole subtree, and
+    // the front's content does not bleed through the back. That is why this is a recursion over
+    // what the effects answered, not a walk over the authored tree.
     const { node, coats } = applyEffects(n, ctx);
+    paint(n, node, coats, ctx);
+    for (const child of node.children) visit(child);
+  };
+
+  const paint = (
+    n: Node,
+    node: Node,
+    coats: ReturnType<typeof applyEffects>["coats"],
+    ctx: ResolveContext,
+  ): void => {
+    if (!caps(node).has("Surfaced")) return;
     const fields = fieldsOf<SurfacedFields>(node, "Surfaced");
     const area = areaOf(node);
     if (!fields || !area) return;
@@ -291,7 +305,9 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
       filter,
       z: resolveZ(ctx),
     });
-  });
+  };
+
+  visit(root);
 
   // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames
   // for no reason the reader can see.
@@ -564,28 +580,39 @@ export function transformsOf(root: Node): Map<NodeId, Transform> {
   // folded into a node's own transform so its CHILDREN inherit it through the chain — a mirrored
   // stack turns its cards over with it, and two reflections up the chain cancel exactly. The walk
   // knows no mechanic by name; the paint side reads `coats`, this side reads `pre`.
-  out.set(root.id, compose(poseOf(root), preOf(root)));
+  //
+  // And it descends into the SHOWN node's children, not the authored one's: a substitute face
+  // stands exactly where the node stood — same slot, same pose — and carries its own subtree,
+  // whose ids land in this map so the plan can place every quad it is about to draw.
+  const seed = shownOf(root);
+  const rootHere = compose(poseOf(root), seed.pre);
+  out.set(root.id, rootHere);
+  if (seed.node.id !== root.id) out.set(seed.node.id, rootHere);
 
-  walk(root, (n) => {
-    const here = out.get(n.id) ?? IDENTITY;
-    const placed = placeChildren(n);
-    for (const child of n.children) {
+  const descend = (shown: Node, here: Transform): void => {
+    const placed = placeChildren(shown);
+    for (const child of shown.children) {
       // The LAYOUT's answer where a container spoke, the child's own pose where it did not —
       // and either way it is composed onto the owner's, not added to it. Added, a card in a
       // turned hand would sit in the right place and face the wrong way.
       const at = placed.get(child.id) ?? ownPose(child);
       const own = fieldsOf<TransformableFields>(child, "Transformable");
       const base = compose(here, pose(at, own?.angle ?? 0, own?.scale ?? 1));
-      out.set(child.id, compose(base, preOf(child)));
+      const eff = shownOf(child);
+      const t = compose(base, eff.pre);
+      out.set(child.id, t);
+      if (eff.node.id !== child.id) out.set(eff.node.id, t);
+      descend(eff.node, t);
     }
-  });
+  };
+  descend(seed.node, rootHere);
 
   return out;
 }
 
-/** A node's own pose shift from the effects list — a reflection, or the identity. See `applyEffects`. */
-function preOf(n: Node): Transform {
-  return applyEffects(n, contextFor(n, 1)).pre;
+/** A node's substitute and pose shift from the effects list — itself and the identity when none. */
+function shownOf(n: Node): { node: Node; pre: Transform } {
+  return applyEffects(n, contextFor(n, 1));
 }
 
 /** The root's own pose. It has no owner, so nothing composes onto it. */
