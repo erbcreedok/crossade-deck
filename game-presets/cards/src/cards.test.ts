@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { caps, fieldsOf, surfaceRecord, type FlippableFields, type SurfacedFields, type ValuedFields } from "game-kit";
 import { crossade } from "./crossade.js";
 import { BACK_SURFACE } from "./skin.classic.js";
-import { cards } from "./cards.js";
+import { cards, deckByCardId } from "./cards.js";
 
 describe("cards — the set expanded into nodes", () => {
   it("cards.builds-fifty-five-nodes — one node per physical card", () => {
@@ -32,6 +32,15 @@ describe("cards — the set expanded into nodes", () => {
   it("cards.ids-are-unique — the tree accepts every copy", () => {
     const ids = cards().map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("cards.by-card-id — a named hand resolves without touching a node's opaque id", () => {
+    const by = deckByCardId();
+    expect(by.size).toBe(55);
+    expect(by.get("spade-A")).toBeTruthy();
+    expect(by.get("brand")).toBeTruthy();
+    expect(by.get("joker-red")).toBeTruthy();
+    expect(by.get("no-such-card")).toBeUndefined();
   });
 
   it("cards.faces-resolve — every card's face is a registered surface after the default install", () => {

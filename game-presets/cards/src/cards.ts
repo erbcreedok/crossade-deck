@@ -27,3 +27,13 @@ export function cards(opts: CardsOptions = {}): Node[] {
   }));
   return deck(specs, opts.size ? { size: opts.size } : {});
 }
+
+/**
+ * The same 55 cards, keyed by their SET id (`spade-A`, `heart-10`, `joker-red`, `brand`) — so a
+ * consumer can pick a named hand without reaching into a node's opaque id. Order-independent lookup.
+ */
+export function deckByCardId(opts: CardsOptions = {}): Map<string, Node> {
+  const nodes = cards(opts);
+  const specs = crossade();
+  return new Map(specs.map((spec, i) => [spec.id, nodes[i]!]));
+}
