@@ -1,0 +1,19 @@
+game-presets/NIGHT-DECISIONS.md
+  s_7a734f8e2f7730::t_71a30b48b60696 26-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "350d0b352fce528190736859ae92fd34cf219c77",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
