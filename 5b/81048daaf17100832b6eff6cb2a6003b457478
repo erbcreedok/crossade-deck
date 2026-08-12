@@ -1,0 +1,35 @@
+game-kit/.storybook/locales/pages/presetsFlips/en.json
+  s_7a734f8e2f7730::t_f9fcd1197e6204 1-22
+game-kit/.storybook/locales/pages/presetsCoats/ru.json
+  s_7a734f8e2f7730::t_b4cb21905155da 1-25
+game-kit/.storybook/locales/pages/presetsCoats/en.json
+  s_7a734f8e2f7730::t_0cec47d4afe88e 1-25
+game-kit/.storybook/stories/PresetsCoats.stories.ts
+  s_7a734f8e2f7730::t_02a07bd22c16bc 1-64
+game-kit/.storybook/stories/PresetsFlips.stories.ts
+  s_7a734f8e2f7730::t_e62f8d072ce8c9 1-88
+game-kit/.storybook/locales/pages/presetsFlips/ru.json
+  s_7a734f8e2f7730::t_72d48816a9b804 1-22
+game-kit/.storybook/locales/pages.ts
+  s_7a734f8e2f7730::t_6f5ee0e66179f4 115-116
+  s_7a734f8e2f7730::t_57aa9d32603966 71-78
+  s_7a734f8e2f7730::t_35d65e35163b7b 31-32
+game-kit/.storybook/preview.ts
+  s_7a734f8e2f7730::t_cab733c94381f6 152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5b81048daaf17100832b6eff6cb2a6003b457478",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
