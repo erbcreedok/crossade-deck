@@ -1,0 +1,61 @@
+game-kit/docs/test-plan/08-per-atom-contract.md
+  s_7a734f8e2f7730::t_e5b783f0c70b6f 3
+  s_7a734f8e2f7730::t_7ca55e9e57c3bb 38
+game-kit/.storybook/locales/pages/flippable/ru.json
+  s_7a734f8e2f7730::t_5fed7e5d5dbb44 3-6,9,11-13,16,19,21-28,30,32-36,38,40-43,45,47-53,55-57,59-62,64-69,71-74
+game-kit/docs/test-plan/30-flippable.md
+  s_7a734f8e2f7730::t_e4befde0224548 5-8,12-16
+game-kit/src/presets/deck.ts
+  s_7a734f8e2f7730::t_4d6f388a481af7 48-50
+game-kit/src/render/flips.ts
+  s_7a734f8e2f7730::t_2a78598b13fbf1 1-111
+game-kit/.storybook/stories/Flippable.stories.ts
+  s_7a734f8e2f7730::t_5aee711abeceed 2-15,19-23,25-33,40-46,51-53,55-57,62-65,71,73-74,78,81-83,87-160
+game-kit/src/render/scenePlan.ts
+  s_7a734f8e2f7730::t_7a3439c87178f6 563-567,578-579,586-588
+  s_7a734f8e2f7730::t_348f7858c65bb5 589-590
+game-kit/docs/test-plan/39-flips.md
+  s_7a734f8e2f7730::t_80a17fe149a9ef 1-19
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_7a734f8e2f7730::t_1e93ebb7bb28bf 178-203
+game-kit/src/core/atoms/flippable.test.ts
+  s_7a734f8e2f7730::t_dee8b5ec60ddf4 2-5,7-12,15-18,21-23,26-32,35-40
+game-kit/src/index.ts
+  s_7a734f8e2f7730::t_c8782a0a0d11a3 141-144
+  s_7a734f8e2f7730::t_ace2584ff00ca8 61
+game-kit/.storybook/locales/chrome/en.json
+  s_7a734f8e2f7730::t_749acd0729477c 144-148
+game-kit/src/core/atoms/flippable.ts
+  s_7a734f8e2f7730::t_2e26b36ff7954c 1-5,7-14,16-17,22-28,34-39
+game-kit/.storybook/locales/pages/flippable/en.json
+  s_7a734f8e2f7730::t_d58d9eee6d8e8c 3-6,9,11-13,16,19,21-28,30,32-36,38,40-43,45,47-54,56-59,61-64,66-72,74-77
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_3f5ffd4b8a95a3 10,36,67
+game-kit/src/core/transform.ts
+  s_7a734f8e2f7730::t_7d5af461c03a93 93-102,109-110
+  s_7a734f8e2f7730::t_9a3676e0296d1a 103-108
+  s_7a734f8e2f7730::t_dc96244d7e1c11 92
+game-kit/.storybook/locales/chrome/ru.json
+  s_7a734f8e2f7730::t_62bd9811598280 148-152
+game-kit/src/core/transform.test.ts
+  s_7a734f8e2f7730::t_ce844ef7f61720 5-7
+  s_7a734f8e2f7730::t_59324f1deaca12 57-68
+game-kit/src/render/flips.test.ts
+  s_7a734f8e2f7730::t_6dfd67dbafafdf 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ad2591fbbc3ca37f335a34762a17be4b5a414657",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
