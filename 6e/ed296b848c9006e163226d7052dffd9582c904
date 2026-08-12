@@ -1,0 +1,51 @@
+game-kit/src/render/scenePlan.ts
+  s_7a734f8e2f7730::t_1fd60b98ea872c 28
+game-kit/src/core/atoms/coated.ts
+  s_7a734f8e2f7730::t_de48a3339e397b 1-70
+game-kit/docs/design/NIGHT-DECISIONS.md
+  s_7a734f8e2f7730::t_9531ee2b04ecc7 147-177
+game-kit/src/index.ts
+  s_7a734f8e2f7730::t_1fd60b98ea872c 215
+  s_7a734f8e2f7730::t_c2abff2f75ce1c 216-226
+  s_7a734f8e2f7730::t_0242c73773e512 142-144
+game-kit/src/core/paint.ts
+  s_7a734f8e2f7730::t_c90e99aa1e20fc 2-9,13
+game-kit/src/render/coats.ts
+  s_7a734f8e2f7730::t_3d8f905e194824 70
+  s_7a734f8e2f7730::t_5312722e334223 1-15,17-69,71-87,89-146
+  s_7a734f8e2f7730::t_ebe0d84a46cc81 88
+  s_7a734f8e2f7730::t_0c3d61dcf5bce8 16
+game-kit/src/core/atoms/coated.test.ts
+  s_7a734f8e2f7730::t_7f00508bf6d769 1-40
+game-kit/src/render/surfaces.ts
+  s_7a734f8e2f7730::t_1fd60b98ea872c 31,36
+game-kit/src/render/theme.ts
+  s_7a734f8e2f7730::t_1fd60b98ea872c 19
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_20b426468394e3 66
+  s_7a734f8e2f7730::t_af106440ddcd20 10
+game-kit/src/render/paint.test.ts
+  s_7a734f8e2f7730::t_1fd60b98ea872c 2
+game-kit/docs/test-plan/38-coated.md
+  s_7a734f8e2f7730::t_2eca499c491d5d 1-30
+game-kit/src/render/coats.test.ts
+  s_7a734f8e2f7730::t_ec06f0ace7e22d 1-41,43-44,46-48,50-128
+  s_7a734f8e2f7730::t_b1b80374b37634 45
+  s_7a734f8e2f7730::t_d86d9990e52154 42,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6eed296b848c9006e163226d7052dffd9582c904",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
