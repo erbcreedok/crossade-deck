@@ -1,0 +1,25 @@
+game-presets/cards/src/index.ts
+  s_7a734f8e2f7730::t_8f80c5494d5033 4-11
+game-presets/cards/docs/test-plan.md
+  s_7a734f8e2f7730::t_edb99179cebef5 13-17
+game-presets/cards/src/crossade.test.ts
+  s_7a734f8e2f7730::t_fe39cb9b607603 1-39
+game-presets/cards/src/crossade.ts
+  s_7a734f8e2f7730::t_8d66a48b4e5b21 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b90af7215412f96d8fc8e976365a006991a60c28",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
