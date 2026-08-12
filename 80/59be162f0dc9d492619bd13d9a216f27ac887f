@@ -1,0 +1,40 @@
+game-kit/src/render/paint.test.ts
+  s_7a734f8e2f7730::t_0b468bb306183c 1-40
+game-kit/src/render/paint.ts
+  s_7a734f8e2f7730::t_77c917fa912a21 1-30
+game-kit/src/render/theme.ts
+  s_7a734f8e2f7730::t_3e775072da07ba 133-148,154-156,160,162-165
+  s_7a734f8e2f7730::t_e13df39594cf06 19
+  s_7a734f8e2f7730::t_d63272cfb713c8 132
+game-kit/.storybook/stories/record.ts
+  s_7a734f8e2f7730::t_2d0b57d0afc69a 76-77
+game-kit/docs/test-plan/37-paint.md
+  s_7a734f8e2f7730::t_ff6fc7480bea4b 1-17
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_9e74872a065c52 10
+  s_7a734f8e2f7730::t_04ae82372760ba 65
+game-kit/src/render/surfaces.ts
+  s_7a734f8e2f7730::t_273c45d43a06d5 31,34-36
+game-kit/src/index.ts
+  s_7a734f8e2f7730::t_cd315cd1d8e225 211-212
+game-kit/src/render/scenePlan.ts
+  s_7a734f8e2f7730::t_434a69884262f0 53
+  s_7a734f8e2f7730::t_50888120cd6970 60
+  s_7a734f8e2f7730::t_a8ad191a5a77ab 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8059be162f0dc9d492619bd13d9a216f27ac887f",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
