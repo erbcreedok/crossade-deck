@@ -1057,6 +1057,22 @@ test.describe.serial("the heavy pages", () => {
           "play.tiltable.the-tap-clamps",
         ],
       ],
+      [
+        "tests-coated--play",
+        [
+          "play.coated.a-wash-changes-the-picture",
+          "play.coated.the-level-is-the-picture",
+          "play.coated.a-cast-greys-the-tree",
+        ],
+      ],
+      [
+        "tests-flippable--play",
+        [
+          "play.flippable.a-turn-shows-the-back",
+          "play.flippable.re-flip-returns-the-front",
+          "play.flippable.a-stack-turns-its-child",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
