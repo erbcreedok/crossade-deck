@@ -290,6 +290,16 @@ describe("guards", () => {
     expect(hits(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/, { raw: true, skip: (r) => r === "render/theme.ts" })).toEqual([]);
   });
 
+  it("guard.coat-not-viewer — a coat is shared state, never read off the onlooker plane", () => {
+    // A coat travels the wire and looks the same to every seat — a contested strip, terrain paint.
+    // The viewer channel is neither shared nor on the wire: it holds theme and reduce-motion, and
+    // privacy is a PROJECTED field the orchestrator omits from other viewers' trees, not a flag the
+    // coat reads. So the effect that mixes coats must not touch `viewer` at all — if it did, a coat
+    // could disagree between two onlookers, which is exactly what shared state may not do.
+    const coats = files.find((f) => f.rel === "render/coats.ts")!.code;
+    expect(coats).not.toMatch(/\bviewer\b/);
+  });
+
   it("guard.one-accent — there is a single gold, and washes are derived from it", () => {
     const theme = files.find((f) => f.rel === "render/theme.ts")!.raw;
     for (const palette of theme.split(/const (?:DARK|LIGHT): Palette =/).slice(1)) {

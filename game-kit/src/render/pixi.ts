@@ -6,13 +6,59 @@
 // computed in THIS file is untestable by construction — jsdom has no WebGL, so a rule that
 // slips in here is a rule nobody can hold down. Keep it dumb.
 
-import { Application, Assets, Container, Graphics, Matrix, Texture } from "pixi.js";
+import { Application, Assets, BlurFilter, Container, type Filter, Graphics, Matrix, Texture } from "pixi.js";
 import { type ThemeName } from "../core/viewer.js";
+import { type FilterRef } from "./effects.js";
 import { type Painter } from "./painter.js";
 import { type Mark, type Quad } from "./scenePlan.js";
 import { paint } from "./theme.js";
 
 export { type Painter };
+
+// THE FILTER REGISTRY — name → a Pixi filter, and the ONE place a shader is built and clocked.
+//
+// The model only NAMES a filter: `scenePlan` carries `{ name, params }` as plain data, decided by
+// a pure function a unit test holds down. The pixels — the shader, the uniforms, the per-frame
+// clock — can only live here, the file jsdom cannot run, and that is the honest boundary: the
+// plumbing (a name resolves or is skipped) is testable, the light is not. A dangling name is
+// skipped exactly as a dangling surface is; a filter that fails to build is skipped too, and the
+// coat's own wash still masks the surface, so a bad shader dims the scene rather than dropping it.
+//
+// A built filter may hand back a `tick(seconds)` — its own animation, driven by the shared ticker.
+interface LiveFilter {
+  readonly filter: Filter;
+  readonly tick?: (seconds: number) => void;
+}
+type FilterFactory = (params: Readonly<Record<string, number>>) => LiveFilter;
+
+const FILTERS = new Map<string, FilterFactory>();
+
+/** Register a filter shader under a name a coat can point at. The second door, like the painter. */
+export function registerFilter(name: string, factory: FilterFactory): void {
+  FILTERS.set(name, factory);
+}
+
+/** Build the named filter, or `undefined` — a dangling name, or a shader that would not compile. */
+function buildFilter(ref: FilterRef): LiveFilter | undefined {
+  const factory = FILTERS.get(ref.name);
+  if (!factory) return undefined;
+  try {
+    return factory(ref.params);
+  } catch {
+    return undefined;
+  }
+}
+
+// CENSOR'S `blur` — Pixi's own filter, animated. A shimmering mask over a hidden surface: the
+// strength sets the base blur and the clock pulses it, so a censored card reads as actively
+// scrambled rather than statically greyed. A core filter on purpose — a hand-written shader is the
+// one thing in here nothing could hold down, so the stock recipe leans on what Pixi ships.
+registerFilter("blur", (params) => {
+  const strength = Number.isFinite(params.strength) ? Math.max(0, Math.min(1, params.strength!)) : 0.5;
+  const base = 2 + 12 * strength;
+  const filter = new BlurFilter({ strength: base, quality: 3 });
+  return { filter, tick: (t) => (filter.blur = base * (0.75 + 0.25 * Math.sin(t * 2))) };
+});
 
 export interface PixiPainterOptions {
   readonly width: number;
@@ -49,6 +95,11 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
   let started = false;
   let pending: { plan: readonly Quad[]; marks: readonly Mark[]; theme: ThemeName } | null = null;
   let lateSize: { width: number; height: number } | null = null;
+  // The animated filters of the CURRENT frame, and one clock that drives them. Rebuilt every
+  // `apply`, because a filter belongs to a quad and the plan is the quads — a censor that lifts
+  // stops being ticked the moment the plan without it is drawn.
+  let time = 0;
+  let activeTicks: Array<(seconds: number) => void> = [];
 
   // PICTURES ARRIVE LATE, AND THE FRAME DOES NOT WAIT FOR THEM.
   //
@@ -108,11 +159,21 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
       // dropped instead of queued, it left the canvas at the size it was MEASURED at — which on
       // a page still laying itself out is one pixel, presented as an empty scene.
       if (lateSize) app.renderer.resize(lateSize.width, lateSize.height);
+      // ONE CLOCK for every animated filter in the frame. It advances a seconds counter and hands
+      // it to each live filter's own `tick`; a frame with no filters ticks nothing. The renderer
+      // stays dumb — it does not know what a censor is, only that a filter asked to be clocked.
+      app.ticker.add((ticker) => {
+        if (!activeTicks.length) return;
+        time += ticker.deltaMS / 1000;
+        for (const tick of activeTicks) tick(time);
+      });
       if (pending) apply(pending.plan, pending.marks, pending.theme);
     });
 
   function apply(plan: readonly Quad[], marks: readonly Mark[], theme: ThemeName): void {
     app.stage.removeChildren().forEach((child) => child.destroy());
+    // The animated filters of the LAST frame are gone with its quads; this frame builds its own.
+    activeTicks = [];
     for (const quad of plan) {
       // ONE OBJECT PER LAYER, added in the plan's order.
       //
@@ -202,6 +263,18 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
         }
         g.stroke(style);
         box.addChild(g);
+      }
+
+      // THE FILTER, when the coat named one. Built here and hung on the box the coat covers; a name
+      // nobody registered, or a shader that would not compile, is simply not hung — the coat's wash
+      // still masks the surface, so the scene dims rather than dropping. A live one adds its clock
+      // to the frame's ticks.
+      if (quad.filter) {
+        const live = buildFilter(quad.filter);
+        if (live) {
+          box.filters = [live.filter];
+          if (live.tick) activeTicks.push(live.tick);
+        }
       }
       app.stage.addChild(box);
     }

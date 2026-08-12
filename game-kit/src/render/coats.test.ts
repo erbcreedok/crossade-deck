@@ -68,7 +68,7 @@ describe("coats — the registry and the effect", () => {
   it("coat.censor-names-a-filter — the mask is a wash plus a shader named for the painter", () => {
     const out = coatRecipe("censor")!({ recipe: "censor", level: 0.5, tint: "" });
     expect(out.layers).toHaveLength(1);
-    expect(out.filter?.name).toBe("mosaic");
+    expect(out.filter?.name).toBe("blur");
     expect(out.filter?.params.strength).toBeCloseTo(0.5);
   });
 

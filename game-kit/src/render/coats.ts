@@ -86,7 +86,7 @@ export function installStockCoats(): void {
   // it can (tier 3). A default `level` of 0.7 so a plain `censor` already hides something.
   registerCoat("censor", (c) => ({
     layers: [{ paint: tintOr(c.tint, "sunkBg"), opacity: clamp01(c.level || 0.7) }],
-    filter: { name: "mosaic", params: { strength: clamp01(c.level || 0.7) } },
+    filter: { name: "blur", params: { strength: clamp01(c.level || 0.7) } },
   }));
   // CLEAR — draws nothing, but STOPS the cast cascade at this node: the "all but one" spotlight is a
   // dim cast on the root and a `clear` on the lit subtree. Non-empty recipe, so the nearest-cast

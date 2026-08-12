@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**38 слоя · 902 кейсов заявлено · 721 расписано поимённо.**
+**38 слоя · 903 кейсов заявлено · 722 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -40,7 +40,7 @@
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
-| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 28 | 28 |
+| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 29 | 29 |
 | [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 76 | 65 |
 | [STATE MATRIX · combinatorics](17-state-matrix.md) | `generated table, vitest` | 24 | 5 |
 | [STATE PLANE · what happens vs what is authored](18-state-plane.md) | `vitest` | 12 | 4 |
