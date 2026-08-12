@@ -1,0 +1,36 @@
+game-kit/src/render/coats.ts
+  s_7a734f8e2f7730::t_7ac1bcd20b76c7 89
+game-kit/src/render/pixi.ts
+  s_7a734f8e2f7730::t_d164af0448610a 98-102
+  s_7a734f8e2f7730::t_6def13faa0c617 9,11,18-61
+  s_7a734f8e2f7730::t_d70688e86123cc 267-278
+  s_7a734f8e2f7730::t_0f2e24f7fe4ca1 162-169
+  s_7a734f8e2f7730::t_977cbdf25e13ab 175-176
+  s_7a734f8e2f7730::t_3907eed89bc447 62
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_93badca1de321d 43
+  s_7a734f8e2f7730::t_952c69fa18954b 10
+game-kit/src/render/coats.test.ts
+  s_7a734f8e2f7730::t_bdb8ec168de938 71
+game-kit/docs/test-plan/15-architectural-guards.md
+  s_7a734f8e2f7730::t_5e2ee0624f4ca2 29
+  s_7a734f8e2f7730::t_da474747cc4e46 3
+game-kit/src/guards.test.ts
+  s_7a734f8e2f7730::t_1b74f8c776209b 293-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "98ebbc09a0c185f000a90126b1b30b0f39ee5053",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
