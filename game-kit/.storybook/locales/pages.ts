@@ -19,6 +19,7 @@ import { catalogText, type CatalogKey, type CatalogLocale, type CatalogText, typ
 // Types only — erased at compile time, so naming the bundles here costs nothing at runtime and
 // keeps every prose key checkable by `tsc` instead of by hope.
 import type bounded from "./pages/bounded/en.json";
+import type coated from "./pages/coated/en.json";
 import type container from "./pages/container/en.json";
 import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
@@ -48,6 +49,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     ru: () => import("./pages/transformable/ru.json"),
   },
   container: { en: () => import("./pages/container/en.json"), ru: () => import("./pages/container/ru.json") },
+  coated: { en: () => import("./pages/coated/en.json"), ru: () => import("./pages/coated/ru.json") },
   flippable: { en: () => import("./pages/flippable/en.json"), ru: () => import("./pages/flippable/ru.json") },
   tiltable: { en: () => import("./pages/tiltable/en.json"), ru: () => import("./pages/tiltable/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
@@ -90,6 +92,7 @@ export type PageKey = keyof (typeof node &
   typeof surfaced &
   typeof transformable &
   typeof container &
+  typeof coated &
   typeof flippable &
   typeof tiltable &
   typeof intro &
