@@ -1,0 +1,25 @@
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_38c46d165ff9eb 10,66
+game-kit/src/render/coats.test.ts
+  s_7a734f8e2f7730::t_5c0c0b8790e7c3 12-14
+  s_7a734f8e2f7730::t_45986e46a841af 131-160
+game-kit/docs/test-plan/38-coated.md
+  s_7a734f8e2f7730::t_46731fae52e852 3
+  s_7a734f8e2f7730::t_e4912484b08126 31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2abb97fdbbfc597a30ef1f9986936e91ca12d638",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
