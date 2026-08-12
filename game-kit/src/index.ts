@@ -175,6 +175,17 @@ export {
   type QuadLayer,
   type QuadStroke,
 } from "./render/scenePlan.js";
+// The one seam a runtime mechanic mixes itself in through: the engine folds this list and knows
+// none of the mechanics by name. `flippable` and `coated` register into it; the core stays blind.
+export {
+  applyEffects,
+  registerEffect,
+  resetEffects,
+  type Effect,
+  type EffectOut,
+  type FilterRef,
+  type RuntimeCoat,
+} from "./render/effects.js";
 export { dashContour, perimeter, surfaceOutline, type DashOptions } from "./render/contour.js";
 export { assetNames, assetRecord, registerAsset, resetAssets, type AssetRecord } from "./render/assets.js";
 export {

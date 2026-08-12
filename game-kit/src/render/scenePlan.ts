@@ -23,6 +23,7 @@ import { contextFor, type ResolveContext } from "../core/resolve.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
+import { applyEffects, type FilterRef } from "./effects.js";
 import { fitBox } from "./fitBox.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
 import { polyline } from "../core/path.js";
@@ -111,6 +112,13 @@ export interface Quad {
   /** Bottom-first. */
   readonly layers: readonly QuadLayer[];
   readonly stroke: QuadStroke | undefined;
+  /**
+   * A GPU filter over the whole quad, NAMED — the painter builds and clocks it. Absent for the
+   * ordinary node: only a runtime coat asks for one (a censored surface), and only the one file
+   * that owns Pixi can turn the name into a shader. It rides the plan as plain data so everything
+   * up to the glass stays a pure function.
+   */
+  readonly filter?: FilterRef | undefined;
   readonly z: number;
 }
 
@@ -216,16 +224,22 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
 
   walk(root, (n) => {
     if (!caps(n).has("Surfaced")) return;
-    const fields = fieldsOf<SurfacedFields>(n, "Surfaced");
-    const area = areaOf(n);
+    const ctx = contextFor(n, unit, viewer);
+
+    // THE ONE SEAM. Every runtime mechanic reaches the paint through here and nowhere else: the
+    // node to draw (a card's other face is a substitute node), and the coats to mix over its
+    // surface (a highlight, a censor). The list is empty until a mechanic registers itself, and
+    // then this walk still knows none of them by name. The pose shift a reflect asks for is folded
+    // in `transformsOf` instead, so it reaches the CHILDREN too; here only the paint is mixed.
+    const { node, coats } = applyEffects(n, ctx);
+    const fields = fieldsOf<SurfacedFields>(node, "Surfaced");
+    const area = areaOf(node);
     if (!fields || !area) return;
 
     // An unregistered name is skipped, not thrown: one bad reference must not take the scene
     // down and hide every node that was fine.
     const record = surfaceRecord(fields.surface);
     if (!record) return;
-
-    const ctx = contextFor(n, unit, viewer);
     // ONE map from the node's own coordinates all the way to the glass: its pose, its owners'
     // poses, and units into pixels. Written inline it was three copies of the same two lines,
     // and none of them would have survived a node that could turn.
@@ -245,10 +259,23 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
     // A box around the content extent when the node has no shape of its own. Built here from
     // places rather than taken from the figures next door: those are presets, and they stand
     // ABOVE the renderer — a plan that reached for one would invert the ladder.
-    const shape = footprint(n) ?? boxOf(area);
+    const shape = footprint(node) ?? boxOf(area);
     // Every measurement in a record is in units too, and every one of them is converted HERE.
     // A single length left behind would be right on one screen and wrong on the next.
     const points = surfaceOutline(shape, record.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
+
+    // THE COATS, folded blindly. Their own layers sit OVER the surface's, in the same pixel
+    // conversion every layer goes through — the plan never learns what a highlight or a censor is.
+    // A coat's stroke, when it has one, REPLACES the surface's (a ring is the border while it
+    // lasts), and its filter names a shader for the painter; last coat wins for both, since a
+    // later effect is the more recent word.
+    const coatLayers = (coats ?? []).flatMap((coat) => (coat.layers ?? []).map((layer) => layerOf(layer, area, unit)));
+    let coatStroke: Stroke | undefined;
+    let filter: FilterRef | undefined;
+    for (const coat of coats ?? []) {
+      if (coat.stroke) coatStroke = coat.stroke;
+      if (coat.filter) filter = coat.filter;
+    }
 
     out.push({
       id: n.id,
@@ -257,9 +284,10 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
       w: area.w * unit,
       h: area.h * unit,
       points,
-      layers: record.layers.map((layer) => layerOf(layer, area, unit)),
+      layers: [...record.layers.map((layer) => layerOf(layer, area, unit)), ...coatLayers],
       transform,
-      stroke: strokeOf(record.stroke, points, unit),
+      stroke: strokeOf(coatStroke ?? record.stroke, points, unit),
+      filter,
       z: resolveZ(ctx),
     });
   });
