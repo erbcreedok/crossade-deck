@@ -61,6 +61,28 @@ function shownBack(n: Node): Node {
   return swapped;
 }
 
+/**
+ * The node with its children in the opposite order — a shallow clone, the children themselves
+ * untouched. Reversing twice is home, so one function serves as both `turn` and `back`.
+ */
+function reversedChildren(n: Node): Node {
+  return { id: n.id, parent: n.parent, children: [...n.children].reverse(), atoms: n.atoms };
+}
+
+/**
+ * A CONTENT SWAP — the recipe-maker for a face that is a whole other subtree (a board whose back
+ * is another board). The subtree lives IN THE REGISTRATION, put there by the consumer:
+ *
+ *   registerFlip("ironBack", contentSwap(() => ironBoard));
+ *
+ * and the atom only says `flip: "ironBack"` — references and config on the atom, the mechanism in
+ * the registry. A thunk rather than a node, so the face is read fresh on every turn and a live
+ * edit to it shows up. No reflection: a substitution is not a mirror.
+ */
+export function contentSwap(back: () => Node): Flip {
+  return { reflects: false, turn: back, back: (n) => n };
+}
+
 let effectInstalled = false;
 
 /**
@@ -74,6 +96,18 @@ export function installStockFlips(): void {
   // TURN OVER — a card: the reflection AND the other face. `turn` shows the back surface, `back` the
   // same (a turn is its own inverse), and an empty `back` falls through to the front.
   registerFlip("turnOver", { reflects: true, turn: shownBack, back: shownBack });
+  // DECK REORDER — a deck turned as one physical thing: the order reverses, the whole mirrors. Each
+  // card's back is NOT this recipe's business — the deck's `turns` sums down the chain and every
+  // card answers with its OWN recipe, exactly as under `mirror`. Reorder is the deck's rule alone.
+  registerFlip("deckReorder", { reflects: true, turn: reversedChildren, back: reversedChildren });
+  // DECK CHILDREN — the client2 alternative: cards turn in place, the order stays. As data this is
+  // `mirror` — the chain already turns the children — but a deck NAMES its mode, so the two modes
+  // sit side by side on a shelf and swap without touching the node.
+  registerFlip("deckChildren", { reflects: true, turn: (n) => n, back: (n) => n });
+  // DIRECTION FLIP — a row that must stay readable: the order reverses, nothing mirrors, so the
+  // glyphs keep facing the reader. The trade is real and chosen by the node: a mirror would keep
+  // hand-moved offsets (case D) and this loses them — see the handoff's row fork.
+  registerFlip("directionFlip", { reflects: false, turn: reversedChildren, back: reversedChildren });
 
   if (!effectInstalled) {
     registerEffect(flipEffect);

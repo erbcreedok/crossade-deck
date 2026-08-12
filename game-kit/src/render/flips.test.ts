@@ -3,10 +3,11 @@ import { add, fieldsOf, node } from "../core/node.js";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Surfaced, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { Flippable } from "../core/atoms/flippable.js";
+import { Transformable } from "../core/atoms/transformable.js";
 import { contextFor } from "../core/resolve.js";
-import { type Transform } from "../core/transform.js";
+import { apply, type Transform } from "../core/transform.js";
 import { rect } from "../presets/shapes.js";
-import { flipEffect, flipNames, flipRecord, installStockFlips, resetFlips } from "./flips.js";
+import { contentSwap, flipEffect, flipNames, flipRecord, installStockFlips, registerFlip, resetFlips } from "./flips.js";
 import { resetEffects } from "./effects.js";
 import { transformsOf } from "./scenePlan.js";
 
@@ -79,5 +80,83 @@ describe("flips — the registry and the effect", () => {
     const out = flipEffect(plain, contextFor(plain, 100));
     expect(out.node).toBe(plain);
     expect(det(out.pre)).toBeCloseTo(1);
+  });
+
+  const deckOf = (flip: string) => {
+    const deck = node("royalDeck", Flippable({ flip, turns: 1 }));
+    add(deck, card("aceCard", { flip: "turnOver", back: "cardBack" }));
+    add(deck, card("kingCard", { flip: "turnOver", back: "cardBack" }));
+    add(deck, card("jackCard", { flip: "turnOver", back: "cardBack" }));
+    return deck;
+  };
+
+  it("flip.deckReorder-reverses-the-children — the whole deck turns as one thing", () => {
+    const deck = deckOf("deckReorder");
+    const out = flipEffect(deck, contextFor(deck, 100));
+    expect(out.node.children.map((c) => c.id)).toEqual(["jackCard", "kingCard", "aceCard"]);
+    expect(det(out.pre)).toBeCloseTo(-1); // the deck mirrors — a physical turn, not a shuffle
+    expect(deck.children.map((c) => c.id)).toEqual(["aceCard", "kingCard", "jackCard"]); // a clone, not a mutation
+  });
+
+  it("flip.deckReorder-cards-turn-through-the-chain — no per-card bookkeeping", () => {
+    // The recipe only reorders. Each card's back comes from the SUMMED parity — deck 1 + card 0 —
+    // resolved by the card's OWN recipe, exactly as a mirror-flipped stack already works.
+    const deck = deckOf("deckReorder");
+    const ace = deck.children[0]!;
+    expect(fieldsOf<SurfacedFields>(flipEffect(ace, contextFor(ace, 100)).node, "Surfaced")!.surface).toBe("cardBack");
+  });
+
+  it("flip.deckChildren-keeps-the-order — the client2 alt mode, cards turn in place", () => {
+    const deck = deckOf("deckChildren");
+    const out = flipEffect(deck, contextFor(deck, 100));
+    expect(out.node.children.map((c) => c.id)).toEqual(["aceCard", "kingCard", "jackCard"]);
+    const ace = deck.children[0]!;
+    expect(fieldsOf<SurfacedFields>(flipEffect(ace, contextFor(ace, 100)).node, "Surfaced")!.surface).toBe("cardBack");
+  });
+
+  it("flip.directionFlip-reverses-without-a-mirror — the row reads RTL, the glyphs stay readable", () => {
+    const row = node("letterRow", Flippable({ flip: "directionFlip", turns: 1 }));
+    add(row, card("aTile", {}));
+    add(row, card("bTile", {}));
+    add(row, card("cTile", {}));
+    const out = flipEffect(row, contextFor(row, 100));
+    expect(out.node.children.map((c) => c.id)).toEqual(["cTile", "bTile", "aTile"]);
+    expect(det(out.pre)).toBeCloseTo(1); // no reflection — that is the whole trade against mirror
+  });
+
+  it("flip.contentSwap-substitutes-the-subtree — the back lives in the recipe's registration", () => {
+    // The consumer registers the OTHER face as their own recipe — the atom only names it. This is
+    // the owner's shape verbatim: references/config in the atom, the mechanism in the registry.
+    const iron = node("ironBoard", Bounded({ bounds: rect(4, 3) }), Surfaced({ surface: "iron" }));
+    add(iron, node("pizzaSlice", Bounded({ bounds: rect(1, 1) }), Surfaced({ surface: "pizza" })));
+    registerFlip("story.ironBack", contentSwap(() => iron));
+    const board = node("oakBoard", Bounded({ bounds: rect(4, 3) }), Surfaced({ surface: "oak" }),
+      Flippable({ flip: "story.ironBack", turns: 1 }));
+    const out = flipEffect(board, contextFor(board, 100));
+    expect(out.node.id).toBe("ironBoard");
+    expect(out.node.children[0]!.id).toBe("pizzaSlice");
+    expect(det(out.pre)).toBeCloseTo(1); // substitution, not reflection
+  });
+
+  it("flip.contentSwap-even-parity-shows-the-front — the swap is the turn, not the node", () => {
+    const iron = node("ironBoard", Bounded({ bounds: rect(4, 3) }), Surfaced({ surface: "iron" }));
+    registerFlip("story.ironBack", contentSwap(() => iron));
+    const board = node("oakBoard", Bounded({ bounds: rect(4, 3) }), Surfaced({ surface: "oak" }),
+      Flippable({ flip: "story.ironBack", turns: 2 }));
+    expect(flipEffect(board, contextFor(board, 100)).node).toBe(board);
+  });
+
+  it("flip.move-then-flip-mirrors-the-live-state — case D, nothing is stored", () => {
+    // A child is MOVED, then the board flips: the mirror lands on where the child is NOW. The
+    // recipe stores nothing — the reflection composes over the live pose, so the last state is
+    // what turns.
+    const board = node("oakBoard", Flippable({ flip: "mirror", turns: 1 }));
+    const pawn = node("pawnPiece", Bounded({ bounds: rect(1, 1) }), Surfaced({ surface: "front" }),
+      Transformable({ at: { x: 2, y: 0.5 } }));
+    add(board, pawn);
+    const t = transformsOf(board);
+    const at = apply(t.get("pawnPiece")!, { x: 0, y: 0 });
+    expect(at.x).toBeCloseTo(-2); // mirrored across the board's Y axis, from the LIVE 2
+    expect(at.y).toBeCloseTo(0.5);
   });
 });

@@ -141,7 +141,7 @@ export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/gripp
 // The card turn, as data: a recipe name, a turn count (parity, summed), a reflection axis, a back
 // surface. What the turn DOES is a recipe in `render/flips.ts`; the engine mixes it in blind.
 export { Flippable, type FlippableFields } from "./core/atoms/flippable.js";
-export { flipNames, flipRecord, flipEffect, installStockFlips, registerFlip, resetFlips, type Flip } from "./render/flips.js";
+export { contentSwap, flipNames, flipRecord, flipEffect, installStockFlips, registerFlip, resetFlips, type Flip } from "./render/flips.js";
 // A runtime layer mixed over the surface: a highlight, a dim, a censor. Data on the atom, look in
 // a recipe, reach on the inheritance class — `self` this face, `cast` the whole subtree.
 export { Coated, hasCoat, NO_COAT, type Coat, type CoatedFields } from "./core/atoms/coated.js";

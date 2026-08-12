@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**39 слоя · 917 кейсов заявлено · 743 расписано поимённо.**
+**39 слоя · 924 кейсов заявлено · 750 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -64,4 +64,4 @@
 | [UNIT · the effects list — the runtime seam](36-effects.md) | `vitest` | 5 | 5 |
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 21 | 21 |
-| [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 8 | 8 |
+| [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
