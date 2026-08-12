@@ -1,0 +1,29 @@
+game-kit/docs/test-plan/39-flips.md
+  s_7a734f8e2f7730::t_94c9f36d36f551 3,20-26
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_94c9f36d36f551 10,67
+game-kit/src/index.ts
+  s_7a734f8e2f7730::t_178d0c156a0645 144
+game-kit/src/render/flips.ts
+  s_7a734f8e2f7730::t_aa4d7946a9c95b 64-85
+  s_7a734f8e2f7730::t_361fafa5934f08 99-110
+game-kit/src/render/flips.test.ts
+  s_7a734f8e2f7730::t_179bf3492ef1b7 84-161
+  s_7a734f8e2f7730::t_9cb7aa826a79bf 6,8,10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "470a512a31edf4bb5a58e9d6703acab1f51c05ac",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
