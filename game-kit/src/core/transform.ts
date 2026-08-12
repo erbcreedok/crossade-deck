@@ -90,6 +90,25 @@ export function pose(at: Vec, angle = 0, size = 1): Transform {
 }
 
 /**
+ * A REFLECTION across the line at `deg` through the origin. Its determinant is −1 — it turns the
+ * plane over — and it is its own inverse, so two of them cancel exactly. That is what a flip needs
+ * and what a `pose` cannot give: `pose` is scale-rotate-move, all determinant ≥ 0, and no
+ * composition of them mirrors. The line's angle is a PARAMETER (`axis` on the atom), not a preset
+ * per angle — 90° is a Y-mirror, 76° is a 76° mirror, and the recipe reads whatever the node holds.
+ *
+ * Kept OUT of `pose` on purpose: the canon says a spec holds no reflection, so this composes
+ * separately, folded in by parity at apply time exactly as `resolveZ` reads a sum — never stored.
+ */
+export function reflect(deg = 90): Transform {
+  // The reflection about a line at `deg` through the origin: `[cos2θ, sin2θ; sin2θ, −cos2θ]`. At 90°
+  // it is `diag(−1, 1)` — a Y-mirror, flipping x — and a point ON the line is always fixed.
+  const r = (2 * deg * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  return { a: cos, b: sin, c: sin, d: -cos, e: 0, f: 0 };
+}
+
+/**
  * The inverse. Needed the moment anything goes the other way — a pointer in view pixels asking
  * which node it landed on.
  *

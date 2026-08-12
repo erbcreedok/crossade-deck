@@ -1,40 +1,40 @@
-// FLIPPABLE — the card turn. Which SURFACE shows when the element is turned over is a pure question
-// of DATA: face-up is the node's `Surfaced.surface`; face-down is `back`. That is the whole atom.
+// FLIPPABLE — the turn, as DATA and nothing else. A flip is not "swap one surface": it is GEOMETRY
+// (a reflection the children inherit) plus, sometimes, a change of CONTENT (the other face is a whole
+// other subtree). One toy field could model a card's face and none of the rest, so the atom holds the
+// four data a turn actually needs and leaves the DOING to a recipe in the registry, exactly as
+// `Surfaced` names a record it does not contain. See `docs/FLIPPABLE-HANDOFF.md`.
 //
-// One field, because the earlier four-way `reverse` was three values pretending to be distinct:
-// «a separate back» and «a per-card second face» render identically, «mirror» named a reflection no
-// painter here can draw, and «same» is just an empty back. What remains is the one thing that
-// changes a pixel — the down-side surface. Empty `back` shows the front, so a token identical both
-// sides needs no back and a half-configured card never turns up blank.
+//   flip  — the recipe NAME in `render/flips.ts`. "" ≡ "mirror", the pure geometric reflection.
+//   turns — how many turns from the authored state. It SUMS along the chain (`addsUp`): a stack
+//           turned once turns every child once, and a child turned back is face-up again because the
+//           two turns sum to even. The current side is this parity, never a stored boolean.
+//   axis  — the reflection line, in degrees, as a PARAMETER — 90 is a Y-mirror, 76 is a 76° one. A
+//           value on the atom, not a preset per angle (the `Axis76` lesson), read by mirror recipes.
+//   back  — the down-side surface a surface-swap recipe (turnOver) reveals. "" ≡ same both sides, so
+//           a token identical on both faces needs no back and a half-built card never turns up blank.
 //
-// Which SIDE is up is runtime state, not spec — it is passed to `shownSurface`, never stored here.
-// Requires `Surfaced`: no face, nothing to turn. See CANONS.md §3 and NIGHT-DECISIONS.md.
+// Which side is up is not stored: it is the parity of `turns`, resolved at apply time. The recipe
+// decides what the turn DOES; the engine mixes it in through the effects list, blind.
 
 import { defineAtom } from "../atom.js";
-import { fieldsOf, type Node } from "../node.js";
-import { type SurfacedFields } from "./surfaced.js";
 
 export interface FlippableFields {
-  /** The surface shown face-down. Empty falls back to the front — same both sides, and never blank. */
+  /** Recipe name in the flips registry. "" ≡ "mirror" — a pure reflection that swaps nothing. */
+  readonly flip: string;
+  /** Turns from the authored state. SUMS along the chain — a stack turns its children. */
+  readonly turns: number;
+  /** The reflection line, in degrees. A parameter, not a preset per angle. 90 = Y-mirror. */
+  readonly axis: number;
+  /** The down-side surface a surface-swap recipe reveals. "" falls back to the front, never blank. */
   readonly back: string;
 }
 
 export const Flippable = defineAtom<FlippableFields>({
   name: "Flippable",
-  requires: ["Surfaced"],
-  defaults: { back: "" },
-  classes: { back: "own" },
+  // A face is NOT required: a container, a stack, the desk itself all turn, and none of them draws a
+  // surface of its own. The effect skips a node with nothing to reflect.
+  requires: [],
+  defaults: { flip: "", turns: 0, axis: 90, back: "" },
+  // `turns` is the one summed field — the parity is inherited. The rest are the node's own.
+  classes: { flip: "own", turns: "addsUp", axis: "own", back: "own" },
 });
-
-/**
- * The surface shown for a given up/down state: the front face-up, the `back` (or the front, when no
- * back is named) face-down. `undefined` when the node has no `Surfaced` at all — there is no face to
- * show. A node with a face but no `Flippable` shows its front either way (nothing to turn).
- */
-export function shownSurface(node: Node, faceUp: boolean): string | undefined {
-  const surf = fieldsOf<SurfacedFields>(node, "Surfaced");
-  if (!surf) return undefined;
-  if (faceUp) return surf.surface;
-  const flip = fieldsOf<FlippableFields>(node, "Flippable");
-  return flip?.back || surf.surface;
-}

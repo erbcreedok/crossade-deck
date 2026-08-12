@@ -45,7 +45,9 @@ export function deck(specs: readonly CardSpec[], opts: DeckOptions = {}): Node[]
     const copies = spec.count ?? 1;
     for (let n = 0; n < copies; n++) {
       const atoms: Atom[] = [bounds, Surfaced({ surface: spec.face })];
-      if (spec.back !== undefined) atoms.push(Flippable({ back: spec.back }));
+      // A named back makes the card turn over: the `turnOver` recipe reflects the geometry AND shows
+      // the back surface. No back and there is no `Flippable` at all — a one-sided card does not turn.
+      if (spec.back !== undefined) atoms.push(Flippable({ flip: "turnOver", back: spec.back }));
       if (spec.values !== undefined) atoms.push(Valued({ values: spec.values }));
       cards.push(node(`${spec.face}#${n}`, ...atoms));
     }

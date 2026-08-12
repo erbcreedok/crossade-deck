@@ -560,7 +560,11 @@ export function boundsMarks({ root, unit, width, height, viewer }: PlanInput): M
  */
 export function transformsOf(root: Node): Map<NodeId, Transform> {
   const out = new Map<NodeId, Transform>();
-  out.set(root.id, poseOf(root));
+  // THE SAME SEAM as scenePlan's, on the GEOMETRY side: an effect's `pre` (a flip's reflection) is
+  // folded into a node's own transform so its CHILDREN inherit it through the chain — a mirrored
+  // stack turns its cards over with it, and two reflections up the chain cancel exactly. The walk
+  // knows no mechanic by name; the paint side reads `coats`, this side reads `pre`.
+  out.set(root.id, compose(poseOf(root), preOf(root)));
 
   walk(root, (n) => {
     const here = out.get(n.id) ?? IDENTITY;
@@ -571,11 +575,17 @@ export function transformsOf(root: Node): Map<NodeId, Transform> {
       // turned hand would sit in the right place and face the wrong way.
       const at = placed.get(child.id) ?? ownPose(child);
       const own = fieldsOf<TransformableFields>(child, "Transformable");
-      out.set(child.id, compose(here, pose(at, own?.angle ?? 0, own?.scale ?? 1)));
+      const base = compose(here, pose(at, own?.angle ?? 0, own?.scale ?? 1));
+      out.set(child.id, compose(base, preOf(child)));
     }
   });
 
   return out;
+}
+
+/** A node's own pose shift from the effects list — a reflection, or the identity. See `applyEffects`. */
+function preOf(n: Node): Transform {
+  return applyEffects(n, contextFor(n, 1)).pre;
 }
 
 /** The root's own pose. It has no owner, so nothing composes onto it. */

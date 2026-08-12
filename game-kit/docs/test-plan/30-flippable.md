@@ -2,15 +2,15 @@
 
 `vitest` · 5 кейсов, расписано 5
 
-Какую ПОВЕРХНОСТЬ показать при перевороте — чистая функция данных: лицом вверх это `Surfaced.surface`,
-лицом вниз — `back`. Одно поле: прежний четырёхзначный `reverse` был тремя значениями, притворявшимися
-разными (отдельный оборот и второе лицо — одна операция, mirror не рисуется, same это пустой оборот).
-Сторона (верх/низ) — рантайм, передаётся, не хранится. Дизайн — `CANONS.md` §3.
+Переворот как ДАННЫЕ: имя рецепта (`flip`), счётчик переворотов (`turns`, СУММА по цепи → паритет
+стороны), ось отражения (`axis`, параметр), изнаночная поверхность (`back`). Что переворот ДЕЛАЕТ —
+рецепт в `render/flips.ts`; движок мешает через список эффектов. Отражение ⟺ свой `turns` нечёт,
+подмена контента ⟺ суммарный нечёт — кейс A выходит сам. Дизайн — `docs/FLIPPABLE-HANDOFF.md`.
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
-| `flip.face-up-shows-the-front` | карта с фронтом и `Flippable({back})` | `shownSurface(_, true)` | лицом вверх всегда перед: `front` |
-| `flip.face-down-shows-the-back` | `back: cardBack` | `shownSurface(_, false)` | названный оборот — изнанка: `cardBack` |
-| `flip.empty-back-shows-the-front` | `back: ""` | `shownSurface(_, false)` | одинаково с обеих сторон, переворот не бланчит: `front` |
-| `flip.no-flippable-shows-the-front-both-ways` | фронт есть, Flippable нет | `shownSurface(_, false)` | вертеть нечего — перед в обе стороны |
-| `flip.no-surface-no-surface` | узел без Surfaced | `shownSurface(_, false)` | лица нет вовсе → `undefined` |
+| `flip.fields-and-classes` | атом Flippable | `classOf` | `turns`=addsUp, `flip`/`axis`/`back`=own |
+| `flip.no-requirement` | Flippable | `requires` | пусто — контейнер/стол/стопка переворачиваются без грани |
+| `flip.defaults-are-front-up-mirror` | `Flippable()` | поля | `{flip:"", turns:0, axis:90, back:""}` |
+| `flip.turns-sum-along-the-chain` | стопка turns=1, карта turns=0 | `sumAlongChain` | 1 — стопка переворачивает ребёнка |
+| `flip.re-flip-sums-to-even` | стопка turns=1, карта turns=1 | сумма % 2 | 0 — карта снова лицом (кейс A) |

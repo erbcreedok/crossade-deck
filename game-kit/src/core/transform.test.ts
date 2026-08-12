@@ -2,7 +2,9 @@
 // These are the properties every one of those four silently relied on.
 
 import { describe, expect, it } from "vitest";
-import { apply, chain, compose, IDENTITY, invert, move, pose, rotate, scale } from "./transform.js";
+import { apply, chain, compose, IDENTITY, invert, move, pose, reflect, rotate, scale } from "./transform.js";
+
+const det = (t: { a: number; b: number; c: number; d: number }): number => t.a * t.d - t.b * t.c;
 
 const near = (a: { x: number; y: number }, b: { x: number; y: number }): void => {
   expect(a.x).toBeCloseTo(b.x, 9);
@@ -51,5 +53,17 @@ describe("transform", () => {
     // A scale of zero has no inverse, and the honest answer is nothing rather than a matrix
     // full of infinities that fails somewhere far away.
     expect(invert(scale(0))).toBeUndefined();
+  });
+
+  it("transform.reflect-turns-the-plane-over — det −1, self-inverse, at any axis", () => {
+    // A flip needs what a pose cannot give: a determinant of −1. The default 90° is a Y-mirror,
+    // so a point on the x axis lands on its opposite.
+    near(apply(reflect(90), { x: 1, y: 0 }), { x: -1, y: 0 });
+    expect(det(reflect(90))).toBeCloseTo(-1, 9);
+    // Its own inverse: two of them cancel exactly — the whole reason a re-flipped card comes back.
+    near(apply(compose(reflect(76), reflect(76)), { x: 0.6, y: -0.3 }), { x: 0.6, y: -0.3 });
+    // The axis is a parameter: a point ON the mirror line is fixed, so a 76° mirror holds a 76° point.
+    const on76 = { x: Math.cos((76 * Math.PI) / 180), y: Math.sin((76 * Math.PI) / 180) };
+    near(apply(reflect(76), on76), on76);
   });
 });
