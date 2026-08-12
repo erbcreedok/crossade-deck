@@ -1,0 +1,30 @@
+game-presets/cards/docs/test-plan.md
+  s_7a734f8e2f7730::t_24451ee95710be 18-20
+game-presets/cards/src/skin.classic.test.ts
+  s_7a734f8e2f7730::t_85dcef1b3254be 1-36
+game-presets/cards/src/suits.ts
+  s_7a734f8e2f7730::t_97c739de82d533 31-43,51-54,56-59
+  s_7a734f8e2f7730::t_b2a0abfdc7db94 10
+game-presets/cards/src/textures/cards.ts
+  s_7a734f8e2f7730::t_964df20b8b2bf5 1-110
+game-presets/cards/src/skin.classic.ts
+  s_7a734f8e2f7730::t_8e739dcff7796a 1-45
+game-presets/cards/src/index.ts
+  s_7a734f8e2f7730::t_89f8a3dba46f26 3-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d761d86c62ce297489a3d014dfbc5fcbfdcb2619",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
