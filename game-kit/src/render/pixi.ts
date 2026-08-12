@@ -191,6 +191,15 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
           const g = new Graphics();
           trace(g, quad.points, true);
           g.fill({ color: paint(theme, layer.paint), alpha: layer.opacity });
+          // A partial layer arrives with its clip ALREADY as points — the plan did the geometry,
+          // this only masks with it, the same obedience as the contour itself.
+          if (layer.clip) {
+            const mask = new Graphics();
+            trace(mask, layer.clip, true);
+            mask.fill({ color: paint(theme, "text") });
+            box.addChild(mask);
+            g.mask = mask;
+          }
           box.addChild(g);
         }
         const image = layer.image;

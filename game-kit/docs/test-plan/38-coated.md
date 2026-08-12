@@ -1,6 +1,6 @@
 ## UNIT · Coated — the runtime coat over a surface
 
-`vitest` · 21 кейсов, расписано 21
+`vitest` · 22 кейсов, расписано 22
 
 Рантайм-слой поверх статического `Surfaced`: непрерывная величина, охват, бесконечный цвет, приват —
 то, что «имя → готовая запись» не держит. Атом несёт ДАННЫЕ (рецепт+level+tint); look — рецепт в
@@ -31,3 +31,4 @@
 | `coat.reaches-the-quad` | coated-узел через `scenePlan` | весь план | wash — лишний слой ПОВЕРХ записи, opacity=level |
 | `coat.filter-reaches-the-quad` | censor через `scenePlan` | план | `quad.filter` = blur, сериализуемо (имя+числа) |
 | `coat.ring-overrides-the-stroke` | ring через `scenePlan` | план | `quad.stroke` = кольцо (plate без штриха) |
+| `coat.fill-covers-a-fraction` | рецепт `fill`, level 0.3 / NaN | рецепт вызван | слой с `part: 0.3`, СПЛОШНОЙ (не полупрозрачный — в этом отличие от wash); NaN заливает 0, не бросает |

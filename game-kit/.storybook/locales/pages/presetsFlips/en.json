@@ -1,12 +1,13 @@
 {
   "docs.presetsFlips.component": [
-    "The stock flip recipes, each on its own page. A flip is GEOMETRY (a reflection the children",
-    "inherit) plus, sometimes, CONTENT (the other face). `Atoms/Flippable` teaches the atom and case A;",
-    "this shelf answers what `mirror` and `turnOver` already do, and how to configure them.",
+    "The stock flip mechanics, each on its own page, drop-in. A flip is GEOMETRY (a reflection the",
+    "children inherit) plus, sometimes, CONTENT (the other face). `Atoms/Flippable` teaches the atom",
+    "through scenes; this shelf answers what each NAME already does, and how to configure it.",
     "",
-    "`mirror` is pure geometry, so it is shown on something that REVEALS a reflection — a row of tiles",
-    "that comes back reversed. `turnOver` is the card: a front and a back, swapped by the same turn. A",
-    "new recipe is a registration, never a branch anything has to learn."
+    "Six mechanics: `mirror` (pure geometry), `turnOver` (the card), `deckReorder` and `deckChildren`",
+    "(the two deck modes), `directionFlip` (the readable row) and `contentSwap` (a recipe-maker the",
+    "consumer registers with their own subtree). A new one is a registration, never a branch anything",
+    "has to learn."
   ],
   "docs.presetsFlips.mirror": [
     "Pure geometry, nothing swapped — the default. Shown on a row of distinct tiles so the reflection is",
@@ -18,5 +19,29 @@
     "The card: reflection AND the other face. Even `turns` is face-up — the front; odd shows the back",
     "surface and mirrors. The two parities do it: reflection follows a node's own turns, the content swap",
     "the summed. An empty back would fall through to the front, so a turn never blanks the card."
+  ],
+  "docs.presetsFlips.deckreorder": [
+    "The deck turned as ONE PHYSICAL THING: the order reverses, the whole mirrors, every card shows its",
+    "back. The recipe only reorders — the cards' backs come from the SUMMED parity, each by its own",
+    "recipe, so no card is ever written to. Drop it on any container whose flip should reverse what is",
+    "on it; the distinct back tints here exist only so the reorder stays readable face-down."
+  ],
+  "docs.presetsFlips.deckchildren": [
+    "The keep-order deck, the client2 alternative: cards turn in place, the order stays. As DATA this",
+    "recipe equals `mirror` — the chain turns the children on its own — but the name exists so a deck",
+    "can SAY its mode, put the two side by side, and swap one for the other without touching a node."
+  ],
+  "docs.presetsFlips.contentswap": [
+    "The face that is a whole OTHER subtree. `contentSwap` is a recipe-MAKER: hand it the back as a",
+    "thunk and register the result under your own name — `registerFlip(\"ironBack\", contentSwap(() =>",
+    "iron))` — and the atom only says `flip: \"ironBack\"`. References and config on the atom, the",
+    "mechanism in the registry. No reflection: a substitution is not a mirror, and the engine draws the",
+    "shown node's children, so the front never bleeds through."
+  ],
+  "docs.presetsFlips.directionflip": [
+    "The readable row: the order reverses and NOTHING mirrors, so glyphs keep facing the reader — the",
+    "corner dots stand in for them and stay put, where `mirror` would flip them over. The trade is the",
+    "node's to make: a mirror keeps hand-moved offsets turning (case D), this loses them and keeps the",
+    "content legible."
   ]
 }

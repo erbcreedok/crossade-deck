@@ -58,6 +58,12 @@ export interface PaintLayer {
   readonly align?: Align;
   /** 0..1. Absent means opaque — an absent field is not a value, it is the lack of one. */
   readonly opacity?: number;
+  /**
+   * The fraction of the area this layer covers, bottom-up, 0..1. Absent means the whole face —
+   * which is not the same as `1`: a whole layer needs no mask at all. A DIFFERENT kind of mark
+   * from opacity: a half-filled gauge is half DRAWN, not half faded, and the cut edge shows it.
+   */
+  readonly part?: number;
 }
 
 /**

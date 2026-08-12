@@ -138,6 +138,28 @@ describe("scenePlan", () => {
   });
 });
 
+describe("a partial layer", () => {
+  it("plan.a-partial-layer-carries-its-clip — the fraction becomes points here, not in the painter", () => {
+    // `part` is a clip, and the clip is GEOMETRY — so it is computed in the plan, where a unit
+    // test holds it down, and the painter only obeys a mask it is handed. Bottom-up, like a level.
+    registerSurface("quarterFace", { layers: [{ paint: "panelBg", part: 0.25 }] });
+    const quad = plan(node("gauge", box(1, 2), Surfaced({ surface: "quarterFace" })))[0]!;
+    const clip = quad.layers[0]!.clip!;
+    const ys = clip.map((p) => p.y);
+    const xs = clip.map((p) => p.x);
+    expect(Math.min(...ys)).toBeCloseTo(50); // 2u tall at 100px/u: the box runs -100..100, a quarter is 50..100
+    expect(Math.max(...ys)).toBeCloseTo(100);
+    expect(Math.min(...xs)).toBeCloseTo(-50);
+    expect(Math.max(...xs)).toBeCloseTo(50);
+  });
+
+  it("plan.a-whole-layer-has-no-clip — absent means the whole face, not a full-size mask", () => {
+    registerSurface("wholeFace", { layers: [{ paint: "panelBg" }] });
+    const quad = plan(node("gauge", box(1, 1), Surfaced({ surface: "wholeFace" })))[0]!;
+    expect(quad.layers[0]!.clip).toBeUndefined();
+  });
+});
+
 describe("the seam walks the SHOWN node", () => {
   // The second half of the seam — children and surface both come from the SHOWN node: when an
   // effect substitutes a node (a board's other face is a whole other subtree), the plan must draw

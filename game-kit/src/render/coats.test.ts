@@ -75,6 +75,15 @@ describe("coats — the registry and the effect", () => {
     expect(out.filter?.params.strength).toBeCloseTo(0.5);
   });
 
+  it("coat.fill-covers-a-fraction — the blueprint completes as the level grows", () => {
+    // A DIFFERENT KIND of mark: not an overlay's opacity but a CLIP — the coat covers `level` of
+    // the face and stops, so a plan under construction reads as partly drawn, not partly faded.
+    const layer = (level: number) => coatRecipe("fill")!({ recipe: "fill", level, tint: "" }).layers![0]!;
+    expect(layer(0.3).part).toBeCloseTo(0.3);
+    expect(layer(0.3).opacity ?? 1).toBe(1); // the covered part is SOLID — that is the whole difference from wash
+    expect(layer(Number.NaN).part).toBe(0); // a broken magnitude fills nothing, never throws
+  });
+
   it("coat.self-coats-own-face — an own coat does not fall to the children", () => {
     const parent = box("wardedDoor", { recipe: "ring", level: 1, tint: "accent" });
     const child = box("innerPane");

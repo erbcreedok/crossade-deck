@@ -53,6 +53,12 @@ export interface QuadLayer {
   readonly paint: Paint | undefined;
   readonly image: QuadImage | undefined;
   readonly opacity: number;
+  /**
+   * A closed contour to MASK this layer with, in pixels, in the node's own space — present only
+   * when the layer declared a `part`. The fraction became geometry HERE, where a unit test reads
+   * it; the painter is handed points and obeys, exactly as it is for the quad's own contour.
+   */
+  readonly clip?: readonly Point[] | undefined;
 }
 
 /** The stroke of one quad, every length already in pixels. */
@@ -163,19 +169,21 @@ export function bakePlan(plan: readonly Quad[], which: (quad: Quad) => boolean =
       transform: IDENTITY,
       // `t.a`/`t.d` are the scales ONLY while the quad is unturned — which is exactly when a
       // picture survives the fold, and the refusal above is what guarantees it here.
-      layers: quad.layers.map((layer) =>
-        layer.image
+      layers: quad.layers.map((layer) => {
+        // A layer's clip is points like the contour, and folds the same way.
+        const folded = layer.clip ? { ...layer, clip: layer.clip.map(at) } : layer;
+        return folded.image
           ? {
-              ...layer,
+              ...folded,
               image: {
-                ...layer.image,
-                ...at({ x: layer.image.x, y: layer.image.y }),
-                w: layer.image.w * t.a,
-                h: layer.image.h * t.d,
+                ...folded.image,
+                ...at({ x: folded.image.x, y: folded.image.y }),
+                w: folded.image.w * t.a,
+                h: folded.image.h * t.d,
               },
             }
-          : layer,
-      ),
+          : folded;
+      }),
       stroke: quad.stroke
         ? {
             ...quad.stroke,
@@ -334,7 +342,21 @@ function layerOf(layer: PaintLayer, area: { readonly w: number; readonly h: numb
   // function, and then none of this would be checkable without a browser.
   const asset = layer.image ? assetRecord(layer.image) : undefined;
   const placed = asset ? fitBox(area, asset, layer.fit, layer.align) : undefined;
+  // The `part` fraction becomes a clip RECT, bottom-up like a level filling: the painter masks
+  // the layer's fill with it, and the intersection with the contour is what shows. Non-finite is
+  // read as nothing, exactly as a coat's level is — a broken magnitude must not paint the face.
+  const part = layer.part !== undefined ? (Number.isFinite(layer.part) ? Math.max(0, Math.min(1, layer.part)) : 0) : undefined;
+  const clip =
+    part !== undefined
+      ? [
+          { x: (-area.w / 2) * unit, y: (area.h / 2 - area.h * part) * unit },
+          { x: (area.w / 2) * unit, y: (area.h / 2 - area.h * part) * unit },
+          { x: (area.w / 2) * unit, y: (area.h / 2) * unit },
+          { x: (-area.w / 2) * unit, y: (area.h / 2) * unit },
+        ]
+      : undefined;
   return {
+    clip,
     // An empty colour is NO colour: a layer that is only a picture must not reach the renderer
     // carrying an empty token for it to resolve.
     paint: layer.paint || undefined,

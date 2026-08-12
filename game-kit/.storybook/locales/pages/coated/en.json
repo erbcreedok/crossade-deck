@@ -95,5 +95,15 @@
     "where the live per-object transform already lives. The model names the filter; the shader is the",
     "one thing verified by eye rather than in a headless test, because there is no WebGL to run one in.",
     "Drag `level`: the mask thickens, and so does the blur behind it."
+  ],
+  "docs.coated.bluff": [
+    "TWO TREES side by side — the same card as two clients hold it. The bluffer's tree carries the tell",
+    "(a `self` ring); the opponent's tree simply DOES NOT HAVE the field, because the orchestrator",
+    "omitted it from that projection. The shared state each client renders is honest; what differs is",
+    "what each was GIVEN.",
+    "",
+    "No recipe here reads a viewer, and none may: a coat is shared state that travels the wire, and the",
+    "onlooker plane is neither shared nor on the wire (`guard.coat-not-viewer`). Privacy is a field a",
+    "tree does not contain — never a flag the paint checks."
   ]
 }

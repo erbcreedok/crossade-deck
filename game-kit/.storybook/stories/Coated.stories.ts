@@ -56,7 +56,7 @@ const meta: Meta = {
     // Which scenes teach which field, checked against the atom by `guard.every-field-has-a-control`.
     // `self` is exercised by the shard, the team and the censor; `cast` by the shard and the tray.
     gkFields: {
-      self: ["Coat", "Team", "Censor"],
+      self: ["Coat", "Team", "Censor", "Bluff"],
       cast: ["Coat", "Cascade"],
     },
   },
@@ -202,4 +202,38 @@ export const Censor: StoryObj<CensorArgs> = {
     level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "self"),
   },
   parameters: { gkDocStory: "coated.censor" },
+};
+
+// ---- Bluff: privacy is a projected field, not a viewer flag ---------------------------------
+
+interface BluffArgs {
+  level: number;
+  tint: string;
+}
+
+export const Bluff: StoryObj<BluffArgs> = {
+  // TWO TREES side by side — the same card as two clients hold it. The bluffer's tree carries the
+  // tell (a `self` coat); the opponent's tree simply DOES NOT HAVE the field, because the
+  // orchestrator omitted it from that projection. No recipe here reads a viewer: privacy is what a
+  // tree does not contain, never a flag the paint checks (`guard.coat-not-viewer`).
+  render: (a) => {
+    registerLayout("story.coated.bluff", rowLayout({ gap: 1 }));
+    const desk = node("bluffDesk", Container({ layout: "story.coated.bluff" }));
+    const card = (id: string, withTell: boolean) =>
+      node(
+        id,
+        Bounded({ bounds: rect(1.2, 1.7) }),
+        Surfaced({ surface: "plate" }),
+        ...(withTell ? [Coated({ self: { recipe: "ring", level: a.level, tint: a.tint } })] : []),
+      );
+    add(desk, card("yourCard", true));
+    add(desk, card("theirCard", false));
+    return scene(desk).el;
+  },
+  args: { level: 0.8, tint: "accent" },
+  argTypes: {
+    level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "self"),
+    tint: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS] }, "self"),
+  },
+  parameters: { gkDocStory: "coated.bluff" },
 };

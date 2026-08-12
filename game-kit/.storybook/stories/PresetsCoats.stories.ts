@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { Bounded, Coated, installStockCoats, node, rect, Surfaced } from "../../src/index.js";
+import { add, Bounded, Coated, Container, installStockCoats, node, rect, registerLayout, rowLayout, Surfaced } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // PRESETS THAT MIX A RUNTIME COAT — one page per stock recipe, in isolation, with only its own knobs.
 //
 // The recipes are DATA the kit ships; `Atoms/Coated` teaches the atom and the reach, this shelf
-// answers the narrower question a gamedev has — "what does the `wash`/`ring`/`censor` name already
-// look like, and what does its `level` do". So the controls are the coat's own, never a whole tree.
-// `clear` is not a page: it draws nothing on purpose (it stops a cast cascade), and a blank canvas
-// teaches nothing a paragraph cannot.
+// answers the narrower question a gamedev has — "what does the `wash`/`ring`/`fill`/`censor` name
+// already look like, and what does its `level` do". So the controls are the coat's own, never a
+// whole tree. `clear` draws nothing BY ITSELF, so its page shows it at work: inside a cast it is
+// the one recipe whose whole job is to stop one.
 installStockCoats();
 
 interface CoatArgs {
@@ -52,6 +52,45 @@ export const Ring: StoryObj<CoatArgs> = {
   args: { level: 0.6, tint: "accent" },
   argTypes: { level: levelControl, tint: tintControl },
   parameters: { gkDocStory: "presetsCoats.ring" },
+};
+
+export const Fill: StoryObj<CoatArgs> = {
+  // The blueprint completing: a SOLID coat over `level` of the face, bottom-up, cut where the
+  // level stops. A different KIND of mark from `wash` — a half-built thing is half DRAWN, not half
+  // faded — and the hard cut edge is what says so. Drag `level` and watch it build.
+  render: (a) => box("plate", "fill", a),
+  args: { level: 0.4, tint: "accent" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.fill" },
+};
+
+export const Clear: StoryObj<CoatArgs> = {
+  // The recipe that draws NOTHING — its whole job is to STOP a cast. The tray casts a wash over
+  // both tiles; the right one carries `clear`, so the nearest-cast walk stops there and the tile
+  // stays lit. "All but this one" is a dim on the tray and a `clear` on the exception.
+  render: (a) => {
+    registerLayout("preset.clear.row", rowLayout({ gap: 0.3 }));
+    const tray = node(
+      "castTray",
+      Container({ layout: "preset.clear.row" }),
+      Surfaced({ surface: "plate" }),
+      Coated({ cast: { recipe: "wash", level: a.level, tint: a.tint } }),
+    );
+    add(tray, node("dimTile", Bounded({ bounds: rect(1.2, 1.2) }), Surfaced({ surface: "plate" })));
+    add(
+      tray,
+      node(
+        "litTile",
+        Bounded({ bounds: rect(1.2, 1.2) }),
+        Surfaced({ surface: "plate" }),
+        Coated({ cast: { recipe: "clear", level: 0, tint: "" } }),
+      ),
+    );
+    return scene(tray).el;
+  },
+  args: { level: 0.6, tint: "stageBg" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.clear" },
 };
 
 export const Censor: StoryObj<CoatArgs> = {

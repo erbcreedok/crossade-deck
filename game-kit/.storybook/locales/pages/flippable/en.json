@@ -75,5 +75,65 @@
     "face-up while its neighbour stays over — and its own reflection and the stack's cancel, so it is",
     "upright, not doubly mirrored. Nobody wrote «this card is special»; the parity of `turns` resolved",
     "it. That is the whole reason the side is a summed count and not a stored flag."
+  ],
+  "docs.flippable.knight": [
+    "A piece with a face. The muzzle sits to one side, so the mirror is visible on a single node: turn",
+    "it and the knight looks the other way. Nothing is swapped — `mirror` is pure geometry, and the",
+    "asymmetry is what reveals it. A symmetric token under the same recipe would look unchanged, with",
+    "the mirror working all along.",
+    "",
+    "`axis` tilts the line the piece turns about: 90 is a Y-mirror, 76 turns it about a slanted line —",
+    "a parameter of the instance, never a recipe per angle."
+  ],
+  "docs.flippable.contentback": [
+    "The board whose back is not a colour but a WHOLE OTHER FACE: an iron top carrying a radial tray of",
+    "slices. The subtree lives in the recipe's REGISTRATION — `registerFlip(\"ironBack\",",
+    "contentSwap(() => iron))` — and the atom only names it: references and config on the atom, the",
+    "mechanism in the registry.",
+    "",
+    "The engine draws the SHOWN node's children, so the front's stack never bleeds through the back.",
+    "And there is no reflection: a substitution is not a mirror, which is exactly why the recipe says",
+    "`reflects: false`."
+  ],
+  "docs.flippable.decks": [
+    "Two decks, one turn. The left flips as ONE PHYSICAL THING — `deckReorder`: the order reverses",
+    "with the cards. The right is the keep-order alternative — `deckChildren`: cards turn in place.",
+    "Each card keeps its own back tint, so the difference stays readable face-down.",
+    "",
+    "Neither recipe touches a card: the backs come from the SUMMED parity, each card answering with its",
+    "OWN recipe. The deck's recipe owns exactly one thing — whether the order is part of the turn."
+  ],
+  "docs.flippable.nested": [
+    "A tray holding a lone card, a reordering deck and a keep-order deck. One turn of the TRAY sums",
+    "into everything, and each node answers with its OWN recipe: the card turns over, one deck",
+    "reverses, the other does not. No branch anywhere asked what kind of node it was.",
+    "",
+    "`reflipOne` turns the lone card once more: its summed parity is even again — face-up amid a turned",
+    "world, its two reflections cancelled. Case A, live, in mixed company."
+  ],
+  "docs.flippable.movethenflip": [
+    "Case D: move the pawn, THEN turn the board. The mirror lands on where the pawn is NOW, not where",
+    "it was authored — nothing is stored, the reflection composes over the live pose, so the last state",
+    "is what turns.",
+    "",
+    "Drag the drift with the board turned and the mirrored pawn answers in real time. This is the case",
+    "a readable `directionFlip` row gives up — see the Row scene for the trade."
+  ],
+  "docs.flippable.row": [
+    "The same row twice, one turn. Above, `mirror`: the tiles come back reversed AND each is reflected",
+    "— the corner dots jump sides, the way glyphs would. Below, `directionFlip`: the order reverses and",
+    "nothing mirrors, so the dots stay put and a word would stay readable.",
+    "",
+    "The trade is real. The mirror keeps hand-moved offsets turning (case D); the direction flip loses",
+    "them and keeps the content legible. The NODE picks, by naming its recipe — a mechanism is data,",
+    "never a branch in the engine."
+  ],
+  "docs.flippable.emptyback": [
+    "A `turnOver` card whose `back` is empty. The turn falls through to the front — mirrored, because",
+    "the geometry still happens — and never a blank: `flip.back || front` is the rule, so a half-built",
+    "card stays visible while its art is on the way.",
+    "",
+    "A token identical on both sides simply needs no back at all — the empty string is that statement,",
+    "not an error."
   ]
 }

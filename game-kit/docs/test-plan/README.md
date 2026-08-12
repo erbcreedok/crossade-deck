@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**39 слоя · 924 кейсов заявлено · 750 расписано поимённо.**
+**39 слоя · 927 кейсов заявлено · 753 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -35,7 +35,7 @@
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
-| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 41 | 40 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 43 | 42 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 55 | 55 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
@@ -63,5 +63,5 @@
 | [PRESET · Deck — a set expanded into cards](35-deck.md) | `vitest` | 10 | 10 |
 | [UNIT · the effects list — the runtime seam](36-effects.md) | `vitest` | 5 | 5 |
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
-| [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 21 | 21 |
+| [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 22 | 22 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |

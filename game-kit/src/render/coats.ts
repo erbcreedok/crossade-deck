@@ -81,6 +81,12 @@ export function installStockCoats(): void {
       join: "round",
     },
   }));
+  // FILL — the blueprint completing: a SOLID coat over `level` of the face, bottom-up, cut off
+  // where the level stops. A different KIND of mark from `wash` — a half-built thing is half
+  // DRAWN, not half faded — which is exactly what earns it a recipe of its own.
+  registerCoat("fill", (c) => ({
+    layers: [{ paint: tintOr(c.tint, "accent"), part: clamp01(c.level) }],
+  }));
   // CENSOR — a mask over the surface, and a shader that animates it. The wash guarantees a visible
   // bar with no GPU at all; the `filter` names a mosaic/shimmer the painter builds and clocks when
   // it can (tier 3). A default `level` of 0.7 so a plain `censor` already hides something.
