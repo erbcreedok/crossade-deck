@@ -1,0 +1,35 @@
+game-kit/src/index.ts
+  s_7a734f8e2f7730::t_9a4b3dbb3693b0 156
+  s_7a734f8e2f7730::t_8dce52427db893 143
+game-kit/docs/test-plan/30-flippable.md
+  s_7a734f8e2f7730::t_5a12d5c1335627 53-54
+game-kit/src/core/actions.test.ts
+  s_7a734f8e2f7730::t_c6617764beca8b 2,6,10
+  s_7a734f8e2f7730::t_ec10223a83e9c6 56-70
+game-kit/src/core/atoms/flippable.test.ts
+  s_7a734f8e2f7730::t_b74aa15b3bbb8d 5
+  s_7a734f8e2f7730::t_c852a9baa2452c 42-57
+game-kit/src/core/atoms/flippable.ts
+  s_7a734f8e2f7730::t_2a078ef4bddc01 20-21
+  s_7a734f8e2f7730::t_3ee96068c582f7 43-55
+game-kit/src/core/actions.ts
+  s_7a734f8e2f7730::t_60bdee224522a6 11-12,19-24
+  s_7a734f8e2f7730::t_4236edd7021a56 50,56-76
+  s_7a734f8e2f7730::t_f805ce69203e30 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7d7049d0fdc42a2e79c98d7bc56818bafa9e5fd7",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
