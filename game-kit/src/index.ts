@@ -204,11 +204,12 @@ export {
   type DashPattern,
   type LineCap,
   type LineJoin,
-  type Paint,
   type PaintLayer,
   type Stroke,
   type SurfaceRecord,
 } from "./render/surfaces.js";
+// A colour is a token name, a literal, or a parametric `{token, param}` — the infinite palette.
+export { isParametric, type Paint, type ParametricPaint } from "./render/paint.js";
 export {
   accentWash,
   installTheme,

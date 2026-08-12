@@ -73,8 +73,8 @@ export const RECORD_ARGS: RecordArgs = {
   dashCorner: "dash",
 };
 
-/** A token name unless a literal was picked. Both are legal `Paint`s; only one follows a theme. */
-export function paintOf(token: string, custom: string): Paint {
+/** A token name unless a literal was picked. Both are flat `Paint`s; only one follows a theme. */
+export function paintOf(token: string, custom: string): string {
   return custom ? custom : token;
 }
 

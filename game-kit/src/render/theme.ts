@@ -16,6 +16,7 @@
 // does not have to know where the word lives.
 export { type ThemeName } from "../core/viewer.js";
 import { type ThemeName } from "../core/viewer.js";
+import { isParametric, type Paint } from "./paint.js";
 
 /** One job per token. Two tokens that would always hold the same value are one too many. */
 export interface Palette {
@@ -129,15 +130,39 @@ export function s(path: ScaleStep): string {
 }
 
 /**
+ * A COLOUR RECIPE DRIVEN BY ONE NUMBER — the infinite palette, resolved per client.
+ *
+ * `spin` is the hue wheel: `param` runs 0..1 around the full spectrum, so N teams are one name
+ * and N numbers rather than N records or N hexes. It is theme-INDEPENDENT on purpose — a team's
+ * colour and a timer's drift are the game's own hues, not the desk's — but it is still a NAME the
+ * painter resolves, so a client could remap it (a colour-blind palette) without the wire changing.
+ *
+ * A recipe reads the palette when it wants to sit in the theme; `spin` does not need to. The synth
+ * lives here with every other colour, so the raw values are still born in this file and nowhere
+ * else. `hsl` and not a hex, so `guard.no-raw-colour` stays true even were this read elsewhere.
+ */
+type ParamColour = (param: number, palette: Palette) => string;
+const PARAM_COLOURS: Record<string, ParamColour> = {
+  spin: (p) => `hsl(${Math.round((((p % 1) + 1) % 1) * 360)}, 70%, 55%)`,
+};
+
+/**
  * The value BEHIND a token, for a renderer that cannot read a CSS variable — a GPU canvas has
  * no cascade to look the `var()` up in. A name that is not a token passes through unchanged,
  * so a surface record may still carry a literal colour when a game genuinely wants one.
  *
+ * A parametric colour (`{token, param}`) is resolved through its recipe; a dangling recipe name
+ * falls back to the accent rather than crashing, the same softness a dangling surface gets.
+ *
  * This is the only exception to "call sites never see a hex", and it is narrow on purpose:
  * the hexes still live only in the palette, and this hands one over rather than declaring it.
  */
-export function paint(name: ThemeName, value: string): string {
+export function paint(name: ThemeName, value: Paint): string {
   const palette = PALETTES[name];
+  if (isParametric(value)) {
+    const recipe = PARAM_COLOURS[value.token];
+    return recipe ? recipe(value.param, palette) : palette.accent;
+  }
   return value in palette ? palette[value as keyof Palette] : value;
 }
 

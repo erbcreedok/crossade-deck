@@ -25,6 +25,7 @@ import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
 import { applyEffects, type FilterRef } from "./effects.js";
 import { fitBox } from "./fitBox.js";
+import { type Paint } from "./paint.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
 import { polyline } from "../core/path.js";
 import { apply, compose, IDENTITY, move, pose, scale, type Transform } from "../core/transform.js";
@@ -49,14 +50,14 @@ export interface QuadImage {
  * dangling surface reference is.
  */
 export interface QuadLayer {
-  readonly paint: string | undefined;
+  readonly paint: Paint | undefined;
   readonly image: QuadImage | undefined;
   readonly opacity: number;
 }
 
 /** The stroke of one quad, every length already in pixels. */
 export interface QuadStroke {
-  readonly color: string;
+  readonly color: Paint;
   readonly width: number;
   readonly opacity: number;
   readonly alignment: number;

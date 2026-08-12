@@ -28,14 +28,15 @@
 // before it was a convenience.
 
 import { type Align, type Fit } from "./fitBox.js";
+import { type Paint } from "./paint.js";
 
 export { type Align, type Fit };
+// A colour lives in `paint.ts` now — a token name, a literal, OR a parametric `{token, param}`.
+// Re-exported here so a consumer of the record types does not have to learn where it moved.
+export { type Paint, type ParametricPaint, isParametric } from "./paint.js";
 
 export type LineCap = "butt" | "round" | "square";
 export type LineJoin = "miter" | "round" | "bevel";
-
-/** A colour: a theme token name (`accent`, `panelBg`) or a literal the renderer understands. */
-export type Paint = string;
 
 /**
  * One coat of paint over the area, drawn in list order — the first is at the bottom.
