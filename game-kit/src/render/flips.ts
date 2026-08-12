@@ -133,9 +133,12 @@ export const flipEffect: Effect = (n, ctx) => {
   if (!rec) return { node: n, pre: IDENTITY };
   const summedOdd = mod2(sumAlongChain(ctx, "Flippable", "turns")) === 1;
   const ownOdd = mod2(own.turns) === 1;
+  // The axis is runtime data and a broken source must not NaN the matrix — every descendant would
+  // inherit the poison. The default line is the safe answer: the turn still happens, about 90.
+  const axis = Number.isFinite(own.axis) ? own.axis : 90;
   return {
     node: summedOdd ? rec.turn(n) : n,
-    pre: ownOdd && rec.reflects ? reflect(own.axis) : IDENTITY,
+    pre: ownOdd && rec.reflects ? reflect(axis) : IDENTITY,
   };
 };
 

@@ -1071,6 +1071,9 @@ test.describe.serial("the heavy pages", () => {
           "play.flippable.a-turn-shows-the-back",
           "play.flippable.re-flip-returns-the-front",
           "play.flippable.a-stack-turns-its-child",
+          "play.flippable.content-swap-shows-another-subtree",
+          "play.flippable.move-then-flip-mirrors-the-live-state",
+          "play.flippable.params-change-on-the-fly",
         ],
       ],
     ];

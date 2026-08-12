@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**39 слоя · 927 кейсов заявлено · 753 расписано поимённо.**
+**39 слоя · 973 кейсов заявлено · 799 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -41,7 +41,7 @@
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
 | [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 29 | 29 |
-| [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 76 | 71 |
+| [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 79 | 74 |
 | [STATE MATRIX · combinatorics](17-state-matrix.md) | `generated table, vitest` | 24 | 5 |
 | [STATE PLANE · what happens vs what is authored](18-state-plane.md) | `vitest` | 12 | 4 |
 | [VISUAL REGRESSION](19-visual-regression.md) | `Chromatic — pixel diff per story` | 40 | 4 |
@@ -55,7 +55,7 @@
 | [UNIT · Container policies — grab · occupied · keeps](27-container-policies.md) | `vitest` | 15 | 15 |
 | [UNIT · Element data atoms — Valued · Owned · Labeled · Placeable](28-element-atoms.md) | `vitest` | 6 | 6 |
 | [UNIT · Interaction & visibility atoms — Draggable · Focusable · Private](29-interaction-atoms.md) | `vitest` | 6 | 6 |
-| [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 5 | 5 |
+| [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 40 | 40 |
 | [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 8 | 8 |
 | [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 7 | 7 |
 | [UNIT · Grippable — whose hands may lift it](33-grippable.md) | `vitest` | 6 | 6 |
@@ -63,5 +63,5 @@
 | [PRESET · Deck — a set expanded into cards](35-deck.md) | `vitest` | 10 | 10 |
 | [UNIT · the effects list — the runtime seam](36-effects.md) | `vitest` | 5 | 5 |
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
-| [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 22 | 22 |
+| [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 30 | 30 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |

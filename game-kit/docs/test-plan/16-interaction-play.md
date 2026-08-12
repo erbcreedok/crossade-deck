@@ -1,6 +1,6 @@
 ## INTERACTION · play functions
 
-`@storybook/test + userEvent, Vitest browser mode` · 76 кейсов, расписано 71
+`@storybook/test + userEvent, Vitest browser mode` · 79 кейсов, расписано 74
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -75,3 +75,6 @@
 | `play.flippable.a-turn-shows-the-back` | карта turnOver turns 0 затем 1 | снимки сверены | нечет свопит поверхность на изнанку (accent≠panelBg) |
 | `play.flippable.re-flip-returns-the-front` | карта turns 0 затем 2 | снимки сверены | ТА ЖЕ картинка: сторона это чётность, не хранимый флаг |
 | `play.flippable.a-stack-turns-its-child` | ребёнок под стопкой turns 0 затем 1 | снимки сверены | ребёнок показывает изнанку: turns суммируются по цепи |
+| `play.flippable.content-swap-shows-another-subtree` | доска с contentSwap-рецептом потребителя, turns 0 затем 1 | снимки сверены | картинка сменилась ЦЕЛЫМ поддеревом (железо+кристалл), лицо не просвечивает |
+| `play.flippable.move-then-flip-mirrors-the-live-state` | пешка сдвинута в +x, стол флипнут vs пешка в −x без флипа | снимки сверены | картинки СОВПАДАЮТ: зеркало ложится на живую позу, ничего не хранится (кейс D) |
+| `play.flippable.params-change-on-the-fly` | живая смена: back-запись перерегистрирована; рецепт mirror вместо turnOver | снимки сверены | каждое изменение перекрашивает СТОЯЩЕЕ дерево — ни сцены-на-значение, ни пересборки |

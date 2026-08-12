@@ -109,6 +109,19 @@ describe("coats — the registry and the effect", () => {
     expect(coatsOf(figure)).toHaveLength(2); // inherited wash, own ring
   });
 
+  it("coat.nested-casts-nearest-wins — the closest owner's word is the one that lands", () => {
+    // Two casts up the chain: the room dims everything, the tray inside freezes ITS things. A
+    // figure on the tray wears the tray's cast alone — the nearest set recipe shadows the one
+    // above, the ordinary meaning of overriding an inherited value.
+    const room = node("dimRoom", Bounded({ bounds: rect(6, 4) }), Surfaced({ surface: "plate" }), Coated({ cast: { recipe: "wash", level: 0.9, tint: "stageBg" } }));
+    const tray = node("innerTray", Bounded({ bounds: rect(3, 2) }), Surfaced({ surface: "plate" }), Coated({ cast: { recipe: "wash", level: 0.2, tint: "accent" } }));
+    const figure = box("trayFigure");
+    add(room, tray);
+    add(tray, figure);
+    expect(coatsOf(figure)).toHaveLength(1);
+    expect(coatsOf(figure)[0]!.layers![0]!.opacity).toBeCloseTo(0.2); // the tray's, not the room's
+  });
+
   it("coat.clear-stops-the-cascade — a spotlight is a dim on the root and a clear on the lit subtree", () => {
     const room = node("darkRoom", Bounded({ bounds: rect(5, 5) }), Surfaced({ surface: "plate" }), Coated({ cast: { recipe: "wash", level: 0.7, tint: "stageBg" } }));
     const litCorridor = node("litCorridor", Bounded({ bounds: rect(1, 3) }), Surfaced({ surface: "plate" }), Coated({ cast: { recipe: "clear", level: 0, tint: "" } }));
