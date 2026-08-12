@@ -9,6 +9,9 @@ import { rect } from "../presets/shapes.js";
 import { coatEffect, coatNames, coatRecipe, installStockCoats, registerCoat, resetCoats } from "./coats.js";
 import { resetEffects } from "./effects.js";
 import { type RuntimeCoat } from "./effects.js";
+import { scenePlan } from "./scenePlan.js";
+import { registerSurface } from "./surfaces.js";
+import { DEFAULT_VIEWER as VIEWER } from "../core/viewer.js";
 
 /** A drawable box, optionally coated — the effect only paints a node with an area. */
 function box(id: string, ...coats: Coat[]): Node {
@@ -124,5 +127,35 @@ describe("coats — the registry and the effect", () => {
     const dark = coatsOf(n, DEFAULT_VIEWER);
     const light = coatsOf(n, withViewer(DEFAULT_VIEWER, { theme: "light" }));
     expect(light).toEqual(dark);
+  });
+
+  // ---- through the whole plan: the coat reaches the quad, folded blindly --------------------
+
+  const plan = (n: Node) => {
+    registerSurface("plate", { layers: [{ paint: "panelBg" }] });
+    return scenePlan({ root: n, unit: 100, width: 400, height: 400, viewer: VIEWER }).find((q) => q.id === n.id);
+  };
+
+  it("coat.reaches-the-quad — a wash lands as an extra layer OVER the surface's own", () => {
+    const quad = plan(box("manaShard", { recipe: "wash", level: 0.8, tint: "accent" }));
+    // The record's one layer, and the coat's on top of it.
+    expect(quad!.layers).toHaveLength(2);
+    expect(quad!.layers[0]!.paint).toBe("panelBg");
+    expect(quad!.layers[1]!.paint).toBe("accent");
+    expect(quad!.layers[1]!.opacity).toBeCloseTo(0.8);
+  });
+
+  it("coat.filter-reaches-the-quad — a censor names a filter the painter will build", () => {
+    const quad = plan(box("hiddenTrap", { recipe: "censor", level: 0.5, tint: "" }));
+    expect(quad!.filter?.name).toBe("blur");
+    // Serialisable: the plan carries the name and numbers, never the shader.
+    expect(JSON.parse(JSON.stringify(quad!.filter))).toEqual(quad!.filter);
+  });
+
+  it("coat.ring-overrides-the-stroke — a ring is the quad's border while it lasts", () => {
+    const quad = plan(box("wardedDoor", { recipe: "ring", level: 1, tint: "accent" }));
+    // The plate has no stroke of its own, so the ring provides it.
+    expect(quad!.stroke?.color).toBe("accent");
+    expect(quad!.stroke!.width).toBeGreaterThan(0);
   });
 });
