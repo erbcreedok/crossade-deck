@@ -8,13 +8,20 @@
 // carries, in registration order. Consumers register their own verbs; the kit ships the handful the
 // built-in atoms imply. See CANONS.md §3 and NIGHT-DECISIONS.md.
 
-import { caps, type Node } from "./node.js";
+import { caps, fieldsOf, type Node } from "./node.js";
+import { Flippable, type FlippableFields } from "./atoms/flippable.js";
 
 export interface ActionRecord {
   /** The human-facing verb, already written (the kit carries no words a player reads). */
   readonly label: string;
   /** The capability (atom name) a node must carry for this action to be offered. */
   readonly requires: string;
+  /**
+   * What the verb DOES — the node it becomes. Absent means a pure query (the menu offers it, the
+   * orchestrator wires the effect). Present means the kit ships the change itself: `flip` returns the
+   * node with `turns` bumped, and the new side is still the parity, resolved at paint time.
+   */
+  readonly perform?: (n: Node) => Node;
 }
 
 /** A resolved action on a node: its registry name plus the record it points at. */
@@ -40,10 +47,32 @@ export function resetActions(): void {
 }
 /** The verbs the built-in atoms imply. Called by the consumer, not on import. */
 export function installStockActions(): void {
-  registerAction("flip", { label: "Flip", requires: "Flippable" });
+  registerAction("flip", { label: "Flip", requires: "Flippable", perform: bumpTurns });
   registerAction("tap", { label: "Tap", requires: "Tiltable" });
   registerAction("drag", { label: "Drag", requires: "Draggable" });
   registerAction("focus", { label: "Focus", requires: "Focusable" });
+}
+
+/**
+ * The flip verb, and the whole of it: `turns` plus one on the node, every other field untouched
+ * (§5 — "the flip action tumbles turns and nothing else"). A node without `Flippable` is returned
+ * as it came, so the verb is a no-op on a node that never carried it.
+ */
+function bumpTurns(n: Node): Node {
+  const f = fieldsOf<FlippableFields>(n, "Flippable");
+  if (!f) return n;
+  const next: Node = { id: n.id, parent: n.parent, children: n.children, atoms: new Map(n.atoms) };
+  next.atoms.set("Flippable", Flippable({ ...f, turns: f.turns + 1 }));
+  return next;
+}
+
+/**
+ * Run a verb on a node and return what it becomes. An action with no `perform` (a pure query the
+ * orchestrator wires) leaves the node unchanged, as does a name nobody registered — the caller can
+ * always set the result as the new root without checking which case it hit.
+ */
+export function perform(name: string, node: Node): Node {
+  return ACTIONS.get(name)?.perform?.(node) ?? node;
 }
 
 /**

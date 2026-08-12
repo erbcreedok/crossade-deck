@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classOf, atomDef } from "../atom.js";
 import { add, node } from "../node.js";
 import { contextFor, sumAlongChain } from "../resolve.js";
-import { Flippable } from "./flippable.js";
+import { facing, Flippable } from "./flippable.js";
 
 describe("Flippable — the turn, as data", () => {
   it("flip.fields-and-classes — turns SUMS, the rest are the node's own", () => {
@@ -38,5 +38,21 @@ describe("Flippable — the turn, as data", () => {
     const card = node("aceCard", Flippable({ turns: 1 }));
     add(stack, card);
     expect(sumAlongChain(contextFor(card, 100), "Flippable", "turns") % 2).toBe(0);
+  });
+
+  it("flip.facing-inspector — which side is up reads off the summed parity, not a hand count", () => {
+    // The inspector's question "what side now?" is answered from the SAME sum the effect uses, so a
+    // tool and the picture never disagree. A card in a stack turned once shows its back...
+    const stack = node("deckStack", Flippable({ turns: 1 }));
+    const down = node("aceCard", Flippable({ turns: 0 }));
+    add(stack, down);
+    expect(facing(down)).toBe("down"); // summed 1 → odd → back
+    expect(facing(stack)).toBe("down"); // the stack itself, turned once
+
+    // ...and one turned back inside it is face-up again — case A, read through `facing`.
+    const stack2 = node("deckStack2", Flippable({ turns: 1 }));
+    const up = node("kingCard", Flippable({ turns: 1 }));
+    add(stack2, up);
+    expect(facing(up)).toBe("up"); // summed 2 → even → front
   });
 });

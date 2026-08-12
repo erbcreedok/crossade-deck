@@ -17,6 +17,8 @@
 // decides what the turn DOES; the engine mixes it in through the effects list, blind.
 
 import { defineAtom } from "../atom.js";
+import { type Node } from "../node.js";
+import { contextFor, sumAlongChain } from "../resolve.js";
 
 export interface FlippableFields {
   /** Recipe name in the flips registry. "" ≡ "mirror" — a pure reflection that swaps nothing. */
@@ -38,3 +40,16 @@ export const Flippable = defineAtom<FlippableFields>({
   // `turns` is the one summed field — the parity is inherited. The rest are the node's own.
   classes: { flip: "own", turns: "addsUp", axis: "own", back: "own" },
 });
+
+/** Which side shows: `up` is face, `down` is back. A read, not a stored flag. */
+export type Facing = "up" | "down";
+
+/**
+ * The inspector's "which side is up NOW". It reads the SAME summed parity the flip effect uses, so a
+ * tool and the painted picture can never disagree: even summed turns is face-up, odd is the back. A
+ * fractional or broken count is floored to a whole turn, exactly as the effect floors it.
+ */
+export function facing(n: Node): Facing {
+  const summed = sumAlongChain(contextFor(n, 1), "Flippable", "turns");
+  return (((Math.trunc(summed) % 2) + 2) % 2) === 0 ? "up" : "down";
+}

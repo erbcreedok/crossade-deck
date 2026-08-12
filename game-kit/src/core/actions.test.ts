@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { node } from "./node.js";
+import { fieldsOf, node } from "./node.js";
 import { Bounded } from "./atoms/bounded.js";
 import { Surfaced } from "./atoms/surfaced.js";
 import { Transformable } from "./atoms/transformable.js";
-import { Flippable } from "./atoms/flippable.js";
+import { Flippable, type FlippableFields } from "./atoms/flippable.js";
 import { Tiltable } from "./atoms/tiltable.js";
 import { Draggable } from "./atoms/draggable.js";
 import { rect } from "../presets/shapes.js";
-import { actionNames, actionsOf, installStockActions, registerAction, resetActions } from "./actions.js";
+import { actionNames, actionsOf, installStockActions, perform, registerAction, resetActions } from "./actions.js";
 
 const surface = Surfaced({ surface: "front" });
 const box = Bounded({ bounds: rect(1, 1) });
@@ -52,5 +52,20 @@ describe("actions", () => {
     expect(actionNames()).toContain("surface");
     const plain = node("p", box, surface);
     expect(actionsOf(plain).map((a) => a.name)).toEqual(["surface"]);
+  });
+
+  it("flip.flip-action-bumps-turns — the verb tumbles turns by one and touches nothing else", () => {
+    // §5: the flip action is turns+1 on the node, nothing more. It returns a CHANGED node — the
+    // orchestrator sets it as the new root; the side that shows is still the parity, resolved later.
+    const card = node("c", box, surface, Flippable({ flip: "turnOver", back: "b", axis: 76, turns: 2 }));
+    const flipped = perform("flip", card);
+    const f = fieldsOf<FlippableFields>(flipped, "Flippable")!;
+    expect(f.turns).toBe(3); // the one thing it does
+    expect(f.flip).toBe("turnOver"); // recipe untouched
+    expect(f.back).toBe("b"); // reference untouched
+    expect(f.axis).toBe(76); // axis untouched
+    // A node without the capability is returned as-is — a verb it does not carry does nothing.
+    const bare = node("bare");
+    expect(perform("flip", bare)).toBe(bare);
   });
 });
