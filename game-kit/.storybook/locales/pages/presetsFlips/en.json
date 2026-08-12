@@ -1,0 +1,22 @@
+{
+  "docs.presetsFlips.component": [
+    "The stock flip recipes, each on its own page. A flip is GEOMETRY (a reflection the children",
+    "inherit) plus, sometimes, CONTENT (the other face). `Atoms/Flippable` teaches the atom and case A;",
+    "this shelf answers what `mirror` and `turnOver` already do, and how to configure them.",
+    "",
+    "`mirror` is pure geometry, so it is shown on something that REVEALS a reflection — a row of tiles",
+    "that comes back reversed. `turnOver` is the card: a front and a back, swapped by the same turn. A",
+    "new recipe is a registration, never a branch anything has to learn."
+  ],
+  "docs.presetsFlips.mirror": [
+    "Pure geometry, nothing swapped — the default. Shown on a row of distinct tiles so the reflection is",
+    "visible: flip it and they come back in reverse screen order, mirrored about `axis`. The children",
+    "inherit the reflection through the chain; nothing walks the tree. `axis` is a parameter — 90 a",
+    "Y-mirror, 76 a 76° one — not a preset per angle."
+  ],
+  "docs.presetsFlips.turnover": [
+    "The card: reflection AND the other face. Even `turns` is face-up — the front; odd shows the back",
+    "surface and mirrors. The two parities do it: reflection follows a node's own turns, the content swap",
+    "the summed. An empty back would fall through to the front, so a turn never blanks the card."
+  ]
+}

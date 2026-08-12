@@ -1,0 +1,25 @@
+{
+  "docs.presetsCoats.component": [
+    "The stock coat recipes, each on its own page and its own knob. A coat is a RUNTIME layer over a",
+    "surface — `Atoms/Coated` teaches the atom and its reach; this shelf answers the narrower question:",
+    "what does `wash`, `ring` or `censor` already look like, and what does its `level` do.",
+    "",
+    "The recipes differ by the KIND of mark, never by value — a fill, a stroke, a mask — so a darken and",
+    "a charge are one `wash` told apart by tint and level. `clear` has no page: it draws nothing on",
+    "purpose, stopping a cast cascade so a spotlight can light one subtree."
+  ],
+  "docs.presetsCoats.wash": [
+    "A flat colour over the whole surface, opacity from `level`. The continuum lives here: a mana shard",
+    "charging, a figure dimming as it loses HP, a frozen tray greying — one recipe, and the magnitude is",
+    "the parameter. Drag `level`, pick a `tint`; there is no scene per value and no record per colour."
+  ],
+  "docs.presetsCoats.ring": [
+    "A stroke around the contour, its weight growing with `level` — a selection ring, a ward. It is a",
+    "stroke, so it stands in for the surface's own border while it lasts: one stroke per quad."
+  ],
+  "docs.presetsCoats.censor": [
+    "A mask over the surface, and a shader that animates it. The wash guarantees a visible bar with no",
+    "GPU at all; on the glass a named `blur` filter shimmers over it, built and clocked by the painter.",
+    "The atom holds the static truth — `censor`, a strength — and the animation is the render tier's."
+  ]
+}

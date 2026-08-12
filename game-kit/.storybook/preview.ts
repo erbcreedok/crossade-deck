@@ -149,7 +149,7 @@ const preview: Preview = {
           // several nodes at once: an assembly is what a preset IS. Split by what each preset
           // GENERATES, not by which file of the kit it happens to live in.
           "Presets",
-          ["Bounds", "Surfaces", "Poses", "Layouts", "Components"],
+          ["Bounds", "Surfaces", "Coats", "Flips", "Poses", "Layouts", "Components"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records"],
           "Elements",

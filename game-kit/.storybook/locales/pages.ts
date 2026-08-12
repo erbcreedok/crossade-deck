@@ -28,6 +28,8 @@ import type intro from "./pages/intro/en.json";
 import type node from "./pages/node/en.json";
 import type presetsBounds from "./pages/presetsBounds/en.json";
 import type presetsComponents from "./pages/presetsComponents/en.json";
+import type presetsCoats from "./pages/presetsCoats/en.json";
+import type presetsFlips from "./pages/presetsFlips/en.json";
 import type presetsLayouts from "./pages/presetsLayouts/en.json";
 import type presetsPoses from "./pages/presetsPoses/en.json";
 import type presetsSurfaces from "./pages/presetsSurfaces/en.json";
@@ -66,6 +68,14 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     en: () => import("./pages/presetsSurfaces/en.json"),
     ru: () => import("./pages/presetsSurfaces/ru.json"),
   },
+  presetsCoats: {
+    en: () => import("./pages/presetsCoats/en.json"),
+    ru: () => import("./pages/presetsCoats/ru.json"),
+  },
+  presetsFlips: {
+    en: () => import("./pages/presetsFlips/en.json"),
+    ru: () => import("./pages/presetsFlips/ru.json"),
+  },
   presetsComponents: {
     en: () => import("./pages/presetsComponents/en.json"),
     ru: () => import("./pages/presetsComponents/ru.json"),
@@ -102,6 +112,8 @@ export type PageKey = keyof (typeof node &
   typeof presetsComponents &
   typeof presetsLayouts &
   typeof presetsPoses &
+  typeof presetsCoats &
+  typeof presetsFlips &
   typeof tests);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */
