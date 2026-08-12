@@ -18,3 +18,8 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `classic.every-spec-face-resolves` | installed skin | each of 55 + back | a surface AND an asset registered |
 | `classic.assets-declare-unit-size` | card assets | w,h | 56 assets, each 1×1.4, never zero |
 | `classic.textures-are-sourced` | card assets | src | self-contained `data:image/svg+xml,` — the add-on's own art |
+| `cards.builds-fifty-five-nodes` | `cards()` | length | 55 nodes |
+| `cards.each-turns-over` | each node | Flippable | `turnOver`, back = the shared back surface |
+| `cards.values-are-typed` | each node | Valued | equals the set's typed fields, in order |
+| `cards.ids-are-unique` | the nodes | ids | no repeat |
+| `cards.faces-resolve` | each node | Surfaced + skin | face is a registered surface, node is Bounded |
