@@ -1,0 +1,41 @@
+game-kit/src/render/coats.test.ts
+  s_7a734f8e2f7730::t_b5f7b094207012 112-124
+game-kit/e2e/catalog.spec.ts
+  s_7a734f8e2f7730::t_bbe2f540cf80ee 1074-1076
+game-kit/docs/test-plan/38-coated.md
+  s_7a734f8e2f7730::t_e0890757129b21 3,24,35-42
+game-kit/docs/test-plan/30-flippable.md
+  s_7a734f8e2f7730::t_20bc3ea8f4c9b9 3,6-11,20-54
+game-kit/docs/test-plan/16-interaction-play.md
+  s_7a734f8e2f7730::t_fd9eef0b236986 3,78-80
+game-kit/src/render/flips.test.ts
+  s_7a734f8e2f7730::t_5fa41623b7bfc8 189,195
+  s_7a734f8e2f7730::t_e72982c56bf51e 149-188,190-194,196-225
+game-kit/.storybook/stories/TestsFlippable.stories.ts
+  s_7a734f8e2f7730::t_6ecddc36e87037 7,13,18
+  s_7a734f8e2f7730::t_25346b451c1ed0 160
+  s_7a734f8e2f7730::t_0275da47ed72cf 118-159,161-177,181-213
+  s_7a734f8e2f7730::t_d376e645990cf4 178-180
+  s_7a734f8e2f7730::t_2f79b35a82f11a 9
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_827a846f085bc7 10,58,66
+  s_7a734f8e2f7730::t_fd9eef0b236986 44
+game-kit/src/render/flips.ts
+  s_7a734f8e2f7730::t_e0ba9fac18b602 136-138,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5d520a95c634b97295f1a67e4ac6d4df32a173ef",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
