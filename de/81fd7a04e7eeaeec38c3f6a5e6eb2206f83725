@@ -1,0 +1,32 @@
+game-kit/docs/test-plan/10-scene-plan.md
+  s_7a734f8e2f7730::t_ccb57905001193 48-50
+  s_7a734f8e2f7730::t_85d120994233a8 3
+game-kit/src/render/scenePlan.test.ts
+  s_7a734f8e2f7730::t_26c46479f3b29e 142-144
+  s_7a734f8e2f7730::t_cd188ee68e15c4 4
+  s_7a734f8e2f7730::t_ecea9985fa7f20 15
+  s_7a734f8e2f7730::t_6e1b4d4811dbc6 141,145-173
+game-kit/src/render/scenePlan.ts
+  s_7a734f8e2f7730::t_bf02361362cf89 308-310
+  s_7a734f8e2f7730::t_eb38811d39d21b 583-594,601-605,607-608,613-615
+  s_7a734f8e2f7730::t_165e5017d63374 226,234-237,239-249
+game-kit/docs/test-plan/README.md
+  s_7a734f8e2f7730::t_85d120994233a8 10
+  s_7a734f8e2f7730::t_ccb57905001193 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "de81fd7a04e7eeaeec38c3f6a5e6eb2206f83725",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
