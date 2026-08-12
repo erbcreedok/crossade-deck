@@ -10,3 +10,8 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `suits.shapes-are-finite` | each suit | `outlineOf` | >2 real points, every coord finite |
 | `suits.reds-spin-blacks-ink` | each suit | paint | red → `spin`, black → `text`; reds are heart+diamond |
 | `suits.by-name` | a name | `suitByName` | resolves, or `undefined` for a dangling name (never throws) |
+| `crossade.is-fifty-five` | `crossade()` | length | 55 |
+| `crossade.two-jokers-one-brand` | the set | counts by kind | 52 pip / 2 joker / 1 brand; brand label "crossade deck" |
+| `crossade.fields-are-typed` | each card | its values | every field declared in `CROSSADE_FIELDS`, value in the field's order |
+| `crossade.ids-are-unique` | the set | ids | no repeat |
+| `crossade.pip-colour-follows-suit` | each pip | colour | red for heart/diamond, black for spade/club |
