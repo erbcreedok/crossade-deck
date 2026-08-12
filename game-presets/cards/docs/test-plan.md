@@ -15,3 +15,6 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `crossade.fields-are-typed` | each card | its values | every field declared in `CROSSADE_FIELDS`, value in the field's order |
 | `crossade.ids-are-unique` | the set | ids | no repeat |
 | `crossade.pip-colour-follows-suit` | each pip | colour | red for heart/diamond, black for spade/club |
+| `classic.every-spec-face-resolves` | installed skin | each of 55 + back | a surface AND an asset registered |
+| `classic.assets-declare-unit-size` | card assets | w,h | 56 assets, each 1×1.4, never zero |
+| `classic.textures-are-sourced` | card assets | src | self-contained `data:image/svg+xml,` — the add-on's own art |
