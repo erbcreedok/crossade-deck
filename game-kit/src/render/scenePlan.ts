@@ -25,7 +25,7 @@ import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
 import { applyEffects, type FilterRef } from "./effects.js";
 import { fitBox } from "./fitBox.js";
-import { type Paint } from "./paint.js";
+import { type Paint } from "../core/paint.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
 import { polyline } from "../core/path.js";
 import { apply, compose, IDENTITY, move, pose, scale, type Transform } from "../core/transform.js";

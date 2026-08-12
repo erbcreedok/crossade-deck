@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isParametric, type Paint } from "./paint.js";
+import { isParametric, type Paint } from "../core/paint.js";
 import { paint, PALETTES } from "./theme.js";
 
 describe("paint — the colour as data", () => {

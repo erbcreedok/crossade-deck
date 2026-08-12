@@ -139,6 +139,9 @@ export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js"
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
 // The card turn: which surface shows, as pure data — the front up, the back down.
 export { Flippable, shownSurface, type FlippableFields } from "./core/atoms/flippable.js";
+// A runtime layer mixed over the surface: a highlight, a dim, a censor. Data on the atom, look in
+// a recipe, reach on the inheritance class — `self` this face, `cast` the whole subtree.
+export { Coated, hasCoat, NO_COAT, type Coat, type CoatedFields } from "./core/atoms/coated.js";
 // The card tap: a turn to one of a few discrete angle stops, the runtime holding which stop.
 export { Tiltable, tiltAngle, tiltStops, nextTilt, type TiltableFields } from "./core/atoms/tiltable.js";
 // The context menu that emerges from what a node IS: a verb per capability, resolved from a registry.
@@ -209,7 +212,18 @@ export {
   type SurfaceRecord,
 } from "./render/surfaces.js";
 // A colour is a token name, a literal, or a parametric `{token, param}` — the infinite palette.
-export { isParametric, type Paint, type ParametricPaint } from "./render/paint.js";
+export { isParametric, type Paint, type ParametricPaint } from "./core/paint.js";
+// The coats registry — the mirror of surfaces for the runtime layer: recipes by render shape, and
+// the effect that mixes them. `installStockCoats` wires both, like every other `installStock*`.
+export {
+  coatEffect,
+  coatNames,
+  coatRecipe,
+  installStockCoats,
+  registerCoat,
+  resetCoats,
+  type CoatRecipe,
+} from "./render/coats.js";
 export {
   accentWash,
   installTheme,

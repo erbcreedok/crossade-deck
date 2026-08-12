@@ -1,6 +1,12 @@
 // A COLOUR, AS DATA — the one type every fill, stroke and tint in the kit is painted with.
 //
-// It lived in `surfaces.ts` as `type Paint = string` and outgrew it. A colour is a TOKEN NAME
+// It lives in `core`, not `render`, because it is worn by BOTH a record (render) and an atom
+// (`Coated.tint`, core), and the ladder only points down: render may reach core, never the other
+// way. A token NAME is not a pixel — it is data the model carries and the wire moves; turning it
+// into a shade is `theme.paint`'s job, up in render. So the name lives at the bottom and the hex
+// is resolved at the top, which is the whole point of a token.
+//
+// It began as `type Paint = string` in `surfaces.ts` and outgrew it. A colour is a TOKEN NAME
 // (`accent`, `panelBg`) the painter resolves against its palette — that law is unchanged and is
 // why a GPU canvas, which has no CSS cascade, can still find the shade. What is new is the second
 // shape: a colour there are INFINITELY MANY of.

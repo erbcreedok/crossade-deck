@@ -16,7 +16,7 @@
 // does not have to know where the word lives.
 export { type ThemeName } from "../core/viewer.js";
 import { type ThemeName } from "../core/viewer.js";
-import { isParametric, type Paint } from "./paint.js";
+import { isParametric, type Paint } from "../core/paint.js";
 
 /** One job per token. Two tokens that would always hold the same value are one too many. */
 export interface Palette {
