@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>client3 — Solitaire (game-kit)</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0f1216; color: #e8e6e1; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
+      #app { position: absolute; inset: 0; touch-action: none; }
+      #hint {
+        position: absolute; left: 16px; bottom: 14px; z-index: 2; pointer-events: none;
+        font-size: 13px; line-height: 1.5; color: #9aa0a6; max-width: 44ch;
+      }
+      #hint b { color: #e8e6e1; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hint">
+      <b>client3 · Solitaire</b> on the new engine (game-kit).<br />
+      Klondike: tap the stock to deal, drag a run onto a descending card of the other colour, build the
+      foundations up by suit from the Ace.
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
