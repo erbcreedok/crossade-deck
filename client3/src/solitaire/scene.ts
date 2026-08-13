@@ -33,7 +33,7 @@ import {
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { buildBoard, COLUMN_STEP, installSolitaireLayouts, setFaceDown, type SolitaireBoard } from "./board.ts";
-import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
+import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "@game-presets/solitaire";
 
 const LIFT_Z = 100;
 

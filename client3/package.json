@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@game-presets/cards": "*",
+    "@game-presets/solitaire": "*",
     "game-kit": "*",
     "pixi.js": "^8.19.0"
   },

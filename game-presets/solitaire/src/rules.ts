@@ -1,6 +1,7 @@
 // KLONDIKE RULES — the one thing the engine's data-`Acceptor` cannot express: rank ADJACENCY
 // (exactly one up or down). The engine gives structure, grab-a-run, the move plan, the flip and
-// the render; these ~40 lines are the game's own law, which the canon says lives at the consumer.
+// the render; these ~40 lines are the game's own law, which this add-on carries as the door for
+// any consumer wiring up Klondike.
 //
 // A card is read through its `Valued` fields — `{ suit, rank, colour }` — the same data the set
 // declared. Nothing here reaches into a node's id.
