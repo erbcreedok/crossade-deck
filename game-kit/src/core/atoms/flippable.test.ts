@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { classOf, atomDef } from "../atom.js";
-import { add, node } from "../node.js";
+import { add, fieldsOf, node } from "../node.js";
 import { contextFor, sumAlongChain } from "../resolve.js";
-import { facing, Flippable } from "./flippable.js";
+import { facing, Flippable, setFacing, type FlippableFields } from "./flippable.js";
 
 describe("Flippable — the turn, as data", () => {
   it("flip.fields-and-classes — turns SUMS, the rest are the node's own", () => {
@@ -54,5 +54,35 @@ describe("Flippable — the turn, as data", () => {
     const up = node("kingCard", Flippable({ turns: 1 }));
     add(stack2, up);
     expect(facing(up)).toBe("up"); // summed 2 → even → front
+  });
+});
+
+describe("setFacing — the writer paired with facing", () => {
+  it("flip.set-facing-shows-the-asked-side — turn a card to the face or the back on demand", () => {
+    const card = node("c", Flippable({ turns: 0 })); // up
+    setFacing(card, "down");
+    expect(facing(card)).toBe("down");
+    setFacing(card, "up");
+    expect(facing(card)).toBe("up");
+  });
+
+  it("flip.set-facing-leaves-the-shown-side — asking for the side already up changes nothing", () => {
+    const card = node("c", Flippable({ turns: 2 })); // up (even)
+    setFacing(card, "up");
+    expect(fieldsOf<FlippableFields>(card, "Flippable")!.turns).toBe(2); // untouched, not reset
+  });
+
+  it("flip.set-facing-climbs-not-resets — a reveal adds a turn, it does not drop the count to zero", () => {
+    // So a settle animates the reveal as one continuous turn FORWARD, never a jump backwards.
+    const card = node("c", Flippable({ turns: 1 })); // down
+    setFacing(card, "up");
+    expect(fieldsOf<FlippableFields>(card, "Flippable")!.turns).toBe(2); // climbed, not 0
+    expect(facing(card)).toBe("up");
+  });
+
+  it("flip.set-facing-needs-the-atom — a node with nothing to turn is left as it is", () => {
+    const bare = node("b");
+    setFacing(bare, "down"); // no throw
+    expect(bare.atoms.has("Flippable")).toBe(false);
   });
 });

@@ -7,15 +7,13 @@ import {
   add,
   Bounded,
   Container,
-  fieldsOf,
-  Flippable,
   Grabber,
   node,
   rect,
   registerLayout,
+  setFacing,
   Surfaced,
   Transformable,
-  type FlippableFields,
   type Node,
 } from "game-kit";
 import { deckByCardId } from "@game-presets/cards";
@@ -39,13 +37,6 @@ const TABLEAU_Y = -1.1;
 export function installSolitaireLayouts(): void {
   registerLayout("sol/pile", { place: (children) => children.map(() => ({ x: 0, y: 0 })) });
   registerLayout("sol/column", { place: (children) => children.map((_c, i) => ({ x: 0, y: i * COLUMN_STEP })) });
-}
-
-/** Turn a card face-down (`down`) or up, keeping every other thing the flip recipe needs. */
-export function setFaceDown(card: Node, down: boolean): void {
-  const f = fieldsOf<FlippableFields>(card, "Flippable");
-  if (!f) return;
-  card.atoms.set("Flippable", Flippable({ ...f, turns: down ? 1 : 0 }));
 }
 
 /** The 52 standard pips (jokers and the brand card left out), shuffled. */
@@ -92,12 +83,12 @@ export function buildBoard(): SolitaireBoard {
   for (let i = 0; i < tableau.length; i++) {
     for (let j = 0; j <= i; j++) {
       const card = cards[k++]!;
-      setFaceDown(card, j < i);
+      setFacing(card, j < i ? "down" : "up");
       add(tableau[i]!, card);
     }
   }
   for (; k < cards.length; k++) {
-    setFaceDown(cards[k]!, true);
+    setFacing(cards[k]!, "down");
     add(stock, cards[k]!);
   }
 

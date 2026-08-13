@@ -24,6 +24,7 @@ import {
   pick,
   registerSurface,
   remove,
+  setFacing,
   toUnits,
   Transformable,
   transformsOf,
@@ -32,7 +33,7 @@ import {
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { buildBoard, COLUMN_STEP, installSolitaireLayouts, setFaceDown, type SolitaireBoard } from "./board.ts";
+import { buildBoard, COLUMN_STEP, installSolitaireLayouts, type SolitaireBoard } from "./board.ts";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "@game-presets/solitaire";
 
 const LIFT_Z = 100;
@@ -133,7 +134,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     for (const c of cards) motion.release(c.id); // in case a gesture held them — a no-op otherwise
     if (kindOf(src) === "tableau") {
       const top = src.children[src.children.length - 1];
-      if (top && facing(top) === "down") setFaceDown(top, false);
+      if (top && facing(top) === "down") setFacing(top, "up");
     }
     redraw();
     checkWin();
@@ -277,14 +278,14 @@ export function startSolitaire(container: HTMLElement): () => void {
     if (board.stock.children.length > 0) {
       const top = board.stock.children[board.stock.children.length - 1]!;
       remove(board.stock, top);
-      setFaceDown(top, false);
+      setFacing(top, "up");
       add(board.waste, top);
     } else {
       // Recycle: the waste returns to the stock, face-down, its order reversed.
       const back = [...board.waste.children].reverse();
       for (const c of back) {
         remove(board.waste, c);
-        setFaceDown(c, true);
+        setFacing(c, "down");
         add(board.stock, c);
       }
     }

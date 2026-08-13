@@ -17,7 +17,7 @@
 // decides what the turn DOES; the engine mixes it in through the effects list, blind.
 
 import { defineAtom } from "../atom.js";
-import { type Node } from "../node.js";
+import { compose, fieldsOf, type Node } from "../node.js";
 import { contextFor, sumAlongChain } from "../resolve.js";
 
 export interface FlippableFields {
@@ -52,4 +52,18 @@ export type Facing = "up" | "down";
 export function facing(n: Node): Facing {
   const summed = sumAlongChain(contextFor(n, 1), "Flippable", "turns");
   return (((Math.trunc(summed) % 2) + 2) % 2) === 0 ? "up" : "down";
+}
+
+/**
+ * Turn a node to show a given side — the WRITER paired with `facing`. It TOGGLES rather than
+ * assigns: a node already showing `side` is left alone, otherwise ONE turn is added, so the parity
+ * flips to what was asked while the count keeps CLIMBING — a settle then animates the reveal as one
+ * continuous turn forward, never a jump back to zero. It reads `facing`, so it is right about a card
+ * inside a turned stack too. A node with no Flippable of its own has nothing to turn and is untouched.
+ */
+export function setFacing(n: Node, side: Facing): void {
+  if (facing(n) === side) return;
+  const own = fieldsOf<FlippableFields>(n, "Flippable");
+  if (!own) return;
+  compose(n, Flippable({ ...own, turns: own.turns + 1 }));
 }
