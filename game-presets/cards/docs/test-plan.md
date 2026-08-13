@@ -23,3 +23,6 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `cards.values-are-typed` | each node | Valued | equals the set's typed fields, in order |
 | `cards.ids-are-unique` | the nodes | ids | no repeat |
 | `cards.faces-resolve` | each node | Surfaced + skin | face is a registered surface, node is Bounded |
+| `shuffle.keeps-every-item` | a list | `shuffled` | a permutation — same multiset, same length, nothing added or dropped |
+| `shuffle.does-not-mutate-the-input` | a list | `shuffled` | the source keeps its order; the result is a new array |
+| `shuffle.is-deterministic-under-a-seeded-rng` | a seeded rng | `shuffled` | same rng → same permutation; `() => 0` gives a known non-identity order |

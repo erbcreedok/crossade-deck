@@ -16,7 +16,7 @@ import {
   Transformable,
   type Node,
 } from "game-kit";
-import { deckByCardId } from "@game-presets/cards";
+import { deckByCardId, shuffled } from "@game-presets/cards";
 
 export interface SolitaireBoard {
   readonly desk: Node;
@@ -47,11 +47,7 @@ function shuffledPips(): Node[] {
     if (id.includes("joker") || id === "brand") continue;
     pips.push(n);
   }
-  for (let i = pips.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pips[i], pips[j]] = [pips[j]!, pips[i]!];
-  }
-  return pips;
+  return shuffled(pips);
 }
 
 function pile(id: string, x: number, y: number, layout: string, grab?: string): Node {

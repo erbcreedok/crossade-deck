@@ -3,6 +3,7 @@
 export { SUITS, suitByName, suitPath, SUIT_PATHS, type Suit, type SuitName, type SuitColor } from "./suits.js";
 export { installClassicSkin, faceSurface, BACK_SURFACE } from "./skin.classic.js";
 export { cards, deckByCardId, type CardsOptions } from "./cards.js";
+export { shuffled } from "./shuffle.js";
 export {
   crossade,
   CROSSADE_FIELDS,
