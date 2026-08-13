@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { move } from "./transform.js";
-import { easing, installStockEasings, resetEasings, sample } from "./motion.js";
+import { easing, flipScale, installStockEasings, resetEasings, sample } from "./motion.js";
 
 describe("motion", () => {
   it("motion.lerps-to-its-target — start is from, end is to, and a late read is clamped", () => {
@@ -33,5 +33,19 @@ describe("motion", () => {
     const snap = { from: move(0, 0), to: move(9, 0), startMs: 0, durMs: 0, ease: "linear" };
     expect(sample(snap, 0)).toMatchObject({ done: true });
     expect(sample(snap, 0).transform.e).toBe(9);
+  });
+
+  it("motion.flip-squeezes-to-an-edge-at-the-midpoint — full, nothing, full", () => {
+    // The card's projected width as it turns: face-on at both ends, edge-on halfway — which is
+    // exactly where the content swaps, unseen. Symmetric about the midpoint.
+    expect(flipScale(0)).toBeCloseTo(1);
+    expect(flipScale(0.5)).toBeCloseTo(0);
+    expect(flipScale(1)).toBeCloseTo(1);
+    expect(flipScale(0.25)).toBeCloseTo(flipScale(0.75)); // symmetric
+    expect(flipScale(0.25)).toBeGreaterThan(0);
+    expect(flipScale(0.25)).toBeLessThan(1);
+    // Clamped: an early or late read never widens past full or reads a negative turn.
+    expect(flipScale(-1)).toBeCloseTo(1);
+    expect(flipScale(2)).toBeCloseTo(1);
   });
 });

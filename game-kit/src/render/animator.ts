@@ -1,6 +1,7 @@
 // THE MOTION RUNTIME — the ONE clock. It watches the host's tree: when a node's resting pose moves,
-// the node keeps its identity and a spring plays it there instead of teleporting. Position and angle
-// only, for now — a flip is a `side` change and rides its own slice.
+// the node keeps its identity and a spring plays it there instead of teleporting. A `flip(id, commit)`
+// turns a node over on the same clock: it squeezes to an edge and back and swaps the side at the edge,
+// where there is no width to show the swap — the reflection rides the resting pose the swap produces.
 //
 // This is the only file in the kit that holds a frame loop (`guard.one-clock`). A settling scene runs
 // the loop; a still one does not touch it (the idle-gate the canon asks of any continuous animation).
@@ -13,8 +14,8 @@
 // the finger left it to where it now rests.
 
 import { type Node, type NodeId } from "../core/node.js";
-import { sample, type Motion } from "../core/motion.js";
-import { type Transform } from "../core/transform.js";
+import { flipScale, sample, type Motion } from "../core/motion.js";
+import { compose, type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
 import { renderFrame } from "./stage.js";
@@ -50,11 +51,24 @@ export interface Motions {
   hold(id: NodeId): void;
   /** Hand the node back: the next tree change eases it from here to its rest pose. */
   release(id: NodeId): void;
+  /**
+   * Turn a node over on the clock. It squeezes to an edge and back — `|cos|` of a half-turn — and
+   * `commit` runs at the EDGE, where the card has no width to show the swap. `commit` is the actual
+   * `side` change (e.g. `setFacing`): the geometry (the reflection) rides the resting pose the swap
+   * produces, so the far face grows un-mirrored. The normal settle is suppressed for the node while
+   * it turns, so the resting change `commit` makes does not race a second flight.
+   */
+  flip(id: NodeId, commit: () => void): void;
   /** Stop following the host and cancel any running loop. */
   stop(): void;
 }
 
 const EPSILON = 1e-6;
+
+/** A horizontal-only scale — the width of a card as it turns. The reflection's SIGN stays in the pose. */
+function hscale(k: number): Transform {
+  return { a: k, b: 0, c: 0, d: 1, e: 0, f: 0 };
+}
 
 function same(a: Transform, b: Transform): boolean {
   return (
@@ -80,15 +94,24 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const displayed = new Map<NodeId, Transform>(); // what is on the glass now, root-unit space
   const active = new Map<NodeId, Motion>(); // nodes mid-flight
   const held = new Set<NodeId>(); // nodes a gesture owns — no easing
+  // Nodes mid-turn. `committed` guards the one swap at the edge; the width is `flipScale` of progress.
+  const flipping = new Map<NodeId, { startMs: number; commit: () => void; committed: boolean }>();
   let cancelFrame: (() => void) | null = null;
 
   /** The pose overrides to hand the plan this frame: the in-flight nodes, at where they are now. */
   const overrides = (): ReadonlyMap<NodeId, Transform> | undefined => {
-    if (active.size === 0) return undefined;
+    if (active.size === 0 && flipping.size === 0) return undefined;
     const map = new Map<NodeId, Transform>();
     for (const id of active.keys()) {
       const at = displayed.get(id);
       if (at) map.set(id, at);
+    }
+    // A turning node keeps its resting pose (which carries the reflection) and wears the width of the
+    // turn on top — squeezed to an edge at the midpoint, full again on the far face.
+    const now = clock.now();
+    for (const [id, f] of flipping) {
+      const at = displayed.get(id);
+      if (at) map.set(id, compose(at, hscale(flipScale((now - f.startMs) / durMs))));
     }
     return map;
   };
@@ -99,8 +122,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const reconcile = (): void => {
     const target = transformsOf(host.root);
     for (const [id, to] of target) {
-      if (held.has(id)) {
-        // The finger owns it: sit exactly where the tree says, cancel any leftover flight.
+      if (held.has(id) || flipping.has(id)) {
+        // Finger-owned or mid-turn: sit exactly where the tree says, no easing. A flip's `commit`
+        // changes this node's rest pose (the reflection flips sign) — snapping it here is what keeps
+        // that change from starting a second flight that would race the turn.
         displayed.set(id, to);
         active.delete(id);
         continue;
@@ -126,8 +151,21 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       displayed.set(id, s.transform);
       if (s.done) active.delete(id);
     }
+    // Advance the turns: swap content once, at the edge; drop the turn when it lands.
+    let committed = false;
+    for (const [id, f] of flipping) {
+      const t = durMs <= 0 ? 1 : (now - f.startMs) / durMs;
+      if (t >= 0.5 && !f.committed) {
+        f.committed = true;
+        f.commit();
+        committed = true;
+      }
+      if (t >= 1) flipping.delete(id);
+    }
+    // The swap moved a rest pose; re-read so the far face draws at its new, un-mirrored resting pose.
+    if (committed) reconcile();
     draw();
-    if (active.size > 0) ensureLoop();
+    if (active.size > 0 || flipping.size > 0) ensureLoop();
   };
 
   const ensureLoop = (): void => {
@@ -152,11 +190,17 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     release(id) {
       held.delete(id);
     },
+    flip(id, commit) {
+      // A turn already running for this node is replaced — the latest word wins, as everywhere here.
+      flipping.set(id, { startMs: clock.now(), commit, committed: false });
+      ensureLoop();
+    },
     stop() {
       unsubscribe();
       cancelFrame?.();
       cancelFrame = null;
       active.clear();
+      flipping.clear();
     },
   };
 }

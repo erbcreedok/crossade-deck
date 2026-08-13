@@ -134,7 +134,8 @@ export function startSolitaire(container: HTMLElement): () => void {
     for (const c of cards) motion.release(c.id); // in case a gesture held them — a no-op otherwise
     if (kindOf(src) === "tableau") {
       const top = src.children[src.children.length - 1];
-      if (top && facing(top) === "down") setFacing(top, "up");
+      // Uncovered a face-down card: turn it over on the clock — it flips as the run slides away.
+      if (top && facing(top) === "down") motion.flip(top.id, () => setFacing(top, "up"));
     }
     redraw();
     checkWin();

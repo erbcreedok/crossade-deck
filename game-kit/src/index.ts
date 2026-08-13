@@ -173,6 +173,7 @@ export { attachPainter, renderFrame } from "./render/stage.js";
 export { attachMotion, type Clock, type MotionOptions, type Motions } from "./render/animator.js";
 export {
   easing,
+  flipScale,
   installStockEasings,
   lerp,
   lerpTransform,

@@ -76,3 +76,15 @@ export function sample(m: Motion, nowMs: number): Sampled {
   const t = raw <= 0 ? 0 : raw >= 1 ? 1 : raw;
   return { transform: lerpTransform(m.from, m.to, easing(m.ease)(t)), done: t >= 1 };
 }
+
+/**
+ * The horizontal squeeze of a card turning about a vertical axis, as a fraction of full width — the
+ * PROJECTION of the turning card onto the glass, `|cos|` of the half-turn: `1` face-on, `0` edge-on
+ * at the midpoint, `1` again on the far face. Magnitude only; the reflection's SIGN lives in the
+ * resting pose, so a runtime multiplies this onto that pose. Clamped, so an early or late read never
+ * widens past full. The content swaps at the edge (`t = 0.5`), where the card has no width to show it.
+ */
+export function flipScale(t: number): number {
+  const clamped = t <= 0 ? 0 : t >= 1 ? 1 : t;
+  return Math.abs(Math.cos(Math.PI * clamped));
+}
