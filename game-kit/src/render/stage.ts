@@ -6,7 +6,8 @@
 // a seam at all.
 
 import { bakeable } from "../core/atoms/bakeable.js";
-import { byId, type Node } from "../core/node.js";
+import { byId, type Node, type NodeId } from "../core/node.js";
+import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan } from "./scenePlan.js";
@@ -46,33 +47,45 @@ export interface PaintOptions {
    * it in the meantime, and it is the same sentence, so nothing written today has to change.
    */
   readonly bake?: (node: Node) => boolean;
+  /**
+   * In-flight pose overrides, by node id, in root-unit space — the seam the motion runtime draws a
+   * settle through. Absent for a still scene, which is every scene until something animates.
+   */
+  readonly overrides?: ReadonlyMap<NodeId, Transform> | undefined;
+}
+
+/**
+ * Paint ONE frame of the host's current tree. The shared draw step, so both the still painter and
+ * the motion runtime turn a tree into pixels through the same eight lines rather than two copies
+ * that drift the day one of them learns a new trick.
+ */
+export function renderFrame(host: Host, painter: Painter, options: PaintOptions = {}): void {
+  const view = host.viewport();
+  painter.resize(view.width, view.height);
+  const input = {
+    root: host.root,
+    unit: host.unit(),
+    width: view.width,
+    height: view.height,
+    viewer: host.viewer(),
+    overrides: options.overrides,
+  };
+  // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on
+  // top of the thing being measured hides the very edge a reader is looking for.
+  const plan = scenePlan(input);
+  const bake = options.bake ?? bakeable;
+  const drawn = bakePlan(plan, (quad) => {
+    // A quad whose node cannot be found is left LIVE: live is the mode that is always
+    // correct, and guessing "bake" for something we could not ask about is how a stroke
+    // silently stops scaling with its node.
+    const owner = byId(host.root, quad.id);
+    return owner ? bake(owner) : false;
+  });
+  painter.draw(drawn, [...gridMarks(input), ...boundsMarks(input)], host.viewer().theme);
 }
 
 export function attachPainter(host: Host, painter: Painter, options: PaintOptions = {}): () => void {
-  const redraw = (): void => {
-    const view = host.viewport();
-    painter.resize(view.width, view.height);
-    const input = {
-      root: host.root,
-      unit: host.unit(),
-      width: view.width,
-      height: view.height,
-      viewer: host.viewer(),
-    };
-    // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on
-    // top of the thing being measured hides the very edge a reader is looking for.
-    const plan = scenePlan(input);
-    const bake = options.bake ?? bakeable;
-    const drawn = bakePlan(plan, (quad) => {
-      // A quad whose node cannot be found is left LIVE: live is the mode that is always
-      // correct, and guessing "bake" for something we could not ask about is how a stroke
-      // silently stops scaling with its node.
-      const owner = byId(host.root, quad.id);
-      return owner ? bake(owner) : false;
-    });
-    painter.draw(drawn, [...gridMarks(input), ...boundsMarks(input)], host.viewer().theme);
-  };
-
+  const redraw = (): void => renderFrame(host, painter, options);
   redraw();
   return host.onChange(redraw);
 }

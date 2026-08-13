@@ -16,8 +16,10 @@
 // inside it: the kit knows no language, so the captions stop here, in the catalog's own shell.
 
 import {
+  attachMotion,
   attachPainter,
   inspect,
+  installStockEasings,
   installStockHeads,
   installStockLayouts,
   installStockSurfaces,
@@ -109,6 +111,12 @@ export interface SceneOptions {
    * override and the default in one picture.
    */
   readonly bake?: (node: Node) => boolean;
+  /**
+   * Drive the scene through the MOTION runtime (`attachMotion`) instead of the still painter, so a
+   * tree fed a new pose eases there instead of teleporting. A re-render with a different tree — which
+   * is exactly what a control change is — becomes a settle the reader can watch.
+   */
+  readonly animate?: boolean;
 }
 
 export function scene(
@@ -209,7 +217,11 @@ export function scene(
   // Handed straight through, ABSENCE INCLUDED — and absence has to stay absence rather than
   // become `bake: undefined`: no `bake` means the kit's own default, and the catalog has no
   // business inventing a different one for the reader to learn instead.
-  const stopPainting = attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
+  // A motion scene runs the one clock (and needs the stock easings) instead of the still painter;
+  // both hand back a teardown of the same shape, so the rest of the shell does not care which.
+  const stopPainting = options.animate
+    ? (installStockEasings(), attachMotion(host, painter, options.bake ? { bake: options.bake } : {}).stop)
+    : attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
   // not observable from the outside without saying so. The flag is for the browser tests: the

@@ -1,0 +1,19 @@
+{
+  "docs.motion.component": [
+    "**Motion** is how game-kit gets a node from one resting pose to the next — by easing it there, not teleporting it. A move, a deal, a card flying home from an illegal drop: the tree changes, and the view catches up over the one clock.",
+    "",
+    "## Identity, not a diff",
+    "",
+    "A settle is not a comparison of two trees. Each node keeps its identity across the change, and its spring plays from where it is to where it now belongs. The runtime holds the one clock — a node never starts its own ticker — and animates only while something is in flight, then stops.",
+    "",
+    "## Gesture vs settle",
+    "",
+    "While a finger owns a node it tracks the finger one-to-one; it does not ease. The settle is what happens after — the card let go, the run dropped, the stock dealt. That split is why a drag feels direct and a release feels smooth. Flip these controls to watch a settle on its own, with no drag involved."
+  ],
+  "docs.motion.settle": [
+    "One token, two slots. Toggle the control and the node eases from the left seat to the right and back — the same glide a card makes settling into a pile, driven here by a control instead of a hand."
+  ],
+  "docs.motion.deal": [
+    "A stacked pack fans into a row on deal. Every card keeps its identity across the change, so each one springs from the stack to its own seat rather than the picture being redrawn in place."
+  ]
+}

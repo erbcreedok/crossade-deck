@@ -9,7 +9,7 @@ import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
-import { apply, IDENTITY } from "../core/transform.js";
+import { apply, IDENTITY, move } from "../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf } from "./scenePlan.js";
 import { registerAsset } from "./assets.js";
 import { registerEffect, resetEffects } from "./effects.js";
@@ -39,6 +39,17 @@ describe("scenePlan", () => {
 
   it("plan.surfaced-draws-one-quad — and exactly one", () => {
     expect(plan(node("p2", box(1, 1), Surfaced()))).toHaveLength(1);
+  });
+
+  it("motion.override-relocates-a-quad — a mid-settle pose stands in for the resting one", () => {
+    // The one seam the motion runtime draws a settle through: hand the plan a root-unit pose for
+    // a node, and it lands there instead of at rest — nothing else in the pipeline learns of it.
+    const root = node("p", box(1, 1), Surfaced());
+    const [rest] = plan(root); // no override — the quad sits at the resting pose (view centre)
+    const overrides = new Map([["p", move(1, 0)]]); // one unit right, in root space
+    const [flying] = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, overrides });
+    expect(flying!.x - rest!.x).toBeCloseTo(100); // one unit → 100px at this scale
+    expect(flying!.y).toBeCloseTo(rest!.y);
   });
 
   it("plan.the-root-sits-in-the-middle — every catalog page assumes it", () => {

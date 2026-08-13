@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**39 слоя · 973 кейсов заявлено · 799 расписано поимённо.**
+**41 слоя · 986 кейсов заявлено · 812 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -40,7 +40,7 @@
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
-| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 29 | 29 |
+| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 30 | 30 |
 | [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 79 | 74 |
 | [STATE MATRIX · combinatorics](17-state-matrix.md) | `generated table, vitest` | 24 | 5 |
 | [STATE PLANE · what happens vs what is authored](18-state-plane.md) | `vitest` | 12 | 4 |
@@ -65,3 +65,5 @@
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 30 | 30 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
+| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 6 | 6 |
+| [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 6 | 6 |

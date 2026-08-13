@@ -155,7 +155,7 @@ const preview: Preview = {
           "Add-ons",
           ["Cards"],
           "Engine",
-          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records"],
+          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion"],
           "Elements",
           "HUD",
           // Last, because it is ABOUT the catalog rather than of it: the pages that check the

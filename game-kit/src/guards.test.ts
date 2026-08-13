@@ -150,6 +150,19 @@ describe("guards", () => {
     expect(hits(/(const|let|var)\s+canvas\b|canvas\s*:\s*HTMLCanvasElement/)).toEqual([]);
   });
 
+  it("guard.one-clock — the frame loop lives in exactly one file", () => {
+    // Any continuous animation runs on ONE clock (docs/design/transaction.md): a node does not
+    // start its own ticker. So the frame primitives appear in the motion runtime and nowhere else
+    // in the kit — a second `requestAnimationFrame` is a second clock, and two clocks drift.
+    // The catalog is a consumer and runs its own (its scene shell waits two frames to know it
+    // painted), so the rule is about `src`, not `catalog/`.
+    const users = files
+      .filter((f) => !inCatalog(f.rel))
+      .filter((f) => /\brequestAnimationFrame\b|\bsetInterval\b|\bsetTimeout\b/.test(f.code))
+      .map((f) => f.rel);
+    expect(users).toEqual(["render/animator.ts"]);
+  });
+
   it("guard.english-only — code is English; the words live in bundles", () => {
     // Raw on purpose: the rule covers comments too. The one place allowed to hold another
     // alphabet is `locales/` — the bundles themselves and the test that asserts what they say.

@@ -1,6 +1,6 @@
 ## ARCHITECTURAL GUARDS · source-scan
 
-`vitest + fs scan (like argNames.test.ts)` · 29 кейсов, расписано 29
+`vitest + fs scan (like argNames.test.ts)` · 30 кейсов, расписано 30
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -20,6 +20,7 @@
 | `guard.kit-knows-no-localization` | the kit tree | scanned for locale/i18n/TextSource/translate and json imports | zero: not the words, and not the notion either — a caption arrives already written |
 | `guard.no-language-list` | the kit tree | scanned for "en"/"ru" literals | zero — a game adding a language must never have to edit the kit |
 | `guard.view-not-canvas` | всё дерево исходников | скан | ни одного `HTMLCanvasElement` под именем canvas |
+| `guard.one-clock` | всё дерево `src` (каталог не в счёт) | скан на `requestAnimationFrame`/`setInterval`/`setTimeout` | ровно один файл — `render/animator.ts`. Второй кадровый цикл это вторые часы, а двое часов расходятся |
 | `guard.id-is-opaque` | всё дерево | скан на `id ===` и разбор идентификатора | ноль. client1 умер от обратного: `id === "deck"` по всему движку |
 | `guard.no-font-shorthand` | tsx каталога | скан на `font:` | ноль: собранное из токенов сокращение не применяется и НЕ сообщает об ошибке — элемент молча наследует шрифт страницы |
 | `guard.docs-prose-is-translated` | стори каталога | скан на `description: {` | ноль: встроенная проза попадает в индекс на сборке и языку уже не подчиняется |

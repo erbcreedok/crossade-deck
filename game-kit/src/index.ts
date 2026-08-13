@@ -167,7 +167,22 @@ export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from 
 
 // ---- render: pixels ---------------------------------------------------------------------
 export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/host.js";
-export { attachPainter } from "./render/stage.js";
+export { attachPainter, renderFrame } from "./render/stage.js";
+// The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that
+// should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
+export { attachMotion, type Clock, type MotionOptions, type Motions } from "./render/animator.js";
+export {
+  easing,
+  installStockEasings,
+  lerp,
+  lerpTransform,
+  registerEasing,
+  resetEasings,
+  sample,
+  type Easing,
+  type Motion,
+  type Sampled,
+} from "./core/motion.js";
 export {
   bakePlan,
   boundsMarks,
@@ -182,6 +197,9 @@ export {
   type QuadLayer,
   type QuadStroke,
 } from "./render/scenePlan.js";
+// The pointer seam: a glass point off an event, its units, and the topmost node under it — read off
+// the same plan the painter drew. Every interactive scene needs it; none should write its own copy.
+export { glassOf, pick, toUnits } from "./render/pointer.js";
 // The one seam a runtime mechanic mixes itself in through: the engine folds this list and knows
 // none of the mechanics by name. `flippable` and `coated` register into it; the core stays blind.
 export {

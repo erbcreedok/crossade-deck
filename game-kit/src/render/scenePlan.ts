@@ -217,6 +217,14 @@ export interface PlanInput {
   readonly width: number;
   readonly height: number;
   readonly viewer: ViewerSettings;
+  /**
+   * In-flight pose overrides, by node id, in ROOT-UNIT space (the same space `transformsOf`
+   * answers in). Present only while a node is mid-settle: the motion runtime hands the plan the
+   * node's CURRENT flight pose so it draws there instead of at its resting pose. Absent for a still
+   * scene, so a plan with no motion is byte-for-byte the plan there always was. Leaf nodes only for
+   * now — an override replaces a node's own absolute pose and its children are not carried with it.
+   */
+  readonly overrides?: ReadonlyMap<NodeId, Transform> | undefined;
 }
 
 /**
@@ -226,7 +234,7 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, overrides }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = viewTransform(unit, width, height);
   const out: Quad[] = [];
@@ -267,8 +275,10 @@ export function scenePlan({ root, unit, width, height, viewer }: PlanInput): Qua
     // poses, and units into pixels. Written inline it was three copies of the same two lines,
     // and none of them would have survived a node that could turn.
     // The node's pose WITH the unit folded in, so the points below stay in pixels around the
-    // node's own origin and the matrix carries everything else.
-    const toGlass = compose(toView, nodes.get(n.id) ?? IDENTITY);
+    // node's own origin and the matrix carries everything else. A mid-settle override, when the
+    // motion runtime supplies one, stands in for the resting pose here — same space, so nothing
+    // else in the pipeline learns that the node is in flight.
+    const toGlass = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
     // A ZERO UNIT IS NOT A DIVISION. A container with no size on screen — hidden, or measured
     // before layout — reports a unit of zero, and `1 / 0` puts NaN through the whole matrix.
     // Everything downstream then reads as "rotated", because NaN is not equal to zero either,

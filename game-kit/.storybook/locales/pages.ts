@@ -26,6 +26,7 @@ import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
 import type gettingStarted from "./pages/gettingStarted/en.json";
 import type intro from "./pages/intro/en.json";
+import type motion from "./pages/motion/en.json";
 import type node from "./pages/node/en.json";
 import type presetsBounds from "./pages/presetsBounds/en.json";
 import type presetsComponents from "./pages/presetsComponents/en.json";
@@ -90,6 +91,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     ru: () => import("./pages/presetsPoses/ru.json"),
   },
   cards: { en: () => import("./pages/cards/en.json"), ru: () => import("./pages/cards/ru.json") },
+  motion: { en: () => import("./pages/motion/en.json"), ru: () => import("./pages/motion/ru.json") },
   tests: { en: () => import("./pages/tests/en.json"), ru: () => import("./pages/tests/ru.json") },
 };
 
@@ -117,6 +119,7 @@ export type PageKey = keyof (typeof node &
   typeof presetsCoats &
   typeof presetsFlips &
   typeof cards &
+  typeof motion &
   typeof tests);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */

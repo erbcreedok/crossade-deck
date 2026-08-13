@@ -66,6 +66,8 @@
   "arg.startAngle": "Where the first child stands, in degrees clockwise from twelve o'clock — the same sense `angle` turns.",
   "arg.sweep": "The whole walk, first child to last, in degrees. The full 360 shares the circle evenly with no doubled seat at the seam; anything less is an arc taken end to end.",
   "arg.count": "How many cards are dealt. Zero is an empty hand, not an error.",
+  "arg.right": "Which slot the token rests at. Flip it and the node eases across on the one clock — the settle, watched with no drag.",
+  "arg.dealt": "Whether the pack has been dealt into a row. Flip it and every card springs from the stack to its own seat, keeping its identity across the change.",
   "arg.spread": "The whole arc in degrees, first card to last. More cards pack the same arc tighter — the fan does not widen.",
   "arg.wrist": "How far below the cards the wrist sits, in units — the point the fan pivots about. Closer is steeper.",
   "arg.driftX": "Where each next card lands relative to the one under it, across. Thickness is position, not `z`.",
