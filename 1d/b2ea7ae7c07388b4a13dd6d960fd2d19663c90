@@ -1,0 +1,44 @@
+game-presets/solitaire/src/scene.ts
+  s_7ed2dea7ad95d9::t_46bae22cce9831 137-138
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_b8b9eda9295d1c 68
+  s_7ed2dea7ad95d9::t_d8ec2bd42f3943 10
+game-kit/src/render/animator.ts
+  s_7ed2dea7ad95d9::t_f7fb330aa7551d 2-4
+  s_7ed2dea7ad95d9::t_cc92da80c0d0ca 125-128
+  s_7ed2dea7ad95d9::t_d78b830860cb59 97-98,103,109-114
+  s_7ed2dea7ad95d9::t_dce3a1efa04631 115,154-166,168
+  s_7ed2dea7ad95d9::t_db64bc1feaa0e7 17-18
+  s_7ed2dea7ad95d9::t_607d3c9b68370f 54-61
+  s_7ed2dea7ad95d9::t_27dd0c234fbac2 68-72
+  s_7ed2dea7ad95d9::t_f3aee0260b8341 193-197,203
+game-kit/src/index.ts
+  s_7ed2dea7ad95d9::t_11c57b8db25d1b 176
+game-kit/src/core/motion.ts
+  s_7ed2dea7ad95d9::t_244c80dd149f28 79-90
+game-kit/docs/test-plan/40-motion.md
+  s_7ed2dea7ad95d9::t_6f4a04f69a23bb 3
+  s_7ed2dea7ad95d9::t_871d06a96362be 20-23
+game-kit/src/render/animator.test.ts
+  s_7ed2dea7ad95d9::t_6150b949ff467e 134-214
+  s_7ed2dea7ad95d9::t_2137f6c7444cd2 14,18-19
+game-kit/src/core/motion.test.ts
+  s_7ed2dea7ad95d9::t_91881a0cc02749 37-50
+  s_7ed2dea7ad95d9::t_58f66f931aefe9 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1db2ea7ae7c07388b4a13dd6d960fd2d19663c90",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
