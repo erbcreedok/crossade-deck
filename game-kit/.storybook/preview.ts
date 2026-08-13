@@ -150,6 +150,10 @@ const preview: Preview = {
           // GENERATES, not by which file of the kit it happens to live in.
           "Presets",
           ["Bounds", "Surfaces", "Coats", "Flips", "Poses", "Layouts", "Components"],
+          // Add-ons stand OUTSIDE the kit: a preset package that ships its own textures and presets
+          // (`@game-presets/*`), documented here but explicitly not part of the core the pages above show.
+          "Add-ons",
+          ["Cards"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records"],
           "Elements",

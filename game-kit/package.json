@@ -17,6 +17,7 @@
     "dev:plain": "storybook dev -p 9567"
   },
   "devDependencies": {
+    "@game-presets/cards": "*",
     "@playwright/test": "^1.62.1",
     "@storybook/addon-controls": "^8.6.18",
     "@storybook/addon-docs": "^8.6.14",

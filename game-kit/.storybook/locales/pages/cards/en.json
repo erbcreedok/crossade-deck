@@ -1,0 +1,19 @@
+{
+  "docs.cards.component": [
+    "A full **55-card set** — 52 standard cards, two jokers and one brand card — built by the **`@game-presets/cards` add-on**, a package that sits on top of game-kit.",
+    "",
+    "## An add-on, not the core",
+    "",
+    "Everything here — the suit shapes, the card faces, the back pattern, the `cards()` builder — ships in `@game-presets/cards`, not in the engine. game-kit itself carries no image and no deck: it provides `deck()`, `Surfaced`, `Flippable` and the surface and asset registries, and the add-on brings the content. A game installs the add-on to get a recognizable deck out of the box.",
+    "",
+    "## How a card is made",
+    "",
+    "Each card is one node: `Bounded` for its size, `Surfaced` for its face texture, `Flippable` so it turns over to the shared back, and `Valued` for its typed fields — suit, rank, colour. The suit marks are vector shapes; the faces are SVG textures the add-on draws and ships as data URIs, so a red suit stays red whichever way the desk is themed."
+  ],
+  "docs.cards.hand": [
+    "A dealt hand, faces up: the ace and queen of spades, the ten of hearts, the seven of diamonds and the king of clubs — a pip card, a court card and an ace, across all four suits."
+  ],
+  "docs.cards.specials": [
+    "The cards a standard 52 does not have: the two jokers, the brand card reading *crossade deck*, and the shared back every card turns over to reveal."
+  ]
+}

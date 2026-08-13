@@ -19,6 +19,7 @@ import { catalogText, type CatalogKey, type CatalogLocale, type CatalogText, typ
 // Types only — erased at compile time, so naming the bundles here costs nothing at runtime and
 // keeps every prose key checkable by `tsc` instead of by hope.
 import type bounded from "./pages/bounded/en.json";
+import type cards from "./pages/cards/en.json";
 import type coated from "./pages/coated/en.json";
 import type container from "./pages/container/en.json";
 import type engine from "./pages/engine/en.json";
@@ -88,6 +89,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     en: () => import("./pages/presetsPoses/en.json"),
     ru: () => import("./pages/presetsPoses/ru.json"),
   },
+  cards: { en: () => import("./pages/cards/en.json"), ru: () => import("./pages/cards/ru.json") },
   tests: { en: () => import("./pages/tests/en.json"), ru: () => import("./pages/tests/ru.json") },
 };
 
@@ -114,6 +116,7 @@ export type PageKey = keyof (typeof node &
   typeof presetsPoses &
   typeof presetsCoats &
   typeof presetsFlips &
+  typeof cards &
   typeof tests);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */
