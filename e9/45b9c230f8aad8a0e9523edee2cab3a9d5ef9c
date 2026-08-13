@@ -1,0 +1,29 @@
+game-presets/solitaire/src/board.test.ts
+  s_7ed2dea7ad95d9::t_db28c2a0bc6840 1-41
+game-presets/solitaire/docs/test-plan.md
+  s_7ed2dea7ad95d9::t_00dd3da0cff131 16-19,21-25
+game-presets/solitaire/src/scene.ts
+  s_7ed2dea7ad95d9::t_523f7156a44c87 36
+  s_7ed2dea7ad95d9::t_07b2aec688a400 80-85
+game-presets/solitaire/src/board.ts
+  s_7ed2dea7ad95d9::t_8ac729dc593937 14
+  s_7ed2dea7ad95d9::t_a9e58c5626e1ee 66-70,81-95,97-98,100
+game-presets/solitaire/src/index.ts
+  s_7ed2dea7ad95d9::t_fbd5947371bcc4 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e945b9c230f8aad8a0e9523edee2cab3a9d5ef9c",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
