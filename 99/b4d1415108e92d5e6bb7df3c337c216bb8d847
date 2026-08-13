@@ -1,0 +1,41 @@
+game-kit/src/core/atoms/flippable.test.ts
+  s_7ed2dea7ad95d9::t_bdce6d70bcca28 59-88
+  s_7ed2dea7ad95d9::t_b35720b68b3a85 3,5
+game-kit/src/core/atoms/flippable.ts
+  s_7ed2dea7ad95d9::t_74997548690e89 20
+  s_7ed2dea7ad95d9::t_cf37ae180c3d0f 56-69
+game-kit/docs/test-plan/30-flippable.md
+  s_7ed2dea7ad95d9::t_6056258b891202 55-58
+  s_7ed2dea7ad95d9::t_d76449b420298a 3
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_b7579a328cfb2e 10
+  s_7ed2dea7ad95d9::t_ec190b019e0604 58
+client3/src/solitaire/board.ts
+  s_7ed2dea7ad95d9::t_28ff8e4b26cf77 86
+  s_7ed2dea7ad95d9::t_419a4d623d3009 91
+  s_7ed2dea7ad95d9::t_d5d78d68b26b48 14
+client3/src/solitaire/scene.ts
+  s_7ed2dea7ad95d9::t_08de713a0dba78 27
+  s_7ed2dea7ad95d9::t_a2ab08c1c29dd5 281
+  s_7ed2dea7ad95d9::t_3db367233c36ae 288
+  s_7ed2dea7ad95d9::t_014ea435aaebe6 137
+  s_7ed2dea7ad95d9::t_9940c6dea39139 36
+game-kit/src/index.ts
+  s_7ed2dea7ad95d9::t_b9db0e2b9eb2fc 143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "99b4d1415108e92d5e6bb7df3c337c216bb8d847",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
