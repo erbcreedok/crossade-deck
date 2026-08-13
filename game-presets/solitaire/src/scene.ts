@@ -33,7 +33,7 @@ import {
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { buildBoard, COLUMN_STEP, installSolitaireLayouts, type SolitaireBoard } from "./board.js";
+import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, type SolitaireBoard } from "./board.js";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.js";
 
 const LIFT_Z = 100;
@@ -76,6 +76,12 @@ export function startSolitaire(container: HTMLElement): () => void {
   };
   host.onChange(applyFit);
   applyFit();
+
+  // The board mounted with the whole deck stacked in the stock; dealing NOW — after the motion
+  // runtime is watching — moves each card's rest pose from the stock to its seat, so the deal flies
+  // in on the one clock instead of appearing already laid out.
+  dealKlondike(board);
+  redraw();
 
   // ---- reading the model ------------------------------------------------------------------
 

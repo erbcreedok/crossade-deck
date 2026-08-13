@@ -11,6 +11,7 @@ import {
   node,
   rect,
   registerLayout,
+  remove,
   setFacing,
   Surfaced,
   Transformable,
@@ -62,7 +63,11 @@ function pile(id: string, x: number, y: number, layout: string, grab?: string): 
   return n;
 }
 
-/** Build a fresh, dealt Klondike table. */
+/**
+ * Build a fresh Klondike table with the WHOLE deck stacked, undealt and face-down, in the stock.
+ * The deal is a separate step (`dealKlondike`) so a mounted table can animate it — every card slides
+ * from the stock to its seat on the motion runtime's clock instead of appearing there.
+ */
 export function buildBoard(): SolitaireBoard {
   const desk = node("desk", Transformable({ at: { x: 0, y: 0 } }), Container({ layout: "free" }));
 
@@ -73,20 +78,26 @@ export function buildBoard(): SolitaireBoard {
 
   for (const p of [stock, waste, ...foundations, ...tableau]) add(desk, p);
 
-  // THE DEAL: column i gets i+1 cards, only its last face-up; the rest go to the stock, face-down.
-  const cards = shuffledPips();
-  let k = 0;
-  for (let i = 0; i < tableau.length; i++) {
-    for (let j = 0; j <= i; j++) {
-      const card = cards[k++]!;
-      setFacing(card, j < i ? "down" : "up");
-      add(tableau[i]!, card);
-    }
-  }
-  for (; k < cards.length; k++) {
-    setFacing(cards[k]!, "down");
-    add(stock, cards[k]!);
+  for (const card of shuffledPips()) {
+    setFacing(card, "down");
+    add(stock, card);
   }
 
   return { desk, stock, waste, foundations, tableau };
+}
+
+/**
+ * Deal the classic layout OFF the stock: column i takes i+1 cards, only its last face-up; the rest
+ * stay in the stock, face-down. Reparenting cards a mounted board already holds is what lets the deal
+ * FLY — each moved card's rest pose changes from the stock to its seat, and the settle glides it.
+ */
+export function dealKlondike(board: SolitaireBoard): void {
+  for (let i = 0; i < board.tableau.length; i++) {
+    for (let j = 0; j <= i; j++) {
+      const card = board.stock.children[board.stock.children.length - 1]!; // off the top of the stock
+      remove(board.stock, card);
+      setFacing(card, j < i ? "down" : "up");
+      add(board.tableau[i]!, card);
+    }
+  }
 }

@@ -13,8 +13,13 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `rules.foundation-ascends-by-suit` | `canOnFoundation` | 2♠ onto A♠ / wrong suit / non-adjacent rank | true only when suit matches and rank is one up |
 | `rules.a-run-is-descending-alternating` | `isRunOrdered` | a valid run / a colour repeat / a rank gap / a single card / an empty run | true for valid, single, and empty; false on a colour repeat or a rank gap |
 | `rules.value-reads-typed-fields` | `valueOf` | a full record / a missing record / a wrong-typed field | `{suit,rank,colour}`, or `undefined` |
+| `deal.the-whole-deck-starts-in-the-stock` | `buildBoard()` | before dealing | 52 in the stock, tableau/waste/foundations empty — undealt, ready to fly |
+| `deal.columns-cascade-one-to-seven` | `dealKlondike` | the deal | column i holds i+1 cards |
+| `deal.only-the-column-top-is-face-up` | a dealt column | facing | the last card up, the rest down |
+| `deal.the-rest-stays-in-the-stock-face-down` | after the deal | the stock | 24 left, all face-down; 28 dealt + 24 = 52, nothing lost |
 
-The add-on ships two doors, mirroring game-kit: `.` (pixi-free model — rules plus `buildBoard`) and
-`./pixi` (the interactive mount, `startSolitaire`). The board and scene have no unit tests of their
-own — Pixi and pointer interaction are not headless-testable — and are exercised by the `client3`
-demo instead.
+The add-on ships two doors, mirroring game-kit: `.` (pixi-free model — rules, `buildBoard` and the
+`dealKlondike` deal) and `./pixi` (the interactive mount, `startSolitaire`). The DEAL is headless —
+counts and facing are deterministic whatever the shuffle — so it is tested above; the SCENE (Pixi and
+pointer interaction, the fly-in glide and the flip) is not headless-testable and is exercised by the
+`client3` demo and the engine's own motion tests instead.
