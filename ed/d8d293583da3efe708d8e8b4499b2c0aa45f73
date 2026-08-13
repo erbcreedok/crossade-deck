@@ -1,0 +1,59 @@
+client3/vite.config.ts
+  s_7a734f8e2f7730::t_f752c8a6c38fc3 1-15
+client3/src/solitaire/rules.ts
+  s_7ed2dea7ad95d9::t_4b27b702367ba3 1-56
+client3/src/main.ts
+  s_7ed2dea7ad95d9::t_4849ce624b0e60 1,5-13
+  s_7ed2dea7ad95d9::t_e773472e374f34 2
+  s_7a734f8e2f7730::t_d1d8071979c5b2 3-4
+client3/src/solitaire/scene.ts
+  s_7ed2dea7ad95d9::t_b231786a3b1fa9 15,24,27
+  s_7ed2dea7ad95d9::t_0c1d880a7a6f50 192-199
+  s_7ed2dea7ad95d9::t_4734b52882a889 9
+  s_7ed2dea7ad95d9::t_c9a94214122d7d 100-104,119-127,129-136,138-140,142-144,147,149,151,154,156-169,173-188,214,217-218,237-263
+  s_7ed2dea7ad95d9::t_fe549618882e78 50
+  s_7ed2dea7ad95d9::t_291d35b18e8583 17
+  s_7ed2dea7ad95d9::t_fffb9ea0da9784 111-113
+  s_7ed2dea7ad95d9::t_e4d91c1f862f09 148
+  s_7ed2dea7ad95d9::t_c52ff28f305dcc 309
+  s_7ed2dea7ad95d9::t_1fe9f4a184589d 105-109
+  s_7ed2dea7ad95d9::t_964d43d3ecf6c4 62
+  s_7ed2dea7ad95d9::t_fd40523594d216 219-236
+  s_7ed2dea7ad95d9::t_2baa01f54d75d2 1-8,10-14,16,18-23,25-26,28-49,51-61,63,67-99,110,114-118,128,137,141,145-146,150,152-153,155,170-172,189-191,200-213,215-216,264-308,310-321
+  s_7ed2dea7ad95d9::t_cf7adb4e5316f8 64-66
+client3/package.json
+  s_7a734f8e2f7730::t_6ad31b85c147e6 1-20
+client3/index.html
+  s_7ed2dea7ad95d9::t_74e99b9f8a0ad8 6
+  s_7a734f8e2f7730::t_b5c23a8e93146e 1-5,7-19,23-26
+  s_7ed2dea7ad95d9::t_c42fa4f1fde4f7 20-22
+client3/src/solitaire/board.ts
+  s_7ed2dea7ad95d9::t_2547a28e64044a 1-105
+client3/tsconfig.json
+  s_7a734f8e2f7730::t_540ae7242e2464 13
+  s_7a734f8e2f7730::t_c8181b04c057de 1-12,14-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "edd8d293583da3efe708d8e8b4499b2c0aa45f73",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
