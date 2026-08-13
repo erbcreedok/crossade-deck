@@ -13,3 +13,8 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `rules.foundation-ascends-by-suit` | `canOnFoundation` | 2♠ onto A♠ / wrong suit / non-adjacent rank | true only when suit matches and rank is one up |
 | `rules.a-run-is-descending-alternating` | `isRunOrdered` | a valid run / a colour repeat / a rank gap / a single card / an empty run | true for valid, single, and empty; false on a colour repeat or a rank gap |
 | `rules.value-reads-typed-fields` | `valueOf` | a full record / a missing record / a wrong-typed field | `{suit,rank,colour}`, or `undefined` |
+
+The add-on ships two doors, mirroring game-kit: `.` (pixi-free model — rules plus `buildBoard`) and
+`./pixi` (the interactive mount, `startSolitaire`). The board and scene have no unit tests of their
+own — Pixi and pointer interaction are not headless-testable — and are exercised by the `client3`
+demo instead.

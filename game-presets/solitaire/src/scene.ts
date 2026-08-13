@@ -33,8 +33,8 @@ import {
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { buildBoard, COLUMN_STEP, installSolitaireLayouts, type SolitaireBoard } from "./board.ts";
-import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "@game-presets/solitaire";
+import { buildBoard, COLUMN_STEP, installSolitaireLayouts, type SolitaireBoard } from "./board.js";
+import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.js";
 
 const LIFT_Z = 100;
 

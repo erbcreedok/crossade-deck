@@ -14,12 +14,18 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./pixi": {
+      "development": "./src/pixi.ts",
+      "types": "./dist/pixi.d.ts",
+      "import": "./dist/pixi.js"
     }
   },
   "types": "./dist/index.d.ts",
   "module": "./dist/index.js",
   "files": ["dist", "src"],
   "dependencies": {
+    "@game-presets/cards": "*",
     "game-kit": "*"
   },
   "devDependencies": {
