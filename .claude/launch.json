@@ -25,8 +25,26 @@
     },
     {
       "name": "game-kit-storybook",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "game-kit",
+        "run",
+        "storybook"
+      ],
       "url": "http://localhost:9567",
       "port": 9567
+    },
+    {
+      "name": "client3",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "client3",
+        "run",
+        "dev"
+      ],
+      "port": 9568
     }
   ]
 }

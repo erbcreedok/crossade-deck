@@ -45,6 +45,35 @@ the same `version` (a test guards it) since they have separate build contexts.
   remove the feature.
 - **Do not add what was not asked for**, and do not narrow the ask either.
 
+## How the owner wants me to work (in THIS repo — not a ritual on every prompt)
+
+- **Ask at the fork, not at the start.** The global "ask 2–5 questions first" is NOT a per-prompt
+  ceremony here. When the owner hands a task mid-flow ("fix this"), first go READ and investigate.
+  Only when the investigation reveals a real fork — several ways to do it, and picking wrong means
+  shipping garbage — stop and ask which one, BEFORE writing. If the ask is already clear, just do it.
+  The question exists to avoid writing the wrong thing, not to delay starting.
+- **TDD is a token-saver, not a tax.** It must HELP, never block: write the test, write the code, run
+  the test, fix the code if red — so the machine checks the work instead of me burning tokens
+  eyeballing it. Re-verification is running a script, not re-reading. Tests are MULTI-LEVEL: a slice
+  of code → check it; a component → check it; an animation or anything visual → drive it with
+  Playwright (I cannot verify motion by looking). Never hand-verify what a script can verify.
+- **Match test effort to the change.** A trivial edit (swap a text "ABC" → "CDA") does not need the
+  whole suite, or even the basic ones. Run what the change can actually break, nothing more.
+
+## Night mode (autonomous run) — the protocol
+
+- **No dialogue at night.** Do not talk, do not chew the owner's words back. Just work and commit
+  continuously (per mechanic, `[skip ci]`).
+- **Keep a running log on disk** — a line every ~5–10 min with a timestamp and the task closed then.
+  Do NOT emit reports along the way.
+- **On "status" / in the morning: ONE HTML** built from that log — what was done at each 5–10 min
+  step, which tasks completed and when, with the link/anchor placed at the TOP so there is no
+  scrolling up and down. Timeline first.
+- **Track spend as far as it is measurable** (wall-clock, commits, tasks; subagent tokens are
+  reported, main-loop tokens are not self-measurable — say so, never invent a number).
+- Autonomy does not run itself: an overnight run needs an explicit wake loop (`ScheduleWakeup`/cron),
+  or it is one burst then a stop. Flag this the moment "for the night / do it all yourself" is asked.
+
 ## Closing an epic: the tidy-up protocol
 
 An epic is done when nothing is left lying around. In this order — history moves into the tickets
