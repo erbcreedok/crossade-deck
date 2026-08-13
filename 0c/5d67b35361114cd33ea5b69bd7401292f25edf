@@ -1,0 +1,36 @@
+game-kit/tsconfig.json
+  s_7a734f8e2f7730::t_f54831e5301bac 7-9
+game-kit/.storybook/preview.ts
+  s_7a734f8e2f7730::t_622188e4fcae6b 153-156
+game-kit/.storybook/stories/PresetsCards.stories.ts
+  s_7a734f8e2f7730::t_66fa2622a6728e 3-4
+  s_7a734f8e2f7730::t_2e3484c4119fd6 1-2,5-44
+game-kit/.storybook/locales/pages/cards/ru.json
+  s_7a734f8e2f7730::t_1ed9fba83c1824 1-19
+game-kit/.storybook/locales/pages.ts
+  s_7a734f8e2f7730::t_bdefed6b94c846 92
+  s_7a734f8e2f7730::t_7a630f464118db 119
+  s_7a734f8e2f7730::t_ac844ceb002ca6 22
+game-kit/package.json
+  s_7a734f8e2f7730::t_1de23101ed9dfd 20
+game-kit/.storybook/locales/pages/cards/en.json
+  s_7a734f8e2f7730::t_a8d8cd19c08f68 1-19
+package-lock.json
+  s_7a734f8e2f7730::t_4755a6c5b358f0 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0c5d67b35361114cd33ea5b69bd7401292f25edf",
+  "prompts": {},
+  "sessions": {
+    "s_7a734f8e2f7730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac8f94a6-d278-432f-a1d7-308a72f54d62",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
