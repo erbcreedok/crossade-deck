@@ -1,0 +1,85 @@
+game-kit/src/core/motion.test.ts
+  s_7ed2dea7ad95d9::t_e09dbf8bf337da 1-37
+game-kit/src/render/scenePlan.ts
+  s_7ed2dea7ad95d9::t_4d10744190451d 278-281
+  s_7ed2dea7ad95d9::t_c94f6f2f424888 227
+  s_7ed2dea7ad95d9::t_f04ad69b14ccfc 237
+  s_7ed2dea7ad95d9::t_fd1d5fe707e1be 220-226
+game-kit/src/render/stage.ts
+  s_7ed2dea7ad95d9::t_b682df3e0dfebd 50-53,57-71,73-85,87-88
+  s_7ed2dea7ad95d9::t_fcbad682c959f1 54
+  s_7ed2dea7ad95d9::t_7700ab7127f941 9-10
+game-kit/src/index.ts
+  s_7ed2dea7ad95d9::t_af5fbe37ea8780 200-202
+  s_7ed2dea7ad95d9::t_05984d2ab3c0ac 170-185
+game-kit/src/render/scenePlan.test.ts
+  s_7ed2dea7ad95d9::t_f5f05050b55cff 12
+  s_7ed2dea7ad95d9::t_060585bf56e718 44-54
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_e8fe07353a2599 153-165
+game-kit/docs/test-plan/15-architectural-guards.md
+  s_7ed2dea7ad95d9::t_8d6cd9ffa7dd8b 3
+  s_7ed2dea7ad95d9::t_c9bfaad47f6597 23
+game-kit/.storybook/locales/pages/motion/ru.json
+  s_7ed2dea7ad95d9::t_1f8cbe37ae4dab 1-19
+game-kit/.storybook/locales/chrome/en.json
+  s_7ed2dea7ad95d9::t_05e7b070dbd98d 69-70
+game-kit/docs/test-plan/41-input.md
+  s_7ed2dea7ad95d9::t_95cb8be177d3ce 1-21
+game-kit/src/core/motion.ts
+  s_7ed2dea7ad95d9::t_f8c28f2916ea04 1-78
+game-kit/docs/test-plan/40-motion.md
+  s_7ed2dea7ad95d9::t_f21d23c687c134 1-19
+game-kit/.storybook/locales/pages/motion/en.json
+  s_7ed2dea7ad95d9::t_f5161aa4a49c7e 1-19
+game-kit/src/render/animator.ts
+  s_7ed2dea7ad95d9::t_a696664b0e455d 1-14,16-162
+  s_7ed2dea7ad95d9::t_89bfe98e5bd330 15
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ed2dea7ad95d9::t_0891a078a14f79 73-74
+game-kit/src/render/animator.test.ts
+  s_7ed2dea7ad95d9::t_9f8267d9116bb4 1-71,73-131
+  s_7ed2dea7ad95d9::t_519169912e266c 72
+game-kit/src/render/pointer.ts
+  s_7ed2dea7ad95d9::t_76e9d57f67609a 1-53
+game-kit/src/render/pointer.test.ts
+  s_7ed2dea7ad95d9::t_2669c1e8a8fe22 1-88
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_2300fd2a71cd53 10
+  s_7ed2dea7ad95d9::t_20346569ff9185 69
+  s_7ed2dea7ad95d9::t_2d46206e7efb15 43
+  s_7ed2dea7ad95d9::t_01350a248a6d20 68
+game-kit/.storybook/locales/pages.ts
+  s_7ed2dea7ad95d9::t_4c225f4350ba40 29
+  s_7ed2dea7ad95d9::t_13aedccaeb2029 94
+  s_7ed2dea7ad95d9::t_e2bda3fef7769c 122
+game-kit/.storybook/preview.ts
+  s_7ed2dea7ad95d9::t_f7de82900dc18a 158
+game-kit/.storybook/devtools/scene.ts
+  s_7ed2dea7ad95d9::t_86b4d62ace79ea 19,22
+  s_7ed2dea7ad95d9::t_e32dce19d3bf76 220-224
+  s_7ed2dea7ad95d9::t_4fae6424d5e39d 114-119
+game-kit/.storybook/stories/Motion.stories.ts
+  s_7ed2dea7ad95d9::t_b99ac2e64cfbcd 38,42
+  s_7ed2dea7ad95d9::t_46d3331ded71de 40-41
+  s_7ed2dea7ad95d9::t_4f5c3981f23a1d 25,29
+  s_7ed2dea7ad95d9::t_c16676d49cb345 1-11,13-24,26,30-37,39,43-54
+  s_7ed2dea7ad95d9::t_e3133d4aef9fdd 27-28
+  s_7ed2dea7ad95d9::t_ab5c4498ea9488 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "db72dfe2aa3c6b19279d0c9238a28ead40cbc25b",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
