@@ -1,0 +1,28 @@
+game-presets/cards/src/index.ts
+  s_7ed2dea7ad95d9::t_d17516d85449b6 6
+game-presets/cards/src/shuffle.test.ts
+  s_7ed2dea7ad95d9::t_9c8633c2958a28 1-31
+client3/src/solitaire/board.ts
+  s_7ed2dea7ad95d9::t_300836a7bc8fb1 19
+  s_7ed2dea7ad95d9::t_104dc9fa6b7e97 50
+game-presets/cards/src/shuffle.ts
+  s_7ed2dea7ad95d9::t_aba47674edfb9e 1-13
+game-presets/cards/docs/test-plan.md
+  s_7ed2dea7ad95d9::t_c40bb63fd2b935 26-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a95dbe8b7d48f0b0050c48592e6ae6b9d5bab3d7",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
