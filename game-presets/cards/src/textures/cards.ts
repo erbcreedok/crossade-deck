@@ -21,8 +21,13 @@ function svg(body: string): string {
 
 const inkFor = (colour: string): string => (colour === "red" ? "crimson" : "black");
 
-/** The white rounded ground with a hairline border; outside the corners is transparent — a card. */
-const GROUND = `<rect x="1.5" y="1.5" width="${W - 3}" height="${H - 3}" rx="8" ry="8" fill="white" stroke="silver" stroke-width="1"/>`;
+/**
+ * The white rounded ground: a hairline outer edge and a soft inner frame a hair inside it, the way a
+ * printed card is bordered twice. Outside the corners is transparent — a card, not a rectangle.
+ */
+const GROUND =
+  `<rect x="1.5" y="1.5" width="${W - 3}" height="${H - 3}" rx="8" ry="8" fill="white" stroke="silver" stroke-width="1"/>` +
+  `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="6" ry="6" fill="none" stroke="gainsboro" stroke-width="1"/>`;
 
 /** A suit mark centred at (cx,cy), sized `d`, optionally turned 180° for the lower half of a face. */
 function mark(cx: number, cy: number, d: number, suit: SuitName, fill: string, rot = 0): string {
@@ -74,6 +79,17 @@ function star(cx: number, cy: number, r: number, fill: string): string {
 
 const COURT = new Set(["J", "Q", "K"]);
 
+/**
+ * A court — J, Q or K. Its rank stands in a framed panel with the suit mirrored above and below, so
+ * it reads the same either way up and looks like more than a bare letter: the one place a face card
+ * earns a border of its own. A full figure would be lovely and is a heavier day's work — this is the
+ * honest middle: distinct, symmetric, legible at a card's true size.
+ */
+function courtFace(rank: string, suit: SuitName, fill: string): string {
+  const panel = `<rect x="28" y="42" width="44" height="56" rx="6" ry="6" fill="none" stroke="${fill}" stroke-width="1.5" opacity="0.55"/>`;
+  return panel + mark(50, 54, 12, suit, fill) + label(50, 72, rank, 30, fill) + mark(50, 90, 12, suit, fill, 180);
+}
+
 /** The full face of one card, as a data URI, chosen from what the spec IS. */
 export function faceSvg(spec: CardSpec): string {
   if (spec.kind === "brand") {
@@ -90,7 +106,7 @@ export function faceSvg(spec: CardSpec): string {
   const corners = corner(14, 16, rank, suit, fill, 0) + corner(86, 124, rank, suit, fill, 180);
   let centre: string;
   if (rank === "A") centre = mark(50, 70, 42, suit, fill);
-  else if (COURT.has(rank)) centre = label(50, 66, rank, 52, fill) + mark(50, 104, 22, suit, fill);
+  else if (COURT.has(rank)) centre = courtFace(rank, suit, fill);
   else centre = pips(Number(rank), suit, fill);
   return svg(`${GROUND}${corners}${centre}`);
 }

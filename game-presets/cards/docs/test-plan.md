@@ -26,3 +26,5 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `shuffle.keeps-every-item` | a list | `shuffled` | a permutation — same multiset, same length, nothing added or dropped |
 | `shuffle.does-not-mutate-the-input` | a list | `shuffled` | the source keeps its order; the result is a new array |
 | `shuffle.is-deterministic-under-a-seeded-rng` | a seeded rng | `shuffled` | same rng → same permutation; `() => 0` gives a known non-identity order |
+| `classic.a-number-shows-that-many-pips` | a number card 2..10 | its face SVG | exactly `rank` pips plus the two corner marks — the pip layout is complete for every rank |
+| `classic.a-court-is-framed` | J/Q/K vs a number | rects in the face | a court wears one extra panel — its centre is framed, a number's is not |
