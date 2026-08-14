@@ -9,9 +9,10 @@
 // shell uses for its painter.
 //
 // GESTURE vs SETTLE, the joint the whole thing turns on (docs/design/transaction.md): while a finger
-// owns a node it must track the finger 1:1, NOT ease. `hold(id)` marks that; the node then jumps to
-// its tree pose every frame. `release(id)` hands it back, and the next tree change eases it from where
-// the finger left it to where it now rests.
+// owns a node it must track the finger 1:1, NOT ease. `drag(poses)` is that track — a pose per node as
+// an OVERRIDE, never a tree write, so a pointer-move costs one paint and no reconcile. `release(id)`
+// hands the node back, and because the tree never moved, the next change eases it home from exactly
+// where the finger left it. (`hold(id)` is the older, tree-driven form the same `release` closes.)
 
 import { type Node, type NodeId } from "../core/node.js";
 import { flipScale, sample, type Motion } from "../core/motion.js";
@@ -51,6 +52,13 @@ export interface Motions {
   hold(id: NodeId): void;
   /** Hand the node back: the next tree change eases it from here to its rest pose. */
   release(id: NodeId): void;
+  /**
+   * Carry finger-owned nodes to live poses — a drag, as an OVERRIDE, never a tree write. Each pose is
+   * in root-unit space (what `transformsOf` answers in). One paint follows, so a pointer-move costs a
+   * plan and a draw, not a reconcile; and because the tree never moves, `release` then eases the node
+   * home from exactly where the finger left it. Call it every move with the run's new poses.
+   */
+  drag(poses: ReadonlyMap<NodeId, Transform>): void;
   /**
    * Turn a node over on the clock. It squeezes to an edge and back — `|cos|` of a half-turn — and
    * `commit` runs at the EDGE, where the card has no width to show the swap. `commit` is the actual
@@ -94,15 +102,23 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const displayed = new Map<NodeId, Transform>(); // what is on the glass now, root-unit space
   const active = new Map<NodeId, Motion>(); // nodes mid-flight
   const held = new Set<NodeId>(); // nodes a gesture owns — no easing
+  // Nodes a finger is dragging: their pose is the FINGER's, an override, not the tree's. A drag never
+  // touches the tree — `drag()` only writes here — so a pointer-move costs one paint, not a reconcile.
+  const carried = new Set<NodeId>();
   // Nodes mid-turn. `committed` guards the one swap at the edge; the width is `flipScale` of progress.
   const flipping = new Map<NodeId, { startMs: number; commit: () => void; committed: boolean }>();
   let cancelFrame: (() => void) | null = null;
 
   /** The pose overrides to hand the plan this frame: the in-flight nodes, at where they are now. */
   const overrides = (): ReadonlyMap<NodeId, Transform> | undefined => {
-    if (active.size === 0 && flipping.size === 0) return undefined;
+    if (active.size === 0 && flipping.size === 0 && carried.size === 0) return undefined;
     const map = new Map<NodeId, Transform>();
     for (const id of active.keys()) {
+      const at = displayed.get(id);
+      if (at) map.set(id, at);
+    }
+    // A dragged node sits under the finger — its live pose is in `displayed`, put there by `drag`.
+    for (const id of carried) {
       const at = displayed.get(id);
       if (at) map.set(id, at);
     }
@@ -125,8 +141,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (held.has(id) || flipping.has(id)) {
         // Finger-owned or mid-turn: sit exactly where the tree says, no easing. A flip's `commit`
         // changes this node's rest pose (the reflection flips sign) — snapping it here is what keeps
-        // that change from starting a second flight that would race the turn.
-        displayed.set(id, to);
+        // that change from starting a second flight that would race the turn. A CARRIED node is the
+        // exception: its pose is the finger's, not the tree's, so a stray reconcile must not snap it.
+        if (!carried.has(id)) displayed.set(id, to);
         active.delete(id);
         continue;
       }
@@ -189,6 +206,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     },
     release(id) {
       held.delete(id);
+      carried.delete(id);
+    },
+    drag(poses) {
+      for (const [id, pose] of poses) {
+        carried.add(id);
+        held.add(id);
+        active.delete(id);
+        displayed.set(id, pose);
+      }
+      draw();
     },
     flip(id, commit) {
       // A turn already running for this node is replaced — the latest word wins, as everywhere here.
@@ -201,6 +228,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       cancelFrame = null;
       active.clear();
       flipping.clear();
+      carried.clear();
     },
   };
 }

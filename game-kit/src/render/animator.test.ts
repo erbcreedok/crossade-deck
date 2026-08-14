@@ -12,6 +12,7 @@ import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, compose, node } from "../core/node.js";
 import { Flippable, facing, setFacing } from "../core/atoms/flippable.js";
+import { move } from "../core/transform.js";
 import { installStockEasings, resetEasings } from "../core/motion.js";
 import { rect } from "../presets/shapes.js";
 import { mount } from "./host.js";
@@ -116,6 +117,37 @@ describe("the motion runtime", () => {
     compose(b.card, Transformable({ at: { x: 6, y: 0 } }));
     b.host.setRoot(b.desk);
     expect(c.idle()).toBe(false);
+  });
+
+  it("motion.drag-places-a-node-at-the-finger — an override, drawn at once, no easing loop", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.drag(new Map([["c", move(4, 0)]]));
+    expect(b.xOf("c")).toBeGreaterThan(restX); // drawn under the finger immediately
+    expect(c.idle()).toBe(true); // 1:1 — a drag schedules no frame
+  });
+
+  it("motion.a-dragged-node-settles-from-the-finger — and the tree was never written", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.drag(new Map([["c", move(6, 0)]])); // finger far to the right
+    const fingerX = b.xOf("c");
+    expect(fingerX).toBeGreaterThan(restX);
+
+    // Release and reconcile the SAME, unmoved tree: it eases home FROM the finger, not teleporting,
+    // and lands back at its original rest — proof the drag only ever wrote an override.
+    m.release("c");
+    b.host.setRoot(b.desk);
+    expect(b.xOf("c")).toBeCloseTo(fingerX); // frame zero of the settle is at the finger
+    expect(c.idle()).toBe(false); // now it eases
+    c.tick(100);
+    expect(b.xOf("c")).toBeCloseTo(restX); // home at the tree's rest — the tree never moved
   });
 
   it("motion.a-new-node-appears-without-flying — a fresh node rests where it is put", () => {

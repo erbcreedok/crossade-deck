@@ -21,6 +21,7 @@ import {
   installStockSurfaces,
   installTheme,
   mount,
+  move,
   pick,
   registerSurface,
   remove,
@@ -30,6 +31,7 @@ import {
   transformsOf,
   type Node,
   type Point,
+  type Transform,
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
@@ -119,8 +121,11 @@ export function startSolitaire(container: HTMLElement): () => void {
     compose(n, Transformable({ at, z }));
   };
 
-  const carry = (anchor: Point): void => {
-    run.forEach((c, i) => setAt(c, { x: anchor.x, y: anchor.y + i * COLUMN_STEP }, LIFT_Z));
+  /** The run's live poses under the finger — root-unit Transforms handed to the animator's drag. */
+  const dragPoses = (anchor: Point): Map<Node["id"], Transform> => {
+    const poses = new Map<Node["id"], Transform>();
+    run.forEach((c, i) => poses.set(c.id, move(anchor.x, anchor.y + i * COLUMN_STEP)));
+    return poses;
   };
 
   /** The ordered, all-face-up run a card leads, or null if it cannot be lifted from where it sits. */
@@ -153,14 +158,15 @@ export function startSolitaire(container: HTMLElement): () => void {
     const anchorAt = originOf(board.desk, hit.id);
     run = above;
     source = hit.parent!;
-    for (const c of above) motion.hold(c.id); // the finger owns them now — track 1:1, do not ease
+    // Reparent onto the desk and lift the run's z ONCE (a tree write) — z is not part of the pose
+    // Transform, so it rides the tree; the finger position rides the override below, per move.
     for (const c of above) remove(source, c);
     for (const c of above) add(board.desk, c);
+    for (const c of above) setAt(c, anchorAt, LIFT_Z);
     const p = toUnits(host, startG);
     grab = { x: anchorAt.x - p.x, y: anchorAt.y - p.y };
-    carry(anchorAt);
+    motion.drag(dragPoses(anchorAt)); // the finger owns the run — an override, and one paint
     view.setPointerCapture(pointerId);
-    redraw();
   };
 
   const onDown = (e: PointerEvent): void => {
@@ -181,8 +187,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     const g = glassOf(view, e);
     if (run.length > 0) {
       const p = toUnits(host, g);
-      carry({ x: p.x + grab.x, y: p.y + grab.y });
-      redraw();
+      motion.drag(dragPoses({ x: p.x + grab.x, y: p.y + grab.y })); // override + one paint, no tree write
       return;
     }
     if (!pending) return;
@@ -191,8 +196,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     pending = undefined;
     if (run.length > 0) {
       const p = toUnits(host, g);
-      carry({ x: p.x + grab.x, y: p.y + grab.y });
-      redraw();
+      motion.drag(dragPoses({ x: p.x + grab.x, y: p.y + grab.y }));
     }
   };
 
