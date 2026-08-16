@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
+import { ShadowCaster } from "../core/atoms/shadow.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply, IDENTITY, move } from "../core/transform.js";
-import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf } from "./scenePlan.js";
+import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./scenePlan.js";
 import { registerAsset } from "./assets.js";
 import { registerEffect, resetEffects } from "./effects.js";
 import { registerSurface, resetSurfaces } from "./surfaces.js";
@@ -146,6 +147,122 @@ describe("scenePlan", () => {
     const card = node("p16", box(1, 1), Surfaced(), Transformable({ z: 1 }));
     add(root, card);
     expect(plan(root)[0]!.z).toBe(11);
+  });
+
+  it("plan.a-caster-lays-a-shadow-first — one layer under everything, offset down the light's fall", () => {
+    // The shadow is NOT a node: it is a LAYER the plan draws in one pass, under every resting
+    // surface — even one that stands taller than the caster. The default lamp hangs top-right of
+    // the frame, so the fall is down-left, and the shadow quad wears the caster's id with a
+    // suffix nothing can resolve: un-pickable, un-bakeable, un-mistakable for a piece.
+    const root = node("sp1", Container({ layout: "free" }), Surfaced());
+    add(root, node("piece", box(1, 1.4), Surfaced(), ShadowCaster()));
+    add(root, node("tower", box(1, 1), Surfaced(), Transformable({ at: { x: 2, y: 0 }, z: 9 })));
+    const quads = plan(root);
+    expect(quads[0]!.id).toBe("piece::shadow");
+    expect(quads[0]!.layer).toBe("shadow");
+    expect(quads.map((q) => q.id).slice(1)).toEqual(["sp1", "piece", "tower"]);
+    const piece = quads.find((q) => q.id === "piece")!;
+    const shade = quads[0]!;
+    expect(shade.transform.e).toBeLessThan(piece.transform.e); // down-LEFT of the piece
+    expect(shade.transform.f).toBeGreaterThan(piece.transform.f);
+  });
+
+  it("plan.a-turned-piece-turns-its-silhouette-not-its-shadow — the fall ignores every angle", () => {
+    // The canon's law: light does not care how a piece is turned. The SHAPE of the shadow turns
+    // with the drawn geometry, but the offset between piece and shadow is the lamp's alone —
+    // a shadow parented to a turned node would orbit it, which is why it is a layer, not a child.
+    const flat = plan(withPiece(0));
+    const turned = plan(withPiece(60));
+    const offset = (quads: readonly Quad[]): { x: number; y: number } => {
+      const p = quads.find((q) => q.id === "piece")!;
+      const s = quads.find((q) => q.id === "piece::shadow")!;
+      return { x: s.transform.e - p.transform.e, y: s.transform.f - p.transform.f };
+    };
+    expect(offset(turned).x).toBeCloseTo(offset(flat).x);
+    expect(offset(turned).y).toBeCloseTo(offset(flat).y);
+    // And the silhouette DID turn: the turned shadow's transform carries the rotation.
+    expect(plan(withPiece(60)).find((q) => q.id === "piece::shadow")!.transform.b).not.toBeCloseTo(0);
+
+    function withPiece(angle: number) {
+      const root = node(`spin${angle}`, Container({ layout: "free" }), Surfaced());
+      add(root, node("piece", box(1, 1.4), Surfaced(), Transformable({ angle }), ShadowCaster()));
+      return root;
+    }
+  });
+
+  it("plan.height-deepens-the-shadow — z is the source, the fall's length is its consequence", () => {
+    const at = (z: number): number => {
+      const root = node(`h${z}`, Container({ layout: "free" }));
+      add(root, node("piece", box(1, 1), Surfaced(), Transformable({ z }), ShadowCaster()));
+      const quads = plan(root);
+      const p = quads.find((q) => q.id === "piece")!;
+      const s = quads.find((q) => q.id === "piece::shadow")!;
+      return Math.hypot(s.transform.e - p.transform.e, s.transform.f - p.transform.f);
+    };
+    expect(at(3)).toBeGreaterThan(at(0));
+    expect(at(0)).toBeGreaterThan(0); // resting on the desk still shows a hair of shadow
+  });
+
+  it("plan.a-stack-casts-once — the pile's shadow is the pile's, a detached card casts its own", () => {
+    const pile = node("pile", box(2, 2), Container({ layout: "free" }), Surfaced(), ShadowCaster());
+    const card = node("card", box(1, 1.4), Surfaced(), ShadowCaster());
+    add(pile, card);
+    expect(plan(pile).filter((q) => q.layer === "shadow").map((q) => q.id)).toEqual(["pile::shadow"]);
+    // The same card standing alone casts alone.
+    const loose = node("loose", Container({ layout: "free" }));
+    add(loose, node("card", box(1, 1.4), Surfaced(), ShadowCaster()));
+    expect(plan(loose).filter((q) => q.layer === "shadow").map((q) => q.id)).toEqual(["card::shadow"]);
+  });
+
+  it("plan.a-stacks-shadow-wears-its-content — the column's shadow is the column, not the slot", () => {
+    // A tableau slot is 1×1.4; six cards down it spread far below. The stack casts ONCE, and
+    // what falls is the wrap of what it HOLDS — a slot-sized shadow under a long column would
+    // say the cards float. An empty pile is its own box again: the wrap of nothing is the slot.
+    const full = node("pileF", box(1, 1.4), Container({ layout: "free" }), Surfaced(), ShadowCaster());
+    add(full, node("low", box(1, 1.4), Surfaced(), Transformable({ at: { x: 0, y: 2.4 } })));
+    const tall = plan(full).find((q) => q.id === "pileF::shadow")!;
+    const empty = node("pileE", box(1, 1.4), Container({ layout: "free" }), Surfaced(), ShadowCaster());
+    const flat = plan(empty).find((q) => q.id === "pileE::shadow")!;
+    expect(tall.h).toBeGreaterThan(flat.h + 100); // 2.4 units further down at 100px/u
+    expect(flat.h).toBeCloseTo(140);
+  });
+
+  it("plan.flight-deepens-the-shadow — a raised caster's fall stretches while it flies", () => {
+    // Flight IS height: the carried card grows in hand and its shadow must answer, or the pop
+    // reads as inflation rather than lift. The same `raised` hint that lifts the paint order
+    // lengthens the fall — and it ends with the flight, leaving the resting arithmetic alone.
+    const at = (raised?: ReadonlySet<string>): number => {
+      const root = node("fly", Container({ layout: "free" }));
+      add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
+      const quads = scenePlan({
+        root,
+        unit: 100,
+        width: 800,
+        height: 600,
+        viewer: DEFAULT_VIEWER,
+        ...(raised ? { raised } : {}),
+      });
+      const p = quads.find((q) => q.id === "piece")!;
+      const s = quads.find((q) => q.id === "piece::shadow")!;
+      return Math.hypot(s.transform.e - p.transform.e, s.transform.f - p.transform.f);
+    };
+    expect(at(new Set(["piece"]))).toBeGreaterThan(at());
+  });
+
+  it("plan.a-shadow-follows-its-caster-in-flight — the override moves them together", () => {
+    const root = node("f1", Container({ layout: "free" }));
+    add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
+    const still = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
+    const flying = scenePlan({
+      root,
+      unit: 100,
+      width: 800,
+      height: 600,
+      viewer: DEFAULT_VIEWER,
+      overrides: new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 2, f: 0 }]]),
+    });
+    const shadeX = (quads: readonly Quad[]): number => quads.find((q) => q.id === "piece::shadow")!.transform.e;
+    expect(shadeX(flying)).toBeCloseTo(shadeX(still) + 200); // 2 units at 100px/u, shadow along
   });
 
   it("plan.a-raised-node-paints-last — flight beats height, and the quad still tells the resting truth", () => {

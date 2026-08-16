@@ -1085,6 +1085,14 @@ test.describe.serial("the heavy pages", () => {
           "play.draggable.only-a-draggable-lifts",
         ],
       ],
+      [
+        "tests-shadowcaster--cast",
+        [
+          "play.shadow.the-fall-is-inked",
+          "play.shadow.the-lamp-walks",
+          "play.shadow.height-stretches-the-fall",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);

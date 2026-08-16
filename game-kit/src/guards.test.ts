@@ -21,6 +21,8 @@ import "./core/atoms/transformable.js";
 import "./core/atoms/flippable.js";
 import "./core/atoms/coated.js";
 import "./core/atoms/draggable.js";
+import "./core/atoms/shadow.js";
+import "./core/atoms/lit.js";
 import { rect } from "./presets/shapes.js";
 
 const SRC = new URL("./", import.meta.url).pathname;

@@ -1,0 +1,31 @@
+{
+  "docs.lit.component": [
+    "`Lit` is the canvas's ONE light — a root-only field, because there is no per-piece lamp. What",
+    "it answers is the direction every shadow falls: `angle` says where the light stands, degrees",
+    "clockwise from +x, and the fall is its exact opposite. A desk that never declared a lamp is lit",
+    "by the stock one — top-right of the frame, shadows down-left — so shadow casters never stand",
+    "under no light at all.",
+    "",
+    "```ts",
+    "import { node, Container, Lit } from \"game-kit\"",
+    "",
+    "const desk = node(\"desk\", Container({ layout: \"free\" }),",
+    "  Lit({ light: { frame: \"viewer\", angle: 315 } }))",
+    "```",
+    "",
+    "## The frame — whose corner the lamp hangs in",
+    "",
+    "`viewer` (the default): the light stands in the corner of the SCREEN, so a shadow reads as",
+    "height the same way from every seat — at the price of the lamp orbiting the desk as the camera",
+    "turns. `world`: the lamp is nailed over the DESK, physical, and the fall turns with it. The two",
+    "differ only while a camera is turned; the frame is declared now and felt the day the camera",
+    "arrives — one formula in one place already reads it."
+  ],
+  "docs.lit.light": [
+    "Two pieces of different height under one lamp. Walk `lampAngle` and every fall turns together:",
+    "the light is the root's, and a piece cannot bring its own. The taller piece throws the longer",
+    "shadow — the lamp owns the direction, the height owns the length. `frame` picks whose corner",
+    "the lamp hangs in; without a camera to turn, `viewer` and `world` agree, and that agreement is",
+    "the point — the choice is data waiting for the camera, not a mode of this scene."
+  ]
+}

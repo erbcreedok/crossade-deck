@@ -1,0 +1,44 @@
+{
+  "docs.shadowCaster.component": [
+    "`ShadowCaster` declares that a shadow FALLS under this element — and which contour falls:",
+    "`footprint` is the bare box a piece stands on, `silhouette` (the default) the contour as drawn,",
+    "corners and all. The shadow itself is NOT a node: it is a layer the scene plan draws in one",
+    "pass, under everything at rest, in the `shadow` theme token thinned by a stock opacity.",
+    "",
+    "```ts",
+    "import { node, Bounded, Surfaced, Transformable, ShadowCaster, Lit } from \"game-kit\"",
+    "",
+    "const desk = node(\"desk\", Container({ layout: \"free\" }), Lit())   // the one lamp",
+    "const card = node(\"card\",",
+    "  Bounded({ bounds: rect(1, 1.4) }),",
+    "  Surfaced({ surface: \"queen\" }),",
+    "  Transformable({ at: { x: 0, y: 0 }, z: 1 }),",
+    "  ShadowCaster())                                                   // silhouette falls",
+    "```",
+    "",
+    "## Height is the source, the shadow its consequence",
+    "",
+    "There is no shadow-length knob. The fall's direction is the root lamp's (`Lit`), and its reach",
+    "grows with the resolved `z` — lift a piece and its shadow stretches, drop it and a hair of",
+    "shadow remains, or nothing would say the piece is not painted on the desk. Zoom never changes",
+    "the shadow-to-size ratio: the world scales whole.",
+    "",
+    "## A resting stack casts once",
+    "",
+    "Cast-ness is derived, never toggled: the nearest casting owner speaks for its whole subtree, so",
+    "a pile with the atom lays ONE shadow and the fifty-two cards inside lay none. Detach a card and",
+    "it starts casting the moment it stands alone — reparenting IS the switch. The fall also ignores",
+    "every angle: a turned piece turns its silhouette, never the direction of its shadow."
+  ],
+  "docs.shadowCaster.cast": [
+    "A rounded card and a star token under one lamp. `from` picks the contour that falls — on the",
+    "card, `silhouette` keeps the rounded corners and `footprint` squares them off; on the star the",
+    "two agree, because its box IS its drawn shape. `z` lifts both pieces, and the fall stretches",
+    "with the height; `lampAngle` walks the light around the desk and every shadow answers together."
+  ],
+  "docs.shadowCaster.stack": [
+    "A pile that casts once. The pile carries the atom, so the three cards resting inside lay no",
+    "shadows of their own — one stack, one shadow. The loose card beside it stands alone and casts",
+    "alone. Nothing here is toggled: moving a card out of the pile is exactly what starts its shadow."
+  ]
+}

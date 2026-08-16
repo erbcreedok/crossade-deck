@@ -27,6 +27,7 @@ import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
 import type gettingStarted from "./pages/gettingStarted/en.json";
 import type intro from "./pages/intro/en.json";
+import type lit from "./pages/lit/en.json";
 import type motion from "./pages/motion/en.json";
 import type node from "./pages/node/en.json";
 import type presetsBounds from "./pages/presetsBounds/en.json";
@@ -37,6 +38,7 @@ import type presetsLayouts from "./pages/presetsLayouts/en.json";
 import type presetsPoses from "./pages/presetsPoses/en.json";
 import type presetsSurfaces from "./pages/presetsSurfaces/en.json";
 import type root from "./pages/root/en.json";
+import type shadowCaster from "./pages/shadowCaster/en.json";
 import type surfaced from "./pages/surfaced/en.json";
 import type tiltable from "./pages/tiltable/en.json";
 import type transformable from "./pages/transformable/en.json";
@@ -58,6 +60,11 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   flippable: { en: () => import("./pages/flippable/en.json"), ru: () => import("./pages/flippable/ru.json") },
   tiltable: { en: () => import("./pages/tiltable/en.json"), ru: () => import("./pages/tiltable/ru.json") },
   draggable: { en: () => import("./pages/draggable/en.json"), ru: () => import("./pages/draggable/ru.json") },
+  shadowCaster: {
+    en: () => import("./pages/shadowCaster/en.json"),
+    ru: () => import("./pages/shadowCaster/ru.json"),
+  },
+  lit: { en: () => import("./pages/lit/en.json"), ru: () => import("./pages/lit/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -112,6 +119,8 @@ export type PageKey = keyof (typeof node &
   typeof flippable &
   typeof tiltable &
   typeof draggable &
+  typeof shadowCaster &
+  typeof lit &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &

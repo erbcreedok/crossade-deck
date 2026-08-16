@@ -138,6 +138,9 @@ export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusab
 export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js";
 // Grip is privacy's permission twin: which seats may LIFT a subtree, the open table liftable by all.
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
+// The shadow and the one light: a caster declares WHICH contour falls; the root's lamp says where.
+export { castsShadow, ShadowCaster, shadowFrom, type ShadowCasterFields } from "./core/atoms/shadow.js";
+export { DEFAULT_LIGHT, Lit, lightVector, type Frame, type Light, type LitFields } from "./core/atoms/lit.js";
 // The card turn, as data: a recipe name, a turn count (parity, summed), a reflection axis, a back
 // surface. What the turn DOES is a recipe in `render/flips.ts`; the engine mixes it in blind.
 export { facing, Flippable, setFacing, type Facing, type FlippableFields } from "./core/atoms/flippable.js";
@@ -209,6 +212,7 @@ export {
   boundsMarks,
   gridMarks,
   scenePlan,
+  SHADOW,
   transformsOf,
   viewTransform,
   type Mark,

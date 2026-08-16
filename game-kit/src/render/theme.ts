@@ -52,6 +52,12 @@ export interface Palette {
    * exactly what would happen if it borrowed the accent or a border colour.
    */
   debug: string;
+  /**
+   * The ink of a cast shadow — the layer under a piece that sells its height. A token of its
+   * own: on the dark desk a shadow is pure black thinned by opacity, on the light one pure
+   * black reads as a hole, so each theme picks its darkness.
+   */
+  shadow: string;
 }
 
 const DARK: Palette = {
@@ -67,6 +73,7 @@ const DARK: Palette = {
   grid: "#262b2f",
   gridMinor: "#1b1f22",
   debug: "#ff4fd8",
+  shadow: "#000000",
 };
 
 const LIGHT: Palette = {
@@ -82,6 +89,7 @@ const LIGHT: Palette = {
   grid: "#dbe1e6",
   gridMinor: "#eef1f4",
   debug: "#c2189c",
+  shadow: "#2c3439",
 };
 
 export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, light: LIGHT };

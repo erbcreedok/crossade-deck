@@ -15,7 +15,9 @@
 
 import { caps, walk, type Node, type NodeId } from "../core/node.js";
 import { placeChildren } from "../core/atoms/container.js";
-import { footprint, outlineOf, type Point, type Shape } from "../core/atoms/bounded.js";
+import { extentOf, footprint, outlineOf, type Point, type Shape } from "../core/atoms/bounded.js";
+import { castsShadow, shadowFrom } from "../core/atoms/shadow.js";
+import { lightVector } from "../core/atoms/lit.js";
 import { areaOf, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
 import { fieldsOf } from "../core/node.js";
@@ -28,7 +30,7 @@ import { fitBox } from "./fitBox.js";
 import { type Paint } from "../core/paint.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
 import { polyline } from "../core/path.js";
-import { apply, compose, IDENTITY, move, pose, scale, type Transform } from "../core/transform.js";
+import { apply, compose, IDENTITY, invert, move, pose, scale, type Transform } from "../core/transform.js";
 
 /** A picture placed in the area, in PIXELS — where it goes and whether it tiles. */
 export interface QuadImage {
@@ -93,6 +95,12 @@ export interface QuadStroke {
  */
 export interface Quad {
   readonly id: NodeId;
+  /**
+   * Set on a quad of the SHADOW layer — drawn in one pass under everything at rest. Its id is
+   * the caster's with a `::shadow` suffix, which no lookup resolves: a shadow cannot be picked,
+   * baked, or mistaken for a piece. Absent on every quad that IS a piece.
+   */
+  readonly layer?: "shadow";
   /** Centre, in pixels from the top-left of the view. */
   readonly x: number;
   readonly y: number;
@@ -241,10 +249,20 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
+/**
+ * The lamp's arithmetic, in one place: how far a shadow falls (units — the world scales whole,
+ * so zoom never changes the shadow-to-size ratio), how much each point of resolved `z` adds,
+ * and how dark the ink lies. Data, not knobs on the atom: the fall is the LIGHT's business,
+ * and a per-piece length would be a second light by the back door.
+ */
+export const SHADOW = { base: 0.05, perZ: 0.045, lifted: 0.12, opacity: 0.28 } as const;
+
 export function scenePlan({ root, unit, width, height, viewer, overrides, raised }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = viewTransform(unit, width, height);
   const out: Quad[] = [];
+  // The direction every shadow falls — ONE formula, read once: the light is a root-only field.
+  const fall = lightVector(root);
 
   const visit = (n: Node): void => {
     const ctx = contextFor(n, unit, viewer);
@@ -259,8 +277,87 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
     // the front's content does not bleed through the back. That is why this is a recursion over
     // what the effects answered, not a walk over the authored tree.
     const { node, coats } = applyEffects(n, ctx);
+    if (castsShadow(n)) shade(n, node, ctx);
     paint(n, node, coats, ctx);
     for (const child of node.children) visit(child);
+  };
+
+  /**
+   * The caster's shadow — a quad of the SHADOW layer. The SHAPE turns with the drawn geometry
+   * (the silhouette follows the piece), but the OFFSET is the lamp's alone: it is applied in
+   * VIEW space, after the whole pose, so no parent's angle ever swings the fall — the law a
+   * shadow parented to a turned node would break by orbiting it. Height is a consequence of
+   * `z`: the fall grows with the resolved height, and a piece resting on the desk still shows
+   * a hair of it, or nothing would say the piece is not painted on.
+   */
+  /**
+   * The wrap a casting STACK throws: the union, in the holder's own frame, of its footprint and
+   * every direct child's placed box. A stack casts once, and what falls is the column as it
+   * LIES — a slot-sized shadow under six dealt cards would say the cards float. Direct children
+   * only: the day a deeper stack asks, this walks.
+   */
+  const spreadOf = (holder: Node): Shape | undefined => {
+    if (!caps(holder).has("Container") || holder.children.length === 0) return undefined;
+    const inv = invert(nodes.get(holder.id) ?? IDENTITY);
+    if (!inv) return undefined;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const grow = (shape: Shape | undefined, t: Transform): void => {
+      if (!shape) return;
+      for (const p of outlineOf(shape)) {
+        const q = apply(t, p);
+        minX = Math.min(minX, q.x);
+        minY = Math.min(minY, q.y);
+        maxX = Math.max(maxX, q.x);
+        maxY = Math.max(maxY, q.y);
+      }
+    };
+    grow(footprint(holder), IDENTITY);
+    for (const child of holder.children) grow(footprint(child), compose(inv, nodes.get(child.id) ?? IDENTITY));
+    if (!Number.isFinite(minX)) return undefined;
+    return polyline([
+      { x: minX, y: minY },
+      { x: maxX, y: minY },
+      { x: maxX, y: maxY },
+      { x: minX, y: maxY },
+    ]);
+  };
+
+  const shade = (n: Node, shown: Node, ctx: ResolveContext): void => {
+    const from = shadowFrom(n);
+    if (!from) return;
+    const area = areaOf(shown);
+    const shape = spreadOf(shown) ?? footprint(shown) ?? (area ? boxOf(area) : undefined);
+    if (!shape) return;
+    // The silhouette is the contour as DRAWN — corners and all; the footprint is the bare box.
+    const record =
+      from === "silhouette" ? surfaceRecord(fieldsOf<SurfacedFields>(shown, "Surfaced")?.surface ?? "") : undefined;
+    const points = surfaceOutline(shape, record?.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
+    const z = resolveZ(ctx);
+    // Flight IS height: the same `raised` hint that lifts the paint order lengthens the fall,
+    // and it ends with the flight — the resting arithmetic never learns about it.
+    const off = (SHADOW.base + SHADOW.perZ * z + (raised?.has(n.id) ? SHADOW.lifted : 0)) * unit;
+    const toGlass = compose(
+      move(fall.x * off, fall.y * off),
+      compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY),
+    );
+    const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
+    const ext = extentOf(shape);
+    out.push({
+      id: `${n.id}::shadow`,
+      layer: "shadow",
+      x: cx,
+      y: cy,
+      w: ext.w * unit,
+      h: ext.h * unit,
+      points,
+      layers: [{ paint: "shadow", image: undefined, opacity: SHADOW.opacity }],
+      transform: compose(toGlass, scale(unit > 0 ? 1 / unit : 0)),
+      stroke: undefined,
+      z,
+    });
   };
 
   const paint = (
@@ -335,10 +432,12 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
   visit(root);
 
   // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames
-  // for no reason the reader can see. Flight beats height — a raised node sorts after every
-  // resting one — and inside either group the height still rules.
+  // for no reason the reader can see. The SHADOW layer goes first — one pass, under everything
+  // at rest; then flight beats height — a raised node sorts after every resting one — and
+  // inside every group the height still rules.
+  const lay = (q: Quad): number => (q.layer === "shadow" ? 0 : 1);
   const aloft = (q: Quad): number => (raised?.has(q.id) ? 1 : 0);
-  return out.sort((a, b) => aloft(a) - aloft(b) || a.z - b.z);
+  return out.sort((a, b) => lay(a) - lay(b) || aloft(a) - aloft(b) || a.z - b.z);
 }
 
 /** The four corners of an area, centred on the origin — a shape for a node that declared none. */

@@ -6,13 +6,16 @@
 import {
   add,
   Bounded,
+  compose,
   Container,
   Grabber,
+  Lit,
   node,
   rect,
   registerLayout,
   remove,
   setFacing,
+  ShadowCaster,
   Surfaced,
   Transformable,
   type Node,
@@ -57,6 +60,10 @@ function pile(id: string, x: number, y: number, layout: string, grab?: string): 
     Bounded({ bounds: rect(1, 1.4) }),
     Container({ layout }),
     Surfaced({ surface: "sol/slot" }),
+    // A resting pile casts ONCE for everything it holds — the wrap of the dealt column, not a
+    // slot under floating cards. The cards carry their own caster and yield to this one; the
+    // moment a run is lifted onto the desk, each carried card casts for itself.
+    ShadowCaster({ from: "silhouette" }),
   ];
   const n = node(id, ...atoms);
   if (grab) n.atoms.set("Grabber", Grabber({ grab }));
@@ -69,7 +76,8 @@ function pile(id: string, x: number, y: number, layout: string, grab?: string): 
  * from the stock to its seat on the motion runtime's clock instead of appearing there.
  */
 export function buildBoard(): SolitaireBoard {
-  const desk = node("desk", Transformable({ at: { x: 0, y: 0 } }), Container({ layout: "free" }));
+  // The desk wears the one lamp: the stock light, top-right of the frame, shadows down-left.
+  const desk = node("desk", Transformable({ at: { x: 0, y: 0 } }), Container({ layout: "free" }), Lit());
 
   const stock = pile("stock", COL_X[0]!, TOP_Y, "sol/pile");
   const waste = pile("waste", COL_X[1]!, TOP_Y, "sol/pile", "top");
@@ -80,6 +88,7 @@ export function buildBoard(): SolitaireBoard {
 
   for (const card of shuffledPips()) {
     setFacing(card, "down");
+    compose(card, ShadowCaster({ from: "silhouette" })); // casts only once lifted out of a pile
     add(stock, card);
   }
 
