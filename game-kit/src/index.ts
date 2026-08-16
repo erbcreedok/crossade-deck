@@ -185,6 +185,26 @@ export {
   type Sampled,
 } from "./core/motion.js";
 export {
+  clampAbs,
+  springAt,
+  springSettled,
+  SPRING_REST,
+  stepSpring,
+  type SpringConfig,
+  type SpringState,
+} from "./core/spring.js";
+export {
+  carry,
+  installStockCarries,
+  lean,
+  looseCarry,
+  registerCarry,
+  resetCarries,
+  rigidCarry,
+  type CarryContext,
+  type CarryStyle,
+} from "./core/atoms/carry.js";
+export {
   bakePlan,
   boundsMarks,
   gridMarks,
