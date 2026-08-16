@@ -1,0 +1,23 @@
+game-kit/src/core/atoms/carry.ts
+  s_7ed2dea7ad95d9::t_6a0e6f328c1584 1-84
+game-kit/src/index.ts
+  s_7ed2dea7ad95d9::t_bb07c4476da4f2 187-206
+game-kit/src/core/atoms/carry.test.ts
+  s_7ed2dea7ad95d9::t_803b7c4f07aa6a 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "31b9d86768fab110bfcd6bcaec87fed9d27c5d01",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
