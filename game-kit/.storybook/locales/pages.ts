@@ -39,6 +39,7 @@ import type presetsFlips from "./pages/presetsFlips/en.json";
 import type presetsLayouts from "./pages/presetsLayouts/en.json";
 import type presetsPiles from "./pages/presetsPiles/en.json";
 import type presetsPoses from "./pages/presetsPoses/en.json";
+import type privatePage from "./pages/private/en.json";
 import type presetsSurfaces from "./pages/presetsSurfaces/en.json";
 import type root from "./pages/root/en.json";
 import type shadowCaster from "./pages/shadowCaster/en.json";
@@ -70,6 +71,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   lit: { en: () => import("./pages/lit/en.json"), ru: () => import("./pages/lit/ru.json") },
   inviting: { en: () => import("./pages/inviting/en.json"), ru: () => import("./pages/inviting/ru.json") },
   grippable: { en: () => import("./pages/grippable/en.json"), ru: () => import("./pages/grippable/ru.json") },
+  private: { en: () => import("./pages/private/en.json"), ru: () => import("./pages/private/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -132,6 +134,7 @@ export type PageKey = keyof (typeof node &
   typeof lit &
   typeof inviting &
   typeof grippable &
+  typeof privatePage &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &

@@ -25,6 +25,7 @@ import "./core/atoms/shadow.js";
 import "./core/atoms/lit.js";
 import "./core/atoms/inviting.js";
 import "./core/atoms/grippable.js";
+import "./core/atoms/private.js";
 import { rect } from "./presets/shapes.js";
 
 const SRC = new URL("./", import.meta.url).pathname;

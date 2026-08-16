@@ -1,0 +1,40 @@
+{
+  "docs.private.component": [
+    "`Private` cuts a SUBTREE out of what a viewer is SHOWN — the visibility twin of `Grippable`'s",
+    "permission: privacy cuts what a seat SEES, grip cuts what a seat may MOVE. `access` lists the",
+    "viewpoints that may see; the empty list is hidden from everyone, and a hand names its owner to",
+    "open it to exactly one.",
+    "",
+    "```ts",
+    "import { node, Container, Private, visibleTo } from \"game-kit\"",
+    "",
+    "const hand = node(\"northHand\",",
+    "  Container({ layout: \"row\" }),",
+    "  Private({ access: [\"north\"] }))   // the whole hand is north's eyes only",
+    "",
+    "visibleTo(cardInHand, \"north\")      // true",
+    "visibleTo(cardInHand, \"south\")      // false — the subtree cut",
+    "```",
+    "",
+    "## The view is local, the truth is never written",
+    "",
+    "Privacy is a fact of the TREE, not of the renderer: what changes is only the PROJECTION a seat",
+    "is handed. A projection is the consumer's one line — walk the tree and drop what `visibleTo`",
+    "denies — and reprojecting the same truth for the same seat returns the same picture, bit for",
+    "bit. Whether the denied seat sees NOTHING or face-down backs is the game's choice: a projection",
+    "may swap faces before it drops nodes; the atom only says who is denied.",
+    "",
+    "## It cuts a SUBTREE",
+    "",
+    "A private container hides everything in it, so the cards in a hand never carry the atom",
+    "themselves. The reverse is ordinary and legal — a private child inside a public container: a",
+    "face-down bluff mark on an open desk."
+  ],
+  "docs.private.hands": [
+    "Two private hands and your eyes. Pick `seat`: your own hand's cards are on the desk, the other",
+    "hand is simply NOT THERE — the cut takes the subtree, so its cards never needed an atom of",
+    "their own. The middle pile carries no `Private` and shows for everyone. This scene projects",
+    "the denied hand to nothing; a game that prefers face-down backs swaps faces in its projection",
+    "before dropping — the atom only says who is denied."
+  ]
+}

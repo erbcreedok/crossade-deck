@@ -1109,6 +1109,14 @@ test.describe.serial("the heavy pages", () => {
           "play.grippable.the-open-desk-lifts",
         ],
       ],
+      [
+        "tests-private--hands",
+        [
+          "play.private.the-owner-sees",
+          "play.private.the-view-swaps-with-the-seat",
+          "play.private.nothing-was-written",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);

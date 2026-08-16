@@ -60,5 +60,10 @@
     "The grip on the glass. The unit suite states who may lift; this rung proves the FINGER obeys — the same synthetic pointer as the drag rung, judged from the seat north.",
     "Every drag ends where it began, so a refusal has the strongest possible reading: the whole canvas is bit-identical, no grab, no flight, no invite, nothing."
   ],
-  "docs.tests.grippable.hands": "Three claims from one seat. North's finger moves north's card — out to the middle, back, and home; south's card ignores the very same finger pixel for pixel, because the grip sits on the HAND and cuts the subtree — the refusing card never carried the atom; and the open card, under no grip at all, travels for anyone: the open desk is the default, not a granted right."
+  "docs.tests.grippable.hands": "Three claims from one seat. North's finger moves north's card — out to the middle, back, and home; south's card ignores the very same finger pixel for pixel, because the grip sits on the HAND and cuts the subtree — the refusing card never carried the atom; and the open card, under no grip at all, travels for anyone: the open desk is the default, not a granted right.",
+  "docs.tests.private": [
+    "Privacy on the glass. The unit suite states who may see; this rung proves the PROJECTION obeys — a seat's view is a tree with the denied subtrees simply gone, and three pixels tell the whole story: my hand's spot, the other's, and the public pile's.",
+    "The strongest claim is the last: swap the seat away and back, and the canvas is bit-identical — the view is local, and nothing was ever written to the truth."
+  ],
+  "docs.tests.private.hands": "Three claims through two pairs of eyes. North's view paints north's card, leaves south's spot bare desk, and shows the public pile; project the same truth for south and the two hands trade places while the pile stays; and reproject for north again — the canvas returns bit for bit, because a projection is pure: the hands were never written, only shown and not shown."
 }
