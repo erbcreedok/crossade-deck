@@ -102,6 +102,24 @@ describe("a canvas carries its own settings", () => {
     s.dispose();
   });
 
+  it("scene.animate-hands-over-the-clock — a drag story gets the runtime, a still scene has none", () => {
+    // The handle must be the LIVE one, not decorative: a grab paints the node at the finger,
+    // which only the runtime driving this very painter can do. A second runtime would be a
+    // second clock on the same glass — the exact thing `attachMotion`'s contract forbids.
+    const still = scene(node("sA", Bounded(), Surfaced()));
+    expect(still.motions).toBeUndefined();
+    still.dispose();
+
+    const s = scene(node("sB", Bounded(), Surfaced()), { animate: true });
+    document.body.appendChild(s.el);
+    expect(s.motions).toBeTruthy();
+    const before = drawn.find((q) => q.id === "sB")!.transform;
+    s.motions!.grab([{ id: "sB", offset: { x: 0, y: 0 } }], { anchor: { x: 2, y: 0 } });
+    const after = drawn.find((q) => q.id === "sB")!.transform;
+    expect(after.e).not.toBe(before.e);
+    s.dispose();
+  });
+
   it("scene.note-earns-its-words — 'nothing is drawn' belongs only to an empty plan", () => {
     // Printing it under a painted square would teach the exact opposite of the lesson the
     // sentence exists for.

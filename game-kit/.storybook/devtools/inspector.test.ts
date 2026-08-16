@@ -118,6 +118,16 @@ describe("show code", () => {
     expect(storySource.transform('scene(node("root")).el')).toContain('import { node, mount } from "game-kit"');
   });
 
+  it("source.the-drag-wiring-unwraps — the catalog's finger is not part of the kit either", () => {
+    // `wireDrag` exists on this website and nowhere else, exactly like `scene`. The wrapper
+    // unwraps to the scene it wired, and ONE comment line says what stood there — a drag needs
+    // pointer wiring, and a snippet that hid that would teach a scene that drags by itself.
+    const out = storySource.transform('wireDrag(scene(node("desk")), { style: "rigid" }).el');
+    expect(out).not.toContain("wireDrag(");
+    expect(out).toContain('mount(document.querySelector("#app")!, node("desk"))');
+    expect(out).toContain("pointer wiring");
+  });
+
   it("source.plain-code-is-left-alone — a snippet that is already a program is not unwrapped", () => {
     const out = storySource.transform('const root = node("root")');
     expect(out).toContain('const root = node("root")');

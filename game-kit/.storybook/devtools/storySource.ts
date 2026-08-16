@@ -450,6 +450,46 @@ function pruneConst(consts: string, body: string, param: string): string {
   return kept.length ? `const ${param} = { ${kept.join(", ")} }` : "";
 }
 
+/**
+ * `wireDrag(scene(…), knobs)` is the catalog's FINGER — the pointer wiring a game writes around
+ * `Draggable` itself. Like `scene`, the name exists on this website and nowhere else, so the
+ * wrapper unwraps to its first argument (the scene, which `toMount` then turns into the real
+ * door) — and ONE comment line says what stood there. Dropping it silently would be worse than
+ * either: a snippet whose scene drags by itself teaches that no wiring is needed.
+ */
+function unwrapWiring(code: string): string {
+  let out = code;
+  let found = false;
+  for (;;) {
+    const at = plainOf(out, litMask(out)).indexOf("wireDrag(");
+    if (at < 0) break;
+    const open = at + "wireDrag(".length;
+    const mask = litMask(out);
+    let depth = 0;
+    let firstArgEnd = -1;
+    let close = -1;
+    for (let i = open; i < out.length; i += 1) {
+      if (mask[i]) continue;
+      const c = out[i];
+      if (c === "(" || c === "{" || c === "[") depth += 1;
+      else if (c === ")" || c === "}" || c === "]") {
+        if (c === ")" && depth === 0) {
+          close = i;
+          break;
+        }
+        depth -= 1;
+      } else if (c === "," && depth === 0 && firstArgEnd < 0) firstArgEnd = i;
+    }
+    if (close < 0) return out;
+    found = true;
+    const inner = out.slice(open, firstArgEnd < 0 ? close : firstArgEnd).trim();
+    out = out.slice(0, at) + inner + out.slice(close + 1);
+  }
+  return found
+    ? `// + your pointer wiring: pointerdown picks a Draggable and grabs its run, pointermove\n//   drags, pointerup decides the drop and releases — the Draggable page walks through it\n${out}`
+    : out;
+}
+
 export const storySource = {
   type: "code" as const,
   language: "ts",
@@ -457,7 +497,7 @@ export const storySource = {
   // ones on screen — which is what makes an inlined value follow the controls instead of
   // freezing whatever the file was written with.
   transform: (code: string, context?: { args?: Record<string, unknown> }): string => {
-    const body = toMount(unwrapStory(code, context?.args)).trim();
+    const body = toMount(unwrapWiring(unwrapStory(code, context?.args))).trim();
     // A story whose source was not extracted must not silently show imports under nothing:
     // better an obviously empty snippet than a plausible wrong one.
     return body ? [...importsFor(body), body].join("\n") : body;

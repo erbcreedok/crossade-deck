@@ -22,6 +22,7 @@ import type bounded from "./pages/bounded/en.json";
 import type cards from "./pages/cards/en.json";
 import type coated from "./pages/coated/en.json";
 import type container from "./pages/container/en.json";
+import type draggable from "./pages/draggable/en.json";
 import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
 import type gettingStarted from "./pages/gettingStarted/en.json";
@@ -56,6 +57,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   coated: { en: () => import("./pages/coated/en.json"), ru: () => import("./pages/coated/ru.json") },
   flippable: { en: () => import("./pages/flippable/en.json"), ru: () => import("./pages/flippable/ru.json") },
   tiltable: { en: () => import("./pages/tiltable/en.json"), ru: () => import("./pages/tiltable/ru.json") },
+  draggable: { en: () => import("./pages/draggable/en.json"), ru: () => import("./pages/draggable/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -109,6 +111,7 @@ export type PageKey = keyof (typeof node &
   typeof coated &
   typeof flippable &
   typeof tiltable &
+  typeof draggable &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &

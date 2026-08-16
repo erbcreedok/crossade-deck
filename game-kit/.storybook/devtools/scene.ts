@@ -29,6 +29,7 @@ import {
   scenePlan,
   t,
   type Host,
+  type Motions,
   type Node,
   type Painter,
   type Mark,
@@ -56,6 +57,12 @@ export interface Scene {
    * could pick is either too short for that or long enough to hang a real failure on.
    */
   readonly ready: Promise<void>;
+  /**
+   * The motion runtime of an `animate` scene — the same handle `attachMotion` gives a game. A
+   * drag story speaks to the one clock through it (`grab`/`dragTo`/`release`); a still scene
+   * has no clock, and the absence says so.
+   */
+  readonly motions?: Motions;
   /** Re-apply theme, language and the rest without rebuilding the scene. */
   setSettings(next: CatalogSettings): void;
   /** Show a different tree in the same view — see `scene()` on why this is not a rebuild. */
@@ -219,9 +226,12 @@ export function scene(
   // business inventing a different one for the reader to learn instead.
   // A motion scene runs the one clock (and needs the stock easings) instead of the still painter;
   // both hand back a teardown of the same shape, so the rest of the shell does not care which.
-  const stopPainting = options.animate
-    ? (installStockEasings(), attachMotion(host, painter, options.bake ? { bake: options.bake } : {}).stop)
-    : attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
+  // The runtime handle is KEPT when it exists: a drag story speaks to the clock (`grab`/`dragTo`/
+  // `release`), and building a second runtime for that would put two clocks on one glass.
+  const motions = options.animate
+    ? (installStockEasings(), attachMotion(host, painter, options.bake ? { bake: options.bake } : {}))
+    : undefined;
+  const stopPainting = motions ? motions.stop : attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
   // not observable from the outside without saying so. The flag is for the browser tests: the
@@ -306,6 +316,7 @@ export function scene(
     el,
     host,
     id,
+    ...(motions ? { motions } : {}),
     ready: firstFrame,
     setSettings: applySettings,
     setRoot(next) {

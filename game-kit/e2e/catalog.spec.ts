@@ -1076,6 +1076,15 @@ test.describe.serial("the heavy pages", () => {
           "play.flippable.params-change-on-the-fly",
         ],
       ],
+      [
+        "tests-draggable--drag",
+        [
+          "play.draggable.a-card-follows-the-finger",
+          "play.draggable.a-refused-drop-flies-home",
+          "play.draggable.stay-strands-the-card",
+          "play.draggable.only-a-draggable-lifts",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
