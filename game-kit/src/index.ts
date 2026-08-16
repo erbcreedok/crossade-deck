@@ -170,7 +170,7 @@ export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/hos
 export { attachPainter, renderFrame } from "./render/stage.js";
 // The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that
 // should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
-export { attachMotion, type Clock, type MotionOptions, type Motions } from "./render/animator.js";
+export { attachMotion, type CarryItem, type CarryOptions, type Clock, type MotionOptions, type Motions } from "./render/animator.js";
 export {
   easing,
   flipScale,

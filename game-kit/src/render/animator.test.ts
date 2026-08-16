@@ -12,7 +12,6 @@ import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, compose, node } from "../core/node.js";
 import { Flippable, facing, setFacing } from "../core/atoms/flippable.js";
-import { move } from "../core/transform.js";
 import { installStockEasings, resetEasings } from "../core/motion.js";
 import { rect } from "../presets/shapes.js";
 import { mount } from "./host.js";
@@ -72,7 +71,8 @@ function bench() {
   };
   const host = mount(document.createElement("div"), desk);
   const xOf = (id: string): number => last.find((q) => q.id === id)!.x;
-  return { desk, card, host, painter, xOf };
+  const tOf = (id: string) => last.find((q) => q.id === id)!.transform;
+  return { desk, card, host, painter, xOf, tOf };
 }
 
 describe("the motion runtime", () => {
@@ -119,34 +119,72 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(false);
   });
 
-  it("motion.drag-places-a-node-at-the-finger — an override, drawn at once, no easing loop", () => {
+  it("motion.grab-places-the-run-under-the-finger — drawn at once, a bare grab schedules no frame", () => {
     const b = bench();
     const c = fakeClock();
     const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
-    m.drag(new Map([["c", move(4, 0)]]));
-    expect(b.xOf("c")).toBeGreaterThan(restX); // drawn under the finger immediately
-    expect(c.idle()).toBe(true); // 1:1 — a drag schedules no frame
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 4, y: 0 } });
+    expect(b.xOf("c") - restX).toBeCloseTo(4); // placed at the finger, the full delta, at once — not eased
+    expect(c.idle()).toBe(true); // seeded at the anchor, no pop and no tilt — nothing to animate
   });
 
-  it("motion.a-dragged-node-settles-from-the-finger — and the tree was never written", () => {
+  it("motion.grab-then-drag-trails-the-finger — the run lags behind, then catches up and sleeps", () => {
     const b = bench();
     const c = fakeClock();
     const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
-    m.drag(new Map([["c", move(6, 0)]])); // finger far to the right
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    m.dragTo({ x: 10, y: 0 }); // the finger jumps far to the right
+    // A few frames in, the spring is on its way but has NOT reached the finger — that gap IS the lag.
+    c.tick(16);
+    c.tick(32);
+    const trailing = b.xOf("c") - restX;
+    expect(trailing).toBeGreaterThan(0);
+    expect(trailing).toBeLessThan(10);
+    // Keep the finger still and let it settle: it arrives at (about) the finger and the loop stops.
+    for (let t = 48; t <= 3000; t += 16) c.tick(t);
+    expect(b.xOf("c") - restX).toBeCloseTo(10, 1);
+    expect(c.idle()).toBe(true);
+  });
+
+  it("motion.grab-leans-into-horizontal-motion — a tilt appears while moving and unwinds at rest", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, tilt: { factor: 4, maxDeg: 17 } });
+    m.dragTo({ x: 10, y: 0 });
+    c.tick(16);
+    c.tick(32);
+    // While the spring has horizontal speed the pose carries a rotation (b ≠ 0) — the whip lean.
+    expect(Math.abs(b.tOf("c").b)).toBeGreaterThan(0.02);
+    // Once it stops moving, the lean unwinds to upright.
+    for (let t = 48; t <= 3000; t += 16) c.tick(t);
+    expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 2);
+  });
+
+  it("motion.a-carried-node-settles-from-the-finger — and the tree was never written", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    m.dragTo({ x: 6, y: 0 }); // finger far to the right
+    for (let t = 16; t <= 2000; t += 16) c.tick(t); // let the run reach the finger
     const fingerX = b.xOf("c");
     expect(fingerX).toBeGreaterThan(restX);
 
-    // Release and reconcile the SAME, unmoved tree: it eases home FROM the finger, not teleporting,
-    // and lands back at its original rest — proof the drag only ever wrote an override.
+    // Release and reconcile the SAME, unmoved tree: it eases home FROM where the finger left it, not
+    // teleporting, and lands back at its original rest — proof the carry only ever wrote an override.
     m.release("c");
     b.host.setRoot(b.desk);
-    expect(b.xOf("c")).toBeCloseTo(fingerX); // frame zero of the settle is at the finger
+    expect(b.xOf("c")).toBeCloseTo(fingerX, 1); // frame zero of the settle is at the finger
     expect(c.idle()).toBe(false); // now it eases
-    c.tick(100);
+    c.tick(2100);
     expect(b.xOf("c")).toBeCloseTo(restX); // home at the tree's rest — the tree never moved
   });
 
