@@ -1,0 +1,50 @@
+game-kit/.storybook/locales/pages.ts
+  s_7ed2dea7ad95d9::t_ae3ea7124847e9 137
+  s_7ed2dea7ad95d9::t_65d3e2c5c5d18f 42
+  s_7ed2dea7ad95d9::t_704ab2660deae3 74
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_b7a1e9955a08a1 28
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ed2dea7ad95d9::t_beb1c4e238a51e 48
+game-kit/docs/test-plan/16-interaction-play.md
+  s_7ed2dea7ad95d9::t_2c7caa84862f08 3
+  s_7ed2dea7ad95d9::t_9a7f8072d465f0 94-96
+game-kit/e2e/catalog.spec.ts
+  s_7ed2dea7ad95d9::t_737dbdd7f5390e 1112-1119
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_f1d503d8e8938e 10
+  s_7ed2dea7ad95d9::t_03f0518ba1526c 44
+game-kit/.storybook/locales/pages/tests/en.json
+  s_7ed2dea7ad95d9::t_c649751f7d92c7 63-68
+game-kit/.storybook/stories/Private.stories.ts
+  s_7ed2dea7ad95d9::t_8bf91d49249e5e 1-99
+game-kit/.storybook/preview.ts
+  s_7ed2dea7ad95d9::t_a0523fc7771049 164
+  s_7ed2dea7ad95d9::t_b088bc07fb8f54 147
+game-kit/.storybook/locales/pages/private/ru.json
+  s_7ed2dea7ad95d9::t_6881e4aa44fa97 1-39
+game-kit/.storybook/locales/pages/tests/ru.json
+  s_7ed2dea7ad95d9::t_b4de6afeb62b16 63-68
+game-kit/.storybook/locales/chrome/en.json
+  s_7ed2dea7ad95d9::t_7330f75ea093b4 44
+game-kit/.storybook/locales/pages/private/en.json
+  s_7ed2dea7ad95d9::t_306e7b287eeeb1 1-40
+game-kit/.storybook/stories/TestsPrivate.stories.ts
+  s_7ed2dea7ad95d9::t_d23da013248067 1-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e4a67e77f933a9dc930dec8817d393d8aef89847",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
