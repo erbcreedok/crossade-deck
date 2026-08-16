@@ -20,7 +20,11 @@ import {
   Transformable,
   type Node,
 } from "game-kit";
+import { Inviting } from "game-kit";
 import { deckByCardId, shuffled } from "@game-presets/cards";
+
+/** What a willing pile wears while a legal run hovers the desk — the accent ring, data like any look. */
+export const INVITE = { recipe: "ring", level: 0.7, tint: "accent" } as const;
 
 export interface SolitaireBoard {
   readonly desk: Node;
@@ -64,6 +68,10 @@ function pile(id: string, x: number, y: number, layout: string, grab?: string): 
     // slot under floating cards. The cards carry their own caster and yield to this one; the
     // moment a run is lifted onto the desk, each carried card casts for itself.
     ShadowCaster({ from: "silhouette" }),
+    // The invite: what this pile wears while a run it would take is in flight. Klondike's
+    // legality lives in `rules.ts`, so the scene picks the willing piles itself and dresses
+    // them through the atom's low door (`wearInvite`).
+    Inviting({ coat: INVITE }),
   ];
   const n = node(id, ...atoms);
   if (grab) n.atoms.set("Grabber", Grabber({ grab }));

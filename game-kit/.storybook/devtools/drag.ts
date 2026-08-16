@@ -21,6 +21,7 @@ import {
   toUnits,
   transformsOf,
   Transformable,
+  wearInvites,
   type CarryItem,
   type Node,
   type Point,
@@ -47,6 +48,8 @@ export function runBelow(_root: Node, hit: Node): readonly Node[] {
 interface Wiring {
   opts: DragOptions;
   drag: { readonly items: readonly CarryItem[]; readonly delta: Point } | undefined;
+  /** Undresses every zone the grab invited — release calls it, and it is the whole protocol. */
+  undoInvites: (() => void) | undefined;
 }
 
 const WIRED = new WeakMap<HTMLElement, Wiring>();
@@ -58,7 +61,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     standing.opts = opts; // the same canvas, new knobs — never a second set of listeners
     return s;
   }
-  const w: Wiring = { opts, drag: undefined };
+  const w: Wiring = { opts, drag: undefined, undoInvites: undefined };
   WIRED.set(s.el, w);
   const view = s.host.view;
 
@@ -83,6 +86,8 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y } };
+    // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
+    w.undoInvites = wearInvites(root, hit);
     motions.grab(items, {
       anchor,
       ...(w.opts.style ? { style: w.opts.style } : {}),
@@ -107,6 +112,8 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const motions = s.motions;
     if (!drag || !motions) return;
     w.drag = undefined;
+    w.undoInvites?.();
+    w.undoInvites = undefined;
     const root = s.host.root;
     const p = toUnits(s.host, glassOf(view, e));
     const seat = { x: p.x + drag.delta.x, y: p.y + drag.delta.y };

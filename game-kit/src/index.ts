@@ -141,6 +141,11 @@ export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/gripp
 // The shadow and the one light: a caster declares WHICH contour falls; the root's lamp says where.
 export { castsShadow, ShadowCaster, shadowFrom, type ShadowCasterFields } from "./core/atoms/shadow.js";
 export { DEFAULT_LIGHT, Lit, lightVector, type Frame, type Light, type LitFields } from "./core/atoms/lit.js";
+// The invite: what a willing zone wears while a drag it would take is in flight. The Acceptor's
+// verdict decides (`willingZones`); a game with function-rules picks zones itself and uses the
+// low door (`wearInvite`). Grab dresses, release undresses — the closure is the whole protocol.
+export { Inviting, inviteOf, wearInvite, type InvitingFields } from "./core/atoms/inviting.js";
+export { wearInvites, willingZones } from "./core/invite.js";
 // The card turn, as data: a recipe name, a turn count (parity, summed), a reflection axis, a back
 // surface. What the turn DOES is a recipe in `render/flips.ts`; the engine mixes it in blind.
 export { facing, Flippable, setFacing, type Facing, type FlippableFields } from "./core/atoms/flippable.js";

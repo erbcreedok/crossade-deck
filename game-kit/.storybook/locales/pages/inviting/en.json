@@ -1,0 +1,41 @@
+{
+  "docs.inviting.component": [
+    "`Inviting` is the LOOK of willingness: one coat a zone wears while a drag it would take is in",
+    "flight. Whether the zone is willing is never decided here — that is the `Acceptor`'s verdict —",
+    "and the tree carries no \"highlighted\" flag anywhere: grab dresses, release undresses, and the",
+    "undo puts back exactly what stood on the zone before.",
+    "",
+    "```ts",
+    "import { node, Container, Acceptor, Inviting, wearInvites } from \"game-kit\"",
+    "",
+    "const zone = node(\"sevens\",",
+    "  Container({ layout: \"free\" }),",
+    "  Acceptor({ accept: { eq: [\"el.values.rank\", 7] } }),",
+    "  Inviting({ coat: { recipe: \"ring\", level: 0.7, tint: \"accent\" } }))",
+    "",
+    "// in the drag wiring:",
+    "const undress = wearInvites(root, grabbedCard)   // every willing zone puts its invite on",
+    "// …on release:",
+    "undress()                                        // and takes it off, exactly",
+    "```",
+    "",
+    "## The verdict and the look are two different owners",
+    "",
+    "`willingZones` asks the Acceptor and answers `allow` only — a request-gated drop is not an open",
+    "door. A game whose legality lives in its own functions (solitaire's runs, chess's moves) picks",
+    "the zones itself and uses the low door, `wearInvite(zone)`, one zone at a time. Either way the",
+    "invite goes into `Coated.self` — runtime state, exactly what that field exists for — so every",
+    "coat recipe a zone can wear (`ring`, `wash`, `fill`…) is already an invite recipe.",
+    "",
+    "## A bare `Inviting()` already glows",
+    "",
+    "The default coat is a stock ring in the accent. The three knobs — recipe, level, tint — are the",
+    "same three every coat has, so configuring the invite is configuring a coat, nothing new to learn."
+  ],
+  "docs.inviting.invite": [
+    "A zone that takes SEVENS, and two cards you can drag at it. Pick up the seven and the zone puts",
+    "its invite on — ring, wash, whatever the knobs say; let go and it comes off, restoring whatever",
+    "the zone wore before. Pick up the eight and nothing lights: the rule answered `deny`, and an",
+    "unwilling zone has nothing to show. The knobs are the coat's own three — recipe, level, tint."
+  ]
+}

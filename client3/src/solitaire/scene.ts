@@ -29,6 +29,7 @@ import {
   toUnits,
   Transformable,
   transformsOf,
+  wearInvite,
   type CarryItem,
   type Node,
   type Point,
@@ -111,6 +112,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   let run: Node[] = []; // the cards being carried, bottom-first
   let source: Node | undefined; // the pile they left
   let grab: Point = { x: 0, y: 0 };
+  let undoInvites: Array<() => void> = []; // undresses every pile the grab invited
   // A press is a candidate until the pointer moves past the threshold — only then is it a drag. A
   // press that never moves is a TAP (which does nothing) or half of a double-click (which auto-moves).
   // Without this a double-click would reparent the card twice mid-gesture and fight its own auto-move.
@@ -168,10 +170,26 @@ export function startSolitaire(container: HTMLElement): () => void {
     for (const c of above) setAt(c, anchorAt);
     const p = toUnits(host, startG);
     grab = { x: anchorAt.x - p.x, y: anchorAt.y - p.y };
+    // Every pile that would TAKE this run puts its invite on — Klondike's legality picks them,
+    // the atom dresses them. Before the grab draws, so its first frame already shows the rings.
+    undoInvites = willingPiles().map(wearInvite);
     // The finger owns the run: a spring carry (lag + whip + pop), never a tree write. Rigid style, so
     // the column tilts as one plank about the pivot.
     motion.grab(carryItems(), { anchor: anchorAt, style: "rigid", lift: LIFT_POP, tilt: WHIP });
     view.setPointerCapture(pointerId);
+  };
+
+  /** The piles Klondike would let the carried run land on — the scene's own rules, not an Acceptor. */
+  const willingPiles = (): Node[] => {
+    const bottom = cardValue(run[0]!);
+    if (!bottom) return [];
+    const carried = new Set(run.map((c) => c.id));
+    const takers: Node[] = [];
+    if (run.length === 1) {
+      for (const f of board.foundations) if (f !== source && canOnFoundation(bottom, topOf(f, carried))) takers.push(f);
+    }
+    for (const t of board.tableau) if (t !== source && canOnTableau(bottom, topOf(t, carried))) takers.push(t);
+    return takers;
   };
 
   const onDown = (e: PointerEvent): void => {
@@ -215,6 +233,9 @@ export function startSolitaire(container: HTMLElement): () => void {
     }
     lastTap = undefined; // a drag is not a tap — do not let it pair with a later one
     view.releasePointerCapture?.(e.pointerId);
+    // The invitation ends with the gesture: undress every pile before the landing redraw.
+    for (const undo of undoInvites) undo();
+    undoInvites = [];
     const g = glassOf(view, e);
     const carried = new Set(run.map((c) => c.id));
     const targetPile = dropTarget(g, carried);

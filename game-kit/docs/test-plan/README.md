@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**43 слоя · 1036 кейсов заявлено · 862 расписано поимённо.**
+**44 слоя · 1042 кейсов заявлено · 868 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -41,7 +41,7 @@
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
 | [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 30 | 30 |
-| [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 86 | 81 |
+| [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 89 | 84 |
 | [STATE MATRIX · combinatorics](17-state-matrix.md) | `generated table, vitest` | 24 | 5 |
 | [STATE PLANE · what happens vs what is authored](18-state-plane.md) | `vitest` | 12 | 4 |
 | [VISUAL REGRESSION](19-visual-regression.md) | `Chromatic — pixel diff per story` | 40 | 4 |
@@ -69,3 +69,4 @@
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 6 | 6 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 7 | 7 |
+| [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |

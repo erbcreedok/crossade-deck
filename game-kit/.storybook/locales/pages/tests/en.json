@@ -50,5 +50,10 @@
     "The shadow on the glass. The plan states where a shadow falls; this rung proves ink actually lies there — darkness beyond the caster's own edge, on the lamp's side and nowhere else.",
     "Every probe sits just OUTSIDE the card's contour, so what it reads is never the face: it is desk, or desk under shadow. The two sides of the card are the whole story — the lamp's side is dark, the far side is bare."
   ],
-  "docs.tests.shadowCaster.cast": "Three claims on one card. The fall is inked — just outside the down-left edge the desk lies in shadow while the up-right rim is bare, because the stock lamp hangs top-right; turn the lamp to the opposite corner and the same two probes answer the other way around — one ROOT field moved every fall; and height stretches the reach — a probe half a card off the edge is bare at rest and shaded at z 4, same lamp, same card, only the height moved."
+  "docs.tests.shadowCaster.cast": "Three claims on one card. The fall is inked — just outside the down-left edge the desk lies in shadow while the up-right rim is bare, because the stock lamp hangs top-right; turn the lamp to the opposite corner and the same two probes answer the other way around — one ROOT field moved every fall; and height stretches the reach — a probe half a card off the edge is bare at rest and shaded at z 4, same lamp, same card, only the height moved.",
+  "docs.tests.inviting": [
+    "The invite on the glass. The unit suite states who is willing and what goes on; this rung proves the paint answers the FINGER: the same synthetic pointer the drag rung uses picks a card up, and one pixel in the zone's middle tells the whole story.",
+    "The invite is a wash, so the middle changes colour while the right card is held — before, lit, and after are three readings of one point."
+  ],
+  "docs.tests.inviting.invite": "Three claims on one zone. Pick up the seven and the wash goes on — the zone's middle changes while the card is held; let go and the coat comes off EXACTLY — the middle reads the very value it did before the grab, because the undo restores what stood there rather than painting \"something else\"; and pick up the eight and nothing ever lights — the rule answered deny, and an unwilling zone has nothing to show."
 }

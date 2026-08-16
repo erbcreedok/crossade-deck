@@ -1093,6 +1093,14 @@ test.describe.serial("the heavy pages", () => {
           "play.shadow.height-stretches-the-fall",
         ],
       ],
+      [
+        "tests-inviting--invite",
+        [
+          "play.inviting.a-willing-zone-lights",
+          "play.inviting.release-undresses",
+          "play.inviting.a-refused-card-leaves-it-dark",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
