@@ -225,6 +225,13 @@ export interface PlanInput {
    * now — an override replaces a node's own absolute pose and its children are not carried with it.
    */
   readonly overrides?: ReadonlyMap<NodeId, Transform> | undefined;
+  /**
+   * Nodes in FLIGHT — carried by a finger, easing home, mid-flip. They paint AFTER every resting
+   * node, because the eye expects the moving card on top of whatever it crosses, however tall the
+   * pile it passes. An ORDERING hint only: the quad's `z` keeps reporting the resting height, so
+   * inspection reads the tree's truth, and a group in flight keeps its own height order inside.
+   */
+  readonly raised?: ReadonlySet<NodeId> | undefined;
 }
 
 /**
@@ -234,7 +241,7 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer, overrides }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, overrides, raised }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = viewTransform(unit, width, height);
   const out: Quad[] = [];
@@ -328,8 +335,10 @@ export function scenePlan({ root, unit, width, height, viewer, overrides }: Plan
   visit(root);
 
   // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames
-  // for no reason the reader can see.
-  return out.sort((a, b) => a.z - b.z);
+  // for no reason the reader can see. Flight beats height — a raised node sorts after every
+  // resting one — and inside either group the height still rules.
+  const aloft = (q: Quad): number => (raised?.has(q.id) ? 1 : 0);
+  return out.sort((a, b) => aloft(a) - aloft(b) || a.z - b.z);
 }
 
 /** The four corners of an area, centred on the origin — a shape for a node that declared none. */

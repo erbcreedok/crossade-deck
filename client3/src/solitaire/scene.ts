@@ -38,7 +38,6 @@ import { pixiPainter } from "game-kit/pixi";
 import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, type SolitaireBoard } from "./board.ts";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
 
-const LIFT_Z = 100;
 // The feel of the carry — the reference client's drag, ported to the engine's spring. The run rides a
 // `rigid` style, so it tilts as ONE plank about the grab point (a vertical column stays coherent, not
 // venetian-blinded); `LIFT_POP` is the small grow in hand; `WHIP` leans the whole run into its motion.
@@ -123,8 +122,8 @@ export function startSolitaire(container: HTMLElement): () => void {
   const DOUBLE_MS = 320; // between the two taps
   const DOUBLE_SLOP = 28; // px the second tap may sit from the first
 
-  const setAt = (n: Node, at: Point, z: number): void => {
-    compose(n, Transformable({ at, z }));
+  const setAt = (n: Node, at: Point): void => {
+    compose(n, Transformable({ at }));
   };
 
   /** The carried run as engine items — each card's offset DOWN the column from the grab pivot. */
@@ -160,11 +159,13 @@ export function startSolitaire(container: HTMLElement): () => void {
     const anchorAt = originOf(board.desk, hit.id);
     run = above;
     source = hit.parent!;
-    // Reparent onto the desk and lift the run's z ONCE (a tree write) — z is not part of the pose
-    // Transform, so it rides the tree; the finger position rides the override below, per move.
+    // Reparent onto the desk — a tree write, once. Riding ABOVE everything is not: the runtime
+    // reports every finger-owned and flying node to the plan (`raised`), so no z is written and
+    // nothing stale survives the landing. Writing `LIFT_Z` here is exactly how every once-dragged
+    // card ended up covering its later pile-mates forever.
     for (const c of above) remove(source, c);
     for (const c of above) add(board.desk, c);
-    for (const c of above) setAt(c, anchorAt, LIFT_Z);
+    for (const c of above) setAt(c, anchorAt);
     const p = toUnits(host, startG);
     grab = { x: anchorAt.x - p.x, y: anchorAt.y - p.y };
     // The finger owns the run: a spring carry (lag + whip + pop), never a tree write. Rigid style, so

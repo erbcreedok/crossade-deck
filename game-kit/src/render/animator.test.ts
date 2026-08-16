@@ -72,7 +72,8 @@ function bench() {
   const host = mount(document.createElement("div"), desk);
   const xOf = (id: string): number => last.find((q) => q.id === id)!.x;
   const tOf = (id: string) => last.find((q) => q.id === id)!.transform;
-  return { desk, card, host, painter, xOf, tOf };
+  const order = (): string[] => last.map((q) => q.id);
+  return { desk, card, host, painter, xOf, tOf, order };
 }
 
 describe("the motion runtime", () => {
@@ -95,6 +96,28 @@ describe("the motion runtime", () => {
     const endX = b.xOf("c");
     expect(endX).toBeGreaterThan(midX);
     expect(c.idle()).toBe(true); // idle-gate: no frame is scheduled once nothing is in flight
+  });
+
+  it("motion.a-flying-node-rides-above — the settle paints over taller rest, and landing hands the order back", () => {
+    // A card easing home must not slide UNDER a pile it crosses just because the pile stands
+    // taller: while a node is in flight — settling, carried, or mid-flip — the runtime asks the
+    // plan to paint it LAST. The quad's own `z` is untouched, so when the flight lands, the
+    // resting order is simply what it always was.
+    const b = bench();
+    const wall = node("wall", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 }, z: 5 }));
+    add(b.desk, wall);
+    const c = fakeClock();
+    attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    expect(b.order()).toEqual(["c", "wall"]); // at rest, height orders the paint
+
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    expect(b.order()).toEqual(["wall", "c"]); // in flight from the first frame: the mover on top
+    c.tick(50);
+    expect(b.order()).toEqual(["wall", "c"]);
+    c.tick(100); // landed — the flight is over, and so is the lift
+    expect(b.order()).toEqual(["c", "wall"]);
+    expect(c.idle()).toBe(true);
   });
 
   it("motion.a-held-node-tracks-its-gesture — a finger-owned node jumps, it does not ease", () => {

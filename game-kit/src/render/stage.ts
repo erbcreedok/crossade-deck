@@ -52,6 +52,8 @@ export interface PaintOptions {
    * settle through. Absent for a still scene, which is every scene until something animates.
    */
   readonly overrides?: ReadonlyMap<NodeId, Transform> | undefined;
+  /** Nodes in flight, painted after everything at rest — see `PlanInput.raised`. */
+  readonly raised?: ReadonlySet<NodeId> | undefined;
 }
 
 /**
@@ -69,6 +71,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     height: view.height,
     viewer: host.viewer(),
     overrides: options.overrides,
+    raised: options.raised,
   };
   // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on
   // top of the thing being measured hides the very edge a reader is looking for.

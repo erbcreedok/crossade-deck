@@ -186,7 +186,18 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return map;
   };
 
-  const draw = (): void => renderFrame(host, painter, { overrides: overrides(), ...(options.bake ? { bake: options.bake } : {}) });
+  /**
+   * The nodes in FLIGHT this frame — settling, finger-owned, or mid-turn — handed to the plan as
+   * its paint-order lift: a moving card rides above whatever it crosses, however tall the pile
+   * (`PlanInput.raised`). The finger set is `held`, which contains every carried node too.
+   */
+  const raised = (): ReadonlySet<NodeId> | undefined =>
+    active.size > 0 || held.size > 0 || flipping.size > 0
+      ? new Set<NodeId>([...active.keys(), ...held, ...flipping.keys()])
+      : undefined;
+
+  const draw = (): void =>
+    renderFrame(host, painter, { overrides: overrides(), raised: raised(), ...(options.bake ? { bake: options.bake } : {}) });
 
   /** True once a carry's springs have all but arrived and stopped — the gate the loop sleeps on. */
   const carrySettled = (cy: Carry): boolean =>

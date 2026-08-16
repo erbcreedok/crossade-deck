@@ -147,6 +147,29 @@ describe("scenePlan", () => {
     add(root, card);
     expect(plan(root)[0]!.z).toBe(11);
   });
+
+  it("plan.a-raised-node-paints-last — flight beats height, and the quad still tells the resting truth", () => {
+    // A node in FLIGHT (carried by a finger, easing home, mid-flip) must not slide UNDER a pile
+    // that happens to stand taller — the eye expects the moving card on top of everything it
+    // crosses. `raised` is that word, an ORDERING hint only: the quad's `z` keeps reporting the
+    // resting height, so inspection and any later reader see the tree's truth, not the flight's.
+    const root = node("r1", Container({ layout: "free" }), Surfaced());
+    add(root, node("low", box(1, 1), Surfaced(), Transformable({ z: 0 })));
+    add(root, node("high", box(1, 1), Surfaced(), Transformable({ z: 5 })));
+    const input = { root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER };
+    // Resting: height orders the paint.
+    expect(scenePlan(input).map((q) => q.id)).toEqual(["r1", "low", "high"]);
+    // The low card takes flight: it paints LAST, over the tall pile it crosses.
+    const flying = scenePlan({ ...input, raised: new Set(["low"]) });
+    expect(flying.map((q) => q.id)).toEqual(["r1", "high", "low"]);
+    expect(flying.find((q) => q.id === "low")!.z).toBe(0);
+    // Two in flight keep their OWN height order — the hint lifts a group, it does not shuffle it.
+    expect(scenePlan({ ...input, raised: new Set(["low", "high"]) }).map((q) => q.id)).toEqual([
+      "r1",
+      "low",
+      "high",
+    ]);
+  });
 });
 
 describe("a partial layer", () => {
