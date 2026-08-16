@@ -294,6 +294,9 @@ export {
 export { circle, ellipse, polygon, rect, roundedRect, star } from "./presets/shapes.js";
 // A set's cards, expanded: one node per physical card, where Bounded·Surfaced·Flippable·Valued meet.
 export { deck, type CardSpec, type DeckOptions } from "./presets/deck.js";
+// A pile from one literal of data: the assembly every game's stacks share — seat, box, face,
+// arrangement, and the four policies (grab · accept · invite · shadow), each optional by absence.
+export { pile, type PileSpec } from "./presets/pile.js";
 export {
   cascade,
   fan,

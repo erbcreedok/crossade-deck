@@ -1,0 +1,43 @@
+{
+  "docs.presetsPiles.component": [
+    "Every game keeps stacks of things — a stock of cards, a tableau column, a poker bank of chips,",
+    "captured chess pieces, monopoly houses on a street — and every one of them is the SAME assembly.",
+    "`pile()` is that assembly as one literal of data: a seat, a box, a face, an arrangement by",
+    "registry name, and the four policies — what a finger may LIFT (`grab`), what may LAND (`accept`),",
+    "what the pile WEARS while willing (`invite`), and what SHADOW the resting stack lays (`shadow`).",
+    "",
+    "```ts",
+    "import { pile, rect } from \"game-kit\"",
+    "",
+    "const stock = pile(\"stock\", {",
+    "  at: { x: -2.4, y: -0.6 },",
+    "  bounds: rect(1, 1.4),",
+    "  surface: \"slot\",",
+    "  layout: \"squared\",     // a registry name the consumer registered",
+    "  grab: \"top\",           // what a touch lifts",
+    "  shadow: \"silhouette\",  // the stack casts once, as the wrap of what it holds",
+    "})",
+    "```",
+    "",
+    "## Absence is the refusal",
+    "",
+    "Every field but `layout` is optional, and leaving one out leaves its ATOM out: a pile with no",
+    "`grab` gives a finger nothing, a pile with no `accept` judges nothing, a pile with no `shadow`",
+    "casts nothing. There are no off-switches to disagree with the capabilities — the assembled node",
+    "either carries an atom or it does not.",
+    "",
+    "## No behaviour lives here",
+    "",
+    "The preset only composes: the grab is the `Grabber` registry's, the judgement is the `Acceptor`'s,",
+    "the glow rides the same invite bridge as any hand-built zone, and the shadow is the plan's own",
+    "stack-casts-once law. A new kind of pile — a discard that takes anything, a bank that gives one",
+    "chip — is a new LITERAL, never a new engine case."
+  ],
+  "docs.presetsPiles.piles": [
+    "Three piles, three literals — there is no squared-pile class and no column class anywhere. The",
+    "squared stock answers a touch with its TOP card (`grab: \"top\"`), the column lifts the touched",
+    "card and everything above it (`\"above\"`), the fan gives exactly the card under the finger",
+    "(`\"one\"`). Drag off any of them: each pile lays ONE shadow for everything it holds, and a",
+    "lifted card starts casting its own the moment it stands alone on the desk."
+  ]
+}

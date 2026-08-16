@@ -36,6 +36,7 @@ import type presetsComponents from "./pages/presetsComponents/en.json";
 import type presetsCoats from "./pages/presetsCoats/en.json";
 import type presetsFlips from "./pages/presetsFlips/en.json";
 import type presetsLayouts from "./pages/presetsLayouts/en.json";
+import type presetsPiles from "./pages/presetsPiles/en.json";
 import type presetsPoses from "./pages/presetsPoses/en.json";
 import type presetsSurfaces from "./pages/presetsSurfaces/en.json";
 import type root from "./pages/root/en.json";
@@ -101,6 +102,10 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     en: () => import("./pages/presetsPoses/en.json"),
     ru: () => import("./pages/presetsPoses/ru.json"),
   },
+  presetsPiles: {
+    en: () => import("./pages/presetsPiles/en.json"),
+    ru: () => import("./pages/presetsPiles/ru.json"),
+  },
   cards: { en: () => import("./pages/cards/en.json"), ru: () => import("./pages/cards/ru.json") },
   motion: { en: () => import("./pages/motion/en.json"), ru: () => import("./pages/motion/ru.json") },
   tests: { en: () => import("./pages/tests/en.json"), ru: () => import("./pages/tests/ru.json") },
@@ -131,6 +136,7 @@ export type PageKey = keyof (typeof node &
   typeof presetsComponents &
   typeof presetsLayouts &
   typeof presetsPoses &
+  typeof presetsPiles &
   typeof presetsCoats &
   typeof presetsFlips &
   typeof cards &

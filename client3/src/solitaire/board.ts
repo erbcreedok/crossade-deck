@@ -5,22 +5,19 @@
 
 import {
   add,
-  Bounded,
   compose,
   Container,
-  Grabber,
   Lit,
   node,
+  pile,
   rect,
   registerLayout,
   remove,
   setFacing,
   ShadowCaster,
-  Surfaced,
   Transformable,
   type Node,
 } from "game-kit";
-import { Inviting } from "game-kit";
 import { deckByCardId, shuffled } from "@game-presets/cards";
 
 /** What a willing pile wears while a legal run hovers the desk — the accent ring, data like any look. */
@@ -58,24 +55,22 @@ function shuffledPips(): Node[] {
   return shuffled(pips);
 }
 
-function pile(id: string, x: number, y: number, layout: string, grab?: string): Node {
-  const atoms = [
-    Transformable({ at: { x, y } }),
-    Bounded({ bounds: rect(1, 1.4) }),
-    Container({ layout }),
-    Surfaced({ surface: "sol/slot" }),
-    // A resting pile casts ONCE for everything it holds — the wrap of the dealt column, not a
-    // slot under floating cards. The cards carry their own caster and yield to this one; the
-    // moment a run is lifted onto the desk, each carried card casts for itself.
-    ShadowCaster({ from: "silhouette" }),
-    // The invite: what this pile wears while a run it would take is in flight. Klondike's
-    // legality lives in `rules.ts`, so the scene picks the willing piles itself and dresses
-    // them through the atom's low door (`wearInvite`).
-    Inviting({ coat: INVITE }),
-  ];
-  const n = node(id, ...atoms);
-  if (grab) n.atoms.set("Grabber", Grabber({ grab }));
-  return n;
+/**
+ * One Klondike slot as a literal for the kit's `pile()` preset. The shadow: a resting pile casts
+ * ONCE for everything it holds — the wrap of the dealt column, not a slot under floating cards;
+ * the cards carry their own caster and yield to it. The invite: Klondike's legality lives in
+ * `rules.ts`, so the scene picks the willing piles itself and dresses them through `wearInvite`.
+ */
+function slot(id: string, x: number, y: number, layout: string, grab?: string): Node {
+  return pile(id, {
+    at: { x, y },
+    bounds: rect(1, 1.4),
+    surface: "sol/slot",
+    layout,
+    ...(grab ? { grab } : {}),
+    shadow: "silhouette",
+    invite: INVITE,
+  });
 }
 
 /**
@@ -87,10 +82,10 @@ export function buildBoard(): SolitaireBoard {
   // The desk wears the one lamp: the stock light, top-right of the frame, shadows down-left.
   const desk = node("desk", Transformable({ at: { x: 0, y: 0 } }), Container({ layout: "free" }), Lit());
 
-  const stock = pile("stock", COL_X[0]!, TOP_Y, "sol/pile");
-  const waste = pile("waste", COL_X[1]!, TOP_Y, "sol/pile", "top");
-  const foundations = [0, 1, 2, 3].map((i) => pile(`foundation:${i}`, COL_X[3 + i]!, TOP_Y, "sol/pile", "top"));
-  const tableau = COL_X.map((x, i) => pile(`tableau:${i}`, x, TABLEAU_Y, "sol/column", "above"));
+  const stock = slot("stock", COL_X[0]!, TOP_Y, "sol/pile");
+  const waste = slot("waste", COL_X[1]!, TOP_Y, "sol/pile", "top");
+  const foundations = [0, 1, 2, 3].map((i) => slot(`foundation:${i}`, COL_X[3 + i]!, TOP_Y, "sol/pile", "top"));
+  const tableau = COL_X.map((x, i) => slot(`tableau:${i}`, x, TABLEAU_Y, "sol/column", "above"));
 
   for (const p of [stock, waste, ...foundations, ...tableau]) add(desk, p);
 
