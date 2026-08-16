@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { startSolitaire } from "@game-presets/solitaire/pixi";
+import { startSolitaire } from "./solitaire/scene.ts";
 
 const app = document.querySelector<HTMLElement>("#app");
 const stop = app ? startSolitaire(app) : undefined;

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@game-presets/solitaire": "*",
+    "@game-presets/cards": "*",
+    "game-kit": "*",
     "pixi.js": "^8.19.0"
   },
   "devDependencies": {
