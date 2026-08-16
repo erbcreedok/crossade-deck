@@ -1,0 +1,53 @@
+game-kit/.storybook/locales/pages/grippable/ru.json
+  s_7ed2dea7ad95d9::t_53b4b830b5d567 1-37
+game-kit/.storybook/locales/pages/grippable/en.json
+  s_7ed2dea7ad95d9::t_342c217f49e70a 1-39
+game-kit/.storybook/stories/TestsGrippable.stories.ts
+  s_7ed2dea7ad95d9::t_8ba5ef77e8f7cc 1-159
+game-kit/.storybook/preview.ts
+  s_7ed2dea7ad95d9::t_1c4824100f2502 147
+  s_7ed2dea7ad95d9::t_2f38785fdbd395 164
+game-kit/.storybook/locales/pages/tests/en.json
+  s_7ed2dea7ad95d9::t_957a8c0184884d 58-63
+game-kit/.storybook/locales/pages/tests/ru.json
+  s_7ed2dea7ad95d9::t_4cab3c323c9825 58-63
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_1c2753c0d48048 44
+  s_7ed2dea7ad95d9::t_4b22310fe41a0b 10
+game-kit/.storybook/locales/chrome/en.json
+  s_7ed2dea7ad95d9::t_7308aeda30ccaa 44
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ed2dea7ad95d9::t_2a75ef6ab74206 48
+game-kit/.storybook/devtools/drag.ts
+  s_7ed2dea7ad95d9::t_1617b47d3463d0 40-44
+  s_7ed2dea7ad95d9::t_e5398f73557337 78-80
+game-kit/.storybook/locales/pages.ts
+  s_7ed2dea7ad95d9::t_c1628bd2bea2d1 29
+  s_7ed2dea7ad95d9::t_aba0d2579d8cda 72
+  s_7ed2dea7ad95d9::t_9fe30faaff1eeb 134
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_a22ffa646e2dbd 27
+game-kit/.storybook/stories/Grippable.stories.ts
+  s_7ed2dea7ad95d9::t_bf9a8c85acd778 1-105
+game-kit/e2e/catalog.spec.ts
+  s_7ed2dea7ad95d9::t_86776cfa895c61 1104-1111
+game-kit/docs/test-plan/16-interaction-play.md
+  s_7ed2dea7ad95d9::t_dc6ae769f7c677 91-93
+  s_7ed2dea7ad95d9::t_b9c0ea5b8bd469 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "9f6bb85ebf006e2266e286dc166bb2560ba6f136",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
