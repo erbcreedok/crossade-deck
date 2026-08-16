@@ -1,0 +1,34 @@
+game-kit/docs/test-plan/42-drag-feel.md
+  s_7ed2dea7ad95d9::t_8260005b300e83 1-27
+game-kit/docs/test-plan/40-motion.md
+  s_7ed2dea7ad95d9::t_633f7e6b50540e 3
+  s_7ed2dea7ad95d9::t_6b4bcbfecd5a6d 24-27
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_b7204a8e43013b 10
+  s_7ed2dea7ad95d9::t_0e2387d08d8aef 68,70
+game-kit/src/render/animator.test.ts
+  s_7ed2dea7ad95d9::t_eecbe66ddbc2ef 74-75
+  s_7ed2dea7ad95d9::t_0946d78331e828 144,149
+  s_7ed2dea7ad95d9::t_653ba5d2e5e4a7 129
+  s_7ed2dea7ad95d9::t_97d4adee231aec 122,128,130,133,139-143,145-148,150-177,181-182,185,187
+game-kit/src/render/animator.ts
+  s_7ed2dea7ad95d9::t_185ade1c0ba5dd 12-19,23-25,56-77,84-87,89-91,105-111,129-143,158,160-161,174,191-206,241-253,268,293-295,297-315,317-318,320-325,339
+game-kit/src/index.ts
+  s_7ed2dea7ad95d9::t_e8b854ee1dc8dd 173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2b40e2ea7172def051d163ffc09f8dbff12770a5",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
