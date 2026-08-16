@@ -14,6 +14,7 @@ import {
   fieldsOf,
   glassOf,
   IDENTITY,
+  installStockCarries,
   installStockEasings,
   installStockFlips,
   installStockGrabs,
@@ -21,7 +22,6 @@ import {
   installStockSurfaces,
   installTheme,
   mount,
-  move,
   pick,
   registerSurface,
   remove,
@@ -29,9 +29,9 @@ import {
   toUnits,
   Transformable,
   transformsOf,
+  type CarryItem,
   type Node,
   type Point,
-  type Transform,
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
@@ -39,6 +39,11 @@ import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, type So
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
 
 const LIFT_Z = 100;
+// The feel of the carry — the reference client's drag, ported to the engine's spring. The run rides a
+// `rigid` style, so it tilts as ONE plank about the grab point (a vertical column stays coherent, not
+// venetian-blinded); `LIFT_POP` is the small grow in hand; `WHIP` leans the whole run into its motion.
+const LIFT_POP = 1.06;
+const WHIP = { factor: 3, maxDeg: 15 };
 
 function fitUnit(v: { width: number; height: number }): number {
   return Math.max(20, Math.min(v.width / 8.6, v.height / 8.4));
@@ -51,6 +56,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   installStockGrabs();
   installStockFlips();
   installStockEasings();
+  installStockCarries();
   installSolitaireLayouts();
   registerSurface("sol/slot", {
     layers: [{ paint: "panelBg", opacity: 0.28 }],
@@ -121,12 +127,8 @@ export function startSolitaire(container: HTMLElement): () => void {
     compose(n, Transformable({ at, z }));
   };
 
-  /** The run's live poses under the finger — root-unit Transforms handed to the animator's drag. */
-  const dragPoses = (anchor: Point): Map<Node["id"], Transform> => {
-    const poses = new Map<Node["id"], Transform>();
-    run.forEach((c, i) => poses.set(c.id, move(anchor.x, anchor.y + i * COLUMN_STEP)));
-    return poses;
-  };
+  /** The carried run as engine items — each card's offset DOWN the column from the grab pivot. */
+  const carryItems = (): CarryItem[] => run.map((c, i) => ({ id: c.id, offset: { x: 0, y: i * COLUMN_STEP } }));
 
   /** The ordered, all-face-up run a card leads, or null if it cannot be lifted from where it sits. */
   const runFrom = (card: Node): Node[] | null => {
@@ -165,7 +167,9 @@ export function startSolitaire(container: HTMLElement): () => void {
     for (const c of above) setAt(c, anchorAt, LIFT_Z);
     const p = toUnits(host, startG);
     grab = { x: anchorAt.x - p.x, y: anchorAt.y - p.y };
-    motion.drag(dragPoses(anchorAt)); // the finger owns the run — an override, and one paint
+    // The finger owns the run: a spring carry (lag + whip + pop), never a tree write. Rigid style, so
+    // the column tilts as one plank about the pivot.
+    motion.grab(carryItems(), { anchor: anchorAt, style: "rigid", lift: LIFT_POP, tilt: WHIP });
     view.setPointerCapture(pointerId);
   };
 
@@ -187,7 +191,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     const g = glassOf(view, e);
     if (run.length > 0) {
       const p = toUnits(host, g);
-      motion.drag(dragPoses({ x: p.x + grab.x, y: p.y + grab.y })); // override + one paint, no tree write
+      motion.dragTo({ x: p.x + grab.x, y: p.y + grab.y }); // retarget the chase spring, one paint, no tree write
       return;
     }
     if (!pending) return;
@@ -196,7 +200,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     pending = undefined;
     if (run.length > 0) {
       const p = toUnits(host, g);
-      motion.drag(dragPoses({ x: p.x + grab.x, y: p.y + grab.y }));
+      motion.dragTo({ x: p.x + grab.x, y: p.y + grab.y });
     }
   };
 
