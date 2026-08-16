@@ -37,6 +37,11 @@ export interface DragOptions {
   readonly tilt?: { readonly factor: number; readonly maxDeg: number };
   /** The run a grabbed node leads. Absent, a card travels alone. */
   readonly runOf?: (root: Node, hit: Node) => readonly Node[];
+  /**
+   * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
+   * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
+   */
+  readonly may?: (n: Node) => boolean;
 }
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -70,9 +75,9 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     if (!motions || w.drag) return;
     const root = s.host.root;
     const g = glassOf(view, e);
-    // Only a draggable lifts: the pick reads the SAME plan the painter drew, so what refuses
-    // the finger is exactly what the eye sees refuse it.
-    const hit = pick(s.host, root, g, draggable);
+    // Only a draggable lifts — and only one the gate lets through: the pick reads the SAME plan
+    // the painter drew, so what refuses the finger is exactly what the eye sees refuse it.
+    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true));
     if (!hit) return;
     const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
     const poses = transformsOf(root);

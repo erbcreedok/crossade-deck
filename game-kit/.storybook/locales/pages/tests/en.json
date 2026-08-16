@@ -55,5 +55,10 @@
     "The invite on the glass. The unit suite states who is willing and what goes on; this rung proves the paint answers the FINGER: the same synthetic pointer the drag rung uses picks a card up, and one pixel in the zone's middle tells the whole story.",
     "The invite is a wash, so the middle changes colour while the right card is held — before, lit, and after are three readings of one point."
   ],
-  "docs.tests.inviting.invite": "Three claims on one zone. Pick up the seven and the wash goes on — the zone's middle changes while the card is held; let go and the coat comes off EXACTLY — the middle reads the very value it did before the grab, because the undo restores what stood there rather than painting \"something else\"; and pick up the eight and nothing ever lights — the rule answered deny, and an unwilling zone has nothing to show."
+  "docs.tests.inviting.invite": "Three claims on one zone. Pick up the seven and the wash goes on — the zone's middle changes while the card is held; let go and the coat comes off EXACTLY — the middle reads the very value it did before the grab, because the undo restores what stood there rather than painting \"something else\"; and pick up the eight and nothing ever lights — the rule answered deny, and an unwilling zone has nothing to show.",
+  "docs.tests.grippable": [
+    "The grip on the glass. The unit suite states who may lift; this rung proves the FINGER obeys — the same synthetic pointer as the drag rung, judged from the seat north.",
+    "Every drag ends where it began, so a refusal has the strongest possible reading: the whole canvas is bit-identical, no grab, no flight, no invite, nothing."
+  ],
+  "docs.tests.grippable.hands": "Three claims from one seat. North's finger moves north's card — out to the middle, back, and home; south's card ignores the very same finger pixel for pixel, because the grip sits on the HAND and cuts the subtree — the refusing card never carried the atom; and the open card, under no grip at all, travels for anyone: the open desk is the default, not a granted right."
 }

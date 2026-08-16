@@ -26,6 +26,7 @@ import type draggable from "./pages/draggable/en.json";
 import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
 import type gettingStarted from "./pages/gettingStarted/en.json";
+import type grippable from "./pages/grippable/en.json";
 import type intro from "./pages/intro/en.json";
 import type inviting from "./pages/inviting/en.json";
 import type lit from "./pages/lit/en.json";
@@ -68,6 +69,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   },
   lit: { en: () => import("./pages/lit/en.json"), ru: () => import("./pages/lit/ru.json") },
   inviting: { en: () => import("./pages/inviting/en.json"), ru: () => import("./pages/inviting/ru.json") },
+  grippable: { en: () => import("./pages/grippable/en.json"), ru: () => import("./pages/grippable/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -129,6 +131,7 @@ export type PageKey = keyof (typeof node &
   typeof shadowCaster &
   typeof lit &
   typeof inviting &
+  typeof grippable &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &

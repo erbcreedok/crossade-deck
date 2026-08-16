@@ -1,0 +1,39 @@
+{
+  "docs.grippable.component": [
+    "`Grippable` says whose hands may PICK a subtree up — the permission twin of `Private`: privacy",
+    "cuts what a seat SEES, grip cuts what a seat may MOVE. `by` lists the seats that may lift; the",
+    "empty list is locked to everyone (a fixed board element), and a node under no grip at all is the",
+    "open desk, liftable by anyone.",
+    "",
+    "```ts",
+    "import { node, Container, Grippable, grippableBy } from \"game-kit\"",
+    "",
+    "const hand = node(\"northHand\",",
+    "  Container({ layout: \"row\" }),",
+    "  Grippable({ by: [\"north\"] }))     // every card in it is north's to lift",
+    "",
+    "grippableBy(cardInHand, \"north\")    // true",
+    "grippableBy(cardInHand, \"south\")    // false — the subtree cut",
+    "```",
+    "",
+    "## It cuts a SUBTREE",
+    "",
+    "Like privacy, grip is a fact of the TREE: a gripped container grips everything in it, so a card",
+    "cannot be freely grabbed out of someone else's hand — and the cards themselves never carry the",
+    "atom. Lifting a card OUT of the hand and onto the desk is what frees it, exactly as detaching",
+    "starts a shadow: the tree is the switch.",
+    "",
+    "## The wiring asks, the atom answers",
+    "",
+    "`grippableBy(node, seat)` is the whole runtime: the drag wiring adds it beside `draggable` as",
+    "the pick's gate, and the other player's hand refuses the finger before anything lifts. No",
+    "permission flag lives on the card, and there is nothing to unset when a hand changes owners —",
+    "rewrite `by` on the hand and every card follows."
+  ],
+  "docs.grippable.hands": [
+    "Two hands and your seat. Pick `seat` and drag: your own hand's cards lift, the other hand's",
+    "refuse the finger — the grip cuts the subtree, so the refusing cards never carried the atom.",
+    "The open card in the middle lifts for either seat (no grip — the open desk), and the pale mark",
+    "refuses both: its `by` is the empty list, a board element locked to everyone."
+  ]
+}

@@ -1101,6 +1101,14 @@ test.describe.serial("the heavy pages", () => {
           "play.inviting.a-refused-card-leaves-it-dark",
         ],
       ],
+      [
+        "tests-grippable--hands",
+        [
+          "play.grippable.your-hand-lifts",
+          "play.grippable.anothers-hand-refuses",
+          "play.grippable.the-open-desk-lifts",
+        ],
+      ],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);
