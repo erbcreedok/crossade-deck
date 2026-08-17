@@ -1,0 +1,29 @@
+{
+  "docs.labeled.component": [
+    "`Labeled` carries a caption ALREADY WRITTEN in the viewer's language. The kit paints no string",
+    "a player could read and knows no notion of a language — that is a law, not a gap — so the",
+    "caption arrives on the node, localized by the consumer before it got in, and whoever draws",
+    "text reads it from here: a HUD widget, a tooltip, the catalog's own tree panel.",
+    "",
+    "```ts",
+    "import { node, Bounded, Labeled } from \"game-kit\"",
+    "",
+    "const button = node(\"attackButton\",",
+    "  Bounded({ bounds: rect(1.8, 0.7) }),",
+    "  Labeled({ label: t(\"actions.attack\") }))   // the CONSUMER's own i18n, resolved before the node",
+    "```",
+    "",
+    "## Why the kit will not translate",
+    "",
+    "A caption that arrived as a KEY would drag a dictionary, a locale and a fallback chain into",
+    "every renderer and every wire message. Arrived as WORDS, it is one string riding one node —",
+    "and switching the language is the consumer rebuilding its nodes from its own dictionaries,",
+    "which it already does for every other reason."
+  ],
+  "docs.labeled.caption": [
+    "A button-on-the-desk with its caption as data. The canvas paints NO text — a string on the",
+    "glass belongs to the HUD layer, which is not built yet. Where the caption already shows is the",
+    "catalog's own Node tree panel: open it, select the button, and `label` is there, changing as",
+    "you type — data on the node, read by whoever draws words."
+  ]
+}

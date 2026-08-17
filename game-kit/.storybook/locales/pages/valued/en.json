@@ -1,0 +1,31 @@
+{
+  "docs.valued.component": [
+    "`Valued` is the element's own game data, as plain fields: a rank, a suit, a cost — whatever a",
+    "RULE will read. The atom stores and never interprets; the readers are the rule language",
+    "(`el.values.rank` in an `Acceptor`), sorting, and scoring. Values are spec — they live on the",
+    "node and cross the wire — and they are the reason a card IS the seven of spades rather than a",
+    "picture of one.",
+    "",
+    "```ts",
+    "import { node, Bounded, Valued } from \"game-kit\"",
+    "",
+    "const card = node(\"sevenOfSpades\",",
+    "  Bounded({ bounds: rect(1, 1.4) }),",
+    "  Valued({ values: { rank: 7, suit: \"spade\" } }))",
+    "",
+    "// a zone that takes sevens reads the atom through the rule language:",
+    "// Acceptor({ accept: { eq: [\"el.values.rank\", 7] } })",
+    "```",
+    "",
+    "## The atom stores, the rule reads",
+    "",
+    "No method on the card answers \"am I a seven\" — the QUESTION belongs to whoever asks it: an",
+    "accept rule compares `el.values.rank`, a scorer sums costs, a sorter orders by rank. One store,",
+    "many readers, and adding a reader never touches the atom."
+  ],
+  "docs.valued.rank": [
+    "One card, one number. The zone takes rank 7 and nothing else; the `rank` knob writes the card's",
+    "`values`. Drag the card at the zone: at 7 it lights, at anything else it stays dark — the rule",
+    "reads `el.values.rank` off this very atom, and no other code path knows what a rank is."
+  ]
+}

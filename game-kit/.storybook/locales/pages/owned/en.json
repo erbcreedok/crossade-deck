@@ -1,0 +1,29 @@
+{
+  "docs.owned.component": [
+    "`Owned` names the BOX an element came from. It is the reference \"return the strays\" reads —",
+    "`reconcile` sends every piece back to its box — and the field a rule reaches as `el.box`: a",
+    "return-slot that takes only its own deck's cards, a scoring rule that counts only your pieces.",
+    "",
+    "```ts",
+    "import { node, Bounded, Owned } from \"game-kit\"",
+    "",
+    "const card = node(\"sevenOfSpades\",",
+    "  Bounded({ bounds: rect(1, 1.4) }),",
+    "  Owned({ box: \"redDeck\" }))",
+    "",
+    "// a slot that returns red-deck cards reads it through the rule language:",
+    "// Acceptor({ accept: { eq: [\"el.box\", \"redDeck\"] } })",
+    "```",
+    "",
+    "## A name, not a place",
+    "",
+    "The box is where the element BELONGS, not where it sits: a red-deck card on the desk, in a hand",
+    "or in the discard still answers `redDeck`. An empty box is a missing fact — a rule comparing",
+    "`el.box` denies, exactly as any missing operand does."
+  ],
+  "docs.owned.box": [
+    "One card, two return-slots. Each slot takes only cards of its own box — `el.box` in the rule",
+    "reads this very atom. Flip `box` and drag: the matching slot lights, the other stays dark, and",
+    "nothing else about the card changed — the box is a name it carries, not where it sits."
+  ]
+}

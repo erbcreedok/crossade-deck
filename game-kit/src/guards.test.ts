@@ -26,6 +26,10 @@ import "./core/atoms/lit.js";
 import "./core/atoms/inviting.js";
 import "./core/atoms/grippable.js";
 import "./core/atoms/private.js";
+import "./core/atoms/valued.js";
+import "./core/atoms/owned.js";
+import "./core/atoms/labeled.js";
+import "./core/atoms/placeable.js";
 import { rect } from "./presets/shapes.js";
 
 const SRC = new URL("./", import.meta.url).pathname;

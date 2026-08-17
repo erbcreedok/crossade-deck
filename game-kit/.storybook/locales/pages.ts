@@ -29,7 +29,10 @@ import type gettingStarted from "./pages/gettingStarted/en.json";
 import type grippable from "./pages/grippable/en.json";
 import type intro from "./pages/intro/en.json";
 import type inviting from "./pages/inviting/en.json";
+import type labeled from "./pages/labeled/en.json";
 import type lit from "./pages/lit/en.json";
+import type owned from "./pages/owned/en.json";
+import type placeable from "./pages/placeable/en.json";
 import type motion from "./pages/motion/en.json";
 import type node from "./pages/node/en.json";
 import type presetsBounds from "./pages/presetsBounds/en.json";
@@ -46,6 +49,7 @@ import type shadowCaster from "./pages/shadowCaster/en.json";
 import type surfaced from "./pages/surfaced/en.json";
 import type tiltable from "./pages/tiltable/en.json";
 import type transformable from "./pages/transformable/en.json";
+import type valued from "./pages/valued/en.json";
 import type tests from "./pages/tests/en.json";
 
 type Loader = () => Promise<{ default: Record<string, string | string[]> }>;
@@ -72,6 +76,10 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   inviting: { en: () => import("./pages/inviting/en.json"), ru: () => import("./pages/inviting/ru.json") },
   grippable: { en: () => import("./pages/grippable/en.json"), ru: () => import("./pages/grippable/ru.json") },
   private: { en: () => import("./pages/private/en.json"), ru: () => import("./pages/private/ru.json") },
+  valued: { en: () => import("./pages/valued/en.json"), ru: () => import("./pages/valued/ru.json") },
+  owned: { en: () => import("./pages/owned/en.json"), ru: () => import("./pages/owned/ru.json") },
+  labeled: { en: () => import("./pages/labeled/en.json"), ru: () => import("./pages/labeled/ru.json") },
+  placeable: { en: () => import("./pages/placeable/en.json"), ru: () => import("./pages/placeable/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -135,6 +143,10 @@ export type PageKey = keyof (typeof node &
   typeof inviting &
   typeof grippable &
   typeof privatePage &
+  typeof valued &
+  typeof owned &
+  typeof labeled &
+  typeof placeable &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &

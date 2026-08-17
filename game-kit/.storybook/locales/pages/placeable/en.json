@@ -1,0 +1,30 @@
+{
+  "docs.placeable.component": [
+    "`Placeable` is a MARKER: presence says \"this can be set into a slot\", absence declines, and",
+    "there is no second field to disagree with either answer. It requires `Bounded`, because a",
+    "thing set into a slot needs a footprint the slot can seat.",
+    "",
+    "```ts",
+    "import { node, Bounded, Placeable, placeable } from \"game-kit\"",
+    "",
+    "const token = node(\"scoutToken\",",
+    "  Bounded({ bounds: rect(0.9, 0.9) }),",
+    "  Placeable())",
+    "",
+    "placeable(token)              // true",
+    "placeable(node(\"mark\"))       // false — no atom, no seat",
+    "```",
+    "",
+    "## Presence is the whole answer",
+    "",
+    "What reads the marker is the move machinery: a slot layout seats only placeables, and `planMove`",
+    "refuses to seat what never claimed it could sit. There is no `canPlace: false` anywhere — the",
+    "capability IS the field, which is why a marker atom has none."
+  ],
+  "docs.placeable.marker": [
+    "Two identical tokens, one difference a renderer cannot show: the left one is `Placeable`, the",
+    "right one is not. Nothing on the glass differs — the marker draws nothing — and that is the",
+    "lesson: what changes is the ANSWER the move machinery gets when a slot asks whether it may seat",
+    "this. Open the Node tree panel to see the capability on the left token."
+  ]
+}
