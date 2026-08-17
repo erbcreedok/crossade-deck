@@ -1,0 +1,23 @@
+game-kit/.storybook/locales/pages/draggable/en.json
+  s_7ed2dea7ad95d9::t_f0a28cb9c8a2b6 35
+game-kit/.storybook/locales/pages/draggable/ru.json
+  s_7ed2dea7ad95d9::t_7595b1ab49c95a 35
+package-lock.json
+  s_7ed2dea7ad95d9::t_96cc6363b5bfdb 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "866865e63890ff56800d88930523f661a31d2730",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
