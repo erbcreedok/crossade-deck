@@ -74,6 +74,11 @@ export function startSolitaire(container: HTMLElement): () => void {
   });
 
   let board: SolitaireBoard = buildBoard();
+  // The dev door: `?won` seats the whole deck on the foundations BEFORE the table is mounted — a
+  // table already won, resting there from its first frame (no deal, no settle off the stock) — and
+  // the first tap is the ceremony. The one way to see it without fifty-two moves.
+  const wonAtOnce = new URLSearchParams(globalThis.location?.search ?? "").has("won");
+  if (wonAtOnce) winKlondike(board);
   const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }) });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
@@ -97,11 +102,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   // The board mounted with the whole deck stacked in the stock; dealing NOW — after the motion
   // runtime is watching — moves each card's rest pose from the stock to its seat, so the deal flies
   // in on the one clock instead of appearing already laid out.
-  // The dev door: `?won` seats the whole deck on the foundations instead of dealing, and celebrates
-  // at once — the one way to see the ceremony without playing fifty-two moves.
-  const wonAtOnce = new URLSearchParams(globalThis.location?.search ?? "").has("won");
-  if (wonAtOnce) winKlondike(board);
-  else dealKlondike(board);
+  if (!wonAtOnce) dealKlondike(board);
   redraw();
 
   // ---- reading the model ------------------------------------------------------------------
@@ -206,6 +207,12 @@ export function startSolitaire(container: HTMLElement): () => void {
   };
 
   const onDown = (e: PointerEvent): void => {
+    // The dev door's table is already won: the first tap anywhere is the ceremony (by then the
+    // renderer has presented the table and its pictures — a glass kept from before that is blank).
+    if (wonAtOnce && !celebrated) {
+      celebrate();
+      return;
+    }
     const g = glassOf(view, e);
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
     if (!hit) return;
@@ -353,15 +360,20 @@ export function startSolitaire(container: HTMLElement): () => void {
    * KEEPS every frame, so each card leaves its trail. When the last one is gone the desk repaints,
    * bare foundations and all.
    */
+  let celebrated = false;
   const celebrate = (): void => {
     const cards = board.foundations.flatMap((f) => [...f.children].reverse());
     let left = cards.length;
-    if (left === 0) return;
+    if (left === 0 || celebrated) return;
+    celebrated = true;
     motion.retain(true);
+    // The winning move is still landing on its foundation when this is called: the first card
+    // waits one settle out, so every card leaves from its seat and none from mid-air.
+    const hold = motion.tuning().settleMs;
     cards.forEach((c, i) => {
       const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
       motion.launch(c.id, {
-        delayMs: i * CASCADE.stepMs,
+        delayMs: hold + i * CASCADE.stepMs,
         speed: CASCADE.speed + Math.random() * CASCADE.spread,
         angle: a0 + Math.random() * (a1 - a0),
         onDone: () => {
@@ -374,8 +386,6 @@ export function startSolitaire(container: HTMLElement): () => void {
       });
     });
   };
-
-  if (wonAtOnce) checkWin();
 
   view.addEventListener("pointerdown", onDown);
   view.addEventListener("pointermove", onMove);

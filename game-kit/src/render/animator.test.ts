@@ -604,3 +604,26 @@ describe("retuning a running clock", () => {
     expect(c.idle()).toBe(true);
   });
 });
+
+describe("a flight goes from where the node is", () => {
+  it("motion.a-delayed-launch-goes-from-the-settled-seat — the settle runs on until the flight goes, and the body starts THERE", () => {
+    // The victory cascade's bug: a card that had just been moved onto its foundation (a settle asked
+    // and not yet drawn) was launched from its OLD seat, because the flight took the pose at the call.
+    // A flight filed with a delay lets the settle land and starts from the landed seat.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", gravity: 0, clock: c.clock });
+    const oldX = b.xOf("c");
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk); // the settle is asked; frame zero is still at the old seat
+    m.launch("c", { speed: 0.001, angle: 0, delayMs: 150 }); // goes after the settle has landed
+    c.tick(50);
+    const midX = b.xOf("c");
+    expect(midX).toBeGreaterThan(oldX); // the settle kept running: the card is on its way, not frozen
+    c.tick(100);
+    const seatX = b.xOf("c"); // landed on the new seat
+    c.tick(160); // the flight goes now — from the seat, not from the old place
+    expect(b.xOf("c")).toBeCloseTo(seatX, 1);
+    expect(Math.abs(b.xOf("c") - oldX)).toBeGreaterThan(Math.abs(seatX - oldX) * 0.9);
+  });
+});

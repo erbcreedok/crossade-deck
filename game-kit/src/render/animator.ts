@@ -254,7 +254,7 @@ interface Flight {
   /** The body as "no animation" leaves it: a fall is gone, a slide stands still. */
   readonly halt: (b: Body) => Body;
   /** The rest pose's own turn, degrees — the body's `angle` is on top of it, and the landing reports their sum. */
-  readonly angle0: number;
+  angle0: number;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 
@@ -327,10 +327,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         if (rest) map.set(id, ch.poseAt(i, ch.ids.length, t, rest));
       });
     }
-    // A flying body's pose is its own: where the physics put it, turned as it spins, at the rest's size.
+    // A flying body's pose is its own: where the physics put it, turned as it spins, at the rest's
+    // size. A flight still WAITING its turn is not here — until it goes, the node is whatever it
+    // was (at rest, or mid-settle), so a stagger never freezes a card in the air.
     for (const [id, f] of flights) {
+      if (!f.started) continue;
       const rest = displayed.get(id);
-      if (rest) map.set(id, f.started ? seatAt(rest, f.body.pos, f.body.angle) : rest);
+      if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle));
     }
     return map;
   };
@@ -340,9 +343,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * plan as its paint-order lift: a moving card rides above whatever it crosses, however tall the
    * pile (`PlanInput.raised`). The finger set is `held`, which contains every carried node too.
    */
+  const flying = (): NodeId[] => [...flights].filter(([, f]) => f.started).map(([id]) => id);
   const raised = (): ReadonlySet<NodeId> | undefined => {
     if (active.size === 0 && held.size === 0 && choreos.size === 0 && flights.size === 0) return undefined;
-    return new Set<NodeId>([...active.keys(), ...held, ...choreographed(), ...flights.keys()]);
+    return new Set<NodeId>([...active.keys(), ...held, ...choreographed(), ...flying()]);
   };
 
   const draw = (): void =>
@@ -374,7 +378,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     const target = transformsOf(host.root);
     const posed = choreographed();
     for (const [id, to] of target) {
-      if (held.has(id) || posed.has(id) || flights.has(id)) {
+      if (held.has(id) || posed.has(id) || flights.get(id)?.started) {
         // Finger-owned, choreographed or thrown: sit exactly where the tree says, no easing. A flip's
         // `commit` changes this node's rest pose (the reflection flips sign) — snapping it here is what
         // keeps that change from starting a second flight that would race the turn. A CARRIED node is
@@ -456,8 +460,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     // Advance the flights: a stagger holds a body at rest until its turn; then the physics.
     for (const [id, f] of [...flights]) {
       if (!f.started) {
-        if (instant || warped >= f.goMs) f.started = true;
-        else continue;
+        if (!instant && warped < f.goMs) continue;
+        // It goes NOW, from wherever it is drawn at this moment — the seat it rests on, or the
+        // point of a settle it was still riding — and that settle ends here: the body owns the pose.
+        f.started = true;
+        active.delete(id);
+        const at = displayed.get(id);
+        if (at) {
+          f.body = { ...f.body, pos: apply(at, { x: 0, y: 0 }) };
+          f.angle0 = turnOf(at);
+        }
       }
       f.body = instant ? f.halt(f.body) : f.step(f.body, dt);
       if (f.over(f.body)) land(id, f);
@@ -500,11 +512,11 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   /** The rest pose of a node as it stands on the glass now — where a throw or a tumble starts from. */
   const restOf = (id: NodeId): Transform | undefined => displayed.get(id) ?? transformsOf(host.root).get(id);
 
+  /** A flight is filed; the finger lets go of the node at once, and a settle it may be riding runs on until the flight goes. */
   const beginFlight = (id: NodeId, f: Flight): void => {
     flights.set(id, f);
     held.delete(id);
     carried.delete(id);
-    active.delete(id);
     if (carrying && carrying.items.every((it) => !carried.has(it.id))) carrying = null;
     ensureLoop();
   };
