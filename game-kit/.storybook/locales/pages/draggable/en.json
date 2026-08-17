@@ -32,7 +32,7 @@
     "  const hit = pick(host, host.root, glassOf(view, e), draggable)",
     "  if (!hit) return",
     "  motion.grab([{ id: hit.id, offset: { x: 0, y: 0 } }],",
-    "    { anchor: originOf(hit), lift: 1.06, tilt: { factor: 3, maxDeg: 15 } })",
+    "    { anchor: originOf(hit) })   // the feel is the tuning's — patch a field here to differ per gesture",
     "})",
     "view.addEventListener(\"pointermove\", (e) => motion.dragTo(toUnits(host, glassOf(view, e))))",
     "view.addEventListener(\"pointerup\", () => {",
