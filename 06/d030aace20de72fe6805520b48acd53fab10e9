@@ -1,0 +1,37 @@
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ed2dea7ad95d9::t_95673e7bf8a073 48
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_b5bb336911fa01 33
+game-kit/.storybook/preview.ts
+  s_7ed2dea7ad95d9::t_a67c43c858bbc3 147
+game-kit/.storybook/devtools/__scratch_snippet.test.ts
+  s_7ed2dea7ad95d9::t_fec2b12b590513 1-54
+game-kit/.storybook/locales/pages.ts
+  s_7ed2dea7ad95d9::t_609f4cd8960312 84
+  s_7ed2dea7ad95d9::t_da361c5769c468 28
+  s_7ed2dea7ad95d9::t_6e1e49d76e8a40 152
+game-kit/.storybook/locales/pages/focusable/ru.json
+  s_7ed2dea7ad95d9::t_c3b04c770327f2 1-31
+game-kit/.storybook/locales/chrome/en.json
+  s_7ed2dea7ad95d9::t_38ffd31bf27857 44
+game-kit/.storybook/stories/Focusable.stories.ts
+  s_7ed2dea7ad95d9::t_7018426ee33d1d 1-80
+game-kit/.storybook/locales/pages/focusable/en.json
+  s_7ed2dea7ad95d9::t_1c5dc4b7f926ab 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "06d030aace20de72fe6805520b48acd53fab10e9",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
