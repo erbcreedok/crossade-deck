@@ -37,7 +37,7 @@ import {
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, type SolitaireBoard } from "./board.ts";
+import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.ts";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
 
 // THE FEEL OF THIS GAME, in one literal — the designer's patch over the engine's tuning. Everything
@@ -46,6 +46,13 @@ import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } 
 // followed by the eye. The player's own speed sits above this on the viewer plane
 // (`host.setViewer({ ...host.viewer(), motionSpeed })`) and multiplies everything, this included.
 const FEEL: TuningPatch = { settleMs: 240 };
+
+// THE CELEBRATION — the old Windows solitaire's cascade, as this game's own data: how the cards
+// leave the foundations once the last one lands. Written here and not in the engine, because it is
+// solitaire's ceremony; written in ten lines, because the engine already knows how to throw a body
+// down the screen and keep the glass (`launch` + `retain`). The player's speed applies to it as to
+// everything else — at 0 the desk simply clears.
+const CASCADE = { stepMs: 90, speed: 3.5, spread: 3, angles: [200, 250, 290, 340] } as const;
 
 function fitUnit(v: { width: number; height: number }): number {
   return Math.max(20, Math.min(v.width / 8.6, v.height / 8.4));
@@ -90,7 +97,11 @@ export function startSolitaire(container: HTMLElement): () => void {
   // The board mounted with the whole deck stacked in the stock; dealing NOW — after the motion
   // runtime is watching — moves each card's rest pose from the stock to its seat, so the deal flies
   // in on the one clock instead of appearing already laid out.
-  dealKlondike(board);
+  // The dev door: `?won` seats the whole deck on the foundations instead of dealing, and celebrates
+  // at once — the one way to see the ceremony without playing fifty-two moves.
+  const wonAtOnce = new URLSearchParams(globalThis.location?.search ?? "").has("won");
+  if (wonAtOnce) winKlondike(board);
+  else dealKlondike(board);
   redraw();
 
   // ---- reading the model ------------------------------------------------------------------
@@ -333,8 +344,38 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   const checkWin = (): void => {
     const done = board.foundations.reduce((n, f) => n + f.children.length, 0);
-    if (done === 52) console.info("solitaire: you win");
+    if (done === 52) celebrate();
   };
+
+  /**
+   * Every card off the foundations, top card first, one after another: thrown up and sideways,
+   * pulled down by gravity, bouncing off the bottom of the glass, gone off the side — and the glass
+   * KEEPS every frame, so each card leaves its trail. When the last one is gone the desk repaints,
+   * bare foundations and all.
+   */
+  const celebrate = (): void => {
+    const cards = board.foundations.flatMap((f) => [...f.children].reverse());
+    let left = cards.length;
+    if (left === 0) return;
+    motion.retain(true);
+    cards.forEach((c, i) => {
+      const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
+      motion.launch(c.id, {
+        delayMs: i * CASCADE.stepMs,
+        speed: CASCADE.speed + Math.random() * CASCADE.spread,
+        angle: a0 + Math.random() * (a1 - a0),
+        onDone: () => {
+          if (c.parent) remove(c.parent, c);
+          if (--left === 0) {
+            motion.retain(false);
+            redraw();
+          }
+        },
+      });
+    });
+  };
+
+  if (wonAtOnce) checkWin();
 
   view.addEventListener("pointerdown", onDown);
   view.addEventListener("pointermove", onMove);

@@ -606,18 +606,26 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     launch(id, opts) {
       const rest = restOf(id);
       if (!rest) return;
-      const { halfW, halfH } = glass();
-      const cfg = { gravity: opts.gravity ?? tuning.gravity, bounce: opts.bounce ?? tuning.bounce, floor: opts.floor ?? halfH };
-      const offGlass = (b: Body): boolean => Math.abs(b.pos.x) > halfW + OFF_GLASS || b.pos.y > halfH + OFF_GLASS;
+      // The glass is read at EVERY step, not captured here: a launch asked before the page has laid
+      // the view out (a celebration on load) sees a zero glass, and a zero glass must mean "not yet",
+      // never "already gone".
+      const gravity = opts.gravity ?? tuning.gravity;
+      const bounce = opts.bounce ?? tuning.bounce;
+      const floorOf = (): number => opts.floor ?? glass().halfH;
+      const offGlass = (b: Body): boolean => {
+        const { halfW, halfH } = glass();
+        if (halfW <= 0) return !Number.isFinite(b.pos.x);
+        return Math.abs(b.pos.x) > halfW + OFF_GLASS || b.pos.y > halfH + OFF_GLASS;
+      };
       beginFlight(id, {
         body: { ...bodyAt(apply(rest, { x: 0, y: 0 })), vel: velocityOf(opts.speed, opts.angle), spin: opts.spin ?? 0 },
         goMs: warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),
-        step: (b, dt) => stepFall(b, cfg, dt),
+        step: (b, dt) => stepFall(b, { gravity, bounce, floor: floorOf() }, dt),
         over: offGlass,
         // No animation: a fall is simply gone.
-        halt: (b) => ({ ...b, pos: { x: halfW + OFF_GLASS + 1, y: b.pos.y }, vel: { x: 0, y: 0 }, spin: 0 }),
+        halt: (b) => ({ ...b, pos: { x: Infinity, y: b.pos.y }, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone ? () => opts.onDone!() : undefined,
       });
     },

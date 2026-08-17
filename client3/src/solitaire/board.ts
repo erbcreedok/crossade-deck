@@ -7,6 +7,7 @@ import {
   add,
   compose,
   Container,
+  fieldsOf,
   Lit,
   node,
   pile,
@@ -17,6 +18,7 @@ import {
   ShadowCaster,
   Transformable,
   type Node,
+  type ValuedFields,
 } from "game-kit";
 import { deckByCardId, shuffled } from "@game-presets/cards";
 
@@ -103,6 +105,36 @@ export function buildBoard(): SolitaireBoard {
  * stay in the stock, face-down. Reparenting cards a mounted board already holds is what lets the deal
  * FLY — each moved card's rest pose changes from the stock to its seat, and the settle glides it.
  */
+/**
+ * A table already WON — every card on its foundation, aces first, by suit — for the one thing a
+ * finished game does that a fresh one cannot show: the celebration. A dev door (`?won`), not a
+ * game state a player reaches this way; the rules are untouched, this only seats the cards.
+ */
+export function winKlondike(board: SolitaireBoard): void {
+  const cards = [...board.stock.children];
+  for (const c of cards) remove(board.stock, c);
+  const bySuit = new Map<string, Node[]>();
+  for (const c of cards) {
+    const v = fieldsOf<ValuedFields>(c, "Valued")?.values;
+    const suit = typeof v?.["suit"] === "string" ? (v["suit"] as string) : "?";
+    (bySuit.get(suit) ?? bySuit.set(suit, []).get(suit)!).push(c);
+  }
+  [...bySuit.values()].forEach((suited, i) => {
+    suited.sort((a, b) => rankOf(a) - rankOf(b));
+    for (const c of suited) {
+      setFacing(c, "up");
+      add(board.foundations[i % board.foundations.length]!, c);
+    }
+  });
+}
+
+/** 1 (Ace) … 13 (King) off a card's `rank` value, for seating a won foundation in order. */
+function rankOf(c: Node): number {
+  const rank = fieldsOf<ValuedFields>(c, "Valued")?.values["rank"];
+  const order = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+  return typeof rank === "string" ? order.indexOf(rank) : -1;
+}
+
 export function dealKlondike(board: SolitaireBoard): void {
   for (let i = 0; i < board.tableau.length; i++) {
     for (let j = 0; j <= i; j++) {
