@@ -1,0 +1,54 @@
+game-kit/.storybook/preview.ts
+  s_7ed2dea7ad95d9::t_c02ed49d599d8c 147
+game-kit/.storybook/locales/pages/placeable/ru.json
+  s_7ed2dea7ad95d9::t_ae43a704b7091e 1-30
+game-kit/.storybook/stories/Placeable.stories.ts
+  s_7ed2dea7ad95d9::t_d90549566635dd 1-66
+game-kit/.storybook/locales/pages/valued/en.json
+  s_7ed2dea7ad95d9::t_a65a6d794db56e 1-31
+game-kit/.storybook/stories/Valued.stories.ts
+  s_7ed2dea7ad95d9::t_cc476609e232a3 1-85
+game-kit/.storybook/locales/pages/owned/ru.json
+  s_7ed2dea7ad95d9::t_c87bbf4924d19a 1-30
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_3384220e1c095d 29-32
+game-kit/.storybook/locales/pages.ts
+  s_7ed2dea7ad95d9::t_bdb8326057d6ee 79-82
+  s_7ed2dea7ad95d9::t_e52af2bc56e75e 52
+  s_7ed2dea7ad95d9::t_ba7471bd481f3d 32,34-35
+  s_7ed2dea7ad95d9::t_597d15f866cb56 146-149
+game-kit/.storybook/locales/chrome/en.json
+  s_7ed2dea7ad95d9::t_8775d9e939d86e 44-46
+game-kit/.storybook/locales/pages/labeled/en.json
+  s_7ed2dea7ad95d9::t_dd54a63cbc0812 1-29
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ed2dea7ad95d9::t_f6259827bb9940 48-50
+game-kit/.storybook/locales/pages/owned/en.json
+  s_7ed2dea7ad95d9::t_b7a7f620459a45 1-29
+game-kit/.storybook/stories/Labeled.stories.ts
+  s_7ed2dea7ad95d9::t_68365c8ca57a74 1-63
+game-kit/.storybook/locales/pages/labeled/ru.json
+  s_7ed2dea7ad95d9::t_b933e3f021c741 1-29
+game-kit/.storybook/locales/pages/placeable/en.json
+  s_7ed2dea7ad95d9::t_f85aa4729cfd18 1-30
+game-kit/.storybook/locales/pages/valued/ru.json
+  s_7ed2dea7ad95d9::t_376af1a1d36889 1-30
+game-kit/.storybook/stories/Owned.stories.ts
+  s_7ed2dea7ad95d9::t_114c7cd5e02eda 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "62683bf1c04fa6814669ad61acf564fb78737431",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
