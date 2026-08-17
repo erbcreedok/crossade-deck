@@ -1,0 +1,125 @@
+game-kit/.storybook/locales/pages/cards/ru.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 18-20
+game-kit/docs/test-plan/40-motion.md
+  s_7ed2dea7ad95d9::t_d4990a5c7b7070 3,34
+game-kit/.storybook/stories/PresetsDice.stories.ts
+  s_7ed2dea7ad95d9::t_77bef3032cf1ad 1-268
+game-kit/.storybook/devtools/drag.ts
+  s_7ed2dea7ad95d9::t_d5804c1b0e591a 26,29,33-37,39,44-51,102-104,126-128
+game-kit/.storybook/locales/pages/container/ru.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 82-84
+game-kit/.storybook/locales/pages/presetsShuffles/ru.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 1-28
+scripts/new-preset.mjs
+  s_7ed2dea7ad95d9::t_8b8cea84db1db6 48,51-52
+game-kit/.storybook/locales/pages/cards/en.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 18-20
+game-kit/src/render/animator.test.ts
+  s_7ed2dea7ad95d9::t_d4990a5c7b7070 586-606
+game-kit/src/render/animator.ts
+  s_7ed2dea7ad95d9::t_d4990a5c7b7070 165-171,267,650-655
+game-kit/.storybook/locales/pages/dice/en.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 1-28
+game-kit/docs/test-plan/15-architectural-guards.md
+  s_7ed2dea7ad95d9::t_0c285cc331fbea 3,37
+game-kit/.storybook/stories/Container.stories.ts
+  s_7ed2dea7ad95d9::t_ce2afb2ccff418 2,126-166
+  s_7ed2dea7ad95d9::t_60e0095edd9167 167
+game-kit/.storybook/stories/Inviting.stories.ts
+  s_7ed2dea7ad95d9::t_3bc5cd4acb702c 96
+game-kit/docs/test-plan/16-interaction-play.md
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 3,97-101
+game-kit/.storybook/locales/chrome/en.json
+  s_7ed2dea7ad95d9::t_4875496d69f615 28-30
+  s_7ed2dea7ad95d9::t_64ccad3fc7b9cb 169-203
+  s_7ed2dea7ad95d9::t_794a885680534e 56
+game-kit/.storybook/stories/Owned.stories.ts
+  s_7ed2dea7ad95d9::t_3bc5cd4acb702c 79
+game-kit/.storybook/locales/pages/rollable/en.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 1-17
+game-kit/.storybook/locales/pages/container/en.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 83-85
+game-kit/e2e/catalog.spec.ts
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 1120-1123
+game-kit/.storybook/locales/pages.ts
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 45-47,126-131,170-172
+game-kit/.storybook/stories/Draggable.stories.ts
+  s_7ed2dea7ad95d9::t_3bc5cd4acb702c 6,49,52-53,57,88,90,97,106,130,132,137
+game-kit/.storybook/locales/pages/presetsShuffles/en.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 1-28
+game-kit/.storybook/stories/PresetsShuffles.stories.ts
+  s_7ed2dea7ad95d9::t_97141fd10b471c 1-116
+game-kit/.storybook/stories/Valued.stories.ts
+  s_7ed2dea7ad95d9::t_3bc5cd4acb702c 78
+game-kit/.storybook/devtools/scene.test.ts
+  s_7ed2dea7ad95d9::t_60df47d8ad0cfc 105-123
+game-kit/.storybook/locales/pages/dice/ru.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 1-28
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ed2dea7ad95d9::t_794a885680534e 60
+  s_7ed2dea7ad95d9::t_4875496d69f615 32-34
+  s_7ed2dea7ad95d9::t_64ccad3fc7b9cb 173-207
+game-kit/.storybook/locales/pages/tests/ru.json
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 68-78
+game-kit/.storybook/locales/pages/motion/ru.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 11-30,37-54
+game-kit/.storybook/manager.tsx
+  s_7ed2dea7ad95d9::t_4875496d69f615 14,115-123,130,144,146-147,193-216
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_949ff94d696c29 23,429-445
+  s_7ed2dea7ad95d9::t_2ff48e540a6a54 446-448
+game-kit/.storybook/stories/TestsMotion.stories.ts
+  s_7ed2dea7ad95d9::t_06f55470bb9f7b 1-7,9-91,93-118,121,123-127,132-133,135-136,138-184
+  s_7ed2dea7ad95d9::t_99c9e688978ee4 8,92,119-120,122,128-131,134,137
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 10,39,44
+  s_7ed2dea7ad95d9::t_0c285cc331fbea 43
+  s_7ed2dea7ad95d9::t_d4990a5c7b7070 68
+game-kit/.storybook/stories/Rollable.stories.ts
+  s_7ed2dea7ad95d9::t_e1445438d9ca91 17-19,52-53,55-61,64-66,71,73,76-79,86-87,91,93,95-96,99-101,103-109,111,124
+  s_7ed2dea7ad95d9::t_cc36ec2bd34c14 1-16,20-51,54,62-63,67-70,72,74-75,80-85,88-90,92,94,97-98,102,110,112-123
+game-kit/.storybook/stories/PresetsCards.stories.ts
+  s_7ed2dea7ad95d9::t_e73a13c0b40d72 9-26,29,63-115
+  s_7ed2dea7ad95d9::t_863ac7c78c0c4a 116
+game-kit/.storybook/devtools/scene.ts
+  s_7ed2dea7ad95d9::t_d4990a5c7b7070 164-166
+  s_7ed2dea7ad95d9::t_d5804c1b0e591a 20,128-132,241
+game-kit/.storybook/stories/Motion.stories.ts
+  s_7ed2dea7ad95d9::t_16f8cd953fe1b8 1-8,10,13-40,43-46,49-74,78-135,139-141,143-144,146-148,152-159,161-163,165-166,171-172,175-453
+game-kit/.storybook/locales/pages/motion/en.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 11-30,37-54
+game-kit/.storybook/stories/TestsDice.stories.ts
+  s_7ed2dea7ad95d9::t_240b433c684160 1-95
+game-kit/.storybook/locales/pages/tests/en.json
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 68-78
+game-kit/.storybook/preview.ts
+  s_7ed2dea7ad95d9::t_4875496d69f615 37-39,76-77,96
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 168
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 151,156,160
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_7ed2dea7ad95d9::t_e3cbb01e47cbc0 3,68
+game-kit/package.json
+  s_7ed2dea7ad95d9::t_c3083dc1bbf251 21
+game-kit/.storybook/locales/pages/rollable/ru.json
+  s_7ed2dea7ad95d9::t_1aec3e28429e22 1-17
+game-kit/.storybook/devtools/storySource.ts
+  s_7ed2dea7ad95d9::t_995e9ad22ef92f 54-89
+game-presets/dice/package.json
+  s_7ed2dea7ad95d9::t_8b8cea84db1db6 15,18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8535fe7d5e8ed80227d6fd0b1dd4146bc56e53c4",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
