@@ -481,10 +481,12 @@ describe("flights: launch and slide", () => {
     for (let t = 48; t <= 20000 && done === 0; t += 16, frames++) c.tick(t);
     expect(done).toBe(1);
     expect(frames).toBeGreaterThan(5);
-    expect(c.idle()).toBe(true);
-    // The override is gone: a reconcile finds the node at its rest, nothing to ease.
-    b.host.setRoot(b.desk);
+    // The override is gone and the tree was never written: in the SAME frame it starts easing HOME
+    // from where it left the glass — an honest settle, never a frame at the old seat in between.
+    expect(c.idle()).toBe(false);
+    for (let t = 20016; t <= 21000; t += 16) c.tick(t);
     expect(b.xOf("c")).toBeCloseTo(restX);
+    expect(c.idle()).toBe(true);
   });
 
   it("motion.launch-waits-its-turn — delayMs holds the body at rest before it goes", () => {
@@ -512,10 +514,15 @@ describe("flights: launch and slide", () => {
     expect(landed!.at.x).toBeGreaterThan(0.5); // v²/2a ≈ 0.75 units to the right of the origin
     expect(landed!.at.x).toBeLessThan(1);
     expect(landed!.angle).toBeGreaterThan(60); // it turned on the way
-    expect(c.idle()).toBe(true);
-    // Its override is gone: it draws at rest again until the game writes the landing into the tree.
-    b.host.setRoot(b.desk);
+    // Its override is gone but the glass remembers where it lies: a game that does NOT write the
+    // landing gets a settle home from there (from ≠ to) — begun in the landing frame, so it is
+    // still lying there now — one that does gets no flight at all (the dice add-on's tests).
+    const lyingX = b.xOf("c");
+    expect(lyingX).toBeGreaterThan(restX);
+    expect(c.idle()).toBe(false);
+    for (let t = 3016; t <= 4000; t += 16) c.tick(t);
     expect(b.xOf("c")).toBeCloseTo(restX);
+    expect(c.idle()).toBe(true);
   });
 
   it("motion.slide-obeys-walls-and-speed — a tray keeps it in; speed 0 stops it where it stands", () => {
@@ -536,6 +543,7 @@ describe("flights: launch and slide", () => {
     m.slide("c", { speed: 5, angle: 0, onDone: (r) => { quick = r; } });
     c.tick(30000);
     expect(quick).toBeDefined();
+    c.tick(30016); // and at speed 0 the settle home from the landing is over on the next frame too
     expect(c.idle()).toBe(true);
   });
 

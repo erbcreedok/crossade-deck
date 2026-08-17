@@ -21,6 +21,7 @@ import "./core/atoms/transformable.js";
 import "./core/atoms/flippable.js";
 import "./core/atoms/coated.js";
 import "./core/atoms/draggable.js";
+import "./core/atoms/rollable.js";
 import "./core/atoms/shadow.js";
 import "./core/atoms/lit.js";
 import "./core/atoms/inviting.js";

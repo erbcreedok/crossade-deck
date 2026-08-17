@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**47 слоёв · 1078 кейсов заявлено · 904 расписано поимённо.**
+**48 слоёв · 1082 кейсов заявлено · 908 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -57,7 +57,7 @@
 | [UNIT · Interaction & visibility atoms — Draggable · Focusable · Private](29-interaction-atoms.md) | `vitest` | 6 | 6 |
 | [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 44 | 44 |
 | [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 8 | 8 |
-| [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 7 | 7 |
+| [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 8 | 8 |
 | [UNIT · Grippable — whose hands may lift it](33-grippable.md) | `vitest` | 6 | 6 |
 | [UNIT · Move — the whole drop as one plan](34-move.md) | `vitest` | 11 | 11 |
 | [PRESET · Deck — a set expanded into cards](35-deck.md) | `vitest` | 10 | 10 |
@@ -73,3 +73,4 @@
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
 | [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 11 | 11 |
 | [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 6 | 6 |
+| [UNIT · Rollable — грань как истина, кувырок как вид](48-rollable.md) | `vitest` | 3 | 3 |

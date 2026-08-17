@@ -10,6 +10,8 @@
 
 import { caps, fieldsOf, type Node } from "./node.js";
 import { Flippable, type FlippableFields } from "./atoms/flippable.js";
+import { sidesOf, withFace } from "./atoms/rollable.js";
+import { rollDie } from "./rng.js";
 
 export interface ActionRecord {
   /** The human-facing verb, already written (the kit carries no words a player reads). */
@@ -51,6 +53,17 @@ export function installStockActions(): void {
   registerAction("tap", { label: "Tap", requires: "Tiltable" });
   registerAction("drag", { label: "Drag", requires: "Draggable" });
   registerAction("focus", { label: "Focus", requires: "Focusable" });
+  registerAction("roll", { label: "Roll", requires: "Rollable", perform: throwFace });
+}
+
+/**
+ * The roll verb for a SOLO desk: a fresh face from `Math.random`, written as the truth. A shared
+ * desk does not use this — its face comes seeded or from the server, through `setFace`/`withFace`
+ * with the number in hand — so the verb is the menu's entry, not the only door.
+ */
+function throwFace(n: Node): Node {
+  const sides = sidesOf(n);
+  return sides === undefined ? n : withFace(n, rollDie(sides, Math.random));
 }
 
 /**

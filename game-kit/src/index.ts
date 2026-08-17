@@ -141,6 +141,7 @@ export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js"
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
 // The shadow and the one light: a caster declares WHICH contour falls; the root's lamp says where.
 export { castsShadow, ShadowCaster, shadowFrom, type ShadowCasterFields } from "./core/atoms/shadow.js";
+export { faceOf, Rollable, rollable, setFace, sidesOf, withFace, type RollableFields } from "./core/atoms/rollable.js";
 export { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit, lightVector, shadowOf, type Frame, type Light, type LitFields, type Shadow } from "./core/atoms/lit.js";
 // The invite: what a willing zone wears while a drag it would take is in flight. The Acceptor's
 // verdict decides (`willingZones`); a game with function-rules picks zones itself and uses the
@@ -179,7 +180,33 @@ export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/hos
 export { attachPainter, renderFrame } from "./render/stage.js";
 // The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that
 // should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
-export { attachMotion, type CarryItem, type CarryOptions, type Clock, type MotionOptions, type Motions } from "./render/animator.js";
+export {
+  attachMotion,
+  type CarryItem,
+  type CarryOptions,
+  type Clock,
+  type LaunchOptions,
+  type MotionOptions,
+  type Motions,
+  type RollOptions,
+  type ShuffleOptions,
+  type SlideOptions,
+} from "./render/animator.js";
+// How a reorder LOOKS: the recipes a shuffle plays (riffle/overhand/wash/shake), a registry like flips.
+export {
+  installStockShuffles,
+  overhand,
+  registerShuffle,
+  resetShuffles,
+  riffle,
+  shake,
+  shuffleNames,
+  shuffleRecipe,
+  wash,
+  type ShuffleContext,
+  type ShufflePose,
+  type ShuffleRecipe,
+} from "./render/shuffles.js";
 export {
   DEFAULT_TUNING,
   easing,

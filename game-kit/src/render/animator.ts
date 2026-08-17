@@ -397,10 +397,21 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return u > 0 ? { halfW: v.width / u / 2, halfH: v.height / u / 2 } : { halfW: 0, halfH: 0 };
   };
 
-  /** End a flight: the override goes, the node is at its rest again, and the game hears where it stopped. */
+  /**
+   * End a flight: the override goes and the game hears where it stopped. What is on the glass is
+   * recorded as the node's displayed pose FIRST — so a game that writes the landing into the tree
+   * gets no second flight (from = to), and one that does not gets an honest settle home from
+   * where the body lies, not a jump back to the old seat and a glide from there.
+   */
   const land = (id: NodeId, f: Flight): void => {
     flights.delete(id);
+    const rest = displayed.get(id);
+    if (rest) displayed.set(id, seatAt(rest, f.body.pos, f.body.angle));
     f.done?.({ at: f.body.pos, angle: f.angle0 + f.body.angle });
+    // Read the tree NOW, in the same frame: a landing the game wrote in place is found equal and
+    // nothing flies; one it did not write starts the settle home from here — never a frame at the
+    // old seat in between.
+    reconcile();
   };
 
   const step = (): void => {

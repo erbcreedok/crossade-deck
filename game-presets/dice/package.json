@@ -1,0 +1,30 @@
+{
+  "name": "@game-presets/dice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A game-kit preset add-on: dice.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "module": "./dist/index.js",
+  "files": ["dist", "src"],
+  "dependencies": {
+    "game-kit": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
