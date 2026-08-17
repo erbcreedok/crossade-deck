@@ -1,0 +1,27 @@
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_7ed2dea7ad95d9::t_a91b8c939c5978 3,26
+game-kit/src/render/animator.test.ts
+  s_7ed2dea7ad95d9::t_a91b8c939c5978 630-652
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_a91b8c939c5978 10,74
+client3/src/solitaire/scene.ts
+  s_7ed2dea7ad95d9::t_8b9e248c8bf485 55,358-362,366-373,381-392,395,398,400,408-409
+game-kit/src/render/animator.ts
+  s_7ed2dea7ad95d9::t_a91b8c939c5978 88-92,632,643-648
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "71868f8a5aa87a4ef77b98f24fc6da9e47100c01",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
