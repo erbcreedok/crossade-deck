@@ -583,3 +583,24 @@ describe("flights: launch and slide", () => {
     expect(lastPlan.map((q) => q.id).sort()).toEqual(["c", "wall"]);
   });
 });
+
+describe("retuning a running clock", () => {
+  it("motion.retune-changes-the-next-flight — the running one keeps its pace, the next reads the new numbers", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+    expect(m.tuning().settleMs).toBe(100);
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    m.retune({ settleMs: 1000 });
+    expect(m.tuning().settleMs).toBe(1000);
+    c.tick(100); // the flight in progress was started at 100 ms: it lands now, untouched by the retune
+    expect(c.idle()).toBe(true);
+    compose(b.card, Transformable({ at: { x: 0, y: 0 } }));
+    b.host.setRoot(b.desk);
+    c.tick(200); // 100 ms into a 1000 ms flight — not there yet
+    expect(c.idle()).toBe(false);
+    c.tick(1100);
+    expect(c.idle()).toBe(true);
+  });
+});

@@ -20,6 +20,7 @@ import "./core/atoms/surfaced.js";
 import "./core/atoms/transformable.js";
 import "./core/atoms/flippable.js";
 import "./core/atoms/coated.js";
+import { DEFAULT_TUNING } from "./core/motion.js";
 import "./core/atoms/draggable.js";
 import "./core/atoms/rollable.js";
 import "./core/atoms/shadow.js";
@@ -422,6 +423,26 @@ describe("guards", () => {
           expect(isArg || isScene, `${def.name}.${field}: nothing in the catalog is named ${name}`).toBe(true);
         }
       }
+    }
+  });
+
+  it("guard.every-tuning-field-has-a-control — a number of feel a reader cannot turn is a constant in disguise", () => {
+    // The tuning is the ONE record of feel, and `Engine/Motion` is the one stand for it: every field
+    // of `DEFAULT_TUNING` is a control there UNDER ITS OWN NAME, declared in `gkTuning` (field → the
+    // scenes that carry it), and each named scene declares that arg. A field added to the engine
+    // without a control here fails on the day it is added — the day it would otherwise become a
+    // number only the source knows.
+    const stand = files.find((f) => f.rel === "catalog/stories/Motion.stories.ts");
+    expect(stand, "the Engine/Motion stand is missing").toBeTruthy();
+    const declared = objectLiteral(stand!.raw, "gkTuning");
+    expect(Object.keys(declared).sort(), "gkTuning does not match DEFAULT_TUNING").toEqual(Object.keys(DEFAULT_TUNING).sort());
+    for (const [field, scenes] of Object.entries(declared)) {
+      expect(scenes.length, `tuning.${field} is on no scene`).toBeGreaterThan(0);
+      for (const name of scenes) {
+        expect(new RegExp(`export const ${name}\\b`).test(stand!.code), `tuning.${field}: no scene named ${name}`).toBe(true);
+      }
+      // The arg is declared by the field's own name — the panel says what the clock gets.
+      expect(new RegExp(`\\b${field}\\s*[,:]`).test(stand!.code), `tuning.${field} is not an argument of the stand`).toBe(true);
     }
   });
 

@@ -1,0 +1,28 @@
+{
+  "docs.dice.component": [
+    "d4, d6 and d20 — documented in the kit's catalog, built by a SEPARATE package, `@game-presets/dice`. The add-on ships the kinds (sides, silhouettes seen from above), the face textures (SVG data URIs, as the cards add-on does), the classic skin and the throws. The engine carries the atom (`Rollable`), the verb (`roll`), the tumble and the ballistics — and nothing of what a die looks like.",
+    "",
+    "A throw is TWO things kept apart on purpose. The RESULT is `Outcome`, one door with three sides: a **number** (the server said, the test pins, the cheat wants), **`{ seed }`** (every client draws the same face from the same seed), **`{ rng }`** (the game's own chance). The LOOK is the clock's: `rollDie` tumbles in place, `throwDie` slides across the desk on the ballistics (spin, friction, the walls of a tray) and writes where it stopped into the tree, `throwFromCarry` is the same throw with the finger's own speed — a drag let go with momentum. Every one commits the face through `showFace`, truth and picture together.",
+    "",
+    "```ts",
+    "import { die, throwDie, wallsOf } from \"@game-presets/dice\"",
+    "const d = die(\"d20\", { kind: \"d20\", at: { x: 0, y: 0 } })",
+    "throwDie(motions, desk, d, { speed: 9, angle: 15, spin: 900, walls: wallsOf(desk, tray), outcome: 17 })   // the server said 17",
+    "throwDie(motions, desk, d, { speed: 9, angle: 15, outcome: { seed: 42 } })                                  // every client lands the same",
+    "```",
+    "",
+    "The dice are imported by package name, like any consumer — never a path into the add-on's src."
+  ],
+  "docs.dice.faces": [
+    "Every face of every kind, as the classic skin draws them: the tetrahedron from above (a triangle, its numeral), the cube (a soft square, pips — the one and the centre of odd faces red, the printed convention), the icosahedron (a hexagon, the top face a triangle, its numeral; 6 and 9 underlined). Thirty surfaces, registered under speaking names (`dice/d6/classic/4`); swap the record behind one and every die showing that face changes at once."
+  ],
+  "docs.dice.roll": [
+    "A tumble in place, with the result from any door. `outcome` picks where the face comes from — `seed`, `given`, `rng` — and bump `rolled` to roll. The face is decided the moment the roll is asked and shown when the tumble commits (`Engine/Motion` · Roll is the same choreography without a face)."
+  ],
+  "docs.dice.script": [
+    "A throw BY SCRIPT — what a game does on \"the server rolled 17\": `throwDie` slides the die across the tray on the engine's ballistics, the walls being the tray's own footprint (`wallsOf`), spinning and slowing by the tuning's `friction`/`spinFriction`/`bounce`; when it stops the seat is WRITTEN into the tree in the tray's own units and the face is shown. Bump `thrown` to throw."
+  ],
+  "docs.dice.throw": [
+    "A throw BY HAND — drag the die and LET GO WHILE MOVING: the carry spring's speed at release becomes the slide's (`throwFromCarry`), scaled by `gain`; a slow release is a drop and the die stays put. The wiring is the catalog's ordinary drag with one hook: `onRelease` reads the finger's speed and hands the die to the clock's `slide` instead of the ordinary drop."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "docs.rollable.component": [
+    "**Rollable** says one thing as data: this element lands on one of `sides` faces — a die, a coin, a spinner. Which face is up is NOT the atom's: it is `Valued.values.face`, a value like a rank, and a rule reads it the same way (`a.values.face + b.values.face`). What a face LOOKS like is a set's skin (`Add-ons/Dice`). Where the RESULT comes from is not the atom's either — the kit's seeded rng, a number the server dictated, a fixed value for a test — each is a `commit` the clock plays.",
+    "",
+    "The kit ships one verb for a solo desk: `perform(\"roll\", die)` — the stock action the capability implies (`actionsOf(die)` lists it), drawing from `Math.random`. A shared desk uses `setFace(die, face)` with the number in hand. Requires `Valued`: a die with no place to keep its face is not a die.",
+    "",
+    "```ts",
+    "import { Rollable, Valued, faceOf, perform, setFace } from \"game-kit\"",
+    "const die = node(\"d20\", Bounded({ bounds: polygon(6, 0.5) }), Valued({ values: {} }), Rollable({ sides: 20 }))",
+    "faceOf(perform(\"roll\", die))   // 1..20, Math.random — the solo door",
+    "setFace(die, 17)                // the server said 17 — written as the truth",
+    "```"
+  ],
+  "docs.rollable.roll": [
+    "A bare token that rolls — no skin, so the value is shown as PIPS: bump `rolled` and the stock verb `roll` is performed on it, its `values.face` becomes a fresh face from `Math.random`, and the pips under it count that value back. The tumble it plays is the clock's `roll` (`Engine/Motion`), so the face lands late in the turn. `sides` is the atom's one field."
+  ]
+}

@@ -80,5 +80,8 @@
     "",
     "The measure takes only the child's OWN scale: the owner's scale grows the whole row at once",
     "and so does not change who sits where inside it."
+  ],
+  "docs.container.reorder": [
+    "The same children in a NEW ORDER — `reorder`, the container's one write that is a shuffle's truth. `order` is the permutation as text (`3,1,2,0` — the CURRENT index of the child to stand at each place); leave it empty and `seed` draws one through the kit's seeded rng, the same on every client that shares the seed. Nothing is added or dropped, every child keeps its identity, and the row's record simply seats them again — so the settle carries each one to its new seat. The choreographies that DRESS a reorder are on `Presets/Shuffles`."
   ]
 }

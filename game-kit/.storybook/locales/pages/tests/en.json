@@ -65,5 +65,15 @@
     "Privacy on the glass. The unit suite states who may see; this rung proves the PROJECTION obeys — a seat's view is a tree with the denied subtrees simply gone, and three pixels tell the whole story: my hand's spot, the other's, and the public pile's.",
     "The strongest claim is the last: swap the seat away and back, and the canvas is bit-identical — the view is local, and nothing was ever written to the truth."
   ],
-  "docs.tests.private.hands": "Three claims through two pairs of eyes. North's view paints north's card, leaves south's spot bare desk, and shows the public pile; project the same truth for south and the two hands trade places while the pile stays; and reproject for north again — the canvas returns bit for bit, because a projection is pure: the hands were never written, only shown and not shown."
+  "docs.tests.private.hands": "Three claims through two pairs of eyes. North's view paints north's card, leaves south's spot bare desk, and shows the public pile; project the same truth for south and the two hands trade places while the pile stays; and reproject for north again — the canvas returns bit for bit, because a projection is pure: the hands were never written, only shown and not shown.",
+  "docs.tests.motion": [
+    "The motion rung: the three claims about the clock no headless layer can make. The unit suite proves the arithmetic on a fake clock; this page proves the GPU shows it — pixels read off a real WebGL canvas, the same steps automation asserts on."
+  ],
+  "docs.tests.motion.speed": "One claim: at viewer speed 0 a moved card is on its new seat by the next frame and is NEVER seen in between — a 1500 ms settle is asked and no flight the eye could catch is played. The speed is set on this scene alone (the third argument of `scene()`), so the reader's own header ladder is untouched.",
+  "docs.tests.motion.retain": "One claim: with `retain` on, ink STAYS where the launched card was and along the way it went — a renderer that cleared between frames would show desk at both — and once `retain` is off the next frame repaints in full: the card is home (it eased there from off the glass) and the trail is desk again.",
+  "docs.tests.motion.shuffle": "One claim: after a riffle over four cards commits a new order and the choreography lands, the glass is bit-identical to a row BUILT in that order from scratch — every card ended exactly on its new seat, so feeding that row starts no settle and moves no pixel.",
+  "docs.tests.dice": [
+    "The dice rung: the add-on's throws, on the glass. The add-on's unit suite proves the arithmetic on a fake clock; this page proves the desk shows it, and that a seed keeps its promise."
+  ],
+  "docs.tests.dice.throw": "Two claims on one die. A throw BY SCRIPT with a given result (`outcome: 4`) leaves its seat, comes to rest somewhere else, reads 4 off the node itself (the truth, not the picture), and STAYS where it stopped — the tree holds the landing, and the glass agrees with the tree; and two throws from one seed land one face, decided the moment the throw is asked, which is the whole agreement a shared desk stands on."
 }

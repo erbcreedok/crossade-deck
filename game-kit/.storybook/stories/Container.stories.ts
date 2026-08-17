@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { add, Bounded, Container, freeLayout, node, registerLayout, registerSurface, rowLayout, Surfaced, Transformable } from "../../src/index.js";
+import { add, Bounded, Container, freeLayout, node, permutation, rect, registerLayout, registerSurface, reorder, rowLayout, seededRng, Surfaced, Transformable } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import { documented } from "./surfaceControls.js";
 
@@ -122,4 +122,46 @@ export const Reserve: StoryObj<ReserveArgs> = {
   args: { scale: 2 },
   argTypes: { scale: documented("arg.scale", { control: { type: "number", min: 0, step: 0.1 } }, "card0 transformable") },
   parameters: { gkDocStory: "container.reserve", controls: { include: ["scale"] } },
+};
+
+interface ReorderArgs {
+  order: string;
+  seed: number;
+}
+
+/**
+ * THE SAME CHILDREN IN A NEW ORDER — `reorder`, the container's one write that is a shuffle's truth.
+ * `order` is the permutation as text (`3,1,2,0` — the CURRENT index of the child to stand at each
+ * place); leave it empty and `seed` draws one through the kit's seeded rng, the same on every client
+ * that shares the seed. Nothing is added or dropped, every child keeps its identity, and the row's
+ * record simply seats them again — so the settle carries each one to its new seat.
+ */
+export const Reorder: StoryObj<ReorderArgs> = {
+  render: (a) => {
+    registerLayout("story.container.reorder", rowLayout({ gap: 0.2 }));
+    const desk = node("desk", Container({ layout: "story.container.reorder" }));
+    for (const [i, paint] of (["accent", "alert", "textMuted", "panelBg"] as const).entries()) {
+      registerSurface(`story.container.reorder.${i}`, { layers: [{ paint }], radius: 0.08 });
+      add(desk, node(`card${i}`, Bounded({ bounds: rect(0.9, 1.3) }), Surfaced({ surface: `story.container.reorder.${i}` })));
+    }
+    const typed = a.order
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .map(Number);
+    const order = typed.length === 4 ? typed : permutation(4, seededRng(a.seed));
+    try {
+      reorder(desk, order);
+    } catch {
+      // A permutation the reader has not finished typing is not an error of the scene: the row
+      // stands in its authored order until the text names every child once.
+    }
+    return scene(desk, { animate: true }).el;
+  },
+  args: { order: "", seed: 3 },
+  argTypes: {
+    order: documented("arg.order", { control: "text" }, "reorder"),
+    seed: documented("arg.seed", { control: { type: "number", step: 1 } }, "reorder"),
+  },
+  parameters: { gkDocStory: "container.reorder", controls: { include: ["order", "seed"] } },
 };

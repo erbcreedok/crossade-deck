@@ -1,0 +1,28 @@
+{
+  "docs.presetsShuffles.component": [
+    "The recipes a reorder can LOOK like — one shelf, in isolation, drop-in. A shuffle is three layers a game keeps apart: the ORDER (a seed through the kit's rng, or the server's word), the TRUTH (`reorder` — the same children in a new order), and the LOOK — a recipe here. A recipe is a pure function of `(index, count, progress, rest pose, group extent) → in-flight pose`, played by the one clock; at progress 1 it returns the rest exactly, so a shuffle ends with no jerk, and at its commit phase its pose does not depend on the seat, so the reorder underneath moves nothing on the glass.",
+    "",
+    "Shown on a row of plain tokens, not cards, on purpose: a recipe is entity-agnostic — children by index, cards or tiles or dice. A fan of a hand is the cards preset's business.",
+    "",
+    "```ts",
+    "import { installStockShuffles, permutation, reorder, seededRng } from \"game-kit\"",
+    "installStockShuffles()                       // riffle · overhand · wash · shake",
+    "const order = permutation(hand.children.length, seededRng(seed))   // the truth, seeded",
+    "motions.shuffle(hand.id, () => reorder(hand, order), { recipe: \"riffle\" })",
+    "```",
+    "",
+    "A game registers its own with `registerShuffle(name, { poseAt, commitAt })`; an unknown name plays `riffle` rather than throwing."
+  ],
+  "docs.presetsShuffles.riffle": [
+    "The pack splits into two halves that part to either side, then zip back together, the halves' cards alternating in time so the merge reads as teeth meshing. The half a piece belongs to is its ORIGINAL half; where it lands is wherever the new order seats it."
+  ],
+  "docs.presetsShuffles.overhand": [
+    "The pack in three packets, each lifted off the desk in turn (up the screen, a touch higher per packet) and dropped back onto the new seats — the shape of a hand pulling packets off the top and letting them fall."
+  ],
+  "docs.presetsShuffles.wash": [
+    "Every piece scatters to a ring around the group, turning as it goes, and the ring gathers back onto the new seats — the tiles-on-a-table shuffle, for pieces that have no order to riffle."
+  ],
+  "docs.presetsShuffles.shake": [
+    "The group trembles in place, each piece on its own phase, the shiver dying out by the end — dice in a cup, tiles in a bag. Nothing leaves its seat far; the reorder happens under the blur."
+  ]
+}

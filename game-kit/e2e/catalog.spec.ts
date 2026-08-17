@@ -1117,6 +1117,10 @@ test.describe.serial("the heavy pages", () => {
           "play.private.nothing-was-written",
         ],
       ],
+      ["tests-motion--speed", ["play.motion.speed-zero-snaps"]],
+      ["tests-motion--retain", ["play.motion.retain-keeps-the-glass"]],
+      ["tests-motion--shuffle", ["play.motion.shuffle-lands-in-order"]],
+      ["tests-dice--throw", ["play.dice.script-throw-shows-the-given-face", "play.dice.rng-throw-is-seeded"]],
     ];
     for (const [story, steps] of rungs) {
       await page.goto(`/?path=/story/${story}&addonPanel=storybook%2Finteractions%2Fpanel`);

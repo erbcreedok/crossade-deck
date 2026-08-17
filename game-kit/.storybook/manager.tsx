@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from "react";
 import { addons, types, useArgs, useChannel, useGlobals, useParameter, useStorybookApi } from "@storybook/manager-api";
 import { IconButton, TooltipLinkList, WithTooltip } from "@storybook/components";
-import { GlobeIcon, MoonIcon, SunIcon } from "@storybook/icons";
+import { GlobeIcon, MoonIcon, PlayIcon, SunIcon } from "@storybook/icons";
 import { installTheme, s, t, type ThemeName } from "../src/index.js";
 import { catalogText, LOCALES, type CatalogLocale, type CatalogText } from "./locales/catalog.js";
 import { inspectorBodyStyle, inspectorMarkup } from "./devtools/inspectorPanel.js";
@@ -112,14 +112,22 @@ if (typeof document !== "undefined") {
   pinTextSize(document);
 }
 
-/** Read the pair of globals every control here shares. */
-function useViewerGlobals(): [{ theme: ThemeName; locale: CatalogLocale; text: CatalogText }, (patch: object) => void] {
+/**
+ * The onlooker's speed of every motion, as the header offers it: a short ladder, not a slider —
+ * a player picks "off / slow / normal / fast", not a number. The values are the viewer plane's
+ * `motionSpeed` (0 = no animation, 1 = as the game designed it).
+ */
+export const MOTION_STEPS: readonly number[] = [0, 0.5, 1, 2];
+
+/** Read the globals every control here shares. */
+function useViewerGlobals(): [{ theme: ThemeName; locale: CatalogLocale; motion: number; text: CatalogText }, (patch: object) => void] {
   const [globals, updateGlobals] = useGlobals();
   const locale = (globals["locale"] as CatalogLocale) ?? "en";
   return [
     {
       theme: (globals["theme"] as ThemeName) ?? "dark",
       locale,
+      motion: typeof globals["motion"] === "number" ? (globals["motion"] as number) : 1,
       // The words come from the same bundles the preview reads, through the same port — the
       // manager is simply another document showing the same catalog.
       text: catalogText(locale),
@@ -133,8 +141,10 @@ function useViewerGlobals(): [{ theme: ThemeName; locale: CatalogLocale; text: C
  * whole catalog, not the story currently open.
  */
 const CatalogSettings: React.FC = () => {
-  const [{ theme, locale, text }, update] = useViewerGlobals();
+  const [{ theme, locale, motion, text }, update] = useViewerGlobals();
   const api = useStorybookApi();
+  const motionLabel = (v: number): string =>
+    v === 0 ? text.text("viewer.motion.off") : v === 1 ? text.text("viewer.motion.normal") : `${v}×`;
 
   // The chrome repaints live rather than at build time — otherwise "light" would mean a
   // light picture inside a dark frame, which is not a theme, it is a mismatch.
@@ -180,6 +190,30 @@ const CatalogSettings: React.FC = () => {
         <IconButton key="gk-locale" title={text.text("viewer.locale")}>
           <GlobeIcon />
           <span style={{ marginLeft: 6, fontSize: 11 }}>{locale.toUpperCase()}</span>
+        </IconButton>
+      </WithTooltip>
+
+      <WithTooltip
+        placement="bottom"
+        trigger="click"
+        closeOnOutsideClick
+        tooltip={({ onHide }: { onHide: () => void }) => (
+          <TooltipLinkList
+            links={MOTION_STEPS.map((v) => ({
+              id: `motion-${v}`,
+              title: motionLabel(v),
+              active: v === motion,
+              onClick: () => {
+                update({ motion: v });
+                onHide();
+              },
+            }))}
+          />
+        )}
+      >
+        <IconButton key="gk-motion" title={`${text.text("viewer.motion")}: ${motionLabel(motion)}`}>
+          <PlayIcon />
+          <span style={{ marginLeft: 6, fontSize: 11 }}>{motionLabel(motion)}</span>
         </IconButton>
       </WithTooltip>
     </div>

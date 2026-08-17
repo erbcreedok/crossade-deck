@@ -3,6 +3,7 @@ import {
   add,
   Bounded,
   Container,
+  DEFAULT_TUNING,
   Draggable,
   freeLayout,
   installStockCarries,
@@ -45,13 +46,15 @@ interface DragArgs {
   onReject: "home" | "stay";
   carry: string;
   lift: number;
-  lean: number;
+  leanMaxDeg: number;
 }
 
+// The feel knobs are the engine's OWN fields (`MotionTuning.carry/lift/leanMaxDeg`), under their own
+// names, handed to the wiring as they are; the whole record is on the `Engine/Motion` stand.
 const onRejectControl = documented("arg.onReject", { control: "select", options: ["home", "stay"] }, "drag");
 const carryControl = documented("arg.carry", { control: "select", options: ["rigid", "loose"] }, "drag/feel");
 const liftControl = documented("arg.lift", { control: { type: "range", min: 1, max: 1.3, step: 0.02 } }, "drag/feel");
-const leanControl = documented("arg.lean", { control: { type: "range", min: 0, max: 25, step: 1 } }, "drag/feel");
+const leanControl = documented("arg.leanMaxDeg", { control: { type: "range", min: 0, max: 25, step: 1 } }, "drag/feel");
 
 export const Drag: StoryObj<DragArgs> = {
   // ONE CARD YOU CAN PICK UP — and one stone you cannot: the pick asks `draggable`, and the stone
@@ -82,20 +85,16 @@ export const Drag: StoryObj<DragArgs> = {
         Transformable({ at: { x: 1.2, y: 0.9 } }),
       ),
     );
-    return wireDrag(scene(desk, { animate: true }), {
-      style: a.carry,
-      lift: a.lift,
-      tilt: { factor: 3, maxDeg: a.lean },
-    }).el;
+    return wireDrag(scene(desk, { animate: true }), { carry: a.carry, lift: a.lift, leanMaxDeg: a.leanMaxDeg }).el;
   },
-  args: { id: "card", face: "accent", onReject: "home", carry: "rigid", lift: 1.06, lean: 15 },
+  args: { id: "card", face: "accent", onReject: "home", carry: DEFAULT_TUNING.carry, lift: DEFAULT_TUNING.lift, leanMaxDeg: DEFAULT_TUNING.leanMaxDeg },
   argTypes: {
     id: documented("arg.id", { control: "text" }, "node"),
     face: documented("arg.face", { control: "select", options: PAINTS }, "surface"),
     onReject: onRejectControl,
     carry: carryControl,
     lift: liftControl,
-    lean: leanControl,
+    leanMaxDeg: leanControl,
   },
   parameters: { gkDocStory: "draggable.drag" },
 };
@@ -104,7 +103,7 @@ interface RunArgs {
   onReject: "home" | "stay";
   carry: string;
   lift: number;
-  lean: number;
+  leanMaxDeg: number;
 }
 
 export const Run: StoryObj<RunArgs> = {
@@ -128,19 +127,14 @@ export const Run: StoryObj<RunArgs> = {
         ),
       );
     }
-    return wireDrag(scene(desk, { animate: true }), {
-      style: a.carry,
-      lift: a.lift,
-      tilt: { factor: 3, maxDeg: a.lean },
-      runOf: runBelow,
-    }).el;
+    return wireDrag(scene(desk, { animate: true }), { carry: a.carry, lift: a.lift, leanMaxDeg: a.leanMaxDeg, runOf: runBelow }).el;
   },
-  args: { onReject: "home", carry: "rigid", lift: 1.06, lean: 15 },
+  args: { onReject: "home", carry: DEFAULT_TUNING.carry, lift: DEFAULT_TUNING.lift, leanMaxDeg: DEFAULT_TUNING.leanMaxDeg },
   argTypes: {
     onReject: onRejectControl,
     carry: carryControl,
     lift: liftControl,
-    lean: leanControl,
+    leanMaxDeg: leanControl,
   },
   parameters: { gkDocStory: "draggable.run" },
 };

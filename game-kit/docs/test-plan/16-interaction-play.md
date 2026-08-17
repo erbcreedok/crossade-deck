@@ -1,6 +1,6 @@
 ## INTERACTION · play functions
 
-`@storybook/test + userEvent, Vitest browser mode` · 95 кейсов, расписано 90
+`@storybook/test + userEvent, Vitest browser mode` · 100 кейсов, расписано 95
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -94,3 +94,8 @@
 | `play.private.the-owner-sees` | руки north/south под Private, проекция севера | три пробы | северова карта покрашена, место южной — голый стол, публичная стопка видна |
 | `play.private.the-view-swaps-with-the-seat` | та же истина, проекция юга | setRoot + пробы | руки поменялись местами, стопка стоит: вид — дерево без запретных поддеревьев |
 | `play.private.nothing-was-written` | место туда и обратно | снимки сверены | холст бит-в-бит: проекция чиста — руки не писались, их показывали и не показывали |
+| `play.motion.speed-zero-snaps` | Tests/Motion · Speed: сцена с `motionSpeed: 0` (третий аргумент `scene()`), `settleMs 1500` | карта сдвинута в дереве, `setRoot` | на правом месте к следующему кадру; середина стола НИ РАЗУ не окрашена (полёта нет); левое место — голый стол |
+| `play.motion.retain-keeps-the-glass` | Tests/Motion · Retain: карта слева | `retain(true)`, `launch` вверх до вылета; `retain(false)`, тишина | с retain — тушь на покинутом месте И на пути вверх сохранена; без — карта дома, след — стол |
+| `play.motion.shuffle-lands-in-order` | Tests/Motion · Shuffle: ряд из 4, `shuffleMs 400` | `shuffle("hand", reorder [3,0,2,1], riffle)`, тишина; `setRoot(ряд, построенный в этом порядке)` | картинка изменилась; после подачи ряда «с нуля» — бит-в-бит та же (никакого оседания: каждая карта легла ровно на место) |
+| `play.dice.script-throw-shows-the-given-face` | Tests/Dice · Throw: d6 на месте, `friction 8` | `throwDie(..., {speed 5, angle 0, spin 540, outcome: 4, onRest})`, тишина | вернуло 4; `faceOf` узла — 4; старое место — стол; `Transformable.at` сдвинут > 0.5 и стекло окрашено там (дерево держит посадку) |
+| `play.dice.rng-throw-is-seeded` | тот же стол | два `throwDie` с `{seed: 2024}`; третий с `{seed: 7}` | одна и та же грань (решена в момент запроса), узел её и показывает; другой сид — легальная грань 1..6 |

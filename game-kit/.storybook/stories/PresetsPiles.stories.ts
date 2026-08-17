@@ -94,8 +94,6 @@ export const Piles: StoryObj<PilesArgs> = {
       add(desk, p);
     }
     return wireDrag(scene(desk, { animate: true }), {
-      lift: 1.06,
-      tilt: { factor: 3, maxDeg: 15 },
       runOf: grabRun,
     }).el;
   },

@@ -23,26 +23,32 @@ import {
   Transformable,
   wearInvites,
   type CarryItem,
+  type CarryTuning,
   type Node,
   type Point,
+  type Vec,
 } from "../../src/index.js";
 import { type Scene } from "./scene.js";
 
-export interface DragOptions {
-  /** Carry style name — `rigid` keeps the run one plank, `loose` turns each card in place. */
-  readonly style?: string;
-  /** Lift pop while held — `1` is no pop. */
-  readonly lift?: number;
-  /** Velocity → lean: `factor` degrees per unit/s of horizontal speed, saturating at `maxDeg`. */
-  readonly tilt?: { readonly factor: number; readonly maxDeg: number };
+/**
+ * The carry's feel — the carry fields of `MotionTuning`, by their own names, handed to `grab` as the
+ * per-gesture patch — plus the two things a scene has to say about its own rules.
+ */
+export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined } & {
   /** The run a grabbed node leads. Absent, a card travels alone. */
-  readonly runOf?: (root: Node, hit: Node) => readonly Node[];
+  readonly runOf?: ((root: Node, hit: Node) => readonly Node[]) | undefined;
   /**
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
    * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
    */
-  readonly may?: (n: Node) => boolean;
-}
+  readonly may?: ((n: Node) => boolean) | undefined;
+  /**
+   * Called on release BEFORE the ordinary drop, with the finger's speed (root units/s) and the
+   * released nodes: a scene that throws on release (a die) does its throw here and returns `true`
+   * to say it took the nodes; `false`/absent, and the drop is refused-or-stays as always.
+   */
+  readonly onRelease?: ((velocity: Vec | undefined, items: readonly CarryItem[]) => boolean) | undefined;
+};
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
 export function runBelow(_root: Node, hit: Node): readonly Node[] {
@@ -93,12 +99,9 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y } };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
-    motions.grab(items, {
-      anchor,
-      ...(w.opts.style ? { style: w.opts.style } : {}),
-      ...(w.opts.lift ? { lift: w.opts.lift } : {}),
-      ...(w.opts.tilt ? { tilt: w.opts.tilt } : {}),
-    });
+    // The knobs go through by NAME: what the panel says is what the clock gets.
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, ...feel } = w.opts;
+    motions.grab(items, { anchor, ...feel });
     try {
       view.setPointerCapture(e.pointerId);
     } catch {
@@ -120,6 +123,9 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     w.undoInvites?.();
     w.undoInvites = undefined;
     const root = s.host.root;
+    // A scene that throws on release takes the nodes here — the finger's speed is still on the
+    // springs, read before anything is released.
+    if (w.opts.onRelease?.(motions.velocity(), drag.items)) return;
     const p = toUnits(s.host, glassOf(view, e));
     const seat = { x: p.x + drag.delta.x, y: p.y + drag.delta.y };
     for (const it of drag.items) {

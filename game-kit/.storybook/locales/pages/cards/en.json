@@ -15,5 +15,8 @@
   ],
   "docs.cards.specials": [
     "The cards a standard 52 does not have: the two jokers, the brand card reading *crossade deck*, and the shared back every card turns over to reveal."
+  ],
+  "docs.cards.shuffle": [
+    "The add-on's cards, shuffled on the clock — the three layers a game writes: the ORDER is the kit's `permutation(n, seededRng(seed))` (every client that shares the seed lands the same hand), the TRUTH is `reorder` on the row, and the LOOK is a stock recipe — `riffle` by default, the one a pack of cards actually gets. Bump `shuffled` to shuffle again. The add-on's `shuffled()` is this same permutation over a plain array, for a game that shuffles data before it builds nodes."
   ]
 }

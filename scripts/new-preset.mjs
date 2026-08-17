@@ -45,12 +45,11 @@ const files = {
   "exports": {
     ".": {
       "development": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./src/index.ts"
     }
   },
-  "types": "./dist/index.d.ts",
-  "module": "./dist/index.js",
+  "types": "./src/index.ts",
+  "module": "./src/index.ts",
   "files": ["dist", "src"],
   "dependencies": {
     "game-kit": "*"

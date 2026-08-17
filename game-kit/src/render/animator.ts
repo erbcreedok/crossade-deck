@@ -162,6 +162,13 @@ export interface Motions {
    * frame repaints everything.
    */
   retain(on: boolean): void;
+  /**
+   * Change the tuning of a RUNNING clock — the designer's settings screen, the catalog's sliders.
+   * Whatever is in flight keeps going; the next settle, grab, throw or turn reads the new numbers.
+   */
+  retune(patch: TuningPatch): void;
+  /** The tuning in force right now — the defaults, the game's record and every `retune` folded in. */
+  tuning(): MotionTuning;
   /** Stop following the host and cancel any running loop. */
   stop(): void;
 }
@@ -257,7 +264,7 @@ interface Flight {
  * node whose rest pose moved.
  */
 export function attachMotion(host: Host, painter: Painter, options: MotionOptions = {}): Motions {
-  const tuning: MotionTuning = tune(options);
+  let tuning: MotionTuning = tune(options);
   const clock = options.clock ?? rafClock;
 
   const displayed = new Map<NodeId, Transform>(); // what is on the glass now, root-unit space
@@ -639,6 +646,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (retaining === on) return;
       retaining = on;
       draw();
+    },
+    retune(patch) {
+      tuning = tune({ ...tuning, ...patch });
+    },
+    tuning() {
+      return tuning;
     },
     stop() {
       unsubscribe();

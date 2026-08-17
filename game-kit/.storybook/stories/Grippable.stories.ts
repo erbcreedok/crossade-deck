@@ -92,8 +92,6 @@ export const Hands: StoryObj<HandsArgs> = {
       ),
     );
     return wireDrag(scene(desk, { animate: true }), {
-      lift: 1.06,
-      tilt: { factor: 3, maxDeg: 15 },
       may: (n) => grippableBy(n, a.seat),
     }).el;
   },

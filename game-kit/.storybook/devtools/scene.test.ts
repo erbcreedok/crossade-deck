@@ -102,6 +102,25 @@ describe("a canvas carries its own settings", () => {
     s.dispose();
   });
 
+  it("shell.motion-speed-is-a-header-global — the viewer's speed rides the catalog settings into every canvas, and the tuning follows the sliders", () => {
+    // The speed is the ONLOOKER's (viewer plane), so it arrives with the catalog's settings — the
+    // header's ladder — not as an argument of a story; a re-render with new settings updates the
+    // standing host. And a re-render with a `motion` patch RETUNES the standing clock rather than
+    // building a second one.
+    const base = currentSettings();
+    setNextSceneId("story:speed");
+    const s = scene(node("sp", Bounded(), Surfaced()), { animate: true, motion: { settleMs: 100 } }, { ...base, viewer: { ...base.viewer, motionSpeed: 0.5 } });
+    document.body.appendChild(s.el);
+    expect(s.host.viewer().motionSpeed).toBe(0.5);
+    expect(s.motions!.tuning().settleMs).toBe(100);
+
+    setNextSceneId("story:speed");
+    scene(node("sp2", Bounded(), Surfaced()), { animate: true, motion: { settleMs: 700 } }, { ...base, viewer: { ...base.viewer, motionSpeed: 2 } });
+    expect(s.host.viewer().motionSpeed).toBe(2);
+    expect(s.motions!.tuning().settleMs).toBe(700);
+    s.dispose();
+  });
+
   it("scene.animate-hands-over-the-clock — a drag story gets the runtime, a still scene has none", () => {
     // The handle must be the LIVE one, not decorative: a grab paints the node at the finger,
     // which only the runtime driving this very painter can do. A second runtime would be a

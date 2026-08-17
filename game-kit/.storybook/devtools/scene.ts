@@ -17,6 +17,7 @@
 
 import {
   attachMotion,
+  type TuningPatch,
   attachPainter,
   inspect,
   installStockEasings,
@@ -124,6 +125,11 @@ export interface SceneOptions {
    * is exactly what a control change is — becomes a settle the reader can watch.
    */
   readonly animate?: boolean;
+  /**
+   * The game's tuning for an `animate` scene — any subset of `MotionTuning`, handed to `attachMotion`
+   * AS IS. A story's controls are these fields under these names; nothing translates in between.
+   */
+  readonly motion?: TuningPatch;
 }
 
 export function scene(
@@ -155,6 +161,9 @@ export function scene(
   if (standing) {
     standing.setRoot(root);
     standing.setSettings(settings);
+    // The tuning follows the sliders on the standing clock — a re-render is new numbers for the
+    // same runtime, the way a game's settings screen retunes without rebuilding the desk.
+    if (options.motion) standing.motions?.retune(options.motion);
     return standing;
   }
 
@@ -229,7 +238,7 @@ export function scene(
   // The runtime handle is KEPT when it exists: a drag story speaks to the clock (`grab`/`dragTo`/
   // `release`), and building a second runtime for that would put two clocks on one glass.
   const motions = options.animate
-    ? (installStockEasings(), attachMotion(host, painter, options.bake ? { bake: options.bake } : {}))
+    ? (installStockEasings(), attachMotion(host, painter, { ...options.motion, ...(options.bake ? { bake: options.bake } : {}) }))
     : undefined;
   const stopPainting = motions ? motions.stop : attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
 

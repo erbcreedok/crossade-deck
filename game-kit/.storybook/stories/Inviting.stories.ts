@@ -93,7 +93,7 @@ export const Invite: StoryObj<InviteArgs> = {
         Draggable(),
       ),
     );
-    return wireDrag(scene(desk, { animate: true }), { lift: 1.06, tilt: { factor: 3, maxDeg: 15 } }).el;
+    return wireDrag(scene(desk, { animate: true })).el;
   },
   args: { recipe: "ring", level: 0.7, tint: "accent" },
   argTypes: {

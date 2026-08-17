@@ -34,6 +34,9 @@ if (typeof document !== "undefined") {
 const globalTypes = {
   theme: { description: "Catalog-wide: chrome, docs and preview" },
   locale: { description: "Catalog-wide: every caption and every page of prose" },
+  // The onlooker's speed of every motion — the "reduce motion" knob of the viewer plane, offered
+  // in the header as a ladder (off · ½ · 1× · 2×) the way a game would offer it to a player.
+  motion: { description: "Catalog-wide: the viewer's speed of every motion (0 = none)" },
 };
 
 /**
@@ -70,7 +73,8 @@ function apply(globals: Record<string, unknown>): void {
     reloadForLocale(locale);
     return;
   }
-  setCatalogSettings({ viewer: { theme }, text: catalogText(locale) });
+  const motionSpeed = typeof globals["motion"] === "number" ? (globals["motion"] as number) : 1;
+  setCatalogSettings({ viewer: { theme, motionSpeed }, text: catalogText(locale) });
   installTheme(document, theme);
 }
 
@@ -89,7 +93,7 @@ const preview: Preview = {
   tags: ["autodocs"],
 
   globalTypes,
-  initialGlobals: { theme: "dark", locale: "en" },
+  initialGlobals: { theme: "dark", locale: "en", motion: 1 },
 
   decorators: [
     (story, context) => {
@@ -144,16 +148,16 @@ const preview: Preview = {
           "Basics",
           ["Node", "Root"],
           "Atoms",
-          ["Bounded", "Surfaced", "Coated", "Transformable", "Container", "Flippable", "Tiltable", "Draggable", "Grippable", "Private", "ShadowCaster", "Lit", "Inviting", "Valued", "Owned", "Labeled", "Placeable", "Focusable"],
+          ["Bounded", "Surfaced", "Coated", "Transformable", "Container", "Flippable", "Tiltable", "Draggable", "Grippable", "Private", "ShadowCaster", "Lit", "Inviting", "Valued", "Owned", "Labeled", "Placeable", "Focusable", "Rollable"],
           // Presets stand on the atoms and are the first pages where a scene is allowed to be
           // several nodes at once: an assembly is what a preset IS. Split by what each preset
           // GENERATES, not by which file of the kit it happens to live in.
           "Presets",
-          ["Bounds", "Surfaces", "Coats", "Flips", "Poses", "Layouts", "Piles", "Components"],
+          ["Bounds", "Surfaces", "Coats", "Flips", "Shuffles", "Poses", "Layouts", "Piles", "Components"],
           // Add-ons stand OUTSIDE the kit: a preset package that ships its own textures and presets
           // (`@game-presets/*`), documented here but explicitly not part of the core the pages above show.
           "Add-ons",
-          ["Cards"],
+          ["Cards", "Dice"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion"],
           "Elements",
@@ -161,7 +165,7 @@ const preview: Preview = {
           // Last, because it is ABOUT the catalog rather than of it: the pages that check the
           // pictures above them. Opening one runs its checks — the section is the switch.
           "Tests",
-          ["Node", "Bounded", "Surfaced", "Coated", "Transformable", "Container", "Tiltable", "Flippable", "Draggable", "Grippable", "Private", "ShadowCaster", "Inviting"],
+          ["Node", "Bounded", "Surfaced", "Coated", "Transformable", "Container", "Tiltable", "Flippable", "Draggable", "Grippable", "Private", "ShadowCaster", "Inviting", "Motion", "Dice"],
         ],
       },
     },

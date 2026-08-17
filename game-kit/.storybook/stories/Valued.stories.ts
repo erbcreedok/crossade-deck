@@ -75,7 +75,7 @@ export const Rank: StoryObj<RankArgs> = {
         Draggable(),
       ),
     );
-    return wireDrag(scene(desk, { animate: true }), { lift: 1.06, tilt: { factor: 3, maxDeg: 15 } }).el;
+    return wireDrag(scene(desk, { animate: true })).el;
   },
   args: { rank: 7 },
   argTypes: {

@@ -76,7 +76,7 @@ export const Box: StoryObj<BoxArgs> = {
         Draggable(),
       ),
     );
-    return wireDrag(scene(desk, { animate: true }), { lift: 1.06, tilt: { factor: 3, maxDeg: 15 } }).el;
+    return wireDrag(scene(desk, { animate: true })).el;
   },
   args: { box: "redDeck" },
   argTypes: {
