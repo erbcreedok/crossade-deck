@@ -627,3 +627,26 @@ describe("a flight goes from where the node is", () => {
     expect(Math.abs(b.xOf("c") - oldX)).toBeGreaterThan(Math.abs(seatX - oldX) * 0.9);
   });
 });
+
+describe("a launch reports its bounces", () => {
+  it("motion.launch-reports-its-bounces — onBounce fires at each touch of the floor, first with 1; a chain hangs on it", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { gravity: 30, bounce: 0.6, clock: c.clock });
+    const seen: number[] = [];
+    let chained = false;
+    m.launch("c", { speed: 4, angle: 300, floor: 1, onBounce: (n) => { seen.push(n); if (n === 1) chained = true; } });
+    for (let t = 16; t <= 6000 && seen.length < 2; t += 16) c.tick(t);
+    expect(seen[0]).toBe(1);
+    expect(seen[1]).toBe(2); // the second touch, softer, still reported
+    expect(chained).toBe(true);
+    // Without a floor nothing ever bounces.
+    const b2 = bench();
+    const c2 = fakeClock();
+    const m2 = attachMotion(b2.host, b2.painter, { gravity: 30, clock: c2.clock });
+    let none = 0;
+    m2.launch("c", { speed: 4, angle: 0, floor: Infinity, onBounce: () => none++ });
+    for (let t = 16; t <= 3000; t += 16) c2.tick(t);
+    expect(none).toBe(0);
+  });
+});

@@ -52,7 +52,7 @@ const FEEL: TuningPatch = { settleMs: 240 };
 // solitaire's ceremony; written in ten lines, because the engine already knows how to throw a body
 // down the screen and keep the glass (`launch` + `retain`). The player's speed applies to it as to
 // everything else — at 0 the desk simply clears.
-const CASCADE = { stepMs: 90, speed: 3.5, spread: 3, angles: [200, 250, 290, 340] } as const;
+const CASCADE = { speed: 3.5, spread: 3, angles: [200, 250, 290, 340] } as const;
 
 function fitUnit(v: { width: number; height: number }): number {
   return Math.max(20, Math.min(v.width / 8.6, v.height / 8.4));
@@ -355,14 +355,22 @@ export function startSolitaire(container: HTMLElement): () => void {
   };
 
   /**
-   * Every card off the foundations, top card first, one after another: thrown up and sideways,
-   * pulled down by gravity, bouncing off the bottom of the glass, gone off the side — and the glass
-   * KEEPS every frame, so each card leaves its trail. When the last one is gone the desk repaints,
-   * bare foundations and all.
+   * The cards leave the foundations IN ORDER — the four kings, one after another, then the four
+   * queens, and so on down to the aces — and each waits for the one before it to touch the floor
+   * once. Every card is thrown up and sideways, pulled down by gravity, bounces off the bottom of
+   * the glass, and is gone off the side; the glass KEEPS every frame, so each leaves its trail.
+   * When the last one is gone the desk repaints, bare foundations and all.
    */
   let celebrated = false;
   const celebrate = (): void => {
-    const cards = board.foundations.flatMap((f) => [...f.children].reverse());
+    const layers = Math.max(0, ...board.foundations.map((f) => f.children.length));
+    const cards: Node[] = [];
+    for (let j = 0; j < layers; j++) {
+      for (const f of board.foundations) {
+        const c = f.children[f.children.length - 1 - j];
+        if (c) cards.push(c);
+      }
+    }
     let left = cards.length;
     if (left === 0 || celebrated) return;
     celebrated = true;
@@ -370,13 +378,26 @@ export function startSolitaire(container: HTMLElement): () => void {
     // The winning move is still landing on its foundation when this is called: the first card
     // waits one settle out, so every card leaves from its seat and none from mid-air.
     const hold = motion.tuning().settleMs;
-    cards.forEach((c, i) => {
+    let next = 0;
+    const go = (): void => {
+      if (next >= cards.length) return;
+      const c = cards[next++]!;
+      let passed = false;
+      // The baton: the next card goes at this one's first touch of the floor — or when it is gone,
+      // if it never touched down (a flat throw straight off the side).
+      const pass = (): void => {
+        if (passed) return;
+        passed = true;
+        go();
+      };
       const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
       motion.launch(c.id, {
-        delayMs: hold + i * CASCADE.stepMs,
+        delayMs: next === 1 ? hold : 0,
         speed: CASCADE.speed + Math.random() * CASCADE.spread,
         angle: a0 + Math.random() * (a1 - a0),
+        onBounce: pass,
         onDone: () => {
+          pass();
           if (c.parent) remove(c.parent, c);
           if (--left === 0) {
             motion.retain(false);
@@ -384,7 +405,8 @@ export function startSolitaire(container: HTMLElement): () => void {
           }
         },
       });
-    });
+    };
+    go();
   };
 
   view.addEventListener("pointerdown", onDown);

@@ -85,6 +85,11 @@ export type LaunchOptions = {
   readonly floor?: number | undefined;
   /** Wait this long (ms, on the warped clock) before it goes — a cascade's stagger. */
   readonly delayMs?: number | undefined;
+  /**
+   * Runs at every bounce off the floor, with the count so far (1 on the first). The cue a cascade
+   * chains on: the next card goes when this one has touched down once.
+   */
+  readonly onBounce?: ((count: number) => void) | undefined;
   /** Runs once the body has left the glass; the override is gone and the node is at its rest again. */
   readonly onDone?: (() => void) | undefined;
 } & { readonly gravity?: number | undefined; readonly bounce?: number | undefined };
@@ -624,6 +629,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       const gravity = opts.gravity ?? tuning.gravity;
       const bounce = opts.bounce ?? tuning.bounce;
       const floorOf = (): number => opts.floor ?? glass().halfH;
+      let bounces = 0;
       const offGlass = (b: Body): boolean => {
         const { halfW, halfH } = glass();
         if (halfW <= 0) return !Number.isFinite(b.pos.x);
@@ -634,7 +640,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         goMs: warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),
-        step: (b, dt) => stepFall(b, { gravity, bounce, floor: floorOf() }, dt),
+        step: (b, dt) => {
+          const next = stepFall(b, { gravity, bounce, floor: floorOf() }, dt);
+          // Falling before, rising after: the floor just gave it back — a bounce.
+          if (b.vel.y > 0 && next.vel.y < 0) opts.onBounce?.(++bounces);
+          return next;
+        },
         over: offGlass,
         // No animation: a fall is simply gone.
         halt: (b) => ({ ...b, pos: { x: Infinity, y: b.pos.y }, vel: { x: 0, y: 0 }, spin: 0 }),
