@@ -41,6 +41,7 @@
   "arg.stops": "The discrete tilt angles, in degrees clockwise, written as a list — `0, 90` is upright and tapped, `0, 120, 240` a three-way standee. The tap steps through them in this order; the length is the point, so it is a text field, not a slider.",
   "arg.wrap": "What a tap does at the end of the list. On, past the last stop it returns to the first — the card that taps and untaps; off, it rests on the last, a dial that stops at its end.",
   "arg.onReject": "Where a REFUSED drop leaves the element — the atom's one policy word. `home` flies it back to the seat it left, on the spring; `stay` strands it where the finger let go, and that seat is written into the tree as its new rest.",
+  "arg.focused": "The input wiring's runtime state: does focus stand on the focusable bar right now? On, the story wears the stock ring on it — the same coat a game wears on Tab. Never a field on the element.",
   "arg.rank": "The card's rank, written into `values` — the field the zone's rule compares as `el.values.rank`. Slide it through 7 and watch the verdict change; nothing else about the card moves.",
   "arg.box": "The box this element belongs to — a name it carries, not where it sits. A return-slot's rule compares it as `el.box`, and only the matching slot lights.",
   "arg.label": "The caption, already written in the viewer's language. The kit paints no strings — whoever draws text (a HUD widget, the tree panel) reads this field.",

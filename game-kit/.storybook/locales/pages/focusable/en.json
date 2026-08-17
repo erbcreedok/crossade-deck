@@ -1,0 +1,31 @@
+{
+  "docs.focusable.component": [
+    "`Focusable` is a MARKER, like `Placeable`: presence says \"input focus may land here\", absence",
+    "declines, and no second field can disagree with either answer. It requires `Bounded` — focus",
+    "lands on something with a footprint to outline and to hit-test.",
+    "",
+    "```ts",
+    "import { node, Bounded, Focusable, focusable } from \"game-kit\"",
+    "",
+    "const field = node(\"nameField\",",
+    "  Bounded({ bounds: rect(1.8, 0.7) }),",
+    "  Focusable())",
+    "",
+    "focusable(field)             // true — the gate the input wiring asks",
+    "focusable(node(\"bar\"))       // false — Tab walks past it",
+    "```",
+    "",
+    "## The look and the state are not the atom's",
+    "",
+    "WHICH node holds focus is runtime state the input wiring keeps — never a field on the element,",
+    "or two elements would both claim it after one lost message. What focus LOOKS like is a coat the",
+    "wiring wears on the focused node — the stock `ring` recipe exists for exactly this — so a",
+    "keyboard outline costs no new paint machinery at all."
+  ],
+  "docs.focusable.focus": [
+    "Two bars and a Tab key's worth of state. The upper one is `Focusable`; flip `focused` — the",
+    "wiring's runtime state — and the story wears a stock ring on it, exactly as a game would on",
+    "Tab. The lower bar never rings, whatever the state says: it never declared the capability, and",
+    "`focusable()` is the gate the wiring asks before it moves focus at all."
+  ]
+}

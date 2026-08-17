@@ -25,6 +25,7 @@ import type container from "./pages/container/en.json";
 import type draggable from "./pages/draggable/en.json";
 import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
+import type focusable from "./pages/focusable/en.json";
 import type gettingStarted from "./pages/gettingStarted/en.json";
 import type grippable from "./pages/grippable/en.json";
 import type intro from "./pages/intro/en.json";
@@ -80,6 +81,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   owned: { en: () => import("./pages/owned/en.json"), ru: () => import("./pages/owned/ru.json") },
   labeled: { en: () => import("./pages/labeled/en.json"), ru: () => import("./pages/labeled/ru.json") },
   placeable: { en: () => import("./pages/placeable/en.json"), ru: () => import("./pages/placeable/ru.json") },
+  focusable: { en: () => import("./pages/focusable/en.json"), ru: () => import("./pages/focusable/ru.json") },
   intro: { en: () => import("./pages/intro/en.json"), ru: () => import("./pages/intro/ru.json") },
   gettingStarted: {
     en: () => import("./pages/gettingStarted/en.json"),
@@ -147,6 +149,7 @@ export type PageKey = keyof (typeof node &
   typeof owned &
   typeof labeled &
   typeof placeable &
+  typeof focusable &
   typeof intro &
   typeof gettingStarted &
   typeof presetsBounds &

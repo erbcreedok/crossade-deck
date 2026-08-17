@@ -30,6 +30,7 @@ import "./core/atoms/valued.js";
 import "./core/atoms/owned.js";
 import "./core/atoms/labeled.js";
 import "./core/atoms/placeable.js";
+import "./core/atoms/focusable.js";
 import { rect } from "./presets/shapes.js";
 
 const SRC = new URL("./", import.meta.url).pathname;
