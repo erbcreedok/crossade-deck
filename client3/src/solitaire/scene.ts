@@ -33,17 +33,19 @@ import {
   type CarryItem,
   type Node,
   type Point,
+  type TuningPatch,
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, type SolitaireBoard } from "./board.ts";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
 
-// The feel of the carry — the reference client's drag, ported to the engine's spring. The run rides a
-// `rigid` style, so it tilts as ONE plank about the grab point (a vertical column stays coherent, not
-// venetian-blinded); `LIFT_POP` is the small grow in hand; `WHIP` leans the whole run into its motion.
-const LIFT_POP = 1.06;
-const WHIP = { factor: 3, maxDeg: 15 };
+// THE FEEL OF THIS GAME, in one literal — the designer's patch over the engine's tuning. Everything
+// not named here is the engine's default (the `rigid` carry that keeps a column one plank, the lift
+// pop, the whip lean); what solitaire wants differently is a slower settle, so a dealt card can be
+// followed by the eye. The player's own speed sits above this on the viewer plane
+// (`host.setViewer({ ...host.viewer(), motionSpeed })`) and multiplies everything, this included.
+const FEEL: TuningPatch = { settleMs: 240 };
 
 function fitUnit(v: { width: number; height: number }): number {
   return Math.max(20, Math.min(v.width / 8.6, v.height / 8.4));
@@ -68,7 +70,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }) });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
-  const motion = attachMotion(host, painter, { durationMs: 240 });
+  const motion = attachMotion(host, painter, FEEL);
   const view = host.view;
   // A touch surface would otherwise spend a double-tap on the browser's own zoom, and a drag on a
   // pan — so the canvas claims every pointer gesture for itself.
@@ -175,7 +177,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     undoInvites = willingPiles().map(wearInvite);
     // The finger owns the run: a spring carry (lag + whip + pop), never a tree write. Rigid style, so
     // the column tilts as one plank about the pivot.
-    motion.grab(carryItems(), { anchor: anchorAt, style: "rigid", lift: LIFT_POP, tilt: WHIP });
+    motion.grab(carryItems(), { anchor: anchorAt });
     view.setPointerCapture(pointerId);
   };
 

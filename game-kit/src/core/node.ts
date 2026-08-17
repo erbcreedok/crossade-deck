@@ -147,6 +147,29 @@ export function remove(parent: Node, child: Node): Node {
   return parent;
 }
 
+/**
+ * THE SAME CHILDREN IN A NEW ORDER — a shuffle's truth, a reordered hand, a pack cut. `order[k]` is
+ * the CURRENT index of the child that will stand at `k`. Every child keeps its identity and its
+ * owner; nothing is added or dropped, so a settle simply eases each one to where the layout now
+ * seats it (`container.no-state-diffs`: this is one write on the tree, not a machine).
+ *
+ * Anything that is not a permutation of the current children is LOUD, in the tone of a duplicate
+ * id in `add`: a shuffle that silently lost a card is a lost identity dressed as a plausible picture.
+ */
+export function reorder(parent: Node, order: readonly number[]): Node {
+  const n = parent.children.length;
+  if (order.length !== n) throw new Error(`reorder: ${order.length} indices for ${n} children`);
+  const seen = new Set<number>();
+  for (const i of order) {
+    if (!Number.isInteger(i) || i < 0 || i >= n) throw new Error(`reorder: index ${i} is not a child of ${parent.id}`);
+    if (seen.has(i)) throw new Error(`reorder: index ${i} named twice`);
+    seen.add(i);
+  }
+  const before = parent.children.slice();
+  for (let k = 0; k < n; k++) parent.children[k] = before[order[k]!]!;
+  return parent;
+}
+
 /** The first id the incoming subtree shares with the destination tree, if any. */
 function firstSharedId(destination: Node, incoming: Node): NodeId | undefined {
   const taken = new Set<NodeId>();

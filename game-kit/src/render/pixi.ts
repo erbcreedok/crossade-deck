@@ -94,6 +94,7 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
   let alive = true;
   let started = false;
   let pending: { plan: readonly Quad[]; marks: readonly Mark[]; theme: ThemeName } | null = null;
+  let lateRetain = false;
   let lateSize: { width: number; height: number } | null = null;
   // The animated filters of the CURRENT frame, and one clock that drives them. Rebuilt every
   // `apply`, because a filter belongs to a quad and the plan is the quads — a censor that lifts
@@ -159,6 +160,7 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
       // dropped instead of queued, it left the canvas at the size it was MEASURED at — which on
       // a page still laying itself out is one pixel, presented as an empty scene.
       if (lateSize) app.renderer.resize(lateSize.width, lateSize.height);
+      app.renderer.background.clearBeforeRender = !lateRetain;
       // ONE CLOCK for every animated filter in the frame. It advances a seconds counter and hands
       // it to each live filter's own `tick`; a frame with no filters ticks nothing. The renderer
       // stays dumb — it does not know what a censor is, only that a filter asked to be clocked.
@@ -303,11 +305,18 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
 
   return {
     ready,
-    draw(plan, marks, theme) {
+    draw(plan, marks, theme, options) {
       if (!alive) return;
       // Remembered even once started: a texture that lands later has to be able to redraw the
       // frame it belongs to, and the last plan is what that frame was.
       pending = { plan, marks, theme };
+      // RETAIN: the glass keeps the last picture and this frame is painted over it. The stage is
+      // rebuilt from the (flying-only) plan as always; what changes is that the renderer stops
+      // clearing between frames — the drawing buffer is preserved anyway (`preserveDrawingBuffer`),
+      // so what was there stays. Off again, the next frame clears and repaints in full.
+      const retain = options?.retain === true;
+      if (started) app.renderer.background.clearBeforeRender = !retain;
+      else lateRetain = retain;
       if (started) apply(plan, marks, theme);
     },
     resize(width, height) {

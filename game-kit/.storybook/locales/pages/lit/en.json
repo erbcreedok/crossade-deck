@@ -22,7 +22,7 @@
     "arrives — one formula in one place already reads it."
   ],
   "docs.lit.light": [
-    "Two pieces of different height under one lamp. Walk `lampAngle` and every fall turns together:",
+    "Two pieces of different height under one lamp. Walk `angle` and every fall turns together:",
     "the light is the root's, and a piece cannot bring its own. The taller piece throws the longer",
     "shadow — the lamp owns the direction, the height owns the length. `frame` picks whose corner",
     "the lamp hangs in; without a camera to turn, `viewer` and `world` agree, and that agreement is",

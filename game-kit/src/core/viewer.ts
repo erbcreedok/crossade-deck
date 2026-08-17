@@ -46,6 +46,17 @@ export interface ViewerSettings {
    * instead of counting on trust.
    */
   readonly debugGrid?: boolean;
+  /**
+   * How fast every motion plays for THIS onlooker, as a multiplier over what the game designed:
+   * `1` is the designer's timing, `2` twice as fast, `0.5` half — and `0` is NO animation: a
+   * settle lands on its next frame, a turn is already over, a carried card sits under the finger
+   * with no trail. Absent = 1.
+   *
+   * A viewer setting and not a field, because it is the "reduce motion" knob: two players may
+   * choose differently and still see the same truth. The motion runtime reads it on EVERY frame,
+   * so a change mid-flight is smooth — the flight keeps its progress and only its pace changes.
+   */
+  readonly motionSpeed?: number;
 }
 
 export const DEFAULT_VIEWER: ViewerSettings = { theme: "dark" };
@@ -53,10 +64,10 @@ export const DEFAULT_VIEWER: ViewerSettings = { theme: "dark" };
 /**
  * Still deferred, on purpose — each arrives with the thing it acts on, so a toggle is never a
  * control over nothing:
- *   viewer       — with `Private`: nothing to withhold from anyone yet.
- *   motionReduce — with the first animation.
- * `debugBounds` sat on this list until `Surfaced` gave it a picture to overlay. Adding one is a
- * field and a toolbar entry; the cascade below is what makes that true.
+ *   viewer — with `Private`: nothing to withhold from anyone yet.
+ * `debugBounds` sat on this list until `Surfaced` gave it a picture to overlay; `motionSpeed`
+ * until the first animation. Adding one is a field and a toolbar entry; the cascade below is what
+ * makes that true.
  */
 export function withViewer(base: ViewerSettings, patch: Partial<ViewerSettings>): ViewerSettings {
   return { ...base, ...patch };

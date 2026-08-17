@@ -35,6 +35,7 @@ export {
   localIds,
   node,
   remove,
+  reorder,
   rootOf,
   starved,
   walk,
@@ -140,7 +141,7 @@ export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js"
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
 // The shadow and the one light: a caster declares WHICH contour falls; the root's lamp says where.
 export { castsShadow, ShadowCaster, shadowFrom, type ShadowCasterFields } from "./core/atoms/shadow.js";
-export { DEFAULT_LIGHT, Lit, lightVector, type Frame, type Light, type LitFields } from "./core/atoms/lit.js";
+export { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit, lightVector, shadowOf, type Frame, type Light, type LitFields, type Shadow } from "./core/atoms/lit.js";
 // The invite: what a willing zone wears while a drag it would take is in flight. The Acceptor's
 // verdict decides (`willingZones`); a game with function-rules picks zones itself and uses the
 // low door (`wearInvite`). Grab dresses, release undresses — the closure is the whole protocol.
@@ -180,6 +181,7 @@ export { attachPainter, renderFrame } from "./render/stage.js";
 // should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
 export { attachMotion, type CarryItem, type CarryOptions, type Clock, type MotionOptions, type Motions } from "./render/animator.js";
 export {
+  DEFAULT_TUNING,
   easing,
   flipScale,
   installStockEasings,
@@ -188,10 +190,29 @@ export {
   registerEasing,
   resetEasings,
   sample,
+  tune,
+  type CarryTuning,
   type Easing,
   type Motion,
+  type MotionTuning,
   type Sampled,
+  type TuningPatch,
 } from "./core/motion.js";
+// Chance and flight, both pure: a seedable rng (a shuffle's and a die's truth) and the ballistics
+// the runtime steps for `launch` (a screen-fall) and `slide` (a desk-slide with walls).
+export { permutation, rollDie, seededRng, type Rng } from "./core/rng.js";
+export {
+  bodyAt,
+  polar,
+  slideRests,
+  stepFall,
+  stepSlide,
+  velocityOf,
+  type Body,
+  type FallConfig,
+  type SlideConfig,
+  type Walls,
+} from "./core/ballistic.js";
 export {
   clampAbs,
   springAt,
@@ -217,7 +238,6 @@ export {
   boundsMarks,
   gridMarks,
   scenePlan,
-  SHADOW,
   transformsOf,
   viewTransform,
   type Mark,

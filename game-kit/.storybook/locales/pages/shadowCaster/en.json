@@ -34,7 +34,7 @@
     "A rounded card and a star token under one lamp. `from` picks the contour that falls — on the",
     "card, `silhouette` keeps the rounded corners and `footprint` squares them off; on the star the",
     "two agree, because its box IS its drawn shape. `z` lifts both pieces, and the fall stretches",
-    "with the height; `lampAngle` walks the light around the desk and every shadow answers together."
+    "with the height; `angle` walks the light around the desk and every shadow answers together."
   ],
   "docs.shadowCaster.stack": [
     "A pile that casts once. The pile carries the atom, so the three cards resting inside lay no",

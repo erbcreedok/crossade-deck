@@ -7,16 +7,17 @@
 import { describe, expect, it } from "vitest";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
-import { freeLayout } from "../core/atoms/layouts.js";
+import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
-import { add, compose, node } from "../core/node.js";
+import { add, compose, node, reorder } from "../core/node.js";
 import { Flippable, facing, setFacing } from "../core/atoms/flippable.js";
-import { installStockEasings, resetEasings } from "../core/motion.js";
+import { DEFAULT_TUNING, installStockEasings, resetEasings } from "../core/motion.js";
 import { rect } from "../presets/shapes.js";
 import { mount } from "./host.js";
 import { registerSurface, resetSurfaces } from "./surfaces.js";
 import { installStockFlips, resetFlips } from "./flips.js";
+import { installStockShuffles, resetShuffles } from "./shuffles.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { attachMotion, type Clock } from "./animator.js";
 import { type Painter } from "./painter.js";
@@ -80,7 +81,7 @@ describe("the motion runtime", () => {
   it("motion.settles-to-the-new-pose — a moved node eases across and the loop stops when it lands", () => {
     const b = bench();
     const c = fakeClock();
-    attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
     // Move the card and publish the new tree: the settle begins, still drawn at the start.
@@ -107,7 +108,7 @@ describe("the motion runtime", () => {
     const wall = node("wall", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 }, z: 5 }));
     add(b.desk, wall);
     const c = fakeClock();
-    attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
     expect(b.order()).toEqual(["c", "wall"]); // at rest, height orders the paint
 
     compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
@@ -123,7 +124,7 @@ describe("the motion runtime", () => {
   it("motion.a-held-node-tracks-its-gesture — a finger-owned node jumps, it does not ease", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     m.hold("c");
     compose(b.card, Transformable({ at: { x: 5, y: 0 } }));
@@ -145,18 +146,18 @@ describe("the motion runtime", () => {
   it("motion.grab-places-the-run-under-the-finger — drawn at once, a bare grab schedules no frame", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 4, y: 0 } });
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 4, y: 0 }, lift: 1 });
     expect(b.xOf("c") - restX).toBeCloseTo(4); // placed at the finger, the full delta, at once — not eased
-    expect(c.idle()).toBe(true); // seeded at the anchor, no pop and no tilt — nothing to animate
+    expect(c.idle()).toBe(true); // seeded at the anchor, no pop asked for and no speed — nothing to animate
   });
 
   it("motion.grab-then-drag-trails-the-finger — the run lags behind, then catches up and sleeps", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
     m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
@@ -176,9 +177,9 @@ describe("the motion runtime", () => {
   it("motion.grab-leans-into-horizontal-motion — a tilt appears while moving and unwinds at rest", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, tilt: { factor: 4, maxDeg: 17 } });
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, leanFactor: 4, leanMaxDeg: 17 });
     m.dragTo({ x: 10, y: 0 });
     c.tick(16);
     c.tick(32);
@@ -192,7 +193,7 @@ describe("the motion runtime", () => {
   it("motion.a-carried-node-settles-from-the-finger — and the tree was never written", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
     m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
@@ -214,7 +215,7 @@ describe("the motion runtime", () => {
   it("motion.a-new-node-appears-without-flying — a fresh node rests where it is put", () => {
     const b = bench();
     const c = fakeClock();
-    attachMotion(b.host, b.painter, { durationMs: 100, ease: "linear", clock: c.clock });
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 3, y: 0 } })));
     b.host.setRoot(b.desk);
@@ -259,7 +260,7 @@ describe("a flip on the clock", () => {
   it("motion.flip-squeezes-to-an-edge — full width, edge at the midpoint, full again", () => {
     const b = flipBench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { flipMs: 100, clock: c.clock });
 
     m.flip("c", () => setFacing(b.card, "up"));
     c.tick(0);
@@ -275,7 +276,7 @@ describe("a flip on the clock", () => {
     const b = flipBench();
     const c = fakeClock();
     let commits = 0;
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { flipMs: 100, clock: c.clock });
 
     expect(facing(b.card)).toBe("down");
     m.flip("c", () => { commits++; setFacing(b.card, "up"); });
@@ -293,7 +294,7 @@ describe("a flip on the clock", () => {
   it("motion.flip-rests-on-the-new-side — the turn ends and starts no second flight", () => {
     const b = flipBench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { durationMs: 100, clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { flipMs: 100, clock: c.clock });
 
     m.flip("c", () => setFacing(b.card, "up"));
     c.tick(0);
@@ -303,5 +304,274 @@ describe("a flip on the clock", () => {
     expect(facing(b.card)).toBe("up");
     expect(Math.abs(b.aOf("c"))).toBeCloseTo(1);
     expect(c.idle()).toBe(true);
+  });
+});
+
+describe("the tuning and the viewer's speed", () => {
+  it("motion.tuning-defaults-apply — a bare runtime moves by DEFAULT_TUNING, a bare grab pops by it", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    // The settle: at half the default duration it is between, at the whole it has landed.
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    const restX = b.xOf("c");
+    c.tick(DEFAULT_TUNING.settleMs / 2);
+    expect(b.xOf("c")).toBeGreaterThan(restX);
+    c.tick(DEFAULT_TUNING.settleMs);
+    expect(c.idle()).toBe(true);
+    // The carry: no options at all, and the run pops to the default lift — so a frame IS scheduled.
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    expect(c.idle()).toBe(false);
+    for (let t = DEFAULT_TUNING.settleMs + 16; t <= 3000; t += 16) c.tick(t);
+    expect(b.tOf("c").a).toBeCloseTo(DEFAULT_TUNING.lift, 2);
+  });
+
+  it("motion.settle-obeys-viewer-speed — twice the speed lands in half the time; zero lands next frame", () => {
+    const b = bench();
+    const c = fakeClock();
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+    b.host.setViewer({ ...b.host.viewer(), motionSpeed: 2 });
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    const restX = b.xOf("c");
+    c.tick(25); // a quarter of the designed time — but half of the warped one
+    const quarter = b.xOf("c") - restX;
+    c.tick(50); // half the designed time: at speed 2 it has arrived
+    expect(b.xOf("c") - restX).toBeGreaterThan(quarter);
+    expect(c.idle()).toBe(true);
+    // Speed 0: no animation. The move is on the glass one frame later, whole.
+    b.host.setViewer({ ...b.host.viewer(), motionSpeed: 0 });
+    compose(b.card, Transformable({ at: { x: -4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    c.tick(51);
+    expect(c.idle()).toBe(true);
+    const nowX = b.xOf("c");
+    b.host.setRoot(b.desk); // nothing else moves: it is where it rests
+    expect(b.xOf("c")).toBeCloseTo(nowX);
+  });
+
+  it("motion.speed-changes-mid-flight-are-smooth — progress is kept, only the pace changes", () => {
+    const b = bench();
+    const c = fakeClock();
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    const restX = b.xOf("c");
+    c.tick(50); // halfway at speed 1
+    const half = b.xOf("c") - restX;
+    b.host.setViewer({ ...b.host.viewer(), motionSpeed: 0.5 }); // slow down mid-flight
+    c.tick(66);
+    const after = b.xOf("c") - restX;
+    // No jump either way: still past halfway, and only a little (16 ms at half speed = 8 warped ms).
+    expect(after).toBeGreaterThan(half);
+    expect(after - half).toBeLessThan(half * 0.25);
+    expect(c.idle()).toBe(false);
+  });
+
+  it("motion.flip-has-its-own-clock — flipMs, not settleMs, times a turn", () => {
+    const b = bench();
+    const c = fakeClock();
+    let commits = 0;
+    const m = attachMotion(b.host, b.painter, { settleMs: 1000, flipMs: 100, clock: c.clock });
+    m.flip("c", () => commits++);
+    c.tick(50);
+    expect(commits).toBe(1); // the edge came at half of flipMs, not half of settleMs
+    c.tick(100);
+    expect(c.idle()).toBe(true);
+  });
+});
+
+describe("choreographies: shuffle and roll", () => {
+  function group() {
+    resetLayouts();
+    registerLayout("free", freeLayout);
+    resetSurfaces();
+    installStockSurfaces();
+    resetEasings();
+    installStockEasings();
+    resetShuffles();
+    installStockShuffles();
+    // A ROW seats its children by index — so a reorder actually moves them. (In a free layout the
+    // seats are the children's own `at`, and a reorder is invisible.)
+    registerLayout("row", rowLayout({ gap: 0.5 }));
+    const desk = node("desk", Container({ layout: "free" }));
+    const hand = node("hand", Container({ layout: "row" }), Transformable({ at: { x: 0, y: 0 } }));
+    add(desk, hand);
+    for (let i = 0; i < 4; i++) add(hand, node(`t${i}`, Bounded({ bounds: rect(1, 1) }), Surfaced()));
+    let last: readonly Quad[] = [];
+    const painter: Painter = { ready: Promise.resolve(), draw: (plan) => { last = plan; }, resize: () => {}, destroy: () => {} };
+    const host = mount(document.createElement("div"), desk);
+    const xOf = (id: string): number => last.find((q) => q.id === id)!.x;
+    const tOf = (id: string) => last.find((q) => q.id === id)!.transform;
+    return { desk, hand, host, painter, xOf, tOf };
+  }
+
+  it("motion.shuffle-commits-once-at-its-phase — the reorder happens under the recipe, and every child lands on its new seat", () => {
+    const g = group();
+    const c = fakeClock();
+    const m = attachMotion(g.host, g.painter, { shuffleMs: 100, clock: c.clock });
+    const seatBefore = { t0: g.xOf("t0"), t3: g.xOf("t3") };
+    let commits = 0;
+    m.shuffle("hand", () => { commits++; reorder(g.hand, [3, 2, 1, 0]); }, { recipe: "riffle" });
+    c.tick(10);
+    expect(commits).toBe(0);
+    // Off the seats: the halves have parted.
+    expect(Math.abs(g.xOf("t0") - seatBefore.t0)).toBeGreaterThan(0.05);
+    c.tick(50);
+    expect(commits).toBe(1);
+    c.tick(75);
+    expect(commits).toBe(1);
+    c.tick(100);
+    expect(c.idle()).toBe(true);
+    // Landed on the NEW seats: t3 sits where t0 sat, exactly — no settle needed afterwards.
+    expect(g.xOf("t3")).toBeCloseTo(seatBefore.t0, 5);
+    expect(g.xOf("t0")).toBeCloseTo(seatBefore.t3, 5);
+    g.host.setRoot(g.desk);
+    expect(c.idle()).toBe(true); // and a fresh reconcile finds nothing to ease
+  });
+
+  it("motion.shuffle-obeys-viewer-speed — at speed 0 the order is on the glass next frame", () => {
+    const g = group();
+    const c = fakeClock();
+    const m = attachMotion(g.host, g.painter, { shuffleMs: 1000, clock: c.clock });
+    g.host.setViewer({ ...g.host.viewer(), motionSpeed: 0 });
+    const t0 = g.xOf("t0");
+    m.shuffle("hand", () => reorder(g.hand, [3, 2, 1, 0]), { recipe: "wash" });
+    c.tick(16);
+    expect(g.xOf("t3")).toBeCloseTo(t0, 5);
+    expect(c.idle()).toBe(true);
+  });
+
+  it("motion.roll-turns-and-commits — the piece turns whole turns, hops, and commits late in the tumble", () => {
+    const b = bench();
+    const c = fakeClock();
+    let commits = 0;
+    const m = attachMotion(b.host, b.painter, { rollMs: 100, clock: c.clock });
+    m.roll("c", () => commits++, { turns: 1, hop: 1.5 });
+    c.tick(50);
+    // Mid-tumble: turned (b ≠ 0) and grown (the hop peaks at the middle).
+    expect(Math.abs(b.tOf("c").b)).toBeGreaterThan(0.01);
+    expect(Math.hypot(b.tOf("c").a, b.tOf("c").b)).toBeCloseTo(1.5, 1);
+    expect(commits).toBe(0);
+    c.tick(75);
+    expect(commits).toBe(1);
+    c.tick(100);
+    expect(commits).toBe(1);
+    expect(b.tOf("c").a).toBeCloseTo(1, 5); // whole turns: upright again, at rest size
+    expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 5);
+    expect(c.idle()).toBe(true);
+  });
+});
+
+describe("flights: launch and slide", () => {
+  it("motion.launch-falls-and-leaves-the-glass — gravity, the floor bounce, then gone with a callback", () => {
+    const b = bench();
+    const c = fakeClock();
+    let done = 0;
+    const m = attachMotion(b.host, b.painter, { gravity: 20, bounce: 0.5, clock: c.clock });
+    const restX = b.xOf("c");
+    const restY = b.tOf("c").f;
+    m.launch("c", { speed: 4, angle: 0, onDone: () => done++ }); // straight right, gravity takes it down
+    c.tick(16);
+    c.tick(32);
+    expect(b.xOf("c")).toBeGreaterThan(restX);
+    expect(b.tOf("c").f).toBeGreaterThan(restY); // falling: down the screen
+    let frames = 0;
+    for (let t = 48; t <= 20000 && done === 0; t += 16, frames++) c.tick(t);
+    expect(done).toBe(1);
+    expect(frames).toBeGreaterThan(5);
+    expect(c.idle()).toBe(true);
+    // The override is gone: a reconcile finds the node at its rest, nothing to ease.
+    b.host.setRoot(b.desk);
+    expect(b.xOf("c")).toBeCloseTo(restX);
+  });
+
+  it("motion.launch-waits-its-turn — delayMs holds the body at rest before it goes", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const restX = b.xOf("c");
+    m.launch("c", { speed: 4, angle: 0, delayMs: 100 });
+    c.tick(50);
+    expect(b.xOf("c")).toBeCloseTo(restX); // not yet
+    c.tick(116);
+    c.tick(132);
+    expect(b.xOf("c")).toBeGreaterThan(restX);
+  });
+
+  it("motion.slide-bleeds-to-a-stop — friction ends it where it lies, and the landing reports the pose", () => {
+    const b = bench();
+    const c = fakeClock();
+    let landed: { at: { x: number; y: number }; angle: number } | undefined;
+    const m = attachMotion(b.host, b.painter, { friction: 6, spinFriction: 720, clock: c.clock });
+    const restX = b.xOf("c");
+    m.slide("c", { speed: 3, angle: 0, spin: 360, onDone: (r) => { landed = r; } });
+    for (let t = 16; t <= 3000 && !landed; t += 16) c.tick(t);
+    expect(landed).toBeDefined();
+    expect(landed!.at.x).toBeGreaterThan(0.5); // v²/2a ≈ 0.75 units to the right of the origin
+    expect(landed!.at.x).toBeLessThan(1);
+    expect(landed!.angle).toBeGreaterThan(60); // it turned on the way
+    expect(c.idle()).toBe(true);
+    // Its override is gone: it draws at rest again until the game writes the landing into the tree.
+    b.host.setRoot(b.desk);
+    expect(b.xOf("c")).toBeCloseTo(restX);
+  });
+
+  it("motion.slide-obeys-walls-and-speed — a tray keeps it in; speed 0 stops it where it stands", () => {
+    const b = bench();
+    const c = fakeClock();
+    let landed: { at: { x: number; y: number } } | undefined;
+    const m = attachMotion(b.host, b.painter, { friction: 1, clock: c.clock });
+    m.slide("c", { speed: 5, angle: 0, walls: { x0: -1, y0: -1, x1: 1, y1: 1 }, onDone: (r) => { landed = r; } });
+    for (let t = 16; t <= 20000 && !landed; t += 16) {
+      c.tick(t);
+      expect(b.tOf("c").e / 100).toBeLessThanOrEqual(1.01 + 5); // never far outside (units → px at unit 100 handled loosely)
+    }
+    expect(landed).toBeDefined();
+    expect(Math.abs(landed!.at.x)).toBeLessThanOrEqual(1 + 1e-6);
+    // Speed 0: a fresh throw ends on its next frame, at its start.
+    b.host.setViewer({ ...b.host.viewer(), motionSpeed: 0 });
+    let quick: { at: { x: number; y: number } } | undefined;
+    m.slide("c", { speed: 5, angle: 0, onDone: (r) => { quick = r; } });
+    c.tick(30000);
+    expect(quick).toBeDefined();
+    expect(c.idle()).toBe(true);
+  });
+
+  it("motion.velocity-reads-the-carry — a throw on release inherits the finger's speed", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    expect(m.velocity()).toBeUndefined();
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    m.dragTo({ x: 10, y: 0 });
+    c.tick(16);
+    c.tick(32);
+    const v = m.velocity()!;
+    expect(v.x).toBeGreaterThan(0); // chasing to the right
+    m.slide("c", { speed: v.x, angle: 0 }); // the throw takes over: the carry is over
+    expect(m.velocity()).toBeUndefined();
+  });
+
+  it("motion.retain-paints-only-the-flying — the frame is the raised set, no shadows, and it asks the painter to keep", () => {
+    const b = bench();
+    const c = fakeClock();
+    let lastRetain: boolean | undefined;
+    const painter: Painter = { ready: Promise.resolve(), draw: (plan, _m, _t, o) => { lastPlan = plan; lastRetain = o?.retain; }, resize: () => {}, destroy: () => {} };
+    let lastPlan: readonly Quad[] = [];
+    add(b.desk, node("wall", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 } })));
+    const m = attachMotion(b.host, painter, { clock: c.clock });
+    expect(lastPlan.map((q) => q.id)).toEqual(["c", "wall"]);
+    expect(lastRetain).toBe(false);
+    m.retain(true);
+    expect(lastRetain).toBe(true);
+    expect(lastPlan).toEqual([]); // nothing flies: nothing is painted over the kept glass
+    m.launch("c", { speed: 4, angle: 0 });
+    c.tick(16);
+    expect(lastPlan.map((q) => q.id)).toEqual(["c"]); // only the flyer
+    m.retain(false);
+    expect(lastRetain).toBe(false);
+    expect(lastPlan.map((q) => q.id).sort()).toEqual(["c", "wall"]);
   });
 });

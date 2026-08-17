@@ -1,6 +1,6 @@
 ## UNIT · ShadowCaster и Lit — тень и единственный свет
 
-`vitest` · 7 кейсов, расписано 7
+`vitest` · 8 кейсов, расписано 8
 
 Тень — НЕ узел: это слой, который план рисует одним проходом под всем покоящимся
 (`docs/design/camera.md`). Атом несёт один выбор — какой контур падает (`from: footprint |
@@ -17,3 +17,4 @@ silhouette`); свет — корневое поле `Lit.light {frame, angle}`,
 | `atom.lit.the-angle-turns-the-fall` | `Lit` с углом 0; с углом 180 | `lightVector` | свет с +x бросает тень ровно в −x; с −x — в +x: одна формула, второго места с направлением нет |
 | `atom.lit.the-viewer-frame-ignores-the-camera` | два корня: frame viewer и world, угол 0 | `lightVector` с поворотом камеры 90 | viewer не заметил поворота (падение постоянно на ЭКРАНЕ); world повернул падение на −rotation — лампа осталась над столом |
 | `atom.lit.reads-at-the-root` | лампа на корне, «своя» лампа на ребёнке | `lightVector` через ребёнка | отвечает КОРНЕВАЯ: свет один на холст, пер-предметного света не существует |
+| `atom.lit.the-depth-is-the-desks` | голый узел; стол с `Lit.shadow {base, perZ, lifted, opacity}` и ребёнок на нём | `shadowOf` через любой узел | голый — стоковый `DEFAULT_SHADOW`; через ребёнка — глубина КОРНЯ (rootOnly): один стол — одна лампа — одна шкала глубины |

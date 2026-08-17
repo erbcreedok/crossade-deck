@@ -1,6 +1,6 @@
 ## UNIT · Node and composition
 
-`vitest (headless, no WebGL)` · 35 кейсов, расписано 34
+`vitest (headless, no WebGL)` · 37 кейсов, расписано 36
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -38,3 +38,5 @@
 | `locales.a-bundle-holds-only-its-page` | every page bundle | its keys routed | each belongs to the page it is filed under — a stray key resolves only when another page is open |
 | `locales.prose-is-never-imported-statically` | every catalog source file | its imports read | a page bundle is reached by `import()` or by `import type` — one value import undoes the split |
 | `locales.a-story-names-prose-that-exists` | every `gkDoc` / `gkDocStory` | looked up in its bundle | present — a key that resolves to itself renders as `docs.foo.bar` on screen |
+| `tree.reorder-keeps-every-child` | контейнер с тремя детьми | `reorder(parent, [2,0,1])`; затем тождественная перестановка | те же ОБЪЕКТЫ в новом порядке, владелец у каждого прежний, `byId` даёт тот же узел; тождество — no-op |
+| `tree.reorder-is-loud-on-a-non-permutation` | контейнер с двумя детьми | `reorder` с недостачей / дублем / выходом за край / нецелым | бросает громко (как дубликат id в `add`), дерево не тронуто — потерянный ребёнок не маскируется правдоподобной картинкой |

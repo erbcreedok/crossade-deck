@@ -7,6 +7,16 @@
 import { type ThemeName } from "../core/viewer.js";
 import { type Mark, type Quad } from "./scenePlan.js";
 
+/** How one frame is put on the glass. */
+export interface DrawOptions {
+  /**
+   * Keep what the glass already shows and paint this frame OVER it, clearing nothing. The stage
+   * hands only the flying quads with this on (`PaintOptions.retain`), so a thrown card leaves its
+   * trail and nothing at rest is painted twice. Off, the frame replaces the picture, as always.
+   */
+  readonly retain?: boolean | undefined;
+}
+
 export interface Painter {
   /**
    * A GPU renderer initialises asynchronously, so a painter is usable before it is ready.
@@ -21,7 +31,7 @@ export interface Painter {
    * mark is tooling drawn over it. They are always on top, and they are empty unless the
    * onlooker asked — the model does not know this layer exists.
    */
-  draw(plan: readonly Quad[], marks: readonly Mark[], theme: ThemeName): void;
+  draw(plan: readonly Quad[], marks: readonly Mark[], theme: ThemeName, options?: DrawOptions): void;
   /** In CSS pixels. Device pixels are the painter's own business. */
   resize(width: number, height: number): void;
   destroy(): void;

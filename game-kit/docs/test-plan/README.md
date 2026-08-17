@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**45 слоёв · 1052 кейсов заявлено · 878 расписано поимённо.**
+**47 слоёв · 1078 кейсов заявлено · 904 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -28,14 +28,14 @@
 |---|---|---|---|
 | [UNIT · Fit and align](01-fit-and-align.md) | `vitest (headless, no WebGL)` | 12 | 12 |
 | [UNIT · Contour and dashes](02-contour-and-dashes.md) | `vitest (headless, no WebGL)` | 20 | 20 |
-| [UNIT · Node and composition](03-node-and-composition.md) | `vitest (headless, no WebGL)` | 35 | 34 |
+| [UNIT · Node and composition](03-node-and-composition.md) | `vitest (headless, no WebGL)` | 37 | 36 |
 | [UNIT · Root, host and the inspector](04-root-host-and-inspector.md) | `vitest + a DOM fake` | 29 | 28 |
 | [UNIT · requirement chains](05-requirement-chains.md) | `vitest` | 10 | 6 |
 | [UNIT · four classes of inheritance](06-inheritance-classes.md) | `vitest + a fake tree` | 26 | 10 |
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
-| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 51 | 50 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 52 | 51 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 57 | 57 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
@@ -65,9 +65,11 @@
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 30 | 30 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
-| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 15 | 15 |
+| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 20 | 20 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 6 | 6 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
-| [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 7 | 7 |
+| [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
+| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 11 | 11 |
+| [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 6 | 6 |

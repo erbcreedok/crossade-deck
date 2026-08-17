@@ -13,6 +13,7 @@ import {
   localIds,
   node,
   remove,
+  reorder,
   rootOf,
   starved,
   walk,
@@ -214,6 +215,27 @@ describe("the tree and the root", () => {
     const seen: Array<[string, number]> = [];
     walk(root, (n, d) => seen.push([n.id, d]));
     expect(seen.map(([, d]) => d)).toEqual([0, 1, 2]);
+  });
+  it("tree.reorder-keeps-every-child — the same objects in the new order, owners untouched", () => {
+    const hand = node("hand");
+    const a = node("a"), b = node("b"), c = node("c");
+    add(hand, a); add(hand, b); add(hand, c);
+    reorder(hand, [2, 0, 1]);
+    expect(hand.children).toEqual([c, a, b]);
+    expect(hand.children.every((ch) => ch.parent === hand)).toBe(true);
+    expect(byId(hand, "b")).toBe(b); // identity, not a copy
+    reorder(hand, [0, 1, 2]); // the identity permutation is a no-op
+    expect(hand.children).toEqual([c, a, b]);
+  });
+
+  it("tree.reorder-is-loud-on-a-non-permutation — a lost or doubled child is a lost identity", () => {
+    const hand = node("hand");
+    add(hand, node("a")); add(hand, node("b"));
+    expect(() => reorder(hand, [0])).toThrow(/2 children/);
+    expect(() => reorder(hand, [0, 0])).toThrow(/named twice/);
+    expect(() => reorder(hand, [0, 2])).toThrow(/not a child/);
+    expect(() => reorder(hand, [0, 1.5])).toThrow(/not a child/);
+    expect(hand.children.map((n) => n.id)).toEqual(["a", "b"]); // nothing half-done
   });
 });
 

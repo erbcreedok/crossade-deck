@@ -37,13 +37,13 @@ const meta: Meta<ShadowArgs> = {
 };
 export default meta;
 
-function tree(id: string, lampAngle: number, z: number) {
+function tree(id: string, angle: number, z: number) {
   registerSurface(FACE, { layers: [{ paint: "accent" }], radius: 0.08 });
   registerLayout("tests.shadow.free", freeLayout);
   const desk = node(
     "desk",
     Container({ layout: "tests.shadow.free" }),
-    Lit({ light: { frame: "viewer", angle: lampAngle } }),
+    Lit({ light: { frame: "viewer", angle } }),
   );
   add(
     desk,

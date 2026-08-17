@@ -40,17 +40,17 @@ interface CastArgs {
   face: string;
   from: "footprint" | "silhouette";
   z: number;
-  lampAngle: number;
+  angle: number;
 }
 
 const fromControl = documented("arg.from", { control: "select", options: ["footprint", "silhouette"] }, "shadow");
-const lampControl = documented("arg.lampAngle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "light");
+const lampControl = documented("arg.light.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "light");
 
 export const Cast: StoryObj<CastArgs> = {
   // A rounded card and a star token under one lamp. `from` picks the contour that falls — on the
   // card, `silhouette` keeps the rounded corners and `footprint` squares them off. `z` is the
   // pose's own height, and the shadow stretches with it: the fall is a CONSEQUENCE, there is no
-  // shadow-length knob to disagree with the height. `lampAngle` walks the light around the desk.
+  // shadow-length knob to disagree with the height. `angle` walks the light around the desk.
   render: (a) => {
     registerSurface("story.shadow.face", { layers: [{ paint: a.face }], radius: 0.18 });
     registerSurface("story.shadow.star", { layers: [{ paint: "alert" }] });
@@ -58,7 +58,7 @@ export const Cast: StoryObj<CastArgs> = {
     const desk = node(
       "desk",
       Container({ layout: "story.shadow.free" }),
-      Lit({ light: { frame: "viewer", angle: a.lampAngle } }),
+      Lit({ light: { frame: "viewer", angle: a.angle } }),
     );
     add(
       desk,
@@ -82,20 +82,20 @@ export const Cast: StoryObj<CastArgs> = {
     );
     return scene(desk).el;
   },
-  args: { id: "card", face: "accent", from: "silhouette", z: 1, lampAngle: 315 },
+  args: { id: "card", face: "accent", from: "silhouette", z: 1, angle: 315 },
   argTypes: {
     id: documented("arg.id", { control: "text" }, "node"),
     face: documented("arg.face", { control: "select", options: PAINTS }, "surface"),
     from: fromControl,
     z: documented("arg.z", { control: { type: "range", min: 0, max: 5, step: 0.5 } }, "shadow"),
-    lampAngle: lampControl,
+    angle: lampControl,
   },
   parameters: { gkDocStory: "shadowCaster.cast" },
 };
 
 interface StackArgs {
   from: "footprint" | "silhouette";
-  lampAngle: number;
+  angle: number;
 }
 
 export const Stack: StoryObj<StackArgs> = {
@@ -107,7 +107,7 @@ export const Stack: StoryObj<StackArgs> = {
     registerSurface("story.shadow.pile", { layers: [{ paint: "sunkBg" }], radius: 0.1 });
     registerSurface("story.shadow.card", { layers: [{ paint: "panelBg" }], radius: 0.08 });
     registerLayout("story.shadow.free", freeLayout);
-    const desk = node("desk", Container({ layout: "story.shadow.free" }), Lit({ light: { frame: "viewer", angle: a.lampAngle } }));
+    const desk = node("desk", Container({ layout: "story.shadow.free" }), Lit({ light: { frame: "viewer", angle: a.angle } }));
     const pile = node(
       "pile",
       Bounded({ bounds: rect(1.6, 2) }),
@@ -141,7 +141,7 @@ export const Stack: StoryObj<StackArgs> = {
     );
     return scene(desk).el;
   },
-  args: { from: "silhouette", lampAngle: 315 },
-  argTypes: { from: fromControl, lampAngle: lampControl },
+  args: { from: "silhouette", angle: 315 },
+  argTypes: { from: fromControl, angle: lampControl },
   parameters: { gkDocStory: "shadowCaster.stack" },
 };

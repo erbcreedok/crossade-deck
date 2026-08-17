@@ -17,7 +17,7 @@ import { caps, walk, type Node, type NodeId } from "../core/node.js";
 import { placeChildren } from "../core/atoms/container.js";
 import { extentOf, footprint, outlineOf, type Point, type Shape } from "../core/atoms/bounded.js";
 import { castsShadow, shadowFrom } from "../core/atoms/shadow.js";
-import { lightVector } from "../core/atoms/lit.js";
+import { lightVector, shadowOf } from "../core/atoms/lit.js";
 import { areaOf, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
 import { fieldsOf } from "../core/node.js";
@@ -249,17 +249,14 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-/**
- * The lamp's arithmetic, in one place: how far a shadow falls (units — the world scales whole,
- * so zoom never changes the shadow-to-size ratio), how much each point of resolved `z` adds,
- * and how dark the ink lies. Data, not knobs on the atom: the fall is the LIGHT's business,
- * and a per-piece length would be a second light by the back door.
- */
-export const SHADOW = { base: 0.05, perZ: 0.045, lifted: 0.12, opacity: 0.28 } as const;
-
 export function scenePlan({ root, unit, width, height, viewer, overrides, raised }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = viewTransform(unit, width, height);
+  // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
+  // size ratio), how much each point of resolved `z` adds, how dark the ink lies — is the DESK's
+  // data (`Lit.shadow`, root-only), read once per plan. A per-piece length would be a second
+  // light by the back door, so nothing below asks the caster.
+  const depth = shadowOf(root);
   const out: Quad[] = [];
   // The direction every shadow falls — ONE formula, read once: the light is a root-only field.
   const fall = lightVector(root);
@@ -338,7 +335,7 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
     const z = resolveZ(ctx);
     // Flight IS height: the same `raised` hint that lifts the paint order lengthens the fall,
     // and it ends with the flight — the resting arithmetic never learns about it.
-    const off = (SHADOW.base + SHADOW.perZ * z + (raised?.has(n.id) ? SHADOW.lifted : 0)) * unit;
+    const off = (depth.base + depth.perZ * z + (raised?.has(n.id) ? depth.lifted : 0)) * unit;
     const toGlass = compose(
       move(fall.x * off, fall.y * off),
       compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY),
@@ -353,7 +350,7 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
       w: ext.w * unit,
       h: ext.h * unit,
       points,
-      layers: [{ paint: "shadow", image: undefined, opacity: SHADOW.opacity }],
+      layers: [{ paint: "shadow", image: undefined, opacity: depth.opacity }],
       transform: compose(toGlass, scale(unit > 0 ? 1 / unit : 0)),
       stroke: undefined,
       z,

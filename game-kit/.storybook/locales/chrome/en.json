@@ -47,7 +47,6 @@
   "arg.label": "The caption, already written in the viewer's language. The kit paints no strings — whoever draws text (a HUD widget, the tree panel) reads this field.",
   "arg.seat": "Whose seat this canvas plays — the wiring judges picks and projections from it. Grip: your own hand's cards lift, the other seat's refuse. Privacy: your view holds your hand, the other seat's is simply not there.",
   "arg.from": "Which contour falls on the desk: `footprint` is the bare box the piece stands on, `silhouette` the contour as DRAWN — corners and all. Today the two differ by the record's corner radius; the day a piece wears a real figure skin, the silhouette follows it.",
-  "arg.lampAngle": "Where the canvas's one light stands, in degrees clockwise from +x — the shadow falls exactly opposite. A ROOT field: turn it and every fall on the desk turns together, because no piece can bring its own lamp.",
   "arg.frame": "Whose corner the lamp hangs in. `viewer`: the screen's — a shadow reads as height the same way from every seat, and the lamp orbits the desk as the camera turns. `world`: the desk's — physical, the fall turns with the camera. They differ only while a camera is turned.",
   "arg.carry": "The carry style of a run in flight, by registry name. `rigid` co-rotates the whole run about the grab — a column stays one plank; `loose` turns each card about its own middle — the per-card look a horizontal hand wants. At zero lean the two are the same picture.",
   "arg.lift": "The pop while held: the scale the lift spring plays from 1 when the run is grabbed, and back on release. `1` is no pop; a few percent reads as picked up without shouting.",
@@ -159,5 +158,10 @@
   "arg.flip": "Which turn, by registry name — `mirror` reflects the geometry and swaps nothing, `turnOver` reflects AND shows the back surface. Empty is `mirror`. What the turn DOES lives in the recipe, not the atom.",
   "arg.turns": "How many turns from the authored state. It SUMS along the chain — a stack turned once turns every card once — and the current side is the PARITY: even is face-up, odd is over. Whole steps, because a turn is whole.",
   "arg.axis": "The reflection line, in degrees. A parameter, not a preset per angle: 90 is a Y-mirror, 76 is a 76° one. A mirror recipe reads it; a content-swap ignores it.",
-  "arg.reflipOne": "Turn the second card once MORE. Its summed parity is even again, so it is face-up while its neighbour stays over — case A, and it falls out of the arithmetic with no per-card bookkeeping."
+  "arg.reflipOne": "Turn the second card once MORE. Its summed parity is even again, so it is face-up while its neighbour stays over — case A, and it falls out of the arithmetic with no per-card bookkeeping.",
+  "arg.light.angle": "Where the canvas's one light stands, in degrees clockwise from +x — the shadow falls exactly opposite. A ROOT field: turn it and every fall on the desk turns together, because no piece can bring its own lamp.",
+  "arg.shadow.base": "How far a shadow falls from a piece RESTING on the desk (z 0), in units. Root field of the lamp: one depth scale for the whole desk. Zero, and a resting piece looks painted on.",
+  "arg.shadow.perZ": "How much further the shadow falls per unit of resolved `z`, in units. Height is the source, the fall is its consequence — this is the exchange rate.",
+  "arg.shadow.lifted": "The extra fall of a piece in FLIGHT — carried, settling, turning — in units. It ends with the flight; the resting arithmetic never learns about it.",
+  "arg.shadow.opacity": "How dark the shadow layer lies, 0..1. One ink for every shadow on the desk — a shadow is a layer of the lamp, not a picture of the piece."
 }

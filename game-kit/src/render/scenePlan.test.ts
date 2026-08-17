@@ -6,6 +6,7 @@ import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
 import { ShadowCaster } from "../core/atoms/shadow.js";
+import { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit } from "../core/atoms/lit.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, node } from "../core/node.js";
@@ -201,6 +202,24 @@ describe("scenePlan", () => {
     };
     expect(at(3)).toBeGreaterThan(at(0));
     expect(at(0)).toBeGreaterThan(0); // resting on the desk still shows a hair of shadow
+  });
+
+  it("plan.the-desks-lamp-sets-the-depth — Lit.shadow on the root scales the fall and the ink", () => {
+    // The coefficients are the DESK's data, not the engine's numbers: a root that doubles `base`
+    // and darkens the ink casts a longer, darker shadow; a piece cannot bring its own depth.
+    const cast = (shadow?: { base: number; perZ: number; lifted: number; opacity: number }) => {
+      const root = node("d", Container({ layout: "free" }), ...(shadow ? [Lit({ light: DEFAULT_LIGHT, shadow })] : []));
+      add(root, node("piece", box(1, 1), Surfaced(), Transformable(), ShadowCaster()));
+      const quads = plan(root);
+      const p = quads.find((q) => q.id === "piece")!;
+      const s = quads.find((q) => q.id === "piece::shadow")!;
+      return { fall: Math.hypot(s.transform.e - p.transform.e, s.transform.f - p.transform.f), ink: s.layers[0]!.opacity };
+    };
+    const stock = cast();
+    const deep = cast({ ...DEFAULT_SHADOW, base: DEFAULT_SHADOW.base * 2, opacity: 0.9 });
+    expect(deep.fall).toBeCloseTo(stock.fall * 2, 5);
+    expect(deep.ink).toBe(0.9);
+    expect(stock.ink).toBe(DEFAULT_SHADOW.opacity);
   });
 
   it("plan.a-stack-casts-once — the pile's shadow is the pile's, a detached card casts its own", () => {

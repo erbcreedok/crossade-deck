@@ -54,6 +54,13 @@ export interface PaintOptions {
   readonly overrides?: ReadonlyMap<NodeId, Transform> | undefined;
   /** Nodes in flight, painted after everything at rest — see `PlanInput.raised`. */
   readonly raised?: ReadonlySet<NodeId> | undefined;
+  /**
+   * The glass keeps what it shows and only the FLYING quads (`raised`) are painted, over it, with
+   * no clear: the trail of the old solitaire's cascade. Shadows and debug marks are left out of
+   * such a frame — repainted every frame onto an uncleared glass, a translucent layer would
+   * blacken in a dozen frames. Nothing here changes what the plan IS; it changes what is sent.
+   */
+  readonly retain?: boolean | undefined;
 }
 
 /**
@@ -75,7 +82,9 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
   };
   // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on
   // top of the thing being measured hides the very edge a reader is looking for.
-  const plan = scenePlan(input);
+  const whole = scenePlan(input);
+  const retain = options.retain === true;
+  const plan = retain ? whole.filter((q) => q.layer !== "shadow" && options.raised?.has(q.id)) : whole;
   const bake = options.bake ?? bakeable;
   const drawn = bakePlan(plan, (quad) => {
     // A quad whose node cannot be found is left LIVE: live is the mode that is always
@@ -84,7 +93,8 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     const owner = byId(host.root, quad.id);
     return owner ? bake(owner) : false;
   });
-  painter.draw(drawn, [...gridMarks(input), ...boundsMarks(input)], host.viewer().theme);
+  const marks = retain ? [] : [...gridMarks(input), ...boundsMarks(input)];
+  painter.draw(drawn, marks, host.viewer().theme, { retain });
 }
 
 export function attachPainter(host: Host, painter: Painter, options: PaintOptions = {}): () => void {

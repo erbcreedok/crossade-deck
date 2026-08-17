@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { move } from "./transform.js";
-import { easing, flipScale, installStockEasings, resetEasings, sample } from "./motion.js";
+import { DEFAULT_TUNING, easing, flipScale, installStockEasings, resetEasings, sample, tune } from "./motion.js";
 
 describe("motion", () => {
   it("motion.lerps-to-its-target — start is from, end is to, and a late read is clamped", () => {
@@ -47,5 +47,14 @@ describe("motion", () => {
     // Clamped: an early or late read never widens past full or reads a negative turn.
     expect(flipScale(-1)).toBeCloseTo(1);
     expect(flipScale(2)).toBeCloseTo(1);
+  });
+  it("motion.tune-patches-the-defaults — a partial over the record, undefined does not erase", () => {
+    expect(tune()).toBe(DEFAULT_TUNING);
+    const t = tune({ settleMs: 240, lift: undefined });
+    expect(t.settleMs).toBe(240);
+    expect(t.lift).toBe(DEFAULT_TUNING.lift); // undefined in the patch keeps the default
+    expect(t.followStiffness).toBe(DEFAULT_TUNING.followStiffness);
+    // The record is flat and every field is a number or a registry name — what a control can hold.
+    for (const v of Object.values(DEFAULT_TUNING)) expect(["number", "string"]).toContain(typeof v);
   });
 });

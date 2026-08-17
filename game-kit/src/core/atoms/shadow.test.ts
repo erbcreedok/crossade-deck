@@ -3,7 +3,7 @@ import { add, fieldsOf, node, remove } from "../node.js";
 import { Bounded } from "./bounded.js";
 import { Container } from "./container.js";
 import { castsShadow, ShadowCaster, type ShadowCasterFields } from "./shadow.js";
-import { DEFAULT_LIGHT, lightVector, Lit } from "./lit.js";
+import { DEFAULT_LIGHT, DEFAULT_SHADOW, lightVector, Lit, shadowOf } from "./lit.js";
 import { rect } from "../../presets/shapes.js";
 
 const box = () => Bounded({ bounds: rect(1, 1.4) });
@@ -76,5 +76,15 @@ describe("the one light", () => {
     add(desk, corner);
     // Asked THROUGH the child, the answer is still the root's lamp.
     expect(lightVector(corner).x).toBeCloseTo(1);
+  });
+  it("atom.lit.the-depth-is-the-desks — shadow coefficients read at the root, stock when unsaid", () => {
+    // How far a shadow falls is the LAMP's other half: root-only, one depth scale per desk. A desk
+    // that said nothing casts at the stock depth; a desk that set its own is read through any child.
+    expect(shadowOf(node("bare"))).toBe(DEFAULT_SHADOW);
+    const desk = node("desk", Lit({ light: DEFAULT_LIGHT, shadow: { base: 0.2, perZ: 0.1, lifted: 0.3, opacity: 0.5 } }));
+    const card = node("card");
+    add(desk, card);
+    expect(shadowOf(card).perZ).toBe(0.1);
+    expect(shadowOf(card).opacity).toBe(0.5);
   });
 });
