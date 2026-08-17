@@ -1,0 +1,71 @@
+game-presets/dice/tsconfig.json
+  s_7ed2dea7ad95d9::t_95f5b12c94b30e 1-21
+game-kit/docs/test-plan/32-actions.md
+  s_7ed2dea7ad95d9::t_a1034edc83d70f 3,19
+game-kit/src/index.ts
+  s_7ed2dea7ad95d9::t_afd57a83bdc107 183-209
+  s_7ed2dea7ad95d9::t_64aa41462bcca2 144
+game-kit/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_64aa41462bcca2 24
+game-presets/dice/package.json
+  s_7ed2dea7ad95d9::t_95f5b12c94b30e 1-30
+game-presets/dice/src/index.ts
+  s_7ed2dea7ad95d9::t_718b0f2bc6367b 2-19
+  s_7ed2dea7ad95d9::t_95f5b12c94b30e 1
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_7ed2dea7ad95d9::t_a1034edc83d70f 19,21-22
+game-presets/dice/src/skin.classic.ts
+  s_7ed2dea7ad95d9::t_b22378ad7dd7fa 1-33
+game-kit/src/render/animator.ts
+  s_7ed2dea7ad95d9::t_746c394ff08134 400-405,408-409
+  s_7ed2dea7ad95d9::t_fe79fbf6ab3cb8 411-414
+game-presets/dice/src/dice.ts
+  s_7ed2dea7ad95d9::t_ad32fd20e2b5b4 1-200
+game-kit/docs/test-plan/48-rollable.md
+  s_7ed2dea7ad95d9::t_a1034edc83d70f 1-15
+game-kit/docs/test-plan/README.md
+  s_7ed2dea7ad95d9::t_a1034edc83d70f 10,60,76
+game-presets/dice/src/guard.resolves-the-engine.test.ts
+  s_7ed2dea7ad95d9::t_95f5b12c94b30e 1-10
+game-kit/src/core/actions.ts
+  s_7ed2dea7ad95d9::t_fd8321dc7ca94d 13-14,56-66
+game-kit/src/render/animator.test.ts
+  s_7ed2dea7ad95d9::t_95836cae9e4389 486-487,517,520-523
+  s_7ed2dea7ad95d9::t_55d3f1cb5416ab 484-485,489,518-519,525,546
+game-presets/dice/src/kinds.ts
+  s_7ed2dea7ad95d9::t_6149f1f1b74938 1-36
+game-kit/src/core/atoms/rollable.ts
+  s_7ed2dea7ad95d9::t_0725660a32afdc 1-12,14-56,69
+  s_7ed2dea7ad95d9::t_fd8321dc7ca94d 13,57-68
+game-presets/dice/src/textures/dice.ts
+  s_7ed2dea7ad95d9::t_82ace92bde2a74 1-77
+game-presets/dice/src/dice.test.ts
+  s_7ed2dea7ad95d9::t_d881e52314c5b4 1-193
+game-kit/src/core/atoms/rollable.test.ts
+  s_7ed2dea7ad95d9::t_151846f4fb9433 2,23,25-28,30
+  s_7ed2dea7ad95d9::t_64aa41462bcca2 1,3-22,24,29,31-59
+game-presets/dice/vitest.config.ts
+  s_7ed2dea7ad95d9::t_95f5b12c94b30e 1-6
+game-presets/dice/docs/test-plan.md
+  s_7ed2dea7ad95d9::t_a1034edc83d70f 1-17
+game-presets/dice/src/guards.test.ts
+  s_7ed2dea7ad95d9::t_a1034edc83d70f 1-40
+package-lock.json
+  s_7ed2dea7ad95d9::t_cfceb37806bad8 373-384,1016-1019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "cdcc6672ce908a0a671bbaa5572bafc7d28f795d",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
