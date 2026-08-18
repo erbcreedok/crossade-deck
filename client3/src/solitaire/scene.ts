@@ -37,7 +37,7 @@ import {
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { buildBoard, COLUMN_STEP, dealKlondike, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.ts";
+import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.ts";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
 
 // THE FEEL OF THIS GAME, in one literal — the designer's patch over the engine's tuning. Everything
@@ -53,6 +53,13 @@ const FEEL: TuningPatch = { settleMs: 240 };
 // down the screen and keep the glass (`launch` + `retain`). The player's speed applies to it as to
 // everything else — at 0 the desk simply clears.
 const CASCADE = { speed: 3.5, spread: 3, angles: [200, 250, 290, 340] } as const;
+
+// THE DEAL — how the gathered deck lays itself out once the player clicks the stock. The table opens
+// with all fifty-two stacked in the stock and seven empty columns; the first click deals the classic
+// triangle, one card after another (`dealPlan`'s row-major order). `stepMs` is the gap between cards;
+// the player's speed divides it, so the whole deal quickens or slows with everything else (at speed 0
+// it lands at once). Each card still FLIES from the stock to its seat on the settle.
+const DEAL = { stepMs: 80 } as const;
 
 function fitUnit(v: { width: number; height: number }): number {
   return Math.max(20, Math.min(v.width / 8.6, v.height / 8.4));
@@ -99,10 +106,9 @@ export function startSolitaire(container: HTMLElement): () => void {
   host.onChange(applyFit);
   applyFit();
 
-  // The board mounted with the whole deck stacked in the stock; dealing NOW — after the motion
-  // runtime is watching — moves each card's rest pose from the stock to its seat, so the deal flies
-  // in on the one clock instead of appearing already laid out.
-  if (!wonAtOnce) dealKlondike(board);
+  // The board opens UNDEALT: the whole deck stacked in the stock, seven empty columns. The deal is
+  // the player's first move — a click on the stock lays the triangle out (`dealTableau`), each card
+  // flying from the stock to its seat on the motion clock. (The `?won` dev door skips all of this.)
   redraw();
 
   // ---- reading the model ------------------------------------------------------------------
@@ -223,10 +229,12 @@ export function startSolitaire(container: HTMLElement): () => void {
     const g = glassOf(view, e);
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
     if (!hit) return;
-    // A press on the stock deals, it does not drag — resolve that first.
+    // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
+    // tableau out; once that is done, presses draw to the waste as usual; a press mid-deal is inert.
     const pileHit = isCard(hit) ? hit.parent : hit;
     if (pileHit && kindOf(pileHit) === "stock") {
-      dealFromStock();
+      if (!dealt) dealTableau();
+      else if (dealDone) dealFromStock();
       return;
     }
     if (!isCard(hit) || facing(hit) === "down") return; // a face-down card is not liftable
@@ -338,6 +346,45 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   // ---- the stock ---------------------------------------------------------------------------
 
+  // The opening deal is a one-time thing: `dealt` latches when it begins, `dealDone` when the last
+  // card has seated. Between the two, the stock is deaf (a press mid-deal does nothing). The timer
+  // paces the cards; the teardown clears it so no card seats after the table is gone.
+  let dealt = false;
+  let dealDone = false;
+  let dealTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * Lay the classic triangle out from the stock, one card after another in `dealPlan`'s row-major
+   * order — each reparented card's rest pose moves from the stock to its column seat, and the settle
+   * flies it there on the motion clock. The player's speed divides the gap between cards; at speed 0
+   * the whole tableau lands in one frame (each settle snaps).
+   */
+  const dealTableau = (): void => {
+    if (dealt) return;
+    dealt = true;
+    const steps = dealPlan(board);
+    if (steps.length === 0) {
+      dealDone = true;
+      return;
+    }
+    const speed = host.viewer().motionSpeed ?? 1;
+    const gap = speed > 0 ? DEAL.stepMs / speed : 0;
+    let k = 0;
+    const step = (): void => {
+      // At speed 0 (gap 0) the loop empties the plan at once; otherwise one card seats per tick.
+      do {
+        const s = steps[k++]!;
+        remove(board.stock, s.card);
+        setFacing(s.card, s.faceUp ? "up" : "down");
+        add(board.tableau[s.col]!, s.card);
+      } while (gap === 0 && k < steps.length);
+      redraw();
+      if (k < steps.length) dealTimer = setTimeout(step, gap);
+      else dealDone = true;
+    };
+    step();
+  };
+
   const dealFromStock = (): void => {
     if (board.stock.children.length > 0) {
       const top = board.stock.children[board.stock.children.length - 1]!;
@@ -446,6 +493,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     view.removeEventListener("pointermove", onMove);
     view.removeEventListener("pointerup", onUp);
     view.removeEventListener("pointercancel", onUp);
+    if (dealTimer) clearTimeout(dealTimer);
     motion.stop();
     painter.destroy();
     host.unmount();

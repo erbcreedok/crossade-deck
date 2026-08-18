@@ -77,8 +77,8 @@ function slot(id: string, x: number, y: number, layout: string, grab?: string): 
 
 /**
  * Build a fresh Klondike table with the WHOLE deck stacked, undealt and face-down, in the stock.
- * The deal is a separate step (`dealKlondike`) so a mounted table can animate it — every card slides
- * from the stock to its seat on the motion runtime's clock instead of appearing there.
+ * The deal is a separate step (`dealPlan`, played by the scene) so a mounted table can animate it —
+ * every card slides from the stock to its seat on the motion runtime's clock instead of appearing there.
  */
 export function buildBoard(): SolitaireBoard {
   // The desk wears the one lamp: the stock light, top-right of the frame, shadows down-left.
@@ -100,11 +100,35 @@ export function buildBoard(): SolitaireBoard {
   return { desk, stock, waste, foundations, tableau };
 }
 
+/** One dealt card: which column it seats in, and whether it lands face-up (a column's deepest card). */
+export interface DealStep {
+  readonly card: Node;
+  readonly col: number;
+  readonly faceUp: boolean;
+}
+
 /**
- * Deal the classic layout OFF the stock: column i takes i+1 cards, only its last face-up; the rest
- * stay in the stock, face-down. Reparenting cards a mounted board already holds is what lets the deal
- * FLY — each moved card's rest pose changes from the stock to its seat, and the settle glides it.
+ * The classic Klondike deal, planned in ROW-major order for the eye: row 0 lands a card in every
+ * column, row 1 in columns 1…6, row 2 in 2…6, and so on — so the cards go out one after another
+ * across the table, not column by column. Column i ends with i+1 cards, only its deepest (the row-i
+ * card) face-up. Cards are taken off the TOP of the stock. The plan does NOT touch the tree — it only
+ * reads the order; the scene reparents each step as it animates the deal, so every card FLIES from
+ * the stock to its seat on the motion clock.
  */
+export function dealPlan(board: SolitaireBoard): DealStep[] {
+  const cols = board.tableau.length;
+  const top = board.stock.children;
+  let k = top.length - 1; // peel off the top of the stock, downward
+  const steps: DealStep[] = [];
+  for (let row = 0; row < cols; row++) {
+    for (let col = row; col < cols; col++) {
+      const card = top[k--];
+      if (card) steps.push({ card, col, faceUp: row === col });
+    }
+  }
+  return steps;
+}
+
 /**
  * A table already WON — every card on its foundation, aces first, by suit — for the one thing a
  * finished game does that a fresh one cannot show: the celebration. A dev door (`?won`), not a
@@ -133,15 +157,4 @@ function rankOf(c: Node): number {
   const rank = fieldsOf<ValuedFields>(c, "Valued")?.values["rank"];
   const order = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
   return typeof rank === "string" ? order.indexOf(rank) : -1;
-}
-
-export function dealKlondike(board: SolitaireBoard): void {
-  for (let i = 0; i < board.tableau.length; i++) {
-    for (let j = 0; j <= i; j++) {
-      const card = board.stock.children[board.stock.children.length - 1]!; // off the top of the stock
-      remove(board.stock, card);
-      setFacing(card, j < i ? "down" : "up");
-      add(board.tableau[i]!, card);
-    }
-  }
 }
