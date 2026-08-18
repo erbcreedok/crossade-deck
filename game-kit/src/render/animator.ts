@@ -36,6 +36,7 @@ import { apply, compose, move, pose, rotate, scale, type Transform, type Vec } f
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
 import { renderFrame } from "./stage.js";
+import { type TextMeasure } from "./textMetrics.js";
 import { transformsOf } from "./scenePlan.js";
 import { shuffleRecipe, type ShuffleContext } from "./shuffles.js";
 
@@ -59,6 +60,8 @@ export type MotionOptions = TuningPatch & {
   readonly clock?: Clock;
   /** Which nodes bake — passed straight to the frame, same meaning as `attachPainter`. */
   readonly bake?: (node: Node) => boolean;
+  /** The ruler captions lay out against — passed straight to the frame, as `attachPainter` takes it. */
+  readonly measure?: TextMeasure | undefined;
 };
 
 /** One node in a carried run, with its base layout offset from the grab pivot (root units). */
@@ -359,6 +362,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       overrides: overrides(),
       raised: raised(),
       retain: retaining,
+      measure: options.measure,
       ...(options.bake ? { bake: options.bake } : {}),
     });
 

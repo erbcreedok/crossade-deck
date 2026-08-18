@@ -272,6 +272,7 @@ export {
   type Mark,
   type PlanInput,
   type Quad,
+  type QuadText,
   type QuadImage,
   type QuadLayer,
   type QuadStroke,
@@ -292,6 +293,12 @@ export {
 } from "./render/effects.js";
 export { dashContour, perimeter, surfaceOutline, type DashOptions } from "./render/contour.js";
 export { assetNames, assetRecord, registerAsset, resetAssets, type AssetRecord } from "./render/assets.js";
+// TEXT. The kit cannot measure a glyph — a font lives in the browser — so measuring arrives as a
+// PORT, and the plan stays the pure function every visual rule is checked through. `domTextMeasure`
+// is the browser's answer to it; a test's answer is an object literal, exactly as for `Painter`.
+export { domTextMeasure, type DomTextOptions, type FontWait } from "./render/domText.js";
+export { layoutText, type LayoutRequest, type TextLayout, type TextLine } from "./render/textLayout.js";
+export { type FontSpec, type Glyphs, type TextMeasure } from "./render/textMetrics.js";
 export {
   fitBox,
   DEFAULT_ALIGN,
@@ -327,6 +334,7 @@ export {
 } from "./render/coats.js";
 export {
   accentWash,
+  DEFAULT_TEXT,
   installTheme,
   themeCss,
   PALETTES,
@@ -335,6 +343,7 @@ export {
   t,
   type Palette,
   type ScaleStep,
+  type TextStyle,
 } from "./render/theme.js";
 
 // ---- presets: the ready-made ---------------------------------------------------------------

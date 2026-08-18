@@ -10,6 +10,8 @@ import { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit } from "../core/atoms/lit.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { Oriented } from "../core/atoms/oriented.js";
+import { Labeled } from "../core/atoms/labeled.js";
+import { type TextMeasure } from "./textMetrics.js";
 import { add, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply, IDENTITY, move } from "../core/transform.js";
@@ -167,6 +169,46 @@ describe("scenePlan", () => {
     const shade = quads[0]!;
     expect(shade.transform.e).toBeLessThan(piece.transform.e); // down-LEFT of the piece
     expect(shade.transform.f).toBeGreaterThan(piece.transform.f);
+  });
+
+  // A ruler whose answers are chosen here: ten pixels a character, flat. See `textLayout.test.ts`.
+  const ruler: TextMeasure = {
+    ready: Promise.resolve(),
+    measure: (text, font) => ({ width: text.length * 10, ascent: font.size * 0.8, descent: font.size * 0.2 }),
+  };
+  const planWithRuler = (root: Parameters<typeof scenePlan>[0]["root"]) =>
+    scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, measure: ruler });
+
+  it("plan.a-caption-rides-its-nodes-quad — a labelled surface carries its lines in the node's own space", () => {
+    const root = node("desk", Container({ layout: "free" }), Surfaced());
+    add(root, node("btn", box(3, 1), Surfaced(), Labeled({ label: "ab" })));
+    const q = planWithRuler(root).find((x) => x.id === "btn")!;
+    expect(q.text?.lines.map((l) => l.text)).toEqual(["ab"]);
+    // Pixels, around the node's origin — the same space the contour is in, so the painter needs
+    // no second convention.
+    expect(q.text!.lines[0]!.x).toBe(-10);
+  });
+
+  it("plan.a-caption-needs-no-surface — a node that only speaks draws only its words", () => {
+    // The ladder's rule is that a box alone draws nothing. A CAPTION is something to draw, so a
+    // node carrying one earns a quad — with no layers and no stroke, because it authored neither.
+    const root = node("desk", Container({ layout: "free" }), Surfaced());
+    add(root, node("note", box(3, 1), Labeled({ label: "hi" })));
+    const q = planWithRuler(root).find((x) => x.id === "note");
+    expect(q?.text?.lines.map((l) => l.text)).toEqual(["hi"]);
+    expect(q?.layers).toEqual([]);
+    expect(q?.stroke).toBeUndefined();
+  });
+
+  it("plan.no-ruler-no-caption — without a measurer the plan is the plan it always was", () => {
+    // Skipped, not thrown, exactly as an unregistered surface name is. A scene that never asked
+    // for text must be byte-for-byte what it was before text existed.
+    const root = node("desk", Container({ layout: "free" }), Surfaced());
+    add(root, node("btn", box(3, 1), Surfaced(), Labeled({ label: "ab" })));
+    // `plan` is the ordinary helper: it hands no measurer, exactly as every scene did before text.
+    expect(plan(root).find((x) => x.id === "btn")!.text).toBeUndefined();
+    // And with a ruler the very same tree does carry one — so the difference is the ruler alone.
+    expect(planWithRuler(root).find((x) => x.id === "btn")!.text).toBeDefined();
   });
 
   it("plan.a-billboard-ignores-the-owners-turn — the viewer frame severs the angle chain and nothing else", () => {

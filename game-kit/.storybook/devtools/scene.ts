@@ -19,6 +19,7 @@ import {
   attachMotion,
   type TuningPatch,
   attachPainter,
+  domTextMeasure,
   inspect,
   installStockEasings,
   installStockHeads,
@@ -132,6 +133,9 @@ export interface SceneOptions {
   readonly motion?: TuningPatch;
 }
 
+/** One ruler for the whole page: the answers are cached, so twenty stories measure a caption once. */
+const ruler = domTextMeasure();
+
 export function scene(
   root: Node,
   options: SceneOptions = {},
@@ -233,14 +237,18 @@ export function scene(
   // Handed straight through, ABSENCE INCLUDED — and absence has to stay absence rather than
   // become `bake: undefined`: no `bake` means the kit's own default, and the catalog has no
   // business inventing a different one for the reader to learn instead.
+  // THE CATALOG IS THE TEXT PORT'S FIRST CONSUMER, and that is on purpose: a port the kit's own
+  // showcase could not use would be the wrong port. One ruler for every scene on the page — the
+  // measurements are cached inside it, so a shelf of twenty stories measures each caption once.
+
   // A motion scene runs the one clock (and needs the stock easings) instead of the still painter;
   // both hand back a teardown of the same shape, so the rest of the shell does not care which.
   // The runtime handle is KEPT when it exists: a drag story speaks to the clock (`grab`/`dragTo`/
   // `release`), and building a second runtime for that would put two clocks on one glass.
   const motions = options.animate
-    ? (installStockEasings(), attachMotion(host, painter, { ...options.motion, ...(options.bake ? { bake: options.bake } : {}) }))
+    ? (installStockEasings(), attachMotion(host, painter, { ...options.motion, measure: ruler, ...(options.bake ? { bake: options.bake } : {}) }))
     : undefined;
-  const stopPainting = motions ? motions.stop : attachPainter(host, painter, options.bake ? { bake: options.bake } : {});
+  const stopPainting = motions ? motions.stop : attachPainter(host, painter, { measure: ruler, ...(options.bake ? { bake: options.bake } : {}) });
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
   // not observable from the outside without saying so. The flag is for the browser tests: the

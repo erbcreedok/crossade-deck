@@ -22,6 +22,10 @@ import { areaOf, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { resolveAngle, resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
 import { fieldsOf } from "../core/node.js";
 import { contextFor, sumAlongChain, type ResolveContext } from "../core/resolve.js";
+import { type LabeledFields } from "../core/atoms/labeled.js";
+import { layoutText, type TextLine } from "./textLayout.js";
+import { type FontSpec, type TextMeasure } from "./textMetrics.js";
+import { DEFAULT_TEXT } from "./theme.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
@@ -89,6 +93,17 @@ export interface QuadStroke {
 }
 
 /**
+ * The caption on a quad, laid out: a resolved font, a colour token, and where each line's pen
+ * starts. The painter draws strings at points and decides nothing — wrapping already happened in
+ * `textLayout`, where a test could hold it down.
+ */
+export interface QuadText {
+  readonly font: FontSpec;
+  readonly fill: Paint;
+  readonly lines: readonly TextLine[];
+}
+
+/**
  * One thing to draw, in PIXELS, already ordered. The renderer adds nothing of its own — it
  * only turns a token name into a colour, which is the one thing it cannot be handed, since a
  * GPU canvas has no CSS cascade to resolve a variable in.
@@ -134,6 +149,8 @@ export interface Quad {
    * up to the glass stays a pure function.
    */
   readonly filter?: FilterRef | undefined;
+  /** The node's caption, laid out — absent when it has none, or when nobody handed a ruler. */
+  readonly text?: QuadText | undefined;
   readonly z: number;
 }
 
@@ -240,6 +257,12 @@ export interface PlanInput {
    * inspection reads the tree's truth, and a group in flight keeps its own height order inside.
    */
   readonly raised?: ReadonlySet<NodeId> | undefined;
+  /**
+   * How wide a string is — the one thing the plan cannot compute and must be told (`textMetrics`).
+   * Absent, no caption lays out and the plan is byte-for-byte the plan it was before text existed:
+   * skipped, not thrown, exactly as an unregistered surface name is.
+   */
+  readonly measure?: TextMeasure | undefined;
 }
 
 /**
@@ -249,7 +272,7 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer, overrides, raised }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, overrides, raised, measure }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = viewTransform(unit, width, height);
   // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
@@ -357,21 +380,41 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
     });
   };
 
+  /**
+   * The node's caption, laid out in its box — or nothing at all, which is the answer far more
+   * often. The font is the desk's text style with its size turned into pixels HERE, at the plan's
+   * edge, exactly like every other length; the wrapping itself is `layoutText`, kept pure so a
+   * test can hold it down without a font engine.
+   */
+  const captionOf = (node: Node, area: { readonly w: number; readonly h: number }): QuadText | undefined => {
+    if (!measure) return undefined;
+    const label = fieldsOf<LabeledFields>(node, "Labeled")?.label;
+    if (!label) return undefined;
+    const style = DEFAULT_TEXT;
+    const font: FontSpec = { family: style.family, size: style.size * unit, weight: style.weight };
+    const laid = layoutText({ text: label, font, width: area.w * unit, lineHeight: style.lineHeight }, measure);
+    return laid.lines.length > 0 ? { font, fill: style.fill, lines: laid.lines } : undefined;
+  };
+
   const paint = (
     n: Node,
     node: Node,
     coats: ReturnType<typeof applyEffects>["coats"],
     ctx: ResolveContext,
   ): void => {
-    if (!caps(node).has("Surfaced")) return;
-    const fields = fieldsOf<SurfacedFields>(node, "Surfaced");
     const area = areaOf(node);
-    if (!fields || !area) return;
+    if (!area) return;
+    const fields = caps(node).has("Surfaced") ? fieldsOf<SurfacedFields>(node, "Surfaced") : undefined;
+    // A CAPTION IS SOMETHING TO DRAW, so a node carrying one earns a quad even with no surface at
+    // all — the ladder's rule is that a bare BOX draws nothing, not that words do. Such a quad has
+    // no layers and no stroke, because the node authored neither.
+    const caption = captionOf(node, area);
+    if (!fields && !caption) return;
 
     // An unregistered name is skipped, not thrown: one bad reference must not take the scene
     // down and hide every node that was fine.
-    const record = surfaceRecord(fields.surface);
-    if (!record) return;
+    const record = fields ? surfaceRecord(fields.surface) : undefined;
+    if (!record && !caption) return;
     // ONE map from the node's own coordinates all the way to the glass: its pose, its owners'
     // poses, and units into pixels. Written inline it was three copies of the same two lines,
     // and none of them would have survived a node that could turn.
@@ -396,7 +439,7 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
     const shape = footprint(node) ?? boxOf(area);
     // Every measurement in a record is in units too, and every one of them is converted HERE.
     // A single length left behind would be right on one screen and wrong on the next.
-    const points = surfaceOutline(shape, record.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
+    const points = surfaceOutline(shape, record?.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
 
     // THE COATS, folded blindly. Their own layers sit OVER the surface's, in the same pixel
     // conversion every layer goes through — the plan never learns what a highlight or a censor is.
@@ -418,10 +461,11 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
       w: area.w * unit,
       h: area.h * unit,
       points,
-      layers: [...record.layers.map((layer) => layerOf(layer, area, unit)), ...coatLayers],
+      layers: [...(record?.layers ?? []).map((layer) => layerOf(layer, area, unit)), ...coatLayers],
       transform,
-      stroke: strokeOf(coatStroke ?? record.stroke, points, unit),
+      stroke: strokeOf(coatStroke ?? record?.stroke, points, unit),
       filter,
+      ...(caption ? { text: caption } : {}),
       z: resolveZ(ctx),
     });
   };

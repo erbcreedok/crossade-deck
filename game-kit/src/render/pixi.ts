@@ -6,7 +6,7 @@
 // computed in THIS file is untestable by construction — jsdom has no WebGL, so a rule that
 // slips in here is a rule nobody can hold down. Keep it dumb.
 
-import { Application, Assets, BlurFilter, Container, type Filter, Graphics, Matrix, Texture } from "pixi.js";
+import { Application, Assets, BlurFilter, Container, type Filter, Graphics, Matrix, Text, Texture } from "pixi.js";
 import { type ThemeName } from "../core/viewer.js";
 import { type FilterRef } from "./effects.js";
 import { type Painter } from "./painter.js";
@@ -274,6 +274,31 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
         }
         g.stroke(style);
         box.addChild(g);
+      }
+
+      // THE CAPTION, when the node had one. Every decision was already taken upstairs: which lines
+      // there are, where each pen starts, and where the baseline sits — `textLayout` did the
+      // wrapping against a ruler a test could choose. This only draws strings at points.
+      //
+      // A renderer draws a string from the TOP of its box, so the baseline is reached by
+      // subtracting the line's own ascent — which rides on the line, measured by the same ruler
+      // that did the wrapping. Guessing it here instead would put the painter and the layout on
+      // two different answers, and the drift would show on the first face with tall capitals.
+      if (quad.text) {
+        for (const line of quad.text.lines) {
+          const glyphs = new Text({
+            text: line.text,
+            style: {
+              fontFamily: quad.text.font.family,
+              fontSize: quad.text.font.size,
+              fontWeight: String(quad.text.font.weight) as never,
+              fill: paint(theme, quad.text.fill),
+            },
+          });
+          glyphs.x = line.x;
+          glyphs.y = line.y - line.ascent;
+          box.addChild(glyphs);
+        }
       }
 
       // THE FILTER, when the coat named one. Built here and hung on the box the coat covers; a name

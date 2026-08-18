@@ -11,6 +11,7 @@ import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan } from "./scenePlan.js";
+import { type TextMeasure } from "./textMetrics.js";
 
 /**
  * Paint now, and again whenever the host says something changed — a resize, a viewer switch,
@@ -61,6 +62,12 @@ export interface PaintOptions {
    * blacken in a dozen frames. Nothing here changes what the plan IS; it changes what is sent.
    */
   readonly retain?: boolean | undefined;
+  /**
+   * The ruler a caption is laid out against (`TextMeasure`). Absent, nothing with a `Labeled` draws
+   * its words and every scene is exactly what it was before text existed — a consumer opts in by
+   * handing one, the same way it opts into a renderer.
+   */
+  readonly measure?: TextMeasure | undefined;
 }
 
 /**
@@ -79,6 +86,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     viewer: host.viewer(),
     overrides: options.overrides,
     raised: options.raised,
+    measure: options.measure,
   };
   // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on
   // top of the thing being measured hides the very edge a reader is looking for.

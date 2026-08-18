@@ -122,6 +122,35 @@ export const SCALE = {
 
 export type ScaleStep = keyof typeof SCALE;
 
+/**
+ * THE DESK'S TEXT, as data — the canon's "fonts and sizes come through the THEME".
+ *
+ * The size is in UNITS, like every other length in the model: pixels happen at the plan's edge and
+ * nowhere else, or a caption would be one size on a laptop and another on a phone. The fill is a
+ * TOKEN, so one style reads correctly on both palettes without being written twice.
+ *
+ * The family is a stack a consumer may replace wholesale. The kit ships a neutral one because it
+ * has to ship something measurable; it does not know, and must not care, what is written in it.
+ */
+export interface TextStyle {
+  readonly family: string;
+  /** Em size, in UNITS. */
+  readonly size: number;
+  readonly weight: number;
+  /** Baseline to baseline, as a multiple of the em. */
+  readonly lineHeight: number;
+  readonly fill: Paint;
+}
+
+export const DEFAULT_TEXT: TextStyle = {
+  family: "ui-sans-serif, system-ui, sans-serif",
+  size: 0.26,
+  weight: 400,
+  lineHeight: 1.25,
+  fill: "text",
+};
+
+
 /** The one place the `--gk-` prefix is spelled. */
 function varName(path: string): string {
   return `--gk-${path.replace(/\./g, "-").replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;

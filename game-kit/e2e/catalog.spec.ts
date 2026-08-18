@@ -80,6 +80,30 @@ async function openEntry(page: Page, id: string): Promise<void> {
     .catch(() => undefined);
 }
 
+test("e2e.a-caption-reaches-the-glass — the kit's newest claim, and the one only a font engine can settle", async ({ page }) => {
+  // The plan is unit-tested and the wrapping is unit-tested, both against a ruler whose answers a
+  // test chose. Neither can say whether the painter turned lines into PIXELS — jsdom has no font
+  // engine any more than it has WebGL. So: one story, two captions, and the ink counted.
+  //
+  // The caption is deliberately not Latin. A font service ships subsets by codepoint range, and
+  // the failure this rung exists to catch is the quiet one — Latin arrives, everything else falls
+  // back, and the desk still looks fine to whoever wrote the story in English.
+  const ink = async (label: string): Promise<number> => {
+    await page.goto(`/iframe.html?id=atoms-labeled--caption&args=label:${encodeURIComponent(label)}`);
+    await page.waitForTimeout(1200);
+    return page.evaluate(() => {
+      const view = document.querySelector("canvas") as HTMLCanvasElement;
+      const gl = (view.getContext("webgl2") ?? view.getContext("webgl")) as WebGLRenderingContext;
+      const px = new Uint8Array(4 * view.width * view.height);
+      gl.readPixels(0, 0, view.width, view.height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const seen = new Set<string>();
+      for (let i = 0; i < px.length; i += 4) seen.add(`${px[i]},${px[i + 1]},${px[i + 2]}`);
+      return seen.size;
+    });
+  };
+  expect(await ink("Ұлттық ойын")).toBeGreaterThan(await ink(" "));
+});
+
 test("e2e.pixi-actually-paints — the one claim no headless layer can make", async ({ page }) => {
   // The middle of the plate scene must differ from the empty stage beside it. Nothing above
   // this line can make that claim: the plan is a pure function, and jsdom has no WebGL, so
