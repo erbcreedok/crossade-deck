@@ -1,0 +1,26 @@
+game-kit/src/index.ts
+  s_170937f0c01a52::t_de522f00b031d9 314-315
+game-kit/src/presets/button.ts
+  s_170937f0c01a52::t_de522f00b031d9 21-34,57-67,122-125,164-167
+game-kit/.storybook/stories/HudButton.stories.ts
+  s_170937f0c01a52::t_83da99fd374887 10,45-48,68,90-99,110-116
+  s_170937f0c01a52::t_6dbe63eb16d1b2 117
+game-kit/src/presets/controls.ts
+  s_170937f0c01a52::t_de522f00b031d9 23,68-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0f765aef3ad44ada964fa510d1b9e00d0407a6c7",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
