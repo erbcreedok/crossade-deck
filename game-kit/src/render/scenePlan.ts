@@ -24,6 +24,7 @@ import { fieldsOf } from "../core/node.js";
 import { contextFor, sumAlongChain, type ResolveContext } from "../core/resolve.js";
 import { type LabeledFields } from "../core/atoms/labeled.js";
 import { layoutText, type TextLine } from "./textLayout.js";
+import { captionScale } from "./boxFit.js";
 import { type FontSpec, type TextMeasure } from "./textMetrics.js";
 import { DEFAULT_TEXT, textStyle } from "./textStyles.js";
 import { type ViewerSettings } from "../core/viewer.js";
@@ -394,9 +395,25 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
     // The ROLE the node named, or the desk's default when it named none — and also when it named
     // one nobody registered: a caption in the default face beats a scene that refuses to draw.
     const style = textStyle(worn.style) ?? DEFAULT_TEXT;
-    const font: FontSpec = { family: style.family, size: style.size * unit, weight: style.weight };
-    const laid = layoutText({ text: label, font, width: area.w * unit, lineHeight: style.lineHeight }, measure);
-    return laid.lines.length > 0 ? { font, fill: style.fill, lines: laid.lines } : undefined;
+    const box = { w: area.w * unit, h: area.h * unit };
+    const lay = (size: number) => {
+      const font: FontSpec = { family: style.family, size, weight: style.weight };
+      return { font, laid: layoutText({ text: label, font, width: box.w, lineHeight: style.lineHeight }, measure) };
+    };
+
+    const first = lay(style.size * unit);
+    if (first.laid.lines.length === 0) return undefined;
+
+    // THE BOX WINS. A caption bigger than the place it was given is shrunk to fit rather than left
+    // to spill — and shrunk rather than CUT, because losing a player's word is not surviving its
+    // length. The arithmetic is `boxFit`'s, the same one a button, a drop zone and a badge share,
+    // so none of them can drift into its own idea of "fits".
+    //
+    // Re-laid rather than merely scaled: a smaller em wraps differently, and drawing yesterday's
+    // line breaks at today's size is how a caption ends up with a ragged hole in the middle.
+    const k = captionScale({ box, text: { w: first.laid.width, h: first.laid.height } });
+    const out = k < 1 ? lay(style.size * unit * k) : first;
+    return out.laid.lines.length > 0 ? { font: out.font, fill: style.fill, lines: out.laid.lines } : undefined;
   };
 
   const paint = (

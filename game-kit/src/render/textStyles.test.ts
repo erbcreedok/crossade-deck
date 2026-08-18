@@ -34,6 +34,30 @@ describe("text styles", () => {
     expect(textStyle("hub/title")).toEqual(BIG);
   });
 
+  it("text.a-caption-too-big-for-its-box-shrinks — the box wins, and the word survives whole", () => {
+    resetLayouts();
+    registerLayout("free", freeLayout);
+    resetSurfaces();
+    installStockSurfaces();
+    // A role whose em is a whole unit: in a box one unit tall, one line of it cannot fit.
+    registerTextStyle("huge", { family: "Loud", size: 1, weight: 400, lineHeight: 1.4, fill: "text" });
+
+    const capIn = (w: number, h: number, style: string) => {
+      const desk = node(`d${w}x${h}${style}`, Container({ layout: "free" }), Surfaced());
+      add(desk, node("cap", Bounded({ bounds: rect(w, h) }), Labeled({ label: "aaaa", style })));
+      const plan = scenePlan({ root: desk, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, measure: ruler });
+      return plan.find((q) => q.id === "cap")!.text!;
+    };
+
+    // Roomy: nothing is touched, and the em is the role's own.
+    expect(capIn(12, 4, "huge").font.size).toBe(100);
+    // Cramped: the em comes down so the block fits, and the caption is still the whole word — the
+    // kit shrinks rather than cutting, because losing a player's word is not surviving its length.
+    const tight = capIn(1.2, 0.6, "huge");
+    expect(tight.font.size).toBeLessThan(100);
+    expect(tight.lines.map((l) => l.text).join("")).toContain("aaaa");
+  });
+
   it("text.an-unknown-role-falls-back — a typo must not take the desk down", () => {
     resetLayouts();
     registerLayout("free", freeLayout);

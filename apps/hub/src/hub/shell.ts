@@ -31,6 +31,7 @@ import { PALETTE } from "../look/palette.js";
 import { barTree, hubTree } from "./grid.js";
 import { wirePress } from "./press.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
+import { goTo, onRoute, routeOf } from "./route.js";
 
 /** The shelf is about nine units across and six down. ONE fit, because the region never changes. */
 function fitUnit(v: { width: number; height: number }): number {
@@ -118,7 +119,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     };
   };
 
-  const enter = async (id: string): Promise<void> => {
+  const enter = async (id: string, write = true): Promise<void> => {
     const entry = CATALOGUE.find((g) => g.id === id);
     if (!entry || busy || running) return;
     busy = true;
@@ -129,17 +130,19 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       stopSweep();
       setMode("play");
       running = start(stage);
+      if (write) goTo(id);
     } catch {
       // A blip, or a game that will not parse. Without this the hub sits in a dead screen with a
       // spinning tile and no way out — the one failure a launcher must not have.
       stopSweep();
       setMode("hub");
+      if (write) goTo(undefined, "replace");
     } finally {
       busy = false;
     }
   };
 
-  const leave = (): void => {
+  const leave = (write = true): void => {
     if (!running) return;
     running();
     running = undefined;
@@ -147,6 +150,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     // that threw halfway must not leave an orphan canvas holding a context.
     stage.replaceChildren();
     setMode("hub");
+    if (write) goTo(undefined);
   };
 
   const stopPress = wirePress({
@@ -159,6 +163,18 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
 
   setMode("hub");
 
+  // THE URL IS THE PLACE. A reload lands back in the game the player was in, and the browser's own
+  // Back leaves it — which is the gesture a phone user reaches for before finding any button.
+  // Restoring writes nothing: the address is already right, and writing it again would push a
+  // second identical entry onto the history for every reload.
+  const opened = routeOf();
+  if (opened) void enter(opened, false);
+
+  const stopRouting = onRoute((id) => {
+    if (id && !running) void enter(id, false);
+    else if (!id && running) leave(false);
+  });
+
   // The faces are not measurable until they arrive, and a caption laid out against the fallback
   // stays that way. So the first frame drawn with real metrics is asked for here, once the ruler
   // says it has them.
@@ -168,7 +184,8 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
 
   return () => {
     alive = false;
-    leave();
+    leave(false);
+    stopRouting();
     stopPress();
     stopFitting();
     stopPainting();
