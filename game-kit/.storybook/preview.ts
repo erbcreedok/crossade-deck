@@ -161,7 +161,11 @@ const preview: Preview = {
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion"],
           "Elements",
+          // The interface: what a player presses, reads and toggles. Nothing here decorates a line —
+          // an arrow head is a `Line` preset and lives with the presets, which is where it was all
+          // along. Putting a button beside it said the two had something in common. They do not.
           "HUD",
+          ["Button"],
           // Last, because it is ABOUT the catalog rather than of it: the pages that check the
           // pictures above them. Opening one runs its checks — the section is the switch.
           "Tests",
