@@ -125,23 +125,40 @@ function slotOf(i: number): Node {
   return plate;
 }
 
+/**
+ * THE FELT — the tiled ground, and a node of its own so that it can MOVE while the desk does not.
+ *
+ * client1 crawls this pattern across the screen and stands its menu still on top; the same thing
+ * here is the ground's own pose, written by the drift each frame (`drift.ts`). Were the surface
+ * still worn by the desk, drifting it would carry the title and the shelf along with it.
+ *
+ * A BOX OF ITS OWN, and a generous one. Without it the area is the extent of what the node holds,
+ * so the felt would stop at the edge of the shelf and the tiled club would never reach the corners
+ * of a screen. Sized past any viewport rather than recomputed on resize: it costs one quad and one
+ * tiled texture either way, and a number that never has to be right is a number that cannot go
+ * wrong. The margin is also what the drift travels in — a tile's worth of movement never uncovers
+ * an edge.
+ *
+ * The SAME id in both trees on purpose: the drift looks its node up by name every frame and must
+ * not care whether the shelf or a running game's bar is up.
+ */
+export const FELT = "felt";
+
+function feltOf(): Node {
+  return node(FELT, Bounded({ bounds: rect(60, 60) }), Surfaced({ surface: GROUND }), Transformable());
+}
+
 /** The shelf: the title over a row of places, the first of which are the games there are. */
 export function hubTree(): Node {
   installLayouts();
   const desk = node(
     "desk",
-    // A BOX OF ITS OWN, and a generous one. Without it the desk's area is the extent of what it
-    // holds, so the felt would stop at the edge of the shelf and the tiled club would never reach
-    // the corners of a screen. Sized past any viewport rather than recomputed on resize: it costs
-    // one quad and one tiled texture either way, and a number that never has to be right is a
-    // number that cannot go wrong.
-    Bounded({ bounds: rect(60, 60) }),
     Container({ layout: FREE }),
-    Surfaced({ surface: GROUND }),
     // The desk's one lamp. `opacity` is client1's `rgba(0,0,0,.55)` drop; the stock 0.28 is too
     // soft for a look whose shadows are hard offsets.
     Lit({ shadow: { base: 0.16, perZ: 0.1, lifted: 0.12, opacity: 0.55 } }),
   );
+  add(desk, feltOf());
 
   add(
     desk,
@@ -173,7 +190,8 @@ export function hubTree(): Node {
  */
 export function barTree(strip: { readonly topY: number; readonly height: number }): Node {
   installLayouts();
-  const bar = node("bar", Container({ layout: FREE }), Bounded({ bounds: rect(60, 60) }), Surfaced({ surface: GROUND }));
+  const bar = node("bar", Container({ layout: FREE }));
+  add(bar, feltOf());
   // Measured against the STRIP, not against the shelf: the unit in force is the shelf's, and a
   // control sized in shelf units would stand taller than the ribbon it lives in.
   const w = strip.height * 2.8;

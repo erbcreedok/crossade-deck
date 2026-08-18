@@ -22,13 +22,16 @@ import {
   installTheme,
   mount,
   NO_COAT,
+  Transformable,
   type Host,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { hubRuler } from "../look/fonts.js";
 import { installHubLook } from "../look/surfaces.js";
-import { PALETTE } from "../look/palette.js";
-import { barTree, hubTree } from "./grid.js";
+import { CLUB_U, PALETTE } from "../look/palette.js";
+import { beat } from "./beat.js";
+import { AT_REST, driftStep, type Drift } from "./drift.js";
+import { barTree, FELT, hubTree } from "./grid.js";
 import { wirePress } from "./press.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
 import { goTo, onRoute, routeOf } from "./route.js";
@@ -60,7 +63,12 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   installHubLook();
 
   const shell = chrome.parentElement;
-  const host: Host = mount(chrome, hubTree(), { ...DEFAULT_VIEWER, hudUnit: 64 });
+  // THE MOTION SWITCH, read from the system at boot and nowhere else after that. `motionSpeed` is
+  // the kit's own knob — `0` is no animation at all — so a settings screen has a lever already and
+  // needs to invent nothing: `host.setViewer({ ...host.viewer(), motionSpeed })`. The drift below
+  // watches it, and at zero it does not merely stand still, it leaves the clock.
+  const settled = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  const host: Host = mount(chrome, hubTree(), { ...DEFAULT_VIEWER, hudUnit: 64, motionSpeed: settled ? 0 : 1 });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   const ruler = hubRuler();
@@ -71,6 +79,40 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   let busy = false;
   let alive = true;
 
+  // THE HUB'S ONE CLOCK. Everything that moves joins it and nothing else asks for a frame; the
+  // redraw is the loop's, once per frame, however many writers there were. See `beat.ts`.
+  const clock = beat(() => host.setRoot(host.root));
+
+  // WHERE THE FELT HAS CRAWLED TO, kept out here rather than inside the tick, because the tree is
+  // thrown away and rebuilt on every `setMode` and the pattern must not jump back to the corner
+  // when a game opens.
+  let felt: Drift = AT_REST;
+
+  const drift = (_seconds: number, dt: number): boolean => {
+    const next = driftStep(felt, dt, host.viewer().motionSpeed ?? 1);
+    if (next === felt) return false;
+    felt = next;
+    const ground = byId(host.root, FELT);
+    if (!ground) return false;
+    // In UNITS: the drift counts tiles, and a tile is `CLUB_U` of them. Written straight onto the
+    // ground's own pose — the felt is a node, so moving the pattern is moving a node.
+    compose(ground, Transformable({ at: { x: felt.x * CLUB_U, y: felt.y * CLUB_U } }));
+    return true;
+  };
+
+  // Joined and dropped with the switch rather than left running and told to do nothing: at
+  // `motionSpeed: 0` the hub asks for no frames at all, which is what "power saving" has to mean.
+  let stopDrift: (() => void) | undefined;
+  const followMotion = (): void => {
+    const wanted = (host.viewer().motionSpeed ?? 1) > 0;
+    if (wanted === (stopDrift !== undefined)) return;
+    if (wanted) stopDrift = clock.join(drift);
+    else {
+      stopDrift?.();
+      stopDrift = undefined;
+    }
+  };
+
   let lastUnit = -1;
   const applyFit = (): void => {
     const u = fitUnit(host.viewport());
@@ -78,7 +120,10 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     lastUnit = u;
     host.setViewer({ ...host.viewer(), hudUnit: u });
   };
-  const stopFitting = host.onChange(applyFit);
+  const stopFitting = host.onChange(() => {
+    applyFit();
+    followMotion();
+  });
 
   const setMode = (mode: "hub" | "play"): void => {
     playing = mode === "play";
@@ -90,6 +135,10 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     const topY = (STRIP_PX / 2 - v.height / 2) / unit;
     // Three quarters of the ribbon, so the plate has air above and below it.
     host.setRoot(playing ? barTree({ topY, height: (STRIP_PX * 0.75) / unit }) : hubTree());
+    // The tree is new and its felt starts in the corner; the pattern is not new. Put it back where
+    // it had crawled to, or opening a game would snap the weave and closing it would snap it again.
+    const ground = byId(host.root, FELT);
+    if (ground) compose(ground, Transformable({ at: { x: felt.x * CLUB_U, y: felt.y * CLUB_U } }));
     lastUnit = -1;
     applyFit();
   };
@@ -99,21 +148,20 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
    * a CUT rather than a fade — a half-drawn thing rather than a half-faded one — which is what a
    * progress bar is. The sweep is cancelled in a `finally`, never in a `then`: a failed import must
    * not leave a frame loop running for the rest of the session.
+   *
+   * It rides the same clock as the drift. Two loops would each redraw the other's frame, and the
+   * gold would flicker against the felt for a reason nobody could see in either file.
    */
   const sweep = (faceId: string): (() => void) => {
-    const started = performance.now();
-    let frame = 0;
-    const tick = (): void => {
+    const leave = clock.join((seconds) => {
       const face = byId(host.root, faceId);
-      if (!face || !alive) return;
-      const level = ((performance.now() - started) % SWEEP_MS) / SWEEP_MS;
+      if (!face || !alive) return false;
+      const level = ((seconds * 1000) % SWEEP_MS) / SWEEP_MS;
       compose(face, Coated({ self: { recipe: "fill", level, tint: PALETTE.gold }, cast: NO_COAT }));
-      host.setRoot(host.root);
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
+      return true;
+    });
     return () => {
-      cancelAnimationFrame(frame);
+      leave();
       const face = byId(host.root, faceId);
       if (face) compose(face, Coated({ self: NO_COAT, cast: NO_COAT }));
     };
@@ -162,6 +210,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   });
 
   setMode("hub");
+  followMotion();
 
   // THE URL IS THE PLACE. A reload lands back in the game the player was in, and the browser's own
   // Back leaves it — which is the gesture a phone user reaches for before finding any button.
@@ -185,6 +234,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   return () => {
     alive = false;
     leave(false);
+    clock.stop();
     stopRouting();
     stopPress();
     stopFitting();
