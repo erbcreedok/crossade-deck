@@ -148,6 +148,19 @@ describe("guards", () => {
     expect(hits(/\bclass\s+\w+\s+extends\b|\binstanceof\s+Node\b/)).toEqual([]);
   });
 
+  it("guard.text-is-built-in-one-place — no glyph is constructed outside the renderer", () => {
+    // The canon has asked for this since before anything could draw a letter, and it is the same
+    // argument as the pixi import above: the day the renderer is swapped, exactly one file is
+    // rewritten. It matters more for text than for anything else, because a caption is the easiest
+    // thing in the world to build ad hoc — a label here, a counter there — and each one would carry
+    // its own font, its own size, its own idea of a baseline, none of them the theme's.
+    //
+    // Against `code`, not `raw`: this is about USING the constructor, and a mention of it in a
+    // comment (this one, for instance) is not a use.
+    const builders = files.filter((f) => /\bnew Text\b/.test(f.code)).map((f) => f.rel);
+    expect(builders).toEqual(["render/pixi.ts"]);
+  });
+
   it("host.single-pixi-import — pixi lives in exactly one file", () => {
     // The day the renderer is swapped, exactly one file is rewritten. It also keeps the rules
     // out of the one place no test can reach: jsdom has no WebGL, so whatever is decided

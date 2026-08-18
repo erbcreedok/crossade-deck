@@ -1,6 +1,6 @@
 ## ARCHITECTURAL GUARDS · source-scan
 
-`vitest + fs scan (like argNames.test.ts)` · 31 кейсов, расписано 31
+`vitest + fs scan (like argNames.test.ts)` · 32 кейсов, расписано 32
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -35,3 +35,4 @@
 | `guard.layering` | every source file | КАЖДЫЙ относительный импорт разрешён до папки | вниз по лестнице и только: core→core, render→core, presets→render/core. Тест — ПОТРЕБИТЕЛЬ и стоит над всеми (source-scan) |
 | `guard.public-api` | `src/index.ts` | scanned for the names a consumer needs | all present: a standalone imports "game-kit", never a path into src (source-scan) |
 | `guard.every-tuning-field-has-a-control` | `DEFAULT_TUNING` и стенд `Engine/Motion` с `gkTuning: {поле → стори}` | скан ключей и args стенда | множество ключей `gkTuning` == множество полей тюнинга; каждая названная стори существует; каждое поле объявлено args'ом стенда ПОД СВОИМ ИМЕНЕМ — число фила без контрола есть константа в маскировке |
+| `guard.text-is-built-in-one-place` | всё дерево `src/` | скан на конструктор текста по `code` | единственный файл — `render/pixi.ts`. Тот же довод, что и у единственного импорта pixi, но для текста он весит больше: подпись проще всего собрать на месте — тут ярлык, там счётчик, — и каждая принесёт свой шрифт, свой кегль и своё представление о базовой линии, ни одно из них не темы |
