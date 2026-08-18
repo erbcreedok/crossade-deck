@@ -363,18 +363,24 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   /**
    * The cards leave the foundations IN ORDER — the four kings, one after another, then the four
-   * queens, and so on down to the aces — but the pace is the PLAYER's: each press launches the next
-   * card at once, without waiting on the one before to land (`onDown` calls `launchNext`). Every card
-   * is thrown up and sideways, pulled down by gravity, bounces off the bottom of the glass, and is
-   * gone off the side; the glass KEEPS every frame, so each leaves its trail. When the last card
-   * launched has finished, the desk repaints, bare foundations and all.
+   * queens, and so on down to the aces. The show runs on its OWN — each card hands the baton to the
+   * next at its first touch of the floor (`onBounce`), or when it is gone if it never touched down.
+   * A press only HURRIES it: every tap throws the next card at once, ahead of the baton, so a
+   * fast-tapping player empties the desk faster than the timer would (the button is acceleration,
+   * not a replacement). Every card is thrown up and sideways, pulled down by gravity, bounces off
+   * the bottom of the glass, and is gone off the side; the glass KEEPS every frame, so each leaves
+   * its trail. When the last card is gone the desk repaints, bare foundations and all.
    */
   let celebrated = false;
   let cascade: Node[] = []; // the foundations' cards, king-first down to the aces
   let launched = 0; // how many have been thrown so far
   let finished = 0; // how many have flown off and been removed
 
-  /** Throw the next card in the cascade, if any is left. The first waits one settle; the rest are instant. */
+  /**
+   * Throw the next card in the cascade, if any is left. The first waits one settle; the rest are
+   * instant. Both the auto-baton and a player's tap call this — `launched` bumps before the throw,
+   * so the same card never goes twice; a tap simply advances the index earlier than the baton would.
+   */
   const launchNext = (): void => {
     if (launched >= cascade.length) return;
     const c = cascade[launched]!;
@@ -382,15 +388,19 @@ export function startSolitaire(container: HTMLElement): () => void {
     // settle out, so it leaves from its seat and not from mid-air. Every later card goes at once.
     const delayMs = launched === 0 ? motion.tuning().settleMs : 0;
     launched++;
+    let handed = false;
+    const hand = (): void => { if (handed) return; handed = true; launchNext(); };
     const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
     motion.launch(c.id, {
       delayMs,
       speed: CASCADE.speed + Math.random() * CASCADE.spread,
       angle: a0 + Math.random() * (a1 - a0),
+      onBounce: hand, // the baton: the next card goes at this one's first floor touch
       onDone: () => {
+        hand(); // a flat throw that never bounced still passes the baton on its way out
         if (c.parent) remove(c.parent, c);
-        // Once every card that was launched is gone — and no card is left to launch — the desk
-        // repaints bare. (While cards remain unlaunched, the last landing does not end the show.)
+        // Once every card that was launched is gone — and none is left to launch — the desk repaints
+        // bare. (While cards remain unlaunched, the last landing does not end the show.)
         if (++finished === cascade.length) {
           motion.retain(false);
           redraw();
