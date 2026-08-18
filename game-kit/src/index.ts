@@ -308,6 +308,8 @@ export {
   CONTROL_H,
   CONTROL_INSET,
   CONTROL_LABEL,
+  CONTROL_LABEL_ON,
+  lookLabel,
   CONTROL_LOOKS,
   CONTROL_W,
   iconSurface,

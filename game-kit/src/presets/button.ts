@@ -21,12 +21,12 @@ import { Bounded, extentOf, type Shape } from "../core/atoms/bounded.js";
 import {
   CONTROL_H,
   CONTROL_INSET,
-  CONTROL_LABEL,
   CONTROL_W,
   HELD,
   HOVER,
   iconSurface,
   lookFace,
+  lookLabel,
   lookSurface,
   QUIET,
   skinSurface,
@@ -140,7 +140,7 @@ export function button(id: string, spec: ButtonSpec = {}): Node {
   const shows = face ? node(`${id}/face`, Bounded({ bounds: insetOf(bounds, inset) }), Surfaced({ surface: face })) : plate;
   if (spec.layout) compose(shows, Container({ layout: spec.layout }));
   if (spec.label !== undefined) {
-    compose(shows, Labeled({ label: spec.label, style: spec.style ?? CONTROL_LABEL }));
+    compose(shows, Labeled({ label: spec.label, style: spec.style ?? lookLabel(spec.skin ? "" : look) }));
   }
   if (spec.icon) {
     const box = extentOf(bounds);

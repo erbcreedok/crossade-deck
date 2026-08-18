@@ -55,7 +55,7 @@ export const Button: StoryObj<GalleryArgs> = {
     installStockControls();
     installStockAssets();
     registerLayout("story.gallery.free", freeLayout);
-    registerLayout("story.gallery.row", rowLayout({ gap: 0.2, padding: 0 }));
+    registerLayout("story.gallery.row", rowLayout({ gap: 0.12, padding: 0 }));
     const desk = node("desk", Container({ layout: "story.gallery.free" }));
 
     const row = (id: string, y: number, made: readonly Node[]): void => {
@@ -68,35 +68,35 @@ export const Button: StoryObj<GalleryArgs> = {
     const skin = { fill: a.fill, border: a.border, borderWidth: a.borderWidth, radius: a.radius };
 
     // WEIGHT — the same words at five levels of emphasis. One field apart.
-    row("weight", -1.5, ["primary", "outline", "quiet", "sunk", "ghost"].map((look) =>
+    row("weight", -0.75, ["primary", "outline", "quiet", "sunk", "ghost"].map((look) =>
       button(`w/${look}`, { look, label: look, means: { does: look }, ...sleepy })));
 
     // SIZE and SHAPE — a box is a `Shape`, so a pill and a small control are not special cases.
-    row("size", -0.55, [
+    row("size", -0.25, [
       button("s/small", { bounds: SMALL(), label: "Small", means: { does: "small" }, ...sleepy }),
       button("s/medium", { label: "Medium", means: { does: "medium" }, ...sleepy }),
       button("s/large", { bounds: LARGE(), label: "Large", means: { does: "large" }, ...sleepy }),
-      button("s/pill", { bounds: PILL(2.2), look: "outline", label: "Pill", means: { does: "pill" }, ...sleepy }),
+      button("s/pill", { bounds: PILL(1.1), look: "outline", label: "Pill", means: { does: "pill" }, ...sleepy }),
     ]);
 
     // ICONS — a picture by asset name, alone or beside words. An icon button is a square one.
-    row("icons", 0.45, [
-      button("i/square", { bounds: SQUARE(0.8), icon: "emblem", means: { does: "square" }, ...sleepy }),
-      button("i/round", { bounds: ROUND(0.4), look: "quiet", icon: "emblem", means: { does: "round" }, ...sleepy }),
-      button("i/wide", { bounds: LARGE(), look: "outline", icon: "emblem", iconSize: 0.4, label: "With a mark", means: { does: "wide" }, ...sleepy }),
+    row("icons", 0.25, [
+      button("i/square", { bounds: SQUARE(0.34), icon: "emblem", means: { does: "square" }, ...sleepy }),
+      button("i/round", { bounds: ROUND(0.17), look: "quiet", icon: "emblem", means: { does: "round" }, ...sleepy }),
+      button("i/wide", { bounds: LARGE(), look: "outline", icon: "emblem", iconSize: 0.2, label: "With a mark", means: { does: "wide" }, ...sleepy }),
       button("i/danger", { look: "danger", label: "Discard", means: { does: "discard" }, ...sleepy }),
     ]);
 
     // WRITTEN OUT — the four knobs a designer actually reaches for, on one row: a background or
     // none, a border or none, how thick, how round. No name in the middle.
-    row("skin", 1.4, [
+    row("skin", 0.75, [
       button("k/one", { skin, label: "Your skin", means: { does: "skin" }, ...sleepy }),
-      button("k/pill", { skin: { ...skin, radius: CONTROL_H / 2 }, bounds: PILL(2.2), label: "Rounder", means: { does: "rounder" }, ...sleepy }),
+      button("k/pill", { skin: { ...skin, radius: CONTROL_H / 2 }, bounds: PILL(1.1), label: "Rounder", means: { does: "rounder" }, ...sleepy }),
       button("k/square", { skin: { ...skin, radius: 0 }, label: "Square", means: { does: "square" }, ...sleepy }),
       button("k/on", { skin, label: "Toggled on", toggled: true, means: { does: "toggled" }, ...sleepy }),
     ]);
 
-    add(desk, node("said", Bounded({ bounds: rect(6, 0.5) }), Labeled({ label: "press any of them", style: CONTROL_LABEL }), Transformable({ at: { x: 0, y: 2.3 } })));
+    add(desk, node("said", Bounded({ bounds: rect(4, 0.3) }), Labeled({ label: "press any of them", style: CONTROL_LABEL }), Transformable({ at: { x: 0, y: 1.25 } })));
     const live = scene(desk, {
       press: (meaning) => {
         const said = byId(live.host.root, "said");
@@ -107,7 +107,7 @@ export const Button: StoryObj<GalleryArgs> = {
     });
     return live.el;
   },
-  args: { asleep: false, fill: "panelBg", border: "accent", borderWidth: 0.03, radius: 0.12 },
+  args: { asleep: false, fill: "panelBg", border: "accent", borderWidth: 0.015, radius: 0.05 },
   argTypes: {
     asleep: documented("arg.asleep", {}, "state"),
     fill: documented("arg.fill", { control: "text" }, "skin"),

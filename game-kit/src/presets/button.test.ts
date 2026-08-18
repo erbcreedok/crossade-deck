@@ -13,7 +13,7 @@ import { extentOf, footprint } from "../core/atoms/bounded.js";
 import { type LabeledFields } from "../core/atoms/labeled.js";
 import { pressableOf } from "../core/atoms/pressable.js";
 import { type SurfacedFields } from "../core/atoms/surfaced.js";
-import { CONTROL_LOOKS, installStockControls, lookFace, lookSurface } from "./controls.js";
+import { CONTROL_LABEL, CONTROL_LABEL_ON, CONTROL_LOOKS, installStockControls, lookSurface } from "./controls.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
 import "../core/atoms/coated.js";
 
@@ -29,33 +29,40 @@ describe("the button preset", () => {
     expect(caps(b).has("Surfaced")).toBe(true);
     expect(caps(b).has("Pressable")).toBe(true);
     expect(fieldsOf<ValuedFields>(b, "Valued")?.values).toEqual({ does: "undo" });
-    expect(fieldsOf<LabeledFields>(b.children[0]!, "Labeled")?.label).toBe("Undo");
+    expect(fieldsOf<LabeledFields>(b, "Labeled")?.label).toBe("Undo");
   });
 
   it("button.a-look-is-a-name — a fifth one costs a registration, never a branch", () => {
     for (const look of CONTROL_LOOKS) {
       const b = button(`b-${look}`, { look, label: look });
       expect(fieldsOf<SurfacedFields>(b, "Surfaced")?.surface).toBe(lookSurface(look));
-      expect(fieldsOf<SurfacedFields>(b.children[0]!, "Surfaced")?.surface).toBe(lookFace(look));
     }
     // A name the kit never heard of is a game's own record, and it reaches the node untouched.
     expect(fieldsOf<SurfacedFields>(button("mine", { look: "mine" }), "Surfaced")?.surface).toBe("control/mine");
   });
 
-  it("button.one-node-when-the-look-asks-for-one", () => {
-    // An empty `face` is the refusal: one node, one stroke, which is what most looks want. The
-    // stock looks ask for two, because the motif is a ring outside a keyline and one quad carries
-    // one stroke.
-    const plain = button("undo", { face: "", label: "Undo" });
+  it("button.a-fill-is-a-fill — the stock looks are ONE node, not a ring around a face", () => {
+    // The mistake this rung was born for: every stock look used to be a plate with a face covering
+    // it, so the fill only ever showed as a ring and a plain blue button could not be made at all.
+    const plain = button("undo", { label: "Undo" });
     expect(plain.children).toHaveLength(0);
+    expect(fieldsOf<LabeledFields>(plain, "Labeled")?.label).toBe("Undo");
 
-    const ringed = button("undo2", { label: "Undo" });
+    // A game whose motif genuinely IS a ring names both records itself, and then there are two.
+    const ringed = button("undo2", { face: "mine/face", label: "Undo" });
     expect(ringed.children).toHaveLength(1);
     expect(ringed.children[0]!.id).toBe("undo2/face");
   });
 
+  it("button.words-on-a-fill-get-the-other-role — or they vanish into it", () => {
+    // `text` is light because the desk is dark; on a bright accent it disappears. The role follows
+    // the look, so nobody writes a colour at a call site to fix it.
+    expect(fieldsOf<LabeledFields>(button("p", { look: "primary", label: "Go" }), "Labeled")?.style).toBe(CONTROL_LABEL_ON);
+    expect(fieldsOf<LabeledFields>(button("q", { look: "quiet", label: "Go" }), "Labeled")?.style).toBe(CONTROL_LABEL);
+  });
+
   it("button.the-press-lands-on-the-outer-plate — not on the inner face", () => {
-    const b = button("hint", { bounds: rect(2, 0.7), surface: "ui/plate", face: "ui/face", inset: 0.06, means: { does: "hint" } });
+    const b = button("hint", { bounds: rect(2, 0.7), face: "mine/face", inset: 0.06, means: { does: "hint" } });
     expect(caps(b).has("Pressable")).toBe(true);
     expect(caps(b.children[0]!).has("Pressable")).toBe(false);
     // And the meaning rides the same node the finger hits, so the handler reads it off the pick.
@@ -63,16 +70,16 @@ describe("the button preset", () => {
   });
 
   it("button.the-caption-sits-inside-the-ring — on whichever node shows the face", () => {
-    const ringed = button("again", { label: "Again" });
+    const ringed = button("again", { face: "mine/face", label: "Again" });
     expect(fieldsOf<LabeledFields>(ringed, "Labeled")).toBeUndefined();
     expect(fieldsOf<LabeledFields>(ringed.children[0]!, "Labeled")?.label).toBe("Again");
 
-    const plain = button("again2", { face: "", label: "Again" });
+    const plain = button("again2", { label: "Again" });
     expect(fieldsOf<LabeledFields>(plain, "Labeled")?.label).toBe("Again");
   });
 
   it("button.the-inset-is-a-real-inset — the face is smaller by it on every side", () => {
-    const b = button("undo3", { bounds: rect(2, 1), surface: "ui/plate", face: "ui/face", inset: 0.1 });
+    const b = button("undo3", { bounds: rect(2, 1), face: "mine/face", inset: 0.1 });
     const inner = footprint(b.children[0]!)!;
     const { w, h } = extentOf(inner);
     expect(w).toBeCloseTo(1.8, 10); // 2 − 0.1 on each side
@@ -87,7 +94,7 @@ describe("the button preset", () => {
     for (const absent of ["Valued", "ShadowCaster", "Transformable", "Container"]) {
       expect(caps(bare).has(absent), `${absent} was composed though nothing asked for it`).toBe(false);
     }
-    expect(fieldsOf<LabeledFields>(bare.children[0]!, "Labeled")).toBeUndefined(); // no words, no caption
+    expect(fieldsOf<LabeledFields>(bare, "Labeled")).toBeUndefined(); // no words, no caption
   });
 
   it("button.the-feel-defaults-live-in-the-atom — the preset does not keep a second copy", () => {
