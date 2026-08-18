@@ -298,6 +298,9 @@ export { assetNames, assetRecord, registerAsset, resetAssets, type AssetRecord }
 // is the browser's answer to it; a test's answer is an object literal, exactly as for `Painter`.
 export { domTextMeasure, type DomTextOptions, type FontWait } from "./render/domText.js";
 export { layoutText, type LayoutRequest, type TextLayout, type TextLine } from "./render/textLayout.js";
+// How big a box with words in it gets, and how much the words give way. One arithmetic, so a
+// button, a drop zone, a nameplate and a badge cannot drift into four slightly different ones.
+export { boxSize, captionScale, clampSize, type BoxFit, type BoxSpec, type CaptionFit, type FitAxis } from "./render/boxFit.js";
 export { type FontSpec, type Glyphs, type TextMeasure } from "./render/textMetrics.js";
 export {
   fitBox,
