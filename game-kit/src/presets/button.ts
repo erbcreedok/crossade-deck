@@ -18,10 +18,10 @@
 
 import { add, compose, node, type Node } from "../core/node.js";
 import { Bounded, extentOf, type Shape } from "../core/atoms/bounded.js";
-import { CONTROL_H, CONTROL_INSET, CONTROL_LABEL, CONTROL_W, HELD, HOVER, lookFace, lookSurface } from "./controls.js";
+import { CONTROL_H, CONTROL_INSET, CONTROL_LABEL, CONTROL_W, HELD, HOVER, iconSurface, lookFace, lookSurface, QUIET } from "./controls.js";
 import { rect } from "./shapes.js";
 import { transformShape } from "../core/path.js";
-import { type Coat } from "../core/atoms/coated.js";
+import { Coated, NO_COAT, type Coat } from "../core/atoms/coated.js";
 import { Container } from "../core/atoms/container.js";
 import { Labeled } from "../core/atoms/labeled.js";
 import { Pressable } from "../core/atoms/pressable.js";
@@ -51,6 +51,20 @@ export interface ButtonSpec {
   readonly inset?: number;
   /** The caption, ALREADY WRITTEN in the reader's language — the kit knows no localization. */
   readonly label?: string;
+  /**
+   * A picture inside the control, by ASSET name. With no `label` it is an icon button; with one it
+   * sits where the layout puts it. A registry name like everything else, so a game's own icon set
+   * needs nothing from the kit but `registerAsset`.
+   */
+  readonly icon?: string;
+  /** What the icon is worth, in units. Absent, three quarters of the box's shorter side. */
+  readonly iconSize?: number;
+  /**
+   * The control is present but declines to act — worn as the coat, not as a flag. There is no
+   * `disabled` in the kit: the press still reports, the handler says no, and this is what the
+   * player sees while it does. Absent, the control looks awake.
+   */
+  readonly asleep?: boolean;
   /** A registered text style's NAME, never a font. Absent, the stock control role. */
   readonly style?: string;
   /** What a press MEANS, as data a handler reads — never parsed out of the id. Absent, it says nothing. */
@@ -102,6 +116,26 @@ export function button(id: string, spec: ButtonSpec = {}): Node {
   if (spec.label !== undefined) {
     compose(shows, Labeled({ label: spec.label, style: spec.style ?? CONTROL_LABEL }));
   }
+  if (spec.icon) {
+    const box = extentOf(bounds);
+    const size = spec.iconSize ?? Math.min(box.w, box.h) * 0.75;
+    // ALONE IT SITS IN THE MIDDLE; BESIDE WORDS IT STANDS ASIDE. A caption is drawn centred in the
+    // node's area and cannot be nudged, so an icon left in the middle lands ON the words — which is
+    // exactly what the first version of this drew. With words, the mark takes the left margin.
+    const aside = spec.label === undefined ? 0 : -(box.w / 2 - size / 2 - CONTROL_INSET * 2);
+    add(
+      shows,
+      node(
+        `${id}/icon`,
+        Bounded({ bounds: rect(size, size) }),
+        Surfaced({ surface: iconSurface(spec.icon) }),
+        Transformable({ at: { x: aside, y: 0 } }),
+      ),
+    );
+  }
+  // Asleep is a COAT on the whole control, cast down so the face and the icon dim with the plate —
+  // the same reach a hover takes, for the same reason.
+  if (spec.asleep) compose(plate, Coated({ self: NO_COAT, cast: QUIET }));
   if (shows !== plate) add(plate, shows);
   return plate;
 }
