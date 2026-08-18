@@ -1,0 +1,34 @@
+{
+  "docs.hudScreens.component": [
+    "THE PIECES TOGETHER, as screens rather than as rows of samples.",
+    "",
+    "A row of one of everything shows that the parts exist. It does not show that they FIT — that a",
+    "badge beside a button reads as one bar, that a dialog's heading, choice, slider and actions stack",
+    "into something a player recognises. These three are what a game actually puts on a table.",
+    "",
+    "```ts",
+    "import { panel, toggles, slider, button, badge, label } from \"game-kit\"",
+    "",
+    "const dialog = panel(\"pause\", { bounds: rect(3.2, 2.2), title: t(\"paused\"), layout: \"column\" })",
+    "add(dialog, toggles(\"pace\", { options, chosen, layout: \"row\" }))",
+    "add(dialog, slider(\"volume\", { value }))",
+    "```",
+    "",
+    "## Nothing here keeps state",
+    "",
+    "Which segment is on, where the knob sits, what the count says — all of it is the game's, and the",
+    "nodes are built FROM it. A toggle that remembered its own on-ness would be a second answer to a",
+    "question that already has one, and the day the two disagreed the screen would be right and the",
+    "game would be wrong.",
+    "",
+    "## None of them is a new atom",
+    "",
+    "A label is `Bounded` + `Labeled`. A badge is that with a surface. A toggle is a button that stays",
+    "pressed. A panel is a container carrying a title on a node of its own — because a caption is drawn",
+    "in the middle of its area, and a heading belongs at the top. There is no new capability to learn."
+  ],
+  "docs.hudScreens.screens": [
+    "A toolbar, a readout and a pause dialog. Every node in them is one preset call, and the panel's",
+    "controls report their meaning rather than their id — press any of them and read the line above."
+  ]
+}

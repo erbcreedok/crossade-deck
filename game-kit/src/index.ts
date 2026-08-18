@@ -327,6 +327,24 @@ export {
   type ControlLook,
 } from "./presets/controls.js";
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
+// The rest of the interface — each one a composition of atoms that already exist, never a new one.
+export {
+  badge,
+  knobAt,
+  label,
+  panel,
+  slider,
+  toggle,
+  toggles,
+  valueAt,
+  BADGE_H,
+  KNOB,
+  type BadgeSpec,
+  type LabelSpec,
+  type PanelSpec,
+  type SliderSpec,
+  type ToggleSpec,
+} from "./presets/widgets.js";
 // TEXT. The kit cannot measure a glyph — a font lives in the browser — so measuring arrives as a
 // PORT, and the plan stays the pure function every visual rule is checked through. `domTextMeasure`
 // is the browser's answer to it; a test's answer is an object literal, exactly as for `Painter`.
