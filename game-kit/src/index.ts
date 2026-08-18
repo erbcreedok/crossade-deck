@@ -302,6 +302,8 @@ export { layoutText, type LayoutRequest, type TextLayout, type TextLine } from "
 // button, a drop zone, a nameplate and a badge cannot drift into four slightly different ones.
 export { boxSize, captionScale, clampSize, type BoxFit, type BoxSpec, type CaptionFit, type FitAxis } from "./render/boxFit.js";
 export { type FontSpec, type Glyphs, type TextMeasure } from "./render/textMetrics.js";
+// A caption names a ROLE; what the role is worth is one registry entry, like a surface.
+export { DEFAULT_TEXT, registerTextStyle, resetTextStyles, textStyle, textStyleNames, type TextStyle } from "./render/textStyles.js";
 export {
   fitBox,
   DEFAULT_ALIGN,
@@ -337,7 +339,6 @@ export {
 } from "./render/coats.js";
 export {
   accentWash,
-  DEFAULT_TEXT,
   installTheme,
   themeCss,
   PALETTES,
@@ -346,7 +347,6 @@ export {
   t,
   type Palette,
   type ScaleStep,
-  type TextStyle,
 } from "./render/theme.js";
 
 // ---- presets: the ready-made ---------------------------------------------------------------

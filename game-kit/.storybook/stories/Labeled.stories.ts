@@ -9,6 +9,7 @@ import {
   rect,
   registerLayout,
   registerSurface,
+  registerTextStyle,
   Surfaced,
   Transformable,
 } from "../../src/index.js";
@@ -25,22 +26,25 @@ const meta: Meta = {
   parameters: {
     gkDoc: "labeled.component",
     gkAtom: "Labeled",
-    gkFields: { label: ["Caption"] },
+    gkFields: { label: ["Caption"], style: ["style"] },
   },
 };
 export default meta;
 
 interface CaptionArgs {
   label: string;
+  style: string;
 }
 
 export const Caption: StoryObj<CaptionArgs> = {
-  // A BUTTON-ON-THE-DESK with its caption as data. The canvas paints NO text — that is the law,
-  // not a gap: a string on the glass belongs to the HUD layer, which is not built yet. Where the
-  // caption already shows is the catalog's own Node tree panel: open it, select the button, and
-  // `label` is there, changing as you type — data on the node, read by whoever draws words.
+  // A BUTTON-ON-THE-DESK with its caption as data, drawn on the glass. `style` names a ROLE, never
+  // a font: a role is what a tree can say and a designer can re-decide, while the family and the
+  // size are the theme's answer. Two roles are registered here to make the difference visible, and
+  // a name nobody registered falls back to the desk's face rather than throwing — try typing one.
   render: (a) => {
     registerSurface("story.labeled.button", { layers: [{ paint: "accent" }], radius: 0.2 });
+    registerTextStyle("story.labeled.plain", { family: "ui-sans-serif, system-ui, sans-serif", size: 0.18, weight: 400, lineHeight: 1.25, fill: "panelBg" });
+    registerTextStyle("story.labeled.loud", { family: "ui-serif, Georgia, serif", size: 0.3, weight: 700, lineHeight: 1.2, fill: "panelBg" });
     registerLayout("story.labeled.free", freeLayout);
     const desk = node("desk", Container({ layout: "story.labeled.free" }));
     add(
@@ -50,14 +54,15 @@ export const Caption: StoryObj<CaptionArgs> = {
         Bounded({ bounds: rect(1.8, 0.7) }),
         Surfaced({ surface: "story.labeled.button" }),
         Transformable({ at: { x: 0, y: 0 } }),
-        Labeled({ label: a.label }),
+        Labeled({ label: a.label, style: a.style }),
       ),
     );
     return scene(desk).el;
   },
-  args: { label: "Attack" },
+  args: { label: "Attack", style: "story.labeled.plain" },
   argTypes: {
     label: documented("arg.label", { control: "text" }, "words"),
+    style: documented("arg.style", { control: "text" }, "words"),
   },
   parameters: { gkDocStory: "labeled.caption" },
 };

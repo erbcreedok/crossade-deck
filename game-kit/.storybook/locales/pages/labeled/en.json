@@ -21,9 +21,12 @@
     "which it already does for every other reason."
   ],
   "docs.labeled.caption": [
-    "A button-on-the-desk with its caption as data. The canvas paints NO text — a string on the",
-    "glass belongs to the HUD layer, which is not built yet. Where the caption already shows is the",
-    "catalog's own Node tree panel: open it, select the button, and `label` is there, changing as",
-    "you type — data on the node, read by whoever draws words."
+    "A button-on-the-desk with its caption as data, drawn on the glass. `style` names a ROLE, never",
+    "a font: a role is what a tree can say and a designer can re-decide, while the family and the",
+    "size are the theme's answer to it.",
+    "",
+    "Two roles are registered by this story so the difference is visible. Type a name nobody",
+    "registered and the caption falls back to the desk's own face rather than throwing — one typo",
+    "in a tree must not take a desk down, exactly as a dangling surface name does not."
   ]
 }

@@ -25,7 +25,7 @@ import { contextFor, sumAlongChain, type ResolveContext } from "../core/resolve.
 import { type LabeledFields } from "../core/atoms/labeled.js";
 import { layoutText, type TextLine } from "./textLayout.js";
 import { type FontSpec, type TextMeasure } from "./textMetrics.js";
-import { DEFAULT_TEXT } from "./theme.js";
+import { DEFAULT_TEXT, textStyle } from "./textStyles.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
@@ -388,9 +388,12 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
    */
   const captionOf = (node: Node, area: { readonly w: number; readonly h: number }): QuadText | undefined => {
     if (!measure) return undefined;
-    const label = fieldsOf<LabeledFields>(node, "Labeled")?.label;
-    if (!label) return undefined;
-    const style = DEFAULT_TEXT;
+    const worn = fieldsOf<LabeledFields>(node, "Labeled");
+    if (!worn?.label) return undefined;
+    const label = worn.label;
+    // The ROLE the node named, or the desk's default when it named none — and also when it named
+    // one nobody registered: a caption in the default face beats a scene that refuses to draw.
+    const style = textStyle(worn.style) ?? DEFAULT_TEXT;
     const font: FontSpec = { family: style.family, size: style.size * unit, weight: style.weight };
     const laid = layoutText({ text: label, font, width: area.w * unit, lineHeight: style.lineHeight }, measure);
     return laid.lines.length > 0 ? { font, fill: style.fill, lines: laid.lines } : undefined;
