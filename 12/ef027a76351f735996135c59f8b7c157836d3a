@@ -1,0 +1,28 @@
+package.json
+  s_170937f0c01a52::t_f2affe9d11080b 7
+apps/klondike/index.html
+  s_170937f0c01a52::t_4e4166cc726dee 6
+  s_170937f0c01a52::t_77a48c3b52ca05 20
+.claude/launch.json
+  s_170937f0c01a52::t_b7d1f282cbc34b 39,43
+apps/klondike/package.json
+  s_170937f0c01a52::t_845efb65aa057d 2
+package-lock.json
+  s_170937f0c01a52::t_a7c6a5b375d4f5 11,17-18,407-410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "12ef027a76351f735996135c59f8b7c157836d3a",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
