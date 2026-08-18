@@ -37,8 +37,8 @@ import {
   type ValuedFields,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.ts";
-import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.ts";
+import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.js";
+import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.js";
 
 // THE FEEL OF THIS GAME, in one literal — the designer's patch over the engine's tuning. Everything
 // not named here is the engine's default (the `rigid` carry that keeps a column one plank, the lift
