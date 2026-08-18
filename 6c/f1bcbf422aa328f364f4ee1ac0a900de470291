@@ -1,0 +1,41 @@
+game-kit/.storybook/locales/pages/labeled/ru.json
+  s_170937f0c01a52::t_5570863f066a52 24-30
+game-kit/docs/test-plan/49-text.md
+  s_170937f0c01a52::t_6e17dbf6ad32a0 3,28-29
+game-kit/src/render/textStyles.ts
+  s_170937f0c01a52::t_051eb34e50f3fc 1-61
+game-kit/src/core/atoms/labeled.ts
+  s_170937f0c01a52::t_84150b30e32fad 13-19,25-26
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_0e9a8a9bf058c6 28,391-396
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_5570863f066a52 55
+game-kit/src/render/textStyles.test.ts
+  s_170937f0c01a52::t_84150b30e32fad 1-57
+game-kit/.storybook/locales/pages/labeled/en.json
+  s_170937f0c01a52::t_5570863f066a52 24-30
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_5570863f066a52 51
+game-kit/.storybook/stories/Labeled.stories.ts
+  s_170937f0c01a52::t_5570863f066a52 12,29,36,40-43,46-47,57,62,65
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_6e17dbf6ad32a0 10,77
+game-kit/src/index.ts
+  s_170937f0c01a52::t_0e9a8a9bf058c6 305-306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6cf1bcbf422aa328f364f4ee1ac0a900de470291",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
