@@ -1,0 +1,33 @@
+game-kit/src/presets/button.ts
+  s_170937f0c01a52::t_f714771d145726 21,24,54-67,119,136-138
+  s_170937f0c01a52::t_e7d6b9a4b190b2 120-134
+  s_170937f0c01a52::t_6ffb97db8fb0c1 135
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_b696e96e20fa7a 55
+game-kit/.storybook/stories/PresetsButtons.stories.ts
+  s_170937f0c01a52::t_b696e96e20fa7a 14-20,27,87-142
+  s_170937f0c01a52::t_a2cd2e2a24393c 143-144
+game-kit/src/presets/controls.ts
+  s_170937f0c01a52::t_f714771d145726 23-24,27,44-61,67-80,109-117
+  s_170937f0c01a52::t_ca251c25fbce85 118
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_b696e96e20fa7a 59
+game-kit/src/index.ts
+  s_170937f0c01a52::t_e87dfa0dc2db2f 313-319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "bf985db32242bbd9c763069c1ceca179d8e857a9",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
