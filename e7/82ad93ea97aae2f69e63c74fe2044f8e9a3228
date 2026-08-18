@@ -1,0 +1,35 @@
+apps/hub/src/hub/drift.test.ts
+  s_170937f0c01a52::t_bf0872abb8e79b 1-51
+apps/hub/src/hub/shell.ts
+  s_170937f0c01a52::t_60dc64cb4a10d3 25,32-34,66-70
+  s_170937f0c01a52::t_592004b02fe1d7 82-113,151-153,156,158-159,161-162,164
+  s_170937f0c01a52::t_2ce1c52baa31e8 114-115,123-126,138-141
+  s_170937f0c01a52::t_1435975983c7db 71
+  s_170937f0c01a52::t_57531f2346ad78 31,213,237
+apps/hub/src/hub/grid.ts
+  s_170937f0c01a52::t_cb43b10363c604 128-150,161,193-194
+apps/hub/src/hub/beat.test.ts
+  s_170937f0c01a52::t_86dae9c35ccc60 1-35
+apps/hub/src/hub/beat.ts
+  s_170937f0c01a52::t_75568b9ad948e6 1-72
+apps/hub/src/hub/drift.ts
+  s_170937f0c01a52::t_39df6ac383024a 41-42
+  s_170937f0c01a52::t_9b425dff5eb067 51-52
+  s_170937f0c01a52::t_334982128bea75 1-40,43-50,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e782ad93ea97aae2f69e63c74fe2044f8e9a3228",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
