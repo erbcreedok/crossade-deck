@@ -1,0 +1,55 @@
+game-kit/docs/test-plan/06-inheritance-classes.md
+  s_170937f0c01a52::t_64702877b55356 15
+game-kit/.storybook/locales/pages/oriented/ru.json
+  s_170937f0c01a52::t_3b9880e3b5ab14 1-43
+game-kit/src/index.ts
+  s_170937f0c01a52::t_fb2aeb02cb19b5 71-73
+game-kit/.storybook/locales/pages.ts
+  s_170937f0c01a52::t_64702877b55356 29,89,164
+game-kit/docs/test-plan/10-scene-plan.md
+  s_170937f0c01a52::t_3e55b01f3c88e1 3,47
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_1dfe71da3e8c3e 148-149
+game-kit/src/core/atoms/transformable.test.ts
+  s_170937f0c01a52::t_fde93cc1214aaa 4-5,69-82
+  s_170937f0c01a52::t_40e6a68116f75b 83-84
+game-kit/src/core/atoms/transformable.ts
+  s_170937f0c01a52::t_574e6d79ca0425 22,64-79
+  s_170937f0c01a52::t_4e2a7d3c6749fd 20
+  s_170937f0c01a52::t_d5aa459b2d8098 80
+game-kit/.storybook/locales/pages/oriented/en.json
+  s_170937f0c01a52::t_3b9880e3b5ab14 1-43
+game-kit/src/core/atoms/oriented.ts
+  s_170937f0c01a52::t_b73bad1f92aeaf 1-36
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_3e55b01f3c88e1 10,38
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_52c0bf0527d39b 22,737-746
+  s_170937f0c01a52::t_b987b3208a3195 24
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_1dfe71da3e8c3e 152-153
+game-kit/.storybook/stories/Oriented.stories.ts
+  s_170937f0c01a52::t_5b2f6839b3cdc3 29,73-74
+  s_170937f0c01a52::t_dd7e5ed8393276 1-28,30-72,75-77
+game-kit/.storybook/preview.ts
+  s_170937f0c01a52::t_64702877b55356 151
+game-kit/src/render/scenePlan.test.ts
+  s_170937f0c01a52::t_990bd9b012ecb6 12,172-193
+  s_170937f0c01a52::t_9404255659285a 194-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "03dde15317b8279eef243da88897c0fe3c39bf1f",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
