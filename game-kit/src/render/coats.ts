@@ -99,6 +99,80 @@ export function installStockCoats(): void {
   // walk returns it instead of falling through to the dim above.
   registerCoat("clear", () => ({}));
 
+  // ---- THE MODIFIERS — what a thing is MADE OF, over what it is a picture of ------------------
+  //
+  // Balatro's editions, and the reason they belong here rather than in the card preset: a coat
+  // knows nothing about cards. Every one of these lands on ANY node that has a surface — a die, a
+  // tile, a button, a panel, a token — because that is what a coat is. The card preset gets them
+  // for free by not being asked.
+  //
+  // `level` is HOW MUCH of the treatment, 0…1, so a game can fade one in as a reward lands rather
+  // than switching it on. The default is strong enough to see without a level at all.
+
+  // FOIL — a cold sheen. A pale film over the whole face and a bright hairline around it: the two
+  // things a laminated surface actually does to light, and the two a flat renderer can honestly do.
+  registerCoat("foil", (c) => {
+    const k = clamp01(c.level || 0.7);
+    return {
+      layers: [
+        { paint: tintOr(c.tint, "text"), opacity: 0.1 * k },
+        // The upper half catches the light — a `part` cut, not a gradient, because a hard edge is
+        // what the pixel look wants and what the renderer can draw without a shader.
+        { paint: tintOr(c.tint, "text"), opacity: 0.14 * k, part: 0.45 },
+      ],
+      stroke: { color: tintOr(c.tint, "text"), width: 0.02, opacity: 0.55 * k, alignment: 0.5 },
+    };
+  });
+
+  // POLYCHROME — the iridescent one. Three thin films at three hues, which is the whole trick: a
+  // single tint reads as a stain, three at low opacity read as a surface that cannot decide.
+  // `param` walks the wheel, so `tint: { token: "spin", param }` is not needed at the call site —
+  // the recipe spins it itself, and `level` says how strongly.
+  registerCoat("polychrome", (c) => {
+    const k = clamp01(c.level || 0.7);
+    const turn = typeof c.tint === "object" ? c.tint.param : 0;
+    return {
+      layers: [0, 0.22, 0.55].map((step, i) => ({
+        paint: { token: "spin", param: turn + step },
+        opacity: (0.16 - i * 0.03) * k,
+        ...(i > 0 ? { part: 0.8 - i * 0.28 } : {}),
+      })),
+      stroke: { color: { token: "spin", param: turn + 0.35 }, width: 0.025, opacity: 0.7 * k, alignment: 0.5 },
+    };
+  });
+
+  // GLASS — see-through and blurred. The blur is the shader the censor already clocks; what makes
+  // it glass rather than a censor is that it BARELY tints and keeps a bright rim, so what is under
+  // it stays readable.
+  registerCoat("glass", (c) => {
+    const k = clamp01(c.level || 0.6);
+    return {
+      layers: [
+        { paint: tintOr(c.tint, "panelBg"), opacity: 0.22 * k },
+        { paint: tintOr(c.tint, "text"), opacity: 0.08 * k, part: 0.5 },
+      ],
+      filter: { name: "blur", params: { strength: 0.25 * k } },
+      stroke: { color: tintOr(c.tint, "text"), width: 0.018, opacity: 0.45 * k, alignment: 0.5 },
+    };
+  });
+
+  // FROST — glass without the rim: the soft pane a dialog puts over the table behind it. Its own
+  // recipe rather than a `glass` with a flag, because a flag would be a sort for a reader to guess.
+  registerCoat("frost", (c) => {
+    const k = clamp01(c.level || 0.6);
+    return {
+      layers: [{ paint: tintOr(c.tint, "stageBg"), opacity: 0.45 * k }],
+      filter: { name: "blur", params: { strength: 0.5 * k } },
+    };
+  });
+
+  // FADED — the thing is barely there. Not a wash toward a colour but toward the DESK, which is
+  // what "transparent" means to an onlooker; a coat cannot make the surface under it see-through,
+  // and pretending otherwise would be a name that lies.
+  registerCoat("faded", (c) => ({
+    layers: [{ paint: tintOr(c.tint, "stageBg"), opacity: clamp01(c.level || 0.6) }],
+  }));
+
   if (!effectInstalled) {
     registerEffect(coatEffect);
     effectInstalled = true;
