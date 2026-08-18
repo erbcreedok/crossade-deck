@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Crossade — hub</title>
+    <!--
+      The FONTS are declared here and nowhere else. This is a declaration, not an interface: the hub
+      itself is drawn entirely by the engine, and a face has to be announced to the page before
+      anything can measure or draw it.
+
+      All three carry Kazakh (Әә Ғғ Ққ Ңң Өө Ұұ Үү Һһ Іі). The `text=` half of the query is not
+      decoration either — a font service ships subsets by codepoint range, so asking without naming
+      the letters fetches Latin alone and everything else falls back in silence.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html, body { margin: 0; height: 100%; background: #173d2d; overflow: hidden; }
+      /*
+        TWO REGIONS, SIDE BY SIDE — never layered.
+
+        `#chrome` is the hub's own canvas and `#stage` is the running game's. They sit beside each
+        other rather than on top of each other so there is no z-index or pointer-events puzzle, and
+        so a game never has its top row covered by hub furniture.
+
+        The hub's canvas is NEVER torn down: the back control is drawn by the engine and needs a
+        live host, and a context created once per page load costs less than two recycled on every
+        round trip. Switching screens is `data-mode`, and a tree swap behind it.
+      */
+      #shell { position: absolute; inset: 0; }
+      #chrome, #stage { position: absolute; touch-action: none; }
+      #shell[data-mode="hub"] #chrome { inset: 0; }
+      #shell[data-mode="hub"] #stage { display: none; }
+      #shell[data-mode="play"] #chrome { top: 0; left: 0; right: 0; height: 56px; }
+      #shell[data-mode="play"] #stage { top: 56px; left: 0; right: 0; bottom: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="shell" data-mode="hub">
+      <div id="stage"></div>
+      <div id="chrome"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

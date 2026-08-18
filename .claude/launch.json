@@ -45,6 +45,17 @@
         "dev"
       ],
       "port": 9568
+    },
+    {
+      "name": "hub",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "apps/hub",
+        "run",
+        "dev"
+      ],
+      "port": 9569
     }
   ]
 }
