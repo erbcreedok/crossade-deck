@@ -18,6 +18,8 @@
 
 import { add, compose, node, type Node } from "../core/node.js";
 import { Bounded, extentOf, type Shape } from "../core/atoms/bounded.js";
+import { CONTROL_H, CONTROL_INSET, CONTROL_LABEL, CONTROL_W, HELD, HOVER, lookFace, lookSurface } from "./controls.js";
+import { rect } from "./shapes.js";
 import { transformShape } from "../core/path.js";
 import { type Coat } from "../core/atoms/coated.js";
 import { Container } from "../core/atoms/container.js";
@@ -33,10 +35,15 @@ import { type Atom } from "../core/atom.js";
 export interface ButtonSpec {
   /** The control's seat on its owner, in units. Absent, the layout (or nobody) places it. */
   readonly at?: Vec;
-  /** The box. Required — a control with no footprint can be neither pressed nor seen. */
-  readonly bounds: Shape;
-  /** The face, by registry name. Absent, the button is invisible and still pressable — legal, and
-   *  exactly what an invisible hit area is. */
+  /**
+   * WHICH STOCK LOOK, by name — `primary`, `quiet`, `danger`, `ghost` (see `installStockControls`).
+   * Absent, `primary`. It is a registry name and not a sort: a game's fifth look is a
+   * `registerSurface("control/mine", …)` in the game's own file, and `look: "mine"` finds it.
+   */
+  readonly look?: string;
+  /** The box. Absent, the stock control box — a comfortable tap target at any etalon. */
+  readonly bounds?: Shape;
+  /** The outer face, by registry name. Absent, the look's own. Empty string means no face at all. */
   readonly surface?: string;
   /** The INNER face, by registry name. Given, the button is two nodes and this one is inset. */
   readonly face?: string;
@@ -44,13 +51,13 @@ export interface ButtonSpec {
   readonly inset?: number;
   /** The caption, ALREADY WRITTEN in the reader's language — the kit knows no localization. */
   readonly label?: string;
-  /** A registered text style's NAME, never a font. Absent, the default face and size. */
+  /** A registered text style's NAME, never a font. Absent, the stock control role. */
   readonly style?: string;
   /** What a press MEANS, as data a handler reads — never parsed out of the id. Absent, it says nothing. */
   readonly means?: Readonly<Record<string, unknown>>;
-  /** What it wears under a pointer. Absent, the atom's own faint wash. */
+  /** What it wears under a pointer. Absent, the stock `HOVER`. */
   readonly hover?: Coat;
-  /** What it wears while held. Absent, the atom's own. */
+  /** What it wears while held. Absent, the stock `HELD`. */
   readonly held?: Coat;
   /** How far it sinks while held, in units — the shadow shortens with it. Absent, the atom's own. */
   readonly sink?: number;
@@ -69,10 +76,18 @@ export interface ButtonSpec {
  * The caption rides the node that shows the face — the inner one when there is one — so it sits
  * inside the ring rather than across it.
  */
-export function button(id: string, spec: ButtonSpec): Node {
-  const outer: Atom[] = [Bounded({ bounds: spec.bounds })];
+export function button(id: string, spec: ButtonSpec = {}): Node {
+  // EVERY FIELD HAS AN ANSWER, so the shortest honest call is `button("undo", { label: "Undo" })`.
+  // A preset whose defaults are all `undefined` is a form, not a preset.
+  const look = spec.look ?? "primary";
+  const bounds = spec.bounds ?? rect(CONTROL_W, CONTROL_H);
+  const surface = spec.surface ?? lookSurface(look);
+  const face = spec.face ?? lookFace(look);
+  const inset = spec.inset ?? CONTROL_INSET;
+
+  const outer: Atom[] = [Bounded({ bounds })];
   if (spec.at) outer.push(Transformable({ at: spec.at }));
-  if (spec.surface) outer.push(Surfaced({ surface: spec.surface }));
+  if (surface) outer.push(Surfaced({ surface }));
   if (spec.shadow) outer.push(ShadowCaster({ from: spec.shadow }));
   // The press lands on the OUTER node — it is what the finger sees the edge of, and hit-testing the
   // inner face would leave a dead ring the width of the inset around every control.
@@ -82,10 +97,10 @@ export function button(id: string, spec: ButtonSpec): Node {
 
   // The caption and the arrangement ride whichever node SHOWS the face, so a caption sits inside
   // the ring rather than across it.
-  const shows = spec.face ? node(`${id}/face`, Bounded({ bounds: insetOf(spec.bounds, spec.inset ?? 0) }), Surfaced({ surface: spec.face })) : plate;
+  const shows = face ? node(`${id}/face`, Bounded({ bounds: insetOf(bounds, inset) }), Surfaced({ surface: face })) : plate;
   if (spec.layout) compose(shows, Container({ layout: spec.layout }));
   if (spec.label !== undefined) {
-    compose(shows, Labeled(spec.style === undefined ? { label: spec.label } : { label: spec.label, style: spec.style }));
+    compose(shows, Labeled({ label: spec.label, style: spec.style ?? CONTROL_LABEL }));
   }
   if (shows !== plate) add(plate, shows);
   return plate;
@@ -93,9 +108,7 @@ export function button(id: string, spec: ButtonSpec): Node {
 
 /** The one place the press look is assembled, so the defaults live in the atom and not in two files. */
 function pressAtoms(spec: ButtonSpec): Atom {
-  const fields: Record<string, unknown> = {};
-  if (spec.hover) fields["hover"] = spec.hover;
-  if (spec.held) fields["held"] = spec.held;
+  const fields: Record<string, unknown> = { hover: spec.hover ?? HOVER, held: spec.held ?? HELD };
   if (spec.sink !== undefined) fields["sink"] = spec.sink;
   if (spec.nudge) fields["nudge"] = spec.nudge;
   return Pressable(fields as never);

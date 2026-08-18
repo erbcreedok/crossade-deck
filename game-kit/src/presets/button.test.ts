@@ -12,15 +12,44 @@ import { caps, fieldsOf } from "../core/node.js";
 import { extentOf, footprint } from "../core/atoms/bounded.js";
 import { type LabeledFields } from "../core/atoms/labeled.js";
 import { pressableOf } from "../core/atoms/pressable.js";
+import { type SurfacedFields } from "../core/atoms/surfaced.js";
+import { CONTROL_LOOKS, installStockControls, lookFace, lookSurface } from "./controls.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
 import "../core/atoms/coated.js";
 
+installStockControls();
+
 describe("the button preset", () => {
-  it("button.one-node-until-the-look-asks-for-two", () => {
-    const plain = button("undo", { bounds: rect(2, 0.7), surface: "ui/plate", label: "Undo" });
+  it("button.one-line-is-a-whole-button — the preset is not a form to fill in", () => {
+    // THE POINT OF THE PRESET. No surface registered by hand, no text style, no box, no feel: a
+    // caption and what it means, and what comes back is a control that is already dressed. The
+    // version before this one made a designer write four registrations first, which is homework.
+    const b = button("undo", { label: "Undo", means: { does: "undo" } });
+    expect(caps(b).has("Bounded")).toBe(true);
+    expect(caps(b).has("Surfaced")).toBe(true);
+    expect(caps(b).has("Pressable")).toBe(true);
+    expect(fieldsOf<ValuedFields>(b, "Valued")?.values).toEqual({ does: "undo" });
+    expect(fieldsOf<LabeledFields>(b.children[0]!, "Labeled")?.label).toBe("Undo");
+  });
+
+  it("button.a-look-is-a-name — a fifth one costs a registration, never a branch", () => {
+    for (const look of CONTROL_LOOKS) {
+      const b = button(`b-${look}`, { look, label: look });
+      expect(fieldsOf<SurfacedFields>(b, "Surfaced")?.surface).toBe(lookSurface(look));
+      expect(fieldsOf<SurfacedFields>(b.children[0]!, "Surfaced")?.surface).toBe(lookFace(look));
+    }
+    // A name the kit never heard of is a game's own record, and it reaches the node untouched.
+    expect(fieldsOf<SurfacedFields>(button("mine", { look: "mine" }), "Surfaced")?.surface).toBe("control/mine");
+  });
+
+  it("button.one-node-when-the-look-asks-for-one", () => {
+    // An empty `face` is the refusal: one node, one stroke, which is what most looks want. The
+    // stock looks ask for two, because the motif is a ring outside a keyline and one quad carries
+    // one stroke.
+    const plain = button("undo", { face: "", label: "Undo" });
     expect(plain.children).toHaveLength(0);
 
-    const ringed = button("undo2", { bounds: rect(2, 0.7), surface: "ui/plate", face: "ui/face", inset: 0.05, label: "Undo" });
+    const ringed = button("undo2", { label: "Undo" });
     expect(ringed.children).toHaveLength(1);
     expect(ringed.children[0]!.id).toBe("undo2/face");
   });
@@ -34,11 +63,11 @@ describe("the button preset", () => {
   });
 
   it("button.the-caption-sits-inside-the-ring — on whichever node shows the face", () => {
-    const ringed = button("again", { bounds: rect(2, 0.7), surface: "ui/plate", face: "ui/face", inset: 0.05, label: "Again" });
+    const ringed = button("again", { label: "Again" });
     expect(fieldsOf<LabeledFields>(ringed, "Labeled")).toBeUndefined();
     expect(fieldsOf<LabeledFields>(ringed.children[0]!, "Labeled")?.label).toBe("Again");
 
-    const plain = button("again2", { bounds: rect(2, 0.7), surface: "ui/plate", label: "Again" });
+    const plain = button("again2", { face: "", label: "Again" });
     expect(fieldsOf<LabeledFields>(plain, "Labeled")?.label).toBe("Again");
   });
 
@@ -50,14 +79,15 @@ describe("the button preset", () => {
     expect(h).toBeCloseTo(0.8, 10);
   });
 
-  it("button.a-field-left-out-leaves-its-atom-out — absence is the refusal", () => {
-    const bare = button("bare", { bounds: rect(1, 1) });
-    for (const absent of ["Surfaced", "Labeled", "Valued", "ShadowCaster", "Transformable", "Container"]) {
+  it("button.what-has-no-default-stays-absent — absence is still the refusal", () => {
+    // The look, the box and the feel have answers, because a control without them is not a
+    // control. What a press MEANS, where it sits, what it holds and what shadow it lays have no
+    // sensible default at all — a guessed meaning would be a button doing something nobody asked.
+    const bare = button("bare");
+    for (const absent of ["Valued", "ShadowCaster", "Transformable", "Container"]) {
       expect(caps(bare).has(absent), `${absent} was composed though nothing asked for it`).toBe(false);
     }
-    // What it DOES have: a box, and the capability that makes it a control at all.
-    expect(caps(bare).has("Bounded")).toBe(true);
-    expect(caps(bare).has("Pressable")).toBe(true);
+    expect(fieldsOf<LabeledFields>(bare.children[0]!, "Labeled")).toBeUndefined(); // no words, no caption
   });
 
   it("button.the-feel-defaults-live-in-the-atom — the preset does not keep a second copy", () => {

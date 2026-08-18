@@ -8,12 +8,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
-import { add, fieldsOf, node, type Node } from "../core/node.js";
+import { add, caps, fieldsOf, node, type Node } from "../core/node.js";
 import { type TransformableFields } from "../core/atoms/transformable.js";
+import { NO_COAT, type CoatedFields } from "../core/atoms/coated.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { rect } from "../presets/shapes.js";
 import { button } from "../presets/button.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
+import { installStockControls } from "../presets/controls.js";
 import { resetSurfaces } from "./surfaces.js";
 import { type Host } from "./host.js";
 import { pick } from "./pointer.js";
@@ -39,7 +41,7 @@ function stubView(): { el: HTMLCanvasElement; fire: (type: string, x: number, y:
 
 function fixture(): { host: Host; fire: (t: string, x: number, y: number) => void; root: Node; pressed: string[] } {
   const bar = node("bar", Container({ layout: "row" }));
-  for (const id of ["a", "b", "c"]) add(bar, button(id, { bounds: rect(2, 0.7), surface: "plate", means: { does: id } }));
+  for (const id of ["a", "b", "c"]) add(bar, button(id, { bounds: rect(2, 0.7), means: { does: id } }));
   const view = stubView();
   const host = {
     view: view.el,
@@ -60,6 +62,7 @@ beforeEach(() => {
   registerLayout("row", rowLayout({ gap: 0.2, padding: 0 }));
   resetSurfaces();
   installStockSurfaces();
+  installStockControls();
 });
 
 // Three 2-unit controls with 0.2 gaps on a 800×600 view at 100px/unit: centres land at x 180, 400, 620.
@@ -91,7 +94,43 @@ describe("the button wiring", () => {
     }
     for (const [, id] of CENTRES) expect(seat(id), `${id} drifted`).toEqual({ x: 0, y: 0 });
     // And the picture agrees with the model: every control is still where the finger expects it.
-    for (const [x, want] of CENTRES) expect(pick(f.host, f.root, { x, y: 300 }, () => true)?.id).toBe(want);
+    // The same predicate the wiring uses — a control is what carries `Pressable`, and the inner
+    // face does not: picking with `() => true` would answer with the face and prove nothing.
+    for (const [x, want] of CENTRES) expect(pick(f.host, f.root, { x, y: 300 }, (n) => caps(n).has("Pressable"))?.id).toBe(want);
+  });
+
+  it("buttons.the-hover-comes-off-again — a control does not stay lit for the session", () => {
+    // THE BUG THIS RUNG WAS BORN FOR. Undressing used to read the coat standing on the node to
+    // decide what to restore — and by then the coat standing there WAS the hover, so it put the
+    // hover back on top of itself. Every control the pointer ever crossed stayed lit.
+    const f = fixture();
+    // `?? NO_COAT` because "no coat" is written two ways: no `Coated` atom at all before the first
+    // gesture, and the empty coat after one. They mean the same thing and must compare the same.
+    const coatOf = (id: string) => fieldsOf<CoatedFields>(f.root.children.find((c) => c.id === id)!, "Coated")?.cast ?? NO_COAT;
+    const before = coatOf("a");
+
+    f.fire("pointermove", 180, 300);
+    expect(coatOf("a"), "the hover never went on").not.toEqual(before);
+
+    f.fire("pointermove", 400, 300); // on to the neighbour
+    expect(coatOf("a"), "the hover stayed on a control the pointer had left").toEqual(before);
+
+    f.fire("pointerleave", 0, 0);
+    expect(coatOf("b"), "the hover stayed on after the pointer left the glass").toEqual(before);
+  });
+
+  it("buttons.a-press-leaves-the-control-wearing-what-it-wore", () => {
+    // The same law for the whole gesture: down, up and away must end where it started.
+    const f = fixture();
+    // `?? NO_COAT` because "no coat" is written two ways: no `Coated` atom at all before the first
+    // gesture, and the empty coat after one. They mean the same thing and must compare the same.
+    const coatOf = (id: string) => fieldsOf<CoatedFields>(f.root.children.find((c) => c.id === id)!, "Coated")?.cast ?? NO_COAT;
+    const before = coatOf("a");
+    f.fire("pointermove", 180, 300);
+    f.fire("pointerdown", 180, 300);
+    f.fire("pointerup", 180, 300);
+    f.fire("pointerleave", 0, 0);
+    expect(coatOf("a")).toEqual(before);
   });
 
   it("buttons.a-finger-that-slides-off-presses-nothing", () => {

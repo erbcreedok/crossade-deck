@@ -299,6 +299,22 @@ export { assetNames, assetRecord, registerAsset, resetAssets, type AssetRecord }
 // A control, assembled from one literal — and the press wiring the kit owns, because "down on me
 // and up on me" means the same thing in every game there will ever be.
 export { button, type ButtonSpec } from "./presets/button.js";
+// The stock controls — the looks a button already has, so a button is one line.
+export {
+  installStockControls,
+  lookFace,
+  lookSurface,
+  CONTROL_BAR,
+  CONTROL_H,
+  CONTROL_INSET,
+  CONTROL_LABEL,
+  CONTROL_LOOKS,
+  CONTROL_W,
+  HELD,
+  HOVER,
+  QUIET,
+  type ControlLook,
+} from "./presets/controls.js";
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
 // TEXT. The kit cannot measure a glyph — a font lives in the browser — so measuring arrives as a
 // PORT, and the plan stays the pure function every visual rule is checked through. `domTextMeasure`

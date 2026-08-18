@@ -162,7 +162,6 @@ const preview: Preview = {
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion"],
           "Elements",
           "HUD",
-          ["Button"],
           // Last, because it is ABOUT the catalog rather than of it: the pages that check the
           // pictures above them. Opening one runs its checks — the section is the switch.
           "Tests",

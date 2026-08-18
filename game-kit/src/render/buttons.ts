@@ -45,6 +45,8 @@ export function wireButtons(w: ButtonWiring): () => void {
   view.style.touchAction = "none";
 
   let over: string | undefined; // the control the pointer is hovering, if any
+  /** Puts back the coat that stood before the current gesture dressed the control. See `wearPress`. */
+  let undress: (() => void) | undefined;
   let held: { id: string; startG: { x: number; y: number }; rest: { x: number; y: number } } | undefined;
 
   const restOf = (n: Node): { x: number; y: number } => {
@@ -75,7 +77,11 @@ export function wireButtons(w: ButtonWiring): () => void {
       // the control actually stood — not where it stands now, mid-nudge.
       compose(n, Transformable({ at: seat, z: 0 }));
     }
-    wearPress(n, state);
+    // The PREVIOUS dressing comes off first, and it comes off through the closure that knows what
+    // was underneath — never by writing a "rest" coat, which is how a hover ends up restoring
+    // itself and lighting a control for the rest of the session.
+    undress?.();
+    undress = state === "rest" ? undefined : wearPress(n, state);
     w.host.setRoot(w.host.root);
   };
 

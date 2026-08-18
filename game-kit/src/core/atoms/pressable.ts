@@ -58,19 +58,28 @@ export function pressableOf(n: Node): PressableFields | undefined {
 }
 
 /**
- * Dress a control in one of its states and hand back the undo — the same shape as `wearInvite`.
+ * Dress a control for a pointer and hand back the UNDO — the same shape as `wearInvite`, except
+ * that the coat goes into `cast` rather than `self`: a control is often two nodes, and only the
+ * cast reaches the face that covers the plate.
  *
- * `state` is which of the atom's coats to put on; `"rest"` wears nothing. The undo restores what was
- * standing there, so a control that already wore its own coat (a toggle that is on, a tile mid-load)
- * keeps it when the pointer leaves.
+ * There is no "rest" state here, and that is the whole lesson of the bug this signature replaces.
+ * A `wearPress(n, "rest")` looked symmetrical and could not work: it read the coat standing on the
+ * node to decide what to restore, and by then the coat standing there WAS the hover. Undressing put
+ * the hover back on top of itself, so it never came off — a control that lit under the pointer and
+ * stayed lit for the rest of the session. Only the caller knows what stood there before the gesture
+ * began, so only the caller can put it back, and it gets a closure that does exactly that.
  */
-export function wearPress(n: Node, state: "hover" | "held" | "rest"): () => void {
+export function wearPress(n: Node, state: "hover" | "held"): () => void {
   const fields = pressableOf(n);
   if (!fields) return () => {};
   const standing = fieldsOf<CoatedFields>(n, "Coated");
-  const prevSelf = standing?.self ?? NO_COAT;
-  const cast = standing?.cast ?? NO_COAT;
-  const wanted = state === "rest" ? prevSelf : fields[state];
-  compose(n, Coated({ self: wanted, cast }));
-  return () => compose(n, Coated({ self: prevSelf, cast }));
+  const self = standing?.self ?? NO_COAT;
+  const prevCast = standing?.cast ?? NO_COAT;
+  // THE CAST, NOT `self` — and this is the difference between a control that lights and one that
+  // only appears to. A stock control is TWO nodes: a plate and the face that covers almost all of
+  // it. A coat on `self` dresses the plate alone, so the whole hover was a tint on a ring two
+  // hundredths of a unit wide — invisible, and correctly reported as "the hover does nothing".
+  // `cast` reaches the subtree, which is exactly what "this control is under the finger" means.
+  compose(n, Coated({ self, cast: fields[state] }));
+  return () => compose(n, Coated({ self, cast: prevCast }));
 }
