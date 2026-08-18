@@ -1,0 +1,29 @@
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_3367fd0232cbf9 10,77
+game-kit/src/render/boxFit.ts
+  s_170937f0c01a52::t_0d36cb63acdd8a 1-100
+game-kit/src/index.ts
+  s_170937f0c01a52::t_3367fd0232cbf9 301-303
+game-kit/docs/test-plan/49-text.md
+  s_170937f0c01a52::t_3367fd0232cbf9 3,24-27
+game-kit/src/render/boxFit.test.ts
+  s_170937f0c01a52::t_6bd03d6e3d3227 1-66
+game-kit/docs/test-plan/12-two-measures.md
+  s_170937f0c01a52::t_3367fd0232cbf9 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "42806e377d982d57d824b1ff9e6ded8b9b965f26",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
