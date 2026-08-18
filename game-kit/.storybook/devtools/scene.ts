@@ -30,11 +30,13 @@ import {
   s,
   scenePlan,
   t,
+  wireButtons,
   type Host,
   type Motions,
   type Node,
   type Painter,
   type Mark,
+  type Meaning,
   type Quad,
   type ThemeName,
   type ViewerSettings,
@@ -100,6 +102,9 @@ export type MakePainter = (view: HTMLCanvasElement, size: PainterSize) => Painte
  */
 const LIVE = new Map<string, Scene>();
 
+/** What each live scene's press handler is RIGHT NOW — see `SceneOptions.press`. */
+const PRESSED = new Map<string, ((meaning: Meaning, control: Node) => void) | undefined>();
+
 export interface SceneOptions {
   /**
    * Start with the debug outline switched on.
@@ -120,6 +125,15 @@ export interface SceneOptions {
    * override and the default in one picture.
    */
   readonly bake?: (node: Node) => boolean;
+  /**
+   * Wire every `Pressable` in the scene, and hear what was pressed.
+   *
+   * A control story that only DREW its controls would be teaching a picture: hover, sink and the
+   * press itself are the whole of what a reader came to feel. The wiring is attached once, with the
+   * scene, and a re-render only swaps the handler — the same reason a re-render is a feed and not a
+   * build. Attaching it in a story body instead would stack a listener set per keystroke.
+   */
+  readonly press?: (meaning: Meaning, control: Node) => void;
   /**
    * Drive the scene through the MOTION runtime (`attachMotion`) instead of the still painter, so a
    * tree fed a new pose eases there instead of teleporting. A re-render with a different tree — which
@@ -163,6 +177,9 @@ export function scene(
   // catalog exercises it rather than a mechanism only Storybook would ever use.
   const standing = LIVE.get(id);
   if (standing) {
+    // The handler is the STORY's closure and it is new on every render, while the listeners are
+    // the scene's and must not be. So the ref is swapped and nothing is re-attached.
+    PRESSED.set(id, options.press);
     standing.setRoot(root);
     standing.setSettings(settings);
     // The tuning follows the sliders on the standing clock — a re-render is new numbers for the
@@ -248,6 +265,10 @@ export function scene(
   const motions = options.animate
     ? (installStockEasings(), attachMotion(host, painter, { ...options.motion, measure: ruler, ...(options.bake ? { bake: options.bake } : {}) }))
     : undefined;
+  PRESSED.set(id, options.press);
+  // Attached whenever the story asked for it once. The listeners live as long as the scene does,
+  // and what they call is looked up at press time — so the newest handler always answers.
+  const stopButtons = options.press ? wireButtons({ host, onPress: (m, n) => PRESSED.get(id)?.(m, n) }) : () => {};
   const stopPainting = motions ? motions.stop : attachPainter(host, painter, { measure: ruler, ...(options.bake ? { bake: options.bake } : {}) });
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
@@ -349,6 +370,7 @@ export function scene(
         clearInspect(id);
       }
       stopFollowing();
+      stopButtons();
       stopPainting();
       painter.destroy();
       host.unmount();

@@ -138,6 +138,9 @@ export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeab
 // Interaction & visibility: what can be dragged, focused, and who a private subtree is shown to.
 export { Draggable, draggable, onRejectOf, type DraggableFields } from "./core/atoms/draggable.js";
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
+// A control that answers a finger: what it WEARS hovered and held, and how deep it sinks. The
+// meaning of the press is `Valued`, read by the consumer — this atom is the look and the depth.
+export { Pressable, pressableOf, wearPress, type PressableFields } from "./core/atoms/pressable.js";
 export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js";
 // Grip is privacy's permission twin: which seats may LIFT a subtree, the open table liftable by all.
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
@@ -293,6 +296,10 @@ export {
 } from "./render/effects.js";
 export { dashContour, perimeter, surfaceOutline, type DashOptions } from "./render/contour.js";
 export { assetNames, assetRecord, registerAsset, resetAssets, type AssetRecord } from "./render/assets.js";
+// A control, assembled from one literal — and the press wiring the kit owns, because "down on me
+// and up on me" means the same thing in every game there will ever be.
+export { button, type ButtonSpec } from "./presets/button.js";
+export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
 // TEXT. The kit cannot measure a glyph — a font lives in the browser — so measuring arrives as a
 // PORT, and the plan stays the pure function every visual rule is checked through. `domTextMeasure`
 // is the browser's answer to it; a test's answer is an object literal, exactly as for `Painter`.

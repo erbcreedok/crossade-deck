@@ -1,0 +1,43 @@
+{
+  "docs.pressable.component": [
+    "`Pressable` says an element answers a finger, and declares what it WEARS while one is near it.",
+    "It is the look and the depth — never the meaning. What a press DOES is `Valued`, read by",
+    "whoever handles it, exactly as a willing zone's legality is not in `Inviting`.",
+    "",
+    "```ts",
+    "import { node, Bounded, Pressable, Valued, rect } from \"game-kit\"",
+    "",
+    "const undo = node(\"undo\",",
+    "  Bounded({ bounds: rect(1.6, 0.6) }),",
+    "  Pressable(),                        // the stock feel: a wash, a sink, a nudge",
+    "  Valued({ values: { does: \"undo\" } }))   // what a press MEANS — data, never an id to parse",
+    "```",
+    "",
+    "## The two siblings",
+    "",
+    "`Inviting` dresses a zone while a drag it would take is in flight. `Pressable` dresses a control",
+    "while a pointer is over it or down on it. Both put their coat into `Coated.self`, both hand back",
+    "an undo that restores what stood there — so a control already wearing its own coat (a toggle that",
+    "is on, a tile mid-load) keeps it when the pointer leaves — and neither leaves a `hovered` flag in",
+    "the tree for two systems to disagree about.",
+    "",
+    "## Depth and displacement are two fields",
+    "",
+    "`sink` is written to `z`: the plan shortens the cast shadow from it (`base + perZ * z`), so a",
+    "held control loses the height its shadow was reporting. `nudge` moves the plate itself. They are",
+    "separate because they say different things, and a design may want either alone — a flat control",
+    "with only a nudge, a floating one that only descends.",
+    "",
+    "## There is no `disabled`",
+    "",
+    "Capability is by presence, restriction by absence. A control that must not act is one the",
+    "consumer does not act on: the press still reports, the handler declines, and the greyed look is",
+    "an ordinary coat. A flag here would be a second source of truth about the same refusal — and the",
+    "day the two disagreed, the button would light up and do nothing."
+  ],
+  "docs.pressable.control": [
+    "Three controls on one desk, all the same assembly. Move the pointer over them to see `hover`,",
+    "hold one to see `held`, `sink` and `nudge` at once. The right-hand one declares no `Valued`, so",
+    "it lights and sinks and reports nothing — a control with nothing to say is still a control."
+  ]
+}

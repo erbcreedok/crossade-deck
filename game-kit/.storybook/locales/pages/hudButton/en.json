@@ -1,0 +1,43 @@
+{
+  "docs.hudButton.component": [
+    "A BUTTON is one literal of data assembled into an element — the same bargain `pile()` strikes,",
+    "for the other thing every game grows: undo, restart, a hint, end turn, a settings gear.",
+    "",
+    "```ts",
+    "import { button, wireButtons, rect } from \"game-kit\"",
+    "",
+    "const undo = button(\"undo\", {",
+    "  bounds: rect(1.8, 0.66),",
+    "  surface: \"ui/plate\", face: \"ui/face\", inset: 0.05,   // a ring, because two strokes need two nodes",
+    "  label: t(\"actions.undo\"), style: \"ui/label\",         // YOUR words, already written",
+    "  means: { does: \"undo\" },                             // what a press means — data",
+    "  shadow: \"silhouette\",",
+    "})",
+    "",
+    "const stop = wireButtons({ host, onPress: (meaning) => run(meaning[\"does\"]) })",
+    "```",
+    "",
+    "## The wiring the kit owns",
+    "",
+    "Everywhere else the kit hands over three functions (`glassOf`, `toUnits`, `pick`) and refuses to",
+    "write the twenty lines around them, because what a gesture MEANS is the game's business — a tap",
+    "on a card is an auto-move in one game and a bid in another. A button is the exception: \"the",
+    "finger came down on me and went up on me\" means the same thing in every game there will be.",
+    "",
+    "So `wireButtons` exists, and it is deliberately not a gesture recogniser. No drag, no double-tap,",
+    "no long press: a control wanting those is a control whose meaning is the game's again. Nothing is",
+    "registered per control either — the tree is asked who is under the pointer at the moment there is",
+    "one, so a bar may be rebuilt every frame and never re-wired.",
+    "",
+    "## There is no `variant`",
+    "",
+    "A primary and a danger button are two registered SURFACES, and the switch between them is a name",
+    "on a field — the kit reads no sorts. That is what makes a fifth look cost a registration rather",
+    "than a branch in the preset."
+  ],
+  "docs.hudButton.bar": [
+    "A row of controls, each one a `button()` literal. Every field on the panel is the spec's: change",
+    "`inset` to see the ring the second node draws, take `face` away to get a one-node button back,",
+    "and set `sink` or `nudge` to nothing to feel the difference between depth and displacement."
+  ]
+}
