@@ -1,0 +1,27 @@
+client3/src/solitaire/board.ts
+  s_170937f0c01a52::t_7173d419d5b8b3 103-109,111-116,118-131
+  s_170937f0c01a52::t_513c1ba05ee1dd 80-81
+client3/src/solitaire/scene.ts
+  s_170937f0c01a52::t_6838c7e1f3360f 349-387
+  s_170937f0c01a52::t_18184b235861b5 57-63
+  s_170937f0c01a52::t_3f38baf059cdfc 109-111
+  s_170937f0c01a52::t_49bbfd1a41d268 40
+  s_170937f0c01a52::t_9f217903cc09cf 232-233,236-237
+  s_170937f0c01a52::t_7fddcbecfff895 496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "49dabaa1ddc8564b87555a97530736d534ae1f64",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
