@@ -1,0 +1,33 @@
+game-kit/src/presets/button.test.ts
+  s_170937f0c01a52::t_20a310db0ca5ec 16,32,44-47,49,51-52,57-63,65,73,77,82,97
+game-kit/.storybook/stories/HudButton.stories.ts
+  s_170937f0c01a52::t_ef963e2ce8f264 58,71,75,79,83-86,92,94,99,110
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_fa49eba45c9e75 10,78
+game-kit/src/presets/controls.ts
+  s_170937f0c01a52::t_6782bd2d706df1 48-57,77
+  s_170937f0c01a52::t_ef963e2ce8f264 67,69,104-105,159,164-165,171,175-176,180-181,189,199,205
+  s_170937f0c01a52::t_452aa315db64ee 33-40,133-143,155-158,162-163,166,194-198,200-203
+game-kit/src/index.ts
+  s_170937f0c01a52::t_452aa315db64ee 311-312
+game-kit/docs/test-plan/50-controls.md
+  s_170937f0c01a52::t_fa49eba45c9e75 3,24-25
+game-kit/src/presets/button.ts
+  s_170937f0c01a52::t_452aa315db64ee 29,143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "60450c05c3a7e6c28de3e30136acf6f7b8fe25ec",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
