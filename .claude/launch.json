@@ -36,11 +36,11 @@
       "port": 9567
     },
     {
-      "name": "client3",
+      "name": "klondike",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "client3",
+        "apps/klondike",
         "run",
         "dev"
       ],
