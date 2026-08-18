@@ -13,6 +13,7 @@ import { type TransformableFields } from "../core/atoms/transformable.js";
 import { NO_COAT, type CoatedFields } from "../core/atoms/coated.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { rect } from "../presets/shapes.js";
+import { extentOf, footprint } from "../core/atoms/bounded.js";
 import { button } from "../presets/button.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { installStockControls } from "../presets/controls.js";
@@ -41,7 +42,7 @@ function stubView(): { el: HTMLCanvasElement; fire: (type: string, x: number, y:
 
 function fixture(): { host: Host; fire: (t: string, x: number, y: number) => void; root: Node; pressed: string[] } {
   const bar = node("bar", Container({ layout: "row" }));
-  for (const id of ["a", "b", "c"]) add(bar, button(id, { bounds: rect(2, 0.7), means: { does: id } }));
+  for (const id of ["a", "b", "c"]) add(bar, button(id, { means: { does: id } }));
   const view = stubView();
   const host = {
     view: view.el,
@@ -65,11 +66,13 @@ beforeEach(() => {
   installStockControls();
 });
 
-// Three 2-unit controls with 0.2 gaps on a 800×600 view at 100px/unit: centres land at x 180, 400, 620.
+// Three STOCK controls (0.95 wide) with 0.2 gaps on a 800×600 view at 100px/unit: the row is 3.25
+// units across, so the centres land at x 296, 400, 504. The stock box on purpose — a fixture built
+// from a size nobody ships measures a control nobody has.
 const CENTRES: readonly (readonly [number, string])[] = [
-  [180, "a"],
+  [296, "a"],
   [400, "b"],
-  [620, "c"],
+  [504, "c"],
 ];
 
 describe("the button wiring", () => {
@@ -109,7 +112,7 @@ describe("the button wiring", () => {
     const coatOf = (id: string) => fieldsOf<CoatedFields>(f.root.children.find((c) => c.id === id)!, "Coated")?.cast ?? NO_COAT;
     const before = coatOf("a");
 
-    f.fire("pointermove", 180, 300);
+    f.fire("pointermove", 296, 300);
     expect(coatOf("a"), "the hover never went on").not.toEqual(before);
 
     f.fire("pointermove", 400, 300); // on to the neighbour
@@ -126,24 +129,37 @@ describe("the button wiring", () => {
     // gesture, and the empty coat after one. They mean the same thing and must compare the same.
     const coatOf = (id: string) => fieldsOf<CoatedFields>(f.root.children.find((c) => c.id === id)!, "Coated")?.cast ?? NO_COAT;
     const before = coatOf("a");
-    f.fire("pointermove", 180, 300);
-    f.fire("pointerdown", 180, 300);
-    f.fire("pointerup", 180, 300);
+    f.fire("pointermove", 296, 300);
+    f.fire("pointerdown", 296, 300);
+    f.fire("pointerup", 296, 300);
     f.fire("pointerleave", 0, 0);
     expect(coatOf("a")).toEqual(before);
   });
 
+  it("buttons.a-held-control-stays-in-front-of-what-it-sits-on", () => {
+    // `z` shortens the cast shadow AND sorts the frame. A control that sank deeper than the surface
+    // under it was drawn beneath that surface — a button inside a panel simply vanished while the
+    // finger was down. The sink is a fraction of a control's own height, and this says so.
+    const f = fixture();
+    const control = f.root.children[0]!;
+    const height = extentOf(footprint(control)!).h;
+    f.fire("pointerdown", 296, 300);
+    const sunk = fieldsOf<TransformableFields>(control, "Transformable")?.z ?? 0;
+    expect(sunk).toBeLessThan(0); // it does sink
+    expect(Math.abs(sunk), "a press sinks the control deeper than the control is tall").toBeLessThan(height);
+  });
+
   it("buttons.a-finger-that-slides-off-presses-nothing", () => {
     const f = fixture();
-    f.fire("pointerdown", 180, 300);
-    f.fire("pointermove", 260, 300); // well past the slop
-    f.fire("pointerup", 260, 300);
+    f.fire("pointerdown", 296, 300);
+    f.fire("pointermove", 340, 300); // well past the slop
+    f.fire("pointerup", 340, 300);
     expect(f.pressed).toEqual([]);
   });
 
   it("buttons.a-release-on-a-neighbour-presses-neither", () => {
     const f = fixture();
-    f.fire("pointerdown", 180, 300);
+    f.fire("pointerdown", 296, 300);
     f.fire("pointerup", 400, 300);
     expect(f.pressed).toEqual([]);
   });

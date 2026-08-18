@@ -18,6 +18,7 @@ import {
   rect,
   registerLayout,
   rowLayout,
+  sized,
   slider,
   toggles,
   Transformable,
@@ -90,7 +91,7 @@ export const Screens: StoryObj<ScreensArgs> = {
     const actions = node("pause/actions", Container({ layout: "screens.row" }));
     add(actions, button("pause/resume", { label: "Resume", means: { does: "resume" } }));
     add(actions, button("pause/quit", { look: "danger", label: "Give up", means: { does: "quit" } }));
-    add(dialog, actions);
+    add(dialog, sized(actions));
     add(desk, dialog);
 
     add(desk, node("said", Bounded({ bounds: rect(4, 0.3) }), Labeled({ label: "press anything", style: CONTROL_LABEL }), Transformable({ at: { x: 0, y: 2.2 } })));

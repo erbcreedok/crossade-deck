@@ -6,9 +6,9 @@
 // a composition of what already exists, which is why there is no new capability to learn, no new
 // rung on the ladder and nothing new for the renderer to know about.
 
-import { add, node, type Node } from "../core/node.js";
+import { add, compose, node, type Node } from "../core/node.js";
 import { Bounded, extentOf, type Shape } from "../core/atoms/bounded.js";
-import { Container } from "../core/atoms/container.js";
+import { Container, contentExtent } from "../core/atoms/container.js";
 import { Labeled } from "../core/atoms/labeled.js";
 import { ShadowCaster } from "../core/atoms/shadow.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
@@ -129,7 +129,21 @@ export function toggles(
       }),
     );
   }
-  return row;
+  return sized(row);
+}
+
+/**
+ * GIVE A ROW ITS OWN BOX, measured from what it holds.
+ *
+ * A container with no `Bounded` occupies nothing — which is right for a group nobody arranges, and
+ * wrong the moment its OWNER has a layout: a column measures each child's footprint to know where
+ * the next one starts, so a row reporting no height stacks on top of the row before it. That is
+ * exactly what a pause dialog looked like when this was missing — a heading, and everything else
+ * piled into one line under it.
+ */
+export function sized(row: Node): Node {
+  const { w, h } = contentExtent(row);
+  return w > 0 && h > 0 ? compose(row, Bounded({ bounds: rect(w, h) })) : row;
 }
 
 // ---- panel ------------------------------------------------------------------------------------

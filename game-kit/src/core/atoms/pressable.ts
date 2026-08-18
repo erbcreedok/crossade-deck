@@ -25,6 +25,10 @@ export interface PressableFields {
    * How far it sinks while held, in UNITS — written to `z`, so the cast shadow shortens by the
    * plan's own arithmetic (`base + perZ * z`) instead of by a second drawing. Negative is toward
    * the desk; zero is a control that does not move, which is a legitimate design.
+   *
+   * KEEP IT SMALL. `z` also SORTS the frame: a control that sinks further than the surface it sits
+   * on is drawn underneath it, and a button inside a panel simply vanished while the finger was
+   * down. The number here is a fraction of a control's own height for that reason, not a taste.
    */
   readonly sink: number;
   /**
@@ -46,8 +50,8 @@ export const Pressable = defineAtom<PressableFields>({
   defaults: {
     hover: { recipe: "wash", level: 0.12, tint: "text" },
     held: { recipe: "wash", level: 0.22, tint: "shadow" },
-    sink: -0.6,
-    nudge: { x: 0.04, y: 0.04 },
+    sink: -0.06,
+    nudge: { x: 0.012, y: 0.012 },
   },
   classes: { hover: "own", held: "own", sink: "own", nudge: "own" },
 });

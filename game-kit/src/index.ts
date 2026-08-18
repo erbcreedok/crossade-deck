@@ -333,6 +333,7 @@ export {
   knobAt,
   label,
   panel,
+  sized,
   slider,
   toggle,
   toggles,
