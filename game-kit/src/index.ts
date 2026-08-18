@@ -311,6 +311,8 @@ export {
   CONTROL_LOOKS,
   CONTROL_W,
   iconSurface,
+  skinSurface,
+  type Skin,
   LARGE,
   MEDIUM,
   PILL,

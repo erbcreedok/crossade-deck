@@ -18,7 +18,20 @@
 
 import { add, compose, node, type Node } from "../core/node.js";
 import { Bounded, extentOf, type Shape } from "../core/atoms/bounded.js";
-import { CONTROL_H, CONTROL_INSET, CONTROL_LABEL, CONTROL_W, HELD, HOVER, iconSurface, lookFace, lookSurface, QUIET } from "./controls.js";
+import {
+  CONTROL_H,
+  CONTROL_INSET,
+  CONTROL_LABEL,
+  CONTROL_W,
+  HELD,
+  HOVER,
+  iconSurface,
+  lookFace,
+  lookSurface,
+  QUIET,
+  skinSurface,
+  type Skin,
+} from "./controls.js";
 import { rect } from "./shapes.js";
 import { transformShape } from "../core/path.js";
 import { Coated, NO_COAT, type Coat } from "../core/atoms/coated.js";
@@ -41,6 +54,17 @@ export interface ButtonSpec {
    * `registerSurface("control/mine", …)` in the game's own file, and `look: "mine"` finds it.
    */
   readonly look?: string;
+  /**
+   * The look WRITTEN OUT — a background or none, a border or none, how round the corners are. Given,
+   * it wins over `look`: the named looks are shorthand for the common answers, this is the answer.
+   */
+  readonly skin?: Skin;
+  /**
+   * The control is ON — a toggle that is pressed in, the chosen segment of a group. It wears its
+   * held look for as long as it stays on, so "on" and "being pressed" read the same, which is what
+   * a physical switch does too.
+   */
+  readonly toggled?: boolean;
   /** The box. Absent, the stock control box — a comfortable tap target at any etalon. */
   readonly bounds?: Shape;
   /** The outer face, by registry name. Absent, the look's own. Empty string means no face at all. */
@@ -95,8 +119,10 @@ export function button(id: string, spec: ButtonSpec = {}): Node {
   // A preset whose defaults are all `undefined` is a form, not a preset.
   const look = spec.look ?? "primary";
   const bounds = spec.bounds ?? rect(CONTROL_W, CONTROL_H);
-  const surface = spec.surface ?? lookSurface(look);
-  const face = spec.face ?? lookFace(look);
+  // A written-out skin wins over a named look, and takes the face with it: a skin says the whole
+  // look in one place, so a leftover inner face from a name would draw over half of it.
+  const surface = spec.skin ? skinSurface(spec.skin) : (spec.surface ?? lookSurface(look));
+  const face = spec.skin ? "" : (spec.face ?? lookFace(look));
   const inset = spec.inset ?? CONTROL_INSET;
 
   const outer: Atom[] = [Bounded({ bounds })];
@@ -135,7 +161,10 @@ export function button(id: string, spec: ButtonSpec = {}): Node {
   }
   // Asleep is a COAT on the whole control, cast down so the face and the icon dim with the plate —
   // the same reach a hover takes, for the same reason.
-  if (spec.asleep) compose(plate, Coated({ self: NO_COAT, cast: QUIET }));
+  // ON stays dressed; ASLEEP wins over it, because a switch that cannot be thrown must read as
+  // unavailable first and as on second.
+  const standing = spec.asleep ? QUIET : spec.toggled ? (spec.held ?? HELD) : undefined;
+  if (standing) compose(plate, Coated({ self: NO_COAT, cast: standing }));
   if (shows !== plate) add(plate, shows);
   return plate;
 }

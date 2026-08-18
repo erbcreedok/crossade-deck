@@ -20,6 +20,7 @@ import { registerTextStyle } from "../render/textStyles.js";
 import { registerLayout } from "../core/atoms/container.js";
 import { rowLayout } from "../core/atoms/layouts.js";
 import { type Coat } from "../core/atoms/coated.js";
+import { type Paint } from "../core/paint.js";
 import { type Shape } from "../core/atoms/bounded.js";
 import { circle, rect, roundedRect } from "./shapes.js";
 
@@ -64,6 +65,42 @@ export const CONTROL_INSET = 0.045;
 
 /** The stock arrangement for a row of controls, by name. A HUD bar is `Container({ layout: CONTROL_BAR })`. */
 export const CONTROL_BAR = "control/bar";
+/**
+ * A look written OUT, rather than picked from four frozen ones.
+ *
+ * The named looks are shorthand for the common answers; this is the answer itself — a background or
+ * none, a border or none, and how round the corners are. It registers the record it describes and
+ * hands back the name, memoised by those very values, so writing the same skin twice costs one
+ * entry. That keeps the kit's law intact (a look is a REGISTERED RECORD, always) while a designer
+ * writes `{ fill: "accent", border: "", radius: 0.35 }` inline and never learns the registry.
+ */
+export interface Skin {
+  /** Background token. `""` is NO background — a control that is only its border, or only its words. */
+  readonly fill?: Paint;
+  /** Border token. `""` is no border. */
+  readonly border?: Paint;
+  /** Border width in units. Absent, a hairline. */
+  readonly borderWidth?: number;
+  /** Corner radius in units. `0` is square corners; half the height is a pill. */
+  readonly radius?: number;
+}
+
+export function skinSurface(skin: Skin): string {
+  const fill = skin.fill ?? "";
+  const border = skin.border ?? "";
+  const width = skin.borderWidth ?? 0.025;
+  const radius = skin.radius ?? 0.1;
+  // The NAME IS THE VALUES, so the same skin asked for twice is the same entry — and a name a
+  // reader sees in the inspector says what it is worth without a lookup.
+  const name = `control/skin/${String(fill)}/${String(border)}/${width}/${radius}`;
+  registerSurface(name, {
+    layers: fill === "" ? [] : [{ paint: fill }],
+    radius,
+    ...(border === "" ? {} : { stroke: { color: border, width, alignment: 1 } }),
+  });
+  return name;
+}
+
 /**
  * The surface an icon is drawn with — one registered record per asset, made on demand.
  *

@@ -7,6 +7,7 @@ import {
   compose,
   Container,
   CONTROL_BAR,
+  CONTROL_H,
   CONTROL_LABEL,
   CONTROL_LOOKS,
   freeLayout,
@@ -41,6 +42,10 @@ export default meta;
 
 interface GalleryArgs {
   asleep: boolean;
+  fill: string;
+  border: string;
+  borderWidth: number;
+  radius: number;
 }
 
 export const Button: StoryObj<GalleryArgs> = {
@@ -60,6 +65,7 @@ export const Button: StoryObj<GalleryArgs> = {
     };
 
     const sleepy = a.asleep ? { asleep: true } : {};
+    const skin = { fill: a.fill, border: a.border, borderWidth: a.borderWidth, radius: a.radius };
 
     // WEIGHT — the same words at five levels of emphasis. One field apart.
     row("weight", -1.5, ["primary", "outline", "quiet", "sunk", "ghost"].map((look) =>
@@ -81,7 +87,16 @@ export const Button: StoryObj<GalleryArgs> = {
       button("i/danger", { look: "danger", label: "Discard", means: { does: "discard" }, ...sleepy }),
     ]);
 
-    add(desk, node("said", Bounded({ bounds: rect(6, 0.5) }), Labeled({ label: "press any of them", style: CONTROL_LABEL }), Transformable({ at: { x: 0, y: 1.5 } })));
+    // WRITTEN OUT — the four knobs a designer actually reaches for, on one row: a background or
+    // none, a border or none, how thick, how round. No name in the middle.
+    row("skin", 1.4, [
+      button("k/one", { skin, label: "Your skin", means: { does: "skin" }, ...sleepy }),
+      button("k/pill", { skin: { ...skin, radius: CONTROL_H / 2 }, bounds: PILL(2.2), label: "Rounder", means: { does: "rounder" }, ...sleepy }),
+      button("k/square", { skin: { ...skin, radius: 0 }, label: "Square", means: { does: "square" }, ...sleepy }),
+      button("k/on", { skin, label: "Toggled on", toggled: true, means: { does: "toggled" }, ...sleepy }),
+    ]);
+
+    add(desk, node("said", Bounded({ bounds: rect(6, 0.5) }), Labeled({ label: "press any of them", style: CONTROL_LABEL }), Transformable({ at: { x: 0, y: 2.3 } })));
     const live = scene(desk, {
       press: (meaning) => {
         const said = byId(live.host.root, "said");
@@ -92,7 +107,13 @@ export const Button: StoryObj<GalleryArgs> = {
     });
     return live.el;
   },
-  args: { asleep: false },
-  argTypes: { asleep: documented("arg.asleep", {}, "state") },
+  args: { asleep: false, fill: "panelBg", border: "accent", borderWidth: 0.03, radius: 0.12 },
+  argTypes: {
+    asleep: documented("arg.asleep", {}, "state"),
+    fill: documented("arg.fill", { control: "text" }, "skin"),
+    border: documented("arg.strokeColor", { control: "text" }, "skin"),
+    borderWidth: documented("arg.strokeWidth", { control: { type: "number", min: 0, step: 0.005 } }, "skin"),
+    radius: documented("arg.radius", { control: { type: "number", min: 0, step: 0.02 } }, "skin"),
+  },
   parameters: { gkDocStory: "hudButton.bar" },
 };
