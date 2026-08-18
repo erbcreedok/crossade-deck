@@ -1,0 +1,64 @@
+game-kit/src/render/textLayout.test.ts
+  s_170937f0c01a52::t_251040268622ec 1-67
+game-kit/src/render/scenePlan.test.ts
+  s_170937f0c01a52::t_3caaba02df0024 13-14,174-178,181-207,209,212
+  s_170937f0c01a52::t_9f3927011776b2 179-180,208,210-211
+  s_170937f0c01a52::t_463788c1283f71 213
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_0e20874e6e159a 10,53
+  s_170937f0c01a52::t_a5ce2cfa1c928c 77
+  s_170937f0c01a52::t_ffd6f85cc5ac3b 38
+game-kit/e2e/catalog.spec.ts
+  s_170937f0c01a52::t_0e20874e6e159a 83-106
+game-kit/docs/test-plan/49-text.md
+  s_170937f0c01a52::t_d15c4d326f8868 1-23
+game-kit/docs/test-plan/10-scene-plan.md
+  s_170937f0c01a52::t_ffd6f85cc5ac3b 3,47-49
+game-kit/src/render/domText.ts
+  s_170937f0c01a52::t_1881d066fd73fe 1-95
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_173bf6c1d8f2ed 25-28,95-105,152-153,260-265,275,406-412
+  s_170937f0c01a52::t_69d77f017f73b2 383-398,416-417,442,464,466,468
+game-kit/src/render/pixi.ts
+  s_170937f0c01a52::t_ee18837f2aacfe 283-286,299
+  s_170937f0c01a52::t_abee9e2d5cec3c 9,279-282,287-298,300-301
+  s_170937f0c01a52::t_2f403d2abcc48f 302-303
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_f25577d7eaabec 22,249,251
+  s_170937f0c01a52::t_228034df9b1c20 136-138,240-243
+game-kit/src/render/textMetrics.ts
+  s_170937f0c01a52::t_065026789de677 1-46
+game-kit/src/render/textLayout.ts
+  s_170937f0c01a52::t_8b0d653afde4ab 15
+  s_170937f0c01a52::t_ee18837f2aacfe 24-31,93-96
+  s_170937f0c01a52::t_4b2fb5b062e2a7 1-14,16-23,32-92,97-99
+game-kit/src/index.ts
+  s_170937f0c01a52::t_834baa470cccc1 296-301
+  s_170937f0c01a52::t_12b4ffc4ced2b0 337,346
+  s_170937f0c01a52::t_b54635c061f6bc 275
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_0be12f4a0c8f0c 39,63-64,365
+game-kit/src/render/theme.ts
+  s_170937f0c01a52::t_f65ce108039e80 125-153
+game-kit/src/render/stage.ts
+  s_170937f0c01a52::t_6dacb542f2599e 65-70,89
+  s_170937f0c01a52::t_573ae8acd4b6a1 14
+game-kit/docs/test-plan/25-e2e.md
+  s_170937f0c01a52::t_0e20874e6e159a 3,63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "5fcef48a8ee5bb8758436582c1681d45f87ae9fc",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
