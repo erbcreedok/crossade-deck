@@ -1,0 +1,19 @@
+client3/src/solitaire/scene.ts
+  s_7ed2dea7ad95d9::t_64a1a7836fa267 366-372,379-383,391-392,398,400,402-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a5dfc364f505281038a3c7097096454046f87d44",
+  "prompts": {},
+  "sessions": {
+    "s_7ed2dea7ad95d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c9b0153-c773-4264-b088-332aabe4b0e8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
