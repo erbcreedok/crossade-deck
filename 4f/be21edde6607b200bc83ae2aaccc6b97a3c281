@@ -1,0 +1,21 @@
+game-kit/.storybook/stories/HudButton.stories.ts
+  s_170937f0c01a52::t_927664500086ad 37,46
+game-kit/.storybook/preview.ts
+  s_170937f0c01a52::t_927664500086ad 164-166,168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4fbe21edde6607b200bc83ae2aaccc6b97a3c281",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
