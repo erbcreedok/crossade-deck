@@ -650,3 +650,23 @@ describe("a launch reports its bounces", () => {
     expect(none).toBe(0);
   });
 });
+
+describe("a launch may chain another from its own callback", () => {
+  it("motion.a-launch-chains-from-onBounce — the next body goes from inside the callback, on the same clock, with no outside event", () => {
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 } })));
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { gravity: 30, clock: c.clock });
+    const dHome = b.xOf("d");
+    let chainedAt = -1;
+    m.launch("c", { speed: 4, angle: 300, floor: 1, delayMs: 200, onBounce: (n) => { if (n === 1 && chainedAt < 0) { chainedAt = c.clock.now(); m.launch("d", { speed: 4, angle: 0, floor: 1 }); } } });
+    let dMoved = false;
+    for (let t = 16; t <= 6000 && !c.idle(); t += 16) {
+      c.tick(t);
+      if (chainedAt >= 0 && Math.abs(b.xOf("d") - dHome) > 0.01) dMoved = true;
+    }
+    expect(chainedAt).toBeGreaterThan(200); // the first went after its delay and touched down
+    expect(dMoved).toBe(true); // the second flew on its own — the loop never needed a nudge
+    expect(c.idle()).toBe(true); // and everything came to rest (both left the glass and eased home)
+  });
+});

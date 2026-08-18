@@ -207,9 +207,16 @@ export function startSolitaire(container: HTMLElement): () => void {
   };
 
   const onDown = (e: PointerEvent): void => {
+    // The ceremony is the player's to run: once it has begun, every press launches the NEXT card at
+    // once — no waiting on the one before to land. This is caught before anything else, so a tap on
+    // the glass mid-cascade never reaches a pile, the stock, or a drag.
+    if (celebrated) {
+      launchNext();
+      return;
+    }
     // The dev door's table is already won: the first tap anywhere is the ceremony (by then the
     // renderer has presented the table and its pictures — a glass kept from before that is blank).
-    if (wonAtOnce && !celebrated) {
+    if (wonAtOnce) {
       celebrate();
       return;
     }
@@ -356,57 +363,58 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   /**
    * The cards leave the foundations IN ORDER — the four kings, one after another, then the four
-   * queens, and so on down to the aces — and each waits for the one before it to touch the floor
-   * once. Every card is thrown up and sideways, pulled down by gravity, bounces off the bottom of
-   * the glass, and is gone off the side; the glass KEEPS every frame, so each leaves its trail.
-   * When the last one is gone the desk repaints, bare foundations and all.
+   * queens, and so on down to the aces — but the pace is the PLAYER's: each press launches the next
+   * card at once, without waiting on the one before to land (`onDown` calls `launchNext`). Every card
+   * is thrown up and sideways, pulled down by gravity, bounces off the bottom of the glass, and is
+   * gone off the side; the glass KEEPS every frame, so each leaves its trail. When the last card
+   * launched has finished, the desk repaints, bare foundations and all.
    */
   let celebrated = false;
+  let cascade: Node[] = []; // the foundations' cards, king-first down to the aces
+  let launched = 0; // how many have been thrown so far
+  let finished = 0; // how many have flown off and been removed
+
+  /** Throw the next card in the cascade, if any is left. The first waits one settle; the rest are instant. */
+  const launchNext = (): void => {
+    if (launched >= cascade.length) return;
+    const c = cascade[launched]!;
+    // The winning move is still landing on its foundation when the first card goes: it waits one
+    // settle out, so it leaves from its seat and not from mid-air. Every later card goes at once.
+    const delayMs = launched === 0 ? motion.tuning().settleMs : 0;
+    launched++;
+    const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
+    motion.launch(c.id, {
+      delayMs,
+      speed: CASCADE.speed + Math.random() * CASCADE.spread,
+      angle: a0 + Math.random() * (a1 - a0),
+      onDone: () => {
+        if (c.parent) remove(c.parent, c);
+        // Once every card that was launched is gone — and no card is left to launch — the desk
+        // repaints bare. (While cards remain unlaunched, the last landing does not end the show.)
+        if (++finished === cascade.length) {
+          motion.retain(false);
+          redraw();
+        }
+      },
+    });
+  };
+
   const celebrate = (): void => {
+    if (celebrated) return;
     const layers = Math.max(0, ...board.foundations.map((f) => f.children.length));
-    const cards: Node[] = [];
+    cascade = [];
     for (let j = 0; j < layers; j++) {
       for (const f of board.foundations) {
         const c = f.children[f.children.length - 1 - j];
-        if (c) cards.push(c);
+        if (c) cascade.push(c);
       }
     }
-    let left = cards.length;
-    if (left === 0 || celebrated) return;
+    if (cascade.length === 0) return;
     celebrated = true;
+    launched = 0;
+    finished = 0;
     motion.retain(true);
-    // The winning move is still landing on its foundation when this is called: the first card
-    // waits one settle out, so every card leaves from its seat and none from mid-air.
-    const hold = motion.tuning().settleMs;
-    let next = 0;
-    const go = (): void => {
-      if (next >= cards.length) return;
-      const c = cards[next++]!;
-      let passed = false;
-      // The baton: the next card goes at this one's first touch of the floor — or when it is gone,
-      // if it never touched down (a flat throw straight off the side).
-      const pass = (): void => {
-        if (passed) return;
-        passed = true;
-        go();
-      };
-      const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
-      motion.launch(c.id, {
-        delayMs: next === 1 ? hold : 0,
-        speed: CASCADE.speed + Math.random() * CASCADE.spread,
-        angle: a0 + Math.random() * (a1 - a0),
-        onBounce: pass,
-        onDone: () => {
-          pass();
-          if (c.parent) remove(c.parent, c);
-          if (--left === 0) {
-            motion.retain(false);
-            redraw();
-          }
-        },
-      });
-    };
-    go();
+    launchNext(); // the first card leaves on the press that began the ceremony
   };
 
   view.addEventListener("pointerdown", onDown);
