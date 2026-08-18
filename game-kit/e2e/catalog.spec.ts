@@ -825,6 +825,44 @@ test("e2e.a-picture-reaches-the-glass — and fit decides how much of it", async
   expect(withPicture.equals(covered), "contain and cover drew the same thing").toBe(false);
 });
 
+test("e2e.a-tiled-ground-keeps-its-tile — `repeat` draws the picture at the size it DECLARED", async ({ browser }) => {
+  // `repeat` is the one fit whose size does not come from the area, and that is the whole
+  // difference between a pattern and a stretched picture. The mistake is invisible on a card and
+  // enormous on a table: the hub's felt is a box sized past any viewport, and one tile blown up
+  // across all of it read as a smudge nobody could name.
+  //
+  // Settled INSIDE ONE FRAME, with the etalon pinned: a tiling has a PERIOD. A clip and the same
+  // clip moved by exactly one tile must be the same picture; moved by half a tile it must not be.
+  // Neither reading is against a stored snapshot, and neither crosses a navigation.
+  const context = await browser.newContext({ viewport: { width: 900, height: 640 } });
+  const page = await context.newPage();
+  const canvas = await openScene(page, "atoms-surfaced--plate&args=image:tile;fit:repeat;stroke:!false");
+  // Pinned rather than left on auto: the tile's size in PIXELS is what is being measured, and
+  // auto makes that a function of the window.
+  await page.locator("[data-hud-unit]").selectOption("60");
+  // The picture lands a frame or two after the scene reports itself painted.
+  await page.waitForTimeout(600);
+
+  // The stock `tile` declares 0.4 units, and the etalon above says what a unit is worth.
+  const TILE = 0.4 * 60;
+  const HALF = TILE / 2;
+  const box = (await canvas.boundingBox())!;
+  const clip = (dx: number): Promise<Buffer> =>
+    page.screenshot({
+      clip: { x: box.x + box.width / 2 - HALF + dx, y: box.y + box.height / 2 - HALF, width: TILE, height: TILE },
+    });
+
+  const home = await clip(0);
+  const aTileOver = await clip(TILE);
+  const halfATileOver = await clip(HALF);
+  await context.close();
+
+  expect(home.equals(aTileOver), "a step of one tile changed the picture — the tile is not the size it declared").toBe(
+    true,
+  );
+  expect(home.equals(halfATileOver), "half a tile changed nothing — nothing is being tiled").toBe(false);
+});
+
 test("e2e.controls-follow-the-language — a half-translated screen is the worst outcome", async ({ page }) => {
   // Control descriptions are the one piece of prose that cannot follow the switch on its own:
   // Storybook normalises `argTypes` once, while a story is prepared, and keeps whatever it read.

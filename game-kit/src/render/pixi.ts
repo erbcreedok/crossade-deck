@@ -214,13 +214,21 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
         const g = new Graphics();
         if (image.repeat) {
           // Tiled: the contour itself is the fill, and the texture wraps. `w`/`h` is ONE tile.
+          //
+          // `textureSpace: "global"` IS THE WHOLE OF IT, and it has to be written out because the
+          // renderer's default is the other one. In `local` space the texture is mapped onto the
+          // SHAPE'S BOUNDS — the tile then grows with the area it covers, which is the one thing a
+          // pattern must never do: on a table sized past any viewport it came out as a single
+          // picture smeared over the whole desk. In global space the matrix below is read in the
+          // fill's own pixels, so a tile is the size the asset declared and the area is free to be
+          // any size at all. See `e2e.a-tiled-ground-keeps-its-tile`.
           texture.source.addressMode = "repeat";
           trace(g, quad.points, true);
           g.fill({
             texture,
             alpha: layer.opacity,
             matrix: tileMatrix(texture, image),
-            textureSpace: "local",
+            textureSpace: "global",
           });
           box.addChild(g);
           continue;

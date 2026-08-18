@@ -43,3 +43,13 @@ export const BORDER_U = 4 * PX;
 export const RING_U = 4 * PX;
 /** How far a press displaces a tile: 3px down and right, exactly as `.pixel-btn:active` did. */
 export const PRESS_PX = 3;
+/**
+ * The felt's club tile, in units — NOT through `PX`, and the exception is worth its four lines.
+ *
+ * `PX` converts a CONTROL's pixels: client1's 4px keyline is 4px because a finger and a screen say
+ * so, and it stays that thickness whatever the table shows. A background pattern is the opposite
+ * kind of number — it is a fraction of the SCREEN, and client1's 72px tile is one eighteenth of a
+ * desktop's width. The hub lays 9.2 units across whatever screen it is on, so the same texture is
+ * 9.2/18 of a unit, and it keeps its density on a phone as well as on a monitor.
+ */
+export const CLUB_U = 9.2 / 18;
