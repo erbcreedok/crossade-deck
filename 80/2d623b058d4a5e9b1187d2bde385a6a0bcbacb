@@ -1,0 +1,29 @@
+game-kit/src/render/textStyles.test.ts
+  s_170937f0c01a52::t_8c288e27c23736 37-60
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_2eea581b6b2245 10,77
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_eccbc3748e05d9 27,398-416
+apps/hub/src/hub/route.ts
+  s_170937f0c01a52::t_30c61eeaa5ea5b 1-44
+game-kit/docs/test-plan/49-text.md
+  s_170937f0c01a52::t_2eea581b6b2245 3,30
+apps/hub/src/hub/shell.ts
+  s_170937f0c01a52::t_a8c13dce9b124c 34,122,133,139,145,153,166-177,187-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "802d623b058d4a5e9b1187d2bde385a6a0bcbacb",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
