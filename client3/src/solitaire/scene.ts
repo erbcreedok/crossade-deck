@@ -375,29 +375,37 @@ export function startSolitaire(container: HTMLElement): () => void {
   let cascade: Node[] = []; // the foundations' cards, king-first down to the aces
   let launched = 0; // how many have been thrown so far
   let finished = 0; // how many have flown off and been removed
+  let baton = -1; // the index of the card that currently carries the baton (the last one launched)
 
   /**
    * Throw the next card in the cascade, if any is left. The first waits one settle; the rest are
-   * instant. Both the auto-baton and a player's tap call this — `launched` bumps before the throw,
-   * so the same card never goes twice; a tap simply advances the index earlier than the baton would.
+   * instant. ONE card carries the baton at a time — the last one launched — and only its own bounce
+   * hands it on. A tap also calls this, moving the baton forward at once; the cards it overtook have
+   * already lost the baton, so their later bounces launch nothing. That is why a tap ADDS one card,
+   * never a whole new self-firing chain (the runaway that dumped seven at once). `launched` bumps
+   * before the throw, so the same card never goes twice.
    */
   const launchNext = (): void => {
     if (launched >= cascade.length) return;
-    const c = cascade[launched]!;
+    const i = launched;
+    const c = cascade[i]!;
     // The winning move is still landing on its foundation when the first card goes: it waits one
     // settle out, so it leaves from its seat and not from mid-air. Every later card goes at once.
     const delayMs = launched === 0 ? motion.tuning().settleMs : 0;
     launched++;
-    let handed = false;
-    const hand = (): void => { if (handed) return; handed = true; launchNext(); };
+    baton = i; // this newest card now holds the baton; whoever held it before has lost it
+    const advance = (): void => {
+      if (baton !== i) return; // a tap (or this card's own onDone after a bounce) already moved it on
+      launchNext();
+    };
     const [a0, a1] = Math.random() < 0.5 ? [CASCADE.angles[0], CASCADE.angles[1]] : [CASCADE.angles[2], CASCADE.angles[3]];
     motion.launch(c.id, {
       delayMs,
       speed: CASCADE.speed + Math.random() * CASCADE.spread,
       angle: a0 + Math.random() * (a1 - a0),
-      onBounce: hand, // the baton: the next card goes at this one's first floor touch
+      onBounce: advance, // the baton passes at this card's first floor touch — if it still holds it
       onDone: () => {
-        hand(); // a flat throw that never bounced still passes the baton on its way out
+        advance(); // a flat throw that never bounced still hands the baton on its way out
         if (c.parent) remove(c.parent, c);
         // Once every card that was launched is gone — and none is left to launch — the desk repaints
         // bare. (While cards remain unlaunched, the last landing does not end the show.)
@@ -423,6 +431,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     celebrated = true;
     launched = 0;
     finished = 0;
+    baton = -1;
     motion.retain(true);
     launchNext(); // the first card leaves on the press that began the ceremony
   };
