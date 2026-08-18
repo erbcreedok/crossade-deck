@@ -38,6 +38,16 @@ import {
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.js";
+import {
+  applySnapshot,
+  browserStore,
+  clearSave,
+  loadSave,
+  MAX_PAST,
+  snapshot,
+  storeSave,
+  type Snapshot,
+} from "./save.js";
 import { canOnFoundation, canOnTableau, isRunOrdered, valueOf, type CardValue } from "./rules.js";
 
 // THE FEEL OF THIS GAME, in one literal — the designer's patch over the engine's tuning. Everything
@@ -80,12 +90,26 @@ export function startSolitaire(container: HTMLElement): () => void {
     stroke: { color: "panelBorder", width: 0.025, dash: { on: 0.14, off: 0.1 } },
   });
 
-  let board: SolitaireBoard = buildBoard();
+  const board: SolitaireBoard = buildBoard();
   // The dev door: `?won` seats the whole deck on the foundations BEFORE the table is mounted — a
   // table already won, resting there from its first frame (no deal, no settle off the stock) — and
   // the first tap is the ceremony. The one way to see it without fifty-two moves.
   const wonAtOnce = new URLSearchParams(globalThis.location?.search ?? "").has("won");
   if (wonAtOnce) winKlondike(board);
+
+  // THE TABLE THE PLAYER LEFT. Read before the first frame, so the game opens where it stood rather
+  // than dealing a new one and replacing it a moment later. A save that does not fit this deck is
+  // simply not there — `applySnapshot` refuses whole, and the fresh shuffle already in `board` is
+  // what the player gets. The dev door does not read it: `?won` asks for a specific table.
+  const store = browserStore();
+  let past: Snapshot[] = [];
+  // The opening deal is a one-time thing: `dealt` latches when it begins, `dealDone` when the last
+  // card has seated. Between the two, the stock is deaf (a press mid-deal does nothing). The timer
+  // paces the cards; the teardown clears it so no card seats after the table is gone. They live up
+  // here beside the save because a restored table is already dealt and must not deal itself again.
+  let dealt = false;
+  let dealDone = false;
+  let dealTimer: ReturnType<typeof setTimeout> | undefined;
   const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }) });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
@@ -105,6 +129,32 @@ export function startSolitaire(container: HTMLElement): () => void {
   };
   host.onChange(applyFit);
   applyFit();
+
+  /**
+   * Take the table down before changing it. Called BEFORE a move, never after: what the player wants
+   * back is the table as it stood, and after the move it is gone. The near past is what undo walks,
+   * so the far end is what gets dropped when the stack is full.
+   */
+  const remember = (): void => {
+    past.push(snapshot(board, dealt));
+    if (past.length > MAX_PAST) past.shift();
+  };
+
+  /** Write the table down. Every committed change ends here; nothing else touches the storage. */
+  const keep = (): void => storeSave(store, { now: snapshot(board, dealt), past });
+
+  // THE TABLE THE PLAYER LEFT, seated before the first frame — so the game opens where it stood
+  // instead of dealing a new one and replacing it a blink later. A save that does not fit this deck
+  // is simply not there: `applySnapshot` refuses whole and the fresh shuffle already in `board`
+  // stands. The dev door skips it — `?won` asked for one particular table.
+  if (!wonAtOnce) {
+    const saved = loadSave(store);
+    if (saved && applySnapshot(board, saved.now)) {
+      past = [...saved.past];
+      dealt = saved.now.dealt;
+      dealDone = dealt;
+    }
+  }
 
   // The board opens UNDEALT: the whole deck stacked in the stock, seven empty columns. The deal is
   // the player's first move — a click on the stock lays the triangle out (`dealTableau`), each card
@@ -163,6 +213,9 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   /** Reparent a run onto its destination, uncover what it left, and let the clock ease it into place. */
   const landRun = (cards: Node[], src: Node, dest: Node): void => {
+    // A run dropped back where it came from is not a move: nothing changed, so nothing is written
+    // down and undo does not gain a step that undoes nothing.
+    if (dest !== src) remember();
     for (const c of cards) remove(c.parent ?? src, c);
     for (const c of cards) add(dest, c);
     for (const c of cards) motion.release(c.id); // in case a gesture held them — a no-op otherwise
@@ -172,6 +225,7 @@ export function startSolitaire(container: HTMLElement): () => void {
       if (top && facing(top) === "down") motion.flip(top.id, () => setFacing(top, "up"));
     }
     redraw();
+    if (dest !== src) keep();
     checkWin();
   };
 
@@ -346,13 +400,6 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   // ---- the stock ---------------------------------------------------------------------------
 
-  // The opening deal is a one-time thing: `dealt` latches when it begins, `dealDone` when the last
-  // card has seated. Between the two, the stock is deaf (a press mid-deal does nothing). The timer
-  // paces the cards; the teardown clears it so no card seats after the table is gone.
-  let dealt = false;
-  let dealDone = false;
-  let dealTimer: ReturnType<typeof setTimeout> | undefined;
-
   /**
    * Lay the classic triangle out from the stock, one card after another in `dealPlan`'s row-major
    * order — each reparented card's rest pose moves from the stock to its column seat, and the settle
@@ -361,6 +408,7 @@ export function startSolitaire(container: HTMLElement): () => void {
    */
   const dealTableau = (): void => {
     if (dealt) return;
+    remember();
     dealt = true;
     const steps = dealPlan(board);
     if (steps.length === 0) {
@@ -380,12 +428,18 @@ export function startSolitaire(container: HTMLElement): () => void {
       } while (gap === 0 && k < steps.length);
       redraw();
       if (k < steps.length) dealTimer = setTimeout(step, gap);
-      else dealDone = true;
+      else {
+        dealDone = true;
+        // Written down when the LAST card has seated, not at the first: a save taken mid-deal would
+        // restore a table frozen halfway through its own opening.
+        keep();
+      }
     };
     step();
   };
 
   const dealFromStock = (): void => {
+    remember();
     if (board.stock.children.length > 0) {
       const top = board.stock.children[board.stock.children.length - 1]!;
       remove(board.stock, top);
@@ -401,6 +455,7 @@ export function startSolitaire(container: HTMLElement): () => void {
       }
     }
     redraw();
+    keep();
   };
 
   const checkWin = (): void => {
@@ -476,6 +531,10 @@ export function startSolitaire(container: HTMLElement): () => void {
     }
     if (cascade.length === 0) return;
     celebrated = true;
+    // The game is over, so the table is not kept. Saving the cascade would restore a desk half
+    // emptied of cards that were already thrown, with no way to finish and nothing to undo to.
+    past = [];
+    clearSave(store);
     launched = 0;
     finished = 0;
     baton = -1;
