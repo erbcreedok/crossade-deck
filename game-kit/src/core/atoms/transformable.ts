@@ -17,7 +17,9 @@
 // because thickness is expressed as an `at` offset.
 
 import { defineAtom } from "../atom.js";
+import { fieldsOf } from "../node.js";
 import { sumAlongChain, type ResolveContext } from "../resolve.js";
+import { orientationOf } from "./oriented.js";
 import { type Point } from "./bounded.js";
 
 export interface TransformableFields {
@@ -58,4 +60,21 @@ export const Transformable = defineAtom<TransformableFields>({
  */
 export function resolveZ(ctx: ResolveContext): number {
   return sumAlongChain(ctx, "Transformable", "z");
+}
+
+/**
+ * The turn this node ends up at — THE one place the formula lives, so no call site improvises.
+ *
+ *     world  (default): own + Σ(the owners' angles) — the chain, exactly as `z` sums
+ *     viewer (billboard): own − the camera's rotation; the owners' turn is not added at all
+ *
+ * There is no camera yet, so the viewer branch is the node's own angle: the chain is severed and
+ * nothing is subtracted. When a camera lands, its rotation is the only term that joins this line.
+ *
+ * It takes the context alone, like `resolveZ`, because the node IS the chain's last link — passing
+ * both would let the two disagree.
+ */
+export function resolveAngle(ctx: ResolveContext): number {
+  const own = fieldsOf<TransformableFields>(ctx.chain[ctx.chain.length - 1]!, "Transformable")?.angle ?? 0;
+  return orientationOf(ctx) === "viewer" ? own : sumAlongChain(ctx, "Transformable", "angle");
 }

@@ -9,6 +9,7 @@ import { ShadowCaster } from "../core/atoms/shadow.js";
 import { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit } from "../core/atoms/lit.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
+import { Oriented } from "../core/atoms/oriented.js";
 import { add, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply, IDENTITY, move } from "../core/transform.js";
@@ -166,6 +167,30 @@ describe("scenePlan", () => {
     const shade = quads[0]!;
     expect(shade.transform.e).toBeLessThan(piece.transform.e); // down-LEFT of the piece
     expect(shade.transform.f).toBeGreaterThan(piece.transform.f);
+  });
+
+  it("plan.a-billboard-ignores-the-owners-turn — the viewer frame severs the angle chain and nothing else", () => {
+    // A tray sat down sideways. Both tokens are identical and sit at the same place inside it; the
+    // only difference is the frame their turn is read in. The billboard must keep its own 0° while
+    // still being WHERE and how BIG the tray put it — a frame that also moved things would be a
+    // second layout, which is not what anybody asked of it.
+    const root = node("desk", Container({ layout: "free" }), Surfaced());
+    const tray = node("tray", box(4, 2), Surfaced(), Container({ layout: "free" }), Transformable({ at: { x: 1, y: 0 }, angle: 30, scale: 2 }));
+    add(root, tray);
+    add(tray, node("rides", box(1, 1), Surfaced(), Transformable({ at: { x: 0.5, y: 0.25 } })));
+    add(tray, node("badge", box(1, 1), Surfaced(), Transformable({ at: { x: 0.5, y: 0.25 } }), Oriented({ orientation: "viewer" })));
+    const quads = plan(root);
+    const at = (id: string) => quads.find((q) => q.id === id)!.transform;
+    const turn = (t: { a: number; b: number }) => (Math.atan2(t.b, t.a) * 180) / Math.PI;
+    const size = (t: { a: number; b: number }) => Math.hypot(t.a, t.b);
+    // The plain child rides the tray's turn, as `z` and scale ride the chain.
+    expect(turn(at("rides"))).toBeCloseTo(30);
+    // The billboard inherits none of it.
+    expect(turn(at("badge"))).toBeCloseTo(0);
+    // Place and size still came down the chain untouched — only the angle was cut.
+    expect(at("badge").e).toBeCloseTo(at("rides").e);
+    expect(at("badge").f).toBeCloseTo(at("rides").f);
+    expect(size(at("badge"))).toBeCloseTo(size(at("rides")));
   });
 
   it("plan.a-turned-piece-turns-its-silhouette-not-its-shadow — the fall ignores every angle", () => {

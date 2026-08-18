@@ -1,0 +1,43 @@
+{
+  "docs.oriented.component": [
+    "`Oriented` says whose axes a node's turn is measured against. `world` — the default — is the",
+    "ordinary case: the node is turned relative to the DESK, and an owner's turn reaches it through",
+    "the chain exactly as `z` does. `viewer` is the billboard.",
+    "",
+    "```ts",
+    "import { node, Bounded, Oriented } from \"game-kit\"",
+    "",
+    "const badge = node(\"badge\",",
+    "  Bounded({ bounds: rect(1.5, 0.9) }),",
+    "  Oriented({ orientation: \"viewer\" }))",
+    "```",
+    "",
+    "## `viewer` is a terminator, not another term",
+    "",
+    "A node framed to the onlooker is indifferent to how the desk and its owners are turned, so it",
+    "does not inherit the accumulated turn AT ALL:",
+    "",
+    "```",
+    "world  : own + Σ(the owners' angles)",
+    "viewer : own − the camera's rotation",
+    "```",
+    "",
+    "Partial inheritance was the rejected middle — it would produce a turn nobody ordered. \"Straight",
+    "relative to a turned slot\" is already expressible as an own angle of 0 and needs no field.",
+    "",
+    "The formula lives in ONE place, `resolveAngle`, so no call site improvises. There is no camera",
+    "yet, so the `viewer` branch is the node's own angle: the chain is severed and nothing is",
+    "subtracted.",
+    "",
+    "## The field comes from the owner",
+    "",
+    "`orientation` is `fromOwner`: the nearest set value up the chain wins. A tray can frame",
+    "everything it holds to the onlooker, and one badge inside it can still opt back out."
+  ],
+  "docs.oriented.billboard": [
+    "Turn the tray and watch the two tokens disagree. Both sit in the same turned container with the",
+    "same own angle of zero. The left one rides the tray round; the right one is framed to the",
+    "onlooker and stays put, whatever the tray does. Set `orientation` back to `world` and they",
+    "become indistinguishable — which is the point: the frame is only visible as a difference."
+  ]
+}

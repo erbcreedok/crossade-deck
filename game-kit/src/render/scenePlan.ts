@@ -19,9 +19,9 @@ import { extentOf, footprint, outlineOf, type Point, type Shape } from "../core/
 import { castsShadow, shadowFrom } from "../core/atoms/shadow.js";
 import { lightVector, shadowOf } from "../core/atoms/lit.js";
 import { areaOf, type SurfacedFields } from "../core/atoms/surfaced.js";
-import { resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
+import { resolveAngle, resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
 import { fieldsOf } from "../core/node.js";
-import { contextFor, type ResolveContext } from "../core/resolve.js";
+import { contextFor, sumAlongChain, type ResolveContext } from "../core/resolve.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
@@ -734,7 +734,16 @@ export function transformsOf(root: Node): Map<NodeId, Transform> {
       // turned hand would sit in the right place and face the wrong way.
       const at = placed.get(child.id) ?? ownPose(child);
       const own = fieldsOf<TransformableFields>(child, "Transformable");
-      const base = compose(here, pose(at, own?.angle ?? 0, own?.scale ?? 1));
+      // The turn is the ONE resolved value here, because `orientation` can sever the chain: a
+      // billboard must end up at its own angle however its owners are turned. `resolveAngle` says
+      // what the node's turn must COME OUT as; what is composed onto the owner's matrix is that
+      // target minus what the chain already carries, so `world` composes its own angle exactly as
+      // it always did and `viewer` cancels the accumulated one. Place and size are untouched: the
+      // frame cuts the angle, and a frame that moved things would be a second layout.
+      const ctx = contextFor(child, 1);
+      const inherited = sumAlongChain(ctx, "Transformable", "angle") - (own?.angle ?? 0);
+      const turn = resolveAngle(ctx) - inherited;
+      const base = compose(here, pose(at, turn, own?.scale ?? 1));
       const eff = shownOf(child);
       const t = compose(base, eff.pre);
       out.set(child.id, t);

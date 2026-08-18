@@ -148,7 +148,7 @@ const preview: Preview = {
           "Basics",
           ["Node", "Root"],
           "Atoms",
-          ["Bounded", "Surfaced", "Coated", "Transformable", "Container", "Flippable", "Tiltable", "Draggable", "Grippable", "Private", "ShadowCaster", "Lit", "Inviting", "Valued", "Owned", "Labeled", "Placeable", "Focusable", "Rollable"],
+          ["Bounded", "Surfaced", "Coated", "Transformable", "Container", "Flippable", "Tiltable", "Draggable", "Grippable", "Private", "ShadowCaster", "Lit", "Inviting", "Valued", "Owned", "Labeled", "Placeable", "Focusable", "Oriented", "Rollable"],
           // Presets stand on the atoms and are the first pages where a scene is allowed to be
           // several nodes at once: an assembly is what a preset IS. Split by what each preset
           // GENERATES, not by which file of the kit it happens to live in.

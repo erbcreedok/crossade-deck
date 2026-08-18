@@ -12,5 +12,5 @@
 | `inherit.sum.skips-the-silent` | an owner with no `Transformable` at all | a child's z resolved | only the child's own term — a node that never spoke contributes nothing |
 | `inherit.root-only.absent` ⏳ | a child asked for `light` / `camera` | the field read | it does not EXIST on a child — a validator error, not undefined |
 | `inherit.class-declared` | every field in the model | its class looked up | all four classes covered; a field with no class fails the scan (source-scan) |
-| `inherit.billboard-terminates` ⏳ | child `orientation: viewer`, owner rotated 45° | angle resolved | own − camera.rotation; the owners' 45° is NOT added — viewer terminates the chain |
+| `inherit.billboard-terminates` | child `orientation: viewer`, owner rotated 45° | angle resolved | own − camera.rotation; the owners' 45° is NOT added — viewer terminates the chain |
 | `inherit.shadow-ignores-angle` ⏳ | the node rotated | the shadow inspected | the silhouette turns, the offset does not: the shadow never inherits the rotation matrix |

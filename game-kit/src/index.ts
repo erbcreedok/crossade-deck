@@ -68,7 +68,9 @@ export {
 export { Bounded, extentOf, footprint, outlineOf, type BoundedFields, type PathSegment, type Point, type Shape } from "./core/atoms/bounded.js";
 // What a path can do: be built from places, arrive from a drawing tool, and be moved.
 export { fromSvgPath, joinPath, polyline, transformShape, type ShapeTransform } from "./core/path.js";
-export { Transformable, resolveZ, type TransformableFields } from "./core/atoms/transformable.js";
+export { Transformable, resolveAngle, resolveZ, type TransformableFields } from "./core/atoms/transformable.js";
+// Whose axes a turn is measured in. `viewer` severs the chain — the billboard a caption needs.
+export { Oriented, orientationOf, type OrientedFields } from "./core/atoms/oriented.js";
 // The node's own answer to "fold my geometry, or hand it over as a matrix?" — see `attachPainter`.
 export { Bakeable, bakeable, type BakeableFields } from "./core/atoms/bakeable.js";
 export {

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { classOf } from "../atom.js";
 import { add, caps, node, remove } from "../node.js";
-import { Transformable, resolveZ } from "./transformable.js";
+import { Transformable, resolveAngle, resolveZ } from "./transformable.js";
+import { Oriented } from "./oriented.js";
 import { Bounded } from "./bounded.js";
 import { Container } from "./container.js";
 import { contextFor, productAlongChain, sumAlongChain } from "../resolve.js";
@@ -63,6 +64,22 @@ describe("Transformable · the pose composes", () => {
     // Read off the resolved chain, not stored: an animation that froze the base is how the fan
     // z-order broke three times in the first client.
     expect(sumAlongChain(contextFor(card, 100), "Transformable", "angle")).toBe(45);
+  });
+
+  it("inherit.billboard-terminates — a viewer-framed node ignores every owner's turn", () => {
+    // The desk is turned, and the tray on it is turned again. A plain child rides both.
+    const desk = node("desk", Container(), Transformable({ angle: 45 }));
+    const tray = node("tray", Container(), Transformable({ angle: 30 }));
+    add(desk, tray);
+    const rider = node("rider", Bounded(), Transformable({ angle: 10 }));
+    const badge = node("badge", Bounded(), Transformable({ angle: 10 }), Oriented({ orientation: "viewer" }));
+    add(tray, rider);
+    add(tray, badge);
+    // `world` is the default and SUMS the chain: 45 + 30 + 10.
+    expect(resolveAngle(contextFor(rider, 1))).toBe(85);
+    // `viewer` TERMINATES it: the owners' 75° is not added at all, and there is no camera to
+    // subtract yet. A partial inheritance would be an angle nobody ordered.
+    expect(resolveAngle(contextFor(badge, 1))).toBe(10);
   });
 
   it("atom.transformable.scale-multiplies — a half in a half is a quarter", () => {

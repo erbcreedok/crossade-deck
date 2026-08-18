@@ -145,6 +145,8 @@
   "arg.y": "Offset along Y, in units.",
   "arg.z": "Height in the paint order. Whole steps: it is an order, not a distance, and it ADDS UP along the tree.",
   "arg.angle": "Turn, in degrees, clockwise on screen. It ADDS UP along the chain: turn a hand and everything in it turns with it, and a child cannot un-turn its owner.",
+  "arg.orientation": "Whose axes this node's turn is measured in. `world` rides the chain like `z` does: the owners' turn is added. `viewer` is a TERMINATOR — the accumulated turn is not inherited at all, which is what keeps a caption readable on a tray somebody sat down sideways.",
+  "arg.trayAngle": "The TRAY's own turn, in degrees. It is the scene's knob, not a field of this atom — turn it and the chain both tokens inherit turns with it, which is the only way the difference between the frames becomes visible.",
   "arg.scale": "Size, as a multiplier. It MULTIPLIES along the chain — a half-size hand holding a half-size card shows it at a quarter, and no sum says that. One number, not two: a non-uniform scale is the only transform that destroys a shape, and squashing belongs to the picture.",
   "arg.rx": "Half the ellipse across, in units.",
   "arg.ry": "Half the ellipse down. Equal to `rx` and it is a circle — that is all a circle is.",
