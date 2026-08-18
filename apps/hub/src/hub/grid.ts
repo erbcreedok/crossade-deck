@@ -159,3 +159,42 @@ export function hubTree(): Node {
   for (let i = CATALOGUE.length; i < PLACES; i++) add(shelf, slotOf(i));
   return desk;
 }
+
+/**
+ * The bar shown while a game is running: one control, saying the way back.
+ *
+ * It is a tile like any other — the same plate, face and caption — because a control is an ELEMENT
+ * and there is no second world of widgets. What it MEANS is `Valued`, read by the same press
+ * wiring that reads a game tile's, so the shell needs no second gesture path.
+ *
+ * The hub's canvas is the whole viewport even while a game runs, and the game covers everything
+ * below the strip — so the control is placed at `topY`, which the shell works out from the strip's
+ * height and the unit in force. Horizontally it is centred: that needs no measurement at all.
+ */
+export function barTree(strip: { readonly topY: number; readonly height: number }): Node {
+  installLayouts();
+  const bar = node("bar", Container({ layout: FREE }), Bounded({ bounds: rect(60, 60) }), Surfaced({ surface: GROUND }));
+  // Measured against the STRIP, not against the shelf: the unit in force is the shelf's, and a
+  // control sized in shelf units would stand taller than the ribbon it lives in.
+  const w = strip.height * 2.8;
+  const h = strip.height;
+  const plate = node(
+    "nav/back",
+    Bounded({ bounds: rect(w, h) }),
+    Surfaced({ surface: RING }),
+    Container({ layout: INSET }),
+    Transformable({ at: { x: 0, y: strip.topY } }),
+    Valued({ values: { nav: "back" } }),
+    ShadowCaster({ from: "silhouette" }),
+  );
+  const face = node(
+    "nav/back/face",
+    Bounded({ bounds: rect(w - RING_U * 2, h - RING_U * 2) }),
+    Surfaced({ surface: TILE }),
+    Container({ layout: INSET }),
+  );
+  add(plate, face);
+  add(face, node("nav/back/cap", Bounded({ bounds: rect(w - 0.2, h * 0.6) }), Labeled({ label: "Назад", style: MAIN })));
+  add(bar, plate);
+  return bar;
+}

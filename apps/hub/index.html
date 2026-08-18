@@ -22,28 +22,30 @@
     <style>
       html, body { margin: 0; height: 100%; background: #173d2d; overflow: hidden; }
       /*
-        TWO REGIONS, SIDE BY SIDE — never layered.
+        TWO REGIONS, AND THE HUB'S NEVER CHANGES SIZE.
 
-        `#chrome` is the hub's own canvas and `#stage` is the running game's. They sit beside each
-        other rather than on top of each other so there is no z-index or pointer-events puzzle, and
-        so a game never has its top row covered by hub furniture.
+        `#chrome` is the hub's own canvas and stays the full viewport for the whole session;
+        `#stage` is the running game's and covers everything below the bar. The game sits ON TOP of
+        the hub's lower part, which leaves the top strip — the bar — visible and clickable.
 
-        The hub's canvas is NEVER torn down: the back control is drawn by the engine and needs a
-        live host, and a context created once per page load costs less than two recycled on every
-        round trip. Switching screens is `data-mode`, and a tree swap behind it.
+        Sizing it this way is not a preference. A host measures its container with
+        `getBoundingClientRect`, and a container that changes size behind CSS can report the OLD
+        rectangle: the hub then draws its bar to one geometry and hit-tests against another, so the
+        control is visible and dead. Nothing here resizes, so nothing can disagree.
+
+        `data-mode` therefore toggles ONE thing — whether the game's region exists at all. With it
+        gone, presses reach the shelf; with it there, they reach the game, except in the strip.
       */
       #shell { position: absolute; inset: 0; }
-      #chrome, #stage { position: absolute; touch-action: none; }
-      #shell[data-mode="hub"] #chrome { inset: 0; }
+      #chrome { position: absolute; inset: 0; touch-action: none; }
+      #stage { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; touch-action: none; }
       #shell[data-mode="hub"] #stage { display: none; }
-      #shell[data-mode="play"] #chrome { top: 0; left: 0; right: 0; height: 56px; }
-      #shell[data-mode="play"] #stage { top: 56px; left: 0; right: 0; bottom: 0; }
     </style>
   </head>
   <body>
     <div id="shell" data-mode="hub">
-      <div id="stage"></div>
       <div id="chrome"></div>
+      <div id="stage"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
