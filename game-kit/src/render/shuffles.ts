@@ -93,7 +93,6 @@ export function resetShuffles(): void {
 
 const clamp01 = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t);
 const easeOut = (t: number): number => 1 - (1 - t) ** 3;
-const easeIn = (t: number): number => t ** 3;
 const easeBoth = (t: number): number => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 const originOf = (rest: Transform): Vec => apply(rest, { x: 0, y: 0 });
 /** The rest pose moved so its origin lands on `to`, keeping the seat's own turn and size. */
@@ -201,11 +200,28 @@ export interface OverhandOptions {
   readonly reach?: ShuffleReach;
 }
 
+/** How the three packets of an overhand are spaced and timed. */
+const PACKETS = 3;
+/** How far apart the packets hang — one lying on another is a pile, and a pile has a top. */
+const LAYER = 1.1;
+/** Straight up off the seats; then across to the drop; then down. No packet ever waits still. */
+const LIFT = 0.25;
+const LAG = 0.1;
+const DROP_AT = 0.54;
+const DROP = 0.3;
+const DROP_LAG = 0.08;
+
 /**
- * OVERHAND — the pack in three packets, each lifted in turn (a touch higher per packet) and dropped
- * back onto the new seats: the shape of a hand pulling packets off the top and letting them fall.
- * Each packet SPREADS while it is up, for the same reason the riffle's does — a packet held as a
- * pile is a swap of faces waiting to be seen.
+ * OVERHAND — the pack in three packets. Each is pulled STRAIGHT UP off its own place in turn (a
+ * layer higher per packet), carried across to the drop, and let fall onto the new seats: the shape
+ * of a hand taking packets off the top and dropping them back on the pile.
+ *
+ * The carry is not decoration. A packet parked at the top and left hanging is STILL at the frame
+ * the tree turns over, and the paint order turns over with it — so two packets lying on each other
+ * visibly trade places, which is precisely the swap of faces a shuffle must never show. Here every
+ * packet is mid-carry at that frame, and a carry is built from fixed points at both ends, so the
+ * pose owes the seats nothing exactly when the seats move. The rise reads the seat the shuffle
+ * STARTED on (`ctx.seats`) rather than the node's rest, for the same reason.
  */
 export function overhand({ reach = "group" }: OverhandOptions = {}): ShuffleRecipe {
   return {
@@ -213,21 +229,23 @@ export function overhand({ reach = "group" }: OverhandOptions = {}): ShuffleReci
     poseAt: (i, n, t, rest, ctx) => {
       if (t >= 1) return rest;
       const box = reachBox(ctx, reach);
-      const packets = 3;
-      const packet = Math.min(packets - 1, Math.floor((i / Math.max(n, 1)) * packets));
-      const from = Math.ceil((packet * n) / packets);
-      const m = Math.max(1, Math.ceil(((packet + 1) * n) / packets) - from);
-      const j = i - from;
-      const up: Vec = {
-        x: ctx.centre.x + (j - (m - 1) / 2) * fanStep(m),
-        y: inSight(box.y - CLEAR - packet * 0.4, ctx.glass.y, ctx.glass.h, reach, ctx.glass),
-      };
-      if (t < 0.5) {
-        const s = easeOut(clamp01((t - packet * 0.1) / 0.3));
-        return seatAt(rest, lerpVec(originOf(rest), up, s));
-      }
-      const s = easeIn(clamp01((t - 0.5 - packet * 0.1) / 0.35));
-      return seatAt(rest, lerpVec(up, originOf(rest), s));
+      const packet = Math.min(PACKETS - 1, Math.floor((i / Math.max(n, 1)) * PACKETS));
+      const first = Math.ceil((packet * n) / PACKETS);
+      const m = Math.max(1, Math.ceil(((packet + 1) * n) / PACKETS) - first);
+      const j = i - first;
+      const layer = inSight(box.y - CLEAR - packet * LAYER, ctx.glass.y, ctx.glass.h, reach, ctx.glass);
+      // Off the seat it started on, straight up: a packet keeps its own spacing on the way up, so
+      // nothing of it covers anything else of it.
+      const home = ctx.seats[i] ?? originOf(rest);
+      const lifted: Vec = { x: home.x, y: layer };
+      // And across to where the packet is dropped, fanned so it lands as a packet and not a pile.
+      const over: Vec = { x: ctx.centre.x + (j - (m - 1) / 2) * fanStep(m), y: layer };
+
+      const rose = packet * LAG + LIFT;
+      if (t < rose) return seatAt(rest, lerpVec(home, lifted, easeOut(clamp01((t - packet * LAG) / LIFT))));
+      const falls = DROP_AT + packet * DROP_LAG;
+      if (t < falls) return seatAt(rest, lerpVec(lifted, over, easeBoth(clamp01((t - rose) / (falls - rose)))));
+      return seatAt(rest, lerpVec(over, originOf(rest), easeBoth(clamp01((t - falls) / DROP))));
     },
   };
 }

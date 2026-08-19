@@ -72,6 +72,36 @@ describe("the shuffle recipes", () => {
     }
   });
 
+  it("shuffle.at-the-commit-a-piece-either-moves-or-stands-clear — a still pile trades places", () => {
+    // The paint order is the TREE's, so it turns over with the reorder — at the commit, exactly.
+    // Two pieces lying on each other and standing still therefore visibly trade places, which is
+    // the swap of faces a shuffle must never show. Either of two things prevents it: the pieces
+    // stand clear of each other (nothing to trade), or they are mid-flight (nothing to read).
+    for (const [name, recipe] of [["riffle", riffle()], ["overhand", overhand()], ["wash", wash()]] as const) {
+      const b = bench(7);
+      const d = 0.02;
+      for (let i = 0; i < b.n; i++) {
+        const at = b.at(recipe, i, recipe.commitAt);
+        const moved = dist(b.at(recipe, i, recipe.commitAt + d), b.at(recipe, i, recipe.commitAt - d));
+        let closest = Infinity;
+        for (let j = 0; j < b.n; j++) if (j !== i) closest = Math.min(closest, dist(at, b.at(recipe, j, recipe.commitAt)));
+        expect(moved > 0.05 || closest > 0.9, `${name} #${i}: moved ${moved.toFixed(2)}, nearest ${closest.toFixed(2)}`).toBe(true);
+      }
+    }
+  });
+
+  it("shuffle.a-recipe-arrives-instead-of-snapping — the last frame is a landing, not a jump", () => {
+    // `t = 1` returning `rest` is not the same as GETTING there: a leg whose timing runs past the
+    // end leaves the piece halfway home and the last frame teleports it. Measured a hair before
+    // the end, where a recipe that arrives is already all but home.
+    for (const [name, recipe] of [["riffle", riffle()], ["overhand", overhand()], ["wash", wash()], ["shake", shake()]] as const) {
+      const b = bench(7);
+      for (let i = 0; i < b.n; i++) {
+        expect(dist(b.at(recipe, i, 0.99), b.seats[i]!), `${name} #${i}`).toBeLessThan(0.15);
+      }
+    }
+  });
+
   it("shuffle.the-pose-at-the-commit-ignores-the-seat — the frame the rests move under it", () => {
     // The runtime reorders AT `commitAt`, and every rest changes in that one frame. A recipe still
     // building its pose on the seat jumps to the new one — which is exactly what a swapped face

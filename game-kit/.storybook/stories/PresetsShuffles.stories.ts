@@ -189,7 +189,7 @@ if (shuffleNames().join(",") !== [RIFFLE, OVERHAND, WASH, SHAKE].join(",")) {
 
 /** The pack splits into two halves that part and fan, then zip back together, halves alternating. */
 export const Riffle = shelf(RIFFLE!);
-/** Three packets lifted off the top in turn, spread while they are up, dropped onto the new seats. */
+/** Three packets pulled straight up in turn, carried across to the drop, let fall onto new seats. */
 export const Overhand = shelf(OVERHAND!);
 /** Every piece scatters to a ring around the group, turning, and gathers back — the tiles shuffle. */
 export const Wash = shelf(WASH!);
