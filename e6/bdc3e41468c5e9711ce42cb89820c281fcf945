@@ -1,0 +1,23 @@
+game-kit/.storybook/locales/pages/surfaced/en.json
+  s_170937f0c01a52::t_f098b3a41cfb7a 222
+game-kit/.storybook/locales/pages/surfaced/ru.json
+  s_170937f0c01a52::t_07a42859cbe578 221
+game-kit/.storybook/stories/Surfaced.stories.ts
+  s_170937f0c01a52::t_801f1587521bdd 321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e6bdc3e41468c5e9711ce42cb89820c281fcf945",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
