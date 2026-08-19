@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { extentOf, outlineOf, transformShape } from "../../src/index.js";
+import { extentOf, outlineOf, surfaceNames, transformShape } from "../../src/index.js";
 import { documented, PRESETS, SHAPE_ARGS, shapeArgTypes, shapeOf, shapeSource } from "./surfaceControls.js";
 import { overriddenSliceOf, OVERRIDE_ARGS, recordOf, RECORD_ARGS, RECORD_ARG_TYPES, type RecordArgs } from "./surfaceControls.js";
 import { POSE_ARGS, poseArgsAt, poseFields, poseSliceOf, poseSourceOf } from "./pose.js";
@@ -148,6 +148,23 @@ describe("shape controls", () => {
     };
     expect(shown({ control: "object" }).startsWith("`object`")).toBe(true);
     expect(shown({ control: "boolean" }).startsWith("`boolean`")).toBe(true);
+  });
+
+  it("controls.a-long-list-is-not-a-type — the picker is the list, the badge is not", () => {
+    // The surface picker offers every registered record: ninety-odd names, several of them paths.
+    // Spelled out they filled the row end to end, and the badge sits IN FRONT of the sentence
+    // saying what the field is worth — so the answer the reader came for fell off the end.
+    const shown = (spec: Record<string, unknown>): string => {
+      const d = Object.getOwnPropertyDescriptor(documented("arg.surfaceName", spec), "description")!;
+      return String(d.get!.call(undefined));
+    };
+    const many = surfaceNames();
+    expect(many.length, "too few registered surfaces to be a wall").toBeGreaterThan(20);
+    const wall = shown({ control: "select", options: many });
+    expect(wall).toContain(`one of ${many.length}`);
+    expect(wall.length).toBeLessThan(80);
+    // The useful half is kept: a short list is still worth more than the word `string`.
+    expect(shown({ control: "select", options: ["contain", "cover"] })).toContain("contain | cover");
   });
 
   it("controls.zero-is-typeable — the catalog does not put a floor the model has not", () => {

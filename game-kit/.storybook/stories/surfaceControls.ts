@@ -77,6 +77,15 @@ export const PAINTS = Object.keys(PALETTES.dark);
  * ever notice: a wrong type in a table looks exactly like a right one. The control already
  * knows — a range is a number, a colour is a string — so it is asked instead of repeated.
  */
+/**
+ * How long a list of choices may be SPELLED OUT before it stops being a type and becomes the list.
+ *
+ * Two or six choices read as an answer. Ninety registered surfaces read as a wall — and the badge
+ * sits IN FRONT of the sentence saying what the field is worth, so spelling them out pushes the one
+ * thing the reader came for off the end of the row. The picker under it already holds every name.
+ */
+const SPELT_OUT = 48;
+
 function typeOf(spec: Record<string, unknown>): string {
   const control = spec["control"] as { type?: string } | string | undefined;
   const kind = typeof control === "string" ? control : control?.type;
@@ -85,10 +94,14 @@ function typeOf(spec: Record<string, unknown>): string {
   // Named explicitly, or the fallback below calls a whole `Shape` a boolean — which is what the
   // `bounds` control said the day it arrived, in the one row where the type is the lesson.
   if (kind === "object") return "object";
-  // A choice is worth naming BY ITS CHOICES: "one of contain | cover | …" says more than
-  // `string`, and it is the answer a reader is actually after.
+  // A choice is worth naming BY ITS CHOICES: "contain | cover" says more than `string`, and it is
+  // the answer a reader is actually after — up to the length at which it stops being an answer.
   const options = spec["options"] as readonly string[] | undefined;
-  if (options) return options.map((o) => (o === "" ? "«none»" : o)).join(" | ");
+  if (options) {
+    const names = options.map((o) => (o === "" ? "«none»" : o));
+    const spelt = names.join(" | ");
+    return spelt.length <= SPELT_OUT ? spelt : `one of ${names.length}`;
+  }
   // No control and no options: Storybook infers a checkbox from the boolean default.
   return "boolean";
 }
