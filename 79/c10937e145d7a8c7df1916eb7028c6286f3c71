@@ -1,0 +1,34 @@
+game-kit/.storybook/stories/PresetsCoats.stories.ts
+  s_170937f0c01a52::t_50ad1fc890af6e 103-112
+game-kit/.storybook/locales/pages/presetsCoats/en.json
+  s_170937f0c01a52::t_d88a6eb03d9b93 34-41
+game-kit/.storybook/locales/pages/presetsCoats/ru.json
+  s_170937f0c01a52::t_d88a6eb03d9b93 33-40
+game-kit/.storybook/locales/pages/coated/en.json
+  s_170937f0c01a52::t_d88a6eb03d9b93 39,58-66,95-97,100-103
+game-kit/.storybook/locales/pages/coated/ru.json
+  s_170937f0c01a52::t_d88a6eb03d9b93 38,57-65,92-94,97-99
+game-kit/.storybook/stories/Surfaced.stories.ts
+  s_170937f0c01a52::t_b6df94290ab790 93,95,311-330
+  s_170937f0c01a52::t_521ac34811c9c9 331
+game-kit/.storybook/locales/pages/surfaced/en.json
+  s_170937f0c01a52::t_5308a7ed4cdb23 221-223,225
+game-kit/.storybook/locales/pages/surfaced/ru.json
+  s_170937f0c01a52::t_473f88f480d9eb 220-222,224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "79c10937e145d7a8c7df1916eb7028c6286f3c71",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
