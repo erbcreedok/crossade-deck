@@ -318,8 +318,7 @@ interface FacesArgs {
 }
 
 export const Registered: StoryObj<FacesArgs> = {
-  // The other half of the registry: a node wears a record it did NOT author. These come from the
-  // add-on decks, so nothing here draws a card — it names one.
+  // A node wears a record it did not author: it names one.
   render: (a) => scene(node("card", Bounded({ bounds: rect(a.w, a.h) }), Surfaced({ surface: a.surface }))).el,
   args: { surface: "cards/face/spade-A", w: 1, h: 1.4 },
   argTypes: {

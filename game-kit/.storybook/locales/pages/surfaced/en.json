@@ -219,7 +219,5 @@
     "a zone's faint ground comes from: an ordinary layer with an opacity, not a special kind of",
     "surface."
   ],
-  "docs.surfaced.registered": [
-    "A node wears a record it did not author. Every surface in the picker is registered by somebody — the stock ones by the kit, the faces by the add-on decks — and the node names one. Nothing here draws a card."
-  ]
+  "docs.surfaced.registered": "A node wears a record it did not author — it names one."
 }
