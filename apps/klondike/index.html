@@ -21,6 +21,12 @@
         font-size: 13px; line-height: 1.5; color: #9aa0a6; max-width: 44ch;
       }
       #hint b { color: #e8e6e1; font-weight: 600; }
+      /*
+        NOT ON A PHONE. Held upright the table puts its bar along the bottom, within reach of a
+        thumb, and this prose sits in exactly that strip — the controls came out written over. A
+        narrow screen belongs to the table; the note is a wide-screen affordance.
+      */
+      @media (max-width: 700px) { #hint { display: none; } }
     </style>
   </head>
   <body>

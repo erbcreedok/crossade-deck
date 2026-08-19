@@ -44,8 +44,10 @@ export interface SolitaireBoard {
  * grows into it. A third spacing is a third literal, never a branch in this file.
  */
 export interface TableLayout {
-  /** Its name — what the save writes down and what the control switches between. */
+  /** Its name, for a reader and for the inspector. The SAVE writes the density, not this. */
   readonly id: string;
+  /** Whether this is the packed one of its family — what the control flips. */
+  readonly tight: boolean;
   /** Between neighbouring columns, in units. A card is 1 wide, so the air between two is this less 1. */
   readonly pitch: number;
   /** How far each further card in a column steps down, in units. */
@@ -60,9 +62,24 @@ export interface TableLayout {
   readonly fit: { readonly w: number; readonly h: number };
 }
 
-/** THE SPACIOUS TABLE — what the game has always opened with, and what it opens with still. */
-export const ROOMY: TableLayout = {
-  id: "roomy",
+/**
+ * THE FOUR TABLES: wide or tall, roomy or tight.
+ *
+ * WHICH ONE IS TWO ANSWERS, NOT ONE. How tall the screen is decides the FAMILY, and the player
+ * decides the DENSITY inside it — so a phone turned on its side re-lays the table without touching
+ * what the player chose, and the choice survives the turn.
+ *
+ * The tall pair is not the wide pair stretched, and it is not the screen's own shape either. Seven
+ * columns across 390 pixels cap the card at about fifty pixels whatever the height, so height cannot
+ * be spent on size; and stretched to a phone's full 1:2.2 the table has no content to fill itself
+ * with — seven short columns leave the bottom half black, which is the same emptiness moved down.
+ * What the height genuinely buys is DEPTH for a column to be read down, and a bar the thumb can
+ * reach, which is why the tall pair puts it at the bottom of a table that stays about as deep as its
+ * cards are.
+ */
+export const WIDE_ROOMY: TableLayout = {
+  id: "wide/roomy",
+  tight: false,
   pitch: 1.2,
   step: 0.32,
   topY: -2.7,
@@ -71,12 +88,10 @@ export const ROOMY: TableLayout = {
   fit: { w: 8.6, h: 8.4 },
 };
 
-/**
- * THE TIGHT TABLE — a tenth of a unit of air between columns instead of a fifth, and a shorter
- * step down a column. Nine per cent less table, therefore nine per cent more card.
- */
-export const TIGHT: TableLayout = {
-  id: "tight",
+/** Less air between the columns, so every card is drawn about a tenth larger. */
+export const WIDE_TIGHT: TableLayout = {
+  id: "wide/tight",
+  tight: true,
   pitch: 1.08,
   step: 0.28,
   topY: -2.5,
@@ -85,15 +100,59 @@ export const TIGHT: TableLayout = {
   fit: { w: 7.9, h: 7.8 },
 };
 
-/** Both spacings, in the order the control walks them. */
-export const TABLE_LAYOUTS: readonly TableLayout[] = [ROOMY, TIGHT];
+/** THE PHONE, held upright: a deep column, and the bar under the thumb. */
+export const TALL_ROOMY: TableLayout = {
+  id: "tall/roomy",
+  tight: false,
+  pitch: 1.12,
+  step: 0.5,
+  topY: -5.2,
+  tableauY: -3.3,
+  barY: 6,
+  fit: { w: 8, h: 12.8 },
+};
 
-/** The spacing after this one, wrapping — what one press of the control lands on. */
+/** The same, packed: the most card seven columns can be given on a phone. */
+export const TALL_TIGHT: TableLayout = {
+  id: "tall/tight",
+  tight: true,
+  pitch: 1.04,
+  step: 0.44,
+  topY: -4.9,
+  tableauY: -3.1,
+  barY: 5.7,
+  fit: { w: 7.6, h: 12.2 },
+};
+
+/** All four, in no particular order — nothing walks this list, it is picked from. */
+export const TABLE_LAYOUTS: readonly TableLayout[] = [WIDE_ROOMY, WIDE_TIGHT, TALL_ROOMY, TALL_TIGHT];
+
+/** The table the game opens with before anything has been measured. */
+export const ROOMY = WIDE_ROOMY;
+
+/**
+ * A SCREEN HELD UPRIGHT — taller than wide by a clear margin, so a nearly square window does not
+ * flip families on a few pixels of resize.
+ */
+export const isTall = (v: { readonly width: number; readonly height: number }): boolean => v.height > v.width * 1.2;
+
+/** The table for this screen at this density. Two answers in, one literal out — never a branch. */
+export function layoutFor(v: { readonly width: number; readonly height: number }, tight: boolean): TableLayout {
+  return isTall(v) ? (tight ? TALL_TIGHT : TALL_ROOMY) : tight ? WIDE_TIGHT : WIDE_ROOMY;
+}
+
+/** What the density control offers: the same screen, the other density. */
 export const nextLayout = (layout: TableLayout): TableLayout =>
-  TABLE_LAYOUTS[(TABLE_LAYOUTS.indexOf(layout) + 1) % TABLE_LAYOUTS.length]!;
+  TABLE_LAYOUTS.find((l) => l.tight !== layout.tight && isTallLayout(l) === isTallLayout(layout))!;
 
-/** A spacing by name. A name nobody ships is the spacious one — an old save is never a crash. */
-export const layoutNamed = (id: string): TableLayout => TABLE_LAYOUTS.find((l) => l.id === id) ?? ROOMY;
+/** A layout belongs to the tall family when its box is taller than wide — read off the box itself. */
+const isTallLayout = (l: TableLayout): boolean => l.fit.h > l.fit.w * 1.2;
+
+/** The density the player left, by name. An unknown name is roomy — an old save is never a crash. */
+export const densityNamed = (id: string): boolean => id === "tight";
+
+/** What that density is called, for the save. */
+export const densityName = (layout: TableLayout): string => (layout.tight ? "tight" : "roomy");
 
 /** The seven column centres, in units: six pitches wide, centred on the desk. */
 export const columnsOf = (layout: TableLayout): number[] => [-3, -2, -1, 0, 1, 2, 3].map((i) => i * layout.pitch);

@@ -53,10 +53,11 @@ import {
   buildBoard,
   dealPlan,
   installSolitaireLayouts,
-  layoutNamed,
+  densityName,
+  densityNamed,
+  layoutFor,
   nextLayout,
   relayBoard,
-  ROOMY,
   winKlondike,
   type SolitaireBoard,
   type TableLayout,
@@ -100,6 +101,12 @@ function fitUnit(v: { width: number; height: number }, layout: TableLayout): num
   return Math.max(20, Math.min(v.width / layout.fit.w, v.height / layout.fit.h));
 }
 
+/** The screen the table is opened on, before the host exists to be asked. */
+const firstScreen = (): { width: number; height: number } => ({
+  width: globalThis.innerWidth || 400,
+  height: globalThis.innerHeight || 400,
+});
+
 export function startSolitaire(container: HTMLElement): () => void {
   installTheme(document, DEFAULT_VIEWER.theme);
   installStockLayouts();
@@ -115,7 +122,10 @@ export function startSolitaire(container: HTMLElement): () => void {
   // THE SPACING THE PLAYER LEFT, read before the table is built with it: the columns are seated at
   // build time, so a table built roomy and re-spaced a frame later would jump in front of the player.
   const store = browserStore();
-  let layout = layoutNamed(loadLayout(store) ?? ROOMY.id);
+  // THE DENSITY is the player's and is remembered; the FAMILY is the screen's and is measured every
+  // time it changes. A phone turned on its side re-lays the table without touching what was chosen.
+  let tight = densityNamed(loadLayout(store) ?? "");
+  let layout = layoutFor(firstScreen(), tight);
   installSolitaireLayouts(layout);
   installKlondikeLook();
   registerSurface("sol/slot", {
@@ -143,7 +153,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   let dealt = false;
   let dealDone = false;
   let dealTimer: ReturnType<typeof setTimeout> | undefined;
-  const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }, layout) });
+  const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit(firstScreen(), layout) });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   // THE RULER. Without it a caption has nothing to be measured against, so every control on the
@@ -157,8 +167,31 @@ export function startSolitaire(container: HTMLElement): () => void {
   const redraw = (): void => host.setRoot(board.desk);
 
   let lastUnit = -1;
+  /**
+   * WHAT TO DO WHEN THE SCREEN CHANGED FAMILY — put back, from below, once there is a bar to put.
+   *
+   * The fit runs before the first frame and the bar is built after it, so this cannot simply call
+   * `dressDesk`: reaching a `const` declared further down is exactly the crash this file shipped
+   * once already. A hook filled in later is the seam, and until it is filled the fit still fits.
+   */
+  let relaid: (() => void) | undefined;
+  /**
+   * FIT THE TABLE TO THE SCREEN IT IS ON — and re-lay it when the screen changed family.
+   *
+   * A phone turned on its side is not a resize, it is a different table: the bar moves from under
+   * the thumb to over the cards and the columns change depth. The density is untouched, so what the
+   * player chose survives the turn.
+   */
   const applyFit = (): void => {
-    const u = fitUnit(host.viewport(), layout);
+    const seen = host.viewport();
+    const want = layoutFor(seen, tight);
+    if (want !== layout) {
+      layout = want;
+      relayBoard(board, layout);
+      lastUnit = -1;
+      relaid?.();
+    }
+    const u = fitUnit(seen, layout);
     if (u === lastUnit) return;
     lastUnit = u;
     host.setViewer({ ...host.viewer(), hudUnit: u });
@@ -260,7 +293,8 @@ export function startSolitaire(container: HTMLElement): () => void {
    */
   const respace = (): void => {
     layout = nextLayout(layout);
-    storeLayout(store, layout.id);
+    tight = layout.tight;
+    storeLayout(store, densityName(layout));
     relayBoard(board, layout);
     lastUnit = -1;
     applyFit();
@@ -289,6 +323,12 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   dressDesk();
   redraw();
+  // The bar stands at the SPACING's own height, so a screen that changed family has to rebuild it —
+  // on a phone it sits under the thumb, on a wide screen above the cards.
+  relaid = (): void => {
+    dressDesk();
+    redraw();
+  };
 
   // ---- reading the model ------------------------------------------------------------------
 
