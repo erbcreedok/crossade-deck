@@ -259,6 +259,57 @@ describe("scenePlan", () => {
     }
   });
 
+  it("plan.a-billboard-stands-out-of-a-laid-back-desk — the cloth lies, the cards stand", () => {
+    // A desk laid back is drawn short, and everything lying on it with it. What a table actually
+    // looks like is the cloth lying and the CARDS standing: full height, where they sit. That is
+    // `Oriented: "viewer"` doing what it always said — a node framed to the onlooker is indifferent
+    // to how the world it stands in is turned — and it is the same sentence for a tilt as for a turn.
+    const desk = node("d", Container({ layout: "free" }));
+    add(desk, node("lying", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 2 } })));
+    add(
+      desk,
+      node(
+        "standing",
+        Bounded({ bounds: rect(1, 1) }),
+        Surfaced(),
+        Transformable({ at: { x: 0, y: 2 } }),
+        Oriented({ orientation: "viewer" }),
+      ),
+    );
+    const c = new Camera({ minZoom: 0.1, maxZoom: 8 });
+    c.setScreen(400, 300);
+    c.setContent({ x: -10, y: -10, w: 20, h: 20 }, 40);
+    c.pitch = 60;
+    const quads = scenePlan({
+      root: desk,
+      unit: 40,
+      width: 400,
+      height: 300,
+      viewer: DEFAULT_VIEWER,
+      view: c.transform(),
+      pitch: c.pitch,
+    });
+    const box = (id: string): { h: number; y: number } => {
+      const q = quads.find((k) => k.id === id)!;
+      const ys = q.points.map((p) => apply(q.transform, p).y);
+      return { h: Math.max(...ys) - Math.min(...ys), y: q.y };
+    };
+    const lying = box("lying");
+    const standing = box("standing");
+    // Half height against full — the squash is cos 60 — and the SAME seat: standing a node up must
+    // not walk it up the screen, or every piece but the one in the middle would drift.
+    expect(standing.h).toBeCloseTo(lying.h * 2, 4);
+    expect(standing.y).toBeCloseTo(lying.y, 6);
+    // And with no pitch the two are the same node twice: the frame costs nothing when nothing is tilted.
+    const flat = scenePlan({ root: desk, unit: 40, width: 400, height: 300, viewer: DEFAULT_VIEWER });
+    const flatH = (id: string): number => {
+      const q = flat.find((k) => k.id === id)!;
+      const ys = q.points.map((p) => apply(q.transform, p).y);
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    expect(flatH("standing")).toBeCloseTo(flatH("lying"), 9);
+  });
+
   it("plan.a-shadow-under-a-camera-keeps-its-length-in-units — and its direction on the glass", () => {
     // Two laws at once, and the camera is where they can finally disagree. The fall is a length in
     // UNITS laid down in SCREEN pixels: measured against the etalon instead of against the view in

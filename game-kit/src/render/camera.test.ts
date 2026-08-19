@@ -409,6 +409,51 @@ describe("the camera", () => {
     expect(c.fitZoom()).toBeCloseTo(square / Math.SQRT2, 6);
   });
 
+  it("camera.a-pitch-lays-the-desk-back — and the horizon does not roll with it", () => {
+    // The tilt belongs to the CAMERA, not to the desk: a head laid back squashes what it sees along
+    // the SCREEN's vertical, whichever way the desk is turned underneath. Composed inside the roll
+    // instead, turning the view would carry the tilt round with it and the horizon would spin.
+    const c = bench();
+    c.lookAt({ x: 1000, y: 1000 });
+    const flat = c.transform();
+    c.pitch = 60;
+    const laid = c.transform();
+    // Half the height (cos 60), full width — measured on the vectors, not on a corner.
+    expect(laid.a).toBeCloseTo(flat.a, 9);
+    expect(laid.d).toBeCloseTo(flat.d * 0.5, 6);
+    // Rolled, the squash is still the screen's: a horizontal step of the DESK now has a vertical
+    // component, and it is the halved one.
+    c.turnTo(90);
+    const rolled = c.transform();
+    expect(rolled.b).toBeCloseTo(c.zoom * 0.5, 6); // desk +x goes down the screen, at half height
+    expect(rolled.c).toBeCloseTo(-c.zoom, 6); // desk +y goes left, at full width
+  });
+
+  it("camera.a-pitch-never-collapses-the-desk", () => {
+    // Ninety degrees is edge-on, and edge-on is not a view: every quad zero pixels tall, every
+    // inverse singular, and a picture no reader can tell from a renderer that died.
+    const c = bench();
+    c.pitch = 90;
+    expect(c.squash).toBeGreaterThan(0);
+    const there = c.toContent(200, 150);
+    expect(Number.isFinite(there.x) && Number.isFinite(there.y)).toBe(true);
+  });
+
+  it("camera.fit-measures-the-laid-back-desk — a squashed desk needs less height", () => {
+    // A desk laid back is shorter on the glass, so more of it fits: a fit that ignored the pitch
+    // would leave a third of the screen empty at sixty degrees.
+    const c = bench({ minZoom: 0.001, maxZoom: 4 });
+    // 2000 units of desk on 400×300 of glass: upright, the HEIGHT is what binds (300/2000).
+    expect(c.fitZoom()).toBeCloseTo(300 / 2000, 6);
+    c.pitch = 60;
+    // Laid back it is half as tall, so the height stops binding and the WIDTH takes over — and a
+    // fit that ignored the pitch would still be answering 0.15, leaving a third of the glass empty.
+    expect(c.fitZoom()).toBeCloseTo(400 / 2000, 6);
+    c.pitch = 80;
+    // Further back still, and it is the width from here on: the answer stops moving.
+    expect(c.fitZoom()).toBeCloseTo(400 / 2000, 6);
+  });
+
   it("camera.fit-shows-the-whole-desk — and still obeys the limits", () => {
     const c = bench({ minZoom: 0.01, maxZoom: 4 });
     // the tighter side decides — 300 px of glass against 2000 units of desk

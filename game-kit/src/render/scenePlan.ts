@@ -20,6 +20,7 @@ import { castsShadow, shadowFrom } from "../core/atoms/shadow.js";
 import { lightVector, shadowOf } from "../core/atoms/lit.js";
 import { areaOf, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { resolveAngle, resolveZ, type TransformableFields } from "../core/atoms/transformable.js";
+import { orientationOf } from "../core/atoms/oriented.js";
 import { fieldsOf } from "../core/node.js";
 import { contextFor, sumAlongChain, type ResolveContext } from "../core/resolve.js";
 import { type LabeledFields } from "../core/atoms/labeled.js";
@@ -35,7 +36,7 @@ import { fitBox } from "./fitBox.js";
 import { type Paint } from "../core/paint.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
 import { polyline } from "../core/path.js";
-import { apply, compose, IDENTITY, invert, move, pose, scale, type Transform } from "../core/transform.js";
+import { apply, chain, compose, IDENTITY, invert, move, pose, scale, type Transform } from "../core/transform.js";
 
 /** A picture placed in the area, in PIXELS — where it goes and whether it tiles. */
 export interface QuadImage {
@@ -259,6 +260,16 @@ export interface PlanInput {
    */
   readonly view?: Transform | undefined;
   /**
+   * HOW FAR THE CAMERA IS LAID BACK, in degrees — the number the view's squash was built from.
+   *
+   * Handed over beside the matrix rather than dug out of it, because a matrix carrying a roll and a
+   * squash cannot be taken apart into the two again. It is read for ONE thing: a node framed to the
+   * viewer stands back up out of the tilted plane, and to stand it up the plan has to know how far
+   * the plane went down. Absent (or zero) and every node lies on the desk, which is every scene
+   * that has no camera in it.
+   */
+  readonly pitch?: number | undefined;
+  /**
    * In-flight pose overrides, by node id, in ROOT-UNIT space (the same space `transformsOf`
    * answers in). Present only while a node is mid-settle: the motion runtime hands the plan the
    * node's CURRENT flight pose so it draws there instead of at its resting pose. Absent for a still
@@ -298,9 +309,21 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer, view, overrides, raised, carried, measure }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, measure }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = view ?? viewTransform(unit, width, height);
+  /**
+   * STANDING A BILLBOARD BACK UP, in screen space — the exact inverse of the camera's squash.
+   *
+   * A desk laid back is drawn short, and everything lying on it with it. What a table actually
+   * looks like is the cloth lying and the CARDS standing: at full height, where they sit. That is
+   * `Oriented: "viewer"` doing what it has always said — a node framed to the onlooker is
+   * indifferent to how the world it stands in is turned — and it is the same sentence for a turn
+   * and for a tilt, so the atom needs no new field.
+   *
+   * `undefined` when the desk is not laid back at all, so an ordinary scene composes nothing extra.
+   */
+  const standUp = pitchStand(pitch);
   // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
   // size ratio), how much each point of resolved `z` adds, how dark the ink lies — is the DESK's
   // data (`Lit.shadow`, root-only), read once per plan. A per-piece length would be a second
@@ -478,7 +501,10 @@ export function scenePlan({ root, unit, width, height, viewer, view, overrides, 
     // node's own origin and the matrix carries everything else. A mid-settle override, when the
     // motion runtime supplies one, stands in for the resting pose here — same space, so nothing
     // else in the pipeline learns that the node is in flight.
-    const toGlass = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
+    const lying = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
+    // A node framed to the VIEWER stands out of the tilted plane; everything else lies on it. The
+    // stand is about the node's OWN origin, so it gains height without walking up the screen.
+    const toGlass = standUp && orientationOf(ctx) === "viewer" ? standing(lying, standUp) : lying;
     // A ZERO UNIT IS NOT A DIVISION. A container with no size on screen — hidden, or measured
     // before layout — reports a unit of zero, and `1 / 0` puts NaN through the whole matrix.
     // Everything downstream then reads as "rotated", because NaN is not equal to zero either,
@@ -553,6 +579,12 @@ function boxOf(area: { readonly w: number; readonly h: number }): Shape {
 }
 
 /** One layer with its picture already fitted to the area and converted to pixels. */
+/** `about` applied around wherever `m` puts the origin — a scale that does not move the node. */
+function standing(m: Transform, about: Transform): Transform {
+  const o = apply(m, { x: 0, y: 0 });
+  return chain([move(o.x, o.y), about, move(-o.x, -o.y), m]);
+}
+
 function layerOf(layer: PaintLayer, area: { readonly w: number; readonly h: number }, unit: number): QuadLayer {
   // A picture is FITTED HERE, in units, before anything becomes pixels. The arithmetic needs
   // the picture's proportions, and those come from what the asset DECLARED — not from the file,
@@ -696,6 +728,19 @@ const ORIGIN_ARM = 0.1;
  * It was three inline copies of `width / 2 + x * unit`; a fourth was about to be written for
  * the grid, which is when it became obvious.
  */
+/**
+ * The screen-space undo of a camera's squash, or nothing when there is none to undo.
+ *
+ * Applied ABOUT A NODE'S OWN ORIGIN by whoever uses it: standing a billboard up must not walk it up
+ * the screen, and a bare scale about the glass's centre would do exactly that to everything but the
+ * one node in the middle.
+ */
+export function pitchStand(pitch: number | undefined): Transform | undefined {
+  if (!pitch) return undefined;
+  const squash = Math.max(0.02, Math.cos((pitch * Math.PI) / 180));
+  return squash === 1 ? undefined : scale(1, 1 / squash);
+}
+
 export function viewTransform(unit: number, width: number, height: number): Transform {
   return compose(move(width / 2, height / 2), scale(unit));
 }

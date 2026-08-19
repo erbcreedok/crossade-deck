@@ -72,6 +72,8 @@ export type MotionOptions = TuningPatch & {
    * carried on moving inside it.
    */
   readonly view?: (() => Transform) | undefined;
+  /** How far the camera is laid back, beside the view — passed straight to the frame. */
+  readonly pitch?: (() => number) | undefined;
 };
 
 /** One node in a carried run, with its base layout offset from the grab pivot (root units). */
@@ -387,6 +389,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       retain: retaining,
       measure: options.measure,
       ...(options.view ? { view: options.view } : {}),
+      ...(options.pitch ? { pitch: options.pitch } : {}),
       ...(options.bake ? { bake: options.bake } : {}),
     });
 

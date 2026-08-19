@@ -78,6 +78,15 @@ export interface PaintOptions {
    * attached, and the desk would never pan again. Absent, the plain centred view.
    */
   readonly view?: (() => Transform) | undefined;
+  /**
+   * How far the camera is laid back, in degrees — asked fresh, beside the view it was built into.
+   *
+   * Two getters that have to agree, and they do because one camera answers both. It is not dug out
+   * of the matrix instead, because a matrix carrying a roll and a squash cannot be taken back apart
+   * into the two. The plan reads it for one thing: standing a `viewer`-framed node up out of the
+   * tilted plane.
+   */
+  readonly pitch?: (() => number) | undefined;
 }
 
 /**
@@ -95,6 +104,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     height: view.height,
     viewer: host.viewer(),
     view: options.view?.(),
+    pitch: options.pitch?.(),
     overrides: options.overrides,
     raised: options.raised,
     carried: options.carried,

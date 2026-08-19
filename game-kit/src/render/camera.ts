@@ -176,6 +176,21 @@ export class Camera {
   zoom = 1;
   /** Degrees, clockwise on screen. The whole desk turns; nothing on it learns that it did. */
   rotation = 0;
+  /**
+   * HOW FAR THE DESK IS LAID BACK, in degrees — 0 is straight down onto it, 60 is a low seat.
+   *
+   * It is a SQUASH along the screen's own vertical, `cos(pitch)`, and that keeps the whole view
+   * affine: the finger, the clamp, the contours and the painter go on working untouched, because
+   * every one of them speaks in 2×3 matrices. A true perspective would need a divide, which a 2×3
+   * cannot express and which this renderer takes no other shape for.
+   *
+   * So the pitch PLACES things on a tilted plane and does not converge their edges: a desk drawn as
+   * one huge plate stays a rectangle rather than a trapezoid. What stands up out of that plane is
+   * per element and not the camera's business at all — a node framed to the viewer
+   * (`Oriented: "viewer"`) is drawn at full height where it sits, which is the poker table's look:
+   * the cloth lies, the cards stand.
+   */
+  pitch = 0;
 
   private screenW = 1;
   private screenH = 1;
@@ -245,6 +260,17 @@ export class Camera {
   /** Screen pixels per unit right now — the only scale anything is allowed to read. */
   private get k(): number {
     return this.unit * this.zoom;
+  }
+
+  /**
+   * What the pitch does to a height: `cos(pitch)`, and never below a hair of one.
+   *
+   * A flat zero would collapse the desk onto a line — every quad zero pixels tall, every inverse
+   * matrix singular, and a picture that cannot be told from a renderer that failed. Ninety degrees
+   * is edge-on, and edge-on is not a view.
+   */
+  get squash(): number {
+    return Math.max(0.02, Math.cos((this.pitch * Math.PI) / 180));
   }
 
   /** Where the desk's origin landed on the glass. A READING of the transform, never the state. */
@@ -396,7 +422,7 @@ export class Camera {
     const h = Math.max(1, this.screenH - padding * 2);
     // Measured at zoom 1 with the turn folded in. The box scales with the zoom, so one measurement
     // answers for all of them.
-    const t = compose(rotate(this.rotation), scale(this.unit));
+    const t = chain([scale(1, this.squash), rotate(this.rotation), scale(this.unit)]);
     const corners = [
       apply(t, { x: 0, y: 0 }),
       apply(t, { x: this.content.w, y: 0 }),
@@ -593,6 +619,11 @@ export class Camera {
   transform(): Transform {
     return chain([
       move(this.screenW / 2, this.screenH / 2),
+      // THE PITCH SITS OUTSIDE THE ROLL, because it belongs to the camera and not to the desk: a
+      // head tilted back squashes what it sees along the SCREEN's vertical, whichever way the desk
+      // happens to be turned underneath. Composed the other way round, rolling the view would
+      // carry the tilt round with it, and the horizon would rotate.
+      scale(1, this.squash),
       rotate(this.rotation),
       scale(this.k),
       move(-this.target.x, -this.target.y),

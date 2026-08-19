@@ -194,6 +194,8 @@ export interface CameraScene {
   readonly sensitivity?: number | undefined;
   /** Which nodes take a finger for themselves; over one of them the camera stands down. */
   readonly claims?: ((n: Node) => boolean) | undefined;
+  /** How far the desk is laid back, in degrees. Live: a re-render feeds the standing camera. */
+  readonly pitch?: number | undefined;
   /**
    * The view's angle, in degrees — applied when it CHANGES and at no other time.
    *
@@ -325,6 +327,8 @@ export function scene(
   let cam = options.camera;
   const camera = cam ? new Camera(cam.limits) : undefined;
   const viewOf = camera ? () => camera.transform() : undefined;
+  /** Beside the view and from the same camera, so the two can never disagree. */
+  const pitchOf = camera ? () => camera.pitch : undefined;
 
   // A motion scene runs the one clock (and needs the stock easings) instead of the still painter;
   // both hand back a teardown of the same shape, so the rest of the shell does not care which.
@@ -337,6 +341,7 @@ export function scene(
         measure: ruler,
         ...(options.bake ? { bake: options.bake } : {}),
         ...(viewOf ? { view: viewOf } : {}),
+        ...(pitchOf ? { pitch: pitchOf } : {}),
       }))
     : undefined;
   PRESSED.set(id, options.press);
@@ -352,6 +357,7 @@ export function scene(
         measure: ruler,
         ...(options.bake ? { bake: options.bake } : {}),
         ...(viewOf ? { view: viewOf } : {}),
+        ...(pitchOf ? { pitch: pitchOf } : {}),
       });
 
   // THE CATALOG RUNS THE CAMERA'S CLOCK, because the kit refuses to (`guard.one-clock`): a throw is
@@ -367,7 +373,7 @@ export function scene(
       // note, the toolbar and the inspector too, and at sixty frames a second that is the whole
       // tree walked and published for a desk that only slid four pixels.
       if (motions) motions.redraw();
-      else renderFrame(host, painter, { measure: ruler, view: () => camera.transform() });
+      else renderFrame(host, painter, { measure: ruler, view: () => camera.transform(), pitch: () => camera.pitch });
     };
     const tick = (nowMs: number): void => {
       const dt = Math.min(0.1, (nowMs - lastMs) / 1000);
@@ -412,6 +418,7 @@ export function scene(
       const v = host.viewport();
       if (opened || v.width <= 1 || v.height <= 1) return;
       opened = true;
+      if (cam?.pitch !== undefined) camera.pitch = cam.pitch;
       if (cam?.turn !== undefined) camera.turnTo(cam.turn);
       if (start?.zoom !== undefined) camera.setZoom(start.zoom === "fit" ? camera.fitZoom() : start.zoom);
       camera.lookAt(start?.at ?? { x: 0, y: 0 });
@@ -427,6 +434,9 @@ export function scene(
     CAMERAS.set(id, (next) => {
       const turned = next.turn !== undefined && next.turn !== cam?.turn;
       cam = next;
+      // The tilt is not a gesture — nothing on the glass fights the slider for it — so unlike the
+      // turn it is simply applied every time.
+      if (next.pitch !== undefined) camera.pitch = next.pitch;
       camera.retune(next.limits);
       if (turned) camera.turnTo(next.turn!);
       control.refresh();

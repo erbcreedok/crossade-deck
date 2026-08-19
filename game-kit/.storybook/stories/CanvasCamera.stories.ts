@@ -13,6 +13,7 @@ import {
   freeLayout,
   installStockCarries,
   node,
+  Oriented,
   rect,
   registerLayout,
   registerSurface,
@@ -56,6 +57,8 @@ interface ZoneArgs {
   zoom: boolean;
   rotate: boolean;
   turn: number;
+  pitch: number;
+  stand: boolean;
   minZoom: number;
   maxZoom: number;
   sensitivity: number;
@@ -114,7 +117,7 @@ export const Zone: StoryObj<ZoneArgs> = {
   // past: motion on a plain surface is invisible, and a camera with nothing to measure against
   // reads as a canvas that did not load.
   render: (a) => {
-    const { w, h, pan, zoom, rotate, turn, minZoom, maxZoom, sensitivity } = a;
+    const { w, h, pan, zoom, rotate, turn, pitch, stand, minZoom, maxZoom, sensitivity } = a;
     const { fling, cap, floor, decay, smoothing } = a;
     const { zoomFling, zoomCap, zoomFloor, zoomDecay, zoomSmoothing } = a;
     const { turnFling, turnCap, turnFloor, turnDecay, turnSmoothing } = a;
@@ -147,6 +150,8 @@ export const Zone: StoryObj<ZoneArgs> = {
             // answer at any zoom without a single word of text.
             Surfaced({ surface: x === 0 || y === 0 ? "story.camera.axis" : "story.camera.plate" }),
             Transformable({ at: { x, y } }),
+            // The landmarks ALWAYS lie: they are the cloth's own markings, and a marking that stood
+            // up would be a wall. Standing a piece up is for pieces — see the card below.
           ),
         );
       }
@@ -158,6 +163,9 @@ export const Zone: StoryObj<ZoneArgs> = {
         Bounded({ bounds: rect(CARD.w, CARD.h) }),
         Surfaced({ surface: "story.camera.card" }),
         Transformable({ at: { x: 0, y: 0 }, z: 1 }),
+        // The cloth always lies; whether the PIECES stand out of it is per element, and that is
+        // `Oriented` saying what it has always said rather than a second mode of the camera.
+        ...(stand ? [Oriented({ orientation: "viewer" })] : []),
         // Dropped anywhere and it stays there: on a desk this size, flying home would be a card
         // vanishing off the screen the reader is looking at.
         Draggable({ onReject: "stay" }),
@@ -188,6 +196,7 @@ export const Zone: StoryObj<ZoneArgs> = {
         // Applied only when this number changes, so the slider and the fingers do not fight over
         // the angle — twist the desk by hand and the panel leaves it alone until it is moved.
         turn,
+        pitch,
         // The desk is laid out AROUND zero, so its corner is at minus half — the camera is told the
         // rect and not the size, or three quarters of the zone would be unreachable.
         content: { x: -w / 2, y: -h / 2, w, h },
@@ -212,6 +221,8 @@ export const Zone: StoryObj<ZoneArgs> = {
     zoom: FREE_INPUT.zoom,
     rotate: FREE_INPUT.rotate,
     turn: 0,
+    pitch: 0,
+    stand: true,
     minZoom: 0.2,
     maxZoom: 3,
     sensitivity: ZOOM_SENS,
@@ -238,6 +249,8 @@ export const Zone: StoryObj<ZoneArgs> = {
     zoom: documented("arg.inputZoom", {}, "camera/input"),
     rotate: documented("arg.inputRotate", {}, "camera/input"),
     turn: documented("arg.cameraTurn", { control: { type: "range", min: -180, max: 180, step: 5 } }, "camera"),
+    pitch: documented("arg.pitch", { control: { type: "range", min: 0, max: 80, step: 1 } }, "camera"),
+    stand: documented("arg.stand", {}, "camera"),
     minZoom: limit("arg.minZoom"),
     maxZoom: limit("arg.maxZoom"),
     sensitivity: documented(
