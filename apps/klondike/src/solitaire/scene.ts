@@ -36,6 +36,16 @@ import {
   type TuningPatch,
   type ValuedFields,
 } from "game-kit";
+import {
+  add as addNode,
+  button,
+  domTextMeasure,
+  Container,
+  CONTROL_BAR,
+  installStockControls,
+  node as makeNode,
+  wireButtons,
+} from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.js";
 import {
@@ -84,6 +94,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   installStockEasings();
   installStockCarries();
   installSolitaireLayouts();
+  installStockControls();
   registerSurface("sol/slot", {
     layers: [{ paint: "panelBg", opacity: 0.28 }],
     radius: 0.09,
@@ -113,7 +124,12 @@ export function startSolitaire(container: HTMLElement): () => void {
   const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }) });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
-  const motion = attachMotion(host, painter, FEEL);
+  // THE RULER. Without it a caption has nothing to be measured against, so every control on the
+  // table came out as a bare plate — the text layer needs a port, and a game must hand it one.
+  const ruler = domTextMeasure({
+    waitFor: [{ font: { family: "ui-sans-serif, system-ui, sans-serif", size: 16, weight: 600 }, sample: "Отменить Заново Подсказка Сыграть" }],
+  });
+  const motion = attachMotion(host, painter, { ...FEEL, measure: ruler });
   const view = host.view;
   // A touch surface would otherwise spend a double-tap on the browser's own zoom, and a drag on a
   // pan — so the canvas claims every pointer gesture for itself.
@@ -159,6 +175,39 @@ export function startSolitaire(container: HTMLElement): () => void {
   // The board opens UNDEALT: the whole deck stacked in the stock, seven empty columns. The deal is
   // the player's first move — a click on the stock lays the triangle out (`dealTableau`), each card
   // flying from the stock to its seat on the motion clock. (The `?won` dev door skips all of this.)
+  redraw();
+
+  // ---- the controls -------------------------------------------------------------------------
+
+  // THE HINT — shown first, played on the second press. The owner's rule: it never takes the move
+  // out of the player's hands, and a hint they did not want costs one press to ignore. The state
+  // stands HERE because the bar reads it: a control is drawn from what is true, so what is true has
+  // to exist before the first bar is built.
+  let hinted: { card: Node; dest: Node } | undefined;
+  let undoHint: Array<() => void> = [];
+
+  // THE BAR IS REBUILT, NEVER MUTATED. Whether undo has anywhere to go is the game's state, and the
+  // control is drawn FROM it — so the tree cannot disagree with the history about what is possible.
+  const BAR_Y = -3.9;
+
+  const barTree = (): Node => {
+    const bar = makeNode("hud", Container({ layout: CONTROL_BAR }), Transformable({ at: { x: 0, y: BAR_Y } }));
+    // A control with nothing behind it is dressed as asleep rather than removed: a row that changes
+    // WIDTH as a game goes on makes the player re-aim at every move.
+    addNode(bar, button("hud/undo", { label: "Отменить", look: "quiet", means: { does: "undo" }, asleep: past.length === 0 }));
+    addNode(bar, button("hud/again", { label: "Заново", look: "quiet", means: { does: "restart" } }));
+    addNode(bar, button("hud/hint", { label: hinted ? "Сыграть" : "Подсказка", means: { does: "hint" }, asleep: !dealt }));
+    return bar;
+  };
+
+  /** Put the bar back on the desk after any change — it is a child of the desk like everything else. */
+  const dressDesk = (): void => {
+    const standing = board.desk.children.find((c) => c.id === "hud");
+    if (standing) remove(board.desk, standing);
+    add(board.desk, barTree());
+  };
+
+  dressDesk();
   redraw();
 
   // ---- reading the model ------------------------------------------------------------------
@@ -281,6 +330,16 @@ export function startSolitaire(container: HTMLElement): () => void {
       return;
     }
     const g = glassOf(view, e);
+    // THE BAR IS ASKED FIRST. A control sits over the desk, and a press that reached a pile through
+    // it would move a card the player never aimed at.
+    const control = pick(host, board.desk, g, (n) => caps(n).has("Pressable"));
+    if (control) {
+      const does = fieldsOf<ValuedFields>(control, "Valued")?.values["does"];
+      if (does === "undo") undo();
+      else if (does === "restart") restart();
+      else if (does === "hint") hint();
+      return;
+    }
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
     if (!hit) return;
     // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
@@ -458,6 +517,76 @@ export function startSolitaire(container: HTMLElement): () => void {
     keep();
   };
 
+  /** Walk one step back: the table as it stood before the last move. */
+  const undo = (): void => {
+    const was = past.pop();
+    if (!was) return;
+    clearHint();
+    if (!applySnapshot(board, was)) return;
+    dealt = was.dealt;
+    dealDone = dealt;
+    dressDesk();
+    redraw();
+    keep();
+  };
+
+  /** A new deal. The old table is not kept — nothing to walk back to, and the save goes with it. */
+  const restart = (): void => {
+    clearHint();
+    if (dealTimer) clearTimeout(dealTimer);
+    // A FRESH SHUFFLE APPLIED TO THE CARDS ALREADY ON THE DESK: building a second board would mean a
+    // second tree and a re-mount, and the cards are the same fifty-two either way.
+    applySnapshot(board, snapshot(buildBoard(), false));
+    past = [];
+    dealt = false;
+    dealDone = false;
+    celebrated = false;
+    clearSave(store);
+    dressDesk();
+    redraw();
+  };
+
+  const clearHint = (): void => {
+    for (const off of undoHint) off();
+    undoHint = [];
+    hinted = undefined;
+  };
+
+  /** The first legal move found, read the same way the double-tap reads one. */
+  const findMove = (): { card: Node; dest: Node } | undefined => {
+    for (const pile of [board.waste, ...board.tableau]) {
+      for (const card of pile.children) {
+        if (facing(card) !== "up") continue;
+        const cards = runFrom(card);
+        if (!cards) continue;
+        const bottom = cardValue(cards[0]!);
+        if (!bottom) continue;
+        const dest = autoDestination(pile, bottom, cards.length);
+        if (dest) return { card, dest };
+      }
+    }
+    return undefined;
+  };
+
+  const hint = (): void => {
+    if (hinted) {
+      const { card, dest } = hinted;
+      clearHint();
+      const cards = runFrom(card);
+      if (cards) landRun(cards, card.parent!, dest);
+      dressDesk();
+      redraw();
+      return;
+    }
+    const found = findMove();
+    if (!found) return;
+    hinted = found;
+    // The same ring a willing pile wears under a drag — the player already knows what it means.
+    undoHint = [wearInvite(found.dest), wearInvite(found.card)];
+    dressDesk();
+    redraw();
+  };
+
   const checkWin = (): void => {
     const done = board.foundations.reduce((n, f) => n + f.children.length, 0);
     if (done === 52) celebrate();
@@ -541,6 +670,10 @@ export function startSolitaire(container: HTMLElement): () => void {
     motion.retain(true);
     launchNext(); // the first card leaves on the press that began the ceremony
   };
+
+  // The faces are not measurable until the font arrives, and a caption laid out against the
+  // fallback stays that way — so the first frame with real metrics is asked for once, here.
+  void ruler.ready.then(() => redraw());
 
   view.addEventListener("pointerdown", onDown);
   view.addEventListener("pointermove", onMove);
