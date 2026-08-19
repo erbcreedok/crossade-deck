@@ -190,6 +190,28 @@ export function storeSave(store: Store, save: Save, key: string = SAVE_KEY): voi
   store.write(key, JSON.stringify({ now: save.now, past }));
 }
 
+// ---- the spacing, kept apart from the table -----------------------------------------------------
+
+/**
+ * WHERE THE SPACING IS WRITTEN DOWN — its own key, and deliberately NOT part of a snapshot.
+ *
+ * Undo walks moves. How much air stands between the columns is not a move: a player who tightens the
+ * table and then presses "undo" wants their card back, not their air back. Keeping it out of the
+ * snapshot is what makes that impossible to get wrong, and it survives "start again" for the same
+ * reason — a new deal is a new table, not a new preference.
+ */
+export const LAYOUT_KEY = "crossade/klondike/layout";
+
+/** Which spacing the player left the table at, if any. The caller decides what nothing means. */
+export function loadLayout(store: Store, key: string = LAYOUT_KEY): string | undefined {
+  return store.read(key) || undefined;
+}
+
+/** Write the spacing down. A name, because that is what the board reads it back as. */
+export function storeLayout(store: Store, id: string, key: string = LAYOUT_KEY): void {
+  store.write(key, id);
+}
+
 /** Forget the table entirely — what "start again" leaves behind. */
 export function clearSave(store: Store, key: string = SAVE_KEY): void {
   store.forget(key);

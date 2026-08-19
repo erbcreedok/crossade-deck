@@ -49,14 +49,27 @@ import { pixiPainter } from "game-kit/pixi";
 import { klondikeRuler } from "../look/fonts.js";
 import { RING_U } from "../look/palette.js";
 import { BAR, CONTROL_H, CONTROL_W, FACE, installKlondikeLook, LABEL, LABEL_QUIET, PLATE } from "../look/surfaces.js";
-import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.js";
+import {
+  buildBoard,
+  dealPlan,
+  installSolitaireLayouts,
+  layoutNamed,
+  nextLayout,
+  relayBoard,
+  ROOMY,
+  winKlondike,
+  type SolitaireBoard,
+  type TableLayout,
+} from "./board.js";
 import {
   applySnapshot,
   browserStore,
   clearSave,
+  loadLayout,
   loadSave,
   MAX_PAST,
   snapshot,
+  storeLayout,
   storeSave,
   type Snapshot,
 } from "./save.js";
@@ -83,8 +96,8 @@ const CASCADE = { speed: 3.5, spread: 3, angles: [200, 250, 290, 340] } as const
 // it lands at once). Each card still FLIES from the stock to its seat on the settle.
 const DEAL = { stepMs: 80 } as const;
 
-function fitUnit(v: { width: number; height: number }): number {
-  return Math.max(20, Math.min(v.width / 8.6, v.height / 8.4));
+function fitUnit(v: { width: number; height: number }, layout: TableLayout): number {
+  return Math.max(20, Math.min(v.width / layout.fit.w, v.height / layout.fit.h));
 }
 
 export function startSolitaire(container: HTMLElement): () => void {
@@ -99,7 +112,11 @@ export function startSolitaire(container: HTMLElement): () => void {
   installStockFlips();
   installStockEasings();
   installStockCarries();
-  installSolitaireLayouts();
+  // THE SPACING THE PLAYER LEFT, read before the table is built with it: the columns are seated at
+  // build time, so a table built roomy and re-spaced a frame later would jump in front of the player.
+  const store = browserStore();
+  let layout = layoutNamed(loadLayout(store) ?? ROOMY.id);
+  installSolitaireLayouts(layout);
   installKlondikeLook();
   registerSurface("sol/slot", {
     layers: [{ paint: "panelBg", opacity: 0.28 }],
@@ -107,7 +124,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     stroke: { color: "panelBorder", width: 0.025, dash: { on: 0.14, off: 0.1 } },
   });
 
-  const board: SolitaireBoard = buildBoard();
+  const board: SolitaireBoard = buildBoard(layout);
   // The dev door: `?won` seats the whole deck on the foundations BEFORE the table is mounted — a
   // table already won, resting there from its first frame (no deal, no settle off the stock) — and
   // the first tap is the ceremony. The one way to see it without fifty-two moves.
@@ -118,7 +135,6 @@ export function startSolitaire(container: HTMLElement): () => void {
   // than dealing a new one and replacing it a moment later. A save that does not fit this deck is
   // simply not there — `applySnapshot` refuses whole, and the fresh shuffle already in `board` is
   // what the player gets. The dev door does not read it: `?won` asks for a specific table.
-  const store = browserStore();
   let past: Snapshot[] = [];
   // The opening deal is a one-time thing: `dealt` latches when it begins, `dealDone` when the last
   // card has seated. Between the two, the stock is deaf (a press mid-deal does nothing). The timer
@@ -127,7 +143,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   let dealt = false;
   let dealDone = false;
   let dealTimer: ReturnType<typeof setTimeout> | undefined;
-  const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }) });
+  const host = mount(container, board.desk, { ...DEFAULT_VIEWER, hudUnit: fitUnit({ width: 400, height: 400 }, layout) });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   // THE RULER. Without it a caption has nothing to be measured against, so every control on the
@@ -142,7 +158,7 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   let lastUnit = -1;
   const applyFit = (): void => {
-    const u = fitUnit(host.viewport());
+    const u = fitUnit(host.viewport(), layout);
     if (u === lastUnit) return;
     lastUnit = u;
     host.setViewer({ ...host.viewer(), hudUnit: u });
@@ -193,10 +209,9 @@ export function startSolitaire(container: HTMLElement): () => void {
   // THE BAR IS REBUILT, NEVER MUTATED. Whether undo has anywhere to go is the game's state, and the
   // control is drawn FROM it — so the tree cannot disagree with the history about what is possible.
   //
-  // WHERE IT STANDS. The table is fitted at 8.6 × 8.4 units, so the top edge is at −4.2; the top row
-  // of cards sits at −2.7 and a card is 1.4 tall, so nothing is drawn above −3.4. The bar takes that
-  // strip and leaves a fifth of a unit of air on both sides of itself.
-  const BAR_Y = -3.82;
+  // WHERE IT STANDS is the SPACING's answer, not this file's: the roomy table is fitted at 8.6 × 8.4
+  // units and the tight one at 7.9 × 7.8, so the strip of air above the top row is at a different
+  // height on each. `barY` is that height, and the bar is put back there whenever the spacing changes.
 
   /** client1's plate, written once: the gold ring, the brown face inside it, the pixel caption. */
   const plate = (id: string, label: string, does: string, awake: boolean): Node =>
@@ -213,12 +228,16 @@ export function startSolitaire(container: HTMLElement): () => void {
     });
 
   const barTree = (): Node => {
-    const bar = makeNode("hud", Container({ layout: BAR }), Transformable({ at: { x: 0, y: BAR_Y } }));
+    const bar = makeNode("hud", Container({ layout: BAR }), Transformable({ at: { x: 0, y: layout.barY } }));
     // A control with nothing behind it is dressed as asleep rather than removed: a row that changes
     // WIDTH as a game goes on makes the player re-aim at every move.
     addNode(bar, plate("hud/undo", "Отменить", "undo", past.length > 0));
     addNode(bar, plate("hud/again", "Заново", "restart", true));
     addNode(bar, plate("hud/hint", hinted ? "Сыграть" : "Подсказка", "hint", dealt));
+    // The spacing control says what the PRESS DOES, not which spacing is on — the table itself
+    // already shows which one is on, and a control that names the state reads as a claim about the
+    // wrong thing. Awake always: how much air the cards get is never an illegal thing to ask for.
+    addNode(bar, plate("hud/space", nextLayout(layout).id === "tight" ? "Плотно" : "Просторно", "space", true));
     return bar;
   };
 
@@ -227,6 +246,26 @@ export function startSolitaire(container: HTMLElement): () => void {
     const standing = board.desk.children.find((c) => c.id === "hud");
     if (standing) remove(board.desk, standing);
     add(board.desk, barTree());
+  };
+
+  /**
+   * SWITCH THE SPACING — the slots move, the game stays exactly where it was.
+   *
+   * NOT A MOVE, so it is not remembered and undo cannot walk back over it: nothing about which card
+   * lies where changes, only how much air stands between them. The preference is written down on its
+   * own key, so the table opens the way the player left it and "start again" does not undo the choice.
+   *
+   * The unit is forced to be recomputed (`lastUnit`), because the fit box itself just changed under a
+   * viewport that did not — and without that the table would keep the old spacing's size.
+   */
+  const respace = (): void => {
+    layout = nextLayout(layout);
+    storeLayout(store, layout.id);
+    relayBoard(board, layout);
+    lastUnit = -1;
+    applyFit();
+    dressDesk();
+    redraw();
   };
 
   dressDesk();
@@ -270,7 +309,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   };
 
   /** The carried run as engine items — each card's offset DOWN the column from the grab pivot. */
-  const carryItems = (): CarryItem[] => run.map((c, i) => ({ id: c.id, offset: { x: 0, y: i * COLUMN_STEP } }));
+  const carryItems = (): CarryItem[] => run.map((c, i) => ({ id: c.id, offset: { x: 0, y: i * layout.step } }));
 
   /** The ordered, all-face-up run a card leads, or null if it cannot be lifted from where it sits. */
   const runFrom = (card: Node): Node[] | null => {
@@ -363,6 +402,7 @@ export function startSolitaire(container: HTMLElement): () => void {
       if (does === "undo") undo();
       else if (does === "restart") restart();
       else if (does === "hint") hint();
+      else if (does === "space") respace();
       return;
     }
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));

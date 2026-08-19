@@ -18,6 +18,7 @@ import {
   ShadowCaster,
   Transformable,
   type Node,
+  type TransformableFields,
   type ValuedFields,
 } from "game-kit";
 import { deckByCardId, shuffled } from "@game-presets/cards";
@@ -33,17 +34,100 @@ export interface SolitaireBoard {
   readonly tableau: readonly Node[];
 }
 
-/** How far each further card in a column steps down, in units. */
-export const COLUMN_STEP = 0.32;
+/**
+ * HOW SPACIOUS THE TABLE IS — every number a Klondike table is spaced by, as one literal.
+ *
+ * Two of them ship, and they differ only in how much air stands between the cards. The tight one
+ * packs the columns closer and steps a column down in smaller bites, so the whole table asks for
+ * LESS of the screen — and what the viewer does with the room it saves is draw every card bigger.
+ * That is the whole trick: nothing here says "bigger", the fit box says "smaller", and the card
+ * grows into it. A third spacing is a third literal, never a branch in this file.
+ */
+export interface TableLayout {
+  /** Its name — what the save writes down and what the control switches between. */
+  readonly id: string;
+  /** Between neighbouring columns, in units. A card is 1 wide, so the air between two is this less 1. */
+  readonly pitch: number;
+  /** How far each further card in a column steps down, in units. */
+  readonly step: number;
+  /** Where the top row stands — stock, waste and the four foundations. */
+  readonly topY: number;
+  /** Where the tableau columns begin. */
+  readonly tableauY: number;
+  /** Where the control bar stands. */
+  readonly barY: number;
+  /** The box the whole table is fitted into, in units. The screen is divided by THIS. */
+  readonly fit: { readonly w: number; readonly h: number };
+}
 
-const COL_X = [-3.6, -2.4, -1.2, 0, 1.2, 2.4, 3.6];
-const TOP_Y = -2.7;
-const TABLEAU_Y = -1.1;
+/** THE SPACIOUS TABLE — what the game has always opened with, and what it opens with still. */
+export const ROOMY: TableLayout = {
+  id: "roomy",
+  pitch: 1.2,
+  step: 0.32,
+  topY: -2.7,
+  tableauY: -1.1,
+  barY: -3.82,
+  fit: { w: 8.6, h: 8.4 },
+};
 
-/** Register the two arrangements a Klondike table needs: a tight pile and a downward column. */
-export function installSolitaireLayouts(): void {
+/**
+ * THE TIGHT TABLE — a tenth of a unit of air between columns instead of a fifth, and a shorter
+ * step down a column. Nine per cent less table, therefore nine per cent more card.
+ */
+export const TIGHT: TableLayout = {
+  id: "tight",
+  pitch: 1.08,
+  step: 0.28,
+  topY: -2.5,
+  tableauY: -1,
+  barY: -3.52,
+  fit: { w: 7.9, h: 7.8 },
+};
+
+/** Both spacings, in the order the control walks them. */
+export const TABLE_LAYOUTS: readonly TableLayout[] = [ROOMY, TIGHT];
+
+/** The spacing after this one, wrapping — what one press of the control lands on. */
+export const nextLayout = (layout: TableLayout): TableLayout =>
+  TABLE_LAYOUTS[(TABLE_LAYOUTS.indexOf(layout) + 1) % TABLE_LAYOUTS.length]!;
+
+/** A spacing by name. A name nobody ships is the spacious one — an old save is never a crash. */
+export const layoutNamed = (id: string): TableLayout => TABLE_LAYOUTS.find((l) => l.id === id) ?? ROOMY;
+
+/** The seven column centres, in units: six pitches wide, centred on the desk. */
+export const columnsOf = (layout: TableLayout): number[] => [-3, -2, -1, 0, 1, 2, 3].map((i) => i * layout.pitch);
+
+/**
+ * Register the two arrangements a Klondike table needs: a tight pile and a downward column.
+ *
+ * The column's step is the SPACING's, so switching spacing re-registers it — a layout is a record
+ * under a name, and the name is what the piles hold. Nothing on the table has to be told.
+ */
+export function installSolitaireLayouts(layout: TableLayout = ROOMY): void {
   registerLayout("sol/pile", { place: (children) => children.map(() => ({ x: 0, y: 0 })) });
-  registerLayout("sol/column", { place: (children) => children.map((_c, i) => ({ x: 0, y: i * COLUMN_STEP })) });
+  registerLayout("sol/column", { place: (children) => children.map((_c, i) => ({ x: 0, y: i * layout.step })) });
+}
+
+/** Seat a node, keeping the rest of its pose — a slot may be lifted or turned by something else. */
+function seat(n: Node, x: number, y: number): void {
+  compose(n, Transformable({ ...fieldsOf<TransformableFields>(n, "Transformable"), at: { x, y } }));
+}
+
+/**
+ * RE-SPACE A TABLE THAT IS ALREADY BEING PLAYED — the slots move, the cards stay in them.
+ *
+ * Not a rebuild: a rebuild would deal a new deck, which is the one thing a player changing the
+ * spacing mid-game does not want. Every card is a child of a slot, so moving the slots carries the
+ * whole game with them, and the column's own step comes back from the registry.
+ */
+export function relayBoard(board: SolitaireBoard, layout: TableLayout): void {
+  installSolitaireLayouts(layout);
+  const cols = columnsOf(layout);
+  seat(board.stock, cols[0]!, layout.topY);
+  seat(board.waste, cols[1]!, layout.topY);
+  board.foundations.forEach((p, i) => seat(p, cols[3 + i]!, layout.topY));
+  board.tableau.forEach((p, i) => seat(p, cols[i]!, layout.tableauY));
 }
 
 /** The 52 standard pips (jokers and the brand card left out), shuffled. */
@@ -80,14 +164,15 @@ function slot(id: string, x: number, y: number, layout: string, grab?: string): 
  * The deal is a separate step (`dealPlan`, played by the scene) so a mounted table can animate it —
  * every card slides from the stock to its seat on the motion runtime's clock instead of appearing there.
  */
-export function buildBoard(): SolitaireBoard {
+export function buildBoard(layout: TableLayout = ROOMY): SolitaireBoard {
   // The desk wears the one lamp: the stock light, top-right of the frame, shadows down-left.
   const desk = node("desk", Transformable({ at: { x: 0, y: 0 } }), Container({ layout: "free" }), Lit());
 
-  const stock = slot("stock", COL_X[0]!, TOP_Y, "sol/pile");
-  const waste = slot("waste", COL_X[1]!, TOP_Y, "sol/pile", "top");
-  const foundations = [0, 1, 2, 3].map((i) => slot(`foundation:${i}`, COL_X[3 + i]!, TOP_Y, "sol/pile", "top"));
-  const tableau = COL_X.map((x, i) => slot(`tableau:${i}`, x, TABLEAU_Y, "sol/column", "above"));
+  const cols = columnsOf(layout);
+  const stock = slot("stock", cols[0]!, layout.topY, "sol/pile");
+  const waste = slot("waste", cols[1]!, layout.topY, "sol/pile", "top");
+  const foundations = [0, 1, 2, 3].map((i) => slot(`foundation:${i}`, cols[3 + i]!, layout.topY, "sol/pile", "top"));
+  const tableau = cols.map((x, i) => slot(`tableau:${i}`, x, layout.tableauY, "sol/column", "above"));
 
   for (const p of [stock, waste, ...foundations, ...tableau]) add(desk, p);
 

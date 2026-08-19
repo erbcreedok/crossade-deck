@@ -35,8 +35,8 @@ export const BAR = "sol/bar";
 // face whose every glyph is one em wide.
 export const CONTROL_W = 1.72;
 export const CONTROL_H = 0.44;
-/** Space between neighbours — enough that three gold rings do not read as one long plate. */
-const GAP = 0.16;
+/** Space between neighbours — enough that four gold rings do not read as one long plate. */
+export const BAR_GAP = 0.16;
 
 export function installKlondikeLook(): void {
   // The gold plate. Its caller insets the face by `RING_U` (palette.ts), so what shows between the
@@ -55,5 +55,5 @@ export function installKlondikeLook(): void {
   registerTextStyle(LABEL, { ...caption, fill: PALETTE.ink });
   registerTextStyle(LABEL_QUIET, { ...caption, fill: PALETTE.inkDim });
 
-  registerLayout(BAR, rowLayout({ gap: GAP, padding: 0 }));
+  registerLayout(BAR, rowLayout({ gap: BAR_GAP, padding: 0 }));
 }
