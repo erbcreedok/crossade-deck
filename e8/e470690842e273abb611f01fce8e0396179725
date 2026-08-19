@@ -1,0 +1,60 @@
+game-kit/src/index.ts
+  s_170937f0c01a52::t_a0bd72afb5c3db 339-340,342,350
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_56fbc13894ddcf 242-246
+game-kit/src/render/cameraInput.ts
+  s_170937f0c01a52::t_3d1e14e26e1c0e 82-93,100,104-105,108-110,118-122,143,150-157
+  s_170937f0c01a52::t_7af8c04122f89e 176,178-180,189-191,207-215,217-220,265-270
+  s_170937f0c01a52::t_869aeb531cc526 81
+game-kit/docs/test-plan/52-camera.md
+  s_170937f0c01a52::t_2ece028774eec6 3
+  s_170937f0c01a52::t_48d0e985008879 33-36
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_0f767d06e8b8d5 197-204,415,428,431
+game-kit/.storybook/stories/CanvasCamera.stories.ts
+  s_170937f0c01a52::t_8518b5d175170b 9,31-33,52-55,90,144-146,148-150,171-174,187-190
+game-kit/docs/test-plan/53-camera-input.md
+  s_170937f0c01a52::t_48d0e985008879 3,30-32
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_48d0e985008879 80-81
+  s_170937f0c01a52::t_1aa0fcbab54bfa 10,38
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_56fbc13894ddcf 246-250
+game-kit/src/render/camera.ts
+  s_170937f0c01a52::t_94cd419551daf0 6-8,13,18,50-73,96-97,103-104,114-121,123-130,133,137-138,140-141,160,162-165,167-168,172-176,198-200,202-203,206-228,239,242-257,266-271,276-277,282,303-305,309-310,316-327,332-333,336-341,345-357,409-410,415-416,418-420,422-424,433-435,438-444,453-455,458-463
+game-kit/src/render/cameraInput.test.ts
+  s_170937f0c01a52::t_66d720ac299808 22-23,79-81,93-98,260-317,320-324
+  s_170937f0c01a52::t_2a4643d60666bb 318-319
+  s_170937f0c01a52::t_55c9fc0d1706f0 325
+game-kit/.storybook/devtools/drag.ts
+  s_170937f0c01a52::t_d21e326151dfaf 64-70,108,122,130
+game-kit/.storybook/locales/pages/canvasCamera/en.json
+  s_170937f0c01a52::t_8985c5f8788015 44-56,71-76
+game-kit/.storybook/locales/pages/canvasCamera/ru.json
+  s_170937f0c01a52::t_8985c5f8788015 42-54,69-74
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_4b38cd1d6d86fe 391-400
+game-kit/src/render/camera.test.ts
+  s_170937f0c01a52::t_f8eb51411102aa 253-314
+game-kit/src/render/scenePlan.test.ts
+  s_170937f0c01a52::t_3d85482dd8efd3 262-291
+  s_170937f0c01a52::t_cbb59d4e6ba933 19
+game-kit/docs/test-plan/10-scene-plan.md
+  s_170937f0c01a52::t_1aa0fcbab54bfa 3,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "e8e470690842e273abb611f01fce8e0396179725",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
