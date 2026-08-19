@@ -41,6 +41,19 @@
     "and the screen is caught up with by the camera. A second scale on top of her would be two",
     "rulers for one job, and two rulers drift. The one thing that does have a measure is the HUD.",
     "",
+    "**What the hand may do is three fields of data**, not a mode with a name: `input: { pan, zoom,",
+    "rotate }`. `free`, `fit` and `locked` stay presets somebody writes down — the moment they are an",
+    "enum, \"locked, but you may still zoom out to see the board\" needs a fourth name and the next",
+    "combination a fifth. They are read at GESTURE TIME, so a rule may close one mid-game and nothing",
+    "is rebuilt:",
+    "",
+    "```ts",
+    "camera.retune({ input: { ...FREE_INPUT, rotate: false } })   // and the next twist does nothing",
+    "```",
+    "",
+    "What this never governs is the camera's own methods: a game that moves the view is the game",
+    "deciding. These say only what the HAND may do.",
+    "",
     "The numbers are `client2`'s, verbatim — the fling cap, the threshold that tells a flick from a",
     "tremble, the decay, the wheel's sensitivity. They were settled by hand against a real finger,",
     "and a second set guessed here would feel like a different product for no reason at all."
@@ -55,6 +68,11 @@
     "Every row on the panel is a field of the kit's own data. Turn `fling` off and the view stops dead",
     "with the finger — \"no inertia\" is a setting, not a missing mechanism. Push `minZoom` below the",
     "zoom at which the whole desk fits and it stops being scrollable and centres instead. Shrink the",
-    "desk to less than the glass and watch the same thing happen without touching the zoom."
+    "desk to less than the glass and watch the same thing happen without touching the zoom.",
+    "",
+    "Two fingers turn the desk as well as zoom it — after a threshold, because fingers never spread",
+    "along a perfect line and a canvas that ends every pinch a few degrees off true is the loudest",
+    "complaint a rotating view gets. Close `rotate` on the panel and the same twist does nothing;",
+    "close all three and the desk is locked without the wheel being taken from the page."
   ]
 }

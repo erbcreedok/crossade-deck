@@ -250,6 +250,68 @@ describe("the camera", () => {
     expect(at(c.transform())).toBeCloseTo(apply(c.transform(), { x: 0, y: 0 }).x, 6);
   });
 
+  it("camera.a-turn-goes-around-the-target — a seat is a literal, not a mechanism", () => {
+    // The whole reason the state is `{ target, zoom, rotation }` and not `{ x, y, zoom }`: "seat
+    // this player at 45° facing the middle" has to be data. If a turn went around the glass's
+    // corner, or around the desk's origin, seating anyone would need code of its own.
+    const c = bench();
+    c.lookAt({ x: 640, y: 480 });
+    const middle = c.toContent(200, 150);
+    c.turnTo(45);
+    const after = c.toContent(200, 150);
+    expect(after.x).toBeCloseTo(middle.x, 6);
+    expect(after.y).toBeCloseTo(middle.y, 6);
+    expect(c.state().rotation).toBe(45);
+    // …and the desk really did turn: a step along the desk's x now goes diagonally on the glass.
+    const o = apply(c.transform(), { x: 640, y: 480 });
+    const along = apply(c.transform(), { x: 641, y: 480 });
+    expect(along.x - o.x).toBeCloseTo(Math.cos(Math.PI / 4), 6);
+    expect(along.y - o.y).toBeCloseTo(Math.sin(Math.PI / 4), 6);
+  });
+
+  it("camera.a-drag-under-a-turn-follows-the-hand — not the desk's own axis", () => {
+    // A screen delta has to become a TARGET delta turned back through the camera's angle. Skip the
+    // inverse turn and a desk at 30° slides off sideways under a finger going straight down — the
+    // kind of wrong that reads as a broken touch layer rather than as a missing matrix.
+    const c = bench();
+    c.turnTo(30);
+    const held = c.toContent(200, 150);
+    c.panBy(-40, 25);
+    const now = apply(c.transform(), held);
+    expect(now.x).toBeCloseTo(200 - 40, 6);
+    expect(now.y).toBeCloseTo(150 + 25, 6);
+  });
+
+  it("camera.a-turned-desk-is-held-by-its-upright-box", () => {
+    // What stays inside the glass is the upright box around the TURNED desk. A desk at 45° is
+    // therefore reachable less far than a square one — deliberately: the alternative reaches
+    // further one way and stops sooner another, for a reason no player could guess by looking.
+    const c = bench();
+    c.turnTo(45);
+    c.panBy(10_000, 10_000);
+    const box = c.state();
+    expect(box.scrollX).toBeCloseTo(0, 6);
+    expect(box.scrollY).toBeCloseTo(0, 6);
+    // The corner of the turned desk sits on the corner of the glass, not inside it: at 45° the
+    // topmost point of the box is the desk's own top corner.
+    const inv = [
+      { x: 0, y: 0 },
+      { x: 2000, y: 0 },
+      { x: 2000, y: 2000 },
+      { x: 0, y: 2000 },
+    ].map((p) => apply(c.transform(), p));
+    expect(Math.min(...inv.map((p) => p.x))).toBeCloseTo(0, 6);
+    expect(Math.min(...inv.map((p) => p.y))).toBeCloseTo(0, 6);
+  });
+
+  it("camera.fit-measures-the-turned-desk — a square desk at 45° needs more room", () => {
+    const c = bench({ minZoom: 0.001, maxZoom: 4 });
+    const square = c.fitZoom();
+    c.turnTo(45);
+    // Its diagonal is what has to fit now: √2 wider, so the fit is √2 smaller.
+    expect(c.fitZoom()).toBeCloseTo(square / Math.SQRT2, 6);
+  });
+
   it("camera.fit-shows-the-whole-desk — and still obeys the limits", () => {
     const c = bench({ minZoom: 0.01, maxZoom: 4 });
     // the tighter side decides — 300 px of glass against 2000 units of desk

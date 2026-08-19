@@ -194,6 +194,14 @@ export interface CameraScene {
   readonly sensitivity?: number | undefined;
   /** Which nodes take a finger for themselves; over one of them the camera stands down. */
   readonly claims?: ((n: Node) => boolean) | undefined;
+  /**
+   * The view's angle, in degrees — applied when it CHANGES and at no other time.
+   *
+   * Not on every feed, or a panel would fight the fingers: twist the desk by hand, touch any other
+   * control, and the view would snap back to whatever the slider still says. Changed, it is the
+   * reader's word and wins.
+   */
+  readonly turn?: number | undefined;
   /** Where the view opens. Read ONCE, when the scene is built. */
   readonly start?: { readonly at?: Point; readonly zoom?: number | "fit" } | undefined;
 }
@@ -404,6 +412,7 @@ export function scene(
       const v = host.viewport();
       if (opened || v.width <= 1 || v.height <= 1) return;
       opened = true;
+      if (cam?.turn !== undefined) camera.turnTo(cam.turn);
       if (start?.zoom !== undefined) camera.setZoom(start.zoom === "fit" ? camera.fitZoom() : start.zoom);
       camera.lookAt(start?.at ?? { x: 0, y: 0 });
       // At once, not on the next frame: the painter above already drew one, through a camera that
@@ -416,8 +425,10 @@ export function scene(
       openView();
     });
     CAMERAS.set(id, (next) => {
+      const turned = next.turn !== undefined && next.turn !== cam?.turn;
       cam = next;
       camera.retune(next.limits);
+      if (turned) camera.turnTo(next.turn!);
       control.refresh();
     });
     stopCamera = () => {

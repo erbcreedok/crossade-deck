@@ -239,5 +239,9 @@
   "arg.flingCap": "The fastest a throw may be, in screen pixels per second. Without it a flick of the wrist sends the desk into the next county.",
   "arg.flingFloor": "Below this speed there is no throw at all — that is a hand coming to rest, not a flick. It is also where a running throw stops.",
   "arg.flingDecay": "How fast a throw dies. The step is `exp(-decay × dt)`, so the slide is the same at 60 Hz and at 120; a per-frame decay sends the very same flick four times as far on a fast screen.",
-  "arg.flingSmoothing": "How much of the newest sample the speed estimate takes. Half, so one late frame cannot become the throw — a desk that occasionally rockets away on release is worse than one that never coasts."
+  "arg.flingSmoothing": "How much of the newest sample the speed estimate takes. Half, so one late frame cannot become the throw — a desk that occasionally rockets away on release is worse than one that never coasts.",
+  "arg.inputPan": "May the HAND move the view. A rule may close it in the middle of a game — a puzzle that pins the desk for its last move — and nothing is rebuilt: the wiring asks the camera at every gesture.",
+  "arg.inputZoom": "May the hand zoom. Closed, the wheel is not taken from the page either: a canvas that swallows it while refusing to move reads as a hung site.",
+  "arg.inputRotate": "May two fingers turn the desk. Closed by many games on purpose — a board with a right way up has nothing to gain from a twist.",
+  "arg.cameraTurn": "The view's angle, in degrees clockwise. The turn goes around the camera's target, which is what makes a seat at the desk a literal: an angle and a point, not a mechanism. Applied when this number changes, so the slider does not fight the fingers."
 }

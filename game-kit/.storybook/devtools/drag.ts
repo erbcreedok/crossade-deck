@@ -61,7 +61,13 @@ export function runBelow(_root: Node, hit: Node): readonly Node[] {
 
 interface Wiring {
   opts: DragOptions;
-  drag: { readonly items: readonly CarryItem[]; readonly delta: Point } | undefined;
+  /**
+   * `pointer` is the finger that grabbed, and every other one is ignored until it lets go.
+   *
+   * Without it a second finger — the one that arrives to pinch the desk — drives somebody else's
+   * drag: the card chases a hand that never touched it, and lands wherever that hand stopped.
+   */
+  drag: { readonly items: readonly CarryItem[]; readonly delta: Point; readonly pointer: number } | undefined;
   /** Undresses every zone the grab invited — release calls it, and it is the whole protocol. */
   undoInvites: (() => void) | undefined;
 }
@@ -99,7 +105,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
-    w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y } };
+    w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
@@ -113,7 +119,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   };
 
   const onMove = (e: PointerEvent): void => {
-    if (!w.drag || !s.motions) return;
+    if (!w.drag || w.drag.pointer !== e.pointerId || !s.motions) return;
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     s.motions.dragTo({ x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y });
   };
@@ -121,7 +127,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const onUp = (e: PointerEvent): void => {
     const drag = w.drag;
     const motions = s.motions;
-    if (!drag || !motions) return;
+    if (!drag || drag.pointer !== e.pointerId || !motions) return;
     w.drag = undefined;
     w.undoInvites?.();
     w.undoInvites = undefined;

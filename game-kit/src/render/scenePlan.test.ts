@@ -16,6 +16,7 @@ import { add, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply, IDENTITY, move } from "../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./scenePlan.js";
+import { Camera } from "./camera.js";
 import { registerAsset } from "./assets.js";
 import { registerEffect, resetEffects } from "./effects.js";
 import { registerSurface, resetSurfaces } from "./surfaces.js";
@@ -256,6 +257,36 @@ describe("scenePlan", () => {
       add(root, node("piece", box(1, 1.4), Surfaced(), Transformable({ angle }), ShadowCaster()));
       return root;
     }
+  });
+
+  it("plan.a-shadow-under-a-camera-keeps-its-length-in-units — and its direction on the glass", () => {
+    // Two laws at once, and the camera is where they can finally disagree. The fall is a length in
+    // UNITS laid down in SCREEN pixels: measured against the etalon instead of against the view in
+    // force, it holds a constant pixel length while everything around it grows, and a piece slides
+    // down onto its own shadow as the reader zooms in. And the DIRECTION is the frame's, never the
+    // desk's — the lamp is in the top right of the FRAME, so turning the camera must not swing the
+    // shadow round the piece.
+    const desk = node("d", Container({ layout: "free" }));
+    add(desk, node("piece", Bounded({ bounds: rect(1, 1) }), Surfaced(), ShadowCaster()));
+    const c = new Camera({ minZoom: 0.1, maxZoom: 8 });
+    c.setScreen(400, 300);
+    c.setContent({ x: -10, y: -10, w: 20, h: 20 }, 50);
+    const fallAt = (): { x: number; y: number } => {
+      const quads = scenePlan({ root: desk, unit: 50, width: 400, height: 300, viewer: DEFAULT_VIEWER, view: c.transform() });
+      const s = quads.find((q) => q.id === "piece::shadow")!;
+      const p = quads.find((q) => q.id === "piece")!;
+      return { x: s.x - p.x, y: s.y - p.y };
+    };
+    const near = fallAt();
+    c.setZoom(2);
+    const far = fallAt();
+    expect(far.x).toBeCloseTo(near.x * 2, 6);
+    expect(far.y).toBeCloseTo(near.y * 2, 6);
+    // …and the turn leaves the fall pointing exactly where it pointed.
+    c.turnTo(90);
+    const turned = fallAt();
+    expect(turned.x).toBeCloseTo(far.x, 6);
+    expect(turned.y).toBeCloseTo(far.y, 6);
   });
 
   it("plan.height-deepens-the-shadow — z is the source, the fall's length is its consequence", () => {

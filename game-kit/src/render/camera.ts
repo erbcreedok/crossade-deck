@@ -3,17 +3,19 @@
 // Ported, not invented: this is `client2/src/game/engine/viewport.ts` moved onto the kit's terms,
 // numbers and all. Those numbers were settled by hand against a real finger — the fling cap, the
 // threshold that tells a flick from a tremble, the decay, the wheel's zoom sensitivity — and a
-// second set guessed here would feel like a different product for no reason.
+// second set guessed here would feel like a different product for no reason. The turn is the one
+// thing `client2` never had: it comes from the design (`docs/design/camera.md`), where a seat at
+// the desk is a camera preset and nothing else.
 //
 // It holds NUMBERS ONLY and draws nothing. The plan asks it for a transform; the painter never
 // hears of it. That is what keeps everything below the camera checkable headless: a desk, its
 // pieces, their rules and the composition of `z` and angles are data and mathematics, and rendering
-// begins only here (`docs/design/camera.md`).
+// begins only here.
 //
 // The camera is LOCAL and never part of a game's state. A view is not a truth, so there is nothing
 // to synchronise: one desk may be looked at by many cameras at once — a seat, a minimap, a watcher.
 
-import { compose, move, scale, type Transform } from "../core/transform.js";
+import { apply, chain, compose, invert, move, rotate, scale, type Transform } from "../core/transform.js";
 import { type Point } from "../core/atoms/bounded.js";
 
 /** Keep a number inside a range. */
@@ -46,6 +48,30 @@ export const FLING: Fling = { cap: 4000, floor: 40, decay: 5, smoothing: 0.5, ma
 export const NO_FLING: Fling = { cap: 0, floor: Infinity, decay: Infinity, smoothing: 0.5, maxGap: 0.1 };
 
 /**
+ * WHAT THE PLAYER MAY DO TO THE VIEW — three fields of data, not a mode with a name.
+ *
+ * `free`, `fit` and `locked` stay presets somebody writes down; they are never things the engine
+ * knows. The moment they are an enum, "locked, but you may still zoom out to see the whole board"
+ * needs a fourth name, and the next combination needs a fifth. Three switches answer all eight.
+ *
+ * They are read at GESTURE TIME, so a rule may close one mid-game — a puzzle that pins the view for
+ * its last move, a tutorial that will not let the desk turn until it has said why — and nothing is
+ * rebuilt: `camera.retune({ input: { ...FREE_INPUT, rotate: false } })`, and the next twist does
+ * nothing. What this never governs is the camera's own methods: a game that moves the view is the
+ * game deciding, and these say only what the HAND may do.
+ */
+export interface CameraInput {
+  readonly pan: boolean;
+  readonly zoom: boolean;
+  readonly rotate: boolean;
+}
+
+/** The hand may do everything — what a desk with nothing to hide starts as. */
+export const FREE_INPUT: CameraInput = { pan: true, zoom: true, rotate: true };
+/** Look, do not touch: every gesture refused, while the game still moves the view itself. */
+export const LOCKED_INPUT: CameraInput = { pan: false, zoom: false, rotate: false };
+
+/**
  * WHAT THERE IS TO LOOK AT — the stretch of desk the view is held inside, in units.
  *
  * A RECT and not a size, because a desk is laid out AROUND its origin: a table spanning -1000 to
@@ -67,11 +93,15 @@ export interface CameraLimits {
   readonly maxZoom: number;
   /** The inertia this camera throws with. Absent, the stock feel. */
   readonly fling?: Fling;
+  /** What the player's hand may do. Absent, everything — see `CameraInput`. */
+  readonly input?: CameraInput;
 }
 
 /** What the view is worth right now — enough to draw a scrollbar without asking anything else. */
 export interface CameraState {
   readonly zoom: number;
+  /** Degrees, clockwise on screen. */
+  readonly rotation: number;
   /** 0…1 along each axis, and how much of the whole is on screen. `0` when there is nothing to scroll. */
   readonly scrollX: number;
   readonly scrollY: number;
@@ -81,18 +111,34 @@ export interface CameraState {
   readonly scrollableY: boolean;
 }
 
+/** A rectangle on the glass, in screen pixels. */
+interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
 /**
- * THE CAMERA. `x`/`y` are where the desk's ORIGIN sits on the glass, in screen pixels, and `zoom`
- * multiplies the unit; the pair is exactly what the view transform is built from.
+ * THE CAMERA. Its state is `{ target, zoom, rotation }` and nothing else: `target` is the point of
+ * the DESK that sits in the middle of the glass, and a turn goes AROUND it.
+ *
+ * Not `{ x, y, zoom }`, and the difference is not bookkeeping. With a target, "seat this player at
+ * 45° facing the middle" is a literal of data — `{ target: middle, rotation: seatAngle }` — rather
+ * than a mechanism of its own: the desk is the same desk, and only the point of view differs. `x`
+ * and `y` survive as READINGS of where the desk's origin landed, because a scrollbar and a test
+ * still want them, but nothing is stored there.
  *
  * The bounds are told to it rather than discovered: a camera knows the size of the SCREEN and the
- * size of the CONTENT, and everything else — where the view may go, whether an axis can scroll at
+ * rect of the CONTENT, and everything else — where the view may go, whether an axis can scroll at
  * all, where a fling has to stop — follows from those two. Nothing here reads a node.
  */
 export class Camera {
-  x = 0;
-  y = 0;
+  /** The desk point in the middle of the glass. */
+  target: Point = { x: 0, y: 0 };
   zoom = 1;
+  /** Degrees, clockwise on screen. The whole desk turns; nothing on it learns that it did. */
+  rotation = 0;
 
   private screenW = 1;
   private screenH = 1;
@@ -111,14 +157,21 @@ export class Camera {
   }
 
   /**
-   * NEW LIMITS UNDER A STANDING VIEW — a settings screen, not a rebuild.
+   * NEW NUMBERS UNDER A STANDING VIEW — a settings screen, or a rule closing a gesture mid-game.
    *
-   * The zoom is put back through its own door afterwards, so a view already outside the new range
-   * is brought inside it instead of sitting there until the next gesture happens to notice.
+   * A PATCH, merged over what is there, so `retune({ input })` need not restate limits it does not
+   * care about. The zoom is put back through its own door afterwards, so a view already outside a
+   * new range is brought inside it instead of sitting there until the next gesture happens to
+   * notice.
    */
-  retune(limits: CameraLimits): void {
-    this.limits = limits;
+  retune(patch: Partial<CameraLimits>): void {
+    this.limits = { ...this.limits, ...patch };
     this.setZoom(this.zoom);
+  }
+
+  /** What the hand may do right now. */
+  get input(): CameraInput {
+    return this.limits.input ?? FREE_INPUT;
   }
 
   private get fling(): Fling {
@@ -142,20 +195,37 @@ export class Camera {
     return this.unit * this.zoom;
   }
 
-  /** The content's size on the glass right now — extent × unit × zoom. */
-  private get shownW(): number {
-    return this.content.w * this.k;
+  /** Where the desk's origin landed on the glass. A READING of the transform, never the state. */
+  get x(): number {
+    return this.transform().e;
   }
-  private get shownH(): number {
-    return this.content.h * this.k;
+  get y(): number {
+    return this.transform().f;
   }
 
-  /** Where the desk's smallest corner sits, measured from `x`/`y`. Zero for a desk starting at 0. */
-  private get cornerX(): number {
-    return this.content.x * this.k;
-  }
-  private get cornerY(): number {
-    return this.content.y * this.k;
+  /**
+   * THE DESK'S BOX ON THE GLASS — its four corners mapped through the view, then bounded.
+   *
+   * A BOUNDING box, and under a turn that is a decision rather than a shortcut: a desk at 45° cannot
+   * be pushed until its own corner touches the glass's, because what is held inside the glass is the
+   * upright box around the turned desk (`docs/design/camera.md`). Predictable beats maximal — the
+   * alternative reaches further in one direction and stops sooner in another, for a reason no player
+   * could guess from looking.
+   */
+  private screenBox(): Box {
+    const t = this.transform();
+    const { x, y, w, h } = this.content;
+    const corners = [
+      apply(t, { x, y }),
+      apply(t, { x: x + w, y }),
+      apply(t, { x: x + w, y: y + h }),
+      apply(t, { x, y: y + h }),
+    ];
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
   }
 
   /**
@@ -166,10 +236,25 @@ export class Camera {
    * declining to move.
    */
   get overflowX(): boolean {
-    return this.shownW > this.screenW + 0.5;
+    return this.screenBox().w > this.screenW + 0.5;
   }
   get overflowY(): boolean {
-    return this.shownH > this.screenH + 0.5;
+    return this.screenBox().h > this.screenH + 0.5;
+  }
+
+  /**
+   * MOVE THE VIEW BY A SCREEN DELTA — the one place a screen offset becomes a target offset.
+   *
+   * The target lives in the DESK's coordinates, so a hand that dragged the glass ten pixels right
+   * moved the target ten pixels left, TURNED BACK through the camera's own angle and divided by its
+   * scale. Written anywhere else, the day the camera learned to turn every one of those places
+   * would have been wrong in a different way.
+   */
+  private shift(dx: number, dy: number): void {
+    const inv = invert(compose(rotate(this.rotation), scale(this.k)));
+    if (!inv) return; // a zero scale: nothing to move, and nothing to divide by
+    const d = apply(inv, { x: dx, y: dy });
+    this.target = { x: this.target.x - d.x, y: this.target.y - d.y };
   }
 
   /**
@@ -178,29 +263,23 @@ export class Camera {
    * the whole layout jump sideways the moment the window changes width.
    */
   clamp(): void {
-    const w = this.shownW;
-    const h = this.shownH;
-    // WHAT IS HELD IS THE DESK'S OWN CORNER, not `x`: for a desk laid out around zero the corner
-    // is half a desk to the left of the origin, and clamping the origin instead pins the view
-    // inside one quarter of the desk while every number in it reads perfectly correct.
-    const left = this.cornerX;
-    const top = this.cornerY;
-    const cx = w <= this.screenW ? (this.screenW - w) / 2 : clamp(this.x + left, this.screenW - w, 0);
-    const cy = h <= this.screenH ? (this.screenH - h) / 2 : clamp(this.y + top, this.screenH - h, 0);
-    this.x = cx - left;
-    this.y = cy - top;
+    const box = this.screenBox();
+    const dx =
+      box.w <= this.screenW ? (this.screenW - box.w) / 2 - box.x : clamp(0, this.screenW - box.w - box.x, -box.x);
+    const dy =
+      box.h <= this.screenH ? (this.screenH - box.h) / 2 - box.y : clamp(0, this.screenH - box.h - box.y, -box.y);
+    if (dx !== 0 || dy !== 0) this.shift(dx, dy);
   }
 
   /** A point on the glass, in the desk's units. The inverse of what `transform()` builds. */
   toContent(sx: number, sy: number): Point {
-    const k = this.k;
-    return { x: (sx - this.x) / k, y: (sy - this.y) / k };
+    const inv = invert(this.transform());
+    return inv ? apply(inv, { x: sx, y: sy }) : { x: sx, y: sy };
   }
 
   /** Move the view by a screen-pixel delta. */
   panBy(dx: number, dy: number): void {
-    this.x += dx;
-    this.y += dy;
+    this.shift(dx, dy);
     this.clamp();
   }
 
@@ -221,33 +300,61 @@ export class Camera {
    * A pinch is not "zoom about the midpoint": the midpoint TRAVELS, and what the hand expects is
    * that the spot it grabbed stays between the fingers wherever they carry it. So the anchor is
    * taken once, at the start, and pinned to wherever the middle is now — zooming and panning at
-   * once, out of one statement rather than two that have to agree.
+   * once, out of one statement rather than two that have to agree. A turn mid-gesture then needs no
+   * special case at all: set the rotation, pin the anchor again, and the desk swings about the
+   * fingers instead of about the middle of the glass.
    */
   holdAt(p: Point, sx: number, sy: number, zoom: number): void {
     this.zoom = clamp(zoom, this.limits.minZoom, this.limits.maxZoom);
-    const k = this.k;
-    this.x = sx - p.x * k;
-    this.y = sy - p.y * k;
+    const now = apply(this.transform(), p);
+    this.shift(sx - now.x, sy - now.y);
     this.clamp();
   }
 
   /** Set the zoom outright, about the middle of the glass. */
   setZoom(z: number): void {
-    const want = clamp(z, this.limits.minZoom, this.limits.maxZoom);
-    this.zoomAround(this.screenW / 2, this.screenH / 2, want / this.zoom);
+    this.zoom = clamp(z, this.limits.minZoom, this.limits.maxZoom);
+    this.clamp();
+  }
+
+  /**
+   * TURN THE VIEW, about the target — which is what makes a seat a literal: the angle of a place at
+   * the desk is the angle of its camera, so that player's own hand reads upright with no billboard
+   * and no special case (`docs/design/camera.md`).
+   */
+  turnTo(deg: number): void {
+    this.rotation = deg;
+    this.clamp();
   }
 
   /** Put a point of the DESK in the middle of the glass — what "the camera looks at X" means. */
   lookAt(p: Point): void {
-    this.holdAt(p, this.screenW / 2, this.screenH / 2, this.zoom);
+    this.target = p;
+    this.clamp();
   }
 
-  /** The zoom at which the whole desk is on the glass, inside the limits. */
+  /**
+   * The zoom at which the whole desk is on the glass, inside the limits.
+   *
+   * Measured on the TURNED box: a desk seen at an angle needs more room than one seen square, and a
+   * fit that ignored the turn would push the corners off the glass at every angle but zero.
+   */
   fitZoom(padding = 0): number {
     const w = Math.max(1, this.screenW - padding * 2);
     const h = Math.max(1, this.screenH - padding * 2);
-    const wide = this.content.w * this.unit;
-    const tall = this.content.h * this.unit;
+    // Measured at zoom 1 with the turn folded in. The box scales with the zoom, so one measurement
+    // answers for all of them.
+    const t = compose(rotate(this.rotation), scale(this.unit));
+    const corners = [
+      apply(t, { x: 0, y: 0 }),
+      apply(t, { x: this.content.w, y: 0 }),
+      apply(t, { x: this.content.w, y: this.content.h }),
+      apply(t, { x: 0, y: this.content.h }),
+    ];
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const wide = Math.max(...xs) - Math.min(...xs);
+    const tall = Math.max(...ys) - Math.min(...ys);
     const want = Math.min(wide > 0 ? w / wide : 1, tall > 0 ? h / tall : 1);
     return clamp(want, this.limits.minZoom, this.limits.maxZoom);
   }
@@ -299,21 +406,22 @@ export class Camera {
    *
    * An axis that has run into its edge is killed rather than left pressing against it: a view that
    * keeps "arriving" at a wall it already reached goes on asking for frames with nothing to show.
+   * Which axis stopped is read off the GLASS, because that is the space the speed is in — under a
+   * turn it is not the axis the target moved along.
    */
   stepFling(dtSeconds: number): boolean {
     if (!this.flinging) return false;
     const f = this.fling;
-    const wasX = this.x;
-    const wasY = this.y;
-    this.x += this.vx * dtSeconds;
-    this.y += this.vy * dtSeconds;
+    const was = this.transform();
+    this.shift(this.vx * dtSeconds, this.vy * dtSeconds);
     this.clamp();
-    if (this.x === wasX) this.vx = 0;
-    if (this.y === wasY) this.vy = 0;
+    const now = this.transform();
+    if (now.e === was.e) this.vx = 0;
+    if (now.f === was.f) this.vy = 0;
     // Frame-rate independent: the same slide at 60 Hz and at 120.
-    const k = Math.exp(-f.decay * dtSeconds);
-    this.vx *= k;
-    this.vy *= k;
+    const decay = Math.exp(-f.decay * dtSeconds);
+    this.vx *= decay;
+    this.vy *= decay;
     if (Math.hypot(this.vx, this.vy) < f.floor) this.flinging = false;
     return this.flinging;
   }
@@ -322,20 +430,18 @@ export class Camera {
 
   /** The view as numbers — everything a scrollbar or a readout needs, and nothing about nodes. */
   state(): CameraState {
-    const w = this.shownW;
-    const h = this.shownH;
-    const overX = Math.max(0, w - this.screenW);
-    const overY = Math.max(0, h - this.screenH);
-    // Measured from the desk's CORNER, so a desk laid out around zero reads 0 at its left edge
-    // and 1 at its right, exactly as one starting at zero does.
-    const fromLeft = -(this.x + this.cornerX);
-    const fromTop = -(this.y + this.cornerY);
+    const box = this.screenBox();
+    const overX = Math.max(0, box.w - this.screenW);
+    const overY = Math.max(0, box.h - this.screenH);
     return {
       zoom: this.zoom,
-      scrollX: overX > 0 ? fromLeft / overX : 0,
-      scrollY: overY > 0 ? fromTop / overY : 0,
-      thumbX: w > 0 ? Math.min(1, this.screenW / w) : 1,
-      thumbY: h > 0 ? Math.min(1, this.screenH / h) : 1,
+      rotation: this.rotation,
+      // Measured from the box's own corner, so a desk laid out around zero reads 0 at its left edge
+      // and 1 at its right, exactly as one starting at zero does.
+      scrollX: overX > 0 ? -box.x / overX : 0,
+      scrollY: overY > 0 ? -box.y / overY : 0,
+      thumbX: box.w > 0 ? Math.min(1, this.screenW / box.w) : 1,
+      thumbY: box.h > 0 ? Math.min(1, this.screenH / box.h) : 1,
       scrollableX: overX > 1,
       scrollableY: overY > 1,
     };
@@ -344,9 +450,17 @@ export class Camera {
   /**
    * THE ONE DOOR INTO COORDINATES. Everything that turns a unit into a pixel goes through this
    * transform — nothing reads the stage's own scale or adds offsets by hand.
+   *
+   * Read outwards: take the desk to its target, scale it, turn it, and drop it in the middle of the
+   * glass. Any other order turns "twice as big" into "twice as far away".
    */
   transform(): Transform {
-    return compose(move(this.x, this.y), scale(this.k));
+    return chain([
+      move(this.screenW / 2, this.screenH / 2),
+      rotate(this.rotation),
+      scale(this.k),
+      move(-this.target.x, -this.target.y),
+    ]);
   }
 }
 

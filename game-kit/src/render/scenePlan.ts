@@ -388,7 +388,16 @@ export function scenePlan({ root, unit, width, height, viewer, view, overrides, 
     // it would say it is standing at every point of the flight. So its shadow waits at the rest pose
     // it is flying towards, and the fall keeps the resting length.
     const inHand = carried?.has(n.id) === true;
-    const off = (depth.base + depth.perZ * z + (inHand ? depth.lifted : 0)) * unit;
+    // THE FALL IS A LENGTH IN UNITS, and it is laid down in SCREEN pixels — so it is measured
+    // against the scale of the view actually in force, not against the etalon.
+    //
+    // The two are the same number for the plain centred view, and they part company the moment a
+    // camera is in front: her scale is zoom times her own unit, and a fall that kept using the
+    // etalon would hold a constant pixel length while everything around it grew — a piece drifting
+    // down onto its own shadow as the reader zooms in. The comment at the top of this file already
+    // said units, so zoom never changes the shadow-to-size ratio; this is that sentence in code.
+    const perUnit = Math.hypot(toView.a, toView.b);
+    const off = (depth.base + depth.perZ * z + (inHand ? depth.lifted : 0)) * perUnit;
     const seat = (inHand ? overrides?.get(n.id) : undefined) ?? nodes.get(n.id) ?? IDENTITY;
     const toGlass = compose(move(fall.x * off, fall.y * off), compose(toView, seat));
     const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });

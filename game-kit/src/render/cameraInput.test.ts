@@ -19,8 +19,8 @@ import { rect } from "../presets/shapes.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { resetSurfaces } from "./surfaces.js";
 import { type Host } from "./host.js";
-import { Camera, NO_FLING } from "./camera.js";
-import { wireCamera, type CameraControl } from "./cameraInput.js";
+import { Camera, LOCKED_INPUT, NO_FLING, type CameraInput } from "./camera.js";
+import { TWIST, wireCamera, type CameraControl } from "./cameraInput.js";
 
 /** A view that records its listeners and fires them — the wiring asks it for nothing else. */
 function stubView(): {
@@ -76,7 +76,9 @@ interface Bench {
  * A desk of 20×20 units laid out AROUND ZERO — a kit desk — at 100px a unit on a 400×300 glass, so
  * every axis has somewhere to go. One card sits at the origin for the arbitration to find.
  */
-function bench(options: { claims?: (n: Node) => boolean; inDocument?: boolean; fling?: boolean } = {}): Bench {
+function bench(
+  options: { claims?: (n: Node) => boolean; inDocument?: boolean; fling?: boolean; input?: CameraInput } = {},
+): Bench {
   const root = node("desk", Container({ layout: "free" }));
   add(root, node("card", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
   const hand = stubView();
@@ -88,7 +90,12 @@ function bench(options: { claims?: (n: Node) => boolean; inDocument?: boolean; f
     viewer: () => DEFAULT_VIEWER,
     setRoot: () => undefined,
   } as unknown as Host;
-  const camera = new Camera({ minZoom: 0.1, maxZoom: 4, ...(options.fling === false ? { fling: NO_FLING } : {}) });
+  const camera = new Camera({
+    minZoom: 0.1,
+    maxZoom: 4,
+    ...(options.fling === false ? { fling: NO_FLING } : {}),
+    ...(options.input ? { input: options.input } : {}),
+  });
   let painted = 0;
   const wiring = wireCamera({
     host,
@@ -248,6 +255,72 @@ describe("the camera's fingers", () => {
     zoomed.hand.wheel({ deltaY: -120, ctrlKey: true, clientX: 320, clientY: 80 });
     expect(zoomed.camera.zoom).toBeGreaterThan(1);
     expect(zoomed.camera.toContent(320, 80).x).toBeCloseTo(held.x, 6);
+  });
+
+  it("cameraInput.two-fingers-turn-the-desk — after they have meant it", () => {
+    // Fingers never spread along a perfect line, so without a threshold every plain pinch leaves
+    // the desk a few degrees off true — the loudest complaint a rotating canvas gets. And the
+    // threshold is SUBTRACTED once crossed: a desk that jumped twelve degrees to start turning
+    // would be a worse cure than the disease.
+    const b = bench();
+    b.hand.down(1, 150, 150);
+    b.hand.down(2, 250, 150);
+    // A small twist, under the threshold: nothing turns.
+    b.hand.move(2, 250, 158, 16); // about 4.6°
+    expect(b.camera.rotation).toBe(0);
+    // Past it: the desk turns by the excess, not by the whole swing.
+    b.hand.move(2, 250, 150 + 100 * Math.tan((Math.PI / 180) * 40), 32);
+    expect(b.camera.rotation).toBeCloseTo(40 - TWIST, 4);
+  });
+
+  it("cameraInput.a-rule-can-close-a-gesture — and the others stay open", () => {
+    // The three gates are DATA a rule may change mid-game: a puzzle that pins the view for its last
+    // move, a tutorial that will not let the desk turn yet. Nothing is rebuilt and nothing is
+    // re-wired — the wiring asks the camera at gesture time, every time.
+    const b = bench({ input: { pan: false, zoom: true, rotate: false } });
+    const was = { x: b.camera.x, y: b.camera.y, zoom: b.camera.zoom };
+    b.hand.down(1, 300, 200);
+    b.hand.move(1, 200, 120, 16);
+    expect(b.wiring.gesture(), "a view that may not be panned took a finger anyway").toBe("none");
+    expect(b.camera.x).toBe(was.x);
+    // …while the wheel still zooms, because that gate is open.
+    expect(b.hand.wheel({ deltaY: -120, ctrlKey: true })).toBe(true);
+    expect(b.camera.zoom).toBeGreaterThan(was.zoom);
+    // …and two fingers still zoom, about the middle of the glass rather than about themselves.
+    const mid = b.camera.toContent(200, 150);
+    b.hand.down(2, 150, 150);
+    b.hand.down(3, 250, 150);
+    b.hand.move(2, 100, 150, 48);
+    b.hand.move(3, 300, 150, 56);
+    expect(b.camera.zoom).toBeGreaterThan(was.zoom);
+    expect(b.camera.rotation, "rotation was closed").toBe(0);
+    expect(b.camera.toContent(200, 150).x).toBeCloseTo(mid.x, 6);
+  });
+
+  it("cameraInput.a-locked-view-refuses-every-gesture — and does not eat the wheel", () => {
+    // `locked` is not a mode the engine knows; it is the three switches off. A locked desk that
+    // still swallowed the wheel would freeze the page it sits in — which is exactly how a canvas
+    // gets read as a hung site.
+    const b = bench({ input: LOCKED_INPUT });
+    const was = { x: b.camera.x, zoom: b.camera.zoom, rotation: b.camera.rotation };
+    b.hand.down(1, 300, 200);
+    b.hand.move(1, 200, 120, 16);
+    b.hand.up(1, 200, 120, 32);
+    b.hand.down(2, 150, 150);
+    b.hand.down(3, 250, 150);
+    b.hand.move(3, 350, 250, 48);
+    expect(b.hand.wheel({ deltaY: 120 })).toBe(false);
+    expect(b.hand.wheel({ deltaY: -120, ctrlKey: true })).toBe(false);
+    expect({ x: b.camera.x, zoom: b.camera.zoom, rotation: b.camera.rotation }).toEqual(was);
+    expect(b.camera.flinging).toBe(false);
+
+    // …and opening a gate again is one call on the standing camera, not a rebuild.
+    b.hand.up(2, 150, 150, 56);
+    b.hand.up(3, 350, 250, 56);
+    b.camera.retune({ input: { pan: true, zoom: false, rotate: false } });
+    b.hand.down(4, 300, 200, 64);
+    b.hand.move(4, 260, 200, 80);
+    expect(b.camera.x).toBeCloseTo(was.x - 40, 6);
   });
 
   it("cameraInput.stopping-forgets-every-listener-and-the-throw", () => {

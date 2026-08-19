@@ -6,6 +6,7 @@ import {
   Draggable,
   draggable,
   FLING,
+  FREE_INPUT,
   freeLayout,
   installStockCarries,
   node,
@@ -27,7 +28,9 @@ import { documented } from "./surfaceControls.js";
 // fits, and that is the lesson — the reader arrives somewhere in the middle of it and gets around by
 // hand. Drag to pan, throw and let go, pinch or ctrl+wheel to zoom, wheel to scroll. The one card
 // is the arbitration: a gesture over an ELEMENT drives the element, over empty desk it drives the
-// camera, and the two never argue about a finger.
+// camera, and the two never argue about a finger. Two fingers also TURN it, once they have meant
+// it — and every one of the three gestures can be closed from the panel while the desk stands,
+// which is what a game's own rule does when it pins the view for one move.
 //
 // ONE UNIT IS ONE PIXEL AT ZOOM 1 on this desk, and that is a decision the story makes rather than
 // something the kit imposes: there is no universal measure for a desk (`docs/design/camera.md`).
@@ -46,6 +49,10 @@ export default meta;
 interface ZoneArgs {
   w: number;
   h: number;
+  pan: boolean;
+  zoom: boolean;
+  rotate: boolean;
+  turn: number;
   minZoom: number;
   maxZoom: number;
   sensitivity: number;
@@ -80,7 +87,7 @@ export const Zone: StoryObj<ZoneArgs> = {
   // fifth of the desk and the first thing that works is the hand. The chequer is there to be moved
   // past: motion on a plain surface is invisible, and a camera with nothing to measure against
   // reads as a canvas that did not load.
-  render: ({ w, h, minZoom, maxZoom, sensitivity, fling, cap, floor, decay, smoothing }) => {
+  render: ({ w, h, pan, zoom, rotate, turn, minZoom, maxZoom, sensitivity, fling, cap, floor, decay, smoothing }) => {
     registerLayout("story.camera.free", freeLayout);
     registerSurface("story.camera.zone", {
       layers: [{ paint: "sunkBg" }],
@@ -134,7 +141,13 @@ export const Zone: StoryObj<ZoneArgs> = {
           minZoom,
           maxZoom,
           fling: fling ? { cap, floor, decay, smoothing, maxGap: FLING.maxGap } : { ...FLING, cap: 0, floor: Infinity },
+          // THE THREE GATES, live: a re-render retunes the STANDING camera, so closing one here is
+          // the same call a game's own rule would make in the middle of a turn.
+          input: { pan, zoom, rotate },
         },
+        // Applied only when this number changes, so the slider and the fingers do not fight over
+        // the angle — twist the desk by hand and the panel leaves it alone until it is moved.
+        turn,
         // The desk is laid out AROUND zero, so its corner is at minus half — the camera is told the
         // rect and not the size, or three quarters of the zone would be unreachable.
         content: { x: -w / 2, y: -h / 2, w, h },
@@ -155,6 +168,10 @@ export const Zone: StoryObj<ZoneArgs> = {
   args: {
     w: 2000,
     h: 2000,
+    pan: FREE_INPUT.pan,
+    zoom: FREE_INPUT.zoom,
+    rotate: FREE_INPUT.rotate,
+    turn: 0,
     minZoom: 0.2,
     maxZoom: 3,
     sensitivity: ZOOM_SENS,
@@ -167,6 +184,10 @@ export const Zone: StoryObj<ZoneArgs> = {
   argTypes: {
     w: documented("arg.w", { control: { type: "number", min: 100, step: 100 } }, "desk"),
     h: documented("arg.h", { control: { type: "number", min: 100, step: 100 } }, "desk"),
+    pan: documented("arg.inputPan", {}, "camera/input"),
+    zoom: documented("arg.inputZoom", {}, "camera/input"),
+    rotate: documented("arg.inputRotate", {}, "camera/input"),
+    turn: documented("arg.cameraTurn", { control: { type: "range", min: -180, max: 180, step: 5 } }, "camera"),
     minZoom: limit("arg.minZoom"),
     maxZoom: limit("arg.maxZoom"),
     sensitivity: documented(
