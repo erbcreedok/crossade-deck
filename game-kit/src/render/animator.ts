@@ -22,8 +22,8 @@
 // write, so a pointer-move costs one paint and no reconcile. `grab`/`dragTo` are that gesture, and
 // they carry the "feel": the run rides the finger 1:1 (no position lag — a held thing does not trail
 // the hand), and a spring per axis CHASES the same target beside it, purely to READ the finger's speed:
-// that speed is the lean the run banks into its motion with (`carry` style + `lean`) and the speed a
-// throw inherits. A lift spring pops the run up on the way in. The run's per-card poses are a
+// that speed asks for a lean (`lean`), a THIRD spring banks the run toward it (`carry` style), and
+// the same speed is what a throw inherits. A lift spring pops the run up on the way in. The run's per-card poses are a
 // `CarryStyle` (rigid = one plank about the pivot, loose = per-card) fed the finger's anchor each
 // frame. `release(id)` hands the node back, and because the tree never moved, the
 // next reconcile eases it home from exactly where the finger left it — the lean and lift unwind on the
@@ -207,6 +207,12 @@ const EPSILON = 1e-6;
 const MAX_DT = 0.05;
 /** "Close enough" for a carry to stop the loop — root units for a position, a fraction for the scale. */
 const CARRY_EPS = 1e-3;
+/**
+ * The same, for the lean — DEGREES, and its own number because the channel's units are its own: a
+ * twentieth of a degree moves a card's corner by a fraction of a pixel, while the position's `1e-3`
+ * would hold the loop awake for a second after the hand has stopped, for nothing anyone can see.
+ */
+const BANK_EPS = 0.05;
 /** "Stopped" for a slide — units/s and degrees/s. */
 const SLIDE_EPS = 0.02;
 const SPIN_EPS = 2;
@@ -243,9 +249,12 @@ interface Carry {
   sx: SpringState;
   sy: SpringState;
   sl: SpringState;
+  /** The BANK — the lean actually drawn, chasing the lean the speed asks for. Degrees. */
+  sa: SpringState;
   readonly liftTo: number;
   readonly follow: SpringConfig;
   readonly liftCfg: SpringConfig;
+  readonly bankCfg: SpringConfig;
   readonly tiltFactor: number;
   readonly tiltMax: number;
 }
@@ -393,11 +402,20 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       ...(options.bake ? { bake: options.bake } : {}),
     });
 
-  /** True once a carry's springs have all but arrived and stopped — the gate the loop sleeps on. */
+  /** The bank this frame's speed is ASKING for — what the lean spring chases, degrees. */
+  const wantLean = (cy: Carry): number => lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);
+
+  /**
+   * True once a carry's springs have all but arrived and stopped — the gate the loop sleeps on.
+   *
+   * The bank is one of them: it outlives the speed that raised it, and a loop that slept on the
+   * other three would leave the card standing at whatever angle the last frame caught it at.
+   */
   const carrySettled = (cy: Carry): boolean =>
     springSettled(cy.sx, cy.target.x, CARRY_EPS) &&
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
-    springSettled(cy.sl, cy.liftTo, CARRY_EPS);
+    springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
+    springSettled(cy.sa, wantLean(cy), BANK_EPS);
 
   /**
    * Lay the carried run out UNDER THE FINGER this frame, writing each node's override pose.
@@ -408,9 +426,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * own time constant, and that is what the lean is drawn from and what a throw on release
    * inherits. So the liveliness sits where it belongs — the bank into the motion, the lift's
    * overshoot on the way in, the settle on the way out — and never in the position.
+   *
+   * The lean drawn here is the BANK SPRING's position, not that speed's lean: a card has weight in
+   * its turn as much as in its travel, and the raw lean cannot show it — it saturates, so an
+   * ordinary drag pins it, and a hand that turns round trades one pin for the other in four frames.
    */
   const layCarry = (cy: Carry): void => {
-    const leanDeg = lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);
+    const leanDeg = cy.sa.pos;
     const anchor = cy.target;
     const n = cy.items.length;
     cy.items.forEach((it, i) => {
@@ -495,10 +517,14 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         cy.sx = springAt(cy.target.x);
         cy.sy = springAt(cy.target.y);
         cy.sl = springAt(cy.liftTo);
+        cy.sa = springAt(wantLean(cy));
       } else {
         cy.sx = stepSpring(cy.sx, cy.target.x, cy.follow, dt);
         cy.sy = stepSpring(cy.sy, cy.target.y, cy.follow, dt);
         cy.sl = stepSpring(cy.sl, cy.liftTo, cy.liftCfg, dt);
+        // The bank chases AFTER the chase spring moved: within one frame the lean is answering the
+        // speed this frame has, one step behind it and never a step ahead.
+        cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
       }
       layCarry(cy);
     }
@@ -588,9 +614,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         sx: springAt(anchor.x),
         sy: springAt(anchor.y),
         sl: springAt(1),
+        // Flat: a card is picked up level, whatever the hand was doing before it closed.
+        sa: springAt(0),
         liftTo: t.lift,
         follow: { stiffness: t.followStiffness, damping: t.followDamping },
         liftCfg: { stiffness: t.liftStiffness, damping: t.liftDamping },
+        bankCfg: { stiffness: t.leanStiffness, damping: t.leanDamping },
         tiltFactor: t.leanFactor,
         tiltMax: t.leanMaxDeg,
       };

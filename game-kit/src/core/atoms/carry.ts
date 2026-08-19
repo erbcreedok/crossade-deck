@@ -20,11 +20,15 @@ import { compose, move, pose, type Transform, type Vec } from "../transform.js";
 import { clampAbs } from "../spring.js";
 
 /**
- * How much a card leans into its motion, in DEGREES (what `rotate` speaks). `factor` turns speed
- * (root units per second — the chase spring's velocity, which is the finger's speed smoothed) into
- * degrees; `maxDeg` is the saturation, so a brisk flick pins the lean instead of spinning. Sign
- * follows the direction of travel. This IS the liveliness of a drag: the position is 1:1 under the
- * hand, so what says "this thing has weight" is the bank, not a trailing position.
+ * The lean a speed ASKS FOR, in DEGREES (what `rotate` speaks). `factor` turns speed (root units per
+ * second — the chase spring's velocity, which is the finger's speed smoothed) into degrees; `maxDeg`
+ * is the saturation, so a brisk flick pins the lean instead of spinning. Sign follows the direction
+ * of travel. This IS the liveliness of a drag: the position is 1:1 under the hand, so what says
+ * "this thing has weight" is the bank, not a trailing position.
+ *
+ * A TARGET, not the angle drawn. Because it saturates, an ordinary drag holds it pinned at the
+ * limit, so a hand that turns round would trade `+maxDeg` for `-maxDeg` within a few frames; the
+ * runtime banks toward this through a spring of its own (`leanStiffness`) so the swing has weight.
  */
 export function lean(velX: number, factor: number, maxDeg: number): number {
   return clampAbs(velX * factor, maxDeg);

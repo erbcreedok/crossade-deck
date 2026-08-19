@@ -82,6 +82,18 @@ export interface MotionTuning {
   readonly leanFactor: number;
   /** The lean saturates here, degrees — a flick pins it instead of spinning the card. The previous client's `0.3` rad. */
   readonly leanMaxDeg: number;
+  /**
+   * The lean's OWN spring: the bank CHASES the speed's lean instead of being it.
+   *
+   * Without a channel of its own the angle is exactly as twitchy as the velocity, and because the
+   * lean saturates, an ordinary drag holds it pinned: a finger that turns round swaps a pinned
+   * `+leanMaxDeg` for a pinned `-leanMaxDeg` in four frames — 34° in 67 ms, which reads as a card
+   * SNAPPING, not as one with weight. The spring spreads that swing over its own time constant and
+   * costs nothing at rest. It is the previous client's angle spring, on the angle it owns.
+   */
+  readonly leanStiffness: number;
+  /** The lean spring's damping; under `2·√stiffness` the bank overshoots a touch as it swings through. */
+  readonly leanDamping: number;
   /** Screen-fall gravity for `launch`, units/s². */
   readonly gravity: number;
   /** Restitution of a bounce, 0..1 — off a floor for `launch`, off a wall for `slide`. */
@@ -107,6 +119,8 @@ export const DEFAULT_TUNING: MotionTuning = {
   liftDamping: 20,
   leanFactor: 6.42,
   leanMaxDeg: 17.19,
+  leanStiffness: 150,
+  leanDamping: 16,
   gravity: 9,
   bounce: 0.7,
   friction: 6,
@@ -116,7 +130,16 @@ export const DEFAULT_TUNING: MotionTuning = {
 /** The fields a carry reads — what `grab` accepts as its per-gesture patch. */
 export type CarryTuning = Pick<
   MotionTuning,
-  "carry" | "lift" | "followStiffness" | "followDamping" | "liftStiffness" | "liftDamping" | "leanFactor" | "leanMaxDeg"
+  | "carry"
+  | "lift"
+  | "followStiffness"
+  | "followDamping"
+  | "liftStiffness"
+  | "liftDamping"
+  | "leanFactor"
+  | "leanMaxDeg"
+  | "leanStiffness"
+  | "leanDamping"
 >;
 
 /**

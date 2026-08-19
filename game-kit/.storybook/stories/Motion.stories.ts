@@ -71,6 +71,8 @@ const meta: Meta = {
       liftDamping: ["Carry"],
       leanFactor: ["Carry"],
       leanMaxDeg: ["Carry"],
+      leanStiffness: ["Carry"],
+      leanDamping: ["Carry"],
       gravity: ["Launch"],
       bounce: ["Launch", "Slide"],
       friction: ["Slide"],
@@ -104,6 +106,8 @@ const liftStiffness = documented("arg.liftStiffness", { control: { type: "range"
 const liftDamping = documented("arg.liftDamping", { control: { type: "range", min: 1, max: 60, step: 1 } }, "tuning/carry.lift");
 const leanFactor = documented("arg.leanFactor", { control: { type: "range", min: 0, max: 10, step: 0.5 } }, "tuning/carry.lean");
 const leanMaxDeg = documented("arg.leanMaxDeg", { control: { type: "range", min: 0, max: 45, step: 1 } }, "tuning/carry.lean");
+const leanStiffness = documented("arg.leanStiffness", { control: { type: "range", min: 10, max: 600, step: 5 } }, "tuning/carry.lean");
+const leanDamping = documented("arg.leanDamping", { control: { type: "range", min: 1, max: 60, step: 1 } }, "tuning/carry.lean");
 const gravity = documented("arg.gravity", { control: { type: "range", min: 0, max: 40, step: 0.5 } }, "tuning/launch");
 const bounce = documented("arg.bounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "tuning/launch");
 const friction = documented("arg.friction", { control: { type: "range", min: 0, max: 30, step: 0.5 } }, "tuning/slide");
@@ -362,6 +366,8 @@ interface CarryArgs extends Omit<DeskArgs, "piecePaint"> {
   liftDamping: number;
   leanFactor: number;
   leanMaxDeg: number;
+  leanStiffness: number;
+  leanDamping: number;
   settleMs: number;
   settleEase: string;
 }
@@ -369,8 +375,8 @@ interface CarryArgs extends Omit<DeskArgs, "piecePaint"> {
 /**
  * A COLUMN UNDER YOUR OWN FINGER — every number of the carry on one panel. Grab any card and it leads
  * the run below it, 1:1 under the pointer with no trail; the chase spring reads your speed instead of
- * moving the run (`follow*`), the lift pops (`lift*`), that speed becomes the bank (`lean*`), and the
- * style says how the run composes (`carry`).
+ * moving the run (`follow*`), the lift pops (`lift*`), that speed asks for a bank the run swings into
+ * on a spring of its own (`lean*`), and the style says how the run composes (`carry`).
  * Let go anywhere: nothing here accepts a drop, so the run flies home on the settle (`settle*`).
  */
 export const Carry: StoryObj<CarryArgs> = {
@@ -393,6 +399,8 @@ export const Carry: StoryObj<CarryArgs> = {
     liftDamping: DEFAULT_TUNING.liftDamping,
     leanFactor: DEFAULT_TUNING.leanFactor,
     leanMaxDeg: DEFAULT_TUNING.leanMaxDeg,
+    leanStiffness: DEFAULT_TUNING.leanStiffness,
+    leanDamping: DEFAULT_TUNING.leanDamping,
     settleMs: DEFAULT_TUNING.settleMs,
     settleEase: DEFAULT_TUNING.settleEase,
   },
@@ -414,6 +422,8 @@ export const Carry: StoryObj<CarryArgs> = {
     liftDamping,
     leanFactor,
     leanMaxDeg,
+    leanStiffness,
+    leanDamping,
     settleMs,
     settleEase,
   },
@@ -436,6 +446,8 @@ export const Carry: StoryObj<CarryArgs> = {
     liftDamping: liftC,
     leanFactor: lean,
     leanMaxDeg: leanMax,
+    leanStiffness: bankK,
+    leanDamping: bankC,
     settleMs: ms,
     settleEase: ease,
   }) => {
@@ -465,6 +477,8 @@ export const Carry: StoryObj<CarryArgs> = {
       liftDamping: liftC,
       leanFactor: lean,
       leanMaxDeg: leanMax,
+      leanStiffness: bankK,
+      leanDamping: bankC,
       settleMs: ms,
       settleEase: ease,
     };

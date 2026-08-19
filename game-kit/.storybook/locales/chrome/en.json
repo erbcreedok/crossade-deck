@@ -79,6 +79,8 @@
   "arg.carry": "The carry style of a run in flight, by registry name. `rigid` co-rotates the whole run about the grab — a column stays one plank; `loose` turns each card about its own middle — the per-card look a horizontal hand wants. At zero lean the two are the same picture.",
   "arg.lift": "The pop while held: the scale the lift spring plays from 1 when the run is grabbed, and back on release. `1` is no pop; a few percent reads as picked up without shouting.",
   "arg.leanMaxDeg": "How far the run banks into horizontal motion, in degrees at saturation. The lean comes from the chase spring's own speed and unwinds to zero at rest; `0` switches it off.",
+  "arg.leanStiffness": "The bank spring's pull: how fast the run reaches the lean its speed is asking for. The lean is a spring of its own, not the speed itself — it saturates, so a hand that turns round would otherwise trade one pinned limit for the other in four frames, which reads as a snap rather than as weight.",
+  "arg.leanDamping": "The bank spring's damping. Under `2·√leanStiffness` the lean overshoots a touch as it swings through a turn; at or above it, no overshoot.",
   "arg.index": "Which stop the card rests on now. Runtime state, not the atom's — the card is tapped in play. Past the ends it clamps into the list, so it can be dragged too far and the card simply holds on the last stop.",
   "arg.preset": "Which builder the shape comes from. Not a sort of `Shape` — there are none. Every choice but `path` is a helper function the kit exports, and the snippet shows the call; `path` is the raw value itself, printed as it stands.",
   "arg.w": "Width, in units. Not pixels — the host decides what a unit is worth on screen, so the same number is the same size on every device.",

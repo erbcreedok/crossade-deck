@@ -23,7 +23,8 @@
     "| `carry` · `lift` | `rigid` · 1.06 | how a run composes under the finger; the pop while held |",
     "| `followStiffness` · `followDamping` | 120 · 14 | the chase spring — the lag behind the finger and its settle |",
     "| `liftStiffness` · `liftDamping` | 170 · 20 | how fast the pop arrives |",
-    "| `leanFactor` · `leanMaxDeg` | 3 · 15 | how far a run banks into speed, and where it saturates |",
+    "| `leanFactor` · `leanMaxDeg` | 6.42 · 17.19 | how far a run banks into speed, and where it saturates |",
+    "| `leanStiffness` · `leanDamping` | 150 · 16 | the bank's own spring: a hand that turns round swings the lean across in the spring's time, it does not jump |",
     "| `gravity` · `bounce` | 9 · 0.7 | a throw down the screen: the pull, the floor's give |",
     "| `friction` · `spinFriction` | 6 · 540 | a throw across the desk: how fast speed and spin bleed out |",
     "",
@@ -39,7 +40,7 @@
     "One card turned over on the clock. `turned` is the trigger — flip it and the clock plays a turn: the card squeezes to an edge, the side swaps THERE (where it has no width to show the swap), and it grows back on the far side. `flipMs` and `flipEase` are the turn's own numbers, apart from the settle's; `linear` is a physical rotation, `easeOut` a snappier turn."
   ],
   "docs.motion.carry": [
-    "A column under your own finger, every number of the carry on one panel. Grab any card and it leads the run below it. `followStiffness`/`followDamping` are the chase spring — the LAG behind your pointer and how it settles; `lift`/`liftStiffness`/`liftDamping` the pop; `leanFactor`/`leanMaxDeg` how the run banks into speed; `carry` how it composes (`rigid` — one plank about the grab, `loose` — each card about its own middle). Let go: nothing here accepts a drop, so the run flies home on `settleMs`/`settleEase`."
+    "A column under your own finger, every number of the carry on one panel. Grab any card and it leads the run below it. `followStiffness`/`followDamping` are the chase spring — the LAG behind your pointer and how it settles; `lift`/`liftStiffness`/`liftDamping` the pop; `leanFactor`/`leanMaxDeg` how the run banks into speed, `leanStiffness`/`leanDamping` the spring that bank rides (turn your finger round mid-drag: the swing has weight instead of snapping); `carry` how it composes (`rigid` — one plank about the grab, `loose` — each card about its own middle). Let go: nothing here accepts a drop, so the run flies home on `settleMs`/`settleEase`."
   ],
   "docs.motion.launch": [
     "A throw DOWN THE SCREEN. `launched` is the trigger: the card leaves with `speed` along `angle` (270 is straight up), `gravity` pulls it, the bottom edge of the glass gives it back by `bounce`, it spins at `spin`, and once it is off the glass it eases home. `retain` keeps every frame on the glass and paints only what flies — the trail of the old solitaire's victory cascade, which is exactly this call, once per card, with a stagger."

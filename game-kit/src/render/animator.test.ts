@@ -193,6 +193,43 @@ describe("the motion runtime", () => {
     expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 2);
   });
 
+  it("motion.a-reversed-drag-swings-the-lean-across — the bank has weight of its own, it does not snap", () => {
+    // THE LAW: a hand that turns round does not flip the card over with it. The lean SATURATES, so
+    // an ordinary drag holds it pinned at the limit; drawn straight from the speed it would trade
+    // `+leanMaxDeg` for `-leanMaxDeg` in four frames — 34 degrees in 67 ms, which reads as a snap.
+    // The bank is a spring of its own, so the swing takes the spring's own time and no single frame
+    // moves it far. Measured on the DRAWN pose, because that is the only thing an eye can judge.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+    const deg = (): number => {
+      const t = b.tOf("c");
+      return (Math.atan2(t.b, t.a) * 180) / Math.PI;
+    };
+
+    const step = 8 * 0.016; // root units per frame — an ordinary phone drag, 8 card-widths a second
+    let at = 0;
+    let ms = 0;
+    const seen: number[] = [];
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    for (let f = 0; f < 90; f++) {
+      at += f < 45 ? step : -step; // the finger turns round halfway
+      m.dragTo({ x: at, y: 0 });
+      ms += 16;
+      c.tick(ms);
+      seen.push(deg());
+    }
+
+    const pin = DEFAULT_TUNING.leanMaxDeg;
+    const banked = Math.max(...seen.slice(0, 45).map(Math.abs));
+    expect(banked).toBeGreaterThan(0.9 * pin); // it still banks: the law is not "kill the lean"
+    let worst = 0;
+    for (let i = 1; i < seen.length; i++) worst = Math.max(worst, Math.abs(seen[i]! - seen[i - 1]!));
+    expect(worst).toBeLessThan(5); // per frame, degrees — the raw lean jumps three times that
+    const crossing = seen.slice(45).filter((d) => Math.abs(d) < pin - 0.5).length;
+    expect(crossing).toBeGreaterThanOrEqual(8); // frames spent between the two pins: a swing, not a click
+  });
+
   it("motion.a-shadow-rides-the-hand-and-waits-out-a-flight — height is the hand, not the clock", () => {
     // The runtime's half of the shadow law (`plan.a-shadow-follows-the-hand-not-the-flight`): the
     // clock is the only thing that knows WHICH override is a finger's and which is a flight's, and
