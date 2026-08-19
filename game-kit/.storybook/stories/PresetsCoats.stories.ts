@@ -5,8 +5,7 @@ import { documented, PAINTS } from "./surfaceControls.js";
 import { BACK_SURFACE, crossade, faceSurface, installClassicSkin, type CardSpec } from "@game-presets/cards";
 import { DIE_SIZE, faceSurface as dieFace, installDiceSkin } from "@game-presets/dice";
 
-// The card's own size. The skin keeps these private, and a catalog scene needs a box to draw in —
-// so they are stated here as the numbers they are, next to the deck that owns them.
+// The skin keeps these private; a scene still needs a box.
 const CARD_W = 1;
 const CARD_H = 1.4;
 
@@ -117,10 +116,7 @@ export const Censor: StoryObj<CoatArgs> = {
 // plate and a foil on a well are not the same picture, and one tile would hide that.
 
 const shelf = (recipe: string, a: CoatArgs) => {
-  // REAL OBJECTS, NOT BLANK PLATES. An edition is a thing you put ON something, and three coloured
-  // rectangles showed nothing about what it does to a picture: the whole question is what a sheen
-  // looks like over pips and a suit, and over a die's dots. So the shelf is an ace of spades, a
-  // card back and a die — the same skins the games use, dressed with the coat under test.
+  // An edition goes ON something: an ace, a back and a die, not three blank plates.
   installClassicSkin();
   installDiceSkin();
   registerLayout("coats.row", rowLayout({ gap: 0.22, padding: 0 }));

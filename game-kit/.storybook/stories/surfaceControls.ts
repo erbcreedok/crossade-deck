@@ -62,11 +62,7 @@ import { type CatalogText } from "../locales/catalog.js";
 installStockSurfaces();
 installStockHeads();
 installStockAssets();
-// THE REAL FACES, TOO. Every `surface` picker in the catalog is built from the registry, and the
-// registry held nothing but abstract plates — so every scene about surfaces showed a coloured
-// rectangle and a reader could not ask for an ace of spades even by typing its name. The card and
-// dice skins are ordinary consumers registering ordinary records; installing them here is what a
-// game does on its first line, and it puts fifty-odd real faces into every picker at once.
+// The pickers are built from the registry, so the add-on skins go in too — real faces, not plates.
 installClassicSkin();
 installDiceSkin();
 

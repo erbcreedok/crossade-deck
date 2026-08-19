@@ -76,9 +76,7 @@ export const Card: StoryObj<CardArgs> = {
   // real turn, det through zero. `turnOver` is the recipe that swaps the surface; `mirror` only
   // reflects. `axis` is the mirror line, a parameter — 90 is a Y-flip, 76 is a 76° one.
   render: (a) => {
-    // THE REAL DECK, not two fills. A flip drawn as one coloured rectangle becoming another cannot
-    // be told from a recolour — which is the ONE thing this scene exists to show. The paints below
-    // still dress the pair when a reader picks them; by default it is an ace and a card back.
+    // Two fills cannot show a flip apart from a recolour. Real deck by default; a picked paint wins.
     installClassicSkin();
     registerSurface("story.flip.front", a.front ? { layers: [{ paint: a.front }], radius: 0.08 } : surfaceRecord(ACE)!);
     registerSurface("story.flip.back", a.back ? { layers: [{ paint: a.back }], radius: 0.08 } : surfaceRecord(BACK_SURFACE)!);
@@ -91,8 +89,7 @@ export const Card: StoryObj<CardArgs> = {
       ),
     ).el;
   },
-  // Empty paints on purpose: the scene opens on the REAL ace and the REAL back, and a reader who
-  // picks a colour gets the flat pair back.
+  // Empty paints: opens on the real ace and back.
   args: { id: "aceCard", flip: "turnOver", turns: 1, axis: 90, front: "", back: "" },
   argTypes: {
     id: documented("arg.id", { control: "text" }, "node"),

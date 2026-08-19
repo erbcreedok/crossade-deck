@@ -91,9 +91,7 @@ export const Plate: StoryObj<PlateArgs> = {
   // here, and so is every shape the box can be: a rect, a circle, a polygon of as many corners as
   // you like, or one pasted in from somewhere else.
   render: (a) => {
-    // A NAMED surface wins over the record built from the panel: the point of the picker is that a
-    // node wears a record it did not author, and until this scene offered a real one it could only
-    // ever show a coloured rectangle it had just drawn for itself.
+    // A named surface wins over the record the panel builds — a node wears what it did not author.
     registerSurface("story.plate", recordOf(a));
     const worn = a.surface.trim() || "story.plate";
     return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: worn }))).el;
