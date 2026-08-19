@@ -4,6 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Klondike — Solitaire (game-kit)</title>
+    <!--
+      THE FACE IS DECLARED HERE AND NOWHERE ELSE. This is a declaration, not an interface: the table
+      is drawn entirely by the engine, and a font has to be announced to the page before anything can
+      measure or draw it. Which LETTERS are fetched is settled in `src/look/fonts.ts` — a font service
+      ships subsets by codepoint range, so the sample there is what pulls the Cyrillic one down.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
     <style>
       html, body { margin: 0; height: 100%; background: #0f1216; color: #e8e6e1; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
       #app { position: absolute; inset: 0; touch-action: none; }

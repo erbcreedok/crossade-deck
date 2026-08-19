@@ -15,6 +15,7 @@ import {
   glassOf,
   IDENTITY,
   installStockCarries,
+  installStockCoats,
   installStockEasings,
   installStockFlips,
   installStockGrabs,
@@ -23,6 +24,7 @@ import {
   installTheme,
   mount,
   pick,
+  rect,
   registerSurface,
   remove,
   setFacing,
@@ -39,14 +41,14 @@ import {
 import {
   add as addNode,
   button,
-  domTextMeasure,
   Container,
-  CONTROL_BAR,
-  installStockControls,
   node as makeNode,
   wireButtons,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
+import { klondikeRuler } from "../look/fonts.js";
+import { RING_U } from "../look/palette.js";
+import { BAR, CONTROL_H, CONTROL_W, FACE, installKlondikeLook, LABEL, LABEL_QUIET, PLATE } from "../look/surfaces.js";
 import { buildBoard, COLUMN_STEP, dealPlan, installSolitaireLayouts, winKlondike, type SolitaireBoard } from "./board.js";
 import {
   applySnapshot,
@@ -89,12 +91,16 @@ export function startSolitaire(container: HTMLElement): () => void {
   installTheme(document, DEFAULT_VIEWER.theme);
   installStockLayouts();
   installStockSurfaces();
+  // THE COATS, without which every runtime dressing on this table is a silent no-op: a control that
+  // declines to act wears `wash`, a willing pile wears `ring`, and a recipe nobody registered draws
+  // nothing at all — no warning, just a control that looks awake and a pile that says nothing.
+  installStockCoats();
   installStockGrabs();
   installStockFlips();
   installStockEasings();
   installStockCarries();
   installSolitaireLayouts();
-  installStockControls();
+  installKlondikeLook();
   registerSurface("sol/slot", {
     layers: [{ paint: "panelBg", opacity: 0.28 }],
     radius: 0.09,
@@ -126,9 +132,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   // THE RULER. Without it a caption has nothing to be measured against, so every control on the
   // table came out as a bare plate — the text layer needs a port, and a game must hand it one.
-  const ruler = domTextMeasure({
-    waitFor: [{ font: { family: "ui-sans-serif, system-ui, sans-serif", size: 16, weight: 600 }, sample: "Отменить Заново Подсказка Сыграть" }],
-  });
+  const ruler = klondikeRuler();
   const motion = attachMotion(host, painter, { ...FEEL, measure: ruler });
   const view = host.view;
   // A touch surface would otherwise spend a double-tap on the browser's own zoom, and a drag on a
@@ -188,15 +192,33 @@ export function startSolitaire(container: HTMLElement): () => void {
 
   // THE BAR IS REBUILT, NEVER MUTATED. Whether undo has anywhere to go is the game's state, and the
   // control is drawn FROM it — so the tree cannot disagree with the history about what is possible.
-  const BAR_Y = -3.9;
+  //
+  // WHERE IT STANDS. The table is fitted at 8.6 × 8.4 units, so the top edge is at −4.2; the top row
+  // of cards sits at −2.7 and a card is 1.4 tall, so nothing is drawn above −3.4. The bar takes that
+  // strip and leaves a fifth of a unit of air on both sides of itself.
+  const BAR_Y = -3.82;
+
+  /** client1's plate, written once: the gold ring, the brown face inside it, the pixel caption. */
+  const plate = (id: string, label: string, does: string, awake: boolean): Node =>
+    button(id, {
+      label,
+      bounds: rect(CONTROL_W, CONTROL_H),
+      surface: PLATE,
+      face: FACE,
+      inset: RING_U,
+      style: awake ? LABEL : LABEL_QUIET,
+      shadow: "silhouette",
+      means: { does },
+      asleep: !awake,
+    });
 
   const barTree = (): Node => {
-    const bar = makeNode("hud", Container({ layout: CONTROL_BAR }), Transformable({ at: { x: 0, y: BAR_Y } }));
+    const bar = makeNode("hud", Container({ layout: BAR }), Transformable({ at: { x: 0, y: BAR_Y } }));
     // A control with nothing behind it is dressed as asleep rather than removed: a row that changes
     // WIDTH as a game goes on makes the player re-aim at every move.
-    addNode(bar, button("hud/undo", { label: "Отменить", look: "quiet", means: { does: "undo" }, asleep: past.length === 0 }));
-    addNode(bar, button("hud/again", { label: "Заново", look: "quiet", means: { does: "restart" } }));
-    addNode(bar, button("hud/hint", { label: hinted ? "Сыграть" : "Подсказка", means: { does: "hint" }, asleep: !dealt }));
+    addNode(bar, plate("hud/undo", "Отменить", "undo", past.length > 0));
+    addNode(bar, plate("hud/again", "Заново", "restart", true));
+    addNode(bar, plate("hud/hint", hinted ? "Сыграть" : "Подсказка", "hint", dealt));
     return bar;
   };
 
@@ -273,6 +295,9 @@ export function startSolitaire(container: HTMLElement): () => void {
       // Uncovered a face-down card: turn it over on the clock — it flips as the run slides away.
       if (top && facing(top) === "down") motion.flip(top.id, () => setFacing(top, "up"));
     }
+    // The bar is drawn FROM the history, so it is put back wherever the history moves — a move that
+    // gave undo somewhere to go must leave undo looking as though it has somewhere to go.
+    dressDesk();
     redraw();
     if (dest !== src) keep();
     checkWin();
@@ -489,6 +514,10 @@ export function startSolitaire(container: HTMLElement): () => void {
       if (k < steps.length) dealTimer = setTimeout(step, gap);
       else {
         dealDone = true;
+        // The table is dealt: the hint has something to look at and undo has somewhere to go, so
+        // the bar is put back before the last frame of the deal.
+        dressDesk();
+        redraw();
         // Written down when the LAST card has seated, not at the first: a save taken mid-deal would
         // restore a table frozen halfway through its own opening.
         keep();
@@ -513,6 +542,7 @@ export function startSolitaire(container: HTMLElement): () => void {
         add(board.stock, c);
       }
     }
+    dressDesk();
     redraw();
     keep();
   };
