@@ -1,0 +1,21 @@
+game-kit/src/render/coats.ts
+  s_170937f0c01a52::t_c8c24c6cecda5e 134-137,139-142,144
+.night/log.md
+  s_170937f0c01a52::t_a14bf43b71f0e4 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "64219552a8f08620ff2344040c12109d1e0f0df9",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
