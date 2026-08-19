@@ -41,11 +41,48 @@ export interface Fling {
   readonly maxGap: number;
 }
 
-/** The stock feel — `client2`'s numbers verbatim. */
+/** The pan's stock feel — `client2`'s numbers verbatim, in screen pixels per second. */
 export const FLING: Fling = { cap: 4000, floor: 40, decay: 5, smoothing: 0.5, maxGap: 0.1 };
 
-/** A fling that never happens: the view stops dead with the finger. Data, so "no inertia" is a setting. */
+/**
+ * THE ZOOM'S, in NATURAL LOGARITHMS of the zoom per second — `1` is "e times bigger every second".
+ *
+ * Log space and not a ratio, because zoom is multiplicative: in log space a decay is symmetric, so
+ * coasting outwards dies exactly as coasting inwards does. Measured any other way, letting go while
+ * zooming out feels like a different mechanism from letting go while zooming in.
+ *
+ * These numbers are NOT `client2`'s — it had no zoom inertia to take them from. They are the pan's
+ * shape with values in this quantity's own units, which is precisely why every one of them is on
+ * the panel: they are a starting point to be tuned against a finger, not a settled fact.
+ */
+export const ZOOM_FLING: Fling = { cap: 5, floor: 0.2, decay: 6, smoothing: 0.5, maxGap: 0.1 };
+
+/**
+ * THE TURN'S, in degrees per second. Same provenance as the zoom's — chosen here, not ported.
+ *
+ * A coast runs for about `speed / decay` degrees, so the cap and the decay together say how far a
+ * hard flick may carry: a quarter turn past the fingers. Measured on a real one, 720 with a decay
+ * of five spun the desk almost half a circle after the hand had stopped, which reads as the board
+ * getting away from the player rather than as momentum.
+ */
+export const TURN_FLING: Fling = { cap: 540, floor: 20, decay: 6, smoothing: 0.5, maxGap: 0.1 };
+
+/** A fling that never happens: the axis stops dead with the finger. Data, so "no inertia" is a setting. */
 export const NO_FLING: Fling = { cap: 0, floor: Infinity, decay: Infinity, smoothing: 0.5, maxGap: 0.1 };
+
+/**
+ * INERTIA IS PER AXIS, because the three are three different feels in three different units — and
+ * because a game that wants a desk to coast under the hand may still want the zoom to stop dead.
+ * One switch for all three would make that unsayable.
+ */
+export interface Inertia {
+  readonly pan: Fling;
+  readonly zoom: Fling;
+  readonly turn: Fling;
+}
+
+/** All three at their stock feel. */
+export const INERTIA: Inertia = { pan: FLING, zoom: ZOOM_FLING, turn: TURN_FLING };
 
 /**
  * WHAT THE PLAYER MAY DO TO THE VIEW — three fields of data, not a mode with a name.
@@ -91,8 +128,8 @@ export interface CameraLimits {
   readonly minZoom: number;
   /** How far in. */
   readonly maxZoom: number;
-  /** The inertia this camera throws with. Absent, the stock feel. */
-  readonly fling?: Fling;
+  /** How each axis coasts. Any subset — what is not named keeps the stock feel. */
+  readonly inertia?: Partial<Inertia>;
   /** What the player's hand may do. Absent, everything — see `CameraInput`. */
   readonly input?: CameraInput;
 }
@@ -147,8 +184,17 @@ export class Camera {
   /** Screen pixels per unit at zoom 1 — the fit the viewer settled on. */
   private unit = 1;
 
+  /** Screen px/s, log-zoom/s and degrees/s — one velocity per axis, each in its own units. */
   private vx = 0;
   private vy = 0;
+  private vz = 0;
+  private vr = 0;
+  /**
+   * The glass point a coasting zoom or turn keeps still, and the desk point under it — taken at the
+   * release. Without it a throw that zooms would swing the desk about the middle of the screen the
+   * instant the fingers left, which reads as a lurch rather than as a continuation.
+   */
+  private coast: { glass: Point; desk: Point } | undefined;
   /** Whether a throw is still running. Read by the clock to know if there is another frame to draw. */
   flinging = false;
 
@@ -175,7 +221,13 @@ export class Camera {
   }
 
   private get fling(): Fling {
-    return this.limits.fling ?? FLING;
+    return this.limits.inertia?.pan ?? FLING;
+  }
+  private get zoomFling(): Fling {
+    return this.limits.inertia?.zoom ?? ZOOM_FLING;
+  }
+  private get turnFling(): Fling {
+    return this.limits.inertia?.turn ?? TURN_FLING;
   }
 
   /** How big the glass is, in screen pixels. */
@@ -370,14 +422,42 @@ export class Camera {
   private lastAt = 0;
   trackPan(dx: number, dy: number, nowSeconds: number): void {
     const f = this.fling;
-    if (this.lastAt) {
-      const dt = Math.min(f.maxGap, nowSeconds - this.lastAt);
-      if (dt > 0) {
-        this.vx = (1 - f.smoothing) * this.vx + f.smoothing * (dx / dt);
-        this.vy = (1 - f.smoothing) * this.vy + f.smoothing * (dy / dt);
-      }
+    const dt = this.sampleGap(f, nowSeconds);
+    if (dt > 0) {
+      this.vx = (1 - f.smoothing) * this.vx + f.smoothing * (dx / dt);
+      this.vy = (1 - f.smoothing) * this.vy + f.smoothing * (dy / dt);
     }
+  }
+
+  /**
+   * What a pinch is carrying — the zoom as a RATIO since the last sample (`1.05` for five per cent
+   * bigger) and the turn in degrees. ONE call for both, because they arrive on one event and the
+   * interval between samples may only be spent once: two calls and the second reads a gap of zero,
+   * which is a turn that can never be thrown and a bug with nothing to see.
+   *
+   * The zoom is kept in log space, where a decay is symmetric — so coasting outwards dies exactly
+   * as coasting inwards does, instead of feeling like two different mechanisms.
+   */
+  trackPinch(factor: number, deg: number, nowSeconds: number): void {
+    const z = this.zoomFling;
+    const dt = this.sampleGap(z, nowSeconds);
+    if (dt <= 0) return;
+    if (factor > 0) this.vz = (1 - z.smoothing) * this.vz + z.smoothing * (Math.log(factor) / dt);
+    const r = this.turnFling;
+    this.vr = (1 - r.smoothing) * this.vr + r.smoothing * (deg / dt);
+  }
+
+  /**
+   * Seconds since the previous sample, or nothing at all for the first one — a gesture's first
+   * event has no interval behind it, and dividing by the time since the last GESTURE would read a
+   * speed of thousands from a hand that has not moved yet.
+   *
+   * One clock for all three axes, because they are all sampled from the same events.
+   */
+  private sampleGap(f: Fling, nowSeconds: number): number {
+    const had = this.lastAt;
     this.lastAt = nowSeconds;
+    return had ? Math.min(f.maxGap, nowSeconds - had) : 0;
   }
 
   /** A finger has landed: whatever the view was doing, it stops under the hand. */
@@ -386,12 +466,45 @@ export class Camera {
     this.lastAt = 0;
   }
 
-  /** The finger left. Throw the view with the speed it was carrying — if that was a throw at all. */
-  release(): void {
-    const f = this.fling;
-    this.vx = clamp(this.vx, -f.cap, f.cap);
-    this.vy = clamp(this.vy, -f.cap, f.cap);
-    this.flinging = Math.hypot(this.vx, this.vy) > f.floor;
+  /**
+   * THE SAME GESTURE, FEWER FINGERS — one of a pinch's two has lifted and the other is still down.
+   *
+   * Not a `grab`, and the difference is the whole reason this exists: two fingers never leave the
+   * glass in the same millisecond, so treating the first departure as a fresh hand throws away
+   * everything the pinch was carrying — and a zoom would then coast exactly never. What IS dropped
+   * is the pan's speed, because the finger that was measuring it has gone.
+   */
+  handOver(): void {
+    this.vx = 0;
+    this.vy = 0;
+    this.lastAt = 0;
+  }
+
+  /**
+   * The fingers left. Each axis throws with the speed IT was carrying, or does not throw at all —
+   * a gesture that only zoomed has nothing to say about panning, and its pan velocity is zero, so
+   * no rule is needed to keep a pinch from sliding the desk.
+   *
+   * `hold` is the glass point a coasting zoom or turn keeps still — the middle of the fingers. The
+   * glass centre when nothing is said, which is the right answer for a pan, whose coast ignores it.
+   */
+  release(hold?: Point): void {
+    const glass = hold ?? { x: this.screenW / 2, y: this.screenH / 2 };
+    this.coast = { glass, desk: this.toContent(glass.x, glass.y) };
+    const p = this.fling;
+    this.vx = clamp(this.vx, -p.cap, p.cap);
+    this.vy = clamp(this.vy, -p.cap, p.cap);
+    if (Math.hypot(this.vx, this.vy) <= p.floor) {
+      this.vx = 0;
+      this.vy = 0;
+    }
+    const z = this.zoomFling;
+    this.vz = clamp(this.vz, -z.cap, z.cap);
+    if (Math.abs(this.vz) <= z.floor) this.vz = 0;
+    const r = this.turnFling;
+    this.vr = clamp(this.vr, -r.cap, r.cap);
+    if (Math.abs(this.vr) <= r.floor) this.vr = 0;
+    this.flinging = this.vx !== 0 || this.vy !== 0 || this.vz !== 0 || this.vr !== 0;
     this.lastAt = 0;
   }
 
@@ -399,6 +512,9 @@ export class Camera {
     this.flinging = false;
     this.vx = 0;
     this.vy = 0;
+    this.vz = 0;
+    this.vr = 0;
+    this.coast = undefined;
   }
 
   /**
@@ -411,18 +527,38 @@ export class Camera {
    */
   stepFling(dtSeconds: number): boolean {
     if (!this.flinging) return false;
-    const f = this.fling;
+    // THE ZOOM AND THE TURN FIRST, and both about the point the fingers left — a coast that swung
+    // the desk about the middle of the glass instead would lurch at the very moment the hand let go.
+    if (this.vz !== 0 || this.vr !== 0) {
+      const at = this.coast ?? { glass: { x: this.screenW / 2, y: this.screenH / 2 }, desk: this.target };
+      const want = this.zoom * Math.exp(this.vz * dtSeconds);
+      if (this.vr !== 0) this.rotation += this.vr * dtSeconds;
+      this.holdAt(at.desk, at.glass.x, at.glass.y, want);
+      // A zoom that has run into its own limit is done: pressing on against it asks for frames with
+      // nothing to show, exactly as an axis pressed against the edge of the desk does.
+      if (this.zoom === this.limits.minZoom || this.zoom === this.limits.maxZoom) this.vz = 0;
+    }
     const was = this.transform();
-    this.shift(this.vx * dtSeconds, this.vy * dtSeconds);
-    this.clamp();
-    const now = this.transform();
-    if (now.e === was.e) this.vx = 0;
-    if (now.f === was.f) this.vy = 0;
-    // Frame-rate independent: the same slide at 60 Hz and at 120.
-    const decay = Math.exp(-f.decay * dtSeconds);
-    this.vx *= decay;
-    this.vy *= decay;
-    if (Math.hypot(this.vx, this.vy) < f.floor) this.flinging = false;
+    if (this.vx !== 0 || this.vy !== 0) {
+      this.shift(this.vx * dtSeconds, this.vy * dtSeconds);
+      this.clamp();
+      const now = this.transform();
+      if (now.e === was.e) this.vx = 0;
+      if (now.f === was.f) this.vy = 0;
+    }
+    // Frame-rate independent, each on its own curve: the same slide at 60 Hz and at 120.
+    const pan = Math.exp(-this.fling.decay * dtSeconds);
+    this.vx *= pan;
+    this.vy *= pan;
+    this.vz *= Math.exp(-this.zoomFling.decay * dtSeconds);
+    this.vr *= Math.exp(-this.turnFling.decay * dtSeconds);
+    if (Math.hypot(this.vx, this.vy) < this.fling.floor) {
+      this.vx = 0;
+      this.vy = 0;
+    }
+    if (Math.abs(this.vz) < this.zoomFling.floor) this.vz = 0;
+    if (Math.abs(this.vr) < this.turnFling.floor) this.vr = 0;
+    this.flinging = this.vx !== 0 || this.vy !== 0 || this.vz !== 0 || this.vr !== 0;
     return this.flinging;
   }
 

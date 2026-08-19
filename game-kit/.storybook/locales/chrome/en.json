@@ -243,5 +243,11 @@
   "arg.inputPan": "May the HAND move the view. A rule may close it in the middle of a game — a puzzle that pins the desk for its last move — and nothing is rebuilt: the wiring asks the camera at every gesture.",
   "arg.inputZoom": "May the hand zoom. Closed, the wheel is not taken from the page either: a canvas that swallows it while refusing to move reads as a hung site.",
   "arg.inputRotate": "May two fingers turn the desk. Closed by many games on purpose — a board with a right way up has nothing to gain from a twist.",
-  "arg.cameraTurn": "The view's angle, in degrees clockwise. The turn goes around the camera's target, which is what makes a seat at the desk a literal: an angle and a point, not a mechanism. Applied when this number changes, so the slider does not fight the fingers."
+  "arg.cameraTurn": "The view's angle, in degrees clockwise. The turn goes around the camera's target, which is what makes a seat at the desk a literal: an angle and a point, not a mechanism. Applied when this number changes, so the slider does not fight the fingers.",
+  "arg.zoomFling": "Whether a released pinch keeps zooming. The speed is kept in logarithms of the zoom, where a decay is symmetric — so coasting outwards dies exactly as coasting inwards does.",
+  "arg.turnFling": "Whether a released twist keeps turning. Off is a setting, not a missing mechanism: the desk stops at the angle the fingers left it at.",
+  "arg.zoomCap": "The fastest a zoom may coast, in natural logarithms of the zoom per second — `1` is \"e times bigger every second\". Without a cap a sharp pinch throws the desk to its limit in one frame.",
+  "arg.zoomFloor": "Below this speed the zoom does not coast at all — that is fingers coming to rest, not a flick. It is also where a running coast stops.",
+  "arg.turnCap": "The fastest the desk may spin, in degrees per second. A coast runs for about speed ÷ decay degrees, so this and the decay together say how far a hard flick carries.",
+  "arg.turnFloor": "Below this speed the turn does not coast — a hand settling, not a spin. Also where a running spin stops."
 }

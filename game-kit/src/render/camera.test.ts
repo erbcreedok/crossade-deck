@@ -19,7 +19,16 @@ import { resetSurfaces } from "./surfaces.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { scenePlan } from "./scenePlan.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
-import { Camera, FLING, NO_FLING, wheelGoesToCamera, wheelPixels, wheelZoomFactor } from "./camera.js";
+import {
+  Camera,
+  FLING,
+  NO_FLING,
+  TURN_FLING,
+  ZOOM_FLING,
+  wheelGoesToCamera,
+  wheelPixels,
+  wheelZoomFactor,
+} from "./camera.js";
 
 /** A desk far bigger than the glass, so every axis has somewhere to go. */
 function bench(limits = { minZoom: 0.25, maxZoom: 4 }): Camera {
@@ -160,7 +169,7 @@ describe("the camera", () => {
   });
 
   it("camera.inertia-can-be-switched-off — the view stops with the finger", () => {
-    const c = new Camera({ minZoom: 0.25, maxZoom: 4, fling: NO_FLING });
+    const c = new Camera({ minZoom: 0.25, maxZoom: 4, inertia: { pan: NO_FLING } });
     c.setScreen(400, 300);
     c.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1);
     c.grab();
@@ -171,6 +180,94 @@ describe("the camera", () => {
     expect(c.flinging).toBe(false);
     expect(c.stepFling(1 / 60)).toBe(false);
     expect(c.x).toBe(parked);
+  });
+
+  it("camera.a-zoom-coasts-and-dies — and holds the spot it was let go over", () => {
+    // The zoom keeps its speed in LOG space, where a decay is symmetric: coasting outwards has to
+    // die exactly as coasting inwards does, or letting go while zooming out feels like a different
+    // mechanism from letting go while zooming in.
+    const out = bench({ minZoom: 0.05, maxZoom: 8 });
+    const held = { x: 120, y: 90 };
+    out.trackPinch(1, 0, 0.1);
+    out.trackPinch(1.25, 0, 0.116); // a quarter bigger in sixteen milliseconds
+    out.release(held);
+    expect(out.flinging).toBe(true);
+    const started = out.zoom;
+    out.stepFling(1 / 60);
+    expect(out.zoom).toBeGreaterThan(started);
+    // The spot under the fingers does not move while it coasts — a lurch at the exact moment the
+    // hand lets go is worse than no coast at all.
+    const spot = out.toContent(held.x, held.y);
+    for (let i = 0; i < 200; i += 1) out.stepFling(1 / 60);
+    expect(out.toContent(held.x, held.y).x).toBeCloseTo(spot.x, 4);
+    expect(out.flinging, "the coast never stopped").toBe(false);
+
+    // …and the mirror flick lands on the exact RECIPROCAL zoom, which is what log space buys: the
+    // same gesture out and in travels the same distance, and a linear model — where the speed is a
+    // difference rather than a ratio — does not, so zooming out would coast further than zooming in
+    // from the very same flick. Kept gentle so the cap does not flatten both to the same number.
+    const coastTo = (step: number): number => {
+      const c = bench({ minZoom: 0.05, maxZoom: 8 });
+      c.trackPinch(1, 0, 0.1);
+      c.trackPinch(step, 0, 0.116);
+      c.release(held);
+      for (let i = 0; i < 400 && c.stepFling(1 / 60); i += 1);
+      return c.zoom;
+    };
+    expect(coastTo(1.03) * coastTo(1 / 1.03)).toBeCloseTo(1, 9);
+  });
+
+  it("camera.a-turn-coasts-and-dies", () => {
+    const c = bench();
+    c.trackPinch(1, 0, 0.1);
+    c.trackPinch(1, 6, 0.116); // six degrees in sixteen milliseconds — a real spin
+    c.release();
+    expect(c.flinging).toBe(true);
+    const was = c.rotation;
+    c.stepFling(1 / 60);
+    expect(c.rotation).toBeGreaterThan(was);
+    for (let i = 0; i < 300; i += 1) c.stepFling(1 / 60);
+    expect(c.flinging).toBe(false);
+  });
+
+  it("camera.each-axis-coasts-on-its-own-switch — and a pinch never throws the pan", () => {
+    // Three feels in three units, so three switches: a desk may coast under the hand while its
+    // zoom stops dead. And no rule is needed to keep a pinch from sliding the desk — a gesture
+    // that only zoomed never fed a pan velocity, so there is nothing to throw.
+    const still = new Camera({
+      minZoom: 0.05,
+      maxZoom: 8,
+      inertia: { zoom: NO_FLING, turn: NO_FLING },
+    });
+    still.setScreen(400, 300);
+    still.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1);
+    still.clamp();
+    const was = { zoom: still.zoom, rotation: still.rotation, x: still.x };
+    still.trackPinch(1, 0, 0.1);
+    still.trackPinch(1.25, 6, 0.116);
+    still.release();
+    expect(still.flinging, "an axis with no inertia threw anyway").toBe(false);
+    expect(still.zoom).toBe(was.zoom);
+    expect(still.rotation).toBe(was.rotation);
+
+    // The other way round: the zoom coasts, the pan does not budge.
+    const zoomy = bench({ minZoom: 0.05, maxZoom: 8 });
+    zoomy.trackPinch(1, 0, 0.1);
+    zoomy.trackPinch(1.25, 0, 0.116);
+    zoomy.release({ x: 200, y: 150 });
+    const middle = zoomy.toContent(200, 150);
+    for (let i = 0; i < 60; i += 1) zoomy.stepFling(1 / 60);
+    expect(zoomy.zoom).toBeGreaterThan(1);
+    expect(zoomy.toContent(200, 150).x).toBeCloseTo(middle.x, 4);
+  });
+
+  it("camera.the-stock-inertias-are-in-their-own-units", () => {
+    // One shape, three quantities: pixels a second, log-zoom a second, degrees a second. Written as
+    // one number for all three, a flick of the zoom would be measured against a floor meant for a
+    // hand crossing a desk, and would never coast at all.
+    expect(FLING.floor).toBeGreaterThan(ZOOM_FLING.floor);
+    expect(TURN_FLING.floor).toBeGreaterThan(ZOOM_FLING.floor);
+    expect(ZOOM_FLING.cap).toBeLessThan(FLING.cap);
   });
 
   it("camera.the-wheel-is-not-taken-when-there-is-nothing-to-move", () => {

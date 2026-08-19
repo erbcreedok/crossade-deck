@@ -93,7 +93,7 @@ function bench(
   const camera = new Camera({
     minZoom: 0.1,
     maxZoom: 4,
-    ...(options.fling === false ? { fling: NO_FLING } : {}),
+    ...(options.fling === false ? { inertia: { pan: NO_FLING } } : {}),
     ...(options.input ? { input: options.input } : {}),
   });
   let painted = 0;
@@ -181,17 +181,34 @@ describe("the camera's fingers", () => {
     expect(b.wiring.gesture()).toBe("pan");
   });
 
-  it("cameraInput.a-pinch-does-not-throw — only a pan does", () => {
-    // A two-finger flick is a zoom that happened to travel, and coasting out of it is not what any
-    // hand asked for.
-    const b = bench();
-    b.hand.down(1, 150, 150);
-    b.hand.down(2, 250, 150);
-    b.hand.move(1, 40, 150, 16);
-    b.hand.move(2, 360, 150, 24);
-    b.hand.up(1, 40, 150, 32);
-    b.hand.up(2, 360, 150, 40);
-    expect(b.camera.flinging).toBe(false);
+  it("cameraInput.a-pinch-throws-what-it-was-doing — and one finger still down parks all of it", () => {
+    // Each axis throws with the speed IT was carrying: a spreading pinch coasts its zoom, a twist
+    // coasts its turn, and neither slides the desk — a gesture that only zoomed never fed a pan
+    // velocity, so no rule is needed to stop it. What DOES stop everything is a hand still on the
+    // glass: lifting one finger of two leaves the other panning, and a desk coasting under a finger
+    // that never left is a desk fighting the hand.
+    const both = bench();
+    both.hand.down(1, 150, 150);
+    both.hand.down(2, 250, 150);
+    both.hand.move(1, 140, 150, 16);
+    both.hand.move(2, 300, 150, 24);
+    const parked = both.camera.x;
+    both.hand.up(1, 140, 150, 32); // one of two: the gesture becomes a pan under the finger left
+    // The first finger of the two is up; the second is still on the glass, so nothing is thrown.
+    expect(both.wiring.gesture()).toBe("pan");
+    expect(both.camera.flinging, "a finger stayed on the glass and the view coasted anyway").toBe(false);
+    both.hand.up(2, 300, 150, 40);
+
+    expect(parked).toBe(both.camera.x); // nothing slid while a hand was on the glass
+
+    // …and once the LAST finger goes, what the pinch was carrying is thrown: the zoom coasts on,
+    // about the spot the fingers were over, and the desk does not slide with it.
+    const zoomWas = both.camera.zoom;
+    const spot = both.camera.toContent(220, 150); // the middle the fingers were over
+    expect(both.camera.flinging, "both fingers gone and the zoom was not thrown").toBe(true);
+    both.wiring.step(1 / 60);
+    expect(both.camera.zoom).toBeGreaterThan(zoomWas);
+    expect(both.camera.toContent(220, 150).x).toBeCloseTo(spot.x, 4);
   });
 
   it("cameraInput.the-throw-outlives-the-finger-and-nothing-else", () => {

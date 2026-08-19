@@ -7,6 +7,9 @@ import {
   draggable,
   FLING,
   FREE_INPUT,
+  NO_FLING,
+  TURN_FLING,
+  ZOOM_FLING,
   freeLayout,
   installStockCarries,
   node,
@@ -61,6 +64,16 @@ interface ZoneArgs {
   floor: number;
   decay: number;
   smoothing: number;
+  zoomFling: boolean;
+  zoomCap: number;
+  zoomFloor: number;
+  zoomDecay: number;
+  zoomSmoothing: number;
+  turnFling: boolean;
+  turnCap: number;
+  turnFloor: number;
+  turnDecay: number;
+  turnSmoothing: number;
 }
 
 /**
@@ -78,16 +91,33 @@ const CARD = { w: 130, h: 182 };
 
 const limit = (key: "arg.minZoom" | "arg.maxZoom"): Record<string, unknown> =>
   documented(key, { control: { type: "number", min: 0.01, step: 0.05 } }, "camera/limits");
-/** A fling field, and it disappears with the switch it hangs off: no inertia, nothing to tune. */
-const flung = (key: string, spec: Record<string, unknown>): Record<string, unknown> =>
-  documented(key, { ...spec, if: { arg: "fling" } }, "camera/fling");
+/**
+ * A fling field, and it disappears with the switch it hangs off: no inertia, nothing to tune.
+ *
+ * One helper for three axes, because they are one record in three sets of units — pixels a second,
+ * log-zoom a second, degrees a second — and a panel that spelled each of them out separately would
+ * be three chances to describe the same field three ways.
+ */
+const flung = (
+  axis: "fling" | "zoomFling" | "turnFling",
+  key: string,
+  spec: Record<string, unknown>,
+): Record<string, unknown> =>
+  documented(key, { ...spec, if: { arg: axis } }, `camera fling/${axis === "fling" ? "pan" : axis === "zoomFling" ? "zoom" : "turn"}`);
+/** The switch itself sits in the same group as the numbers it governs. */
+const switchOf = (axis: "fling" | "zoomFling" | "turnFling", key: string): Record<string, unknown> =>
+  documented(key, {}, `camera fling/${axis === "fling" ? "pan" : axis === "zoomFling" ? "zoom" : "turn"}`);
 
 export const Zone: StoryObj<ZoneArgs> = {
   // A ZONE OF TWO THOUSAND UNITS, opened in the middle of it at zoom 1 — so a phone shows about a
   // fifth of the desk and the first thing that works is the hand. The chequer is there to be moved
   // past: motion on a plain surface is invisible, and a camera with nothing to measure against
   // reads as a canvas that did not load.
-  render: ({ w, h, pan, zoom, rotate, turn, minZoom, maxZoom, sensitivity, fling, cap, floor, decay, smoothing }) => {
+  render: (a) => {
+    const { w, h, pan, zoom, rotate, turn, minZoom, maxZoom, sensitivity } = a;
+    const { fling, cap, floor, decay, smoothing } = a;
+    const { zoomFling, zoomCap, zoomFloor, zoomDecay, zoomSmoothing } = a;
+    const { turnFling, turnCap, turnFloor, turnDecay, turnSmoothing } = a;
     registerLayout("story.camera.free", freeLayout);
     registerSurface("story.camera.zone", {
       layers: [{ paint: "sunkBg" }],
@@ -140,7 +170,17 @@ export const Zone: StoryObj<ZoneArgs> = {
         limits: {
           minZoom,
           maxZoom,
-          fling: fling ? { cap, floor, decay, smoothing, maxGap: FLING.maxGap } : { ...FLING, cap: 0, floor: Infinity },
+          // EVERY AXIS ON ITS OWN SWITCH, in its own units: a desk may coast under the hand while
+          // its zoom stops dead, and one switch for all three would make that unsayable.
+          inertia: {
+            pan: fling ? { cap, floor, decay, smoothing, maxGap: FLING.maxGap } : NO_FLING,
+            zoom: zoomFling
+              ? { cap: zoomCap, floor: zoomFloor, decay: zoomDecay, smoothing: zoomSmoothing, maxGap: ZOOM_FLING.maxGap }
+              : NO_FLING,
+            turn: turnFling
+              ? { cap: turnCap, floor: turnFloor, decay: turnDecay, smoothing: turnSmoothing, maxGap: TURN_FLING.maxGap }
+              : NO_FLING,
+          },
           // THE THREE GATES, live: a re-render retunes the STANDING camera, so closing one here is
           // the same call a game's own rule would make in the middle of a turn.
           input: { pan, zoom, rotate },
@@ -180,6 +220,16 @@ export const Zone: StoryObj<ZoneArgs> = {
     floor: FLING.floor,
     decay: FLING.decay,
     smoothing: FLING.smoothing,
+    zoomFling: true,
+    zoomCap: ZOOM_FLING.cap,
+    zoomFloor: ZOOM_FLING.floor,
+    zoomDecay: ZOOM_FLING.decay,
+    zoomSmoothing: ZOOM_FLING.smoothing,
+    turnFling: true,
+    turnCap: TURN_FLING.cap,
+    turnFloor: TURN_FLING.floor,
+    turnDecay: TURN_FLING.decay,
+    turnSmoothing: TURN_FLING.smoothing,
   },
   argTypes: {
     w: documented("arg.w", { control: { type: "number", min: 100, step: 100 } }, "desk"),
@@ -195,11 +245,21 @@ export const Zone: StoryObj<ZoneArgs> = {
       { control: { type: "number", min: 0.0002, max: 0.01, step: 0.0002 } },
       "camera/wheel",
     ),
-    fling: documented("arg.fling", {}, "camera/fling"),
-    cap: flung("arg.flingCap", { control: { type: "number", min: 0, step: 200 } }),
-    floor: flung("arg.flingFloor", { control: { type: "number", min: 0, step: 5 } }),
-    decay: flung("arg.flingDecay", { control: { type: "number", min: 0.5, step: 0.5 } }),
-    smoothing: flung("arg.flingSmoothing", { control: { type: "range", min: 0.05, max: 1, step: 0.05 } }),
+    fling: switchOf("fling", "arg.fling"),
+    cap: flung("fling", "arg.flingCap", { control: { type: "number", min: 0, step: 200 } }),
+    floor: flung("fling", "arg.flingFloor", { control: { type: "number", min: 0, step: 5 } }),
+    decay: flung("fling", "arg.flingDecay", { control: { type: "number", min: 0.5, step: 0.5 } }),
+    smoothing: flung("fling", "arg.flingSmoothing", { control: { type: "range", min: 0.05, max: 1, step: 0.05 } }),
+    zoomFling: switchOf("zoomFling", "arg.zoomFling"),
+    zoomCap: flung("zoomFling", "arg.zoomCap", { control: { type: "number", min: 0, step: 0.5 } }),
+    zoomFloor: flung("zoomFling", "arg.zoomFloor", { control: { type: "number", min: 0, step: 0.05 } }),
+    zoomDecay: flung("zoomFling", "arg.flingDecay", { control: { type: "number", min: 0.5, step: 0.5 } }),
+    zoomSmoothing: flung("zoomFling", "arg.flingSmoothing", { control: { type: "range", min: 0.05, max: 1, step: 0.05 } }),
+    turnFling: switchOf("turnFling", "arg.turnFling"),
+    turnCap: flung("turnFling", "arg.turnCap", { control: { type: "number", min: 0, step: 60 } }),
+    turnFloor: flung("turnFling", "arg.turnFloor", { control: { type: "number", min: 0, step: 5 } }),
+    turnDecay: flung("turnFling", "arg.flingDecay", { control: { type: "number", min: 0.5, step: 0.5 } }),
+    turnSmoothing: flung("turnFling", "arg.flingSmoothing", { control: { type: "range", min: 0.05, max: 1, step: 0.05 } }),
   },
   parameters: { gkDocStory: "canvasCamera.zone" },
 };

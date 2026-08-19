@@ -115,11 +115,15 @@ export function wireCamera(w: CameraGestures): CameraControl {
   const pointers = new Map<number, Point>();
   let gesture: Gesture = "none";
   let panLast: Point = { x: 0, y: 0 };
+  /** Where the fingers of a finished pinch last were — what a zoom or a turn coasts about. */
+  let lastMid: Point | undefined;
   /**
    * Where the pinch began: the desk point between the fingers, the span and the angle to measure
    * against, and whether the twist threshold has been crossed yet.
    */
-  let pinch: { anchor: Point; dist: number; zoom: number; angle: number; rotation: number; turning: boolean } | undefined;
+  let pinch:
+    | { anchor: Point; dist: number; zoom: number; angle: number; rotation: number; turning: boolean; mid: Point }
+    | undefined;
 
   const moved = (): void => w.onView?.();
 
@@ -154,15 +158,22 @@ export function wireCamera(w: CameraGestures): CameraControl {
       angle: s.angle,
       rotation: w.camera.rotation,
       turning: false,
+      mid: s.mid,
     };
     gesture = "pinch";
     w.camera.grab();
   };
 
-  const startPan = (at: Point): void => {
+  /**
+   * `carrying` is the hand-over out of a pinch: the gesture continues under the finger that stayed,
+   * so what the two were carrying is kept rather than wiped. A fresh landing is the other case, and
+   * there whatever the view was doing stops under the hand.
+   */
+  const startPan = (at: Point, carrying = false): void => {
     gesture = "pan";
     panLast = at;
-    w.camera.grab();
+    if (carrying) w.camera.handOver();
+    else w.camera.grab();
   };
 
   const onDown = (e: PointerEvent): void => {
@@ -205,6 +216,7 @@ export function wireCamera(w: CameraGestures): CameraControl {
       sync();
       const s = spanOf();
       const may = w.camera.input;
+      const turnedFrom = w.camera.rotation;
       if (may.rotate) {
         // The threshold is crossed once and then SUBTRACTED, so the desk starts turning from where
         // it stood rather than snapping by twelve degrees the instant it is allowed to.
@@ -213,11 +225,16 @@ export function wireCamera(w: CameraGestures): CameraControl {
         if (pinch.turning) w.camera.turnTo(pinch.rotation + swung - Math.sign(swung) * TWIST);
       }
       const want = may.zoom ? (pinch.zoom * s.dist) / pinch.dist : w.camera.zoom;
+      // What the fingers are CARRYING, sampled off the same events — a ratio for the zoom and
+      // degrees for the turn, each measured against the previous frame of this gesture, so a
+      // release can throw whichever of them was moving.
+      w.camera.trackPinch(want / w.camera.zoom, w.camera.rotation - turnedFrom, e.timeStamp / 1000);
       // The anchor taken at the start, pinned to where the middle is NOW: the spot between the
       // fingers stays between the fingers, so the pinch pans, zooms and turns as one motion. With
       // panning closed there is nothing to pin to, and the zoom goes about the middle of the glass.
       if (may.pan) w.camera.holdAt(pinch.anchor, s.mid.x, s.mid.y, want);
       else w.camera.setZoom(want);
+      pinch.mid = s.mid; // where a coast, if there is one, will hold the desk still
       moved();
       return;
     }
@@ -235,6 +252,7 @@ export function wireCamera(w: CameraGestures): CameraControl {
 
   const onUp = (e: PointerEvent): void => {
     const wasPan = gesture === "pan";
+    const wasPinch = gesture === "pinch";
     pointers.delete(e.pointerId);
     try {
       view.releasePointerCapture(e.pointerId);
@@ -243,17 +261,22 @@ export function wireCamera(w: CameraGestures): CameraControl {
     }
     if (pointers.size === 1 && gesture === "pinch") {
       // One finger left of two: carry on panning from where it is, rather than ending the gesture
-      // under a hand that never lifted.
-      startPan([...pointers.values()][0]!);
+      // under a hand that never lifted — and KEEP what the pinch was carrying, or the zoom would
+      // coast only on the day two fingers left the glass in the same millisecond.
+      lastMid = pinch?.mid;
+      startPan([...pointers.values()][0]!, true);
       return;
     }
     if (pointers.size > 0) return;
+    const held = pinch?.mid ?? lastMid;
+    lastMid = undefined;
     pinch = undefined;
     gesture = "none";
-    // Only a PAN throws. A pinch ends where the fingers left it — a two-finger flick is a zoom
-    // that happened to travel, and coasting out of it is not what any hand asked for.
-    if (!wasPan) return;
-    w.camera.release();
+    if (!wasPan && !wasPinch) return;
+    // EACH AXIS THROWS WITH THE SPEED IT WAS CARRYING, and no rule is needed to keep a pinch from
+    // sliding the desk: a gesture that only zoomed never fed a pan velocity, so there is none to
+    // throw. A coasting zoom or turn keeps the point between the fingers still.
+    w.camera.release(held);
     // AND THE CONSUMER IS TOLD, or the throw never runs at all: `onView` is the one channel there
     // is, and the whole of a fling happens after the last event this file will ever hear. A loop
     // that sleeps until something moves never learns that something is about to.
