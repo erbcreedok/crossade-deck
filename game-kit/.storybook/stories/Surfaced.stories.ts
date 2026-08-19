@@ -72,31 +72,34 @@ const meta: Meta = {
 };
 export default meta;
 
+const SIZE = { control: { type: "number", min: 0, step: 0.1 } };
+const RADIUS = { control: { type: "number", min: 0, step: 0.02 } };
+const TOKEN = { control: "text" };
+
 // ---- Plate: the shape, the record, the node ------------------------------------------------
 
 interface PlateArgs extends ShapeArgs, RecordArgs {
   id: string;
+  surfaceName: string;
 }
 
 // A COMMENT IN A RENDER BODY IS PART OF THE SNIPPET — it is printed with the code and copied
 // with it. So notes about the catalog live out here, above the story, and only what a reader
 // would want in their own file stays inside.
-//
-// The registry name is written out twice rather than kept in a module const, for the same
-// reason: a const reads better in this file and prints as a bare identifier nobody has.
 export const Plate: StoryObj<PlateArgs> = {
   // `Bounded`'s own box, one atom later — and now it can be seen. Every property of the record is
   // here, and so is every shape the box can be: a rect, a circle, a polygon of as many corners as
   // you like, or one pasted in from somewhere else.
-  render: (a) => {
-    registerSurface("story.plate", recordOf(a));
-    return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.plate" }))).el;
+  render: ({ id, surfaceName, ...plate }) => {
+    registerSurface(surfaceName, recordOf(plate));
+    return scene(node(id.trim() || "card", Bounded({ bounds: shapeOf(plate) }), Surfaced({ surface: surfaceName }))).el;
   },
-  args: { id: "card", ...shapeArgs(), ...RECORD_ARGS },
+  args: { id: "card", surfaceName: "story.plate", ...shapeArgs(), ...RECORD_ARGS },
   argTypes: {
     // A node is NAMED, and the name is what the tree below follows.
     id: documented("arg.id", { control: "text" }, "node"),
     ...shapeArgTypes(),
+    surfaceName: documented("arg.registerAs", TOKEN, "surface"),
     ...RECORD_ARG_TYPES,
   },
   parameters: { gkDocStory: "surfaced.plate" },
@@ -105,6 +108,8 @@ export const Plate: StoryObj<PlateArgs> = {
 // ---- Path: one node, and a shape with no inside ---------------------------------------------
 
 interface PathArgs extends RecordArgs {
+  id: string;
+  surfaceName: string;
   fromX: number;
   fromY: number;
   toX: number;
@@ -138,12 +143,14 @@ export const Path: StoryObj<PathArgs> = {
   // A shape is a REGION, so the path closes itself: walked out and walked back it encloses nothing,
   // the fill has nothing to cover, and everything visible is the stroke. That is the whole record
   // below, the same one `Plate` builds — a line is a path and a stroke, and nothing else.
-  render: (a) => {
-    registerSurface("story.path", recordOf(a));
-    const run = line({ from: { x: a.fromX, y: a.fromY }, to: { x: a.toX, y: a.toY }, bend: a.bend });
-    return scene(node("path", Bounded({ bounds: run }), Surfaced({ surface: "story.path" }))).el;
+  render: ({ id, surfaceName, fromX, fromY, toX, toY, bend, ...record }) => {
+    registerSurface(surfaceName, recordOf(record));
+    const run = line({ from: { x: fromX, y: fromY }, to: { x: toX, y: toY }, bend });
+    return scene(node(id.trim() || "path", Bounded({ bounds: run }), Surfaced({ surface: surfaceName }))).el;
   },
   args: {
+    id: "path",
+    surfaceName: "story.path",
     fromX: -1.1,
     fromY: 0,
     toX: 1.1,
@@ -153,11 +160,13 @@ export const Path: StoryObj<PathArgs> = {
     ...INK,
   },
   argTypes: {
+    id: documented("arg.id", { control: "text" }, "node"),
     fromX: place("arg.fromX", "from"),
     fromY: place("arg.fromY", "from"),
     toX: place("arg.toX", "to"),
     toY: place("arg.toY", "to"),
     bend: documented("arg.bend", { control: { type: "range", min: -1, max: 1, step: 0.05 } }, "line"),
+    surfaceName: documented("arg.registerAs", TOKEN, "surface"),
     ...RECORD_ARG_TYPES,
   },
   parameters: { gkDocStory: "surfaced.path" },
@@ -172,6 +181,8 @@ interface ZoneChild {
 
 interface ZoneArgs extends RecordArgs {
   id: string;
+  surfaceName: string;
+  layoutName: string;
   children: ZoneChild[];
   gap: number;
   padding: number;
@@ -185,17 +196,19 @@ export const Zone: StoryObj<ZoneArgs> = {
   // `children` is the real array a reader edits, one entry per node — not a count this render
   // expands into anonymous boxes nobody asked for. Every id typed here is used EXACTLY as
   // written; the ONE exception is a blank one, filled the same way the node's own `id` control
-  // is on every other story (`a.id.trim() || …`), and it is marked here for the same reason it is
-  // there: a story that quietly overwrites what a reader wrote is a story lying about its panel.
-  render: (a) => {
-    registerSurface("story.zone", recordOf(a));
-    registerLayout("story.zone.row", rowLayout({ gap: a.gap, padding: a.padding }));
-    const zone = node(a.id.trim() || "zone", Container({ layout: "story.zone.row" }), Surfaced({ surface: "story.zone" }));
-    a.children.forEach((child, i) => add(zone, node(child.id.trim() || `card${i}`, Bounded(), Surfaced())));
+  // is on every other story, and it is marked here for the same reason it is there: a story that
+  // quietly overwrites what a reader wrote is a story lying about its panel.
+  render: ({ id, surfaceName, layoutName, children, gap, padding, ...record }) => {
+    registerSurface(surfaceName, recordOf(record));
+    registerLayout(layoutName, rowLayout({ gap, padding }));
+    const zone = node(id.trim() || "zone", Container({ layout: layoutName }), Surfaced({ surface: surfaceName }));
+    children.forEach((child, i) => add(zone, node(child.id.trim() || `card${i}`, Bounded(), Surfaced())));
     return scene(zone).el;
   },
   args: {
     id: "zone",
+    surfaceName: "story.zone",
+    layoutName: "story.zone.row",
     children: [{ id: "card0" }, { id: "card1" }],
     gap: 0.12,
     padding: 0.2,
@@ -203,9 +216,11 @@ export const Zone: StoryObj<ZoneArgs> = {
   },
   argTypes: {
     id: documented("arg.id", { control: "text" }, "node"),
+    layoutName: documented("arg.layoutName", TOKEN, "container"),
     children: documented("arg.children", { control: "object" }, "container"),
     gap: documented("arg.gap", { control: { type: "number", min: 0, step: 0.02 } }, "container"),
     padding: documented("arg.padding", { control: { type: "number", min: 0, step: 0.02 } }, "container"),
+    surfaceName: documented("arg.registerAs", TOKEN, "surface"),
     ...RECORD_ARG_TYPES,
   },
   parameters: { gkDocStory: "surfaced.zone" },
@@ -213,7 +228,13 @@ export const Zone: StoryObj<ZoneArgs> = {
 
 // ---- Restyle: one base record, and a clone overriding it ------------------------------------
 
-export const Restyle: StoryObj<ShapeArgs> = {
+interface RestyleArgs extends ShapeArgs {
+  deskLayout: string;
+  baseSurface: string;
+  cloneSurface: string;
+}
+
+export const Restyle: StoryObj<RestyleArgs> = {
   // TWO NODES BUILT THE SAME — one box, one row, one base record — whose difference is exactly
   // what the reader typed. Three sections, in reading order: `surface override` is the clone's
   // own say, where EMPTY MEANS "AS THE BASE" ("" on a select, a blank number field, the ""
@@ -221,18 +242,30 @@ export const Restyle: StoryObj<ShapeArgs> = {
   // both` is the base record both start from. An untouched override panel is two identical
   // cards — guarded by `controls.an-untouched-override-is-its-base` — and every value set in
   // it is a diff read against the base standing right beside it.
-  render: (a) => {
-    registerSurface("story.restyle.both", bothRecordOf(a));
-    registerSurface("story.restyle.clone", cloneRecordOf(a));
-    const desk = node("desk", Container({ layout: "row" }));
-    add(desk, node("base", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.restyle.both" })));
-    add(desk, node("clone", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.restyle.clone" })));
+  render: ({ deskLayout, baseSurface, cloneSurface, ...both }) => {
+    // `both` is the shape and the base record the two cards share; the clone reads its overrides
+    // off the same object, which is what makes an untouched panel two identical cards.
+    registerSurface(baseSurface, bothRecordOf(both));
+    registerSurface(cloneSurface, cloneRecordOf(both));
+    const desk = node("desk", Container({ layout: deskLayout }));
+    add(desk, node("base", Bounded({ bounds: shapeOf(both) }), Surfaced({ surface: baseSurface })));
+    add(desk, node("clone", Bounded({ bounds: shapeOf(both) }), Surfaced({ surface: cloneSurface })));
     return scene(desk).el;
   },
-  args: { ...OVERRIDE_ARGS, ...shapeArgs(), ...recordArgsAt("both") },
+  args: {
+    deskLayout: "row",
+    baseSurface: "story.restyle.both",
+    cloneSurface: "story.restyle.clone",
+    ...OVERRIDE_ARGS,
+    ...shapeArgs(),
+    ...recordArgsAt("both"),
+  },
   argTypes: {
+    deskLayout: documented("arg.layout", TOKEN, "desk/container"),
+    cloneSurface: documented("arg.registerAs", TOKEN, "surface override"),
     ...overrideArgTypes("surface override"),
     ...shapeArgTypes("bounds both"),
+    baseSurface: documented("arg.registerAs", TOKEN, "surface both"),
     ...recordArgTypes("surface both", "both"),
   },
   parameters: { gkDocStory: "surfaced.restyle" },
@@ -241,6 +274,11 @@ export const Restyle: StoryObj<ShapeArgs> = {
 // ---- Layers: paint stacks, bottom first ----------------------------------------------------
 
 interface LayersArgs {
+  id: string;
+  cardW: number;
+  cardH: number;
+  surfaceName: string;
+  radius: number;
   under: string;
   underCustom: string;
   underOpacity: number;
@@ -260,23 +298,47 @@ export const Layers: StoryObj<LayersArgs> = {
   // A record is a LIST of coats, not one fill. Order is the whole point, and it is visible the
   // moment the upper one is see-through: swap them and the blend changes. This is also where a
   // zone's low-opacity ground comes from — a layer, not a special kind of surface.
-  render: (a) => {
+  render: ({
+    id,
+    cardW,
+    cardH,
+    surfaceName,
+    radius,
+    under,
+    underCustom,
+    underOpacity,
+    underImage,
+    underFit,
+    underAlign,
+    over,
+    overCustom,
+    overOpacity,
+    overImage,
+    overFit,
+    overAlign,
+    swap,
+  }) => {
     const layers = [
       {
-        paint: paintOf(a.under, a.underCustom),
-        opacity: a.underOpacity,
-        ...(a.underImage ? { image: a.underImage, fit: a.underFit, align: a.underAlign } : {}),
+        paint: paintOf(under, underCustom),
+        opacity: underOpacity,
+        ...(underImage ? { image: underImage, fit: underFit, align: underAlign } : {}),
       },
       {
-        paint: paintOf(a.over, a.overCustom),
-        opacity: a.overOpacity,
-        ...(a.overImage ? { image: a.overImage, fit: a.overFit, align: a.overAlign } : {}),
+        paint: paintOf(over, overCustom),
+        opacity: overOpacity,
+        ...(overImage ? { image: overImage, fit: overFit, align: overAlign } : {}),
       },
     ];
-    registerSurface("story.stack", { layers: a.swap ? [...layers].reverse() : layers, radius: 0.08 });
-    return scene(node("card", Bounded({ bounds: rect(2, 1.4) }), Surfaced({ surface: "story.stack" }))).el;
+    registerSurface(surfaceName, { layers: swap ? [...layers].reverse() : layers, radius });
+    return scene(node(id.trim() || "card", Bounded({ bounds: rect(cardW, cardH) }), Surfaced({ surface: surfaceName }))).el;
   },
   args: {
+    id: "card",
+    cardW: 2,
+    cardH: 1.4,
+    surfaceName: "story.stack",
+    radius: 0.08,
     under: "panelBg",
     underCustom: "",
     underOpacity: 1,
@@ -292,19 +354,24 @@ export const Layers: StoryObj<LayersArgs> = {
     swap: false,
   },
   argTypes: {
-    under: documented("arg.under", { control: "select", options: ["", ...PAINTS] }),
-    underCustom: documented("arg.underCustom", { control: "color" }),
-    underOpacity: documented("arg.underOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }),
-    underImage: documented("arg.underImage", { control: "select", options: ["", ...assetNames()] }),
-    underFit: documented("arg.underFit", { control: "select", options: FITS, if: { arg: "underImage", neq: "" } }),
-    underAlign: documented("arg.underAlign", { control: "select", options: ALIGNS, if: { arg: "underImage", neq: "" } }),
-    over: documented("arg.over", { control: "select", options: ["", ...PAINTS] }),
-    overCustom: documented("arg.overCustom", { control: "color" }),
-    overOpacity: documented("arg.overOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }),
-    overImage: documented("arg.overImage", { control: "select", options: ["", ...assetNames()] }),
-    overFit: documented("arg.overFit", { control: "select", options: FITS, if: { arg: "overImage", neq: "" } }),
-    overAlign: documented("arg.overAlign", { control: "select", options: ALIGNS, if: { arg: "overImage", neq: "" } }),
-    swap: documented("arg.swap", {}),
+    id: documented("arg.id", { control: "text" }, "node"),
+    cardW: documented("arg.w", SIZE, "bounds"),
+    cardH: documented("arg.h", SIZE, "bounds"),
+    surfaceName: documented("arg.registerAs", TOKEN, "surface"),
+    radius: documented("arg.radius", RADIUS, "surface"),
+    under: documented("arg.under", { control: "select", options: ["", ...PAINTS] }, "surface/layers[0]"),
+    underCustom: documented("arg.underCustom", { control: "color" }, "surface/layers[0]"),
+    underOpacity: documented("arg.underOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "surface/layers[0]"),
+    underImage: documented("arg.underImage", { control: "select", options: ["", ...assetNames()] }, "surface/layers[0]"),
+    underFit: documented("arg.underFit", { control: "select", options: FITS, if: { arg: "underImage", neq: "" } }, "surface/layers[0]"),
+    underAlign: documented("arg.underAlign", { control: "select", options: ALIGNS, if: { arg: "underImage", neq: "" } }, "surface/layers[0]"),
+    over: documented("arg.over", { control: "select", options: ["", ...PAINTS] }, "surface/layers[1]"),
+    overCustom: documented("arg.overCustom", { control: "color" }, "surface/layers[1]"),
+    overOpacity: documented("arg.overOpacity", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "surface/layers[1]"),
+    overImage: documented("arg.overImage", { control: "select", options: ["", ...assetNames()] }, "surface/layers[1]"),
+    overFit: documented("arg.overFit", { control: "select", options: FITS, if: { arg: "overImage", neq: "" } }, "surface/layers[1]"),
+    overAlign: documented("arg.overAlign", { control: "select", options: ALIGNS, if: { arg: "overImage", neq: "" } }, "surface/layers[1]"),
+    swap: documented("arg.swap", {}, "surface"),
   },
   parameters: { gkDocStory: "surfaced.layers" },
 };
@@ -312,14 +379,17 @@ export const Layers: StoryObj<LayersArgs> = {
 // ---- Registered: a face somebody else authored --------------------------------------------
 
 interface FacesArgs extends ShapeArgs {
+  id: string;
   surface: string;
 }
 
 export const Registered: StoryObj<FacesArgs> = {
   // A node wears a record it did not author: it names one.
-  render: (a) => scene(node("card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: a.surface }))).el,
-  args: { surface: "cards/face/spade-A", ...shapeArgs({ w: 1, h: 1.4 }) },
+  render: ({ id, surface, ...shape }) =>
+    scene(node(id.trim() || "card", Bounded({ bounds: shapeOf(shape) }), Surfaced({ surface }))).el,
+  args: { id: "card", surface: "cards/face/spade-A", ...shapeArgs({ w: 1, h: 1.4 }) },
   argTypes: {
+    id: documented("arg.id", { control: "text" }, "node"),
     surface: documented("arg.surfaceName", { control: "select", options: surfaceNames() }, "node"),
     ...shapeArgTypes(),
   },

@@ -13,6 +13,7 @@ import {
   star,
   Surfaced,
   Transformable,
+  type Frame,
 } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import { documented, PAINTS } from "./surfaceControls.js";
@@ -35,67 +36,178 @@ const meta: Meta = {
 };
 export default meta;
 
+const SIZE = { control: { type: "number", min: 0, step: 0.1 } };
+const PLACE = { control: { type: "number", step: 0.1 } };
+const RADIUS = { control: { type: "number", min: 0, step: 0.02 } };
+const PAINT = { control: "select", options: PAINTS };
+const TOKEN = { control: "text" };
+const HEIGHT = { control: { type: "range", min: 0, max: 5, step: 0.5 } };
+
+const contour = (part: string): Record<string, unknown> =>
+  documented("arg.from", { control: "select", options: ["footprint", "silhouette"] }, part);
+const lamp = (part: string): Record<string, unknown> =>
+  documented("arg.light.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, part);
+const frameOf = (part: string): Record<string, unknown> =>
+  documented("arg.frame", { control: "select", options: ["viewer", "world"] }, part);
+
 interface CastArgs {
   id: string;
-  face: string;
-  from: "footprint" | "silhouette";
-  z: number;
+  deskLayout: string;
+  frame: Frame;
   angle: number;
+  cardW: number;
+  cardH: number;
+  cardSurface: string;
+  cardPaint: string;
+  cardRadius: number;
+  cardX: number;
+  cardY: number;
+  cardZ: number;
+  cardFrom: "footprint" | "silhouette";
+  starPoints: number;
+  starOuterR: number;
+  starInnerR: number;
+  sparkSurface: string;
+  sparkPaint: string;
+  sparkX: number;
+  sparkY: number;
+  sparkZ: number;
+  sparkFrom: "footprint" | "silhouette";
 }
-
-const fromControl = documented("arg.from", { control: "select", options: ["footprint", "silhouette"] }, "shadow");
-const lampControl = documented("arg.light.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "light");
 
 export const Cast: StoryObj<CastArgs> = {
   // A rounded card and a star token under one lamp. `from` picks the contour that falls — on the
   // card, `silhouette` keeps the rounded corners and `footprint` squares them off. `z` is the
   // pose's own height, and the shadow stretches with it: the fall is a CONSEQUENCE, there is no
   // shadow-length knob to disagree with the height. `angle` walks the light around the desk.
-  render: (a) => {
-    registerSurface("story.shadow.face", { layers: [{ paint: a.face }], radius: 0.18 });
-    registerSurface("story.shadow.star", { layers: [{ paint: "alert" }] });
-    registerLayout("story.shadow.free", freeLayout);
-    const desk = node(
-      "desk",
-      Container({ layout: "story.shadow.free" }),
-      Lit({ light: { frame: "viewer", angle: a.angle } }),
-    );
+  render: ({
+    id,
+    deskLayout,
+    frame,
+    angle,
+    cardW,
+    cardH,
+    cardSurface,
+    cardPaint,
+    cardRadius,
+    cardX,
+    cardY,
+    cardZ,
+    cardFrom,
+    starPoints,
+    starOuterR,
+    starInnerR,
+    sparkSurface,
+    sparkPaint,
+    sparkX,
+    sparkY,
+    sparkZ,
+    sparkFrom,
+  }) => {
+    registerSurface(cardSurface, { layers: [{ paint: cardPaint }], radius: cardRadius });
+    registerSurface(sparkSurface, { layers: [{ paint: sparkPaint }] });
+    registerLayout(deskLayout, freeLayout);
+    const desk = node("desk", Container({ layout: deskLayout }), Lit({ light: { frame, angle } }));
     add(
       desk,
       node(
-        a.id.trim() || "card",
-        Bounded({ bounds: rect(1, 1.4) }),
-        Surfaced({ surface: "story.shadow.face" }),
-        Transformable({ at: { x: -1, y: 0 }, z: a.z }),
-        ShadowCaster({ from: a.from }),
+        id.trim() || "card",
+        Bounded({ bounds: rect(cardW, cardH) }),
+        Surfaced({ surface: cardSurface }),
+        Transformable({ at: { x: cardX, y: cardY }, z: cardZ }),
+        ShadowCaster({ from: cardFrom }),
       ),
     );
     add(
       desk,
       node(
         "spark",
-        Bounded({ bounds: star(5, 0.55, 0.26) }),
-        Surfaced({ surface: "story.shadow.star" }),
-        Transformable({ at: { x: 1.1, y: 0.1 }, z: a.z }),
-        ShadowCaster({ from: a.from }),
+        Bounded({ bounds: star(starPoints, starOuterR, starInnerR) }),
+        Surfaced({ surface: sparkSurface }),
+        Transformable({ at: { x: sparkX, y: sparkY }, z: sparkZ }),
+        ShadowCaster({ from: sparkFrom }),
       ),
     );
     return scene(desk).el;
   },
-  args: { id: "card", face: "accent", from: "silhouette", z: 1, angle: 315 },
+  args: {
+    id: "card",
+    deskLayout: "story.shadow.free",
+    frame: "viewer",
+    angle: 315,
+    cardW: 1,
+    cardH: 1.4,
+    cardSurface: "story.shadow.face",
+    cardPaint: "accent",
+    cardRadius: 0.18,
+    cardX: -1,
+    cardY: 0,
+    cardZ: 1,
+    cardFrom: "silhouette",
+    starPoints: 5,
+    starOuterR: 0.55,
+    starInnerR: 0.26,
+    sparkSurface: "story.shadow.star",
+    sparkPaint: "alert",
+    sparkX: 1.1,
+    sparkY: 0.1,
+    sparkZ: 1,
+    sparkFrom: "silhouette",
+  },
   argTypes: {
-    id: documented("arg.id", { control: "text" }, "node"),
-    face: documented("arg.face", { control: "select", options: PAINTS }, "surface"),
-    from: fromControl,
-    z: documented("arg.z", { control: { type: "range", min: 0, max: 5, step: 0.5 } }, "shadow"),
-    angle: lampControl,
+    deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
+    frame: frameOf("desk/lit.light"),
+    angle: lamp("desk/lit.light"),
+    id: documented("arg.id", { control: "text" }, "card/node"),
+    cardW: documented("arg.w", SIZE, "card/bounds"),
+    cardH: documented("arg.h", SIZE, "card/bounds"),
+    cardSurface: documented("arg.registerAs", TOKEN, "card/surface"),
+    cardPaint: documented("arg.fill", PAINT, "card/surface"),
+    cardRadius: documented("arg.radius", RADIUS, "card/surface"),
+    cardX: documented("arg.x", PLACE, "card/transformable"),
+    cardY: documented("arg.y", PLACE, "card/transformable"),
+    cardZ: documented("arg.z", HEIGHT, "card/transformable"),
+    cardFrom: contour("card/shadowCaster"),
+    starPoints: documented("arg.points", { control: { type: "range", min: 3, max: 16, step: 1 } }, "spark/bounds"),
+    starOuterR: documented("arg.outerR", SIZE, "spark/bounds"),
+    starInnerR: documented("arg.innerR", SIZE, "spark/bounds"),
+    sparkSurface: documented("arg.registerAs", TOKEN, "spark/surface"),
+    sparkPaint: documented("arg.fill", PAINT, "spark/surface"),
+    sparkX: documented("arg.x", PLACE, "spark/transformable"),
+    sparkY: documented("arg.y", PLACE, "spark/transformable"),
+    sparkZ: documented("arg.z", HEIGHT, "spark/transformable"),
+    sparkFrom: contour("spark/shadowCaster"),
   },
   parameters: { gkDocStory: "shadowCaster.cast" },
 };
 
 interface StackArgs {
-  from: "footprint" | "silhouette";
+  deskLayout: string;
+  frame: Frame;
   angle: number;
+  pileW: number;
+  pileH: number;
+  pileLayout: string;
+  pileSurface: string;
+  pilePaint: string;
+  pileRadius: number;
+  pileX: number;
+  pileY: number;
+  pileFrom: "footprint" | "silhouette";
+  piledCards: number;
+  cardW: number;
+  cardH: number;
+  cardSurface: string;
+  cardPaint: string;
+  cardRadius: number;
+  driftX: number;
+  driftY: number;
+  piledFrom: "footprint" | "silhouette";
+  looseW: number;
+  looseH: number;
+  looseX: number;
+  looseY: number;
+  looseFrom: "footprint" | "silhouette";
 }
 
 export const Stack: StoryObj<StackArgs> = {
@@ -103,28 +215,56 @@ export const Stack: StoryObj<StackArgs> = {
   // for its whole subtree — three cards inside lay no shadows of their own. The loose card
   // beside it stands alone, so it casts alone. Nothing is toggled: detaching a card from the
   // pile IS what starts its shadow.
-  render: (a) => {
-    registerSurface("story.shadow.pile", { layers: [{ paint: "sunkBg" }], radius: 0.1 });
-    registerSurface("story.shadow.card", { layers: [{ paint: "panelBg" }], radius: 0.08 });
-    registerLayout("story.shadow.free", freeLayout);
-    const desk = node("desk", Container({ layout: "story.shadow.free" }), Lit({ light: { frame: "viewer", angle: a.angle } }));
+  render: ({
+    deskLayout,
+    frame,
+    angle,
+    pileW,
+    pileH,
+    pileLayout,
+    pileSurface,
+    pilePaint,
+    pileRadius,
+    pileX,
+    pileY,
+    pileFrom,
+    piledCards,
+    cardW,
+    cardH,
+    cardSurface,
+    cardPaint,
+    cardRadius,
+    driftX,
+    driftY,
+    piledFrom,
+    looseW,
+    looseH,
+    looseX,
+    looseY,
+    looseFrom,
+  }) => {
+    registerSurface(pileSurface, { layers: [{ paint: pilePaint }], radius: pileRadius });
+    registerSurface(cardSurface, { layers: [{ paint: cardPaint }], radius: cardRadius });
+    registerLayout(deskLayout, freeLayout);
+    registerLayout(pileLayout, freeLayout);
+    const desk = node("desk", Container({ layout: deskLayout }), Lit({ light: { frame, angle } }));
     const pile = node(
       "pile",
-      Bounded({ bounds: rect(1.6, 2) }),
-      Container({ layout: "story.shadow.free" }),
-      Surfaced({ surface: "story.shadow.pile" }),
-      Transformable({ at: { x: -1, y: 0 } }),
-      ShadowCaster({ from: a.from }),
+      Bounded({ bounds: rect(pileW, pileH) }),
+      Container({ layout: pileLayout }),
+      Surfaced({ surface: pileSurface }),
+      Transformable({ at: { x: pileX, y: pileY } }),
+      ShadowCaster({ from: pileFrom }),
     );
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < piledCards; i++) {
       add(
         pile,
         node(
           `piled#${i}`,
-          Bounded({ bounds: rect(1, 1.4) }),
-          Surfaced({ surface: "story.shadow.card" }),
-          Transformable({ at: { x: 0.06 * i, y: 0.06 * i } }),
-          ShadowCaster({ from: a.from }),
+          Bounded({ bounds: rect(cardW, cardH) }),
+          Surfaced({ surface: cardSurface }),
+          Transformable({ at: { x: driftX * i, y: driftY * i } }),
+          ShadowCaster({ from: piledFrom }),
         ),
       );
     }
@@ -133,15 +273,69 @@ export const Stack: StoryObj<StackArgs> = {
       desk,
       node(
         "loose",
-        Bounded({ bounds: rect(1, 1.4) }),
-        Surfaced({ surface: "story.shadow.card" }),
-        Transformable({ at: { x: 1.3, y: 0.2 } }),
-        ShadowCaster({ from: a.from }),
+        Bounded({ bounds: rect(looseW, looseH) }),
+        Surfaced({ surface: cardSurface }),
+        Transformable({ at: { x: looseX, y: looseY } }),
+        ShadowCaster({ from: looseFrom }),
       ),
     );
     return scene(desk).el;
   },
-  args: { from: "silhouette", angle: 315 },
-  argTypes: { from: fromControl, angle: lampControl },
+  args: {
+    deskLayout: "story.shadow.stack.free",
+    frame: "viewer",
+    angle: 315,
+    pileW: 1.6,
+    pileH: 2,
+    pileLayout: "story.shadow.pile.free",
+    pileSurface: "story.shadow.pile",
+    pilePaint: "sunkBg",
+    pileRadius: 0.1,
+    pileX: -1,
+    pileY: 0,
+    pileFrom: "silhouette",
+    piledCards: 3,
+    cardW: 1,
+    cardH: 1.4,
+    cardSurface: "story.shadow.card",
+    cardPaint: "panelBg",
+    cardRadius: 0.08,
+    driftX: 0.06,
+    driftY: 0.06,
+    piledFrom: "silhouette",
+    looseW: 1,
+    looseH: 1.4,
+    looseX: 1.3,
+    looseY: 0.2,
+    looseFrom: "silhouette",
+  },
+  argTypes: {
+    deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
+    frame: frameOf("desk/lit.light"),
+    angle: lamp("desk/lit.light"),
+    pileW: documented("arg.w", SIZE, "pile/bounds"),
+    pileH: documented("arg.h", SIZE, "pile/bounds"),
+    pileLayout: documented("arg.layoutName", TOKEN, "pile/container"),
+    pileSurface: documented("arg.registerAs", TOKEN, "pile/surface"),
+    pilePaint: documented("arg.fill", PAINT, "pile/surface"),
+    pileRadius: documented("arg.radius", RADIUS, "pile/surface"),
+    pileX: documented("arg.x", PLACE, "pile/transformable"),
+    pileY: documented("arg.y", PLACE, "pile/transformable"),
+    pileFrom: contour("pile/shadowCaster"),
+    piledCards: documented("arg.childCount", { control: { type: "range", min: 0, max: 8, step: 1 } }, "piled cards/children"),
+    cardW: documented("arg.w", SIZE, "piled cards/bounds"),
+    cardH: documented("arg.h", SIZE, "piled cards/bounds"),
+    cardSurface: documented("arg.registerAs", TOKEN, "piled cards/surface"),
+    cardPaint: documented("arg.fill", PAINT, "piled cards/surface"),
+    cardRadius: documented("arg.radius", RADIUS, "piled cards/surface"),
+    driftX: documented("arg.driftX", PLACE, "piled cards/transformable"),
+    driftY: documented("arg.driftY", PLACE, "piled cards/transformable"),
+    piledFrom: contour("piled cards/shadowCaster"),
+    looseW: documented("arg.w", SIZE, "loose card/bounds"),
+    looseH: documented("arg.h", SIZE, "loose card/bounds"),
+    looseX: documented("arg.x", PLACE, "loose card/transformable"),
+    looseY: documented("arg.y", PLACE, "loose card/transformable"),
+    looseFrom: contour("loose card/shadowCaster"),
+  },
   parameters: { gkDocStory: "shadowCaster.stack" },
 };

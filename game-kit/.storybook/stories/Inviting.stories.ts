@@ -42,10 +42,45 @@ const meta: Meta = {
 };
 export default meta;
 
+const SIZE = { control: { type: "number", min: 0, step: 0.1 } };
+const PLACE = { control: { type: "number", step: 0.1 } };
+const RADIUS = { control: { type: "number", min: 0, step: 0.02 } };
+const PAINT = { control: "select", options: PAINTS };
+const TOKEN = { control: "text" };
+const RANK = { control: { type: "range", min: 1, max: 13, step: 1 } };
+/** Shown only when a recipe is named: an absent coat has no strength and no colour to be asked about. */
+const COATED = { if: { arg: "recipe", neq: "" } };
+
 interface InviteArgs {
+  deskLayout: string;
+  zoneW: number;
+  zoneH: number;
+  zoneLayout: string;
+  zoneSurface: string;
+  zonePaint: string;
+  zoneRadius: number;
+  zoneX: number;
+  zoneY: number;
+  accepts: number;
   recipe: string;
   level: number;
   tint: string;
+  sevenW: number;
+  sevenH: number;
+  sevenSurface: string;
+  sevenPaint: string;
+  sevenRadius: number;
+  sevenX: number;
+  sevenY: number;
+  sevenRank: number;
+  eightW: number;
+  eightH: number;
+  eightSurface: string;
+  eightPaint: string;
+  eightRadius: number;
+  eightX: number;
+  eightY: number;
+  eightRank: number;
 }
 
 export const Invite: StoryObj<InviteArgs> = {
@@ -53,32 +88,63 @@ export const Invite: StoryObj<InviteArgs> = {
   // puts its invite on — ring, wash, whatever the knobs say; let go and it comes off. Pick up
   // the eight and nothing lights: the rule answered `deny`, and an unwilling zone has nothing
   // to show. The verdict is the Acceptor's; the atom only says what willingness LOOKS like.
-  render: (a) => {
-    registerSurface("story.invite.zone", { layers: [{ paint: "sunkBg" }], radius: 0.12 });
-    registerSurface("story.invite.seven", { layers: [{ paint: "accent" }], radius: 0.08 });
-    registerSurface("story.invite.eight", { layers: [{ paint: "textMuted" }], radius: 0.08 });
-    registerLayout("story.invite.free", freeLayout);
-    const desk = node("desk", Container({ layout: "story.invite.free" }));
+  render: ({
+    deskLayout,
+    zoneW,
+    zoneH,
+    zoneLayout,
+    zoneSurface,
+    zonePaint,
+    zoneRadius,
+    zoneX,
+    zoneY,
+    accepts,
+    recipe,
+    level,
+    tint,
+    sevenW,
+    sevenH,
+    sevenSurface,
+    sevenPaint,
+    sevenRadius,
+    sevenX,
+    sevenY,
+    sevenRank,
+    eightW,
+    eightH,
+    eightSurface,
+    eightPaint,
+    eightRadius,
+    eightX,
+    eightY,
+    eightRank,
+  }) => {
+    registerLayout(deskLayout, freeLayout);
+    registerLayout(zoneLayout, freeLayout);
+    registerSurface(zoneSurface, { layers: [{ paint: zonePaint }], radius: zoneRadius });
+    registerSurface(sevenSurface, { layers: [{ paint: sevenPaint }], radius: sevenRadius });
+    registerSurface(eightSurface, { layers: [{ paint: eightPaint }], radius: eightRadius });
+    const desk = node("desk", Container({ layout: deskLayout }));
     add(
       desk,
       node(
         "sevenZone",
-        Bounded({ bounds: rect(1.5, 1.9) }),
-        Container({ layout: "story.invite.free" }),
-        Surfaced({ surface: "story.invite.zone" }),
-        Transformable({ at: { x: 1.2, y: 0 } }),
-        Acceptor({ accept: { eq: ["el.values.rank", 7] } }),
-        Inviting({ coat: { recipe: a.recipe, level: a.level, tint: a.tint } }),
+        Bounded({ bounds: rect(zoneW, zoneH) }),
+        Container({ layout: zoneLayout }),
+        Surfaced({ surface: zoneSurface }),
+        Transformable({ at: { x: zoneX, y: zoneY } }),
+        Acceptor({ accept: { eq: ["el.values.rank", accepts] } }),
+        Inviting({ coat: { recipe, level, tint } }),
       ),
     );
     add(
       desk,
       node(
         "seven",
-        Bounded({ bounds: rect(1, 1.4) }),
-        Surfaced({ surface: "story.invite.seven" }),
-        Transformable({ at: { x: -1.4, y: -0.8 } }),
-        Valued({ values: { rank: 7 } }),
+        Bounded({ bounds: rect(sevenW, sevenH) }),
+        Surfaced({ surface: sevenSurface }),
+        Transformable({ at: { x: sevenX, y: sevenY } }),
+        Valued({ values: { rank: sevenRank } }),
         Draggable(),
       ),
     );
@@ -86,20 +152,76 @@ export const Invite: StoryObj<InviteArgs> = {
       desk,
       node(
         "eight",
-        Bounded({ bounds: rect(1, 1.4) }),
-        Surfaced({ surface: "story.invite.eight" }),
-        Transformable({ at: { x: -1.4, y: 0.9 } }),
-        Valued({ values: { rank: 8 } }),
+        Bounded({ bounds: rect(eightW, eightH) }),
+        Surfaced({ surface: eightSurface }),
+        Transformable({ at: { x: eightX, y: eightY } }),
+        Valued({ values: { rank: eightRank } }),
         Draggable(),
       ),
     );
     return wireDrag(scene(desk, { animate: true })).el;
   },
-  args: { recipe: "ring", level: 0.7, tint: "accent" },
+  args: {
+    deskLayout: "story.invite.free",
+    zoneW: 1.5,
+    zoneH: 1.9,
+    zoneLayout: "story.invite.zone.free",
+    zoneSurface: "story.invite.zone",
+    zonePaint: "sunkBg",
+    zoneRadius: 0.12,
+    zoneX: 1.2,
+    zoneY: 0,
+    accepts: 7,
+    recipe: "ring",
+    level: 0.7,
+    tint: "accent",
+    sevenW: 1,
+    sevenH: 1.4,
+    sevenSurface: "story.invite.seven",
+    sevenPaint: "accent",
+    sevenRadius: 0.08,
+    sevenX: -1.4,
+    sevenY: -0.8,
+    sevenRank: 7,
+    eightW: 1,
+    eightH: 1.4,
+    eightSurface: "story.invite.eight",
+    eightPaint: "textMuted",
+    eightRadius: 0.08,
+    eightX: -1.4,
+    eightY: 0.9,
+    eightRank: 8,
+  },
   argTypes: {
-    recipe: documented("arg.coatRecipe", { control: "select", options: [...coatNames()] }, "invite"),
-    level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "invite"),
-    tint: documented("arg.coatTint", { control: "select", options: PAINTS }, "invite"),
+    deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
+    zoneW: documented("arg.w", SIZE, "seven zone/bounds"),
+    zoneH: documented("arg.h", SIZE, "seven zone/bounds"),
+    zoneLayout: documented("arg.layoutName", TOKEN, "seven zone/container"),
+    zoneSurface: documented("arg.registerAs", TOKEN, "seven zone/surface"),
+    zonePaint: documented("arg.fill", PAINT, "seven zone/surface"),
+    zoneRadius: documented("arg.radius", RADIUS, "seven zone/surface"),
+    zoneX: documented("arg.x", PLACE, "seven zone/transformable"),
+    zoneY: documented("arg.y", PLACE, "seven zone/transformable"),
+    accepts: documented("arg.accepts", RANK, "seven zone/acceptor"),
+    recipe: documented("arg.coatRecipe", { control: "select", options: ["", ...coatNames()] }, "seven zone/inviting"),
+    level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 }, ...COATED }, "seven zone/inviting"),
+    tint: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], ...COATED }, "seven zone/inviting"),
+    sevenW: documented("arg.w", SIZE, "seven card/bounds"),
+    sevenH: documented("arg.h", SIZE, "seven card/bounds"),
+    sevenSurface: documented("arg.registerAs", TOKEN, "seven card/surface"),
+    sevenPaint: documented("arg.fill", PAINT, "seven card/surface"),
+    sevenRadius: documented("arg.radius", RADIUS, "seven card/surface"),
+    sevenX: documented("arg.x", PLACE, "seven card/transformable"),
+    sevenY: documented("arg.y", PLACE, "seven card/transformable"),
+    sevenRank: documented("arg.rank", RANK, "seven card/valued"),
+    eightW: documented("arg.w", SIZE, "eight card/bounds"),
+    eightH: documented("arg.h", SIZE, "eight card/bounds"),
+    eightSurface: documented("arg.registerAs", TOKEN, "eight card/surface"),
+    eightPaint: documented("arg.fill", PAINT, "eight card/surface"),
+    eightRadius: documented("arg.radius", RADIUS, "eight card/surface"),
+    eightX: documented("arg.x", PLACE, "eight card/transformable"),
+    eightY: documented("arg.y", PLACE, "eight card/transformable"),
+    eightRank: documented("arg.rank", RANK, "eight card/valued"),
   },
   parameters: { gkDocStory: "inviting.invite" },
 };

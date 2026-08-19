@@ -38,14 +38,40 @@ const meta: Meta = {
 };
 export default meta;
 
+const SIZE = { control: { type: "number", min: 0, step: 0.1 } };
+const PLACE = { control: { type: "number", step: 0.1 } };
+const RADIUS = { control: { type: "number", min: 0, step: 0.02 } };
+const PAINT = { control: "select", options: PAINTS };
+const TOKEN = { control: "text" };
+const HEIGHT = { control: { type: "range", min: 0, max: 5, step: 0.5 } };
+const CONTOUR = { control: "select", options: ["footprint", "silhouette"] };
+
 interface LightArgs {
-  face: string;
   angle: number;
   frame: Frame;
   base: number;
   perZ: number;
   lifted: number;
   opacity: number;
+  deskLayout: string;
+  lowW: number;
+  lowH: number;
+  lowSurface: string;
+  lowPaint: string;
+  lowRadius: number;
+  lowX: number;
+  lowY: number;
+  lowZ: number;
+  lowFrom: "footprint" | "silhouette";
+  highW: number;
+  highH: number;
+  highSurface: string;
+  highPaint: string;
+  highRadius: number;
+  highX: number;
+  highY: number;
+  highZ: number;
+  highFrom: "footprint" | "silhouette";
 }
 
 export const Light: StoryObj<LightArgs> = {
@@ -53,46 +79,113 @@ export const Light: StoryObj<LightArgs> = {
   // the light is the ROOT's, and a piece cannot bring its own. The taller piece throws the longer
   // shadow: the lamp owns the direction, the height owns the length — and `shadow` owns the SCALE
   // of that length (`base` at rest, `perZ` per unit of height, `lifted` in flight) and the ink.
-  render: (a) => {
-    registerSurface("story.lit.low", { layers: [{ paint: a.face }], radius: 0.08 });
-    registerSurface("story.lit.high", { layers: [{ paint: "alert" }], radius: 0.5 });
-    registerLayout("story.lit.free", freeLayout);
+  render: ({
+    angle,
+    frame,
+    base,
+    perZ,
+    lifted,
+    opacity,
+    deskLayout,
+    lowW,
+    lowH,
+    lowSurface,
+    lowPaint,
+    lowRadius,
+    lowX,
+    lowY,
+    lowZ,
+    lowFrom,
+    highW,
+    highH,
+    highSurface,
+    highPaint,
+    highRadius,
+    highX,
+    highY,
+    highZ,
+    highFrom,
+  }) => {
+    registerSurface(lowSurface, { layers: [{ paint: lowPaint }], radius: lowRadius });
+    registerSurface(highSurface, { layers: [{ paint: highPaint }], radius: highRadius });
+    registerLayout(deskLayout, freeLayout);
     const desk = node(
       "desk",
-      Container({ layout: "story.lit.free" }),
-      Lit({ light: { frame: a.frame, angle: a.angle }, shadow: { base: a.base, perZ: a.perZ, lifted: a.lifted, opacity: a.opacity } }),
+      Container({ layout: deskLayout }),
+      Lit({ light: { frame, angle }, shadow: { base, perZ, lifted, opacity } }),
     );
     add(
       desk,
       node(
         "lowCard",
-        Bounded({ bounds: rect(1, 1.4) }),
-        Surfaced({ surface: "story.lit.low" }),
-        Transformable({ at: { x: -1, y: 0 }, z: 0 }),
-        ShadowCaster(),
+        Bounded({ bounds: rect(lowW, lowH) }),
+        Surfaced({ surface: lowSurface }),
+        Transformable({ at: { x: lowX, y: lowY }, z: lowZ }),
+        ShadowCaster({ from: lowFrom }),
       ),
     );
     add(
       desk,
       node(
         "highToken",
-        Bounded({ bounds: rect(0.9, 0.9) }),
-        Surfaced({ surface: "story.lit.high" }),
-        Transformable({ at: { x: 1.1, y: 0.1 }, z: 3 }),
-        ShadowCaster(),
+        Bounded({ bounds: rect(highW, highH) }),
+        Surfaced({ surface: highSurface }),
+        Transformable({ at: { x: highX, y: highY }, z: highZ }),
+        ShadowCaster({ from: highFrom }),
       ),
     );
     return scene(desk).el;
   },
-  args: { face: "accent", angle: DEFAULT_LIGHT.angle, frame: DEFAULT_LIGHT.frame, ...DEFAULT_SHADOW },
+  args: {
+    angle: DEFAULT_LIGHT.angle,
+    frame: DEFAULT_LIGHT.frame,
+    ...DEFAULT_SHADOW,
+    deskLayout: "story.lit.free",
+    lowW: 1,
+    lowH: 1.4,
+    lowSurface: "story.lit.low",
+    lowPaint: "accent",
+    lowRadius: 0.08,
+    lowX: -1,
+    lowY: 0,
+    lowZ: 0,
+    lowFrom: "silhouette",
+    highW: 0.9,
+    highH: 0.9,
+    highSurface: "story.lit.high",
+    highPaint: "alert",
+    highRadius: 0.5,
+    highX: 1.1,
+    highY: 0.1,
+    highZ: 3,
+    highFrom: "silhouette",
+  },
   argTypes: {
-    face: documented("arg.face", { control: "select", options: PAINTS }, "surface"),
-    angle: documented("arg.light.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "light"),
-    frame: documented("arg.frame", { control: "select", options: ["viewer", "world"] }, "light"),
-    base: documented("arg.shadow.base", { control: { type: "range", min: 0, max: 0.3, step: 0.01 } }, "shadow"),
-    perZ: documented("arg.shadow.perZ", { control: { type: "range", min: 0, max: 0.2, step: 0.005 } }, "shadow"),
-    lifted: documented("arg.shadow.lifted", { control: { type: "range", min: 0, max: 0.5, step: 0.01 } }, "shadow"),
-    opacity: documented("arg.shadow.opacity", { control: { type: "range", min: 0, max: 1, step: 0.02 } }, "shadow"),
+    angle: documented("arg.light.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "desk/lit.light"),
+    frame: documented("arg.frame", { control: "select", options: ["viewer", "world"] }, "desk/lit.light"),
+    base: documented("arg.shadow.base", { control: { type: "range", min: 0, max: 0.3, step: 0.01 } }, "desk/lit.shadow"),
+    perZ: documented("arg.shadow.perZ", { control: { type: "range", min: 0, max: 0.2, step: 0.005 } }, "desk/lit.shadow"),
+    lifted: documented("arg.shadow.lifted", { control: { type: "range", min: 0, max: 0.5, step: 0.01 } }, "desk/lit.shadow"),
+    opacity: documented("arg.shadow.opacity", { control: { type: "range", min: 0, max: 1, step: 0.02 } }, "desk/lit.shadow"),
+    deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
+    lowW: documented("arg.w", SIZE, "low card/bounds"),
+    lowH: documented("arg.h", SIZE, "low card/bounds"),
+    lowSurface: documented("arg.registerAs", TOKEN, "low card/surface"),
+    lowPaint: documented("arg.fill", PAINT, "low card/surface"),
+    lowRadius: documented("arg.radius", RADIUS, "low card/surface"),
+    lowX: documented("arg.x", PLACE, "low card/transformable"),
+    lowY: documented("arg.y", PLACE, "low card/transformable"),
+    lowZ: documented("arg.z", HEIGHT, "low card/transformable"),
+    lowFrom: documented("arg.from", CONTOUR, "low card/shadowCaster"),
+    highW: documented("arg.w", SIZE, "high token/bounds"),
+    highH: documented("arg.h", SIZE, "high token/bounds"),
+    highSurface: documented("arg.registerAs", TOKEN, "high token/surface"),
+    highPaint: documented("arg.fill", PAINT, "high token/surface"),
+    highRadius: documented("arg.radius", RADIUS, "high token/surface"),
+    highX: documented("arg.x", PLACE, "high token/transformable"),
+    highY: documented("arg.y", PLACE, "high token/transformable"),
+    highZ: documented("arg.z", HEIGHT, "high token/transformable"),
+    highFrom: documented("arg.from", CONTOUR, "high token/shadowCaster"),
   },
   parameters: { gkDocStory: "lit.light" },
 };
