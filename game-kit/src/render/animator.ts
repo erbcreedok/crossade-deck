@@ -64,6 +64,14 @@ export type MotionOptions = TuningPatch & {
   readonly bake?: (node: Node) => boolean;
   /** The ruler captions lay out against — passed straight to the frame, as `attachPainter` takes it. */
   readonly measure?: TextMeasure | undefined;
+  /**
+   * The view every frame is drawn through — a camera's `transform()`, as `attachPainter` takes it.
+   *
+   * A getter, and for a sharper reason here than there: this runtime draws frames of its own accord,
+   * so a view captured once would freeze the desk at the moment the clock started while the springs
+   * carried on moving inside it.
+   */
+  readonly view?: (() => Transform) | undefined;
 };
 
 /** One node in a carried run, with its base layout offset from the grab pivot (root units). */
@@ -177,6 +185,15 @@ export interface Motions {
    * Whatever is in flight keeps going; the next settle, grab, throw or turn reads the new numbers.
    */
   retune(patch: TuningPatch): void;
+  /**
+   * PAINT A FRAME NOW — something outside the tree changed, and in practice that is the VIEW.
+   *
+   * The runtime draws on its own clock and on every tree change, which is everything a scene with
+   * no camera can want. A camera moves neither: the desk slides and not one node did. Without a
+   * word for that, a scene with both a clock and a camera can only repaint by pretending the tree
+   * changed — which walks the tree, publishes it and reconciles every pose, sixty times a second.
+   */
+  redraw(): void;
   /** The tuning in force right now — the defaults, the game's record and every `retune` folded in. */
   tuning(): MotionTuning;
   /** Stop following the host and cancel any running loop. */
@@ -369,6 +386,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       carried: carried.size > 0 ? carried : undefined,
       retain: retaining,
       measure: options.measure,
+      ...(options.view ? { view: options.view } : {}),
       ...(options.bake ? { bake: options.bake } : {}),
     });
 
@@ -697,6 +715,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       retaining = on;
       draw();
     },
+    redraw: () => draw(),
     retune(patch) {
       tuning = tune({ ...tuning, ...patch });
     },

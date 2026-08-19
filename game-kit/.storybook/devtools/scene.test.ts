@@ -401,6 +401,46 @@ describe("a canvas carries its own settings", () => {
     expect(again.host.root.id).toBe("two");
     first.dispose();
   });
+
+  it("scene.a-camera-scene-draws-through-its-camera", () => {
+    // The whole point of putting a camera on a canvas: the plan is built through HER matrix, so
+    // the desk is looked at rather than merely fitted into the view. Drawn without her, a panned
+    // desk sits exactly where it sat and only the numbers move.
+    setNextSceneId("cam");
+    const desk = node("desk", Container({ layout: "test.cam.free" }));
+    registerLayout("test.cam.free", freeLayout);
+    add(desk, node("card", Bounded({ bounds: rect(1, 1) }), Surfaced()));
+    const s = scene(desk, {
+      camera: { limits: { minZoom: 0.1, maxZoom: 4 }, content: { x: -10, y: -10, w: 20, h: 20 }, unit: 100 },
+    });
+    const xOf = (): number => drawn.find((q) => q.id === "card")!.x;
+    const centred = xOf();
+    s.camera!.panBy(-60, 0);
+    s.camera!.transform(); // the view moved; the frame the loop would paint is asked for here
+    (s.host as unknown as { setRoot: (n: Node) => void }).setRoot(desk);
+    expect(xOf()).toBeCloseTo(centred - 60, 3);
+    s.dispose();
+  });
+
+  it("scene.a-re-render-retunes-the-camera — it does not build a second one", () => {
+    // Same law as the tuning's and the tree's: a control change is new NUMBERS for the standing
+    // view. Rebuilt instead, every keystroke in the panel would throw the reader back to the
+    // middle of the desk — and the one thing a camera must not do is lose where it was pointed.
+    setNextSceneId("cam2");
+    const desk = node("desk", Bounded({ bounds: rect(1, 1) }));
+    const first = scene(desk, {
+      camera: { limits: { minZoom: 0.1, maxZoom: 4 }, content: { x: -10, y: -10, w: 20, h: 20 }, unit: 100 },
+    });
+    first.camera!.setZoom(3);
+    setNextSceneId("cam2");
+    const again = scene(desk, {
+      camera: { limits: { minZoom: 0.1, maxZoom: 2 }, content: { x: -10, y: -10, w: 20, h: 20 }, unit: 100 },
+    });
+    expect(again.camera).toBe(first.camera);
+    // …and the new ceiling is applied at once, not left standing until the next gesture notices.
+    expect(again.camera!.zoom).toBe(2);
+    first.dispose();
+  });
 });
 
 // The renderer arrives through a dynamic import and then STARTS asynchronously, and a resize

@@ -231,5 +231,13 @@
   "arg.kind": "Which die: `d4` (a tetrahedron — a triangle from above), `d6` (the cube — pips), `d20` (the icosahedron — a hexagon with a numeral). The kind names the sides, the silhouette and the skin's faces.",
   "arg.outcome": "Where the RESULT comes from — the one door with three sides. `seed`: every client sharing the seed lands the same face. `given`: the number below, as the server said, the test pins, the cheat wants. `rng`: the game's own chance (`Math.random` here).",
   "arg.given": "The face to land on when `outcome` is `given` — what a server would send. A face the die does not have is refused, loudly.",
-  "arg.gain": "Multiplies the finger's speed into the throw's: `1` is honest, more makes a flick a fling. Below half a unit per second the release is a DROP, not a throw, and the die stays where it was let go."
+  "arg.gain": "Multiplies the finger's speed into the throw's: `1` is honest, more makes a flick a fling. Below half a unit per second the release is a DROP, not a throw, and the die stays where it was let go.",
+  "arg.minZoom": "How far the desk may be pushed AWAY. Below the zoom at which the whole desk fits, it stops being scrollable and is centred instead — a desk smaller than the glass has no edge to be pinned against.",
+  "arg.maxZoom": "How far in. The whole world scales, so the ratio between a piece and its shadow never changes: height is `z`, never a consequence of how close the camera is.",
+  "arg.zoomSensitivity": "How hard one wheel notch zooms. The factor is `exp(-delta × this)`, a RATIO rather than an addition — so out and back lands exactly where it started, at any zoom.",
+  "arg.fling": "Whether a released pan keeps going. Off is a setting, not a missing mechanism: the view stops dead with the finger and not a pixel further.",
+  "arg.flingCap": "The fastest a throw may be, in screen pixels per second. Without it a flick of the wrist sends the desk into the next county.",
+  "arg.flingFloor": "Below this speed there is no throw at all — that is a hand coming to rest, not a flick. It is also where a running throw stops.",
+  "arg.flingDecay": "How fast a throw dies. The step is `exp(-decay × dt)`, so the slide is the same at 60 Hz and at 120; a per-frame decay sends the very same flick four times as far on a fast screen.",
+  "arg.flingSmoothing": "How much of the newest sample the speed estimate takes. Half, so one late frame cannot become the throw — a desk that occasionally rockets away on release is worse than one that never coasts."
 }

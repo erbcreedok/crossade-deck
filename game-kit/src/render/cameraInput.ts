@@ -206,7 +206,12 @@ export function wireCamera(w: CameraGestures): CameraControl {
     gesture = "none";
     // Only a PAN throws. A pinch ends where the fingers left it — a two-finger flick is a zoom
     // that happened to travel, and coasting out of it is not what any hand asked for.
-    if (wasPan) w.camera.release();
+    if (!wasPan) return;
+    w.camera.release();
+    // AND THE CONSUMER IS TOLD, or the throw never runs at all: `onView` is the one channel there
+    // is, and the whole of a fling happens after the last event this file will ever hear. A loop
+    // that sleeps until something moves never learns that something is about to.
+    if (w.camera.flinging) moved();
   };
 
   const onWheel = (e: WheelEvent): void => {

@@ -106,8 +106,19 @@ export class Camera {
   /** Whether a throw is still running. Read by the clock to know if there is another frame to draw. */
   flinging = false;
 
-  constructor(readonly limits: CameraLimits) {
+  constructor(private limits: CameraLimits) {
     this.zoom = clamp(1, limits.minZoom, limits.maxZoom);
+  }
+
+  /**
+   * NEW LIMITS UNDER A STANDING VIEW — a settings screen, not a rebuild.
+   *
+   * The zoom is put back through its own door afterwards, so a view already outside the new range
+   * is brought inside it instead of sitting there until the next gesture happens to notice.
+   */
+  retune(limits: CameraLimits): void {
+    this.limits = limits;
+    this.setZoom(this.zoom);
   }
 
   private get fling(): Fling {

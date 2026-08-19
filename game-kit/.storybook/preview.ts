@@ -160,6 +160,11 @@ const preview: Preview = {
           ["Cards", "Dice"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion"],
+          // THE SPACE BEFORE ITS CONTENTS. A desk lives without a camera; a camera does not live
+          // without a desk — and everything below her is checkable with no renderer at all, which
+          // is why she is the first rung where a page has to be looked at rather than only read.
+          "Canvas",
+          ["Camera"],
           "Elements",
           // The interface: what a player presses, reads and toggles. Nothing here decorates a line —
           // an arrow head is a `Line` preset and lives with the presets, which is where it was all

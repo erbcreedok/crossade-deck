@@ -19,6 +19,7 @@ import {
   attachMotion,
   type TuningPatch,
   attachPainter,
+  Camera,
   caps,
   domTextMeasure,
   facing,
@@ -35,13 +36,19 @@ import {
   scenePlan,
   setFacing,
   t,
+  renderFrame,
+  wireCamera,
   wireButtons,
+  type CameraContent,
+  type CameraControl,
+  type CameraLimits,
   type Host,
   type Motions,
   type Node,
   type Painter,
   type Mark,
   type Meaning,
+  type Point,
   type Quad,
   type ThemeName,
   type ViewerSettings,
@@ -72,6 +79,8 @@ export interface Scene {
    * has no clock, and the absence says so.
    */
   readonly motions?: Motions;
+  /** The camera of a `camera` scene — the same object the story tuned, for a check to read. */
+  readonly camera?: Camera;
   /** Re-apply theme, language and the rest without rebuilding the scene. */
   setSettings(next: CatalogSettings): void;
   /** Show a different tree in the same view — see `scene()` on why this is not a rebuild. */
@@ -109,6 +118,9 @@ const LIVE = new Map<string, Scene>();
 
 /** What each live scene's press handler is RIGHT NOW — see `SceneOptions.press`. */
 const PRESSED = new Map<string, ((meaning: Meaning, control: Node) => void) | undefined>();
+
+/** How each live scene takes new camera numbers — the same "feed, do not rebuild" rule. */
+const CAMERAS = new Map<string, (next: CameraScene) => void>();
 
 export interface SceneOptions {
   /**
@@ -159,6 +171,31 @@ export interface SceneOptions {
    * AS IS. A story's controls are these fields under these names; nothing translates in between.
    */
   readonly motion?: TuningPatch;
+  /**
+   * PUT A CAMERA ON THIS CANVAS: the desk is then looked AT rather than merely fitted into the view,
+   * and the finger pans, pinches and wheels it (`wireCamera`).
+   *
+   * A re-render retunes the standing camera instead of building another, exactly as the motion
+   * tuning does — a control change is new numbers for the same view, not a new view. Which is also
+   * why `start` is applied once and never again: re-applying it would yank the desk back to the
+   * middle on every keystroke in the panel.
+   */
+  readonly camera?: CameraScene;
+}
+
+/** Everything the catalog's shell needs to stand a camera up — the kit's own fields, by name. */
+export interface CameraScene {
+  readonly limits: CameraLimits;
+  /** Where the desk is and how big, in units. A VALUE: a re-render brings the panel's newest one. */
+  readonly content: CameraContent;
+  /** What one unit is worth in pixels at zoom 1. Absent, the host's own etalon. */
+  readonly unit?: number | undefined;
+  /** How hard the wheel zooms — `ZOOM_SENS` absent. */
+  readonly sensitivity?: number | undefined;
+  /** Which nodes take a finger for themselves; over one of them the camera stands down. */
+  readonly claims?: ((n: Node) => boolean) | undefined;
+  /** Where the view opens. Read ONCE, when the scene is built. */
+  readonly start?: { readonly at?: Point; readonly zoom?: number | "fit" } | undefined;
 }
 
 /** One ruler for the whole page: the answers are cached, so twenty stories measure a caption once. */
@@ -199,6 +236,9 @@ export function scene(
     // The tuning follows the sliders on the standing clock — a re-render is new numbers for the
     // same runtime, the way a game's settings screen retunes without rebuilding the desk.
     if (options.motion) standing.motions?.retune(options.motion);
+    // And so does the camera: new limits, a new desk, a new sensitivity — under the SAME view.
+    // `start` is deliberately not re-read; see `SceneOptions.camera`.
+    if (options.camera) CAMERAS.get(id)?.(options.camera);
     return standing;
   }
 
@@ -272,19 +312,119 @@ export function scene(
   // showcase could not use would be the wrong port. One ruler for every scene on the page — the
   // measurements are cached inside it, so a shelf of twenty stories measures each caption once.
 
+  // THE CAMERA IS BUILT ONCE AND FED AFTERWARDS, like everything else on a standing scene. What a
+  // re-render brings is new numbers — limits, a bigger desk, another sensitivity — never a new view.
+  let cam = options.camera;
+  const camera = cam ? new Camera(cam.limits) : undefined;
+  const viewOf = camera ? () => camera.transform() : undefined;
+
   // A motion scene runs the one clock (and needs the stock easings) instead of the still painter;
   // both hand back a teardown of the same shape, so the rest of the shell does not care which.
   // The runtime handle is KEPT when it exists: a drag story speaks to the clock (`grab`/`dragTo`/
   // `release`), and building a second runtime for that would put two clocks on one glass.
   const motions = options.animate
-    ? (installStockEasings(), attachMotion(host, painter, { ...options.motion, measure: ruler, ...(options.bake ? { bake: options.bake } : {}) }))
+    ? (installStockEasings(),
+      attachMotion(host, painter, {
+        ...options.motion,
+        measure: ruler,
+        ...(options.bake ? { bake: options.bake } : {}),
+        ...(viewOf ? { view: viewOf } : {}),
+      }))
     : undefined;
   PRESSED.set(id, options.press);
   // Attached whenever the story asked for it once. The listeners live as long as the scene does,
   // and what they call is looked up at press time — so the newest handler always answers.
-  const stopButtons = options.press ? wireButtons({ host, onPress: (m, n) => PRESSED.get(id)?.(m, n) }) : () => {};
+  const stopButtons = options.press
+    ? wireButtons({ host, onPress: (m, n) => PRESSED.get(id)?.(m, n), ...(viewOf ? { view: viewOf } : {}) })
+    : () => {};
   const stopTaps = options.flipOnTap ? wireFlipTap(host, motions) : () => {};
-  const stopPainting = motions ? motions.stop : attachPainter(host, painter, { measure: ruler, ...(options.bake ? { bake: options.bake } : {}) });
+  const stopPainting = motions
+    ? motions.stop
+    : attachPainter(host, painter, {
+        measure: ruler,
+        ...(options.bake ? { bake: options.bake } : {}),
+        ...(viewOf ? { view: viewOf } : {}),
+      });
+
+  // THE CATALOG RUNS THE CAMERA'S CLOCK, because the kit refuses to (`guard.one-clock`): a throw is
+  // stepped by whoever already has frames, and here that is the consumer. The loop sleeps whenever
+  // the view is still — a canvas asking for frames with nothing to show is how a phone gets warm.
+  let stopCamera = (): void => {};
+  if (camera && cam) {
+    let dirty = false;
+    let running = false;
+    let lastMs = 0;
+    const repaint = (): void => {
+      // Straight to the frame, never through `host.setRoot`: a notify rebuilds the plan for the
+      // note, the toolbar and the inspector too, and at sixty frames a second that is the whole
+      // tree walked and published for a desk that only slid four pixels.
+      if (motions) motions.redraw();
+      else renderFrame(host, painter, { measure: ruler, view: () => camera.transform() });
+    };
+    const tick = (nowMs: number): void => {
+      const dt = Math.min(0.1, (nowMs - lastMs) / 1000);
+      lastMs = nowMs;
+      const going = control.step(dt);
+      if (dirty) {
+        dirty = false;
+        repaint();
+      }
+      if (going || dirty) requestAnimationFrame(tick);
+      else running = false;
+    };
+    const wake = (): void => {
+      dirty = true;
+      if (running) return;
+      running = true;
+      lastMs = performance.now();
+      requestAnimationFrame(tick);
+    };
+    const control: CameraControl = wireCamera({
+      host,
+      camera,
+      content: () => cam!.content,
+      onView: wake,
+      ...(cam.unit === undefined ? {} : { unit: () => cam!.unit! }),
+      ...(cam.claims ? { claims: (n) => cam!.claims!(n) } : {}),
+      ...(cam.sensitivity === undefined ? {} : { sensitivity: cam.sensitivity }),
+    });
+    // WHERE THE VIEW OPENS — once, and not before there is a glass to open it on.
+    //
+    // Storybook hands the story's element back and appends it afterwards, so at this line the stage
+    // has no layout at all and the host reports its floor: one pixel by one. "The middle of the
+    // desk" measured against that glass is the top-left corner of it — which is exactly where this
+    // scene opened, at the wrong end of a two-thousand-unit zone, until the reader touched it.
+    //
+    // So it is a LATCH, not a line: the first frame with a real glass sets the opening view, and
+    // every resize after that is only a clamp. Re-applying it would drag the reader back to the
+    // middle whenever the window changed width.
+    const start = cam.start;
+    let opened = false;
+    const openView = (): void => {
+      const v = host.viewport();
+      if (opened || v.width <= 1 || v.height <= 1) return;
+      opened = true;
+      if (start?.zoom !== undefined) camera.setZoom(start.zoom === "fit" ? camera.fitZoom() : start.zoom);
+      camera.lookAt(start?.at ?? { x: 0, y: 0 });
+      // At once, not on the next frame: the painter above already drew one, through a camera that
+      // had not been told where to look.
+      repaint();
+    };
+    openView();
+    host.onChange(() => {
+      control.refresh(); // a resize is a new glass, and the clamp has to know
+      openView();
+    });
+    CAMERAS.set(id, (next) => {
+      cam = next;
+      camera.retune(next.limits);
+      control.refresh();
+    });
+    stopCamera = () => {
+      CAMERAS.delete(id);
+      control.stop();
+    };
+  }
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
   // not observable from the outside without saying so. The flag is for the browser tests: the
@@ -370,6 +510,7 @@ export function scene(
     host,
     id,
     ...(motions ? { motions } : {}),
+    ...(camera ? { camera } : {}),
     ready: firstFrame,
     setSettings: applySettings,
     setRoot(next) {
@@ -385,6 +526,7 @@ export function scene(
         clearInspect(id);
       }
       stopFollowing();
+      stopCamera();
       stopButtons();
       stopTaps();
       stopPainting();

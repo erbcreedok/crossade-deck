@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**53 слоя · 1204 кейсов заявлено · 1031 расписано поимённо.**
+**53 слоя · 1207 кейсов заявлено · 1034 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -36,7 +36,7 @@
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
 | [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 55 | 55 |
-| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 61 | 61 |
+| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 63 | 63 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
@@ -78,4 +78,4 @@
 | [UNIT · контролы — `Pressable`, пресет `button`, проводка](50-controls.md) | `vitest` | 31 | 31 |
 | [UNIT · пыль цензуры — облако без единого пикселя](51-censor-dust.md) | `vitest (headless, no WebGL)` | 21 | 21 |
 | [UNIT · камера — как на холст смотрят](52-camera.md) | `vitest (headless, no renderer)` | 17 | 17 |
-| [UNIT · руки на столе — жесты камеры и арбитраж](53-camera-input.md) | `vitest (headless, no renderer)` | 9 | 9 |
+| [UNIT · руки на столе — жесты камеры и арбитраж](53-camera-input.md) | `vitest (headless, no renderer)` | 10 | 10 |

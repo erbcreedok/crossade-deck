@@ -26,6 +26,7 @@ import {
   type CarryTuning,
   type Node,
   type Point,
+  type Transform,
   type Vec,
 } from "../../src/index.js";
 import { type Scene } from "./scene.js";
@@ -48,6 +49,8 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * to say it took the nodes; `false`/absent, and the drop is refused-or-stays as always.
    */
   readonly onRelease?: ((velocity: Vec | undefined, items: readonly CarryItem[]) => boolean) | undefined;
+  /** The view the desk is drawn through — a camera's `transform()`. Absent, the plain centred one. */
+  readonly view?: (() => Transform) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -83,14 +86,14 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const g = glassOf(view, e);
     // Only a draggable lifts — and only one the gate lets through: the pick reads the SAME plan
     // the painter drew, so what refuses the finger is exactly what the eye sees refuse it.
-    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true));
+    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true), w.opts.view?.());
     if (!hit) return;
     const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
     const poses = transformsOf(root);
     const at = poses.get(hit.id);
     if (!at || run.length === 0) return;
     const anchor = { x: at.e, y: at.f };
-    const p = toUnits(s.host, g);
+    const p = toUnits(s.host, g, w.opts.view?.());
     const items = run.map((c) => {
       const t = poses.get(c.id) ?? at;
       return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
@@ -100,7 +103,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, ...feel } = w.opts;
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, ...feel } = w.opts;
     motions.grab(items, { anchor, ...feel });
     try {
       view.setPointerCapture(e.pointerId);
@@ -111,7 +114,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
 
   const onMove = (e: PointerEvent): void => {
     if (!w.drag || !s.motions) return;
-    const p = toUnits(s.host, glassOf(view, e));
+    const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     s.motions.dragTo({ x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y });
   };
 
@@ -126,7 +129,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // A scene that throws on release takes the nodes here — the finger's speed is still on the
     // springs, read before anything is released.
     if (w.opts.onRelease?.(motions.velocity(), drag.items)) return;
-    const p = toUnits(s.host, glassOf(view, e));
+    const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     const seat = { x: p.x + drag.delta.x, y: p.y + drag.delta.y };
     for (const it of drag.items) {
       const n = byId(root, it.id);

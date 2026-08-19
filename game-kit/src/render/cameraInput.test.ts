@@ -204,6 +204,31 @@ describe("the camera's fingers", () => {
     expect(b.wiring.step(1 / 60)).toBe(false);
   });
 
+  it("cameraInput.letting-go-wakes-the-consumer — or the throw never runs at all", () => {
+    // Caught in a browser, not here: the desk flew perfectly and then stopped dead the instant the
+    // finger left it, with `flinging` true for the rest of the session. `onView` is the one channel
+    // this file has, the WHOLE of a fling happens after the last event it will ever hear, and a
+    // loop that sleeps until something moves cannot learn that something is about to.
+    const b = bench();
+    b.hand.down(1, 350, 150);
+    b.hand.move(1, 300, 150, 16);
+    b.hand.move(1, 250, 150, 32);
+    const before = b.painted();
+    b.hand.up(1, 250, 150, 48);
+    expect(b.camera.flinging).toBe(true);
+    expect(b.painted(), "the release said nothing, so nobody will step the throw").toBeGreaterThan(before);
+
+    // A release that is NOT a throw wakes nobody: a frame with nothing in it is a frame wasted.
+    const still = bench();
+    still.hand.down(1, 200, 150);
+    still.hand.move(1, 199, 150, 16);
+    still.hand.move(1, 199, 150, 200);
+    const quiet = still.painted();
+    still.hand.up(1, 199, 150, 216);
+    expect(still.camera.flinging).toBe(false);
+    expect(still.painted()).toBe(quiet);
+  });
+
   it("cameraInput.the-wheel-is-not-taken-from-a-page-that-had-to-scroll", () => {
     // Panning is claimed only where the desk IS the page. In a document the wheel goes through
     // untouched — nothing prevented — or the block under the reader's cursor freezes the article.
