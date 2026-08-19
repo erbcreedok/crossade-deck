@@ -1,0 +1,25 @@
+game-kit/.storybook/stories/surfaceControls.ts
+  s_170937f0c01a52::t_95cda6218f9e4a 65
+game-kit/.storybook/stories/Surfaced.stories.ts
+  s_170937f0c01a52::t_95cda6218f9e4a 94
+game-kit/.storybook/stories/PresetsCoats.stories.ts
+  s_170937f0c01a52::t_95cda6218f9e4a 8,119
+game-kit/.storybook/stories/Flippable.stories.ts
+  s_170937f0c01a52::t_95cda6218f9e4a 79,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "874436cdd61f201e5e09771ce66ff7c46d94ad2a",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
