@@ -1,0 +1,55 @@
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_77191611651af2 418-444
+  s_170937f0c01a52::t_c6ccd50d18a028 389
+  s_170937f0c01a52::t_2793b43a0c279c 286
+  s_170937f0c01a52::t_ea5b5c327274c9 22,24-25,33,36
+  s_170937f0c01a52::t_af5a383652a33b 143-150
+  s_170937f0c01a52::t_47f5b21d770783 142,417
+game-kit/.storybook/stories/PresetsFlips.stories.ts
+  s_170937f0c01a52::t_e2e46019be5eca 19,21,32-37,70,88,130,140,160,189
+game-kit/.storybook/devtools/scene.test.ts
+  s_170937f0c01a52::t_fd3185c4e5bbec 296-331
+  s_170937f0c01a52::t_6916022b568358 4-21
+  s_170937f0c01a52::t_69fdb4e1672b14 25
+  s_170937f0c01a52::t_58def95b037f69 69-86
+game-kit/.storybook/stories/Flippable.stories.ts
+  s_170937f0c01a52::t_395e65e39ec7b8 48
+  s_170937f0c01a52::t_023b38776c02aa 44-47,49
+  s_170937f0c01a52::t_cc5a1ae16d0caa 22,26
+  s_170937f0c01a52::t_ff7d1a926d2473 113,173,237,294,403,509,583,658,756,813
+game-kit/.storybook/stories/Lit.stories.ts
+  s_170937f0c01a52::t_d82d4acb9da609 10
+  s_170937f0c01a52::t_9249836a512fa6 36-37
+  s_170937f0c01a52::t_3331a7db6fc7e8 8,21,31-34,135,146,149
+  s_170937f0c01a52::t_b1cc74503a644d 35
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_170937f0c01a52::t_eada937b8bf66a 3,26-27
+game-kit/.storybook/stories/Shadow.stories.ts
+  s_170937f0c01a52::t_8160a38228d33c 6,19,21
+  s_170937f0c01a52::t_d82d4acb9da609 8
+  s_170937f0c01a52::t_1adbccc22088f2 31-35
+  s_170937f0c01a52::t_9249836a512fa6 37-38
+  s_170937f0c01a52::t_b4ef1bac951c84 131,142,145
+  s_170937f0c01a52::t_b2e3043b1d4eab 227-229,234-235
+  s_170937f0c01a52::t_26b22369aa227a 299,302-303
+  s_170937f0c01a52::t_f3b8d72ab71c83 276
+  s_170937f0c01a52::t_2892d490fc38e7 36
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_eada937b8bf66a 10,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0caac09e6888d5d75d17e91a8156be0ba1c43d79",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
