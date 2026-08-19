@@ -1,0 +1,22 @@
+apps/klondike/src/solitaire/wiring.test.ts
+  s_170937f0c01a52::t_785c8f060752f9 1-41
+apps/klondike/src/solitaire/scene.ts
+  s_170937f0c01a52::t_3a54862d73e4c5 271-274,276
+  s_170937f0c01a52::t_dbb8f9d081900a 275,277-289,418-421,772
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b2929bab4514729bf0dc263b58f8b0b9aa873976",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
