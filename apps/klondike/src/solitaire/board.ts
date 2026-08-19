@@ -17,6 +17,8 @@ import {
   setFacing,
   ShadowCaster,
   Transformable,
+  bottomOf,
+  topOf,
   type Node,
   type TransformableFields,
   type ValuedFields,
@@ -77,6 +79,7 @@ export interface TableLayout {
  * reach, which is why the tall pair puts it at the bottom of a table that stays about as deep as its
  * cards are.
  */
+const WIDE_ROOMY_BOX = { w: 8.6, h: 8.4 };
 export const WIDE_ROOMY: TableLayout = {
   id: "wide/roomy",
   tight: false,
@@ -84,11 +87,14 @@ export const WIDE_ROOMY: TableLayout = {
   step: 0.32,
   topY: -2.7,
   tableauY: -1.1,
-  barY: -3.82,
-  fit: { w: 8.6, h: 8.4 },
+  // DERIVED, not tuned: the kit answers where a bar sits against an edge, so the number cannot drift
+  // out of step with the box the way four hand-picked ones did.
+  barY: topOf(WIDE_ROOMY_BOX).y,
+  fit: WIDE_ROOMY_BOX,
 };
 
 /** Less air between the columns, so every card is drawn about a tenth larger. */
+const WIDE_TIGHT_BOX = { w: 7.9, h: 7.8 };
 export const WIDE_TIGHT: TableLayout = {
   id: "wide/tight",
   tight: true,
@@ -96,11 +102,12 @@ export const WIDE_TIGHT: TableLayout = {
   step: 0.28,
   topY: -2.5,
   tableauY: -1,
-  barY: -3.52,
-  fit: { w: 7.9, h: 7.8 },
+  barY: topOf(WIDE_TIGHT_BOX).y,
+  fit: WIDE_TIGHT_BOX,
 };
 
 /** THE PHONE, held upright: a deep column, and the bar under the thumb. */
+const TALL_ROOMY_BOX = { w: 8, h: 12.8 };
 export const TALL_ROOMY: TableLayout = {
   id: "tall/roomy",
   tight: false,
@@ -108,11 +115,13 @@ export const TALL_ROOMY: TableLayout = {
   step: 0.5,
   topY: -5.2,
   tableauY: -3.3,
-  barY: 6,
-  fit: { w: 8, h: 12.8 },
+  // The BOTTOM edge, because held upright the top of a phone is where a thumb cannot reach.
+  barY: bottomOf(TALL_ROOMY_BOX).y,
+  fit: TALL_ROOMY_BOX,
 };
 
 /** The same, packed: the most card seven columns can be given on a phone. */
+const TALL_TIGHT_BOX = { w: 7.6, h: 12.2 };
 export const TALL_TIGHT: TableLayout = {
   id: "tall/tight",
   tight: true,
@@ -120,8 +129,8 @@ export const TALL_TIGHT: TableLayout = {
   step: 0.44,
   topY: -4.9,
   tableauY: -3.1,
-  barY: 5.7,
-  fit: { w: 7.6, h: 12.2 },
+  barY: bottomOf(TALL_TIGHT_BOX).y,
+  fit: TALL_TIGHT_BOX,
 };
 
 /** All four, in no particular order — nothing walks this list, it is picked from. */

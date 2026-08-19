@@ -14,7 +14,10 @@ import { type LabeledFields } from "../core/atoms/labeled.js";
 import { installStockControls } from "./controls.js";
 import { installStockSurfaces } from "./surfaces.js";
 import { rect } from "./shapes.js";
-import { badge, knobAt, label, panel, slider, toggle, toggles, valueAt } from "./widgets.js";
+import { badge, bottomOf, hud, HUD_MARGIN, knobAt, label, panel, slider, toggle, toggles, topOf, valueAt } from "./widgets.js";
+import { button } from "./button.js";
+import { CONTROL_H, CONTROL_W } from "./controls.js";
+import { extentOf, type BoundedFields } from "../core/atoms/bounded.js";
 
 installStockSurfaces();
 installStockControls();
@@ -82,6 +85,44 @@ describe("the interface presets", () => {
     expect(fieldsOf<LabeledFields>(box, "Labeled")).toBeUndefined();
     expect(box.children[0]!.id).toBe("pause/title");
     expect(fieldsOf<LabeledFields>(box.children[0]!, "Labeled")?.label).toBe("Paused");
+  });
+
+  it("widgets.a-bar-reports-the-box-it-fills — a row with no footprint stacks on the one before it", () => {
+    // THE FAILURE THIS EXISTS FOR: a container declares no area of its own, so a column measuring
+    // its children to place the next one reads a bar as nothing and lays the next row through it.
+    resetLayouts();
+    registerLayout("t.bar", rowLayout({ gap: 0.1, padding: 0 }));
+    installStockControls();
+    const bar = hud("hud", {
+      layout: "t.bar",
+      at: { x: 0, y: 0 },
+      controls: [button("a", { label: "Undo" }), button("b", { label: "Again" }), button("c", { label: "Hint" })],
+    });
+    const box = extentOf(fieldsOf<BoundedFields>(bar, "Bounded")!.bounds);
+    // three controls and the two gaps between them — measured, not declared by the caller
+    expect(box.w).toBeCloseTo(CONTROL_W * 3 + 0.1 * 2, 6);
+    expect(box.h).toBeCloseTo(CONTROL_H, 6);
+    expect(bar.children.map((n) => n.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("widgets.a-bar-sits-inside-the-area-it-is-given — at either edge", () => {
+    const area = { w: 7.6, h: 12.2 };
+    for (const seat of [topOf(area), bottomOf(area)]) {
+      expect(Math.abs(seat.y) + CONTROL_H / 2).toBeLessThanOrEqual(area.h / 2);
+      expect(seat.x).toBe(0);
+    }
+    // The two are mirror images, so a bar does not shift sideways when it changes edge.
+    expect(topOf(area).y).toBeCloseTo(-bottomOf(area).y, 6);
+    expect(bottomOf(area).y).toBeCloseTo(area.h / 2 - CONTROL_H / 2 - HUD_MARGIN, 6);
+  });
+
+  it("widgets.a-phone-bar-is-within-a-thumb — the bottom edge, not the top", () => {
+    // Held upright, the top of a phone is the one place a thumb cannot reach. A bar seated by
+    // `bottomOf` must be in the LOWER part of the area whatever the area's shape, or the name lies.
+    for (const area of [{ w: 7.6, h: 12.2 }, { w: 8.6, h: 8.4 }, { w: 3, h: 20 }]) {
+      expect(bottomOf(area).y).toBeGreaterThan(area.h * 0.25);
+      expect(topOf(area).y).toBeLessThan(-area.h * 0.25);
+    }
   });
 
   it("widgets.a-badge-grows-sideways — one and one hundred are the same object", () => {

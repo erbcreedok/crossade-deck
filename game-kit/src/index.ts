@@ -330,6 +330,8 @@ export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.j
 // The rest of the interface — each one a composition of atoms that already exist, never a new one.
 export {
   badge,
+  bottomOf,
+  hud,
   knobAt,
   label,
   panel,
@@ -337,10 +339,14 @@ export {
   slider,
   toggle,
   toggles,
+  topOf,
   valueAt,
   BADGE_H,
+  HUD_MARGIN,
   KNOB,
+  type Area,
   type BadgeSpec,
+  type HudSpec,
   type LabelSpec,
   type PanelSpec,
   type SliderSpec,

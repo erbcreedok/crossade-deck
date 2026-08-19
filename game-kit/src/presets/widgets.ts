@@ -17,7 +17,7 @@ import { Valued } from "../core/atoms/valued.js";
 import { type Vec } from "../core/transform.js";
 import { type Atom } from "../core/atom.js";
 import { button, type ButtonSpec } from "./button.js";
-import { CONTROL_H, CONTROL_LABEL, CONTROL_W, lookSurface, skinSurface } from "./controls.js";
+import { CONTROL_BAR, CONTROL_H, CONTROL_LABEL, CONTROL_W, lookSurface, skinSurface } from "./controls.js";
 import { rect, roundedRect } from "./shapes.js";
 
 // ---- label ------------------------------------------------------------------------------------
@@ -144,6 +144,64 @@ export function toggles(
 export function sized(row: Node): Node {
   const { w, h } = contentExtent(row);
   return w > 0 && h > 0 ? compose(row, Bounded({ bounds: rect(w, h) })) : row;
+}
+
+// ---- hud --------------------------------------------------------------------------------------
+
+/** The box a bar is seated against — a play area, in units. What `extentOf` hands back. */
+export interface Area {
+  readonly w: number;
+  readonly h: number;
+}
+
+/** How far a bar stands off the edge it is seated against, in units. */
+export const HUD_MARGIN = 0.18;
+
+/**
+ * WHERE A BAR SITS, given the area it belongs to — the arithmetic every game was doing by hand.
+ *
+ * Two functions rather than one with a side to read, because "which edge" is not a value anything
+ * should branch on: a caller that knows it wants the bottom says so by CALLING it. That also keeps
+ * the answer honest under a changing area — a phone turned on its side re-asks and gets the new
+ * number, instead of carrying a constant that was right for the old screen.
+ */
+export const topOf = (area: Area, height = CONTROL_H): Vec => ({ x: 0, y: -(area.h / 2 - height / 2 - HUD_MARGIN) });
+
+/**
+ * The other edge — and on a phone this is the one that matters: held upright, the top of the screen
+ * is the one place a thumb cannot reach, so a bar of controls belongs along the bottom.
+ */
+export const bottomOf = (area: Area, height = CONTROL_H): Vec => ({ x: 0, y: area.h / 2 - height / 2 - HUD_MARGIN });
+
+export interface HudSpec {
+  /** The controls, in the order they stand. Built by the caller — a bar invents no buttons. */
+  readonly controls: readonly Node[];
+  /** Where the row sits, in the owner's units. `topOf(area)` and `bottomOf(area)` answer this. */
+  readonly at: Vec;
+  /** The arrangement, by registry name. Absent, the stock control bar. */
+  readonly layout?: string;
+  /** A plate behind the whole row, by registry name. Absent, the bar is only its controls. */
+  readonly surface?: string;
+}
+
+/**
+ * A BAR OF CONTROLS, seated — the piece every game grew its own copy of.
+ *
+ * It is a row with a box, and the box is the point: a container that reports no footprint stacks on
+ * top of whatever its owner laid out before it, and a bar is exactly the thing an owner has to place
+ * around. So the row is measured from what it holds (`sized`) rather than declared by the caller,
+ * who would have to add up four control widths and three gaps to say it.
+ *
+ * REBUILT, NEVER MUTATED. Whether undo has anywhere to go is the game's state and the control is
+ * drawn FROM it, so a bar is thrown away and made again whenever that state moves — which costs
+ * nothing, and is the only way the tree cannot disagree with the game about what is possible.
+ */
+export function hud(id: string, spec: HudSpec): Node {
+  const atoms: Atom[] = [Container({ layout: spec.layout ?? CONTROL_BAR }), Transformable({ at: spec.at })];
+  if (spec.surface) atoms.push(Surfaced({ surface: spec.surface }));
+  const bar = node(id, ...atoms);
+  for (const control of spec.controls) add(bar, control);
+  return sized(bar);
 }
 
 // ---- panel ------------------------------------------------------------------------------------

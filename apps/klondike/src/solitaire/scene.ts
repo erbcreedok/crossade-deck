@@ -39,10 +39,8 @@ import {
   type ValuedFields,
 } from "game-kit";
 import {
-  add as addNode,
   button,
-  Container,
-  node as makeNode,
+  hud,
   wireButtons,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
@@ -260,19 +258,25 @@ export function startSolitaire(container: HTMLElement): () => void {
       asleep: !awake,
     });
 
-  const barTree = (): Node => {
-    const bar = makeNode("hud", Container({ layout: BAR }), Transformable({ at: { x: 0, y: layout.barY } }));
-    // A control with nothing behind it is dressed as asleep rather than removed: a row that changes
-    // WIDTH as a game goes on makes the player re-aim at every move.
-    addNode(bar, plate("hud/undo", "Отменить", "undo", past.length > 0));
-    addNode(bar, plate("hud/again", "Заново", "restart", true));
-    addNode(bar, plate("hud/hint", hinted ? "Сыграть" : "Подсказка", "hint", dealt));
-    // The spacing control says what the PRESS DOES, not which spacing is on — the table itself
-    // already shows which one is on, and a control that names the state reads as a claim about the
-    // wrong thing. Awake always: how much air the cards get is never an illegal thing to ask for.
-    addNode(bar, plate("hud/space", nextLayout(layout).id === "tight" ? "Плотно" : "Просторно", "space", true));
-    return bar;
-  };
+  const barTree = (): Node =>
+    // The kit's own bar: it measures itself from what it holds, so nothing here adds up four widths
+    // and three gaps to say how big the row is — and a row that reported nothing would be laid
+    // through by whatever placed it.
+    hud("hud", {
+      layout: BAR,
+      at: { x: 0, y: layout.barY },
+      controls: [
+        // A control with nothing behind it is dressed as asleep rather than removed: a row that
+        // changes WIDTH as a game goes on makes the player re-aim at every move.
+        plate("hud/undo", "Отменить", "undo", past.length > 0),
+        plate("hud/again", "Заново", "restart", true),
+        plate("hud/hint", hinted ? "Сыграть" : "Подсказка", "hint", dealt),
+        // The spacing control says what the PRESS DOES, not which spacing is on — the table itself
+        // already shows which one is on, and a control that names the state reads as a claim about
+        // the wrong thing. Awake always: how much air the cards get is never illegal to ask for.
+        plate("hud/space", nextLayout(layout).tight ? "Плотно" : "Просторно", "space", true),
+      ],
+    });
 
   /** Put the bar back on the desk after any change — it is a child of the desk like everything else. */
   const dressDesk = (): void => {
