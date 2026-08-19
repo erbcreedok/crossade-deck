@@ -1,0 +1,50 @@
+game-kit/src/render/camera.ts
+  s_170937f0c01a52::t_bbbb53d2cb344d 179-193,265-275,425,622-626
+game-kit/docs/test-plan/10-scene-plan.md
+  s_170937f0c01a52::t_1cad16b38b78b5 3,52
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_ed6047f5981114 75-76
+  s_170937f0c01a52::t_ae94cbe7083f1c 392
+game-kit/docs/test-plan/52-camera.md
+  s_170937f0c01a52::t_1cad16b38b78b5 3,41-43
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_e2fe7947a4977f 23
+  s_170937f0c01a52::t_4d04b26d77ba55 39
+  s_170937f0c01a52::t_254e3e6d9432b7 262-271,312,315-326
+  s_170937f0c01a52::t_f7fe33b9d65dbf 504-507,582-587,731-743
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_6e5eb07c9d15c0 197-198,421,437-439
+  s_170937f0c01a52::t_ed6047f5981114 330-331,344,360,376
+game-kit/src/render/stage.ts
+  s_170937f0c01a52::t_ed6047f5981114 81-89,107
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_6e5eb07c9d15c0 258-260
+game-kit/.storybook/stories/CanvasCamera.stories.ts
+  s_170937f0c01a52::t_485954089e7619 153-154
+  s_170937f0c01a52::t_6e5eb07c9d15c0 16,60-61,120,166-168,199,224-225,252-253
+game-kit/src/render/camera.test.ts
+  s_170937f0c01a52::t_e1ab61e31badce 412-445,448,455-456
+  s_170937f0c01a52::t_574f092436b463 446-447,449-454
+game-kit/src/render/scenePlan.test.ts
+  s_170937f0c01a52::t_142a9fc7a298bd 262-312
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_1cad16b38b78b5 10,38,80
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_6e5eb07c9d15c0 254-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "94a8433732e4ffe76bc2dedffeeafe9386929828",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
