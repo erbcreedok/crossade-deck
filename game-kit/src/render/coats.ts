@@ -136,12 +136,16 @@ export function installStockCoats(): void {
     // exactly what it looked like. A flat renderer cannot blur one hue into the next, so the honest
     // iridescence is BANDS: cut with `part`, bottom-up, each one a real colour rather than a stain.
     return {
-      layers: [1, 0.8, 0.6, 0.4, 0.2].map((part, i) => ({
-        paint: { token: "spin", param: turn + i * 0.17 },
-        opacity: 0.55 * k,
+      // A NARROW SWEEP, NOT A RAINBOW. Iridescence is one colour shifting a little — oil on water,
+      // a laminated card tilted in the hand. A full turn of the wheel is a flag, not a finish, and
+      // that is what five evenly spread hues drew. These four sit within a fifth of the wheel of
+      // whatever hue the coat was given, so the surface shimmers instead of announcing itself.
+      layers: [1, 0.75, 0.5, 0.25].map((part, i) => ({
+        paint: { token: "spin", param: turn + i * 0.05 },
+        opacity: 0.3 * k,
         part,
       })),
-      stroke: { color: { token: "spin", param: turn + 0.5 }, width: 0.03, opacity: 0.9 * k, alignment: 0.5 },
+      stroke: { color: { token: "spin", param: turn + 0.12 }, width: 0.025, opacity: 0.65 * k, alignment: 0.5 },
     };
   });
 

@@ -61,42 +61,37 @@ export interface Palette {
 }
 
 const DARK: Palette = {
-  // THE TABLE, and the palette the games are actually played on: a pixel casino — felt, warm dark
-  // wood, one gold. The catalog used to ship a developer's blue-and-grey here, so every button and
-  // every card in the showcase came out in colours no game in this repository has ever used.
-  stageBg: "#173d2d",
-  panelBg: "#3a2a1d",
-  sunkBg: "#1c120b",
-  panelBorder: "#5a4430",
-  text: "#f5ead0",
-  textMuted: "#cdb98f",
-  textFaint: "#9a875f",
-  // ONE gold. Two golds under four names is how a palette dies — the rule that killed client2.
-  accent: "#f2c14e",
-  alert: "#e0483f",
-  grid: "#1f4a37",
-  gridMinor: "#1a4131",
-  // Deliberately alien: a debug layer must never be mistaken for a colour the design chose.
+  stageBg: "#16181a",
+  panelBg: "#1d2023",
+  sunkBg: "#111315",
+  panelBorder: "#2c3135",
+  text: "#d5dade",
+  textMuted: "#909aa2",
+  textFaint: "#6b757d",
+  accent: "#4ea3ff",
+  alert: "#ff6a52",
+  grid: "#262b2f",
+  gridMinor: "#1b1f22",
   debug: "#ff4fd8",
-  shadow: "#0b0704",
+  shadow: "#000000",
 };
+
 const LIGHT: Palette = {
-  // The same table under a lamp: parchment and light wood rather than an inverted screen. A light
-  // theme built by flipping the dark one produces grey on white and loses the room entirely.
-  stageBg: "#e8dcc0",
-  panelBg: "#f6efdd",
-  sunkBg: "#d9caa8",
-  panelBorder: "#b39a70",
-  text: "#2a1d12",
-  textMuted: "#5c4a34",
-  textFaint: "#8a7454",
-  accent: "#a9761a",
-  alert: "#b8352c",
-  grid: "#d3c3a0",
-  gridMinor: "#e0d2b3",
+  stageBg: "#f4f6f8",
+  panelBg: "#ffffff",
+  sunkBg: "#eef1f4",
+  panelBorder: "#dfe4e9",
+  text: "#1f2529",
+  textMuted: "#5d6870",
+  textFaint: "#8b959d",
+  accent: "#0a74d6",
+  alert: "#c0392b",
+  grid: "#dbe1e6",
+  gridMinor: "#eef1f4",
   debug: "#c2189c",
-  shadow: "#3a2a1d",
+  shadow: "#2c3439",
 };
+
 export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, light: LIGHT };
 
 /**
