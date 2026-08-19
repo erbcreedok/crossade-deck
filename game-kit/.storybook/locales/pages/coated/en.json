@@ -36,7 +36,7 @@
     "- `wash` — a flat colour over the surface, opacity from `level`. The continuum: a shard charging,",
     "  a figure dimming as it loses HP, a frozen tray greying its children.",
     "- `ring` — a stroke around the contour, weight from `level`. A selection, a ward.",
-    "- `censor` — a mask, and a shader that animates it.",
+    "- `censor` — the face ground up into drifting motes, each the colour of what it hides.",
     "- `clear` — nothing, but it stops the cast cascade at this node.",
     "",
     "## The infinite palette",
@@ -55,11 +55,15 @@
     "",
     "## The mask and the honest boundary",
     "",
-    "`censor` is a wash plus a named filter. The wash masks with no GPU at all; the filter animates it",
-    "on the glass, built and clocked in the one file that owns the renderer. The model only NAMES the",
-    "filter — the plan carries `{ name, params }` as plain data a test can read — and the shader is",
-    "verified by eye, not in a headless test, because there is no WebGL to run one in. A name nobody",
-    "registered, or a shader that will not compile, is skipped; the wash still masks the surface."
+    "`censor` names an OVERLAY — the filter registry's twin, and the second seam a coat can point at.",
+    "A filter reworks the pixels a quad already put on the glass; an overlay is handed a look at them",
+    "and builds its own objects on top, which is the only way a mote can carry the colour of the spot",
+    "it hides. Both travel the same way: the plan carries `{ name, params }` as plain data a test can",
+    "read, and the objects are built in the one file that owns the renderer.",
+    "",
+    "What that file decides is kept to nothing: the grid, which cells are lit, the colour a mote",
+    "inherits and where it is at second `t` are all pure functions in `render/dust.ts`, held down by a",
+    "unit test. A name nobody registered is skipped, exactly as a dangling surface record is."
   ],
   "docs.coated.coat": [
     "One node wearing both coats at once. `self` is on this face; `cast` would fall to children too,",
@@ -88,13 +92,15 @@
     "without a byte of the wire changing."
   ],
   "docs.coated.censor": [
-    "The censorship case: a mask over the surface. The wash guarantees a visible bar with no GPU at",
-    "all; on the glass a named `blur` filter shimmers over it, built and clocked by the painter.",
+    "The censorship case: the hidden face GROUND UP. Motes are born on the node's own silhouette, each",
+    "one carrying the colour of the spot it came from, drifting outwards and fading over its own short",
+    "life. A censored ace of spades still reads as an ace of spades, smeared.",
     "",
     "The atom holds the static truth — `censor`, a strength — and the animation is the render tier's,",
-    "where the live per-object transform already lives. The model names the filter; the shader is the",
-    "one thing verified by eye rather than in a headless test, because there is no WebGL to run one in.",
-    "Drag `level`: the mask thickens, and so does the blur behind it."
+    "where the live per-object transform already lives. The model NAMES an overlay and the painter",
+    "draws it: a filter reworks pixels already on the glass, an overlay is handed a look at them and",
+    "builds its own things on top, which is the only way a mote can be the colour of what it hides.",
+    "Drag `level`: the cloud thickens."
   ],
   "docs.coated.bluff": [
     "TWO TREES side by side — the same card as two clients hold it. The bluffer's tree carries the tell",

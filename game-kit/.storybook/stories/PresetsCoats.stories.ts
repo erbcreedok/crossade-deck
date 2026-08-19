@@ -100,10 +100,16 @@ export const Clear: StoryObj<CoatArgs> = {
 };
 
 export const Censor: StoryObj<CoatArgs> = {
-  // A mask over the surface AND a shader that animates it. The wash masks with no GPU at all; on the
-  // glass a named `blur` shimmers over it, built and clocked by the painter. Drag `level`: both thicken.
-  render: (a) => box("plate", "censor", a),
-  args: { level: 0.7, tint: "" },
+  // The face GROUND UP: motes born on the node's own silhouette, each the colour of the spot it came
+  // from, drifting off and replaced. Drag `level`: the cloud thickens.
+  //
+  // ON REAL FACES, and that is not decoration. The whole claim of this recipe is that a censored ace
+  // of spades still reads as an ace of spades — on a blank plate every mote is the plate's one
+  // colour, and the page would show a grey square with a few specks, which is the very thing the
+  // recipe exists NOT to be. `shelf` is declared further down and that is fine: a story's `render`
+  // runs long after the module has finished evaluating.
+  render: (a) => shelf("censor", a),
+  args: { level: 0.9, tint: "" },
   argTypes: { level: levelControl, tint: tintControl },
   parameters: { gkDocStory: "presetsCoats.censor" },
 };

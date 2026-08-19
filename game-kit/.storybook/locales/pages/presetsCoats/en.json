@@ -31,9 +31,14 @@
     "value, not a scope switch."
   ],
   "docs.presetsCoats.censor": [
-    "A mask over the surface, and a shader that animates it. The wash guarantees a visible bar with no",
-    "GPU at all; on the glass a named `blur` filter shimmers over it, built and clocked by the painter.",
-    "The atom holds the static truth — `censor`, a strength — and the animation is the render tier's."
+    "The hidden face GROUND UP. Motes are born on the node's own silhouette, each one carrying the",
+    "colour of the spot it came from; they drift outwards, fade in and out over their own short lives",
+    "and are replaced. A censored ace of spades still reads as an ace of spades, smeared — which is the",
+    "whole difference between a censor and a grey rectangle.",
+    "",
+    "No GPU is involved: the motes are plain drawn squares, so there is no shader tier to fall back",
+    "from. The atom holds the static truth — `censor`, a strength — and where a mote is at second `t`",
+    "is a pure function under a unit test. Drag `level`: the cloud thickens."
   ],
   "docs.presetsCoats.foil": [
     "A cold sheen — a film over the face and a bright hairline round it. On a bright plate it reads as lamination; on a well it reads as ice. Same coat, different ground."

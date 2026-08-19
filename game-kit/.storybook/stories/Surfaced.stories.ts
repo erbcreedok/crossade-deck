@@ -76,8 +76,6 @@ export default meta;
 
 interface PlateArgs extends ShapeArgs, RecordArgs {
   id: string;
-  /** A registered surface by NAME — empty falls back to the record the panel below builds. */
-  surface: string;
 }
 
 // A COMMENT IN A RENDER BODY IS PART OF THE SNIPPET — it is printed with the code and copied
@@ -91,16 +89,13 @@ export const Plate: StoryObj<PlateArgs> = {
   // here, and so is every shape the box can be: a rect, a circle, a polygon of as many corners as
   // you like, or one pasted in from somewhere else.
   render: (a) => {
-    // A named surface wins over the record the panel builds — a node wears what it did not author.
     registerSurface("story.plate", recordOf(a));
-    const worn = a.surface.trim() || "story.plate";
-    return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: worn }))).el;
+    return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.plate" }))).el;
   },
-  args: { id: "card", surface: "cards/face/spade-A", ...shapeArgs({ w: 1, h: 1.4 }), ...RECORD_ARGS },
+  args: { id: "card", ...shapeArgs(), ...RECORD_ARGS },
   argTypes: {
     // A node is NAMED, and the name is what the tree below follows.
     id: documented("arg.id", { control: "text" }, "node"),
-    surface: documented("arg.plateSurface", { control: "select", options: ["", ...surfaceNames()] }, "node"),
     ...shapeArgTypes(),
     ...RECORD_ARG_TYPES,
   },
@@ -312,4 +307,25 @@ export const Layers: StoryObj<LayersArgs> = {
     swap: documented("arg.swap", {}),
   },
   parameters: { gkDocStory: "surfaced.layers" },
+};
+
+// ---- Registered: a face somebody else authored --------------------------------------------
+
+interface FacesArgs {
+  surface: string;
+  w: number;
+  h: number;
+}
+
+export const Registered: StoryObj<FacesArgs> = {
+  // The other half of the registry: a node wears a record it did NOT author. These come from the
+  // add-on decks, so nothing here draws a card — it names one.
+  render: (a) => scene(node("card", Bounded({ bounds: rect(a.w, a.h) }), Surfaced({ surface: a.surface }))).el,
+  args: { surface: "cards/face/spade-A", w: 1, h: 1.4 },
+  argTypes: {
+    surface: documented("arg.plateSurface", { control: "select", options: surfaceNames() }, "node"),
+    w: documented("arg.w", { control: { type: "number", min: 0, step: 0.1 } }, "bounds"),
+    h: documented("arg.h", { control: { type: "number", min: 0, step: 0.1 } }, "bounds"),
+  },
+  parameters: { gkDocStory: "surfaced.registered" },
 };
