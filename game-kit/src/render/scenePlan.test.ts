@@ -313,42 +313,52 @@ describe("scenePlan", () => {
     expect(flat.h).toBeCloseTo(140);
   });
 
-  it("plan.flight-deepens-the-shadow — a raised caster's fall stretches while it flies", () => {
-    // Flight IS height: the carried card grows in hand and its shadow must answer, or the pop
-    // reads as inflation rather than lift. The same `raised` hint that lifts the paint order
-    // lengthens the fall — and it ends with the flight, leaving the resting arithmetic alone.
-    const at = (raised?: ReadonlySet<string>): number => {
+  it("plan.the-hand-deepens-the-shadow — a HELD caster's fall stretches, a flying one's does not", () => {
+    // The HAND is what lifts. A card held in one grows and its shadow must answer, or the pop reads
+    // as inflation rather than lift — so `carried` lengthens the fall, and it ends with the gesture.
+    // `raised` alone must NOT: that set also holds every node the clock is flying, and a card on its
+    // way to a seat is not standing higher above the desk at the far end than at the near one.
+    const at = (hint: { raised?: ReadonlySet<string>; carried?: ReadonlySet<string> } = {}): number => {
       const root = node("fly", Container({ layout: "free" }));
       add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
-      const quads = scenePlan({
+      const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, ...hint });
+      const p = quads.find((q) => q.id === "piece")!;
+      const s = quads.find((q) => q.id === "piece::shadow")!;
+      return Math.hypot(s.transform.e - p.transform.e, s.transform.f - p.transform.f);
+    };
+    const held = new Set(["piece"]);
+    expect(at({ carried: held })).toBeGreaterThan(at());
+    expect(at({ raised: held })).toBeCloseTo(at()); // flight is not height — only the hand is
+  });
+
+  it("plan.a-shadow-follows-the-hand-not-the-flight — held it travels, flying it waits at the rest", () => {
+    // The one law about a shadow in motion. A finger holding a piece has it OFF the desk, so the
+    // shadow travels under it. A piece the clock is flying — a settle, a throw, a slide, a turn —
+    // is on its way to a seat and is not standing at any point of the flight: its shadow waits at
+    // the rest pose it is heading for, or it would announce a landing at every frame on the way.
+    const root = node("f1", Container({ layout: "free" }));
+    add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
+    const away = new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 2, f: 0 }]]);
+    const plan = (over?: typeof away, carried?: ReadonlySet<string>): readonly Quad[] =>
+      scenePlan({
         root,
         unit: 100,
         width: 800,
         height: 600,
         viewer: DEFAULT_VIEWER,
-        ...(raised ? { raised } : {}),
+        ...(over ? { overrides: over } : {}),
+        ...(carried ? { carried } : {}),
       });
-      const p = quads.find((q) => q.id === "piece")!;
-      const s = quads.find((q) => q.id === "piece::shadow")!;
-      return Math.hypot(s.transform.e - p.transform.e, s.transform.f - p.transform.f);
-    };
-    expect(at(new Set(["piece"]))).toBeGreaterThan(at());
-  });
-
-  it("plan.a-shadow-follows-its-caster-in-flight — the override moves them together", () => {
-    const root = node("f1", Container({ layout: "free" }));
-    add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
-    const still = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
-    const flying = scenePlan({
-      root,
-      unit: 100,
-      width: 800,
-      height: 600,
-      viewer: DEFAULT_VIEWER,
-      overrides: new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 2, f: 0 }]]),
-    });
-    const shadeX = (quads: readonly Quad[]): number => quads.find((q) => q.id === "piece::shadow")!.transform.e;
-    expect(shadeX(flying)).toBeCloseTo(shadeX(still) + 200); // 2 units at 100px/u, shadow along
+    const at = (quads: readonly Quad[], id: string): number => quads.find((q) => q.id === id)!.transform.e;
+    const hand = new Set(["piece"]);
+    const still = plan();
+    const grabbed = plan(undefined, hand); // in hand, not yet moved — the deepening is already in
+    const held = plan(away, hand);
+    const flying = plan(away);
+    expect(at(held, "piece")).toBeCloseTo(at(still, "piece") + 200); // 2 units at 100px/u
+    expect(at(held, "piece::shadow")).toBeCloseTo(at(grabbed, "piece::shadow") + 200); // shadow along
+    expect(at(flying, "piece")).toBeCloseTo(at(still, "piece") + 200); // the piece flies just the same
+    expect(at(flying, "piece::shadow")).toBeCloseTo(at(still, "piece::shadow")); // its shadow does not
   });
 
   it("plan.a-raised-node-paints-last — flight beats height, and the quad still tells the resting truth", () => {

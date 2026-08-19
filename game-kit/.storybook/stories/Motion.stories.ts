@@ -368,8 +368,9 @@ interface CarryArgs extends Omit<DeskArgs, "piecePaint"> {
 
 /**
  * A COLUMN UNDER YOUR OWN FINGER — every number of the carry on one panel. Grab any card and it leads
- * the run below it; the springs chase your pointer (`follow*` is the lag), the lift pops
- * (`lift*`), the lean banks into speed (`lean*`), the style says how the run composes (`carry`).
+ * the run below it, 1:1 under the pointer with no trail; the chase spring reads your speed instead of
+ * moving the run (`follow*`), the lift pops (`lift*`), that speed becomes the bank (`lean*`), and the
+ * style says how the run composes (`carry`).
  * Let go anywhere: nothing here accepts a drop, so the run flies home on the settle (`settle*`).
  */
 export const Carry: StoryObj<CarryArgs> = {

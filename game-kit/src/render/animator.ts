@@ -20,10 +20,12 @@
 // GESTURE vs SETTLE, the joint the whole thing turns on (docs/design/transaction.md): while a finger
 // owns nodes it must NOT ease from the tree — its pose is the finger's, an OVERRIDE, never a tree
 // write, so a pointer-move costs one paint and no reconcile. `grab`/`dragTo` are that gesture, and
-// they carry the "feel": the finger moves a TARGET and a spring per axis CHASES it, so the run trails
-// the finger (lag) and leans into its motion (`carry` style + `lean`); a lift spring pops it up. The
-// run's per-card poses are a `CarryStyle` (rigid = one plank about the pivot, loose = per-card) fed the
-// springed anchor each frame. `release(id)` hands the node back, and because the tree never moved, the
+// they carry the "feel": the run rides the finger 1:1 (no position lag — a held thing does not trail
+// the hand), and a spring per axis CHASES the same target beside it, purely to READ the finger's speed:
+// that speed is the lean the run banks into its motion with (`carry` style + `lean`) and the speed a
+// throw inherits. A lift spring pops the run up on the way in. The run's per-card poses are a
+// `CarryStyle` (rigid = one plank about the pivot, loose = per-card) fed the finger's anchor each
+// frame. `release(id)` hands the node back, and because the tree never moved, the
 // next reconcile eases it home from exactly where the finger left it — the lean and lift unwind on the
 // way. (`hold(id)` is the older, tree-driven gesture the same `release` closes.)
 
@@ -361,6 +363,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     renderFrame(host, painter, {
       overrides: overrides(),
       raised: raised(),
+      // The finger's own set, apart from `raised`: what a HAND holds is off the desk, and only that
+      // takes its shadow along (`PlanInput.carried`). A node the clock is flying is on its way to a
+      // seat, not standing at a new one.
+      carried: carried.size > 0 ? carried : undefined,
       retain: retaining,
       measure: options.measure,
       ...(options.bake ? { bake: options.bake } : {}),
@@ -372,10 +378,19 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS);
 
-  /** Lay the carried run out from the springed anchor this frame, writing each node's override pose. */
+  /**
+   * Lay the carried run out UNDER THE FINGER this frame, writing each node's override pose.
+   *
+   * The anchor is the finger's own target, 1:1 — a thing a hand is holding does not trail behind
+   * the hand, and a position lag reads as sluggishness, not as weight. The chase spring runs
+   * BESIDE the pose, never under it: its velocity is the finger's speed, smoothed by the spring's
+   * own time constant, and that is what the lean is drawn from and what a throw on release
+   * inherits. So the liveliness sits where it belongs — the bank into the motion, the lift's
+   * overshoot on the way in, the settle on the way out — and never in the position.
+   */
   const layCarry = (cy: Carry): void => {
     const leanDeg = lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);
-    const anchor = { x: cy.sx.pos, y: cy.sy.pos };
+    const anchor = cy.target;
     const n = cy.items.length;
     cy.items.forEach((it, i) => {
       displayed.set(it.id, cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));

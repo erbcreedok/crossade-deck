@@ -132,8 +132,8 @@ export const Drag: StoryObj<DragArgs> = {
         await expect(differs(pixelAt(glass, home.fx, home.fy), bg), "the card rests at its seat").toBe(true);
         pointer(live.host.view, "pointerdown", home);
         pointer(live.host.view, "pointermove", target);
-        // The spring TRAILS the finger — lag is the feel, not a bug — so the claim is patient:
-        // while the gesture holds, the chase converges onto the pointer.
+        // The run rides the finger 1:1, but the claim is patient anyway: a paint arrives on the
+        // glass a frame after the plan asks for it, and this reads pixels, not the plan.
         await waitFor(
           () => (differs(pixelAt(glass, target.fx, target.fy), bg) ? true : null),
           "the card never arrived under the finger",

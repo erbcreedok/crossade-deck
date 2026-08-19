@@ -55,6 +55,8 @@ export interface PaintOptions {
   readonly overrides?: ReadonlyMap<NodeId, Transform> | undefined;
   /** Nodes in flight, painted after everything at rest — see `PlanInput.raised`. */
   readonly raised?: ReadonlySet<NodeId> | undefined;
+  /** Nodes a finger is holding — the only ones whose shadow travels with them, see `PlanInput.carried`. */
+  readonly carried?: ReadonlySet<NodeId> | undefined;
   /**
    * The glass keeps what it shows and only the FLYING quads (`raised`) are painted, over it, with
    * no clear: the trail of the old solitaire's cascade. Shadows and debug marks are left out of
@@ -86,6 +88,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     viewer: host.viewer(),
     overrides: options.overrides,
     raised: options.raised,
+    carried: options.carried,
     measure: options.measure,
   };
   // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on

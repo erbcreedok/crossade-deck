@@ -63,16 +63,24 @@ export interface MotionTuning {
   readonly carry: string;
   /** Lift scale while held — the small pop of a picked-up card. `1` is no pop. */
   readonly lift: number;
-  /** The x/y chase spring: pull toward the finger. Higher = shorter trail. */
+  /**
+   * The x/y chase spring: pull toward the finger. It does NOT move the run — a held thing rides the
+   * finger 1:1 — it is the SMOOTHER that turns raw pointer jumps into a speed: higher is a quicker,
+   * twitchier read of the finger, lower is a lazier one.
+   */
   readonly followStiffness: number;
-  /** The chase spring's damping; below `2·√stiffness` it overshoots a touch and eases back. */
+  /** The chase spring's damping; below `2·√stiffness` its speed overshoots a touch and eases back. */
   readonly followDamping: number;
   /** The lift-scale spring: how fast the pop arrives. */
   readonly liftStiffness: number;
   readonly liftDamping: number;
-  /** Speed → lean: degrees per unit/s of horizontal speed. `0` is no whip. */
+  /**
+   * Speed → lean: degrees per unit/s of horizontal speed. `0` is no whip. The unit is the card, so
+   * this is "degrees per card-width per second" — the owner's own whip, ported: the previous client
+   * banked `0.0007` radians per px/s on a card `160` px wide, which is `6.42°` per card-width/s.
+   */
   readonly leanFactor: number;
-  /** The lean saturates here, degrees — a flick pins it instead of spinning the card. */
+  /** The lean saturates here, degrees — a flick pins it instead of spinning the card. The previous client's `0.3` rad. */
   readonly leanMaxDeg: number;
   /** Screen-fall gravity for `launch`, units/s². */
   readonly gravity: number;
@@ -97,8 +105,8 @@ export const DEFAULT_TUNING: MotionTuning = {
   followDamping: 14,
   liftStiffness: 170,
   liftDamping: 20,
-  leanFactor: 3,
-  leanMaxDeg: 15,
+  leanFactor: 6.42,
+  leanMaxDeg: 17.19,
   gravity: 9,
   bounce: 0.7,
   friction: 6,

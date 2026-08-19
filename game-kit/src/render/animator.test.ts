@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
+import { ShadowCaster } from "../core/atoms/shadow.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, compose, node, reorder } from "../core/node.js";
@@ -154,23 +155,25 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true); // seeded at the anchor, no pop asked for and no speed — nothing to animate
   });
 
-  it("motion.grab-then-drag-trails-the-finger — the run lags behind, then catches up and sleeps", () => {
+  it("motion.grab-then-drag-rides-the-finger — the run is UNDER the pointer every frame, no trail", () => {
     const b = bench();
     const c = fakeClock();
     const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
 
     const restX = b.xOf("c");
     m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
-    m.dragTo({ x: 10, y: 0 }); // the finger jumps far to the right
-    // A few frames in, the spring is on its way but has NOT reached the finger — that gap IS the lag.
-    c.tick(16);
-    c.tick(32);
-    const trailing = b.xOf("c") - restX;
-    expect(trailing).toBeGreaterThan(0);
-    expect(trailing).toBeLessThan(10);
-    // Keep the finger still and let it settle: it arrives at (about) the finger and the loop stops.
-    for (let t = 48; t <= 3000; t += 16) c.tick(t);
-    expect(b.xOf("c") - restX).toBeCloseTo(10, 1);
+    // Walk the finger across in steps, as a real pointer stream does, and read the run on EVERY
+    // frame. A held thing does not trail the hand: any gap here is felt as sluggishness, so the
+    // reading is exact, not "close enough" — the liveliness is the lean and the lift, not lag.
+    for (let k = 1; k <= 8; k++) {
+      m.dragTo({ x: k, y: 0 });
+      c.tick(16 * k);
+      expect(b.xOf("c") - restX).toBeCloseTo(k, 6);
+    }
+    // The chase spring is still running beside the pose — it is the finger's speed, not the pose —
+    // so the lean has something to unwind from; once it has, the loop sleeps and the run has not moved.
+    for (let t = 144; t <= 3000; t += 16) c.tick(t);
+    expect(b.xOf("c") - restX).toBeCloseTo(8, 6);
     expect(c.idle()).toBe(true);
   });
 
@@ -188,6 +191,51 @@ describe("the motion runtime", () => {
     // Once it stops moving, the lean unwinds to upright.
     for (let t = 48; t <= 3000; t += 16) c.tick(t);
     expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 2);
+  });
+
+  it("motion.a-shadow-rides-the-hand-and-waits-out-a-flight — height is the hand, not the clock", () => {
+    // The runtime's half of the shadow law (`plan.a-shadow-follows-the-hand-not-the-flight`): the
+    // clock is the only thing that knows WHICH override is a finger's and which is a flight's, and
+    // it must hand the plan the finger's set apart from `raised`. Held, the shadow travels with the
+    // card; flying home, it waits at the rest the card is coming back to instead of running under it.
+    resetLayouts();
+    registerLayout("free", freeLayout);
+    resetSurfaces();
+    installStockSurfaces();
+    resetEasings();
+    installStockEasings();
+    const desk = node("desk", Container({ layout: "free" }));
+    const card = node(
+      "c",
+      Bounded({ bounds: rect(1, 1) }),
+      Surfaced(),
+      ShadowCaster({ from: "footprint" }),
+      Transformable({ at: { x: 0, y: 0 } }),
+    );
+    add(desk, card);
+    let last: readonly Quad[] = [];
+    const painter: Painter = { ready: Promise.resolve(), draw: (p) => { last = p; }, resize: () => {}, destroy: () => {} };
+    const host = mount(document.createElement("div"), desk);
+    const c = fakeClock();
+    const m = attachMotion(host, painter, { settleMs: 200, settleEase: "linear", clock: c.clock });
+    const at = (id: string): number => last.find((q) => q.id === id)!.x;
+
+    const restCard = at("c");
+    const restShade = at("c::shadow");
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, lift: 1 });
+    const heldShade = at("c::shadow"); // in hand and unmoved: the fall has already lengthened
+    expect(heldShade).not.toBeCloseTo(restShade, 6);
+    m.dragTo({ x: 4, y: 0 });
+    c.tick(16);
+    expect(at("c") - restCard).toBeCloseTo(4, 6);
+    expect(at("c::shadow") - heldShade).toBeCloseTo(4, 6); // held: the shadow travels along
+
+    // Let go over the SAME tree: the card flies home, and its shadow is at the seat from frame one.
+    m.release("c");
+    host.setRoot(desk);
+    c.tick(116); // halfway through the settle
+    expect(at("c") - restCard).toBeGreaterThan(1); // still well out over the desk
+    expect(at("c::shadow")).toBeCloseTo(restShade, 6); // waiting where the card will land
   });
 
   it("motion.a-carried-node-settles-from-the-finger — and the tree was never written", () => {

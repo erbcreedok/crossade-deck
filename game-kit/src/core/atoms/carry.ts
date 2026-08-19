@@ -21,8 +21,10 @@ import { clampAbs } from "../spring.js";
 
 /**
  * How much a card leans into its motion, in DEGREES (what `rotate` speaks). `factor` turns speed
- * (root units per second, the spring's own velocity) into degrees; `maxDeg` is the saturation, so a
- * brisk flick pins the lean instead of spinning. Sign follows the direction of travel.
+ * (root units per second — the chase spring's velocity, which is the finger's speed smoothed) into
+ * degrees; `maxDeg` is the saturation, so a brisk flick pins the lean instead of spinning. Sign
+ * follows the direction of travel. This IS the liveliness of a drag: the position is 1:1 under the
+ * hand, so what says "this thing has weight" is the bank, not a trailing position.
  */
 export function lean(velX: number, factor: number, maxDeg: number): number {
   return clampAbs(velX * factor, maxDeg);
@@ -30,7 +32,7 @@ export function lean(velX: number, factor: number, maxDeg: number): number {
 
 /** What a style needs to place one carried card, in root-unit space. */
 export interface CarryContext {
-  /** The springed grab pivot — where the finger is, lagged. */
+  /** The grab pivot — where the finger is, exactly: a held run rides the hand 1:1, it does not trail it. */
   readonly anchor: Vec;
   /** This card's base layout offset from the pivot (the game's stacking, e.g. `{x:0, y:i*step}`). */
   readonly offset: Vec;

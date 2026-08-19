@@ -258,7 +258,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   // press that never moves is a TAP (which does nothing) or half of a double-click (which auto-moves).
   // Without this a double-click would reparent the card twice mid-gesture and fight its own auto-move.
   let pending: { hit: Node; startG: Point; pointerId: number } | undefined;
-  const DRAG_SLOP = 5; // px
+  const DRAG_SLOP = 6; // px — the previous client's own grab threshold
   // A tap that lifted nothing may be one half of a double-tap. `dblclick` is a MOUSE event a touch
   // screen never fires, so the two taps are counted here, off the same pointer stream the drag uses.
   let lastTap: { id: string; ms: number; g: Point } | undefined;

@@ -266,6 +266,16 @@ export interface PlanInput {
    */
   readonly raised?: ReadonlySet<NodeId> | undefined;
   /**
+   * Nodes a FINGER is holding right now — the subset of `raised` that is genuinely off the desk.
+   *
+   * A shadow is HEIGHT, and only a hand takes a piece up: while one holds it, the shadow travels
+   * under it and the fall lengthens. Everything else that moves is flying on the clock — a settle,
+   * a throw, a slide, a turn — and a flying piece is not standing at a new place, it is on its way
+   * to one: its shadow waits at the rest pose it is heading for instead of running along under it.
+   * Absent, no shadow follows anything, which is what a still scene wants.
+   */
+  readonly carried?: ReadonlySet<NodeId> | undefined;
+  /**
    * How wide a string is — the one thing the plan cannot compute and must be told (`textMetrics`).
    * Absent, no caption lays out and the plan is byte-for-byte the plan it was before text existed:
    * skipped, not thrown, exactly as an unregistered surface name is.
@@ -280,7 +290,7 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer, overrides, raised, measure }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, overrides, raised, carried, measure }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = viewTransform(unit, width, height);
   // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
@@ -364,13 +374,15 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
       from === "silhouette" ? surfaceRecord(fieldsOf<SurfacedFields>(shown, "Surfaced")?.surface ?? "") : undefined;
     const points = surfaceOutline(shape, record?.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
     const z = resolveZ(ctx);
-    // Flight IS height: the same `raised` hint that lifts the paint order lengthens the fall,
-    // and it ends with the flight — the resting arithmetic never learns about it.
-    const off = (depth.base + depth.perZ * z + (raised?.has(n.id) ? depth.lifted : 0)) * unit;
-    const toGlass = compose(
-      move(fall.x * off, fall.y * off),
-      compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY),
-    );
+    // THE HAND IS WHAT LIFTS. While a finger holds this piece it is off the desk: the shadow rides
+    // along under it and the fall lengthens by `lifted`. A piece the CLOCK is moving — a settle, a
+    // throw, a slide, a turn — is in the air on its way to a seat, and a shadow that ran along under
+    // it would say it is standing at every point of the flight. So its shadow waits at the rest pose
+    // it is flying towards, and the fall keeps the resting length.
+    const inHand = carried?.has(n.id) === true;
+    const off = (depth.base + depth.perZ * z + (inHand ? depth.lifted : 0)) * unit;
+    const seat = (inHand ? overrides?.get(n.id) : undefined) ?? nodes.get(n.id) ?? IDENTITY;
+    const toGlass = compose(move(fall.x * off, fall.y * off), compose(toView, seat));
     const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
     const ext = extentOf(shape);
     out.push({

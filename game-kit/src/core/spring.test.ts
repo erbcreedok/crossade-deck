@@ -43,7 +43,8 @@ describe("spring", () => {
 
   it("spring.trails-a-moving-target — mid-flight it lags behind where the finger already is", () => {
     // Drive the target ahead each frame (a finger sweeping right); the spring never catches up while
-    // the finger keeps moving — that lag IS the follow feel, not a bug.
+    // the finger keeps moving. That trail is what makes it a SPEED reader rather than a position: a
+    // carried run rides the finger 1:1 and reads this spring's `vel` for its lean and its throw.
     let s = SPRING_REST;
     let target = 0;
     let sawLag = false;
