@@ -1,0 +1,25 @@
+apps/hub/package.json
+  s_170937f0c01a52::t_c35b6d7b68095b 7
+apps/klondike/vite.config.ts
+  s_170937f0c01a52::t_c35b6d7b68095b 12-14,17-20
+apps/hub/vite.config.ts
+  s_170937f0c01a52::t_c35b6d7b68095b 14-16,19-22
+apps/klondike/package.json
+  s_170937f0c01a52::t_c35b6d7b68095b 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ea240882c80fbc910db5160daec84489c204df75",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
