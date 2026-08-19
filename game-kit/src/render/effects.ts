@@ -32,6 +32,24 @@ export interface FilterRef {
 }
 
 /**
+ * A named runtime OVERLAY — things DRAWN over the quad, where a filter is a shader over its pixels.
+ *
+ * The two are not one seam with a flag, because the painter does two different jobs for them: a
+ * filter is hung on the box and the GPU reworks what is already there, an overlay is handed what
+ * the box looks like and builds its own objects on top. The censor's dust is the first of these —
+ * a thousand little squares, each one the colour of the spot it was born on, which no shader can
+ * be handed and no wash can imitate.
+ *
+ * Like a filter it rides the plan as a NAME and numbers, so everything up to the glass stays a
+ * pure function and the objects are built in the one file that owns Pixi.
+ */
+export interface OverlayRef {
+  readonly name: string;
+  /** Serialisable knobs. Numbers only, for the same reason a filter's are. */
+  readonly params: Readonly<Record<string, number>>;
+}
+
+/**
  * One runtime contribution to a quad, spoken in the RECORD's own vocabulary: coats of paint over
  * the surface, an override stroke, a filter. A recipe returns these (see `render/coats.ts`); the
  * plan folds them into the quad it was already building. Every part is optional — a filter alone,
@@ -43,6 +61,8 @@ export interface RuntimeCoat {
   /** Replaces the surface's stroke when present: a selection ring is the border while it lasts. */
   readonly stroke?: Stroke;
   readonly filter?: FilterRef;
+  /** Objects drawn over the quad, named for the painter — the censor's dust is the first one. */
+  readonly overlay?: OverlayRef;
 }
 
 /**

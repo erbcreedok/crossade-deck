@@ -267,9 +267,11 @@ describe("test plan", () => {
 
   it("plan.the-summary-adds-up — the line at the top is the sum of the sections", () => {
     const header = readFileSync(join(PLAN_DIR, INDEX), "utf8");
-    // `слоя` or `слоёв` — the count declines the noun, and the guard checks numbers, not grammar.
+    // The count declines the noun three ways, and the guard checks numbers, not grammar. All
+    // three endings are accepted so the summary can be written correctly at any total — a
+    // scanner that only knew two of them would have forced the document into bad Russian.
     const stated =
-      /\*\*(\d+)\s+сло(?:я|ёв)\s*·\s*(\d+)\s+кейсов заявлено\s*·\s*(\d+)\s+расписано поимённо\.\*\*/.exec(header);
+      /\*\*(\d+)\s+сло(?:й|я|ёв)\s*·\s*(\d+)\s+кейсов заявлено\s*·\s*(\d+)\s+расписано поимённо\.\*\*/.exec(header);
     expect(stated, "the summary line is missing or reworded").toBeTruthy();
     const withRows = plan.sections.filter((s) => s.rows.length > 0 || s.claimed > 0);
     expect(Number(stated![1]), "layers").toBe(withRows.length);

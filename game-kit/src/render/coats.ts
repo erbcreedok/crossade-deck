@@ -19,6 +19,7 @@ import { paintable } from "../core/atoms/surfaced.js";
 import { ownValue, type ResolveContext } from "../core/resolve.js";
 import { IDENTITY } from "../core/transform.js";
 import { type Paint } from "../core/paint.js";
+import { DUST_LEVERS } from "./dust.js";
 import { registerEffect, type Effect, type RuntimeCoat } from "./effects.js";
 
 /** A recipe: instance data in, a render contribution out. It never sees the reach — only the coat. */
@@ -87,12 +88,24 @@ export function installStockCoats(): void {
   registerCoat("fill", (c) => ({
     layers: [{ paint: tintOr(c.tint, "accent"), part: clamp01(c.level) }],
   }));
-  // CENSOR — a mask over the surface, and a shader that animates it. The wash guarantees a visible
-  // bar with no GPU at all; the `filter` names a mosaic/shimmer the painter builds and clocks when
-  // it can (tier 3). A default `level` of 0.7 so a plain `censor` already hides something.
+  // CENSOR — the hidden face GROUND UP. Not a bar over it and not a blur of it: a cloud of motes
+  // born on the node's own silhouette, each one carrying the colour of the spot it came from,
+  // drifting off and being replaced. A hidden card therefore still reads as THAT card, smeared,
+  // which is the whole difference between a censor and a grey rectangle.
+  //
+  // It is an OVERLAY, not a `filter`, and not a wash either. A wash would have to sit on the
+  // surface the motes read their colours off, so the cloud would come out the colour of the bar
+  // rather than of the face — the censor would look identical over every node in the game. And it
+  // needs no GPU at all: the motes are plain drawn squares, so there is no shader tier to fall
+  // back from.
+  //
+  // `level` is how thick the cloud is drawn, defaulting to 0.7 so a plain `censor` already hides
+  // something. The four LEVERS ride along as numbers, so the owner's chosen look is data the plan
+  // carries and a unit test can read, rather than a constant buried where jsdom cannot reach.
+  // `tint` is not read: the motes' colour IS the face, and tinting them would be a lie about
+  // what is under there.
   registerCoat("censor", (c) => ({
-    layers: [{ paint: tintOr(c.tint, "sunkBg"), opacity: clamp01(c.level || 0.7) }],
-    filter: { name: "blur", params: { strength: clamp01(c.level || 0.7) } },
+    overlay: { name: "dust", params: { level: clamp01(c.level || 0.7), ...DUST_LEVERS } },
   }));
   // CLEAR — draws nothing, but STOPS the cast cascade at this node: the "all but one" spotlight is a
   // dim cast on the root and a `clear` on the lit subtree. Non-empty recipe, so the nearest-cast

@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**50 слоёв · 1143 кейсов заявлено · 970 расписано поимённо.**
+**51 слой · 1165 кейсов заявлено · 992 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -63,7 +63,7 @@
 | [PRESET · Deck — a set expanded into cards](35-deck.md) | `vitest` | 10 | 10 |
 | [UNIT · the effects list — the runtime seam](36-effects.md) | `vitest` | 5 | 5 |
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
-| [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 33 | 33 |
+| [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 34 | 34 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
 | [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 21 | 21 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 6 | 6 |
@@ -76,3 +76,4 @@
 | [UNIT · Rollable — грань как истина, кувырок как вид](48-rollable.md) | `vitest` | 3 | 3 |
 | [UNIT · текст — линейка портом, раскладка чистой функцией](49-text.md) | `vitest (headless, no font engine)` | 13 | 13 |
 | [UNIT · контролы — `Pressable`, пресет `button`, проводка](50-controls.md) | `vitest` | 28 | 28 |
+| [UNIT · пыль цензуры — облако без единого пикселя](51-censor-dust.md) | `vitest (headless, no WebGL)` | 21 | 21 |

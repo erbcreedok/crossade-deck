@@ -68,11 +68,19 @@ describe("coats — the registry and the effect", () => {
     expect(width(1)).toBeGreaterThan(width(0));
   });
 
-  it("coat.censor-names-a-filter — the mask is a wash plus a shader named for the painter", () => {
+  it("coat.censor-names-the-dust — the face is ground up, and the owner's levers ride the name", () => {
+    // NOT a wash and NOT a filter. A wash would be the very surface the motes read their colours
+    // off, so the cloud would come out the colour of the bar instead of the colour of the face —
+    // and a censor that looks the same over every node in the game is a grey rectangle with extra
+    // steps. The four levers travel as NUMBERS so the owner's chosen look is data a test can read,
+    // rather than a constant sitting in the one file jsdom cannot run.
     const out = coatRecipe("censor")!({ recipe: "censor", level: 0.5, tint: "" });
-    expect(out.layers).toHaveLength(1);
-    expect(out.filter?.name).toBe("blur");
-    expect(out.filter?.params.strength).toBeCloseTo(0.5);
+    expect(out.layers).toBeUndefined();
+    expect(out.filter).toBeUndefined();
+    expect(out.overlay?.name).toBe("dust");
+    expect(out.overlay?.params).toEqual({ level: 0.5, block: 5, swapsPerSec: 25, jitterAmp: 1, jitterFreq: 1 });
+    // A plain `censor` with no level still hides something.
+    expect(coatRecipe("censor")!({ recipe: "censor", level: 0, tint: "" }).overlay?.params.level).toBeCloseTo(0.7);
   });
 
   it("coat.fill-covers-a-fraction — the blueprint completes as the level grows", () => {
@@ -201,11 +209,21 @@ describe("coats — the registry and the effect", () => {
     expect(quad!.layers[1]!.opacity).toBeCloseTo(0.8);
   });
 
-  it("coat.filter-reaches-the-quad — a censor names a filter the painter will build", () => {
-    const quad = plan(box("hiddenTrap", { recipe: "censor", level: 0.5, tint: "" }));
+  it("coat.filter-reaches-the-quad — a frosted pane names a filter the painter will build", () => {
+    const quad = plan(box("frostedPane", { recipe: "frost", level: 0.5, tint: "" }));
     expect(quad!.filter?.name).toBe("blur");
     // Serialisable: the plan carries the name and numbers, never the shader.
     expect(JSON.parse(JSON.stringify(quad!.filter))).toEqual(quad!.filter);
+  });
+
+  it("coat.overlay-reaches-the-quad — a censor names an overlay the painter will draw", () => {
+    // The overlay seam is the filter's twin and travels the same way: a name and numbers, nothing
+    // built. What tells them apart is the job — a filter reworks pixels already on the glass, an
+    // overlay is handed a look at them and draws its own things over the top.
+    const quad = plan(box("hiddenTrap", { recipe: "censor", level: 0.5, tint: "" }));
+    expect(quad!.overlay?.name).toBe("dust");
+    expect(quad!.overlay?.params.block).toBe(5);
+    expect(JSON.parse(JSON.stringify(quad!.overlay))).toEqual(quad!.overlay);
   });
 
   it("coat.ring-overrides-the-stroke — a ring is the quad's border while it lasts", () => {

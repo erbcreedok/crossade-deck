@@ -1,6 +1,6 @@
 ## UNIT · Coated — the runtime coat over a surface
 
-`vitest` · 33 кейсов, расписано 33
+`vitest` · 34 кейсов, расписано 34
 
 Рантайм-слой поверх статического `Surfaced`: непрерывная величина, охват, бесконечный цвет, приват —
 то, что «имя → готовая запись» не держит. Атом несёт ДАННЫЕ (рецепт+level+tint); look — рецепт в
@@ -21,7 +21,7 @@
 | `coat.level-clamps` | level NaN/-5/999/Inf | wash | 0/0/1/0 — безопасно |
 | `coat.tint-empty-is-the-recipe-default` | tint ""/accent/{spin} | wash | дефолт stageBg / accent / объект насквозь |
 | `coat.ring-weight-grows-with-level` | ring, level 0 vs 1 | штрих | ширина растёт с level |
-| `coat.censor-names-a-filter` | censor | рецепт | слой-маска + filter `blur` с params (имя для painter, не пиксели) |
+| `coat.censor-names-the-dust` | censor | рецепт | ни слоя, ни фильтра: overlay `dust` + рычаги владельца числами (5/25/1/1), level по умолчанию 0.7 |
 | `coat.self-coats-own-face` | родитель self=ring | `coatEffect` | кольцо на родителе, у ребёнка нет |
 | `coat.cast-cascades-to-children` | поднос cast=wash | ребёнок | наследует wash (0.6) |
 | `coat.empty-cast-still-inherits` | ребёнок только self, поднос cast | `coatEffect` | два coat: наследованный wash + свой ring |
@@ -29,7 +29,8 @@
 | `coat.no-area-no-coat` | Coated без Surfaced | `coatEffect` | сам не крыт, но cast дошёл до ребёнка |
 | `coat.effect-ignores-viewer` | два viewer над одной правдой | `coatEffect` | coat одинаков — не читает onlooker-канал |
 | `coat.reaches-the-quad` | coated-узел через `scenePlan` | весь план | wash — лишний слой ПОВЕРХ записи, opacity=level |
-| `coat.filter-reaches-the-quad` | censor через `scenePlan` | план | `quad.filter` = blur, сериализуемо (имя+числа) |
+| `coat.filter-reaches-the-quad` | frost через `scenePlan` | план | `quad.filter` = blur, сериализуемо (имя+числа) |
+| `coat.overlay-reaches-the-quad` | censor через `scenePlan` | план | `quad.overlay` = dust с рычагами, сериализуемо (имя+числа) |
 | `coat.ring-overrides-the-stroke` | ring через `scenePlan` | план | `quad.stroke` = кольцо (plate без штриха) |
 | `coat.fill-covers-a-fraction` | рецепт `fill`, level 0.3 / NaN | рецепт вызван | слой с `part: 0.3`, СПЛОШНОЙ (не полупрозрачный — в этом отличие от wash); NaN заливает 0, не бросает |
 | `coat.nested-casts-nearest-wins` | комната wash 0.9, поднос wash 0.2, фигура на подносе | эффект | ОДИН коат, подноса: ближайший установленный рецепт затеняет верхний |

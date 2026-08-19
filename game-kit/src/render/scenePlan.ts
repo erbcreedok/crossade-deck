@@ -30,7 +30,7 @@ import { DEFAULT_TEXT, textStyle } from "./textStyles.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { assetRecord } from "./assets.js";
 import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./contour.js";
-import { applyEffects, type FilterRef } from "./effects.js";
+import { applyEffects, type FilterRef, type OverlayRef } from "./effects.js";
 import { fitBox } from "./fitBox.js";
 import { type Paint } from "../core/paint.js";
 import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
@@ -150,6 +150,13 @@ export interface Quad {
    * up to the glass stays a pure function.
    */
   readonly filter?: FilterRef | undefined;
+  /**
+   * Objects to DRAW over the quad, NAMED — the censor's dust. A filter reworks the pixels already
+   * on the glass; an overlay is handed what the quad looks like and builds its own things on top,
+   * which is the only way a mote can be the colour of the spot it was born on. Same discipline as
+   * a filter: a name and numbers ride the plan, the objects are built where Pixi lives.
+   */
+  readonly overlay?: OverlayRef | undefined;
   /** The node's caption, laid out — absent when it has none, or when nobody handed a ruler. */
   readonly text?: QuadText | undefined;
   readonly z: number;
@@ -469,9 +476,11 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
     const coatLayers = (coats ?? []).flatMap((coat) => (coat.layers ?? []).map((layer) => layerOf(layer, area, unit)));
     let coatStroke: Stroke | undefined;
     let filter: FilterRef | undefined;
+    let overlay: OverlayRef | undefined;
     for (const coat of coats ?? []) {
       if (coat.stroke) coatStroke = coat.stroke;
       if (coat.filter) filter = coat.filter;
+      if (coat.overlay) overlay = coat.overlay;
     }
 
     out.push({
@@ -485,6 +494,7 @@ export function scenePlan({ root, unit, width, height, viewer, overrides, raised
       transform,
       stroke: strokeOf(coatStroke ?? record?.stroke, points, unit),
       filter,
+      overlay,
       ...(caption ? { text: caption } : {}),
       z: resolveZ(ctx),
     });

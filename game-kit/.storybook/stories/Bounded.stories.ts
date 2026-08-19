@@ -111,26 +111,26 @@ export const Path: StoryObj<{ id: string; bounds: Shape }> = {
     bounds: documented("arg.bounds", { control: "object" }),
   },
   parameters: { gkDocStory: "bounded.path", controls: { include: ["id", "bounds"] } },
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: a.bounds })), { bounds: true }).el,
+  render: ({ id, bounds }) => scene(node(id.trim() || "card", Bounded({ bounds })), { bounds: true }).el,
 };
 
 // THE ORDINARY CASE, three of them — the same helpers `Presets/Bounds` shows in full, kept here
 // as the room a reader should stand in before the raw values and pasted paths below. Each story
 // carries only its own numbers: no `preset` dropdown, nothing borrowed from a neighbour.
 export const Rect: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: ({ id, ...shape }) => scene(node(id.trim() || "card", Bounded({ bounds: shapeOf(shape) })), { bounds: true }).el,
   args: { id: "card", preset: "rect", w: 1, h: 1, radius: 0 },
   parameters: { gkDocStory: "bounded.rect", controls: { include: ["id", "w", "h", "radius"] } },
 };
 
 export const Circle: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "chip", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: ({ id, ...shape }) => scene(node(id.trim() || "chip", Bounded({ bounds: shapeOf(shape) })), { bounds: true }).el,
   args: { id: "chip", preset: "circle", r: 0.8 },
   parameters: { gkDocStory: "bounded.circle", controls: { include: ["id", "r"] } },
 };
 
 export const Polygon: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "badge", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: ({ id, ...shape }) => scene(node(id.trim() || "badge", Bounded({ bounds: shapeOf(shape) })), { bounds: true }).el,
   args: { id: "badge", preset: "polygon", corners: 5, polyR: 0.9 },
   parameters: { gkDocStory: "bounded.polygon", controls: { include: ["id", "corners", "polyR"] } },
 };
@@ -139,7 +139,7 @@ export const Polygon: StoryObj<BoxArgs> = {
 // same answer as a node with no `Bounded` — `footprint()` tells a zero shape from `undefined`.
 // Built from a typed place rather than a helper, so its own control is the raw list of them.
 export const Point: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: ({ id, ...shape }) => scene(node(id.trim() || "card", Bounded({ bounds: shapeOf(shape) })), { bounds: true }).el,
   args: { id: "anchor", preset: "path", vertices: "0,0" },
   parameters: { gkDocStory: "bounded.point", controls: { include: ["id", "vertices"] } },
 };
@@ -148,7 +148,7 @@ export const Point: StoryObj<BoxArgs> = {
 // a bent banana: a curve drawn with straight runs is faceted exactly where it turns most, which
 // is exactly where the eye is looking.
 export const Swoosh: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: ({ id, ...shape }) => scene(node(id.trim() || "card", Bounded({ bounds: shapeOf(shape) })), { bounds: true }).el,
   args: {
     id: "mark",
     preset: "svg",
@@ -182,7 +182,7 @@ export const Swoosh: StoryObj<BoxArgs> = {
 };
 
 export const Pawn: StoryObj<BoxArgs> = {
-  render: (a) => scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) })), { bounds: true }).el,
+  render: ({ id, ...shape }) => scene(node(id.trim() || "card", Bounded({ bounds: shapeOf(shape) })), { bounds: true }).el,
   args: {
     id: "pawn",
     preset: "svg",
