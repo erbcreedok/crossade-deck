@@ -2,6 +2,13 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { add, Bounded, Coated, Container, installStockCoats, node, rect, registerLayout, rowLayout, Surfaced } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import { documented, PAINTS } from "./surfaceControls.js";
+import { BACK_SURFACE, crossade, faceSurface, installClassicSkin, type CardSpec } from "@game-presets/cards";
+import { DIE_SIZE, faceSurface as dieFace, installDiceSkin } from "@game-presets/dice";
+
+// The card's own size. The skin keeps these private, and a catalog scene needs a box to draw in —
+// so they are stated here as the numbers they are, next to the deck that owns them.
+const CARD_W = 1;
+const CARD_H = 1.4;
 
 // PRESETS THAT MIX A RUNTIME COAT — one page per stock recipe, in isolation, with only its own knobs.
 //
@@ -110,19 +117,19 @@ export const Censor: StoryObj<CoatArgs> = {
 // plate and a foil on a well are not the same picture, and one tile would hide that.
 
 const shelf = (recipe: string, a: CoatArgs) => {
+  // REAL OBJECTS, NOT BLANK PLATES. An edition is a thing you put ON something, and three coloured
+  // rectangles showed nothing about what it does to a picture: the whole question is what a sheen
+  // looks like over pips and a suit, and over a die's dots. So the shelf is an ace of spades, a
+  // card back and a die — the same skins the games use, dressed with the coat under test.
+  installClassicSkin();
+  installDiceSkin();
   registerLayout("coats.row", rowLayout({ gap: 0.22, padding: 0 }));
+  const ace = crossade().find((c: CardSpec) => c.id === "spade-A")!;
+  const worn = Coated({ self: { recipe, level: a.level, tint: a.tint } });
   const row = node("shelf", Container({ layout: "coats.row" }));
-  for (const surface of ["plate", "bare", "zone"]) {
-    add(
-      row,
-      node(
-        `coated-${surface}`,
-        Bounded({ bounds: rect(1.3, 1.8) }),
-        Surfaced({ surface }),
-        Coated({ self: { recipe, level: a.level, tint: a.tint } }),
-      ),
-    );
-  }
+  add(row, node("aceOfSpades", Bounded({ bounds: rect(CARD_W, CARD_H) }), Surfaced({ surface: faceSurface(ace) }), worn));
+  add(row, node("back", Bounded({ bounds: rect(CARD_W, CARD_H) }), Surfaced({ surface: BACK_SURFACE }), worn));
+  add(row, node("die", Bounded({ bounds: rect(DIE_SIZE, DIE_SIZE) }), Surfaced({ surface: dieFace("d6", 5) }), worn));
   return scene(row).el;
 };
 
