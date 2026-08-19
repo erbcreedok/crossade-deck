@@ -19,7 +19,7 @@
  * or a date is formed — all of it belongs to whoever assembles the tree, and the node tree is
  * assembled per client anyway: ids have to agree between players, wording does not.
  */
-export type ThemeName = "dark" | "light";
+export type ThemeName = "dark" | "light" | "felt";
 
 export interface ViewerSettings {
   /** Dark or light. Local, like motion-reduce. */

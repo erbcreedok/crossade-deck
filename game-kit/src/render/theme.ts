@@ -92,7 +92,36 @@ const LIGHT: Palette = {
   shadow: "#2c3439",
 };
 
-export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, light: LIGHT };
+/**
+ * THE FELT — a game's palette, not a tool's.
+ *
+ * `dark` and `light` are the CATALOG's: a developer's blue-and-grey, chosen when this was a debug
+ * page with no game attached, and the two the Storybook shell itself is built from. Putting a
+ * game's colours into either repainted the tool — the shell went yellow and the stage went with it.
+ *
+ * So the felt stands beside them instead. The shell names `dark` and `light` explicitly and knows
+ * nothing of this one, so choosing it dresses the CANVAS and leaves the chrome alone. It is the
+ * pixel casino the games here are actually played on: felt, warm wood, one gold.
+ */
+const FELT: Palette = {
+  stageBg: "#173d2d",
+  panelBg: "#3a2a1d",
+  sunkBg: "#1c120b",
+  panelBorder: "#5a4430",
+  text: "#f5ead0",
+  textMuted: "#cdb98f",
+  textFaint: "#9a875f",
+  // ONE gold. Two golds under four names is how a palette dies — the lesson client2 paid for.
+  accent: "#f2c14e",
+  alert: "#e0483f",
+  grid: "#1f4a37",
+  gridMinor: "#1a4131",
+  // Alien on purpose: a debug layer must never read as a colour the design chose.
+  debug: "#ff4fd8",
+  shadow: "#0b0704",
+};
+
+export const PALETTES: Record<ThemeName, Palette> = { dark: DARK, light: LIGHT, felt: FELT };
 
 /**
  * Scales, so a spacing or a radius is chosen from a ladder rather than typed by feel.
