@@ -311,20 +311,17 @@ export const Layers: StoryObj<LayersArgs> = {
 
 // ---- Registered: a face somebody else authored --------------------------------------------
 
-interface FacesArgs {
+interface FacesArgs extends ShapeArgs {
   surface: string;
-  w: number;
-  h: number;
 }
 
 export const Registered: StoryObj<FacesArgs> = {
   // A node wears a record it did not author: it names one.
-  render: (a) => scene(node("card", Bounded({ bounds: rect(a.w, a.h) }), Surfaced({ surface: a.surface }))).el,
-  args: { surface: "cards/face/spade-A", w: 1, h: 1.4 },
+  render: (a) => scene(node("card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: a.surface }))).el,
+  args: { surface: "cards/face/spade-A", ...shapeArgs({ w: 1, h: 1.4 }) },
   argTypes: {
     surface: documented("arg.surfaceName", { control: "select", options: surfaceNames() }, "node"),
-    w: documented("arg.w", { control: { type: "number", min: 0, step: 0.1 } }, "bounds"),
-    h: documented("arg.h", { control: { type: "number", min: 0, step: 0.1 } }, "bounds"),
+    ...shapeArgTypes(),
   },
   parameters: { gkDocStory: "surfaced.registered" },
 };
