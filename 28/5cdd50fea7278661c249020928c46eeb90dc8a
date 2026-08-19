@@ -1,0 +1,41 @@
+game-kit/src/render/coats.ts
+  s_170937f0c01a52::t_68b9d2cf8bdfe0 112,121-123,127-134
+  s_170937f0c01a52::t_d780125ff4979e 116
+  s_170937f0c01a52::t_d6872cff83b52a 117
+  s_170937f0c01a52::t_9ff413af93d169 113-115,139-141
+game-kit/docs/test-plan/38-coated.md
+  s_170937f0c01a52::t_0f718a8e70e466 3,36
+  s_170937f0c01a52::t_e5643747e4ef11 37-38
+game-kit/src/render/pixi.ts
+  s_170937f0c01a52::t_efff5a85a2dd18 9-22
+  s_170937f0c01a52::t_328dbca03e594a 160-166,168,170,206-214
+  s_170937f0c01a52::t_c7ee84681acff8 76-115,117-159,169,171-205,215-253,255
+  s_170937f0c01a52::t_3b7b4ea47dd5f5 167
+  s_170937f0c01a52::t_e29770af06c62d 116
+  s_170937f0c01a52::t_8f223cf56a7ecd 254
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_0f718a8e70e466 10,66
+game-kit/src/render/coats.test.ts
+  s_170937f0c01a52::t_73fe5d93f422c6 154-183
+  s_170937f0c01a52::t_8c19947f1af98e 184-187
+game-kit/.storybook/locales/pages/presetsCoats/ru.json
+  s_170937f0c01a52::t_0939fa39a676e7 43-45,48,50,61
+game-kit/.storybook/locales/pages/presetsCoats/en.json
+  s_170937f0c01a52::t_0939fa39a676e7 44-46,49,51,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "285cdd50fea7278661c249020928c46eeb90dc8a",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
