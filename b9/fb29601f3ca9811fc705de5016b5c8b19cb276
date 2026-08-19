@@ -1,0 +1,23 @@
+apps/klondike/src/solitaire/scene.ts
+  s_170937f0c01a52::t_a4486d76ea0401 209-211
+  s_170937f0c01a52::t_69ab2919f737a4 39-41,43-48,97,180-181,189-208,212,333-342,520-588
+  s_170937f0c01a52::t_95492e54493451 42,127-128,132,674-676
+  s_170937f0c01a52::t_0d2feb2afb59fe 129-131
+  s_170937f0c01a52::t_3459b5883d1c1c 182-188,589,677
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b9fb29601f3ca9811fc705de5016b5c8b19cb276",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
