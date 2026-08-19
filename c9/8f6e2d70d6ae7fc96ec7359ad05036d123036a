@@ -1,0 +1,37 @@
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_c172c556d73b7b 301,303,774,778
+  s_170937f0c01a52::t_a72e679f9c8ded 254-260
+  s_170937f0c01a52::t_06150c1f9d251e 253
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_0f4b257bac9716 10,80
+game-kit/src/render/camera.test.ts
+  s_170937f0c01a52::t_dd367e4d48d0b5 10-17,20,206-228
+  s_170937f0c01a52::t_5711f7ff5ea265 99-105,232-233
+  s_170937f0c01a52::t_87a427a5547438 18-19,21
+  s_170937f0c01a52::t_4385496b61376d 1-9,22-98,106-205,229-231,234-240
+game-kit/src/index.ts
+  s_170937f0c01a52::t_7fc931038f36d2 329-342
+game-kit/docs/test-plan/52-camera.md
+  s_170937f0c01a52::t_0f4b257bac9716 3,31
+  s_170937f0c01a52::t_03366187066543 1-2,4-30,32
+game-kit/src/render/stage.ts
+  s_170937f0c01a52::t_241ae5c93a0153 73-80,97
+game-kit/src/render/camera.ts
+  s_170937f0c01a52::t_48622da429db84 1-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "c98f6e2d70d6ae7fc96ec7359ad05036d123036a",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
