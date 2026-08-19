@@ -34,5 +34,22 @@
     "A mask over the surface, and a shader that animates it. The wash guarantees a visible bar with no",
     "GPU at all; on the glass a named `blur` filter shimmers over it, built and clocked by the painter.",
     "The atom holds the static truth — `censor`, a strength — and the animation is the render tier's."
+  ],
+  "docs.presetsCoats.foil": [
+    "A cold sheen — a film over the face and a bright hairline round it. On a bright plate it reads as lamination; on a well it reads as ice. Same coat, different ground."
+  ],
+  "docs.presetsCoats.polychrome": [
+    "Three films at three hues. One tint would be a stain; three at low opacity read as a surface that cannot decide what colour it is. The recipe walks the wheel itself, so the call site names no colours.",
+    "",
+    "It reads as BANDS rather than a shimmer, and honestly so: the renderer has no gradient. A real shimmer is a shader, and the seam for one already exists - the same filter the blur rides."
+  ],
+  "docs.presetsCoats.glass": [
+    "See-through and blurred, on the shader the censor already clocks. What makes it glass rather than a censor is that it barely tints and keeps a bright rim: what is under it stays readable."
+  ],
+  "docs.presetsCoats.frost": [
+    "Glass without the rim - the soft pane a dialog puts over the table behind it. Its own recipe rather than a flag on glass, because a flag would be a sort for a reader to guess at."
+  ],
+  "docs.presetsCoats.faded": [
+    "Barely there. Toward the DESK rather than toward a colour, because that is what a viewer means by transparent - a coat cannot make the surface beneath it see-through, however it is named."
   ]
 }

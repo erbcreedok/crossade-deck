@@ -101,3 +101,71 @@ export const Censor: StoryObj<CoatArgs> = {
   argTypes: { level: levelControl, tint: tintControl },
   parameters: { gkDocStory: "presetsCoats.censor" },
 };
+
+// ---- the MODIFIERS — what a thing is MADE OF, over what it is a picture of -------------------
+//
+// Balatro's editions. Every one lands on ANY node with a surface — a die, a tile, a button, a
+// panel — because a coat knows nothing about cards. Shown on a ROW of three grounds rather than one
+// tile, because half of what an edition does is how it sits on what is under it: a foil on a bright
+// plate and a foil on a well are not the same picture, and one tile would hide that.
+
+const shelf = (recipe: string, a: CoatArgs) => {
+  registerLayout("coats.row", rowLayout({ gap: 0.22, padding: 0 }));
+  const row = node("shelf", Container({ layout: "coats.row" }));
+  for (const surface of ["plate", "bare", "zone"]) {
+    add(
+      row,
+      node(
+        `coated-${surface}`,
+        Bounded({ bounds: rect(1.3, 1.8) }),
+        Surfaced({ surface }),
+        Coated({ self: { recipe, level: a.level, tint: a.tint } }),
+      ),
+    );
+  }
+  return scene(row).el;
+};
+
+export const Foil: StoryObj<CoatArgs> = {
+  // A cold sheen: a film over the whole face and a bright hairline round it — the two things a
+  // laminated surface does to light, and the two a renderer with no shader can honestly do.
+  render: (a) => shelf("foil", a),
+  args: { level: 0.8, tint: "" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.foil" },
+};
+
+export const Polychrome: StoryObj<CoatArgs> = {
+  // The iridescent one. THREE films at three hues, because one tint reads as a stain and three at
+  // low opacity read as a surface that cannot decide. The recipe walks the wheel itself.
+  render: (a) => shelf("polychrome", a),
+  args: { level: 0.9, tint: "" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.polychrome" },
+};
+
+export const Glass: StoryObj<CoatArgs> = {
+  // See-through and blurred, on the same shader the censor clocks. What makes it glass rather than
+  // a censor is that it barely tints and keeps a bright rim, so what is under it stays readable.
+  render: (a) => shelf("glass", a),
+  args: { level: 0.7, tint: "" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.glass" },
+};
+
+export const Frost: StoryObj<CoatArgs> = {
+  // Glass without the rim — the soft pane a dialog puts over the table behind it.
+  render: (a) => shelf("frost", a),
+  args: { level: 0.7, tint: "" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.frost" },
+};
+
+export const Faded: StoryObj<CoatArgs> = {
+  // Barely there. Toward the DESK, not toward a colour — that is what a viewer means by
+  // "transparent", and a coat cannot make the surface under it see-through however it is named.
+  render: (a) => shelf("faded", a),
+  args: { level: 0.6, tint: "" },
+  argTypes: { level: levelControl, tint: tintControl },
+  parameters: { gkDocStory: "presetsCoats.faded" },
+};
