@@ -34,13 +34,13 @@ import { easing, flipScale, sample, tune, type CarryTuning, type Motion, type Mo
 import { springAt, springSettled, stepSpring, type SpringConfig, type SpringState } from "../core/spring.js";
 import { carry, lean, type CarryStyle } from "../core/atoms/carry.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../core/ballistic.js";
-import { apply, compose, move, pose, rotate, scale, type Transform, type Vec } from "../core/transform.js";
+import { apply, compose, invert, move, pose, rotate, scale, type Transform, type Vec } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
 import { renderFrame } from "./stage.js";
 import { type TextMeasure } from "./textMetrics.js";
-import { transformsOf } from "./scenePlan.js";
-import { shuffleRecipe, type ShuffleContext } from "./shuffles.js";
+import { transformsOf, viewTransform } from "./scenePlan.js";
+import { shuffleRecipe, type ShuffleBox, type ShuffleContext } from "./shuffles.js";
 
 /** The one clock, injectable. `frame` schedules a single callback and returns its canceller. */
 export interface Clock {
@@ -583,6 +583,33 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   /** The rest pose of a node as it stands on the glass now — where a throw or a tumble starts from. */
   const restOf = (id: NodeId): Transform | undefined => displayed.get(id) ?? transformsOf(host.root).get(id);
 
+  /**
+   * WHAT THE ONLOOKER CAN SEE, root units — handed to a shuffle recipe so it can carry a packet off
+   * the glass and turn the order over out of sight.
+   *
+   * Taken through the VIEW rather than from the viewport: with a camera in front, what is visible is
+   * whatever her matrix shows, and the honest answer is the glass's four corners brought back into
+   * root space, boxed. Degenerate before the first layout (a host still measuring itself reports a
+   * viewport of nothing, and a unit of zero has no inverse) — the recipes take that for the absence
+   * it is and fall back to the group's own extent.
+   */
+  const visibleBox = (): ShuffleBox => {
+    const v = host.viewport();
+    const view = options.view?.() ?? viewTransform(host.unit(), v.width, v.height);
+    const back = invert(view);
+    if (!back || v.width <= 0 || v.height <= 0) return { x: 0, y: 0, w: 0, h: 0 };
+    const corners = [
+      { x: 0, y: 0 },
+      { x: v.width, y: 0 },
+      { x: v.width, y: v.height },
+      { x: 0, y: v.height },
+    ].map((p) => apply(back, p));
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys);
+    return { x: x0, y: y0, w: Math.max(...xs) - x0, h: Math.max(...ys) - y0 };
+  };
+
   /** A flight is filed; the finger lets go of the node at once, and a settle it may be riding runs on until the flight goes. */
   const beginFlight = (id: NodeId, f: Flight): void => {
     flights.set(id, f);
@@ -657,7 +684,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       const holder = byId(host.root, containerId);
       const ids = holder ? holder.children.map((c) => c.id) : [];
       const recipe = shuffleRecipe(opts.recipe ?? "riffle");
-      const ctx = groupContext(ids.map((id) => restOf(id)).filter((r): r is Transform => !!r));
+      const ctx = groupContext(ids.map((id) => restOf(id)), visibleBox());
       choreos.set(containerId, {
         ids,
         startMs: warped,
@@ -773,12 +800,17 @@ function turnOf(t: Transform): number {
 }
 
 /** The centre and extent of a group of rest poses' origins — what a shuffle recipe is told about the seats. */
-function groupContext(rests: readonly Transform[]): ShuffleContext {
-  if (rests.length === 0) return { centre: { x: 0, y: 0 }, spread: { w: 0, h: 0 } };
+function groupContext(rests: readonly (Transform | undefined)[], glass: ShuffleBox): ShuffleContext {
+  const seats = rests.map((r) => (r ? apply(r, { x: 0, y: 0 }) : undefined));
+  const known = seats.filter((s): s is Vec => !!s);
+  if (known.length === 0) return { centre: { x: 0, y: 0 }, spread: { w: 0, h: 0 }, seats: [], glass };
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const r of rests) {
-    const o = apply(r, { x: 0, y: 0 });
+  for (const o of known) {
     x0 = Math.min(x0, o.x); y0 = Math.min(y0, o.y); x1 = Math.max(x1, o.x); y1 = Math.max(y1, o.y);
   }
-  return { centre: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, spread: { w: x1 - x0, h: y1 - y0 } };
+  // A seat per CHILD, index for index — a recipe reads `seats[i]` for the piece it was handed, so
+  // a node whose rest could not be read holds its place with the group's middle rather than
+  // shortening the list and sliding every seat after it onto the wrong piece.
+  const centre = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  return { centre, spread: { w: x1 - x0, h: y1 - y0 }, seats: seats.map((s) => s ?? centre), glass };
 }

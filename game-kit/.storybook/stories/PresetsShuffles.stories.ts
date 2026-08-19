@@ -17,16 +17,22 @@ import {
   freeLayout,
   installStockShuffles,
   node,
+  overhand,
   permutation,
   rect,
   registerLayout,
+  registerShuffle,
   registerSurface,
   reorder,
+  riffle,
   rowLayout,
   seededRng,
+  shake,
   shuffleNames,
   Surfaced,
   Transformable,
+  wash,
+  type ShuffleRecipe,
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import { documented } from "./surfaceControls.js";
@@ -44,12 +50,56 @@ interface RecipeArgs {
   seed: number;
   count: number;
   shuffleMs: number;
+  /** `riffle`/`overhand` only — how far the packets go: clear of the group, or off the glass. */
+  reach?: "group" | "glass";
+  /** `wash` only — the ring's radius in units, `0` for the one that clears the group. */
+  radius?: number;
+  /** `shake` only — how hard, `1` being the stock tremble. */
+  strength?: number;
+}
+
+/**
+ * A recipe that takes options is BUILT from the panel and registered under its own name — the same
+ * two lines a game writes to keep a wider wash or a harder shake of its own. The stock name is left
+ * exactly as `installStockShuffles` left it.
+ */
+interface Tunable {
+  readonly args: Partial<RecipeArgs>;
+  readonly argTypes: Record<string, unknown>;
+  readonly make: (a: RecipeArgs) => ShuffleRecipe;
 }
 
 const shuffledControl = documented("arg.shuffled", { control: { type: "number", min: 0, step: 1 } }, "motion");
 const seedControl = documented("arg.seed", { control: { type: "number", step: 1 } }, "shuffle");
 const countControl = documented("arg.count", { control: { type: "range", min: 2, max: 12, step: 1 } }, "shuffle");
 const shuffleMsControl = documented("arg.shuffleMs", { control: { type: "range", min: 100, max: 3000, step: 50 } }, "shuffle");
+const radiusControl = documented("arg.washRadius", { control: { type: "range", min: 0, max: 8, step: 0.1 } }, "recipe");
+const strengthControl = documented("arg.shakeStrength", { control: { type: "range", min: 0, max: 4, step: 0.25 } }, "recipe");
+
+const reachControl = documented("arg.reach", { control: "inline-radio", options: ["group", "glass"] }, "recipe");
+
+const TUNED: Record<string, Tunable> = {
+  riffle: {
+    args: { reach: "group" },
+    argTypes: { reach: reachControl },
+    make: (a) => riffle({ reach: a.reach ?? "group" }),
+  },
+  overhand: {
+    args: { reach: "group" },
+    argTypes: { reach: reachControl },
+    make: (a) => overhand({ reach: a.reach ?? "group" }),
+  },
+  wash: {
+    args: { radius: 0 },
+    argTypes: { radius: radiusControl },
+    make: (a) => wash({ radius: a.radius ?? 0 }),
+  },
+  shake: {
+    args: { strength: 1 },
+    argTypes: { strength: strengthControl },
+    make: (a) => shake({ strength: a.strength ?? 1 }),
+  },
+};
 
 /** What each standing scene last saw: the trigger, and the order its row stands in. */
 const LAST = new WeakMap<HTMLElement, { shuffled?: number; order?: readonly number[] }>();
@@ -63,9 +113,18 @@ const PAINTS = ["accent", "alert", "textMuted", "panelBg", "sunkBg", "panelBorde
  * order it landed in, so a slider move does not silently un-shuffle it.
  */
 function shelf(recipe: string): StoryObj<RecipeArgs> {
+  const tuned = TUNED[recipe];
   return {
-    args: { shuffled: 0, seed: 7, count: 6, shuffleMs: DEFAULT_TUNING.shuffleMs },
-    argTypes: { shuffled: shuffledControl, seed: seedControl, count: countControl, shuffleMs: shuffleMsControl },
+    // Only the knobs this recipe actually reads reach the panel — a shake offering a ring radius
+    // would be teaching a field it does not have.
+    args: { shuffled: 0, seed: 7, count: 6, shuffleMs: DEFAULT_TUNING.shuffleMs, ...tuned?.args },
+    argTypes: {
+      shuffled: shuffledControl,
+      seed: seedControl,
+      count: countControl,
+      shuffleMs: shuffleMsControl,
+      ...tuned?.argTypes,
+    },
     parameters: { gkDocStory: `presetsShuffles.${recipe}` },
     render: (a) => {
       registerLayout("preset.shuffle.free", freeLayout);
@@ -86,12 +145,16 @@ function shelf(recipe: string): StoryObj<RecipeArgs> {
       const fired = before.shuffled !== undefined && before.shuffled !== a.shuffled;
       const standing = before.order && before.order.length === a.count ? before.order : Array.from({ length: a.count }, (_, i) => i);
       LAST.set(s.el, { shuffled: a.shuffled, order: standing });
+      // A tuned recipe is rebuilt from the panel every render and registered under a name of this
+      // story's own, so the NEXT shuffle plays the numbers now on the panel.
+      const name = tuned ? `story.shuffle.${recipe}` : recipe;
+      if (tuned) registerShuffle(name, tuned.make(a));
       if (fired) {
         const live = byId(s.host.root, "row");
         if (live) {
           const order = permutation(a.count, seededRng(a.seed + a.shuffled));
           LAST.set(s.el, { shuffled: a.shuffled, order: order.map((i) => standing[i]!) });
-          s.motions?.shuffle("row", () => reorder(live, order), { recipe });
+          s.motions?.shuffle("row", () => reorder(live, order), { recipe: name });
         }
       }
       return s.el;
@@ -106,11 +169,11 @@ if (shuffleNames().join(",") !== [RIFFLE, OVERHAND, WASH, SHAKE].join(",")) {
   console.warn(`Presets/Shuffles: stock names are ${shuffleNames().join(", ")}`);
 }
 
-/** The pack splits into two halves and zips back together, halves alternating. */
+/** The pack splits into two halves that part and fan, then zip back together, halves alternating. */
 export const Riffle = shelf(RIFFLE!);
-/** Packets lifted off the top in turn, dropped back onto the new seats. */
+/** Three packets lifted off the top in turn, spread while they are up, dropped onto the new seats. */
 export const Overhand = shelf(OVERHAND!);
 /** Every piece scatters to a ring around the group, turning, and gathers back — the tiles shuffle. */
 export const Wash = shelf(WASH!);
-/** The group trembles in place, dying out — dice in a cup, tiles in a bag. */
+/** The group trembles, throwing its pieces onto each other's seats until it lands — dice in a cup. */
 export const Shake = shelf(SHAKE!);

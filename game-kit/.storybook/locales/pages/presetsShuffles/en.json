@@ -14,15 +14,15 @@
     "A game registers its own with `registerShuffle(name, { poseAt, commitAt })`; an unknown name plays `riffle` rather than throwing."
   ],
   "docs.presetsShuffles.riffle": [
-    "The pack splits into two halves that part to either side, then zip back together, the halves' cards alternating in time so the merge reads as teeth meshing. The half a piece belongs to is its ORIGINAL half; where it lands is wherever the new order seats it."
+    "The pack splits into two halves that part to either side FANNED — no piece hiding another — and zip back together onto the new seats, the halves alternating in time so the merge reads as teeth meshing. The half a piece belongs to is its ORIGINAL half; where it lands is wherever the new order seats it. Nothing is ever swapped: a node keeps its face from the first frame to the last, and with no pile there is no top piece for the reorder to change in plain view. `riffle({ reach })`: `group` (the default) keeps it all in the picture, watchable end to end; `glass` carries the halves off the edge, for a pack too deep to fan."
   ],
   "docs.presetsShuffles.overhand": [
-    "The pack in three packets, each lifted off the desk in turn (up the screen, a touch higher per packet) and dropped back onto the new seats — the shape of a hand pulling packets off the top and letting them fall."
+    "The pack in three packets, each lifted off the desk in turn (a touch higher per packet), SPREADING while it is up, and dropped back onto the new seats — the shape of a hand pulling packets off the top and letting them fall. The spread is there for the riffle's reason: a packet held as a pile shows only its top, and a reorder changes which piece that is. `overhand({ reach })`: `group` (the default) keeps the packets in the picture; `glass` lifts them clean off the top."
   ],
   "docs.presetsShuffles.wash": [
-    "Every piece scatters to a ring around the group, turning as it goes, and the ring gathers back onto the new seats — the tiles-on-a-table shuffle, for pieces that have no order to riffle."
+    "Every piece scatters to a ring around the group, turning as it goes, and the ring gathers back onto the new seats — the tiles-on-a-table shuffle, for pieces that have no order to riffle. Each piece keeps its own spoke, so nothing hides anything. The radius is `wash({ radius })` in units; `0` (the default) works out a ring that just clears the group."
   ],
   "docs.presetsShuffles.shake": [
-    "The group trembles in place, each piece on its own phase, the shiver dying out by the end — dice in a cup, tiles in a bag. Nothing leaves its seat far; the reorder happens under the blur."
+    "The group trembles — and all the while it trembles, the pieces keep landing on each OTHER'S seats: dice in a cup, tiles in a bag, the previous client's scramble. The permutation of a beat is drawn from the beat number, so it is a picture rather than a truth and it is the same on every frame and every machine; the tree's own reorder happens under the trembling, and the last quarter carries every piece home to the order it will keep. `shake({ strength })`: harder is a wider tremble and oftener changes of hand; `0` only trembles."
   ]
 }

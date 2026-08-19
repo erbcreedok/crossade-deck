@@ -218,9 +218,15 @@ export {
   shuffleNames,
   shuffleRecipe,
   wash,
+  type OverhandOptions,
+  type RiffleOptions,
+  type ShakeOptions,
+  type ShuffleBox,
   type ShuffleContext,
   type ShufflePose,
+  type ShuffleReach,
   type ShuffleRecipe,
+  type WashOptions,
 } from "./render/shuffles.js";
 export {
   DEFAULT_TUNING,
