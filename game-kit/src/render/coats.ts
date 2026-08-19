@@ -131,13 +131,17 @@ export function installStockCoats(): void {
   registerCoat("polychrome", (c) => {
     const k = clamp01(c.level || 0.7);
     const turn = typeof c.tint === "object" ? c.tint.param : 0;
+    // FIVE BANDS, EACH OPAQUE ENOUGH TO BE A COLOUR. The first attempt stacked three films at a
+    // tenth of an opacity each, and on any surface that is not white they mixed into mud — which is
+    // exactly what it looked like. A flat renderer cannot blur one hue into the next, so the honest
+    // iridescence is BANDS: cut with `part`, bottom-up, each one a real colour rather than a stain.
     return {
-      layers: [0, 0.22, 0.55].map((step, i) => ({
-        paint: { token: "spin", param: turn + step },
-        opacity: (0.16 - i * 0.03) * k,
-        ...(i > 0 ? { part: 0.8 - i * 0.28 } : {}),
+      layers: [1, 0.8, 0.6, 0.4, 0.2].map((part, i) => ({
+        paint: { token: "spin", param: turn + i * 0.17 },
+        opacity: 0.55 * k,
+        part,
       })),
-      stroke: { color: { token: "spin", param: turn + 0.35 }, width: 0.025, opacity: 0.7 * k, alignment: 0.5 },
+      stroke: { color: { token: "spin", param: turn + 0.5 }, width: 0.03, opacity: 0.9 * k, alignment: 0.5 },
     };
   });
 
