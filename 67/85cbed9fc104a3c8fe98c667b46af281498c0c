@@ -1,0 +1,58 @@
+game-kit/src/render/dust.test.ts
+  s_170937f0c01a52::t_409378673aaf22 1-185
+game-kit/src/render/pixi.ts
+  s_170937f0c01a52::t_098dad245116ce 472-488,490-491
+  s_170937f0c01a52::t_81e96ceae34aad 269-373,701
+  s_170937f0c01a52::t_2f0d1d0cc2ebad 25-37
+  s_170937f0c01a52::t_b4c15df6e195a7 493-500,700
+  s_170937f0c01a52::t_cf04d2e4dae8fa 446-457,464-471,489,492,501-503
+  s_170937f0c01a52::t_dbc50753d499e8 683-690,692-699
+  s_170937f0c01a52::t_cf1afc5db63a49 78-81
+  s_170937f0c01a52::t_493018c06b3eb4 691
+  s_170937f0c01a52::t_8fb5d2b3cade57 19
+  s_170937f0c01a52::t_4b85c99bf25475 458-463,504
+  s_170937f0c01a52::t_272750255be60d 505,702
+game-kit/src/render/dust.ts
+  s_170937f0c01a52::t_029a941ba343a3 1-249
+game-kit/src/render/coats.ts
+  s_170937f0c01a52::t_e665739c43d9b3 22
+  s_170937f0c01a52::t_f6a5545cb4e596 91-106,108
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_6f6473dc86a02d 33,153-159,479,483,497
+game-kit/src/render/coats.test.ts
+  s_170937f0c01a52::t_eb3cd8d8fbba32 212-213,219-226
+  s_170937f0c01a52::t_765ae1928c6bd6 71-76,78-83
+  s_170937f0c01a52::t_4c7d869739b5b4 227-228
+game-kit/src/testPlan.test.ts
+  s_170937f0c01a52::t_27b021f273c779 270-272,274
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_99e03b1418c17d 79
+  s_170937f0c01a52::t_2c8102f605726d 10,66
+game-kit/.storybook/stories/Bounded.stories.ts
+  s_170937f0c01a52::t_cd3219e552bf0b 114,121,127,133,142,151,185
+game-kit/docs/test-plan/51-censor-dust.md
+  s_170937f0c01a52::t_5e85c77a2bc875 1-41
+game-kit/docs/test-plan/38-coated.md
+  s_170937f0c01a52::t_07470a46f3fb9f 24,32-33
+  s_170937f0c01a52::t_439e2d8721acbc 3
+game-kit/src/render/effects.ts
+  s_170937f0c01a52::t_db0028deabc109 64-65
+  s_170937f0c01a52::t_5141d1bd045136 35-51
+  s_170937f0c01a52::t_79563ca6455dd8 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6785cbed9fc104a3c8fe98c667b46af281498c0c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
