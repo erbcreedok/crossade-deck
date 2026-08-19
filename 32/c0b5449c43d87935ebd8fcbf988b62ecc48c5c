@@ -1,0 +1,66 @@
+game-kit/.storybook/stories/Motion.stories.ts
+  s_170937f0c01a52::t_6aed5ae6372b98 371-373
+game-kit/docs/test-plan/10-scene-plan.md
+  s_170937f0c01a52::t_21f192bdd3ffea 54,56
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_61a45e3a0da925 366-369
+  s_170937f0c01a52::t_331f3a3e67682b 23-28
+  s_170937f0c01a52::t_7508cf56382fbf 381-390,393
+game-kit/src/render/stage.ts
+  s_170937f0c01a52::t_8987faffcbce46 91
+  s_170937f0c01a52::t_474712a58f8776 58-59
+game-kit/src/core/motion.ts
+  s_170937f0c01a52::t_148750cbdd20d4 77-81,83
+  s_170937f0c01a52::t_8dc243cba0ae02 66-70,72
+  s_170937f0c01a52::t_07b0753ccbdd23 108-109
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_eb55245a4f6433 207-208,211
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_09fb50d70d9863 269-277
+  s_170937f0c01a52::t_78b2ed7c3fc258 377-385
+  s_170937f0c01a52::t_3d3cd31f42b0a8 293
+  s_170937f0c01a52::t_27ea349436f0c0 268
+game-kit/.storybook/stories/TestsDraggable.stories.ts
+  s_170937f0c01a52::t_af28ca44ce2c57 135-136
+game-kit/src/render/animator.test.ts
+  s_170937f0c01a52::t_c50f0574714fdd 226-227,230-231
+  s_170937f0c01a52::t_cae3ab60e6c356 158,165-176
+  s_170937f0c01a52::t_67f1d261f13a22 196-225,228-229,232-240
+  s_170937f0c01a52::t_382f7560616c72 11
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_21f192bdd3ffea 10,68
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_eb55245a4f6433 211-212,215
+game-kit/docs/test-plan/42-drag-feel.md
+  s_170937f0c01a52::t_159b071698662f 22
+  s_170937f0c01a52::t_7b41fe46e583ab 5-14
+game-kit/src/core/spring.test.ts
+  s_170937f0c01a52::t_159b071698662f 46-47
+game-kit/src/core/atoms/carry.ts
+  s_170937f0c01a52::t_6069e4db47cd64 24-27
+  s_170937f0c01a52::t_ea4ac9cbad7a56 35
+game-kit/docs/test-plan/40-motion.md
+  s_170937f0c01a52::t_21f192bdd3ffea 3,25-26
+game-kit/src/render/scenePlan.test.ts
+  s_170937f0c01a52::t_39b390d0efc655 334-338,341-352,354,357-358,360-361
+  s_170937f0c01a52::t_dd72e7c0742f80 316-321,324,329-331
+  s_170937f0c01a52::t_0c8f4dd0b8c8ae 353,355-356,359
+apps/klondike/src/solitaire/scene.ts
+  s_170937f0c01a52::t_e164e362219182 261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "32c0b5449c43d87935ebd8fcbf988b62ecc48c5c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
