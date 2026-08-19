@@ -5,7 +5,9 @@ import {
   Container,
   DEFAULT_LIGHT,
   DEFAULT_SHADOW,
+  Draggable,
   freeLayout,
+  installStockCarries,
   Lit,
   node,
   rect,
@@ -16,6 +18,7 @@ import {
   Transformable,
   type Frame,
 } from "../../src/index.js";
+import { wireDrag } from "../devtools/drag.js";
 import { scene } from "../devtools/scene.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
@@ -25,6 +28,13 @@ import { documented, PAINTS } from "./surfaceControls.js";
 // the same from every seat), `world` nails the lamp over the desk so the fall turns with the
 // camera. The two differ only while a camera is turned; until the camera arrives, the frame is
 // declared here and read by the same one formula that will feel it then.
+//
+// Both pieces are PICKED UP with the finger: `lifted` is the only one of the four that a still
+// picture cannot show — it is the depth a fall gains while its piece is in flight. Nothing accepts
+// a drop, so a release flies the piece home and the fall shortens back to `base + perZ * z`.
+
+// The carry styles the lift rides, installed as an ordinary consumer would.
+installStockCarries();
 
 const meta: Meta = {
   title: "Atoms/Lit",
@@ -122,6 +132,7 @@ export const Light: StoryObj<LightArgs> = {
         Surfaced({ surface: lowSurface }),
         Transformable({ at: { x: lowX, y: lowY }, z: lowZ }),
         ShadowCaster({ from: lowFrom }),
+        Draggable(),
       ),
     );
     add(
@@ -132,9 +143,10 @@ export const Light: StoryObj<LightArgs> = {
         Surfaced({ surface: highSurface }),
         Transformable({ at: { x: highX, y: highY }, z: highZ }),
         ShadowCaster({ from: highFrom }),
+        Draggable(),
       ),
     );
-    return scene(desk).el;
+    return wireDrag(scene(desk, { animate: true })).el;
   },
   args: {
     angle: DEFAULT_LIGHT.angle,

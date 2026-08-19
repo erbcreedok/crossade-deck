@@ -19,7 +19,10 @@ import {
   attachMotion,
   type TuningPatch,
   attachPainter,
+  caps,
   domTextMeasure,
+  facing,
+  glassOf,
   inspect,
   installStockEasings,
   installStockHeads,
@@ -27,8 +30,10 @@ import {
   installStockSurfaces,
   installTheme,
   mount,
+  pick,
   s,
   scenePlan,
+  setFacing,
   t,
   wireButtons,
   type Host,
@@ -134,6 +139,15 @@ export interface SceneOptions {
    * build. Attaching it in a story body instead would stack a listener set per keystroke.
    */
   readonly press?: (meaning: Meaning, control: Node) => void;
+  /**
+   * Turn a node over when the finger lands on it — the gesture a `turns` slider cannot teach.
+   *
+   * The subject is the nearest node with its OWN `Flippable` at or above what was hit, so a tile
+   * hands the turn to its arena. A tap that lands on no node of the tree — bare desk, or a face a
+   * content swap put there — turns the root, when the root is what turns. The panel keeps its
+   * handle: a re-render feeds the tree in as always. Attached once, for the same reason `press` is.
+   */
+  readonly flipOnTap?: boolean;
   /**
    * Drive the scene through the MOTION runtime (`attachMotion`) instead of the still painter, so a
    * tree fed a new pose eases there instead of teleporting. A re-render with a different tree — which
@@ -269,6 +283,7 @@ export function scene(
   // Attached whenever the story asked for it once. The listeners live as long as the scene does,
   // and what they call is looked up at press time — so the newest handler always answers.
   const stopButtons = options.press ? wireButtons({ host, onPress: (m, n) => PRESSED.get(id)?.(m, n) }) : () => {};
+  const stopTaps = options.flipOnTap ? wireFlipTap(host, motions) : () => {};
   const stopPainting = motions ? motions.stop : attachPainter(host, painter, { measure: ruler, ...(options.bake ? { bake: options.bake } : {}) });
 
   // A GPU renderer starts asynchronously and draws on the next frame, so "the scene is up" is
@@ -371,6 +386,7 @@ export function scene(
       }
       stopFollowing();
       stopButtons();
+      stopTaps();
       stopPainting();
       painter.destroy();
       host.unmount();
@@ -397,6 +413,34 @@ const BY_ELEMENT = new WeakMap<HTMLElement, Scene>();
 export function sceneOf(el: HTMLElement): Scene | undefined {
   return BY_ELEMENT.get(el);
 }
+
+/**
+ * The tap that turns a card — see `SceneOptions.flipOnTap`. The clock plays the turn when the
+ * scene has one; without a clock the turn still happens, at once.
+ */
+function wireFlipTap(host: Host, motions: Motions | undefined): () => void {
+  const onDown = (e: PointerEvent): void => {
+    const root = host.root;
+    const turn = ownsTheTurn(pick(host, root, glassOf(host.view, e), () => true)) ?? flippable(root);
+    if (!turn) return;
+    const commit = (): void => {
+      setFacing(turn, facing(turn) === "up" ? "down" : "up");
+      host.setRoot(root); // the note and the tree panel re-read the turn
+    };
+    if (motions) motions.flip(turn.id, commit);
+    else commit();
+  };
+  host.view.addEventListener("pointerdown", onDown);
+  return () => host.view.removeEventListener("pointerdown", onDown);
+}
+
+/** The hit node if it turns in its own right, else the nearest owner of a turn above it. */
+function ownsTheTurn(hit: Node | undefined): Node | undefined {
+  for (let n: Node | null | undefined = hit; n; n = n.parent) if (caps(n).has("Flippable")) return n;
+  return undefined;
+}
+
+const flippable = (n: Node): Node | undefined => (caps(n).has("Flippable") ? n : undefined);
 
 /**
  * The stock painter, fetched only when a scene is actually built.

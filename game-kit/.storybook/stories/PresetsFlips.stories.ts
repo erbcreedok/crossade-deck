@@ -16,8 +16,9 @@ import {
   stackLayout,
   Surfaced,
   Transformable,
+  type Node,
 } from "../../src/index.js";
-import { scene } from "../devtools/scene.js";
+import { scene, type Scene } from "../devtools/scene.js";
 import { documented } from "./surfaceControls.js";
 
 // PRESETS THAT TURN A NODE OVER — one page per stock flip mechanic, in isolation, drop-in.
@@ -27,6 +28,12 @@ import { documented } from "./surfaceControls.js";
 // pure mirror, the card's turn-over, the two deck modes, the readable direction flip, and the
 // content swap a consumer registers with their own subtree.
 installStockFlips();
+
+/**
+ * Every scene here turns from the GLASS as well as from the panel: a tap takes the nearest thing
+ * under the finger that turns in its own right, and the clock plays it — see `flipOnTap`.
+ */
+const flipScene = (root: Node): Scene => scene(root, { animate: true, flipOnTap: true });
 
 const turnsControl = documented("arg.turns", { control: { type: "range", min: 0, max: 3, step: 1 } }, "flip");
 const axisControl = documented("arg.axis", { control: { type: "number", step: 1 } }, "flip");
@@ -60,7 +67,7 @@ export const Mirror: StoryObj<MirrorArgs> = {
     for (const name of ["a", "b", "c"]) {
       add(arena, node(`mirrorTile.${name}`, Bounded({ bounds: rect(0.8, 1.1) }), Surfaced({ surface: `preset.mirror.${name}` })));
     }
-    return scene(arena).el;
+    return flipScene(arena).el;
   },
   args: { turns: 1, axis: 90 },
   argTypes: { turns: turnsControl, axis: axisControl },
@@ -78,7 +85,7 @@ export const TurnOver: StoryObj<TurnOverArgs> = {
   render: (a) => {
     registerSurface("preset.turnover.front", { layers: [{ paint: "panelBg" }], radius: 0.08 });
     registerSurface("preset.turnover.back", { layers: [{ paint: "accent" }], radius: 0.08 });
-    return scene(
+    return flipScene(
       node(
         "turnCard",
         Bounded({ bounds: rect(1, 1.4) }),
@@ -120,7 +127,7 @@ export const DeckReorder: StoryObj<TurnsArgs> = {
   // The deck turned as ONE PHYSICAL THING: the order reverses, the whole mirrors, every card shows
   // its back. The recipe only reorders — the cards' backs come from the summed parity, each by its
   // own recipe. Drop it on any container whose flip should reverse what is on it.
-  render: (a) => scene(fannedDeck("reorderDeck", "deckReorder", a.turns)).el,
+  render: (a) => flipScene(fannedDeck("reorderDeck", "deckReorder", a.turns)).el,
   args: { turns: 1 },
   argTypes: { turns: turnsControl },
   parameters: { gkDocStory: "presetsFlips.deckreorder" },
@@ -130,7 +137,7 @@ export const DeckChildren: StoryObj<TurnsArgs> = {
   // The alternative deck: cards turn in place, the order stays — the client2 keep-order mode. As
   // data this is `mirror` (the chain turns the children on its own); the name exists so a deck can
   // SAY its mode and swap it without touching a node.
-  render: (a) => scene(fannedDeck("keepDeck", "deckChildren", a.turns)).el,
+  render: (a) => flipScene(fannedDeck("keepDeck", "deckChildren", a.turns)).el,
   args: { turns: 1 },
   argTypes: { turns: turnsControl },
   parameters: { gkDocStory: "presetsFlips.deckchildren" },
@@ -150,7 +157,7 @@ export const ContentSwap: StoryObj<TurnsArgs> = {
       add(iron, node(`gem#${i}`, Bounded({ bounds: rect(0.5, 0.5) }), Surfaced({ surface: "preset.swap.gem" })));
     }
     registerFlip("preset.swap.ironBack", contentSwap(() => iron));
-    return scene(
+    return flipScene(
       node(
         "swapBoard",
         Bounded({ bounds: rect(3, 2) }),
@@ -179,7 +186,7 @@ export const DirectionFlip: StoryObj<TurnsArgs> = {
       add(tile, node(`dirDot#${i}`, Bounded({ bounds: rect(0.16, 0.16) }), Surfaced({ surface: "preset.dir.dot" }), Transformable({ at: { x: 0.24, y: -0.36 } })));
       add(row, tile);
     }
-    return scene(row).el;
+    return flipScene(row).el;
   },
   args: { turns: 1 },
   argTypes: { turns: turnsControl },

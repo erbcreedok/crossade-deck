@@ -1,11 +1,28 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Bounded, node, rect, Surfaced, type Mark, type Painter, type Quad } from "../../src/index.js";
+import {
+  add,
+  Bounded,
+  byId,
+  Container,
+  fieldsOf,
+  Flippable,
+  freeLayout,
+  node,
+  rect,
+  registerLayout,
+  Surfaced,
+  type FlippableFields,
+  type Mark,
+  type Node,
+  type Painter,
+  type Quad,
+} from "../../src/index.js";
 import { catalogText } from "../locales/catalog.js";
 import { currentSettings } from "./catalogSettings.js";
 import { liveReports, setNextSceneId } from "./inspectorBus.js";
-import { lazyPixiPainter, scene as buildScene } from "./scene.js";
+import { lazyPixiPainter, scene as buildScene, type Scene } from "./scene.js";
 
 // jsdom has no WebGL, so a real painter cannot be built here — it fails asynchronously, which
 // is worse than failing outright: the suite goes green with unhandled rejections behind it.
@@ -48,6 +65,24 @@ function choose(select: HTMLSelectElement, value: string): void {
   select.value = value;
   select.dispatchEvent(new Event("change"));
 }
+
+/** A desk that turns, a plate that turns on it, and a dot that turns on nothing of its own. */
+function flipDesk(): Node {
+  registerLayout("test.tap.free", freeLayout);
+  const desk = node("desk", Container({ layout: "test.tap.free" }), Flippable());
+  const plate = node("plate", Bounded(), Surfaced(), Flippable());
+  add(desk, plate);
+  add(plate, node("dot", Bounded({ bounds: rect(0.4, 0.4) }), Surfaced()));
+  return desk;
+}
+
+/** jsdom has no `PointerEvent`; a mouse event of that type carries everything the wiring reads. */
+function tap(s: Scene, x: number, y: number): void {
+  s.host.view.dispatchEvent(new MouseEvent("pointerdown", { clientX: x, clientY: y }));
+}
+
+const turnsOf = (root: Node, id: string): number =>
+  fieldsOf<FlippableFields>(byId(root, id)!, "Flippable")!.turns;
 
 beforeEach(() => {
   document.body.innerHTML = "";
@@ -256,6 +291,42 @@ describe("a canvas carries its own settings", () => {
     expect(again.host.root.id).toBe("s17");
     expect(liveReports().map((r) => r.sceneId)).toEqual(["story:x"]);
     again.dispose();
+  });
+
+  it("scene.tap-turns-the-owner-of-the-turn — the dot hands it to its plate, bare desk to the root", () => {
+    // A `turns` slider teaches the field and not the gesture, so the card turns from the glass
+    // too. What the finger LANDS on is rarely what turns — a tile belongs to its arena — so the
+    // subject is the nearest owner above the hit, and a tap that lands on no node of the tree
+    // (bare desk, or a face a content swap put there) falls back to the root.
+    setNextSceneId("story:tap");
+    const s = scene(flipDesk(), { flipOnTap: true });
+    document.body.appendChild(s.el);
+    choose(hudSelect(s.el), "60"); // an etalon, or a jsdom viewport of nothing has nothing to hit
+
+    tap(s, 0, 0); // the dot, which does not turn in its own right
+    expect(turnsOf(s.host.root, "plate")).toBe(1);
+    expect(turnsOf(s.host.root, "desk")).toBe(0);
+
+    tap(s, 500, 500); // bare desk
+    expect(turnsOf(s.host.root, "desk")).toBe(1);
+    expect(turnsOf(s.host.root, "plate")).toBe(1);
+    s.dispose();
+  });
+
+  it("scene.tap-is-wired-once — a re-render feeds the standing scene, so one tap is one turn", () => {
+    // The scene outlives every re-render, and a listener attached in the story body would stack
+    // one set per keystroke: the same tap would turn the card twice and land back where it was.
+    setNextSceneId("story:tap2");
+    const s = scene(flipDesk(), { flipOnTap: true });
+    document.body.appendChild(s.el);
+    choose(hudSelect(s.el), "60");
+
+    setNextSceneId("story:tap2");
+    scene(flipDesk(), { flipOnTap: true });
+
+    tap(s, 0, 0);
+    expect(turnsOf(s.host.root, "plate")).toBe(1);
+    s.dispose();
   });
 
   it("scene.settings-survive-new-data — the viewer is not what changed", () => {

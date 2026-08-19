@@ -3,7 +3,9 @@ import {
   add,
   Bounded,
   Container,
+  Draggable,
   freeLayout,
+  installStockCarries,
   Lit,
   node,
   rect,
@@ -14,7 +16,9 @@ import {
   Surfaced,
   Transformable,
   type Frame,
+  type Node,
 } from "../../src/index.js";
+import { wireDrag } from "../devtools/drag.js";
 import { scene } from "../devtools/scene.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
@@ -24,6 +28,14 @@ import { documented, PAINTS } from "./surfaceControls.js";
 // rest; its direction comes from the root's one lamp (`Lit`), and its length from the resolved
 // `z` — height is the source, the shadow its consequence. Today the two contours differ by the
 // record's corner radius; the day a piece wears a real figure skin, `silhouette` follows it.
+//
+// The pieces are PICKED UP with the finger, because a still picture cannot show the one thing a
+// shadow is for: lift a piece and its fall deepens by `lifted` while it flies, then settles back to
+// `base + perZ * z` where it lands. Nothing here accepts a drop, so every release is refused and the
+// piece flies home — its pose is never written, and the `z` the whole scene is about stays put.
+
+// The carry styles the lift rides, installed as an ordinary consumer would.
+installStockCarries();
 
 const meta: Meta = {
   title: "Atoms/ShadowCaster",
@@ -116,6 +128,7 @@ export const Cast: StoryObj<CastArgs> = {
         Surfaced({ surface: cardSurface }),
         Transformable({ at: { x: cardX, y: cardY }, z: cardZ }),
         ShadowCaster({ from: cardFrom }),
+        Draggable(),
       ),
     );
     add(
@@ -126,9 +139,10 @@ export const Cast: StoryObj<CastArgs> = {
         Surfaced({ surface: sparkSurface }),
         Transformable({ at: { x: sparkX, y: sparkY }, z: sparkZ }),
         ShadowCaster({ from: sparkFrom }),
+        Draggable(),
       ),
     );
-    return scene(desk).el;
+    return wireDrag(scene(desk, { animate: true })).el;
   },
   args: {
     id: "card",
@@ -210,11 +224,15 @@ interface StackArgs {
   looseFrom: "footprint" | "silhouette";
 }
 
+/** The run a pile leads: itself and everything standing on it — a stack travels as one body. */
+const withChildren = (_root: Node, hit: Node): readonly Node[] => [hit, ...hit.children];
+
 export const Stack: StoryObj<StackArgs> = {
   // A resting stack casts ONCE: the pile carries the atom, and the nearest casting owner speaks
   // for its whole subtree — three cards inside lay no shadows of their own. The loose card
   // beside it stands alone, so it casts alone. Nothing is toggled: detaching a card from the
-  // pile IS what starts its shadow.
+  // pile IS what starts its shadow. Lift the pile and that ONE fall deepens under the whole
+  // body; lift the loose card and only its own answers.
   render: ({
     deskLayout,
     frame,
@@ -255,6 +273,7 @@ export const Stack: StoryObj<StackArgs> = {
       Surfaced({ surface: pileSurface }),
       Transformable({ at: { x: pileX, y: pileY } }),
       ShadowCaster({ from: pileFrom }),
+      Draggable(),
     );
     for (let i = 0; i < piledCards; i++) {
       add(
@@ -277,9 +296,11 @@ export const Stack: StoryObj<StackArgs> = {
         Surfaced({ surface: cardSurface }),
         Transformable({ at: { x: looseX, y: looseY } }),
         ShadowCaster({ from: looseFrom }),
+        Draggable(),
       ),
     );
-    return scene(desk).el;
+    // The piled cards are not draggable, so the finger falls through them onto the pile they lie on.
+    return wireDrag(scene(desk, { animate: true }), { runOf: withChildren }).el;
   },
   args: {
     deskLayout: "story.shadow.stack.free",

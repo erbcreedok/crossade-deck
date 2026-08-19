@@ -19,10 +19,11 @@ import {
   Surfaced,
   surfaceNames,
   Transformable,
+  type Node,
 } from "../../src/index.js";
 import { surfaceRecord } from "../../src/index.js";
 import { BACK_SURFACE, crossade, faceSurface, installClassicSkin, type CardSpec } from "@game-presets/cards";
-import { scene } from "../devtools/scene.js";
+import { scene, type Scene } from "../devtools/scene.js";
 
 /** The ace of spades — the one card everybody recognises upside down and at a glance. */
 const ACE = faceSurface(crossade().find((c: CardSpec) => c.id === "spade-A")!);
@@ -39,6 +40,12 @@ import { documented, PAINTS } from "./surfaceControls.js";
 installStockFlips();
 
 const FLIPS = ["", ...flipNames()];
+
+/**
+ * Every scene here turns from the GLASS as well as from the panel: a tap takes the nearest thing
+ * under the finger that turns in its own right, and the clock plays it — see `flipOnTap`.
+ */
+const flipScene = (root: Node): Scene => scene(root, { animate: true, flipOnTap: true });
 
 // THE CONTROLS ARE FACTORIES, not constants: every row says WHOSE field it is, and on a scene
 // holding a tray, a deck and a card the same word means three different nodes. The section is
@@ -103,7 +110,7 @@ export const Card: StoryObj<CardArgs> = {
     installClassicSkin();
     registerSurface("story.flip.front", front ? { layers: [{ paint: front }], radius } : surfaceRecord(ACE)!);
     registerSurface("story.flip.back", back ? { layers: [{ paint: back }], radius } : surfaceRecord(BACK_SURFACE)!);
-    return scene(
+    return flipScene(
       node(
         id.trim() || "aceCard",
         Bounded({ bounds: rect(w, h) }),
@@ -163,7 +170,7 @@ export const Arena: StoryObj<ArenaArgs> = {
       registerSurface(`story.arena.tile.${i}`, { layers: [{ paint }], radius: tileRadius });
       add(arena, node(`arenaTile#${i}`, Bounded({ bounds: rect(tileW, tileH) }), Surfaced({ surface: `story.arena.tile.${i}` })));
     }
-    return scene(arena).el;
+    return flipScene(arena).el;
   },
   args: {
     gap: 0.2,
@@ -227,7 +234,7 @@ export const Stack: StoryObj<StackArgs> = {
       );
     add(stack, build("leftCard", 0));
     add(stack, build("rightCard", reflipOne ? 1 : 0));
-    return scene(stack).el;
+    return flipScene(stack).el;
   },
   args: { gap: 0.25, w: 1, h: 1.4, turns: 1, reflipOne: false },
   argTypes: {
@@ -284,7 +291,7 @@ export const Knight: StoryObj<KnightArgs> = {
   // A piece with a face: the muzzle sits to one side, so the mirror is visible on a single node —
   // turn it and the knight looks the other way. Nothing is swapped: `mirror` is pure geometry, and
   // the asymmetry is what reveals it. `axis` tilts the mirror line the piece turns about.
-  render: ({ turns, axis, ...shape }) => scene(knight("knightPiece", shape, [Flippable({ flip: "mirror", turns, axis })])).el,
+  render: ({ turns, axis, ...shape }) => flipScene(knight("knightPiece", shape, [Flippable({ flip: "mirror", turns, axis })])).el,
   args: {
     bodyFill: "panelBg",
     bodyRadius: 0.1,
@@ -393,7 +400,7 @@ export const ContentBack: StoryObj<ContentBackArgs> = {
       Flippable({ flip: "story.flip.ironBack", turns }),
     );
     add(board, node("oakStack", Bounded({ bounds: rect(stackW, stackH) }), Surfaced({ surface: stackSurface })));
-    return scene(board).el;
+    return flipScene(board).el;
   },
   args: {
     oakW: 4,
@@ -499,7 +506,7 @@ export const Decks: StoryObj<DecksArgs> = {
     const desk = node("deckDesk", Container({ layout: "story.flip.pair" }));
     add(desk, deck("reorderDeck", "deckReorder", turns, spec));
     add(desk, deck("keepDeck", "deckChildren", turns, spec));
-    return scene(desk).el;
+    return flipScene(desk).el;
   },
   args: {
     gap: 1.2,
@@ -573,7 +580,7 @@ export const Nested: StoryObj<NestedArgs> = {
     const spec: DeckSpec = { stepX, stepY, cardW, cardH, backs: [deckBack0, deckBack1, deckBack2], backRadius: radius };
     add(tray, deck("nestedReorder", "deckReorder", 0, spec));
     add(tray, deck("nestedKeep", "deckChildren", 0, spec));
-    return scene(tray).el;
+    return flipScene(tray).el;
   },
   args: {
     gap: 1,
@@ -648,7 +655,7 @@ export const MoveThenFlip: StoryObj<MoveThenFlipArgs> = {
         Transformable({ at: { x: driftX, y: driftY } }),
       ),
     );
-    return scene(board).el;
+    return flipScene(board).el;
   },
   args: {
     boardW: 4,
@@ -746,7 +753,7 @@ export const Row: StoryObj<RowArgs> = {
     const spec: RowSpec = { ...row, tiles: [tile0, tile1, tile2] };
     add(board, letterRow("mirrorRow", "mirror", turns, spec));
     add(board, letterRow("readableRow", "directionFlip", turns, spec));
-    return scene(board).el;
+    return flipScene(board).el;
   },
   args: {
     boardGap: 0.6,
@@ -803,7 +810,7 @@ export const EmptyBack: StoryObj<EmptyBackArgs> = {
   // and a half-built card stays visible while its art is on the way.
   render: ({ w, h, fill, radius, turns }) => {
     registerSurface("story.flip.front", { layers: [{ paint: fill }], radius });
-    return scene(
+    return flipScene(
       node(
         "tokenCard",
         Bounded({ bounds: rect(w, h) }),
