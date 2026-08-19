@@ -1,6 +1,6 @@
 ## UNIT · Coated — the runtime coat over a surface
 
-`vitest` · 30 кейсов, расписано 30
+`vitest` · 33 кейсов, расписано 33
 
 Рантайм-слой поверх статического `Surfaced`: непрерывная величина, охват, бесконечный цвет, приват —
 то, что «имя → готовая запись» не держит. Атом несёт ДАННЫЕ (рецепт+level+tint); look — рецепт в
@@ -33,6 +33,9 @@
 | `coat.ring-overrides-the-stroke` | ring через `scenePlan` | план | `quad.stroke` = кольцо (plate без штриха) |
 | `coat.fill-covers-a-fraction` | рецепт `fill`, level 0.3 / NaN | рецепт вызван | слой с `part: 0.3`, СПЛОШНОЙ (не полупрозрачный — в этом отличие от wash); NaN заливает 0, не бросает |
 | `coat.nested-casts-nearest-wins` | комната wash 0.9, поднос wash 0.2, фигура на подносе | эффект | ОДИН коат, подноса: ближайший установленный рецепт затеняет верхний |
+| `coat.polychrome-is-a-shader` | рецепт `polychrome`, level 0.5, tint `{spin,0.25}` | рецепт вызван | `filter` = polychrome, `hue`=0.25 (место на колесе от параметрического tint), `strength`=0.45; сериализуемо — имя и числа, не шейдер |
+| `coat.foil-is-a-shader` | рецепт `foil`, level 0.4 | рецепт вызван | `filter` = foil, `strength`=0.34; ободок остался ШТРИХОМ — фильтр по грани не владеет контуром |
+| `coat.modifiers-cut-no-bands` | `foil` и `polychrome`, level 1 | слои рецепта | ни одного `part`: перелив не приближают срезами грани (сторож против полос) |
 | `coat.node-removed-under-cascade` ⏳ | каскад cast, ребёнок удалён в рантайме | setRoot без ребёнка | ни квада, ни следа коата — ничего не хранилось по id |
 | `coat.spin-param-nan` ⏳ | tint `{token:"spin", param:NaN}` | резолв краски | безопасный цвет, не NaN-hsl в канве |
 | `coat.cast-under-rotate-scale` ⏳ | поднос с cast повёрнут/масштабирован | план | коат на детях цел: охват — цепь, не геометрия |

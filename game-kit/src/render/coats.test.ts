@@ -151,6 +151,40 @@ describe("coats — the registry and the effect", () => {
     expect(light).toEqual(dark);
   });
 
+  // ---- the modifiers — what the recipe can be held to when the light itself cannot ----------
+
+  it("coat.polychrome-is-a-shader — the iridescence is NAMED for the painter, not cut out of layers", () => {
+    // A hue that drifts across a face and over time is not a stack of films, and the attempt to
+    // make it one read as stripes. What a unit test CAN hold down is the naming: the recipe hands
+    // over a filter and the numbers it runs on, and everything that turns those into light lives
+    // in the one file jsdom cannot run.
+    const out = coatRecipe("polychrome")!({ recipe: "polychrome", level: 0.5, tint: { token: "spin", param: 0.25 } });
+    expect(out.filter?.name).toBe("polychrome");
+    expect(out.filter!.params.hue).toBeCloseTo(0.25); // the place on the wheel rides the parametric tint
+    expect(out.filter!.params.strength).toBeCloseTo(0.45); // and the level says how much of it
+    expect(JSON.parse(JSON.stringify(out.filter))).toEqual(out.filter); // a name and numbers, never a shader
+  });
+
+  it("coat.foil-is-a-shader — the sliding glint is a filter, the rim stays a stroke", () => {
+    const out = coatRecipe("foil")!({ recipe: "foil", level: 0.4, tint: "" });
+    expect(out.filter?.name).toBe("foil");
+    expect(out.filter!.params.strength).toBeCloseTo(0.34);
+    // The rim runs along the CONTOUR, and a filter over the face cannot own a contour — so the
+    // hairline is still a stroke, and that split is the honest one rather than a leftover.
+    expect(out.stroke?.color).toBe("text");
+  });
+
+  it("coat.modifiers-cut-no-bands — a moving sheen is never approximated by slices of the face", () => {
+    // The regression the pair exists to prevent. `part` cuts the face at a HARD edge, which is the
+    // right mark for a gauge and the wrong one for light: stacked, they read as a flag. Whatever
+    // else these two recipes grow, they may not grow that again.
+    for (const recipe of ["foil", "polychrome"]) {
+      const layers = coatRecipe(recipe)!({ recipe, level: 1, tint: "" }).layers ?? [];
+      expect(layers.length, recipe).toBeGreaterThan(0);
+      expect(layers.map((l) => l.part).filter((p) => p !== undefined), recipe).toEqual([]);
+    }
+  });
+
   // ---- through the whole plan: the coat reaches the quad, folded blindly --------------------
 
   const plan = (n: Node) => {

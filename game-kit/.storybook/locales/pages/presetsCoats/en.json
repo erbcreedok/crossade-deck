@@ -41,12 +41,14 @@
     "is a pure function under a unit test. Drag `level`: the cloud thickens."
   ],
   "docs.presetsCoats.foil": [
-    "A cold sheen — a film over the face and a bright hairline round it. On a bright plate it reads as lamination; on a well it reads as ice. Same coat, different ground."
+    "A cold streak sliding down the diagonal — and the slide IS the edition: a laminated sheet is dull until the light moves on it. So the recipe names a SHADER, the painter builds it and the shared clock drives it.",
+    "",
+    "What stays flat is only what survives without one: a pale film and the bright hairline round the edge. A rim runs along the contour, which a filter over the face cannot own, so it is a stroke and stays one."
   ],
   "docs.presetsCoats.polychrome": [
-    "Three films at three hues. One tint would be a stain; three at low opacity read as a surface that cannot decide what colour it is. The recipe walks the wheel itself, so the call site names no colours.",
+    "The iridescent one: a single hue, a little different at every point of the face and at every moment. That drift is what iridescence IS, and there is no honest flat stand-in for it — cut into slices it read as a flag rather than as oil on water.",
     "",
-    "It reads as BANDS rather than a shimmer, and honestly so: the renderer has no gradient. A real shimmer is a shader, and the seam for one already exists - the same filter the blur rides."
+    "So the recipe NAMES a shader and hands it a place on the wheel, which is where `tint: {token:\"spin\", param}` goes. The light itself lives in `render/pixi.ts`, the one file that owns pixels; the single flat film left behind is the fallback for a backend whose program will not build, not the look."
   ],
   "docs.presetsCoats.glass": [
     "See-through and blurred, on the shader the censor already clocks. What makes it glass rather than a censor is that it barely tints and keeps a bright rim: what is under it stays readable."

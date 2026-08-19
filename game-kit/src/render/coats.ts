@@ -109,43 +109,36 @@ export function installStockCoats(): void {
   // `level` is HOW MUCH of the treatment, 0…1, so a game can fade one in as a reward lands rather
   // than switching it on. The default is strong enough to see without a level at all.
 
-  // FOIL — a cold sheen. A pale film over the whole face and a bright hairline around it: the two
-  // things a laminated surface actually does to light, and the two a flat renderer can honestly do.
+  // FOIL — a cold streak sliding down the diagonal, and the SLIDE is the edition: a laminated
+  // sheet is dull until the light moves on it. That is a shader, named here and built in
+  // `render/pixi.ts`, clocked by the same shared ticker the censor's blur rides.
+  //
+  // What stays flat is only what survives without a GPU: a pale film and the bright hairline round
+  // the edge. A rim is a STROKE and belongs to the contour, so a shader could not own it anyway.
   registerCoat("foil", (c) => {
     const k = clamp01(c.level || 0.7);
     return {
-      layers: [
-        { paint: tintOr(c.tint, "text"), opacity: 0.1 * k },
-        // The upper half catches the light — a `part` cut, not a gradient, because a hard edge is
-        // what the pixel look wants and what the renderer can draw without a shader.
-        { paint: tintOr(c.tint, "text"), opacity: 0.14 * k, part: 0.45 },
-      ],
-      stroke: { color: tintOr(c.tint, "text"), width: 0.02, opacity: 0.55 * k, alignment: 0.5 },
+      layers: [{ paint: tintOr(c.tint, "text"), opacity: 0.08 * k }],
+      filter: { name: "foil", params: { strength: 0.85 * k } },
+      stroke: { color: tintOr(c.tint, "text"), width: 0.02, opacity: 0.5 * k, alignment: 0.5 },
     };
   });
 
-  // POLYCHROME — the iridescent one. Three thin films at three hues, which is the whole trick: a
-  // single tint reads as a stain, three at low opacity read as a surface that cannot decide.
-  // `param` walks the wheel, so `tint: { token: "spin", param }` is not needed at the call site —
-  // the recipe spins it itself, and `level` says how strongly.
+  // POLYCHROME — one hue, a little different at every point of the face and at every moment. That
+  // drift IS iridescence, and there is no honest flat stand-in for it: cut into `part` slices it
+  // reads as a flag, not as oil on water. So the recipe NAMES the shader and hands it a place on
+  // the wheel; `tint: {token:"spin", param}` is where that place comes from, the same number the
+  // painter would have resolved into a colour.
+  //
+  // The one flat film left behind is the fallback, not the look — what a backend whose program did
+  // not build still shows, which is a tinted surface rather than a bare one.
   registerCoat("polychrome", (c) => {
     const k = clamp01(c.level || 0.7);
     const turn = typeof c.tint === "object" ? c.tint.param : 0;
-    // FIVE BANDS, EACH OPAQUE ENOUGH TO BE A COLOUR. The first attempt stacked three films at a
-    // tenth of an opacity each, and on any surface that is not white they mixed into mud — which is
-    // exactly what it looked like. A flat renderer cannot blur one hue into the next, so the honest
-    // iridescence is BANDS: cut with `part`, bottom-up, each one a real colour rather than a stain.
     return {
-      // A NARROW SWEEP, NOT A RAINBOW. Iridescence is one colour shifting a little — oil on water,
-      // a laminated card tilted in the hand. A full turn of the wheel is a flag, not a finish, and
-      // that is what five evenly spread hues drew. These four sit within a fifth of the wheel of
-      // whatever hue the coat was given, so the surface shimmers instead of announcing itself.
-      layers: [1, 0.75, 0.5, 0.25].map((part, i) => ({
-        paint: { token: "spin", param: turn + i * 0.05 },
-        opacity: 0.3 * k,
-        part,
-      })),
-      stroke: { color: { token: "spin", param: turn + 0.12 }, width: 0.025, opacity: 0.65 * k, alignment: 0.5 },
+      layers: [{ paint: { token: "spin", param: turn }, opacity: 0.14 * k }],
+      filter: { name: "polychrome", params: { strength: 0.9 * k, hue: turn } },
+      stroke: { color: { token: "spin", param: turn + 0.12 }, width: 0.025, opacity: 0.6 * k, alignment: 0.5 },
     };
   });
 
