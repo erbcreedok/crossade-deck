@@ -1,0 +1,61 @@
+game-kit/.storybook/stories/PresetsShuffles.stories.ts
+  s_170937f0c01a52::t_62be7f4a58db6a 20,27,53-54,79-80,82-91,172,174
+  s_170937f0c01a52::t_0ed40299a30920 178
+  s_170937f0c01a52::t_9b23aa0d13673c 56,58,95,100,118-120
+  s_170937f0c01a52::t_941c8d73990bee 24,30,34-35,55,57,61-69,76-78,81,92-94,96-99,101-102,116,121-127,148-151,157
+  s_170937f0c01a52::t_c2651c21c68d4e 59-60
+game-kit/.storybook/locales/pages/presetsShuffles/ru.json
+  s_170937f0c01a52::t_9fa409a3c30677 17,20
+  s_170937f0c01a52::t_0ed40299a30920 23,26
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_b39bf75656c835 10,75
+game-kit/.storybook/locales/pages/presetsShuffles/en.json
+  s_170937f0c01a52::t_9fa409a3c30677 17,20
+  s_170937f0c01a52::t_0ed40299a30920 23,26
+game-kit/src/render/shuffles.test.ts
+  s_170937f0c01a52::t_a677c9117f3a17 48-53
+  s_170937f0c01a52::t_a0723b5a678ae7 18
+  s_170937f0c01a52::t_4b5c912f6b2300 35,37-40,42-43,45-46,58-69,80-82,98
+  s_170937f0c01a52::t_f951b371fdf74f 1-17,19-34,36,41,44,47,54-57,70-79,83-97,99-111,113-116,122-142
+  s_170937f0c01a52::t_f80a990606fe50 112,117-121
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_9edd2f6946a76b 37,42-43,687,803-806,808,811-815
+  s_170937f0c01a52::t_de668518481ae7 586-612
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_02148b03bdf22d 209-210
+  s_170937f0c01a52::t_62be7f4a58db6a 208
+game-kit/src/index.ts
+  s_170937f0c01a52::t_62be7f4a58db6a 221-222,227
+  s_170937f0c01a52::t_fc2fab7700fa47 223-224,229
+game-kit/docs/test-plan/47-shuffle-and-roll.md
+  s_170937f0c01a52::t_ef1f8ce5d784e0 10-13,22-23
+  s_170937f0c01a52::t_b279d1cc969ae1 14
+  s_170937f0c01a52::t_b39bf75656c835 3,8-9,24-27
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_02148b03bdf22d 213-214
+  s_170937f0c01a52::t_62be7f4a58db6a 212
+game-kit/src/render/shuffles.ts
+  s_170937f0c01a52::t_992518a6106e53 289
+  s_170937f0c01a52::t_259e8a90385b16 254,310
+  s_170937f0c01a52::t_8d38cf32153b93 15-16,20,30,33-41,48-62,97,104-108,112-114,116,123-126,141-142,147,150-153,234-242,247,249-253,255-285,288,290-296,298-309,311-343,352-353
+  s_170937f0c01a52::t_a677c9117f3a17 129-132,134-138,183,223
+  s_170937f0c01a52::t_7bbf267a3dcb26 17-19,21-27,117-122,139-140,143-146,148-149
+  s_170937f0c01a52::t_7d6f080921cf1d 82,155-182,184-222,224-233,344-346,350-351
+  s_170937f0c01a52::t_3421f5629151c5 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4f89a160ca173eab047973d4ae15daf1562c8576",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
