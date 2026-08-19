@@ -249,5 +249,7 @@
   "arg.zoomCap": "The fastest a zoom may coast, in natural logarithms of the zoom per second — `1` is \"e times bigger every second\". Without a cap a sharp pinch throws the desk to its limit in one frame.",
   "arg.zoomFloor": "Below this speed the zoom does not coast at all — that is fingers coming to rest, not a flick. It is also where a running coast stops.",
   "arg.turnCap": "The fastest the desk may spin, in degrees per second. A coast runs for about speed ÷ decay degrees, so this and the decay together say how far a hard flick carries.",
-  "arg.turnFloor": "Below this speed the turn does not coast — a hand settling, not a spin. Also where a running spin stops."
+  "arg.turnFloor": "Below this speed the turn does not coast — a hand settling, not a spin. Also where a running spin stops.",
+  "arg.onRelease": "Where the angle lands when the fingers let go: `keep` it, fly `home` to the angle it stood at before they touched it, or `snap` to the nearest step. The opposite default from a drag's on purpose — nothing refuses a turn, so undoing it by default would make the atom useless for the case it exists for.",
+  "arg.snapStep": "The grid a `snap` release lands on, in degrees. Read for nothing else. A step of nothing is not a grid, and is treated as `keep` rather than dividing the angle by zero."
 }

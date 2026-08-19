@@ -1,0 +1,39 @@
+{
+  "docs.rotatable.component": [
+    "ROTATABLE says one thing as data: this element may be TURNED by hand, and where its angle lands",
+    "when the fingers let go.",
+    "",
+    "```ts",
+    "import { Rotatable, restAngle } from \"game-kit\"",
+    "",
+    "const tile = node(\"tile\", bounds, surface, Transformable(),",
+    "  Rotatable({ onRelease: \"snap\", snap: 90 }))",
+    "",
+    "// when the fingers go, the atom is the whole verdict:",
+    "compose(tile, Transformable({ angle: restAngle(tile, turnedTo, startedAt) }))",
+    "```",
+    "",
+    "The three answers are the three a table actually needs. A tile that must line up with a grid",
+    "**snaps**; a card that is only ever upright or sideways goes **home**; a scrap of paper, a pawn",
+    "placed at a jaunty angle, a token somebody turned to mean something — those **keep** what the",
+    "hand did. `keep` is the default, and that is the opposite of `Draggable`'s on purpose: a refused",
+    "drop is a REFUSAL and returning is the safe answer to one, while nothing refuses a turn.",
+    "",
+    "**`home` is passed in, never read back off the node.** By the time a release is handled the piece",
+    "is already wearing the turned angle, so reading it there would make the turn its own home and",
+    "`home` would quietly mean `keep`. Whoever starts the gesture captures where it began — the same",
+    "lesson the press learnt about a control's seat.",
+    "",
+    "**It is not `Tiltable`.** That is a tap walking a few declared stops, with no angle in between;",
+    "this is a continuous angle a hand chose. A node may carry both without any argument: the tap",
+    "walks the stops, the fingers set anything, and both write the same `Transformable.angle`."
+  ],
+  "docs.rotatable.turn": [
+    "Hold the piece with one finger, put a second down, and swing it: the angle follows the line",
+    "between the two, live. Let go and `onRelease` decides — and the trip to that angle is a settle,",
+    "not a jump, because the piece is handed back to the clock at the same moment.",
+    "",
+    "The plate underneath is the same box at zero degrees, so how far the piece has been turned is",
+    "readable at a glance rather than from memory."
+  ]
+}

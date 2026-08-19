@@ -15,6 +15,9 @@ import {
   byId,
   compose,
   draggable,
+  fieldsOf,
+  restAngle,
+  rotatable,
   glassOf,
   onRejectOf,
   pick,
@@ -27,6 +30,7 @@ import {
   type Node,
   type Point,
   type Transform,
+  type TransformableFields,
   type Vec,
 } from "../../src/index.js";
 import { type Scene } from "./scene.js";
@@ -59,8 +63,18 @@ export function runBelow(_root: Node, hit: Node): readonly Node[] {
   return siblings.slice(siblings.indexOf(hit)).filter(draggable);
 }
 
+/** A piece being turned by two fingers: which node, where the fingers started, and its own angle. */
+interface Turn {
+  readonly id: string;
+  readonly second: number;
+  readonly from: number;
+  readonly startDeg: number;
+}
+
 interface Wiring {
   opts: DragOptions;
+  /** The turn in hand, if the second finger has landed on a `Rotatable` piece. */
+  turn: Turn | undefined;
   /**
    * `pointer` is the finger that grabbed, and every other one is ignored until it lets go.
    *
@@ -74,6 +88,15 @@ interface Wiring {
 
 const WIRED = new WeakMap<HTMLElement, Wiring>();
 
+/** Every pointer currently down on the view, so the second one can be measured against the first. */
+const DOWN = new WeakMap<HTMLElement, Map<number, Point>>();
+
+/** The angle of the line between two glass points, in degrees clockwise — the screen's convention. */
+const lineAngle = (a: Point, b: Point): number => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+
+/** A node's own angle right now, which is where a released turn may be sent back to. */
+const angleOf = (n: Node): number => fieldsOf<TransformableFields>(n, "Transformable")?.angle ?? 0;
+
 /** Attach the demo drag to an `animate` scene (idempotent), and hand the scene back. */
 export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const standing = WIRED.get(s.el);
@@ -81,13 +104,40 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     standing.opts = opts; // the same canvas, new knobs — never a second set of listeners
     return s;
   }
-  const w: Wiring = { opts, drag: undefined, undoInvites: undefined };
+  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined };
   WIRED.set(s.el, w);
   const view = s.host.view;
 
   const onDown = (e: PointerEvent): void => {
     const motions = s.motions;
-    if (!motions || w.drag) return;
+    if (!motions) return;
+    const downs = DOWN.get(s.el) ?? new Map<number, Point>();
+    DOWN.set(s.el, downs);
+    downs.set(e.pointerId, glassOf(view, e));
+    // A SECOND FINGER ON A PIECE ALREADY IN HAND IS A TURN, not a second drag.
+    //
+    // The carry is given up first, and deliberately: a carried node's pose is laid out entirely by
+    // the carry style — anchor, offset, lean, lift — so an angle written into the tree while it is
+    // in flight is a write nothing reads. Released, the piece eases back to where the tree says it
+    // is (a few pixels, since a turn starts on a piece that is lying still), and from there the
+    // angle is the only thing moving.
+    if (w.drag && !w.turn) {
+      const lead = byId(s.host.root, w.drag.items[0]!.id);
+      const first = downs.get(w.drag.pointer);
+      if (lead && first && rotatable(lead)) {
+        for (const it of w.drag.items) motions.release(it.id);
+        w.undoInvites?.();
+        w.undoInvites = undefined;
+        w.drag = undefined;
+        // NO threshold here, unlike the camera's twist. There the slop exists because every pinch
+        // is a little bit of a twist and a plain zoom must not turn the desk; two fingers on a
+        // piece that turns mean one thing only, and a dead zone would just be lag.
+        w.turn = { id: lead.id, second: e.pointerId, from: angleOf(lead), startDeg: lineAngle(first, glassOf(view, e)) };
+        motions.hold(lead.id); // finger-owned: the angle is written, never eased towards
+        return;
+      }
+    }
+    if (w.drag || w.turn) return;
     const root = s.host.root;
     const g = glassOf(view, e);
     // Only a draggable lifts — and only one the gate lets through: the pick reads the SAME plan
@@ -119,14 +169,47 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   };
 
   const onMove = (e: PointerEvent): void => {
+    const downs = DOWN.get(s.el);
+    if (downs?.has(e.pointerId)) downs.set(e.pointerId, glassOf(view, e));
+    const turn = w.turn;
+    if (turn && downs) {
+      const first = [...downs].find(([id]) => id !== turn.second)?.[1];
+      const second = downs.get(turn.second);
+      if (!first || !second) return;
+      const node = byId(s.host.root, turn.id);
+      if (!node) return;
+      // The DELTA between the fingers, not their absolute angle — so a camera at any turn of its
+      // own needs no correction at all: both readings are on the same glass, and the difference
+      // between them is the same number in every frame of reference.
+      compose(node, Transformable({ angle: turn.from + (lineAngle(first, second) - turn.startDeg) }));
+      s.host.setRoot(s.host.root);
+      return;
+    }
     if (!w.drag || w.drag.pointer !== e.pointerId || !s.motions) return;
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     s.motions.dragTo({ x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y });
   };
 
   const onUp = (e: PointerEvent): void => {
-    const drag = w.drag;
+    DOWN.get(s.el)?.delete(e.pointerId);
+    const turn = w.turn;
     const motions = s.motions;
+    if (turn && motions) {
+      // Either finger ending it is right: a turn is the pair, and one of them leaving is the hand
+      // saying it is done.
+      w.turn = undefined;
+      const node = byId(s.host.root, turn.id);
+      if (node) {
+        // THE ATOM'S WHOLE VERDICT, in one call: keep the angle, fly home to where it began, or
+        // land on the nearest step. `from` is the angle captured when the fingers arrived — read
+        // back off the node it would already be the turned one, and `home` would mean `keep`.
+        compose(node, Transformable({ angle: restAngle(node, angleOf(node), turn.from) }));
+        motions.release(turn.id); // let go, so the trip to that angle is a settle and not a jump
+        s.host.setRoot(s.host.root);
+      }
+      return;
+    }
+    const drag = w.drag;
     if (!drag || drag.pointer !== e.pointerId || !motions) return;
     w.drag = undefined;
     w.undoInvites?.();

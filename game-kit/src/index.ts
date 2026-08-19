@@ -137,6 +137,16 @@ export { Labeled, type LabeledFields } from "./core/atoms/labeled.js";
 export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeable.js";
 // Interaction & visibility: what can be dragged, focused, and who a private subtree is shown to.
 export { Draggable, draggable, onRejectOf, type DraggableFields } from "./core/atoms/draggable.js";
+// A free angle a HAND set, and where it lands when the fingers go. Not `Tiltable`: that is a tap
+// between a few declared stops, this is anything in between, and both write the one angle.
+export {
+  Rotatable,
+  restAngle,
+  rotatable,
+  onReleaseOf,
+  type OnRelease,
+  type RotatableFields,
+} from "./core/atoms/rotatable.js";
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
 // A control that answers a finger: what it WEARS hovered and held, and how deep it sinks. The
 // meaning of the press is `Valued`, read by the consumer — this atom is the look and the depth.

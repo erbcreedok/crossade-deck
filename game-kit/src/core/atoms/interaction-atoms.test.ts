@@ -4,6 +4,8 @@ import { Bounded } from "./bounded.js";
 import { Container } from "./container.js";
 import { Draggable, draggable, onRejectOf } from "./draggable.js";
 import { Focusable, focusable } from "./focusable.js";
+import { Rotatable, restAngle, rotatable } from "./rotatable.js";
+import { Transformable } from "./transformable.js";
 import { Private, visibleTo } from "./private.js";
 import { rect } from "../../presets/shapes.js";
 
@@ -19,6 +21,36 @@ describe("interaction & visibility atoms", () => {
     expect(onRejectOf(node("d3", box(), Draggable({ onReject: "stay" })))).toBe("stay");
     expect(onRejectOf(node("d4", box(), Draggable()))).toBe("home"); // safe default
     expect(onRejectOf(node("d5", box()))).toBeUndefined(); // not draggable at all
+  });
+
+  it("atom.rotatable.is-a-capability — presence says the element can be turned by hand", () => {
+    expect(rotatable(node("r1", box(), Transformable(), Rotatable()))).toBe(true);
+    expect(rotatable(node("r2", box(), Transformable()))).toBe(false); // it has an angle, nobody may set it
+  });
+
+  it("atom.rotatable.release-policy — keep, home, or snap to the nearest step", () => {
+    const pose = Transformable({ angle: 15 });
+    // KEEP is the default, and it is the OPPOSITE of a drag's on purpose: a refused drop is a
+    // refusal, and returning is the safe answer to one. Nothing refuses a turn — the player turned
+    // the piece because they meant to, and undoing that by default makes the atom useless.
+    expect(restAngle(node("k", box(), pose, Rotatable()), 37, 15)).toBe(37);
+    expect(restAngle(node("h", box(), pose, Rotatable({ onRelease: "home" })), 37, 15)).toBe(15);
+    expect(restAngle(node("s", box(), pose, Rotatable({ onRelease: "snap", snap: 90 })), 37, 15)).toBe(0);
+    expect(restAngle(node("s2", box(), pose, Rotatable({ onRelease: "snap", snap: 90 })), 200, 15)).toBe(180);
+    // The nearest goes both ways, and negatives are not a special case.
+    expect(restAngle(node("s3", box(), pose, Rotatable({ onRelease: "snap", snap: 60 })), -100, 0)).toBe(-120);
+    // A grid of nothing is not a grid: dividing by it lands the piece on NaN, which reads on screen
+    // as a piece that vanished.
+    expect(restAngle(node("s4", box(), pose, Rotatable({ onRelease: "snap", snap: 0 })), 37, 15)).toBe(37);
+    // And a node without the atom has no policy at all: it keeps whatever it was handed.
+    expect(restAngle(node("n", box(), pose), 37, 15)).toBe(37);
+  });
+
+  it("atom.rotatable.is-not-a-tilt — a tap walks stops, fingers set anything, one angle holds both", () => {
+    // Both may sit on one node without arguing: `Tiltable` is which of a few STOPS, this is a
+    // continuous angle a hand chose, and the two write the same field.
+    const both = node("t", box(), Transformable({ angle: 90 }), Rotatable({ onRelease: "home" }));
+    expect(restAngle(both, 33, 90)).toBe(90);
   });
 
   it("atom.focusable.is-a-marker — presence says it can take focus, absence declines", () => {

@@ -49,6 +49,7 @@ import type presetsLayouts from "./pages/presetsLayouts/en.json";
 import type presetsPiles from "./pages/presetsPiles/en.json";
 import type presetsShuffles from "./pages/presetsShuffles/en.json";
 import type rollable from "./pages/rollable/en.json";
+import type rotatable from "./pages/rotatable/en.json";
 import type dice from "./pages/dice/en.json";
 import type presetsPoses from "./pages/presetsPoses/en.json";
 import type privatePage from "./pages/private/en.json";
@@ -141,6 +142,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
     ru: () => import("./pages/presetsShuffles/ru.json"),
   },
   rollable: { en: () => import("./pages/rollable/en.json"), ru: () => import("./pages/rollable/ru.json") },
+  rotatable: { en: () => import("./pages/rotatable/en.json"), ru: () => import("./pages/rotatable/ru.json") },
   dice: { en: () => import("./pages/dice/en.json"), ru: () => import("./pages/dice/ru.json") },
   cards: { en: () => import("./pages/cards/en.json"), ru: () => import("./pages/cards/ru.json") },
   motion: { en: () => import("./pages/motion/en.json"), ru: () => import("./pages/motion/ru.json") },
@@ -186,6 +188,7 @@ export type PageKey = keyof (typeof node &
   typeof presetsPiles &
   typeof presetsShuffles &
   typeof rollable &
+  typeof rotatable &
   typeof dice &
   typeof presetsCoats &
   typeof presetsFlips &
