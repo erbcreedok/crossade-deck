@@ -52,6 +52,7 @@
   "arg.held": "What it wears while it is held down. The only state a finger sees, so it carries the whole feedback.",
   "arg.sink": "How deep it goes while held, in units. Written to z, so the cast shadow shortens by the plan's own arithmetic rather than by a second drawing.",
   "arg.look": "Which stock look the control wears: primary, quiet, danger, ghost. A registry NAME, not a sort — a fifth look is one registerSurface call in your own file.",
+  "arg.surfaceName": "A registered surface, by name.",
   "arg.picked": "Which member of the segmented row is on. The GAME's state — the row is built from it, and holds no copy.",
   "arg.level": "Where the knob sits, 0…1. The game's state too: a slider that remembered its own value would be a second answer.",
   "arg.asleep": "Show every control as declining to act. Not a flag on the node — the kit has no `disabled`: the press still reports, the handler says no, and this is what the player sees while it does.",

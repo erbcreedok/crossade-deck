@@ -322,7 +322,7 @@ export const Registered: StoryObj<FacesArgs> = {
   render: (a) => scene(node("card", Bounded({ bounds: rect(a.w, a.h) }), Surfaced({ surface: a.surface }))).el,
   args: { surface: "cards/face/spade-A", w: 1, h: 1.4 },
   argTypes: {
-    surface: documented("arg.plateSurface", { control: "select", options: surfaceNames() }, "node"),
+    surface: documented("arg.surfaceName", { control: "select", options: surfaceNames() }, "node"),
     w: documented("arg.w", { control: { type: "number", min: 0, step: 0.1 } }, "bounds"),
     h: documented("arg.h", { control: { type: "number", min: 0, step: 0.1 } }, "bounds"),
   },
