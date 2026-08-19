@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**52 слой · 1193 кейсов заявлено · 1020 расписано поимённо.**
+**53 слоя · 1204 кейсов заявлено · 1031 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -66,7 +66,7 @@
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 34 | 34 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
 | [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 22 | 22 |
-| [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 6 | 6 |
+| [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 7 | 7 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |
@@ -77,4 +77,5 @@
 | [UNIT · текст — линейка портом, раскладка чистой функцией](49-text.md) | `vitest (headless, no font engine)` | 13 | 13 |
 | [UNIT · контролы — `Pressable`, пресет `button`, проводка](50-controls.md) | `vitest` | 31 | 31 |
 | [UNIT · пыль цензуры — облако без единого пикселя](51-censor-dust.md) | `vitest (headless, no WebGL)` | 21 | 21 |
-| [UNIT · камера — как на холст смотрят](52-camera.md) | `vitest (headless, no renderer)` | 16 | 16 |
+| [UNIT · камера — как на холст смотрят](52-camera.md) | `vitest (headless, no renderer)` | 17 | 17 |
+| [UNIT · руки на столе — жесты камеры и арбитраж](53-camera-input.md) | `vitest (headless, no renderer)` | 9 | 9 |

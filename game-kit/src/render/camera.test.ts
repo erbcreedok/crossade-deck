@@ -25,7 +25,7 @@ import { Camera, FLING, NO_FLING, wheelGoesToCamera, wheelPixels, wheelZoomFacto
 function bench(limits = { minZoom: 0.25, maxZoom: 4 }): Camera {
   const c = new Camera(limits);
   c.setScreen(400, 300);
-  c.setContent(2000, 2000, 1); // 2000 x 2000 units at one pixel each
+  c.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1); // 2000 × 2000 units at one pixel each
   c.clamp();
   return c;
 }
@@ -47,12 +47,34 @@ describe("the camera", () => {
     // desk has no meaningful edge to be held against.
     const c = new Camera({ minZoom: 0.25, maxZoom: 4 });
     c.setScreen(400, 300);
-    c.setContent(100, 50, 1);
+    c.setContent({ x: 0, y: 0, w: 100, h: 50 }, 1);
     c.panBy(999, 999);
     expect(c.x).toBeCloseTo((400 - 100) / 2, 6);
     expect(c.y).toBeCloseTo((300 - 50) / 2, 6);
     expect(c.overflowX).toBe(false);
     expect(c.overflowY).toBe(false);
+  });
+
+  it("camera.a-desk-laid-out-around-zero-stops-at-its-own-edges", () => {
+    // THE KIT'S DESKS ARE CENTRED ON THE ORIGIN — a table spanning -1000…1000 is 2000 wide and
+    // begins at -1000. Told only "2000 wide", a camera holds the view inside the quarter that
+    // starts at zero, and every clamp, every scrollbar and every fit reads perfectly correct
+    // while three quarters of the desk cannot be reached at all.
+    const c = new Camera({ minZoom: 0.25, maxZoom: 4 });
+    c.setScreen(400, 300);
+    c.setContent({ x: -1000, y: -1000, w: 2000, h: 2000 }, 1);
+    c.lookAt({ x: 0, y: 0 });
+    // Centred: the middle of the glass shows the middle of the desk.
+    expect(c.toContent(200, 150)).toEqual({ x: 0, y: 0 });
+    c.panBy(10_000, 10_000);
+    // Pushed to the top-left stop, the desk's own corner is on the glass's corner.
+    expect(c.toContent(0, 0).x).toBeCloseTo(-1000, 6);
+    expect(c.toContent(0, 0).y).toBeCloseTo(-1000, 6);
+    expect(c.state().scrollX).toBeCloseTo(0, 6);
+    c.panBy(-10_000, -10_000);
+    expect(c.toContent(400, 300).x).toBeCloseTo(1000, 6);
+    expect(c.toContent(400, 300).y).toBeCloseTo(1000, 6);
+    expect(c.state().scrollX).toBeCloseTo(1, 6);
   });
 
   it("camera.zoom-keeps-the-point-under-the-finger — the desk does not squirm away", () => {
@@ -140,7 +162,7 @@ describe("the camera", () => {
   it("camera.inertia-can-be-switched-off — the view stops with the finger", () => {
     const c = new Camera({ minZoom: 0.25, maxZoom: 4, fling: NO_FLING });
     c.setScreen(400, 300);
-    c.setContent(2000, 2000, 1);
+    c.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1);
     c.grab();
     c.trackPan(-300, 0, 0.1);
     c.trackPan(-300, 0, 0.116);
@@ -199,7 +221,7 @@ describe("the camera", () => {
 
     const small = new Camera({ minZoom: 0.25, maxZoom: 4 });
     small.setScreen(400, 300);
-    small.setContent(100, 50, 1);
+    small.setContent({ x: 0, y: 0, w: 100, h: 50 }, 1);
     small.clamp();
     expect(small.state().scrollableX).toBe(false);
     expect(small.state().thumbX).toBe(1);
@@ -221,7 +243,7 @@ describe("the camera", () => {
       )!.x;
 
     const c = bench();
-    c.setContent(2000, 2000, 10);
+    c.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 10);
     c.panBy(-500, 0);
     expect(at(c.transform())).not.toBeCloseTo(at(), 3);
     // …and it is the camera's own answer, not an approximation of it.
@@ -234,7 +256,7 @@ describe("the camera", () => {
     expect(c.fitZoom()).toBeCloseTo(300 / 2000, 6);
     const floored = new Camera({ minZoom: 0.5, maxZoom: 4 });
     floored.setScreen(400, 300);
-    floored.setContent(2000, 2000, 1);
+    floored.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1);
     expect(floored.fitZoom(), "a fit below the limit is still the limit").toBe(0.5);
   });
 });

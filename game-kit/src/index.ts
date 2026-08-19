@@ -336,11 +336,15 @@ export {
   FLING,
   NO_FLING,
   ZOOM_SENS,
+  type CameraContent,
   type CameraLimits,
   type CameraState,
   type Fling,
 } from "./render/camera.js";
+// The two gestures whose meaning is the same in every game there will ever be — a press, and the
+// hand moving the view. Everything else a game wires itself out of `glassOf`/`toUnits`/`pick`.
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
+export { wireCamera, type CameraControl, type CameraGestures, type Gesture } from "./render/cameraInput.js";
 // The rest of the interface — each one a composition of atoms that already exist, never a new one.
 export {
   badge,

@@ -17,6 +17,7 @@ import { installStockSurfaces } from "../presets/surfaces.js";
 import { viewTransform } from "./scenePlan.js";
 import { type Host } from "./host.js";
 import { glassOf, pick, toUnits } from "./pointer.js";
+import { Camera } from "./camera.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 
@@ -79,6 +80,27 @@ describe("the pointer seam", () => {
     add(root, node("card", box(1, 1), Surfaced(), Transformable({ z: 5 })));
     // The card is on top but is no container; the pick falls through to the desk beneath it.
     expect(pick(host(100), root, { x: 400, y: 300 }, (n) => caps(n).has("Container"))?.id).toBe("desk");
+  });
+
+  it("pointer.follows-the-camera — the finger and the eye go through one door", () => {
+    // A pick that rebuilt the plan WITHOUT the camera agrees with the eye exactly as long as the
+    // desk sits unpanned, and then quietly stops: the card is drawn over there and answers over
+    // here. `docs/design/camera.md` — into coordinates there is ONE door.
+    const root = node("desk", Container({ layout: "free" }));
+    add(root, node("card", box(1, 1), Surfaced()));
+    const h = host(100, 800, 600);
+    const c = new Camera({ minZoom: 0.25, maxZoom: 4 });
+    c.setScreen(800, 600);
+    c.setContent({ x: -8, y: -6, w: 16, h: 12 }, 100); // twice the glass, so there is room to pan
+    c.lookAt({ x: 0, y: 0 });
+    const view = (): ReturnType<Camera["transform"]> => c.transform();
+    // Centred, the two views agree — which is what makes the difference below the camera's doing.
+    expect(pick(h, root, { x: 400, y: 300 }, () => true, view())?.id).toBe("card");
+    c.panBy(-150, 0); // the desk slides left, and so does the card
+    expect(pick(h, root, { x: 400, y: 300 }, () => true, view())).toBeUndefined();
+    expect(pick(h, root, { x: 250, y: 300 }, () => true, view())?.id).toBe("card");
+    // And units come back through the same matrix.
+    expect(toUnits(h, { x: 250, y: 300 }, view()).x).toBeCloseTo(0, 6);
   });
 
   it("pointer.misses-outside-every-quad — empty glass hits nothing", () => {

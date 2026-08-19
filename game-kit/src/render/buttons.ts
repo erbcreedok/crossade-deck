@@ -14,6 +14,7 @@ import { byId, caps, compose, fieldsOf, type Node } from "../core/node.js";
 import { pressableOf, wearPress } from "../core/atoms/pressable.js";
 import { Transformable, type TransformableFields } from "../core/atoms/transformable.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
+import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { glassOf, pick } from "./pointer.js";
 
@@ -27,6 +28,13 @@ export interface ButtonWiring {
   readonly host: Host;
   /** Called once, on a completed press: down and up on the same control, without wandering off. */
   readonly onPress: (meaning: Meaning, control: Node) => void;
+  /**
+   * The view the controls are drawn through, asked FRESH — a camera's `transform()`.
+   *
+   * A getter for the reason the painter's is one: the wiring is attached once and the view moves
+   * between frames. Absent, the plain centred view, which is every scene with no camera in it.
+   */
+  readonly view?: (() => Transform) | undefined;
 }
 
 /** Anything carrying `Pressable` answers a finger. A capability, never a name or a sort. */
@@ -85,7 +93,8 @@ export function wireButtons(w: ButtonWiring): () => void {
     w.host.setRoot(w.host.root);
   };
 
-  const under = (e: PointerEvent): Node | undefined => pick(w.host, w.host.root, glassOf(view, e), answers);
+  const under = (e: PointerEvent): Node | undefined =>
+    pick(w.host, w.host.root, glassOf(view, e), answers, w.view?.());
 
   const leaveHover = (): void => {
     if (over === undefined) return;

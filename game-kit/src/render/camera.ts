@@ -45,6 +45,21 @@ export const FLING: Fling = { cap: 4000, floor: 40, decay: 5, smoothing: 0.5, ma
 /** A fling that never happens: the view stops dead with the finger. Data, so "no inertia" is a setting. */
 export const NO_FLING: Fling = { cap: 0, floor: Infinity, decay: Infinity, smoothing: 0.5, maxGap: 0.1 };
 
+/**
+ * WHAT THERE IS TO LOOK AT — the stretch of desk the view is held inside, in units.
+ *
+ * A RECT and not a size, because a desk is laid out AROUND its origin: a table spanning -1000 to
+ * 1000 is 2000 wide and its left edge is at -1000, and a camera told only "2000 wide" holds the
+ * view inside one quarter of it while every clamp and every scrollbar reads perfectly correct.
+ */
+export interface CameraContent {
+  /** The desk's smallest corner, in units. */
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
 export interface CameraLimits {
   /** How far out the desk may be pushed. */
   readonly minZoom: number;
@@ -67,8 +82,8 @@ export interface CameraState {
 }
 
 /**
- * THE CAMERA. `x`/`y` are the desk's offset on the glass in screen pixels and `zoom` multiplies the
- * unit; the pair is exactly what the view transform is built from.
+ * THE CAMERA. `x`/`y` are where the desk's ORIGIN sits on the glass, in screen pixels, and `zoom`
+ * multiplies the unit; the pair is exactly what the view transform is built from.
  *
  * The bounds are told to it rather than discovered: a camera knows the size of the SCREEN and the
  * size of the CONTENT, and everything else — where the view may go, whether an axis can scroll at
@@ -81,9 +96,8 @@ export class Camera {
 
   private screenW = 1;
   private screenH = 1;
-  /** The content's extent in UNITS — the same units a node's box is in. */
-  private contentW = 1;
-  private contentH = 1;
+  /** The content's rect in UNITS — the same units a node's box is in, corner included. */
+  private content: CameraContent = { x: 0, y: 0, w: 1, h: 1 };
   /** Screen pixels per unit at zoom 1 — the fit the viewer settled on. */
   private unit = 1;
 
@@ -106,19 +120,31 @@ export class Camera {
     this.screenH = height;
   }
 
-  /** How big the desk is, in units, and what a unit is worth in pixels before zoom. */
-  setContent(width: number, height: number, unit: number): void {
-    this.contentW = width;
-    this.contentH = height;
+  /** Where the desk is and how big, in units, and what a unit is worth in pixels before zoom. */
+  setContent(area: CameraContent, unit: number): void {
+    this.content = area;
     this.unit = unit;
+  }
+
+  /** Screen pixels per unit right now — the only scale anything is allowed to read. */
+  private get k(): number {
+    return this.unit * this.zoom;
   }
 
   /** The content's size on the glass right now — extent × unit × zoom. */
   private get shownW(): number {
-    return this.contentW * this.unit * this.zoom;
+    return this.content.w * this.k;
   }
   private get shownH(): number {
-    return this.contentH * this.unit * this.zoom;
+    return this.content.h * this.k;
+  }
+
+  /** Where the desk's smallest corner sits, measured from `x`/`y`. Zero for a desk starting at 0. */
+  private get cornerX(): number {
+    return this.content.x * this.k;
+  }
+  private get cornerY(): number {
+    return this.content.y * this.k;
   }
 
   /**
@@ -143,13 +169,20 @@ export class Camera {
   clamp(): void {
     const w = this.shownW;
     const h = this.shownH;
-    this.x = w <= this.screenW ? (this.screenW - w) / 2 : clamp(this.x, this.screenW - w, 0);
-    this.y = h <= this.screenH ? (this.screenH - h) / 2 : clamp(this.y, this.screenH - h, 0);
+    // WHAT IS HELD IS THE DESK'S OWN CORNER, not `x`: for a desk laid out around zero the corner
+    // is half a desk to the left of the origin, and clamping the origin instead pins the view
+    // inside one quarter of the desk while every number in it reads perfectly correct.
+    const left = this.cornerX;
+    const top = this.cornerY;
+    const cx = w <= this.screenW ? (this.screenW - w) / 2 : clamp(this.x + left, this.screenW - w, 0);
+    const cy = h <= this.screenH ? (this.screenH - h) / 2 : clamp(this.y + top, this.screenH - h, 0);
+    this.x = cx - left;
+    this.y = cy - top;
   }
 
   /** A point on the glass, in the desk's units. The inverse of what `transform()` builds. */
   toContent(sx: number, sy: number): Point {
-    const k = this.unit * this.zoom;
+    const k = this.k;
     return { x: (sx - this.x) / k, y: (sy - this.y) / k };
   }
 
@@ -167,11 +200,23 @@ export class Camera {
    * and never a consequence of how close the camera is (`docs/design/camera.md`).
    */
   zoomAround(sx: number, sy: number, factor: number): void {
-    const held = this.toContent(sx, sy);
-    this.zoom = clamp(this.zoom * factor, this.limits.minZoom, this.limits.maxZoom);
-    const k = this.unit * this.zoom;
-    this.x = sx - held.x * k;
-    this.y = sy - held.y * k;
+    this.holdAt(this.toContent(sx, sy), sx, sy, this.zoom * factor);
+  }
+
+  /**
+   * PUT A POINT OF THE DESK UNDER A POINT OF THE GLASS, at a zoom — what two fingers do, and what
+   * every other move here turns out to be.
+   *
+   * A pinch is not "zoom about the midpoint": the midpoint TRAVELS, and what the hand expects is
+   * that the spot it grabbed stays between the fingers wherever they carry it. So the anchor is
+   * taken once, at the start, and pinned to wherever the middle is now — zooming and panning at
+   * once, out of one statement rather than two that have to agree.
+   */
+  holdAt(p: Point, sx: number, sy: number, zoom: number): void {
+    this.zoom = clamp(zoom, this.limits.minZoom, this.limits.maxZoom);
+    const k = this.k;
+    this.x = sx - p.x * k;
+    this.y = sy - p.y * k;
     this.clamp();
   }
 
@@ -183,18 +228,15 @@ export class Camera {
 
   /** Put a point of the DESK in the middle of the glass — what "the camera looks at X" means. */
   lookAt(p: Point): void {
-    const k = this.unit * this.zoom;
-    this.x = this.screenW / 2 - p.x * k;
-    this.y = this.screenH / 2 - p.y * k;
-    this.clamp();
+    this.holdAt(p, this.screenW / 2, this.screenH / 2, this.zoom);
   }
 
   /** The zoom at which the whole desk is on the glass, inside the limits. */
   fitZoom(padding = 0): number {
     const w = Math.max(1, this.screenW - padding * 2);
     const h = Math.max(1, this.screenH - padding * 2);
-    const wide = this.contentW * this.unit;
-    const tall = this.contentH * this.unit;
+    const wide = this.content.w * this.unit;
+    const tall = this.content.h * this.unit;
     const want = Math.min(wide > 0 ? w / wide : 1, tall > 0 ? h / tall : 1);
     return clamp(want, this.limits.minZoom, this.limits.maxZoom);
   }
@@ -273,10 +315,14 @@ export class Camera {
     const h = this.shownH;
     const overX = Math.max(0, w - this.screenW);
     const overY = Math.max(0, h - this.screenH);
+    // Measured from the desk's CORNER, so a desk laid out around zero reads 0 at its left edge
+    // and 1 at its right, exactly as one starting at zero does.
+    const fromLeft = -(this.x + this.cornerX);
+    const fromTop = -(this.y + this.cornerY);
     return {
       zoom: this.zoom,
-      scrollX: overX > 0 ? -this.x / overX : 0,
-      scrollY: overY > 0 ? -this.y / overY : 0,
+      scrollX: overX > 0 ? fromLeft / overX : 0,
+      scrollY: overY > 0 ? fromTop / overY : 0,
       thumbX: w > 0 ? Math.min(1, this.screenW / w) : 1,
       thumbY: h > 0 ? Math.min(1, this.screenH / h) : 1,
       scrollableX: overX > 1,
@@ -289,7 +335,7 @@ export class Camera {
    * transform — nothing reads the stage's own scale or adds offsets by hand.
    */
   transform(): Transform {
-    return compose(move(this.x, this.y), scale(this.unit * this.zoom));
+    return compose(move(this.x, this.y), scale(this.k));
   }
 }
 
