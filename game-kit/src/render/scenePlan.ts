@@ -251,6 +251,14 @@ export interface PlanInput {
   readonly height: number;
   readonly viewer: ViewerSettings;
   /**
+   * THE VIEW ITSELF, when something owns one — a camera's `transform()`.
+   *
+   * Absent, the plan builds the plain centred view it always did, which is what a game with no
+   * camera wants and what every headless test uses. Present, it is the ONE door into coordinates:
+   * nothing else adds an offset or reads a scale of its own (`docs/design/camera.md`).
+   */
+  readonly view?: Transform | undefined;
+  /**
    * In-flight pose overrides, by node id, in ROOT-UNIT space (the same space `transformsOf`
    * answers in). Present only while a node is mid-settle: the motion runtime hands the plan the
    * node's CURRENT flight pose so it draws there instead of at its resting pose. Absent for a still
@@ -290,9 +298,9 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer, overrides, raised, carried, measure }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, view, overrides, raised, carried, measure }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
-  const toView = viewTransform(unit, width, height);
+  const toView = view ?? viewTransform(unit, width, height);
   // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
   // size ratio), how much each point of resolved `z` adds, how dark the ink lies — is the DESK's
   // data (`Lit.shadow`, root-only), read once per plan. A per-piece length would be a second
@@ -763,11 +771,11 @@ const GRID_ID = "" as NodeId;
  * The mark keeps the box's SHARP corners even when the surface over it is rounded: it reports
  * where the box is, and a rounded corner is a matter of paint.
  */
-export function boundsMarks({ root, unit, width, height, viewer }: PlanInput): Mark[] {
+export function boundsMarks({ root, unit, width, height, viewer, view }: PlanInput): Mark[] {
   if (!viewer.debugBounds) return [];
 
   const nodes = transformsOf(root);
-  const toView = viewTransform(unit, width, height);
+  const toView = view ?? viewTransform(unit, width, height);
   const marks: Mark[] = [];
   walk(root, (n) => {
     const shape = footprint(n);

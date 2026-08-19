@@ -326,6 +326,20 @@ export {
   QUIET,
   type ControlLook,
 } from "./presets/controls.js";
+// THE CAMERA — how a desk is LOOKED AT. Numbers only: it draws nothing, so everything under it
+// stays checkable headless and rendering begins here (`docs/design/camera.md`).
+export {
+  Camera,
+  wheelGoesToCamera,
+  wheelPixels,
+  wheelZoomFactor,
+  FLING,
+  NO_FLING,
+  ZOOM_SENS,
+  type CameraLimits,
+  type CameraState,
+  type Fling,
+} from "./render/camera.js";
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
 // The rest of the interface — each one a composition of atoms that already exist, never a new one.
 export {

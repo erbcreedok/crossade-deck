@@ -70,6 +70,14 @@ export interface PaintOptions {
    * handing one, the same way it opts into a renderer.
    */
   readonly measure?: TextMeasure | undefined;
+  /**
+   * THE VIEW, asked FRESH every frame — a camera's `transform()`.
+   *
+   * A getter and not a value, because a camera moves between frames while these options are handed
+   * over once: a transform captured here would freeze the view at the moment the painter was
+   * attached, and the desk would never pan again. Absent, the plain centred view.
+   */
+  readonly view?: (() => Transform) | undefined;
 }
 
 /**
@@ -86,6 +94,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     width: view.width,
     height: view.height,
     viewer: host.viewer(),
+    view: options.view?.(),
     overrides: options.overrides,
     raised: options.raised,
     carried: options.carried,
