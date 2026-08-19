@@ -21,6 +21,9 @@ import {
   Texture,
   UniformGroup,
 } from "pixi.js";
+import { type Point } from "../core/atoms/bounded.js";
+import { type Paint } from "../core/paint.js";
+import { type Transform } from "../core/transform.js";
 import { type ThemeName } from "../core/viewer.js";
 import {
   DUST_FLICKER,
@@ -36,7 +39,14 @@ import {
 } from "./dust.js";
 import { type FilterRef, type OverlayRef } from "./effects.js";
 import { type Painter } from "./painter.js";
-import { type Mark, type Quad } from "./scenePlan.js";
+import {
+  type Mark,
+  type Quad,
+  type QuadImage,
+  type QuadLayer,
+  type QuadStroke,
+  type QuadText,
+} from "./scenePlan.js";
 import { paint } from "./theme.js";
 
 export { type Painter };
@@ -400,18 +410,218 @@ function tileMatrix(texture: Texture, image: { x: number; y: number; w: number; 
   return boxMatrix(texture, image);
 }
 
+// ---- THE OBJECTS OF A FRAME, KEPT INTO THE NEXT ONE -------------------------------------------
+//
+// The plan is rebuilt from scratch every frame, and for a while so was the stage: everything
+// destroyed and every Container, Graphics and Text built again, sixty times a second. That is
+// what an animation cost, and it is why scenes froze — a `new Text` rasterises a glyph atlas, a
+// `new Graphics` uploads geometry, a `new Filter` compiles a shader, and `destroy()` with no
+// options removes a box's children WITHOUT destroying them, so the ones already paid for piled
+// up behind the frame instead of going away.
+//
+// So the objects are KEPT, keyed by the quad's `id`, and a frame says only what changed:
+//
+//   - ORDER is still the plan's answer and nothing else's: the boxes are put on the stage in
+//     plan order, and a frame whose order did not move touches the stage not at all;
+//   - a quad whose DRAWING is unchanged (everything except its matrix) is not redrawn, which is
+//     the common case at sixty frames a second — a live quad's contour is in its OWN space, so
+//     an animation moves the matrix and leaves every point where it was;
+//   - a quad that left the plan is destroyed WITH its context, its style and its filter.
+//
+// THE FILTER LAW, RESTATED. It read "the animated filters of the last frame are gone with its
+// quads", which was true only because every quad was gone. It now says what it always meant: a
+// filter belongs to its quad and is clocked for as long as that quad is in the plan asking for
+// it BY THE SAME NAME AND THE SAME NUMBERS. A censor that lifts, a coat that turns a knob, a
+// quad that leaves — each takes its filter with it, and the frame's clock list is rebuilt from
+// the survivors whenever that set moves.
+
+/** What one layer of one quad put in the box. Absent fields are parts that layer does not have. */
+interface LiveLayer {
+  mask?: Graphics | undefined;
+  fill?: Graphics | undefined;
+  tile?: Graphics | undefined;
+  clip?: Graphics | undefined;
+  image?: Graphics | undefined;
+  /** The texture the picture was drawn WITH — so a picture that lands later is noticed. */
+  texture?: Texture | undefined;
+}
+
+/** One quad's standing objects, and the quad they were last drawn from. */
+interface LiveQuad {
+  readonly box: Container;
+  /** The last quad this box was DRAWN from — the whole test for "may this frame be skipped". */
+  drawn: Quad;
+  theme: ThemeName;
+  matrix: Transform;
+  layers: LiveLayer[];
+  stroke?: Graphics | undefined;
+  texts: Text[];
+  overlay?: LiveOverlay | undefined;
+  filter?: LiveFilter | undefined;
+}
+
+/** A pose no plan can hand down, so the first frame always writes the matrix. */
+const UNSET_POSE: Transform = { a: NaN, b: NaN, c: NaN, d: NaN, e: NaN, f: NaN };
+
+function sameMatrix(a: Transform, b: Transform): boolean {
+  return a.a === b.a && a.b === b.b && a.c === b.c && a.d === b.d && a.e === b.e && a.f === b.f;
+}
+
+/** A colour is a token name OR a token and a number, and the pair has to be compared as a pair. */
+function samePaint(a: Paint | undefined, b: Paint | undefined): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  if (typeof a === "string" || typeof b === "string") return false;
+  return a.token === b.token && a.param === b.param;
+}
+
+function samePoints(a: readonly Point[] | undefined, b: readonly Point[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const p = a[i]!;
+    const q = b[i]!;
+    if (p.x !== q.x || p.y !== q.y) return false;
+  }
+  return true;
+}
+
+function sameDashes(a: readonly (readonly Point[])[] | undefined, b: readonly (readonly Point[])[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (!samePoints(a[i], b[i])) return false;
+  return true;
+}
+
+function sameImage(a: QuadImage | undefined, b: QuadImage | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.src === b.src && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.repeat === b.repeat;
+}
+
+function sameLayer(a: QuadLayer, b: QuadLayer): boolean {
+  return (
+    a.opacity === b.opacity && samePaint(a.paint, b.paint) && sameImage(a.image, b.image) && samePoints(a.clip, b.clip)
+  );
+}
+
+function sameLayers(a: readonly QuadLayer[], b: readonly QuadLayer[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (!sameLayer(a[i]!, b[i]!)) return false;
+  return true;
+}
+
+function sameStroke(a: QuadStroke | undefined, b: QuadStroke | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.width === b.width &&
+    a.opacity === b.opacity &&
+    a.alignment === b.alignment &&
+    a.cap === b.cap &&
+    a.join === b.join &&
+    a.miterLimit === b.miterLimit &&
+    samePaint(a.color, b.color) &&
+    sameDashes(a.dashes, b.dashes)
+  );
+}
+
+/** The FACE of a caption — what a Pixi text style is built from, and all a restyle can be. */
+function sameFace(a: QuadText, b: QuadText): boolean {
+  return (
+    a.font.family === b.font.family &&
+    a.font.size === b.font.size &&
+    a.font.weight === b.font.weight &&
+    samePaint(a.fill, b.fill)
+  );
+}
+
+function sameText(a: QuadText | undefined, b: QuadText | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (!sameFace(a, b) || a.lines.length !== b.lines.length) return false;
+  for (let i = 0; i < a.lines.length; i += 1) {
+    const p = a.lines[i]!;
+    const q = b.lines[i]!;
+    if (p.text !== q.text || p.x !== q.x || p.y !== q.y || p.ascent !== q.ascent) return false;
+  }
+  return true;
+}
+
+/** A named effect and its knobs. The same pair means the same shader, so it is not rebuilt. */
+function sameRef(a: FilterRef | OverlayRef | undefined, b: FilterRef | OverlayRef | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.name !== b.name) return false;
+  const keys = Object.keys(a.params);
+  if (keys.length !== Object.keys(b.params).length) return false;
+  for (const key of keys) if (a.params[key] !== b.params[key]) return false;
+  return true;
+}
+
+/**
+ * Is this quad DRAWN the same as the one before it — everything but where it stands?
+ *
+ * The matrix is deliberately not here: a pose that moved is the cheap case, one number set on a
+ * container the GPU already knows how to place. `z` and `layer` are not here either — the order
+ * of the frame is the plan's answer, and this only decides whether the pixels have to be made
+ * again.
+ */
+function sameDraw(a: Quad, b: Quad): boolean {
+  return (
+    a.w === b.w &&
+    a.h === b.h &&
+    samePoints(a.points, b.points) &&
+    sameLayers(a.layers, b.layers) &&
+    sameStroke(a.stroke, b.stroke) &&
+    sameText(a.text, b.text) &&
+    sameRef(a.filter, b.filter) &&
+    sameRef(a.overlay, b.overlay)
+  );
+}
+
+function sameMark(a: Mark | undefined, b: Mark): boolean {
+  if (!a) return false;
+  return a.closed === b.closed && a.width === b.width && samePaint(a.paint, b.paint) && samePoints(a.points, b.points);
+}
+
+/** Everything a box holds goes away WITH it — the options are the whole point of the call. */
+const DESTROY_WHOLE = { children: true, context: true, style: true, texture: false, textureSource: false } as const;
+
+/** The Pixi style one caption is drawn in. Built in one place, so a restyle cannot drift from it. */
+function textFace(caption: QuadText, theme: ThemeName) {
+  return {
+    fontFamily: caption.font.family,
+    fontSize: caption.font.size,
+    fontWeight: String(caption.font.weight) as never,
+    fill: paint(theme, caption.fill),
+  };
+}
+
 export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions): Painter {
   const app = new Application();
   let alive = true;
   let started = false;
   let pending: { plan: readonly Quad[]; marks: readonly Mark[]; theme: ThemeName } | null = null;
   let lateRetain = false;
+  let retaining = false;
   let lateSize: { width: number; height: number } | null = null;
-  // The animated filters of the CURRENT frame, and one clock that drives them. Rebuilt every
-  // `apply`, because a filter belongs to a quad and the plan is the quads — a censor that lifts
-  // stops being ticked the moment the plan without it is drawn.
+  // The animated filters and overlays of the CURRENT frame, and one clock that drives them. A
+  // filter belongs to a quad: it is clocked while that quad is in the plan asking for it by the
+  // same name and numbers, and a censor that lifts stops being ticked with the frame that drops
+  // it. The list is rebuilt only when that set actually moves.
   let time = 0;
   let activeTicks: Array<(seconds: number) => void> = [];
+  let ticksMoved = true;
+
+  // THE STANDING SCENE, BY QUAD ID. Everything in here survives the frame that built it and is
+  // let go only by a plan that no longer names the quad, or by `destroy`.
+  const quads = new Map<string, LiveQuad>();
+  // The tooling layer's own objects, by POSITION: several marks come off one node, so an id is
+  // not a key here, and the list is short and rebuilt wholesale by the inspector anyway.
+  const markPool: Graphics[] = [];
+  let markDrawn: readonly Mark[] = [];
+  let markTheme: ThemeName | undefined;
 
   // PICTURES ARRIVE LATE, AND THE FRAME DOES NOT WAIT FOR THEM.
   //
@@ -532,6 +742,17 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
       // a page still laying itself out is one pixel, presented as an empty scene.
       if (lateSize) app.renderer.resize(lateSize.width, lateSize.height);
       app.renderer.background.clearBeforeRender = !lateRetain;
+      // NOTHING PAINTS ON ITS OWN, and that is the second half of the frame.
+      //
+      // A Pixi application renders from its own ticker, which is a different animation frame
+      // from the one that built the stage — so the glass showed the plan of the frame BEFORE
+      // it, always, and every drag in the kit was one frame late for that reason alone. The
+      // automatic render comes off the ticker and moves to the end of `apply`, where the stage
+      // has just been built and the pixels can go out in the same frame.
+      //
+      // What is left on the ticker is the CLOCK: an animated filter or a censor's dust moves
+      // pixels with no new plan behind it, so when it ticks it also asks for the glass.
+      app.ticker.remove(app.render, app);
       // ONE CLOCK for every animated filter in the frame. It advances a seconds counter and hands
       // it to each live filter's own `tick`; a frame with no filters ticks nothing. The renderer
       // stays dumb — it does not know what a censor is, only that a filter asked to be clocked.
@@ -539,50 +760,109 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
         if (!activeTicks.length) return;
         time += ticker.deltaMS / 1000;
         for (const tick of activeTicks) tick(time);
+        // ...but NOT while the glass is a trail. A retained frame is painted over what is
+        // already there, and a second pass would lay the flying quads down twice and double
+        // their ink. Such a frame is redrawn every frame anyway, and that draw carries the
+        // clock's new pixels with it.
+        if (!retaining) app.render();
       });
       if (pending) apply(pending.plan, pending.marks, pending.theme);
     });
 
-  function apply(plan: readonly Quad[], marks: readonly Mark[], theme: ThemeName): void {
-    app.stage.removeChildren().forEach((child) => child.destroy());
-    // The animated filters of the LAST frame are gone with its quads; this frame builds its own.
-    activeTicks = [];
-    for (const quad of plan) {
-      // ONE OBJECT PER LAYER, added in the plan's order.
-      //
-      // Not one Graphics with every fill poured into it: a picture that does not cover the whole
-      // area has to be clipped to the contour, and a clip belongs to the thing it clips. Order
-      // is the plan's answer and this only obeys it.
-      const box = new Container();
-      // THE MATRIX, when the plan left one. A baked plan hands down the identity and this is a
-      // no-op; a live one hands down the node's pose and the GPU applies it — which is the
-      // whole point of the hybrid, and the reason a turning card uploads no new geometry.
-      const t = quad.transform;
-      box.setFromMatrix(new Matrix(t.a, t.b, t.c, t.d, t.e, t.f));
-      for (const layer of quad.layers) {
-        if (layer.paint) {
-          const g = new Graphics();
-          trace(g, quad.points, true);
-          g.fill({ color: paint(theme, layer.paint), alpha: layer.opacity });
-          // A partial layer arrives with its clip ALREADY as points — the plan did the geometry,
-          // this only masks with it, the same obedience as the contour itself.
-          if (layer.clip) {
-            const mask = new Graphics();
+  /**
+   * Every picture this quad names, still the one that was DRAWN?
+   *
+   * A plan is computed from what the asset DECLARED, so a layer reads exactly the same on the
+   * frame before its picture downloaded and on the frame after — the data did not move, the
+   * texture did. Without this the redraw that a landing texture triggers would find nothing
+   * changed and skip the very layer it was fired for.
+   */
+  function picturesLanded(live: LiveQuad, quad: Quad): boolean {
+    for (let i = 0; i < quad.layers.length; i += 1) {
+      const image = quad.layers[i]?.image;
+      if (!image) continue;
+      if (live.layers[i]?.texture !== textureFor(image.src)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Draw one quad's contents into its standing box, keeping every object the new quad still
+   * wants and letting go of the ones it does not.
+   *
+   * `before` is the quad the box currently holds, or `undefined` for a box being filled for the
+   * first time. Reached only when something actually changed, so the per-part tests below are
+   * paid on changed frames alone — and each of them answers "may this ONE object stand as it
+   * is", which is what keeps a scene where a single card turns from redrawing the whole table.
+   */
+  function drawQuad(live: LiveQuad, before: Quad | undefined, quad: Quad, theme: ThemeName): void {
+    const box = live.box;
+    const repainted = before === undefined || live.theme !== theme;
+    const contourMoved = repainted || !samePoints(before.points, quad.points);
+
+    // Everything the box holds now, so that whatever the new quad does not take is destroyed
+    // rather than quietly dropped on the floor — which is the leak this rewrite came for.
+    const stale = new Set<Container>();
+    // Set below by any layer whose picture is not the one it was drawn with — the face changed
+    // even though not one number in the plan did, and the cloud over it has to know.
+    let pictureLanded = false;
+    for (const old of live.layers) {
+      for (const part of [old.mask, old.fill, old.tile, old.clip, old.image]) if (part) stale.add(part);
+    }
+    if (live.stroke) stale.add(live.stroke);
+    for (const glyphs of live.texts) stale.add(glyphs);
+
+    // Re-ordered from scratch, because a layer that gained a clip puts one more object in front
+    // of itself. Removing is pointer work: nothing here is destroyed, and what is kept is kept.
+    box.removeChildren();
+    const ordered: Container[] = [];
+    const layers: LiveLayer[] = [];
+
+    for (let i = 0; i < quad.layers.length; i += 1) {
+      const layer = quad.layers[i]!;
+      const was = live.layers[i];
+      const older = before?.layers[i];
+      // May this layer's objects stand exactly as they are? Only if the ink, the contour and
+      // the palette are all where they were.
+      const settled = !contourMoved && older !== undefined && sameLayer(older, layer);
+      const now: LiveLayer = {};
+      if (layer.paint) {
+        // A partial layer arrives with its clip ALREADY as points — the plan did the geometry,
+        // this only masks with it, the same obedience as the contour itself.
+        if (layer.clip) {
+          const mask = was?.mask ?? new Graphics();
+          if (!settled || !was?.mask) {
+            mask.clear();
             trace(mask, layer.clip, true);
             mask.fill({ color: paint(theme, "text") });
-            box.addChild(mask);
-            g.mask = mask;
           }
-          box.addChild(g);
+          now.mask = mask;
+          ordered.push(mask);
         }
-        const image = layer.image;
-        if (!image) continue;
-        const texture = textureFor(image.src);
-        // A picture that has not arrived is simply not drawn yet; the redraw comes with it.
-        // A picture that never arrives is skipped for good, exactly as a dangling record is.
-        if (!texture) continue;
+        // ONE OBJECT PER LAYER, added in the plan's order.
+        //
+        // Not one Graphics with every fill poured into it: a picture that does not cover the
+        // whole area has to be clipped to the contour, and a clip belongs to the thing it clips.
+        // Order is the plan's answer and this only obeys it.
+        const g = was?.fill ?? new Graphics();
+        if (!settled || !was?.fill) {
+          g.clear();
+          trace(g, quad.points, true);
+          g.fill({ color: paint(theme, layer.paint), alpha: layer.opacity });
+        }
+        g.mask = now.mask ?? null;
+        now.fill = g;
+        ordered.push(g);
+      }
 
-        const g = new Graphics();
+      const image = layer.image;
+      // A picture that has not arrived is simply not drawn yet; the redraw comes with it.
+      // A picture that never arrives is skipped for good, exactly as a dangling record is.
+      const texture = image ? textureFor(image.src) : undefined;
+      now.texture = texture;
+      if (image && texture) {
+        const sameTexture = was?.texture === texture;
+        if (!sameTexture) pictureLanded = true;
         if (image.repeat) {
           // Tiled: the contour itself is the fill, and the texture wraps. `w`/`h` is ONE tile.
           //
@@ -593,39 +873,60 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
           // picture smeared over the whole desk. In global space the matrix below is read in the
           // fill's own pixels, so a tile is the size the asset declared and the area is free to be
           // any size at all. See `e2e.a-tiled-ground-keeps-its-tile`.
-          texture.source.addressMode = "repeat";
-          trace(g, quad.points, true);
-          g.fill({
-            texture,
-            alpha: layer.opacity,
-            matrix: tileMatrix(texture, image),
-            textureSpace: "global",
-          });
-          box.addChild(g);
-          continue;
+          const g = was?.tile ?? new Graphics();
+          if (!settled || !sameTexture || !was?.tile) {
+            texture.source.addressMode = "repeat";
+            g.clear();
+            trace(g, quad.points, true);
+            g.fill({
+              texture,
+              alpha: layer.opacity,
+              matrix: tileMatrix(texture, image),
+              textureSpace: "global",
+            });
+          }
+          g.mask = null;
+          now.tile = g;
+          ordered.push(g);
+        } else {
+          // Placed once. The rect is where the plan put it — which may be smaller than the area
+          // (`contain` leaves bars) or larger (`cover` overflows), so it is clipped to the
+          // contour rather than stretched to it.
+          //
+          // NO MATRIX HERE. `textureSpace: "local"` already fits the texture to the path's own
+          // bounds, and the path IS the picture's box — the plan sized it. Handing a matrix as
+          // well applies the fit twice, and the picture comes out enormous. (`repeat` above is the
+          // opposite case: the path is the whole contour, so the tile size has to come from a
+          // matrix in world space.)
+          const clip = was?.clip ?? new Graphics();
+          if (!settled || !was?.clip) {
+            clip.clear();
+            trace(clip, quad.points, true);
+            clip.fill({ color: paint(theme, "text") });
+          }
+          const g = was?.image ?? new Graphics();
+          if (!settled || !sameTexture || !was?.image) {
+            g.clear();
+            g.rect(image.x - image.w / 2, image.y - image.h / 2, image.w, image.h);
+            g.fill({ texture, alpha: layer.opacity, textureSpace: "local" });
+          }
+          now.clip = clip;
+          now.image = g;
+          ordered.push(clip);
+          g.mask = clip;
+          ordered.push(g);
         }
-        // Placed once. The rect is where the plan put it — which may be smaller than the area
-        // (`contain` leaves bars) or larger (`cover` overflows), so it is clipped to the
-        // contour rather than stretched to it.
-        //
-        // NO MATRIX HERE. `textureSpace: "local"` already fits the texture to the path's own
-        // bounds, and the path IS the picture's box — the plan sized it. Handing a matrix as
-        // well applies the fit twice, and the picture comes out enormous. (`repeat` above is the
-        // opposite case: the path is the whole contour, so the tile size has to come from a
-        // matrix in world space.)
-        g.rect(image.x - image.w / 2, image.y - image.h / 2, image.w, image.h);
-        g.fill({ texture, alpha: layer.opacity, textureSpace: "local" });
-        const clip = new Graphics();
-        trace(clip, quad.points, true);
-        clip.fill({ color: paint(theme, "text") });
-        box.addChild(clip);
-        g.mask = clip;
-        box.addChild(g);
       }
+      layers.push(now);
+    }
+    live.layers = layers;
 
-      const stroke = quad.stroke;
-      if (stroke) {
-        const g = new Graphics();
+    const stroke = quad.stroke;
+    if (stroke) {
+      const g = live.stroke ?? new Graphics();
+      const settled = !contourMoved && live.stroke !== undefined && sameStroke(before?.stroke, stroke);
+      if (!settled) {
+        g.clear();
         const style = {
           width: stroke.width,
           color: paint(theme, stroke.color),
@@ -652,79 +953,203 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
           trace(g, quad.points, true);
         }
         g.stroke(style);
-        box.addChild(g);
       }
+      live.stroke = g;
+      ordered.push(g);
+    } else {
+      live.stroke = undefined;
+    }
 
-      // THE CAPTION, when the node had one. Every decision was already taken upstairs: which lines
-      // there are, where each pen starts, and where the baseline sits — `textLayout` did the
-      // wrapping against a ruler a test could choose. This only draws strings at points.
-      //
-      // A renderer draws a string from the TOP of its box, so the baseline is reached by
-      // subtracting the line's own ascent — which rides on the line, measured by the same ruler
-      // that did the wrapping. Guessing it here instead would put the painter and the layout on
-      // two different answers, and the drift would show on the first face with tall capitals.
-      if (quad.text) {
-        for (const line of quad.text.lines) {
-          const glyphs = new Text({
-            text: line.text,
-            style: {
-              fontFamily: quad.text.font.family,
-              fontSize: quad.text.font.size,
-              fontWeight: String(quad.text.font.weight) as never,
-              fill: paint(theme, quad.text.fill),
-            },
-          });
-          glyphs.x = line.x;
-          glyphs.y = line.y - line.ascent;
-          box.addChild(glyphs);
+    // THE CAPTION, when the node had one. Every decision was already taken upstairs: which lines
+    // there are, where each pen starts, and where the baseline sits — `textLayout` did the
+    // wrapping against a ruler a test could choose. This only draws strings at points.
+    //
+    // A renderer draws a string from the TOP of its box, so the baseline is reached by
+    // subtracting the line's own ascent — which rides on the line, measured by the same ruler
+    // that did the wrapping. Guessing it here instead would put the painter and the layout on
+    // two different answers, and the drift would show on the first face with tall capitals.
+    //
+    // THE EXPENSIVE OBJECT IN THE FILE, and the reason a moving caption used to cost a frame: a
+    // `new Text` rasterises a glyph atlas. So the object stands, and a frame that only moved the
+    // card sets two numbers on it; the atlas is remade only when the STRING or the FACE changes.
+    const texts: Text[] = [];
+    const caption = quad.text;
+    if (caption) {
+      const faceHeld = !repainted && before?.text !== undefined && sameFace(before.text, caption);
+      for (let i = 0; i < caption.lines.length; i += 1) {
+        const line = caption.lines[i]!;
+        const had = live.texts[i];
+        const glyphs = had ?? new Text({ text: line.text, style: textFace(caption, theme) });
+        if (had) {
+          if (had.text !== line.text) had.text = line.text;
+          if (!faceHeld) had.style = textFace(caption, theme);
+        }
+        glyphs.x = line.x;
+        glyphs.y = line.y - line.ascent;
+        texts.push(glyphs);
+        ordered.push(glyphs);
+      }
+    }
+    live.texts = texts;
+
+    for (const child of ordered) {
+      stale.delete(child);
+      box.addChild(child);
+    }
+    for (const gone of stale) gone.destroy(DESTROY_WHOLE);
+
+    // THE OVERLAY, when the coat named one — BEFORE the filter, and while the box is still only
+    // the face. Both matter: the overlay reads the face off the box, and the whole point of the
+    // censor is that its motes carry the colours of what they are hiding.
+    //
+    // A quad with no extent is skipped: a node measured before layout reports zero, and a grid
+    // step divided into zero is not a sample, it is a division.
+    //
+    // A cloud belongs to the face it was ground from, so it is rebuilt when that face moves and
+    // kept when only the pose did — the same law the sample cache is keyed on.
+    //
+    // A PICTURE THAT LANDED COUNTS AS THE FACE MOVING, and it is the case the plan cannot see:
+    // a layer naming a picture reads exactly the same before the download and after it, so
+    // nothing in the data changes when the ace finally arrives. The cloud sampled off the blank
+    // face has no lit cells at all, and a censor that is never re-ground stays an empty cloud
+    // over a card it was supposed to be made of. `presets-coats--censor` is that scene.
+    const wantsCloud = quad.overlay !== undefined && quad.w > 0 && quad.h > 0;
+    const faceMoved =
+      repainted ||
+      contourMoved ||
+      pictureLanded ||
+      before === undefined ||
+      before.w !== quad.w ||
+      before.h !== quad.h ||
+      !sameLayers(before.layers, quad.layers);
+    if (!wantsCloud || faceMoved || !live.overlay || !sameRef(before?.overlay, quad.overlay)) {
+      if (live.overlay) {
+        live.overlay.view.destroy({ children: true });
+        live.overlay = undefined;
+        ticksMoved = true;
+      }
+      if (wantsCloud) {
+        // Read while nothing of the coat is on the box yet: a filter left hanging here would be
+        // sampled along with the face, and the motes would carry the censor's own blur.
+        box.filters = [];
+        const built = buildOverlay(quad.overlay!, overlaySource(quad, box, theme));
+        if (built) {
+          live.overlay = built;
+          ticksMoved = true;
+          // Drawn ONCE at the clock's current second before it is queued, or the first frame of
+          // a censored node is a hole where the face used to be.
+          if (built.tick) built.tick(time);
         }
       }
+    }
+    if (live.overlay) box.addChild(live.overlay.view);
 
-      // THE OVERLAY, when the coat named one — BEFORE the filter, and before the box goes on the
-      // stage. Both matter: the overlay reads the face off the box, so it has to read it while the
-      // box is still only the face, and the whole point of the censor is that its motes carry the
-      // colours of what they are hiding.
-      //
-      // A quad with no extent is skipped: a node measured before layout reports zero, and a grid
-      // step divided into zero is not a sample, it is a division.
-      if (quad.overlay && quad.w > 0 && quad.h > 0) {
-        const live = buildOverlay(quad.overlay, overlaySource(quad, box, theme));
-        if (live) {
-          box.addChild(live.view);
-          if (live.tick) {
-            // Drawn ONCE at the clock's current second before it is queued, or the first frame of
-            // a censored node is a hole where the face used to be.
-            live.tick(time);
-            activeTicks.push(live.tick);
-          }
-        }
+    // THE FILTER, when the coat named one. Built here and hung on the box the coat covers; a name
+    // nobody registered, or a shader that would not compile, is simply not hung — the coat's wash
+    // still masks the surface, so the scene dims rather than dropping.
+    //
+    // It outlives the frame that built it: the same name with the same numbers is the same
+    // shader, and rebuilding it every frame threw away a compiled program and, with it, the
+    // phase of every animation riding on the shared clock.
+    if (!quad.filter) {
+      if (live.filter) {
+        live.filter.filter.destroy();
+        live.filter = undefined;
+        ticksMoved = true;
       }
+    } else if (!live.filter || !sameRef(before?.filter, quad.filter)) {
+      if (live.filter) live.filter.filter.destroy();
+      live.filter = buildFilter(quad.filter);
+      ticksMoved = true;
+    }
+    box.filters = live.filter ? [live.filter.filter] : [];
+  }
 
-      // THE FILTER, when the coat named one. Built here and hung on the box the coat covers; a name
-      // nobody registered, or a shader that would not compile, is simply not hung — the coat's wash
-      // still masks the surface, so the scene dims rather than dropping. A live one adds its clock
-      // to the frame's ticks.
-      if (quad.filter) {
-        const live = buildFilter(quad.filter);
-        if (live) {
-          box.filters = [live.filter];
-          if (live.tick) activeTicks.push(live.tick);
-        }
+  /** A quad the plan no longer names: its objects, its cloud, its shader — all of it, at once. */
+  function dropQuad(live: LiveQuad): void {
+    if (live.filter) {
+      live.filter.filter.destroy();
+      live.filter = undefined;
+    }
+    live.box.filters = [];
+    live.box.destroy(DESTROY_WHOLE);
+    ticksMoved = true;
+  }
+
+  function apply(plan: readonly Quad[], marks: readonly Mark[], theme: ThemeName): void {
+    const seen = new Set<string>();
+    for (let i = 0; i < plan.length; i += 1) {
+      const quad = plan[i]!;
+      // Ids are unique in a tree; the fallback is insurance rather than a case that happens. Two
+      // quads sharing one key would take each other's objects away on every single frame.
+      const key = seen.has(quad.id) ? `${quad.id} ${i}` : (quad.id as string);
+      seen.add(key);
+      let live = quads.get(key);
+      if (!live) {
+        live = { box: new Container(), drawn: quad, theme, matrix: UNSET_POSE, layers: [], texts: [] };
+        quads.set(key, live);
+        drawQuad(live, undefined, quad, theme);
+        ticksMoved = true;
+      } else if (live.theme !== theme || !sameDraw(live.drawn, quad) || !picturesLanded(live, quad)) {
+        drawQuad(live, live.drawn, quad, theme);
       }
-      app.stage.addChild(box);
+      live.drawn = quad;
+      live.theme = theme;
+      // THE MATRIX, when the plan left one. A baked plan hands down the identity and this is a
+      // no-op; a live one hands down the node's pose and the GPU applies it — which is the
+      // whole point of the hybrid, and the reason a turning card uploads no new geometry.
+      const t = quad.transform;
+      if (!sameMatrix(live.matrix, t)) {
+        live.box.setFromMatrix(new Matrix(t.a, t.b, t.c, t.d, t.e, t.f));
+        live.matrix = t;
+      }
+      // ORDER IS THE PLAN'S ANSWER and this only obeys it — and a frame whose order did not move
+      // does not touch the stage at all.
+      if (app.stage.children[i] !== live.box) app.stage.addChildAt(live.box, i);
+    }
+    for (const [key, live] of quads) {
+      if (seen.has(key)) continue;
+      dropQuad(live);
+      quads.delete(key);
     }
 
     // Always last, so tooling is never hidden by the thing it is describing. Nothing here
     // branches on a shape: a mark arrives as points, and a circle is already a polygon.
-    for (const mark of marks) {
-      const g = new Graphics();
-      trace(g, mark.points, mark.closed);
-      // What to stroke with comes from the MARK. Hardcoded here, every debug layer would have
-      // been drawn in the box outline's ink — a coordinate grid in the same colour as the thing
-      // it exists to measure.
-      g.stroke({ width: mark.width, color: paint(theme, mark.paint), alignment: 0.5 });
-      app.stage.addChild(g);
+    const repainted = markTheme !== theme;
+    for (let i = 0; i < marks.length; i += 1) {
+      const mark = marks[i]!;
+      const had = markPool[i];
+      const g = had ?? new Graphics();
+      if (!had || repainted || !sameMark(markDrawn[i], mark)) {
+        g.clear();
+        trace(g, mark.points, mark.closed);
+        // What to stroke with comes from the MARK. Hardcoded here, every debug layer would have
+        // been drawn in the box outline's ink — a coordinate grid in the same colour as the thing
+        // it exists to measure.
+        g.stroke({ width: mark.width, color: paint(theme, mark.paint), alignment: 0.5 });
+      }
+      markPool[i] = g;
+      const at = plan.length + i;
+      if (app.stage.children[at] !== g) app.stage.addChildAt(g, at);
     }
+    for (let i = marks.length; i < markPool.length; i += 1) markPool[i]!.destroy(DESTROY_WHOLE);
+    markPool.length = marks.length;
+    markDrawn = marks;
+    markTheme = theme;
+
+    if (ticksMoved) {
+      ticksMoved = false;
+      activeTicks = [];
+      for (const live of quads.values()) {
+        if (live.overlay?.tick) activeTicks.push(live.overlay.tick);
+        if (live.filter?.tick) activeTicks.push(live.filter.tick);
+      }
+    }
+
+    // ON THE GLASS IN THIS FRAME, not the next one. The stage is finished the instant this
+    // returns, and the render is taken off the ticker precisely so that the picture leaves with
+    // the plan that made it — see the ticker above.
+    app.render();
   }
 
   return {
@@ -734,11 +1159,12 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
       // Remembered even once started: a texture that lands later has to be able to redraw the
       // frame it belongs to, and the last plan is what that frame was.
       pending = { plan, marks, theme };
-      // RETAIN: the glass keeps the last picture and this frame is painted over it. The stage is
-      // rebuilt from the (flying-only) plan as always; what changes is that the renderer stops
-      // clearing between frames — the drawing buffer is preserved anyway (`preserveDrawingBuffer`),
-      // so what was there stays. Off again, the next frame clears and repaints in full.
+      // RETAIN: the glass keeps the last picture and this frame is painted over it. The stage
+      // holds the (flying-only) plan as always; what changes is that the renderer stops clearing
+      // between frames — the drawing buffer is preserved anyway (`preserveDrawingBuffer`), so
+      // what was there stays. Off again, the next frame clears and repaints in full.
       const retain = options?.retain === true;
+      retaining = retain;
       if (started) app.renderer.background.clearBeforeRender = !retain;
       else lateRetain = retain;
       if (started) apply(plan, marks, theme);
@@ -750,6 +1176,13 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
     },
     destroy() {
       alive = false;
+      // The shaders are the one thing the application's own teardown does not reach: a filter
+      // hangs on a box as an effect, not as a child, so it outlives the stage unless it is
+      // named here. The boxes themselves go with `app.destroy(true)`.
+      for (const live of quads.values()) live.filter?.filter.destroy();
+      quads.clear();
+      markPool.length = 0;
+      activeTicks = [];
       if (started) app.destroy(true);
     },
   };
