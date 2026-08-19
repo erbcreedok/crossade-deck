@@ -1,0 +1,47 @@
+game-kit/.storybook/devtools/drag.ts
+  s_170937f0c01a52::t_50274dba29965e 113-140,172-187,194-195,197-212
+  s_170937f0c01a52::t_7cfb8440c6ae7c 18-20,33,66-73,76-77,91-99,107
+game-kit/src/index.ts
+  s_170937f0c01a52::t_9ffe96a4a10cc9 140-149
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_f4e0cbc116f4e8 10,57
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_e2e8f55dad9e41 256-258
+game-kit/.storybook/locales/pages/rotatable/ru.json
+  s_170937f0c01a52::t_e2e8f55dad9e41 1-39
+game-kit/.storybook/preview.ts
+  s_170937f0c01a52::t_e2e8f55dad9e41 151
+game-kit/.storybook/stories/Rotatable.stories.ts
+  s_170937f0c01a52::t_7d33e701e20f84 62-63
+  s_170937f0c01a52::t_a01bb5904201c0 1-61,64-66,70-115
+  s_170937f0c01a52::t_347225efe07195 67-69
+game-kit/.storybook/locales/pages/rotatable/en.json
+  s_170937f0c01a52::t_e2e8f55dad9e41 1-39
+game-kit/docs/test-plan/29-interaction-atoms.md
+  s_170937f0c01a52::t_f4e0cbc116f4e8 1,3,5-6,14-16
+game-kit/src/core/atoms/rotatable.ts
+  s_170937f0c01a52::t_f2888f0e9a80d3 1-73
+game-kit/src/core/atoms/interaction-atoms.test.ts
+  s_170937f0c01a52::t_30a03d1a348b95 7-8,26-54
+  s_170937f0c01a52::t_8318eb44f43f5a 55
+game-kit/.storybook/locales/pages.ts
+  s_170937f0c01a52::t_e2e8f55dad9e41 52,145,191
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_e2e8f55dad9e41 252-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "49a3e0b4e796016ce5e3d597ea5cfca2ff3b965f",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
