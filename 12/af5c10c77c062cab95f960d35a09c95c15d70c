@@ -1,0 +1,33 @@
+game-kit/src/presets/widgets.ts
+  s_170937f0c01a52::t_94bd311a5b2602 20,149-205
+  s_170937f0c01a52::t_d7ec14dda6d586 206
+game-kit/src/presets/widgets.test.ts
+  s_170937f0c01a52::t_fdb79e80793c34 17-20,90-126
+  s_170937f0c01a52::t_9b74e3be97a17d 127
+apps/klondike/src/solitaire/scene.ts
+  s_170937f0c01a52::t_b20c6dfaefdb79 43,261-279
+game-kit/docs/test-plan/50-controls.md
+  s_170937f0c01a52::t_98dea24ae65841 3,43-45
+game-kit/src/index.ts
+  s_170937f0c01a52::t_4402383ddfc9fc 333-334,342,345,347,349
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_98dea24ae65841 10,78
+apps/klondike/src/solitaire/board.ts
+  s_170937f0c01a52::t_df4a0985bafd4e 20-21,82,90-93,97,105-106,110,118-120,124,132-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "12af5c10c77c062cab95f960d35a09c95c15d70c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
