@@ -1,0 +1,48 @@
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_43c6e67298c28e 10,39
+game-kit/.storybook/stories/Motion.stories.ts
+  s_170937f0c01a52::t_95926e71e877c5 739-741,760-761,836-843,845-846,848-860
+game-kit/.storybook/locales/pages/motion/en.json
+  s_170937f0c01a52::t_4ea2367fa41f12 52
+game-kit/.storybook/locales/pages/motion/ru.json
+  s_170937f0c01a52::t_4ea2367fa41f12 52
+game-kit/.storybook/locales/pages/presetsShuffles/en.json
+  s_170937f0c01a52::t_4ea2367fa41f12 5
+game-kit/.storybook/locales/pages/cards/ru.json
+  s_170937f0c01a52::t_4ea2367fa41f12 20
+game-kit/.storybook/locales/pages/presetsShuffles/ru.json
+  s_170937f0c01a52::t_4ea2367fa41f12 5
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_170937f0c01a52::t_43c6e67298c28e 3,30
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_0395e58f7610a1 260
+  s_170937f0c01a52::t_293382a88f0553 123-125,167-178,371-372,601-604,606-610
+  s_170937f0c01a52::t_076df330c6bfe1 572-573
+  s_170937f0c01a52::t_6596e97cc7d8ef 54,605
+  s_170937f0c01a52::t_5c19e9c8bf149a 611-612
+game-kit/.storybook/stories/PresetsShuffles.stories.ts
+  s_170937f0c01a52::t_8a7c478dad29bf 104-105,107-108,113-116,145-153,155,158,163-164,166-177
+game-kit/.storybook/stories/PresetsCards.stories.ts
+  s_170937f0c01a52::t_ad438516ac81a6 70-71,73-74,81-83,97-103,107-109,111-122
+game-kit/.storybook/locales/pages/cards/en.json
+  s_170937f0c01a52::t_4ea2367fa41f12 20
+game-kit/.storybook/devtools/scene.test.ts
+  s_170937f0c01a52::t_fd19f23be85066 316-330,332-334,336-339
+  s_170937f0c01a52::t_0395e58f7610a1 331,335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ba785c815a863febbfc17f20e054c98b76ec9dc1",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
