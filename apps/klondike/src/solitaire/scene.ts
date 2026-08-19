@@ -268,6 +268,25 @@ export function startSolitaire(container: HTMLElement): () => void {
     redraw();
   };
 
+  /**
+   * THE BAR ANSWERS THE FINGER — and it took the kit's own wiring to do it, which was imported into
+   * this file and never called: every control on this table lit nothing, sank nowhere and fired on
+   * the way DOWN. A press is down and up on the SAME control, and a finger taken back is no press.
+   *
+   * Nothing is registered per control, so the bar may be rebuilt as often as it likes: who is under
+   * the pointer is asked at the moment there is one.
+   */
+  const stopButtons = wireButtons({
+    host,
+    onPress: (meaning) => {
+      const does = meaning["does"];
+      if (does === "undo") undo();
+      else if (does === "restart") restart();
+      else if (does === "hint") hint();
+      else if (does === "space") respace();
+    },
+  });
+
   dressDesk();
   redraw();
 
@@ -396,15 +415,10 @@ export function startSolitaire(container: HTMLElement): () => void {
     const g = glassOf(view, e);
     // THE BAR IS ASKED FIRST. A control sits over the desk, and a press that reached a pile through
     // it would move a card the player never aimed at.
-    const control = pick(host, board.desk, g, (n) => caps(n).has("Pressable"));
-    if (control) {
-      const does = fieldsOf<ValuedFields>(control, "Valued")?.values["does"];
-      if (does === "undo") undo();
-      else if (does === "restart") restart();
-      else if (does === "hint") hint();
-      else if (does === "space") respace();
-      return;
-    }
+    // THE BAR IS ASKED FIRST, and then LET GO OF: a control's gesture is `wireButtons`' business
+    // from here on — it lights it, sinks it and fires the press on the way UP. All that is left for
+    // this handler is to keep its hands off, or a press on a control would also move a card under it.
+    if (pick(host, board.desk, g, (n) => caps(n).has("Pressable"))) return;
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
     if (!hit) return;
     // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
@@ -755,6 +769,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     view.removeEventListener("pointermove", onMove);
     view.removeEventListener("pointerup", onUp);
     view.removeEventListener("pointercancel", onUp);
+    stopButtons();
     if (dealTimer) clearTimeout(dealTimer);
     motion.stop();
     painter.destroy();
