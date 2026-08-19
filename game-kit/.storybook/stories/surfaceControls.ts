@@ -44,6 +44,8 @@ import {
   type SurfaceRecord,
 } from "../../src/index.js";
 import { installStockAssets } from "./stockAssets.js";
+import { installClassicSkin } from "@game-presets/cards";
+import { installDiceSkin } from "@game-presets/dice";
 import { PRESETS, SHAPE_ARGS, shapeOf, type ShapeArgs } from "./shape.js";
 import { currentSettings } from "../devtools/catalogSettings.js";
 import { type CatalogText } from "../locales/catalog.js";
@@ -60,6 +62,13 @@ import { type CatalogText } from "../locales/catalog.js";
 installStockSurfaces();
 installStockHeads();
 installStockAssets();
+// THE REAL FACES, TOO. Every `surface` picker in the catalog is built from the registry, and the
+// registry held nothing but abstract plates — so every scene about surfaces showed a coloured
+// rectangle and a reader could not ask for an ace of spades even by typing its name. The card and
+// dice skins are ordinary consumers registering ordinary records; installing them here is what a
+// game does on its first line, and it puts fifty-odd real faces into every picker at once.
+installClassicSkin();
+installDiceSkin();
 
 
 /** Every token the theme declares — the list follows the palette, it is not a copy of it. */

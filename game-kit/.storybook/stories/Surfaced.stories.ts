@@ -12,6 +12,7 @@ import {
   rowLayout,
   Surfaced,
 } from "../../src/index.js";
+import { surfaceNames } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
 import {
   ALIGNS,
@@ -75,6 +76,8 @@ export default meta;
 
 interface PlateArgs extends ShapeArgs, RecordArgs {
   id: string;
+  /** A registered surface by NAME — empty falls back to the record the panel below builds. */
+  surface: string;
 }
 
 // A COMMENT IN A RENDER BODY IS PART OF THE SNIPPET — it is printed with the code and copied
@@ -88,13 +91,18 @@ export const Plate: StoryObj<PlateArgs> = {
   // here, and so is every shape the box can be: a rect, a circle, a polygon of as many corners as
   // you like, or one pasted in from somewhere else.
   render: (a) => {
+    // A NAMED surface wins over the record built from the panel: the point of the picker is that a
+    // node wears a record it did not author, and until this scene offered a real one it could only
+    // ever show a coloured rectangle it had just drawn for itself.
     registerSurface("story.plate", recordOf(a));
-    return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: "story.plate" }))).el;
+    const worn = a.surface.trim() || "story.plate";
+    return scene(node(a.id.trim() || "card", Bounded({ bounds: shapeOf(a) }), Surfaced({ surface: worn }))).el;
   },
-  args: { id: "card", ...shapeArgs(), ...RECORD_ARGS },
+  args: { id: "card", surface: "cards/face/spade-A", ...shapeArgs({ w: 1, h: 1.4 }), ...RECORD_ARGS },
   argTypes: {
     // A node is NAMED, and the name is what the tree below follows.
     id: documented("arg.id", { control: "text" }, "node"),
+    surface: documented("arg.plateSurface", { control: "select", options: ["", ...surfaceNames()] }, "node"),
     ...shapeArgTypes(),
     ...RECORD_ARG_TYPES,
   },

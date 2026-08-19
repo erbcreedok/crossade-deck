@@ -19,7 +19,12 @@ import {
   Surfaced,
   Transformable,
 } from "../../src/index.js";
+import { surfaceRecord } from "../../src/index.js";
+import { BACK_SURFACE, crossade, faceSurface, installClassicSkin, type CardSpec } from "@game-presets/cards";
 import { scene } from "../devtools/scene.js";
+
+/** The ace of spades — the one card everybody recognises upside down and at a glance. */
+const ACE = faceSurface(crossade().find((c: CardSpec) => c.id === "spade-A")!);
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // FLIPPABLE draws nothing on its own — it says HOW a node turns, as data, and the engine's flip
@@ -71,8 +76,12 @@ export const Card: StoryObj<CardArgs> = {
   // real turn, det through zero. `turnOver` is the recipe that swaps the surface; `mirror` only
   // reflects. `axis` is the mirror line, a parameter — 90 is a Y-flip, 76 is a 76° one.
   render: (a) => {
-    registerSurface("story.flip.front", { layers: [{ paint: a.front }], radius: 0.08 });
-    registerSurface("story.flip.back", { layers: [{ paint: a.back }], radius: 0.08 });
+    // THE REAL DECK, not two fills. A flip drawn as one coloured rectangle becoming another cannot
+    // be told from a recolour — which is the ONE thing this scene exists to show. The paints below
+    // still dress the pair when a reader picks them; by default it is an ace and a card back.
+    installClassicSkin();
+    registerSurface("story.flip.front", a.front ? { layers: [{ paint: a.front }], radius: 0.08 } : surfaceRecord(ACE)!);
+    registerSurface("story.flip.back", a.back ? { layers: [{ paint: a.back }], radius: 0.08 } : surfaceRecord(BACK_SURFACE)!);
     return scene(
       node(
         a.id.trim() || "aceCard",
@@ -82,7 +91,9 @@ export const Card: StoryObj<CardArgs> = {
       ),
     ).el;
   },
-  args: { id: "aceCard", flip: "turnOver", turns: 1, axis: 90, front: "panelBg", back: "accent" },
+  // Empty paints on purpose: the scene opens on the REAL ace and the REAL back, and a reader who
+  // picks a colour gets the flat pair back.
+  args: { id: "aceCard", flip: "turnOver", turns: 1, axis: 90, front: "", back: "" },
   argTypes: {
     id: documented("arg.id", { control: "text" }, "node"),
     flip: flipControl,
@@ -141,8 +152,9 @@ export const Stack: StoryObj<StackArgs> = {
   // out of the arithmetic alone.
   render: (a) => {
     registerLayout("story.stack.row", rowLayout({ gap: 0.25 }));
-    registerSurface("story.stack.front", { layers: [{ paint: "panelBg" }], radius: 0.08 });
-    registerSurface("story.stack.back", { layers: [{ paint: "accent" }], radius: 0.08 });
+    installClassicSkin();
+    registerSurface("story.stack.front", surfaceRecord(ACE)!);
+    registerSurface("story.stack.back", surfaceRecord(BACK_SURFACE)!);
     const stack = node(
       "deckStack",
       Container({ layout: "story.stack.row" }),
