@@ -1,0 +1,31 @@
+game-kit/.storybook/stories/PresetsShuffles.stories.ts
+  s_170937f0c01a52::t_843537fa3240bf 192
+game-kit/src/render/shuffles.test.ts
+  s_170937f0c01a52::t_760a57df6c3695 75-104
+game-kit/.storybook/locales/pages/presetsShuffles/ru.json
+  s_170937f0c01a52::t_843537fa3240bf 20
+game-kit/.storybook/locales/pages/presetsShuffles/en.json
+  s_170937f0c01a52::t_843537fa3240bf 20
+game-kit/docs/test-plan/47-shuffle-and-roll.md
+  s_170937f0c01a52::t_a84aabb2607348 3,25-26
+game-kit/src/render/shuffles.ts
+  s_170937f0c01a52::t_c10139d19f7535 203-213,215-224,232-248
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_a84aabb2607348 10,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "6986b4bf849530c1d7dff1da18f04b55d50a21fe",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
