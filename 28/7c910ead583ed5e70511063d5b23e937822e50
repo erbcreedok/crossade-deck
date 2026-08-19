@@ -1,0 +1,21 @@
+game-kit/.storybook/stories/PresetsCoats.stories.ts
+  s_170937f0c01a52::t_d40d34b5f6dbaa 6,120-125,128,130-132
+  s_170937f0c01a52::t_b59aa4415dcd76 5,8-11,127
+  s_170937f0c01a52::t_56bb10319b93ec 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "287c910ead583ed5e70511063d5b23e937822e50",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
