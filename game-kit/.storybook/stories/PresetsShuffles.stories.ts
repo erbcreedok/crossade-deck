@@ -101,16 +101,19 @@ const TUNED: Record<string, Tunable> = {
   },
 };
 
-/** What each standing scene last saw: the trigger, and the order its row stands in. */
-const LAST = new WeakMap<HTMLElement, { shuffled?: number; order?: readonly number[] }>();
+/** What each standing scene last saw: the trigger, how many taps it has had, and the order it stands in. */
+const LAST = new WeakMap<HTMLElement, { shuffled?: number; taps: number; order?: readonly number[] }>();
 const LIVE_EL = new Map<string, HTMLElement>();
+/** What a tap on each shelf does RIGHT NOW — the newest render's shuffle, by recipe name. */
+const TAP = new Map<string, () => void>();
 
 const PAINTS = ["accent", "alert", "textMuted", "panelBg", "sunkBg", "panelBorder"] as const;
 
 /**
- * One recipe on a row of `count` tokens. Bump `shuffled` and the row shuffles again — to the order
- * `seed + shuffled` draws — through this recipe. The scene stands between renders and remembers the
- * order it landed in, so a slider move does not silently un-shuffle it.
+ * One recipe on a row of `count` tokens. TAP ANY TOKEN and the row shuffles again; the panel's
+ * `shuffled` does the same for a reader who is already there. The order is whatever
+ * `seed + shuffled + taps` draws, so every shuffle lands somewhere new. The scene stands between
+ * renders and remembers the order it landed in, so a slider move does not silently un-shuffle it.
  */
 function shelf(recipe: string): StoryObj<RecipeArgs> {
   const tuned = TUNED[recipe];
@@ -139,24 +142,39 @@ function shelf(recipe: string): StoryObj<RecipeArgs> {
       const el = LIVE_EL.get(recipe);
       const seen = el ? LAST.get(el) : undefined;
       if (seen?.order && seen.order.length === a.count) reorder(row, seen.order);
-      const s: Scene = scene(desk, { animate: true, motion: { shuffleMs: a.shuffleMs } });
+      // The tap is wired ONCE, with the scene, and calls whatever this render left behind — the
+      // shell keeps the handler, so the newest args are the ones a tap shuffles by.
+      const s: Scene = scene(desk, {
+        animate: true,
+        motion: { shuffleMs: a.shuffleMs },
+        tap: (hit) => {
+          if (hit) TAP.get(recipe)?.();
+        },
+      });
       LIVE_EL.set(recipe, s.el);
-      const before = LAST.get(s.el) ?? {};
+      const before = LAST.get(s.el) ?? { taps: 0 };
       const fired = before.shuffled !== undefined && before.shuffled !== a.shuffled;
       const standing = before.order && before.order.length === a.count ? before.order : Array.from({ length: a.count }, (_, i) => i);
-      LAST.set(s.el, { shuffled: a.shuffled, order: standing });
+      LAST.set(s.el, { shuffled: a.shuffled, taps: before.taps, order: standing });
       // A tuned recipe is rebuilt from the panel every render and registered under a name of this
       // story's own, so the NEXT shuffle plays the numbers now on the panel.
       const name = tuned ? `story.shuffle.${recipe}` : recipe;
       if (tuned) registerShuffle(name, tuned.make(a));
-      if (fired) {
+      /** Shuffle the row again, from wherever it stands, to what the next draw gives. */
+      const fire = (): void => {
         const live = byId(s.host.root, "row");
-        if (live) {
-          const order = permutation(a.count, seededRng(a.seed + a.shuffled));
-          LAST.set(s.el, { shuffled: a.shuffled, order: order.map((i) => standing[i]!) });
-          s.motions?.shuffle("row", () => reorder(live, order), { recipe: name });
-        }
-      }
+        const was = LAST.get(s.el);
+        if (!live || !was?.order) return;
+        const order = permutation(a.count, seededRng(a.seed + a.shuffled + was.taps));
+        LAST.set(s.el, { ...was, order: order.map((i) => was.order![i]!) });
+        s.motions?.shuffle("row", () => reorder(live, order), { recipe: name });
+      };
+      TAP.set(recipe, () => {
+        const was = LAST.get(s.el);
+        if (was) LAST.set(s.el, { ...was, taps: was.taps + 1 });
+        fire();
+      });
+      if (fired) fire();
       return s.el;
     },
   };

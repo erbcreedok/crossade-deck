@@ -736,6 +736,9 @@ export const Slide: StoryObj<SlideArgs> = {
 
 // ---- shuffle ----------------------------------------------------------------------------------
 
+/** What a tap on the shuffle scene does RIGHT NOW — the newest render's shuffle. */
+let SHUFFLE_TAP: (() => void) | undefined;
+
 interface ShuffleArgs {
   shuffled: number;
   recipe: string;
@@ -754,7 +757,8 @@ interface ShuffleArgs {
 }
 
 /**
- * A ROW REORDERED ON THE CLOCK. `shuffled` is the trigger (bump it and the row shuffles again);
+ * A ROW REORDERED ON THE CLOCK. TAP ANY CARD to shuffle again — `shuffled` on the panel does the
+ * same;
  * `seed` decides the ORDER — the truth, `reorder(hand, permutation(n, seededRng(seed)))`, the same
  * on every client that shares the seed — and `recipe` decides the LOOK, and never sees the seed.
  */
@@ -829,18 +833,31 @@ export const Shuffle: StoryObj<ShuffleArgs> = {
       add(hand, node(`c${i}`, Bounded({ bounds: rect(cardW, cardH) }), Surfaced({ surface: `${cardSurface}#${i}` })));
     });
     if (standingOrder && standingOrder.length === cards.length) reorder(hand, standingOrder);
-    const s = scene(desk, { animate: true, motion: { shuffleMs: ms } });
+    // The tap is wired ONCE, with the scene, and calls what the newest render left in `SHUFFLE_TAP`.
+    const s = scene(desk, {
+      animate: true,
+      motion: { shuffleMs: ms },
+      tap: (hit) => {
+        if (hit) SHUFFLE_TAP?.();
+      },
+    });
     LIVE_EL.set("shuffle", s.el);
-    if (moved(s, "shuffled", shuffled)) {
+    /** Shuffle the hand again, from wherever it stands, to what the next draw gives. */
+    const fire = (): void => {
       const live = byId(s.host.root, "hand");
-      if (live) {
-        const order = permutation(live.children.length, seededRng(seed + shuffled));
-        // Remember the order the row will stand in, composed over what it stood in before.
-        const before = (LAST.get(s.el)?.["order"] as readonly number[] | undefined) ?? cards.map((_, i) => i);
-        LAST.set(s.el, { ...LAST.get(s.el), order: order.map((i) => before[i]!) });
-        s.motions?.shuffle("hand", () => reorder(live, order), { recipe });
-      }
-    }
+      if (!live) return;
+      const taps = (LAST.get(s.el)?.["taps"] as number | undefined) ?? 0;
+      const order = permutation(live.children.length, seededRng(seed + shuffled + taps));
+      // Remember the order the row will stand in, composed over what it stood in before.
+      const before = (LAST.get(s.el)?.["order"] as readonly number[] | undefined) ?? cards.map((_, i) => i);
+      LAST.set(s.el, { ...LAST.get(s.el), order: order.map((i) => before[i]!) });
+      s.motions?.shuffle("hand", () => reorder(live, order), { recipe });
+    };
+    SHUFFLE_TAP = () => {
+      LAST.set(s.el, { ...LAST.get(s.el), taps: ((LAST.get(s.el)?.["taps"] as number | undefined) ?? 0) + 1 });
+      fire();
+    };
+    if (moved(s, "shuffled", shuffled)) fire();
     return s.el;
   },
 };

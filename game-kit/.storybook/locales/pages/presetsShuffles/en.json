@@ -2,7 +2,7 @@
   "docs.presetsShuffles.component": [
     "The recipes a reorder can LOOK like — one shelf, in isolation, drop-in. A shuffle is three layers a game keeps apart: the ORDER (a seed through the kit's rng, or the server's word), the TRUTH (`reorder` — the same children in a new order), and the LOOK — a recipe here. A recipe is a pure function of `(index, count, progress, rest pose, group extent) → in-flight pose`, played by the one clock; at progress 1 it returns the rest exactly, so a shuffle ends with no jerk, and at its commit phase its pose does not depend on the seat, so the reorder underneath moves nothing on the glass.",
     "",
-    "Shown on a row of plain tokens, not cards, on purpose: a recipe is entity-agnostic — children by index, cards or tiles or dice. A fan of a hand is the cards preset's business.",
+    "TAP ANY TOKEN and the row shuffles again; `shuffled` on the panel does the same. Shown on a row of plain tokens, not cards, on purpose: a recipe is entity-agnostic — children by index, cards or tiles or dice. A fan of a hand is the cards preset's business.",
     "",
     "```ts",
     "import { installStockShuffles, permutation, reorder, seededRng } from \"game-kit\"",

@@ -51,6 +51,7 @@ import {
   type Point,
   type Quad,
   type ThemeName,
+  type Transform,
   type ViewerSettings,
 } from "../../src/index.js";
 // The renderer comes through its OWN door, and that is what keeps `pixi.js` out of every
@@ -119,6 +120,9 @@ const LIVE = new Map<string, Scene>();
 /** What each live scene's press handler is RIGHT NOW — see `SceneOptions.press`. */
 const PRESSED = new Map<string, ((meaning: Meaning, control: Node) => void) | undefined>();
 
+/** The same for the tap handler — see `SceneOptions.tap`. */
+const TAPPED = new Map<string, ((hit: Node | undefined) => void) | undefined>();
+
 /** How each live scene takes new camera numbers — the same "feed, do not rebuild" rule. */
 const CAMERAS = new Map<string, (next: CameraScene) => void>();
 
@@ -160,6 +164,18 @@ export interface SceneOptions {
    * handle: a re-render feeds the tree in as always. Attached once, for the same reason `press` is.
    */
   readonly flipOnTap?: boolean;
+  /**
+   * A TAP ON THE DESK, with the node it landed on — `undefined` for bare desk.
+   *
+   * The shell's job here is the picking and nothing else: it says WHAT was tapped, through the
+   * camera when there is one, and the story decides what that means. A shuffle shelf shuffles
+   * again, and a reader who came to watch a shuffle can start one by touching the pack instead of
+   * hunting for a counter on the panel.
+   *
+   * Attached ONCE, like `press`: the listener lives as long as the scene, and the handler is looked
+   * up at tap time, so the newest render's answer is the one that runs.
+   */
+  readonly tap?: (hit: Node | undefined) => void;
   /**
    * Drive the scene through the MOTION runtime (`attachMotion`) instead of the still painter, so a
    * tree fed a new pose eases there instead of teleporting. A re-render with a different tree — which
@@ -241,6 +257,7 @@ export function scene(
     // The handler is the STORY's closure and it is new on every render, while the listeners are
     // the scene's and must not be. So the ref is swapped and nothing is re-attached.
     PRESSED.set(id, options.press);
+    TAPPED.set(id, options.tap);
     standing.setRoot(root);
     standing.setSettings(settings);
     // The tuning follows the sliders on the standing clock — a re-render is new numbers for the
@@ -351,6 +368,8 @@ export function scene(
     ? wireButtons({ host, onPress: (m, n) => PRESSED.get(id)?.(m, n), ...(viewOf ? { view: viewOf } : {}) })
     : () => {};
   const stopTaps = options.flipOnTap ? wireFlipTap(host, motions) : () => {};
+  TAPPED.set(id, options.tap);
+  const stopTapping = options.tap ? wireTap(host, (hit) => TAPPED.get(id)?.(hit), viewOf) : () => {};
   const stopPainting = motions
     ? motions.stop
     : attachPainter(host, painter, {
@@ -550,6 +569,8 @@ export function scene(
       stopCamera();
       stopButtons();
       stopTaps();
+      stopTapping();
+      TAPPED.delete(id);
       stopPainting();
       painter.destroy();
       host.unmount();
@@ -575,6 +596,18 @@ const BY_ELEMENT = new WeakMap<HTMLElement, Scene>();
 
 export function sceneOf(el: HTMLElement): Scene | undefined {
   return BY_ELEMENT.get(el);
+}
+
+/**
+ * The plain tap — see `SceneOptions.tap`. It reports what was under the finger and stops there;
+ * every decision after that is the story's.
+ */
+function wireTap(host: Host, onTap: (hit: Node | undefined) => void, view?: () => Transform): () => void {
+  const onDown = (e: PointerEvent): void => {
+    onTap(pick(host, host.root, glassOf(host.view, e), () => true, view?.()));
+  };
+  host.view.addEventListener("pointerdown", onDown);
+  return () => host.view.removeEventListener("pointerdown", onDown);
 }
 
 /**

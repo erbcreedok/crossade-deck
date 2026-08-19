@@ -49,7 +49,7 @@
     "A throw ACROSS THE DESK, seen from above: no gravity — `friction` bleeds the speed and `spinFriction` the spin, the tray's walls reflect by `bounce`, and where it stops it stops. This scene writes nothing into the tree, so it then eases home; a die's throw is exactly this with the landing written and a face shown (`Add-ons/Dice`)."
   ],
   "docs.motion.shuffle": [
-    "A row reordered on the clock — three layers a game keeps apart. `seed` decides the ORDER: `permutation(n, seededRng(seed))`, the same on every client that shares the seed (or the server sends the order outright). `reorder` is the TRUTH: the same children in that order, identity kept. `recipe` is the LOOK — `riffle`, `overhand`, `wash`, `shake` — a choreography over the children by index that never sees the seed. Bump `shuffled` to shuffle again."
+    "A row reordered on the clock — three layers a game keeps apart. `seed` decides the ORDER: `permutation(n, seededRng(seed))`, the same on every client that shares the seed (or the server sends the order outright). `reorder` is the TRUTH: the same children in that order, identity kept. `recipe` is the LOOK — `riffle`, `overhand`, `wash`, `shake` — a choreography over the children by index that never sees the seed. Tap any card to shuffle again, or bump `shuffled` on the panel."
   ],
   "docs.motion.roll": [
     "A tumble in place — the look of a die rolled without being thrown: `turns` whole turns about its centre and a `hop` (a scale peak) over `rollMs`, with the commit (a die's new face) late in the tumble, when it turns slowest. Bump `rolled` to tumble again; what it commits is a game's business, and here it commits nothing."

@@ -313,6 +313,30 @@ describe("a canvas carries its own settings", () => {
     s.dispose();
   });
 
+  it("scene.a-tap-reports-what-it-landed-on — the picking is the shell's, the meaning is the story's", () => {
+    // The seam a shuffle shelf shuffles on: the shell says WHAT was under the finger — through the
+    // camera when there is one — and stops there. Wired once and looked up at tap time, like
+    // `press`, so a re-render swaps the answer without stacking a second listener.
+    const heard: (string | undefined)[] = [];
+    setNextSceneId("story:tap3");
+    const s = scene(flipDesk(), { tap: (hit) => heard.push(hit?.id) });
+    document.body.appendChild(s.el);
+    choose(hudSelect(s.el), "60"); // an etalon, or a jsdom viewport of nothing has nothing to hit
+
+    tap(s, 0, 0); // the dot
+    tap(s, 500, 500); // bare desk
+    expect(heard).toEqual(["dot", undefined]);
+
+    setNextSceneId("story:tap3");
+    const again = scene(flipDesk(), { tap: (hit) => heard.push(`again:${hit?.id}`) });
+    tap(s, 0, 0);
+    expect(heard).toEqual(["dot", undefined, "again:dot"]); // one call, and by the NEW handler
+
+    again.dispose();
+    tap(s, 0, 0);
+    expect(heard).toHaveLength(3); // a torn-down scene hears nothing
+  });
+
   it("scene.tap-is-wired-once — a re-render feeds the standing scene, so one tap is one turn", () => {
     // The scene outlives every re-render, and a listener attached in the story body would stack
     // one set per keystroke: the same tap would turn the card twice and land back where it was.
