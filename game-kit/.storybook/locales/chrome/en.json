@@ -173,6 +173,7 @@
   "arg.coatRecipe": "Which coat, by registry name — `wash` a flat overlay, `ring` a stroke, `censor` a mask, `clear` nothing (but it stops an inherited cast). Empty is no coat. The recipes differ by the KIND of mark, never by value: a darken and a charge are one `wash` told apart by tint and level.",
   "arg.coatLevel": "The creeping magnitude, 0..1 — a charge, a smoulder, a dim's strength, a mask's opacity. A field, not a record per value: `wash` at 0.3 and at 0.9 is one recipe. A broken number clamps to nothing rather than throwing.",
   "arg.coatTint": "The coat's colour, by token — empty falls to the recipe's own. A team's hue would be a parametric `{token:\"spin\", param}` here, one name and a number for infinitely many colours; the picker offers the flat tokens.",
+  "arg.tintToken": "The parametric colour token the tiles paint with — a NAME the painter resolves; the seat is its number.",
   "arg.spotlight": "Clear the cast on one child back to nothing. «All but this one» is a dim on the tray and a `clear` on the lit figure — the inversion is overriding an inherited value, not a scope switch.",
   "arg.flip": "Which turn, by registry name — `mirror` reflects the geometry and swaps nothing, `turnOver` reflects AND shows the back surface. Empty is `mirror`. What the turn DOES lives in the recipe, not the atom.",
   "arg.turns": "How many turns from the authored state. It SUMS along the chain — a stack turned once turns every card once — and the current side is the PARITY: even is face-up, odd is over. Whole steps, because a turn is whole.",
