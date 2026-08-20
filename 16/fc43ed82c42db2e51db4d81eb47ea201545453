@@ -1,0 +1,36 @@
+game-kit/docs/test-plan/55-seat-projection.md
+  s_170937f0c01a52::t_748a3ddaa40459 1-22
+game-kit/src/core/project.test.ts
+  s_170937f0c01a52::t_c3ed80bd115334 1-79
+game-kit/src/core/project.ts
+  s_170937f0c01a52::t_8b85e335906dd0 1-33
+game-kit/.storybook/devtools/inspectorBus.ts
+  s_170937f0c01a52::t_f4747d476d1cf4 31-37,42,45-51
+game-kit/src/core/node.ts
+  s_170937f0c01a52::t_8b85e335906dd0 213-227
+  s_170937f0c01a52::t_c0da54ec5a4a8b 212
+game-kit/src/index.ts
+  s_170937f0c01a52::t_f4747d476d1cf4 30
+  s_170937f0c01a52::t_dcb52f9494fbfc 219-221
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_748a3ddaa40459 10,83
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_e3491d18dc9860 131-139,252
+  s_170937f0c01a52::t_a36193496f5dfd 130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "16fc43ed82c42db2e51db4d81eb47ea201545453",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
