@@ -77,6 +77,7 @@ export { Bakeable, bakeable, type BakeableFields } from "./core/atoms/bakeable.j
 export {
   Container,
   contentExtent,
+  layoutChildren,
   layoutRecord,
   placeChildren,
   registerLayout,
@@ -226,6 +227,9 @@ export { inspect, type InspectNode } from "./core/inspect.js";
 // What ONE SEAT is shown: the truth minus what its eyes are denied. A projection is a COPY, so
 // several screens can watch one board without eating each other's view — see `core/project.ts`.
 export { project } from "./core/project.js";
+// The gap a hand opens while a card is held over it — a preview that is also the promise: the same
+// arithmetic answers "where would it land", so the two cannot disagree. See `core/part.ts`.
+export { partAt, type Parted } from "./core/part.js";
 export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from "./core/viewer.js";
 
 // ---- render: pixels ---------------------------------------------------------------------

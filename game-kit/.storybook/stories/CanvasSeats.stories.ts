@@ -26,6 +26,7 @@ import {
   keep,
   node,
   planMove,
+  partAt,
   Poser,
   Private,
   project,
@@ -38,9 +39,11 @@ import {
   t,
   Transformable,
   walk,
+  wouldAccept,
   type Node,
   type NodeId,
   type Paint,
+  type Parted,
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
@@ -234,7 +237,13 @@ const DOTS = [-0.2, 0, 0.2];
  *
  * Written into the PROJECTION, never the truth: waiting is a thing a viewer is shown.
  */
-function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Hand> = new Map()): Node {
+/** A hand parted under this finger, right now — local, per screen, and gone the moment it lets go. */
+interface Hover {
+  readonly zone: NodeId;
+  readonly parted: Parted;
+}
+
+function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Hand> = new Map(), hover?: Hover): Node {
   // A COPY, because marks come OFF as well as on. A ring composed onto the snapshot itself would
   // outlive the hand that put it there: the next pass simply does not mention that node, and what
   // was never removed stays. Marking a fresh tree each time makes absence mean absence.
@@ -279,6 +288,23 @@ function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Hand> =
         node(`${n.id}~dot${i}`, Bounded({ bounds: circle(0.055) }), Surfaced({ surface: DOT }), Transformable({ at: { x: dx, y: 0 } })),
       ),
     );
+  }
+
+  // THE HAND STEPS APART under the finger, and the gap it opens is where the card falls — the same
+  // arithmetic answers both, so the promise cannot differ from what is kept. Written into the
+  // projection alone: nothing has been dropped, and a preview that moved the tree would be a move.
+  if (hover) {
+    const zone = byId(seen, hover.zone);
+    if (zone) {
+      // A SPACER, not a list of poses. Writing the parted `at` onto each card was tried and does
+      // nothing: the row places its children and has the last word, exactly as it should. Give the
+      // row one more child and it parts BY ITSELF — the arrangement stays the only thing that
+      // decides where anything sits, and the preview is the same machinery as the real placement.
+      const spacer = node("~part", Bounded({ bounds: rect(0.8, 1.12) }), Transformable({}));
+      const before = hover.parted.before ? zone.children.findIndex((c) => c.id === hover.parted.before) : -1;
+      add(zone, spacer);
+      if (before >= 0) zone.children.splice(before, 0, ...zone.children.splice(zone.children.length - 1, 1));
+    }
   }
 
   // THE PHANTOM, and it is a NODE OF ITS OWN rather than the card moved. A card in an arranged zone
@@ -368,8 +394,9 @@ export const Table: StoryObj<SeatsArgs> = {
       // it is redrawn under the newest snapshot and forgotten the moment a hand lets go.
       const others = new Map<NodeId, Hand>();
       let latest: { seen: Node; wait: Waiting } | undefined;
+      let hover: Hover | undefined;
       const redraw = (): void => {
-        if (latest) built.setRoot(mark(latest.seen, latest.wait, others));
+        if (latest) built.setRoot(mark(latest.seen, latest.wait, others, hover));
       };
       mate.onCarry((carry) => {
         for (const id of carry.els) {
@@ -380,7 +407,7 @@ export const Table: StoryObj<SeatsArgs> = {
       });
       mate.onState((seen, wait) => {
         latest = { seen, wait };
-        built.setRoot(mark(seen, wait, others));
+        built.setRoot(mark(seen, wait, others, hover));
         // A question is over the moment the board moves: granted, refused, withdrawn or simply out
         // of time — all four end the same way here, because the panel is a VIEW of an open request
         // and not a state of its own.
@@ -418,7 +445,22 @@ export const Table: StoryObj<SeatsArgs> = {
       wireDrag(built, {
         zoneAt,
         view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
-        onCarry: ({ ids, at, done }) => mate.carry({ els: ids, at, done }),
+        onCarry: ({ ids, at, done }) => {
+          mate.carry({ els: ids, at, done });
+          // THE PREVIEW IS THIS SEAT'S OWN — it is a picture of where MY finger would put the card,
+          // and it follows the willingness verdict rather than a second rule: `allow` and `ask` both
+          // preview (the shape of the move is legal either way; only the authority differs), and a
+          // flat `deny` shows nothing at all. Refusal is silence — there is no red highlight.
+          const zone = done ? undefined : zoneAt(truth, at);
+          const lead = ids[0] ? byId(truth, ids[0]) : undefined;
+          const home = zone ? zoneHome(zone) : { x: 0, y: 0 };
+          const parted =
+            zone && lead && zone !== lead.parent && wouldAccept(zone, lead)
+              ? partAt(zone, { x: at.x - home.x, y: at.y - home.y }, footprint(lead) ?? undefined)
+              : undefined;
+          hover = zone && parted ? { zone: zone.id, parted } : undefined;
+          redraw();
+        },
         onDrop: ({ lead, target, seat: at }) => {
           const zone = byId(truth, target.id);
           const from = lead.parent;

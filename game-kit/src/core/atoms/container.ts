@@ -111,6 +111,15 @@ export function resetLayouts(): void {
  * The children as a layout is told about them — data, never the tree to walk. One source, so
  * `placeChildren` and `slotAt` measure the same footprints and cannot disagree about a seat.
  */
+/**
+ * The same list, for a reader that has to ask the layout something the tree cannot answer on its
+ * own — how a hand parts around a newcomer (`core/part.ts`). One source, so a preview and a real
+ * placement can never disagree about a footprint.
+ */
+export function layoutChildren(parent: Node): LayoutChild[] {
+  return layoutChildrenOf(parent);
+}
+
 function layoutChildrenOf(parent: Node): LayoutChild[] {
   return parent.children.map((c) => {
     const pose = fieldsOf<TransformableFields>(c, "Transformable");
