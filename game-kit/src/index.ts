@@ -98,10 +98,12 @@ export {
   Poser,
   registerGrain,
   registerSide,
+  registerWatched,
   resetGrains,
   restPose,
   sideRecord,
   stamp,
+  watchedRecord,
   up,
   type CarriedPose,
   type GrainInput,
@@ -112,6 +114,8 @@ export {
   type RestPose,
   type SideInput,
   type SideRecord,
+  type WatchedInput,
+  type WatchRecord,
 } from "./core/atoms/pose.js";
 export { Surfaced, areaOf, paintable, type SurfacedFields } from "./core/atoms/surfaced.js";
 // A zone is a container that judges what may enter. The rule is DATA; the verdict is three-valued.

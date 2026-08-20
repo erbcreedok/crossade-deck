@@ -81,6 +81,7 @@ export function grainRecord(name: string): GrainRecord | undefined {
 export function resetGrains(): void {
   GRAINS.clear();
   SIDES.clear();
+  WATCHED.clear();
 }
 
 /**
@@ -96,6 +97,12 @@ export function installStockGrains(): void {
   registerSide("up", () => "up");
   registerSide("down", () => "down");
   registerSide("keep", ({ carried, turned }) => xor(carried, turned));
+  // The other axis. `same` is the open desk, `back` the strict game, `opposite` a hand held
+  // outwards — and the difference between the last two only shows once ONE card is turned: a
+  // back-rule table still sees a back, this one sees a face.
+  registerWatched("same", ({ owner }) => owner);
+  registerWatched("back", ({ owner, mine }) => (mine ? owner : "down"));
+  registerWatched("opposite", ({ owner, mine }) => (mine ? owner : xor(owner, "down")));
 }
 
 /**
@@ -143,11 +150,51 @@ function xor(a: Facing, b: Facing): Facing {
   return a === b ? "up" : "down";
 }
 
+/**
+ * What a WATCHER record is told: the side the zone's owner sees, and whether the one looking is
+ * that owner. A pure function of those two, so every client resolves the same picture.
+ */
+export interface WatchedInput {
+  readonly owner: Facing;
+  readonly mine: boolean;
+}
+
+/** How everyone ELSE relates to the owner's side — the second axis of facing. */
+export type WatchRecord = (input: WatchedInput) => Facing;
+
+const WATCHED = new Map<string, WatchRecord>();
+
+export function registerWatched(name: string, record: WatchRecord): void {
+  WATCHED.set(name, record);
+}
+
+export function watchedRecord(name: string): WatchRecord | undefined {
+  return WATCHED.get(name);
+}
+
 export interface PoserFields {
   /** How the turn comes to rest here. */
   readonly angle: GrainRule;
   /** Which side is up once it lands. */
   readonly side: GrainRule;
+  /**
+   * What everyone ELSE is shown of that side: `same`, `back`, `opposite`, or a game's own record.
+   * `""` — the zone says nothing and every seat sees what is there.
+   *
+   * NOT the same question as privacy. `Private` answers "is this card in your picture at all";
+   * this answers "which side of it do you see" — a hand may be perfectly visible to the whole
+   * table and still show its owner faces and everyone else backs.
+   */
+  readonly others: string;
+  /**
+   * Whose zone this is. Read ONLY by `others` today, which is why it sits here rather than in an
+   * atom of its own; when a second reader arrives — a consent rule comparing an actor's seat to a
+   * hand's owner — that is the moment to give it one.
+   *
+   * A zone with no owner and an `others` rule is a contradiction the design names: there is nobody
+   * for the others to be relative to. It resolves as "everyone is the owner", so the rule is inert.
+   */
+  readonly owner: string;
 }
 
 /**
@@ -164,8 +211,8 @@ export interface PoserFields {
 export const Poser = defineAtom<PoserFields>({
   name: "Poser",
   requires: ["Container"],
-  defaults: { angle: { rule: "keep", value: 0 }, side: { rule: "keep", value: 0 } },
-  classes: { angle: "own", side: "own" },
+  defaults: { angle: { rule: "keep", value: 0 }, side: { rule: "keep", value: 0 }, others: "", owner: "" },
+  classes: { angle: "own", side: "own", others: "own", owner: "own" },
 });
 
 /** What the load BRINGS IN. Absent means it carries nothing to say about that grain. */
