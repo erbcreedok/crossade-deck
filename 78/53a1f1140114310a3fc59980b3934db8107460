@@ -1,0 +1,31 @@
+game-kit/docs/test-plan/34-move.md
+  s_170937f0c01a52::t_603adaada89d9b 3,29-35
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_603adaada89d9b 10,62
+game-kit/src/core/move.ts
+  s_170937f0c01a52::t_3316fad2d1a933 15,24-25,111-143
+  s_170937f0c01a52::t_488c7dae983ae5 144
+game-kit/src/core/move.test.ts
+  s_170937f0c01a52::t_46f3d1fd360254 30-33,192-194,202-204,215-217,251
+  s_170937f0c01a52::t_015b8f0e7fbab2 11,247-250
+  s_170937f0c01a52::t_603adaada89d9b 225-228,233
+  s_170937f0c01a52::t_b84164bd26ed34 2,10,12-13,172-191,195-201,205-214,218-224,229-232,234-246,252-261
+game-kit/src/index.ts
+  s_170937f0c01a52::t_603adaada89d9b 214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7853a1f1140114310a3fc59980b3934db8107460",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
