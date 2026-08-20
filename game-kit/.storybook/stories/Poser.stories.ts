@@ -65,6 +65,8 @@ const DEGREES = { control: { type: "range", min: -90, max: 90, step: 5 } };
 const STAMPED = { if: { arg: "zoneAngle", eq: "stamp" } };
 
 interface PoserArgs {
+  settleHold: number;
+  settleMs: number;
   zoneAngle: string;
   zoneStamp: number;
   zoneSide: string;
@@ -100,8 +102,13 @@ function zoneAt(root: Node, at: Vec): Node | undefined {
 }
 
 export const Rest: StoryObj<PoserArgs> = {
-  render: ({ zoneAngle, zoneStamp, zoneSide, zoneTurns, cardAngle, face, facePaint, back, backPaint, zoneSurface, zonePaint, zoneX }) => {
+  render: ({ settleHold, settleMs, zoneAngle, zoneStamp, zoneSide, zoneTurns, cardAngle, face, facePaint, back, backPaint, zoneSurface, zonePaint, zoneX }) => {
     registerLayout("story.poser.free", freeLayout);
+    // THE ROAD INTO REST, and it belongs to the ARRANGEMENT rather than to `Poser` — which is why
+    // only the ruled zone's own layout carries it. Pose and settle are deliberately separate: both
+    // zones below agree about where the card ENDS, and a hold only changes how long it takes to
+    // admit it. Set a hold and drop a turned card on a `stamp` zone to watch exactly that.
+    registerLayout("story.poser.ruled", { ...freeLayout, settle: { hold: settleHold, ms: settleMs, ease: "easeOut" } });
     registerSurface(face, { layers: [{ paint: facePaint }], radius: 0.08 });
     registerSurface(back, { layers: [{ paint: backPaint }], radius: 0.08 });
     registerSurface(zoneSurface, { layers: [{ paint: zonePaint }], radius: 0.12 });
@@ -123,7 +130,7 @@ export const Rest: StoryObj<PoserArgs> = {
     const ruled = node(
       "ruled",
       Bounded({ bounds: rect(2.2, 2.6) }),
-      Container({ layout: "story.poser.free" }),
+      Container({ layout: "story.poser.ruled" }),
       Surfaced({ surface: zoneSurface }),
       Transformable({ at: { x: zoneX, y: 0 } }),
       Acceptor({ accept: { and: [] } }),
@@ -146,6 +153,8 @@ export const Rest: StoryObj<PoserArgs> = {
     return wireDrag(scene(desk, { animate: true }), { zoneAt }).el;
   },
   args: {
+    settleHold: 0,
+    settleMs: 180,
     zoneAngle: "derive",
     zoneStamp: 0,
     zoneSide: "keep",
@@ -160,6 +169,8 @@ export const Rest: StoryObj<PoserArgs> = {
     zoneX: 1.5,
   },
   argTypes: {
+    settleHold: documented("arg.settleHold", { control: { type: "range", min: 0, max: 5000, step: 250 } }, "ruled zone/layout"),
+    settleMs: documented("arg.settleMs", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "ruled zone/layout"),
     zoneAngle: documented("arg.grainAngle", { control: "select", options: ["derive", "stamp", "keep"] }, "ruled zone/poser"),
     zoneStamp: documented("arg.grainStamp", { ...DEGREES, ...STAMPED }, "ruled zone/poser"),
     zoneSide: documented("arg.grainSide", { control: "select", options: ["up", "down", "keep"] }, "ruled zone/poser"),
