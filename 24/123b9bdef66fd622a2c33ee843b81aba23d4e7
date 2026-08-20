@@ -1,0 +1,34 @@
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_d28038da457985 10,86
+game-kit/src/index.ts
+  s_170937f0c01a52::t_d28038da457985 80,230-232
+game-kit/src/core/part.ts
+  s_170937f0c01a52::t_3c7a9cc45cc067 46,50-73
+  s_170937f0c01a52::t_0de7d4a1d380a6 1-45,47-49,74
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_170937f0c01a52::t_fc3949a39081f4 42,46,240-246,293-297,307-309,397,399,410,448-463
+  s_170937f0c01a52::t_f21a2f305221ab 298-306
+  s_170937f0c01a52::t_469b11df9e1137 29
+game-kit/src/core/atoms/container.ts
+  s_170937f0c01a52::t_0804bdd6af49b7 114-122
+game-kit/src/core/part.test.ts
+  s_170937f0c01a52::t_e5d20cf6989e8b 1-78
+game-kit/docs/test-plan/58-parting.md
+  s_170937f0c01a52::t_d28038da457985 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "24123b9bdef66fd622a2c33ee843b81aba23d4e7",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
