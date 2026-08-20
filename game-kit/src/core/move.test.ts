@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { add, node } from "./node.js";
+import { add, fieldsOf, node } from "./node.js";
 import { Container } from "./atoms/container.js";
 import { Grabber, installStockGrabs, resetGrabs } from "./atoms/grab.js";
 import { Grippable } from "./atoms/grippable.js";
@@ -7,10 +7,10 @@ import { Keeper } from "./atoms/keeps.js";
 import { Acceptor } from "./atoms/acceptor.js";
 import { Displacer, installStockOccupied, resetOccupied } from "./atoms/occupied.js";
 import { Draggable } from "./atoms/draggable.js";
-import { planMove } from "./move.js";
-import { installStockGrains, keep, Poser, resetGrains, stamp, up } from "./atoms/pose.js";
-import { Transformable } from "./atoms/transformable.js";
-import { Flippable } from "./atoms/flippable.js";
+import { applyMove, planMove } from "./move.js";
+import { derive, installStockGrains, keep, Poser, resetGrains, stamp, up } from "./atoms/pose.js";
+import { Transformable, type TransformableFields } from "./atoms/transformable.js";
+import { facing, Flippable } from "./atoms/flippable.js";
 
 const ALLOW = { and: [] } as const;
 const DENY = { or: [] } as const;
@@ -26,6 +26,10 @@ afterEach(() => {
   resetOccupied();
   resetGrains();
 });
+
+/** A card that can hold a pose: a turn to write and a side to turn over. */
+const posable = (id = "card") =>
+  node(id, Draggable({ onReject: "home" }), Transformable({}), Flippable({ turns: 0 }));
 
 /** A grabbable source holding one draggable card; returns both nodes. */
 const withCard = (...srcExtra: any[]) => {
@@ -164,5 +168,95 @@ describe("planMove", () => {
     const target = allowTarget(Poser({ side: up() }));
     const plan = planMove({ source, touched: card, target, carried: { side: "down" } });
     expect(plan.pose?.side).toBe("up");
+  });
+
+  // ── carrying the plan out ───────────────────────────────────────────────────────────────────
+  //
+  // The plan is data and changes nothing; this is where the tree moves. Kept apart on purpose: a
+  // verdict of `ask` has to be able to hang there pending, and a resolver that applied itself could
+  // not have a pending state at all.
+
+  const angleOf = (n: ReturnType<typeof node>) => fieldsOf<TransformableFields>(n, "Transformable")?.angle;
+
+  it("move.apply-moves-the-load — the tree changes owner, and only then", () => {
+    const { source, card } = withCard();
+    const target = allowTarget();
+    const plan = planMove({ source, touched: card, target });
+    expect(source.children).toContain(card); // the plan alone moved nothing
+    applyMove({ source, touched: card, target }, plan);
+    expect(source.children).not.toContain(card);
+    expect(target.children).toContain(card);
+  });
+
+  it("move.apply-writes-the-rest-angle — the zone's answer lands on the node", () => {
+    const source = node("src", Container({}), Grabber({ grab: "one" }));
+    const card = posable();
+    add(source, card);
+    const target = allowTarget(Poser({ angle: keep() }));
+    const req = { source, touched: card, target, carried: { angle: 15 } };
+    applyMove(req, planMove(req));
+    expect(angleOf(card)).toBe(15);
+  });
+
+  it("move.apply-straightens-what-the-zone-derives — the carried turn is dropped at the door", () => {
+    const source = node("src", Container({}), Grabber({ grab: "one" }));
+    const card = posable();
+    add(source, card);
+    const target = allowTarget(Poser({ angle: derive() }));
+    const req = { source, touched: card, target, carried: { angle: 15 } };
+    applyMove(req, planMove(req));
+    expect(angleOf(card)).toBe(0);
+  });
+
+  it("move.apply-turns-the-load-over — the side is written through the chain, not as a raw bit", () => {
+    // The card lands in a zone that is ITSELF turned over and stamps `up`. What must be true
+    // afterwards is what the OWNER sees — so the check reads `facing`, the summed parity, and the
+    // card's own bit comes out odd to cancel the zone's.
+    const source = node("src", Container({}), Grabber({ grab: "one" }));
+    const card = posable();
+    add(source, card);
+    const target = allowTarget(Poser({ side: up() }), Flippable({ turns: 1 }));
+    const req = { source, touched: card, target };
+    applyMove(req, planMove(req));
+    expect(facing(card)).toBe("up");
+  });
+
+  it("move.apply-does-nothing-when-denied — what may not happen leaves no trace", () => {
+    // The card CAN hold a turn, so the untouched 0° is a real reading and not an absent field.
+    const source = node("src", Container({}), Grabber({ grab: "one" }), Keeper({ keeps: [] }));
+    const card = posable();
+    add(source, card);
+    const target = allowTarget(Poser({ angle: stamp(90) }));
+    const req = { source, touched: card, target, carried: { angle: 15 } };
+    applyMove(req, planMove(req));
+    expect(source.children).toContain(card);
+    expect(angleOf(card)).toBe(0);
+  });
+
+  it("move.apply-holds-back-on-ask — consent is asked, not assumed", () => {
+    const { source, card } = withCard();
+    const target = node("tgt", Container({}), Acceptor({ accept: ASK }));
+    const req = { source, touched: card, target };
+    const plan = planMove(req);
+    expect(plan.verdict).toBe("ask");
+    applyMove(req, plan);
+    expect(source.children).toContain(card); // still waiting on a human
+  });
+
+  it("move.apply-reads-each-of-a-run-on-its-own — one gesture, one angle, but every card its side", () => {
+    // A sub-pile leaves together and the finger held ONE turn for all of them; the side, though, is
+    // each card's own bit, so a `keep` zone must not smear the touched card's side over its
+    // neighbours — a solitaire column travels face-up, but nothing says a load has to be uniform.
+    const source = node("src", Container({}), Grabber({ grab: "above" }));
+    const face = posable("face");
+    const back = node("back", Draggable({ onReject: "home" }), Transformable({}), Flippable({ turns: 1 }));
+    add(source, face);
+    add(source, back);
+    const target = allowTarget(Poser({ angle: keep(), side: keep() }));
+    const req = { source, touched: face, target, carried: { angle: 15 } };
+    applyMove(req, planMove(req));
+    expect(target.children.map((c) => c.id)).toEqual(["face", "back"]);
+    expect([angleOf(face), angleOf(back)]).toEqual([15, 15]);
+    expect([facing(face), facing(back)]).toEqual(["up", "down"]);
   });
 });

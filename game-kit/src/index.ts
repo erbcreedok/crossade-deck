@@ -211,7 +211,7 @@ export {
 } from "./core/actions.js";
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 // The whole drop as one PLAN: grab · grip · keeps · accept · occupied composed, mutating nothing.
-export { planMove, type MoveBlock, type MovePlan, type MoveRequest } from "./core/move.js";
+export { applyMove, planMove, type MoveBlock, type MovePlan, type MoveRequest } from "./core/move.js";
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
 export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from "./core/viewer.js";

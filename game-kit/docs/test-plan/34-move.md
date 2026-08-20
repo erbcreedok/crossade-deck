@@ -1,6 +1,6 @@
 ## UNIT · Move — the whole drop as one plan
 
-`vitest` · 17 кейсов, расписано 17
+`vitest` · 24 кейсов, расписано 24
 
 Хват, грип, keeps, приём и occupied — каждый свой маленький закон; ход — где они встречаются.
 `planMove` читает их в порядке настоящего дропа и возвращает что БЫЛО БЫ, дерево не трогая (модель
@@ -26,3 +26,10 @@
 | `move.the-carried-pose-comes-from-the-request` | цель `keep`, в запросе `carried: {angle:15}` | `planMove` | 15°: угол под пальцем на узле не лежит — его держит рантайм и отдаёт на дропе |
 | `move.without-a-carried-pose-the-node-answers` | в запросе позы нет, у карты свои 15° и один переворот | `planMove` | `{15°, рубашка}` — раздача, которой ничей палец не касался |
 | `move.the-target-turns-the-card-over` | цель с `side: up()`, принесена рубашка | `planMove` | лицо: сторона — грань той же позы, не отдельная сущность |
+| `move.apply-moves-the-load` | план построен | `applyMove` | груз сменил владельца — и только теперь: сам план дерево не трогал |
+| `move.apply-writes-the-rest-angle` | цель `angle: keep()`, принесено 15° | `applyMove` | 15° легли в собственный `Transformable` карты |
+| `move.apply-straightens-what-the-zone-derives` | цель `angle: derive()`, принесено 15° | `applyMove` | 0°: принесённый угол потерян на пороге |
+| `move.apply-turns-the-load-over` | цель сама перевёрнута и штампует `up` | `applyMove` | владелец видит лицо: сторона пишется `setFacing` ПОСЛЕ смены владельца, поворот зоны подмешан |
+| `move.apply-does-nothing-when-denied` | источник не выпускает | `applyMove` | карта на месте, угол нетронут — что не может случиться, следа не оставляет |
+| `move.apply-holds-back-on-ask` | цель отвечает `ask` | `applyMove` | ничего не применено: согласие спрашивают, а не предполагают — иначе вердикту негде висеть |
+| `move.apply-reads-each-of-a-run-on-its-own` | `grab: above`, в стопке лицо и рубашка, палец держит один угол | `applyMove` | угол общий у обеих, сторона у каждой своя — сторона это собственный бит карты |

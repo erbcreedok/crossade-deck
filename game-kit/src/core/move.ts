@@ -12,7 +12,7 @@
 // A target is a "slot" precisely when it carries a `Displacer`; a pile has none and simply grows.
 // See CANONS.md §3, docs/design/container.md and NIGHT-DECISIONS.md.
 
-import { caps, fieldsOf, type Node, type NodeId } from "./node.js";
+import { add, caps, compose, fieldsOf, remove, type Node, type NodeId } from "./node.js";
 import { canAccept } from "./atoms/acceptor.js";
 import { grabFrom } from "./atoms/grab.js";
 import { grippableBy } from "./atoms/grippable.js";
@@ -21,8 +21,8 @@ import { admitsOccupied, resolveOccupied } from "./atoms/occupied.js";
 import { type OccupiedOutcome } from "./atoms/occupied.js";
 import { type Verdict } from "./accept.js";
 import { restPose, type CarriedPose, type RestPose } from "./atoms/pose.js";
-import { ownFacing } from "./atoms/flippable.js";
-import { type TransformableFields } from "./atoms/transformable.js";
+import { ownFacing, setFacing } from "./atoms/flippable.js";
+import { Transformable, type TransformableFields } from "./atoms/transformable.js";
 
 /** Why a move was denied, when it was — the gate that stopped it. */
 export type MoveBlock = "empty" | "gripped" | "kept" | "rejected";
@@ -107,4 +107,38 @@ export function planMove(req: MoveRequest): MovePlan {
   }
 
   return { verdict, load, pose: pose() };
+}
+
+/**
+ * CARRY THE PLAN OUT — the one place the tree actually moves.
+ *
+ * Split from `planMove` on purpose, and not for tidiness: a verdict of `ask` has to be able to HANG
+ * there, waiting on a person, and a resolver that applied itself has nowhere to hang. So the plan is
+ * data a caller may hold, show, send or drop, and this is the separate act of committing it. Only
+ * `allow` commits: `ask` is a question that has not been answered yet, and `deny` never happens.
+ *
+ * Every id in the load moves, in the order the grab named them, and each comes to rest in ITS OWN
+ * pose — the finger held one turn for the whole sub-pile, but the side is each card's own bit, and
+ * smearing the touched card's over its neighbours would turn half a column face-down on landing.
+ *
+ * THE TWO GRAINS ARE WRITTEN IN DIFFERENT TERMS, and it is worth knowing which:
+ *   - the angle is the node's OWN turn, the same terms it was read in;
+ *   - the side is what the OWNER SEES, so it goes through `setFacing` AFTER the load has changed
+ *     owner — which is what folds the new zone's own turn back in and lets `up` mean the plain word.
+ * A node with no `Transformable` gets no angle written: it declined to have a pose, and inventing
+ * one here would be handing a node a capability it does not carry.
+ */
+export function applyMove(req: MoveRequest, plan: MovePlan): void {
+  if (plan.verdict !== "allow") return;
+  const { source, target } = req;
+  for (const id of plan.load) {
+    const load = source.children.find((c) => c.id === id);
+    if (!load) continue;
+    const rest = restPose(target, carriedInto(load, req.carried), {});
+    remove(source, load);
+    add(target, load);
+    const own = fieldsOf<TransformableFields>(load, "Transformable");
+    if (own) compose(load, Transformable({ ...own, angle: rest.angle }));
+    setFacing(load, rest.side);
+  }
 }
