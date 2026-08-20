@@ -1,0 +1,65 @@
+game-kit/.storybook/locales/pages/rollable/en.json
+  s_170937f0c01a52::t_b3824ec88e6303 14
+game-kit/.storybook/locales/pages/dice/en.json
+  s_170937f0c01a52::t_0bca6c13fada96 5
+  s_170937f0c01a52::t_b3824ec88e6303 19-20
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_d7619fe7d388d7 290-292
+  s_170937f0c01a52::t_ede454dcfa3fa0 888,910
+  s_170937f0c01a52::t_8937f9e09c2109 121,233-260,352-359,380-381,385-398
+  s_170937f0c01a52::t_ecd6fb1b8c46ed 262-289,293-296,647,649-654,660-674
+  s_170937f0c01a52::t_1d6039d05996a5 122-127,148-152
+  s_170937f0c01a52::t_34bab2e4f47533 803-805,822-824,832-837,842-844,847-849,853
+  s_170937f0c01a52::t_2c415e11d6e399 261,399-400
+game-kit/src/render/animator.test.ts
+  s_170937f0c01a52::t_36895682863241 550-617
+  s_170937f0c01a52::t_5b006f2ebc4d48 621-656
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_d8c3d832f5cd9b 10,75
+game-presets/dice/src/index.ts
+  s_170937f0c01a52::t_27518d14c52187 7
+game-presets/dice/src/dice.test.ts
+  s_170937f0c01a52::t_a2e9b1c2b51e45 144-150,152-163,168-177,180-201
+  s_170937f0c01a52::t_35adf12f891c63 151
+  s_170937f0c01a52::t_eff276aba53de1 164-167
+  s_170937f0c01a52::t_d14235fcfd5e8a 178-179
+game-kit/.storybook/locales/pages/dice/ru.json
+  s_170937f0c01a52::t_3c6671aa65a077 5
+  s_170937f0c01a52::t_b3824ec88e6303 19-20
+game-kit/docs/test-plan/47-shuffle-and-roll.md
+  s_170937f0c01a52::t_d8c3d832f5cd9b 3,14-22,41-43
+game-presets/dice/src/dice.ts
+  s_170937f0c01a52::t_97be6906c61e13 28,101-123,127-130,152-153,160-163,166-168,175-182,187,201-203,207-209
+  s_170937f0c01a52::t_c70c31924056a9 15-18,124-126,139-140
+  s_170937f0c01a52::t_18c5fe7ec2b2fa 141
+game-kit/.storybook/stories/Rollable.stories.ts
+  s_170937f0c01a52::t_cbbab94886c5b9 97-102,162-168,172,174-191,255-256
+game-kit/.storybook/locales/pages/motion/en.json
+  s_170937f0c01a52::t_b3824ec88e6303 54
+game-kit/.storybook/locales/pages/rollable/ru.json
+  s_170937f0c01a52::t_b3824ec88e6303 14
+game-kit/.storybook/stories/PresetsDice.stories.ts
+  s_170937f0c01a52::t_e00d145f097628 171-174,186-192,195-197,200-215,284,290
+  s_170937f0c01a52::t_64f6611017cdb9 53-54,56-57,98-102,111-118,121-123,125-136
+game-kit/.storybook/stories/Motion.stories.ts
+  s_170937f0c01a52::t_e9f1e9386ebf8f 22
+  s_170937f0c01a52::t_4a699f8681e558 135-137,888-895,930-933,936-953
+game-kit/.storybook/locales/pages/motion/ru.json
+  s_170937f0c01a52::t_b3824ec88e6303 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "28cea2c90664cbb1611e51df8862c9c97f58044c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
