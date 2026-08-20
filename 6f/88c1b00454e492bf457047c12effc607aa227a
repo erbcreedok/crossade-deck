@@ -1,0 +1,32 @@
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_e21f85d4c50987 56
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_170937f0c01a52::t_9adcc66bb68952 16,186-188
+  s_170937f0c01a52::t_d486fe53e4c644 3,5,7,15,17-18,22,24-25,36,38-39,83,96,106,110-113,122-126
+  s_170937f0c01a52::t_192bedb11085c8 11,13,68,70,119,165-179
+  s_170937f0c01a52::t_c560cbc0349f5e 20-21,35,146-164,180,182,184-185,197-202,237-258,269,273
+game-kit/.storybook/locales/pages/canvasSeats/en.json
+  s_170937f0c01a52::t_a929e2b2a8a77a 23-25,27
+game-kit/.storybook/locales/pages/canvasSeats/ru.json
+  s_170937f0c01a52::t_a929e2b2a8a77a 22-24,26
+game-kit/.storybook/devtools/drag.ts
+  s_170937f0c01a52::t_72cdce10333846 84-94,301-304
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_e21f85d4c50987 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6f88c1b00454e492bf457047c12effc607aa227a",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
