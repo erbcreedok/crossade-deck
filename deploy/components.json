@@ -11,7 +11,8 @@
     "image      — имя в ghcr.io/<владелец>/<репозиторий>/<image>",
     "dockerfile — путь ОТ КОРНЯ репозитория (его ждут и flyctl, и buildx)",
     "context    — у сервера свой (его Dockerfile копирует package.json из корня контекста),",
-    "             у web и storybook — корень: им нужны обе папки клиентов",
+    "             у хаба — корень: репозиторий это npm workspaces с одним локом, и хаб",
+    "             тянет и кит, и игры по имени пакета",
     "fly        — конфиг прода. Для окружения ENV ищется <имя>.<ENV>.toml рядом,",
     "             то есть стенд появится как server/fly.dev.toml — без правок кода",
     "app        — имя приложения на Fly; для окружения ENV к нему приписывается -<ENV>",
@@ -26,20 +27,12 @@
     "app": "crossade-deck-server",
     "healthPath": "/health"
   },
-  "web": {
-    "image": "web",
-    "dockerfile": "deploy/web.Dockerfile",
+  "hub": {
+    "image": "hub",
+    "dockerfile": "deploy/hub.Dockerfile",
     "context": ".",
-    "fly": "client/fly.toml",
-    "app": "crossade-deck-client",
-    "healthPath": "/"
-  },
-  "storybook": {
-    "image": "storybook",
-    "dockerfile": "deploy/storybook.Dockerfile",
-    "context": ".",
-    "fly": "deploy/storybook.fly.toml",
-    "app": "crossade-deck-storybook",
+    "fly": "deploy/hub.fly.toml",
+    "app": "crossade-deck-hub",
     "healthPath": "/"
   }
 }
