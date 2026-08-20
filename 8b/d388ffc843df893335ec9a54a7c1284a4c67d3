@@ -1,0 +1,37 @@
+game-kit/.storybook/locales/pages.ts
+  s_170937f0c01a52::t_88b402713ddcc2 23,94,175
+game-kit/.storybook/stories/Poser.stories.ts
+  s_170937f0c01a52::t_89b7a5d52e849f 63,172-173,177
+game-kit/.storybook/locales/pages/canvasSeats/en.json
+  s_170937f0c01a52::t_88b402713ddcc2 1-28
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_193c720f3e1ffc 60-61
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_193c720f3e1ffc 56-57
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_170937f0c01a52::t_4de4da00a5b71b 152-154,175
+  s_170937f0c01a52::t_08c9a746f04ee3 1-40,47-151,159-174,176,180-184
+  s_170937f0c01a52::t_88b402713ddcc2 41-46
+  s_170937f0c01a52::t_89b7a5d52e849f 177-179
+  s_170937f0c01a52::t_626b369455f02b 155-158
+game-kit/.storybook/locales/pages/canvasSeats/ru.json
+  s_170937f0c01a52::t_88b402713ddcc2 1-27
+game-kit/.storybook/preview.ts
+  s_170937f0c01a52::t_88b402713ddcc2 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8bd388ffc843df893335ec9a54a7c1284a4c67d3",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
