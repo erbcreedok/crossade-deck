@@ -20,6 +20,7 @@ import { catalogText, type CatalogKey, type CatalogLocale, type CatalogText, typ
 // keeps every prose key checkable by `tsc` instead of by hope.
 import type bounded from "./pages/bounded/en.json";
 import type canvasCamera from "./pages/canvasCamera/en.json";
+import type canvasSeats from "./pages/canvasSeats/en.json";
 import type cards from "./pages/cards/en.json";
 import type coated from "./pages/coated/en.json";
 import type container from "./pages/container/en.json";
@@ -90,6 +91,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   lit: { en: () => import("./pages/lit/en.json"), ru: () => import("./pages/lit/ru.json") },
   inviting: { en: () => import("./pages/inviting/en.json"), ru: () => import("./pages/inviting/ru.json") },
   poser: { en: () => import("./pages/poser/en.json"), ru: () => import("./pages/poser/ru.json") },
+  canvasSeats: { en: () => import("./pages/canvasSeats/en.json"), ru: () => import("./pages/canvasSeats/ru.json") },
   grippable: { en: () => import("./pages/grippable/en.json"), ru: () => import("./pages/grippable/ru.json") },
   private: { en: () => import("./pages/private/en.json"), ru: () => import("./pages/private/ru.json") },
   valued: { en: () => import("./pages/valued/en.json"), ru: () => import("./pages/valued/ru.json") },
@@ -170,6 +172,7 @@ export type PageKey = keyof (typeof node &
   typeof lit &
   typeof inviting &
   typeof poser &
+  typeof canvasSeats &
   typeof grippable &
   typeof privatePage &
   typeof valued &

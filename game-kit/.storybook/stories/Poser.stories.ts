@@ -60,7 +60,7 @@ export default meta;
 const PLACE = { control: { type: "number", step: 0.1 } };
 const TOKEN = { control: "text" };
 const PAINT = { control: "select", options: PAINTS };
-const DEGREES = { control: { type: "range", min: -90, max: 90, step: 5 } };
+const DEGREES = { control: { type: "number", min: -90, max: 90, step: 5 } };
 /** The stamped number means nothing to a rule that reads none — shown only when `stamp` is chosen. */
 const STAMPED = { if: { arg: "zoneAngle", eq: "stamp" } };
 
@@ -169,12 +169,12 @@ export const Rest: StoryObj<PoserArgs> = {
     zoneX: 1.5,
   },
   argTypes: {
-    settleHold: documented("arg.settleHold", { control: { type: "range", min: 0, max: 5000, step: 250 } }, "ruled zone/layout"),
-    settleMs: documented("arg.settleMs", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "ruled zone/layout"),
+    settleHold: documented("arg.settleHold", { control: { type: "number", min: 0, max: 5000, step: 250 } }, "ruled zone/layout"),
+    settleMs: documented("arg.settleMs", { control: { type: "number", min: 0, max: 2000, step: 20 } }, "ruled zone/layout"),
     zoneAngle: documented("arg.grainAngle", { control: "select", options: ["derive", "stamp", "keep"] }, "ruled zone/poser"),
     zoneStamp: documented("arg.grainStamp", { ...DEGREES, ...STAMPED }, "ruled zone/poser"),
     zoneSide: documented("arg.grainSide", { control: "select", options: ["up", "down", "keep"] }, "ruled zone/poser"),
-    zoneTurns: documented("arg.zoneTurns", { control: { type: "range", min: 0, max: 1, step: 1 } }, "ruled zone/flippable"),
+    zoneTurns: documented("arg.zoneTurns", { control: { type: "number", min: 0, max: 1, step: 1 } }, "ruled zone/flippable"),
     cardAngle: documented("arg.cardAngle", DEGREES, "card/transformable"),
     face: documented("arg.registerAs", TOKEN, "card/surface"),
     facePaint: documented("arg.fill", PAINT, "card/surface"),

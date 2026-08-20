@@ -53,6 +53,8 @@
   "arg.cardAngle": "The turn the card starts at, in degrees, so there is always something for a rule to keep or throw away. Two fingers on the card turn it too.",
   "arg.settleHold": "How long the card lies exactly where it landed before the zone's answer starts moving it, ms. The rest pose is the same either way — a hold changes only how long the desk takes to admit it. Zero with a zero travel is a snap: there on the frame it arrives.",
   "arg.settleMs": "How long a settle lasts, in ms — the glide of a node from where it is to the seat the tree now gives it. A field of the tuning: the same number the game hands `attachMotion`, and the header's speed multiplies it for the onlooker.",
+  "arg.screens": "How many seats are watching this one board at once. Each screen is a projection of the SAME tree with its own camera — not a copy of the game, a copy of the view.",
+  "arg.handCards": "Cards in every hand. A hand is an ordinary container with an ordinary row in it; what makes it a secret is one atom listing who may look.",
   "arg.box": "The box this element belongs to — a name it carries, not where it sits. A return-slot's rule compares it as `el.box`, and only the matching slot lights.",
   "arg.accepts": "The value the zone's rule compares against — a drop is legal when `el.values.rank` equals it.",
   "arg.does": "The word this control reports when pressed, written into `values` — the kit never interprets it.",

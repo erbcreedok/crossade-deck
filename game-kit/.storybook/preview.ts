@@ -164,7 +164,7 @@ const preview: Preview = {
           // without a desk — and everything below her is checkable with no renderer at all, which
           // is why she is the first rung where a page has to be looked at rather than only read.
           "Canvas",
-          ["Camera"],
+          ["Camera", "Seats"],
           "Elements",
           // The interface: what a player presses, reads and toggles. Nothing here decorates a line —
           // an arrow head is a `Line` preset and lives with the presets, which is where it was all

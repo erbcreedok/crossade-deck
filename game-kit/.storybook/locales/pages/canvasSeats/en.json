@@ -1,0 +1,28 @@
+{
+  "docs.canvasSeats.component": [
+    "One board, several pairs of eyes — the shape a live table has, standing in one page.",
+    "",
+    "The truth is a SINGLE tree. Every screen is handed a PROJECTION of it: the same board, minus the",
+    "subtrees those eyes are denied, plus a camera turned so that seat's edge is the near one. Nothing",
+    "downstream knows who is watching — the renderer draws an ordinary board, and the only per-viewer",
+    "decision was made once, before mounting.",
+    "",
+    "```ts",
+    "import { project } from \"game-kit\"",
+    "",
+    "const truth = board()                       // one tree, shown to nobody directly",
+    "for (const seat of seats) {",
+    "  mount(pane, project(truth, seat))         // …and one projection each",
+    "}",
+    "```",
+    "",
+    "That is the canon taken literally: the view is LOCAL, so privacy is a fact of the tree and never",
+    "of the renderer. A seat is not given a flag to draw differently — it is given a different tree.",
+    "Which is why the projection has to be a COPY: two seats cutting into one board would eat each",
+    "other's view, and then the truth itself.",
+    "",
+    "Other players' hands are ABSENT here rather than face-down. Showing them as backs is the `others`",
+    "axis of `facing` — a different question, and not yet built."
+  ],
+  "docs.canvasSeats.table": "Two, three or four screens on one desk. Each shows the shared middle from its own side, its own hand, and no one else's — the hands are `Private` to their seat, and the cut reaches the cards inside because privacy takes the whole subtree. Turn the pitch up to lay every desk back at once; drag a card in one screen and only that screen's projection has it, because a projection is a copy and nothing has written the truth yet."
+}
