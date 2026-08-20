@@ -20,9 +20,9 @@
     "of the renderer. A seat is not given a flag to draw differently — it is given a different tree.",
     "Which is why the projection has to be a COPY: two seats cutting into one board would eat each",
     "other's view, and then the truth itself.",
-    "",
-    "Other players' hands are ABSENT here rather than face-down. Showing them as backs is the `others`",
-    "axis of `facing` — a different question, and not yet built."
+    "Hands are not private here: every hand is in every picture, and what differs between seats is",
+    "which SIDE of its cards they are shown — the `others` axis of facing. A finger writes the TRUTH,",
+    "never the view, so a move made on one screen is a move every screen sees."
   ],
-  "docs.canvasSeats.table": "Two, three or four screens on one desk. Each shows the shared middle from its own side, its own hand, and no one else's — the hands are `Private` to their seat, and the cut reaches the cards inside because privacy takes the whole subtree. Turn the pitch up to lay every desk back at once; drag a card in one screen and only that screen's projection has it, because a projection is a copy and nothing has written the truth yet."
+  "docs.canvasSeats.table": "Two, three or four screens on one desk, LIVE. Drag a card on any screen and it changes owner in the board everyone shares, then every screen is shown again — one truth, several projections, exactly the shape a table over a network has. Each hand carries a facing rule: with `back` a seat reads its own cards and everyone else sees a row of backs, and a card moved into the open middle turns face-up for the whole desk in the same breath. That is not privacy — the cards are in every picture; what differs is which side of them each seat is shown."
 }

@@ -1,14 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import {
+  Acceptor,
   add,
+  applyMove,
   Bounded,
+  byId,
   Container,
   draggable,
   Draggable,
+  extentOf,
   Flippable,
+  footprint,
   freeLayout,
+  Grabber,
+  installStockFlips,
+  installStockGrabs,
+  installStockGrains,
   installStockLayouts,
+  compose,
+  fieldsOf,
+  keep,
   node,
+  planMove,
+  Poser,
   Private,
   project,
   rect,
@@ -18,8 +32,11 @@ import {
   Surfaced,
   Transformable,
   type Node,
+  type TransformableFields,
+  type Vec,
 } from "../../src/index.js";
-import { scene } from "../devtools/scene.js";
+import { scene, type Scene } from "../devtools/scene.js";
+import { wireDrag } from "../devtools/drag.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // ONE BOARD, SEVERAL PAIRS OF EYES — the shape a live table has, standing in one page.
@@ -48,9 +65,9 @@ const SEATS = ["south", "west", "north", "east"] as const;
 /** Where a seat sits, and how far the view turns so that edge is the near one. */
 const AROUND: Record<string, { at: { x: number; y: number }; turn: number }> = {
   south: { at: { x: 0, y: 2.1 }, turn: 0 },
-  west: { at: { x: -3.2, y: 0 }, turn: -90 },
+  west: { at: { x: -2.7, y: 0 }, turn: -90 },
   north: { at: { x: 0, y: -2.1 }, turn: 180 },
-  east: { at: { x: 3.2, y: 0 }, turn: 90 },
+  east: { at: { x: 2.7, y: 0 }, turn: 90 },
 };
 
 const FELT = "story.seats.felt";
@@ -63,6 +80,7 @@ const PAINT = { control: "select", options: PAINTS };
 interface SeatsArgs {
   screens: number;
   handCards: number;
+  others: string;
   pitch: number;
   feltPaint: string;
   facePaint: string;
@@ -75,7 +93,7 @@ interface SeatsArgs {
  * it; what makes it a secret is one atom listing who may look, and the cut reaches the cards inside
  * because `Private` takes the whole SUBTREE.
  */
-function board(seats: readonly string[], handCards: number): Node {
+function board(seats: readonly string[], handCards: number, others: string): Node {
   const desk = node(
     "desk",
     Bounded({ bounds: rect(9, 6) }),
@@ -85,18 +103,27 @@ function board(seats: readonly string[], handCards: number): Node {
   // The shared middle: everyone sees this, from their own side.
   const pile = node(
     "pile",
-    Bounded({ bounds: rect(1.2, 1.6) }),
+    Bounded({ bounds: rect(1.6, 2 ) }),
     Container({ layout: "story.seats.free" }),
     Surfaced({ surface: PILE }),
     Transformable({ at: { x: 0, y: 0 } }),
+    Acceptor({ accept: { and: [] } }),
+    Grabber({ grab: "one" }),
+    // The middle is open: whatever lands here lies face up for the whole desk.
+    Poser({ side: keep(), others: "same" }),
   );
   add(desk, pile);
   for (const seat of seats) {
     const hand = node(
       `hand:${seat}`,
+      Bounded({ bounds: rect(3.2, 1.4) }),
       Container({ layout: "story.seats.row" }),
       Transformable({ at: AROUND[seat]!.at }),
-      Private({ access: [seat] }),
+      Acceptor({ accept: { and: [] } }),
+      Grabber({ grab: "one" }),
+      // NOT private any more, and that is the lesson: the hand is in everyone's picture, and what
+      // differs between seats is only which SIDE of its cards they are shown.
+      Poser({ side: keep(), others, owner: seat }),
     );
     for (let i = 0; i < handCards; i += 1) {
       add(
@@ -116,9 +143,49 @@ function board(seats: readonly string[], handCards: number): Node {
   return desk;
 }
 
+/**
+ * THE TRUTH, KEPT ACROSS RE-RENDERS while its shape is unchanged.
+ *
+ * Storybook calls the story again for every control, and a board rebuilt each time would forget
+ * every card anyone had moved — the desk would reset itself whenever a reader touched the pitch.
+ * So the board is rebuilt only when the SHAPE changes: how many seats, how many cards, which rule.
+ * That is client2's `deps` under another name, and it is the same reason the scene shell keeps its
+ * host: an argument change is new data, not a new world.
+ */
+let standing: { key: string; truth: Node } | undefined;
+
+function truthFor(seats: readonly string[], handCards: number, others: string): Node {
+  const key = `${seats.join(",")}|${handCards}|${others}`;
+  if (standing?.key !== key) standing = { key, truth: board(seats, handCards, others) };
+  return standing.truth;
+}
+
+/** Where a zone stands on the desk. The desk is an unposed free layout: its space IS root space. */
+const zoneHome = (zone: Node): Vec => fieldsOf<TransformableFields>(zone, "Transformable")?.at ?? { x: 0, y: 0 };
+
+/**
+ * Which zone the finger let go over — the scene's own knowledge, which is why the wiring asks for
+ * it rather than picking: a plain pick answers with the topmost thing DRAWN, and over a hand that
+ * is a card.
+ */
+function zoneAt(root: Node, at: Vec): Node | undefined {
+  return root.children.find((zone) => {
+    const box = footprint(zone);
+    if (!box) return false;
+    const { w, h } = extentOf(box);
+    const home = zoneHome(zone);
+    return Math.abs(at.x - home.x) <= w / 2 && Math.abs(at.y - home.y) <= h / 2;
+  });
+}
+
 export const Table: StoryObj<SeatsArgs> = {
-  render: ({ screens, handCards, pitch, feltPaint, facePaint }) => {
+  render: ({ screens, handCards, others, pitch, feltPaint, facePaint }) => {
     installStockLayouts();
+    installStockGrabs();
+    installStockGrains();
+    // Without the flip recipe a card at odd parity still paints its face: the side would be true
+    // in the tree and invisible on the glass.
+    installStockFlips();
     registerLayout("story.seats.free", freeLayout);
     registerLayout("story.seats.row", rowLayout({ gap: 0.08 }));
     registerSurface(FELT, { layers: [{ paint: feltPaint }], radius: 0.3 });
@@ -127,7 +194,12 @@ export const Table: StoryObj<SeatsArgs> = {
     registerSurface(PILE, { layers: [{ paint: "sunkBg" }], radius: 0.12 });
 
     const seats = SEATS.slice(0, Math.max(2, Math.min(4, Math.round(screens))));
-    const truth = board(seats, handCards);
+    const truth = truthFor(seats, handCards, others);
+    // Every screen, so a move made on one can be shown on all of them — the whole of "live".
+    const wall_: { seat: string; built: Scene }[] = [];
+    const showAll = (): void => {
+      for (const s of wall_) s.built.setRoot(project(truth, s.seat));
+    };
 
     const wall = document.createElement("div");
     wall.style.cssText = [
@@ -162,6 +234,28 @@ export const Table: StoryObj<SeatsArgs> = {
           start: { at: { x: 0, y: 0 }, zoom: 1 },
         },
       });
+      // THE FINGER WRITES THE TRUTH, NOT THE VIEW. The tree under this glass is a projection, so a
+      // drop resolved here would be real for one pair of eyes and would never have happened for the
+      // others. Ids survive a projection, so the same nodes are found in the board everyone shares,
+      // the move is planned and applied THERE, and then every screen is shown again.
+      wireDrag(built, {
+        zoneAt,
+        view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+        onDrop: ({ lead, target, seat: at }) => {
+          const source = lead.parent ? byId(truth, lead.parent.id) : undefined;
+          const touched = byId(truth, lead.id);
+          const zone = byId(truth, target.id);
+          if (!source || !touched || !zone) return false;
+          const home = zoneHome(zone);
+          const own = fieldsOf<TransformableFields>(touched, "Transformable");
+          if (own) compose(touched, Transformable({ ...own, at: { x: at.x - home.x, y: at.y - home.y } }));
+          const req = { source, touched, target: zone, carried: { angle: own?.angle ?? 0 } };
+          applyMove(req, planMove(req));
+          showAll();
+          return true;
+        },
+      });
+      wall_.push({ seat, built });
       const tag = document.createElement("div");
       tag.style.cssText =
         "position:absolute;left:8px;top:6px;z-index:2;font:600 11px ui-monospace,monospace;letter-spacing:.08em;opacity:.7;pointer-events:none";
@@ -172,10 +266,11 @@ export const Table: StoryObj<SeatsArgs> = {
     }
     return wall;
   },
-  args: { screens: 4, handCards: 4, pitch: 24, feltPaint: "panelBg", facePaint: "accent" },
+  args: { screens: 4, handCards: 4, others: "back", pitch: 24, feltPaint: "panelBg", facePaint: "accent" },
   argTypes: {
     screens: documented("arg.screens", { control: { type: "number", min: 2, max: 4, step: 1 } }, "the wall"),
     handCards: documented("arg.handCards", { control: { type: "number", min: 1, max: 6, step: 1 } }, "each hand/container"),
+    others: documented("arg.grainOthers", { control: "select", options: ["same", "back", "opposite"] }, "each hand/poser"),
     pitch: documented("arg.pitch", { control: { type: "number", min: 0, max: 60, step: 2 } }, "every camera"),
     feltPaint: documented("arg.fill", PAINT, "desk/surface"),
     facePaint: documented("arg.fill", PAINT, "cards/surface"),

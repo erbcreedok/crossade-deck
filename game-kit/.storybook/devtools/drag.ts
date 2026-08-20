@@ -81,6 +81,17 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * thing drawn, and over a zone holding cards that is a card.
    */
   readonly zoneAt?: ((root: Node, at: Vec) => Node | undefined) | undefined;
+  /**
+   * THE DROP, TAKEN OVER — called once a zone has been found and before anything is moved. Return
+   * `true` and the wiring does nothing else: the scene has taken the drop.
+   *
+   * It exists for the case the tree on this glass is not the truth. A live desk shows every seat a
+   * PROJECTION, and a card dropped on one screen has to change owner in the board everyone shares,
+   * not in the copy one pair of eyes was handed — otherwise the move is real for one screen and
+   * never happened for the others. Ids survive a projection, so the scene has everything it needs
+   * to find the same nodes in the truth.
+   */
+  readonly onDrop?: ((drop: { readonly lead: Node; readonly target: Node; readonly seat: Vec }) => boolean) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -287,6 +298,10 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const source = lead?.parent ?? undefined;
     const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
     if (!lead || !source || !target || target === source) return false;
+    if (w.opts.onDrop?.({ lead, target, seat })) {
+      for (const it of items) s.motions?.release(it.id);
+      return true;
+    }
     const req = { source, touched: lead, target, carried: { angle: angleOf(lead) } };
     const plan = planMove(req);
     if (plan.verdict !== "allow") return false; // refused, or waiting on a person: the piece goes home
