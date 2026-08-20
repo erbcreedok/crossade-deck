@@ -19,7 +19,7 @@ import {
   Transformable,
   type Node,
 } from "../../src/index.js";
-import { localMaster, PATIENCE } from "./master.js";
+import { localMaster, MAX_OPEN, PATIENCE } from "./master.js";
 
 /** A desk, a source holding one card, and an open target. */
 function board(): Node {
@@ -44,11 +44,22 @@ afterEach(() => {
 });
 
 describe("the local master", () => {
+  it("master.a-seat-is-handed-the-state-on-connect", () => {
+    // A room does this, and without it a screen has nothing to draw an ephemeral gesture on top of
+    // until somebody happens to move.
+    const m = localMaster(board());
+    let seen = 0;
+    m.join("north").onState(() => (seen += 1));
+    expect(seen).toBe(1);
+    m.dispose();
+  });
+
   it("master.everyone-hears-it-including-the-author", () => {
     const m = localMaster(board());
     const seen: string[] = [];
     m.join("north").onState(() => seen.push("north"));
     m.join("south").onState(() => seen.push("south"));
+    seen.length = 0; // the two boot snapshots are not what this is about
     m.join("north").send({ ...MOVE });
     expect(seen.sort()).toEqual(["north", "south"]); // the echo is just another snapshot
     m.dispose();
@@ -58,6 +69,8 @@ describe("the local master", () => {
     const m = localMaster(board(), 100);
     let snapshots = 0;
     m.join("north").onState(() => (snapshots += 1));
+    vi.advanceTimersByTime(100); // the boot snapshot travels the same wire
+    snapshots = 0;
     m.join("north").send({ ...MOVE });
     vi.advanceTimersByTime(99);
     expect(snapshots, "the message has not even reached the master").toBe(0);
@@ -109,6 +122,7 @@ describe("the local master", () => {
     let snapshots = 0;
     m.join("north").onState(() => (snapshots += 1));
     m.retune(0);
+    snapshots = 0; // the boot is still in flight at the old number; this is about the new one
     m.join("north").send({ ...MOVE });
     expect(snapshots).toBe(1); // no rebuild, no reconnect: the same master, a new number
     m.dispose();
@@ -205,6 +219,46 @@ describe("the local master", () => {
     const north = m.join("north");
     for (const card of ["a", "b", "c"]) north.send({ source: "src", touched: card, target: "hand", at: { x: 0, y: 0 }, actor: "north" });
     expect(heard).toEqual(["ask:1", "ask:2"]);
+    m.dispose();
+  });
+
+  // ── a hand in motion ────────────────────────────────────────────────────────────────────────
+
+  it("master.a-gesture-reaches-the-others-and-never-its-author", () => {
+    const m = localMaster(guarded());
+    const heard: string[] = [];
+    m.join("south").onCarry((c) => heard.push(`south<-${c.actor}`));
+    const north = m.join("north");
+    north.onCarry(() => heard.push("north"));
+    north.carry({ els: ["card"], at: { x: 1, y: 1 }, done: false });
+    expect(heard, "their own hand is already on their own glass, at the speed of a finger").toEqual(["south<-north"]);
+    m.dispose();
+  });
+
+  it("master.the-coordinates-are-cut-over-ones-own-hand", () => {
+    // South drags a card of its OWN hand. The table is told THAT it is moving and never where —
+    // the shape of a secret hand leaks through coordinates alone. The cut is made by the MASTER, so
+    // a client that forgot to withhold them could not leak them either.
+    const desk = guarded();
+    add(desk.children.find((c) => c.id === "hand")!, node("mine", Draggable({ onReject: "home" }), Transformable({})));
+    const m = localMaster(desk);
+    let told: { at?: { x: number; y: number } } | undefined;
+    m.join("north").onCarry((c) => (told = c));
+    m.join("south").carry({ els: ["mine"], at: { x: 2, y: 2 }, done: false });
+    expect(told?.at).toBeUndefined();
+    m.dispose();
+  });
+
+  it("master.the-cut-lifts-over-the-open-desk", () => {
+    // Carried OUT of the hand onto something everyone can see anyway, the point becomes honest —
+    // and the cut lifts at the edge of the hand, not at the end of the gesture.
+    const desk = guarded();
+    add(desk.children.find((c) => c.id === "hand")!, node("mine", Draggable({ onReject: "home" }), Transformable({})));
+    const m = localMaster(desk, 0, MAX_OPEN, (at) => at.x > 5);
+    let told: { at?: { x: number; y: number } } | undefined;
+    m.join("north").onCarry((c) => (told = c));
+    m.join("south").carry({ els: ["mine"], at: { x: 9, y: 0 }, done: false });
+    expect(told?.at).toEqual({ x: 9, y: 0 });
     m.dispose();
   });
 });

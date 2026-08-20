@@ -55,6 +55,21 @@ export interface Waiting {
   readonly zones: ReadonlySet<NodeId>;
 }
 
+/**
+ * A HAND IN MOTION, as the others are told about it — ephemeral decoration, never truth.
+ *
+ * `at` is ABSENT when the master cut it: a finger over its owner's own hand tells the table THAT it
+ * is dragging that card and never WHERE, or the shape of a secret hand would leak through the
+ * coordinates alone. Present, the point is honest and every seat reads it in the same axes.
+ */
+export interface Carry {
+  readonly actor: string;
+  readonly els: readonly NodeId[];
+  readonly at?: Vec;
+  /** The hand let go. Whatever the others were drawing for it comes off. */
+  readonly done: boolean;
+}
+
 /** A move that reached this seat as a QUESTION: somebody wants to put something in its zone. */
 export interface Ask {
   readonly id: string;
@@ -77,6 +92,10 @@ export interface Seatmate {
   onState(cb: (seen: Node, wait: Waiting) => void): () => void;
   /** THIS seat is being asked. Whether it answers with a panel, a key or a bot is its own business. */
   onAsk(cb: (ask: Ask) => void): () => void;
+  /** Say that this hand is carrying something. Retransmitted to the OTHERS, never echoed back. */
+  carry(carry: Omit<Carry, "actor">): void;
+  /** Somebody else's hand, in motion. */
+  onCarry(cb: (carry: Carry) => void): () => void;
   /** The word. Only the seat that was asked is heard — and the asker, who may withdraw. */
   reply(id: string, said: Answer): void;
 }
@@ -106,9 +125,17 @@ export const PATIENCE = 8_000;
  */
 export const MAX_OPEN = 3;
 
-export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN): Master {
+/**
+ * What the master must be told and cannot work out: whether a point is over a PUBLIC part of the
+ * desk. Zones and their boxes are in the tree, but which of them counts as public is the game's
+ * knowledge — the same reason the drag wiring is handed `zoneAt` rather than picking for itself.
+ */
+export type PublicAt = (at: Vec) => boolean;
+
+export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, publicAt?: PublicAt): Master {
   const seats = new Map<string, ((seen: Node, wait: Waiting) => void)[]>();
   const asked = new Map<string, ((ask: Ask) => void)[]>();
+  const hands = new Map<string, ((carry: Carry) => void)[]>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   /** Every question standing right now. A record in the state, exactly as the scenario has it. */
   const open: Pending[] = [];
@@ -194,12 +221,16 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN): Maste
     join(seat) {
       if (!seats.has(seat)) seats.set(seat, []);
       if (!asked.has(seat)) asked.set(seat, []);
+      if (!hands.has(seat)) hands.set(seat, []);
       return {
         seat,
         send: (move) => later(() => apply(move)),
         onState(cb) {
           const subs = seats.get(seat)!;
           subs.push(cb);
+          // THE CURRENT STATE, AT ONCE — a room hands one over on connect, and without it a screen
+          // has nothing to redraw an ephemeral gesture ON TOP OF until somebody happens to move.
+          later(() => cb(project(truth, seat), { held: locks(open), zones: new Set(open.map((q) => q.to.parent)) }));
           return () => {
             const i = subs.indexOf(cb);
             if (i >= 0) subs.splice(i, 1);
@@ -207,6 +238,36 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN): Maste
         },
         onAsk(cb) {
           const subs = asked.get(seat)!;
+          subs.push(cb);
+          return () => {
+            const i = subs.indexOf(cb);
+            if (i >= 0) subs.splice(i, 1);
+          };
+        },
+        carry(carry) {
+          // PRIVACY IS THE MASTER'S TO ENFORCE, not the sender's: a client that forgot to withhold
+          // its own coordinates would leak the shape of its hand to everyone, and no receiver could
+          // tell. So the cut is made HERE, once, against the tree the master holds.
+          // THE CUT LIFTS AT THE EDGE OF THE HAND, not at the end of the gesture. While the finger
+          // is over its owner's own hand the table is told THAT a card is moving and never where —
+          // the shape of a secret hand leaks through coordinates alone. Carry it out onto the open
+          // desk and the point becomes honest: it is over something everyone can see anyway.
+          const owner = ownerOf(byId(truth, carry.els[0] ?? "")?.parent ?? truth);
+          const home = owner !== "" && owner === seat;
+          const secret = home && !(carry.at && (publicAt?.(carry.at) ?? false));
+          const told: Carry =
+            secret || !carry.at
+              ? { actor: seat, els: carry.els, done: carry.done }
+              : { actor: seat, els: carry.els, at: carry.at, done: carry.done };
+          // NO ECHO TO THE AUTHOR: their own hand is already on their own glass, at the frame rate
+          // of a finger. Sending it back would be a slower copy of what they can already see.
+          for (const [other, subs] of hands) {
+            if (other === seat) continue;
+            for (const cb of subs) later(() => cb(told));
+          }
+        },
+        onCarry(cb) {
+          const subs = hands.get(seat)!;
           subs.push(cb);
           return () => {
             const i = subs.indexOf(cb);
@@ -234,6 +295,8 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN): Maste
       for (const t of timers) clearTimeout(t);
       timers.clear();
       seats.clear();
+      asked.clear();
+      hands.clear();
     },
   };
 }

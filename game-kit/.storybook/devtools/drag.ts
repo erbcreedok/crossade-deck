@@ -31,6 +31,7 @@ import {
   type CarryTuning,
   type Node,
   type Point,
+  type NodeId,
   type Transform,
   type TransformableFields,
   type Vec,
@@ -92,6 +93,15 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * to find the same nodes in the truth.
    */
   readonly onDrop?: ((drop: { readonly lead: Node; readonly target: Node; readonly seat: Vec }) => boolean) | undefined;
+  /**
+   * THE GESTURE ITSELF, as it happens — grabbed, moving, let go. Ephemeral: nothing here is truth,
+   * and a consumer that ignores it loses nothing but the presence of other hands on a live desk.
+   *
+   * Separate from `onDrop` because they answer different questions and travel different channels: a
+   * drop is a proposal about where a card BELONGS, a gesture is a picture of a hand in motion. One
+   * is judged and echoed; the other is retransmitted and forgotten.
+   */
+  readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean }) => void) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -269,6 +279,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
 
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
     const root = s.host.root;
+    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true });
     if (landed(items, seat, root)) return;
     for (const it of items) {
       const n = byId(root, it.id);
@@ -344,7 +355,9 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     }
     if (!w.drag || w.drag.pointer !== e.pointerId || !s.motions) return;
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
-    s.motions.dragTo({ x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y });
+    const at = { x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y };
+    s.motions.dragTo(at);
+    w.opts.onCarry?.({ ids: w.drag.items.map((it) => it.id), at, done: false });
   };
 
   const onUp = (e: PointerEvent): void => {

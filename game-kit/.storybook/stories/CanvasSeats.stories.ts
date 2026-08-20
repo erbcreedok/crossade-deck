@@ -7,6 +7,7 @@ import {
   applyMove,
   Bounded,
   byId,
+  cloneTree,
   Container,
   draggable,
   Draggable,
@@ -37,12 +38,13 @@ import {
   Transformable,
   walk,
   type Node,
+  type NodeId,
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
-import { localMaster, type Master, type Waiting } from "../devtools/master.js";
+import { localMaster, MAX_OPEN, type Master, type Waiting } from "../devtools/master.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // ONE BOARD, SEVERAL PAIRS OF EYES — the shape a live table has, standing in one page.
@@ -168,7 +170,11 @@ function masterFor(seats: readonly string[], handCards: number, others: string, 
   const key = `${seats.join(",")}|${handCards}|${others}`;
   if (standing?.key !== key) {
     standing?.master.dispose();
-    standing = { key, master: localMaster(board(seats, handCards, others), latency) };
+    const truth = board(seats, handCards, others);
+    // The middle is the public part of this desk: a hand carried over it is a hand everyone may
+    // watch. Which zone counts as public is the game's knowledge, so the master is told.
+    const open = (at: { x: number; y: number }): boolean => zoneAt(truth, at)?.id === "pile";
+    standing = { key, master: localMaster(truth, latency, MAX_OPEN, open) };
   }
   standing.master.retune(latency); // live, like every other knob: the same master, a new number
   return standing.master;
@@ -194,9 +200,25 @@ const DOTS = [-0.2, 0, 0.2];
  *
  * Written into the PROJECTION, never the truth: waiting is a thing a viewer is shown.
  */
-function mark(seen: Node, wait: Waiting): Node {
+function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Vec | undefined> = new Map()): Node {
+  // A COPY, because marks come OFF as well as on. A ring composed onto the snapshot itself would
+  // outlive the hand that put it there: the next pass simply does not mention that node, and what
+  // was never removed stays. Marking a fresh tree each time makes absence mean absence.
+  const seen = cloneTree(snapshot);
   registerSurface(DOT, { layers: [{ paint: "text" }] });
   walk(seen, (n) => {
+    // SOMEBODY ELSE'S HAND IS ON THIS. The ring says whose finger; the point, when the master let it
+    // through, says where. Over a secret hand there is no point to have — the table learns THAT a
+    // card is being dragged and never where, which is the whole of the cut.
+    if (others.has(n.id)) {
+      compose(n, Coated({ self: { recipe: "ring", level: 1, tint: "text" } }));
+      const at = others.get(n.id);
+      const own = fieldsOf<TransformableFields>(n, "Transformable");
+      // The point travels in ROOT units — every seat shares those axes, and only the cameras differ
+      // — but a node's own `at` is read against its OWNER, so the zone's seat comes off it here.
+      const home = n.parent ? zoneHome(n.parent) : { x: 0, y: 0 };
+      if (at && own) compose(n, Transformable({ ...own, at: { x: at.x - home.x, y: at.y - home.y }, z: own.z + WAITING_LIFT }));
+    }
     if (wait.zones.has(n.id)) compose(n, Coated({ self: { recipe: "ring", level: 0.9, tint: "accent" } }));
     if (!wait.held.has(n.id)) return;
     // OFF THE DESK while it waits: not flown home, which would read as a refusal, and not landed,
@@ -294,8 +316,23 @@ export const Table: StoryObj<SeatsArgs> = {
       // snapshot either confirms it or takes it away. Position is reversible, so predicting it is
       // safe; that is the design's own line about what may be predicted and what may not.
       const mate = master.join(seat);
+      // OTHER HANDS ON THE DESK. Ephemeral: a map that is not truth, not saved and not projected —
+      // it is redrawn under the newest snapshot and forgotten the moment a hand lets go.
+      const others = new Map<NodeId, Vec | undefined>();
+      let latest: { seen: Node; wait: Waiting } | undefined;
+      const redraw = (): void => {
+        if (latest) built.setRoot(mark(latest.seen, latest.wait, others));
+      };
+      mate.onCarry((carry) => {
+        for (const id of carry.els) {
+          if (carry.done) others.delete(id);
+          else others.set(id, carry.at);
+        }
+        redraw();
+      });
       mate.onState((seen, wait) => {
-        built.setRoot(mark(seen, wait));
+        latest = { seen, wait };
+        built.setRoot(mark(seen, wait, others));
         // A question is over the moment the board moves: granted, refused, withdrawn or simply out
         // of time — all four end the same way here, because the panel is a VIEW of an open request
         // and not a state of its own.
@@ -333,6 +370,7 @@ export const Table: StoryObj<SeatsArgs> = {
       wireDrag(built, {
         zoneAt,
         view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+        onCarry: ({ ids, at, done }) => mate.carry({ els: ids, at, done }),
         onDrop: ({ lead, target, seat: at }) => {
           const zone = byId(truth, target.id);
           const from = lead.parent;
