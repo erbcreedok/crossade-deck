@@ -266,6 +266,7 @@ interface ThrowArgs {
   wallSpeed: number;
   wallBounce: number;
   leash: number;
+  catchable: boolean;
 }
 
 /**
@@ -279,6 +280,11 @@ interface ThrowArgs {
  * it back across the tray with `wallBounce` of the speed it arrived at (tumbling all the way, like
  * any throw); keep PULLING past `leash` and the hold simply breaks, leaving the die where it stood.
  * The face comes from the `outcome` door as always.
+ *
+ * AND A DIE IN FLIGHT CAN BE CAUGHT: grab it mid-throw and the throw ends where your hand closed on
+ * it — the seat and the face it was carrying are written there and then, and the die is yours. The
+ * engine has no opinion about who may do that; `catchable` off is how a scene says no (through
+ * `Motions.busy`), which is the shape a shared desk writes for a die somebody else threw.
  */
 export const Throw: StoryObj<ThrowArgs> = {
   render: (a) => {
@@ -294,7 +300,7 @@ export const Throw: StoryObj<ThrowArgs> = {
     // a die has nowhere to be refused from.
     compose(held, Draggable({ onReject: "stay" }));
     add(t, held);
-    const { kind: _k, outcome: _o, seed: _s, given: _g, gain, ...motion } = a;
+    const { kind: _k, outcome: _o, seed: _s, given: _g, gain, catchable, ...motion } = a;
     /** The tray's own footprint, inset by the die's half — the box the die's CENTRE may be in. */
     const trayWalls = (root: Node): Walls | undefined => {
       const box = byId(root, "tray");
@@ -305,6 +311,10 @@ export const Throw: StoryObj<ThrowArgs> = {
     };
     const s: Scene = wireDrag(scene(desk, { animate: true, motion }), {
       trayOf: (root) => trayWalls(root),
+      // WHO MAY CATCH A DIE IN FLIGHT is the scene's rule, not the engine's — the engine only says
+      // that a hand which lands on one wins. `catchable` off is the shape a shared desk writes for
+      // a die somebody else threw: `busy` names what the clock is moving, and the gate refuses it.
+      may: (n) => catchable || s.motions?.busy(n.id) !== true,
       onRelease: (_v, items) => {
         const live = byId(s.host.root, items[0]?.id ?? "die");
         if (!live || !s.motions) return false;
@@ -345,12 +355,14 @@ export const Throw: StoryObj<ThrowArgs> = {
     wallSpeed: DEFAULT_TUNING.wallSpeed,
     wallBounce: DEFAULT_TUNING.wallBounce,
     leash: DEFAULT_TUNING.leash,
+    catchable: true,
   },
   argTypes: {
     kind: KIND,
     outcome: OUTCOME,
     seed: SEED,
     given: GIVEN,
+    catchable: documented("arg.catchable", { control: "boolean" }, "throw"),
     gain: documented("arg.gain", { control: { type: "range", min: 0.2, max: 3, step: 0.1 } }, "throw"),
     friction: documented("arg.friction", { control: { type: "range", min: 0, max: 30, step: 0.5 } }, "slide"),
     spinFriction: documented("arg.spinFriction", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "slide"),

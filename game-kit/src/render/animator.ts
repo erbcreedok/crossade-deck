@@ -248,6 +248,21 @@ export interface Motions {
    * changed — which walks the tree, publishes it and reconciles every pose, sixty times a second.
    */
   redraw(): void;
+  /**
+   * WHERE EVERY MOVING PIECE IS BEING DRAWN right now — hand it to `pick` and the finger tests what
+   * the eye sees. Without it a hit-test reads the tree, where a thrown die still sits on the seat it
+   * left; `undefined` when nothing is moving, which is when the tree is the honest answer anyway.
+   */
+  poses(): ReadonlyMap<NodeId, Transform> | undefined;
+  /**
+   * Is the CLOCK moving this node — a flight or a choreography, the two a finger would have to
+   * interrupt? A settle is not one: catching a piece on its way home is an ordinary grab.
+   *
+   * The kit does not decide who may interrupt what. A `grab` always wins (the finger is the latest
+   * word); this is how a scene writes the rule that it should not be offered — "a die somebody else
+   * threw is not yours to catch" is a gate on the pick, and it needs this to be written.
+   */
+  busy(id: NodeId): boolean;
   /** The tuning in force right now — the defaults, the game's record and every `retune` folded in. */
   tuning(): MotionTuning;
   /** Stop following the host and cancel any running loop. */
@@ -887,6 +902,24 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (carrying && carrying.items.every((it) => !carried.has(it.id))) carrying = null;
     },
     grab(items, opts) {
+      // THE FINGER IS THE LATEST WORD. Whatever the clock was doing to these nodes ends HERE, and it
+      // ends by LANDING rather than by being thrown away: a throw the hand caught is a throw that
+      // finished where it was caught, so the seat and the face it was carrying are written, and the
+      // piece never comes to rest showing a number nobody rolled. Without this the flight goes on
+      // stepping under the carry and wins the frame — which is the hand feeling blocked by a picture.
+      for (const it of items) {
+        const f = flights.get(it.id);
+        if (f) land(it.id, f);
+        for (const [key, ch] of [...choreos]) {
+          if (!ch.ids.includes(it.id)) continue;
+          if (!ch.committed) {
+            ch.committed = true;
+            ch.commit(); // the LOOK is interrupted; the truth it was carrying still lands
+          }
+          choreos.delete(key);
+        }
+      }
+      reconcile();
       const t = tune({ ...tuning, ...opts });
       const anchor = opts.anchor;
       carrying = {
@@ -1058,6 +1091,14 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     redraw: () => draw(),
     retune(patch) {
       tuning = tune({ ...tuning, ...patch });
+    },
+    poses() {
+      return overrides();
+    },
+    busy(id) {
+      if (flights.has(id)) return true;
+      for (const ch of choreos.values()) if (ch.ids.includes(id)) return true;
+      return false;
     },
     tuning() {
       return tuning;

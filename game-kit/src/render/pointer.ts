@@ -40,6 +40,11 @@ export function toUnits(host: Host, g: Point, view?: Transform): Point {
  *
  * Which is why `view` is here: the plan the painter drew is the plan the CAMERA drew, and a pick
  * that rebuilt it without her would agree with the eye only while the desk sat unpanned.
+ *
+ * And why `poses` is here (`Motions.poses()`): the plan the painter drew is also the plan the CLOCK
+ * drew. Without them the finger tests where every piece RESTS, so a die halfway across a tray
+ * answers to a touch on the seat it left and ignores the one on the die itself — the animation
+ * reads as if it were blocking the hand, when what is blocking it is a stale hit-test.
  */
 export function pick(
   host: Host,
@@ -47,6 +52,7 @@ export function pick(
   g: Point,
   want: (n: Node) => boolean,
   view?: Transform,
+  poses?: ReadonlyMap<string, Transform>,
 ): Node | undefined {
   const v = host.viewport();
   const plan = scenePlan({
@@ -56,6 +62,7 @@ export function pick(
     height: v.height,
     viewer: host.viewer(),
     ...(view ? { view } : {}),
+    ...(poses ? { overrides: poses } : {}),
   });
   for (let i = plan.length - 1; i >= 0; i--) {
     const q = plan[i]!;

@@ -156,10 +156,18 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const g = glassOf(view, e);
     // Only a draggable lifts — and only one the gate lets through: the pick reads the SAME plan
     // the painter drew, so what refuses the finger is exactly what the eye sees refuse it.
-    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true), w.opts.view?.());
+    // Through the clock's own poses: the finger tests what the EYE sees, so a die halfway across a
+    // tray answers to a touch on the die and not to one on the seat it left.
+    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true), w.opts.view?.(), s.motions?.poses());
     if (!hit) return;
     const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
-    const poses = transformsOf(root);
+    // WHERE THE PIECES ARE DRAWN, not where they rest: the hand closes on what it can see. A piece
+    // the clock is moving rests somewhere it left long ago, and an anchor taken from the tree would
+    // teleport a caught die back to its seat the instant the finger touched it.
+    const drawn = s.motions?.poses();
+    const tree = transformsOf(root);
+    const poses = new Map(tree);
+    if (drawn) for (const [id, t] of drawn) if (tree.has(id)) poses.set(id, t);
     const at = poses.get(hit.id);
     if (!at || run.length === 0) return;
     const anchor = { x: at.e, y: at.f };

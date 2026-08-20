@@ -103,6 +103,24 @@ describe("the pointer seam", () => {
     expect(toUnits(h, { x: 250, y: 300 }, view()).x).toBeCloseTo(0, 6);
   });
 
+  it("pointer.picks-where-the-clock-drew-it — a flying piece answers to a touch on the piece, not on its seat", () => {
+    // The plan the painter drew is the CLOCK's plan too. Without the poses the finger tests where
+    // everything RESTS — so a die halfway across a tray ignores a touch on the die and answers one
+    // on the seat it left, which is exactly the "the animation is blocking my hand" feeling.
+    const desk = node("desk", Container({ layout: "free" }));
+    add(desk, node("die", box(1, 1), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    const h = host(100);
+    const seat = { x: 400, y: 300 }; // the origin of an 800×600 glass at 100 px/unit
+    const away = { x: 700, y: 300 }; // three units to the right
+    const flying = new Map([["die", { a: 1, b: 0, c: 0, d: 1, e: 3, f: 0 }]]);
+    // At rest, the seat is where it is and three units on is empty glass.
+    expect(pick(h, desk, seat, () => true)?.id).toBe("die");
+    expect(pick(h, desk, away, () => true)).toBeUndefined();
+    // Handed the clock's poses, the answers swap — the finger follows the picture.
+    expect(pick(h, desk, away, () => true, undefined, flying)?.id).toBe("die");
+    expect(pick(h, desk, seat, () => true, undefined, flying)).toBeUndefined();
+  });
+
   it("pointer.misses-outside-every-quad — empty glass hits nothing", () => {
     const root = node("solo", box(1, 1), Surfaced());
     expect(pick(host(100), root, { x: 10, y: 10 }, () => true)).toBeUndefined();

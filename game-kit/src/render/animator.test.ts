@@ -755,6 +755,33 @@ describe("flights: launch and slide", () => {
     expect(Math.max(...gaps)).toBeGreaterThan(Math.min(...gaps) * 3);
   });
 
+  it("motion.a-finger-catches-what-the-clock-is-moving — a grab ends the flight where it caught it, and the run is the hand's", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { friction: 3, clock: c.clock });
+    let landedAt: number | undefined;
+    m.slide("c", { speed: 6, angle: 0, onDone: (rest) => { landedAt = rest.at.x; } });
+    for (let t = 16; t <= 200; t += 16) c.tick(t);
+    expect(m.busy("c")).toBe(true); // the clock has it
+    const flying = b.tOf("c").e; // where it is DRAWN, root units — the point the hand closes on
+    // The hand takes it MID-FLIGHT. Nothing is thrown away: the throw is finished where it was
+    // caught, so what it was carrying (a seat, and a game's face) lands rather than evaporating.
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: flying, y: 0 } });
+    expect(landedAt).toBeDefined();
+    expect(m.busy("c")).toBe(false);
+    // ...and it is the HAND's now: it rides the finger 1:1 instead of carrying on across the desk.
+    const caught = b.tOf("c").e;
+    m.dragTo({ x: flying + 3, y: 0 });
+    c.tick(216);
+    // The finger moved three units, so the piece moved three: it rides the hand 1:1 from the moment
+    // it was caught, instead of carrying on across the desk on the throw's own momentum.
+    expect(b.tOf("c").e - caught).toBeCloseTo(3, 3);
+    const held = b.tOf("c").e;
+    c.tick(400);
+    c.tick(800);
+    expect(b.tOf("c").e).toBeCloseTo(held, 3); // the flight did not go on stepping underneath
+  });
+
   it("motion.launch-falls-and-leaves-the-glass — gravity, the floor bounce, then gone with a callback", () => {
     const b = bench();
     const c = fakeClock();

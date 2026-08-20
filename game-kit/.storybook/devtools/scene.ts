@@ -369,7 +369,7 @@ export function scene(
     : () => {};
   const stopTaps = options.flipOnTap ? wireFlipTap(host, motions) : () => {};
   TAPPED.set(id, options.tap);
-  const stopTapping = options.tap ? wireTap(host, (hit) => TAPPED.get(id)?.(hit), viewOf) : () => {};
+  const stopTapping = options.tap ? wireTap(host, (hit) => TAPPED.get(id)?.(hit), viewOf, () => motions?.poses()) : () => {};
   const stopPainting = motions
     ? motions.stop
     : attachPainter(host, painter, {
@@ -602,9 +602,9 @@ export function sceneOf(el: HTMLElement): Scene | undefined {
  * The plain tap — see `SceneOptions.tap`. It reports what was under the finger and stops there;
  * every decision after that is the story's.
  */
-function wireTap(host: Host, onTap: (hit: Node | undefined) => void, view?: () => Transform): () => void {
+function wireTap(host: Host, onTap: (hit: Node | undefined) => void, view?: () => Transform, poses?: () => ReadonlyMap<string, Transform> | undefined): () => void {
   const onDown = (e: PointerEvent): void => {
-    onTap(pick(host, host.root, glassOf(host.view, e), () => true, view?.()));
+    onTap(pick(host, host.root, glassOf(host.view, e), () => true, view?.(), poses?.()));
   };
   host.view.addEventListener("pointerdown", onDown);
   return () => host.view.removeEventListener("pointerdown", onDown);
