@@ -1,0 +1,32 @@
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_b1eecd09471ac2 10,85
+game-kit/docs/test-plan/57-local-master.md
+  s_170937f0c01a52::t_b1eecd09471ac2 1-22
+game-kit/.storybook/devtools/master.ts
+  s_170937f0c01a52::t_e85707958c39c8 1-123
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_b1eecd09471ac2 57
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_170937f0c01a52::t_97c27047eb208e 188
+  s_170937f0c01a52::t_cf2333cd02d64e 40,85,157,159,161-166,203-204,239-249,255,257-264,277,282
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_b1eecd09471ac2 53
+game-kit/.storybook/devtools/master.test.ts
+  s_170937f0c01a52::t_66bb7a2c563849 1-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d3deca6c4d89c5176d68f7dc1bfdeb701240122e",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
