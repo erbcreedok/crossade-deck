@@ -1,0 +1,28 @@
+game-kit/src/core/pending.test.ts
+  s_170937f0c01a52::t_f7d03345ed8c47 1-7,9-86,88-124
+  s_170937f0c01a52::t_52a0327dda1564 8,87
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_cc5d129c37aa94 10,84
+game-kit/docs/test-plan/56-pending.md
+  s_170937f0c01a52::t_cc5d129c37aa94 1-27
+game-kit/src/index.ts
+  s_170937f0c01a52::t_cc5d129c37aa94 221-223
+game-kit/src/core/pending.ts
+  s_170937f0c01a52::t_52a0327dda1564 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0641529f914b57a82214337740d1a0f1250dfce2",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
