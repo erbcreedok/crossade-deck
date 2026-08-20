@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**54 слоя · 1273 кейсов заявлено · 1100 расписано поимённо.**
+**54 слоя · 1279 кейсов заявлено · 1106 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -59,7 +59,7 @@
 | [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 8 | 8 |
 | [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 8 | 8 |
 | [UNIT · Grippable — whose hands may lift it](33-grippable.md) | `vitest` | 6 | 6 |
-| [UNIT · Move — the whole drop as one plan](34-move.md) | `vitest` | 11 | 11 |
+| [UNIT · Move — the whole drop as one plan](34-move.md) | `vitest` | 17 | 17 |
 | [PRESET · Deck — a set expanded into cards](35-deck.md) | `vitest` | 10 | 10 |
 | [UNIT · the effects list — the runtime seam](36-effects.md) | `vitest` | 5 | 5 |
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |

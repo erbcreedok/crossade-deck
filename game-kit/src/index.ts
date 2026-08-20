@@ -191,7 +191,7 @@ export { Inviting, inviteOf, wearInvite, type InvitingFields } from "./core/atom
 export { wearInvites, willingZones } from "./core/invite.js";
 // The card turn, as data: a recipe name, a turn count (parity, summed), a reflection axis, a back
 // surface. What the turn DOES is a recipe in `render/flips.ts`; the engine mixes it in blind.
-export { facing, Flippable, setFacing, type Facing, type FlippableFields } from "./core/atoms/flippable.js";
+export { facing, Flippable, ownFacing, setFacing, type Facing, type FlippableFields } from "./core/atoms/flippable.js";
 export { contentSwap, flipNames, flipRecord, flipEffect, installStockFlips, registerFlip, resetFlips, type Flip } from "./render/flips.js";
 // A runtime layer mixed over the surface: a highlight, a dim, a censor. Data on the atom, look in
 // a recipe, reach on the inheritance class — `self` this face, `cast` the whole subtree.

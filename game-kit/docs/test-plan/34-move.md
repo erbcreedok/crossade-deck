@@ -1,6 +1,6 @@
 ## UNIT · Move — the whole drop as one plan
 
-`vitest` · 11 кейсов, расписано 11
+`vitest` · 17 кейсов, расписано 17
 
 Хват, грип, keeps, приём и occupied — каждый свой маленький закон; ход — где они встречаются.
 `planMove` читает их в порядке настоящего дропа и возвращает что БЫЛО БЫ, дерево не трогая (модель
@@ -20,3 +20,9 @@
 | `move.occupied-slot-reject-denies` | заполненный reject-слот (Displacer) | `planMove` | `block:rejected`, `occupied:{reject}` |
 | `move.occupied-slot-swap-allows` | заполненный swap-слот | `planMove` | allow, `occupied:{swap}` — сиделец домой |
 | `move.pile-without-displacer-never-conflicts` | полный пайл без Displacer | `planMove` | просто растёт: `{allow, load:[card]}` |
+| `move.plan-carries-the-rest-pose` | обычный дроп, зона без правил | `planMove` | в плане есть поза: «можно ли» и «как ляжет» — один вопрос одной зоне |
+| `move.a-denied-move-has-no-pose` | источник не выпускает (`keeps: []`) | `planMove` | `deny` и позы НЕТ: что не приземлилось, нигде не лежит |
+| `move.the-target-stamps-the-pose` | цель с `angle: stamp(0)`, принесено 15° | `planMove` | 0°: зона навязала, принесённое не спросили |
+| `move.the-carried-pose-comes-from-the-request` | цель `keep`, в запросе `carried: {angle:15}` | `planMove` | 15°: угол под пальцем на узле не лежит — его держит рантайм и отдаёт на дропе |
+| `move.without-a-carried-pose-the-node-answers` | в запросе позы нет, у карты свои 15° и один переворот | `planMove` | `{15°, рубашка}` — раздача, которой ничей палец не касался |
+| `move.the-target-turns-the-card-over` | цель с `side: up()`, принесена рубашка | `planMove` | лицо: сторона — грань той же позы, не отдельная сущность |

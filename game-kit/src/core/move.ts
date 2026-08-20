@@ -12,7 +12,7 @@
 // A target is a "slot" precisely when it carries a `Displacer`; a pile has none and simply grows.
 // See CANONS.md §3, docs/design/container.md and NIGHT-DECISIONS.md.
 
-import { caps, type Node, type NodeId } from "./node.js";
+import { caps, fieldsOf, type Node, type NodeId } from "./node.js";
 import { canAccept } from "./atoms/acceptor.js";
 import { grabFrom } from "./atoms/grab.js";
 import { grippableBy } from "./atoms/grippable.js";
@@ -20,6 +20,9 @@ import { keepsAllows } from "./atoms/keeps.js";
 import { admitsOccupied, resolveOccupied } from "./atoms/occupied.js";
 import { type OccupiedOutcome } from "./atoms/occupied.js";
 import { type Verdict } from "./accept.js";
+import { restPose, type CarriedPose, type RestPose } from "./atoms/pose.js";
+import { ownFacing } from "./atoms/flippable.js";
+import { type TransformableFields } from "./atoms/transformable.js";
 
 /** Why a move was denied, when it was — the gate that stopped it. */
 export type MoveBlock = "empty" | "gripped" | "kept" | "rejected";
@@ -33,6 +36,13 @@ export interface MoveRequest {
   readonly target: Node;
   /** Who is performing the move, for the grip check. Omit to skip grip entirely. */
   readonly seat?: string;
+  /**
+   * The pose the GESTURE holds, grain by grain — the turn a finger left the load at, the side a
+   * flick sent it away on. In flight none of it is on the node: it is local, per-frame and
+   * predicted, so the runtime hands it over here at the drop. Omit a grain, or the whole thing, and
+   * the node's own value answers — which is exactly right for a deal nobody's finger touched.
+   */
+  readonly carried?: CarriedPose;
 }
 
 export interface MovePlan {
@@ -44,10 +54,31 @@ export interface MovePlan {
   readonly block?: MoveBlock;
   /** What happens to a sitter, present iff the target is a filled slot the move may enter. */
   readonly occupied?: OccupiedOutcome;
+  /**
+   * How the load LIES once it lands — present iff the move may proceed, absent on a denial for the
+   * plain reason that nothing that does not land lies anywhere.
+   *
+   * One resolution answers both halves on purpose. "May it" and "how does it lie afterwards" are
+   * the same question put to the same zone, and asking them separately is how a verdict from one
+   * zone comes to be paired with a pose from another.
+   */
+  readonly pose?: RestPose;
 }
 
 /** The capability a load needs to be carried out of a container: it is being dragged away. */
 const CARRY = "Draggable";
+
+/**
+ * What the load brings in, grain by grain: the gesture's value where it holds one, the node's own
+ * otherwise. Per grain and not all-or-nothing — a finger that turned a card did not thereby say
+ * anything about which side is up.
+ */
+function carriedInto(touched: Node, given: CarriedPose | undefined): CarriedPose {
+  return {
+    angle: given?.angle ?? fieldsOf<TransformableFields>(touched, "Transformable")?.angle,
+    side: given?.side ?? ownFacing(touched),
+  };
+}
 
 /**
  * What a drop of `touched` from `source` onto `target` would do. Pure — reads the policies, moves
@@ -55,6 +86,9 @@ const CARRY = "Draggable";
  */
 export function planMove(req: MoveRequest): MovePlan {
   const { source, touched, target, seat } = req;
+  // The arrangement is not asked for a turn: `place` answers in points, and no registered layout
+  // has an opinion about one yet. `derive` therefore reads "straight", which is what a grid means.
+  const pose = (): RestPose => restPose(target, carriedInto(touched, req.carried), {});
 
   const load = grabFrom(source, touched.id);
   if (load.length === 0) return { verdict: "deny", load, block: "empty" };
@@ -69,8 +103,8 @@ export function planMove(req: MoveRequest): MovePlan {
   if (target.children.length > 0 && caps(target).has("Displacer")) {
     const occupied = resolveOccupied(target); // opaque plan data for the runtime — never dispatched on here
     if (!admitsOccupied(target)) return { verdict: "deny", load, block: "rejected", occupied };
-    return { verdict, load, occupied };
+    return { verdict, load, occupied, pose: pose() };
   }
 
-  return { verdict, load };
+  return { verdict, load, pose: pose() };
 }

@@ -50,8 +50,23 @@ export type Facing = "up" | "down";
  * fractional or broken count is floored to a whole turn, exactly as the effect floors it.
  */
 export function facing(n: Node): Facing {
-  const summed = sumAlongChain(contextFor(n, 1), "Flippable", "turns");
-  return (((Math.trunc(summed) % 2) + 2) % 2) === 0 ? "up" : "down";
+  return parity(sumAlongChain(contextFor(n, 1), "Flippable", "turns"));
+}
+
+/** Even turns show the face, odd the back. A fractional or broken count floors, as the effect does. */
+function parity(turns: number): Facing {
+  return (((Math.trunc(turns) % 2) + 2) % 2) === 0 ? "up" : "down";
+}
+
+/**
+ * The node's OWN side — its bit alone, with no owner's turn folded in.
+ *
+ * The twin of `facing`, and the distinction is the whole of the two-bit model: a card in a closed
+ * deck is face-UP by this reading and face-down by `facing`, because the deck is the turned thing.
+ * That is what makes drawing it into an open hand show the face without writing to the card.
+ */
+export function ownFacing(n: Node): Facing {
+  return parity(fieldsOf<FlippableFields>(n, "Flippable")?.turns ?? 0);
 }
 
 /**
