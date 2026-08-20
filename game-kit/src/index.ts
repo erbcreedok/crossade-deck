@@ -85,6 +85,25 @@ export {
   type LayoutRecord,
 } from "./core/atoms/container.js";
 export { freeLayout, installStockLayouts, rowLayout, type LayoutAlign, type RowOptions } from "./core/atoms/layouts.js";
+// What a zone does to an arriving load, grain by grain: derive from the arrangement, stamp a fixed
+// value, or keep what came in. Records in a registry, so a game's own answer costs no branch here.
+export {
+  derive,
+  grainRecord,
+  installStockGrains,
+  keep,
+  Poser,
+  registerGrain,
+  resetGrains,
+  restPose,
+  stamp,
+  type GrainInput,
+  type GrainRecord,
+  type GrainRule,
+  type PoseGrains,
+  type PoserFields,
+  type RestPose,
+} from "./core/atoms/pose.js";
 export { Surfaced, areaOf, paintable, type SurfacedFields } from "./core/atoms/surfaced.js";
 // A zone is a container that judges what may enter. The rule is DATA; the verdict is three-valued.
 export { Acceptor, canAccept, wouldAccept, subjectOf, targetOf, type AcceptorFields } from "./core/atoms/acceptor.js";

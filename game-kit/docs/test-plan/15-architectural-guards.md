@@ -1,6 +1,6 @@
 ## ARCHITECTURAL GUARDS · source-scan
 
-`vitest + fs scan (like argNames.test.ts)` · 32 кейсов, расписано 32
+`vitest + fs scan (like argNames.test.ts)` · 33 кейсов, расписано 33
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -12,6 +12,7 @@
 | `guard.layout-writes-only-at` | все поставляемые раскладки | позы прочитаны | ключи ровно `x,y` — раскладка двигает, но не поднимает |
 | `guard.catalog-through-the-door` | каталог | импорты в `src/` просканированы, включая динамические | только две двери: модель (`index.ts`) и рендерер (`render/pixi.ts`) |
 | `guard.no-kind` | the whole src tree | scanned for `def.kind ===` / kind switches | zero hits outside the visual registry |
+| `guard.grain-is-a-record` | the whole src tree | scanned for `.rule ===` / rule switches | zero hits — derive/stamp/keep are records, so a game's fourth answer is a `registerGrain` call and never a branch |
 | `guard.no-negation` | the whole src tree | scanned for `disabled` / `interactive:"none"` / `transparent` | zero hits — capability is by presence, restriction by absence |
 | `guard.caps-only-door` ⏳ | systems code | scanned for direct `def.flip/def.drag/...` | zero — only `elementCaps` may read them |
 | `guard.no-parent-namespace` ⏳ | the whole src tree | scanned for `parent.` as a field path | zero — an owner's fields are ordinary fields of another node |

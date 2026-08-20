@@ -137,6 +137,15 @@ describe("guards", () => {
     expect(hits(/\.kind\s*===|switch\s*\(\s*\w+\.kind\s*\)/)).toEqual([]);
   });
 
+  it("guard.grain-is-a-record — a pose rule is resolved by name, never branched on", () => {
+    // The sibling of the rule above, on the one union most likely to grow a branch. `derive`,
+    // `stamp` and `keep` are RECORDS, and scenario F needs a fourth that only a game can write —
+    // an open-desk sandbox, a poker hand that opens at showdown. The moment one call site reads
+    // `rule === "stamp"`, that fourth answer stops being a `registerGrain` call and becomes a
+    // patch to the engine, which is the whole thing the registry was built to prevent.
+    expect(hits(/\.rule\s*===|switch\s*\(\s*\w+\.rule\s*\)/)).toEqual([]);
+  });
+
   it("guard.no-negation — capability is by presence, restriction by absence", () => {
     // Negation flags do not exist in the model: no `disabled`, no `interactive`, no `transparent`.
     expect(hits(/\bdisabled\b|\binteractive\s*:|\btransparent\b/)).toEqual([]);

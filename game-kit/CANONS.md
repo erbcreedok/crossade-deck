@@ -160,6 +160,7 @@
 | `Labeled` | `label`, `labelParams?` | — | `setLabel` | `labelChanged` |
 | `Owned` | `box` | — | — | — |
 | `Acceptor` | `accept: AcceptRule` | `Container` | `canAccept(el, ctx)` | `dropAccepted/Rejected` |
+| `Poser` | `angle: GrainRule` (грань: derive/stamp/keep) | `Container` | `restPose` | — (поза покоя, не событие) |
 | `Actionable` | `action: RegistryRef` | `Bounded` | `activate` | `activated` |
 | `Focusable` | — | `Bounded` | `focus`, `blur` | `focused` / `blurred` |
 | `Grip` | — | `Bounded` | — | — (жесты адресуются владельцу) |
