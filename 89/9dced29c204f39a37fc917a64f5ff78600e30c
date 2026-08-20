@@ -1,0 +1,33 @@
+game-kit/src/core/atoms/pose.ts
+  s_170937f0c01a52::t_f6335dbdca6ea5 84,100-105,153-174,180-197,214-215
+game-kit/src/core/project.test.ts
+  s_170937f0c01a52::t_f8e06a972633e9 98,108,114-115,122-123,130,134,136,148
+  s_170937f0c01a52::t_f6335dbdca6ea5 118-121,135
+  s_170937f0c01a52::t_527cd8f7c4da18 7,38-42
+  s_170937f0c01a52::t_6f9a886b0ba0ab 14-16,87-97,99-107,109-113,116-117,124-129,131-133,137-147,149-151
+game-kit/src/core/project.ts
+  s_170937f0c01a52::t_7dc9dbe1f6c1a0 16,18-19,34,37-58
+  s_170937f0c01a52::t_10309d63ae34ca 59
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_44596c0294af78 10,83
+game-kit/src/index.ts
+  s_170937f0c01a52::t_44596c0294af78 101,106,117-118
+game-kit/docs/test-plan/55-seat-projection.md
+  s_170937f0c01a52::t_44596c0294af78 3,23-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "899dced29c204f39a37fc917a64f5ff78600e30c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
