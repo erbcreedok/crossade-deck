@@ -1,0 +1,21 @@
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_170937f0c01a52::t_90acbaf573f53b 90,130-144,152-163,397,530-539,547
+.night/2026-08-21.md
+  s_170937f0c01a52::t_d39b4b60b31bf8 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "eb46ff57145c0b3c3b9d4df96510aec3d354ad8c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
