@@ -1,0 +1,33 @@
+# Fly-конфиг хаба. Приложение создаётся один раз руками (образ приезжает готовым из GHCR,
+# собирать Fly ничего не должен):
+#   fly apps create crossade-deck-hub
+#   scripts/deploy.sh hub
+#
+# Тома нет: хаб чисто статический, переживать перезапуск нечему.
+
+app = "crossade-deck-hub"
+primary_region = "fra"
+
+# Секция пустая намеренно: образ приезжает готовым (fly deploy --image). Без неё flyctl
+# начинает искать Dockerfile в контексте.
+[build]
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+# Здоровье статики — это «nginx отвечает на корень». Отдельного /health заводить незачем:
+# отдать index.html он может ровно тогда же, когда и любой другой файл.
+[[http_service.checks]]
+  grace_period = "5s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/"

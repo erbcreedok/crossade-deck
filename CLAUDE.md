@@ -6,10 +6,15 @@ Details live next to the code and load when you work there.
 | where | what it is | its doc |
 |---|---|---|
 | `game-kit/` | **active work**: a library of presets and contracts for building board games | `game-kit/CANONS.md` |
-| `client/` | Crossade Deck client — React + Vite, imperative Pixi.js v8 table engine | `client/CLAUDE.md` |
+| `game-presets/*` | add-ons built ON the kit and shipped separately — `cards`, `dice` | the package's own header |
+| `apps/*` | standalone games (`klondike`) and the `hub` they are started from | the app's own header |
 | `server/` | Crossade Deck server — Colyseus, custom accounts | `server/CLAUDE.md` |
-| `client2/` | previous client generation. **Reference only** — a behaviour benchmark and a source of test specification, not edited | `client2/docs/HANDOFF.md` |
-| `deploy/`, `scripts/` | Fly.io: three apps, build and deploy are SEPARATE steps | `DEPLOY.md` |
+| `deploy/`, `scripts/` | Fly.io: two apps (server, hub) + the catalogue on GitHub Pages; build and deploy are SEPARATE steps | `DEPLOY.md` |
+
+The two previous client generations (`client/`, `client2/`) were deleted once the kit replaced them.
+They are named all over the kit's comments as the SOURCE of a ported mechanic or of a trap already
+paid for — that history is in git (`git log --diff-filter=D -- client2`), and a mention of it in a
+comment is a citation, not a path to open.
 
 ## Working in game-kit
 
@@ -17,15 +22,14 @@ Entry point is `game-kit/CANONS.md` — it names every other document and says w
 Do not re-derive its rules and do not ask about them again: they are owner requirements, each written
 down after it was broken.
 
-`game-kit` is not part of the Crossade Deck client. It has its own stack, its own catalog and its own
-laws; nothing from `client/` or `client2/` carries over to it without being restated there.
+`game-kit` is not the Crossade Deck client. It has its own stack, its own catalog and its own laws;
+nothing from the deleted clients carries over to it without being restated there.
 
 ## Version
 
 `v<version>+<build>` (e.g. `v0.2.0+166`) — declared version from `package.json` plus the commit count
-as the build number. `client/src/version.ts` and `server/src/version.ts` share the format; shown at
-the bottom of the lobby, in the settings menu, and in the server's `/health`. Both packages declare
-the same `version` (a test guards it) since they have separate build contexts.
+as the build number. `server/src/version.ts` holds the format; it is shown in the server's
+`/health`.
 
 ## Rules for every task here
 

@@ -1,10 +1,9 @@
 # Локальная проверка / прод без туннеля: `docker compose up -d --build`.
 #
-# CROSSADE_SERVER_URL/CROSSADE_HTTP_URL — публичные адреса игрового сервера, ими
-# собирается клиентский бандл (см. client/Dockerfile). Для локальной проверки
-# подойдут значения по умолчанию ниже; для прода задай их в .env рядом с этим
-# файлом (ws:// → wss://, http:// → https://) ДО первого `--build` — после
-# сборки бандл не перепрошить без пересборки образа.
+# Две независимые части, и они друг о друге не знают: сервер (Colyseus, :2567) и ХАБ —
+# статическая страница, с которой запускаются игры (:8080). Адреса сервера в хаб не
+# прошиваются вовсе: он ни с чем не разговаривает, игра грузится ленивым чанком в той же
+# странице. Поэтому и build-аргументов у него нет, и образ один на все окружения.
 services:
   server:
     build: ./server
@@ -19,17 +18,13 @@ services:
       timeout: 3s
       retries: 5
 
-  client:
+  hub:
     build:
-      context: ./client
-      args:
-        VITE_SERVER_URL: ${CROSSADE_SERVER_URL:-ws://localhost:2567}
-        VITE_HTTP_URL: ${CROSSADE_HTTP_URL:-http://localhost:2567}
+      context: .
+      dockerfile: deploy/hub.Dockerfile
     restart: unless-stopped
     ports:
       - "8080:80"
-    depends_on:
-      - server
 
 volumes:
   # Аккаунты (server/data/accounts.json) — единственное, что должно пережить

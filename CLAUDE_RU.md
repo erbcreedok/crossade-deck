@@ -17,8 +17,8 @@
   будущее в коде (`client/src/firebase.ts`, `server/src/auth.ts`), не настроен и не
   используется, пока не подставлены ключи.
 - **Тесты**: vitest в обоих пакетах (`npm test` в `server/` и `client/`).
-- **Деплой**: прод — **Fly.io**, три аппы (`crossade-deck-server`, `crossade-deck-client`,
-  `crossade-deck-storybook`). Сборка и выкатка РАЗДЕЛЕНЫ: образы собирает
+- **Деплой**: прод — **Fly.io**, две аппы (`crossade-deck-server`, `crossade-deck-hub`), плюс
+  каталог кита на GitHub Pages. Сборка и выкатка РАЗДЕЛЕНЫ: образы собирает
   `.github/workflows/build.yml` и кладёт в GHCR, выкатывает `scripts/deploy.sh` уже готовый
   образ (`fly deploy --image`). Пуш в `main` собирает образы и выкатывает их по
   неизменяемому тегу `sha-<коммит>`; тот же workflow дёргается руками с любым другим тегом —
