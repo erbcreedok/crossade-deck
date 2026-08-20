@@ -11,6 +11,7 @@
 // with `Surfaced`, in `render/pixi.ts`, and that will be its only import site in the tree.
 
 import { contextFor, type ResolveContext } from "../core/resolve.js";
+import { holdTheGlass } from "./native.js";
 import { type Node } from "../core/node.js";
 import { DEFAULT_VIEWER, type ViewerSettings } from "../core/viewer.js";
 
@@ -54,6 +55,11 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
   view.style.width = "100%";
   view.style.height = "100%";
   container.appendChild(view);
+  // THE GLASS IS THE GAME'S. A canvas a game draws on never wants the browser's own gestures on top
+  // of it — the loupe on a long press, the zoom on a double tap, a selection dragged across it — so
+  // they come off here rather than in every consumer's stylesheet. The PAGE around it is a separate
+  // decision and stays the consumer's (`holdThePage`).
+  const release = holdTheGlass(view);
 
   const listeners = new Set<() => void>();
   let box: Viewport = measure(container, view);
@@ -111,6 +117,7 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
     unmount() {
       observer?.disconnect();
       listeners.clear();
+      release();
       view.remove();
     },
   };

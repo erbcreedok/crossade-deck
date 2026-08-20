@@ -192,6 +192,9 @@ export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from 
 
 // ---- render: pixels ---------------------------------------------------------------------
 export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/host.js";
+// The native gestures a browser puts on top of a canvas — off the glass by `mount`, off the page
+// only when a standalone asks (a catalog page is prose, and prose is meant to be selectable).
+export { holdTheGlass, holdThePage } from "./render/native.js";
 export { attachPainter, renderFrame } from "./render/stage.js";
 // The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that
 // should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
