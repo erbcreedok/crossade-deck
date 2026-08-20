@@ -1,0 +1,37 @@
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_170937f0c01a52::t_c092c179afb49f 41,210-216,221,319-332,334-335,373
+  s_170937f0c01a52::t_cc1c0e4d7c3e8d 10
+  s_170937f0c01a52::t_3440b6f9acc9f5 47,173-177
+  s_170937f0c01a52::t_e079f88fb70fa6 203-207
+  s_170937f0c01a52::t_96e602fe457a54 217-220
+game-kit/.storybook/devtools/drag.ts
+  s_170937f0c01a52::t_65a044ca83f825 34,96-104,282,358-360
+game-kit/.storybook/devtools/master.test.ts
+  s_170937f0c01a52::t_db19fafe522153 22,224-263
+  s_170937f0c01a52::t_004bc6edccd913 47-56,62,72-73,125
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_bb905bec4292a5 10,85
+game-kit/.storybook/devtools/master.ts
+  s_170937f0c01a52::t_3440b6f9acc9f5 128-135,251-254,256-257
+  s_170937f0c01a52::t_5f67d498f89d90 231-233
+  s_170937f0c01a52::t_4a8d701218fe94 58-72,95-98,138,224,247-250,255,262-276,298-299
+  s_170937f0c01a52::t_39d9d57ab5fdf3 258-261
+game-kit/docs/test-plan/57-local-master.md
+  s_170937f0c01a52::t_bb905bec4292a5 3,29-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "5322659c69edffca32623181cbfdef959ec596bd",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
