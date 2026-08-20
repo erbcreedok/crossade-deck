@@ -406,7 +406,26 @@ export function unwrapStory(code: string, live?: Record<string, unknown>): strin
       ? []
       : whole
         ? [inlined ? pruneConst(`const ${param} = ${args}`, body, param) : `const ${param} = ${args}`]
-        : membersOf(args).map((m) => (m.name ? `const ${m.name} = ${m.value}` : m.value))
+        : (() => {
+            // A DESTRUCTURED RENDER NAMES EXACTLY WHAT IT READS, and that is what makes a spread
+            // answerable here. `...shapeArgs()` cannot be read from the text, so the question is
+            // put the other way round: of the names this render took, are the ones the body STILL
+            // mentions all written out by name in the args? Then whatever the spread carries has
+            // no reader left, and printing it puts a name the reader does not have on the first
+            // line of a snippet whose whole purpose is to be copied.
+            //
+            // The same reasoning as `pruneConst`, from the other side of the parameter list.
+            const taken = param
+              .slice(1, -1)
+              .split(",")
+              .map((n) => n.split(":")[0]!.trim())
+              .filter(Boolean);
+            const members = membersOf(args);
+            const named = new Set(members.filter((m) => m.name).map((m) => m.name));
+            const stillRead = taken.filter((n) => new RegExp(`\\b${n}\\b`).test(body));
+            const spreadFeedsNothing = stillRead.every((n) => named.has(n));
+            return members.map((m) => (m.name ? `const ${m.name} = ${m.value}` : spreadFeedsNothing ? "" : m.value));
+          })()
   ).filter(Boolean);
   const parts = consts.length ? [...consts, "", body] : [body];
   return parts.join("\n");

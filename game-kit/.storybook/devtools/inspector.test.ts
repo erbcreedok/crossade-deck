@@ -193,16 +193,31 @@ describe("show code", () => {
 });
 
 describe("show code · argument shapes", () => {
-  it("code.a-spread-argument-survives-whole — invalid syntax is worse than none", () => {
-    // The first colon anywhere split `...shapeArgs(x, { shape: "rect" })` INSIDE the call, and
-    // the panel printed `const ...shapeArgs(x, { shape = "rect" }` — wrong in a way that still
-    // looks like code, which is the worst kind of wrong.
+  it("code.a-spread-that-feeds-nothing-is-dropped — a name the reader does not have", () => {
+    // A destructured render NAMES what it reads, which is what makes a spread answerable: of the
+    // names this one took, the ones the body still mentions are all written out by name — so
+    // whatever `shapeArgs` carries has no reader left, and printing it would put a name from this
+    // website alone on the first line of a snippet whose whole purpose is to be copied.
     const csf = `{
   render: ({ w }) => scene(node("card", Bounded({ bounds: { kind: "rect", w, h: 1 } }))).el,
   args: { w: 2, ...shapeArgs("override", { shape: "rect", h: 1 }) },
 }`;
     const out = storySource.transform(csf);
     expect(out).toContain("const w = 2");
+    expect(out).not.toContain("shapeArgs");
+  });
+
+  it("code.a-spread-that-still-feeds-survives-WHOLE — invalid syntax is worse than none", () => {
+    // The other half, and the older failure: when the body reads a name only the spread can
+    // supply, dropping it would leave a snippet missing a value. It is printed as written — the
+    // first colon anywhere once split `...shapeArgs(x, { shape: "rect" })` INSIDE the call and the
+    // panel produced `const ...shapeArgs(x, { shape = "rect" }`, wrong in a way that still looks
+    // like code, which is the worst kind of wrong.
+    const csf = `{
+  render: ({ w, h }) => scene(node("card", Bounded({ bounds: { kind: "rect", w, h } }))).el,
+  args: { w: 2, ...shapeArgs("override", { shape: "rect", h: 1 }) },
+}`;
+    const out = storySource.transform(csf);
     expect(out).toContain('...shapeArgs("override", { shape: "rect", h: 1 })');
     expect(out).not.toMatch(/const \.\.\./);
   });
