@@ -1,0 +1,23 @@
+game-kit/.storybook/stories/Poser.stories.ts
+  s_170937f0c01a52::t_74db98935309a2 68-69,105,107-111,133,156-157,172-173
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_74db98935309a2 54-55
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_74db98935309a2 58-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "51def3996110bf32ff71697ba6fb20f85d0e26be",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
