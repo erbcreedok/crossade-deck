@@ -53,6 +53,14 @@ export interface Waiting {
   readonly held: ReadonlySet<NodeId>;
   /** Which zones have a question standing at them. */
   readonly zones: ReadonlySet<NodeId>;
+  /**
+   * WHERE each waiting load hangs, in root units — the point the finger let it go at.
+   *
+   * The tree cannot say this: the card has not moved, and in an arranged zone it could not be shown
+   * moved anyway. It is the intent, kept beside the question, so every seat draws the card in the
+   * same place and a late viewer joins to the same picture.
+   */
+  readonly hangs: ReadonlyMap<NodeId, Vec>;
 }
 
 /**
@@ -139,6 +147,8 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
   const timers = new Set<ReturnType<typeof setTimeout>>();
   /** Every question standing right now. A record in the state, exactly as the scenario has it. */
   const open: Pending[] = [];
+  /** Where each of them hangs, by element — the intent the record carries beside the addresses. */
+  const hangs = new Map<NodeId, Vec>();
   let asks = 0;
   let delay = latency;
   let gone = false;
@@ -159,7 +169,7 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
   /** Everyone hears it, the author included — the semantics a real room has, and the reason a
    *  client needs no special case for its own move: the echo is just another snapshot. */
   const broadcast = (): void => {
-    const wait: Waiting = { held: locks(open), zones: new Set(open.map((q) => q.to.parent)) };
+    const wait: Waiting = { held: locks(open), zones: new Set(open.map((q) => q.to.parent)), hangs: new Map(hangs) };
     for (const [seat, subs] of seats) {
       const seen = project(truth, seat);
       for (const cb of subs) later(() => cb(seen, wait));
@@ -178,6 +188,7 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
     const at = open.indexOf(p);
     if (at < 0) return; // already closed: races are settled by ORDER, and the first one home won
     open.splice(at, 1);
+    for (const id of p.els) hangs.delete(id);
     answer(truth, p, said);
     broadcast();
   };
@@ -203,6 +214,11 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
     const p = askFor(req, plan, { id: `ask:${(asks += 1)}`, actor: move.actor, deadline: Date.now() + PATIENCE });
     if (p) {
       open.push(p);
+      // The zone's own seat, so the point the message carried in the TARGET's space comes out in
+      // root units — the axes every seat shares. The demo desks are unposed free layouts, where a
+      // zone's `at` IS its place on the board.
+      const seat = fieldsOf<TransformableFields>(target, "Transformable")?.at ?? { x: 0, y: 0 };
+      for (const id of p.els) hangs.set(id, { x: move.at.x + seat.x, y: move.at.y + seat.y });
       broadcast(); // the lock has to reach every screen before anyone reaches for that card again
       const question: Ask = { id: p.id, actor: p.actor, els: p.els };
       for (const cb of asked.get(who) ?? []) later(() => cb(question));
@@ -230,7 +246,9 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
           subs.push(cb);
           // THE CURRENT STATE, AT ONCE — a room hands one over on connect, and without it a screen
           // has nothing to redraw an ephemeral gesture ON TOP OF until somebody happens to move.
-          later(() => cb(project(truth, seat), { held: locks(open), zones: new Set(open.map((q) => q.to.parent)) }));
+          later(() =>
+            cb(project(truth, seat), { held: locks(open), zones: new Set(open.map((q) => q.to.parent)), hangs: new Map(hangs) }),
+          );
           return () => {
             const i = subs.indexOf(cb);
             if (i >= 0) subs.splice(i, 1);

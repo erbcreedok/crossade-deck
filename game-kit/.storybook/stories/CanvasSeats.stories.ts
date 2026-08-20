@@ -32,6 +32,7 @@ import {
   rect,
   registerLayout,
   registerSurface,
+  remove,
   rowLayout,
   Surfaced,
   t,
@@ -181,6 +182,24 @@ function masterFor(seats: readonly string[], handCards: number, others: string, 
   return standing.master;
 }
 
+/** Where a zone stands on the desk. The desk is an unposed free layout: its space IS root space. */
+const zoneHome = (zone: Node): Vec => fieldsOf<TransformableFields>(zone, "Transformable")?.at ?? { x: 0, y: 0 };
+
+/**
+ * Which zone the finger let go over — the scene's own knowledge, which is why the wiring asks for
+ * it rather than picking: a plain pick answers with the topmost thing DRAWN, and over a hand that
+ * is a card.
+ */
+function zoneAt(root: Node, at: Vec): Node | undefined {
+  return root.children.find((zone) => {
+    const box = footprint(zone);
+    if (!box) return false;
+    const { w, h } = extentOf(box);
+    const home = zoneHome(zone);
+    return Math.abs(at.x - home.x) <= w / 2 && Math.abs(at.y - home.y) <= h / 2;
+  });
+}
+
 /** Somebody else's hand on this desk: whose it is, and where — when the master let the point through. */
 interface Hand {
   readonly actor: string;
@@ -222,25 +241,46 @@ function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Hand> =
   const seen = cloneTree(snapshot);
   registerSurface(DOT, { layers: [{ paint: "text" }] });
   registerSurface(GHOST, { layers: [{ paint: "textMuted" }], radius: 0.08 });
+
+  // COLLECT FIRST, CHANGE AFTER. A waiting card is taken out of its zone and stood at the point of
+  // the intent — and moving a node while the walk is still in it means meeting it again in its new
+  // place, which is how the same card got two sets of dots and a duplicate id.
+  const waiting: Node[] = [];
   walk(seen, (n) => {
-    // SOMEBODY ELSE'S HAND IS ON THIS. The ring says whose finger; the point, when the master let it
-    // through, says where. Over a secret hand there is no point to have — the table learns THAT a
-    // card is being dragged and never where, which is the whole of the cut.
+    // SOMEBODY ELSE'S HAND IS ON THIS. The ring alone, and only while no phantom is travelling: with
+    // one on the desk the ring is a second mark for the same fact, and two marks read as two things.
     const hand = others.get(n.id);
-    if (hand) compose(n, Coated({ self: { recipe: "ring", level: 1, tint: inkOf(hand.actor) } }));
+    if (hand && !hand.at) compose(n, Coated({ self: { recipe: "ring", level: 1, tint: inkOf(hand.actor) } }));
     if (wait.zones.has(n.id)) compose(n, Coated({ self: { recipe: "ring", level: 0.9, tint: "accent" } }));
-    if (!wait.held.has(n.id)) return;
-    // OFF THE DESK while it waits: not flown home, which would read as a refusal, and not landed,
-    // which would read as a consent nobody gave. Raised is the third thing, and it is the true one.
+    if (wait.held.has(n.id)) waiting.push(n);
+  });
+
+  for (const n of waiting) {
+    // IT HANGS WHERE THE FINGER LET IT GO. The tree still has the card in its old zone — nothing has
+    // been agreed — so this is a VIEW decision and belongs exactly here, in the projection: taken
+    // out of the arrangement that would otherwise place it, stood at the point of the intent, and
+    // raised off the desk. Not flown home (that reads as a refusal), not landed (that reads as a
+    // consent nobody gave). The same point for every seat, so a late viewer joins the same picture.
     const own = fieldsOf<TransformableFields>(n, "Transformable");
-    if (own) compose(n, Transformable({ ...own, z: own.z + WAITING_LIFT }));
+    const hangsAt = wait.hangs.get(n.id);
+    if (own && hangsAt) {
+      if (n.parent) remove(n.parent, n);
+      compose(n, Transformable({ ...own, at: hangsAt, z: own.z + WAITING_LIFT }));
+      add(seen, n);
+    } else if (own) {
+      compose(n, Transformable({ ...own, z: own.z + WAITING_LIFT }));
+    }
+    // THREE DOTS, AND THEY ARE THE WAIT ITSELF. Dots read as "somebody is deciding"; a spinner reads
+    // as "something is loading". What is waited on here is a PERSON, and the canon reserves an
+    // indicator for exactly that — a machine round trip is waited out in silence.
     DOTS.forEach((dx, i) =>
       add(
         n,
         node(`${n.id}~dot${i}`, Bounded({ bounds: circle(0.055) }), Surfaced({ surface: DOT }), Transformable({ at: { x: dx, y: 0 } })),
       ),
     );
-  });
+  }
+
   // THE PHANTOM, and it is a NODE OF ITS OWN rather than the card moved. A card in an arranged zone
   // is placed by the arrangement — write its `at` and the row simply puts it back — and the card is
   // not where the finger is anyway: it is still in the hand until a move is agreed. What travels is
@@ -259,24 +299,6 @@ function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Hand> =
     );
   }
   return seen;
-}
-
-/** Where a zone stands on the desk. The desk is an unposed free layout: its space IS root space. */
-const zoneHome = (zone: Node): Vec => fieldsOf<TransformableFields>(zone, "Transformable")?.at ?? { x: 0, y: 0 };
-
-/**
- * Which zone the finger let go over — the scene's own knowledge, which is why the wiring asks for
- * it rather than picking: a plain pick answers with the topmost thing DRAWN, and over a hand that
- * is a card.
- */
-function zoneAt(root: Node, at: Vec): Node | undefined {
-  return root.children.find((zone) => {
-    const box = footprint(zone);
-    if (!box) return false;
-    const { w, h } = extentOf(box);
-    const home = zoneHome(zone);
-    return Math.abs(at.x - home.x) <= w / 2 && Math.abs(at.y - home.y) <= h / 2;
-  });
 }
 
 export const Table: StoryObj<SeatsArgs> = {
