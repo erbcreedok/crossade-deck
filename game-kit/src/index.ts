@@ -218,6 +218,9 @@ export {
 // `InheritClass` comes from `atom.js` above: the rule is declared with the field it governs.
 // The whole drop as one PLAN: grab · grip · keeps · accept · occupied composed, mutating nothing.
 export { applyMove, planMove, type MoveBlock, type MovePlan, type MoveRequest } from "./core/move.js";
+// A move short of AUTHORITY, not of form: the record it hangs as, the two ends it can reach, and
+// what stays locked while it does. Who asks and how is the consumer's — see `core/pending.ts`.
+export { answer, askFor, locks, type Answer, type AskOptions, type Berth, type Outcome, type Pending } from "./core/pending.js";
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
 // What ONE SEAT is shown: the truth minus what its eyes are denied. A projection is a COPY, so
