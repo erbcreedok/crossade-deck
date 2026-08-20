@@ -51,7 +51,5 @@
   "docs.motion.shuffle": [
     "A row reordered on the clock — three layers a game keeps apart. `seed` decides the ORDER: `permutation(n, seededRng(seed))`, the same on every client that shares the seed (or the server sends the order outright). `reorder` is the TRUTH: the same children in that order, identity kept. `recipe` is the LOOK — `riffle`, `overhand`, `wash`, `shake` — a choreography over the children by index that never sees the seed. Tap any card to shuffle again, or bump `shuffled` on the panel."
   ],
-  "docs.motion.roll": [
-    "A tumble in place — the look of a die rolled without being thrown: `turns` whole turns about its centre and a `hop` (a scale peak) over `rollMs`, with the commit (a die's new face) late in the tumble, when it turns slowest. Bump `rolled` to tumble again; what it commits is a game's business, and here it commits nothing."
-  ]
+  "docs.motion.roll": "A tumble in place — the look of a die rolled without being thrown: `turns` whole turns about its centre and a `hop` (a scale peak) over `rollMs`. TAP THE TOKEN to tumble it again, or bump `rolled`. What it commits is a game's business (here, nothing) — but WHEN is the runtime's, and it is not a phase: a tumbling piece is cued every 60° of turning, and the commit falls on the LAST of those cues, while the piece is still turning. The token has no faces to show, so it takes the cue on its paint instead: the flashing is the cadence, quick at first and thinning out with the turn, and the last one puts the paint back. That is the beat a die's face changes on."
 }

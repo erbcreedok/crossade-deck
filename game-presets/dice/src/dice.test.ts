@@ -141,6 +141,64 @@ describe("the throws, on the one clock", () => {
     expect(c.idle()).toBe(true);
   });
 
+  it("dice.a-tumbling-die-keeps-changing-its-face — the picture goes over and over, the truth exactly once", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { rollMs: 900, clock: c.clock });
+    const pictures: string[] = [];
+    const truths: (number | undefined)[] = [];
+    rollDie(m, b.d, { outcome: 5 });
+    for (let t = 8; t <= 912; t += 8) {
+      c.tick(t);
+      pictures.push(fieldsOf<SurfacedFields>(b.d, "Surfaced")!.surface!);
+      truths.push(faceOf(b.d));
+    }
+    const changes = pictures.filter((s, i) => i > 0 && s !== pictures[i - 1]).length;
+    // A face every time it goes over — a dozen of them for two turns, not one late swap.
+    expect(changes).toBeGreaterThan(8);
+    expect(new Set(pictures).size).toBeGreaterThan(3); // and it walks the die, not two faces back and forth
+    // The truth waits: 2 all the way, then 5, once. A rule reading the die mid-throw is never told
+    // a number nobody rolled.
+    expect(truths.filter((f, i) => i > 0 && f !== truths[i - 1]).length).toBe(1);
+    expect(truths[0]).toBe(2);
+    // ...and by then the PICTURE had long since left the old face: most of the flicker happens
+    // while the die still says 2, which is the whole difference from one swap near the end.
+    const settled = truths.findIndex((f) => f === 5);
+    expect(pictures.filter((s, i) => i > 0 && i < settled && s !== pictures[i - 1]).length).toBeGreaterThan(4);
+    expect(faceOf(b.d)).toBe(5);
+    expect(fieldsOf<SurfacedFields>(b.d, "Surfaced")?.surface).toBe(faceSurface("d6", 5));
+    expect(c.idle()).toBe(true);
+  });
+
+  it("dice.a-thrown-die-shows-its-result-before-it-stops — the last face of the slide, not a swap at rest", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { friction: 6, spinFriction: 540, clock: c.clock });
+    let at = 0;
+    let rested = -1;
+    const face = throwDie(m, b.desk, b.d, { speed: 6, angle: 0, spin: 720, outcome: 4, onRest: () => { rested = at; } });
+    let shownAt = -1;
+    let xWhenShown = 0;
+    let changes = 0;
+    let was = fieldsOf<SurfacedFields>(b.d, "Surfaced")!.surface;
+    for (at = 8; at <= 3000 && rested < 0; at += 8) {
+      c.tick(at);
+      const now = fieldsOf<SurfacedFields>(b.d, "Surfaced")!.surface;
+      if (now !== was) changes++;
+      was = now;
+      if (shownAt < 0 && now === faceSurface("d6", face)) {
+        shownAt = at;
+        xWhenShown = b.xOf("d6");
+      }
+    }
+    expect(rested).toBeGreaterThan(0);
+    expect(changes).toBeGreaterThan(8); // it tumbles the whole way across, on its own travel
+    expect(shownAt).toBeGreaterThan(0);
+    expect(shownAt).toBeLessThan(rested); // the result is on the glass BEFORE the die stops
+    expect(Math.abs(b.xOf("d6") - xWhenShown)).toBeGreaterThan(0.05); // and it was still going
+    expect(faceOf(b.d)).toBe(4);
+  });
+
   it("dice.throw-slides-and-lands-in-the-tree — the seat and turn are written where it stopped, the face shown", () => {
     const b = bench();
     const c = fakeClock();

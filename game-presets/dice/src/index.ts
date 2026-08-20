@@ -4,6 +4,7 @@ export { DIE_KINDS, DIE_SIZE, dieSpec, type DieKind, type DieSpec } from "./kind
 export { faceSurface, installDiceSkin } from "./skin.classic.js";
 export {
   die,
+  flashFace,
   kindOf,
   outcomeOf,
   rollDie,

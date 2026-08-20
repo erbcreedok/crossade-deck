@@ -50,9 +50,11 @@ function outcomeOf(a: { outcome: string; seed: number; given: number }): Outcome
   return a.outcome === "seed" ? { seed: a.seed } : a.outcome === "given" ? a.given : { rng: Math.random };
 }
 
-/** What each standing scene last saw — the trigger — and the face its die stands on. */
-const LAST = new WeakMap<HTMLElement, { trigger: number; face?: number }>();
+/** What each standing scene last saw — the trigger, how many taps it has had, and the face its die stands on. */
+const LAST = new WeakMap<HTMLElement, { trigger: number; taps: number; face?: number }>();
 const LIVE_EL = new Map<string, HTMLElement>();
+/** What a tap on each scene does RIGHT NOW — the newest render's throw. Looked up at touch time. */
+const TAP = new Map<string, () => void>();
 
 function tray(w = 6, h = 3.6): Node {
   registerSurface("story.dice.tray", { layers: [{ paint: "panelBg", opacity: 0.35 }], radius: 0.12, stroke: { color: "panelBorder", width: 0.03 } });
@@ -93,8 +95,11 @@ interface RollArgs {
 /**
  * A TUMBLE IN PLACE, WITH THE RESULT FROM ANY DOOR. `outcome` picks where the face comes from —
  * `seed` (every client sharing the seed lands the same face), `given` (the server said, the test
- * pins, the cheat wants), `rng` (the game's own chance) — and bump `rolled` to roll. The face is
- * decided the moment the roll is asked and shown when the tumble commits.
+ * pins, the cheat wants), `rng` (the game's own chance). TAP THE DIE to roll it; on the panel,
+ * `rolled` does the same. The face is decided the moment the roll is asked, and the die shows face
+ * after face on the way there — the result being the last of them, landed while it still turns.
+ * A tap walks the seed on (`seed + taps`), so tapping keeps drawing a new face; `rolled` does not,
+ * and re-rolling the same seed lands the same face, which is the point of the seed.
  */
 export const Roll: StoryObj<RollArgs> = {
   render: (a) => {
@@ -103,14 +108,32 @@ export const Roll: StoryObj<RollArgs> = {
     const el = LIVE_EL.get("roll");
     const face = el ? LAST.get(el)?.face : undefined;
     add(desk, die("die", { kind: a.kind, at: { x: 0, y: 0 }, ...(face && face <= dieSpec(a.kind).sides ? { face } : {}) }));
-    const s: Scene = scene(desk, { animate: true, motion: { rollMs: a.rollMs } });
+    // The tap is wired ONCE, with the scene, and plays whatever the newest render left behind.
+    const s: Scene = scene(desk, {
+      animate: true,
+      motion: { rollMs: a.rollMs },
+      tap: (hit) => {
+        if (hit) TAP.get("roll")?.();
+      },
+    });
     LIVE_EL.set("roll", s.el);
     const before = LAST.get(s.el);
-    LAST.set(s.el, { trigger: a.rolled, ...(face !== undefined ? { face } : {}) });
-    if (before && before.trigger !== a.rolled) {
+    const taps = before?.taps ?? 0;
+    LAST.set(s.el, { trigger: a.rolled, taps, ...(face !== undefined ? { face } : {}) });
+    const fire = (nth: number): void => {
       const live = byId(s.host.root, "die");
-      if (live && s.motions) rollDie(s.motions, live, { outcome: outcomeOf(a), onFace: (f) => LAST.set(s.el, { trigger: a.rolled, face: f }) });
-    }
+      if (!live || !s.motions) return;
+      rollDie(s.motions, live, {
+        outcome: outcomeOf({ ...a, seed: a.seed + nth }),
+        onFace: (f) => LAST.set(s.el, { ...(LAST.get(s.el) ?? { trigger: a.rolled, taps: nth }), face: f }),
+      });
+    };
+    TAP.set("roll", () => {
+      const nth = (LAST.get(s.el)?.taps ?? 0) + 1;
+      LAST.set(s.el, { ...(LAST.get(s.el) ?? { trigger: a.rolled }), taps: nth });
+      fire(nth);
+    });
+    if (before && before.trigger !== a.rolled) fire(taps);
     return s.el;
   },
   args: { kind: "d6", rolled: 0, outcome: "seed", seed: 7, given: 6, rollMs: DEFAULT_TUNING.rollMs },
@@ -145,8 +168,10 @@ interface ScriptArgs {
  * A THROW BY SCRIPT — what a game does on "the server rolled 17": `throwDie` slides the die across
  * the tray on the engine's ballistics (the walls are the tray's own footprint), spinning and slowing
  * by the tuning's `friction`/`spinFriction`/`bounce`, and when it stops the seat is WRITTEN into the
- * tree and the face shown. Bump `thrown` to throw; the result comes from whichever door `outcome`
- * names.
+ * tree. The face goes over on the die's OWN travel the whole way — a new one every half unit slid
+ * and every 60° spun — so the flicker dies out with the slide and the result is the last face,
+ * shown before it stops. TAP THE DIE to throw it; on the panel, `thrown` does the same, and the
+ * result comes from whichever door `outcome` names (a tap walks the seed on).
  */
 export const Script: StoryObj<ScriptArgs> = {
   render: (a) => {
@@ -158,24 +183,36 @@ export const Script: StoryObj<ScriptArgs> = {
     const seen = el ? LAST.get(el) : undefined;
     add(t, die("die", { kind: a.kind, at: { x: -2.2, y: 0 }, ...(seen?.face && seen.face <= dieSpec(a.kind).sides ? { face: seen.face } : {}) }));
     const { kind: _k, thrown: _t, outcome: _o, seed: _s, given: _g, speed, angle, spin, ...motion } = a;
-    const s: Scene = scene(desk, { animate: true, motion });
+    const s: Scene = scene(desk, {
+      animate: true,
+      motion,
+      tap: (hit) => {
+        if (hit) TAP.get("script")?.();
+      },
+    });
     LIVE_EL.set("script", s.el);
     const before = LAST.get(s.el);
-    LAST.set(s.el, { trigger: a.thrown, ...(seen?.face !== undefined ? { face: seen.face } : {}) });
-    if (before && before.trigger !== a.thrown) {
+    const taps = before?.taps ?? 0;
+    LAST.set(s.el, { trigger: a.thrown, taps, ...(seen?.face !== undefined ? { face: seen.face } : {}) });
+    const fire = (nth: number): void => {
       const live = byId(s.host.root, "die");
       const liveTray = byId(s.host.root, "tray");
-      if (live && liveTray && s.motions) {
-        throwDie(s.motions, s.host.root, live, {
-          speed,
-          angle,
-          spin,
-          walls: wallsOf(s.host.root, liveTray, 0.5),
-          outcome: outcomeOf(a),
-          onRest: (f) => LAST.set(s.el, { trigger: a.thrown, face: f }),
-        });
-      }
-    }
+      if (!live || !liveTray || !s.motions) return;
+      throwDie(s.motions, s.host.root, live, {
+        speed,
+        angle,
+        spin,
+        walls: wallsOf(s.host.root, liveTray, 0.5),
+        outcome: outcomeOf({ ...a, seed: a.seed + nth }),
+        onRest: (f) => LAST.set(s.el, { ...(LAST.get(s.el) ?? { trigger: a.thrown, taps: nth }), face: f }),
+      });
+    };
+    TAP.set("script", () => {
+      const nth = (LAST.get(s.el)?.taps ?? 0) + 1;
+      LAST.set(s.el, { ...(LAST.get(s.el) ?? { trigger: a.thrown }), taps: nth });
+      fire(nth);
+    });
+    if (before && before.trigger !== a.thrown) fire(taps);
     return s.el;
   },
   args: {
@@ -244,13 +281,13 @@ export const Throw: StoryObj<ThrowArgs> = {
           gain,
           walls: wallsOf(s.host.root, liveTray, 0.5),
           outcome: outcomeOf(a),
-          onRest: (f) => LAST.set(s.el, { trigger: 0, face: f }),
+          onRest: (f) => LAST.set(s.el, { trigger: 0, taps: 0, face: f }),
         });
         return face !== undefined; // flew — the wiring leaves it to the clock; a drop falls through
       },
     });
     LIVE_EL.set("throw", s.el);
-    if (!LAST.has(s.el)) LAST.set(s.el, { trigger: 0 });
+    if (!LAST.has(s.el)) LAST.set(s.el, { trigger: 0, taps: 0 });
     return s.el;
   },
   args: { kind: "d6", outcome: "rng", seed: 7, given: 4, gain: 1, friction: DEFAULT_TUNING.friction, spinFriction: DEFAULT_TUNING.spinFriction, bounce: DEFAULT_TUNING.bounce },

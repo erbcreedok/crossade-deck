@@ -12,7 +12,10 @@
 //   • the LOOK — the engine's runtime plays it: `rollDie` tumbles the die in place (a choreography),
 //     `throwDie` slides it across the desk on the ballistics (walls of a tray, spin, friction) and
 //     writes where it stopped into the tree, `throwFromCarry` is the same throw with the finger's own
-//     speed — a drag let go with inertia. All three commit the face through `showFace`.
+//     speed — a drag let go with inertia. All three commit the face through `showFace` — and all
+//     three FLICKER on the way there (`flashFace`): the runtime cues a new face every time the die
+//     has turned or slid far enough to have gone over, so the cadence is the die's own motion and
+//     dies out with it. The result is simply the last face the flicker shows.
 //
 // A game with a menu calls the kit's stock verb instead: `perform("roll", die)` (Math.random, no
 // animation) — the atom's door, when nothing on the desk needs to move.
@@ -22,6 +25,7 @@ import {
   Bounded,
   compose,
   Draggable,
+  faceOf,
   fieldsOf,
   IDENTITY,
   invert,
@@ -95,12 +99,45 @@ export function showFace(n: Node, face: number): void {
 }
 
 /**
+ * The PICTURE of a face and NOT the truth — what a die wears while it is still tumbling.
+ *
+ * A thrown die does not hold its old number until it stops and then blink to the new one: it shows
+ * a face every time it goes over, and the last of those is the result. That flicker is a LOOK, so
+ * it is the surface alone — `values.face` changes once, when the result lands (`showFace`), because
+ * a rule that reads a die mid-throw must not be told a number nobody rolled.
+ */
+export function flashFace(n: Node, face: number): void {
+  const kind = kindOf(n);
+  if (!kind) return;
+  compose(n, Surfaced({ surface: faceSurface(kind, face) }));
+}
+
+/**
+ * THE FACES A TUMBLE SHOWS on its way to the result — never the same one twice running (a repeat
+ * reads as a die that stopped tumbling), and the same sequence on every client: it is drawn from
+ * the RESULT, which is the one thing every client already agrees on, whichever door decided it.
+ */
+function scrambler(sides: number, from: number, result: number): () => number {
+  const rng = seededRng(result * SCRAMBLE_SEED);
+  let shown = from;
+  return () => {
+    // A step of at least one face round the ring — which is exactly what "never the same twice" is.
+    const step = 1 + Math.floor(rng() * Math.max(sides - 1, 1));
+    shown = ((shown - 1 + step) % sides) + 1;
+    return shown;
+  };
+}
+
+/**
  * Where a result comes from — the whole of the add-on's adaptivity in one type:
  *   a NUMBER   — the face is given: the server decided, the test pins it, the cheat wants it;
  *   `{ seed }` — every client draws the same face from the same seed (the kit's rng);
  *   `{ rng }`  — the game's own source of chance (`Math.random` for a solo desk).
  */
 export type Outcome = number | { readonly seed: number } | { readonly rng: Rng };
+
+/** Spreads two neighbouring results into two unlike tumbles — the rng is fed the face, and 1 and 2 are neighbours. */
+const SCRAMBLE_SEED = 977;
 
 /** Resolve an outcome to a face of a `sides`-sided die — refusing a given number the die has not. */
 export function outcomeOf(sides: number, outcome: Outcome): number {
@@ -112,30 +149,42 @@ export function outcomeOf(sides: number, outcome: Outcome): number {
   return drawFace(sides, rng);
 }
 
-export type RollDieOptions = RollOptions & {
+/** `onTumble` is the add-on's own — the tumble's faces are what a die IS, not a hook a caller fills in. */
+export type RollDieOptions = Omit<RollOptions, "onTumble"> & {
   readonly outcome: Outcome;
   /** Runs when the face is committed. */
   readonly onFace?: ((face: number) => void) | undefined;
 };
 
 /**
- * Tumble a die IN PLACE — turns and a hop on the one clock — and commit the face late in the tumble.
- * The face is decided now and returned; the picture catches up when the runtime says.
+ * Tumble a die IN PLACE — turns and a hop on the one clock — with its face going over all the way
+ * down: the runtime cues a new one every `TURN_PER_FACE` of turning, so the faces thin out exactly
+ * as the tumble slows, and the RESULT is the last of them, shown while the die is still turning.
+ * The face is decided now and returned; the truth is written when that last one lands.
  */
 export function rollDie(motions: Motions, d: Node, opts: RollDieOptions): number {
-  const face = outcomeOf(sidesOf(d) ?? 6, opts.outcome);
+  const sides = sidesOf(d) ?? 6;
+  const face = outcomeOf(sides, opts.outcome);
+  const next = scrambler(sides, faceOf(d) ?? 1, face);
   motions.roll(
     d.id,
     () => {
       showFace(d, face);
       opts.onFace?.(face);
     },
-    opts,
+    {
+      ...opts,
+      // The last cue and the commit fall on the same frame, and the commit writes the same face —
+      // so the picture is never handed a scramble it has to take back.
+      onTumble: (_count, last) => {
+        if (!last) flashFace(d, next());
+      },
+    },
   );
   return face;
 }
 
-export type ThrowDieOptions = Omit<SlideOptions, "onDone"> & {
+export type ThrowDieOptions = Omit<SlideOptions, "onDone" | "onTumble"> & {
   readonly outcome: Outcome;
   /** Runs when the die has stopped and the face is shown, with the face. */
   readonly onRest?: ((face: number) => void) | undefined;
@@ -149,10 +198,15 @@ export type ThrowDieOptions = Omit<SlideOptions, "onDone"> & {
  * the die's owner may sit anywhere on it.
  */
 export function throwDie(motions: Motions, root: Node, d: Node, opts: ThrowDieOptions): number {
-  const face = outcomeOf(sidesOf(d) ?? 6, opts.outcome);
+  const sides = sidesOf(d) ?? 6;
+  const face = outcomeOf(sides, opts.outcome);
+  const next = scrambler(sides, faceOf(d) ?? 1, face);
   const { outcome: _outcome, onRest, ...slide } = opts;
   motions.slide(d.id, {
     ...slide,
+    // The face goes over on the die's OWN travel — every half unit slid and every 60° spun — and the
+    // result is the one the runtime calls last, while there is still a slide left to see it on.
+    onTumble: (_count, last) => flashFace(d, last ? face : next()),
     onDone: (rest) => {
       const own = fieldsOf<TransformableFields>(d, "Transformable");
       const ownerPose = d.parent ? transformsOf(root).get(d.parent.id) ?? IDENTITY : IDENTITY;

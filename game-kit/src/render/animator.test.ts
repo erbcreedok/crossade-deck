@@ -547,9 +547,113 @@ describe("choreographies: shuffle and roll", () => {
     expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 5);
     expect(c.idle()).toBe(true);
   });
+
+  it("motion.a-tumble-shows-a-face-a-turn-and-slows-with-it — the faces are counted off the turn, so they thin out as it slows", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { rollMs: 900, clock: c.clock });
+    const shown: { at: number; last: boolean }[] = [];
+    let at = 0;
+    m.roll("c", () => undefined, { turns: 2, onTumble: (_n, last) => shown.push({ at, last }) });
+    for (at = 8; at <= 900; at += 8) c.tick(at);
+
+    // Two turns at a face every 60° — twelve of them, and the twelfth is the result's own.
+    expect(shown.length).toBe(12);
+    expect(shown.filter((f) => f.last).length).toBe(1);
+    expect(shown[shown.length - 1]!.last).toBe(true);
+    // It starts at once: three faces inside the first fifth of the tumble, not one late change.
+    expect(shown[2]!.at).toBeLessThan(180);
+    const gaps = shown.slice(1).map((f, i) => f.at - shown[i]!.at);
+    const mean = (xs: number[]): number => xs.reduce((a, x) => a + x, 0) / xs.length;
+    // And it SLOWS: the last wait is several times the first, and the second half of the tumble is
+    // paid out at less than half the rate of the first.
+    expect(gaps[gaps.length - 1]!).toBeGreaterThan(gaps[0]! * 3);
+    expect(mean(gaps.slice(gaps.length / 2))).toBeGreaterThan(mean(gaps.slice(0, gaps.length / 2)) * 2);
+  });
+
+  it("motion.a-tumble-lands-its-result-while-it-still-turns — the commit falls on the last face, and the piece is still moving under it", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { rollMs: 900, clock: c.clock });
+    let at = 0;
+    let commits = 0;
+    let commitAt = -1;
+    let lastFaceAt = -1;
+    let facesAfterCommit = 0;
+    m.roll(
+      "c",
+      () => {
+        commits++;
+        commitAt = at;
+      },
+      {
+        turns: 2,
+        onTumble: (_n, last) => {
+          if (last) lastFaceAt = at;
+          if (commits > 0 && !last) facesAfterCommit++;
+        },
+      },
+    );
+    const turnOfFrame = (): number => (Math.atan2(b.tOf("c").b, b.tOf("c").a) * 180) / Math.PI;
+    let prev = turnOfFrame();
+    let turnedAfter = 0; // degrees still walked once the result was on the glass
+    let turnedOnTheFrame = 0;
+    for (at = 8; at <= 900; at += 8) {
+      c.tick(at);
+      const now = turnOfFrame();
+      const step = Math.abs((((now - prev + 540) % 360) - 180)); // small deltas, wrap-free
+      prev = now;
+      if (commitAt >= 0 && at === commitAt) turnedOnTheFrame = step;
+      else if (commitAt >= 0 && at > commitAt) turnedAfter += step;
+    }
+    expect(commits).toBe(1);
+    // The result is not a phase of its own — it is the tumble's last face, on the same frame.
+    expect(commitAt).toBe(lastFaceAt);
+    expect(facesAfterCommit).toBe(0);
+    // ...and the piece is still turning under it: a picture that changes on a still piece is the
+    // swap the eye catches.
+    expect(turnedOnTheFrame).toBeGreaterThan(1);
+    expect(turnedAfter).toBeGreaterThan(10);
+  });
 });
 
 describe("flights: launch and slide", () => {
+  it("motion.a-slide-tumbles-on-its-own-travel — the faces come off the body's own path, and the result lands before it stops", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { friction: 6, spinFriction: 540, clock: c.clock });
+    const shown: { at: number; last: boolean }[] = [];
+    let at = 0;
+    let restedAt = -1;
+    let restX = 0;
+    let xAtResult = 0;
+    m.slide("c", {
+      speed: 6,
+      angle: 0,
+      spin: 720,
+      onTumble: (_n, last) => {
+        shown.push({ at, last });
+        if (last) xAtResult = b.tOf("c").e;
+      },
+      onDone: (rest) => {
+        restedAt = at;
+        restX = rest.at.x;
+      },
+    });
+    for (at = 8; at <= 3000 && restedAt < 0; at += 8) c.tick(at);
+
+    expect(restedAt).toBeGreaterThan(0);
+    expect(shown.length).toBeGreaterThan(8);
+    expect(shown.filter((f) => f.last).length).toBe(1);
+    expect(shown[shown.length - 1]!.last).toBe(true);
+    // The result is shown while the die is still sliding — not written onto one that has stopped.
+    expect(shown[shown.length - 1]!.at).toBeLessThan(restedAt);
+    expect(Math.abs(restX - xAtResult)).toBeGreaterThan(0.1);
+    // And the cadence is the body's: friction eats the speed, so the waits grow.
+    const gaps = shown.slice(1).map((f, i) => f.at - shown[i]!.at);
+    expect(gaps[gaps.length - 1]!).toBeGreaterThan(gaps[0]!);
+  });
+
   it("motion.launch-falls-and-leaves-the-glass — gravity, the floor bounce, then gone with a callback", () => {
     const b = bench();
     const c = fakeClock();

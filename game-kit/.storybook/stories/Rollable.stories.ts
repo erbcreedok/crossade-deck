@@ -94,10 +94,12 @@ function pip(i: number, w: number, h: number, surface: string) {
 }
 
 /**
- * A BARE TOKEN THAT ROLLS. `sides` is the atom's field; bump `rolled` and the stock verb `roll` is
- * performed on the token — its `values.face` becomes a fresh face from `Math.random` — and the pips
- * under it count that value back, because a face is a value and a value is what rules read. The
- * tumble it plays is the clock's `roll` (`Engine/Motion`), so the face lands late in the turn.
+ * A BARE TOKEN THAT ROLLS. `sides` is the atom's field; TAP THE TOKEN (or bump `rolled`) and the
+ * stock verb `roll` is performed on it — its `values.face` becomes a fresh face from `Math.random`
+ * — and the pips under it count that value back, because a face is a value and a value is what
+ * rules read. The tumble it plays is the clock's `roll` (`Engine/Motion`), so the face lands on the
+ * tumble's LAST turn-over, while the token is still turning. Nothing flickers on the way here on
+ * purpose: the pips are the truth counted out, not a picture of it, and the truth changes once.
  */
 export const Roll: StoryObj<RollArgs> = {
   render: ({
@@ -157,29 +159,36 @@ export const Roll: StoryObj<RollArgs> = {
     const pips = node("pips", Container({ layout: pipsLayout }), Transformable({ at: { x: pipsX, y: pipsY } }));
     for (let i = 0; i < (face ?? 0); i++) add(pips, pip(i, pipW, pipH, pipSurface));
     add(desk, pips);
-    const s: Scene = scene(desk, { animate: true });
+    // The tap is wired ONCE, with the scene, and rolls whatever the newest render left behind.
+    const s: Scene = scene(desk, {
+      animate: true,
+      tap: (hit) => {
+        if (hit) TAP.get("roll")?.();
+      },
+    });
     LIVE_EL.set("roll", s.el);
     const before = LAST.get(s.el);
     LAST.set(s.el, { rolled, ...(face !== undefined ? { face } : {}) });
-    if (before !== undefined && before.rolled !== rolled) {
+    const fire = (): void => {
       const live = byId(s.host.root, "token");
-      if (live) {
-        // The verb decides the face NOW (a fresh Math.random on the node's own sides); the tumble
-        // shows it when it commits — truth first (`setFace`), then the pips that count it.
-        const thrown = faceOf(perform("roll", live));
-        s.motions?.roll("token", () => {
-          if (thrown === undefined) return;
-          setFace(live, thrown);
-          LAST.set(s.el, { rolled, face: thrown });
-          const box = byId(s.host.root, "pips");
-          if (box) {
-            for (const c of [...box.children]) remove(box, c);
-            for (let i = 0; i < thrown; i++) add(box, pip(i, pipW, pipH, pipSurface));
-          }
-          s.host.setRoot(s.host.root);
-        });
-      }
-    }
+      if (!live) return;
+      // The verb decides the face NOW (a fresh Math.random on the node's own sides); the tumble
+      // shows it when it commits — truth first (`setFace`), then the pips that count it.
+      const thrown = faceOf(perform("roll", live));
+      s.motions?.roll("token", () => {
+        if (thrown === undefined) return;
+        setFace(live, thrown);
+        LAST.set(s.el, { rolled, face: thrown });
+        const box = byId(s.host.root, "pips");
+        if (box) {
+          for (const c of [...box.children]) remove(box, c);
+          for (let i = 0; i < thrown; i++) add(box, pip(i, pipW, pipH, pipSurface));
+        }
+        s.host.setRoot(s.host.root);
+      });
+    };
+    TAP.set("roll", fire);
+    if (before !== undefined && before.rolled !== rolled) fire();
     return s.el;
   },
   args: {
@@ -243,3 +252,5 @@ export const Roll: StoryObj<RollArgs> = {
   parameters: { gkDocStory: "rollable.roll" },
 };
 const LIVE_EL = new Map<string, HTMLElement>();
+/** What a tap on each scene does RIGHT NOW — the newest render's roll. Looked up at touch time. */
+const TAP = new Map<string, () => void>();

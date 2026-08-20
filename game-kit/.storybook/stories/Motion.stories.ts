@@ -19,6 +19,7 @@ import {
   add,
   Bounded,
   byId,
+  compose,
   Container,
   DEFAULT_TUNING,
   Draggable,
@@ -130,6 +131,9 @@ function moved(s: Scene, key: string, value: unknown): boolean {
   LAST.set(s.el, { ...seen, [key]: value });
   return changed;
 }
+
+/** What a tap on a standing Roll scene does right now — the newest render's tumble. */
+const ROLL_TAP = new WeakMap<HTMLElement, () => void>();
 
 function piece(id: string, x: number, y: number, w: number, h: number, surface: string): Node {
   return node(id, Bounded({ bounds: rect(w, h) }), Surfaced({ surface }), Transformable({ at: { x, y } }));
@@ -881,8 +885,14 @@ interface RollArgs {
 
 /**
  * A TUMBLE IN PLACE — the look of a die rolled without being thrown: `turns` whole turns about its
- * centre and a `hop` (a scale peak) over `rollMs`, with the commit (a die's new face) late in the
- * tumble. Bump `rolled` to tumble again. What it commits is the game's business; here, nothing.
+ * centre and a `hop` (a scale peak) over `rollMs`. TAP THE TOKEN to tumble it again, or bump
+ * `rolled`.
+ *
+ * What it commits is the game's business (here, nothing) — but WHEN is the runtime's, and it is not
+ * a phase: a tumbling piece is cued every 60° of turning, and the commit falls on the LAST of those
+ * cues, while the piece is still turning. The token has no faces to show, so it takes the cue on
+ * its paint instead: the flashing is the cadence, quick at first and thinning out with the turn,
+ * and the last one puts the paint back. That is the beat a die's face changes on.
  */
 export const Roll: StoryObj<RollArgs> = {
   args: {
@@ -917,10 +927,30 @@ export const Roll: StoryObj<RollArgs> = {
   render: ({ rolled, turns, hop, deskLayout, tokenW, tokenH, tokenSurface, tokenPaint, tokenRadius, tokenX, tokenY, rollMs: ms }) => {
     registerLayout(deskLayout, freeLayout);
     registerSurface(tokenSurface, { layers: [{ paint: tokenPaint }], radius: tokenRadius });
+    // The cue's own surface: the token wears it on every turn-over but the last, so the beat is
+    // something a reader can SEE on a piece that has no faces of its own.
+    const overSurface = `${tokenSurface}--over`;
+    registerSurface(overSurface, { layers: [{ paint: "accent" }], radius: tokenRadius });
     const desk = node("desk", Container({ layout: deskLayout }));
     add(desk, piece("token", tokenX, tokenY, tokenW, tokenH, tokenSurface));
-    const s = scene(desk, { animate: true, motion: { rollMs: ms } });
-    if (moved(s, "rolled", rolled)) s.motions?.roll("token", () => undefined, { turns, hop });
+    const s = scene(desk, {
+      animate: true,
+      motion: { rollMs: ms },
+      tap: (hit) => {
+        if (hit) ROLL_TAP.get(s.el)?.();
+      },
+    });
+    const fire = (): void => {
+      const live = byId(s.host.root, "token");
+      if (!live) return;
+      s.motions?.roll("token", () => undefined, {
+        turns,
+        hop,
+        onTumble: (count, last) => compose(live, Surfaced({ surface: last || count % 2 === 0 ? tokenSurface : overSurface })),
+      });
+    };
+    ROLL_TAP.set(s.el, fire);
+    if (moved(s, "rolled", rolled)) fire();
     return s.el;
   },
 };

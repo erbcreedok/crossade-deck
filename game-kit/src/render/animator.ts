@@ -119,6 +119,13 @@ export type SlideOptions = {
   readonly walls?: Walls | undefined;
   readonly delayMs?: number | undefined;
   /**
+   * The piece has travelled far enough to be SHOWING something new — a die going over an edge. See
+   * `TURN_PER_FACE`: the cue is the body's own motion, so it thins out exactly as the body slows.
+   * `last` is the one the result belongs on: the body is still moving, and nothing after it changes
+   * the picture.
+   */
+  readonly onTumble?: ((count: number, last: boolean) => void) | undefined;
+  /**
    * Runs when the body rests, with WHERE it rests (root units) and how it is turned. The override is
    * gone the same frame — a game that wants the piece to stay writes this pose into the tree.
    */
@@ -138,6 +145,11 @@ export interface RollOptions {
   /** How much it grows at the top of the hop, as a scale (1 = flat). Default 1.25. */
   readonly hop?: number | undefined;
   readonly rollMs?: number | undefined;
+  /**
+   * The piece has turned far enough to be SHOWING something new — a die going over an edge. Fires
+   * on every face of the tumble, `last` on the one the `commit` lands with; see `TURN_PER_FACE`.
+   */
+  readonly onTumble?: ((count: number, last: boolean) => void) | undefined;
 }
 
 export interface Motions {
@@ -218,6 +230,70 @@ const SLIDE_EPS = 0.02;
 const SPIN_EPS = 2;
 /** How far past the glass edge a launched body is "gone", root units. */
 const OFF_GLASS = 1;
+/**
+ * HOW OFTEN A TUMBLING PIECE SHOWS SOMETHING NEW — a turn of this many degrees, or a slide of
+ * `UNITS_PER_FACE` root units.
+ *
+ * A die does not pick its face at the end: it shows a new one every time it goes over an edge, so
+ * the cadence is the piece's OWN motion and needs no clock of its own — it thins out exactly as the
+ * piece slows, because the piece is what is counted. Nothing here knows what a face IS: the runtime
+ * says WHEN, the game says what to show.
+ */
+const TURN_PER_FACE = 60;
+const UNITS_PER_FACE = 0.5;
+/**
+ * How much of that last step is still to come AFTER the result is shown, as a fraction of one.
+ *
+ * The result has to land on a piece that is still moving. A picture that changes on a piece
+ * standing still is the one thing the eye reads as a SWAP — the same defect a shuffle has when its
+ * packets hover over each other at the commit.
+ */
+const TUMBLE_TAIL = 0.5;
+
+/** A tumble's turn against its progress: most of it early, and a long slow end. */
+const tumbleEase = (t: number): number => 1 - (1 - t) ** 3;
+/**
+ * The inverse — at what progress the piece has turned this FRACTION of the whole. It is what places
+ * the beats, and it must stay the inverse of `tumbleEase`, or the faces would be counted off a
+ * curve the piece is not turning on.
+ */
+const tumbleAt = (turned: number): number => 1 - Math.cbrt(1 - turned);
+
+/**
+ * How many faces' worth of motion a sliding body still has in it. Friction takes a fixed amount of
+ * speed per second, so what is left of a slide is `v²/2f`, and of a spin the same. Walls only ever
+ * eat more of it, so this over-estimates — and it errs the safe way: the result is shown a touch
+ * early rather than on a body that has already stopped.
+ */
+const facesLeft =
+  (cfg: { readonly friction: number; readonly spinFriction: number }) =>
+  (b: Body): number => {
+    const speed = Math.hypot(b.vel.x, b.vel.y);
+    const spin = Math.abs(b.spin);
+    const path = speed <= 0 ? 0 : cfg.friction > 0 ? (speed * speed) / (2 * cfg.friction) : Infinity;
+    const turn = spin <= 0 ? 0 : cfg.spinFriction > 0 ? (spin * spin) / (2 * cfg.spinFriction) : Infinity;
+    return path / UNITS_PER_FACE + turn / TURN_PER_FACE;
+  };
+
+/** One step's worth of tumbling: what the body just travelled, counted in faces and paid out in cues. */
+const tumbleStep = (t: Tumbling, was: Body, now: Body): void => {
+  if (t.ended) return;
+  // The last face is the RESULT's. It is shown as soon as the body no longer has a whole face's
+  // worth of motion left to give — while it is still moving, which is the whole point of the cue.
+  if (t.left(now) < 1) {
+    t.ended = true;
+    t.on(++t.count, true);
+    return;
+  }
+  t.carried +=
+    Math.hypot(now.pos.x - was.pos.x, now.pos.y - was.pos.y) / UNITS_PER_FACE + Math.abs(now.angle - was.angle) / TURN_PER_FACE;
+  // Room for THIS face and for the result after it: without the second face's worth the two land a
+  // frame apart at the end, and the pace that has been slowing all the way blinks twice instead.
+  while (t.carried >= 1 && t.left(now) >= 2) {
+    t.carried -= 1;
+    t.on(++t.count, false);
+  }
+};
 
 /** A horizontal-only scale — the width of a card as it turns. The reflection's SIGN stays in the pose. */
 function hscale(k: number): Transform {
@@ -273,6 +349,14 @@ interface Choreo {
   readonly commitAt: number;
   readonly commit: () => void;
   committed: boolean;
+  /**
+   * The progresses at which the LOOK underneath changes hands — a die's face going over. Empty for
+   * a choreography that shows one thing throughout (a turn-over, a shuffle: there the pieces move
+   * and nothing about them is redrawn).
+   */
+  readonly beats: readonly number[];
+  readonly onBeat: ((count: number, last: boolean) => void) | undefined;
+  beaten: number;
 }
 
 /**
@@ -293,7 +377,25 @@ interface Flight {
   readonly halt: (b: Body) => Body;
   /** The rest pose's own turn, degrees — the body's `angle` is on top of it, and the landing reports their sum. */
   angle0: number;
+  /** What the body shows as it goes, if it shows anything — absent for a fall, which only falls. */
+  readonly tumble: Tumbling | undefined;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
+}
+
+/**
+ * A FLIGHT'S OWN FACE-COUNTER. A choreography knows its whole schedule up front and lists its beats;
+ * a body does not — how far it still has to go is the physics' answer, asked every frame. So the
+ * count is carried instead: travel accumulates in faces, and `left` says when the one being shown
+ * is the last (the result's own, still in motion).
+ */
+interface Tumbling {
+  /** Faces' worth of motion the body has LEFT. Under one, whatever it shows next it shows to the end. */
+  readonly left: (b: Body) => number;
+  readonly on: (count: number, last: boolean) => void;
+  /** Faces' worth of motion since the last one was shown. */
+  carried: number;
+  count: number;
+  ended: boolean;
 }
 
 /**
@@ -542,12 +644,34 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
           f.angle0 = turnOf(at);
         }
       }
+      const was = f.body;
       f.body = instant ? f.halt(f.body) : f.step(f.body, dt);
+      // What it shows as it goes. At speed 0 there is no going: the body is already where it stops,
+      // and the only face anyone sees is the one the landing writes.
+      if (f.tumble) {
+        if (instant) f.tumble.ended = true;
+        else tumbleStep(f.tumble, was, f.body);
+      }
       if (f.over(f.body)) land(id, f);
     }
     // Advance the choreographies: commit once, at the phase; drop each when it lands. Commits first
     // and a reconcile after them while the nodes are STILL choreographed — so the rest a commit
     // changes is snapped, not flown — and only then are the finished ones let go.
+    // What a choreography SHOWS as it plays, before what it commits: a tumble's faces are paid out
+    // here, and its last one falls on the same step as the commit — that is what puts the result on
+    // a piece still turning instead of on one that has stopped.
+    for (const ch of choreos.values()) {
+      if (!ch.onBeat || ch.beaten >= ch.beats.length) continue;
+      if (instant) {
+        ch.beaten = ch.beats.length; // no motion to count faces off, and only the last would be seen
+        continue;
+      }
+      const t = progressOf(ch);
+      while (ch.beaten < ch.beats.length && t >= ch.beats[ch.beaten]!) {
+        const count = ++ch.beaten;
+        ch.onBeat(count, count === ch.beats.length);
+      }
+    }
     let committed = false;
     for (const ch of choreos.values()) {
       const t = instant ? 1 : progressOf(ch);
@@ -676,6 +800,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         commitAt: 0.5,
         commit,
         committed: false,
+        beats: [],
+        onBeat: undefined,
+        beaten: 0,
         poseAt: (_i, _n, t, rest) => compose(rest, hscale(flipScale(ease(t)))),
       });
       ensureLoop();
@@ -692,6 +819,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         commitAt: recipe.commitAt,
         commit,
         committed: false,
+        beats: [],
+        onBeat: undefined,
+        beaten: 0,
         poseAt: (i, n, t, rest) => recipe.poseAt(i, n, t, rest, ctx),
       });
       ensureLoop();
@@ -699,19 +829,28 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     roll(id, commit, opts = {}) {
       const turns = opts.turns ?? 2;
       const hop = opts.hop ?? 1.25;
+      // HOW MANY FACES THIS TUMBLE SHOWS — one per `TURN_PER_FACE` of turning, the result being the
+      // LAST of them. The beats are placed by the inverse of the tumble's own ease, so they are a
+      // face apart in TURNING and therefore further and further apart in time: the piece slows, and
+      // the faces slow with it because they are counted off the same turn.
+      const faces = Math.max(1, Math.round((Math.abs(turns) * 360) / TURN_PER_FACE));
+      const beats = Array.from({ length: faces }, (_, k) => tumbleAt((k + 1) / (faces + TUMBLE_TAIL)));
       choreos.set(id, {
         ids: [id],
         startMs: warped,
         durMs: opts.rollMs ?? tuning.rollMs,
-        // The face is committed on the way down from the hop's top, when the piece is turning slowest.
-        commitAt: 0.7,
+        // The result is the tumble's LAST FACE, not a phase of its own: it lands while the piece is
+        // still turning (`TUMBLE_TAIL` of a face is still to come), and nothing after it redraws.
+        commitAt: beats[beats.length - 1]!,
         commit,
         committed: false,
+        beats,
+        onBeat: opts.onTumble,
+        beaten: 0,
         poseAt: (_i, _n, t, rest) => {
           if (t >= 1) return rest;
-          const eased = 1 - (1 - t) ** 3;
           const size = 1 + (hop - 1) * Math.sin(Math.PI * t);
-          return compose(rest, compose(rotate(turns * 360 * eased), scale(size)));
+          return compose(rest, compose(rotate(turns * 360 * tumbleEase(t)), scale(size)));
         },
       });
       ensureLoop();
@@ -746,6 +885,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // No animation: a fall is simply gone.
         halt: (b) => ({ ...b, pos: { x: Infinity, y: b.pos.y }, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone ? () => opts.onDone!() : undefined,
+        tumble: undefined,
       });
     },
     slide(id, opts) {
@@ -767,6 +907,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // No animation: a slide stops where it stands.
         halt: (b) => ({ ...b, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone,
+        tumble: opts.onTumble ? { left: facesLeft(cfg), on: opts.onTumble, carried: 0, count: 0, ended: false } : undefined,
       });
     },
     retain(on) {

@@ -11,7 +11,5 @@
     "setFace(die, 17)                // the server said 17 — written as the truth",
     "```"
   ],
-  "docs.rollable.roll": [
-    "A bare token that rolls — no skin, so the value is shown as PIPS: bump `rolled` and the stock verb `roll` is performed on it, its `values.face` becomes a fresh face from `Math.random`, and the pips under it count that value back. The tumble it plays is the clock's `roll` (`Engine/Motion`), so the face lands late in the turn. `sides` is the atom's one field."
-  ]
+  "docs.rollable.roll": "A bare token that rolls — no skin, so the value is shown as PIPS: TAP THE TOKEN (or bump `rolled`) and the stock verb `roll` is performed on it, its `values.face` becomes a fresh face from `Math.random`, and the pips under it count that value back. The tumble it plays is the clock's `roll` (`Engine/Motion`), so the face lands on the tumble's LAST turn-over, while the token is still turning. Nothing flickers on the way here on purpose: the pips are the truth counted out, not a picture of it, and the truth changes once. `sides` is the atom's one field."
 }
