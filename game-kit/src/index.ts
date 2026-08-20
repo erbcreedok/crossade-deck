@@ -344,7 +344,7 @@ export {
 } from "./render/scenePlan.js";
 // The pointer seam: a glass point off an event, its units, and the topmost node under it — read off
 // the same plan the painter drew. Every interactive scene needs it; none should write its own copy.
-export { glassOf, pick, toUnits } from "./render/pointer.js";
+export { glassOf, pick, pickTop, toUnits } from "./render/pointer.js";
 // The one seam a runtime mechanic mixes itself in through: the engine folds this list and knows
 // none of the mechanics by name. `flippable` and `coated` register into it; the core stays blind.
 export {

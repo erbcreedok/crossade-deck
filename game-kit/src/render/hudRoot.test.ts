@@ -21,6 +21,7 @@ import { installStockSurfaces } from "../presets/surfaces.js";
 import { mount } from "./host.js";
 import { registerSurface, resetSurfaces } from "./surfaces.js";
 import { renderFrame } from "./stage.js";
+import { pickTop } from "./pointer.js";
 import { type Painter } from "./painter.js";
 import { type Quad } from "./scenePlan.js";
 
@@ -94,5 +95,29 @@ describe("the two roots", () => {
     add(b.screen, widget);
     renderFrame(b.host, b.painter, { view: () => move(3, 0) });
     expect(b.xOf("widget")).toBeLessThan(onDesk); // it stopped riding the camera
+  });
+
+  it("hud.the-finger-tests-the-screen-before-the-desk", () => {
+    // A hit-test that disagreed with the paint is the worst kind of wrong: a button plainly visible
+    // under the finger, answering for whatever card happens to lie beneath it. Both quads sit on the
+    // middle here, so only the order can tell them apart.
+    const b = bench();
+    b.host.setHudRoot(b.screen);
+    const v = b.host.viewport();
+    const middle = { x: v.width / 2, y: v.height / 2 };
+    expect(pickTop(b.host, middle, () => true)?.id).toBe("bar");
+    b.host.setHudRoot(undefined);
+    expect(pickTop(b.host, middle, () => true)?.id).toBe("card");
+  });
+
+  it("hud.the-camera-is-handed-to-the-desk-alone", () => {
+    // Panned far away, the desk's card is no longer under the finger — and the bar still is, because
+    // the view never reached it. The same asymmetry the paint has, read through the finger.
+    const b = bench();
+    b.host.setHudRoot(b.screen);
+    const v = b.host.viewport();
+    const middle = { x: v.width / 2, y: v.height / 2 };
+    expect(pickTop(b.host, middle, (n) => n.id === "card", move(40, 0))).toBeUndefined();
+    expect(pickTop(b.host, middle, (n) => n.id === "bar", move(40, 0))?.id).toBe("bar");
   });
 });

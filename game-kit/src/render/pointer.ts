@@ -46,6 +46,28 @@ export function toUnits(host: Host, g: Point, view?: Transform): Point {
  * answers to a touch on the seat it left and ignores the one on the die itself — the animation
  * reads as if it were blocking the hand, when what is blocking it is a stale hit-test.
  */
+/**
+ * THE FINGER, AGAINST BOTH ROOTS — the HUD first, then the desk.
+ *
+ * The order is not a preference: the HUD is DRAWN on top, and a hit-test that disagreed with the
+ * paint would be the worst kind of wrong — a button plainly visible under the finger that answers
+ * for whatever card happens to lie beneath it. So it lives HERE, once, and no consumer re-derives
+ * it. The camera is handed only to the desk, for the same reason it only transforms the desk.
+ *
+ * Without a second root this is `pick` with an extra function call, which is what every scene that
+ * has no HUD should be paying.
+ */
+export function pickTop(
+  host: Host,
+  g: Point,
+  want: (n: Node) => boolean,
+  view?: Transform,
+  poses?: ReadonlyMap<string, Transform>,
+): Node | undefined {
+  const onScreen = host.hudRoot ? pick(host, host.hudRoot, g, want, undefined, poses) : undefined;
+  return onScreen ?? pick(host, host.root, g, want, view, poses);
+}
+
 export function pick(
   host: Host,
   root: Node,
