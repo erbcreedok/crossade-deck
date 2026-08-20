@@ -115,7 +115,15 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
   };
   // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on
   // top of the thing being measured hides the very edge a reader is looking for.
-  const whole = scenePlan(input);
+  // THE TWO ROOTS, IN ONE FRAME. The desk is drawn through the camera; the HUD is drawn without it,
+  // which is the whole of the difference between them — no flag, no anchor, no second renderer. It
+  // comes SECOND and therefore on top: a control the camera cannot reach must not be reachable by
+  // a card either. A scene with no HUD is exactly the scene it was before there were two.
+  const desk = scenePlan(input);
+  const screen = host.hudRoot
+    ? scenePlan({ ...input, root: host.hudRoot, view: undefined, pitch: undefined })
+    : [];
+  const whole = screen.length === 0 ? desk : [...desk, ...screen];
   const retain = options.retain === true;
   const plan = retain ? whole.filter((q) => q.layer !== "shadow" && options.raised?.has(q.id)) : whole;
   const bake = options.bake ?? bakeable;

@@ -37,6 +37,19 @@ export interface Host {
    * contexts before it starts taking them back.
    */
   setRoot(next: Node): void;
+  /**
+   * THE SECOND ROOT — the one glued to the SCREEN.
+   *
+   * The difference between the two is exactly one thing and nothing else: a camera transforms
+   * `root` and does not touch this. There is no `anchor` field and there will not be one — which
+   * root a node hangs under IS the answer, and moving a widget between the desk and the HUD is a
+   * change of parent rather than a change of flag.
+   *
+   * ABSENT is the ordinary case: a scene with no HUD draws exactly what it drew before there were
+   * two roots. Absence is the refusal here as everywhere.
+   */
+  readonly hudRoot: Node | undefined;
+  setHudRoot(next: Node | undefined): void;
   /** The viewer plane, carried once so a scene does not wire each toggle by hand. */
   viewer(): ViewerSettings;
   setViewer(next: ViewerSettings): void;
@@ -65,6 +78,7 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
   let box: Viewport = measure(container, view);
   let viewer: ViewerSettings = initialViewer;
   let tree: Node = root;
+  let hud: Node | undefined;
 
   const sync = (): void => {
     box = measure(container, view);
@@ -100,6 +114,13 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
     },
     setRoot(next) {
       tree = next;
+      for (const l of listeners) l();
+    },
+    get hudRoot() {
+      return hud;
+    },
+    setHudRoot(next) {
+      hud = next;
       for (const l of listeners) l();
     },
     viewport: () => box,
