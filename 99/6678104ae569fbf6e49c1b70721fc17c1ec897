@@ -1,0 +1,30 @@
+game-kit/src/core/atoms/flippable.ts
+  s_170937f0c01a52::t_962ae9f81f0b9c 53-69
+game-kit/docs/test-plan/34-move.md
+  s_170937f0c01a52::t_7ade6f703b2fc6 3,23-28
+game-kit/src/core/move.test.ts
+  s_170937f0c01a52::t_22dda09717cc38 11-13,22,27,117-166
+  s_170937f0c01a52::t_dd16689e0655c7 44,116
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_7ade6f703b2fc6 10,62
+game-kit/src/core/move.ts
+  s_170937f0c01a52::t_962ae9f81f0b9c 15,23-25,39-45,57-65,71-82,89-91,106,109
+game-kit/src/index.ts
+  s_170937f0c01a52::t_1432433aee68b8 194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "996678104ae569fbf6e49c1b70721fc17c1ec897",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
