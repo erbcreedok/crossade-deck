@@ -18,8 +18,14 @@ import { apply } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { scenePlan, type Quad } from "./scenePlan.js";
 
-/** A rectangle of glass, in device pixels — the same units a viewport is measured in. */
-export interface Rect {
+/**
+ * THE ROOM LEFT ON THE GLASS, in device pixels — the same units a viewport is measured in.
+ *
+ * Named for what it IS rather than for its shape: `Rect` in a public API is a word every second
+ * library owns, and the kit already has a rectangle in units (`CameraContent`, `w`/`h`) that this
+ * is not. Pixels take `width`/`height` here as they do on `Viewport`; units take `w`/`h`.
+ */
+export interface Room {
   readonly x: number;
   readonly y: number;
   readonly width: number;
@@ -42,7 +48,7 @@ const TOUCHING = 2;
  * OWN space — that is what lets a hit-test invert one matrix instead of walking a polygon through
  * the chain — so reading them raw measures a shape at the origin and calls every control docked.
  */
-function boxOf(quad: Quad): Rect {
+function boxOf(quad: Quad): Room {
   const corners = quad.points.map((p) => apply(quad.transform, p));
   const xs = corners.map((p) => p.x);
   const ys = corners.map((p) => p.y);
@@ -63,9 +69,9 @@ function boxOf(quad: Quad): Rect {
  * control scaled by its owner, or one whose caption grew, moves this rectangle without anybody
  * having to remember to tell it.
  */
-export function safeArea(host: Host, hudRoot: Node | undefined = host.hudRoot): Rect {
+export function safeArea(host: Host, hudRoot: Node | undefined = host.hudRoot): Room {
   const view = host.viewport();
-  const whole: Rect = { x: 0, y: 0, width: view.width, height: view.height };
+  const whole: Room = { x: 0, y: 0, width: view.width, height: view.height };
   if (!hudRoot) return whole;
 
   const plan = scenePlan({

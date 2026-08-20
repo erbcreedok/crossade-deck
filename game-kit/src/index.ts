@@ -240,7 +240,7 @@ export { holdTheGlass, holdThePage } from "./render/native.js";
 export { attachPainter, renderFrame } from "./render/stage.js";
 // The one thing the HUD tells the camera, and the only wire between them: the rectangle of glass its
 // docked controls have not taken. See `render/safeArea.ts`.
-export { safeArea, type Rect } from "./render/safeArea.js";
+export { safeArea, type Room } from "./render/safeArea.js";
 // The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that
 // should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
 export {
