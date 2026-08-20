@@ -1,6 +1,6 @@
 ## INTERACTION · play functions
 
-`@storybook/test + userEvent, Vitest browser mode` · 100 кейсов, расписано 95
+`@storybook/test + userEvent, Vitest browser mode` · 103 кейсов, расписано 98
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -99,3 +99,6 @@
 | `play.motion.shuffle-lands-in-order` | Tests/Motion · Shuffle: ряд из 4, `shuffleMs 400` | `shuffle("hand", reorder [3,0,2,1], riffle)`, тишина; `setRoot(ряд, построенный в этом порядке)` | картинка изменилась; после подачи ряда «с нуля» — бит-в-бит та же (никакого оседания: каждая карта легла ровно на место) |
 | `play.dice.script-throw-shows-the-given-face` | Tests/Dice · Throw: d6 на месте, `friction 8` | `throwDie(..., {speed 5, angle 0, spin 540, outcome: 4, onRest})`, тишина | вернуло 4; `faceOf` узла — 4; старое место — стол; `Transformable.at` сдвинут > 0.5 и стекло окрашено там (дерево держит посадку) |
 | `play.dice.rng-throw-is-seeded` | тот же стол | два `throwDie` с `{seed: 2024}`; третий с `{seed: 7}` | одна и та же грань (решена в момент запроса), узел её и показывает; другой сид — легальная грань 1..6 |
+| `play.pose.a-keep-zone-holds-the-turn` | Tests/Pose · Rest: карта сброшена на зону `angle: keep()` | тот же дроп с 15° в полёте против дропа с 0° | коробка чернил выросла сразу по ширине и по высоте — поворот, которого не даёт ни одно другое поле |
+| `play.pose.a-derive-zone-straightens-it` | та же карта, зона `angle: derive()` | дроп с теми же 15° | коробка вернулась к «прямой» с точностью до 4%: у зарегистрированных раскладок мнения об угле нет, для сетки это «прямо», и 15° потеряны на пороге |
+| `play.pose.a-stamp-zone-turns-the-card-over` | зоны, различающиеся одной строкой данных: `side: up()` против `side: down()` | дроп в каждую, затем снова в `up()` | кадры лица и рубашки различаются; штамп лицом восстанавливает первый кадр пиксель в пиксель — односторонний поворот или застрявшая чётность здесь падают |
