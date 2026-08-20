@@ -155,6 +155,70 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true); // seeded at the anchor, no pop asked for and no speed — nothing to animate
   });
 
+  it("motion.a-carried-run-strains-at-the-tray-wall — it stops at the border, and a finger that goes on past the leash loses it", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, wallSpeed: 3, leash: 1.2 });
+    const restX = b.xOf("c");
+    let snapped: { ids: readonly string[]; at: { x: number; y: number } } | undefined;
+    let knocked = 0;
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], {
+      anchor: { x: 0, y: 0 },
+      walls: { x0: -2, y0: -2, x1: 2, y1: 2 },
+      onWall: () => knocked++,
+      onSnap: (ids, at) => { snapped = { ids, at }; },
+    });
+    // A SLOW push: an eightieth of a unit a frame is well under `wallSpeed`, so the wall never wins
+    // — the run just stops on it and goes on straining after a finger it cannot reach.
+    let x = 0;
+    let t = 0;
+    const creep = (to: number): void => {
+      for (; x < to && !snapped; x += 0.0125) {
+        m.dragTo({ x, y: 0 });
+        c.tick((t += 16));
+      }
+    };
+    creep(2.6);
+    expect(knocked).toBe(0);
+    expect(snapped).toBeUndefined();
+    expect(b.xOf("c") - restX).toBeCloseTo(2, 3); // at the wall, not at the finger's 2.6
+    expect(m.velocity()).toBeDefined(); // and still in hand
+    // Past the leash, and the hold is not a hold any more: the run is left standing on the wall.
+    creep(3.3);
+    expect(snapped?.ids).toEqual(["c"]);
+    expect(snapped?.at.x).toBeCloseTo(2, 5);
+    expect(knocked).toBe(0);
+    expect(m.velocity()).toBeUndefined();
+    // Left standing on the wall — not teleported back to its seat behind the game's back. From
+    // here it is an ordinary settle, and a game that wants it to STAY writes the seat in `onSnap`.
+    expect(b.xOf("c") - restX).toBeCloseTo(2, 3);
+  });
+
+  it("motion.a-hard-shove-knocks-the-run-off-the-wall — the wall wins and hands the bounce back", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, wallSpeed: 3, wallBounce: 0.6 });
+    const restX = b.xOf("c");
+    let hit: { ids: readonly string[]; speed: number; velocity: { x: number; y: number }; at: { x: number; y: number } } | undefined;
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], {
+      anchor: { x: 0, y: 0 },
+      walls: { x0: -2, y0: -2, x1: 2, y1: 2 },
+      onWall: (h) => { hit = h; },
+      onSnap: () => { throw new Error("a shove is not a snap"); },
+    });
+    m.dragTo({ x: 9, y: 0 }); // a shove, not a creep
+    c.tick(16);
+    expect(hit?.ids).toEqual(["c"]);
+    expect(hit!.speed).toBeGreaterThanOrEqual(3);
+    expect(hit!.at.x).toBeCloseTo(2, 5);
+    // It comes back the way it came, with `wallBounce` of the speed it arrived at.
+    expect(hit!.velocity.x).toBeLessThan(0);
+    expect(Math.abs(hit!.velocity.x)).toBeCloseTo(hit!.speed * 0.6, 5);
+    // The gesture is over: the run is off the finger, standing on the wall it hit.
+    expect(m.velocity()).toBeUndefined();
+    expect(b.xOf("c") - restX).toBeCloseTo(2, 3);
+  });
+
   it("motion.grab-then-drag-rides-the-finger — the run is UNDER the pointer every frame, no trail", () => {
     const b = bench();
     const c = fakeClock();

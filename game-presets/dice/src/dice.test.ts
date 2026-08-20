@@ -235,7 +235,7 @@ describe("the throws, on the one clock", () => {
     expect(faceOf(d2)).toBe(3);
   });
 
-  it("dice.throw-from-carry-inherits-the-finger — a fast release flies, a slow one is a drop", () => {
+  it("dice.throw-from-carry-inherits-the-finger — a fast release flies and TUMBLES, a slow one is a drop", () => {
     const b = bench();
     const c = fakeClock();
     const m = attachMotion(b.host, b.painter, { clock: c.clock });
@@ -243,8 +243,19 @@ describe("the throws, on the one clock", () => {
     m.dragTo({ x: 10, y: 0 });
     c.tick(16);
     c.tick(32);
-    const face = throwFromCarry(m, b.desk, b.d, { outcome: 6 });
+    // A fifth of the finger's speed: the flick in this bench is violent, and a die that slides for
+    // twenty seconds proves the same thing more slowly.
+    const face = throwFromCarry(m, b.desk, b.d, { outcome: 6, gain: 0.2 });
     expect(face).toBe(6); // it flew, at the finger's speed
+    // ...and it went OVER on the way: a hand flicks a die, it does not shove it flat. The turn is
+    // the throw's own speed, and it takes the hand's direction — thrown right, it rolls right.
+    let turned = 0;
+    for (let t = 48; t <= 3000 && !c.idle(); t += 16) {
+      c.tick(t);
+      turned = Math.max(turned, Math.abs(fieldsOf<TransformableFields>(b.d, "Transformable")?.angle ?? 0));
+    }
+    expect(turned).toBeGreaterThan(180);
+    expect(fieldsOf<TransformableFields>(b.d, "Transformable")!.angle!).toBeGreaterThan(0);
     // A slow release: nothing carried after the throw, so a second call is a drop.
     expect(throwFromCarry(m, b.desk, b.d, { outcome: 6 })).toBeUndefined();
   });

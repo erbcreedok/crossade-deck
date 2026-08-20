@@ -98,6 +98,19 @@ export interface MotionTuning {
   readonly gravity: number;
   /** Restitution of a bounce, 0..1 — off a floor for `launch`, off a wall for `slide`. */
   readonly bounce: number;
+  /**
+   * THE TRAY'S WALL, WHILE A FINGER IS CARRYING — how hard the run has to be shoved into it (units/s)
+   * before the wall wins and knocks the run off the hand. Under it the run simply stops at the
+   * border and goes on straining after the finger.
+   */
+  readonly wallSpeed: number;
+  /** How much of that speed comes back off the wall, 0..1 — the same restitution a slide's bounce is. */
+  readonly wallBounce: number;
+  /**
+   * How far past the wall the finger may go before the HOLD breaks, units. A hand that keeps pulling
+   * on a piece that cannot follow is not holding it any more: the piece is left standing where it is.
+   */
+  readonly leash: number;
   /** Desk-slide deceleration for `slide`, units/s². */
   readonly friction: number;
   /** Desk-slide angular deceleration for `slide`, degrees/s². */
@@ -123,6 +136,9 @@ export const DEFAULT_TUNING: MotionTuning = {
   leanDamping: 16,
   gravity: 9,
   bounce: 0.7,
+  wallSpeed: 3,
+  wallBounce: 0.6,
+  leash: 1.2,
   friction: 6,
   spinFriction: 540,
 };
@@ -140,6 +156,9 @@ export type CarryTuning = Pick<
   | "leanMaxDeg"
   | "leanStiffness"
   | "leanDamping"
+  | "wallSpeed"
+  | "wallBounce"
+  | "leash"
 >;
 
 /**

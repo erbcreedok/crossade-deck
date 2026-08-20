@@ -14,8 +14,10 @@ import {
   add,
   Bounded,
   byId,
+  compose,
   Container,
   DEFAULT_TUNING,
+  Draggable,
   freeLayout,
   gridLayout,
   installStockCarries,
@@ -26,8 +28,9 @@ import {
   Surfaced,
   Transformable,
   type Node,
+  type Walls,
 } from "../../src/index.js";
-import { DIE_KINDS, die, dieSpec, rollDie, throwDie, throwFromCarry, wallsOf, type DieKind, type Outcome } from "@game-presets/dice";
+import { DIE_KINDS, die, dieSpec, rollDie, throwDie, throwFromCarry, throwFromWall, wallsOf, type DieKind, type Outcome } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import { documented } from "./surfaceControls.js";
@@ -56,7 +59,12 @@ const LIVE_EL = new Map<string, HTMLElement>();
 /** What a tap on each scene does RIGHT NOW — the newest render's throw. Looked up at touch time. */
 const TAP = new Map<string, () => void>();
 
-function tray(w = 6, h = 3.6): Node {
+/**
+ * The tray, in units that FIT THE NARROWEST GLASS: a phone in portrait is 390 px at a hud unit of
+ * ~98, which is under four units across — a six-unit tray put its own walls off the screen, and a
+ * die knocked into one bounced somewhere nobody could see.
+ */
+function tray(w = 3.6, h = 2.6): Node {
   registerSurface("story.dice.tray", { layers: [{ paint: "panelBg", opacity: 0.35 }], radius: 0.12, stroke: { color: "panelBorder", width: 0.03 } });
   return node("tray", Bounded({ bounds: rect(w, h) }), Container({ layout: "story.dice.free" }), Surfaced({ surface: "story.dice.tray" }), Transformable({ at: { x: 0, y: 0 } }));
 }
@@ -181,7 +189,7 @@ export const Script: StoryObj<ScriptArgs> = {
     add(desk, t);
     const el = LIVE_EL.get("script");
     const seen = el ? LAST.get(el) : undefined;
-    add(t, die("die", { kind: a.kind, at: { x: -2.2, y: 0 }, ...(seen?.face && seen.face <= dieSpec(a.kind).sides ? { face: seen.face } : {}) }));
+    add(t, die("die", { kind: a.kind, at: { x: -1.2, y: 0 }, ...(seen?.face && seen.face <= dieSpec(a.kind).sides ? { face: seen.face } : {}) }));
     const { kind: _k, thrown: _t, outcome: _o, seed: _s, given: _g, speed, angle, spin, ...motion } = a;
     const s: Scene = scene(desk, {
       animate: true,
@@ -255,12 +263,22 @@ interface ThrowArgs {
   friction: number;
   spinFriction: number;
   bounce: number;
+  wallSpeed: number;
+  wallBounce: number;
+  leash: number;
 }
 
 /**
  * A THROW BY HAND — drag the die and LET GO WHILE MOVING: the carry spring's speed at release
- * becomes the slide's (`throwFromCarry`), scaled by `gain`; a slow release is a drop and the die
- * stays put. The tray's walls keep it in; the face comes from the `outcome` door as always.
+ * becomes the slide's (`throwFromCarry`), scaled by `gain`, and the tumble comes off that same
+ * speed; a slow release is a drop and the die stays put.
+ *
+ * THE TRAY'S WALLS ARE REAL WHILE THE HAND IS ON THE DIE. Carried into a border, the die stops
+ * there and goes on straining after the finger — and the gesture can end at the wall two ways:
+ * SHOVE it in at `wallSpeed` or more and the wall wins, knocking the die off the hand and throwing
+ * it back across the tray with `wallBounce` of the speed it arrived at (tumbling all the way, like
+ * any throw); keep PULLING past `leash` and the hold simply breaks, leaving the die where it stood.
+ * The face comes from the `outcome` door as always.
  */
 export const Throw: StoryObj<ThrowArgs> = {
   render: (a) => {
@@ -270,27 +288,64 @@ export const Throw: StoryObj<ThrowArgs> = {
     add(desk, t);
     const el = LIVE_EL.get("throw");
     const seen = el ? LAST.get(el) : undefined;
-    add(t, die("die", { kind: a.kind, at: { x: -1.5, y: 0 }, ...(seen?.face && seen.face <= dieSpec(a.kind).sides ? { face: seen.face } : {}) }));
+    const held = die("die", { kind: a.kind, at: { x: -1.2, y: 0 }, ...(seen?.face && seen.face <= dieSpec(a.kind).sides ? { face: seen.face } : {}) });
+    // A die put down in a tray STAYS where it was put down — including when the leash breaks and the
+    // hand loses it on a wall. The stock `home` is the safe default for a card refused by a slot;
+    // a die has nowhere to be refused from.
+    compose(held, Draggable({ onReject: "stay" }));
+    add(t, held);
     const { kind: _k, outcome: _o, seed: _s, given: _g, gain, ...motion } = a;
+    /** The tray's own footprint, inset by the die's half — the box the die's CENTRE may be in. */
+    const trayWalls = (root: Node): Walls | undefined => {
+      const box = byId(root, "tray");
+      return box ? wallsOf(root, box, 0.5) : undefined;
+    };
+    const landed = (f: number): void => {
+      LAST.set(s.el, { trigger: 0, taps: 0, face: f });
+    };
     const s: Scene = wireDrag(scene(desk, { animate: true, motion }), {
+      trayOf: (root) => trayWalls(root),
       onRelease: (_v, items) => {
         const live = byId(s.host.root, items[0]?.id ?? "die");
-        const liveTray = byId(s.host.root, "tray");
-        if (!live || !liveTray || !s.motions) return false;
+        if (!live || !s.motions) return false;
         const face = throwFromCarry(s.motions, s.host.root, live, {
           gain,
-          walls: wallsOf(s.host.root, liveTray, 0.5),
+          ...(trayWalls(s.host.root) ? { walls: trayWalls(s.host.root) } : {}),
           outcome: outcomeOf(a),
-          onRest: (f) => LAST.set(s.el, { trigger: 0, taps: 0, face: f }),
+          onRest: landed,
         });
         return face !== undefined; // flew — the wiring leaves it to the clock; a drop falls through
+      },
+      onWall: (hit, items) => {
+        const live = byId(s.host.root, items[0]?.id ?? "die");
+        if (!live || !s.motions) return false;
+        // The wall took the die off the hand: it goes back across the tray with the bounce it
+        // earned, rolling — the same throw as any other, along a velocity the runtime handed over.
+        throwFromWall(s.motions, s.host.root, live, hit, {
+          ...(trayWalls(s.host.root) ? { walls: trayWalls(s.host.root) } : {}),
+          outcome: outcomeOf(a),
+          onRest: landed,
+        });
+        return true;
       },
     });
     LIVE_EL.set("throw", s.el);
     if (!LAST.has(s.el)) LAST.set(s.el, { trigger: 0, taps: 0 });
     return s.el;
   },
-  args: { kind: "d6", outcome: "rng", seed: 7, given: 4, gain: 1, friction: DEFAULT_TUNING.friction, spinFriction: DEFAULT_TUNING.spinFriction, bounce: DEFAULT_TUNING.bounce },
+  args: {
+    kind: "d6",
+    outcome: "rng",
+    seed: 7,
+    given: 4,
+    gain: 1,
+    friction: DEFAULT_TUNING.friction,
+    spinFriction: DEFAULT_TUNING.spinFriction,
+    bounce: DEFAULT_TUNING.bounce,
+    wallSpeed: DEFAULT_TUNING.wallSpeed,
+    wallBounce: DEFAULT_TUNING.wallBounce,
+    leash: DEFAULT_TUNING.leash,
+  },
   argTypes: {
     kind: KIND,
     outcome: OUTCOME,
@@ -300,6 +355,9 @@ export const Throw: StoryObj<ThrowArgs> = {
     friction: documented("arg.friction", { control: { type: "range", min: 0, max: 30, step: 0.5 } }, "slide"),
     spinFriction: documented("arg.spinFriction", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "slide"),
     bounce: documented("arg.bounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "slide"),
+    wallSpeed: documented("arg.wallSpeed", { control: { type: "range", min: 0, max: 20, step: 0.5 } }, "wall"),
+    wallBounce: documented("arg.wallBounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "wall"),
+    leash: documented("arg.leash", { control: { type: "range", min: 0.2, max: 5, step: 0.1 } }, "wall"),
   },
   parameters: { gkDocStory: "dice.throw" },
 };

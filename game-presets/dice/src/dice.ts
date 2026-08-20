@@ -49,6 +49,7 @@ import {
   type TransformableFields,
   type ValuedFields,
   type Vec,
+  type WallHit,
   type Walls,
 } from "game-kit";
 import { dieSpec, type DieKind } from "./kinds.js";
@@ -225,21 +226,61 @@ export type ThrowFromCarryOptions = Omit<ThrowDieOptions, "speed" | "angle"> & {
   readonly gain?: number | undefined;
   /** Below this speed (units/s) the release is a DROP, not a throw: the die stays put. Default 0.5. */
   readonly minSpeed?: number | undefined;
+  /**
+   * How much TUMBLE the throw takes from its own speed: degrees/s of spin per unit/s of slide.
+   * A hand does not put a die down flat and shove it — it flicks, and the harder the flick the
+   * faster the die goes over. `0` is a die that slides without turning; a `spin` given outright
+   * wins over this. Default `SPIN_PER_SPEED`.
+   */
+  readonly spinGain?: number | undefined;
 };
 
+/** A die let go at 9 units/s comes off the hand at 900°/s — the catalog's own scripted throw, as a rate. */
+const SPIN_PER_SPEED = 100;
+
+/** The half of a throw that is already a VECTOR — the finger's on release, the wall's on a bounce. */
+type Flick = Omit<ThrowDieOptions, "speed" | "angle"> & { readonly spinGain?: number | undefined };
+
 /**
- * Let a carried die go WITH ITS MOMENTUM: the carry spring's speed at release becomes the throw's.
- * Returns the face when it flew, `undefined` when it was only set down (the game then releases it as
- * an ordinary drop — its rest is wherever the layout seats it).
+ * Throw the die along `v`: the speed and heading are the vector's, and the TUMBLE comes off the same
+ * speed unless a `spin` is given outright. Thrown to the right it rolls to the right — the turn
+ * takes the sign of the throw's own direction.
+ */
+function flick(motions: Motions, root: Node, d: Node, v: Vec, opts: Flick): number {
+  const { speed, angle } = polar(v);
+  const { spinGain, ...rest } = opts;
+  const spin = rest.spin ?? speed * (spinGain ?? SPIN_PER_SPEED) * (Math.sign(v.x) || 1);
+  return throwDie(motions, root, d, { ...rest, speed, angle, spin });
+}
+
+/**
+ * Let a carried die go WITH ITS MOMENTUM: the carry spring's speed at release becomes the throw's,
+ * and its TUMBLE comes off the same speed (`spinGain`) — a flick sends the die over and over, a
+ * gentle push barely turns it. Returns the face when it flew, `undefined` when it was only set down
+ * (the game then releases it as an ordinary drop — its rest is wherever the layout seats it).
  */
 export function throwFromCarry(motions: Motions, root: Node, d: Node, opts: ThrowFromCarryOptions): number | undefined {
   const v = motions.velocity();
   if (!v) return undefined;
-  const { speed, angle } = polar(v);
-  const gained = speed * (opts.gain ?? 1);
-  if (gained < (opts.minSpeed ?? 0.5)) return undefined;
+  const gain = opts.gain ?? 1;
+  const { speed } = polar(v);
+  if (speed * gain < (opts.minSpeed ?? 0.5)) return undefined;
   const { gain: _gain, minSpeed: _min, ...rest } = opts;
-  return throwDie(motions, root, d, { ...rest, speed: gained, angle });
+  return flick(motions, root, d, { x: v.x * gain, y: v.y * gain }, rest);
+}
+
+export type ThrowFromWallOptions = Omit<ThrowDieOptions, "speed" | "angle"> & {
+  /** As `throwFromCarry`'s: degrees/s of tumble per unit/s of slide. */
+  readonly spinGain?: number | undefined;
+};
+
+/**
+ * THE WALL TOOK THE DIE OFF THE HAND — throw it back with the bounce the runtime handed over
+ * (`CarryOptions.walls`). The die is already standing on the border where it hit; this is the same
+ * throw as any other, along the velocity it came off with, and it tumbles the whole way back.
+ */
+export function throwFromWall(motions: Motions, root: Node, d: Node, hit: WallHit, opts: ThrowFromWallOptions): number {
+  return flick(motions, root, d, hit.velocity, opts);
 }
 
 /** The walls of a tray node — its footprint's box in root units — for `throwDie`'s `walls`. */

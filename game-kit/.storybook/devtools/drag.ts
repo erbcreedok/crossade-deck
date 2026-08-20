@@ -32,6 +32,8 @@ import {
   type Transform,
   type TransformableFields,
   type Vec,
+  type WallHit,
+  type Walls,
 } from "../../src/index.js";
 import { type Scene } from "./scene.js";
 
@@ -53,6 +55,18 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * to say it took the nodes; `false`/absent, and the drop is refused-or-stays as always.
    */
   readonly onRelease?: ((velocity: Vec | undefined, items: readonly CarryItem[]) => boolean) | undefined;
+  /**
+   * The tray the grabbed piece may not be carried out of — asked of the scene at the moment of the
+   * grab, because which box a piece is in is the game's knowledge, not the wiring's. The box is the
+   * ANCHOR's, so inset it by the piece's own half (`wallsOf(root, tray, half)`).
+   */
+  readonly trayOf?: ((root: Node, hit: Node) => Walls | undefined) | undefined;
+  /**
+   * The wall won and the run is off the finger, still standing on the border. Like `onRelease`: a
+   * scene that throws the piece back does it here and returns `true` to say it took the nodes;
+   * `false`/absent and the run is dropped where the wall stopped it.
+   */
+  readonly onWall?: ((hit: WallHit, items: readonly CarryItem[]) => boolean) | undefined;
   /** The view the desk is drawn through — a camera's `transform()`. Absent, the plain centred one. */
   readonly view?: (() => Transform) | undefined;
 };
@@ -81,7 +95,7 @@ interface Wiring {
    * Without it a second finger — the one that arrives to pinch the desk — drives somebody else's
    * drag: the card chases a hand that never touched it, and lands wherever that hand stopped.
    */
-  drag: { readonly items: readonly CarryItem[]; readonly delta: Point; readonly pointer: number } | undefined;
+  drag: { readonly items: readonly CarryItem[]; readonly delta: Point; readonly pointer: number; readonly tray: Walls | undefined } | undefined;
   /** Undresses every zone the grab invited — release calls it, and it is the whole protocol. */
   undoInvites: (() => void) | undefined;
 }
@@ -155,17 +169,63 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
-    w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId };
+    w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId, tray: undefined };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, ...feel } = w.opts;
-    motions.grab(items, { anchor, ...feel });
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const tray = trayOf?.(root, hit);
+    w.drag = { ...w.drag, tray };
+    motions.grab(items, {
+      anchor,
+      ...feel,
+      ...(tray ? { walls: tray } : {}),
+      // THE BORDER ENDS THE GESTURE, and the wiring's own bookkeeping ends with it: the finger is
+      // still down, so the drag has to be forgotten here or the pointerup would drop the piece a
+      // second time, from wherever the hand had wandered off to by then.
+      onWall: (hit2) => {
+        const taken = w.drag;
+        w.drag = undefined;
+        w.undoInvites?.();
+        w.undoInvites = undefined;
+        if (taken && w.opts.onWall?.(hit2, taken.items)) return;
+        if (taken) drop(taken.items, hit2.at);
+      },
+      onSnap: (_ids, at) => {
+        const taken = w.drag;
+        w.drag = undefined;
+        w.undoInvites?.();
+        w.undoInvites = undefined;
+        if (taken) drop(taken.items, at);
+      },
+    });
     try {
       view.setPointerCapture(e.pointerId);
     } catch {
       // a synthetic pointer (the checks drive one) has no capture to take
     }
+  };
+
+  /**
+   * PUT THE RUN DOWN at `seat` — the one drop, whether the finger let go or the wall took the piece
+   * away from it. `onReject` is the atom's whole verdict: `stay` writes the seat in as the new rest,
+   * `home` leaves the tree alone and the reconcile flies the piece back. The seat is in root units,
+   * as the demo desks are unposed free layouts, where parent space IS root space.
+   */
+  /** A point as the tray allows it — the same clamp the carry itself is under. */
+  const inside = (tray: Walls | undefined, at: Vec): Vec =>
+    tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
+
+  const drop = (items: readonly CarryItem[], seat: Vec): void => {
+    const root = s.host.root;
+    for (const it of items) {
+      const n = byId(root, it.id);
+      if (n && onRejectOf(n) === "stay") {
+        compose(n, Transformable({ at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
+      }
+      s.motions?.release(it.id);
+    }
+    s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
   };
 
   const onMove = (e: PointerEvent): void => {
@@ -214,25 +274,15 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     w.drag = undefined;
     w.undoInvites?.();
     w.undoInvites = undefined;
-    const root = s.host.root;
     // A scene that throws on release takes the nodes here — the finger's speed is still on the
     // springs, read before anything is released.
     if (w.opts.onRelease?.(motions.velocity(), drag.items)) return;
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
-    const seat = { x: p.x + drag.delta.x, y: p.y + drag.delta.y };
-    for (const it of drag.items) {
-      const n = byId(root, it.id);
-      // Nothing in these scenes accepts a drop, so EVERY release is a refused one, and the
-      // atom's own field is the whole verdict: `home` leaves the tree alone and the next
-      // reconcile flies the card back; `stay` writes the release seat in as the new rest. The
-      // seat is written in root units — the demo desks are unposed free layouts, where parent
-      // space IS root space.
-      if (n && onRejectOf(n) === "stay") {
-        compose(n, Transformable({ at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
-      }
-      motions.release(it.id);
-    }
-    s.host.setRoot(root); // ONE notify: the reconcile that eases every released card to its rest
+    // Nothing in these scenes accepts a drop, so every release is a refused one — see `drop`. The
+    // seat is the seat the run was ALLOWED, not the point the finger was at: inside a tray a hand
+    // may stand a leash's length past a wall, and letting go there must not write the piece out of
+    // the box the whole gesture just refused to let it leave.
+    drop(drag.items, inside(drag.tray, { x: p.x + drag.delta.x, y: p.y + drag.delta.y }));
   };
 
   view.addEventListener("pointerdown", onDown);

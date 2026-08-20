@@ -11,10 +11,12 @@ export {
   showFace,
   throwDie,
   throwFromCarry,
+  throwFromWall,
   wallsOf,
   type DieOptions,
   type Outcome,
   type RollDieOptions,
   type ThrowDieOptions,
   type ThrowFromCarryOptions,
+  type ThrowFromWallOptions,
 } from "./dice.js";

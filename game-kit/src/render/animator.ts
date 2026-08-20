@@ -82,10 +82,43 @@ export interface CarryItem {
   readonly offset: Vec;
 }
 
+/**
+ * WHAT THE WALL DID TO A CARRIED RUN — the run was shoved into the tray's border hard enough that
+ * the border won. The gesture is already over when this arrives: the run is off the finger, standing
+ * at the wall, and what flies back is the game's word (a die throws itself, a card may just lie).
+ */
+export interface WallHit {
+  /** The run that was on the finger, in the order it was grabbed. */
+  readonly ids: readonly NodeId[];
+  /** Where the run stands now — the anchor, on the wall, root units. */
+  readonly at: Vec;
+  /** How fast it went INTO the wall, units/s — always positive, and at least the tuning's `wallSpeed`. */
+  readonly speed: number;
+  /** What it comes off with: the finger's velocity reflected off the wall, `wallBounce` of it left. */
+  readonly velocity: Vec;
+}
+
 /** How a carry feels — the anchor, and any of the carry fields of the tuning as a per-gesture patch. */
 export type CarryOptions = {
   /** The grab pivot in root units — where the finger is now. Seeds the springs, so nothing jumps. */
   readonly anchor: Vec;
+  /**
+   * THE TRAY THE RUN MAY NOT LEAVE, root units — the box the ANCHOR is held inside, which is the
+   * same thing a `slide` bounces off (inset it by the piece's own half: `wallsOf(root, tray, half)`).
+   *
+   * Without it a finger carries a piece anywhere and lets it go there. With it the border is real
+   * while the hand is on the piece: the run stops at the wall and goes on straining after the
+   * finger, and the gesture can end there in two ways — shoved in hard, the wall knocks the run off
+   * the hand (`onWall`); pulled on past `leash`, the hold simply breaks (`onSnap`).
+   */
+  readonly walls?: Walls | undefined;
+  /** The wall won: the run is off the finger at the border, with the bounce it earned. */
+  readonly onWall?: ((hit: WallHit) => void) | undefined;
+  /**
+   * The hold broke: the finger went too far past a wall the run could not follow it through, and
+   * the run is left standing at `at` — where the game decides whether that is its new seat.
+   */
+  readonly onSnap?: ((ids: readonly NodeId[], at: Vec) => void) | undefined;
 } & { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined };
 
 /** A throw down the SCREEN: gravity pulls, a floor bounces, the body leaves the glass sideways. */
@@ -333,6 +366,13 @@ interface Carry {
   readonly bankCfg: SpringConfig;
   readonly tiltFactor: number;
   readonly tiltMax: number;
+  /** The tray, if the gesture has one, and what to say when the border ends it. */
+  readonly walls: Walls | undefined;
+  readonly wallSpeed: number;
+  readonly wallBounce: number;
+  readonly leash: number;
+  readonly onWall: ((hit: WallHit) => void) | undefined;
+  readonly onSnap: ((ids: readonly NodeId[], at: Vec) => void) | undefined;
 }
 
 /**
@@ -533,9 +573,73 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * its turn as much as in its travel, and the raw lean cannot show it — it saturates, so an
    * ordinary drag pins it, and a hand that turns round trades one pin for the other in four frames.
    */
+  /** The finger's point as the run is allowed to have it: inside the tray, if the gesture has one. */
+  const heldAt = (cy: Carry): Vec => {
+    const w = cy.walls;
+    if (!w) return cy.target;
+    return { x: Math.min(w.x1, Math.max(w.x0, cy.target.x)), y: Math.min(w.y1, Math.max(w.y0, cy.target.y)) };
+  };
+
+  /**
+   * The gesture is over without a release: the run comes off the finger WHERE IT STANDS.
+   *
+   * The reconcile is the whole of "where it stands". Dropped from the finger's set and left alone,
+   * a piece has no override at all and the very next frame paints it back at its seat — a teleport,
+   * and one that would happen behind the game's back. Reconciled, it is a settle from the wall like
+   * any other, and a game that means it to stay writes the seat in its callback: the reconcile that
+   * write brings simply retargets a motion that is already under way.
+   */
+  const letGo = (cy: Carry): void => {
+    for (const it of cy.items) {
+      carried.delete(it.id);
+      held.delete(it.id);
+    }
+    if (carrying === cy) carrying = null;
+    reconcile();
+  };
+
+  /**
+   * THE BORDER, WHILE THE HAND IS STILL ON THE RUN. The clamp in `layCarry` has already stopped the
+   * run at the wall; what is left is whether the gesture survives being pressed against one.
+   *
+   * Two ways it does not. SHOVED in at `wallSpeed` or more, the wall wins: the run comes off the
+   * hand with the bounce it earned, and what happens next is the game's (a die throws itself back
+   * across the tray). PULLED on past `leash`, the hold breaks instead: a hand that keeps dragging a
+   * piece which cannot follow is not holding it any more. Anything gentler is a run straining after
+   * a finger it cannot reach, which is what a piece in a box does.
+   */
+  const wallCheck = (cy: Carry): void => {
+    const at = heldAt(cy);
+    const outX = cy.target.x - at.x;
+    const outY = cy.target.y - at.y;
+    const out = Math.hypot(outX, outY);
+    if (out <= EPSILON) return; // not against it at all
+    // The outward normal of whatever the finger is past — a corner gives the diagonal, which is
+    // the honest answer for a piece shoved into one.
+    const nx = outX / out;
+    const ny = outY / out;
+    const into = cy.sx.vel * nx + cy.sy.vel * ny;
+    const ids = cy.items.map((it) => it.id);
+    if (into >= cy.wallSpeed) {
+      const hit: WallHit = {
+        ids,
+        at,
+        speed: into,
+        velocity: { x: (cy.sx.vel - 2 * into * nx) * cy.wallBounce, y: (cy.sy.vel - 2 * into * ny) * cy.wallBounce },
+      };
+      letGo(cy);
+      cy.onWall?.(hit);
+      return;
+    }
+    if (out > cy.leash) {
+      letGo(cy);
+      cy.onSnap?.(ids, at);
+    }
+  };
+
   const layCarry = (cy: Carry): void => {
     const leanDeg = cy.sa.pos;
-    const anchor = cy.target;
+    const anchor = heldAt(cy);
     const n = cy.items.length;
     cy.items.forEach((it, i) => {
       displayed.set(it.id, cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));
@@ -629,6 +733,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
       }
       layCarry(cy);
+      if (cy.walls) wallCheck(cy);
     }
     // Advance the flights: a stagger holds a body at rest until its turn; then the physics.
     for (const [id, f] of [...flights]) {
@@ -773,6 +878,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         bankCfg: { stiffness: t.leanStiffness, damping: t.leanDamping },
         tiltFactor: t.leanFactor,
         tiltMax: t.leanMaxDeg,
+        walls: opts.walls,
+        wallSpeed: t.wallSpeed,
+        wallBounce: t.wallBounce,
+        leash: t.leash,
+        onWall: opts.onWall,
+        onSnap: opts.onSnap,
       };
       for (const it of items) {
         carried.add(it.id);

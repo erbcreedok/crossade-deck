@@ -421,8 +421,15 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     // said units, so zoom never changes the shadow-to-size ratio; this is that sentence in code.
     const perUnit = Math.hypot(toView.a, toView.b);
     const off = (depth.base + depth.perZ * z + (inHand ? depth.lifted : 0)) * perUnit;
+    // WHERE it falls is the law above — the seat, unless a hand has the piece. WHAT SHAPE falls is
+    // the piece AS DRAWN: a shadow is the thing's own outline, so it turns and stretches with it. A
+    // die tumbling over its seat casting a shadow that will not turn is the piece and its shadow
+    // saying two different things about the same object; the seat it lies on is a separate question
+    // from the way it is lying.
+    const drawn = overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY;
     const seat = (inHand ? overrides?.get(n.id) : undefined) ?? nodes.get(n.id) ?? IDENTITY;
-    const toGlass = compose(move(fall.x * off, fall.y * off), compose(toView, seat));
+    const lying: Transform = { a: drawn.a, b: drawn.b, c: drawn.c, d: drawn.d, e: seat.e, f: seat.f };
+    const toGlass = compose(move(fall.x * off, fall.y * off), compose(toView, lying));
     const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
     const ext = extentOf(shape);
     out.push({

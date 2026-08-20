@@ -14,7 +14,7 @@ import { Labeled } from "../core/atoms/labeled.js";
 import { type TextMeasure } from "./textMetrics.js";
 import { add, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
-import { apply, IDENTITY, move } from "../core/transform.js";
+import { apply, IDENTITY, move, type Transform } from "../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./scenePlan.js";
 import { Camera } from "./camera.js";
 import { registerAsset } from "./assets.js";
@@ -411,6 +411,30 @@ describe("scenePlan", () => {
     const held = new Set(["piece"]);
     expect(at({ carried: held })).toBeGreaterThan(at());
     expect(at({ raised: held })).toBeCloseTo(at()); // flight is not height — only the hand is
+  });
+
+  it("plan.a-shadow-lies-the-way-the-piece-does — it turns and grows with the drawn pose, and still waits at the seat", () => {
+    // A shadow is the piece's OWN outline, so the way the piece is lying is the way the shadow
+    // lies: a die tumbling over its seat and a shadow that will not turn are two statements about
+    // one object. WHERE it falls is the separate law above — the seat, unless a hand has it.
+    const root = node("f3", Container({ layout: "free" }));
+    add(root, node("piece", box(2, 1), Surfaced(), ShadowCaster()));
+    const plan = (over?: Map<string, Transform>): readonly Quad[] =>
+      scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, ...(over ? { overrides: over } : {}) });
+    const shadow = (quads: readonly Quad[]): Quad => quads.find((q) => q.id === "piece::shadow")!;
+    const still = shadow(plan());
+    // A quarter turn IN PLACE — nothing has travelled, and the shadow must turn with it.
+    const turned = shadow(plan(new Map([["piece", { a: 0, b: 1, c: -1, d: 0, e: 0, f: 0 }]])));
+    expect(Math.abs(still.transform.b)).toBeCloseTo(0, 5);
+    expect(Math.abs(turned.transform.b)).toBeCloseTo(1, 5);
+    expect(turned.transform.e).toBeCloseTo(still.transform.e, 5); // and it did not move off the seat
+    expect(turned.transform.f).toBeCloseTo(still.transform.f, 5);
+    // The hop is a scale, and the shadow answers it the same way.
+    const grown = shadow(plan(new Map([["piece", { a: 1.5, b: 0, c: 0, d: 1.5, e: 0, f: 0 }]])));
+    expect(Math.hypot(grown.transform.a, grown.transform.b)).toBeCloseTo(Math.hypot(still.transform.a, still.transform.b) * 1.5, 5);
+    // A piece the clock has carried AWAY still leaves its shadow at the seat — the law is untouched.
+    const flown = shadow(plan(new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 3, f: 0 }]])));
+    expect(flown.transform.e).toBeCloseTo(still.transform.e, 5);
   });
 
   it("plan.a-shadow-follows-the-hand-not-the-flight — held it travels, flying it waits at the rest", () => {

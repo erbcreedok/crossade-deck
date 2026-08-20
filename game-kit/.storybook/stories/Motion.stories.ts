@@ -78,6 +78,9 @@ const meta: Meta = {
       bounce: ["Launch", "Slide"],
       friction: ["Slide"],
       spinFriction: ["Slide"],
+      wallSpeed: ["Carry"],
+      wallBounce: ["Carry"],
+      leash: ["Carry"],
     },
   },
 };
@@ -374,6 +377,14 @@ interface CarryArgs extends Omit<DeskArgs, "piecePaint"> {
   leanDamping: number;
   settleMs: number;
   settleEase: string;
+  trayW: number;
+  trayH: number;
+  traySurface: string;
+  trayPaint: string;
+  trayRadius: number;
+  wallSpeed: number;
+  wallBounce: number;
+  leash: number;
 }
 
 /**
@@ -382,6 +393,11 @@ interface CarryArgs extends Omit<DeskArgs, "piecePaint"> {
  * moving the run (`follow*`), the lift pops (`lift*`), that speed asks for a bank the run swings into
  * on a spring of its own (`lean*`), and the style says how the run composes (`carry`).
  * Let go anywhere: nothing here accepts a drop, so the run flies home on the settle (`settle*`).
+ *
+ * AND THE TRAY IS REAL WHILE YOU HOLD THE RUN. Carried into a border it stops there and goes on
+ * straining after your finger; shove it in at `wallSpeed` or more and the wall wins — the run comes
+ * off your hand and slides back with `wallBounce` of the speed it arrived at; keep pulling past
+ * `leash` and the hold breaks, leaving the run standing on the wall.
  */
 export const Carry: StoryObj<CarryArgs> = {
   args: {
@@ -407,6 +423,14 @@ export const Carry: StoryObj<CarryArgs> = {
     leanDamping: DEFAULT_TUNING.leanDamping,
     settleMs: DEFAULT_TUNING.settleMs,
     settleEase: DEFAULT_TUNING.settleEase,
+    trayW: 5.2,
+    trayH: 3.4,
+    traySurface: "story.motion.tray",
+    trayPaint: "sunkBg",
+    trayRadius: 0.12,
+    wallSpeed: DEFAULT_TUNING.wallSpeed,
+    wallBounce: DEFAULT_TUNING.wallBounce,
+    leash: DEFAULT_TUNING.leash,
   },
   argTypes: {
     deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
@@ -430,6 +454,14 @@ export const Carry: StoryObj<CarryArgs> = {
     leanDamping,
     settleMs,
     settleEase,
+    trayW: documented("arg.w", SIZE, "tray/bounds"),
+    trayH: documented("arg.h", SIZE, "tray/bounds"),
+    traySurface: documented("arg.registerAs", TOKEN, "tray/surface"),
+    trayPaint: documented("arg.fill", PAINT, "tray/surface"),
+    trayRadius: documented("arg.radius", RADIUS, "tray/surface"),
+    wallSpeed: documented("arg.wallSpeed", { control: { type: "range", min: 0, max: 20, step: 0.5 } }, "tray/wall"),
+    wallBounce: documented("arg.wallBounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "tray/wall"),
+    leash: documented("arg.leash", { control: { type: "range", min: 0.2, max: 5, step: 0.1 } }, "tray/wall"),
   },
   parameters: { gkDocStory: "motion.carry" },
   render: ({
@@ -454,9 +486,19 @@ export const Carry: StoryObj<CarryArgs> = {
     leanDamping: bankC,
     settleMs: ms,
     settleEase: ease,
+    trayW,
+    trayH,
+    traySurface,
+    trayPaint,
+    trayRadius,
+    wallSpeed,
+    wallBounce,
+    leash,
   }) => {
     registerLayout(deskLayout, freeLayout);
     const desk = node("desk", Container({ layout: deskLayout }));
+    registerSurface(traySurface, { layers: [{ paint: trayPaint }], radius: trayRadius });
+    add(desk, node("tray", Bounded({ bounds: rect(trayW, trayH) }), Surfaced({ surface: traySurface }), Transformable({ at: { x: 0, y: 0 } })));
     run.forEach(({ paint }, i) => {
       registerSurface(`${pieceSurface}#${i}`, { layers: [{ paint }], radius: pieceRadius });
       add(
@@ -485,8 +527,27 @@ export const Carry: StoryObj<CarryArgs> = {
       leanDamping: bankC,
       settleMs: ms,
       settleEase: ease,
+      wallSpeed,
+      wallBounce,
+      leash,
     };
-    return wireDrag(scene(desk, { animate: true, motion }), { ...motion, runOf: runBelow }).el;
+    // The box the ANCHOR may be in: the tray's own footprint, pulled in by half a card so the card
+    // itself stays inside — the same inset a game gives `wallsOf`.
+    const half = Math.max(pieceW, pieceH) / 2;
+    const walls = { x0: -trayW / 2 + half, y0: -trayH / 2 + half, x1: trayW / 2 - half, y1: trayH / 2 - half };
+    const s = scene(desk, { animate: true, motion });
+    return wireDrag(s, {
+      ...motion,
+      runOf: runBelow,
+      trayOf: () => walls,
+      // The wall knocked the run off the hand: the engine's own answer is a slide, along the
+      // velocity the runtime handed over, inside the same tray. A game says something richer here
+      // (a die throws itself and tumbles); this stand says the plain thing.
+      onWall: (hit, items) => {
+        for (const it of items) s.motions?.slide(it.id, { speed: Math.hypot(hit.velocity.x, hit.velocity.y), angle: (Math.atan2(hit.velocity.y, hit.velocity.x) * 180) / Math.PI, walls });
+        return true;
+      },
+    }).el;
   },
 };
 

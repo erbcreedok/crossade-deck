@@ -206,6 +206,7 @@ export {
   type RollOptions,
   type ShuffleOptions,
   type SlideOptions,
+  type WallHit,
 } from "./render/animator.js";
 // How a reorder LOOKS: the recipes a shuffle plays (riffle/overhand/wash/shake), a registry like flips.
 export {
