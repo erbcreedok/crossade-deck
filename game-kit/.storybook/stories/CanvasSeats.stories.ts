@@ -39,6 +39,7 @@ import {
   walk,
   type Node,
   type NodeId,
+  type Paint,
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
@@ -180,10 +181,24 @@ function masterFor(seats: readonly string[], handCards: number, others: string, 
   return standing.master;
 }
 
+/** Somebody else's hand on this desk: whose it is, and where — when the master let the point through. */
+interface Hand {
+  readonly actor: string;
+  readonly at?: Vec;
+}
+
 /** How high a card stands while it waits on somebody's word — off the desk, and plainly not landed. */
 const WAITING_LIFT = 0.6;
 
 const DOT = "story.seats.dot";
+const GHOST = "story.seats.ghost";
+
+/**
+ * A SEAT'S OWN COLOUR, as one name and one number. `spin` is the hue wheel the kit ships for exactly
+ * this: N players are N params of one recipe, not N records and never N hexes — and a client could
+ * remap the whole wheel (a colour-blind palette) without a thing changing on the wire.
+ */
+const inkOf = (seat: string): Paint => ({ token: "spin", param: SEATS.indexOf(seat as never) / SEATS.length });
 /** Three of them, a fifth of a unit apart, sitting across the middle of whatever is waiting. */
 const DOTS = [-0.2, 0, 0.2];
 
@@ -200,25 +215,19 @@ const DOTS = [-0.2, 0, 0.2];
  *
  * Written into the PROJECTION, never the truth: waiting is a thing a viewer is shown.
  */
-function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Vec | undefined> = new Map()): Node {
+function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Hand> = new Map()): Node {
   // A COPY, because marks come OFF as well as on. A ring composed onto the snapshot itself would
   // outlive the hand that put it there: the next pass simply does not mention that node, and what
   // was never removed stays. Marking a fresh tree each time makes absence mean absence.
   const seen = cloneTree(snapshot);
   registerSurface(DOT, { layers: [{ paint: "text" }] });
+  registerSurface(GHOST, { layers: [{ paint: "textMuted" }], radius: 0.08 });
   walk(seen, (n) => {
     // SOMEBODY ELSE'S HAND IS ON THIS. The ring says whose finger; the point, when the master let it
     // through, says where. Over a secret hand there is no point to have — the table learns THAT a
     // card is being dragged and never where, which is the whole of the cut.
-    if (others.has(n.id)) {
-      compose(n, Coated({ self: { recipe: "ring", level: 1, tint: "text" } }));
-      const at = others.get(n.id);
-      const own = fieldsOf<TransformableFields>(n, "Transformable");
-      // The point travels in ROOT units — every seat shares those axes, and only the cameras differ
-      // — but a node's own `at` is read against its OWNER, so the zone's seat comes off it here.
-      const home = n.parent ? zoneHome(n.parent) : { x: 0, y: 0 };
-      if (at && own) compose(n, Transformable({ ...own, at: { x: at.x - home.x, y: at.y - home.y }, z: own.z + WAITING_LIFT }));
-    }
+    const hand = others.get(n.id);
+    if (hand) compose(n, Coated({ self: { recipe: "ring", level: 1, tint: inkOf(hand.actor) } }));
     if (wait.zones.has(n.id)) compose(n, Coated({ self: { recipe: "ring", level: 0.9, tint: "accent" } }));
     if (!wait.held.has(n.id)) return;
     // OFF THE DESK while it waits: not flown home, which would read as a refusal, and not landed,
@@ -232,6 +241,23 @@ function mark(snapshot: Node, wait: Waiting, others: ReadonlyMap<NodeId, Vec | u
       ),
     );
   });
+  // THE PHANTOM, and it is a NODE OF ITS OWN rather than the card moved. A card in an arranged zone
+  // is placed by the arrangement — write its `at` and the row simply puts it back — and the card is
+  // not where the finger is anyway: it is still in the hand until a move is agreed. What travels is
+  // a picture of a hand, so a picture is what is drawn, in the colour of whoever is holding it.
+  for (const [id, hand] of others) {
+    if (!hand.at) continue; // the master cut the point: the table knows THAT, and never where
+    add(
+      seen,
+      node(
+        `~hand:${id}`,
+        Bounded({ bounds: rect(0.8, 1.12) }),
+        Surfaced({ surface: GHOST }),
+        Coated({ self: { recipe: "ring", level: 1, tint: inkOf(hand.actor) } }),
+        Transformable({ at: hand.at, z: WAITING_LIFT }),
+      ),
+    );
+  }
   return seen;
 }
 
@@ -318,7 +344,7 @@ export const Table: StoryObj<SeatsArgs> = {
       const mate = master.join(seat);
       // OTHER HANDS ON THE DESK. Ephemeral: a map that is not truth, not saved and not projected —
       // it is redrawn under the newest snapshot and forgotten the moment a hand lets go.
-      const others = new Map<NodeId, Vec | undefined>();
+      const others = new Map<NodeId, Hand>();
       let latest: { seen: Node; wait: Waiting } | undefined;
       const redraw = (): void => {
         if (latest) built.setRoot(mark(latest.seen, latest.wait, others));
@@ -326,7 +352,7 @@ export const Table: StoryObj<SeatsArgs> = {
       mate.onCarry((carry) => {
         for (const id of carry.els) {
           if (carry.done) others.delete(id);
-          else others.set(id, carry.at);
+          else others.set(id, carry.at ? { actor: carry.actor, at: carry.at } : { actor: carry.actor });
         }
         redraw();
       });
