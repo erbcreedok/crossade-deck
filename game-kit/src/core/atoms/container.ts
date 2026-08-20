@@ -42,6 +42,26 @@ export interface LayoutChild {
   readonly at: Point | undefined;
 }
 
+/**
+ * HOW A POSE RELAXES INTO REST HERE — the road, which is not the destination.
+ *
+ * A mat that squares a card up and a mat that lets it lie askew for a few seconds first agree
+ * exactly about where the card ENDS; they differ only in the curve. So this is not part of the pose
+ * and not part of the transaction: the rest pose is authoritative, the road to it is decoration.
+ *
+ * It belongs to the ARRANGEMENT because the arrangement is what already answers "where do children
+ * of this container go" — a hand fans, a stack piles, and how each of them relaxes is the same kind
+ * of knowledge. `hold: 0, ms: 0` is a snap, which is what a settle means when nobody asks for one.
+ */
+export interface Settle {
+  /** Lie still this long first, ms. The card stays exactly where the finger left it. */
+  readonly hold: number;
+  /** Then travel for this long, ms. Zero is instant — no road at all. */
+  readonly ms: number;
+  /** Registry name of the easing that shapes the travel (`installStockEasings`). */
+  readonly ease: string;
+}
+
 export interface LayoutRecord {
   /**
    * A pose per child, in the same order. `undefined` means "this layout does not place this
@@ -64,6 +84,12 @@ export interface LayoutRecord {
    * a field four arrangements out of five cannot use is a field that gets misread.
    */
   readonly padding?: number;
+  /**
+   * How a pose relaxes into rest in this arrangement. ABSENT is the ordinary case and means "the
+   * runtime's own settle" — the tuning, exactly as before an arrangement had a say. A record only
+   * speaks up when it wants something other than the house curve.
+   */
+  readonly settle?: Settle;
 }
 
 const LAYOUTS = new Map<string, LayoutRecord>();

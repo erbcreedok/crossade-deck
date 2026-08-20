@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Bounded } from "../core/atoms/bounded.js";
-import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
+import { Container, registerLayout, resetLayouts, type LayoutRecord } from "../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
 import { ShadowCaster } from "../core/atoms/shadow.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
@@ -98,6 +98,92 @@ describe("the motion runtime", () => {
     const endX = b.xOf("c");
     expect(endX).toBeGreaterThan(midX);
     expect(c.idle()).toBe(true); // idle-gate: no frame is scheduled once nothing is in flight
+  });
+
+  // ── how a zone lets a pose relax into rest ──────────────────────────────────────────────────
+  //
+  // The rest pose is one thing and the road to it another. A mat that squares a card up and a mat
+  // that lets it lie askew for a while first agree exactly about where the card ENDS — they differ
+  // only in the curve, and that difference belongs to the ARRANGEMENT, beside `place`.
+  //
+  // A hold needs no machinery of its own: a settle that starts in the future is a settle whose `t`
+  // is still zero, and `sample` already clamps it there. So "lie still, then ease" is one addition.
+
+  /** A `free` layout that also says how a pose relaxes in it. */
+  const holding = (settle: LayoutRecord["settle"]): LayoutRecord => ({ ...freeLayout, ...(settle ? { settle } : {}) });
+
+  it("motion.a-zone-holds-before-it-eases — the card lies as it was carried, then squares up", () => {
+    const b = bench();
+    registerLayout("free", holding({ hold: 500, ms: 200, ease: "linear" }));
+    const c = fakeClock();
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+
+    const restX = b.xOf("c");
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+
+    c.tick(100);
+    expect(b.xOf("c"), "still lying where it landed").toBeCloseTo(restX);
+    c.tick(499);
+    expect(b.xOf("c"), "the whole hold, not a fraction of the ease").toBeCloseTo(restX);
+    c.tick(600); // 100ms into a 200ms ease
+    const mid = b.xOf("c");
+    expect(mid).toBeGreaterThan(restX);
+    c.tick(700);
+    expect(b.xOf("c")).toBeGreaterThan(mid);
+    expect(c.idle(), "the loop stops once the ease is over").toBe(true);
+  });
+
+  it("motion.a-zone-can-snap — no road at all, and the first frame is already home", () => {
+    const b = bench();
+    registerLayout("free", holding({ hold: 0, ms: 0, ease: "linear" }));
+    const c = fakeClock();
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+
+    const restX = b.xOf("c");
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    expect(b.xOf("c") - restX, "arrived on the frame the tree changed").toBeCloseTo(4, 1);
+    expect(c.idle(), "and no frame was scheduled for a journey of nothing").toBe(true);
+  });
+
+  it("motion.without-a-settle-the-tuning-decides — an arrangement that says nothing changes nothing", () => {
+    const b = bench();
+    registerLayout("free", holding(undefined));
+    const c = fakeClock();
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+
+    const restX = b.xOf("c");
+    compose(b.card, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setRoot(b.desk);
+    c.tick(100);
+    // The tuning's 100ms, exactly as before an arrangement had a say. Measured as TRAVEL from the
+    // seat rather than against a literal: a quad's x carries the card's own half-width too.
+    expect(b.xOf("c") - restX).toBeCloseTo(4, 1);
+    expect(c.idle()).toBe(true);
+  });
+
+  it("motion.the-rest-is-the-same-either-way — hold and snap disagree about the road, never the end", () => {
+    // The owner's claim in `docs/scenarios/pose.md` §D, and the reason `settle` is not part of the
+    // pose: two zones differing only in their curve must come to rest in the SAME place, or the
+    // decoration has started deciding the truth.
+    const snapped = bench();
+    registerLayout("free", holding({ hold: 0, ms: 0, ease: "linear" }));
+    const cs = fakeClock();
+    attachMotion(snapped.host, snapped.painter, { settleMs: 100, settleEase: "linear", clock: cs.clock });
+    compose(snapped.card, Transformable({ at: { x: 4, y: 0 } }));
+    snapped.host.setRoot(snapped.desk);
+    cs.tick(10_000);
+    const snapEnd = snapped.xOf("c");
+
+    const eased = bench();
+    registerLayout("free", holding({ hold: 5000, ms: 900, ease: "easeOut" }));
+    const ce = fakeClock();
+    attachMotion(eased.host, eased.painter, { settleMs: 100, settleEase: "linear", clock: ce.clock });
+    compose(eased.card, Transformable({ at: { x: 4, y: 0 } }));
+    eased.host.setRoot(eased.desk);
+    ce.tick(10_000);
+    expect(eased.xOf("c")).toBeCloseTo(snapEnd);
   });
 
   it("motion.a-flying-node-rides-above — the settle paints over taller rest, and landing hands the order back", () => {

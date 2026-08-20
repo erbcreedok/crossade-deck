@@ -83,6 +83,7 @@ export {
   type ContainerFields,
   type LayoutChild,
   type LayoutRecord,
+  type Settle,
 } from "./core/atoms/container.js";
 export { freeLayout, installStockLayouts, rowLayout, type LayoutAlign, type RowOptions } from "./core/atoms/layouts.js";
 // What a zone does to an arriving load, grain by grain: derive from the arrangement, stamp a fixed

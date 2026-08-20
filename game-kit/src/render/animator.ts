@@ -29,10 +29,11 @@
 // next reconcile eases it home from exactly where the finger left it — the lean and lift unwind on the
 // way. (`hold(id)` is the older, tree-driven gesture the same `release` closes.)
 
-import { byId, type Node, type NodeId } from "../core/node.js";
+import { byId, fieldsOf, type Node, type NodeId } from "../core/node.js";
 import { easing, flipScale, sample, tune, type CarryTuning, type Motion, type MotionTuning, type TuningPatch } from "../core/motion.js";
 import { springAt, springSettled, stepSpring, type SpringConfig, type SpringState } from "../core/spring.js";
 import { carry, lean, type CarryStyle } from "../core/atoms/carry.js";
+import { layoutRecord, type ContainerFields, type Settle } from "../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../core/ballistic.js";
 import { apply, compose, invert, move, pose, rotate, scale, type Transform, type Vec } from "../core/transform.js";
 import { type Host } from "./host.js";
@@ -687,10 +688,32 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     });
   };
 
+  /**
+   * WHICH SETTLE EACH NODE IS UNDER — its OWNER's arrangement, by id, in one walk.
+   *
+   * Asked of the owner and not of the node, because the road into rest is the zone's manner and not
+   * the card's: the same card squares up on the board and lies askew on the mat. Walked once rather
+   * than looked up per node — a `byId` per moved node would make a reflow quadratic for an answer
+   * that is the same for every child of one container.
+   */
+  const settles = (): Map<NodeId, Settle | undefined> => {
+    const out = new Map<NodeId, Settle | undefined>();
+    const walk = (n: Node): void => {
+      const record = layoutRecord(fieldsOf<ContainerFields>(n, "Container")?.layout ?? "")?.settle;
+      for (const child of n.children) {
+        out.set(child.id, record);
+        walk(child);
+      }
+    };
+    walk(host.root);
+    return out;
+  };
+
   /** Read the tree's new rest poses and start a spring for every node whose pose moved. */
   const reconcile = (): void => {
     const target = transformsOf(host.root);
     const posed = choreographed();
+    const road = settles();
     for (const [id, to] of target) {
       if (held.has(id) || posed.has(id) || flights.get(id)?.started) {
         // Finger-owned, choreographed or thrown: sit exactly where the tree says, no easing. A flip's
@@ -705,7 +728,26 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (!from) {
         displayed.set(id, to); // a new node appears at rest — it did not fly in from nowhere
       } else if (!same(from, to)) {
-        active.set(id, { from, to, startMs: warped, durMs: tuning.settleMs, ease: tuning.settleEase });
+        // A HOLD NEEDS NO MACHINERY OF ITS OWN: a settle that starts in the future is a settle
+        // whose `t` is still zero, and `sample` clamps it there — so the node goes on being drawn
+        // exactly where it landed until the wait is over, and the ease then runs as any other.
+        const set = road.get(id);
+        // A SNAP IS NOT A SETTLE OF LENGTH ZERO. An arrangement that asks for no road at all wants
+        // the node THERE, on this frame — so the displayed pose is written outright and no frame is
+        // scheduled. Routed through the loop it would arrive one frame late and light the idle-gate
+        // for a journey of nothing.
+        if (set && set.hold <= 0 && set.ms <= 0) {
+          displayed.set(id, to);
+          active.delete(id);
+          continue;
+        }
+        active.set(id, {
+          from,
+          to,
+          startMs: warped + (set?.hold ?? 0),
+          durMs: set ? set.ms : tuning.settleMs,
+          ease: set ? set.ease : tuning.settleEase,
+        });
       }
     }
     // Forget nodes that left the tree, in flight or not.
