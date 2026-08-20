@@ -54,6 +54,14 @@ export interface Waiting {
   /** Which zones have a question standing at them. */
   readonly zones: ReadonlySet<NodeId>;
   /**
+   * Every question standing right now, by its own name — who asked and about what.
+   *
+   * Broadcast rather than kept by the asker alone: a client that only knew about its own question
+   * because it happened to send it would forget on a reload, and a late viewer would never learn of
+   * it at all. The record is in the state, so both ends read it from the same place.
+   */
+  readonly open: readonly Ask[];
+  /**
    * WHERE each waiting load hangs, in root units — the point the finger let it go at.
    *
    * The tree cannot say this: the card has not moved, and in an arranged zone it could not be shown
@@ -169,12 +177,20 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
   /** Everyone hears it, the author included — the semantics a real room has, and the reason a
    *  client needs no special case for its own move: the echo is just another snapshot. */
   const broadcast = (): void => {
-    const wait: Waiting = { held: locks(open), zones: new Set(open.map((q) => q.to.parent)), hangs: new Map(hangs) };
+    const wait = snapshotWait();
     for (const [seat, subs] of seats) {
       const seen = project(truth, seat);
       for (const cb of subs) later(() => cb(seen, wait));
     }
   };
+
+  /** What is waiting, right now — one shape, so a boot and a broadcast cannot describe it differently. */
+  const snapshotWait = (): Waiting => ({
+    held: locks(open),
+    zones: new Set(open.map((q) => q.to.parent)),
+    open: open.map((q) => ({ id: q.id, actor: q.actor, els: q.els })),
+    hangs: new Map(hangs),
+  });
 
   /** Whose word a zone waits on. No owner means nobody's, and the question answers itself. */
   const ownerOf = (zone: Node): string => fieldsOf<PoserFields>(zone, "Poser")?.owner ?? "";
@@ -246,9 +262,7 @@ export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN, public
           subs.push(cb);
           // THE CURRENT STATE, AT ONCE — a room hands one over on connect, and without it a screen
           // has nothing to redraw an ephemeral gesture ON TOP OF until somebody happens to move.
-          later(() =>
-            cb(project(truth, seat), { held: locks(open), zones: new Set(open.map((q) => q.to.parent)), hangs: new Map(hangs) }),
-          );
+          later(() => cb(project(truth, seat), snapshotWait()));
           return () => {
             const i = subs.indexOf(cb);
             if (i >= 0) subs.splice(i, 1);

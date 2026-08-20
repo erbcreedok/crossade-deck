@@ -49,7 +49,7 @@ import {
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
-import { localMaster, MAX_OPEN, type Master, type Waiting } from "../devtools/master.js";
+import { localMaster, MAX_OPEN, type Ask, type Master, type Seatmate, type Waiting } from "../devtools/master.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // ONE BOARD, SEVERAL PAIRS OF EYES — the shape a live table has, standing in one page.
@@ -237,6 +237,34 @@ const DOTS = [-0.2, 0, 0.2];
  *
  * Written into the PROJECTION, never the truth: waiting is a thing a viewer is shown.
  */
+/**
+ * The asker's own corner: one button that unasks. Drawn only while a question of this seat's is
+ * standing, and gone the moment it ends however it ends.
+ */
+function withdrawal(mine: Ask, mate: Seatmate): HTMLElement {
+  const box = document.createElement("div");
+  box.setAttribute("data-mine", mine.id);
+  box.style.cssText =
+    "position:absolute;right:8px;bottom:8px;z-index:3;display:flex;gap:6px;align-items:center;" +
+    `padding:6px 8px;border-radius:8px;background:${t("panelBg")};color:${t("text")};` +
+    "font:600 11px ui-monospace,monospace";
+  const said = document.createElement("span");
+  said.textContent = "…";
+  said.style.cssText = "opacity:.75;letter-spacing:.2em";
+  box.appendChild(said);
+  const b = document.createElement("button");
+  b.textContent = "↩";
+  b.style.cssText =
+    `cursor:pointer;border:0;border-radius:6px;padding:2px 8px;background:${t("sunkBg")};color:${t("text")};` +
+    "font:600 12px ui-monospace,monospace";
+  b.addEventListener("click", () => {
+    box.remove();
+    mate.reply(mine.id, "withdrawn");
+  });
+  box.appendChild(b);
+  return box;
+}
+
 /** A hand parted under this finger, right now — local, per screen, and gone the moment it lets go. */
 interface Hover {
   readonly zone: NodeId;
@@ -408,6 +436,14 @@ export const Table: StoryObj<SeatsArgs> = {
       mate.onState((seen, wait) => {
         latest = { seen, wait };
         built.setRoot(mark(seen, wait, others, hover));
+        // MY OWN QUESTION, IF I HAVE ONE STANDING. Read off the authoritative snapshot rather than
+        // remembered from the sending: a client that only knew because it happened to send would
+        // forget on a reload, and the card would hang there with nobody able to take it back.
+        // Withdrawing is not taking the card — it is unasking, which is why it lives beside the
+        // question and not on the card.
+        const mine = wait.open.find((q) => q.actor === seat);
+        pane.querySelector("[data-mine]")?.remove();
+        if (mine) pane.appendChild(withdrawal(mine, mate));
         // A question is over the moment the board moves: granted, refused, withdrawn or simply out
         // of time — all four end the same way here, because the panel is a VIEW of an open request
         // and not a state of its own.
