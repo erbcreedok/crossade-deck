@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/html";
 import {
   Acceptor,
   add,
+  circle,
+  Coated,
   applyMove,
   Bounded,
   byId,
@@ -15,6 +17,7 @@ import {
   Grabber,
   installStockFlips,
   installStockGrabs,
+  installStockCoats,
   installStockGrains,
   installStockLayouts,
   compose,
@@ -32,13 +35,14 @@ import {
   Surfaced,
   t,
   Transformable,
+  walk,
   type Node,
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
-import { localMaster, type Master } from "../devtools/master.js";
+import { localMaster, type Master, type Waiting } from "../devtools/master.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // ONE BOARD, SEVERAL PAIRS OF EYES — the shape a live table has, standing in one page.
@@ -170,6 +174,45 @@ function masterFor(seats: readonly string[], handCards: number, others: string, 
   return standing.master;
 }
 
+/** How high a card stands while it waits on somebody's word — off the desk, and plainly not landed. */
+const WAITING_LIFT = 0.6;
+
+const DOT = "story.seats.dot";
+/** Three of them, a fifth of a unit apart, sitting across the middle of whatever is waiting. */
+const DOTS = [-0.2, 0, 0.2];
+
+/**
+ * MARK WHAT IS WAITING — three dots on the card, and a ring on the zone the question stands at.
+ *
+ * DOTS AND NOT A SPINNER, and that is the whole of the choice: dots read as "somebody is deciding",
+ * a spinner reads as "something is loading". The wait here is a PERSON, and the canon reserves the
+ * indicator for exactly that — a machine round trip is waited out in silence.
+ *
+ * They are NODES and not a coat, because a coat differs by render SHAPE — a fill, a stroke, a mask —
+ * and three separate marks are not one of those. As children they inherit the card's pose for free,
+ * which is what keeps them on it while it is carried, lifted or turned.
+ *
+ * Written into the PROJECTION, never the truth: waiting is a thing a viewer is shown.
+ */
+function mark(seen: Node, wait: Waiting): Node {
+  registerSurface(DOT, { layers: [{ paint: "text" }] });
+  walk(seen, (n) => {
+    if (wait.zones.has(n.id)) compose(n, Coated({ self: { recipe: "ring", level: 0.9, tint: "accent" } }));
+    if (!wait.held.has(n.id)) return;
+    // OFF THE DESK while it waits: not flown home, which would read as a refusal, and not landed,
+    // which would read as a consent nobody gave. Raised is the third thing, and it is the true one.
+    const own = fieldsOf<TransformableFields>(n, "Transformable");
+    if (own) compose(n, Transformable({ ...own, z: own.z + WAITING_LIFT }));
+    DOTS.forEach((dx, i) =>
+      add(
+        n,
+        node(`${n.id}~dot${i}`, Bounded({ bounds: circle(0.055) }), Surfaced({ surface: DOT }), Transformable({ at: { x: dx, y: 0 } })),
+      ),
+    );
+  });
+  return seen;
+}
+
 /** Where a zone stands on the desk. The desk is an unposed free layout: its space IS root space. */
 const zoneHome = (zone: Node): Vec => fieldsOf<TransformableFields>(zone, "Transformable")?.at ?? { x: 0, y: 0 };
 
@@ -193,6 +236,7 @@ export const Table: StoryObj<SeatsArgs> = {
     installStockLayouts();
     installStockGrabs();
     installStockGrains();
+    installStockCoats();
     // Without the flip recipe a card at odd parity still paints its face: the side would be true
     // in the tree and invisible on the glass.
     installStockFlips();
@@ -250,8 +294,8 @@ export const Table: StoryObj<SeatsArgs> = {
       // snapshot either confirms it or takes it away. Position is reversible, so predicting it is
       // safe; that is the design's own line about what may be predicted and what may not.
       const mate = master.join(seat);
-      mate.onState((seen) => {
-        built.setRoot(seen);
+      mate.onState((seen, wait) => {
+        built.setRoot(mark(seen, wait));
         // A question is over the moment the board moves: granted, refused, withdrawn or simply out
         // of time — all four end the same way here, because the panel is a VIEW of an open request
         // and not a state of its own.
@@ -291,16 +335,26 @@ export const Table: StoryObj<SeatsArgs> = {
         view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
         onDrop: ({ lead, target, seat: at }) => {
           const zone = byId(truth, target.id);
-          if (!lead.parent || !zone) return false;
+          const from = lead.parent;
+          if (!from || !zone) return false;
           const home = zoneHome(zone);
           mate.send({
-            source: lead.parent.id,
+            source: from.id,
             touched: lead.id,
             target: target.id,
             at: { x: at.x - home.x, y: at.y - home.y },
             actor: seat,
           });
-          return false;
+          // WHAT MAY BE PREDICTED AND WHAT MAY NOT. A move that only needs the board to agree is
+          // predicted at once: position is reversible, and a card taken back reads as an answer.
+          // A move short of AUTHORITY is not — nobody has said yes yet, and showing it landed would
+          // be showing a permission that was never given.
+          const asks = planMove({ source: from, touched: lead, target, seat }).verdict === "ask";
+          if (!asks) return false;
+          // Taking the drop over is the whole of it: the card is NOT moved and NOT flown home — it
+          // stays where it was, and `mark` raises it off the desk on the authoritative snapshot.
+          // Writing the lift here instead would last until the echo and no longer.
+          return true;
         },
       });
       const tag = document.createElement("div");

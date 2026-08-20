@@ -47,6 +47,14 @@ export interface Move {
   readonly actor: string;
 }
 
+/** What is waiting on somebody's word right now — the part a projection cannot say by itself. */
+export interface Waiting {
+  /** What no finger may lift. */
+  readonly held: ReadonlySet<NodeId>;
+  /** Which zones have a question standing at them. */
+  readonly zones: ReadonlySet<NodeId>;
+}
+
 /** A move that reached this seat as a QUESTION: somebody wants to put something in its zone. */
 export interface Ask {
   readonly id: string;
@@ -66,7 +74,7 @@ export interface Seatmate {
    * moves — and what no finger may lift, which the projection alone cannot say: a card hanging on
    * somebody's word looks perfectly ordinary.
    */
-  onState(cb: (seen: Node, held: ReadonlySet<NodeId>) => void): () => void;
+  onState(cb: (seen: Node, wait: Waiting) => void): () => void;
   /** THIS seat is being asked. Whether it answers with a panel, a key or a bot is its own business. */
   onAsk(cb: (ask: Ask) => void): () => void;
   /** The word. Only the seat that was asked is heard — and the asker, who may withdraw. */
@@ -91,8 +99,15 @@ export interface Master {
 /** How long a question stands before it answers itself. A number, not a law — see `Pending`. */
 export const PATIENCE = 8_000;
 
-export function localMaster(truth: Node, latency = 0): Master {
-  const seats = new Map<string, ((seen: Node, held: ReadonlySet<NodeId>) => void)[]>();
+/**
+ * How many questions one seat may have standing at it. Without a ceiling one player buries another
+ * under twenty requests and the table stops being playable — the scenario names it (`maxOpen`), and
+ * it belongs to whoever resolves, not to the record.
+ */
+export const MAX_OPEN = 3;
+
+export function localMaster(truth: Node, latency = 0, maxOpen = MAX_OPEN): Master {
+  const seats = new Map<string, ((seen: Node, wait: Waiting) => void)[]>();
   const asked = new Map<string, ((ask: Ask) => void)[]>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   /** Every question standing right now. A record in the state, exactly as the scenario has it. */
@@ -117,15 +132,19 @@ export function localMaster(truth: Node, latency = 0): Master {
   /** Everyone hears it, the author included — the semantics a real room has, and the reason a
    *  client needs no special case for its own move: the echo is just another snapshot. */
   const broadcast = (): void => {
-    const held = locks(open);
+    const wait: Waiting = { held: locks(open), zones: new Set(open.map((q) => q.to.parent)) };
     for (const [seat, subs] of seats) {
       const seen = project(truth, seat);
-      for (const cb of subs) later(() => cb(seen, held));
+      for (const cb of subs) later(() => cb(seen, wait));
     }
   };
 
   /** Whose word a zone waits on. No owner means nobody's, and the question answers itself. */
   const ownerOf = (zone: Node): string => fieldsOf<PoserFields>(zone, "Poser")?.owner ?? "";
+
+  /** How many questions are standing at one seat right now — the ceiling `maxOpen` is read against. */
+  const standingAt = (seat: string): number =>
+    open.filter((q) => ownerOf(byId(truth, q.to.parent) ?? truth) === seat).length;
 
   /** Close a question, however it ended, and let every screen see the result. */
   const close = (p: Pending, said: Answer): void => {
@@ -150,11 +169,14 @@ export function localMaster(truth: Node, latency = 0): Master {
     // A MOVE SHORT OF AUTHORITY DOES NOT HAPPEN YET. It becomes a record, the load is locked for
     // everyone — the asker included — and the owner of the zone is asked. Five inputs will end it;
     // the master supplies one of them itself, by letting the clock run out.
+    const who = plan.verdict === "ask" ? ownerOf(target) : "";
+    // A SEAT THAT IS ALREADY BURIED IS NOT ASKED AGAIN. The move does not hang and does not commit:
+    // it simply did not happen, which is the same answer a refusal gives and costs nobody a wait.
+    if (plan.verdict === "ask" && standingAt(who) >= maxOpen) return;
     const p = askFor(req, plan, { id: `ask:${(asks += 1)}`, actor: move.actor, deadline: Date.now() + PATIENCE });
     if (p) {
       open.push(p);
       broadcast(); // the lock has to reach every screen before anyone reaches for that card again
-      const who = ownerOf(target);
       const question: Ask = { id: p.id, actor: p.actor, els: p.els };
       for (const cb of asked.get(who) ?? []) later(() => cb(question));
       const t = setTimeout(() => {

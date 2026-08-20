@@ -148,7 +148,7 @@ describe("the local master", () => {
   it("master.the-load-is-locked-while-the-question-stands", () => {
     const m = localMaster(guarded());
     let held: ReadonlySet<string> = new Set();
-    m.join("north").onState((_, h) => (held = h));
+    m.join("north").onState((_, w) => (held = w.held));
     m.join("north").send({ ...ASKED });
     expect(held.has("card"), "the asker is locked out too — withdrawing is not taking it back").toBe(true);
     m.join("south").reply("ask:1", "granted");
@@ -181,12 +181,30 @@ describe("the local master", () => {
   it("master.silence-answers-itself — the clock is the fifth input", () => {
     const m = localMaster(guarded());
     let held: ReadonlySet<string> = new Set();
-    m.join("north").onState((_, h) => (held = h));
+    m.join("north").onState((_, w) => (held = w.held));
     m.join("north").send({ ...ASKED });
     expect(held.has("card")).toBe(true);
     vi.advanceTimersByTime(PATIENCE + 1);
     expect(landed(m), "nobody answered, so the card went home").toEqual([]);
     expect(held.size, "and stopped being locked").toBe(0);
+    m.dispose();
+  });
+
+  it("master.a-seat-is-not-buried — the ceiling on open questions", () => {
+    // Three cards, a ceiling of two: the third question is not asked at all. It does not hang and
+    // it does not commit — it simply did not happen, which costs nobody a wait.
+    const desk = node("desk", Container({}));
+    const src = node("src", Container({}), Grabber({ grab: "one" }));
+    for (const id of ["a", "b", "c"]) add(src, node(id, Draggable({ onReject: "home" }), Transformable({})));
+    const hand = node("hand", Container({}), Acceptor({ accept: { ask: { and: [] } } as never }), Poser({ side: keep(), owner: "south" }));
+    add(desk, src);
+    add(desk, hand);
+    const m = localMaster(desk, 0, 2);
+    const heard: string[] = [];
+    m.join("south").onAsk((a) => heard.push(a.id));
+    const north = m.join("north");
+    for (const card of ["a", "b", "c"]) north.send({ source: "src", touched: card, target: "hand", at: { x: 0, y: 0 }, actor: "north" });
+    expect(heard).toEqual(["ask:1", "ask:2"]);
     m.dispose();
   });
 });
