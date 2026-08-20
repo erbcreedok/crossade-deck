@@ -137,8 +137,18 @@
 
 ### Атомы
 
-Построены: `Bounded · Transformable · Surfaced · Container · Bakeable`. Остальные спроектированы —
-см. `docs/design/`.
+**Построено 28**: `Acceptor · Bakeable · Bounded · Coated · Container · Displacer · Draggable ·
+Flippable · Focusable · Grabber · Grippable · Inviting · Keeper · Labeled · Lit · Oriented · Owned ·
+Placeable · Poser · Pressable · Private · Rollable · Rotatable · ShadowCaster · Surfaced · Tiltable ·
+Transformable · Valued`.
+
+**Не построены три**, и каждый ждёт своего этапа: `Skinnable` (этап 5, наборы и скины), `Actionable`
+(смысл нажатия сегодня выражается `Valued` рядом с `Pressable` — атом заведём, когда появится второй
+спрашивающий) и `Viewable` (камера построена, но как сущность СЦЕНЫ, а не атом корня). Дизайн
+остального — `docs/design/`.
+
+**`Spinnable` выведен из оборота**: любой угол — это запись в `Transformable.angle`, которая уже
+складывается по цепочке. Отдельный атом ради «покрутить» покупал бы ноль.
 
 | Атом | Поля (Spec) | Требует | Методы | События |
 |---|---|---|---|---|
@@ -154,16 +164,23 @@
 | `ShadowCaster` | `from: footprint \| silhouette` | `Bounded` | — | — |
 | `Draggable` | `trail?`, `onReject: home \| stay` | `Bounded` | — | `dragStarted/Dropped` |
 | `Flippable` | `reverse: back\|same\|mirror\|alt`, `axis` | `Surfaced` | `flip` | `flipped` |
-| `Spinnable` | `minTurns`, `maxTurns` | `Bounded` | `spin` | `spun` |
 | `Private` | `access` | — | — | — (вид локален) |
 | `Valued` | `values`, `options?`, `keyboard?`, `maxLength?` | — | `setValue` | `valueChanged` |
 | `Labeled` | `label`, `labelParams?` | — | `setLabel` | `labelChanged` |
 | `Owned` | `box` | — | — | — |
 | `Acceptor` | `accept: AcceptRule` | `Container` | `canAccept(el, ctx)` | `dropAccepted/Rejected` |
+| `Grabber` | `grab` | `Container` | `grabFrom` | — |
+| `Keeper` | `keeps` | `Container` | `keepsAllows` | — |
+| `Displacer` | `occupied` | `Container` | `resolveOccupied` | — |
+| `Inviting` | `coat` | `Container` | `wearInvites` | — (вид локален) |
+| `Coated` | `self`, `cast` | — | — (рисует painter) | — |
+| `Pressable` | `hover`, `held`, `sink` | `Bounded` | `wearPress` | — |
+| `Rollable` | `sides` | — | `setFace`, `faceOf` | — |
+| `Rotatable` | `snap`, `limit?` | `Transformable` | `restAngle` | — |
 | `Poser` | `angle`, `side` — грани позы: derive/stamp/keep | `Container` | `restPose` | — (поза покоя, не событие) |
 | `Actionable` | `action: RegistryRef` | `Bounded` | `activate` | `activated` |
 | `Focusable` | — | `Bounded` | `focus`, `blur` | `focused` / `blurred` |
-| `Grip` | — | `Bounded` | — | — (жесты адресуются владельцу) |
+| `Grippable` | `by` | `Bounded` | — | — (жесты адресуются владельцу) |
 | `Lit` | `light: { frame, angle }` | только корень | `lightVector(cameraRotation)` | `lightChanged` |
 | `Viewable` | `camera`, `viewpoints?` | только корень | `focusOn`, `fitAll` | — (вид локален) |
 | `Seated` (опционален) | `seats` | `Container` | `seatOf`, `viewpointOf` | `seatJoined/Left` |
