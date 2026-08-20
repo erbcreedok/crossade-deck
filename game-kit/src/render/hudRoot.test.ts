@@ -22,6 +22,7 @@ import { mount } from "./host.js";
 import { registerSurface, resetSurfaces } from "./surfaces.js";
 import { renderFrame } from "./stage.js";
 import { pickTop } from "./pointer.js";
+import { safeArea } from "./safeArea.js";
 import { type Painter } from "./painter.js";
 import { type Quad } from "./scenePlan.js";
 
@@ -39,7 +40,11 @@ function bench() {
 
   let last: readonly Quad[] = [];
   const painter: Painter = { ready: Promise.resolve(), draw: (plan) => (last = plan), resize: () => {}, destroy: () => {} };
-  const host = mount(document.createElement("div"), desk);
+  // A REAL-SIZED PIECE OF GLASS. jsdom lays nothing out, so a bare div measures 1×1 — and a safe
+  // area computed against one pixel cannot tell an edge from the middle.
+  const container = document.createElement("div");
+  container.getBoundingClientRect = () => ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => "" }) as DOMRect;
+  const host = mount(container, desk);
   return { host, painter, screen, xOf: (id: string) => last.find((q) => q.id === id)?.x, ids: () => last.map((q) => q.id) };
 }
 
@@ -66,7 +71,8 @@ describe("the two roots", () => {
     b.host.setHudRoot(b.screen);
     renderFrame(b.host, b.painter);
     const still = { card: b.xOf("card")!, bar: b.xOf("bar")! };
-    renderFrame(b.host, b.painter, { view: () => move(3, 0) });
+    const v = b.host.viewport();
+    renderFrame(b.host, b.painter, { view: () => move(v.width / 2 + 60, v.height / 2) });
     expect(b.xOf("card")).toBeGreaterThan(still.card);
     expect(b.xOf("bar")).toBe(still.bar);
   });
@@ -89,11 +95,13 @@ describe("the two roots", () => {
     b.host.setHudRoot(b.screen);
     const widget = node("widget", Bounded({ bounds: rect(1, 1) }), Surfaced({ surface: "plain" }), Transformable({}));
     add(b.host.root, widget);
-    renderFrame(b.host, b.painter, { view: () => move(3, 0) });
+    const v = b.host.viewport();
+    const panned = () => move(v.width / 2 + 60, v.height / 2);
+    renderFrame(b.host, b.painter, { view: panned });
     const onDesk = b.xOf("widget")!;
     remove(b.host.root, widget);
     add(b.screen, widget);
-    renderFrame(b.host, b.painter, { view: () => move(3, 0) });
+    renderFrame(b.host, b.painter, { view: panned });
     expect(b.xOf("widget")).toBeLessThan(onDesk); // it stopped riding the camera
   });
 
@@ -120,4 +128,95 @@ describe("the two roots", () => {
     expect(pickTop(b.host, middle, (n) => n.id === "card", move(40, 0))).toBeUndefined();
     expect(pickTop(b.host, middle, (n) => n.id === "bar", move(40, 0))?.id).toBe("bar");
   });
+
+  // ── the room the HUD leaves ─────────────────────────────────────────────────────────────────
+  //
+  // The one thing the HUD tells the camera, and the only wire between them: a rectangle. Two layers
+  // that know one rectangle about each other cannot grow a dependency out of it.
+
+  /** A HUD plate of `w`×`h` units at `at`, so a test can put a bar on an edge on purpose. */
+  const plate = (id: string, w: number, h: number, at: { x: number; y: number }) =>
+    node(id, Bounded({ bounds: rect(w, h) }), Surfaced({ surface: "plain" }), Transformable({ at }));
+
+  /** How far a point in units sits from the middle of the glass, in pixels. */
+  const px = (host: ReturnType<typeof bench>["host"], units: number) => units * host.unit();
+
+  it("safe.no-hud-leaves-the-whole-glass", () => {
+    const b = bench();
+    const v = b.host.viewport();
+    expect(safeArea(b.host)).toEqual({ x: 0, y: 0, width: v.width, height: v.height });
+  });
+
+  it("safe.a-bar-on-an-edge-takes-a-strip-off-that-edge-alone", () => {
+    // A dock takes a STRIP, which is why the answer is a rect and not an inset: three sides are
+    // untouched, and a scalar would have had to be wrong about all of them.
+    const b = bench();
+    const v = b.host.viewport();
+    const screen = node("hud", Container({ layout: "free" }));
+    const wide = v.width / b.host.unit();
+    const half = v.height / 2 / b.host.unit();
+    add(screen, plate("bar", wide, 1, { x: 0, y: half - 0.5 })); // spans the glass, lying on the floor
+    b.host.setHudRoot(screen);
+    const room = safeArea(b.host);
+    expect(room.x).toBe(0);
+    expect(room.y).toBe(0);
+    expect(room.width).toBe(v.width);
+    expect(room.height).toBeLessThan(v.height);
+    expect(v.height - room.height).toBeCloseTo(px(b.host, 1), 0);
+  });
+
+  it("safe.a-panel-in-the-middle-takes-nothing", () => {
+    // It is HUD too, and it is not a dock. Cutting its box out would leave a hole no rectangle can
+    // describe, and the desk would spend the dialogue's whole life squeezed into a corner.
+    const b = bench();
+    const v = b.host.viewport();
+    const screen = node("hud", Container({ layout: "free" }));
+    add(screen, plate("dialogue", 2, 2, { x: 0, y: 0 }));
+    b.host.setHudRoot(screen);
+    expect(safeArea(b.host)).toEqual({ x: 0, y: 0, width: v.width, height: v.height });
+  });
+
+  it("safe.every-edge-answers-for-itself", () => {
+    const b = bench();
+    const v = b.host.viewport();
+    const screen = node("hud", Container({ layout: "free" }));
+    const halfW = v.width / 2 / b.host.unit();
+    const halfH = v.height / 2 / b.host.unit();
+    add(screen, plate("rail", 1, v.height / b.host.unit(), { x: -halfW + 0.5, y: 0 }));
+    add(screen, plate("bar", v.width / b.host.unit(), 1, { x: 0, y: halfH - 0.5 }));
+    b.host.setHudRoot(screen);
+    const room = safeArea(b.host);
+    expect(room.x).toBeCloseTo(px(b.host, 1), 0); // the rail pushed the left in
+    expect(room.y).toBe(0); // and said nothing about the top
+    expect(v.height - room.height).toBeCloseTo(px(b.host, 1), 0); // the bar took the floor
+  });
+
+  it("safe.a-curtain-docks-nowhere — covering the glass is not docking to it", () => {
+    // Spanning BOTH axes is what a full-screen overlay does, and an overlay is not a dock: it is a
+    // curtain, drawn on top and hiding the desk rather than making room beside it. Read as four
+    // docks at once it would leave the desk nowhere to be, which is a worse answer than the true
+    // one — the desk keeps its room and is simply behind something.
+    const b = bench();
+    const v = b.host.viewport();
+    const screen = node("hud", Container({ layout: "free" }));
+    add(screen, plate("curtain", (v.width / b.host.unit()) * 2, (v.height / b.host.unit()) * 2, { x: 0, y: 0 }));
+    b.host.setHudRoot(screen);
+    expect(safeArea(b.host)).toEqual({ x: 0, y: 0, width: v.width, height: v.height });
+  });
+
+  it("safe.two-facing-docks-never-cross — the room bottoms out at nothing", () => {
+    // Not a negative size for somebody downstream to divide by: two rails wide enough to meet in
+    // the middle leave zero, and zero is what is reported.
+    const b = bench();
+    const v = b.host.viewport();
+    const wide = v.width / b.host.unit();
+    const tall = v.height / b.host.unit();
+    const screen = node("hud", Container({ layout: "free" }));
+    add(screen, plate("left", wide * 0.8, tall, { x: -wide * 0.3, y: 0 }));
+    add(screen, plate("right", wide * 0.8, tall, { x: wide * 0.3, y: 0 }));
+    b.host.setHudRoot(screen);
+    const room = safeArea(b.host);
+    expect(room.width).toBe(0);
+  });
+
 });
