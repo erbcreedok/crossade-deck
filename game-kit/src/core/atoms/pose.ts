@@ -27,6 +27,7 @@
 
 import { defineAtom } from "../atom.js";
 import { fieldsOf, type Node } from "../node.js";
+import { facing, type Facing } from "./flippable.js";
 
 /** What a grain record is told. Three numbers, and never the road the load travelled. */
 export interface GrainInput {
@@ -59,8 +60,12 @@ export interface GrainRule {
 export const derive = (): GrainRule => ({ rule: "derive", value: 0 });
 /** Impose this number, whatever arrived. */
 export const stamp = (value: number): GrainRule => ({ rule: "stamp", value });
-/** Accept what the load brought in. */
+/** Accept what the load brought in. Registered in BOTH registries — a grain keeps the same way. */
 export const keep = (): GrainRule => ({ rule: "keep", value: 0 });
+/** Show the face here, whatever arrived. The `side` grain's stamp. */
+export const up = (): GrainRule => ({ rule: "up", value: 0 });
+/** Show the back here, whatever arrived. */
+export const down = (): GrainRule => ({ rule: "down", value: 0 });
 
 const GRAINS = new Map<string, GrainRecord>();
 
@@ -75,6 +80,7 @@ export function grainRecord(name: string): GrainRecord | undefined {
 /** Test seam only — the registry is process-wide and suites must not leak into each other. */
 export function resetGrains(): void {
   GRAINS.clear();
+  SIDES.clear();
 }
 
 /**
@@ -86,11 +92,62 @@ export function installStockGrains(): void {
   registerGrain("derive", ({ laid }) => laid ?? 0);
   registerGrain("stamp", ({ value }) => value);
   registerGrain("keep", ({ carried }) => carried ?? 0);
+  // The side's two stamps are named for what they SHOW, so they read as the plain words they are.
+  registerSide("up", () => "up");
+  registerSide("down", () => "down");
+  registerSide("keep", ({ carried, turned }) => xor(carried, turned));
+}
+
+/**
+ * What a SIDE record is told. Not a number, so it is a second registry rather than a cast — and the
+ * design asked for two anyway, because the axes differ: this one is "how the side lands", the one
+ * still to come is "what everyone ELSE is shown of it".
+ */
+export interface SideInput {
+  /** The load's OWN side as it arrives: its bit alone, no owner's turn folded in. `keep` reads it. */
+  readonly carried: Facing;
+  /** Which way the ZONE lies — `down` when the zone itself is turned over, like a closed deck. */
+  readonly turned: Facing;
+  /** The zone, for a record that reads STATE: the chain it hangs in, a phase on the board above. */
+  readonly zone: Node;
+}
+
+/**
+ * A rule for the side. It answers WHAT THE OWNER SHOULD SEE, not which bit to write — the caller
+ * writes it with `setFacing` once the load has changed owner, and that folds the zone's own turn
+ * back in. So a stamp is the plain word it looks like: `up` means the owner sees a face, here,
+ * whether or not this zone is itself upside down.
+ */
+export type SideRecord = (input: SideInput) => Facing;
+
+const SIDES = new Map<string, SideRecord>();
+
+export function registerSide(name: string, record: SideRecord): void {
+  SIDES.set(name, record);
+}
+
+export function sideRecord(name: string): SideRecord | undefined {
+  return SIDES.get(name);
+}
+
+/**
+ * Two sides read together — the XOR the whole `side` grain rests on. Same answers `up` because a
+ * card the right way up in a zone the right way up shows its face; differ and it is the back.
+ *
+ * The kit does not enforce this anywhere: `Flippable.turns` SUMS along the chain, so the parity of
+ * a card inside a turned stack already is this. That is why a closed deck is a turned ZONE and not
+ * a pile of turned cards — pull one out into an untouched hand and the face shows, with nothing
+ * written to the card at all.
+ */
+function xor(a: Facing, b: Facing): Facing {
+  return a === b ? "up" : "down";
 }
 
 export interface PoserFields {
   /** How the turn comes to rest here. */
   readonly angle: GrainRule;
+  /** Which side is up once it lands. */
+  readonly side: GrainRule;
 }
 
 /**
@@ -107,18 +164,31 @@ export interface PoserFields {
 export const Poser = defineAtom<PoserFields>({
   name: "Poser",
   requires: ["Container"],
-  defaults: { angle: { rule: "keep", value: 0 } },
-  classes: { angle: "own" },
+  defaults: { angle: { rule: "keep", value: 0 }, side: { rule: "keep", value: 0 } },
+  classes: { angle: "own", side: "own" },
 });
 
-/** The grains of a pose, each optional: absent means "nothing is said about this grain". */
-export interface PoseGrains {
+/** What the load BRINGS IN. Absent means it carries nothing to say about that grain. */
+export interface CarriedPose {
+  readonly angle?: number | undefined;
+  /** The load's OWN side — its bit alone, as `Flippable` holds it, with no owner's turn added. */
+  readonly side?: Facing | undefined;
+}
+
+/**
+ * What the ARRANGEMENT says. Only the turn, because that is the only grain a layout can speak to
+ * today: `place` returns points, and no registered arrangement has an opinion about a side. The day
+ * a fan wants to splay its cards, its angle joins `place` and this type is where it arrives.
+ */
+export interface LaidPose {
   readonly angle?: number | undefined;
 }
 
 /** The resolved rest — every grain answered, because a piece at rest is somewhere definite. */
 export interface RestPose {
   readonly angle: number;
+  /** What the OWNER should see. Written with `setFacing` after the load has changed owner. */
+  readonly side: Facing;
 }
 
 /** One grain, resolved. An unregistered name is SKIPPED — see `restPose`. */
@@ -139,8 +209,14 @@ function resolveGrain(rule: GrainRule, laid: number | undefined, carried: number
  * and an unregistered name is skipped rather than thrown, so one bad string in a spec costs one
  * grain of one pose instead of the scene.
  */
-export function restPose(zone: Node, carried: PoseGrains, laid: PoseGrains): RestPose {
+export function restPose(zone: Node, carried: CarriedPose, laid: LaidPose): RestPose {
+  const turned = facing(zone);
+  const side = carried.side ?? "up";
   const rules = fieldsOf<PoserFields>(zone, "Poser");
-  if (!rules) return { angle: carried.angle ?? 0 };
-  return { angle: resolveGrain(rules.angle, laid.angle, carried.angle) };
+  if (!rules) return { angle: carried.angle ?? 0, side: xor(side, turned) };
+  const record = sideRecord(rules.side.rule);
+  return {
+    angle: resolveGrain(rules.angle, laid.angle, carried.angle),
+    side: record ? record({ carried: side, turned, zone }) : xor(side, turned),
+  };
 }

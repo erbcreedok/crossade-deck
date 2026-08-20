@@ -89,20 +89,27 @@ export { freeLayout, installStockLayouts, rowLayout, type LayoutAlign, type RowO
 // value, or keep what came in. Records in a registry, so a game's own answer costs no branch here.
 export {
   derive,
+  down,
   grainRecord,
   installStockGrains,
   keep,
   Poser,
   registerGrain,
+  registerSide,
   resetGrains,
   restPose,
+  sideRecord,
   stamp,
+  up,
+  type CarriedPose,
   type GrainInput,
   type GrainRecord,
   type GrainRule,
-  type PoseGrains,
+  type LaidPose,
   type PoserFields,
   type RestPose,
+  type SideInput,
+  type SideRecord,
 } from "./core/atoms/pose.js";
 export { Surfaced, areaOf, paintable, type SurfacedFields } from "./core/atoms/surfaced.js";
 // A zone is a container that judges what may enter. The rule is DATA; the verdict is three-valued.

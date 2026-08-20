@@ -13,7 +13,24 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Container } from "./container.js";
 import { node } from "../node.js";
 import { compose } from "../node.js";
-import { derive, grainRecord, installStockGrains, keep, Poser, registerGrain, resetGrains, restPose, stamp } from "./pose.js";
+import {
+  derive,
+  down,
+  grainRecord,
+  installStockGrains,
+  keep,
+  Poser,
+  registerGrain,
+  registerSide,
+  resetGrains,
+  restPose,
+  sideRecord,
+  stamp,
+  up,
+} from "./pose.js";
+import { Flippable, type Facing } from "./flippable.js";
+import { Valued } from "./valued.js";
+import { add, fieldsOf } from "../node.js";
 
 /** A zone: a container, because a pose rule belongs to whatever RECEIVES a load. */
 function zone(...rules: Parameters<typeof Poser>): ReturnType<typeof node> {
@@ -93,5 +110,85 @@ describe("pose grains", () => {
     // A rule about what a zone does to an arriving load is meaningless where nothing can arrive.
     const loose = compose(node("loose"), Poser({ angle: stamp(90) }));
     expect(restPose(loose, { angle: 15 }, {}).angle).toBe(15);
+  });
+
+  // ── the `side` grain ────────────────────────────────────────────────────────────────────────
+  //
+  // A card remembers ITS OWN side; a zone may be turned over as a whole; and what the owner SEES is
+  // the two read together. That is not a rule this file enforces — `Flippable.turns` sums along the
+  // chain, so the XOR is what the model already does — and it is why a closed deck is a turned ZONE
+  // rather than a stack of turned cards. Pull a card out of one into an untouched hand and the face
+  // shows, with nothing having been written to the card.
+  //
+  // The records therefore answer WHAT THE OWNER SHOULD SEE, and the caller writes it with
+  // `setFacing` after the load has changed owner — which folds the zone's turn back in by itself.
+
+  /** A zone turned face-down as a whole: the closed deck. */
+  function turnedZone(...rules: Parameters<typeof Poser>): ReturnType<typeof node> {
+    return node("deck", Container({ layout: "free" }), Flippable({ turns: 1 }), Poser(...rules));
+  }
+
+  it("pose.side-stock-records-install-under-their-names", () => {
+    expect(sideRecord("up")).toBeDefined();
+    expect(sideRecord("down")).toBeDefined();
+    expect(sideRecord("keep")).toBeDefined();
+  });
+
+  it("pose.side-defaults-to-keep", () => {
+    expect(restPose(zone(), { side: "down" }, {}).side).toBe<Facing>("down");
+  });
+
+  it("pose.stamp-up-shows-the-face-whatever-came", () => {
+    // Scenario B and G: the board imposes on entry, so a hand-turned card straightens out by
+    // leaving and coming back. No "undo the manual flip" mechanism — one line of STAMP does it.
+    expect(restPose(zone({ side: up() }), { side: "down" }, {}).side).toBe<Facing>("up");
+  });
+
+  it("pose.stamp-down-shows-the-back-whatever-came", () => {
+    expect(restPose(zone({ side: down() }), { side: "up" }, {}).side).toBe<Facing>("down");
+  });
+
+  it("pose.keep-out-of-a-turned-zone-shows-the-face", () => {
+    // Scenario A: drawn from the CLOSED deck into a hand that keeps. The card's own bit was never
+    // touched by the deck — the deck was the turned thing — so the owner sees the face.
+    expect(restPose(zone({ side: keep() }), { side: "up" }, {}).side).toBe<Facing>("up");
+  });
+
+  it("pose.keep-into-a-turned-zone-hides-the-face", () => {
+    // Scenario E, the way back: the same card returned into the closed deck lies back-up, by the
+    // DECK's default and not by any memory of where it had been.
+    expect(restPose(turnedZone({ side: keep() }), { side: "up" }, {}).side).toBe<Facing>("down");
+  });
+
+  it("pose.stamp-in-a-turned-zone-still-shows-what-it-says", () => {
+    // A stamp names what the OWNER sees, so it is right inside a turned zone too — the zone's own
+    // turn is folded back in by `setFacing` at the moment the load changes owner.
+    expect(restPose(turnedZone({ side: up() }), { side: "down" }, {}).side).toBe<Facing>("up");
+  });
+
+  it("pose.unknown-side-rule-is-skipped-not-thrown", () => {
+    expect(restPose(turnedZone({ side: { rule: "wobble", value: 0 } }), { side: "up" }, {}).side).toBe<Facing>("down");
+  });
+
+  it("pose.a-game-registers-its-own-side-reading-the-chain", () => {
+    // Scenario F: at showdown the hand opens. The record reads a PHASE off the chain the zone hangs
+    // in — shared state, so a late viewer resolves the same side — and never the road travelled.
+    registerSide("showdown", ({ carried, zone: z }) => {
+      for (let owner = z.parent; owner; owner = owner.parent) {
+        if (fieldsOf<{ values: Record<string, unknown> }>(owner, "Valued")?.values["phase"] === "showdown") return "up";
+      }
+      return carried;
+    });
+    const board = node("board", Container({ layout: "free" }), Valued({ values: { phase: "showdown" } }));
+    const hand = node("hand", Container({ layout: "free" }), Poser({ side: { rule: "showdown", value: 0 } }));
+    add(board, hand);
+    expect(restPose(hand, { side: "down" }, {}).side).toBe<Facing>("up");
+  });
+
+  it("pose.side-and-angle-are-grains-of-ONE-pose", () => {
+    // The whole point of the atom: one transaction resolves every grain, and the two do not know
+    // about each other. A zone that stamps the turn and keeps the side does exactly that.
+    const rest = restPose(zone({ angle: stamp(0), side: keep() }), { angle: 15, side: "down" }, { angle: 7 });
+    expect(rest).toEqual({ angle: 0, side: "down" });
   });
 });
