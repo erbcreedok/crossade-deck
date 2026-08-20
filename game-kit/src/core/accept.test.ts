@@ -116,4 +116,19 @@ describe("AcceptRule", () => {
     expect(() => validateRule({ not: { or: [{ can: "x" }, { ask: { has: "card" } }] } })).toThrow();
     expect(() => validateRule({ and: [{ not: { can: "flip" } }, { ask: { has: "card" } }] })).not.toThrow();
   });
+
+  it("accept.a-rule-can-read-the-actors-seat — and the owner of the zone it is aimed at", () => {
+    // Without these two paths "my own hand takes it, someone else's asks" is not writable as a RULE
+    // at all: the difference would have to live in a runtime, where it stops travelling and stops
+    // being the same for every client.
+    const mine = { eq: ["actor.seat", "target.owner"] } as const;
+    const ctx = { el: { caps: new Set<string>(), values: {}, traits: new Set<string>() }, target: { count: 0, owner: "south" }, actor: { seat: "south" } };
+    expect(evaluate(mine, ctx)).toBe("allow");
+    expect(evaluate(mine, { ...ctx, actor: { seat: "north" } })).toBe("deny");
+  });
+
+  it("accept.an-unsaid-actor-is-missing-not-empty — an old caller denies rather than passes", () => {
+    const mine = { eq: ["actor.seat", "target.owner"] } as const;
+    expect(evaluate(mine, { el: { caps: new Set<string>(), values: {}, traits: new Set<string>() }, target: { count: 0, owner: "south" } })).toBe("deny");
+  });
 });

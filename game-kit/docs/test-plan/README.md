@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**57 слоёв · 1321 кейсов заявлено · 1148 расписано поимённо.**
+**57 слоёв · 1328 кейсов заявлено · 1155 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -51,7 +51,7 @@
 | [SERIALIZATION / SCHEMA CONTRACT](23-serialization.md) | `vitest` | 11 | 4 |
 | [REGRESSION GUARDS · known traps](24-regression-guards.md) | `vitest — one test per historical bug` | 10 | 6 |
 | [E2E](25-e2e.md) | `Playwright against the built Storybook` | 46 | 46 |
-| [UNIT · AcceptRule — the zone's predicate](26-accept.md) | `vitest` | 18 | 18 |
+| [UNIT · AcceptRule — the zone's predicate](26-accept.md) | `vitest` | 20 | 20 |
 | [UNIT · Container policies — grab · occupied · keeps](27-container-policies.md) | `vitest` | 15 | 15 |
 | [UNIT · Element data atoms — Valued · Owned · Labeled · Placeable](28-element-atoms.md) | `vitest` | 6 | 6 |
 | [UNIT · Interaction & visibility atoms — Draggable · Focusable · Private](29-interaction-atoms.md) | `vitest` | 9 | 9 |
@@ -82,4 +82,4 @@
 | [UNIT · грани позы покоя — что зона делает с прилетевшим](54-pose-grains.md) | `vitest` | 23 | 23 |
 | [UNIT · проекция места — что показывают одному зрителю](55-seat-projection.md) | `vitest` | 12 | 12 |
 | [UNIT · ход, ждущий человека — запись, замок и второй суд](56-pending.md) | `vitest` | 8 | 8 |
-| [CATALOG · локальный мастер — семантика доставки](57-local-master.md) | `vitest + фейковые таймеры` | 6 | 6 |
+| [CATALOG · локальный мастер — семантика доставки](57-local-master.md) | `vitest + фейковые таймеры` | 11 | 11 |

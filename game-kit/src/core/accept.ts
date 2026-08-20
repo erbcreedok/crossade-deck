@@ -34,11 +34,24 @@ export interface TargetSubject {
   readonly count: number;
   /** The top element, or `undefined` for an empty pile — then `target.top.*` is a missing path. */
   readonly top?: Subject;
+  /** Whose zone it is, when it says. Absent is a zone belonging to nobody, and the path is missing. */
+  readonly owner?: string;
+}
+
+/** Who is doing it. Absent where nobody said — a move made by the game itself, or an old caller. */
+export interface ActorSubject {
+  readonly seat: string;
 }
 
 export interface AcceptContext {
   readonly el: Subject;
   readonly target: TargetSubject;
+  /**
+   * THE ONE ASKING. Without it "my own hand takes it, someone else's asks" cannot be written as a
+   * rule at all, and the difference would have to live in a runtime — which is exactly where a rule
+   * stops travelling and stops being the same for every client.
+   */
+  readonly actor?: ActorSubject;
 }
 
 /** A literal, or a `{ path }` — but a bare string that begins `el.`/`target.` IS read as a path. */
@@ -63,10 +76,12 @@ function resolvePath(path: string, ctx: AcceptContext): unknown | typeof MISSING
   const parts = path.split(".");
   if (parts[0] === "target") {
     if (parts[1] === "count" && parts.length === 2) return ctx.target.count;
+    if (parts[1] === "owner" && parts.length === 2) return ctx.target.owner ?? MISSING;
     if (parts[1] === "top") return readSubject(ctx.target.top, parts.slice(2));
     return MISSING;
   }
   if (parts[0] === "el") return readSubject(ctx.el, parts.slice(1));
+  if (parts[0] === "actor" && parts[1] === "seat" && parts.length === 2) return ctx.actor?.seat ?? MISSING;
   return MISSING;
 }
 
@@ -84,7 +99,7 @@ function readSubject(subject: Subject | undefined, rest: readonly string[]): unk
 /** An operand is a literal unless it is a `{ path }` or a bare string that names a path root. */
 function resolveOperand(op: Operand, ctx: AcceptContext): unknown | typeof MISSING {
   if (typeof op === "object") return resolvePath(op.path, ctx);
-  if (typeof op === "string" && (op.startsWith("el.") || op.startsWith("target."))) return resolvePath(op, ctx);
+  if (typeof op === "string" && (op.startsWith("el.") || op.startsWith("target.") || op.startsWith("actor."))) return resolvePath(op, ctx);
   return op;
 }
 

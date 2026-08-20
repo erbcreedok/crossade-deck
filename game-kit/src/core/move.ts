@@ -97,7 +97,7 @@ export function planMove(req: MoveRequest): MovePlan {
 
   if (!keepsAllows(source, CARRY)) return { verdict: "deny", load, block: "kept" };
 
-  const verdict = canAccept(target, touched);
+  const verdict = canAccept(target, touched, seat);
   if (verdict === "deny") return { verdict, load, block: "rejected" };
 
   if (target.children.length > 0 && caps(target).has("Displacer")) {

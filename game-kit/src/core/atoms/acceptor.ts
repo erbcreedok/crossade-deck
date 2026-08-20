@@ -64,24 +64,31 @@ export function subjectOf(node: Node): Subject {
 /** The container as a drop target: how many it holds, and its top (the LAST child — a pile grows up). */
 export function targetOf(container: Node): TargetSubject {
   const kids = container.children;
-  const target: { count: number; top?: Subject } = { count: kids.length };
+  const target: { count: number; top?: Subject; owner?: string } = { count: kids.length };
   const last = kids[kids.length - 1];
   if (last) target.top = subjectOf(last);
+  const owner = fieldsOf<{ owner: string }>(container, "Poser")?.owner;
+  if (owner) target.owner = owner; // empty string = nobody's zone, so `target.owner` is missing
   return target;
 }
 
-function contextFor(container: Node, el: Node): AcceptContext {
-  return { el: subjectOf(el), target: targetOf(container) };
+function contextFor(container: Node, el: Node, seat?: string): AcceptContext {
+  const ctx: { el: Subject; target: TargetSubject; actor?: { seat: string } } = {
+    el: subjectOf(el),
+    target: targetOf(container),
+  };
+  if (seat !== undefined) ctx.actor = { seat };
+  return ctx;
 }
 
 /**
  * The three-valued verdict for dropping `el` onto `container`. A container without an `Acceptor`
  * accepts nothing — no judge, no entry — rather than throwing: absence is the off switch.
  */
-export function canAccept(container: Node, el: Node): Verdict {
+export function canAccept(container: Node, el: Node, seat?: string): Verdict {
   const fields = fieldsOf<AcceptorFields>(container, "Acceptor");
   if (!fields) return "deny";
-  return evaluate(fields.accept, contextFor(container, el));
+  return evaluate(fields.accept, contextFor(container, el, seat));
 }
 
 /** The preview answer a hover shows: welcome unless the verdict is a flat deny (`ask` reads yes). */

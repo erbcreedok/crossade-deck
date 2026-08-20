@@ -13,11 +13,13 @@ import {
   installStockGrabs,
   installStockGrains,
   node,
+  keep,
+  Poser,
   Private,
   Transformable,
   type Node,
 } from "../../src/index.js";
-import { localMaster } from "./master.js";
+import { localMaster, PATIENCE } from "./master.js";
 
 /** A desk, a source holding one card, and an open target. */
 function board(): Node {
@@ -109,6 +111,82 @@ describe("the local master", () => {
     m.retune(0);
     m.join("north").send({ ...MOVE });
     expect(snapshots).toBe(1); // no rebuild, no reconnect: the same master, a new number
+    m.dispose();
+  });
+
+  // ── a move short of AUTHORITY ────────────────────────────────────────────────────────────────
+  //
+  // The other half of delivery: a question that stands in the state, a load nobody may lift while
+  // it does, and five ways for it to end in one of two outcomes. The master supplies one of those
+  // inputs itself, by letting the clock run out.
+
+  /** The same desk, but the target belongs to south and asks before it takes anything. */
+  function guarded(): Node {
+    const desk = node("desk", Container({}));
+    const src = node("src", Container({}), Grabber({ grab: "one" }));
+    add(src, node("card", Draggable({ onReject: "home" }), Transformable({})));
+    const zone = node("hand", Container({}), Acceptor({ accept: { ask: { and: [] } } as never }), Poser({ side: keep(), owner: "south" }));
+    add(desk, src);
+    add(desk, zone);
+    return desk;
+  }
+  const ASKED = { source: "src", touched: "card", target: "hand", at: { x: 0, y: 0 }, actor: "north" } as const;
+  const landed = (m: ReturnType<typeof localMaster>) =>
+    m.truth().children.find((c) => c.id === "hand")!.children.map((c) => c.id);
+
+  it("master.an-ask-reaches-the-owner-and-nobody-else", () => {
+    const m = localMaster(guarded());
+    const heard: string[] = [];
+    m.join("south").onAsk((a) => heard.push(`south:${a.actor}`));
+    m.join("north").onAsk(() => heard.push("north"));
+    m.join("north").send({ ...ASKED });
+    expect(heard).toEqual(["south:north"]);
+    expect(landed(m), "nothing has moved: the move is a question, not an act").toEqual([]);
+    m.dispose();
+  });
+
+  it("master.the-load-is-locked-while-the-question-stands", () => {
+    const m = localMaster(guarded());
+    let held: ReadonlySet<string> = new Set();
+    m.join("north").onState((_, h) => (held = h));
+    m.join("north").send({ ...ASKED });
+    expect(held.has("card"), "the asker is locked out too — withdrawing is not taking it back").toBe(true);
+    m.join("south").reply("ask:1", "granted");
+    expect(held.size, "and the lock lifts with the question").toBe(0);
+    m.dispose();
+  });
+
+  it("master.consent-commits-and-refusal-returns", () => {
+    for (const [said, expected] of [["granted", ["card"]], ["refused", []]] as const) {
+      const m = localMaster(guarded());
+      m.join("north").send({ ...ASKED });
+      m.join("south").reply("ask:1", said);
+      expect(landed(m), said).toEqual(expected);
+      m.dispose();
+    }
+  });
+
+  it("master.only-the-two-with-standing-are-heard", () => {
+    const m = localMaster(guarded());
+    m.join("north").send({ ...ASKED });
+    m.join("north").reply("ask:1", "granted"); // the ASKER cannot grant themselves permission
+    expect(landed(m)).toEqual([]);
+    m.join("north").reply("ask:1", "withdrawn"); // but they may take the question back
+    expect(landed(m)).toEqual([]);
+    m.join("south").reply("ask:1", "granted"); // and now the word comes too late: it is closed
+    expect(landed(m)).toEqual([]);
+    m.dispose();
+  });
+
+  it("master.silence-answers-itself — the clock is the fifth input", () => {
+    const m = localMaster(guarded());
+    let held: ReadonlySet<string> = new Set();
+    m.join("north").onState((_, h) => (held = h));
+    m.join("north").send({ ...ASKED });
+    expect(held.has("card")).toBe(true);
+    vi.advanceTimersByTime(PATIENCE + 1);
+    expect(landed(m), "nobody answered, so the card went home").toEqual([]);
+    expect(held.size, "and stopped being locked").toBe(0);
     m.dispose();
   });
 });

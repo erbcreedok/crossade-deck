@@ -30,6 +30,7 @@ import {
   registerSurface,
   rowLayout,
   Surfaced,
+  t,
   Transformable,
   type Node,
   type TransformableFields,
@@ -121,7 +122,10 @@ function board(seats: readonly string[], handCards: number, others: string): Nod
       Bounded({ bounds: rect(3.2, 1.4) }),
       Container({ layout: "story.seats.row" }),
       Transformable({ at: AROUND[seat]!.at }),
-      Acceptor({ accept: { and: [] } }),
+      // THE RULE FROM THE SCENARIO, as one literal: my own hand takes it, someone else's asks. It
+      // is a rule and not a runtime branch on purpose — written here it travels, and every client
+      // resolves the same verdict for the same drop.
+      Acceptor({ accept: { or: [{ eq: ["actor.seat", "target.owner"] }, { ask: { and: [] } }] } }),
       Grabber({ grab: "one" }),
       // NOT private any more, and that is the lesson: the hand is in everyone's picture, and what
       // differs between seats is only which SIDE of its cards they are shown.
@@ -246,7 +250,42 @@ export const Table: StoryObj<SeatsArgs> = {
       // snapshot either confirms it or takes it away. Position is reversible, so predicting it is
       // safe; that is the design's own line about what may be predicted and what may not.
       const mate = master.join(seat);
-      mate.onState((seen) => built.setRoot(seen));
+      mate.onState((seen) => {
+        built.setRoot(seen);
+        // A question is over the moment the board moves: granted, refused, withdrawn or simply out
+        // of time — all four end the same way here, because the panel is a VIEW of an open request
+        // and not a state of its own.
+        pane.querySelector("[data-ask]")?.remove();
+      });
+      // WHO ASKS AND HOW IS THE CONSUMER'S BUSINESS — the kit hands over the record and the two
+      // answers, and this is one consumer's answer: two buttons in the corner of the seat being
+      // asked. A game would put them in its HUD; a bot would answer without drawing anything.
+      mate.onAsk((question) => {
+        pane.querySelector("[data-ask]")?.remove();
+        const panel = document.createElement("div");
+        panel.setAttribute("data-ask", question.id);
+        panel.style.cssText =
+          "position:absolute;left:8px;bottom:8px;z-index:3;display:flex;gap:6px;align-items:center;" +
+          `padding:6px 8px;border-radius:8px;background:${t("panelBg")};color:${t("text")};` +
+          "font:600 11px ui-monospace,monospace";
+        const said = document.createElement("span");
+        said.textContent = `${question.actor} · ${question.els.length}`;
+        said.style.cssText = "opacity:.75;letter-spacing:.06em";
+        panel.appendChild(said);
+        for (const [word, label] of [["granted", "✓"], ["refused", "✕"]] as const) {
+          const b = document.createElement("button");
+          b.textContent = label;
+          b.style.cssText =
+            `cursor:pointer;border:0;border-radius:6px;padding:2px 8px;background:${t("sunkBg")};color:${t("text")};` +
+            "font:600 12px ui-monospace,monospace";
+          b.addEventListener("click", () => {
+            panel.remove();
+            mate.reply(question.id, word);
+          });
+          panel.appendChild(b);
+        }
+        pane.appendChild(panel);
+      });
       wireDrag(built, {
         zoneAt,
         view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },

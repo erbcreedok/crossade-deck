@@ -1,6 +1,6 @@
 ## UNIT · AcceptRule — the zone's predicate
 
-`vitest` · 18 кейсов, расписано 18
+`vitest` · 20 кейсов, расписано 20
 
 Сериализуемый предикат-ДАННЫЕ, один механизм на приём-в-зону. Вердикт трёхзначный
 (`allow`/`deny`/`ask`), edet в мультиплеер как данные. Дизайн — `docs/design/container.md`.
@@ -25,3 +25,5 @@
 | `atom.acceptor.default-accepts-all` | `Acceptor()` без правила | `canAccept`/`wouldAccept` | пустой `and` → `allow`: зона сужает установкой правила, голый Acceptor — открытая дверь |
 | `atom.acceptor.reads-the-childcount` | `lt: [target.count, 2]`, реальные дети | `canAccept` | счёт берётся из настоящих детей дерева: 1 → allow, 3 → deny |
 | `atom.acceptor.can-reads-node-caps` | `{ can: "Bounded" }`, узел с атомом и без | `canAccept` | способности элемента читаются с дерева: есть Bounded → allow, голый узел → deny |
+| `accept.a-rule-can-read-the-actors-seat` | правило `{eq: ["actor.seat","target.owner"]}` | тот же ход от владельца и от чужого | `allow` · `deny`. Без этих двух путей «своя рука берёт, чужая спрашивает» вообще не пишется ПРАВИЛОМ, и разница уехала бы в рантайм, где перестаёт ехать и перестаёт быть общей |
+| `accept.an-unsaid-actor-is-missing-not-empty` | тот же ход без актора | `evaluate` | `deny`: несказанное — это отсутствующий путь, а не пустая строка |
