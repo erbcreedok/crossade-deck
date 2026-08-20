@@ -718,6 +718,43 @@ describe("flights: launch and slide", () => {
     expect(gaps[gaps.length - 1]!).toBeGreaterThan(gaps[0]!);
   });
 
+  it("motion.a-sliding-body-takes-its-shadow-with-it — the shadow rides along and the hop is the gap", () => {
+    // The plan's law (`plan.a-shadow-rides-a-body-across-the-desk`) only holds if the runtime says
+    // the word: a slide is ON the desk, a fall is not. This is the runtime saying it — read off the
+    // frames the painter was actually handed.
+    resetLayouts();
+    registerLayout("free", freeLayout);
+    resetSurfaces();
+    installStockSurfaces();
+    const desk = node("desk", Container({ layout: "free" }));
+    add(desk, node("c", Bounded({ bounds: rect(1, 1) }), Surfaced(), ShadowCaster(), Transformable({ at: { x: 0, y: 0 } })));
+    let last: readonly Quad[] = [];
+    const painter: Painter = { ready: Promise.resolve(), draw: (plan) => { last = plan; }, resize: () => {}, destroy: () => {} };
+    const host = mount(document.createElement("div"), desk);
+    const c = fakeClock();
+    const m = attachMotion(host, painter, { friction: 4, spinFriction: 0, bounce: 0.5, gravity: 9, clock: c.clock });
+    const seatX = last.find((q) => q.id === "c")!.transform.e;
+    let done = false;
+    m.slide("c", { speed: 5, angle: 0, hop: 3, onDone: () => { done = true; } });
+    const gaps: number[] = [];
+    let travelled = 0;
+    for (let t = 16; t <= 4000 && !done; t += 16) {
+      c.tick(t);
+      const piece = last.find((q) => q.id === "c")!;
+      const shade = last.find((q) => q.id === "c::shadow")!;
+      travelled = Math.abs(piece.transform.e - seatX);
+      // Only while it is FLYING: the landing frame belongs to the law below it — the piece is let
+      // go and its shadow goes to whatever seat the game wrote (here, none, so the old one).
+      if (!done) gaps.push(Math.hypot(shade.transform.e - piece.transform.e, shade.transform.f - piece.transform.f));
+    }
+    expect(done).toBe(true);
+    expect(travelled).toBeGreaterThan(1); // it really went somewhere
+    // It never left its shadow behind at the seat: the gap is a lamp's fall, not a journey.
+    expect(Math.max(...gaps)).toBeLessThan(travelled / 3);
+    // ...and the gap BREATHES, because the body is bouncing and the fall grows with the height.
+    expect(Math.max(...gaps)).toBeGreaterThan(Math.min(...gaps) * 3);
+  });
+
   it("motion.launch-falls-and-leaves-the-glass — gravity, the floor bounce, then gone with a callback", () => {
     const b = bench();
     const c = fakeClock();

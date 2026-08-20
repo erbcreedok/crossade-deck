@@ -680,16 +680,23 @@ interface SlideArgs {
   speed: number;
   angle: number;
   spin: number;
+  hop: number;
   friction: number;
   spinFriction: number;
   bounce: number;
 }
 
 /**
- * A THROW ACROSS THE DESK, seen from above: no gravity, `friction` bleeds the speed and `spinFriction`
- * the spin, the tray's walls reflect by `bounce`, and where it stops it stops — then, since this
- * scene writes nothing into the tree, it eases home. A die's throw is exactly this with a face at
- * the end (`Add-ons/Dice`).
+ * A THROW ACROSS THE DESK, seen from above: no gravity along the felt, `friction` bleeds the speed
+ * and `spinFriction` the spin, the tray's walls reflect by `bounce`, and where it stops it stops —
+ * then, since this scene writes nothing into the tree, it eases home. A die's throw is exactly this
+ * with a face at the end (`Add-ons/Dice`).
+ *
+ * `hop` takes it OFF the felt: it rises, falls back under the same gravity a launch uses, gives back
+ * `bounce` of every landing, and each touch-down turns its run a little — so it wanders instead of
+ * ruling a line, and a wall throws it higher than the hop it was already on. The shadow is what says
+ * how high: it rides under the puck the whole way (a slide is on the desk, not on its way to a seat)
+ * and drops away as the puck goes up. `0` is a puck that skates.
  */
 export const Slide: StoryObj<SlideArgs> = {
   args: {
@@ -715,6 +722,7 @@ export const Slide: StoryObj<SlideArgs> = {
     speed: 8,
     angle: 20,
     spin: 720,
+    hop: 2.5,
     friction: DEFAULT_TUNING.friction,
     spinFriction: DEFAULT_TUNING.spinFriction,
     bounce: DEFAULT_TUNING.bounce,
@@ -742,6 +750,7 @@ export const Slide: StoryObj<SlideArgs> = {
     speed,
     angle,
     spin,
+    hop: documented("arg.slideHop", { control: { type: "range", min: 0, max: 8, step: 0.25 } }, "puck/motion"),
     friction,
     spinFriction,
     bounce,
@@ -770,6 +779,7 @@ export const Slide: StoryObj<SlideArgs> = {
     speed: throwSpeed,
     angle: throwAngle,
     spin: throwSpin,
+    hop: throwHop,
     friction: drag,
     spinFriction: spinDrag,
     bounce: rebound,
@@ -793,7 +803,7 @@ export const Slide: StoryObj<SlideArgs> = {
         x1: trayX + trayW / 2 - puckW / 2,
         y1: trayY + trayH / 2 - puckH / 2,
       };
-      s.motions?.slide("puck", { speed: throwSpeed, angle: throwAngle, spin: throwSpin, walls });
+      s.motions?.slide("puck", { speed: throwSpeed, angle: throwAngle, spin: throwSpin, hop: throwHop, walls });
     }
     return s.el;
   },

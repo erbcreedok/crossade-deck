@@ -20,11 +20,18 @@ export interface Body {
   readonly angle: number;
   /** Degrees per second. */
   readonly spin: number;
+  /**
+   * HOW HIGH ABOVE THE DESK, root units, and how fast it is rising. A slide has this because a
+   * thrown die does not skate — it bounces, and every landing is where a real one changes its mind
+   * about which way it was going. `0` all the way is a puck, and that is the default.
+   */
+  readonly up: number;
+  readonly upVel: number;
 }
 
-/** A body at rest at `pos`, upright — the seed before a throw gives it a velocity. */
+/** A body at rest at `pos`, upright and flat on the desk — the seed before a throw gives it a velocity. */
 export function bodyAt(pos: Vec, angle = 0): Body {
-  return { pos, vel: { x: 0, y: 0 }, angle, spin: 0 };
+  return { pos, vel: { x: 0, y: 0 }, angle, spin: 0, up: 0, upVel: 0 };
 }
 
 /** A velocity from a speed and a heading — degrees clockwise from +x, the kit's one angle convention. */
@@ -61,7 +68,8 @@ export function stepFall(b: Body, cfg: FallConfig, dt: number): Body {
     y = cfg.floor;
     velY = -velY * cfg.bounce;
   }
-  return { pos: { x: b.pos.x + b.vel.x * dt, y }, vel: { x: b.vel.x, y: velY }, angle: b.angle + b.spin * dt, spin: b.spin };
+  // A fall is a fall: it has no hop of its own, and carries whatever height it was handed.
+  return { pos: { x: b.pos.x + b.vel.x * dt, y }, vel: { x: b.vel.x, y: velY }, angle: b.angle + b.spin * dt, spin: b.spin, up: b.up, upVel: b.upVel };
 }
 
 /** An axis-aligned box in root units — the walls of a tray a sliding body stays inside. */
@@ -77,11 +85,24 @@ export interface SlideConfig {
   readonly friction: number;
   /** Deceleration of the spin, degrees/s². */
   readonly spinFriction: number;
-  /** Restitution off a wall, 0..1. */
+  /** Restitution off a wall, 0..1 — and of a landing, which is the same bounce seen from the side. */
   readonly bounce: number;
   /** The tray. Absent, the desk is endless. */
   readonly walls?: Walls | undefined;
+  /** What pulls a hopping body back down, units/s². Only used by a body that is off the desk. */
+  readonly gravity?: number | undefined;
 }
+
+/** How much of the hop a wall gives back on top of what the body had: a die caught by a border pops UP. */
+const WALL_KICK = 1.6;
+/**
+ * How far a landing turns the body, degrees — alternating, so a bouncing die wanders instead of
+ * running a straight line. It is small on purpose: a die that changed its mind by a quarter turn a
+ * bounce would read as wind, not as a die.
+ */
+const LAND_TURN = 7;
+/** Under this rising speed a landing is the LAST one: the body lies down instead of trembling on the spot. */
+const HOP_EPS = 0.35;
 
 /**
  * One step of a desk-slide. Friction takes a fixed amount of speed per second, opposing the motion,
@@ -97,19 +118,55 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
   let vy = b.vel.y * k;
   let x = b.pos.x + vx * dt;
   let y = b.pos.y + vy * dt;
+  // The hop, one axis of its own: gravity pulls it down, the desk gives back `bounce` of what
+  // arrives, and the body is HELD by nothing else — a body with no hop in it never leaves zero.
+  let up = b.up;
+  let upVel = b.upVel;
+  let hopped = false;
+  if (up > 0 || upVel > 0) {
+    upVel -= (cfg.gravity ?? 0) * dt;
+    up += upVel * dt;
+    if (up <= 0) {
+      up = 0;
+      // A landing: what comes back up, and the small change of mind that makes a bouncing die
+      // wander. Alternating rather than random — the runtime has one clock and no dice of its own.
+      const back = -upVel * cfg.bounce;
+      hopped = back > HOP_EPS;
+      upVel = hopped ? back : 0;
+    }
+  }
   const w = cfg.walls;
+  let kicked = false;
   if (w) {
-    if (x < w.x0 && vx < 0) { x = w.x0; vx = -vx * cfg.bounce; }
-    else if (x > w.x1 && vx > 0) { x = w.x1; vx = -vx * cfg.bounce; }
-    if (y < w.y0 && vy < 0) { y = w.y0; vy = -vy * cfg.bounce; }
-    else if (y > w.y1 && vy > 0) { y = w.y1; vy = -vy * cfg.bounce; }
+    if (x < w.x0 && vx < 0) { x = w.x0; vx = -vx * cfg.bounce; kicked = true; }
+    else if (x > w.x1 && vx > 0) { x = w.x1; vx = -vx * cfg.bounce; kicked = true; }
+    if (y < w.y0 && vy < 0) { y = w.y0; vy = -vy * cfg.bounce; kicked = true; }
+    else if (y > w.y1 && vy > 0) { y = w.y1; vy = -vy * cfg.bounce; kicked = true; }
+  }
+  // A WALL THROWS IT UP. A die that catches a border does not slide along it — it pops, and the pop
+  // is higher than the hop it was already on. A body with no hop in it (a puck, a card) is not
+  // thrown anywhere: the wall reflects it and that is all, which is the law the flat slide keeps.
+  const hopping = b.up > 0 || b.upVel !== 0 || upVel !== 0;
+  if (kicked && hopping) upVel = Math.max(upVel, Math.abs(b.upVel) * WALL_KICK, HOP_EPS * WALL_KICK);
+  // Every touch-down and every wall turns the run of the body a little, and the two turn it the
+  // same way each time only by accident: the sign follows the height, so it alternates as it hops.
+  if (hopped || (kicked && hopping)) {
+    const turn = ((up > 0 || upVel > 0 ? 1 : -1) * LAND_TURN * Math.PI) / 180;
+    const cos = Math.cos(turn);
+    const sin = Math.sin(turn);
+    const tx = vx * cos - vy * sin;
+    vy = vx * sin + vy * cos;
+    vx = tx;
   }
   const spinMag = Math.abs(b.spin);
   const spin = spinMag > 0 ? Math.sign(b.spin) * Math.max(0, spinMag - cfg.spinFriction * dt) : 0;
-  return { pos: { x, y }, vel: { x: vx, y: vy }, angle: b.angle + spin * dt, spin };
+  return { pos: { x, y }, vel: { x: vx, y: vy }, angle: b.angle + spin * dt, spin, up, upVel };
 }
 
-/** True once a sliding body has all but stopped moving AND turning — the gate the clock sleeps on. */
+/**
+ * True once a sliding body has all but stopped moving AND turning — the gate the clock sleeps on.
+ * A body still in the air is never at rest, however slowly it is drifting: it has a landing to make.
+ */
 export function slideRests(b: Body, eps: number, spinEps: number): boolean {
-  return Math.hypot(b.vel.x, b.vel.y) <= eps && Math.abs(b.spin) <= spinEps;
+  return Math.hypot(b.vel.x, b.vel.y) <= eps && Math.abs(b.spin) <= spinEps && b.up <= 0 && b.upVel <= 0;
 }

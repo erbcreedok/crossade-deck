@@ -338,7 +338,7 @@ export const Throw: StoryObj<ThrowArgs> = {
     outcome: "rng",
     seed: 7,
     given: 4,
-    gain: 1,
+    gain: 2,
     friction: DEFAULT_TUNING.friction,
     spinFriction: DEFAULT_TUNING.spinFriction,
     bounce: DEFAULT_TUNING.bounce,

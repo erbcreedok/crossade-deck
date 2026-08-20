@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**53 слоя · 1242 кейсов заявлено · 1069 расписано поимённо.**
+**53 слоя · 1245 кейсов заявлено · 1072 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -35,7 +35,7 @@
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
-| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 58 | 58 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 59 | 59 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 64 | 64 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
@@ -65,13 +65,13 @@
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 34 | 34 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
-| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 25 | 25 |
+| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 26 | 26 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 7 | 7 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
-| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 14 | 14 |
+| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 15 | 15 |
 | [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 17 | 17 |
 | [UNIT · Rollable — грань как истина, кувырок как вид](48-rollable.md) | `vitest` | 3 | 3 |
 | [UNIT · текст — линейка портом, раскладка чистой функцией](49-text.md) | `vitest (headless, no font engine)` | 13 | 13 |

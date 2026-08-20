@@ -148,6 +148,13 @@ export type SlideOptions = {
   readonly angle: number;
   /** Turn rate, degrees/s. Default 0. */
   readonly spin?: number | undefined;
+  /**
+   * HOW HARD IT COMES OFF THE DESK, units/s of rise. A thrown die does not skate — it bounces, and
+   * each landing turns its run a little, so it wanders instead of running a line. `0` (the default)
+   * is a puck: flat all the way. It falls under the tuning's `gravity` and gives back `bounce` of
+   * every landing, and a wall throws it higher than the hop it was already on.
+   */
+  readonly hop?: number | undefined;
   /** The tray, root units. Default: the whole desk, endless. */
   readonly walls?: Walls | undefined;
   readonly delayMs?: number | undefined;
@@ -282,6 +289,12 @@ const UNITS_PER_FACE = 0.5;
  * packets hover over each other at the commit.
  */
 const TUMBLE_TAIL = 0.5;
+/**
+ * How much a body GROWS per unit of height off the desk — the whole of "it is up in the air" as far
+ * as a flat desk seen from above can say it. The shadow answers with the same number the other way:
+ * it falls further, so the gap between a piece and its shadow IS the height.
+ */
+const RISE = 0.5;
 
 /** A tumble's turn against its progress: most of it early, and a long slow end. */
 const tumbleEase = (t: number): number => 1 - (1 - t) ** 3;
@@ -419,6 +432,8 @@ interface Flight {
   angle0: number;
   /** What the body shows as it goes, if it shows anything — absent for a fall, which only falls. */
   readonly tumble: Tumbling | undefined;
+  /** True for a body travelling ACROSS the desk: it is on the felt, so its shadow goes with it. */
+  readonly onDesk: boolean;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 
@@ -513,7 +528,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     for (const [id, f] of flights) {
       if (!f.started) continue;
       const rest = displayed.get(id);
-      if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle));
+      if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle, 1 + f.body.up * RISE));
     }
     return map;
   };
@@ -524,6 +539,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * pile (`PlanInput.raised`). The finger set is `held`, which contains every carried node too.
    */
   const flying = (): NodeId[] => [...flights].filter(([, f]) => f.started).map(([id]) => id);
+  /**
+   * The bodies travelling ON the desk, with their height — a slide, which is on the felt the whole
+   * way. A fall is not here: it is in the air over the glass on its way out of the scene, and its
+   * shadow keeps the law that a flight's shadow waits at the seat.
+   */
+  const grounded = (): ReadonlyMap<NodeId, number> | undefined => {
+    const out = new Map<NodeId, number>();
+    for (const [id, f] of flights) if (f.started && f.onDesk) out.set(id, f.body.up);
+    return out.size > 0 ? out : undefined;
+  };
   const raised = (): ReadonlySet<NodeId> | undefined => {
     if (active.size === 0 && held.size === 0 && choreos.size === 0 && flights.size === 0) return undefined;
     return new Set<NodeId>([...active.keys(), ...held, ...choreographed(), ...flying()]);
@@ -537,6 +562,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       // takes its shadow along (`PlanInput.carried`). A node the clock is flying is on its way to a
       // seat, not standing at a new one.
       carried: carried.size > 0 ? carried : undefined,
+      grounded: grounded(),
       retain: retaining,
       measure: options.measure,
       ...(options.view ? { view: options.view } : {}),
@@ -997,6 +1023,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         halt: (b) => ({ ...b, pos: { x: Infinity, y: b.pos.y }, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone ? () => opts.onDone!() : undefined,
         tumble: undefined,
+        onDesk: false, // a fall is in the AIR over the glass, on its way out of the scene
       });
     },
     slide(id, opts) {
@@ -1007,9 +1034,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         spinFriction: opts.spinFriction ?? tuning.spinFriction,
         bounce: opts.bounce ?? tuning.bounce,
         walls: opts.walls,
+        gravity: tuning.gravity,
       };
       beginFlight(id, {
-        body: { ...bodyAt(apply(rest, { x: 0, y: 0 })), vel: velocityOf(opts.speed, opts.angle), spin: opts.spin ?? 0 },
+        body: { ...bodyAt(apply(rest, { x: 0, y: 0 })), vel: velocityOf(opts.speed, opts.angle), spin: opts.spin ?? 0, upVel: opts.hop ?? 0 },
         goMs: warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),
@@ -1019,6 +1047,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         halt: (b) => ({ ...b, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone,
         tumble: opts.onTumble ? { left: facesLeft(cfg), on: opts.onTumble, carried: 0, count: 0, ended: false } : undefined,
+        onDesk: true,
       });
     },
     retain(on) {

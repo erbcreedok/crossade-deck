@@ -55,7 +55,7 @@ describe("ballistic", () => {
   });
 
   it("ballistic.a-slide-bleeds-to-a-stop — friction takes speed and spin, and never pushes through zero", () => {
-    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(3, 0), angle: 0, spin: 360 };
+    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(3, 0), angle: 0, spin: 360, up: 0, upVel: 0 };
     const cfg = { friction: 6, spinFriction: 720, bounce: 0.5 };
     const path = runSlide(start, cfg, 120);
     // Speed only ever drops; it reaches zero and stays there — no reversal.
@@ -74,8 +74,34 @@ describe("ballistic", () => {
     expect(stepSlide(start, cfg, 0)).toEqual(start);
   });
 
+  it("ballistic.a-hopping-slide-bounces-and-wanders — it leaves the desk, lands turned a little, and a wall throws it higher", () => {
+    // A thrown die does not skate. It comes off the desk, and every touch-down turns its run a
+    // little — which is why a real one wanders instead of running a line to the wall.
+    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 3 };
+    const cfg = { friction: 2, spinFriction: 0, bounce: 0.5, gravity: 9 };
+    const path = runSlide(start, cfg, 200);
+    expect(Math.max(...path.map((b) => b.up))).toBeGreaterThan(0.3); // it really left the desk
+    const landings = path.filter((b, i) => i > 0 && b.up === 0 && path[i - 1]!.up > 0).length;
+    expect(landings).toBeGreaterThan(1); // and came back more than once
+    const end = path[path.length - 1]!;
+    expect(end.up).toBe(0); // it is lying down at the end, not trembling in the air
+    // ...and it left the line it started on: a landing turns the run, so a body launched straight
+    // along +x picks up a sideways component it never had.
+    expect(Math.max(...path.map((b) => Math.abs(b.vel.y)))).toBeGreaterThan(0.05);
+    expect(Math.abs(end.pos.y)).toBeGreaterThan(0.02);
+    // A WALL THROWS IT UP: the same throw into a border leaves the desk higher than it ever did free.
+    const free = Math.max(...path.map((b) => b.up));
+    const boxed = Math.max(
+      ...runSlide(start, { ...cfg, walls: { x0: -1, y0: -1, x1: 0.35, y1: 1 } }, 200).map((b) => b.up),
+    );
+    expect(boxed).toBeGreaterThan(free);
+    // And a body with no hop in it is a puck: the wall reflects it and nothing lifts.
+    const flat = runSlide({ ...start, upVel: 0 }, { ...cfg, walls: { x0: -1, y0: -1, x1: 0.35, y1: 1 } }, 200);
+    expect(Math.max(...flat.map((b) => b.up))).toBe(0);
+  });
+
   it("ballistic.a-wall-reflects — the crossing component flips and scales, the body stays inside", () => {
-    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0 };
+    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
     const cfg = { friction: 0, spinFriction: 0, bounce: 0.5, walls: { x0: -1, y0: -1, x1: 1, y1: 1 } };
     const path = runSlide(start, cfg, 60);
     for (const b of path) {

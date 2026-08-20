@@ -437,6 +437,38 @@ describe("scenePlan", () => {
     expect(flown.transform.e).toBeCloseTo(still.transform.e, 5);
   });
 
+  it("plan.a-shadow-rides-a-body-across-the-desk — a slide is ON the felt, and its height is the gap to its shadow", () => {
+    // The flight law below is about a piece on its way to another SEAT. A body sliding across the
+    // desk is not on its way anywhere else — it is on the felt at every point of the path, and a
+    // shadow left behind at the seat would be saying the die is somewhere it plainly is not.
+    const root = node("f4", Container({ layout: "free" }));
+    add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
+    const away = new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 3, f: 0 }]]);
+    const plan = (ground?: Map<string, number>): readonly Quad[] =>
+      scenePlan({
+        root,
+        unit: 100,
+        width: 800,
+        height: 600,
+        viewer: DEFAULT_VIEWER,
+        overrides: away,
+        ...(ground ? { grounded: ground } : {}),
+      });
+    const gap = (quads: readonly Quad[]): number => {
+      const p = quads.find((q) => q.id === "piece")!;
+      const s2 = quads.find((q) => q.id === "piece::shadow")!;
+      return Math.hypot(s2.transform.e - p.transform.e, s2.transform.f - p.transform.f);
+    };
+    const flat = plan(new Map([["piece", 0]]));
+    // Under the die — three units along from the seat, give or take the lamp's own short fall.
+    expect(Math.abs(gap(flat))).toBeLessThan(20);
+    expect(plan().find((q) => q.id === "piece::shadow")!.transform.e).toBeLessThan(
+      flat.find((q) => q.id === "piece::shadow")!.transform.e - 100,
+    ); // without the word, the old law: the shadow waits at the seat
+    // And the HEIGHT is the gap: a die in the air drops its shadow away and takes it back on landing.
+    expect(gap(plan(new Map([["piece", 0.6]])))).toBeGreaterThan(gap(flat));
+  });
+
   it("plan.a-shadow-follows-the-hand-not-the-flight — held it travels, flying it waits at the rest", () => {
     // The one law about a shadow in motion. A finger holding a piece has it OFF the desk, so the
     // shadow travels under it. A piece the clock is flying — a settle, a throw, a slide, a turn —

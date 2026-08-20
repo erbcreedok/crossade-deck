@@ -233,13 +233,21 @@ export type ThrowFromCarryOptions = Omit<ThrowDieOptions, "speed" | "angle"> & {
    * wins over this. Default `SPIN_PER_SPEED`.
    */
   readonly spinGain?: number | undefined;
+  /** And how much BOUNCE: units/s of rise per unit/s of slide. `0` is a die that skates. Default `HOP_PER_SPEED`. */
+  readonly hopGain?: number | undefined;
 };
 
 /** A die let go at 9 units/s comes off the hand at 900°/s — the catalog's own scripted throw, as a rate. */
 const SPIN_PER_SPEED = 100;
 
+/** A die let go at 6 units/s comes off the desk at 3 — half its speed goes into the first bounce. */
+const HOP_PER_SPEED = 0.5;
+
 /** The half of a throw that is already a VECTOR — the finger's on release, the wall's on a bounce. */
-type Flick = Omit<ThrowDieOptions, "speed" | "angle"> & { readonly spinGain?: number | undefined };
+type Flick = Omit<ThrowDieOptions, "speed" | "angle"> & {
+  readonly spinGain?: number | undefined;
+  readonly hopGain?: number | undefined;
+};
 
 /**
  * Throw the die along `v`: the speed and heading are the vector's, and the TUMBLE comes off the same
@@ -248,9 +256,12 @@ type Flick = Omit<ThrowDieOptions, "speed" | "angle"> & { readonly spinGain?: nu
  */
 function flick(motions: Motions, root: Node, d: Node, v: Vec, opts: Flick): number {
   const { speed, angle } = polar(v);
-  const { spinGain, ...rest } = opts;
+  const { spinGain, hopGain, ...rest } = opts;
   const spin = rest.spin ?? speed * (spinGain ?? SPIN_PER_SPEED) * (Math.sign(v.x) || 1);
-  return throwDie(motions, root, d, { ...rest, speed, angle, spin });
+  // ...and it BOUNCES: a die thrown across a desk leaves it, and every landing turns its run a
+  // little. Off the same speed, so a shove skips it across and a nudge barely lifts it.
+  const hop = rest.hop ?? speed * (hopGain ?? HOP_PER_SPEED);
+  return throwDie(motions, root, d, { ...rest, speed, angle, spin, hop });
 }
 
 /**
@@ -272,6 +283,8 @@ export function throwFromCarry(motions: Motions, root: Node, d: Node, opts: Thro
 export type ThrowFromWallOptions = Omit<ThrowDieOptions, "speed" | "angle"> & {
   /** As `throwFromCarry`'s: degrees/s of tumble per unit/s of slide. */
   readonly spinGain?: number | undefined;
+  /** As `throwFromCarry`'s: units/s of rise per unit/s of slide. */
+  readonly hopGain?: number | undefined;
 };
 
 /**

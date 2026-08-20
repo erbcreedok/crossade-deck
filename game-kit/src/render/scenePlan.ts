@@ -295,6 +295,16 @@ export interface PlanInput {
    */
   readonly carried?: ReadonlySet<NodeId> | undefined;
   /**
+   * PIECES THE CLOCK IS MOVING ALONG THE DESK, and how high above it each one is right now (root
+   * units). Their shadow RIDES under them, unlike the flights above: a die thrown across a tray is
+   * ON the felt at every point of its path — it is not on its way anywhere else — and a shadow left
+   * behind at the seat would be saying the die is somewhere it plainly is not.
+   *
+   * The height is what makes a bouncing one read as a bounce: the fall grows with it, so the shadow
+   * drops away as the die goes up and comes back under it as the die lands.
+   */
+  readonly grounded?: ReadonlyMap<NodeId, number> | undefined;
+  /**
    * How wide a string is — the one thing the plan cannot compute and must be told (`textMetrics`).
    * Absent, no caption lays out and the plan is byte-for-byte the plan it was before text existed:
    * skipped, not thrown, exactly as an unregistered surface name is.
@@ -309,7 +319,10 @@ export interface PlanInput {
  * outline. That is the ladder's whole point: the box is real and invisible, and the only way
  * to see one is `boundsMarks` below, which an onlooker has to ask for.
  */
-export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, measure }: PlanInput): Quad[] {
+/** How thick one `z` is, root units — a card. It is what turns a hop's HEIGHT into the lamp's layers. */
+const LAYER_HEIGHT = 0.05;
+
+export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, grounded, measure }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = view ?? viewTransform(unit, width, height);
   /**
@@ -411,6 +424,8 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     // it would say it is standing at every point of the flight. So its shadow waits at the rest pose
     // it is flying towards, and the fall keeps the resting length.
     const inHand = carried?.has(n.id) === true;
+    // On the desk and moving: the shadow goes with it, and rides its height.
+    const ride = grounded?.get(n.id);
     // THE FALL IS A LENGTH IN UNITS, and it is laid down in SCREEN pixels — so it is measured
     // against the scale of the view actually in force, not against the etalon.
     //
@@ -420,14 +435,17 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     // down onto its own shadow as the reader zooms in. The comment at the top of this file already
     // said units, so zoom never changes the shadow-to-size ratio; this is that sentence in code.
     const perUnit = Math.hypot(toView.a, toView.b);
-    const off = (depth.base + depth.perZ * z + (inHand ? depth.lifted : 0)) * perUnit;
+    // `perZ` is the lamp's fall per LAYER — the z a pile counts in, cards thick. A hop is in root
+    // UNITS, so it is turned into layers before the lamp is asked: a die half a unit off the felt is
+    // ten card-thicknesses up, and its shadow drops away by that much rather than by a hair.
+    const off = (depth.base + depth.perZ * (z + (ride ?? 0) / LAYER_HEIGHT) + (inHand ? depth.lifted : 0)) * perUnit;
     // WHERE it falls is the law above — the seat, unless a hand has the piece. WHAT SHAPE falls is
     // the piece AS DRAWN: a shadow is the thing's own outline, so it turns and stretches with it. A
     // die tumbling over its seat casting a shadow that will not turn is the piece and its shadow
     // saying two different things about the same object; the seat it lies on is a separate question
     // from the way it is lying.
     const drawn = overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY;
-    const seat = (inHand ? overrides?.get(n.id) : undefined) ?? nodes.get(n.id) ?? IDENTITY;
+    const seat = (inHand || ride !== undefined ? overrides?.get(n.id) : undefined) ?? nodes.get(n.id) ?? IDENTITY;
     const lying: Transform = { a: drawn.a, b: drawn.b, c: drawn.c, d: drawn.d, e: seat.e, f: seat.f };
     const toGlass = compose(move(fall.x * off, fall.y * off), compose(toView, lying));
     const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
