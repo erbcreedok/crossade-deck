@@ -210,6 +210,22 @@ export function walk(root: Node, visit: (n: Node, depth: number) => void, depth 
 }
 
 /**
+ * A WHOLE TREE AGAIN, node for node — same ids, same atoms, none of the same objects.
+ *
+ * The atoms themselves are SHARED rather than deep-copied, and that is safe by construction: an
+ * atom is `{def, fields}` with readonly fields, and the only way to change one is `compose`, which
+ * puts a NEW atom in this node's own map. What must not be shared is that map, and it is not.
+ *
+ * Ids are kept, deliberately. A copy is not a different board — it is the same board seen from
+ * somewhere else, so a move that names `pile` has to find `pile` in every copy of it.
+ */
+export function cloneTree(n: Node): Node {
+  const copy: Node = { id: n.id, parent: null, children: [], atoms: new Map(n.atoms) };
+  for (const child of n.children) add(copy, cloneTree(child));
+  return copy;
+}
+
+/**
  * byId is a DERIVED index over the tree, never a second store: a node that left the tree
  * must not still be findable, or the two sources drift.
  */

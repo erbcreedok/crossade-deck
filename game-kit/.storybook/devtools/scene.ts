@@ -128,6 +128,16 @@ const CAMERAS = new Map<string, (next: CameraScene) => void>();
 
 export interface SceneOptions {
   /**
+   * WHICH SCREEN THIS IS, when a story has several — a board watched from two seats, four players
+   * around one desk. Absent, the story owns one scene and this is the case every other page is.
+   *
+   * It exists because the identity a scene is kept alive by is its NAME: keyed, each screen finds
+   * itself standing on the next render and is fed new data; unkeyed, the second screen would take a
+   * fresh number every keystroke, and each number is another WebGL context the browser eventually
+   * starts taking back.
+   */
+  readonly key?: string | undefined;
+  /**
    * Start with the debug outline switched on.
    *
    * It stays a VIEWER setting — the toolbar still owns it and the reader can turn it off. What
@@ -239,7 +249,7 @@ export function scene(
   installStockLayouts();
   installStockSurfaces();
   installStockHeads();
-  const id = takeSceneId();
+  const id = takeSceneId(options.key);
 
   // AN ARGUMENT CHANGE IS NEW DATA, NOT A NEW SCENE.
   //

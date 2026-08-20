@@ -28,13 +28,27 @@ const reports = new Map<string, InspectReport>();
 
 /** The catalog names the next scene; without a name, scenes are numbered. */
 let nextSceneId: string | null = null;
+/**
+ * The story being rendered, and it is NOT consumed — several scenes may stand in one story (a board
+ * watched from two seats), and each of them needs a name that is the same on the next render. An
+ * auto-numbered one would not be: it would climb by one per screen per keystroke, and every climb
+ * is another WebGL context the browser eventually takes back.
+ */
+let storyId: string | null = null;
 let sceneCount = 0;
 
 export function setNextSceneId(id: string): void {
   nextSceneId = id;
+  storyId = id;
 }
 
-export function takeSceneId(): string {
+/**
+ * The name this scene publishes under. A `key` is for the SECOND and further scenes of one story:
+ * they share the story's name and differ by the key, so a re-render finds each of them standing.
+ * Without a key the old rule holds — the story's name, once, then numbers.
+ */
+export function takeSceneId(key?: string): string {
+  if (key !== undefined) return `${storyId ?? "scene"}#${key}`;
   const id = nextSceneId ?? `scene:${(sceneCount += 1)}`;
   nextSceneId = null;
   return id;

@@ -27,6 +27,7 @@ export {
   byId,
   caps,
   chainOf,
+  cloneTree,
   compose,
   contains,
   decompose,
@@ -215,6 +216,9 @@ export {
 export { applyMove, planMove, type MoveBlock, type MovePlan, type MoveRequest } from "./core/move.js";
 export { contextFor, nearestAlongChain, ownValue, sumAlongChain, type ResolveContext } from "./core/resolve.js";
 export { inspect, type InspectNode } from "./core/inspect.js";
+// What ONE SEAT is shown: the truth minus what its eyes are denied. A projection is a COPY, so
+// several screens can watch one board without eating each other's view — see `core/project.ts`.
+export { project } from "./core/project.js";
 export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from "./core/viewer.js";
 
 // ---- render: pixels ---------------------------------------------------------------------
