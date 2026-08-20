@@ -37,6 +37,7 @@ import {
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
+import { localMaster, type Master } from "../devtools/master.js";
 import { documented, PAINTS } from "./surfaceControls.js";
 
 // ONE BOARD, SEVERAL PAIRS OF EYES — the shape a live table has, standing in one page.
@@ -81,6 +82,7 @@ interface SeatsArgs {
   screens: number;
   handCards: number;
   others: string;
+  latency: number;
   pitch: number;
   feltPaint: string;
   facePaint: string;
@@ -152,12 +154,16 @@ function board(seats: readonly string[], handCards: number, others: string): Nod
  * That is client2's `deps` under another name, and it is the same reason the scene shell keeps its
  * host: an argument change is new data, not a new world.
  */
-let standing: { key: string; truth: Node } | undefined;
+let standing: { key: string; master: Master } | undefined;
 
-function truthFor(seats: readonly string[], handCards: number, others: string): Node {
+function masterFor(seats: readonly string[], handCards: number, others: string, latency: number): Master {
   const key = `${seats.join(",")}|${handCards}|${others}`;
-  if (standing?.key !== key) standing = { key, truth: board(seats, handCards, others) };
-  return standing.truth;
+  if (standing?.key !== key) {
+    standing?.master.dispose();
+    standing = { key, master: localMaster(board(seats, handCards, others), latency) };
+  }
+  standing.master.retune(latency); // live, like every other knob: the same master, a new number
+  return standing.master;
 }
 
 /** Where a zone stands on the desk. The desk is an unposed free layout: its space IS root space. */
@@ -179,7 +185,7 @@ function zoneAt(root: Node, at: Vec): Node | undefined {
 }
 
 export const Table: StoryObj<SeatsArgs> = {
-  render: ({ screens, handCards, others, pitch, feltPaint, facePaint }) => {
+  render: ({ screens, handCards, others, latency, pitch, feltPaint, facePaint }) => {
     installStockLayouts();
     installStockGrabs();
     installStockGrains();
@@ -194,12 +200,8 @@ export const Table: StoryObj<SeatsArgs> = {
     registerSurface(PILE, { layers: [{ paint: "sunkBg" }], radius: 0.12 });
 
     const seats = SEATS.slice(0, Math.max(2, Math.min(4, Math.round(screens))));
-    const truth = truthFor(seats, handCards, others);
-    // Every screen, so a move made on one can be shown on all of them — the whole of "live".
-    const wall_: { seat: string; built: Scene }[] = [];
-    const showAll = (): void => {
-      for (const s of wall_) s.built.setRoot(project(truth, s.seat));
-    };
+    const master = masterFor(seats, handCards, others, latency);
+    const truth = master.truth();
 
     const wall = document.createElement("div");
     wall.style.cssText = [
@@ -234,28 +236,34 @@ export const Table: StoryObj<SeatsArgs> = {
           start: { at: { x: 0, y: 0 }, zoom: 1 },
         },
       });
-      // THE FINGER WRITES THE TRUTH, NOT THE VIEW. The tree under this glass is a projection, so a
-      // drop resolved here would be real for one pair of eyes and would never have happened for the
-      // others. Ids survive a projection, so the same nodes are found in the board everyone shares,
-      // the move is planned and applied THERE, and then every screen is shown again.
+      // THE MOVE IS PROPOSED, NOT PERFORMED. The tree under this glass is a projection: a drop
+      // resolved here alone would be real for one pair of eyes and would never have happened for
+      // the others. So the finger sends a message to the master, and the board everyone shares is
+      // what moves — after the delay, and again after the echo.
+      //
+      // Returning FALSE on purpose: the wiring then makes its ordinary local drop, which is the
+      // optimistic PREDICTION — the card lands under the finger at once, and the authoritative
+      // snapshot either confirms it or takes it away. Position is reversible, so predicting it is
+      // safe; that is the design's own line about what may be predicted and what may not.
+      const mate = master.join(seat);
+      mate.onState((seen) => built.setRoot(seen));
       wireDrag(built, {
         zoneAt,
         view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
         onDrop: ({ lead, target, seat: at }) => {
-          const source = lead.parent ? byId(truth, lead.parent.id) : undefined;
-          const touched = byId(truth, lead.id);
           const zone = byId(truth, target.id);
-          if (!source || !touched || !zone) return false;
+          if (!lead.parent || !zone) return false;
           const home = zoneHome(zone);
-          const own = fieldsOf<TransformableFields>(touched, "Transformable");
-          if (own) compose(touched, Transformable({ ...own, at: { x: at.x - home.x, y: at.y - home.y } }));
-          const req = { source, touched, target: zone, carried: { angle: own?.angle ?? 0 } };
-          applyMove(req, planMove(req));
-          showAll();
-          return true;
+          mate.send({
+            source: lead.parent.id,
+            touched: lead.id,
+            target: target.id,
+            at: { x: at.x - home.x, y: at.y - home.y },
+            actor: seat,
+          });
+          return false;
         },
       });
-      wall_.push({ seat, built });
       const tag = document.createElement("div");
       tag.style.cssText =
         "position:absolute;left:8px;top:6px;z-index:2;font:600 11px ui-monospace,monospace;letter-spacing:.08em;opacity:.7;pointer-events:none";
@@ -266,11 +274,12 @@ export const Table: StoryObj<SeatsArgs> = {
     }
     return wall;
   },
-  args: { screens: 4, handCards: 4, others: "back", pitch: 24, feltPaint: "panelBg", facePaint: "accent" },
+  args: { screens: 4, handCards: 4, others: "back", latency: 0, pitch: 24, feltPaint: "panelBg", facePaint: "accent" },
   argTypes: {
     screens: documented("arg.screens", { control: { type: "number", min: 2, max: 4, step: 1 } }, "the wall"),
     handCards: documented("arg.handCards", { control: { type: "number", min: 1, max: 6, step: 1 } }, "each hand/container"),
     others: documented("arg.grainOthers", { control: "select", options: ["same", "back", "opposite"] }, "each hand/poser"),
+    latency: documented("arg.latency", { control: { type: "number", min: 0, max: 1500, step: 50 } }, "the master"),
     pitch: documented("arg.pitch", { control: { type: "number", min: 0, max: 60, step: 2 } }, "every camera"),
     feltPaint: documented("arg.fill", PAINT, "desk/surface"),
     facePaint: documented("arg.fill", PAINT, "cards/surface"),
