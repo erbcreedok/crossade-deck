@@ -38,6 +38,7 @@ import type inviting from "./pages/inviting/en.json";
 import type labeled from "./pages/labeled/en.json";
 import type lit from "./pages/lit/en.json";
 import type owned from "./pages/owned/en.json";
+import type poser from "./pages/poser/en.json";
 import type placeable from "./pages/placeable/en.json";
 import type motion from "./pages/motion/en.json";
 import type node from "./pages/node/en.json";
@@ -88,6 +89,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   },
   lit: { en: () => import("./pages/lit/en.json"), ru: () => import("./pages/lit/ru.json") },
   inviting: { en: () => import("./pages/inviting/en.json"), ru: () => import("./pages/inviting/ru.json") },
+  poser: { en: () => import("./pages/poser/en.json"), ru: () => import("./pages/poser/ru.json") },
   grippable: { en: () => import("./pages/grippable/en.json"), ru: () => import("./pages/grippable/ru.json") },
   private: { en: () => import("./pages/private/en.json"), ru: () => import("./pages/private/ru.json") },
   valued: { en: () => import("./pages/valued/en.json"), ru: () => import("./pages/valued/ru.json") },
@@ -167,6 +169,7 @@ export type PageKey = keyof (typeof node &
   typeof shadowCaster &
   typeof lit &
   typeof inviting &
+  typeof poser &
   typeof grippable &
   typeof privatePage &
   typeof valued &

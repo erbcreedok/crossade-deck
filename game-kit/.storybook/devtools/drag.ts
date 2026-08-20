@@ -12,6 +12,7 @@
 // replaces the knobs.
 
 import {
+  applyMove,
   byId,
   compose,
   draggable,
@@ -21,6 +22,7 @@ import {
   glassOf,
   onRejectOf,
   pick,
+  planMove,
   toUnits,
   transformsOf,
   Transformable,
@@ -69,6 +71,16 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
   readonly onWall?: ((hit: WallHit, items: readonly CarryItem[]) => boolean) | undefined;
   /** The view the desk is drawn through — a camera's `transform()`. Absent, the plain centred one. */
   readonly view?: (() => Transform) | undefined;
+  /**
+   * WHICH CONTAINER THE FINGER LET GO OVER — and with it, the whole drop. Absent, every release is
+   * a refused one, which is what every scene here did before zones existed: the piece stays or
+   * flies home and no tree changes owner.
+   *
+   * A callback and not a pick of our own, for the reason `trayOf` and `runOf` are callbacks: which
+   * node counts as a drop TARGET is the game's knowledge. A plain pick answers with the topmost
+   * thing drawn, and over a zone holding cards that is a card.
+   */
+  readonly zoneAt?: ((root: Node, at: Vec) => Node | undefined) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -220,12 +232,33 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
    * `home` leaves the tree alone and the reconcile flies the piece back. The seat is in root units,
    * as the demo desks are unposed free layouts, where parent space IS root space.
    */
+  /**
+   * Where a container stands in ROOT units — the sum of the `at`s up its chain.
+   *
+   * Exact for the free layouts these desks are built from, which is the case the catalog has: a
+   * layout that PLACES its children answers for them itself, and a game whose desk arranges its
+   * zones would ask its own arrangement rather than this.
+   */
+  const worldSeat = (n: Node): Vec => {
+    let x = 0;
+    let y = 0;
+    for (let up: Node | null = n; up; up = up.parent) {
+      const at = fieldsOf<TransformableFields>(up, "Transformable")?.at;
+      if (at) {
+        x += at.x;
+        y += at.y;
+      }
+    }
+    return { x, y };
+  };
+
   /** A point as the tray allows it — the same clamp the carry itself is under. */
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
     const root = s.host.root;
+    if (landed(items, seat, root)) return;
     for (const it of items) {
       const n = byId(root, it.id);
       if (n && onRejectOf(n) === "stay") {
@@ -234,6 +267,47 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       s.motions?.release(it.id);
     }
     s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
+  };
+
+  /**
+   * THE DROP THAT LANDS — asked first, and it answers `true` only when a zone actually took the
+   * run. Everything else falls through to the refusal above, which is the honest default: a piece
+   * let go over bare desk was not accepted by anything.
+   *
+   * The plan is asked of the SOURCE's own rules, so what leaves is what the kit says leaves — not
+   * what `runOf` drew. The two can differ, and when they do the model wins: `runOf` is a picture of
+   * a run, `Grabber` is the law about one, and a wiring that overrode the law would be a game
+   * inventing its own containment.
+   *
+   * The seat is written BEFORE the move so a free zone keeps the piece where the finger let it go —
+   * `applyMove` spreads the node's own pose and rewrites only the grains the zone answered.
+   */
+  const landed = (items: readonly CarryItem[], seat: Vec, root: Node): boolean => {
+    const lead = items[0] ? byId(root, items[0].id) : undefined;
+    const source = lead?.parent ?? undefined;
+    const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
+    if (!lead || !source || !target || target === source) return false;
+    const req = { source, touched: lead, target, carried: { angle: angleOf(lead) } };
+    const plan = planMove(req);
+    if (plan.verdict !== "allow") return false; // refused, or waiting on a person: the piece goes home
+    // THE SEAT IS IN THE TARGET'S SPACE, and this is the one line the whole re-parent turns on.
+    // `seat` arrives in root units — that is where the finger was — but a pose is read against its
+    // OWNER, and poses compose down the chain. Written raw into a zone standing at +1.5, a drop at
+    // +1.5 puts the card at +3 and off the desk entirely.
+    const home = worldSeat(target);
+    for (const id of plan.load) {
+      const n = byId(root, id);
+      const it = items.find((i) => i.id === id);
+      if (n) {
+        const own = fieldsOf<TransformableFields>(n, "Transformable");
+        const at = { x: seat.x + (it?.offset.x ?? 0) - home.x, y: seat.y + (it?.offset.y ?? 0) - home.y };
+        compose(n, Transformable({ ...(own ?? {}), at }));
+      }
+    }
+    applyMove(req, plan);
+    for (const it of items) s.motions?.release(it.id);
+    s.host.setRoot(root);
+    return true;
   };
 
   const onMove = (e: PointerEvent): void => {
