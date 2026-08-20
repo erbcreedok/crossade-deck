@@ -21,10 +21,13 @@ RUN npm ci
 
 # Баг npm с необязательными зависимостями (npm/cli#4828): лок сгенерирован на macOS, и
 # платформенного бинарника rollup для linux в нём нет — сборка падает с «Cannot find module
-# @rollup/rollup-linux-x64-gnu». Доставляется РОВНО он и ровно той версии, что стоит у самого
-# rollup, так что `npm ci` остаётся строгим и плавает ноль пакетов. То же самое делает
-# .github/workflows/pages.yml — если правится здесь, правится и там.
-RUN npm i --no-save "@rollup/rollup-linux-x64-gnu@$(node -p "require('rollup/package.json').version")"
+# @rollup/rollup-linux-x64-...». Доставляется РОВНО он и ровно той версии, что стоит у самого
+# rollup, так что `npm ci` остаётся строгим и плавает ноль пакетов.
+#
+# Здесь MUSL, а не GNU: образ alpine'овый, и это разные бинарники — `npm i` gnu-шного внутри
+# alpine падает на `notsup ... Actual libc: musl`. В pages.yml та же строка стоит с `-gnu`, и это
+# не расхождение, а разные платформы: там ubuntu-раннер. Правится здесь — сверяется там.
+RUN npm i --no-save "@rollup/rollup-linux-x64-musl@$(node -p "require('rollup/package.json').version")"
 
 COPY game-kit/ game-kit/
 COPY game-presets/ game-presets/
