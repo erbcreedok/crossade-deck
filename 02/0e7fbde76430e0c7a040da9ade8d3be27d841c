@@ -1,0 +1,30 @@
+game-kit/.storybook/locales/pages/tests/ru.json
+  s_170937f0c01a52::t_d461f7695243ee 34-39
+game-kit/docs/test-plan/16-interaction-play.md
+  s_170937f0c01a52::t_5c37aa276b2ccc 3,102-104
+game-kit/.storybook/stories/TestsPose.stories.ts
+  s_170937f0c01a52::t_c2368d8488d027 1-127,129-175
+  s_170937f0c01a52::t_9248fa34194b64 128
+game-kit/.storybook/locales/pages/tests/en.json
+  s_170937f0c01a52::t_d461f7695243ee 34-39
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_5c37aa276b2ccc 10,44
+game-kit/.storybook/preview.ts
+  s_170937f0c01a52::t_d461f7695243ee 177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "020e7fbde76430e0c7a040da9ade8d3be27d841c",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
