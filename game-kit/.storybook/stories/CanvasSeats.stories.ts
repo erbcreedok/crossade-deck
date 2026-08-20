@@ -87,6 +87,7 @@ const FELT = "story.seats.felt";
 const FACE = "story.seats.face";
 const BACK = "story.seats.back";
 const PILE = "story.seats.pile";
+const CHIP = "story.seats.chip";
 
 const PAINT = { control: "select", options: PAINTS };
 
@@ -126,6 +127,21 @@ function board(seats: readonly string[], handCards: number, others: string): Nod
     // The middle is open: whatever lands here lies face up for the whole desk.
     Poser({ side: keep(), others: "same" }),
   );
+  // TWO CHIPS in the open middle: one-sided, and so not a thing a hand will take. Dropped on one,
+  // they get no reaction at all — no gap, no ring, no request. Refusal is SILENCE here; there is no
+  // red highlight in this model and never was.
+  for (const i of [0, 1]) {
+    add(
+      pile,
+      node(
+        `chip:${i}`,
+        Bounded({ bounds: circle(0.32) }),
+        Surfaced({ surface: CHIP }),
+        Transformable({ at: { x: i ? 0.42 : -0.42, y: 0.62 } }),
+        Draggable({ onReject: "home" }),
+      ),
+    );
+  }
   add(desk, pile);
   for (const seat of seats) {
     const hand = node(
@@ -133,10 +149,18 @@ function board(seats: readonly string[], handCards: number, others: string): Nod
       Bounded({ bounds: rect(3.2, 1.4) }),
       Container({ layout: "story.seats.row" }),
       Transformable({ at: AROUND[seat]!.at }),
-      // THE RULE FROM THE SCENARIO, as one literal: my own hand takes it, someone else's asks. It
-      // is a rule and not a runtime branch on purpose — written here it travels, and every client
-      // resolves the same verdict for the same drop.
-      Acceptor({ accept: { or: [{ eq: ["actor.seat", "target.owner"] }, { ask: { and: [] } }] } }),
+      // THE RULE FROM THE SCENARIO, as one literal: a hand takes CARDS, its own seat puts them in
+      // at once, anyone else asks. Written as a rule and not as a runtime branch on purpose — here
+      // it travels, and every client resolves the same verdict for the same drop.
+      //
+      // "A card" is read as a CAPABILITY and never as a sort: what a hand holds is a thing with two
+      // sides, and a chip is one-sided — no `Flippable`, no entry. Asking `has: "card"` would be
+      // asking what something IS, which is the one question the kit does not answer.
+      Acceptor({
+        accept: {
+          and: [{ can: "Flippable" }, { or: [{ eq: ["actor.seat", "target.owner"] }, { ask: { and: [] } }] }],
+        },
+      }),
       Grabber({ grab: "one" }),
       // NOT private any more, and that is the lesson: the hand is in everyone's picture, and what
       // differs between seats is only which SIDE of its cards they are shown.
@@ -370,6 +394,7 @@ export const Table: StoryObj<SeatsArgs> = {
     registerSurface(FACE, { layers: [{ paint: facePaint }], radius: 0.08 });
     registerSurface(BACK, { layers: [{ paint: "textMuted" }], radius: 0.08 });
     registerSurface(PILE, { layers: [{ paint: "sunkBg" }], radius: 0.12 });
+    registerSurface(CHIP, { layers: [{ paint: "alert" }] });
 
     const seats = SEATS.slice(0, Math.max(2, Math.min(4, Math.round(screens))));
     const master = masterFor(seats, handCards, others, latency);
@@ -502,6 +527,16 @@ export const Table: StoryObj<SeatsArgs> = {
           const from = lead.parent;
           if (!from || !zone) return false;
           const home = zoneHome(zone);
+
+          // WHAT MAY BE PREDICTED AND WHAT MAY NOT. A move that only needs the board to agree is
+          // predicted at once: position is reversible, and a card taken back reads as an answer.
+          // A move short of AUTHORITY is not — nobody has said yes yet, and showing it landed would
+          // be showing a permission that was never given.
+          const verdict = planMove({ source: from, touched: lead, target, seat }).verdict;
+          // A REFUSED DROP IS NOT A MESSAGE. Nothing is asked, nothing hangs, and the piece goes
+          // back where it was lifted from — the wiring's ordinary refusal. Sending it anyway would
+          // put a question on the wire that everybody already knows the answer to.
+          if (verdict === "deny") return false;
           mate.send({
             source: from.id,
             touched: lead.id,
@@ -509,12 +544,7 @@ export const Table: StoryObj<SeatsArgs> = {
             at: { x: at.x - home.x, y: at.y - home.y },
             actor: seat,
           });
-          // WHAT MAY BE PREDICTED AND WHAT MAY NOT. A move that only needs the board to agree is
-          // predicted at once: position is reversible, and a card taken back reads as an answer.
-          // A move short of AUTHORITY is not — nobody has said yes yet, and showing it landed would
-          // be showing a permission that was never given.
-          const asks = planMove({ source: from, touched: lead, target, seat }).verdict === "ask";
-          if (!asks) return false;
+          if (verdict !== "ask") return false;
           // Taking the drop over is the whole of it: the card is NOT moved and NOT flown home — it
           // stays where it was, and `mark` raises it off the desk on the authoritative snapshot.
           // Writing the lift here instead would last until the echo and no longer.
