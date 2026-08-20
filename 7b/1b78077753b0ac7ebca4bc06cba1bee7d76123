@@ -1,0 +1,49 @@
+game-kit/src/render/pointer.ts
+  s_170937f0c01a52::t_944de468e3c277 43-47,55,65
+game-kit/src/render/pointer.test.ts
+  s_170937f0c01a52::t_446cfc96361b4c 106-123
+game-kit/.storybook/locales/pages/dice/en.json
+  s_170937f0c01a52::t_8541754e9eec2f 21
+game-kit/.storybook/locales/pages/dice/ru.json
+  s_170937f0c01a52::t_8541754e9eec2f 21
+game-kit/.storybook/stories/PresetsDice.stories.ts
+  s_170937f0c01a52::t_858869a1de4d90 269,283-287,303,314-317,358,365
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_944de468e3c277 251-265,905-922,1095-1102
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_858869a1de4d90 265-266
+game-kit/docs/test-plan/41-input.md
+  s_170937f0c01a52::t_521b17fa7c8e78 3,19
+game-kit/.storybook/devtools/scene.ts
+  s_170937f0c01a52::t_8e5f3a77679008 372,605,607
+game-kit/src/render/animator.test.ts
+  s_170937f0c01a52::t_005339914b4dd8 766,779,782
+  s_170937f0c01a52::t_b684740ae879d2 773,776-778
+  s_170937f0c01a52::t_b141ae830a6e01 758-765,767-772,774-775,780-781,783-784
+game-kit/.storybook/devtools/drag.ts
+  s_170937f0c01a52::t_abe52fe594d195 164-170
+  s_170937f0c01a52::t_8e5f3a77679008 159-161
+game-kit/docs/test-plan/40-motion.md
+  s_170937f0c01a52::t_121241fada32c5 3,28
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_858869a1de4d90 269-270
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_121241fada32c5 10,68
+  s_170937f0c01a52::t_521b17fa7c8e78 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7b1b78077753b0ac7ebca4bc06cba1bee7d76123",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
