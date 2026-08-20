@@ -1,0 +1,31 @@
+game-kit/docs/test-plan/59-two-roots.md
+  s_170937f0c01a52::t_507bb72f088ab9 1-21
+game-kit/src/render/hudRoot.test.ts
+  s_170937f0c01a52::t_b0fc6ce654dc33 17,93
+  s_170937f0c01a52::t_855f8bd8ccdd63 1-16,18-92,94-98
+game-kit/src/render/host.ts
+  s_170937f0c01a52::t_8f486bea5fc7fb 40-52,81,119-123,125
+  s_170937f0c01a52::t_50fcedc0767872 124
+game-kit/src/render/stage.ts
+  s_170937f0c01a52::t_8f486bea5fc7fb 118-126
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_507bb72f088ab9 10,87
+.night/2026-08-21.md
+  s_170937f0c01a52::t_919c08c8a8adf7 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0fb1226f555e0a0f6560e22e101cb8fcf597a424",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
