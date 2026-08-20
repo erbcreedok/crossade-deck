@@ -1,0 +1,65 @@
+game-kit/src/render/scenePlan.ts
+  s_170937f0c01a52::t_e9f929af876c00 322-324,438-441
+  s_170937f0c01a52::t_6551b62aaf6037 298-306,325,427-428,448
+  s_170937f0c01a52::t_7d24fb2a7356a3 297
+game-kit/src/render/stage.ts
+  s_170937f0c01a52::t_5a43241f720e6c 58,60-61,113
+game-kit/.storybook/locales/pages/dice/en.json
+  s_170937f0c01a52::t_a3d4985288fc35 20-21
+game-kit/src/render/animator.test.ts
+  s_170937f0c01a52::t_7daf2551202d50 746-748,753
+  s_170937f0c01a52::t_f16dcbc812c5c8 721-745,749-752,754-757
+game-kit/src/render/animator.ts
+  s_170937f0c01a52::t_5a43241f720e6c 151-157,292-297,435-436,531,542-551,565,1026,1037,1040,1050
+game-kit/.storybook/locales/pages/dice/ru.json
+  s_170937f0c01a52::t_a3d4985288fc35 20-21
+game-kit/.storybook/stories/Motion.stories.ts
+  s_170937f0c01a52::t_090d3b5c5852c3 782
+  s_170937f0c01a52::t_579fbeaa7c7842 683,690-699,806
+  s_170937f0c01a52::t_469a0de3ac2671 725,753
+game-kit/.storybook/locales/chrome/en.json
+  s_170937f0c01a52::t_469a0de3ac2671 264-265
+game-kit/.storybook/stories/PresetsDice.stories.ts
+  s_170937f0c01a52::t_146d7c7cde2647 341
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_e827674b5e459d 10,68
+  s_170937f0c01a52::t_451ccaefc787a7 38,74
+game-kit/docs/test-plan/10-scene-plan.md
+  s_170937f0c01a52::t_451ccaefc787a7 3,57
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_170937f0c01a52::t_451ccaefc787a7 3,18
+game-kit/src/core/ballistic.test.ts
+  s_170937f0c01a52::t_5f6dacfe044f8c 104
+  s_170937f0c01a52::t_943c510a5042a9 58
+  s_170937f0c01a52::t_146d7c7cde2647 77-87,92-102
+  s_170937f0c01a52::t_4a497740c9b571 88-91
+game-kit/.storybook/locales/chrome/ru.json
+  s_170937f0c01a52::t_469a0de3ac2671 268-269
+game-kit/src/render/scenePlan.test.ts
+  s_170937f0c01a52::t_0eea3440a9009d 440-462,465-471
+  s_170937f0c01a52::t_4ace4534f56c29 463-464
+game-kit/src/core/ballistic.ts
+  s_170937f0c01a52::t_5f6dacfe044f8c 71-72
+  s_170937f0c01a52::t_fb9c24c4b5119f 23-29,32,34,88,92-93,96-106,121-137,139,141-146,151-152,154-159,163,166-169,171
+  s_170937f0c01a52::t_aba27b48326e27 147-150,153
+game-presets/dice/src/dice.ts
+  s_170937f0c01a52::t_34732b0137d2bc 236-237,243-245,247-250,259,261-264,286-287
+game-kit/docs/test-plan/40-motion.md
+  s_170937f0c01a52::t_e827674b5e459d 3,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "c986f032525ec49f4ca4e99f54212e834eb6c047",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
