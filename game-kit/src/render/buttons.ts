@@ -16,7 +16,7 @@ import { Transformable, type TransformableFields } from "../core/atoms/transform
 import { type ValuedFields } from "../core/atoms/valued.js";
 import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
-import { glassOf, pick } from "./pointer.js";
+import { glassOf, pickTop } from "./pointer.js";
 
 /** A finger that slid this far was going somewhere else. In GLASS pixels — a slip is a hand, not a unit. */
 const SLOP = 5;
@@ -94,7 +94,7 @@ export function wireButtons(w: ButtonWiring): () => void {
   };
 
   const under = (e: PointerEvent): Node | undefined =>
-    pick(w.host, w.host.root, glassOf(view, e), answers, w.view?.());
+    pickTop(w.host, glassOf(view, e), answers, w.view?.());
 
   const leaveHover = (): void => {
     if (over === undefined) return;

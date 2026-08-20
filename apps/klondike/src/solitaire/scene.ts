@@ -23,7 +23,10 @@ import {
   installStockSurfaces,
   installTheme,
   mount,
+  Container,
+  node,
   pick,
+  pickTop,
   rect,
   registerSurface,
   remove,
@@ -278,11 +281,19 @@ export function startSolitaire(container: HTMLElement): () => void {
       ],
     });
 
-  /** Put the bar back on the desk after any change — it is a child of the desk like everything else. */
+  /**
+   * Put the bar back after any change — ON THE SECOND ROOT, which is what a bar is for.
+   *
+   * The desk is what a camera moves; the HUD is what it does not, and that is the entire difference
+   * between the two roots. This table has no camera today and the picture is identical either way —
+   * which is exactly why the move is worth making NOW: the day it gets one, a bar sitting among the
+   * cards would pan away with them, and the fix would be needed under a player's finger rather than
+   * in a quiet refactor.
+   */
   const dressDesk = (): void => {
-    const standing = board.desk.children.find((c) => c.id === "hud");
-    if (standing) remove(board.desk, standing);
-    add(board.desk, barTree());
+    const screen = node("screen", Container({ layout: "free" }));
+    add(screen, barTree());
+    host.setHudRoot(screen);
   };
 
   /**
@@ -462,7 +473,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     // THE BAR IS ASKED FIRST, and then LET GO OF: a control's gesture is `wireButtons`' business
     // from here on — it lights it, sinks it and fires the press on the way UP. All that is left for
     // this handler is to keep its hands off, or a press on a control would also move a card under it.
-    if (pick(host, board.desk, g, (n) => caps(n).has("Pressable"))) return;
+    if (pickTop(host, g, (n) => caps(n).has("Pressable"))) return;
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
     if (!hit) return;
     // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
