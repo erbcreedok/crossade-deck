@@ -1,0 +1,20 @@
+scripts/check-ci.mjs
+  s_170937f0c01a52::t_c09850610ac94e 100-142
+  s_170937f0c01a52::t_71b45308e73df4 14-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "167d134ab2322f63c69766a487bbb00bd7829a46",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
