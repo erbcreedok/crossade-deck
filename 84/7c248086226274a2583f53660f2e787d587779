@@ -1,0 +1,105 @@
+game-kit/src/render/cameraInput.test.ts
+  s_881c18b5871008::t_6525138de90e05 22
+game-kit/src/render/safeArea.ts
+  s_881c18b5871008::t_3d88534b220049 19
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_3d88534b220049 43
+game-kit/src/render/painter.ts
+  s_881c18b5871008::t_3d88534b220049 8
+game-kit/src/render/pixi/same.ts
+  s_881c18b5871008::t_3d88534b220049 19
+game-kit/src/render/pointer.ts
+  s_881c18b5871008::t_3d88534b220049 9
+game-kit/src/render/camera/camera.test.ts
+  s_881c18b5871008::t_6525138de90e05 10-21,31
+game-kit/src/render/hudRoot.test.ts
+  s_881c18b5871008::t_3d88534b220049 27
+game-kit/src/render/camera/limits.ts
+  s_881c18b5871008::t_3307096b3d6998 11,141
+  s_881c18b5871008::t_6525138de90e05 1-10,12-140,142-146
+game-kit/src/render/pointer.test.ts
+  s_881c18b5871008::t_3d88534b220049 17
+  s_881c18b5871008::t_6525138de90e05 20
+game-kit/src/render/pixi/live.ts
+  s_881c18b5871008::t_3d88534b220049 4
+game-kit/src/render/textStyles.test.ts
+  s_881c18b5871008::t_3d88534b220049 17
+game-kit/src/render/stage.ts
+  s_881c18b5871008::t_3d88534b220049 13
+game-kit/src/render/camera/index.ts
+  s_881c18b5871008::t_6525138de90e05 1-39,53,58-513
+  s_881c18b5871008::t_9e92a8465c05d2 40-44
+  s_881c18b5871008::t_3307096b3d6998 45-52,54-57
+game-kit/src/guards.test.ts
+  s_881c18b5871008::t_29fa426c080c4e 196-197,208
+game-kit/src/render/cameraInput.ts
+  s_881c18b5871008::t_6525138de90e05 29
+game-kit/src/render/flips.test.ts
+  s_881c18b5871008::t_3d88534b220049 12
+game-kit/src/render/scenePlan/bake.ts
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-91
+game-kit/src/render/scenePlan/shadows.ts
+  s_881c18b5871008::t_7345f3628daf3c 17-18,25-28
+  s_881c18b5871008::t_92b060771ca8cc 1-16,19,22-24,29-62,64-71,73-76,79-89,91-110
+  s_881c18b5871008::t_b1db75f67ef501 20-21,63,72,77-78,90
+game-kit/src/render/scenePlan/parts.ts
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-4,7-14,16-27,29-32,34-90,92-134
+  s_881c18b5871008::t_7345f3628daf3c 5-6,15,28,33,91
+game-kit/src/render/pixi/index.ts
+  s_881c18b5871008::t_3d88534b220049 30
+game-kit/src/render/scenePlan/input.ts
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-83
+game-kit/src/index.ts
+  s_881c18b5871008::t_6525138de90e05 419
+  s_881c18b5871008::t_3d88534b220049 351
+game-kit/src/render/scenePlan/index.ts
+  s_881c18b5871008::t_7e5e459372a428 84,86,100-103
+  s_881c18b5871008::t_7345f3628daf3c 49-50
+  s_881c18b5871008::t_b8066c866370fb 85
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-48,51-83,87-99,104-276
+game-kit/src/render/coats.test.ts
+  s_881c18b5871008::t_3d88534b220049 12
+game-kit/src/render/camera/wheel.ts
+  s_881c18b5871008::t_6525138de90e05 1-28
+game-kit/src/render/scenePlan/marks.ts
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-6,10-157
+  s_881c18b5871008::t_7345f3628daf3c 8-9
+  s_881c18b5871008::t_0fa8bc8a804edb 7
+game-kit/src/render/scenePlan/plan.test.ts
+  s_881c18b5871008::t_3d88534b220049 1-18,20-920
+  s_881c18b5871008::t_6525138de90e05 19
+game-kit/src/render/stage.test.ts
+  s_881c18b5871008::t_3d88534b220049 22
+game-kit/src/render/scenePlan/quads.ts
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-13,15-189
+  s_881c18b5871008::t_7345f3628daf3c 14
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_3d88534b220049 25
+game-kit/src/render/scenePlan/depth.ts
+  s_881c18b5871008::t_7345f3628daf3c 5
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-4
+game-kit/src/render/pixi/painter.test.ts
+  s_881c18b5871008::t_3d88534b220049 18
+game-kit/docs/test-plan/15-architectural-guards.md
+  s_881c18b5871008::t_29fa426c080c4e 40
+game-kit/src/render/scenePlan/transforms.ts
+  s_881c18b5871008::t_e78fb5ed51fcb4 1-7,9-11,19-79
+  s_881c18b5871008::t_7345f3628daf3c 8
+  s_881c18b5871008::t_4877a629a344bd 12-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "847c248086226274a2583f53660f2e787d587779",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
