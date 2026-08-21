@@ -1,0 +1,28 @@
+game-kit/.storybook/locales/pages.ts
+  s_881c18b5871008::t_330bc39773f967 31,104,187
+game-kit/.storybook/locales/pages/gestures/ru.json
+  s_881c18b5871008::t_330bc39773f967 1-24
+game-kit/.storybook/locales/pages/gestures/en.json
+  s_881c18b5871008::t_330bc39773f967 1-24
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_e434783a8c954b 1-11,13-37,39-116
+  s_881c18b5871008::t_cd17234da2188a 12,38
+game-kit/.storybook/preview.ts
+  s_881c18b5871008::t_cd17234da2188a 155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "02aad8c57125a9c4ae004979b67dbee90832f5d7",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
