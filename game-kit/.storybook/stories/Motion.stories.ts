@@ -37,6 +37,7 @@ import {
   rowLayout,
   seededRng,
   setFacing,
+  ShadowCaster,
   shuffleNames,
   Surfaced,
   Transformable,
@@ -1022,6 +1023,143 @@ export const Roll: StoryObj<RollArgs> = {
     };
     ROLL_TAP.set(s.el, fire);
     if (moved(s, "rolled", rolled)) fire();
+    return s.el;
+  },
+};
+
+// ---- the answers that change nothing -----------------------------------------------------------
+//
+// EVERY CHOREOGRAPHY ABOVE COMMITS SOMETHING: a flip turns a card over, a shuffle reorders a pack, a
+// tumble lands on a face. These two commit nothing at all — they say something and leave the piece
+// exactly where it was. That is a whole kind of motion, not a lesser one: a game answers a gesture
+// far more often than it changes the desk, and an answer that moved the piece would be a lie.
+//
+// The pair is worth reading together. Both throw the piece the same distance; the SHADOW is what
+// tells them apart, and it does it without a word of explanation on the glass.
+
+/** What a tap on one of these scenes does right now — the newest render's answer. */
+const SAY_TAP = new WeakMap<HTMLElement, () => void>();
+
+interface SayArgs {
+  said: number;
+  deskLayout: string;
+  cardW: number;
+  cardH: number;
+  cardSurface: string;
+  cardPaint: string;
+  cardRadius: number;
+  ms: number;
+  by: number;
+  times: number;
+}
+
+/** The desk both pages stand on: one card that casts a shadow, so height and travel are legible. */
+function sayDesk(a: SayArgs): Node {
+  registerLayout(a.deskLayout, freeLayout);
+  registerSurface(a.cardSurface, { layers: [{ paint: a.cardPaint }], radius: a.cardRadius });
+  const desk = node("desk", Container({ layout: a.deskLayout }));
+  add(
+    desk,
+    node(
+      "card",
+      Bounded({ bounds: rect(a.cardW, a.cardH) }),
+      Surfaced({ surface: a.cardSurface }),
+      Transformable({ at: { x: 0, y: 0 } }),
+      // Without it neither page can be read: what separates these two motions is height, and height
+      // is only ever visible as the gap between a piece and its own shadow.
+      ShadowCaster(),
+    ),
+  );
+  return desk;
+}
+
+const SAY_ARGS = {
+  deskLayout: "story.motion.free",
+  cardW: 1.1,
+  cardH: 1.5,
+  cardSurface: "story.motion.card",
+  cardPaint: "accent",
+  cardRadius: 0.08,
+};
+
+const SAY_TYPES = {
+  deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
+  cardW: documented("arg.w", SIZE, "card/bounds"),
+  cardH: documented("arg.h", SIZE, "card/bounds"),
+  cardSurface: documented("arg.registerAs", TOKEN, "card/surface"),
+  cardPaint: documented("arg.fill", PAINT, "card/surface"),
+  cardRadius: documented("arg.radius", RADIUS, "card/surface"),
+};
+
+/**
+ * THE TREMBLE THAT SAYS "NOTED". TAP THE CARD — `said` on the panel does the same.
+ *
+ * It exists for the moment a long press is recognised: the finger has been down half a second, the
+ * gesture has just changed meaning, and nothing on the glass has said so. A player who gets no
+ * answer lifts their finger to check, which cancels the very gesture they were making.
+ *
+ * It ENDS EXACTLY WHERE IT BEGAN, and that is a property of the curve rather than a correction at
+ * the end: `sin` is zero at the start and the `(1 - t)` envelope brings the last swing to nothing as
+ * the span closes. Turn `by` up far enough and you can see the card is still on its seat when it
+ * stops — nothing was written, and the shadow never moved.
+ */
+export const Shiver: StoryObj<SayArgs> = {
+  args: { ...SAY_ARGS, said: 0, ms: 180, by: 0.07, times: 3 },
+  argTypes: {
+    ...SAY_TYPES,
+    said: documented("arg.said", { control: { type: "number", min: 0, step: 1 } }, "card/motion"),
+    ms: documented("arg.shiverMs", { control: { type: "number", min: 0, step: 20 } }, "card/motion"),
+    by: documented("arg.shiverBy", { control: { type: "number", min: 0, step: 0.01 } }, "card/motion"),
+    times: documented("arg.shiverCycles", { control: { type: "number", min: 1, step: 1 } }, "card/motion"),
+  },
+  parameters: { gkDocStory: "motion.shiver" },
+  render: (a) => {
+    const s = scene(sayDesk(a), {
+      animate: true,
+      tap: (hit) => {
+        if (hit) SAY_TAP.get(s.el)?.();
+      },
+    });
+    const fire = (): void => s.motions?.shiver("card", { shiverMs: a.ms, by: a.by, cycles: a.times });
+    SAY_TAP.set(s.el, fire);
+    if (moved(s, "said", a.said)) fire();
+    return s.el;
+  },
+};
+
+/**
+ * THE JUMP THAT SAYS "LOOK AT ME". TAP THE CARD — `said` on the panel does the same.
+ *
+ * The flat cousin of a `slide`'s `hop`, and the pair is the point of having both. A hop leaves the
+ * DESK, so its shadow falls away and the piece reads as lifted; this one stays on the felt and only
+ * travels, so the shadow rides along under it the whole way. One says "picked up", the other says
+ * "look at me", and a game that reached for the wrong one is telling the player something it did
+ * not mean.
+ *
+ * A CHOREOGRAPHY AND NOT A FLIGHT, for the same reason the shiver is one: it ends exactly where it
+ * began, and a body under gravity only does that by accident. `|sin|` is one arc per half-turn, so
+ * `times` of them fill the span; `(1 - t)` makes every landing lower than the last.
+ */
+export const Bounce: StoryObj<SayArgs> = {
+  args: { ...SAY_ARGS, said: 0, ms: 520, by: 0.75, times: 2 },
+  argTypes: {
+    ...SAY_TYPES,
+    said: documented("arg.said", { control: { type: "number", min: 0, step: 1 } }, "card/motion"),
+    ms: documented("arg.bounceMs", { control: { type: "number", min: 0, step: 20 } }, "card/motion"),
+    by: documented("arg.bounceBy", { control: { type: "number", min: 0, step: 0.05 } }, "card/motion"),
+    times: documented("arg.bounces", { control: { type: "number", min: 1, step: 1 } }, "card/motion"),
+  },
+  parameters: { gkDocStory: "motion.bounce" },
+  render: (a) => {
+    const s = scene(sayDesk(a), {
+      animate: true,
+      tap: (hit) => {
+        if (hit) SAY_TAP.get(s.el)?.();
+      },
+    });
+    const fire = (): void => s.motions?.bounce("card", { bounceMs: a.ms, by: a.by, bounces: a.times });
+    SAY_TAP.set(s.el, fire);
+    if (moved(s, "said", a.said)) fire();
     return s.el;
   },
 };

@@ -278,5 +278,12 @@
   "viewer.motion.off": "off",
   "viewer.theme": "theme",
   "viewer.theme.dark": "Dark",
-  "viewer.theme.light": "Light"
+  "viewer.theme.light": "Light",
+  "arg.said": "Say it again. Every step of this counter fires the answer once — the same thing tapping the card does, for a reader who would rather drive it from the panel.",
+  "arg.shiverMs": "How long the tremble lasts, ms. Short enough to read as one event rather than as an animation: a twitch, not a wobble.",
+  "arg.shiverBy": "How far it swings at its widest, in root units. Sized against a CARD — about one unit across — so this is a swing of some seven pixels on a phone. A third of it could not be seen at all: a 2-pixel swing lasting 180 ms is not a subtle animation, it is an absent one.",
+  "arg.shiverCycles": "How many there-and-back swings fit in the span. Three in 180 ms is roughly the frequency a hand reads as a buzz.",
+  "arg.bounceMs": "How long the whole jump lasts, ms. Long enough to read as a jump rather than a twitch, short enough not to be a wait.",
+  "arg.bounceBy": "How high the FIRST arc reaches, in root units. About half a card's height — a jump nobody can miss that still keeps the piece over the seat it belongs to.",
+  "arg.bounces": "How many arcs fit in the span; each is smaller than the last. Two — the jump, and the small one it lands with. A third reads as a ball, not a piece."
 }
