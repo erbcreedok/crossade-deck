@@ -1,0 +1,25 @@
+game-kit/.storybook/stories/Coated.stories.ts
+  s_170937f0c01a52::t_ee124417bc9692 272,308
+  s_170937f0c01a52::t_72ea3fc67a2838 255,284,292
+  s_170937f0c01a52::t_20f8c98413e3da 263-264,267,296,301
+  s_170937f0c01a52::t_06afb1b74df0af 171
+  s_170937f0c01a52::t_4e03d504f1167e 135,140,148,154,159,166
+  s_170937f0c01a52::t_a673ab8baa331a 18,33-42,49,51-52,93-94,102,107,116-117
+  s_170937f0c01a52::t_592fedea19c5ab 43-47,50,182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "773fad16fad5648eab3e266296fe9e1af97b5396",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
