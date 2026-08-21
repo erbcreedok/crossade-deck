@@ -152,14 +152,14 @@ const preview: Preview = {
           // Presets stand on the atoms and are the first pages where a scene is allowed to be
           // several nodes at once: an assembly is what a preset IS. Split by what each preset
           // GENERATES, not by which file of the kit it happens to live in.
-          "Gestures", "Presets",
+          "Presets",
           ["Bounds", "Surfaces", "Coats", "Flips", "Shuffles", "Poses", "Layouts", "Piles", "Components"],
           // Add-ons stand OUTSIDE the kit: a preset package that ships its own textures and presets
           // (`@game-presets/*`), documented here but explicitly not part of the core the pages above show.
           "Add-ons",
           ["Cards", "Dice"],
           "Engine",
-          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion"],
+          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion", "Gestures"],
           // THE SPACE BEFORE ITS CONTENTS. A desk lives without a camera; a camera does not live
           // without a desk — and everything below her is checkable with no renderer at all, which
           // is why she is the first rung where a page has to be looked at rather than only read.

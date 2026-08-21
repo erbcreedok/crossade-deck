@@ -21,6 +21,11 @@ import { documented } from "./surfaceControls.js";
 
 // GESTURES — one page per gesture, and on every one of them the SAME element answers.
 //
+// UNDER `Engine/` and not beside the atoms, because a gesture is neither. It puts no field on a
+// node and assembles nothing: it is a seam of the INPUT wiring (`render/hold.ts`), and the catalog's
+// rule is that a story lives where the law it proves lives. `Engine/Motion` is the same shape from
+// the other side — the runtime that ANSWERS, where this is the runtime that ASKS.
+//
 // The point of the shelf is that a gesture is a seam you can look at alone. A card carries a dozen
 // capabilities and a menu on top, and when a hold does not fire on it there are ten places to look.
 // Here there is one square, one gesture and one animation, so "it did not move" has exactly one
@@ -66,7 +71,7 @@ interface GestureArgs {
 }
 
 const meta: Meta = {
-  title: "Gestures",
+  title: "Engine/Gestures",
   parameters: { gkDoc: "gestures.component" },
 };
 export default meta;
