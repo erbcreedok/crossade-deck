@@ -230,7 +230,10 @@ describe("show code · argument shapes", () => {
   args: { id: "card", w: 2 },
 }`;
     const out = storySource.transform(csf);
-    expect(out).toContain('const a = { id: "card", w: 2 }');
+    // …under the name the panel gives the knobs, not the one the story happened to type.
+    expect(out).toContain('const args = { id: "card", w: 2 }');
+    expect(out).toContain("args.id");
+    expect(out).not.toMatch(/\ba\.id\b/);
     expect(out).not.toContain("const id =");
   });
 
@@ -248,7 +251,7 @@ describe("show code · argument shapes", () => {
     expect(out).not.toContain("boxOf");
     // And what fed the helper is pruned with it: a reader editing `w` in a constant nothing
     // reads any more is a reader being lied to.
-    expect(out).toContain('const a = { id: "card" }');
+    expect(out).toContain('const args = { id: "card" }');
   });
 
   it("code.no-arguments-no-inlining — a snippet without a story context is left as written", () => {
@@ -259,7 +262,9 @@ describe("show code · argument shapes", () => {
   render: (a) => scene(node(a.id, Bounded({ bounds: boxOf(a) }))).el,
   args: { id: "card", w: 2 },
 }`;
-    expect(storySource.transform(csf)).toContain("boxOf(a)");
+    // The CALL survives — that is the claim. It reads `args` because that is what the const above
+    // it is called now, and a snippet referring to a name nothing declared would be worse.
+    expect(storySource.transform(csf)).toContain("boxOf(args)");
   });
 });
 

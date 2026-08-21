@@ -401,11 +401,22 @@ export function unwrapStory(code: string, live?: Record<string, unknown>): strin
   // Unless the body took the whole object under one name, in which case that is what it must
   // get: `const a = { … }`, exactly as written, spreads and all.
   const whole = param && !param.startsWith("{");
+  // THE KNOBS HAVE A NAME, AND IT IS NOT `a`.
+  //
+  // A story's render calls its parameter whatever is shortest to type — that is the story's own
+  // business — but the panel is a snippet a reader takes away, and `const a = { … }` beside `a.id`
+  // teaches nothing about what that object IS. It is the arguments: what the controls on the left
+  // just handed over. So it is printed under the word Storybook itself uses.
+  //
+  // Renamed only when something DECLARES it. A story with no `args` has no object to stand for, and
+  // renaming its parameter there would leave the snippet reading from a name nothing introduced.
+  const shown = whole && args ? "args" : param;
+  const spoken = shown === param ? body : renameParam(body, param, shown);
   const consts = (
     !args
       ? []
       : whole
-        ? [inlined ? pruneConst(`const ${param} = ${args}`, body, param) : `const ${param} = ${args}`]
+        ? [inlined ? pruneConst(`const ${shown} = ${args}`, spoken, shown) : `const ${shown} = ${args}`]
         : (() => {
             // A DESTRUCTURED RENDER NAMES EXACTLY WHAT IT READS, and that is what makes a spread
             // answerable here. `...shapeArgs()` cannot be read from the text, so the question is
@@ -422,12 +433,12 @@ export function unwrapStory(code: string, live?: Record<string, unknown>): strin
               .filter(Boolean);
             const members = membersOf(args);
             const named = new Set(members.filter((m) => m.name).map((m) => m.name));
-            const stillRead = taken.filter((n) => new RegExp(`\\b${n}\\b`).test(body));
+            const stillRead = taken.filter((n) => new RegExp(`\\b${n}\\b`).test(spoken));
             const spreadFeedsNothing = stillRead.every((n) => named.has(n));
             return members.map((m) => (m.name ? `const ${m.name} = ${m.value}` : spreadFeedsNothing ? "" : m.value));
           })()
   ).filter(Boolean);
-  const parts = consts.length ? [...consts, "", body] : [body];
+  const parts = consts.length ? [...consts, "", spoken] : [spoken];
   return parts.join("\n");
 }
 
@@ -503,6 +514,11 @@ function pruneConst(consts: string, body: string, param: string): string {
     .filter((m) => (m.name ? body.includes(`${param}.${m.name}`) : !spreadFeedsNothing))
     .map((m) => (m.name ? `${m.name}: ${m.value}` : m.value));
   return kept.length ? `const ${param} = { ${kept.join(", ")} }` : "";
+}
+
+/** Every read of the render's parameter, under the name the panel prints it as. */
+function renameParam(body: string, from: string, to: string): string {
+  return body.replace(new RegExp(`\\b${from}\\b(?=\\s*[.)\\]},;]|$)`, "gm"), to);
 }
 
 /**
