@@ -1,0 +1,24 @@
+game-kit/.storybook/devtools/inspector.test.ts
+  s_170937f0c01a52::t_3dcf5a3b58fe68 265-267
+  s_170937f0c01a52::t_e5a63b114612ad 233-236,254
+game-kit/.storybook/devtools/storySource.ts
+  s_170937f0c01a52::t_8bf3c5624b8a7a 404-408,441,519-521
+  s_170937f0c01a52::t_abd3bc55ba75d7 409-414,419,436
+  s_170937f0c01a52::t_8394d679cd5ad2 522-523
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0c0090b1277b961453a0d3d51e08808082275886",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
