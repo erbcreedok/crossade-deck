@@ -17,6 +17,7 @@ import { type ValuedFields } from "../core/atoms/valued.js";
 import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { glassOf, pickTop } from "./pointer.js";
+import { activate } from "../core/atoms/actionable.js";
 
 /** A finger that slid this far was going somewhere else. In GLASS pixels — a slip is a hand, not a unit. */
 const SLOP = 5;
@@ -160,8 +161,14 @@ export function wireButtons(w: ButtonWiring): () => void {
     over = hit.id;
     show(hit.id, "hover");
     const meaning = fieldsOf<ValuedFields>(hit, "Valued")?.values;
-    // A control with nothing to say is still a control: it lights, it sinks, and it reports nothing.
-    if (meaning) w.onPress(meaning, hit);
+    // A control SAYS SOMETHING if it names a verb, carries a payload, or both — and a control that
+    // says nothing is still a control: it lights, it sinks, and it reports nothing.
+    //
+    // The gate used to ask for the payload alone, because before `Actionable` a payload was the
+    // only way to speak. A menu item is the other shape — all verb, no payload — and under the old
+    // gate it lit, sank, and pressed into silence. The bug was invisible by eye: the control
+    // answered the finger in every way except the one that mattered.
+    if (meaning || activate(hit)) w.onPress(meaning ?? {}, hit);
   };
 
   const onLeave = (): void => {

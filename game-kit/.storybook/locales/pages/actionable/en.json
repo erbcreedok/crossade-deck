@@ -37,13 +37,23 @@
     "a `Flippable` can be flipped, a `Tiltable` can be tapped — so a card never advertises a flip it",
     "cannot perform. This atom is the other half: the item that carries one of those names."
   ],
-  "docs.actionable.intent": [
-    "Two controls, one difference. Both come from the same `button()` call and are identical in look,",
-    "box and caption role; the upper names a verb, the lower names none. Under each is what",
-    "`activate()` actually returned — the very call a press handler makes before it decides whether",
-    "anything happened.",
+  "docs.actionable.menu": [
+    "This IS a context menu, and every item in it was DERIVED. Nothing here writes out \"Flip\" and",
+    "\"Tap\": `actionsOf(card)` reads the capabilities the card already carries and returns the verbs",
+    "they imply. Turn a capability off with the knobs and its item leaves the menu by itself — a card",
+    "cannot advertise a flip it cannot perform, because nobody ever typed the offer.",
     "",
-    "Clear the upper one's `action` and it goes silent too. Type a verb nobody registered and it",
-    "still comes out: the control does not police the registry, because consumers own their verbs."
+    "Press an item and the card answers. Each item is a `button()` carrying `Actionable`, and the",
+    "handler is the whole of a press handler: ask `activate(control)` what it emits, stop if it emits",
+    "nothing. No `disabled` was consulted, because there is none to consult.",
+    "",
+    "Watch which verbs the KIT performs. `flip` and `roll` ship a `perform` in their registry record,",
+    "so the kit returns the changed node itself. `tap` does not — it is a pure query, and walking the",
+    "tilt stops is this page's own answer to it. The control cannot tell the difference and must not:",
+    "it emits a name and stops there.",
+    "",
+    "The menu carries `orientation: \"viewer\"`, which terminates the chain of angles. That is why a",
+    "context menu on a turned seat needs no camera of its own — the words stay upright by the same",
+    "rule that turns everything else."
   ]
 }

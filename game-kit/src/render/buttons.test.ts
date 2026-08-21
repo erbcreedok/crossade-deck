@@ -20,6 +20,10 @@ import { installStockControls } from "../presets/controls.js";
 import { resetSurfaces } from "./surfaces.js";
 import { type Host } from "./host.js";
 import { pick } from "./pointer.js";
+import { actionsOf, installStockActions, perform, resetActions } from "../core/actions.js";
+import { activate } from "../core/atoms/actionable.js";
+import { Flippable, facing } from "../core/atoms/flippable.js";
+import { Bounded } from "../core/atoms/bounded.js";
 import { wireButtons, type Meaning } from "./buttons.js";
 import "../core/atoms/coated.js";
 
@@ -162,5 +166,54 @@ describe("the button wiring", () => {
     f.fire("pointerdown", 296, 300);
     f.fire("pointerup", 400, 300);
     expect(f.pressed).toEqual([]);
+  });
+});
+
+// A CONTEXT MENU, END TO END, and the claim the `Atoms/Actionable` page rests on: the items are
+// DERIVED from what the target can do, pressing one emits the ref it carries, and the verb runs.
+//
+// Written after that page was built and found dead on the glass. Clicking a canvas by hand proves
+// nothing repeatable — the wiring, the derivation and the verb are three seams, and only a script
+// can say which of them held.
+describe("a derived context menu", () => {
+  it("buttons.a-menu-item-emits-its-ref-and-the-verb-runs — the three seams in one press", () => {
+    resetActions();
+    installStockActions();
+
+    const card = node("card", Bounded({ bounds: rect(1, 1.4) }), Flippable());
+    // NOT WRITTEN OUT: the offers come from what the card carries. A card with no `Rollable` has no
+    // `Roll` item, and nobody had to remember to leave it out.
+    const offered = actionsOf(card).map((a) => a.name);
+    expect(offered).toContain("flip");
+    expect(offered, "a card that cannot roll does not offer to").not.toContain("roll");
+
+    const menu = node("menu", Container({ layout: "row" }));
+    for (const a of actionsOf(card)) add(menu, button(`item/${a.name}`, { label: a.label, action: a.name }));
+
+    const view = stubView();
+    const host = {
+      view: view.el,
+      root: menu,
+      unit: () => 100,
+      viewport: () => ({ width: 800, height: 600, dpr: 1 }),
+      viewer: () => DEFAULT_VIEWER,
+      setRoot: () => undefined,
+    } as unknown as Host;
+
+    let live = card;
+    wireButtons({
+      host,
+      // The whole of a press handler, and there is no `disabled` in it because there is none to ask.
+      onPress: (_m, control) => {
+        const intent = activate(control);
+        if (intent) live = perform(intent, live);
+      },
+    });
+
+    expect(facing(live)).toBe("up");
+    // One item, so it sits in the middle of the view: 800/2.
+    view.fire("pointerdown", 400, 300);
+    view.fire("pointerup", 400, 300);
+    expect(facing(live), "the press reached the verb and the verb turned the card").toBe("down");
   });
 });
