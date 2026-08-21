@@ -180,6 +180,32 @@ export interface ShuffleOptions {
 }
 
 /** A tumble's look: whole turns and the hop (a scale peak), and a duration patch. */
+/**
+ * A SHIVER — the small, fast tremble that says "this is no longer a tap".
+ *
+ * It exists for the moment a long press is recognised: the finger has been down half a second, the
+ * gesture has just changed meaning, and nothing on the glass has said so yet. A player who gets no
+ * answer lifts their finger to check, which cancels the very gesture they were making.
+ *
+ * Defaults live here rather than in `MotionTuning` for the same reason a roll's `turns` does: they
+ * are the SHAPE of one choreography, not a setting a game tunes across all of them.
+ */
+export interface ShiverOptions {
+  /** How long the tremble lasts, ms. Default `SHIVER_MS`. */
+  readonly shiverMs?: number | undefined;
+  /** How far it swings at its widest, in root units. Default `SHIVER_BY`. */
+  readonly by?: number | undefined;
+  /** How many there-and-back swings fit in the span. Default `SHIVER_CYCLES`. */
+  readonly cycles?: number | undefined;
+}
+
+/** Short enough to read as one event rather than an animation: a twitch, not a wobble. */
+const SHIVER_MS = 180;
+/** Small enough that the card does not appear to MOVE — it is felt more than seen. */
+const SHIVER_BY = 0.022;
+/** Three swings in 180 ms is roughly the frequency a hand reads as a buzz. */
+const SHIVER_CYCLES = 3;
+
 export interface RollOptions {
   /** Whole turns about the piece's own centre over the tumble. Default 2. */
   readonly turns?: number | undefined;
@@ -223,6 +249,15 @@ export interface Motions {
    * onto its NEW seat by the end. The runtime never learns the order; the recipe never learns the rng.
    */
   shuffle(containerId: NodeId, commit: () => void, opts?: ShuffleOptions): void;
+  /**
+   * Shiver one node in place: a small decaying tremble that ENDS EXACTLY WHERE IT BEGAN.
+   *
+   * The answer to a gesture that has just changed meaning — a long press recognised, a refused drop.
+   * It moves nothing and commits nothing; a feedback animation that left the piece displaced would
+   * be a bug wearing an animation's clothes, and the maths is written so it cannot: the swing is
+   * zero at both ends of the span.
+   */
+  shiver(id: NodeId, opts?: ShiverOptions): void;
   /** Tumble one node in place — turns and a hop — with `commit` (the new face) at the top of the last turn. */
   roll(id: NodeId, commit: () => void, opts?: RollOptions): void;
   /** Throw a node down the screen — see `LaunchOptions`. Its pose is an override until it leaves the glass. */
@@ -1035,6 +1070,29 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         onBeat: undefined,
         beaten: 0,
         poseAt: (i, n, t, rest) => recipe.poseAt(i, n, t, rest, ctx),
+      });
+      ensureLoop();
+    },
+    shiver(id, opts = {}) {
+      const durMs = opts.shiverMs ?? SHIVER_MS;
+      const by = opts.by ?? SHIVER_BY;
+      const cycles = opts.cycles ?? SHIVER_CYCLES;
+      choreos.set(id, {
+        ids: [id],
+        startMs: warped,
+        durMs,
+        // Nothing to commit: a shiver says something, it does not change anything. `1` keeps the
+        // no-op out of the middle of the span, where a reader would look for a meaning it has not.
+        commitAt: 1,
+        commit: () => {},
+        committed: false,
+        beats: [],
+        onBeat: undefined,
+        beaten: 0,
+        // DECAYING, AND ZERO AT BOTH ENDS. `sin` starts at zero, and the `(1 - t)` envelope brings
+        // the last swing to nothing exactly as the span closes — so the piece is on its rest pose
+        // at the first frame and on the same one at the last, with no correction step between.
+        poseAt: (_i, _n, t, rest) => compose(rest, move(Math.sin(t * cycles * 2 * Math.PI) * by * (1 - t), 0)),
       });
       ensureLoop();
     },

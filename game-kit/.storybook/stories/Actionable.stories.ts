@@ -143,12 +143,20 @@ export const Menu: StoryObj<MenuArgs> = {
     };
 
     const live = scene(build(), {
+      // The shiver rides the ONE clock, so this page is driven by the motion runtime and not the
+      // still painter. Everything else on it stays exactly as it was.
+      motion: {},
       // A HOLD OPENS THE MENU, and what a hold may land on is this page's word, not the kit's:
       // anything with something to offer. A card with every capability off offers nothing, and
       // holding it opens nothing — no branch says so, the derivation does.
       hold: {
         want: (n) => actionsOf(n).length > 0,
         onHold: (on) => {
+          // THE ANSWER TO A GESTURE THAT JUST CHANGED MEANING. The finger has been down half a
+          // second and nothing on the glass has said so — and a player who gets no answer lifts
+          // their finger to check, cancelling the very gesture they were making. The tremble is
+          // that answer, and it moves the card nowhere: the swing is zero at both ends of its span.
+          live.motions?.shiver(on.id);
           open = true;
           said = `held ${on.id} → menu`;
           live.setRoot(build());

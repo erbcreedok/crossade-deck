@@ -1073,3 +1073,69 @@ describe("a launch may chain another from its own callback", () => {
     expect(c.idle()).toBe(true); // and everything came to rest (both left the glass and eased home)
   });
 });
+
+// THE SHIVER — the tremble that says "this is no longer a tap".
+//
+// One law dominates the rest and is the reason the maths is written the way it is: a feedback
+// animation must END EXACTLY WHERE IT BEGAN. A shiver that left the card a hair off its seat would
+// walk it across the desk over a game, one hold at a time, and the drift would be blamed on layout.
+describe("the shiver", () => {
+  it("motion.a-shiver-ends-where-it-began — feedback moves nothing", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.shiver("c");
+    expect(b.xOf("c"), "the first frame is already on the rest pose — the swing starts at zero").toBeCloseTo(restX, 5);
+
+    c.tick(200); // past the whole span
+    expect(b.xOf("c"), "and the last one is on the same pose, with no correction step between").toBeCloseTo(restX, 5);
+    expect(c.idle(), "idle-gate: a finished tremble schedules no further frame").toBe(true);
+  });
+
+  it("motion.a-shiver-actually-swings — and both ways", () => {
+    // Without this the case above passes for a choreography that does nothing at all.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.shiver("c", { shiverMs: 400, by: 0.5, cycles: 1 });
+    // `tick` is the clock READING, not a step — 100 of 400 ms is a quarter through the one cycle,
+    // which is the far side of the first swing.
+    c.tick(100);
+    const out = b.xOf("c");
+    expect(out).toBeGreaterThan(restX);
+
+    c.tick(300); // three quarters through: the other side
+    expect(b.xOf("c")).toBeLessThan(restX);
+    expect(Math.abs(out - restX), "and the swing is the size it was asked for").toBeGreaterThan(0.1);
+  });
+
+  it("motion.a-shiver-decays — the last swing is smaller than the first", () => {
+    // What makes it read as a buzz rather than a wobble: it dies down inside its own span.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.shiver("c", { shiverMs: 400, by: 0.5, cycles: 2 });
+    c.tick(50); // the crest of the first swing — a quarter of the first of two cycles
+    const first = Math.abs(b.xOf("c") - restX);
+    c.tick(250); // the SAME phase one cycle later, so only the envelope differs
+    const later = Math.abs(b.xOf("c") - restX);
+    expect(later).toBeLessThan(first);
+  });
+
+  it("motion.a-shiver-holds-the-node — a finger would have to interrupt it", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    m.shiver("c");
+    expect(m.busy("c"), "the clock is moving it, and a scene may need to say so").toBe(true);
+    c.tick(200);
+    expect(m.busy("c")).toBe(false);
+  });
+});
