@@ -1,0 +1,21 @@
+game-kit/docs/test-plan/25-e2e.md
+  s_170937f0c01a52::t_dcbde9df56d2a7 30
+game-kit/e2e/catalog.spec.ts
+  s_170937f0c01a52::t_7bfe201d519006 752-764
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "fa7032f67c7b390df258b96e672dc711d27e95c6",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
