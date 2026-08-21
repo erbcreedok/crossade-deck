@@ -201,8 +201,16 @@ export interface ShiverOptions {
 
 /** Short enough to read as one event rather than an animation: a twitch, not a wobble. */
 const SHIVER_MS = 180;
-/** Small enough that the card does not appear to MOVE — it is felt more than seen. */
-const SHIVER_BY = 0.022;
+/**
+ * How far it swings at its widest, in root units.
+ *
+ * Sized against a CARD, which is the thing this answers for: a card is about one unit across and is
+ * drawn near a hundred pixels wide on a phone, so this is a swing of some seven pixels. The first
+ * version was a third of that and could not be seen at all — a 2-pixel swing lasting 180 ms is not
+ * a subtle animation, it is an absent one. Big enough to read as a buzz, small enough that nobody
+ * thinks the card MOVED.
+ */
+const SHIVER_BY = 0.07;
 /** Three swings in 180 ms is roughly the frequency a hand reads as a buzz. */
 const SHIVER_CYCLES = 3;
 

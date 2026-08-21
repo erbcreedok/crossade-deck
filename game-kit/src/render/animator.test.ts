@@ -1139,3 +1139,24 @@ describe("the shiver", () => {
     expect(m.busy("c")).toBe(false);
   });
 });
+
+// SIZED AGAINST A CARD, and written down as a number rather than left to eye: the first version
+// swung a third of this and could not be seen at all. A subtle animation and an absent one look
+// identical in a screenshot, so the size is a claim a test has to make.
+describe("the shiver is big enough to see", () => {
+  it("motion.a-shivers-default-swing-is-visible — a card-sized nudge, not a sub-pixel one", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.shiver("c");
+    // The crest of the first swing: a quarter of the way through the first of three cycles.
+    c.tick(180 / 3 / 4);
+    const swing = Math.abs(b.xOf("c") - restX);
+    // A card is about a unit across and lands near 100 px on a phone, so a twentieth of a unit is
+    // the floor of what a person can see move.
+    expect(swing, "under a twentieth of a unit is an animation nobody sees").toBeGreaterThan(0.05);
+    expect(swing, "over a fifth and the card looks like it JUMPED").toBeLessThan(0.2);
+  });
+});
