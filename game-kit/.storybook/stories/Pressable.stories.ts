@@ -17,7 +17,7 @@ import {
   type Coat,
 } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
-import { documented, PAINTS } from "./surfaceControls.js";
+import { documented, hiddenRow, PAINTS } from "./surfaceControls.js";
 
 // PRESSABLE says an element answers a finger, and declares what it WEARS while one is near it. It
 // is the look and the depth, never the meaning: what a press DOES is `Valued`, read by whoever
@@ -39,11 +39,9 @@ const RADIUS = { control: { type: "number", min: 0, step: 0.02 } };
 const PAINT = { control: "select", options: PAINTS };
 const TOKEN = { control: "text" };
 const EM = { control: { type: "number", min: 0, step: 0.02 } };
-const LEVEL = { control: { type: "range", min: 0, max: 1, step: 0.02 } };
+const LEVEL = { control: { type: "number", min: 0, max: 1, step: 0.02 } };
 /** The stroke's own rows vanish with it — an absent border has no colour to be asked about. */
 const STROKED = { if: { arg: "plateStroke" } };
-
-const coat = (recipe: string, level: number, tint: string): Coat => ({ recipe, level, tint });
 
 interface ControlArgs {
   deskLayout: string;
@@ -61,12 +59,9 @@ interface ControlArgs {
   labelWeight: number;
   labelLineHeight: number;
   labelFill: string;
-  hoverRecipe: string;
-  hoverLevel: number;
-  hoverTint: string;
-  heldRecipe: string;
-  heldLevel: number;
-  heldTint: string;
+  /** The two coats a control wears, as the atom takes them: one value each, not six loose knobs. */
+  hover: Coat;
+  held: Coat;
   sink: number;
   nudgeX: number;
   nudgeY: number;
@@ -80,7 +75,7 @@ interface ControlArgs {
   muteX: number;
 }
 
-export const Control: StoryObj<ControlArgs> = {
+export const Control = {
   // Three controls, the same assembly. Move the pointer over one to see `hover`, hold it to see
   // `held`, `sink` and `nudge` at once. The third declares no `Valued` — it lights and sinks and
   // reports nothing, which is a legitimate control: a spacer that still feels alive under a finger.
@@ -100,12 +95,8 @@ export const Control: StoryObj<ControlArgs> = {
     labelWeight,
     labelLineHeight,
     labelFill,
-    hoverRecipe,
-    hoverLevel,
-    hoverTint,
-    heldRecipe,
-    heldLevel,
-    heldTint,
+    hover,
+    held,
     sink,
     nudgeX,
     nudgeY,
@@ -134,8 +125,8 @@ export const Control: StoryObj<ControlArgs> = {
         Labeled({ label, style: labelStyle }),
         Transformable({ at: { x, y: 0 } }),
         Pressable({
-          hover: coat(hoverRecipe, hoverLevel, hoverTint),
-          held: coat(heldRecipe, heldLevel, heldTint),
+          hover,
+          held,
           sink,
           nudge: { x: nudgeX, y: nudgeY },
         }),
@@ -162,12 +153,8 @@ export const Control: StoryObj<ControlArgs> = {
     labelWeight: 500,
     labelLineHeight: 1.2,
     labelFill: "text",
-    hoverRecipe: "wash",
-    hoverLevel: 0.12,
-    hoverTint: "text",
-    heldRecipe: "wash",
-    heldLevel: 0.22,
-    heldTint: "shadow",
+    hover: { recipe: "wash", level: 0.12, tint: "text" },
+    held: { recipe: "wash", level: 0.22, tint: "shadow" },
     sink: -0.6,
     nudgeX: 0.04,
     nudgeY: 0.04,
@@ -196,12 +183,14 @@ export const Control: StoryObj<ControlArgs> = {
     labelWeight: documented("arg.text.weight", { control: { type: "range", min: 100, max: 900, step: 100 } }, "controls/text style"),
     labelLineHeight: documented("arg.text.lineHeight", { control: { type: "number", min: 0, step: 0.05 } }, "controls/text style"),
     labelFill: documented("arg.text.fill", PAINT, "controls/text style"),
-    hoverRecipe: documented("arg.hover", TOKEN, "controls/pressable.hover"),
-    hoverLevel: documented("arg.coatLevel", { ...LEVEL, if: { arg: "hoverRecipe", neq: "" } }, "controls/pressable.hover"),
-    hoverTint: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], if: { arg: "hoverRecipe", neq: "" } }, "controls/pressable.hover"),
-    heldRecipe: documented("arg.held", TOKEN, "controls/pressable.held"),
-    heldLevel: documented("arg.coatLevel", { ...LEVEL, if: { arg: "heldRecipe", neq: "" } }, "controls/pressable.held"),
-    heldTint: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], if: { arg: "heldRecipe", neq: "" } }, "controls/pressable.held"),
+    hover: hiddenRow(),
+    "hover.recipe": documented("arg.hover", TOKEN, "controls/pressable.hover"),
+    "hover.level": documented("arg.coatLevel", { ...LEVEL, if: { arg: "hover.recipe", neq: "" } }, "controls/pressable.hover"),
+    "hover.tint": documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], if: { arg: "hover.recipe", neq: "" } }, "controls/pressable.hover"),
+    held: hiddenRow(),
+    "held.recipe": documented("arg.hover", TOKEN, "controls/pressable.held"),
+    "held.level": documented("arg.coatLevel", { ...LEVEL, if: { arg: "held.recipe", neq: "" } }, "controls/pressable.held"),
+    "held.tint": documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], if: { arg: "held.recipe", neq: "" } }, "controls/pressable.held"),
     sink: documented("arg.sink", { control: { type: "range", min: -2, max: 0, step: 0.1 } }, "controls/pressable.sink"),
     nudgeX: documented("arg.nudge", { control: { type: "number", step: 0.01 } }, "controls/pressable.nudge"),
     nudgeY: documented("arg.nudge", { control: { type: "number", step: 0.01 } }, "controls/pressable.nudge"),
@@ -215,4 +204,4 @@ export const Control: StoryObj<ControlArgs> = {
     muteX: documented("arg.x", PLACE, "mute/transformable"),
   },
   parameters: { gkDocStory: "pressable.control" },
-};
+} as StoryObj<ControlArgs>;
