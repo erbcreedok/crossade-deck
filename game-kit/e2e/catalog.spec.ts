@@ -749,8 +749,19 @@ test("e2e.a-snippet-names-nothing-of-this-website", async ({ page }) => {
   }
 
   const code = await snippetOf("atoms-surfaced--plate");
-  // And what should be there: a real registry call with the record written out as a value.
-  expect(code).toContain('registerSurface("story.plate", {');
+  // And what SHOULD be there: the name written out, and the record passed as a value.
+  //
+  // The name may arrive either way — inline as `registerSurface("story.plate", {…})`, or through a
+  // const the snippet declares itself (`const surfaceName = "story.plate"`). Which of the two the
+  // panel prints is decided by the story's render — a destructured argument becomes a const, an
+  // inline literal stays inline — and both are code the reader can copy and run. Demanding the
+  // literal would tie the handwriting of every snippet to how one story happens to be written.
+  //
+  // The banned third form is the one that actually broke, and it fails both claims at once:
+  // `registerSurface(PLATE, recordOf(a))` writes the name nowhere and hands over a CALL, so a
+  // reader who copies the panel gets two identifiers this website invented.
+  expect(code, "the surface name is written out, not hidden behind a name only this catalog has").toContain('"story.plate"');
+  expect(code, "the record is handed over as a value, not built by a call").toMatch(/registerSurface\([^,]+, \{/);
   expect(code).toContain("layers:");
 });
 
