@@ -1,0 +1,23 @@
+scripts/deploy.sh
+  s_170937f0c01a52::t_4ae038b09def31 76
+  s_170937f0c01a52::t_d2063d6dc38fe7 84
+  s_170937f0c01a52::t_dda62c3e0cf69c 11-12,16-18,20
+.github/workflows/deploy.yml
+  s_170937f0c01a52::t_8bb11578ff3d01 43-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "63d43140bc5875ec4994ddee727c764362cf85ed",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
