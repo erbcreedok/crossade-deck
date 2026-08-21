@@ -152,7 +152,7 @@ const preview: Preview = {
           // Presets stand on the atoms and are the first pages where a scene is allowed to be
           // several nodes at once: an assembly is what a preset IS. Split by what each preset
           // GENERATES, not by which file of the kit it happens to live in.
-          "Presets",
+          "Gestures", "Presets",
           ["Bounds", "Surfaces", "Coats", "Flips", "Shuffles", "Poses", "Layouts", "Piles", "Components"],
           // Add-ons stand OUTSIDE the kit: a preset package that ships its own textures and presets
           // (`@game-presets/*`), documented here but explicitly not part of the core the pages above show.

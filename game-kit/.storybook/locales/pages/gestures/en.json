@@ -1,0 +1,24 @@
+{
+  "docs.gestures.component": [
+    "ONE PAGE PER GESTURE, and on every one of them the same square answers.",
+    "",
+    "A gesture is a seam worth looking at alone. A card carries a dozen capabilities and a menu on",
+    "top, and when a hold does not fire on it there are ten places to look. Here there is one square,",
+    "one gesture and one animation, so \"it did not move\" has exactly one meaning.",
+    "",
+    "The square is deliberately plain — a rounded box, no border, one fill. It is a target, not a",
+    "picture: anything more and a reader starts reading the shape instead of watching it move."
+  ],
+  "docs.gestures.hold": [
+    "HOLD THE SQUARE. Half a second of a finger that does not travel, and the tile shivers.",
+    "",
+    "The shiver is the answer to a gesture that has just changed meaning. Without it a player who",
+    "gets no reply lifts their finger to check — cancelling the very gesture they were making."
+  ],
+  "docs.gestures.tap": [
+    "TAP THE SQUARE, and tap beside it.",
+    "",
+    "A tap is the other half of the same press, and the pair is what makes either legible: one",
+    "finger, one square, and the meaning turns on whether it leaves quickly or stays."
+  ]
+}
