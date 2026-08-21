@@ -211,15 +211,15 @@ interface StackArgs {
   w: number;
   h: number;
   turns: number;
-  reflipOne: boolean;
+  ownTurns: number;
 }
 
 export const Stack: StoryObj<StackArgs> = {
   // A stack turns its cards: `turns` SUMS along the chain, so flipping the stack shows every card's
-  // back. Turn on `reflipOne` and the second card turns once MORE — its summed parity is even again,
+  // back. Raise `ownTurns` and the second card turns that many times MORE — its summed parity is even again,
   // so it is face-up while its neighbour stays face-down, and its two reflections cancel. Case A,
   // out of the arithmetic alone.
-  render: ({ gap, w, h, turns, reflipOne }) => {
+  render: ({ gap, w, h, turns, ownTurns }) => {
     registerLayout("story.stack.row", rowLayout({ gap }));
     installClassicSkin();
     registerSurface("story.stack.front", surfaceRecord(ACE)!);
@@ -233,16 +233,16 @@ export const Stack: StoryObj<StackArgs> = {
         Flippable({ flip: "turnOver", back: "story.stack.back", turns: extraTurns }),
       );
     add(stack, build("leftCard", 0));
-    add(stack, build("rightCard", reflipOne ? 1 : 0));
+    add(stack, build("rightCard", ownTurns));
     return flipScene(stack).el;
   },
-  args: { gap: 0.25, w: 1, h: 1.4, turns: 1, reflipOne: false },
+  args: { gap: 0.25, w: 1, h: 1.4, turns: 1, ownTurns: 0 },
   argTypes: {
     gap: gapControl("stack/layout"),
     w: sizeControl("cards/bounds", "arg.w"),
     h: sizeControl("cards/bounds", "arg.h"),
     turns: turnsControl("stack/flippable"),
-    reflipOne: documented("arg.reflipOne", {}, "rightCard/flippable"),
+    ownTurns: documented("arg.ownTurns", { control: { type: "number", min: 0, step: 1 } }, "rightCard/flippable"),
   },
   parameters: { gkDocStory: "flippable.stack" },
 };
@@ -550,7 +550,7 @@ interface NestedArgs {
   backFill: string;
   radius: number;
   turns: number;
-  reflipOne: boolean;
+  ownTurns: number;
   stepX: number;
   stepY: number;
   deckBack0: string;
@@ -561,9 +561,9 @@ interface NestedArgs {
 export const Nested: StoryObj<NestedArgs> = {
   // A tray holding a lone card, a reordering deck and a keep-order deck. One turn of the TRAY sums
   // into everything: each node answers with its OWN recipe — the card turns over, one deck
-  // reverses, the other does not. `reflipOne` turns the lone card once more: its summed parity is
+  // reverses, the other does not. `ownTurns` turns the lone card by that many: its summed parity is
   // even again, face-up amid a turned world — case A, out of the arithmetic alone.
-  render: ({ gap, cardW, cardH, frontFill, backFill, radius, turns, reflipOne, stepX, stepY, deckBack0, deckBack1, deckBack2 }) => {
+  render: ({ gap, cardW, cardH, frontFill, backFill, radius, turns, ownTurns, stepX, stepY, deckBack0, deckBack1, deckBack2 }) => {
     registerSurface("story.flip.front", { layers: [{ paint: frontFill }], radius });
     registerSurface("story.flip.back", { layers: [{ paint: backFill }], radius });
     registerLayout("story.flip.tray", rowLayout({ gap }));
@@ -574,7 +574,7 @@ export const Nested: StoryObj<NestedArgs> = {
         "loneCard",
         Bounded({ bounds: rect(cardW, cardH) }),
         Surfaced({ surface: "story.flip.front" }),
-        Flippable({ flip: "turnOver", back: "story.flip.back", turns: reflipOne ? 1 : 0 }),
+        Flippable({ flip: "turnOver", back: "story.flip.back", turns: ownTurns }),
       ),
     );
     const spec: DeckSpec = { stepX, stepY, cardW, cardH, backs: [deckBack0, deckBack1, deckBack2], backRadius: radius };
@@ -590,7 +590,7 @@ export const Nested: StoryObj<NestedArgs> = {
     backFill: "accent",
     radius: 0.08,
     turns: 1,
-    reflipOne: false,
+    ownTurns: 0,
     stepX: 0.35,
     stepY: 0,
     deckBack0: "accent",
@@ -605,7 +605,7 @@ export const Nested: StoryObj<NestedArgs> = {
     frontFill: fillControl("cards/surface"),
     backFill: fillControl("cards/surface"),
     radius: radiusControl("cards/surface"),
-    reflipOne: documented("arg.reflipOne", {}, "loneCard/flippable"),
+    ownTurns: documented("arg.ownTurns", { control: { type: "number", min: 0, step: 1 } }, "loneCard/flippable"),
     stepX: documented("arg.stepX", { control: { type: "number", step: 0.05 } }, "decks/layout"),
     stepY: documented("arg.stepY", { control: { type: "number", step: 0.05 } }, "decks/layout"),
     deckBack0: fillControl("deck card backs"),
