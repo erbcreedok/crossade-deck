@@ -1,0 +1,23 @@
+game-kit/.storybook/stories/Inviting.stories.ts
+  s_170937f0c01a52::t_7ebb8cdb01f2b9 52,65-68,103,136,174,207-209
+  s_170937f0c01a52::t_a12dfee13057a0 87,192-193,228
+  s_170937f0c01a52::t_c518538aa3c7a0 23,205-206
+game-kit/.storybook/stories/surfaceControls.ts
+  s_170937f0c01a52::t_c518538aa3c7a0 122-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b3d30a5cc876e5e8548328df0e69638b732e8aec",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
