@@ -1,0 +1,57 @@
+game-kit/.storybook/locales/pages/actionable/en.json
+  s_1ac5cc735c3923::t_71aad1703a109e 1-49
+game-kit/src/presets/button.ts
+  s_1ac5cc735c3923::t_c89cabdf702c51 38
+  s_1ac5cc735c3923::t_c81ea8c77df6a0 95-104,145
+game-kit/src/guards.test.ts
+  s_1ac5cc735c3923::t_a3a1557a190494 35
+game-kit/.storybook/locales/chrome/ru.json
+  s_1ac5cc735c3923::t_c2a579e24d2a89 2-3,5-10,12-19,21-24,26-27,29-32,34,36-41,43,49-51,56-93,95-115,117-125,127,130-155,158-166,170,172,174-204,206,208-213,215,217-226,228-281
+game-kit/docs/test-plan/29-interaction-atoms.md
+  s_1ac5cc735c3923::t_9106f5a42ead83 1,3,21-24
+game-kit/src/core/atoms/interaction-atoms.test.ts
+  s_1ac5cc735c3923::t_89e7b09300a091 6
+  s_1ac5cc735c3923::t_b0993c2afd2409 78-82,85
+  s_1ac5cc735c3923::t_a1a482fea3c884 62-77,83-84,86-94
+game-kit/src/index.ts
+  s_1ac5cc735c3923::t_a3a1557a190494 183
+game-kit/.storybook/locales/pages/actionable/ru.json
+  s_1ac5cc735c3923::t_71aad1703a109e 1-49
+game-kit/.storybook/locales/chrome/en.json
+  s_1ac5cc735c3923::t_c2a579e24d2a89 2-3,5-10,12-19,21-24,26-27,29-32,34,36-41,43,49-51,56-93,95-115,117-125,127,130-155,158-166,170,172,174-204,206,208-213,215,217-226,228-277
+game-kit/src/presets/button.test.ts
+  s_1ac5cc735c3923::t_fc549a8d130ffd 9,36-47
+  s_1ac5cc735c3923::t_71e0bf4838b66e 48-49
+game-kit/docs/test-plan/README.md
+  s_1ac5cc735c3923::t_d0d9fe4c34b85d 10,57,78
+game-kit/.storybook/stories/Actionable.stories.ts
+  s_1ac5cc735c3923::t_3672e0d4f5d509 1-7,9-49,58-60,62,64-91
+  s_1ac5cc735c3923::t_0a61b51bf4d572 8,50-57,61,63
+game-kit/CANONS.md
+  s_1ac5cc735c3923::t_bfa6608960341e 145-151
+game-kit/.storybook/preview.ts
+  s_1ac5cc735c3923::t_c2a579e24d2a89 151
+game-kit/src/core/atoms/actionable.ts
+  s_1ac5cc735c3923::t_86ee33ccb9154f 44-47
+  s_1ac5cc735c3923::t_15d068efa9b850 1-43,48-65
+game-kit/.storybook/locales/pages.ts
+  s_1ac5cc735c3923::t_c2a579e24d2a89 30,102,184
+game-kit/docs/test-plan/50-controls.md
+  s_1ac5cc735c3923::t_9106f5a42ead83 3,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "435e9061bc87da8c69b73a836b28c41c0f447d86",
+  "prompts": {},
+  "sessions": {
+    "s_1ac5cc735c3923": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0e0209cb-7db5-4e7d-98aa-5db7635ae442",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
