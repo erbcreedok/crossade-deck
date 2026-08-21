@@ -15,7 +15,7 @@ import {
   type Coat as CoatData,
 } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
-import { documented, PAINTS } from "./surfaceControls.js";
+import { documented, hiddenRow, PAINTS } from "./surfaceControls.js";
 
 // COATED is the runtime layer over a surface — the part `Surfaced`'s static record cannot hold: a
 // magnitude that creeps, a reach that cascades, a colour there are infinitely many of, a mask. The
@@ -30,21 +30,27 @@ installStockCoats();
 const RECIPES = ["", ...coatNames()];
 const SURFACES = surfaceNames();
 
-/** The controls of one coat, prefixed so two can sit on one panel — the mirror of the record's. */
-function coatArgTypes(prefix: string, section: string): Record<string, unknown> {
-  const at = (name: string): string => `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`;
-  // An empty recipe IS no coat, so a magnitude and a colour have nothing left to describe.
-  const worn = { if: { arg: at("recipe"), neq: "" } };
+/**
+ * The controls of one coat, UNDER THE NAME THE ATOM GIVES IT — `self.recipe`, `cast.level`.
+ *
+ * Nested rather than prefixed, and that is the point: the atom takes `{ self: {…}, cast: {…} }`, so
+ * the knobs say the same thing. Flattened to `selfRecipe` they described the same coat in a shape
+ * the code never uses, and the snippet had to reassemble it — three loose constants poured back
+ * into a nested slot, which is a puzzle for a reader and a lie about the API.
+ *
+ * The parent's own row comes off: its three parts are controlled one by one just below it.
+ */
+function coatArgTypes(slot: "self" | "cast" | "lit", section: string, gate: Record<string, unknown> = {}): Record<string, unknown> {
+  // An empty recipe IS no coat, so a magnitude and a colour have nothing left to describe. A
+  // `gate` narrows the whole trio further — the cascade's override exists only while the
+  // spotlight is on, and with it off the figure simply inherits.
+  const worn = Object.keys(gate).length ? gate : { if: { arg: `${slot}.recipe`, neq: "" } };
   return {
-    [at("recipe")]: documented("arg.coatRecipe", { control: "select", options: RECIPES }, section),
-    [at("level")]: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 }, ...worn }, section),
-    [at("tint")]: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], ...worn }, section),
+    [slot]: hiddenRow(),
+    [`${slot}.recipe`]: documented("arg.coatRecipe", { control: "select", options: RECIPES, ...gate }, section),
+    [`${slot}.level`]: documented("arg.coatLevel", { control: { type: "number", min: 0, max: 1, step: 0.05 }, ...worn }, section),
+    [`${slot}.tint`]: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], ...worn }, section),
   };
-}
-
-/** One coat, built from three named values — empty `tint` leaves the recipe its own colour. */
-function coat(recipe: string, level: number, tint: string): CoatData {
-  return { recipe, level, tint };
 }
 
 /** A registered surface, by name — the same picker for every node that names one. */
@@ -84,12 +90,8 @@ interface CoatArgs {
   w: number;
   h: number;
   surface: string;
-  selfRecipe: string;
-  selfLevel: number;
-  selfTint: string;
-  castRecipe: string;
-  castLevel: number;
-  castTint: string;
+  self: CoatData;
+  cast: CoatData;
 }
 
 export const Coat: StoryObj<CoatArgs> = {
@@ -97,12 +99,12 @@ export const Coat: StoryObj<CoatArgs> = {
   // on a lone node it lands on itself, so both are visible here. Drag `selfLevel` and the wash
   // creeps; pick `ring` for `selfRecipe` and it becomes a border thickening with the number. There
   // is no scene per value: the magnitude is the parameter.
-  render: ({ id, w, h, surface, selfRecipe, selfLevel, selfTint, castRecipe, castLevel, castTint }) => {
+  render: ({ id, w, h, surface, self, cast }) => {
     const shard = node(
       id.trim() || "manaShard",
       Bounded({ bounds: rect(w, h) }),
       Surfaced({ surface }),
-      Coated({ self: coat(selfRecipe, selfLevel, selfTint), cast: coat(castRecipe, castLevel, castTint) }),
+      Coated({ self, cast }),
     );
     return scene(shard).el;
   },
@@ -111,12 +113,8 @@ export const Coat: StoryObj<CoatArgs> = {
     w: 1.4,
     h: 1.4,
     surface: "plate",
-    selfRecipe: "wash",
-    selfLevel: 0.55,
-    selfTint: "accent",
-    castRecipe: "",
-    castLevel: 0.5,
-    castTint: "",
+    self: { recipe: "wash", level: 0.55, tint: "accent" },
+    cast: { recipe: "", level: 0.5, tint: "" },
   },
   argTypes: {
     id: documented("arg.id", { control: "text" }, "shard"),
@@ -134,16 +132,12 @@ export const Coat: StoryObj<CoatArgs> = {
 interface CascadeArgs {
   gap: number;
   traySurface: string;
-  castRecipe: string;
-  castLevel: number;
-  castTint: string;
+  cast: CoatData;
   figureW: number;
   figureH: number;
   figureSurface: string;
   spotlight: boolean;
-  litRecipe: string;
-  litLevel: number;
-  litTint: string;
+  lit: CoatData;
 }
 
 export const Cascade: StoryObj<CascadeArgs> = {
@@ -151,34 +145,30 @@ export const Cascade: StoryObj<CascadeArgs> = {
   // children too, with no code walking anything. Turn on `spotlight` and one figure clears the cast
   // back to nothing: "all but this one" is a dim on the tray and a `clear` on the lit child, which
   // is exactly what overriding an inherited value means. No `if scope ===` anywhere.
-  render: ({ gap, traySurface, castRecipe, castLevel, castTint, figureW, figureH, figureSurface, spotlight, litRecipe, litLevel, litTint }) => {
+  render: ({ gap, traySurface, cast, figureW, figureH, figureSurface, spotlight, lit }) => {
     registerLayout("story.coated.row", rowLayout({ gap }));
     const tray = node(
       "frozenTray",
       Container({ layout: "story.coated.row" }),
       Surfaced({ surface: traySurface }),
-      Coated({ cast: coat(castRecipe, castLevel, castTint) }),
+      Coated({ cast }),
     );
     add(tray, node("dimFigure", Bounded({ bounds: rect(figureW, figureH) }), Surfaced({ surface: figureSurface })));
     // The lit figure overrides the inherited cast when the spotlight is on — `clear` takes it back
     // to nothing, which is the "all but one" inversion, straight out of overriding a `fromOwner`.
-    const litAtoms = spotlight ? [Coated({ cast: coat(litRecipe, litLevel, litTint) })] : [];
+    const litAtoms = spotlight ? [Coated({ cast: lit })] : [];
     add(tray, node("litFigure", Bounded({ bounds: rect(figureW, figureH) }), Surfaced({ surface: figureSurface }), ...litAtoms));
     return scene(tray).el;
   },
   args: {
     gap: 0.3,
     traySurface: "plate",
-    castRecipe: "wash",
-    castLevel: 0.6,
-    castTint: "stageBg",
+    cast: { recipe: "wash", level: 0.6, tint: "stageBg" },
     figureW: 1,
     figureH: 1.4,
     figureSurface: "plate",
     spotlight: false,
-    litRecipe: "clear",
-    litLevel: 0,
-    litTint: "",
+    lit: { recipe: "clear", level: 0, tint: "" },
   },
   argTypes: {
     gap: gapControl("tray/layout"),
@@ -189,17 +179,7 @@ export const Cascade: StoryObj<CascadeArgs> = {
     figureSurface: surfaceControl("figures/surface"),
     spotlight: documented("arg.spotlight", {}, "litFigure/cast"),
     // The override exists only while the spotlight is on: with it off the figure simply inherits.
-    litRecipe: documented("arg.coatRecipe", { control: "select", options: RECIPES, if: { arg: "spotlight", truthy: true } }, "litFigure/cast"),
-    litLevel: documented(
-      "arg.coatLevel",
-      { control: { type: "range", min: 0, max: 1, step: 0.05 }, if: { arg: "spotlight", truthy: true } },
-      "litFigure/cast",
-    ),
-    litTint: documented(
-      "arg.coatTint",
-      { control: "select", options: ["", ...PAINTS], if: { arg: "spotlight", truthy: true } },
-      "litFigure/cast",
-    ),
+    ...coatArgTypes("lit", "litFigure/cast", { if: { arg: "spotlight", truthy: true } }),
   },
   parameters: { gkDocStory: "coated.cascade" },
 };
@@ -272,8 +252,7 @@ interface CensorArgs {
   w: number;
   h: number;
   surface: string;
-  recipe: string;
-  level: number;
+  self: CoatData;
 }
 
 export const Censor: StoryObj<CensorArgs> = {
@@ -281,17 +260,16 @@ export const Censor: StoryObj<CensorArgs> = {
   // all; on the glass a named `blur` filter animates over it, clocked by the painter. The atom holds
   // the static truth (`censor`, a strength); the animation is the render tier's, where the live
   // per-object transform already lives.
-  render: ({ w, h, surface, recipe, level }) => {
-    const card = node("hiddenTrap", Bounded({ bounds: rect(w, h) }), Surfaced({ surface }), Coated({ self: coat(recipe, level, "") }));
+  render: ({ w, h, surface, self }) => {
+    const card = node("hiddenTrap", Bounded({ bounds: rect(w, h) }), Surfaced({ surface }), Coated({ self }));
     return scene(card).el;
   },
-  args: { w: 1.4, h: 2, surface: "plate", recipe: "censor", level: 0.7 },
+  args: { w: 1.4, h: 2, surface: "plate", self: { recipe: "censor", level: 0.7, tint: "" } },
   argTypes: {
     w: sizeControl("card/bounds", "arg.w"),
     h: sizeControl("card/bounds", "arg.h"),
     surface: surfaceControl("card/surface"),
-    recipe: documented("arg.coatRecipe", { control: "select", options: RECIPES }, "card/self"),
-    level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "card/self"),
+    ...coatArgTypes("self", "card/self"),
   },
   parameters: { gkDocStory: "coated.censor" },
 };
@@ -303,9 +281,7 @@ interface BluffArgs {
   w: number;
   h: number;
   surface: string;
-  recipe: string;
-  level: number;
-  tint: string;
+  self: CoatData;
 }
 
 export const Bluff: StoryObj<BluffArgs> = {
@@ -313,25 +289,23 @@ export const Bluff: StoryObj<BluffArgs> = {
   // tell (a `self` coat); the opponent's tree simply DOES NOT HAVE the field, because the
   // orchestrator omitted it from that projection. No recipe here reads a viewer: privacy is what a
   // tree does not contain, never a flag the paint checks (`guard.coat-not-viewer`).
-  render: ({ gap, w, h, surface, recipe, level, tint }) => {
+  render: ({ gap, w, h, surface, self }) => {
     registerLayout("story.coated.bluff", rowLayout({ gap }));
     const desk = node("bluffDesk", Container({ layout: "story.coated.bluff" }));
     const card = (id: string, withTell: boolean) =>
-      node(id, Bounded({ bounds: rect(w, h) }), Surfaced({ surface }), ...(withTell ? [Coated({ self: coat(recipe, level, tint) })] : []));
+      node(id, Bounded({ bounds: rect(w, h) }), Surfaced({ surface }), ...(withTell ? [Coated({ self })] : []));
     add(desk, card("yourCard", true));
     add(desk, card("theirCard", false));
     return scene(desk).el;
   },
-  args: { gap: 1, w: 1.2, h: 1.7, surface: "plate", recipe: "ring", level: 0.8, tint: "accent" },
+  args: { gap: 1, w: 1.2, h: 1.7, surface: "plate", self: { recipe: "ring", level: 0.8, tint: "accent" } },
   argTypes: {
     gap: gapControl("desk/layout"),
     w: sizeControl("cards/bounds", "arg.w"),
     h: sizeControl("cards/bounds", "arg.h"),
     surface: surfaceControl("cards/surface"),
     // The tell is on YOUR card alone — the other tree simply does not carry the field.
-    recipe: documented("arg.coatRecipe", { control: "select", options: RECIPES }, "yourCard/self"),
-    level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "yourCard/self"),
-    tint: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS] }, "yourCard/self"),
+    ...coatArgTypes("self", "yourCard/self"),
   },
   parameters: { gkDocStory: "coated.bluff" },
 };
