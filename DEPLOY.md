@@ -271,15 +271,26 @@ Three workflows, split along the seam between "an artifact exists" and "producti
   calls `build.yml` through `uses:`. It has to be a call and not a separate workflow: the `needs:` gate only
   exists inside ONE run, and two independent workflows would start in parallel — an
   unverified image would reach the registry.
+
+  The list of workspaces is DERIVED from `package.json` (`scripts/workspaces.mjs`), not retyped
+  into the workflow, and `scripts/check-ci.mjs` guards the seam — run it by hand with
+  `npm run check:ci`. Both exist because the hand-written list was outgrown once already: jobs
+  named `client` and `client2` long after those directories left git, and the kit, the presets and
+  the apps were not in CI at all. Nobody noticed, because every commit carried `[skip ci]` and the
+  workflow simply never ran.
 - **`build.yml`** — builds every component from `deploy/components.json` as a matrix and
   pushes to GHCR. Also runnable by hand for any branch.
 - **`deploy.yml`** — the button. Takes a tag and components, runs `scripts/deploy.sh`.
 
-`main` does deploy automatically, but through that same `deploy.yml` and by the IMMUTABLE
-`sha-<commit>` tag rather than the moving `main` one: otherwise the pointer could already
-have moved on to the next build by deploy time, and something other than what was tested
-would ship. The same workflow is invoked by hand with any other tag — which is where the
-rollback comes from.
+`main` does NOT deploy. The chain stops at the image: green tests → `build.yml` → GHCR, and
+production moves only when `deploy.yml` is pressed. Building and deploying are decisions of
+different weight — an image in the registry is visible to nobody but the registry, a deploy is
+visible to the player — and that same split is where the rollback comes from: deploy a tag that
+already exists instead of reverting and rebuilding.
+
+However it is invoked, `deploy.yml` takes the IMMUTABLE `sha-<commit>` tag rather than the moving
+`main` one: that pointer could already have moved on to the next build by deploy time, and
+something other than what was tested would ship.
 
 The image reaches Fly by one of two routes, and `scripts/deploy.sh` picks it: a public
 package Fly pulls straight from GHCR; a private one the script mirrors BYTE FOR BYTE into

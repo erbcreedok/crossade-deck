@@ -8,7 +8,8 @@
   ],
   "scripts": {
     "kit": "npm run dev --workspace game-kit",
-    "gen:preset": "node scripts/new-preset.mjs"
+    "gen:preset": "node scripts/new-preset.mjs",
+    "check:ci": "node scripts/check-ci.mjs"
   },
   "devDependencies": {
     "jsdom": "^25.0.1"

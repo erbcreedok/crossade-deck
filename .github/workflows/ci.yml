@@ -5,10 +5,18 @@
 # параллельно, и в реестр уехал бы образ, который никто не проверял. Вызов reusable-workflow
 # (`uses:`) эту связь сохраняет, а файл при этом остаётся коротким.
 #
-# Цепочка на main: тесты → образы в GHCR → выкатка прода. Выкатка при этом вынесена в
-# ОТДЕЛЬНЫЙ workflow и вызывается по неизменяемому тегу — не ради лишнего файла, а потому что
-# ровно этот же workflow дёргается руками с любым другим тегом. Из чего и получается откат:
-# выкатить прошлый образ, а не revert'ить и пересобирать.
+# Цепочка на main: тесты → образы в GHCR. ВЫКАТКА В НЕЁ НЕ ВХОДИТ и дёргается кнопкой
+# (`deploy.yml`, workflow_dispatch) по неизменяемому тегу `sha-<коммит>`. Так решено потому, что
+# собрать и переставить продакшен — решения разного веса: образ в реестре не виден никому, кроме
+# реестра, а выкатка видна игроку. Из той же развязки получается откат: выкатить тег, который уже
+# лежит, а не revert'ить и пересобирать. Ровно это `deploy.yml` про себя и пишет; здесь цепочка
+# была сильнее его слов, теперь нет.
+#
+# Список воркспейсов НЕ переписан сюда руками — он выводится из `package.json`
+# (`scripts/workspaces.mjs`). Пока он писался руками, репозиторий его перерос: в джобах стояли
+# `client` и `client2`, удалённые из git, а `game-kit`, `game-presets/*` и `apps/*` не значились
+# вовсе. Держалось это на `[skip ci]` в каждом ночном коммите — workflow просто не запускался.
+# Сторожит совпадение `scripts/check-ci.mjs`, и он же первым шагом ниже.
 name: CI
 
 on:
@@ -20,9 +28,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    name: CI сходится с репозиторием
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.plan.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Без установки: сторож и вывод списка — голый node по файлам репозитория. Поэтому джоба
+      # идёт первой и стоит секунды: разъехавшийся CI незачем ловить через пять минут установки.
+      - run: node scripts/check-ci.mjs
+
+      - id: plan
+        run: echo "packages=$(node scripts/workspaces.mjs)" >> "$GITHUB_OUTPUT"
+
   server:
     name: Сервер — тесты и типы
     runs-on: ubuntu-latest
+    # Сервер НЕ воркспейс: у него свой лок и своя установка, поэтому и джоба своя, написанная
+    # руками. Что он вообще где-то назван, сторожит `check-ci.mjs`.
     defaults:
       run:
         working-directory: server
@@ -37,72 +65,81 @@ jobs:
       - run: npm test
       - run: npx tsc --noEmit
 
-  client:
-    name: Клиент — тесты, типы и сборка
+  workspaces:
+    name: ${{ matrix.pkg }}
+    needs: guard
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
+    strategy:
+      # Упавший хаб не должен отменять почти проверенный кит: пакеты независимы, и знать про
+      # обе поломки сразу лучше, чем узнавать их по одной за прогон.
+      fail-fast: false
+      matrix:
+        pkg: ${{ fromJSON(needs.guard.outputs.packages) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npx tsc --noEmit
-      # Сборка тоже проверка: она падает на том, что не ловят ни тесты, ни tsc
-      # (например, импорт, который есть только в dev-режиме).
-      - run: npx vite build
 
-  client2:
-    name: Клиент v2 — тесты, типы и сборка
+      # Из КОРНЯ: репозиторий — npm workspaces, и лок там один. Установка внутри пакета
+      # построила бы второе дерево рядом с первым.
+      - run: npm ci
+
+      # Баг npm с необязательными зависимостями (npm/cli#4828): корневой лок сгенерирован на
+      # macOS, и платформенного бинарника rollup для Linux в нём нет — сборка падает с
+      # «Cannot find module @rollup/rollup-linux-x64-gnu». Доставляется РОВНО он и ровно той
+      # версии, что стоит у самого rollup, так что `npm ci` остаётся строгим и плавает ноль
+      # пакетов. Та же строка есть в `pages.yml` и (с `-musl`) в `deploy/hub.Dockerfile`:
+      # раннеры разные, платформы разные. Правится в одном — сверяется в двух других.
+      - name: Доставить платформенный бинарник rollup
+        run: npm i --no-save "@rollup/rollup-linux-x64-gnu@$(node -p "require('rollup/package.json').version")"
+
+      - run: npm run typecheck -w ${{ matrix.pkg }}
+      - run: npm test -w ${{ matrix.pkg }}
+
+      # Сборка тоже проверка: она падает на том, что не ловят ни тесты, ни tsc — например на
+      # импорте, который есть только в dev-режиме. `--if-present` здесь не поблажка, а разница
+      # между сортами пакетов: у пресетов сборки нет вовсе, они уезжают исходниками.
+      - run: npm run build -w ${{ matrix.pkg }} --if-present
+
+  catalog:
+    name: Каталог — сборка и e2e
+    needs: guard
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client2/package-lock.json
       - run: npm ci
-      - run: npm test
-      - run: npx tsc --noEmit
-      # Сборка в prod-режиме — та же, что уедет в образ (base=/v2/). Ловит то, что не видят тесты/tsc.
-      - run: npx vite build
-      # Сторибук ломается САМ по себе — своим конфигом, своими стори, своим docgen'ом, — и
-      # обычной сборкой клиента это не ловится. Без этого шага поломка всплывала бы только
-      # на main, при сборке образа, то есть после мержа.
-      - run: npm run build-storybook
+      - name: Доставить платформенный бинарник rollup
+        run: npm i --no-save "@rollup/rollup-linux-x64-gnu@$(node -p "require('rollup/package.json').version")"
+
+      # Только chromium: e2e сравнивает картинки с WebGL-канваса, и три движка втрое умножили бы
+      # время ради вопроса «одинаково ли рисуют браузеры», который этот слой не задаёт.
+      - run: npx playwright install --with-deps chromium
+
+      # Каталог собирает сам playwright (`webServer` в конфиге) и поднимает статикой: e2e гоняется
+      # по СОБРАННОМУ каталогу, а не по dev-серверу, потому что уезжает именно сборка.
+      #
+      # Джоба отдельная от матрицы: она одна на репозиторий (каталог только у кита), тянет браузер
+      # и идёт минуты — в матрице этот груз висел бы на каждом пакете.
+      - run: npm run test:e2e -w game-kit
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: game-kit/test-results
+          retention-days: 7
 
   images:
     name: Образы в GHCR
-    # client2 в гейте наравне с остальными: он едет и в web-образ (на /v2/), и в storybook.
-    needs: [server, client, client2]
+    needs: [guard, server, workspaces, catalog]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
-      # Для витрины сторибука на Pages — reusable-workflow не может расширить права сам.
-      pages: write
-      id-token: write
     uses: ./.github/workflows/build.yml
-
-  deploy:
-    name: Выкатка прода
-    needs: images
-    permissions:
-      contents: read
-      packages: read
-    # По НЕИЗМЕНЯЕМОМУ тегу (sha-<коммит>), а не по «main»: подвижный указатель к моменту
-    # выкатки мог бы уже показывать на следующую сборку, и уехало бы не то, что проверяли.
-    uses: ./.github/workflows/deploy.yml
-    with:
-      tag: ${{ needs.images.outputs.tag }}
-      environment: prod
-    secrets: inherit
