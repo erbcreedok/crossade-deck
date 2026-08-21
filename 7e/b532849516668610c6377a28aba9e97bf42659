@@ -1,0 +1,31 @@
+.github/workflows/build.yml
+  s_170937f0c01a52::t_7805f685f54c10 28
+  s_170937f0c01a52::t_32053f521f3796 159,161-164
+scripts/check-ci.mjs
+  s_170937f0c01a52::t_d35ade8d353cec 1-101
+scripts/workspaces.mjs
+  s_170937f0c01a52::t_db81ffdf7a7013 1-61
+.github/workflows/ci.yml
+  s_170937f0c01a52::t_fcf6c68039a813 8-19,31-48,52-53,68-70,72-77,84-86,89-108,117-136,140
+package.json
+  s_170937f0c01a52::t_e66fb7bd57f263 11-12
+DEPLOY.md
+  s_170937f0c01a52::t_e1c7c7f8e22441 285-293
+  s_170937f0c01a52::t_3572ada8c317b7 274-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "7eb532849516668610c6377a28aba9e97bf42659",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
