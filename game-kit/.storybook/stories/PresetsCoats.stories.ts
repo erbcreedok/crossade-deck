@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { add, Bounded, Coated, Container, installStockCoats, node, rect, registerLayout, rowLayout, Surfaced } from "../../src/index.js";
+import { add, Bounded, Coated, Container, installStockCoats, node, rect, registerLayout, rowLayout, Surfaced, type Coat as CoatData } from "../../src/index.js";
 import { scene } from "../devtools/scene.js";
-import { documented, PAINTS } from "./surfaceControls.js";
+import { documented, hiddenRow, PAINTS } from "./surfaceControls.js";
 import { BACK_SURFACE, crossade, faceSurface, installClassicSkin, type CardSpec } from "@game-presets/cards";
 import { DIE_SIZE, faceSurface as dieFace, installDiceSkin } from "@game-presets/dice";
 
@@ -19,22 +19,25 @@ const CARD_H = 1.4;
 installStockCoats();
 
 interface CoatArgs {
-  level: number;
-  tint: string;
+  self: CoatData;
 }
 
-const levelControl = documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "self");
-const tintControl = documented("arg.coatTint", { control: "select", options: ["", ...PAINTS] }, "self");
+/**
+ * The knobs of the ONE coat these pages show, under the names the atom gives them.
+ *
+ * The recipe is part of the value and not part of the panel: a page called `Wash` that let a reader
+ * pick `ring` would be a page whose name is a lie. So it rides in the args — where the snippet needs
+ * it, because the snippet is the coat the reader would write — and stays off the controls.
+ */
+const coatControls: Record<string, unknown> = {
+  self: hiddenRow(),
+  "self.recipe": hiddenRow(),
+  "self.level": documented("arg.coatLevel", { control: { type: "number", min: 0, max: 1, step: 0.05 } }, "self"),
+  "self.tint": documented("arg.coatTint", { control: "select", options: ["", ...PAINTS] }, "self"),
+};
 
-const box = (surface: string, recipe: string, a: CoatArgs) =>
-  scene(
-    node(
-      "coatedTile",
-      Bounded({ bounds: rect(1.6, 1.6) }),
-      Surfaced({ surface }),
-      Coated({ self: { recipe, level: a.level, tint: a.tint } }),
-    ),
-  ).el;
+const box = (surface: string, self: CoatData) =>
+  scene(node("coatedTile", Bounded({ bounds: rect(1.6, 1.6) }), Surfaced({ surface }), Coated({ self }))).el;
 
 const meta: Meta = {
   title: "Presets/Coats",
@@ -45,18 +48,18 @@ export default meta;
 export const Wash: StoryObj<CoatArgs> = {
   // A flat colour over the surface, opacity from `level`. The continuum — a charge, a dim, an HP
   // fade — is one recipe; drag `level` and pick a `tint`, there is no scene per value.
-  render: (a) => box("plate", "wash", a),
-  args: { level: 0.6, tint: "accent" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => box("plate", self),
+  args: { self: { recipe: "wash", level: 0.6, tint: "accent" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.wash" },
 };
 
 export const Ring: StoryObj<CoatArgs> = {
   // A stroke around the contour, its weight from `level` — a selection ring, a ward. It replaces the
   // surface's own border while it lasts, one stroke per quad.
-  render: (a) => box("plate", "ring", a),
-  args: { level: 0.6, tint: "accent" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => box("plate", self),
+  args: { self: { recipe: "ring", level: 0.6, tint: "accent" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.ring" },
 };
 
@@ -64,9 +67,9 @@ export const Fill: StoryObj<CoatArgs> = {
   // The blueprint completing: a SOLID coat over `level` of the face, bottom-up, cut where the
   // level stops. A different KIND of mark from `wash` — a half-built thing is half DRAWN, not half
   // faded — and the hard cut edge is what says so. Drag `level` and watch it build.
-  render: (a) => box("plate", "fill", a),
-  args: { level: 0.4, tint: "accent" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => box("plate", self),
+  args: { self: { recipe: "fill", level: 0.4, tint: "accent" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.fill" },
 };
 
@@ -74,13 +77,14 @@ export const Clear: StoryObj<CoatArgs> = {
   // The recipe that draws NOTHING — its whole job is to STOP a cast. The tray casts a wash over
   // both tiles; the right one carries `clear`, so the nearest-cast walk stops there and the tile
   // stays lit. "All but this one" is a dim on the tray and a `clear` on the exception.
-  render: (a) => {
+  render: ({ self }) => {
     registerLayout("preset.clear.row", rowLayout({ gap: 0.3 }));
     const tray = node(
       "castTray",
       Container({ layout: "preset.clear.row" }),
       Surfaced({ surface: "plate" }),
-      Coated({ cast: { recipe: "wash", level: a.level, tint: a.tint } }),
+      // The tray casts what the knobs say; the arg IS the coat, so the snippet is the coat.
+      Coated({ cast: self }),
     );
     add(tray, node("dimTile", Bounded({ bounds: rect(1.2, 1.2) }), Surfaced({ surface: "plate" })));
     add(
@@ -94,8 +98,8 @@ export const Clear: StoryObj<CoatArgs> = {
     );
     return scene(tray).el;
   },
-  args: { level: 0.6, tint: "stageBg" },
-  argTypes: { level: levelControl, tint: tintControl },
+  args: { self: { recipe: "wash", level: 0.6, tint: "stageBg" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.clear" },
 };
 
@@ -108,9 +112,9 @@ export const Censor: StoryObj<CoatArgs> = {
   // colour, and the page would show a grey square with a few specks, which is the very thing the
   // recipe exists NOT to be. `shelf` is declared further down and that is fine: a story's `render`
   // runs long after the module has finished evaluating.
-  render: (a) => shelf("censor", a),
-  args: { level: 0.9, tint: "" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => shelf(self),
+  args: { self: { recipe: "censor", level: 0.9, tint: "" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.censor" },
 };
 
@@ -121,13 +125,13 @@ export const Censor: StoryObj<CoatArgs> = {
 // tile, because half of what an edition does is how it sits on what is under it: a foil on a bright
 // plate and a foil on a well are not the same picture, and one tile would hide that.
 
-const shelf = (recipe: string, a: CoatArgs) => {
+const shelf = (self: CoatData) => {
   // An edition goes ON something: an ace, a back and a die, not three blank plates.
   installClassicSkin();
   installDiceSkin();
   registerLayout("coats.row", rowLayout({ gap: 0.22, padding: 0 }));
   const ace = crossade().find((c: CardSpec) => c.id === "spade-A")!;
-  const worn = Coated({ self: { recipe, level: a.level, tint: a.tint } });
+  const worn = Coated({ self });
   const row = node("shelf", Container({ layout: "coats.row" }));
   add(row, node("aceOfSpades", Bounded({ bounds: rect(CARD_W, CARD_H) }), Surfaced({ surface: faceSurface(ace) }), worn));
   add(row, node("back", Bounded({ bounds: rect(CARD_W, CARD_H) }), Surfaced({ surface: BACK_SURFACE }), worn));
@@ -138,43 +142,43 @@ const shelf = (recipe: string, a: CoatArgs) => {
 export const Foil: StoryObj<CoatArgs> = {
   // A cold sheen: a film over the whole face and a bright hairline round it — the two things a
   // laminated surface does to light, and the two a renderer with no shader can honestly do.
-  render: (a) => shelf("foil", a),
-  args: { level: 0.8, tint: "" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => shelf(self),
+  args: { self: { recipe: "foil", level: 0.8, tint: "" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.foil" },
 };
 
 export const Polychrome: StoryObj<CoatArgs> = {
   // The iridescent one. THREE films at three hues, because one tint reads as a stain and three at
   // low opacity read as a surface that cannot decide. The recipe walks the wheel itself.
-  render: (a) => shelf("polychrome", a),
-  args: { level: 0.9, tint: "" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => shelf(self),
+  args: { self: { recipe: "polychrome", level: 0.9, tint: "" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.polychrome" },
 };
 
 export const Glass: StoryObj<CoatArgs> = {
   // See-through and blurred, on the same shader the censor clocks. What makes it glass rather than
   // a censor is that it barely tints and keeps a bright rim, so what is under it stays readable.
-  render: (a) => shelf("glass", a),
-  args: { level: 0.7, tint: "" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => shelf(self),
+  args: { self: { recipe: "glass", level: 0.7, tint: "" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.glass" },
 };
 
 export const Frost: StoryObj<CoatArgs> = {
   // Glass without the rim — the soft pane a dialog puts over the table behind it.
-  render: (a) => shelf("frost", a),
-  args: { level: 0.7, tint: "" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => shelf(self),
+  args: { self: { recipe: "frost", level: 0.7, tint: "" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.frost" },
 };
 
 export const Faded: StoryObj<CoatArgs> = {
   // Barely there. Toward the DESK, not toward a colour — that is what a viewer means by
   // "transparent", and a coat cannot make the surface under it see-through however it is named.
-  render: (a) => shelf("faded", a),
-  args: { level: 0.6, tint: "" },
-  argTypes: { level: levelControl, tint: tintControl },
+  render: ({ self }) => shelf(self),
+  args: { self: { recipe: "faded", level: 0.6, tint: "" } },
+  argTypes: coatControls,
   parameters: { gkDocStory: "presetsCoats.faded" },
 };
