@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**59 слоёв · 1371 кейсов заявлено · 1198 расписано поимённо.**
+**59 слоёв · 1376 кейсов заявлено · 1203 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -54,7 +54,7 @@
 | [UNIT · AcceptRule — the zone's predicate](26-accept.md) | `vitest` | 20 | 20 |
 | [UNIT · Container policies — grab · occupied · keeps](27-container-policies.md) | `vitest` | 15 | 15 |
 | [UNIT · Element data atoms — Valued · Owned · Labeled · Placeable](28-element-atoms.md) | `vitest` | 6 | 6 |
-| [UNIT · Interaction & visibility atoms — Draggable · Focusable · Private](29-interaction-atoms.md) | `vitest` | 9 | 9 |
+| [UNIT · Interaction & visibility atoms — Draggable · Rotatable · Focusable · Actionable · Private](29-interaction-atoms.md) | `vitest` | 13 | 13 |
 | [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 44 | 44 |
 | [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 13 | 13 |
 | [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 8 | 8 |
@@ -75,7 +75,7 @@
 | [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 17 | 17 |
 | [UNIT · Rollable — грань как истина, кувырок как вид](48-rollable.md) | `vitest` | 3 | 3 |
 | [UNIT · текст — линейка портом, раскладка чистой функцией](49-text.md) | `vitest (headless, no font engine)` | 13 | 13 |
-| [UNIT · контролы — `Pressable`, пресет `button`, проводка](50-controls.md) | `vitest` | 31 | 31 |
+| [UNIT · контролы — `Pressable`, пресет `button`, проводка](50-controls.md) | `vitest` | 32 | 32 |
 | [UNIT · пыль цензуры — облако без единого пикселя](51-censor-dust.md) | `vitest (headless, no WebGL)` | 21 | 21 |
 | [UNIT · камера — как на холст смотрят](52-camera.md) | `vitest (headless, no renderer)` | 28 | 28 |
 | [UNIT · руки на столе — жесты камеры и арбитраж](53-camera-input.md) | `vitest (headless, no renderer)` | 13 | 13 |

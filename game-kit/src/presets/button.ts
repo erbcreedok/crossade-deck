@@ -35,6 +35,7 @@ import {
 import { rect } from "./shapes.js";
 import { transformShape } from "../core/path.js";
 import { Coated, NO_COAT, type Coat } from "../core/atoms/coated.js";
+import { Actionable } from "../core/atoms/actionable.js";
 import { Container } from "../core/atoms/container.js";
 import { Labeled } from "../core/atoms/labeled.js";
 import { Pressable } from "../core/atoms/pressable.js";
@@ -91,7 +92,16 @@ export interface ButtonSpec {
   readonly asleep?: boolean;
   /** A registered text style's NAME, never a font. Absent, the stock control role. */
   readonly style?: string;
-  /** What a press MEANS, as data a handler reads — never parsed out of the id. Absent, it says nothing. */
+  /**
+   * WHICH verb a press means — a ref into the action registry, written as `Actionable`. Absent, the
+   * control emits nothing and `activate` refuses, which is the whole of "disabled" in this kit.
+   */
+  readonly action?: string;
+  /**
+   * What rides WITH the verb: the data a handler reads, never parsed out of the id. Absent, it says
+   * nothing. Split from `action` because the two are different questions — which verb, and about
+   * what — and a control may honestly carry either alone.
+   */
   readonly means?: Readonly<Record<string, unknown>>;
   /** What it wears under a pointer. Absent, the stock `HOVER`. */
   readonly hover?: Coat;
@@ -132,6 +142,7 @@ export function button(id: string, spec: ButtonSpec = {}): Node {
   // The press lands on the OUTER node — it is what the finger sees the edge of, and hit-testing the
   // inner face would leave a dead ring the width of the inset around every control.
   outer.push(pressAtoms(spec));
+  if (spec.action) outer.push(Actionable({ action: spec.action }));
   if (spec.means) outer.push(Valued({ values: spec.means }));
   const plate = node(id, ...outer);
 

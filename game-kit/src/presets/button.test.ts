@@ -6,6 +6,7 @@
 // invisible in a screenshot.
 
 import { describe, expect, it } from "vitest";
+import { activate } from "../core/atoms/actionable.js";
 import { button } from "./button.js";
 import { rect } from "./shapes.js";
 import { caps, fieldsOf } from "../core/node.js";
@@ -30,6 +31,20 @@ describe("the button preset", () => {
     expect(caps(b).has("Pressable")).toBe(true);
     expect(fieldsOf<ValuedFields>(b, "Valued")?.values).toEqual({ does: "undo" });
     expect(fieldsOf<LabeledFields>(b, "Labeled")?.label).toBe("Undo");
+  });
+
+  it("button.action-is-which-verb-and-means-is-about-what — two questions, two homes", () => {
+    // Before `Actionable` existed, a press meant whatever `means` said, and "which verb" had to be
+    // read out of that bag by convention. Now the verb is a registry ref the kit can act on
+    // (`perform`) and `means` is the payload that rides with it — and a control may honestly carry
+    // either one alone: a menu item is all verb, a drop target is all payload.
+    const both = button("flip", { label: "Flip", action: "flip", means: { card: "spade-A" } });
+    expect(activate(both)).toBe("flip");
+    expect(fieldsOf<ValuedFields>(both, "Valued")?.values).toEqual({ card: "spade-A" });
+
+    // No `action` is the whole of "cannot be pressed". There is no flag to set and none to forget.
+    expect(activate(button("mute", { label: "Mute", means: { does: "mute" } }))).toBeUndefined();
+    expect(activate(button("go", { label: "Go", action: "flip" }))).toBe("flip");
   });
 
   it("button.a-look-is-a-name — a fifth one costs a registration, never a branch", () => {

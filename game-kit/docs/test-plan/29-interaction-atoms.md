@@ -1,6 +1,6 @@
-## UNIT · Interaction & visibility atoms — Draggable · Rotatable · Focusable · Private
+## UNIT · Interaction & visibility atoms — Draggable · Rotatable · Focusable · Actionable · Private
 
-`vitest` · 9 кейсов, расписано 9
+`vitest` · 13 кейсов, расписано 13
 
 Что можно утащить (`Draggable` + политика отказа), что можно КРУТИТЬ рукой (`Rotatable` + политика
 отпускания), что берёт фокус (`Focusable`), и кому
@@ -18,3 +18,7 @@
 | `atom.private.hides-the-subtree` | публичный стол, приватная рука `access:["me"]`, карта в ней | `visibleTo` | владелец видит руку и карту; чужой — ни руку, ни карту (рез достаёт ребёнка) |
 | `atom.private.public-child-is-fine` | публичный стол, приватный ребёнок и открытый сосед | `visibleTo` | приватность режет ВНИЗ: стол и сосед видны всем, режется только приватный |
 | `atom.private.default-hides-from-all` | `Private()` с пустым access | `visibleTo` | приватно всем — пустой список никого не впускает |
+| `atom.actionable.carries-a-ref-not-a-verb` | узел с `Actionable({action:"flip"})` и голый | `intentOf` | `"flip"` и `""`. Поле — ИМЯ, не колбэк: узел ездит в снимок, по проводу и в проекцию второго экрана, а функция не переживает ни одной поездки |
+| `atom.actionable.refusal-is-the-whole-of-disabled` | три контрола: с глаголом, без атома, с пустой ссылкой | `activate` | `"flip"`, `undefined`, `undefined`. `disabled` в модели нет (`guard.no-negation`), и вызывающему не нужно выяснять, какое именно «нет» он получил |
+| `atom.actionable.needs-a-footprint` | `Actionable` без `Bounded` | `actionable`, `intentOf`, `activate` | `false`, `""`, `undefined`. Чтение тоже гейтится способностью (`fieldsOf` спрашивает `caps`), поэтому полусостояния «поле отвечает, способности нет» не существует |
+| `atom.actionable.does-not-police-the-registry` | ссылка `"concede"`, которую кит не регистрировал | `activate` | `"concede"` — глаголы принадлежат потребителю, иначе каждый свой требовал бы разрешения кита |

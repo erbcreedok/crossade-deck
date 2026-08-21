@@ -3,6 +3,7 @@ import { add, node } from "../node.js";
 import { Bounded } from "./bounded.js";
 import { Container } from "./container.js";
 import { Draggable, draggable, onRejectOf } from "./draggable.js";
+import { Actionable, actionable, activate, intentOf } from "./actionable.js";
 import { Focusable, focusable } from "./focusable.js";
 import { Rotatable, restAngle, rotatable } from "./rotatable.js";
 import { Transformable } from "./transformable.js";
@@ -56,6 +57,39 @@ describe("interaction & visibility atoms", () => {
   it("atom.focusable.is-a-marker — presence says it can take focus, absence declines", () => {
     expect(focusable(node("f1", box(), Focusable()))).toBe(true);
     expect(focusable(node("f2", box()))).toBe(false);
+  });
+
+  it("atom.actionable.carries-a-ref-not-a-verb — the control names the intent it means", () => {
+    // A name, because a node travels: into a snapshot, over a wire, into another seat's projection.
+    // A callback survives none of those trips, so the field cannot be one.
+    expect(intentOf(node("a1", box(), Actionable({ action: "flip" })))).toBe("flip");
+    expect(intentOf(node("a2", box()))).toBe("");
+  });
+
+  it("atom.actionable.refusal-is-the-whole-of-disabled — three kinds of no, one answer", () => {
+    // There is no `disabled` field in the model (`guard.no-negation`). A control that cannot be
+    // pressed is one that does not carry the capability — and the caller never has to ask WHICH
+    // kind of no it got, because all three come back the same.
+    expect(activate(node("a3", box(), Actionable({ action: "flip" })))).toBe("flip");
+    expect(activate(node("a4", box())), "no atom at all").toBeUndefined();
+    expect(activate(node("a5", box(), Actionable({ action: "" }))), "declared, but names nothing").toBeUndefined();
+  });
+
+  it("atom.actionable.needs-a-footprint — an unmet requirement silences the atom entirely", () => {
+    // Same requirement as `Pressable` and `Focusable`: activation arrives by a pointer landing on a
+    // contour. And the chain does not merely refuse the ACTIVATION — reading is capability-gated
+    // too (`fieldsOf` asks `caps` first), so the ref reads as absent as well. That is the point
+    // worth pinning: there is no half-state where the field answers but the capability does not.
+    const noBox = node("a6", Actionable({ action: "flip" }));
+    expect(actionable(noBox)).toBe(false);
+    expect(intentOf(noBox), "an unsatisfied atom reads as absent, not as a switched-off field").toBe("");
+    expect(activate(noBox), "a control with no contour cannot be hit, so it emits nothing").toBeUndefined();
+  });
+
+  it("atom.actionable.does-not-police-the-registry — a consumer's own verb passes through", () => {
+    // The kit ships the handful its built-in atoms imply; a game registers its own. If the control
+    // checked the registry, every consumer verb would need the kit's permission to exist.
+    expect(activate(node("a7", box(), Actionable({ action: "concede" })))).toBe("concede");
   });
 
   it("atom.private.hides-the-subtree — a private hand hides its cards from everyone but its owner", () => {
