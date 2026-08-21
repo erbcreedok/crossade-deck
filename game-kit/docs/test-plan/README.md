@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**59 слоёв · 1357 кейсов заявлено · 1184 расписано поимённо.**
+**59 слоёв · 1362 кейсов заявлено · 1189 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -56,7 +56,7 @@
 | [UNIT · Element data atoms — Valued · Owned · Labeled · Placeable](28-element-atoms.md) | `vitest` | 6 | 6 |
 | [UNIT · Interaction & visibility atoms — Draggable · Focusable · Private](29-interaction-atoms.md) | `vitest` | 9 | 9 |
 | [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 44 | 44 |
-| [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 8 | 8 |
+| [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 13 | 13 |
 | [UNIT · Actions — the verb follows the capability](32-actions.md) | `vitest` | 8 | 8 |
 | [UNIT · Grippable — whose hands may lift it](33-grippable.md) | `vitest` | 6 | 6 |
 | [UNIT · Move — the whole drop as one plan](34-move.md) | `vitest` | 24 | 24 |

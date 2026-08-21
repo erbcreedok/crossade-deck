@@ -204,7 +204,7 @@ export { contentSwap, flipNames, flipRecord, flipEffect, installStockFlips, regi
 // a recipe, reach on the inheritance class — `self` this face, `cast` the whole subtree.
 export { Coated, hasCoat, NO_COAT, type Coat, type CoatedFields } from "./core/atoms/coated.js";
 // The card tap: a turn to one of a few discrete angle stops, the runtime holding which stop.
-export { Tiltable, tiltAngle, tiltStops, nextTilt, type TiltableFields } from "./core/atoms/tiltable.js";
+export { Tiltable, tiltAngle, tiltStops, nextTilt, setTilt, stopOf, type TiltableFields } from "./core/atoms/tiltable.js";
 // The context menu that emerges from what a node IS: a verb per capability, resolved from a registry.
 export {
   actionNames,
