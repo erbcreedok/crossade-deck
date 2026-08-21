@@ -1,0 +1,40 @@
+game-kit/docs/test-plan/README.md
+  s_1ac5cc735c3923::t_ad5b1dcf664683 10,78
+game-kit/src/render/buttons.ts
+  s_1ac5cc735c3923::t_40dfcecf2cc8c8 20
+  s_1ac5cc735c3923::t_14d755d9ddae5b 164-171
+game-kit/.storybook/locales/pages/actionable/ru.json
+  s_1ac5cc735c3923::t_d40d64f3e75327 40-57
+game-kit/.storybook/locales/chrome/ru.json
+  s_1ac5cc735c3923::t_d40d64f3e75327 22-24
+game-kit/src/render/buttons.test.ts
+  s_1ac5cc735c3923::t_3c4749f8e48caa 23-26,171-217
+  s_1ac5cc735c3923::t_b945d1d9cbf937 218-219
+game-kit/.storybook/locales/chrome/en.json
+  s_1ac5cc735c3923::t_d40d64f3e75327 22-24
+game-kit/docs/test-plan/50-controls.md
+  s_1ac5cc735c3923::t_ad5b1dcf664683 3,49
+game-kit/.storybook/stories/Actionable.stories.ts
+  s_1ac5cc735c3923::t_8806ec94fb1b54 3,8-9,12,14,16,19,21-22,25-30,33-34,40-42,44-47,49,51-59,68-70,75,77-127,129-136,138-141,151,153-158,160,162-166,169
+  s_1ac5cc735c3923::t_9e9e843d34ba1b 76
+  s_1ac5cc735c3923::t_05052b393e77bf 149
+  s_1ac5cc735c3923::t_a3c79890e69b99 13,31,35,142-148,150
+game-kit/.storybook/locales/pages/actionable/en.json
+  s_1ac5cc735c3923::t_d40d64f3e75327 40-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8266326b18eaced88d8b992330b987961534f77b",
+  "prompts": {},
+  "sessions": {
+    "s_1ac5cc735c3923": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0e0209cb-7db5-4e7d-98aa-5db7635ae442",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
