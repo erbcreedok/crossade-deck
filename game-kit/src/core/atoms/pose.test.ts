@@ -189,6 +189,36 @@ describe("pose grains", () => {
     // The whole point of the atom: one transaction resolves every grain, and the two do not know
     // about each other. A zone that stamps the turn and keeps the side does exactly that.
     const rest = restPose(zone({ angle: stamp(0), side: keep() }), { angle: 15, side: "down" }, { angle: 7 });
-    expect(rest).toEqual({ angle: 0, side: "down" });
+    expect(rest).toEqual({ angle: 0, tilt: 0, side: "down" });
+  });
+
+  // ── the tilt grain ──────────────────────────────────────────────────────────────────────────
+  //
+  // The last grain, and it waited on a fact rather than on work: until the stop lived on the node
+  // there was nothing for a zone to keep or stamp. It reads an INDEX and not degrees — the degrees
+  // are the piece's own (`Tiltable.stops`), and a zone imposing 90° would be telling a three-stop
+  // token something it has no way to be.
+
+  it("pose.tilt-defaults-to-keep", () => {
+    expect(restPose(zone(), { tilt: 2 }, {}).tilt).toBe(2);
+  });
+
+  it("pose.a-mat-can-square-a-tapped-piece-up", () => {
+    expect(restPose(zone({ tilt: stamp(0) }), { tilt: 2 }, {}).tilt).toBe(0);
+  });
+
+  it("pose.a-board-can-let-a-tapped-card-stay-tapped", () => {
+    expect(restPose(zone({ tilt: keep() }), { tilt: 1 }, {}).tilt).toBe(1);
+  });
+
+  it("pose.tilt-derives-from-the-arrangement-when-it-has-an-opinion", () => {
+    expect(restPose(zone({ tilt: derive() }), { tilt: 2 }, { tilt: 1 }).tilt).toBe(1);
+  });
+
+  it("pose.the-grains-do-not-know-about-each-other", () => {
+    // One transaction answers all of them, and each is answered on its own terms: degrees for the
+    // turn, an index for the stop, a side for the face.
+    const rest = restPose(zone({ angle: keep(), tilt: stamp(0), side: keep() }), { angle: 15, tilt: 2, side: "down" }, {});
+    expect(rest).toEqual({ angle: 15, tilt: 0, side: "down" });
   });
 });

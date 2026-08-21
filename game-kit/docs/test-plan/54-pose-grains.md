@@ -1,6 +1,6 @@
 ## UNIT · грани позы покоя — что зона делает с прилетевшим
 
-`vitest` · 23 кейсов, расписано 23
+`vitest` · 28 кейсов, расписано 28
 
 Поза покоя разбирается по ГРАНЯМ, и по каждой зона отвечает одно из трёх: **derive** (взять из
 раскладки), **stamp** (навязать своё, историю игнорируя), **keep** (принять принесённое). Эталон
@@ -48,3 +48,8 @@
 | `pose.unknown-side-rule-is-skipped-not-thrown` | `rule: "wobble"` у перевёрнутой зоны | `restPose`, принесено лицо | рубашка: незарегистрированное имя = зона не навязала ничего, то есть `keep` |
 | `pose.a-game-registers-its-own-side-reading-the-chain` | запись игры читает фазу `showdown` на борде выше | `restPose` у руки с этой записью | лицо: читается СОСТОЯНИЕ цепочки, а не траектория, поэтому поздний зритель резолвит так же (сценарий F) |
 | `pose.side-and-angle-are-grains-of-ONE-pose` | `angle: stamp(0)`, `side: keep()` | `restPose` | `{angle: 0, side: принесённая}` — одна транзакция, грани друг о друге не знают |
+| `pose.tilt-defaults-to-keep` | `Poser()` без граней, принесён упор 2 | `restPose` | 2 |
+| `pose.a-mat-can-square-a-tapped-piece-up` | `tilt: stamp(0)` | `restPose`, принесён упор 2 | 0 |
+| `pose.a-board-can-let-a-tapped-card-stay-tapped` | `tilt: keep()` | `restPose` | упор пережил посадку |
+| `pose.tilt-derives-from-the-arrangement-when-it-has-an-opinion` | `tilt: derive()`, раскладка сказала 1 | `restPose`, принесено 2 | 1 |
+| `pose.the-grains-do-not-know-about-each-other` | `angle: keep`, `tilt: stamp(0)`, `side: keep` | `restPose` | каждая грань отвечена на СВОИХ единицах: градусы у поворота, ИНДЕКС у упора, сторона у лица |

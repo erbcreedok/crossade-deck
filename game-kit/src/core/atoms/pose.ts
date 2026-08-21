@@ -175,6 +175,16 @@ export function watchedRecord(name: string): WatchRecord | undefined {
 export interface PoserFields {
   /** How the turn comes to rest here. */
   readonly angle: GrainRule;
+  /**
+   * Which STOP a tilting piece comes to rest on — the discrete cousin of the turn, and the same
+   * three answers. A mat that squares everything up stamps 0; a board that lets a tapped card stay
+   * tapped keeps what came in.
+   *
+   * It reads and writes a stop INDEX, not degrees: the degrees are the piece's own business
+   * (`Tiltable.stops`), and a zone that imposed 90° would be telling a three-stop token something
+   * it has no way to be.
+   */
+  readonly tilt: GrainRule;
   /** Which side is up once it lands. */
   readonly side: GrainRule;
   /**
@@ -211,13 +221,21 @@ export interface PoserFields {
 export const Poser = defineAtom<PoserFields>({
   name: "Poser",
   requires: ["Container"],
-  defaults: { angle: { rule: "keep", value: 0 }, side: { rule: "keep", value: 0 }, others: "", owner: "" },
-  classes: { angle: "own", side: "own", others: "own", owner: "own" },
+  defaults: {
+    angle: { rule: "keep", value: 0 },
+    tilt: { rule: "keep", value: 0 },
+    side: { rule: "keep", value: 0 },
+    others: "",
+    owner: "",
+  },
+  classes: { angle: "own", tilt: "own", side: "own", others: "own", owner: "own" },
 });
 
 /** What the load BRINGS IN. Absent means it carries nothing to say about that grain. */
 export interface CarriedPose {
   readonly angle?: number | undefined;
+  /** The stop it was standing on — an index into its own `Tiltable.stops`. */
+  readonly tilt?: number | undefined;
   /** The load's OWN side — its bit alone, as `Flippable` holds it, with no owner's turn added. */
   readonly side?: Facing | undefined;
 }
@@ -229,11 +247,15 @@ export interface CarriedPose {
  */
 export interface LaidPose {
   readonly angle?: number | undefined;
+  /** What the arrangement says about the stop, for one that has an opinion. */
+  readonly tilt?: number | undefined;
 }
 
 /** The resolved rest — every grain answered, because a piece at rest is somewhere definite. */
 export interface RestPose {
   readonly angle: number;
+  /** The stop it comes to rest on — written with `setTilt`, which clamps it into the piece's list. */
+  readonly tilt: number;
   /** What the OWNER should see. Written with `setFacing` after the load has changed owner. */
   readonly side: Facing;
 }
@@ -260,10 +282,11 @@ export function restPose(zone: Node, carried: CarriedPose, laid: LaidPose): Rest
   const turned = facing(zone);
   const side = carried.side ?? "up";
   const rules = fieldsOf<PoserFields>(zone, "Poser");
-  if (!rules) return { angle: carried.angle ?? 0, side: xor(side, turned) };
+  if (!rules) return { angle: carried.angle ?? 0, tilt: carried.tilt ?? 0, side: xor(side, turned) };
   const record = sideRecord(rules.side.rule);
   return {
     angle: resolveGrain(rules.angle, laid.angle, carried.angle),
+    tilt: resolveGrain(rules.tilt, laid.tilt, carried.tilt),
     side: record ? record({ carried: side, turned, zone }) : xor(side, turned),
   };
 }

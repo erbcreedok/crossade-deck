@@ -157,7 +157,7 @@ Transformable · Valued`.
 | `Surfaced` | `surface: RegistryRef` | площадь: `Bounded` ∨ `Container` | — (рисует painter) | `surfaceChanged` |
 | `Container` | `layout`, `hot?`, `grab?`, `intent?`, `occupied?`, `keeps?`, `facing?`, `children` | — | `add`, `remove`, `slotAt`, `reorder` | `childAdded/Removed/Moved` |
 | `Bakeable` | — (присутствие и есть объявление) | `Surfaced` | — | — |
-| `Tiltable` | `angle`, `limit?`, `snap?` | `Transformable` | `rotateTo` | `rotated` |
+| `Tiltable` | `stops`, `wrap`, `stop` (на каком стоит) | `Transformable` | `setTilt`, `tiltAngle` | `rotated` |
 | `Placeable` | — | `Bounded` | — | `placed` |
 | `Oriented` | `orientation?: Frame` | — | — | — |
 | `Skinnable` | `skin` (ЗНАЧЕНИЕ на элементе) | `Surfaced` | `reskin` | `skinChanged` |
@@ -177,7 +177,7 @@ Transformable · Valued`.
 | `Pressable` | `hover`, `held`, `sink` | `Bounded` | `wearPress` | — |
 | `Rollable` | `sides` | — | `setFace`, `faceOf` | — |
 | `Rotatable` | `snap`, `limit?` | `Transformable` | `restAngle` | — |
-| `Poser` | `angle`, `side` — грани позы: derive/stamp/keep | `Container` | `restPose` | — (поза покоя, не событие) |
+| `Poser` | `angle`, `tilt`, `side` — грани позы: derive/stamp/keep | `Container` | `restPose` | — (поза покоя, не событие) |
 | `Actionable` | `action: RegistryRef` | `Bounded` | `activate` | `activated` |
 | `Focusable` | — | `Bounded` | `focus`, `blur` | `focused` / `blurred` |
 | `Grippable` | `by` | `Bounded` | — | — (жесты адресуются владельцу) |

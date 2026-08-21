@@ -45,7 +45,7 @@ describe("planMove", () => {
   it("move.plain-move-allows — grab a card onto an open, accepting pile", () => {
     const { source, card } = withCard();
     const plan = planMove({ source, touched: card, target: allowTarget() });
-    expect(plan).toEqual({ verdict: "allow", load: ["card"], pose: { angle: 0, side: "up" } });
+    expect(plan).toEqual({ verdict: "allow", load: ["card"], pose: { angle: 0, tilt: 0, side: "up" } });
   });
 
   it("move.grab-empty-denies — nothing under the finger, nothing moves", () => {
@@ -117,7 +117,7 @@ describe("planMove", () => {
     const target = allowTarget();
     add(target, node("resident"));
     const plan = planMove({ source, touched: card, target });
-    expect(plan).toEqual({ verdict: "allow", load: ["card"], pose: { angle: 0, side: "up" } });
+    expect(plan).toEqual({ verdict: "allow", load: ["card"], pose: { angle: 0, tilt: 0, side: "up" } });
   });
 
   // ── the pose the drop comes to rest in ──────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ describe("planMove", () => {
   it("move.plan-carries-the-rest-pose — a drop answers where it lies, not only whether it may", () => {
     const { source, card } = withCard();
     const plan = planMove({ source, touched: card, target: allowTarget() });
-    expect(plan.pose).toEqual({ angle: 0, side: "up" });
+    expect(plan.pose).toEqual({ angle: 0, tilt: 0, side: "up" });
   });
 
   it("move.a-denied-move-has-no-pose — nothing lands, so nothing lies anywhere", () => {
@@ -160,7 +160,7 @@ describe("planMove", () => {
     const card = node("card", Draggable({ onReject: "home" }), Transformable({ angle: 15 }), Flippable({ turns: 1 }));
     add(source, card);
     const target = allowTarget(Poser({ angle: keep(), side: keep() }));
-    expect(planMove({ source, touched: card, target }).pose).toEqual({ angle: 15, side: "down" });
+    expect(planMove({ source, touched: card, target }).pose).toEqual({ angle: 15, tilt: 0, side: "down" });
   });
 
   it("move.the-target-turns-the-card-over — the side is a grain of the same pose", () => {

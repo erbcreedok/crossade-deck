@@ -22,6 +22,7 @@ import { type OccupiedOutcome } from "./atoms/occupied.js";
 import { type Verdict } from "./accept.js";
 import { restPose, type CarriedPose, type RestPose } from "./atoms/pose.js";
 import { ownFacing, setFacing } from "./atoms/flippable.js";
+import { setTilt, stopOf } from "./atoms/tiltable.js";
 import { Transformable, type TransformableFields } from "./atoms/transformable.js";
 
 /** Why a move was denied, when it was — the gate that stopped it. */
@@ -76,6 +77,7 @@ const CARRY = "Draggable";
 function carriedInto(touched: Node, given: CarriedPose | undefined): CarriedPose {
   return {
     angle: given?.angle ?? fieldsOf<TransformableFields>(touched, "Transformable")?.angle,
+    tilt: given?.tilt ?? stopOf(touched),
     side: given?.side ?? ownFacing(touched),
   };
 }
@@ -139,6 +141,9 @@ export function applyMove(req: MoveRequest, plan: MovePlan): void {
     add(target, load);
     const own = fieldsOf<TransformableFields>(load, "Transformable");
     if (own) compose(load, Transformable({ ...own, angle: rest.angle }));
+    // The stop is written by its own writer, which clamps into the piece's own list of stops: a
+    // zone that asked for a third one has said nothing a two-stop card can be.
+    setTilt(load, rest.tilt);
     setFacing(load, rest.side);
   }
 }
