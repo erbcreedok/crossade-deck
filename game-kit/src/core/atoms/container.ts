@@ -66,8 +66,17 @@ export interface LayoutRecord {
   /**
    * A pose per child, in the same order. `undefined` means "this layout does not place this
    * one" — the child's own `at` then stands, which is exactly what `free` does for everyone.
+   *
+   * `box` is the CONTAINER'S OWN footprint, when it has one, and it is what makes an edge sayable.
+   * Without it "put this bar against the bottom" cannot be written as an arrangement at all: a
+   * layout that sees only its children has no number to measure a bottom from, which is why every
+   * game so far has computed its own bar position by hand and re-computed it on every resize.
+   *
+   * OPTIONAL, and every stock layout ignores it: a row is a row whether or not anybody said how
+   * big the room is. A layout that needs the box and is not given one places nobody — the same
+   * silence a free canvas gives, rather than a guess about where an edge might be.
    */
-  place(children: readonly LayoutChild[]): readonly (Point | undefined)[];
+  place(children: readonly LayoutChild[], box?: Shape): readonly (Point | undefined)[];
   /**
    * The INVERSE of `place`: which child's seat a point falls on, by index — the address a drop
    * resolves to. OPTIONAL, and absent on purpose where a layout has no addresses: a free canvas
@@ -150,7 +159,10 @@ export function placeChildren(parent: Node): Map<NodeId, Point> {
   const fields = fieldsOf<ContainerFields>(parent, "Container");
   const children = layoutChildrenOf(parent);
 
-  const placed = fields ? (layoutRecord(fields.layout)?.place(children) ?? []) : [];
+  // The container's own box goes with the children: an arrangement that docks needs to know the
+  // room it is arranging inside, and it is the only party that cannot work it out for itself.
+  const room = footprint(parent);
+  const placed = fields ? (layoutRecord(fields.layout)?.place(children, room) ?? []) : [];
   children.forEach((child, i) => {
     // The layout wins where it spoke; the child's own pose stands where it did not; and a
     // child with neither sits at the origin, which is the only answer left.

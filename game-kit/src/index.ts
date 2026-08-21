@@ -87,7 +87,7 @@ export {
   type LayoutRecord,
   type Settle,
 } from "./core/atoms/container.js";
-export { freeLayout, installStockLayouts, rowLayout, type LayoutAlign, type RowOptions } from "./core/atoms/layouts.js";
+export { dockLayout, freeLayout, installStockLayouts, rowLayout, type DockOptions, type Edge, type LayoutAlign, type RowOptions } from "./core/atoms/layouts.js";
 // What a zone does to an arriving load, grain by grain: derive from the arrangement, stamp a fixed
 // value, or keep what came in. Records in a registry, so a game's own answer costs no branch here.
 export {

@@ -12,6 +12,9 @@
 
 import { contextFor, type ResolveContext } from "../core/resolve.js";
 import { holdTheGlass } from "./native.js";
+import { Bounded } from "../core/atoms/bounded.js";
+import { polyline } from "../core/path.js";
+import { compose } from "../core/node.js";
 import { type Node } from "../core/node.js";
 import { DEFAULT_VIEWER, type ViewerSettings } from "../core/viewer.js";
 
@@ -80,10 +83,42 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
   let tree: Node = root;
   let hud: Node | undefined;
 
+  /**
+   * THE SCREEN'S OWN SIZE, WRITTEN ON THE SCREEN'S OWN ROOT.
+   *
+   * The HUD root IS the glass, and nobody else can say how big that is — a layout is handed its
+   * container's box, and this is the one container whose box is not a design decision but a
+   * measurement. Kept in sync here so a dock is declared ONCE: turn the phone, the box changes
+   * under the same arrangement, and the bar is at the bottom of the new glass without anybody
+   * having been told about the rotation.
+   *
+   * In UNITS, because everything a layout does is in units. A viewport of nothing (a container
+   * measured before layout) writes nothing rather than a zero-sized room.
+   */
+  const fitHud = (): void => {
+    if (!hud) return;
+    const u = unit();
+    if (u <= 0) return;
+    const w = box.width / u;
+    const h = box.height / u;
+    compose(
+      hud,
+      Bounded({
+        bounds: polyline([
+          { x: -w / 2, y: -h / 2 },
+          { x: w / 2, y: -h / 2 },
+          { x: w / 2, y: h / 2 },
+          { x: -w / 2, y: h / 2 },
+        ]),
+      }),
+    );
+  };
+
   const sync = (): void => {
     box = measure(container, view);
     view.width = Math.max(1, Math.round(box.width * box.dpr));
     view.height = Math.max(1, Math.round(box.height * box.dpr));
+    fitHud();
     for (const l of listeners) l();
   };
   sync();
@@ -121,6 +156,7 @@ export function mount(container: HTMLElement, root: Node, initialViewer: ViewerS
     },
     setHudRoot(next) {
       hud = next;
+      fitHud();
       for (const l of listeners) l();
     },
     viewport: () => box,

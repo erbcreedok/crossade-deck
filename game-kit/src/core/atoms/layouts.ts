@@ -25,6 +25,11 @@ import { finite, oneOf } from "../guard.js";
 export function installStockLayouts(): void {
   registerLayout("free", freeLayout);
   registerLayout("row", rowLayout({ gap: 0.12 }));
+  // The four edges, under the names a spec author would guess. A dock is a row laid against one
+  // side of the room it is in — so it IS the row, told where the wall is.
+  for (const edge of ["top", "bottom", "left", "right"] as const) {
+    registerLayout(`dock.${edge}`, dockLayout(edge, { gap: 0.12 }));
+  }
 }
 
 /** Places nobody — every child keeps its own pose. */
@@ -85,5 +90,51 @@ export function rowLayout({ gap = 0, padding = 0, align = "center", direction = 
     padding: pad,
     place,
     indexAt: (point, children) => nearestSeat(place(children), point),
+  };
+}
+
+/** Which side of the room a dock lies against. */
+export type Edge = "top" | "bottom" | "left" | "right";
+
+export interface DockOptions extends RowOptions {
+  /** Air between the dock and the wall it lies against, in units. */
+  readonly pad?: number;
+}
+
+/**
+ * A ROW PUSHED AGAINST ONE WALL — the arrangement a bar, a rail or a toolbar actually is.
+ *
+ * It is the row's arithmetic along the wall and one number across it, and that is the whole of a
+ * dock: nothing here knows about HUDs, cameras or screens. Put it on the HUD root and the bar sits
+ * on the bottom of the glass; put it on a zone and the bar sits on the bottom of the ZONE. The
+ * canon's "a widget moves between the desk and the screen by changing parent" only stays true if
+ * docking never mentions which root it is on, and this is what that costs: nothing.
+ *
+ * WITHOUT A BOX IT PLACES NOBODY. A dock is a statement about a wall, and a container with no
+ * footprint has no walls — guessing one would put a bar through the middle of the desk and call it
+ * docked. Silence is the honest answer, and it is the same answer `free` gives.
+ */
+export function dockLayout(edge: Edge, options: DockOptions = {}): LayoutRecord {
+  const along = edge === "top" || edge === "bottom" ? "row" : "column";
+  const line = rowLayout({ ...options, direction: along });
+  const pad = options.pad ?? 0.12;
+  return {
+    place(children, box) {
+      if (!box) return children.map(() => undefined);
+      const room = extentOf(box);
+      return line.place(children).map((p, i) => {
+        if (!p) return undefined;
+        const own = children[i]?.footprint;
+        const half = own ? extentOf(own) : { w: 0, h: 0 };
+        // The wall is the room's own half-extent; the piece stops its own half short of it, so a
+        // taller control docks flush like a shorter one instead of hanging through the wall.
+        if (edge === "top") return { x: p.x, y: -room.h / 2 + half.h / 2 + pad };
+        if (edge === "bottom") return { x: p.x, y: room.h / 2 - half.h / 2 - pad };
+        if (edge === "left") return { x: -room.w / 2 + half.w / 2 + pad, y: p.y };
+        return { x: room.w / 2 - half.w / 2 - pad, y: p.y };
+      });
+    },
+    ...(line.indexAt ? { indexAt: line.indexAt } : {}),
+    ...(options.padding !== undefined ? { padding: options.padding } : {}),
   };
 }

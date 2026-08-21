@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
-import { freeLayout } from "../core/atoms/layouts.js";
+import { dockLayout, freeLayout } from "../core/atoms/layouts.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { add, node, remove } from "../core/node.js";
@@ -42,10 +42,33 @@ function bench() {
   const painter: Painter = { ready: Promise.resolve(), draw: (plan) => (last = plan), resize: () => {}, destroy: () => {} };
   // A REAL-SIZED PIECE OF GLASS. jsdom lays nothing out, so a bare div measures 1×1 — and a safe
   // area computed against one pixel cannot tell an edge from the middle.
+  //
+  // And a RESIZE OBSERVER, because turning a phone is the claim docking exists for: jsdom has none,
+  // so the host would never re-measure and the test would prove only that a box can be set once.
+  let observed: (() => void) | undefined;
+  (window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+    constructor(cb: () => void) {
+      observed = cb;
+    }
+    observe(): void {}
+    disconnect(): void {}
+  };
   const container = document.createElement("div");
   container.getBoundingClientRect = () => ({ width: 400, height: 300, x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 300, toJSON: () => "" }) as DOMRect;
   const host = mount(container, desk);
-  return { host, painter, screen, xOf: (id: string) => last.find((q) => q.id === id)?.x, ids: () => last.map((q) => q.id) };
+  const resize = (w: number, h: number): void => {
+    container.getBoundingClientRect = () => ({ width: w, height: h, x: 0, y: 0, top: 0, left: 0, right: w, bottom: h, toJSON: () => "" }) as DOMRect;
+    observed?.(); // the host re-measures exactly as it does when a real observer fires
+  };
+  return {
+    host,
+    painter,
+    screen,
+    resize,
+    xOf: (id: string) => last.find((q) => q.id === id)?.x,
+    yOf: (id: string) => last.find((q) => q.id === id)?.y,
+    ids: () => last.map((q) => q.id),
+  };
 }
 
 describe("the two roots", () => {
@@ -219,4 +242,70 @@ describe("the two roots", () => {
     expect(room.width).toBe(0);
   });
 
+
+  // ── docking ─────────────────────────────────────────────────────────────────────────────────
+  //
+  // Declared ONCE and true afterwards, which is the whole ask: turn the phone and the bar is at the
+  // bottom of the new glass without anybody having been told about the rotation.
+
+  it("dock.a-bar-sits-against-the-wall-of-the-room-it-is-in", () => {
+    const b = bench();
+    registerLayout("dock.bottom", dockLayout("bottom", { pad: 0 }));
+    const screen = node("hud", Container({ layout: "dock.bottom" }));
+    add(screen, node("bar", Bounded({ bounds: rect(2, 1) }), Surfaced({ surface: "plain" }), Transformable({})));
+    b.host.setHudRoot(screen);
+    renderFrame(b.host, b.painter);
+    const v = b.host.viewport();
+    // The bar's middle sits half its own height off the floor — flush, not hanging through it.
+    expect(b.yOf("bar")).toBeCloseTo(v.height - (1 * b.host.unit()) / 2, 0);
+  });
+
+  it("dock.turning-the-phone-moves-the-bar-and-nobody-was-told", () => {
+    // The claim the whole variant was chosen for. The arrangement is untouched; only the room
+    // changed, and the room is measured rather than declared.
+    const b = bench();
+    registerLayout("dock.bottom", dockLayout("bottom", { pad: 0 }));
+    const screen = node("hud", Container({ layout: "dock.bottom" }));
+    add(screen, node("bar", Bounded({ bounds: rect(2, 1) }), Surfaced({ surface: "plain" }), Transformable({})));
+    b.host.setHudRoot(screen);
+    renderFrame(b.host, b.painter);
+    const portrait = b.yOf("bar")!;
+    b.resize(300, 400);
+    renderFrame(b.host, b.painter);
+    expect(b.yOf("bar")).not.toBeCloseTo(portrait, 0);
+    expect(b.yOf("bar")).toBeCloseTo(400 - (1 * b.host.unit()) / 2, 0);
+  });
+
+  it("dock.without-a-box-it-places-nobody — a wall it cannot see is not guessed at", () => {
+    const b = bench();
+    registerLayout("dock.bottom", dockLayout("bottom", { pad: 0 }));
+    const loose = node("loose", Container({ layout: "dock.bottom" })); // no Bounded: no walls
+    const bar = node("bar", Bounded({ bounds: rect(2, 1) }), Surfaced({ surface: "plain" }), Transformable({ at: { x: 0, y: 0 } }));
+    add(loose, bar);
+    add(b.host.root, loose);
+    renderFrame(b.host, b.painter);
+    const v = b.host.viewport();
+    expect(b.yOf("bar")).toBeCloseTo(v.height / 2, 0); // its own pose stands, as under `free`
+  });
+
+  it("dock.the-same-arrangement-docks-inside-a-ZONE — nothing here knows about screens", () => {
+    // The canon's "a widget moves between the desk and the screen by changing parent" only holds
+    // while docking never mentions which root it is on. Put on a zone, the bar sits on the ZONE's
+    // bottom — the same record, a smaller room.
+    const b = bench();
+    registerLayout("dock.bottom", dockLayout("bottom", { pad: 0 }));
+    const zone = node(
+      "zone",
+      Bounded({ bounds: rect(4, 2) }),
+      Container({ layout: "dock.bottom" }),
+      Transformable({ at: { x: 0, y: 0 } }),
+    );
+    add(zone, node("bar", Bounded({ bounds: rect(2, 1) }), Surfaced({ surface: "plain" }), Transformable({})));
+    add(b.host.root, zone);
+    renderFrame(b.host, b.painter);
+    const v = b.host.viewport();
+    // Half the zone (1 unit) down from its middle, less half the bar (0.5) — inside the zone, not
+    // on the glass's floor.
+    expect(b.yOf("bar")).toBeCloseTo(v.height / 2 + 0.5 * b.host.unit(), 0);
+  });
 });
