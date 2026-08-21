@@ -174,7 +174,7 @@ const preview: Preview = {
           // Last, because it is ABOUT the catalog rather than of it: the pages that check the
           // pictures above them. Opening one runs its checks — the section is the switch.
           "Tests",
-          ["Node", "Bounded", "Surfaced", "Coated", "Transformable", "Container", "Pose", "Tiltable", "Flippable", "Draggable", "Grippable", "Private", "ShadowCaster", "Inviting", "Motion", "Dice"],
+          ["Node", "Bounded", "Surfaced", "Coated", "Transformable", "Container", "Pose", "Seats", "Tiltable", "Flippable", "Draggable", "Grippable", "Private", "ShadowCaster", "Inviting", "Motion", "Dice"],
         ],
       },
     },
