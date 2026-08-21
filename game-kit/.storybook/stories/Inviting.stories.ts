@@ -20,7 +20,7 @@ import {
 } from "../../src/index.js";
 import { wireDrag } from "../devtools/drag.js";
 import { scene } from "../devtools/scene.js";
-import { documented, PAINTS } from "./surfaceControls.js";
+import { documented, hiddenRow, PAINTS } from "./surfaceControls.js";
 
 // INVITING is the LOOK of willingness: one coat a zone wears while a drag it would take is in
 // flight. Whether the zone is willing is never decided here — that is the Acceptor's verdict, and
@@ -49,7 +49,7 @@ const PAINT = { control: "select", options: PAINTS };
 const TOKEN = { control: "text" };
 const RANK = { control: { type: "range", min: 1, max: 13, step: 1 } };
 /** Shown only when a recipe is named: an absent coat has no strength and no colour to be asked about. */
-const COATED = { if: { arg: "recipe", neq: "" } };
+const COATED = { if: { arg: "coat.recipe", neq: "" } };
 
 interface InviteArgs {
   deskLayout: string;
@@ -62,9 +62,10 @@ interface InviteArgs {
   zoneX: number;
   zoneY: number;
   accepts: number;
-  recipe: string;
-  level: number;
-  tint: string;
+  /** THE COAT AS ONE VALUE, because that is how the atom takes it. Three flat knobs poured into a
+   *  nested slot made the snippet read `{ coat: { recipe, level, tint } }` over `const recipe = …`
+   *  — the panel and the code describing the same thing in two different shapes. */
+  coat: { recipe: string; level: number; tint: string };
   sevenW: number;
   sevenH: number;
   sevenSurface: string;
@@ -83,7 +84,7 @@ interface InviteArgs {
   eightRank: number;
 }
 
-export const Invite: StoryObj<InviteArgs> = {
+export const Invite = {
   // A zone that takes SEVENS, and two cards you can drag at it. Pick up the seven and the zone
   // puts its invite on — ring, wash, whatever the knobs say; let go and it comes off. Pick up
   // the eight and nothing lights: the rule answered `deny`, and an unwilling zone has nothing
@@ -99,9 +100,7 @@ export const Invite: StoryObj<InviteArgs> = {
     zoneX,
     zoneY,
     accepts,
-    recipe,
-    level,
-    tint,
+    coat,
     sevenW,
     sevenH,
     sevenSurface,
@@ -134,7 +133,7 @@ export const Invite: StoryObj<InviteArgs> = {
         Surfaced({ surface: zoneSurface }),
         Transformable({ at: { x: zoneX, y: zoneY } }),
         Acceptor({ accept: { eq: ["el.values.rank", accepts] } }),
-        Inviting({ coat: { recipe, level, tint } }),
+        Inviting({ coat }),
       ),
     );
     add(
@@ -172,9 +171,7 @@ export const Invite: StoryObj<InviteArgs> = {
     zoneX: 1.2,
     zoneY: 0,
     accepts: 7,
-    recipe: "ring",
-    level: 0.7,
-    tint: "accent",
+    coat: { recipe: "ring", level: 0.7, tint: "accent" },
     sevenW: 1,
     sevenH: 1.4,
     sevenSurface: "story.invite.seven",
@@ -192,6 +189,8 @@ export const Invite: StoryObj<InviteArgs> = {
     eightY: 0.9,
     eightRank: 8,
   },
+  // PROBE: Storybook's types key `argTypes` by the args' own keys, so a dot-path is not modelled.
+  // Cast to find out whether the runtime supports what the types do not.
   argTypes: {
     deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
     zoneW: documented("arg.w", SIZE, "seven zone/bounds"),
@@ -203,9 +202,11 @@ export const Invite: StoryObj<InviteArgs> = {
     zoneX: documented("arg.x", PLACE, "seven zone/transformable"),
     zoneY: documented("arg.y", PLACE, "seven zone/transformable"),
     accepts: documented("arg.accepts", RANK, "seven zone/acceptor"),
-    recipe: documented("arg.coatRecipe", { control: "select", options: ["", ...coatNames()] }, "seven zone/inviting"),
-    level: documented("arg.coatLevel", { control: { type: "range", min: 0, max: 1, step: 0.05 }, ...COATED }, "seven zone/inviting"),
-    tint: documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], ...COATED }, "seven zone/inviting"),
+    // The parent's own row comes off: its three parts are controlled one by one just below.
+    coat: hiddenRow(),
+    "coat.recipe": documented("arg.coatRecipe", { control: "select", options: ["", ...coatNames()] }, "seven zone/inviting"),
+    "coat.level": documented("arg.coatLevel", { control: { type: "number", min: 0, max: 1, step: 0.05 }, ...COATED }, "seven zone/inviting"),
+    "coat.tint": documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], ...COATED }, "seven zone/inviting"),
     sevenW: documented("arg.w", SIZE, "seven card/bounds"),
     sevenH: documented("arg.h", SIZE, "seven card/bounds"),
     sevenSurface: documented("arg.registerAs", TOKEN, "seven card/surface"),
@@ -224,4 +225,4 @@ export const Invite: StoryObj<InviteArgs> = {
     eightRank: documented("arg.rank", RANK, "eight card/valued"),
   },
   parameters: { gkDocStory: "inviting.invite" },
-};
+} as StoryObj<InviteArgs>;

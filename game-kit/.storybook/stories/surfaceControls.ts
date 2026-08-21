@@ -119,6 +119,19 @@ function typeOf(spec: Record<string, unknown>): string {
  * one word, and a reader who only needed that stops reading; Storybook's own type line sits
  * BELOW the prose, where it is found last.
  */
+/**
+ * TAKE A ROW OFF THE PANEL — for a parent whose parts are controlled one by one.
+ *
+ * Nested args get a row for the OBJECT as well as for its members: a raw JSON box describing the
+ * same coat the three knobs beside it already describe. This is Storybook's own key for that, and
+ * it lives HERE because this file is the one already exempt from `guard.no-desk-called-table` —
+ * the guard bans the word as an identifier, the exemption is per FILE and named, and widening it
+ * story by story is how a rule stops holding. One place owns somebody else's vocabulary.
+ */
+export function hiddenRow(): Record<string, unknown> {
+  return { table: { disable: true } };
+}
+
 export function documented(
   key: string,
   spec: Record<string, unknown>,
