@@ -15,7 +15,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDENTITY, type Transform } from "../../core/transform.js";
-import { type Mark, type Quad } from "../scenePlan.js";
+import { type Mark, type Quad } from "../scenePlan/index.js";
 
 interface Tally {
   container: number;

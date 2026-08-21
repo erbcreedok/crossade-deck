@@ -6,7 +6,7 @@
 import { apply, invert, type Transform } from "../core/transform.js";
 import { byId, type Node } from "../core/node.js";
 import { type Point } from "../core/atoms/bounded.js";
-import { scenePlan, viewTransform } from "./scenePlan.js";
+import { scenePlan, viewTransform } from "./scenePlan/index.js";
 import { type Host } from "./host.js";
 
 /**

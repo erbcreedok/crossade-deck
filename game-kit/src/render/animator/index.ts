@@ -40,7 +40,7 @@ import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
 import { renderFrame } from "../stage.js";
 import { type TextMeasure } from "../textMetrics.js";
-import { transformsOf, viewTransform } from "../scenePlan.js";
+import { transformsOf, viewTransform } from "../scenePlan/index.js";
 
 export * from "./motions.js";
 import {

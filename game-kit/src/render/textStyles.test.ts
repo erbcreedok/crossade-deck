@@ -14,7 +14,7 @@ import { registerLayout, resetLayouts } from "../core/atoms/container.js";
 import { freeLayout } from "../core/atoms/layouts.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { resetSurfaces } from "./surfaces.js";
-import { scenePlan } from "./scenePlan.js";
+import { scenePlan } from "./scenePlan/index.js";
 import { DEFAULT_TEXT, registerTextStyle, resetTextStyles, textStyle } from "./textStyles.js";
 import { type TextMeasure } from "./textMetrics.js";
 

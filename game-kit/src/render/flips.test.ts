@@ -9,7 +9,7 @@ import { apply, type Transform } from "../core/transform.js";
 import { rect } from "../presets/shapes.js";
 import { contentSwap, flipEffect, flipNames, flipRecord, installStockFlips, registerFlip, resetFlips } from "./flips.js";
 import { resetEffects } from "./effects.js";
-import { transformsOf } from "./scenePlan.js";
+import { transformsOf } from "./scenePlan/index.js";
 
 const det = (t: Transform): number => t.a * t.d - t.b * t.c;
 const card = (id: string, ...f: Parameters<typeof Flippable>) =>

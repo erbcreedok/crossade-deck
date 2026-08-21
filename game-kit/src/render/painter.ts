@@ -5,7 +5,7 @@
 // real code. That is also what keeps the single-import guard meaningful rather than technical.
 
 import { type ThemeName } from "../core/viewer.js";
-import { type Mark, type Quad } from "./scenePlan.js";
+import { type Mark, type Quad } from "./scenePlan/index.js";
 
 /** How one frame is put on the glass. */
 export interface DrawOptions {

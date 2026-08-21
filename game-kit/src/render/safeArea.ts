@@ -16,7 +16,7 @@
 import { type Node } from "../core/node.js";
 import { apply } from "../core/transform.js";
 import { type Host } from "./host.js";
-import { scenePlan, type Quad } from "./scenePlan.js";
+import { scenePlan, type Quad } from "./scenePlan/index.js";
 
 /**
  * THE ROOM LEFT ON THE GLASS, in device pixels — the same units a viewport is measured in.

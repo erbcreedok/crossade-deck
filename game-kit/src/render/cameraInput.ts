@@ -26,7 +26,7 @@ import {
   wheelZoomFactor,
   ZOOM_SENS,
   type CameraContent,
-} from "./camera.js";
+} from "./camera/index.js";
 
 export interface CameraGestures {
   readonly host: Host;

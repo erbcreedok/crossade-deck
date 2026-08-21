@@ -7,18 +7,18 @@
 // place a finger was holding, which is felt as the desk squirming away from the pinch.
 
 import { describe, expect, it } from "vitest";
-import { apply, type Transform } from "../core/transform.js";
-import { add, node } from "../core/node.js";
-import { Bounded } from "../core/atoms/bounded.js";
-import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
-import { Surfaced } from "../core/atoms/surfaced.js";
-import { Transformable } from "../core/atoms/transformable.js";
-import { freeLayout } from "../core/atoms/layouts.js";
-import { rect } from "../presets/shapes.js";
-import { resetSurfaces } from "./surfaces.js";
-import { installStockSurfaces } from "../presets/surfaces.js";
-import { scenePlan } from "./scenePlan.js";
-import { DEFAULT_VIEWER } from "../core/viewer.js";
+import { apply, type Transform } from "../../core/transform.js";
+import { add, node } from "../../core/node.js";
+import { Bounded } from "../../core/atoms/bounded.js";
+import { Container, registerLayout, resetLayouts } from "../../core/atoms/container.js";
+import { Surfaced } from "../../core/atoms/surfaced.js";
+import { Transformable } from "../../core/atoms/transformable.js";
+import { freeLayout } from "../../core/atoms/layouts.js";
+import { rect } from "../../presets/shapes.js";
+import { resetSurfaces } from "../surfaces.js";
+import { installStockSurfaces } from "../../presets/surfaces.js";
+import { scenePlan } from "../scenePlan/index.js";
+import { DEFAULT_VIEWER } from "../../core/viewer.js";
 import {
   Camera,
   FLING,
@@ -28,7 +28,7 @@ import {
   wheelGoesToCamera,
   wheelPixels,
   wheelZoomFactor,
-} from "./camera.js";
+} from "./index.js";
 
 /** A desk far bigger than the glass, so every axis has somewhere to go. */
 function bench(limits = { minZoom: 0.25, maxZoom: 4 }): Camera {

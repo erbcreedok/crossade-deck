@@ -193,8 +193,8 @@ describe("guards", () => {
   });
 
   it("guard.one-door-per-folder — nothing reaches past a folder's index", () => {
-    // WHAT MAKES A FOLDER A FILE. `render/pixi/` and `render/animator/` each hold half a dozen
-    // modules, and every one of them is that folder's private business: the moment something
+    // WHAT MAKES A FOLDER A FILE. Four of the kit's files outgrew a thousand lines and became
+    // folders; every module inside one is that folder's private business, and the moment something
     // outside imports `pixi/same.js` the door stops being one, and "swap the renderer" stops being
     // one edit at the boundary.
     //
@@ -205,7 +205,7 @@ describe("guards", () => {
     // The catalog is held to the same law from the other side by `guard.catalog-through-the-door`,
     // which that guard does by naming the doors; this one names them by shape, for the kit's own
     // files, which the catalog guard never looks at.
-    const FOLDERS = ["render/pixi/", "render/animator/"];
+    const FOLDERS = ["render/pixi/", "render/animator/", "render/scenePlan/", "render/camera/"];
     const bad = files
       .filter((f) => !inCatalog(f.rel) && !FOLDERS.some((d) => f.rel.startsWith(d)))
       .flatMap((f) =>

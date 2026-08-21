@@ -2,28 +2,28 @@
 // which jsdom cannot run at all — so a rule that slips past this file is a rule nobody checks.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Bounded } from "../core/atoms/bounded.js";
-import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
-import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
-import { ShadowCaster } from "../core/atoms/shadow.js";
-import { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit } from "../core/atoms/lit.js";
-import { Surfaced } from "../core/atoms/surfaced.js";
-import { Transformable } from "../core/atoms/transformable.js";
-import { Oriented } from "../core/atoms/oriented.js";
-import { Labeled } from "../core/atoms/labeled.js";
-import { type TextMeasure } from "./textMetrics.js";
-import { add, node } from "../core/node.js";
-import { DEFAULT_VIEWER } from "../core/viewer.js";
-import { apply, IDENTITY, move, type Transform } from "../core/transform.js";
-import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./scenePlan.js";
-import { Camera } from "./camera.js";
-import { registerAsset } from "./assets.js";
-import { registerEffect, resetEffects } from "./effects.js";
-import { registerSurface, resetSurfaces } from "./surfaces.js";
-import { installStockSurfaces } from "../presets/surfaces.js";
-import { polyline } from "../core/path.js";
-import { circle, rect } from "../presets/shapes.js";
-import { inspect } from "../core/inspect.js";
+import { Bounded } from "../../core/atoms/bounded.js";
+import { Container, registerLayout, resetLayouts } from "../../core/atoms/container.js";
+import { freeLayout, rowLayout } from "../../core/atoms/layouts.js";
+import { ShadowCaster } from "../../core/atoms/shadow.js";
+import { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit } from "../../core/atoms/lit.js";
+import { Surfaced } from "../../core/atoms/surfaced.js";
+import { Transformable } from "../../core/atoms/transformable.js";
+import { Oriented } from "../../core/atoms/oriented.js";
+import { Labeled } from "../../core/atoms/labeled.js";
+import { type TextMeasure } from "../textMetrics.js";
+import { add, node } from "../../core/node.js";
+import { DEFAULT_VIEWER } from "../../core/viewer.js";
+import { apply, IDENTITY, move, type Transform } from "../../core/transform.js";
+import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./index.js";
+import { Camera } from "../camera/index.js";
+import { registerAsset } from "../assets.js";
+import { registerEffect, resetEffects } from "../effects.js";
+import { registerSurface, resetSurfaces } from "../surfaces.js";
+import { installStockSurfaces } from "../../presets/surfaces.js";
+import { polyline } from "../../core/path.js";
+import { circle, rect } from "../../presets/shapes.js";
+import { inspect } from "../../core/inspect.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 const plan = (root: Parameters<typeof scenePlan>[0]["root"], unit = 100) =>

@@ -348,7 +348,7 @@ export {
   type QuadImage,
   type QuadLayer,
   type QuadStroke,
-} from "./render/scenePlan.js";
+} from "./render/scenePlan/index.js";
 // The pointer seam: a glass point off an event, its units, and the topmost node under it — read off
 // the same plan the painter drew. Every interactive scene needs it; none should write its own copy.
 export { glassOf, pick, pickTop, toUnits } from "./render/pointer.js";
@@ -416,7 +416,7 @@ export {
   type CameraLimits,
   type CameraState,
   type Fling,
-} from "./render/camera.js";
+} from "./render/camera/index.js";
 // The two gestures whose meaning is the same in every game there will ever be — a press, and the
 // hand moving the view. Everything else a game wires itself out of `glassOf`/`toUnits`/`pick`.
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";

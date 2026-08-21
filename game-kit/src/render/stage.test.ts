@@ -19,7 +19,7 @@ import { attachPainter, type PaintOptions } from "./stage.js";
 import { resetSurfaces } from "./surfaces.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { type Painter } from "./painter.js";
-import { type Quad } from "./scenePlan.js";
+import { type Quad } from "./scenePlan/index.js";
 
 /** A desk holding a node that says it rests and one that says nothing. Both scaled, so a fold shows. */
 const desk = () => {

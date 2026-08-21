@@ -19,7 +19,7 @@ import { rect } from "../presets/shapes.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { resetSurfaces } from "./surfaces.js";
 import { type Host } from "./host.js";
-import { Camera, LOCKED_INPUT, NO_FLING, type CameraInput } from "./camera.js";
+import { Camera, LOCKED_INPUT, NO_FLING, type CameraInput } from "./camera/index.js";
 import { TWIST, wireCamera, type CameraControl } from "./cameraInput.js";
 
 /** A view that records its listeners and fires them — the wiring asks it for nothing else. */

@@ -9,7 +9,7 @@ import { rect } from "../presets/shapes.js";
 import { coatEffect, coatNames, coatRecipe, installStockCoats, registerCoat, resetCoats } from "./coats.js";
 import { resetEffects } from "./effects.js";
 import { type RuntimeCoat } from "./effects.js";
-import { scenePlan } from "./scenePlan.js";
+import { scenePlan } from "./scenePlan/index.js";
 import { registerSurface } from "./surfaces.js";
 import { DEFAULT_VIEWER as VIEWER } from "../core/viewer.js";
 

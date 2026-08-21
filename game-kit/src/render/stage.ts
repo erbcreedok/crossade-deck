@@ -10,7 +10,7 @@ import { byId, type Node, type NodeId } from "../core/node.js";
 import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
-import { bakePlan, boundsMarks, gridMarks, scenePlan } from "./scenePlan.js";
+import { bakePlan, boundsMarks, gridMarks, scenePlan } from "./scenePlan/index.js";
 import { type TextMeasure } from "./textMetrics.js";
 
 /**

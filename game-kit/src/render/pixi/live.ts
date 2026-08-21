@@ -1,7 +1,7 @@
 import { Container, Graphics, Text, Texture } from "pixi.js";
 import { type Transform } from "../../core/transform.js";
 import { type ThemeName } from "../../core/viewer.js";
-import { type Quad, type QuadText } from "../scenePlan.js";
+import { type Quad, type QuadText } from "../scenePlan/index.js";
 import { paint } from "../theme.js";
 import { type LiveFilter } from "./filters.js";
 import { type LiveOverlay } from "./overlays.js";

@@ -24,7 +24,7 @@ import { renderFrame } from "./stage.js";
 import { pickTop } from "./pointer.js";
 import { safeArea } from "./safeArea.js";
 import { type Painter } from "./painter.js";
-import { type Quad } from "./scenePlan.js";
+import { type Quad } from "./scenePlan/index.js";
 
 function bench() {
   resetLayouts();

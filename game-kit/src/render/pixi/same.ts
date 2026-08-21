@@ -16,7 +16,7 @@ import {
   type QuadLayer,
   type QuadStroke,
   type QuadText,
-} from "../scenePlan.js";
+} from "../scenePlan/index.js";
 
 
 export function sameMatrix(a: Transform, b: Transform): boolean {

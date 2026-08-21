@@ -14,10 +14,10 @@ import { apply } from "../core/transform.js";
 import { rect } from "../presets/shapes.js";
 import { resetSurfaces } from "./surfaces.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
-import { viewTransform } from "./scenePlan.js";
+import { viewTransform } from "./scenePlan/index.js";
 import { type Host } from "./host.js";
 import { glassOf, pick, toUnits } from "./pointer.js";
-import { Camera } from "./camera.js";
+import { Camera } from "./camera/index.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 

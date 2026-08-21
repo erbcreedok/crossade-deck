@@ -22,7 +22,7 @@ import { installStockShuffles, resetShuffles } from "../shuffles.js";
 import { installStockSurfaces } from "../../presets/surfaces.js";
 import { attachMotion, type Clock } from "./index.js";
 import { type Painter } from "../painter.js";
-import { type Quad } from "../scenePlan.js";
+import { type Quad } from "../scenePlan/index.js";
 
 /** A fake clock whose single pending frame the test runs by hand. */
 function fakeClock() {

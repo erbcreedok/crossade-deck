@@ -27,7 +27,7 @@ import { type ThemeName } from "../../core/viewer.js";
 import { DUST_LEVERS } from "../dust.js";
 import { type FilterRef, type OverlayRef } from "../effects.js";
 import { type Painter } from "../painter.js";
-import { type Mark, type Quad, type QuadText } from "../scenePlan.js";
+import { type Mark, type Quad, type QuadText } from "../scenePlan/index.js";
 import { paint } from "../theme.js";
 import { buildFilter, type LiveFilter } from "./filters.js";
 import { boxMatrix, tileMatrix, trace } from "./geometry.js";
