@@ -40,8 +40,8 @@ on:
         description: Окружение
         type: choice
         default: prod
-        # Пока один. Стенд добавляется сюда строкой — вместе с client/fly.dev.toml и
-        # аппой crossade-deck-client-dev (правило имён — в deploy/components.json).
+        # Пока один. Стенд добавляется сюда строкой — вместе с deploy/hub.fly.dev.toml и
+        # аппой crossade-deck-hub-dev (правило имён — в deploy/components.json).
         options: [prod]
 
 # Выкатку прерывать нельзя: отменённый на середине flyctl оставит аппу в промежуточном

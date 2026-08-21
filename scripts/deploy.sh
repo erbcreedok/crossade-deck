@@ -8,16 +8,16 @@
 # указывает Fly, какой именно образ взять. Из этого следует всё остальное:
 #   - выкатить можно ЛЮБУЮ прошлую сборку по тегу — это же и есть откат;
 #   - тот самый артефакт, который проверяли, уедет и на Fly, и на свой сервер позже;
-#   - порядок «сервер раньше клиента» больше не нужен: адрес сервера не вшивается в бандл,
-#     он приезжает в рантайме (client/src/runtimeConfig.ts).
+#   - порядок «сервер раньше страницы» больше не нужен: адрес сервера в бандл не попадает.
+#     Хаб не разговаривает ни с чем вообще, поэтому образ у него один на все окружения.
 #
 # Использование:
 #   scripts/deploy.sh                          # все компоненты, последний образ с main
-#   scripts/deploy.sh web                      # один компонент
-#   scripts/deploy.sh server web               # несколько
-#   IMAGE_TAG=sha-abc1234 scripts/deploy.sh web    # конкретная сборка (откат — это она же)
+#   scripts/deploy.sh hub                      # один компонент
+#   scripts/deploy.sh server hub               # несколько
+#   IMAGE_TAG=sha-abc1234 scripts/deploy.sh hub    # конкретная сборка (откат — это она же)
 #   IMAGE_TAG=build-312 scripts/deploy.sh          # по номеру сборки, как в подписи версии
-#   DEPLOY_ENV=dev scripts/deploy.sh web            # другое окружение (ищет client/fly.dev.toml)
+#   DEPLOY_ENV=dev scripts/deploy.sh hub       # другое окружение (ищет deploy/hub.fly.dev.toml)
 #   BUILD_FROM_SOURCE=1 scripts/deploy.sh server    # запасной путь: собрать на Fly, минуя GHCR
 #
 # Список компонентов — deploy/components.json, его же читает .github/workflows/build.yml.
@@ -73,7 +73,7 @@ field() {
   ' "$MANIFEST" "$1" "$2"
 }
 
-# Прод-конфиг лежит как есть, окружение подставляется в имя: client/fly.toml → client/fly.dev.toml.
+# Прод-конфиг лежит как есть, окружение подставляется в имя: server/fly.toml → server/fly.dev.toml.
 # Так стенд заводится добавлением файла, без правок скрипта и workflow.
 fly_config() {
   local base="$1"
@@ -81,7 +81,7 @@ fly_config() {
   printf '%s.%s.toml' "${base%.toml}" "$DEPLOY_ENV"
 }
 
-# Имя аппы на Fly по тому же правилу: crossade-deck-client → crossade-deck-client-dev.
+# Имя аппы на Fly по тому же правилу: crossade-deck-hub → crossade-deck-hub-dev.
 app_for_env() {
   local app="$1"
   [[ "$DEPLOY_ENV" == "prod" ]] && { printf '%s' "$app"; return; }
