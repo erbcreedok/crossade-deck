@@ -1,0 +1,28 @@
+game-kit/src/core/atoms/tiltable.test.ts
+  s_170937f0c01a52::t_b5b3f5aec8669a 5
+  s_170937f0c01a52::t_5c2d89878038ee 46-83
+game-kit/src/index.ts
+  s_170937f0c01a52::t_b5b3f5aec8669a 207
+game-kit/src/core/atoms/tiltable.ts
+  s_170937f0c01a52::t_bf90f9994353b8 11,18-31,37-38,46-50,52-55,57,68,76-89
+game-kit/docs/test-plan/31-tiltable.md
+  s_170937f0c01a52::t_bccbe7b888b5c6 3,19-23
+game-kit/docs/test-plan/README.md
+  s_170937f0c01a52::t_086f798a6a8e8b 10,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "33bd2765ce7eaa19b574ae552c69c27ccd71a023",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
