@@ -39,6 +39,7 @@ import {
   renderFrame,
   wireCamera,
   wireButtons,
+  wireHold,
   type CameraContent,
   type CameraControl,
   type CameraLimits,
@@ -122,6 +123,8 @@ const PRESSED = new Map<string, ((meaning: Meaning, control: Node) => void) | un
 
 /** The same for the tap handler — see `SceneOptions.tap`. */
 const TAPPED = new Map<string, ((hit: Node | undefined) => void) | undefined>();
+/** Long-press handlers by scene, for the same reason `TAPPED` exists: the wiring outlives a render. */
+const HELD = new Map<string, ((held: Node) => void) | undefined>();
 
 /** How each live scene takes new camera numbers — the same "feed, do not rebuild" rule. */
 const CAMERAS = new Map<string, (next: CameraScene) => void>();
@@ -186,6 +189,15 @@ export interface SceneOptions {
    * up at tap time, so the newest render's answer is the one that runs.
    */
   readonly tap?: (hit: Node | undefined) => void;
+  /**
+   * A LONG PRESS on the desk — a finger that stays put, which is how a context menu opens on a
+   * phone. The story says what a hold may land on and what it means; the kit only reports it.
+   *
+   * Attached ONCE, like `press` and `tap`. Owning the teardown here is not tidiness: an argument
+   * change REUSES the scene, so a story wiring its own hold would stack a listener and a timer on
+   * every knob turn.
+   */
+  readonly hold?: { readonly want: (n: Node) => boolean; readonly onHold: (held: Node) => void };
   /**
    * Drive the scene through the MOTION runtime (`attachMotion`) instead of the still painter, so a
    * tree fed a new pose eases there instead of teleporting. A re-render with a different tree — which
@@ -268,6 +280,7 @@ export function scene(
     // the scene's and must not be. So the ref is swapped and nothing is re-attached.
     PRESSED.set(id, options.press);
     TAPPED.set(id, options.tap);
+    HELD.set(id, options.hold?.onHold);
     standing.setRoot(root);
     standing.setSettings(settings);
     // The tuning follows the sliders on the standing clock — a re-render is new numbers for the
@@ -380,6 +393,11 @@ export function scene(
   const stopTaps = options.flipOnTap ? wireFlipTap(host, motions) : () => {};
   TAPPED.set(id, options.tap);
   const stopTapping = options.tap ? wireTap(host, (hit) => TAPPED.get(id)?.(hit), viewOf, () => motions?.poses()) : () => {};
+  HELD.set(id, options.hold?.onHold);
+  const held = options.hold;
+  const stopHolding = held
+    ? wireHold({ host, want: held.want, onHold: (n) => HELD.get(id)?.(n), ...(viewOf ? { view: viewOf } : {}) })
+    : () => {};
   const stopPainting = motions
     ? motions.stop
     : attachPainter(host, painter, {
@@ -580,7 +598,9 @@ export function scene(
       stopButtons();
       stopTaps();
       stopTapping();
+      stopHolding();
       TAPPED.delete(id);
+      HELD.delete(id);
       stopPainting();
       painter.destroy();
       host.unmount();

@@ -194,11 +194,24 @@ describe("guards", () => {
     // in the kit — a second `requestAnimationFrame` is a second clock, and two clocks drift.
     // The catalog is a consumer and runs its own (its scene shell waits two frames to know it
     // painted), so the rule is about `src`, not `catalog/`.
-    const users = files
+    const loops = files
       .filter((f) => !inCatalog(f.rel))
-      .filter((f) => /\brequestAnimationFrame\b|\bsetInterval\b|\bsetTimeout\b/.test(f.code))
+      .filter((f) => /\brequestAnimationFrame\b|\bsetInterval\b/.test(f.code))
       .map((f) => f.rel);
-    expect(users).toEqual(["render/animator.ts"]);
+    expect(loops, "a second frame loop is a second clock").toEqual(["render/animator.ts"]);
+
+    // A ONE-SHOT DEADLINE IS NOT A LOOP, and the difference is the whole reason the rule exists:
+    // clocks drift because they keep counting. `setTimeout` used once, cleared on every other
+    // outcome of the gesture, cannot drift — it either fires or it is cancelled.
+    //
+    // Narrowed rather than relaxed: the frame primitives above stay exclusive to the motion
+    // runtime, and the exception is ONE named file. A long press genuinely cannot be event-driven —
+    // a finger that rests emits nothing at all, so there is no event left to measure against.
+    const deadlines = files
+      .filter((f) => !inCatalog(f.rel))
+      .filter((f) => /\bsetTimeout\b/.test(f.code))
+      .map((f) => f.rel);
+    expect(deadlines, "a one-shot deadline lives in the ONE input seam that needs one").toEqual(["render/hold.ts"]);
   });
 
   it("guard.english-only — code is English; the words live in bundles", () => {
