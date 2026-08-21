@@ -1,0 +1,21 @@
+game-kit/.storybook/stories/Pressable.stories.ts
+  s_170937f0c01a52::t_9d3aa3c35244e0 20,42,62-64,98-99,128-129,186-193
+  s_170937f0c01a52::t_85240ec9f246bc 78,207
+  s_170937f0c01a52::t_33568ad91d2618 156-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "26678e0824aff59daf228b4a2251ed1e4541f582",
+  "prompts": {},
+  "sessions": {
+    "s_170937f0c01a52": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2251fe-3388-4a29-8676-63117903205f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
