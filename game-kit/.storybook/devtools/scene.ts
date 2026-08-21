@@ -685,7 +685,7 @@ export function lazyPixiPainter(view: HTMLCanvasElement, size: PainterSize): Pai
   let box = size;
   let dead = false;
 
-  const ready = import("../../src/render/pixi.js").then(async ({ pixiPainter }) => {
+  const ready = import("../../src/render/pixi/index.js").then(async ({ pixiPainter }) => {
     if (dead) return;
     real = pixiPainter(view, box);
     if (pending) real.draw(pending.plan, pending.marks, pending.theme);

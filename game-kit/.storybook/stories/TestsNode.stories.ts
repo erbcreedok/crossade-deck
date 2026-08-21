@@ -130,7 +130,7 @@ export const Growth: StoryObj<BareArgs> = {
         // asynchronous and the next line is not, so the resize below lands before the renderer
         // has started, EVERY run. Either the renderer keeps it for the start, or the glass
         // keeps the needle it was measured at.
-        const { pixiPainter } = await import("../../src/render/pixi.js");
+        const { pixiPainter } = await import("../../src/render/pixi/index.js");
         const doc = ctx.canvasElement.ownerDocument;
         const holder = doc.createElement("div");
         holder.style.cssText = "position:relative;width:360px;height:240px";

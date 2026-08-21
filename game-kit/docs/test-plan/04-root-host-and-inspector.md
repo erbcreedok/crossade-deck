@@ -17,7 +17,7 @@
 | `host.hud-unit-from-viewport` | the viewport resized | the HUD etalon | recomputed by the host and put into the ResolveContext; table sizes do not move |
 | `host.view-not-called-canvas` | хост | прочитано имя поля | `view`: слово canvas в этом проекте значит холст сцены, и два смысла под одним словом уже стоили дорого |
 | `host.context-carries-unit` | хост с юнитом | контекст разрешения прочитан | юнит внутри: наследование считается от него, и второго источника нет |
-| `host.single-pixi-import` | the whole src tree | scanned for `from "pixi.js"` | exactly one file — everything else is headless data and maths (source-scan) |
+| `host.single-pixi-import` | the whole src tree | scanned for `from "pixi.js"` | only files under `render/pixi/`, and at least one of them — everything else is headless data and maths (source-scan) |
 | `host.new-data-replaces-the-tree` | a mounted host | `setRoot(another tree)` | it shows the new one and keeps the same view: new data is a different tree in the SAME canvas |
 | `host.a-new-tree-is-an-onchange` | a change listener | the root is swapped | it is told, exactly as after a resize — everything downstream reads `host.root` when it draws |
 | `host.viewer-survives-new-data` | a host with a theme, an etalon and bounds | the root is swapped | the viewer plane is untouched: two planes, and they do not meet |

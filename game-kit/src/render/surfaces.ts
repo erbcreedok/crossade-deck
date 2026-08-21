@@ -45,9 +45,44 @@ export type LineJoin = "miter" | "round" | "bevel";
  * repeating ground with an emblem over it. A flat field could describe none of them and could
  * not express order at all.
  */
+/** One colour stop of a gradient: where it sits along the axis, and what it is. */
+export interface GradientStop {
+  /** 0..1 along the axis — 0 at `from`, 1 at `to`. */
+  readonly at: number;
+  readonly paint: Paint;
+}
+
+/**
+ * A LINEAR WASH over the layer's area — the one thing a flat `paint` cannot say.
+ *
+ * The axis is an ANGLE, not two points, and that is the whole reason this is data a designer can
+ * write: a gradient described by pixel coordinates would have to be rewritten for every size the
+ * same surface is drawn at. The angle is turned into an axis against the AREA, in the plan, where
+ * a unit test reads it — the painter is handed two points and obeys, exactly as it is for the
+ * contour and for a `part` clip.
+ *
+ * It lives on the LAYER rather than beside `paint`, so it stacks like everything else: a wash under
+ * a picture, an emblem over a wash. `paint` and `gradient` on one layer is not a conflict — the
+ * gradient wins, and the flat colour is what a renderer with no gradients falls back to.
+ */
+export interface Gradient {
+  /** Two or more, in order. Two is the common case and needs no more ceremony than two. */
+  readonly stops: readonly GradientStop[];
+  /**
+   * The axis, degrees clockwise from +x, through the centre of the area. `90` runs top to bottom,
+   * `0` left to right. Default `90` — the one a card, a tile and a panel all want.
+   */
+  readonly angle?: number;
+}
+
 export interface PaintLayer {
   /** A flat colour under the picture, or the whole layer when there is no picture. */
   readonly paint?: Paint;
+  /**
+   * A linear wash across the area, in place of the flat colour. See `Gradient`: what rides here is
+   * an ANGLE and stops, never coordinates, so one record draws at every size the surface is used at.
+   */
+  readonly gradient?: Gradient;
   /**
    * A registry reference into the assets. `fit` and `align` sit HERE, on the layer, because
    * this is where a picture and an area actually meet: a ground tiled `repeat` and an emblem in

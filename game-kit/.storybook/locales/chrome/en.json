@@ -8,6 +8,7 @@
   "arg.alignItems": "And where it sits DOWN its cell: top, middle, bottom. The same move on the other axis.",
   "arg.alignment": "Where the border sits relative to the contour: 0 outside, 0.5 centred on it, 1 inside. At 0 a wide border hangs over the box the layout spaced from its neighbours — switch on `bounds` to see it.",
   "arg.angle": "Turn, in degrees, clockwise on screen. It ADDS UP along the chain: turn a hand and everything in it turns with it, and a child cannot un-turn its owner.",
+  "arg.answer": "Which choreography the gesture answers with. The gesture and its answer are separate things — the kit reports a finger, the game decides what it means. `shiver` stays put, `zBounce` leaves the DESK and lands (watch the shadow fall away), `yBounce` jumps up the SCREEN without leaving the felt, `slide` travels and stops, `launch` is gone.",
   "arg.asleep": "Show every control as declining to act. Not a flag on the node — the kit has no `disabled`: the press still reports, the handler says no, and this is what the player sees while it does.",
   "arg.axis": "The reflection line, in degrees. A parameter, not a preset per angle: 90 is a Y-mirror, 76 is a 76° one. A mirror recipe reads it; a content-swap ignores it.",
   "arg.back": "The down-side surface. Empty falls back to the front, so a turn never blanks the card and a token identical both sides needs no back.",

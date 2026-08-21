@@ -14,8 +14,8 @@
 // `apply` makes. It is not a Pixi emulator and must never grow into one.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IDENTITY, type Transform } from "../core/transform.js";
-import { type Mark, type Quad } from "./scenePlan.js";
+import { IDENTITY, type Transform } from "../../core/transform.js";
+import { type Mark, type Quad } from "../scenePlan.js";
 
 interface Tally {
   container: number;
@@ -192,7 +192,7 @@ vi.mock("pixi.js", () => {
   };
 });
 
-const { pixiPainter } = await import("./pixi.js");
+const { pixiPainter } = await import("./index.js");
 
 /** A card-shaped quad: a filled contour, a stroke and a two-line caption. */
 function card(id: string, pose: Transform = IDENTITY): Quad {

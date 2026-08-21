@@ -170,18 +170,54 @@ describe("guards", () => {
     // Against `code`, not `raw`: this is about USING the constructor, and a mention of it in a
     // comment (this one, for instance) is not a use.
     const builders = files.filter((f) => /\bnew Text\b/.test(f.code)).map((f) => f.rel);
-    expect(builders).toEqual(["render/pixi.ts"]);
+    expect(builders.filter((r) => !r.startsWith("render/pixi/"))).toEqual([]);
+    expect(builders.length, "and it is still built in one place inside the folder").toBe(1);
   });
 
-  it("host.single-pixi-import — pixi lives in exactly one file", () => {
-    // The day the renderer is swapped, exactly one file is rewritten. It also keeps the rules
+  it("host.single-pixi-import — pixi lives in exactly one place", () => {
+    // The day the renderer is swapped, exactly one FOLDER is rewritten. It also keeps the rules
     // out of the one place no test can reach: jsdom has no WebGL, so whatever is decided
     // inside the renderer is decided where nothing can hold it down.
+    //
+    // A folder rather than a file since the renderer outgrew 1200 lines. The law is unchanged and
+    // the guard was narrowed, not loosened: the set of files that may say `pixi.js` is still named
+    // exactly, it is now named by a prefix. What keeps the folder from being a mere pile is the
+    // guard below — one door in, so "swap the renderer" stays one edit at the boundary.
+    //
     // Against `raw`, not `code`: the scanner blanks string BODIES, so a module specifier is
     // invisible there. This guard was written against `code` and could never have fired —
     // it passed for months only because nothing imported pixi at all.
     const importers = files.filter((f) => /from\s+["']pixi\.js["']/.test(f.raw)).map((f) => f.rel);
-    expect(importers).toEqual(["render/pixi.ts"]);
+    expect(importers.filter((r) => !r.startsWith("render/pixi/"))).toEqual([]);
+    expect(importers.length, "and something in there does import it").toBeGreaterThan(0);
+  });
+
+  it("guard.one-door-per-folder — nothing reaches past a folder's index", () => {
+    // WHAT MAKES A FOLDER A FILE. `render/pixi/` and `render/animator/` each hold half a dozen
+    // modules, and every one of them is that folder's private business: the moment something
+    // outside imports `pixi/same.js` the door stops being one, and "swap the renderer" stops being
+    // one edit at the boundary.
+    //
+    // Both folders exist because their single file outgrew a thousand lines. Cutting a file into a
+    // folder is only an improvement while the folder still answers as ONE thing — otherwise it is
+    // the same pile with more names in it, and this is the guard that keeps the difference real.
+    //
+    // The catalog is held to the same law from the other side by `guard.catalog-through-the-door`,
+    // which that guard does by naming the doors; this one names them by shape, for the kit's own
+    // files, which the catalog guard never looks at.
+    const FOLDERS = ["render/pixi/", "render/animator/"];
+    const bad = files
+      .filter((f) => !inCatalog(f.rel) && !FOLDERS.some((d) => f.rel.startsWith(d)))
+      .flatMap((f) =>
+        FOLDERS.flatMap((dir) => {
+          const leaf = dir.slice(dir.lastIndexOf("/", dir.length - 2) + 1, -1);
+          const re = new RegExp(`(?:from|import)\\s*\\(?\\s*["'][^"']*${leaf}\\/([^"']+)["']`, "g");
+          return [...f.raw.matchAll(re)].map((m) => ({ rel: f.rel, target: `${leaf}/${m[1]!}` }));
+        }),
+      )
+      .filter(({ target }) => !target.endsWith("/index.js"))
+      .map(({ rel, target }) => `${rel} → ${target}`);
+    expect(bad).toEqual([]);
   });
 
   it("guard.view-not-canvas — the HTMLCanvasElement is never named canvas", () => {
@@ -198,7 +234,7 @@ describe("guards", () => {
       .filter((f) => !inCatalog(f.rel))
       .filter((f) => /\brequestAnimationFrame\b|\bsetInterval\b/.test(f.code))
       .map((f) => f.rel);
-    expect(loops, "a second frame loop is a second clock").toEqual(["render/animator.ts"]);
+    expect(loops, "a second frame loop is a second clock").toEqual(["render/animator/index.ts"]);
 
     // A ONE-SHOT DEADLINE IS NOT A LOOP, and the difference is the whole reason the rule exists:
     // clocks drift because they keep counting. `setTimeout` used once, cleared on every other
@@ -316,12 +352,12 @@ describe("guards", () => {
   });
 
   it("guard.catalog-through-the-door — the catalog imports the kit like a standalone would", () => {
-    // TWO doors, and only two: the model (`index.ts`) and the renderer (`render/pixi.ts`).
+    // TWO doors, and only two: the model (`index.ts`) and the renderer (`render/pixi/index.ts`).
     // The second exists because importing `pixi.js` reaches for a canvas context at module
     // load — so taking the renderer has to be a decision, not a side effect of touching the
     // kit. Dynamic imports are scanned too, or the rule would be one `import()` away from
     // meaningless.
-    const DOORS = ["index.js", "render/pixi.js"];
+    const DOORS = ["index.js", "render/pixi/index.js"];
     const bad = files
       .filter((f) => inCatalog(f.rel))
       .flatMap((f) =>

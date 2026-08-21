@@ -247,6 +247,7 @@ export { safeArea, type Room } from "./render/safeArea.js";
 // should ease its cards to rest instead of teleporting; the pure settle math rides in `core/motion`.
 export {
   attachMotion,
+  type BounceOptions,
   type CarryItem,
   type CarryOptions,
   type Clock,
@@ -254,10 +255,11 @@ export {
   type MotionOptions,
   type Motions,
   type RollOptions,
+  type ShiverOptions,
   type ShuffleOptions,
   type SlideOptions,
   type WallHit,
-} from "./render/animator.js";
+} from "./render/animator/index.js";
 // How a reorder LOOKS: the recipes a shuffle plays (riffle/overhand/wash/shake), a registry like flips.
 export {
   installStockShuffles,
@@ -471,6 +473,8 @@ export {
   type DashPattern,
   type LineCap,
   type LineJoin,
+  type Gradient,
+  type GradientStop,
   type PaintLayer,
   type Stroke,
   type SurfaceRecord,

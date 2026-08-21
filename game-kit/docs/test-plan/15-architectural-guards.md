@@ -1,6 +1,6 @@
 ## ARCHITECTURAL GUARDS · source-scan
 
-`vitest + fs scan (like argNames.test.ts)` · 33 кейсов, расписано 33
+`vitest + fs scan (like argNames.test.ts)` · 34 кейсов, расписано 34
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -10,7 +10,7 @@
 | `order.no-stale-levels` | тот же список | имена сверены с существующими уровнями | ни одного имени с уровня, которого больше нет — прошлый список был плоским, и внутри `Start` дерево молча вернулось к алфавиту |
 | `guard.every-field-declares-a-class` | все зарегистрированные атомы | классы полей прочитаны из реестра | у каждого поля объявлен один из четырёх классов. НЕ скан: атом, собранный в рантайме, скану не виден |
 | `guard.layout-writes-only-at` | все поставляемые раскладки | позы прочитаны | ключи ровно `x,y` — раскладка двигает, но не поднимает |
-| `guard.catalog-through-the-door` | каталог | импорты в `src/` просканированы, включая динамические | только две двери: модель (`index.ts`) и рендерер (`render/pixi.ts`) |
+| `guard.catalog-through-the-door` | каталог | импорты в `src/` просканированы, включая динамические | только две двери: модель (`index.ts`) и рендерер (`render/pixi/index.ts`) |
 | `guard.no-kind` | the whole src tree | scanned for `def.kind ===` / kind switches | zero hits outside the visual registry |
 | `guard.grain-is-a-record` | the whole src tree | scanned for `.rule ===` / rule switches | zero hits — derive/stamp/keep are records, so a game's fourth answer is a `registerGrain` call and never a branch |
 | `guard.no-negation` | the whole src tree | scanned for `disabled` / `interactive:"none"` / `transparent` | zero hits — capability is by presence, restriction by absence |
@@ -21,7 +21,7 @@
 | `guard.kit-knows-no-localization` | the kit tree | scanned for locale/i18n/TextSource/translate and json imports | zero: not the words, and not the notion either — a caption arrives already written |
 | `guard.no-language-list` | the kit tree | scanned for "en"/"ru" literals | zero — a game adding a language must never have to edit the kit |
 | `guard.view-not-canvas` | всё дерево исходников | скан | ни одного `HTMLCanvasElement` под именем canvas |
-| `guard.one-clock` | всё дерево `src` (каталог не в счёт) | скан на `requestAnimationFrame`/`setInterval` и отдельно на `setTimeout` | КАДРОВЫЙ ЦИКЛ — ровно один файл, `render/animator.ts`: вторые часы расходятся с первыми, потому что продолжают считать. ОДНОРАЗОВЫЙ СРОК не цикл и дрейфовать не может — он либо срабатывает, либо отменяется, — поэтому `setTimeout` разрешён вторым ИМЕНОВАННЫМ файлом: `render/hold.ts`. Долгое нажатие иначе не выразить: палец, который лежит, не испускает событий вообще, и мерить не от чего |
+| `guard.one-clock` | всё дерево `src` (каталог не в счёт) | скан на `requestAnimationFrame`/`setInterval` и отдельно на `setTimeout` | КАДРОВЫЙ ЦИКЛ — ровно один файл, `render/animator/index.ts`: вторые часы расходятся с первыми, потому что продолжают считать. ОДНОРАЗОВЫЙ СРОК не цикл и дрейфовать не может — он либо срабатывает, либо отменяется, — поэтому `setTimeout` разрешён вторым ИМЕНОВАННЫМ файлом: `render/hold.ts`. Долгое нажатие иначе не выразить: палец, который лежит, не испускает событий вообще, и мерить не от чего |
 | `guard.id-is-opaque` | всё дерево | скан на `id ===` и разбор идентификатора | ноль. client1 умер от обратного: `id === "deck"` по всему движку |
 | `guard.no-font-shorthand` | tsx каталога | скан на `font:` | ноль: собранное из токенов сокращение не применяется и НЕ сообщает об ошибке — элемент молча наследует шрифт страницы |
 | `guard.docs-prose-is-translated` | стори каталога | скан на `description: {` | ноль: встроенная проза попадает в индекс на сборке и языку уже не подчиняется |
@@ -36,4 +36,5 @@
 | `guard.layering` | every source file | КАЖДЫЙ относительный импорт разрешён до папки | вниз по лестнице и только: core→core, render→core, presets→render/core. Тест — ПОТРЕБИТЕЛЬ и стоит над всеми (source-scan) |
 | `guard.public-api` | `src/index.ts` | scanned for the names a consumer needs | all present: a standalone imports "game-kit", never a path into src (source-scan) |
 | `guard.every-tuning-field-has-a-control` | `DEFAULT_TUNING` и стенд `Engine/Motion` с `gkTuning: {поле → стори}` | скан ключей и args стенда | множество ключей `gkTuning` == множество полей тюнинга; каждая названная стори существует; каждое поле объявлено args'ом стенда ПОД СВОИМ ИМЕНЕМ — число фила без контрола есть константа в маскировке |
-| `guard.text-is-built-in-one-place` | всё дерево `src/` | скан на конструктор текста по `code` | единственный файл — `render/pixi.ts`. Тот же довод, что и у единственного импорта pixi, но для текста он весит больше: подпись проще всего собрать на месте — тут ярлык, там счётчик, — и каждая принесёт свой шрифт, свой кегль и своё представление о базовой линии, ни одно из них не темы |
+| `guard.text-is-built-in-one-place` | всё дерево `src/` | скан на конструктор текста по `code` | ровно один файл, и он внутри `render/pixi/`. Тот же довод, что и у единственного импорта pixi, но для текста он весит больше: подпись проще всего собрать на месте — тут ярлык, там счётчик, — и каждая принесёт свой шрифт, свой кегль и своё представление о базовой линии, ни одно из них не темы |
+| `guard.one-door-per-folder` | всё дерево `src/` вне `render/pixi/` и `render/animator/` | скан импортов, целящих внутрь этих папок | ни один не проходит мимо их `index.js`. Это и делает папку файлом: как только снаружи потянули `pixi/same.js`, дверь перестала быть одна, и «поменять рендерер» перестало быть одной правкой на границе. Обе папки появились потому, что их единственный файл перевалил за тысячу строк, — и раскол остаётся улучшением ровно пока папка отвечает как ОДНА вещь |

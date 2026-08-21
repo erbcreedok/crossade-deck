@@ -34,7 +34,7 @@ import { dashContour, offsetContour, surfaceOutline, type DashOptions } from "./
 import { applyEffects, type FilterRef, type OverlayRef } from "./effects.js";
 import { fitBox } from "./fitBox.js";
 import { type Paint } from "../core/paint.js";
-import { surfaceRecord, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
+import { surfaceRecord, type GradientStop, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "./surfaces.js";
 import { polyline } from "../core/path.js";
 import { apply, chain, compose, IDENTITY, invert, move, pose, scale, type Transform } from "../core/transform.js";
 
@@ -57,8 +57,21 @@ export interface QuadImage {
  * layer naming a picture nobody registered comes to. Skipped rather than thrown, exactly as a
  * dangling surface reference is.
  */
+/**
+ * A gradient with its axis ALREADY resolved to two points, pixels, in the node's own space — the
+ * same space as the quad's contour, and folded by baking exactly as the contour is. The angle a
+ * designer wrote became geometry here, where a unit test reads it.
+ */
+export interface QuadGradient {
+  readonly from: Point;
+  readonly to: Point;
+  readonly stops: readonly GradientStop[];
+}
+
 export interface QuadLayer {
   readonly paint: Paint | undefined;
+  /** A wash across the area, in place of the flat colour. Absent for the ordinary layer. */
+  readonly gradient?: QuadGradient | undefined;
   readonly image: QuadImage | undefined;
   readonly opacity: number;
   /**
@@ -205,7 +218,12 @@ export function bakePlan(plan: readonly Quad[], which: (quad: Quad) => boolean =
       // picture survives the fold, and the refusal above is what guarantees it here.
       layers: quad.layers.map((layer) => {
         // A layer's clip is points like the contour, and folds the same way.
-        const folded = layer.clip ? { ...layer, clip: layer.clip.map(at) } : layer;
+        const clipped = layer.clip ? { ...layer, clip: layer.clip.map(at) } : layer;
+        // The axis is points in the node's own space, so it folds with the contour or a baked
+        // wash would keep pointing where the node used to face.
+        const folded = clipped.gradient
+          ? { ...clipped, gradient: { ...clipped.gradient, from: at(clipped.gradient.from), to: at(clipped.gradient.to) } }
+          : clipped;
         return folded.image
           ? {
               ...folded,
@@ -287,21 +305,21 @@ export interface PlanInput {
   /**
    * Nodes a FINGER is holding right now — the subset of `raised` that is genuinely off the desk.
    *
-   * A shadow is HEIGHT, and only a hand takes a piece up: while one holds it, the shadow travels
-   * under it and the fall lengthens. Everything else that moves is flying on the clock — a settle,
-   * a throw, a slide, a turn — and a flying piece is not standing at a new place, it is on its way
-   * to one: its shadow waits at the rest pose it is heading for instead of running along under it.
-   * Absent, no shadow follows anything, which is what a still scene wants.
+   * A shadow is HEIGHT, and a hand is the one thing that takes a piece UP rather than along. It says
+   * nothing about WHERE the shadow goes — that is never in question, a shadow is under its piece
+   * (`shade`) — only how FAR from it: a held piece is lifted off the desk by `lifted`. What the clock
+   * has off the felt rides in `grounded` instead, at its own height.
+   * Absent, nothing is lifted, which is what a still scene wants.
    */
   readonly carried?: ReadonlySet<NodeId> | undefined;
   /**
-   * PIECES THE CLOCK IS MOVING ALONG THE DESK, and how high above it each one is right now (root
-   * units). Their shadow RIDES under them, unlike the flights above: a die thrown across a tray is
-   * ON the felt at every point of its path — it is not on its way anywhere else — and a shadow left
-   * behind at the seat would be saying the die is somewhere it plainly is not.
+   * HOW HIGH ABOVE THE DESK the clock is holding each piece right now (root units) — a hop, a
+   * throw's arc, a bounce that never leaves the felt at all (0). Like `carried`, this is a LENGTH
+   * and not a place: the shadow is under the piece either way, and this says how far under.
    *
-   * The height is what makes a bouncing one read as a bounce: the fall grows with it, so the shadow
-   * drops away as the die goes up and comes back under it as the die lands.
+   * It is what makes a bouncing piece read as a bounce: the fall grows with the height, so the
+   * shadow drops away as the die goes up and comes back under it as the die lands. A piece nobody
+   * declared a height for is simply on the desk.
    */
   readonly grounded?: ReadonlyMap<NodeId, number> | undefined;
   /**
@@ -418,11 +436,8 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
       from === "silhouette" ? surfaceRecord(fieldsOf<SurfacedFields>(shown, "Surfaced")?.surface ?? "") : undefined;
     const points = surfaceOutline(shape, record?.radius ?? 0).map((p) => ({ x: p.x * unit, y: p.y * unit }));
     const z = resolveZ(ctx);
-    // THE HAND IS WHAT LIFTS. While a finger holds this piece it is off the desk: the shadow rides
-    // along under it and the fall lengthens by `lifted`. A piece the CLOCK is moving — a settle, a
-    // throw, a slide, a turn — is in the air on its way to a seat, and a shadow that ran along under
-    // it would say it is standing at every point of the flight. So its shadow waits at the rest pose
-    // it is flying towards, and the fall keeps the resting length.
+    // THE HAND IS WHAT LIFTS: while a finger holds this piece it is off the desk, and the fall
+    // lengthens by `lifted`. A LENGTH, not a place — where the shadow falls is never conditional.
     const inHand = carried?.has(n.id) === true;
     // On the desk and moving: the shadow goes with it, and rides its height.
     const ride = grounded?.get(n.id);
@@ -439,14 +454,19 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     // UNITS, so it is turned into layers before the lamp is asked: a die half a unit off the felt is
     // ten card-thicknesses up, and its shadow drops away by that much rather than by a hair.
     const off = (depth.base + depth.perZ * (z + (ride ?? 0) / LAYER_HEIGHT) + (inHand ? depth.lifted : 0)) * perUnit;
-    // WHERE it falls is the law above — the seat, unless a hand has the piece. WHAT SHAPE falls is
-    // the piece AS DRAWN: a shadow is the thing's own outline, so it turns and stretches with it. A
-    // die tumbling over its seat casting a shadow that will not turn is the piece and its shadow
-    // saying two different things about the same object; the seat it lies on is a separate question
-    // from the way it is lying.
-    const drawn = overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY;
-    const seat = (inHand || ride !== undefined ? overrides?.get(n.id) : undefined) ?? nodes.get(n.id) ?? IDENTITY;
-    const lying: Transform = { a: drawn.a, b: drawn.b, c: drawn.c, d: drawn.d, e: seat.e, f: seat.f };
+    // A SHADOW IS UNDER ITS PIECE. Always, without exception and without a branch: it is drawn from
+    // the pose the piece is DRAWN at, so it travels with it, turns with it and stretches with it.
+    //
+    // This used to be three laws — the seat, unless a hand had the piece, unless the clock was
+    // walking it along the desk — and every motion that fitted none of them tore the shadow off the
+    // thing casting it. A piece would fly home while its shadow was already waiting there; a throw
+    // would leave its shadow at the seat it had plainly left. There is no reading of a picture in
+    // which an object is in one place and its own shadow in another.
+    //
+    // What HEIGHT does is the length of the fall, above — and that is the whole of the difference
+    // the old branches were reaching for: a piece in a hand or in the air is further from its
+    // shadow, never detached from it.
+    const lying = overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY;
     const toGlass = compose(move(fall.x * off, fall.y * off), compose(toView, lying));
     const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
     const ext = extentOf(shape);
@@ -630,8 +650,25 @@ function layerOf(layer: PaintLayer, area: { readonly w: number; readonly h: numb
           { x: (-area.w / 2) * unit, y: (area.h / 2) * unit },
         ]
       : undefined;
+  // THE ANGLE BECOMES AN AXIS HERE. Through the centre, out to the area's edge on both sides: the
+  // half-diagonal is what makes a 45-degree wash reach the corners it points at instead of stopping
+  // short of them. A gradient with fewer than two stops is not a gradient and is dropped — a
+  // renderer handed one stop would paint a colour nobody asked for.
+  const stops = layer.gradient?.stops ?? [];
+  const rad = ((layer.gradient?.angle ?? 90) * Math.PI) / 180;
+  const half = (Math.abs(Math.cos(rad)) * area.w + Math.abs(Math.sin(rad)) * area.h) / 2;
+  const gradient =
+    stops.length >= 2
+      ? {
+          from: { x: -Math.cos(rad) * half * unit, y: -Math.sin(rad) * half * unit },
+          to: { x: Math.cos(rad) * half * unit, y: Math.sin(rad) * half * unit },
+          stops,
+        }
+      : undefined;
+
   return {
     clip,
+    gradient,
     // An empty colour is NO colour: a layer that is only a picture must not reach the renderer
     // carrying an empty token for it to resolve.
     paint: layer.paint || undefined,

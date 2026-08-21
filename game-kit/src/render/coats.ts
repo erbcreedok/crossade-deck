@@ -124,7 +124,7 @@ export function installStockCoats(): void {
 
   // FOIL — a cold streak sliding down the diagonal, and the SLIDE is the edition: a laminated
   // sheet is dull until the light moves on it. That is a shader, named here and built in
-  // `render/pixi.ts`, clocked by the same shared ticker the censor's blur rides.
+  // `render/pixi/`, clocked by the same shared ticker the censor's blur rides.
   //
   // What stays flat is only what survives without a GPU: a pale film and the bright hairline round
   // the edge. A rim is a STROKE and belongs to the contour, so a shader could not own it anyway.

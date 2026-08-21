@@ -471,7 +471,7 @@ describe("a canvas carries its own settings", () => {
 // can land anywhere in that window — on a phone the page's layout usually settles exactly
 // there. The mock below keeps the real renderer's awkward contract (a resize before start is
 // refused), because that contract is what the wrapper has to survive.
-vi.mock("../../src/render/pixi.js", () => ({
+vi.mock("../../src/render/pixi/index.js", () => ({
   pixiPainter: (_view: HTMLCanvasElement, size: { width: number; height: number }) => {
     fake = {
       initSize: { ...size },

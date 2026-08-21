@@ -22,7 +22,7 @@ import { type PaintLayer, type Stroke } from "./surfaces.js";
 /**
  * A GPU filter, NAMED for the painter — never the pixels themselves. The kit stays honest about
  * where its rules can be held down: the name and its parameters are plain data a unit test can
- * read, and the shader that turns them into light lives in `render/pixi.ts`, the one file jsdom
+ * read, and the shader that turns them into light lives in `render/pixi/`, the one place jsdom
  * cannot run. See CANONS §"the plan is pure".
  */
 export interface FilterRef {

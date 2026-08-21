@@ -143,9 +143,10 @@ export const Menu: StoryObj<MenuArgs> = {
     };
 
     const live = scene(build(), {
-      // The shiver rides the ONE clock, so this page is driven by the motion runtime and not the
-      // still painter. Everything else on it stays exactly as it was.
-      motion: {},
+      // The shiver rides the ONE clock, and THIS is the switch that starts it: `motion` alone is a
+      // tuning patch, and a page that sets it without `animate` gets a still painter and a `motions`
+      // that is undefined — every choreography then calls into nothing.
+      animate: true,
       // A HOLD OPENS THE MENU, and what a hold may land on is this page's word, not the kit's:
       // anything with something to offer. A card with every capability off offers nothing, and
       // holding it opens nothing — no branch says so, the derivation does.
@@ -156,10 +157,12 @@ export const Menu: StoryObj<MenuArgs> = {
           // second and nothing on the glass has said so — and a player who gets no answer lifts
           // their finger to check, cancelling the very gesture they were making. The tremble is
           // that answer, and it moves the card nowhere: the swing is zero at both ends of its span.
-          live.motions?.shiver(on.id);
           open = true;
           said = `held ${on.id} → menu`;
+          // The tree first, the choreography second: `setRoot` reconciles, and a node the clock is
+          // already posing is snapped to its rest by that pass.
           live.setRoot(build());
+          live.motions?.shiver(on.id);
         },
       },
       press: (_meaning, control) => {

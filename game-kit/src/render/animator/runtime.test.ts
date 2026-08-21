@@ -5,24 +5,24 @@
 // lets a plain test assert a card is HALFWAY — the thing a screenshot can only catch by luck.
 
 import { describe, expect, it } from "vitest";
-import { Bounded } from "../core/atoms/bounded.js";
-import { Container, registerLayout, resetLayouts, type LayoutRecord } from "../core/atoms/container.js";
-import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
-import { ShadowCaster } from "../core/atoms/shadow.js";
-import { Surfaced } from "../core/atoms/surfaced.js";
-import { Transformable } from "../core/atoms/transformable.js";
-import { add, compose, node, reorder } from "../core/node.js";
-import { Flippable, facing, setFacing } from "../core/atoms/flippable.js";
-import { DEFAULT_TUNING, installStockEasings, resetEasings } from "../core/motion.js";
-import { rect } from "../presets/shapes.js";
-import { mount } from "./host.js";
-import { registerSurface, resetSurfaces } from "./surfaces.js";
-import { installStockFlips, resetFlips } from "./flips.js";
-import { installStockShuffles, resetShuffles } from "./shuffles.js";
-import { installStockSurfaces } from "../presets/surfaces.js";
-import { attachMotion, type Clock } from "./animator.js";
-import { type Painter } from "./painter.js";
-import { type Quad } from "./scenePlan.js";
+import { Bounded } from "../../core/atoms/bounded.js";
+import { Container, registerLayout, resetLayouts, type LayoutRecord } from "../../core/atoms/container.js";
+import { freeLayout, rowLayout } from "../../core/atoms/layouts.js";
+import { ShadowCaster } from "../../core/atoms/shadow.js";
+import { Surfaced } from "../../core/atoms/surfaced.js";
+import { Transformable } from "../../core/atoms/transformable.js";
+import { add, compose, node, reorder } from "../../core/node.js";
+import { Flippable, facing, setFacing } from "../../core/atoms/flippable.js";
+import { DEFAULT_TUNING, installStockEasings, resetEasings } from "../../core/motion.js";
+import { rect } from "../../presets/shapes.js";
+import { mount } from "../host.js";
+import { registerSurface, resetSurfaces } from "../surfaces.js";
+import { installStockFlips, resetFlips } from "../flips.js";
+import { installStockShuffles, resetShuffles } from "../shuffles.js";
+import { installStockSurfaces } from "../../presets/surfaces.js";
+import { attachMotion, type Clock } from "./index.js";
+import { type Painter } from "../painter.js";
+import { type Quad } from "../scenePlan.js";
 
 /** A fake clock whose single pending frame the test runs by hand. */
 function fakeClock() {
@@ -380,11 +380,11 @@ describe("the motion runtime", () => {
     expect(crossing).toBeGreaterThanOrEqual(8); // frames spent between the two pins: a swing, not a click
   });
 
-  it("motion.a-shadow-rides-the-hand-and-waits-out-a-flight — height is the hand, not the clock", () => {
-    // The runtime's half of the shadow law (`plan.a-shadow-follows-the-hand-not-the-flight`): the
-    // clock is the only thing that knows WHICH override is a finger's and which is a flight's, and
-    // it must hand the plan the finger's set apart from `raised`. Held, the shadow travels with the
-    // card; flying home, it waits at the rest the card is coming back to instead of running under it.
+  it("motion.a-shadow-never-leaves-its-piece — in the hand or on the way home, it is underneath", () => {
+    // The runtime's half of the shadow law (`plan.a-shadow-is-under-its-piece`): a shadow is drawn
+    // from the pose the piece is DRAWN at, whoever is moving it. What the clock still has to hand
+    // the plan apart from `raised` is the FINGER's set, because a hand is height: held, the card is
+    // further from its shadow; easing home, it is back to the resting fall — but under it either way.
     resetLayouts();
     registerLayout("free", freeLayout);
     resetSurfaces();
@@ -417,12 +417,17 @@ describe("the motion runtime", () => {
     expect(at("c") - restCard).toBeCloseTo(4, 6);
     expect(at("c::shadow") - heldShade).toBeCloseTo(4, 6); // held: the shadow travels along
 
-    // Let go over the SAME tree: the card flies home, and its shadow is at the seat from frame one.
+    // Let go over the SAME tree: the card eases home, and its shadow comes home WITH it. A shadow
+    // already waiting at the seat while the card is still out over the desk is the picture saying
+    // the card is in two places — the bug this law was rewritten to end.
     m.release("c");
     host.setRoot(desk);
     c.tick(116); // halfway through the settle
-    expect(at("c") - restCard).toBeGreaterThan(1); // still well out over the desk
-    expect(at("c::shadow")).toBeCloseTo(restShade, 6); // waiting where the card will land
+    const midCard = at("c") - restCard;
+    expect(midCard).toBeGreaterThan(1); // still well out over the desk
+    expect(at("c::shadow") - restShade).toBeCloseTo(midCard, 6); // and its shadow is exactly as far out
+    // The hand let go, so the fall is the resting one again: piece and shadow are as close as at rest.
+    expect(at("c") - at("c::shadow")).toBeCloseTo(restCard - restShade, 6);
   });
 
   it("motion.a-carried-node-settles-from-the-finger — and the tree was never written", () => {

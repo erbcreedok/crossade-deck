@@ -8,7 +8,7 @@
 // project means the desk space, and the collision has bitten before.
 //
 // Slice 1 draws nothing: with only Node and Root there is no atom that paints. Pixi arrives
-// with `Surfaced`, in `render/pixi.ts`, and that will be its only import site in the tree.
+// with `Surfaced`, in `render/pixi/`, and that will be its only import site in the tree.
 
 import { contextFor, type ResolveContext } from "../core/resolve.js";
 import { holdTheGlass } from "./native.js";

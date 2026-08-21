@@ -413,10 +413,10 @@ describe("scenePlan", () => {
     expect(at({ raised: held })).toBeCloseTo(at()); // flight is not height — only the hand is
   });
 
-  it("plan.a-shadow-lies-the-way-the-piece-does — it turns and grows with the drawn pose, and still waits at the seat", () => {
+  it("plan.a-shadow-lies-the-way-the-piece-does — it turns, grows and travels with the drawn pose", () => {
     // A shadow is the piece's OWN outline, so the way the piece is lying is the way the shadow
     // lies: a die tumbling over its seat and a shadow that will not turn are two statements about
-    // one object. WHERE it falls is the separate law above — the seat, unless a hand has it.
+    // one object. The same goes for WHERE — see `plan.a-shadow-is-under-its-piece`.
     const root = node("f3", Container({ layout: "free" }));
     add(root, node("piece", box(2, 1), Surfaced(), ShadowCaster()));
     const plan = (over?: Map<string, Transform>): readonly Quad[] =>
@@ -432,15 +432,16 @@ describe("scenePlan", () => {
     // The hop is a scale, and the shadow answers it the same way.
     const grown = shadow(plan(new Map([["piece", { a: 1.5, b: 0, c: 0, d: 1.5, e: 0, f: 0 }]])));
     expect(Math.hypot(grown.transform.a, grown.transform.b)).toBeCloseTo(Math.hypot(still.transform.a, still.transform.b) * 1.5, 5);
-    // A piece the clock has carried AWAY still leaves its shadow at the seat — the law is untouched.
+    // And a piece the clock has carried AWAY takes its shadow with it, the whole three units.
     const flown = shadow(plan(new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 3, f: 0 }]])));
-    expect(flown.transform.e).toBeCloseTo(still.transform.e, 5);
+    expect(flown.transform.e).toBeCloseTo(still.transform.e + 300, 5);
   });
 
   it("plan.a-shadow-rides-a-body-across-the-desk — a slide is ON the felt, and its height is the gap to its shadow", () => {
-    // The flight law below is about a piece on its way to another SEAT. A body sliding across the
-    // desk is not on its way anywhere else — it is on the felt at every point of the path, and a
-    // shadow left behind at the seat would be saying the die is somewhere it plainly is not.
+    // The shadow travels with the body either way (`plan.a-shadow-is-under-its-piece`); what
+    // `grounded` adds is the HEIGHT — how far above the felt the body is right now. A die on the
+    // felt has its shadow tight underneath; the same die mid-bounce drops it away and takes it back
+    // on landing, and that gap is the only thing telling the onlooker it left the desk at all.
     const root = node("f4", Container({ layout: "free" }));
     add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
     const away = new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 3, f: 0 }]]);
@@ -462,18 +463,21 @@ describe("scenePlan", () => {
     const flat = plan(new Map([["piece", 0]]));
     // Under the die — three units along from the seat, give or take the lamp's own short fall.
     expect(Math.abs(gap(flat))).toBeLessThan(20);
-    expect(plan().find((q) => q.id === "piece::shadow")!.transform.e).toBeLessThan(
-      flat.find((q) => q.id === "piece::shadow")!.transform.e - 100,
-    ); // without the word, the old law: the shadow waits at the seat
-    // And the HEIGHT is the gap: a die in the air drops its shadow away and takes it back on landing.
+    // And WITHOUT the word it is under the die just the same: a height nobody declared is no height,
+    // not a shadow left at the seat.
+    expect(plan().find((q) => q.id === "piece::shadow")!.transform.e).toBeCloseTo(
+      flat.find((q) => q.id === "piece::shadow")!.transform.e,
+      5,
+    );
+    // The HEIGHT is the gap: a die in the air drops its shadow away and takes it back on landing.
     expect(gap(plan(new Map([["piece", 0.6]])))).toBeGreaterThan(gap(flat));
   });
 
-  it("plan.a-shadow-follows-the-hand-not-the-flight — held it travels, flying it waits at the rest", () => {
-    // The one law about a shadow in motion. A finger holding a piece has it OFF the desk, so the
-    // shadow travels under it. A piece the clock is flying — a settle, a throw, a slide, a turn —
-    // is on its way to a seat and is not standing at any point of the flight: its shadow waits at
-    // the rest pose it is heading for, or it would announce a landing at every frame on the way.
+  it("plan.a-shadow-is-under-its-piece — whoever is moving it, and however high", () => {
+    // THE one law about a shadow in motion, and it has no branches: the shadow is drawn from the
+    // pose the piece is DRAWN at. A hand or the clock, a throw or an ease home — an object and its
+    // own shadow are never in two places. What HEIGHT changes is the LENGTH of the fall: a piece in
+    // a hand stands further from its shadow, never apart from it.
     const root = node("f1", Container({ layout: "free" }));
     add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
     const away = new Map([["piece", { a: 1, b: 0, c: 0, d: 1, e: 2, f: 0 }]]);
@@ -496,7 +500,11 @@ describe("scenePlan", () => {
     expect(at(held, "piece")).toBeCloseTo(at(still, "piece") + 200); // 2 units at 100px/u
     expect(at(held, "piece::shadow")).toBeCloseTo(at(grabbed, "piece::shadow") + 200); // shadow along
     expect(at(flying, "piece")).toBeCloseTo(at(still, "piece") + 200); // the piece flies just the same
-    expect(at(flying, "piece::shadow")).toBeCloseTo(at(still, "piece::shadow")); // its shadow does not
+    expect(at(flying, "piece::shadow")).toBeCloseTo(at(still, "piece::shadow") + 200); // and so does its shadow
+    // The HAND is the only difference left, and it is a length, not a place: held, the gap between
+    // piece and shadow is wider than it is for the same travel on the clock.
+    const gap = (quads: readonly Quad[]): number => at(quads, "piece") - at(quads, "piece::shadow");
+    expect(gap(held)).toBeGreaterThan(gap(flying));
   });
 
   it("plan.a-raised-node-paints-last — flight beats height, and the quad still tells the resting truth", () => {
