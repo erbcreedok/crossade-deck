@@ -1,0 +1,30 @@
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_e74f2c8cdfaa25 305-306
+game-kit/src/render/swipe.ts
+  s_881c18b5871008::t_05ed7bfc19153e 62-70,72
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_8ed570ce3288e0 246-254,261,265,815-818,821-822
+  s_881c18b5871008::t_bbf0c2243eedbd 453,494,559,565-568,570-572,580
+  s_881c18b5871008::t_1d8b6f6ee4a2a2 455,457-465,467,493,495-496,569,618-619,819-820
+  s_881c18b5871008::t_e5ccc678a8c242 605-609,614-617,620-622,626-640,733-735,828-832,854
+  s_881c18b5871008::t_1d83b758a164f9 510,789,800
+  s_881c18b5871008::t_79bc7e61a16072 863-867
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_e74f2c8cdfaa25 309-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "eb06a3b301fd87c9f39df54a800d6a609d440ef8",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
