@@ -294,5 +294,10 @@
   "arg.keyScale": "How big the key makes the card, about its own centre. `1` is the size it rests at.",
   "arg.keyHold": "How much of the span the card WAITS out there, as a fraction. A pause is two keys with the same values — there is no `hold` field in a table, because a segment that changes nothing already is one.",
   "arg.rides": "Does the shadow travel WITH the card (1) or wait at the seat (0)? Off, the card reads as lifted off the desk; on, as sliding along the felt. Same motion, same numbers — the shadow is the entire difference, and it is a property of what the look MEANS.",
-  "arg.snap": "The grid a `snap` release lands on, in degrees. Read for nothing else — a piece set to `keep` or `home` never looks at it."
+  "arg.snap": "The grid a `snap` release lands on, in degrees. Read for nothing else — a piece set to `keep` or `home` never looks at it.",
+  "arg.dealAngle": "Which way the panel's own deal is sent, degrees clockwise from +x — `90` is the near seat, straight down the screen. It exists so a reader with a mouse can fire the gesture this page is about; it calls exactly what a swipe calls.",
+  "arg.seats": "How many players sit round the table. They are spread evenly from the near seat, so changing this re-aims every direction a deal can be sent — the arc between neighbours narrows as the table fills.",
+  "arg.spin": "How fast the piece turns as it travels, degrees per second. It slows with the slide under `spinFriction`, so a card thrown flat lands flat.",
+  "arg.arc": "How far off a seat's own direction a swipe may be and still find it, degrees. This is AIM: a swipe pointed between two players belongs to neither, and at `0` only a dead-straight throw lands.",
+  "arg.boomerangMs": "How long the return of a card that found nobody lasts, ms. It is a registered look (`keyframeMotion`), so it ends on the pack by construction — the card never exists anywhere in between."
 }
