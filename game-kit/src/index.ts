@@ -275,6 +275,7 @@ export {
   type ShiverOptions,
   type ShuffleOptions,
   type SlideOptions,
+  type SnapOptions,
   type WallHit,
 } from "./render/animator/index.js";
 // The LOOKS a piece can be asked to play by name — a registry, so a designer's own animation is a
@@ -374,6 +375,9 @@ export {
   resetGlides,
   type GlideLaw,
 } from "./core/glide.js";
+// The snap — `UISnapBehavior`: a moving body pulled to a place, and the question of whether a throw
+// would pass through a zone at all, asked BEFORE the throw.
+export { crossesZone, snapRests, springOf, stepSnap, type SnapConfig } from "./core/snap.js";
 export {
   clampAbs,
   springAt,

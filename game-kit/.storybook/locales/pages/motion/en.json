@@ -46,6 +46,9 @@
   "docs.motion.slide": [
     "A throw ACROSS THE DESK, seen from above: no gravity — `glide` bleeds the speed and `spinGlide` the spin, the tray's walls reflect by `bounce`, and where it stops it stops. This scene writes nothing into the tree, so it then eases home; a die's throw is exactly this with the landing written and a face shown (`Add-ons/Dice`)."
   ],
+  "docs.motion.snap": [
+    "A throw that is AIMED — `UISnapBehavior`: the puck keeps whatever momentum it left with while a spring draws it to the mark. The point is that where it ends was decided before it moved, so nothing corrects it when it arrives, and a correction at the end of a flight is exactly the jerk. Aim past the mark, short of it, or thirty degrees off — it is caught either way, and the heading is bent on the way instead of being snapped at the finish. `up` is the height it starts at and `toUp` the height it is pulled to: leave `toUp` at zero and it comes down onto the desk as it travels, its size following the height and its shadow closing under it; raise it and the puck comes home through the air without touching the felt. `snapResponse` and `snapDamping` are SwiftUI's own pair — a period in seconds, and a fraction of critical damping where `1` arrives without overshoot."
+  ],
   "docs.motion.shuffle": [
     "A row reordered on the clock — three layers a game keeps apart. `seed` decides the ORDER: `permutation(n, seededRng(seed))`, the same on every client that shares the seed (or the server sends the order outright). `reorder` is the TRUTH: the same children in that order, identity kept. `recipe` is the LOOK — `riffle`, `overhand`, `wash`, `shake` — a choreography over the children by index that never sees the seed. Tap any card to shuffle again, or bump `shuffled` on the panel."
   ],

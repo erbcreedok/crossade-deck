@@ -948,6 +948,61 @@ describe("flights: launch and slide", () => {
     expect(c.idle()).toBe(true);
   });
 
+  it("motion.snap-catches-a-throw-at-the-mark — aimed thirty degrees off, it still arrives, and without a correction", () => {
+    const b = bench();
+    const c = fakeClock();
+    let landed: { at: { x: number; y: number }; angle: number } | undefined;
+    const m = attachMotion(b.host, b.painter, { glide: "normal", spinGlide: "normal", clock: c.clock });
+    // Thrown at 30° while the mark is straight ahead, and harder than the distance asks for: both
+    // of the ways a flick misses, and neither of them is a case anybody wrote.
+    m.snap("c", { to: { x: 2, y: 0 }, speed: 9, angle: 30, spin: 300, onDone: (r) => { landed = r; } });
+    const early: number[] = [];
+    for (let t = 16; t <= 4000 && !landed; t += 16) {
+      c.tick(t);
+      if (t <= 96) early.push(b.tOf("c").f);
+    }
+    expect(landed).toBeDefined();
+    // It really went where it was aimed, not near it: the target IS the destination all along.
+    expect(landed!.at.x).toBeCloseTo(2, 2);
+    expect(landed!.at.y).toBeCloseTo(0, 2);
+    // ...and it left along the FINGER's heading before the spring bent it back — a snap that
+    // started by pointing at the mark would be a card that ignored the flick.
+    expect(Math.max(...early.map(Math.abs))).toBeGreaterThan(0);
+    // The turn ran out on its own and the flight waited for it: it is not upright at the end.
+    expect(Math.abs(landed!.angle % 360)).toBeGreaterThan(1);
+    expect(c.idle()).toBe(false); // no landing written, so it settles home from there
+  });
+
+  it("motion.snap-can-come-home-above-the-desk — pulled to a height, it never touches the felt", () => {
+    const b = bench();
+    const c = fakeClock();
+    let landed = false;
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    // The boomerang: back to where it came from, and ALL THE WAY at a height above the desk. The
+    // height is drawn as apparent size, so "never touches the felt" is readable off the glass.
+    m.snap("c", { to: { x: 0, y: 0 }, up: 0.8, toUp: 0.4, speed: 6, angle: 0, onDone: () => { landed = true; } });
+    const sizes: number[] = [];
+    for (let t = 16; t <= 4000 && !landed; t += 16) {
+      c.tick(t);
+      // Only while it is FLYING: the landing frame belongs to the tree again, and this scene wrote
+      // no landing, so the node is back on its seat and flat by then.
+      if (!landed) sizes.push(Math.abs(b.tOf("c").a));
+    }
+    expect(landed).toBe(true);
+    expect(Math.min(...sizes)).toBeGreaterThan(1.0001); // raised on every single frame of the way
+    // And a snap pulled to the desk does the opposite: it comes DOWN as it travels.
+    let down = false;
+    const dropped: number[] = [];
+    m.snap("c", { to: { x: 2, y: 0 }, up: 0.8, speed: 6, angle: 0, onDone: () => { down = true; } });
+    for (let t = 4016; t <= 8000 && !down; t += 16) {
+      c.tick(t);
+      if (!down) dropped.push(Math.abs(b.tOf("c").a));
+    }
+    expect(down).toBe(true);
+    expect(dropped[0]!).toBeGreaterThan(1.0001);
+    expect(dropped[dropped.length - 1]!).toBeCloseTo(1, 3);
+  });
+
   it("motion.slide-obeys-walls-and-speed — a tray keeps it in; speed 0 stops it where it stands", () => {
     const b = bench();
     const c = fakeClock();

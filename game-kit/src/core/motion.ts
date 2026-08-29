@@ -119,6 +119,17 @@ export interface MotionTuning {
   readonly glide: string;
   /** The same, for the TURN of a `slide`. A piece stops turning on its own clock, not on the run's. */
   readonly spinGlide: string;
+  /**
+   * A SNAP'S SPRING, in SwiftUI's own pair (`Animation.spring(response:dampingFraction:)`) so the
+   * Swift side sets the same two numbers on the same animation.
+   *
+   * `snapResponse` is the period of one full swing, SECONDS — a duration that reads like one.
+   * `snapDamping` is the fraction of critical damping: `1` arrives with no overshoot, and that is
+   * the default because a card that swings past its slot and comes back has told the player the
+   * slot moved.
+   */
+  readonly snapResponse: number;
+  readonly snapDamping: number;
 }
 
 export const DEFAULT_TUNING: MotionTuning = {
@@ -145,6 +156,8 @@ export const DEFAULT_TUNING: MotionTuning = {
   leash: 1.2,
   glide: "normal",
   spinGlide: "normal",
+  snapResponse: 0.4,
+  snapDamping: 1,
 };
 
 /** The fields a carry reads — what `grab` accepts as its per-gesture patch. */

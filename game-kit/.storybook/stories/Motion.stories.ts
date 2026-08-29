@@ -84,6 +84,8 @@ const meta: Meta = {
       bounce: ["Launch", "Slide"],
       glide: ["Slide"],
       spinGlide: ["Slide"],
+      snapResponse: ["Snap"],
+      snapDamping: ["Snap"],
       wallSpeed: ["Carry"],
       wallBounce: ["Carry"],
       leash: ["Carry"],
@@ -810,6 +812,141 @@ export const Slide: StoryObj<SlideArgs> = {
         y1: trayY + trayH / 2 - puckH / 2,
       };
       s.motions?.slide("puck", { speed: throwSpeed, angle: throwAngle, spin: throwSpin, hop: throwHop, walls });
+    }
+    return s.el;
+  },
+};
+
+// ---- snap -------------------------------------------------------------------------------------
+
+interface SnapArgs {
+  deskLayout: string;
+  thrown: boolean;
+  markX: number;
+  markY: number;
+  markRadius: number;
+  markSurface: string;
+  markPaint: string;
+  puckW: number;
+  puckH: number;
+  puckSurface: string;
+  puckPaint: string;
+  puckRadius: number;
+  puckX: number;
+  puckY: number;
+  speed: number;
+  angle: number;
+  spin: number;
+  up: number;
+  toUp: number;
+  snapResponse: number;
+  snapDamping: number;
+}
+
+/**
+ * A THROW THAT IS AIMED. The puck leaves with the speed and heading below and a spring draws it to
+ * the mark — `UISnapBehavior`, and the two numbers are SwiftUI's own pair.
+ *
+ * The whole point is that WHERE IT ENDS WAS DECIDED BEFORE IT MOVED, so nothing corrects it when it
+ * arrives — and a correction at the end of a flight is exactly the jerk a player sees. Aim past the
+ * mark, aim short of it, aim thirty degrees off: it is caught either way, and the heading is bent
+ * on the way rather than snapped at the finish.
+ *
+ * `up` is the height it STARTS at and `toUp` the height it is pulled TO. Leave `toUp` at zero and
+ * the puck comes down onto the desk as it travels, its apparent size following the height and its
+ * shadow closing under it — one thing, not two. Raise `toUp` and it comes home through the air
+ * without ever touching the felt, which is what a card that found nobody does.
+ *
+ * `snapDamping` at `1` arrives with no overshoot; below it the puck swings past the mark and comes
+ * back. `snapResponse` is the period of one full swing, in seconds — halve it and it all happens
+ * twice as fast. The TURN is not aimed anywhere: it runs out under `spinGlide` and stops where it
+ * stops, because a piece that came to rest a little crooked is a piece that was thrown.
+ */
+export const Snap: StoryObj<SnapArgs> = {
+  args: {
+    deskLayout: "story.motion.free",
+    thrown: false,
+    markX: 2.2,
+    markY: 0,
+    markRadius: 0.5,
+    markSurface: "story.motion.mark",
+    markPaint: "accent",
+    puckW: 0.9,
+    puckH: 0.9,
+    puckSurface: "story.motion.token",
+    puckPaint: "textMuted",
+    puckRadius: 0.5,
+    puckX: -2.2,
+    puckY: 0,
+    speed: 7,
+    angle: 25,
+    spin: 240,
+    up: 0.6,
+    toUp: 0,
+    snapResponse: DEFAULT_TUNING.snapResponse,
+    snapDamping: DEFAULT_TUNING.snapDamping,
+  },
+  argTypes: {
+    deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
+    thrown: documented("arg.thrown", { control: "boolean" }, "puck/motion"),
+    markX: documented("arg.x", PLACE, "mark/transformable"),
+    markY: documented("arg.y", PLACE, "mark/transformable"),
+    markRadius: documented("arg.radius", RADIUS, "mark/surface"),
+    markSurface: documented("arg.registerAs", TOKEN, "mark/surface"),
+    markPaint: documented("arg.fill", PAINT, "mark/surface"),
+    puckW: documented("arg.w", SIZE, "puck/bounds"),
+    puckH: documented("arg.h", SIZE, "puck/bounds"),
+    puckSurface: documented("arg.registerAs", TOKEN, "puck/surface"),
+    puckPaint: documented("arg.fill", PAINT, "puck/surface"),
+    puckRadius: documented("arg.radius", RADIUS, "puck/surface"),
+    puckX: documented("arg.x", PLACE, "puck/transformable"),
+    puckY: documented("arg.y", PLACE, "puck/transformable"),
+    speed,
+    angle,
+    spin,
+    up: documented("arg.snapUp", { control: { type: "number", min: 0, step: 0.1 } }, "puck/motion"),
+    toUp: documented("arg.snapToUp", { control: { type: "number", min: 0, step: 0.1 } }, "puck/motion"),
+    snapResponse: documented("arg.snapResponse", { control: { type: "number", min: 0.05, step: 0.05 } }, "tuning/snap"),
+    snapDamping: documented("arg.snapDamping", { control: { type: "number", min: 0.1, max: 2, step: 0.05 } }, "tuning/snap"),
+  },
+  parameters: { gkDocStory: "motion.snap" },
+  render: (a) => {
+    registerLayout(a.deskLayout, freeLayout);
+    registerSurface(a.markSurface, { layers: [{ paint: a.markPaint, opacity: 0.25 }], radius: a.markRadius });
+    registerSurface(a.puckSurface, { layers: [{ paint: a.puckPaint }], radius: a.puckRadius });
+    const desk = node("desk", Container({ layout: a.deskLayout }));
+    add(
+      desk,
+      node(
+        "mark",
+        Bounded({ bounds: rect(a.markRadius * 2, a.markRadius * 2) }),
+        Surfaced({ surface: a.markSurface }),
+        Transformable({ at: { x: a.markX, y: a.markY } }),
+      ),
+    );
+    add(
+      desk,
+      node(
+        "puck",
+        Bounded({ bounds: rect(a.puckW, a.puckH) }),
+        Surfaced({ surface: a.puckSurface }),
+        ShadowCaster(),
+        Transformable({ at: { x: a.puckX, y: a.puckY } }),
+      ),
+    );
+    const s = scene(desk, {
+      animate: true,
+      motion: { snapResponse: a.snapResponse, snapDamping: a.snapDamping },
+    });
+    if (moved(s, "thrown", a.thrown)) {
+      s.motions?.snap("puck", {
+        to: { x: a.markX, y: a.markY },
+        toUp: a.toUp,
+        up: a.up,
+        speed: a.speed,
+        angle: a.angle,
+        spin: a.spin,
+      });
     }
     return s.el;
   },

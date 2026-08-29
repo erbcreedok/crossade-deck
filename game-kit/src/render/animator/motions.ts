@@ -147,6 +147,43 @@ export type SlideOptions = {
   readonly bounce?: number | undefined;
 };
 
+/**
+ * A THROW THAT IS AIMED — `UISnapBehavior`: the body keeps whatever momentum it has while a spring
+ * draws it to a place the game has already chosen. A piece arriving fast is caught at speed, one
+ * arriving a little off is tugged the last hair, and neither is a case anybody writes.
+ *
+ * It is the answer to "the zone catches it", and to a card that found nobody and comes home: the
+ * two differ only in `to` and `toUp`. Because the target is known before the body moves, a snap has
+ * no correction at the end — and a correction at the end of a flight is exactly the jerk.
+ */
+export type SnapOptions = {
+  /** Where it is pulled, root units. */
+  readonly to: Vec;
+  /**
+   * The height it is pulled TO, root units above the desk. `0` (the default) is the desk itself —
+   * a dealt card coming down. Above it is a body that comes home through the air without ever
+   * touching the felt.
+   */
+  readonly toUp?: number | undefined;
+  /** The height it STARTS at — a card leaving a raised hand rather than skating off the felt. */
+  readonly up?: number | undefined;
+  /** How fast it is already going when the snap takes over, root units/s. Default 0. */
+  readonly speed?: number | undefined;
+  /** Which way that speed points, degrees clockwise from +x. */
+  readonly angle?: number | undefined;
+  /** Turn rate, degrees/s. NOT aimed anywhere: it runs out, and where it stops is where it lies. */
+  readonly spin?: number | undefined;
+  /** The period of one full swing, seconds — SwiftUI's `response`. Default the tuning's. */
+  readonly response?: number | undefined;
+  /** The fraction of critical damping — `1` arrives without overshoot. Default the tuning's. */
+  readonly damping?: number | undefined;
+  /** What bleeds the turn. Default the tuning's `spinGlide`. */
+  readonly spinGlide?: string | GlideLaw | undefined;
+  readonly delayMs?: number | undefined;
+  /** Runs when it has arrived and stopped turning, with the pose it came to rest in. */
+  readonly onDone?: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
+};
+
 /** A shuffle's look: the recipe name (`installStockShuffles`), and a duration patch. */
 export interface ShuffleOptions {
   readonly recipe?: string | undefined;
@@ -293,6 +330,11 @@ export interface Motions {
   launch(id: NodeId, opts: LaunchOptions): void;
   /** Throw a node across the desk — see `SlideOptions`. Its pose is an override until it rests. */
   slide(id: NodeId, opts: SlideOptions): void;
+  /**
+   * Throw a node AT A PLACE — see `SnapOptions`. The body keeps its momentum and a spring pulls it
+   * in, so where it ends was decided before it moved and nothing corrects it when it gets there.
+   */
+  snap(id: NodeId, opts: SnapOptions): void;
   /**
    * Keep what the glass shows and paint only what flies. Nothing at rest is repainted while this
    * is on, so a thrown card leaves its trail — the old solitaire's cascade. Off again, the next
