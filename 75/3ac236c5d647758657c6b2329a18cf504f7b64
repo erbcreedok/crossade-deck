@@ -1,0 +1,27 @@
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_a1559d9d49bbe9 10,70
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_3012537f8d5285 1302-1303
+  s_881c18b5871008::t_93e05fe11145da 1289-1301,1304-1318
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_3cc06c9ceaaeb0 301-309,315-326
+  s_881c18b5871008::t_227afb6734dccb 38-40
+game-kit/docs/test-plan/42-drag-feel.md
+  s_881c18b5871008::t_a1559d9d49bbe9 3,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "753ac236c5d647758657c6b2329a18cf504f7b64",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
