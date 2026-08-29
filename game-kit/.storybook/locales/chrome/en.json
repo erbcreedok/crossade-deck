@@ -299,5 +299,8 @@
   "arg.seats": "How many players sit round the table. They are spread evenly from the near seat, so changing this re-aims every direction a deal can be sent — the arc between neighbours narrows as the table fills.",
   "arg.spin": "How fast the piece turns as it travels, degrees per second. It slows with the slide under `spinFriction`, so a card thrown flat lands flat.",
   "arg.arc": "How far off a seat's own direction a swipe may be and still find it, degrees. This is AIM: a swipe pointed between two players belongs to neither, and at `0` only a dead-straight throw lands.",
-  "arg.boomerangMs": "How long the return of a card that found nobody lasts, ms. It is a registered look (`keyframeMotion`), so it ends on the pack by construction — the card never exists anywhere in between."
+  "arg.boomerangMs": "How long the return of a card that found nobody lasts, ms. It is a registered look (`keyframeMotion`), so it ends on the pack by construction — the card never exists anywhere in between.",
+  "arg.quantum": "How much ground the two fingers together have to cover before one more shuffle is paid out, in root units. A distance and not a duration on purpose: a slow knead and a fast one do the same work per pass of the hand, and the fast one simply gets more passes in.",
+  "arg.spinGain": "How much the die turns in flight per reversal the hand made, degrees per second. Zero throws it flat however hard it was rattled — which is a puck, not a die.",
+  "arg.faces": "How many faces the die has. The result is the last one its tumble showed, counted off the same motion that carries it."
 }

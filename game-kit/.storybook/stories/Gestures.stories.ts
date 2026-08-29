@@ -14,6 +14,14 @@ import {
   roundedRect,
   Rotatable,
   ANCHOR_SLOP,
+  installStockShuffles,
+  permutation,
+  remove,
+  reorder,
+  seededRng,
+  shuffleNames,
+  wireKnead,
+  wireShake,
   byId,
   compose,
   fieldsOf,
@@ -31,6 +39,7 @@ import {
   type Swipe,
 } from "../../src/index.js";
 import { scene, type Scene } from "../devtools/scene.js";
+installStockShuffles();
 import { wireDrag } from "../devtools/drag.js";
 import { documented } from "./surfaceControls.js";
 
@@ -296,7 +305,7 @@ export const Sandbox: StoryObj<DeskArgs> = {
   args: { ...DESK_ARGS },
   argTypes: DESK_KNOBS,
   parameters: { gkDocStory: "gestures.sandbox" },
-  render: (a) => wireDrag(scene(sandbox(a, false), { animate: true, key: "gestures.sandbox" }), { lift: a.lift, carry: a.carry }).el,
+  render: (a) => wireDrag(scene(sandbox(a, false), { animate: true }), { lift: a.lift, carry: a.carry }).el,
 };
 
 /**
@@ -325,7 +334,7 @@ export const Turn: StoryObj<DeskArgs> = {
     snap: documented("arg.snap", { control: { type: "number", min: 1, step: 5 } }, "piece/rotatable"),
   },
   parameters: { gkDocStory: "gestures.turn" },
-  render: (a) => wireDrag(scene(sandbox(a, true), { animate: true, key: "gestures.turn" }), { lift: a.lift, carry: a.carry }).el,
+  render: (a) => wireDrag(scene(sandbox(a, true), { animate: true }), { lift: a.lift, carry: a.carry }).el,
 };
 
 // ---- the round table: one hand holds the pack, the other deals off it ---------------------------
@@ -349,10 +358,17 @@ export const Turn: StoryObj<DeskArgs> = {
 // and so a card lands where it stops and that is the whole of it. A game that wants one and got
 // the other is telling its players something about the table that is not true.
 
-const SEAT_R = 0.42;
-/** How far the seats stand from the middle, root units — the rim of the table. */
-const TABLE_R = 2.5;
-const CARD = { w: 0.72, h: 1.02 };
+const SEAT_R = 0.3;
+/**
+ * How far the seats stand from the middle, root units — the rim of the table.
+ *
+ * SIZED FOR A PHONE HELD UPRIGHT, which is this catalog's first screen: 390 px at the kit's own
+ * hundred-to-the-unit is 3.9 units across, and the felt has to fit inside that with its seats on
+ * it. A table sized for a desktop stage loses the seat at the top and the seat at the bottom the
+ * moment anybody picks up a phone — and those are the two a dealer aims at most.
+ */
+const TABLE_R = 1.35;
+const CARD = { w: 0.56, h: 0.8 };
 
 /** Everyone at the origin: what a closed pack looks like to a layout. */
 const stackLayout: LayoutRecord = { place: (children) => children.map(() => ({ x: 0, y: 0 })) };
@@ -412,6 +428,21 @@ const TABLES = new Map<string, { root: Node; shape: string }>();
  * to the view and the closure belongs to the story.
  */
 const DEALERS = new WeakMap<HTMLElement, (angle: number, speed: number) => void>();
+
+/**
+ * THE GESTURE WIRINGS OF A STANDING SCENE, so a re-render swaps them instead of stacking them.
+ *
+ * Storybook calls a story again for every knob turn and the scene shell answers with the SAME
+ * standing canvas — so a wiring attached in a render body is attached again on every keystroke,
+ * and a deal would be dealt twice, then three times. `wireDrag` guards itself; the three seams
+ * beside it return a teardown and leave the bookkeeping to whoever owns the view, which here is
+ * this page.
+ */
+const GESTURES = new WeakMap<HTMLElement, () => void>();
+function rewire(el: HTMLElement, attach: () => () => void): void {
+  GESTURES.get(el)?.();
+  GESTURES.set(el, attach());
+}
 
 /** Did this control move since the last render of this scene? First sight is not a move. */
 const SEEN = new WeakMap<HTMLElement, Record<string, unknown>>();
@@ -566,7 +597,10 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
     }
 
     // OFF THE PACK AND ONTO THE FELT, standing exactly where the pack stands — so the throw starts
-    // from under the dealer's hand and not from wherever a layout would have put a loose card.
+    // from under the dealer's hand and not from wherever a layout would have put a loose card. It
+    // has to LEAVE its owner first: the kit refuses a node that already has one, loudly, and that
+    // refusal is the reason a card cannot quietly end up in two places.
+    if (card.parent) remove(card.parent, card);
     add(root, card);
     compose(card, Transformable({ at: home }));
     s.setRoot(root);
@@ -590,6 +624,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
         if (seat) {
           const target = byId(s.host.root, seat.id);
           if (target) {
+            if (live.parent) remove(live.parent, live);
             add(target, live);
             compose(live, Transformable({ at: { x: 0, y: 0 }, angle: 0 }));
             // THE NEAR SEAT IS THE READER'S OWN, and a hand you are holding is a hand you can see.
@@ -638,7 +673,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   const held = TABLES.get(key);
   const root = held && held.shape === shape ? held.root : tableTree(a);
   TABLES.set(key, { root, shape });
-  const s = scene(root, { animate: true, key, motion: { friction: a.friction } });
+  const s = scene(root, { animate: true, motion: { friction: a.friction } });
   DEALERS.set(s.el, dealer(s, a, snap));
   wireDrag(s, {
     // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
@@ -652,8 +687,14 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       return Math.abs(p.x - home.x) <= CARD.w && Math.abs(p.y - home.y) <= CARD.h ? deck : undefined;
     },
     onDrop: ({ lead, target }) => {
+      // THE PACK CANNOT BE DROPPED ON ITSELF. One finger dragging the deck lands it on the zone the
+      // deck IS, and a drop taken at face value would ask the tree to put a node inside itself —
+      // which the kit refuses loudly, as it should. Refusing here instead lets the ordinary drop
+      // stand: the pack stays where the hand left it.
+      if (lead.id === target.id) return false;
       // BACK ONTO THE PACK, face down again. The kit's own move machinery is not asked: this desk
       // has no rules about who may hold what, and `planMove` answers a question nobody here posed.
+      if (lead.parent) remove(lead.parent, lead);
       add(target, lead);
       compose(lead, Transformable({ at: { x: 0, y: 0 }, angle: 0 }));
       compose(lead, Surfaced({ surface: "gesture.table.back" }));
@@ -661,19 +702,22 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       return true;
     },
   });
-  wireSwipe({
-    host: s.host,
-    want: (n: Node) => n.id === "deck" || n.parent?.id === "deck",
-    poses: () => s.motions?.poses(),
-    onSwipe: (sw: Swipe) => {
+  rewire(s.el, () =>
+    wireSwipe({
+      host: s.host,
+      want: (n: Node) => n.id === "deck" || n.parent?.id === "deck",
+      poses: () => s.motions?.poses(),
+      onSwipe: (sw: Swipe) => {
       // THE WHOLE LAW OF THE PAGE, in one line. The other hand has to be ON the pack and has to
       // have STAYED there: a hand that wandered was dragging the pack, and a deal it happened to
       // pass through is not a deal.
-      const anchored = sw.anchor && sw.anchor.drift < ANCHOR_SLOP && (sw.anchor.on?.id === "deck" || sw.anchor.on?.parent?.id === "deck");
-      if (!anchored) return;
-      DEALERS.get(s.el)?.(sw.angle, sw.speed);
-    },
-  });
+        const anchored =
+          sw.anchor && sw.anchor.drift < ANCHOR_SLOP && (sw.anchor.on?.id === "deck" || sw.anchor.on?.parent?.id === "deck");
+        if (!anchored) return;
+        DEALERS.get(s.el)?.(sw.angle, sw.speed);
+      },
+    }),
+  );
   // THE PANEL DEALS TOO. The gesture this page is about needs two fingers, and a reader on a
   // laptop has one mouse — so the counter fires the same deal through the same code, and the page
   // is legible without a touchscreen. It is not a second mechanism: `dealt` calls what a swipe calls.
@@ -746,4 +790,235 @@ export const Fling: StoryObj<TableArgs> = {
   argTypes: TABLE_KNOBS,
   parameters: { gkDocStory: "gestures.fling" },
   render: (a) => tablePage(a, false, "gestures.fling"),
+};
+
+// ---- kneading a pack, and shaking a die ---------------------------------------------------------
+//
+// THE LAST TWO GESTURES ON THE SHELF HAVE NO DESTINATION, and that is what makes them a pair. A
+// drag ends somewhere; a swipe leaves in a direction. These two end where they began and are worth
+// something anyway, because the WORK is the point — and a gesture whose content is work cannot be
+// reported as an outcome at the end. It has to be paid out as it is done, or the thing under the
+// fingers sits dead and jumps when they leave, which is the one thing a player reads as broken.
+
+interface KneadArgs {
+  count: number;
+  recipe: string;
+  quantum: number;
+  shuffleMs: number;
+}
+
+const KNEAD_STATE = new Map<string, Node>();
+/** What the newest render does with a quantum of kneading — swapped per render, never re-attached. */
+const KNEADERS = new WeakMap<HTMLElement, (count: number, done: boolean) => void>();
+
+function packTree(a: KneadArgs): Node {
+  registerLayout("gesture.knead.free", freeLayout);
+  registerLayout("gesture.knead.stack", stackLayout);
+  registerSurface("gesture.knead.back", {
+    layers: [{ gradient: { angle: WASH_ANGLE, stops: [{ at: 0, paint: "accent" }, { at: 1, paint: "alert" }] } }],
+    radius: 0.08,
+  });
+  const desk = node("desk", Container({ layout: "gesture.knead.free" }));
+  const pack = node(
+    "pack",
+    Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
+    Surfaced({ surface: "gesture.knead.back" }),
+    Transformable({ at: { x: 0, y: 0 } }),
+    ShadowCaster(),
+    Container({ layout: "gesture.knead.stack" }),
+  );
+  for (let i = 0; i < a.count; i++) {
+    add(
+      pack,
+      node(
+        `pc${i}`,
+        Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
+        Surfaced({ surface: "gesture.knead.back" }),
+        Transformable({ at: { x: 0, y: 0 } }),
+        ShadowCaster(),
+      ),
+    );
+  }
+  add(desk, pack);
+  return desk;
+}
+
+/**
+ * TWO FINGERS ON THE PACK, WORKING IT. THE MORE YOU KNEAD, THE MORE IT IS SHUFFLED.
+ *
+ * Put two fingers on the deck and rub them back and forth. The pack comes apart under them and
+ * keeps coming apart for as long as you work it; let go and it settles into the order the work
+ * left it in.
+ *
+ * IT IS PAID OUT IN QUANTA, and that is the shape of the whole gesture rather than an
+ * implementation detail. A shuffle is a CHOREOGRAPHY — it has a span and an end — so a knead
+ * cannot be one shuffle: a hand that keeps working would be watching an animation that finished
+ * without it. Every `quantum` of ground the two fingers cover together is one short shuffle with a
+ * reorder of its own, and a hand that goes on kneading simply starts the next one over the top of
+ * the last. The pack is therefore genuinely more disordered the longer it is worked — the counter
+ * on the glass is the reorders that actually happened, not a measure of enthusiasm.
+ *
+ * A QUANTUM IS GROUND AND NOT TIME. A slow knead and a fast one do the same work per pass of the
+ * hand; the fast one simply gets more passes in. That is the honest model of the thing being
+ * imitated, and it is why `quantum` is measured in units of the desk.
+ *
+ * BOTH FINGERS HAVE TO BE WORKING. One holding while the other travels is a DEAL — the gesture two
+ * pages back, off the same kind of pack, with the same two fingers. Only the roles differ, and the
+ * whole shelf turns on that: try it here, hold with one and flick with the other, and nothing is
+ * kneaded at all.
+ */
+export const Knead: StoryObj<KneadArgs> = {
+  args: { count: 10, recipe: "riffle", quantum: 2, shuffleMs: 320 },
+  argTypes: {
+    count: documented("arg.count", { control: { type: "number", min: 2, max: 24, step: 1 } }, "pack"),
+    recipe: documented("arg.recipe", { control: "select", options: shuffleNames() }, "pack/shuffle"),
+    quantum: documented("arg.quantum", { control: { type: "number", min: 0.2, step: 0.2 } }, "knead"),
+    shuffleMs: documented("arg.shuffleMs", { control: { type: "number", min: 40, step: 20 } }, "knead"),
+  },
+  parameters: { gkDocStory: "gestures.knead" },
+  render: (a) => {
+    const key = "gestures.knead";
+    const held = KNEAD_STATE.get(key);
+    const root = held && (byId(held, "pack")?.children.length ?? -1) === a.count ? held : packTree(a);
+    KNEAD_STATE.set(key, root);
+    const s = scene(root, { animate: true });
+    let worked = 0;
+    KNEADERS.set(s.el, (count, done) => {
+      const pack = byId(s.host.root, "pack");
+      if (!pack || !s.motions || pack.children.length < 2) return;
+      worked = count;
+      // A REORDER PER QUANTUM, and the seed comes off the counter so every quantum is a different
+      // one. The truth is the reorder (`container.no-state-diffs`); the recipe is only the picture
+      // of the pack between the old order and the new, and it never sees the rng.
+      const order = permutation(pack.children.length, seededRng(count * 7919 + a.count));
+      s.motions.shuffle(
+        "pack",
+        () => void reorder(pack, order),
+        { recipe: a.recipe, shuffleMs: done ? a.shuffleMs * 2 : a.shuffleMs },
+      );
+    });
+    rewire(s.el, () =>
+      wireKnead({
+        host: s.host,
+        want: (n: Node) => n.id === "pack" || n.parent?.id === "pack",
+        quantum: a.quantum,
+        poses: () => s.motions?.poses(),
+        onKnead: (k) => KNEADERS.get(s.el)?.(k.count, k.done),
+      }),
+    );
+    void worked;
+    return s.el;
+  },
+};
+
+interface ShakeArgs {
+  gain: number;
+  spinGain: number;
+  friction: number;
+  faces: number;
+}
+
+const SHAKE_STATE = new Map<string, Node>();
+const SHAKING = new WeakMap<HTMLElement, ReturnType<typeof wireShake>>();
+
+function dieTree(a: ShakeArgs): Node {
+  registerLayout("gesture.shake.free", freeLayout);
+  registerSurface("gesture.shake.die", { layers: [{ paint: "accent" }], radius: 0.14 });
+  registerSurface("gesture.shake.felt", { layers: [{ paint: "text", opacity: 0.1 }], radius: 0.2 });
+  const desk = node("desk", Container({ layout: "gesture.shake.free" }));
+  add(desk, node("felt", Bounded({ bounds: roundedRect(5.4, 3.4, 0.2) }), Surfaced({ surface: "gesture.shake.felt" })));
+  const die = node(
+    "die",
+    Bounded({ bounds: roundedRect(0.9, 0.9, 0.14) }),
+    Surfaced({ surface: "gesture.shake.die" }),
+    Transformable({ at: { x: 0, y: 0 } }),
+    ShadowCaster(),
+    Draggable({ onReject: "stay" }),
+  );
+  add(die, node("pip", Bounded({ bounds: rect(0.7, 0.5) }), Labeled({ label: String(a.faces), style: CONTROL_LABEL })));
+  add(desk, die);
+  return desk;
+}
+
+/**
+ * SHAKE THE DIE AND LET GO. HOW HARD YOU RATTLED IT IS HOW HARD IT LANDS.
+ *
+ * Take the die, shake it about, and open your hand. It is thrown WHERE the finger was going and as
+ * hard as the hand had been WORKING — and those are two different numbers, out of two different
+ * gestures, which is the whole subject of the page.
+ *
+ * THE PARTING SPEED IS THE WRONG NUMBER FOR STRENGTH. A carry knows how fast the finger was moving
+ * at the instant it let go (`velocity()`), and a hand that rattled a die for a second and then
+ * stopped dead before opening has a parting speed of near zero — and every right to expect a hard
+ * throw. What the hand DID is a fact about a stretch of time, not about an instant, so it is
+ * measured over the stretch: the path walked, the reversals counted, the width covered.
+ *
+ * SO THE SHAKE IS A READING AND NOT AN EVENT. There is no `onShake`, because a shake has no moment
+ * at which it happens — a callback would have to invent one, and every consumer would then race
+ * that invention against its own release. It is asked for instead, at the moment the hand opens,
+ * and it survives the finger leaving precisely so that asking then is safe.
+ *
+ * THE TWO NUMBERS DIVIDE CLEANLY, and you can feel the seam: rattle hard and flick gently, and the
+ * die goes a long way in the direction you barely nudged. Rattle gently and flick hard, and it
+ * barely moves however sharply you let go. Direction is the parting instant's business; strength is
+ * the whole gesture's. `turns` — how many times the hand came back on itself — is what separates a
+ * shake from a throw at all, and it is what the tumble is counted off.
+ */
+export const Shake: StoryObj<ShakeArgs> = {
+  args: { gain: 0.5, spinGain: 30, friction: 5, faces: 6 },
+  argTypes: {
+    gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.1 } }, "throw"),
+    spinGain: documented("arg.spinGain", { control: { type: "number", min: 0, step: 10 } }, "throw"),
+    friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "throw"),
+    faces: documented("arg.faces", { control: { type: "number", min: 2, max: 20, step: 1 } }, "die"),
+  },
+  parameters: { gkDocStory: "gestures.shake" },
+  render: (a) => {
+    const key = "gestures.shake";
+    const root = SHAKE_STATE.get(key) ?? dieTree(a);
+    SHAKE_STATE.set(key, root);
+    const s = scene(root, { animate: true, motion: { friction: a.friction } });
+    // The shake is a READING and not a callback, so it is kept rather than re-attached: a second
+    // one over the top of the first would measure the same hand twice and answer with whichever
+    // the release handler happened to hold.
+    const shaking = SHAKING.get(s.el) ?? wireShake({ host: s.host, want: (n: Node) => n.id === "die", poses: () => s.motions?.poses() });
+    SHAKING.set(s.el, shaking);
+    wireDrag(s, {
+      onRelease: (velocity) => {
+        const shake = shaking.reading();
+        if (!shake || !s.motions) return false;
+        // STRENGTH FROM THE WHOLE GESTURE, DIRECTION FROM THE INSTANT — and the fallback when the
+        // hand let go dead still is the shake's own AXIS, which is the only direction a gesture
+        // that ended motionless ever named.
+        const speed = shake.speed * a.gain;
+        if (speed < 0.2) return false; // a die set down is a die set down
+        const moving = velocity && Math.hypot(velocity.x, velocity.y) > 0.3;
+        const angle = moving
+          ? (Math.atan2(velocity!.y, velocity!.x) * 180) / Math.PI
+          : shake.axis + (shake.at.x > 0 ? 0 : 180);
+        let face = 1;
+        s.motions.slide("die", {
+          speed,
+          angle,
+          // A HARD SHAKE TUMBLES MORE. `turns` is the reversals the hand made, and counting the
+          // faces off them is what makes "I rattled it properly" visible in the result.
+          spin: (shake.turns + 1) * a.spinGain,
+          hop: Math.min(shake.span, 3),
+          friction: a.friction,
+          onTumble: (count) => {
+            face = ((count + a.faces - 1) % a.faces) + 1;
+            const pip = byId(s.host.root, "pip");
+            if (pip) compose(pip, Labeled({ label: String(face), style: CONTROL_LABEL }));
+          },
+          onDone: (rest) => {
+            const die = byId(s.host.root, "die");
+            if (die) compose(die, Transformable({ at: rest.at, angle: rest.angle }));
+            s.setRoot(s.host.root);
+          },
+        });
+        return true; // the throw took the die; the ordinary drop must not also put it down
+      },
+    });
+    return s.el;
+  },
 };
