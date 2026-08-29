@@ -187,6 +187,10 @@ export { HOLD_MS, wireHold, type HoldWiring } from "./render/hold.js";
 export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./render/lift.js";
 // THE GESTURES BESIDE THE LONG PRESS — each one a seam that REPORTS and decides nothing, which is
 // the same bargain `wireHold` strikes. What a swipe, a shake or a knead MEANS is the game's word.
+// THE PAN — `UIPanGestureRecognizer`: the same finger, reported WHILE it moves. Beside the swipe
+// and not instead of it, exactly as UIKit ships both: a swipe is a verdict on release, and a
+// verdict on release cannot say "the card is already going, this way, this fast".
+export { PAN_SLOP, PAN_WINDOW, wirePan, type Pan, type PanState, type PanWiring } from "./render/pan.js";
 export {
   SWIPE_REACH,
   SWIPE_SPEED,
