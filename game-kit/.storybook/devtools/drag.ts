@@ -118,6 +118,20 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * finger overruling the rules.
    */
   readonly toFront?: boolean | undefined;
+  /**
+   * HOW MUCH THIS PIECE GROWS WHILE IT IS HELD — asked of the scene, per grab, because the answer
+   * is about the piece and the glass and not about the desk.
+   *
+   * `MotionTuning.lift` is one number for every carry on the clock: the small pop that says a hand
+   * has the piece. This is the other question — "big enough for WHAT" — and a pack that has to
+   * offer a second finger room to deal off it cannot be answered with the same number as a card
+   * that only has to acknowledge the hand. See `liftToFit`: the scale falls out of the finger, the
+   * etalon and the zoom, so nobody has to pick a multiplier that will be wrong on the next device.
+   *
+   * Absent, the wiring's own `lift` stands — which is the ordinary pop, and what every other desk
+   * in the catalog wants.
+   */
+  readonly liftOf?: ((root: Node, hit: Node) => number | undefined) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -230,12 +244,16 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, ...feel } = w.opts;
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, liftOf, ...feel } = w.opts;
+    // The piece's own answer wins over the desk's, and only when it has one: a scene that says
+    // nothing about a piece gets the ordinary pop, exactly as before this existed.
+    const lift = liftOf?.(root, hit);
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {
       anchor,
       ...feel,
+      ...(lift === undefined ? {} : { lift }),
       ...(tray ? { walls: tray } : {}),
       // THE BORDER ENDS THE GESTURE, and the wiring's own bookkeeping ends with it: the finger is
       // still down, so the drag has to be forgotten here or the pointerup would drop the piece a

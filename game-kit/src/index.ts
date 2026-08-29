@@ -182,6 +182,9 @@ export {
 } from "./core/atoms/rotatable.js";
 export { Actionable, actionable, activate, intentOf, type ActionableFields } from "./core/atoms/actionable.js";
 export { HOLD_MS, wireHold, type HoldWiring } from "./render/hold.js";
+// HOW BIG A HELD THING HAS TO BE — a target in FINGERS rather than a multiplier, because whether a
+// second finger fits beside the first is a fact about glass pixels and not about the piece.
+export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./render/lift.js";
 // THE GESTURES BESIDE THE LONG PRESS — each one a seam that REPORTS and decides nothing, which is
 // the same bargain `wireHold` strikes. What a swipe, a shake or a knead MEANS is the game's word.
 export {

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import {
+  acrossOf,
   add,
   Bounded,
   circle,
@@ -16,6 +17,7 @@ import {
   Rotatable,
   ANCHOR_SLOP,
   IDENTITY,
+  glassPerUnit,
   installStockFlips,
   installStockShuffles,
   permutation,
@@ -30,6 +32,7 @@ import {
   compose,
   fieldsOf,
   keyframeMotion,
+  liftToFit,
   registerLayout,
   registerSurface,
   ShadowCaster,
@@ -450,7 +453,12 @@ export const Turn: StoryObj<DeskArgs> = {
 // and so a card lands where it stops and that is the whole of it. A game that wants one and got
 // the other is telling its players something about the table that is not true.
 
-const SEAT_R = 0.34;
+/**
+ * A SEAT IS A PLACE, AND A CARD IS A THING PUT IN IT, so the place has to be the bigger of the two
+ * — otherwise a hand reads as a card lying next to a dot rather than a card given to somebody. The
+ * card is unchanged; what grew is the player.
+ */
+const SEAT_R = 0.62;
 /**
  * THE RIM, root units — round, and big.
  *
@@ -467,8 +475,27 @@ const SEAT_R = 0.34;
 const TABLE_R = 2.6;
 const CARD = { w: 0.56, h: 0.8 };
 
-/** Everyone at the origin: what a closed pack looks like to a layout. */
-const stackLayout: LayoutRecord = { place: (children) => children.map(() => ({ x: 0, y: 0 })) };
+/**
+ * A PACK, AND IT HAS TO LOOK LIKE ONE. Everyone at the origin is what a closed pack IS to a layout,
+ * and it is also indistinguishable from a single card — which is a lie about the one thing the page
+ * needs the reader to believe, that there is a stack there to deal off.
+ *
+ * So each card stands a hair up and left of the one under it. It is a real pack's edge, and it is
+ * the whole of what makes a pack legible from above: the thickness, not the top card.
+ *
+ * CAPPED, because a fifty-five card pack staggered all the way would be a staircase across the
+ * felt. Past the cap the cards pile exactly, as they really do — the eye has already been told how
+ * deep the pack is by the first few edges.
+ */
+const PACK_STEP = 0.012;
+const PACK_EDGES = 9;
+const stackLayout: LayoutRecord = {
+  place: (children) =>
+    children.map((_, i) => {
+      const deep = Math.min(children.length - 1 - i, PACK_EDGES);
+      return { x: -deep * PACK_STEP, y: -deep * PACK_STEP };
+    }),
+};
 
 /**
  * A HAND, FANNED — an arc of seats, each a little further round than the last.
@@ -508,6 +535,8 @@ interface TableArgs {
   friction: number;
   boomerangMs: number;
   grip: number;
+  fingers: number;
+  liftMax: number;
 }
 
 /**
@@ -787,6 +816,8 @@ const TABLE_ARGS: TableArgs = {
   friction: 6,
   boomerangMs: 520,
   grip: ANCHOR_SLOP,
+  fingers: 2.5,
+  liftMax: 4,
 };
 
 const TABLE_KNOBS = {
@@ -798,6 +829,8 @@ const TABLE_KNOBS = {
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
   friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "deal"),
   grip: documented("arg.grip", { control: { type: "number", min: 0, step: 2 } }, "deal"),
+  fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
+  liftMax: documented("arg.liftMax", { control: { type: "number", min: 1, step: 0.5 } }, "pack/lift"),
 };
 
 /** Wire both table pages the same way — the only difference is whether a seat is looked for. */
@@ -830,6 +863,21 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // deck alone and the cards stay behind and then settle after it, which reads as the pack coming
     // apart in the hand. The run is the answer the wiring already had a word for.
     runOf: (_root, hit) => (hit.id === "deck" ? [hit, ...hit.children] : [hit]),
+    // THE PACK GROWS UNDER THE HAND, AND ONLY THE PACK. A deal needs a second finger to land ON it
+    // beside the first, and whether one fits is a fact about GLASS PIXELS — a pack a third of a
+    // unit across is thirty of them at the fit, which is less than one fingertip. The scale is not
+    // picked: it falls out of the finger, the etalon and the camera's zoom (`liftToFit`), so it is
+    // right on a phone, on a laptop and at every zoom without anybody retuning it.
+    //
+    // A dealt card gets no such treatment. Nothing is dealt off a single card, so it has nothing to
+    // make room for, and growing it would be decoration.
+    liftOf: (_root, hit) =>
+      hit.id === "deck"
+        ? liftToFit(acrossOf(hit), glassPerUnit(s.host.unit(), s.camera?.state().zoom ?? 1), {
+            fingers: a.fingers,
+            max: a.liftMax,
+          })
+        : undefined,
     // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
     // object under the hand. The pick then falls through to the deck itself, which is drawn under
     // it — so one finger on the pack moves the pack, whichever of its cards was on top.
