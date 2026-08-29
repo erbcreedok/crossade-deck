@@ -1316,3 +1316,33 @@ describe("a held piece keeps what it is", () => {
     ).toBe(Math.sign(resting));
   });
 });
+
+// A RUN EMPTIES ONE NODE AT A TIME. A game deals a card off a pack the hand is still holding, and
+// the card has to be FLYING that frame — not still laid out at the anchor, wearing the hand's lift,
+// until the whole run is finally let go.
+describe("throwing one node out of a carried run", () => {
+  it("motion.a-thrown-node-leaves-the-hand-at-once — the rest of the run stays held", () => {
+    // THE BUG THIS EXISTS FOR: the carry laid out every item of the run, released or not, and it
+    // laid them out AFTER the flight had stepped — so a card dealt off a raised pack was pinned to
+    // the anchor at the hand's lift for the whole of its throw, and snapped into place when the
+    // hand finally opened.
+    const b = bench();
+    const c = fakeClock();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 } })));
+    b.host.setRoot(b.host.root);
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 2, friction: 4 });
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 1, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    c.tick(100);
+    m.dragTo({ x: 3, y: 3 }); // the hand carries the run well away from where the throw will go
+    c.tick(200);
+
+    m.release("d");
+    m.slide("d", { speed: 6, angle: 0, friction: 4 });
+    c.tick(400);
+    const flown = m.poses()!.get("d")!;
+    expect(flown.e, "the thrown card is out along its own throw, not pinned to the hand").toBeGreaterThan(1);
+    expect(Math.abs(flown.a), "and at its own size, not the hand's lift").toBeCloseTo(1, 5);
+    expect(m.poses()!.get("c")!.a, "while the rest of the run is still held, and still raised").toBeGreaterThan(1.5);
+  });
+});

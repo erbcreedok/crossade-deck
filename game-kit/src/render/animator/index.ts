@@ -91,6 +91,14 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const clock = options.clock ?? rafClock;
 
   const displayed = new Map<NodeId, Transform>(); // what is on the glass now, root-unit space
+  /**
+   * WHAT THE TREE SAYS a node's pose is — the last reconcile's walk, kept rather than re-walked.
+   *
+   * A flight needs it and `displayed` cannot serve: `displayed` is where the node was last DRAWN,
+   * and a card thrown out of a hand was last drawn wearing that hand's lift. Read from there, the
+   * throw inherits the hand's size and carries it the whole way — see `overrides`.
+   */
+  let seated = new Map<NodeId, Transform>();
   const active = new Map<NodeId, Motion>(); // nodes mid-settle
   const held = new Set<NodeId>(); // nodes a gesture owns — no easing
   // Nodes a finger is dragging: their pose is the FINGER's, an override, not the tree's. A drag never
@@ -155,7 +163,11 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     // was (at rest, or mid-settle), so a stagger never freezes a card in the air.
     for (const [id, f] of flights) {
       if (!f.started) continue;
-      const rest = displayed.get(id);
+      // ITS OWN SIZE AND SHAPE, FROM THE TREE — never from what it was last drawn as. A card dealt
+      // out of a raised pack was last drawn at the HAND's lift, and a throw that took its shape
+      // from there flew the whole way inflated and then snapped to size on landing. The hand's
+      // lift is the hand's; a thrown thing is its own.
+      const rest = seated.get(id) ?? displayed.get(id);
       if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle, 1 + f.body.up * RISE));
     }
     return map;
@@ -311,7 +323,11 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     const leanDeg = cy.sa.pos;
     const anchor = heldAt(cy);
     const n = cy.items.length;
+    // ONLY WHAT IS STILL IN THE HAND. A run empties one node at a time — a game deals a card off a
+    // held pack and the rest stays held — and an item the scene has already let go must stop being
+    // laid out by the hand. `items` is the run as it was taken; `carried` is who is still on it.
     cy.items.forEach((it, i) => {
+      if (!carried.has(it.id)) return;
       // A CARRY SAYS WHERE AND HOW TILTED, NOT WHAT THE PIECE IS. The style builds a pose out of
       // the anchor alone, which is right — that is what makes a run one plank — but it means every
       // trace of the node's own matrix is gone while the hand has it, the flip's reflection
@@ -351,6 +367,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   /** Read the tree's new rest poses and start a spring for every node whose pose moved. */
   const reconcile = (): void => {
     const target = transformsOf(host.root);
+    seated = target;
     const posed = choreographed();
     const road = settles();
     for (const [id, to] of target) {

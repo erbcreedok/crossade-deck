@@ -507,13 +507,19 @@ const stackLayout: LayoutRecord = {
  * business and which way it faces is the card's, and a layout that wrote both would take the angle
  * away from a game that wanted to say something with it.
  */
+/**
+ * WHERE THE `i`-th OF `n` CARDS SITS IN A HAND, relative to the seat — written once and read twice:
+ * by the layout that places them, and by the DEAL that has to know where a card is going before it
+ * throws it. Two copies of this would drift, and the drift would be visible as a card landing a
+ * hair off and then being tugged into line.
+ */
+const fanAt = (i: number, n: number): { x: number; y: number } => {
+  const step = n > 1 ? i - (n - 1) / 2 : 0;
+  return { x: step * 0.26, y: Math.abs(step) * 0.05 };
+};
+
 const fanLayout: LayoutRecord = {
-  place: (children) =>
-    children.map((_, i) => {
-      const n = children.length;
-      const step = n > 1 ? (i - (n - 1) / 2) : 0;
-      return { x: step * 0.26, y: Math.abs(step) * 0.05 };
-    }),
+  place: (children) => children.map((_, i) => fanAt(i, children.length)),
 };
 
 /** How far round the table seat `i` of `n` stands, degrees clockwise from +x. `0` is the near seat. */
@@ -793,13 +799,24 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
     // refusal is the reason a card cannot quietly end up in two places.
     if (card.parent) remove(card.parent, card);
     add(root, card);
+    // AND IT LEAVES THE HAND. The pack is still held, and this card was part of the run the hand
+    // took — left in it, the carry goes on laying it out at the anchor, raised, while the throw
+    // thinks it is flying. That is a card staying big and stuck to the finger until the whole hand
+    // lets go, and then snapping to wherever it should have been.
+    s.motions.release(card.id);
     // OFF THE PACK IS ON ITS OWN: it is nobody's child now, so a refused drop must leave it where
     // the hand let go rather than fly it back to a seat it no longer has.
     compose(card, Draggable({ onReject: "stay" }));
     compose(card, Transformable({ at: home }));
     s.setRoot(root);
 
-    const to = seat ? worldAt(seat) : undefined;
+    // THE EXACT SEAT IN THE HAND, worked out BEFORE the throw. Not the middle of the player: the
+    // slot this card will occupy once it is theirs — seat position plus the fan's own offset for
+    // the place it is about to take. Aim at the middle and the card lands somewhere near, and then
+    // the re-parent tugs it into line: a throw that ends in a correction, which is the jerk.
+    const hand = seat ? seat.children.length : 0;
+    const slot = seat ? fanAt(hand, hand + 1) : undefined;
+    const to = seat && slot ? { x: worldAt(seat).x + slot.x, y: worldAt(seat).y + slot.y } : undefined;
     const gap = to ? Math.hypot(to.x - home.x, to.y - home.y) : 0;
     // HOW FAR, AND THEN HOW FAST — never the other way round. A finger's speed is not a card's:
     // a flick is twenty units a second and a body under friction covers `v² / 2f`, which at that
@@ -835,7 +852,12 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
           if (target) {
             if (live.parent) remove(live.parent, live);
             add(target, live);
-            compose(live, Transformable({ at: { x: 0, y: 0 }, angle: 0 }));
+            // AS IT FELL, SO IT LIES. The hand it joins puts it in the slot the throw was aimed at,
+            // so nothing moves; the ANGLE it landed with is kept, because a card that came to rest
+            // a little crooked is a card that was thrown, and squaring it up is the tell that
+            // nothing was.
+            const own = fieldsOf<{ at: { x: number; y: number } }>(live, "Transformable");
+            compose(live, Transformable({ ...(own ?? {}), at: { x: 0, y: 0 }, angle: rest.angle }));
             // THE NEAR SEAT IS THE READER'S OWN, and a hand you are holding is a hand you can see.
             // Every other seat keeps its cards face down. It is a real TURN and not a surface
             // swapped behind the player's back: the card carries the set's own back, and which side
