@@ -360,6 +360,20 @@ export {
   type SlideConfig,
   type Walls,
 } from "./core/ballistic.js";
+// The run-out law a `slide` bleeds by — the platform's own deceleration rate, named and registered,
+// and the one place that answers "how far will this throw get" before the throw is made.
+export {
+  asGlide,
+  decayGlide,
+  FAST_RATE,
+  glideLaw,
+  glideNames,
+  installStockGlides,
+  NORMAL_RATE,
+  registerGlide,
+  resetGlides,
+  type GlideLaw,
+} from "./core/glide.js";
 export {
   clampAbs,
   springAt,

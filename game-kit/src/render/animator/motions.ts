@@ -7,6 +7,7 @@ import { type Node, type NodeId } from "../../core/node.js";
 import { type TuningPatch, type MotionTuning } from "../../core/motion.js";
 import { type CarryTuning } from "../../core/motion.js";
 import { type Body, type Walls } from "../../core/ballistic.js";
+import { type GlideLaw } from "../../core/glide.js";
 import { type Transform, type Vec } from "../../core/transform.js";
 import { type TextMeasure } from "../textMetrics.js";
 import { type MotionRecipe } from "../motions.js";
@@ -103,10 +104,17 @@ export type LaunchOptions = {
   readonly onDone?: (() => void) | undefined;
 } & { readonly gravity?: number | undefined; readonly bounce?: number | undefined };
 
-/** A throw across the DESK: friction bleeds speed and spin, walls reflect, it stops where it stops. */
+/** A throw across the DESK: a glide law bleeds speed and spin, walls reflect, it stops where it stops. */
 export type SlideOptions = {
   readonly speed: number;
   readonly angle: number;
+  /**
+   * HOW HIGH IT STARTS, root units above the desk — a card that leaves a raised hand rather than
+   * skating off the felt. It falls under the tuning's `gravity` from there, and the flight grows its
+   * apparent size by the height it is at, so "loses height and size" is one thing and not two.
+   * Default `0`: a body on the desk.
+   */
+  readonly up?: number | undefined;
   /** Turn rate, degrees/s. Default 0. */
   readonly spin?: number | undefined;
   /**
@@ -131,7 +139,13 @@ export type SlideOptions = {
    * gone the same frame — a game that wants the piece to stay writes this pose into the tree.
    */
   readonly onDone?: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
-} & { readonly friction?: number | undefined; readonly spinFriction?: number | undefined; readonly bounce?: number | undefined };
+} & {
+  /** The run-out law for this throw — a registry name, or one built on the spot (`decayGlide`). */
+  readonly glide?: string | GlideLaw | undefined;
+  /** The same for the turn. */
+  readonly spinGlide?: string | GlideLaw | undefined;
+  readonly bounce?: number | undefined;
+};
 
 /** A shuffle's look: the recipe name (`installStockShuffles`), and a duration patch. */
 export interface ShuffleOptions {

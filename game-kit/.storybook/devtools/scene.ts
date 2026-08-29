@@ -26,6 +26,7 @@ import {
   glassOf,
   inspect,
   installStockEasings,
+  installStockGlides,
   installStockHeads,
   installStockLayouts,
   installStockSurfaces,
@@ -261,6 +262,9 @@ export function scene(
   installStockLayouts();
   installStockSurfaces();
   installStockHeads();
+  // The run-out laws a throw names. Uninstalled they all resolve to the platform's `normal`, so
+  // this is what makes a page asking for `fast` actually get `fast`.
+  installStockGlides();
   const id = takeSceneId(options.key);
 
   // AN ARGUMENT CHANGE IS NEW DATA, NOT A NEW SCENE.

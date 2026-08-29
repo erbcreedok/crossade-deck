@@ -5,6 +5,7 @@
 // read far more often than the loop that uses them.
 
 import { type Body } from "../../core/ballistic.js";
+import { type GlideLaw } from "../../core/glide.js";
 import { type Transform } from "../../core/transform.js";
 
 export const EPSILON = 1e-6;
@@ -55,18 +56,17 @@ export const tumbleEase = (t: number): number => 1 - (1 - t) ** 3;
 export const tumbleAt = (turned: number): number => 1 - Math.cbrt(1 - turned);
 
 /**
- * How many faces' worth of motion a sliding body still has in it. Friction takes a fixed amount of
- * speed per second, so what is left of a slide is `v²/2f`, and of a spin the same. Walls only ever
- * eat more of it, so this over-estimates — and it errs the safe way: the result is shown a touch
- * early rather than on a body that has already stopped.
+ * How many faces' worth of motion a sliding body still has in it. The glide law answers "how far
+ * from here" directly (`project`), for the run and for the turn alike — this is the same question
+ * the throw asks before it is made, asked again mid-flight. Walls only ever eat more of it, so this
+ * over-estimates, and it errs the safe way: the result is shown a touch early rather than on a body
+ * that has already stopped.
  */
 export const facesLeft =
-  (cfg: { readonly friction: number; readonly spinFriction: number }) =>
+  (cfg: { readonly glide: GlideLaw; readonly spinGlide: GlideLaw }) =>
   (b: Body): number => {
-    const speed = Math.hypot(b.vel.x, b.vel.y);
-    const spin = Math.abs(b.spin);
-    const path = speed <= 0 ? 0 : cfg.friction > 0 ? (speed * speed) / (2 * cfg.friction) : Infinity;
-    const turn = spin <= 0 ? 0 : cfg.spinFriction > 0 ? (spin * spin) / (2 * cfg.spinFriction) : Infinity;
+    const path = cfg.glide.project(Math.hypot(b.vel.x, b.vel.y));
+    const turn = cfg.spinGlide.project(Math.abs(b.spin));
     return path / UNITS_PER_FACE + turn / TURN_PER_FACE;
   };
 

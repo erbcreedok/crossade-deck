@@ -82,8 +82,8 @@ const meta: Meta = {
       leanDamping: ["Carry"],
       gravity: ["Launch"],
       bounce: ["Launch", "Slide"],
-      friction: ["Slide"],
-      spinFriction: ["Slide"],
+      glide: ["Slide"],
+      spinGlide: ["Slide"],
       wallSpeed: ["Carry"],
       wallBounce: ["Carry"],
       leash: ["Carry"],
@@ -120,8 +120,8 @@ const leanStiffness = documented("arg.leanStiffness", { control: { type: "range"
 const leanDamping = documented("arg.leanDamping", { control: { type: "range", min: 1, max: 60, step: 1 } }, "tuning/carry.lean");
 const gravity = documented("arg.gravity", { control: { type: "range", min: 0, max: 40, step: 0.5 } }, "tuning/launch");
 const bounce = documented("arg.bounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "tuning/launch");
-const friction = documented("arg.friction", { control: { type: "range", min: 0, max: 30, step: 0.5 } }, "tuning/slide");
-const spinFriction = documented("arg.spinFriction", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "tuning/slide");
+const glide = documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "tuning/slide");
+const spinGlide = documented("arg.spinGlide", { control: "select", options: ["normal", "fast"] }, "tuning/slide");
 // The throw's own inputs — not tuning, the call's arguments — under the runtime's own names.
 const speed = documented("arg.throw.speed", { control: { type: "range", min: 0, max: 20, step: 0.5 } }, "throw");
 const angle = documented("arg.throw.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "throw");
@@ -687,8 +687,8 @@ interface SlideArgs {
   angle: number;
   spin: number;
   hop: number;
-  friction: number;
-  spinFriction: number;
+  glide: string;
+  spinGlide: string;
   bounce: number;
 }
 
@@ -729,8 +729,8 @@ export const Slide: StoryObj<SlideArgs> = {
     angle: 20,
     spin: 720,
     hop: 2.5,
-    friction: DEFAULT_TUNING.friction,
-    spinFriction: DEFAULT_TUNING.spinFriction,
+    glide: DEFAULT_TUNING.glide,
+    spinGlide: DEFAULT_TUNING.spinGlide,
     bounce: DEFAULT_TUNING.bounce,
   },
   argTypes: {
@@ -757,8 +757,8 @@ export const Slide: StoryObj<SlideArgs> = {
     angle,
     spin,
     hop: documented("arg.slideHop", { control: { type: "range", min: 0, max: 8, step: 0.25 } }, "puck/motion"),
-    friction,
-    spinFriction,
+    glide,
+    spinGlide,
     bounce,
   },
   parameters: { gkDocStory: "motion.slide" },
@@ -786,8 +786,8 @@ export const Slide: StoryObj<SlideArgs> = {
     angle: throwAngle,
     spin: throwSpin,
     hop: throwHop,
-    friction: drag,
-    spinFriction: spinDrag,
+    glide: drag,
+    spinGlide: spinDrag,
     bounce: rebound,
   }) => {
     registerLayout(deskLayout, freeLayout);
@@ -800,7 +800,7 @@ export const Slide: StoryObj<SlideArgs> = {
     const desk = node("desk", Container({ layout: deskLayout }));
     add(desk, node("tray", Bounded({ bounds: rect(trayW, trayH) }), Surfaced({ surface: traySurface }), Transformable({ at: { x: trayX, y: trayY } })));
     add(desk, node("puck", Bounded({ bounds: rect(puckW, puckH) }), Surfaced({ surface: puckSurface }), Transformable({ at: { x: puckX, y: puckY } })));
-    const s = scene(desk, { animate: true, motion: { friction: drag, spinFriction: spinDrag, bounce: rebound } });
+    const s = scene(desk, { animate: true, motion: { glide: drag, spinGlide: spinDrag, bounce: rebound } });
     if (moved(s, "thrown", thrown)) {
       // The tray's inner box, in root units: the puck stays inside by half its own width.
       const walls = {

@@ -46,7 +46,7 @@ const view = async (ctx: CheckContext): Promise<HTMLCanvasElement> => painted(ct
 
 export const Throw: StoryObj = {
   parameters: { gkDocStory: "tests.dice.throw" },
-  render: () => scene(desk(), { animate: true, motion: { friction: 8 } }).el,
+  render: () => scene(desk(), { animate: true, motion: { glide: "fast" } }).el,
   play: checks([
     {
       name: "play.dice.script-throw-shows-the-given-face — the die leaves its seat, rests elsewhere, and reads the face the script gave",

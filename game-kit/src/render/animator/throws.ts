@@ -5,6 +5,7 @@
 // flight record — the runtime steps and asks "is it over", it never reads which sort this is.
 
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body } from "../../core/ballistic.js";
+import { asGlide } from "../../core/glide.js";
 import { apply } from "../../core/transform.js";
 import { turnOf } from "./poses.js";
 import { type Motions } from "./motions.js";
@@ -53,14 +54,20 @@ export function throws(rt: Runtime): Throws {
       const rest = rt.restOf(id);
       if (!rest) return;
       const cfg = {
-        friction: opts.friction ?? rt.tuning.friction,
-        spinFriction: opts.spinFriction ?? rt.tuning.spinFriction,
+        glide: asGlide(opts.glide ?? rt.tuning.glide),
+        spinGlide: asGlide(opts.spinGlide ?? rt.tuning.spinGlide),
         bounce: opts.bounce ?? rt.tuning.bounce,
         walls: opts.walls,
         gravity: rt.tuning.gravity,
       };
       rt.beginFlight(id, {
-        body: { ...bodyAt(apply(rest, { x: 0, y: 0 })), vel: velocityOf(opts.speed, opts.angle), spin: opts.spin ?? 0, upVel: opts.hop ?? 0 },
+        body: {
+          ...bodyAt(apply(rest, { x: 0, y: 0 })),
+          vel: velocityOf(opts.speed, opts.angle),
+          spin: opts.spin ?? 0,
+          up: opts.up ?? 0,
+          upVel: opts.hop ?? 0,
+        },
         goMs: rt.warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),

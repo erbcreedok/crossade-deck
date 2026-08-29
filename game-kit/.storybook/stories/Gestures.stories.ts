@@ -17,7 +17,9 @@ import {
   Rotatable,
   IDENTITY,
   glassPerUnit,
+  glideLaw,
   installStockFlips,
+  installStockGlides,
   installStockShuffles,
   permutation,
   remove,
@@ -50,6 +52,7 @@ import { BACK_SURFACE, cards, crossade, deckByCardId, faceSurface, installClassi
 import { DIE_KINDS, die, dieSpec, flashFace, showFace, type DieKind } from "@game-presets/dice";
 import { CHIP_SURFACE, ROOK_SHAPE, ROOK_SURFACE, installGesturePieces } from "./gestureAssets.js";
 import { scene, type CameraScene, type Scene } from "../devtools/scene.js";
+installStockGlides();
 installStockShuffles();
 installGesturePieces();
 installClassicSkin();
@@ -147,7 +150,7 @@ const ANSWERS = {
    * along under this one is what says it never left the desk.
    */
   yBounce: (m: Motions, id: string) => m.bounce(id),
-  /** Across the felt and stopping where friction leaves it — the shadow rides under it the whole way. */
+  /** Across the felt and stopping where the run-out law leaves it — the shadow rides under it the whole way. */
   slide: (m: Motions, id: string) => m.slide(id, { speed: SLIDE_SPEED, angle: 30, spin: 90 }),
   /** Off the glass entirely: gravity pulls, the floor bounces, and it is gone. */
   launch: (m: Motions, id: string) => m.launch(id, { speed: LAUNCH_SPEED, angle: 250, spin: 220 }),
@@ -540,7 +543,7 @@ interface TableArgs {
   reach: number;
   gain: number;
   spin: number;
-  friction: number;
+  glide: string;
   boomerangMs: number;
   fingers: number;
   liftMax: number;
@@ -702,10 +705,10 @@ const worldAt = (n: Node | undefined): { x: number; y: number } => {
  * strength behind it finds nobody because it was THROWN badly (`reach`): the card would have died
  * short of the seat, and pretending otherwise would be the table doing the dealer's work for them.
  *
- * The strength test is the slide's own arithmetic and not a number of its own: a body under
- * friction covers `v² / 2f` and no more, so "would it have got there" is a question the physics
- * already answers. A `reach` of `1` demands the card would have reached the seat on its own; below
- * that, the table helps.
+ * The strength test is the slide's own arithmetic and not a number of its own: the run-out law
+ * answers "how far from here" directly (`project`), so "would it have got there" is a question the
+ * physics already answers, and it is the SAME answer the throw is then aimed by. A `reach` of `1`
+ * demands the card would have reached the seat on its own; below that, the table helps.
  */
 function seatFor(root: Node, a: TableArgs, angle: number, speed: number): Node | undefined {
   const from = worldAt(byId(root, "deck"));
@@ -720,7 +723,7 @@ function seatFor(root: Node, a: TableArgs, angle: number, speed: number): Node |
     const off = Math.abs(((bearing - angle + 540) % 360) - 180);
     if (off > a.arc) continue;
     const gap = Math.hypot(to.x - from.x, to.y - from.y);
-    const carry = (speed * speed) / (2 * Math.max(a.friction, 0.01));
+    const carry = glideLaw(a.glide).project(speed);
     if (carry < gap * a.reach) continue;
     if (!best || off < best.off) best = { seat, off };
   }
@@ -819,16 +822,16 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
     const to = seat && slot ? { x: worldAt(seat).x + slot.x, y: worldAt(seat).y + slot.y } : undefined;
     const gap = to ? Math.hypot(to.x - home.x, to.y - home.y) : 0;
     // HOW FAR, AND THEN HOW FAST — never the other way round. A finger's speed is not a card's:
-    // a flick is twenty units a second and a body under friction covers `v² / 2f`, which at that
-    // speed is forty units of desk. The desk is three. So the flick sets a DISTANCE, and the speed
-    // that dies exactly there is the same arithmetic the snap already uses, read the other way up.
-    // Capped at the rim, because a card thrown on a desk stops on the desk.
+    // a flick is twenty units a second and the run-out law carries that ten units across the desk.
+    // The desk is three. So the flick sets a DISTANCE, and the speed that dies exactly there is
+    // `speedFor` — the very inverse of the `project` the snap asks with, so the two cannot drift
+    // apart. Capped at the rim, because a card thrown on a desk stops on the desk.
     const far = Math.min(a.gain * speed, TABLE_R + SEAT_R);
     // AIMED AT THE SEAT, not where the finger pointed: the swipe said WHO, and a card that landed
     // two units past the player because the dealer flicked hard would make the snap unreadable.
-    // Thrown with exactly the speed that dies at the seat — the same `v² = 2fd`, the other way up.
+    // Thrown with exactly the speed that dies at the seat — `speedFor`, the projection inverted.
     const throwAngle = to ? (Math.atan2(to.y - home.y, to.x - home.x) * 180) / Math.PI : angle;
-    const throwSpeed = Math.sqrt(2 * Math.max(a.friction, 0.01) * (to ? gap : far));
+    const throwSpeed = glideLaw(a.glide).speedFor(to ? gap : far);
 
     // FLAT, AND THAT IS NOT AN OMISSION. A dealt card is meant to come DOWN off the raised pack,
     // and the obvious way to say it — leave with a rise and let gravity land it — says something
@@ -843,7 +846,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
       speed: throwSpeed,
       angle: throwAngle,
       spin: a.spin,
-      friction: a.friction,
+      glide: a.glide,
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
         if (!live) return;
@@ -884,7 +887,7 @@ const TABLE_ARGS: TableArgs = {
   reach: 0.7,
   gain: 0.14,
   spin: 60,
-  friction: 6,
+  glide: "normal",
   boomerangMs: 520,
   fingers: 1,
   liftMax: 1.5,
@@ -897,7 +900,7 @@ const TABLE_KNOBS = {
   count: documented("arg.count", { control: { type: "number", min: 0, max: 20, step: 1 } }, "table"),
   gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.02 } }, "deal"),
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
-  friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "deal"),
+  glide: documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "deal"),
   fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
   liftMax: documented("arg.liftMax", { control: { type: "number", min: 1, step: 0.5 } }, "pack/lift"),
 };
@@ -910,7 +913,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   TABLES.set(key, { root, shape });
   const s = scene(root, {
     animate: true,
-    motion: { friction: a.friction },
+    motion: { glide: a.glide },
     // THE PACK AND ITS CARDS TAKE THEIR OWN FINGERS; the felt round them is the camera's. A finger
     // that lands on the deck gives the gesture away, and the deal's second finger is then free —
     // the camera does not take a gesture back.
@@ -1088,7 +1091,7 @@ export const Deal: StoryObj<TableArgs> = {
  * FLING: THE SAME GESTURE, AND NOBODY IS LOOKED FOR.
  *
  * Rest a finger on the pack, flick a card off it with another. It goes where you sent it, at the
- * speed you sent it, and stops where friction leaves it. There is no seat to find, so there is
+ * speed you sent it, and stops where the felt's own run-out leaves it. There is no seat to find, so there is
  * nothing to come back from — and that absence is the point of standing this page next to `Deal`.
  *
  * The pair is one decision, seen from both sides. A table that SNAPS is saying "a card belongs to
@@ -1098,7 +1101,7 @@ export const Deal: StoryObj<TableArgs> = {
  * state, or cards stranded mid-felt in a game where every card has an owner.
  *
  * `gain` is how much of the finger's speed the card inherits, and it is the only strength lever
- * here: with nobody to aim at, how hard you flicked is the whole of what you said. `friction` is
+ * here: with nobody to aim at, how hard you flicked is the whole of what you said. `glide` is
  * the felt, and between them they are the ordinary physics of a puck — the same body a `slide`
  * always was, given a swipe's own number instead of a scripted one.
  */
@@ -1228,7 +1231,7 @@ export const Knead: StoryObj<KneadArgs> = {
 interface ShakeArgs {
   gain: number;
   spinGain: number;
-  friction: number;
+  glide: string;
   kind: string;
 }
 
@@ -1274,11 +1277,11 @@ function dieTree(a: ShakeArgs): Node {
  * shake from a throw at all, and it is what the tumble is counted off.
  */
 export const Shake: StoryObj<ShakeArgs> = {
-  args: { gain: 0.5, spinGain: 30, friction: 5, kind: "d6" },
+  args: { gain: 0.5, spinGain: 30, glide: "normal", kind: "d6" },
   argTypes: {
     gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.1 } }, "throw"),
     spinGain: documented("arg.spinGain", { control: { type: "number", min: 0, step: 10 } }, "throw"),
-    friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "throw"),
+    glide: documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "throw"),
     kind: documented("arg.kind", { control: "select", options: DIE_KINDS }, "die"),
   },
   parameters: { gkDocStory: "gestures.shake" },
@@ -1286,7 +1289,7 @@ export const Shake: StoryObj<ShakeArgs> = {
     const key = `gestures.shake.${a.kind}`;
     const root = SHAKE_STATE.get(key) ?? dieTree(a);
     SHAKE_STATE.set(key, root);
-    const s = scene(root, { animate: true, motion: { friction: a.friction }, camera: eye(draggableNode, 3.2) });
+    const s = scene(root, { animate: true, motion: { glide: a.glide }, camera: eye(draggableNode, 3.2) });
     // The shake is a READING and not a callback, so it is kept rather than re-attached: a second
     // one over the top of the first would measure the same hand twice and answer with whichever
     // the release handler happened to hold.
@@ -1315,7 +1318,7 @@ export const Shake: StoryObj<ShakeArgs> = {
           // faces off them is what makes "I rattled it properly" visible in the result.
           spin: (shake.turns + 1) * a.spinGain,
           hop: Math.min(shake.span, 3),
-          friction: a.friction,
+          glide: a.glide,
           // EVERY TIME IT GOES OVER, a face — and the last of those is the result. `flashFace` is
           // the PICTURE alone while it is still travelling; `showFace` writes the truth as well,
           // once, when the body rests. A die that held its old number until it stopped and then
