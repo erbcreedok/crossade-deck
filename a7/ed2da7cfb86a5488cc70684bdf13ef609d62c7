@@ -1,0 +1,29 @@
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_d65589b7ebf70e 10,90
+game-kit/src/render/pan.ts
+  s_881c18b5871008::t_c7de13a0f026a9 156-163,166-170,218-220
+  s_881c18b5871008::t_b18efa28587a43 1-155,164-165,171-175,177-187,189-217,221-228,230-231,233-237,248-250,252,254-271
+  s_881c18b5871008::t_c1570d1cfa1a83 176,188,229,232,238-247,251,253
+game-kit/src/index.ts
+  s_881c18b5871008::t_6b82c63ce29a9c 190-193
+game-kit/src/render/gestures.test.ts
+  s_881c18b5871008::t_c7abd8de67184f 21,25-30,45-57,218-340
+game-kit/docs/test-plan/62-gestures.md
+  s_881c18b5871008::t_d65589b7ebf70e 1,3,5,9-16,38-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a7ed2da7cfb86a5488cc70684bdf13ef609d62c7",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
