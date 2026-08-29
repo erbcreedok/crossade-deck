@@ -74,7 +74,7 @@
   "arg.fromX": "Where the run starts, across. In units, on the node's own origin.",
   "arg.fromY": "And where it starts, down the screen.",
   "arg.front": "The up-side surface — what the card shows face-up.",
-  "arg.gain": "Multiplies the finger's speed into the throw's: `1` is honest, more makes a flick a fling. Below half a unit per second the release is a DROP, not a throw, and the die stays where it was let go.",
+  "arg.gain": "How far a flick sends the card, in root units per unit/s of the finger's speed. A DISTANCE and not a speed, because a body under friction covers `v² / 2f`: hand the card the finger's own twenty units a second and it crosses forty units of desk. The throw speed is derived from the distance — the same arithmetic the snap uses, read the other way up — and capped at the rim, because a card thrown on a desk stops on the desk.",
   "arg.gap": "How far apart the two controls sit, in units. The story places them by hand in a free layout, so this is a pose and not a layout's spacing.",
   "arg.given": "The face to land on when `outcome` is `given` — what a server would send. A face the die does not have is refused, loudly.",
   "arg.grainAngle": "The zone's rule for the TURN: `derive` takes what the arrangement says (no registered layout has an opinion about a turn, and for a grid that reads straight), `stamp` imposes the number beside it, `keep` lets the carried turn land. A registry name, not a switch — a game's own fourth answer is a `registerGrain` call.",
@@ -304,5 +304,6 @@
   "arg.spinGain": "How much the die turns in flight per reversal the hand made, degrees per second. Zero throws it flat however hard it was rattled — which is a puck, not a die.",
   "arg.faces": "How many faces the die has. The result is the last one its tumble showed, counted off the same motion that carries it.",
   "arg.fingers": "How many finger-widths the pack must offer across its narrow side while it is held. `2` is the number with a reason behind it rather than a taste: one finger is already on the pack, and the deal needs a second beside it — on the pack, not overlapping the first. The scale needed is not picked, it falls out of this, the HUD etalon and the camera's zoom, so it is right on every glass without retuning.",
-  "arg.liftMax": "The most the pack may grow while held, as a multiple of its own size. A piece blown up past recognition is a different complaint from one too small to touch, and this is the line between them."
+  "arg.liftMax": "The most the pack may grow while held, as a multiple of its own size. A piece blown up past recognition is a different complaint from one too small to touch, and this is the line between them.",
+  "arg.drop": "How hard the dealt card comes off the RAISED pack, as rise per unit of lift. It falls under gravity onto the felt, with its shadow closing under it — which is the whole of what says the card came down rather than merely across. `0` deals flat, as if the pack were never lifted."
 }

@@ -44,6 +44,7 @@ import {
   type Motions,
   type Node,
   type Swipe,
+  type Vec,
 } from "../../src/index.js";
 import { BACK_SURFACE, cards, crossade, deckByCardId, faceSurface, installClassicSkin } from "@game-presets/cards";
 import { DIE_KINDS, die, dieSpec, flashFace, showFace, type DieKind } from "@game-presets/dice";
@@ -535,6 +536,7 @@ interface TableArgs {
   spin: number;
   friction: number;
   boomerangMs: number;
+  drop: number;
   fingers: number;
   liftMax: number;
 }
@@ -720,6 +722,39 @@ function seatFor(root: Node, a: TableArgs, angle: number, speed: number): Node |
   return best?.seat;
 }
 
+/**
+ * HOW MUCH THE PACK IS RAISED RIGHT NOW — asked in the one place and read in three, so the page
+ * cannot disagree with itself about how high the hand is holding it.
+ */
+function packLift(s: Scene, a: TableArgs): number {
+  const deck = byId(s.host.root, "deck");
+  if (!deck) return 1;
+  return liftToFit(acrossOf(deck), glassPerUnit(s.host.unit(), s.camera?.state().zoom ?? 1), {
+    fingers: a.fingers,
+    max: a.liftMax,
+  });
+}
+
+/**
+ * IS THE HOLDING HAND ON THE PACK — asked of the PLACE and not of the tree.
+ *
+ * The obvious test is whether the node that hand landed on is the deck or one of its cards, and it
+ * is wrong after the very first deal: the finger lands on the top CARD, that card is dealt away,
+ * and the node it is still holding a reference to now belongs to the desk. The hand did not move
+ * and the answer flips. Where the hand IS does not have that problem — and it is also the honest
+ * statement, because "on the pack" was always about a place.
+ *
+ * Measured against the pack as DRAWN, so a raised pack is the bigger target it looks like.
+ */
+function overPack(s: Scene, at: Vec): boolean {
+  const drawn = s.motions?.poses()?.get("deck");
+  const deck = byId(s.host.root, "deck");
+  if (!deck) return false;
+  const home = drawn ? { x: drawn.e, y: drawn.f } : worldAt(deck);
+  const grew = drawn ? Math.hypot(drawn.a, drawn.b) : 1;
+  return Math.abs(at.x - home.x) <= (CARD.w / 2) * grew && Math.abs(at.y - home.y) <= (CARD.h / 2) * grew;
+}
+
 /** The look a card that found nobody comes home with — out along the swipe, and back to the pack. */
 const boomerang = (angle: number, reach: number, ms: number) =>
   keyframeMotion({
@@ -767,16 +802,29 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
 
     const to = seat ? worldAt(seat) : undefined;
     const gap = to ? Math.hypot(to.x - home.x, to.y - home.y) : 0;
+    // HOW FAR, AND THEN HOW FAST — never the other way round. A finger's speed is not a card's:
+    // a flick is twenty units a second and a body under friction covers `v² / 2f`, which at that
+    // speed is forty units of desk. The desk is three. So the flick sets a DISTANCE, and the speed
+    // that dies exactly there is the same arithmetic the snap already uses, read the other way up.
+    // Capped at the rim, because a card thrown on a desk stops on the desk.
+    const far = Math.min(a.gain * speed, TABLE_R + SEAT_R);
     // AIMED AT THE SEAT, not where the finger pointed: the swipe said WHO, and a card that landed
     // two units past the player because the dealer flicked hard would make the snap unreadable.
     // Thrown with exactly the speed that dies at the seat — the same `v² = 2fd`, the other way up.
     const throwAngle = to ? (Math.atan2(to.y - home.y, to.x - home.x) * 180) / Math.PI : angle;
-    const throwSpeed = to ? Math.sqrt(2 * Math.max(a.friction, 0.01) * gap) : speed * a.gain;
+    const throwSpeed = Math.sqrt(2 * Math.max(a.friction, 0.01) * (to ? gap : far));
 
+    // IT COMES OFF A RAISED PACK, so it has somewhere to fall from. `hop` is the rise it leaves
+    // with, and gravity brings it down onto the felt — with its shadow closing under it, which is
+    // the whole of what says the card came DOWN rather than merely across. Without it a card dealt
+    // off a pack held two fingers high is on the desk from the first frame, which is the one thing
+    // the lift had just finished saying it was not.
+    const lifted = packLift(s, a);
     s.motions.slide(card.id, {
       speed: throwSpeed,
       angle: throwAngle,
       spin: a.spin,
+      hop: Math.max(0, lifted - 1) * a.drop,
       friction: a.friction,
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
@@ -811,10 +859,11 @@ const TABLE_ARGS: TableArgs = {
   count: 8,
   arc: 30,
   reach: 0.7,
-  gain: 1,
+  gain: 0.14,
   spin: 240,
   friction: 6,
   boomerangMs: 520,
+  drop: 1.5,
   fingers: 2.5,
   liftMax: 4,
 };
@@ -824,7 +873,8 @@ const TABLE_KNOBS = {
   dealAngle: documented("arg.dealAngle", { control: { type: "number", step: 15 } }, "deal"),
   seats: documented("arg.seats", { control: { type: "number", min: 2, max: 10, step: 1 } }, "table"),
   count: documented("arg.count", { control: { type: "number", min: 0, max: 20, step: 1 } }, "table"),
-  gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.1 } }, "deal"),
+  gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.02 } }, "deal"),
+  drop: documented("arg.drop", { control: { type: "number", min: 0, step: 0.25 } }, "deal"),
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
   friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "deal"),
   fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
@@ -949,7 +999,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         // work" — which names nothing and cannot be acted on.
         const speed = Math.round(sw.speed * 10) / 10;
         const reach = Math.round(sw.reach * 100) / 100;
-        const onPack = sw.anchor?.on?.id === "deck" || sw.anchor?.on?.parent?.id === "deck";
+        const onPack = sw.anchor !== undefined && overPack(s, sw.anchor.at);
         if (sw.reach < SWIPE_REACH) return say(s, `flick too short: ${reach} of ${SWIPE_REACH} units`);
         if (sw.speed < SWIPE_SPEED) return say(s, `flick too slow: ${speed} of ${SWIPE_SPEED} u/s`);
         if (!sw.anchor) return say(s, `flick ${speed} u/s — no other hand was down: rest one on the pack`);
@@ -1032,7 +1082,7 @@ export const Deal: StoryObj<TableArgs> = {
  * always was, given a swipe's own number instead of a scripted one.
  */
 export const Fling: StoryObj<TableArgs> = {
-  args: { ...TABLE_ARGS, gain: 1.2 },
+  args: { ...TABLE_ARGS, gain: 0.16 },
   argTypes: TABLE_KNOBS,
   parameters: { gkDocStory: "gestures.fling" },
   render: (a) => tablePage(a, false, "gestures.fling"),
