@@ -886,8 +886,8 @@ const TABLE_ARGS: TableArgs = {
   spin: 60,
   friction: 6,
   boomerangMs: 520,
-  fingers: 2.5,
-  liftMax: 4,
+  fingers: 1,
+  liftMax: 1.5,
 };
 
 const TABLE_KNOBS = {

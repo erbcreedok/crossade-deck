@@ -103,7 +103,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const held = new Set<NodeId>(); // nodes a gesture owns — no easing
   // Nodes a finger is dragging: their pose is the FINGER's, an override, not the tree's. A drag never
   // touches the tree — the carry step only writes here — so a pointer-move costs one paint, not a reconcile.
-  const carried = new Set<NodeId>();
+  /** Who a finger has, and the lift each is drawn at — the lamp needs the AMOUNT, not the fact. */
+  const carried = new Map<NodeId, number>();
   let carrying: Carry | null = null;
   // Choreographies keyed by their subject — a node for a turn or a tumble, a container for a shuffle —
   // so a second call on the same subject replaces the first: the latest word wins, as everywhere here.
@@ -145,7 +146,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (at) map.set(id, at);
     }
     // A dragged node sits under the finger — its live pose is in `displayed`, put there by the carry step.
-    for (const id of carried) {
+    for (const id of carried.keys()) {
       const at = displayed.get(id);
       if (at) map.set(id, at);
     }
@@ -339,6 +340,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       //
       // So the effects' own transform rides along, innermost, exactly as it does in the tree walk
       // (`transformsOf`): the hand moves the piece, it does not restate what the piece is.
+      // The lift is recorded as well as drawn: the lamp lengthens a held piece's fall by it, so a
+      // raised pack's shadow says the same height its size does.
+      carried.set(it.id, cy.sl.pos);
       displayed.set(it.id, compose(cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }), preOf(it.id)));
     });
   };
@@ -664,7 +668,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         onSnap: opts.onSnap,
       };
       for (const it of items) {
-        carried.add(it.id);
+        carried.set(it.id, 1);
         held.add(it.id);
         active.delete(it.id);
       }

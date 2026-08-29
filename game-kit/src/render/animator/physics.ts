@@ -42,12 +42,8 @@ export const UNITS_PER_FACE = 0.5;
  * packets hover over each other at the commit.
  */
 export const TUMBLE_TAIL = 0.5;
-/**
- * How much a body GROWS per unit of height off the desk — the whole of "it is up in the air" as far
- * as a flat desk seen from above can say it. The shadow answers with the same number the other way:
- * it falls further, so the gap between a piece and its shadow IS the height.
- */
-export const RISE = 0.5;
+/** Height into apparent size — the lamp's own number, read from where both sides can see it. */
+export { RISE } from "../scenePlan/depth.js";
 
 /** A tumble's turn against its progress: most of it early, and a long slow end. */
 export const tumbleEase = (t: number): number => 1 - (1 - t) ** 3;
