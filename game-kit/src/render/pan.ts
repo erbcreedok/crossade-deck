@@ -85,6 +85,17 @@ export type PanState = "began" | "changed" | "ended" | "cancelled";
 /** One report of a moving finger — `UIPanGestureRecognizer` read at this instant. */
 export interface Pan {
   readonly state: PanState;
+  /**
+   * WHICH FINGER THIS IS — the pointer's own id, stable from `began` to `ended`.
+   *
+   * UIKit has no field like it because it has no need: a recogniser there is attached to a view and
+   * owns one gesture at a time. This one wiring reports EVERY finger on the glass, which is what
+   * makes two hands with different roles expressible at all — and the price of that is having to
+   * say which hand each report is about. A page that starts something on `began` must be able to
+   * tell the finger that started it from the next one to arrive, or a third finger's release ends
+   * the second finger's work.
+   */
+  readonly id: number;
   /** What the finger came down on. */
   readonly on: Node;
   /** Where it came down, root units. */
@@ -212,12 +223,13 @@ export function wirePan(w: PanWiring): () => void {
     return { x: ((f.at.x - first.at.x) * 1000) / span, y: ((f.at.y - first.at.y) * 1000) / span };
   };
 
-  const report = (f: Finger, anchor: HandAnchor | undefined, state: PanState, now: number): void => {
+  const report = (f: Finger, id: number, anchor: HandAnchor | undefined, state: PanState, now: number): void => {
     if (!f.on) return;
     const velocity = velocityOf(f, now);
     const moving = Math.hypot(velocity.x, velocity.y) > 0;
     w.onPan({
       state,
+      id,
       on: f.on,
       from: f.downAt,
       at: f.at,
@@ -269,10 +281,10 @@ export function wirePan(w: PanWiring): () => void {
       const anchor = anchorFor(e.pointerId);
       if (anchor && w.together && !w.together(anchor)) return;
       f.running = true;
-      report(f, anchor, "began", e.timeStamp);
+      report(f, e.pointerId, anchor, "began", e.timeStamp);
       return;
     }
-    report(f, anchorFor(e.pointerId), "changed", e.timeStamp);
+    report(f, e.pointerId, anchorFor(e.pointerId), "changed", e.timeStamp);
   };
 
   const finish = (e: PointerEvent, state: PanState): void => {
@@ -297,7 +309,7 @@ export function wirePan(w: PanWiring): () => void {
     // gesture that has already ended still standing in the map.
     const anchor = anchorFor(e.pointerId);
     down.delete(e.pointerId);
-    report(f, anchor, state, e.timeStamp);
+    report(f, e.pointerId, anchor, state, e.timeStamp);
   };
 
   const onUp = (e: PointerEvent): void => finish(e, "ended");

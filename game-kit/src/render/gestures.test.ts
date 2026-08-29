@@ -235,6 +235,7 @@ describe("the pan", () => {
     f.fire("pointermove", 430, 300, { ms: 40 });
     f.fire("pointerup", 450, 300, { ms: 50 });
     expect(f.seen.map((p) => p.state)).toEqual(["began", "changed", "ended"]);
+    expect(new Set(f.seen.map((p) => p.id)), "one finger, one id, from began to ended").toEqual(new Set([1]));
     const began = f.seen[0]!;
     expect(began.on.id).toBe("left");
     // A card is off the pack HERE — a third of a unit in, while the finger is still moving.
@@ -304,6 +305,10 @@ describe("the pan", () => {
     expect(open.seen.length).toBe(1);
     expect(open.seen[0]!.on.id).toBe("right");
     expect(open.seen[0]!.anchor?.on?.id, "the resting hand is named, not guessed at").toBe("left");
+    // WHICH finger this report is about, so a page that starts something on `began` can tell the
+    // finger that started it from the next one to arrive. A third finger's release must not end
+    // the second finger's work.
+    expect(open.seen[0]!.id).toBe(2);
     expect(open.seen[0]!.anchor?.drift).toBeCloseTo(0, 5);
 
     // A page with a genuine rival says so in one place — `shouldRecognizeSimultaneouslyWith` — and

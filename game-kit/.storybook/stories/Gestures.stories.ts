@@ -496,6 +496,8 @@ const CARD = { w: 0.56, h: 0.8 };
  * mean the same thing whether the deal came from the panel or from a hand.
  */
 const PANEL_SPEED = 6;
+/** The panel is not a finger, so its deals are booked under an id no pointer can have. */
+const PANEL_HAND = -1;
 
 /**
  * A PACK, AND IT HAS TO LOOK LIKE ONE. Everyone at the origin is what a closed pack IS to a layout,
@@ -803,16 +805,22 @@ function overPack(s: Scene, at: Vec): boolean {
  * numbers were guessed separately.
  */
 interface Dealing {
-  /** The second finger has started moving: the top card comes off the pack. */
-  begin(): void;
-  /** The finger has moved this far since it came down: the card has moved with it. */
-  move(by: Vec): void;
-  /** The finger has gone, at this velocity: the card flies on and the table catches it, or not. */
-  end(velocity: Vec): void;
+  /** The second finger has started moving: the top card comes off the pack, and that finger owns it. */
+  begin(hand: number): void;
+  /** That finger has moved this far since it came down: the card has moved with it. */
+  move(hand: number, by: Vec): void;
+  /** That finger has gone, at this velocity: the card flies on and the table catches it, or not. */
+  end(hand: number, velocity: Vec): void;
 }
 
-/** Which card is currently between the pack and its seat, per standing scene. */
-const DEALT = new WeakMap<HTMLElement, string>();
+/**
+ * WHICH CARD IS BETWEEN THE PACK AND ITS SEAT, and WHOSE FINGER is taking it there.
+ *
+ * The finger is half of it because this desk has more than two of them in play: a third finger
+ * arriving while a deal is under way would otherwise end that deal when IT let go, throwing a card
+ * the hand that was dealing had not finished leading.
+ */
+const DEALT = new WeakMap<HTMLElement, { card: string; hand: number }>();
 
 /** How high the pack is being held, in the TREE's own units of height — see `Dealing`. */
 function packZ(s: Scene, a: TableArgs): number {
@@ -822,13 +830,14 @@ function packZ(s: Scene, a: TableArgs): number {
 function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
   const home = (): Vec => worldAt(byId(s.host.root, "deck"));
 
-  const held = (): Node | undefined => {
-    const id = DEALT.get(s.el);
-    return id ? byId(s.host.root, id) : undefined;
+  const held = (hand?: number): Node | undefined => {
+    const it = DEALT.get(s.el);
+    if (!it || (hand !== undefined && it.hand !== hand)) return undefined;
+    return byId(s.host.root, it.card);
   };
 
-  const begin = (): void => {
-    if (held()) return; // one card at a time; a finger already dealing is still dealing
+  const begin = (hand: number): void => {
+    if (DEALT.get(s.el)) return; // one card at a time; a finger already dealing is still dealing
     const root = s.host.root;
     const card = topOf(root);
     if (!card || !s.motions) return;
@@ -850,21 +859,21 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // would be the other way to say this and it is the wrong one here: the runtime holds ONE carry,
     // and the pack is already in it under the other hand.
     s.motions.hold(card.id);
-    DEALT.set(s.el, card.id);
+    DEALT.set(s.el, { card: card.id, hand });
   };
 
-  const move = (by: Vec): void => {
-    const card = held();
+  const move = (hand: number, by: Vec): void => {
+    const card = held(hand);
     if (!card) return;
     const at = home();
     compose(card, Transformable({ at: { x: at.x + by.x, y: at.y + by.y }, z: packZ(s, a) }));
     s.setRoot(s.host.root);
   };
 
-  const end = (velocity: Vec): void => {
-    const card = held();
+  const end = (hand: number, velocity: Vec): void => {
+    const card = held(hand);
+    if (!card || !s.motions) return; // a finger that was not the one dealing has nothing to let go of
     DEALT.delete(s.el);
-    if (!card || !s.motions) return;
     s.motions.release(card.id);
     const from = worldAt(card);
     // THE PUSH IS THE FINGER'S OWN VELOCITY, scaled by one named number and handed over whole —
@@ -910,8 +919,8 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // slot this card will occupy once it is theirs — the seat plus the fan's own offset for the
     // place it is about to take. Aim at the middle and the card lands somewhere near, and then the
     // re-parent tugs it into line: a throw that ends in a correction, which is the jerk.
-    const hand = seat ? seat.children.length : 0;
-    const slot = seat ? fanAt(hand, hand + 1) : undefined;
+    const already = seat ? seat.children.length : 0;
+    const slot = seat ? fanAt(already, already + 1) : undefined;
     // NOBODY IS BEING AIMED AT — the `Fling` page — so the target is simply where the run-out law
     // says the card would stop on its own. Same behaviour, and the snap is then doing what a plain
     // slide would: a card belongs where it lies. The page differs from `Deal` in the TARGET and in
@@ -1099,15 +1108,15 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
           if (!p.anchor) return say(s, `moving at ${speed} u/s — no other hand is down: rest one on the pack`);
           if (!onPack) return say(s, `moving at ${speed} u/s — the holding hand is not on the pack`);
           say(s, `off the pack, going ${Math.round(p.heading ?? 0)}°`);
-          deal.begin();
+          deal.begin(p.id);
           return;
         }
         if (p.state === "changed") {
           // THE CARD IS ALREADY OUT AND IT GOES WHERE THIS FINGER GOES. Nothing is decided here and
           // nothing is thrown: the player is watching the card they are about to send.
-          deal.move(p.translation);
+          deal.move(p.id, p.translation);
           if (snap) {
-            const card = byId(s.host.root, DEALT.get(s.el) ?? "");
+            const card = byId(s.host.root, DEALT.get(s.el)?.card ?? "");
             const seat = card ? seatFor(s.host.root, a, worldAt(card), { x: p.velocity.x * a.gain, y: p.velocity.y * a.gain }) : undefined;
             // WHO WOULD GET IT IF THE HAND LET GO NOW — the same question the release asks, asked
             // early. It costs one projection and it turns an invisible rule into something a reader
@@ -1118,12 +1127,12 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         }
         if (p.state === "ended") {
           say(s, `let go at ${speed} u/s, ${Math.round(p.heading ?? 0)}°`);
-          deal.end(p.velocity);
+          deal.end(p.id, p.velocity);
           return;
         }
         // A CANCEL IS NOT A THROW. The gesture was taken away rather than finished, so the card
         // goes back the way a card that found nobody does: home, through the air, at no speed.
-        deal.end({ x: 0, y: 0 });
+        deal.end(p.id, { x: 0, y: 0 });
       },
     }),
   );
@@ -1134,8 +1143,9 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   if (moved(s.el, "dealt", a.dealt)) {
     const deal = DEALERS.get(s.el)!;
     const rad = (a.dealAngle * Math.PI) / 180;
-    deal.begin();
-    deal.end({ x: Math.cos(rad) * PANEL_SPEED, y: Math.sin(rad) * PANEL_SPEED });
+    // The panel is a hand with no pointer of its own, so it borrows one that no glass can produce.
+    deal.begin(PANEL_HAND);
+    deal.end(PANEL_HAND, { x: Math.cos(rad) * PANEL_SPEED, y: Math.sin(rad) * PANEL_SPEED });
   }
   return s.el;
 }
