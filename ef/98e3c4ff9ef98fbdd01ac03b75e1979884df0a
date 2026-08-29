@@ -1,0 +1,28 @@
+game-kit/.storybook/devtools/drag.test.ts
+  s_881c18b5871008::t_49cc49634a306f 86-88
+  s_881c18b5871008::t_79084117c7b080 1-85,89-145
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_eb66f5b8402e8c 308,337,679,988
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_60c6ee6e7617e0 10,91
+game-kit/.storybook/devtools/drag.ts
+  s_881c18b5871008::t_82dc31c429521e 26,106-120,233,296-305,313-318,322
+game-kit/docs/test-plan/63-drag-drop-order.md
+  s_881c18b5871008::t_60c6ee6e7617e0 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ef98e3c4ff9ef98fbdd01ac03b75e1979884df0a",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
