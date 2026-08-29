@@ -15,6 +15,7 @@ import {
   applyMove,
   byId,
   compose,
+  contains,
   draggable,
   fieldsOf,
   restAngle,
@@ -311,14 +312,28 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
-  /** Move a node to the end of its siblings — last drawn, and nothing about its height touched. */
-  const front = (n: Node | undefined): void => {
-    const owner = n?.parent;
+  /**
+   * Move the RUN to the end of the lead's siblings — last drawn, and nothing about its height
+   * touched.
+   *
+   * THE RUN, AND ONLY WHERE IT LIVES. Raising each carried node in turn looks equivalent and is
+   * not: a run can be a container and its children (a pack travels whole), and then "put every
+   * member last" walks the pack's own order and rewrites it. That is a DRAG SILENTLY RESHUFFLING
+   * A DECK — and it does not even look like a bug, it looks like the top card changing when you
+   * touch the pack. Members that are not the lead's siblings are somebody else's order to keep.
+   *
+   * The run's own order survives, because the members go last in the order they already had: a
+   * column raised over its neighbours is still a column.
+   */
+  const front = (root: Node, items: readonly CarryItem[]): void => {
+    const owner = (items[0] ? byId(root, items[0].id) : undefined)?.parent;
     if (!owner || owner.children.length < 2) return;
-    const i = owner.children.indexOf(n);
-    if (i < 0 || i === owner.children.length - 1) return;
-    const order = owner.children.map((_, k) => k).filter((k) => k !== i);
-    reorder(owner, [...order, i]);
+    const rising = new Set(items.map((it) => it.id));
+    const up: number[] = [];
+    const stay: number[] = [];
+    owner.children.forEach((c, i) => (rising.has(c.id) ? up : stay).push(i));
+    if (up.length === 0 || stay.length === 0) return;
+    reorder(owner, [...stay, ...up]);
   };
 
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
@@ -337,7 +352,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       }
       s.motions?.release(it.id);
     }
-    if (w.opts.toFront) for (const it of items) front(byId(root, it.id));
+    if (w.opts.toFront) front(root, items);
     s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
   };
 
@@ -359,6 +374,12 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const source = lead?.parent ?? undefined;
     const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
     if (!lead || !source || !target || target === source) return false;
+    // A THING IS NEVER DROPPED INTO ITSELF. `zoneAt` is asked where the finger let go and answers
+    // with whatever zone is there — and when the thing being carried IS that zone (a pack dragged
+    // across the felt and put down where it stood), the honest answer is still "the pack". Asking
+    // the move machinery whether a node may be moved inside itself is a question nobody should
+    // pose; it is a refusal here, and the ordinary drop stands.
+    if (target === lead || contains(lead, target)) return false;
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);
       return true;

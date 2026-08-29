@@ -15,6 +15,7 @@ import {
   freeLayout,
   node,
   rect,
+  remove,
   registerLayout,
   Surfaced,
   Transformable,
@@ -130,6 +131,37 @@ describe("a refused drop", () => {
     b.fire("pointermove", 340, 300);
     b.fire("pointerup", 340, 300);
     expect(poseOf(b.desk.children[1]!).z).toBe(2);
+  });
+
+  it("drag.raising-a-run-never-reorders-inside-it — a drag must not reshuffle a pack", () => {
+    // THE BUG THIS WAS FOUND BY, and it did not look like one: touch the pack, and the top card
+    // changes. Raising each carried node in turn walks the pack's OWN order and rewrites it — a
+    // drag silently reshuffling a deck. What rises is the run, where the run lives; what is inside
+    // it is somebody else's order to keep.
+    const b = bench();
+    const pack = node("pack", Container({ layout: "free" }), Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: -1, y: 0 } }), Draggable({ onReject: "stay" }));
+    for (const id of ["c0", "c1", "c2"]) {
+      add(pack, node(id, Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    }
+    remove(b.desk, b.desk.children[0]!);
+    add(b.desk, pack);
+    wireDrag(b.s, { toFront: true, runOf: (_r, hit) => (hit.id === "pack" ? [hit, ...hit.children] : [hit]) });
+
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 340, 300);
+    b.fire("pointerup", 340, 300);
+    expect(pack.children.map((c) => c.id), "the pack came back in the order it went out in").toEqual(["c0", "c1", "c2"]);
+    expect(b.desk.children[b.desk.children.length - 1]!.id, "and the pack itself is on top").toBe("pack");
+  });
+
+  it("drag.a-run-of-siblings-rises-together-and-in-order — a column is still a column", () => {
+    const b = bench();
+    add(b.desk, node("c", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 } }), Draggable({ onReject: "stay" })));
+    wireDrag(b.s, { toFront: true, runOf: (_r, hit) => (hit.id === "a" ? [hit, b.desk.children[1]!] : [hit]) });
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 340, 300);
+    b.fire("pointerup", 340, 300);
+    expect(b.desk.children.map((c) => c.id), "the run went last, keeping the order it had").toEqual(["c", "a", "b"]);
   });
 
   it("drag.a-desk-that-did-not-ask-keeps-its-order — off by default", () => {
