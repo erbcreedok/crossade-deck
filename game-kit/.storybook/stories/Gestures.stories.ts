@@ -25,6 +25,9 @@ import {
   reorder,
   seededRng,
   setFacing,
+  SWIPE_REACH,
+  SWIPE_SPEED,
+  SWIPE_STRAIGHT,
   shuffleNames,
   wireKnead,
   wireShake,
@@ -915,13 +918,34 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       want: (n: Node) => n.id === "deck" || n.parent?.id === "deck" || n.id === "felt",
       view: eyeOf(s),
       poses: () => s.motions?.poses(),
+      // THE GATES ARE OPENED AND JUDGED HERE INSTEAD. They are the kit's own numbers either way —
+      // `SWIPE_SPEED`, `SWIPE_REACH`, `SWIPE_STRAIGHT`, named rather than copied — but a threshold
+      // enforced inside the recogniser refuses in SILENCE, and on the one page whose whole subject
+      // is this gesture, silence is the worst answer available. Judged here, every refusal has a
+      // number on the glass and the reader can see which of the four they missed by.
+      minSpeed: 0,
+      minReach: 0,
+      minStraight: 0,
       onSwipe: (sw: Swipe) => {
-      // THE WHOLE LAW OF THE PAGE, in one line. The other hand has to be ON the pack and has to
-      // have STAYED there: a hand that wandered was dragging the pack, and a deal it happened to
-      // pass through is not a deal.
-        const anchored =
-          sw.anchor && sw.anchor.drift < ANCHOR_SLOP && (sw.anchor.on?.id === "deck" || sw.anchor.on?.parent?.id === "deck");
-        if (!anchored) return;
+        // THE WHOLE LAW OF THE PAGE. The other hand has to be ON the pack and has to have STAYED
+        // there: a hand that wandered was dragging the pack, and a deal it happened to pass through
+        // is not a deal.
+        //
+        // AND EVERY REFUSAL IS SAID OUT LOUD. Four numbers decide a deal and not one of them is
+        // visible, so a page that only speaks when it succeeds leaves a reader with exactly one
+        // report to make — "it does not work" — which names nothing and cannot be acted on.
+        const speed = Math.round(sw.speed * 10) / 10;
+        const drift = sw.anchor?.drift ?? Infinity;
+        const onPack = sw.anchor?.on?.id === "deck" || sw.anchor?.on?.parent?.id === "deck";
+        const reach = Math.round(sw.reach * 100) / 100;
+        if (sw.reach < SWIPE_REACH) return say(s, `flick too short: ${reach} of ${SWIPE_REACH} units`);
+        if (sw.straight < SWIPE_STRAIGHT) return say(s, `flick not straight: ${Math.round(sw.straight * 100)}%, wants ${SWIPE_STRAIGHT * 100}%`);
+        if (sw.speed < SWIPE_SPEED) return say(s, `flick too slow: ${speed} of ${SWIPE_SPEED} u/s`);
+        if (sw.on.id === "felt") return say(s, `swipe ${speed} u/s — but it started off the pack`);
+        if (!sw.anchor) return say(s, `swipe ${speed} u/s — no other hand was down: rest one on the pack`);
+        if (!onPack) return say(s, `swipe ${speed} u/s — the other hand was not on the pack`);
+        if (drift >= a.grip) return say(s, `swipe ${speed} u/s — the holding hand moved ${Math.round(drift)}px (grip ${a.grip})`);
+        say(s, `dealt at ${Math.round(sw.angle)}°, ${speed} u/s`);
         DEALERS.get(s.el)?.(sw.angle, sw.speed);
       },
     }),
