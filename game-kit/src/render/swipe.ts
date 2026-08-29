@@ -4,25 +4,28 @@
 // hand was doing when it let go. A drag ends where the finger stopped; a swipe ends where the
 // finger was still GOING, and the piece carries on without it. So this measures three things a
 // drag never asks about — how fast the finger was moving at the end, how far it got, and how
-// straight it was — and reports them. It decides nothing.
+// straight it was — and reports them, ONCE, when the hand has gone. It decides nothing else.
+//
+// IT IS THE PAN, JUDGED AT `ended` — `UISwipeGestureRecognizer` beside `UIPanGestureRecognizer`,
+// which is how the platform ships them too. There is exactly one piece of finger bookkeeping in
+// this kit (`pan.ts`): one place that knows what a coalesced reading is, one window the parting
+// speed is measured over, one anchor rule for the other hand. Written twice, the two would drift,
+// and the drift would be invisible — a page would simply feel different from its neighbour.
+//
+// WHAT IS LEFT HERE IS THE VERDICT, which is the whole of what a swipe is over a pan: the three
+// thresholds, and the arithmetic of "how straight was it" that only makes sense once the gesture
+// is over.
 //
 // IT REPORTS THE OTHER HAND TOO, and that is the point of the file rather than a convenience. On a
 // table, one finger holding a pack while another deals off it is the ordinary gesture, and the two
-// are only distinguishable by their ROLES: the anchor rests, the dealer flicks. A recogniser that
-// saw one finger at a time would have to guess, and a consumer that had to reconstruct the other
-// finger from raw events would be writing this file again. So `Swipe.anchor` says whether another
-// finger was down, what it was on, and how far it wandered — and the consumer writes its own law
-// out of those numbers. `Engine/Gestures` is that law, written down once.
-//
-// EVENT-DRIVEN THROUGHOUT, with no timer of any kind (`guard.one-clock`): a swipe is made entirely
-// of events that HAPPENED, so there is nothing to wait for. That is the difference from a long
-// press, which has to be measured against silence.
+// are only distinguishable by their ROLES: the anchor rests, the dealer flicks. So `Swipe.anchor`
+// says whether another finger was down, what it was on, and how far it wandered — and the consumer
+// writes its own law out of those numbers.
 
 import { type Node, type NodeId } from "../core/node.js";
-import { type Point } from "../core/atoms/bounded.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { type Host } from "./host.js";
-import { glassOf, pickTop, toUnits } from "./pointer.js";
+import { wirePan, type HandAnchor } from "./pan.js";
 
 /**
  * How fast the finger has to be leaving, in ROOT UNITS per second.
@@ -56,25 +59,6 @@ export const SWIPE_REACH = 0.5;
  */
 export const SWIPE_STRAIGHT = 0.8;
 
-/** The finger that was already down when the swipe began — the hand holding what is being dealt off. */
-export interface SwipeAnchor {
-  /** What it came down on, if it came down on anything. */
-  readonly on: Node | undefined;
-  /** Where it is now, root units. */
-  readonly at: Vec;
-  /**
-   * How far it has wandered from where it landed, GLASS PIXELS.
-   *
-   * A FACT, AND NOT A VERDICT. It says what that hand did; whether that matters is the game's, and
-   * it usually does not: a hand holding a pack while the other deals off it may be dragging the
-   * pack at the same time, and there is no contradiction in that. This file shipped a suggested
-   * threshold for a while and it was a mistake — a gate against a conflict that does not exist,
-   * refusing gestures people really made. A game with a genuine rival to separate writes the
-   * number that separates them; there is no general one to ship.
-   */
-  readonly drift: number;
-}
-
 export interface Swipe {
   /** What the swiping finger came down on. */
   readonly on: Node;
@@ -92,8 +76,8 @@ export interface Swipe {
   readonly reach: number;
   /** How straight it was, `0..1` — see `SWIPE_STRAIGHT`. */
   readonly straight: number;
-  /** The other finger, when one was down — see `SwipeAnchor`. */
-  readonly anchor: SwipeAnchor | undefined;
+  /** The other finger, when one was down — see `HandAnchor`. */
+  readonly anchor: HandAnchor | undefined;
 }
 
 export interface SwipeWiring {
@@ -118,146 +102,45 @@ export interface SwipeWiring {
 }
 
 /**
- * OVER HOW LONG THE PARTING SPEED IS MEASURED, milliseconds.
- *
- * Not over the whole gesture: a finger that wandered for a second and then flicked has an average
- * speed of nearly nothing, and it is the flick the hand meant. Not over the last event either — two
- * samples a millisecond apart divide by almost zero and report a speed no hand ever reached. This
- * is the window every platform's own fling detector uses, for both of those reasons.
- */
-const PARTING_MS = 90;
-
-/** One reading of a finger: where it was, in units, and when. */
-interface Sample {
-  readonly at: Vec;
-  readonly ms: number;
-}
-
-/** A finger in flight, with enough of its recent past to say how it was moving when it left. */
-interface Finger {
-  readonly on: Node | undefined;
-  readonly downGlass: Point;
-  readonly downAt: Vec;
-  glass: Point;
-  /** The tail of its path, trimmed to `PARTING_MS` — the only part a parting speed may read. */
-  recent: Sample[];
-  /** How far it has actually walked, root units — the denominator of `straight`. */
-  walked: number;
-  last: Vec;
-}
-
-const hyp = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
-
-/**
  * Wire the swipe. Returns the teardown.
  *
  * Nothing is registered per node: the tree is asked who is under the finger at the moment there is
- * one, through the same `pickTop` the painter and every other wiring use.
+ * one, and every reading of that finger comes from the one recogniser (`wirePan`).
  */
 export function wireSwipe(w: SwipeWiring): () => void {
-  const view = w.host.view;
   const minSpeed = w.minSpeed ?? SWIPE_SPEED;
   const minReach = w.minReach ?? SWIPE_REACH;
   const minStraight = w.minStraight ?? SWIPE_STRAIGHT;
 
-  /** Every finger currently down, in the order they arrived — the order is what names an anchor. */
-  const down = new Map<number, Finger>();
-
-  const unitsOf = (g: Point): Vec => toUnits(w.host, g, w.view?.());
-
-  const onDown = (e: PointerEvent): void => {
-    const g = glassOf(view, e);
-    const at = unitsOf(g);
-    down.set(e.pointerId, {
-      // The pick is UNGATED: a finger that came down on bare desk is still an anchor, and a
-      // consumer asking "was the other hand on the pack" needs to be told it was not.
-      on: pickTop(w.host, g, () => true, w.view?.(), w.poses?.()),
-      downGlass: g,
-      downAt: at,
-      glass: g,
-      recent: [{ at, ms: e.timeStamp }],
-      walked: 0,
-      last: at,
-    });
-  };
-
-  const onMove = (e: PointerEvent): void => {
-    const f = down.get(e.pointerId);
-    if (!f) return;
-    const g = glassOf(view, e);
-    const at = unitsOf(g);
-    f.glass = g;
-    f.walked += hyp(f.last, at);
-    f.last = at;
-    f.recent.push({ at, ms: e.timeStamp });
-    // THE TAIL, AND ONLY THE TAIL. One sample older than the window is KEPT — it is the far end of
-    // the window, and dropping it would leave a lone reading with no interval to divide by.
-    while (f.recent.length > 2 && e.timeStamp - f.recent[1]!.ms > PARTING_MS) f.recent.shift();
-  };
-
-  /** The other finger that was already down when this one arrived — the earliest of the rest. */
-  const anchorFor = (id: number): SwipeAnchor | undefined => {
-    for (const [other, f] of down) {
-      if (other === id) continue;
-      return { on: f.on, at: f.last, drift: hyp(f.downGlass, f.glass) };
-    }
-    return undefined;
-  };
-
-  const onUp = (e: PointerEvent): void => {
-    const f = down.get(e.pointerId);
-    if (!f) return;
-    // The anchor is read BEFORE this finger is forgotten, and this finger is forgotten before the
-    // consumer is called: a handler that grabs, throws or re-renders must not find a gesture that
-    // has already ended still standing in the map.
-    const anchor = anchorFor(e.pointerId);
-    down.delete(e.pointerId);
-    if (!f.on || !w.want(f.on)) return;
-
-    const to = unitsOf(glassOf(view, e));
-    const reach = hyp(f.downAt, to);
-    if (reach < minReach) return;
-    // The LAST leg counts too: a release carries a position of its own, and leaving it out of the
-    // path walked would let a straightness come out above 1 — which is a ratio saying the finger
-    // took a shortcut through ground it covered.
-    const walked = f.walked + hyp(f.last, to);
-    const straight = walked > 0 ? reach / walked : 1;
-    if (straight < minStraight) return;
-
-    const first = f.recent[0]!;
-    const span = e.timeStamp - first.ms;
-    // A gesture with no measurable span left is one whose events all arrived in the same
-    // millisecond — the parting speed is unknowable, not infinite, so it is not a swipe.
-    if (span <= 0) return;
-    const speed = hyp(first.at, to) / (span / 1000);
-    if (speed < minSpeed) return;
-
-    w.onSwipe({
-      on: f.on,
-      from: f.downAt,
-      to,
-      angle: (Math.atan2(to.y - f.downAt.y, to.x - f.downAt.x) * 180) / Math.PI,
-      speed,
-      reach,
-      straight,
-      anchor,
-    });
-  };
-
-  const onCancel = (e: PointerEvent): void => {
-    down.delete(e.pointerId);
-  };
-
-  view.addEventListener("pointerdown", onDown);
-  view.addEventListener("pointermove", onMove);
-  view.addEventListener("pointerup", onUp);
-  view.addEventListener("pointercancel", onCancel);
-
-  return () => {
-    down.clear();
-    view.removeEventListener("pointerdown", onDown);
-    view.removeEventListener("pointermove", onMove);
-    view.removeEventListener("pointerup", onUp);
-    view.removeEventListener("pointercancel", onCancel);
-  };
+  return wirePan({
+    host: w.host,
+    want: w.want,
+    view: w.view,
+    poses: w.poses,
+    onPan: (p) => {
+      // A SWIPE HAPPENS WHEN THE HAND HAS GONE, and only then. Every step before it is a finger
+      // still travelling, and a finger still travelling is a drag until it proves otherwise.
+      if (p.state !== "ended") return;
+      const to = p.at;
+      const reach = Math.hypot(p.translation.x, p.translation.y);
+      if (reach < minReach) return;
+      // How straight it went: the line it made over the ground it covered. `1` is a ruler. It is
+      // what keeps a knead from reading as a deal — fingers that rub back and forth cover ground
+      // quickly and end up nowhere, so speed and reach both pass and only this refuses them.
+      const straight = p.walked > 0 ? Math.min(1, reach / p.walked) : 1;
+      if (straight < minStraight) return;
+      const speed = Math.hypot(p.velocity.x, p.velocity.y);
+      if (speed < minSpeed) return;
+      w.onSwipe({
+        on: p.on,
+        from: p.from,
+        to,
+        angle: (Math.atan2(to.y - p.from.y, to.x - p.from.x) * 180) / Math.PI,
+        speed,
+        reach,
+        straight,
+        anchor: p.anchor,
+      });
+    },
+  });
 }

@@ -912,11 +912,18 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // re-parent tugs it into line: a throw that ends in a correction, which is the jerk.
     const hand = seat ? seat.children.length : 0;
     const slot = seat ? fanAt(hand, hand + 1) : undefined;
+    // NOBODY IS BEING AIMED AT — the `Fling` page — so the target is simply where the run-out law
+    // says the card would stop on its own. Same behaviour, and the snap is then doing what a plain
+    // slide would: a card belongs where it lies. The page differs from `Deal` in the TARGET and in
+    // nothing else, which is what makes the pair one decision seen from two sides.
+    const sent = Math.hypot(push.x, push.y);
+    const far = glideLaw(a.glide).project(sent);
     const to =
       seat && slot
         ? { x: worldAt(seat).x + slot.x, y: worldAt(seat).y + slot.y }
-        : { x: from.x + glideLaw(a.glide).project(Math.hypot(push.x, push.y)) * (push.x / (Math.hypot(push.x, push.y) || 1)),
-            y: from.y + glideLaw(a.glide).project(Math.hypot(push.x, push.y)) * (push.y / (Math.hypot(push.x, push.y) || 1)) };
+        : sent > 0
+          ? { x: from.x + (push.x / sent) * far, y: from.y + (push.y / sent) * far }
+          : from;
     s.motions.snap(card.id, {
       to,
       up,

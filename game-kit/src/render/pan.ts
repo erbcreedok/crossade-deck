@@ -33,7 +33,6 @@ import { type Point } from "../core/atoms/bounded.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { glassOf, pickTop, toUnits } from "./pointer.js";
-import { type SwipeAnchor } from "./swipe.js";
 
 /**
  * HOW FAR THE FINGER MUST TRAVEL BEFORE THE PAN BEGINS, GLASS PIXELS.
@@ -54,6 +53,31 @@ export const PAN_SLOP = 10;
  * platform's own fling detector uses, for both of those reasons.
  */
 export const PAN_WINDOW = 90;
+
+/**
+ * THE OTHER HAND — the finger that was already down when this one arrived, and what it is on.
+ *
+ * It lives with the recogniser rather than with any one gesture because it is what makes ROLES
+ * expressible at all: on a table, one hand resting on a pack while the other deals off it is the
+ * ordinary gesture, and the two are told apart by nothing but which arrived first.
+ */
+export interface HandAnchor {
+  /** What it came down on, if it came down on anything. */
+  readonly on: Node | undefined;
+  /** Where it is now, root units. */
+  readonly at: Vec;
+  /**
+   * How far it has wandered from where it landed, GLASS PIXELS.
+   *
+   * A FACT, AND NOT A VERDICT. It says what that hand did; whether that matters is the game's, and
+   * it usually does not: a hand holding a pack while the other deals off it may be dragging the
+   * pack at the same time, and there is no contradiction in that. This file shipped a suggested
+   * threshold for a while and it was a mistake — a gate against a conflict that does not exist,
+   * refusing gestures people really made. A game with a genuine rival to separate writes the
+   * number that separates them; there is no general one to ship.
+   */
+  readonly drift: number;
+}
 
 /** `UIGestureRecognizer.State`, minus the states a pan cannot be in. */
 export type PanState = "began" | "changed" | "ended" | "cancelled";
@@ -81,8 +105,17 @@ export interface Pan {
    * means "east" would deal a card east every time a hand paused.
    */
   readonly heading: number | undefined;
-  /** The other finger, when one was down — see `SwipeAnchor`. */
-  readonly anchor: SwipeAnchor | undefined;
+  /**
+   * HOW FAR THE FINGER HAS ACTUALLY WALKED, root units — the whole path, not the straight line.
+   *
+   * The one field here UIKit has no word for, and it is here because the kit has a gesture UIKit
+   * has never had to tell apart: a knead. Fingers that rub back and forth cover a lot of ground and
+   * end up nowhere, so a translation and a velocity both say "a flick" about them. `translation`
+   * over `walked` is how straight the finger went, and that is the only number that refuses them.
+   */
+  readonly walked: number;
+  /** The other finger, when one was down — see `HandAnchor`. */
+  readonly anchor: HandAnchor | undefined;
 }
 
 export interface PanWiring {
@@ -96,7 +129,7 @@ export interface PanWiring {
    * Absent, yes: two hands doing two things is the ordinary table gesture, and the burden is on a
    * page that has a genuine rival to say so.
    */
-  readonly together?: ((anchor: SwipeAnchor) => boolean) | undefined;
+  readonly together?: ((anchor: HandAnchor) => boolean) | undefined;
   /** How far the finger must travel before the pan begins, GLASS PIXELS. Absent, `PAN_SLOP`. */
   readonly slop?: number | undefined;
   /** The view the desk is drawn through, asked FRESH — a camera's `transform()`. */
@@ -117,6 +150,8 @@ interface Finger {
   readonly downAt: Vec;
   glass: Point;
   at: Vec;
+  /** The whole path walked, root units — the denominator of "how straight was it". */
+  walked: number;
   /** The tail of its path, trimmed to `PAN_WINDOW` — the only part a velocity may read. */
   recent: Sample[];
   /** Has it passed the slop and been reported as `began`? */
@@ -144,7 +179,7 @@ export function wirePan(w: PanWiring): () => void {
   const unitsOf = (g: Point): Vec => toUnits(w.host, g, w.view?.());
 
   /** The other finger that was already down — the earliest of the rest, as the swipe names it too. */
-  const anchorFor = (id: number): SwipeAnchor | undefined => {
+  const anchorFor = (id: number): HandAnchor | undefined => {
     for (const [other, f] of down) {
       if (other === id) continue;
       return { on: f.on, at: f.at, drift: hyp(f.downGlass, f.glass) };
@@ -164,16 +199,20 @@ export function wirePan(w: PanWiring): () => void {
    */
   const velocityOf = (f: Finger, now: number): Vec => {
     const cut = now - PAN_WINDOW;
-    let i = f.recent.length - 1;
-    while (i > 0 && f.recent[i - 1]!.ms >= cut) i--;
-    if (i > 0 && !(now - f.recent[i]!.ms > 0)) i--;
+    let i = 0;
+    while (i < f.recent.length && f.recent[i]!.ms < cut) i++;
+    // Fewer than two readings inside the window is not a measurement — a burst of events in one
+    // millisecond, or a hand that had been resting and has only just moved. Then the LAST TWO are
+    // used however old the older one is: it is the only interval that exists, and reporting zero
+    // because the window happened to be thin would call a real flick a hand set down.
+    if (f.recent.length - i < 2) i = Math.max(0, f.recent.length - 2);
     const first = f.recent[i]!;
     const span = now - first.ms;
     if (!(span > 0)) return { x: 0, y: 0 };
     return { x: ((f.at.x - first.at.x) * 1000) / span, y: ((f.at.y - first.at.y) * 1000) / span };
   };
 
-  const report = (f: Finger, anchor: SwipeAnchor | undefined, state: PanState, now: number): void => {
+  const report = (f: Finger, anchor: HandAnchor | undefined, state: PanState, now: number): void => {
     if (!f.on) return;
     const velocity = velocityOf(f, now);
     const moving = Math.hypot(velocity.x, velocity.y) > 0;
@@ -183,6 +222,7 @@ export function wirePan(w: PanWiring): () => void {
       from: f.downAt,
       at: f.at,
       translation: { x: f.at.x - f.downAt.x, y: f.at.y - f.downAt.y },
+      walked: f.walked,
       velocity,
       heading: moving ? (Math.atan2(velocity.y, velocity.x) * 180) / Math.PI : undefined,
       anchor,
@@ -200,6 +240,7 @@ export function wirePan(w: PanWiring): () => void {
       downAt: at,
       glass: g,
       at,
+      walked: 0,
       recent: [{ at, ms: e.timeStamp }],
       running: false,
     });
@@ -211,9 +252,11 @@ export function wirePan(w: PanWiring): () => void {
     // EVERY reading the glass took, not just the one the frame delivered — see the file header.
     for (const r of readingsOf(e)) {
       const g = glassOf(view, r);
+      const at = unitsOf(g);
       f.glass = g;
-      f.at = unitsOf(g);
-      f.recent.push({ at: f.at, ms: r.timeStamp });
+      f.walked += hyp(f.at, at);
+      f.at = at;
+      f.recent.push({ at, ms: r.timeStamp });
     }
     // The tail, and only the tail. ONE reading older than the window is kept: a burst of events
     // that all land in the same millisecond would otherwise leave nothing to divide by.
@@ -244,7 +287,11 @@ export function wirePan(w: PanWiring): () => void {
     // A release carries a position of its own and the last leg counts. A CANCEL does not: the
     // gesture was taken away, and where the system happened to put the pointer as it took it is
     // not somewhere the hand went.
-    if (state === "ended") f.at = unitsOf(glassOf(view, e));
+    if (state === "ended") {
+      const at = unitsOf(glassOf(view, e));
+      f.walked += hyp(f.at, at);
+      f.at = at;
+    }
     // The anchor is read while the map still holds the other finger, and this finger is forgotten
     // BEFORE the consumer is called: a handler that grabs, throws or re-renders must not find a
     // gesture that has already ended still standing in the map.

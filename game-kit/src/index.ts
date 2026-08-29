@@ -190,14 +190,13 @@ export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./re
 // THE PAN — `UIPanGestureRecognizer`: the same finger, reported WHILE it moves. Beside the swipe
 // and not instead of it, exactly as UIKit ships both: a swipe is a verdict on release, and a
 // verdict on release cannot say "the card is already going, this way, this fast".
-export { PAN_SLOP, PAN_WINDOW, wirePan, type Pan, type PanState, type PanWiring } from "./render/pan.js";
+export { PAN_SLOP, PAN_WINDOW, wirePan, type HandAnchor, type Pan, type PanState, type PanWiring } from "./render/pan.js";
 export {
   SWIPE_REACH,
   SWIPE_SPEED,
   SWIPE_STRAIGHT,
   wireSwipe,
   type Swipe,
-  type SwipeAnchor,
   type SwipeWiring,
 } from "./render/swipe.js";
 export { SHAKE_LEG, wireShake, type Shake, type ShakeWiring, type Shaking } from "./render/shake.js";
