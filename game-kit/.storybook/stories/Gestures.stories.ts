@@ -536,7 +536,6 @@ interface TableArgs {
   spin: number;
   friction: number;
   boomerangMs: number;
-  drop: number;
   fingers: number;
   liftMax: number;
 }
@@ -814,17 +813,19 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
     const throwAngle = to ? (Math.atan2(to.y - home.y, to.x - home.x) * 180) / Math.PI : angle;
     const throwSpeed = Math.sqrt(2 * Math.max(a.friction, 0.01) * (to ? gap : far));
 
-    // IT COMES OFF A RAISED PACK, so it has somewhere to fall from. `hop` is the rise it leaves
-    // with, and gravity brings it down onto the felt — with its shadow closing under it, which is
-    // the whole of what says the card came DOWN rather than merely across. Without it a card dealt
-    // off a pack held two fingers high is on the desk from the first frame, which is the one thing
-    // the lift had just finished saying it was not.
-    const lifted = packLift(s, a);
+    // FLAT, AND THAT IS NOT AN OMISSION. A dealt card is meant to come DOWN off the raised pack,
+    // and the obvious way to say it — leave with a rise and let gravity land it — says something
+    // else entirely: `hop` throws the card UP first, so it lobs, and then it gives back `bounce` of
+    // every landing and skips across the felt like a stone. A card nobody threw upward should not
+    // arc, and a card of cardboard should not bounce.
+    //
+    // Saying it properly needs a body that STARTS above the desk rather than one launched off it,
+    // and the runtime has no word for that today. Until it does, a deal is a card sliding out and
+    // stopping, which is at least true.
     s.motions.slide(card.id, {
       speed: throwSpeed,
       angle: throwAngle,
       spin: a.spin,
-      hop: Math.max(0, lifted - 1) * a.drop,
       friction: a.friction,
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
@@ -860,10 +861,9 @@ const TABLE_ARGS: TableArgs = {
   arc: 30,
   reach: 0.7,
   gain: 0.14,
-  spin: 240,
+  spin: 60,
   friction: 6,
   boomerangMs: 520,
-  drop: 1.5,
   fingers: 2.5,
   liftMax: 4,
 };
@@ -874,7 +874,6 @@ const TABLE_KNOBS = {
   seats: documented("arg.seats", { control: { type: "number", min: 2, max: 10, step: 1 } }, "table"),
   count: documented("arg.count", { control: { type: "number", min: 0, max: 20, step: 1 } }, "table"),
   gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.02 } }, "deal"),
-  drop: documented("arg.drop", { control: { type: "number", min: 0, step: 0.25 } }, "deal"),
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
   friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "deal"),
   fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
