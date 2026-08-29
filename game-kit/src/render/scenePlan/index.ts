@@ -54,7 +54,7 @@ export * from "./input.js";
 export { bakePlan } from "./bake.js";
 export { gridMarks, boundsMarks, pitchStand, viewTransform } from "./marks.js";
 export { transformsOf } from "./transforms.js";
-export { LAYER_HEIGHT } from "./depth.js";
+export { LAYER_HEIGHT, RISE } from "./depth.js";
 export type { ResolveContext };
 
 export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, grounded, measure }: PlanInput): Quad[] {

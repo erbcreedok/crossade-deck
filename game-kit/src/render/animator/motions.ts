@@ -108,6 +108,8 @@ export type LaunchOptions = {
 export type SlideOptions = {
   readonly speed: number;
   readonly angle: number;
+  /** The same as a vector — `UIPushBehavior(.instantaneous)`. Wins over `speed`/`angle`. */
+  readonly push?: Vec | undefined;
   /**
    * HOW HIGH IT STARTS, root units above the desk — a card that leaves a raised hand rather than
    * skating off the felt. It falls under the tuning's `gravity` from there, and the flight grows its
@@ -171,6 +173,15 @@ export type SnapOptions = {
   readonly speed?: number | undefined;
   /** Which way that speed points, degrees clockwise from +x. */
   readonly angle?: number | undefined;
+  /**
+   * THE SAME THING AS A VECTOR — `UIPushBehavior(.instantaneous)`. A push is a velocity handed over
+   * whole, and it wins over `speed`/`angle` when both are given.
+   *
+   * It exists because the thing that usually starts a throw is a FINGER, and a finger reports a
+   * velocity (`Pan.velocity`). Taking it apart into a speed and an angle only to put it back
+   * together here is two conversions that can each be got wrong, for no gain at all.
+   */
+  readonly push?: Vec | undefined;
   /** Turn rate, degrees/s. NOT aimed anywhere: it runs out, and where it stops is where it lies. */
   readonly spin?: number | undefined;
   /** The period of one full swing, seconds — SwiftUI's `response`. Default the tuning's. */

@@ -52,6 +52,28 @@ export interface SnapConfig {
   readonly spinGlide: GlideLaw;
 }
 
+/**
+ * A NUMBER, OR THE FALLBACK WHEN WHAT ARRIVED IS NOT ONE.
+ *
+ * A snap ends when the body has ARRIVED, and every comparison with a `NaN` is false — so a target
+ * that is not a number does not make the card land in the wrong place, it makes the flight
+ * IMMORTAL: the piece hangs in the air, the clock never sleeps, and the game's `onDone` never runs,
+ * so a dealt card is never handed to anybody. That is a whole page dead from one arithmetic slip in
+ * the caller (a missing option multiplied into a height was the real one), and the failure looks
+ * nothing like its cause. So the arithmetic refuses non-numbers at the door rather than carrying
+ * them: a target that is not a place is treated as no offset at all.
+ */
+export const finiteOr = (n: number | undefined, fallback: number): number => (Number.isFinite(n) ? (n as number) : fallback);
+
+/** The config with every number made real — what both the step and the rest test read. */
+const targetOf = (cfg: SnapConfig) => ({
+  x: finiteOr(cfg.to?.x, 0),
+  y: finiteOr(cfg.to?.y, 0),
+  up: finiteOr(cfg.up, 0),
+  response: finiteOr(cfg.response, 0.4),
+  damping: finiteOr(cfg.damping, 1),
+});
+
 /** SwiftUI's `response`/`dampingFraction` as the stiffness and damping coefficient a spring steps by. */
 export function springOf(response: number, damping: number): SpringConfig {
   // A response of zero would be an infinitely stiff spring — a teleport wearing an animation's
@@ -66,10 +88,11 @@ export function springOf(response: number, damping: number): SpringConfig {
  * at the moment the snap takes over, so there is no seam to see.
  */
 export function stepSnap(b: Body, cfg: SnapConfig, dt: number): Body {
-  const spring = springOf(cfg.response, cfg.damping);
-  const x = stepSpring({ pos: b.pos.x, vel: b.vel.x }, cfg.to.x, spring, dt);
-  const y = stepSpring({ pos: b.pos.y, vel: b.vel.y }, cfg.to.y, spring, dt);
-  const up = stepSpring({ pos: b.up, vel: b.upVel }, cfg.up ?? 0, spring, dt);
+  const to = targetOf(cfg);
+  const spring = springOf(to.response, to.damping);
+  const x = stepSpring({ pos: b.pos.x, vel: b.vel.x }, to.x, spring, dt);
+  const y = stepSpring({ pos: b.pos.y, vel: b.vel.y }, to.y, spring, dt);
+  const up = stepSpring({ pos: b.up, vel: b.upVel }, to.up, spring, dt);
   const spin = b.spin * cfg.spinGlide.after(dt);
   return {
     pos: { x: x.pos, y: y.pos },
@@ -89,15 +112,14 @@ export function stepSnap(b: Body, cfg: SnapConfig, dt: number): Body {
  * card being snatched into place at the very last moment.
  */
 export function snapRests(b: Body, cfg: SnapConfig, eps: number, spinEps: number): boolean {
-  const off = Math.hypot(b.pos.x - cfg.to.x, b.pos.y - cfg.to.y);
+  // A BODY WHOSE OWN NUMBERS HAVE GONE IS FINISHED, whatever else is true of it. It is not going to
+  // arrive, and a flight that cannot be finished must not be immortal — the piece would hang on the
+  // glass and the game would never be told the throw ended.
+  if (![b.pos.x, b.pos.y, b.vel.x, b.vel.y, b.up, b.upVel, b.spin].every(Number.isFinite)) return true;
+  const to = targetOf(cfg);
+  const off = Math.hypot(b.pos.x - to.x, b.pos.y - to.y);
   const speed = Math.hypot(b.vel.x, b.vel.y);
-  return (
-    off <= eps &&
-    speed <= eps &&
-    Math.abs(b.up - (cfg.up ?? 0)) <= eps &&
-    Math.abs(b.upVel) <= eps &&
-    Math.abs(b.spin) <= spinEps
-  );
+  return off <= eps && speed <= eps && Math.abs(b.up - to.up) <= eps && Math.abs(b.upVel) <= eps && Math.abs(b.spin) <= spinEps;
 }
 
 /**

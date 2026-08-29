@@ -381,7 +381,7 @@ export {
 } from "./core/glide.js";
 // The snap — `UISnapBehavior`: a moving body pulled to a place, and the question of whether a throw
 // would pass through a zone at all, asked BEFORE the throw.
-export { crossesZone, snapRests, springOf, stepSnap, type SnapConfig } from "./core/snap.js";
+export { crossesZone, finiteOr, snapRests, springOf, stepSnap, type SnapConfig } from "./core/snap.js";
 export {
   clampAbs,
   springAt,
@@ -417,6 +417,10 @@ export {
   type QuadLayer,
   type QuadStroke,
 } from "./render/scenePlan/index.js";
+// The two halves of the one contract about HEIGHT: how thick a `z` is, and how much a piece grows
+// per unit of height off the desk. A page that has to say "at the height of the hand" in the tree's
+// own terms needs both, and deriving either one again is how the two sides drift apart.
+export { LAYER_HEIGHT, RISE } from "./render/scenePlan/index.js";
 // The pointer seam: a glass point off an event, its units, and the topmost node under it — read off
 // the same plan the painter drew. Every interactive scene needs it; none should write its own copy.
 export { glassOf, pick, pickTop, toUnits } from "./render/pointer.js";

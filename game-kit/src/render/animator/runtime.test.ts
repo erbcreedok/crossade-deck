@@ -1001,6 +1001,26 @@ describe("flights: launch and slide", () => {
     expect(down).toBe(true);
     expect(dropped[0]!).toBeGreaterThan(1.0001);
     expect(dropped[dropped.length - 1]!).toBeCloseTo(1, 3);
+
+    // THE DEAL PAGE'S OWN NUMBERS, to the last decimal, read off the catalog while it was dealing.
+    // A boomerang is a snap whose target is where the card already IS, and that is the shape most
+    // able to hide a flight that never converges — so it is the one pinned here rather than a
+    // tidy round throw. It has to be OVER, not merely plausible: an unfinished flight leaves the
+    // card mid-air with the game never told the throw ended, and nothing on the glass says why.
+    let home = false;
+    m.snap("c", {
+      to: { x: 0, y: 0 },
+      toUp: 0.28632653061224467,
+      up: 0.5726530612244893,
+      push: { x: -2.9999999999999987, y: 5.196152422706632 },
+      spin: 240,
+      spinGlide: "fast",
+      onDone: () => { home = true; },
+    });
+    let ms = 8016;
+    for (; ms <= 16000 && !home; ms += 16) c.tick(ms);
+    expect(home, "the boomerang has to END, not merely look right on the way").toBe(true);
+    expect(ms - 8016, "and inside a second, or the card hangs there after the hand has moved on").toBeLessThan(1000);
   });
 
   it("motion.slide-obeys-walls-and-speed — a tray keeps it in; speed 0 stops it where it stands", () => {

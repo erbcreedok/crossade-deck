@@ -64,7 +64,7 @@ export function throws(rt: Runtime): Throws {
       rt.beginFlight(id, {
         body: {
           ...bodyAt(apply(rest, { x: 0, y: 0 })),
-          vel: velocityOf(opts.speed, opts.angle),
+          vel: opts.push ?? velocityOf(opts.speed, opts.angle),
           spin: opts.spin ?? 0,
           up: opts.up ?? 0,
           upVel: opts.hop ?? 0,
@@ -94,7 +94,7 @@ export function throws(rt: Runtime): Throws {
       rt.beginFlight(id, {
         body: {
           ...bodyAt(apply(rest, { x: 0, y: 0 })),
-          vel: velocityOf(opts.speed ?? 0, opts.angle ?? 0),
+          vel: opts.push ?? velocityOf(opts.speed ?? 0, opts.angle ?? 0),
           spin: opts.spin ?? 0,
           up: opts.up ?? 0,
           upVel: 0,

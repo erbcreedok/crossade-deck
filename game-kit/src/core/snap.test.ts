@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { type Body } from "./ballistic.js";
 import { decayGlide } from "./glide.js";
-import { crossesZone, snapRests, springOf, stepSnap, type SnapConfig } from "./snap.js";
+import { crossesZone, finiteOr, snapRests, springOf, stepSnap, type SnapConfig } from "./snap.js";
 import { type Vec } from "./transform.js";
 
 const DT = 1 / 60;
@@ -107,6 +107,31 @@ describe("snap", () => {
     const arrived = bodyGoing({ x: 1, y: 0 }, { x: 0, y: 0 }, { spin: 200 });
     expect(snapRests(arrived, cfg, 1e-2, 2)).toBe(false);
     expect(snapRests({ ...arrived, spin: 0 }, cfg, 1e-2, 2)).toBe(true);
+  });
+
+  it("snap.a-target-that-is-not-a-place-does-not-make-the-flight-immortal — the one failure that looks nothing like its cause", () => {
+    // A snap ends when the body has ARRIVED, and every comparison with a `NaN` is false. So a
+    // target that is not a number does not put the card in the wrong place — it makes the flight
+    // last forever: the piece hangs on the glass, the clock never sleeps, and the game is never
+    // told the throw ended, so a dealt card is never handed to anybody. It cost a whole page once,
+    // from one missing option multiplied into a height in the CALLER.
+    const cfg: SnapConfig = { to: { x: 3, y: 0 }, up: Number.NaN, response: 0.4, damping: 1, spinGlide: STILL };
+    const end = runSnap(bodyGoing({ x: 0, y: 0 }, { x: 6, y: 0 }), cfg, 200).pop()!;
+    expect(Number.isFinite(end.up)).toBe(true);
+    expect(end.pos.x).toBeCloseTo(3, 3);
+    expect(snapRests(end, cfg, 1e-2, 2), "a height that is not a height is no height at all").toBe(true);
+    // The same for the target itself and for the spring's own numbers: every one of them is refused
+    // at the door rather than carried into an arithmetic where it can only be caught by a hang.
+    const nowhere: SnapConfig = { to: { x: Number.NaN, y: 0 }, response: Number.NaN, damping: Number.NaN, spinGlide: STILL };
+    const back = runSnap(bodyGoing({ x: 2, y: 0 }, { x: 0, y: 0 }), nowhere, 200).pop()!;
+    expect(Number.isFinite(back.pos.x)).toBe(true);
+    expect(snapRests(back, nowhere, 1e-2, 2)).toBe(true);
+    // And a body whose OWN numbers have gone is finished, whatever the target says: it is not going
+    // to arrive, and a flight that cannot be finished must not outlive the page.
+    expect(snapRests(bodyGoing({ x: Number.NaN, y: 0 }, { x: 0, y: 0 }), cfg, 1e-2, 2)).toBe(true);
+    expect(finiteOr(undefined, 7)).toBe(7);
+    expect(finiteOr(Infinity, 7)).toBe(7);
+    expect(finiteOr(0, 7)).toBe(0);
   });
 
   it("snap.crossing-is-asked-before-the-throw — the run is where the glide law says it ends, and a zone behind it is not crossed", () => {
