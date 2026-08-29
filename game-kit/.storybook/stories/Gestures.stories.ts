@@ -305,7 +305,7 @@ export const Sandbox: StoryObj<DeskArgs> = {
   args: { ...DESK_ARGS },
   argTypes: DESK_KNOBS,
   parameters: { gkDocStory: "gestures.sandbox" },
-  render: (a) => wireDrag(scene(sandbox(a, false), { animate: true }), { lift: a.lift, carry: a.carry }).el,
+  render: (a) => wireDrag(scene(sandbox(a, false), { animate: true }), { lift: a.lift, carry: a.carry, toFront: true }).el,
 };
 
 /**
@@ -334,7 +334,7 @@ export const Turn: StoryObj<DeskArgs> = {
     snap: documented("arg.snap", { control: { type: "number", min: 1, step: 5 } }, "piece/rotatable"),
   },
   parameters: { gkDocStory: "gestures.turn" },
-  render: (a) => wireDrag(scene(sandbox(a, true), { animate: true }), { lift: a.lift, carry: a.carry }).el,
+  render: (a) => wireDrag(scene(sandbox(a, true), { animate: true }), { lift: a.lift, carry: a.carry, toFront: true }).el,
 };
 
 // ---- the round table: one hand holds the pack, the other deals off it ---------------------------
@@ -676,6 +676,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   const s = scene(root, { animate: true, motion: { friction: a.friction } });
   DEALERS.set(s.el, dealer(s, a, snap));
   wireDrag(s, {
+    toFront: true,
     // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
     // object under the hand. The pick then falls through to the deck itself, which is drawn under
     // it — so one finger on the pack moves the pack, whichever of its cards was on top.
@@ -984,6 +985,7 @@ export const Shake: StoryObj<ShakeArgs> = {
     const shaking = SHAKING.get(s.el) ?? wireShake({ host: s.host, want: (n: Node) => n.id === "die", poses: () => s.motions?.poses() });
     SHAKING.set(s.el, shaking);
     wireDrag(s, {
+      toFront: true,
       onRelease: (velocity) => {
         const shake = shaking.reading();
         if (!shake || !s.motions) return false;

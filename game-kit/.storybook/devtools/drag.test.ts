@@ -1,0 +1,145 @@
+// THE CATALOG'S DRAG WIRING — the two laws of a REFUSED drop, which is the only kind these desks
+// have: nothing on a sandbox accepts anything, so every release falls through to `onReject`.
+//
+// Both laws are about what a drop must NOT quietly change. They are here because both were broken
+// in ways nobody would blame on a drag: a turn that vanished, and a piece that sank under its
+// neighbour the moment it was put down.
+
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  add,
+  Bounded,
+  Container,
+  Draggable,
+  fieldsOf,
+  freeLayout,
+  node,
+  rect,
+  registerLayout,
+  Surfaced,
+  Transformable,
+  installStockSurfaces,
+  DEFAULT_VIEWER,
+  type Host,
+  type Motions,
+  type Node,
+  type TransformableFields,
+  type Vec,
+} from "../../src/index.js";
+import { wireDrag } from "./drag.js";
+import { type Scene } from "./scene.js";
+
+/** A view that only records its listeners — the wiring asks it for nothing else worth faking. */
+function stubView() {
+  const listeners = new Map<string, Array<(e: PointerEvent) => void>>();
+  const el = {
+    style: {},
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    addEventListener: (t: string, f: (e: PointerEvent) => void) => void listeners.set(t, [...(listeners.get(t) ?? []), f]),
+    removeEventListener: () => undefined,
+    setPointerCapture: () => undefined,
+  } as unknown as HTMLCanvasElement;
+  return {
+    el,
+    fire: (type: string, x: number, y: number) => {
+      const e = { clientX: x, clientY: y, pointerId: 1 } as unknown as PointerEvent;
+      for (const f of listeners.get(type) ?? []) f(e);
+    },
+  };
+}
+
+/**
+ * TWO PIECES SIDE BY SIDE on an 800×600 view at 100 px/unit, on a canvas that places nobody: the
+ * desk's origin is glass (400, 300), so `a` is at glass 300 and `b` at glass 500.
+ */
+function bench(): { s: Scene; desk: Node; fire: (t: string, x: number, y: number) => void } {
+  const desk = node("desk", Container({ layout: "free" }));
+  add(desk, node("a", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: -1, y: 0 }, angle: 30, z: 2 }), Draggable({ onReject: "stay" })));
+  add(desk, node("b", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 1, y: 0 } }), Draggable({ onReject: "stay" })));
+  const view = stubView();
+  const host = {
+    view: view.el,
+    root: desk,
+    unit: () => 100,
+    viewport: () => ({ width: 800, height: 600, dpr: 1 }),
+    viewer: () => DEFAULT_VIEWER,
+    setRoot: () => undefined,
+  } as unknown as Host;
+  // Only what the wiring actually calls. A stub and not the real clock: these laws are about the
+  // TREE the drop leaves behind, and a running runtime would only add frames to wait for.
+  const motions = {
+    grab: () => undefined,
+    dragTo: () => undefined,
+    release: () => undefined,
+    hold: () => undefined,
+    velocity: (): Vec | undefined => undefined,
+    poses: () => undefined,
+    busy: () => false,
+  } as unknown as Motions;
+  const s = { el: {} as HTMLElement, host, motions, id: "t", ready: Promise.resolve(), setRoot: () => undefined } as unknown as Scene;
+  return { s, desk, fire: view.fire };
+}
+
+const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!;
+
+beforeEach(() => {
+  // Registered rather than reset: the seams that CLEAR these registries are the kit's own and do
+  // not come through the catalog's door (`guard.catalog-through-the-door`). Naming what this file
+  // needs is enough — nothing here reads a name it did not write.
+  registerLayout("free", freeLayout);
+  installStockSurfaces();
+});
+
+describe("a refused drop", () => {
+  it("drag.a-refused-drop-keeps-the-pieces-own-pose — the seat changes and nothing else does", () => {
+    // `compose` REPLACES an atom outright, so a bare `Transformable({ at })` returns the turn, the
+    // height and the size to their defaults. A piece two fingers had just turned would snap upright
+    // the next time a hand moved it — and the drag would be blamed for losing the turn.
+    const b = bench();
+    wireDrag(b.s);
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 350, 320);
+    b.fire("pointerup", 350, 320);
+
+    const pose = poseOf(b.desk.children[0]!);
+    expect(pose.at.x, "the seat is where the finger left it").toBeCloseTo(-0.5, 5);
+    expect(pose.at.y).toBeCloseTo(0.2, 5);
+    expect(pose.angle, "and the turn the piece already had is still on it").toBe(30);
+    expect(pose.z, "as is its height").toBe(2);
+  });
+
+  it("drag.the-last-piece-put-down-draws-over-its-neighbours — by tree order", () => {
+    // The plan sorts stably and equal heights keep the order of the children, so being last among
+    // one's siblings IS being on top.
+    const b = bench();
+    wireDrag(b.s, { toFront: true });
+    expect(b.desk.children.map((c) => c.id)).toEqual(["a", "b"]);
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 340, 300);
+    b.fire("pointerup", 340, 300);
+    expect(b.desk.children.map((c) => c.id)).toEqual(["b", "a"]);
+  });
+
+  it("drag.raising-a-piece-never-touches-its-height — z is the shadow's, not the painter's", () => {
+    // The trap this option exists to avoid. `z` looks like the obvious lever for "draw it on top"
+    // and is the wrong one: the shadow law reads it, so a desk that raised by height would slowly
+    // fill with pieces apparently hovering above the felt.
+    const b = bench();
+    wireDrag(b.s, { toFront: true });
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 340, 300);
+    b.fire("pointerup", 340, 300);
+    expect(poseOf(b.desk.children[1]!).z).toBe(2);
+  });
+
+  it("drag.a-desk-that-did-not-ask-keeps-its-order — off by default", () => {
+    // A game whose zones own their order says who is on top with the tree it publishes, and a
+    // wiring that reordered behind its back would be the finger overruling the rules.
+    const b = bench();
+    wireDrag(b.s);
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 340, 300);
+    b.fire("pointerup", 340, 300);
+    expect(b.desk.children.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+});

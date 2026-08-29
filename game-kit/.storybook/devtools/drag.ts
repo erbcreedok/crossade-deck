@@ -23,6 +23,7 @@ import {
   onRejectOf,
   pick,
   planMove,
+  reorder,
   toUnits,
   transformsOf,
   Transformable,
@@ -102,6 +103,21 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * is judged and echoed; the other is retransmitted and forgotten.
    */
   readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean }) => void) | undefined;
+  /**
+   * THE LAST PIECE PUT DOWN DRAWS OVER ITS NEIGHBOURS — a free canvas where things overlap, which
+   * is what a table is.
+   *
+   * BY TREE ORDER, NEVER BY `z`. The plan sorts stably and equal heights keep the order of the
+   * children, so moving a node to the end of its siblings is the whole of it. `z` looks like the
+   * obvious lever and is the wrong one: it is HEIGHT, the shadow law reads it (`depth.perZ * z`),
+   * and a piece raised to get it drawn on top would cast a longer and longer shadow — the desk
+   * would slowly fill with things apparently hovering above it.
+   *
+   * Off by default: a game whose zones own their order (a pile, a hand, a column) says who is on
+   * top with the tree it publishes, and a wiring that reordered behind its back would be the
+   * finger overruling the rules.
+   */
+  readonly toFront?: boolean | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -214,7 +230,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {
@@ -277,6 +293,16 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
+  /** Move a node to the end of its siblings — last drawn, and nothing about its height touched. */
+  const front = (n: Node | undefined): void => {
+    const owner = n?.parent;
+    if (!owner || owner.children.length < 2) return;
+    const i = owner.children.indexOf(n);
+    if (i < 0 || i === owner.children.length - 1) return;
+    const order = owner.children.map((_, k) => k).filter((k) => k !== i);
+    reorder(owner, [...order, i]);
+  };
+
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
     const root = s.host.root;
     w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true });
@@ -284,10 +310,16 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     for (const it of items) {
       const n = byId(root, it.id);
       if (n && onRejectOf(n) === "stay") {
-        compose(n, Transformable({ at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
+        // THE NODE'S OWN FIELDS COME ALONG. `compose` replaces an atom outright, so a bare
+        // `Transformable({ at })` writes the seat and silently returns the turn, the height and the
+        // size to their defaults — a piece two fingers had just turned would snap upright the next
+        // time a hand moved it, and the drag would be blamed for losing the turn.
+        const own = fieldsOf<TransformableFields>(n, "Transformable");
+        compose(n, Transformable({ ...(own ?? {}), at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
       }
       s.motions?.release(it.id);
     }
+    if (w.opts.toFront) for (const it of items) front(byId(root, it.id));
     s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
   };
 
