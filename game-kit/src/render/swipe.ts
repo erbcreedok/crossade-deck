@@ -59,11 +59,17 @@ export const SWIPE_STRAIGHT = 0.8;
 /**
  * How far the OTHER finger may wander and still be an anchor, in glass pixels.
  *
- * Pixels, and the same number a long press allows itself: this is the same claim about the same
- * hand — "that finger is holding still" — and two different answers to it would be two different
- * ideas of a steady thumb.
+ * NOT the long press's five. That number asks "did this finger stay put for half a second", and it
+ * is measured against a thumb that is doing nothing else. This one asks something slacker and
+ * longer: "is that hand HOLDING the pack while the other one works" — over as many seconds as the
+ * dealing takes, on a hand that is being jostled by its own neighbour. A real thumb resting on a
+ * deck wanders a good deal more than five pixels in that time, and a deal refused because the
+ * holding hand breathed is a gesture that simply never fires — which is exactly how this was found.
+ *
+ * Twenty-four is about four millimetres on a phone: unmistakably the same spot, and unmistakably
+ * less than going anywhere. Pixels rather than units, because it is a claim about the HAND.
  */
-export const ANCHOR_SLOP = 5;
+export const ANCHOR_SLOP = 24;
 
 /** The finger that was already down when the swipe began — the hand holding what is being dealt off. */
 export interface SwipeAnchor {

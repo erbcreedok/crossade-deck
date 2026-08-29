@@ -243,19 +243,26 @@ const LAUNCH_SPEED = 7;
 // That is why `claims` is the only camera field these pages differ in: it is the sentence "this is
 // mine" said by the thing the page is about.
 
-/** The desk every gesture page is looked AT rather than merely fitted into. */
-function eye(claims: (n: Node) => boolean, half: number): CameraScene {
+/**
+ * The desk every gesture page is looked AT rather than merely fitted into.
+ *
+ * `zoom` is the one thing worth arguing about per page. A desk SMALLER than the glass opens at `1`:
+ * it is centred rather than scrolled, and opening at the fit would blow one card up to fill a phone.
+ * A desk BIGGER than the glass opens at the fit, or the page spends its first gesture panning to
+ * find the thing it is about — and on a table that is exactly the seats a deal is aimed at.
+ */
+function eye(claims: (n: Node) => boolean, halfW: number, halfH = halfW * 0.72, zoom: number | "fit" = 1): CameraScene {
   return {
     // Generous both ways: a reader who zooms in to watch a shadow and one who pulls back to see
     // where a card went are the same reader, a second apart.
     limits: { minZoom: 0.4, maxZoom: 3 },
     // The desks here are laid out AROUND zero, so the content rect starts at minus half — the
     // camera is told the RECT and not the size, or half of every desk would be unreachable.
-    content: { x: -half, y: -half * 0.72, w: half * 2, h: half * 1.44 },
+    content: { x: -halfW, y: -halfH, w: halfW * 2, h: halfH * 2 },
     claims,
     // Opened where the pieces are, at the size they were drawn: a gesture page that opened
     // somewhere else would spend its first gesture on getting back.
-    start: { at: { x: 0, y: 0 }, zoom: 1 },
+    start: { at: { x: 0, y: 0 }, zoom },
   };
 }
 
@@ -443,16 +450,21 @@ export const Turn: StoryObj<DeskArgs> = {
 // and so a card lands where it stops and that is the whole of it. A game that wants one and got
 // the other is telling its players something about the table that is not true.
 
-const SEAT_R = 0.3;
+const SEAT_R = 0.34;
 /**
- * How far the seats stand from the middle, root units — the rim of the table.
+ * THE RIM, root units — round, and big.
  *
- * SIZED FOR A PHONE HELD UPRIGHT, which is this catalog's first screen: 390 px at the kit's own
- * hundred-to-the-unit is 3.9 units across, and the felt has to fit inside that with its seats on
- * it. A table sized for a desktop stage loses the seat at the top and the seat at the bottom the
- * moment anybody picks up a phone — and those are the two a dealer aims at most.
+ * ROUND because every seat has to be the same throw. On an oval the near seat is a flick and the
+ * side seats are a shove, so the same `reach` means two different things depending on who is being
+ * dealt to — and a dealer would learn to aim differently per player, which is a rule nobody wrote.
+ *
+ * BIG because a swipe needs ROOM. The gesture is a flick with a measurable direction, and on a rim
+ * close to the pack every seat is a few degrees from its neighbours: the dealer aims, the table
+ * refuses, and there is nothing on the glass to say why. Distance is what makes an angle readable,
+ * by the hand as much as by the arithmetic. It no longer has to fit the phone either — a camera
+ * stands under every page on this shelf, so a table bigger than the glass is one the reader pans.
  */
-const TABLE_R = 1.35;
+const TABLE_R = 2.6;
 const CARD = { w: 0.56, h: 0.8 };
 
 /** Everyone at the origin: what a closed pack looks like to a layout. */
@@ -478,9 +490,10 @@ const fanLayout: LayoutRecord = {
 /** How far round the table seat `i` of `n` stands, degrees clockwise from +x. `0` is the near seat. */
 const seatAngle = (i: number, n: number): number => 90 + (i * 360) / n;
 
-const at = (deg: number, r: number) => ({
-  x: Math.cos((deg * Math.PI) / 180) * r,
-  y: Math.sin((deg * Math.PI) / 180) * r,
+/** A point on the rim — the same distance from the pack whichever seat it is. */
+const at = (deg: number) => ({
+  x: Math.cos((deg * Math.PI) / 180) * TABLE_R,
+  y: Math.sin((deg * Math.PI) / 180) * TABLE_R,
 });
 
 interface TableArgs {
@@ -494,6 +507,7 @@ interface TableArgs {
   spin: number;
   friction: number;
   boomerangMs: number;
+  grip: number;
 }
 
 /**
@@ -542,13 +556,20 @@ function tableTree(a: TableArgs): Node {
   registerLayout("gesture.table.free", freeLayout);
   registerLayout("gesture.table.stack", stackLayout);
   registerLayout("gesture.table.fan", fanLayout);
-  registerSurface("gesture.table.felt", { layers: [{ paint: "text", opacity: 0.12 }], radius: TABLE_R });
+  registerSurface("gesture.table.felt", { layers: [{ paint: "text", opacity: 0.12 }] });
   registerSurface("gesture.table.seat", { layers: [{ paint: "text", opacity: 0.3 }], radius: SEAT_R });
 
   const desk = node("desk", Container({ layout: "gesture.table.free" }));
   // THE FELT IS NOT INTERACTIVE and carries no atom that would let a finger take hold of it: a
   // table is the room the gesture happens in, not a thing in the room.
-  add(desk, node("felt", Bounded({ bounds: circle(TABLE_R + SEAT_R * 1.6) }), Surfaced({ surface: "gesture.table.felt" })));
+  add(
+    desk,
+    node(
+      "felt",
+      Bounded({ bounds: circle(TABLE_R + SEAT_R * 1.8) }),
+      Surfaced({ surface: "gesture.table.felt" }),
+    ),
+  );
   for (let i = 0; i < a.seats; i++) {
     add(
       desk,
@@ -556,7 +577,7 @@ function tableTree(a: TableArgs): Node {
         `seat${i}`,
         Bounded({ bounds: circle(SEAT_R) }),
         Surfaced({ surface: "gesture.table.seat" }),
-        Transformable({ at: at(seatAngle(i, a.seats), TABLE_R) }),
+        Transformable({ at: at(seatAngle(i, a.seats)) }),
         Container({ layout: "gesture.table.fan" }),
       ),
     );
@@ -581,12 +602,40 @@ function tableTree(a: TableArgs): Node {
   for (const card of cards({ size: { w: CARD.w, h: CARD.h } }).slice(0, a.count)) {
     compose(card, Transformable({ at: { x: 0, y: 0 } }));
     compose(card, ShadowCaster());
-    compose(card, Draggable({ onReject: "stay" }));
+    // HOME, not `stay`, while it is IN the pack. A card carried as part of the pack is written
+    // nowhere on release: its seat is the middle of the deck, and the deck is what moved. Written
+    // a root-space seat instead — which is what `stay` means — every card in a moved pack would be
+    // displaced again by the pack's own offset, and the pack would come apart in the hand.
+    compose(card, Draggable({ onReject: "home" }));
     setFacing(card, "down");
     add(deck, card);
   }
   add(desk, deck);
+  add(
+    desk,
+    node(
+      "said",
+      Bounded({ bounds: rect(TABLE_R * 2, 0.34) }),
+      Transformable({ at: { x: 0, y: TABLE_R + SEAT_R * 2.4 } }),
+      Labeled({ label: "rest a finger on the pack, flick a card off it with another", style: CONTROL_LABEL }),
+    ),
+  );
   return desk;
+}
+
+/**
+ * SAY WHAT THE HAND DID — and, when nothing was dealt, WHY.
+ *
+ * A gesture page whose gesture does not fire is unreadable: every one of the four numbers a deal
+ * turns on (speed, reach, straightness, the other hand's drift) is invisible, and "it does not
+ * work" is the only report a reader can make. This turns that into a sentence with the numbers in
+ * it, which is the difference between a bug report and a tuning session.
+ */
+function say(s: Scene, text: string): void {
+  const line = byId(s.host.root, "said");
+  if (!line) return;
+  compose(line, Labeled({ label: text, style: CONTROL_LABEL }));
+  s.setRoot(s.host.root);
 }
 
 /** The pack's top card — the one a deal takes, and `undefined` on an empty pack. */
@@ -681,6 +730,9 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
     // refusal is the reason a card cannot quietly end up in two places.
     if (card.parent) remove(card.parent, card);
     add(root, card);
+    // OFF THE PACK IS ON ITS OWN: it is nobody's child now, so a refused drop must leave it where
+    // the hand let go rather than fly it back to a seat it no longer has.
+    compose(card, Draggable({ onReject: "stay" }));
     compose(card, Transformable({ at: home }));
     s.setRoot(root);
 
@@ -734,6 +786,7 @@ const TABLE_ARGS: TableArgs = {
   spin: 240,
   friction: 6,
   boomerangMs: 520,
+  grip: ANCHOR_SLOP,
 };
 
 const TABLE_KNOBS = {
@@ -744,6 +797,7 @@ const TABLE_KNOBS = {
   gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.1 } }, "deal"),
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
   friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "deal"),
+  grip: documented("arg.grip", { control: { type: "number", min: 0, step: 2 } }, "deal"),
 };
 
 /** Wire both table pages the same way — the only difference is whether a seat is looked for. */
@@ -758,12 +812,24 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // THE PACK AND ITS CARDS TAKE THEIR OWN FINGERS; the felt round them is the camera's. A finger
     // that lands on the deck gives the gesture away, and the deal's second finger is then free —
     // the camera does not take a gesture back.
-    camera: eye((n: Node) => n.id === "deck" || n.parent?.id === "deck" || draggableNode(n), TABLE_R + 1.2),
+    // The oval plus the line under it, and opened at the FIT: every seat a deal can be aimed at is
+    // on the glass from the first frame, and the reader zooms in rather than hunting.
+    camera: eye(
+      (n: Node) => n.id === "deck" || n.parent?.id === "deck" || draggableNode(n),
+      TABLE_R + SEAT_R * 2,
+      TABLE_R + SEAT_R * 3.2,
+      "fit",
+    ),
   });
   DEALERS.set(s.el, dealer(s, a, snap));
   wireDrag(s, {
     toFront: true,
     view: eyeOf(s),
+    // THE PACK TRAVELS WHOLE. A carry poses the nodes it was given and nothing else — the override
+    // is per-node, by id, and a container's children keep their own tree poses under it. Grab the
+    // deck alone and the cards stay behind and then settle after it, which reads as the pack coming
+    // apart in the hand. The run is the answer the wiring already had a word for.
+    runOf: (_root, hit) => (hit.id === "deck" ? [hit, ...hit.children] : [hit]),
     // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
     // object under the hand. The pick then falls through to the deck itself, which is drawn under
     // it — so one finger on the pack moves the pack, whichever of its cards was on top.
@@ -785,6 +851,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       if (lead.parent) remove(lead.parent, lead);
       add(target, lead);
       compose(lead, Transformable({ at: { x: 0, y: 0 }, angle: 0 }));
+      compose(lead, Draggable({ onReject: "home" })); // back in the pack, it belongs to the pack again
       setFacing(lead, "down");
       s.setRoot(s.host.root);
       return true;
@@ -793,7 +860,11 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   rewire(s.el, () =>
     wireSwipe({
       host: s.host,
-      want: (n: Node) => n.id === "deck" || n.parent?.id === "deck",
+      // WIDER THAN THE LAW, on purpose. Gated to the pack alone, a flick that started a finger's
+      // width off it is refused inside the recogniser and the page has nothing to say — which is
+      // indistinguishable, to a reader, from a page that does not work. Let the felt through and
+      // the refusal is a sentence instead of a silence.
+      want: (n: Node) => n.id === "deck" || n.parent?.id === "deck" || n.id === "felt",
       view: eyeOf(s),
       poses: () => s.motions?.poses(),
       onSwipe: (sw: Swipe) => {
