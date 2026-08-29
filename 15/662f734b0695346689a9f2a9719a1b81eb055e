@@ -1,0 +1,55 @@
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_5ca5b6fb28ba59 987-989,999
+  s_881c18b5871008::t_8865a5957f007c 951-986,990-998,1000-1005
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_2ab3ef8402361f 185-188
+game-kit/.storybook/locales/pages/motion/en.json
+  s_881c18b5871008::t_e17246820b5b1a 49-51
+game-kit/src/core/motion.ts
+  s_881c18b5871008::t_a0c0cc62b4abe1 122-132,159-160
+game-kit/src/index.ts
+  s_881c18b5871008::t_41e48135f12674 378-380
+  s_881c18b5871008::t_fd6639222ce389 278
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_2ab3ef8402361f 185-188
+game-kit/.storybook/stories/Motion.stories.ts
+  s_881c18b5871008::t_8cc2110f4d34b3 87-88,820-949,952
+  s_881c18b5871008::t_cee0fd1f263c18 950-951,953-954
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_881c18b5871008::t_e35fd5fb1ea778 3,24-25
+game-kit/src/render/animator/motions.ts
+  s_881c18b5871008::t_38b55a20d48454 150-186,333-337
+game-kit/src/core/snap.ts
+  s_881c18b5871008::t_3207e1faa87cb8 1-130
+game-kit/src/render/animator/throws.ts
+  s_881c18b5871008::t_e48369c316e960 16
+  s_881c18b5871008::t_10cefd787671f1 9,84-115
+  s_881c18b5871008::t_5d160b1140ea06 116-118
+game-kit/src/core/snap.test.ts
+  s_881c18b5871008::t_fdc5a1e3649179 113
+  s_881c18b5871008::t_f0d27d04a92a1c 1-112,114-132
+game-kit/docs/test-plan/66-snap.md
+  s_881c18b5871008::t_e35fd5fb1ea778 1-32
+game-kit/.storybook/locales/pages/motion/ru.json
+  s_881c18b5871008::t_e17246820b5b1a 49-51
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_e35fd5fb1ea778 94
+  s_881c18b5871008::t_09da0a7f85a4ae 74
+  s_881c18b5871008::t_b952a03d705fc0 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "15662f734b0695346689a9f2a9719a1b81eb055e",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
