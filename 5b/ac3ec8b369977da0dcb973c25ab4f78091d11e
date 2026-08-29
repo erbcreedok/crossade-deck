@@ -1,0 +1,37 @@
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_8b6038b28ee865 889-890
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_ab8ec90f0bc890 106-107,343-345,671
+  s_881c18b5871008::t_fc276a3f07bd21 149
+game-kit/src/render/stage.ts
+  s_881c18b5871008::t_0117e0fbe8f509 59
+game-kit/src/render/scenePlan/plan.test.ts
+  s_881c18b5871008::t_9c0edd378e2109 411,413-417,499
+  s_881c18b5871008::t_fc276a3f07bd21 403,488
+game-kit/src/render/scenePlan/shadows.ts
+  s_881c18b5871008::t_2f48be2c23f2f5 21,37-46,73-74,89-94
+game-kit/src/render/scenePlan/input.ts
+  s_881c18b5871008::t_ab8ec90f0bc890 58
+game-kit/docs/test-plan/10-scene-plan.md
+  s_881c18b5871008::t_8b6038b28ee865 60
+game-kit/src/render/animator/physics.ts
+  s_881c18b5871008::t_bc0b5d9a3a37f1 45-46
+game-kit/src/render/scenePlan/depth.ts
+  s_881c18b5871008::t_bc0b5d9a3a37f1 6-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "5bac3ec8b369977da0dcb973c25ab4f78091d11e",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
