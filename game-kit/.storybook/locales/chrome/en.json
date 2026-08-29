@@ -293,5 +293,6 @@
   "arg.keyTurn": "How far the key turns the card about its OWN centre, degrees.",
   "arg.keyScale": "How big the key makes the card, about its own centre. `1` is the size it rests at.",
   "arg.keyHold": "How much of the span the card WAITS out there, as a fraction. A pause is two keys with the same values — there is no `hold` field in a table, because a segment that changes nothing already is one.",
-  "arg.rides": "Does the shadow travel WITH the card (1) or wait at the seat (0)? Off, the card reads as lifted off the desk; on, as sliding along the felt. Same motion, same numbers — the shadow is the entire difference, and it is a property of what the look MEANS."
+  "arg.rides": "Does the shadow travel WITH the card (1) or wait at the seat (0)? Off, the card reads as lifted off the desk; on, as sliding along the felt. Same motion, same numbers — the shadow is the entire difference, and it is a property of what the look MEANS.",
+  "arg.snap": "The grid a `snap` release lands on, in degrees. Read for nothing else — a piece set to `keep` or `home` never looks at it."
 }

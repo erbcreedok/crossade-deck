@@ -20,5 +20,11 @@
     "",
     "A tap is the other half of the same press, and the pair is what makes either legible: one",
     "finger, one square, and the meaning turns on whether it leaves quickly or stays."
+  ],
+  "docs.gestures.sandbox": [
+    "One finger owns one piece, and the baseline every other page on this shelf is read against. A second finger means nothing here: it cannot take over the piece in hand, and it cannot start a second drag — a hand that grabbed and a hand that arrived are not two players, they are one person with two fingers, and only one of them is holding the card. Put two fingers on a piece and spread them: nothing happens, and nothing should. The next page gives that pair a meaning, and the difference between the two is the subject of the shelf. Pieces are told apart by shape rather than art, because a gesture does not know what it is moving."
+  ],
+  "docs.gestures.turn": [
+    "The same six pieces with one atom more, and now a second finger means something: the finger that grabbed owns the piece's place, the one that arrived owns its angle. Order is the whole arbitration. The carry is given up as the turn starts — a carried piece is posed entirely by the carry style, so an angle written while it is in flight is a write nothing reads. `onRelease` is the atom's verdict when the fingers leave: keep what the hand did, fly home, or land on the nearest step. There is no swipe on this desk: two fingers here have exactly one meaning."
   ]
 }
