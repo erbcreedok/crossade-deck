@@ -188,7 +188,6 @@ export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./re
 // THE GESTURES BESIDE THE LONG PRESS — each one a seam that REPORTS and decides nothing, which is
 // the same bargain `wireHold` strikes. What a swipe, a shake or a knead MEANS is the game's word.
 export {
-  ANCHOR_SLOP,
   SWIPE_REACH,
   SWIPE_SPEED,
   SWIPE_STRAIGHT,

@@ -56,21 +56,6 @@ export const SWIPE_REACH = 0.5;
  */
 export const SWIPE_STRAIGHT = 0.8;
 
-/**
- * How far the OTHER finger may wander and still be an anchor, in glass pixels.
- *
- * NOT the long press's five. That number asks "did this finger stay put for half a second", and it
- * is measured against a thumb that is doing nothing else. This one asks something slacker and
- * longer: "is that hand HOLDING the pack while the other one works" — over as many seconds as the
- * dealing takes, on a hand that is being jostled by its own neighbour. A real thumb resting on a
- * deck wanders a good deal more than five pixels in that time, and a deal refused because the
- * holding hand breathed is a gesture that simply never fires — which is exactly how this was found.
- *
- * Twenty-four is about four millimetres on a phone: unmistakably the same spot, and unmistakably
- * less than going anywhere. Pixels rather than units, because it is a claim about the HAND.
- */
-export const ANCHOR_SLOP = 24;
-
 /** The finger that was already down when the swipe began — the hand holding what is being dealt off. */
 export interface SwipeAnchor {
   /** What it came down on, if it came down on anything. */
@@ -78,8 +63,14 @@ export interface SwipeAnchor {
   /** Where it is now, root units. */
   readonly at: Vec;
   /**
-   * How far it has wandered from where it landed, GLASS PIXELS — the number a consumer tests to
-   * say "that finger is holding, not dragging". Under `ANCHOR_SLOP` it is an anchor.
+   * How far it has wandered from where it landed, GLASS PIXELS.
+   *
+   * A FACT, AND NOT A VERDICT. It says what that hand did; whether that matters is the game's, and
+   * it usually does not: a hand holding a pack while the other deals off it may be dragging the
+   * pack at the same time, and there is no contradiction in that. This file shipped a suggested
+   * threshold for a while and it was a mistake — a gate against a conflict that does not exist,
+   * refusing gestures people really made. A game with a genuine rival to separate writes the
+   * number that separates them; there is no general one to ship.
    */
   readonly drift: number;
 }

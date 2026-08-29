@@ -15,7 +15,6 @@ import {
   rect,
   roundedRect,
   Rotatable,
-  ANCHOR_SLOP,
   IDENTITY,
   glassPerUnit,
   installStockFlips,
@@ -27,7 +26,6 @@ import {
   setFacing,
   SWIPE_REACH,
   SWIPE_SPEED,
-  SWIPE_STRAIGHT,
   shuffleNames,
   wireKnead,
   wireShake,
@@ -537,7 +535,6 @@ interface TableArgs {
   spin: number;
   friction: number;
   boomerangMs: number;
-  grip: number;
   fingers: number;
   liftMax: number;
 }
@@ -818,7 +815,6 @@ const TABLE_ARGS: TableArgs = {
   spin: 240,
   friction: 6,
   boomerangMs: 520,
-  grip: ANCHOR_SLOP,
   fingers: 2.5,
   liftMax: 4,
 };
@@ -831,7 +827,6 @@ const TABLE_KNOBS = {
   gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.1 } }, "deal"),
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
   friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "deal"),
-  grip: documented("arg.grip", { control: { type: "number", min: 0, step: 2 } }, "deal"),
   fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
   liftMax: documented("arg.liftMax", { control: { type: "number", min: 1, step: 0.5 } }, "pack/lift"),
 };
@@ -936,23 +931,29 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       minReach: 0,
       minStraight: 0,
       onSwipe: (sw: Swipe) => {
-        // THE WHOLE LAW OF THE PAGE. The other hand has to be ON the pack and has to have STAYED
-        // there: a hand that wandered was dragging the pack, and a deal it happened to pass through
-        // is not a deal.
+        // THE WHOLE LAW OF THE PAGE: a hand is on the pack, and a flick says which way. That is
+        // all, and everything else that was here has been taken out.
         //
-        // AND EVERY REFUSAL IS SAID OUT LOUD. Four numbers decide a deal and not one of them is
-        // visible, so a page that only speaks when it succeeds leaves a reader with exactly one
-        // report to make — "it does not work" — which names nothing and cannot be acted on.
+        // NOTHING IS GATED THAT IS NOT IN DISPUTE. A gate settles a conflict between two readings
+        // of one gesture, and on this desk the flick has no rival — two fingers here mean a deal
+        // and nothing else. So the holding hand may WANDER: it can be dragging the pack at the very
+        // same moment, and that is not a contradiction, it is two hands doing two things. A test on
+        // how far it had moved was a gate against a conflict that does not exist, and it refused
+        // every real deal a person made.
+        //
+        // What IS asked of the flick is only what tells it from a tap: it went somewhere, and it
+        // was still going when it left. Both are the kit's own numbers, named rather than copied.
+        //
+        // AND EVERY REFUSAL IS SAID OUT LOUD, because none of these numbers is visible and a page
+        // that speaks only when it succeeds leaves a reader one report to make — "it does not
+        // work" — which names nothing and cannot be acted on.
         const speed = Math.round(sw.speed * 10) / 10;
-        const drift = sw.anchor?.drift ?? Infinity;
-        const onPack = sw.anchor?.on?.id === "deck" || sw.anchor?.on?.parent?.id === "deck";
         const reach = Math.round(sw.reach * 100) / 100;
+        const onPack = sw.anchor?.on?.id === "deck" || sw.anchor?.on?.parent?.id === "deck";
         if (sw.reach < SWIPE_REACH) return say(s, `flick too short: ${reach} of ${SWIPE_REACH} units`);
-        if (sw.straight < SWIPE_STRAIGHT) return say(s, `flick not straight: ${Math.round(sw.straight * 100)}%, wants ${SWIPE_STRAIGHT * 100}%`);
         if (sw.speed < SWIPE_SPEED) return say(s, `flick too slow: ${speed} of ${SWIPE_SPEED} u/s`);
         if (!sw.anchor) return say(s, `flick ${speed} u/s — no other hand was down: rest one on the pack`);
         if (!onPack) return say(s, `flick ${speed} u/s — the holding hand is not on the pack`);
-        if (drift >= a.grip) return say(s, `swipe ${speed} u/s — the holding hand moved ${Math.round(drift)}px (grip ${a.grip})`);
         say(s, `dealt at ${Math.round(sw.angle)}°, ${speed} u/s`);
         DEALERS.get(s.el)?.(sw.angle, sw.speed);
       },
@@ -974,10 +975,9 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
  *
  * THE ARBITRATION IS THE PAGE, and it lives entirely in the HOLDING hand. One finger alone on the
  * pack MOVES THE PACK — drag it anywhere, and the deal still works from wherever you left it. A
- * second finger that leaves fast and straight while the first is still resting DEALS. The test is
- * `Swipe.anchor.drift`: how far that other hand wandered from where it landed. Under the grip it is
- * holding; over it, it was dragging, and a deal that happened to pass through a drag is not a deal.
- * Nothing here is a mode, and there is nothing to hold down.
+ * second finger that leaves fast DEALS, whatever the first one is doing meanwhile: dragging the
+ * pack and dealing off it are two hands doing two things, not two readings of one. Nothing here is
+ * a mode, and there is nothing to hold down.
  *
  * THE FLICK MAY START ANYWHERE, and that is a correction rather than a convenience. The first rule
  * asked it to begin on the pack too, which reads well and is wrong in the hand: the pack is the

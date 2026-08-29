@@ -17,7 +17,7 @@ import { resetSurfaces } from "./surfaces.js";
 import { rect } from "../presets/shapes.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { type Host } from "./host.js";
-import { ANCHOR_SLOP, wireSwipe, type Swipe } from "./swipe.js";
+import { wireSwipe, type Swipe } from "./swipe.js";
 import { wireShake, type Shaking } from "./shake.js";
 import { wireKnead, type Knead } from "./knead.js";
 
@@ -149,19 +149,20 @@ describe("the swipe", () => {
     expect(f.seen.length).toBe(1);
     const a = f.seen[0]!.anchor!;
     expect(a.on?.id, "and it says WHAT the other hand was on").toBe("left");
-    expect(a.drift).toBeLessThan(ANCHOR_SLOP);
+    expect(a.drift, "and how far it has wandered — a fact, not a verdict").toBeCloseTo(Math.hypot(2, 1), 5);
   });
 
-  it("swipe.an-anchor-that-wandered-says-so — the same numbers refuse the same gesture", () => {
+  it("swipe.an-anchor-that-wandered-says-so — and it is the game's business what that means", () => {
     const f = swiping();
     f.fire("pointerdown", 350, 300, { id: 1, ms: 0 });
     f.fire("pointermove", 380, 340, { id: 1, ms: 40 }); // that hand is dragging, not holding
     f.fire("pointerdown", 355, 305, { id: 2, ms: 60 });
     f.fire("pointermove", 455, 305, { id: 2, ms: 110 });
     f.fire("pointerup", 505, 305, { id: 2, ms: 120 });
-    expect(f.seen[0]!.anchor!.drift, "past the slop, so a consumer reads it as a drag in progress").toBeGreaterThan(
-      ANCHOR_SLOP,
-    );
+    // Reported, and NOT judged here. A hand holding a pack while the other deals off it may be
+    // dragging the pack at the same time, and there is no contradiction in that — a threshold
+    // shipped from this file was a gate against a conflict that does not exist.
+    expect(f.seen[0]!.anchor!.drift, "the whole travel of that hand, in glass pixels").toBeCloseTo(Math.hypot(30, 40), 5);
   });
 
   it("swipe.only-off-what-the-consumer-allows — and bare desk is never a swipe", () => {
