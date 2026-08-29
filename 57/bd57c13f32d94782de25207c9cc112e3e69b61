@@ -1,0 +1,31 @@
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_37dc9fa0e76dc3 10,70
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_c695c9389a7ca8 510-520,522,802-806,813-819,855-860
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_0d86de83abe86c 327-328
+  s_881c18b5871008::t_ede058f893adeb 94-101,166-170,370
+  s_881c18b5871008::t_90594af5822688 326,330
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_7840002f6c3575 1319-1320,1329-1332,1334-1335,1338-1340,1347-1348
+  s_881c18b5871008::t_f949e42d623b28 1321-1328,1333,1336-1337,1341-1346
+game-kit/docs/test-plan/42-drag-feel.md
+  s_881c18b5871008::t_37dc9fa0e76dc3 3
+  s_881c18b5871008::t_7370e5c1f8d516 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "57bd57c13f32d94782de25207c9cc112e3e69b61",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
