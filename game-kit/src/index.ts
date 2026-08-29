@@ -182,6 +182,20 @@ export {
 } from "./core/atoms/rotatable.js";
 export { Actionable, actionable, activate, intentOf, type ActionableFields } from "./core/atoms/actionable.js";
 export { HOLD_MS, wireHold, type HoldWiring } from "./render/hold.js";
+// THE GESTURES BESIDE THE LONG PRESS — each one a seam that REPORTS and decides nothing, which is
+// the same bargain `wireHold` strikes. What a swipe, a shake or a knead MEANS is the game's word.
+export {
+  ANCHOR_SLOP,
+  SWIPE_REACH,
+  SWIPE_SPEED,
+  SWIPE_STRAIGHT,
+  wireSwipe,
+  type Swipe,
+  type SwipeAnchor,
+  type SwipeWiring,
+} from "./render/swipe.js";
+export { SHAKE_LEG, wireShake, type Shake, type ShakeWiring, type Shaking } from "./render/shake.js";
+export { KNEAD_QUANTUM, KNEAD_STIR, wireKnead, type Knead, type KneadWiring } from "./render/knead.js";
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
 // A control that answers a finger: what it WEARS hovered and held, and how deep it sinks. The
 // meaning of the press is `Valued`, read by the consumer — this atom is the look and the depth.
