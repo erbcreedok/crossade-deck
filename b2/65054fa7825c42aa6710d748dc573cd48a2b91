@@ -1,0 +1,42 @@
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_4b40f0183ca5aa 22,77,80,1170-1200,1202-1287
+  s_881c18b5871008::t_a83a550199e92a 7,1201
+  s_881c18b5871008::t_056b4229b938dc 1288
+game-kit/src/render/motions.test.ts
+  s_881c18b5871008::t_23e304a5a2dcc5 1-198
+game-kit/src/render/motions.ts
+  s_881c18b5871008::t_2afce4cc3c8310 1-304
+game-kit/src/render/animator/motions.ts
+  s_881c18b5871008::t_bc4cdf566d80ef 12,196-219,266-277
+  s_881c18b5871008::t_65a94bf13a5729 182
+game-kit/src/render/animator/records.ts
+  s_881c18b5871008::t_72707466164810 71
+game-kit/src/render/animator/choreographies.ts
+  s_881c18b5871008::t_6fa3519454b22c 19-21,27,116-136
+  s_881c18b5871008::t_dc1ff7f9af3ad9 137-139
+game-kit/src/index.ts
+  s_881c18b5871008::t_60d298a38c17cf 255,264-292
+game-kit/docs/test-plan/61-motion-registry.md
+  s_881c18b5871008::t_b32c83f08ae99f 1-46
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_2cbb1ee12d2a2a 10
+  s_881c18b5871008::t_b32c83f08ae99f 89
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_6fa3519454b22c 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b265054fa7825c42aa6710d748dc573cd48a2b91",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
