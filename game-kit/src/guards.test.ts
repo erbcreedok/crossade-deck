@@ -220,6 +220,24 @@ describe("guards", () => {
     expect(bad).toEqual([]);
   });
 
+  it("guard.registry-selectors-are-enumerated — a stock look cannot go missing from the catalog", () => {
+    // WHERE A REGISTRY IS OFFERED AS A CHOICE, THE CHOICE IS THE REGISTRY. A selector over
+    // `motionNames()` gains the fifth look on the day it is registered; the same selector written
+    // as `["shiver", "bounce", "spin"]` is right on the day it is typed and wrong ever after, and
+    // NOTHING FAILS — the look simply is not in the catalog, which is the one place it was going to
+    // be read about. That is the quietest way a registry rots, so it is named here rather than
+    // trusted to whoever adds the next one.
+    //
+    // It is the counterpart of the per-atom page guard: an atom earns a page of its own, and a look
+    // earns a line in the selector of the page its registry already has.
+    const ENUMERATED = ["motionNames", "shuffleNames"];
+    const catalog = files
+      .filter((f) => inCatalog(f.rel))
+      .map((f) => f.code)
+      .join("\n");
+    expect(ENUMERATED.filter((fn) => !catalog.includes(`${fn}()`))).toEqual([]);
+  });
+
   it("guard.view-not-canvas — the HTMLCanvasElement is never named canvas", () => {
     expect(hits(/(const|let|var)\s+canvas\b|canvas\s*:\s*HTMLCanvasElement/)).toEqual([]);
   });

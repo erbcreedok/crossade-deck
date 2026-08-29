@@ -27,7 +27,11 @@ import {
   freeLayout,
   installStockCarries,
   installStockFlips,
+  installStockMotions,
   installStockShuffles,
+  keyframeMotion,
+  motionNames,
+  registerMotion,
   node,
   permutation,
   rect,
@@ -50,6 +54,7 @@ import { documented, PAINTS } from "./surfaceControls.js";
 installStockCarries();
 installStockFlips();
 installStockShuffles();
+installStockMotions();
 
 const meta: Meta = {
   title: "Engine/Motion",
@@ -1040,21 +1045,25 @@ export const Roll: StoryObj<RollArgs> = {
 /** What a tap on one of these scenes does right now — the newest render's answer. */
 const SAY_TAP = new WeakMap<HTMLElement, () => void>();
 
-interface SayArgs {
-  said: number;
+/** The card and the desk under it — shared by every page below, none of which vary them. */
+interface SayDeskArgs {
   deskLayout: string;
   cardW: number;
   cardH: number;
   cardSurface: string;
   cardPaint: string;
   cardRadius: number;
+}
+
+interface SayArgs extends SayDeskArgs {
+  said: number;
   ms: number;
   by: number;
   times: number;
 }
 
 /** The desk both pages stand on: one card that casts a shadow, so height and travel are legible. */
-function sayDesk(a: SayArgs): Node {
+function sayDesk(a: SayDeskArgs): Node {
   registerLayout(a.deskLayout, freeLayout);
   registerSurface(a.cardSurface, { layers: [{ paint: a.cardPaint }], radius: a.cardRadius });
   const desk = node("desk", Container({ layout: a.deskLayout }));
@@ -1159,6 +1168,124 @@ export const Bounce: StoryObj<SayArgs> = {
     });
     const fire = (): void => s.motions?.bounce("card", { bounceMs: a.ms, by: a.by, bounces: a.times });
     SAY_TAP.set(s.el, fire);
+    if (moved(s, "said", a.said)) fire();
+    return s.el;
+  },
+};
+
+// ---- the looks the kit does not own -------------------------------------------------------------
+//
+// EVERY SCENE ABOVE PLAYS A VERB. A verb is a mechanic the kit knows the meaning of, and their list
+// is closed on purpose: a turn-over commits a side, a shuffle commits an order, a throw ends where
+// the physics says. There is no eighth verb waiting to be discovered.
+//
+// A LOOK is the other thing entirely. It says "over here", "no", "well done" — and there can be no
+// closed list of those, because they are the designer's vocabulary and not the engine's. So they
+// are a REGISTRY, exactly as easings, carries, coats, flips, surfaces and shuffles already are, and
+// this page is the door: `registerMotion(name, recipe)` writes one down, `animate(id, name)` plays
+// it, and everything the engine promised a verb — the one clock, the hold on the node, the shadow
+// law, the viewer's speed — it owes the designer's look on the same terms.
+
+/** What a tap on the registry scene does right now — the newest render's answer. */
+const PLAY_TAP = new WeakMap<HTMLElement, () => void>();
+
+/** The look this page authors from its own panel — registered on every render, under one name. */
+const MINE = "yours";
+
+interface PlayArgs extends SayDeskArgs {
+  said: number;
+  look: string;
+  rate: number;
+  durMs: number;
+  lift: number;
+  turn: number;
+  size: number;
+  hold: number;
+  rides: number;
+}
+
+/**
+ * A LOOK PLAYED BY NAME — AND ONE THE PANEL WROTE. TAP THE CARD, or step `said`.
+ *
+ * `look` is the registry itself: the stock names the kit installs, and `yours` — a look this page
+ * authors on every render out of the numbers below it. Nothing about the call changes between them.
+ * `animate("card", look)` is the whole of it, and the engine never learns which one it is holding.
+ *
+ * THE TABLE IS THE ANSWER to "how does a designer make their own?". `yours` is four numbers turned
+ * into keys: out to `lift` (turned by `turn`, sized by `size`), a HOLD of `hold` of the span with
+ * nothing changing, then home. A pause needs no word of its own — it IS two keys with the same
+ * values, which is what every timeline has always been. Set `lift` far and `hold` long and the card
+ * visibly waits out there before coming back.
+ *
+ * THE ENDS ARE THE SEAT AND CANNOT BE TYPED AWAY. `keyframeMotion` puts a rest key at both ends of
+ * the span itself, so however the table is filled in, the card lands on the place it left. That is
+ * the one law of the registry, and it is structural rather than a rule somebody has to remember.
+ *
+ * TWO LEVERS FOR TIME, NOT ONE. `durMs` is ABSOLUTE — "this play lasts 400 ms", replacing whatever
+ * the recipe was written with (`0` leaves the recipe's own). `rate` is RELATIVE — "whatever it is,
+ * twice as fast" — so a scene can slow every look it plays without knowing how long any of them is.
+ * Above both still sits the viewer's ▶ ladder, which is the onlooker's knob and nobody else's.
+ *
+ * `rides` IS THE SHADOW LAW, exposed. Off, the shadow waits at the seat and the card reads as
+ * LIFTED off the desk; on, the shadow travels under it and the card reads as sliding along the
+ * felt. Same motion, same numbers — the shadow is the entire difference, and it is a property of
+ * what the look MEANS, not of how far it goes.
+ */
+export const Registry: StoryObj<PlayArgs> = {
+  args: {
+    ...SAY_ARGS,
+    said: 0,
+    look: MINE,
+    rate: 1,
+    durMs: 0,
+    lift: 1.2,
+    turn: 20,
+    size: 1.15,
+    hold: 0.3,
+    rides: 0,
+  },
+  argTypes: {
+    ...SAY_TYPES,
+    said: documented("arg.said", { control: { type: "number", min: 0, step: 1 } }, "card/motion"),
+    look: documented("arg.motionName", { control: "select", options: [...motionNames(), MINE] }, "card/motion"),
+    rate: documented("arg.rate", { control: { type: "number", min: 0, step: 0.25 } }, "card/motion"),
+    durMs: documented("arg.animateMs", { control: { type: "number", min: 0, step: 50 } }, "card/motion"),
+    lift: documented("arg.keyLift", { control: { type: "number", step: 0.1 } }, "yours/keys"),
+    turn: documented("arg.keyTurn", { control: { type: "number", step: 5 } }, "yours/keys"),
+    size: documented("arg.keyScale", { control: { type: "number", min: 0, step: 0.05 } }, "yours/keys"),
+    hold: documented("arg.keyHold", { control: { type: "number", min: 0, max: 0.8, step: 0.05 } }, "yours/keys"),
+    rides: documented("arg.rides", { control: { type: "number", min: 0, max: 1, step: 1 } }, "yours/keys"),
+  },
+  parameters: { gkDocStory: "motion.registry" },
+  render: (a) => {
+    // The designer's own look, authored from the panel and written into the registry under one name
+    // — which is the entire ceremony. A game does this once at start-up; the page does it on every
+    // render because the numbers under it are live.
+    const out = { x: 0, y: -a.lift };
+    const hold = a.hold <= 0 ? 0 : a.hold >= 0.8 ? 0.8 : a.hold;
+    registerMotion(
+      MINE,
+      keyframeMotion({
+        durMs: 700,
+        rides: a.rides >= 1,
+        keys: [
+          { at: (1 - hold) / 2, move: out, turn: a.turn, scale: a.size },
+          // The SAME values again: the segment between them changes nothing, and a segment that
+          // changes nothing is a pause. There is no `hold` field because there is nothing for one
+          // to say that this does not.
+          { at: (1 - hold) / 2 + hold, move: out, turn: a.turn, scale: a.size },
+        ],
+      }),
+    );
+    const s = scene(sayDesk(a), {
+      animate: true,
+      tap: (hit) => {
+        if (hit) PLAY_TAP.get(s.el)?.();
+      },
+    });
+    const fire = (): void =>
+      s.motions?.animate("card", a.look, { rate: a.rate, ...(a.durMs > 0 ? { durMs: a.durMs } : {}) });
+    PLAY_TAP.set(s.el, fire);
     if (moved(s, "said", a.said)) fire();
     return s.el;
   },

@@ -1,6 +1,6 @@
 ## ARCHITECTURAL GUARDS · source-scan
 
-`vitest + fs scan (like argNames.test.ts)` · 34 кейсов, расписано 34
+`vitest + fs scan (like argNames.test.ts)` · 35 кейсов, расписано 35
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -20,6 +20,7 @@
 | `guard.english-only` | identifiers & comments | scanned for Cyrillic | zero outside `locales/` — the bundles and the test asserting what they say |
 | `guard.kit-knows-no-localization` | the kit tree | scanned for locale/i18n/TextSource/translate and json imports | zero: not the words, and not the notion either — a caption arrives already written |
 | `guard.no-language-list` | the kit tree | scanned for "en"/"ru" literals | zero — a game adding a language must never have to edit the kit |
+| `guard.registry-selectors-are-enumerated` | каталог | просканирован на вызовы `motionNames()` / `shuffleNames()` | селектор кормится реестром, а не набранным списком. Список верен в день, когда его набрали, и неверен со дня пятого вида — и НИЧЕГО не падает: вид просто отсутствует в каталоге, то есть в единственном месте, где о нём собирались прочитать |
 | `guard.view-not-canvas` | всё дерево исходников | скан | ни одного `HTMLCanvasElement` под именем canvas |
 | `guard.one-clock` | всё дерево `src` (каталог не в счёт) | скан на `requestAnimationFrame`/`setInterval` и отдельно на `setTimeout` | КАДРОВЫЙ ЦИКЛ — ровно один файл, `render/animator/index.ts`: вторые часы расходятся с первыми, потому что продолжают считать. ОДНОРАЗОВЫЙ СРОК не цикл и дрейфовать не может — он либо срабатывает, либо отменяется, — поэтому `setTimeout` разрешён вторым ИМЕНОВАННЫМ файлом: `render/hold.ts`. Долгое нажатие иначе не выразить: палец, который лежит, не испускает событий вообще, и мерить не от чего |
 | `guard.id-is-opaque` | всё дерево | скан на `id ===` и разбор идентификатора | ноль. client1 умер от обратного: `id === "deck"` по всему движку |

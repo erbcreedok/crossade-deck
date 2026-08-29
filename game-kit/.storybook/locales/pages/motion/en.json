@@ -55,5 +55,8 @@
   ],
   "docs.motion.bounce": [
     "The jump that says LOOK AT ME — the flat cousin of a slide's `hop`, and the pair is the point of having both. A hop leaves the DESK, so its shadow falls away and the piece reads as lifted; a bounce stays on the felt and only travels, so the shadow rides along under it the whole way. One says \"picked up\", the other \"look at me\", and a game that reached for the wrong one is telling the player something it did not mean. A choreography and not a flight: it ends where it began, and a body under gravity only does that by accident."
+  ],
+  "docs.motion.registry": [
+    "A look is not a verb. The kit's verbs are mechanics it knows the meaning of — a turn-over commits a side, a shuffle an order, a throw ends where the physics says — and their list is closed. A look says \"over here\", \"no\", \"well done\", and there can be no closed list of those, because they are the designer's vocabulary and not the engine's. So they are a registry: `registerMotion(name, recipe)` writes one down and `animate(id, name)` plays it, on the same one clock, with the same hold on the node and the same shadow law every verb gets. `yours` on this page is authored from the panel's own numbers as a keyframe table — a pose out, a pause (two keys with the same values), and home — and its ends are pinned to the seat by construction, so however the table is filled in, the card lands where it left."
   ]
 }

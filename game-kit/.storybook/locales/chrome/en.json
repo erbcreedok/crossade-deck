@@ -285,5 +285,13 @@
   "arg.shiverCycles": "How many there-and-back swings fit in the span. Three in 180 ms is roughly the frequency a hand reads as a buzz.",
   "arg.bounceMs": "How long the whole jump lasts, ms. Long enough to read as a jump rather than a twitch, short enough not to be a wait.",
   "arg.bounceBy": "How high the FIRST arc reaches, in root units. About half a card's height — a jump nobody can miss that still keeps the piece over the seat it belongs to.",
-  "arg.bounces": "How many arcs fit in the span; each is smaller than the last. Two — the jump, and the small one it lands with. A third reads as a ball, not a piece."
+  "arg.bounces": "How many arcs fit in the span; each is smaller than the last. Two — the jump, and the small one it lands with. A third reads as a ball, not a piece.",
+  "arg.motionName": "Which registered look to play. The stock names the kit installs, plus `yours` — the one this page writes from the numbers below. Nothing about the call changes between them: `animate(id, name)` is the whole of it, and an unregistered name plays NOTHING rather than something else.",
+  "arg.rate": "Play speed as a MULTIPLIER — 2 is twice as fast, 0.5 half. Relative on purpose: a scene slows every look it plays without knowing how long any of them is. Zero is a mistake, not a still frame, and is read as ordinary speed.",
+  "arg.animateMs": "Replace the recipe's own span, ms. Absolute, where `rate` is relative — give both and they compose. `0` leaves the look the length it was written with.",
+  "arg.keyLift": "How far the key carries the card off its seat, root units. Negative y is up the screen. It is an OFFSET, not a place — the same table plays the same anywhere on the desk.",
+  "arg.keyTurn": "How far the key turns the card about its OWN centre, degrees.",
+  "arg.keyScale": "How big the key makes the card, about its own centre. `1` is the size it rests at.",
+  "arg.keyHold": "How much of the span the card WAITS out there, as a fraction. A pause is two keys with the same values — there is no `hold` field in a table, because a segment that changes nothing already is one.",
+  "arg.rides": "Does the shadow travel WITH the card (1) or wait at the seat (0)? Off, the card reads as lifted off the desk; on, as sliding along the felt. Same motion, same numbers — the shadow is the entire difference, and it is a property of what the look MEANS."
 }
