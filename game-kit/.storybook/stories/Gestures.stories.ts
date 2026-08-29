@@ -6,19 +6,21 @@ import {
   Container,
   CONTROL_LABEL,
   Draggable,
+  Flippable,
   freeLayout,
   Labeled,
   node,
-  polygon,
   rect,
   roundedRect,
   Rotatable,
   ANCHOR_SLOP,
+  installStockFlips,
   installStockShuffles,
   permutation,
   remove,
   reorder,
   seededRng,
+  setFacing,
   shuffleNames,
   wireKnead,
   wireShake,
@@ -35,11 +37,18 @@ import {
   type LayoutRecord,
   type Motions,
   type Node,
-  type Shape,
   type Swipe,
 } from "../../src/index.js";
+import { BACK_SURFACE, cards, crossade, deckByCardId, faceSurface, installClassicSkin } from "@game-presets/cards";
+import { DIE_KINDS, die, dieSpec, flashFace, showFace, type DieKind } from "@game-presets/dice";
+import { CHIP_SURFACE, ROOK_SHAPE, ROOK_SURFACE, installGesturePieces } from "./gestureAssets.js";
 import { scene, type Scene } from "../devtools/scene.js";
 installStockShuffles();
+installGesturePieces();
+installClassicSkin();
+// THE FLIP EFFECT, without which `turns` is a number nobody reads: which side is up is the summed
+// parity, and the effect is what turns that parity into the surface actually drawn.
+installStockFlips();
 import { wireDrag } from "../devtools/drag.js";
 import { documented } from "./surfaceControls.js";
 
@@ -55,38 +64,41 @@ import { documented } from "./surfaceControls.js";
 // Here there is one square, one gesture and one animation, so "it did not move" has exactly one
 // meaning.
 //
-// The square is deliberately plain: a rounded box, no border, one wash. It is a target, not a
-// picture — anything more and a reader starts reading the shape instead of watching it move. What
-// it DOES carry is a shadow, and that is not decoration either: half of what these pages show is
-// height — a shiver stays on the desk, a hop leaves it — and without a shadow the two look alike.
+// The target is a REAL CARD, from the set's own builder — as is everything else on this shelf. The
+// kit ships no art and should not (a game brings its own), so a catalog page that stood on painted
+// boxes would be showing a gesture against something no game will ever hold: a box has no
+// silhouette to read, no back to turn to, and no weight to its picture. What matters about it here
+// is unchanged — it is ONE target, and there is one gesture on it, so "it did not move" has exactly
+// one meaning.
+//
+// What it carries besides its face is a shadow, and that is not decoration: half of what these
+// pages show is height — a shiver stays on the desk, a hop leaves it — and without a shadow the two
+// look alike.
 
-const TILE = "gesture.tile";
-
-/** The one target every page on this shelf uses: a rounded square, washed, with no contour. */
+/**
+ * The one target the first two pages use: a real card, face up, that a hand may take hold of.
+ *
+ * Built here rather than taken from `cards()` because these pages name their target `tile` in three
+ * handlers, and a node's id is its identity — not something to overwrite after the fact. What is
+ * borrowed instead is the SKIN: the set's own face for the ace of spades and the set's own back.
+ */
 function tile(id: string, size: number): Node {
+  const spec = crossade().find((c) => c.id === "spade-A")!;
   return node(
     id,
-    Bounded({ bounds: roundedRect(size, size, 0.18) }),
-    Surfaced({ surface: TILE }),
+    Bounded({ bounds: rect(size, size * 1.4) }),
+    Surfaced({ surface: faceSurface(spec) }),
+    Flippable({ back: BACK_SURFACE }),
     Transformable({ at: { x: 0, y: 0 } }),
-    // It lays a shadow, so a hop reads as a hop rather than as the square growing.
+    // It lays a shadow, so a hop reads as a hop rather than as the card growing.
     ShadowCaster(),
     // A hand may take hold of it — which is what `want` on the hold wiring asks about.
     Draggable(),
   );
 }
 
-/** The axis of the tile's wash, degrees clockwise from +x — a corner-to-corner warm fall. */
-const WASH_ANGLE = 60;
-
-/** The scene every page builds: the tile, and a line saying what the gesture last did. */
+/** The scene every page builds: the card, and a line saying what the gesture last did. */
 function stage(size: number, said: string): Node {
-  registerSurface(TILE, {
-    // ONE LAYER, WASHED. The gradient is an angle and two stops, never coordinates — the plan turns
-    // the angle into an axis against the area, so the same record draws at every size the knob picks.
-    layers: [{ gradient: { angle: WASH_ANGLE, stops: [{ at: 0, paint: "accent" }, { at: 1, paint: "alert" }] } }],
-    radius: 0.18,
-  });
   registerLayout("gesture.free", freeLayout);
   const desk = node("desk", Container({ layout: "gesture.free" }));
   add(desk, tile("tile", size));
@@ -118,13 +130,13 @@ const ANSWERS = {
   /** The small fast tremble: the piece stays exactly where it was. */
   shiver: (m: Motions, id: string) => m.shiver(id),
   /**
-   * OFF THE DESK and back down — height, not travel. The square does not move across the felt at
-   * all; what changes is how far above it it stands, and the shadow falling away is the whole tell.
+   * OFF THE DESK and back down — height, not travel. The card does not move across the felt at all;
+   * what changes is how far above it it stands, and the shadow falling away is the whole tell.
    */
   zBounce: (m: Motions, id: string) => m.slide(id, { speed: 0, angle: 0, hop: HOP }),
   /**
    * UP THE SCREEN and back to the same seat — travel, not height. The pair with `zBounce` is the
-   * point of having both: the square covers the same distance on the glass, and the shadow riding
+   * point of having both: the card covers the same distance on the glass, and the shadow riding
    * along under this one is what says it never left the desk.
    */
   yBounce: (m: Motions, id: string) => m.bounce(id),
@@ -153,11 +165,11 @@ const KNOBS = {
 };
 
 export const Hold: StoryObj<GestureArgs> = {
-  // HOLD THE SQUARE. Half a second of a finger that does not travel, and the tile shivers — the
+  // HOLD THE CARD. Half a second of a finger that does not travel, and it shivers — the
   // answer to a gesture that has just changed meaning. Without it a player who gets no reply lifts
   // their finger to check, cancelling the very gesture they were making.
   render: ({ size, answer }) => {
-    let said = "hold the square";
+    let said = "hold the card";
     const live = scene(stage(size, said), {
       // THE ONE CLOCK, and this is the switch that starts it: `motion` is only a tuning patch, and a
       // page that sets it without `animate` gets a still painter and a `motions` that is undefined —
@@ -183,12 +195,12 @@ export const Hold: StoryObj<GestureArgs> = {
 
 export const Tap: StoryObj<GestureArgs> = {
   // A TAP IS THE OTHER HALF of the same press, and the pair is what makes either legible: the same
-  // finger, on the same square, means one thing when it leaves quickly and another when it stays.
-  // The square answers with whatever the panel says. `zBounce` and `yBounce` are the pair worth
+  // finger, on the same card, means one thing when it leaves quickly and another when it stays.
+  // The card answers with whatever the panel says. `zBounce` and `yBounce` are the pair worth
   // switching between here: both throw it the same distance, and only the shadow says which one
   // left the desk.
   render: ({ size, answer }) => {
-    let said = "tap the square";
+    let said = "tap the card";
     const live = scene(stage(size, said), {
       animate: true,
       tap: (hit) => {
@@ -204,7 +216,7 @@ export const Tap: StoryObj<GestureArgs> = {
   parameters: { gkDocStory: "gestures.tap" },
 };
 
-/** How hard a `zBounce` throws the square off the desk, units/s of rise — one clear bounce, not a ball. */
+/** How hard a `zBounce` throws the card off the desk, units/s of rise — one clear bounce, not a ball. */
 const HOP = 3.4;
 /** Fast enough to cross the desk and slow enough to watch it stop, units/s. */
 const SLIDE_SPEED = 4.5;
@@ -227,15 +239,51 @@ const LAUNCH_SPEED = 7;
 // None of those is a preference. Each is a fact about what the hand did, and every page below is
 // one law written out of them.
 
-/** The pieces a table actually holds, told apart by SHAPE rather than by art. */
-const PIECES: ReadonlyArray<{ id: string; shape: Shape; at: { x: number; y: number }; paint: string }> = [
-  { id: "card", shape: roundedRect(1, 1.4, 0.1), at: { x: -1.9, y: -0.7 }, paint: "accent" },
-  { id: "tile", shape: roundedRect(0.85, 0.85, 0.08), at: { x: -0.5, y: -0.8 }, paint: "alert" },
-  { id: "chip", shape: circle(0.34), at: { x: 0.7, y: -0.8 }, paint: "text" },
-  { id: "pawn", shape: polygon(6, 0.4), at: { x: 1.8, y: -0.7 }, paint: "accent" },
-  { id: "rook", shape: rect(0.55, 0.7), at: { x: -1.3, y: 0.9 }, paint: "text" },
-  { id: "board", shape: rect(1.6, 1.6), at: { x: 0.9, y: 0.9 }, paint: "alert" },
-];
+/**
+ * THE PIECES A TABLE ACTUALLY HOLDS — real ones.
+ *
+ * Cards come from `@game-presets/cards` and dice from `@game-presets/dice`: whole sets with their
+ * own classic skins, imported BY PACKAGE NAME like any other consumer. The kit ships no art and
+ * should not — a game brings its own — and these pages are that game. A chip and a rook have no
+ * add-on of their own, so they are drawn in `gestureAssets.ts` beside the catalog's other pictures.
+ *
+ * They differ in every way a real table's pieces differ: size, silhouette, weight of picture. That
+ * is the point rather than decoration — a gesture does not know what it is moving, and a desk of
+ * six unlike things is how that stops being a claim and starts being visible.
+ */
+function sandboxPieces(): Node[] {
+  const by = deckByCardId({ size: { w: 0.9, h: 1.26 } });
+  const card = (id: string, x: number, y: number): Node | undefined => {
+    const n = by.get(id);
+    if (!n) return undefined;
+    compose(n, Transformable({ at: { x, y } }));
+    compose(n, ShadowCaster());
+    return n;
+  };
+  const chip = node(
+    "chip",
+    Bounded({ bounds: circle(0.34) }),
+    Surfaced({ surface: CHIP_SURFACE }),
+    Transformable({ at: { x: 0.7, y: -0.8 } }),
+    // FROM THE SILHOUETTE, not from the box. A chip is round and a rook is not a rectangle, and a
+    // square shadow under either is the one thing that would give the drawing away as a sticker.
+    ShadowCaster({ from: "silhouette" }),
+  );
+  const rook = node(
+    "rook",
+    // ITS OWN OUTLINE, not a box round it: the contour is what the finger tests and what the shadow
+    // is cast from, and a rectangle would put a slab under a piece that plainly is not one.
+    Bounded({ bounds: ROOK_SHAPE }),
+    Surfaced({ surface: ROOK_SURFACE }),
+    Transformable({ at: { x: -1.4, y: 0.9 } }),
+    ShadowCaster({ from: "silhouette" }),
+  );
+  const d6 = die("d6", { kind: "d6", face: 3, at: { x: 1.75, y: -0.75 } });
+  const d20 = die("d20", { kind: "d20", face: 17, at: { x: 1.5, y: 0.95 } });
+  return [card("spade-A", -1.85, -0.7), card("heart-10", -0.55, -0.8), chip, rook, d6, d20].filter(
+    (n): n is Node => n !== undefined,
+  );
+}
 
 interface DeskArgs {
   deskLayout: string;
@@ -253,24 +301,13 @@ interface DeskArgs {
 function sandbox(a: DeskArgs, turns: boolean): Node {
   registerLayout(a.deskLayout, freeLayout);
   const desk = node("desk", Container({ layout: a.deskLayout }));
-  for (const p of PIECES) {
-    const surface = `gesture.piece.${p.id}`;
-    registerSurface(surface, { layers: [{ paint: p.paint }], radius: 0.08 });
-    add(
-      desk,
-      node(
-        p.id,
-        Bounded({ bounds: p.shape }),
-        Surfaced({ surface }),
-        Transformable({ at: p.at }),
-        ShadowCaster(),
-        // STAY, and not the kit's own `home`. A sandbox has nothing that refuses a drop, so every
-        // release is a refusal — and a desk that flew every piece back would be teaching that a
-        // drag does not work.
-        Draggable({ onReject: "stay" }),
-        ...(turns ? [Rotatable({ onRelease: a.onRelease as "keep" | "home" | "snap", snap: a.snap })] : []),
-      ),
-    );
+  for (const piece of sandboxPieces()) {
+    // STAY, and not the kit's own `home`. A sandbox has nothing that refuses a drop, so every
+    // release is a refusal — and a desk that flew every piece back would be teaching that a drag
+    // does not work. A die arrives already `Draggable`; composing replaces the atom outright.
+    compose(piece, Draggable({ onReject: "stay" }));
+    if (turns) compose(piece, Rotatable({ onRelease: a.onRelease as "keep" | "home" | "snap", snap: a.snap }));
+    add(desk, piece);
   }
   return desk;
 }
@@ -459,11 +496,6 @@ function tableTree(a: TableArgs): Node {
   registerLayout("gesture.table.fan", fanLayout);
   registerSurface("gesture.table.felt", { layers: [{ paint: "text", opacity: 0.12 }], radius: TABLE_R });
   registerSurface("gesture.table.seat", { layers: [{ paint: "text", opacity: 0.3 }], radius: SEAT_R });
-  registerSurface("gesture.table.back", {
-    layers: [{ gradient: { angle: WASH_ANGLE, stops: [{ at: 0, paint: "accent" }, { at: 1, paint: "alert" }] } }],
-    radius: 0.08,
-  });
-  registerSurface("gesture.table.face", { layers: [{ paint: "surface" }, { paint: "accent", opacity: 0.25 }], radius: 0.08 });
 
   const desk = node("desk", Container({ layout: "gesture.table.free" }));
   // THE FELT IS NOT INTERACTIVE and carries no atom that would let a finger take hold of it: a
@@ -484,7 +516,9 @@ function tableTree(a: TableArgs): Node {
   const deck = node(
     "deck",
     Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
-    Surfaced({ surface: "gesture.table.back" }),
+    // THE PACK'S OWN BACK is the set's back — the same surface every card in it wears face down,
+    // so an empty deck and a full one are the same picture and the anchor never reads as a hole.
+    Surfaced({ surface: BACK_SURFACE }),
     Transformable({ at: { x: 0, y: 0 } }),
     ShadowCaster(),
     // THE PACK IS A CONTAINER THAT DRAWS ITSELF, and that is what an empty deck's anchor IS: there
@@ -493,18 +527,15 @@ function tableTree(a: TableArgs): Node {
     Container({ layout: "gesture.table.stack" }),
     Draggable({ onReject: "stay" }),
   );
-  for (let i = 0; i < a.count; i++) {
-    add(
-      deck,
-      node(
-        `card${i}`,
-        Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
-        Surfaced({ surface: "gesture.table.back" }),
-        Transformable({ at: { x: 0, y: 0 } }),
-        ShadowCaster(),
-        Draggable({ onReject: "stay" }),
-      ),
-    );
+  // REAL CARDS, from the set's own builder: each one `Flippable` onto the shared back, so "face
+  // down in somebody else's hand, face up in mine" is a TURN and not a picture swapped behind the
+  // player's back. The pack is dealt from the end, so the order is the set's own.
+  for (const card of cards({ size: { w: CARD.w, h: CARD.h } }).slice(0, a.count)) {
+    compose(card, Transformable({ at: { x: 0, y: 0 } }));
+    compose(card, ShadowCaster());
+    compose(card, Draggable({ onReject: "stay" }));
+    setFacing(card, "down");
+    add(deck, card);
   }
   add(desk, deck);
   return desk;
@@ -628,10 +659,10 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): (angle: number, speed: n
             add(target, live);
             compose(live, Transformable({ at: { x: 0, y: 0 }, angle: 0 }));
             // THE NEAR SEAT IS THE READER'S OWN, and a hand you are holding is a hand you can see.
-            // Every other seat keeps its cards face down — which on this page is one surface swap
-            // and not a turn-over, because what a card SHOWS is `Atoms/Flippable`'s law and not
-            // this shelf's.
-            if (target.id === "seat0") compose(live, Surfaced({ surface: "gesture.table.face" }));
+            // Every other seat keeps its cards face down. It is a real TURN and not a surface
+            // swapped behind the player's back: the card carries the set's own back, and which side
+            // is up is the summed parity `Atoms/Flippable` already owns.
+            setFacing(live, target.id === "seat0" ? "up" : "down");
           }
         } else {
           // NOBODY WAS LOOKED FOR, so the card stays where it stopped. The override is gone the
@@ -698,7 +729,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       if (lead.parent) remove(lead.parent, lead);
       add(target, lead);
       compose(lead, Transformable({ at: { x: 0, y: 0 }, angle: 0 }));
-      compose(lead, Surfaced({ surface: "gesture.table.back" }));
+      setFacing(lead, "down");
       s.setRoot(s.host.root);
       return true;
     },
@@ -815,30 +846,23 @@ const KNEADERS = new WeakMap<HTMLElement, (count: number, done: boolean) => void
 function packTree(a: KneadArgs): Node {
   registerLayout("gesture.knead.free", freeLayout);
   registerLayout("gesture.knead.stack", stackLayout);
-  registerSurface("gesture.knead.back", {
-    layers: [{ gradient: { angle: WASH_ANGLE, stops: [{ at: 0, paint: "accent" }, { at: 1, paint: "alert" }] } }],
-    radius: 0.08,
-  });
   const desk = node("desk", Container({ layout: "gesture.knead.free" }));
   const pack = node(
     "pack",
     Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
-    Surfaced({ surface: "gesture.knead.back" }),
+    Surfaced({ surface: BACK_SURFACE }),
     Transformable({ at: { x: 0, y: 0 } }),
     ShadowCaster(),
     Container({ layout: "gesture.knead.stack" }),
   );
-  for (let i = 0; i < a.count; i++) {
-    add(
-      pack,
-      node(
-        `pc${i}`,
-        Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
-        Surfaced({ surface: "gesture.knead.back" }),
-        Transformable({ at: { x: 0, y: 0 } }),
-        ShadowCaster(),
-      ),
-    );
+  // A REAL PACK, face down. A shuffle must not look like a piece changing its face, and cards that
+  // are genuinely the set's — every one different, every one turned the same way — are the only
+  // honest way to show that nothing was swapped.
+  for (const card of cards({ size: { w: CARD.w, h: CARD.h } }).slice(0, a.count)) {
+    compose(card, Transformable({ at: { x: 0, y: 0 } }));
+    compose(card, ShadowCaster());
+    setFacing(card, "down");
+    add(pack, card);
   }
   add(desk, pack);
   return desk;
@@ -916,7 +940,7 @@ interface ShakeArgs {
   gain: number;
   spinGain: number;
   friction: number;
-  faces: number;
+  kind: string;
 }
 
 const SHAKE_STATE = new Map<string, Node>();
@@ -924,20 +948,15 @@ const SHAKING = new WeakMap<HTMLElement, ReturnType<typeof wireShake>>();
 
 function dieTree(a: ShakeArgs): Node {
   registerLayout("gesture.shake.free", freeLayout);
-  registerSurface("gesture.shake.die", { layers: [{ paint: "accent" }], radius: 0.14 });
   registerSurface("gesture.shake.felt", { layers: [{ paint: "text", opacity: 0.1 }], radius: 0.2 });
   const desk = node("desk", Container({ layout: "gesture.shake.free" }));
   add(desk, node("felt", Bounded({ bounds: roundedRect(5.4, 3.4, 0.2) }), Surfaced({ surface: "gesture.shake.felt" })));
-  const die = node(
-    "die",
-    Bounded({ bounds: roundedRect(0.9, 0.9, 0.14) }),
-    Surfaced({ surface: "gesture.shake.die" }),
-    Transformable({ at: { x: 0, y: 0 } }),
-    ShadowCaster(),
-    Draggable({ onReject: "stay" }),
-  );
-  add(die, node("pip", Bounded({ bounds: rect(0.7, 0.5) }), Labeled({ label: String(a.faces), style: CONTROL_LABEL })));
-  add(desk, die);
+  // A REAL DIE from the add-on: its own silhouette, its own pips, its own `Rollable` truth. The
+  // face this page shows is the set's picture for it (`showFace`), so the die never says one thing
+  // and shows another — which a square with a number painted on it could not promise.
+  const d = die("die", { kind: a.kind as DieKind, face: 1, at: { x: 0, y: 0 } });
+  compose(d, Draggable({ onReject: "stay" }));
+  add(desk, d);
   return desk;
 }
 
@@ -966,16 +985,16 @@ function dieTree(a: ShakeArgs): Node {
  * shake from a throw at all, and it is what the tumble is counted off.
  */
 export const Shake: StoryObj<ShakeArgs> = {
-  args: { gain: 0.5, spinGain: 30, friction: 5, faces: 6 },
+  args: { gain: 0.5, spinGain: 30, friction: 5, kind: "d6" },
   argTypes: {
     gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.1 } }, "throw"),
     spinGain: documented("arg.spinGain", { control: { type: "number", min: 0, step: 10 } }, "throw"),
     friction: documented("arg.friction", { control: { type: "number", min: 0.1, step: 0.5 } }, "throw"),
-    faces: documented("arg.faces", { control: { type: "number", min: 2, max: 20, step: 1 } }, "die"),
+    kind: documented("arg.kind", { control: "select", options: DIE_KINDS }, "die"),
   },
   parameters: { gkDocStory: "gestures.shake" },
   render: (a) => {
-    const key = "gestures.shake";
+    const key = `gestures.shake.${a.kind}`;
     const root = SHAKE_STATE.get(key) ?? dieTree(a);
     SHAKE_STATE.set(key, root);
     const s = scene(root, { animate: true, motion: { friction: a.friction } });
@@ -998,7 +1017,7 @@ export const Shake: StoryObj<ShakeArgs> = {
         const angle = moving
           ? (Math.atan2(velocity!.y, velocity!.x) * 180) / Math.PI
           : shake.axis + (shake.at.x > 0 ? 0 : 180);
-        let face = 1;
+        const sides = dieSpec(a.kind as DieKind).sides;
         s.motions.slide("die", {
           speed,
           angle,
@@ -1007,14 +1026,20 @@ export const Shake: StoryObj<ShakeArgs> = {
           spin: (shake.turns + 1) * a.spinGain,
           hop: Math.min(shake.span, 3),
           friction: a.friction,
-          onTumble: (count) => {
-            face = ((count + a.faces - 1) % a.faces) + 1;
-            const pip = byId(s.host.root, "pip");
-            if (pip) compose(pip, Labeled({ label: String(face), style: CONTROL_LABEL }));
+          // EVERY TIME IT GOES OVER, a face — and the last of those is the result. `flashFace` is
+          // the PICTURE alone while it is still travelling; `showFace` writes the truth as well,
+          // once, when the body rests. A die that held its old number until it stopped and then
+          // blinked to the new one would be a slot machine, not a die.
+          onTumble: (count, last) => {
+            const d = byId(s.host.root, "die");
+            if (!d) return;
+            const face = ((count - 1) % sides) + 1;
+            if (last) showFace(d, face);
+            else flashFace(d, face);
           },
           onDone: (rest) => {
-            const die = byId(s.host.root, "die");
-            if (die) compose(die, Transformable({ at: rest.at, angle: rest.angle }));
+            const d = byId(s.host.root, "die");
+            if (d) compose(d, Transformable({ at: rest.at, angle: rest.angle }));
             s.setRoot(s.host.root);
           },
         });
