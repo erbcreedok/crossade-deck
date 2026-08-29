@@ -68,7 +68,7 @@ export interface Choreo {
    * the screen and the piece is genuinely up there, and a shadow left behind would say the square
    * is in two places.
    */
-  readonly rides?: boolean;
+  readonly rides?: boolean | undefined;
 }
 
 /**

@@ -252,6 +252,7 @@ export {
   type CarryOptions,
   type Clock,
   type LaunchOptions,
+  type AnimateOptions,
   type MotionOptions,
   type Motions,
   type RollOptions,
@@ -260,6 +261,35 @@ export {
   type SlideOptions,
   type WallHit,
 } from "./render/animator/index.js";
+// The LOOKS a piece can be asked to play by name — a registry, so a designer's own animation is a
+// `registerMotion` call and never a new verb. `animate` on the runtime is how one is played.
+export {
+  BOUNCE_BY,
+  BOUNCE_COUNT,
+  BOUNCE_MS,
+  SHIVER_BY,
+  SHIVER_CYCLES,
+  SHIVER_MS,
+  SPIN_HOP,
+  SPIN_MS,
+  SPIN_TURNS,
+  bounceMotion,
+  installStockMotions,
+  keyframeMotion,
+  motionNames,
+  motionRecipe,
+  registerMotion,
+  resetMotions,
+  shiverMotion,
+  spinMotion,
+  type BounceMotionOptions,
+  type KeyframeMotionOptions,
+  type MotionKey,
+  type MotionPose,
+  type MotionRecipe,
+  type ShiverMotionOptions,
+  type SpinMotionOptions,
+} from "./render/motions.js";
 // How a reorder LOOKS: the recipes a shuffle plays (riffle/overhand/wash/shake), a registry like flips.
 export {
   installStockShuffles,

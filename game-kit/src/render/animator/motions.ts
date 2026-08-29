@@ -9,6 +9,7 @@ import { type CarryTuning } from "../../core/motion.js";
 import { type Body, type Walls } from "../../core/ballistic.js";
 import { type Transform, type Vec } from "../../core/transform.js";
 import { type TextMeasure } from "../textMetrics.js";
+import { type MotionRecipe } from "../motions.js";
 
 /** The one clock, injectable. `frame` schedules a single callback and returns its canceller. */
 export interface Clock {
@@ -138,7 +139,6 @@ export interface ShuffleOptions {
   readonly shuffleMs?: number | undefined;
 }
 
-/** A tumble's look: whole turns and the hop (a scale peak), and a duration patch. */
 /**
  * A SHIVER — the small, fast tremble that says "this is no longer a tap".
  *
@@ -157,21 +157,6 @@ export interface ShiverOptions {
   /** How many there-and-back swings fit in the span. Default `SHIVER_CYCLES`. */
   readonly cycles?: number | undefined;
 }
-
-/** Short enough to read as one event rather than an animation: a twitch, not a wobble. */
-export const SHIVER_MS = 180;
-/**
- * How far it swings at its widest, in root units.
- *
- * Sized against a CARD, which is the thing this answers for: a card is about one unit across and is
- * drawn near a hundred pixels wide on a phone, so this is a swing of some seven pixels. The first
- * version was a third of that and could not be seen at all — a 2-pixel swing lasting 180 ms is not
- * a subtle animation, it is an absent one. Big enough to read as a buzz, small enough that nobody
- * thinks the card MOVED.
- */
-export const SHIVER_BY = 0.07;
-/** Three swings in 180 ms is roughly the frequency a hand reads as a buzz. */
-export const SHIVER_CYCLES = 3;
 
 /**
  * A BOUNCE — the piece jumps UP THE SCREEN and comes back to the same seat.
@@ -194,18 +179,7 @@ export interface BounceOptions {
   readonly bounces?: number | undefined;
 }
 
-/** Long enough to read as a jump rather than a twitch, short enough not to be a wait. */
-export const BOUNCE_MS = 520;
-/**
- * How high the first arc reaches, root units.
- *
- * Sized against a CARD, like the shiver's swing: about half a card's height, which is a jump nobody
- * can miss and still keeps the piece over the seat it belongs to.
- */
-export const BOUNCE_BY = 0.75;
-/** Two arcs: the jump, and the small one it lands with. A third reads as a ball, not a piece. */
-export const BOUNCE_COUNT = 2;
-
+/** A tumble's look: whole turns and the hop (a scale peak), and a duration patch. */
 export interface RollOptions {
   /** Whole turns about the piece's own centre over the tumble. Default 2. */
   readonly turns?: number | undefined;
@@ -217,6 +191,30 @@ export interface RollOptions {
    * on every face of the tumble, `last` on the one the `commit` lands with; see `TURN_PER_FACE`.
    */
   readonly onTumble?: ((count: number, last: boolean) => void) | undefined;
+}
+
+/**
+ * WHAT A NAMED LOOK IS PLAYED WITH — the levers that belong to the CALL rather than to the recipe.
+ *
+ * `durMs` and `rate` are both here and they are not the same lever, which is the whole point of
+ * having two. `durMs` is an ABSOLUTE span: "this play lasts 300 ms", and it replaces whatever the
+ * recipe was written with. `rate` is RELATIVE: "half again as fast as whatever it is", and it
+ * multiplies on top — so a scene can slow every motion it plays without knowing how long any of
+ * them is. Give both and they compose: the span is `durMs`, played at `rate`.
+ */
+export interface AnimateOptions {
+  /** Replace the recipe's own span, ms. */
+  readonly durMs?: number | undefined;
+  /** Multiply the speed — `2` plays it twice as fast, `0.5` half. Applies on top of `durMs`. */
+  readonly rate?: number | undefined;
+  /**
+   * What changes at the recipe's `commitAt`. Most looks change nothing and leave this off; a recipe
+   * that DOES carry a phase (a keyframe motion with a `commitAt`) gets the same contract a turn-over
+   * has — the tree changes hands once, at the frame the recipe chose.
+   */
+  readonly commit?: (() => void) | undefined;
+  /** The look underneath changes hands — fires on each of the recipe's `beats`. */
+  readonly onBeat?: ((count: number, last: boolean) => void) | undefined;
 }
 
 export interface Motions {
@@ -265,6 +263,18 @@ export interface Motions {
   bounce(id: NodeId, opts?: BounceOptions): void;
   /** Tumble one node in place — turns and a hop — with `commit` (the new face) at the top of the last turn. */
   roll(id: NodeId, commit: () => void, opts?: RollOptions): void;
+  /**
+   * PLAY A NAMED LOOK on one node — the open door beside the closed list of verbs above.
+   *
+   * Every verb here is a mechanic the kit knows the meaning of: a turn-over commits a side, a
+   * shuffle commits an order, a throw ends where the physics says. A LOOK has no meaning of its
+   * own — it says "over here", "no", "well done" — and there is no closed list of those, because
+   * they are the designer's vocabulary and not the kit's. So they are a registry
+   * (`registerMotion`), and this is how one is played: by name, or by a recipe built on the spot.
+   *
+   * An unregistered name plays NOTHING. There is no stock look for a typo — see `motionRecipe`.
+   */
+  animate(id: NodeId, motion: string | MotionRecipe, opts?: AnimateOptions): void;
   /** Throw a node down the screen — see `LaunchOptions`. Its pose is an override until it leaves the glass. */
   launch(id: NodeId, opts: LaunchOptions): void;
   /** Throw a node across the desk — see `SlideOptions`. Its pose is an override until it rests. */

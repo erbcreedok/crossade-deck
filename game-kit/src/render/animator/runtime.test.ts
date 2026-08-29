@@ -4,7 +4,7 @@
 // clock is injected: `tick(t)` sets the time and runs the one scheduled frame. That is also what
 // lets a plain test assert a card is HALFWAY — the thing a screenshot can only catch by luck.
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { Bounded } from "../../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts, type LayoutRecord } from "../../core/atoms/container.js";
 import { freeLayout, rowLayout } from "../../core/atoms/layouts.js";
@@ -19,6 +19,7 @@ import { mount } from "../host.js";
 import { registerSurface, resetSurfaces } from "../surfaces.js";
 import { installStockFlips, resetFlips } from "../flips.js";
 import { installStockShuffles, resetShuffles } from "../shuffles.js";
+import { installStockMotions, keyframeMotion, registerMotion, resetMotions } from "../motions.js";
 import { installStockSurfaces } from "../../presets/surfaces.js";
 import { attachMotion, type Clock } from "./index.js";
 import { type Painter } from "../painter.js";
@@ -73,9 +74,10 @@ function bench() {
   };
   const host = mount(document.createElement("div"), desk);
   const xOf = (id: string): number => last.find((q) => q.id === id)!.x;
+  const yOf = (id: string): number => last.find((q) => q.id === id)!.y;
   const tOf = (id: string) => last.find((q) => q.id === id)!.transform;
   const order = (): string[] => last.map((q) => q.id);
-  return { desk, card, host, painter, xOf, tOf, order };
+  return { desk, card, host, painter, xOf, yOf, tOf, order };
 }
 
 describe("the motion runtime", () => {
@@ -1163,5 +1165,124 @@ describe("the shiver is big enough to see", () => {
     // the floor of what a person can see move.
     expect(swing, "under a twentieth of a unit is an animation nobody sees").toBeGreaterThan(0.05);
     expect(swing, "over a fifth and the card looks like it JUMPED").toBeLessThan(0.2);
+  });
+});
+
+// THE OPEN DOOR BESIDE THE CLOSED LIST. Every verb above is a mechanic the kit knows the meaning
+// of; `animate` plays a look it knows nothing about, by a name the designer chose. What the runtime
+// still owes such a look is everything a verb gets: the one clock, the hold on the node, the
+// shadow law, and a span it can be argued with.
+describe("animate — a look played by name", () => {
+  beforeEach(() => {
+    resetMotions();
+    installStockMotions();
+  });
+
+  it("animate.plays-a-registered-name — the stock bounce, reached through the registry", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restY = b.yOf("c");
+    m.animate("c", "bounce", { durMs: 400 });
+    c.tick(100); // a quarter through two arcs is the crest of the first
+    expect(b.yOf("c"), "up the screen is where y gets smaller").toBeLessThan(restY);
+    c.tick(400);
+    expect(b.yOf("c"), "and it ends on the seat it started from").toBeCloseTo(restY, 5);
+    expect(c.idle(), "idle-gate: a finished look schedules no further frame").toBe(true);
+  });
+
+  it("animate.unknown-name-plays-nothing — and takes nothing down with it", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restY = b.yOf("c");
+    expect(() => m.animate("c", "cheer")).not.toThrow();
+    expect(m.busy("c"), "nothing was filed").toBe(false);
+    expect(c.idle(), "and no frame was asked for").toBe(true);
+    expect(b.yOf("c")).toBeCloseTo(restY, 5);
+  });
+
+  it("animate.holds-the-node — the clock is moving it, and a scene may need to say so", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    m.animate("c", "shiver");
+    expect(m.busy("c")).toBe(true);
+    c.tick(500);
+    expect(m.busy("c")).toBe(false);
+  });
+
+  it("animate.durMs-replaces-the-span-and-rate-scales-it — two levers, not one", () => {
+    // The distinction the API is built on: `durMs` is absolute ("this play lasts 400 ms"), `rate`
+    // is relative ("whatever it is, twice as fast"), so a scene can slow every look it plays
+    // without knowing how long any of them is.
+    const plain = (() => {
+      const b = bench();
+      const c = fakeClock();
+      const m = attachMotion(b.host, b.painter, { clock: c.clock });
+      m.animate("c", "shiver", { durMs: 400 });
+      c.tick(399);
+      const moving = m.busy("c");
+      c.tick(401);
+      return { moving, over: !m.busy("c") };
+    })();
+    expect(plain.moving, "still going a frame before its span closes").toBe(true);
+    expect(plain.over, "and done a frame after").toBe(true);
+
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    m.animate("c", "shiver", { durMs: 400, rate: 2 });
+    c.tick(199);
+    expect(m.busy("c"), "at twice the rate the same span is half as long").toBe(true);
+    c.tick(201);
+    expect(m.busy("c")).toBe(false);
+  });
+
+  it("animate.a-nonsense-rate-is-ordinary-speed — never a division by nothing", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    m.animate("c", "shiver", { durMs: 400, rate: 0 });
+    c.tick(399);
+    expect(m.busy("c"), "a rate of zero is not a still frame, it is a mistake").toBe(true);
+    c.tick(401);
+    expect(m.busy("c")).toBe(false);
+  });
+
+  it("animate.a-recipe-plays-without-being-registered — the registry is a convenience, not a gate", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    const restX = b.xOf("c");
+    m.animate("c", keyframeMotion({ durMs: 200, ease: "linear", keys: [{ at: 0.5, move: { x: 1, y: 0 } }] }));
+    c.tick(100);
+    expect(b.xOf("c") - restX).toBeCloseTo(1, 5);
+    c.tick(200);
+    expect(b.xOf("c"), "and the table's own law holds through the runtime").toBeCloseTo(restX, 5);
+  });
+
+  it("animate.a-looks-phase-commits-once — the same contract a turn-over has", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    let commits = 0;
+    const beats: number[] = [];
+    registerMotion(
+      "reveal",
+      keyframeMotion({ durMs: 200, keys: [{ at: 0.5, scale: 0.01 }], commitAt: 0.5, beats: [0.5] }),
+    );
+    m.animate("c", "reveal", { commit: () => (commits += 1), onBeat: (n) => beats.push(n) });
+    c.tick(120);
+    c.tick(160);
+    c.tick(220);
+    expect(commits, "once, at the phase the recipe chose").toBe(1);
+    expect(beats, "and the look underneath changed hands there too").toEqual([1]);
   });
 });

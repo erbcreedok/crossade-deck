@@ -16,14 +16,15 @@ import {
   SHIVER_BY,
   SHIVER_CYCLES,
   SHIVER_MS,
-  type Motions,
-} from "./motions.js";
+  motionRecipe,
+} from "../motions.js";
+import { type Motions } from "./motions.js";
 import { TUMBLE_TAIL, TURN_PER_FACE, tumbleAt, tumbleEase } from "./physics.js";
 import { hscale } from "./poses.js";
 import { groupContext } from "./groups.js";
 import { type Runtime } from "./runtime.js";
 
-type Choreographies = Pick<Motions, "flip" | "shuffle" | "shiver" | "bounce" | "roll">;
+type Choreographies = Pick<Motions, "flip" | "shuffle" | "shiver" | "bounce" | "roll" | "animate">;
 
 export function choreographies(rt: Runtime): Choreographies {
   return {
@@ -109,6 +110,30 @@ export function choreographies(rt: Runtime): Choreographies {
         // whole visible difference from a `slide`'s `hop`, which leaves the desk and drops its
         // shadow away behind it.
         rides: true,
+      });
+      rt.ensureLoop();
+    },
+    animate(id, motion, opts = {}) {
+      const recipe = typeof motion === "string" ? motionRecipe(motion) : motion;
+      // AN UNKNOWN NAME PLAYS NOTHING, and does not throw either. A look is decoration by
+      // definition, so a missing one must not take the turn down with it — and it must not quietly
+      // become some other look, which is why there is no stock fallback to fall back to.
+      if (!recipe) return;
+      // The two levers, composed: `durMs` sets the span, `rate` scales it. A rate of zero or less
+      // is not a still frame, it is a division by nothing — it is read as "ordinary speed".
+      const rate = opts.rate !== undefined && opts.rate > 0 ? opts.rate : 1;
+      rt.choreos.set(id, {
+        ids: [id],
+        startMs: rt.warped,
+        durMs: (opts.durMs ?? recipe.durMs) / rate,
+        commitAt: recipe.commitAt ?? 1,
+        commit: opts.commit ?? (() => {}),
+        committed: false,
+        beats: recipe.beats ?? [],
+        onBeat: opts.onBeat,
+        beaten: 0,
+        poseAt: recipe.poseAt,
+        rides: recipe.rides,
       });
       rt.ensureLoop();
     },

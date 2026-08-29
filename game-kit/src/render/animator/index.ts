@@ -43,18 +43,7 @@ import { type TextMeasure } from "../textMetrics.js";
 import { transformsOf, viewTransform } from "../scenePlan/index.js";
 
 export * from "./motions.js";
-import {
-  type CarryItem,
-  type MotionOptions,
-  type Motions,
-  type WallHit,
-  BOUNCE_BY,
-  BOUNCE_COUNT,
-  BOUNCE_MS,
-  SHIVER_BY,
-  SHIVER_CYCLES,
-  SHIVER_MS,
-} from "./motions.js";
+import { type CarryItem, type MotionOptions, type Motions, type WallHit } from "./motions.js";
 import {
   BANK_EPS,
   CARRY_EPS,
