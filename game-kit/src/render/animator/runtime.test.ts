@@ -1286,3 +1286,33 @@ describe("animate — a look played by name", () => {
     expect(beats, "and the look underneath changed hands there too").toEqual([1]);
   });
 });
+
+// A CARRY SAYS WHERE AND HOW TILTED, NOT WHAT THE PIECE IS. The style builds a pose out of the
+// anchor alone — that is what makes a run one plank — and it therefore has to be told to keep what
+// the node's own matrix already said. Today that is one thing and it is not a small one.
+describe("a held piece keeps what it is", () => {
+  it("motion.a-carried-card-keeps-its-reflection — or letting go plays a turn-over nobody asked for", () => {
+    // THE BUG THIS EXISTS FOR, found by hand and unmistakable once seen: drop a face-down card and
+    // it squeezes to an edge and reopens, showing the same side it started on. Nothing turned it —
+    // the settle interpolated the horizontal scale from `+1` to `-1`, and the only way between
+    // those is through ZERO.
+    const b = bench();
+    const c = fakeClock();
+    installStockFlips();
+    const card = b.card;
+    compose(card, Flippable({ flip: "turnOver", back: "" }));
+    setFacing(card, "down");
+    b.host.setRoot(b.host.root);
+
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1 });
+    const resting = b.tOf("c").a;
+    expect(resting, "a face-down card is drawn mirrored — that is what a turn-over IS").toBeLessThan(0);
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    c.tick(16);
+    expect(
+      Math.sign(b.tOf("c").a),
+      "and it is still mirrored in the hand: a hand moves a piece, it does not restate what it is",
+    ).toBe(Math.sign(resting));
+  });
+});

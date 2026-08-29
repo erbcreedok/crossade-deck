@@ -35,7 +35,9 @@ import { springAt, springSettled, stepSpring, type SpringConfig, type SpringStat
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
-import { apply, compose, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
+import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
+import { contextFor } from "../../core/resolve.js";
+import { applyEffects } from "../effects.js";
 import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
 import { renderFrame } from "../stage.js";
@@ -296,12 +298,32 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     }
   };
 
+  /**
+   * WHAT THE EFFECTS SAY ABOUT A NODE, as a transform in its own space — today that is one thing: a
+   * turned-over card's REFLECTION. Identity for everything else.
+   */
+  const preOf = (id: NodeId): Transform => {
+    const n = byId(host.root, id);
+    return n ? applyEffects(n, contextFor(n, 1)).pre : IDENTITY;
+  };
+
   const layCarry = (cy: Carry): void => {
     const leanDeg = cy.sa.pos;
     const anchor = heldAt(cy);
     const n = cy.items.length;
     cy.items.forEach((it, i) => {
-      displayed.set(it.id, cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));
+      // A CARRY SAYS WHERE AND HOW TILTED, NOT WHAT THE PIECE IS. The style builds a pose out of
+      // the anchor alone, which is right — that is what makes a run one plank — but it means every
+      // trace of the node's own matrix is gone while the hand has it, the flip's reflection
+      // included. A card lying face down has a MIRRORED matrix, so carried it was drawn
+      // un-mirrored, and the settle home then interpolated the horizontal scale from `+1` to `-1`
+      // — through ZERO. That is a card squeezing to an edge and reopening: a turn-over, played by
+      // nobody, on every release of every face-down card, with the side unchanged at the end of it
+      // because nothing had actually turned.
+      //
+      // So the effects' own transform rides along, innermost, exactly as it does in the tree walk
+      // (`transformsOf`): the hand moves the piece, it does not restate what the piece is.
+      displayed.set(it.id, compose(cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }), preOf(it.id)));
     });
   };
 
