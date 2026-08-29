@@ -1,0 +1,39 @@
+game-kit/.storybook/devtools/drag.ts
+  s_881c18b5871008::t_8cd3f566a27ad2 121-134,247-250,256
+game-kit/src/render/lift.ts
+  s_881c18b5871008::t_800a637b79c03e 1-26,29-43,48-89
+  s_881c18b5871008::t_3e8f9df78ebe23 44-47
+  s_881c18b5871008::t_d7bb58fcd2c4b5 27-28
+game-kit/src/index.ts
+  s_881c18b5871008::t_8cd3f566a27ad2 185-187
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_1c070fdb9337c9 3,20,35,538-539,820,832-833,866-880
+  s_881c18b5871008::t_f981e22f67d166 456-461,478-498
+  s_881c18b5871008::t_3e8f9df78ebe23 819
+game-kit/docs/test-plan/64-lift.md
+  s_881c18b5871008::t_a8c9c097fe3ec8 1-33
+game-kit/src/render/lift.test.ts
+  s_881c18b5871008::t_d7bb58fcd2c4b5 1-64
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_a8c9c097fe3ec8 310-312
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_a8c9c097fe3ec8 306-308
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_a8c9c097fe3ec8 10,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b1161dfdb7af532237ef1337274b430e3dda5f89",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
