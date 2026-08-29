@@ -5,6 +5,7 @@ import {
   circle,
   Container,
   CONTROL_LABEL,
+  draggable,
   Draggable,
   Flippable,
   freeLayout,
@@ -14,6 +15,7 @@ import {
   roundedRect,
   Rotatable,
   ANCHOR_SLOP,
+  IDENTITY,
   installStockFlips,
   installStockShuffles,
   permutation,
@@ -42,7 +44,7 @@ import {
 import { BACK_SURFACE, cards, crossade, deckByCardId, faceSurface, installClassicSkin } from "@game-presets/cards";
 import { DIE_KINDS, die, dieSpec, flashFace, showFace, type DieKind } from "@game-presets/dice";
 import { CHIP_SURFACE, ROOK_SHAPE, ROOK_SURFACE, installGesturePieces } from "./gestureAssets.js";
-import { scene, type Scene } from "../devtools/scene.js";
+import { scene, type CameraScene, type Scene } from "../devtools/scene.js";
 installStockShuffles();
 installGesturePieces();
 installClassicSkin();
@@ -171,6 +173,7 @@ export const Hold: StoryObj<GestureArgs> = {
   render: ({ size, answer }) => {
     let said = "hold the card";
     const live = scene(stage(size, said), {
+      camera: eye(draggableNode, 3),
       // THE ONE CLOCK, and this is the switch that starts it: `motion` is only a tuning patch, and a
       // page that sets it without `animate` gets a still painter and a `motions` that is undefined —
       // every choreography then calls into nothing and the square never moves.
@@ -202,6 +205,7 @@ export const Tap: StoryObj<GestureArgs> = {
   render: ({ size, answer }) => {
     let said = "tap the card";
     const live = scene(stage(size, said), {
+      camera: eye(draggableNode, 3),
       animate: true,
       tap: (hit) => {
         said = hit ? `tapped ${hit.id} → ${answer}` : "tapped the bare desk";
@@ -222,6 +226,44 @@ const HOP = 3.4;
 const SLIDE_SPEED = 4.5;
 /** Hard enough to clear the glass rather than dribble off the bottom edge, units/s. */
 const LAUNCH_SPEED = 7;
+
+
+// ---- the desk under the hand, and the desk the hand moves ---------------------------------------
+//
+// EVERY SCENE ON THIS SHELF STANDS ON A CAMERA, and it is not scenery. It is the outermost ring of
+// the same law the shelf is about: when several gestures are possible, who wins — and here the
+// claimants are a PIECE and the DESK ITSELF.
+//
+// The arbitration is already written, in the camera's own wiring, and it is the same shape as every
+// other one here: a finger that lands on a claimed node gives the gesture away, and A GESTURE GIVEN
+// AWAY IS NOT TAKEN BACK. So the second finger of a deal cannot become a pinch half way through,
+// and the two fingers of a knead cannot zoom the felt out from under the pack they are working. On
+// bare desk the same two fingers pan, pinch and twist — because there nothing claimed them.
+//
+// That is why `claims` is the only camera field these pages differ in: it is the sentence "this is
+// mine" said by the thing the page is about.
+
+/** The desk every gesture page is looked AT rather than merely fitted into. */
+function eye(claims: (n: Node) => boolean, half: number): CameraScene {
+  return {
+    // Generous both ways: a reader who zooms in to watch a shadow and one who pulls back to see
+    // where a card went are the same reader, a second apart.
+    limits: { minZoom: 0.4, maxZoom: 3 },
+    // The desks here are laid out AROUND zero, so the content rect starts at minus half — the
+    // camera is told the RECT and not the size, or half of every desk would be unreachable.
+    content: { x: -half, y: -half * 0.72, w: half * 2, h: half * 1.44 },
+    claims,
+    // Opened where the pieces are, at the size they were drawn: a gesture page that opened
+    // somewhere else would spend its first gesture on getting back.
+    start: { at: { x: 0, y: 0 }, zoom: 1 },
+  };
+}
+
+/** Whatever a hand can pick up claims its own finger — the plainest reading of "this is mine". */
+const draggableNode = (n: Node): boolean => draggable(n);
+
+/** The view a wiring picks through — the SAME matrix the painter drew, or the finger lands elsewhere. */
+const eyeOf = (s: Scene) => () => s.camera?.transform() ?? IDENTITY;
 
 // ---- the desk where several gestures are possible at once ---------------------------------------
 //
@@ -342,7 +384,10 @@ export const Sandbox: StoryObj<DeskArgs> = {
   args: { ...DESK_ARGS },
   argTypes: DESK_KNOBS,
   parameters: { gkDocStory: "gestures.sandbox" },
-  render: (a) => wireDrag(scene(sandbox(a, false), { animate: true }), { lift: a.lift, carry: a.carry, toFront: true }).el,
+  render: (a) => {
+    const s = scene(sandbox(a, false), { animate: true, camera: eye(draggableNode, 3.4) });
+    return wireDrag(s, { lift: a.lift, carry: a.carry, toFront: true, view: eyeOf(s) }).el;
+  },
 };
 
 /**
@@ -371,7 +416,10 @@ export const Turn: StoryObj<DeskArgs> = {
     snap: documented("arg.snap", { control: { type: "number", min: 1, step: 5 } }, "piece/rotatable"),
   },
   parameters: { gkDocStory: "gestures.turn" },
-  render: (a) => wireDrag(scene(sandbox(a, true), { animate: true }), { lift: a.lift, carry: a.carry, toFront: true }).el,
+  render: (a) => {
+    const s = scene(sandbox(a, true), { animate: true, camera: eye(draggableNode, 3.4) });
+    return wireDrag(s, { lift: a.lift, carry: a.carry, toFront: true, view: eyeOf(s) }).el;
+  },
 };
 
 // ---- the round table: one hand holds the pack, the other deals off it ---------------------------
@@ -704,10 +752,18 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   const held = TABLES.get(key);
   const root = held && held.shape === shape ? held.root : tableTree(a);
   TABLES.set(key, { root, shape });
-  const s = scene(root, { animate: true, motion: { friction: a.friction } });
+  const s = scene(root, {
+    animate: true,
+    motion: { friction: a.friction },
+    // THE PACK AND ITS CARDS TAKE THEIR OWN FINGERS; the felt round them is the camera's. A finger
+    // that lands on the deck gives the gesture away, and the deal's second finger is then free —
+    // the camera does not take a gesture back.
+    camera: eye((n: Node) => n.id === "deck" || n.parent?.id === "deck" || draggableNode(n), TABLE_R + 1.2),
+  });
   DEALERS.set(s.el, dealer(s, a, snap));
   wireDrag(s, {
     toFront: true,
+    view: eyeOf(s),
     // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
     // object under the hand. The pick then falls through to the deck itself, which is drawn under
     // it — so one finger on the pack moves the pack, whichever of its cards was on top.
@@ -738,6 +794,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     wireSwipe({
       host: s.host,
       want: (n: Node) => n.id === "deck" || n.parent?.id === "deck",
+      view: eyeOf(s),
       poses: () => s.motions?.poses(),
       onSwipe: (sw: Swipe) => {
       // THE WHOLE LAW OF THE PAGE, in one line. The other hand has to be ON the pack and has to
@@ -906,7 +963,10 @@ export const Knead: StoryObj<KneadArgs> = {
     const held = KNEAD_STATE.get(key);
     const root = held && (byId(held, "pack")?.children.length ?? -1) === a.count ? held : packTree(a);
     KNEAD_STATE.set(key, root);
-    const s = scene(root, { animate: true });
+    // THE PACK CLAIMS BOTH FINGERS. It carries no `Draggable` — a knead is not a carry — so the
+    // ordinary "whatever can be picked up" would leave the camera pinching the felt out from under
+    // the very pack the hands are working.
+    const s = scene(root, { animate: true, camera: eye((n: Node) => n.id === "pack" || n.parent?.id === "pack", 3) });
     let worked = 0;
     KNEADERS.set(s.el, (count, done) => {
       const pack = byId(s.host.root, "pack");
@@ -927,6 +987,7 @@ export const Knead: StoryObj<KneadArgs> = {
         host: s.host,
         want: (n: Node) => n.id === "pack" || n.parent?.id === "pack",
         quantum: a.quantum,
+        view: eyeOf(s),
         poses: () => s.motions?.poses(),
         onKnead: (k) => KNEADERS.get(s.el)?.(k.count, k.done),
       }),
@@ -997,14 +1058,15 @@ export const Shake: StoryObj<ShakeArgs> = {
     const key = `gestures.shake.${a.kind}`;
     const root = SHAKE_STATE.get(key) ?? dieTree(a);
     SHAKE_STATE.set(key, root);
-    const s = scene(root, { animate: true, motion: { friction: a.friction } });
+    const s = scene(root, { animate: true, motion: { friction: a.friction }, camera: eye(draggableNode, 3.2) });
     // The shake is a READING and not a callback, so it is kept rather than re-attached: a second
     // one over the top of the first would measure the same hand twice and answer with whichever
     // the release handler happened to hold.
-    const shaking = SHAKING.get(s.el) ?? wireShake({ host: s.host, want: (n: Node) => n.id === "die", poses: () => s.motions?.poses() });
+    const shaking = SHAKING.get(s.el) ?? wireShake({ host: s.host, want: (n: Node) => n.id === "die", view: eyeOf(s), poses: () => s.motions?.poses() });
     SHAKING.set(s.el, shaking);
     wireDrag(s, {
       toFront: true,
+      view: eyeOf(s),
       onRelease: (velocity) => {
         const shake = shaking.reading();
         if (!shake || !s.motions) return false;
