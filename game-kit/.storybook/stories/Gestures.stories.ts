@@ -649,7 +649,7 @@ function tableTree(a: TableArgs): Node {
       "said",
       Bounded({ bounds: rect(TABLE_R * 2, 0.34) }),
       Transformable({ at: { x: 0, y: TABLE_R + SEAT_R * 2.4 } }),
-      Labeled({ label: "rest a finger on the pack, flick a card off it with another", style: CONTROL_LABEL }),
+      Labeled({ label: "hold the pack with one finger, flick anywhere with another", style: CONTROL_LABEL }),
     ),
   );
   return desk;
@@ -911,11 +911,20 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
   rewire(s.el, () =>
     wireSwipe({
       host: s.host,
-      // WIDER THAN THE LAW, on purpose. Gated to the pack alone, a flick that started a finger's
-      // width off it is refused inside the recogniser and the page has nothing to say — which is
-      // indistinguishable, to a reader, from a page that does not work. Let the felt through and
-      // the refusal is a sentence instead of a silence.
-      want: (n: Node) => n.id === "deck" || n.parent?.id === "deck" || n.id === "felt",
+      // ANYWHERE. THE HOLDING HAND NAMES THE PACK; THE OTHER ONE ONLY POINTS.
+      //
+      // The first rule asked the dealing finger to land on the pack as well, and it was wrong in
+      // the way a rule written from the arithmetic rather than from the hand is always wrong: the
+      // pack is the smallest thing on the desk, the holding thumb is already sitting on it, and
+      // there is barely room for a second fingertip on what is left. Demanding it made the gesture
+      // fiddly to no purpose — nothing about a deal needs the flick to begin anywhere in
+      // particular, because the flick carries a DIRECTION and the pack was already named by the
+      // hand that is holding it.
+      //
+      // So the gate is the anchor and nothing else, and the swipe may start wherever the hand is
+      // comfortable. Which also means every flick on this glass is reported — and that is what
+      // keeps a refusal a sentence instead of a silence.
+      want: () => true,
       view: eyeOf(s),
       poses: () => s.motions?.poses(),
       // THE GATES ARE OPENED AND JUDGED HERE INSTEAD. They are the kit's own numbers either way —
@@ -941,9 +950,8 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         if (sw.reach < SWIPE_REACH) return say(s, `flick too short: ${reach} of ${SWIPE_REACH} units`);
         if (sw.straight < SWIPE_STRAIGHT) return say(s, `flick not straight: ${Math.round(sw.straight * 100)}%, wants ${SWIPE_STRAIGHT * 100}%`);
         if (sw.speed < SWIPE_SPEED) return say(s, `flick too slow: ${speed} of ${SWIPE_SPEED} u/s`);
-        if (sw.on.id === "felt") return say(s, `swipe ${speed} u/s — but it started off the pack`);
-        if (!sw.anchor) return say(s, `swipe ${speed} u/s — no other hand was down: rest one on the pack`);
-        if (!onPack) return say(s, `swipe ${speed} u/s — the other hand was not on the pack`);
+        if (!sw.anchor) return say(s, `flick ${speed} u/s — no other hand was down: rest one on the pack`);
+        if (!onPack) return say(s, `flick ${speed} u/s — the holding hand is not on the pack`);
         if (drift >= a.grip) return say(s, `swipe ${speed} u/s — the holding hand moved ${Math.round(drift)}px (grip ${a.grip})`);
         say(s, `dealt at ${Math.round(sw.angle)}°, ${speed} u/s`);
         DEALERS.get(s.el)?.(sw.angle, sw.speed);
@@ -958,18 +966,24 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
 }
 
 /**
- * DEAL: ONE HAND ON THE PACK, THE OTHER FLICKS A CARD AT SOMEBODY.
+ * DEAL: ONE HAND HOLDS THE PACK, THE OTHER POINTS.
  *
- * Rest a finger on the deck. With a second finger, swipe off it toward a player. The card leaves
- * along the swipe, finds the seat nearest that direction and lands in their hand; find nobody, and
- * it comes back.
+ * Rest a finger on the deck. Flick anywhere with another finger, in the direction of a player. The
+ * card leaves along that direction, finds the seat nearest it and lands in their hand; find nobody,
+ * and it comes back.
  *
- * THE ARBITRATION IS THE PAGE. One finger alone on the pack MOVES THE PACK — drag it anywhere, and
- * the deal still works from wherever you left it. A second finger that leaves fast and straight
- * while the first is still resting DEALS. The test is `Swipe.anchor.drift`: how far the other hand
- * wandered from where it landed. Under the slop it is holding; over it, it was dragging, and a deal
- * that happened to pass through a drag is not a deal. Nothing here is a mode, and there is nothing
- * to hold down.
+ * THE ARBITRATION IS THE PAGE, and it lives entirely in the HOLDING hand. One finger alone on the
+ * pack MOVES THE PACK — drag it anywhere, and the deal still works from wherever you left it. A
+ * second finger that leaves fast and straight while the first is still resting DEALS. The test is
+ * `Swipe.anchor.drift`: how far that other hand wandered from where it landed. Under the grip it is
+ * holding; over it, it was dragging, and a deal that happened to pass through a drag is not a deal.
+ * Nothing here is a mode, and there is nothing to hold down.
+ *
+ * THE FLICK MAY START ANYWHERE, and that is a correction rather than a convenience. The first rule
+ * asked it to begin on the pack too, which reads well and is wrong in the hand: the pack is the
+ * smallest thing on the desk, the holding thumb is already on it, and what is left is barely a
+ * fingertip wide. Nothing about a deal needs the flick to begin in a particular place — it carries
+ * a DIRECTION, and the pack was named by the hand already holding it.
  *
  * A CARD THAT FINDS NOBODY COMES BACK, and it does it without ever leaving the pack: it plays a
  * LOOK (a registered `keyframeMotion`), and a look ends on the seat it started from by construction.
