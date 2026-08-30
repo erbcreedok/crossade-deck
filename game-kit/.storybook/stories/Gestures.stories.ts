@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/html";
 import {
   acrossOf,
   add,
+  caps,
   Bounded,
   circle,
   Container,
@@ -614,6 +615,7 @@ interface TableArgs {
   air: string;
   magnus: number;
   magnet: number;
+  pullMs: number;
   pullStrength: number;
   glide: string;
   fingers: number;
@@ -913,7 +915,7 @@ interface Dealing {
    * and that finger owns it. `false` when nothing came off — an empty pack, or a card already on
    * its way.
    */
-  begin(hand: number, at: Vec): boolean;
+  begin(hand: number, at: Vec, on?: Node): boolean;
   /** That finger is here now, so the card is here now. */
   move(hand: number, at: Vec): void;
   /**
@@ -945,8 +947,15 @@ const DEALT = new WeakMap<
   {
     readonly card: string;
     readonly hand: number;
-    /** Where the card is RIGHT NOW — in that hand, or back in the pack with the hand still down. */
-    readonly at: "hand" | "pack";
+    /**
+     * Where the card is RIGHT NOW.
+     *
+     *   `leaving` — sliding out of the pack, on its way to the fingers. Not in the hand yet, and
+     *               nothing may be thrown from it: the player has not got it.
+     *   `hand`    — under that finger, on that hand's carry.
+     *   `pack`    — the magnet took it back, with the finger still down.
+     */
+    readonly at: "leaving" | "hand" | "pack";
     /** Where that finger last was, root units — the magnet measures its gap to the pack from here. */
     readonly finger: Vec;
   }
@@ -1012,10 +1021,16 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     return { x: from.x + (push.x / speed) * run, y: from.y + (push.y / speed) * run };
   };
 
-  const begin = (hand: number, at: Vec): boolean => {
+  const begin = (hand: number, at: Vec, on?: Node): boolean => {
     if (DEALT.get(s.el)) return false; // one card at a time; a finger already dealing is still dealing
     const root = s.host.root;
-    const card = topOf(root);
+    // WHAT THE FINGER CAME DOWN ON WINS. A card already lying on the felt is a card the player is
+    // pointing AT — to throw again, or to bring back to the pack — and answering a tap on it by
+    // dealing a different card off the deck is the desk contradicting the finger. Only when the
+    // finger is on nothing of its own (or on the pack, whose cards are the pack) does the top card
+    // come off.
+    const loose = on && looseCard(root, on) ? on : undefined;
+    const card = loose ?? topOf(root);
     if (!card || !s.motions) return false;
     // OFF THE PACK AND ONTO THE DESK, standing exactly where the pack stands. It has to LEAVE its
     // owner first — the kit refuses a node that already has one, loudly, and that refusal is the
@@ -1029,19 +1044,57 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // OFF THE PACK IS ON ITS OWN: it is nobody's child now, so a refused drop must leave it where
     // the hand let go rather than fly it back to a seat it no longer has.
     compose(card, Draggable({ onReject: "stay" }));
-    // THE PACK'S OWN SIZE, and its own height. Two fields because the kit keeps two sides of the
-    // one fact apart: `scale` is how big the thing is drawn, `z` is how far its shadow falls, and
-    // `RISE` is what makes them the same height. A card that took only the `z` came off the pack
-    // at its resting size while the pack under the hand was drawn raised — the card looked like a
-    // different, smaller card, which is exactly what it must not look like.
-    // AT THE PACK in the tree as well — a carry is an override and the tree is what a refused drop,
-    // a reconcile or a settle falls back to. Written at the finger, the fall-back place for a card
-    // that has not gone anywhere yet is a place it has never been.
-    compose(card, Transformable({ at: packAt(s).at, z: 0, scale: 1 }));
+    // WHERE IT STANDS RIGHT NOW, in the tree as well — a carry is an override and the tree is what
+    // a refused drop, a reconcile or a settle falls back to. A card off the pack starts AT the
+    // pack; a card already lying on the felt starts where it lies, and is not moved by being
+    // picked up.
+    const from = loose ? drawnAt(s, card.id) : packAt(s).at;
+    compose(card, Transformable({ at: from, z: 0, scale: 1 }));
     s.setRoot(root);
-    DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at });
-    take(card, hand, at);
+    if (loose) {
+      // ALREADY UNDER THE FINGER. Nothing to slide out of anywhere: the player put their finger on
+      // this card, so the hand simply has it.
+      DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at });
+      take(card, hand, at);
+      return true;
+    }
+    // IT SLIDES OUT OF THE PACK, and it is not in the hand until it gets there.
+    //
+    // A carry cannot do this and must not be made to: a held thing rides the finger ONE TO ONE, no
+    // lag, which is the law that makes a drag feel like holding something. Opened at the fingertip
+    // it puts the card there on that very frame — a card out of thin air, half the desk from the
+    // deck it is supposed to have come off.
+    //
+    // So the card FLIES the way any card flies, aimed at the fingers; the flight is re-aimed as
+    // they move (`aim`), because a hand does not wait for a card; and the hand takes it on arrival.
+    DEALT.set(s.el, { card: card.id, hand, at: "leaving", finger: at });
+    s.motions.snap(card.id, {
+      to: at,
+      up: (packLift(s) - 1) / RISE,
+      toUp: (packLift(s) - 1) / RISE,
+      response: a.pullMs / 1000,
+      onDone: () => {
+        const live = byId(s.host.root, card.id);
+        const it = DEALT.get(s.el);
+        if (!live || it?.card !== card.id || it.at !== "leaving") return;
+        DEALT.set(s.el, { ...it, at: "hand" });
+        take(live, hand, it.finger);
+      },
+    });
     return true;
+  };
+
+  /**
+   * IS THIS A CARD LYING ABOUT, rather than the pack or one of the pack's own?
+   *
+   * The pack's cards ARE the pack — a finger on them means the deck, which is what the drag already
+   * says (`may`). Everything else a hand can point at is a card somebody put somewhere, and pointing
+   * at it means it.
+   */
+  const looseCard = (root: Node, on: Node): boolean => {
+    if (on.id === "deck" || on.id === "felt" || on.id === "said") return false;
+    for (let up: Node | undefined = on; up; up = up.parent ?? undefined) if (up.id === "deck") return false;
+    return byId(root, on.id) !== undefined && caps(on).has("Flippable");
   };
 
   /**
@@ -1090,7 +1143,9 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    */
   const magnet = (): void => {
     const it = DEALT.get(s.el);
-    if (!it || !s.motions) return;
+    // A CARD STILL ON ITS WAY OUT IS NOT IN ANYBODY'S HAND, so there is nothing for the pack to
+    // take back — and taking it would fight the flight that is already carrying it.
+    if (!it || it.at === "leaving" || !s.motions) return;
     const card = byId(s.host.root, it.card);
     if (!card) return;
     const pack = packAt(s);
@@ -1133,6 +1188,12 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     const it = DEALT.get(s.el);
     if (!it || it.hand !== hand) return;
     DEALT.set(s.el, { ...it, finger: at });
+    // STILL ON ITS WAY OUT: the card is flying to these fingers, and the fingers have moved, so the
+    // flight is told where they are now. A hand does not wait for a card.
+    if (it.at === "leaving") {
+      s.motions?.aim(it.card, at);
+      return;
+    }
     // THE FINGER IS AN ANCHOR NOW, not a pose. Everything between it and the card — the follow, the
     // lag, the lean into the run, the lift — is the carry's, on this hand's own springs.
     s.motions?.dragTo(at, hand);
@@ -1150,6 +1211,14 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // nothing to throw. Opening the fingers over the pack is how a mistake ends, not a deal.
     if (it?.at === "pack") {
       DEALT.delete(s.el);
+      return "pack";
+    }
+    // LET GO BEFORE IT ARRIVED. The card is still sliding out of the pack and the player never had
+    // it, so there is no throw to make: it finishes the journey it was on and lies down where the
+    // fingers last were. Cutting the flight short instead would drop it in mid-air.
+    if (it?.at === "leaving") {
+      DEALT.delete(s.el);
+      s.motions.aim(card.id, it.finger);
       return "pack";
     }
     DEALT.delete(s.el);
@@ -1288,6 +1357,7 @@ const TABLE_ARGS: TableArgs = {
   air: "card",
   magnus: 0.25,
   magnet: 1.1,
+  pullMs: 220,
   pullStrength: 9,
   glide: "normal",
   fingers: 1.5,
@@ -1304,6 +1374,7 @@ const TABLE_KNOBS = {
   air: documented("arg.air", { control: "select", options: ["card", "normal", "fast"] }, "deal"),
   magnus: documented("arg.magnus", { control: { type: "number", min: 0, step: 0.05 } }, "deal"),
   magnet: documented("arg.magnet", { control: { type: "number", min: 0, step: 0.1 } }, "deal/pack"),
+  pullMs: documented("arg.pullMs", { control: { type: "number", min: 0, step: 20 } }, "deal/pack"),
   pullStrength: documented("arg.pullStrength", { control: { type: "number", min: 0, step: 1 } }, "deal/snap"),
   glide: documented("arg.glide", { control: "select", options: ["card", "normal", "fast"] }, "deal"),
   fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
@@ -1437,7 +1508,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
           // SAID AFTER THE FACT, not before it. The message used to go out first and then the deal
           // was attempted, so a refusal — an empty pack, a card already on its way — was announced
           // as a card coming off. A page that says what it did not do is worse than a silent one.
-          const took = deal.begin(p.id, p.at);
+          const took = deal.begin(p.id, p.at, p.on);
           say(
             s,
             took ? `off the pack, going ${Math.round(p.heading ?? 0)}°` : `nothing to deal: a card is already on its way`,
@@ -1560,6 +1631,20 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
  * WHOSE IT IS is then asked of where the card ACTUALLY came to rest, which can disagree with who
  * was leaned on: a card that fell short of everybody belongs to nobody and stays on the felt. That
  * disagreement is a badly thrown card, and a table where that cannot happen is not a table.
+ *
+ * IT SLIDES OUT OF THE PACK, and only then is it in the hand. A carry cannot do that and must not
+ * be made to: a held thing rides the finger ONE TO ONE, with no lag at all, which is the law that
+ * makes a drag feel like holding something. So a carry opened at the fingertip puts the card there
+ * on the very frame it was asked for — a card out of thin air, half a desk from the deck it is
+ * supposed to have come off. The card FLIES instead, the way any card flies, aimed at the fingers;
+ * the flight is re-aimed as they move (`aim`, because a hand does not wait for a card); and the
+ * hand takes it on arrival. `pullMs` is how long that takes.
+ *
+ * AND THE FINGER NAMES THE CARD. Put the second finger on a card already lying on the felt and it
+ * is THAT card you are holding — to throw again, or to bring back to the pack. Answering a tap on
+ * a card by dealing a different one off the deck is the desk contradicting the finger. Only when
+ * the finger is on nothing of its own, or on the pack (whose cards ARE the pack), does the top card
+ * come off.
  *
  * IT IS CARRIED, NOT POSED, and that is the fix that mattered most. The card rides the dealing
  * hand's own carry — the follow spring, the lag, the lean into the run, the lift — the same physics

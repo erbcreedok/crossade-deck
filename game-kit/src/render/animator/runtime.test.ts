@@ -380,6 +380,37 @@ describe("the motion runtime", () => {
     expect(m.velocity(2)).toBeDefined();
   });
 
+  it("motion.a-snap-can-be-RE-AIMED — the place it is going to may move while it is on the way", () => {
+    // A card sliding out of a pack is coming to a HAND, and the hand does not wait for it. Aimed
+    // once, at where the fingers were when it set off, it arrives somewhere they have left — and
+    // the only way to avoid that was to put the card under the finger on the frame it was asked
+    // for, which is a card appearing out of thin air.
+    //
+    // A snap is the one throw with a place it is going to, so it is the one throw this can mean.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const rest = b.tOf("c").e;
+    let landed: { at: { x: number; y: number } } | undefined;
+    m.snap("c", { to: { x: 5, y: 0 }, onDone: (r) => (landed = r) });
+    for (let t = 16; t <= 200; t += 16) c.tick(t);
+    const halfway = b.tOf("c").e - rest;
+    expect(halfway, "on its way to the first target").toBeGreaterThan(0.5);
+    // THE HAND MOVES. From here it is going somewhere else, and it does not start over from a stop —
+    // the speed it had carries into the new leg.
+    m.aim("c", { x: -4, y: 0 });
+    for (let t = 216; t <= 4000; t += 16) c.tick(t);
+    // Read at the LANDING and not after it: nothing wrote the tree, so once the flight is over the
+    // node eases back to the seat it still names — which is the ordinary law, not this one.
+    expect(landed?.at.x, "it arrives where the hand ENDED up, and says so").toBeCloseTo(-4, 2);
+    // A NODE THAT IS NOT FLYING HAS NOTHING TO RE-AIM, and neither has a throw with no destination:
+    // a slide is going wherever the physics takes it. Both are silent rather than loud — a game
+    // that re-aims every frame must not have to ask first whether the flight is still running.
+    expect(() => m.aim("c", { x: 9, y: 9 })).not.toThrow();
+    m.slide("c", { speed: 3, angle: 0 });
+    expect(() => m.aim("c", { x: 9, y: 9 })).not.toThrow();
+  });
+
   it("motion.poses-say-where-a-CARRIED-thing-is-drawn — the tree still says the seat it was lifted from", () => {
     // THE ONE THING A PAGE HAS TO ASK CORRECTLY ABOUT A HELD PIECE, and the one it gets wrong.
     //

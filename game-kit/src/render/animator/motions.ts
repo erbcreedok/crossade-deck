@@ -343,6 +343,16 @@ export interface Motions {
   /** Move the finger: retarget the chase springs. The run trails to the new anchor and leans en route. */
   dragTo(anchor: Vec, hand?: number): void;
   /**
+   * MOVE WHERE A SNAP IS GOING, while it is still on the way. Silent when that node is not flying,
+   * or is flying something with no destination — a fall and a slide are going wherever the physics
+   * takes them.
+   *
+   * A snap is the one throw aimed at a PLACE, and a place can move: a card sliding out of a pack is
+   * coming to a hand, and the hand does not wait for it. Without this the card is aimed at where
+   * the fingers were when it set off and arrives somewhere they have left.
+   */
+  aim(id: NodeId, to: Vec, up?: number): void;
+  /**
    * The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when
    * that hand is carrying nothing.
    */

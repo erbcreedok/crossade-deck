@@ -93,6 +93,15 @@ export interface Flight {
   readonly tumble: Tumbling | undefined;
   /** True for a body travelling ACROSS the desk: it is on the felt, so its shadow goes with it. */
   readonly onDesk: boolean;
+  /**
+   * MOVE THE PLACE IT IS GOING TO, mid-flight — present only on a throw that HAS one, which is the
+   * snap alone. A fall and a slide are going wherever the physics takes them and there is nothing
+   * to re-aim.
+   *
+   * It exists because a card sliding out of a pack is coming to a HAND, and the hand does not wait
+   * for it. See `Motions.aim`.
+   */
+  readonly aim?: ((to: Vec, up: number | undefined) => void) | undefined;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 

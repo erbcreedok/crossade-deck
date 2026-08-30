@@ -676,6 +676,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     visibleBox,
     glass,
     beginFlight,
+    aim: (id, to, up) => {
+      const f = flights.get(id);
+      if (!f?.aim) return;
+      f.aim(to, up);
+      ensureLoop();
+    },
     ensureLoop,
   };
 
