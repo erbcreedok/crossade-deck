@@ -374,16 +374,21 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const source = lead?.parent ?? undefined;
     const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
     if (!lead || !source || !target || target === source) return false;
-    // A THING IS NEVER DROPPED INTO ITSELF. `zoneAt` is asked where the finger let go and answers
-    // with whatever zone is there — and when the thing being carried IS that zone (a pack dragged
-    // across the felt and put down where it stood), the honest answer is still "the pack". Asking
-    // the move machinery whether a node may be moved inside itself is a question nobody should
-    // pose; it is a refusal here, and the ordinary drop stands.
-    if (target === lead || contains(lead, target)) return false;
+    // THE GAME IS ASKED FIRST, AND IT IS ASKED EVEN WHEN THE ANSWER IS THE THING ITSELF.
+    //
+    // `zoneAt` answers with whatever zone is where the finger let go, and when the thing being
+    // carried IS that zone — a pack dragged across the felt and put down — the honest answer is
+    // still "the pack". That used to be refused HERE, before the game heard about it, and the
+    // refusal took a real event with it: "the pack was set down" is exactly the moment a table
+    // wants, because a pack set down on loose cards picks them up. The desk asked for that and
+    // never got it, and nothing said why.
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);
       return true;
     }
+    // A THING IS NEVER MOVED INTO ITSELF. Asking the move machinery whether a node may be put
+    // inside itself is a question nobody should pose; the ordinary drop stands instead.
+    if (target === lead || contains(lead, target)) return false;
     const req = { source, touched: lead, target, carried: { angle: angleOf(lead) } };
     const plan = planMove(req);
     if (plan.verdict !== "allow") return false; // refused, or waiting on a person: the piece goes home

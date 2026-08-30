@@ -121,6 +121,32 @@ describe("a refused drop", () => {
     expect(b.desk.children.map((c) => c.id)).toEqual(["b", "a"]);
   });
 
+  it("drag.a-thing-put-down-on-ITSELF-is-still-news — the game is asked before the refusal", () => {
+    // `zoneAt` answers with whatever zone is where the finger let go, and when the thing being
+    // carried IS that zone — a pack dragged across the felt and put down — the honest answer is
+    // still "the pack". That was refused before the game heard about it, and the refusal took a
+    // real event with it: "the pack was set down" is the exact moment a table wants, because a pack
+    // set down on loose cards picks them up. The desk asked for that and never got it, and there
+    // was nothing on the glass to say why.
+    const b = bench();
+    const asked: string[] = [];
+    wireDrag(b.s, {
+      zoneAt: () => b.desk.children[0]!, // whatever is dropped, the zone is `a` — including `a`
+      onDrop: ({ lead, target }) => {
+        asked.push(`${lead.id}->${target.id}`);
+        return false; // and the ordinary drop still stands
+      },
+    });
+    b.fire("pointerdown", 300, 300);
+    b.fire("pointermove", 340, 300);
+    b.fire("pointerup", 340, 300);
+    expect(asked, "put down on itself, and the game heard about it").toEqual(["a->a"]);
+    // AND IT IS STILL NOT MOVED INTO ITSELF. The refusal survives — it is only no longer silent.
+    expect(b.desk.children.map((c) => c.id)).toEqual(["a", "b"]);
+    expect(b.desk.children[0]!.parent).toBe(b.desk);
+    expect(poseOf(b.desk.children[0]!).at.x, "the ordinary drop stands: it lies where it was left").toBeCloseTo(-0.6, 5);
+  });
+
   it("drag.raising-a-piece-never-touches-its-height — z is the shadow's, not the painter's", () => {
     // The trap this option exists to avoid. `z` looks like the obvious lever for "draw it on top"
     // and is the wrong one: the shadow law reads it, so a desk that raised by height would slowly

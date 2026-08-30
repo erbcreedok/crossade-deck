@@ -524,21 +524,32 @@ const PANEL_HAND = -2;
 const PANEL_CURL = 200;
 
 /**
- * THE DESK'S OWN EDGE, root units — half the rect and then the whole box a card may be in.
+ * HOW FAR THE CAMERA MAY BE PULLED BACK, root units — the rect it is bounded by.
  *
- * THE SAME RECT THE CAMERA IS BOUNDED BY, because "off the table" has to mean one thing. A card
- * thrown hard used to run out wherever the law left it, which on a flick of twenty units a second
- * is ten units — four times the table — and the card was gone somewhere nobody could pan to. A
- * border the eye can reach is the only one worth having.
- *
- * INSET BY THE CARD'S OWN HALF, so what stops at the wall is the card and not its centre.
+ * Wider than the felt on purpose: a reader zooming out to see where a card went should get the
+ * whole table with room around it, not the table cropped to its own edge.
  */
 const DESK_HALF = { w: TABLE_R + SEAT_R * 2, h: TABLE_R + SEAT_R * 3.2 };
+
+/**
+ * THE EDGE OF THE TABLE, root units — where a card stops, and it is the FELT.
+ *
+ * It used to be the camera's rect, which is a bigger box than the table and rectangular besides, so
+ * every hard throw ran out past the felt and lay in the black — and several of them piled into the
+ * same corner, because a corner is where a box sends everything aimed near it. Cards heaped off the
+ * table is not a boundary anybody wanted; it is the boundary being in the wrong place.
+ *
+ * A BOX AROUND A ROUND TABLE is a compromise and a named one: the felt is a circle, walls are a
+ * rect, and the four corners of that rect are off the cloth. Inset to the felt's own radius they
+ * are close enough that a card resting in one is still touching the table, which the old rect was
+ * not. INSET BY THE CARD'S OWN HALF as well, so what stops at the edge is the card and not its centre.
+ */
+const FELT_R = TABLE_R + SEAT_R * 1.8;
 const DESK_WALLS = {
-  x0: -DESK_HALF.w + CARD.w / 2,
-  x1: DESK_HALF.w - CARD.w / 2,
-  y0: -DESK_HALF.h + CARD.h / 2,
-  y1: DESK_HALF.h - CARD.h / 2,
+  x0: -FELT_R + CARD.w / 2,
+  x1: FELT_R - CARD.w / 2,
+  y0: -FELT_R + CARD.h / 2,
+  y1: FELT_R - CARD.h / 2,
 };
 
 /**
@@ -685,7 +696,7 @@ function tableTree(a: TableArgs): Node {
     desk,
     node(
       "felt",
-      Bounded({ bounds: circle(TABLE_R + SEAT_R * 1.8) }),
+      Bounded({ bounds: circle(FELT_R) }),
       Surfaced({ surface: "gesture.table.felt" }),
     ),
   );
