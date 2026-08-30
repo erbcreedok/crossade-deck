@@ -1,7 +1,7 @@
 // The pure ballistics — a fall down the screen and a slide across the desk, stepped by hand.
 
 import { describe, expect, it } from "vitest";
-import { bodyAt, polar, slideCaught, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
+import { bodyAt, polar, slideCaught, slideRests, slideTaken, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
 import { decayGlide } from "./glide.js";
 
 const DT = 1 / 60;
@@ -205,6 +205,54 @@ describe("ballistic", () => {
     // AND A FLIGHT THAT CANNOT END MUST NOT BE IMMORTAL: a body whose own numbers have gone is
     // finished, whatever else is true of it — the same law the snap keeps.
     expect(slideRests({ ...b, pos: { x: Number.NaN, y: 0 } }, 1e-3, 1)).toBe(true);
+  });
+
+  it("ballistic.a-catch-is-a-CATCH-and-not-a-wall — the card is taken in, it does not stop dead", () => {
+    // A CATCH USED TO BE A STOP-CRANE. Inside the radius the flight was simply OVER, on whatever
+    // frame the body crossed the line and at whatever speed it was going — so a card flicked hard
+    // at a player flew exactly as it was thrown and then, on touching the edge of that player's
+    // hand, lost every bit of its momentum at once and dropped like a brick. It reads as broken
+    // because it is: nothing on a table stops in one frame.
+    //
+    // A hand reaching out is a SPRING. From the moment the field has the card, the run's own speed
+    // goes into a spring aimed at the slot — the card is drawn in and settles there, and the pose
+    // the flight ends on is the pose the tree is about to write, so nothing jumps at the hand-over
+    // either.
+    const glide = decayGlide(0.998);
+    const seat = { x: 3, y: 0 };
+    const cfg = {
+      glide,
+      spinGlide: glide,
+      bounce: 0,
+      pull: { to: seat, strength: 8, radius: 1.5, caught: 0.3, response: 0.4, damping: 1 },
+    };
+    let b: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(30, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+    // Run to the frame it is first taken, and read the speed it was going at.
+    let frames = 0;
+    while (frames < 600 && Math.hypot(b.pos.x - seat.x, b.pos.y - seat.y) > cfg.pull.caught) {
+      b = stepSlide(b, cfg, DT);
+      frames++;
+    }
+    const speedIn = Math.hypot(b.vel.x, b.vel.y);
+    expect(speedIn, "it arrives with the throw still in it").toBeGreaterThan(5);
+    // IT IS NOT FINISHED HERE. A flight that ended on this frame is the brick.
+    expect(slideTaken(b, cfg, 1e-3, 1)).toBe(false);
+    // What follows is a landing: it goes on moving, it slows down over frames rather than in one,
+    // and it comes to rest ON the slot.
+    const path = [{ ...b.pos }];
+    let steps = 0;
+    while (steps < 600 && !slideTaken(b, cfg, 1e-3, 1)) {
+      b = stepSlide(b, cfg, DT);
+      path.push({ ...b.pos });
+      steps++;
+    }
+    expect(steps, "taken in over frames, not stopped in one").toBeGreaterThan(8);
+    expect(Math.hypot(b.pos.x - seat.x, b.pos.y - seat.y), "and it ends ON the slot").toBeLessThan(0.02);
+    // The travel per frame decays smoothly — no frame throws away more than most of what is left.
+    const legs = path.slice(1).map((p, i) => Math.hypot(p.x - path[i]!.x, p.y - path[i]!.y));
+    expect(Math.max(...legs), "no single frame eats the whole run").toBeLessThan(speedIn * DT * 1.2);
+    // Nothing to be caught by is the ordinary case, and it says so.
+    expect(slideTaken(b, { glide, spinGlide: glide, bounce: 0 }, 1e-3, 1)).toBe(false);
   });
 
   it("ballistic.a-spinning-body-curves — the Magnus arc, and it dies with the spin", () => {

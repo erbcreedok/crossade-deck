@@ -232,6 +232,83 @@ describe("the pan", () => {
     return { ...b, seen, stop };
   }
 
+  it("pan.a-flick-is-reported-AS-IT-RUNS — the speed is live, not a number that only exists on release", () => {
+    // A REAL TRACE OF FIFTEEN SWIPES SAID `v: [0, 0]` ON EVERY SINGLE `changed`, with the finger
+    // travelling twenty-six pixels a frame. The page reads that speed to say who would get the
+    // card, so it named nobody all the way through the gesture; and the release then measured
+    // whatever the last two readings happened to be, which is why five of those fifteen flicks went
+    // out at under five units a second and fell on the felt.
+    //
+    // A finger moving at a steady speed must report that speed at every step. It is the plainest
+    // statement this recogniser makes, and it was not true.
+    const f = panning();
+    // Sixteen pixels every sixteen milliseconds — one unit a second, dead steady, one move per
+    // frame and no coalescing, exactly as a phone's own stream arrives.
+    f.fire("pointerdown", 350, 300, { ms: 0 });
+    for (let k = 1; k <= 10; k++) f.fire("pointermove", 350, 300 - k * 16, { ms: k * 16 });
+    const moving = f.seen.filter((p) => p.state === "changed");
+    expect(moving.length).toBeGreaterThan(4);
+    for (const p of moving) {
+      expect(Math.hypot(p.velocity.x, p.velocity.y), "a moving finger is never standing still").toBeCloseTo(10, 1);
+      expect(p.heading, "and it knows which way").toBeCloseTo(-90, 1);
+    }
+  });
+
+  it("pan.a-reading-is-timed-by-the-EVENT — a coalesced stamp is not a clock this file owns", () => {
+    // FROM A REAL TRACE OF FIFTEEN SWIPES ON A PHONE: `v: [0, 0]` on every single `changed`, and
+    // five of the fifteen released at under five units a second — cards a player really flicked,
+    // dropped on the felt. Replayed here through the dispatched moves alone the very same finger
+    // measures fifteen units a second, so the recogniser's arithmetic was never the problem. What
+    // the phone had and jsdom does not is `getCoalescedEvents()`, and the readings it hands over
+    // are stamped by the platform, not by this file.
+    //
+    // A stamp from a clock this file does not own cannot be divided by. When those stamps fall
+    // outside the event's own window every reading looks older than the window, the measurement
+    // falls back to the last pair, and the last pair of a coalesced burst is very often the same
+    // point twice — which divides a zero and calls a flick a hand set down.
+    //
+    // So the POSITIONS are taken (they are the whole reason to ask) and the TIME is the event's.
+    // Readings inside one event are a frame apart at the very most; across events the timing is
+    // exact, and it is the only clock here anybody can check.
+    const f = panning();
+    f.fire("pointerdown", 350, 300, { ms: 0 });
+    // Every move carries three coalesced readings, stamped from another epoch entirely — which is
+    // what the phone was doing, and what no consumer of this file can be asked to know about.
+    for (let k = 1; k <= 8; k++) {
+      const y = 300 - k * 16;
+      f.fire("pointermove", 350, y, {
+        ms: k * 16,
+        coalesced: [
+          { x: 350, y: y + 11, ms: 1.7e12 + k * 16 },
+          { x: 350, y: y + 5, ms: 1.7e12 + k * 16 },
+          { x: 350, y, ms: 1.7e12 + k * 16 },
+        ],
+      });
+    }
+    for (const p of f.seen.filter((s) => s.state === "changed")) {
+      expect(Math.hypot(p.velocity.x, p.velocity.y), "a moving finger is never standing still").toBeCloseTo(10, 1);
+    }
+    // AND THE READINGS THEMSELVES ARE STILL COUNTED. The whole point of asking for them is the path
+    // between frames — how far the finger really walked, and how the heading turned along the way.
+    const last = f.seen[f.seen.length - 1]!;
+    expect(last.walked, "every reading, not one a frame").toBeGreaterThan(1.2);
+  });
+
+  it("pan.the-release-keeps-the-flick — a finger that lifts mid-run throws at the speed it was going", () => {
+    // The other half of the same trace. A release used the last pair of readings, so the millimetre
+    // between the final move and the lift — a real gap, because a finger settles as it leaves the
+    // glass — became the whole measurement. Twenty-six pixels a frame came out as half a unit a
+    // second, and a swipe the player really made was answered by a card dropped on the spot.
+    const f = panning();
+    f.fire("pointerdown", 350, 300, { ms: 0 });
+    for (let k = 1; k <= 6; k++) f.fire("pointermove", 350, 300 - k * 16, { ms: k * 16 });
+    // The lift lands a hair past the last move and a hair later — what a hand actually does.
+    f.fire("pointerup", 350, 300 - 6 * 16 - 2, { ms: 6 * 16 + 4 });
+    const end = f.seen[f.seen.length - 1]!;
+    expect(end.state).toBe("ended");
+    expect(Math.hypot(end.velocity.x, end.velocity.y), "the run, not the last millimetre").toBeGreaterThan(7);
+  });
+
   it("pan.reports-while-the-finger-moves — began at the slop, changed at every step, ended once", () => {
     const f = panning();
     f.fire("pointerdown", 350, 300, { ms: 0 });

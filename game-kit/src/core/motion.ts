@@ -3,10 +3,11 @@
 // (that machine is buried, see `container.no-state-diffs`): it is per-node, by id — "my rest pose
 // moved, ease me there". Pure and headless, so a plain unit test holds it without a clock or a GPU.
 //
-// A pose is a `Transform` — the same 2×3 the plan already speaks. Interpolation is component-wise:
-// exact for a translation (a card sliding pile→pile keeps `a/b/c/d` and only `e/f` move) and a fair
-// approximation for a turn, which is all a settle needs — the true angle lerp waits until a node can
-// be halfway through a rotation, which is a later slice.
+// A pose is a `Transform` — the same 2×3 the plan already speaks — but it is EASED AS A POSE and not
+// as six numbers: a place, a size and a turn, each eased as the thing it is. Component-wise is the
+// same answer for a nudge and a different one for a turn, because the four rotation entries of a
+// half-turn are the negatives of the ones it started from and lerping them passes through the zero
+// matrix. See `lerpTransform`: it cost a card that vanished on the way into every player's hand.
 
 import { type Transform } from "./transform.js";
 
@@ -196,16 +197,48 @@ export function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t;
 }
 
-/** Component-wise interpolation of the affine — see the file header on why that is enough here. */
+/**
+ * A POSE EASED AS A POSE — a place, a size and a TURN, each eased as the thing it is.
+ *
+ * The affine used to be eased component by component, and for two poses that differ by a nudge that
+ * is the same answer for a tenth of the arithmetic. It is a different answer for two poses that
+ * differ by a TURN: `a`, `b`, `c` and `d` of a half-turn are the negatives of the ones it started
+ * from, so lerping them one at a time passes through the ZERO matrix — the node shrinks to nothing
+ * at the midpoint and grows back out of it. A real trace caught it: every card dealt into a hand
+ * went 1.78 → 0.12 → 0.9 over eight frames with its turn jumping 180° at the narrowest. It reads
+ * as a blink because the card really did disappear.
+ *
+ * So the turn is taken out and eased AS AN ANGLE, the short way round — 170° to −170° is forty
+ * degrees across the seam, not three hundred and twenty back through zero.
+ *
+ * The REFLECTION survives it, and that is not a detail: a face-down card wears a negative scale,
+ * and a settle that quietly turned it back into a positive one would show the wrong side of the
+ * card. It rides in the second scale, whose sign is the determinant's.
+ *
+ * A degenerate pose — one with no size left in it at all — has no turn to read, so it is eased the
+ * old way. There is nothing better to do with it and no wrong answer to avoid.
+ */
 export function lerpTransform(from: Transform, to: Transform, t: number): Transform {
-  return {
+  const raw = (): Transform => ({
     a: lerp(from.a, to.a, t),
     b: lerp(from.b, to.b, t),
     c: lerp(from.c, to.c, t),
     d: lerp(from.d, to.d, t),
     e: lerp(from.e, to.e, t),
     f: lerp(from.f, to.f, t),
-  };
+  });
+  const a0 = Math.hypot(from.a, from.b);
+  const a1 = Math.hypot(to.a, to.b);
+  if (!(a0 > 0) || !(a1 > 0)) return raw();
+  const turn0 = Math.atan2(from.b, from.a);
+  const turn1 = Math.atan2(to.b, to.a);
+  // The short way round, folded into ±π — the same fold the pan's twist uses on a heading.
+  const turn = turn0 + (((turn1 - turn0 + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * t;
+  const sx = lerp(a0, a1, t);
+  const sy = lerp((from.a * from.d - from.b * from.c) / a0, (to.a * to.d - to.b * to.c) / a1, t);
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  return { a: sx * cos, b: sx * sin, c: -sy * sin, d: sy * cos, e: lerp(from.e, to.e, t), f: lerp(from.f, to.f, t) };
 }
 
 /** One node's flight from a pose to a pose, over a span of the one clock. */

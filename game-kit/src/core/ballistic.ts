@@ -12,6 +12,7 @@
 // viewer's speed; a game names a speed and an angle and reads the pose where the body stops.
 
 import { type GlideLaw } from "./glide.js";
+import { snapRests, stepSnap, type SnapConfig } from "./snap.js";
 import { type Vec } from "./transform.js";
 
 /** A flying body: where it is, how fast it goes, how it is turned and how fast it turns. */
@@ -125,13 +126,21 @@ export interface SlideConfig {
         readonly strength: number;
         readonly radius: number;
         /**
-         * HOW CLOSE IS CAUGHT, root units — inside this the flight is OVER, however fast the body
-         * was going.
+         * HOW CLOSE IS CAUGHT, root units — inside this the field HAS the body, and from here the
+         * run is a landing rather than a glide.
          *
          * A lean alone is not a catch: a hard throw crosses the whole field in a few frames and is
          * barely bent by it, so a seat that only leans watches the card sail past — which is the
          * one thing a seat is there not to do. A hand reaching out and taking a card that comes
          * past is not physics, and pretending otherwise makes the table worse.
+         *
+         * IT IS NOT A WALL, THOUGH, and it was one. Inside this radius the flight simply ENDED, on
+         * whatever frame the body crossed the line and at whatever speed it was going — so a card
+         * flicked hard at a player flew exactly as it was thrown and then, on touching the edge of
+         * that player's hand, lost all of it at once and dropped like a brick. Nothing on a table
+         * stops in one frame. What happens now is that the run's own speed goes into a spring aimed
+         * at the slot: the card is drawn in, settles, and the pose it finishes on is the pose the
+         * tree is about to write — so the hand-over does not jump either.
          *
          * It is also what keeps a field from holding a body FOREVER. The lean does not know the
          * body has all but stopped, so a piece resting a hair off the middle is pushed, overshoots,
@@ -139,6 +148,15 @@ export interface SlideConfig {
          * ends is a card hanging on the glass with the game never told it landed.
          */
         readonly caught: number;
+        /**
+         * HOW THE CATCH ITSELF FEELS — SwiftUI's two numbers, the same pair `snap` takes: how long
+         * the take should last, and how much of a wobble it may have at the end.
+         *
+         * A hand reaching out is a SPRING, and this is that spring. Absent, `CATCH_RESPONSE` and a
+         * dead-stop damping, which is a hand that neither snatches nor fumbles.
+         */
+        readonly response?: number | undefined;
+        readonly damping?: number | undefined;
       }
     | undefined;
   /**
@@ -195,6 +213,10 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
       vy += ny * speed;
     }
   }
+  // ONCE THE FIELD HAS IT, THE RUN IS A LANDING. From here the body is on the catch's spring — the
+  // speed it arrived with goes into it, so it is drawn in over frames and settles on the slot
+  // instead of stopping dead the moment it touched the edge of the hand.
+  if (cfg.pull && slideCaught(b, cfg)) return stepSnap(b, catchSnap(cfg), dt);
   // A SEAT LEANING ON THE THROW — a field and not a target. It reaches only `radius`, and it leans
   // hardest at the middle and not at all at the rim, so a run that merely grazes the zone is nudged
   // while one aimed at the middle is properly gathered in.
@@ -269,10 +291,36 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
 /**
  * IS THE BODY IN THE HANDS OF A FIELD — inside the radius the field calls caught. `false` when
  * there is no field, which is most throws.
+ *
+ * BEING CAUGHT IS NOT BEING FINISHED. This says the landing has begun; `slideTaken` says it is over.
  */
 export function slideCaught(b: Body, cfg: SlideConfig): boolean {
   if (!cfg.pull) return false;
   return Math.hypot(b.pos.x - cfg.pull.to.x, b.pos.y - cfg.pull.to.y) <= cfg.pull.caught;
+}
+
+/** The catch's own spring, when the field did not name one — a hand that neither snatches nor fumbles. */
+export const CATCH_RESPONSE = 0.35;
+
+/** The catch as the snap it is — one place, so the step and the rest cannot disagree about it. */
+const catchSnap = (cfg: SlideConfig): SnapConfig => ({
+  to: cfg.pull!.to,
+  up: 0,
+  response: cfg.pull!.response ?? CATCH_RESPONSE,
+  damping: cfg.pull!.damping ?? 1,
+  spinGlide: cfg.spinGlide,
+});
+
+/**
+ * THE LANDING IS OVER — the field has the body and the body has arrived. What a caught throw ends on.
+ *
+ * The two halves are both needed. Caught alone was the brick: a flight declared finished on the
+ * frame it crossed the line, with the whole throw still in it. Arrived alone would never come, since
+ * a free glide aimed past the slot does not stop at it.
+ */
+export function slideTaken(b: Body, cfg: SlideConfig, eps: number, spinEps: number): boolean {
+  if (!cfg.pull || !slideCaught(b, cfg)) return false;
+  return snapRests(b, catchSnap(cfg), eps, spinEps);
 }
 
 /**

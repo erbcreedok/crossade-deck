@@ -1034,7 +1034,10 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // `RISE` is what makes them the same height. A card that took only the `z` came off the pack
     // at its resting size while the pack under the hand was drawn raised — the card looked like a
     // different, smaller card, which is exactly what it must not look like.
-    compose(card, Transformable({ at, z: 0, scale: 1 }));
+    // AT THE PACK in the tree as well — a carry is an override and the tree is what a refused drop,
+    // a reconcile or a settle falls back to. Written at the finger, the fall-back place for a card
+    // that has not gone anywhere yet is a place it has never been.
+    compose(card, Transformable({ at: packAt(s).at, z: 0, scale: 1 }));
     s.setRoot(root);
     DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at });
     take(card, hand, at);
@@ -1054,12 +1057,18 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    * are the desk's — a hand cannot carry a card off the edge of the world either.
    */
   const take = (card: Node, hand: number, at: Vec): void => {
+    // IT LEAVES FROM THE PACK, and it TRAVELS to the finger. `anchor` seeds the springs, so a carry
+    // opened at the fingertip puts the card there on that very frame — a card out of thin air, half
+    // the desk away from the deck it is supposed to have come off. Seeded at the PACK and dragged
+    // at once to the finger, the same spring that carries it afterwards is what pulls it out, and
+    // there is no frame in which anything jumped. Nothing in this tree may teleport.
     s.motions?.grab([{ id: card.id, offset: { x: 0, y: 0 } }], {
-      anchor: at,
+      anchor: packAt(s).at,
       hand,
       lift: packLift(s),
       walls: DESK_WALLS,
     });
+    s.motions?.dragTo(at, hand);
   };
 
   /**
@@ -1233,7 +1242,9 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
         if (!live) return;
-        note("landed", { card: card.id, at: [trace(rest.at.x), trace(rest.at.y)], turn: trace(rest.angle) });
+        // `rest` and not `at`: the journal owns `at`, and a landing that wrote its place under that
+        // name lost it — the one field anybody reading a trace of a bad throw actually wants.
+        note("landed", { card: card.id, rest: [trace(rest.at.x), trace(rest.at.y)], turn: trace(rest.angle) });
         // WHOSE IT IS, ASKED OF WHERE IT ACTUALLY LIES. The throw was leaned on, not aimed, so the
         // seat that gets the card is the one it really came to rest in — and a card that fell short
         // of everybody stays on the felt, which is what a badly thrown card does at a real table.

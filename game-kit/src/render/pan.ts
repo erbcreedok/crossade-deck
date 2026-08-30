@@ -198,6 +198,12 @@ interface Finger {
   walked: number;
   /** The tail of its path, trimmed to `PAN_WINDOW` — the only part a velocity may read. */
   recent: Sample[];
+  /**
+   * When the last event for this finger arrived — the near end of the interval the next event's
+   * coalesced readings are laid across. The events' own clock, which is the only one here anybody
+   * can check: see the stamping in `onMove`.
+   */
+  lastMs: number;
   /** Has it passed the slop and been reported as `began`? */
   running: boolean;
 }
@@ -251,10 +257,15 @@ export function wirePan(w: PanWiring): () => void {
     let i = 0;
     while (i < f.recent.length && f.recent[i]!.ms < cut) i++;
     // Fewer than two readings inside the window is not a measurement — a burst of events in one
-    // millisecond, or a hand that had been resting and has only just moved. Then the LAST TWO are
-    // used however old the older one is: it is the only interval that exists, and reporting zero
-    // because the window happened to be thin would call a real flick a hand set down.
-    if (f.recent.length - i < 2) i = Math.max(0, f.recent.length - 2);
+    // millisecond, or a hand that had been resting and has only just moved. Then the OLDEST reading
+    // there is stands in for the window's far end: the buffer is trimmed to the window plus one, so
+    // it is at most a window old, and it is a different POINT.
+    //
+    // It used to be the last two, and that is how a real trace of fifteen swipes came back reading
+    // zero on every step. A coalesced burst very often ends with the same point twice — the reading
+    // the platform coalesced INTO is the reading it coalesced — so the last pair had no distance in
+    // it at all, and a flick a player really made was answered by a card set down on the spot.
+    if (f.recent.length - i < 2) i = 0;
     const first = f.recent[i]!;
     const span = now - first.ms;
     if (!(span > 0)) return { x: 0, y: 0 };
@@ -338,6 +349,7 @@ export function wirePan(w: PanWiring): () => void {
       at,
       walked: 0,
       recent: [{ at, ms: e.timeStamp }],
+      lastMs: e.timeStamp,
       running: false,
     });
   };
@@ -346,14 +358,31 @@ export function wirePan(w: PanWiring): () => void {
     const f = down.get(e.pointerId);
     if (!f) return;
     // EVERY reading the glass took, not just the one the frame delivered — see the file header.
-    for (const r of readingsOf(e)) {
+    const readings = readingsOf(e);
+    const from = f.lastMs;
+    const step = e.timeStamp - from;
+    for (const [j, r] of readings.entries()) {
       const g = glassOf(view, r);
       const at = unitsOf(g);
       f.glass = g;
       f.walked += hyp(f.at, at);
       f.at = at;
-      f.recent.push({ at, ms: r.timeStamp });
+      // STAMPED FROM THE EVENTS' OWN CLOCK, not from the reading's.
+      //
+      // A coalesced reading's `timeStamp` comes from the platform, and on real hardware it has been
+      // seen outside the epoch the event itself is timed in. A time from a clock this file does not
+      // own cannot be divided by: every reading then looks older than the window, and the velocity
+      // falls through to a fallback that measures the distance between two copies of one point.
+      // That was fifteen swipes reporting zero.
+      //
+      // Nothing is lost by it. The POSITIONS are the whole reason to ask for coalesced readings —
+      // the path between frames, which is what `walked` and the twist are made of — and WHEN they
+      // happened is recoverable without the platform's help: the glass took them between the last
+      // event and this one, evenly enough, so they are laid across that interval. A finger that
+      // stood still and then moved still reads as one that stood still and then moved.
+      f.recent.push({ at, ms: from + (step * (j + 1)) / readings.length });
     }
+    f.lastMs = e.timeStamp;
     // The tail, and only the tail. ONE reading older than the window is kept: a burst of events
     // that all land in the same millisecond would otherwise leave nothing to divide by.
     while (f.recent.length > 2 && f.recent[1]!.ms < e.timeStamp - PAN_WINDOW) f.recent.shift();
