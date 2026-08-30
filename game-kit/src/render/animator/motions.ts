@@ -156,7 +156,9 @@ export type SlideOptions = {
    * A PLACE THAT LEANS ON THE THROW while it travels — `UIFieldBehavior`, not a target. The flight
    * stays the player's; the field bends it. Nothing at all outside `radius`.
    */
-  readonly pull?: { readonly to: Vec; readonly strength: number; readonly radius: number } | undefined;
+  readonly pull?:
+    | { readonly to: Vec; readonly strength: number; readonly radius: number; readonly caught: number }
+    | undefined;
   /** How much a spinning body curves — the Magnus arc. `0` (the default) has no grip on the air. */
   readonly magnus?: number | undefined;
   readonly bounce?: number | undefined;

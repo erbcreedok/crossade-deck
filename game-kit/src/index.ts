@@ -371,6 +371,7 @@ export { permutation, rollDie, seededRng, type Rng } from "./core/rng.js";
 export {
   bodyAt,
   polar,
+  slideCaught,
   slideRests,
   stepFall,
   stepSlide,

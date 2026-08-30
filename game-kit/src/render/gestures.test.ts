@@ -30,10 +30,15 @@ type Fire = (
 ) => void;
 
 /** A view that only records its listeners — these wirings ask it for nothing else worth faking. */
-function stubView(): { el: HTMLCanvasElement; fire: Fire } {
+function stubView(): { el: HTMLCanvasElement; fire: Fire; captured: Set<number> } {
   const listeners = new Map<string, Array<(e: PointerEvent) => void>>();
+  // A view that remembers which fingers it was asked to hold. Faked because jsdom's own capture is
+  // a no-op, and what is being asserted is that the ASKING happens.
+  const captured = new Set<number>();
   const el = {
     style: {},
+    setPointerCapture: (id: number) => void captured.add(id),
+    releasePointerCapture: (id: number) => void captured.delete(id),
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
     addEventListener: (t: string, f: (e: PointerEvent) => void) => void listeners.set(t, [...(listeners.get(t) ?? []), f]),
     removeEventListener: (t: string, f: (e: PointerEvent) => void) =>
@@ -41,6 +46,7 @@ function stubView(): { el: HTMLCanvasElement; fire: Fire } {
   } as unknown as HTMLCanvasElement;
   return {
     el,
+    captured,
     fire: (type, x, y, o = {}) => {
       // `getCoalescedEvents` is the readings the GLASS took between two frames — present only when
       // a test is about them, because a browser without it (and jsdom is one) hands over the event
@@ -77,7 +83,7 @@ function bench() {
     viewer: () => DEFAULT_VIEWER,
     setRoot: () => undefined,
   } as unknown as Host;
-  return { host, fire: view.fire };
+  return { host, fire: view.fire, captured: view.captured };
 }
 
 const grabbable = (n: Node): boolean => caps(n).has("Draggable");
@@ -370,6 +376,29 @@ describe("the pan", () => {
     started.fire("pointerdown", 350, 300, { id: 1, ms: 30 }); // the rival arrives afterwards
     started.fire("pointermove", 450, 180, { id: 2, ms: 40 });
     expect(started.seen.map((p) => p.state)).toEqual(["began", "changed"]);
+  });
+
+  it("pan.holds-the-finger-it-began-on — a hand that lifts off the canvas still ends its gesture", () => {
+    // Without the capture, a finger that leaves the view and lifts THERE never sends its release
+    // here: the gesture stays open forever, whatever it was carrying stays carried, and every
+    // gesture after it is refused because the last one never ended. It reads as "it hangs
+    // sometimes", and the way to make it happen is to do what people do — deal off the edge.
+    const f = panning();
+    f.fire("pointerdown", 350, 300, { ms: 0 });
+    expect(f.captured.has(1), "not before it is a pan — a resting finger is nobody's").toBe(false);
+    f.fire("pointermove", 430, 300, { ms: 20 });
+    expect(f.captured.has(1)).toBe(true);
+    f.fire("pointerup", 9000, 9000, { ms: 40 }); // let go far outside the view
+    expect(f.seen.map((p) => p.state)).toEqual(["began", "ended"]);
+    expect(f.captured.has(1), "and it is handed back when the gesture is over").toBe(false);
+    // The teardown lets go of anything still held: a page swapped mid-gesture must not leave the
+    // view holding a finger nobody is listening to.
+    const g = panning();
+    g.fire("pointerdown", 350, 300, { ms: 0 });
+    g.fire("pointermove", 430, 300, { ms: 20 });
+    expect(g.captured.size).toBe(1);
+    g.stop();
+    expect(g.captured.size).toBe(0);
   });
 
   it("pan.a-cancel-is-not-a-release — the gesture is taken away, and where the pointer was put is not where the hand went", () => {

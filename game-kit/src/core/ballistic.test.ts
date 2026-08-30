@@ -1,7 +1,7 @@
 // The pure ballistics — a fall down the screen and a slide across the desk, stepped by hand.
 
 import { describe, expect, it } from "vitest";
-import { bodyAt, polar, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
+import { bodyAt, polar, slideCaught, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
 import { decayGlide } from "./glide.js";
 
 const DT = 1 / 60;
@@ -173,15 +173,38 @@ describe("ballistic", () => {
       return b;
     };
     const free = run(bare);
-    const pulled = run({ ...bare, pull: { to: seat, strength: 8, radius: 1.5 } });
+    const pulled = run({ ...bare, pull: { to: seat, strength: 8, radius: 1.5, caught: 0 } });
     const gapTo = (b: Body): number => Math.hypot(b.pos.x - seat.x, b.pos.y - seat.y);
     expect(gapTo(pulled), "it ends nearer the seat than the same throw left alone").toBeLessThan(gapTo(free));
     expect(pulled.pos.y, "and it leaned toward the seat rather than ruling a line").toBeGreaterThan(0.1);
     // OUTSIDE THE REACH THERE IS NOTHING. A field with a radius the run never enters leaves the
     // throw bit-for-bit alone — which is what makes it a field and not an attractor that quietly
     // curves every card home.
-    const far = run({ ...bare, pull: { to: { x: 3, y: 40 }, strength: 8, radius: 1.5 } });
+    const far = run({ ...bare, pull: { to: { x: 3, y: 40 }, strength: 8, radius: 1.5, caught: 0 } });
     expect(far).toEqual(free);
+  });
+
+  it("ballistic.a-field-CATCHES-what-it-cannot-bend — a hard throw crosses a lean in a few frames", () => {
+    // The lean is not a catch and cannot be made into one: a throw fast enough crosses the whole
+    // field before it has been bent, so a seat that only leans watches the card sail past — which
+    // is the one thing a seat is there not to do. A hand reaching out and taking a card that comes
+    // past is not physics, and pretending otherwise makes the table worse.
+    const glide = decayGlide(0.998);
+    const seat = { x: 3, y: 0 };
+    const hard = { glide, spinGlide: glide, bounce: 0, pull: { to: seat, strength: 8, radius: 1.5, caught: 0.3 } };
+    let b: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(30, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+    let caught = false;
+    for (let i = 0; i < 600 && !caught; i++) {
+      b = stepSlide(b, hard, DT);
+      caught = slideCaught(b, hard);
+    }
+    expect(caught, "it was taken rather than watched").toBe(true);
+    expect(b.pos.x, "and taken near the seat, not on the far side of the desk").toBeLessThan(3.4);
+    // Nothing to be caught by is the ordinary case, and it says so.
+    expect(slideCaught(b, { glide, spinGlide: glide, bounce: 0 })).toBe(false);
+    // AND A FLIGHT THAT CANNOT END MUST NOT BE IMMORTAL: a body whose own numbers have gone is
+    // finished, whatever else is true of it — the same law the snap keeps.
+    expect(slideRests({ ...b, pos: { x: Number.NaN, y: 0 } }, 1e-3, 1)).toBe(true);
   });
 
   it("ballistic.a-spinning-body-curves — the Magnus arc, and it dies with the spin", () => {

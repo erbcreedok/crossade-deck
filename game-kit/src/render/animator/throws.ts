@@ -4,7 +4,7 @@
 // difference from a choreography (`choreographies.ts`). The two are carried as functions on the
 // flight record — the runtime steps and asks "is it over", it never reads which sort this is.
 
-import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body } from "../../core/ballistic.js";
+import { bodyAt, slideCaught, slideRests, stepFall, stepSlide, velocityOf, type Body } from "../../core/ballistic.js";
 import { asGlide } from "../../core/glide.js";
 import { snapRests, stepSnap } from "../../core/snap.js";
 import { apply } from "../../core/transform.js";
@@ -76,7 +76,10 @@ export function throws(rt: Runtime): Throws {
         started: false,
         angle0: turnOf(rest),
         step: (b, dt) => stepSlide(b, cfg, dt),
-        over: (b) => slideRests(b, SLIDE_EPS, SPIN_EPS),
+        // OVER WHEN IT RESTS, OR WHEN A ZONE HAS IT. The second is not a shortcut: a lean cannot
+        // stop a hard throw crossing its field in a few frames, and a seat that only leans watches
+        // the card sail past — which is the one thing a seat is there not to do.
+        over: (b) => slideRests(b, SLIDE_EPS, SPIN_EPS) || slideCaught(b, cfg),
         // No animation: a slide stops where it stands.
         halt: (b) => ({ ...b, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone,

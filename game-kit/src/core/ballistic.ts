@@ -119,7 +119,28 @@ export interface SlideConfig {
    * `radius` is how far the field reaches. Outside it there is nothing at all, which is what makes
    * a field DIFFERENT from an attractor: a throw aimed elsewhere is not quietly curved home.
    */
-  readonly pull?: { readonly to: Vec; readonly strength: number; readonly radius: number } | undefined;
+  readonly pull?:
+    | {
+        readonly to: Vec;
+        readonly strength: number;
+        readonly radius: number;
+        /**
+         * HOW CLOSE IS CAUGHT, root units — inside this the flight is OVER, however fast the body
+         * was going.
+         *
+         * A lean alone is not a catch: a hard throw crosses the whole field in a few frames and is
+         * barely bent by it, so a seat that only leans watches the card sail past — which is the
+         * one thing a seat is there not to do. A hand reaching out and taking a card that comes
+         * past is not physics, and pretending otherwise makes the table worse.
+         *
+         * It is also what keeps a field from holding a body FOREVER. The lean does not know the
+         * body has all but stopped, so a piece resting a hair off the middle is pushed, overshoots,
+         * is pushed back — a slow orbit that never satisfies "at rest", and a flight that never
+         * ends is a card hanging on the glass with the game never told it landed.
+         */
+        readonly caught: number;
+      }
+    | undefined;
   /**
    * HOW MUCH A SPINNING BODY CURVES, per unit of spin and speed — the Magnus effect, which is why a
    * card flicked with a twist of the wrist arcs instead of ruling a line.
@@ -246,9 +267,21 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
 }
 
 /**
+ * IS THE BODY IN THE HANDS OF A FIELD — inside the radius the field calls caught. `false` when
+ * there is no field, which is most throws.
+ */
+export function slideCaught(b: Body, cfg: SlideConfig): boolean {
+  if (!cfg.pull) return false;
+  return Math.hypot(b.pos.x - cfg.pull.to.x, b.pos.y - cfg.pull.to.y) <= cfg.pull.caught;
+}
+
+/**
  * True once a sliding body has all but stopped moving AND turning — the gate the clock sleeps on.
  * A body still in the air is never at rest, however slowly it is drifting: it has a landing to make.
  */
 export function slideRests(b: Body, eps: number, spinEps: number): boolean {
+  // A BODY WHOSE OWN NUMBERS HAVE GONE IS FINISHED, whatever else is true of it — the same law the
+  // snap keeps, and for the same reason: a flight that cannot be finished must not be immortal.
+  if (![b.pos.x, b.pos.y, b.vel.x, b.vel.y, b.up, b.upVel, b.spin].every(Number.isFinite)) return true;
   return Math.hypot(b.vel.x, b.vel.y) <= eps && Math.abs(b.spin) <= spinEps && b.up <= 0 && b.upVel <= 0;
 }

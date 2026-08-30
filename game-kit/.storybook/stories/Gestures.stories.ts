@@ -66,7 +66,7 @@ installStockGlides();
  * holds a pack at. That is the number, and it is registered rather than written into the page so a
  * reader can swap it for the platform's own and feel the difference.
  */
-registerGlide("card", decayGlide(0.996));
+registerGlide("card", decayGlide(0.9975));
 installStockShuffles();
 installGesturePieces();
 installClassicSkin();
@@ -518,6 +518,14 @@ const PANEL_SPEED = 6;
 const PANEL_HAND = -1;
 /** And it throws with a small twist, so the panel shows the arc a hand puts on a card. */
 const PANEL_CURL = 200;
+
+/**
+ * HOW CLOSE TO ITS SLOT A CARD IS CAUGHT, root units.
+ *
+ * Half a card. Nearer than that and a hard throw is through it between two frames; further and the
+ * card is taken while it still visibly has somewhere to go, which reads as the table snatching.
+ */
+const CAUGHT = CARD.w / 2;
 
 /**
  * A PACK, AND IT HAS TO LOOK LIKE ONE. Everyone at the origin is what a closed pack IS to a layout,
@@ -1043,11 +1051,17 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
       push,
       up,
       spin,
-      spinGlide: "fast",
+      // THE TURN DIES WITH THE RUN, on the same law. A card sliding on felt stops turning when it
+      // stops travelling — they are one friction — and a turn that outlived the run was the reason
+      // the twist had to be cut short to a few degrees, which is to say never seen at all.
+      spinGlide: a.glide,
       airGlide: a.air,
       magnus: a.magnus,
       bounce: 0,
-      ...(to ? { pull: { to, strength: a.pullStrength, radius: SEAT_R * Math.max(a.catch, 0.1) } } : {}),
+      // THE SEAT LEANS ON IT ACROSS ITS WHOLE CIRCLE AND TAKES IT AT THE SLOT. The lean alone was
+      // not enough and could not be: a hard flick crosses the field in a few frames and is barely
+      // bent, so the card sailed past the player it was thrown to.
+      ...(to ? { pull: { to, strength: a.pullStrength, radius: SEAT_R * Math.max(a.catch, 0.1), caught: CAUGHT } } : {}),
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
         if (!live) return;
@@ -1090,7 +1104,7 @@ const TABLE_ARGS: TableArgs = {
   catch: 1.4,
   reach: 0.7,
   gain: 1,
-  twist: 1,
+  twist: 3,
   air: "card",
   magnus: 0.25,
   pullStrength: 9,

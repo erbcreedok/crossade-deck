@@ -365,6 +365,17 @@ export function wirePan(w: PanWiring): () => void {
       const anchor = anchorFor(e.pointerId);
       if (anchor && w.together && !w.together(anchor)) return;
       f.running = true;
+      // THE FINGER IS OURS FROM HERE — `setPointerCapture`, and it is not a nicety.
+      //
+      // Without it, a hand that leaves the canvas and lifts THERE never sends its `pointerup` here:
+      // the gesture stays open forever, whatever it was carrying stays carried, and every gesture
+      // after it is refused because the last one never ended. It reads as "it hangs sometimes", and
+      // the only reliable way to make it happen is to do what people do — deal off the edge.
+      try {
+        view.setPointerCapture(e.pointerId);
+      } catch {
+        /* a pointer the browser no longer considers active; the pan carries on without capture */
+      }
       report(f, e.pointerId, anchor, "began", e.timeStamp);
       return;
     }
@@ -393,6 +404,11 @@ export function wirePan(w: PanWiring): () => void {
     // gesture that has already ended still standing in the map.
     const anchor = anchorFor(e.pointerId);
     down.delete(e.pointerId);
+    try {
+      view.releasePointerCapture(e.pointerId);
+    } catch {
+      /* it was never captured, or the browser has already let it go */
+    }
     report(f, e.pointerId, anchor, state, e.timeStamp);
   };
 
@@ -405,6 +421,15 @@ export function wirePan(w: PanWiring): () => void {
   view.addEventListener("pointercancel", onCancel);
 
   return () => {
+    // Anything still captured is let go with the wiring: a page swapped mid-gesture must not leave
+    // the view holding a finger nobody is listening to.
+    for (const id of down.keys()) {
+      try {
+        view.releasePointerCapture(id);
+      } catch {
+        /* already gone */
+      }
+    }
     down.clear();
     view.removeEventListener("pointerdown", onDown);
     view.removeEventListener("pointermove", onMove);
