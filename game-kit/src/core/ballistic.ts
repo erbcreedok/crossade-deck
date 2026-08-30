@@ -98,6 +98,37 @@ export interface SlideConfig {
   readonly walls?: Walls | undefined;
   /** What pulls a hopping body back down, units/s². Only used by a body that is off the desk. */
   readonly gravity?: number | undefined;
+  /**
+   * WHAT THE AIR DOES TO THE FALL — a glide law on the RISING/FALLING speed, exactly as `glide` is
+   * one on the run. Absent, the air is not there and the body falls like a stone, which is what a
+   * die does and should.
+   *
+   * A card is the other case, and it is not a smaller number of the same thing: a card is nearly
+   * all surface and hardly any mass, so it reaches a terminal speed almost at once and then comes
+   * down at that speed however far it has to go. Gravity alone cannot say that — it only
+   * accelerates — so the law that ends the fall's acceleration is the whole of "it is a card".
+   */
+  readonly airGlide?: GlideLaw | undefined;
+  /**
+   * A PLACE THE BODY IS DRAWN TOWARD WHILE IT TRAVELS — `UIFieldBehavior.radialGravityField`.
+   *
+   * Not a snap and not a target: the body keeps flying its own flight, and this leans on it. It is
+   * how a seat says "that one was meant for me" without taking the throw away from the player —
+   * the run bends toward the seat, and how much is `strength`, in units per second squared.
+   *
+   * `radius` is how far the field reaches. Outside it there is nothing at all, which is what makes
+   * a field DIFFERENT from an attractor: a throw aimed elsewhere is not quietly curved home.
+   */
+  readonly pull?: { readonly to: Vec; readonly strength: number; readonly radius: number } | undefined;
+  /**
+   * HOW MUCH A SPINNING BODY CURVES, per unit of spin and speed — the Magnus effect, which is why a
+   * card flicked with a twist of the wrist arcs instead of ruling a line.
+   *
+   * Sideways to the run and proportional to both the turn rate and the speed, so it dies out with
+   * the throw rather than curling a body that has stopped. `0` (the default) is a body with no
+   * grip on the air at all.
+   */
+  readonly magnus?: number | undefined;
 }
 
 /** How much of the hop a wall gives back on top of what the body had: a die caught by a border pops UP. */
@@ -126,10 +157,43 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
   const k = cfg.glide.after(dt);
   let vx = b.vel.x * k;
   let vy = b.vel.y * k;
+  // THE AIR AND THE SEAT LEAN ON THE RUN, and both are accelerations rather than laws of decay, so
+  // they are added to the speed AFTER the glide has taken its fraction of it — the desk's grip is a
+  // property of the body, and these are things the world is doing to it.
+  //
+  // A SPINNING BODY CURVES: sideways to the run, in proportion to the turn and to the speed. The
+  // left-hand normal of the heading times the spin gives the sign, so a card twisted one way arcs
+  // one way, and a card that has stopped turning stops arcing.
+  if (cfg.magnus) {
+    const speed = Math.hypot(vx, vy);
+    if (speed > 0) {
+      const sway = ((cfg.magnus * b.spin * Math.PI) / 180) * dt;
+      const nx = -(vy / speed) * sway;
+      const ny = (vx / speed) * sway;
+      vx += nx * speed;
+      vy += ny * speed;
+    }
+  }
+  // A SEAT LEANING ON THE THROW — a field and not a target. It reaches only `radius`, and it leans
+  // hardest at the middle and not at all at the rim, so a run that merely grazes the zone is nudged
+  // while one aimed at the middle is properly gathered in.
+  if (cfg.pull) {
+    const dx = cfg.pull.to.x - b.pos.x;
+    const dy = cfg.pull.to.y - b.pos.y;
+    const gap = Math.hypot(dx, dy);
+    if (gap > 0 && gap < cfg.pull.radius) {
+      const near = 1 - gap / cfg.pull.radius;
+      const a = cfg.pull.strength * near * dt;
+      vx += (dx / gap) * a;
+      vy += (dy / gap) * a;
+    }
+  }
   // Per unit of speed, so the step is exact for both axes at once and asks nothing of the heading.
+  // Taken on the speed the body ENDS the step with, so what the air and the field just added is
+  // travelled this frame rather than the next.
   const run = cfg.glide.travel(1, dt);
-  let x = b.pos.x + b.vel.x * run;
-  let y = b.pos.y + b.vel.y * run;
+  let x = b.pos.x + (vx / (k || 1)) * run;
+  let y = b.pos.y + (vy / (k || 1)) * run;
   // The hop, one axis of its own: gravity pulls it down, the desk gives back `bounce` of what
   // arrives, and the body is HELD by nothing else — a body with no hop in it never leaves zero.
   let up = b.up;
@@ -137,6 +201,11 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
   let hopped = false;
   if (up > 0 || upVel > 0) {
     upVel -= (cfg.gravity ?? 0) * dt;
+    // THE AIR, if there is any. Gravity only ever accelerates, so a body with no air around it
+    // falls like a stone however wide it is; a card is nearly all surface, reaches its terminal
+    // speed almost at once and then comes down at that speed the whole way. The law that ends the
+    // acceleration is the whole difference between a card and a die.
+    if (cfg.airGlide) upVel *= cfg.airGlide.after(dt);
     up += upVel * dt;
     if (up <= 0) {
       up = 0;

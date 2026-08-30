@@ -122,6 +122,92 @@ describe("ballistic", () => {
     expect(Math.max(...flat.map((b) => b.up))).toBe(0);
   });
 
+  it("ballistic.air-makes-a-card-fall-slower-than-a-die — gravity only accelerates, so the law that ENDS the acceleration is the card", () => {
+    // A die is a stone: it falls faster and faster until the desk stops it. A card is nearly all
+    // surface and hardly any mass — it reaches a terminal speed almost at once and comes down at
+    // that speed however far it has to go. Gravity alone cannot say the second thing at all.
+    const flat = decayGlide(1);
+    const seed: Body = { pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, angle: 0, spin: 0, up: 2, upVel: 0 };
+    const die = { glide: flat, spinGlide: flat, bounce: 0, gravity: 9 };
+    const card = { ...die, airGlide: decayGlide(0.99) };
+    const fall = (cfg: Parameters<typeof stepSlide>[1]): { frames: number; fastest: number } => {
+      let b = seed;
+      let fastest = 0;
+      let frames = 0;
+      while (b.up > 0 && frames < 2000) {
+        b = stepSlide(b, cfg, DT);
+        fastest = Math.max(fastest, -b.upVel);
+        frames++;
+      }
+      return { frames, fastest };
+    };
+    const stone = fall(die);
+    const leaf = fall(card);
+    expect(leaf.frames, "the card is still coming down when the die has landed").toBeGreaterThan(stone.frames * 1.5);
+    expect(leaf.fastest, "and it never goes as fast, because it stopped accelerating").toBeLessThan(stone.fastest * 0.6);
+    // TERMINAL, and that is the word. The fall has a ceiling — `gravity` over the law's own rate
+    // constant — which it approaches and never passes, and the acceleration dies as it gets there.
+    // A stone has no ceiling at all, which is the entire difference being asserted.
+    const terminal = 9 / (-Math.log(0.99) * 1000);
+    let b = seed;
+    for (let i = 0; i < 15; i++) b = stepSlide(b, card, DT);
+    const first = -b.upVel;
+    for (let i = 0; i < 15; i++) b = stepSlide(b, card, DT);
+    const second = -b.upVel;
+    for (let i = 0; i < 15; i++) b = stepSlide(b, card, DT);
+    const third = -b.upVel;
+    expect(third).toBeLessThan(terminal);
+    expect(third - second, "each quarter second adds less than the one before").toBeLessThan((second - first) * 0.75);
+    expect(third, "and by three quarters of a second it is all but there").toBeGreaterThan(terminal * 0.9);
+  });
+
+  it("ballistic.a-field-leans-on-a-run-without-taking-it — inside its reach it gathers, outside it there is nothing at all", () => {
+    // A seat saying "that one was meant for me" — `UIFieldBehavior`, not a target. The throw stays
+    // the player's; the field leans on it.
+    const glide = decayGlide(0.998);
+    const bare = { glide, spinGlide: glide, bounce: 0 };
+    const seat = { x: 3, y: 0.8 };
+    const run = (cfg: Parameters<typeof stepSlide>[1]): Body => {
+      let b: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(6, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+      for (let i = 0; i < 600; i++) b = stepSlide(b, cfg, DT);
+      return b;
+    };
+    const free = run(bare);
+    const pulled = run({ ...bare, pull: { to: seat, strength: 8, radius: 1.5 } });
+    const gapTo = (b: Body): number => Math.hypot(b.pos.x - seat.x, b.pos.y - seat.y);
+    expect(gapTo(pulled), "it ends nearer the seat than the same throw left alone").toBeLessThan(gapTo(free));
+    expect(pulled.pos.y, "and it leaned toward the seat rather than ruling a line").toBeGreaterThan(0.1);
+    // OUTSIDE THE REACH THERE IS NOTHING. A field with a radius the run never enters leaves the
+    // throw bit-for-bit alone — which is what makes it a field and not an attractor that quietly
+    // curves every card home.
+    const far = run({ ...bare, pull: { to: { x: 3, y: 40 }, strength: 8, radius: 1.5 } });
+    expect(far).toEqual(free);
+  });
+
+  it("ballistic.a-spinning-body-curves — the Magnus arc, and it dies with the spin", () => {
+    // A card flicked with a twist of the wrist arcs; the same card thrown flat rules a line. The
+    // sideways push is proportional to BOTH the turn and the speed, so it fades as the throw does
+    // instead of curling a body that has already stopped.
+    const glide = decayGlide(0.998);
+    const cfg = { glide, spinGlide: decayGlide(0.999), bounce: 0, magnus: 0.35 };
+    const seed: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(6, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+    const run = (spin: number): Body => {
+      let b = { ...seed, spin };
+      for (let i = 0; i < 400; i++) b = stepSlide(b, cfg, DT);
+      return b;
+    };
+    expect(run(0).pos.y, "no twist, no arc").toBeCloseTo(0, 9);
+    const right = run(500);
+    const left = run(-500);
+    expect(Math.abs(right.pos.y), "a twist really bends the run").toBeGreaterThan(0.2);
+    expect(Math.sign(right.pos.y), "and which way follows which way it was twisted").toBe(-Math.sign(left.pos.y));
+    expect(right.pos.y).toBeCloseTo(-left.pos.y, 6);
+    // Without a grip on the air the same spin does nothing to the path at all.
+    let flat = { ...seed, spin: 500 };
+    for (let i = 0; i < 400; i++) flat = stepSlide(flat, { ...cfg, magnus: 0 }, DT);
+    expect(flat.pos.y).toBeCloseTo(0, 9);
+  });
+
   it("ballistic.a-wall-reflects — the crossing component flips and scales, the body stays inside", () => {
     const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
     const cfg = { glide: decayGlide(1), spinGlide: decayGlide(1), bounce: 0.5, walls: { x0: -1, y0: -1, x1: 1, y1: 1 } };

@@ -60,6 +60,9 @@ export function throws(rt: Runtime): Throws {
         bounce: opts.bounce ?? rt.tuning.bounce,
         walls: opts.walls,
         gravity: rt.tuning.gravity,
+        airGlide: opts.airGlide === undefined ? undefined : asGlide(opts.airGlide),
+        pull: opts.pull,
+        magnus: opts.magnus,
       };
       rt.beginFlight(id, {
         body: {

@@ -146,6 +146,19 @@ export type SlideOptions = {
   readonly glide?: string | GlideLaw | undefined;
   /** The same for the turn. */
   readonly spinGlide?: string | GlideLaw | undefined;
+  /**
+   * THE AIR UNDER IT AS IT FALLS — the law that ends the fall's acceleration. Absent, there is no
+   * air and the body drops like a stone, which is what a die is. A card is the other case: it is
+   * nearly all surface, so it reaches a terminal speed at once and comes down at that speed.
+   */
+  readonly airGlide?: string | GlideLaw | undefined;
+  /**
+   * A PLACE THAT LEANS ON THE THROW while it travels — `UIFieldBehavior`, not a target. The flight
+   * stays the player's; the field bends it. Nothing at all outside `radius`.
+   */
+  readonly pull?: { readonly to: Vec; readonly strength: number; readonly radius: number } | undefined;
+  /** How much a spinning body curves — the Magnus arc. `0` (the default) has no grip on the air. */
+  readonly magnus?: number | undefined;
   readonly bounce?: number | undefined;
 };
 
@@ -291,6 +304,17 @@ export interface Motions {
    * `dragTo` on every pointer-move and `release` on each node when the gesture ends.
    */
   grab(items: readonly CarryItem[], opts: CarryOptions): void;
+  /**
+   * ADD NODES TO THE RUN A HAND IS ALREADY CARRYING — `UIDynamicBehavior.addItem`, mid-gesture.
+   *
+   * A carry poses the nodes it was GIVEN, and nothing else: a node that joins the carried container
+   * afterwards is not carried, it is laid out at whatever the tree says — which, for a held pack,
+   * is the seat the pack was lifted from. So a card thrown off the pack and coming home lands in
+   * the hand and then jumps to where the deck used to lie, and nothing on the glass says why.
+   *
+   * Silent when no hand is carrying anything: a game that means "pick these up" says `grab`.
+   */
+  grabAlso(items: readonly CarryItem[]): void;
   /** Move the finger: retarget the chase springs. The run trails to the new anchor and leans en route. */
   dragTo(anchor: Vec): void;
   /** The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when nothing is carried. */

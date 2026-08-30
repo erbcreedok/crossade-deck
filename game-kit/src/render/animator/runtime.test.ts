@@ -369,6 +369,40 @@ describe("the motion runtime", () => {
     expect(m.poses()?.get("c")).toBeUndefined();
   });
 
+  it("motion.grabAlso-joins-a-run-mid-gesture — a card coming home lands in the HAND, not where the deck used to lie", () => {
+    // A carry poses the nodes it was GIVEN. A node that joins the carried container afterwards is
+    // not carried at all: it is laid out at whatever the tree says, and for a held pack the tree
+    // says the seat the pack was lifted FROM. That is a card flying home into the hand and then
+    // jumping across the desk on the frame it arrives, with nothing on the glass to explain it.
+    const b = bench();
+    const c = fakeClock();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.host.root);
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1 });
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    m.dragTo({ x: 4, y: 1 });
+    for (let t = 16; t <= 600; t += 16) c.tick(t);
+    expect(m.poses()!.get("c")!.e, "the hand really took the pack somewhere").toBeCloseTo(4, 1);
+    // The newcomer is nowhere near the hand while it is merely a sibling in the tree.
+    expect(m.poses()!.get("d")).toBeUndefined();
+
+    m.grabAlso([{ id: "d", offset: { x: 0, y: 0 } }]);
+    // ON THE VERY FRAME IT JOINS, not the next one: a frame at the old seat is the jump this exists
+    // to remove.
+    expect(m.poses()!.get("d")!.e).toBeCloseTo(m.poses()!.get("c")!.e, 6);
+    m.dragTo({ x: 6, y: 1 });
+    for (let t = 616; t <= 1400; t += 16) c.tick(t);
+    expect(m.poses()!.get("d")!.e, "and it rides the hand from then on").toBeCloseTo(6, 1);
+
+    // Silent when no hand is carrying: a game that means "pick these up" says `grab`.
+    m.release("c");
+    m.release("d");
+    for (let t = 1416; t <= 2400; t += 16) c.tick(t);
+    m.grabAlso([{ id: "d", offset: { x: 0, y: 0 } }]);
+    expect(m.poses()?.get("d")).toBeUndefined();
+  });
+
   it("motion.grab-leans-into-horizontal-motion — a tilt appears while moving and unwinds at rest", () => {
     const b = bench();
     const c = fakeClock();

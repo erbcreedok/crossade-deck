@@ -676,6 +676,31 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       draw();
       if (!carrySettled(carrying)) ensureLoop(); // a pop or an off-anchor seat needs the loop; a bare grab does not
     },
+    grabAlso(items) {
+      // NOTHING IS BEING CARRIED, so there is nothing to join. Deliberately silent rather than a
+      // grab of its own: a game that means "pick these up" says `grab`, and turning a join into a
+      // grab would take the run off whatever hand is really holding it.
+      if (!carrying) return;
+      const fresh = items.filter((it) => !carried.has(it.id));
+      if (fresh.length === 0) return;
+      // Whatever the clock was doing to these ends HERE, and it ends by LANDING — the same bargain
+      // `grab` strikes, and for the same reason: a throw the hand caught is a throw that finished.
+      for (const it of fresh) {
+        const f = flights.get(it.id);
+        if (f) land(it.id, f);
+      }
+      reconcile();
+      carrying = { ...carrying, items: [...carrying.items, ...fresh] };
+      for (const it of fresh) {
+        carried.set(it.id, 1);
+        held.add(it.id);
+        active.delete(it.id);
+      }
+      // Laid out at the anchor AT ONCE, so a node that joins mid-gesture is drawn in the hand on
+      // the very frame it joins instead of one frame at the seat its tree still names.
+      layCarry(carrying);
+      draw();
+    },
     dragTo(anchor) {
       if (!carrying) return;
       carrying.target = anchor;

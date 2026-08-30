@@ -17,6 +17,7 @@ import {
   Rotatable,
   IDENTITY,
   crossesZone,
+  decayGlide,
   glassPerUnit,
   glideLaw,
   LAYER_HEIGHT,
@@ -37,6 +38,7 @@ import {
   compose,
   fieldsOf,
   liftToFit,
+  registerGlide,
   registerLayout,
   registerSurface,
   ShadowCaster,
@@ -53,6 +55,16 @@ import { DIE_KINDS, die, dieSpec, flashFace, showFace, type DieKind } from "@gam
 import { CHIP_SURFACE, ROOK_SHAPE, ROOK_SURFACE, installGesturePieces } from "./gestureAssets.js";
 import { scene, type CameraScene, type Scene } from "../devtools/scene.js";
 installStockGlides();
+/**
+ * THE AIR UNDER A CARD, as its own law beside the platform's two.
+ *
+ * `normal` and `fast` are scrolling rates — they are about a finger flicking a list, and neither is
+ * about a piece of cardboard falling. A card is nearly all surface: it reaches a terminal speed of
+ * a couple of units a second and comes down at it, which is about a second from the height a hand
+ * holds a pack at. That is the number, and it is registered rather than written into the page so a
+ * reader can swap it for the platform's own and feel the difference.
+ */
+registerGlide("card", decayGlide(0.996));
 installStockShuffles();
 installGesturePieces();
 installClassicSkin();
@@ -502,6 +514,8 @@ const CARD = { w: 0.616, h: 0.88 };
 const PANEL_SPEED = 6;
 /** The panel is not a finger, so its deals are booked under an id no pointer can have. */
 const PANEL_HAND = -1;
+/** And it throws with a small twist, so the panel shows the arc a hand puts on a card. */
+const PANEL_CURL = 200;
 
 /**
  * A PACK, AND IT HAS TO LOOK LIKE ONE. Everyone at the origin is what a closed pack IS to a layout,
@@ -565,7 +579,10 @@ interface TableArgs {
   catch: number;
   reach: number;
   gain: number;
-  spin: number;
+  twist: number;
+  air: string;
+  magnus: number;
+  pullStrength: number;
   glide: string;
   homeUp: number;
   fingers: number;
@@ -753,6 +770,26 @@ function seatFor(root: Node, a: TableArgs, from: Vec, velocity: Vec): Node | und
 }
 
 /**
+ * WHOSE SEAT A CARD HAS COME TO REST IN — asked of where it ACTUALLY lies, after the flight.
+ *
+ * The companion of `seatFor`, and the two are deliberately different questions. `seatFor` is asked
+ * BEFORE the throw and answers "who is this one leaning toward"; this one is asked after and
+ * answers "who got it". They can disagree — a card leaned toward a player and fell short of them
+ * belongs to nobody — and that disagreement is a card thrown badly, which is a thing that should be
+ * able to happen at a table.
+ */
+function seatUnder(root: Node, a: TableArgs, at: Vec): Node | undefined {
+  const reach = SEAT_R * Math.max(a.catch, 0.1);
+  for (let i = 0; i < a.seats; i++) {
+    const seat = byId(root, `seat${i}`);
+    if (!seat) continue;
+    const home = worldAt(seat);
+    if (Math.hypot(at.x - home.x, at.y - home.y) <= reach) return seat;
+  }
+  return undefined;
+}
+
+/**
  * HOW MUCH THE PACK IS RAISED RIGHT NOW — asked in the one place and read in three, so the page
  * cannot disagree with itself about how high the hand is holding it.
  */
@@ -835,8 +872,11 @@ interface Dealing {
   begin(hand: number): void;
   /** That finger has moved this far since it came down: the card has moved with it. */
   move(hand: number, by: Vec): void;
-  /** That finger has gone, at this velocity: the card flies on and the table catches it, or not. */
-  end(hand: number, velocity: Vec): void;
+  /**
+   * That finger has gone, at this velocity and with this twist of the wrist: the card flies on, and
+   * the table leans on it or does not.
+   */
+  end(hand: number, velocity: Vec, curl: number): void;
 }
 
 /**
@@ -880,7 +920,12 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // OFF THE PACK IS ON ITS OWN: it is nobody's child now, so a refused drop must leave it where
     // the hand let go rather than fly it back to a seat it no longer has.
     compose(card, Draggable({ onReject: "stay" }));
-    compose(card, Transformable({ at: home(), z: packZ(s, a) }));
+    // THE PACK'S OWN SIZE, and its own height. Two fields because the kit keeps two sides of the
+    // one fact apart: `scale` is how big the thing is drawn, `z` is how far its shadow falls, and
+    // `RISE` is what makes them the same height. A card that took only the `z` came off the pack
+    // at its resting size while the pack under the hand was drawn raised — the card looked like a
+    // different, smaller card, which is exactly what it must not look like.
+    compose(card, Transformable({ at: home(), z: packZ(s, a), scale: packLift(s, a) }));
     s.setRoot(root);
     // THE TREE POSE IS THE TRUTH WHILE THE FINGER HAS IT — no settle, no spring, no lag. A carry
     // would be the other way to say this and it is the wrong one here: the runtime holds ONE carry,
@@ -893,26 +938,32 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     const card = held(hand);
     if (!card) return;
     const at = home();
-    compose(card, Transformable({ at: { x: at.x + by.x, y: at.y + by.y }, z: packZ(s, a) }));
+    compose(card, Transformable({ at: { x: at.x + by.x, y: at.y + by.y }, z: packZ(s, a), scale: packLift(s, a) }));
     s.setRoot(s.host.root);
   };
 
-  const end = (hand: number, velocity: Vec): void => {
+  const end = (hand: number, velocity: Vec, curl: number): void => {
     const card = held(hand);
     if (!card || !s.motions) return; // a finger that was not the one dealing has nothing to let go of
     DEALT.delete(s.el);
     s.motions.release(card.id);
     const from = worldAt(card);
+    // THE HEIGHT CHANGES HANDS HERE, and it may not be held by both at once. While a finger had the
+    // card the TREE carried its height — `scale` for the size, `z` for the shadow. From here the
+    // CLOCK carries it, and the flight grows the body by the height it is at. Left in the tree as
+    // well, the two multiply: the card doubles in size at the instant it is let go, which is the
+    // one moment it must not change at all.
+    compose(card, Transformable({ at: from, z: 0, scale: 1, angle: 0 }));
+    s.setRoot(s.host.root);
     // THE PUSH IS THE FINGER'S OWN VELOCITY, scaled by one named number and handed over whole —
     // `UIPushBehavior(.instantaneous)`. Nothing is recomputed from it: taking a velocity apart into
     // a speed and a heading only to build it back up is two conversions, each able to be wrong.
     const push = { x: velocity.x * a.gain, y: velocity.y * a.gain };
-    // THE TURN HAS TO BE OVER WHEN THE ARRIVAL IS. A snap ends when the body has arrived AND
-    // stopped turning, and under the ordinary run-out a card thrown at sixty degrees a second is
-    // still turning by a hair more than a second after it reached its slot — so it sits there face
-    // DOWN, because the seat only takes it once the flight ends. `fast` puts the turn on the same
-    // scale as the flight, and the card lands crooked and stays crooked.
-    const spinGlide = "fast";
+    // THE HAND'S OWN TWIST, MEASURED. A card thrown off a turning wrist spins about its own axis
+    // AND arcs through the air, and both of those come from this one number, because the hand
+    // really did draw a curve. Guessing a spin from a straight line would be inventing the thing
+    // the player is actually doing.
+    const spin = curl * a.twist;
     const seat = snap ? seatFor(s.host.root, a, from, push) : undefined;
     const up = (packLift(s, a) - 1) / RISE;
 
@@ -925,71 +976,79 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
         toUp: up * a.homeUp,
         up,
         push,
-        spin: a.spin,
-        spinGlide,
+        spin,
+        spinGlide: "fast",
         onDone: () => {
           const live = byId(s.host.root, card.id);
           const deck = byId(s.host.root, "deck");
           if (!live || !deck) return;
           if (live.parent) remove(live.parent, live);
           add(deck, live);
-          compose(live, Transformable({ at: { x: 0, y: 0 }, angle: 0, z: 0 }));
+          compose(live, Transformable({ at: { x: 0, y: 0 }, angle: 0, z: 0, scale: 1 }));
           compose(live, Draggable({ onReject: "home" }));
           setFacing(live, "down");
           s.setRoot(s.host.root);
+          // AND IT JOINS THE HAND THAT IS STILL HOLDING THE PACK. A carry poses the nodes it was
+          // GIVEN: a card that rejoins the deck afterwards is laid out at whatever the TREE says,
+          // and a held pack's tree still names the seat it was lifted from. Without this the card
+          // flies home into the hand and then jumps across the desk on the frame it arrives.
+          s.motions?.grabAlso([{ id: live.id, offset: { x: 0, y: 0 } }]);
         },
       });
       return;
     }
 
-    // THE EXACT SEAT IN THE HAND, worked out BEFORE the throw. Not the middle of the player: the
-    // slot this card will occupy once it is theirs — the seat plus the fan's own offset for the
-    // place it is about to take. Aim at the middle and the card lands somewhere near, and then the
-    // re-parent tugs it into line: a throw that ends in a correction, which is the jerk.
+    // WHERE THE SEAT WOULD LIKE IT, worked out before the throw — the slot this card takes once it
+    // is theirs, not the middle of the player. It is not a TARGET though: it is where the seat's
+    // field pulls from, and the card keeps flying its own flight the whole way.
     const already = seat ? seat.children.length : 0;
     const slot = seat ? fanAt(already, already + 1) : undefined;
-    // NOBODY IS BEING AIMED AT — the `Fling` page — so the target is simply where the run-out law
-    // says the card would stop on its own. Same behaviour, and the snap is then doing what a plain
-    // slide would: a card belongs where it lies. The page differs from `Deal` in the TARGET and in
-    // nothing else, which is what makes the pair one decision seen from two sides.
-    const sent = Math.hypot(push.x, push.y);
-    const far = glideLaw(a.glide).project(sent);
-    const to =
-      seat && slot
-        ? { x: worldAt(seat).x + slot.x, y: worldAt(seat).y + slot.y }
-        : sent > 0
-          ? { x: from.x + (push.x / sent) * far, y: from.y + (push.y / sent) * far }
-          : from;
-    s.motions.snap(card.id, {
-      to,
-      up,
+    const to = seat && slot ? { x: worldAt(seat).x + slot.x, y: worldAt(seat).y + slot.y } : undefined;
+
+    // A THROWN CARD, AND NOT A SCRIPTED ONE. It leaves the hand at the hand's height with the
+    // finger's own velocity, and from there the world has it:
+    //   • the AIR holds it up — a card is nearly all surface, so it reaches a terminal speed at
+    //     once and comes down at that speed. It falls slower than a die and it does not bounce,
+    //     because cardboard does not.
+    //   • its own TWIST curves the run (the Magnus arc) while it spins about its axis;
+    //   • the seat LEANS on it, inside its own circle and nowhere else.
+    // What none of them do is take the throw away from the player: nothing here decides where the
+    // card stops, and the correction that used to be at the end of the flight is simply not there.
+    s.motions.slide(card.id, {
+      speed: 0,
+      angle: 0,
       push,
-      spin: a.spin,
-      spinGlide,
+      up,
+      spin,
+      spinGlide: "fast",
+      airGlide: a.air,
+      magnus: a.magnus,
+      bounce: 0,
+      ...(to ? { pull: { to, strength: a.pullStrength, radius: SEAT_R * Math.max(a.catch, 0.1) } } : {}),
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
         if (!live) return;
-        if (seat) {
-          const target = byId(s.host.root, seat.id);
-          if (target) {
-            if (live.parent) remove(live.parent, live);
-            add(target, live);
-            // AS IT FELL, SO IT LIES. The hand it joins puts it in the slot the throw was aimed at,
-            // so nothing moves; the ANGLE it landed with is kept, because a card that came to rest
-            // a little crooked is a card that was thrown, and squaring it up is the tell that
-            // nothing was.
-            const own = fieldsOf<{ at: { x: number; y: number } }>(live, "Transformable");
-            compose(live, Transformable({ ...(own ?? {}), at: { x: 0, y: 0 }, angle: rest.angle, z: 0 }));
-            // THE NEAR SEAT IS THE READER'S OWN, and a hand you are holding is a hand you can see.
-            // Every other seat keeps its cards face down. It is a real TURN and not a surface
-            // swapped behind the player's back: the card carries the set's own back, and which side
-            // is up is the summed parity `Atoms/Flippable` already owns.
-            setFacing(live, target.id === "seat0" ? "up" : "down");
-          }
+        // WHOSE IT IS, ASKED OF WHERE IT ACTUALLY LIES. The throw was leaned on, not aimed, so the
+        // seat that gets the card is the one it really came to rest in — and a card that fell short
+        // of everybody stays on the felt, which is what a badly thrown card does at a real table.
+        const landed = snap ? seatUnder(s.host.root, a, rest.at) : undefined;
+        if (landed) {
+          if (live.parent) remove(live.parent, live);
+          add(landed, live);
+          // AS IT FELL, SO IT LIES — the angle it landed with is kept, because a card that came to
+          // rest a little crooked is a card that was thrown, and squaring it up is the tell that
+          // nothing was. The fan gives it its place; the last of the way is an ordinary settle.
+          const own = fieldsOf<{ at: { x: number; y: number } }>(live, "Transformable");
+          compose(live, Transformable({ ...(own ?? {}), at: { x: 0, y: 0 }, angle: rest.angle, z: 0, scale: 1 }));
+          // THE NEAR SEAT IS THE READER'S OWN, and a hand you are holding is a hand you can see.
+          // Every other seat keeps its cards face down. It is a real TURN and not a surface swapped
+          // behind the player's back: the card carries the set's own back, and which side is up is
+          // the summed parity `Atoms/Flippable` already owns.
+          setFacing(live, landed.id === "seat0" ? "up" : "down");
         } else {
-          // NOBODY WAS LOOKED FOR, so the card stays where it stopped. The override is gone the
-          // same frame, so the pose has to be written or the card would snap back to the pack.
-          compose(live, Transformable({ at: rest.at, angle: rest.angle, z: 0 }));
+          // NOBODY GOT IT, so the card stays where it stopped. The override is gone the same frame,
+          // so the pose has to be written or the card would snap back to the pack.
+          compose(live, Transformable({ at: rest.at, angle: rest.angle, z: 0, scale: 1 }));
         }
         s.setRoot(s.host.root);
       },
@@ -1002,12 +1061,15 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
 const TABLE_ARGS: TableArgs = {
   dealt: 0,
   dealAngle: 90,
-  seats: 6,
+  seats: 4,
   count: 36,
   catch: 1.4,
   reach: 0.7,
   gain: 1,
-  spin: 240,
+  twist: 1,
+  air: "card",
+  magnus: 0.25,
+  pullStrength: 9,
   glide: "normal",
   homeUp: 0.5,
   fingers: 1.5,
@@ -1020,8 +1082,11 @@ const TABLE_KNOBS = {
   seats: documented("arg.seats", { control: { type: "number", min: 2, max: 10, step: 1 } }, "table"),
   count: documented("arg.count", { control: { type: "number", min: 0, max: 55, step: 1 } }, "table"),
   gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.02 } }, "deal"),
-  spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
-  glide: documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "deal"),
+  twist: documented("arg.twist", { control: { type: "number", min: 0, step: 0.1 } }, "deal"),
+  air: documented("arg.air", { control: "select", options: ["card", "normal", "fast"] }, "deal"),
+  magnus: documented("arg.magnus", { control: { type: "number", min: 0, step: 0.05 } }, "deal"),
+  pullStrength: documented("arg.pullStrength", { control: { type: "number", min: 0, step: 1 } }, "deal/snap"),
+  glide: documented("arg.glide", { control: "select", options: ["card", "normal", "fast"] }, "deal"),
   fingers: documented("arg.fingers", { control: { type: "number", min: 0, step: 0.25 } }, "pack/lift"),
   liftMax: documented("arg.liftMax", { control: { type: "number", min: 1, step: 0.5 } }, "pack/lift"),
 };
@@ -1154,12 +1219,12 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         }
         if (p.state === "ended") {
           say(s, `let go at ${speed} u/s, ${Math.round(p.heading ?? 0)}°`);
-          deal.end(p.id, p.velocity);
+          deal.end(p.id, p.velocity, p.curl);
           return;
         }
         // A CANCEL IS NOT A THROW. The gesture was taken away rather than finished, so the card
         // goes back the way a card that found nobody does: home, through the air, at no speed.
-        deal.end(p.id, { x: 0, y: 0 });
+        deal.end(p.id, { x: 0, y: 0 }, 0);
       },
     }),
   );
@@ -1172,7 +1237,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     const rad = (a.dealAngle * Math.PI) / 180;
     // The panel is a hand with no pointer of its own, so it borrows one that no glass can produce.
     deal.begin(PANEL_HAND);
-    deal.end(PANEL_HAND, { x: Math.cos(rad) * PANEL_SPEED, y: Math.sin(rad) * PANEL_SPEED });
+    deal.end(PANEL_HAND, { x: Math.cos(rad) * PANEL_SPEED, y: Math.sin(rad) * PANEL_SPEED }, PANEL_CURL);
   }
   return s.el;
 }
@@ -1205,14 +1270,24 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
  * a fingertip wide. Nothing about a deal needs the gesture to begin in a particular place — it
  * carries a DIRECTION, and the pack was named by the hand already holding it.
  *
- * WHERE IT LANDS IS DECIDED BEFORE IT FLIES. The table walks the run the card would cover if
- * nothing caught it — `project`, the very number the desk decelerates by — and asks which seat that
- * run passes through. Then the card is thrown AT that seat's own slot with a `snap`: the finger's
- * velocity is kept, a spring draws the card in, and nothing corrects it at the end, because there
- * is no separate end to correct. Aim and strength are one question rather than two gates: a card
+ * IT IS THROWN, NOT SENT. What leaves the hand is a body with the finger's own velocity on it, and
+ * from there the world has it: the AIR holds it up — a card is nearly all surface, so it reaches a
+ * terminal speed at once, falls slower than a die and does not bounce, because cardboard does not;
+ * its own TWIST curves the run (the Magnus arc) while it turns about its axis; and the seat LEANS
+ * on it, inside its own circle and nowhere else (`UIFieldBehavior`, not a target). Not one of them
+ * decides where the card stops.
+ *
+ * WHICH SEAT IS LEANED ON is decided before the throw — the table walks the run the card would
+ * cover if nothing caught it (`project`, the very number the desk decelerates by) and asks which
+ * seat that run passes through. Aim and strength are one question rather than two gates: a card
  * pointed between two players passes through neither circle, and a lazy one dies before it reaches
- * any. `reach` is how much of the distance the dealer must have covered themselves and `catch` how
- * wide a seat's circle is — both are the table's HELP, and at `1` each the dealer is on their own.
+ * any. `reach` is how much of the distance the dealer must have covered themselves, `catch` how
+ * wide a seat's circle is, and `pullStrength` how hard that seat leans — all three are the table's
+ * HELP, and turned down the dealing is entirely the dealer's aim.
+ *
+ * WHOSE IT IS is then asked of where the card ACTUALLY came to rest, which can disagree with who
+ * was leaned on: a card that fell short of everybody belongs to nobody and stays on the felt. That
+ * disagreement is a badly thrown card, and a table where that cannot happen is not a table.
  *
  * A CARD THAT FINDS NOBODY COMES HOME, and it goes there THROUGH THE AIR: the same `snap`, aimed at
  * the pack and at a height between the desk and the hand, so it never touches the felt on a journey
@@ -1220,10 +1295,11 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
  * out of the one state a mis-dealt card must never be caught in — lying somewhere in the middle of
  * the felt, where a game has to start explaining itself.
  *
- * AND IT COMES DOWN AS IT GOES. The height is the same number in two owners' hands: the tree says
- * how high a standing thing is while the finger has it, the clock says how high a flying body is
- * once it is thrown, and both are drawn through `RISE` — so a dealt card loses height and size
- * together, as one thing, and there is no step at the hand-off.
+ * AND IT COMES DOWN AS IT GOES. The height is the same number in two owners' hands: the TREE holds
+ * it while the finger does (`scale` for the size, `z` for the shadow), the CLOCK holds it once the
+ * card is thrown, and both are drawn through `RISE` — so the card leaves the pack at exactly the
+ * pack's own size and loses height and size together, as one thing. The hand-over matters: held by
+ * both at once the two multiply, and the card doubles at the very instant it must not change.
  *
  * Cards go back: drag one onto the pack and it is face down again. The pack itself is a container
  * that draws its own back, so an empty deck is still standing there to be dealt onto — there is no

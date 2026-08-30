@@ -295,6 +295,39 @@ describe("the pan", () => {
     expect(all).toBeGreaterThan(one * 1.5);
   });
 
+  it("pan.the-twist-of-the-wrist-is-measured-not-guessed — a curved flick has a sign, a straight one has none", () => {
+    // A card thrown off a twisting hand spins about its own axis and arcs through the air, and both
+    // come from ONE fact: how fast the heading is turning. The hand really did draw a curve, so it
+    // is read off the readings rather than invented from a straight line.
+    const straight = panning();
+    straight.fire("pointerdown", 350, 300, { ms: 0 });
+    for (let k = 1; k <= 6; k++) straight.fire("pointermove", 350 + k * 20, 300, { ms: k * 10 });
+    expect(straight.seen[straight.seen.length - 1]!.curl, "a ruler has no twist").toBeCloseTo(0, 6);
+
+    // The same hand, sweeping an arc: each step turns the heading by the same amount, one way.
+    const arc = (sign: number) => {
+      const f = panning();
+      f.fire("pointerdown", 350, 300, { ms: 0 });
+      // A quarter circle of radius 160 px, walked in twelve-degree steps: the same path for both,
+      // mirrored about the line the hand set out along.
+      const R = 160;
+      for (let k = 1; k <= 8; k++) {
+        const a = k * 12 * (Math.PI / 180);
+        f.fire("pointermove", 350 + Math.sin(a) * R, 300 - sign * (1 - Math.cos(a)) * R, { ms: k * 10 });
+      }
+      return f.seen[f.seen.length - 1]!.curl;
+    };
+    const right = arc(1);
+    const left = arc(-1);
+    expect(Math.abs(right), "a real sweep really registers").toBeGreaterThan(60);
+    expect(Math.sign(right), "and which way it went is which way it reads").toBe(-Math.sign(left));
+    // A finger that has come down and not moved says nothing rather than something random.
+    const still = panning();
+    still.fire("pointerdown", 350, 300, { ms: 0 });
+    still.fire("pointermove", 400, 300, { ms: 20 });
+    expect(still.seen[0]!.curl).toBe(0);
+  });
+
   it("pan.simultaneity-is-ONE-rule — the other hand is named, and whether it blocks is asked once", () => {
     // Two fingers with different roles is the ordinary table gesture, so by default a pan runs
     // beside another hand and merely REPORTS it.

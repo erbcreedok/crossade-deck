@@ -55,6 +55,17 @@ export const PAN_SLOP = 10;
 export const PAN_WINDOW = 90;
 
 /**
+ * HOW FAR THE FINGER HAS TO MOVE BETWEEN TWO READINGS before the direction between them is worth
+ * believing, root units.
+ *
+ * A twist is read off how the heading turns from step to step, and two readings a hair apart have
+ * no heading worth having: a thumb's own jitter across a tenth of a pixel is a direction pointing
+ * anywhere, and summed over a window it reads as a violent twist of the wrist. Steps shorter than
+ * this are passed over rather than believed.
+ */
+export const CURL_STEP = 0.01;
+
+/**
  * THE OTHER HAND — the finger that was already down when this one arrived, and what it is on.
  *
  * It lives with the recogniser rather than with any one gesture because it is what makes ROLES
@@ -125,6 +136,18 @@ export interface Pan {
    * over `walked` is how straight the finger went, and that is the only number that refuses them.
    */
   readonly walked: number;
+  /**
+   * HOW FAST THE FINGER IS TURNING, degrees per second — the twist of the wrist, and it is signed.
+   *
+   * A heading says where the hand is going; this says how that heading is CHANGING, which is a
+   * different fact and the one a curved flick is made of. A card thrown off a twisting hand spins
+   * about its own axis and arcs through the air, and both come from here — the kit does not have to
+   * guess a spin from a straight line, because the hand really did draw a curve and it is measured.
+   *
+   * Read over the same window the velocity is, so a hand that circled and then straightened out
+   * reports the straightening. `0` for a finger going in a straight line, and for one not moving.
+   */
+  readonly curl: number;
   /** The other finger, when one was down — see `HandAnchor`. */
   readonly anchor: HandAnchor | undefined;
 }
@@ -223,10 +246,40 @@ export function wirePan(w: PanWiring): () => void {
     return { x: ((f.at.x - first.at.x) * 1000) / span, y: ((f.at.y - first.at.y) * 1000) / span };
   };
 
+  /**
+   * HOW FAST THE HEADING IS TURNING over the window, degrees per second and signed.
+   *
+   * Taken from the readings themselves rather than from a pair of velocities: the heading between
+   * consecutive readings is the direction the hand was actually going at that instant, and the sum
+   * of how much that direction turned, over the time it took, is the twist. Folded into ±180 a step
+   * at a time, or a hand crossing due west would report half a turn it never made.
+   *
+   * Readings a hair apart carry no direction worth having — a thumb's jitter would read as a
+   * violent twist — so a step shorter than `CURL_STEP` is passed over rather than believed.
+   */
+  const curlOf = (f: Finger, now: number): number => {
+    const cut = now - PAN_WINDOW;
+    const seen = f.recent.filter((r) => r.ms >= cut);
+    if (seen.length < 3) return 0;
+    let turned = 0;
+    let last: number | undefined;
+    for (let i = 1; i < seen.length; i++) {
+      const dx = seen[i]!.at.x - seen[i - 1]!.at.x;
+      const dy = seen[i]!.at.y - seen[i - 1]!.at.y;
+      if (Math.hypot(dx, dy) < CURL_STEP) continue;
+      const heading = (Math.atan2(dy, dx) * 180) / Math.PI;
+      if (last !== undefined) turned += ((heading - last + 540) % 360) - 180;
+      last = heading;
+    }
+    const span = (seen[seen.length - 1]!.ms - seen[0]!.ms) / 1000;
+    return span > 0 ? turned / span : 0;
+  };
+
   const report = (f: Finger, id: number, anchor: HandAnchor | undefined, state: PanState, now: number): void => {
     if (!f.on) return;
     const velocity = velocityOf(f, now);
     const moving = Math.hypot(velocity.x, velocity.y) > 0;
+    const curl = curlOf(f, now);
     w.onPan({
       state,
       id,
@@ -237,6 +290,7 @@ export function wirePan(w: PanWiring): () => void {
       walked: f.walked,
       velocity,
       heading: moving ? (Math.atan2(velocity.y, velocity.x) * 180) / Math.PI : undefined,
+      curl,
       anchor,
     });
   };
