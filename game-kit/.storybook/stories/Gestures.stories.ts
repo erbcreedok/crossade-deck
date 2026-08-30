@@ -970,6 +970,9 @@ const DEALT = new WeakMap<
  */
 const MAGNET_LET_GO = 1.35;
 
+/** How near the fingers a card sliding out of the pack counts as having reached them, in card widths. */
+const ARRIVED = 0.35;
+
 /**
  * HOW MUCH THE PACK IS RAISED RIGHT NOW — the scale it is being DRAWN at, and nothing else.
  *
@@ -990,6 +993,18 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     const it = DEALT.get(s.el);
     if (!it || (hand !== undefined && it.hand !== hand)) return undefined;
     return byId(s.host.root, it.card);
+  };
+
+  /**
+   * HAS THE CARD REACHED THE FINGERS — within a third of its own width of them.
+   *
+   * The spring is asymptotic, so "has it arrived" can never be "is it exactly there", and it must
+   * not be "has it stopped" either: the finger is what it is chasing, and a finger that is still
+   * moving never lets it stop. Near enough that the player would say they are holding it.
+   */
+  const arrived = (id: string, at: Vec): boolean => {
+    const now = drawnAt(s, id);
+    return Math.hypot(now.x - at.x, now.y - at.y) <= CARD.w * packLift(s) * ARRIVED;
   };
 
   /** BACK INTO THE PACK — face down, at the pack's own seat, and in the hand that is holding it. */
@@ -1073,12 +1088,22 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
       up: (packLift(s) - 1) / RISE,
       toUp: (packLift(s) - 1) / RISE,
       response: a.pullMs / 1000,
-      onDone: () => {
+      onDone: (rest) => {
         const live = byId(s.host.root, card.id);
+        if (!live) return;
         const it = DEALT.get(s.el);
-        if (!live || it?.card !== card.id || it.at !== "leaving") return;
-        DEALT.set(s.el, { ...it, at: "hand" });
-        take(live, hand, it.finger);
+        if (it?.card === card.id && it.at === "leaving") {
+          DEALT.set(s.el, { ...it, at: "hand" });
+          take(live, hand, it.finger);
+          return;
+        }
+        // NOBODY IS HOLDING IT ANY MORE, so where it stopped is where it lives. Left unwritten, the
+        // tree still names the place the pack stood when the card came off it, and the reconcile
+        // takes the card there the instant the flight ends — "the drop carries it under where the
+        // deck used to be", exactly.
+        if (s.motions?.poses()?.has(card.id)) return; // something else has it — a carry, another flight
+        compose(live, Transformable({ at: rest.at, angle: rest.angle, z: 0, scale: 1 }));
+        s.setRoot(s.host.root);
       },
     });
     return true;
@@ -1163,7 +1188,18 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
         up: (packLift(s) - 1) / RISE,
         onDone: () => {
           const live = byId(s.host.root, it.card);
-          if (live && DEALT.get(s.el)?.at === "pack") intoPack(live);
+          if (!live) return;
+          // THE DECISION WAS MADE WHEN THE MAGNET FIRED, and nothing since undoes it — least of all
+          // the hand opening, which is a player who has finished putting the card back. It used to
+          // ask whether the deal was still standing, and a release during the flight (a quarter of
+          // a second, so: always) meant the card never joined the pack at all. It then eased to the
+          // seat its tree still named — the place the deck stood when the card came off it.
+          //
+          // The one thing that DOES undo it is the card being pulled out again, which is a fresh
+          // deal on this card and says so.
+          const now = DEALT.get(s.el);
+          if (now?.card === it.card && now.at !== "pack") return;
+          intoPack(live);
         },
       });
       return;
@@ -1192,6 +1228,18 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // flight is told where they are now. A hand does not wait for a card.
     if (it.at === "leaving") {
       s.motions?.aim(it.card, at);
+      // AND THE HAND HAS IT AS SOON AS IT HAS CAUGHT UP — not when the spring has SETTLED.
+      //
+      // Settling was the rule and it never happened: the target is the finger, the finger keeps
+      // moving, so the spring is never at rest and the card stayed "on its way out" for the whole
+      // gesture. Every release was then a card dropped mid-flight — ten deals in a row in a real
+      // trace, one of them a flick at thirty-six units a second, and not a single throw among them.
+      //
+      // Caught up is a DISTANCE, and it is the honest reading of "it has reached your fingers".
+      if (arrived(it.card, at)) {
+        DEALT.set(s.el, { ...DEALT.get(s.el)!, at: "hand" });
+        take(byId(s.host.root, it.card)!, hand, at);
+      }
       return;
     }
     // THE FINGER IS AN ANCHOR NOW, not a pose. Everything between it and the card — the follow, the
@@ -1213,15 +1261,19 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
       DEALT.delete(s.el);
       return "pack";
     }
-    // LET GO BEFORE IT ARRIVED. The card is still sliding out of the pack and the player never had
-    // it, so there is no throw to make: it finishes the journey it was on and lies down where the
-    // fingers last were. Cutting the flight short instead would drop it in mid-air.
-    if (it?.at === "leaving") {
-      DEALT.delete(s.el);
-      s.motions.aim(card.id, it.finger);
-      return "pack";
-    }
+    // LET GO BEFORE IT ARRIVED. A flick is a flick whether or not the card had caught up, so the
+    // flight is stopped WHERE THE CARD ACTUALLY IS and the throw is made from there. It used to
+    // report "pack" and let the flight run on — so the desk said "back on the pack", put the card
+    // nowhere near it, and every throw a player made while the card was still coming was silently
+    // thrown away. A line that says what did not happen is worse than no line.
+    // The deal is over BEFORE the flight is stopped: landing it runs the fly-out's own `onDone`,
+    // and a deal still standing in the map there would hand the card to a finger that has gone.
     DEALT.delete(s.el);
+    if (it?.at === "leaving") {
+      // Grabbing LANDS the flight (the finger is the latest word), and grabbing it at its own place
+      // is what keeps that from being a jump.
+      take(card, hand, drawnAt(s, card.id));
+    }
     // WHERE IT IS DRAWN, before anything is released — the carry is an override and the tree still
     // names the place the card came off at. Read from the tree, every throw would start from there.
     const from = drawnAt(s, card.id);
