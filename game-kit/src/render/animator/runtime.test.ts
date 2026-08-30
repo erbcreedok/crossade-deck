@@ -11,7 +11,7 @@ import { freeLayout, rowLayout } from "../../core/atoms/layouts.js";
 import { ShadowCaster } from "../../core/atoms/shadow.js";
 import { Surfaced } from "../../core/atoms/surfaced.js";
 import { Transformable } from "../../core/atoms/transformable.js";
-import { add, compose, node, reorder } from "../../core/node.js";
+import { add, compose, fieldsOf, node, reorder } from "../../core/node.js";
 import { Flippable, facing, setFacing } from "../../core/atoms/flippable.js";
 import { DEFAULT_TUNING, installStockEasings, resetEasings } from "../../core/motion.js";
 import { rect } from "../../presets/shapes.js";
@@ -336,6 +336,37 @@ describe("the motion runtime", () => {
     for (let t = 144; t <= 3000; t += 16) c.tick(t);
     expect(b.xOf("c") - restX).toBeCloseTo(8, 6);
     expect(c.idle()).toBe(true);
+  });
+
+  it("motion.poses-say-where-a-CARRIED-thing-is-drawn — the tree still says the seat it was lifted from", () => {
+    // THE ONE THING A PAGE HAS TO ASK CORRECTLY ABOUT A HELD PIECE, and the one it gets wrong.
+    //
+    // A carry is an OVERRIDE: it lays the run out at the finger every frame and never writes the
+    // tree. So the tree goes on answering with the seat the piece was lifted FROM for as long as
+    // the hand holds it — which, for a pack being dealt off, is the whole of the gesture. A page
+    // that works out "where is the pack" by walking the tree deals its cards out of the place the
+    // deck last lay, and nothing on the glass says why.
+    //
+    // `poses()` is the honest answer, and this is the contract that makes it one: while a finger
+    // has the piece, what it reports is where the piece is DRAWN.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const seat = fieldsOf<{ at: { x: number; y: number } }>(b.card, "Transformable")!.at;
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    m.dragTo({ x: 3, y: -2 });
+    c.tick(16);
+
+    const drawn = m.poses()!.get("c")!;
+    expect(drawn.e, "the hand's own place, not the seat").toBeCloseTo(3, 6);
+    expect(drawn.f).toBeCloseTo(-2, 6);
+    // ...and the tree has not moved a hair, which is exactly why it is the wrong thing to ask.
+    expect(fieldsOf<{ at: { x: number; y: number } }>(b.card, "Transformable")!.at).toEqual(seat);
+    // Let go and the two agree again — the disagreement lasts precisely as long as the hand does.
+    m.release("c");
+    for (let t = 32; t <= 2000; t += 16) c.tick(t);
+    expect(m.poses()?.get("c")).toBeUndefined();
   });
 
   it("motion.grab-leans-into-horizontal-motion — a tilt appears while moving and unwinds at rest", () => {
