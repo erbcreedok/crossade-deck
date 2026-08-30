@@ -486,7 +486,11 @@ describe("the motion runtime", () => {
     c.tick(16);
     c.tick(32);
     // While the spring has horizontal speed the pose carries a rotation (b ≠ 0) — the whip lean.
-    expect(Math.abs(b.tOf("c").b)).toBeGreaterThan(0.02);
+    //
+    // The floor is a hair under a fiftieth, and it moved there when the springs began to be stepped
+    // EXACTLY rather than by Euler: an explicit integrator overshoots a stiff first frame, so the
+    // old number was reading the integrator's error as lean. Same motion, measured honestly.
+    expect(Math.abs(b.tOf("c").b)).toBeGreaterThan(0.019);
     // Once it stops moving, the lean unwinds to upright.
     for (let t = 48; t <= 3000; t += 16) c.tick(t);
     expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 2);

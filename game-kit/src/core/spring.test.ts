@@ -18,6 +18,59 @@ function run(from: SpringState, target: number, cfg: { stiffness: number; dampin
 }
 
 describe("spring", () => {
+  it("spring.a-frame-lands-where-the-spring-REALLY-is — stepped exactly, at any stiffness and any dt", () => {
+    // A STIFF SPRING STEPPED BY EULER OVERSHOOTS ITS FIRST FRAME, badly, and it is not a rounding
+    // error. A card pulled out of a pack over 220 ms crosses three units; that is a stiffness of
+    // eight hundred, and one 16 ms step of `vel += f·dt; pos += vel·dt` moved it 0.66 units where
+    // the spring is really at 0.25. Two and a half times too far, on the ONE frame a player is
+    // watching for the card to leave the deck — so what they saw was a card that was suddenly out.
+    //
+    // A damped spring has a closed form. Stepping it exactly costs two exponentials and is stable
+    // at any stiffness and any frame time, which also means a slow phone and a fast one draw the
+    // same motion rather than merely a similar one.
+    const cfg = { stiffness: 815, damping: 2 * Math.sqrt(815) }; // response 0.22s, critically damped
+    const exact = (t: number): number => {
+      // The analytic critical-damping solution from rest, as a fraction of the distance covered.
+      const w = Math.sqrt(cfg.stiffness);
+      return 1 - Math.exp(-w * t) * (1 + w * t);
+    };
+    const d = 2.9;
+    for (const dt of [1 / 60, 1 / 30, 1 / 120]) {
+      let s = springAt(0);
+      for (let k = 1; k <= 12; k++) {
+        s = stepSpring(s, d, cfg, dt);
+        expect(s.pos, `stiff spring at dt=${dt.toFixed(4)}, frame ${k}`).toBeCloseTo(d * exact(k * dt), 4);
+      }
+    }
+    // AND THE FRAME RATE DOES NOT CHANGE THE MOTION. The same second of spring, stepped three ways.
+    const after = (dt: number): number => {
+      let s = springAt(0);
+      for (let t = 0; t < 0.5 - 1e-9; t += dt) s = stepSpring(s, d, cfg, dt);
+      return s.pos;
+    };
+    expect(after(1 / 30)).toBeCloseTo(after(1 / 240), 6);
+    // A SPRING THAT IS THERE STAYS THERE, and one asked for no time at all does not move.
+    expect(stepSpring(springAt(d), d, cfg, 1 / 60)).toEqual({ pos: d, vel: 0 });
+    expect(stepSpring({ pos: 1, vel: 5 }, d, cfg, 0)).toEqual({ pos: 1, vel: 5 });
+    // UNDERDAMPED still overshoots — the juice is a real behaviour, not a stepping artefact.
+    const loose = { stiffness: 200, damping: 6 };
+    let s = springAt(0);
+    let most = 0;
+    for (let k = 0; k < 240; k++) {
+      s = stepSpring(s, 1, loose, 1 / 240);
+      most = Math.max(most, s.pos);
+    }
+    expect(most, "it goes past and comes back").toBeGreaterThan(1.2);
+    // OVERDAMPED never does.
+    let o = springAt(0);
+    let past = 0;
+    for (let k = 0; k < 480; k++) {
+      o = stepSpring(o, 1, { stiffness: 200, damping: 60 }, 1 / 240);
+      past = Math.max(past, o.pos);
+    }
+    expect(past).toBeLessThanOrEqual(1 + 1e-9);
+  });
+
   it("spring.rests-at-its-target — no target, no motion; then chases and arrives", () => {
     // At rest and already at the target: nothing moves, ever.
     const still = stepSpring(SPRING_REST, 0, { stiffness: 120, damping: 14 }, DT);

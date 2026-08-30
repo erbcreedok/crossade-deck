@@ -1158,8 +1158,14 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    * moving never lets it stop. Near enough that the player would say they are holding it.
    */
   const arrived = (id: string, at: Vec): boolean => {
+    const deck = mine();
     const now = drawnAt(s, id);
-    return Math.hypot(now.x - at.x, now.y - at.y) <= CARD.w * packLift(s, mine()) * ARRIVED;
+    // AND IT HAS TO HAVE LEFT THE PACK. A dealing finger starts beside the pack, so a card still
+    // sitting ON the pack is already within arm's reach of it — and handing it over there skips the
+    // journey entirely, which is the whole of what the player would see. Off the pack and near the
+    // fingers: those two together are "you are holding it".
+    if (deck && onPack(s, deck, now)) return false;
+    return Math.hypot(now.x - at.x, now.y - at.y) <= CARD.w * packLift(s, deck) * ARRIVED;
   };
 
   /**
@@ -1253,10 +1259,19 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // So the card FLIES the way any card flies, aimed at the fingers; the flight is re-aimed as
     // they move (`aim`), because a hand does not wait for a card; and the hand takes it on arrival.
     DEALT.set(s.el, { card: card.id, hand, at: "leaving", finger: at, pack: deck!.id });
+    // ONE CARD'S THICKNESS ABOVE THE PACK, and that is the whole of why the slide-out can be seen.
+    //
+    // The card left at exactly the pack's height, and height is what orders the paint — so a tie
+    // went to the pack, which is drawn last, and the card was HIDDEN INSIDE IT until it had
+    // travelled a full card width. A spring covers that in its first frame or two, so what a player
+    // saw was a card already out in the open: the journey happened underneath the deck.
+    //
+    // It is also the truth. To take the top card off a pack you lift it clear of the pack first.
+    const above = (packLift(s, deck) - 1) / RISE + LAYER_HEIGHT;
     s.motions.snap(card.id, {
       to: at,
-      up: (packLift(s, deck) - 1) / RISE,
-      toUp: (packLift(s, deck) - 1) / RISE,
+      up: above,
+      toUp: above,
       response: a.pullMs / 1000,
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
@@ -1294,18 +1309,21 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    * are the desk's — a hand cannot carry a card off the edge of the world either.
    */
   const take = (card: Node, hand: number, at: Vec, deck = mine()): void => {
-    // IT LEAVES FROM THE PACK, and it TRAVELS to the finger. `anchor` seeds the springs, so a carry
-    // opened at the fingertip puts the card there on that very frame — a card out of thin air, half
-    // the desk away from the deck it is supposed to have come off. Seeded at the PACK and dragged
-    // at once to the finger, the same spring that carries it afterwards is what pulls it out, and
-    // there is no frame in which anything jumped. Nothing in this tree may teleport.
+    // THE HAND TAKES IT WHERE IT IS, and `at` is that place — the fingers on every path that leads
+    // here, because the card has already come to them.
+    //
+    // It used to be seeded at the PACK and dragged to the finger in the same breath, which was an
+    // attempt to make the CARRY do the sliding-out. A carry cannot: it lays the run on its target
+    // every frame with no lag at all, so that pair of calls drew the card at the pack for exactly
+    // one frame and then flicked it to the fingers — on EVERY hand-over, and, when the dealing
+    // finger started near the pack (which is where a dealing finger starts), instead of any journey
+    // at all. The sliding-out is a FLIGHT and lives in `begin`; this is only the hand closing.
     s.motions?.grab([{ id: card.id, offset: { x: 0, y: 0 } }], {
-      anchor: packAt(s, deck).at,
+      anchor: at,
       hand,
       lift: packLift(s, deck),
       walls: DESK_WALLS,
     });
-    s.motions?.dragTo(at, hand);
   };
 
   /**
