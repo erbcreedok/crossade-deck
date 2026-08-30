@@ -16,6 +16,7 @@
 // inside it: the kit knows no language, so the captions stop here, in the catalog's own shell.
 
 import {
+  holdTheGlass,
   attachMotion,
   type TuningPatch,
   attachPainter,
@@ -311,6 +312,18 @@ export function scene(
     `background:${t("stageBg")}`,
     `color:${t("text")}`,
   ].join(";");
+  // THE WHOLE BLOCK IS GLASS, not just the canvas inside it.
+  //
+  // `mount` already takes the browser's own gestures off the canvas, and on a phone that is not
+  // enough: a finger that lands a few pixels outside it — on the toolbar, on the line under the
+  // desk, on the margin between them — is on ORDINARY PAGE, so a long press there raises the
+  // selection loupe over the table and the "Copy / Look Up" bubble after it. Nothing in this block
+  // is prose: it is a instrument with a picture, a row of switches and one line of readout, and
+  // none of the three is there to be selected.
+  //
+  // The DOCS around it are prose and keep every one of their own gestures — which is why this is
+  // said here, on the scene's own shell, and not on the document (`holdThePage`).
+  holdTheGlass(el);
 
   // THE STAGE IS THE WHOLE BLOCK, and the toolbar floats in its corner.
   //

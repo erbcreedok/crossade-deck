@@ -796,23 +796,37 @@ function underPack(deck: Node): void {
 }
 
 /**
- * IS THIS A CARD LYING ABOUT, rather than the pack or one of the pack's own?
+ * IS THIS A PACK — asked of WHAT IT IS, never of what it is called.
  *
- * The pack's cards ARE the pack — a finger on them means the deck, which is what the drag already
+ * This desk began with exactly one pack and a node id to match, and every rule about dealing was
+ * written against that id. Then two loose cards had to be able to become a pack, and a rule written
+ * on a name cannot say that: the new pile would have been a pack that nothing recognised. A pack is
+ * a container that STACKS its cards — that is the whole of it, and it is true of the first one and
+ * of every one a player builds.
+ */
+const isPack = (n: Node): boolean =>
+  fieldsOf<{ layout?: string }>(n, "Container")?.layout === "gesture.table.stack";
+
+/** The pack this node is in, itself included — `undefined` for a card lying loose. */
+function packOf(n: Node): Node | undefined {
+  for (let up: Node | undefined = n; up; up = up.parent ?? undefined) if (isPack(up)) return up;
+  return undefined;
+}
+
+/**
+ * IS THIS A CARD LYING ABOUT, rather than a pack or one of a pack's own?
+ *
+ * A pack's cards ARE the pack — a finger on them means the pack, which is what the drag already
  * says (`may`). Everything else a hand can point at is a card somebody put somewhere, and pointing
  * at it means it.
  */
 function looseCard(root: Node, on: Node): boolean {
-  if (on.id === "deck" || on.id === "felt" || on.id === "said") return false;
-  for (let up: Node | undefined = on; up; up = up.parent ?? undefined) if (up.id === "deck") return false;
+  if (packOf(on)) return false;
   return byId(root, on.id) !== undefined && caps(on).has("Flippable");
 }
 
-/** The pack's top card — the one a deal takes, and `undefined` on an empty pack. */
-const topOf = (root: Node): Node | undefined => {
-  const deck = byId(root, "deck");
-  return deck?.children[deck.children.length - 1];
-};
+/** A pack's top card — the one a deal takes, and `undefined` on an empty pack. */
+const topOf = (pack: Node | undefined): Node | undefined => pack?.children[pack.children.length - 1];
 
 /** Where a node stands in root units — these desks are free layouts, so it is the sum of the `at`s. */
 const worldAt = (n: Node | undefined): { x: number; y: number } => {
@@ -928,23 +942,55 @@ function drawnAt(s: Scene, id: string): Vec {
   return drawn ? { x: drawn.e, y: drawn.f } : worldAt(byId(s.host.root, id));
 }
 
-function packAt(s: Scene): { at: Vec; grew: number } {
-  const drawn = s.motions?.poses()?.get("deck");
+function packAt(s: Scene, pack: Node | undefined): { at: Vec; grew: number } {
+  const drawn = pack && s.motions?.poses()?.get(pack.id);
   if (drawn) return { at: { x: drawn.e, y: drawn.f }, grew: Math.hypot(drawn.a, drawn.b) };
-  return { at: worldAt(byId(s.host.root, "deck")), grew: 1 };
+  return { at: worldAt(pack), grew: 1 };
+}
+
+/** Is this point on that pack, as the pack is DRAWN — so a raised one is the bigger target it looks like. */
+function onPack(s: Scene, pack: Node, at: Vec): boolean {
+  const spot = packAt(s, pack);
+  return (
+    Math.abs(at.x - spot.at.x) <= (CARD.w / 2) * spot.grew && Math.abs(at.y - spot.at.y) <= (CARD.h / 2) * spot.grew
+  );
 }
 
 /**
- * IS THE HOLDING HAND ON THE PACK — asked of the PLACE and not of the tree.
+ * WHICH PACK THIS POINT IS ON — asked of the PLACE and not of the tree, and there may be several.
  *
- * Measured against the pack as DRAWN, so a raised pack is the bigger target it looks like.
+ * Several because a player can build one: two loose cards merged are a pack like any other, and the
+ * desk has to answer "is the holding hand on a pack" without knowing which one it will be. The
+ * TOPMOST is the answer when two overlap, and topmost here is last drawn, which is last in the desk.
  */
-function overPack(s: Scene, at: Vec): boolean {
-  if (!byId(s.host.root, "deck")) return false;
-  const pack = packAt(s);
-  return (
-    Math.abs(at.x - pack.at.x) <= (CARD.w / 2) * pack.grew && Math.abs(at.y - pack.at.y) <= (CARD.h / 2) * pack.grew
-  );
+/**
+ * WHICH LOOSE CARD THIS POINT IS ON — the pack's twin, and the other half of "what is that hand on".
+ *
+ * Topmost first, and a card in a pack is not one of these: a finger on a pack means the pack, which
+ * is the same answer the drag gives.
+ */
+function cardUnder(s: Scene, at: Vec): Node | undefined {
+  const desk = s.host.root;
+  for (let i = desk.children.length - 1; i >= 0; i--) {
+    const n = desk.children[i]!;
+    if (isPack(n) || !caps(n).has("Flippable")) continue;
+    const spot = packAt(s, n);
+    if (
+      Math.abs(at.x - spot.at.x) <= (CARD.w / 2) * spot.grew &&
+      Math.abs(at.y - spot.at.y) <= (CARD.h / 2) * spot.grew
+    )
+      return n;
+  }
+  return undefined;
+}
+
+function packUnder(s: Scene, at: Vec): Node | undefined {
+  const desk = s.host.root;
+  for (let i = desk.children.length - 1; i >= 0; i--) {
+    const n = desk.children[i]!;
+    if (isPack(n) && onPack(s, n, at)) return n;
+  }
+  return undefined;
 }
 
 /**
@@ -980,7 +1026,7 @@ interface Dealing {
    * and that finger owns it. `false` when nothing came off — an empty pack, or a card already on
    * its way.
    */
-  begin(hand: number, at: Vec, on?: Node): boolean;
+  begin(hand: number, at: Vec, on: Node | undefined, pack: Node | undefined): boolean;
   /** That finger is here now, so the card is here now. */
   move(hand: number, at: Vec): void;
   /**
@@ -995,7 +1041,15 @@ interface Dealing {
    * `top` is the ordinary put-back; `anywhere` is the double tap, "lose it in there". Both FLY: a
    * card that arrives by jumping has not been put anywhere, it has been replaced.
    */
-  send(card: Node, where: "top" | "anywhere"): void;
+  send(card: Node, pack: Node, where: "top" | "anywhere"): void;
+  /**
+   * MERGE TWO LOOSE CARDS INTO A PACK — the held one and the tapped one.
+   *
+   * The result is a pack like any other, and that is the point: every rule on this desk asks what a
+   * thing IS rather than what it is called, so a pile a player built deals, drags and receives
+   * exactly as the one the page shipped with. `undefined` when either card is already in a pack.
+   */
+  merge(holder: Node, card: Node): Node | undefined;
   /**
    * That finger has gone, at this velocity and with this twist of the wrist: the card falls on from
    * where it was, and the table leans on it or does not.
@@ -1030,6 +1084,14 @@ const DEALT = new WeakMap<
     readonly at: "leaving" | "hand" | "pack";
     /** Where that finger last was, root units — the magnet measures its gap to the pack from here. */
     readonly finger: Vec;
+    /**
+     * WHICH PACK this card came off, by id.
+     *
+     * By id and not by node, and named at all because there may be more than one: a player can
+     * build a pack out of two loose cards, and a card pulled off THAT one goes back to THAT one.
+     * A deal that assumed the pack was the pack would put it back on somebody else's.
+     */
+    readonly pack: string;
   }
 >();
 
@@ -1053,6 +1115,8 @@ const ARRIVED = 0.35;
  * cards lost in a row do not land on top of each other.
  */
 let lost = 0;
+/** Packs a player has built, counted so each gets an id of its own — two things answering to one name is a lost identity. */
+let piles = 0;
 const dice = (): number => seededRng(++lost * 7919)();
 
 /**
@@ -1063,14 +1127,17 @@ const dice = (): number => seededRng(++lost * 7919)();
  * card came off a pack lying flat on the felt at two and a bit times the size of the pack it had
  * just left. The pack's drawn pose already knows, and it is right in both states.
  */
-const packLift = (s: Scene): number => packAt(s).grew;
+const packLift = (s: Scene, pack: Node | undefined): number => packAt(s, pack).grew;
 
-/** How high the pack is being held, in the TREE's own units of height — see `Dealing`. */
-function packZ(s: Scene): number {
-  return (packLift(s) - 1) / (RISE * LAYER_HEIGHT);
+/** How high a pack is being held, in the TREE's own units of height — see `Dealing`. */
+function packZ(s: Scene, pack: Node | undefined): number {
+  return (packLift(s, pack) - 1) / (RISE * LAYER_HEIGHT);
 }
 
 function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
+  /** The pack this deal came off — there may be several on the desk, and it goes back to its own. */
+  const mine = (): Node | undefined => byId(s.host.root, DEALT.get(s.el)?.pack ?? "");
+
   const held = (hand?: number): Node | undefined => {
     const it = DEALT.get(s.el);
     if (!it || (hand !== undefined && it.hand !== hand)) return undefined;
@@ -1086,7 +1153,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    */
   const arrived = (id: string, at: Vec): boolean => {
     const now = drawnAt(s, id);
-    return Math.hypot(now.x - at.x, now.y - at.y) <= CARD.w * packLift(s) * ARRIVED;
+    return Math.hypot(now.x - at.x, now.y - at.y) <= CARD.w * packLift(s, mine()) * ARRIVED;
   };
 
   /**
@@ -1096,8 +1163,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    * the middle. A tap means the top; a double tap means "lose it in there", which is a thing a
    * player does with a card they do not want to see again soon.
    */
-  const intoPack = (card: Node, where: "top" | "anywhere" = "top"): void => {
-    const deck = byId(s.host.root, "deck");
+  const intoPack = (card: Node, deck: Node | undefined, where: "top" | "anywhere" = "top"): void => {
     if (!deck) return;
     if (card.parent) remove(card.parent, card);
     add(deck, card);
@@ -1133,16 +1199,16 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     return { x: from.x + (push.x / speed) * run, y: from.y + (push.y / speed) * run };
   };
 
-  const begin = (hand: number, at: Vec, on?: Node): boolean => {
+  const begin = (hand: number, at: Vec, on: Node | undefined, deck: Node | undefined): boolean => {
     if (DEALT.get(s.el)) return false; // one card at a time; a finger already dealing is still dealing
     const root = s.host.root;
     // WHAT THE FINGER CAME DOWN ON WINS. A card already lying on the felt is a card the player is
     // pointing AT — to throw again, or to bring back to the pack — and answering a tap on it by
     // dealing a different card off the deck is the desk contradicting the finger. Only when the
-    // finger is on nothing of its own (or on the pack, whose cards are the pack) does the top card
-    // come off.
+    // finger is on nothing of its own (or on a pack, whose cards are the pack) does the top card
+    // come off — and off THAT pack, the one the other hand is holding.
     const loose = on && looseCard(root, on) ? on : undefined;
-    const card = loose ?? topOf(root);
+    const card = loose ?? topOf(deck);
     if (!card || !s.motions) return false;
     // OFF THE PACK AND ONTO THE DESK, standing exactly where the pack stands. It has to LEAVE its
     // owner first — the kit refuses a node that already has one, loudly, and that refusal is the
@@ -1160,14 +1226,15 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // a refused drop, a reconcile or a settle falls back to. A card off the pack starts AT the
     // pack; a card already lying on the felt starts where it lies, and is not moved by being
     // picked up.
-    const from = loose ? drawnAt(s, card.id) : packAt(s).at;
+    const from = loose ? drawnAt(s, card.id) : packAt(s, deck).at;
     compose(card, Transformable({ at: from, z: 0, scale: 1 }));
     s.setRoot(root);
     if (loose) {
       // ALREADY UNDER THE FINGER. Nothing to slide out of anywhere: the player put their finger on
-      // this card, so the hand simply has it.
-      DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at });
-      take(card, hand, at);
+      // this card, so the hand simply has it. It still belongs to the pack the OTHER hand is on —
+      // that is the pack the magnet will offer it back to.
+      DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at, pack: deck?.id ?? "" });
+      take(card, hand, at, deck);
       return true;
     }
     // IT SLIDES OUT OF THE PACK, and it is not in the hand until it gets there.
@@ -1179,11 +1246,11 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     //
     // So the card FLIES the way any card flies, aimed at the fingers; the flight is re-aimed as
     // they move (`aim`), because a hand does not wait for a card; and the hand takes it on arrival.
-    DEALT.set(s.el, { card: card.id, hand, at: "leaving", finger: at });
+    DEALT.set(s.el, { card: card.id, hand, at: "leaving", finger: at, pack: deck!.id });
     s.motions.snap(card.id, {
       to: at,
-      up: (packLift(s) - 1) / RISE,
-      toUp: (packLift(s) - 1) / RISE,
+      up: (packLift(s, deck) - 1) / RISE,
+      toUp: (packLift(s, deck) - 1) / RISE,
       response: a.pullMs / 1000,
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
@@ -1220,16 +1287,16 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
    * `lift` is the pack's own, so the card is exactly the size of the thing it came off, and `walls`
    * are the desk's — a hand cannot carry a card off the edge of the world either.
    */
-  const take = (card: Node, hand: number, at: Vec): void => {
+  const take = (card: Node, hand: number, at: Vec, deck = mine()): void => {
     // IT LEAVES FROM THE PACK, and it TRAVELS to the finger. `anchor` seeds the springs, so a carry
     // opened at the fingertip puts the card there on that very frame — a card out of thin air, half
     // the desk away from the deck it is supposed to have come off. Seeded at the PACK and dragged
     // at once to the finger, the same spring that carries it afterwards is what pulls it out, and
     // there is no frame in which anything jumped. Nothing in this tree may teleport.
     s.motions?.grab([{ id: card.id, offset: { x: 0, y: 0 } }], {
-      anchor: packAt(s).at,
+      anchor: packAt(s, deck).at,
       hand,
-      lift: packLift(s),
+      lift: packLift(s, deck),
       walls: DESK_WALLS,
     });
     s.motions?.dragTo(at, hand);
@@ -1258,8 +1325,9 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // take back — and taking it would fight the flight that is already carrying it.
     if (!it || it.at === "leaving" || !s.motions) return;
     const card = byId(s.host.root, it.card);
-    if (!card) return;
-    const pack = packAt(s);
+    const deck = byId(s.host.root, it.pack);
+    if (!card || !deck) return;
+    const pack = packAt(s, deck);
     const near = CARD.w * pack.grew * Math.max(a.magnet, 0);
     const gap = Math.hypot(it.finger.x - pack.at.x, it.finger.y - pack.at.y);
     if (it.at === "hand" && gap <= near) {
@@ -1271,7 +1339,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
       s.motions.snap(card.id, {
         to: pack.at,
         toUp: 0,
-        up: (packLift(s) - 1) / RISE,
+        up: (packLift(s, deck) - 1) / RISE,
         onDone: () => {
           const live = byId(s.host.root, it.card);
           if (!live) return;
@@ -1285,7 +1353,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
           // deal on this card and says so.
           const now = DEALT.get(s.el);
           if (now?.card === it.card && now.at !== "pack") return;
-          intoPack(live);
+          intoPack(live, byId(s.host.root, it.pack));
         },
       });
       return;
@@ -1388,13 +1456,14 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // the run would END is what keeps that from swallowing a real throw: a card flicked hard while
     // still over the pack has been sent somewhere, and it goes there.
     const rest = restOf(from, push);
-    if (overPack(s, from) && overPack(s, rest)) {
+    const deck = mine();
+    if (deck && onPack(s, deck, from) && onPack(s, deck, rest)) {
       note("home", { card: card.id, from: [trace(from.x), trace(from.y)], rest: [trace(rest.x), trace(rest.y)] });
-      intoPack(card);
+      intoPack(card, mine());
       return "pack";
     }
     const seat = snap ? seatFor(s.host.root, a, from, push) : undefined;
-    const up = (packLift(s) - 1) / RISE;
+    const up = (packLift(s, deck) - 1) / RISE;
     // EVERYTHING THE THROW WAS DECIDED FROM, in one entry. Where the card left, how hard, how
     // twisted, how high, who is being leaned on and how far the run was reckoned to reach — this is
     // the entry that turns "it flew wrong" into a sentence with a cause in it.
@@ -1480,9 +1549,51 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     return "thrown";
   };
 
-  const send = (card: Node, where: "top" | "anywhere"): void => {
+  /**
+   * TWO LOOSE CARDS BECOME A PACK — the one being held, and the one tapped.
+   *
+   * A pack is a container that stacks (`isPack`), and that is all it takes: the new one is built at
+   * the held card's place, both cards go into it, and from that moment every rule on this desk
+   * treats it as a pack because every rule asks what a thing IS. Deal off it, drag it whole, drop a
+   * card on it, set it down on a card and it picks that up too — none of that had to be written
+   * again, and none of it could have been if the pack were still a node id.
+   *
+   * The held card is the BOTTOM and the tapped one lands on top, which is what putting one card on
+   * another does.
+   */
+  const merge = (holder: Node, card: Node): Node | undefined => {
+    const desk = s.host.root;
+    if (!s.motions || packOf(holder) || packOf(card) || holder.id === card.id) return undefined;
+    const at = drawnAt(s, holder.id);
+    const pack = node(
+      `pack${++piles}`,
+      Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
+      Surfaced({ surface: BACK_SURFACE }),
+      Transformable({ at }),
+      ShadowCaster(),
+      Container({ layout: "gesture.table.stack" }),
+      Draggable({ onReject: "stay" }),
+    );
+    // THE HELD CARD LEAVES THE HAND FIRST. A carry poses the nodes it was GIVEN, and a card that
+    // quietly became somebody's child while a finger still had it is laid out in two places.
+    s.motions.release(holder.id);
+    DEALT.delete(s.el);
+    if (holder.parent) remove(holder.parent, holder);
+    add(pack, holder);
+    compose(holder, Transformable({ at: { x: 0, y: 0 }, angle: 0, z: 0, scale: 1 }));
+    compose(holder, Draggable({ onReject: "home" }));
+    setFacing(holder, "down");
+    add(desk, pack);
+    s.setRoot(desk);
+    // AND THE TAPPED ONE FLIES TO IT, the same journey a card sent to any pack makes. The hand goes
+    // on holding — what it is holding is now a pack.
+    send(card, pack, "top");
+    return pack;
+  };
+
+  const send = (card: Node, pack: Node, where: "top" | "anywhere"): void => {
     if (!s.motions) return;
-    const pack = packAt(s);
+    const spot = packAt(s, pack);
     // OFF WHATEVER IT WAS ON, and onto the desk, so the flight is over the felt rather than inside
     // somebody's hand — and so nothing lays it out at a seat while it is on its way.
     const from = drawnAt(s, card.id);
@@ -1494,17 +1605,17 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     compose(card, Transformable({ at: from, z: 0, scale: 1 }));
     s.setRoot(s.host.root);
     s.motions.snap(card.id, {
-      to: pack.at,
+      to: spot.at,
       toUp: 0,
-      up: (packLift(s) - 1) / RISE,
+      up: (packLift(s, pack) - 1) / RISE,
       onDone: () => {
         const live = byId(s.host.root, card.id);
-        if (live) intoPack(live, where);
+        if (live) intoPack(live, pack, where);
       },
     });
   };
 
-  return { begin, move, stir, send, end };
+  return { begin, move, stir, send, merge, end };
 }
 
 const TABLE_ARGS: TableArgs = {
@@ -1558,7 +1669,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // The oval plus the line under it, and opened at the FIT: every seat a deal can be aimed at is
     // on the glass from the first frame, and the reader zooms in rather than hunting.
     camera: eye(
-      (n: Node) => n.id === "deck" || n.parent?.id === "deck" || draggableNode(n),
+      (n: Node) => isPack(n) || packOf(n) !== undefined || draggableNode(n),
       DESK_HALF.w,
       DESK_HALF.h,
       "fit",
@@ -1572,7 +1683,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // is per-node, by id, and a container's children keep their own tree poses under it. Grab the
     // deck alone and the cards stay behind and then settle after it, which reads as the pack coming
     // apart in the hand. The run is the answer the wiring already had a word for.
-    runOf: (_root, hit) => (hit.id === "deck" ? [hit, ...hit.children] : [hit]),
+    runOf: (_root, hit) => (isPack(hit) ? [hit, ...hit.children] : [hit]),
     // THE PACK GROWS UNDER THE HAND, AND ONLY THE PACK. A deal needs a second finger to land ON it
     // beside the first, and whether one fits is a fact about GLASS PIXELS — a pack a third of a
     // unit across is thirty of them at the fit, which is less than one fingertip. The scale is not
@@ -1582,7 +1693,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // A dealt card gets no such treatment. Nothing is dealt off a single card, so it has nothing to
     // make room for, and growing it would be decoration.
     liftOf: (_root, hit) =>
-      hit.id === "deck"
+      isPack(hit)
         ? liftToFit(acrossOf(hit), glassPerUnit(s.host.unit(), s.camera?.state().zoom ?? 1), {
             fingers: a.fingers,
             max: a.liftMax,
@@ -1591,12 +1702,17 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
     // object under the hand. The pick then falls through to the deck itself, which is drawn under
     // it — so one finger on the pack moves the pack, whichever of its cards was on top.
-    may: (n: Node) => n.parent?.id !== "deck",
+    may: (n: Node) => packOf(n) === undefined || isPack(n),
     zoneAt: (root, p) => {
-      const deck = byId(root, "deck");
-      if (!deck) return undefined;
-      const home = worldAt(deck);
-      return Math.abs(p.x - home.x) <= CARD.w && Math.abs(p.y - home.y) <= CARD.h ? deck : undefined;
+      // ANY PACK, and the topmost when two overlap: a player can build one, so the desk may have
+      // several, and a card dropped on a pile joins the pile it was dropped on.
+      for (let i = root.children.length - 1; i >= 0; i--) {
+        const n = root.children[i]!;
+        if (!isPack(n)) continue;
+        const home = worldAt(n);
+        if (Math.abs(p.x - home.x) <= CARD.w && Math.abs(p.y - home.y) <= CARD.h) return n;
+      }
+      return undefined;
     },
     onDrop: ({ lead, target }) => {
       // THE PACK SET DOWN ON LOOSE CARDS PICKS THEM UP — and it picks them up UNDERNEATH itself,
@@ -1604,7 +1720,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       // the deck IS, so this is where that arrives; the drop itself is still refused, because the
       // pack stays where the hand left it rather than being moved by its own zone.
       if (lead.id === target.id) {
-        if (lead.id === "deck") underPack(lead);
+        if (isPack(lead)) underPack(lead);
         return false;
       }
       // BACK ONTO THE PACK, face down again. The kit's own move machinery is not asked: this desk
@@ -1650,7 +1766,9 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         // fingers see each other as the other hand, so a rule written on the anchor alone lets the
         // RESTING thumb deal the moment it shifts a few pixels — which it does, because thumbs do.
         const holding = p.anchor !== undefined && p.anchor.earlier;
-        const onPack = holding && overPack(s, p.anchor!.at);
+        // WHICH pack, not whether the pack: a player can build one, so the desk may have several,
+        // and the deal belongs to the one that hand is actually on.
+        const deck = holding ? packUnder(s, p.anchor!.at) : undefined;
         const speed = Math.round(Math.hypot(p.velocity.x, p.velocity.y) * 10) / 10;
         if (p.state === "began") {
           // AND EVERY REFUSAL IS SAID OUT LOUD. None of these numbers is visible, and a page that
@@ -1663,17 +1781,16 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
               id: p.id,
             });
           }
-          if (!onPack) {
-            return say(s, `moving at ${speed} u/s — the holding hand is not on the pack`, {
-              refused: "anchor off the pack",
+          if (!deck) {
+            return say(s, `moving at ${speed} u/s — the holding hand is not on a pack`, {
+              refused: "anchor off every pack",
               anchor: p.anchor ? [trace(p.anchor.at.x), trace(p.anchor.at.y)] : undefined,
-              pack: [trace(packAt(s).at.x), trace(packAt(s).at.y)],
             });
           }
           // SAID AFTER THE FACT, not before it. The message used to go out first and then the deal
           // was attempted, so a refusal — an empty pack, a card already on its way — was announced
           // as a card coming off. A page that says what it did not do is worse than a silent one.
-          const took = deal.begin(p.id, p.at, p.on);
+          const took = deal.begin(p.id, p.at, p.on, deck);
           say(
             s,
             took ? `off the pack, going ${Math.round(p.heading ?? 0)}°` : `nothing to deal: a card is already on its way`,
@@ -1744,13 +1861,26 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       poses: () => s.motions?.poses(),
       onTap: (t) => {
         const deal = DEALERS.get(s.el);
-        // THE OTHER HAND HAS TO BE ON THE PACK — the same law the deal's own first finger obeys,
-        // asked of the PLACE and not of the tree. Without it a stray tap on the felt would post
-        // cards into the deck while nobody was holding anything.
-        if (!deal || !t.anchor?.earlier || !overPack(s, t.anchor.at)) return;
-        if (!looseCard(s.host.root, t.node)) return;
-        deal.send(t.node, t.taps >= 2 ? "anywhere" : "top");
-        say(s, t.taps >= 2 ? `lost in the pack` : `back on top of the pack`, { tapped: t.node.id, taps: t.taps });
+        if (!deal || !t.anchor?.earlier || !looseCard(s.host.root, t.node)) return;
+        // WHAT THE OTHER HAND IS ON DECIDES WHAT A TAP MEANS, and there are only two answers.
+        //
+        // A PACK: the card goes to it — on top for a tap, lost inside for two. A CARD: the two
+        // become a pack, which is the same sentence read the other way round. Both are "put this
+        // with that", and which one it is was never a mode: it is what the holding hand has.
+        const deck = packUnder(s, t.anchor.at);
+        if (deck) {
+          deal.send(t.node, deck, t.taps >= 2 ? "anywhere" : "top");
+          say(s, t.taps >= 2 ? `lost in the pack` : `back on top of the pack`, { tapped: t.node.id, taps: t.taps });
+          return;
+        }
+        // THE HOLDING HAND IS ON A CARD, then — asked of the PLACE, like everything else here.
+        // The node it came down ON is the wrong question after it has dragged that card anywhere:
+        // the finger reports what was under it when it landed, and the card has been under it ever
+        // since. Where it IS is the honest reading.
+        const holder = cardUnder(s, t.anchor.at);
+        if (!holder || holder.id === t.node.id) return;
+        const made = deal.merge(holder, t.node);
+        if (made) say(s, `two cards make a pack`, { pack: made.id, with: t.node.id });
       },
     }),
   );
@@ -1763,7 +1893,8 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     const rad = (a.dealAngle * Math.PI) / 180;
     // The panel is a hand with no pointer of its own, so it borrows one that no glass can produce,
     // and it takes the card where a finger resting on the pack would have taken it — off the pack.
-    deal.begin(PANEL_HAND, packAt(s).at);
+    const deck = byId(s.host.root, "deck");
+    deal.begin(PANEL_HAND, packAt(s, deck).at, undefined, deck);
     deal.end(PANEL_HAND, { x: Math.cos(rad) * PANEL_SPEED, y: Math.sin(rad) * PANEL_SPEED }, PANEL_CURL);
   }
   return s.el;
@@ -1821,6 +1952,30 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
  * WHOSE IT IS is then asked of where the card ACTUALLY came to rest, which can disagree with who
  * was leaned on: a card that fell short of everybody belongs to nobody and stays on the felt. That
  * disagreement is a badly thrown card, and a table where that cannot happen is not a table.
+ *
+ * A PACK IS WHAT IT DOES, NOT WHAT IT IS CALLED. This desk shipped with one pack and a node id to
+ * match, and every rule about dealing was written against that id — which meant a pack a PLAYER
+ * built could never be one. A pack is a container that stacks its cards, and asking that instead is
+ * the whole of it: hold a loose card, tap another, and the two become a pack that deals, drags,
+ * receives a dropped card and picks up what it is set down on, with none of those written twice.
+ *
+ * WHAT THE OTHER HAND IS ON DECIDES WHAT A TAP MEANS, and there are only two answers. On a PACK: the
+ * tapped card goes to it — on top for one tap, lost somewhere inside for two, which is what a player
+ * does with a card they do not want to see again soon. On a CARD: the two become a pack. Both are
+ * "put this with that", and which one it is was never a mode — it is what the hand is holding.
+ *
+ * A SEAT CATCHES WHAT STOPS IN IT, not what flies over it. It used to be the seat the run PASSED
+ * THROUGH first, which reads well and is wrong at a table: a player leaning out past their own place
+ * to throw across the felt has their own seat between their hand and everybody else's, so every
+ * throw they made was caught by themselves. The strength said otherwise the whole time — a card
+ * going that fast was never being put into the near hand.
+ *
+ * A PACK SET DOWN ON LOOSE CARDS PICKS THEM UP, underneath itself and squared up: the pack did not
+ * go under them. The straightening is a settle and not a write, so a card that was lying crooked
+ * turns as the pack comes down on it.
+ *
+ * NOTHING TURNS ITSELF OVER. No seat here is "mine" — the near one used to show its cards face up
+ * on arrival, which is a rule about whose table this is and not about dealing.
  *
  * IT SLIDES OUT OF THE PACK, and only then is it in the hand. A carry cannot do that and must not
  * be made to: a held thing rides the finger ONE TO ONE, with no lag at all, which is the law that
