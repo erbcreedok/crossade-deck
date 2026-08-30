@@ -338,6 +338,48 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true);
   });
 
+  it("motion.two-hands-carry-two-runs — each with its own spring, and one letting go leaves the other held", () => {
+    // A TABLE HAS TWO HANDS ON IT, and the runtime held ONE carry. Whichever hand grabbed last took
+    // the carry off the other one, so a page that needed both — a thumb on the pack, a finger
+    // leading a card off it — could only give real carry physics to ONE of them and had to write
+    // the other's pose into the tree by hand. That is why a dealt card had no follow, no lean and
+    // no lift: not a tuning anybody chose, a limit of this file.
+    //
+    // A carry belongs to the HAND that made it, and the hand is the pointer's own id — the same
+    // number `Pan` reports, so a page never has to invent a name for a finger.
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, hand: 1 });
+    m.grab([{ id: "d", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, hand: 2 });
+    // BOTH ARE HELD. The second grab used to end the first, and the first hand's piece would then
+    // ease back to its seat under a finger that had not moved.
+    const restC = b.tOf("c").e;
+    const restD = b.tOf("d").e;
+    m.dragTo({ x: 3, y: 0 }, 1);
+    m.dragTo({ x: -3, y: 0 }, 2);
+    for (let t = 16; t <= 2000; t += 16) c.tick(t);
+    expect(b.tOf("c").e - restC).toBeCloseTo(3, 6);
+    expect(b.tOf("d").e - restD).toBeCloseTo(-3, 6);
+    // AND EACH SPRING IS ITS OWN. The two hands are going opposite ways, so a single shared spring
+    // could not report both — this is the number a throw off either hand inherits.
+    m.dragTo({ x: 9, y: 0 }, 1);
+    c.tick(2016);
+    expect(m.velocity(1)!.x).toBeGreaterThan(0);
+    expect(m.velocity(2)!.x).toBeCloseTo(0, 3);
+    // ONE HAND LETS GO AND THE OTHER IS STILL HOLDING. The released piece eases home; the held one
+    // stays exactly under its finger, however long the clock runs.
+    m.release("c");
+    for (let t = 2032; t <= 6000; t += 16) c.tick(t);
+    expect(b.tOf("c").e - restC).toBeCloseTo(0, 3); // back at its seat
+    expect(b.tOf("d").e - restD).toBeCloseTo(-3, 6); // still in the other hand
+    expect(m.velocity(1)).toBeUndefined();
+    expect(m.velocity(2)).toBeDefined();
+  });
+
   it("motion.poses-say-where-a-CARRIED-thing-is-drawn — the tree still says the seat it was lifted from", () => {
     // THE ONE THING A PAGE HAS TO ASK CORRECTLY ABOUT A HELD PIECE, and the one it gets wrong.
     //

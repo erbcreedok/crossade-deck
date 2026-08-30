@@ -60,10 +60,33 @@ export interface WallHit {
   readonly velocity: Vec;
 }
 
+/**
+ * THE HAND NOBODY NAMED — what a carry belongs to when a page has only one.
+ *
+ * Every carry belongs to a hand, and most pages have exactly one, so most pages should not have to
+ * say which. A page with two says the pointer's own id, which is the number `Pan` already reports:
+ * there is nothing to invent and nothing to keep in step.
+ *
+ * NEGATIVE, and that is the whole reason for the value. A pointer id is a non-negative integer, so
+ * a page that names its hands can never collide with the page next door that did not — and the
+ * collision would not look like one: it would look like the pack letting go by itself the instant
+ * somebody dealt off it.
+ */
+export const ONE_HAND = -1;
+
 /** How a carry feels — the anchor, and any of the carry fields of the tuning as a per-gesture patch. */
 export type CarryOptions = {
   /** The grab pivot in root units — where the finger is now. Seeds the springs, so nothing jumps. */
   readonly anchor: Vec;
+  /**
+   * WHICH HAND IS DOING THE CARRYING — the pointer's own id. Absent, `ONE_HAND`.
+   *
+   * A table has two hands on it and each carries its own run with its own springs: a thumb on the
+   * pack and a finger leading a card off it are two carries, not two readings of one. Grabbing on a
+   * hand that is already carrying REPLACES that hand's run — the latest word wins, as everywhere
+   * here — and leaves every other hand alone.
+   */
+  readonly hand?: number | undefined;
   /**
    * THE TRAY THE RUN MAY NOT LEAVE, root units — the box the ANCHOR is held inside, which is the
    * same thing a `slide` bounces off (inset it by the piece's own half: `wallsOf(root, tray, half)`).
@@ -316,11 +339,14 @@ export interface Motions {
    *
    * Silent when no hand is carrying anything: a game that means "pick these up" says `grab`.
    */
-  grabAlso(items: readonly CarryItem[]): void;
+  grabAlso(items: readonly CarryItem[], hand?: number): void;
   /** Move the finger: retarget the chase springs. The run trails to the new anchor and leans en route. */
-  dragTo(anchor: Vec): void;
-  /** The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when nothing is carried. */
-  velocity(): Vec | undefined;
+  dragTo(anchor: Vec, hand?: number): void;
+  /**
+   * The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when
+   * that hand is carrying nothing.
+   */
+  velocity(hand?: number): Vec | undefined;
   /**
    * Turn a node over on the clock. It squeezes to an edge and back — `|cos|` of a half-turn — and
    * `commit` runs at the EDGE, where the card has no width to show the swap. `commit` is the actual
