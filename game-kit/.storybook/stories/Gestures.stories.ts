@@ -485,7 +485,11 @@ const SEAT_R = 0.62;
  * stands under every page on this shelf, so a table bigger than the glass is one the reader pans.
  */
 const TABLE_R = 2.6;
-const CARD = { w: 0.56, h: 0.8 };
+/**
+ * THE CARD ON THIS TABLE, root units. A tenth bigger than the deck the kit ships, because the rim
+ * here is big enough to make a deal readable and the card was reading as a chip on it.
+ */
+const CARD = { w: 0.616, h: 0.88 };
 
 /**
  * HOW HARD THE PANEL'S OWN DEAL THROWS, root units/s.
@@ -772,13 +776,35 @@ function packLift(s: Scene, a: TableArgs): number {
  *
  * Measured against the pack as DRAWN, so a raised pack is the bigger target it looks like.
  */
-function overPack(s: Scene, at: Vec): boolean {
+/**
+ * WHERE THE PACK IS, AND HOW BIG IT IS BEING DRAWN — asked in the ONE place, and it is the drawn
+ * pose rather than the tree's.
+ *
+ * A held pack is posed by an OVERRIDE: a carry never writes the tree, it lays the run out at the
+ * finger every frame. So `worldAt` answers with the seat the pack was lifted FROM, and it goes on
+ * answering that for as long as the hand holds it — which is exactly the whole of a deal. Read that
+ * way, cards leave the place the deck last lay instead of the hand that is holding it.
+ *
+ * One function because it is one fact. Two readers who each work it out separately agree until the
+ * day one of them is fixed, and then the page is wrong in a way nothing points at.
+ */
+function packAt(s: Scene): { at: Vec; grew: number } {
   const drawn = s.motions?.poses()?.get("deck");
-  const deck = byId(s.host.root, "deck");
-  if (!deck) return false;
-  const home = drawn ? { x: drawn.e, y: drawn.f } : worldAt(deck);
-  const grew = drawn ? Math.hypot(drawn.a, drawn.b) : 1;
-  return Math.abs(at.x - home.x) <= (CARD.w / 2) * grew && Math.abs(at.y - home.y) <= (CARD.h / 2) * grew;
+  if (drawn) return { at: { x: drawn.e, y: drawn.f }, grew: Math.hypot(drawn.a, drawn.b) };
+  return { at: worldAt(byId(s.host.root, "deck")), grew: 1 };
+}
+
+/**
+ * IS THE HOLDING HAND ON THE PACK — asked of the PLACE and not of the tree.
+ *
+ * Measured against the pack as DRAWN, so a raised pack is the bigger target it looks like.
+ */
+function overPack(s: Scene, at: Vec): boolean {
+  if (!byId(s.host.root, "deck")) return false;
+  const pack = packAt(s);
+  return (
+    Math.abs(at.x - pack.at.x) <= (CARD.w / 2) * pack.grew && Math.abs(at.y - pack.at.y) <= (CARD.h / 2) * pack.grew
+  );
 }
 
 /**
@@ -828,7 +854,8 @@ function packZ(s: Scene, a: TableArgs): number {
 }
 
 function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
-  const home = (): Vec => worldAt(byId(s.host.root, "deck"));
+  /** Where the pack IS — under the hand, if a hand has it. See `packAt`: never `worldAt`. */
+  const home = (): Vec => packAt(s).at;
 
   const held = (hand?: number): Node | undefined => {
     const it = DEALT.get(s.el);
@@ -976,22 +1003,22 @@ const TABLE_ARGS: TableArgs = {
   dealt: 0,
   dealAngle: 90,
   seats: 6,
-  count: 8,
+  count: 36,
   catch: 1.4,
   reach: 0.7,
   gain: 1,
   spin: 240,
   glide: "normal",
   homeUp: 0.5,
-  fingers: 1,
-  liftMax: 1.5,
+  fingers: 1.5,
+  liftMax: 2.25,
 };
 
 const TABLE_KNOBS = {
   dealt: documented("arg.dealt", { control: { type: "number", min: 0, step: 1 } }, "deal"),
   dealAngle: documented("arg.dealAngle", { control: { type: "number", step: 15 } }, "deal"),
   seats: documented("arg.seats", { control: { type: "number", min: 2, max: 10, step: 1 } }, "table"),
-  count: documented("arg.count", { control: { type: "number", min: 0, max: 20, step: 1 } }, "table"),
+  count: documented("arg.count", { control: { type: "number", min: 0, max: 55, step: 1 } }, "table"),
   gain: documented("arg.gain", { control: { type: "number", min: 0, step: 0.02 } }, "deal"),
   spin: documented("arg.spin", { control: { type: "number", step: 20 } }, "deal"),
   glide: documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "deal"),
@@ -1309,9 +1336,9 @@ function packTree(a: KneadArgs): Node {
  * kneaded at all.
  */
 export const Knead: StoryObj<KneadArgs> = {
-  args: { count: 10, recipe: "riffle", quantum: 2, shuffleMs: 320 },
+  args: { count: 36, recipe: "riffle", quantum: 2, shuffleMs: 320 },
   argTypes: {
-    count: documented("arg.count", { control: { type: "number", min: 2, max: 24, step: 1 } }, "pack"),
+    count: documented("arg.count", { control: { type: "number", min: 2, max: 55, step: 1 } }, "pack"),
     recipe: documented("arg.recipe", { control: "select", options: shuffleNames() }, "pack/shuffle"),
     quantum: documented("arg.quantum", { control: { type: "number", min: 0.2, step: 0.2 } }, "knead"),
     shuffleMs: documented("arg.shuffleMs", { control: { type: "number", min: 40, step: 20 } }, "knead"),
