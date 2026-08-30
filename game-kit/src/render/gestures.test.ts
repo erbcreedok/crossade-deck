@@ -5,7 +5,7 @@
 // Nothing is faked but the view. Time is a NUMBER on the event, because that is what these three
 // measure — none of them waits for silence, which is the whole difference from a long press.
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { add, caps, node, type Node } from "../core/node.js";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
@@ -21,6 +21,7 @@ import { wireSwipe, type Swipe } from "./swipe.js";
 import { wirePan, type Pan } from "./pan.js";
 import { wireShake, type Shaking } from "./shake.js";
 import { wireKnead, type Knead } from "./knead.js";
+import { wireTap, DOUBLE_MS, type Tap } from "./tap.js";
 
 type Fire = (
   type: string,
@@ -668,5 +669,91 @@ describe("the knead", () => {
     }
     expect(f.seen.length).toBeGreaterThan(0);
     expect(f.seen.every((k) => k.on.id === "left")).toBe(true);
+  });
+});
+
+// A TAP IS THE SAME FINGER AS A DRAG AND A HOLD, and what tells them apart is what it did NOT do:
+// it did not travel and it did not stay. `UITapGestureRecognizer`, with the one field that makes it
+// more than a click — how many times.
+describe("the tap", () => {
+  function tapping(opts: Partial<Parameters<typeof wireTap>[0]> = {}) {
+    const b = bench();
+    const seen: Tap[] = [];
+    const stop = wireTap({ host: b.host, want: grabbable, onTap: (t) => seen.push(t), ...opts });
+    return { ...b, seen, stop };
+  }
+
+  it("tap.is-what-a-finger-did-NOT-do — no travel, no resting, and it lands on what it came down on", () => {
+    const f = tapping();
+    f.fire("pointerdown", 350, 300, { ms: 0 });
+    f.fire("pointerup", 352, 301, { ms: 90 });
+    expect(f.seen.map((t) => [t.node.id, t.taps])).toEqual([["left", 1]]);
+    // TRAVELLED: that was a drag, and the drag's own wiring has it. Silence, not a guess.
+    f.fire("pointerdown", 350, 300, { ms: 200 });
+    f.fire("pointermove", 380, 300, { ms: 240 });
+    f.fire("pointerup", 380, 300, { ms: 260 });
+    // STAYED: that was a hold, and `hold.ts` has it.
+    f.fire("pointerdown", 350, 300, { ms: 400 });
+    f.fire("pointerup", 350, 300, { ms: 1200 });
+    // CANCELLED: the gesture was taken away rather than finished.
+    f.fire("pointerdown", 350, 300, { ms: 1400 });
+    f.fire("pointercancel", 350, 300, { ms: 1440 });
+    // And on nothing this page wants.
+    f.fire("pointerdown", 400, 300, { ms: 1600 });
+    f.fire("pointerup", 400, 300, { ms: 1640 });
+    expect(f.seen).toHaveLength(1);
+  });
+
+  it("tap.a-double-is-a-DIFFERENT-thing — and the single waits to find out", () => {
+    // `require(toFail:)`. A page that answers a single tap at once has already answered by the time
+    // the second lands, and both things happen — a card put back on the pack AND shuffled into it.
+    // So the first tap waits out the double's window, which is the platform's own and the pause a
+    // person's thumb is already expecting.
+    vi.useFakeTimers();
+    try {
+      const f = tapping({ double: true });
+      f.fire("pointerdown", 350, 300, { ms: 0 });
+      f.fire("pointerup", 350, 300, { ms: 60 });
+      expect(f.seen, "nothing yet: it may still turn out to be a double").toEqual([]);
+      f.fire("pointerdown", 350, 300, { ms: 160 });
+      f.fire("pointerup", 350, 300, { ms: 210 });
+      expect(f.seen.map((t) => t.taps), "and the double goes AT ONCE — nothing is waiting on it").toEqual([2]);
+      vi.advanceTimersByTime(DOUBLE_MS * 2);
+      expect(f.seen.map((t) => t.taps), "the single it grew out of is never delivered too").toEqual([2]);
+      // ALONE, it arrives after the window and not before.
+      f.fire("pointerdown", 350, 300, { ms: 1000 });
+      f.fire("pointerup", 350, 300, { ms: 1050 });
+      expect(f.seen).toHaveLength(1);
+      vi.advanceTimersByTime(DOUBLE_MS + 1);
+      expect(f.seen.map((t) => t.taps)).toEqual([2, 1]);
+      // A SECOND NODE IS A SECOND THING. Tapping one and then another is two singles, not a double.
+      f.fire("pointerdown", 350, 300, { ms: 2000 });
+      f.fire("pointerup", 350, 300, { ms: 2040 });
+      f.fire("pointerdown", 450, 300, { ms: 2100 });
+      f.fire("pointerup", 450, 300, { ms: 2140 });
+      vi.advanceTimersByTime(DOUBLE_MS + 1);
+      expect(f.seen.map((t) => [t.node.id, t.taps])).toEqual([
+        ["left", 2],
+        ["left", 1],
+        ["left", 1],
+        ["right", 1],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tap.says-whose-finger-and-what-the-OTHER-hand-is-on — a tap at a table is half of a two-hand gesture", () => {
+    // "Hold the pack and tap a card" is one gesture with two fingers in it, and the tap alone
+    // cannot mean it. The anchor is the same reading the pan hands over, and for the same reason.
+    const f = tapping();
+    f.fire("pointerdown", 450, 300, { ms: 0, id: 1 }); // the holding hand, on `right`
+    f.fire("pointerdown", 350, 300, { ms: 200, id: 2 });
+    f.fire("pointerup", 350, 300, { ms: 250, id: 2 });
+    const tap = f.seen[0]!;
+    expect(tap.id).toBe(2);
+    expect(tap.node.id).toBe("left");
+    expect(tap.anchor?.on?.id).toBe("right");
+    expect(tap.anchor?.earlier, "the hand that was already down is the holding one").toBe(true);
   });
 });
