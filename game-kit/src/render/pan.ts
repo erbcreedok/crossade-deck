@@ -76,6 +76,15 @@ export const CURL_STEP = 0.01;
 export interface HandAnchor {
   /** What it came down on, if it came down on anything. */
   readonly on: Node | undefined;
+  /**
+   * WAS THAT HAND ALREADY DOWN when this one arrived?
+   *
+   * The whole of "one finger holds, the other deals" is this one boolean, and without it a page has
+   * to guess. Both fingers of a two-hand gesture see each other as the other hand, so both pass any
+   * test written on the anchor alone — and then a resting thumb that shifts by ten pixels steals the
+   * gesture from the hand that meant to make it, because it happened to move first.
+   */
+  readonly earlier: boolean;
   /** Where it is now, root units. */
   readonly at: Vec;
   /**
@@ -215,9 +224,14 @@ export function wirePan(w: PanWiring): () => void {
 
   /** The other finger that was already down — the earliest of the rest, as the swipe names it too. */
   const anchorFor = (id: number): HandAnchor | undefined => {
+    // The map is in the order the fingers arrived, so "earlier" is simply "seen before this one".
+    let seenSelf = false;
     for (const [other, f] of down) {
-      if (other === id) continue;
-      return { on: f.on, at: f.at, drift: hyp(f.downGlass, f.glass) };
+      if (other === id) {
+        seenSelf = true;
+        continue;
+      }
+      return { on: f.on, at: f.at, drift: hyp(f.downGlass, f.glass), earlier: !seenSelf };
     }
     return undefined;
   };
@@ -289,11 +303,11 @@ export function wirePan(w: PanWiring): () => void {
         state,
         id,
         on: f.on?.id,
-        at: [trace(f.at.x), trace(f.at.y)],
+        pos: [trace(f.at.x), trace(f.at.y)],
         by: [trace(f.at.x - f.downAt.x), trace(f.at.y - f.downAt.y)],
         v: [trace(velocity.x), trace(velocity.y)],
         curl: trace(curl),
-        ...(anchor ? { anchor: { on: anchor.on?.id, drift: trace(anchor.drift) } } : {}),
+        ...(anchor ? { anchor: { on: anchor.on?.id, drift: trace(anchor.drift), earlier: anchor.earlier } } : {}),
       });
     }
     w.onPan({

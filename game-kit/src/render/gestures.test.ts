@@ -343,6 +343,15 @@ describe("the pan", () => {
     // the second finger's work.
     expect(open.seen[0]!.id).toBe(2);
     expect(open.seen[0]!.anchor?.drift).toBeCloseTo(0, 5);
+    // AND WHICH HAND CAME FIRST, which is the whole of "one finger holds, the other deals". Both
+    // fingers see each other as the other hand, so both pass any test written on the anchor alone —
+    // and then a resting thumb that shifts ten pixels steals the gesture from the hand that meant
+    // to make it, just by moving first.
+    expect(open.seen[0]!.anchor?.earlier, "the resting hand was down before the dealing one").toBe(true);
+    open.fire("pointermove", 350, 260, { id: 1, ms: 40 }); // now the RESTING hand moves too
+    const holder = open.seen[open.seen.length - 1]!;
+    expect(holder.id).toBe(1);
+    expect(holder.anchor?.earlier, "and to the holder, the other hand is the LATER one").toBe(false);
 
     // A page with a genuine rival says so in one place — `shouldRecognizeSimultaneouslyWith` — and
     // not as a pile of conditions spread through a handler.

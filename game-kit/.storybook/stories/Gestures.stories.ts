@@ -874,8 +874,11 @@ function overPack(s: Scene, at: Vec): boolean {
  * numbers were guessed separately.
  */
 interface Dealing {
-  /** The second finger has started moving: the top card comes off the pack, and that finger owns it. */
-  begin(hand: number): void;
+  /**
+   * The second finger has started moving: the top card comes off the pack, and that finger owns it.
+   * `false` when nothing came off — an empty pack, or a card already on its way.
+   */
+  begin(hand: number): boolean;
   /** That finger has moved this far since it came down: the card has moved with it. */
   move(hand: number, by: Vec): void;
   /**
@@ -909,11 +912,11 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     return byId(s.host.root, it.card);
   };
 
-  const begin = (hand: number): void => {
-    if (DEALT.get(s.el)) return; // one card at a time; a finger already dealing is still dealing
+  const begin = (hand: number): boolean => {
+    if (DEALT.get(s.el)) return false; // one card at a time; a finger already dealing is still dealing
     const root = s.host.root;
     const card = topOf(root);
-    if (!card || !s.motions) return;
+    if (!card || !s.motions) return false;
     // OFF THE PACK AND ONTO THE DESK, standing exactly where the pack stands. It has to LEAVE its
     // owner first — the kit refuses a node that already has one, loudly, and that refusal is the
     // reason a card cannot quietly end up in two places.
@@ -938,6 +941,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     // and the pack is already in it under the other hand.
     s.motions.hold(card.id);
     DEALT.set(s.el, { card: card.id, hand });
+    return true;
   };
 
   const move = (hand: number, by: Vec): void => {
@@ -1211,13 +1215,23 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         // the PLACE and not of the tree (`overPack`): after the first deal the finger is holding a
         // node that has since gone to a seat, and a test on the node would flip its answer without
         // the hand having moved.
-        const onPack = p.anchor !== undefined && overPack(s, p.anchor.at);
+        // THE HOLDING HAND IS THE ONE THAT WAS ALREADY DOWN, and asking that is not pedantry: both
+        // fingers see each other as the other hand, so a rule written on the anchor alone lets the
+        // RESTING thumb deal the moment it shifts a few pixels — which it does, because thumbs do.
+        const holding = p.anchor !== undefined && p.anchor.earlier;
+        const onPack = holding && overPack(s, p.anchor!.at);
         const speed = Math.round(Math.hypot(p.velocity.x, p.velocity.y) * 10) / 10;
         if (p.state === "began") {
           // AND EVERY REFUSAL IS SAID OUT LOUD. None of these numbers is visible, and a page that
           // speaks only when it succeeds leaves a reader one report to make — "it does not work" —
           // which names nothing and cannot be acted on.
           if (!p.anchor) return say(s, `moving at ${speed} u/s — no other hand is down: rest one on the pack`, { refused: "no anchor" });
+          if (!holding) {
+            return say(s, `this is the holding hand — deal with the other one`, {
+              refused: "this hand was down first",
+              id: p.id,
+            });
+          }
           if (!onPack) {
             return say(s, `moving at ${speed} u/s — the holding hand is not on the pack`, {
               refused: "anchor off the pack",
@@ -1225,10 +1239,21 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
               pack: [trace(packAt(s).at.x), trace(packAt(s).at.y)],
             });
           }
-          say(s, `off the pack, going ${Math.round(p.heading ?? 0)}°`, { began: p.id, curl: trace(p.curl) });
-          deal.begin(p.id);
+          // SAID AFTER THE FACT, not before it. The message used to go out first and then the deal
+          // was attempted, so a refusal — an empty pack, a card already on its way — was announced
+          // as a card coming off. A page that says what it did not do is worse than a silent one.
+          const took = deal.begin(p.id);
+          say(
+            s,
+            took ? `off the pack, going ${Math.round(p.heading ?? 0)}°` : `nothing to deal: a card is already on its way`,
+            { began: p.id, took, curl: trace(p.curl) },
+          );
           return;
         }
+        // AND THE HOLDING HAND DOES NOT NARRATE. It is a pan too — it may well be dragging the pack —
+        // so without this it writes the line under the dealing hand's own words, and the one place
+        // the page speaks says whatever the thumb was doing last.
+        if (!holding) return;
         if (p.state === "changed") {
           // THE CARD IS ALREADY OUT AND IT GOES WHERE THIS FINGER GOES. Nothing is decided here and
           // nothing is thrown: the player is watching the card they are about to send.

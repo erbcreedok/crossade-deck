@@ -90,7 +90,12 @@ export function journalOn(): boolean {
 export function note(event: string, data: Readonly<Record<string, unknown>> = {}): void {
   if (!live) return;
   const at = live.now() - live.began;
-  live.entries.push({ at, event, ...data });
+  // THE JOURNAL OWNS `at` AND `event`, so they go on LAST. A caller with a field of its own by
+  // either name would otherwise write over the timestamp of its own entry — which is exactly what
+  // happened the first time a gesture reported where the finger was under the name `at`: every one
+  // of its entries lost the moment it happened, and the trace was unreadable in the one way that
+  // matters. A trace that cannot say WHEN is not a trace.
+  live.entries.push({ ...data, at, event });
   // Throw away what has aged out of the window. From the front, one at a time: the entries are in
   // time order because they were appended in it.
   while (live.entries.length > 1 && at - live.entries[0]!.at > live.windowMs) live.entries.shift();

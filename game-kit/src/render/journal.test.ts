@@ -132,4 +132,15 @@ describe("journal", () => {
     expect(trace(1.23456789)).toBe(1.235);
     expect(trace(-0.0004)).toBe(-0);
   });
+
+  it("journal.owns-when-and-what — a caller cannot write over the moment its own entry happened", () => {
+    // It cost a trace: a gesture reported where the finger was under the name `at`, and every one
+    // of its entries lost the moment it happened. A trace that cannot say WHEN is not a trace, so
+    // the journal's own two fields go on last and win.
+    const c = hand();
+    startJournal({ now: c.now });
+    c.wind(120);
+    note("pan", { at: [3, 4], event: "something else", state: "began" });
+    expect(journalDump().entries).toEqual([{ at: 120, event: "pan", state: "began" }]);
+  });
 });
