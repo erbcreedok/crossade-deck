@@ -32,6 +32,7 @@ import { type Node, type NodeId } from "../core/node.js";
 import { type Point } from "../core/atoms/bounded.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { type Host } from "./host.js";
+import { journalOn, note, trace } from "./journal.js";
 import { glassOf, pickTop, toUnits } from "./pointer.js";
 
 /**
@@ -280,6 +281,21 @@ export function wirePan(w: PanWiring): () => void {
     const velocity = velocityOf(f, now);
     const moving = Math.hypot(velocity.x, velocity.y) > 0;
     const curl = curlOf(f, now);
+    // INTO THE DASHCAM, beside the frames it caused (`journal.ts`). What a finger reported is half
+    // of every gesture bug — the other half being what the page then did with it — and neither can
+    // be recovered afterwards from a screenshot or from a person's memory of it.
+    if (journalOn()) {
+      note("pan", {
+        state,
+        id,
+        on: f.on?.id,
+        at: [trace(f.at.x), trace(f.at.y)],
+        by: [trace(f.at.x - f.downAt.x), trace(f.at.y - f.downAt.y)],
+        v: [trace(velocity.x), trace(velocity.y)],
+        curl: trace(curl),
+        ...(anchor ? { anchor: { on: anchor.on?.id, drift: trace(anchor.drift) } } : {}),
+      });
+    }
     w.onPan({
       state,
       id,

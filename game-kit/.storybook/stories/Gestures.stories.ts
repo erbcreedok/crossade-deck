@@ -11,6 +11,7 @@ import {
   Flippable,
   freeLayout,
   Labeled,
+  note,
   node,
   rect,
   roundedRect,
@@ -38,6 +39,7 @@ import {
   compose,
   fieldsOf,
   liftToFit,
+  trace,
   registerGlide,
   registerLayout,
   registerSurface,
@@ -710,7 +712,11 @@ function tableTree(a: TableArgs): Node {
  * work" is the only report a reader can make. This turns that into a sentence with the numbers in
  * it, which is the difference between a bug report and a tuning session.
  */
-function say(s: Scene, text: string): void {
+function say(s: Scene, text: string, why: Readonly<Record<string, unknown>> = {}): void {
+  // AND INTO THE DASHCAM, with the numbers the sentence was rounded off from. The line on the glass
+  // is for the person playing; the trace is for whoever has to work out afterwards WHY the page
+  // decided that, and a rounded sentence is not enough to work anything out from.
+  note("deal", { said: text, ...why });
   const line = byId(s.host.root, "said");
   if (!line) return;
   compose(line, Labeled({ label: text, style: CONTROL_LABEL }));
@@ -966,6 +972,19 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
     const spin = curl * a.twist;
     const seat = snap ? seatFor(s.host.root, a, from, push) : undefined;
     const up = (packLift(s, a) - 1) / RISE;
+    // EVERYTHING THE THROW WAS DECIDED FROM, in one entry. Where the card left, how hard, how
+    // twisted, how high, who is being leaned on and how far the run was reckoned to reach — this is
+    // the entry that turns "it flew wrong" into a sentence with a cause in it.
+    note("throw", {
+      card: card.id,
+      from: [trace(from.x), trace(from.y)],
+      push: [trace(push.x), trace(push.y)],
+      spin: trace(spin),
+      up: trace(up),
+      reach: trace(glideLaw(a.glide).project(Math.hypot(push.x, push.y))),
+      seat: seat?.id,
+      home: snap && !seat,
+    });
 
     if (snap && !seat) {
       // NOBODY THERE, so the card comes HOME — to the pack, which is under the holding finger, and
@@ -1028,6 +1047,7 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
       onDone: (rest) => {
         const live = byId(s.host.root, card.id);
         if (!live) return;
+        note("landed", { card: card.id, at: [trace(rest.at.x), trace(rest.at.y)], turn: trace(rest.angle) });
         // WHOSE IT IS, ASKED OF WHERE IT ACTUALLY LIES. The throw was leaned on, not aimed, so the
         // seat that gets the card is the one it really came to rest in — and a card that fell short
         // of everybody stays on the felt, which is what a badly thrown card does at a real table.
@@ -1197,9 +1217,15 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
           // AND EVERY REFUSAL IS SAID OUT LOUD. None of these numbers is visible, and a page that
           // speaks only when it succeeds leaves a reader one report to make — "it does not work" —
           // which names nothing and cannot be acted on.
-          if (!p.anchor) return say(s, `moving at ${speed} u/s — no other hand is down: rest one on the pack`);
-          if (!onPack) return say(s, `moving at ${speed} u/s — the holding hand is not on the pack`);
-          say(s, `off the pack, going ${Math.round(p.heading ?? 0)}°`);
+          if (!p.anchor) return say(s, `moving at ${speed} u/s — no other hand is down: rest one on the pack`, { refused: "no anchor" });
+          if (!onPack) {
+            return say(s, `moving at ${speed} u/s — the holding hand is not on the pack`, {
+              refused: "anchor off the pack",
+              anchor: p.anchor ? [trace(p.anchor.at.x), trace(p.anchor.at.y)] : undefined,
+              pack: [trace(packAt(s).at.x), trace(packAt(s).at.y)],
+            });
+          }
+          say(s, `off the pack, going ${Math.round(p.heading ?? 0)}°`, { began: p.id, curl: trace(p.curl) });
           deal.begin(p.id);
           return;
         }
@@ -1218,7 +1244,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
           return;
         }
         if (p.state === "ended") {
-          say(s, `let go at ${speed} u/s, ${Math.round(p.heading ?? 0)}°`);
+          say(s, `let go at ${speed} u/s, ${Math.round(p.heading ?? 0)}°`, { v: [trace(p.velocity.x), trace(p.velocity.y)], curl: trace(p.curl) });
           deal.end(p.id, p.velocity, p.curl);
           return;
         }

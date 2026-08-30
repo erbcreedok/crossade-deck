@@ -28,6 +28,13 @@ import {
   installStockEasings,
   installStockGlides,
   installStockHeads,
+  journalDump,
+  journalOn,
+  mark,
+  note as journalNote,
+  startJournal,
+  stopJournal,
+  trace,
   installStockLayouts,
   installStockSurfaces,
   installTheme,
@@ -335,9 +342,22 @@ export function scene(
   let gridOn = false;
   let fromCatalog = settings;
 
+  /**
+   * THE DASHCAM (`journal.ts`), wired to the three controls in the corner of this canvas.
+   *
+   * The raw pointer stream is written here rather than by any recogniser, and that is the point of
+   * putting it in the shell: a recogniser writes what it UNDERSTOOD, and half of every gesture bug
+   * is the difference between that and what the glass was actually handed. Recorded together, a
+   * take can be read — and replayed — without asking the page to agree with itself first.
+   */
+  let recording = false;
+  let marks = 0;
+  /** Assigned once the host exists — the dashcam needs the very view it is recording. */
+  let saveTrace = (): void => undefined;
+
   const bar = sceneToolbar(
     document,
-    () => ({ text: fromCatalog.text, hudUnit: hudChoice, bounds: boundsOn, grid: gridOn }),
+    () => ({ text: fromCatalog.text, hudUnit: hudChoice, bounds: boundsOn, grid: gridOn, recording, marks }),
     {
       onHudUnit(choice) {
         hudChoice = choice;
@@ -351,12 +371,60 @@ export function scene(
         gridOn = on;
         pushViewer();
       },
+      onRecord(on) {
+        recording = on;
+        marks = 0;
+        if (on) startJournal();
+        else stopJournal();
+        bar.refresh();
+      },
+      onMark() {
+        marks = mark();
+        bar.refresh();
+      },
+      onExport() {
+        saveTrace();
+      },
     },
   );
   el.appendChild(stage);
   el.appendChild(bar.el); // after the stage, so the row is not painted over by it
 
   const host = mount(stage, root, viewerFor(settings.viewer));
+
+  // THE RAW POINTER STREAM, written by the shell rather than by any recogniser — and that is the
+  // point of putting it here. A recogniser writes what it UNDERSTOOD, and half of every gesture bug
+  // is the difference between that and what the glass was actually handed. Recorded side by side,
+  // a take can be read without asking the page to agree with itself first.
+  const onPointer = (e: PointerEvent): void => {
+    if (!journalOn()) return;
+    const box = host.view.getBoundingClientRect();
+    journalNote("touch", {
+      type: e.type.slice(7), // `pointerdown` → `down`; the prefix is on every one of them
+      id: e.pointerId,
+      x: trace(e.clientX - box.left),
+      y: trace(e.clientY - box.top),
+    });
+  };
+  for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) {
+    host.view.addEventListener(type, onPointer as EventListener);
+  }
+
+  saveTrace = (): void => {
+    const take = {
+      story: document.title,
+      at: new Date().toISOString(),
+      unit: host.unit(),
+      viewport: host.viewport(),
+      ...journalDump(),
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(take, null, 1)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `desk-trace-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const first = host.viewport();
   const painter = makePainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   // Handed straight through, ABSENCE INCLUDED — and absence has to stay absence rather than

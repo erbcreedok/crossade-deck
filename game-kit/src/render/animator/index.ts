@@ -35,6 +35,7 @@ import { springAt, springSettled, stepSpring, type SpringConfig, type SpringStat
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
+import { journalOn, note, trace } from "../journal.js";
 import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { contextFor } from "../../core/resolve.js";
 import { applyEffects } from "../effects.js";
@@ -202,7 +203,43 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return new Set<NodeId>([...active.keys(), ...held, ...choreographed(), ...flying()]);
   };
 
-  const draw = (): void =>
+  /** Warped ms at the last painted frame — the journal's `dt`, and only the journal's. */
+  let drawnMs = 0;
+
+  /**
+   * WHAT WENT ON THE GLASS, for the dashcam (`journal.ts`). Written from `draw` because that is the
+   * one place a frame really is a frame: the loop paints here, and so does every tree change.
+   *
+   * Only what is MOVING, which is what `overrides` already means — a trace of thirty-six resting
+   * cards on every frame is a file nobody opens. Poses are flattened to the four numbers a person
+   * reads: where, how big, how turned, and how high off the desk.
+   */
+  const journalFrame = (): void => {
+    if (!journalOn()) return;
+    const moving = overrides();
+    const heights = grounded();
+    const drawn: Record<string, { at: [number, number]; size: number; turn: number; up?: number }> = {};
+    for (const [id, t] of moving ?? []) {
+      const up = heights?.get(id);
+      drawn[id] = {
+        at: [trace(t.e), trace(t.f)],
+        size: trace(Math.hypot(t.a, t.b)),
+        turn: trace((Math.atan2(t.b, t.a) * 180) / Math.PI),
+        ...(up === undefined ? {} : { up: trace(up) }),
+      };
+    }
+    note("frame", {
+      warped: trace(warped),
+      dt: trace(warped - drawnMs),
+      drawn,
+      ...(held.size > 0 ? { held: [...held] } : {}),
+      ...(flights.size > 0 ? { flying: [...flights.keys()] } : {}),
+    });
+    drawnMs = warped;
+  };
+
+  const draw = (): void => (
+    journalFrame(),
     renderFrame(host, painter, {
       overrides: overrides(),
       raised: raised(),
@@ -216,7 +253,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       ...(options.view ? { view: options.view } : {}),
       ...(options.pitch ? { pitch: options.pitch } : {}),
       ...(options.bake ? { bake: options.bake } : {}),
-    });
+    })
+  );
 
   /** The bank this frame's speed is ASKING for — what the lean spring chases, degrees. */
   const wantLean = (cy: Carry): number => lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);

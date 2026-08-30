@@ -21,12 +21,21 @@ export interface ToolbarState {
   readonly hudUnit: HudUnitChoice;
   readonly bounds: boolean;
   readonly grid: boolean;
+  /** Is the dashcam rolling, and how many moments have been stamped on this take. */
+  readonly recording: boolean;
+  readonly marks: number;
 }
 
 export interface ToolbarHandlers {
   onHudUnit(choice: HudUnitChoice): void;
   onBounds(on: boolean): void;
   onGrid(on: boolean): void;
+  /** Start or stop the dashcam. */
+  onRecord(on: boolean): void;
+  /** "The thing I am telling you about is HERE" — the one entry a person writes. */
+  onMark(): void;
+  /** Hand the take over as a file. */
+  onExport(): void;
 }
 
 export interface SceneToolbar {
@@ -152,10 +161,61 @@ export function sceneToolbar(doc: Document, read: () => ToolbarState, on: Toolba
   const bounds = toggle("data-debug-bounds", (next) => on.onBounds(next));
   const grid = toggle("data-debug-grid", (next) => on.onGrid(next));
 
+  /**
+   * THE DASHCAM'S THREE, and they are three because they are three different acts: start the
+   * recording, stamp THIS moment, hand the take over. Only the first is a state, so only the first
+   * is a toggle; the other two are things a person does once.
+   *
+   * `mark` and `export` are dead while nothing is rolling rather than hidden — a control that comes
+   * and goes teaches nobody what it is for, and a reader looking for how to report a jerk should be
+   * able to see the answer before they need it.
+   */
+  const press = (attribute: string, onPress: () => void) => {
+    const button = doc.createElement("button");
+    button.setAttribute(attribute, "");
+    button.type = "button";
+    el.appendChild(button);
+    const repaint = (live: boolean): void => {
+      button.style.cssText = [
+        `font-family:${s("font.mono")}`,
+        `font-size:${s("font.size.s")}`,
+        `color:${live ? t("debug") : t("textMuted")}`,
+        `background:${t("sunkBg")}`,
+        `border:1px solid ${live ? t("debug") : t("panelBorder")}`,
+        `border-radius:${s("radius.s")}`,
+        `padding:2px ${s("space.s")}`,
+        `cursor:${live ? "pointer" : "default"}`,
+        `opacity:${live ? "1" : "0.45"}`,
+      ].join(";");
+    };
+    button.addEventListener("click", onPress);
+    return {
+      show(caption: string, hint: string, live: boolean) {
+        button.textContent = caption;
+        button.title = hint;
+        // Dimmed rather than switched off, and it is not a shortcut: both of these are silent when
+        // nothing is rolling anyway (`journal.ts` returns on its first line), so the button is
+        // already inert and the paint is simply telling the truth about it. A control that comes
+        // and goes teaches nobody what it is for, and somebody looking for how to report a jerk
+        // should be able to see the answer before they need it.
+        repaint(live);
+      },
+    };
+  };
+
+  const rec = toggle("data-debug-rec", (next) => on.onRecord(next));
+  const stamp = press("data-debug-mark", () => on.onMark());
+  const save = press("data-debug-export", () => on.onExport());
+
   const refresh = (): void => {
-    const { text, hudUnit, bounds: boundsOn, grid: gridOn } = read();
+    const { text, hudUnit, bounds: boundsOn, grid: gridOn, recording, marks } = read();
     bounds.show(boundsOn, text.text("viewer.bounds"), text.text("viewer.bounds.hint"));
     grid.show(gridOn, text.text("viewer.grid"), text.text("viewer.grid.hint"));
+    rec.show(recording, text.text("viewer.rec"), text.text("viewer.rec.hint"));
+    // The mark's caption CARRIES THE COUNT, because the number is the thing a person then says out
+    // loud — "look at mark three" — and a count you have to remember is a count nobody uses.
+    stamp.show(marks > 0 ? text.text("viewer.mark.n", { n: marks }) : text.text("viewer.mark"), text.text("viewer.mark.hint"), recording);
+    save.show(text.text("viewer.export"), text.text("viewer.export.hint"), recording);
     label.textContent = text.text("viewer.hudUnit");
     select.title = text.text("viewer.hudUnit.hint");
     [...select.options].forEach((option, i) => {
