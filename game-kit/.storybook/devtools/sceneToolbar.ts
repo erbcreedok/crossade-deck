@@ -44,6 +44,40 @@ export interface SceneToolbar {
   refresh(): void;
 }
 
+/**
+ * PRESS IT WITH ANY FINGER, INCLUDING THE SECOND ONE.
+ *
+ * A `click` listener is deaf to a second simultaneous touch, and that is the specification rather
+ * than a quirk: the compatibility mouse events a touch synthesises — `click` among them — are fired
+ * only for the PRIMARY pointer, and the primary pointer is the first finger still down. So on a
+ * desk where one hand is resting on the pack, none of these buttons answered at all: the reader
+ * could not stamp the moment they were looking at, which is the one thing the dashcam is for.
+ *
+ * So the press is read off the POINTER, which every finger has. The compatibility click is refused
+ * outright for touch (`preventDefault` on the down), and the `click` path is kept for the keyboard
+ * alone — where `detail` is zero, because no pointer produced it.
+ */
+function onTouch(button: HTMLButtonElement, run: () => void): void {
+  let down = -1;
+  button.addEventListener("pointerdown", (e: PointerEvent) => {
+    down = e.pointerId;
+    // No synthesised click behind the pointer one, or a first-finger press would fire twice.
+    if (e.pointerType !== "mouse") e.preventDefault();
+  });
+  button.addEventListener("pointerup", (e: PointerEvent) => {
+    if (e.pointerId !== down) return;
+    down = -1;
+    run();
+  });
+  button.addEventListener("pointercancel", () => {
+    down = -1;
+  });
+  // A keyboard press has no pointer behind it, and that is exactly what `detail === 0` says.
+  button.addEventListener("click", (e: MouseEvent) => {
+    if (e.detail === 0) run();
+  });
+}
+
 export function sceneToolbar(doc: Document, read: () => ToolbarState, on: ToolbarHandlers): SceneToolbar {
   const el = doc.createElement("div");
   el.setAttribute("data-scene-toolbar", "");
@@ -134,14 +168,15 @@ export function sceneToolbar(doc: Document, read: () => ToolbarState, on: Toolba
         `background:${t("sunkBg")}`,
         `border:1px solid ${onNow ? t("debug") : t("panelBorder")}`,
         `border-radius:${s("radius.s")}`,
-        `padding:2px ${s("space.s")}`,
+        `padding:${s("space.xs")} ${s("space.s")}`,
+        "min-height:34px",
         "white-space:nowrap",
         "flex:none",
         "cursor:pointer",
       ].join(";");
     };
 
-    button.addEventListener("click", () => {
+    onTouch(button, () => {
       const next = button.getAttribute("aria-pressed") !== "true";
       button.setAttribute("aria-pressed", String(next));
       repaint(next);
@@ -183,12 +218,13 @@ export function sceneToolbar(doc: Document, read: () => ToolbarState, on: Toolba
         `background:${t("sunkBg")}`,
         `border:1px solid ${live ? t("debug") : t("panelBorder")}`,
         `border-radius:${s("radius.s")}`,
-        `padding:2px ${s("space.s")}`,
+        `padding:${s("space.xs")} ${s("space.s")}`,
+        "min-height:34px",
         `cursor:${live ? "pointer" : "default"}`,
         `opacity:${live ? "1" : "0.45"}`,
       ].join(";");
     };
-    button.addEventListener("click", onPress);
+    onTouch(button, onPress);
     return {
       show(caption: string, hint: string, live: boolean) {
         button.textContent = caption;
