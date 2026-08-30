@@ -772,16 +772,22 @@ function say(s: Scene, text: string, why: Readonly<Record<string, unknown>> = {}
  * straightens as the pack settles onto it. Writing the angle is the whole of it — the settle does
  * the rest, and does it as a TURN now (`motion.a-settle-TURNS-and-never-collapses`).
  */
-function underPack(deck: Node): void {
+function underPack(s: Scene, deck: Node): void {
   const desk = deck.parent;
   if (!desk) return;
-  const home = worldAt(deck);
+  // WHERE THE PACK IS BEING DRAWN, not where the tree says it is. The hand still has it at this
+  // moment — a drop is answered before the carry is let go — so the tree names the place the pack
+  // was picked up FROM, and measuring there picks up whatever was lying at the far end of the drag
+  // instead of what the pack was just set down on. That card is then seen crossing the table into
+  // the pack, which is the whole of "I put the deck on a card and it dragged one in from over
+  // there". The same law every other reader on this page obeys: ask the glass.
+  const home = packAt(s, deck).at;
   const loose = desk.children.filter(
     (n) =>
       n.id !== deck.id &&
       caps(n).has("Flippable") &&
-      Math.abs(worldAt(n).x - home.x) <= CARD.w &&
-      Math.abs(worldAt(n).y - home.y) <= CARD.h,
+      Math.abs(drawnAt(s, n.id).x - home.x) <= CARD.w &&
+      Math.abs(drawnAt(s, n.id).y - home.y) <= CARD.h,
   );
   for (const card of loose) {
     remove(desk, card);
@@ -1709,7 +1715,9 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       for (let i = root.children.length - 1; i >= 0; i--) {
         const n = root.children[i]!;
         if (!isPack(n)) continue;
-        const home = worldAt(n);
+        // AS DRAWN, because the other hand may be holding this very pack: a carry never writes the
+        // tree, so `worldAt` would offer the place it was lifted from as the zone.
+        const home = packAt(s, n).at;
         if (Math.abs(p.x - home.x) <= CARD.w && Math.abs(p.y - home.y) <= CARD.h) return n;
       }
       return undefined;
@@ -1720,7 +1728,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       // the deck IS, so this is where that arrives; the drop itself is still refused, because the
       // pack stays where the hand left it rather than being moved by its own zone.
       if (lead.id === target.id) {
-        if (isPack(lead)) underPack(lead);
+        if (isPack(lead)) underPack(s, lead);
         return false;
       }
       // BACK ONTO THE PACK, face down again. The kit's own move machinery is not asked: this desk
