@@ -135,6 +135,7 @@
   "arg.overOpacity": "The upper layer's opacity. Lower it and the order below starts to show.",
   "arg.ownTurns": "Turns this card has of its OWN, on top of whatever its owner contributes. A number and not a switch, because `turns` SUMS along the chain and the sum is what decides the side: one more turn shows the back, two more show the face again — a thing a checkbox has no way to say.",
   "arg.padding": "Room left around the tight wrap of the content, in units, before the surface is painted. Zero shrinks the area to exactly that wrap.",
+  "arg.physics": "Switch the carry's PHYSICS on. Off, a grabbed piece is nothing but the finger's position — no lift, no bank, no easing; on, it is the kit's own carry (`lift`, `leanFactor`, `leanMaxDeg`) as `DEFAULT_TUNING` has it. The position is not part of the switch: a held thing rides the hand 1:1 either way.",
   "arg.picked": "Which member of the segmented row is on. The GAME's state — the row is built from it, and holds no copy.",
   "arg.pitch": "How far the desk is laid back, in degrees — 0 is straight down onto it, 60 is a low seat. It is a squash along the screen's own vertical, so the whole view stays a plain matrix: the finger, the clamp and the painter go on working untouched. What it does NOT do is converge the edges — a desk drawn as one huge plate stays a rectangle rather than a trapezoid.",
   "arg.placeable": "Whether this node carries the marker. It draws nothing: what changes is the answer a slot gets when it asks.",

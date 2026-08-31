@@ -1,13 +1,15 @@
 {
   "docs.gestures.component": [
-    "ONE PAGE PER GESTURE, and on every one of them the same square answers.",
+    "ONE PAGE PER GESTURE, and each of them shows that gesture and nothing else.",
     "",
     "A gesture is a seam worth looking at alone. A card carries a dozen capabilities and a menu on",
-    "top, and when a hold does not fire on it there are ten places to look. Here there is one square,",
-    "one gesture and one animation, so \"it did not move\" has exactly one meaning.",
+    "top, and when a hold does not fire on it there are ten places to look. Here there is one gesture",
+    "per page, so \"it did not move\" has exactly one meaning.",
     "",
-    "The square is deliberately plain — a rounded box, no border, one fill. It is a target, not a",
-    "picture: anything more and a reader starts reading the shape instead of watching it move."
+    "A PRESS AND A CARRY WANT DIFFERENT DESKS. `Hold` and `Tap` are about the press itself, which has",
+    "nothing to do with what is under it — so they are one plain square, a target rather than a",
+    "picture. A grab does not work like that: the finger picks a thing up and takes it somewhere, so",
+    "those pages stand on a map with pieces on it and a camera over it."
   ],
   "docs.gestures.hold": [
     "HOLD THE SQUARE. Half a second of a finger that does not travel, and the tile shivers.",
@@ -20,5 +22,26 @@
     "",
     "A tap is the other half of the same press, and the pair is what makes either legible: one",
     "finger, one square, and the meaning turns on whether it leaves quickly or stays."
+  ],
+  "docs.gestures.grab": [
+    "PICK A PIECE UP AND PUT IT DOWN SOMEWHERE ELSE. Two cards, a die and a knight, on a map that",
+    "does not fit the glass: a finger on a piece moves the piece, a finger on bare map moves the view,",
+    "and the two never argue about a hand.",
+    "",
+    "The carry here is BARE — the piece is exactly where the finger is, at the size it has always",
+    "been, at the angle it was lying at. Nothing eases, nothing banks, nothing pops. That is the",
+    "honest floor of the gesture, and the switch on the panel is what puts the kit's own feel back on",
+    "it.",
+    "",
+    "One thing is not part of the switch: the POSITION. A held thing rides the hand 1:1 on either",
+    "setting, because a lag there reads as a dropped frame rather than as weight."
+  ],
+  "docs.gestures.grabPhysics": [
+    "THE SAME MAP, WITH THE CARRY'S PHYSICS ON from the first touch: the lift pops the piece up as the",
+    "hand closes on it, and the bank leans it into the direction it is being carried.",
+    "",
+    "A page of its own rather than a different default on the one before it, because the pair is the",
+    "point. Everything the carry does beyond following the hand is a CHOICE the kit made, and a choice",
+    "cannot be told from a law until the two are open side by side."
   ]
 }

@@ -12,8 +12,14 @@
 
 import { registerAsset } from "../../src/index.js";
 
-/** SVG text as a data URI. Encoded, not base64: the source stays readable in the network tab. */
-function svg(width: number, height: number, body: string): string {
+/**
+ * SVG text as a data URI. Encoded, not base64: the source stays readable in the network tab.
+ *
+ * Exported because it is the ENCODER and not a picture: a second copy of it elsewhere in the
+ * catalog would be a second answer to "how is a drawing turned into a src", and the two would
+ * drift the first time one of them learned about a quote.
+ */
+export function svg(width: number, height: number, body: string): string {
   const doc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">${body}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(doc)}`;
 }

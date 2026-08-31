@@ -5,7 +5,9 @@ import {
   Container,
   CONTROL_LABEL,
   Draggable,
+  draggable,
   freeLayout,
+  installStockCarries,
   Labeled,
   node,
   rect,
@@ -18,7 +20,9 @@ import {
   type Motions,
   type Node,
 } from "../../src/index.js";
+import { wireDrag } from "../devtools/drag.js";
 import { scene } from "../devtools/scene.js";
+import { gestureMap, MAP } from "./gestureMap.js";
 import { documented } from "./surfaceControls.js";
 
 // GESTURES — one page per gesture, and on every one of them the SAME element answers.
@@ -27,6 +31,11 @@ import { documented } from "./surfaceControls.js";
 // node and assembles nothing: it is a seam of the INPUT wiring (`render/hold.ts`), and the catalog's
 // rule is that a story lives where the law it proves lives. `Engine/Motion` is the same shape from
 // the other side — the runtime that ANSWERS, where this is the runtime that ASKS.
+//
+// A PRESS AND A CARRY WANT DIFFERENT DESKS, and that is why the shelf has two of them. `Hold` and
+// `Tap` are about the press itself, which has nothing to do with what is under it — so they are one
+// square, and the square is the whole scene. A grab does not work like that: the finger picks a
+// thing up and takes it somewhere, so those pages stand on a MAP with pieces on it (`gestureMap`).
 //
 // The point of the shelf is that a gesture is a seam you can look at alone. A card carries a dozen
 // capabilities and a menu on top, and when a hold does not fire on it there are ten places to look.
@@ -37,6 +46,9 @@ import { documented } from "./surfaceControls.js";
 // picture — anything more and a reader starts reading the shape instead of watching it move. What
 // it DOES carry is a shadow, and that is not decoration either: half of what these pages show is
 // height — a shiver stays on the desk, a hop leaves it — and without a shadow the two look alike.
+
+// The carry styles are installed here, as an ordinary consumer would install them.
+installStockCarries();
 
 const TILE = "gesture.tile";
 
@@ -188,3 +200,78 @@ const HOP = 3.4;
 const SLIDE_SPEED = 4.5;
 /** Hard enough to clear the glass rather than dribble off the bottom edge, units/s. */
 const LAUNCH_SPEED = 7;
+
+// ---- grab ---------------------------------------------------------------------------------
+
+interface GrabArgs {
+  physics: boolean;
+}
+
+/**
+ * THE CARRY WITH THE PHYSICS TAKEN OUT — the piece is exactly where the finger is, at the size it
+ * has always been, at the angle it was lying at. Nothing eases, nothing banks, nothing pops.
+ *
+ * It is the honest floor of the gesture, and it is worth having its own scene: everything the
+ * carry does beyond following the hand is a CHOICE the kit made, and a reader cannot tell a
+ * choice from a law without having seen the thing without it. The position was never a choice —
+ * a held thing rides the hand 1:1 on both scenes (`layCarry`), because a lag there reads as a
+ * dropped frame rather than as weight.
+ */
+const NO_PHYSICS = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
+
+/**
+ * How far the map may be pushed out and pulled in. Narrow on purpose: the lesson here is the
+ * carry, and a reader who has zoomed to a tenth is looking at a problem the page is not about.
+ */
+const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
+
+/** The one scene both grab pages stand on — they differ by a single argument, and by nothing else. */
+function grabScene(physics: boolean): HTMLElement {
+  const built = scene(gestureMap(), {
+    animate: true,
+    camera: {
+      limits: MAP_ZOOM,
+      // The map is laid out AROUND zero, so its corner is at minus half — the camera is told the
+      // rect and not the size, or three quarters of it would be unreachable.
+      content: { x: -MAP.w / 2, y: -MAP.h / 2, w: MAP.w, h: MAP.h },
+      // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and
+      // over bare map the same finger drives the view. The two never argue about a hand.
+      claims: draggable,
+      // Opened in the middle at zoom 1, where the pieces are life-size and the map is not: a phone
+      // holds about half of it, so there is somewhere to carry a piece TO from the first touch.
+      start: { at: { x: 0, y: 0 }, zoom: 1 },
+    },
+  });
+  return wireDrag(built, {
+    view: () => built.camera!.transform(),
+    // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
+    // the switch never has to restate a number the kit already decided.
+    ...(physics ? {} : NO_PHYSICS),
+  }).el;
+}
+
+const PHYSICS = documented("arg.physics", {}, "carry");
+
+export const Grab: StoryObj<GrabArgs> = {
+  // PICK A PIECE UP AND PUT IT DOWN SOMEWHERE ELSE. Two cards, a die and a knight on a map that
+  // does not fit the glass: drag a piece to move the piece, drag the map to move the view.
+  //
+  // The carry is BARE here — the piece is under the finger and that is all — and the switch on the
+  // panel is what puts the kit's own feel back on it.
+  render: ({ physics }) => grabScene(physics),
+  args: { physics: false },
+  argTypes: { physics: PHYSICS },
+  parameters: { gkDocStory: "gestures.grab" },
+};
+
+export const GrabPhysics: StoryObj<GrabArgs> = {
+  // THE SAME MAP WITH THE CARRY'S PHYSICS ON from the first touch — the lift pops the piece up as
+  // the hand closes on it, and the bank leans it into the direction it is being carried.
+  //
+  // A page of its own rather than a different default on the one above, because the pair is the
+  // point: the two are opened side by side and the difference is the whole of what the physics is.
+  render: ({ physics }) => grabScene(physics),
+  args: { physics: true },
+  argTypes: { physics: PHYSICS },
+  parameters: { gkDocStory: "gestures.grabPhysics" },
+};
