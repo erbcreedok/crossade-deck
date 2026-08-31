@@ -68,13 +68,46 @@ const ROOK = svg(
   ].join(""),
 );
 
+/**
+ * THE GRIP — the tab a hand takes hold of to move a pile whole, or to gather one that has made
+ * itself out of cards lying against each other.
+ *
+ * IT HAS TO SAY WHAT IT DOES AT A THIRD OF A CARD ACROSS, which rules out almost everything: at
+ * that size a letter is a smudge and an outline is a blur. What survives is SILHOUETTE, so the grip
+ * is three offset cards — the picture every player already reads as "a stack" — over a plate dark
+ * enough to lift them off whatever felt or card the tab happens to be sitting on.
+ *
+ * The plate is a rounded square rather than a disc on purpose: a disc at this size is a dot, and a
+ * dot on a table full of round chips and round seats says nothing about itself. The two ridges
+ * under the cards are the universal grab-bar, and they are what makes it read as a thing to PULL
+ * rather than a thing to press.
+ */
+const GRIP = svg(
+  100,
+  100,
+  [
+    // The plate: dark, softly rounded, with a pale rim so it holds its edge on a dark felt.
+    '<rect x="5" y="5" width="90" height="90" rx="26" fill="midnightblue"/>',
+    '<rect x="5" y="5" width="90" height="90" rx="26" fill="none" stroke="lavender" stroke-width="6"/>',
+    // THREE BARS, NARROWING DOWNWARD — the drag handle everybody already reads, drawn so that it is
+    // also a stack seen edge-on. Bold and few, because the tab is a third of a card across and at
+    // that size an outline is a blur and a letter is a smudge: only silhouette survives.
+    '<rect x="22" y="28" width="56" height="11" rx="5.5" fill="seashell"/>',
+    '<rect x="27" y="45" width="46" height="11" rx="5.5" fill="lavender"/>',
+    '<rect x="32" y="62" width="36" height="11" rx="5.5" fill="lavender" opacity="0.7"/>',
+  ].join(""),
+);
+
 /** The chip's face and the rook's, as SURFACES — a picture is a layer of a record, like any other. */
 export const CHIP_SURFACE = "gesture.piece.chip";
 export const ROOK_SURFACE = "gesture.piece.rook";
+export const GRIP_SURFACE = "gesture.piece.grip";
 
 export function installGesturePieces(): void {
   registerAsset("gesture.chip", { src: CHIP, w: 1, h: 1 });
   registerAsset("gesture.rook", { src: ROOK, w: 1, h: 1.44 });
+  registerAsset("gesture.grip", { src: GRIP, w: 1, h: 1 });
   registerSurface(CHIP_SURFACE, { layers: [{ image: "gesture.chip" }] });
   registerSurface(ROOK_SURFACE, { layers: [{ image: "gesture.rook" }] });
+  registerSurface(GRIP_SURFACE, { layers: [{ image: "gesture.grip" }] });
 }

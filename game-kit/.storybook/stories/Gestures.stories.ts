@@ -62,7 +62,7 @@ import {
 } from "../../src/index.js";
 import { BACK_SURFACE, cards, crossade, deckByCardId, faceSurface, installClassicSkin } from "@game-presets/cards";
 import { DIE_KINDS, die, dieSpec, flashFace, showFace, type DieKind } from "@game-presets/dice";
-import { CHIP_SURFACE, ROOK_SHAPE, ROOK_SURFACE, installGesturePieces } from "./gestureAssets.js";
+import { CHIP_SURFACE, GRIP_SURFACE, ROOK_SHAPE, ROOK_SURFACE, installGesturePieces } from "./gestureAssets.js";
 import { scene, type CameraScene, type Scene } from "../devtools/scene.js";
 installStockGlides();
 /**
@@ -632,6 +632,7 @@ interface TableArgs {
   twist: number;
   air: string;
   magnus: number;
+  catching: boolean;
   magnet: number;
   pullMs: number;
   pullStrength: number;
@@ -761,7 +762,7 @@ function tableTree(a: TableArgs): Node {
       "said",
       Bounded({ bounds: rect(TABLE_R * 2, 0.34) }),
       Transformable({ at: { x: 0, y: TABLE_R + SEAT_R * 2.4 } }),
-      Labeled({ label: "one finger holds the pack, another pulls a card off — bring it back to put it back", style: CONTROL_LABEL }),
+      Labeled({ label: "pull at the pack for its top card · the tab under it moves the whole thing", style: CONTROL_LABEL }),
     ),
   );
   return desk;
@@ -909,8 +910,9 @@ function pilesOn(s: Scene, desk: Node): readonly (readonly Node[])[] {
  * never mistaken for part of it. It appears the moment two things touch and is gone the moment they
  * do not — nothing here is a state anybody has to keep.
  */
-const HANDLE_R = CARD.w * 0.28;
-const HANDLE_GAP = CARD.h * 0.32;
+const GRIP_SIDE = CARD.w * 0.72;
+/** How far the tab sits BELOW the lowest edge of what it belongs to — clear of it, and touching nothing. */
+const GRIP_GAP = CARD.h * 0.14;
 /**
  * WHAT EACH HANDLE STANDS FOR, kept BESIDE the handle and never inside its name.
  *
@@ -931,14 +933,23 @@ const isHandle = (n: Node): boolean => HANDLES.has(n);
  * is not replaced, so it neither flickers nor restarts anything it was doing.
  */
 function gatherHandles(s: Scene, desk: Node): void {
-  registerSurface("gesture.table.gather", { layers: [{ paint: "debug", opacity: 0.55 }], radius: HANDLE_R });
-  const wanted = pilesOn(s, desk).map((pile) => {
-    const spots = pile.map((n) => packAt(s, n).at);
+  // A GRIP UNDER EVERY PILE — and a pack is a pile of one, because a pack is exactly the thing a
+  // grip was invented to move. That is what makes the desk one rule rather than two: whatever is a
+  // pile has a tab under it, and pulling the tab takes the whole of it.
+  const groups: (readonly Node[])[] = [...pilesOn(s, desk)];
+  const inPile = new Set(groups.flat().map((n) => n.id));
+  for (const n of desk.children) if (isPack(n) && !inPile.has(n.id)) groups.push([n]);
+  const wanted = groups.map((pile) => {
+    const spots = pile.map((n) => packAt(s, n));
+    // BELOW THE LOWEST EDGE, not below the lowest centre. Measured from the centres the tab lands
+    // half inside the card it belongs to, which is exactly where a thing that must not be mistaken
+    // for the pile must not be.
+    const foot = Math.max(...spots.map((p) => p.at.y + (CARD.h / 2) * p.grew));
     return {
       of: pile.map((n) => n.id),
       at: {
-        x: spots.reduce((sum, p) => sum + p.x, 0) / spots.length,
-        y: Math.max(...spots.map((p) => p.y)) + HANDLE_GAP,
+        x: spots.reduce((sum, p) => sum + p.at.x, 0) / spots.length,
+        y: foot + GRIP_GAP + GRIP_SIDE / 2,
       },
     };
   });
@@ -949,8 +960,8 @@ function gatherHandles(s: Scene, desk: Node): void {
   for (const want of wanted) {
     const handle = node(
       `gather${++handles}`,
-      Bounded({ bounds: circle(HANDLE_R) }),
-      Surfaced({ surface: "gesture.table.gather" }),
+      Bounded({ bounds: roundedRect(GRIP_SIDE, GRIP_SIDE, GRIP_SIDE * 0.24) }),
+      Surfaced({ surface: GRIP_SURFACE }),
       Transformable({ at: want.at }),
       Draggable({ onReject: "stay" }),
     );
@@ -1316,7 +1327,18 @@ function packZ(s: Scene, pack: Node | undefined): number {
   return (packLift(s, pack) - 1) / (RISE * LAYER_HEIGHT);
 }
 
-function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
+function dealer(s: Scene, a: TableArgs): Dealing {
+  /**
+   * DOES A PLACE CATCH WHAT COMES TO REST IN IT — off on this desk, and it is a knob rather than a
+   * removal.
+   *
+   * The seats stay: they are where the players sit, and a card thrown to one still ends up there
+   * because it was thrown there. What is off is the table REACHING OUT — the field that leaned on a
+   * flight and the radius that took it in. Piles are the better answer to the same want: a card
+   * that comes to rest against another makes a pile with it, and a pile can be picked up whole, so
+   * the table no longer has to guess who a card was meant for.
+   */
+  const snap = a.catching;
   /** The pack this deal came off — there may be several on the desk, and it goes back to its own. */
   const mine = (): Node | undefined => byId(s.host.root, DEALT.get(s.el)?.pack ?? "");
 
@@ -1831,6 +1853,7 @@ const TABLE_ARGS: TableArgs = {
   twist: 1.2,
   air: "card",
   magnus: 0.25,
+  catching: false,
   magnet: 1.1,
   pullMs: 220,
   pullStrength: 9,
@@ -1848,6 +1871,7 @@ const TABLE_KNOBS = {
   twist: documented("arg.twist", { control: { type: "number", min: 0, step: 0.1 } }, "deal"),
   air: documented("arg.air", { control: "select", options: ["card", "normal", "fast"] }, "deal"),
   magnus: documented("arg.magnus", { control: { type: "number", min: 0, step: 0.05 } }, "deal"),
+  catching: documented("arg.catching", { control: "boolean" }, "deal/snap"),
   magnet: documented("arg.magnet", { control: { type: "number", min: 0, step: 0.1 } }, "deal/pack"),
   pullMs: documented("arg.pullMs", { control: { type: "number", min: 0, step: 20 } }, "deal/pack"),
   pullStrength: documented("arg.pullStrength", { control: { type: "number", min: 0, step: 1 } }, "deal/snap"),
@@ -1857,7 +1881,7 @@ const TABLE_KNOBS = {
 };
 
 /** Wire both table pages the same way — the only difference is whether a seat is looked for. */
-function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
+function tablePage(a: TableArgs, key: string): HTMLElement {
   const shape = `${a.seats}/${a.count}`;
   const held = TABLES.get(key);
   const root = held && held.shape === shape ? held.root : tableTree(a);
@@ -1877,7 +1901,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       "fit",
     ),
   });
-  DEALERS.set(s.el, dealer(s, a, snap));
+  DEALERS.set(s.el, dealer(s, a));
   /**
    * THE DESK HAS COME TO REST — work out the piles again and put a handle under each.
    *
@@ -1890,6 +1914,9 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     s.setRoot(s.host.root);
   };
   SETTLERS.set(s.el, settled);
+  // AND ONCE NOW: the desk as it stands is an arrangement like any other, and the pack sitting on
+  // it at the first frame wants its grip as much as one a player has just put down.
+  settled();
   wireDrag(s, {
     toFront: true,
     view: eyeOf(s),
@@ -1905,7 +1932,10 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // separate target: one finger on a card still lifts that card, and nothing is a mode.
     runOf: (root, hit) => {
       if (isHandle(hit)) {
-        const made = gather(s, root, pileOf(root, hit));
+        const pile = pileOf(root, hit);
+        // ONE PACK NEEDS NO GATHERING — its grip is simply how it is carried. Two or more things
+        // touching are made into one pack first, and THAT is what the hand gets.
+        const made = pile.length === 1 && isPack(pile[0]!) ? pile[0]! : gather(s, root, pile);
         remove(root, hit);
         s.setRoot(root);
         if (made) return [made, ...made.children];
@@ -1927,10 +1957,13 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
             max: a.liftMax,
           })
         : undefined,
-    // A CARD STILL IN THE PACK REFUSES THE FINGER, and that refusal is what makes the pack one
-    // object under the hand. The pick then falls through to the deck itself, which is drawn under
-    // it — so one finger on the pack moves the pack, whichever of its cards was on top.
-    may: (n: Node) => packOf(n) === undefined || isPack(n),
+    // A PACK AND ITS CARDS BOTH REFUSE THE FINGER, and that is the whole of the new arrangement.
+    //
+    // A finger on the pack used to MOVE the pack, so taking a card off it needed a second hand to
+    // say which of the two you meant. Now the pack has a grip: the tab moves it, and the pack
+    // itself is what you pull a card OFF — which is what a pack is for and what a hand does to one.
+    // Nothing is a mode, and neither reading was taken away; they were given separate targets.
+    may: (n: Node) => packOf(n) === undefined,
     zoneAt: (root, p) => {
       // ANY PACK, and the topmost when two overlap: a player can build one, so the desk may have
       // several, and a card dropped on a pile joins the pile it was dropped on.
@@ -2002,25 +2035,24 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
         // THE HOLDING HAND IS THE ONE THAT WAS ALREADY DOWN, and asking that is not pedantry: both
         // fingers see each other as the other hand, so a rule written on the anchor alone lets the
         // RESTING thumb deal the moment it shifts a few pixels — which it does, because thumbs do.
-        const holding = p.anchor !== undefined && p.anchor.earlier;
-        // WHICH pack, not whether the pack: a player can build one, so the desk may have several,
-        // and the deal belongs to the one that hand is actually on.
-        const deck = holding ? packUnder(s, p.anchor!.at) : undefined;
+        // WHICH PACK THIS DEAL IS OFF, and the finger doing the dealing names it by LANDING ON IT.
+        //
+        // It used to be named by the other hand, and it had to be: a finger on the pack moved the
+        // pack, so something else had to say "a card, not the pack". The grip took that job, so the
+        // pack itself means the card — one finger, on the thing it is about. The other hand is
+        // still allowed to be the one holding it, which is how a real dealer stands, and either
+        // reading answers the same question.
+        const deck = packOf(p.on) ?? (p.anchor?.earlier ? packUnder(s, p.anchor.at) : undefined);
+        const holding = deck !== undefined;
         const speed = Math.round(Math.hypot(p.velocity.x, p.velocity.y) * 10) / 10;
         if (p.state === "began") {
           // AND EVERY REFUSAL IS SAID OUT LOUD. None of these numbers is visible, and a page that
           // speaks only when it succeeds leaves a reader one report to make — "it does not work" —
           // which names nothing and cannot be acted on.
-          if (!p.anchor) return say(s, `moving at ${speed} u/s — no other hand is down: rest one on the pack`, { refused: "no anchor" });
-          if (!holding) {
-            return say(s, `this is the holding hand — deal with the other one`, {
-              refused: "this hand was down first",
-              id: p.id,
-            });
-          }
           if (!deck) {
-            return say(s, `moving at ${speed} u/s — the holding hand is not on a pack`, {
-              refused: "anchor off every pack",
+            return say(s, `moving at ${speed} u/s — start on a pack, or hold one with the other hand`, {
+              refused: "no pack under this finger or the other one",
+              on: p.on.id,
               anchor: p.anchor ? [trace(p.anchor.at.x), trace(p.anchor.at.y)] : undefined,
             });
           }
@@ -2051,7 +2083,7 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
           // nothing is thrown: the player is holding the card they are about to send, and holding
           // it the way anything is held on a screen — under the finger.
           deal.move(p.id, p.at);
-          if (snap) {
+          if (a.catching) {
             const id = DEALT.get(s.el)?.card;
             const seat = id
               ? seatFor(s.host.root, a, drawnAt(s, id), { x: p.velocity.x * a.gain, y: p.velocity.y * a.gain })
@@ -2283,7 +2315,7 @@ export const Deal: StoryObj<TableArgs> = {
     reach: documented("arg.dealReach", { control: { type: "number", min: 0.05, max: 2, step: 0.05 } }, "deal/snap"),
   },
   parameters: { gkDocStory: "gestures.deal" },
-  render: (a) => tablePage(a, true, "gestures.deal"),
+  render: (a) => tablePage(a, "gestures.deal"),
 };
 
 /**
@@ -2309,7 +2341,7 @@ export const Fling: StoryObj<TableArgs> = {
   args: { ...TABLE_ARGS, gain: 0.16 },
   argTypes: TABLE_KNOBS,
   parameters: { gkDocStory: "gestures.fling" },
-  render: (a) => tablePage(a, false, "gestures.fling"),
+  render: (a) => tablePage(a, "gestures.fling"),
 };
 
 // ---- kneading a pack, and shaking a die ---------------------------------------------------------
