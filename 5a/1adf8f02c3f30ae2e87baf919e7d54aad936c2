@@ -1,0 +1,26 @@
+game-kit/src/render/scenePlan/marks.ts
+  s_881c18b5871008::t_222eacb1728096 132,141-146
+game-kit/src/render/scenePlan/plan.test.ts
+  s_881c18b5871008::t_222eacb1728096 676-693
+  s_881c18b5871008::t_5e591b510b1097 15
+game-kit/docs/test-plan/10-scene-plan.md
+  s_881c18b5871008::t_a57ba207c78d57 3,41
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_bad47b353488e6 10,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "5a1adf8f02c3f30ae2e87baf919e7d54aad936c2",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
