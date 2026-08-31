@@ -240,6 +240,17 @@ interface GrabArgs {
 const NO_PHYSICS = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
 
 /**
+ * A HANDLE HAS NO PHYSICS OF ITS OWN TO HAVE — it IS the grab.
+ *
+ * The same three fields as `NO_PHYSICS`, and named apart because they are not the same decision: one
+ * is a page's switch about how carrying a PIECE should feel, and this is a fact about a control. A
+ * handle that popped would be the thing you are holding growing in your hand; one that banked would
+ * be it leaning out of it. And the pop is a scale about the anchor, so it would drag the whole heap
+ * away from the tab as well: the stack must keep the distance from the handle it was drawn at.
+ */
+const HANDLE_IS_THE_GRAB = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
+
+/**
  * THE BARRIER THAT NEVER LOSES.
  *
  * The kit gives a carry two ways to end AT a wall, and this scene closes both. SHOVED in hard
@@ -310,6 +321,7 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", st
           // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) =>
             isGrip(hit) ? [{ x: 0, y: 0 }, ...stackSeats(run.slice(1))] : undefined,
+          feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
           onCarry: ({ done }: { readonly done: boolean }) => {
             if (done) settle();
           },
@@ -318,7 +330,7 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", st
     // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see
     // `NEVER_THROUGH`. The height is handed in because the wall is the DRAWN edge of the piece:
     // raise a piece and it is wider, and a border that ignored that would let the difference out.
-    trayOf: (_root, hit) => mapWalls(hit, held),
+    trayOf: (_root, hit) => mapWalls(hit, isGrip(hit) ? 1 : held),
     ...NEVER_THROUGH,
     // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
     // the switch never has to restate a number the kit already decided.
@@ -331,7 +343,15 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", st
     ...(letGo
       ? {
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
-            letFall(built, items, held, letGo === "throw" ? v : undefined, settle),
+            // A heap let go of by its handle was never lifted, so it has no height to fall from —
+            // the run comes down from wherever the hand was actually holding it.
+            letFall(
+              built,
+              items,
+              items.some((it) => isGrip(byId(built.host.root, it.id) ?? built.host.root)) ? 1 : held,
+              letGo === "throw" ? v : undefined,
+              settle,
+            ),
         }
       : {}),
   }).el;

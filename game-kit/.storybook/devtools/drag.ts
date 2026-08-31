@@ -60,6 +60,16 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    */
   readonly offsetOf?: ((root: Node, hit: Node, run: readonly Node[]) => readonly Vec[] | undefined) | undefined;
   /**
+   * THE FEEL FOR THIS ONE GESTURE, over the wiring's own — a patch, asked at the moment of the grab.
+   *
+   * The feel is usually the SCENE's: one desk, one weight of hand. But a scene can hold a thing that
+   * is not a piece — a handle drawn under a heap — and a handle has no physics of its own to have.
+   * It IS the grab: it must sit exactly under the finger, at the size it was drawn, at the distance
+   * from its heap it was drawn at. A pop or a bank on it would be the control itself moving away
+   * from the hand that is holding it.
+   */
+  readonly feelOf?: ((root: Node, hit: Node) => { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined } | undefined) | undefined;
+  /**
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
    * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
    */
@@ -232,12 +242,13 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, offsetOf: _offsetOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const { runOf: _runOf, offsetOf: _offsetOf, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {
       anchor,
       ...feel,
+      ...(feelOf?.(root, hit) ?? {}),
       ...(tray ? { walls: tray } : {}),
       // THE BORDER ENDS THE GESTURE, and the wiring's own bookkeeping ends with it: the finger is
       // still down, so the drag has to be forgotten here or the pointerup would drop the piece a

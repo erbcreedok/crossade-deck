@@ -164,6 +164,32 @@ describe("the stacking desk", () => {
     expect(desk.children.filter(isGrip)).toHaveLength(0);
   });
 
+  it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {
+    // A handle is a PICTURE of a heap, not a thing on the desk. Named by its place in the list, two
+    // handles swap names the moment a heap between them goes: the clock sees one id whose rest pose
+    // has moved and eases it there, so every remaining tab slides along into the one before it and a
+    // new tab flies out of an old one's seat. Named afresh, each is a node the clock has never seen,
+    // and a new node is drawn at its rest without flying in from anywhere.
+    const desk = stackMap();
+    for (const i of [4, 5]) at(desk, `chip ${i}`, 6 + i, 6);
+    at(desk, "chip 0", 0, 0);
+    at(desk, "chip 1", 0.4, 0);
+    at(desk, "chip 2", 3, 0);
+    at(desk, "chip 3", 3.4, 0);
+    const first = [...regrip(desk).keys()];
+    expect(first).toHaveLength(2);
+    // The same two heaps again: still not one name reused, so nothing can be eased into place.
+    const again = [...regrip(desk).keys()];
+    expect(again).toHaveLength(2);
+    expect(again.some((id) => first.includes(id)), "no name comes back").toBe(false);
+    // And when the FIRST heap goes, the survivor does not inherit the departed one's name — which
+    // is the whole of "they all slide along after each other".
+    at(desk, "chip 1", 8, 8);
+    const left = [...regrip(desk).keys()];
+    expect(left).toHaveLength(1);
+    expect(again.includes(left[0]!)).toBe(false);
+  });
+
   it("map.a-lifted-heap-is-squared-up — the seats are a stack, and thickness is an `at`", () => {
     // Written as `z` a growing heap would rise off the felt for ever (`guard.layout-writes-only-at`
     // is the same law from the layout's side). The first piece sits ON the handle, at zero.
