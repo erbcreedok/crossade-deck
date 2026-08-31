@@ -5,7 +5,7 @@
 // Nothing is faked but the view. Time is a NUMBER on the event, because that is what these three
 // measure — none of them waits for silence, which is the whole difference from a long press.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { add, caps, node, type Node } from "../core/node.js";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout, resetLayouts } from "../core/atoms/container.js";
@@ -21,7 +21,6 @@ import { wireSwipe, type Swipe } from "./swipe.js";
 import { wirePan, type Pan } from "./pan.js";
 import { wireShake, type Shaking } from "./shake.js";
 import { wireKnead, type Knead } from "./knead.js";
-import { wireTap, DOUBLE_MS, type Tap } from "./tap.js";
 
 type Fire = (
   type: string,
@@ -31,15 +30,10 @@ type Fire = (
 ) => void;
 
 /** A view that only records its listeners — these wirings ask it for nothing else worth faking. */
-function stubView(): { el: HTMLCanvasElement; fire: Fire; captured: Set<number> } {
+function stubView(): { el: HTMLCanvasElement; fire: Fire } {
   const listeners = new Map<string, Array<(e: PointerEvent) => void>>();
-  // A view that remembers which fingers it was asked to hold. Faked because jsdom's own capture is
-  // a no-op, and what is being asserted is that the ASKING happens.
-  const captured = new Set<number>();
   const el = {
     style: {},
-    setPointerCapture: (id: number) => void captured.add(id),
-    releasePointerCapture: (id: number) => void captured.delete(id),
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
     addEventListener: (t: string, f: (e: PointerEvent) => void) => void listeners.set(t, [...(listeners.get(t) ?? []), f]),
     removeEventListener: (t: string, f: (e: PointerEvent) => void) =>
@@ -47,7 +41,6 @@ function stubView(): { el: HTMLCanvasElement; fire: Fire; captured: Set<number> 
   } as unknown as HTMLCanvasElement;
   return {
     el,
-    captured,
     fire: (type, x, y, o = {}) => {
       // `getCoalescedEvents` is the readings the GLASS took between two frames — present only when
       // a test is about them, because a browser without it (and jsdom is one) hands over the event
@@ -84,7 +77,7 @@ function bench() {
     viewer: () => DEFAULT_VIEWER,
     setRoot: () => undefined,
   } as unknown as Host;
-  return { host, fire: view.fire, captured: view.captured };
+  return { host, fire: view.fire };
 }
 
 const grabbable = (n: Node): boolean => caps(n).has("Draggable");
@@ -233,83 +226,6 @@ describe("the pan", () => {
     return { ...b, seen, stop };
   }
 
-  it("pan.a-flick-is-reported-AS-IT-RUNS — the speed is live, not a number that only exists on release", () => {
-    // A REAL TRACE OF FIFTEEN SWIPES SAID `v: [0, 0]` ON EVERY SINGLE `changed`, with the finger
-    // travelling twenty-six pixels a frame. The page reads that speed to say who would get the
-    // card, so it named nobody all the way through the gesture; and the release then measured
-    // whatever the last two readings happened to be, which is why five of those fifteen flicks went
-    // out at under five units a second and fell on the felt.
-    //
-    // A finger moving at a steady speed must report that speed at every step. It is the plainest
-    // statement this recogniser makes, and it was not true.
-    const f = panning();
-    // Sixteen pixels every sixteen milliseconds — one unit a second, dead steady, one move per
-    // frame and no coalescing, exactly as a phone's own stream arrives.
-    f.fire("pointerdown", 350, 300, { ms: 0 });
-    for (let k = 1; k <= 10; k++) f.fire("pointermove", 350, 300 - k * 16, { ms: k * 16 });
-    const moving = f.seen.filter((p) => p.state === "changed");
-    expect(moving.length).toBeGreaterThan(4);
-    for (const p of moving) {
-      expect(Math.hypot(p.velocity.x, p.velocity.y), "a moving finger is never standing still").toBeCloseTo(10, 1);
-      expect(p.heading, "and it knows which way").toBeCloseTo(-90, 1);
-    }
-  });
-
-  it("pan.a-reading-is-timed-by-the-EVENT — a coalesced stamp is not a clock this file owns", () => {
-    // FROM A REAL TRACE OF FIFTEEN SWIPES ON A PHONE: `v: [0, 0]` on every single `changed`, and
-    // five of the fifteen released at under five units a second — cards a player really flicked,
-    // dropped on the felt. Replayed here through the dispatched moves alone the very same finger
-    // measures fifteen units a second, so the recogniser's arithmetic was never the problem. What
-    // the phone had and jsdom does not is `getCoalescedEvents()`, and the readings it hands over
-    // are stamped by the platform, not by this file.
-    //
-    // A stamp from a clock this file does not own cannot be divided by. When those stamps fall
-    // outside the event's own window every reading looks older than the window, the measurement
-    // falls back to the last pair, and the last pair of a coalesced burst is very often the same
-    // point twice — which divides a zero and calls a flick a hand set down.
-    //
-    // So the POSITIONS are taken (they are the whole reason to ask) and the TIME is the event's.
-    // Readings inside one event are a frame apart at the very most; across events the timing is
-    // exact, and it is the only clock here anybody can check.
-    const f = panning();
-    f.fire("pointerdown", 350, 300, { ms: 0 });
-    // Every move carries three coalesced readings, stamped from another epoch entirely — which is
-    // what the phone was doing, and what no consumer of this file can be asked to know about.
-    for (let k = 1; k <= 8; k++) {
-      const y = 300 - k * 16;
-      f.fire("pointermove", 350, y, {
-        ms: k * 16,
-        coalesced: [
-          { x: 350, y: y + 11, ms: 1.7e12 + k * 16 },
-          { x: 350, y: y + 5, ms: 1.7e12 + k * 16 },
-          { x: 350, y, ms: 1.7e12 + k * 16 },
-        ],
-      });
-    }
-    for (const p of f.seen.filter((s) => s.state === "changed")) {
-      expect(Math.hypot(p.velocity.x, p.velocity.y), "a moving finger is never standing still").toBeCloseTo(10, 1);
-    }
-    // AND THE READINGS THEMSELVES ARE STILL COUNTED. The whole point of asking for them is the path
-    // between frames — how far the finger really walked, and how the heading turned along the way.
-    const last = f.seen[f.seen.length - 1]!;
-    expect(last.walked, "every reading, not one a frame").toBeGreaterThan(1.2);
-  });
-
-  it("pan.the-release-keeps-the-flick — a finger that lifts mid-run throws at the speed it was going", () => {
-    // The other half of the same trace. A release used the last pair of readings, so the millimetre
-    // between the final move and the lift — a real gap, because a finger settles as it leaves the
-    // glass — became the whole measurement. Twenty-six pixels a frame came out as half a unit a
-    // second, and a swipe the player really made was answered by a card dropped on the spot.
-    const f = panning();
-    f.fire("pointerdown", 350, 300, { ms: 0 });
-    for (let k = 1; k <= 6; k++) f.fire("pointermove", 350, 300 - k * 16, { ms: k * 16 });
-    // The lift lands a hair past the last move and a hair later — what a hand actually does.
-    f.fire("pointerup", 350, 300 - 6 * 16 - 2, { ms: 6 * 16 + 4 });
-    const end = f.seen[f.seen.length - 1]!;
-    expect(end.state).toBe("ended");
-    expect(Math.hypot(end.velocity.x, end.velocity.y), "the run, not the last millimetre").toBeGreaterThan(7);
-  });
-
   it("pan.reports-while-the-finger-moves — began at the slop, changed at every step, ended once", () => {
     const f = panning();
     f.fire("pointerdown", 350, 300, { ms: 0 });
@@ -379,39 +295,6 @@ describe("the pan", () => {
     expect(all).toBeGreaterThan(one * 1.5);
   });
 
-  it("pan.the-twist-of-the-wrist-is-measured-not-guessed — a curved flick has a sign, a straight one has none", () => {
-    // A card thrown off a twisting hand spins about its own axis and arcs through the air, and both
-    // come from ONE fact: how fast the heading is turning. The hand really did draw a curve, so it
-    // is read off the readings rather than invented from a straight line.
-    const straight = panning();
-    straight.fire("pointerdown", 350, 300, { ms: 0 });
-    for (let k = 1; k <= 6; k++) straight.fire("pointermove", 350 + k * 20, 300, { ms: k * 10 });
-    expect(straight.seen[straight.seen.length - 1]!.curl, "a ruler has no twist").toBeCloseTo(0, 6);
-
-    // The same hand, sweeping an arc: each step turns the heading by the same amount, one way.
-    const arc = (sign: number) => {
-      const f = panning();
-      f.fire("pointerdown", 350, 300, { ms: 0 });
-      // A quarter circle of radius 160 px, walked in twelve-degree steps: the same path for both,
-      // mirrored about the line the hand set out along.
-      const R = 160;
-      for (let k = 1; k <= 8; k++) {
-        const a = k * 12 * (Math.PI / 180);
-        f.fire("pointermove", 350 + Math.sin(a) * R, 300 - sign * (1 - Math.cos(a)) * R, { ms: k * 10 });
-      }
-      return f.seen[f.seen.length - 1]!.curl;
-    };
-    const right = arc(1);
-    const left = arc(-1);
-    expect(Math.abs(right), "a real sweep really registers").toBeGreaterThan(60);
-    expect(Math.sign(right), "and which way it went is which way it reads").toBe(-Math.sign(left));
-    // A finger that has come down and not moved says nothing rather than something random.
-    const still = panning();
-    still.fire("pointerdown", 350, 300, { ms: 0 });
-    still.fire("pointermove", 400, 300, { ms: 20 });
-    expect(still.seen[0]!.curl).toBe(0);
-  });
-
   it("pan.simultaneity-is-ONE-rule — the other hand is named, and whether it blocks is asked once", () => {
     // Two fingers with different roles is the ordinary table gesture, so by default a pan runs
     // beside another hand and merely REPORTS it.
@@ -427,15 +310,6 @@ describe("the pan", () => {
     // the second finger's work.
     expect(open.seen[0]!.id).toBe(2);
     expect(open.seen[0]!.anchor?.drift).toBeCloseTo(0, 5);
-    // AND WHICH HAND CAME FIRST, which is the whole of "one finger holds, the other deals". Both
-    // fingers see each other as the other hand, so both pass any test written on the anchor alone —
-    // and then a resting thumb that shifts ten pixels steals the gesture from the hand that meant
-    // to make it, just by moving first.
-    expect(open.seen[0]!.anchor?.earlier, "the resting hand was down before the dealing one").toBe(true);
-    open.fire("pointermove", 350, 260, { id: 1, ms: 40 }); // now the RESTING hand moves too
-    const holder = open.seen[open.seen.length - 1]!;
-    expect(holder.id).toBe(1);
-    expect(holder.anchor?.earlier, "and to the holder, the other hand is the LATER one").toBe(false);
 
     // A page with a genuine rival says so in one place — `shouldRecognizeSimultaneouslyWith` — and
     // not as a pile of conditions spread through a handler.
@@ -454,29 +328,6 @@ describe("the pan", () => {
     started.fire("pointerdown", 350, 300, { id: 1, ms: 30 }); // the rival arrives afterwards
     started.fire("pointermove", 450, 180, { id: 2, ms: 40 });
     expect(started.seen.map((p) => p.state)).toEqual(["began", "changed"]);
-  });
-
-  it("pan.holds-the-finger-it-began-on — a hand that lifts off the canvas still ends its gesture", () => {
-    // Without the capture, a finger that leaves the view and lifts THERE never sends its release
-    // here: the gesture stays open forever, whatever it was carrying stays carried, and every
-    // gesture after it is refused because the last one never ended. It reads as "it hangs
-    // sometimes", and the way to make it happen is to do what people do — deal off the edge.
-    const f = panning();
-    f.fire("pointerdown", 350, 300, { ms: 0 });
-    expect(f.captured.has(1), "not before it is a pan — a resting finger is nobody's").toBe(false);
-    f.fire("pointermove", 430, 300, { ms: 20 });
-    expect(f.captured.has(1)).toBe(true);
-    f.fire("pointerup", 9000, 9000, { ms: 40 }); // let go far outside the view
-    expect(f.seen.map((p) => p.state)).toEqual(["began", "ended"]);
-    expect(f.captured.has(1), "and it is handed back when the gesture is over").toBe(false);
-    // The teardown lets go of anything still held: a page swapped mid-gesture must not leave the
-    // view holding a finger nobody is listening to.
-    const g = panning();
-    g.fire("pointerdown", 350, 300, { ms: 0 });
-    g.fire("pointermove", 430, 300, { ms: 20 });
-    expect(g.captured.size).toBe(1);
-    g.stop();
-    expect(g.captured.size).toBe(0);
   });
 
   it("pan.a-cancel-is-not-a-release — the gesture is taken away, and where the pointer was put is not where the hand went", () => {
@@ -669,91 +520,5 @@ describe("the knead", () => {
     }
     expect(f.seen.length).toBeGreaterThan(0);
     expect(f.seen.every((k) => k.on.id === "left")).toBe(true);
-  });
-});
-
-// A TAP IS THE SAME FINGER AS A DRAG AND A HOLD, and what tells them apart is what it did NOT do:
-// it did not travel and it did not stay. `UITapGestureRecognizer`, with the one field that makes it
-// more than a click — how many times.
-describe("the tap", () => {
-  function tapping(opts: Partial<Parameters<typeof wireTap>[0]> = {}) {
-    const b = bench();
-    const seen: Tap[] = [];
-    const stop = wireTap({ host: b.host, want: grabbable, onTap: (t) => seen.push(t), ...opts });
-    return { ...b, seen, stop };
-  }
-
-  it("tap.is-what-a-finger-did-NOT-do — no travel, no resting, and it lands on what it came down on", () => {
-    const f = tapping();
-    f.fire("pointerdown", 350, 300, { ms: 0 });
-    f.fire("pointerup", 352, 301, { ms: 90 });
-    expect(f.seen.map((t) => [t.node.id, t.taps])).toEqual([["left", 1]]);
-    // TRAVELLED: that was a drag, and the drag's own wiring has it. Silence, not a guess.
-    f.fire("pointerdown", 350, 300, { ms: 200 });
-    f.fire("pointermove", 380, 300, { ms: 240 });
-    f.fire("pointerup", 380, 300, { ms: 260 });
-    // STAYED: that was a hold, and `hold.ts` has it.
-    f.fire("pointerdown", 350, 300, { ms: 400 });
-    f.fire("pointerup", 350, 300, { ms: 1200 });
-    // CANCELLED: the gesture was taken away rather than finished.
-    f.fire("pointerdown", 350, 300, { ms: 1400 });
-    f.fire("pointercancel", 350, 300, { ms: 1440 });
-    // And on nothing this page wants.
-    f.fire("pointerdown", 400, 300, { ms: 1600 });
-    f.fire("pointerup", 400, 300, { ms: 1640 });
-    expect(f.seen).toHaveLength(1);
-  });
-
-  it("tap.a-double-is-a-DIFFERENT-thing — and the single waits to find out", () => {
-    // `require(toFail:)`. A page that answers a single tap at once has already answered by the time
-    // the second lands, and both things happen — a card put back on the pack AND shuffled into it.
-    // So the first tap waits out the double's window, which is the platform's own and the pause a
-    // person's thumb is already expecting.
-    vi.useFakeTimers();
-    try {
-      const f = tapping({ double: true });
-      f.fire("pointerdown", 350, 300, { ms: 0 });
-      f.fire("pointerup", 350, 300, { ms: 60 });
-      expect(f.seen, "nothing yet: it may still turn out to be a double").toEqual([]);
-      f.fire("pointerdown", 350, 300, { ms: 160 });
-      f.fire("pointerup", 350, 300, { ms: 210 });
-      expect(f.seen.map((t) => t.taps), "and the double goes AT ONCE — nothing is waiting on it").toEqual([2]);
-      vi.advanceTimersByTime(DOUBLE_MS * 2);
-      expect(f.seen.map((t) => t.taps), "the single it grew out of is never delivered too").toEqual([2]);
-      // ALONE, it arrives after the window and not before.
-      f.fire("pointerdown", 350, 300, { ms: 1000 });
-      f.fire("pointerup", 350, 300, { ms: 1050 });
-      expect(f.seen).toHaveLength(1);
-      vi.advanceTimersByTime(DOUBLE_MS + 1);
-      expect(f.seen.map((t) => t.taps)).toEqual([2, 1]);
-      // A SECOND NODE IS A SECOND THING. Tapping one and then another is two singles, not a double.
-      f.fire("pointerdown", 350, 300, { ms: 2000 });
-      f.fire("pointerup", 350, 300, { ms: 2040 });
-      f.fire("pointerdown", 450, 300, { ms: 2100 });
-      f.fire("pointerup", 450, 300, { ms: 2140 });
-      vi.advanceTimersByTime(DOUBLE_MS + 1);
-      expect(f.seen.map((t) => [t.node.id, t.taps])).toEqual([
-        ["left", 2],
-        ["left", 1],
-        ["left", 1],
-        ["right", 1],
-      ]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("tap.says-whose-finger-and-what-the-OTHER-hand-is-on — a tap at a table is half of a two-hand gesture", () => {
-    // "Hold the pack and tap a card" is one gesture with two fingers in it, and the tap alone
-    // cannot mean it. The anchor is the same reading the pan hands over, and for the same reason.
-    const f = tapping();
-    f.fire("pointerdown", 450, 300, { ms: 0, id: 1 }); // the holding hand, on `right`
-    f.fire("pointerdown", 350, 300, { ms: 200, id: 2 });
-    f.fire("pointerup", 350, 300, { ms: 250, id: 2 });
-    const tap = f.seen[0]!;
-    expect(tap.id).toBe(2);
-    expect(tap.node.id).toBe("left");
-    expect(tap.anchor?.on?.id).toBe("right");
-    expect(tap.anchor?.earlier, "the hand that was already down is the holding one").toBe(true);
   });
 });

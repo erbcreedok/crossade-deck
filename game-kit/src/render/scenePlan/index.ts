@@ -40,7 +40,7 @@ import { type Paint } from "../../core/paint.js";
 import { surfaceRecord, type GradientStop, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "../surfaces.js";
 import { polyline } from "../../core/path.js";
 import { apply, chain, compose, IDENTITY, invert, move, pose, scale, type Transform } from "../../core/transform.js";
-import { LAYER_HEIGHT, RISE } from "./depth.js";
+import { LAYER_HEIGHT } from "./depth.js";
 import { type PlanInput } from "./input.js";
 import { boxOf, layerOf, strokeOf } from "./parts.js";
 import { type Mark, type Quad, type QuadText } from "./quads.js";
@@ -266,20 +266,11 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
 
   visit(root);
 
-  // A stable sort by height: equal height keeps tree order, so siblings do not swap between frames
+  // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames
   // for no reason the reader can see. The SHADOW layer goes first — one pass, under everything
   // at rest; then flight beats height — a raised node sorts after every resting one — and
   // inside every group the height still rules.
-  //
-  // AND THE HEIGHT IS THE ONE THAT IS DRAWN, which is the same one the SHADOW is cast from: the
-  // tree's `z`, plus the lift a HAND is holding the thing at, plus how high the CLOCK has it. The
-  // order used to count the first of those alone, and the desk then disagreed with itself — a pack
-  // held two and a half times life size towered over the felt and sorted as though it lay on it, so
-  // a card coming off that pack passed OVER the hand holding it and then, landing, came to rest
-  // under it. The conversions are the shadow's own (`shadows.ts`), because it is one number.
   const lay = (q: Quad): number => (q.layer === "shadow" ? 0 : 1);
   const aloft = (q: Quad): number => (raised?.has(q.id) ? 1 : 0);
-  const high = (q: Quad): number =>
-    q.z + ((carried?.get(q.id) ?? 1) - 1) / (RISE * LAYER_HEIGHT) + (grounded?.get(q.id) ?? 0) / LAYER_HEIGHT;
-  return out.sort((a, b) => lay(a) - lay(b) || aloft(a) - aloft(b) || high(a) - high(b));
+  return out.sort((a, b) => lay(a) - lay(b) || aloft(a) - aloft(b) || a.z - b.z);
 }

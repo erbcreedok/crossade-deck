@@ -533,45 +533,6 @@ describe("scenePlan", () => {
       "high",
     ]);
   });
-
-  it("plan.height-is-what-is-drawn — a hand's lift and a flight's ride order the paint, not just the tree", () => {
-    // THE SHADOW AND THE ORDER HAVE TO READ THE SAME HEIGHT, and they did not. A shadow already
-    // counts all three — the tree's `z`, the lift a HAND is holding a thing at, and how high the
-    // CLOCK has it — while the paint order counted the first alone. So a pack held two and a half
-    // times life size was drawn towering over the desk and sorted as though it were lying on it,
-    // and a card that came off that pack passed OVER the hand holding it and then, landing, came
-    // to rest UNDER it: the desk disagreeing with itself about which of two things was higher.
-    //
-    // One height, read the same way twice. The conversions are the shadow's own — a lift is
-    // `(lift - 1) / (RISE * LAYER_HEIGHT)` in the tree's own units of height, a ride is
-    // `ride / LAYER_HEIGHT`.
-    const root = node("r1", Container({ layout: "free" }), Surfaced());
-    add(root, node("card", box(1, 1), Surfaced(), Transformable({ z: 0 })));
-    add(root, node("pack", box(1, 1), Surfaced(), Transformable({ z: 0 })));
-    const input = { root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER };
-    const ids = (q: readonly Quad[]) => q.filter((x) => x.layer !== "shadow").map((x) => x.id);
-    // A HAND HOLDS THE PACK UP. Both are in flight, so tree order alone would keep the pack last —
-    // and it is genuinely the higher of the two, so it stays last. Nothing to see yet.
-    const lift = 2.25;
-    const held = { ...input, raised: new Set(["card", "pack"]), carried: new Map([["pack", lift]]) };
-    expect(ids(scenePlan(held))).toEqual(["r1", "card", "pack"]);
-    // NOW THE CARD IS THE HIGHER ONE — off the pack, in the other hand, held above it. The tree has
-    // not changed at all, and the picture must: what is higher is drawn over what is lower.
-    expect(ids(scenePlan({ ...held, carried: new Map([["pack", lift], ["card", lift * 1.2]]) }))).toEqual([
-      "r1",
-      "pack",
-      "card",
-    ]);
-    // AND A FLIGHT'S HEIGHT IS THE SAME HEIGHT. The card has been let go and is falling: it is
-    // below the hand still holding the pack, and it is drawn there.
-    const falling = { ...held, grounded: new Map([["card", 0.4]]) };
-    expect(ids(scenePlan(falling))).toEqual(["r1", "card", "pack"]);
-    // Let go from ABOVE the raised pack and it passes over it, until it has fallen past.
-    expect(ids(scenePlan({ ...held, grounded: new Map([["card", 4]]) }))).toEqual(["r1", "pack", "card"]);
-    // AND THE QUAD STILL TELLS THE TREE'S TRUTH. Ordering is a way of DRAWING; a reader inspecting
-    // the plan is asking what the model says, and the model says these two are on the desk.
-    expect(scenePlan(falling).find((q) => q.id === "card")!.z).toBe(0);
-  });
 });
 
 describe("a partial layer", () => {

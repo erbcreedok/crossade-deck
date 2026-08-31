@@ -280,22 +280,14 @@ describe("guards", () => {
     // clocks drift because they keep counting. `setTimeout` used once, cleared on every other
     // outcome of the gesture, cannot drift — it either fires or it is cancelled.
     //
-    // Narrowed rather than relaxed: the frame primitives above stay exclusive to the motion runtime,
-    // and the exception is a NAMED LIST of the input seams that genuinely cannot be event-driven —
-    // the ones whose whole meaning is something that did NOT happen, so there is no event left to
-    // measure against. A long press is a finger that rests, and a finger that rests emits nothing.
-    // A single tap is a SECOND TAP THAT DID NOT COME, and a tap that did not come emits nothing
-    // either: answered at once, a single has already fired by the time the double lands and both
-    // things happen. Every other gesture here reads what the hand DID and needs no deadline.
+    // Narrowed rather than relaxed: the frame primitives above stay exclusive to the motion
+    // runtime, and the exception is ONE named file. A long press genuinely cannot be event-driven —
+    // a finger that rests emits nothing at all, so there is no event left to measure against.
     const deadlines = files
       .filter((f) => !inCatalog(f.rel))
       .filter((f) => /\bsetTimeout\b/.test(f.code))
-      .map((f) => f.rel)
-      .sort();
-    expect(deadlines, "a one-shot deadline lives only in the input seams that need one").toEqual([
-      "render/hold.ts",
-      "render/tap.ts",
-    ]);
+      .map((f) => f.rel);
+    expect(deadlines, "a one-shot deadline lives in the ONE input seam that needs one").toEqual(["render/hold.ts"]);
   });
 
   it("guard.english-only — code is English; the words live in bundles", () => {

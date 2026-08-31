@@ -11,7 +11,7 @@ import { freeLayout, rowLayout } from "../../core/atoms/layouts.js";
 import { ShadowCaster } from "../../core/atoms/shadow.js";
 import { Surfaced } from "../../core/atoms/surfaced.js";
 import { Transformable } from "../../core/atoms/transformable.js";
-import { add, compose, fieldsOf, node, reorder } from "../../core/node.js";
+import { add, compose, node, reorder } from "../../core/node.js";
 import { Flippable, facing, setFacing } from "../../core/atoms/flippable.js";
 import { DEFAULT_TUNING, installStockEasings, resetEasings } from "../../core/motion.js";
 import { rect } from "../../presets/shapes.js";
@@ -338,202 +338,6 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true);
   });
 
-  it("motion.two-hands-carry-two-runs — each with its own spring, and one letting go leaves the other held", () => {
-    // A TABLE HAS TWO HANDS ON IT, and the runtime held ONE carry. Whichever hand grabbed last took
-    // the carry off the other one, so a page that needed both — a thumb on the pack, a finger
-    // leading a card off it — could only give real carry physics to ONE of them and had to write
-    // the other's pose into the tree by hand. That is why a dealt card had no follow, no lean and
-    // no lift: not a tuning anybody chose, a limit of this file.
-    //
-    // A carry belongs to the HAND that made it, and the hand is the pointer's own id — the same
-    // number `Pan` reports, so a page never has to invent a name for a finger.
-    const b = bench();
-    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
-    b.host.setRoot(b.desk);
-    const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { clock: c.clock });
-
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, hand: 1 });
-    m.grab([{ id: "d", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 }, hand: 2 });
-    // BOTH ARE HELD. The second grab used to end the first, and the first hand's piece would then
-    // ease back to its seat under a finger that had not moved.
-    const restC = b.tOf("c").e;
-    const restD = b.tOf("d").e;
-    m.dragTo({ x: 3, y: 0 }, 1);
-    m.dragTo({ x: -3, y: 0 }, 2);
-    for (let t = 16; t <= 2000; t += 16) c.tick(t);
-    expect(b.tOf("c").e - restC).toBeCloseTo(3, 6);
-    expect(b.tOf("d").e - restD).toBeCloseTo(-3, 6);
-    // AND EACH SPRING IS ITS OWN. The two hands are going opposite ways, so a single shared spring
-    // could not report both — this is the number a throw off either hand inherits.
-    m.dragTo({ x: 9, y: 0 }, 1);
-    c.tick(2016);
-    expect(m.velocity(1)!.x).toBeGreaterThan(0);
-    expect(m.velocity(2)!.x).toBeCloseTo(0, 3);
-    // ONE HAND LETS GO AND THE OTHER IS STILL HOLDING. The released piece eases home; the held one
-    // stays exactly under its finger, however long the clock runs.
-    m.release("c");
-    for (let t = 2032; t <= 6000; t += 16) c.tick(t);
-    expect(b.tOf("c").e - restC).toBeCloseTo(0, 3); // back at its seat
-    expect(b.tOf("d").e - restD).toBeCloseTo(-3, 6); // still in the other hand
-    expect(m.velocity(1)).toBeUndefined();
-    expect(m.velocity(2)).toBeDefined();
-  });
-
-  it("motion.a-snap-can-be-RE-AIMED — the place it is going to may move while it is on the way", () => {
-    // A card sliding out of a pack is coming to a HAND, and the hand does not wait for it. Aimed
-    // once, at where the fingers were when it set off, it arrives somewhere they have left — and
-    // the only way to avoid that was to put the card under the finger on the frame it was asked
-    // for, which is a card appearing out of thin air.
-    //
-    // A snap is the one throw with a place it is going to, so it is the one throw this can mean.
-    const b = bench();
-    const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { clock: c.clock });
-    const rest = b.tOf("c").e;
-    let landed: { at: { x: number; y: number } } | undefined;
-    m.snap("c", { to: { x: 5, y: 0 }, onDone: (r) => (landed = r) });
-    for (let t = 16; t <= 200; t += 16) c.tick(t);
-    const halfway = b.tOf("c").e - rest;
-    expect(halfway, "on its way to the first target").toBeGreaterThan(0.5);
-    // THE HAND MOVES. From here it is going somewhere else, and it does not start over from a stop —
-    // the speed it had carries into the new leg.
-    m.aim("c", { x: -4, y: 0 });
-    for (let t = 216; t <= 4000; t += 16) c.tick(t);
-    // Read at the LANDING and not after it: nothing wrote the tree, so once the flight is over the
-    // node eases back to the seat it still names — which is the ordinary law, not this one.
-    expect(landed?.at.x, "it arrives where the hand ENDED up, and says so").toBeCloseTo(-4, 2);
-    // A NODE THAT IS NOT FLYING HAS NOTHING TO RE-AIM, and neither has a throw with no destination:
-    // a slide is going wherever the physics takes it. Both are silent rather than loud — a game
-    // that re-aims every frame must not have to ask first whether the flight is still running.
-    expect(() => m.aim("c", { x: 9, y: 9 })).not.toThrow();
-    m.slide("c", { speed: 3, angle: 0 });
-    expect(() => m.aim("c", { x: 9, y: 9 })).not.toThrow();
-  });
-
-  it("motion.a-run-can-be-a-TAIL — a member with a lag drags behind its place instead of being put there", () => {
-    // A run is one plank by default, and that is right for a pack in a hand. But a run can also be
-    // a tab pulled across the felt with a deck hanging off it, and a tail is not a plank: what is
-    // being dragged trails what is doing the dragging, gathers up when it stops, and strings out
-    // again when it goes. Given a lag per member, that falls out of the springs rather than being
-    // choreographed.
-    const b = bench();
-    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
-    b.host.setRoot(b.desk);
-    const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { clock: c.clock });
-    const restC = b.tOf("c").e;
-    const restD = b.tOf("d").e;
-    // `c` is the handle: no lag at all. `d` hangs off it a fifth of a second behind.
-    m.grab(
-      [
-        { id: "c", offset: { x: 0, y: 0 } },
-        { id: "d", offset: { x: 0, y: 0 }, lag: 0.2 },
-      ],
-      { anchor: { x: 0, y: 0 }, lift: 1 },
-    );
-    m.dragTo({ x: 6, y: 0 });
-    c.tick(16);
-    // THE HANDLE IS THERE ALREADY — one to one, which is the law a held thing has always obeyed.
-    expect(b.tOf("c").e - restC, "the handle is where the hand is").toBeCloseTo(6, 6);
-    // AND THE TAIL IS NOT. It is on its way, behind, and it keeps coming after the hand stopped.
-    const behind = b.tOf("d").e - restD;
-    expect(behind, "the tail is still back there").toBeLessThan(3);
-    c.tick(80);
-    const later = b.tOf("d").e - restD;
-    expect(later, "and it is catching up").toBeGreaterThan(behind);
-    for (let t = 96; t <= 3000; t += 16) c.tick(t);
-    expect(b.tOf("d").e - restD, "it arrives, and the loop only sleeps once it has").toBeCloseTo(6, 3);
-    expect(c.idle(), "a tail still out is not a carry at rest").toBe(true);
-  });
-
-  it("motion.a-still-member-does-not-BANK — a handle that heels over has stopped saying where it is", () => {
-    // The lean belongs to what is being carried, not to the handle it is carried by: a tab is a
-    // control, and a control that tilts as the hand turns is no longer pointing at anything.
-    const b = bench();
-    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
-    b.host.setRoot(b.desk);
-    const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { clock: c.clock });
-    m.grab(
-      [
-        { id: "c", offset: { x: 0, y: 0 }, still: true },
-        { id: "d", offset: { x: 0, y: 0 } },
-      ],
-      { anchor: { x: 0, y: 0 }, leanFactor: 4, leanMaxDeg: 17 },
-    );
-    m.dragTo({ x: 10, y: 0 });
-    c.tick(16);
-    c.tick(32);
-    expect(Math.abs(b.tOf("d").b), "the piece banks into the run").toBeGreaterThan(0.019);
-    expect(b.tOf("c").b, "the handle stays flat").toBeCloseTo(0, 9);
-  });
-
-  it("motion.poses-say-where-a-CARRIED-thing-is-drawn — the tree still says the seat it was lifted from", () => {
-    // THE ONE THING A PAGE HAS TO ASK CORRECTLY ABOUT A HELD PIECE, and the one it gets wrong.
-    //
-    // A carry is an OVERRIDE: it lays the run out at the finger every frame and never writes the
-    // tree. So the tree goes on answering with the seat the piece was lifted FROM for as long as
-    // the hand holds it — which, for a pack being dealt off, is the whole of the gesture. A page
-    // that works out "where is the pack" by walking the tree deals its cards out of the place the
-    // deck last lay, and nothing on the glass says why.
-    //
-    // `poses()` is the honest answer, and this is the contract that makes it one: while a finger
-    // has the piece, what it reports is where the piece is DRAWN.
-    const b = bench();
-    const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { clock: c.clock });
-    const seat = fieldsOf<{ at: { x: number; y: number } }>(b.card, "Transformable")!.at;
-
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
-    m.dragTo({ x: 3, y: -2 });
-    c.tick(16);
-
-    const drawn = m.poses()!.get("c")!;
-    expect(drawn.e, "the hand's own place, not the seat").toBeCloseTo(3, 6);
-    expect(drawn.f).toBeCloseTo(-2, 6);
-    // ...and the tree has not moved a hair, which is exactly why it is the wrong thing to ask.
-    expect(fieldsOf<{ at: { x: number; y: number } }>(b.card, "Transformable")!.at).toEqual(seat);
-    // Let go and the two agree again — the disagreement lasts precisely as long as the hand does.
-    m.release("c");
-    for (let t = 32; t <= 2000; t += 16) c.tick(t);
-    expect(m.poses()?.get("c")).toBeUndefined();
-  });
-
-  it("motion.grabAlso-joins-a-run-mid-gesture — a card coming home lands in the HAND, not where the deck used to lie", () => {
-    // A carry poses the nodes it was GIVEN. A node that joins the carried container afterwards is
-    // not carried at all: it is laid out at whatever the tree says, and for a held pack the tree
-    // says the seat the pack was lifted FROM. That is a card flying home into the hand and then
-    // jumping across the desk on the frame it arrives, with nothing on the glass to explain it.
-    const b = bench();
-    const c = fakeClock();
-    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
-    b.host.setRoot(b.host.root);
-    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1 });
-
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
-    m.dragTo({ x: 4, y: 1 });
-    for (let t = 16; t <= 600; t += 16) c.tick(t);
-    expect(m.poses()!.get("c")!.e, "the hand really took the pack somewhere").toBeCloseTo(4, 1);
-    // The newcomer is nowhere near the hand while it is merely a sibling in the tree.
-    expect(m.poses()!.get("d")).toBeUndefined();
-
-    m.grabAlso([{ id: "d", offset: { x: 0, y: 0 } }]);
-    // ON THE VERY FRAME IT JOINS, not the next one: a frame at the old seat is the jump this exists
-    // to remove.
-    expect(m.poses()!.get("d")!.e).toBeCloseTo(m.poses()!.get("c")!.e, 6);
-    m.dragTo({ x: 6, y: 1 });
-    for (let t = 616; t <= 1400; t += 16) c.tick(t);
-    expect(m.poses()!.get("d")!.e, "and it rides the hand from then on").toBeCloseTo(6, 1);
-
-    // Silent when no hand is carrying: a game that means "pick these up" says `grab`.
-    m.release("c");
-    m.release("d");
-    for (let t = 1416; t <= 2400; t += 16) c.tick(t);
-    m.grabAlso([{ id: "d", offset: { x: 0, y: 0 } }]);
-    expect(m.poses()?.get("d")).toBeUndefined();
-  });
-
   it("motion.grab-leans-into-horizontal-motion — a tilt appears while moving and unwinds at rest", () => {
     const b = bench();
     const c = fakeClock();
@@ -544,11 +348,7 @@ describe("the motion runtime", () => {
     c.tick(16);
     c.tick(32);
     // While the spring has horizontal speed the pose carries a rotation (b ≠ 0) — the whip lean.
-    //
-    // The floor is a hair under a fiftieth, and it moved there when the springs began to be stepped
-    // EXACTLY rather than by Euler: an explicit integrator overshoots a stiff first frame, so the
-    // old number was reading the integrator's error as lean. Same motion, measured honestly.
-    expect(Math.abs(b.tOf("c").b)).toBeGreaterThan(0.019);
+    expect(Math.abs(b.tOf("c").b)).toBeGreaterThan(0.02);
     // Once it stops moving, the lean unwinds to upright.
     for (let t = 48; t <= 3000; t += 16) c.tick(t);
     expect(Math.abs(b.tOf("c").b)).toBeCloseTo(0, 2);

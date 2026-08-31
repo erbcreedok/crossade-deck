@@ -181,22 +181,6 @@ export {
   type RotatableFields,
 } from "./core/atoms/rotatable.js";
 export { Actionable, actionable, activate, intentOf, type ActionableFields } from "./core/atoms/actionable.js";
-// THE DASHCAM — a rolling record of what the desk actually did, and the stamp a person puts on the
-// moment they saw it go wrong. Off until a page asks; see `journal.ts` for why a motion bug cannot
-// be retold in words.
-export {
-  AROUND_MARK,
-  JOURNAL_SECONDS,
-  journalDump,
-  journalOn,
-  mark,
-  note,
-  startJournal,
-  stopJournal,
-  trace,
-  type JournalEntry,
-  type JournalOptions,
-} from "./render/journal.js";
 export { HOLD_MS, wireHold, type HoldWiring } from "./render/hold.js";
 // HOW BIG A HELD THING HAS TO BE — a target in FINGERS rather than a multiplier, because whether a
 // second finger fits beside the first is a fact about glass pixels and not about the piece.
@@ -206,9 +190,7 @@ export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./re
 // THE PAN — `UIPanGestureRecognizer`: the same finger, reported WHILE it moves. Beside the swipe
 // and not instead of it, exactly as UIKit ships both: a swipe is a verdict on release, and a
 // verdict on release cannot say "the card is already going, this way, this fast".
-export { islands, outlinesTouch, placedOutline } from "./core/overlap.js";
 export { PAN_SLOP, PAN_WINDOW, wirePan, type HandAnchor, type Pan, type PanState, type PanWiring } from "./render/pan.js";
-export { DOUBLE_MS, TAP_MS, TAP_SLOP, wireTap, type Tap, type TapWiring } from "./render/tap.js";
 export {
   SWIPE_REACH,
   SWIPE_SPEED,
@@ -373,7 +355,6 @@ export { permutation, rollDie, seededRng, type Rng } from "./core/rng.js";
 export {
   bodyAt,
   polar,
-  slideCaught,
   slideRests,
   stepFall,
   stepSlide,

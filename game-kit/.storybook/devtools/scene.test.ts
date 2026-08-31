@@ -58,11 +58,7 @@ function gridButton(el: HTMLElement): HTMLButtonElement {
 }
 
 function press(el: HTMLElement): void {
-  // The KEYBOARD's press, which is a click with no pointer behind it (`detail === 0`) — the same
-  // thing `HTMLElement.click()` produces. A finger's press goes through the pointer instead, so
-  // that a SECOND finger can make it while the first is on the desk (`sceneToolbar.test.ts`); a
-  // bare `Event("click")` is neither, and no browser produces one.
-  boundsButton(el).dispatchEvent(new MouseEvent("click", { detail: 0, bubbles: true }));
+  boundsButton(el).dispatchEvent(new Event("click"));
 }
 
 function choose(select: HTMLSelectElement, value: string): void {
@@ -232,7 +228,7 @@ describe("a canvas carries its own settings", () => {
     document.body.append(a.el, b.el);
     expect(a.host.viewer().debugGrid).toBe(false);
 
-    gridButton(a.el).dispatchEvent(new MouseEvent("click", { detail: 0, bubbles: true }));
+    gridButton(a.el).dispatchEvent(new Event("click"));
     expect(a.host.viewer().debugGrid).toBe(true);
     expect(b.host.viewer().debugGrid).toBe(false);
     // And it did not switch the other layer on with it.

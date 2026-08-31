@@ -42,28 +42,6 @@ export type MotionOptions = TuningPatch & {
 export interface CarryItem {
   readonly id: NodeId;
   readonly offset: Vec;
-  /**
-   * HOW FAR BEHIND THE HAND THIS ONE DRAGS — seconds of spring, `0` or absent for none.
-   *
-   * A run is one plank by default, and that is right for a pack in a hand: everything in it is at
-   * its place the instant the hand is. But a run can also be a TAIL — a tab pulled across the felt
-   * with a deck hanging off it — and a tail is not a plank. Given a lag, this member chases its
-   * place instead of being put there, on a spring of its own, so a run whose members lag by a
-   * little more each reads as a thing being dragged rather than a thing being carried.
-   *
-   * It is the SwiftUI `response` of that spring: the time one full swing takes. A run laid out with
-   * a small lag on each successive member stretches out as it goes and gathers up when it stops,
-   * which is the whole of an accordion, a caterpillar and a deck on a strap.
-   */
-  readonly lag?: number | undefined;
-  /**
-   * IS THIS ONE HELD FLAT, whatever the rest of the run is doing? Absent, no — it banks with them.
-   *
-   * For the piece that is not a piece: a tab a hand is pulling is a CONTROL, and a control that
-   * heels over as the hand turns has stopped saying where it is. The lean belongs to the things
-   * being carried, not to the handle they are carried by.
-   */
-  readonly still?: boolean | undefined;
 }
 
 /**
@@ -82,33 +60,10 @@ export interface WallHit {
   readonly velocity: Vec;
 }
 
-/**
- * THE HAND NOBODY NAMED — what a carry belongs to when a page has only one.
- *
- * Every carry belongs to a hand, and most pages have exactly one, so most pages should not have to
- * say which. A page with two says the pointer's own id, which is the number `Pan` already reports:
- * there is nothing to invent and nothing to keep in step.
- *
- * NEGATIVE, and that is the whole reason for the value. A pointer id is a non-negative integer, so
- * a page that names its hands can never collide with the page next door that did not — and the
- * collision would not look like one: it would look like the pack letting go by itself the instant
- * somebody dealt off it.
- */
-export const ONE_HAND = -1;
-
 /** How a carry feels — the anchor, and any of the carry fields of the tuning as a per-gesture patch. */
 export type CarryOptions = {
   /** The grab pivot in root units — where the finger is now. Seeds the springs, so nothing jumps. */
   readonly anchor: Vec;
-  /**
-   * WHICH HAND IS DOING THE CARRYING — the pointer's own id. Absent, `ONE_HAND`.
-   *
-   * A table has two hands on it and each carries its own run with its own springs: a thumb on the
-   * pack and a finger leading a card off it are two carries, not two readings of one. Grabbing on a
-   * hand that is already carrying REPLACES that hand's run — the latest word wins, as everywhere
-   * here — and leaves every other hand alone.
-   */
-  readonly hand?: number | undefined;
   /**
    * THE TRAY THE RUN MAY NOT LEAVE, root units — the box the ANCHOR is held inside, which is the
    * same thing a `slide` bounces off (inset it by the piece's own half: `wallsOf(root, tray, half)`).
@@ -191,21 +146,6 @@ export type SlideOptions = {
   readonly glide?: string | GlideLaw | undefined;
   /** The same for the turn. */
   readonly spinGlide?: string | GlideLaw | undefined;
-  /**
-   * THE AIR UNDER IT AS IT FALLS — the law that ends the fall's acceleration. Absent, there is no
-   * air and the body drops like a stone, which is what a die is. A card is the other case: it is
-   * nearly all surface, so it reaches a terminal speed at once and comes down at that speed.
-   */
-  readonly airGlide?: string | GlideLaw | undefined;
-  /**
-   * A PLACE THAT LEANS ON THE THROW while it travels — `UIFieldBehavior`, not a target. The flight
-   * stays the player's; the field bends it. Nothing at all outside `radius`.
-   */
-  readonly pull?:
-    | { readonly to: Vec; readonly strength: number; readonly radius: number; readonly caught: number }
-    | undefined;
-  /** How much a spinning body curves — the Magnus arc. `0` (the default) has no grip on the air. */
-  readonly magnus?: number | undefined;
   readonly bounce?: number | undefined;
 };
 
@@ -351,34 +291,10 @@ export interface Motions {
    * `dragTo` on every pointer-move and `release` on each node when the gesture ends.
    */
   grab(items: readonly CarryItem[], opts: CarryOptions): void;
-  /**
-   * ADD NODES TO THE RUN A HAND IS ALREADY CARRYING — `UIDynamicBehavior.addItem`, mid-gesture.
-   *
-   * A carry poses the nodes it was GIVEN, and nothing else: a node that joins the carried container
-   * afterwards is not carried, it is laid out at whatever the tree says — which, for a held pack,
-   * is the seat the pack was lifted from. So a card thrown off the pack and coming home lands in
-   * the hand and then jumps to where the deck used to lie, and nothing on the glass says why.
-   *
-   * Silent when no hand is carrying anything: a game that means "pick these up" says `grab`.
-   */
-  grabAlso(items: readonly CarryItem[], hand?: number): void;
   /** Move the finger: retarget the chase springs. The run trails to the new anchor and leans en route. */
-  dragTo(anchor: Vec, hand?: number): void;
-  /**
-   * MOVE WHERE A SNAP IS GOING, while it is still on the way. Silent when that node is not flying,
-   * or is flying something with no destination — a fall and a slide are going wherever the physics
-   * takes them.
-   *
-   * A snap is the one throw aimed at a PLACE, and a place can move: a card sliding out of a pack is
-   * coming to a hand, and the hand does not wait for it. Without this the card is aimed at where
-   * the fingers were when it set off and arrives somewhere they have left.
-   */
-  aim(id: NodeId, to: Vec, up?: number): void;
-  /**
-   * The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when
-   * that hand is carrying nothing.
-   */
-  velocity(hand?: number): Vec | undefined;
+  dragTo(anchor: Vec): void;
+  /** The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when nothing is carried. */
+  velocity(): Vec | undefined;
   /**
    * Turn a node over on the clock. It squeezes to an edge and back — `|cos|` of a half-turn — and
    * `commit` runs at the EDGE, where the card has no width to show the swap. `commit` is the actual

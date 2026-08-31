@@ -50,18 +50,6 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
   /** The run a grabbed node leads. Absent, a card travels alone. */
   readonly runOf?: ((root: Node, hit: Node) => readonly Node[]) | undefined;
   /**
-   * HOW EACH MEMBER OF THE RUN IS HELD — asked once per member at the grab. Absent, all alike,
-   * which is a run carried as one plank.
-   *
-   * It is here because a run is not always a plank. A tab pulled across the felt with a deck
-   * hanging off it is one gesture with two kinds of member in it: the handle, which is a control
-   * and must be exactly under the finger and never heel over, and the load, which trails. Only the
-   * scene knows which is which — the wiring is looking at a list of nodes.
-   */
-  readonly holdOf?:
-    | ((hit: Node, member: Node, i: number, n: number) => { readonly lag?: number; readonly still?: boolean })
-    | undefined;
-  /**
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
    * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
    */
@@ -244,35 +232,20 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const tree = transformsOf(root);
     const poses = new Map(tree);
     if (drawn) for (const [id, t] of drawn) if (tree.has(id)) poses.set(id, t);
-    // WHERE THE HAND CLOSES — on the node it hit, or, when that node is no longer in the tree, on
-    // the run's own lead.
-    //
-    // `runOf` is where a scene decides what a finger takes, and deciding can mean BUILDING: a tab
-    // under a pile of loose cards answers "the pack these make", and that pack did not exist a
-    // moment ago. Anchored on the hit and nothing else, a scene that took the tab away while
-    // answering was punished with silence — the pick aborted, no release ever ran, and the desk was
-    // left with a rearranged tree, no tab and nothing in the hand.
-    //
-    // A run that came back non-empty is a run the hand has.
-    if (run.length === 0) return;
-    const at = poses.get(hit.id) ?? poses.get(run[0]!.id);
-    if (!at) return;
+    const at = poses.get(hit.id);
+    if (!at || run.length === 0) return;
     const anchor = { x: at.e, y: at.f };
     const p = toUnits(s.host, g, w.opts.view?.());
-    const items = run.map((c, i) => {
+    const items = run.map((c) => {
       const t = poses.get(c.id) ?? at;
-      return {
-        id: c.id,
-        offset: { x: t.e - anchor.x, y: t.f - anchor.y },
-        ...(w.opts.holdOf?.(hit, c, i, run.length) ?? {}),
-      };
+      return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId, tray: undefined };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, holdOf: _holdOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, liftOf, ...feel } = w.opts;
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, liftOf, ...feel } = w.opts;
     // The piece's own answer wins over the desk's, and only when it has one: a scene that says
     // nothing about a piece gets the ordinary pop, exactly as before this existed.
     const lift = liftOf?.(root, hit);
@@ -401,21 +374,16 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const source = lead?.parent ?? undefined;
     const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
     if (!lead || !source || !target || target === source) return false;
-    // THE GAME IS ASKED FIRST, AND IT IS ASKED EVEN WHEN THE ANSWER IS THE THING ITSELF.
-    //
-    // `zoneAt` answers with whatever zone is where the finger let go, and when the thing being
-    // carried IS that zone — a pack dragged across the felt and put down — the honest answer is
-    // still "the pack". That used to be refused HERE, before the game heard about it, and the
-    // refusal took a real event with it: "the pack was set down" is exactly the moment a table
-    // wants, because a pack set down on loose cards picks them up. The desk asked for that and
-    // never got it, and nothing said why.
+    // A THING IS NEVER DROPPED INTO ITSELF. `zoneAt` is asked where the finger let go and answers
+    // with whatever zone is there — and when the thing being carried IS that zone (a pack dragged
+    // across the felt and put down where it stood), the honest answer is still "the pack". Asking
+    // the move machinery whether a node may be moved inside itself is a question nobody should
+    // pose; it is a refusal here, and the ordinary drop stands.
+    if (target === lead || contains(lead, target)) return false;
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);
       return true;
     }
-    // A THING IS NEVER MOVED INTO ITSELF. Asking the move machinery whether a node may be put
-    // inside itself is a question nobody should pose; the ordinary drop stands instead.
-    if (target === lead || contains(lead, target)) return false;
     const req = { source, touched: lead, target, carried: { angle: angleOf(lead) } };
     const plan = planMove(req);
     if (plan.verdict !== "allow") return false; // refused, or waiting on a person: the piece goes home

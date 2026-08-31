@@ -32,11 +32,9 @@
 import { byId, fieldsOf, type Node, type NodeId } from "../../core/node.js";
 import { easing, flipScale, sample, tune, type CarryTuning, type Motion, type MotionTuning, type TuningPatch } from "../../core/motion.js";
 import { springAt, springSettled, stepSpring, type SpringConfig, type SpringState } from "../../core/spring.js";
-import { springOf } from "../../core/snap.js";
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
-import { journalOn, note, trace } from "../journal.js";
 import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { contextFor } from "../../core/resolve.js";
 import { applyEffects } from "../effects.js";
@@ -47,7 +45,7 @@ import { type TextMeasure } from "../textMetrics.js";
 import { transformsOf, viewTransform } from "../scenePlan/index.js";
 
 export * from "./motions.js";
-import { ONE_HAND, type CarryItem, type MotionOptions, type Motions, type WallHit } from "./motions.js";
+import { type CarryItem, type MotionOptions, type Motions, type WallHit } from "./motions.js";
 import {
   BANK_EPS,
   CARRY_EPS,
@@ -107,30 +105,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   // touches the tree — the carry step only writes here — so a pointer-move costs one paint, not a reconcile.
   /** Who a finger has, and the lift each is drawn at — the lamp needs the AMOUNT, not the fact. */
   const carried = new Map<NodeId, number>();
-  /**
-   * WHO IS CARRYING WHAT, one carry per HAND.
-   *
-   * A table has two hands on it — a thumb resting on the pack, a finger leading a card off it — and
-   * this used to be a single slot. Whichever hand grabbed last took the carry off the other one, so
-   * a page that needed both could give real carry physics to only ONE of them and had to write the
-   * other's pose into the tree by hand: no follow, no lean, no lift, and the piece dead under the
-   * finger. That was never a tuning anybody chose. It was this line.
-   *
-   * The key is the hand — the pointer's own id, the same number `Pan` reports — so a page never has
-   * to invent a name for a finger. One hand is the ordinary case and needs no name at all
-   * (`ONE_HAND`).
-   */
-  const carries = new Map<number, Carry>();
-  const handOf = (cy: Carry): number | undefined => {
-    for (const [hand, held] of carries) if (held === cy) return hand;
-    return undefined;
-  };
-  /** Drop every carry that has nothing left in it — the run empties one node at a time. */
-  const sweepCarries = (): void => {
-    for (const [hand, cy] of [...carries]) {
-      if (cy.items.every((it) => !carried.has(it.id))) carries.delete(hand);
-    }
-  };
+  let carrying: Carry | null = null;
   // Choreographies keyed by their subject — a node for a turn or a tumble, a container for a shuffle —
   // so a second call on the same subject replaces the first: the latest word wins, as everywhere here.
   const choreos = new Map<NodeId, Choreo>();
@@ -227,43 +202,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return new Set<NodeId>([...active.keys(), ...held, ...choreographed(), ...flying()]);
   };
 
-  /** Warped ms at the last painted frame — the journal's `dt`, and only the journal's. */
-  let drawnMs = 0;
-
-  /**
-   * WHAT WENT ON THE GLASS, for the dashcam (`journal.ts`). Written from `draw` because that is the
-   * one place a frame really is a frame: the loop paints here, and so does every tree change.
-   *
-   * Only what is MOVING, which is what `overrides` already means — a trace of thirty-six resting
-   * cards on every frame is a file nobody opens. Poses are flattened to the four numbers a person
-   * reads: where, how big, how turned, and how high off the desk.
-   */
-  const journalFrame = (): void => {
-    if (!journalOn()) return;
-    const moving = overrides();
-    const heights = grounded();
-    const drawn: Record<string, { at: [number, number]; size: number; turn: number; up?: number }> = {};
-    for (const [id, t] of moving ?? []) {
-      const up = heights?.get(id);
-      drawn[id] = {
-        at: [trace(t.e), trace(t.f)],
-        size: trace(Math.hypot(t.a, t.b)),
-        turn: trace((Math.atan2(t.b, t.a) * 180) / Math.PI),
-        ...(up === undefined ? {} : { up: trace(up) }),
-      };
-    }
-    note("frame", {
-      warped: trace(warped),
-      dt: trace(warped - drawnMs),
-      drawn,
-      ...(held.size > 0 ? { held: [...held] } : {}),
-      ...(flights.size > 0 ? { flying: [...flights.keys()] } : {}),
-    });
-    drawnMs = warped;
-  };
-
-  const draw = (): void => (
-    journalFrame(),
+  const draw = (): void =>
     renderFrame(host, painter, {
       overrides: overrides(),
       raised: raised(),
@@ -277,8 +216,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       ...(options.view ? { view: options.view } : {}),
       ...(options.pitch ? { pitch: options.pitch } : {}),
       ...(options.bake ? { bake: options.bake } : {}),
-    })
-  );
+    });
 
   /** The bank this frame's speed is ASKING for — what the lean spring chases, degrees. */
   const wantLean = (cy: Carry): number => lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);
@@ -290,12 +228,6 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * other three would leave the card standing at whatever angle the last frame caught it at.
    */
   const carrySettled = (cy: Carry): boolean =>
-    [...cy.tails].every(([id, t]) => {
-      const it = cy.items.find((m) => m.id === id);
-      if (!it) return true;
-      const to = heldAt(cy);
-      return springSettled(t.x, to.x + it.offset.x, CARRY_EPS) && springSettled(t.y, to.y + it.offset.y, CARRY_EPS);
-    }) &&
     springSettled(cy.sx, cy.target.x, CARRY_EPS) &&
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
@@ -336,8 +268,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       carried.delete(it.id);
       held.delete(it.id);
     }
-    const hand = handOf(cy);
-    if (hand !== undefined) carries.delete(hand);
+    if (carrying === cy) carrying = null;
     reconcile();
   };
 
@@ -412,16 +343,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       // The lift is recorded as well as drawn: the lamp lengthens a held piece's fall by it, so a
       // raised pack's shadow says the same height its size does.
       carried.set(it.id, cy.sl.pos);
-      // A LAGGING MEMBER IS WHERE ITS OWN SPRING HAS GOT TO, and a still one does not bank: the
-      // style is asked for the pose either way, and what changes is the place it is asked about and
-      // the lean it is given. The style stays a pure function of what it is handed, which is what
-      // keeps a run one thing however its members are strung out.
-      const tail = cy.tails.get(it.id);
-      const seat = tail
-        ? { anchor: { x: tail.x.pos - it.offset.x, y: tail.y.pos - it.offset.y }, offset: it.offset }
-        : { anchor, offset: it.offset };
-      const lean = it.still ? 0 : leanDeg;
-      displayed.set(it.id, compose(cy.style({ ...seat, leanDeg: lean, lift: cy.sl.pos, i, n }), preOf(it.id)));
+      displayed.set(it.id, compose(cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }), preOf(it.id)));
     });
   };
 
@@ -538,7 +460,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     }
     // Advance the carry springs: chase the finger, pop the lift, and lay the run out from where the
     // springs now are — the lag and the lean both fall out of the spring state, no separate tween.
-    for (const cy of [...carries.values()]) {
+    if (carrying) {
+      const cy = carrying;
       if (instant) {
         cy.sx = springAt(cy.target.x);
         cy.sy = springAt(cy.target.y);
@@ -551,21 +474,6 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // The bank chases AFTER the chase spring moved: within one frame the lean is answering the
         // speed this frame has, one step behind it and never a step ahead.
         cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
-      }
-      // The tail chases its place in the run. Stepped BEFORE the run is laid out, so a frame draws
-      // where the springs have got to and not where they were a frame ago.
-      const held = heldAt(cy);
-      for (const it of cy.items) {
-        const tail = cy.tails.get(it.id);
-        if (!tail) continue;
-        const to = { x: held.x + it.offset.x, y: held.y + it.offset.y };
-        if (instant) {
-          tail.x = springAt(to.x);
-          tail.y = springAt(to.y);
-        } else {
-          tail.x = stepSpring(tail.x, to.x, tail.cfg, dt);
-          tail.y = stepSpring(tail.y, to.y, tail.cfg, dt);
-        }
       }
       layCarry(cy);
       if (cy.walls) wallCheck(cy);
@@ -624,13 +532,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     if (committed) reconcile();
     for (const [key, ch] of [...choreos]) if (instant || progressOf(ch) >= 1) choreos.delete(key);
     draw();
-    if (
-      active.size > 0 ||
-      choreos.size > 0 ||
-      flights.size > 0 ||
-      [...carries.values()].some((cy) => !carrySettled(cy))
-    )
-      ensureLoop();
+    if (active.size > 0 || choreos.size > 0 || flights.size > 0 || (carrying && !carrySettled(carrying))) ensureLoop();
   };
 
   const ensureLoop = (): void => {
@@ -685,7 +587,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     flights.set(id, f);
     held.delete(id);
     carried.delete(id);
-    sweepCarries();
+    if (carrying && carrying.items.every((it) => !carried.has(it.id))) carrying = null;
     ensureLoop();
   };
 
@@ -707,12 +609,6 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     visibleBox,
     glass,
     beginFlight,
-    aim: (id, to, up) => {
-      const f = flights.get(id);
-      if (!f?.aim) return;
-      f.aim(to, up);
-      ensureLoop();
-    },
     ensureLoop,
   };
 
@@ -726,7 +622,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       carried.delete(id);
       // The run empties one node at a time (the scene releases per card). When the last is gone the
       // carry is over — the springs and target go with it, and the next reconcile eases the nodes home.
-      sweepCarries();
+      if (carrying && carrying.items.every((it) => !carried.has(it.id))) carrying = null;
     },
     grab(items, opts) {
       // THE FINGER IS THE LATEST WORD. Whatever the clock was doing to these nodes ends HERE, and it
@@ -749,7 +645,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       reconcile();
       const t = tune({ ...tuning, ...opts });
       const anchor = opts.anchor;
-      const cy: Carry = {
+      carrying = {
         items,
         style: carry(t.carry),
         target: anchor,
@@ -770,62 +666,22 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         leash: t.leash,
         onWall: opts.onWall,
         onSnap: opts.onSnap,
-        // THE TAIL, SEEDED WHERE EACH MEMBER ALREADY IS — a run that drags must not jump first.
-        tails: new Map(
-          items
-            .filter((it) => (it.lag ?? 0) > 0)
-            .map((it) => {
-              const now = displayed.get(it.id);
-              const from = now ? { x: now.e, y: now.f } : { x: anchor.x + it.offset.x, y: anchor.y + it.offset.y };
-              return [it.id, { x: springAt(from.x), y: springAt(from.y), cfg: springOf(it.lag!, 1) }] as const;
-            }),
-        ),
       };
       for (const it of items) {
         carried.set(it.id, 1);
         held.add(it.id);
         active.delete(it.id);
       }
-      carries.set(opts.hand ?? ONE_HAND, cy);
-      layCarry(cy); // paint the run under the finger at once
+      layCarry(carrying); // paint the run under the finger at once
       draw();
-      if (!carrySettled(cy)) ensureLoop(); // a pop or an off-anchor seat needs the loop; a bare grab does not
+      if (!carrySettled(carrying)) ensureLoop(); // a pop or an off-anchor seat needs the loop; a bare grab does not
     },
-    grabAlso(items, hand) {
-      // NOTHING IS BEING CARRIED, so there is nothing to join. Deliberately silent rather than a
-      // grab of its own: a game that means "pick these up" says `grab`, and turning a join into a
-      // grab would take the run off whatever hand is really holding it.
-      const carrying = carries.get(hand ?? ONE_HAND);
-      if (!carrying) return;
-      const fresh = items.filter((it) => !carried.has(it.id));
-      if (fresh.length === 0) return;
-      // Whatever the clock was doing to these ends HERE, and it ends by LANDING — the same bargain
-      // `grab` strikes, and for the same reason: a throw the hand caught is a throw that finished.
-      for (const it of fresh) {
-        const f = flights.get(it.id);
-        if (f) land(it.id, f);
-      }
-      reconcile();
-      const joined: Carry = { ...carrying, items: [...carrying.items, ...fresh], tails: carrying.tails };
-      carries.set(hand ?? ONE_HAND, joined);
-      for (const it of fresh) {
-        carried.set(it.id, 1);
-        held.add(it.id);
-        active.delete(it.id);
-      }
-      // Laid out at the anchor AT ONCE, so a node that joins mid-gesture is drawn in the hand on
-      // the very frame it joins instead of one frame at the seat its tree still names.
-      layCarry(joined);
-      draw();
-    },
-    dragTo(anchor, hand) {
-      const carrying = carries.get(hand ?? ONE_HAND);
+    dragTo(anchor) {
       if (!carrying) return;
       carrying.target = anchor;
       ensureLoop();
     },
-    velocity(hand) {
-      const carrying = carries.get(hand ?? ONE_HAND);
+    velocity() {
       return carrying ? { x: carrying.sx.vel, y: carrying.sy.vel } : undefined;
     },
     ...choreographies(rt),
@@ -858,7 +714,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       choreos.clear();
       flights.clear();
       carried.clear();
-      carries.clear();
+      carrying = null;
     },
   };
 }

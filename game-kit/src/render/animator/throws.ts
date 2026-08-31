@@ -4,16 +4,16 @@
 // difference from a choreography (`choreographies.ts`). The two are carried as functions on the
 // flight record — the runtime steps and asks "is it over", it never reads which sort this is.
 
-import { bodyAt, slideRests, slideTaken, stepFall, stepSlide, velocityOf, type Body } from "../../core/ballistic.js";
-import { asGlide, type GlideLaw } from "../../core/glide.js";
+import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body } from "../../core/ballistic.js";
+import { asGlide } from "../../core/glide.js";
 import { snapRests, stepSnap } from "../../core/snap.js";
-import { apply, type Vec } from "../../core/transform.js";
+import { apply } from "../../core/transform.js";
 import { turnOf } from "./poses.js";
 import { type Motions } from "./motions.js";
 import { OFF_GLASS, SLIDE_EPS, SPIN_EPS, facesLeft } from "./physics.js";
 import { type Runtime } from "./runtime.js";
 
-type Throws = Pick<Motions, "launch" | "slide" | "snap" | "aim">;
+type Throws = Pick<Motions, "launch" | "slide" | "snap">;
 
 export function throws(rt: Runtime): Throws {
   return {
@@ -60,9 +60,6 @@ export function throws(rt: Runtime): Throws {
         bounce: opts.bounce ?? rt.tuning.bounce,
         walls: opts.walls,
         gravity: rt.tuning.gravity,
-        airGlide: opts.airGlide === undefined ? undefined : asGlide(opts.airGlide),
-        pull: opts.pull,
-        magnus: opts.magnus,
       };
       rt.beginFlight(id, {
         body: {
@@ -76,13 +73,7 @@ export function throws(rt: Runtime): Throws {
         started: false,
         angle0: turnOf(rest),
         step: (b, dt) => stepSlide(b, cfg, dt),
-        // OVER WHEN IT RESTS, OR WHEN A ZONE HAS IT. The second is not a shortcut: a lean cannot
-        // stop a hard throw crossing its field in a few frames, and a seat that only leans watches
-        // the card sail past — which is the one thing a seat is there not to do.
-        // TAKEN, not merely touched: a field that HAS the body is landing it, and the landing is
-        // what ends the flight. Ending on the touch was the brick — a card that flew as thrown and
-        // then lost all of it on one frame.
-        over: (b) => slideRests(b, SLIDE_EPS, SPIN_EPS) || slideTaken(b, cfg, SLIDE_EPS, SPIN_EPS),
+        over: (b) => slideRests(b, SLIDE_EPS, SPIN_EPS),
         // No animation: a slide stops where it stands.
         halt: (b) => ({ ...b, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone,
@@ -93,10 +84,7 @@ export function throws(rt: Runtime): Throws {
     snap(id, opts) {
       const rest = rt.restOf(id);
       if (!rest) return;
-      // MUTABLE ON PURPOSE — `aim` writes here. A snap is the one throw with a place it is going,
-      // and a place can move while it is on the way: a card sliding out of a pack is coming to a
-      // HAND, and the hand does not wait for it. See `Motions.aim`.
-      const cfg: { to: Vec; up: number; response: number; damping: number; spinGlide: GlideLaw } = {
+      const cfg = {
         to: opts.to,
         up: opts.toUp ?? 0,
         response: opts.response ?? rt.tuning.snapResponse,
@@ -126,14 +114,7 @@ export function throws(rt: Runtime): Throws {
         // and the whole reading of a card losing height is the shadow closing on it as it comes
         // down. A snap that said otherwise would drop its shadow at the seat it left.
         onDesk: true,
-        aim: (to, up) => {
-          cfg.to = to;
-          if (up !== undefined) cfg.up = up;
-        },
       });
-    },
-    aim(id, to, up) {
-      rt.aim(id, to, up);
     },
   };
 }

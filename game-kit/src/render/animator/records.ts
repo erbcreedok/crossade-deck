@@ -21,13 +21,6 @@ export interface Carry {
   sl: SpringState;
   /** The BANK — the lean actually drawn, chasing the lean the speed asks for. Degrees. */
   sa: SpringState;
-  /**
-   * WHERE EACH LAGGING MEMBER ACTUALLY IS — one pair of springs per member that has a `lag`.
-   *
-   * Empty for an ordinary run, which is a plank: every member is at its place the instant the hand
-   * is. A run with lags is a TAIL, and a tail has to be somewhere of its own between frames.
-   */
-  readonly tails: Map<NodeId, { x: SpringState; y: SpringState; cfg: SpringConfig }>;
   readonly liftTo: number;
   readonly follow: SpringConfig;
   readonly liftCfg: SpringConfig;
@@ -100,15 +93,6 @@ export interface Flight {
   readonly tumble: Tumbling | undefined;
   /** True for a body travelling ACROSS the desk: it is on the felt, so its shadow goes with it. */
   readonly onDesk: boolean;
-  /**
-   * MOVE THE PLACE IT IS GOING TO, mid-flight — present only on a throw that HAS one, which is the
-   * snap alone. A fall and a slide are going wherever the physics takes them and there is nothing
-   * to re-aim.
-   *
-   * It exists because a card sliding out of a pack is coming to a HAND, and the hand does not wait
-   * for it. See `Motions.aim`.
-   */
-  readonly aim?: ((to: Vec, up: number | undefined) => void) | undefined;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 

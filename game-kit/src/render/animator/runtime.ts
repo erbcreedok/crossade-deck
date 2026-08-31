@@ -12,7 +12,7 @@
 
 import { type NodeId } from "../../core/node.js";
 import { type MotionTuning } from "../../core/motion.js";
-import { type Transform, type Vec } from "../../core/transform.js";
+import { type Transform } from "../../core/transform.js";
 import { type Host } from "../host.js";
 import { type ShuffleBox } from "../shuffles.js";
 import { type Choreo, type Flight } from "./records.js";
@@ -32,7 +32,5 @@ export interface Runtime {
   glass(): { readonly halfW: number; readonly halfH: number };
   /** File a flight. The finger lets go at once; a settle it was riding runs on until the flight goes. */
   beginFlight(id: NodeId, f: Flight): void;
-  /** Move a flight's destination while it is on the way — silent on a flight that has none. */
-  aim(id: NodeId, to: Vec, up: number | undefined): void;
   ensureLoop(): void;
 }

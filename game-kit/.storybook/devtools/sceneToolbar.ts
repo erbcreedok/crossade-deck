@@ -21,61 +21,18 @@ export interface ToolbarState {
   readonly hudUnit: HudUnitChoice;
   readonly bounds: boolean;
   readonly grid: boolean;
-  /** Is the dashcam rolling, and how many moments have been stamped on this take. */
-  readonly recording: boolean;
-  readonly marks: number;
 }
 
 export interface ToolbarHandlers {
   onHudUnit(choice: HudUnitChoice): void;
   onBounds(on: boolean): void;
   onGrid(on: boolean): void;
-  /** Start or stop the dashcam. */
-  onRecord(on: boolean): void;
-  /** "The thing I am telling you about is HERE" — the one entry a person writes. */
-  onMark(): void;
-  /** Hand the take over as a file. */
-  onExport(): void;
 }
 
 export interface SceneToolbar {
   readonly el: HTMLElement;
   /** Re-read the captions after a language change. */
   refresh(): void;
-}
-
-/**
- * PRESS IT WITH ANY FINGER, INCLUDING THE SECOND ONE.
- *
- * A `click` listener is deaf to a second simultaneous touch, and that is the specification rather
- * than a quirk: the compatibility mouse events a touch synthesises — `click` among them — are fired
- * only for the PRIMARY pointer, and the primary pointer is the first finger still down. So on a
- * desk where one hand is resting on the pack, none of these buttons answered at all: the reader
- * could not stamp the moment they were looking at, which is the one thing the dashcam is for.
- *
- * So the press is read off the POINTER, which every finger has. The compatibility click is refused
- * outright for touch (`preventDefault` on the down), and the `click` path is kept for the keyboard
- * alone — where `detail` is zero, because no pointer produced it.
- */
-function onTouch(button: HTMLButtonElement, run: () => void): void {
-  let down = -1;
-  button.addEventListener("pointerdown", (e: PointerEvent) => {
-    down = e.pointerId;
-    // No synthesised click behind the pointer one, or a first-finger press would fire twice.
-    if (e.pointerType !== "mouse") e.preventDefault();
-  });
-  button.addEventListener("pointerup", (e: PointerEvent) => {
-    if (e.pointerId !== down) return;
-    down = -1;
-    run();
-  });
-  button.addEventListener("pointercancel", () => {
-    down = -1;
-  });
-  // A keyboard press has no pointer behind it, and that is exactly what `detail === 0` says.
-  button.addEventListener("click", (e: MouseEvent) => {
-    if (e.detail === 0) run();
-  });
 }
 
 export function sceneToolbar(doc: Document, read: () => ToolbarState, on: ToolbarHandlers): SceneToolbar {
@@ -168,15 +125,14 @@ export function sceneToolbar(doc: Document, read: () => ToolbarState, on: Toolba
         `background:${t("sunkBg")}`,
         `border:1px solid ${onNow ? t("debug") : t("panelBorder")}`,
         `border-radius:${s("radius.s")}`,
-        `padding:${s("space.xs")} ${s("space.s")}`,
-        "min-height:34px",
+        `padding:2px ${s("space.s")}`,
         "white-space:nowrap",
         "flex:none",
         "cursor:pointer",
       ].join(";");
     };
 
-    onTouch(button, () => {
+    button.addEventListener("click", () => {
       const next = button.getAttribute("aria-pressed") !== "true";
       button.setAttribute("aria-pressed", String(next));
       repaint(next);
@@ -196,62 +152,10 @@ export function sceneToolbar(doc: Document, read: () => ToolbarState, on: Toolba
   const bounds = toggle("data-debug-bounds", (next) => on.onBounds(next));
   const grid = toggle("data-debug-grid", (next) => on.onGrid(next));
 
-  /**
-   * THE DASHCAM'S THREE, and they are three because they are three different acts: start the
-   * recording, stamp THIS moment, hand the take over. Only the first is a state, so only the first
-   * is a toggle; the other two are things a person does once.
-   *
-   * `mark` and `export` are dead while nothing is rolling rather than hidden — a control that comes
-   * and goes teaches nobody what it is for, and a reader looking for how to report a jerk should be
-   * able to see the answer before they need it.
-   */
-  const press = (attribute: string, onPress: () => void) => {
-    const button = doc.createElement("button");
-    button.setAttribute(attribute, "");
-    button.type = "button";
-    el.appendChild(button);
-    const repaint = (live: boolean): void => {
-      button.style.cssText = [
-        `font-family:${s("font.mono")}`,
-        `font-size:${s("font.size.s")}`,
-        `color:${live ? t("debug") : t("textMuted")}`,
-        `background:${t("sunkBg")}`,
-        `border:1px solid ${live ? t("debug") : t("panelBorder")}`,
-        `border-radius:${s("radius.s")}`,
-        `padding:${s("space.xs")} ${s("space.s")}`,
-        "min-height:34px",
-        `cursor:${live ? "pointer" : "default"}`,
-        `opacity:${live ? "1" : "0.45"}`,
-      ].join(";");
-    };
-    onTouch(button, onPress);
-    return {
-      show(caption: string, hint: string, live: boolean) {
-        button.textContent = caption;
-        button.title = hint;
-        // Dimmed rather than switched off, and it is not a shortcut: both of these are silent when
-        // nothing is rolling anyway (`journal.ts` returns on its first line), so the button is
-        // already inert and the paint is simply telling the truth about it. A control that comes
-        // and goes teaches nobody what it is for, and somebody looking for how to report a jerk
-        // should be able to see the answer before they need it.
-        repaint(live);
-      },
-    };
-  };
-
-  const rec = toggle("data-debug-rec", (next) => on.onRecord(next));
-  const stamp = press("data-debug-mark", () => on.onMark());
-  const save = press("data-debug-export", () => on.onExport());
-
   const refresh = (): void => {
-    const { text, hudUnit, bounds: boundsOn, grid: gridOn, recording, marks } = read();
+    const { text, hudUnit, bounds: boundsOn, grid: gridOn } = read();
     bounds.show(boundsOn, text.text("viewer.bounds"), text.text("viewer.bounds.hint"));
     grid.show(gridOn, text.text("viewer.grid"), text.text("viewer.grid.hint"));
-    rec.show(recording, text.text("viewer.rec"), text.text("viewer.rec.hint"));
-    // The mark's caption CARRIES THE COUNT, because the number is the thing a person then says out
-    // loud — "look at mark three" — and a count you have to remember is a count nobody uses.
-    stamp.show(marks > 0 ? text.text("viewer.mark.n", { n: marks }) : text.text("viewer.mark"), text.text("viewer.mark.hint"), recording);
-    save.show(text.text("viewer.export"), text.text("viewer.export.hint"), recording);
     label.textContent = text.text("viewer.hudUnit");
     select.title = text.text("viewer.hudUnit.hint");
     [...select.options].forEach((option, i) => {
