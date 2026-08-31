@@ -1,0 +1,30 @@
+game-kit/docs/test-plan/40-motion.md
+  s_881c18b5871008::t_b6a59efb96c635 3,30
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_595302d77b8dbc 133-154,183,419-422,490-499
+game-kit/src/render/animator/records.ts
+  s_881c18b5871008::t_d9d69a9cc5211a 92-104
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_b6a59efb96c635 10,68
+game-kit/src/render/animator/throws.ts
+  s_881c18b5871008::t_d9d69a9cc5211a 38-39,77-78
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_a281c6ae36f810 25,927-969
+  s_881c18b5871008::t_97a31dd253fb71 970-971
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "497b07bf0e02ece22dfe7eb51146ec24a8315b1c",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
