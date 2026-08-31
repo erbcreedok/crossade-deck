@@ -1,0 +1,75 @@
+game-kit/src/core/motion.ts
+  s_881c18b5871008::t_941bbf5462bac9 6-9,199,201,208
+game-kit/docs/test-plan/42-drag-feel.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/docs/test-plan/63-drag-drop-order.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_941bbf5462bac9 14,351
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/docs/test-plan/10-scene-plan.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/src/core/ballistic.test.ts
+  s_881c18b5871008::t_941bbf5462bac9 4
+game-kit/docs/test-plan/62-gestures.md
+  s_881c18b5871008::t_941bbf5462bac9 3,46
+game-kit/src/render/animator/runtime.ts
+  s_881c18b5871008::t_941bbf5462bac9 15
+game-kit/.storybook/devtools/scene.test.ts
+  s_881c18b5871008::t_941bbf5462bac9 61,231
+game-kit/docs/test-plan/40-motion.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/src/render/animator/throws.ts
+  s_881c18b5871008::t_941bbf5462bac9 7-8,10,16,76,87
+game-kit/docs/test-plan/02-contour-and-dashes.md
+  s_881c18b5871008::t_941bbf5462bac9 3
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_941bbf5462bac9 48,108,205,219,271,346,463-464,535,590,625,648,675,677,679,684,717
+game-kit/src/core/spring.ts
+  s_881c18b5871008::t_941bbf5462bac9 37-39,42-45
+game-kit/src/render/scenePlan/index.ts
+  s_881c18b5871008::t_941bbf5462bac9 43,269,275
+game-kit/.storybook/devtools/sceneToolbar.ts
+  s_881c18b5871008::t_941bbf5462bac9 128,135,156
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_941bbf5462bac9 307,311
+game-kit/src/core/ballistic.ts
+  s_881c18b5871008::t_941bbf5462bac9 131-132
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_941bbf5462bac9 10,30,38-39,68,70,74,90-91
+game-kit/src/guards.test.ts
+  s_881c18b5871008::t_941bbf5462bac9 283-285,289-290
+game-kit/src/core/motion.test.ts
+  s_881c18b5871008::t_941bbf5462bac9 4-5
+game-kit/src/render/gestures.test.ts
+  s_881c18b5871008::t_941bbf5462bac9 8,33,80
+game-kit/.storybook/devtools/drag.ts
+  s_881c18b5871008::t_941bbf5462bac9 235-236,239,241,248,377-382
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_941bbf5462bac9 311,315
+game-kit/src/render/animator/motions.ts
+  s_881c18b5871008::t_941bbf5462bac9 295-297
+game-kit/src/render/pan.ts
+  s_881c18b5871008::t_941bbf5462bac9 195-196,216-219,265,271
+game-kit/.storybook/devtools/scene.ts
+  s_881c18b5871008::t_941bbf5462bac9 340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9185525e1e9d6018c87fdc6eb7567fcbcf1e788e",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
