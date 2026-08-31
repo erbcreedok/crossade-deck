@@ -48,6 +48,18 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
   /** The run a grabbed node leads. Absent, a card travels alone. */
   readonly runOf?: ((root: Node, hit: Node) => readonly Node[]) | undefined;
   /**
+   * WHERE EACH MEMBER OF THE RUN STANDS while it is carried, relative to the anchor — instead of
+   * where it happens to be lying.
+   *
+   * Absent, a run keeps its shape: a column picked up in the middle stays the column it was, which
+   * is what every drag on this shelf wants. Present, the run is ARRANGED as it is lifted — pull a
+   * handle under a heap of touching cards and they come up as one squared stack rather than as the
+   * heap they were. The arrangement has to happen at the LIFT and not at the drop: a hand closing on
+   * a heap is the moment a player expects it to become a thing, and a heap that stayed a heap all
+   * the way across the desk and squared up only when let go reads as the desk tidying up after them.
+   */
+  readonly offsetOf?: ((root: Node, hit: Node, run: readonly Node[]) => readonly Vec[] | undefined) | undefined;
+  /**
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
    * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
    */
@@ -205,7 +217,13 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     if (!at || run.length === 0) return;
     const anchor = { x: at.e, y: at.f };
     const p = toUnits(s.host, g, w.opts.view?.());
-    const items = run.map((c) => {
+    // ARRANGED, when the scene says so, and otherwise as it lies. The offsets are the whole of the
+    // difference: the carry lays the run out from them on its very first frame, so a heap lifted by
+    // its handle is already a stack before it has travelled a pixel.
+    const arranged = w.opts.offsetOf?.(root, hit, run);
+    const items = run.map((c, i) => {
+      const seat = arranged?.[i];
+      if (seat) return { id: c.id, offset: seat };
       const t = poses.get(c.id) ?? at;
       return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
     });
@@ -214,7 +232,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const { runOf: _runOf, offsetOf: _offsetOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {

@@ -32,7 +32,17 @@ import {
 } from "../../src/index.js";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
-import { dropOf, gestureMap, mapWalls, MAP, toFront } from "./gestureMap.js";
+import {
+  dropOf,
+  gestureMap,
+  isGrip,
+  mapWalls,
+  MAP,
+  regrip,
+  stackMap,
+  stackSeats,
+  toFront,
+} from "./gestureMap.js";
 import { documented } from "./surfaceControls.js";
 
 // GESTURES — one page per gesture, and on every one of them the SAME element answers.
@@ -260,8 +270,11 @@ const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
  * own number in, and then the height is that number on both settings of the switch — otherwise the
  * `Lift` page would answer "no lift at all" to a reader who turned the physics off on it.
  */
-function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw"): HTMLElement {
-  const built = scene(gestureMap(), {
+function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", stacking = false): HTMLElement {
+  // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
+  // that is the only time the answer can have changed.
+  let heaps = new Map<string, readonly Node[]>();
+  const built = scene(stacking ? stackMap() : gestureMap(), {
     animate: true,
     camera: {
       limits: MAP_ZOOM,
@@ -278,8 +291,30 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw"): H
   });
   // How high the hand is actually holding it, once the switch and the page have both had their say.
   const held = lift ?? (physics ? DEFAULT_TUNING.lift : 1);
+  /** Redraw the handles for whatever is touching now, and show them. */
+  const settle = (): void => {
+    if (!stacking) return;
+    heaps = regrip(built.host.root);
+    built.host.setRoot(built.host.root);
+  };
+  settle();
   return wireDrag(built, {
     view: () => built.camera!.transform(),
+    // A HANDLE LIFTS THE HEAP IT STANDS UNDER, and itself with it — left behind, the tab would hang
+    // over felt the heap has walked away from. Anything else lifts alone, which is the whole of
+    // "pull a card out of the heap instead of the heap".
+    ...(stacking
+      ? {
+          runOf: (_root: Node, hit: Node) => (isGrip(hit) ? [hit, ...(heaps.get(hit.id) ?? [])] : [hit]),
+          // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
+          // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
+          offsetOf: (_root: Node, hit: Node, run: readonly Node[]) =>
+            isGrip(hit) ? [{ x: 0, y: 0 }, ...stackSeats(run.slice(1))] : undefined,
+          onCarry: ({ done }: { readonly done: boolean }) => {
+            if (done) settle();
+          },
+        }
+      : {}),
     // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see
     // `NEVER_THROUGH`. The height is handed in because the wall is the DRAWN edge of the piece:
     // raise a piece and it is wider, and a border that ignored that would let the difference out.
@@ -296,7 +331,7 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw"): H
     ...(letGo
       ? {
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
-            letFall(built, items, held, letGo === "throw" ? v : undefined),
+            letFall(built, items, held, letGo === "throw" ? v : undefined, settle),
         }
       : {}),
   }).el;
@@ -323,7 +358,7 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw"): H
  * same fall carries that speed across the desk and the map's border reflects it. A slow release is
  * then not a special case at all — it is a throw of nearly no speed, which is a drop.
  */
-function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec | undefined): boolean {
+function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec | undefined, after?: () => void): boolean {
   const m = s.motions;
   const drawn = m?.poses();
   if (!m || !drawn) return false;
@@ -362,7 +397,10 @@ function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec
       // there: the seat in the tree is still the point it was let go of, and the reconcile that
       // follows a landing would fly it all the way back to the hand. A flight is a LOOK; the seat is
       // the truth, and the truth is only true once somebody writes it down.
-      onDone: (at) => landed(s, id, at),
+      onDone: (at) => {
+        landed(s, id, at);
+        after?.();
+      },
     });
   }
   return true;
@@ -411,6 +449,11 @@ interface ThrowArgs extends DropArgs {
   throwing: boolean;
 }
 
+interface StackArgs extends ThrowArgs {
+  /** Off, and touching pieces are just pieces that happen to overlap — no handles, no heaps. */
+  stacking: boolean;
+}
+
 /**
  * EVERY PAGE HAS THE SWITCH FOR ITS OWN FEATURE, and turning it off leaves the page BEFORE it.
  *
@@ -421,6 +464,7 @@ interface ThrowArgs extends DropArgs {
 const LIFTED = documented("arg.lifted", {}, "carry");
 const DROPPING = documented("arg.dropping", {}, "release");
 const THROWING = documented("arg.throwing", {}, "release");
+const STACKING = documented("arg.stacking", {}, "stack");
 
 /**
  * HOW HIGH THE HAND HOLDS IT — a third of a card off the desk instead of the kit's polite six
@@ -490,4 +534,29 @@ export const Throw: StoryObj<ThrowArgs> = {
   args: { physics: true, lifted: true, lift: 1.3, dropping: true, throwing: true },
   argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, throwing: THROWING },
   parameters: { gkDocStory: "gestures.throw" },
+};
+
+/**
+ * STACK — push two of a kind together and a handle appears under them.
+ *
+ * Six cards, six chips of one denomination and a die, and NOTHING touching anything to begin with:
+ * touching is the subject, so the desk has to open with none of it. Slide two cards into each other
+ * — or two chips — and a wide low tab appears under the middle of everything they cover. Pull it and
+ * they come up as one squared stack; let go and they stay one.
+ *
+ * WHAT MAY TOUCH WHAT is this desk's rule and not the kit's: a card heaps with a card and a chip
+ * with a chip, and the die heaps with nothing, being the only one of itself. The kit answers the
+ * geometry — do these two outlines overlap, and what groups does that make (`outlinesTouch`,
+ * `islands`) — and stops there.
+ *
+ * Touching is transitive: three cards in a row whose ends do not meet are still one heap, because a
+ * player can see that they are. And a piece is still a piece — take one by ITSELF and it comes out
+ * of the heap alone; the handle is the only thing that lifts the whole.
+ */
+export const Stack: StoryObj<StackArgs> = {
+  render: ({ physics, lifted, lift, dropping, throwing, stacking }) =>
+    grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined, stacking),
+  args: { physics: true, lifted: true, lift: 1.3, dropping: true, throwing: true, stacking: true },
+  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, throwing: THROWING, stacking: STACKING },
+  parameters: { gkDocStory: "gestures.stack" },
 };

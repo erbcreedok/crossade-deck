@@ -187,6 +187,7 @@
   "arg.spinFriction": "How fast a sliding body's SPIN bleeds out, in degrees per second squared. Independent of the slide's own friction, so a die can keep turning after it has all but stopped moving.",
   "arg.spotlight": "Clear the cast on one child back to nothing. «All but this one» is a dim on the tray and a `clear` on the lit figure — the inversion is overriding an inherited value, not a scope switch.",
   "arg.spread": "The whole arc in degrees, first card to last. More cards pack the same arc tighter — the fan does not widen.",
+  "arg.stacking": "Let touching pieces of one kind form a HEAP, with a handle under it that lifts the whole thing as one squared stack. Off, pieces that overlap are just pieces that overlap: no handles, and every finger lifts exactly what it landed on.",
   "arg.stand": "Whether the pieces stand up out of the laid-back cloth (`Oriented: \"viewer\"`) or lie on it with it (`world`). Per element and not a mode of the camera — the same field that keeps a caption upright over a turned slot.",
   "arg.startAngle": "Where the first child stands, in degrees clockwise from twelve o'clock — the same sense `angle` turns.",
   "arg.startHead": "What STANDS at the near end, by registry name — the end itself is `from`. Nothing is the ordinary case; a head at both ends is the arrow that points both ways.",

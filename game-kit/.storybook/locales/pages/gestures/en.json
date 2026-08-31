@@ -87,5 +87,21 @@
     "The felt and the rail are two materials, so a piece states two restitutions and not one. With a",
     "single number the card would have to choose between lying where it lands and coming off a border,",
     "and every pair like it would be unsayable."
+  ],
+  "docs.gestures.stack": [
+    "PUSH TWO OF A KIND TOGETHER AND A HANDLE APPEARS UNDER THEM.",
+    "",
+    "Six cards, six chips of one denomination and a die, and nothing touching anything to begin with:",
+    "touching is the subject of the page, so it has to open with none of it. Slide two cards into each",
+    "other — or two chips — and a wide low tab appears under the middle of everything they cover. Pull",
+    "it and they come up as one squared stack; let go and they stay one.",
+    "",
+    "WHAT MAY TOUCH WHAT is this desk's rule and not the kit's. A card heaps with a card and a chip with",
+    "a chip; the die heaps with nothing, being the only one of itself. The kit answers the geometry —",
+    "do these two outlines overlap, and what groups does that make — and stops there.",
+    "",
+    "Touching is transitive: three cards in a row whose ends do not meet are still one heap, because a",
+    "player can see that they are. And a piece is still a piece — take one by ITSELF and it comes out of",
+    "the heap alone. The handle is the only thing that lifts the whole."
   ]
 }

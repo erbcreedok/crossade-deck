@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**62 слоёв · 1452 кейсов заявлено · 1279 расписано поимённо.**
+**63 слоёв · 1462 кейсов заявлено · 1289 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -36,7 +36,7 @@
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
 | [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 60 | 60 |
-| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 72 | 72 |
+| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 76 | 76 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
@@ -88,3 +88,4 @@
 | [UNIT · долгое нажатие — палец, который ОСТАЁТСЯ](60-long-press.md) | `vitest + фейковые таймеры` | 8 | 8 |
 | [UNIT · реестр анимаций — вид, который дизайнер назвал сам](61-motion-registry.md) | `vitest` | 22 | 22 |
 | [UNIT · жесты — свайп, тряска, месиво](62-gestures.md) | `vitest` | 24 | 24 |
+| [UNIT · касание и кучи](63-overlap.md) | `vitest (headless, no WebGL)` | 6 | 6 |

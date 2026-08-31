@@ -6,7 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
-import { dropOf, gestureMap, MAP, mapWalls, toFront } from "./gestureMap.js";
+import { compose, fieldsOf, Transformable, type TransformableFields } from "../../src/index.js";
+import { dropOf, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, stackMap, stackSeats, toFront } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -100,5 +101,76 @@ describe("the gesture map", () => {
     expect(desk.children).toHaveLength(4);
     expect(desk.children.map((n) => n.id)).toContain("knight");
     expect(desk.children.map((n) => n.id)).toContain("die");
+  });
+});
+
+describe("the stacking desk", () => {
+  const at = (desk: Node, id: string, x: number, y: number): void => {
+    compose(desk.children.find((n) => n.id === id)!, Transformable({ at: { x, y } }));
+  };
+  const kinds = (desk: Node) => desk.children.map(kindOf);
+
+  it("map.the-stacking-desk-opens-with-nothing-touching — the subject cannot already be on the desk", () => {
+    // Six cards, six chips of one denomination, one die. A desk that opened with a heap already on
+    // it would teach the heap and not how one comes about.
+    const desk = stackMap();
+    const k = kinds(desk);
+    expect(k.filter((x) => x === "card")).toHaveLength(6);
+    expect(k.filter((x) => x === "chip")).toHaveLength(6);
+    expect(k.filter((x) => x === "die")).toHaveLength(1);
+    expect(heapsOf(desk), "and not one of them touches another").toEqual([]);
+  });
+
+  it("map.a-heap-is-one-kind-and-transitive — a card with a card, and the ends need not meet", () => {
+    // WHAT MAY TOUCH WHAT is the desk's rule, not the kit's: the kit answers the geometry and stops.
+    const desk = stackMap();
+    // Three chips in a row, each touching the next and the ends apart: still one heap.
+    at(desk, "chip 0", 0, 5);
+    at(desk, "chip 1", 0.4, 5);
+    at(desk, "chip 2", 0.8, 5);
+    let heaps = heapsOf(desk);
+    expect(heaps).toHaveLength(1);
+    expect(heaps[0]).toHaveLength(3);
+    // A chip sitting ON a card is not a heap: two kinds do not stack together on this desk.
+    at(desk, "chip 3", 0, -5);
+    at(desk, "chip 4", 9, 9);
+    at(desk, "chip 5", 9, -9);
+    const card = desk.children.find((n) => kindOf(n) === "card")!;
+    compose(card, Transformable({ at: { x: 0, y: -5 } }));
+    heaps = heapsOf(desk);
+    expect(heaps.every((h) => h.every((n) => kindOf(n) === kindOf(h[0]!)))).toBe(true);
+    expect(heaps.some((h) => h.some((n) => n.id === "chip 3"))).toBe(false);
+  });
+
+  it("map.a-handle-stands-under-the-middle-of-what-the-heap-covers — one per heap, and none for a lone piece", () => {
+    const desk = stackMap();
+    expect(regrip(desk).size, "nothing touches, so there is nothing to pull").toBe(0);
+    expect(desk.children.filter(isGrip)).toHaveLength(0);
+    for (const i of [2, 3, 4, 5]) at(desk, `chip ${i}`, 3 + i, 3);
+    at(desk, "chip 0", 0, 0);
+    at(desk, "chip 1", 0.4, 0);
+    const held = regrip(desk);
+    expect(held.size).toBe(1);
+    const tab = desk.children.find(isGrip)!;
+    expect(held.get(tab.id)).toHaveLength(2);
+    // Under the MIDDLE of everything the heap covers, and below its lowest edge — never over it.
+    const box = heapBox(desk, held.get(tab.id)!);
+    const seat = fieldsOf<TransformableFields>(tab, "Transformable")!.at!;
+    expect(seat.x).toBeCloseTo(box.mid, 6);
+    expect(seat.y).toBeGreaterThan(box.bottom + GRIP.h / 2);
+    // And the old tab goes when the heap does: a handle nobody redrew hangs under felt.
+    at(desk, "chip 1", 5, 5);
+    expect(regrip(desk).size).toBe(0);
+    expect(desk.children.filter(isGrip)).toHaveLength(0);
+  });
+
+  it("map.a-lifted-heap-is-squared-up — the seats are a stack, and thickness is an `at`", () => {
+    // Written as `z` a growing heap would rise off the felt for ever (`guard.layout-writes-only-at`
+    // is the same law from the layout's side). The first piece sits ON the handle, at zero.
+    const seats = stackSeats([1, 2, 3, 4] as unknown as Node[]);
+    expect(seats[0]).toEqual({ x: 0, y: 0 });
+    expect(seats[1]!.y).toBeLessThan(0); // each one a hair further UP the glass than the last
+    expect(seats[3]!.y).toBeCloseTo(seats[1]!.y * 3, 10);
+    expect(stackSeats([])).toEqual([]);
   });
 });
