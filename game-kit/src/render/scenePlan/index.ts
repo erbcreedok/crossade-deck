@@ -72,6 +72,10 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
    * `undefined` when the desk is not laid back at all, so an ordinary scene composes nothing extra.
    */
   const standUp = pitchStand(pitch);
+  // How much of the view's scale a screen-sized node has to give back: at zoom 1 the view IS the
+  // unit and there is nothing to undo, so the whole thing is absent rather than a scale of one.
+  const viewScale = Math.hypot(toView.a, toView.b);
+  const screenUndo = viewScale > 0 && unit > 0 && Math.abs(viewScale - unit) > 1e-9 ? scale(unit / viewScale) : undefined;
   // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
   // size ratio), how much each point of resolved `z` adds, how dark the ink lies — is the DESK's
   // data (`Lit.shadow`, root-only), read once per plan. A per-piece length would be a second
@@ -213,7 +217,13 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     const lying = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
     // A node framed to the VIEWER stands out of the tilted plane; everything else lies on it. The
     // stand is about the node's OWN origin, so it gains height without walking up the screen.
-    const toGlass = standUp && orientationOf(ctx) === "viewer" ? standing(lying, standUp) : lying;
+    const stood = standUp && orientationOf(ctx) === "viewer" ? standing(lying, standUp) : lying;
+    // A CONTROL IS MEASURED IN PIXELS. The view's own scale is taken back about the node's own
+    // origin, so a handle is the same size at every zoom — which is what a handle is in every
+    // application that has ever drawn one, because it is sized for the finger and a finger does not
+    // grow with the picture. About its ORIGIN, so it holds its place on the thing it is a handle for
+    // instead of walking across the glass as the view moves.
+    const toGlass = screenUndo && caps(node).has("Screened") ? standing(stood, screenUndo) : stood;
     // A ZERO UNIT IS NOT A DIVISION. A container with no size on screen — hidden, or measured
     // before layout — reports a unit of zero, and `1 / 0` puts NaN through the whole matrix.
     // Everything downstream then reads as "rotated", because NaN is not equal to zero either,

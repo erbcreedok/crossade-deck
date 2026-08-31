@@ -252,7 +252,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     springSettled(cy.sx, cy.target.x, CARRY_EPS) &&
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
-    springSettled(cy.sa, wantLean(cy), BANK_EPS);
+    springSettled(cy.sa, wantLean(cy), BANK_EPS) &&
+    (cy.trail <= 0 ||
+      cy.tails.every((t, i) => i === 0 || (springSettled(t.x, heldAt(cy).x, CARRY_EPS) && springSettled(t.y, heldAt(cy).y, CARRY_EPS))));
 
   /**
    * Lay the carried run out UNDER THE FINGER this frame, writing each node's override pose.
@@ -332,12 +334,29 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     }
   };
 
+  /**
+   * The chase of the i-th piece of a trailing run: the same spring, slower the further down it is.
+   *
+   * Slower and not later: a delay would be a queue of stale positions, and a run leaving a queue
+   * behind it snaps into line the moment the hand stops. A softer spring stretches while the hand
+   * moves and closes up when it stops, which is what anything held by one end does. Damping follows
+   * the square root of the stiffness so every piece keeps the same shape of arrival, only its own
+   * pace — otherwise the far end would ring.
+   */
+  const tailCfg = (cy: Carry, i: number): SpringConfig => {
+    const slower = 1 + cy.trail * i;
+    return { stiffness: cy.follow.stiffness / slower, damping: cy.follow.damping / Math.sqrt(slower) };
+  };
+
   const layCarry = (cy: Carry): void => {
     const leanDeg = cy.sa.pos;
     const anchor = heldAt(cy);
     const n = cy.items.length;
     cy.items.forEach((it, i) => {
-      displayed.set(it.id, cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));
+      // Piece zero is the hand's own: exactly at the anchor, never a spring. What hangs off it is
+      // what trails, and it trails from its own chase rather than from a share of the hand's.
+      const seat = cy.trail > 0 && i > 0 ? { x: cy.tails[i]!.x.pos, y: cy.tails[i]!.y.pos } : anchor;
+      displayed.set(it.id, cy.style({ anchor: seat, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));
     });
   };
 
@@ -470,6 +489,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // The bank chases AFTER the chase spring moved: within one frame the lean is answering the
         // speed this frame has, one step behind it and never a step ahead.
         cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
+      }
+      if (cy.trail > 0) {
+        const to = heldAt(cy);
+        cy.tails = cy.tails.map((t, i) =>
+          i === 0 ? t : { x: stepSpring(t.x, to.x, tailCfg(cy, i), dt), y: stepSpring(t.y, to.y, tailCfg(cy, i), dt) },
+        );
       }
       layCarry(cy);
       if (cy.walls) wallCheck(cy);
@@ -680,6 +705,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         bankCfg: { stiffness: t.leanStiffness, damping: t.leanDamping },
         tiltFactor: t.leanFactor,
         tiltMax: t.leanMaxDeg,
+        trail: t.trail,
+        // Seeded AT the anchor, so a run that trails does not start by catching up from nowhere:
+        // the pieces are where they are on the first frame, and only what MOVES falls behind.
+        tails: items.map(() => ({ x: springAt(anchor.x), y: springAt(anchor.y) })),
         walls: opts.walls,
         wallSpeed: t.wallSpeed,
         wallBounce: t.wallBounce,

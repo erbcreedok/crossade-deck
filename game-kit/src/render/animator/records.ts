@@ -34,6 +34,18 @@ export interface Carry {
   readonly leash: number;
   readonly onWall: ((hit: WallHit) => void) | undefined;
   readonly onSnap: ((ids: readonly NodeId[], at: Vec) => void) | undefined;
+  /**
+   * HOW FAR EACH PIECE AFTER THE FIRST FALLS BEHIND — `0` (the default) is a run carried as one
+   * plank, and everything above it stretches the run out behind the hand and lets it close up again
+   * when the hand stops.
+   *
+   * The first item is never late: it is the thing the hand actually has hold of, and a handle that
+   * lagged the finger would be a control moving away from the hand holding it. What trails is what
+   * is hanging off it.
+   */
+  readonly trail: number;
+  /** Each item's own chase, when the run trails. Index 0 is unused — it rides the anchor exactly. */
+  tails: readonly { x: SpringState; y: SpringState }[];
 }
 
 /**

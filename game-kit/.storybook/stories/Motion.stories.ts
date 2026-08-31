@@ -87,6 +87,7 @@ const meta: Meta = {
       wallSpeed: ["Carry"],
       wallBounce: ["Carry"],
       leash: ["Carry"],
+      trail: ["Carry"],
     },
   },
 };
@@ -391,6 +392,7 @@ interface CarryArgs extends Omit<DeskArgs, "piecePaint"> {
   wallSpeed: number;
   wallBounce: number;
   leash: number;
+  trail: number;
 }
 
 /**
@@ -437,6 +439,7 @@ export const Carry: StoryObj<CarryArgs> = {
     wallSpeed: DEFAULT_TUNING.wallSpeed,
     wallBounce: DEFAULT_TUNING.wallBounce,
     leash: DEFAULT_TUNING.leash,
+    trail: DEFAULT_TUNING.trail,
   },
   argTypes: {
     deskLayout: documented("arg.layoutName", TOKEN, "desk/container"),
@@ -468,6 +471,7 @@ export const Carry: StoryObj<CarryArgs> = {
     wallSpeed: documented("arg.wallSpeed", { control: { type: "range", min: 0, max: 20, step: 0.5 } }, "tray/wall"),
     wallBounce: documented("arg.wallBounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "tray/wall"),
     leash: documented("arg.leash", { control: { type: "range", min: 0.2, max: 5, step: 0.1 } }, "tray/wall"),
+    trail: documented("arg.trail", { control: { type: "number", min: 0, step: 0.1 } }, "carry"),
   },
   parameters: { gkDocStory: "motion.carry" },
   render: ({
@@ -500,6 +504,7 @@ export const Carry: StoryObj<CarryArgs> = {
     wallSpeed,
     wallBounce,
     leash,
+    trail,
   }) => {
     registerLayout(deskLayout, freeLayout);
     const desk = node("desk", Container({ layout: deskLayout }));
@@ -536,6 +541,7 @@ export const Carry: StoryObj<CarryArgs> = {
       wallSpeed,
       wallBounce,
       leash,
+      trail,
     };
     // The box the ANCHOR may be in: the tray's own footprint, pulled in by half a card so the card
     // itself stays inside — the same inset a game gives `wallsOf`.

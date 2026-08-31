@@ -111,6 +111,18 @@ export interface MotionTuning {
    * on a piece that cannot follow is not holding it any more: the piece is left standing where it is.
    */
   readonly leash: number;
+  /**
+   * HOW FAR EACH PIECE OF A CARRIED RUN FALLS BEHIND THE ONE BEFORE IT. `0` is a run carried as one
+   * plank — the stock feel, and right for a column of cards a hand has closed on.
+   *
+   * Above zero the run stretches out behind the hand and closes up again when the hand stops, the
+   * way anything held by one end does. It is the whole difference between carrying a thing and
+   * dragging one: a stack pulled by a handle under it is dragged, and a stack that arrived rigid
+   * would read as a picture of a stack rather than as a stack.
+   *
+   * The FIRST piece is never late — it is what the hand has hold of.
+   */
+  readonly trail: number;
   /** Desk-slide deceleration for `slide`, units/s². */
   readonly friction: number;
   /** Desk-slide angular deceleration for `slide`, degrees/s². */
@@ -139,6 +151,7 @@ export const DEFAULT_TUNING: MotionTuning = {
   wallSpeed: 3,
   wallBounce: 0.6,
   leash: 1.2,
+  trail: 0,
   friction: 6,
   spinFriction: 540,
 };
@@ -159,6 +172,7 @@ export type CarryTuning = Pick<
   | "wallSpeed"
   | "wallBounce"
   | "leash"
+  | "trail"
 >;
 
 /**

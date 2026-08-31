@@ -248,7 +248,18 @@ const NO_PHYSICS = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
  * be it leaning out of it. And the pop is a scale about the anchor, so it would drag the whole heap
  * away from the tab as well: the stack must keep the distance from the handle it was drawn at.
  */
-const HANDLE_IS_THE_GRAB = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
+const HANDLE_IS_THE_GRAB = {
+  lift: 1,
+  leanFactor: 0,
+  leanMaxDeg: 0,
+  /**
+   * ...AND WHAT HANGS OFF IT TRAILS. The tab is the hand, exactly and instantly; the stack is being
+   * DRAGGED by it, and a stack that arrived rigid would read as a picture of a stack rather than as
+   * one. Each card a little further behind the one before it, so the run stretches out like an
+   * accordion while the hand moves and closes up the moment it stops.
+   */
+  trail: 0.55,
+} as const;
 
 /**
  * THE BARRIER THAT NEVER LOSES.

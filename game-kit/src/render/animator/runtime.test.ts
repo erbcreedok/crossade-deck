@@ -244,6 +244,36 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true); // seeded at the anchor, no pop asked for and no speed — nothing to animate
   });
 
+  it("motion.a-trailing-run-stretches-behind-the-hand — the first piece never late, the rest closing up after", () => {
+    // A run carried as one plank is right for a hand that has CLOSED on a column. A stack pulled by
+    // a handle under it is being DRAGGED, and one that arrived rigid reads as a picture of a stack
+    // rather than as a stack. What trails is what hangs off the hand — never the thing held.
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    add(b.desk, node("e", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, trail: 1 });
+    const rest = b.xOf("c");
+    const run = ["c", "d", "e"].map((id) => ({ id, offset: { x: 0, y: 0 } }));
+    m.grab(run, { anchor: { x: 0, y: 0 } });
+    let t = 0;
+    for (let i = 1; i <= 20; i++) {
+      m.dragTo({ x: i * 0.3, y: 0 });
+      c.tick((t += 16));
+    }
+    const [held, second, third] = ["c", "d", "e"].map((id) => b.xOf(id) - rest);
+    // THE HAND'S OWN IS AT THE HAND, exactly — a handle that lagged the finger would be a control
+    // moving away from the hand holding it. The finger is at 6 units by now.
+    expect(held!).toBeCloseTo(6, 6);
+    // ...and the run is stretched out behind it, each one further back than the one before.
+    expect(second!).toBeLessThan(held! - 0.5);
+    expect(third!).toBeLessThan(second! - 0.2);
+    // The hand stops, and it CLOSES UP again — a stretch and not a queue of stale positions.
+    for (let i = 0; i < 200; i++) c.tick((t += 16));
+    expect(b.xOf("d")).toBeCloseTo(b.xOf("c"), 1);
+    expect(b.xOf("e")).toBeCloseTo(b.xOf("c"), 1);
+  });
+
   it("motion.a-carried-run-strains-at-the-tray-wall — it stops at the border, and a finger that goes on past the leash loses it", () => {
     const b = bench();
     const c = fakeClock();

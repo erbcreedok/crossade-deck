@@ -218,6 +218,7 @@
   "arg.tintToken": "The parametric colour token the tiles paint with — a NAME the painter resolves; the seat is its number.",
   "arg.toX": "Where the run ends, across.",
   "arg.toY": "And where it ends, down the screen.",
+  "arg.trail": "How far each piece of a carried run falls behind the one before it. `0` is a run carried as one plank — the stock feel. Above it the run stretches out behind the hand and closes up again when the hand stops, the way anything held by one end does. The FIRST piece is never late: it is what the hand has hold of.",
   "arg.trayAngle": "The TRAY's own turn, in degrees. It is the scene's knob, not a field of this atom — turn it and the chain both tokens inherit turns with it, which is the only way the difference between the frames becomes visible.",
   "arg.turn": "The angle it faces, in degrees. On a path this is read off the path; alone, it is yours to set.",
   "arg.turnCap": "The fastest the desk may spin, in degrees per second. A coast runs for about speed ÷ decay degrees, so this and the decay together say how far a hard flick carries.",

@@ -10,11 +10,12 @@ import { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit } from "../../core/atoms/lit.js";
 import { Surfaced } from "../../core/atoms/surfaced.js";
 import { Transformable } from "../../core/atoms/transformable.js";
 import { Oriented } from "../../core/atoms/oriented.js";
+import { Screened } from "../../core/atoms/screened.js";
 import { Labeled } from "../../core/atoms/labeled.js";
 import { type TextMeasure } from "../textMetrics.js";
 import { add, node, type NodeId } from "../../core/node.js";
 import { DEFAULT_VIEWER } from "../../core/viewer.js";
-import { apply, IDENTITY, move, type Transform } from "../../core/transform.js";
+import { apply, compose, IDENTITY, move, scale, type Transform } from "../../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./index.js";
 import { Camera } from "../camera/index.js";
 import { registerAsset } from "../assets.js";
@@ -671,6 +672,42 @@ describe("bounds marks", () => {
       .filter((m) => m.closed)
       .map((m) => m.points[0]!.x);
     expect(xs).toEqual([300, 400]);
+  });
+
+  it("plan.a-screened-node-keeps-its-size-on-the-glass — a control is measured in pixels", () => {
+    // Everything ON a desk is measured in units, and that is right for a card: zoom in and it gets
+    // bigger, because it is a thing lying there. A CONTROL is not. Every drag handle in every
+    // application is the same number of pixels at every zoom, because it is sized for the FINGER,
+    // and a finger does not grow with the picture.
+    registerSurface("plain", { layers: [{ paint: "accent" }] });
+    const ordinary = node("p1", box(1, 1), Surfaced({ surface: "plain" }), Transformable({ at: { x: 1, y: 0 } }));
+    const handle = node("p2", box(1, 1), Surfaced({ surface: "plain" }), Transformable({ at: { x: 1, y: 0 } }), Screened());
+    const at = (n: Parameters<typeof scenePlan>[0]["root"], view?: Transform) =>
+      scenePlan({ root: n, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, ...(view ? { view } : {}) })[0]!;
+    // The DRAWN scale rides in the quad's matrix — its `w` is the node's own box in pixels.
+    const drawn = (q: Quad): number => Math.hypot(q.transform.a, q.transform.b);
+    const seat = (q: Quad): { x: number; y: number } => apply(q.transform, { x: 0, y: 0 });
+    // At zoom 1 the view IS the unit and there is nothing to undo: the two are drawn alike.
+    expect(drawn(at(handle))).toBeCloseTo(drawn(at(ordinary)), 9);
+    // Zoomed to two, the ordinary node doubles and the handle does not.
+    const zoomed = compose(move(400, 300), scale(200));
+    expect(drawn(at(ordinary, zoomed)) / drawn(at(ordinary))).toBeCloseTo(2, 6);
+    expect(drawn(at(handle, zoomed))).toBeCloseTo(drawn(at(handle)), 6);
+    // ...and it holds its PLACE: the undo is about its own ORIGIN, so it stays on the thing it is a
+    // handle for instead of walking across the glass as the view moves.
+    expect(seat(at(handle, zoomed))).toEqual(seat(at(ordinary, zoomed)));
+    // AND THROUGH A REAL CAMERA, which is the only way any scene actually gets a view: her matrix
+    // folds the etalon and the zoom together, and the undo has to take back the zoom and leave the
+    // etalon — measured against the plan's own `unit`, which is that same etalon.
+    const cam = new Camera({ minZoom: 0.1, maxZoom: 8 });
+    cam.setContent({ x: -4, y: -4, w: 8, h: 8 }, 100);
+    cam.setScreen(800, 600);
+    cam.setZoom(1);
+    const one = { ordinary: drawn(at(ordinary, cam.transform())), handle: drawn(at(handle, cam.transform())) };
+    cam.setZoom(2.5);
+    const far = { ordinary: drawn(at(ordinary, cam.transform())), handle: drawn(at(handle, cam.transform())) };
+    expect(far.ordinary / one.ordinary).toBeCloseTo(2.5, 6);
+    expect(far.handle).toBeCloseTo(one.handle, 6);
   });
 
   it("marks.follow-a-node-in-flight — the outline is drawn where the node is, not where it rests", () => {

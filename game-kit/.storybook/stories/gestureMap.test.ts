@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
-import { compose, fieldsOf, Transformable, type TransformableFields } from "../../src/index.js";
+import { compose, extentOf, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
 import { dropOf, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, stackMap, stackSeats, toFront } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
@@ -190,13 +190,24 @@ describe("the stacking desk", () => {
     expect(again.includes(left[0]!)).toBe(false);
   });
 
-  it("map.a-lifted-heap-is-squared-up — the seats are a stack, and thickness is an `at`", () => {
-    // Written as `z` a growing heap would rise off the felt for ever (`guard.layout-writes-only-at`
-    // is the same law from the layout's side). The first piece sits ON the handle, at zero.
-    const seats = stackSeats([1, 2, 3, 4] as unknown as Node[]);
-    expect(seats[0]).toEqual({ x: 0, y: 0 });
-    expect(seats[1]!.y).toBeLessThan(0); // each one a hair further UP the glass than the last
-    expect(seats[3]!.y).toBeCloseTo(seats[1]!.y * 3, 10);
+  it("map.a-lifted-heap-hangs-by-its-bottom-centre — a handle is UNDER a heap, not through it", () => {
+    // Hung by their middles the pieces sit ON the tab with half of each below it: a stack skewered
+    // on its own handle rather than one standing on it. And thickness is an `at`, never a `z` —
+    // written as height a growing heap would rise off the felt for ever.
+    const desk = stackMap();
+    const cards = desk.children.filter((n) => kindOf(n) === "card").slice(0, 3);
+    const half = extentOf(fieldsOf<BoundedFields>(cards[0]!, "Bounded")!.bounds).h / 2;
+    const seats = stackSeats(cards);
+    // The first card's own bottom edge sits clear of the tab, above it — never over its middle.
+    expect(seats[0]!.y + half).toBeLessThan(-GRIP.h / 2);
+    expect(seats[0]!.x).toBe(0);
+    // Each one a hair further up the glass than the last, and the step is even.
+    expect(seats[1]!.y).toBeLessThan(seats[0]!.y);
+    expect(seats[2]!.y - seats[1]!.y).toBeCloseTo(seats[1]!.y - seats[0]!.y, 10);
+    // A chip is shorter than a card, so it hangs closer: the seat is the PIECE's own half, not one
+    // number that happens to suit whichever kind was written down first.
+    const chips = desk.children.filter((n) => kindOf(n) === "chip").slice(0, 2);
+    expect(stackSeats(chips)[0]!.y).toBeGreaterThan(seats[0]!.y);
     expect(stackSeats([])).toEqual([]);
   });
 });

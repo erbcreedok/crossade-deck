@@ -33,6 +33,7 @@ import {
   placedOutline,
   remove,
   roundedRect,
+  Screened,
   transformsOf,
   freeLayout,
   node,
@@ -406,6 +407,9 @@ function gripFor(root: Node, group: readonly Node[], nth: number): Node {
     Surfaced({ surface: GRIP_SURFACE }),
     Transformable({ at: { x: mid, y: bottom + GRIP_GAP + GRIP.h / 2 } }),
     Valued({ values: { grip: nth } }),
+    // A HANDLE IS SIZED FOR THE FINGER, not for the desk: the same pixels at every zoom, the way
+    // every drag handle in every application anybody has ever used is drawn.
+    Screened(),
     Draggable({ onReject: "stay" }),
   );
 }
@@ -428,11 +432,23 @@ export function regrip(root: Node): Map<string, readonly Node[]> {
   return held;
 }
 
-/** Where each piece of a lifted heap stands, relative to the handle that lifted it. */
+/**
+ * Where each piece of a lifted heap stands, relative to the handle that lifted it.
+ *
+ * BY ITS BOTTOM CENTRE, not its middle. A handle is under a heap, and what is under a thing meets
+ * it at its bottom edge — hung by their middles the pieces sit ON the tab with half of each below
+ * it, which is a stack skewered on its own handle rather than one standing on it. The gap it stands
+ * at is the gap it was DRAWN at (`GRIP_GAP`), so nothing moves relative to anything at the lift.
+ */
 export function stackSeats(group: readonly Node[]): Vec[] {
+  const clear = GRIP.h / 2 + GRIP_GAP;
   // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
   // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
-  return group.map((_, i) => ({ x: i * STACK_STEP.x || 0, y: i * STACK_STEP.y || 0 }));
+  return group.map((piece, i) => {
+    const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
+    const half = shape ? extentOf(shape).h / 2 : 0;
+    return { x: i * STACK_STEP.x || 0, y: -clear - half + i * STACK_STEP.y || 0 };
+  });
 }
 
 /** The stacking desk: six cards, six chips and a die, laid out so nothing touches anything. */
