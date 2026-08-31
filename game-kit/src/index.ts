@@ -206,6 +206,7 @@ export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./re
 // THE PAN — `UIPanGestureRecognizer`: the same finger, reported WHILE it moves. Beside the swipe
 // and not instead of it, exactly as UIKit ships both: a swipe is a verdict on release, and a
 // verdict on release cannot say "the card is already going, this way, this fast".
+export { islands, outlinesTouch, placedOutline } from "./core/overlap.js";
 export { PAN_SLOP, PAN_WINDOW, wirePan, type HandAnchor, type Pan, type PanState, type PanWiring } from "./render/pan.js";
 export { DOUBLE_MS, TAP_MS, TAP_SLOP, wireTap, type Tap, type TapWiring } from "./render/tap.js";
 export {

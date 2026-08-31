@@ -14,6 +14,12 @@ import {
   Labeled,
   note,
   node,
+  pose,
+  placedOutline,
+  outlineOf,
+  outlinesTouch,
+  islands,
+  footprint,
   rect,
   roundedRect,
   Rotatable,
@@ -50,6 +56,7 @@ import {
   type LayoutRecord,
   type Motions,
   type Node,
+  type Point,
   type Pan,
   type Vec,
 } from "../../src/index.js";
@@ -652,6 +659,13 @@ const TABLES = new Map<string, { root: Node; shape: string }>();
 const DEALERS = new WeakMap<HTMLElement, Dealing>();
 
 /**
+ * WHAT TO CALL WHEN THE DESK HAS COME TO REST — the piles are worked out again from where things
+ * lie. Kept per view, and swapped per render like everything else here, because it closes over the
+ * newest numbers.
+ */
+const SETTLERS = new WeakMap<HTMLElement, () => void>();
+
+/**
  * THE GESTURE WIRINGS OF A STANDING SCENE, so a re-render swaps them instead of stacking them.
  *
  * Storybook calls a story again for every knob turn and the scene shell answers with the SAME
@@ -838,9 +852,158 @@ function packOf(n: Node): Node | undefined {
  * at it means it.
  */
 function looseCard(root: Node, on: Node): boolean {
-  if (packOf(on)) return false;
+  if (packOf(on) || isHandle(on)) return false;
   return byId(root, on.id) !== undefined && caps(on).has("Flippable");
 }
+
+/**
+ * WHAT IS LYING ON THE FELT — every card and every pack a player could gather up.
+ *
+ * Cards in a seat are somebody's hand and are not on the felt; a pack's own cards are the pack.
+ */
+const onTheFelt = (desk: Node): readonly Node[] =>
+  desk.children.filter((n) => isPack(n) || caps(n).has("Flippable"));
+
+/**
+ * HOW BIG A GAP STILL COUNTS AS TOUCHING, root units.
+ *
+ * A tenth of a card. Two cards a hair apart are a pile to everybody looking at them, and a rule
+ * that insisted on an actual overlap would refuse the very throws that make one — a card that came
+ * to rest just short of another is not a card somebody meant to keep separate.
+ */
+const TOUCHING = CARD.w * 0.1;
+
+/** The ground a thing covers where it is DRAWN — its own outline, moved to where the eye sees it. */
+function groundOf(s: Scene, n: Node): readonly Point[] {
+  const shape = footprint(n);
+  if (!shape) return [];
+  const own = fieldsOf<{ angle?: number }>(n, "Transformable");
+  const spot = packAt(s, n);
+  return placedOutline(outlineOf(shape), pose(spot.at, own?.angle ?? 0, spot.grew));
+}
+
+/**
+ * THE PILES ON THE FELT — every run of things that touch, however long the chain.
+ *
+ * A card touching a card touching a card is ONE pile: the player who dropped the fourth onto the
+ * third was adding to what the first two started, and nothing about how it looks says otherwise.
+ * Only runs of two or more are piles; one card lying by itself is a card lying by itself.
+ */
+function pilesOn(s: Scene, desk: Node): readonly (readonly Node[])[] {
+  const things = onTheFelt(desk);
+  const ground = new Map<string, readonly Point[]>(things.map((n) => [n.id, groundOf(s, n)]));
+  return islands(things, (a, b) => outlinesTouch(ground.get(a.id) ?? [], ground.get(b.id) ?? [], TOUCHING)).filter(
+    (group) => group.length > 1,
+  );
+}
+
+/**
+ * THE HANDLE UNDER A PILE — the one thing on this desk that is not a piece.
+ *
+ * A pile is a fact, not a thing: five cards that came to rest touching are a pile whether or not
+ * anybody says so. What the player needs is a way to take that fact and MAKE it a thing, and it has
+ * to be a way that does not cost them the other reading — a finger on one of those cards must still
+ * pick up that one card. Two meanings on one target is a mode; two targets is a handle.
+ *
+ * SMALL AND UNDERNEATH, clear of the cards it belongs to, so it is never in the way of the pile and
+ * never mistaken for part of it. It appears the moment two things touch and is gone the moment they
+ * do not — nothing here is a state anybody has to keep.
+ */
+const HANDLE_R = CARD.w * 0.28;
+const HANDLE_GAP = CARD.h * 0.32;
+/**
+ * WHAT EACH HANDLE STANDS FOR, kept BESIDE the handle and never inside its name.
+ *
+ * The pile's members were once written into the handle's own id and read back out of it, which is
+ * the one thing an id may never be: an id is an identity, and a name carrying a payload is a
+ * payload two things can accidentally agree on — unreadable, besides, the moment a member is
+ * renamed. So the node has a plain name and the membership lives here (`guard.id-is-opaque`).
+ */
+const HANDLES = new WeakMap<Node, readonly string[]>();
+const isHandle = (n: Node): boolean => HANDLES.has(n);
+
+/**
+ * PUT A HANDLE UNDER EVERY PILE AND NOWHERE ELSE — rebuilt from the piles, never remembered.
+ *
+ * Rebuilt because a pile is derived: a card thrown away from its neighbours has left the pile, and
+ * a handle that outlived it would gather up a card that is no longer there. The ids are the pile's
+ * OWN members, sorted and joined, so an unchanged pile keeps its handle across a rebuild — the node
+ * is not replaced, so it neither flickers nor restarts anything it was doing.
+ */
+function gatherHandles(s: Scene, desk: Node): void {
+  registerSurface("gesture.table.gather", { layers: [{ paint: "debug", opacity: 0.55 }], radius: HANDLE_R });
+  const wanted = pilesOn(s, desk).map((pile) => {
+    const spots = pile.map((n) => packAt(s, n).at);
+    return {
+      of: pile.map((n) => n.id),
+      at: {
+        x: spots.reduce((sum, p) => sum + p.x, 0) / spots.length,
+        y: Math.max(...spots.map((p) => p.y)) + HANDLE_GAP,
+      },
+    };
+  });
+  // THE HANDLES ARE REPLACED, not matched up. A pile is derived from where things lie, so a handle
+  // is worth exactly as much as the arrangement that produced it — and one held over from an
+  // arrangement that has changed would gather up a card that is no longer there.
+  for (const n of [...desk.children]) if (isHandle(n)) remove(desk, n);
+  for (const want of wanted) {
+    const handle = node(
+      `gather${++handles}`,
+      Bounded({ bounds: circle(HANDLE_R) }),
+      Surfaced({ surface: "gesture.table.gather" }),
+      Transformable({ at: want.at }),
+      Draggable({ onReject: "stay" }),
+    );
+    HANDLES.set(handle, want.of);
+    add(desk, handle);
+  }
+}
+
+/**
+ * GATHER A PILE INTO ONE PACK — what pulling the handle means.
+ *
+ * Everything touching goes in, in the order it lies on the desk, and a pack among them contributes
+ * its cards rather than nesting: a pile of a pack and two cards is one pack of all of them, which
+ * is what a player sweeping them together with a hand would end up holding.
+ *
+ * At the TOP CARD's place, because that is the one on the glass a hand is reaching for, and squared
+ * up — the settle does the straightening, so a pile of crooked cards tidies itself as it is lifted.
+ */
+function gather(s: Scene, desk: Node, pile: readonly Node[]): Node | undefined {
+  const members = pile.filter((n) => n.parent === desk);
+  if (members.length < 2) return undefined;
+  const top = members[members.length - 1]!;
+  const at = packAt(s, top).at;
+  const pack = node(
+    `pack${++piles}`,
+    Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
+    Surfaced({ surface: BACK_SURFACE }),
+    Transformable({ at }),
+    ShadowCaster(),
+    Container({ layout: "gesture.table.stack" }),
+    Draggable({ onReject: "stay" }),
+  );
+  for (const n of members) {
+    // A PACK CONTRIBUTES ITS CARDS, not itself. Nesting one pack inside another would make a thing
+    // no rule on this desk knows how to deal off, and it is not what sweeping them up looks like.
+    const cards = isPack(n) ? [...n.children] : [n];
+    for (const card of cards) {
+      s.motions?.release(card.id);
+      if (card.parent) remove(card.parent, card);
+      add(pack, card);
+      compose(card, Transformable({ at: { x: 0, y: 0 }, angle: 0, z: 0, scale: 1 }));
+      compose(card, Draggable({ onReject: "home" }));
+      setFacing(card, "down");
+    }
+    if (n.parent === desk) remove(desk, n);
+  }
+  add(desk, pack);
+  return pack;
+}
+
+/** The pile a handle stands for — what is still on the desk of what it was made from. */
+const pileOf = (desk: Node, handle: Node): readonly Node[] =>
+  (HANDLES.get(handle) ?? []).map((id) => byId(desk, id)).filter((n): n is Node => n !== undefined);
 
 /** A pack's top card — the one a deal takes, and `undefined` on an empty pack. */
 const topOf = (pack: Node | undefined): Node | undefined => pack?.children[pack.children.length - 1];
@@ -1134,6 +1297,8 @@ const ARRIVED = 0.35;
 let lost = 0;
 /** Packs a player has built, counted so each gets an id of its own — two things answering to one name is a lost identity. */
 let piles = 0;
+/** Handles put under piles, counted so each is its own node rather than a name reused. */
+let handles = 0;
 const dice = (): number => seededRng(++lost * 7919)();
 
 /**
@@ -1579,6 +1744,8 @@ function dealer(s: Scene, a: TableArgs, snap: boolean): Dealing {
           compose(live, Transformable({ at: rest.at, angle: rest.angle, z: 0, scale: 1 }));
         }
         s.setRoot(s.host.root);
+        // IT HAS COME TO REST BESIDE SOMETHING, PERHAPS — which is how a pile is made.
+        SETTLERS.get(s.el)?.();
       },
     });
     return "thrown";
@@ -1711,6 +1878,18 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     ),
   });
   DEALERS.set(s.el, dealer(s, a, snap));
+  /**
+   * THE DESK HAS COME TO REST — work out the piles again and put a handle under each.
+   *
+   * Called after everything that can change where a thing lies: a drop, a landing, a gather. Never
+   * on a moving frame: a pile is about where things ARE, and asking it of a card in mid-flight would
+   * offer to gather up a card that is still going somewhere.
+   */
+  const settled = (): void => {
+    gatherHandles(s, s.host.root);
+    s.setRoot(s.host.root);
+  };
+  SETTLERS.set(s.el, settled);
   wireDrag(s, {
     toFront: true,
     view: eyeOf(s),
@@ -1718,7 +1897,21 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
     // is per-node, by id, and a container's children keep their own tree poses under it. Grab the
     // deck alone and the cards stay behind and then settle after it, which reads as the pack coming
     // apart in the hand. The run is the answer the wiring already had a word for.
-    runOf: (_root, hit) => (isPack(hit) ? [hit, ...hit.children] : [hit]),
+    // PULLING THE HANDLE GATHERS THE PILE, and this is where that happens: the run a finger takes
+    // is decided here, and for a handle the honest run is a pack that does not exist yet. So it is
+    // made, out of everything the handle stands for, and THAT is what the hand gets.
+    //
+    // Dragging a member instead is untouched, which is the whole point of the handle being a
+    // separate target: one finger on a card still lifts that card, and nothing is a mode.
+    runOf: (root, hit) => {
+      if (isHandle(hit)) {
+        const made = gather(s, root, pileOf(root, hit));
+        remove(root, hit);
+        s.setRoot(root);
+        if (made) return [made, ...made.children];
+      }
+      return isPack(hit) ? [hit, ...hit.children] : [hit];
+    },
     // THE PACK GROWS UNDER THE HAND, AND ONLY THE PACK. A deal needs a second finger to land ON it
     // beside the first, and whether one fits is a fact about GLASS PIXELS — a pack a third of a
     // unit across is thirty of them at the fit, which is less than one fingertip. The scale is not
@@ -1768,7 +1961,14 @@ function tablePage(a: TableArgs, snap: boolean, key: string): HTMLElement {
       compose(lead, Draggable({ onReject: "home" })); // back in the pack, it belongs to the pack again
       setFacing(lead, "down");
       s.setRoot(s.host.root);
+      settled();
       return true;
+    },
+    onRelease: () => {
+      // AFTER EVERY DROP, and not only after the ones that landed somewhere: a card put down beside
+      // another has made a pile, and nothing else was going to notice.
+      queueMicrotask(settled);
+      return false;
     },
   });
   rewire(s.el, () =>
