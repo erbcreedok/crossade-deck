@@ -196,14 +196,14 @@ export function dropOf(piece: Node): DropFeel {
   // thirds of it is a fall you can see is gentler without waiting for it. Paper does not bounce.
   // Off a wall it does come back, though — it is dead on the cloth, not dead altogether.
   if (caps(piece).has("Flippable")) return { gravity: 8, bounce: 0, wallBounce: 0.45 };
-  // A CARVED PIECE lands like the lump of wood it is: as fast as the die, and it taps ONCE.
+  // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
+  // then it is simply there.
   //
-  // A quarter and not a tenth, because a bounce gives back the SQUARE of it in height: at `0.08` the
-  // piece came back up by four thousandths of a unit — a fifth of a pixel, which is a landing nobody
-  // can see and therefore not a landing at all. A quarter is one small, quick tick, against the die's
-  // two clear hops.
-  // And against a rail it is the deadest of the three: weight is what a wall takes out of a piece.
-  return { gravity: 26, bounce: 0.25, wallBounce: 0.2 };
+  // A thousandth and not a quarter, and the number is the owner's own word: a tenth of a percent is
+  // "not at all" written down, and it is written down rather than left at zero so that the ORDER of
+  // the three still says something — a die is lively, a card is fair, and a carved piece is the end
+  // of the scale rather than a piece the scale forgot. Nobody will see it, which is the point.
+  return { gravity: 26, bounce: 0.001, wallBounce: 0.001 };
 }
 
 /**

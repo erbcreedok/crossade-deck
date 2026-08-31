@@ -57,9 +57,14 @@ describe("the gesture map", () => {
     expect(card.gravity).toBeLessThan(die.gravity);
     expect(card.gravity).toBeLessThan(knight.gravity);
     expect(card.bounce).toBe(0);
-    // The die is the one the desk throws back; the carved piece lands with barely a tap.
+    // The die is the one the desk throws back; the carved piece does not bounce at all — a tenth of
+    // a percent, which is "not at all" written down. Written down rather than left at zero so the
+    // ORDER of the three still says something: it is the end of the scale, not a piece the scale
+    // forgot about.
     expect(die.bounce).toBeGreaterThan(knight.bounce);
     expect(knight.bounce).toBeGreaterThan(0);
+    expect(knight.bounce, "a carved piece does not bounce").toBeLessThan(0.01);
+    expect(knight.wallBounce, "and not off a rail either").toBeLessThan(0.01);
     // And the two heavy ones fall at about the same rate — what tells them apart is the landing.
     expect(Math.abs(die.gravity - knight.gravity) / die.gravity).toBeLessThan(0.3);
     // A WALL IS ITS OWN MATERIAL. The die is the liveliest off a rail and the carved piece the
