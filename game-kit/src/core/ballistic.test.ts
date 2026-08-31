@@ -100,6 +100,27 @@ describe("ballistic", () => {
     expect(Math.max(...flat.map((b) => b.up))).toBe(0);
   });
 
+  it("ballistic.a-wall-has-its-own-restitution — a felt and a rail are not the same material", () => {
+    // One number for both made every such pair unsayable: a card is DEAD on the cloth and still
+    // comes off a border, and a carved piece is the other way about. `wallBounce` absent still means
+    // the desk's own, which is right for a die and only for a die.
+    const cfg = { friction: 0, spinFriction: 0, bounce: 0, walls: { x0: -1, y0: -1, x1: 1, y1: 1 } };
+    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+    // Dead on the desk (`bounce: 0`) and still lively off the wall.
+    const off = runSlide(start, { ...cfg, wallBounce: 0.5 }, 60);
+    const hit = off.findIndex((b) => b.vel.x < 0);
+    expect(hit).toBeGreaterThan(0);
+    expect(off[hit]!.vel.x).toBeCloseTo(-2);
+    // Absent, the wall is the desk's: a body with `bounce: 0` stops dead against it.
+    const flat = runSlide(start, cfg, 60);
+    expect(flat.every((b) => b.vel.x >= 0), "nothing came back").toBe(true);
+    expect(flat[flat.length - 1]!.pos.x).toBeCloseTo(1, 5);
+    // And a LANDING still reads the desk's own number, not the wall's: the two never swapped.
+    const dropped: Body = { pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, angle: 0, spin: 0, up: 1, upVel: 0 };
+    const rigid = runSlide(dropped, { friction: 0, spinFriction: 0, bounce: 0, wallBounce: 0.9, gravity: 10 }, 60);
+    expect(Math.max(...rigid.map((b) => b.upVel)), "a wall's bounce is not the desk's").toBeLessThanOrEqual(0);
+  });
+
   it("ballistic.a-wall-reflects — the crossing component flips and scales, the body stays inside", () => {
     const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
     const cfg = { friction: 0, spinFriction: 0, bounce: 0.5, walls: { x0: -1, y0: -1, x1: 1, y1: 1 } };

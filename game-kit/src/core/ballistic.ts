@@ -85,8 +85,15 @@ export interface SlideConfig {
   readonly friction: number;
   /** Deceleration of the spin, degrees/s². */
   readonly spinFriction: number;
-  /** Restitution off a wall, 0..1 — and of a landing, which is the same bounce seen from the side. */
+  /** Restitution of a LANDING, 0..1 — how much of the arriving fall the desk gives back. */
   readonly bounce: number;
+  /**
+   * Restitution off a WALL, 0..1. Absent, the desk's own — which is right for a die, and only for a
+   * die: a felt and a rail are not the same material, and the pieces that touch them are not the
+   * same either. A card is dead on the cloth and still comes off a border; a carved piece is heavy
+   * against a rail and lands like a stone. One number for both makes every such pair unsayable.
+   */
+  readonly wallBounce?: number | undefined;
   /** The tray. Absent, the desk is endless. */
   readonly walls?: Walls | undefined;
   /** What pulls a hopping body back down, units/s². Only used by a body that is off the desk. */
@@ -136,12 +143,13 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
     }
   }
   const w = cfg.walls;
+  const off = cfg.wallBounce ?? cfg.bounce;
   let kicked = false;
   if (w) {
-    if (x < w.x0 && vx < 0) { x = w.x0; vx = -vx * cfg.bounce; kicked = true; }
-    else if (x > w.x1 && vx > 0) { x = w.x1; vx = -vx * cfg.bounce; kicked = true; }
-    if (y < w.y0 && vy < 0) { y = w.y0; vy = -vy * cfg.bounce; kicked = true; }
-    else if (y > w.y1 && vy > 0) { y = w.y1; vy = -vy * cfg.bounce; kicked = true; }
+    if (x < w.x0 && vx < 0) { x = w.x0; vx = -vx * off; kicked = true; }
+    else if (x > w.x1 && vx > 0) { x = w.x1; vx = -vx * off; kicked = true; }
+    if (y < w.y0 && vy < 0) { y = w.y0; vy = -vy * off; kicked = true; }
+    else if (y > w.y1 && vy > 0) { y = w.y1; vy = -vy * off; kicked = true; }
   }
   // A WALL THROWS IT UP. A die that catches a border does not slide along it — it pops, and the pop
   // is higher than the hop it was already on. A body with no hop in it (a puck, a card) is not

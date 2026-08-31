@@ -162,12 +162,18 @@ export function mapWalls(piece: Node, lift = 1): Walls {
   return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };
 }
 
-/** How a piece comes down when the hand lets go of it: what pulls it, and what the desk gives back. */
+/** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
   /** Units/s² — how heavy it is. A big number is a short, hard fall. */
   readonly gravity: number;
   /** 0..1 of the landing speed handed back. `0` lands and stays. */
   readonly bounce: number;
+  /**
+   * 0..1 of the speed a WALL hands back. Its own number, and not the desk's: a felt and a rail are
+   * not the same material, and it is the pair that says what a piece is made of — a card is dead on
+   * the cloth and still comes off a border.
+   */
+  readonly wallBounce: number;
 }
 
 /**
@@ -181,19 +187,23 @@ export interface DropFeel {
  */
 export function dropOf(piece: Node): DropFeel {
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
-  if (caps(piece).has("Rollable")) return { gravity: 22, bounce: 0.45 };
+  // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
+  // piece here anybody expects to come back across the desk at them.
+  if (caps(piece).has("Rollable")) return { gravity: 22, bounce: 0.45, wallBounce: 0.7 };
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two
   // thirds of it is a fall you can see is gentler without waiting for it. Paper does not bounce.
-  if (caps(piece).has("Flippable")) return { gravity: 8, bounce: 0 };
+  // Off a wall it does come back, though — it is dead on the cloth, not dead altogether.
+  if (caps(piece).has("Flippable")) return { gravity: 8, bounce: 0, wallBounce: 0.45 };
   // A CARVED PIECE lands like the lump of wood it is: as fast as the die, and it taps ONCE.
   //
   // A quarter and not a tenth, because a bounce gives back the SQUARE of it in height: at `0.08` the
   // piece came back up by four thousandths of a unit — a fifth of a pixel, which is a landing nobody
   // can see and therefore not a landing at all. A quarter is one small, quick tick, against the die's
   // two clear hops.
-  return { gravity: 26, bounce: 0.25 };
+  // And against a rail it is the deadest of the three: weight is what a wall takes out of a piece.
+  return { gravity: 26, bounce: 0.25, wallBounce: 0.2 };
 }
 
 /**

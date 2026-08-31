@@ -4,6 +4,7 @@ import {
   Bounded,
   apply,
   byId,
+  polar,
   compose,
   Container,
   CONTROL_LABEL,
@@ -27,6 +28,7 @@ import {
   type Motions,
   type Node,
   type TransformableFields,
+  type Vec,
 } from "../../src/index.js";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
@@ -258,7 +260,7 @@ const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
  * own number in, and then the height is that number on both settings of the switch — otherwise the
  * `Lift` page would answer "no lift at all" to a reader who turned the physics off on it.
  */
-function grabScene(physics: boolean, lift?: number, falling = false): HTMLElement {
+function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw"): HTMLElement {
   const built = scene(gestureMap(), {
     animate: true,
     camera: {
@@ -287,9 +289,16 @@ function grabScene(physics: boolean, lift?: number, falling = false): HTMLElemen
     // the switch never has to restate a number the kit already decided.
     ...(physics ? {} : NO_PHYSICS),
     lift: held,
-    // A page that DROPS takes the release over: the ordinary one puts the piece down where the
-    // finger was, and putting down is the thing this page says is not what happens.
-    ...(falling ? { onRelease: (_v: unknown, items: readonly CarryItem[]) => letFall(built, items, held) } : {}),
+    // A page that DROPS or THROWS takes the release over: the ordinary one puts the piece down
+    // where the finger was, and putting down is the thing those pages say is not what happens.
+    // A throw is a drop with the hand's speed still on it — one call, and the piece falls from the
+    // hand's height WHILE it travels, which is what a thrown thing does.
+    ...(letGo
+      ? {
+          onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
+            letFall(built, items, held, letGo === "throw" ? v : undefined),
+        }
+      : {}),
   }).el;
 }
 
@@ -309,13 +318,17 @@ function grabScene(physics: boolean, lift?: number, falling = false): HTMLElemen
  *   SCALE (`lift`) and a fall's is a LENGTH, and `RISE` is the one rate between them — asked here
  *   rather than guessed, because a second answer to it is a piece that jumps the instant it is
  *   released. How it comes down is the piece's own business (`dropOf`).
+ *
+ * `hand` is the speed the hand still had on it: absent, the piece drops where it stood; present, the
+ * same fall carries that speed across the desk and the map's border reflects it. A slow release is
+ * then not a special case at all — it is a throw of nearly no speed, which is a drop.
  */
-function letFall(s: Scene, items: readonly CarryItem[], lift: number): boolean {
+function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec | undefined): boolean {
   const m = s.motions;
   const drawn = m?.poses();
   if (!m || !drawn) return false;
   const root = s.host.root;
-  const dropped: { readonly id: string; readonly feel: ReturnType<typeof dropOf> }[] = [];
+  const dropped: { readonly id: string; readonly feel: ReturnType<typeof dropOf>; readonly walls: ReturnType<typeof mapWalls> }[] = [];
   for (const it of items) {
     const n = byId(root, it.id);
     const pose = drawn.get(it.id);
@@ -327,11 +340,21 @@ function letFall(s: Scene, items: readonly CarryItem[], lift: number): boolean {
     compose(n, Transformable({ ...(own ?? {}), at: apply(pose, { x: 0, y: 0 }) }));
     toFront(n);
     m.release(it.id);
-    dropped.push({ id: it.id, feel: dropOf(n) });
+    // The border at the piece's OWN size: a throw spends its travel on the felt, and the sliver of
+    // the pop it is still wearing on the way down is not what a bounce should be measured off.
+    dropped.push({ id: it.id, feel: dropOf(n), walls: mapWalls(n) });
   }
   s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
-  for (const { id, feel } of dropped) {
-    m.slide(id, { speed: 0, angle: 0, up: (lift - 1) / RISE, gravity: feel.gravity, bounce: feel.bounce });
+  const flight = hand ? polar(hand) : { speed: 0, angle: 0 };
+  for (const { id, feel, walls } of dropped) {
+    m.slide(id, {
+      ...flight,
+      up: (lift - 1) / RISE,
+      gravity: feel.gravity,
+      bounce: feel.bounce,
+      wallBounce: feel.wallBounce,
+      walls,
+    });
   }
   return true;
 }
@@ -398,8 +421,23 @@ export const Lift: StoryObj<LiftArgs> = {
  * top: a desk is a pile, and the last thing put on it covers what is under it.
  */
 export const Drop: StoryObj<LiftArgs> = {
-  render: ({ physics, lift }) => grabScene(physics, lift, true),
+  render: ({ physics, lift }) => grabScene(physics, lift, "drop"),
   args: { physics: true, lift: 1.3 },
   argTypes: { physics: PHYSICS, lift: LIFT },
   parameters: { gkDocStory: "gestures.drop" },
+};
+
+/**
+ * THROW — let go WHILE MOVING and the piece keeps going, on the speed the hand still had on it.
+ *
+ * The same fall as the page before: it comes down from the hand's height as it travels, so a release
+ * that was barely moving is not a special case at all — it is a throw of nearly no speed, which is a
+ * drop. The map's border throws it back, and how hard is the piece's own: a die comes off a rail
+ * lively, a card fairly, a carved piece hardly at all — weight is what a wall takes out of a thing.
+ */
+export const Throw: StoryObj<LiftArgs> = {
+  render: ({ physics, lift }) => grabScene(physics, lift, "throw"),
+  args: { physics: true, lift: 1.3 },
+  argTypes: { physics: PHYSICS, lift: LIFT },
+  parameters: { gkDocStory: "gestures.throw" },
 };

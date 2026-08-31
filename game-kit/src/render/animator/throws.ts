@@ -60,6 +60,7 @@ export function throws(rt: Runtime): Throws {
         friction: opts.friction ?? rt.tuning.friction,
         spinFriction: opts.spinFriction ?? rt.tuning.spinFriction,
         bounce: opts.bounce ?? rt.tuning.bounce,
+        ...(opts.wallBounce === undefined ? {} : { wallBounce: opts.wallBounce }),
         walls: opts.walls,
         gravity: opts.gravity ?? rt.tuning.gravity,
       };

@@ -62,6 +62,12 @@ describe("the gesture map", () => {
     expect(knight.bounce).toBeGreaterThan(0);
     // And the two heavy ones fall at about the same rate — what tells them apart is the landing.
     expect(Math.abs(die.gravity - knight.gravity) / die.gravity).toBeLessThan(0.3);
+    // A WALL IS ITS OWN MATERIAL. The die is the liveliest off a rail and the carved piece the
+    // deadest, which is the opposite order to nothing else here — and the card, dead on the cloth,
+    // still comes back off a border. On one number that last pair could not be said at all.
+    expect(die.wallBounce).toBeGreaterThan(card.wallBounce);
+    expect(card.wallBounce).toBeGreaterThan(knight.wallBounce);
+    expect(card.wallBounce).toBeGreaterThan(card.bounce);
   });
 
   it("map.the-last-dropped-is-on-top — and it is a place in the list, not a height", () => {

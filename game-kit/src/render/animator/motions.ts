@@ -148,6 +148,8 @@ export type SlideOptions = {
   readonly friction?: number | undefined;
   readonly spinFriction?: number | undefined;
   readonly bounce?: number | undefined;
+  /** Restitution off a WALL, 0..1 — the desk's own `bounce` absent. See `SlideConfig.wallBounce`. */
+  readonly wallBounce?: number | undefined;
   /**
    * What pulls it back DOWN, units/s². Patchable per throw for the same reason a `launch`'s is: how
    * heavy a thing falls is what tells one thing from another, and a desk holding a card, a die and a
