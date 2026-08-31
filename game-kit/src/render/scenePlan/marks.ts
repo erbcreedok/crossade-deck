@@ -129,7 +129,7 @@ const GRID_ID = "" as NodeId;
  * The mark keeps the box's SHARP corners even when the surface over it is rounded: it reports
  * where the box is, and a rounded corner is a matter of paint.
  */
-export function boundsMarks({ root, unit, width, height, viewer, view }: PlanInput): Mark[] {
+export function boundsMarks({ root, unit, width, height, viewer, view, overrides }: PlanInput): Mark[] {
   if (!viewer.debugBounds) return [];
 
   const nodes = transformsOf(root);
@@ -138,7 +138,12 @@ export function boundsMarks({ root, unit, width, height, viewer, view }: PlanInp
   walk(root, (n) => {
     const shape = footprint(n);
     if (!shape) return; // no box, nothing to outline — and that is a real answer
-    const toGlass = compose(toView, nodes.get(n.id) ?? IDENTITY);
+    // THE POSE THE NODE IS DRAWN AT, not the one it rests at — the same choice the quads make,
+    // and it has to be the same or the layer contradicts the picture it is drawn over. A carry is
+    // an override and never a tree write, so a node in a hand rests where it was picked up: read
+    // from the tree, the outline stays behind while the surface goes with the finger, and the
+    // reader is looking at one element wearing two positions. The box IS the element.
+    const toGlass = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
     const px = (p: Point): Point => apply(toGlass, p);
     marks.push({ id: n.id, closed: true, points: outlineOf(shape).map(px), paint: "debug", width: 1 });
 

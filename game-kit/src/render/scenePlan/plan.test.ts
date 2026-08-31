@@ -12,7 +12,7 @@ import { Transformable } from "../../core/atoms/transformable.js";
 import { Oriented } from "../../core/atoms/oriented.js";
 import { Labeled } from "../../core/atoms/labeled.js";
 import { type TextMeasure } from "../textMetrics.js";
-import { add, node } from "../../core/node.js";
+import { add, node, type NodeId } from "../../core/node.js";
 import { DEFAULT_VIEWER } from "../../core/viewer.js";
 import { apply, IDENTITY, move, type Transform } from "../../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./index.js";
@@ -671,6 +671,24 @@ describe("bounds marks", () => {
       .filter((m) => m.closed)
       .map((m) => m.points[0]!.x);
     expect(xs).toEqual([300, 400]);
+  });
+
+  it("marks.follow-a-node-in-flight — the outline is drawn where the node is, not where it rests", () => {
+    // A carry is an OVERRIDE and never a tree write, so a node in a hand goes on resting where it
+    // was picked up. Read from the tree, the outline stays behind while the surface rides the
+    // finger — one element wearing two positions, and the layer that exists to say "the box is
+    // here" saying it about the wrong place. Whatever the quads are drawn through, this is.
+    const n = node("m12", box(1, 1));
+    const away = new Map([["m12" as NodeId, move(2, 0)]]);
+    const [rest] = boundsMarks({ root: n, unit: 100, width: 800, height: 600, viewer: { theme: "dark", debugBounds: true } });
+    const [flying] = boundsMarks({ root: n, unit: 100, width: 800, height: 600, viewer: { theme: "dark", debugBounds: true }, overrides: away });
+    expect(rest!.points[0]).toEqual({ x: 350, y: 250 });
+    expect(flying!.points[0]).toEqual({ x: 550, y: 250 }); // two units right, with the quad
+    // The origin cross travels with it too: it is the point the carry is hung off, and left at
+    // the seat it would be pointing at nothing.
+    const cross = boundsMarks({ root: n, unit: 100, width: 800, height: 600, viewer: { theme: "dark", debugBounds: true }, overrides: away })
+      .filter((m) => !m.closed);
+    expect(cross.every((m) => m.points.every((p) => p.x >= 590 && p.x <= 610))).toBe(true);
   });
 
   it("marks.follow-the-field — the outline is the box, not a square standing in for it", () => {
