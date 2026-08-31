@@ -182,9 +182,11 @@ export interface DropFeel {
 export function dropOf(piece: Node): DropFeel {
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   if (caps(piece).has("Rollable")) return { gravity: 22, bounce: 0.45 };
-  // A CARD TAKES ITS TIME. It is the lightest thing on the desk and the only one with enough face
-  // to catch air, so it comes down slowly — and paper does not bounce, it arrives and stays.
-  if (caps(piece).has("Flippable")) return { gravity: 4, bounce: 0 };
+  // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
+  // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
+  // the air for over a second, which reads as a page loading rather than as a card falling. Two
+  // thirds of it is a fall you can see is gentler without waiting for it. Paper does not bounce.
+  if (caps(piece).has("Flippable")) return { gravity: 8, bounce: 0 };
   // A CARVED PIECE lands like the lump of wood it is: as fast as the die, and it taps ONCE.
   //
   // A quarter and not a tenth, because a bounce gives back the SQUARE of it in height: at `0.08` the

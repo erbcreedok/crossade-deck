@@ -131,20 +131,30 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   };
 
   /**
-   * How much of the hand's bank a flying body is still wearing, degrees — see `Flight.lean`.
+   * THE BANK COMES OFF OVER THE FALL — the piece rights itself as it comes down, and is flat at the
+   * instant it touches. Not over a span of its own: a card that takes a second to land and a die
+   * that takes a quarter of one would then straighten at the same rate, and one of them would be
+   * standing crooked in mid-air long after the other was flat, or done turning while still high up.
    *
-   * The same road home the bank takes when there is no flight at all: the settle's own span and the
-   * settle's own easing. Two answers to "how a lean comes off" would be two different pieces of
-   * furniture depending on whether the thing was dropped or merely let go.
+   * The fall's own progress, and it needs no duration to be known in advance — which is the point,
+   * since where a body ends is the physics' answer and nobody else's. Under a constant pull the
+   * height left is `up0 - ½gt²`, so `sqrt(1 - up/up0)` IS the fraction of the fall already flown,
+   * measured off the body itself. The settle's easing shapes it, as it shapes every other road home
+   * here: it rights itself briskly and arrives gently.
+   *
+   * A body with no height to give up — a flat slide across the felt — has no fall to spread the bank
+   * over, so it takes the road a piece let go of with no flight at all takes: the settle's span.
    */
-  const leanLeft = (f: Flight): number => {
-    if (!f.lean) return 0;
+  const leanNow = (f: Flight): number => {
+    if (f.up0 > 0) return 1 - easing(tuning.settleEase)(Math.sqrt(Math.max(0, 1 - Math.min(1, f.body.up / f.up0))));
     const ms = tuning.settleMs;
     if (ms <= 0) return 0;
     const t = (warped - f.leanFromMs) / ms;
-    if (t >= 1) return 0;
-    return f.lean * (1 - easing(tuning.settleEase)(t <= 0 ? 0 : t));
+    return t >= 1 ? 0 : 1 - easing(tuning.settleEase)(t <= 0 ? 0 : t);
   };
+
+  /** Degrees of the hand's bank a flying body is still wearing — see `Flight.lean`. */
+  const leanLeft = (f: Flight): number => (f.lean ? f.lean * f.leanLeft : 0);
 
   /** The short way round, degrees — a bank is small, and a wrap must never send it the long way. */
   const shortWay = (deg: number): number => {
@@ -494,12 +504,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
           // on the settle's own road (`leanLeft`). The landing is reported at the RESTING turn plus
           // the body's own spin, because that is what will be on the glass by then.
           if (at) f.lean = shortWay(turnOf(at) - turnOf(seat));
+          f.up0 = f.body.up;
+          f.leanLeft = 1;
           f.leanFromMs = warped;
           f.angle0 = turnOf(seat);
         }
       }
       const was = f.body;
       f.body = instant ? f.halt(f.body) : f.step(f.body, dt);
+      // Never back on: the road is the DESCENT, and a bounce sends the body back up.
+      if (f.lean) f.leanLeft = Math.min(f.leanLeft, leanNow(f));
       // What it shows as it goes. At speed 0 there is no going: the body is already where it stops,
       // and the only face anyone sees is the one the landing writes.
       if (f.tumble) {

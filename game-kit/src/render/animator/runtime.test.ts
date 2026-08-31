@@ -924,49 +924,72 @@ describe("flights: launch and slide", () => {
     expect(b.tOf("c").a, "and lands its own size").toBeCloseTo(1, 2);
   });
 
-  it("motion.a-flight-unwinds-the-hand-s-bank — the lean comes off while it flies, not at either end", () => {
+  it("motion.a-flight-unwinds-the-hand-s-bank — over the fall's own length, and never back on", () => {
     // A carried piece leans into the direction it is being carried, and that lean is the HAND's, not
     // the piece's. Let go with no flight and the reconcile takes it off on the way home; a flight
     // replaces the whole pose, so without a road of its own the bank either vanishes on the frame
-    // the body takes off or is held rigid for the whole fall and snaps upright on landing — the same
-    // defect wearing two faces.
-    const b = bench();
-    const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, {
-      clock: c.clock,
-      settleMs: 300,
-      settleEase: "linear",
-      leanFactor: 40,
-      leanMaxDeg: 30,
-      leanStiffness: 4000,
-      leanDamping: 130,
-    });
-    // Carry it sideways fast enough to pin the bank, then let go from a height.
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
-    let t = 0;
-    for (let i = 1; i <= 30; i++) {
-      m.dragTo({ x: i * 0.25, y: 0 });
-      c.tick((t += 16));
+    // the body takes off or is held rigid for the whole fall and snaps upright on landing.
+    //
+    // And the road is THE FALL, not a span of its own. On a fixed span a card that takes a second to
+    // land and a die that takes a quarter of one straighten at the same rate: one stands crooked in
+    // mid-air long after the other is flat, or is done turning while still high up. Measured off the
+    // body, both are exactly flat at the instant they touch — and no duration has to be known in
+    // advance, which matters because where a body ends is the physics' answer and nobody else's.
+    const drop = (gravity: number, bounce = 0) => {
+      const b = bench();
+      const c = fakeClock();
+      const m = attachMotion(b.host, b.painter, {
+        clock: c.clock,
+        settleMs: 300,
+        leanFactor: 40,
+        leanMaxDeg: 30,
+        leanStiffness: 4000,
+        leanDamping: 130,
+      });
+      m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+      let t = 0;
+      for (let i = 1; i <= 30; i++) {
+        m.dragTo({ x: i * 0.25, y: 0 });
+        c.tick((t += 16));
+      }
+      const banked = turnOf(b.tOf("c"));
+      m.release("c");
+      m.slide("c", { speed: 0, angle: 0, up: 1, gravity, bounce });
+      const seen: number[] = [];
+      const step = (frames: number): void => {
+        for (let i = 0; i < frames; i++) {
+          c.tick((t += 16));
+          seen.push(Math.abs(turnOf(b.tOf("c"))));
+        }
+      };
+      step(1);
+      return { banked: Math.abs(banked), seen, step };
+    };
+
+    // A fall from one unit: `sqrt(2/g)` seconds, so a quarter of the pull is twice the fall.
+    const slow = drop(6);
+    const fast = drop(24);
+    expect(slow.banked, "the hand really banked it").toBeGreaterThan(5);
+    // IT LEAVES WEARING THE BANK — near enough all of it on the frame it takes off. Not all: the
+    // settle's easing is brisk at the start, and one frame of a half-second fall is already a
+    // little of it.
+    expect(slow.seen[0]!).toBeGreaterThan(slow.banked * 0.85);
+    // The fast one lands in about 18 frames, the slow one in about 36.
+    fast.step(18);
+    slow.step(18);
+    expect(fast.seen[fast.seen.length - 1]!, "the short fall is done turning").toBeLessThan(0.5);
+    expect(slow.seen[slow.seen.length - 1]!, "the long one is not, at the same moment").toBeGreaterThan(2);
+    // ...and it finishes with ITS OWN fall, not on somebody else's clock.
+    slow.step(20);
+    expect(slow.seen[slow.seen.length - 1]!, "flat when it lands").toBeLessThan(0.5);
+    // Only ever off, never back on — including across a bounce, which sends the body back UP and
+    // would re-bank a piece whose lean was read straight off its height every frame.
+    const hopped = drop(20, 0.7);
+    hopped.step(60);
+    for (let i = 1; i < hopped.seen.length; i++) {
+      expect(hopped.seen[i]!, "a bounce does not re-bank it").toBeLessThanOrEqual(hopped.seen[i - 1]! + 1e-9);
     }
-    const banked = turnOf(b.tOf("c"));
-    expect(Math.abs(banked), "the hand really banked it").toBeGreaterThan(5);
-    m.release("c");
-    m.slide("c", { speed: 0, angle: 0, up: 1, gravity: 6, bounce: 0 });
-    c.tick((t += 16));
-    // IT LEAVES WEARING THE BANK — near enough all of it, one frame into a 300ms road home.
-    const leaving = turnOf(b.tOf("c"));
-    expect(Math.abs(leaving - banked)).toBeLessThan(Math.abs(banked) * 0.2);
-    // ...and it comes off ON THE WAY, monotonically, rather than at either end of the fall.
-    const seen: number[] = [];
-    for (let i = 0; i < 12; i++) {
-      c.tick((t += 16));
-      seen.push(Math.abs(turnOf(b.tOf("c"))));
-    }
-    for (let i = 1; i < seen.length; i++) expect(seen[i]!).toBeLessThanOrEqual(seen[i - 1]! + 1e-9);
-    expect(seen[seen.length - 1]!, "well on its way before it lands").toBeLessThan(Math.abs(banked) * 0.5);
-    // By the end of the settle's span it is upright, and the landing does not have to fix anything.
-    for (let i = 0; i < 40; i++) c.tick((t += 16));
-    expect(turnOf(b.tOf("c"))).toBeCloseTo(0, 4);
+    expect(hopped.seen[hopped.seen.length - 1]!).toBeLessThan(0.5);
   });
 
   it("motion.a-sliding-body-takes-its-shadow-with-it — the shadow rides along and the hop is the gap", () => {

@@ -100,6 +100,15 @@ export interface Flight {
    * for the entire fall and snaps upright on landing. Both are the same defect wearing two faces.
    */
   lean: number;
+  /**
+   * How much of that bank is STILL ON, 0..1 — and it only ever falls.
+   *
+   * Only ever, because the road home is the body's own DESCENT and a bounce sends the body back up:
+   * read straight off the height every frame, a piece would re-bank each time the desk threw it up.
+   */
+  leanLeft: number;
+  /** The height it took off at, root units — what its descent is measured against. */
+  up0: number;
   /** Warped ms the bank began coming off — take-off, not the moment the flight was filed. */
   leanFromMs: number;
   /** What the body shows as it goes, if it shows anything — absent for a fall, which only falls. */

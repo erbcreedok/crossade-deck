@@ -36,6 +36,8 @@ export function throws(rt: Runtime): Throws {
         started: false,
         angle0: turnOf(rest),
         lean: 0,
+        leanLeft: 1,
+        up0: 0,
         leanFromMs: 0,
         step: (b, dt) => {
           const next = stepFall(b, { gravity, bounce, floor: floorOf() }, dt);
@@ -75,6 +77,8 @@ export function throws(rt: Runtime): Throws {
         started: false,
         angle0: turnOf(rest),
         lean: 0,
+        leanLeft: 1,
+        up0: 0,
         leanFromMs: 0,
         step: (b, dt) => stepSlide(b, cfg, dt),
         over: (b) => slideRests(b, SLIDE_EPS, SPIN_EPS),
