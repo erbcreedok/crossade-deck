@@ -1985,7 +1985,16 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
       // the tabs are worked out again from where everything has come to rest.
       //
       // The pack leads the run, because the lead is what a drop is about; the tab rides at the back.
-      s.setRoot(root);
+      //
+      // AND NOTHING IS REPAINTED BEFORE THE HAND CLOSES, which is what makes the pile GATHER at the
+      // moment it is lifted rather than at the moment it is put down.
+      //
+      // A pick works out where to hold each member of the run from where that member is DRAWN, and
+      // a repaint here starts every gathered card easing from the place it was lying. The hand then
+      // reads those old places, holds each card at the distance it happened to be lying at, and
+      // carries the pile across the felt still spread out — only landing in a stack once the tree
+      // wins again at the drop. Left unpainted, the only answer there is the tree's, and the tree
+      // already says they are one pack: the hand closes on a pack. The grab reconciles anyway.
       return [made, ...made.children, hit];
     },
     // THE PACK GROWS UNDER THE HAND, AND ONLY THE PACK. A deal needs a second finger to land ON it
