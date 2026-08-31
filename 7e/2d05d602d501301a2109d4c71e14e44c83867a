@@ -1,0 +1,28 @@
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_5caae2ceb76c2c 10,91
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_ba7e9ba1a79baf 1934-1950,1960
+  s_881c18b5871008::t_07a59d07016bb9 1952-1959,1961
+game-kit/.storybook/devtools/drag.ts
+  s_881c18b5871008::t_41a9bc561f0c88 235-247
+game-kit/docs/test-plan/63-drag-drop-order.md
+  s_881c18b5871008::t_5caae2ceb76c2c 3,24
+game-kit/.storybook/devtools/drag.test.ts
+  s_881c18b5871008::t_63f0f49d7c4c80 124-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7e2d05d602d501301a2109d4c71e14e44c83867a",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
