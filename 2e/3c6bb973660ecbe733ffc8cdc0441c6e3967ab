@@ -1,0 +1,55 @@
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_881c18b5871008::t_e8bf5ad7654f2d 3,83-86
+game-kit/.storybook/locales/pages/gestures/en.json
+  s_881c18b5871008::t_6f6920408296fa 90-105
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_0c7ff6cf2724b7 91
+  s_881c18b5871008::t_e8bf5ad7654f2d 10,39
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_6f6920408296fa 190
+game-kit/src/index.ts
+  s_881c18b5871008::t_afce2dff6607fb 260-262
+game-kit/docs/test-plan/63-overlap.md
+  s_881c18b5871008::t_0c7ff6cf2724b7 1-22
+game-kit/src/core/overlap.test.ts
+  s_881c18b5871008::t_e704e2161b7172 37-39,41
+  s_881c18b5871008::t_c0af21535b0469 1-36,40,42-73
+game-kit/.storybook/stories/gestureMap.test.ts
+  s_881c18b5871008::t_9e93ce14158010 9-10,106-148,150-175
+  s_881c18b5871008::t_ee116d3435343e 149
+  s_881c18b5871008::t_fafdb48a1ed0c8 176
+game-kit/.storybook/stories/gestureMap.ts
+  s_881c18b5871008::t_04d520cc63c381 21,24,30-33,35-36,50,236-313,332-333,336-346,348-361,364-390,392-394,396-408,410-419,423-452
+  s_881c18b5871008::t_fa2ee9301aec27 49,314-331,334-335,347,362-363,391,395
+  s_881c18b5871008::t_ee116d3435343e 420-422
+  s_881c18b5871008::t_01753efbfc8531 34,46,409
+game-kit/.storybook/locales/pages/gestures/ru.json
+  s_881c18b5871008::t_6f6920408296fa 88-103
+game-kit/src/core/overlap.ts
+  s_881c18b5871008::t_afce2dff6607fb 1-105
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_6f6920408296fa 190
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_6f6920408296fa 452-456,467,538-561
+  s_881c18b5871008::t_1494918cced10f 35-45,273-277,294-300,303-317,334,361,400-403
+  s_881c18b5871008::t_83402efca25ecd 562
+game-kit/.storybook/devtools/drag.ts
+  s_881c18b5871008::t_79f33e3772d1a9 51-61,220-226,235
+  s_881c18b5871008::t_74a330775fe4e8 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2e3c6bb973660ecbe733ffc8cdc0441c6e3967ab",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
