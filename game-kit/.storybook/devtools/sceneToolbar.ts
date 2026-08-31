@@ -21,12 +21,14 @@ export interface ToolbarState {
   readonly hudUnit: HudUnitChoice;
   readonly bounds: boolean;
   readonly grid: boolean;
+  readonly touch: boolean;
 }
 
 export interface ToolbarHandlers {
   onHudUnit(choice: HudUnitChoice): void;
   onBounds(on: boolean): void;
   onGrid(on: boolean): void;
+  onTouch(on: boolean): void;
 }
 
 export interface SceneToolbar {
@@ -151,11 +153,16 @@ export function sceneToolbar(doc: Document, read: () => ToolbarState, on: Toolba
 
   const bounds = toggle("data-debug-bounds", (next) => on.onBounds(next));
   const grid = toggle("data-debug-grid", (next) => on.onGrid(next));
+  // THE HAND, and not a property of the scene — which is why it stands beside the other two
+  // rather than among the viewer's settings. The kit has no notion of a finger: what this draws
+  // is the catalog's own reading of the pointer, over the picture the kit painted.
+  const touch = toggle("data-debug-touch", (next) => on.onTouch(next));
 
   const refresh = (): void => {
-    const { text, hudUnit, bounds: boundsOn, grid: gridOn } = read();
+    const { text, hudUnit, bounds: boundsOn, grid: gridOn, touch: touchOn } = read();
     bounds.show(boundsOn, text.text("viewer.bounds"), text.text("viewer.bounds.hint"));
     grid.show(gridOn, text.text("viewer.grid"), text.text("viewer.grid.hint"));
+    touch.show(touchOn, text.text("viewer.touch"), text.text("viewer.touch.hint"));
     label.textContent = text.text("viewer.hudUnit");
     select.title = text.text("viewer.hudUnit.hint");
     [...select.options].forEach((option, i) => {

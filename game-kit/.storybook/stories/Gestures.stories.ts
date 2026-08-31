@@ -4,6 +4,7 @@ import {
   Bounded,
   Container,
   CONTROL_LABEL,
+  DEFAULT_TUNING,
   Draggable,
   draggable,
   freeLayout,
@@ -22,7 +23,7 @@ import {
 } from "../../src/index.js";
 import { wireDrag } from "../devtools/drag.js";
 import { scene } from "../devtools/scene.js";
-import { gestureMap, MAP } from "./gestureMap.js";
+import { gestureMap, mapWalls, MAP } from "./gestureMap.js";
 import { documented } from "./surfaceControls.js";
 
 // GESTURES — one page per gesture, and on every one of them the SAME element answers.
@@ -220,6 +221,23 @@ interface GrabArgs {
 const NO_PHYSICS = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
 
 /**
+ * THE BARRIER THAT NEVER LOSES.
+ *
+ * The kit gives a carry two ways to end AT a wall, and this scene closes both. SHOVED in hard
+ * enough (`wallSpeed`) the wall wins and knocks the run off the hand — right for a die thrown into
+ * a tray, wrong here: a piece would leave the hand because the hand pushed too eagerly. PULLED far
+ * enough past it (`leash`) the hold breaks instead — also wrong here, and it is the worse of the
+ * two, because the hand that broke the hold is still down and the reader has no idea it is now
+ * holding nothing.
+ *
+ * With both closed, what is left is the thing that was asked for: the anchor goes where the finger
+ * goes, the piece is clamped inside the border, and because the clamp is per axis the piece CRAWLS
+ * along the inner perimeter while the finger travels round the outside. Let go and it simply falls
+ * out of the hand where it stood — the release seat is the allowed one, never the finger's.
+ */
+const NEVER_THROUGH = { wallSpeed: Infinity, leash: Infinity } as const;
+
+/**
  * How far the map may be pushed out and pulled in. Narrow on purpose: the lesson here is the
  * carry, and a reader who has zoomed to a tenth is looking at a problem the page is not about.
  */
@@ -244,6 +262,10 @@ function grabScene(physics: boolean): HTMLElement {
   });
   return wireDrag(built, {
     view: () => built.camera!.transform(),
+    // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see
+    // `NEVER_THROUGH`. The pop is handed in because the wall is the DRAWN edge of the piece.
+    trayOf: (_root, hit) => mapWalls(hit, physics ? DEFAULT_TUNING.lift : 1),
+    ...NEVER_THROUGH,
     // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
     // the switch never has to restate a number the kit already decided.
     ...(physics ? {} : NO_PHYSICS),

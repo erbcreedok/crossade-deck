@@ -282,6 +282,51 @@ describe("the motion runtime", () => {
     expect(b.xOf("c") - restX).toBeCloseTo(2, 3);
   });
 
+  it("motion.a-wall-that-never-loses — closed thresholds make the tray a barrier the hand cannot break", () => {
+    // A tray is a THROWING box: shove hard enough and the wall knocks the run off the hand, pull far
+    // enough and the hold breaks. A desk a piece merely lives on is not that — carried into the
+    // edge it has to stay IN HAND and stay INSIDE, however far the finger wanders outside.
+    //
+    // Both endings are thresholds, so closing them is a number and not a second kind of wall: the
+    // consumer says `Infinity` and the two comparisons can no longer be true. That it works has to
+    // be checked rather than reasoned about — an `Infinity` in a spring's arithmetic is a `NaN`
+    // waiting to happen, and a `NaN` position is a piece that quietly stops being drawn.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const restX = b.xOf("c");
+    const restY = b.yOf("c");
+    let ended = 0;
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], {
+      anchor: { x: 0, y: 0 },
+      walls: { x0: -2, y0: -2, x1: 2, y1: 2 },
+      wallSpeed: Infinity,
+      leash: Infinity,
+      onWall: () => ended++,
+      onSnap: () => ended++,
+    });
+    let t = 0;
+    // A shove that WOULD have knocked it off at any ordinary `wallSpeed`, then a pull far past any
+    // leash anybody would write.
+    for (const to of [{ x: 9, y: 0 }, { x: 40, y: 0 }]) {
+      m.dragTo(to);
+      c.tick((t += 16));
+    }
+    expect(ended).toBe(0);
+    expect(m.velocity(), "still in hand").toBeDefined();
+    expect(b.xOf("c") - restX).toBeCloseTo(2, 3); // on the wall, not at the finger's 40
+    // AND IT CRAWLS THE INNER PERIMETER. The clamp is per axis, so a finger travelling down the
+    // OUTSIDE keeps the piece pinned to the wall it is against while it slides along it — which is
+    // what makes a barrier read as a barrier rather than as a piece that got stuck in a corner.
+    for (let y = -3; y <= 3.001; y += 0.25) {
+      m.dragTo({ x: 40, y });
+      c.tick((t += 16));
+    }
+    expect(ended).toBe(0);
+    expect(b.xOf("c") - restX).toBeCloseTo(2, 3);
+    expect(b.yOf("c") - restY).toBeCloseTo(2, 3); // it travelled the wall and stopped at its end
+  });
+
   it("motion.a-hard-shove-knocks-the-run-off-the-wall — the wall wins and hands the bounce back", () => {
     const b = bench();
     const c = fakeClock();

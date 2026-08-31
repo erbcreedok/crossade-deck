@@ -246,6 +246,15 @@ export interface CameraScene {
   readonly start?: { readonly at?: Point; readonly zoom?: number | "fit" } | undefined;
 }
 
+/**
+ * How wide the finger's ring is, in screen pixels — see "THE HAND, DRAWN".
+ *
+ * A real fingertip covers about 45px of glass, and a ring that size hides the very piece the
+ * reader is watching. This is a POINTER, not a fingerprint: big enough to find on a busy desk,
+ * small enough that a card under it is still a card.
+ */
+const TOUCH_RING = 26;
+
 /** One ruler for the whole page: the answers are cached, so twenty stories measure a caption once. */
 const ruler = domTextMeasure();
 
@@ -329,11 +338,14 @@ export function scene(
   // Off by default, always. Unlike the outline, a grid has no section whose lesson is invisible
   // without it — it is a ruler somebody reaches for, not a thing a page opens on.
   let gridOn = false;
+  // The same, and for the same reason — but this one is not a VIEWER setting at all: see
+  // `showTouch` below on why the kit is never told about it.
+  let touchOn = false;
   let fromCatalog = settings;
 
   const bar = sceneToolbar(
     document,
-    () => ({ text: fromCatalog.text, hudUnit: hudChoice, bounds: boundsOn, grid: gridOn }),
+    () => ({ text: fromCatalog.text, hudUnit: hudChoice, bounds: boundsOn, grid: gridOn, touch: touchOn }),
     {
       onHudUnit(choice) {
         hudChoice = choice;
@@ -347,6 +359,11 @@ export function scene(
         gridOn = on;
         pushViewer();
       },
+      onTouch(on) {
+        touchOn = on;
+        touches.style.display = on ? "block" : "none";
+        if (!on) forgetTouches();
+      },
     },
   );
   el.appendChild(stage);
@@ -355,6 +372,96 @@ export function scene(
   const host = mount(stage, root, viewerFor(settings.viewer));
   const first = host.viewport();
   const painter = makePainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
+
+  // ---- THE HAND, DRAWN ------------------------------------------------------------------------
+  //
+  // A ring per finger that is DOWN on this canvas, at the point the kit is reading. It is the
+  // anchor a gesture is hung off: a carried piece is laid out from it, and when something stops
+  // the piece — a wall, a leash — the gap between the ring and the piece IS what stopped it. Until
+  // it was drawn, "the card would not go there" and "the card is not following me" looked alike.
+  //
+  // NOT a viewer setting, unlike the outline and the grid. Those are things about the SCENE and
+  // the kit draws them; a finger is not in the scene at all — the kit is handed a point and has
+  // never been told there is a hand attached to it. So the marker is the catalog's own layer, in
+  // the DOM, over the picture: nothing about it crosses into the model.
+  const touches = document.createElement("div");
+  touches.setAttribute("data-touch-layer", "");
+  touches.style.cssText = ["position:absolute", "inset:0", "pointer-events:none", "display:none"].join(";");
+  stage.appendChild(touches);
+  /** One ring per pointer id, so two fingers are two marks and neither drags the other about. */
+  const marks = new Map<number, HTMLElement>();
+  /** Which pointers are DOWN: a hovering mouse is not a hand on the desk and leaves no mark. */
+  const pressing = new Set<number>();
+
+  const markFor = (pointerId: number): HTMLElement => {
+    const standing = marks.get(pointerId);
+    if (standing) return standing;
+    const ring = document.createElement("div");
+    ring.setAttribute("data-touch-mark", "");
+    ring.style.cssText = [
+      "position:absolute",
+      `width:${TOUCH_RING}px`,
+      `height:${TOUCH_RING}px`,
+      `margin-left:${-TOUCH_RING / 2}px`,
+      `margin-top:${-TOUCH_RING / 2}px`,
+      "box-sizing:border-box",
+      `border:2px solid ${t("debug")}`,
+      "border-radius:50%",
+    ].join(";");
+    // The middle of the ring is the point itself, and it has to be marked: a ring alone says
+    // "somewhere in here", which is the one thing an anchor may not say.
+    const pip = document.createElement("div");
+    pip.style.cssText = [
+      "position:absolute",
+      "left:50%",
+      "top:50%",
+      "width:4px",
+      "height:4px",
+      "margin:-2px 0 0 -2px",
+      `background:${t("debug")}`,
+      "border-radius:50%",
+    ].join(";");
+    ring.appendChild(pip);
+    touches.appendChild(ring);
+    marks.set(pointerId, ring);
+    return ring;
+  };
+
+  const showTouch = (e: PointerEvent): void => {
+    if (e.type === "pointerdown") pressing.add(e.pointerId);
+    if (!touchOn || !pressing.has(e.pointerId)) return;
+    // The GLASS point, the same reading every gesture in the kit is given — not the client point.
+    // A marker measured differently from the pick would be a debug layer that lies under exactly
+    // the conditions it exists to explain.
+    const g = glassOf(host.view, e);
+    const ring = markFor(e.pointerId);
+    ring.style.left = `${g.x}px`;
+    ring.style.top = `${g.y}px`;
+  };
+  const endTouch = (e: PointerEvent): void => {
+    pressing.delete(e.pointerId);
+    marks.get(e.pointerId)?.remove();
+    marks.delete(e.pointerId);
+  };
+  const forgetTouches = (): void => {
+    pressing.clear();
+    for (const ring of marks.values()) ring.remove();
+    marks.clear();
+  };
+  host.view.addEventListener("pointerdown", showTouch);
+  host.view.addEventListener("pointermove", showTouch);
+  // The END is listened for on the WINDOW, not on the canvas: a gesture that is not holding the
+  // pointer capture can finish anywhere on the page, and a mark left behind by one of those is a
+  // finger the reader can see and cannot lift.
+  window.addEventListener("pointerup", endTouch);
+  window.addEventListener("pointercancel", endTouch);
+  const stopTouching = (): void => {
+    host.view.removeEventListener("pointerdown", showTouch);
+    host.view.removeEventListener("pointermove", showTouch);
+    window.removeEventListener("pointerup", endTouch);
+    window.removeEventListener("pointercancel", endTouch);
+    forgetTouches();
+  };
   // Handed straight through, ABSENCE INCLUDED — and absence has to stay absence rather than
   // become `bake: undefined`: no `bake` means the kit's own default, and the catalog has no
   // business inventing a different one for the reader to learn instead.
@@ -599,6 +706,7 @@ export function scene(
       stopTaps();
       stopTapping();
       stopHolding();
+      stopTouching();
       TAPPED.delete(id);
       HELD.delete(id);
       stopPainting();

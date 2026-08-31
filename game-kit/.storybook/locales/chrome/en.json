@@ -280,6 +280,8 @@
   "viewer.theme": "theme",
   "viewer.theme.dark": "Dark",
   "viewer.theme.light": "Light",
+  "viewer.touch": "touch",
+  "viewer.touch.hint": "Ring the point every finger that is DOWN is read at — the anchor a gesture hangs off. What stopped a piece is the gap between the ring and the piece, and nothing else on screen shows it.",
   "arg.said": "Say it again. Every step of this counter fires the answer once — the same thing tapping the card does, for a reader who would rather drive it from the panel.",
   "arg.shiverMs": "How long the tremble lasts, ms. Short enough to read as one event rather than as an animation: a twitch, not a wobble.",
   "arg.shiverBy": "How far it swings at its widest, in root units. Sized against a CARD — about one unit across — so this is a swing of some seven pixels on a phone. A third of it could not be seen at all: a 2-pixel swing lasting 180 ms is not a subtle animation, it is an absent one.",

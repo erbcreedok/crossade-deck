@@ -22,6 +22,8 @@ import {
   compose,
   Container,
   Draggable,
+  extentOf,
+  fieldsOf,
   freeLayout,
   node,
   rect,
@@ -30,7 +32,9 @@ import {
   registerSurface,
   Surfaced,
   Transformable,
+  type BoundedFields,
   type Node,
+  type Walls,
 } from "../../src/index.js";
 import { deckByCardId } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
@@ -133,4 +137,25 @@ export function gestureMap(): Node {
     ),
   );
   return desk;
+}
+
+/**
+ * THE MAP'S OWN BORDER, as the tray a carried piece may not be taken out of.
+ *
+ * The walls clamp the ANCHOR — the piece's origin — so they are the map inset by the piece's own
+ * half: clamp the origin to the map's edge instead and half the card hangs over the side. Asked per
+ * piece, because the four pieces are four sizes and one number could only be right for one of them.
+ *
+ * `lift` is the pop the carry is holding it at: a piece drawn six percent bigger is six percent
+ * wider than the tree says it is, and a border that ignored that would let exactly that sliver of
+ * card cross it. Pass `1` for a carry with no pop.
+ */
+export function mapWalls(piece: Node, lift = 1): Walls {
+  const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
+  const size = shape ? extentOf(shape) : { w: 0, h: 0 };
+  const x = MAP.w / 2 - (size.w * lift) / 2;
+  const y = MAP.h / 2 - (size.h * lift) / 2;
+  // A piece bigger than the map has nowhere to stand: the box collapses to the middle rather than
+  // turning inside out, which is what a negative half would do.
+  return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };
 }

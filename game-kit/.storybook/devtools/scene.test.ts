@@ -57,6 +57,15 @@ function gridButton(el: HTMLElement): HTMLButtonElement {
   return el.querySelector("[data-debug-grid]") as HTMLButtonElement;
 }
 
+function touchButton(el: HTMLElement): HTMLButtonElement {
+  return el.querySelector("[data-debug-touch]") as HTMLButtonElement;
+}
+
+/** A pointer of a given id, since jsdom has neither `PointerEvent` nor a `pointerId` on a mouse one. */
+function finger(type: string, pointerId: number, x = 0, y = 0): MouseEvent {
+  return Object.assign(new MouseEvent(type, { clientX: x, clientY: y }), { pointerId });
+}
+
 function press(el: HTMLElement): void {
   boundsButton(el).dispatchEvent(new Event("click"));
 }
@@ -236,6 +245,51 @@ describe("a canvas carries its own settings", () => {
     a.dispose();
     b.dispose();
   });
+  it("scene.touch-toggle — the hand is drawn because somebody asked, and it is not the kit's business", () => {
+    // The marker answers a question no layer of the scene can: WHERE the kit is reading the finger.
+    // When a wall or a leash stops a carried piece, the gap between this ring and the piece is the
+    // whole explanation — without it, "it would not go there" and "it is not following me" are the
+    // same picture.
+    //
+    // And it is NOT a viewer setting, unlike the outline and the grid: the kit is handed a point
+    // and has never been told there is a hand on the other end of it. So pressing this must leave
+    // the viewer exactly as it was — the proof that the layer is the catalog's own.
+    const s = scene(node("s26", Bounded()));
+    document.body.appendChild(s.el);
+    const layer = s.el.querySelector("[data-touch-layer]") as HTMLElement;
+    expect(layer.style.display, "off until asked").toBe("none");
+
+    touchButton(s.el).dispatchEvent(new Event("click"));
+    expect(layer.style.display).toBe("block");
+    expect(s.host.viewer().debugBounds, "the kit was not told").toBe(false);
+    expect(s.host.viewer().debugGrid).toBe(false);
+
+    // A finger DOWN leaves a mark and a moving one carries it; a hovering pointer is not a hand on
+    // the desk and leaves nothing.
+    s.host.view.dispatchEvent(finger("pointermove", 7, 10, 10));
+    expect(layer.children).toHaveLength(0);
+    s.host.view.dispatchEvent(finger("pointerdown", 7, 10, 10));
+    s.host.view.dispatchEvent(finger("pointermove", 7, 40, 25));
+    expect(layer.children).toHaveLength(1);
+    expect((layer.children[0] as HTMLElement).style.left).toBe("40px");
+    expect((layer.children[0] as HTMLElement).style.top).toBe("25px");
+    // Two fingers are two marks, and neither drags the other about.
+    s.host.view.dispatchEvent(finger("pointerdown", 8, 80, 80));
+    expect(layer.children).toHaveLength(2);
+
+    // THE END IS HEARD ON THE WINDOW: a gesture holding no pointer capture can finish anywhere on
+    // the page, and a mark left behind by one of those is a finger the reader cannot lift.
+    window.dispatchEvent(finger("pointerup", 7));
+    expect(layer.children).toHaveLength(1);
+
+    // Switched off, the layer forgets the hands still on it — otherwise they would be waiting,
+    // stale, the next time it is switched on.
+    touchButton(s.el).dispatchEvent(new Event("click"));
+    expect(layer.style.display).toBe("none");
+    expect(layer.children).toHaveLength(0);
+    s.dispose();
+  });
+
   it("scene.bounds-is-this-canvas-only — two scenes on a page, two answers", () => {
     // Same reasoning as the etalon: a debug layer belongs to the canvas it is drawn over, and
     // one switch above them all would claim to speak for every one.
