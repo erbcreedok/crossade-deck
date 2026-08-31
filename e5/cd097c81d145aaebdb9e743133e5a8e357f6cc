@@ -1,0 +1,35 @@
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_43ec2699f54660 138
+game-kit/.storybook/stories/stockAssets.ts
+  s_881c18b5871008::t_a8cc424f02b602 15-22
+game-kit/.storybook/stories/gestureMap.ts
+  s_881c18b5871008::t_50d390a7b2713f 116-117
+  s_881c18b5871008::t_857f017a14da04 1-115,118-136
+game-kit/.storybook/locales/pages/gestures/ru.json
+  s_881c18b5871008::t_50d390a7b2713f 11
+  s_881c18b5871008::t_52b70aba3e9de4 24-43
+  s_881c18b5871008::t_bced1cb0680be9 3,6-7,9-10
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_272aa95909b16f 8,10,23,25,35-39,50-52,203-277
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_43ec2699f54660 138
+game-kit/.storybook/locales/pages/gestures/en.json
+  s_881c18b5871008::t_52b70aba3e9de4 25-45
+  s_881c18b5871008::t_bced1cb0680be9 3,6-7,9-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e5cd097c81d145aaebdb9e743133e5a8e357f6cc",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
