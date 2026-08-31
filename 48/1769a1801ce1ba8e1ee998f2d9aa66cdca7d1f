@@ -1,0 +1,46 @@
+game-kit/.storybook/stories/gestureMap.test.ts
+  s_881c18b5871008::t_d189d33a5a7e28 1-53
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_3035373b740902 10,39,68
+game-kit/.storybook/devtools/scene.test.ts
+  s_881c18b5871008::t_35f37069b53ea1 60-68,248-292
+game-kit/.storybook/devtools/sceneToolbar.ts
+  s_881c18b5871008::t_b08122871c3c66 24,31,156-159,162,165
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_881c18b5871008::t_3035373b740902 3,75-80
+game-kit/.storybook/stories/gestureMap.ts
+  s_881c18b5871008::t_28f7d1c291c443 25-26,35,37,141-160
+  s_881c18b5871008::t_5c45fb1566b18b 161
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_7db33bf718c5ab 7
+  s_881c18b5871008::t_7fddb512de9964 26,223-239,265-268
+game-kit/.storybook/devtools/scene.ts
+  s_881c18b5871008::t_e64365de11b9dd 249-257,375-464,709
+  s_881c18b5871008::t_606f548381b4e0 341-343,348,362-365
+  s_881c18b5871008::t_223f1b647a439b 366
+game-kit/docs/test-plan/40-motion.md
+  s_881c18b5871008::t_3035373b740902 3,27
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_3048bafc24eac4 328
+  s_881c18b5871008::t_fccb9c1f738a5d 285-327,329
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_cd3bb2f16111b6 283-284
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_cd3bb2f16111b6 287-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "481769a1801ce1ba8e1ee998f2d9aa66cdca7d1f",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
