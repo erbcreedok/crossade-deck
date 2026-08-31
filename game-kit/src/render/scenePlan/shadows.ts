@@ -18,7 +18,7 @@ import { type Node, type NodeId } from "../../core/node.js";
 import { extentOf, footprint } from "../../core/atoms/bounded.js";
 import { type Shadow } from "../../core/atoms/lit.js";
 import { boxOf } from "./parts.js";
-import { LAYER_HEIGHT, RISE } from "./depth.js";
+import { LAYER_HEIGHT } from "./depth.js";
 import { areaOf, type SurfacedFields } from "../../core/atoms/surfaced.js";
 import { shadowFrom } from "../../core/atoms/shadow.js";
 import { fieldsOf } from "../../core/node.js";
@@ -34,16 +34,8 @@ import { type Quad } from "./quads.js";
 export interface ShadowLamp {
   readonly nodes: ReadonlyMap<NodeId, Transform>;
   readonly overrides: ReadonlyMap<NodeId, Transform> | undefined;
-  /**
-   * Nodes a FINGER holds, and HOW MUCH each is raised — the lift it is drawn at, as a scale.
-   *
-   * A length and not a place: a held piece's shadow falls further, it does not fall elsewhere. The
-   * amount is the lift because that is what the raising IS — `RISE` turns one into the other, and
-   * the same number grows a flying body, so a held piece and a hopping one at the same height cast
-   * the same shadow. A membership set was here before and could not say how high, which is why a
-   * pack raised two and a half times cast the shadow of a card raised by a twentieth.
-   */
-  readonly carried: ReadonlyMap<NodeId, number> | undefined;
+  /** Nodes a FINGER holds: lifted off the desk, so the fall lengthens. A length, not a place. */
+  readonly carried: ReadonlySet<NodeId> | undefined;
   /** How high above the desk the clock is holding each piece right now. Also a length. */
   readonly grounded: ReadonlyMap<NodeId, number> | undefined;
   readonly toView: Transform;
@@ -70,8 +62,7 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
   const z = resolveZ(ctx);
   // THE HAND IS WHAT LIFTS: while a finger holds this piece it is off the desk, and the fall
   // lengthens by `lifted`. A LENGTH, not a place — where the shadow falls is never conditional.
-  const lift = lamp.carried?.get(n.id);
-  const inHand = lift !== undefined;
+  const inHand = lamp.carried?.has(n.id) === true;
   // On the desk and moving: the shadow goes with it, and rides its height.
   const ride = lamp.grounded?.get(n.id);
   // THE FALL IS A LENGTH IN UNITS, and it is laid down in SCREEN pixels — so it is measured
@@ -86,12 +77,7 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
   // `perZ` is the lamp's fall per LAYER — the z a pile counts in, cards thick. A hop is in root
   // UNITS, so it is turned into layers before the lamp is asked: a die half a unit off the felt is
   // ten card-thicknesses up, and its shadow drops away by that much rather than by a hair.
-  // A HELD PIECE IS AS HIGH AS IT IS BIG. `depth.lifted` is the hand's own clearance — the piece is
-  // off the desk the moment a finger has it, whatever size it is drawn — and the lift on top of
-  // that is real height, converted by the very number that grew it (`RISE`) and then counted in
-  // layers like any hop. So the gap under a raised pack is the gap its size claims.
-  const raised = inHand ? lamp.depth.lifted + (lamp.depth.perZ * Math.max(0, lift - 1)) / (RISE * LAYER_HEIGHT) : 0;
-  const off = (lamp.depth.base + lamp.depth.perZ * (z + (ride ?? 0) / LAYER_HEIGHT) + raised) * perUnit;
+  const off = (lamp.depth.base + lamp.depth.perZ * (z + (ride ?? 0) / LAYER_HEIGHT) + (inHand ? lamp.depth.lifted : 0)) * perUnit;
   // A SHADOW IS UNDER ITS PIECE. Always, without exception and without a branch: it is drawn from
   // the pose the piece is DRAWN at, so it travels with it, turns with it and stretches with it.
   //

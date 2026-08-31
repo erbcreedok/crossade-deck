@@ -2,16 +2,13 @@
 //
 //   • FALL   — down the SCREEN: gravity pulls +y, a floor bounces with restitution. What a card
 //              does in the old solitaire's victory cascade, what a chip does tossed off the edge.
-//   • SLIDE  — across the DESK, seen from above: no gravity, a GLIDE LAW (`glide.ts`) bleeds speed
-//              and spin to a stop, the walls of a tray reflect. What a die does when thrown, what a
-//              puck does. The law is the platform's own deceleration rate, so how far a throw gets
-//              can be asked BEFORE it is made and the answer holds.
+//   • SLIDE  — across the DESK, seen from above: no gravity, friction bleeds speed and spin to a
+//              stop, the walls of a tray reflect. What a die does when thrown, what a puck does.
 //
 // Both are the arithmetic only — headless, per step, like `spring.ts` — so a plain unit test pins
 // a bounce without a clock or a GPU. The one clock (the animator) owns the stepping and the
 // viewer's speed; a game names a speed and an angle and reads the pose where the body stops.
 
-import { type GlideLaw } from "./glide.js";
 import { type Vec } from "./transform.js";
 
 /** A flying body: where it is, how fast it goes, how it is turned and how fast it turns. */
@@ -84,14 +81,10 @@ export interface Walls {
 }
 
 export interface SlideConfig {
-  /**
-   * HOW THE DESK TAKES THE SPEED AWAY — a named law, not a number of units per second squared
-   * (`glide.ts`). Exponential, with Apple's own `decelerationRate`, because that law is the only one
-   * that answers "how far will it get" before the throw and still agrees with the stepping after it.
-   */
-  readonly glide: GlideLaw;
-  /** The same law for the TURN — a card stops turning on its own clock, not on the run's. */
-  readonly spinGlide: GlideLaw;
+  /** Deceleration of the slide, units/s² — how quickly the desk eats the speed. */
+  readonly friction: number;
+  /** Deceleration of the spin, degrees/s². */
+  readonly spinFriction: number;
   /** Restitution off a wall, 0..1 — and of a landing, which is the same bounce seen from the side. */
   readonly bounce: number;
   /** The tray. Absent, the desk is endless. */
@@ -112,24 +105,19 @@ const LAND_TURN = 7;
 const HOP_EPS = 0.35;
 
 /**
- * One step of a desk-slide. The glide law takes a fixed FRACTION of the speed per millisecond, so
- * the speed decays towards zero and never crosses it — a body that has all but stopped drifts the
- * last hair instead of jerking still. Spin bleeds by its own law. A wall reflects the component that
- * crossed it, scaled by `bounce`, and clamps the position back inside, so a fast body cannot tunnel
- * out of a thin tray on one frame.
- *
- * The position moves by the law's own `travel` and not by `v·dt`: `travel` is the integral the
- * projection is taken from, so a body stepped to rest lands where `project` said it would, at any
- * frame rate. That equality is what lets a throw be AIMED — see `glide.ts`.
+ * One step of a desk-slide. Friction takes a fixed amount of speed per second, opposing the motion,
+ * and never pushes THROUGH zero — a body that has stopped stays stopped rather than creeping back.
+ * Spin bleeds the same way. A wall reflects the component that crossed it, scaled by `bounce`, and
+ * clamps the position back inside, so a fast body cannot tunnel out of a thin tray on one frame.
  */
 export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
-  const k = cfg.glide.after(dt);
+  const speed = Math.hypot(b.vel.x, b.vel.y);
+  const slower = Math.max(0, speed - cfg.friction * dt);
+  const k = speed > 0 ? slower / speed : 0;
   let vx = b.vel.x * k;
   let vy = b.vel.y * k;
-  // Per unit of speed, so the step is exact for both axes at once and asks nothing of the heading.
-  const run = cfg.glide.travel(1, dt);
-  let x = b.pos.x + b.vel.x * run;
-  let y = b.pos.y + b.vel.y * run;
+  let x = b.pos.x + vx * dt;
+  let y = b.pos.y + vy * dt;
   // The hop, one axis of its own: gravity pulls it down, the desk gives back `bounce` of what
   // arrives, and the body is HELD by nothing else — a body with no hop in it never leaves zero.
   let up = b.up;
@@ -170,10 +158,9 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
     vy = vx * sin + vy * cos;
     vx = tx;
   }
-  const spin = b.spin * cfg.spinGlide.after(dt);
-  // Signed, and by the law's integral for the same reason the run is: how far it turns over the
-  // step is a distance, and `travel` is linear in the speed it is handed, so the sign carries.
-  return { pos: { x, y }, vel: { x: vx, y: vy }, angle: b.angle + cfg.spinGlide.travel(b.spin, dt), spin, up, upVel };
+  const spinMag = Math.abs(b.spin);
+  const spin = spinMag > 0 ? Math.sign(b.spin) * Math.max(0, spinMag - cfg.spinFriction * dt) : 0;
+  return { pos: { x, y }, vel: { x: vx, y: vy }, angle: b.angle + spin * dt, spin, up, upVel };
 }
 
 /**

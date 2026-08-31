@@ -15,7 +15,6 @@ import {
   applyMove,
   byId,
   compose,
-  contains,
   draggable,
   fieldsOf,
   restAngle,
@@ -24,7 +23,6 @@ import {
   onRejectOf,
   pick,
   planMove,
-  reorder,
   toUnits,
   transformsOf,
   Transformable,
@@ -104,35 +102,6 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * is judged and echoed; the other is retransmitted and forgotten.
    */
   readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean }) => void) | undefined;
-  /**
-   * THE LAST PIECE PUT DOWN DRAWS OVER ITS NEIGHBOURS — a free canvas where things overlap, which
-   * is what a table is.
-   *
-   * BY TREE ORDER, NEVER BY `z`. The plan sorts stably and equal heights keep the order of the
-   * children, so moving a node to the end of its siblings is the whole of it. `z` looks like the
-   * obvious lever and is the wrong one: it is HEIGHT, the shadow law reads it (`depth.perZ * z`),
-   * and a piece raised to get it drawn on top would cast a longer and longer shadow — the desk
-   * would slowly fill with things apparently hovering above it.
-   *
-   * Off by default: a game whose zones own their order (a pile, a hand, a column) says who is on
-   * top with the tree it publishes, and a wiring that reordered behind its back would be the
-   * finger overruling the rules.
-   */
-  readonly toFront?: boolean | undefined;
-  /**
-   * HOW MUCH THIS PIECE GROWS WHILE IT IS HELD — asked of the scene, per grab, because the answer
-   * is about the piece and the glass and not about the desk.
-   *
-   * `MotionTuning.lift` is one number for every carry on the clock: the small pop that says a hand
-   * has the piece. This is the other question — "big enough for WHAT" — and a pack that has to
-   * offer a second finger room to deal off it cannot be answered with the same number as a card
-   * that only has to acknowledge the hand. See `liftToFit`: the scale falls out of the finger, the
-   * etalon and the zoom, so nobody has to pick a multiplier that will be wrong on the next device.
-   *
-   * Absent, the wiring's own `lift` stands — which is the ordinary pop, and what every other desk
-   * in the catalog wants.
-   */
-  readonly liftOf?: ((root: Node, hit: Node) => number | undefined) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -245,16 +214,12 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, liftOf, ...feel } = w.opts;
-    // The piece's own answer wins over the desk's, and only when it has one: a scene that says
-    // nothing about a piece gets the ordinary pop, exactly as before this existed.
-    const lift = liftOf?.(root, hit);
+    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {
       anchor,
       ...feel,
-      ...(lift === undefined ? {} : { lift }),
       ...(tray ? { walls: tray } : {}),
       // THE BORDER ENDS THE GESTURE, and the wiring's own bookkeeping ends with it: the finger is
       // still down, so the drag has to be forgotten here or the pointerup would drop the piece a
@@ -312,30 +277,6 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
-  /**
-   * Move the RUN to the end of the lead's siblings — last drawn, and nothing about its height
-   * touched.
-   *
-   * THE RUN, AND ONLY WHERE IT LIVES. Raising each carried node in turn looks equivalent and is
-   * not: a run can be a container and its children (a pack travels whole), and then "put every
-   * member last" walks the pack's own order and rewrites it. That is a DRAG SILENTLY RESHUFFLING
-   * A DECK — and it does not even look like a bug, it looks like the top card changing when you
-   * touch the pack. Members that are not the lead's siblings are somebody else's order to keep.
-   *
-   * The run's own order survives, because the members go last in the order they already had: a
-   * column raised over its neighbours is still a column.
-   */
-  const front = (root: Node, items: readonly CarryItem[]): void => {
-    const owner = (items[0] ? byId(root, items[0].id) : undefined)?.parent;
-    if (!owner || owner.children.length < 2) return;
-    const rising = new Set(items.map((it) => it.id));
-    const up: number[] = [];
-    const stay: number[] = [];
-    owner.children.forEach((c, i) => (rising.has(c.id) ? up : stay).push(i));
-    if (up.length === 0 || stay.length === 0) return;
-    reorder(owner, [...stay, ...up]);
-  };
-
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
     const root = s.host.root;
     w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true });
@@ -343,16 +284,10 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     for (const it of items) {
       const n = byId(root, it.id);
       if (n && onRejectOf(n) === "stay") {
-        // THE NODE'S OWN FIELDS COME ALONG. `compose` replaces an atom outright, so a bare
-        // `Transformable({ at })` writes the seat and silently returns the turn, the height and the
-        // size to their defaults — a piece two fingers had just turned would snap upright the next
-        // time a hand moved it, and the drag would be blamed for losing the turn.
-        const own = fieldsOf<TransformableFields>(n, "Transformable");
-        compose(n, Transformable({ ...(own ?? {}), at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
+        compose(n, Transformable({ at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
       }
       s.motions?.release(it.id);
     }
-    if (w.opts.toFront) front(root, items);
     s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
   };
 
@@ -374,12 +309,6 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const source = lead?.parent ?? undefined;
     const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
     if (!lead || !source || !target || target === source) return false;
-    // A THING IS NEVER DROPPED INTO ITSELF. `zoneAt` is asked where the finger let go and answers
-    // with whatever zone is there — and when the thing being carried IS that zone (a pack dragged
-    // across the felt and put down where it stood), the honest answer is still "the pack". Asking
-    // the move machinery whether a node may be moved inside itself is a question nobody should
-    // pose; it is a refusal here, and the ordinary drop stands.
-    if (target === lead || contains(lead, target)) return false;
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);
       return true;

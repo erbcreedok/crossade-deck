@@ -111,25 +111,10 @@ export interface MotionTuning {
    * on a piece that cannot follow is not holding it any more: the piece is left standing where it is.
    */
   readonly leash: number;
-  /**
-   * HOW A `slide` RUNS OUT, by registry name (`installStockGlides`: `normal`, `fast`) — the
-   * platform's own deceleration rate, not a friction in units per second squared. See `glide.ts`
-   * for why the shape and not merely the number had to change.
-   */
-  readonly glide: string;
-  /** The same, for the TURN of a `slide`. A piece stops turning on its own clock, not on the run's. */
-  readonly spinGlide: string;
-  /**
-   * A SNAP'S SPRING, in SwiftUI's own pair (`Animation.spring(response:dampingFraction:)`) so the
-   * Swift side sets the same two numbers on the same animation.
-   *
-   * `snapResponse` is the period of one full swing, SECONDS — a duration that reads like one.
-   * `snapDamping` is the fraction of critical damping: `1` arrives with no overshoot, and that is
-   * the default because a card that swings past its slot and comes back has told the player the
-   * slot moved.
-   */
-  readonly snapResponse: number;
-  readonly snapDamping: number;
+  /** Desk-slide deceleration for `slide`, units/s². */
+  readonly friction: number;
+  /** Desk-slide angular deceleration for `slide`, degrees/s². */
+  readonly spinFriction: number;
 }
 
 export const DEFAULT_TUNING: MotionTuning = {
@@ -154,10 +139,8 @@ export const DEFAULT_TUNING: MotionTuning = {
   wallSpeed: 3,
   wallBounce: 0.6,
   leash: 1.2,
-  glide: "normal",
-  spinGlide: "normal",
-  snapResponse: 0.4,
-  snapDamping: 1,
+  friction: 6,
+  spinFriction: 540,
 };
 
 /** The fields a carry reads — what `grab` accepts as its per-gesture patch. */

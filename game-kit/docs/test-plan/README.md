@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**66 слоёв · 1479 кейсов заявлено · 1306 расписано поимённо.**
+**62 слоёв · 1438 кейсов заявлено · 1265 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -40,7 +40,7 @@
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
-| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 36 | 36 |
+| [ARCHITECTURAL GUARDS · source-scan](15-architectural-guards.md) | `vitest + fs scan (like argNames.test.ts)` | 35 | 35 |
 | [INTERACTION · play functions](16-interaction-play.md) | `@storybook/test + userEvent, Vitest browser mode` | 107 | 102 |
 | [STATE MATRIX · combinatorics](17-state-matrix.md) | `generated table, vitest` | 24 | 5 |
 | [STATE PLANE · what happens vs what is authored](18-state-plane.md) | `vitest` | 12 | 4 |
@@ -67,11 +67,11 @@
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
 | [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 36 | 36 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 10 | 10 |
-| [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 15 | 15 |
+| [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
-| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 18 | 18 |
+| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 15 | 15 |
 | [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 17 | 17 |
 | [UNIT · Rollable — грань как истина, кувырок как вид](48-rollable.md) | `vitest` | 3 | 3 |
 | [UNIT · текст — линейка портом, раскладка чистой функцией](49-text.md) | `vitest (headless, no font engine)` | 13 | 13 |
@@ -87,8 +87,4 @@
 | [UNIT · два корня — холст едет, HUD не едет](59-two-roots.md) | `vitest + jsdom` | 17 | 17 |
 | [UNIT · долгое нажатие — палец, который ОСТАЁТСЯ](60-long-press.md) | `vitest + фейковые таймеры` | 8 | 8 |
 | [UNIT · реестр анимаций — вид, который дизайнер назвал сам](61-motion-registry.md) | `vitest` | 22 | 22 |
-| [UNIT · жесты — пан, свайп, тряска, месиво](62-gestures.md) | `vitest` | 30 | 30 |
-| [UNIT · отпускание — что дроп НЕ имеет права менять](63-drag-drop-order.md) | `vitest` | 6 | 6 |
-| [UNIT · подъём — насколько большой обязана стать вещь в руке](64-lift.md) | `vitest` | 9 | 9 |
-| [UNIT · выкат — как стол забирает скорость, и куда бросок долетит](65-glide.md) | `vitest` | 6 | 6 |
-| [UNIT · снэп — бросок, который нацелен](66-snap.md) | `vitest` | 8 | 8 |
+| [UNIT · жесты — свайп, тряска, месиво](62-gestures.md) | `vitest` | 24 | 24 |

@@ -167,15 +167,15 @@ interface ScriptArgs {
   speed: number;
   angle: number;
   spin: number;
-  glide: string;
-  spinGlide: string;
+  friction: number;
+  spinFriction: number;
   bounce: number;
 }
 
 /**
  * A THROW BY SCRIPT — what a game does on "the server rolled 17": `throwDie` slides the die across
  * the tray on the engine's ballistics (the walls are the tray's own footprint), spinning and slowing
- * by the tuning's `glide`/`spinGlide`/`bounce`, and when it stops the seat is WRITTEN into the
+ * by the tuning's `friction`/`spinFriction`/`bounce`, and when it stops the seat is WRITTEN into the
  * tree. The face goes over on the die's OWN travel the whole way — a new one every half unit slid
  * and every 60° spun — so the flicker dies out with the slide and the result is the last face,
  * shown before it stops. TAP THE DIE to throw it; on the panel, `thrown` does the same, and the
@@ -232,8 +232,8 @@ export const Script: StoryObj<ScriptArgs> = {
     speed: 9,
     angle: 15,
     spin: 900,
-    glide: DEFAULT_TUNING.glide,
-    spinGlide: DEFAULT_TUNING.spinGlide,
+    friction: DEFAULT_TUNING.friction,
+    spinFriction: DEFAULT_TUNING.spinFriction,
     bounce: DEFAULT_TUNING.bounce,
   },
   argTypes: {
@@ -245,8 +245,8 @@ export const Script: StoryObj<ScriptArgs> = {
     speed: documented("arg.throw.speed", { control: { type: "range", min: 0, max: 20, step: 0.5 } }, "throw"),
     angle: documented("arg.throw.angle", { control: { type: "range", min: 0, max: 360, step: 5 } }, "throw"),
     spin: documented("arg.throw.spin", { control: { type: "range", min: 0, max: 1440, step: 30 } }, "throw"),
-    glide: documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "slide"),
-    spinGlide: documented("arg.spinGlide", { control: "select", options: ["normal", "fast"] }, "slide"),
+    friction: documented("arg.friction", { control: { type: "range", min: 0, max: 30, step: 0.5 } }, "slide"),
+    spinFriction: documented("arg.spinFriction", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "slide"),
     bounce: documented("arg.bounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "slide"),
   },
   parameters: { gkDocStory: "dice.script" },
@@ -260,8 +260,8 @@ interface ThrowArgs {
   seed: number;
   given: number;
   gain: number;
-  glide: string;
-  spinGlide: string;
+  friction: number;
+  spinFriction: number;
   bounce: number;
   wallSpeed: number;
   wallBounce: number;
@@ -349,8 +349,8 @@ export const Throw: StoryObj<ThrowArgs> = {
     seed: 7,
     given: 4,
     gain: 2,
-    glide: DEFAULT_TUNING.glide,
-    spinGlide: DEFAULT_TUNING.spinGlide,
+    friction: DEFAULT_TUNING.friction,
+    spinFriction: DEFAULT_TUNING.spinFriction,
     bounce: DEFAULT_TUNING.bounce,
     wallSpeed: DEFAULT_TUNING.wallSpeed,
     wallBounce: DEFAULT_TUNING.wallBounce,
@@ -364,8 +364,8 @@ export const Throw: StoryObj<ThrowArgs> = {
     given: GIVEN,
     catchable: documented("arg.catchable", { control: "boolean" }, "throw"),
     gain: documented("arg.gain", { control: { type: "range", min: 0.2, max: 3, step: 0.1 } }, "throw"),
-    glide: documented("arg.glide", { control: "select", options: ["normal", "fast"] }, "slide"),
-    spinGlide: documented("arg.spinGlide", { control: "select", options: ["normal", "fast"] }, "slide"),
+    friction: documented("arg.friction", { control: { type: "range", min: 0, max: 30, step: 0.5 } }, "slide"),
+    spinFriction: documented("arg.spinFriction", { control: { type: "range", min: 0, max: 2000, step: 20 } }, "slide"),
     bounce: documented("arg.bounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "slide"),
     wallSpeed: documented("arg.wallSpeed", { control: { type: "range", min: 0, max: 20, step: 0.5 } }, "wall"),
     wallBounce: documented("arg.wallBounce", { control: { type: "range", min: 0, max: 1, step: 0.05 } }, "wall"),

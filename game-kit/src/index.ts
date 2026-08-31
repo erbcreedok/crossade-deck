@@ -182,21 +182,16 @@ export {
 } from "./core/atoms/rotatable.js";
 export { Actionable, actionable, activate, intentOf, type ActionableFields } from "./core/atoms/actionable.js";
 export { HOLD_MS, wireHold, type HoldWiring } from "./render/hold.js";
-// HOW BIG A HELD THING HAS TO BE — a target in FINGERS rather than a multiplier, because whether a
-// second finger fits beside the first is a fact about glass pixels and not about the piece.
-export { FINGER_PX, acrossOf, glassPerUnit, liftToFit, type LiftFit } from "./render/lift.js";
 // THE GESTURES BESIDE THE LONG PRESS — each one a seam that REPORTS and decides nothing, which is
 // the same bargain `wireHold` strikes. What a swipe, a shake or a knead MEANS is the game's word.
-// THE PAN — `UIPanGestureRecognizer`: the same finger, reported WHILE it moves. Beside the swipe
-// and not instead of it, exactly as UIKit ships both: a swipe is a verdict on release, and a
-// verdict on release cannot say "the card is already going, this way, this fast".
-export { PAN_SLOP, PAN_WINDOW, wirePan, type HandAnchor, type Pan, type PanState, type PanWiring } from "./render/pan.js";
 export {
+  ANCHOR_SLOP,
   SWIPE_REACH,
   SWIPE_SPEED,
   SWIPE_STRAIGHT,
   wireSwipe,
   type Swipe,
+  type SwipeAnchor,
   type SwipeWiring,
 } from "./render/swipe.js";
 export { SHAKE_LEG, wireShake, type Shake, type ShakeWiring, type Shaking } from "./render/shake.js";
@@ -278,7 +273,6 @@ export {
   type ShiverOptions,
   type ShuffleOptions,
   type SlideOptions,
-  type SnapOptions,
   type WallHit,
 } from "./render/animator/index.js";
 // The LOOKS a piece can be asked to play by name — a registry, so a designer's own animation is a
@@ -364,23 +358,6 @@ export {
   type SlideConfig,
   type Walls,
 } from "./core/ballistic.js";
-// The run-out law a `slide` bleeds by — the platform's own deceleration rate, named and registered,
-// and the one place that answers "how far will this throw get" before the throw is made.
-export {
-  asGlide,
-  decayGlide,
-  FAST_RATE,
-  glideLaw,
-  glideNames,
-  installStockGlides,
-  NORMAL_RATE,
-  registerGlide,
-  resetGlides,
-  type GlideLaw,
-} from "./core/glide.js";
-// The snap — `UISnapBehavior`: a moving body pulled to a place, and the question of whether a throw
-// would pass through a zone at all, asked BEFORE the throw.
-export { crossesZone, finiteOr, snapRests, springOf, stepSnap, type SnapConfig } from "./core/snap.js";
 export {
   clampAbs,
   springAt,
@@ -416,10 +393,6 @@ export {
   type QuadLayer,
   type QuadStroke,
 } from "./render/scenePlan/index.js";
-// The two halves of the one contract about HEIGHT: how thick a `z` is, and how much a piece grows
-// per unit of height off the desk. A page that has to say "at the height of the hand" in the tree's
-// own terms needs both, and deriving either one again is how the two sides drift apart.
-export { LAYER_HEIGHT, RISE } from "./render/scenePlan/index.js";
 // The pointer seam: a glass point off an event, its units, and the topmost node under it — read off
 // the same plan the painter drew. Every interactive scene needs it; none should write its own copy.
 export { glassOf, pick, pickTop, toUnits } from "./render/pointer.js";

@@ -56,7 +56,7 @@ export interface PaintOptions {
   /** Nodes in flight, painted after everything at rest — see `PlanInput.raised`. */
   readonly raised?: ReadonlySet<NodeId> | undefined;
   /** Nodes a finger is holding — their shadow travels with them, see `PlanInput.carried`. */
-  readonly carried?: ReadonlyMap<NodeId, number> | undefined;
+  readonly carried?: ReadonlySet<NodeId> | undefined;
   /** Nodes the clock is sliding ACROSS the desk, and how high each is — see `PlanInput.grounded`. */
   readonly grounded?: ReadonlyMap<NodeId, number> | undefined;
   /**

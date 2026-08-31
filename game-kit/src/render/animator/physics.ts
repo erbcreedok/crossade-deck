@@ -5,7 +5,6 @@
 // read far more often than the loop that uses them.
 
 import { type Body } from "../../core/ballistic.js";
-import { type GlideLaw } from "../../core/glide.js";
 import { type Transform } from "../../core/transform.js";
 
 export const EPSILON = 1e-6;
@@ -43,8 +42,12 @@ export const UNITS_PER_FACE = 0.5;
  * packets hover over each other at the commit.
  */
 export const TUMBLE_TAIL = 0.5;
-/** Height into apparent size — the lamp's own number, read from where both sides can see it. */
-export { RISE } from "../scenePlan/depth.js";
+/**
+ * How much a body GROWS per unit of height off the desk — the whole of "it is up in the air" as far
+ * as a flat desk seen from above can say it. The shadow answers with the same number the other way:
+ * it falls further, so the gap between a piece and its shadow IS the height.
+ */
+export const RISE = 0.5;
 
 /** A tumble's turn against its progress: most of it early, and a long slow end. */
 export const tumbleEase = (t: number): number => 1 - (1 - t) ** 3;
@@ -56,17 +59,18 @@ export const tumbleEase = (t: number): number => 1 - (1 - t) ** 3;
 export const tumbleAt = (turned: number): number => 1 - Math.cbrt(1 - turned);
 
 /**
- * How many faces' worth of motion a sliding body still has in it. The glide law answers "how far
- * from here" directly (`project`), for the run and for the turn alike — this is the same question
- * the throw asks before it is made, asked again mid-flight. Walls only ever eat more of it, so this
- * over-estimates, and it errs the safe way: the result is shown a touch early rather than on a body
- * that has already stopped.
+ * How many faces' worth of motion a sliding body still has in it. Friction takes a fixed amount of
+ * speed per second, so what is left of a slide is `v²/2f`, and of a spin the same. Walls only ever
+ * eat more of it, so this over-estimates — and it errs the safe way: the result is shown a touch
+ * early rather than on a body that has already stopped.
  */
 export const facesLeft =
-  (cfg: { readonly glide: GlideLaw; readonly spinGlide: GlideLaw }) =>
+  (cfg: { readonly friction: number; readonly spinFriction: number }) =>
   (b: Body): number => {
-    const path = cfg.glide.project(Math.hypot(b.vel.x, b.vel.y));
-    const turn = cfg.spinGlide.project(Math.abs(b.spin));
+    const speed = Math.hypot(b.vel.x, b.vel.y);
+    const spin = Math.abs(b.spin);
+    const path = speed <= 0 ? 0 : cfg.friction > 0 ? (speed * speed) / (2 * cfg.friction) : Infinity;
+    const turn = spin <= 0 ? 0 : cfg.spinFriction > 0 ? (spin * spin) / (2 * cfg.spinFriction) : Infinity;
     return path / UNITS_PER_FACE + turn / TURN_PER_FACE;
   };
 

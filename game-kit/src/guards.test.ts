@@ -242,28 +242,6 @@ describe("guards", () => {
     expect(hits(/(const|let|var)\s+canvas\b|canvas\s*:\s*HTMLCanvasElement/)).toEqual([]);
   });
 
-  it("guard.one-run-out-law — the platform's deceleration rate is written down once", () => {
-    // The whole point of `core/glide.ts` is that the number a card runs out by is the PLATFORM's
-    // and is stated in one place, so the Swift side sets `decelerationRate` to the same figure
-    // instead of a second derivation drifting away from the first. A `0.998` or a `0.99` appearing
-    // anywhere else is exactly that second derivation, whatever it calls itself.
-    //
-    // Against `code`, not `raw`: the rates are quoted in the prose of half a dozen comments and in
-    // the reader's own locale, and a guard that cannot tell a mention from a use trains you to
-    // ignore it. A test may name them (that is what a test of the law is FOR), so its own file and
-    // the suites are out of scope, and so is the catalog, which is a consumer naming a setting.
-    const rates = files
-      .filter((f) => !inCatalog(f.rel) && !f.rel.endsWith(".test.ts") && f.rel !== "core/glide.ts")
-      .filter((f) => /(?<![.\d])0\.99[89]?(?![\d])/.test(f.code))
-      .map((f) => f.rel);
-    expect(rates, "the deceleration rate belongs to core/glide.ts and to nobody else").toEqual([]);
-
-    // And the tuning names a LAW rather than carrying a number: a game that wants its own felt
-    // registers one (`registerGlide`), which is the same door the easings and the shuffles open.
-    expect(typeof DEFAULT_TUNING.glide).toBe("string");
-    expect(typeof DEFAULT_TUNING.spinGlide).toBe("string");
-  });
-
   it("guard.one-clock — the frame loop lives in exactly one file", () => {
     // Any continuous animation runs on ONE clock (docs/design/transaction.md): a node does not
     // start its own ticker. So the frame primitives appear in the motion runtime and nowhere else

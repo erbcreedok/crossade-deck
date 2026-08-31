@@ -35,9 +35,7 @@ import { springAt, springSettled, stepSpring, type SpringConfig, type SpringStat
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
-import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
-import { contextFor } from "../../core/resolve.js";
-import { applyEffects } from "../effects.js";
+import { apply, compose, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
 import { renderFrame } from "../stage.js";
@@ -91,20 +89,11 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const clock = options.clock ?? rafClock;
 
   const displayed = new Map<NodeId, Transform>(); // what is on the glass now, root-unit space
-  /**
-   * WHAT THE TREE SAYS a node's pose is — the last reconcile's walk, kept rather than re-walked.
-   *
-   * A flight needs it and `displayed` cannot serve: `displayed` is where the node was last DRAWN,
-   * and a card thrown out of a hand was last drawn wearing that hand's lift. Read from there, the
-   * throw inherits the hand's size and carries it the whole way — see `overrides`.
-   */
-  let seated = new Map<NodeId, Transform>();
   const active = new Map<NodeId, Motion>(); // nodes mid-settle
   const held = new Set<NodeId>(); // nodes a gesture owns — no easing
   // Nodes a finger is dragging: their pose is the FINGER's, an override, not the tree's. A drag never
   // touches the tree — the carry step only writes here — so a pointer-move costs one paint, not a reconcile.
-  /** Who a finger has, and the lift each is drawn at — the lamp needs the AMOUNT, not the fact. */
-  const carried = new Map<NodeId, number>();
+  const carried = new Set<NodeId>();
   let carrying: Carry | null = null;
   // Choreographies keyed by their subject — a node for a turn or a tumble, a container for a shuffle —
   // so a second call on the same subject replaces the first: the latest word wins, as everywhere here.
@@ -146,7 +135,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (at) map.set(id, at);
     }
     // A dragged node sits under the finger — its live pose is in `displayed`, put there by the carry step.
-    for (const id of carried.keys()) {
+    for (const id of carried) {
       const at = displayed.get(id);
       if (at) map.set(id, at);
     }
@@ -164,11 +153,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     // was (at rest, or mid-settle), so a stagger never freezes a card in the air.
     for (const [id, f] of flights) {
       if (!f.started) continue;
-      // ITS OWN SIZE AND SHAPE, FROM THE TREE — never from what it was last drawn as. A card dealt
-      // out of a raised pack was last drawn at the HAND's lift, and a throw that took its shape
-      // from there flew the whole way inflated and then snapped to size on landing. The hand's
-      // lift is the hand's; a thrown thing is its own.
-      const rest = seated.get(id) ?? displayed.get(id);
+      const rest = displayed.get(id);
       if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle, 1 + f.body.up * RISE));
     }
     return map;
@@ -311,39 +296,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     }
   };
 
-  /**
-   * WHAT THE EFFECTS SAY ABOUT A NODE, as a transform in its own space — today that is one thing: a
-   * turned-over card's REFLECTION. Identity for everything else.
-   */
-  const preOf = (id: NodeId): Transform => {
-    const n = byId(host.root, id);
-    return n ? applyEffects(n, contextFor(n, 1)).pre : IDENTITY;
-  };
-
   const layCarry = (cy: Carry): void => {
     const leanDeg = cy.sa.pos;
     const anchor = heldAt(cy);
     const n = cy.items.length;
-    // ONLY WHAT IS STILL IN THE HAND. A run empties one node at a time — a game deals a card off a
-    // held pack and the rest stays held — and an item the scene has already let go must stop being
-    // laid out by the hand. `items` is the run as it was taken; `carried` is who is still on it.
     cy.items.forEach((it, i) => {
-      if (!carried.has(it.id)) return;
-      // A CARRY SAYS WHERE AND HOW TILTED, NOT WHAT THE PIECE IS. The style builds a pose out of
-      // the anchor alone, which is right — that is what makes a run one plank — but it means every
-      // trace of the node's own matrix is gone while the hand has it, the flip's reflection
-      // included. A card lying face down has a MIRRORED matrix, so carried it was drawn
-      // un-mirrored, and the settle home then interpolated the horizontal scale from `+1` to `-1`
-      // — through ZERO. That is a card squeezing to an edge and reopening: a turn-over, played by
-      // nobody, on every release of every face-down card, with the side unchanged at the end of it
-      // because nothing had actually turned.
-      //
-      // So the effects' own transform rides along, innermost, exactly as it does in the tree walk
-      // (`transformsOf`): the hand moves the piece, it does not restate what the piece is.
-      // The lift is recorded as well as drawn: the lamp lengthens a held piece's fall by it, so a
-      // raised pack's shadow says the same height its size does.
-      carried.set(it.id, cy.sl.pos);
-      displayed.set(it.id, compose(cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }), preOf(it.id)));
+      displayed.set(it.id, cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));
     });
   };
 
@@ -371,7 +329,6 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   /** Read the tree's new rest poses and start a spring for every node whose pose moved. */
   const reconcile = (): void => {
     const target = transformsOf(host.root);
-    seated = target;
     const posed = choreographed();
     const road = settles();
     for (const [id, to] of target) {
@@ -668,7 +625,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         onSnap: opts.onSnap,
       };
       for (const it of items) {
-        carried.set(it.id, 1);
+        carried.add(it.id);
         held.add(it.id);
         active.delete(it.id);
       }

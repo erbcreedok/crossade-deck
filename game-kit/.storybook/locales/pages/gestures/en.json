@@ -7,7 +7,7 @@
     "one gesture and one animation, so \"it did not move\" has exactly one meaning.",
     "",
     "The square is deliberately plain — a rounded box, no border, one fill. It is a target, not a",
-    "picture: anything more and a reader starts reading the shape instead of watching it move. Every scene here stands on a camera, and it is not scenery: it is the outermost ring of the same law. When a finger lands on a piece the gesture is given to that piece and a gesture given away is never taken back — so the second finger of a deal cannot become a pinch half way through, and two fingers kneading a pack cannot zoom the felt out from under it. On bare desk those same two fingers pan, pinch and twist, because nothing there claimed them."
+    "picture: anything more and a reader starts reading the shape instead of watching it move."
   ],
   "docs.gestures.hold": [
     "HOLD THE SQUARE. Half a second of a finger that does not travel, and the tile shivers.",
@@ -20,23 +20,5 @@
     "",
     "A tap is the other half of the same press, and the pair is what makes either legible: one",
     "finger, one square, and the meaning turns on whether it leaves quickly or stays."
-  ],
-  "docs.gestures.sandbox": [
-    "One finger owns one piece, and the baseline every other page on this shelf is read against. A second finger means nothing here: it cannot take over the piece in hand, and it cannot start a second drag — a hand that grabbed and a hand that arrived are not two players, they are one person with two fingers, and only one of them is holding the card. Put two fingers on a piece and spread them: nothing happens, and nothing should. The next page gives that pair a meaning, and the difference between the two is the subject of the shelf. Pieces are told apart by shape rather than art, because a gesture does not know what it is moving."
-  ],
-  "docs.gestures.turn": [
-    "The same six pieces with one atom more, and now a second finger means something: the finger that grabbed owns the piece's place, the one that arrived owns its angle. Order is the whole arbitration. The carry is given up as the turn starts — a carried piece is posed entirely by the carry style, so an angle written while it is in flight is a write nothing reads. `onRelease` is the atom's verdict when the fingers leave: keep what the hand did, fly home, or land on the nearest step. There is no swipe on this desk: two fingers here have exactly one meaning."
-  ],
-  "docs.gestures.deal": [
-    "One hand rests on the pack, the other leads a card off it — the gesture every card player owns and no interface has had a word for. The card is off the pack from the FIRST movement of that second finger and travels with it, at its speed; let go and it carries on. That running answer is the point: a verdict delivered on release cannot say \"the card is already going, this way, this fast\", because by then the gesture is over and everything the player did during it was answered by nothing. It is neither a drag of the top card nor a drag of the pack, which is what the resting hand may well be doing at the same moment; there is no contradiction in that, it is two hands doing two things, and it is written once as a simultaneity rule rather than as a pile of conditions. The dealing finger may begin ANYWHERE — it carries a direction, and the pack was already named by the hand holding it. Where the card lands is decided BEFORE it flies: the table walks the run the card would cover if nothing caught it, asks which seat that run passes through, and throws the card at that seat's own slot with a spring that keeps its momentum — so there is no correction at the end, because there is no separate end to correct. Aim and strength are one question rather than two gates: a card pointed between two players passes through neither circle, and a lazy one dies before it reaches any. A card that finds nobody comes home THROUGH THE AIR, at a height between the desk and the hand, so it never touches the felt on a journey it was never supposed to make."
-  ],
-  "docs.gestures.fling": [
-    "The same gesture off the same pack, with nobody looked for: the card comes out under the second finger and goes on where it was sent, at the speed it was sent, stopping where the felt's own run-out leaves it. The absence is the point of standing this page beside Deal. A table that snaps is saying a card belongs to somebody; a table that does not is saying a card belongs where it lies. Neither is more correct, and a game that wanted one and shipped the other has told its players something untrue about what its table is — cards drifting to the nearest player where position is the state, or cards stranded mid-felt where every card has an owner."
-  ],
-  "docs.gestures.knead": [
-    "Two fingers on the pack, working it: the deck comes apart under them and keeps coming apart for as long as the hand works. It is paid out in quanta, and that is the gesture's shape rather than a detail — a shuffle is a choreography with a span and an end, so a knead cannot be one shuffle, or a hand that kept working would be watching an animation that finished without it. Every quantum of ground the two fingers cover together is one short shuffle with a reorder of its own, so the pack is genuinely more disordered the longer it is worked. A quantum is ground and not time: a slow knead and a fast one do the same work per pass of the hand. Both fingers have to be working — one holding while the other travels is a deal, the gesture two pages back, off the same kind of pack with the same two fingers, and only the roles differ."
-  ],
-  "docs.gestures.shake": [
-    "Shake the die and open your hand: it is thrown where the finger was going and as hard as the hand had been working, and those are two different numbers out of two different gestures. The parting speed is the wrong number for strength — a hand that rattled a die and then stopped dead before opening has a parting speed of near zero and every right to expect a hard throw — so strength is measured over the whole stretch: path walked, reversals counted, width covered. That makes a shake a reading and not an event: it has no moment at which it happens, so a callback would have to invent one and every consumer would race that invention against its own release. Rattle hard and flick gently and the die goes a long way in the direction you barely nudged; rattle gently and flick hard and it barely moves however sharply you let go."
   ]
 }

@@ -5,15 +5,13 @@
 // flight record — the runtime steps and asks "is it over", it never reads which sort this is.
 
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body } from "../../core/ballistic.js";
-import { asGlide } from "../../core/glide.js";
-import { snapRests, stepSnap } from "../../core/snap.js";
 import { apply } from "../../core/transform.js";
 import { turnOf } from "./poses.js";
 import { type Motions } from "./motions.js";
 import { OFF_GLASS, SLIDE_EPS, SPIN_EPS, facesLeft } from "./physics.js";
 import { type Runtime } from "./runtime.js";
 
-type Throws = Pick<Motions, "launch" | "slide" | "snap">;
+type Throws = Pick<Motions, "launch" | "slide">;
 
 export function throws(rt: Runtime): Throws {
   return {
@@ -55,20 +53,14 @@ export function throws(rt: Runtime): Throws {
       const rest = rt.restOf(id);
       if (!rest) return;
       const cfg = {
-        glide: asGlide(opts.glide ?? rt.tuning.glide),
-        spinGlide: asGlide(opts.spinGlide ?? rt.tuning.spinGlide),
+        friction: opts.friction ?? rt.tuning.friction,
+        spinFriction: opts.spinFriction ?? rt.tuning.spinFriction,
         bounce: opts.bounce ?? rt.tuning.bounce,
         walls: opts.walls,
         gravity: rt.tuning.gravity,
       };
       rt.beginFlight(id, {
-        body: {
-          ...bodyAt(apply(rest, { x: 0, y: 0 })),
-          vel: opts.push ?? velocityOf(opts.speed, opts.angle),
-          spin: opts.spin ?? 0,
-          up: opts.up ?? 0,
-          upVel: opts.hop ?? 0,
-        },
+        body: { ...bodyAt(apply(rest, { x: 0, y: 0 })), vel: velocityOf(opts.speed, opts.angle), spin: opts.spin ?? 0, upVel: opts.hop ?? 0 },
         goMs: rt.warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),
@@ -78,41 +70,6 @@ export function throws(rt: Runtime): Throws {
         halt: (b) => ({ ...b, vel: { x: 0, y: 0 }, spin: 0 }),
         done: opts.onDone,
         tumble: opts.onTumble ? { left: facesLeft(cfg), on: opts.onTumble, carried: 0, count: 0, ended: false } : undefined,
-        onDesk: true,
-      });
-    },
-    snap(id, opts) {
-      const rest = rt.restOf(id);
-      if (!rest) return;
-      const cfg = {
-        to: opts.to,
-        up: opts.toUp ?? 0,
-        response: opts.response ?? rt.tuning.snapResponse,
-        damping: opts.damping ?? rt.tuning.snapDamping,
-        spinGlide: asGlide(opts.spinGlide ?? rt.tuning.spinGlide),
-      };
-      rt.beginFlight(id, {
-        body: {
-          ...bodyAt(apply(rest, { x: 0, y: 0 })),
-          vel: opts.push ?? velocityOf(opts.speed ?? 0, opts.angle ?? 0),
-          spin: opts.spin ?? 0,
-          up: opts.up ?? 0,
-          upVel: 0,
-        },
-        goMs: rt.warped + (opts.delayMs ?? 0),
-        started: false,
-        angle0: turnOf(rest),
-        step: (b, dt) => stepSnap(b, cfg, dt),
-        over: (b) => snapRests(b, cfg, SLIDE_EPS, SPIN_EPS),
-        // "No animation" for a snap is BEING THERE. A fall is gone and a slide stands where it
-        // stands, but a snap exists to put the body on a place the game has already decided — so
-        // the one honest instant answer is the place itself.
-        halt: (b) => ({ ...b, pos: cfg.to, vel: { x: 0, y: 0 }, spin: 0, up: cfg.up, upVel: 0 }),
-        done: opts.onDone,
-        tumble: undefined,
-        // ON THE DESK even while it is above it: `onDesk` says the shadow travels WITH the body,
-        // and the whole reading of a card losing height is the shadow closing on it as it comes
-        // down. A snap that said otherwise would drop its shadow at the seat it left.
         onDesk: true,
       });
     },

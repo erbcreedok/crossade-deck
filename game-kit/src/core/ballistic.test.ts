@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "vitest";
 import { bodyAt, polar, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
-import { decayGlide } from "./glide.js";
 
 const DT = 1 / 60;
 
@@ -55,52 +54,31 @@ describe("ballistic", () => {
     expect(path.every((b) => b.vel.y >= 0)).toBe(true); // never reflected
   });
 
-  it("ballistic.a-slide-bleeds-to-a-stop — the glide law takes a fraction of speed and spin, and never crosses zero", () => {
+  it("ballistic.a-slide-bleeds-to-a-stop — friction takes speed and spin, and never pushes through zero", () => {
     const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(3, 0), angle: 0, spin: 360, up: 0, upVel: 0 };
-    const glide = decayGlide(0.99); // the fast rate, so a hundred frames really is the whole run
-    const cfg = { glide, spinGlide: glide, bounce: 0.5 };
-    const path = runSlide(start, cfg, 600);
-    // Speed only ever drops; it decays towards zero and never reverses.
+    const cfg = { friction: 6, spinFriction: 720, bounce: 0.5 };
+    const path = runSlide(start, cfg, 120);
+    // Speed only ever drops; it reaches zero and stays there — no reversal.
     for (let i = 1; i < path.length; i++) {
       expect(Math.hypot(path[i]!.vel.x, path[i]!.vel.y)).toBeLessThanOrEqual(Math.hypot(path[i - 1]!.vel.x, path[i - 1]!.vel.y) + 1e-9);
       expect(path[i]!.vel.x).toBeGreaterThanOrEqual(0);
     }
     const end = path[path.length - 1]!;
     expect(slideRests(end, 1e-3, 1)).toBe(true);
-    // WHERE IT LANDS IS WHAT WAS PROMISED BEFORE THE THROW. This is the whole reason the law
-    // replaced a friction: `project` and the stepping are one integral, so a throw can be AIMED.
-    expect(end.pos.x).toBeCloseTo(glide.project(3), 6);
-    expect(end.angle).toBeCloseTo(glide.project(360), 4);
+    // It travelled about v²/(2a) = 9/12 = 0.75 units and turned about 360²/(2·720) = 90° — a hair
+    // under both, the semi-implicit step's own discretisation (velocity first, then position).
+    expect(end.pos.x).toBeCloseTo(0.75, 1);
+    expect(end.angle).toBeGreaterThan(85);
+    expect(end.angle).toBeLessThanOrEqual(90);
+    expect(end.spin).toBe(0);
     expect(stepSlide(start, cfg, 0)).toEqual(start);
-  });
-
-  it("ballistic.the-landing-is-known-in-advance — projection holds at any frame rate, and against a coarse one too", () => {
-    // The same throw stepped at 60 Hz, at 15 Hz and at 240 Hz has to end in the SAME place. A
-    // position moved by `v·dt` would not: it would undershoot more the coarser the frames, and a
-    // card aimed at a seat would land short on a slow phone and long on a fast one.
-    const glide = decayGlide(0.99);
-    const cfg = { glide, spinGlide: glide, bounce: 0.5 };
-    const seed: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(6, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
-    const runAt = (dt: number, secs: number): number => {
-      let b = seed;
-      for (let t = 0; t < secs; t += dt) b = stepSlide(b, cfg, dt);
-      return b.pos.x;
-    };
-    const want = glide.project(6);
-    expect(runAt(1 / 60, 8)).toBeCloseTo(want, 6);
-    expect(runAt(1 / 15, 8)).toBeCloseTo(want, 6);
-    expect(runAt(1 / 240, 8)).toBeCloseTo(want, 6);
-    // And read the other way up: a throw launched at `speedFor(d)` covers exactly `d`.
-    let aimed: Body = { ...seed, vel: velocityOf(glide.speedFor(2.5), 0) };
-    for (let i = 0; i < 900; i++) aimed = stepSlide(aimed, cfg, 1 / 60);
-    expect(aimed.pos.x).toBeCloseTo(2.5, 6);
   });
 
   it("ballistic.a-hopping-slide-bounces-and-wanders — it leaves the desk, lands turned a little, and a wall throws it higher", () => {
     // A thrown die does not skate. It comes off the desk, and every touch-down turns its run a
     // little — which is why a real one wanders instead of running a line to the wall.
     const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 3 };
-    const cfg = { glide: decayGlide(0.9995), spinGlide: decayGlide(0.99), bounce: 0.5, gravity: 9 };
+    const cfg = { friction: 2, spinFriction: 0, bounce: 0.5, gravity: 9 };
     const path = runSlide(start, cfg, 200);
     expect(Math.max(...path.map((b) => b.up))).toBeGreaterThan(0.3); // it really left the desk
     const landings = path.filter((b, i) => i > 0 && b.up === 0 && path[i - 1]!.up > 0).length;
@@ -124,7 +102,7 @@ describe("ballistic", () => {
 
   it("ballistic.a-wall-reflects — the crossing component flips and scales, the body stays inside", () => {
     const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(4, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
-    const cfg = { glide: decayGlide(1), spinGlide: decayGlide(1), bounce: 0.5, walls: { x0: -1, y0: -1, x1: 1, y1: 1 } };
+    const cfg = { friction: 0, spinFriction: 0, bounce: 0.5, walls: { x0: -1, y0: -1, x1: 1, y1: 1 } };
     const path = runSlide(start, cfg, 60);
     for (const b of path) {
       expect(b.pos.x).toBeLessThanOrEqual(1 + 1e-9);

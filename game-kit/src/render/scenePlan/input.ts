@@ -55,7 +55,7 @@ export interface PlanInput {
    * has off the felt rides in `grounded` instead, at its own height.
    * Absent, nothing is lifted, which is what a still scene wants.
    */
-  readonly carried?: ReadonlyMap<NodeId, number> | undefined;
+  readonly carried?: ReadonlySet<NodeId> | undefined;
   /**
    * HOW HIGH ABOVE THE DESK the clock is holding each piece right now (root units) — a hop, a
    * throw's arc, a bounce that never leaves the felt at all (0). Like `carried`, this is a LENGTH

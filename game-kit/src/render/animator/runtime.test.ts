@@ -21,18 +21,9 @@ import { installStockFlips, resetFlips } from "../flips.js";
 import { installStockShuffles, resetShuffles } from "../shuffles.js";
 import { installStockMotions, keyframeMotion, registerMotion, resetMotions } from "../motions.js";
 import { installStockSurfaces } from "../../presets/surfaces.js";
-import { decayGlide, glideLaw, installStockGlides, registerGlide } from "../../core/glide.js";
-import { SLIDE_EPS } from "./physics.js";
 import { attachMotion, type Clock } from "./index.js";
 import { type Painter } from "../painter.js";
 import { type Quad } from "../scenePlan/index.js";
-
-// The run-out laws these tests throw under. The stock two are the platform's; `slick` is a desk
-// that barely holds a body (a long run into a wall) and `still` a turn that never bleeds — each is
-// a law a test needs and no game would ship, which is exactly what a registry is for.
-installStockGlides();
-registerGlide("slick", decayGlide(0.9995));
-registerGlide("still", decayGlide(1));
 
 /** A fake clock whose single pending frame the test runs by hand. */
 function fakeClock() {
@@ -787,7 +778,7 @@ describe("flights: launch and slide", () => {
   it("motion.a-slide-tumbles-on-its-own-travel — the faces come off the body's own path, and the result lands before it stops", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { glide: "normal", spinGlide: "normal", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { friction: 6, spinFriction: 540, clock: c.clock });
     const shown: { at: number; last: boolean }[] = [];
     let at = 0;
     let restedAt = -1;
@@ -834,7 +825,7 @@ describe("flights: launch and slide", () => {
     const painter: Painter = { ready: Promise.resolve(), draw: (plan) => { last = plan; }, resize: () => {}, destroy: () => {} };
     const host = mount(document.createElement("div"), desk);
     const c = fakeClock();
-    const m = attachMotion(host, painter, { glide: "normal", spinGlide: "still", bounce: 0.5, gravity: 9, clock: c.clock });
+    const m = attachMotion(host, painter, { friction: 4, spinFriction: 0, bounce: 0.5, gravity: 9, clock: c.clock });
     const seatX = last.find((q) => q.id === "c")!.transform.e;
     let done = false;
     m.slide("c", { speed: 5, angle: 0, hop: 3, onDone: () => { done = true; } });
@@ -860,7 +851,7 @@ describe("flights: launch and slide", () => {
   it("motion.a-finger-catches-what-the-clock-is-moving — a grab ends the flight where it caught it, and the run is the hand's", () => {
     const b = bench();
     const c = fakeClock();
-    const m = attachMotion(b.host, b.painter, { glide: "normal", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { friction: 3, clock: c.clock });
     let landedAt: number | undefined;
     m.slide("c", { speed: 6, angle: 0, onDone: (rest) => { landedAt = rest.at.x; } });
     for (let t = 16; t <= 200; t += 16) c.tick(t);
@@ -921,21 +912,17 @@ describe("flights: launch and slide", () => {
     expect(b.xOf("c")).toBeGreaterThan(restX);
   });
 
-  it("motion.slide-bleeds-to-a-stop — the glide law ends it where it PROMISED, and the landing reports the pose", () => {
+  it("motion.slide-bleeds-to-a-stop — friction ends it where it lies, and the landing reports the pose", () => {
     const b = bench();
     const c = fakeClock();
     let landed: { at: { x: number; y: number }; angle: number } | undefined;
-    const m = attachMotion(b.host, b.painter, { glide: "normal", spinGlide: "normal", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { friction: 6, spinFriction: 720, clock: c.clock });
     const restX = b.xOf("c");
     m.slide("c", { speed: 3, angle: 0, spin: 360, onDone: (r) => { landed = r; } });
     for (let t = 16; t <= 3000 && !landed; t += 16) c.tick(t);
     expect(landed).toBeDefined();
-    // Where it stopped is what the law said before the throw — the same `project` the deal aims by.
-    // Short by the tail the clock does not sit through: the flight ends at `SLIDE_EPS`, and a body
-    // going that slowly still has `project(SLIDE_EPS)` of desk in it — a hundredth of a unit.
-    const promised = glideLaw("normal").project(3);
-    expect(landed!.at.x).toBeLessThanOrEqual(promised);
-    expect(promised - landed!.at.x).toBeLessThan(glideLaw("normal").project(SLIDE_EPS) + 1e-3);
+    expect(landed!.at.x).toBeGreaterThan(0.5); // v²/2a ≈ 0.75 units to the right of the origin
+    expect(landed!.at.x).toBeLessThan(1);
     expect(landed!.angle).toBeGreaterThan(60); // it turned on the way
     // Its override is gone but the glass remembers where it lies: a game that does NOT write the
     // landing gets a settle home from there (from ≠ to) — begun in the landing frame, so it is
@@ -948,86 +935,11 @@ describe("flights: launch and slide", () => {
     expect(c.idle()).toBe(true);
   });
 
-  it("motion.snap-catches-a-throw-at-the-mark — aimed thirty degrees off, it still arrives, and without a correction", () => {
-    const b = bench();
-    const c = fakeClock();
-    let landed: { at: { x: number; y: number }; angle: number } | undefined;
-    const m = attachMotion(b.host, b.painter, { glide: "normal", spinGlide: "normal", clock: c.clock });
-    // Thrown at 30° while the mark is straight ahead, and harder than the distance asks for: both
-    // of the ways a flick misses, and neither of them is a case anybody wrote.
-    m.snap("c", { to: { x: 2, y: 0 }, speed: 9, angle: 30, spin: 300, onDone: (r) => { landed = r; } });
-    const early: number[] = [];
-    for (let t = 16; t <= 4000 && !landed; t += 16) {
-      c.tick(t);
-      if (t <= 96) early.push(b.tOf("c").f);
-    }
-    expect(landed).toBeDefined();
-    // It really went where it was aimed, not near it: the target IS the destination all along.
-    expect(landed!.at.x).toBeCloseTo(2, 2);
-    expect(landed!.at.y).toBeCloseTo(0, 2);
-    // ...and it left along the FINGER's heading before the spring bent it back — a snap that
-    // started by pointing at the mark would be a card that ignored the flick.
-    expect(Math.max(...early.map(Math.abs))).toBeGreaterThan(0);
-    // The turn ran out on its own and the flight waited for it: it is not upright at the end.
-    expect(Math.abs(landed!.angle % 360)).toBeGreaterThan(1);
-    expect(c.idle()).toBe(false); // no landing written, so it settles home from there
-  });
-
-  it("motion.snap-can-come-home-above-the-desk — pulled to a height, it never touches the felt", () => {
-    const b = bench();
-    const c = fakeClock();
-    let landed = false;
-    const m = attachMotion(b.host, b.painter, { clock: c.clock });
-    // The boomerang: back to where it came from, and ALL THE WAY at a height above the desk. The
-    // height is drawn as apparent size, so "never touches the felt" is readable off the glass.
-    m.snap("c", { to: { x: 0, y: 0 }, up: 0.8, toUp: 0.4, speed: 6, angle: 0, onDone: () => { landed = true; } });
-    const sizes: number[] = [];
-    for (let t = 16; t <= 4000 && !landed; t += 16) {
-      c.tick(t);
-      // Only while it is FLYING: the landing frame belongs to the tree again, and this scene wrote
-      // no landing, so the node is back on its seat and flat by then.
-      if (!landed) sizes.push(Math.abs(b.tOf("c").a));
-    }
-    expect(landed).toBe(true);
-    expect(Math.min(...sizes)).toBeGreaterThan(1.0001); // raised on every single frame of the way
-    // And a snap pulled to the desk does the opposite: it comes DOWN as it travels.
-    let down = false;
-    const dropped: number[] = [];
-    m.snap("c", { to: { x: 2, y: 0 }, up: 0.8, speed: 6, angle: 0, onDone: () => { down = true; } });
-    for (let t = 4016; t <= 8000 && !down; t += 16) {
-      c.tick(t);
-      if (!down) dropped.push(Math.abs(b.tOf("c").a));
-    }
-    expect(down).toBe(true);
-    expect(dropped[0]!).toBeGreaterThan(1.0001);
-    expect(dropped[dropped.length - 1]!).toBeCloseTo(1, 3);
-
-    // THE DEAL PAGE'S OWN NUMBERS, to the last decimal, read off the catalog while it was dealing.
-    // A boomerang is a snap whose target is where the card already IS, and that is the shape most
-    // able to hide a flight that never converges — so it is the one pinned here rather than a
-    // tidy round throw. It has to be OVER, not merely plausible: an unfinished flight leaves the
-    // card mid-air with the game never told the throw ended, and nothing on the glass says why.
-    let home = false;
-    m.snap("c", {
-      to: { x: 0, y: 0 },
-      toUp: 0.28632653061224467,
-      up: 0.5726530612244893,
-      push: { x: -2.9999999999999987, y: 5.196152422706632 },
-      spin: 240,
-      spinGlide: "fast",
-      onDone: () => { home = true; },
-    });
-    let ms = 8016;
-    for (; ms <= 16000 && !home; ms += 16) c.tick(ms);
-    expect(home, "the boomerang has to END, not merely look right on the way").toBe(true);
-    expect(ms - 8016, "and inside a second, or the card hangs there after the hand has moved on").toBeLessThan(1000);
-  });
-
   it("motion.slide-obeys-walls-and-speed — a tray keeps it in; speed 0 stops it where it stands", () => {
     const b = bench();
     const c = fakeClock();
     let landed: { at: { x: number; y: number } } | undefined;
-    const m = attachMotion(b.host, b.painter, { glide: "slick", clock: c.clock });
+    const m = attachMotion(b.host, b.painter, { friction: 1, clock: c.clock });
     m.slide("c", { speed: 5, angle: 0, walls: { x0: -1, y0: -1, x1: 1, y1: 1 }, onDone: (r) => { landed = r; } });
     for (let t = 16; t <= 20000 && !landed; t += 16) {
       c.tick(t);
@@ -1372,65 +1284,5 @@ describe("animate — a look played by name", () => {
     c.tick(220);
     expect(commits, "once, at the phase the recipe chose").toBe(1);
     expect(beats, "and the look underneath changed hands there too").toEqual([1]);
-  });
-});
-
-// A CARRY SAYS WHERE AND HOW TILTED, NOT WHAT THE PIECE IS. The style builds a pose out of the
-// anchor alone — that is what makes a run one plank — and it therefore has to be told to keep what
-// the node's own matrix already said. Today that is one thing and it is not a small one.
-describe("a held piece keeps what it is", () => {
-  it("motion.a-carried-card-keeps-its-reflection — or letting go plays a turn-over nobody asked for", () => {
-    // THE BUG THIS EXISTS FOR, found by hand and unmistakable once seen: drop a face-down card and
-    // it squeezes to an edge and reopens, showing the same side it started on. Nothing turned it —
-    // the settle interpolated the horizontal scale from `+1` to `-1`, and the only way between
-    // those is through ZERO.
-    const b = bench();
-    const c = fakeClock();
-    installStockFlips();
-    const card = b.card;
-    compose(card, Flippable({ flip: "turnOver", back: "" }));
-    setFacing(card, "down");
-    b.host.setRoot(b.host.root);
-
-    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1 });
-    const resting = b.tOf("c").a;
-    expect(resting, "a face-down card is drawn mirrored — that is what a turn-over IS").toBeLessThan(0);
-
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
-    c.tick(16);
-    expect(
-      Math.sign(b.tOf("c").a),
-      "and it is still mirrored in the hand: a hand moves a piece, it does not restate what it is",
-    ).toBe(Math.sign(resting));
-  });
-});
-
-// A RUN EMPTIES ONE NODE AT A TIME. A game deals a card off a pack the hand is still holding, and
-// the card has to be FLYING that frame — not still laid out at the anchor, wearing the hand's lift,
-// until the whole run is finally let go.
-describe("throwing one node out of a carried run", () => {
-  it("motion.a-thrown-node-leaves-the-hand-at-once — the rest of the run stays held", () => {
-    // THE BUG THIS EXISTS FOR: the carry laid out every item of the run, released or not, and it
-    // laid them out AFTER the flight had stepped — so a card dealt off a raised pack was pinned to
-    // the anchor at the hand's lift for the whole of its throw, and snapped into place when the
-    // hand finally opened.
-    const b = bench();
-    const c = fakeClock();
-    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2, y: 0 } })));
-    b.host.setRoot(b.host.root);
-    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 2, glide: "normal" });
-
-    m.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 1, y: 0 } }], { anchor: { x: 0, y: 0 } });
-    c.tick(100);
-    m.dragTo({ x: 3, y: 3 }); // the hand carries the run well away from where the throw will go
-    c.tick(200);
-
-    m.release("d");
-    m.slide("d", { speed: 6, angle: 0 });
-    c.tick(400);
-    const flown = m.poses()!.get("d")!;
-    expect(flown.e, "the thrown card is out along its own throw, not pinned to the hand").toBeGreaterThan(1);
-    expect(Math.abs(flown.a), "and at its own size, not the hand's lift").toBeCloseTo(1, 5);
-    expect(m.poses()!.get("c")!.a, "while the rest of the run is still held, and still raised").toBeGreaterThan(1.5);
   });
 });
