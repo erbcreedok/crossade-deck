@@ -232,8 +232,19 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const tree = transformsOf(root);
     const poses = new Map(tree);
     if (drawn) for (const [id, t] of drawn) if (tree.has(id)) poses.set(id, t);
-    const at = poses.get(hit.id);
-    if (!at || run.length === 0) return;
+    // WHERE THE HAND CLOSES — on the node it hit, or, when that node is no longer in the tree, on
+    // the run's own lead.
+    //
+    // `runOf` is where a scene decides what a finger takes, and deciding can mean BUILDING: a tab
+    // under a pile of loose cards answers "the pack these make", and that pack did not exist a
+    // moment ago. Anchored on the hit and nothing else, a scene that took the tab away while
+    // answering was punished with silence — the pick aborted, no release ever ran, and the desk was
+    // left with a rearranged tree, no tab and nothing in the hand.
+    //
+    // A run that came back non-empty is a run the hand has.
+    if (run.length === 0) return;
+    const at = poses.get(hit.id) ?? poses.get(run[0]!.id);
+    if (!at) return;
     const anchor = { x: at.e, y: at.f };
     const p = toUnits(s.host, g, w.opts.view?.());
     const items = run.map((c) => {

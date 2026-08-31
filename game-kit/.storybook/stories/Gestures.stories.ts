@@ -1931,16 +1931,34 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
     // Dragging a member instead is untouched, which is the whole point of the handle being a
     // separate target: one finger on a card still lifts that card, and nothing is a mode.
     runOf: (root, hit) => {
-      if (isHandle(hit)) {
-        const pile = pileOf(root, hit);
-        // ONE PACK NEEDS NO GATHERING — its grip is simply how it is carried. Two or more things
-        // touching are made into one pack first, and THAT is what the hand gets.
-        const made = pile.length === 1 && isPack(pile[0]!) ? pile[0]! : gather(s, root, pile);
-        remove(root, hit);
-        s.setRoot(root);
-        if (made) return [made, ...made.children];
+      if (!isHandle(hit)) return isPack(hit) ? [hit, ...hit.children] : [hit];
+      const pile = pileOf(root, hit);
+      // ONE PACK NEEDS NO GATHERING — its grip is simply how it is carried. Two or more things
+      // touching are made into one pack first, and THAT is what the hand gets.
+      const made = pile.length === 1 && isPack(pile[0]!) ? pile[0]! : gather(s, root, pile);
+      if (!made) {
+        // THE PILE HAS GONE, so the grip is standing for nothing — one of its members was dealt
+        // away, or another pack took it in. The tab is worked out again from what is actually
+        // there, and the pick is refused rather than answered with a wrong armful.
+        //
+        // NOTHING IS REMOVED BEFORE THIS IS KNOWN, which is the fix and the whole of the bug: the
+        // grip used to be taken out of the tree first and only then asked what it stood for, so a
+        // stale one was destroyed, the run came back as the node that had just been deleted, the
+        // pick aborted on it — and with the pick aborted no release ever ran to put a tab back.
+        // A single touch made the grip vanish for good.
+        SETTLERS.get(s.el)?.();
+        return [];
       }
-      return isPack(hit) ? [hit, ...hit.children] : [hit];
+      // AND THE TAB TRAVELS WITH WHAT IT GATHERED — it is not taken out of the tree here.
+      //
+      // The pick's anchor is read from the pose of the node the FINGER HIT, which is this tab: pull
+      // it out before returning and the pick has nothing to anchor on, aborts, and leaves a desk
+      // with a gathered pile, no tab and nothing in the hand. It goes at the release instead, where
+      // the tabs are worked out again from where everything has come to rest.
+      //
+      // The pack leads the run, because the lead is what a drop is about; the tab rides at the back.
+      s.setRoot(root);
+      return [made, ...made.children, hit];
     },
     // THE PACK GROWS UNDER THE HAND, AND ONLY THE PACK. A deal needs a second finger to land ON it
     // beside the first, and whether one fits is a fact about GLASS PIXELS — a pack a third of a
