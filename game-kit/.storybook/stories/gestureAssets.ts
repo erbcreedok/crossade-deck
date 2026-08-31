@@ -83,18 +83,19 @@ const ROOK = svg(
  * rather than a thing to press.
  */
 const GRIP = svg(
-  100,
-  100,
+  120,
+  44,
   [
-    // The plate: dark, softly rounded, with a pale rim so it holds its edge on a dark felt.
-    '<rect x="5" y="5" width="90" height="90" rx="26" fill="midnightblue"/>',
-    '<rect x="5" y="5" width="90" height="90" rx="26" fill="none" stroke="lavender" stroke-width="6"/>',
-    // THREE BARS, NARROWING DOWNWARD — the drag handle everybody already reads, drawn so that it is
-    // also a stack seen edge-on. Bold and few, because the tab is a third of a card across and at
-    // that size an outline is a blur and a letter is a smudge: only silhouette survives.
-    '<rect x="22" y="28" width="56" height="11" rx="5.5" fill="seashell"/>',
-    '<rect x="27" y="45" width="46" height="11" rx="5.5" fill="lavender"/>',
-    '<rect x="32" y="62" width="36" height="11" rx="5.5" fill="lavender" opacity="0.7"/>',
+    // A TAB, not a badge: wide and shallow, the shape of a thing that belongs to whatever is above
+    // it. A square of the same area sat on the felt shouting; lying down, the same picture reads as
+    // an edge to hook a finger under, which is what it is.
+    '<rect x="2" y="2" width="116" height="40" rx="20" fill="midnightblue" opacity="0.92"/>',
+    '<rect x="2" y="2" width="116" height="40" rx="20" fill="none" stroke="lavender" stroke-width="3.5" opacity="0.7"/>',
+    // TWO BARS, THE LOWER ONE SHORTER — the drag handle everybody already reads, and a stack seen
+    // edge-on. Bold and few, because the tab is a third of a card wide and at that size an outline
+    // is a blur and a letter is a smudge: only silhouette survives.
+    '<rect x="30" y="13" width="60" height="7" rx="3.5" fill="seashell"/>',
+    '<rect x="40" y="25" width="40" height="7" rx="3.5" fill="lavender" opacity="0.75"/>',
   ].join(""),
 );
 
@@ -106,7 +107,7 @@ export const GRIP_SURFACE = "gesture.piece.grip";
 export function installGesturePieces(): void {
   registerAsset("gesture.chip", { src: CHIP, w: 1, h: 1 });
   registerAsset("gesture.rook", { src: ROOK, w: 1, h: 1.44 });
-  registerAsset("gesture.grip", { src: GRIP, w: 1, h: 1 });
+  registerAsset("gesture.grip", { src: GRIP, w: 1, h: 0.367 });
   registerSurface(CHIP_SURFACE, { layers: [{ image: "gesture.chip" }] });
   registerSurface(ROOK_SURFACE, { layers: [{ image: "gesture.rook" }] });
   registerSurface(GRIP_SURFACE, { layers: [{ image: "gesture.grip" }] });

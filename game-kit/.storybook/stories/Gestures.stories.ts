@@ -910,9 +910,18 @@ function pilesOn(s: Scene, desk: Node): readonly (readonly Node[])[] {
  * never mistaken for part of it. It appears the moment two things touch and is gone the moment they
  * do not — nothing here is a state anybody has to keep.
  */
-const GRIP_SIDE = CARD.w * 0.72;
+/**
+ * THE TAB'S SIZE — wide and shallow, and deliberately quiet.
+ *
+ * A square badge of the same area was the first try and it shouted: on a felt of round seats and
+ * rectangular cards, a third shape at full contrast reads as a piece rather than as a control. Lying
+ * down and half as tall it is an edge to hook a finger under, which is what it is — and it still
+ * clears the smallest target a thumb can find, because what a thumb needs is WIDTH.
+ */
+const GRIP_W = CARD.w * 0.78;
+const GRIP_H = GRIP_W * 0.367;
 /** How far the tab sits BELOW the lowest edge of what it belongs to — clear of it, and touching nothing. */
-const GRIP_GAP = CARD.h * 0.14;
+const GRIP_GAP = CARD.h * 0.1;
 /**
  * WHAT EACH HANDLE STANDS FOR, kept BESIDE the handle and never inside its name.
  *
@@ -949,7 +958,7 @@ function gatherHandles(s: Scene, desk: Node): void {
       of: pile.map((n) => n.id),
       at: {
         x: spots.reduce((sum, p) => sum + p.at.x, 0) / spots.length,
-        y: foot + GRIP_GAP + GRIP_SIDE / 2,
+        y: foot + GRIP_GAP + GRIP_H / 2,
       },
     };
   });
@@ -960,7 +969,7 @@ function gatherHandles(s: Scene, desk: Node): void {
   for (const want of wanted) {
     const handle = node(
       `gather${++handles}`,
-      Bounded({ bounds: roundedRect(GRIP_SIDE, GRIP_SIDE, GRIP_SIDE * 0.24) }),
+      Bounded({ bounds: roundedRect(GRIP_W, GRIP_H, GRIP_H / 2) }),
       Surfaced({ surface: GRIP_SURFACE }),
       Transformable({ at: want.at }),
       Draggable({ onReject: "stay" }),
@@ -1276,6 +1285,17 @@ const DEALT = new WeakMap<
     /** Where that finger last was, root units — the magnet measures its gap to the pack from here. */
     readonly finger: Vec;
     /**
+     * HAS THIS CARD BEEN CLEAR OF ITS PACK YET, since it was taken off it?
+     *
+     * Until it has, the pack may not take it back — and without that the magnet ate every deal on
+     * the frame it was made. A dealing finger STARTS at the pack, which is the one place the magnet
+     * is listening, so the card came off, was pulled straight back in, and only came out again once
+     * the hand had gone far enough: "off the pack again" for a card the player had already taken.
+     *
+     * Coming back is a thing that can only happen to something that went away.
+     */
+    readonly away: boolean;
+    /**
      * WHICH PACK this card came off, by id.
      *
      * By id and not by node, and named at all because there may be more than one: a player can
@@ -1443,7 +1463,9 @@ function dealer(s: Scene, a: TableArgs): Dealing {
       // ALREADY UNDER THE FINGER. Nothing to slide out of anywhere: the player put their finger on
       // this card, so the hand simply has it. It still belongs to the pack the OTHER hand is on —
       // that is the pack the magnet will offer it back to.
-      DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at, pack: deck?.id ?? "" });
+      // A CARD ALREADY LYING ON THE FELT IS ALREADY AWAY. It was not just taken off the pack, so
+      // bringing it to one is a thing the player can do straight away.
+      DEALT.set(s.el, { card: card.id, hand, at: "hand", finger: at, away: true, pack: deck?.id ?? "" });
       take(card, hand, at, deck);
       return true;
     }
@@ -1456,7 +1478,7 @@ function dealer(s: Scene, a: TableArgs): Dealing {
     //
     // So the card FLIES the way any card flies, aimed at the fingers; the flight is re-aimed as
     // they move (`aim`), because a hand does not wait for a card; and the hand takes it on arrival.
-    DEALT.set(s.el, { card: card.id, hand, at: "leaving", finger: at, pack: deck!.id });
+    DEALT.set(s.el, { card: card.id, hand, at: "leaving", finger: at, away: false, pack: deck!.id });
     // ONE CARD'S THICKNESS ABOVE THE PACK, and that is the whole of why the slide-out can be seen.
     //
     // The card left at exactly the pack's height, and height is what orders the paint — so a tie
@@ -1552,6 +1574,12 @@ function dealer(s: Scene, a: TableArgs): Dealing {
     const pack = packAt(s, deck);
     const near = CARD.w * pack.grew * Math.max(a.magnet, 0);
     const gap = Math.hypot(it.finger.x - pack.at.x, it.finger.y - pack.at.y);
+    // NOT YET AWAY: the card has not been clear of this pack since it came off it, so there is
+    // nothing to come back. All that is watched for is the moment it does get clear.
+    if (!it.away) {
+      if (gap >= near * MAGNET_LET_GO) DEALT.set(s.el, { ...it, away: true });
+      return;
+    }
     if (it.at === "hand" && gap <= near) {
       // HOME, AND IT FLIES THERE. The card is off the finger from this instant — a snap the hand
       // could go on dragging would be a card in two places — and the pack takes it on landing.
@@ -1968,9 +1996,14 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
     //
     // A dealt card gets no such treatment. Nothing is dealt off a single card, so it has nothing to
     // make room for, and growing it would be decoration.
+    // A PACK GROWS UNDER THE HAND — AND SO DOES ONE TAKEN BY ITS TAB, which is the only way a
+    // pack is picked up now. Asked of the HIT, the tab answered "I am a little square" and the
+    // pack came up at its resting size: lifted by nothing, and no bigger under the finger than it
+    // was on the felt. What is being carried is a pack either way, so the size asked for is a
+    // PACK's — a card across, which every pack on this desk is.
     liftOf: (_root, hit) =>
-      isPack(hit)
-        ? liftToFit(acrossOf(hit), glassPerUnit(s.host.unit(), s.camera?.state().zoom ?? 1), {
+      isPack(hit) || isHandle(hit)
+        ? liftToFit(isPack(hit) ? acrossOf(hit) : CARD.w, glassPerUnit(s.host.unit(), s.camera?.state().zoom ?? 1), {
             fingers: a.fingers,
             max: a.liftMax,
           })
@@ -2067,6 +2100,10 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
           // AND EVERY REFUSAL IS SAID OUT LOUD. None of these numbers is visible, and a page that
           // speaks only when it succeeds leaves a reader one report to make — "it does not work" —
           // which names nothing and cannot be acted on.
+          // A FINGER ON A TAB IS NOT A DEAL THAT FAILED. It is a pack being carried, and saying
+          // "start on a pack" underneath a pack the player is at that moment holding is the line
+          // lying about what just happened.
+          if (isHandle(p.on)) return;
           if (!deck) {
             return say(s, `moving at ${speed} u/s — start on a pack, or hold one with the other hand`, {
               refused: "no pack under this finger or the other one",
