@@ -21,7 +21,7 @@ import { installStockFlips, resetFlips } from "../flips.js";
 import { installStockShuffles, resetShuffles } from "../shuffles.js";
 import { installStockMotions, keyframeMotion, registerMotion, resetMotions } from "../motions.js";
 import { installStockSurfaces } from "../../presets/surfaces.js";
-import { attachMotion, type Clock } from "./index.js";
+import { attachMotion, RISE, type Clock } from "./index.js";
 import { type Painter } from "../painter.js";
 import { type Quad } from "../scenePlan/index.js";
 
@@ -854,6 +854,73 @@ describe("flights: launch and slide", () => {
     // And the cadence is the body's: friction eats the speed, so the waits grow.
     const gaps = shown.slice(1).map((f, i) => f.at - shown[i]!.at);
     expect(gaps[gaps.length - 1]!).toBeGreaterThan(gaps[0]!);
+  });
+
+  it("motion.a-slide-can-start-in-the-air — a drop is a slide let go of at a height, and gravity is its own", () => {
+    // The kit could throw a piece UP (`hop`) and could not let one FALL, which is the half a hand
+    // needs: a carried piece is held at a height, and letting go of it is the commonest thing that
+    // happens to it. Without a starting `up` the drop had to begin on the felt — the piece popped
+    // down to the desk at the instant of release and then "fell" from nowhere.
+    //
+    // And the fall's WEIGHT is the throw's own, not the runtime's: a desk holding a card, a die and
+    // a carved piece under one gravity is a desk of three identical objects.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const heights: number[] = [];
+    const seen = (): void => {
+      // The drawn size IS the height on a desk seen from above (`RISE` per unit), so the scale the
+      // painter got is the only honest reading of how high the piece is.
+      heights.push((b.tOf("c").a - 1) / RISE);
+    };
+    m.slide("c", { speed: 0, angle: 0, up: 1, gravity: 20, bounce: 0.5 });
+    let t = 0;
+    for (let i = 0; i < 90; i++) {
+      c.tick((t += 16));
+      seen();
+    }
+    // It STARTED up there rather than on the felt, and it came down.
+    expect(heights[0]!).toBeGreaterThan(0.9);
+    expect(heights[heights.length - 1]!).toBeCloseTo(0, 3);
+    // It bounced on the way: a frame that is higher than the one before it, after it has landed once.
+    const landed = heights.findIndex((h) => h <= 0.001);
+    expect(landed).toBeGreaterThan(0);
+    expect(heights.slice(landed).some((h, i, all) => i > 0 && h > all[i - 1]! + 1e-6), "it came back up").toBe(true);
+    // AND WEIGHT IS THE THROW'S OWN: the same drop under a tenth of the gravity is still in the air
+    // where the heavy one has already landed.
+    const b2 = bench();
+    const c2 = fakeClock();
+    const m2 = attachMotion(b2.host, b2.painter, { clock: c2.clock });
+    m2.slide("c", { speed: 0, angle: 0, up: 1, gravity: 2, bounce: 0 });
+    let t2 = 0;
+    for (let i = 0; i <= landed; i++) c2.tick((t2 += 16));
+    expect((b2.tOf("c").a - 1) / RISE, "the light one is still falling").toBeGreaterThan(0.2);
+  });
+
+  it("motion.a-flight-leaves-the-hand-at-its-own-size — where it was is the body's, what it is is the tree's", () => {
+    // A piece let go of is DRAWN at the hand's height, and a flight carries a height of its own. Seat
+    // the flight on the drawn pose and the two multiply: a piece held at 1.3 and dropped from the
+    // same height is drawn at 1.69 and pops at the very instant it is released — the one frame a
+    // drop has to be seamless.
+    //
+    // The POINT still comes from the glass, and that is the other half of the law: a body that
+    // started at its seat instead would jump the other way.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1.3, liftStiffness: 2000, liftDamping: 90 });
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 2, y: 0 } });
+    let t = 0;
+    for (let i = 0; i < 40; i++) c.tick((t += 16));
+    expect(b.tOf("c").a, "held at the pop").toBeCloseTo(1.3, 2);
+    const carriedX = b.xOf("c");
+    // Let go and drop it from the height the hand was holding it at: 1.3 drawn is `RISE` per unit.
+    m.release("c");
+    m.slide("c", { speed: 0, angle: 0, up: (1.3 - 1) / RISE, gravity: 20, bounce: 0 });
+    c.tick((t += 16));
+    expect(b.tOf("c").a, "and it leaves the hand at the same size").toBeCloseTo(1.3, 2);
+    expect(b.xOf("c"), "from where it was, not from its seat").toBeCloseTo(carriedX, 3);
+    for (let i = 0; i < 60; i++) c.tick((t += 16));
+    expect(b.tOf("c").a, "and lands its own size").toBeCloseTo(1, 2);
   });
 
   it("motion.a-sliding-body-takes-its-shadow-with-it — the shadow rides along and the hop is the gap", () => {

@@ -57,10 +57,18 @@ export function throws(rt: Runtime): Throws {
         spinFriction: opts.spinFriction ?? rt.tuning.spinFriction,
         bounce: opts.bounce ?? rt.tuning.bounce,
         walls: opts.walls,
-        gravity: rt.tuning.gravity,
+        gravity: opts.gravity ?? rt.tuning.gravity,
       };
       rt.beginFlight(id, {
-        body: { ...bodyAt(apply(rest, { x: 0, y: 0 })), vel: velocityOf(opts.speed, opts.angle), spin: opts.spin ?? 0, upVel: opts.hop ?? 0 },
+        // A body may START in the air (`up`) as well as be thrown into it (`hop`): the first is a
+        // piece let go of, the second one shoved off the desk. Both fall under the same gravity.
+        body: {
+          ...bodyAt(apply(rest, { x: 0, y: 0 })),
+          vel: velocityOf(opts.speed, opts.angle),
+          spin: opts.spin ?? 0,
+          up: opts.up ?? 0,
+          upVel: opts.hop ?? 0,
+        },
         goMs: rt.warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),

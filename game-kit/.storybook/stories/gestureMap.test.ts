@@ -5,8 +5,8 @@
 // the wrong thing and the border still LOOKS enforced, with half a card hanging over the side.
 
 import { describe, expect, it } from "vitest";
-import { Bounded, node, rect, type Node } from "../../src/index.js";
-import { gestureMap, MAP, mapWalls } from "./gestureMap.js";
+import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
+import { dropOf, gestureMap, MAP, mapWalls, toFront } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -42,6 +42,46 @@ describe("the gesture map", () => {
     // Nothing on this desk is boxless, but `Bounded` is optional in the model and a missing box
     // must read as "no size", never as a crash inside a debug scene.
     expect(mapWalls(node("bare"))).toEqual({ x0: -4, y0: -4, x1: 4, y1: 4 });
+  });
+
+  it("map.drop-feel-is-read-off-what-the-piece-is — never off its name", () => {
+    // A die is the thing whose faces go over, a card is the thing with a back to turn to, and a
+    // carved piece is neither — so the answer comes from the model. Off the id it would be a list
+    // somebody has to remember to add the fifth piece to, and `guard.id-is-opaque` forbids reading
+    // one anyway: an id says WHICH, never WHAT.
+    const by = Object.fromEntries(gestureMap().children.map((n) => [n.id, dropOf(n)]));
+    const die = by["die"]!;
+    const knight = by["knight"]!;
+    const card = Object.entries(by).find(([id]) => id !== "die" && id !== "knight")![1];
+    // The card is the slow one, and the only one that does not come back up.
+    expect(card.gravity).toBeLessThan(die.gravity);
+    expect(card.gravity).toBeLessThan(knight.gravity);
+    expect(card.bounce).toBe(0);
+    // The die is the one the desk throws back; the carved piece lands with barely a tap.
+    expect(die.bounce).toBeGreaterThan(knight.bounce);
+    expect(knight.bounce).toBeGreaterThan(0);
+    // And the two heavy ones fall at about the same rate — what tells them apart is the landing.
+    expect(Math.abs(die.gravity - knight.gravity) / die.gravity).toBeLessThan(0.3);
+  });
+
+  it("map.the-last-dropped-is-on-top — and it is a place in the list, not a height", () => {
+    // Equal `z` keeps tree order (the plan sorts stably), so "in front" is the end of the children.
+    // As a height it would be a lie about the third dimension: the piece is ON the desk, and every
+    // drop would raise the pile a little further off the felt forever.
+    registerLayout("gesture.map.free", freeLayout);
+    const desk = node("desk", Container({ layout: "gesture.map.free" }));
+    for (const id of ["a", "b", "c"]) add(desk, node(id, Bounded({ bounds: rect(1, 1) })));
+    const at = (): string[] => desk.children.map((n) => n.id);
+    toFront(desk.children[0]!);
+    expect(at()).toEqual(["b", "c", "a"]);
+    // The one already on top is left exactly where it is — no shuffling for a no-op.
+    toFront(desk.children[2]!);
+    expect(at()).toEqual(["b", "c", "a"]);
+    // And nothing is lost or duplicated on the way, whichever one is raised.
+    toFront(desk.children[1]!);
+    expect(at()).toEqual(["b", "a", "c"]);
+    // A piece with no owner is not an error — it is simply already the only thing there is.
+    expect(() => toFront(node("loose"))).not.toThrow();
   });
 
   it("map.carries-four-pieces-of-three-kinds — a carry that only ever holds a card teaches the card", () => {

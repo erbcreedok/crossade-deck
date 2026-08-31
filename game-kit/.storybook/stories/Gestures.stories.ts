@@ -2,11 +2,16 @@ import type { Meta, StoryObj } from "@storybook/html";
 import {
   add,
   Bounded,
+  apply,
+  byId,
+  compose,
   Container,
   CONTROL_LABEL,
   DEFAULT_TUNING,
   Draggable,
   draggable,
+  fieldsOf,
+  RISE,
   freeLayout,
   installStockCarries,
   Labeled,
@@ -18,12 +23,14 @@ import {
   ShadowCaster,
   Surfaced,
   Transformable,
+  type CarryItem,
   type Motions,
   type Node,
+  type TransformableFields,
 } from "../../src/index.js";
 import { wireDrag } from "../devtools/drag.js";
-import { scene } from "../devtools/scene.js";
-import { gestureMap, mapWalls, MAP } from "./gestureMap.js";
+import { scene, type Scene } from "../devtools/scene.js";
+import { dropOf, gestureMap, mapWalls, MAP, toFront } from "./gestureMap.js";
 import { documented } from "./surfaceControls.js";
 
 // GESTURES — one page per gesture, and on every one of them the SAME element answers.
@@ -251,7 +258,7 @@ const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
  * own number in, and then the height is that number on both settings of the switch — otherwise the
  * `Lift` page would answer "no lift at all" to a reader who turned the physics off on it.
  */
-function grabScene(physics: boolean, lift?: number): HTMLElement {
+function grabScene(physics: boolean, lift?: number, falling = false): HTMLElement {
   const built = scene(gestureMap(), {
     animate: true,
     camera: {
@@ -280,7 +287,53 @@ function grabScene(physics: boolean, lift?: number): HTMLElement {
     // the switch never has to restate a number the kit already decided.
     ...(physics ? {} : NO_PHYSICS),
     lift: held,
+    // A page that DROPS takes the release over: the ordinary one puts the piece down where the
+    // finger was, and putting down is the thing this page says is not what happens.
+    ...(falling ? { onRelease: (_v: unknown, items: readonly CarryItem[]) => letFall(built, items, held) } : {}),
   }).el;
+}
+
+/**
+ * LET GO OF THE PIECES — they are in the air, and the air is where they are let go of.
+ *
+ * Three things happen, in this order and for a reason each:
+ *
+ *   THE SEAT IS WRITTEN FIRST. It is the truth — this is where the piece now lives — and a fall is
+ *   only a look. A flight starts from the node's REST, so the seat has to be there before the drop
+ *   is asked for, or the piece would fall at the place it was picked up from.
+ *
+ *   THE PIECE COMES TO THE FRONT. The last thing dropped covers what is under it, which is what a
+ *   desk does; tree order and not a height, see `toFront`.
+ *
+ *   AND THEN IT FALLS, from exactly the height the hand was holding it at. The hand's height is a
+ *   SCALE (`lift`) and a fall's is a LENGTH, and `RISE` is the one rate between them — asked here
+ *   rather than guessed, because a second answer to it is a piece that jumps the instant it is
+ *   released. How it comes down is the piece's own business (`dropOf`).
+ */
+function letFall(s: Scene, items: readonly CarryItem[], lift: number): boolean {
+  const m = s.motions;
+  const drawn = m?.poses();
+  if (!m || !drawn) return false;
+  const root = s.host.root;
+  const dropped: { readonly id: string; readonly feel: ReturnType<typeof dropOf> }[] = [];
+  for (const it of items) {
+    const n = byId(root, it.id);
+    const pose = drawn.get(it.id);
+    if (!n || !pose) return false; // nothing written yet, so the ordinary drop still answers
+    // The DRAWN origin: the carry lays the run at the anchor the walls allowed, so this is already
+    // inside the border — the finger's own point never is. Root units are the seat's units here,
+    // as the map is the root and stands at the origin.
+    const own = fieldsOf<TransformableFields>(n, "Transformable");
+    compose(n, Transformable({ ...(own ?? {}), at: apply(pose, { x: 0, y: 0 }) }));
+    toFront(n);
+    m.release(it.id);
+    dropped.push({ id: it.id, feel: dropOf(n) });
+  }
+  s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
+  for (const { id, feel } of dropped) {
+    m.slide(id, { speed: 0, angle: 0, up: (lift - 1) / RISE, gravity: feel.gravity, bounce: feel.bounce });
+  }
+  return true;
 }
 
 const PHYSICS = documented("arg.physics", {}, "carry");
@@ -335,4 +388,18 @@ export const Lift: StoryObj<LiftArgs> = {
   args: { physics: true, lift: 1.3 },
   argTypes: { physics: PHYSICS, lift: LIFT },
   parameters: { gkDocStory: "gestures.lift" },
+};
+
+/**
+ * DROP — the same map, and the release is a FALL rather than a putting-down.
+ *
+ * The height is the one the hand was holding at, so nothing jumps at the moment of release; what
+ * happens after that is the piece's own (`dropOf`). And the piece that just landed is the one on
+ * top: a desk is a pile, and the last thing put on it covers what is under it.
+ */
+export const Drop: StoryObj<LiftArgs> = {
+  render: ({ physics, lift }) => grabScene(physics, lift, true),
+  args: { physics: true, lift: 1.3 },
+  argTypes: { physics: PHYSICS, lift: LIFT },
+  parameters: { gkDocStory: "gestures.drop" },
 };

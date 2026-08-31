@@ -19,6 +19,7 @@
 import {
   add,
   Bounded,
+  caps,
   compose,
   Container,
   Draggable,
@@ -28,6 +29,7 @@ import {
   node,
   rect,
   registerAsset,
+  reorder,
   registerLayout,
   registerSurface,
   Surfaced,
@@ -158,4 +160,52 @@ export function mapWalls(piece: Node, lift = 1): Walls {
   // A piece bigger than the map has nowhere to stand: the box collapses to the middle rather than
   // turning inside out, which is what a negative half would do.
   return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };
+}
+
+/** How a piece comes down when the hand lets go of it: what pulls it, and what the desk gives back. */
+export interface DropFeel {
+  /** Units/s² — how heavy it is. A big number is a short, hard fall. */
+  readonly gravity: number;
+  /** 0..1 of the landing speed handed back. `0` lands and stays. */
+  readonly bounce: number;
+}
+
+/**
+ * WHAT A PIECE DOES WHEN IT IS LET GO OF — read off what the piece IS, never off its name.
+ *
+ * A die is the thing with faces to go over (`Rollable`); a card is the thing with a back to turn to
+ * (`Flippable`); a carved piece is neither, which is exactly what a chess piece is on this desk. So
+ * the answer comes from the model, and a fourth piece added tomorrow is sorted by what it carries
+ * rather than by somebody remembering to add it to a list — which is also the only reading
+ * `guard.id-is-opaque` allows: an id says WHICH, never WHAT.
+ */
+export function dropOf(piece: Node): DropFeel {
+  // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
+  if (caps(piece).has("Rollable")) return { gravity: 22, bounce: 0.45 };
+  // A CARD TAKES ITS TIME. It is the lightest thing on the desk and the only one with enough face
+  // to catch air, so it comes down slowly — and paper does not bounce, it arrives and stays.
+  if (caps(piece).has("Flippable")) return { gravity: 4, bounce: 0 };
+  // A CARVED PIECE lands like the lump of wood it is: as fast as the die, and it taps ONCE.
+  //
+  // A quarter and not a tenth, because a bounce gives back the SQUARE of it in height: at `0.08` the
+  // piece came back up by four thousandths of a unit — a fifth of a pixel, which is a landing nobody
+  // can see and therefore not a landing at all. A quarter is one small, quick tick, against the die's
+  // two clear hops.
+  return { gravity: 26, bounce: 0.25 };
+}
+
+/**
+ * PUT A PIECE ON TOP of everything else on the desk — the last thing dropped covers what is under it.
+ *
+ * Tree order, and not a height: equal `z` keeps the order the children stand in (the plan sorts
+ * stably), so "in front" is a place in the list. Written as a height it would be a lie about the
+ * third dimension — the piece is ON the desk, not hovering over it — and every drop would raise the
+ * pile a little further off the felt forever.
+ */
+export function toFront(piece: Node): void {
+  const owner = piece.parent;
+  if (!owner) return;
+  const i = owner.children.indexOf(piece);
+  if (i < 0 || i === owner.children.length - 1) return;
+  reorder(owner, [...owner.children.keys()].filter((k) => k !== i).concat(i));
 }

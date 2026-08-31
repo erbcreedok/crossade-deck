@@ -116,6 +116,19 @@ export type SlideOptions = {
    * every landing, and a wall throws it higher than the hop it was already on.
    */
   readonly hop?: number | undefined;
+  /**
+   * HOW HIGH ABOVE THE DESK IT STARTS, root units. `0` (the default) is a piece already lying on it.
+   *
+   * The other half of `hop`, and the half a hand needs: `hop` is how hard something is thrown OFF
+   * the desk, this is how far above it something already IS. Without it the kit can throw a piece
+   * up and cannot let one FALL — and a carried piece is held at a height (`MotionTuning.lift`, at
+   * `RISE` per unit), so "let go and it drops" had no way of being said at all.
+   *
+   * It falls under the same `gravity` and gives back the same `bounce` as every landing after it,
+   * so what the drop FEELS like is those two numbers: a card flutters down and stays, a die comes
+   * down hard and hops twice.
+   */
+  readonly up?: number | undefined;
   /** The tray, root units. Default: the whole desk, endless. */
   readonly walls?: Walls | undefined;
   readonly delayMs?: number | undefined;
@@ -131,7 +144,17 @@ export type SlideOptions = {
    * gone the same frame — a game that wants the piece to stay writes this pose into the tree.
    */
   readonly onDone?: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
-} & { readonly friction?: number | undefined; readonly spinFriction?: number | undefined; readonly bounce?: number | undefined };
+} & {
+  readonly friction?: number | undefined;
+  readonly spinFriction?: number | undefined;
+  readonly bounce?: number | undefined;
+  /**
+   * What pulls it back DOWN, units/s². Patchable per throw for the same reason a `launch`'s is: how
+   * heavy a thing falls is what tells one thing from another, and a desk holding a card, a die and a
+   * carved piece is a desk where one number for all three is a desk of identical objects.
+   */
+  readonly gravity?: number | undefined;
+};
 
 /** A shuffle's look: the recipe name (`installStockShuffles`), and a duration patch. */
 export interface ShuffleOptions {

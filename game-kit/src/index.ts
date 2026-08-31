@@ -275,6 +275,11 @@ export {
   type SlideOptions,
   type WallHit,
 } from "./render/animator/index.js";
+// HOW MUCH A PIECE GROWS PER UNIT OF HEIGHT — the whole of "it is up in the air" on a desk seen from
+// above. Public because a consumer that holds a piece at a scale (`MotionTuning.lift`) and then lets
+// it FALL from that height has to state the same height in units, and two answers to the one rate is
+// how a piece jumps at the moment it leaves the hand.
+export { RISE } from "./render/animator/index.js";
 // The LOOKS a piece can be asked to play by name — a registry, so a designer's own animation is a
 // `registerMotion` call and never a new verb. `animate` on the runtime is how one is played.
 export {

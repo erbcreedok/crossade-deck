@@ -43,6 +43,10 @@ import { type TextMeasure } from "../textMetrics.js";
 import { transformsOf, viewTransform } from "../scenePlan/index.js";
 
 export * from "./motions.js";
+// HOW MUCH A PIECE GROWS PER UNIT OF HEIGHT off the desk. Out through the runtime's own door, so a
+// consumer that holds a piece at a scale and then drops it from that height states one rate and not
+// two — see the note on the same name in `src/index.ts`.
+export { RISE } from "./physics.js";
 import { type CarryItem, type MotionOptions, type Motions, type WallHit } from "./motions.js";
 import {
   BANK_EPS,
@@ -448,6 +452,17 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
           f.body = { ...f.body, pos: apply(at, { x: 0, y: 0 }) };
           f.angle0 = turnOf(at);
         }
+        // WHERE it was is the body's now; what it IS goes back to the tree's word.
+        //
+        // The two are not the same reading, and only one of them may survive the takeoff. The point
+        // and the turn are taken from the glass, because a body that started at its seat instead
+        // would jump the moment it left the hand. The SIZE cannot come from there: the drawn pose of
+        // a piece just let go of is the hand's, height and all, and the flight then multiplies its
+        // OWN height onto the hand's — a piece held at 1.3 and dropped from that height is drawn at
+        // 1.69 and pops the instant it is released. The flight is seated on the rest for the rest of
+        // its life anyway (`overrides`); this is the frame that makes that true.
+        const seat = transformsOf(host.root).get(id);
+        if (seat) displayed.set(id, seat);
       }
       const was = f.body;
       f.body = instant ? f.halt(f.body) : f.step(f.body, dt);

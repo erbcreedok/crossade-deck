@@ -56,5 +56,20 @@
     "The height is this page's own number, so it survives the physics switch: turn the feel off and the",
     "piece still rises, it just stops leaning on the way. That is the point of having it here — the",
     "lean and the lift are two channels, and a page where one switch killed both could not say so."
+  ],
+  "docs.gestures.drop": [
+    "LET GO, AND IT FALLS. The same map, the same pieces, the same border — what changes is the",
+    "release: the piece is not put down, it is dropped, from exactly the height the hand was holding",
+    "it at.",
+    "",
+    "How it comes down is the piece's own business, and it is read off what the piece IS rather than",
+    "what it is called. A card takes its time and stays where it lands — it is the lightest thing here",
+    "and paper does not bounce. A die comes down hard and the desk throws it back, twice, before it",
+    "settles. A carved piece falls as fast as the die and lands like the lump of wood it is, with",
+    "barely a tap back.",
+    "",
+    "AND THE LAST THING DROPPED IS ON TOP, because that is what a desk is. It is a place in the tree",
+    "and not a height: written as a height, every drop would raise the pile a little further off the",
+    "felt forever, and the piece would be hovering over a desk it is lying on."
   ]
 }
