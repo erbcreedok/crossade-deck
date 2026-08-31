@@ -1,0 +1,59 @@
+game-kit/.storybook/stories/gestureMap.test.ts
+  s_881c18b5871008::t_60ee46552fdf44 9,193-210
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_881c18b5871008::t_636f0034700845 87
+game-kit/.storybook/stories/Motion.stories.ts
+  s_881c18b5871008::t_c86f50906b8c54 90,395,442,474,507
+  s_881c18b5871008::t_552cda73acf00d 544
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_b7ccf80eac09e3 256,264,266-267,269-270
+  s_881c18b5871008::t_b4c870f74f9ffb 247-255,257-263,265,268,271-276
+game-kit/src/render/animator/records.ts
+  s_881c18b5871008::t_6f97b55e2c81a3 37-48
+game-kit/src/core/motion.ts
+  s_881c18b5871008::t_8a8a04003b0f20 114-125,154,175
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_552cda73acf00d 221
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_aafe9301aa31db 255-257,337-350,356-359,493-498,708-711
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_552cda73acf00d 221
+game-kit/src/index.ts
+  s_881c18b5871008::t_7499ccc6ce8c18 263-264
+game-kit/docs/test-plan/40-motion.md
+  s_881c18b5871008::t_636f0034700845 3,26
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_636f0034700845 10,38,68
+game-kit/src/render/scenePlan/plan.test.ts
+  s_881c18b5871008::t_fc1a90f357fffa 13,18,677-686,692-693,697
+  s_881c18b5871008::t_fc85f7e9d46d98 687-691,694-696,698
+  s_881c18b5871008::t_24c040695d0e8b 699-703,705-710
+  s_881c18b5871008::t_b76e55fbb6c97e 704
+  s_881c18b5871008::t_0ff6e6018e4aa0 711-712
+game-kit/src/core/atoms/screened.ts
+  s_881c18b5871008::t_4bce5b86c18d10 1-36
+game-kit/.storybook/stories/gestureMap.ts
+  s_881c18b5871008::t_3cc1f07fe621bc 36,410-412,435-442,444,447-451
+game-kit/docs/test-plan/10-scene-plan.md
+  s_881c18b5871008::t_636f0034700845 3,41
+game-kit/src/render/scenePlan/index.ts
+  s_881c18b5871008::t_4bce5b86c18d10 75-78,220-226
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_b31f0dc4bc15d4 251-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ae60363edb63c357d7da5013a0a541f65d398eaf",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
