@@ -89,6 +89,19 @@ export interface Flight {
   readonly halt: (b: Body) => Body;
   /** The rest pose's own turn, degrees — the body's `angle` is on top of it, and the landing reports their sum. */
   angle0: number;
+  /**
+   * THE HAND'S BANK, still on the piece at take-off — degrees between the turn it was DRAWN at and
+   * the turn it RESTS at, and it unwinds to nothing over `settleMs` while the body flies.
+   *
+   * A carried piece leans into the direction it is being carried, and that lean belongs to the hand
+   * and not to the piece. Let go, a piece with no flight simply settles home and the bank comes off
+   * on the way — that is the ordinary reconcile. A flight replaces the whole pose, so without this
+   * the bank has nowhere to go: it either vanishes on the frame the body takes off, or is held rigid
+   * for the entire fall and snaps upright on landing. Both are the same defect wearing two faces.
+   */
+  lean: number;
+  /** Warped ms the bank began coming off — take-off, not the moment the flight was filed. */
+  leanFromMs: number;
   /** What the body shows as it goes, if it shows anything — absent for a fall, which only falls. */
   readonly tumble: Tumbling | undefined;
   /** True for a body travelling ACROSS the desk: it is on the felt, so its shadow goes with it. */

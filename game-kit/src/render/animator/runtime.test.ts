@@ -22,6 +22,7 @@ import { installStockShuffles, resetShuffles } from "../shuffles.js";
 import { installStockMotions, keyframeMotion, registerMotion, resetMotions } from "../motions.js";
 import { installStockSurfaces } from "../../presets/surfaces.js";
 import { attachMotion, RISE, type Clock } from "./index.js";
+import { turnOf } from "./poses.js";
 import { type Painter } from "../painter.js";
 import { type Quad } from "../scenePlan/index.js";
 
@@ -921,6 +922,51 @@ describe("flights: launch and slide", () => {
     expect(b.xOf("c"), "from where it was, not from its seat").toBeCloseTo(carriedX, 3);
     for (let i = 0; i < 60; i++) c.tick((t += 16));
     expect(b.tOf("c").a, "and lands its own size").toBeCloseTo(1, 2);
+  });
+
+  it("motion.a-flight-unwinds-the-hand-s-bank — the lean comes off while it flies, not at either end", () => {
+    // A carried piece leans into the direction it is being carried, and that lean is the HAND's, not
+    // the piece's. Let go with no flight and the reconcile takes it off on the way home; a flight
+    // replaces the whole pose, so without a road of its own the bank either vanishes on the frame
+    // the body takes off or is held rigid for the whole fall and snaps upright on landing — the same
+    // defect wearing two faces.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, {
+      clock: c.clock,
+      settleMs: 300,
+      settleEase: "linear",
+      leanFactor: 40,
+      leanMaxDeg: 30,
+      leanStiffness: 4000,
+      leanDamping: 130,
+    });
+    // Carry it sideways fast enough to pin the bank, then let go from a height.
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    let t = 0;
+    for (let i = 1; i <= 30; i++) {
+      m.dragTo({ x: i * 0.25, y: 0 });
+      c.tick((t += 16));
+    }
+    const banked = turnOf(b.tOf("c"));
+    expect(Math.abs(banked), "the hand really banked it").toBeGreaterThan(5);
+    m.release("c");
+    m.slide("c", { speed: 0, angle: 0, up: 1, gravity: 6, bounce: 0 });
+    c.tick((t += 16));
+    // IT LEAVES WEARING THE BANK — near enough all of it, one frame into a 300ms road home.
+    const leaving = turnOf(b.tOf("c"));
+    expect(Math.abs(leaving - banked)).toBeLessThan(Math.abs(banked) * 0.2);
+    // ...and it comes off ON THE WAY, monotonically, rather than at either end of the fall.
+    const seen: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      c.tick((t += 16));
+      seen.push(Math.abs(turnOf(b.tOf("c"))));
+    }
+    for (let i = 1; i < seen.length; i++) expect(seen[i]!).toBeLessThanOrEqual(seen[i - 1]! + 1e-9);
+    expect(seen[seen.length - 1]!, "well on its way before it lands").toBeLessThan(Math.abs(banked) * 0.5);
+    // By the end of the settle's span it is upright, and the landing does not have to fix anything.
+    for (let i = 0; i < 40; i++) c.tick((t += 16));
+    expect(turnOf(b.tOf("c"))).toBeCloseTo(0, 4);
   });
 
   it("motion.a-sliding-body-takes-its-shadow-with-it — the shadow rides along and the hop is the gap", () => {

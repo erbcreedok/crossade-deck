@@ -130,6 +130,28 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return out;
   };
 
+  /**
+   * How much of the hand's bank a flying body is still wearing, degrees — see `Flight.lean`.
+   *
+   * The same road home the bank takes when there is no flight at all: the settle's own span and the
+   * settle's own easing. Two answers to "how a lean comes off" would be two different pieces of
+   * furniture depending on whether the thing was dropped or merely let go.
+   */
+  const leanLeft = (f: Flight): number => {
+    if (!f.lean) return 0;
+    const ms = tuning.settleMs;
+    if (ms <= 0) return 0;
+    const t = (warped - f.leanFromMs) / ms;
+    if (t >= 1) return 0;
+    return f.lean * (1 - easing(tuning.settleEase)(t <= 0 ? 0 : t));
+  };
+
+  /** The short way round, degrees — a bank is small, and a wrap must never send it the long way. */
+  const shortWay = (deg: number): number => {
+    const wrapped = ((deg + 180) % 360 + 360) % 360 - 180;
+    return wrapped;
+  };
+
   /** The pose overrides to hand the plan this frame: everything not at its rest, at where it is now. */
   const overrides = (): ReadonlyMap<NodeId, Transform> | undefined => {
     if (active.size === 0 && choreos.size === 0 && carried.size === 0 && flights.size === 0) return undefined;
@@ -158,7 +180,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     for (const [id, f] of flights) {
       if (!f.started) continue;
       const rest = displayed.get(id);
-      if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle, 1 + f.body.up * RISE));
+      if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle + leanLeft(f), 1 + f.body.up * RISE));
     }
     return map;
   };
@@ -394,7 +416,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const land = (id: NodeId, f: Flight): void => {
     flights.delete(id);
     const rest = displayed.get(id);
-    if (rest) displayed.set(id, seatAt(rest, f.body.pos, f.body.angle));
+    // WITH WHATEVER BANK IS LEFT: a fall shorter than the settle lands still leaning a little, and
+    // written upright here that remainder would snap. Recorded, the reconcile below eases it away
+    // like any other difference between where a piece is drawn and where it belongs.
+    if (rest) displayed.set(id, seatAt(rest, f.body.pos, f.body.angle + leanLeft(f)));
     f.done?.({ at: f.body.pos, angle: f.angle0 + f.body.angle });
     // Read the tree NOW, in the same frame: a landing the game wrote in place is found equal and
     // nothing flies; one it did not write starts the settle home from here — never a frame at the
@@ -462,7 +487,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // 1.69 and pops the instant it is released. The flight is seated on the rest for the rest of
         // its life anyway (`overrides`); this is the frame that makes that true.
         const seat = transformsOf(host.root).get(id);
-        if (seat) displayed.set(id, seat);
+        if (seat) {
+          displayed.set(id, seat);
+          // THE HAND'S BANK COMES OFF WHILE IT FLIES, not on the frame it leaves and not on the one
+          // it lands. It is the difference between the two turns, and from here it eases to nothing
+          // on the settle's own road (`leanLeft`). The landing is reported at the RESTING turn plus
+          // the body's own spin, because that is what will be on the glass by then.
+          if (at) f.lean = shortWay(turnOf(at) - turnOf(seat));
+          f.leanFromMs = warped;
+          f.angle0 = turnOf(seat);
+        }
       }
       const was = f.body;
       f.body = instant ? f.halt(f.body) : f.step(f.body, dt);

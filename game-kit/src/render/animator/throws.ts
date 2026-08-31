@@ -35,6 +35,8 @@ export function throws(rt: Runtime): Throws {
         goMs: rt.warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),
+        lean: 0,
+        leanFromMs: 0,
         step: (b, dt) => {
           const next = stepFall(b, { gravity, bounce, floor: floorOf() }, dt);
           // Falling before, rising after: the floor just gave it back — a bounce.
@@ -72,6 +74,8 @@ export function throws(rt: Runtime): Throws {
         goMs: rt.warped + (opts.delayMs ?? 0),
         started: false,
         angle0: turnOf(rest),
+        lean: 0,
+        leanFromMs: 0,
         step: (b, dt) => stepSlide(b, cfg, dt),
         over: (b) => slideRests(b, SLIDE_EPS, SPIN_EPS),
         // No animation: a slide stops where it stands.
