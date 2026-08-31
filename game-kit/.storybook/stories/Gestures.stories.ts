@@ -243,8 +243,15 @@ const NEVER_THROUGH = { wallSpeed: Infinity, leash: Infinity } as const;
  */
 const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
 
-/** The one scene both grab pages stand on — they differ by a single argument, and by nothing else. */
-function grabScene(physics: boolean): HTMLElement {
+/**
+ * The one scene every grab page stands on — they differ by their arguments, and by nothing else.
+ *
+ * `lift` absent means "whatever the physics switch says", which is what the first two pages want:
+ * the pop is one of the things the switch is switching. A page that is ABOUT the height hands its
+ * own number in, and then the height is that number on both settings of the switch — otherwise the
+ * `Lift` page would answer "no lift at all" to a reader who turned the physics off on it.
+ */
+function grabScene(physics: boolean, lift?: number): HTMLElement {
   const built = scene(gestureMap(), {
     animate: true,
     camera: {
@@ -260,19 +267,24 @@ function grabScene(physics: boolean): HTMLElement {
       start: { at: { x: 0, y: 0 }, zoom: 1 },
     },
   });
+  // How high the hand is actually holding it, once the switch and the page have both had their say.
+  const held = lift ?? (physics ? DEFAULT_TUNING.lift : 1);
   return wireDrag(built, {
     view: () => built.camera!.transform(),
     // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see
-    // `NEVER_THROUGH`. The pop is handed in because the wall is the DRAWN edge of the piece.
-    trayOf: (_root, hit) => mapWalls(hit, physics ? DEFAULT_TUNING.lift : 1),
+    // `NEVER_THROUGH`. The height is handed in because the wall is the DRAWN edge of the piece:
+    // raise a piece and it is wider, and a border that ignored that would let the difference out.
+    trayOf: (_root, hit) => mapWalls(hit, held),
     ...NEVER_THROUGH,
     // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
     // the switch never has to restate a number the kit already decided.
     ...(physics ? {} : NO_PHYSICS),
+    lift: held,
   }).el;
 }
 
 const PHYSICS = documented("arg.physics", {}, "carry");
+const LIFT = documented("arg.lift", { control: { type: "number", min: 1, step: 0.05 } }, "carry");
 
 export const Grab: StoryObj<GrabArgs> = {
   // PICK A PIECE UP AND PUT IT DOWN SOMEWHERE ELSE. Two cards, a die and a knight on a map that
@@ -296,4 +308,31 @@ export const GrabPhysics: StoryObj<GrabArgs> = {
   args: { physics: true },
   argTypes: { physics: PHYSICS },
   parameters: { gkDocStory: "gestures.grabPhysics" },
+};
+
+interface LiftArgs extends GrabArgs {
+  lift: number;
+}
+
+/**
+ * HOW HIGH THE HAND HOLDS IT — a third of a card off the desk instead of the kit's polite six
+ * percent, and on a desk seen from above that is what height IS: a thing further from the glass
+ * covers more of it. `RISE` is the engine's own word for the same rate, and this page is where a
+ * reader can feel the number rather than read it.
+ *
+ * A number and not a slider: the reader of this page is comparing `1.06` against `1.3`, and a
+ * value you can only approach by dragging is a value nobody can state.
+ */
+export const Lift: StoryObj<LiftArgs> = {
+  // THE SAME MAP AGAIN, and the one thing that changes is how far the piece comes UP when the hand
+  // closes on it. Everything else is the page before: the same pieces, the same camera, the same
+  // border it cannot be carried through, the same finger ring on the toolbar.
+  //
+  // The height is this page's own number, so it survives the physics switch: turn the feel off and
+  // the piece still rises, it just stops leaning on the way. The pair is the point — the lean and
+  // the lift are two channels, and a page where one switch killed both could not say so.
+  render: ({ physics, lift }) => grabScene(physics, lift),
+  args: { physics: true, lift: 1.3 },
+  argTypes: { physics: PHYSICS, lift: LIFT },
+  parameters: { gkDocStory: "gestures.lift" },
 };
