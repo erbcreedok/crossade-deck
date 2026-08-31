@@ -98,6 +98,14 @@ describe("ballistic", () => {
     // And a body with no hop in it is a puck: the wall reflects it and nothing lifts.
     const flat = runSlide({ ...start, upVel: 0 }, { ...cfg, walls: { x0: -1, y0: -1, x1: 0.35, y1: 1 } }, 200);
     expect(Math.max(...flat.map((b) => b.up))).toBe(0);
+    // THE POP IS THE TRAY'S, NOT THE WALL'S: `wallKick: 0` and a border only reflects. A die in the
+    // rail of its own tray pops and that is worth having; a piece coming DOWN from a hand — which is
+    // every release on a desk people play on — would be thrown back up into the air it was falling
+    // out of, and nothing about that reads as a thing hitting a wall.
+    const dead = Math.max(
+      ...runSlide(start, { ...cfg, wallKick: 0, walls: { x0: -1, y0: -1, x1: 0.35, y1: 1 } }, 200).map((b) => b.up),
+    );
+    expect(dead).toBeLessThanOrEqual(free);
   });
 
   it("ballistic.a-wall-has-its-own-restitution — a felt and a rail are not the same material", () => {

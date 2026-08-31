@@ -353,14 +353,23 @@ function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec
       gravity: feel.gravity,
       bounce: feel.bounce,
       wallBounce: feel.wallBounce,
+      // A BORDER ONLY REFLECTS HERE. The kit's own default has a wall pop a hopping body upwards,
+      // which is a die in the rail of its own tray and nothing else: every release on this desk is
+      // a piece coming DOWN, so a border would throw it back up into the air it was falling out of.
+      wallKick: 0,
       walls,
+      // WHERE IT STOPPED IS WHERE IT NOW LIVES, and it has to be written or the piece does not stay
+      // there: the seat in the tree is still the point it was let go of, and the reconcile that
+      // follows a landing would fly it all the way back to the hand. A flight is a LOOK; the seat is
+      // the truth, and the truth is only true once somebody writes it down.
+      onDone: (at) => landed(s, id, at),
     });
   }
   return true;
 }
 
 const PHYSICS = documented("arg.physics", {}, "carry");
-const LIFT = documented("arg.lift", { control: { type: "number", min: 1, step: 0.05 } }, "carry");
+const LIFT = documented("arg.lift", { control: { type: "number", min: 1, step: 0.05 }, if: { arg: "lifted" } }, "carry");
 
 export const Grab: StoryObj<GrabArgs> = {
   // PICK A PIECE UP AND PUT IT DOWN SOMEWHERE ELSE. Two cards, a die and a knight on a map that
@@ -387,8 +396,31 @@ export const GrabPhysics: StoryObj<GrabArgs> = {
 };
 
 interface LiftArgs extends GrabArgs {
+  /** The page's own switch: off, and the hand holds the piece flat — the page before this one. */
+  lifted: boolean;
   lift: number;
 }
+
+interface DropArgs extends LiftArgs {
+  /** Off, and a release is an ordinary putting-down again — the page before this one. */
+  dropping: boolean;
+}
+
+interface ThrowArgs extends DropArgs {
+  /** Off, and the hand's speed is not handed on: the piece drops where it stood. */
+  throwing: boolean;
+}
+
+/**
+ * EVERY PAGE HAS THE SWITCH FOR ITS OWN FEATURE, and turning it off leaves the page BEFORE it.
+ *
+ * That is what makes the shelf readable end to end: each page adds exactly one thing, its switch
+ * takes that one thing away, and what is left is the neighbour a reader has already understood. A
+ * page whose feature could not be turned off would be asking to be believed rather than compared.
+ */
+const LIFTED = documented("arg.lifted", {}, "carry");
+const DROPPING = documented("arg.dropping", {}, "release");
+const THROWING = documented("arg.throwing", {}, "release");
 
 /**
  * HOW HIGH THE HAND HOLDS IT — a third of a card off the desk instead of the kit's polite six
@@ -407,11 +439,27 @@ export const Lift: StoryObj<LiftArgs> = {
   // The height is this page's own number, so it survives the physics switch: turn the feel off and
   // the piece still rises, it just stops leaning on the way. The pair is the point — the lean and
   // the lift are two channels, and a page where one switch killed both could not say so.
-  render: ({ physics, lift }) => grabScene(physics, lift),
-  args: { physics: true, lift: 1.3 },
-  argTypes: { physics: PHYSICS, lift: LIFT },
+  render: ({ physics, lifted, lift }) => grabScene(physics, lifted ? lift : undefined),
+  args: { physics: true, lifted: true, lift: 1.3 },
+  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT },
   parameters: { gkDocStory: "gestures.lift" },
 };
+
+/**
+ * THE SEAT A FLIGHT ENDED ON, written into the tree — in the flight's own frame.
+ *
+ * Composed and not fed through `setRoot`: the runtime reads the tree itself on the very frame a
+ * landing is reported, so the seat is found equal and nothing flies. Routed through a notify it
+ * would arrive a frame late, and that frame is the piece back at the hand.
+ *
+ * Root units are the seat's units here, as the map is the root and stands at the origin.
+ */
+function landed(s: Scene, id: string, at: { readonly at: Vec; readonly angle: number }): void {
+  const n = byId(s.host.root, id);
+  if (!n) return;
+  const own = fieldsOf<TransformableFields>(n, "Transformable");
+  compose(n, Transformable({ ...(own ?? {}), at: at.at, angle: at.angle }));
+}
 
 /**
  * DROP — the same map, and the release is a FALL rather than a putting-down.
@@ -420,10 +468,11 @@ export const Lift: StoryObj<LiftArgs> = {
  * happens after that is the piece's own (`dropOf`). And the piece that just landed is the one on
  * top: a desk is a pile, and the last thing put on it covers what is under it.
  */
-export const Drop: StoryObj<LiftArgs> = {
-  render: ({ physics, lift }) => grabScene(physics, lift, "drop"),
-  args: { physics: true, lift: 1.3 },
-  argTypes: { physics: PHYSICS, lift: LIFT },
+export const Drop: StoryObj<DropArgs> = {
+  render: ({ physics, lifted, lift, dropping }) =>
+    grabScene(physics, lifted ? lift : undefined, dropping ? "drop" : undefined),
+  args: { physics: true, lifted: true, lift: 1.3, dropping: true },
+  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING },
   parameters: { gkDocStory: "gestures.drop" },
 };
 
@@ -435,9 +484,10 @@ export const Drop: StoryObj<LiftArgs> = {
  * drop. The map's border throws it back, and how hard is the piece's own: a die comes off a rail
  * lively, a card fairly, a carved piece hardly at all — weight is what a wall takes out of a thing.
  */
-export const Throw: StoryObj<LiftArgs> = {
-  render: ({ physics, lift }) => grabScene(physics, lift, "throw"),
-  args: { physics: true, lift: 1.3 },
-  argTypes: { physics: PHYSICS, lift: LIFT },
+export const Throw: StoryObj<ThrowArgs> = {
+  render: ({ physics, lifted, lift, dropping, throwing }) =>
+    grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined),
+  args: { physics: true, lifted: true, lift: 1.3, dropping: true, throwing: true },
+  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, throwing: THROWING },
   parameters: { gkDocStory: "gestures.throw" },
 };

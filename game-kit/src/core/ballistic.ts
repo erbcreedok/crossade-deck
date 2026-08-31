@@ -94,6 +94,17 @@ export interface SlideConfig {
    * against a rail and lands like a stone. One number for both makes every such pair unsayable.
    */
   readonly wallBounce?: number | undefined;
+  /**
+   * How much of a HOP a wall adds back on top of what the body had — see `WALL_KICK`, which is the
+   * default. `0` and a wall does nothing but reflect: it takes speed across the desk and gives none
+   * of it back upwards.
+   *
+   * A die caught by the rail of its own tray pops, and that is worth having. Anything else on a desk
+   * does not: a piece coming DOWN from a hand, which is every release on a desk people play on, has
+   * a height only because it has not landed yet — kicked by a border it climbs back into the air it
+   * was falling out of, and nothing about that reads as a thing hitting a wall.
+   */
+  readonly wallKick?: number | undefined;
   /** The tray. Absent, the desk is endless. */
   readonly walls?: Walls | undefined;
   /** What pulls a hopping body back down, units/s². Only used by a body that is off the desk. */
@@ -155,7 +166,8 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
   // is higher than the hop it was already on. A body with no hop in it (a puck, a card) is not
   // thrown anywhere: the wall reflects it and that is all, which is the law the flat slide keeps.
   const hopping = b.up > 0 || b.upVel !== 0 || upVel !== 0;
-  if (kicked && hopping) upVel = Math.max(upVel, Math.abs(b.upVel) * WALL_KICK, HOP_EPS * WALL_KICK);
+  const kick = cfg.wallKick ?? WALL_KICK;
+  if (kicked && hopping && kick > 0) upVel = Math.max(upVel, Math.abs(b.upVel) * kick, HOP_EPS * kick);
   // Every touch-down and every wall turns the run of the body a little, and the two turn it the
   // same way each time only by accident: the sign follows the height, so it alternates as it hops.
   if (hopped || (kicked && hopping)) {
