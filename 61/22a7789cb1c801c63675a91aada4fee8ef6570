@@ -1,0 +1,22 @@
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_fe03245e5daaac 1034
+  s_881c18b5871008::t_489028066da54d 810-821,823,825-831,891-906
+  s_881c18b5871008::t_b6c8584fb00464 1025-1031,2001
+  s_881c18b5871008::t_91e53f53cfcd72 907
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6122a7789cb1c801c63675a91aada4fee8ef6570",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
