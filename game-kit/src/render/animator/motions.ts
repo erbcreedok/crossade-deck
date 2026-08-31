@@ -42,6 +42,28 @@ export type MotionOptions = TuningPatch & {
 export interface CarryItem {
   readonly id: NodeId;
   readonly offset: Vec;
+  /**
+   * HOW FAR BEHIND THE HAND THIS ONE DRAGS — seconds of spring, `0` or absent for none.
+   *
+   * A run is one plank by default, and that is right for a pack in a hand: everything in it is at
+   * its place the instant the hand is. But a run can also be a TAIL — a tab pulled across the felt
+   * with a deck hanging off it — and a tail is not a plank. Given a lag, this member chases its
+   * place instead of being put there, on a spring of its own, so a run whose members lag by a
+   * little more each reads as a thing being dragged rather than a thing being carried.
+   *
+   * It is the SwiftUI `response` of that spring: the time one full swing takes. A run laid out with
+   * a small lag on each successive member stretches out as it goes and gathers up when it stops,
+   * which is the whole of an accordion, a caterpillar and a deck on a strap.
+   */
+  readonly lag?: number | undefined;
+  /**
+   * IS THIS ONE HELD FLAT, whatever the rest of the run is doing? Absent, no — it banks with them.
+   *
+   * For the piece that is not a piece: a tab a hand is pulling is a CONTROL, and a control that
+   * heels over as the hand turns has stopped saying where it is. The lean belongs to the things
+   * being carried, not to the handle they are carried by.
+   */
+  readonly still?: boolean | undefined;
 }
 
 /**

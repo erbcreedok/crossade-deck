@@ -32,6 +32,7 @@
 import { byId, fieldsOf, type Node, type NodeId } from "../../core/node.js";
 import { easing, flipScale, sample, tune, type CarryTuning, type Motion, type MotionTuning, type TuningPatch } from "../../core/motion.js";
 import { springAt, springSettled, stepSpring, type SpringConfig, type SpringState } from "../../core/spring.js";
+import { springOf } from "../../core/snap.js";
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
@@ -289,6 +290,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * other three would leave the card standing at whatever angle the last frame caught it at.
    */
   const carrySettled = (cy: Carry): boolean =>
+    [...cy.tails].every(([id, t]) => {
+      const it = cy.items.find((m) => m.id === id);
+      if (!it) return true;
+      const to = heldAt(cy);
+      return springSettled(t.x, to.x + it.offset.x, CARRY_EPS) && springSettled(t.y, to.y + it.offset.y, CARRY_EPS);
+    }) &&
     springSettled(cy.sx, cy.target.x, CARRY_EPS) &&
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
@@ -405,7 +412,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       // The lift is recorded as well as drawn: the lamp lengthens a held piece's fall by it, so a
       // raised pack's shadow says the same height its size does.
       carried.set(it.id, cy.sl.pos);
-      displayed.set(it.id, compose(cy.style({ anchor, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }), preOf(it.id)));
+      // A LAGGING MEMBER IS WHERE ITS OWN SPRING HAS GOT TO, and a still one does not bank: the
+      // style is asked for the pose either way, and what changes is the place it is asked about and
+      // the lean it is given. The style stays a pure function of what it is handed, which is what
+      // keeps a run one thing however its members are strung out.
+      const tail = cy.tails.get(it.id);
+      const seat = tail
+        ? { anchor: { x: tail.x.pos - it.offset.x, y: tail.y.pos - it.offset.y }, offset: it.offset }
+        : { anchor, offset: it.offset };
+      const lean = it.still ? 0 : leanDeg;
+      displayed.set(it.id, compose(cy.style({ ...seat, leanDeg: lean, lift: cy.sl.pos, i, n }), preOf(it.id)));
     });
   };
 
@@ -535,6 +551,21 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // The bank chases AFTER the chase spring moved: within one frame the lean is answering the
         // speed this frame has, one step behind it and never a step ahead.
         cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
+      }
+      // The tail chases its place in the run. Stepped BEFORE the run is laid out, so a frame draws
+      // where the springs have got to and not where they were a frame ago.
+      const held = heldAt(cy);
+      for (const it of cy.items) {
+        const tail = cy.tails.get(it.id);
+        if (!tail) continue;
+        const to = { x: held.x + it.offset.x, y: held.y + it.offset.y };
+        if (instant) {
+          tail.x = springAt(to.x);
+          tail.y = springAt(to.y);
+        } else {
+          tail.x = stepSpring(tail.x, to.x, tail.cfg, dt);
+          tail.y = stepSpring(tail.y, to.y, tail.cfg, dt);
+        }
       }
       layCarry(cy);
       if (cy.walls) wallCheck(cy);
@@ -739,6 +770,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         leash: t.leash,
         onWall: opts.onWall,
         onSnap: opts.onSnap,
+        // THE TAIL, SEEDED WHERE EACH MEMBER ALREADY IS — a run that drags must not jump first.
+        tails: new Map(
+          items
+            .filter((it) => (it.lag ?? 0) > 0)
+            .map((it) => {
+              const now = displayed.get(it.id);
+              const from = now ? { x: now.e, y: now.f } : { x: anchor.x + it.offset.x, y: anchor.y + it.offset.y };
+              return [it.id, { x: springAt(from.x), y: springAt(from.y), cfg: springOf(it.lag!, 1) }] as const;
+            }),
+        ),
       };
       for (const it of items) {
         carried.set(it.id, 1);
@@ -765,7 +806,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         if (f) land(it.id, f);
       }
       reconcile();
-      const joined: Carry = { ...carrying, items: [...carrying.items, ...fresh] };
+      const joined: Carry = { ...carrying, items: [...carrying.items, ...fresh], tails: carrying.tails };
       carries.set(hand ?? ONE_HAND, joined);
       for (const it of fresh) {
         carried.set(it.id, 1);

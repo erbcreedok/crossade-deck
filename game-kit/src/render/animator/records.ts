@@ -21,6 +21,13 @@ export interface Carry {
   sl: SpringState;
   /** The BANK — the lean actually drawn, chasing the lean the speed asks for. Degrees. */
   sa: SpringState;
+  /**
+   * WHERE EACH LAGGING MEMBER ACTUALLY IS — one pair of springs per member that has a `lag`.
+   *
+   * Empty for an ordinary run, which is a plank: every member is at its place the instant the hand
+   * is. A run with lags is a TAIL, and a tail has to be somewhere of its own between frames.
+   */
+  readonly tails: Map<NodeId, { x: SpringState; y: SpringState; cfg: SpringConfig }>;
   readonly liftTo: number;
   readonly follow: SpringConfig;
   readonly liftCfg: SpringConfig;

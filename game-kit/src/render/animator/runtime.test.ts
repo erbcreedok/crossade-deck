@@ -411,6 +411,64 @@ describe("the motion runtime", () => {
     expect(() => m.aim("c", { x: 9, y: 9 })).not.toThrow();
   });
 
+  it("motion.a-run-can-be-a-TAIL — a member with a lag drags behind its place instead of being put there", () => {
+    // A run is one plank by default, and that is right for a pack in a hand. But a run can also be
+    // a tab pulled across the felt with a deck hanging off it, and a tail is not a plank: what is
+    // being dragged trails what is doing the dragging, gathers up when it stops, and strings out
+    // again when it goes. Given a lag per member, that falls out of the springs rather than being
+    // choreographed.
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const restC = b.tOf("c").e;
+    const restD = b.tOf("d").e;
+    // `c` is the handle: no lag at all. `d` hangs off it a fifth of a second behind.
+    m.grab(
+      [
+        { id: "c", offset: { x: 0, y: 0 } },
+        { id: "d", offset: { x: 0, y: 0 }, lag: 0.2 },
+      ],
+      { anchor: { x: 0, y: 0 }, lift: 1 },
+    );
+    m.dragTo({ x: 6, y: 0 });
+    c.tick(16);
+    // THE HANDLE IS THERE ALREADY — one to one, which is the law a held thing has always obeyed.
+    expect(b.tOf("c").e - restC, "the handle is where the hand is").toBeCloseTo(6, 6);
+    // AND THE TAIL IS NOT. It is on its way, behind, and it keeps coming after the hand stopped.
+    const behind = b.tOf("d").e - restD;
+    expect(behind, "the tail is still back there").toBeLessThan(3);
+    c.tick(80);
+    const later = b.tOf("d").e - restD;
+    expect(later, "and it is catching up").toBeGreaterThan(behind);
+    for (let t = 96; t <= 3000; t += 16) c.tick(t);
+    expect(b.tOf("d").e - restD, "it arrives, and the loop only sleeps once it has").toBeCloseTo(6, 3);
+    expect(c.idle(), "a tail still out is not a carry at rest").toBe(true);
+  });
+
+  it("motion.a-still-member-does-not-BANK — a handle that heels over has stopped saying where it is", () => {
+    // The lean belongs to what is being carried, not to the handle it is carried by: a tab is a
+    // control, and a control that tilts as the hand turns is no longer pointing at anything.
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    m.grab(
+      [
+        { id: "c", offset: { x: 0, y: 0 }, still: true },
+        { id: "d", offset: { x: 0, y: 0 } },
+      ],
+      { anchor: { x: 0, y: 0 }, leanFactor: 4, leanMaxDeg: 17 },
+    );
+    m.dragTo({ x: 10, y: 0 });
+    c.tick(16);
+    c.tick(32);
+    expect(Math.abs(b.tOf("d").b), "the piece banks into the run").toBeGreaterThan(0.019);
+    expect(b.tOf("c").b, "the handle stays flat").toBeCloseTo(0, 9);
+  });
+
   it("motion.poses-say-where-a-CARRIED-thing-is-drawn — the tree still says the seat it was lifted from", () => {
     // THE ONE THING A PAGE HAS TO ASK CORRECTLY ABOUT A HELD PIECE, and the one it gets wrong.
     //

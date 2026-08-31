@@ -50,6 +50,18 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
   /** The run a grabbed node leads. Absent, a card travels alone. */
   readonly runOf?: ((root: Node, hit: Node) => readonly Node[]) | undefined;
   /**
+   * HOW EACH MEMBER OF THE RUN IS HELD — asked once per member at the grab. Absent, all alike,
+   * which is a run carried as one plank.
+   *
+   * It is here because a run is not always a plank. A tab pulled across the felt with a deck
+   * hanging off it is one gesture with two kinds of member in it: the handle, which is a control
+   * and must be exactly under the finger and never heel over, and the load, which trails. Only the
+   * scene knows which is which — the wiring is looking at a list of nodes.
+   */
+  readonly holdOf?:
+    | ((hit: Node, member: Node, i: number, n: number) => { readonly lag?: number; readonly still?: boolean })
+    | undefined;
+  /**
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
    * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
    */
@@ -247,16 +259,20 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     if (!at) return;
     const anchor = { x: at.e, y: at.f };
     const p = toUnits(s.host, g, w.opts.view?.());
-    const items = run.map((c) => {
+    const items = run.map((c, i) => {
       const t = poses.get(c.id) ?? at;
-      return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
+      return {
+        id: c.id,
+        offset: { x: t.e - anchor.x, y: t.f - anchor.y },
+        ...(w.opts.holdOf?.(hit, c, i, run.length) ?? {}),
+      };
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId, tray: undefined };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, liftOf, ...feel } = w.opts;
+    const { runOf: _runOf, holdOf: _holdOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, toFront: _toFront, liftOf, ...feel } = w.opts;
     // The piece's own answer wins over the desk's, and only when it has one: a scene that says
     // nothing about a piece gets the ordinary pop, exactly as before this existed.
     const lift = liftOf?.(root, hit);

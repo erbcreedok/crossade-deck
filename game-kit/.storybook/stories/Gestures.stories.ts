@@ -632,6 +632,8 @@ interface TableArgs {
   twist: number;
   air: string;
   magnus: number;
+  dragLag: number;
+  dragStretch: number;
   catching: boolean;
   magnet: number;
   pullMs: number;
@@ -952,7 +954,14 @@ function pilesOn(s: Scene, desk: Node): readonly (readonly Node[])[] {
 const GRIP_W = CARD.w * 0.78;
 const GRIP_H = GRIP_W * 0.367;
 /** How far the tab sits BELOW the lowest edge of what it belongs to — clear of it, and touching nothing. */
-const GRIP_GAP = CARD.h * 0.24;
+/**
+ * WHERE THE TAB SITS relative to the bottom edge of what it belongs to — ON it.
+ *
+ * Its middle is the pile's bottom centre, because that is the point the pile hangs from: pull the
+ * tab and the pack's bottom centre is what follows the finger, with the rest of the pack trailing
+ * up and behind it. A tab standing clear below the pile would be a handle on a string.
+ */
+const GRIP_GAP = -GRIP_H / 2;
 /**
  * WHAT EACH HANDLE STANDS FOR, kept BESIDE the handle and never inside its name.
  *
@@ -1919,6 +1928,8 @@ const TABLE_ARGS: TableArgs = {
   twist: 1.2,
   air: "card",
   magnus: 0.25,
+  dragLag: 0.12,
+  dragStretch: 1.6,
   catching: false,
   magnet: 1.1,
   pullMs: 220,
@@ -1937,6 +1948,8 @@ const TABLE_KNOBS = {
   twist: documented("arg.twist", { control: { type: "number", min: 0, step: 0.1 } }, "deal"),
   air: documented("arg.air", { control: "select", options: ["card", "normal", "fast"] }, "deal"),
   magnus: documented("arg.magnus", { control: { type: "number", min: 0, step: 0.05 } }, "deal"),
+  dragLag: documented("arg.dragLag", { control: { type: "number", min: 0, step: 0.02 } }, "pack/drag"),
+  dragStretch: documented("arg.dragStretch", { control: { type: "number", min: 0, step: 0.1 } }, "pack/drag"),
   catching: documented("arg.catching", { control: "boolean" }, "deal/snap"),
   magnet: documented("arg.magnet", { control: { type: "number", min: 0, step: 0.1 } }, "deal/pack"),
   pullMs: documented("arg.pullMs", { control: { type: "number", min: 0, step: 20 } }, "deal/pack"),
@@ -2040,6 +2053,22 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
     //
     // A dealt card gets no such treatment. Nothing is dealt off a single card, so it has nothing to
     // make room for, and growing it would be decoration.
+    // THE TAB IS THE HANDLE AND THE PACK IS THE LOAD — one gesture, two kinds of member.
+    //
+    // The tab is a control: it must be exactly under the finger, on the frame the finger is there,
+    // and it must never heel over, because a handle that tilts as the hand turns has stopped saying
+    // where it is. Everything else HANGS off it — the tab sits at the pack's bottom edge, so the
+    // pack trails from its own bottom centre, the way a thing on a strap does.
+    //
+    // AND EACH CARD LAGS A LITTLE MORE THAN THE ONE BEFORE IT. That is the whole of the accordion:
+    // nothing is choreographed, the springs simply have different periods, so the pack strings out
+    // as it is dragged and gathers up when the hand stops.
+    holdOf: (hit, member, i, n) =>
+      !isHandle(hit)
+        ? {}
+        : member.id === hit.id
+          ? { still: true }
+          : { lag: a.dragLag * (1 + (i / Math.max(n - 1, 1)) * a.dragStretch) },
     // A PACK GROWS UNDER THE HAND — AND SO DOES ONE TAKEN BY ITS TAB, which is the only way a
     // pack is picked up now. Asked of the HIT, the tab answered "I am a little square" and the
     // pack came up at its resting size: lifted by nothing, and no bigger under the finger than it
