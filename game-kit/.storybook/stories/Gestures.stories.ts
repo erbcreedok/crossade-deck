@@ -921,7 +921,7 @@ function pilesOn(s: Scene, desk: Node): readonly (readonly Node[])[] {
 const GRIP_W = CARD.w * 0.78;
 const GRIP_H = GRIP_W * 0.367;
 /** How far the tab sits BELOW the lowest edge of what it belongs to — clear of it, and touching nothing. */
-const GRIP_GAP = CARD.h * 0.1;
+const GRIP_GAP = CARD.h * 0.24;
 /**
  * WHAT EACH HANDLE STANDS FOR, kept BESIDE the handle and never inside its name.
  *
@@ -2086,17 +2086,25 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
         // THE HOLDING HAND IS THE ONE THAT WAS ALREADY DOWN, and asking that is not pedantry: both
         // fingers see each other as the other hand, so a rule written on the anchor alone lets the
         // RESTING thumb deal the moment it shifts a few pixels — which it does, because thumbs do.
-        // WHICH PACK THIS DEAL IS OFF, and the finger doing the dealing names it by LANDING ON IT.
+        // ONCE A FINGER IS DEALING, IT GOES ON DEALING — asked by its ID and by nothing else.
         //
-        // It used to be named by the other hand, and it had to be: a finger on the pack moved the
-        // pack, so something else had to say "a card, not the pack". The grip took that job, so the
-        // pack itself means the card — one finger, on the thing it is about. The other hand is
-        // still allowed to be the one holding it, which is how a real dealer stands, and either
-        // reading answers the same question.
-        const deck = packOf(p.on) ?? (p.anchor?.earlier ? packUnder(s, p.anchor.at) : undefined);
-        const holding = deck !== undefined;
+        // The pack this deal is off is a question for `began` alone. Asked again on every step it
+        // answers differently within one gesture, and catastrophically: the finger reports what it
+        // came down ON, which is the card it is now pulling — a card that has LEFT the pack, so
+        // "which pack is this?" comes back empty, the desk decides this must be the other hand, and
+        // the deal stops being fed at all. The card crawled a fifth of a unit out of the deck and
+        // stopped there while the hand went on across the table.
+        const dealing = DEALT.get(s.el)?.hand === p.id;
         const speed = Math.round(Math.hypot(p.velocity.x, p.velocity.y) * 10) / 10;
         if (p.state === "began") {
+          // WHICH PACK THIS DEAL IS OFF, and the finger doing the dealing names it by LANDING ON IT.
+          //
+          // It used to be named by the other hand, and it had to be: a finger on the pack moved the
+          // pack, so something else had to say "a card, not the pack". The grip took that job, so
+          // the pack itself means the card — one finger, on the thing it is about. The other hand
+          // is still allowed to be the one holding it, which is how a real dealer stands, and
+          // either reading answers the same question.
+          const deck = packOf(p.on) ?? (p.anchor?.earlier ? packUnder(s, p.anchor.at) : undefined);
           // AND EVERY REFUSAL IS SAID OUT LOUD. None of these numbers is visible, and a page that
           // speaks only when it succeeds leaves a reader one report to make — "it does not work" —
           // which names nothing and cannot be acted on.
@@ -2122,14 +2130,14 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
           );
           return;
         }
-        // AND THE HOLDING HAND DOES NOT NARRATE. It is a pan too — it may well be dragging the pack —
-        // so without this it writes the line under the dealing hand's own words, and the one place
-        // the page speaks says whatever the thumb was doing last.
+        // ANY OTHER FINGER IS NOT THIS DEAL, and it does not narrate: it is a pan too — it may well
+        // be carrying a pack by its tab — so without this it writes the line under the dealing
+        // hand's own words, and the one place the page speaks says whatever the other hand did last.
         //
-        // IT DOES STIR THE MAGNET, THOUGH. Dragging the pack up to a card somebody is holding is
-        // the same closing gap as carrying the card to the pack, and the table must answer it the
-        // same way — see `Dealing.stir`.
-        if (!holding) {
+        // IT DOES STIR THE MAGNET, THOUGH. Dragging a pack up to a card somebody is holding is the
+        // same closing gap as carrying the card to the pack, and the table must answer it the same
+        // way — see `Dealing.stir`.
+        if (!dealing) {
           deal.stir();
           return;
         }
