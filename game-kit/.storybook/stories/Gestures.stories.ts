@@ -807,14 +807,28 @@ function underPack(s: Scene, deck: Node): void {
   // instead of what the pack was just set down on. That card is then seen crossing the table into
   // the pack, which is the whole of "I put the deck on a card and it dragged one in from over
   // there". The same law every other reader on this page obeys: ask the glass.
-  const home = packAt(s, deck).at;
+  // UNDER IT MEANS UNDER IT — the card's middle lies within the pack's own drawn FOOTPRINT.
+  //
+  // It was a box of a card's width and height about the pack's centre, and that box is wrong in
+  // both directions at once. It does not grow when the pack does, so a pack raised in the hand
+  // covers ground the box never reaches; and it is twice the pack's own half-width, so it reaches
+  // ground the pack plainly does not cover. A card lying a card's width clear of the deck was
+  // swept into it — "the deck landed over there and dragged in one from over here", which is the
+  // one thing this rule must not do.
+  //
+  // The footprint is the honest answer and it costs nothing to ask: the pack's own outline, where
+  // it is drawn, at the size it is drawn. It scales with the lift by construction.
+  const ground = groundOf(s, deck);
   const loose = desk.children.filter(
-    (n) =>
-      n.id !== deck.id &&
-      caps(n).has("Flippable") &&
-      Math.abs(drawnAt(s, n.id).x - home.x) <= CARD.w &&
-      Math.abs(drawnAt(s, n.id).y - home.y) <= CARD.h,
+    (n) => n.id !== deck.id && caps(n).has("Flippable") && inside(drawnAt(s, n.id), ground),
   );
+  if (loose.length > 0) {
+    note("underPack", {
+      pack: deck.id,
+      at: [trace(packAt(s, deck).at.x), trace(packAt(s, deck).at.y)],
+      took: loose.map((n) => n.id),
+    });
+  }
   for (const card of loose) {
     remove(desk, card);
     // FIRST, so it lies at the bottom of what is already there.
@@ -873,6 +887,23 @@ const onTheFelt = (desk: Node): readonly Node[] =>
  * to rest just short of another is not a card somebody meant to keep separate.
  */
 const TOUCHING = CARD.w * 0.1;
+
+/**
+ * IS THIS POINT INSIDE THAT OUTLINE — the ray-crossing count, which is the whole of the question.
+ *
+ * Beside `outlinesTouch` rather than instead of it: touching is about two areas sharing ground,
+ * and "under" is about one POINT being covered. A card is under a pack when its middle is, which
+ * is what anybody looking at the table would say.
+ */
+function inside(p: Vec, outline: readonly Point[]): boolean {
+  let within = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const a = outline[i]!;
+    const b = outline[j]!;
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) within = !within;
+  }
+  return within;
+}
 
 /** The ground a thing covers where it is DRAWN — its own outline, moved to where the eye sees it. */
 function groundOf(s: Scene, n: Node): readonly Point[] {
@@ -991,9 +1022,16 @@ function gatherHandles(s: Scene, desk: Node): void {
  */
 function gather(s: Scene, desk: Node, pile: readonly Node[]): Node | undefined {
   const members = pile.filter((n) => n.parent === desk);
-  if (members.length < 2) return undefined;
+  // NOTHING LEFT OF IT: the pile has gone — one of its members was dealt away, or another pack took
+  // it in — so there is nothing to gather and nothing to hand over.
+  if (members.length === 0) return undefined;
+  // ALREADY GATHERED. A pile that is one pack IS the pack, and saying so here is what keeps the
+  // caller from having to know the difference: "gather this pile" has one answer, always. Written
+  // outside, it was a branch at every call site and a second thing to keep in step.
+  if (members.length === 1 && isPack(members[0]!)) return members[0]!;
   const top = members[members.length - 1]!;
   const at = packAt(s, top).at;
+  note("gather", { of: members.map((n) => n.id), at: [trace(at.x), trace(at.y)] });
   const pack = node(
     `pack${++piles}`,
     Bounded({ bounds: roundedRect(CARD.w, CARD.h, 0.08) }),
@@ -1960,10 +1998,7 @@ function tablePage(a: TableArgs, key: string): HTMLElement {
     // separate target: one finger on a card still lifts that card, and nothing is a mode.
     runOf: (root, hit) => {
       if (!isHandle(hit)) return isPack(hit) ? [hit, ...hit.children] : [hit];
-      const pile = pileOf(root, hit);
-      // ONE PACK NEEDS NO GATHERING — its grip is simply how it is carried. Two or more things
-      // touching are made into one pack first, and THAT is what the hand gets.
-      const made = pile.length === 1 && isPack(pile[0]!) ? pile[0]! : gather(s, root, pile);
+      const made = gather(s, root, pileOf(root, hit));
       if (!made) {
         // THE PILE HAS GONE, so the grip is standing for nothing — one of its members was dealt
         // away, or another pack took it in. The tab is worked out again from what is actually
