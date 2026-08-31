@@ -1,0 +1,23 @@
+game-kit/.storybook/stories/gestureMap.ts
+  s_881c18b5871008::t_6152ee34f93a2f 199-200,202-206
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_881c18b5871008::t_08fb99b33b82e2 81
+game-kit/.storybook/stories/gestureMap.test.ts
+  s_881c18b5871008::t_6152ee34f93a2f 60-63,66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b29284043c45dd4f07c1d3759fe4ad95163dc665",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
