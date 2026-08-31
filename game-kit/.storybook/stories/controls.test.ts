@@ -14,27 +14,6 @@ const STORIES = new URL("./", import.meta.url).pathname;
 const CHROME = new URL("../locales/chrome/en.json", import.meta.url).pathname;
 
 describe("the words a control names", () => {
-  it("controls.the-glass-answers-where-a-held-thing-is — the tree is asked about seats and nothing else", () => {
-    // FIVE TIMES ON ONE PAGE, and the same five words each time: a carry never writes the tree, so
-    // the tree goes on naming the place a piece was lifted FROM for as long as a hand has it. Cards
-    // flew out of where the deck last lay; a pack absorbed whatever was lying at the far end of the
-    // drag; a card dropped on a held pack missed its zone. Each was found by hand, in a trace, after
-    // somebody played with it.
-    //
-    // The rule that would have caught all five: on this desk, `worldAt` — which walks the TREE — may
-    // be asked about a SEAT and nothing else. A seat is bolted to the felt and no hand can lift it.
-    // Everything a hand can hold is asked of the glass (`drawnAt`, `packAt`), which falls back to
-    // the tree itself when nothing is posing the node.
-    const code = readFileSync(join(STORIES, "Gestures.stories.ts"), "utf8");
-    const asked = [...code.matchAll(/worldAt\(([^)]*(?:\([^)]*\))?[^)]*)\)/g)].map((m) => m[1]!.trim());
-    const allowed = new Set([
-      "seat", // a place at the table: bolted to the felt, and no hand can lift it
-      "pack", // inside `packAt` itself — the fallback for a pack nothing is posing
-      "byId(s.host.root, id", // inside `drawnAt` itself, the same fallback for any node
-    ]);
-    expect([...new Set(asked)].filter((a) => !allowed.has(a)).sort(), "ask the glass, not the tree").toEqual([]);
-  });
-
   it("controls.every-word-a-control-names-exists — or the panel prints the key at the reader", () => {
     // A MISSING WORD IS NOT A CRASH, which is exactly why this has to be scanned. The bundle's
     // lookup falls back to the key, so the row arrives reading `— arg.headSurface` and the page
