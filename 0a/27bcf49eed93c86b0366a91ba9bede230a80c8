@@ -1,0 +1,87 @@
+game-kit/.storybook/stories/TestsDice.stories.ts
+  s_881c18b5871008::t_bd4e5328f2b072 49
+game-kit/.storybook/locales/pages/gestures/en.json
+  s_881c18b5871008::t_bd4e5328f2b072 10
+game-kit/src/core/ballistic.ts
+  s_881c18b5871008::t_bd4e5328f2b072 5-6,84-87,108-111,114-116,119-120,161-163
+game-kit/docs/test-plan/10-scene-plan.md
+  s_881c18b5871008::t_bd4e5328f2b072 60
+game-kit/src/render/scenePlan/index.ts
+  s_881c18b5871008::t_bd4e5328f2b072 57
+game-kit/docs/test-plan/15-architectural-guards.md
+  s_881c18b5871008::t_bd4e5328f2b072 3
+game-kit/src/core/ballistic.test.ts
+  s_881c18b5871008::t_bd4e5328f2b072 57,59-61,68-73,81,105
+game-kit/src/render/gestures.test.ts
+  s_881c18b5871008::t_bd4e5328f2b072 20,24,39,152,155,162-164
+game-kit/.storybook/locales/pages/gestures/ru.json
+  s_881c18b5871008::t_bd4e5328f2b072 10
+game-kit/src/render/animator/index.ts
+  s_881c18b5871008::t_bd4e5328f2b072 38,96,138,156,304,628
+game-kit/src/render/stage.ts
+  s_881c18b5871008::t_bd4e5328f2b072 59
+game-kit/.storybook/locales/pages/motion/en.json
+  s_881c18b5871008::t_bd4e5328f2b072 29,47
+game-kit/src/render/scenePlan/plan.test.ts
+  s_881c18b5871008::t_bd4e5328f2b072 403,411,413,484,495
+game-kit/.storybook/locales/pages/motion/ru.json
+  s_881c18b5871008::t_bd4e5328f2b072 29,47
+game-kit/src/render/scenePlan/input.ts
+  s_881c18b5871008::t_bd4e5328f2b072 58
+game-kit/.storybook/locales/pages/dice/en.json
+  s_881c18b5871008::t_bd4e5328f2b072 5,20
+game-kit/.storybook/stories/Gestures.stories.ts
+  s_881c18b5871008::t_bd4e5328f2b072 21,36-39,41-43,47-48,50,57-60,62-67,99-100,105,109,134,138,164-165,169,185
+game-kit/docs/test-plan/62-gestures.md
+  s_881c18b5871008::t_bd4e5328f2b072 1,3,5
+game-kit/.storybook/stories/PresetsDice.stories.ts
+  s_881c18b5871008::t_bd4e5328f2b072 170-171,178,235-236,248-249,263-264,352-353,367-368
+game-kit/src/render/scenePlan/shadows.ts
+  s_881c18b5871008::t_bd4e5328f2b072 21,37-38,65,80
+game-kit/src/render/animator/physics.ts
+  s_881c18b5871008::t_bd4e5328f2b072 45-50,62-65,68,70-73
+game-kit/.storybook/stories/Motion.stories.ts
+  s_881c18b5871008::t_bd4e5328f2b072 85-86,123-124,690-691,732-733,760-761,789-790,803
+game-kit/src/render/animator/throws.ts
+  s_881c18b5871008::t_bd4e5328f2b072 14,56-57,63
+game-kit/.storybook/devtools/drag.ts
+  s_881c18b5871008::t_bd4e5328f2b072 217,287
+game-kit/.storybook/locales/pages/dice/ru.json
+  s_881c18b5871008::t_bd4e5328f2b072 5,20
+game-kit/.storybook/locales/chrome/en.json
+  s_881c18b5871008::t_bd4e5328f2b072 72,77,184,210-212,296
+game-kit/src/core/motion.ts
+  s_881c18b5871008::t_bd4e5328f2b072 114-117,142-143
+game-kit/src/render/swipe.ts
+  s_881c18b5871008::t_bd4e5328f2b072 7,11-19,22,25,59-80,98-99,123-153,158,161,166-265
+game-kit/.storybook/locales/chrome/ru.json
+  s_881c18b5871008::t_bd4e5328f2b072 72,77,184,210-212,300
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_881c18b5871008::t_bd4e5328f2b072 3,7,17-19,22-23
+game-kit/src/render/animator/runtime.test.ts
+  s_881c18b5871008::t_bd4e5328f2b072 781,828,854,915,919,924-925,942
+game-kit/docs/test-plan/README.md
+  s_881c18b5871008::t_bd4e5328f2b072 10,43,70,74,90
+game-kit/src/index.ts
+  s_881c18b5871008::t_bd4e5328f2b072 188,194
+game-kit/src/render/animator/motions.ts
+  s_881c18b5871008::t_bd4e5328f2b072 106,134
+game-kit/docs/test-plan/42-drag-feel.md
+  s_881c18b5871008::t_bd4e5328f2b072 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0a27bcf49eed93c86b0366a91ba9bede230a80c8",
+  "prompts": {},
+  "sessions": {
+    "s_881c18b5871008": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10b24824-c178-44fa-be8d-be50382b205c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
