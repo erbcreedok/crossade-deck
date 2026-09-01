@@ -175,8 +175,26 @@ export function mapWalls(piece: Node, lift = 1): Walls {
   return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };
 }
 
+/**
+ * THE TWO WAYS A THING CAN LEAVE A HAND on this desk.
+ *
+ * `settle` is the ordinary putting-down every page on the shelf started with: the piece eases to the
+ * seat the finger chose, the pop unwinding on the way, and that is all. Nothing is thrown, so there
+ * is nothing to schedule and nothing to re-order first — which is why it is the quiet one.
+ *
+ * `fall` is the drop proper: a body let go of at the hand's height, coming down under its own weight
+ * and bouncing as its own material does. It buys the weight and costs the machinery.
+ *
+ * A card wants the first and a chip the second, and that is not a contradiction: a card put down on
+ * a felt IS a putting-down, while a chip dropped on one is a thing landing. The desk lets each say
+ * which it is, and the panel lets a reader disagree.
+ */
+export type LetGo = "settle" | "fall";
+
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
+  /** Eased to its seat, or dropped from the hand's height under its own weight. */
+  readonly fall: LetGo;
   /** Units/s² — how heavy it is. A big number is a short, hard fall. */
   readonly gravity: number;
   /** 0..1 of the landing speed handed back. `0` lands and stays. */
@@ -198,17 +216,17 @@ export interface DropFeel {
  * rather than by somebody remembering to add it to a list — which is also the only reading
  * `guard.id-is-opaque` allows: an id says WHICH, never WHAT.
  */
-export function dropOf(piece: Node): DropFeel {
+export function dropOf(piece: Node, ways: { readonly card?: LetGo; readonly chip?: LetGo } = {}): DropFeel {
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
   // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) return { gravity: 22, bounce: 0.45, wallBounce: 0.7 };
+  if (caps(piece).has("Rollable")) return { fall: "fall", gravity: 22, bounce: 0.45, wallBounce: 0.7 };
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two
   // thirds of it is a fall you can see is gentler without waiting for it. Paper does not bounce.
   // Off a wall it does come back, though — it is dead on the cloth, not dead altogether.
-  if (caps(piece).has("Flippable")) return { gravity: 8, bounce: 0, wallBounce: 0.45 };
+  if (caps(piece).has("Flippable")) return { fall: ways.card ?? "settle", gravity: 8, bounce: 0, wallBounce: 0.45 };
   // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
   // then it is simply there.
   //
@@ -216,7 +234,8 @@ export function dropOf(piece: Node): DropFeel {
   // "not at all" written down, and it is written down rather than left at zero so that the ORDER of
   // the three still says something — a die is lively, a card is fair, and a carved piece is the end
   // of the scale rather than a piece the scale forgot. Nobody will see it, which is the point.
-  return { gravity: 26, bounce: 0.001, wallBounce: 0.001 };
+  if (kindOf(piece) === "chip") return { fall: ways.chip ?? "fall", gravity: 20, bounce: 0.35, wallBounce: 0.5 };
+  return { fall: "fall", gravity: 26, bounce: 0.001, wallBounce: 0.001 };
 }
 
 /**

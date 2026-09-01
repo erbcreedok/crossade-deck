@@ -45,6 +45,27 @@ describe("the gesture map", () => {
     expect(mapWalls(node("bare"))).toEqual({ x0: -4, y0: -4, x1: 4, y1: 4 });
   });
 
+  it("map.a-card-is-put-down-and-a-chip-is-dropped — two ways of leaving a hand, and the panel may swap them", () => {
+    // Not a contradiction: a card put down on a felt IS a putting-down, while a chip dropped on one
+    // is a thing landing. `settle` is also the quiet one — nothing is thrown, so there is nothing to
+    // schedule and nothing to re-order first, which is where the flicker came from.
+    const desk = stackMap();
+    const card = desk.children.find((n) => kindOf(n) === "card")!;
+    const chip = desk.children.find((n) => kindOf(n) === "chip")!;
+    const die = desk.children.find((n) => kindOf(n) === "die")!;
+    expect(dropOf(card).fall).toBe("settle");
+    expect(dropOf(chip).fall).toBe("fall");
+    // A die is thrown by anybody who picks one up; nothing about it is a putting-down.
+    expect(dropOf(die).fall).toBe("fall");
+    // And a reader may disagree, per kind and without touching the other.
+    expect(dropOf(card, { card: "fall" }).fall).toBe("fall");
+    expect(dropOf(chip, { card: "fall" }).fall).toBe("fall");
+    expect(dropOf(chip, { chip: "settle" }).fall).toBe("settle");
+    expect(dropOf(card, { chip: "settle" }).fall).toBe("settle");
+    // The weights are untouched by the way it leaves: what it is made of is not what it is doing.
+    expect(dropOf(card, { card: "fall" }).gravity).toBe(dropOf(card).gravity);
+  });
+
   it("map.drop-feel-is-read-off-what-the-piece-is — never off its name", () => {
     // A die is the thing whose faces go over, a card is the thing with a back to turn to, and a
     // carved piece is neither — so the answer comes from the model. Off the id it would be a list
