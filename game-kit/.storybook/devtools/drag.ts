@@ -139,9 +139,10 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * down — which is a handle under the heap that used to be there.
    *
    * Called once per gesture, whichever way the drop went: taken by a zone, written where the finger
-   * let go, or refused and left to fly home.
+   * let go, or refused and left to fly home. It is told WHICH pieces settled, because "what just
+   * arrived" is a different question from "what is on the desk" and a scene usually needs both.
    */
-  readonly onSettled?: ((root: Node) => void) | undefined;
+  readonly onSettled?: ((root: Node, ids: readonly NodeId[]) => void) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -332,7 +333,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     if (landed(items, seat, root)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
       // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
-      w.opts.onSettled?.(s.host.root);
+      w.opts.onSettled?.(s.host.root, items.map((it) => it.id));
       return;
     }
     for (const it of items) {
@@ -343,7 +344,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       s.motions?.release(it.id);
     }
     s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
-    w.opts.onSettled?.(root);
+    w.opts.onSettled?.(root, items.map((it) => it.id));
   };
 
   /**

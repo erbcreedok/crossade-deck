@@ -348,7 +348,18 @@ function grabScene(
           // AFTER the tree has been written, never at the carry's `done`: at `done` the drop has
           // not been decided yet, so the handles would be redrawn from the seats the pieces had
           // before they were put down — a tab under the heap that used to be there.
-          onSettled: settle,
+          onSettled: (root: Node, ids: readonly string[]) => {
+            // WHAT WAS JUST PUT DOWN GOES ON TOP, and it does not move to get there: a card let go
+            // of over a heap is lying ON the heap, not under it, and the only thing that says which
+            // is the order they are drawn in. It is also the order they will stand in when the
+            // handle lifts them, so the newest is at the FRONT of the stack — which is the same
+            // sentence a player would say about a real one.
+            for (const id of ids) {
+              const piece = byId(root, id);
+              if (piece) toFront(piece);
+            }
+            settle();
+          },
         }
       : {}),
     // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see

@@ -72,12 +72,14 @@ describe("the drag wiring's order", () => {
     let atDone: { x: number; y: number } | undefined;
     let atSettled: { x: number; y: number } | undefined;
     let settledCount = 0;
+    let settledIds: string[] = [];
     wireDrag(s, {
       onCarry: ({ done }) => {
         if (done) atDone = { ...seatOf(s.host.root.children[0]!) };
       },
-      onSettled: (tree) => {
+      onSettled: (tree, ids) => {
         settledCount++;
+        settledIds = [...ids];
         atSettled = { ...seatOf(tree.children[0]!) };
       },
     });
@@ -89,8 +91,11 @@ describe("the drag wiring's order", () => {
     // The settled report says where it now lives, which is the only thing a redraw can use.
     expect(atSettled!.x).not.toBe(0);
     expect(atSettled).toEqual(seatOf(s.host.root.children[0]!));
-    // Once per gesture, and not once per pointer event.
+    // Once per gesture, and not once per pointer event...
     expect(settledCount).toBe(1);
+    // ...and it says WHICH pieces arrived. "What just landed" is a different question from "what is
+    // on the desk", and a scene that has to put the newest one in front needs the first.
+    expect(settledIds).toEqual(["card"]);
     s.dispose();
   });
 
