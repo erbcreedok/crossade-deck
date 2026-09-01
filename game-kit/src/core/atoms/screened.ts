@@ -21,14 +21,34 @@ import { caps, type Node } from "../node.js";
 export interface ScreenedFields {
   /** Keep the drawn size the view would have at zoom 1. `false` turns the atom into a no-op. */
   readonly screened: boolean;
+  /**
+   * THE LEAST AND MOST OF THE VIEW'S OWN SCALE THIS NODE WILL TAKE, as a factor of the size it has
+   * at zoom 1. `1` and `1` — the default — is a control that never changes size at all.
+   *
+   * Bounds, because "never changes size" is only right in the middle. Pushed far enough out, a
+   * handle that held its pixels while the desk shrank away under it ends up dwarfing the very thing
+   * it is a handle for; pulled far enough in, it becomes a speck on a picture of one card. So the
+   * node is allowed to follow the view a little, between a floor and a ceiling: it stops shrinking
+   * before it is too small to hit, and stops growing before it covers what it is attached to.
+   */
+  readonly min: number;
+  readonly max: number;
 }
 
 export const Screened = defineAtom<ScreenedFields>({
   name: "Screened",
   requires: [],
-  defaults: { screened: true },
-  classes: { screened: "own" },
+  defaults: { screened: true, min: 1, max: 1 },
+  classes: { screened: "own", min: "own", max: "own" },
 });
+
+/** The factor of its zoom-1 size this node may be drawn at, given what the view is doing. */
+export function screenScale(fields: ScreenedFields | undefined, viewOverUnit: number): number {
+  if (!fields || !fields.screened) return viewOverUnit;
+  const lo = Math.min(fields.min, fields.max);
+  const hi = Math.max(fields.min, fields.max);
+  return Math.min(hi, Math.max(lo, viewOverUnit));
+}
 
 /** Does this node hold its size on the glass? Presence of the atom is the answer. */
 export function screened(n: Node): boolean {

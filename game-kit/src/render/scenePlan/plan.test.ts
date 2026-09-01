@@ -708,6 +708,20 @@ describe("bounds marks", () => {
     const far = { ordinary: drawn(at(ordinary, cam.transform())), handle: drawn(at(handle, cam.transform())) };
     expect(far.ordinary / one.ordinary).toBeCloseTo(2.5, 6);
     expect(far.handle).toBeCloseTo(one.handle, 6);
+    // AND IT IS HELD BETWEEN A FLOOR AND A CEILING. "Never changes size" is only right in the
+    // middle: pushed far enough out a handle that kept its pixels dwarfs the very thing it is a
+    // handle for, and pulled far enough in it is a speck on a picture of one card. Bounded, it
+    // follows the view a little and stops.
+    const bounded = node("p3", box(1, 1), Surfaced({ surface: "plain" }), Transformable({ at: { x: 1, y: 0 } }), Screened({ min: 0.8, max: 1.4 }));
+    cam.setZoom(1);
+    const base = drawn(at(bounded, cam.transform()));
+    cam.setZoom(4);
+    expect(drawn(at(bounded, cam.transform())) / base, "it stops growing at the ceiling").toBeCloseTo(1.4, 6);
+    cam.setZoom(0.2);
+    expect(drawn(at(bounded, cam.transform())) / base, "and stops shrinking at the floor").toBeCloseTo(0.8, 6);
+    // Between them it simply rides the view, like anything else on the desk.
+    cam.setZoom(1.2);
+    expect(drawn(at(bounded, cam.transform())) / base).toBeCloseTo(1.2, 6);
   });
 
   it("marks.follow-a-node-in-flight — the outline is drawn where the node is, not where it rests", () => {

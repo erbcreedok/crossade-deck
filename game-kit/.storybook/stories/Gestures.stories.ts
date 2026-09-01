@@ -38,6 +38,8 @@ import {
   isGrip,
   mapWalls,
   MAP,
+  GRIP_HOLD,
+  GRIP,
   regrip,
   stackMap,
   stackSeats,
@@ -292,7 +294,13 @@ const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
  * own number in, and then the height is that number on both settings of the switch — otherwise the
  * `Lift` page would answer "no lift at all" to a reader who turned the physics off on it.
  */
-function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", stacking = false): HTMLElement {
+function grabScene(
+  physics: boolean,
+  lift?: number,
+  letGo?: "drop" | "throw",
+  stacking = false,
+  grip: { w: number; min: number; max: number } = { w: GRIP.w, ...GRIP_HOLD },
+): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
   let heaps = new Map<string, readonly Node[]>();
@@ -316,7 +324,7 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", st
   /** Redraw the handles for whatever is touching now, and show them. */
   const settle = (): void => {
     if (!stacking) return;
-    heaps = regrip(built.host.root);
+    heaps = regrip(built.host.root, grip);
     built.host.setRoot(built.host.root);
   };
   settle();
@@ -331,7 +339,7 @@ function grabScene(physics: boolean, lift?: number, letGo?: "drop" | "throw", st
           // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
           // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) =>
-            isGrip(hit) ? [{ x: 0, y: 0 }, ...stackSeats(run.slice(1))] : undefined,
+            isGrip(hit) ? [{ x: 0, y: 0 }, ...stackSeats(run.slice(1), grip.w)] : undefined,
           feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
           onCarry: ({ done }: { readonly done: boolean }) => {
             if (done) settle();
@@ -483,7 +491,16 @@ interface ThrowArgs extends DropArgs {
 interface StackArgs extends ThrowArgs {
   /** Off, and touching pieces are just pieces that happen to overlap — no handles, no heaps. */
   stacking: boolean;
+  /** The tab's width in units; its height follows, because the shape is what makes it read as a tab. */
+  gripWidth: number;
+  /** How far the view may take it down and up before it is held — see `Screened`. */
+  gripMin: number;
+  gripMax: number;
 }
+
+const GRIP_W = documented("arg.gripWidth", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
+const GRIP_MIN = documented("arg.gripMin", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
+const GRIP_MAX = documented("arg.gripMax", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
 
 /**
  * EVERY PAGE HAS THE SWITCH FOR ITS OWN FEATURE, and turning it off leaves the page BEFORE it.
@@ -585,9 +602,33 @@ export const Throw: StoryObj<ThrowArgs> = {
  * of the heap alone; the handle is the only thing that lifts the whole.
  */
 export const Stack: StoryObj<StackArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking }) =>
-    grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined, stacking),
-  args: { physics: true, lifted: true, lift: 1.3, dropping: true, throwing: true, stacking: true },
-  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, throwing: THROWING, stacking: STACKING },
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax }) =>
+    grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined, stacking, {
+      w: gripWidth,
+      min: gripMin,
+      max: gripMax,
+    }),
+  args: {
+    physics: true,
+    lifted: true,
+    lift: 1.3,
+    dropping: true,
+    throwing: true,
+    stacking: true,
+    gripWidth: GRIP.w,
+    gripMin: GRIP_HOLD.min,
+    gripMax: GRIP_HOLD.max,
+  },
+  argTypes: {
+    physics: PHYSICS,
+    lifted: LIFTED,
+    lift: LIFT,
+    dropping: DROPPING,
+    throwing: THROWING,
+    stacking: STACKING,
+    gripWidth: GRIP_W,
+    gripMin: GRIP_MIN,
+    gripMax: GRIP_MAX,
+  },
   parameters: { gkDocStory: "gestures.stack" },
 };

@@ -24,6 +24,7 @@ import { lightVector, shadowOf } from "../../core/atoms/lit.js";
 import { areaOf, type SurfacedFields } from "../../core/atoms/surfaced.js";
 import { resolveAngle, resolveZ, type TransformableFields } from "../../core/atoms/transformable.js";
 import { orientationOf } from "../../core/atoms/oriented.js";
+import { screenScale, type ScreenedFields } from "../../core/atoms/screened.js";
 import { fieldsOf } from "../../core/node.js";
 import { contextFor, sumAlongChain, type ResolveContext } from "../../core/resolve.js";
 import { type LabeledFields } from "../../core/atoms/labeled.js";
@@ -75,7 +76,8 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
   // How much of the view's scale a screen-sized node has to give back: at zoom 1 the view IS the
   // unit and there is nothing to undo, so the whole thing is absent rather than a scale of one.
   const viewScale = Math.hypot(toView.a, toView.b);
-  const screenUndo = viewScale > 0 && unit > 0 && Math.abs(viewScale - unit) > 1e-9 ? scale(unit / viewScale) : undefined;
+  /** What the view is worth as a multiple of the etalon — the "zoom" a screened node argues with. */
+  const viewOverUnit = viewScale > 0 && unit > 0 ? viewScale / unit : 1;
   // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
   // size ratio), how much each point of resolved `z` adds, how dark the ink lies — is the DESK's
   // data (`Lit.shadow`, root-only), read once per plan. A per-piece length would be a second
@@ -223,7 +225,14 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     // application that has ever drawn one, because it is sized for the finger and a finger does not
     // grow with the picture. About its ORIGIN, so it holds its place on the thing it is a handle for
     // instead of walking across the glass as the view moves.
-    const toGlass = screenUndo && caps(node).has("Screened") ? standing(stood, screenUndo) : stood;
+    // A CONTROL IS MEASURED IN PIXELS — between a floor and a ceiling. The view's own scale is taken
+    // back about the node's own ORIGIN, so a handle holds its place on the thing it is a handle for
+    // instead of walking across the glass; and only as far as its bounds allow, because a handle
+    // that kept its pixels for ever ends up dwarfing the desk at one end and a speck at the other.
+    const hold = caps(node).has("Screened")
+      ? screenScale(fieldsOf<ScreenedFields>(node, "Screened"), viewOverUnit) / viewOverUnit
+      : 1;
+    const toGlass = Math.abs(hold - 1) > 1e-9 ? standing(stood, scale(hold)) : stood;
     // A ZERO UNIT IS NOT A DIVISION. A container with no size on screen — hidden, or measured
     // before layout — reports a unit of zero, and `1 / 0` puts NaN through the whole matrix.
     // Everything downstream then reads as "rotated", because NaN is not equal to zero either,

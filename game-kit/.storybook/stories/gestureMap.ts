@@ -272,8 +272,16 @@ const GRIP_BARS = svg(
   ["<g fill='slategray'>", ...[24, 30, 36].map((x) => `<rect x="${x}" y="4" width="2.6" height="8" rx="1.3"/>`), "</g>"].join(""),
 );
 
-/** How big the grip's tab is, in units — wide and low, so it reads as a handle and hides nothing. */
-export const GRIP = { w: 0.72, h: 0.18 };
+/**
+ * How big the grip's tab is, in units — wide and low, so it reads as a handle and hides nothing.
+ *
+ * The width is the number; the height follows it, because the SHAPE is what makes a tab read as one
+ * and a tab that changed proportion with its size would stop being the same control.
+ */
+export const GRIP_RATIO = 4;
+export const GRIP = { w: 0.6, h: 0.6 / GRIP_RATIO };
+/** How far the view may take the handle up and down before it is held — see `Screened`. */
+export const GRIP_HOLD = { min: 0.8, max: 1.4 };
 /** How far under the heap's own edge the tab sits, in units. */
 const GRIP_GAP = 0.06;
 /**
@@ -398,18 +406,29 @@ export function heapBox(root: Node, group: readonly Node[]): { readonly mid: num
  */
 let handlesDrawn = 0;
 
+export interface GripSpec {
+  /** The tab's width in units; its height follows by `GRIP_RATIO`. */
+  readonly w: number;
+  /** How far the view may take it down and up before it is held — see `Screened`. */
+  readonly min: number;
+  readonly max: number;
+}
+
+const GRIP_SPEC: GripSpec = { w: GRIP.w, ...GRIP_HOLD };
+
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */
-function gripFor(root: Node, group: readonly Node[], nth: number): Node {
+function gripFor(root: Node, group: readonly Node[], nth: number, spec: GripSpec): Node {
   const { mid, bottom } = heapBox(root, group);
+  const h = spec.w / GRIP_RATIO;
   return node(
     `stack handle ${handlesDrawn++}`,
-    Bounded({ bounds: roundedRect(GRIP.w, GRIP.h, GRIP.h / 2) }),
+    Bounded({ bounds: roundedRect(spec.w, h, h / 2) }),
     Surfaced({ surface: GRIP_SURFACE }),
-    Transformable({ at: { x: mid, y: bottom + GRIP_GAP + GRIP.h / 2 } }),
+    Transformable({ at: { x: mid, y: bottom + GRIP_GAP + h / 2 } }),
     Valued({ values: { grip: nth } }),
     // A HANDLE IS SIZED FOR THE FINGER, not for the desk: the same pixels at every zoom, the way
     // every drag handle in every application anybody has ever used is drawn.
-    Screened(),
+    Screened({ min: spec.min, max: spec.max }),
     Draggable({ onReject: "stay" }),
   );
 }
@@ -421,11 +440,11 @@ function gripFor(root: Node, group: readonly Node[], nth: number): Node {
  * tabs go first: a handle is a picture of a heap, and a picture nobody redrew is a handle hanging
  * under a heap that has walked away from it.
  */
-export function regrip(root: Node): Map<string, readonly Node[]> {
+export function regrip(root: Node, spec: GripSpec = GRIP_SPEC): Map<string, readonly Node[]> {
   const held = new Map<string, readonly Node[]>();
   for (const old of root.children.filter(isGrip)) remove(root, old);
   heapsOf(root).forEach((group, i) => {
-    const tab = gripFor(root, group, i);
+    const tab = gripFor(root, group, i, spec);
     add(root, tab);
     held.set(tab.id, group);
   });
@@ -440,8 +459,8 @@ export function regrip(root: Node): Map<string, readonly Node[]> {
  * it, which is a stack skewered on its own handle rather than one standing on it. The gap it stands
  * at is the gap it was DRAWN at (`GRIP_GAP`), so nothing moves relative to anything at the lift.
  */
-export function stackSeats(group: readonly Node[]): Vec[] {
-  const clear = GRIP.h / 2 + GRIP_GAP;
+export function stackSeats(group: readonly Node[], gripW = GRIP.w): Vec[] {
+  const clear = gripW / GRIP_RATIO / 2 + GRIP_GAP;
   // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
   // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
   return group.map((piece, i) => {
