@@ -452,6 +452,11 @@ function letFall(
     delayMs,
   }));
   s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
+  // THE GESTURE IS OVER EVEN WHEN NOTHING FLIES, and it has to say so. The announcement rides the
+  // LANDING, which is right for a piece that falls and nothing at all for a piece that only settles:
+  // a heap of cards files no flight, so nothing ever lands, so nothing is ever announced — and a
+  // scene that redraws anything from the tree (the handles) never hears that the tree moved.
+  if (dropped.length === 0) after?.();
   const flight = hand ? polar(hand) : { speed: 0, angle: 0 };
   for (const { id, feel, walls, delayMs } of dropped) {
     m.slide(id, {

@@ -64,6 +64,12 @@ describe("the gesture map", () => {
     expect(dropOf(card, { chip: "settle" }).fall).toBe("settle");
     // The weights are untouched by the way it leaves: what it is made of is not what it is doing.
     expect(dropOf(card, { card: "fall" }).gravity).toBe(dropOf(card).gravity);
+    // AND A HEAP OF CARDS FILES NO FLIGHT AT ALL. It is worth writing down because it is the shape
+    // of a bug that has now been paid for: anything a scene hangs off a LANDING never happens for a
+    // run where nothing lands, and a settling card is exactly that.
+    const cards = desk.children.filter((n) => kindOf(n) === "card");
+    expect(fallOrder(cards.filter((n) => dropOf(n).fall === "fall"))).toEqual([]);
+    expect(fallOrder(cards.filter((n) => dropOf(n, { card: "fall" }).fall === "fall"))).toHaveLength(cards.length);
   });
 
   it("map.drop-feel-is-read-off-what-the-piece-is — never off its name", () => {
