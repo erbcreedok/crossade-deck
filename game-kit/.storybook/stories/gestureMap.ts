@@ -299,7 +299,7 @@ export function dropOf(
   // ...and THROWN it planes: a whole face on the felt, so it goes where it was sent and slides a
   // long way doing it. Nothing about `settle` says a card cannot be thrown — see `thrown`.
   if (caps(piece).has("Flippable")) {
-    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 8, bounce: 0, wallBounce: 0.45 };
+    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 11, bounce: 0, wallBounce: 0.45 };
   }
   // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
   // then it is simply there.
@@ -641,7 +641,7 @@ export const STACK_FALL_STEP = 55;
  * thirty-five and read as a queue you are waiting on. So the step shrinks to fit — a small heap is
  * unchanged, a big one takes a little longer than a small one and not thirty times longer.
  */
-export const STACK_POUR = 350;
+export const STACK_POUR = 620;
 
 /**
  * WHO LEAVES THE HAND WHEN, for a run being let go of — the handle never, the rest a step apart.

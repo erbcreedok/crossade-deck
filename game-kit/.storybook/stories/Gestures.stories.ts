@@ -517,9 +517,15 @@ function letFall(
   // LANDING, which is right for a piece that falls and nothing at all for a piece that only settles:
   // a heap of cards files no flight, so nothing ever lands, so nothing is ever announced — and a
   // scene that redraws anything from the tree (the handles) never hears that the tree moved.
-  // ANNOUNCED EITHER WAY, and at once: what flew has just left its heap, and what only settles has
-  // already arrived. The landings announce again, for the seats they write.
+  // ANNOUNCED ONCE NOW — what flew has just left its heap, and what only settles has arrived — and
+  // once more when the LAST of them lands.
+  //
+  // Once, not per landing. Announcing is a whole redraw of the handles: every heap on the desk
+  // re-derived (which is every pair of pieces tested against every other), the tree re-notified and
+  // the inspector re-walked. Thirty cards landing a few milliseconds apart asked for thirty of
+  // those inside half a second, and the desk stopped answering — the drop of a deck HUNG.
   after?.();
+  let left = dropped.length;
   for (const { id, feel, walls, delayMs } of dropped) {
     // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
     // chip stops being pushed the moment it is let go, a card goes where it was sent.
@@ -556,7 +562,9 @@ function letFall(
         // pixels, which is a die that landed rather than one that rolled.
         hop: DIE_HOP,
         outcome: { rng: Math.random },
-        onRest: () => after?.(),
+        onRest: () => {
+          if (--left <= 0) after?.();
+        },
       });
       continue;
     }
@@ -568,7 +576,7 @@ function letFall(
       // the truth, and the truth is only true once somebody writes it down.
       onDone: (at) => {
         landed(s, id, at);
-        after?.();
+        if (--left <= 0) after?.();
       },
     });
   }
@@ -699,7 +707,12 @@ function landed(s: Scene, id: string, at: { readonly at: Vec; readonly angle: nu
   const n = byId(s.host.root, id);
   if (!n) return;
   const own = fieldsOf<TransformableFields>(n, "Transformable");
-  compose(n, Transformable({ ...(own ?? {}), at: at.at, angle: at.angle }));
+  // THE SEAT ONLY, never the turn. A flight reports its turn as the resting pose's own plus whatever
+  // it spun, and the resting pose of a FACE-DOWN card is a mirror — a matrix a turn is read out of
+  // as a half circle, because that is what a mirror looks like to `atan2`. Written back it lands the
+  // card upside down. Nothing on this desk turns while it flies except the die, and the die writes
+  // its own landing (`throwDie`), so there is no turn here to keep.
+  compose(n, Transformable({ ...(own ?? {}), at: at.at }));
 }
 
 /**

@@ -86,36 +86,56 @@ export const SHOWS_ENOUGH = 0;
 /** A coarse grid over a piece's own box: enough to tell a sliver of edge from a whole card. */
 const SAMPLE = 9;
 
-/** The quad's outline on the glass — its own points carried through its matrix. */
-function onGlass(q: Quad): Point[] {
-  return q.points.map((p) => apply(q.transform, p));
+/** A quad's outline on the glass and its box, worked out once per pick and shared by every question. */
+interface Shown {
+  readonly poly: Point[];
+  readonly x0: number;
+  readonly y0: number;
+  readonly x1: number;
+  readonly y1: number;
+  readonly shadow: boolean;
 }
 
+function shownOf(plan: readonly Quad[]): Shown[] {
+  return plan.map((q) => {
+    const poly = q.points.map((p) => apply(q.transform, p));
+    const xs = poly.map((p) => p.x);
+    const ys = poly.map((p) => p.y);
+    return { poly, x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys), shadow: q.layer === "shadow" };
+  });
+}
+
+const apart = (a: Shown, b: Shown): boolean => a.x1 < b.x0 || b.x1 < a.x0 || a.y1 < b.y0 || b.y1 < a.y0;
+
 /**
- * What fraction of `plan[i]` is not covered by anything drawn after it.
+ * What fraction of `all[i]` is not covered by anything drawn after it.
  *
  * Sampled rather than computed: the exact answer is a polygon union, and the question being asked is
  * only "is there enough of this to aim at" — a grid answers that at a hundredth of the cost and
  * cannot be wrong by more than one cell. Shadows are not cover: a piece is not hidden by its own.
+ *
+ * BOXES FIRST, always. A desk can hold a hundred pieces and a pile thirty of them; asking every
+ * sample against every quad above is the difference between a pick and a stall, and a box test
+ * throws out all but the few that could possibly overlap.
  */
-function showing(plan: readonly Quad[], i: number): number {
-  const own = onGlass(plan[i]!);
-  const xs = own.map((p) => p.x);
-  const ys = own.map((p) => p.y);
-  const x0 = Math.min(...xs);
-  const y0 = Math.min(...ys);
-  const w = Math.max(...xs) - x0;
-  const h = Math.max(...ys) - y0;
+function showing(all: readonly Shown[], i: number): number {
+  const own = all[i]!;
+  const w = own.x1 - own.x0;
+  const h = own.y1 - own.y0;
   if (w <= 0 || h <= 0) return 0;
-  const above = plan.slice(i + 1).filter((q) => q.layer !== "shadow").map(onGlass);
+  const above: Shown[] = [];
+  for (let j = i + 1; j < all.length; j++) {
+    const q = all[j]!;
+    if (!q.shadow && !apart(own, q)) above.push(q);
+  }
   let inside = 0;
   let clear = 0;
   for (let a = 0; a < SAMPLE; a++) {
     for (let b = 0; b < SAMPLE; b++) {
-      const p = { x: x0 + (w * (a + 0.5)) / SAMPLE, y: y0 + (h * (b + 0.5)) / SAMPLE };
-      if (!inPolygon(p, own)) continue;
+      const p = { x: own.x0 + (w * (a + 0.5)) / SAMPLE, y: own.y0 + (h * (b + 0.5)) / SAMPLE };
+      if (!inPolygon(p, own.poly)) continue;
       inside++;
-      if (!above.some((other) => inPolygon(p, other))) clear++;
+      if (!above.some((other) => inPolygon(p, other.poly))) clear++;
     }
   }
   return inside === 0 ? 0 : clear / inside;
@@ -128,13 +148,13 @@ function showing(plan: readonly Quad[], i: number): number {
  * the finger meant. Falling back to `i` keeps the seam total — a pile of nothing but slivers still
  * answers with its top, which is what it did before any of this.
  */
-function covers(plan: readonly Quad[], i: number, showsEnough: number): number {
-  const own = onGlass(plan[i]!);
-  for (let j = plan.length - 1; j > i; j--) {
-    const q = plan[j]!;
-    if (q.layer === "shadow") continue;
-    if (!outlinesTouch(own, onGlass(q))) continue;
-    if (showing(plan, j) < showsEnough) continue;
+function covers(all: readonly Shown[], i: number, showsEnough: number): number {
+  const own = all[i]!;
+  for (let j = all.length - 1; j > i; j--) {
+    const q = all[j]!;
+    if (q.shadow || apart(own, q)) continue;
+    if (!outlinesTouch(own.poly, q.poly)) continue;
+    if (showing(all, j) < showsEnough) continue;
     return j;
   }
   return i;
@@ -159,6 +179,8 @@ export function pick(
     ...(view ? { view } : {}),
     ...(poses ? { overrides: poses } : {}),
   });
+  // Worked out once and shared: every question below is asked of the same glass outlines.
+  const all = showsEnough > 0 ? shownOf(plan) : undefined;
   for (let i = plan.length - 1; i >= 0; i--) {
     const q = plan[i]!;
     const inv = invert(q.transform);
@@ -170,7 +192,7 @@ export function pick(
     // nothing. `covers` walks up from here to the first piece that overlaps this one and shows
     // enough of itself; if the pile is nothing but slivers, the topmost of them answers as it always
     // did — a finger must always land on something.
-    const owner = showsEnough > 0 && showing(plan, i) < showsEnough ? covers(plan, i, showsEnough) : i;
+    const owner = all && showing(all, i) < showsEnough ? covers(all, i, showsEnough) : i;
     const n = byId(root, plan[owner]!.id);
     if (n && want(n)) return n;
   }
