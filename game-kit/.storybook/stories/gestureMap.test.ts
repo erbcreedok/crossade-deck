@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -241,6 +241,15 @@ describe("the stacking desk", () => {
     // A run of one has no stagger to have — which is every other page on the shelf, unchanged.
     expect(fallOrder([run[1]!])).toEqual([{ piece: run[1], delayMs: 0 }]);
     expect(fallOrder([])).toEqual([]);
+    // AND A POUR HAS A LENGTH OF ITS OWN, however many are in it. A step per piece reads as a pour
+    // at five and as a queue you are waiting on at thirty-six. A few keep the full step; many take a
+    // little longer than a few, and not thirty times longer.
+    const deck = stackMap().children.filter((n) => kindOf(n) === "card");
+    const few = fallOrder(deck.slice(0, 5));
+    expect(few[4]!.delayMs).toBe(4 * STACK_FALL_STEP);
+    const many = fallOrder([...deck, ...deck, ...deck, ...deck, ...deck, ...deck]);
+    expect(many[many.length - 1]!.delayMs).toBeLessThanOrEqual(STACK_POUR);
+    expect(many[many.length - 1]!.delayMs, "still a pour, not a slab").toBeGreaterThan(STACK_POUR * 0.9);
   });
 
   it("map.a-roll-is-brisk-and-does-not-outstay-it — a faster turn must not also be a longer one", () => {

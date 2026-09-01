@@ -634,6 +634,16 @@ export function stackMap(): Node {
 export const STACK_FALL_STEP = 55;
 
 /**
+ * HOW LONG A POUR MAY LAST ALL TOLD, ms, however many pieces are in it.
+ *
+ * The same shape as the pile's thickness, and the same reason: a step per piece is right for a few
+ * and absurd for many. Five cards take four steps and read as a pour; thirty-six would take
+ * thirty-five and read as a queue you are waiting on. So the step shrinks to fit — a small heap is
+ * unchanged, a big one takes a little longer than a small one and not thirty times longer.
+ */
+export const STACK_POUR = 350;
+
+/**
  * WHO LEAVES THE HAND WHEN, for a run being let go of — the handle never, the rest a step apart.
  *
  * The bottom of the stack goes first and the top last, so the pieces land on top of what is already
@@ -644,7 +654,10 @@ export const STACK_FALL_STEP = 55;
  * wherever the pieces land.
  */
 export function fallOrder(pieces: readonly Node[]): { readonly piece: Node; readonly delayMs: number }[] {
-  return pieces.filter((n) => !isGrip(n)).map((piece, i) => ({ piece, delayMs: i * STACK_FALL_STEP }));
+  const falling = pieces.filter((n) => !isGrip(n));
+  const gaps = Math.max(1, falling.length - 1);
+  const step = Math.min(STACK_FALL_STEP, STACK_POUR / gaps);
+  return falling.map((piece, i) => ({ piece, delayMs: Math.round(i * step) }));
 }
 
 
