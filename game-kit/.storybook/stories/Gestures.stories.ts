@@ -34,6 +34,7 @@ import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import {
   dropOf,
+  fallOrder,
   gestureMap,
   isGrip,
   mapWalls,
@@ -418,7 +419,7 @@ function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec
   const drawn = m?.poses();
   if (!m || !drawn) return false;
   const root = s.host.root;
-  const dropped: { readonly id: string; readonly feel: ReturnType<typeof dropOf>; readonly walls: ReturnType<typeof mapWalls> }[] = [];
+  const put: Node[] = [];
   for (const it of items) {
     const n = byId(root, it.id);
     const pose = drawn.get(it.id);
@@ -430,15 +431,24 @@ function letFall(s: Scene, items: readonly CarryItem[], lift: number, hand?: Vec
     compose(n, Transformable({ ...(own ?? {}), at: apply(pose, { x: 0, y: 0 }) }));
     toFront(n);
     m.release(it.id);
+    put.push(n);
+  }
+  // WHO LEAVES WHEN: the handle never, the rest a step apart, so a heap POURS out of the hand
+  // instead of coming down as a slab. A run of one has no stagger to have.
+  const dropped = fallOrder(put).map(({ piece, delayMs }) => ({
+    id: piece.id,
+    feel: dropOf(piece),
     // The border at the piece's OWN size: a throw spends its travel on the felt, and the sliver of
     // the pop it is still wearing on the way down is not what a bounce should be measured off.
-    dropped.push({ id: it.id, feel: dropOf(n), walls: mapWalls(n) });
-  }
+    walls: mapWalls(piece),
+    delayMs,
+  }));
   s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
   const flight = hand ? polar(hand) : { speed: 0, angle: 0 };
-  for (const { id, feel, walls } of dropped) {
+  for (const { id, feel, walls, delayMs } of dropped) {
     m.slide(id, {
       ...flight,
+      ...(delayMs > 0 ? { delayMs } : {}),
       up: (lift - 1) / RISE,
       gravity: feel.gravity,
       bounce: feel.bounce,

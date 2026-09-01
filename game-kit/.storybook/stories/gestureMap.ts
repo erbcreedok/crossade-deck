@@ -504,3 +504,27 @@ export function stackMap(): Node {
   add(desk, d6);
   return desk;
 }
+
+
+/**
+ * How long apart the pieces of a dropped heap leave the hand, ms.
+ *
+ * Small on purpose: the whole stack still lands inside one fall, and what the eye reads is a POUR
+ * rather than a queue. Wider and it stops being one thing coming down and becomes several things
+ * dropped one after another, which is a different gesture.
+ */
+export const STACK_FALL_STEP = 55;
+
+/**
+ * WHO LEAVES THE HAND WHEN, for a run being let go of — the handle never, the rest a step apart.
+ *
+ * The bottom of the stack goes first and the top last, so the pieces land on top of what is already
+ * down rather than under it, and the heap pours instead of dropping as a slab. A run of one has no
+ * stagger to have: `0`, and the ordinary drop is unchanged, which is every other page on the shelf.
+ *
+ * A HANDLE IS NOT AMONG THEM. It is a control, and a control does not fall — it is redrawn under
+ * wherever the pieces land.
+ */
+export function fallOrder(pieces: readonly Node[]): { readonly piece: Node; readonly delayMs: number }[] {
+  return pieces.filter((n) => !isGrip(n)).map((piece, i) => ({ piece, delayMs: i * STACK_FALL_STEP }));
+}

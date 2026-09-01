@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { compose, extentOf, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { dropOf, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, stackMap, stackSeats, toFront } from "./gestureMap.js";
+import { dropOf, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -162,6 +162,26 @@ describe("the stacking desk", () => {
     at(desk, "chip 1", 5, 5);
     expect(regrip(desk).size).toBe(0);
     expect(desk.children.filter(isGrip)).toHaveLength(0);
+  });
+
+  it("map.a-dropped-heap-pours-rather-than-slabs — a step apart, bottom first, and the handle not at all", () => {
+    // All at once and a heap comes down as a slab; too far apart and it stops being one thing coming
+    // down and becomes several things dropped in turn. A step is what reads as a pour.
+    const desk = stackMap();
+    for (const i of [2, 3, 4, 5]) at(desk, `chip ${i}`, 6 + i, 6);
+    at(desk, "chip 0", 0, 0);
+    at(desk, "chip 1", 0.4, 0);
+    regrip(desk);
+    const run = [desk.children.find(isGrip)!, ...heapsOf(desk)[0]!];
+    const falling = fallOrder(run);
+    // The handle is not among them: a control does not fall, it is redrawn where the pieces land.
+    expect(falling.map((f) => f.piece.id)).toEqual(["chip 0", "chip 1"]);
+    // The bottom of the stack leaves first, so what comes after lands ON it and not under it.
+    expect(falling[0]!.delayMs).toBe(0);
+    expect(falling[1]!.delayMs).toBe(STACK_FALL_STEP);
+    // A run of one has no stagger to have — which is every other page on the shelf, unchanged.
+    expect(fallOrder([run[1]!])).toEqual([{ piece: run[1], delayMs: 0 }]);
+    expect(fallOrder([])).toEqual([]);
   });
 
   it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {
