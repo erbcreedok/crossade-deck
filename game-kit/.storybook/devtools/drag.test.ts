@@ -99,4 +99,43 @@ describe("the drag wiring's order", () => {
     s.dispose();
   });
 
+  it("drag.a-gesture-reports-itself-once — a tap, or a carry, never both and never neither", () => {
+    // They are the SAME gesture until it ends: the same finger on the same piece, told apart only by
+    // how far it went and how long it stayed. Wired as two listeners they would both fire and the
+    // scene would be left refereeing them — which is the branch the seam exists to not have. And a
+    // tap is not a drop: the piece never went anywhere, so there is nothing to put down.
+    const root = desk();
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    const heard: string[] = [];
+    wireDrag(s, { onTap: (p) => heard.push(`tap:${p.id}`), onSettled: (_r, ids) => heard.push(`drop:${ids.join()}`) });
+    const seat = { ...seatOf(root.children[0]!) };
+    const press = (type: string, x: number, y: number, ms: number): void => {
+      const e = finger(type, x, y);
+      Object.defineProperty(e, "timeStamp", { value: ms });
+      s.host.view.dispatchEvent(e);
+    };
+
+    // A TAP: down and up on the same spot, at once.
+    press("pointerdown", 0, 0, 0);
+    press("pointerup", 2, 1, 90);
+    expect(heard).toEqual(["tap:card"]);
+    expect(seatOf(root.children[0]!), "and it left the piece exactly where it was").toEqual(seat);
+
+    // A HOLD: it never went anywhere either, but it STAYED — so it is not a tap.
+    heard.length = 0;
+    press("pointerdown", 0, 0, 200);
+    press("pointerup", 1, 0, 1400);
+    expect(heard).toEqual(["drop:card"]);
+
+    // A CARRY: the same finger, gone somewhere.
+    heard.length = 0;
+    press("pointerdown", 0, 0, 2000);
+    press("pointermove", 140, 0, 2030);
+    press("pointerup", 140, 0, 2060);
+    expect(heard).toEqual(["drop:card"]);
+    s.dispose();
+  });
+
 });

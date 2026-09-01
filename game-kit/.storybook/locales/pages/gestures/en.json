@@ -141,5 +141,21 @@
     "",
     "The tab is not thrown. It is a control, and a control does not fly any more than it falls: it is",
     "redrawn under wherever the pieces come to rest."
+  ],
+  "docs.gestures.flip": [
+    "THIRTY-SIX CARDS: six of them face up, the rest stacked face down. A TAP turns over whatever it",
+    "landed on.",
+    "",
+    "THE DECK IS NOT A SPECIAL KIND OF THING. It is thirty cards lying on the same spot — which is to",
+    "say a heap, which is to say every rule this desk already has. It gets a handle like any other heap",
+    "and is picked up like any other heap; and a finger on it lands on the topmost card DRAWN, which is",
+    "the top of the deck. So the one line that says to turn over what was tapped reads as turning the",
+    "deck's top card, without ever being told that a deck exists. Rake a heap together out of scattered",
+    "cards and it behaves the same, because it IS the same.",
+    "",
+    "A TAP AND A CARRY ARE ONE GESTURE until it ends. The same finger lands on the same card; what",
+    "tells them apart is how far it went and how long it stayed. That is decided in one place, so the",
+    "page is handed one answer instead of two events to referee — and holding a card turns nothing,",
+    "because a gesture that stayed was never a tap."
   ]
 }

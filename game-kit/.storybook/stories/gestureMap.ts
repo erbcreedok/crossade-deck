@@ -44,6 +44,8 @@ import {
   reorder,
   registerLayout,
   registerSurface,
+  facing,
+  setFacing,
   Surfaced,
   Transformable,
   Valued,
@@ -53,7 +55,7 @@ import {
   type Vec,
   type Walls,
 } from "../../src/index.js";
-import { deckByCardId } from "@game-presets/cards";
+import { cards as crossadeCards, deckByCardId } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
 import { svg } from "./stockAssets.js";
 
@@ -667,3 +669,50 @@ export function warmingNodes(): Node[] {
 
 /** How big a warming node is, in units — as small as a thing can be and still be asked for. */
 const WARM = 0.02;
+
+
+// ---- THE DECK DESK ----------------------------------------------------------------------------
+
+/** How many cards this desk plays with, and how many of them start out in the open. */
+export const DECK = { cards: 36, dealt: 6 };
+
+/**
+ * A DESK WITH A CLOSED DECK ON IT — six cards face up, the rest stacked face down in one place.
+ *
+ * The pile is not a special kind of thing: it is thirty cards lying on the same spot, which is to
+ * say a heap, which is to say every rule this desk already has. It gets a handle like any other
+ * heap, it is picked up like any other heap, and a finger on it lands on the topmost card drawn —
+ * which is the top of the deck. That is the whole of "tapping the deck turns its top card over":
+ * nothing about a deck had to be written, because a deck is not a thing here, it is an arrangement.
+ */
+export function deckMap(): Node {
+  installMapArt();
+  const desk = node(
+    "map",
+    Bounded({ bounds: rect(MAP.w, MAP.h) }),
+    Container({ layout: "gesture.map.free" }),
+    Surfaced({ surface: MAP_SURFACE }),
+  );
+  const all = crossadeCards().slice(0, DECK.cards);
+  all.forEach((card, i) => {
+    const open = i < DECK.dealt;
+    // The six in the open lie in two rows of three; the rest are one pile, each card a hair off the
+    // one below so the stack has a thickness the eye can see.
+    const at = open
+      ? { x: -1.3 + (i % 3) * 1.3, y: i < 3 ? -2.6 : -1.05 }
+      : { x: 1 + (i - DECK.dealt) * 0.004, y: 1.2 - (i - DECK.dealt) * 0.012 };
+    compose(card, Transformable({ at }));
+    compose(card, PUT_DOWN);
+    // Face up in the open, face down in the deck — the atom's own word, and the only thing that
+    // makes the pile a CLOSED one.
+    setFacing(card, open ? "up" : "down");
+    add(desk, card);
+  });
+  for (const warm of warmingNodes()) add(desk, warm);
+  return desk;
+}
+
+/** Turn a card over: the truth, and the picture follows it (`Flippable` owns the reflection). */
+export function turnOver(card: Node): void {
+  setFacing(card, facing(card) === "up" ? "down" : "up");
+}

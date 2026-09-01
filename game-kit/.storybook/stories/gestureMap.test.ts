@@ -6,8 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
-import { compose, extentOf, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DIE_SPIN, DIE_SPIN_DRAG, dropOf, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { compose, extentOf, facing, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -292,6 +292,30 @@ describe("the stacking desk", () => {
     expect(left).toHaveLength(0); // chip 0 and chip 2 do not reach each other without chip 1
     at(desk, "chip 2", 0.35, 0);
     expect(heapsOf(desk, (id) => id === "chip 1")[0]).toHaveLength(2);
+  });
+
+  it("map.a-deck-is-a-heap-and-nothing-else — so a finger on it lands on its top card", () => {
+    // Nothing about a deck is written down anywhere. It is thirty cards on one spot — a heap, which
+    // is to say every rule this desk already has: it forms one, it earns a handle, and the topmost
+    // card DRAWN is the one a finger reaches. That is the whole of "tapping a deck turns its top
+    // card over": the answer the pick already gives is the right one.
+    const desk = deckMap();
+    const cards = desk.children.filter((n) => kindOf(n) === "card");
+    expect(cards).toHaveLength(DECK.cards);
+    expect(cards.filter((n) => facing(n) === "up"), "the ones in the open").toHaveLength(DECK.dealt);
+    // The pile is one heap of everything that is face down, and the six in the open touch nobody.
+    const heaps = heapsOf(desk);
+    expect(heaps).toHaveLength(1);
+    expect(heaps[0]).toHaveLength(DECK.cards - DECK.dealt);
+    expect(heaps[0]!.every((n) => facing(n) === "down")).toBe(true);
+    // The deck's own card is LAST in the children, so it is what the topmost drawn quad belongs to.
+    expect(desk.children.indexOf(heaps[0]![heaps[0]!.length - 1]!)).toBeGreaterThan(desk.children.indexOf(heaps[0]![0]!));
+    // And turning one over is the atom's word, not the desk's: the truth moves and the picture follows.
+    const one = cards[0]!;
+    turnOver(one);
+    expect(facing(one)).toBe("down");
+    turnOver(one);
+    expect(facing(one)).toBe("up");
   });
 
   it("map.a-handle-in-a-hand-is-not-redrawn — what is being held may not be replaced under the hand", () => {

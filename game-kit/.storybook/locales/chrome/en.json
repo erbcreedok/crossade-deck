@@ -69,6 +69,7 @@
   "arg.flip": "Which turn, by registry name — `mirror` reflects the geometry and swaps nothing, `turnOver` reflects AND shows the back surface. Empty is `mirror`. What the turn DOES lives in the recipe, not the atom.",
   "arg.flipEase": "The turn's easing over its progress. `linear` is a physical rotation (constant angular speed, so the width follows |cos|); `easeOut` snaps over and slows on the far side.",
   "arg.flipMs": "How long a turn-over lasts, in ms — the squeeze to an edge and back. Its own clock, apart from the settle's: a slow deal can still have a crisp flip.",
+  "arg.flipping": "A TAP turns over whatever it landed on. Off, a tap is just a gesture that went nowhere and the cards stay as they lie. A gesture that STAYED is not a tap and turns nothing — hold a card and it does not move.",
   "arg.focused": "The input wiring's runtime state: does focus stand on the focusable bar right now? On, the story wears the stock ring on it — the same coat a game wears on Tab. Never a field on the element.",
   "arg.followDamping": "The chase spring's resistance to its own speed. Below `2·√stiffness` it is UNDERDAMPED — the read of the finger's speed overshoots a touch and eases back, so the lean keeps a little swing after a stop; at or above, no overshoot.",
   "arg.followStiffness": "The chase spring's pull toward the finger. It does NOT move the run — a held thing rides the hand 1:1 — it SMOOTHS the pointer into a speed: higher reads the finger quicker and twitchier, lower reads it lazier. That speed is the lean and what a throw inherits.",

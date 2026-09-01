@@ -15,6 +15,7 @@ import {
   RISE,
   freeLayout,
   installStockCarries,
+  installStockFlips,
   Labeled,
   node,
   rect,
@@ -44,8 +45,10 @@ import {
   GRIP_HOLD,
   GRIP,
   type LetGo,
+  deckMap,
   regrip,
   stackMap,
+  turnOver,
   stackSeats,
   toFront,
 } from "./gestureMap.js";
@@ -73,8 +76,11 @@ import { documented } from "./surfaceControls.js";
 // it DOES carry is a shadow, and that is not decoration either: half of what these pages show is
 // height — a shiver stays on the desk, a hop leaves it — and without a shadow the two look alike.
 
-// The carry styles are installed here, as an ordinary consumer would install them.
+// The carry styles and the flip recipes are installed here, as an ordinary consumer would install
+// them. Without the flips a card's `back` is a name nothing resolves, and a face-down card is drawn
+// face up — the truth says one thing and the picture another.
 installStockCarries();
+installStockFlips();
 
 const TILE = "gesture.tile";
 
@@ -307,13 +313,15 @@ function grabScene(
   stacking = false,
   grip: { w: number; min: number; max: number } = { w: GRIP.w, ...GRIP_HOLD },
   ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
+  desk: "map" | "stack" | "deck" = stacking ? "stack" : "map",
+  flipping = false,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
   let heaps = new Map<string, readonly Node[]>();
   /** The handle a finger has hold of right now, if any — see `regrip`'s `keep`. */
   let inHand: string | undefined;
-  const built = scene(stacking ? stackMap() : gestureMap(), {
+  const built = scene(desk === "deck" ? deckMap() : desk === "stack" ? stackMap() : gestureMap(), {
     animate: true,
     camera: {
       limits: MAP_ZOOM,
@@ -394,6 +402,21 @@ function grabScene(
     // the switch never has to restate a number the kit already decided.
     ...(physics ? {} : NO_PHYSICS),
     lift: held,
+    // A TAP TURNS WHAT IT LANDED ON, and it lands on the topmost card DRAWN — which on a closed
+    // pile is the top of the deck. Nothing here knows what a deck is: the finger's own answer is
+    // already the right one, and so the same line reads "turn this card over" in the open and
+    // "turn the deck's top card over" on the pile. A gesture that STAYED is not a tap and reports
+    // nothing, which is the whole of "hold it and it does not turn".
+    ...(flipping
+      ? {
+          onTap: (piece: Node) => {
+            built.motions?.flip(piece.id, () => {
+              turnOver(piece);
+              built.host.setRoot(built.host.root);
+            });
+          },
+        }
+      : {}),
     // A page that DROPS or THROWS takes the release over: the ordinary one puts the piece down
     // where the finger was, and putting down is the thing those pages say is not what happens.
     // A throw is a drop with the hand's speed still on it — one call, and the piece falls from the
@@ -824,4 +847,43 @@ export const StackThrow: StoryObj<StackArgs> = {
   args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true },
   argTypes: { ...STACK_KNOBS },
   parameters: { gkDocStory: "gestures.stackThrow" },
+};
+
+interface FlipArgs extends StackArgs {
+  /** Off, and a tap is just a gesture that went nowhere — the cards stay as they lie. */
+  flipping: boolean;
+}
+
+const FLIPPING = documented("arg.flipping", {}, "flip");
+
+/**
+ * FLIP — thirty-six cards, six of them face up and the rest stacked face down, and a TAP turns over
+ * whatever it landed on.
+ *
+ * The pile is not a special kind of thing: it is thirty cards lying on the same spot, which is to
+ * say a heap, which is to say every rule this desk already has. So a finger on it lands on the
+ * topmost card DRAWN — the top of the deck — and the one line that says "turn over what was tapped"
+ * reads as "turn the deck's top card over" without being told that a deck exists. A heap raked
+ * together out of scattered cards behaves the same way, because it IS the same way.
+ *
+ * A TAP AND A CARRY ARE ONE GESTURE until it ends. The same finger lands on the same card; what
+ * tells them apart is how far it went and how long it stayed, and that is decided in one place
+ * (`DragOptions.onTap`) rather than by two listeners the scene would have to referee. Hold the card
+ * and nothing turns — a gesture that stayed was never a tap.
+ */
+export const Flip: StoryObj<FlipArgs> = {
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping }) =>
+    grabScene(
+      physics,
+      lifted ? lift : undefined,
+      dropping ? (throwing ? "throw" : "drop") : undefined,
+      stacking,
+      { w: gripWidth, min: gripMin, max: gripMax },
+      { card: cardDrop, chip: chipDrop, die: dieDrop },
+      "deck",
+      flipping,
+    ),
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, flipping: true },
+  argTypes: { ...STACK_KNOBS, flipping: FLIPPING },
+  parameters: { gkDocStory: "gestures.flip" },
 };

@@ -143,6 +143,20 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * arrived" is a different question from "what is on the desk" and a scene usually needs both.
    */
   readonly onSettled?: ((root: Node, ids: readonly NodeId[]) => void) | undefined;
+  /**
+   * A TAP — the gesture that picked something up and put it straight back down.
+   *
+   * It is reported HERE, and not by a second listener of its own, because a tap and a drag are the
+   * same gesture until the moment it ends: the same finger lands on the same piece, and what tells
+   * them apart is only how long it stayed and how far it went. Wired separately they would both
+   * fire, and the scene would be left comparing them — which is the branch this seam exists to not
+   * have. A gesture reports itself once, as whichever of the two it turned out to be.
+   *
+   * A tap is NOT a drop. The piece never went anywhere, so there is nothing to put down, nothing to
+   * throw and nothing to announce as settled — the carry is simply given up and the piece eases back
+   * to the seat it never left.
+   */
+  readonly onTap?: ((piece: Node) => void) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -169,7 +183,18 @@ interface Wiring {
    * Without it a second finger — the one that arrives to pinch the desk — drives somebody else's
    * drag: the card chases a hand that never touched it, and lands wherever that hand stopped.
    */
-  drag: { readonly items: readonly CarryItem[]; readonly delta: Point; readonly pointer: number; readonly tray: Walls | undefined } | undefined;
+  drag:
+    | {
+        readonly items: readonly CarryItem[];
+        readonly delta: Point;
+        readonly pointer: number;
+        readonly tray: Walls | undefined;
+        /** Where and when the finger landed — the whole of telling a tap from a carry. */
+        readonly from: Point;
+        readonly atMs: number;
+        readonly hit: Node;
+      }
+    | undefined;
   /** Undresses every zone the grab invited — release calls it, and it is the whole protocol. */
   undoInvites: (() => void) | undefined;
 }
@@ -178,6 +203,17 @@ const WIRED = new WeakMap<HTMLElement, Wiring>();
 
 /** Every pointer currently down on the view, so the second one can be measured against the first. */
 const DOWN = new WeakMap<HTMLElement, Map<number, Point>>();
+
+/**
+ * How far a finger may wander and still have TAPPED, in glass pixels, and how long it may stay.
+ *
+ * The slop is a finger's own tremble on a phone, not a decision: nobody holding a card still means
+ * to move it three pixels. The span is what separates "touched it" from "took hold of it" — long
+ * enough that a deliberate press is never mistaken for a tap, short enough that a tap never feels
+ * like it has to be hurried.
+ */
+const TAP_SLOP = 8;
+const TAP_MS = 300;
 
 /** The angle of the line between two glass points, in degrees clockwise — the screen's convention. */
 const lineAngle = (a: Point, b: Point): number => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
@@ -259,11 +295,19 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y }, ...still };
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
-    w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId, tray: undefined };
+    w.drag = {
+      items,
+      delta: { x: anchor.x - p.x, y: anchor.y - p.y },
+      pointer: e.pointerId,
+      tray: undefined,
+      from: g,
+      atMs: e.timeStamp,
+      hit,
+    };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {
@@ -440,6 +484,16 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     w.drag = undefined;
     w.undoInvites?.();
     w.undoInvites = undefined;
+    // A TAP: the finger landed on something, stayed put and left again. It is the same gesture a
+    // drag is, told apart only by how far it went and how long it stayed — so it is decided here,
+    // once, and the scene is handed one answer instead of two events to compare.
+    const went = Math.hypot(glassOf(view, e).x - drag.from.x, glassOf(view, e).y - drag.from.y);
+    if (w.opts.onTap && went <= TAP_SLOP && e.timeStamp - drag.atMs <= TAP_MS) {
+      for (const it of drag.items) motions.release(it.id);
+      s.host.setRoot(s.host.root); // the reconcile eases it back to the seat it never left
+      w.opts.onTap(drag.hit);
+      return;
+    }
     // A scene that throws on release takes the nodes here — the finger's speed is still on the
     // springs, read before anything is released.
     if (w.opts.onRelease?.(motions.velocity(), drag.items)) return;
