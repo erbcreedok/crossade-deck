@@ -499,7 +499,8 @@ export function scene(
     : () => {};
   const stopTaps = options.flipOnTap ? wireFlipTap(host, motions) : () => {};
   TAPPED.set(id, options.tap);
-  const stopTapping = options.tap ? wireTap(host, (hit) => TAPPED.get(id)?.(hit), viewOf, () => motions?.poses()) : () => {};
+  // `reach`, not `poses`: a look must not move what a finger can touch — see `Motions.reach`.
+  const stopTapping = options.tap ? wireTap(host, (hit) => TAPPED.get(id)?.(hit), viewOf, () => motions?.reach()) : () => {};
   HELD.set(id, options.hold?.onHold);
   const held = options.hold;
   const stopHolding = held

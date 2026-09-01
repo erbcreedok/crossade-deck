@@ -172,7 +172,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   };
 
   /** The pose overrides to hand the plan this frame: everything not at its rest, at where it is now. */
-  const overrides = (): ReadonlyMap<NodeId, Transform> | undefined => {
+  const overrides = (looks = true): ReadonlyMap<NodeId, Transform> | undefined => {
     if (active.size === 0 && choreos.size === 0 && carried.size === 0 && flights.size === 0) return undefined;
     const map = new Map<NodeId, Transform>();
     for (const id of active.keys()) {
@@ -185,14 +185,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       if (at) map.set(id, at);
     }
     // A choreographed node keeps its resting pose (which carries e.g. a flip's reflection) and wears
-    // the recipe's pose on top — the recipe is handed the rest and returns the frame's pose.
-    for (const ch of choreos.values()) {
+    // the recipe's pose on top — the recipe is handed the rest and returns the frame's pose. Asked
+    // for what a FINGER can reach, the recipe is skipped: see `Motions.reach`.
+    if (looks)
+      for (const ch of choreos.values()) {
       const t = progressOf(ch);
       ch.ids.forEach((id, i) => {
         const rest = displayed.get(id);
         if (rest) map.set(id, ch.poseAt(i, ch.ids.length, t, rest));
       });
-    }
+      }
     // A flying body's pose is its own: where the physics put it, turned as it spins, at the rest's
     // size. A flight still WAITING its turn is mostly NOT here — until it goes, the node is whatever
     // it was (at rest, or mid-settle), so a stagger never freezes a card that was merely lying there.
@@ -816,6 +818,11 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     },
     poses() {
       return overrides();
+    },
+    reach() {
+      // The same map without the LOOKS — see `Motions.reach`. Never `undefined`: a caller asking
+      // where things can be touched wants an answer, and "nothing is moving" is an empty map.
+      return overrides(false) ?? new Map<NodeId, Transform>();
     },
     busy(id) {
       if (flights.has(id)) return true;

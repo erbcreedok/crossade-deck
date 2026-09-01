@@ -15,6 +15,7 @@ import { add, compose, node, reorder } from "../../core/node.js";
 import { Flippable, facing, setFacing } from "../../core/atoms/flippable.js";
 import { DEFAULT_TUNING, installStockEasings, resetEasings } from "../../core/motion.js";
 import { rect } from "../../presets/shapes.js";
+import { apply } from "../../core/transform.js";
 import { mount } from "../host.js";
 import { registerSurface, resetSurfaces } from "../surfaces.js";
 import { installStockFlips, resetFlips } from "../flips.js";
@@ -278,6 +279,30 @@ describe("the motion runtime", () => {
     m2.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 3, y: 0 } }], { anchor: { x: 0, y: 0 } });
     c2.tick(16);
     expect(b2.xOf("d")).toBeCloseTo(before, 6);
+  });
+
+  it("motion.a-look-does-not-move-what-a-finger-can-reach — a flipping card keeps its hit box", () => {
+    // A card turning over is squeezed to its own EDGE at the midpoint. A hit box that followed it
+    // there collapses, the finger falls through to whatever lies under it, and a fast hand turns
+    // over two cards and then three. Nothing moved — only the picture did.
+    //
+    // A carry and a flight are not looks: a piece a hand is holding is genuinely somewhere else and
+    // is reached where it is. That is the half this must NOT break.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, flipMs: 200, flipEase: "linear" });
+    m.flip("c", () => {});
+    c.tick(100); // the midpoint: edge-on, no width at all
+    const drawn = m.poses()!.get("c")!;
+    const reach = m.reach().get("c");
+    expect(Math.abs(drawn.a), "drawn: squeezed to nothing").toBeLessThan(0.05);
+    expect(reach, "reached: not squeezed at all").toBeUndefined();
+    // ...and a piece that genuinely moved is reached where it moved to, not where it rests.
+    for (let i = 0; i < 20; i++) c.tick(100 + i * 16);
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 3, y: 0 } });
+    const held = m.reach().get("c");
+    expect(held, "a carried piece is in the map").toBeTruthy();
+    expect(apply(held!, { x: 0, y: 0 }).x).toBeCloseTo(3, 3);
   });
 
   it("motion.a-carry-keeps-what-the-piece-IS — a style says where it goes, not what it looks like", () => {

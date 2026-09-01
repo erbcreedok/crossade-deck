@@ -350,6 +350,19 @@ export interface Motions {
    * threw is not yours to catch" is a gate on the pick, and it needs this to be written.
    */
   busy(id: NodeId): boolean;
+  /**
+   * WHERE EACH PIECE CAN BE TOUCHED — the poses a pick tests against, as against the poses drawn.
+   *
+   * They are almost the same map and differ in one thing, which is the whole reason this exists: a
+   * CHOREOGRAPHY is a look. A card turning over is squeezed to its own edge at the midpoint, and a
+   * hit box that followed it there would collapse — the finger would fall through to whatever lies
+   * under it, so a fast hand turns over two cards and then three. Nothing MOVED; only the picture
+   * did, and what a finger can reach must not answer to a picture.
+   *
+   * A carry and a flight are not looks. A piece a hand is holding, or one the clock is throwing, is
+   * genuinely somewhere else, and it is reached where it is — that law is unchanged here.
+   */
+  reach(): ReadonlyMap<NodeId, Transform>;
   /** The tuning in force right now — the defaults, the game's record and every `retune` folded in. */
   tuning(): MotionTuning;
   /** Stop following the host and cancel any running loop. */

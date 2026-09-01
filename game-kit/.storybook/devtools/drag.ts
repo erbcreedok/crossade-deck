@@ -268,7 +268,12 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // the painter drew, so what refuses the finger is exactly what the eye sees refuse it.
     // Through the clock's own poses: the finger tests what the EYE sees, so a die halfway across a
     // tray answers to a touch on the die and not to one on the seat it left.
-    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true), w.opts.view?.(), s.motions?.poses());
+    // THROUGH WHAT CAN BE REACHED, not through what is drawn: a card turning over is squeezed to its
+    // own edge halfway through, and a hit box that followed it there would let the finger fall
+    // through to the card beneath — a fast hand would turn over two and then three. See
+    // `Motions.reach`. Where a piece has genuinely MOVED — carried, thrown — it is still reached
+    // where it is, which is the same map.
+    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true), w.opts.view?.(), s.motions?.reach());
     if (!hit) return;
     const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
     // WHERE THE PIECES ARE DRAWN, not where they rest: the hand closes on what it can see. A piece
