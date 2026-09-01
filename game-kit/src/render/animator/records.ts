@@ -27,6 +27,15 @@ export interface Carry {
   readonly bankCfg: SpringConfig;
   readonly tiltFactor: number;
   readonly tiltMax: number;
+  /**
+   * EACH PIECE'S OWN RESTING POSE, captured when the hand closed on it.
+   *
+   * A style builds a carried pose from nothing — a point, a lean, a lift — which is right for where
+   * the piece goes and wrong for what it IS: a face-down card's mirror lives in its resting pose,
+   * and a pose built from scratch has no mirror in it. The card was drawn face-up in the hand and
+   * eased back through its own edge on release, which reads as a turn nobody asked for.
+   */
+  readonly bases: ReadonlyMap<NodeId, Transform>;
   /** The tray, if the gesture has one, and what to say when the border ends it. */
   readonly walls: Walls | undefined;
   readonly wallSpeed: number;

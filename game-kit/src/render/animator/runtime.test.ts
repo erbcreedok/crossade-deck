@@ -280,6 +280,36 @@ describe("the motion runtime", () => {
     expect(b2.xOf("d")).toBeCloseTo(before, 6);
   });
 
+  it("motion.a-carry-keeps-what-the-piece-IS — a style says where it goes, not what it looks like", () => {
+    // A style builds a carried pose from nothing: a point, a lean, a lift. That is right for WHERE a
+    // piece goes and wrong for what it IS — a face-down card's mirror lives in its resting pose, and
+    // a pose built from scratch has no mirror in it. The card came up face-first in the hand and
+    // eased back through its own edge on release, which reads as a turn nobody asked for.
+    const b = bench();
+    installStockFlips();
+    const card = node(
+      "f",
+      Bounded({ bounds: rect(1, 1.4) }),
+      Surfaced(),
+      Transformable({ at: { x: 0, y: 0 } }),
+      Flippable({ flip: "turnOver", back: "" }),
+    );
+    add(b.desk, card);
+    setFacing(card, "down");
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1, leanFactor: 0 });
+    b.host.setRoot(b.desk);
+    const rest = b.tOf("f");
+    const side = (t: { a: number; b: number; c: number; d: number }): number => Math.sign(t.a * t.d - t.b * t.c);
+    expect(side(rest), "face down IS a mirror").toBe(-1);
+    m.grab([{ id: "f", offset: { x: 0, y: 0 } }], { anchor: { x: 1, y: 0 } });
+    c.tick(16);
+    // It moved, and it is the same THING: which way it faces is the sign of the determinant, and a
+    // carry may not turn a card over on the way.
+    expect(b.xOf("f")).not.toBeCloseTo(rest.e, 3);
+    expect(side(b.tOf("f")), "and still a mirror in the hand").toBe(-1);
+  });
+
   it("motion.a-still-piece-takes-no-lift — the handle is the hand, and a hand does not grow", () => {
     const b = bench();
     add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));

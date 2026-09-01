@@ -393,6 +393,16 @@ const GRIP_GAP = 0.06;
  */
 export const STACK_STEP = { x: 0.012, y: -0.03 };
 /**
+ * HOW THICK A LIFTED HEAP MAY GET, in units, however many pieces are in it.
+ *
+ * A step per piece is right for a few and absurd for thirty: at three cards it is the thickness you
+ * can see, at thirty it is nearly a whole card of spread and the deck comes up a fan. A real deck
+ * does not grow like that either — a card's thickness is not a card's WIDTH, and what the eye reads
+ * off a pile is its edge, not its count. So the step shrinks to fit: a small heap is unchanged and a
+ * big one is a deck.
+ */
+export const STACK_THICK = 0.22;
+/**
  * How close is TOUCHING, in units. Not zero: to a player two cards a hair apart on a felt are
  * touching, and a heap that would not form until the pixels met would read as broken.
  */
@@ -570,12 +580,16 @@ export function regrip(
  */
 export function stackSeats(group: readonly Node[], gripW = GRIP.w): Vec[] {
   const clear = gripW / GRIP_RATIO / 2 + GRIP_GAP;
+  // The step a heap this big can afford — see `STACK_THICK`. One piece has no step to take.
+  const spread = Math.max(1, group.length - 1);
+  const fit = Math.min(1, STACK_THICK / (Math.abs(STACK_STEP.y) * spread));
+  const step = { x: STACK_STEP.x * fit, y: STACK_STEP.y * fit };
   // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
   // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
   return group.map((piece, i) => {
     const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
     const half = shape ? extentOf(shape).h / 2 : 0;
-    return { x: i * STACK_STEP.x || 0, y: -clear - half + i * STACK_STEP.y || 0 };
+    return { x: i * step.x || 0, y: -clear - half + i * step.y || 0 };
   });
 }
 

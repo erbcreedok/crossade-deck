@@ -35,7 +35,7 @@ import { springAt, springSettled, stepSpring, type SpringConfig, type SpringStat
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
-import { apply, compose, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
+import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
 import { renderFrame } from "../stage.js";
@@ -397,7 +397,18 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       const seat = left > 0 ? { x: chased.x + gap.x * left, y: chased.y + gap.y * left } : chased;
       // A piece marked `still` is the hand's own — a handle, and a handle does not pop or bank.
       const pop = it.still ? 1 : cy.sl.pos;
-      displayed.set(it.id, cy.style({ anchor: seat, offset: it.offset, leanDeg: it.still ? 0 : leanDeg, lift: pop, i, n }));
+      const styled = cy.style({ anchor: seat, offset: it.offset, leanDeg: it.still ? 0 : leanDeg, lift: pop, i, n });
+      // SEATED ON WHAT THE PIECE IS. The style says where it goes, how it leans and how it is
+      // lifted; its own resting pose says what it looks like — a mirror, a turn of its own — and a
+      // carry must not take that off. Read back as a point, a turn and a size, it composes onto the
+      // rest exactly as a flight does, and a piece with nothing special about it is unchanged.
+      const base = cy.bases.get(it.id);
+      displayed.set(
+        it.id,
+        base
+          ? seatAt(base, apply(styled, { x: 0, y: 0 }), turnOf(styled), Math.hypot(styled.a, styled.b))
+          : styled,
+      );
     });
   };
 
@@ -766,6 +777,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
           return { x: own.x - lead.x, y: own.y - lead.y };
         }),
         gatheredMs: warped,
+        // What each piece IS, as against where the carry puts it — see `Carry.bases`.
+        bases: new Map(items.map((it) => [it.id, transformsOf(host.root).get(it.id) ?? IDENTITY])),
         walls: opts.walls,
         wallSpeed: t.wallSpeed,
         wallBounce: t.wallBounce,

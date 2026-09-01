@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -403,5 +403,14 @@ describe("the stacking desk", () => {
     const chips = desk.children.filter((n) => kindOf(n) === "chip").slice(0, 2);
     expect(stackSeats(chips)[0]!.y).toBeGreaterThan(seats[0]!.y);
     expect(stackSeats([])).toEqual([]);
+    // A HEAP'S THICKNESS IS THE PILE'S, not the sum of its cards'. Three cards keep the full step;
+    // thirty would be nearly a whole card of spread at that rate, and the deck would come up a fan.
+    const deck = stackMap().children.filter((n) => kindOf(n) === "card");
+    const few = stackSeats(cards);
+    const many = stackSeats([...deck, ...deck, ...deck, ...deck, ...deck]);
+    expect(Math.abs(few[2]!.y - few[0]!.y), "a few keep their step").toBeCloseTo(2 * STACK_STEP.y * -1, 6);
+    const thick = Math.abs(many[many.length - 1]!.y - many[0]!.y);
+    expect(thick).toBeLessThanOrEqual(STACK_THICK + 1e-9);
+    expect(thick, "and it is still a pile, not a plane").toBeGreaterThan(STACK_THICK * 0.9);
   });
 });
