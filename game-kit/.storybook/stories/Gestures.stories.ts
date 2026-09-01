@@ -30,7 +30,7 @@ import {
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
-import { DIE_SPIN } from "./gestureMap.js";
+import { DIE_SPIN, DIE_SPIN_DRAG, warmPictures } from "./gestureMap.js";
 import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
@@ -311,7 +311,11 @@ function grabScene(
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
   let heaps = new Map<string, readonly Node[]>();
-  const built = scene(stacking ? stackMap() : gestureMap(), {
+  // Built FIRST, so every picture the desk registered is decoded before anything asks to draw one:
+  // the first ask is the worst moment, and for a rolling die it is the moment it needs ten of them.
+  const desk = stacking ? stackMap() : gestureMap();
+  warmPictures();
+  const built = scene(desk, {
     animate: true,
     camera: {
       limits: MAP_ZOOM,
@@ -485,6 +489,9 @@ function letFall(
       throwDie(m, s.host.root, piece, {
         ...body,
         spin: DIE_SPIN * (Math.sign(hand?.x ?? 0) || 1),
+        // Its own drag, steeper than the desk's: a faster roll must not also be a longer one, and
+        // the faces are counted off the TURN, so a brisker turn is also a brisker count.
+        spinFriction: DIE_SPIN_DRAG,
         outcome: { rng: Math.random },
         onRest: () => after?.(),
       });

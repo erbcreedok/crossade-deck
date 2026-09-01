@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { compose, extentOf, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { dropOf, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront } from "./gestureMap.js";
+import { DIE_SPIN, DIE_SPIN_DRAG, dropOf, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmPictures } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -213,6 +213,26 @@ describe("the stacking desk", () => {
     // A run of one has no stagger to have — which is every other page on the shelf, unchanged.
     expect(fallOrder([run[1]!])).toEqual([{ piece: run[1], delayMs: 0 }]);
     expect(fallOrder([])).toEqual([]);
+  });
+
+  it("map.a-roll-is-brisk-and-does-not-outstay-it — a faster turn must not also be a longer one", () => {
+    // The faces are counted off the die's OWN turn, so the spin buys both halves at once: a brisker
+    // roll shows more faces AND shows them faster. What it must not buy is duration — a die still
+    // turning three seconds after it was let go is a die nobody is waiting for. So the drag is its
+    // own too, and steeper than the desk's.
+    const seconds = DIE_SPIN / DIE_SPIN_DRAG;
+    expect(seconds).toBeLessThan(2);
+    expect(seconds).toBeGreaterThan(0.8); // and long enough to be a roll rather than a twitch
+    // How many faces that is: the turn it has in it, over the kit's degrees-per-face.
+    const faces = (DIE_SPIN * DIE_SPIN) / (2 * DIE_SPIN_DRAG) / 60;
+    expect(faces).toBeGreaterThan(12);
+    expect(faces / seconds, "faces a second — a blur, which is what a rolling die is").toBeGreaterThan(8);
+  });
+
+  it("map.warming-the-pictures-is-safe-without-a-decoder — a headless build must not reach for one", () => {
+    // It runs at scene build, and a scene is built in tests too. Reaching for `Image` where there is
+    // none would take the whole suite down for a warm-up nobody headless needs.
+    expect(() => warmPictures()).not.toThrow();
   });
 
   it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {

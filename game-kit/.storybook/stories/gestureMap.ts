@@ -19,6 +19,8 @@
 import {
   add,
   apply,
+  assetNames,
+  assetRecord,
   Bounded,
   caps,
   circle,
@@ -198,7 +200,12 @@ export type LetGo = "settle" | "fall" | "roll";
  * there would be a counter. Off the tuning's own `spinFriction` this is about two thirds of a second
  * of turning, which is long enough to read as a roll and short enough not to be a wait.
  */
-export const DIE_SPIN = 700;
+export const DIE_SPIN = 1400;
+/**
+ * How fast that turn bleeds away, degrees/s² — steeper than the desk's own, so a faster roll is not
+ * also a longer one. A die that kept turning for three seconds is a die nobody is waiting for.
+ */
+export const DIE_SPIN_DRAG = 900;
 
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
@@ -232,7 +239,7 @@ export function dropOf(
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
   // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", gravity: 22, bounce: 0.45, wallBounce: 0.7 };
+  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", gravity: 22, bounce: 0.55, wallBounce: 0.7 };
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two
@@ -558,4 +565,28 @@ export const STACK_FALL_STEP = 55;
  */
 export function fallOrder(pieces: readonly Node[]): { readonly piece: Node; readonly delayMs: number }[] {
   return pieces.filter((n) => !isGrip(n)).map((piece, i) => ({ piece, delayMs: i * STACK_FALL_STEP }));
+}
+
+
+/**
+ * WARM EVERY PICTURE THE DESK MIGHT SHOW, before it has to show one.
+ *
+ * A texture is decoded and uploaded the first time something asks to draw it, and the first ask is
+ * the worst possible moment: a die going over its faces changes picture ten times a second, and the
+ * ones it has never shown arrive late — the roll stutters and blinks its way through the first
+ * turn. Every face after that is instant, which is what makes it look like a one-off glitch rather
+ * than the cost it is.
+ *
+ * Asked of the ASSET registry rather than of the dice, so nothing here has to know what a face is:
+ * whatever the desk has registered by the time it is built is what gets warmed.
+ */
+export function warmPictures(): void {
+  if (typeof Image === "undefined") return; // headless: there is no decoder to warm
+  for (const name of assetNames()) {
+    const src = assetRecord(name)?.src;
+    if (!src) continue;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
+  }
 }
