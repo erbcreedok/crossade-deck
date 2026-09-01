@@ -274,6 +274,26 @@ describe("the stacking desk", () => {
     expect(heapsOf(desk), "warming nodes never form a heap").toEqual([]);
   });
 
+  it("map.a-piece-in-flight-is-in-no-heap — it left the heap when it left the desk", () => {
+    // Thrown out of a stack, a card is in the AIR. The tree still seats it where the hand let go —
+    // touching what it was heaped with — so a handle built from the tree alone would count it, and
+    // taking the stack again would pull the card back out of its own flight.
+    const desk = stackMap();
+    for (const i of [2, 3, 4, 5]) at(desk, `chip ${i}`, 6 + i, 6);
+    at(desk, "chip 0", 0, 0);
+    at(desk, "chip 1", 0.4, 0);
+    expect(heapsOf(desk)[0]).toHaveLength(2);
+    // With one of them aloft there is no heap left at all — one piece is not a heap.
+    expect(heapsOf(desk, (id) => id === "chip 1")).toEqual([]);
+    expect(regrip(desk, undefined, (id) => id === "chip 1").size, "and so no handle").toBe(0);
+    // A third on the desk and the two that are still lying make a heap without the flier.
+    at(desk, "chip 2", 0.8, 0);
+    const left = heapsOf(desk, (id) => id === "chip 1");
+    expect(left).toHaveLength(0); // chip 0 and chip 2 do not reach each other without chip 1
+    at(desk, "chip 2", 0.35, 0);
+    expect(heapsOf(desk, (id) => id === "chip 1")[0]).toHaveLength(2);
+  });
+
   it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {
     // A handle is a PICTURE of a heap, not a thing on the desk. Named by its place in the list, two
     // handles swap names the moment a heap between them goes: the clock sees one id whose rest pose

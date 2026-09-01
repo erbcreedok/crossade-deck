@@ -443,9 +443,12 @@ export function sameKind(a: Node, b: Node): boolean {
  * and lives here. Groups of one are dropped: a lone card is not a heap, and a handle under it would
  * be a control that does nothing.
  */
-export function heapsOf(root: Node): Node[][] {
+export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false): Node[][] {
   const poses = transformsOf(root);
-  const pieces = root.children.filter((n) => sameKind(n, n));
+  // A HEAP IS WHAT IS LYING ON THE DESK. A piece the clock is taking somewhere is not lying
+  // anywhere: it left the heap at the moment it was taken out of it, and a handle that still
+  // counted it would pull a card back out of the air it was thrown into.
+  const pieces = root.children.filter((n) => sameKind(n, n) && !aloft(n.id));
   const outline = new Map<string, ReturnType<typeof placedOutline>>();
   for (const n of pieces) {
     const shape = fieldsOf<BoundedFields>(n, "Bounded")?.bounds;
@@ -532,10 +535,14 @@ function gripFor(root: Node, group: readonly Node[], nth: number, spec: GripSpec
  * tabs go first: a handle is a picture of a heap, and a picture nobody redrew is a handle hanging
  * under a heap that has walked away from it.
  */
-export function regrip(root: Node, spec: GripSpec = GRIP_SPEC): Map<string, readonly Node[]> {
+export function regrip(
+  root: Node,
+  spec: GripSpec = GRIP_SPEC,
+  aloft: (id: string) => boolean = () => false,
+): Map<string, readonly Node[]> {
   const held = new Map<string, readonly Node[]>();
   for (const old of root.children.filter(isGrip)) remove(root, old);
-  heapsOf(root).forEach((group, i) => {
+  heapsOf(root, aloft).forEach((group, i) => {
     const tab = gripFor(root, group, i, spec);
     add(root, tab);
     held.set(tab.id, group);

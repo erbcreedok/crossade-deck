@@ -331,7 +331,10 @@ function grabScene(
   /** Redraw the handles for whatever is touching now, and show them. */
   const settle = (): void => {
     if (!stacking) return;
-    heaps = regrip(built.host.root, grip);
+    // WHAT THE CLOCK IS CARRYING IS NOT IN A HEAP. A thrown card is in the air, not lying on the
+    // felt, and a handle that still counted it would pull it back out of its own flight the moment
+    // somebody took the stack again — the piece has to leave the heap when it leaves the desk.
+    heaps = regrip(built.host.root, grip, (id) => built.motions?.busy(id) ?? false);
     built.host.setRoot(built.host.root);
   };
   settle();
@@ -462,7 +465,9 @@ function letFall(
   // LANDING, which is right for a piece that falls and nothing at all for a piece that only settles:
   // a heap of cards files no flight, so nothing ever lands, so nothing is ever announced — and a
   // scene that redraws anything from the tree (the handles) never hears that the tree moved.
-  if (dropped.length === 0) after?.();
+  // ANNOUNCED EITHER WAY, and at once: what flew has just left its heap, and what only settles has
+  // already arrived. The landings announce again, for the seats they write.
+  after?.();
   for (const { id, feel, walls, delayMs } of dropped) {
     // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
     // chip stops being pushed the moment it is let go, a card goes where it was sent.
