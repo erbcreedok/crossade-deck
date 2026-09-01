@@ -217,10 +217,39 @@ export const DIE_SPIN_DRAG = 900;
  */
 export const DIE_HOP = 3;
 
+/**
+ * ABOVE THIS SPEED A RELEASE IS A THROW, units/s — whatever the piece's ordinary way of leaving is.
+ *
+ * `settle` is a putting-down, and a putting-down is a thing a slow hand does. Read as "this piece
+ * can never be thrown" it would mean a card flicked across the desk simply appearing where the
+ * finger stopped, which is not a card and not a throw. So the way a piece leaves is its DEFAULT,
+ * and a hand moving faster than this overrules it.
+ */
+export const THROWN_AT = 1.5;
+
+/**
+ * Does this piece FLY when the hand lets go at `speed`? Its own way of leaving, unless the hand was
+ * moving fast enough to overrule it.
+ */
+export function thrown(piece: Node, speed: number, ways: Parameters<typeof dropOf>[1] = {}): boolean {
+  return dropOf(piece, ways).fall !== "settle" || speed >= THROWN_AT;
+}
+
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
   /** Eased to its seat, or dropped from the hand's height under its own weight. */
   readonly fall: LetGo;
+  /**
+   * How much of the HAND's speed this piece takes when it is thrown, 0..1.
+   *
+   * Not everything leaves a hand at the speed the hand had. A chip is small and heavy for its size
+   * and stops being pushed the moment it is let go; a card has a whole face on the felt and goes
+   * where it was sent. One gain for all of them made the lightest thing on the desk the fastest,
+   * which is the opposite of what a hand feels.
+   */
+  readonly throwGain: number;
+  /** How fast the desk eats its speed, units/s². Absent, the tuning's own. */
+  readonly friction?: number;
   /** Units/s² — how heavy it is. A big number is a short, hard fall. */
   readonly gravity: number;
   /** 0..1 of the landing speed handed back. `0` lands and stays. */
@@ -249,13 +278,17 @@ export function dropOf(
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
   // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", gravity: 22, bounce: 0.7, wallBounce: 0.7 };
+  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", throwGain: 1, gravity: 22, bounce: 0.7, wallBounce: 0.7 };
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two
   // thirds of it is a fall you can see is gentler without waiting for it. Paper does not bounce.
   // Off a wall it does come back, though — it is dead on the cloth, not dead altogether.
-  if (caps(piece).has("Flippable")) return { fall: ways.card ?? "settle", gravity: 8, bounce: 0, wallBounce: 0.45 };
+  // ...and THROWN it planes: a whole face on the felt, so it goes where it was sent and slides a
+  // long way doing it. Nothing about `settle` says a card cannot be thrown — see `thrown`.
+  if (caps(piece).has("Flippable")) {
+    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 8, bounce: 0, wallBounce: 0.45 };
+  }
   // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
   // then it is simply there.
   //
@@ -263,8 +296,12 @@ export function dropOf(
   // "not at all" written down, and it is written down rather than left at zero so that the ORDER of
   // the three still says something — a die is lively, a card is fair, and a carved piece is the end
   // of the scale rather than a piece the scale forgot. Nobody will see it, which is the point.
-  if (kindOf(piece) === "chip") return { fall: ways.chip ?? "fall", gravity: 20, bounce: 0.35, wallBounce: 0.5 };
-  return { fall: "fall", gravity: 26, bounce: 0.001, wallBounce: 0.001 };
+  // A chip is small and heavy for its size: it stops being pushed the moment it is let go, so it
+  // takes barely half of what the hand had and the felt eats that quickly.
+  if (kindOf(piece) === "chip") {
+    return { fall: ways.chip ?? "fall", throwGain: 0.45, friction: 9, gravity: 20, bounce: 0.35, wallBounce: 0.5 };
+  }
+  return { fall: "fall", throwGain: 0.7, gravity: 26, bounce: 0.001, wallBounce: 0.001 };
 }
 
 /**

@@ -30,7 +30,7 @@ import {
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
-import { DIE_HOP, DIE_SPIN, DIE_SPIN_DRAG } from "./gestureMap.js";
+import { DIE_HOP, DIE_SPIN, DIE_SPIN_DRAG, thrown } from "./gestureMap.js";
 import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
@@ -442,7 +442,11 @@ function letFall(
   // the hand has let go, so the reconcile above is easing it there with the pop unwinding on the
   // way — which is the whole of the ordinary putting-down, and the reason it never flickers: there
   // is nothing to schedule and nothing to re-order first.
-  const falling = put.filter((n) => dropOf(n, ways).fall !== "settle");
+  // A PUTTING-DOWN IS A THING A SLOW HAND DOES. Above the throwing speed even a piece that would
+  // have been set down flies instead — a card flicked across the desk is not a card appearing where
+  // the finger stopped.
+  const speed = hand ? Math.hypot(hand.x, hand.y) : 0;
+  const falling = put.filter((n) => thrown(n, speed, ways));
   // WHO LEAVES WHEN: the handle never, the rest a step apart, so a heap POURS out of the hand
   // instead of coming down as a slab. A run of one has no stagger to have.
   const dropped = fallOrder(falling).map(({ piece, delayMs }) => ({
@@ -459,10 +463,13 @@ function letFall(
   // a heap of cards files no flight, so nothing ever lands, so nothing is ever announced — and a
   // scene that redraws anything from the tree (the handles) never hears that the tree moved.
   if (dropped.length === 0) after?.();
-  const flight = hand ? polar(hand) : { speed: 0, angle: 0 };
   for (const { id, feel, walls, delayMs } of dropped) {
+    // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
+    // chip stops being pushed the moment it is let go, a card goes where it was sent.
+    const flight = hand ? polar({ x: hand.x * feel.throwGain, y: hand.y * feel.throwGain }) : { speed: 0, angle: 0 };
     const body = {
       ...flight,
+      ...(feel.friction === undefined ? {} : { friction: feel.friction }),
       ...(delayMs > 0 ? { delayMs } : {}),
       up: (lift - 1) / RISE,
       gravity: feel.gravity,

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { compose, extentOf, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DIE_SPIN, DIE_SPIN_DRAG, dropOf, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DIE_SPIN, DIE_SPIN_DRAG, dropOf, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -74,6 +74,33 @@ describe("the gesture map", () => {
     const cards = desk.children.filter((n) => kindOf(n) === "card");
     expect(fallOrder(cards.filter((n) => dropOf(n).fall === "fall"))).toEqual([]);
     expect(fallOrder(cards.filter((n) => dropOf(n, { card: "fall" }).fall === "fall"))).toHaveLength(cards.length);
+  });
+
+  it("map.a-slow-hand-puts-down-and-a-fast-one-throws — `settle` is a speed, not a prohibition", () => {
+    // Read as "this piece can never be thrown" it would mean a card flicked across the desk simply
+    // appearing where the finger stopped, which is not a card and not a throw. So the way a piece
+    // leaves is its DEFAULT, and a hand moving fast enough overrules it.
+    const desk = stackMap();
+    const card = desk.children.find((n) => kindOf(n) === "card")!;
+    const chip = desk.children.find((n) => kindOf(n) === "chip")!;
+    expect(thrown(card, 0), "set down at a standstill").toBe(false);
+    expect(thrown(card, THROWN_AT), "and thrown when the hand meant it").toBe(true);
+    // A piece that always falls does not need the hand's help to fly.
+    expect(thrown(chip, 0)).toBe(true);
+  });
+
+  it("map.not-everything-leaves-a-hand-at-the-hand-s-speed — the share is the piece's own", () => {
+    // One gain for all of them made the lightest thing on the desk the fastest, which is the
+    // opposite of what a hand feels: a chip is small and heavy for its size and stops being pushed
+    // the moment it is let go; a card has a whole face on the felt and goes where it was sent.
+    const desk = stackMap();
+    const card = dropOf(desk.children.find((n) => kindOf(n) === "card")!);
+    const chip = dropOf(desk.children.find((n) => kindOf(n) === "chip")!);
+    const die = dropOf(desk.children.find((n) => kindOf(n) === "die")!);
+    expect(chip.throwGain).toBeLessThan(card.throwGain);
+    expect(chip.throwGain).toBeLessThan(die.throwGain);
+    // ...and the felt eats a chip's speed faster than a card's, so it also stops sooner.
+    expect(chip.friction!).toBeGreaterThan(card.friction!);
   });
 
   it("map.drop-feel-is-read-off-what-the-piece-is — never off its name", () => {
