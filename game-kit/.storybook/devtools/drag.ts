@@ -130,6 +130,18 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * is judged and echoed; the other is retransmitted and forgotten.
    */
   readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean }) => void) | undefined;
+  /**
+   * THE GESTURE IS OVER AND THE TREE NOW SAYS WHERE EVERYTHING IS — the last thing that happens.
+   *
+   * It exists because `onCarry`'s `done` does NOT mean that: a carry is a picture of a hand, and the
+   * hand is finished before the drop has been decided, let alone written. A scene that redrew
+   * anything from the tree at `done` would be reading the seats the pieces had BEFORE they were put
+   * down — which is a handle under the heap that used to be there.
+   *
+   * Called once per gesture, whichever way the drop went: taken by a zone, written where the finger
+   * let go, or refused and left to fly home.
+   */
+  readonly onSettled?: ((root: Node) => void) | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -317,7 +329,12 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
     const root = s.host.root;
     w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true });
-    if (landed(items, seat, root)) return;
+    if (landed(items, seat, root)) {
+      // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
+      // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
+      w.opts.onSettled?.(s.host.root);
+      return;
+    }
     for (const it of items) {
       const n = byId(root, it.id);
       if (n && onRejectOf(n) === "stay") {
@@ -326,6 +343,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       s.motions?.release(it.id);
     }
     s.host.setRoot(root); // ONE notify: the reconcile that eases every released piece to its rest
+    w.opts.onSettled?.(root);
   };
 
   /**

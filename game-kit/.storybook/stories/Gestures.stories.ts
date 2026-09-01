@@ -345,9 +345,10 @@ function grabScene(
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) =>
             isGrip(hit) ? [{ x: 0, y: 0 }, ...stackSeats(run.slice(1), grip.w)] : undefined,
           feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
-          onCarry: ({ done }: { readonly done: boolean }) => {
-            if (done) settle();
-          },
+          // AFTER the tree has been written, never at the carry's `done`: at `done` the drop has
+          // not been decided yet, so the handles would be redrawn from the seats the pieces had
+          // before they were put down — a tab under the heap that used to be there.
+          onSettled: settle,
         }
       : {}),
     // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see
