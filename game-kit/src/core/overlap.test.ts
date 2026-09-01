@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { outlineOf } from "./atoms/bounded.js";
 import { circle, rect } from "../presets/shapes.js";
 import { move, rotate, compose } from "./transform.js";
-import { islands, outlinesTouch, placedOutline } from "./overlap.js";
+import { islands, outlinesTouch, overlapFraction, placedOutline } from "./overlap.js";
 
 const boxAt = (w: number, h: number, x: number, y: number, deg = 0) =>
   placedOutline(outlineOf(rect(w, h)), deg ? compose(move(x, y), rotate(deg)) : move(x, y));
@@ -69,5 +69,47 @@ describe("islands", () => {
     expect(islands(ids, () => false)).toEqual([["a"], ["b"], ["c"]]);
     expect(islands(ids, (x, y) => (x === "a" && y === "c") || (x === "c" && y === "a"))).toEqual([["a", "c"], ["b"]]);
     expect(islands([], () => true)).toEqual([]);
+  });
+});
+
+describe("how much of one lies under the other", () => {
+  const box = (x: number, y: number, w = 1, h = 1): { x: number; y: number }[] => [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + h },
+    { x, y: y + h },
+  ];
+
+  it("overlap.a-share-is-of-its-own-area — so the answer is not the same both ways round", () => {
+    // The difference between touching and belonging together. A CORNER over a pile is the accident
+    // the measure exists for: it touches, and a tenth of it is nowhere near the other thing.
+    const whole = box(0, 0, 1, 1);
+    // A quarter of the small box lies inside the big one; the big one barely notices.
+    const corner = box(0.75, 0.75, 0.5, 0.5);
+    expect(overlapFraction(corner, whole)).toBeCloseTo(0.25, 1);
+    expect(overlapFraction(whole, corner)).toBeCloseTo(0.0625, 1);
+    // Which is the whole reason it is asked both ways round: a chip mostly under a card is most of
+    // the chip and a sliver of the card, and one number alone cannot say that they are one pile.
+    expect(overlapFraction(corner, whole)).toBeGreaterThan(overlapFraction(whole, corner));
+  });
+
+  it("overlap.apart-is-nothing-and-inside-is-everything — the two ends of the scale", () => {
+    expect(overlapFraction(box(0, 0), box(4, 4))).toBe(0);
+    expect(overlapFraction(box(0, 0), box(0, 0))).toBeCloseTo(1, 5);
+    // A piece wholly inside a bigger one is ALL of itself, however little of the other it covers.
+    expect(overlapFraction(box(0.3, 0.3, 0.2, 0.2), box(0, 0, 2, 2))).toBeCloseTo(1, 5);
+    // A DIAMOND IS MEASURED BY ITS OWN AREA and not by the box it happens to fit in: half of that
+    // box is outside the shape entirely, and counting it would report a piece wholly inside another
+    // as half in. Every round piece on a desk is this case — a chip's outline is not its bounds.
+    const diamond = [
+      { x: 1, y: 0.5 },
+      { x: 1.5, y: 1 },
+      { x: 1, y: 1.5 },
+      { x: 0.5, y: 1 },
+    ];
+    expect(overlapFraction(diamond, box(0, 0, 3, 3))).toBeCloseTo(1, 5);
+    // A shape with no outline is not everywhere and not nowhere-in-particular: it is nothing.
+    expect(overlapFraction([], box(0, 0))).toBe(0);
+    expect(overlapFraction(box(0, 0), [])).toBe(0);
   });
 });

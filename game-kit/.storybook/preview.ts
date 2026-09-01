@@ -148,7 +148,7 @@ const preview: Preview = {
           "Basics",
           ["Node", "Root"],
           "Atoms",
-          ["Bounded", "Surfaced", "Coated", "Transformable", "Container", "Poser", "Flippable", "Tiltable", "Draggable", "Grippable", "Private", "ShadowCaster", "Lit", "Inviting", "Valued", "Owned", "Labeled", "Placeable", "Focusable", "Actionable", "Oriented", "Rollable", "Rotatable", "Pressable"],
+          ["Bounded", "Surfaced", "Coated", "Transformable", "Container", "Poser", "Flippable", "Tiltable", "Draggable", "Grippable", "Private", "ShadowCaster", "Lit", "Inviting", "Valued", "Owned", "Labeled", "Placeable", "Focusable", "Actionable", "Oriented", "Rollable", "Rotatable", "Pressable", "Heaping"],
           // Presets stand on the atoms and are the first pages where a scene is allowed to be
           // several nodes at once: an assembly is what a preset IS. Split by what each preset
           // GENERATES, not by which file of the kit it happens to live in.
@@ -160,6 +160,11 @@ const preview: Preview = {
           ["Cards", "Dice"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion", "Gestures"],
+          // MECHANICS are the DESK's rules, not the kit's: which pieces belong together, what a heap
+          // will and will not take. They sit after the engine because they are written on top of it
+          // — every page here is catalog code using the same doors a game would.
+          "Mechanics",
+          ["Stack merging"],
           // THE SPACE BEFORE ITS CONTENTS. A desk lives without a camera; a camera does not live
           // without a desk — and everything below her is checkable with no renderer at all, which
           // is why she is the first rung where a page has to be looked at rather than only read.

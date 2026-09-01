@@ -29,6 +29,8 @@ import type engine from "./pages/engine/en.json";
 import type flippable from "./pages/flippable/en.json";
 import type actionable from "./pages/actionable/en.json";
 import type gestures from "./pages/gestures/en.json";
+import type merging from "./pages/merging/en.json";
+import type heaping from "./pages/heaping/en.json";
 import type focusable from "./pages/focusable/en.json";
 import type hudButton from "./pages/hudButton/en.json";
 import type hudScreens from "./pages/hudScreens/en.json";
@@ -102,6 +104,8 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   placeable: { en: () => import("./pages/placeable/en.json"), ru: () => import("./pages/placeable/ru.json") },
   actionable: { en: () => import("./pages/actionable/en.json"), ru: () => import("./pages/actionable/ru.json") },
   gestures: { en: () => import("./pages/gestures/en.json"), ru: () => import("./pages/gestures/ru.json") },
+  merging: { en: () => import("./pages/merging/en.json"), ru: () => import("./pages/merging/ru.json") },
+  heaping: { en: () => import("./pages/heaping/en.json"), ru: () => import("./pages/heaping/ru.json") },
   focusable: { en: () => import("./pages/focusable/en.json"), ru: () => import("./pages/focusable/ru.json") },
   hudButton: { en: () => import("./pages/hudButton/en.json"), ru: () => import("./pages/hudButton/ru.json") },
   hudScreens: { en: () => import("./pages/hudScreens/en.json"), ru: () => import("./pages/hudScreens/ru.json") },
@@ -185,6 +189,8 @@ export type PageKey = keyof (typeof node &
   typeof placeable &
   typeof actionable &
   typeof gestures &
+  typeof merging &
+  typeof heaping &
   typeof focusable &
   typeof hudButton &
   typeof hudScreens &

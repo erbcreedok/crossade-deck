@@ -1,0 +1,25 @@
+{
+  "docs.heaping.component": [
+    "HEAPING is the answer to \"may these two become one thing\", carried by the piece instead of",
+    "worked out about it. Two pieces heap when they name the same pile and never otherwise; what a",
+    "name MEANS is the game's business, and the kit never looks inside one.",
+    "",
+    "Left to a desk, that answer becomes a chain of tests about what each piece happens to be — has",
+    "it faces, has it a back, what is its value — which is a list somebody has to remember to extend",
+    "on the day a fourth kind of piece arrives. Said on the piece, it extends itself.",
+    "",
+    "A chip's denomination belongs IN the name: `chip:25` and `chip:100` are two piles the way a card",
+    "and a die are. A card's face does not, and that is deliberate — which faces may lie together is",
+    "a rule about the MOMENT a piece arrived, not about the piece, and a rule about a moment cannot",
+    "live on a node. `Mechanics/Stack merging` is where that half is answered."
+  ],
+  "docs.heaping.heap": [
+    "TWO PAIRS ON A BARE DESK. On the left, two chips of one denomination: they say the same name, so",
+    "they are one heap and a handle grows under them. On the right, two chips of different ones: they",
+    "do not, so there is no handle and each is only itself.",
+    "",
+    "Then give the right-hand chip the left pile's name from the panel. Nothing about the chip",
+    "changed — same picture, same size, same place, still overlapping its neighbour by the same third",
+    "— and a handle appears. What decided it was what it calls itself."
+  ]
+}

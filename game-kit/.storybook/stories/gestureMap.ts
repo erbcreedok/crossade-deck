@@ -95,7 +95,7 @@ const KNIGHT_PIECE = svg(
 );
 
 /** Register everything the map's nodes point at by name. Idempotent — a re-render calls it again. */
-function installMapArt(): void {
+export function installMapArt(): void {
   registerAsset(GRID, { src: GRID_TILE, w: 1, h: 1 });
   registerAsset(KNIGHT_SURFACE, { src: KNIGHT_PIECE, w: KNIGHT.w, h: KNIGHT.h });
   registerLayout("gesture.map.free", freeLayout);
@@ -452,18 +452,59 @@ export function sameKind(a: Node, b: Node): boolean {
 }
 
 /**
+ * WHAT MAY LIE IN ONE HEAP, and how a heap stands once it is lifted — a desk's answer, not the kit's.
+ *
+ * Every desk on this shelf so far has had the same one (same kind, touching, one step per piece) and
+ * so it was written into `heapsOf` directly. A desk with a stricter rule is not a special case of
+ * that one: `Mechanics/Stack merging` asks how MUCH two pieces overlap and which way up they are
+ * lying, and neither question can be phrased as a tweak to "do the outlines meet". So the questions
+ * became a seam, and the shelf's original answer became one implementation of it.
+ *
+ * Three questions, and they are three because they are asked at three different moments: `joins` per
+ * PAIR while the islands are being found, `admits` per ISLAND once one has been, and `seats` when a
+ * handle picks one up. A rule that had to answer all three at once could not say "these two touch
+ * enough, and yet this one is not in the heap" — which is the whole of rules 3 to 6 down there.
+ */
+export interface HeapRule {
+  /** May these two lie in one heap? Asked for every pair whose boxes are near enough to bother. */
+  readonly joins: (a: Node, b: Node) => boolean;
+  /**
+   * ...AND DO THEY MEET ENOUGH? Asked with the two outlines as they actually stand, after they are
+   * known to touch at all.
+   *
+   * Apart from `joins` because it is a different question about a different thing: `joins` is about
+   * what the two pieces ARE and has no geometry in it, this is about where they happen to be lying
+   * and has nothing else. A throw that leaves a card with one corner over a pile has answered the
+   * first question yes and the second no, and that is exactly the accident this exists for.
+   */
+  readonly meets: (a: readonly Vec[], b: readonly Vec[]) => boolean;
+  /** Which of an island's pieces the heap actually takes. Given in paint order, bottom first. */
+  readonly admits: (group: readonly Node[]) => readonly Node[];
+  /** Where each piece stands under the handle that lifted them, in the handle's own frame. */
+  readonly seats: (group: readonly Node[], gripW: number) => Vec[];
+}
+
+/** The shelf's original answer: a card with a card, a chip with a chip, touching, one step apart. */
+export const TOUCHING: HeapRule = {
+  joins: sameKind,
+  meets: () => true,
+  admits: (group) => group,
+  seats: stackSeats,
+};
+
+/**
  * THE HEAPS ON THE DESK RIGHT NOW — every set of pieces of one kind joined by a chain of touches.
  *
  * The kit answers "do these two outlines overlap"; WHICH pieces are allowed to is this desk's rule
  * and lives here. Groups of one are dropped: a lone card is not a heap, and a handle under it would
  * be a control that does nothing.
  */
-export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false): Node[][] {
+export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false, rule: HeapRule = TOUCHING): Node[][] {
   const poses = transformsOf(root);
   // A HEAP IS WHAT IS LYING ON THE DESK. A piece the clock is taking somewhere is not lying
   // anywhere: it left the heap at the moment it was taken out of it, and a handle that still
   // counted it would pull a card back out of the air it was thrown into.
-  const pieces = root.children.filter((n) => sameKind(n, n) && !aloft(n.id));
+  const pieces = root.children.filter((n) => rule.joins(n, n) && !aloft(n.id));
   const outline = new Map<string, ReturnType<typeof placedOutline>>();
   for (const n of pieces) {
     const shape = fieldsOf<BoundedFields>(n, "Bounded")?.bounds;
@@ -473,9 +514,14 @@ export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false
   const touch = (a: Node, b: Node): boolean => {
     const oa = outline.get(a.id);
     const ob = outline.get(b.id);
-    return !!oa && !!ob && sameKind(a, b) && outlinesTouch(oa, ob, TOUCH_SLACK);
+    return !!oa && !!ob && rule.joins(a, b) && outlinesTouch(oa, ob, TOUCH_SLACK) && rule.meets(oa, ob);
   };
-  return islands(pieces.filter((n) => outline.has(n.id)), touch).filter((group) => group.length > 1);
+  // ADMITTED AFTER THE ISLAND IS FOUND, never during. Which pieces a heap takes can depend on the
+  // whole island — on which of them is on top of it — and a union-find asks about pairs and knows
+  // nothing about tops. Cut afterwards, and what is left of one is a heap only if two are left.
+  return islands(pieces.filter((n) => outline.has(n.id)), touch)
+    .map((group) => [...rule.admits(group)])
+    .filter((group) => group.length > 1);
 }
 
 /** A handle says so on itself. Its id is a NAME and nothing reads it — membership is looked up. */
@@ -555,6 +601,7 @@ export function regrip(
   spec: GripSpec = GRIP_SPEC,
   aloft: (id: string) => boolean = () => false,
   keep?: string,
+  rule: HeapRule = TOUCHING,
 ): Map<string, readonly Node[]> {
   const held = new Map<string, readonly Node[]>();
   // A HANDLE A HAND IS HOLDING IS NOT REDRAWN. Every other tab is thrown away and made afresh — that
@@ -562,7 +609,7 @@ export function regrip(
   // the gesture until the gesture ends. Replaced mid-carry it is a new node the hand never took, and
   // what the hand is holding vanishes out from under it.
   for (const old of root.children.filter(isGrip)) if (old.id !== keep) remove(root, old);
-  heapsOf(root, aloft).forEach((group, i) => {
+  heapsOf(root, aloft, rule).forEach((group, i) => {
     const tab = gripFor(root, group, i, spec);
     add(root, tab);
     held.set(tab.id, group);
@@ -578,12 +625,12 @@ export function regrip(
  * it, which is a stack skewered on its own handle rather than one standing on it. The gap it stands
  * at is the gap it was DRAWN at (`GRIP_GAP`), so nothing moves relative to anything at the lift.
  */
-export function stackSeats(group: readonly Node[], gripW = GRIP.w): Vec[] {
+export function stackSeats(group: readonly Node[], gripW = GRIP.w, want: Vec = STACK_STEP, thick = STACK_THICK): Vec[] {
   const clear = gripW / GRIP_RATIO / 2 + GRIP_GAP;
   // The step a heap this big can afford — see `STACK_THICK`. One piece has no step to take.
   const spread = Math.max(1, group.length - 1);
-  const fit = Math.min(1, STACK_THICK / (Math.abs(STACK_STEP.y) * spread));
-  const step = { x: STACK_STEP.x * fit, y: STACK_STEP.y * fit };
+  const fit = Math.min(1, thick / (Math.abs(want.y) * spread));
+  const step = { x: want.x * fit, y: want.y * fit };
   // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
   // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
   return group.map((piece, i) => {

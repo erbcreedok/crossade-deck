@@ -259,7 +259,10 @@ export { attachPainter, renderFrame } from "./render/stage.js";
 export { safeArea, type Room } from "./render/safeArea.js";
 // DO TWO PIECES TOUCH, and what groups does that make — pure geometry over `Bounded` outlines. The
 // kit answers "do these overlap"; WHICH pieces are allowed to is the game's own rule.
-export { islands, outlinesTouch, placedOutline } from "./core/overlap.js";
+export { islands, outlinesTouch, overlapFraction, placedOutline } from "./core/overlap.js";
+// WHICH PILE A PIECE MAY JOIN, as a name it carries — so "may these two become one thing" is data
+// on the node and not a chain of tests about what each of them happens to be.
+export { Heaping, heapOf, heapsTogether, type HeapingFields } from "./core/atoms/heaping.js";
 // A CONTROL IS MEASURED IN PIXELS — a node that keeps its size on the glass whatever the view does.
 export { Screened, screened, screenScale, type ScreenedFields } from "./core/atoms/screened.js";
 // The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that

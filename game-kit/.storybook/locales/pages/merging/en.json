@@ -1,0 +1,41 @@
+{
+  "docs.merging.component": [
+    "MECHANICS — the rules a DESK plays by, as opposed to the gestures a hand makes on it.",
+    "",
+    "The gesture shelf answers \"what does the kit do when a finger does this\". This one answers",
+    "\"what does a desk do\", and they are two shelves because they are not the same author: a",
+    "gesture is the kit's, and a rule about which pieces belong together is the game's. Every page",
+    "here is written in the catalog, on top of the same kit, through the same doors a game would use."
+  ],
+  "docs.merging.scene": [
+    "STACK MERGING — the same finger and the same handles, and a heap that has an OPINION about what",
+    "goes into it.",
+    "",
+    "Every stacking page before this one answers \"are these one pile\" with \"do they touch\". That is",
+    "the honest floor of the mechanic and it is not enough to deal a hand on: cards thrown across a",
+    "desk land where they land, and one that stops with a corner over two different deals joins both",
+    "of them — pick either up and it comes along, out of a hand it was never in.",
+    "",
+    "So this desk asks three questions where the older ones asked one.",
+    "",
+    "WHAT IT IS. A card heaps with a card, a chip only with a chip of its OWN denomination, a die",
+    "only with a die. The piece carries the answer itself (`Heaping`) rather than having it worked",
+    "out about it, so a fourth kind added tomorrow states its own pile instead of waiting for",
+    "somebody to remember a list.",
+    "",
+    "HOW MUCH THEY MEET. An overlap, as a share of a piece's own area, against the number on the",
+    "panel. Turn it down to nothing and the old desk is back — which is the honest way to show what",
+    "the rule bought. It is measured the same way the tap ladder measures what shows, and it is",
+    "deliberately not the same number: a pile packed tightly enough to hide its lower cards would be",
+    "one that no card could ever be added to.",
+    "",
+    "AND WHICH WAY UP THEY ARE LYING — unless the one that disagrees is the one you just put there.",
+    "A face-down deck dropped onto face-up cards does not swallow them; a face-up card dropped onto",
+    "a face-down pile joins it. Same two facings and the same overlap: what tells them apart is",
+    "which arrived last, and the desk already knows that, because the last thing put down is the",
+    "thing drawn on top. A mismatch is forgiven exactly once, at the top of the pile.",
+    "",
+    "The desk opens with a closed deck, one card face up beside it, ten chips of each of three",
+    "denominations and two dice, and nothing touching anything."
+  ]
+}

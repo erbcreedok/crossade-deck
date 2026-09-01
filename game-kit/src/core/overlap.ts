@@ -103,3 +103,54 @@ export function islands<T>(items: readonly T[], touch: (a: T, b: T) => boolean):
   }
   return [...byRoot.values()];
 }
+
+
+/** A coarse grid over the smaller outline: enough to tell a corner's touch from a real overlap. */
+const GRAIN = 12;
+
+/**
+ * HOW MUCH OF `a` LIES INSIDE `b`, 0..1 — the difference between two things touching and two things
+ * that belong together.
+ *
+ * Touching is a yes-or-no about edges, and edges are what a careless throw produces: a card flung
+ * across a desk stops with a corner over two different piles and joins both. What a player means by
+ * "these are one pile" is not that they meet but that one is ON the other, and the honest measure of
+ * that is area.
+ *
+ * Sampled, like every other question of this shape here: the exact answer is a polygon clip, the
+ * question is "is there enough of it", and a grid answers that for a hundredth of the cost. Measured
+ * against `a`'s own area, so it is not symmetric — a chip mostly on a card is a lot of the chip and
+ * very little of the card, and which of those two you meant is the caller's business.
+ */
+export function overlapFraction(a: readonly Point[], b: readonly Point[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const xs = a.map((p) => p.x);
+  const ys = a.map((p) => p.y);
+  const x0 = Math.min(...xs);
+  const y0 = Math.min(...ys);
+  const w = Math.max(...xs) - x0;
+  const h = Math.max(...ys) - y0;
+  if (w <= 0 || h <= 0) return 0;
+  let inside = 0;
+  let shared = 0;
+  for (let i = 0; i < GRAIN; i++) {
+    for (let j = 0; j < GRAIN; j++) {
+      const p = { x: x0 + (w * (i + 0.5)) / GRAIN, y: y0 + (h * (j + 0.5)) / GRAIN };
+      if (!pointInside(p, a)) continue;
+      inside++;
+      if (pointInside(p, b)) shared++;
+    }
+  }
+  return inside === 0 ? 0 : shared / inside;
+}
+
+/** Winding-free containment: a ray to the right, counting crossings. */
+function pointInside(p: Point, poly: readonly Point[]): boolean {
+  let is = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i]!;
+    const b = poly[j]!;
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) is = !is;
+  }
+  return is;
+}
