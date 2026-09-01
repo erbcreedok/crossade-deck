@@ -370,6 +370,7 @@ function grabScene(
           // not been decided yet, so the handles would be redrawn from the seats the pieces had
           // before they were put down — a tab under the heap that used to be there.
           onSettled: (root: Node, ids: readonly string[]) => {
+            // Once per gesture and synchronously with its drop, so there is no staleness to guard.
             inHand = undefined;
             // WHAT WAS JUST PUT DOWN GOES ON TOP, and it does not move to get there: a card let go
             // of over a heap is lying ON the heap, not under it, and the only thing that says which
@@ -402,10 +403,16 @@ function grabScene(
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
             // A heap let go of by its handle was never lifted, so it has no height to fall from —
             // the run comes down from wherever the hand was actually holding it.
-            letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
-              inHand = undefined;
-              settle();
-            }, ways),
+            ((mine: string | undefined) =>
+              letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
+                // ONLY IF IT IS STILL MINE. This runs twice — once as the pieces leave, and again
+                // on every landing, which can be a second later. By then another gesture may have a
+                // different handle in hand, and a stale callback clearing that would leave the
+                // rebuild with nothing to protect: the tab under the live finger is destroyed and
+                // the hand is holding an id that no longer exists.
+                if (inHand === mine) inHand = undefined;
+                settle();
+              }, ways))(inHand),
         }
       : {}),
   }).el;
