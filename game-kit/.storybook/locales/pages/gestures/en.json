@@ -127,5 +127,19 @@
     "",
     "The tab is not among them. It is redrawn under wherever the pieces land — a control does not fall,",
     "it is simply somewhere else once there is somewhere else to be."
+  ],
+  "docs.gestures.stackThrow": [
+    "LET THE HEAP GO WHILE MOVING, and the whole of it goes on — on the speed the hand still had.",
+    "",
+    "Everything the page before does, plus the one thing this one adds: what was a fall becomes a fall",
+    "that travels. Every piece keeps its own weight and its own bounce off the border, so a heap of",
+    "chips comes back off a rail and a heap of cards does not.",
+    "",
+    "They arrive spread along the throw rather than in a pile, because they leave a step apart — which",
+    "is what a handful of things let go of at speed does. Pushed back together they are a heap again,",
+    "and the handle comes back with them.",
+    "",
+    "The tab is not thrown. It is a control, and a control does not fly any more than it falls: it is",
+    "redrawn under wherever the pieces come to rest."
   ]
 }

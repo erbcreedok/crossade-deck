@@ -771,3 +771,21 @@ export const StackDrop: StoryObj<StackArgs> = {
   argTypes: { ...STACK_KNOBS },
   parameters: { gkDocStory: "gestures.stackDrop" },
 };
+
+/**
+ * STACK THROW — let the heap go WHILE MOVING and the whole of it goes on, on the hand's own speed.
+ *
+ * Everything the last page does, plus the one thing this one adds: what was a fall becomes a fall
+ * that travels. Every piece keeps its own weight and its own bounce off the border, so a heap of
+ * chips comes back off a rail and a heap of cards does not, and they arrive spread along the throw
+ * rather than in a pile — which is what a handful of things let go of at speed does.
+ *
+ * The tab is not thrown. It is a control, and a control does not fly any more than it falls: it is
+ * redrawn under wherever the pieces come to rest.
+ */
+export const StackThrow: StoryObj<StackArgs> = {
+  render: STACK_RENDER,
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true },
+  argTypes: { ...STACK_KNOBS },
+  parameters: { gkDocStory: "gestures.stackThrow" },
+};
