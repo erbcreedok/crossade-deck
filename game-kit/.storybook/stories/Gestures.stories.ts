@@ -311,6 +311,8 @@ function grabScene(
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
   let heaps = new Map<string, readonly Node[]>();
+  /** The handle a finger has hold of right now, if any — see `regrip`'s `keep`. */
+  let inHand: string | undefined;
   const built = scene(stacking ? stackMap() : gestureMap(), {
     animate: true,
     camera: {
@@ -333,8 +335,15 @@ function grabScene(
     if (!stacking) return;
     // WHAT THE CLOCK IS CARRYING IS NOT IN A HEAP. A thrown card is in the air, not lying on the
     // felt, and a handle that still counted it would pull it back out of its own flight the moment
-    // somebody took the stack again — the piece has to leave the heap when it leaves the desk.
-    heaps = regrip(built.host.root, grip, (id) => built.motions?.busy(id) ?? false);
+    // somebody took the stack again — the piece has to leave the heap when it leaves the desk. What
+    // a HAND is carrying is not lying there either, for the same reason.
+    const carried = inHand ? heaps.get(inHand) : undefined;
+    const aloft = (id: string): boolean =>
+      (built.motions?.busy(id) ?? false) || (carried?.some((n) => n.id === id) ?? false);
+    heaps = regrip(built.host.root, grip, aloft, inHand);
+    // The held handle keeps its own run: it was taken with those pieces and it puts down those
+    // pieces, whatever the desk has rearranged itself into meanwhile.
+    if (inHand && carried) heaps.set(inHand, carried);
     built.host.setRoot(built.host.root);
   };
   settle();
@@ -345,7 +354,11 @@ function grabScene(
     // "pull a card out of the heap instead of the heap".
     ...(stacking
       ? {
-          runOf: (_root: Node, hit: Node) => (isGrip(hit) ? [hit, ...(heaps.get(hit.id) ?? [])] : [hit]),
+          runOf: (_root: Node, hit: Node) => {
+            // Remembered for as long as the gesture lasts, so nothing redraws the tab in the hand.
+            inHand = isGrip(hit) ? hit.id : undefined;
+            return isGrip(hit) ? [hit, ...(heaps.get(hit.id) ?? [])] : [hit];
+          },
           // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
           stillOf: (_root: Node, hit: Node, run: readonly Node[]) => (isGrip(hit) ? run.map((n) => isGrip(n)) : undefined),
           // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
@@ -357,6 +370,7 @@ function grabScene(
           // not been decided yet, so the handles would be redrawn from the seats the pieces had
           // before they were put down — a tab under the heap that used to be there.
           onSettled: (root: Node, ids: readonly string[]) => {
+            inHand = undefined;
             // WHAT WAS JUST PUT DOWN GOES ON TOP, and it does not move to get there: a card let go
             // of over a heap is lying ON the heap, not under it, and the only thing that says which
             // is the order they are drawn in. It is also the order they will stand in when the
@@ -388,7 +402,10 @@ function grabScene(
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
             // A heap let go of by its handle was never lifted, so it has no height to fall from —
             // the run comes down from wherever the hand was actually holding it.
-            letFall(built, items, held, letGo === "throw" ? v : undefined, settle, ways),
+            letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
+              inHand = undefined;
+              settle();
+            }, ways),
         }
       : {}),
   }).el;

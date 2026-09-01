@@ -539,9 +539,14 @@ export function regrip(
   root: Node,
   spec: GripSpec = GRIP_SPEC,
   aloft: (id: string) => boolean = () => false,
+  keep?: string,
 ): Map<string, readonly Node[]> {
   const held = new Map<string, readonly Node[]>();
-  for (const old of root.children.filter(isGrip)) remove(root, old);
+  // A HANDLE A HAND IS HOLDING IS NOT REDRAWN. Every other tab is thrown away and made afresh — that
+  // is what keeps them from sliding into each other's places — but the one under a finger belongs to
+  // the gesture until the gesture ends. Replaced mid-carry it is a new node the hand never took, and
+  // what the hand is holding vanishes out from under it.
+  for (const old of root.children.filter(isGrip)) if (old.id !== keep) remove(root, old);
   heapsOf(root, aloft).forEach((group, i) => {
     const tab = gripFor(root, group, i, spec);
     add(root, tab);

@@ -294,6 +294,29 @@ describe("the stacking desk", () => {
     expect(heapsOf(desk, (id) => id === "chip 1")[0]).toHaveLength(2);
   });
 
+  it("map.a-handle-in-a-hand-is-not-redrawn — what is being held may not be replaced under the hand", () => {
+    // Every other tab is thrown away and made afresh, which is what keeps them from sliding into
+    // each other's places. The one under a finger is the exception: replaced mid-carry it is a NEW
+    // node the hand never took, so what the hand is holding vanishes out from under it — and any
+    // landing anywhere on the desk is enough to trigger the rebuild.
+    const desk = stackMap();
+    for (const i of [4, 5]) at(desk, `chip ${i}`, 8 + i, 8);
+    at(desk, "chip 0", 0, 0);
+    at(desk, "chip 1", 0.4, 0);
+    at(desk, "chip 2", 3, 0);
+    at(desk, "chip 3", 3.4, 0);
+    const first = [...regrip(desk).keys()];
+    expect(first).toHaveLength(2);
+    const holding = first[0]!;
+    const again = regrip(desk, undefined, () => false, holding);
+    // The held one is the SAME node, still on the desk; its neighbour was made afresh as always.
+    expect(desk.children.filter(isGrip).map((n) => n.id)).toContain(holding);
+    expect([...again.keys()].filter((id) => id !== holding).every((id) => !first.includes(id))).toBe(true);
+    // And without the exception it goes, which is the bug: the hand is left holding a dead id.
+    regrip(desk);
+    expect(desk.children.filter(isGrip).map((n) => n.id)).not.toContain(holding);
+  });
+
   it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {
     // A handle is a PICTURE of a heap, not a thing on the desk. Named by its place in the list, two
     // handles swap names the moment a heap between them goes: the clock sees one id whose rest pose
