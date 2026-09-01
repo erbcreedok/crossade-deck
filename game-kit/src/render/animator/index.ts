@@ -363,8 +363,20 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return { stiffness: cy.follow.stiffness / slower, damping: cy.follow.damping / Math.sqrt(slower) };
   };
 
+  /** Where a piece is drawn against where the run's offsets put it — the raw gap, before the lead's. */
+  const gapOf = (it: CarryItem, anchor: Vec): Vec => {
+    const was = displayed.get(it.id);
+    if (!was) return { x: 0, y: 0 };
+    const o = apply(was, { x: 0, y: 0 });
+    return { x: o.x - (anchor.x + it.offset.x), y: o.y - (anchor.y + it.offset.y) };
+  };
+
   /** How much of the gathering is still to come, 1 at the grab and 0 once the run is in line. */
   const gathering = (cy: Carry): number => {
+    // NOTHING TO GATHER IS NOTHING TO WAIT FOR. An ordinary grab has no residues at all, and a
+    // carry that asked for a frame to ease a gap of zero would light the loop for a journey of
+    // nothing — which is the idle gate this file is built around.
+    if (cy.gaps.every((g) => g.x === 0 && g.y === 0)) return 0;
     const ms = tuning.settleMs;
     if (ms <= 0) return 0;
     const t = (warped - cy.gatheredMs) / ms;
@@ -738,14 +750,20 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // Seeded AT the anchor, so a run that trails does not start by catching up from nowhere:
         // the pieces are where they are on the first frame, and only what MOVES falls behind.
         tails: items.map(() => ({ x: springAt(anchor.x), y: springAt(anchor.y) })),
-        // WHERE THE HAND FOUND EACH PIECE, against where the run now says it belongs. Zero for an
-        // ordinary drag — the offsets there ARE where the pieces are — and not zero when the run is
-        // arranged as it is lifted, which is the difference between falling into line and snapping.
-        gaps: items.map((it) => {
-          const was = displayed.get(it.id);
-          if (!was) return { x: 0, y: 0 };
-          const o = apply(was, { x: 0, y: 0 });
-          return { x: o.x - (anchor.x + it.offset.x), y: o.y - (anchor.y + it.offset.y) };
+        // WHERE THE HAND FOUND EACH PIECE, against where the run now says it belongs — MINUS the
+        // lead's own, which is the whole of keeping this from fighting the law above it.
+        //
+        // A grab places the run under the finger AT ONCE: that is what a hand closing on a thing
+        // does, and a position lag there reads as sluggishness rather than as weight. So the piece
+        // the hand has hold of never eases anywhere — its gap is subtracted from every other, and
+        // what is left is the run's own SHAPE. Move the whole run and every gap is the same vector,
+        // the residues are nothing, and the placement is instant as it always was. ARRANGE it — a
+        // heap pulled into a stack by its handle — and the residues are what each piece still has to
+        // travel to fall into line, which is a settle and not a snap.
+        gaps: items.map((it, i) => {
+          const lead = gapOf(items[0]!, anchor);
+          const own = i === 0 ? lead : gapOf(it, anchor);
+          return { x: own.x - lead.x, y: own.y - lead.y };
         }),
         gatheredMs: warped,
         walls: opts.walls,

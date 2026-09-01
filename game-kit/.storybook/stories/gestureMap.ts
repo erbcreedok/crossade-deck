@@ -19,8 +19,8 @@
 import {
   add,
   apply,
-  assetNames,
-  assetRecord,
+  surfaceNames,
+  surfaceRecord,
   Bounded,
   caps,
   circle,
@@ -153,6 +153,7 @@ export function gestureMap(): Node {
       PUT_DOWN,
     ),
   );
+  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 
@@ -206,6 +207,15 @@ export const DIE_SPIN = 1400;
  * also a longer one. A die that kept turning for three seconds is a die nobody is waiting for.
  */
 export const DIE_SPIN_DRAG = 900;
+/**
+ * HOW HARD A ROLLED DIE COMES OFF THE DESK, units/s of rise.
+ *
+ * A die does not skate. Dropped from the hand's height alone it arrives at about five units a
+ * second and gives back a fraction of that — a hop of two pixels, which is a die that landed, not
+ * one that rolled. This is the kick a wrist gives it, and it buys the thing the whole gesture is
+ * about: it leaves the felt, comes down, turns its run a little, and does it again.
+ */
+export const DIE_HOP = 3;
 
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
@@ -239,7 +249,7 @@ export function dropOf(
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
   // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", gravity: 22, bounce: 0.55, wallBounce: 0.7 };
+  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", gravity: 22, bounce: 0.7, wallBounce: 0.7 };
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two
@@ -371,12 +381,13 @@ function chip(id: string, at: Vec): Node {
  * A die rolls, a card turns over, a chip states a denomination and a handle states that it is one.
  * A fifth piece added tomorrow is sorted by what it has, not by somebody remembering a list.
  */
-export type Piece = "die" | "card" | "chip" | "grip" | "";
+export type Piece = "die" | "card" | "chip" | "grip" | "warm" | "";
 
 export function kindOf(n: Node): Piece {
   if (caps(n).has("Rollable")) return "die";
   if (caps(n).has("Flippable")) return "card";
   const values = fieldsOf<ValuedFields>(n, "Valued")?.values;
+  if (values?.["warm"] !== undefined) return "warm";
   if (values?.["grip"] !== undefined) return "grip";
   if (values?.["chip"] !== undefined) return "chip";
   return "";
@@ -540,6 +551,7 @@ export function stackMap(): Node {
   const d6 = die("die", { kind: "d6", at: { x: 1.7, y: 0.75 }, face: 5 });
   compose(d6, PUT_DOWN);
   add(desk, d6);
+  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 
@@ -569,24 +581,40 @@ export function fallOrder(pieces: readonly Node[]): { readonly piece: Node; read
 
 
 /**
- * WARM EVERY PICTURE THE DESK MIGHT SHOW, before it has to show one.
+ * WARM EVERY PICTURE THE DESK MIGHT SHOW, by ASKING FOR IT — one tiny node per picture, parked off
+ * the map where no camera can reach.
  *
- * A texture is decoded and uploaded the first time something asks to draw it, and the first ask is
- * the worst possible moment: a die going over its faces changes picture ten times a second, and the
- * ones it has never shown arrive late — the roll stutters and blinks its way through the first
- * turn. Every face after that is instant, which is what makes it look like a one-off glitch rather
- * than the cost it is.
+ * The painter loads a texture the first time a PLAN asks to draw it, and until it lands the layer
+ * draws nothing at all (`textureFor`: a picture that has not arrived is skipped, so one slow emblem
+ * cannot blank a table). That is right, and it is also why a die stutters through its first roll:
+ * it changes picture ten times a second, and every face it has not shown yet is a frame of nothing.
  *
- * Asked of the ASSET registry rather than of the dice, so nothing here has to know what a face is:
- * whatever the desk has registered by the time it is built is what gets warmed.
+ * Decoding the image by hand does not help — the painter has its own cache, keyed by source, and it
+ * fills only from its own loads. What DOES fill it is a plan that mentions the picture, so that is
+ * what this is: the first frame asks for all of them at once, and every one is there by the time
+ * anybody wants it.
+ *
+ * Asked of the SURFACE registry rather than of the dice, so nothing here has to know what a face
+ * is: whatever has been registered with a picture in it by the time the desk is built gets warmed.
  */
-export function warmPictures(): void {
-  if (typeof Image === "undefined") return; // headless: there is no decoder to warm
-  for (const name of assetNames()) {
-    const src = assetRecord(name)?.src;
-    if (!src) continue;
-    const img = new Image();
-    img.decoding = "async";
-    img.src = src;
+export function warmingNodes(): Node[] {
+  const out: Node[] = [];
+  for (const name of surfaceNames()) {
+    const layers = surfaceRecord(name)?.layers ?? [];
+    if (!layers.some((l) => l.image)) continue;
+    out.push(
+      node(
+        `warm ${name}`,
+        Bounded({ bounds: rect(WARM, WARM) }),
+        Surfaced({ surface: name }),
+        // Off the map and off the camera's own content, so nothing can be looked at or touched.
+        Transformable({ at: { x: MAP.w, y: MAP.h + out.length * WARM * 2 } }),
+        Valued({ values: { warm: 1 } }),
+      ),
+    );
   }
+  return out;
 }
+
+/** How big a warming node is, in units — as small as a thing can be and still be asked for. */
+const WARM = 0.02;

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { compose, extentOf, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DIE_SPIN, DIE_SPIN_DRAG, dropOf, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmPictures } from "./gestureMap.js";
+import { DIE_SPIN, DIE_SPIN_DRAG, dropOf, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -129,9 +129,10 @@ describe("the gesture map", () => {
 
   it("map.carries-four-pieces-of-three-kinds — a carry that only ever holds a card teaches the card", () => {
     const desk = gestureMap();
-    expect(desk.children).toHaveLength(4);
-    expect(desk.children.map((n) => n.id)).toContain("knight");
-    expect(desk.children.map((n) => n.id)).toContain("die");
+    const pieces = desk.children.filter((n) => kindOf(n) !== "warm");
+    expect(pieces).toHaveLength(4);
+    expect(pieces.map((n) => n.id)).toContain("knight");
+    expect(pieces.map((n) => n.id)).toContain("die");
   });
 });
 
@@ -229,10 +230,21 @@ describe("the stacking desk", () => {
     expect(faces / seconds, "faces a second — a blur, which is what a rolling die is").toBeGreaterThan(8);
   });
 
-  it("map.warming-the-pictures-is-safe-without-a-decoder — a headless build must not reach for one", () => {
-    // It runs at scene build, and a scene is built in tests too. Reaching for `Image` where there is
-    // none would take the whole suite down for a warm-up nobody headless needs.
-    expect(() => warmPictures()).not.toThrow();
+  it("map.the-pictures-are-warmed-by-asking-for-them — off the map, and out of everything's way", () => {
+    // The painter loads a texture the first time a PLAN asks to draw it, and until it lands the
+    // layer draws nothing — which is why a die stutters through its first roll. So the first frame
+    // asks for all of them at once. Parked where no camera reaches and no rule counts them.
+    const warm = warmingNodes();
+    expect(warm.length, "every registered picture").toBeGreaterThan(6);
+    for (const n of warm) {
+      expect(kindOf(n), "not a piece, so no heap and no handle ever sees it").toBe("warm");
+      const at = fieldsOf<TransformableFields>(n, "Transformable")!.at!;
+      expect(Math.abs(at.x) > MAP.w / 2 || Math.abs(at.y) > MAP.h / 2, "off the map").toBe(true);
+    }
+    // And the desk that holds them still holds exactly the pieces it says it does.
+    const desk = stackMap();
+    expect(desk.children.filter((n) => kindOf(n) === "warm").length).toBe(warm.length);
+    expect(heapsOf(desk), "warming nodes never form a heap").toEqual([]);
   });
 
   it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {
