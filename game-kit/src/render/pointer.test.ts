@@ -125,4 +125,33 @@ describe("the pointer seam", () => {
     const root = node("solo", box(1, 1), Surfaced());
     expect(pick(host(100), root, { x: 10, y: 10 }, () => true)).toBeUndefined();
   });
+  it("pointer.a-sliver-hands-the-finger-upwards — a piece must show enough of itself to answer", () => {
+    // On a desk where things lie on top of each other, most of what is under the top of a pile is a
+    // sliver of edge a few pixels wide. A finger landing on one gets a piece nobody was aiming at —
+    // on a stack of thirty that is nearly every touch near the border. Below the threshold a piece
+    // does not answer at all and the touch goes to whatever covers it, and so on up the pile.
+    const h = host(100, 800, 600);
+    const desk = node("desk", Container({ layout: "free" }));
+    // Three cards a hundredth of a card apart: the lower two show a two-pixel edge and nothing else.
+    for (let i = 0; i < 3; i++) {
+      add(desk, node(`c${i}`, box(1, 1.4), Surfaced(), Transformable({ at: { x: i * 0.02, y: -i * 0.02 } })));
+    }
+    const any = (): boolean => true;
+    // The point is on the LOWEST card's own sliver, down its left edge — a corner would land in the
+    // stock surface's rounding and belong to nobody.
+    const g = apply(viewTransform(100, 800, 600), { x: -0.495, y: 0.4 });
+    // Plainly, the topmost thing under the point answers — which here is the sliver's own card.
+    expect(pick(h, desk, g, any)?.id).toBe("c0");
+    // Asked for a quarter of a card showing, the sliver hands the finger up the pile to the top.
+    expect(pick(h, desk, g, any, undefined, undefined, 0.25)?.id).toBe("c2");
+    // And a piece that is properly visible still answers for itself: the top card is nobody's sliver.
+    const own = apply(viewTransform(100, 800, 600), { x: 0.04, y: -0.04 });
+    expect(pick(h, desk, own, any, undefined, undefined, 0.25)?.id).toBe("c2");
+    // A lone piece shows all of itself, so a threshold changes nothing about it.
+    const solo = node("solo", Container({ layout: "free" }));
+    add(solo, node("one", box(1, 1.4), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    const mid = apply(viewTransform(100, 800, 600), { x: 0, y: 0 });
+    expect(pick(h, solo, mid, any, undefined, undefined, 0.9)?.id).toBe("one");
+  });
+
 });

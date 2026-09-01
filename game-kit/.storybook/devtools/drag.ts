@@ -157,6 +157,15 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * to the seat it never left.
    */
   readonly onTap?: ((piece: Node) => void) | undefined;
+  /**
+   * HOW MUCH OF ITSELF A PIECE MUST SHOW to take the finger — see `pick`. Absent, the plain answer:
+   * the topmost thing under the point, however little of it there is.
+   *
+   * A desk of things that lie on top of each other needs it. Most of what is under the top of a pile
+   * is a sliver of edge a few pixels wide, and a finger that lands on one gets a card nobody was
+   * aiming at; above this much showing it answers, below it the finger goes to whatever covers it.
+   */
+  readonly showsEnough?: number | undefined;
 };
 
 /** The run a card leads in a column: itself and every draggable sibling after it in tree order. */
@@ -273,7 +282,15 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // through to the card beneath — a fast hand would turn over two and then three. See
     // `Motions.reach`. Where a piece has genuinely MOVED — carried, thrown — it is still reached
     // where it is, which is the same map.
-    const hit = pick(s.host, root, g, (n) => draggable(n) && (w.opts.may?.(n) ?? true), w.opts.view?.(), s.motions?.reach());
+    const hit = pick(
+      s.host,
+      root,
+      g,
+      (n) => draggable(n) && (w.opts.may?.(n) ?? true),
+      w.opts.view?.(),
+      s.motions?.reach(),
+      w.opts.showsEnough,
+    );
     if (!hit) return;
     const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
     // WHERE THE PIECES ARE DRAWN, not where they rest: the hand closes on what it can see. A piece
@@ -312,7 +329,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, showsEnough: _shows, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {

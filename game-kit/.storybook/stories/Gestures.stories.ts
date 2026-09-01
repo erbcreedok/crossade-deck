@@ -315,6 +315,7 @@ function grabScene(
   ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
   desk: "map" | "stack" | "deck" = stacking ? "stack" : "map",
   flipping = false,
+  showsEnough = 0,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -357,6 +358,10 @@ function grabScene(
   settle();
   return wireDrag(built, {
     view: () => built.camera!.transform(),
+    // A PILE HIDES ALL BUT A SLIVER OF WHAT IS UNDER ITS TOP, and a finger that lands on a sliver
+    // gets a card nobody was aiming at. Below this much showing a piece does not answer at all: the
+    // touch goes to whatever is covering it, and so on up the pile.
+    ...(showsEnough > 0 ? { showsEnough } : {}),
     // A HANDLE LIFTS THE HEAP IT STANDS UNDER, and itself with it — left behind, the tab would hang
     // over felt the heap has walked away from. Anything else lifts alone, which is the whole of
     // "pull a card out of the heap instead of the heap".
@@ -852,9 +857,19 @@ export const StackThrow: StoryObj<StackArgs> = {
 interface FlipArgs extends StackArgs {
   /** Off, and a tap is just a gesture that went nowhere — the cards stay as they lie. */
   flipping: boolean;
+  /** How much of itself a card must SHOW to take the finger, as a fraction of its own footprint. */
+  showsEnough: number;
 }
 
 const FLIPPING = documented("arg.flipping", {}, "flip");
+const SHOWS = documented("arg.showsEnough", { control: { type: "number", min: 0, max: 1, step: 0.05 } }, "flip");
+
+/**
+ * A quarter of a card. Below it what is showing is an edge rather than a card — on this pile the
+ * step is a hundredth of a card, so everything buried shows a few percent and none of it answers,
+ * which is exactly the ladder: every touch on the deck lands on the deck's top.
+ */
+const SHOWS_DEFAULT = 0.25;
 
 /**
  * FLIP — thirty-six cards, six of them face up and the rest stacked face down, and a TAP turns over
@@ -872,7 +887,7 @@ const FLIPPING = documented("arg.flipping", {}, "flip");
  * and nothing turns — a gesture that stayed was never a tap.
  */
 export const Flip: StoryObj<FlipArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping, showsEnough }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -882,8 +897,9 @@ export const Flip: StoryObj<FlipArgs> = {
       { card: cardDrop, chip: chipDrop, die: dieDrop },
       "deck",
       flipping,
+      showsEnough,
     ),
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, flipping: true },
-  argTypes: { ...STACK_KNOBS, flipping: FLIPPING },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, flipping: true, showsEnough: SHOWS_DEFAULT },
+  argTypes: { ...STACK_KNOBS, flipping: FLIPPING, showsEnough: SHOWS },
   parameters: { gkDocStory: "gestures.flip" },
 };
