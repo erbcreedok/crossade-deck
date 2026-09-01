@@ -116,6 +116,15 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return s === undefined || !Number.isFinite(s) || s < 0 ? 1 : s;
   };
 
+  /**
+   * Is this flight OFF THE DESK — up in the air, whether or not its turn has come?
+   *
+   * A waiting flight is normally invisible to everything here, because a stagger must not freeze a
+   * piece that was only ever lying on the felt. One filed with a height is the other case entirely:
+   * it is a thing a hand let go of above the desk, and it has to hang there until it falls.
+   */
+  const airborne = (f: Flight): boolean => f.body.up > 0;
+
   /** Where a choreography is, 0..1, on the warped clock. */
   const progressOf = (ch: Choreo): number => {
     if (ch.durMs <= 0) return 1;
@@ -185,10 +194,15 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       });
     }
     // A flying body's pose is its own: where the physics put it, turned as it spins, at the rest's
-    // size. A flight still WAITING its turn is not here — until it goes, the node is whatever it
-    // was (at rest, or mid-settle), so a stagger never freezes a card in the air.
+    // size. A flight still WAITING its turn is mostly NOT here — until it goes, the node is whatever
+    // it was (at rest, or mid-settle), so a stagger never freezes a card that was merely lying there.
+    //
+    // WITH ONE EXCEPTION, and it is the whole of what a staggered DROP is: a body filed with a
+    // height was let go of IN THE AIR, and the air is where it waits. Left to its rest it is drawn
+    // already landed and then falls from nowhere the moment its turn comes — a card standing on the
+    // desk waiting to arrive on it.
     for (const [id, f] of flights) {
-      if (!f.started) continue;
+      if (!f.started && !airborne(f)) continue;
       const rest = displayed.get(id);
       if (rest) map.set(id, seatAt(rest, f.body.pos, f.body.angle + leanLeft(f), 1 + f.body.up * RISE));
     }
@@ -200,7 +214,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * plan as its paint-order lift: a moving card rides above whatever it crosses, however tall the
    * pile (`PlanInput.raised`). The finger set is `held`, which contains every carried node too.
    */
-  const flying = (): NodeId[] => [...flights].filter(([, f]) => f.started).map(([id]) => id);
+  const flying = (): NodeId[] => [...flights].filter(([, f]) => f.started || airborne(f)).map(([id]) => id);
   /**
    * The bodies the clock is TAKING SOMEWHERE, with their height — a slide on the felt, a fall over
    * the glass, a bounce up the screen. Their shadow rides with them; what stays behind at the seat
@@ -212,7 +226,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     // it IS somewhere, at every instant, and how high tells the onlooker how far it has to fall.
     // Its height is what parts the shadow from it; leaving the shadow at the seat instead said the
     // piece had never gone, which is the one thing a throw is about.
-    for (const [id, f] of flights) if (f.started) out.set(id, f.body.up);
+    for (const [id, f] of flights) if (f.started || airborne(f)) out.set(id, f.body.up);
     // A choreography that TRAVELS. Flat on the felt (height 0), so the shadow rides directly under
     // it at the resting fall — which is exactly what says the piece never left the desk.
     for (const ch of choreos.values()) if (ch.rides) for (const id of ch.ids) out.set(id, 0);

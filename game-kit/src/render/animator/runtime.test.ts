@@ -936,6 +936,36 @@ describe("flights: launch and slide", () => {
     expect(gaps[gaps.length - 1]!).toBeGreaterThan(gaps[0]!);
   });
 
+  it("motion.a-delayed-drop-waits-in-the-air — a stagger must not land a piece before it falls", () => {
+    // A cascade holds a body at rest until its turn, and that is right for a piece that was lying on
+    // the felt: freezing it would be a stagger inventing a pose nobody asked for. A piece let go of
+    // ABOVE the desk is the other case entirely — left at its rest it is drawn already landed and
+    // then falls from nowhere when its turn comes, which is a card standing on the desk waiting to
+    // arrive on it.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    const high = (): number => (b.tOf("c").a - 1) / RISE;
+    m.slide("c", { speed: 0, angle: 0, up: 1, gravity: 20, bounce: 0, delayMs: 300 });
+    let t = 0;
+    for (let i = 0; i < 8; i++) c.tick((t += 16));
+    // Its turn has not come and it has not moved — but it is UP THERE, not on the desk.
+    expect(high(), "waiting in the air, at the height it was let go of").toBeCloseTo(1, 3);
+    // ...and when its turn comes it falls from there, arriving on the desk like any other drop.
+    for (let i = 0; i < 60; i++) c.tick((t += 16));
+    expect(high()).toBeCloseTo(0, 3);
+    // A body filed ON the desk is not held at all: the stagger leaves it to whatever it was doing.
+    const b2 = bench();
+    const c2 = fakeClock();
+    const m2 = attachMotion(b2.host, b2.painter, { clock: c2.clock });
+    const rest2 = b2.xOf("c");
+    m2.slide("c", { speed: 4, angle: 0, delayMs: 300 });
+    let t2 = 0;
+    for (let i = 0; i < 8; i++) c2.tick((t2 += 16));
+    expect(b2.xOf("c"), "still at its seat, un-frozen and un-flown").toBeCloseTo(rest2, 6);
+    expect((b2.tOf("c").a - 1) / RISE, "and flat on the felt").toBeCloseTo(0, 6);
+  });
+
   it("motion.a-slide-can-start-in-the-air — a drop is a slide let go of at a height, and gravity is its own", () => {
     // The kit could throw a piece UP (`hop`) and could not let one FALL, which is the half a hand
     // needs: a carried piece is held at a height, and letting go of it is the commonest thing that
