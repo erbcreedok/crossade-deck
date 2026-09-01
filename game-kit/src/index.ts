@@ -522,6 +522,9 @@ export {
 export { type Painter } from "./render/painter.js";
 export {
   registerSurface,
+  // Test seam only, like `resetAssets`: the registry is process-wide, and a suite that has to ask a
+  // consumer "what do YOU register" cannot ask it through a registry another consumer filled in.
+  resetSurfaces,
   surfaceNames,
   surfaceRecord,
   type DashPattern,

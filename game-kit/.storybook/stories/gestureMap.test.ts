@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
-import { compose, extentOf, facing, fieldsOf, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
+import { compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
 import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
@@ -292,6 +292,23 @@ describe("the stacking desk", () => {
     expect(left).toHaveLength(0); // chip 0 and chip 2 do not reach each other without chip 1
     at(desk, "chip 2", 0.35, 0);
     expect(heapsOf(desk, (id) => id === "chip 1")[0]).toHaveLength(2);
+  });
+
+  it("map.every-desk-can-draw-a-handle — a picture nobody registered is silently nothing", () => {
+    // An unregistered surface is SKIPPED and never thrown (one bad reference must not take a scene
+    // down and hide every node that was fine). That is right, and it is also why this needs a guard:
+    // a handle whose picture was registered by some OTHER desk is drawn into nothing, and the page
+    // looks exactly as though stacking had been switched off.
+    for (const build of [deckMap, gestureMap, stackMap]) {
+      resetSurfaces();
+      const desk = build();
+      const tab = [...regrip(desk).values()][0];
+      const grip = desk.children.find(isGrip);
+      if (!grip) continue; // that desk starts with nothing touching, which is its own guard
+      const name = fieldsOf<{ surface: string }>(grip, "Surfaced")!.surface;
+      expect(surfaceRecord(name), `${build.name} draws its handle into nothing`).toBeTruthy();
+      expect(tab).toBeTruthy();
+    }
   });
 
   it("map.a-deck-is-a-heap-and-nothing-else — so a finger on it lands on its top card", () => {

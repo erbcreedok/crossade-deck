@@ -105,6 +105,16 @@ function installMapArt(): void {
     // The map's own edge, so the bound the camera stops at is a thing the eye can see it reach.
     stroke: { color: "panelBorder", width: 0.04 },
   });
+  // THE HANDLE IS THE MAP'S OWN FURNITURE, not the chips'. Every desk here can form a heap, so every
+  // desk can grow a tab — and a tab whose surface nobody registered is not an error anywhere: an
+  // unregistered name is SKIPPED (one bad reference must not take a scene down), so the control is
+  // simply drawn into nothing and the page looks as though stacking had been switched off.
+  registerAsset(GRIP_RIDGES, { src: GRIP_BARS, w: GRIP.w, h: GRIP.h });
+  registerSurface(GRIP_SURFACE, {
+    layers: [{ paint: "panelBg" }, { image: GRIP_RIDGES, fit: "contain" }],
+    radius: GRIP.h / 2,
+    stroke: { color: "panelBorder", width: 0.02 },
+  });
   // The piece is the picture and nothing else: no plate under it, so its silhouette is what the
   // eye follows across the map.
   registerSurface(KNIGHT_SURFACE, { layers: [{ image: KNIGHT_SURFACE, fit: "contain" }] });
@@ -388,17 +398,10 @@ export const STACK_STEP = { x: 0.012, y: -0.03 };
  */
 const TOUCH_SLACK = 0.04;
 
+/** The chip is the stacking desk's alone; the handle is every desk's, and lives with the map's art. */
 function installStackArt(): void {
   registerAsset(CHIP_SURFACE, { src: CHIP_PIECE, w: CHIP, h: CHIP });
-  registerAsset(GRIP_RIDGES, { src: GRIP_BARS, w: GRIP.w, h: GRIP.h });
   registerSurface(CHIP_SURFACE, { layers: [{ image: CHIP_SURFACE, fit: "contain" }] });
-  // A HANDLE, not a marker: the kit's own plate colours, so it belongs to the desk rather than
-  // shouting over it, and the ridges on top so it reads as something to pull at a glance.
-  registerSurface(GRIP_SURFACE, {
-    layers: [{ paint: "panelBg" }, { image: GRIP_RIDGES, fit: "contain" }],
-    radius: GRIP.h / 2,
-    stroke: { color: "panelBorder", width: 0.02 },
-  });
 }
 
 /** One chip. Round, so what it touches is decided by its own outline and not by a square around it. */
