@@ -41,6 +41,15 @@ export type MotionOptions = TuningPatch & {
 export interface CarryItem {
   readonly id: NodeId;
   readonly offset: Vec;
+  /**
+   * THIS ONE IS THE HAND'S OWN — no lift, no lean, whatever the rest of the run is doing.
+   *
+   * A run is usually all pieces, and every piece in it pops and banks together. A run led by a
+   * HANDLE is not: the tab is the thing being held, and a control that popped would be the thing
+   * you have hold of growing in your hand. What hangs off it still lifts, because it is still being
+   * picked up — which is the whole picture of a stack coming off the desk by its tab.
+   */
+  readonly still?: boolean | undefined;
 }
 
 /**

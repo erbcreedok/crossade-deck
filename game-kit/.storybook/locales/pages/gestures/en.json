@@ -103,5 +103,29 @@
     "Touching is transitive: three cards in a row whose ends do not meet are still one heap, because a",
     "player can see that they are. And a piece is still a piece — take one by ITSELF and it comes out of",
     "the heap alone. The handle is the only thing that lifts the whole."
+  ],
+  "docs.gestures.stackLift": [
+    "THE SAME DESK, AND A HEAP COMES UP AS IT IS TAKEN — exactly as one card does.",
+    "",
+    "It is worth a page because the pop is the one thing about a stack that looks like a mistake when",
+    "it is missing: a card lifts, a stack of the same cards does not, and the desk has quietly said",
+    "that a stack is a different kind of thing. It is not.",
+    "",
+    "What does NOT pop is the tab. A control that grew would be the thing you have hold of growing in",
+    "your hand — and that is said about the tab itself, not by flattening the whole gesture, which is",
+    "how the pieces kept their pop and the handle lost it.",
+    "",
+    "A hand closing on a heap also GATHERS it: the pieces ease into line over the settle's own road",
+    "rather than snapping into formation. A hand does not teleport what it picks up."
+  ],
+  "docs.gestures.stackDrop": [
+    "AND IT COMES DOWN AS ONE, from the height the hand was holding it at.",
+    "",
+    "Every piece of the heap falls at its own rate, because they are still the pieces they were: a",
+    "heap of cards comes down like cards and a heap of chips like chips. Nothing about being in a",
+    "stack changes what a thing is made of.",
+    "",
+    "The tab is not among them. It is redrawn under wherever the pieces land — a control does not fall,",
+    "it is simply somewhere else once there is somewhere else to be."
   ]
 }

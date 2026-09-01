@@ -244,6 +244,55 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true); // seeded at the anchor, no pop asked for and no speed — nothing to animate
   });
 
+  it("motion.a-run-arranged-at-the-lift-gathers-into-it — a hand does not teleport what it picks up", () => {
+    // An ordinary drag keeps the shape the run was lying in: the offsets ARE where the pieces are,
+    // and there is nothing to gather. A run ARRANGED as it is lifted — a heap pulled into a stack by
+    // its handle — is the other case: the pieces have to GET to their seats, and getting there is a
+    // settle like every other. Snapped, a heap becomes a stack between two frames.
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 3, y: 0 } })));
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, settleMs: 300, settleEase: "linear" });
+    const restD = b.xOf("d");
+    // `d` is three units away, and the run says it belongs ON the anchor.
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    let t = 0;
+    c.tick((t += 16));
+    // It has NOT jumped: one frame in, it is still all but where the hand found it.
+    expect(b.xOf("d")).toBeGreaterThan(restD - 0.3);
+    // ...and it closes the gap over the settle's own road, arriving in line and staying there.
+    const seen: number[] = [];
+    for (let i = 0; i < 22; i++) {
+      c.tick((t += 16));
+      seen.push(b.xOf("d"));
+    }
+    for (let i = 1; i < seen.length; i++) expect(seen[i]!).toBeLessThanOrEqual(seen[i - 1]! + 1e-9);
+    expect(b.xOf("d")).toBeCloseTo(b.xOf("c"), 3);
+    // An ORDINARY drag has no gap to close: the run is laid out exactly where it lies, at once.
+    const b2 = bench();
+    add(b2.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 3, y: 0 } })));
+    const c2 = fakeClock();
+    // No pop, so what is measured is the GAP and not the lift's scale about the anchor.
+    const m2 = attachMotion(b2.host, b2.painter, { clock: c2.clock, settleMs: 300, lift: 1 });
+    const before = b2.xOf("d");
+    m2.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 3, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    c2.tick(16);
+    expect(b2.xOf("d")).toBeCloseTo(before, 6);
+  });
+
+  it("motion.a-still-piece-takes-no-lift — the handle is the hand, and a hand does not grow", () => {
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1.4, liftStiffness: 2000, liftDamping: 90 });
+    m.grab([{ id: "c", offset: { x: 0, y: 0 }, still: true }, { id: "d", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    let t = 0;
+    for (let i = 0; i < 40; i++) c.tick((t += 16));
+    // What hangs off the hand is being picked up like anything else; the hand's own is not.
+    expect(b.tOf("d").a).toBeCloseTo(1.4, 2);
+    expect(b.tOf("c").a, "a control that grew would be the thing you have hold of growing").toBeCloseTo(1, 6);
+  });
+
   it("motion.a-trailing-run-stretches-behind-the-hand — the first piece never late, the rest closing up after", () => {
     // A run carried as one plank is right for a hand that has CLOSED on a column. A stack pulled by
     // a handle under it is being DRAGGED, and one that arrived rigid reads as a picture of a stack

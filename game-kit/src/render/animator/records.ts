@@ -46,6 +46,18 @@ export interface Carry {
   readonly trail: number;
   /** Each item's own chase, when the run trails. Index 0 is unused — it rides the anchor exactly. */
   tails: readonly { x: SpringState; y: SpringState }[];
+  /**
+   * HOW FAR EACH PIECE STILL IS FROM WHERE THE RUN SAYS IT BELONGS — the gap between where the hand
+   * found it and the seat its offset gives it, decaying to nothing on the settle's own road.
+   *
+   * Zero for every ordinary drag, where a run keeps the shape it was lying in and the offsets ARE
+   * where the pieces are. It is not zero when the run is ARRANGED as it is lifted — a heap pulled
+   * into a stack by its handle — and then this is the difference between the pieces falling into
+   * line and snapping into it. A hand closing on a heap gathers it; it does not teleport it.
+   */
+  gaps: readonly Vec[];
+  /** Warped ms the gathering began. */
+  gatheredMs: number;
 }
 
 /**

@@ -251,14 +251,16 @@ const NO_PHYSICS = { lift: 1, leanFactor: 0, leanMaxDeg: 0 } as const;
  * away from the tab as well: the stack must keep the distance from the handle it was drawn at.
  */
 const HANDLE_IS_THE_GRAB = {
-  lift: 1,
-  leanFactor: 0,
-  leanMaxDeg: 0,
   /**
    * ...AND WHAT HANGS OFF IT TRAILS. The tab is the hand, exactly and instantly; the stack is being
    * DRAGGED by it, and a stack that arrived rigid would read as a picture of a stack rather than as
    * one. Each card a little further behind the one before it, so the run stretches out like an
    * accordion while the hand moves and closes up the moment it stops.
+   *
+   * The pop and the bank are NOT switched off here any more. They belong to the pieces — a stack
+   * coming off the desk is picked up exactly as one card is, and a page whose stack alone stayed
+   * flat would be saying that a stack is a different kind of thing. What must not pop is the TAB,
+   * and that is said on the tab itself (`CarryItem.still`) rather than by flattening the gesture.
    */
   trail: 0.55,
 } as const;
@@ -336,6 +338,8 @@ function grabScene(
     ...(stacking
       ? {
           runOf: (_root: Node, hit: Node) => (isGrip(hit) ? [hit, ...(heaps.get(hit.id) ?? [])] : [hit]),
+          // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
+          stillOf: (_root: Node, hit: Node, run: readonly Node[]) => (isGrip(hit) ? run.map((n) => isGrip(n)) : undefined),
           // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
           // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) =>
@@ -367,7 +371,7 @@ function grabScene(
             letFall(
               built,
               items,
-              items.some((it) => isGrip(byId(built.host.root, it.id) ?? built.host.root)) ? 1 : held,
+              held,
               letGo === "throw" ? v : undefined,
               settle,
             ),
@@ -500,7 +504,9 @@ interface StackArgs extends ThrowArgs {
 
 const GRIP_W = documented("arg.gripWidth", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
 const GRIP_MIN = documented("arg.gripMin", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
-const GRIP_MAX = documented("arg.gripMax", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
+// The ceiling is ONE and goes no higher: a handle has a size that suits the finger, and there is
+// nothing above it to want.
+const GRIP_MAX = documented("arg.gripMax", { control: { type: "number", min: 0.1, max: 1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
 
 /**
  * EVERY PAGE HAS THE SWITCH FOR ITS OWN FEATURE, and turning it off leaves the page BEFORE it.
@@ -601,34 +607,75 @@ export const Throw: StoryObj<ThrowArgs> = {
  * player can see that they are. And a piece is still a piece — take one by ITSELF and it comes out
  * of the heap alone; the handle is the only thing that lifts the whole.
  */
+/**
+ * The three stacking pages differ by ONE switch each and by nothing else — the shelf's own rule.
+ * `Stack` is the bare heap: form it, pull it, put it down. `StackLift` adds the pop, `StackDrop`
+ * the fall. Every one of them can be switched back to the page before it.
+ */
+const STACK_RENDER = ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax }: StackArgs): HTMLElement =>
+  grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined, stacking, {
+    w: gripWidth,
+    min: gripMin,
+    max: gripMax,
+  });
+
+const STACK_ARGS: StackArgs = {
+  physics: true,
+  lifted: false,
+  lift: 1.3,
+  dropping: false,
+  throwing: false,
+  stacking: true,
+  gripWidth: GRIP.w,
+  gripMin: GRIP_HOLD.min,
+  gripMax: GRIP_HOLD.max,
+};
+
+const STACK_KNOBS = {
+  physics: PHYSICS,
+  lifted: LIFTED,
+  lift: LIFT,
+  dropping: DROPPING,
+  throwing: THROWING,
+  stacking: STACKING,
+  gripWidth: GRIP_W,
+  gripMin: GRIP_MIN,
+  gripMax: GRIP_MAX,
+};
+
 export const Stack: StoryObj<StackArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax }) =>
-    grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined, stacking, {
-      w: gripWidth,
-      min: gripMin,
-      max: gripMax,
-    }),
-  args: {
-    physics: true,
-    lifted: true,
-    lift: 1.3,
-    dropping: true,
-    throwing: true,
-    stacking: true,
-    gripWidth: GRIP.w,
-    gripMin: GRIP_HOLD.min,
-    gripMax: GRIP_HOLD.max,
-  },
-  argTypes: {
-    physics: PHYSICS,
-    lifted: LIFTED,
-    lift: LIFT,
-    dropping: DROPPING,
-    throwing: THROWING,
-    stacking: STACKING,
-    gripWidth: GRIP_W,
-    gripMin: GRIP_MIN,
-    gripMax: GRIP_MAX,
-  },
+  render: STACK_RENDER,
+  args: { ...STACK_ARGS },
+  argTypes: { ...STACK_KNOBS },
   parameters: { gkDocStory: "gestures.stack" },
+};
+
+/**
+ * STACK LIFT — the same desk, and a heap comes UP as it is taken, exactly as one card does.
+ *
+ * It is worth its own page because the pop is the one thing about a stack that looks like a mistake
+ * when it is missing: a card lifts and a stack of the same cards does not, and the desk has quietly
+ * said that a stack is a different kind of thing. It is not. What does NOT pop is the tab — a
+ * control that grew would be the thing you have hold of growing in your hand — and that is said
+ * about the tab, not about the gesture.
+ */
+export const StackLift: StoryObj<StackArgs> = {
+  render: STACK_RENDER,
+  args: { ...STACK_ARGS, lifted: true },
+  argTypes: { ...STACK_KNOBS },
+  parameters: { gkDocStory: "gestures.stackLift" },
+};
+
+/**
+ * STACK DROP — and it comes DOWN as one, from the height the hand was holding it at.
+ *
+ * Every piece of the heap falls at its own rate, because they are still the pieces they were: a
+ * heap of cards comes down like cards and a heap of chips like chips. The tab is not among them —
+ * it is redrawn under wherever they land, and a control does not fall.
+ */
+export const StackDrop: StoryObj<StackArgs> = {
+  render: STACK_RENDER,
+  args: { ...STACK_ARGS, lifted: true, dropping: true },
+  argTypes: { ...STACK_KNOBS },
+  parameters: { gkDocStory: "gestures.stackDrop" },
 };

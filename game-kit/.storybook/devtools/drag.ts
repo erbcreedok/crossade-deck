@@ -68,6 +68,12 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * from its heap it was drawn at. A pop or a bank on it would be the control itself moving away
    * from the hand that is holding it.
    */
+  /**
+   * WHICH MEMBERS OF THE RUN ARE THE HAND'S OWN — a flag per member, `true` for one that takes no
+   * lift and no lean. A handle is one: a control that popped would be the thing you have hold of
+   * growing in your hand, while what hangs off it is being picked up like anything else.
+   */
+  readonly stillOf?: ((root: Node, hit: Node, run: readonly Node[]) => readonly boolean[] | undefined) | undefined;
   readonly feelOf?: ((root: Node, hit: Node) => { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined } | undefined) | undefined;
   /**
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
@@ -231,18 +237,20 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // difference: the carry lays the run out from them on its very first frame, so a heap lifted by
     // its handle is already a stack before it has travelled a pixel.
     const arranged = w.opts.offsetOf?.(root, hit, run);
+    const own = w.opts.stillOf?.(root, hit, run);
     const items = run.map((c, i) => {
+      const still = own?.[i] ? { still: true } : {};
       const seat = arranged?.[i];
-      if (seat) return { id: c.id, offset: seat };
+      if (seat) return { id: c.id, offset: seat, ...still };
       const t = poses.get(c.id) ?? at;
-      return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y } };
+      return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y }, ...still };
     });
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = { items, delta: { x: anchor.x - p.x, y: anchor.y - p.y }, pointer: e.pointerId, tray: undefined };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, offsetOf: _offsetOf, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
     w.drag = { ...w.drag, tray };
     motions.grab(items, {

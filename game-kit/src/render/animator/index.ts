@@ -253,6 +253,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
     springSettled(cy.sa, wantLean(cy), BANK_EPS) &&
+    gathering(cy) <= 0 &&
     (cy.trail <= 0 ||
       cy.tails.every((t, i) => i === 0 || (springSettled(t.x, heldAt(cy).x, CARRY_EPS) && springSettled(t.y, heldAt(cy).y, CARRY_EPS))));
 
@@ -348,15 +349,29 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return { stiffness: cy.follow.stiffness / slower, damping: cy.follow.damping / Math.sqrt(slower) };
   };
 
+  /** How much of the gathering is still to come, 1 at the grab and 0 once the run is in line. */
+  const gathering = (cy: Carry): number => {
+    const ms = tuning.settleMs;
+    if (ms <= 0) return 0;
+    const t = (warped - cy.gatheredMs) / ms;
+    return t >= 1 ? 0 : 1 - easing(tuning.settleEase)(t <= 0 ? 0 : t);
+  };
+
   const layCarry = (cy: Carry): void => {
     const leanDeg = cy.sa.pos;
     const anchor = heldAt(cy);
     const n = cy.items.length;
+    const left = gathering(cy);
     cy.items.forEach((it, i) => {
       // Piece zero is the hand's own: exactly at the anchor, never a spring. What hangs off it is
       // what trails, and it trails from its own chase rather than from a share of the hand's.
-      const seat = cy.trail > 0 && i > 0 ? { x: cy.tails[i]!.x.pos, y: cy.tails[i]!.y.pos } : anchor;
-      displayed.set(it.id, cy.style({ anchor: seat, offset: it.offset, leanDeg, lift: cy.sl.pos, i, n }));
+      const chased = cy.trail > 0 && i > 0 ? { x: cy.tails[i]!.x.pos, y: cy.tails[i]!.y.pos } : anchor;
+      // ...and whatever is left of the gap it started with — a hand closing on a heap GATHERS it.
+      const gap = cy.gaps[i]!;
+      const seat = left > 0 ? { x: chased.x + gap.x * left, y: chased.y + gap.y * left } : chased;
+      // A piece marked `still` is the hand's own — a handle, and a handle does not pop or bank.
+      const pop = it.still ? 1 : cy.sl.pos;
+      displayed.set(it.id, cy.style({ anchor: seat, offset: it.offset, leanDeg: it.still ? 0 : leanDeg, lift: pop, i, n }));
     });
   };
 
@@ -709,6 +724,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // Seeded AT the anchor, so a run that trails does not start by catching up from nowhere:
         // the pieces are where they are on the first frame, and only what MOVES falls behind.
         tails: items.map(() => ({ x: springAt(anchor.x), y: springAt(anchor.y) })),
+        // WHERE THE HAND FOUND EACH PIECE, against where the run now says it belongs. Zero for an
+        // ordinary drag — the offsets there ARE where the pieces are — and not zero when the run is
+        // arranged as it is lifted, which is the difference between falling into line and snapping.
+        gaps: items.map((it) => {
+          const was = displayed.get(it.id);
+          if (!was) return { x: 0, y: 0 };
+          const o = apply(was, { x: 0, y: 0 });
+          return { x: o.x - (anchor.x + it.offset.x), y: o.y - (anchor.y + it.offset.y) };
+        }),
+        gatheredMs: warped,
         walls: opts.walls,
         wallSpeed: t.wallSpeed,
         wallBounce: t.wallBounce,

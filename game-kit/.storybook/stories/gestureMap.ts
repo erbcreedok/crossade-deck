@@ -280,8 +280,14 @@ const GRIP_BARS = svg(
  */
 export const GRIP_RATIO = 4;
 export const GRIP = { w: 0.6, h: 0.6 / GRIP_RATIO };
-/** How far the view may take the handle up and down before it is held — see `Screened`. */
-export const GRIP_HOLD = { min: 0.8, max: 1.4 };
+/**
+ * How far the view may take the handle down before it is held, and how far up — see `Screened`.
+ *
+ * The ceiling is ONE and goes no higher: a handle has a size that suits the finger, and there is
+ * nothing above it to want. Zoomed in, the desk grows and the tab stays the size it always was;
+ * zoomed out, it is allowed to come down a little rather than tower over the heap it belongs to.
+ */
+export const GRIP_HOLD = { min: 0.8, max: 1 };
 /** How far under the heap's own edge the tab sits, in units. */
 const GRIP_GAP = 0.06;
 /**
