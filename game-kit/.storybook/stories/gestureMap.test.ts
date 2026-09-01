@@ -55,8 +55,12 @@ describe("the gesture map", () => {
     const die = desk.children.find((n) => kindOf(n) === "die")!;
     expect(dropOf(card).fall).toBe("settle");
     expect(dropOf(chip).fall).toBe("fall");
-    // A die is thrown by anybody who picks one up; nothing about it is a putting-down.
-    expect(dropOf(die).fall).toBe("fall");
+    // A DIE ROLLS. Always, and not only when it was thrown hard: that is what a die is for, and one
+    // that came down flat and lay there would be a counter. It is a way of leaving a hand that only
+    // a thing with FACES has, so nothing else on the desk is offered it.
+    expect(dropOf(die).fall).toBe("roll");
+    expect(dropOf(die, { die: "fall" }).fall, "and a reader may still say otherwise").toBe("fall");
+    expect(dropOf(card, { die: "roll" }).fall, "the die's word is the die's").toBe("settle");
     // And a reader may disagree, per kind and without touching the other.
     expect(dropOf(card, { card: "fall" }).fall).toBe("fall");
     expect(dropOf(chip, { card: "fall" }).fall).toBe("fall");

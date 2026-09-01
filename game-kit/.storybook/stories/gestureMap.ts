@@ -189,7 +189,16 @@ export function mapWalls(piece: Node, lift = 1): Walls {
  * a felt IS a putting-down, while a chip dropped on one is a thing landing. The desk lets each say
  * which it is, and the panel lets a reader disagree.
  */
-export type LetGo = "settle" | "fall";
+export type LetGo = "settle" | "fall" | "roll";
+
+/**
+ * How fast a dropped die goes over, degrees/s, when the hand gave it no turn of its own.
+ *
+ * A die let go of ROLLS — that is what a die is for, and a die that came down flat and simply lay
+ * there would be a counter. Off the tuning's own `spinFriction` this is about two thirds of a second
+ * of turning, which is long enough to read as a roll and short enough not to be a wait.
+ */
+export const DIE_SPIN = 700;
 
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
@@ -216,11 +225,14 @@ export interface DropFeel {
  * rather than by somebody remembering to add it to a list — which is also the only reading
  * `guard.id-is-opaque` allows: an id says WHICH, never WHAT.
  */
-export function dropOf(piece: Node, ways: { readonly card?: LetGo; readonly chip?: LetGo } = {}): DropFeel {
+export function dropOf(
+  piece: Node,
+  ways: { readonly card?: LetGo; readonly chip?: LetGo; readonly die?: LetGo } = {},
+): DropFeel {
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
   // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) return { fall: "fall", gravity: 22, bounce: 0.45, wallBounce: 0.7 };
+  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", gravity: 22, bounce: 0.45, wallBounce: 0.7 };
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two

@@ -30,6 +30,8 @@ import {
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
+import { DIE_SPIN } from "./gestureMap.js";
+import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import {
@@ -304,7 +306,7 @@ function grabScene(
   letGo?: "drop" | "throw",
   stacking = false,
   grip: { w: number; min: number; max: number } = { w: GRIP.w, ...GRIP_HOLD },
-  ways: { card?: LetGo; chip?: LetGo } = {},
+  ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -416,7 +418,7 @@ function letFall(
   lift: number,
   hand?: Vec | undefined,
   after?: () => void,
-  ways: { card?: LetGo; chip?: LetGo } = {},
+  ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
 ): boolean {
   const m = s.motions;
   const drawn = m?.poses();
@@ -440,7 +442,7 @@ function letFall(
   // the hand has let go, so the reconcile above is easing it there with the pop unwinding on the
   // way — which is the whole of the ordinary putting-down, and the reason it never flickers: there
   // is nothing to schedule and nothing to re-order first.
-  const falling = put.filter((n) => dropOf(n, ways).fall === "fall");
+  const falling = put.filter((n) => dropOf(n, ways).fall !== "settle");
   // WHO LEAVES WHEN: the handle never, the rest a step apart, so a heap POURS out of the hand
   // instead of coming down as a slab. A run of one has no stagger to have.
   const dropped = fallOrder(falling).map(({ piece, delayMs }) => ({
@@ -459,7 +461,7 @@ function letFall(
   if (dropped.length === 0) after?.();
   const flight = hand ? polar(hand) : { speed: 0, angle: 0 };
   for (const { id, feel, walls, delayMs } of dropped) {
-    m.slide(id, {
+    const body = {
       ...flight,
       ...(delayMs > 0 ? { delayMs } : {}),
       up: (lift - 1) / RISE,
@@ -471,6 +473,25 @@ function letFall(
       // a piece coming DOWN, so a border would throw it back up into the air it was falling out of.
       wallKick: 0,
       walls,
+    };
+    const piece = byId(s.host.root, id);
+    if (piece && feel.fall === "roll") {
+      // A DIE LET GO OF ROLLS. Not "a die thrown hard enough rolls" — always, because that is what a
+      // die is for, and one that came down flat and lay there would be a counter. The turn is the
+      // hand's when the hand gave it one and its own otherwise, so a die simply dropped still goes
+      // over. The add-on owns the rest: the face changes as the body travels and the LAST one is
+      // the result, shown while there is still a roll left to see it on — and the seat and the face
+      // are written into the tree when it stops, which is what `onDone` does for everything else.
+      throwDie(m, s.host.root, piece, {
+        ...body,
+        spin: DIE_SPIN * (Math.sign(hand?.x ?? 0) || 1),
+        outcome: { rng: Math.random },
+        onRest: () => after?.(),
+      });
+      continue;
+    }
+    m.slide(id, {
+      ...body,
       // WHERE IT STOPPED IS WHERE IT NOW LIVES, and it has to be written or the piece does not stay
       // there: the seat in the tree is still the point it was let go of, and the reconcile that
       // follows a landing would fly it all the way back to the hand. A flight is a LOOK; the seat is
@@ -524,6 +545,8 @@ interface DropArgs extends LiftArgs {
   cardDrop: LetGo;
   /** The same for a chip — and the default is the other one, which is the point of having both. */
   chipDrop: LetGo;
+  /** And for the die, which has a third way open to it: it can ROLL, being the only thing with faces. */
+  dieDrop: LetGo;
 }
 
 interface ThrowArgs extends DropArgs {
@@ -566,6 +589,9 @@ const STACKING = documented("arg.stacking", {}, "stack");
 const WAYS: readonly LetGo[] = ["settle", "fall"];
 const CARD_WAY = documented("arg.cardDrop", { control: "select", options: WAYS, if: { arg: "dropping" } }, "release");
 const CHIP_WAY = documented("arg.chipDrop", { control: "select", options: WAYS, if: { arg: "dropping" } }, "release");
+// The die gets a third: `roll` is a way of leaving a hand that only a thing with faces HAS, so it is
+// on the one control where it means something and on neither of the others.
+const DIE_WAY = documented("arg.dieDrop", { control: "select", options: [...WAYS, "roll"], if: { arg: "dropping" } }, "release");
 
 /**
  * HOW HIGH THE HAND HOLDS IT — a third of a card off the desk instead of the kit's polite six
@@ -614,10 +640,10 @@ function landed(s: Scene, id: string, at: { readonly at: Vec; readonly angle: nu
  * top: a desk is a pile, and the last thing put on it covers what is under it.
  */
 export const Drop: StoryObj<DropArgs> = {
-  render: ({ physics, lifted, lift, dropping, cardDrop, chipDrop }) =>
-    grabScene(physics, lifted ? lift : undefined, dropping ? "drop" : undefined, false, undefined, { card: cardDrop, chip: chipDrop }),
-  args: { physics: true, lifted: true, lift: 1.3, dropping: true, cardDrop: "settle", chipDrop: "fall" },
-  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, cardDrop: CARD_WAY, chipDrop: CHIP_WAY },
+  render: ({ physics, lifted, lift, dropping, cardDrop, chipDrop, dieDrop }) =>
+    grabScene(physics, lifted ? lift : undefined, dropping ? "drop" : undefined, false, undefined, { card: cardDrop, chip: chipDrop, die: dieDrop }),
+  args: { physics: true, lifted: true, lift: 1.3, dropping: true, cardDrop: "settle", chipDrop: "fall", dieDrop: "roll" },
+  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, cardDrop: CARD_WAY, chipDrop: CHIP_WAY, dieDrop: DIE_WAY },
   parameters: { gkDocStory: "gestures.drop" },
 };
 
@@ -630,13 +656,14 @@ export const Drop: StoryObj<DropArgs> = {
  * lively, a card fairly, a carved piece hardly at all — weight is what a wall takes out of a thing.
  */
 export const Throw: StoryObj<ThrowArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, cardDrop, chipDrop }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, cardDrop, chipDrop, dieDrop }) =>
     grabScene(physics, lifted ? lift : undefined, dropping ? (throwing ? "throw" : "drop") : undefined, false, undefined, {
       card: cardDrop,
       chip: chipDrop,
+      die: dieDrop,
     }),
-  args: { physics: true, lifted: true, lift: 1.3, dropping: true, throwing: true, cardDrop: "settle", chipDrop: "fall" },
-  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, throwing: THROWING, cardDrop: CARD_WAY, chipDrop: CHIP_WAY },
+  args: { physics: true, lifted: true, lift: 1.3, dropping: true, throwing: true, cardDrop: "settle", chipDrop: "fall", dieDrop: "roll" },
+  argTypes: { physics: PHYSICS, lifted: LIFTED, lift: LIFT, dropping: DROPPING, throwing: THROWING, cardDrop: CARD_WAY, chipDrop: CHIP_WAY, dieDrop: DIE_WAY },
   parameters: { gkDocStory: "gestures.throw" },
 };
 
@@ -662,14 +689,14 @@ export const Throw: StoryObj<ThrowArgs> = {
  * `Stack` is the bare heap: form it, pull it, put it down. `StackLift` adds the pop, `StackDrop`
  * the fall. Every one of them can be switched back to the page before it.
  */
-const STACK_RENDER = ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop }: StackArgs): HTMLElement =>
+const STACK_RENDER = ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop }: StackArgs): HTMLElement =>
   grabScene(
     physics,
     lifted ? lift : undefined,
     dropping ? (throwing ? "throw" : "drop") : undefined,
     stacking,
     { w: gripWidth, min: gripMin, max: gripMax },
-    { card: cardDrop, chip: chipDrop },
+    { card: cardDrop, chip: chipDrop, die: dieDrop },
   );
 
 const STACK_ARGS: StackArgs = {
@@ -684,6 +711,7 @@ const STACK_ARGS: StackArgs = {
   gripMax: GRIP_HOLD.max,
   cardDrop: "settle",
   chipDrop: "fall",
+  dieDrop: "roll",
 };
 
 const STACK_KNOBS = {
@@ -698,6 +726,7 @@ const STACK_KNOBS = {
   gripMax: GRIP_MAX,
   cardDrop: CARD_WAY,
   chipDrop: CHIP_WAY,
+  dieDrop: DIE_WAY,
 };
 
 export const Stack: StoryObj<StackArgs> = {
