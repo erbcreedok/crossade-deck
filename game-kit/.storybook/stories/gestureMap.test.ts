@@ -6,12 +6,28 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
-import { compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
+import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
 import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
 describe("the gesture map", () => {
+  it("map.everything-that-lies-on-a-desk-throws-a-shadow — height is the one thing an overhead view cannot draw", () => {
+    // Half of what this shelf shows is HEIGHT: a piece lifts as it is picked up, hangs at the hand's
+    // height while it is carried, falls from that height when it is let go. Seen from above, a card
+    // in the air and a card on the felt are the same picture — the shadow is the difference, and
+    // without it every page about lifting, dropping and throwing teaches something invisible.
+    for (const [what, build] of [
+      ["gestures", gestureMap],
+      ["stacking", stackMap],
+      ["deck", deckMap],
+    ] as const) {
+      const pieces = build().children.filter((n) => kindOf(n) !== "" && kindOf(n) !== "warm" && kindOf(n) !== "grip");
+      expect(pieces.length, `${what}: a desk with no pieces is not a desk`).toBeGreaterThan(0);
+      for (const piece of pieces) expect(caps(piece).has("ShadowCaster"), `${what}: ${kindOf(piece)}`).toBe(true);
+    }
+  });
+
   it("map.walls-inset-by-the-piece — the anchor is clamped, so the BODY is what must stay in", () => {
     // A card 1×1.4 on an 8×8 map: its origin may reach 3.5 across and 3.3 down, and not a unit
     // further. Clamping the origin to the map's own edge instead would leave half a card outside,

@@ -33,6 +33,13 @@ describe("the shared desk", () => {
     for (const card of cards(desk)) expect(facing(card)).toBe("up");
   });
 
+  it("live.every-card-throws-a-shadow — height is invisible from above without one", () => {
+    const desk = liveMap();
+    for (const card of cards(desk)) expect(caps(card).has("ShadowCaster")).toBe(true);
+    // ...and an AREA does not: it is a place sunk into the felt, not a thing lying on it.
+    for (const area of areas(desk)) expect(caps(area).has("ShadowCaster")).toBe(false);
+  });
+
   it("live.the-desk-and-its-areas-say-what-a-touch-takes — or no drop is possible at all", () => {
     // A move plan starts by asking the SOURCE what a touch takes out of it. A container with no
     // `Grabber` hands back nothing, and every drop on the desk is denied before any zone is asked —

@@ -39,7 +39,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { installMapArt, MAP, warmingNodes } from "./gestureMap.js";
+import { CASTS, installMapArt, MAP, onTheDesk, PUT_DOWN, warmingNodes } from "./gestureMap.js";
 import { handLayout, PULL, ZONE_SPREAD, type Spread } from "./magnetMap.js";
 
 /**
@@ -75,8 +75,6 @@ const DESK_LAYOUT = "live.free";
  */
 const AREA: Record<string, number> = { south: 2.05, north: -2.05 };
 
-/** A piece put down outside a zone stays where it was put. */
-const PUT_DOWN = Draggable({ onReject: "stay" });
 
 export function installLiveArt(zone: Spread): void {
   installMapArt();
@@ -123,7 +121,7 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
     .slice(0, LIVE.cards)
     .forEach((card, i) => {
       compose(card, Transformable({ at: { x: -1.2 + i * 0.004, y: -0.1 - i * 0.012 } }));
-      compose(card, PUT_DOWN);
+      onTheDesk(card);
       compose(card, Heaping({ heap: "card" }));
       setFacing(card, "up");
       add(desk, card);

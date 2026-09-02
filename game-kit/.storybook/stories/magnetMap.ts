@@ -58,7 +58,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { CASTS, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, warmingNodes, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -111,7 +111,7 @@ const ZONE_LAYOUT = "magnet.hand";
 const DESK_LAYOUT = "magnet.free";
 
 /** A piece put down outside the zone stays where it was put — the zone is the only thing that takes. */
-const PUT_DOWN = Draggable({ onReject: "stay" });
+
 
 /** Felt left between the outermost card and the zone's border, in units. */
 const ZONE_PAD = 0.12;
@@ -172,7 +172,7 @@ export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
     .slice(0, MAGNET.cards)
     .forEach((card, i) => {
       compose(card, Transformable({ at: { x: -1.1 + i * 0.004, y: -2.3 - i * 0.012 } }));
-      compose(card, PUT_DOWN);
+      onTheDesk(card);
       // A CARD HEAPS WITH A CARD, and has to be COVERED to do it — no reach, which is what a hand of
       // cards means by a pile (`Reaching`).
       compose(card, Heaping({ heap: "card" }));

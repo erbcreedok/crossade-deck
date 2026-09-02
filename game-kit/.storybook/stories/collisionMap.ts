@@ -33,11 +33,9 @@ import {
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
-import { installMapArt, kindOf, MAP, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
+import { CASTS, installMapArt, kindOf, MAP, onTheDesk, PUT_DOWN, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
 import { installMergeArt, mergeChip, MERGE_REACH } from "./mergeMap.js";
 
-/** A piece put down on this desk stays where it was put — nothing here accepts a drop. */
-const PUT_DOWN = Draggable({ onReject: "stay" });
 
 /** What is on this desk: a handful of dice to throw, and pieces that are meant to stack, for contrast. */
 export const CROWD = { dice: 6, chips: 5, cards: 2 };
@@ -108,7 +106,7 @@ export function collisionMap(reach = MERGE_REACH): Node {
       at: { x: -0.75 + (i % 3) * 0.75, y: -1.6 + Math.floor(i / 3) * 0.75 },
       face: (i % 6) + 1,
     });
-    compose(d6, PUT_DOWN);
+    onTheDesk(d6);
     // A die heaps with a die and with nothing else — the same word the merging desk uses, because
     // it is the same claim: what may be picked up together is what says the same pile.
     compose(d6, Heaping({ heap: DIE_HEAP }));
@@ -122,7 +120,7 @@ export function collisionMap(reach = MERGE_REACH): Node {
     .slice(0, CROWD.cards)
     .forEach((card, i) => {
       compose(card, Transformable({ at: { x: -0.75 + i * 1.5, y: 2.5 } }));
-      compose(card, PUT_DOWN);
+      onTheDesk(card);
       add(desk, card);
     });
   for (const warm of warmingNodes()) add(desk, warm);
@@ -160,7 +158,7 @@ export function landingMap(reach = MERGE_REACH): Node {
   }
   for (let i = 0; i < LANDING.dice; i++) {
     const d6 = die(`die ${i}`, { kind: "d6", at: { x: -0.75 + (i % 3) * 0.75, y: -2.3 + Math.floor(i / 3) * 0.75 }, face: (i % 6) + 1 });
-    compose(d6, PUT_DOWN);
+    onTheDesk(d6);
     compose(d6, Heaping({ heap: DIE_HEAP }));
     compose(d6, Reaching({ reach }));
     add(desk, d6);
@@ -169,7 +167,7 @@ export function landingMap(reach = MERGE_REACH): Node {
     .slice(0, LANDING.cards)
     .forEach((card, i) => {
       compose(card, Transformable({ at: { x: -0.75 + i * 1.5, y: 2.9 } }));
-      compose(card, PUT_DOWN);
+      onTheDesk(card);
       add(desk, card);
     });
   for (const warm of warmingNodes()) add(desk, warm);

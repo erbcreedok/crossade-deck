@@ -53,7 +53,7 @@ import {
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
-import { installMapArt, MAP, stackSeats, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { CASTS, installMapArt, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, type HeapRule } from "./gestureMap.js";
 import { svg } from "./stockAssets.js";
 
 /** How much of one piece must lie under another before the two are one pile, 0..1. */
@@ -123,6 +123,7 @@ export function mergeChip(id: string, value: number, at: Vec, heap = chipHeap(va
     Heaping({ heap }),
     Reaching({ reach }),
     PUT_DOWN,
+    CASTS,
   );
 }
 
@@ -139,8 +140,6 @@ export function installMergeArt(): void {
   }
 }
 
-/** A piece put down on this desk stays where it was put — nothing here accepts a drop. */
-const PUT_DOWN = Draggable({ onReject: "stay" });
 
 /**
  * THE PILE A PIECE BELONGS TO, as a name.
@@ -282,7 +281,7 @@ export function mergeMap(reach = MERGE_REACH): Node {
     const nth = i - MERGE.open;
     const at = open ? { x: -1.1, y: -2.5 } : { x: 0.95 + nth * 0.004, y: -2.5 - nth * 0.012 };
     compose(card, Transformable({ at }));
-    compose(card, PUT_DOWN);
+    onTheDesk(card);
     // A CARD HAS NO REACH. It has to be COVERED to belong, which is what a hand of cards is.
     compose(card, Heaping({ heap: cardHeap }));
     setFacing(card, open ? "up" : "down");
@@ -299,7 +298,7 @@ export function mergeMap(reach = MERGE_REACH): Node {
   });
   for (let i = 0; i < MERGE.dice; i++) {
     const d6 = die(`die ${i}`, { kind: "d6", at: { x: -0.8 + i * 1.6, y: 2.75 }, face: i === 0 ? 5 : 2 });
-    compose(d6, PUT_DOWN);
+    onTheDesk(d6);
     // A DIE IS GATHERED, NOT STACKED. Nobody piles dice up: they are thrown, and what makes them one
     // roll is that they came to rest near each other.
     compose(d6, Heaping({ heap: dieHeap }));

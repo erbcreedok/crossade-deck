@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { installStockCarries, installStockCoats, installStockFlips, t, type Vec } from "../../src/index.js";
+import { installStockCarries, installStockCoats, installStockFlips, t, type CarryItem, type Vec } from "../../src/index.js";
 import { type Mirror } from "./gestureScene.js";
 import { liveMap, liveTune, LIVE_UNIT, SEATS } from "./liveMap.js";
 import { type Scene } from "../devtools/scene.js";
@@ -49,9 +49,10 @@ interface Screen {
  * The cursor is drawn over the GLASS and never on the desk: a piece is what anything on the felt
  * would be — touchable, heapable, and in everybody's way.
  */
-function follow(screen: Screen, ids: readonly string[], at: Vec | undefined, done: boolean, lift: number): void {
+function follow(screen: Screen, items: readonly CarryItem[], at: Vec | undefined, done: boolean, lift: number): void {
   const s = screen.scene;
   if (!s) return;
+  const ids = items.map((it) => it.id);
   if (done || !at) {
     for (const id of screen.mirroring ?? ids) s.motions?.release(id);
     screen.mirroring = undefined;
@@ -71,7 +72,9 @@ function follow(screen: Screen, ids: readonly string[], at: Vec | undefined, don
   if (screen.mirroring?.length !== ids.length || screen.mirroring.some((id, i) => id !== ids[i])) {
     for (const id of screen.mirroring ?? []) s.motions?.release(id);
     screen.mirroring = [...ids];
-    s.motions?.grab(ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), { anchor: at, lift });
+    // THE SAME SHAPE, not the same names: laid out by the offsets the other hand is holding it at,
+    // or a deck of thirty-six arrives here as one card sitting on the anchor.
+    s.motions?.grab(items, { anchor: at, lift });
   }
   s.motions?.dragTo(at);
 }
@@ -126,8 +129,8 @@ export const Live: StoryObj<MagnetArgs> = {
           changed: () => {
             for (const one of others()) one.grasp?.();
           },
-          hand: (ids, at, done) => {
-            for (const one of others()) follow(one, ids, at, done, held);
+          hand: (items, at, done) => {
+            for (const one of others()) follow(one, items, at, done, held);
           },
         }, LIVE_UNIT),
       );

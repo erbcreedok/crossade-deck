@@ -6,7 +6,7 @@
 // thing you put things ON.
 
 import { describe, expect, it } from "vitest";
-import { add, Bounded, Container, freeLayout, node, rect, registerLayout, Surfaced, type Node } from "../../src/index.js";
+import { add, Bounded, caps, Container, freeLayout, node, rect, registerLayout, Surfaced, type Node } from "../../src/index.js";
 import { alsoInTheWay, bumped, dropOf, kindOf, MAP, shoves, THROWN_AT, thrown, type DropFeel, type Piece } from "./gestureMap.js";
 import { collisionMap, roomOn } from "./collisionMap.js";
 
@@ -23,6 +23,15 @@ const feel = (n: Node): DropFeel => bumped(dropOf(n), n, BUMP);
 const piecesOf = (desk: Node, sort: Piece): Node[] => desk.children.filter((n) => kindOf(n) === sort);
 
 describe("what is solid to what", () => {
+  it("collision.every-piece-throws-a-shadow — dice, chips and cards alike", () => {
+    const desk = collisionMap();
+    for (const sort of ["die", "chip", "card"] as const) {
+      const some = piecesOf(desk, sort);
+      expect(some.length, sort).toBeGreaterThan(0);
+      for (const piece of some) expect(caps(piece).has("ShadowCaster"), sort).toBe(true);
+    }
+  });
+
   it("collision.everything-is-solid-except-a-card-to-a-not-card", () => {
     // ONE WORLD FOR THE THINGS AND ONE FOR THE PAPER. A die knocks a die and a chip; a card is
     // solid only to a card. Not a size question — the two would answer this way at any size.

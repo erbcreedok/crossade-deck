@@ -36,6 +36,7 @@ import {
   remove,
   roundedRect,
   Screened,
+  ShadowCaster,
   transformsOf,
   freeLayout,
   node,
@@ -125,7 +126,29 @@ export function installMapArt(): void {
  * one — and on a map the stock `home` would mean a piece flying back the moment the hand let go of
  * it somewhere it was meant to be.
  */
-const PUT_DOWN = Draggable({ onReject: "stay" });
+export const PUT_DOWN = Draggable({ onReject: "stay" });
+
+/**
+ * A PIECE ON A DESK THROWS A SHADOW, and that is not decoration.
+ *
+ * Half of what these pages show is HEIGHT — a piece lifts as it is picked up, hangs at the hand's
+ * height while it is carried, falls from that height when it is let go — and height is the one thing
+ * a desk seen from above cannot draw. Without a shadow a card in the air and a card on the felt are
+ * the same picture, and every page about lifting, dropping and throwing is teaching a difference the
+ * reader cannot see. The `Hold` and `Tap` squares have had one since the shelf existed for exactly
+ * this reason; the desks that came after simply never got it.
+ *
+ * From the SILHOUETTE, which is the atom's own default: a shadow is what the drawn thing blocks, and
+ * for a chip that is a disc rather than the square it is measured by.
+ */
+export const CASTS = ShadowCaster();
+
+/** Everything a piece lying on one of these desks is: it stays where it is put, and it casts. */
+export function onTheDesk(piece: Node): Node {
+  compose(piece, PUT_DOWN);
+  compose(piece, CASTS);
+  return piece;
+}
 
 /**
  * The map, with its four pieces on it — two cards, a d6 and a knight, laid out around the middle so
@@ -147,13 +170,13 @@ export function gestureMap(): Node {
   for (const [id, at] of seats) {
     const card = by.get(id)!;
     compose(card, Transformable({ at }));
-    compose(card, PUT_DOWN);
+    onTheDesk(card);
     add(desk, card);
   }
   const d6 = die("die", { kind: "d6", at: { x: -1.1, y: 0.5 }, face: 5 });
   // The add-on's die is draggable already; what it has no opinion about is where a refused drop
   // leaves it, and on a map that answer is "where you put it".
-  compose(d6, PUT_DOWN);
+  onTheDesk(d6);
   add(desk, d6);
   add(
     desk,
@@ -163,6 +186,7 @@ export function gestureMap(): Node {
       Surfaced({ surface: KNIGHT_SURFACE }),
       Transformable({ at: { x: 0.7, y: 1.2 } }),
       PUT_DOWN,
+    CASTS,
     ),
   );
   for (const warm of warmingNodes()) add(desk, warm);
@@ -629,6 +653,7 @@ function chip(id: string, at: Vec): Node {
     Transformable({ at }),
     Valued({ values: { chip: CHIP_VALUE } }),
     PUT_DOWN,
+    CASTS,
   );
 }
 
@@ -987,14 +1012,14 @@ export function stackMap(): Node {
   cards.forEach((id, i) => {
     const card = by.get(id)!;
     compose(card, Transformable({ at: { x: -1.3 + (i % 3) * 1.3, y: i < 3 ? -2.6 : -1.0 } }));
-    compose(card, PUT_DOWN);
+    onTheDesk(card);
     add(desk, card);
   });
   for (let i = 0; i < 6; i++) {
     add(desk, chip(`chip ${i}`, { x: -0.7 + (i % 3) * 0.7, y: i < 3 ? 0.4 : 1.1 }));
   }
   const d6 = die("die", { kind: "d6", at: { x: 1.7, y: 0.75 }, face: 5 });
-  compose(d6, PUT_DOWN);
+  onTheDesk(d6);
   add(desk, d6);
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
@@ -1109,7 +1134,7 @@ export function deckMap(): Node {
       ? { x: -1.3 + (i % 3) * 1.3, y: i < 3 ? -2.6 : -1.05 }
       : { x: 1 + (i - DECK.dealt) * 0.004, y: 1.2 - (i - DECK.dealt) * 0.012 };
     compose(card, Transformable({ at }));
-    compose(card, PUT_DOWN);
+    onTheDesk(card);
     // Face up in the open, face down in the deck — the atom's own word, and the only thing that
     // makes the pile a CLOSED one.
     setFacing(card, open ? "up" : "down");

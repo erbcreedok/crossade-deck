@@ -179,6 +179,15 @@ export function grabScene(
    */
   let liftedFrom: Node | undefined;
   /**
+   * THE RUN AS THE HAND IS HOLDING IT — ids AND the offset each stands at, for as long as the
+   * gesture lasts.
+   *
+   * Kept because the wiring's own report of a moving hand names only the ids, and a screen mirroring
+   * it needs the shape too: without the offsets every piece goes to the anchor and a deck arrives as
+   * one card.
+   */
+  let carried: readonly CarryItem[] = [];
+  /**
    * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
    *
    * The wiring asks a zone about the point the finger came up at, and a throw is not aimed at that
@@ -268,7 +277,7 @@ export function grabScene(
     view: () => built.camera!.transform(),
     // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
     // moving here is invisible over there unless it is reported and mirrored.
-    ...(mirror ? { onCarry: ({ ids, at, done }) => mirror.hand(ids, at, done) } : {}),
+    ...(mirror ? { onCarry: ({ at, done }) => mirror.hand(carried, at, done) } : {}),
     // A PILE HIDES ALL BUT A SLIVER OF WHAT IS UNDER ITS TOP, and a finger that lands on a sliver
     // gets a card nobody was aiming at. Below this much showing a piece does not answer at all: the
     // touch goes to whatever is covering it, and so on up the pile.
@@ -310,10 +319,16 @@ export function grabScene(
           // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
           // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) => {
-            if (!isGrip(hit)) return undefined;
+            if (!isGrip(hit)) {
+              carried = run.map((n) => ({ id: n.id, offset: { x: 0, y: 0 } }));
+              return undefined;
+            }
             const pieces = run.slice(1);
             const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w, seenWide()) : undefined;
-            return [{ x: 0, y: 0 }, ...(posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w))];
+            const seats = [{ x: 0, y: 0 }, ...(posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w))];
+            // ...and remembered as the hand is holding it, so another screen can lay it out the same.
+            carried = run.map((n, i) => ({ id: n.id, offset: seats[i] ?? { x: 0, y: 0 }, still: isGrip(n) }));
+            return seats;
           },
           feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
           // AFTER the tree has been written, never at the carry's `done`: at `done` the drop has
@@ -393,7 +408,7 @@ export function grabScene(
             // Said first, before anything is decided, because it is true either way: whatever
             // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
             // change that every screen is told about (`changed`).
-            mirror?.hand(items.map((it) => it.id), undefined, true);
+            mirror?.hand(items, undefined, true);
             // ...and the place it came from belongs to the gesture that is now over. Cleared FIRST,
             // so nothing below can read a lift that has already ended.
             const cameFrom = liftedFrom;
@@ -562,8 +577,15 @@ export interface Mirror {
   readonly ready: (s: Scene, grasp: () => void) => void;
   /** This screen changed the tree everybody is reading. */
   readonly changed: () => void;
-  /** This screen's hand: what it holds, where it is, and whether it has let go. */
-  readonly hand: (ids: readonly string[], at: Vec | undefined, done: boolean) => void;
+  /**
+   * This screen's hand: what it holds, WHERE EACH OF THOSE STANDS IN IT, where the hand is, and
+   * whether it has let go.
+   *
+   * The offsets are half the message. Told only the names, the far screen has nothing to lay the run
+   * out by and puts every piece at the anchor: a deck of thirty-six arrives as one card, and the two
+   * screens show plainly different things while claiming to show one desk.
+   */
+  readonly hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean) => void;
 }
 
 export function letFall(
