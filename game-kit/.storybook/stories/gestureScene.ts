@@ -44,6 +44,7 @@ import {
   GRIP,
   GRIP_HOLD,
   isGrip,
+  isPlaceGrip,
   MAP,
   mapWalls,
   regrip,
@@ -207,14 +208,35 @@ export function grabScene(
           runOf: (_root: Node, hit: Node) => {
             // Remembered for as long as the gesture lasts, so nothing redraws the tab in the hand.
             inHand = isGrip(hit) ? hit.id : undefined;
-            return isGrip(hit) ? [hit, ...(heaps.get(hit.id) ?? [])] : [hit];
+            if (!isGrip(hit)) return [hit];
+            const run = heaps.get(hit.id) ?? [];
+            // A PLACE POSES WHAT IT LIFTS, and it poses it as the run leaves the desk — the same
+            // moment the stack squares up, and for the same reason: a hand closing on a row of cards
+            // splays them, it does not carry a row about and splay it on arrival.
+            //
+            // Written into the tree rather than applied by the carry, because a drop leaves a piece
+            // as it was: the fan has to be the card's OWN pose by then, or putting it down would
+            // straighten it. Which is also why the turn is data the desk hands over and never a
+            // number read back off a carried pose — that pose has the card's mirror composed into it.
+            const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w) : undefined;
+            posed?.forEach((seat, i) => {
+              const piece = run[i];
+              if (!piece) return;
+              const own = fieldsOf<TransformableFields>(piece, "Transformable");
+              compose(piece, Transformable({ ...(own ?? {}), angle: seat.deg }));
+            });
+            return [hit, ...run];
           },
           // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
           stillOf: (_root: Node, hit: Node, run: readonly Node[]) => (isGrip(hit) ? run.map((n) => isGrip(n)) : undefined),
           // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
           // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
-          offsetOf: (_root: Node, hit: Node, run: readonly Node[]) =>
-            isGrip(hit) ? [{ x: 0, y: 0 }, ...(rule?.seats ?? stackSeats)(run.slice(1), grip.w)] : undefined,
+          offsetOf: (_root: Node, hit: Node, run: readonly Node[]) => {
+            if (!isGrip(hit)) return undefined;
+            const pieces = run.slice(1);
+            const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w) : undefined;
+            return [{ x: 0, y: 0 }, ...(posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w))];
+          },
           feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
           // AFTER the tree has been written, never at the carry's `done`: at `done` the drop has
           // not been decided yet, so the handles would be redrawn from the seats the pieces had
@@ -233,6 +255,9 @@ export function grabScene(
               const piece = byId(root, id);
               if (piece) toFront(piece);
             }
+            // ...AND A PLACE HAS THE LAST WORD ON WHAT IT TOOK. A drop leaves pieces as they were,
+            // fan and all; a place re-poses them, because how its things lie is its own business.
+            rule?.settled?.(root, ids);
             settle();
           },
         }
@@ -289,6 +314,11 @@ export function grabScene(
             const mine = inHand;
             return letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
               if (inHand === mine) inHand = undefined;
+              // A PLACE HAS THE LAST WORD HERE TOO. The wiring announces a drop it decided itself
+              // (`onSettled`); a release the scene took never reaches that line at all, and a rule
+              // that only ran on the wiring's path would re-pose a card dealt in one at a time and
+              // leave every hand ever put back exactly as the hand had splayed it.
+              rule?.settled?.(built.host.root, items.map((it) => it.id));
               settle();
             }, ways, bump);
           },

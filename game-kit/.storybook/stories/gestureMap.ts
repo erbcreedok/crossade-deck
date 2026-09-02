@@ -574,7 +574,7 @@ export const GRIP = { w: 0.6, h: 0.6 / GRIP_RATIO };
  */
 export const GRIP_HOLD = { min: 0.8, max: 1 };
 /** How far under the heap's own edge the tab sits, in units. */
-const GRIP_GAP = 0.06;
+export const GRIP_GAP = 0.06;
 /**
  * How far apart the pieces of a lifted stack stand, in units — the same trick `stackLayout` uses:
  * thickness is an `at` offset and never a `z`, or a heap would rise off the felt as it grew.
@@ -674,6 +674,29 @@ export interface HeapRule {
   readonly admits: (group: readonly Node[]) => readonly Node[];
   /** Where each piece stands under the handle that lifted them, in the handle's own frame. */
   readonly seats: (group: readonly Node[], gripW: number) => Vec[];
+  /**
+   * HOW A RUN LIFTED BY A PLACE'S HANDLE STANDS — its seats AND its turns. Absent, the ordinary
+   * squared stack, which is what every handle on the shelf has lifted so far.
+   *
+   * A place may pose what it holds differently from how a heap poses itself, and differently again
+   * from how it poses them while they are lying in it. A hand of cards is the case everybody knows:
+   * laid out in a row on the felt, splayed into a fan the moment it comes up, and back into a row
+   * the moment it is put down again. Three poses, one set of cards, and the only thing that says
+   * which is where they are and whether they are moving.
+   *
+   * The turn is DATA and not something read back off the glass: a carried pose is the piece's own
+   * resting pose with the style composed onto it, so a face-down card's mirror is in there and reads
+   * as a half circle. The desk that decided the fan is the one that knows what the angle was.
+   */
+  readonly fan?: (group: readonly Node[], gripW: number) => readonly { readonly at: Vec; readonly deg: number }[];
+  /**
+   * WHAT THE DESK DOES TO WHAT HAS JUST BEEN PUT DOWN, once the tree says where everything is.
+   *
+   * A drop leaves pieces as they were — that is the whole of a drop, and a fan let go of on the felt
+   * stays a fan. A PLACE is the exception: it has an opinion about how its things lie, and what it
+   * takes it re-poses. Nothing else on the shelf needs this, so it is absent everywhere else.
+   */
+  readonly settled?: (root: Node, ids: readonly string[]) => void;
   /**
    * HEAPS THAT TOUCHING CANNOT FIND — a place that HOLDS things, rather than things that hold each
    * other.
@@ -779,7 +802,17 @@ export interface GripSpec {
 const GRIP_SPEC: GripSpec = { w: GRIP.w, ...GRIP_HOLD };
 
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */
-function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec): Node {
+/**
+ * A HANDLE'S OWN WORD FOR WHOSE IT IS — a heap's, or a place's.
+ *
+ * The two are lifted differently (`HeapRule.fan`), and the difference has to be readable off the tab
+ * a finger landed on. Said on the node, as a field, because everything on this desk is: the
+ * alternative is the scene keeping a list of which tabs it made how, and a list is a thing that goes
+ * stale between the moment it is written and the moment somebody drops a card.
+ */
+export const isPlaceGrip = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valued")?.values?.["place"] !== undefined;
+
+function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec, ofPlace = false): Node {
   const { mid, bottom } = heapBox(root, under);
   const h = spec.w / GRIP_RATIO;
   return node(
@@ -787,7 +820,7 @@ function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec
     Bounded({ bounds: roundedRect(spec.w, h, h / 2) }),
     Surfaced({ surface: GRIP_SURFACE }),
     Transformable({ at: { x: mid, y: bottom + GRIP_GAP + h / 2 } }),
-    Valued({ values: { grip: nth } }),
+    Valued({ values: ofPlace ? { grip: nth, place: 1 } : { grip: nth } }),
     // A HANDLE IS SIZED FOR THE FINGER, not for the desk: the same pixels at every zoom, the way
     // every drag handle in every application anybody has ever used is drawn.
     Screened({ min: spec.min, max: spec.max }),
@@ -828,7 +861,7 @@ export function regrip(
   (rule.held?.(root, aloft) ?? []).forEach(({ under, pieces }, i) => {
     for (const piece of pieces) claimed.add(piece.id);
     if (pieces.length === 0) return; // a place holding nothing has nothing to lift, and no handle
-    const tab = gripFor(root, [under], -1 - i, spec);
+    const tab = gripFor(root, [under], -1 - i, spec, true);
     add(root, tab);
     held.set(tab.id, pieces);
   });

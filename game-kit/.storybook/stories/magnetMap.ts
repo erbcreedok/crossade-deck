@@ -21,6 +21,8 @@ import {
   add,
   caps,
   fieldsOf,
+  byId,
+  extentOf,
   heapOf,
   Heaping,
   overlapFraction,
@@ -49,10 +51,11 @@ import {
   Transformable,
   type BoundedFields,
   type Node,
+  type TransformableFields,
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { installMapArt, isGrip, MAP, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, warmingNodes, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -270,5 +273,65 @@ export function zoneHolds(share: number): NonNullable<HeapRule["held"]> {
       out.push({ under: zone, pieces });
     }
     return out;
+  };
+}
+
+
+/**
+ * HOW WIDE A HAND SPLAYS, degrees from the first card to the last, and how much of that any one
+ * card may take.
+ *
+ * Both, because a hand is not one number: two cards want a visible spread and twenty want a fan
+ * rather than a wheel. The total is what the whole hand comes to; the step is what stops three cards
+ * from opening as wide as ten.
+ */
+export const FAN = { total: 54, step: 13 };
+
+/**
+ * A HAND SPLAYED — each card turned about the handle it hangs from, which is how a hand is held.
+ *
+ * The pivot is the tab itself, so the card at the middle of the fan sits exactly where the squared
+ * stack would have put it (`stackSeats`) and the rest swing out from there. Nothing is invented
+ * about the distance: it is the same clearance the stack uses, so a hand opening and closing does
+ * not also drift up or down the finger.
+ */
+export function zoneFan(group: readonly Node[], gripW: number): { at: Vec; deg: number }[] {
+  const spread = Math.min(FAN.total, FAN.step * Math.max(0, group.length - 1));
+  const step = group.length > 1 ? spread / (group.length - 1) : 0;
+  return group.map((piece, i) => {
+    const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
+    const half = shape ? extentOf(shape).h / 2 : 0;
+    const arm = gripW / GRIP_RATIO / 2 + GRIP_GAP + half;
+    const deg = -spread / 2 + step * i;
+    const a = (deg * Math.PI) / 180;
+    // Straight up from the tab, turned by the card's own share of the spread. At zero this is the
+    // stack's own seat, which is what makes the two poses the same gesture at two openings.
+    return { at: { x: arm * Math.sin(a) || 0, y: -arm * Math.cos(a) || 0 }, deg };
+  });
+}
+
+/**
+ * A PLACE RE-POSES WHAT IT HAS — everything a zone holds goes flat again once it is put down.
+ *
+ * A drop leaves pieces as they were, fan and all; that is what a drop IS, and a fan let go of on the
+ * felt stays a fan. A place is the exception, because how its things lie is its own business: the
+ * row it lays them out in has no opinion about turns (no layout here has), so the turn a lift put on
+ * them has to be taken off by the desk that put it there.
+ *
+ * BY THE SAME TEST THE HANDLE USES, not by parentage. A hand let go of over its own zone is never
+ * handed to it — a run led by a handle is led by a control, and a zone takes cards, not controls
+ * (`zoneNear`) — so the cards come down ON the zone and the zone counts them by lying in it. Asked
+ * about children only, this straightened exactly the cards that had been dealt in one at a time and
+ * left every hand ever put back looking like a fan dropped in a box.
+ */
+export function zoneSquares(share: number): NonNullable<HeapRule["settled"]> {
+  return (root, ids) => {
+    const held = new Set(zoneHolds(share)(root, () => false).flatMap(({ pieces }) => pieces.map((n) => n.id)));
+    for (const id of ids) {
+      const piece = byId(root, id);
+      if (!piece || !held.has(id)) continue;
+      const own = fieldsOf<TransformableFields>(piece, "Transformable");
+      compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
+    }
   };
 }

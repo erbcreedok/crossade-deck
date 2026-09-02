@@ -138,4 +138,38 @@ describe("the drag wiring's order", () => {
     s.dispose();
   });
 
+
+  it("drag.a-release-the-scene-took-is-never-announced — the wiring reports its OWN drops", () => {
+    // `onRelease` says "I have taken these", and the wiring then does nothing else at all — not the
+    // seats, not the re-parent, and not `onSettled`. That is right: a scene that took the drop knows
+    // what it did, and being told about it afterwards would be the wiring reporting somebody else's
+    // work as its own.
+    //
+    // It is worth pinning because it is the trap on the other side: anything a desk hangs off
+    // `onSettled` — squaring up what a place was given, redrawing handles — simply does not happen
+    // on a release the scene took, and the scene has to do it itself at the end of its own fall.
+    const heard: string[] = [];
+    const s = scene(desk(), { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s, { onRelease: () => (heard.push("took"), true), onSettled: () => heard.push("announced") });
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    s.host.view.dispatchEvent(finger("pointerup", 120, 0));
+    expect(heard).toEqual(["took"]);
+    s.dispose();
+
+    // ...and a scene that does NOT take it is told, which is the path every other desk is on.
+    heard.length = 0;
+    const s2 = scene(desk(), { animate: true });
+    document.body.appendChild(s2.el);
+    measure(s2.el);
+    wireDrag(s2, { onRelease: () => false, onSettled: () => heard.push("announced") });
+    s2.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    s2.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    s2.host.view.dispatchEvent(finger("pointerup", 120, 0));
+    expect(heard).toEqual(["announced"]);
+    s2.dispose();
+  });
+
 });

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockFlips } from "../../src/index.js";
 import { grabScene } from "./gestureScene.js";
-import { CARD_SHARE, HELD_SHARE, magnetMap, PULL, zoneHolds, zoneNear } from "./magnetMap.js";
+import { CARD_SHARE, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
 import { mergeRule } from "./mergeMap.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
@@ -80,7 +80,7 @@ export const Magnetism: StoryObj<MagnetArgs> = {
       false,
       0,
       // Cards heap by being COVERED, as they do everywhere; the zone holds by a share of its own.
-      { ...mergeRule(cardShare), held: zoneHolds(heldShare) },
+      { ...mergeRule(cardShare), held: zoneHolds(heldShare), fan: zoneFan, settled: zoneSquares(heldShare) },
       undefined,
       zoneNear,
     ),

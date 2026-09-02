@@ -19,13 +19,14 @@ import {
   rect,
   registerLayout,
   Reaching,
+  remove,
   Valued,
   Transformable,
   type Node,
   type TransformableFields,
 } from "../../src/index.js";
-import { CARD_SHARE, HELD_SHARE, magnetMap, PULL, zoneHolds, zoneNear } from "./magnetMap.js";
-import { heapBox, isGrip, regrip, restsAt } from "./gestureMap.js";
+import { CARD_SHARE, FAN, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
+import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
 /** A card off the desk itself — the real shape, not a stand-in built to make the sums come out. */
@@ -119,6 +120,73 @@ describe("where a throw will come to rest", () => {
     // And with no friction of its own it takes the desk's, or the sum has no drag to divide by.
     const { friction: _own, ...noDrag } = feel;
     expect(restsAt(from, { x: 4, y: 0 }, noDrag, 4).x).toBeCloseTo(2, 6);
+  });
+});
+
+describe("how a place poses what it lifts", () => {
+  it("magnet.a-hand-comes-up-as-a-fan — turned about the tab it hangs from", () => {
+    // The middle of the fan sits exactly where the squared stack would have put it, and the rest
+    // swing out from there: a hand opening and closing must not also drift up or down the finger.
+    const desk = magnetMap();
+    const cards = desk.children.filter((n) => heapOf(n) === "card").slice(0, 5);
+    const fan = zoneFan(cards, GRIP.w);
+    expect(fan.length).toBe(5);
+    // Symmetrical about the middle, and the middle card is upright.
+    expect(fan[2]!.deg).toBeCloseTo(0, 6);
+    expect(fan[0]!.deg).toBeCloseTo(-fan[4]!.deg, 6);
+    expect(fan[0]!.deg).toBeLessThan(0);
+    // ...and turned OUTWARDS in order, never crossing.
+    for (let i = 1; i < fan.length; i++) expect(fan[i]!.deg).toBeGreaterThan(fan[i - 1]!.deg);
+    // The upright one lands on the stack's own seat — the two poses are one gesture at two openings.
+    expect(fan[2]!.at.y).toBeCloseTo(stackSeats([cards[2]!], GRIP.w)[0]!.y, 6);
+    expect(fan[2]!.at.x).toBeCloseTo(0, 6);
+    // The ends swing out to the sides, and up: they are turned about the tab, not slid along a line.
+    expect(fan[0]!.at.x).toBeLessThan(0);
+    expect(fan[4]!.at.x).toBeGreaterThan(0);
+    expect(fan[0]!.at.y).toBeGreaterThan(fan[2]!.at.y);
+  });
+
+  it("magnet.a-hand-of-one-is-not-a-fan — and a big one does not become a wheel", () => {
+    const desk = magnetMap();
+    const cards = desk.children.filter((n) => heapOf(n) === "card");
+    // One card has nothing to splay against, so it stands exactly as the stack would leave it.
+    const alone = zoneFan(cards.slice(0, 1), GRIP.w);
+    expect(alone[0]!.deg).toBe(0);
+    expect(alone[0]!.at).toEqual(stackSeats([cards[0]!], GRIP.w)[0]);
+    // ...and twenty do not open twice as wide as ten: the whole hand is capped.
+    const wide = zoneFan(cards.slice(0, 20), GRIP.w);
+    expect(wide[19]!.deg - wide[0]!.deg).toBeCloseTo(FAN.total, 6);
+    // Three take their own step rather than the whole spread, or a small hand would splay absurdly.
+    const few = zoneFan(cards.slice(0, 3), GRIP.w);
+    expect(few[2]!.deg - few[0]!.deg).toBeCloseTo(FAN.step * 2, 6);
+  });
+
+  it("magnet.a-place-squares-what-it-HAS — by where it lies, never by whose child it is", () => {
+    // A drop leaves pieces as they were, fan and all — that is what a drop IS. A place is the
+    // exception: the row it lays its cards out in has no opinion about turns, so the turn a lift
+    // put on them has to be taken off by the desk that put it there.
+    //
+    // And by the same test the handle uses. A hand let go of over its own zone is never HANDED to
+    // it — a run led by a handle is led by a control, and a zone takes cards, not controls — so the
+    // cards come down ON the zone and are counted by lying in it. Asked about children only, this
+    // straightened exactly the cards dealt in one at a time and left every hand ever put back
+    // looking like a fan dropped in a box.
+    const desk = magnetMap();
+    const zone = desk.children[0]!;
+    const cards = desk.children.filter((n) => heapOf(n) === "card");
+    const child = cards[0]!;
+    const lying = cards[1]!;
+    const outside = cards[2]!;
+    compose(lying, Transformable({ at: { x: 0, y: 1.8 }, angle: 24 }));
+    compose(outside, Transformable({ at: { x: 0, y: -2 }, angle: 24 }));
+    compose(child, Transformable({ at: { x: 0, y: 0 }, angle: 24 }));
+    remove(desk, child);
+    add(zone, child);
+    zoneSquares(HELD_SHARE)(desk, [child.id, lying.id, outside.id]);
+    const turn = (n: Node): number | undefined => fieldsOf<TransformableFields>(n, "Transformable")?.angle;
+    expect(turn(child), "handed to it").toBe(0);
+    expect(turn(lying), "merely lying in it — the case a hand put back is").toBe(0);
+    expect(turn(outside), "on the felt, left exactly as it was").toBe(24);
   });
 });
 
