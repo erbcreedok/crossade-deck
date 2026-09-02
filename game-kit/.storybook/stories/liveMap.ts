@@ -10,19 +10,17 @@
 // neither: with cards hidden, a reader watching one screen cannot tell "the other player has not
 // moved" from "the other player moved something I am not allowed to see".
 //
-// The two screens are two SCENES, not one drawn twice. Two hosts, two clocks, two cameras — because
-// that is what two devices are, and a page that faked it with one would be quietly proving nothing.
+// The two screens are two SCENES over ONE tree, which is what two people at one board are. A cursor
+// is drawn over the GLASS and never on the felt: a piece is what anything on the felt would be —
+// touchable, heapable, and in everybody's way — and a picture of somebody's finger is none of those.
 
 import {
   Acceptor,
   add,
+  caps,
   Bounded,
-  byId,
-  circle,
-  cloneTree,
   freeLayout,
   registerLayout,
-  Coated,
   compose,
   Container,
   Draggable,
@@ -34,14 +32,10 @@ import {
   rect,
   registerSurface,
   roundedRect,
-  Valued,
   setFacing,
   Surfaced,
   Transformable,
-  fieldsOf,
   type Node,
-  type NodeId,
-  type ValuedFields,
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
@@ -61,7 +55,6 @@ const ZONE = { w: 3.6, h: 1.9 };
 const ZONE_SURFACE = "live.zone";
 const ZONE_LAYOUT = "live.hand";
 const DESK_LAYOUT = "live.free";
-const CURSOR = "live.cursor";
 
 /** Where each seat's own area stands — across the desk from each other, as two players sit. */
 const AREA: Record<string, number> = { south: 2.1, north: -2.1 };
@@ -79,10 +72,6 @@ export function installLiveArt(zone: Spread): void {
     radius: 0.22,
     stroke: { color: "panelBorder", width: 0.04 },
   });
-  // A CURSOR IS A DISC AND NOTHING ELSE. It is a picture of somebody's finger, not a piece: it takes
-  // no room, answers no touch, and is coloured by whose it is (`Coated`, tinted per seat) rather
-  // than by what it is — which is why one surface serves both seats.
-  registerSurface(CURSOR, { layers: [{ paint: "text" }] });
 }
 
 /**
@@ -127,51 +116,18 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
   return desk;
 }
 
-/** How big another hand's cursor is drawn, in units — a fingertip, not a piece. */
-const CURSOR_SIZE = 0.34;
-
 /**
- * THE SNAPSHOT, MARKED WITH WHOEVER ELSE'S HANDS ARE ON THE DESK.
+ * THE PANEL'S NUMBERS, WRITTEN INTO A DESK THAT IS ALREADY STANDING — see `HeapRule.tune`.
  *
- * A COPY, because marks come off as well as on: a ring composed onto the snapshot itself would
- * outlive the hand that put it there — the next pass simply does not mention that node, and what
- * was never removed stays. Marking a fresh tree each time makes absence mean absence.
- *
- * Two marks, and they say two different things. The RING says "somebody else is holding this", which
- * is about a card. The CURSOR says "somebody else's finger is here", which is about a person and is
- * drawn even when they are holding nothing at all — a hand you cannot see is a player who has left.
+ * The same two that the magnetism desk has to re-apply, for the same reason: an area's REACH is a
+ * field on the area, and the row it lays its cards out in is a registered arrangement it names by
+ * name. Both are set when the desk is built, and a desk is built once.
  */
-export function markHands(snapshot: Node, hands: ReadonlyMap<string, Hand>): Node {
-  const seen = cloneTree(snapshot);
-  for (const [who, hand] of hands) {
-    const ink = SEATS.find((s) => s.seat === who)?.ink ?? "text";
-    for (const id of hand.els) {
-      const held = byId(seen, id);
-      if (held) compose(held, Coated({ self: { recipe: "ring", level: 1, tint: ink } }));
+export function liveTune(pull: number, zone: Spread) {
+  return (root: Node): void => {
+    installLiveArt(zone);
+    for (const one of root.children) {
+      if (caps(one).has("Acceptor")) compose(one, Reaching({ reach: pull }));
     }
-    if (!hand.at) continue;
-    add(
-      seen,
-      node(
-        `cursor ${who}` as NodeId,
-        Bounded({ bounds: circle(CURSOR_SIZE / 2) }),
-        Surfaced({ surface: CURSOR }),
-        Coated({ self: { recipe: "wash", level: 1, tint: ink } }),
-        // IT SAYS WHAT IT IS. Its name is a name, and nothing may read one (`guard.id-is-opaque`):
-        // a screen asking "which of these is a cursor" asks the node, not the string.
-        Valued({ values: { cursor: 1 } }),
-        Transformable({ at: hand.at, z: 9 }),
-      ),
-    );
-  }
-  return seen;
-}
-
-/** A picture of somebody's finger, told apart from a piece by what it carries and never by its name. */
-export const isCursor = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valued")?.values?.["cursor"] !== undefined;
-
-/** One other hand, as this screen knows it: whose it is, what it holds, and where it is. */
-export interface Hand {
-  readonly els: readonly NodeId[];
-  readonly at?: Vec;
+  };
 }

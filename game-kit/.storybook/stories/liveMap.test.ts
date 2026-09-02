@@ -1,72 +1,44 @@
-// THE LIVE DESK'S OWN PIECE — what one screen draws of the OTHER hands on the desk.
+// THE LIVE DESK — what a board two people are reading has to be, before anybody touches it.
 //
-// Delivery is the master's and is guarded there; the desk is the magnetism page's and is guarded
-// there. What is only ever true here is the marking: a ring on what somebody else is holding, a
-// cursor wherever their finger is, and — the part that is easy to get wrong and impossible to see
-// in a screenshot — that both come OFF again.
+// The mechanics are the magnetism page's and are guarded there; the mirroring is the scene's wiring
+// and is checked on the glass. What is only ever true HERE is the desk itself: one board, an area
+// each, and every card face up — because the page deliberately teaches sharing and not hiding.
 
 import { describe, expect, it } from "vitest";
-import { byId, caps, fieldsOf, heapOf, walk, type Node, type NodeId, type TransformableFields } from "../../src/index.js";
-import { isCursor, liveMap, markHands, SEATS, type Hand } from "./liveMap.js";
+import { caps, facing, fieldsOf, heapOf, type Node, type TransformableFields } from "../../src/index.js";
+import { liveMap, LIVE, SEATS } from "./liveMap.js";
 
-/** How many cursors this screen is drawing — by what the nodes ARE, never by what they are called. */
-const cursors = (tree: Node): number => {
-  let n = 0;
-  walk(tree, (one) => {
-    if (isCursor(one)) n++;
-  });
-  return n;
-};
+const areas = (desk: Node): Node[] => desk.children.filter((n) => caps(n).has("Acceptor"));
+const cards = (desk: Node): Node[] => desk.children.filter((n) => heapOf(n) === "card");
 
-/** Whether this node wears a coat — read through the door, never off the node's own innards. */
-const coated = (tree: Node, id: NodeId): boolean => {
-  const n = byId(tree, id);
-  return !!n && caps(n).has("Coated");
-};
-
-describe("what one screen draws of the other hands", () => {
-  const deskAnd = (): { desk: Node; card: NodeId } => {
-    const desk = liveMap();
-    const card = desk.children.find((n) => heapOf(n) === "card")!.id;
-    return { desk, card };
-  };
-
-  it("live.a-hand-is-a-ring-and-a-cursor — one about a card, one about a person", () => {
-    const { desk, card } = deskAnd();
-    const hands = new Map<string, Hand>([["north", { els: [card], at: { x: 1, y: -2 } }]]);
-    const marked = markHands(desk, hands);
-    expect(coated(marked, card), "a ring on what they are holding").toBe(true);
-    expect(cursors(marked), "and a cursor where their finger is").toBe(1);
-    // ...and the desk itself is untouched: the mark is a VIEW and the snapshot is not the viewer's
-    // to write on. Two screens mark the same snapshot differently, and each must get its own.
-    expect(coated(desk, card), "the snapshot was not written on").toBe(false);
-  });
-
-  it("live.a-hand-holding-nothing-is-still-a-hand — a cursor you cannot see is a player who left", () => {
-    const { desk } = deskAnd();
-    const marked = markHands(desk, new Map([["north", { els: [], at: { x: 0, y: 0 } }]]));
-    expect(cursors(marked)).toBe(1);
-  });
-
-  it("live.marks-come-off-again — absence has to mean absence", () => {
-    // The trap: a ring composed onto the snapshot itself outlives the hand that put it there,
-    // because the next pass simply does not mention that node and what was never removed stays.
-    // Marking a fresh copy each time is what makes "nobody is holding this" sayable at all.
-    const { desk, card } = deskAnd();
-    const held = markHands(desk, new Map([["north", { els: [card], at: { x: 1, y: 1 } }]]));
-    expect(coated(held, card)).toBe(true);
-    const letGo = markHands(desk, new Map());
-    expect(coated(letGo, card), "the ring is gone with the hand").toBe(false);
-    expect(cursors(letGo), "and so is the cursor").toBe(0);
-  });
-
+describe("the shared desk", () => {
   it("live.every-seat-has-an-area-and-they-face-each-other", () => {
-    // Two seats, two areas, on opposite sides of one desk — a player whose area was not across from
-    // the other's would be sitting at a different desk.
+    // Two seats, two areas, on opposite sides of one board — a player whose area was not across
+    // from the other's would be sitting at a different desk.
     const desk = liveMap();
-    const areas = desk.children.filter((n) => caps(n).has("Acceptor"));
-    expect(areas.length).toBe(SEATS.length);
-    const ys = areas.map((n) => fieldsOf<TransformableFields>(n, "Transformable")!.at!.y);
+    expect(areas(desk).length).toBe(SEATS.length);
+    const ys = areas(desk).map((n) => fieldsOf<TransformableFields>(n, "Transformable")!.at!.y);
     expect(Math.sign(ys[0]!)).toBe(-Math.sign(ys[1]!));
+    // ...and both may be reached by anybody: whose turn it is and what may go where are a game's
+    // rules, and this page has none.
+    for (const area of areas(desk)) expect(caps(area).has("Acceptor")).toBe(true);
+  });
+
+  it("live.every-card-is-face-up — the page teaches sharing, not hiding", () => {
+    // Hiding is real and the kit does it, but it is a second subject, and a page teaching two at
+    // once teaches neither: with cards hidden a reader watching one screen cannot tell "they have
+    // not moved" from "they moved something I may not see".
+    const desk = liveMap();
+    expect(cards(desk).length).toBe(LIVE.cards);
+    for (const card of cards(desk)) expect(facing(card)).toBe("up");
+  });
+
+  it("live.the-desk-and-its-areas-say-what-a-touch-takes — or no drop is possible at all", () => {
+    // A move plan starts by asking the SOURCE what a touch takes out of it. A container with no
+    // `Grabber` hands back nothing, and every drop on the desk is denied before any zone is asked —
+    // which is a failure with no symptom except that nothing ever works.
+    const desk = liveMap();
+    expect(caps(desk).has("Grabber"), "the felt").toBe(true);
+    for (const area of areas(desk)) expect(caps(area).has("Grabber"), "and each area").toBe(true);
   });
 });

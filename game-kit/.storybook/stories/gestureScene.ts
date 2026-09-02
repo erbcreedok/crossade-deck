@@ -148,6 +148,9 @@ export function grabScene(
   // WHICH ZONE A RELEASE BELONGS TO. Absent, no release belongs to any — which is what every desk on
   // this shelf said before one of them grew a zone.
   zones?: (root: Node, at: Vec, lead: Node) => Node | undefined,
+  // THE OTHER SCREENS ON THIS DESK, if there are any. Absent, this scene is alone with its tree,
+  // which is what every page on the shelf but one is.
+  mirror?: Mirror,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -198,14 +201,21 @@ export function grabScene(
     // pieces, whatever the desk has rearranged itself into meanwhile.
     if (inHand && carried) heaps.set(inHand, carried);
     built.host.setRoot(built.host.root);
+    // ...AND SO DOES EVERY OTHER SCREEN LOOKING AT THIS DESK. One tree, several hosts: a change made
+    // here is a change to the board they are all reading, and a host is only ever told by being told.
+    mirror?.changed();
   };
   // ...AND THE PANEL'S NUMBERS ARE RE-APPLIED TO THE DESK THAT IS ALREADY STANDING. The desk is not
   // rebuilt on an argument change, so anything a control writes INTO it — a zone's reach, a named
   // arrangement — has to be written again here, or the knob would only take effect on a page reload.
   rule?.tune?.(built.host.root);
+  mirror?.ready(built);
   settle();
   return wireDrag(built, {
     view: () => built.camera!.transform(),
+    // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
+    // moving here is invisible over there unless it is reported and mirrored.
+    ...(mirror ? { onCarry: ({ ids, at, done }) => mirror.hand(ids, at, done) } : {}),
     // A PILE HIDES ALL BUT A SLIVER OF WHAT IS UNDER ITS TOP, and a finger that lands on a sliver
     // gets a card nobody was aiming at. Below this much showing a piece does not answer at all: the
     // touch goes to whatever is covering it, and so on up the pile.
@@ -451,6 +461,25 @@ function aimOf(
   if (!lead || !drawn) return undefined;
   const from = apply(drawn, { x: 0, y: 0 });
   return restsAt(from, hand, bumped(dropOf(lead, ways), lead, bump), s.motions?.tuning().friction ?? 0);
+}
+
+/**
+ * THE OTHER SCREENS ON ONE DESK.
+ *
+ * Two hosts over one tree is what two people at one board ARE, and it needs exactly two things said.
+ * A host is only ever told by being TOLD, so a change made here has to be announced (`changed`); and
+ * a carry is an OVERRIDE and never a tree write, so a hand moving here is invisible over there
+ * unless it is reported (`hand`) and mirrored. Without the second, the far screen sees a cursor
+ * gliding about and the card it is holding standing perfectly still — which is not a shared desk,
+ * it is two people looking at different ones.
+ */
+export interface Mirror {
+  /** This screen, handed over once it exists, so the caller can wire the other direction. */
+  readonly ready: (s: Scene) => void;
+  /** This screen changed the tree everybody is reading. */
+  readonly changed: () => void;
+  /** This screen's hand: what it holds, where it is, and whether it has let go. */
+  readonly hand: (ids: readonly string[], at: Vec | undefined, done: boolean) => void;
 }
 
 export function letFall(
