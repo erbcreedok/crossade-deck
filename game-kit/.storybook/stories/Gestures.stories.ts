@@ -368,13 +368,13 @@ export const Throw: StoryObj<ThrowArgs> = {
  * `Stack` is the bare heap: form it, pull it, put it down. `StackLift` adds the pop, `StackDrop`
  * the fall. Every one of them can be switched back to the page before it.
  */
-const STACK_RENDER = ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop }: StackArgs): HTMLElement =>
+const STACK_RENDER = ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop }: StackArgs): HTMLElement =>
   grabScene(
     physics,
     lifted ? lift : undefined,
     dropping ? (throwing ? "throw" : "drop") : undefined,
     stacking,
-    { w: gripWidth, min: gripMin, max: gripMax },
+    { w: gripWidth, min: gripMin, max: gripMax, miss: gripMiss },
     { card: cardDrop, chip: chipDrop, die: dieDrop },
   );
 
@@ -449,13 +449,13 @@ export const StackThrow: StoryObj<StackArgs> = {
  * and nothing turns — a gesture that stayed was never a tap.
  */
 export const Flip: StoryObj<FlipArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping, showsEnough }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, flipping, showsEnough }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
       dropping ? (throwing ? "throw" : "drop") : undefined,
       stacking,
-      { w: gripWidth, min: gripMin, max: gripMax },
+      { w: gripWidth, min: gripMin, max: gripMax, miss: gripMiss },
       { card: cardDrop, chip: chipDrop, die: dieDrop },
       "deck",
       flipping,

@@ -4,9 +4,10 @@
 // `core` for the matrix, never up. Kept in the kit so no game writes its own copy.
 
 import { apply, invert, type Transform } from "../core/transform.js";
-import { byId, type Node } from "../core/node.js";
-import { type Point } from "../core/atoms/bounded.js";
-import { outlinesTouch } from "../core/overlap.js";
+import { byId, fieldsOf, type Node } from "../core/node.js";
+import { extentOf, type BoundedFields, type Point } from "../core/atoms/bounded.js";
+import { grownOutline, outlinesTouch } from "../core/overlap.js";
+import { missOf } from "../core/atoms/forgiving.js";
 import { scenePlan, viewTransform, type Quad } from "./scenePlan/index.js";
 import { type Host } from "./host.js";
 
@@ -181,11 +182,30 @@ export function pick(
   });
   // Worked out once and shared: every question below is asked of the same glass outlines.
   const all = showsEnough > 0 ? shownOf(plan) : undefined;
+  // EXACTLY AS DRAWN FIRST, and then — only if that found nothing — again for the nodes that forgive
+  // a miss. Two passes and not one, because a forgiving node must never STEAL: a finger that landed
+  // squarely on a card gets the card, however generous the tab under it is. What the second pass
+  // catches is the touches that were going to be answered by nothing at all.
+  return hitIn(plan, root, g, want, all, showsEnough, 0) ?? hitIn(plan, root, g, want, all, showsEnough, 1);
+}
+
+/** One pass of the pick: `slack` off tests the drawn outlines, on tests the forgiven ones. */
+function hitIn(
+  plan: readonly Quad[],
+  root: Node,
+  g: Point,
+  want: (n: Node) => boolean,
+  all: Shown[] | undefined,
+  showsEnough: number,
+  slack: 0 | 1,
+): Node | undefined {
   for (let i = plan.length - 1; i >= 0; i--) {
     const q = plan[i]!;
     const inv = invert(q.transform);
     if (!inv) continue;
-    if (!inPolygon(apply(inv, g), q.points)) continue;
+    const miss = slack ? slopIn(q, byId(root, q.id)) : 0;
+    if (slack && miss <= 0) continue; // nothing to forgive: this one was already offered, exactly
+    if (!inPolygon(apply(inv, g), miss > 0 ? grownOutline(q.points, miss) : q.points)) continue;
     // NOT ENOUGH OF IT TO AIM AT: the finger was never meant for this one. It belongs to whatever is
     // covering it — and that piece need not contain the point at all, which is the whole of the
     // ladder: a sliver at the bottom-left of a pile hands the touch to the pile's top, not to
@@ -197,6 +217,29 @@ export function pick(
     if (n && want(n)) return n;
   }
   return undefined;
+}
+
+/**
+ * HOW FAR A MISS IS FORGIVEN, IN THE QUAD'S OWN SPACE — the atom says units, a quad is drawn.
+ *
+ * Measured off the quad rather than multiplied by the plan's unit, because a control is usually held
+ * at a constant size on the glass (`Screened`) and is therefore drawn at a scale of its own. Taking
+ * the ratio between what this quad IS and what its node's bounds SAY gets both cases with one sum —
+ * and gets it right for the very node this exists for.
+ */
+function slopIn(q: Quad, own: Node | undefined): number {
+  const miss = own ? missOf(own) : 0;
+  if (!own || miss <= 0) return 0;
+  const box = fieldsOf<BoundedFields>(own, "Bounded")?.bounds;
+  const wide = box ? extentOf(box).w : 0;
+  if (wide <= 0) return 0;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  for (const p of q.points) {
+    if (p.x < x0) x0 = p.x;
+    if (p.x > x1) x1 = p.x;
+  }
+  return x1 > x0 ? (miss * (x1 - x0)) / wide : 0;
 }
 
 /** Standard even-odd point-in-polygon, on a contour already in the tested point's space. */

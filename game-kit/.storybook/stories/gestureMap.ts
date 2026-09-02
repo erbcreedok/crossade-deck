@@ -17,6 +17,7 @@
 // names, not theme tokens — a piece is content, and it does not follow the theme.
 
 import {
+  Forgiving,
   installStockCoats,
   add,
   apply,
@@ -1042,9 +1043,30 @@ export interface GripSpec {
   /** How far the view may take it down and up before it is held — see `Screened`. */
   readonly min: number;
   readonly max: number;
+  /**
+   * HOW FAR A FINGER MAY MISS THE TAB and still take it, in units — see `Forgiving`.
+   *
+   * A tab is a few pixels tall on purpose: one drawn as a slab would be a slab, and the heap it
+   * stands under is the thing the reader is meant to be looking at. But a fingertip covers forty-odd
+   * pixels of glass and hides the target on the way down, so a control that is honest to the EYE is
+   * a control that has to be aimed at twice. The answer is not to draw it bigger.
+   *
+   * IT NEVER STEALS: what is drawn is offered first, and only touches that would have found nothing
+   * at all reach this (`pick`). A finger on a card gets the card.
+   */
+  readonly miss: number;
 }
 
-const GRIP_SPEC: GripSpec = { w: GRIP.w, ...GRIP_HOLD };
+/**
+ * HALF A TAB'S WIDTH, forgiven all round.
+ *
+ * Which is about a fingertip: the tab is drawn to a constant size on the glass (`Screened`), so this
+ * is a constant number of pixels too — the same forgiveness at every zoom, because the thing being
+ * forgiven is a finger and a finger does not zoom.
+ */
+export const GRIP_MISS = GRIP.w / 2;
+
+const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
 
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */
 /**
@@ -1069,6 +1091,8 @@ function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec
     // A HANDLE IS SIZED FOR THE FINGER, not for the desk: the same pixels at every zoom, the way
     // every drag handle in every application anybody has ever used is drawn.
     Screened({ min: spec.min, max: spec.max }),
+    // ...AND IT IS EASIER TO CATCH THAN TO SEE. The picture stays exactly the size it was.
+    Forgiving({ miss: spec.miss }),
     Draggable({ onReject: "stay" }),
   );
 }

@@ -72,13 +72,13 @@ const SCATTER = documented(
  * a second code path — it is the same throw with every piece saying it takes no room.
  */
 export const Collision: StoryObj<CollisionArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, mergeReach, holding }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, mergeReach, holding }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
       dropping ? (throwing ? "throw" : "drop") : undefined,
       stacking,
-      { w: gripWidth, min: gripMin, max: gripMax },
+      { w: gripWidth, min: gripMin, max: gripMax, miss: gripMiss },
       { card: cardDrop, chip: chipDrop, die: dieDrop },
       () => collisionMap(mergeReach),
       false,
@@ -127,13 +127,13 @@ export const Collision: StoryObj<CollisionArgs> = {
  * piece flies at all, so "thrown" means one thing here and not two.
  */
 export const Landing: StoryObj<CollisionArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, holding, mergeReach }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, holding, mergeReach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
       dropping ? (throwing ? "throw" : "drop") : undefined,
       stacking,
-      { w: gripWidth, min: gripMin, max: gripMax },
+      { w: gripWidth, min: gripMin, max: gripMax, miss: gripMiss },
       { card: cardDrop, chip: chipDrop, die: dieDrop },
       () => landingMap(mergeReach),
       false,

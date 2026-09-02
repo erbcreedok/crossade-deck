@@ -8,7 +8,7 @@
 // is what makes a shelf readable end to end: each page adds exactly one thing, its switch takes that
 // one thing away, and what is left is the neighbour a reader has already understood.
 
-import { GRIP, GRIP_HOLD, type LetGo } from "./gestureMap.js";
+import { GRIP, GRIP_HOLD, GRIP_MISS, type LetGo } from "./gestureMap.js";
 import { documented } from "./surfaceControls.js";
 
 export interface GrabArgs {
@@ -48,7 +48,15 @@ export interface StackArgs extends ThrowArgs {
   /** How far the view may take it down and up before it is held — see `Screened`. */
   gripMin: number;
   gripMax: number;
+  /** How far a finger may MISS the tab and still take it, in units. The picture does not change. */
+  gripMiss: number;
 }
+
+// A CONTROL IS AIMED AT WITH A FINGERTIP AND DRAWN FOR AN EYE. The tab is a few pixels tall on
+// purpose — one drawn as a slab would be a slab — and a fingertip covers forty-odd pixels of glass
+// while hiding the target on the way down. `0` and the tab is hit exactly as it is drawn, which is
+// the page before this number existed and is worth trying once to feel what it was.
+export const GRIP_MISS_KNOB = documented("arg.gripMiss", { control: { type: "number", min: 0, step: 0.05 }, if: { arg: "stacking" } }, "grip");
 
 export const GRIP_W = documented("arg.gripWidth", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
 export const GRIP_MIN = documented("arg.gripMin", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
@@ -89,6 +97,7 @@ export const STACK_ARGS: StackArgs = {
   gripWidth: GRIP.w,
   gripMin: GRIP_HOLD.min,
   gripMax: GRIP_HOLD.max,
+  gripMiss: GRIP_MISS,
   cardDrop: "settle",
   chipDrop: "fall",
   dieDrop: "roll",
@@ -104,6 +113,7 @@ export const STACK_KNOBS = {
   gripWidth: GRIP_W,
   gripMin: GRIP_MIN,
   gripMax: GRIP_MAX,
+  gripMiss: GRIP_MISS_KNOB,
   cardDrop: CARD_WAY,
   chipDrop: CHIP_WAY,
   dieDrop: DIE_WAY,

@@ -8,6 +8,7 @@ import { freeLayout } from "../core/atoms/layouts.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { Bounded } from "../core/atoms/bounded.js";
+import { Forgiving } from "../core/atoms/forgiving.js";
 import { add, caps, node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { apply } from "../core/transform.js";
@@ -152,6 +153,45 @@ describe("the pointer seam", () => {
     add(solo, node("one", box(1, 1.4), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
     const mid = apply(viewTransform(100, 800, 600), { x: 0, y: 0 });
     expect(pick(h, solo, mid, any, undefined, undefined, 0.9)?.id).toBe("one");
+  });
+
+  it("pick.a-forgiving-node-catches-a-miss-and-never-steals — the touch area is not the picture", () => {
+    // A control is aimed at with a fingertip and drawn for an eye. A drag handle is a few pixels
+    // tall on purpose — one drawn as a slab would be a slab — and a fingertip covers forty-odd
+    // pixels of glass while hiding the target on the way down. So the honest answer is not to draw
+    // it bigger; it is to catch the misses.
+    const desk = node("desk", Container({ layout: "free" }));
+    const tab = node("tab", box(1, 0.25), Surfaced(), Transformable({ at: { x: 0, y: 2 } }), Forgiving({ miss: 0.5 }));
+    const card = node("card", box(2, 2.8), Surfaced(), Transformable({ at: { x: 0, y: 0 } }));
+    add(desk, tab);
+    add(desk, card);
+    const h = host(100, 800, 600);
+    // The plan builds this very view from the host's own unit and viewport, so the point is put
+    // through it here and `pick` is left to make its own — as every other case in this file does.
+    const glass = (x: number, y: number) => apply(viewTransform(100, 800, 600), { x, y });
+    const any = (): boolean => true;
+
+    // Squarely on it, as always.
+    expect(pick(h, desk, glass(0, 2), any)?.id, "dead centre").toBe("tab");
+    // A finger a quarter of a unit BELOW its bottom edge: past the picture, inside the forgiveness.
+    expect(pick(h, desk, glass(0, 2.4), any)?.id, "a miss it forgives").toBe("tab");
+    // ...and past the forgiveness, nothing. A slop is a THRESHOLD and the pick keeps to it.
+    expect(pick(h, desk, glass(0, 3.2), any), "a miss it does not").toBeUndefined();
+
+    // IT NEVER STEALS. The card is drawn well clear of the tab but within the tab's forgiveness at
+    // its nearest corner; a finger squarely on the card must still get the card. What the second
+    // pass catches is only the touches that were going to be answered by nothing at all.
+    expect(pick(h, desk, glass(0, 0), any)?.id, "squarely on the card").toBe("card");
+    // The card's bottom edge is at 1.4 and the tab forgives down to 1.375, so this point is inside
+    // BOTH — which is the only kind of point that can tell "never steals" from "was never asked".
+    expect(pick(h, desk, glass(0, 1.39), any)?.id, "inside both: the drawn one wins").toBe("card");
+
+    // ...AND A NODE THAT FORGIVES NOTHING IS HIT EXACTLY AS IT IS DRAWN, which is every other node
+    // in the kit and the desk this page was before the atom existed.
+    const strict = node("desk2", Container({ layout: "free" }));
+    add(strict, node("tab", box(1, 0.25), Surfaced(), Transformable({ at: { x: 0, y: 2 } })));
+    expect(pick(h, strict, glass(0, 2), any)?.id, "dead centre still").toBe("tab");
+    expect(pick(h, strict, glass(0, 2.4), any), "and a miss is a miss").toBeUndefined();
   });
 
 });

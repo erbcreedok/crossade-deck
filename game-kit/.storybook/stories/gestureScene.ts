@@ -12,6 +12,7 @@
 import {
   Coated,
   NO_COAT,
+  Private,
   add,
   apply,
   byId,
@@ -50,6 +51,7 @@ import {
   gestureMap,
   GRIP,
   GRIP_HOLD,
+  GRIP_MISS,
   isGrip,
   isPlaceGrip,
   regrasp,
@@ -67,6 +69,7 @@ import {
   turnOver,
   type Bump,
   type DropFeel,
+  type GripSpec,
   type HeapRule,
   type LetGo,
 } from "./gestureMap.js";
@@ -145,7 +148,7 @@ export function grabScene(
   lift?: number,
   letGo?: "drop" | "throw",
   stacking = false,
-  grip: { w: number; min: number; max: number } = { w: GRIP.w, ...GRIP_HOLD },
+  grip: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD },
   ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
   desk: "map" | "stack" | "deck" | (() => Node) = stacking ? "stack" : "map",
   flipping = false,
@@ -341,6 +344,16 @@ export function grabScene(
             // was a moment ago. Nothing to undo: `settle` throws every handle away and draws the
             // next ones fresh, so the mark goes when the gesture does.
             compose(hit, Coated({ self: ANCHOR_MARK, cast: NO_COAT }));
+            // ...AND EVERY OTHER TAB GOES DARK. A hand that is holding one cannot take another, so
+            // the rest are controls that answer nothing: left on the felt they are clutter under a
+            // moving hand, and clutter around a control is exactly what made this one hard to catch.
+            //
+            // NOT ON A DESK WITH OTHER HANDS ON IT. "You cannot take another" is true of a hand, not
+            // of a board: somebody else's finger may be on its way to one of those tabs right now,
+            // and the tree they would take it out of is the same tree. So a shared desk keeps them.
+            //
+            // Nothing to undo: `settle` throws every handle away and draws the next ones fresh.
+            if (!mirror) for (const other of otherGrips(built.host.root, hit)) compose(other, Private({ access: [] }));
             const run = heaps.get(hit.id) ?? [];
             const owner = run[0]?.parent;
             liftedFrom = owner && caps(owner).has("Acceptor") ? owner : undefined;
@@ -701,6 +714,15 @@ function formationOf(
 /** Where a node stands right now, in root units — the seat a landing or a release just wrote. */
 function seatIn(n: Node): Vec {
   return fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
+}
+
+/** Every handle on the desk except this one — wherever a zone may have re-homed it. */
+function otherGrips(root: Node, mine: Node): Node[] {
+  const out: Node[] = [];
+  for (const owner of [root, ...root.children]) {
+    for (const tab of owner.children) if (isGrip(tab) && tab.id !== mine.id) out.push(tab);
+  }
+  return out;
 }
 
 export function letFall(

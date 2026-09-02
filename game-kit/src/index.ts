@@ -170,6 +170,10 @@ export { Labeled, type LabeledFields } from "./core/atoms/labeled.js";
 export { Placeable, placeable, type PlaceableFields } from "./core/atoms/placeable.js";
 // Interaction & visibility: what can be dragged, focused, and who a private subtree is shown to.
 export { Draggable, draggable, onRejectOf, type DraggableFields } from "./core/atoms/draggable.js";
+// How far a finger may MISS a node and still find it. A control is aimed at with a fingertip and
+// drawn for an eye; `Bounded` says what is drawn, this says what is reachable. It never steals — the
+// pick offers every node exactly as drawn first (`pick`).
+export { Forgiving, missOf, type ForgivingFields } from "./core/atoms/forgiving.js";
 // A free angle a HAND set, and where it lands when the fingers go. Not `Tiltable`: that is a tap
 // between a few declared stops, this is anything in between, and both write the one angle.
 export {

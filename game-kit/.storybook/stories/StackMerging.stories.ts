@@ -74,13 +74,13 @@ const SHARE = documented("arg.mergeShare", { control: { type: "number", min: 0, 
  * throw, the handles, the tap that turns a card over. This page adds one number.
  */
 export const StackMerging: StoryObj<MergeArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping, showsEnough, mergeShare, mergeReach }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, flipping, showsEnough, mergeShare, mergeReach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
       dropping ? (throwing ? "throw" : "drop") : undefined,
       stacking,
-      { w: gripWidth, min: gripMin, max: gripMax },
+      { w: gripWidth, min: gripMin, max: gripMax, miss: gripMiss },
       { card: cardDrop, chip: chipDrop, die: dieDrop },
       () => mergeMap(mergeReach),
       flipping,
