@@ -64,6 +64,35 @@ import { svg } from "./stockAssets.js";
 /** How big the map is, in units — see `gestureMap` on why it is bigger than any glass. */
 export const MAP = { w: 8, h: 8 };
 
+/**
+ * HOW MUCH ROOM BEYOND THE DESK THE CAMERA IS GIVEN, as a fraction of the desk's own size.
+ *
+ * A camera told the desk EXACTLY is held so that the desk always covers the glass, and the felt's
+ * edge becomes a wall the view stops dead against. That is correct and it is horrible to use: every
+ * pan ends in a stop with nothing on the other side of it, and a piece lying by the border can never
+ * be brought to the middle of the glass to be looked at. What the view is FOR is looking, and looking
+ * at the edge of a thing means having a little of the outside in shot.
+ *
+ * A FRACTION and not a number of units, so it says the same thing about any desk this shelf grows —
+ * a quarter of a desk of slack reads the same on one twice the size.
+ *
+ * IT MOVES NOTHING BUT THE VIEW. The desk's border is still a wall to the PIECES (`mapWalls`): the
+ * slack is somewhere to look from, never somewhere to put anything.
+ */
+export const ROAM = 0.25;
+
+/**
+ * THE STRETCH A CAMERA ON THIS SHELF IS HELD INSIDE — the desk, and `ROAM` of it all round.
+ *
+ * A RECT and not a size, because the desk is laid out AROUND zero: its corner is at minus half, and
+ * a camera told only the size would hold the view inside one quarter of it while every clamp read
+ * perfectly correct.
+ */
+export function deskRoom(roam: number = ROAM): { x: number; y: number; w: number; h: number } {
+  const pad = { x: MAP.w * roam, y: MAP.h * roam };
+  return { x: -MAP.w / 2 - pad.x, y: -MAP.h / 2 - pad.y, w: MAP.w + pad.x * 2, h: MAP.h + pad.y * 2 };
+}
+
 /** The knight's own box, in units — a chess piece stands taller than it is wide. */
 const KNIGHT = { w: 0.9, h: 1.1 };
 

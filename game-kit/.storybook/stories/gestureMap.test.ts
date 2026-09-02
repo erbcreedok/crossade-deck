@@ -5,9 +5,10 @@
 // the wrong thing and the border still LOOKS enforced, with half a card hanging over the side.
 
 import { describe, expect, it } from "vitest";
+import { apply, Camera } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -437,5 +438,36 @@ describe("the stacking desk", () => {
     const thick = Math.abs(many[many.length - 1]!.y - many[0]!.y);
     expect(thick).toBeLessThanOrEqual(STACK_THICK + 1e-9);
     expect(thick, "and it is still a pile, not a plane").toBeGreaterThan(STACK_THICK * 0.9);
+  });
+
+  it("map.the-camera-gets-room-the-desk-does-not — an edge you cannot bring to the middle is an edge you cannot read", () => {
+    // Told the desk EXACTLY, the camera holds it covering the glass, and the felt's border becomes a
+    // wall the view stops dead against: every pan ends in a stop with nothing on the other side of
+    // it, and a piece lying by that border can never be brought to the middle of the glass to be
+    // looked at. Which is what it felt like — being boxed in by the desk's own outline.
+    //
+    // The measurement is that last sentence, not the numbers: can the desk's own corner be pushed to
+    // the centre of the glass? On the desk alone it cannot; with the room it can.
+    const glass = { w: 400, h: 400 };
+    const middle = { x: glass.w / 2, y: glass.h / 2 };
+    const cornerAtMiddle = (area: { x: number; y: number; w: number; h: number }): number => {
+      const cam = new Camera({ minZoom: 0.5, maxZoom: 2.5 });
+      cam.setScreen(glass.w, glass.h);
+      cam.setContent(area, 60);
+      // Shove it as hard as anything can: far past any clamp, so what is left is the clamp itself.
+      cam.panBy(-4000, -4000);
+      const corner = apply(cam.transform(), { x: MAP.w / 2, y: MAP.h / 2 });
+      return Math.hypot(corner.x - middle.x, corner.y - middle.y);
+    };
+    const boxedIn = cornerAtMiddle({ x: -MAP.w / 2, y: -MAP.h / 2, w: MAP.w, h: MAP.h });
+    const roomy = cornerAtMiddle(deskRoom());
+    // The desk alone: the corner stops a long way short of the middle — that gap IS the complaint.
+    expect(boxedIn, "the desk's own outline is the wall").toBeGreaterThan(glass.w / 4);
+    expect(roomy, "and with the room, the corner comes to the middle").toBeLessThan(boxedIn);
+    // ...and the room is even, so no edge is easier to reach than another.
+    const room = deskRoom();
+    expect(room.x + room.w / 2, "still centred on the desk").toBeCloseTo(0, 9);
+    expect(room.y + room.h / 2).toBeCloseTo(0, 9);
+    expect(room.w, "and it is ROOM, not a second desk").toBeGreaterThan(MAP.w);
   });
 });

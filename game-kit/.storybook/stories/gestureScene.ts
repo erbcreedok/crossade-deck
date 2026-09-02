@@ -52,6 +52,7 @@ import {
   isPlaceGrip,
   regrasp,
   MAP,
+  deskRoom,
   mapWalls,
   regrip,
   stackMap,
@@ -205,9 +206,11 @@ export function grabScene(
     animate: true,
     camera: {
       limits: MAP_ZOOM,
-      // The map is laid out AROUND zero, so its corner is at minus half — the camera is told the
-      // rect and not the size, or three quarters of it would be unreachable.
-      content: { x: -MAP.w / 2, y: -MAP.h / 2, w: MAP.w, h: MAP.h },
+      // THE DESK PLUS THE ROOM TO LOOK AT IT. Told the desk exactly, the camera holds it covering
+      // the glass and the felt's edge becomes a wall the view stops dead against — every pan ending
+      // in a stop with nothing beyond it, and a piece by the border never reachable to the middle of
+      // the glass. `deskRoom` gives the eye somewhere to stand; the pieces are still walled in.
+      content: deskRoom(),
       ...(unit === undefined ? {} : { unit }),
       // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and
       // over bare map the same finger drives the view. The two never argue about a hand.
