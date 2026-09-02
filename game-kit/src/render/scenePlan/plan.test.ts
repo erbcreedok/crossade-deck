@@ -155,7 +155,7 @@ describe("scenePlan", () => {
     expect(plan(root)[0]!.z).toBe(11);
   });
 
-  it("plan.a-shadow-lies-directly-under-its-own-caster — on what it fell on, beneath what cast it", () => {
+  it("plan.a-resting-piece-shadows-the-desk-and-a-raised-one-shadows-what-it-is-over", () => {
     // The shadow is NOT a node: it is a LAYER, drawn with the piece that casts it. The default lamp
     // hangs top-right of the frame, so the fall is down-left, and the quad wears the caster's id
     // with a suffix nothing can resolve: un-pickable, un-bakeable, un-mistakable for a piece.
@@ -171,13 +171,21 @@ describe("scenePlan", () => {
     const quads = plan(root);
     expect(quads.map((q) => q.id)).toEqual(["sp1", "piece::shadow", "piece", "tower"]);
     expect(quads[1]!.layer).toBe("shadow");
-    // ...and it lies ON what was drawn before its caster, which is the ground and any piece it is
-    // hanging across. A shadow hoisted under all of them would slide beneath the very cards it has
-    // something to say about — the moment a raised piece is over its neighbours.
+    // A RESTING piece casts on the DESK and nothing else. Cards in a stack are touching: there is
+    // no gap between them, so there is no shadow between them either — and drawn as though there
+    // were, a deck of thirty-six paints thirty-six dark rims into itself and comes out a black slab.
+    // So its shadow goes over the ground and under every piece, this one included.
     const piece = quads.find((q) => q.id === "piece")!;
     const shade = quads[1]!;
     expect(shade.transform.e).toBeLessThan(piece.transform.e); // down-LEFT of the piece
     expect(shade.transform.f).toBeGreaterThan(piece.transform.f);
+
+    // ...AND A STACK DOES NOT SHADOW ITSELF. Two cards lying on each other, both casting: the
+    // shadows go together, ahead of both pieces, so neither is darkened by the other.
+    const flat = node("sp2", Container({ layout: "free" }), Surfaced());
+    add(flat, node("under", box(1, 1.4), Surfaced(), ShadowCaster()));
+    add(flat, node("over", box(1, 1.4), Surfaced(), ShadowCaster(), Transformable({ at: { x: 0.02, y: 0.02 } })));
+    expect(plan(flat).map((q) => q.id)).toEqual(["sp2", "under::shadow", "over::shadow", "under", "over"]);
   });
 
   // A ruler whose answers are chosen here: ten pixels a character, flat. See `textLayout.test.ts`.

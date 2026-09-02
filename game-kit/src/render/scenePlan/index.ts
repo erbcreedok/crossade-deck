@@ -297,17 +297,26 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
   // no reason the reader can see. Flight beats height — a raised node sorts after every resting one
   // — and inside every group the height still rules.
   //
-  // A SHADOW KEEPS ITS PLACE, which is directly under the piece that cast it. `visit` already puts
-  // it there, and that is the whole of the law: it covers everything drawn before its caster — the
-  // felt it fell on, and the cards it fell across — and is covered by the caster itself.
+  // WHAT A SHADOW FALLS ON DEPENDS ON WHETHER ITS CASTER IS OFF THE DESK, and there are exactly two
+  // answers because there are exactly two situations.
   //
-  // It was hoisted into one pass under everything once, and that was wrong twice over. Under the
-  // felt, no shadow could be seen at all on a desk that paints one. Under the resting pieces, a
-  // raised card's shadow slid beneath the cards it was hanging over — which is precisely the moment
-  // a shadow has something to say.
+  // A PIECE LYING ON THE DESK casts on the DESK and on nothing else. Cards in a stack are touching:
+  // there is no gap between them, so there is no shadow between them either — and drawn as though
+  // there were, a deck of thirty-six paints thirty-six dark rims into itself and comes out a black
+  // slab. So a resting shadow goes in one pass over the ground and under every piece.
   //
-  // A shadow flies with its caster, too: it is raised when the piece is, or it would sink below
-  // every resting piece the instant the piece it belongs to left the desk.
+  // A PIECE HELD ABOVE IT casts on whatever it is over — the desk, and the cards it is hanging
+  // across. That one keeps its natural place, directly under its own caster, which is where `visit`
+  // already put it: it covers everything drawn before and is covered by the piece itself.
+  //
+  // Both were got wrong in turn. Hoisted under everything, no shadow could be seen on a desk that
+  // paints its felt, and a raised card's shadow slid beneath the very cards it hung over. Left in
+  // place for all, a stack shadowed itself.
+  const grounds = new Set<NodeId>();
+  walk(root, (n) => {
+    if (caps(n).has("Container")) grounds.add(n.id);
+  });
+  const lay = (q: Quad): number => (grounds.has(q.id) ? 0 : q.layer === "shadow" && !airborne.has(q.id) ? 1 : 2);
   const aloft = (q: Quad): number => (raised?.has(q.id) || airborne.has(q.id) ? 1 : 0);
-  return out.sort((a, b) => aloft(a) - aloft(b) || a.z - b.z);
+  return out.sort((a, b) => lay(a) - lay(b) || aloft(a) - aloft(b) || a.z - b.z);
 }
