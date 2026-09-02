@@ -45,12 +45,15 @@ import {
   registerLayout,
   registerSurface,
   roundedRect,
-  rowLayout,
   setFacing,
   Surfaced,
   Transformable,
   type BoundedFields,
+  type LayoutChild,
+  type LayoutRecord,
   type Node,
+  type Point,
+  type Shape,
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
@@ -98,9 +101,7 @@ function installMagnetArt(): void {
   // names a rule nothing resolves and the container hands back nothing at all.
   installStockGrabs();
   registerLayout(DESK_LAYOUT, freeLayout);
-  // A ROW, because what a zone does with what it is given is half of what makes it read as a zone:
-  // cards that landed anyhow are cards lying in a rectangle, and cards squared up are a HAND.
-  registerLayout(ZONE_LAYOUT, rowLayout({ gap: -0.45, padding: 0.12 }));
+  registerLayout(ZONE_LAYOUT, handLayout({ padding: 0.12, overlap: 0.45 }));
   registerSurface(ZONE_SURFACE, {
     layers: [{ paint: "sunkBg" }],
     radius: 0.24,
@@ -237,6 +238,42 @@ function toEdge(a: Vec, b: Vec, p: Vec): number {
   return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
 }
 
+
+/**
+ * A HAND LAID OUT IN A ROW THAT NEVER OUTGROWS ITS ROOM.
+ *
+ * A row of a fixed step is a row that gets wider with every card, and a zone is a place with an
+ * edge: eight cards at a comfortable step are half a card past the border on each side, which reads
+ * as the zone having failed to hold what it was given. Every card game everybody has played solves
+ * this the same way — the hand closes up as it grows — and it is the zone's own box that says when.
+ *
+ * So the step is the smaller of two: the one that looks right, and the one that fits. Below the
+ * point where they cross nothing changes at all, which is why a hand of three looks like a hand of
+ * three rather than like a hand of twelve with nine cards missing.
+ *
+ * `overlap` is how much of a card the NEXT one covers at the comfortable step; `padding` is the
+ * felt left between the outermost cards and the border. Given no box the layout places nobody —
+ * the same silence a free canvas gives, rather than a guess about where an edge might be.
+ */
+export function handLayout({ padding = 0, overlap = 0 }: { padding?: number; overlap?: number } = {}): LayoutRecord {
+  const place = (children: readonly LayoutChild[], box?: Shape): readonly (Point | undefined)[] => {
+    if (!box) return children.map(() => undefined);
+    const wide = children.map((c) => (c.footprint ? extentOf(c.footprint).w : 0));
+    const widest = wide.reduce((a, b) => Math.max(a, b), 0);
+    const room = Math.max(0, extentOf(box).w - 2 * padding - widest);
+    const gaps = Math.max(1, children.length - 1);
+    // The comfortable step, and the one the room allows. Whichever is smaller is the one a hand of
+    // this size actually takes — and for a small hand they are the first, unchanged.
+    const step = children.length > 1 ? Math.min(widest * (1 - overlap), room / gaps) : 0;
+    const from = -(step * (children.length - 1)) / 2;
+    return children.map((_child, i) => ({ x: from + step * i, y: 0 }));
+  };
+  // NO ADDRESSES. A hand is not a set of slots: a card given to it JOINS it, and where it ends up
+  // is a consequence of how many there are rather than of where the finger was. `indexAt` is
+  // optional for exactly this — a layout with no seats to point at says so by not answering, which
+  // is the same silence a heap gives.
+  return { padding, place };
+}
 
 /**
  * WHAT THE ZONE IS HOLDING — its own children, and anything else lying far enough inside it.

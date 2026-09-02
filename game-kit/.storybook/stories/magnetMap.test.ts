@@ -22,10 +22,11 @@ import {
   remove,
   Valued,
   Transformable,
+  type LayoutChild,
   type Node,
   type TransformableFields,
 } from "../../src/index.js";
-import { CARD_SHARE, FAN, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
+import { CARD_SHARE, FAN, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
 import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
@@ -187,6 +188,46 @@ describe("how a place poses what it lifts", () => {
     expect(turn(child), "handed to it").toBe(0);
     expect(turn(lying), "merely lying in it — the case a hand put back is").toBe(0);
     expect(turn(outside), "on the felt, left exactly as it was").toBe(24);
+  });
+});
+
+describe("a hand that never outgrows its room", () => {
+  const card = (w: number, i = 0): LayoutChild => ({ id: `c${i}` as LayoutChild["id"], at: { x: 0, y: 0 }, footprint: rect(w, 1.4) });
+  const hand = handLayout({ padding: 0.1, overlap: 0.45 });
+  const room = rect(3.4, 2);
+  const spread = (n: number): number[] => hand.place(Array.from({ length: n }, (_v, i) => card(1, i)), room).map((p) => p!.x);
+
+  it("magnet.a-hand-closes-up-as-it-grows — and never crosses the border", () => {
+    // A row of a fixed step gets wider with every card, and a zone is a place with an EDGE: eight
+    // cards at a comfortable step hang half a card past the border on each side, which reads as the
+    // zone having failed to hold what it was given.
+    for (const n of [1, 2, 5, 8, 20]) {
+      const xs = spread(n);
+      const half = 3.4 / 2 - 0.1 - 0.5; // the room a card's own centre may stand in
+      for (const x of xs) expect(Math.abs(x), `${n} cards`).toBeLessThanOrEqual(half + 1e-9);
+    }
+    // ...and it is always a row: in order, evenly, centred on the zone.
+    const eight = spread(8);
+    for (let i = 1; i < eight.length; i++) expect(eight[i]!).toBeGreaterThan(eight[i - 1]!);
+    expect(eight[0]! + eight[7]!).toBeCloseTo(0, 9);
+  });
+
+  it("magnet.a-small-hand-is-not-a-squashed-big-one — below the crossing nothing changes", () => {
+    // The step is the smaller of two: the one that looks right and the one that fits. A hand of
+    // three must look like a hand of three, not like a hand of twelve with nine cards missing.
+    const three = spread(3);
+    expect(three[1]! - three[0]!, "the comfortable step, untouched").toBeCloseTo(0.55, 9);
+    // Twenty cannot have it, and takes what the room allows instead — strictly less.
+    const twenty = spread(20);
+    expect(twenty[1]! - twenty[0]!).toBeLessThan(0.55);
+    // One card has no step to take and stands in the middle.
+    expect(spread(1)).toEqual([0]);
+  });
+
+  it("magnet.a-hand-with-no-room-named-places-nobody — a guess about an edge is worse than silence", () => {
+    // Given no box the layout has no number to measure a border from. It says so rather than
+    // inventing one, which is the same answer a free canvas gives.
+    expect(hand.place([card(1, 0), card(1, 1)])).toEqual([undefined, undefined]);
   });
 });
 

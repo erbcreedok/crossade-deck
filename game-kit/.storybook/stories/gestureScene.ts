@@ -10,8 +10,11 @@
 // fall is asked for — is stated here once, so a new page inherits it by existing.
 
 import {
+  add,
   apply,
   byId,
+  node,
+  remove,
   velocityOf,
   compose,
   DEFAULT_TUNING,
@@ -306,7 +309,18 @@ export function grabScene(
             // so a fall filed here is a fall the zone never gets to see. Answering `false` hands the
             // release back to the ordinary path, which is where zones live — and the piece is taken
             // the moment it leaves the finger rather than flown there and pulled back.
-            if (zoneFor(built, items, zones, aimed)) return false;
+            const zone = zoneFor(built, items, zones, aimed);
+            if (zone) {
+              // A RUN LED BY A HANDLE IS HANDED OVER HERE; anything else the wiring re-parents
+              // itself, with its accept rules and its displacement, which is where that belongs.
+              if (!items.some((one) => isGrip(byId(built.host.root, one.id) ?? node("")))) return false;
+              handOver(built, zone, items);
+              rule?.settled?.(built.host.root, items.map((one) => one.id));
+              inHand = undefined;
+              aimed = undefined;
+              settle();
+              return true;
+            }
             // WHOSE HANDLE THIS WAS, remembered for the length of the fall. `settle` runs again on
             // every landing, which can be a second later — by then another gesture may have a
             // different handle in hand, and a stale callback clearing that would destroy the tab
@@ -372,16 +386,48 @@ const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
  * Where the piece is and where the finger is are not the same point: the carry clamps the run inside
  * the border while the finger may be well outside it, and it is the PIECE a zone is taking.
  */
+/**
+ * THE ZONE THIS RELEASE BELONGS TO — asked about the run's first PIECE, never about its handle.
+ *
+ * A run led by a handle is led by a control, and a zone takes cards and not controls: asked about
+ * the tab, every hand ever carried over a zone is refused, and the cards come down on top of it
+ * instead of into it.
+ */
 function zoneFor(
   s: Scene,
   items: readonly CarryItem[],
   zones: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined,
   aim: Vec | undefined,
 ): Node | undefined {
-  const it = items[0];
+  if (!zones) return undefined;
+  const it = items.find((one) => !isGrip(byId(s.host.root, one.id) ?? node("")));
   const lead = it ? byId(s.host.root, it.id) : undefined;
   const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
-  return zones && drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead) : undefined;
+  return drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead) : undefined;
+}
+
+/**
+ * GIVE THE RUN TO THE ZONE, here in the scene, and say the release is dealt with.
+ *
+ * The wiring can re-parent a drop of its own, and does it well — accept rules, displacement, the
+ * lot. What it cannot do is a run led by a HANDLE: it moves the run's lead, and the lead of such a
+ * run is a tab. So a hand put into a zone is handed over here instead, and the handle stays exactly
+ * what it is — a picture, thrown away and redrawn by the next `settle`.
+ *
+ * Nothing is written about WHERE anything goes: the zone's own arrangement does that, and the
+ * reconcile that follows eases every card from where the hand was holding it into the row. Which is
+ * what "it lines up as it lands" means — not a snap after the fact.
+ */
+function handOver(s: Scene, zone: Node, items: readonly CarryItem[]): void {
+  const root = s.host.root;
+  for (const it of items) {
+    const piece = byId(root, it.id);
+    s.motions?.release(it.id);
+    if (!piece || isGrip(piece) || !piece.parent) continue;
+    remove(piece.parent, piece);
+    add(zone, piece);
+  }
+  s.host.setRoot(root);
 }
 
 /** Where the lead of this release will come to rest — the point a zone should be asked about. */
