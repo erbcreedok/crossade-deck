@@ -56,6 +56,7 @@ export function throws(rt: Runtime): Throws {
         girth: 0,
         bodyBounce: 0,
         solid: "",
+        anchored: false,
       });
     },
     slide(id, opts) {
@@ -97,6 +98,7 @@ export function throws(rt: Runtime): Throws {
         girth: opts.girth ?? 0,
         bodyBounce: opts.bodyBounce ?? cfg.bounce,
         solid: opts.solid ?? "",
+        anchored: opts.anchored ?? false,
       });
     },
   };

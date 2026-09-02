@@ -615,7 +615,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // DIFFERENT WORLDS NEVER MEET. A card is solid to a card and thin air to a die, which is
         // one desk and two answers — see `SlideOptions.solid`.
         if (a.solid !== b.solid) continue;
-        const hit = separate(a.body, b.body, a.girth + b.girth, Math.min(a.bodyBounce, b.bodyBounce));
+        const hit = separate(a.body, b.body, a.girth + b.girth, Math.min(a.bodyBounce, b.bodyBounce), {
+          a: a.anchored,
+          b: b.anchored,
+        });
         if (!hit) continue;
         a.body = hit.a;
         b.body = hit.b;

@@ -189,6 +189,32 @@ describe("two bodies on one desk", () => {
     expect(parting.b.pos.x - parting.a.pos.x).toBeCloseTo(1, 6);
   });
 
+  it("ballistic.a-body-that-holds-its-place-is-a-wall — a landing gives way, the furniture does not", () => {
+    // WHAT IS ALREADY LYING THERE, when something is PUT DOWN beside it rather than thrown at it.
+    // Split the correction evenly and the chip a die lands next to is teleported half a chip
+    // sideways by a body that was never coming at it — a shove out of nowhere, which the eye reads
+    // as the desk twitching.
+    const landing = separate(at(0, 0), at(0.6, 0), 1, 0.5, { a: false, b: true })!;
+    expect(landing.b.pos.x, "the furniture did not stir").toBeCloseTo(0.6, 6);
+    expect(landing.a.pos.x, "the arriving one gave way, all of it").toBeCloseTo(-0.4, 6);
+    expect(landing.b.pos.x - landing.a.pos.x, "and they are apart, which is the promise that never bends").toBeCloseTo(1, 6);
+
+    // ...AND IT IS A WALL, not a hole: something genuinely travelling comes back off it with the
+    // whole of the exchange rather than half, because there is nobody to share it with.
+    const hit = separate(at(0, 0, 4, 0), at(0.6, 0), 1, 1, { a: false, b: true })!;
+    expect(hit.a.vel.x, "the thrower is turned round by it").toBeCloseTo(-4, 6);
+    expect(hit.b.vel.x, "and the wall keeps its own speed, which is none").toBe(0);
+
+    // Two of them holding their places have no way of parting and nothing that could make them:
+    // they were put where they are, and only the desk that put them there can move them again.
+    expect(separate(at(0, 0), at(0.6, 0), 1, 0.5, { a: true, b: true })).toBeUndefined();
+
+    // Free on both sides is the ordinary case and the default — half the correction each.
+    const even = separate(at(0, 0), at(0.6, 0), 1, 0.5)!;
+    expect(even.a.pos.x).toBeCloseTo(-0.2, 6);
+    expect(even.b.pos.x).toBeCloseTo(0.8, 6);
+  });
+
   it("ballistic.dead-centre-is-a-direction-too — two bodies on one pixel still get apart", () => {
     // There is no line between them to push along, and `0/0` would put both at NaN and take the
     // scene with it. Any direction will do as long as it IS one.

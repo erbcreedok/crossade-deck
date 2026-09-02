@@ -199,17 +199,32 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
  *
  * The push is split evenly and the exchange is along the line between the centres, which is what an
  * equal-mass collision does; the tangent components are untouched, so a glancing blow glances.
+ * Either of them may instead HOLD ITS PLACE (`fixed`), and then it is a wall: the other one gives
+ * way entirely and bounces off it, and the wall does not stir.
  * Bodies at different HEIGHTS still collide: on a desk seen from above, one die hopping over another
  * reads as one die on top of another, and it is the picture that has to be right.
  *
  * Returns the pair, or `undefined` when they were never in each other's way — so a caller can skip
  * the write on the frames where nothing happened, which is nearly all of them.
  */
+/** Neither of them holds its place — the ordinary case, where both are free to be moved. */
+const BOTH_FREE = { a: false, b: false };
+
 export function separate(
   a: Body,
   b: Body,
   girth: number,
   bounce: number,
+  /**
+   * WHICH OF THEM HOLDS ITS PLACE — a body nothing can move, however hard it is hit.
+   *
+   * Infinite mass, and it is what "already lying there" means when something is put down beside it
+   * rather than thrown at it. A piece coming down from above has no business shoving the felt's
+   * furniture aside: it gives way, all of it, and what it hit does not stir. Hit by something
+   * genuinely travelling, the same furniture is an ordinary body again and gets sent on its way —
+   * which is the caller's decision, not this function's.
+   */
+  fixed: { readonly a: boolean; readonly b: boolean } = BOTH_FREE,
 ): { readonly a: Body; readonly b: Body } | undefined {
   const dx = b.pos.x - a.pos.x;
   const dy = b.pos.y - a.pos.y;
@@ -221,20 +236,40 @@ export function separate(
   // pieces on the same pixel.
   const ux = gap > 0 ? dx / gap : 1;
   const uy = gap > 0 ? dy / gap : 0;
-  const push = (girth - gap) / 2;
+  const overlap = girth - gap;
+  // WHOEVER IS TRAVELLING IS THE ONE WHO GIVES WAY, in proportion to how fast.
+  //
+  // A body that is not going anywhere cannot be shoved by one that arrives on top of it. Dropped
+  // from above, a die comes down with nothing across the desk in it: split the correction evenly and
+  // the chip it lands beside is teleported half a chip sideways by a die that was never coming at
+  // it — a shove out of nowhere, and one the eye reads as the desk twitching.
+  //
+  // Thrown, the same die is travelling, the chip is not, and the whole correction lands on the die.
+  // What moves the chip then is the EXCHANGE below, which is the throw's own speed arriving — so a
+  // throw scatters what it hits and a drop settles in beside it, out of one rule rather than two.
+  // Neither of them moving (two pieces put down on one spot by a hand) has no answer in speed, and
+  // then even is the only fair split there is.
+  // Two fixed bodies have no way of parting and nothing that could make them: they were put where
+  // they are, and the desk that put them there is the only thing that can move them again.
+  if (fixed.a && fixed.b) return undefined;
+  const pushA = fixed.a ? 0 : fixed.b ? overlap : overlap / 2;
+  const pushB = overlap - pushA;
   const apart = {
-    a: { pos: { x: a.pos.x - ux * push, y: a.pos.y - uy * push } },
-    b: { pos: { x: b.pos.x + ux * push, y: b.pos.y + uy * push } },
+    a: { pos: { x: a.pos.x - ux * pushA, y: a.pos.y - uy * pushA } },
+    b: { pos: { x: b.pos.x + ux * pushB, y: b.pos.y + uy * pushB } },
   };
   // ...AND ONLY THEN THE BOUNCE, and only if they were actually closing. Two bodies already moving
   // apart are overlapping because they were PUT there, and swapping their speeds would suck them
   // back together — a pair that trembled against each other for ever instead of leaving.
   const closing = (b.vel.x - a.vel.x) * ux + (b.vel.y - a.vel.y) * uy;
   if (closing >= 0) return { a: { ...a, ...apart.a }, b: { ...b, ...apart.b } };
-  const swap = -(1 + bounce) * closing * 0.5;
+  // Equal masses share the exchange; against a body that holds its place there is nothing to share,
+  // so the whole of it comes back to the one that arrived — which is a bounce off a wall, and a
+  // wall is exactly what a piece nothing can move is.
+  const swap = -(1 + bounce) * closing * (fixed.a || fixed.b ? 1 : 0.5);
   return {
-    a: { ...a, ...apart.a, vel: { x: a.vel.x - ux * swap, y: a.vel.y - uy * swap } },
-    b: { ...b, ...apart.b, vel: { x: b.vel.x + ux * swap, y: b.vel.y + uy * swap } },
+    a: { ...a, ...apart.a, ...(fixed.a ? {} : { vel: { x: a.vel.x - ux * swap, y: a.vel.y - uy * swap } }) },
+    b: { ...b, ...apart.b, ...(fixed.b ? {} : { vel: { x: b.vel.x + ux * swap, y: b.vel.y + uy * swap } }) },
   };
 }
 

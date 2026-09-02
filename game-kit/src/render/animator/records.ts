@@ -160,6 +160,8 @@ export interface Flight {
   readonly bodyBounce: number;
   /** The world it is solid in — see `SlideOptions.solid`. Bodies of different worlds never meet. */
   readonly solid: string;
+  /** It holds its place: solid to its world, moved by none of it — see `SlideOptions.anchored`. */
+  readonly anchored: boolean;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 

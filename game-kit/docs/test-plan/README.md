@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**65 слоёв · 1500 кейсов заявлено · 1327 расписано поимённо.**
+**65 слоёв · 1502 кейсов заявлено · 1329 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -71,7 +71,7 @@
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
-| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 20 | 20 |
+| [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 21 | 21 |
 | [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 17 | 17 |
 | [UNIT · Rollable — грань как истина, кувырок как вид](48-rollable.md) | `vitest` | 3 | 3 |
 | [UNIT · текст — линейка портом, раскладка чистой функцией](49-text.md) | `vitest (headless, no font engine)` | 13 | 13 |
@@ -90,4 +90,4 @@
 | [UNIT · жесты — свайп, тряска, месиво](62-gestures.md) | `vitest` | 24 | 24 |
 | [UNIT · касание и кучи](63-overlap.md) | `vitest (headless, no WebGL)` | 8 | 8 |
 | [UNIT · сборка стеков — что становится одной кучей](64-stack-merging.md) | `vitest (headless, no WebGL)` | 7 | 7 |
-| [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 4 | 4 |
+| [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 5 | 5 |

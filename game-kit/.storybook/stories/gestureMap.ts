@@ -357,6 +357,22 @@ export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
 }
 
 /**
+ * DOES THIS RELEASE SHOVE WHAT IS ALREADY LYING THERE?
+ *
+ * Only a throw does. A piece put down beside another piece has no business flicking it across the
+ * felt, and a piece dropped from above has none either — it finds room and settles. What tells the
+ * two apart is the only thing that differs: whether the hand was going anywhere.
+ *
+ * The SAME threshold that decides whether a released piece flies at all (`thrown`), so "thrown"
+ * means one thing on this shelf and not two. A second number here would be a second definition of
+ * the word, and the day they drifted apart there would be a release that flies without shoving and
+ * nobody able to say why.
+ */
+export function shoves(speed: number): boolean {
+  return speed >= THROWN_AT;
+}
+
+/**
  * WHAT ELSE ON THE DESK IS IN THE WAY OF THIS THROW.
  *
  * Collision is between BODIES, and a piece that is not moving is not one: it landed, its seat was

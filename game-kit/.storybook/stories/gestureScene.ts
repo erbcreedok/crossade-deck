@@ -35,6 +35,7 @@ import {
   DIE_HOP,
   DIE_SPIN,
   DIE_SPIN_DRAG,
+  shoves,
   deckMap,
   dropOf,
   fallOrder,
@@ -373,6 +374,10 @@ export function letFall(
     feelOf,
   );
   s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
+  // A PUTTING-DOWN DOES NOT SHOVE THE FURNITURE (`shoves`). Below the throwing speed the standing
+  // pieces hold their places — solid, so nothing comes to rest on them, and immovable, so nothing
+  // sends them skidding merely because something was set down next to them.
+  const knocking = shoves(speed);
   for (const still of standing) {
     const feel = feelOf(still);
     m.slide(still.id, {
@@ -380,6 +385,7 @@ export function letFall(
       angle: 0,
       girth: feel.girth,
       solid: feel.solid,
+      ...(knocking ? {} : { anchored: true }),
       bodyBounce: feel.bodyBounce ?? feel.bounce,
       ...(feel.friction === undefined ? {} : { friction: feel.friction }),
       walls: mapWalls(still),

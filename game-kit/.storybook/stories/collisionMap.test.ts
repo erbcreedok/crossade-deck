@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, Surfaced, type Node } from "../../src/index.js";
-import { alsoInTheWay, bumped, dropOf, kindOf, MAP, type DropFeel, type Piece } from "./gestureMap.js";
+import { alsoInTheWay, bumped, dropOf, kindOf, MAP, shoves, THROWN_AT, thrown, type DropFeel, type Piece } from "./gestureMap.js";
 import { collisionMap, roomOn } from "./collisionMap.js";
 
 const BUMP = { roomFor: roomOn(1), bounce: 0.7, scatter: 2.6 };
@@ -53,6 +53,28 @@ describe("what is solid to what", () => {
     const card = piecesOf(desk, "card")[0]!;
     expect(dropOf(card).girth).toBe(0);
     expect(dropOf(piecesOf(desk, "die")[0]!).girth).toBeGreaterThan(0);
+  });
+});
+
+describe("a putting-down does not shove", () => {
+  it("collision.only-a-throw-knocks-the-furniture-about — and `thrown` means one thing, not two", () => {
+    // Without this a desk has to pick one wrong answer and live with it: either a die dropped from
+    // above buries the chip it lands on, or setting a die down next to a chip flicks it across the
+    // felt. What tells the two apart is the only thing that differs — whether the hand was going
+    // anywhere — and the desk is the only one who knows.
+    expect(shoves(0), "let go standing still").toBe(false);
+    expect(shoves(THROWN_AT * 4), "sent somewhere").toBe(true);
+
+    // THE SAME THRESHOLD the shelf already uses for whether a released piece flies at all. A second
+    // number here would be a second definition of the word, and the day they drifted there would be
+    // a release that flies without shoving and nobody able to say why.
+    const desk = collisionMap();
+    const card = piecesOf(desk, "card")[0]!;
+    for (const speed of [0, THROWN_AT - 0.01, THROWN_AT, THROWN_AT * 3]) {
+      // A card settles rather than flies, so `thrown` is answering on speed alone — which is the
+      // half of it this shares.
+      expect(shoves(speed), `at ${speed}`).toBe(thrown(card, speed));
+    }
   });
 });
 

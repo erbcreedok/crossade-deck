@@ -192,6 +192,15 @@ export type SlideOptions = {
    */
   readonly solid?: string | undefined;
   /**
+   * THIS BODY HOLDS ITS PLACE — solid to everything in its world, and moved by none of it.
+   *
+   * What "already lying there" means when something is PUT DOWN beside it rather than thrown at it.
+   * A piece coming down from above has no business shoving the felt's furniture aside: the arriving
+   * body gives way entirely and bounces off, and the furniture does not stir. The desk decides which
+   * it is, because only the desk knows whether a hand threw or let go.
+   */
+  readonly anchored?: boolean | undefined;
+  /**
    * What pulls it back DOWN, units/s². Patchable per throw for the same reason a `launch`'s is: how
    * heavy a thing falls is what tells one thing from another, and a desk holding a card, a die and a
    * carved piece is a desk where one number for all three is a desk of identical objects.

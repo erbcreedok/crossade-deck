@@ -126,3 +126,49 @@ export function collisionMap(): Node {
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
+
+
+/** How many chips lie on the felt for the landing desk, and how many dice come down onto them. */
+export const LANDING = { chips: 12, dice: 5, cards: 2 };
+
+/**
+ * THE LANDING DESK — a block of chips lying on the felt, and a handful of dice held above them.
+ *
+ * The same two worlds and the same rules as `collisionMap`; what it is arranged FOR is different.
+ * Here the chips are the subject: a tidy block of them, laid out on purpose, so that a reader can
+ * see whether they are still where they were put. Drop the dice straight onto them and nothing of
+ * the block stirs — the dice find room between them and settle. Throw the dice into them instead,
+ * and the block goes everywhere.
+ *
+ * A neat block rather than a scatter, because "nothing moved" is a claim about a picture, and a
+ * picture only makes it if it was tidy to begin with. Chips knocked out of a row read at a glance;
+ * chips knocked out of a heap read as nothing at all.
+ */
+export function landingMap(): Node {
+  installMapArt();
+  installMergeArt();
+  const desk = node(
+    "map",
+    Bounded({ bounds: rect(MAP.w, MAP.h) }),
+    Container({ layout: "merge.free" }),
+    Surfaced({ surface: "gesture.map" }),
+  );
+  for (let i = 0; i < LANDING.chips; i++) {
+    add(desk, mergeChip(`chip ${i}`, CHIP_VALUE, { x: -1.24 + (i % 4) * 0.82, y: 0.3 + Math.floor(i / 4) * 0.82 }));
+  }
+  for (let i = 0; i < LANDING.dice; i++) {
+    const d6 = die(`die ${i}`, { kind: "d6", at: { x: -0.75 + (i % 3) * 0.75, y: -2.3 + Math.floor(i / 3) * 0.75 }, face: (i % 6) + 1 });
+    compose(d6, PUT_DOWN);
+    compose(d6, Heaping({ heap: DIE_HEAP }));
+    add(desk, d6);
+  }
+  crossadeCards()
+    .slice(0, LANDING.cards)
+    .forEach((card, i) => {
+      compose(card, Transformable({ at: { x: -0.75 + i * 1.5, y: 2.9 } }));
+      compose(card, PUT_DOWN);
+      add(desk, card);
+    });
+  for (const warm of warmingNodes()) add(desk, warm);
+  return desk;
+}
