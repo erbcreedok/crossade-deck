@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockFlips } from "../../src/index.js";
 import { grabScene } from "./gestureScene.js";
 import { FLIPPING, SHOWS, SHOWS_DEFAULT, STACK_ARGS, STACK_KNOBS, type FlipArgs } from "./gestureKnobs.js";
-import { mergeMap, mergeRule, MERGE_SHARE } from "./mergeMap.js";
+import { mergeMap, mergeRule, MERGE_REACH, MERGE_SHARE } from "./mergeMap.js";
 import { documented } from "./surfaceControls.js";
 
 // MECHANICS — the rules a desk plays by, as opposed to the gestures a hand makes on it.
@@ -24,6 +24,8 @@ export default meta;
 interface MergeArgs extends FlipArgs {
   /** How much of a piece must lie under another before the two are one pile, 0..1. */
   mergeShare: number;
+  /** How far a GATHERED piece looks for its own kind, root units — a card looks nowhere. */
+  mergeReach: number;
 }
 
 /**
@@ -35,6 +37,14 @@ interface MergeArgs extends FlipArgs {
  * pile. Fused into one number they would pull against each other — a pile packed tightly enough to
  * hide its lower cards is one no card could ever be added to.
  */
+/**
+ * ITS OWN NUMBER, in units and not a share, because it answers a different question: the share asks
+ * how much of a piece is COVERED, and this asks how far away another one still counts as NEXT TO it.
+ * Turn it to zero and every pile on the desk becomes a card's kind of pile — things have to be on
+ * each other — which is the honest way to see what the reach buys.
+ */
+const REACH = documented("arg.mergeReach", { control: { type: "number", min: 0, step: 0.02 } }, "merge");
+
 const SHARE = documented("arg.mergeShare", { control: { type: "number", min: 0, max: 1, step: 0.05 } }, "merge");
 
 /**
@@ -64,7 +74,7 @@ const SHARE = documented("arg.mergeShare", { control: { type: "number", min: 0, 
  * throw, the handles, the tap that turns a card over. This page adds one number.
  */
 export const StackMerging: StoryObj<MergeArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping, showsEnough, mergeShare }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, flipping, showsEnough, mergeShare, mergeReach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -72,7 +82,7 @@ export const StackMerging: StoryObj<MergeArgs> = {
       stacking,
       { w: gripWidth, min: gripMin, max: gripMax },
       { card: cardDrop, chip: chipDrop, die: dieDrop },
-      mergeMap,
+      () => mergeMap(mergeReach),
       flipping,
       showsEnough,
       // OFF IS THE PAGE BEFORE THIS ONE, like every other switch on the shelf: a share of zero is
@@ -88,7 +98,8 @@ export const StackMerging: StoryObj<MergeArgs> = {
     flipping: true,
     showsEnough: SHOWS_DEFAULT,
     mergeShare: MERGE_SHARE,
+    mergeReach: MERGE_REACH,
   },
-  argTypes: { ...STACK_KNOBS, flipping: FLIPPING, showsEnough: SHOWS, mergeShare: SHARE },
+  argTypes: { ...STACK_KNOBS, flipping: FLIPPING, showsEnough: SHOWS, mergeShare: SHARE, mergeReach: REACH },
   parameters: { gkDocStory: "merging.scene" },
 };

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockFlips } from "../../src/index.js";
-import { collisionMap, roomOn } from "./collisionMap.js";
+import { collisionMap, landingMap, roomOn } from "./collisionMap.js";
 import { DIE_SCATTER } from "./gestureMap.js";
-import { mergeRule, MERGE_SHARE } from "./mergeMap.js";
+import { mergeRule, MERGE_REACH, MERGE_SHARE } from "./mergeMap.js";
 import { grabScene } from "./gestureScene.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
@@ -25,6 +25,10 @@ interface CollisionArgs extends StackArgs {
   knock: number;
   /** How hard a handful pushes itself apart as it leaves the hand, units/s. */
   scatter: number;
+  /** How far a gathered piece looks for its own kind when a handle is drawn, root units. */
+  mergeReach: number;
+  /** Off, and everything that gets in the way is shoved however gently it was let go. */
+  holding: boolean;
 }
 
 /** Its own size, exactly: at `1` two pieces of a kind come to rest edge to edge. */
@@ -41,6 +45,8 @@ const KNOCK = documented(
   { control: { type: "number", min: 0, max: 1, step: 0.05 }, if: { arg: "colliding" } },
   "collision",
 );
+const HOLDING = documented("arg.holding", { if: { arg: "colliding" } }, "collision");
+const REACH = documented("arg.mergeReach", { control: { type: "number", min: 0, step: 0.02 } }, "merge");
 const SCATTER = documented(
   "arg.scatter",
   { control: { type: "number", min: 0, step: 0.2 }, if: { arg: "colliding" } },
@@ -66,7 +72,7 @@ const SCATTER = documented(
  * a second code path — it is the same throw with every piece saying it takes no room.
  */
 export const Collision: StoryObj<CollisionArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, mergeReach, holding }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -74,7 +80,7 @@ export const Collision: StoryObj<CollisionArgs> = {
       stacking,
       { w: gripWidth, min: gripMin, max: gripMax },
       { card: cardDrop, chip: chipDrop, die: dieDrop },
-      collisionMap,
+      () => collisionMap(mergeReach),
       false,
       0,
       // The merging desk's rule, so a die heaps with a die: the handful is picked up as one, which
@@ -82,10 +88,9 @@ export const Collision: StoryObj<CollisionArgs> = {
       mergeRule(MERGE_SHARE),
       // NO ROOM FOR ANYBODY IS THE SWITCH. Off is not a second code path: it is the same throw with
       // every piece saying it takes no room, which is what every piece on every other desk says.
-      // EVERYTHING THAT REACHES ANYTHING SHOVES IT, however gently it was let go. That a putting-down
-      // leaves the furniture alone is the NEXT page's subject (`Mechanics/Landing`) and deliberately
-      // not this one's: two desks, two answers, and this one is the plain one.
-      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: false },
+      // On THIS scene the holding is off: everything that reaches anything shoves it, however gently
+      // it was let go. That a putting-down leaves the furniture alone is the next scene's subject.
+      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: holding },
     ),
   args: {
     ...STACK_ARGS,
@@ -96,7 +101,50 @@ export const Collision: StoryObj<CollisionArgs> = {
     room: ROOM,
     knock: 0.7,
     scatter: DIE_SCATTER,
+    mergeReach: MERGE_REACH,
+    holding: false,
   },
-  argTypes: { ...STACK_KNOBS, colliding: COLLIDING, room: ROOM_KNOB, knock: KNOCK, scatter: SCATTER },
+  argTypes: { ...STACK_KNOBS, colliding: COLLIDING, room: ROOM_KNOB, knock: KNOCK, scatter: SCATTER, mergeReach: REACH, holding: HOLDING },
   parameters: { gkDocStory: "collision.scene" },
+};
+
+/**
+ * LANDING — a thing put down beside another thing does not shove it aside.
+ *
+ * A block of chips lies on the felt and a handful of dice is held above it. Drop the dice — take
+ * them by the handle, move nothing, let go — and they come down among the chips, finding room
+ * between them, and NOT ONE CHIP MOVES. The block is still the block.
+ *
+ * Now turn the throw on and send the same handful into the same block. Every chip it reaches goes
+ * skidding. Same pieces, same room, same worlds: what changed is that the hand was going somewhere.
+ *
+ * That is the whole of it — WHAT IS ALREADY LYING THERE HOLDS ITS PLACE UNLESS SOMETHING GENUINELY
+ * TRAVELLING ARRIVES. It is still solid, so nothing comes to rest on top of it; it simply is not
+ * pushed by a piece that only fell. Without the distinction a desk has to pick one wrong answer:
+ * either a dropped die buries a chip, or setting a die down next to one flicks it across the felt.
+ *
+ * The threshold is the desk's own (`THROWN_AT`) — the same speed that decides whether a released
+ * piece flies at all, so "thrown" means one thing here and not two.
+ */
+export const Landing: StoryObj<CollisionArgs> = {
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, holding, mergeReach }) =>
+    grabScene(
+      physics,
+      lifted ? lift : undefined,
+      dropping ? (throwing ? "throw" : "drop") : undefined,
+      stacking,
+      { w: gripWidth, min: gripMin, max: gripMax },
+      { card: cardDrop, chip: chipDrop, die: dieDrop },
+      () => landingMap(mergeReach),
+      false,
+      0,
+      mergeRule(MERGE_SHARE),
+      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: holding },
+    ),
+  // THE THROW IS OFF and the holding is ON — that pair is the scene. Turn the holding off and it is
+  // the scene above: everything that reaches anything shoves it, however gently it was let go. Turn
+  // the throw on and you get the other half of the lesson on the same felt.
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, colliding: true, room: 1, knock: 0.7, scatter: DIE_SCATTER, mergeReach: MERGE_REACH, holding: true },
+  argTypes: { ...STACK_KNOBS, colliding: COLLIDING, room: ROOM_KNOB, knock: KNOCK, scatter: SCATTER, mergeReach: REACH, holding: HOLDING },
+  parameters: { gkDocStory: "collision.landing" },
 };

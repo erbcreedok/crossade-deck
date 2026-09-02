@@ -11,7 +11,13 @@
     "And \"solid\" is not one question either. Dice and chips are things that knock each other about;",
     "a card is a thing you put things ON. One flag can only say \"everything collides\" or \"nothing",
     "does\", and neither of those is a desk — so a piece names the WORLD it is solid in, and two",
-    "pieces meet only if they named the same one."
+    "pieces meet only if they named the same one.",
+    "",
+    "And a thing PUT DOWN beside another thing does not shove it aside. Without that distinction a",
+    "desk has to pick one wrong answer: either a die dropped from above buries the chip it lands on,",
+    "or setting a die down next to a chip flicks it across the felt. So what is already lying there",
+    "can HOLD ITS PLACE — still solid, moved by nothing that merely fell. The two scenes here are the",
+    "two answers, on one desk."
   ],
   "docs.collision.scene": [
     "COLLISION — nothing on this desk ends up buried under something that had no business being there.",
@@ -34,5 +40,19 @@
     "Turn the switch off and the desk is the one from before the feature: throw the dice and they",
     "arrive as one die with five shadows, which is the complaint this page is the answer to. Off is",
     "not a second code path — it is the same throw with every piece saying it takes no room."
+  ],
+  "docs.collision.landing": [
+    "LANDING — drop a handful of dice onto a block of chips and not one chip moves.",
+    "",
+    "Take the dice by their handle, move nothing, and let go. They come down among the chips, find",
+    "room between them and settle. The block is still the block: every chip exactly where it was.",
+    "",
+    "Now turn the throw on and send the same handful into the same block. Every chip it reaches goes",
+    "skidding. Same pieces, same room, same worlds — what changed is that the hand was going",
+    "somewhere.",
+    "",
+    "The threshold is the desk's own: the same speed that decides whether a released piece flies at",
+    "all decides whether it shoves, so \"thrown\" means one thing here and not two. The neighbouring",
+    "page, Collision, is this desk with the throw on — the pair is the lesson."
   ]
 }

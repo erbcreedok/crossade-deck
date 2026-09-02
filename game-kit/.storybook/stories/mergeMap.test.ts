@@ -105,17 +105,35 @@ describe("what becomes one pile", () => {
     expect(heapIds(root)).toEqual([["red a", "red b"]]);
   });
 
-  it("merge.a-corner-is-not-a-pile — touching is not belonging, and the share is where the line is", () => {
-    // THE COMPLAINT THIS DESK WAS BUILT FOR. A chip flung across a desk stops with its edge over a
-    // stack, and under the old rule it was part of it — pick the stack up and the stray comes too.
-    const barely = desk(mergeChip("a", 5, { x: 0, y: 0 }), mergeChip("stray", 5, { x: 0.47, y: 0 }));
-    expect(heapIds(barely), "an edge over an edge is two chips").toEqual([]);
-    // ...and the same two chips, pushed together, are one pile. The rule is a THRESHOLD and not a
+  it("merge.a-corner-is-not-a-pile — for a piece that has to be COVERED, and a card does", () => {
+    // THE COMPLAINT THIS DESK WAS BUILT FOR. A card flung across a desk stops with its edge over a
+    // deal, and under the old rule it was part of it — pick the deal up and the stray came too.
+    const barely = desk(card(0, { x: 0, y: 0 }, "up"), card(1, { x: 0.95, y: 0 }, "up"));
+    expect(heapIds(barely), "an edge over an edge is two cards").toEqual([]);
+    // ...and the same two, pushed together, are one pile. The rule is a THRESHOLD and not a
     // prohibition: nothing here stops a heap forming, it says how much of one it takes.
-    const meant = desk(mergeChip("a", 5, { x: 0, y: 0 }), mergeChip("b", 5, { x: 0.3, y: 0 }));
-    expect(heapIds(meant)).toEqual([["a", "b"]]);
+    const meant = desk(card(0, { x: 0, y: 0 }, "up"), card(1, { x: 0.4, y: 0 }, "up"));
+    expect(heapIds(meant).flat().length).toBe(2);
     // And at a share of nothing the old desk is back, exactly — which is what the panel's `0` is for.
     expect(heapsOf(barely, () => false, mergeRule(0)).length).toBe(1);
+  });
+
+  it("merge.a-gathered-piece-only-has-to-be-NEAR — a card has to be under something", () => {
+    // "Together" is not one thing on a desk. Cards have to be ON each other; chips and dice are
+    // gathered — a pile of chips beside another pile is one pot, and dice thrown together are one
+    // roll however they scattered. Nobody stacks dice.
+    const near = { x: 0.62, y: 0 }; // a chip's own width apart: clear felt between them
+    const gathered = desk(mergeChip("a", 5, { x: 0, y: 0 }), mergeChip("b", 5, near));
+    expect(heapIds(gathered), "two chips beside each other are one pot").toEqual([["a", "b"]]);
+
+    // Past the reach they are two piles again, and it is the REACH that decides — the same pair,
+    // the same places, and only the number on the panel changed.
+    const noReach = desk(mergeChip("a", 5, { x: 0, y: 0 }, undefined, 0), mergeChip("b", 5, near, undefined, 0));
+    expect(heapIds(noReach), "with no reach a chip has to be covered, like a card").toEqual([]);
+
+    // ...and a card at exactly the same gap is not a pile at any reach, because a card has none.
+    const apart = desk(card(0, { x: 0, y: 0 }, "up"), card(1, { x: 1.2, y: 0 }, "up"));
+    expect(heapIds(apart), "cards a card's width apart are two cards").toEqual([]);
   });
 
   it("merge.a-mismatch-is-forgiven-at-the-top — and nowhere else", () => {

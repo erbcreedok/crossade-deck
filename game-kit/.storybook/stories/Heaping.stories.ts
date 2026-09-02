@@ -10,7 +10,7 @@ import {
   type Node,
 } from "../../src/index.js";
 import { grabScene } from "./gestureScene.js";
-import { installMergeArt, mergeChip, mergeRule, MERGE_SHARE, CHIP_VALUES } from "./mergeMap.js";
+import { installMergeArt, mergeChip, mergeRule, MERGE_REACH, MERGE_SHARE, CHIP_VALUES } from "./mergeMap.js";
 import { MAP } from "./gestureMap.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
@@ -35,7 +35,7 @@ const meta: Meta = {
   parameters: {
     gkDoc: "heaping.component",
     gkAtom: "Heaping",
-    gkFields: { heap: ["heap"] },
+    gkFields: { heap: ["heap"], reach: ["reach"] },
   },
 };
 export default meta;
@@ -48,12 +48,20 @@ const NAMES = [`chip:${MIDDLE}`, `chip:${SMALL}`] as const;
 
 interface HeapingArgs extends StackArgs {
   heap: string;
+  reach: number;
 }
 
 const HEAP = documented("arg.heap", { control: "select", options: NAMES }, "heaping");
+/**
+ * HOW FAR OUT A PIECE LOOKS FOR ITS OWN KIND. At nothing it must be COVERED to belong, which is
+ * what a card means by a pile; above nothing it takes anything of its pile inside that
+ * neighbourhood, which is what a chip means by one. Turn it down here and the two chips that are
+ * merely beside each other stop being a pile.
+ */
+const REACH = documented("arg.reach", { control: { type: "number", min: 0, step: 0.02 } }, "heaping");
 
 /** Two pairs on a bare desk: one that agrees about its pile, one whose second chip is the argument. */
-const twoPairs = (heap: string) => (): Node => {
+const twoPairs = (heap: string, reach: number) => (): Node => {
   installMergeArt();
   const desk = node(
     "map",
@@ -63,10 +71,10 @@ const twoPairs = (heap: string) => (): Node => {
   );
   // Overlapping by about a third, so both pairs are well past the share a heap needs and the only
   // thing that can be deciding the answer is the name.
-  add(desk, mergeChip("agreed left", SMALL, { x: -1.3, y: -0.2 }));
-  add(desk, mergeChip("agreed right", SMALL, { x: -0.95, y: -0.2 }));
-  add(desk, mergeChip("odd one out", MIDDLE, { x: 0.95, y: -0.2 }));
-  add(desk, mergeChip("the claimant", SMALL, { x: 1.3, y: -0.2 }, heap));
+  add(desk, mergeChip("agreed left", SMALL, { x: -1.3, y: -0.2 }, undefined, reach));
+  add(desk, mergeChip("agreed right", SMALL, { x: -0.95, y: -0.2 }, undefined, reach));
+  add(desk, mergeChip("odd one out", MIDDLE, { x: 0.95, y: -0.2 }, undefined, reach));
+  add(desk, mergeChip("the claimant", SMALL, { x: 1.3, y: -0.2 }, heap, reach));
   return desk;
 };
 
@@ -75,7 +83,7 @@ const twoPairs = (heap: string) => (): Node => {
  * chip the left pile's name, and a handle grows under it too. Pull either and it comes up as a stack.
  */
 export const Heap: StoryObj<HeapingArgs> = {
-  render: ({ physics, lifted, lift, gripWidth, gripMin, gripMax, heap }) =>
+  render: ({ physics, lifted, lift, gripWidth, gripMin, gripMax, heap, reach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -83,12 +91,12 @@ export const Heap: StoryObj<HeapingArgs> = {
       true,
       { w: gripWidth, min: gripMin, max: gripMax },
       {},
-      twoPairs(heap),
+      twoPairs(heap, reach),
       false,
       0,
       mergeRule(MERGE_SHARE),
     ),
-  args: { ...STACK_ARGS, lifted: true, heap: NAMES[0] },
-  argTypes: { ...STACK_KNOBS, heap: HEAP },
+  args: { ...STACK_ARGS, lifted: true, heap: NAMES[0], reach: MERGE_REACH },
+  argTypes: { ...STACK_KNOBS, heap: HEAP, reach: REACH },
   parameters: { gkDocStory: "heaping.heap" },
 };

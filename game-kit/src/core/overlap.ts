@@ -154,3 +154,51 @@ function pointInside(p: Point, poly: readonly Point[]): boolean {
   }
   return is;
 }
+
+
+/** How many points an offset corner is drawn with — enough that a rounded corner reads as one. */
+const CORNER = 4;
+
+/**
+ * THE OUTLINE GROWN BY `by`, root units — the shape "within reach of this one" actually is.
+ *
+ * Not the outline scaled up, which is what a first guess draws and what a reader would then be
+ * measuring: scaling moves a far corner further than a near edge, so the picture would claim a reach
+ * that changes with where you look from. What a slack of `by` really means is every point within
+ * `by` of the shape — the shape swept by a disc — so the edges move out by exactly `by` and the
+ * corners become arcs of that radius. That is the picture, and it is the one `outlinesTouch` is
+ * actually testing.
+ *
+ * Convex outlines only, which is what everything the kit builds gives (`outlineOf`), and the same
+ * assumption `outlinesTouch` already makes.
+ */
+export function grownOutline(points: readonly Point[], by: number): Point[] {
+  if (points.length < 3 || by <= 0) return [...points];
+  const out: Point[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const here = points[i]!;
+    const prev = points[(i - 1 + points.length) % points.length]!;
+    const next = points[(i + 1) % points.length]!;
+    // The outward normal of each edge meeting at this corner. Wound consistently by `outlineOf`,
+    // so one turn of the edge is the outward side and the same turn works for every corner.
+    const a = normalOf(prev, here);
+    const b = normalOf(here, next);
+    const from = Math.atan2(a.y, a.x);
+    let sweep = Math.atan2(b.y, b.x) - from;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    for (let k = 0; k <= CORNER; k++) {
+      const t = from + (sweep * k) / CORNER;
+      out.push({ x: here.x + Math.cos(t) * by, y: here.y + Math.sin(t) * by });
+    }
+  }
+  return out;
+}
+
+/** The outward unit normal of an edge, for an outline wound the way `outlineOf` winds them. */
+function normalOf(a: Point, b: Point): Point {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: dy / len, y: -dx / len };
+}

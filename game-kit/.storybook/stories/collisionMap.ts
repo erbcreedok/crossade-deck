@@ -33,7 +33,7 @@ import {
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
 import { installMapArt, kindOf, MAP, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
-import { installMergeArt, mergeChip } from "./mergeMap.js";
+import { installMergeArt, mergeChip, MERGE_REACH } from "./mergeMap.js";
 
 /** A piece put down on this desk stays where it was put — nothing here accepts a drop. */
 const PUT_DOWN = Draggable({ onReject: "stay" });
@@ -92,7 +92,7 @@ const CHIP_VALUE = 25;
  * it is where the finger is. Collision is what happens to things TRAVELLING — thrown, dropped, or
  * knocked by something that was.
  */
-export function collisionMap(): Node {
+export function collisionMap(reach = MERGE_REACH): Node {
   installMapArt();
   installMergeArt();
   const desk = node(
@@ -110,11 +110,11 @@ export function collisionMap(): Node {
     compose(d6, PUT_DOWN);
     // A die heaps with a die and with nothing else — the same word the merging desk uses, because
     // it is the same claim: what may be picked up together is what says the same pile.
-    compose(d6, Heaping({ heap: DIE_HEAP }));
+    compose(d6, Heaping({ heap: DIE_HEAP, reach }));
     add(desk, d6);
   }
   for (let i = 0; i < CROWD.chips; i++) {
-    add(desk, mergeChip(`chip ${i}`, CHIP_VALUE, { x: -1.24 + i * 0.62, y: 1.05 }));
+    add(desk, mergeChip(`chip ${i}`, CHIP_VALUE, { x: -1.24 + i * 0.62, y: 1.05 }, undefined, reach));
   }
   crossadeCards()
     .slice(0, CROWD.cards)
@@ -144,7 +144,7 @@ export const LANDING = { chips: 12, dice: 5, cards: 2 };
  * picture only makes it if it was tidy to begin with. Chips knocked out of a row read at a glance;
  * chips knocked out of a heap read as nothing at all.
  */
-export function landingMap(): Node {
+export function landingMap(reach = MERGE_REACH): Node {
   installMapArt();
   installMergeArt();
   const desk = node(
@@ -154,12 +154,12 @@ export function landingMap(): Node {
     Surfaced({ surface: "gesture.map" }),
   );
   for (let i = 0; i < LANDING.chips; i++) {
-    add(desk, mergeChip(`chip ${i}`, CHIP_VALUE, { x: -1.24 + (i % 4) * 0.82, y: 0.3 + Math.floor(i / 4) * 0.82 }));
+    add(desk, mergeChip(`chip ${i}`, CHIP_VALUE, { x: -1.24 + (i % 4) * 0.82, y: 0.3 + Math.floor(i / 4) * 0.82 }, undefined, reach));
   }
   for (let i = 0; i < LANDING.dice; i++) {
     const d6 = die(`die ${i}`, { kind: "d6", at: { x: -0.75 + (i % 3) * 0.75, y: -2.3 + Math.floor(i / 3) * 0.75 }, face: (i % 6) + 1 });
     compose(d6, PUT_DOWN);
-    compose(d6, Heaping({ heap: DIE_HEAP }));
+    compose(d6, Heaping({ heap: DIE_HEAP, reach }));
     add(desk, d6);
   }
   crossadeCards()

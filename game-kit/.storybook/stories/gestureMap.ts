@@ -632,15 +632,19 @@ export interface HeapRule {
   /** May these two lie in one heap? Asked for every pair whose boxes are near enough to bother. */
   readonly joins: (a: Node, b: Node) => boolean;
   /**
-   * ...AND DO THEY MEET ENOUGH? Asked with the two outlines as they actually stand, after they are
-   * known to touch at all.
+   * ...AND ARE THEY CLOSE ENOUGH? THE geometry question, asked with the two pieces and the two
+   * outlines as they actually stand.
    *
    * Apart from `joins` because it is a different question about a different thing: `joins` is about
    * what the two pieces ARE and has no geometry in it, this is about where they happen to be lying
    * and has nothing else. A throw that leaves a card with one corner over a pile has answered the
    * first question yes and the second no, and that is exactly the accident this exists for.
+   *
+   * The pieces come with the outlines because "close enough" is not one number: a card has to be
+   * COVERED and a chip only has to be NEAR, and which of those a piece means is written on the
+   * piece (`Heaping.reach`), not chosen here.
    */
-  readonly meets: (a: readonly Vec[], b: readonly Vec[]) => boolean;
+  readonly meets: (a: Node, b: Node, oa: readonly Vec[], ob: readonly Vec[]) => boolean;
   /** Which of an island's pieces the heap actually takes. Given in paint order, bottom first. */
   readonly admits: (group: readonly Node[]) => readonly Node[];
   /** Where each piece stands under the handle that lifted them, in the handle's own frame. */
@@ -650,7 +654,7 @@ export interface HeapRule {
 /** The shelf's original answer: a card with a card, a chip with a chip, touching, one step apart. */
 export const TOUCHING: HeapRule = {
   joins: sameKind,
-  meets: () => true,
+  meets: (_a, _b, oa, ob) => outlinesTouch(oa, ob, TOUCH_SLACK),
   admits: (group) => group,
   seats: stackSeats,
 };
@@ -677,7 +681,7 @@ export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false
   const touch = (a: Node, b: Node): boolean => {
     const oa = outline.get(a.id);
     const ob = outline.get(b.id);
-    return !!oa && !!ob && rule.joins(a, b) && outlinesTouch(oa, ob, TOUCH_SLACK) && rule.meets(oa, ob);
+    return !!oa && !!ob && rule.joins(a, b) && rule.meets(a, b, oa, ob);
   };
   // ADMITTED AFTER THE ISLAND IS FOUND, never during. Which pieces a heap takes can depend on the
   // whole island — on which of them is on top of it — and a union-find asks about pairs and knows

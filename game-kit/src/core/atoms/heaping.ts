@@ -21,19 +21,37 @@ import { fieldsOf, type Node } from "../node.js";
 export interface HeapingFields {
   /** The pile this piece belongs to. Empty — the default — is a piece that heaps with nothing. */
   readonly heap: string;
+  /**
+   * HOW FAR FROM ITSELF ANOTHER OF ITS PILE STILL COUNTS AS NEXT TO IT, root units.
+   *
+   * Because "together" is not one thing on a desk. Cards have to be ON each other — a hand is a
+   * hand because the cards overlap, and two cards lying a finger apart are two cards. Chips and dice
+   * are not like that at all: a pile of chips beside another pile of chips is one pot, and dice
+   * thrown together are one roll however they scattered. Nobody stacks dice; they are gathered.
+   *
+   * `0` — the default — is the strict answer, and it is not "touching": a piece with no reach has to
+   * be COVERED to belong, which is what a card means by a pile. Anything above zero is a
+   * neighbourhood, measured out from the piece's own outline.
+   */
+  readonly reach: number;
 }
 
 export const Heaping = defineAtom<HeapingFields>({
   name: "Heaping",
   requires: [],
-  defaults: { heap: "" },
-  classes: { heap: "own" },
+  defaults: { heap: "", reach: 0 },
+  classes: { heap: "own", reach: "own" },
 });
 
 /** The pile this piece belongs to, or `undefined` for one that joins none. */
 export function heapOf(n: Node): string | undefined {
   const name = fieldsOf<HeapingFields>(n, "Heaping")?.heap;
   return name ? name : undefined;
+}
+
+/** How far out this piece looks for its own kind, root units — `0` for one that must be covered. */
+export function reachOf(n: Node): number {
+  return fieldsOf<HeapingFields>(n, "Heaping")?.reach ?? 0;
 }
 
 /** May these two become one thing? The same name, and neither of them nameless. */

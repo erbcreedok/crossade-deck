@@ -36,7 +36,9 @@ import {
   heapOf,
   heapsTogether,
   node,
+  outlinesTouch,
   overlapFraction,
+  reachOf,
   rect,
   registerAsset,
   registerLayout,
@@ -55,6 +57,15 @@ import { svg } from "./stockAssets.js";
 
 /** How much of one piece must lie under another before the two are one pile, 0..1. */
 export const MERGE_SHARE = 0.1;
+
+/**
+ * HOW FAR A GATHERED PIECE LOOKS FOR ITS OWN KIND, root units — see `Heaping.reach`.
+ *
+ * A little under half a chip: near enough that two chips a thumb apart are one pot, and far enough
+ * from a whole chip that a stray one across the felt is still a stray one. Cards get none of it —
+ * a card has to be covered — and that is the difference the number exists to make visible.
+ */
+export const MERGE_REACH = 0.22;
 
 /** What is on this desk: a closed deck, one card face up beside it, three colours of chip, two dice. */
 export const MERGE = { cards: 36, open: 1, chips: 10, dice: 2 };
@@ -100,7 +111,7 @@ export const CHIP_VALUES = CHIPS.map(({ value }) => value);
  * The atom's own page hands a different name in on purpose: a chip that claims another pile's name
  * heaps with THAT pile, and a reader who can do that has understood what the field is for.
  */
-export function mergeChip(id: string, value: number, at: Vec, heap = chipHeap(value)): Node {
+export function mergeChip(id: string, value: number, at: Vec, heap = chipHeap(value), reach = MERGE_REACH): Node {
   installMergeArt();
   return node(
     id,
@@ -108,7 +119,7 @@ export function mergeChip(id: string, value: number, at: Vec, heap = chipHeap(va
     Surfaced({ surface: chipSurface(value) }),
     Transformable({ at }),
     Valued({ values: { chip: value } }),
-    Heaping({ heap }),
+    Heaping({ heap, reach }),
     PUT_DOWN,
   );
 }
@@ -191,12 +202,27 @@ function admits(group: readonly Node[]): readonly Node[] {
 export function mergeRule(share: number): HeapRule {
   return {
     joins: heapsTogether,
-    // EITHER WAY ROUND. The measure is a share of one piece's own area and so is not symmetric — a
-    // chip half under a card is half the chip and a tenth of the card. Two pieces are one pile when
-    // either of them is that far into the other, which is what "10% touching" means to a hand: the
-    // small piece being mostly covered is the obvious case, and demanding it of the big one too
-    // would mean a chip could never join anything larger than itself.
-    meets: (a, b) => Math.max(overlapFraction(a, b), overlapFraction(b, a)) >= share,
+    /**
+     * COVERED, OR MERELY NEAR — and which one is written on the piece, never decided here.
+     *
+     * "Together" is not one thing on a desk. Cards have to be ON each other: a hand is a hand
+     * because the cards overlap, and two cards lying a finger apart are two cards. Chips and dice
+     * are not like that at all — a pile of chips beside another pile is one pot, and dice thrown
+     * together are one roll however they scattered. Nobody stacks dice; they are gathered.
+     *
+     * So a piece with a REACH takes anything of its pile inside that neighbourhood, and a piece
+     * without one has to be covered. Two different questions, one field, and no list of kinds for
+     * somebody to extend on the day a fourth sort of piece arrives.
+     *
+     * The cover is measured EITHER WAY ROUND: a share is of one piece's own area and so is not
+     * symmetric — a chip half under a card is half the chip and a tenth of the card. Demanding it
+     * of the big one too would mean a small piece could never join anything larger than itself.
+     */
+    meets: (a, b, oa, ob) => {
+      const near = Math.max(reachOf(a), reachOf(b));
+      if (near > 0) return outlinesTouch(oa, ob, near);
+      return Math.max(overlapFraction(oa, ob), overlapFraction(ob, oa)) >= share;
+    },
     admits,
     seats: mergeSeats,
   };
@@ -240,7 +266,7 @@ const STEPS = new Map<string, { readonly step: Vec; readonly thick: number }>([
  * dice — laid out so that nothing starts out touching anything, because a page that opens on a heap
  * teaches the heap and not how one comes about.
  */
-export function mergeMap(): Node {
+export function mergeMap(reach = MERGE_REACH): Node {
   installMergeArt();
   const desk = node(
     "map",
@@ -255,6 +281,7 @@ export function mergeMap(): Node {
     const at = open ? { x: -1.1, y: -2.5 } : { x: 0.95 + nth * 0.004, y: -2.5 - nth * 0.012 };
     compose(card, Transformable({ at }));
     compose(card, PUT_DOWN);
+    // A CARD HAS NO REACH. It has to be COVERED to belong, which is what a hand of cards is.
     compose(card, Heaping({ heap: cardHeap }));
     setFacing(card, open ? "up" : "down");
     add(desk, card);
@@ -265,13 +292,15 @@ export function mergeMap(): Node {
       // opened with two colours already overlapping would be answering the page's own question
       // before the reader had touched anything.
       const at = { x: -1.24 + (i % 5) * 0.62, y: -1.15 + c * 1.3 + Math.floor(i / 5) * 0.62 };
-      add(desk, mergeChip(`chip ${value}.${i}`, value, at));
+      add(desk, mergeChip(`chip ${value}.${i}`, value, at, chipHeap(value), reach));
     }
   });
   for (let i = 0; i < MERGE.dice; i++) {
     const d6 = die(`die ${i}`, { kind: "d6", at: { x: -0.8 + i * 1.6, y: 2.75 }, face: i === 0 ? 5 : 2 });
     compose(d6, PUT_DOWN);
-    compose(d6, Heaping({ heap: dieHeap }));
+    // A DIE IS GATHERED, NOT STACKED. Nobody piles dice up: they are thrown, and what makes them one
+    // roll is that they came to rest near each other.
+    compose(d6, Heaping({ heap: dieHeap, reach }));
     add(desk, d6);
   }
   for (const warm of warmingNodes()) add(desk, warm);
