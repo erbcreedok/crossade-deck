@@ -385,14 +385,41 @@ export const DIE_SCATTER = 2.6;
 export const DIE_FAN = 34;
 
 /**
- * ABOVE THIS SPEED A RELEASE IS A THROW, units/s — whatever the piece's ordinary way of leaving is.
+ * ABOVE THIS SPEED A RELEASE IS A THROW, units/s AT ZOOM 1 — whatever the piece's ordinary way of
+ * leaving is.
  *
  * `settle` is a putting-down, and a putting-down is a thing a slow hand does. Read as "this piece
  * can never be thrown" it would mean a card flicked across the desk simply appearing where the
  * finger stopped, which is not a card and not a throw. So the way a piece leaves is its DEFAULT,
  * and a hand moving faster than this overrules it.
+ *
+ * AT ZOOM 1, because the hand is on the GLASS and the desk is behind it — see `swungAt`.
  */
 export const THROWN_AT = 1.5;
+
+/**
+ * THE HAND'S SWING AS THE PLAYER MADE IT — the carried speed, put back into the terms the desk's
+ * own numbers are written in.
+ *
+ * A carry is measured in UNITS OF DESK, because that is what the pieces are measured in. But the
+ * hand is on the GLASS, and how many units of desk a finger crosses depends entirely on how far out
+ * the view is: zoomed out to deal a hand, the same unhurried carry across the same screen covers
+ * two or three times the desk it covered before, and every one of those numbers doubles or trebles
+ * with it. So a gentle pass over the felt clears the throwing threshold, and clears it hard: the
+ * card is flung, the flight is long, and nothing about the gesture was a flick.
+ *
+ * The player did not change what they did — the camera did. So the swing is put back into what it
+ * would have been at zoom 1, and every number downstream (the threshold, the reach, the aim) is
+ * then reading the gesture rather than reading the zoom.
+ *
+ * A THROW THEREFORE CROSSES THE SAME DESK AT ANY ZOOM. The desk is the world, and a flick sends a
+ * card as far across it whether you are standing over the board or looking at all of it — which is
+ * also why this is one multiplication and not a correction applied in several places.
+ */
+export function swungAt(hand: Vec | undefined, zoom: number): Vec | undefined {
+  if (!hand || zoom <= 0) return hand;
+  return { x: hand.x * zoom, y: hand.y * zoom };
+}
 
 /**
  * WHAT A HAND ACTUALLY THREW, in units/s — the speed it had OVER the throwing speed, not all of it.

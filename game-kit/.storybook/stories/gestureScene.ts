@@ -56,6 +56,7 @@ import {
   MAP,
   ANCHOR_MARK,
   flockTo,
+  swungAt,
   deskRoom,
   mapWalls,
   regrip,
@@ -274,10 +275,24 @@ export function grabScene(
    * screen that is no longer there.
    */
   const seenWide = (): number => {
-    const view = built.camera?.transform();
     const px = built.host.viewport().width;
-    const scale = view ? Math.hypot(view.a, view.b) : built.host.unit();
+    const scale = glassScale();
     return scale > 0 ? px / scale : MAP.w;
+  };
+  /** Pixels per unit right now — what one unit of desk is worth on this glass at this zoom. */
+  const glassScale = (): number => {
+    const view = built.camera?.transform();
+    return view ? Math.hypot(view.a, view.b) : built.host.unit();
+  };
+  /**
+   * HOW FAR OUT THE VIEW IS, as a factor of the desk's own etalon. `1` is life size.
+   *
+   * Read every time it is asked and never captured: the reader zooms between one gesture and the
+   * next, and a number taken once at load would be answering about a view that is no longer there.
+   */
+  const zoomNow = (): number => {
+    const base = built.host.unit();
+    return base > 0 ? glassScale() / base : 1;
   };
   /**
    * THE ZONE THIS CARRY WOULD BE HANDED TO IF THE HAND LET GO NOW — asked exactly as the release
@@ -452,7 +467,13 @@ export function grabScene(
             // was carried over and set down — and a card flicked at somebody's area is aimed just as
             // plainly. So the zone is asked about where the throw will come to REST (`restsAt`),
             // which is arithmetic and not a guess.
-            aimed = aimOf(built, items, letGo === "throw" ? v : undefined, ways, bump);
+            // THE SWING AS THE PLAYER MADE IT, not as the zoom reports it. Dealing a hand from a
+            // zoomed-out view, the same unhurried carry crosses two or three times the desk it
+            // crossed before — so an ordinary pass over the felt cleared the throwing threshold and
+            // cleared it hard. See `swungAt`: one multiplication, and everything below reads the
+            // gesture instead of the camera.
+            const swing = swungAt(letGo === "throw" ? v : undefined, zoomNow());
+            aimed = aimOf(built, items, swing, ways, bump);
             // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
             // page that had both would otherwise always fall: this runs BEFORE the drop is decided,
             // so a fall filed here is a fall the zone never gets to see. Answering `false` hands the
@@ -477,7 +498,7 @@ export function grabScene(
             // different handle in hand, and a stale callback clearing that would destroy the tab
             // under the live finger and leave the hand holding an id that no longer exists.
             const mine = inHand;
-            return letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
+            return letFall(built, items, held, swing, () => {
               if (inHand === mine) inHand = undefined;
               // A PLACE HAS THE LAST WORD HERE TOO. The wiring announces a drop it decided itself
               // (`onSettled`); a release the scene took never reaches that line at all, and a rule
