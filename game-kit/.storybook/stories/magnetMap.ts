@@ -422,51 +422,63 @@ export function zoneFan(look: Spread, tilt: number) {
 }
 
 /**
- * WHAT A DROP DOES TO THE POSE IT LANDED IN — and it is two different answers on one desk.
+ * WHAT A DROP DOES TO THE POSE IT LANDED IN — and it is ONE answer for the WHOLE run.
  *
- * A drop used to leave pieces exactly as they were, fan and all: a hand splayed in the air was put
- * back down still splayed, lying across the felt like something spilled. Nothing about a hand LEAVING
- * a hand says it should keep the shape a hand gave it — the fan is how a run is held, not how it
- * lies — so a run that lands takes the pose of WHERE IT LANDED.
+ * A drop used to leave pieces exactly as the hand had them, fan and all: a hand splayed in the air
+ * was put back down still splayed, lying across the felt like something spilled. The fan is how a
+ * run is HELD, not how it lies, so what lands takes the pose of where it landed — on the felt the
+ * pile, in a zone the row, and the zone lays that one out itself.
  *
- * ON THE FELT that is the pile: squared up on the card the finger had, which is the pose every heap
- * on this shelf lies in and the pose the handle will lift it in again.
+ * ASKED ONCE, ABOUT THE ANCHOR, and this is the whole of it. Asked card by card — does THIS one lie
+ * in a zone? — a stack let go of at the edge of somebody's area is torn in half: the cards whose
+ * corners crossed the line are taken and the rest are left on the felt, and a player who aimed at
+ * one place has their hand dealt into two. A run is ONE THING that a hand carried to ONE point;
+ * where that point is is the only question there is, and every card in it goes where the answer says.
  *
- * IN THE ZONE it is the row, and the zone lays that out itself. All this does is give it the cards:
- * a run let go of OVER a zone is never handed to it — a run led by a handle is led by a control, and
- * a zone takes cards, not controls (`zoneNear`) — so the cards come down on top of the zone, lying
- * in it by every test that matters and belonging to the felt by parentage. Which is a zone holding
- * a fan it cannot straighten. What it holds, it takes, and then its own arrangement does the rest.
- *
- * BY LYING IN IT, never by parentage (`zoneHolds`). Asked about children only, this straightened
- * exactly the cards that had been dealt in one at a time, and left every hand ever put back looking
- * like a fan dropped in a box.
+ * THE ANCHOR IS THE FIRST PIECE — the card the finger had. Not the handle: a handle is not a card
+ * and is never put anywhere, and a zone given one keeps a control and lays the tab out among the
+ * cards as though it were one of them.
  */
 export function poseOnLanding(share: number): NonNullable<HeapRule["settled"]> {
   return (root, ids) => {
-    const zones = zoneHolds(share)(root, () => false);
-    const held = new Map<string, Node>();
-    for (const { under, pieces } of zones) for (const p of pieces) held.set(p.id, under);
-    const felt: Node[] = [];
-    for (const id of ids) {
-      const piece = byId(root, id);
-      if (!piece) continue;
-      const zone = held.get(id);
-      if (!zone) {
-        felt.push(piece);
-        continue;
-      }
-      // THE TURN COMES OFF EITHER WAY: no arrangement on the shelf has an opinion about angles, so
-      // the lean a lift put on a card has to be taken off by the desk that put it there.
+    const run = ids.map((id) => byId(root, id)).filter((n): n is Node => !!n && !isGrip(n));
+    const lead = run[0];
+    if (!lead) return;
+    const zone = placeOf(root, lead, share);
+    if (!zone) {
+      // THE FELT TAKES ALL OF IT, including a card whose corner is over somebody's area. The
+      // release already decided this run was not handed to anybody; a pose is not the place to
+      // overrule that, and overruling it per card is how a stack ends up in two places.
+      squareUp(run);
+      return;
+    }
+    for (const piece of run) {
+      // THE TURN COMES OFF: no arrangement on the shelf has an opinion about angles, so the lean a
+      // lift put on a card has to be taken off by the desk that put it there.
       const own = fieldsOf<TransformableFields>(piece, "Transformable");
       compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
-      if (piece.parent !== zone) {
-        if (piece.parent) remove(piece.parent, piece);
-        add(zone, piece);
-      }
+      if (piece.parent === zone) continue;
+      if (piece.parent) remove(piece.parent, piece);
+      add(zone, piece);
     }
-    squareUp(felt);
   };
+}
+
+/**
+ * WHOSE PLACE THIS PIECE IS IN — the zone it was handed to, or failing that the zone it is LYING in.
+ *
+ * Two questions and not one, because a run reaches a zone two different ways. Handed over, it is
+ * the zone's child and that is the end of it. Let go of ON the zone, it is not: a run led by a
+ * handle is led by a control, a zone takes cards and not controls, and a hand put back into its own
+ * area is deliberately never handed to it — otherwise an area could never have anything taken OUT
+ * of it. So the second question is what makes putting a hand back work at all.
+ */
+function placeOf(root: Node, piece: Node, share: number): Node | undefined {
+  if (piece.parent && caps(piece.parent).has("Acceptor")) return piece.parent;
+  for (const { under, pieces } of zoneHolds(share)(root, () => false)) {
+    if (pieces.some((n) => n.id === piece.id)) return under;
+  }
+  return undefined;
 }
 
 /**

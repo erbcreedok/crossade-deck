@@ -196,35 +196,48 @@ describe("how a place poses what it lifts", () => {
     expect(new Set(flat.map((seat) => seat.at.y)).size, "all at one height").toBe(1);
   });
 
-  it("magnet.a-place-takes-what-it-HAS — by where it lies, never by whose child it is", () => {
-    // A drop leaves pieces as they were, fan and all — that is what a drop IS. A place is the
-    // exception: the row it lays its cards out in has no opinion about turns, so the turn a lift
-    // put on them has to be taken off by the desk that put it there.
+  it("magnet.a-run-lands-where-its-ANCHOR-landed — one answer for the whole hand, never card by card", () => {
+    // Asked card by card — does THIS one lie in a zone? — a stack let go of at the edge of an area
+    // is torn in half: the cards whose corners crossed the line are taken and the rest are left on
+    // the felt, and a player who aimed at ONE place has their hand dealt into two. That is what an
+    // ordinary drop did, and a throw did it harder, because a thrown run spreads on the way.
     //
-    // And by the same test the handle uses. A hand let go of over its own zone is never HANDED to
-    // it — a run led by a handle is led by a control — so the cards come down ON the zone and are
-    // counted by lying in it.
+    // A run is one thing a hand carried to one point. Where that point is is the only question.
     const desk = magnetMap();
     const zone = desk.children[0]!;
     const cards = desk.children.filter((n) => heapOf(n) === "card");
-    const child = cards[0]!;
-    const lying = cards[1]!;
-    const outside = cards[2]!;
-    compose(lying, Transformable({ at: { x: 0, y: 1.8 }, angle: 24 }));
-    compose(outside, Transformable({ at: { x: 0, y: -2 }, angle: 24 }));
-    compose(child, Transformable({ at: { x: 0, y: 0 }, angle: 24 }));
-    remove(desk, child);
-    add(zone, child);
-    poseOnLanding(HELD_SHARE)(desk, [child.id, lying.id, outside.id]);
+    const home = fieldsOf<TransformableFields>(zone, "Transformable")!.at!;
     const turn = (n: Node): number | undefined => fieldsOf<TransformableFields>(n, "Transformable")?.angle;
-    expect(turn(child), "handed to it").toBe(0);
-    expect(turn(lying), "merely lying in it — the case a hand put back is").toBe(0);
-    expect(turn(outside), "on the felt and alone, left exactly as it was — a lone turn is its own").toBe(24);
-    // ...AND WHAT IT HOLDS, IT TAKES. Lying in a zone and belonging to the felt is a zone holding a
-    // fan it cannot straighten: the row is an arrangement, and an arrangement lays out CHILDREN.
-    expect(lying.parent, "the zone's, so its row lays it out").toBe(zone);
-    expect(child.parent, "already its own, and not disturbed").toBe(zone);
-    expect(outside.parent, "the felt's, and it stays the felt's").toBe(desk);
+
+    // THE ANCHOR IS IN THE ZONE: the whole run goes in, including the one hanging over the edge —
+    // and it is the ZONE'S, because the row is an arrangement and an arrangement lays out children.
+    const [anchor, tail, over] = [cards[0]!, cards[1]!, cards[2]!];
+    compose(anchor, Transformable({ at: home, angle: 24 }));
+    compose(tail, Transformable({ at: { x: home.x + 0.4, y: home.y }, angle: 18 }));
+    compose(over, Transformable({ at: { x: home.x + 9, y: home.y }, angle: 12 }));
+    poseOnLanding(HELD_SHARE)(desk, [anchor.id, tail.id, over.id]);
+    for (const card of [anchor, tail, over]) {
+      expect(card.parent, "the anchor landed in the zone, so the hand did").toBe(zone);
+      expect(turn(card), "and the lean a lift put on them comes off").toBe(0);
+    }
+
+    // THE ANCHOR IS ON THE FELT: the whole run stays out, including the one whose corner is well
+    // inside the area. The release already decided this run was handed to nobody, and a pose is not
+    // the place to overrule that — least of all one card at a time.
+    const [lead, second, corner] = [cards[3]!, cards[4]!, cards[5]!];
+    const away = { x: home.x, y: home.y - 3 };
+    compose(lead, Transformable({ at: away, angle: 20 }));
+    compose(second, Transformable({ at: { x: away.x + 0.7, y: away.y }, angle: 14 }));
+    compose(corner, Transformable({ at: home, angle: 8 }));
+    poseOnLanding(HELD_SHARE)(desk, [lead.id, second.id, corner.id]);
+    for (const card of [lead, second, corner]) {
+      expect(card.parent, "the anchor landed on the felt, so the hand did").toBe(desk);
+    }
+    // ...and on the felt that pose is the pile, squared on the card the finger had.
+    const seatOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
+    expect(seatOf(lead).x, "the anchor does not move: it is what was aimed").toBeCloseTo(away.x, 9);
+    expect(seatOf(lead).y).toBeCloseTo(away.y, 9);
+    expect(Math.hypot(seatOf(corner).x - away.x, seatOf(corner).y - away.y), "and the far one came home").toBeLessThan(0.2);
   });
 
   it("magnet.a-run-put-down-on-the-felt-squares-up — on the card the finger had", () => {
