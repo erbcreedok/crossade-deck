@@ -39,7 +39,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, installMapArt, MAP, onTheDesk, PUT_DOWN, warmingNodes } from "./gestureMap.js";
+import { CASTS, LAMP, installMapArt, MAP, onTheDesk, PUT_DOWN, warmingNodes } from "./gestureMap.js";
 import { handLayout, PULL, ZONE_SPREAD, type Spread } from "./magnetMap.js";
 
 /**
@@ -100,6 +100,7 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: DESK_LAYOUT }),
     Surfaced({ surface: "gesture.map" }),
+    LAMP,
     Grabber({ grab: "one" }),
   );
   for (const { seat } of SEATS) {

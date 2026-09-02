@@ -58,7 +58,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, warmingNodes, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -147,6 +147,7 @@ export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: DESK_LAYOUT }),
     Surfaced({ surface: "gesture.map" }),
+    LAMP,
     // A CONTAINER HAS TO SAY WHAT A TOUCH TAKES OUT OF IT, or a drop is denied before any zone is
     // asked: the move plan starts by asking the SOURCE for its load, and a container with no
     // `Grabber` hands back nothing (`block: "empty"`). "One" is the felt's answer — a finger on a

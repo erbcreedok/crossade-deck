@@ -87,6 +87,9 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
   // The direction every shadow falls — ONE formula, read once: the light is a root-only field.
   const fall = lightVector(root);
 
+  /** Shadow quads whose caster is in flight — they rise with it. */
+  const airborne = new Set<NodeId>();
+
   /** Everything the shadow law is asked with — built once, so `shadows.ts` reads no scene itself. */
   const lamp: ShadowLamp = { nodes, overrides, carried, grounded, toView, depth, fall, unit, spread: (holder) => spreadOf(holder) };
 
@@ -105,7 +108,12 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     const { node, coats } = applyEffects(n, ctx);
     if (castsShadow(n)) {
       const cast = shadowQuad(n, node, ctx, lamp);
-      if (cast) out.push(cast);
+      if (cast) {
+        out.push(cast);
+        // A shadow rises with the piece it belongs to: sorted as a resting quad it would sink under
+        // every resting piece the moment its caster left the desk.
+        if (raised?.has(n.id)) airborne.add(cast.id);
+      }
     }
     paint(n, node, coats, ctx);
     for (const child of node.children) visit(child);
@@ -285,11 +293,21 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
 
   visit(root);
 
-  // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames
-  // for no reason the reader can see. The SHADOW layer goes first — one pass, under everything
-  // at rest; then flight beats height — a raised node sorts after every resting one — and
-  // inside every group the height still rules.
-  const lay = (q: Quad): number => (q.layer === "shadow" ? 0 : 1);
-  const aloft = (q: Quad): number => (raised?.has(q.id) ? 1 : 0);
-  return out.sort((a, b) => lay(a) - lay(b) || aloft(a) - aloft(b) || a.z - b.z);
+  // A stable sort by height: equal z keeps tree order, so siblings do not swap between frames for
+  // no reason the reader can see. Flight beats height — a raised node sorts after every resting one
+  // — and inside every group the height still rules.
+  //
+  // A SHADOW KEEPS ITS PLACE, which is directly under the piece that cast it. `visit` already puts
+  // it there, and that is the whole of the law: it covers everything drawn before its caster — the
+  // felt it fell on, and the cards it fell across — and is covered by the caster itself.
+  //
+  // It was hoisted into one pass under everything once, and that was wrong twice over. Under the
+  // felt, no shadow could be seen at all on a desk that paints one. Under the resting pieces, a
+  // raised card's shadow slid beneath the cards it was hanging over — which is precisely the moment
+  // a shadow has something to say.
+  //
+  // A shadow flies with its caster, too: it is raised when the piece is, or it would sink below
+  // every resting piece the instant the piece it belongs to left the desk.
+  const aloft = (q: Quad): number => (raised?.has(q.id) || airborne.has(q.id) ? 1 : 0);
+  return out.sort((a, b) => aloft(a) - aloft(b) || a.z - b.z);
 }

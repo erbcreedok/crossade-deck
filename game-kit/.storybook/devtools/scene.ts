@@ -281,7 +281,9 @@ function shellRules(): void {
   const sheet = document.createElement("style");
   sheet.setAttribute(SHELL_RULES, "");
   sheet.textContent = [
-    "[data-scene-shell]{",
+    // The shell AND everything in it, said explicitly rather than left to inheritance: a control
+    // with its own default (a `select`, a button's label) does not inherit what it already sets.
+    "[data-scene-shell],[data-scene-shell] *{",
     "  touch-action: none;",
     "  user-select: none;",
     "  -webkit-user-select: none;",
@@ -348,6 +350,15 @@ export function scene(
   const el = document.createElement("div");
   // The whole scene, chrome included, says it is not text to be selected — see `shellRules`.
   el.setAttribute("data-scene-shell", "");
+  // ...AND REFUSES THE EVENTS THAT OPEN THE LOUPE, which the rules alone do not stop.
+  //
+  // A stylesheet says what may be selected; it does not say what a long press MEANS. iOS decides
+  // that from the events, and offers its magnifier the moment one goes unrefused — a lens over the
+  // very card being dragged. The kit already refuses them on the glass and the glass alone; the
+  // chrome around it is the catalog's, so the catalog refuses them there.
+  for (const name of ["contextmenu", "selectstart", "dragstart", "gesturestart"] as const) {
+    el.addEventListener(name, (e: Event) => e.preventDefault());
+  }
   el.style.cssText = [
     "position:relative",
     "height:100%",

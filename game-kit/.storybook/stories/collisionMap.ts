@@ -33,7 +33,7 @@ import {
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
-import { CASTS, installMapArt, kindOf, MAP, onTheDesk, PUT_DOWN, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
+import { CASTS, LAMP, installMapArt, kindOf, MAP, onTheDesk, PUT_DOWN, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
 import { installMergeArt, mergeChip, MERGE_REACH } from "./mergeMap.js";
 
 
@@ -99,6 +99,7 @@ export function collisionMap(reach = MERGE_REACH): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: "merge.free" }),
     Surfaced({ surface: "gesture.map" }),
+    LAMP,
   );
   for (let i = 0; i < CROWD.dice; i++) {
     const d6 = die(`die ${i}`, {
@@ -152,6 +153,7 @@ export function landingMap(reach = MERGE_REACH): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: "merge.free" }),
     Surfaced({ surface: "gesture.map" }),
+    LAMP,
   );
   for (let i = 0; i < LANDING.chips; i++) {
     add(desk, mergeChip(`chip ${i}`, CHIP_VALUE, { x: -1.24 + (i % 4) * 0.82, y: 0.3 + Math.floor(i / 4) * 0.82 }, undefined, reach));

@@ -92,9 +92,14 @@ function follow(screen: Screen, items: readonly CarryItem[], at: Vec | undefined
  * carry is an OVERRIDE and never a tree write, so a hand moving here would be invisible over there
  * unless it is reported and mirrored.
  *
- * NO VISIBILITY RULES. Hiding is real and the kit does it, but it is a second subject: with cards
- * hidden, a reader watching one screen cannot tell "they have not moved" from "they moved something
- * I may not see".
+ * NO MAGNET HERE, and that is the point of having both pages. A magnet decides where a release
+ * BELONGS; this desk lets a piece stay exactly where it was let go of, and an area only gathers what
+ * is lying in it when somebody picks it up by its handle. Which is what a real table does: cards go
+ * where you put them, and a hand is squared up when a hand is taken.
+ *
+ * NO VISIBILITY RULES either. Hiding is real and the kit does it, but it is a second subject: with
+ * cards hidden, a reader watching one screen cannot tell "they have not moved" from "they moved
+ * something I may not see".
  */
 export const Live: StoryObj<MagnetArgs> = {
   render: (a) => {
@@ -132,7 +137,7 @@ export const Live: StoryObj<MagnetArgs> = {
           hand: (items, at, done) => {
             for (const one of others()) follow(one, items, at, done, held);
           },
-        }, LIVE_UNIT),
+        }, LIVE_UNIT, false),
       );
       pane.appendChild(dot);
       wall.appendChild(pane);

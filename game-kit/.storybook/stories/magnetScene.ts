@@ -124,12 +124,18 @@ const magnetRule = (a: MagnetArgs, tune: (root: Node) => void) => ({
  * THE SCENE BOTH PAGES STAND ON, differing by their desk and by nothing else. The live one is not a
  * second mechanic — it is this one with somebody else looking at it.
  */
+/**
+ * THE SCENE BOTH PAGES STAND ON. `magnet` is the one thing they differ by beyond their desk: with it
+ * a release near a zone is TAKEN by the zone, and without it a piece stays exactly where it was let
+ * go of — which is a different desk to play on, not a broken one.
+ */
 export const magnetScene = (
   a: MagnetArgs,
   desk: () => Node,
   tune: (root: Node) => void,
   mirror?: Mirror,
   unit?: number,
+  magnet = true,
 ): HTMLElement =>
   grabScene(
     a.physics,
@@ -143,7 +149,7 @@ export const magnetScene = (
     0,
     magnetRule(a, tune),
     undefined,
-    zoneNear,
+    magnet ? zoneNear : undefined,
     mirror,
     unit,
   );

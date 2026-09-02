@@ -35,6 +35,7 @@ import {
   placedOutline,
   remove,
   roundedRect,
+  Lit,
   Screened,
   ShadowCaster,
   transformsOf,
@@ -129,6 +130,26 @@ export function installMapArt(): void {
 export const PUT_DOWN = Draggable({ onReject: "stay" });
 
 /**
+ * THE LAMP OVER THE DESK — and without one nothing casts anything at all.
+ *
+ * A shadow takes two: a piece willing to throw one (`ShadowCaster`) and a light to throw it by
+ * (`Lit`). The second is the DESK's, not the piece's — one lamp over a table, not a lamp per card —
+ * and it is a `rootOnly` field for exactly that reason. Composing casters and stopping there is what
+ * I did, and it is why nothing changed on the glass: every piece was willing and the room was dark.
+ *
+ * The stock lamp — top-right, so shadows fall down-left and read as height anywhere. The DEPTH is
+ * this shelf's own; see below for why the kit's own numbers cannot be used here.
+ */
+export const LAMP = Lit({
+  // ITS OWN DEPTH, because these desks are DARK. The stock shadow is a soft dark at a quarter
+  // opacity, a hair of offset at rest — right over a pale table, and invisible over this one: a dark
+  // wash on a near-black felt is a dark wash on a near-black felt. The shadows were there all along
+  // (the plan draws one per piece), and none of them could be seen, which is the same as not having
+  // them. Deeper and further, so the eye can tell a piece lying down from one held up.
+  shadow: { base: 0.08, perZ: 0.06, lifted: 0.34, opacity: 0.5 },
+});
+
+/**
  * A PIECE ON A DESK THROWS A SHADOW, and that is not decoration.
  *
  * Half of what these pages show is HEIGHT — a piece lifts as it is picked up, hangs at the hand's
@@ -161,6 +182,7 @@ export function gestureMap(): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: "gesture.map.free" }),
     Surfaced({ surface: MAP_SURFACE }),
+    LAMP,
   );
   const by = deckByCardId();
   const seats: readonly (readonly [string, { x: number; y: number }])[] = [
@@ -1004,6 +1026,7 @@ export function stackMap(): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: "gesture.map.free" }),
     Surfaced({ surface: MAP_SURFACE }),
+    LAMP,
   );
   const by = deckByCardId();
   // Two rows of three, a fifth of a unit of felt showing between every pair — near enough to push
@@ -1124,6 +1147,7 @@ export function deckMap(): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: "gesture.map.free" }),
     Surfaced({ surface: MAP_SURFACE }),
+    LAMP,
   );
   const all = crossadeCards().slice(0, DECK.cards);
   all.forEach((card, i) => {

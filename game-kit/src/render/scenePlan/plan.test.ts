@@ -155,20 +155,27 @@ describe("scenePlan", () => {
     expect(plan(root)[0]!.z).toBe(11);
   });
 
-  it("plan.a-caster-lays-a-shadow-first — one layer under everything, offset down the light's fall", () => {
-    // The shadow is NOT a node: it is a LAYER the plan draws in one pass, under every resting
-    // surface — even one that stands taller than the caster. The default lamp hangs top-right of
-    // the frame, so the fall is down-left, and the shadow quad wears the caster's id with a
-    // suffix nothing can resolve: un-pickable, un-bakeable, un-mistakable for a piece.
+  it("plan.a-shadow-lies-directly-under-its-own-caster — on what it fell on, beneath what cast it", () => {
+    // The shadow is NOT a node: it is a LAYER, drawn with the piece that casts it. The default lamp
+    // hangs top-right of the frame, so the fall is down-left, and the quad wears the caster's id
+    // with a suffix nothing can resolve: un-pickable, un-bakeable, un-mistakable for a piece.
+    //
+    // ITS PLACE IS DIRECTLY UNDER ITS OWN CASTER, and that is the whole of the law: it covers what
+    // was drawn before — the felt it fell on, the cards it fell across — and is covered by the piece
+    // itself. Hoisted into one pass under everything, as it was, it went wrong twice: under a felt
+    // no shadow could be seen at all (every desk on the gesture shelf paints one), and under the
+    // resting pieces a raised card's shadow slid beneath the cards it was hanging over.
     const root = node("sp1", Container({ layout: "free" }), Surfaced());
     add(root, node("piece", box(1, 1.4), Surfaced(), ShadowCaster()));
     add(root, node("tower", box(1, 1), Surfaced(), Transformable({ at: { x: 2, y: 0 }, z: 9 })));
     const quads = plan(root);
-    expect(quads[0]!.id).toBe("piece::shadow");
-    expect(quads[0]!.layer).toBe("shadow");
-    expect(quads.map((q) => q.id).slice(1)).toEqual(["sp1", "piece", "tower"]);
+    expect(quads.map((q) => q.id)).toEqual(["sp1", "piece::shadow", "piece", "tower"]);
+    expect(quads[1]!.layer).toBe("shadow");
+    // ...and it lies ON what was drawn before its caster, which is the ground and any piece it is
+    // hanging across. A shadow hoisted under all of them would slide beneath the very cards it has
+    // something to say about — the moment a raised piece is over its neighbours.
     const piece = quads.find((q) => q.id === "piece")!;
-    const shade = quads[0]!;
+    const shade = quads[1]!;
     expect(shade.transform.e).toBeLessThan(piece.transform.e); // down-LEFT of the piece
     expect(shade.transform.f).toBeGreaterThan(piece.transform.f);
   });

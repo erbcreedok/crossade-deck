@@ -53,7 +53,7 @@ import {
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
-import { CASTS, installMapArt, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { CASTS, LAMP, installMapArt, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, type HeapRule } from "./gestureMap.js";
 import { svg } from "./stockAssets.js";
 
 /** How much of one piece must lie under another before the two are one pile, 0..1. */
@@ -274,6 +274,7 @@ export function mergeMap(reach = MERGE_REACH): Node {
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
     Container({ layout: CHIP_LAYOUT }),
     Surfaced({ surface: "gesture.map" }),
+    LAMP,
   );
   const all = crossadeCards().slice(0, MERGE.cards);
   all.forEach((card, i) => {

@@ -608,6 +608,14 @@ describe("the lazy painter against a renderer that starts late", () => {
     for (const said of ["touch-action: none", "user-select: none", "-webkit-touch-callout: none", "overscroll-behavior: none"]) {
       expect(rules, said).toContain(said);
     }
+    // ...and the events refused, which the rules alone do not do: a stylesheet says what may be
+    // SELECTED, and iOS decides what a long press MEANS from the events. Unrefused, it offers its
+    // magnifier — a lens over the very card being dragged.
+    for (const name of ["contextmenu", "selectstart", "dragstart", "gesturestart"]) {
+      const e = new Event(name, { cancelable: true, bubbles: true });
+      s.el.dispatchEvent(e);
+      expect(e.defaultPrevented, name).toBe(true);
+    }
     s.dispose();
   });
 
