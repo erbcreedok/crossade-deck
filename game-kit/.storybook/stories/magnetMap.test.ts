@@ -19,12 +19,13 @@ import {
   rect,
   registerLayout,
   Reaching,
+  Valued,
   Transformable,
   type Node,
   type TransformableFields,
 } from "../../src/index.js";
 import { CARD_SHARE, HELD_SHARE, magnetMap, PULL, zoneHolds, zoneNear } from "./magnetMap.js";
-import { heapBox, isGrip, regrip } from "./gestureMap.js";
+import { heapBox, isGrip, regrip, restsAt } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
 /** A card off the desk itself — the real shape, not a stand-in built to make the sums come out. */
@@ -53,6 +54,19 @@ describe("which zone a release belongs to", () => {
     expect(releasedAt(0.1 - PULL * 1.4), "a gap bigger than the pull").toBeUndefined();
   });
 
+  it("magnet.a-handle-is-never-put-anywhere — a zone takes cards, not controls", () => {
+    // A handle is a PICTURE of a heap, redrawn wherever that heap ends up. A zone that took one
+    // would be given a control to keep — and its row would lay the tab out among the cards as though
+    // it were one of them, which is what it did until this line existed.
+    const desk = magnetMap(PULL);
+    const zone = zoneOf(desk);
+    const card = leadOf(desk);
+    const tab = node("stack handle 0", Bounded({ bounds: rect(0.6, 0.15) }), Valued({ values: { grip: 0 } }));
+    // Released at the very middle of the zone, where a card would certainly be taken.
+    expect(zoneNear(desk, { x: 0, y: 1.8 }, card), "a card is taken").toBe(zone);
+    expect(zoneNear(desk, { x: 0, y: 1.8 }, tab), "and a handle is not").toBeUndefined();
+  });
+
   it("magnet.no-pull-is-every-other-desk — the release has to land inside the border", () => {
     // Off is not a second code path: it is the same lookup with nothing to forgive, which is what
     // every desk on this shelf said before one of them grew a reach.
@@ -79,6 +93,34 @@ describe("which zone a release belongs to", () => {
   });
 });
 
+
+describe("where a throw will come to rest", () => {
+  it("magnet.a-throw-is-aimed-too — asked where it will STOP, not where the finger came up", () => {
+    // A magnet that only catches a piece put down near a zone is half a magnet: a card flicked at
+    // somebody's area is aimed just as plainly as one carried there, and a desk that answered "you
+    // let go too far away" to a throw that was going to land in the zone anyway would be refusing
+    // the more confident of the two gestures.
+    //
+    // The sum is exact for the flight the desk actually files: a slide bleeds a fixed amount of
+    // speed per second, so `v² / 2a` is the distance, not an estimate.
+    const feel = { fall: "settle", throwGain: 1, friction: 2, gravity: 11, bounce: 0, wallBounce: 0, girth: 0, solid: "", scatter: 0 } as const;
+    const from = { x: 0, y: 0 };
+    // Four units a second against a drag of two: sixteen over four, so four units on.
+    expect(restsAt(from, { x: 4, y: 0 }, feel, 99)).toEqual({ x: 4, y: 0 });
+    // ...and it keeps the heading, whichever way the hand went.
+    const back = restsAt(from, { x: 0, y: -4 }, feel, 99);
+    expect(back.x).toBeCloseTo(0, 6);
+    expect(back.y).toBeCloseTo(-4, 6);
+    // Its OWN share of the hand's speed, because not everything leaves a hand at the hand's speed.
+    expect(restsAt(from, { x: 4, y: 0 }, { ...feel, throwGain: 0.5 }, 99).x).toBeCloseTo(1, 6);
+    // A hand that was not going anywhere aims where it is: a putting-down is not a throw of nothing.
+    expect(restsAt(from, undefined, feel, 99)).toBe(from);
+    expect(restsAt(from, { x: 0, y: 0 }, feel, 99)).toBe(from);
+    // And with no friction of its own it takes the desk's, or the sum has no drag to divide by.
+    const { friction: _own, ...noDrag } = feel;
+    expect(restsAt(from, { x: 4, y: 0 }, noDrag, 4).x).toBeCloseTo(2, 6);
+  });
+});
 
 describe("what the zone is holding", () => {
   const NEVER = (): boolean => false;
@@ -137,6 +179,23 @@ describe("what the zone is holding", () => {
     expect(seat.y - under, "and only just — a tab is under a thing, not adrift below it").toBeLessThan(0.3);
     // Under the CARD's edge instead, the tab would be most of a card higher up.
     expect(seat.y, "not under the card").toBeGreaterThan(heapBox(desk, [card]).bottom + 0.3);
+  });
+
+  it("magnet.a-stale-handle-is-swept-wherever-it-ended-up — not only off the desk's own top", () => {
+    // A handle is drawn as a child of the desk, but a desk with zones on it can re-home a node. A
+    // tab that found its way inside one would be laid out by that zone as though it were a card, and
+    // a sweep that only looked at the desk's own children would never see it again — one stale tab
+    // is one control that lifts a heap that is not there.
+    const desk = magnetMap();
+    const zone = desk.children[0]!;
+    laid(desk, 0, { x: 0, y: 1.8 });
+    const stowaway = node("stack handle stray", Bounded({ bounds: rect(0.6, 0.15) }), Valued({ values: { grip: 0 } }));
+    add(zone, stowaway);
+    regrip(desk, undefined, NEVER, undefined, { ...mergeRule(CARD_SHARE), held: zoneHolds(HELD_SHARE) });
+    expect(zone.children.filter(isGrip), "the zone holds cards, never controls").toEqual([]);
+    // ...and the desk has exactly the handles it should: the zone's own, and the deck's — thirty-odd
+    // cards on one spot are a heap like any other, and it is the stray that had to go.
+    expect(desk.children.filter(isGrip).length).toBe(2);
   });
 
   it("magnet.what-the-clock-is-carrying-is-in-nobody-s-zone", () => {

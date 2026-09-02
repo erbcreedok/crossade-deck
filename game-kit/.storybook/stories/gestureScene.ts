@@ -31,6 +31,7 @@ import { scene, type Scene } from "../devtools/scene.js";
 import {
   alsoInTheWay,
   bumped,
+  restsAt,
   DIE_FAN,
   DIE_HOP,
   DIE_SPIN,
@@ -149,6 +150,15 @@ export function grabScene(
   let heaps = new Map<string, readonly Node[]>();
   /** The handle a finger has hold of right now, if any — see `regrip`'s `keep`. */
   let inHand: string | undefined;
+  /**
+   * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
+   *
+   * The wiring asks a zone about the point the finger came up at, and a throw is not aimed at that
+   * point — it is aimed at where it will come to rest. The two questions are asked a few lines apart
+   * inside one synchronous release, so the answer is worked out once and read once; it is cleared
+   * with the gesture, and outside one it is nothing at all.
+   */
+  let aimed: Vec | undefined;
   const built = scene(typeof desk === "function" ? desk() : desk === "deck" ? deckMap() : desk === "stack" ? stackMap() : gestureMap(), {
     animate: true,
     camera: {
@@ -212,6 +222,8 @@ export function grabScene(
           onSettled: (root: Node, ids: readonly string[]) => {
             // Once per gesture and synchronously with its drop, so there is no staleness to guard.
             inHand = undefined;
+            // The aim belongs to the release that made it and to nothing after it.
+            aimed = undefined;
             // WHAT WAS JUST PUT DOWN GOES ON TOP, and it does not move to get there: a card let go
             // of over a heap is lying ON the heap, not under it, and the only thing that says which
             // is the order they are drawn in. It is also the order they will stand in when the
@@ -255,28 +267,31 @@ export function grabScene(
     // hand's height WHILE it travels, which is what a thrown thing does.
     // A ZONE IS ASKED WHERE THE PIECE IS DRAWN, not where the finger is: the finger may be outside
     // the border the carry clamped the piece to, and it is the PIECE a zone is taking.
-    ...(zones ? { zoneAt: zones } : {}),
+    ...(zones ? { zoneAt: (root: Node, at: Vec, lead: Node) => zones(root, aimed ?? at, lead) } : {}),
     ...(letGo
       ? {
-          onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
-            // A heap let go of by its handle was never lifted, so it has no height to fall from —
-            // the run comes down from wherever the hand was actually holding it.
+          onRelease: (v: Vec | undefined, items: readonly CarryItem[]) => {
+            // A THROW IS AIMED TOO. Asked where the piece was LET GO of, a magnet catches only what
+            // was carried over and set down — and a card flicked at somebody's area is aimed just as
+            // plainly. So the zone is asked about where the throw will come to REST (`restsAt`),
+            // which is arithmetic and not a guess.
+            aimed = aimOf(built, items, letGo === "throw" ? v : undefined, ways, bump);
             // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
-            // page that had both would otherwise always fall: `onRelease` runs BEFORE the drop is
-            // decided, so a fall filed here is a fall the zone never gets to see. Answering `false`
-            // hands the release back to the ordinary path, which is where zones live.
-            zoneFor(built, items, zones)
-              ? false
-              : ((mine: string | undefined) =>
-              letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
-                // ONLY IF IT IS STILL MINE. This runs twice — once as the pieces leave, and again
-                // on every landing, which can be a second later. By then another gesture may have a
-                // different handle in hand, and a stale callback clearing that would leave the
-                // rebuild with nothing to protect: the tab under the live finger is destroyed and
-                // the hand is holding an id that no longer exists.
-                if (inHand === mine) inHand = undefined;
-                settle();
-              }, ways, bump))(inHand),
+            // page that had both would otherwise always fall: this runs BEFORE the drop is decided,
+            // so a fall filed here is a fall the zone never gets to see. Answering `false` hands the
+            // release back to the ordinary path, which is where zones live — and the piece is taken
+            // the moment it leaves the finger rather than flown there and pulled back.
+            if (zoneFor(built, items, zones, aimed)) return false;
+            // WHOSE HANDLE THIS WAS, remembered for the length of the fall. `settle` runs again on
+            // every landing, which can be a second later — by then another gesture may have a
+            // different handle in hand, and a stale callback clearing that would destroy the tab
+            // under the live finger and leave the hand holding an id that no longer exists.
+            const mine = inHand;
+            return letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
+              if (inHand === mine) inHand = undefined;
+              settle();
+            }, ways, bump);
+          },
         }
       : {}),
   }).el;
@@ -327,11 +342,32 @@ const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
  * Where the piece is and where the finger is are not the same point: the carry clamps the run inside
  * the border while the finger may be well outside it, and it is the PIECE a zone is taking.
  */
-function zoneFor(s: Scene, items: readonly CarryItem[], zones?: (root: Node, at: Vec, lead: Node) => Node | undefined): Node | undefined {
+function zoneFor(
+  s: Scene,
+  items: readonly CarryItem[],
+  zones: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined,
+  aim: Vec | undefined,
+): Node | undefined {
   const it = items[0];
   const lead = it ? byId(s.host.root, it.id) : undefined;
   const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
-  return zones && drawn && lead ? zones(s.host.root, apply(drawn, { x: 0, y: 0 }), lead) : undefined;
+  return zones && drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead) : undefined;
+}
+
+/** Where the lead of this release will come to rest — the point a zone should be asked about. */
+function aimOf(
+  s: Scene,
+  items: readonly CarryItem[],
+  hand: Vec | undefined,
+  ways: { card?: LetGo; chip?: LetGo; die?: LetGo },
+  bump: Bump | undefined,
+): Vec | undefined {
+  const it = items[0];
+  const lead = it ? byId(s.host.root, it.id) : undefined;
+  const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
+  if (!lead || !drawn) return undefined;
+  const from = apply(drawn, { x: 0, y: 0 });
+  return restsAt(from, hand, bumped(dropOf(lead, ways), lead, bump), s.motions?.tuning().friction ?? 0);
 }
 
 export function letFall(

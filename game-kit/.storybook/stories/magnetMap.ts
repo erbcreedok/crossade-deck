@@ -52,7 +52,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { installMapArt, MAP, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { installMapArt, isGrip, MAP, warmingNodes, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -172,6 +172,14 @@ export function magnetMap(pull = PULL): Node {
  * the order somebody added them to the desk, which is not a thing a player can see or predict.
  */
 export function zoneNear(root: Node, at: Vec, lead: Node): Node | undefined {
+  // A HANDLE IS NOT A PIECE AND IS NEVER PUT ANYWHERE. It is a picture of a heap, redrawn wherever
+  // that heap ends up; a zone that took one would be given a control to keep, and the row would lay
+  // the tab out among the cards as though it were one of them. Which is exactly what it did.
+  //
+  // Nothing is lost by refusing: the cards the handle was carrying come down over the zone, and the
+  // zone counts them the moment anything moves, because being in a zone is a matter of lying in it
+  // (`zoneHolds`) and never of having been handed over.
+  if (isGrip(lead)) return undefined;
   const poses = transformsOf(root);
   const shape = fieldsOf<BoundedFields>(lead, "Bounded")?.bounds;
   // THE PIECE'S OWN OUTLINE, put where it was let go of. Measured from its centre instead, half a

@@ -388,6 +388,31 @@ export function shoves(speed: number, holds = true): boolean {
 }
 
 /**
+ * WHERE A THROW WILL COME TO REST, before it has travelled a single frame.
+ *
+ * A slide bleeds a fixed amount of speed per second — constant deceleration — so the distance it
+ * will cover is arithmetic and not a guess: `v² / 2a`, the same sum a first physics lesson does. It
+ * is exact for the flight the desk actually files, which is what makes it worth asking at all.
+ *
+ * Worth asking because a magnet that only catches a piece PUT DOWN near a zone is half a magnet. A
+ * card flicked at somebody's area is aimed just as plainly as one carried there, and a desk that
+ * answered "you let go too far away" to a throw that was going to land in the zone anyway would be
+ * refusing the more confident of the two gestures.
+ *
+ * Walls are not in it: a throw that would bounce ends up somewhere this does not predict. That is
+ * the honest limit, and it is the right side to be wrong on — a throw hard enough to reach a wall is
+ * not a throw anybody meant to drop into a zone a few units away.
+ */
+export function restsAt(from: Vec, hand: Vec | undefined, feel: DropFeel, friction: number): Vec {
+  if (!hand) return from;
+  const speed = Math.hypot(hand.x, hand.y) * feel.throwGain;
+  const drag = feel.friction ?? friction;
+  if (speed <= 0 || drag <= 0) return from;
+  const far = (speed * speed) / (2 * drag);
+  return { x: from.x + (hand.x / Math.hypot(hand.x, hand.y)) * far, y: from.y + (hand.y / Math.hypot(hand.x, hand.y)) * far };
+}
+
+/**
  * WHAT ELSE ON THE DESK IS IN THE WAY OF THIS THROW.
  *
  * Collision is between BODIES, and a piece that is not moving is not one: it landed, its seat was
@@ -789,7 +814,13 @@ export function regrip(
   // is what keeps them from sliding into each other's places — but the one under a finger belongs to
   // the gesture until the gesture ends. Replaced mid-carry it is a new node the hand never took, and
   // what the hand is holding vanishes out from under it.
-  for (const old of root.children.filter(isGrip)) if (old.id !== keep) remove(root, old);
+  // WHEREVER THEY ENDED UP, not only at the top. A handle is drawn as a child of the desk, but a
+  // desk with zones on it can re-home a node — and a tab that found its way inside one would be laid
+  // out by that zone as though it were a card, and never swept away again by a pass that only looked
+  // at the desk's own children. One stale tab is one control that lifts a heap that is not there.
+  for (const owner of [root, ...root.children]) {
+    for (const old of owner.children.filter(isGrip)) if (old.id !== keep) remove(owner, old);
+  }
   // A PLACE'S OWN HANDLE FIRST, and what it holds is not on the felt any more as far as the islands
   // are concerned: a card the zone has claimed must not also grow a felt handle of its own, or the
   // reader is given two tabs for one card and whichever they take lifts a different thing.
