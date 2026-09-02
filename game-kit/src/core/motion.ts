@@ -112,13 +112,18 @@ export interface MotionTuning {
    */
   readonly leash: number;
   /**
-   * HOW FAR EACH PIECE OF A CARRIED RUN FALLS BEHIND THE ONE BEFORE IT. `0` is a run carried as one
-   * plank — the stock feel, and right for a column of cards a hand has closed on.
+   * HOW FAR THE TAIL OF A CARRIED RUN FALLS BEHIND THE HAND — across the WHOLE run, not per piece.
+   * `0` is a run carried as one plank: the stock feel, and right for a column a hand has closed on.
    *
    * Above zero the run stretches out behind the hand and closes up again when the hand stops, the
    * way anything held by one end does. It is the whole difference between carrying a thing and
    * dragging one: a stack pulled by a handle under it is dragged, and a stack that arrived rigid
    * would read as a picture of a stack rather than as a stack.
+   *
+   * ACROSS THE RUN, because a lag counted per piece is paid again for every piece: a hand of five
+   * trails a little and a deck of thirty-six trails nine times as much, and the deck comes off its
+   * handle like an anchor on a rope. The tail is this much slower than the hand whatever lies
+   * between them, so the same number means the same feel at any size.
    *
    * The FIRST piece is never late — it is what the hand has hold of.
    */

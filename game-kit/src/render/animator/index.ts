@@ -361,7 +361,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * pace — otherwise the far end would ring.
    */
   const tailCfg = (cy: Carry, i: number): SpringConfig => {
-    const slower = 1 + cy.trail * i;
+    // ACROSS THE RUN, never per card. Counted per card, the lag is paid again for every piece: the
+    // last card of a hand of five trails a little and the last of a deck of thirty-six trails nine
+    // times as much — the deck comes off its handle like an anchor on a rope, still catching up long
+    // after the hand has stopped. What a trail is FOR is the same either way: the tail is a fixed
+    // amount slower than the hand, and how many pieces lie between them is not the reader's business.
+    const span = Math.max(1, cy.items.length - 1);
+    const slower = 1 + cy.trail * (i / span);
     return { stiffness: cy.follow.stiffness / slower, damping: cy.follow.damping / Math.sqrt(slower) };
   };
 

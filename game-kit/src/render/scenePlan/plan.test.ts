@@ -155,7 +155,7 @@ describe("scenePlan", () => {
     expect(plan(root)[0]!.z).toBe(11);
   });
 
-  it("plan.a-resting-piece-shadows-the-desk-and-a-raised-one-shadows-what-it-is-over", () => {
+  it("plan.pieces-at-one-height-do-not-shadow-each-other", () => {
     // The shadow is NOT a node: it is a LAYER, drawn with the piece that casts it. The default lamp
     // hangs top-right of the frame, so the fall is down-left, and the quad wears the caster's id
     // with a suffix nothing can resolve: un-pickable, un-bakeable, un-mistakable for a piece.
@@ -186,6 +186,25 @@ describe("scenePlan", () => {
     add(flat, node("under", box(1, 1.4), Surfaced(), ShadowCaster()));
     add(flat, node("over", box(1, 1.4), Surfaced(), ShadowCaster(), Transformable({ at: { x: 0.02, y: 0.02 } })));
     expect(plan(flat).map((q) => q.id)).toEqual(["sp2", "under::shadow", "over::shadow", "under", "over"]);
+
+    // ...AND NEITHER DOES A STACK IN A HAND. Carried, the run is all at one height too — touching,
+    // with no gap between them for a shadow — while still casting on the resting cards below it.
+    // Split by resting-and-raised alone, a hand of thirty-six shadowed itself exactly as the deck
+    // on the felt had.
+    const held = node("sp3", Container({ layout: "free" }), Surfaced());
+    add(held, node("down", box(1, 1.4), Surfaced(), ShadowCaster()));
+    add(held, node("upA", box(1, 1.4), Surfaced(), ShadowCaster(), Transformable({ at: { x: 0.4, y: 0 } })));
+    add(held, node("upB", box(1, 1.4), Surfaced(), ShadowCaster(), Transformable({ at: { x: 0.44, y: 0 } })));
+    const inHand = scenePlan({ root: held, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, raised: new Set(["upA", "upB"]) });
+    expect(inHand.map((q) => q.id)).toEqual([
+      "sp3",
+      "down::shadow",
+      "down",
+      "upA::shadow",
+      "upB::shadow",
+      "upA",
+      "upB",
+    ]);
   });
 
   // A ruler whose answers are chosen here: ten pixels a character, flat. See `textLayout.test.ts`.

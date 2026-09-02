@@ -378,6 +378,47 @@ describe("the motion runtime", () => {
     expect(b.xOf("e")).toBeCloseTo(b.xOf("c"), 1);
   });
 
+  it("motion.a-trail-is-across-the-run-not-per-piece — a deck must not drag like an anchor", () => {
+    // Counted per piece, a lag is paid again for every piece: the last card of a hand of five trails
+    // a little and the last of a deck of thirty-six trails nine times as much. The deck then comes
+    // off its handle like an anchor on a rope — still catching up long after the hand has stopped —
+    // and the number that felt right on a hand is the very thing that ruins a deck.
+    //
+    // The tail is this much slower than the hand whatever lies between them, so ONE number means one
+    // feel at any size. Measured as the CATCHING UP: the hand stops, and how long the run takes to
+    // close up behind it is the whole of what "like an anchor" means.
+    const framesToClose = (n: number): number => {
+      const b = bench();
+      const ids = ["c"];
+      for (let i = 1; i < n; i++) {
+        const id = `t${i}`;
+        add(b.desk, node(id, Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+        ids.push(id);
+      }
+      b.host.setRoot(b.desk);
+      const c = fakeClock();
+      const m = attachMotion(b.host, b.painter, { clock: c.clock, trail: 1 })!;
+      m.grab(ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), { anchor: { x: 0, y: 0 } });
+      let t = 0;
+      for (let i = 1; i <= 20; i++) {
+        m.dragTo({ x: i * 0.3, y: 0 });
+        c.tick((t += 16));
+      }
+      const tail = ids[ids.length - 1]!;
+      for (let f = 1; f <= 600; f++) {
+        c.tick((t += 16));
+        if (Math.abs(b.xOf(tail) - b.xOf("c")) < 0.05) return f;
+      }
+      return 600;
+    };
+    const hand = framesToClose(3);
+    const deck = framesToClose(12);
+    // It must trail at all — a run that closed instantly would be the plank this field exists to
+    // avoid — and four times the cards must not mean a tail that takes twice as long to come home.
+    expect(hand).toBeGreaterThan(1);
+    expect(deck).toBeLessThan(hand * 2);
+  });
+
   it("motion.a-carried-run-strains-at-the-tray-wall — it stops at the border, and a finger that goes on past the leash loses it", () => {
     const b = bench();
     const c = fakeClock();

@@ -300,23 +300,32 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
   // WHAT A SHADOW FALLS ON DEPENDS ON WHETHER ITS CASTER IS OFF THE DESK, and there are exactly two
   // answers because there are exactly two situations.
   //
-  // A PIECE LYING ON THE DESK casts on the DESK and on nothing else. Cards in a stack are touching:
-  // there is no gap between them, so there is no shadow between them either — and drawn as though
+  // PIECES AT ONE HEIGHT DO NOT SHADOW EACH OTHER. They are touching — a stack on the felt, a run
+  // in a hand — and there is no gap between touching things for a shadow to live in. Drawn as though
   // there were, a deck of thirty-six paints thirty-six dark rims into itself and comes out a black
-  // slab. So a resting shadow goes in one pass over the ground and under every piece.
+  // slab, which is what it did on the felt and then did again in the hand.
   //
-  // A PIECE HELD ABOVE IT casts on whatever it is over — the desk, and the cards it is hanging
-  // across. That one keeps its natural place, directly under its own caster, which is where `visit`
-  // already put it: it covers everything drawn before and is covered by the piece itself.
+  // A PIECE ABOVE ANOTHER still casts on it, because there the gap is the whole point: a hand held
+  // over the desk darkens the cards it is hanging across, and that is the one thing telling the eye
+  // it is off the desk at all.
   //
-  // Both were got wrong in turn. Hoisted under everything, no shadow could be seen on a desk that
+  // So: the ground, then every resting shadow, then the resting pieces, then every raised shadow,
+  // then the raised pieces. Each height's shadows go together, ahead of that height's pieces.
+  //
+  // It took three tries. Hoisted under everything, no shadow could be seen at all on a desk that
   // paints its felt, and a raised card's shadow slid beneath the very cards it hung over. Left in
-  // place for all, a stack shadowed itself.
+  // its natural place for all, a stack shadowed itself. Split by resting and raised alone, a stack
+  // in the HAND shadowed itself.
   const grounds = new Set<NodeId>();
   walk(root, (n) => {
     if (caps(n).has("Container")) grounds.add(n.id);
   });
-  const lay = (q: Quad): number => (grounds.has(q.id) ? 0 : q.layer === "shadow" && !airborne.has(q.id) ? 1 : 2);
   const aloft = (q: Quad): number => (raised?.has(q.id) || airborne.has(q.id) ? 1 : 0);
-  return out.sort((a, b) => lay(a) - lay(b) || aloft(a) - aloft(b) || a.z - b.z);
+  const shade = (q: Quad): number => (q.layer === "shadow" ? 0 : 1);
+  // FIVE RANKS, and they are one sentence: the ground, then each height's shadows, then that
+  // height's pieces. Pieces at ONE height never shadow each other — resting or carried, they are
+  // touching, and there is no gap between touching things for a shadow to live in — while a piece
+  // ABOVE another still casts on it, because there the gap is the whole point.
+  const rank = (q: Quad): number => (grounds.has(q.id) ? 0 : 1 + aloft(q) * 2 + shade(q));
+  return out.sort((a, b) => rank(a) - rank(b) || a.z - b.z);
 }

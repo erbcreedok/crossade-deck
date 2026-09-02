@@ -98,11 +98,9 @@ const HANDLE_IS_THE_GRAB = {
    * flat would be saying that a stack is a different kind of thing. What must not pop is the TAB,
    * and that is said on the tab itself (`CarryItem.still`) rather than by flattening the gesture.
    */
-  // A QUARTER, not a half. The trail is a LAG, and a lag is paid per card: with three in hand it
-  // reads as weight, and with thirty-six the deck comes off the tab like an anchor on a rope — the
-  // tail is still catching up long after the hand has stopped. The accordion is the point and stays;
-  // what changes is how far behind it is allowed to fall.
-  trail: 0.22,
+  // How much slower the TAIL is than the hand — across the whole run, so a hand of five and a deck
+  // of thirty-six stretch the same way and neither comes off its handle like an anchor.
+  trail: 2.2,
 } as const;
 
 /**
