@@ -35,7 +35,7 @@ import {
   type SurfacedFields,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { deckMap, gestureMap, heapsOf, regrip, stackMap } from "./gestureMap.js";
+import { ANCHOR_MARK, deckMap, gestureMap, heapsOf, regrip, stackMap } from "./gestureMap.js";
 import { mergeChip, mergeMap, mergeRule, mergeSeats, MERGE_SHARE } from "./mergeMap.js";
 import { magnetMap } from "./magnetMap.js";
 import { liveMap } from "./liveMap.js";
@@ -119,6 +119,10 @@ describe("every desk registers what it names", () => {
         })
         .filter((coat) => hasCoat(coat))
         .map((coat) => coat.recipe);
+      // ...AND THE SHELF'S OWN MARKS, which no tree carries: the anchor's landing mark is put on a
+      // handle at the moment a hand takes one, and a handle does not exist until something is
+      // heaped. A coat nobody can see in a built desk is exactly the one nobody notices is missing.
+      named.push(ANCHOR_MARK.recipe);
       seen += named.length;
       expect([...new Set(named)].filter((r) => !coatRecipe(r)), `${what}: named but never registered`).toEqual([]);
     }

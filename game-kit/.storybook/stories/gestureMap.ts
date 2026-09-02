@@ -17,6 +17,7 @@
 // names, not theme tokens — a piece is content, and it does not follow the theme.
 
 import {
+  installStockCoats,
   add,
   apply,
   surfaceNames,
@@ -116,6 +117,22 @@ export function zoneKeen(ink: Paint): Coat {
   return { recipe: "ring", level: 0.75, tint: ink };
 }
 
+/**
+ * WHAT THE ANCHOR WEARS WHILE ITS RUN IS IN THE AIR — the mark that says WHERE THIS LANDS.
+ *
+ * The anchor is already on the glass and already in the right place: a handle takes no lift, so
+ * while the cards ride at the hand's height the tab travels flat on the felt, exactly at the point
+ * the run is going to come down on. What it did not do is READ as that. It looks like the control
+ * it was a moment ago — the thing you took hold of — so a player carrying a stack watches the
+ * CARDS to guess where they will land, and the cards are the one thing that is not where they will
+ * land: they are a hand's width above the anchor and splayed.
+ *
+ * QUIET, because it is a target and not an announcement. A ring at a low level, in the muted ink:
+ * enough that the eye finds it under a moving hand, not so much that it competes with the zone
+ * lighting up — which is the thing that actually has news in it.
+ */
+export const ANCHOR_MARK: Coat = { recipe: "ring", level: 0.35, tint: "textMuted" };
+
 export const ROAM = 0.25;
 
 /**
@@ -164,6 +181,11 @@ const KNIGHT_PIECE = svg(
 
 /** Register everything the map's nodes point at by name. Idempotent — a re-render calls it again. */
 export function installMapArt(): void {
+  // THE COAT RECIPES, installed as an ordinary consumer would. A coat is a NAME looked up in a
+  // registry, and a name nobody registered resolves to nothing and paints nothing — in silence.
+  // Here rather than per desk, because the marks are the SHELF'S (`ANCHOR_MARK`, `zoneKeen`) and a
+  // desk that forgot the call would go on working with one feature invisibly missing.
+  installStockCoats();
   registerAsset(GRID, { src: GRID_TILE, w: 1, h: 1 });
   registerAsset(KNIGHT_SURFACE, { src: KNIGHT_PIECE, w: KNIGHT.w, h: KNIGHT.h });
   registerLayout("gesture.map.free", freeLayout);

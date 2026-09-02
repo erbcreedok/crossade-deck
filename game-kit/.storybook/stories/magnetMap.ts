@@ -41,7 +41,6 @@ import {
   Draggable,
   freeLayout,
   Grabber,
-  installStockCoats,
   installStockGrabs,
   node,
   Reaching,
@@ -125,11 +124,6 @@ function installMagnetArt(zone: Spread): void {
   // The grab rules are installed here as an ordinary consumer would: unregistered, a `Grabber`
   // names a rule nothing resolves and the container hands back nothing at all.
   installStockGrabs();
-  // ...AND SO ARE THE COAT RECIPES. A coat is a NAME (`wash`, `ring`) looked up in a registry, and a
-  // name nobody registered resolves to nothing and paints nothing — silently, which is the whole
-  // trap: the zone declares its aim light, the wiring puts it on, and the glass shows no difference
-  // at all. The same class of miss as an unregistered surface (`desk.a-name-nobody-registered...`).
-  installStockCoats();
   registerLayout(DESK_LAYOUT, freeLayout);
   registerLayout(ZONE_LAYOUT, handLayout(zone, ZONE_PAD));
   registerSurface(ZONE_SURFACE, {

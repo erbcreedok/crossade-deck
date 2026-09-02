@@ -10,6 +10,8 @@
 // fall is asked for — is stated here once, so a new page inherits it by existing.
 
 import {
+  Coated,
+  NO_COAT,
   add,
   apply,
   byId,
@@ -52,6 +54,7 @@ import {
   isPlaceGrip,
   regrasp,
   MAP,
+  ANCHOR_MARK,
   deskRoom,
   mapWalls,
   regrip,
@@ -319,6 +322,12 @@ export function grabScene(
               liftedFrom = hit.parent && caps(hit.parent).has("Acceptor") ? hit.parent : undefined;
               return [hit];
             }
+            // ...AND IT BECOMES THE LANDING MARK for as long as the run is up. The tab takes no
+            // lift, so it is already travelling flat on the felt at the very point the run will
+            // come down on; all it needs is to look like a target rather than like the control it
+            // was a moment ago. Nothing to undo: `settle` throws every handle away and draws the
+            // next ones fresh, so the mark goes when the gesture does.
+            compose(hit, Coated({ self: ANCHOR_MARK, cast: NO_COAT }));
             const run = heaps.get(hit.id) ?? [];
             const owner = run[0]?.parent;
             liftedFrom = owner && caps(owner).has("Acceptor") ? owner : undefined;

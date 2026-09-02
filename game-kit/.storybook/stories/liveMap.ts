@@ -30,7 +30,6 @@ import {
   node,
   Reaching,
   rect,
-  installStockCoats,
   Inviting,
   NO_COAT,
   registerSurface,
@@ -90,9 +89,6 @@ const AREA: Record<string, number> = { south: 2.05, north: -2.05 };
 export function installLiveArt(zone: Spread): void {
   installMapArt();
   installStockGrabs();
-  // ...AND THE COAT RECIPES. A coat is a NAME looked up in a registry, and a name nobody registered
-  // resolves to nothing and paints nothing — in silence (`desk.a-coat-nobody-registered...`).
-  installStockCoats();
   registerLayout(DESK_LAYOUT, freeLayout);
   registerLayout(ZONE_LAYOUT, handLayout(zone, 0.12));
   for (const { seat, ink } of SEATS) {
