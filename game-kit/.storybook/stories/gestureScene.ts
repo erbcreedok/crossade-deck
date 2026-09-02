@@ -163,7 +163,10 @@ export function grabScene(
    * with the gesture, and outside one it is nothing at all.
    */
   let aimed: Vec | undefined;
-  const built = scene(typeof desk === "function" ? desk() : desk === "deck" ? deckMap() : desk === "stack" ? stackMap() : gestureMap(), {
+  // A DESK HANDED OVER AS A FACTORY IS BUILT ONCE and is the reader's from then on — turning a knob
+  // must not sweep away the cards they dealt. See `scene`.
+  const make = typeof desk === "function" ? desk : desk === "deck" ? deckMap : desk === "stack" ? stackMap : gestureMap;
+  const built = scene(make, {
     animate: true,
     camera: {
       limits: MAP_ZOOM,
@@ -196,6 +199,10 @@ export function grabScene(
     if (inHand && carried) heaps.set(inHand, carried);
     built.host.setRoot(built.host.root);
   };
+  // ...AND THE PANEL'S NUMBERS ARE RE-APPLIED TO THE DESK THAT IS ALREADY STANDING. The desk is not
+  // rebuilt on an argument change, so anything a control writes INTO it — a zone's reach, a named
+  // arrangement — has to be written again here, or the knob would only take effect on a page reload.
+  rule?.tune?.(built.host.root);
   settle();
   return wireDrag(built, {
     view: () => built.camera!.transform(),

@@ -259,7 +259,7 @@ const TOUCH_RING = 26;
 const ruler = domTextMeasure();
 
 export function scene(
-  root: Node,
+  root: Node | (() => Node),
   options: SceneOptions = {},
   settings: CatalogSettings = currentSettings(),
   makePainter: MakePainter = lazyPixiPainter,
@@ -283,6 +283,15 @@ export function scene(
   // built once and afterwards only fed: the same element goes back, with a different tree in it.
   // That is also the path real data takes — a move from the server, a save loaded — so the
   // catalog exercises it rather than a mechanism only Storybook would ever use.
+  // A DESK IS FURNITURE, AND FURNITURE IS NOT REBUILT BECAUSE A KNOB MOVED.
+  //
+  // A story that hands over a NODE is handing over data: the tree is what changed, and the standing
+  // scene is fed it. A story that hands over a FACTORY is saying the opposite — this desk is mine,
+  // build it once — and on every later render its tree is left exactly as the reader left it.
+  //
+  // The difference matters the moment a page has state a reader made: cards dealt, a hand gathered,
+  // a die thrown. Rebuilt on every argument change, all of it is swept away by turning a knob, and
+  // the very control that was meant to show a difference destroys the arrangement it would show.
   const standing = LIVE.get(id);
   if (standing) {
     // The handler is the STORY's closure and it is new on every render, while the listeners are
@@ -290,7 +299,8 @@ export function scene(
     PRESSED.set(id, options.press);
     TAPPED.set(id, options.tap);
     HELD.set(id, options.hold?.onHold);
-    standing.setRoot(root);
+    // The tree the reader has been working in, or the new one the story handed over.
+    standing.setRoot(typeof root === "function" ? standing.host.root : root);
     standing.setSettings(settings);
     // The tuning follows the sliders on the standing clock — a re-render is new numbers for the
     // same runtime, the way a game's settings screen retunes without rebuilding the desk.
@@ -369,7 +379,7 @@ export function scene(
   el.appendChild(stage);
   el.appendChild(bar.el); // after the stage, so the row is not painted over by it
 
-  const host = mount(stage, root, viewerFor(settings.viewer));
+  const host = mount(stage, typeof root === "function" ? root() : root, viewerFor(settings.viewer));
   const first = host.viewport();
   const painter = makePainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
 

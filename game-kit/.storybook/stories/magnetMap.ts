@@ -78,6 +78,19 @@ export const HELD_SHARE = 0.15;
 export const CARD_SHARE = 0.1;
 
 /**
+ * WHAT A HAND LOOKS LIKE, in the air and in the zone.
+ *
+ * The fan is allowed to be WIDE — up to the whole desk if it has to be — because a hand held out is
+ * a thing you are meant to read, and one that stayed the width of the zone it came from would be a
+ * squashed row held at an angle. The row is bounded by its zone and closes up instead.
+ */
+export const FAN_SPREAD: Spread = { gapMin: 0.18, gapMax: 0.62, wideMin: 0.24, wideMax: 1 };
+export const ZONE_SPREAD: Spread = { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 };
+
+/** How far the outermost card of a fan leans, degrees. `0` is a straight line of upright cards. */
+export const FAN_TILT = 26;
+
+/**
  * How far the zone reaches past its own edge, root units — see `Reaching`.
  *
  * Measured edge to edge, so this is a gap of bare felt between the card and the border and reads as
@@ -95,13 +108,16 @@ const DESK_LAYOUT = "magnet.free";
 /** A piece put down outside the zone stays where it was put — the zone is the only thing that takes. */
 const PUT_DOWN = Draggable({ onReject: "stay" });
 
-function installMagnetArt(): void {
+/** Felt left between the outermost card and the zone's border, in units. */
+const ZONE_PAD = 0.12;
+
+function installMagnetArt(zone: Spread): void {
   installMapArt();
   // The grab rules are installed here as an ordinary consumer would: unregistered, a `Grabber`
   // names a rule nothing resolves and the container hands back nothing at all.
   installStockGrabs();
   registerLayout(DESK_LAYOUT, freeLayout);
-  registerLayout(ZONE_LAYOUT, handLayout({ padding: 0.12, overlap: 0.45 }));
+  registerLayout(ZONE_LAYOUT, handLayout(zone, ZONE_PAD));
   registerSurface(ZONE_SURFACE, {
     layers: [{ paint: "sunkBg" }],
     radius: 0.24,
@@ -119,8 +135,8 @@ function installMagnetArt(): void {
  * under the deck would be answered by accident on the first drag. `pull` is the panel's number so a
  * reader can watch the same release land in the zone and on the felt.
  */
-export function magnetMap(pull = PULL): Node {
-  installMagnetArt();
+export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
+  installMagnetArt(zone);
   const desk = node(
     "map",
     Bounded({ bounds: rect(MAP.w, MAP.h) }),
@@ -240,38 +256,27 @@ function toEdge(a: Vec, b: Vec, p: Vec): number {
 
 
 /**
- * A HAND LAID OUT IN A ROW THAT NEVER OUTGROWS ITS ROOM.
+ * A HAND LAID OUT IN A ROW, by the same four numbers the fan uses — and it is the same question:
+ * how far apart may these cards be, and how wide may the lot of them get.
  *
- * A row of a fixed step is a row that gets wider with every card, and a zone is a place with an
- * edge: eight cards at a comfortable step are half a card past the border on each side, which reads
- * as the zone having failed to hold what it was given. Every card game everybody has played solves
- * this the same way — the hand closes up as it grows — and it is the zone's own box that says when.
- *
- * So the step is the smaller of two: the one that looks right, and the one that fits. Below the
- * point where they cross nothing changes at all, which is why a hand of three looks like a hand of
- * three rather than like a hand of twelve with nine cards missing.
- *
- * `overlap` is how much of a card the NEXT one covers at the comfortable step; `padding` is the
- * felt left between the outermost cards and the border. Given no box the layout places nobody —
- * the same silence a free canvas gives, rather than a guess about where an edge might be.
+ * What differs is the room. A hand in the air is bounded by the desk; a hand lying in a zone is
+ * bounded by the zone, and that bound is HARD — a row that outgrew its border would read as the
+ * zone having failed to hold what it was given. Given no box the layout places nobody: inventing an
+ * edge is worse than saying there is none, which is the same silence a free canvas gives.
  */
-export function handLayout({ padding = 0, overlap = 0 }: { padding?: number; overlap?: number } = {}): LayoutRecord {
+export function handLayout(look: Spread, padding = 0): LayoutRecord {
   const place = (children: readonly LayoutChild[], box?: Shape): readonly (Point | undefined)[] => {
     if (!box) return children.map(() => undefined);
-    const wide = children.map((c) => (c.footprint ? extentOf(c.footprint).w : 0));
-    const widest = wide.reduce((a, b) => Math.max(a, b), 0);
+    const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 0), 0);
+    // The room a card's own CENTRE may stand in: the box, less the padding, less the card itself.
     const room = Math.max(0, extentOf(box).w - 2 * padding - widest);
-    const gaps = Math.max(1, children.length - 1);
-    // The comfortable step, and the one the room allows. Whichever is smaller is the one a hand of
-    // this size actually takes — and for a small hand they are the first, unchanged.
-    const step = children.length > 1 ? Math.min(widest * (1 - overlap), room / gaps) : 0;
+    const step = fitStep(children.length, room, look);
     const from = -(step * (children.length - 1)) / 2;
     return children.map((_child, i) => ({ x: from + step * i, y: 0 }));
   };
   // NO ADDRESSES. A hand is not a set of slots: a card given to it JOINS it, and where it ends up
   // is a consequence of how many there are rather than of where the finger was. `indexAt` is
-  // optional for exactly this — a layout with no seats to point at says so by not answering, which
-  // is the same silence a heap gives.
+  // optional for exactly this — a layout with no seats to point at says so by not answering.
   return { padding, place };
 }
 
@@ -315,36 +320,78 @@ export function zoneHolds(share: number): NonNullable<HeapRule["held"]> {
 
 
 /**
- * HOW WIDE A HAND SPLAYS, degrees from the first card to the last, and how much of that any one
- * card may take.
+ * WHAT A SPREAD OF CARDS IS ALLOWED TO BE — the same four numbers for a hand in the air and a hand
+ * lying in its zone, because it is the same question asked in two places.
  *
- * Both, because a hand is not one number: two cards want a visible spread and twenty want a fan
- * rather than a wheel. The total is what the whole hand comes to; the step is what stops three cards
- * from opening as wide as ten.
+ * TWO BOUNDS ON THE STEP and two on the WHOLE. A step alone cannot say "a hand of twenty may be
+ * wider than a hand of three but not wider than the desk"; a width alone cannot say "two cards must
+ * not sit a hand's length apart just because there is room". Neither is derivable from the other,
+ * and every card game anybody has played has an opinion about both.
+ *
+ * The widths are FRACTIONS of the room the spread lives in — the desk for a hand in the air, the
+ * zone's own box for one lying in it — so the numbers mean the same thing on either side and survive
+ * a change of size on either.
  */
-export const FAN = { total: 54, step: 13 };
+export interface Spread {
+  /** Units between neighbouring card centres: the closest they may ever be, and the furthest. */
+  readonly gapMin: number;
+  readonly gapMax: number;
+  /** The whole spread's width, as a fraction of the room it is in. */
+  readonly wideMin: number;
+  readonly wideMax: number;
+}
 
 /**
- * A HAND SPLAYED — each card turned about the handle it hangs from, which is how a hand is held.
+ * THE STEP THIS MANY CARDS ACTUALLY TAKE, in units.
  *
- * The pivot is the tab itself, so the card at the middle of the fan sits exactly where the squared
- * stack would have put it (`stackSeats`) and the rest swing out from there. Nothing is invented
- * about the distance: it is the same clearance the stack uses, so a hand opening and closing does
- * not also drift up or down the finger.
+ * With a stated order, because the four bounds can contradict each other and something has to lose.
+ * The line between them is what a bound is FOR:
+ *
+ *   CEILINGS ARE ABOUT NOT OVERFLOWING, and they always win. The room is one — a spread never leaves
+ *   the place it is in, which is not a preference but what an edge means — and the width ceiling is
+ *   the same kind of statement about a smaller box the reader drew inside it.
+ *   FLOORS ARE ABOUT COMFORT: cards no closer than this, a hand no narrower than that. They lift the
+ *   step when there is headroom and give way the moment a ceiling disagrees.
+ *   THE COMFORTABLE STEP sits between them, taken whenever nothing else has an opinion.
  */
-export function zoneFan(group: readonly Node[], gripW: number): { at: Vec; deg: number }[] {
-  const spread = Math.min(FAN.total, FAN.step * Math.max(0, group.length - 1));
-  const step = group.length > 1 ? spread / (group.length - 1) : 0;
-  return group.map((piece, i) => {
-    const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
-    const half = shape ? extentOf(shape).h / 2 : 0;
-    const arm = gripW / GRIP_RATIO / 2 + GRIP_GAP + half;
-    const deg = -spread / 2 + step * i;
-    const a = (deg * Math.PI) / 180;
-    // Straight up from the tab, turned by the card's own share of the spread. At zero this is the
-    // stack's own seat, which is what makes the two poses the same gesture at two openings.
-    return { at: { x: arm * Math.sin(a) || 0, y: -arm * Math.cos(a) || 0 }, deg };
-  });
+export function fitStep(count: number, room: number, look: Spread): number {
+  if (count < 2) return 0;
+  const gaps = count - 1;
+  const hard = Math.min(room / gaps, (room * look.wideMax) / gaps);
+  const want = Math.min(look.gapMax, hard);
+  const floor = Math.max(look.gapMin, (room * look.wideMin) / gaps);
+  return Math.min(hard, Math.max(want, floor));
+}
+
+/**
+ * A HAND SPLAYED — laid out by its WIDTH, and turned to match.
+ *
+ * The width is the thing a reader has an opinion about ("a hand may take the whole desk if it has
+ * to"), so it is the width the numbers control and the angles that follow: each card stands at the
+ * x its share of the spread gives it, and its turn is the angle that x sits at on the arc. The arc
+ * itself is derived from the two — the radius is whatever makes the outermost card lean by `tilt` —
+ * so a wide hand is a shallow sweep and a narrow one is a steep one, which is what a hand does.
+ *
+ * The middle card sits exactly where the squared stack would have put it, so a hand opening and
+ * closing does not also drift up or down the finger.
+ */
+export function zoneFan(look: Spread, tilt: number) {
+  return (group: readonly Node[], gripW: number): { at: Vec; deg: number }[] => {
+    const step = fitStep(group.length, MAP.w, look);
+    const half = (step * Math.max(0, group.length - 1)) / 2;
+    // The radius that makes the OUTERMOST card lean by exactly `tilt`. No tilt asked for, no arc:
+    // the hand is a straight line of upright cards, which is a legitimate thing to want to see.
+    const arc = tilt > 0 && half > 0 ? half / Math.sin((tilt * Math.PI) / 180) : 0;
+    return group.map((piece, i) => {
+      const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
+      const hangs = gripW / GRIP_RATIO / 2 + GRIP_GAP + (shape ? extentOf(shape).h / 2 : 0);
+      const x = -half + step * i;
+      const a = arc > 0 ? Math.asin(Math.max(-1, Math.min(1, x / arc))) : 0;
+      // The dip: a card out at the end of the sweep hangs a little lower than the one in the middle,
+      // which is the whole difference between a fan and a row of cards at angles.
+      return { at: { x: x || 0, y: -hangs + (arc > 0 ? arc * (1 - Math.cos(a)) : 0) || 0 }, deg: (a * 180) / Math.PI };
+    });
+  };
 }
 
 /**
@@ -369,6 +416,24 @@ export function zoneSquares(share: number): NonNullable<HeapRule["settled"]> {
       if (!piece || !held.has(id)) continue;
       const own = fieldsOf<TransformableFields>(piece, "Transformable");
       compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
+    }
+  };
+}
+
+
+/**
+ * THE PANEL'S NUMBERS, WRITTEN INTO A DESK THAT IS ALREADY STANDING — see `HeapRule.tune`.
+ *
+ * Two of them do not live in the rule at all: the zone's REACH is a field on the zone, and the row
+ * the zone lays its cards out in is a registered arrangement the zone names. Both are set when the
+ * desk is built, and a desk is built once — so without this, those two knobs would take effect only
+ * on a page reload, which is exactly the kind of control that teaches a reader the wrong thing.
+ */
+export function magnetTune(pull: number, zone: Spread) {
+  return (root: Node): void => {
+    installMagnetArt(zone);
+    for (const node of root.children) {
+      if (caps(node).has("Acceptor")) compose(node, Reaching({ reach: pull }));
     }
   };
 }

@@ -698,6 +698,15 @@ export interface HeapRule {
    */
   readonly settled?: (root: Node, ids: readonly string[]) => void;
   /**
+   * THE PANEL'S NUMBERS, WRITTEN INTO A DESK THAT IS ALREADY STANDING.
+   *
+   * A desk is furniture and is not rebuilt because a knob moved — a reader who has dealt a hand
+   * would lose it to the very control that was meant to show them something. So anything a control
+   * puts INTO the tree (a zone's reach) or into a registry the tree names (an arrangement) is
+   * written again here, on every render, to the desk the reader is already working in.
+   */
+  readonly tune?: (root: Node) => void;
+  /**
    * HEAPS THAT TOUCHING CANNOT FIND — a place that HOLDS things, rather than things that hold each
    * other.
    *

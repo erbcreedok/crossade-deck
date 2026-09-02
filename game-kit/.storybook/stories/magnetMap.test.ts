@@ -26,7 +26,7 @@ import {
   type Node,
   type TransformableFields,
 } from "../../src/index.js";
-import { CARD_SHARE, FAN, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
+import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
 import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
@@ -125,41 +125,44 @@ describe("where a throw will come to rest", () => {
 });
 
 describe("how a place poses what it lifts", () => {
-  it("magnet.a-hand-comes-up-as-a-fan — turned about the tab it hangs from", () => {
-    // The middle of the fan sits exactly where the squared stack would have put it, and the rest
-    // swing out from there: a hand opening and closing must not also drift up or down the finger.
+  const LOOK = { gapMin: 0.18, gapMax: 0.62, wideMin: 0.24, wideMax: 1 };
+  const fan = zoneFan(LOOK, FAN_TILT);
+
+  it("magnet.a-hand-comes-up-as-a-fan — laid out by its WIDTH, and turned to match", () => {
+    // The width is the thing anybody has an opinion about ("a hand may take the whole desk if it
+    // has to"), so the width is what the numbers control and the angles are what follow.
     const desk = magnetMap();
     const cards = desk.children.filter((n) => heapOf(n) === "card").slice(0, 5);
-    const fan = zoneFan(cards, GRIP.w);
-    expect(fan.length).toBe(5);
-    // Symmetrical about the middle, and the middle card is upright.
-    expect(fan[2]!.deg).toBeCloseTo(0, 6);
-    expect(fan[0]!.deg).toBeCloseTo(-fan[4]!.deg, 6);
-    expect(fan[0]!.deg).toBeLessThan(0);
-    // ...and turned OUTWARDS in order, never crossing.
-    for (let i = 1; i < fan.length; i++) expect(fan[i]!.deg).toBeGreaterThan(fan[i - 1]!.deg);
-    // The upright one lands on the stack's own seat — the two poses are one gesture at two openings.
-    expect(fan[2]!.at.y).toBeCloseTo(stackSeats([cards[2]!], GRIP.w)[0]!.y, 6);
-    expect(fan[2]!.at.x).toBeCloseTo(0, 6);
-    // The ends swing out to the sides, and up: they are turned about the tab, not slid along a line.
-    expect(fan[0]!.at.x).toBeLessThan(0);
-    expect(fan[4]!.at.x).toBeGreaterThan(0);
-    expect(fan[0]!.at.y).toBeGreaterThan(fan[2]!.at.y);
+    const spread = fan(cards, GRIP.w);
+    expect(spread.length).toBe(5);
+    // Symmetrical about the middle, the middle card upright, the turns growing outwards in order.
+    expect(spread[2]!.deg).toBeCloseTo(0, 6);
+    expect(spread[0]!.deg).toBeCloseTo(-spread[4]!.deg, 6);
+    for (let i = 1; i < spread.length; i++) expect(spread[i]!.deg).toBeGreaterThan(spread[i - 1]!.deg);
+    // ...and the outermost leans by exactly the tilt asked for: the arc is DERIVED from the width
+    // and that angle, so a wide hand is a shallow sweep and a narrow one a steep one.
+    expect(Math.abs(spread[4]!.deg)).toBeCloseTo(FAN_TILT, 6);
+    // The middle card lands on the stack's own seat — a hand opening must not drift up the finger.
+    expect(spread[2]!.at.y).toBeCloseTo(stackSeats([cards[2]!], GRIP.w)[0]!.y, 6);
+    expect(spread[2]!.at.x).toBeCloseTo(0, 6);
+    // The ends swing out to the sides and hang a little LOWER, which is the whole difference
+    // between a fan and a row of cards at angles.
+    expect(spread[0]!.at.x).toBeLessThan(0);
+    expect(spread[4]!.at.x).toBeGreaterThan(0);
+    expect(spread[0]!.at.y).toBeGreaterThan(spread[2]!.at.y);
   });
 
-  it("magnet.a-hand-of-one-is-not-a-fan — and a big one does not become a wheel", () => {
+  it("magnet.a-hand-of-one-is-not-a-fan — and no tilt asked for is a straight line", () => {
     const desk = magnetMap();
     const cards = desk.children.filter((n) => heapOf(n) === "card");
     // One card has nothing to splay against, so it stands exactly as the stack would leave it.
-    const alone = zoneFan(cards.slice(0, 1), GRIP.w);
+    const alone = fan(cards.slice(0, 1), GRIP.w);
     expect(alone[0]!.deg).toBe(0);
     expect(alone[0]!.at).toEqual(stackSeats([cards[0]!], GRIP.w)[0]);
-    // ...and twenty do not open twice as wide as ten: the whole hand is capped.
-    const wide = zoneFan(cards.slice(0, 20), GRIP.w);
-    expect(wide[19]!.deg - wide[0]!.deg).toBeCloseTo(FAN.total, 6);
-    // Three take their own step rather than the whole spread, or a small hand would splay absurdly.
-    const few = zoneFan(cards.slice(0, 3), GRIP.w);
-    expect(few[2]!.deg - few[0]!.deg).toBeCloseTo(FAN.step * 2, 6);
+    // No arc asked for, no arc: upright cards in a line, which is a legitimate thing to want.
+    const flat = zoneFan(LOOK, 0)(cards.slice(0, 5), GRIP.w);
+    for (const seat of flat) expect(seat.deg).toBe(0);
+    expect(new Set(flat.map((seat) => seat.at.y)).size, "all at one height").toBe(1);
   });
 
   it("magnet.a-place-squares-what-it-HAS — by where it lies, never by whose child it is", () => {
@@ -168,10 +171,8 @@ describe("how a place poses what it lifts", () => {
     // put on them has to be taken off by the desk that put it there.
     //
     // And by the same test the handle uses. A hand let go of over its own zone is never HANDED to
-    // it — a run led by a handle is led by a control, and a zone takes cards, not controls — so the
-    // cards come down ON the zone and are counted by lying in it. Asked about children only, this
-    // straightened exactly the cards dealt in one at a time and left every hand ever put back
-    // looking like a fan dropped in a box.
+    // it — a run led by a handle is led by a control — so the cards come down ON the zone and are
+    // counted by lying in it.
     const desk = magnetMap();
     const zone = desk.children[0]!;
     const cards = desk.children.filter((n) => heapOf(n) === "card");
@@ -191,9 +192,40 @@ describe("how a place poses what it lifts", () => {
   });
 });
 
+describe("the step a spread actually takes", () => {
+  const LOOK = { gapMin: 0.2, gapMax: 0.6, wideMin: 0.5, wideMax: 1 };
+
+  it("magnet.four-bounds-with-an-order — the room wins, then the widths, then the gaps", () => {
+    // Four numbers, because none of them says what another says: a step alone cannot state "twenty
+    // cards may be wider than three but not wider than the desk", and a width alone cannot state
+    // "two cards must not sit a hand's length apart just because there is room". They can therefore
+    // contradict each other, and something has to lose in a stated order.
+    //
+    // NOTHING TO SPREAD. One card has no step to take, and nor has none.
+    expect(fitStep(1, 10, LOOK)).toBe(0);
+    expect(fitStep(0, 10, LOOK)).toBe(0);
+
+    // THE COMFORTABLE STEP, when nothing above it has an opinion: plenty of room, no floor asked
+    // for, and the widest the widths allow is more than the gap wants.
+    expect(fitStep(3, 10, { ...LOOK, wideMin: 0 }), "two gaps in ten units of room").toBeCloseTo(LOOK.gapMax, 9);
+
+    // THE WIDTHS BEAT THE GAPS. Told to fill half the room, a short hand opens past its comfortable
+    // step rather than huddling in the middle of a place it was told to fill.
+    expect(fitStep(3, 10, LOOK), "two gaps, half of ten between them").toBeCloseTo(2.5, 9);
+    // ...and the other way: a wide ceiling shuts a long hand tighter than its comfortable step.
+    expect(fitStep(21, 6, { ...LOOK, wideMax: 0.5 }), "twenty gaps, three units allowed").toBeCloseTo(0.15, 9);
+
+    // THE ROOM BEATS EVERYTHING. A spread never leaves the place it is in, whatever any other
+    // number says — that is not a preference, it is what an edge means.
+    expect(fitStep(11, 1, LOOK), "ten gaps in one unit").toBeCloseTo(0.1, 9);
+    expect(fitStep(11, 1, { ...LOOK, gapMin: 5, wideMin: 5 }), "and the floors cannot break it").toBeCloseTo(0.1, 9);
+  });
+});
+
 describe("a hand that never outgrows its room", () => {
   const card = (w: number, i = 0): LayoutChild => ({ id: `c${i}` as LayoutChild["id"], at: { x: 0, y: 0 }, footprint: rect(w, 1.4) });
-  const hand = handLayout({ padding: 0.1, overlap: 0.45 });
+  const LOOK = { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 };
+  const hand = handLayout(LOOK, 0.1);
   const room = rect(3.4, 2);
   const spread = (n: number): number[] => hand.place(Array.from({ length: n }, (_v, i) => card(1, i)), room).map((p) => p!.x);
 
@@ -216,10 +248,10 @@ describe("a hand that never outgrows its room", () => {
     // The step is the smaller of two: the one that looks right and the one that fits. A hand of
     // three must look like a hand of three, not like a hand of twelve with nine cards missing.
     const three = spread(3);
-    expect(three[1]! - three[0]!, "the comfortable step, untouched").toBeCloseTo(0.55, 9);
+    expect(three[1]! - three[0]!, "the comfortable step, untouched").toBeCloseTo(LOOK.gapMax, 9);
     // Twenty cannot have it, and takes what the room allows instead — strictly less.
     const twenty = spread(20);
-    expect(twenty[1]! - twenty[0]!).toBeLessThan(0.55);
+    expect(twenty[1]! - twenty[0]!).toBeLessThan(LOOK.gapMax);
     // One card has no step to take and stands in the middle.
     expect(spread(1)).toEqual([0]);
   });
