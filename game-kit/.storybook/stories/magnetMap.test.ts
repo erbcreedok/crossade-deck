@@ -25,9 +25,10 @@ import {
   type LayoutChild,
   type Node,
   type TransformableFields,
+  type Vec,
 } from "../../src/index.js";
 import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, poseOnLanding } from "./magnetMap.js";
-import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats, threwAt, THROWN_AT } from "./gestureMap.js";
+import { GRIP, heapBox, isGrip, MAP, regrip, restsAt, stackSeats, threwAt, THROWN_AT } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
 /** A card off the desk itself — the real shape, not a stand-in built to make the sums come out. */
@@ -37,6 +38,11 @@ const leadOf = (desk: Node): Node => desk.children[1]!;
 const ACCEPTS = Acceptor({});
 
 const zoneOf = (desk: Node): Node => desk.children[0]!;
+
+/** A run's own handle, standing where it landed — what `settle` would have drawn under the heap. */
+let tabs = 0;
+const handle = (at: Vec): Node =>
+  node(`stack handle ${tabs++}`, Bounded({ bounds: rect(GRIP.w, GRIP.w / 4) }), Valued({ values: { grip: 0 } }), Transformable({ at }));
 
 describe("which zone a release belongs to", () => {
   it("magnet.a-release-short-of-the-border-still-belongs — and one further out does not", () => {
@@ -59,14 +65,20 @@ describe("which zone a release belongs to", () => {
   it("magnet.a-handle-is-never-put-anywhere — a zone takes cards, not controls", () => {
     // A handle is a PICTURE of a heap, redrawn wherever that heap ends up. A zone that took one
     // would be given a control to keep — and its row would lay the tab out among the cards as though
-    // it were one of them, which is what it did until this line existed.
+    // it were one of them, which is what it did until this law existed.
+    //
+    // ASKED OF THE HANDLE, ANSWERED FOR THE CARDS. The tab is exactly what a zone is asked ABOUT — a
+    // run carried by its tab is anchored on it, and that is what was aimed — and it is exactly what
+    // a zone never KEEPS. The two are not in tension: one is a question, the other is a delivery.
     const desk = magnetMap(PULL);
     const zone = zoneOf(desk);
     const card = leadOf(desk);
-    const tab = node("stack handle 0", Bounded({ bounds: rect(0.6, 0.15) }), Valued({ values: { grip: 0 } }));
-    // Released at the very middle of the zone, where a card would certainly be taken.
-    expect(zoneNear(desk, { x: 0, y: 1.8 }, card), "a card is taken").toBe(zone);
-    expect(zoneNear(desk, { x: 0, y: 1.8 }, tab), "and a handle is not").toBeUndefined();
+    const tab = handle({ x: 0, y: 1.8 });
+    add(desk, tab);
+    expect(zoneNear(desk, { x: 0, y: 1.8 }, tab), "the anchor is what the zone is asked about").toBe(zone);
+    poseOnLanding(HELD_SHARE)(desk, [tab.id, card.id]);
+    expect(card.parent, "the cards go in").toBe(zone);
+    expect(tab.parent, "and the tab stays the desk's own picture").toBe(desk);
   });
 
   it("magnet.no-pull-is-every-other-desk — the release has to land inside the border", () => {
@@ -199,71 +211,86 @@ describe("how a place poses what it lifts", () => {
   it("magnet.a-run-lands-where-its-ANCHOR-landed — one answer for the whole hand, never card by card", () => {
     // Asked card by card — does THIS one lie in a zone? — a stack let go of at the edge of an area
     // is torn in half: the cards whose corners crossed the line are taken and the rest are left on
-    // the felt, and a player who aimed at ONE place has their hand dealt into two. That is what an
-    // ordinary drop did, and a throw did it harder, because a thrown run spreads on the way.
+    // the felt, and a player who aimed at ONE place has their hand dealt into two. Sixty per cent of
+    // a stack touching somebody's area is still a stack anchored outside it.
     //
-    // A run is one thing a hand carried to one point. Where that point is is the only question.
+    // A run is one thing a hand carried to one point, and the point is the ANCHOR: the handle. That
+    // is what the hand had hold of, and it is what was aimed.
     const desk = magnetMap();
-    const zone = desk.children[0]!;
+    const zone = zoneOf(desk);
     const cards = desk.children.filter((n) => heapOf(n) === "card");
     const home = fieldsOf<TransformableFields>(zone, "Transformable")!.at!;
-    const turn = (n: Node): number | undefined => fieldsOf<TransformableFields>(n, "Transformable")?.angle;
+    const seat = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!;
+    const fanOut = (run: readonly Node[], from: Vec) =>
+      run.forEach((card, i) => compose(card, Transformable({ at: { x: from.x - 1.2 + i * 1.2, y: from.y }, angle: 8 + i * 6 })));
 
-    // THE ANCHOR IS IN THE ZONE: the whole run goes in, including the one hanging over the edge —
-    // and it is the ZONE'S, because the row is an arrangement and an arrangement lays out children.
-    const [anchor, tail, over] = [cards[0]!, cards[1]!, cards[2]!];
-    compose(anchor, Transformable({ at: home, angle: 24 }));
-    compose(tail, Transformable({ at: { x: home.x + 0.4, y: home.y }, angle: 18 }));
-    compose(over, Transformable({ at: { x: home.x + 9, y: home.y }, angle: 12 }));
-    poseOnLanding(HELD_SHARE)(desk, [anchor.id, tail.id, over.id]);
-    for (const card of [anchor, tail, over]) {
+    // THE ANCHOR IS IN THE ZONE: the whole run goes in, spread and all — including the one the fan
+    // put a long way outside the border.
+    const inside = cards.slice(0, 3);
+    fanOut(inside, home);
+    const tabIn = handle(home);
+    add(desk, tabIn);
+    poseOnLanding(HELD_SHARE)(desk, [tabIn.id, ...inside.map((n) => n.id)]);
+    for (const card of inside) {
       expect(card.parent, "the anchor landed in the zone, so the hand did").toBe(zone);
-      expect(turn(card), "and the lean a lift put on them comes off").toBe(0);
+      expect(seat(card).angle, "and the lean a lift put on them comes off").toBe(0);
     }
 
-    // THE ANCHOR IS ON THE FELT: the whole run stays out, including the one whose corner is well
-    // inside the area. The release already decided this run was handed to nobody, and a pose is not
-    // the place to overrule that — least of all one card at a time.
-    const [lead, second, corner] = [cards[3]!, cards[4]!, cards[5]!];
+    // THE ANCHOR IS ON THE FELT: the whole run stays out — including the one lying squarely in the
+    // area — and it stacks ON THE ANCHOR. Squared onto a CARD instead, the pile appears wherever the
+    // fan happened to put its first one, which is a hand's width to the far LEFT of the finger.
+    const felt = cards.slice(3, 6);
     const away = { x: home.x, y: home.y - 3 };
-    compose(lead, Transformable({ at: away, angle: 20 }));
-    compose(second, Transformable({ at: { x: away.x + 0.7, y: away.y }, angle: 14 }));
-    compose(corner, Transformable({ at: home, angle: 8 }));
-    poseOnLanding(HELD_SHARE)(desk, [lead.id, second.id, corner.id]);
-    for (const card of [lead, second, corner]) {
+    fanOut(felt, away);
+    compose(felt[2]!, Transformable({ at: home, angle: 8 }));
+    const tabOut = handle(away);
+    add(desk, tabOut);
+    poseOnLanding(HELD_SHARE)(desk, [tabOut.id, ...felt.map((n) => n.id)]);
+    for (const card of felt) {
       expect(card.parent, "the anchor landed on the felt, so the hand did").toBe(desk);
+      expect(seat(card).angle, "flat again, the lean is the hand's not the felt's").toBe(0);
+      // ON the anchor: a pile stands over its handle, within a card of it and never a fan away.
+      expect(Math.abs(seat(card).at!.x - away.x), "the pile is on the anchor, not off to the left").toBeLessThan(0.2);
+      expect(seat(card).at!.y, "and it stands over the tab, as a heap does").toBeLessThan(away.y);
     }
-    // ...and on the felt that pose is the pile, squared on the card the finger had.
-    const seatOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
-    expect(seatOf(lead).x, "the anchor does not move: it is what was aimed").toBeCloseTo(away.x, 9);
-    expect(seatOf(lead).y).toBeCloseTo(away.y, 9);
-    expect(Math.hypot(seatOf(corner).x - away.x, seatOf(corner).y - away.y), "and the far one came home").toBeLessThan(0.2);
   });
 
-  it("magnet.a-run-put-down-on-the-felt-squares-up — on the card the finger had", () => {
-    // A drop used to leave a run exactly as the hand had it, fan and all: a hand splayed in the air
-    // was put back down still splayed, lying across the felt like something spilled. The fan is how
-    // a run is HELD, not how it lies, so what lands takes the pose of where it landed — and on the
-    // felt that is the pile.
+  it("magnet.a-pile-stands-over-its-anchor-and-goes-under-it-when-there-is-no-room", () => {
+    // A heap stands OVER its handle — that is what a handle is, a tab under the thing it lifts — so
+    // the pile is seated in the anchor's own frame (`stackSeats`), which is the very seat the run
+    // already had in the hand. Nothing is invented and nothing is measured off a card.
     //
-    // ON THE LEAD, which does not move at all. The card under the finger is the one the player
-    // aimed; a pile that assembled itself half an inch off it would be the desk correcting them.
+    // AND IT GOES THE OTHER WAY AT THE TOP OF THE DESK. Seated above an anchor let go of near the
+    // top border, the cards would stand off the edge of the desk the whole page is walled by. Sides
+    // are not answered: a pile is a card wide and the desk is eight, so it cannot run out of room
+    // sideways the way it can vertically.
     const desk = magnetMap();
-    const run = desk.children.filter((n) => heapOf(n) === "card").slice(0, 3);
-    const fan = [
-      { x: 0, y: -1 },
-      { x: 0.8, y: -0.9 },
-      { x: 1.6, y: -0.8 },
-    ];
-    run.forEach((card, i) => compose(card, Transformable({ at: fan[i]!, angle: 12 * i })));
-    poseOnLanding(HELD_SHARE)(desk, run.map((n) => n.id));
-    const seatOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!;
-    expect(seatOf(run[0]!).at, "the lead stays exactly where the hand left it").toEqual(fan[0]);
-    for (const card of run) expect(seatOf(card).angle, "the lean a lift put on them comes off").toBe(0);
-    // Squared, not spread: what was 0.8 apart is now the pile's own step, which is a sliver.
-    const step = Math.hypot(seatOf(run[1]!).at!.x - fan[0]!.x, seatOf(run[1]!).at!.y - fan[0]!.y);
+    const cards = desk.children.filter((n) => heapOf(n) === "card");
+    const seatOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
+    const drop = (run: readonly Node[], at: Vec) => {
+      run.forEach((card, i) => compose(card, Transformable({ at: { x: at.x + i * 0.8, y: at.y }, angle: 12 * i })));
+      const tab = handle(at);
+      add(desk, tab);
+      poseOnLanding(HELD_SHARE)(desk, [tab.id, ...run.map((n) => n.id)]);
+    };
+
+    // MID-DESK: the pile stands over the tab, and it is a PILE — the step is a sliver, not a spread.
+    const middle = cards.slice(0, 3);
+    const at = { x: -1, y: -0.4 };
+    drop(middle, at);
+    for (const card of middle) expect(seatOf(card).y, "over the tab, as a heap stands").toBeLessThan(at.y);
+    const step = Math.hypot(seatOf(middle[1]!).x - seatOf(middle[0]!).x, seatOf(middle[1]!).y - seatOf(middle[0]!).y);
     expect(step, "a pile, not a row").toBeLessThan(0.2);
-    expect(step, "and a pile is not one card either — the step is still there").toBeGreaterThan(0);
+    expect(step, "and not one card either — the step is still there").toBeGreaterThan(0);
+
+    // AT THE TOP BORDER: the same run hangs BELOW the anchor instead, and stays on the desk.
+    const top = cards.slice(3, 6);
+    const high = { x: -1, y: -MAP.h / 2 + 0.3 };
+    drop(top, high);
+    for (const card of top) {
+      expect(seatOf(card).y, "no room above, so it hangs below").toBeGreaterThan(high.y);
+      expect(seatOf(card).y, "and it is still on the desk").toBeGreaterThan(-MAP.h / 2);
+    }
   });
 });
 

@@ -216,14 +216,14 @@ export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
  * the order somebody added them to the desk, which is not a thing a player can see or predict.
  */
 export function zoneNear(root: Node, at: Vec, lead: Node): Node | undefined {
-  // A HANDLE IS NOT A PIECE AND IS NEVER PUT ANYWHERE. It is a picture of a heap, redrawn wherever
-  // that heap ends up; a zone that took one would be given a control to keep, and the row would lay
-  // the tab out among the cards as though it were one of them. Which is exactly what it did.
+  // THE HANDLE IS EXACTLY WHAT TO ASK ABOUT when there is one. A run carried by its tab is a run
+  // whose ANCHOR is that tab: it is the thing the hand has hold of, the thing that lands where it
+  // was aimed, and the thing the whole heap comes to rest around. Asked about a card instead, the
+  // answer is about whichever card the fan happened to put nearest the zone, which is not what
+  // anybody aimed and is different for every card in the hand.
   //
-  // Nothing is lost by refusing: the cards the handle was carrying come down over the zone, and the
-  // zone counts them the moment anything moves, because being in a zone is a matter of lying in it
-  // (`zoneHolds`) and never of having been handed over.
-  if (isGrip(lead)) return undefined;
+  // A zone still never KEEPS a handle — that is `handOver`'s business, and it skips them — so the
+  // tab is never laid out in the row among the cards.
   const poses = transformsOf(root);
   const shape = fieldsOf<BoundedFields>(lead, "Bounded")?.bounds;
   // THE PIECE'S OWN OUTLINE, put where it was let go of. Measured from its centre instead, half a
@@ -422,92 +422,105 @@ export function zoneFan(look: Spread, tilt: number) {
 }
 
 /**
- * WHAT A DROP DOES TO THE POSE IT LANDED IN — and it is ONE answer for the WHOLE run.
+ * WHAT A DROP DOES TO THE POSE IT LANDED IN — one answer for the WHOLE run, and the ANCHOR gives it.
  *
  * A drop used to leave pieces exactly as the hand had them, fan and all: a hand splayed in the air
  * was put back down still splayed, lying across the felt like something spilled. The fan is how a
  * run is HELD, not how it lies, so what lands takes the pose of where it landed — on the felt the
  * pile, in a zone the row, and the zone lays that one out itself.
  *
- * ASKED ONCE, ABOUT THE ANCHOR, and this is the whole of it. Asked card by card — does THIS one lie
- * in a zone? — a stack let go of at the edge of somebody's area is torn in half: the cards whose
- * corners crossed the line are taken and the rest are left on the felt, and a player who aimed at
- * one place has their hand dealt into two. A run is ONE THING that a hand carried to ONE point;
- * where that point is is the only question there is, and every card in it goes where the answer says.
+ * THE ANCHOR IS THE HANDLE. It is what the hand had hold of, it is what was aimed, and it is what
+ * the heap already stands around while it is being carried — so it is where the heap comes to rest.
+ * Squared onto a CARD instead, a hand lands wherever the fan happened to put its first card, which
+ * is the far left of the spread: let go of a deck in the middle of the felt and the pile appeared a
+ * hand's width to the left of the finger, every time.
  *
- * THE ANCHOR IS THE FIRST PIECE — the card the finger had. Not the handle: a handle is not a card
- * and is never put anywhere, and a zone given one keeps a control and lays the tab out among the
- * cards as though it were one of them.
+ * AND THE ANCHOR ALONE DECIDES WHERE. Asked card by card — does THIS one lie in a zone? — a stack
+ * let go of at the edge of an area is torn in half: the cards whose corners crossed the line are
+ * taken and the rest are left on the felt, and a player who aimed at ONE place has their hand dealt
+ * into two. Sixty per cent of a stack touching somebody's area is still a stack anchored outside it.
  */
 export function poseOnLanding(share: number): NonNullable<HeapRule["settled"]> {
   return (root, ids) => {
-    const run = ids.map((id) => byId(root, id)).filter((n): n is Node => !!n && !isGrip(n));
-    const lead = run[0];
-    if (!lead) return;
+    const all = ids.map((id) => byId(root, id)).filter((n): n is Node => !!n);
+    // A HANDLE IS NOT A CARD and is never seated, never handed over and never counted in the run —
+    // it is a picture of the heap, thrown away and redrawn by the next `settle`.
+    const anchor = all.find((n) => isGrip(n));
+    const run = all.filter((n) => !isGrip(n));
+    const lead = anchor ?? run[0];
+    if (!lead || run.length === 0) return;
     const zone = placeOf(root, lead, share);
-    if (!zone) {
-      // THE FELT TAKES ALL OF IT, including a card whose corner is over somebody's area. The
-      // release already decided this run was not handed to anybody; a pose is not the place to
-      // overrule that, and overruling it per card is how a stack ends up in two places.
-      squareUp(run);
+    if (zone) {
+      for (const piece of run) {
+        // THE TURN COMES OFF: no arrangement on the shelf has an opinion about angles, so the lean a
+        // lift put on a card has to be taken off by the desk that put it there.
+        const own = fieldsOf<TransformableFields>(piece, "Transformable");
+        compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
+        if (piece.parent === zone) continue;
+        if (piece.parent) remove(piece.parent, piece);
+        add(zone, piece);
+      }
       return;
     }
-    for (const piece of run) {
-      // THE TURN COMES OFF: no arrangement on the shelf has an opinion about angles, so the lean a
-      // lift put on a card has to be taken off by the desk that put it there.
-      const own = fieldsOf<TransformableFields>(piece, "Transformable");
-      compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
-      if (piece.parent === zone) continue;
-      if (piece.parent) remove(piece.parent, piece);
-      add(zone, piece);
-    }
+    // THE FELT TAKES ALL OF IT, the anchor's pile and nothing else. The release already decided this
+    // run was handed to nobody; a pose is not the place to overrule that.
+    if (anchor) fallInAt(run, seatOf(anchor));
   };
 }
 
 /**
- * WHOSE PLACE THIS PIECE IS IN — the zone it was handed to, or failing that the zone it is LYING in.
+ * THE RUN, STACKED WHERE ITS ANCHOR CAME TO REST — the pile pose, in the anchor's own frame.
  *
- * Two questions and not one, because a run reaches a zone two different ways. Handed over, it is
- * the zone's child and that is the end of it. Let go of ON the zone, it is not: a run led by a
- * handle is led by a control, a zone takes cards and not controls, and a hand put back into its own
- * area is deliberately never handed to it — otherwise an area could never have anything taken OUT
- * of it. So the second question is what makes putting a hand back work at all.
+ * `stackSeats` answers in exactly that frame ("where each piece stands under the handle that lifted
+ * them"), so this is the seat the run already had in the hand, written down at the point the hand
+ * left it. Nothing is invented and nothing is measured off a card.
+ *
+ * AND IT GOES THE OTHER WAY WHEN THERE IS NO ROOM ABOVE. A heap stands over its handle, so a run
+ * anchored near the top of the desk would be seated off the top of it — cards outside the border
+ * the whole desk is walled by. Pressed against the top, the pile hangs BELOW the anchor instead.
+ * (Sides are not answered here: the pile is a card wide and the desk is eight, so a pile cannot run
+ * out of room sideways the way it can vertically.)
  */
-function placeOf(root: Node, piece: Node, share: number): Node | undefined {
-  if (piece.parent && caps(piece.parent).has("Acceptor")) return piece.parent;
-  for (const { under, pieces } of zoneHolds(share)(root, () => false)) {
-    if (pieces.some((n) => n.id === piece.id)) return under;
-  }
-  return undefined;
+function fallInAt(run: readonly Node[], at: Vec): void {
+  const seats = stackSeats(run);
+  const top = Math.min(...seats.map((seat) => seat.y));
+  const tall = Math.max(...run.map((n) => extentOf(fieldsOf<BoundedFields>(n, "Bounded")?.bounds ?? rect(0, 0)).h));
+  const flip = at.y + top - tall / 2 < -MAP.h / 2 ? -1 : 1;
+  run.forEach((piece, i) => {
+    const seat = seats[i] ?? { x: 0, y: 0 };
+    const own = fieldsOf<TransformableFields>(piece, "Transformable");
+    compose(piece, Transformable({ ...(own ?? {}), angle: 0, at: { x: at.x + seat.x, y: at.y + seat.y * flip } }));
+  });
+}
+
+/** Where a node stands, in root units — its own written seat, which is where a landing put it. */
+function seatOf(n: Node): Vec {
+  return fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
 }
 
 /**
- * THE RUN THAT LANDED ON THE FELT, STACKED ON ITS OWN LEAD — the pile pose, written where the hand
- * actually left the cards.
+ * WHOSE PLACE THIS ANCHOR IS IN — the zone it was handed to, or failing that the zone it is LYING in.
  *
- * ON THE LEAD and not at some tidy spot of the desk's choosing: the card under the finger is the one
- * the player aimed, and a pile that assembled itself half an inch away from it would be the desk
- * correcting the player rather than obeying them. So the lead does not move at all, and the rest
- * come to it.
- *
- * The seats are the ordinary stack's (`stackSeats`), taken RELATIVE to the first — that function
- * answers in a handle's frame, and there is no handle here until the next `settle` draws one.
+ * Two questions and not one, because a run reaches a zone two different ways. Handed over, it is
+ * the zone's child and that is the end of it. Let go of ON the zone, it is not: a hand put back into
+ * its own area is deliberately never handed to it — otherwise an area could never have anything
+ * taken OUT of it. So the second question is what makes putting a hand back work at all.
  */
-function squareUp(run: readonly Node[]): void {
-  const lead = run[0];
-  if (!lead || run.length < 2) return;
-  const at = fieldsOf<TransformableFields>(lead, "Transformable")?.at;
-  if (!at) return;
-  const seats = stackSeats(run);
-  const zero = seats[0] ?? { x: 0, y: 0 };
-  run.forEach((piece, i) => {
-    const seat = seats[i] ?? zero;
-    const own = fieldsOf<TransformableFields>(piece, "Transformable");
-    compose(
-      piece,
-      Transformable({ ...(own ?? {}), angle: 0, at: { x: at.x + seat.x - zero.x, y: at.y + seat.y - zero.y } }),
-    );
-  });
+function placeOf(root: Node, piece: Node, share: number): Node | undefined {
+  if (piece.parent && caps(piece.parent).has("Acceptor")) return piece.parent;
+  const poses = transformsOf(root);
+  const box = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
+  const at = poses.get(piece.id);
+  if (!box || !at) return undefined;
+  const mine = placedOutline(outlineOf(box), at);
+  for (const zone of root.children) {
+    if (!caps(zone).has("Acceptor")) continue;
+    const area = fieldsOf<BoundedFields>(zone, "Bounded")?.bounds;
+    const pose = poses.get(zone.id);
+    if (!area || !pose) continue;
+    if (overlapFraction(mine, placedOutline(outlineOf(area), pose)) >= share) return zone;
+  }
+  return undefined;
 }
 
 

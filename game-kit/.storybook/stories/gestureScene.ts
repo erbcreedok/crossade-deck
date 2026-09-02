@@ -284,12 +284,10 @@ export function grabScene(
     // seats a run stands in; a desk without stacking never writes it, and the wiring's own list of
     // ids is the whole of what is in the hand there. Only the ids and the seats are read either way.
     const run = carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } }));
-    // THE LEAD'S OWN POINT, not the hand's. `at` is where the RUN is anchored — under a handle that
-    // is the tab, and a hand splayed into a fan stands its cards a long way from it. A zone asked
-    // about the anchor would be answering about a place no card is.
-    const it = run.find((one) => !isGrip(byId(built.host.root, one.id) ?? node("")));
-    const point = it ? { x: at.x + it.offset.x, y: at.y + it.offset.y } : at;
-    return ((z) => (z && z === liftedFrom ? undefined : z))(zoneFor(built, run, zones, point));
+    // THE ANCHOR'S OWN POINT, which is where the hand is: a carry is anchored ON the thing the hand
+    // has hold of, so `at` is the tab's point for a run carried by its tab and the piece's own for a
+    // run of one. Nothing to add and nothing to look up.
+    return ((z) => (z && z === liftedFrom ? undefined : z))(zoneFor(built, run, zones, at));
   };
   rule?.tune?.(built.host.root);
   mirror?.ready(built, grasp);
@@ -543,7 +541,14 @@ function zoneFor(
   aim: Vec | undefined,
 ): Node | undefined {
   if (!zones) return undefined;
-  const it = items.find((one) => !isGrip(byId(s.host.root, one.id) ?? node("")));
+  // THE RUN'S ANCHOR, which is its handle when it has one and the piece itself when it has not — and
+  // it is `items[0]` either way, because that is how a run is assembled (`runOf`: `[hit, ...run]`).
+  //
+  // A card was asked before, and that made the answer depend on which card the fan happened to put
+  // nearest the zone: a hand splayed across the felt reaches into an area its owner never aimed at,
+  // and a stack let go of at the edge went in because one corner of one card did. What a hand aims
+  // is the thing it is holding.
+  const it = items[0];
   const lead = it ? byId(s.host.root, it.id) : undefined;
   const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
   return drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead) : undefined;
