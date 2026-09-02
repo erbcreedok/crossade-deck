@@ -62,7 +62,15 @@ export const SEATS = [
 export const LIVE = { cards: 36 };
 
 const ZONE = { w: 3.4, h: 1.4 };
-const ZONE_SURFACE = "live.zone";
+/**
+ * AN AREA IS DRAWN IN ITS OWNER'S COLOUR, so one surface per seat and not one for both.
+ *
+ * They were one, in `panelBorder` — a token a hair off the felt it is drawn on, which on a phone is
+ * no border at all: two areas nobody could see, on the one page where knowing WHOSE area you are
+ * looking at is the whole subject. The colour the seat is already drawn in (`SEATS.ink`, what its
+ * cursor wears) is the answer to both halves at once: visible, and visibly somebody's.
+ */
+const zoneSurface = (seat: string): string => `live.zone.${seat}`;
 const ZONE_LAYOUT = "live.hand";
 const DESK_LAYOUT = "live.free";
 
@@ -81,11 +89,16 @@ export function installLiveArt(zone: Spread): void {
   installStockGrabs();
   registerLayout(DESK_LAYOUT, freeLayout);
   registerLayout(ZONE_LAYOUT, handLayout(zone, 0.12));
-  registerSurface(ZONE_SURFACE, {
-    layers: [{ paint: "sunkBg" }],
-    radius: 0.22,
-    stroke: { color: "panelBorder", width: 0.04 },
-  });
+  for (const { seat, ink } of SEATS) {
+    registerSurface(zoneSurface(seat), {
+      layers: [{ paint: "sunkBg" }],
+      radius: 0.22,
+      // THE BORDER IS THE AREA. Nothing else on the felt says where it begins, and an area a player
+      // cannot see the edge of is an area they cannot aim at — which is the very thing the reach is
+      // there to forgive. Same weight as the magnetism desk's, so one shelf means one thing.
+      stroke: { color: ink, width: 0.05 },
+    });
+  }
 }
 
 /**
@@ -109,7 +122,7 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
       node(
         `${seat} area`,
         Bounded({ bounds: roundedRect(ZONE.w, ZONE.h, 0.22) }),
-        Surfaced({ surface: ZONE_SURFACE }),
+        Surfaced({ surface: zoneSurface(seat) }),
         Transformable({ at: { x: 0, y: AREA[seat]! } }),
         Container({ layout: ZONE_LAYOUT }),
         Acceptor({}),

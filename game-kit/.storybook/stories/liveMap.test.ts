@@ -5,7 +5,7 @@
 // each, and every card face up — because the page deliberately teaches sharing and not hiding.
 
 import { describe, expect, it } from "vitest";
-import { caps, facing, fieldsOf, heapOf, type Node, type TransformableFields } from "../../src/index.js";
+import { caps, facing, fieldsOf, heapOf, surfaceRecord, type Node, type SurfacedFields, type TransformableFields } from "../../src/index.js";
 import { liveMap, LIVE, SEATS } from "./liveMap.js";
 
 const areas = (desk: Node): Node[] => desk.children.filter((n) => caps(n).has("Acceptor"));
@@ -47,5 +47,28 @@ describe("the shared desk", () => {
     const desk = liveMap();
     expect(caps(desk).has("Grabber"), "the felt").toBe(true);
     for (const area of areas(desk)) expect(caps(area).has("Grabber"), "and each area").toBe(true);
+  });
+
+  it("live.an-area-is-drawn-in-its-owners-colour — a border the colour of the felt is no border", () => {
+    // Both areas were one surface, stroked in `panelBorder` — a token a hair off the felt it is
+    // drawn on. On a desktop that is a faint line; on a phone it is nothing at all, and the page
+    // where knowing WHOSE area you are looking at is the whole subject showed two invisible boxes.
+    //
+    // The colour each seat is already drawn in is the answer to both halves at once: the area is
+    // visible, and it is visibly somebody's. So this pins the border to the SEAT'S OWN ink, and
+    // pins the two apart — one colour for both would be back to a box you cannot place.
+    const desk = liveMap();
+    const inks = new Set<string>();
+    for (const area of areas(desk)) {
+      const named = fieldsOf<SurfacedFields>(area, "Surfaced")?.surface;
+      const drawn = named ? surfaceRecord(named) : undefined;
+      expect(drawn, `${named}: named but never registered`).toBeDefined();
+      const stroke = drawn?.stroke;
+      expect(stroke?.color, "an area with no border has no edge to aim at").toBeTruthy();
+      inks.add(String(stroke!.color));
+    }
+    // EACH SEAT'S OWN, and the page's own list of them — not a colour invented here.
+    expect([...inks].sort(), "the seats' inks, and one each").toEqual(SEATS.map((s) => String(s.ink)).sort());
+    expect(inks.size, "two areas one colour is two areas nobody can tell apart").toBe(SEATS.length);
   });
 });
