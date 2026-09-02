@@ -184,6 +184,61 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
 }
 
 /**
+ * TWO BODIES ON ONE DESK CANNOT BE IN THE SAME PLACE — push them apart and let them bounce.
+ *
+ * The walls are not the only thing a thrown piece can hit. Two dice let go of together travel the
+ * same way at nearly the same speed, and nothing in a one-body physics has an opinion about that:
+ * they arrive stacked, one drawn over the other, which is not a pair of dice at all — it is one die
+ * with a shadow, and the second result is unreadable.
+ *
+ * ROUND, and deliberately. A die is square and the honest answer is a polygon solve with contact
+ * points and angular impulse, which is a physics engine and not a desk. A disc gives what a player
+ * actually reads — they never end up on top of each other, and they leave each other going
+ * somewhere else — for two lines of arithmetic. Where the two answers differ is a corner-on-corner
+ * touch, and a die that separated a hair early is not a thing anybody can see.
+ *
+ * The push is split evenly and the exchange is along the line between the centres, which is what an
+ * equal-mass collision does; the tangent components are untouched, so a glancing blow glances.
+ * Bodies at different HEIGHTS still collide: on a desk seen from above, one die hopping over another
+ * reads as one die on top of another, and it is the picture that has to be right.
+ *
+ * Returns the pair, or `undefined` when they were never in each other's way — so a caller can skip
+ * the write on the frames where nothing happened, which is nearly all of them.
+ */
+export function separate(
+  a: Body,
+  b: Body,
+  girth: number,
+  bounce: number,
+): { readonly a: Body; readonly b: Body } | undefined {
+  const dx = b.pos.x - a.pos.x;
+  const dy = b.pos.y - a.pos.y;
+  const gap = Math.hypot(dx, dy);
+  if (gap >= girth) return undefined;
+  // DEAD CENTRE IS A DIRECTION TOO. Two bodies at exactly the same point have no line between them
+  // to push along, and `0/0` would put them both at NaN and take the scene with it. Any direction
+  // will do as long as it is a direction; +x is one, and it is reached only by a throw that put two
+  // pieces on the same pixel.
+  const ux = gap > 0 ? dx / gap : 1;
+  const uy = gap > 0 ? dy / gap : 0;
+  const push = (girth - gap) / 2;
+  const apart = {
+    a: { pos: { x: a.pos.x - ux * push, y: a.pos.y - uy * push } },
+    b: { pos: { x: b.pos.x + ux * push, y: b.pos.y + uy * push } },
+  };
+  // ...AND ONLY THEN THE BOUNCE, and only if they were actually closing. Two bodies already moving
+  // apart are overlapping because they were PUT there, and swapping their speeds would suck them
+  // back together — a pair that trembled against each other for ever instead of leaving.
+  const closing = (b.vel.x - a.vel.x) * ux + (b.vel.y - a.vel.y) * uy;
+  if (closing >= 0) return { a: { ...a, ...apart.a }, b: { ...b, ...apart.b } };
+  const swap = -(1 + bounce) * closing * 0.5;
+  return {
+    a: { ...a, ...apart.a, vel: { x: a.vel.x - ux * swap, y: a.vel.y - uy * swap } },
+    b: { ...b, ...apart.b, vel: { x: b.vel.x + ux * swap, y: b.vel.y + uy * swap } },
+  };
+}
+
+/**
  * True once a sliding body has all but stopped moving AND turning — the gate the clock sleeps on.
  * A body still in the air is never at rest, however slowly it is drifting: it has a landing to make.
  */

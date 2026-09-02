@@ -34,7 +34,7 @@ import { easing, flipScale, sample, tune, type CarryTuning, type Motion, type Mo
 import { springAt, springSettled, stepSpring, type SpringConfig, type SpringState } from "../../core/spring.js";
 import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
-import { bodyAt, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
+import { bodyAt, separate, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
 import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
@@ -599,7 +599,46 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         if (instant) f.tumble.ended = true;
         else tumbleStep(f.tumble, was, f.body);
       }
-      if (f.over(f.body)) land(id, f);
+    }
+    // AND THEN THEY GET OUT OF EACH OTHER'S WAY. Every body has taken its own step; now the ones
+    // that take up room are pushed apart and traded speeds (`separate`).
+    //
+    // A PASS OF ITS OWN, after all of them have moved, because two bodies cannot resolve each other
+    // one at a time: whichever stepped first would be pushed off where the other one WAS, and the
+    // answer would depend on the order the map happens to hold them in.
+    const solid = [...flights].filter(([, f]) => f.girth > 0 && f.started);
+
+    for (let i = 0; i < solid.length; i++) {
+      for (let j = i + 1; j < solid.length; j++) {
+        const [, a] = solid[i]!;
+        const [, b] = solid[j]!;
+        const hit = separate(a.body, b.body, a.girth + b.girth, Math.min(a.bodyBounce, b.bodyBounce));
+        if (!hit) continue;
+        a.body = hit.a;
+        b.body = hit.b;
+      }
+    }
+    // A SOLID BODY IS NOT PUT DOWN WHILE ANOTHER ONE CAN STILL REACH IT.
+    //
+    // A body that has stopped is no longer a body — it lands, its pose is written, and the physics
+    // forgets it. On a desk where nothing collides that is exactly right and costs nothing. Where
+    // things DO collide it is the hole the whole feature falls through: two dice thrown at different
+    // speeds stop at different moments, and the first one to stop drops out of the world just in
+    // time for the second to slide onto it and come to rest on its face.
+    //
+    // So it waits. It keeps its body, at rest, until every other body that takes up room has stopped
+    // too — and because it is still a body, a die that runs into it PUSHES it, and it is moving
+    // again. Which is what a die does when another one hits it. The wait cannot outlast them: every
+    // one of them is slowing down, and once the last has stopped they all go down together.
+    // STILL TO COME COUNTS AS STILL MOVING. A handful is poured out with a stagger — each piece a
+    // few milliseconds behind the one before it — so a body can be at rest before the last of its
+    // own run has even left the hand. Counting only what is already moving, the first one down is
+    // put away and forgotten exactly in time for the last one to land on it.
+    const rolling = [...flights].some(([, f]) => f.girth > 0 && (!f.started || !f.over(f.body)));
+    for (const [id, f] of [...flights]) {
+      if (!f.started || !f.over(f.body)) continue;
+      if (f.girth > 0 && rolling) continue;
+      land(id, f);
     }
     // Advance the choreographies: commit once, at the phase; drop each when it lands. Commits first
     // and a reconcile after them while the nodes are STILL choreographed — so the rest a commit

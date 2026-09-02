@@ -162,6 +162,21 @@ export type SlideOptions = {
   /** How much of a hop a wall hands back UPWARDS. `0` and a border only reflects. See `SlideConfig.wallKick`. */
   readonly wallKick?: number | undefined;
   /**
+   * HOW WIDE THIS BODY IS TO ANOTHER ONE, root units — and by naming it, that it collides at all.
+   *
+   * Absent, a slide is alone on its desk and passes through everything, which is what a card wants:
+   * cards are meant to land on each other. A piece that must never be covered by its own kind says
+   * how much room it takes, and any two sliding bodies that both said so are kept out of each
+   * other's way (`separate`) for as long as they are moving.
+   *
+   * It is a RADIUS, so two bodies are apart when their centres are `girthA + girthB` from each
+   * other. Half a die's side is the honest number for a die: a disc through the flat of its faces,
+   * which is where two dice on a felt actually stop each other.
+   */
+  readonly girth?: number | undefined;
+  /** Restitution against ANOTHER BODY, 0..1 — the desk's own `bounce` absent. */
+  readonly bodyBounce?: number | undefined;
+  /**
    * What pulls it back DOWN, units/s². Patchable per throw for the same reason a `launch`'s is: how
    * heavy a thing falls is what tells one thing from another, and a desk holding a card, a die and a
    * carved piece is a desk where one number for all three is a desk of identical objects.

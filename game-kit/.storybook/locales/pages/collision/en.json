@@ -1,0 +1,28 @@
+{
+  "docs.collision.component": [
+    "A DESK IS A PLACE WHERE THINGS LAND ON EACH OTHER. That is what a pile is, and every page on",
+    "the gesture shelf is built on it. It is also, for one kind of piece, exactly wrong.",
+    "",
+    "A die is READ. Two of them one over the other is not a pile of dice — it is one die with a",
+    "shadow, and the second result is gone. Thrown by the same hand at the same instant they arrive",
+    "that way every time, and no amount of friction or bounce fixes it: nothing in a one-body",
+    "physics has an opinion about where the other body is."
+  ],
+  "docs.collision.scene": [
+    "COLLISION — six dice, and no two of them will end up on the same square inch of felt.",
+    "",
+    "Pick the lot up by the handle and throw them. They leave the hand in a FAN rather than in a",
+    "line, they knock each other aside on the way, and the one that stops first is still in the way",
+    "of the one still going — it gets shoved along rather than landed on. Throw them into a corner",
+    "and they pile against the border and against each other, and every face stays readable.",
+    "",
+    "The chips and the cards on the same desk are the control. They take no room at all and never",
+    "have, so they land on each other exactly as they do everywhere else on the shelf: a chip stack",
+    "is a stack because a chip is MEANT to be covered. Collision is something a piece says about",
+    "itself, not a rule the desk imposes on everything standing on it.",
+    "",
+    "Turn the switch off and the desk is the one from before the feature: throw the dice and they",
+    "arrive as one die with five shadows, which is the complaint this page is the answer to. Off is",
+    "not a second code path — it is the same throw with every piece saying it takes no room."
+  ]
+}

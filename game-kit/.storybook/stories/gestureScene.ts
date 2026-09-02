@@ -12,6 +12,7 @@
 import {
   apply,
   byId,
+  velocityOf,
   compose,
   DEFAULT_TUNING,
   draggable,
@@ -28,6 +29,8 @@ import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import {
+  bumped,
+  DIE_FAN,
   DIE_HOP,
   DIE_SPIN,
   DIE_SPIN_DRAG,
@@ -46,6 +49,8 @@ import {
   thrown,
   toFront,
   turnOver,
+  type Bump,
+  type DropFeel,
   type HeapRule,
   type LetGo,
 } from "./gestureMap.js";
@@ -131,6 +136,8 @@ export function grabScene(
   // original rule: same kind, touching. A desk with a stricter one hands it in, and every line
   // below — the handles, the lift, the squaring-up — reads it instead of knowing it.
   rule?: HeapRule,
+  // WHAT TAKES UP ROOM, as the panel's answer rather than the pieces' own. Absent, the desk's own.
+  bump?: Bump,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -255,7 +262,7 @@ export function grabScene(
                 // the hand is holding an id that no longer exists.
                 if (inHand === mine) inHand = undefined;
                 settle();
-              }, ways))(inHand),
+              }, ways, bump))(inHand),
         }
       : {}),
   }).el;
@@ -282,6 +289,24 @@ export function grabScene(
  * same fall carries that speed across the desk and the map's border reflects it. A slow release is
  * then not a special case at all — it is a throw of nearly no speed, which is a drop.
  */
+/**
+ * WHERE THIS ONE OF THE HANDFUL GOES — the fan, in degrees, or nothing at all.
+ *
+ * Counted from the middle outwards, so a run of two parts evenly about the throw and a run of one
+ * is not fanned at all: a single die thrown goes where it was thrown, and a rule that nudged it
+ * aside would be the desk disagreeing with the hand.
+ */
+function fanOf(nth: number, of: number, aim: number): number | undefined {
+  if (nth < 0 || of < 2) return undefined;
+  return aim + (nth - (of - 1) / 2) * DIE_FAN;
+}
+
+/** Which way a handful goes when the hand had no direction of its own: away from the reader. */
+const DOWN_THE_DESK = 90;
+
+/** Two velocities as one — the throw the hand gave it plus its own share of the opening. */
+const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
+
 export function letFall(
   s: Scene,
   items: readonly CarryItem[],
@@ -289,6 +314,7 @@ export function letFall(
   hand?: Vec | undefined,
   after?: () => void,
   ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
+  bump?: Bump,
 ): boolean {
   const m = s.motions;
   const drawn = m?.poses();
@@ -319,9 +345,17 @@ export function letFall(
   const falling = put.filter((n) => thrown(n, speed, ways));
   // WHO LEAVES WHEN: the handle never, the rest a step apart, so a heap POURS out of the hand
   // instead of coming down as a slab. A run of one has no stagger to have.
+  // WHO GOES WHICH WAY. A handful let go of at once travels as one unless something opens it out,
+  // and nothing in the physics will: same hand, same instant, same speed. So the pieces that say
+  // they scatter are fanned about the throw — each with its own heading and its own push along it,
+  // counted from the middle of the run outwards so the whole handful still goes where it was sent.
+  const feelOf = (n: Node): DropFeel => bumped(dropOf(n, ways), bump);
+  const scattering = falling.filter((n) => feelOf(n).scatter > 0);
+  const aim = hand && (hand.x !== 0 || hand.y !== 0) ? polar(hand).angle : DOWN_THE_DESK;
   const dropped = fallOrder(falling).map(({ piece, delayMs }) => ({
     id: piece.id,
-    feel: dropOf(piece, ways),
+    feel: feelOf(piece),
+    fan: fanOf(scattering.indexOf(piece), scattering.length, aim),
     // The border at the piece's OWN size: a throw spends its travel on the felt, and the sliver of
     // the pop it is still wearing on the way down is not what a bounce should be measured off.
     walls: mapWalls(piece),
@@ -341,12 +375,15 @@ export function letFall(
   // those inside half a second, and the desk stopped answering — the drop of a deck HUNG.
   after?.();
   let left = dropped.length;
-  for (const { id, feel, walls, delayMs } of dropped) {
+  for (const { id, feel, walls, delayMs, fan } of dropped) {
     // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
     // chip stops being pushed the moment it is let go, a card goes where it was sent.
     const flight = hand ? polar({ x: hand.x * feel.throwGain, y: hand.y * feel.throwGain }) : { speed: 0, angle: 0 };
+    // The hand's own throw, plus this piece's share of the opening. A run of one has no fan to take
+    // and is left exactly as it was: one die thrown is a die thrown where you threw it.
+    const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));
     const body = {
-      ...flight,
+      ...own,
       ...(feel.friction === undefined ? {} : { friction: feel.friction }),
       ...(delayMs > 0 ? { delayMs } : {}),
       up: (lift - 1) / RISE,
@@ -358,6 +395,10 @@ export function letFall(
       // a piece coming DOWN, so a border would throw it back up into the air it was falling out of.
       wallKick: 0,
       walls,
+      // ...AND IT KEEPS ITS ROOM. Two pieces that both state a girth are pushed apart for as long
+      // as they are travelling, so a pair of dice can never come to rest one over the other.
+      ...(feel.girth > 0 ? { girth: feel.girth } : {}),
+      ...(feel.bodyBounce === undefined ? {} : { bodyBounce: feel.bodyBounce }),
     };
     const piece = byId(s.host.root, id);
     if (piece && feel.fall === "roll") {

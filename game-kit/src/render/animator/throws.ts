@@ -51,6 +51,10 @@ export function throws(rt: Runtime): Throws {
         done: opts.onDone ? () => opts.onDone!() : undefined,
         tumble: undefined,
         onDesk: false, // a fall is in the AIR over the rt.glass, on its way out of the scene
+        // A FALL IS ALONE. It is on its way off the glass and nothing on the desk is in its way any
+        // more — two pieces leaving a scene do not have to queue.
+        girth: 0,
+        bodyBounce: 0,
       });
     },
     slide(id, opts) {
@@ -89,6 +93,8 @@ export function throws(rt: Runtime): Throws {
         done: opts.onDone,
         tumble: opts.onTumble ? { left: facesLeft(cfg), on: opts.onTumble, carried: 0, count: 0, ended: false } : undefined,
         onDesk: true,
+        girth: opts.girth ?? 0,
+        bodyBounce: opts.bodyBounce ?? cfg.bounce,
       });
     },
   };

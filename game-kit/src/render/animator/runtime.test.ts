@@ -1496,6 +1496,85 @@ describe("the shiver", () => {
 // swung a third of this and could not be seen at all. A subtle animation and an absent one look
 // identical in a screenshot, so the size is a claim a test has to make.
 describe("the shiver is big enough to see", () => {
+  it("motion.two-solid-bodies-never-rest-in-one-place — and the one that stops first is still in the way", () => {
+    // TWO DICE TIPPED OUT OF ONE HAND. Same instant, same speed, nearly the same heading — and
+    // nothing in a one-body physics has an opinion about that: they travel as one and arrive as one,
+    // drawn over each other, with the second result unreadable.
+    //
+    // The order inside the frame is the whole law. Every body takes its step, THEN the ones that
+    // take up room are pushed apart, and only then is anything asked whether it has stopped. Asked
+    // first, a body is declared settled while lying on another — which is the one arrangement this
+    // exists to make impossible — and asked per-body inside its own step, each would be resolved
+    // against where the other one WAS.
+    const b = bench();
+    const other = node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0.1, y: 0 } }));
+    add(b.desk, other);
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock })!;
+    // Thrown the same way at the same speed, from almost the same place: without a word between
+    // them they stay that far apart for the whole run and land that far apart.
+    // WHERE THEY STOPPED, off the landing and not off the tree: a slide REPORTS its rest and the
+    // override is gone the same frame, so the drawn pose after it is the seat the piece never left.
+    const rest = new Map<string, { x: number; y: number }>();
+    m.slide("c", { speed: 2, angle: 0, friction: 8, girth: 0.5, onDone: (at) => rest.set("c", at.at) });
+    m.slide("d", { speed: 2, angle: 0, friction: 8, girth: 0.5, onDone: (at) => rest.set("d", at.at) });
+    for (let t = 16; t < 3000 && !c.idle(); t += 16) c.tick(t);
+    const apart = Math.hypot(rest.get("c")!.x - rest.get("d")!.x, rest.get("c")!.y - rest.get("d")!.y);
+    expect(apart, "at rest, a die's width between them and not a pixel less").toBeGreaterThanOrEqual(0.99);
+    // ...AND THE ONE THAT STOPS FIRST IS STILL THERE. Thrown at very different speeds they stop at
+    // very different moments, and a body that landed the instant it stopped would be gone from the
+    // world exactly in time for the other to slide onto it. It waits instead — and because it is
+    // still a body, being run into MOVES it, which is what a die does when another die hits it.
+    const race = bench();
+    const far = node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2.4, y: 0 } }));
+    add(race.desk, far);
+    race.host.setRoot(race.desk);
+    const c3 = fakeClock();
+    const m3 = attachMotion(race.host, race.painter, { settleMs: 100, settleEase: "linear", clock: c3.clock })!;
+    const hit = new Map<string, { x: number; y: number }>();
+    // The near one is barely pushed and stops almost at once; the far one is fired straight at it.
+    m3.slide("d", { speed: 0.4, angle: 0, friction: 8, girth: 0.5, onDone: (at) => hit.set("d", at.at) });
+    m3.slide("c", { speed: 6, angle: 0, friction: 2, girth: 0.5, onDone: (at) => hit.set("c", at.at) });
+    for (let t = 16; t < 6000 && !c3.idle(); t += 16) c3.tick(t);
+    expect(hit.size, "both of them came to rest").toBe(2);
+    const gap = hit.get("d")!.x - hit.get("c")!.x;
+    expect(gap, "the one that stopped first was NOT landed on").toBeGreaterThanOrEqual(0.99);
+    expect(hit.get("d")!.x, "it was shoved along by the one that ran into it").toBeGreaterThan(2.5);
+
+    // ...AND ONE THAT HAS NOT LEFT THE HAND YET COUNTS AS STILL COMING. A handful is poured out with
+    // a stagger, so a body can be at rest before the last of its own run has even started. Counting
+    // only what is already moving, the first one down is put away and forgotten exactly in time for
+    // the last one to land on it — which is the same hole in a different disguise.
+    const pour = bench();
+    const late = node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 2.4, y: 0 } }));
+    add(pour.desk, late);
+    pour.host.setRoot(pour.desk);
+    const c4 = fakeClock();
+    const m4 = attachMotion(pour.host, pour.painter, { settleMs: 100, settleEase: "linear", clock: c4.clock })!;
+    const down = new Map<string, { x: number; y: number }>();
+    // "d" barely moves and is done in a fraction of a second; "c" only sets off a second later.
+    m4.slide("d", { speed: 0.2, angle: 0, friction: 8, girth: 0.5, onDone: (at) => down.set("d", at.at) });
+    m4.slide("c", { speed: 6, angle: 0, friction: 2, girth: 0.5, delayMs: 1000, onDone: (at) => down.set("c", at.at) });
+    for (let t = 16; t < 9000 && !c4.idle(); t += 16) c4.tick(t);
+    expect(down.size, "both came to rest").toBe(2);
+    expect(down.get("d")!.x - down.get("c")!.x, "the early one was still there when the late one arrived").toBeGreaterThanOrEqual(0.99);
+
+    // And a body that never said how much room it takes is left alone entirely — a card lands on a
+    // card, and a desk where nothing could cover anything would not be a desk.
+    const flat = bench();
+    const two = node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0.1, y: 0 } }));
+    add(flat.desk, two);
+    flat.host.setRoot(flat.desk);
+    const c2 = fakeClock();
+    const m2 = attachMotion(flat.host, flat.painter, { settleMs: 100, settleEase: "linear", clock: c2.clock })!;
+    const flatRest = new Map<string, { x: number; y: number }>();
+    m2.slide("c", { speed: 2, angle: 0, friction: 8, onDone: (at) => flatRest.set("c", at.at) });
+    m2.slide("d", { speed: 2, angle: 0, friction: 8, onDone: (at) => flatRest.set("d", at.at) });
+    for (let t = 16; t < 3000 && !c2.idle(); t += 16) c2.tick(t);
+    expect(Math.abs(flatRest.get("c")!.x - flatRest.get("d")!.x), "still where they started, one over the other").toBeCloseTo(0.1, 2);
+  });
+
   it("motion.a-shivers-default-swing-is-visible — a card-sized nudge, not a sub-pixel one", () => {
     const b = bench();
     const c = fakeClock();

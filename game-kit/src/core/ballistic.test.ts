@@ -1,7 +1,7 @@
 // The pure ballistics — a fall down the screen and a slide across the desk, stepped by hand.
 
 import { describe, expect, it } from "vitest";
-import { bodyAt, polar, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
+import { bodyAt, polar, separate, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
 
 const DT = 1 / 60;
 
@@ -140,5 +140,61 @@ describe("ballistic", () => {
     const hit = path.findIndex((b) => b.vel.x < 0);
     expect(hit).toBeGreaterThan(0);
     expect(path[hit]!.vel.x).toBeCloseTo(-2); // 4 → −2 at half restitution
+  });
+});
+
+describe("two bodies on one desk", () => {
+  const at = (x: number, y: number, vx = 0, vy = 0): Body => ({
+    pos: { x, y },
+    vel: { x: vx, y: vy },
+    angle: 0,
+    spin: 0,
+    up: 0,
+    upVel: 0,
+  });
+
+  it("ballistic.two-bodies-never-share-a-place — the push is even and along the line between them", () => {
+    // Two dice that arrived on the same spot are one die with a shadow, and the second result is
+    // unreadable. Apart is not a preference here: it is what makes the pair a pair.
+    const out = separate(at(0, 0), at(0.6, 0), 1, 0.5)!;
+    expect(out, "well inside each other, so there is something to do").toBeTruthy();
+    const gap = Math.hypot(out.b.pos.x - out.a.pos.x, out.b.pos.y - out.a.pos.y);
+    expect(gap, "exactly touching, not merely less overlapped").toBeCloseTo(1, 6);
+    // Evenly: neither of them is the one that has to move, and a solve that pushed only one would
+    // make the answer depend on which was asked about first.
+    expect(out.a.pos.x).toBeCloseTo(-0.2, 6);
+    expect(out.b.pos.x).toBeCloseTo(0.8, 6);
+    // Along the line between them and nowhere else — nothing sideways appears out of a head-on push.
+    expect(out.a.pos.y).toBe(0);
+    expect(out.b.pos.y).toBe(0);
+    // And two that are simply apart are left entirely alone, which is nearly every frame.
+    expect(separate(at(0, 0), at(3, 0), 1, 0.5)).toBeUndefined();
+  });
+
+  it("ballistic.a-body-bounces-off-a-body-that-is-coming-at-it — and never off one that is leaving", () => {
+    // CLOSING: an equal-mass exchange along the line between them. Head-on and equal, they swap.
+    const hit = separate(at(0, 0, 2, 0), at(0.9, 0, -2, 0), 1, 1)!;
+    expect(hit.a.vel.x).toBeCloseTo(-2, 6);
+    expect(hit.b.vel.x).toBeCloseTo(2, 6);
+    // ...and the tangent is untouched, so a glancing blow glances instead of stopping.
+    const glance = separate(at(0, 0, 0, 3), at(0.9, 0, 0, 3), 1, 1)!;
+    expect(glance.a.vel.y).toBeCloseTo(3, 6);
+    expect(glance.b.vel.y).toBeCloseTo(3, 6);
+    // LEAVING: overlapping and already moving apart, they are pushed clear and NOT traded. Bodies
+    // laid on the same spot by a hand are exactly this case, and swapping their speeds would suck
+    // them back together — a pair trembling against each other for ever instead of leaving.
+    const parting = separate(at(0, 0, -1, 0), at(0.5, 0, 1, 0), 1, 1)!;
+    expect(parting.a.vel.x).toBe(-1);
+    expect(parting.b.vel.x).toBe(1);
+    expect(parting.b.pos.x - parting.a.pos.x).toBeCloseTo(1, 6);
+  });
+
+  it("ballistic.dead-centre-is-a-direction-too — two bodies on one pixel still get apart", () => {
+    // There is no line between them to push along, and `0/0` would put both at NaN and take the
+    // scene with it. Any direction will do as long as it IS one.
+    const out = separate(at(1, 1), at(1, 1), 0.8, 0.5)!;
+    const gap = Math.hypot(out.b.pos.x - out.a.pos.x, out.b.pos.y - out.a.pos.y);
+    expect(Number.isFinite(gap)).toBe(true);
+    expect(gap).toBeCloseTo(0.8, 6);
   });
 });

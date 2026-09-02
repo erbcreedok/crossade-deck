@@ -148,6 +148,16 @@ export interface Flight {
   readonly tumble: Tumbling | undefined;
   /** True for a body travelling ACROSS the desk: it is on the felt, so its shadow goes with it. */
   readonly onDesk: boolean;
+  /**
+   * How much room this body takes from another one, root units, and `0` for one that takes none.
+   *
+   * Zero is the default and means "alone on the desk": a card lands on a card and that is what a
+   * desk is for. Two bodies that BOTH state a girth are kept out of each other's way while they
+   * travel — see `separate`.
+   */
+  readonly girth: number;
+  /** What it gives back off another body, 0..1. */
+  readonly bodyBounce: number;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 

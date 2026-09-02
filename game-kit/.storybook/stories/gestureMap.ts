@@ -230,6 +230,25 @@ export const DIE_SPIN_DRAG = 900;
 export const DIE_HOP = 3;
 
 /**
+ * HOW HARD A HANDFUL OF DICE PUSHES ITSELF APART, units/s — and it is a real throw, not a nudge.
+ *
+ * Two dice tipped out of a hand do not land side by side because somebody aimed them there; they
+ * land apart because they were never going the same way. This is that: enough speed for each to
+ * make its own way across the felt, so a drop of two reads as two dice thrown rather than as one
+ * die that split.
+ */
+export const DIE_SCATTER = 2.6;
+
+/**
+ * HOW WIDE THE FAN IS, degrees between one die of a run and the next.
+ *
+ * Wide enough that they part at once and narrow enough that a throw still goes where it was aimed:
+ * a handful thrown at the far corner must arrive at the far corner, spread out, not sprayed across
+ * the whole desk.
+ */
+export const DIE_FAN = 34;
+
+/**
  * ABOVE THIS SPEED A RELEASE IS A THROW, units/s — whatever the piece's ordinary way of leaving is.
  *
  * `settle` is a putting-down, and a putting-down is a thing a slow hand does. Read as "this piece
@@ -272,6 +291,50 @@ export interface DropFeel {
    * the cloth and still comes off a border.
    */
   readonly wallBounce: number;
+  /**
+   * HOW MUCH ROOM IT TAKES FROM ITS OWN KIND, root units, and `0` for a piece that takes none.
+   *
+   * Zero is right for nearly everything on a desk: cards land on cards, chips land on chips, and a
+   * pile is what a desk is FOR. A die is the exception, because a die is read rather than stacked —
+   * two of them one over the other is one die with a shadow and one result nobody can see.
+   */
+  readonly girth: number;
+  /** What it gives back off ANOTHER piece, 0..1. Absent, the desk's own `bounce`. */
+  readonly bodyBounce?: number;
+  /**
+   * HOW FAR APART A HANDFUL OF THEM GOES, units/s, and in a fan.
+   *
+   * Two dice let go of by the same hand at the same instant take the same speed in the same
+   * direction, and physics has nothing to say about that: they travel as one and arrive as one.
+   * What a hand actually does is open, and a handful thrown from an opening hand spreads. So each
+   * piece of a run gets its own heading, fanned about the throw, and its own small push along it —
+   * the push is what makes a DROP scatter too, where there is no throw to fan.
+   */
+  readonly scatter: number;
+}
+
+/**
+ * A PANEL'S SAY OVER WHAT TAKES UP ROOM — how much, how hard it knocks, how far a handful spreads.
+ *
+ * The desk's own answers are on the pieces (`dropOf`) and are the ones a reader should meet first.
+ * This is for the page that is ABOUT the collision: a girth of nothing switches it off entirely and
+ * leaves the desk as it was before the feature, which is the same promise every other switch on the
+ * shelf makes. It reaches only the pieces that collide at all — a card is not given a girth by a
+ * reader turning a knob, because a card landing on a card is what a desk is for.
+ */
+export interface Bump {
+  /** How much room a colliding piece takes, root units. `0` switches collision off. */
+  readonly girth: number;
+  /** What it gives back off ANOTHER piece, 0..1. */
+  readonly bounce: number;
+  /** How hard a handful pushes itself apart, units/s. */
+  readonly scatter: number;
+}
+
+/** The desk's own numbers, patched by whatever the panel had an opinion about. */
+export function bumped(feel: DropFeel, bump?: Bump): DropFeel {
+  if (!bump || feel.girth <= 0) return feel;
+  return { ...feel, girth: bump.girth, bodyBounce: bump.bounce, scatter: bump.scatter };
 }
 
 /**
@@ -290,7 +353,12 @@ export function dropOf(
   // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
   // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
   // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) return { fall: ways.die ?? "roll", throwGain: 1, gravity: 22, bounce: 0.7, wallBounce: 0.7 };
+  if (caps(piece).has("Rollable")) {
+    // Half the die's own side: a disc through the flat of its faces, which is where two dice on a
+    // felt actually stop each other. See `SlideOptions.girth` on why round is the right shape here.
+    const side = extentOf(fieldsOf<BoundedFields>(piece, "Bounded")?.bounds ?? rect(0, 0)).w;
+    return { fall: ways.die ?? "roll", throwGain: 1, gravity: 22, bounce: 0.7, wallBounce: 0.7, girth: side / 2, scatter: DIE_SCATTER };
+  }
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
   // the air for over a second, which reads as a page loading rather than as a card falling. Two
@@ -299,7 +367,7 @@ export function dropOf(
   // ...and THROWN it planes: a whole face on the felt, so it goes where it was sent and slides a
   // long way doing it. Nothing about `settle` says a card cannot be thrown — see `thrown`.
   if (caps(piece).has("Flippable")) {
-    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 11, bounce: 0, wallBounce: 0.45 };
+    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 11, bounce: 0, wallBounce: 0.45, girth: 0, scatter: 0 };
   }
   // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
   // then it is simply there.
@@ -311,9 +379,9 @@ export function dropOf(
   // A chip is small and heavy for its size: it stops being pushed the moment it is let go, so it
   // takes barely half of what the hand had and the felt eats that quickly.
   if (kindOf(piece) === "chip") {
-    return { fall: ways.chip ?? "fall", throwGain: 0.45, friction: 9, gravity: 20, bounce: 0.35, wallBounce: 0.5 };
+    return { fall: ways.chip ?? "fall", throwGain: 0.45, friction: 9, gravity: 20, bounce: 0.35, wallBounce: 0.5, girth: 0, scatter: 0 };
   }
-  return { fall: "fall", throwGain: 0.7, gravity: 26, bounce: 0.001, wallBounce: 0.001 };
+  return { fall: "fall", throwGain: 0.7, gravity: 26, bounce: 0.001, wallBounce: 0.001, girth: 0, scatter: 0 };
 }
 
 /**
