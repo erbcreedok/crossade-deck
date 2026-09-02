@@ -1,5 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { installStockCarries, installStockFlips } from "../../src/index.js";
+import {
+  byId,
+  draggable,
+  installStockCarries,
+  installStockCoats,
+  installStockFlips,
+  planMove,
+  transformsOf,
+  type Node,
+} from "../../src/index.js";
+import { localMaster, type Master } from "../devtools/master.js";
+import { wireDrag } from "../devtools/drag.js";
+import { scene } from "../devtools/scene.js";
+import { MAP } from "./gestureMap.js";
+import { liveMap, markHands, SEATS, type Hand } from "./liveMap.js";
 import { grabScene } from "./gestureScene.js";
 import {
   CARD_SHARE,
@@ -20,6 +34,7 @@ import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 
 installStockCarries();
+installStockCoats();
 installStockFlips();
 
 const meta: Meta = {
@@ -147,4 +162,134 @@ export const Magnetism: StoryObj<MagnetArgs> = {
   },
   argTypes: { ...STACK_KNOBS, pull: PULL_KNOB, cardShare: CARD_KNOB, heldShare: HELD_KNOB, ...FAN_KNOBS },
   parameters: { gkDocStory: "magnetism.scene" },
+};
+
+interface LiveArgs {
+  /** One way, in milliseconds — a round trip costs it twice. `0` is the honest default. */
+  latency: number;
+  /** How far an area reaches past its own border, root units. */
+  pull: number;
+}
+
+const LATENCY = documented("arg.latency", { control: { type: "number", min: 0, step: 50 } }, "live");
+
+/**
+ * THE MASTER STANDS AS LONG AS ITS DESK DOES.
+ *
+ * A re-render is new numbers for the same board, not a new board — rebuilt on every keystroke, the
+ * board everybody shares would be swept away by a control, which is the same complaint a single
+ * screen had about its desk. The latency is retuned on the standing master instead.
+ */
+let board: { master: Master; latency: number } | undefined;
+function boardFor(latency: number, pull: number): Master {
+  if (!board) board = { master: localMaster(liveMap(pull, ZONE_SPREAD), latency), latency };
+  if (board.latency !== latency) {
+    board.master.retune(latency);
+    board.latency = latency;
+  }
+  return board.master;
+}
+
+/**
+ * LIVE — one desk, two screens, and neither of them is the truth.
+ *
+ * Everything `Magnetism` does, with the one difference that decides whether any of it was really
+ * built: the board is somewhere else. Drag a card on the top screen and let go near an area — it
+ * goes in, and it goes in on the bottom screen too, because what moved was the board they share
+ * and not the picture in front of you.
+ *
+ * A finger PROPOSES. A drop resolved on one screen alone would be real for one pair of eyes and
+ * would never have happened for the other, so the move goes to the board and the authoritative
+ * answer comes back to everybody — including the seat that sent it. Turn the latency up and watch
+ * the two halves of that: the card lands under your own finger at once (position is reversible, so
+ * predicting it is safe) and appears on the other screen when the word arrives.
+ *
+ * EVERY SEAT SEES EVERY CARD. Hiding is a real thing and the kit does it, but it is a second
+ * subject: with cards hidden, a reader watching one screen cannot tell "they have not moved" from
+ * "they moved something I am not allowed to see".
+ *
+ * AND EVERY HAND IS ON THE DESK, in its own colour — a ring on what somebody else is holding, and a
+ * cursor wherever their finger is. The cursor is drawn even when they hold nothing, because a hand
+ * you cannot see is a player who has left.
+ */
+export const Live: StoryObj<LiveArgs> = {
+  render: ({ latency, pull }) => {
+    const master = boardFor(latency, pull);
+    const truth = master.truth();
+    const wall = document.createElement("div");
+    wall.style.cssText = "display:grid;grid-template-rows:1fr 1fr;gap:8px;height:100%;min-height:520px";
+
+    for (const { seat } of SEATS) {
+      const pane = document.createElement("div");
+      pane.style.cssText = "position:relative;min-height:240px";
+      // ONE SCENE PER SCREEN, keyed by its seat so a re-render finds it standing rather than taking
+      // a fresh WebGL context per keystroke. Two hosts, two clocks, two cameras — because that is
+      // what two devices are, and one canvas drawn twice would be proving nothing.
+      const built = scene(() => truth, {
+        key: `live.${seat}`,
+        animate: true,
+        camera: {
+          limits: { minZoom: 0.5, maxZoom: 2.5, input: { pan: true, zoom: true, rotate: false } },
+          content: { x: -MAP.w / 2, y: -MAP.h / 2, w: MAP.w, h: MAP.h },
+          claims: draggable,
+          // THE OTHER SEAT SITS OPPOSITE, and sees the desk from there. Not a decoration: a player
+          // who had to read their own area upside down would be reading somebody else's board.
+          turn: seat === "north" ? 180 : 0,
+          unit: 44,
+          start: { at: { x: 0, y: 0 }, zoom: 1 },
+        },
+      });
+      pane.appendChild(built.el);
+      wall.appendChild(pane);
+
+      const mate = master.join(seat);
+      // OTHER HANDS. Ephemeral: not truth, not saved, not projected — redrawn under the newest
+      // snapshot and forgotten the moment a hand lets go.
+      const hands = new Map<string, Hand>();
+      let latest: Node | undefined;
+      const redraw = (): void => {
+        if (latest) built.setRoot(markHands(latest, hands));
+      };
+      mate.onCarry((carry) => {
+        if (carry.done) hands.delete(carry.actor);
+        else hands.set(carry.actor, carry.at ? { els: carry.els, at: carry.at } : { els: carry.els });
+        redraw();
+      });
+      mate.onState((seen) => {
+        latest = seen;
+        redraw();
+      });
+      wireDrag(built, {
+        zoneAt: zoneNear,
+        view: () => built.camera?.transform() ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+        // MY FINGER, TOLD TO THE TABLE. Retransmitted to the others and never echoed back — a hand
+        // does not need to be told where its own finger is.
+        onCarry: ({ ids, at, done }) => mate.carry({ els: ids, at, done }),
+        onDrop: ({ lead, target, seat: at }) => {
+          const zone = byId(truth, target.id);
+          const from = lead.parent;
+          if (!from || !zone) return false;
+          // No `seat` given: a grip seat is a card game's notion of where a hand may take a piece by,
+          // and this desk has none — every card is taken anywhere on it.
+          if (planMove({ source: from, touched: lead, target: zone }).verdict === "deny") return false;
+          const home = transformsOf(truth).get(zone.id);
+          mate.send({
+            source: from.id,
+            touched: lead.id,
+            target: zone.id,
+            at: { x: at.x - (home?.e ?? 0), y: at.y - (home?.f ?? 0) },
+            actor: seat,
+          });
+          // FALSE ON PURPOSE. The wiring then makes its ordinary local drop, which is this seat's
+          // optimistic PREDICTION: the card lands under the finger at once and the authoritative
+          // snapshot either confirms it or takes it away.
+          return false;
+        },
+      });
+    }
+    return wall;
+  },
+  args: { latency: 0, pull: PULL },
+  argTypes: { latency: LATENCY, pull: PULL_KNOB },
+  parameters: { gkDocStory: "magnetism.live" },
 };
