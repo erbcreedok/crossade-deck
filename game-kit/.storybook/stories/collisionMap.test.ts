@@ -10,7 +10,7 @@ import { add, Bounded, Container, freeLayout, node, rect, registerLayout, Surfac
 import { alsoInTheWay, bumped, dropOf, kindOf, MAP, shoves, THROWN_AT, thrown, type DropFeel, type Piece } from "./gestureMap.js";
 import { collisionMap, roomOn } from "./collisionMap.js";
 
-const BUMP = { roomFor: roomOn(1), bounce: 0.7, scatter: 2.6 };
+const BUMP = { roomFor: roomOn(1), bounce: 0.7, scatter: 2.6, holds: true };
 const feel = (n: Node): DropFeel => bumped(dropOf(n), n, BUMP);
 
 /**
@@ -42,7 +42,7 @@ describe("what is solid to what", () => {
     // Off is not a second code path: it is the same throw with every piece answering zero, which is
     // what every piece on every other desk answers already.
     const desk = collisionMap();
-    const off = { roomFor: () => undefined, bounce: 0.7, scatter: 2.6 };
+    const off = { roomFor: () => undefined, bounce: 0.7, scatter: 2.6, holds: true };
     for (const piece of [...piecesOf(desk, "die"), ...piecesOf(desk, "chip"), ...piecesOf(desk, "card")]) {
       const dead = bumped(dropOf(piece), piece, off);
       expect(dead.girth).toBe(0);
@@ -65,6 +65,12 @@ describe("a putting-down does not shove", () => {
     expect(shoves(0), "let go standing still").toBe(false);
     expect(shoves(THROWN_AT * 4), "sent somewhere").toBe(true);
 
+    // ...ON A DESK THAT ASKED FOR THE DISTINCTION. A desk that did not is untouched: everything that
+    // reaches anything shoves it, however gently it was let go, which is what `Mechanics/Collision`
+    // has always done and must go on doing. Two desks, two answers, and neither is the other's bug.
+    expect(shoves(0, false), "the plain desk, unchanged").toBe(true);
+    expect(shoves(THROWN_AT * 4, false)).toBe(true);
+
     // THE SAME THRESHOLD the shelf already uses for whether a released piece flies at all. A second
     // number here would be a second definition of the word, and the day they drifted there would be
     // a release that flies without shoving and nobody able to say why.
@@ -73,7 +79,7 @@ describe("a putting-down does not shove", () => {
     for (const speed of [0, THROWN_AT - 0.01, THROWN_AT, THROWN_AT * 3]) {
       // A card settles rather than flies, so `thrown` is answering on speed alone — which is the
       // half of it this shares.
-      expect(shoves(speed), `at ${speed}`).toBe(thrown(card, speed));
+      expect(shoves(speed, true), `at ${speed}`).toBe(thrown(card, speed));
     }
   });
 });

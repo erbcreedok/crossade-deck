@@ -25,11 +25,14 @@ interface LandingArgs extends StackArgs {
   knock: number;
   /** How hard a handful pushes itself apart as it leaves the hand, units/s. */
   scatter: number;
+  /** Off, and everything that gets in the way is shoved however gently it was let go — `Collision`. */
+  holding: boolean;
 }
 
 const COLLIDING = documented("arg.colliding", {}, "collision");
 const ROOM_KNOB = documented("arg.room", { control: { type: "number", min: 0, step: 0.1 }, if: { arg: "colliding" } }, "collision");
 const KNOCK = documented("arg.knock", { control: { type: "number", min: 0, max: 1, step: 0.05 }, if: { arg: "colliding" } }, "collision");
+const HOLDING = documented("arg.holding", { if: { arg: "colliding" } }, "collision");
 const SCATTER = documented("arg.scatter", { control: { type: "number", min: 0, step: 0.2 }, if: { arg: "colliding" } }, "collision");
 
 /**
@@ -51,7 +54,7 @@ const SCATTER = documented("arg.scatter", { control: { type: "number", min: 0, s
  * piece flies at all, so "thrown" means one thing here and not two.
  */
 export const Landing: StoryObj<LandingArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, holding }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -63,11 +66,12 @@ export const Landing: StoryObj<LandingArgs> = {
       false,
       0,
       mergeRule(MERGE_SHARE),
-      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter },
+      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: holding },
     ),
-  // THE THROW IS OFF, and that is the page: its neighbour `Collision` is the same desk with the same
-  // pieces thrown, and the pair is the lesson. Turn it on here and this page becomes that one.
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, colliding: true, room: 1, knock: 0.7, scatter: DIE_SCATTER },
-  argTypes: { ...STACK_KNOBS, colliding: COLLIDING, room: ROOM_KNOB, knock: KNOCK, scatter: SCATTER },
+  // THE THROW IS OFF and the holding is ON — that pair is the page. Turn the holding off and the
+  // desk is `Collision` again: everything that reaches anything shoves it, however gently it was let
+  // go. Turn the throw on and you get the other half of the lesson on the same felt.
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, colliding: true, room: 1, knock: 0.7, scatter: DIE_SCATTER, holding: true },
+  argTypes: { ...STACK_KNOBS, colliding: COLLIDING, room: ROOM_KNOB, knock: KNOCK, scatter: SCATTER, holding: HOLDING },
   parameters: { gkDocStory: "landing.scene" },
 };

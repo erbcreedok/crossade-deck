@@ -377,7 +377,7 @@ export function letFall(
   // A PUTTING-DOWN DOES NOT SHOVE THE FURNITURE (`shoves`). Below the throwing speed the standing
   // pieces hold their places — solid, so nothing comes to rest on them, and immovable, so nothing
   // sends them skidding merely because something was set down next to them.
-  const knocking = shoves(speed);
+  const knocking = shoves(speed, bump?.holds ?? false);
   for (const still of standing) {
     const feel = feelOf(still);
     m.slide(still.id, {

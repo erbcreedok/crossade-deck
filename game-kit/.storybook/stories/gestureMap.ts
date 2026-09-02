@@ -340,6 +340,19 @@ export interface Bump {
   readonly bounce: number;
   /** How hard a handful pushes itself apart, units/s. */
   readonly scatter: number;
+  /**
+   * DOES WHAT IS ALREADY LYING THERE HOLD ITS PLACE when something is merely PUT DOWN beside it?
+   *
+   * A page's own switch, and off by default, because it is a second answer and not a correction to
+   * the first. Off, everything that gets in the way is an ordinary body: shoved by whatever reaches
+   * it, however gently it was let go. On, a release below the throwing speed leaves the furniture
+   * exactly where it stood — still solid, so nothing lands on top of it, simply not pushed.
+   *
+   * Two pages, two answers, and neither is the other's bug: `Mechanics/Collision` is the desk where
+   * everything moving knocks everything about, and `Mechanics/Landing` is the desk where a thing put
+   * down beside another thing does not shove it aside.
+   */
+  readonly holds: boolean;
 }
 
 /**
@@ -359,17 +372,19 @@ export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
 /**
  * DOES THIS RELEASE SHOVE WHAT IS ALREADY LYING THERE?
  *
- * Only a throw does. A piece put down beside another piece has no business flicking it across the
- * felt, and a piece dropped from above has none either — it finds room and settles. What tells the
- * two apart is the only thing that differs: whether the hand was going anywhere.
+ * Only a throw does, and only on a desk that asked for the distinction (`Bump.holds`). A piece put
+ * down beside another piece has no business flicking it across the felt, and a piece dropped from
+ * above has none either — it finds room and settles. What tells the two apart is the only thing that
+ * differs: whether the hand was going anywhere. A desk that did not ask is unchanged: everything
+ * that reaches anything shoves it, which is what a desk without the rule has always done.
  *
  * The SAME threshold that decides whether a released piece flies at all (`thrown`), so "thrown"
  * means one thing on this shelf and not two. A second number here would be a second definition of
  * the word, and the day they drifted apart there would be a release that flies without shoving and
  * nobody able to say why.
  */
-export function shoves(speed: number): boolean {
-  return speed >= THROWN_AT;
+export function shoves(speed: number, holds = true): boolean {
+  return !holds || speed >= THROWN_AT;
 }
 
 /**

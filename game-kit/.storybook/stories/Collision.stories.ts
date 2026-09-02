@@ -82,7 +82,10 @@ export const Collision: StoryObj<CollisionArgs> = {
       mergeRule(MERGE_SHARE),
       // NO ROOM FOR ANYBODY IS THE SWITCH. Off is not a second code path: it is the same throw with
       // every piece saying it takes no room, which is what every piece on every other desk says.
-      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter },
+      // EVERYTHING THAT REACHES ANYTHING SHOVES IT, however gently it was let go. That a putting-down
+      // leaves the furniture alone is the NEXT page's subject (`Mechanics/Landing`) and deliberately
+      // not this one's: two desks, two answers, and this one is the plain one.
+      { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: false },
     ),
   args: {
     ...STACK_ARGS,
