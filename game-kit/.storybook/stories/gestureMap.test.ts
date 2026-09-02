@@ -5,10 +5,10 @@
 // the wrong thing and the border still LOOKS enforced, with half a card hanging over the side.
 
 import { describe, expect, it } from "vitest";
-import { apply, Camera } from "../../src/index.js";
+import { apply, Camera, type Vec } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -469,5 +469,55 @@ describe("the stacking desk", () => {
     expect(room.x + room.w / 2, "still centred on the desk").toBeCloseTo(0, 9);
     expect(room.y + room.h / 2).toBeCloseTo(0, 9);
     expect(room.w, "and it is ROOM, not a second desk").toBeGreaterThan(MAP.w);
+  });
+
+  it("map.a-thrown-run-is-aimed-at-its-own-formation — it converges on the way down, not on arrival", () => {
+    // A thrown run is otherwise a handful of separate throws that happen to share a hand: each piece
+    // leaves from where the fan put it, travels the same distance, and the hand arrives on the felt
+    // as the same spread it was held in — a stack in name only. Gathering it up after the landing is
+    // what a correction looks like.
+    //
+    // MEASURED BY THE DESK'S OWN ORACLE. Where a throw stops is `restsAt`, which is also what a zone
+    // is asked about; so throwing each piece at its seat and then asking `restsAt` where it stops is
+    // asking whether the aim and the landing are one number. They must be, or the light, the take
+    // and the pose are three opinions.
+    const seatOf = (n: Node): Vec => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
+    const run = [
+      node("a", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: -1.2, y: 0 } })),
+      node("b", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 0, y: 0.1 } })),
+      node("c", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 1.2, y: 0.2 } })),
+    ];
+    const at = { x: 0, y: 1 };
+    const hand = { x: 3, y: -2 };
+    const feel = dropOf(run[0]!, {});
+    const drag = 6;
+    const home = restsAt(at, hand, feel, drag);
+    const seats = stackSeats(run);
+    const thrownTo = flockTo(run, at, hand, feel, drag);
+    run.forEach((piece, i) => {
+      // The desk states headings in DEGREES, as every `slide` on it does.
+      const rad = (thrownTo[i]!.angle * Math.PI) / 180;
+      const lands = restsAt(seatOf(piece), { x: Math.cos(rad), y: Math.sin(rad) }, { ...feel, throwGain: thrownTo[i]!.speed }, drag);
+      const want = { x: home.x + seats[i]!.x, y: home.y + seats[i]!.y };
+      expect(lands.x, `piece ${i} stops at its seat`).toBeCloseTo(want.x, 6);
+      expect(lands.y).toBeCloseTo(want.y, 6);
+    });
+    // ...AND THE FORMATION IS A PILE, not the spread they set off as: three cards a unit apart in the
+    // hand come to rest within a sliver of each other.
+    const spread = Math.hypot(seats[2]!.x - seats[0]!.x, seats[2]!.y - seats[0]!.y);
+    expect(spread, "they arrive stacked, not strung out").toBeLessThan(0.3);
+
+    // AND IT IS SOLVED AGAINST THE DRAG THE PIECE WILL ACTUALLY FEEL. A piece may state its own
+    // (`DropFeel.friction`) and the desk's is only the fallback: solved against the desk's while
+    // flying under its own, every seat is missed by the ratio between them — a formation that lands
+    // somewhere else entirely, and lands there tidily, which is the hardest kind of wrong to see.
+    const own = { ...feel, friction: drag * 3 };
+    const ownHome = restsAt(at, hand, own, drag);
+    flockTo(run, at, hand, own, drag).forEach((throwAt, i) => {
+      const rad = (throwAt.angle * Math.PI) / 180;
+      const lands = restsAt(seatOf(run[i]!), { x: Math.cos(rad), y: Math.sin(rad) }, { ...own, throwGain: throwAt.speed }, drag);
+      expect(lands.x, `piece ${i} keeps its seat under its own drag`).toBeCloseTo(ownHome.x + seats[i]!.x, 6);
+      expect(lands.y).toBeCloseTo(ownHome.y + seats[i]!.y, 6);
+    });
   });
 });

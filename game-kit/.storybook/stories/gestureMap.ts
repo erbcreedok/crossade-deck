@@ -55,6 +55,8 @@ import {
   type BoundedFields,
   type Node,
   type ValuedFields,
+  polar,
+  type TransformableFields,
   type Vec,
   type Walls,
   type Coat,
@@ -562,6 +564,41 @@ export function restsAt(from: Vec, hand: Vec | undefined, feel: DropFeel, fricti
   if (speed <= 0 || drag <= 0) return from;
   const far = (speed * speed) / (2 * drag);
   return { x: from.x + (hand.x / Math.hypot(hand.x, hand.y)) * far, y: from.y + (hand.y / Math.hypot(hand.x, hand.y)) * far };
+}
+
+/**
+ * EVERY PIECE OF A THROWN RUN, AIMED AT ITS OWN PLACE IN THE FORMATION — its speed and its heading,
+ * in the run's order, so it comes to rest exactly at its seat around where the ANCHOR stops.
+ *
+ * A thrown run is otherwise a handful of separate throws that happen to share a hand: each piece
+ * leaves from where the fan put it and travels its own distance, so the hand arrives on the felt as
+ * the same spread it was held in — a stack in name only. Tidying that up after the landing is what
+ * a correction looks like; aiming each piece at its seat makes them converge on the way down.
+ *
+ * SOLVED, NOT GUESSED. A slide of speed `v` under drag `a` stops after `v²/2a`, so the speed that
+ * stops at distance `d` is `sqrt(2ad)` — the exact inverse of `restsAt`, which is what the zone is
+ * asked about, so where the run is AIMED and where it LANDS are one number and not two.
+ */
+export function flockTo(
+  run: readonly Node[],
+  anchorAt: Vec,
+  hand: Vec,
+  feel: DropFeel,
+  drag: number,
+  seats: readonly Vec[] = stackSeats(run),
+): { readonly speed: number; readonly angle: number }[] {
+  const home = restsAt(anchorAt, hand, feel, drag);
+  // THE DRAG THE THROW WILL ACTUALLY FEEL. A piece may state its own (`DropFeel.friction`) and the
+  // desk's is only the fallback — solved against the desk's while flying under its own, every seat
+  // would be missed by the ratio between them, which is a formation that lands somewhere else.
+  const pull = feel.friction ?? drag;
+  return run.map((piece, i) => {
+    const seat = seats[i] ?? { x: 0, y: 0 };
+    const from = fieldsOf<TransformableFields>(piece, "Transformable")?.at ?? { x: 0, y: 0 };
+    const to = { x: home.x + seat.x, y: home.y + seat.y };
+    const gap = Math.hypot(to.x - from.x, to.y - from.y);
+    return { speed: pull > 0 ? Math.sqrt(2 * pull * gap) : 0, angle: polar({ x: to.x - from.x, y: to.y - from.y }).angle };
+  });
 }
 
 /**

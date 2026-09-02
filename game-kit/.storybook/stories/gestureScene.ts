@@ -55,6 +55,7 @@ import {
   regrasp,
   MAP,
   ANCHOR_MARK,
+  flockTo,
   deskRoom,
   mapWalls,
   regrip,
@@ -629,6 +630,62 @@ export interface Mirror {
   readonly hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean) => void;
 }
 
+/**
+ * EVERY PIECE OF A THROWN RUN, AIMED AT ITS OWN PLACE IN THE FORMATION — id to a throw that lands
+ * exactly there. Empty when this run has no formation to keep.
+ *
+ * THE DESTINATION IS THE ANCHOR'S. A run carried by its handle is anchored on that handle: it is
+ * what the hand had hold of and what the hand aimed, so where IT comes to rest is where the run
+ * comes to rest (`restsAt`, the same arithmetic the zone is asked about). The pieces are then seated
+ * around that point exactly as they are seated around the handle in the hand (`stackSeats`), which
+ * is why the hand keeps its shape through the whole flight instead of being reassembled on arrival.
+ *
+ * A thrown run used to be a handful of separate throws that happened to share a hand: each piece
+ * left from where the fan had put it and travelled its own distance, so the hand arrived on the felt
+ * as the same spread it had been held in — a stack in name only, tidied up afterwards. Tidying up
+ * after a landing is what a correction looks like.
+ *
+ * A THROW IS SOLVED, NOT GUESSED. A slide of speed `v` under drag `a` stops after `v²/2a`, so the
+ * speed that stops at a given distance is `sqrt(2ad)`: the flight is aimed at the seat and ends
+ * there, with the same slowing-down every other throw on the desk has.
+ *
+ * WHO FLIES LIKE THIS IS DATA AND NOT A KIND. A piece that scatters is being opened out on purpose,
+ * and a piece that takes up room is going to be shoved by its neighbours anyway: either one aimed at
+ * a seat would be aimed at a seat it cannot keep. What is left — a thing that neither scatters nor
+ * takes room — is a card, and a hand of them lands as a hand.
+ */
+function formationOf(
+  s: Scene,
+  items: readonly CarryItem[],
+  put: readonly Node[],
+  falling: readonly Node[],
+  hand: Vec | undefined,
+  feelOf: (n: Node) => DropFeel,
+): Map<string, { readonly speed: number; readonly angle: number }> {
+  const out = new Map<string, { readonly speed: number; readonly angle: number }>();
+  const first = items[0];
+  const anchor = first ? put.find((n) => n.id === first.id && isGrip(n)) : undefined;
+  // A run with no handle is a run of one, and one piece is its own formation.
+  if (!anchor || !hand) return out;
+  const flying = new Set(falling.map((n) => n.id));
+  const run = put.filter((n) => !isGrip(n) && flying.has(n.id) && feelOf(n).scatter === 0 && feelOf(n).girth === 0);
+  const feel = run[0] ? feelOf(run[0]!) : undefined;
+  if (!feel) return out;
+  const drag = feel.friction ?? s.motions?.tuning().friction ?? 0;
+  if (drag <= 0) return out;
+  // The run travels as ONE, so the anchor is carried by the run's own physics and not by a control's.
+  flockTo(run, seatIn(anchor), hand, feel, drag).forEach((throwAt, i) => {
+    const piece = run[i];
+    if (piece) out.set(piece.id, throwAt);
+  });
+  return out;
+}
+
+/** Where a node stands right now, in root units — the seat a landing or a release just wrote. */
+function seatIn(n: Node): Vec {
+  return fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
+}
+
 export function letFall(
   s: Scene,
   items: readonly CarryItem[],
@@ -684,6 +741,10 @@ export function letFall(
   // counted from the middle of the run outwards so the whole handful still goes where it was sent.
   const feelOf = (n: Node): DropFeel => bumped(dropOf(n, ways), n, bump);
   const scattering = falling.filter((n) => feelOf(n).scatter > 0);
+  // WHERE THE RUN IS GOING, and every piece of it is thrown THERE rather than merely thataway: they
+  // converge on the way down instead of being gathered when they arrive, which is the difference
+  // between a hand that lands in formation and one that is put into formation. See `formationOf`.
+  const flock = formationOf(s, items, put, falling, hand, feelOf);
   const aim = hand && (hand.x !== 0 || hand.y !== 0) ? polar(hand).angle : DOWN_THE_DESK;
   const dropped = fallOrder(falling).map(({ piece, delayMs }) => ({
     id: piece.id,
@@ -743,9 +804,11 @@ export function letFall(
     // ITS OWN SHARE OF WHAT THE HAND THREW — and what a hand threw is the speed it had OVER the
     // throwing speed (`threwAt`), never all of it: carrying is moving, and a card let go of on the
     // way across the desk was not thrown anywhere.
-    const flight = hand
-      ? { speed: threwAt(Math.hypot(hand.x, hand.y)) * feel.throwGain, angle: polar(hand).angle }
-      : { speed: 0, angle: 0 };
+    const flight =
+      flock.get(id) ??
+      (hand
+        ? { speed: threwAt(Math.hypot(hand.x, hand.y)) * feel.throwGain, angle: polar(hand).angle }
+        : { speed: 0, angle: 0 });
     // The hand's own throw, plus this piece's share of the opening. A run of one has no fan to take
     // and is left exactly as it was: one die thrown is a die thrown where you threw it.
     const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));
