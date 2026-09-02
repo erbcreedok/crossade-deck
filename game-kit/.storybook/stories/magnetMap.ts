@@ -21,6 +21,9 @@ import {
   add,
   caps,
   fieldsOf,
+  heapOf,
+  Heaping,
+  overlapFraction,
   move,
   outlineOf,
   outlinesTouch,
@@ -49,10 +52,24 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { installMapArt, MAP, warmingNodes } from "./gestureMap.js";
+import { installMapArt, MAP, warmingNodes, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
+
+/**
+ * HOW MUCH OF A CARD MUST LIE INSIDE THE ZONE BEFORE THE ZONE COUNTS IT, 0..1.
+ *
+ * Its own number, and not the pull. The pull is about a MOMENT — the instant a hand lets go, and how
+ * generous the desk is about where. This is about a STATE, asked of everything on the felt whenever
+ * anything moves: is this card in my area? A card can be in the zone without ever having been
+ * dropped into it — pushed there, knocked there, left half over the edge — and the zone's handle has
+ * to take it just the same, because a player looking at the desk would call it theirs.
+ */
+export const HELD_SHARE = 0.15;
+
+/** How much two CARDS must overlap before they are one heap on the felt, 0..1. */
+export const CARD_SHARE = 0.1;
 
 /**
  * How far the zone reaches past its own edge, root units — see `Reaching`.
@@ -131,6 +148,9 @@ export function magnetMap(pull = PULL): Node {
     .forEach((card, i) => {
       compose(card, Transformable({ at: { x: -1.1 + i * 0.004, y: -2.3 - i * 0.012 } }));
       compose(card, PUT_DOWN);
+      // A CARD HEAPS WITH A CARD, and has to be COVERED to do it — no reach, which is what a hand of
+      // cards means by a pile (`Reaching`).
+      compose(card, Heaping({ heap: "card" }));
       setFacing(card, "down");
       add(desk, card);
     });
@@ -204,4 +224,43 @@ function toEdge(a: Vec, b: Vec, p: Vec): number {
   const len = dx * dx + dy * dy;
   const t = len === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len));
   return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+
+/**
+ * WHAT THE ZONE IS HOLDING — its own children, and anything else lying far enough inside it.
+ *
+ * Parentage alone is not the answer. A card put down by a hand belongs to the zone by having been
+ * given to it, and that is the ordinary way in; but a card can end up in somebody's area without
+ * anybody handing it over — pushed there, knocked there, left half across the border — and a zone
+ * that only counted what it had been given would leave those on the felt while a player looking at
+ * the desk would call them theirs.
+ *
+ * So the state is asked of the geometry, every time anything moves, with the same share the merging
+ * desk asks of two cards: how much of THIS piece is inside that box.
+ */
+export function zoneHolds(share: number): NonNullable<HeapRule["held"]> {
+  return (root, aloft) => {
+    const poses = transformsOf(root);
+    const out: { under: Node; pieces: Node[] }[] = [];
+    for (const zone of root.children) {
+      if (!caps(zone).has("Acceptor")) continue;
+      const box = fieldsOf<BoundedFields>(zone, "Bounded")?.bounds;
+      const pose = poses.get(zone.id);
+      if (!box || !pose) continue;
+      const area = placedOutline(outlineOf(box), pose);
+      // ITS OWN CHILDREN ALWAYS. They were given to it, and where a layout has since put them is the
+      // zone's business — a card the zone itself pushed to the edge of its own row is still in it.
+      const pieces = zone.children.filter((n) => !aloft(n.id));
+      for (const loose of root.children) {
+        if (aloft(loose.id) || !heapOf(loose)) continue;
+        const shape = fieldsOf<BoundedFields>(loose, "Bounded")?.bounds;
+        const at = poses.get(loose.id);
+        if (!shape || !at) continue;
+        if (overlapFraction(placedOutline(outlineOf(shape), at), area) >= share) pieces.push(loose);
+      }
+      out.push({ under: zone, pieces });
+    }
+    return out;
+  };
 }

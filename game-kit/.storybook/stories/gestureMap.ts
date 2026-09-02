@@ -649,6 +649,20 @@ export interface HeapRule {
   readonly admits: (group: readonly Node[]) => readonly Node[];
   /** Where each piece stands under the handle that lifted them, in the handle's own frame. */
   readonly seats: (group: readonly Node[], gripW: number) => Vec[];
+  /**
+   * HEAPS THAT TOUCHING CANNOT FIND — a place that HOLDS things, rather than things that hold each
+   * other.
+   *
+   * A heap on the felt is an accident of where pieces came to rest: nobody declared it, it is simply
+   * what is touching what, and it appears and vanishes as pieces move. A ZONE is the opposite claim
+   * — it is a place, it was there before anything was put in it, and its handle belongs to it and
+   * not to whatever happens to be lying in it today. Islands cannot express that, and a zone squeezed
+   * into one would be a piece: liftable, carryable, and gone the moment somebody dragged it.
+   *
+   * `under` is the node the handle stands beneath — the zone itself, so the tab is always in the same
+   * place — and `pieces` is what the handle lifts, which is never the zone.
+   */
+  readonly held?: (root: Node, aloft: (id: string) => boolean) => readonly { readonly under: Node; readonly pieces: readonly Node[] }[];
 }
 
 /** The shelf's original answer: a card with a card, a chip with a chip, touching, one step apart. */
@@ -740,8 +754,8 @@ export interface GripSpec {
 const GRIP_SPEC: GripSpec = { w: GRIP.w, ...GRIP_HOLD };
 
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */
-function gripFor(root: Node, group: readonly Node[], nth: number, spec: GripSpec): Node {
-  const { mid, bottom } = heapBox(root, group);
+function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec): Node {
+  const { mid, bottom } = heapBox(root, under);
   const h = spec.w / GRIP_RATIO;
   return node(
     `stack handle ${handlesDrawn++}`,
@@ -776,7 +790,18 @@ export function regrip(
   // the gesture until the gesture ends. Replaced mid-carry it is a new node the hand never took, and
   // what the hand is holding vanishes out from under it.
   for (const old of root.children.filter(isGrip)) if (old.id !== keep) remove(root, old);
-  heapsOf(root, aloft, rule).forEach((group, i) => {
+  // A PLACE'S OWN HANDLE FIRST, and what it holds is not on the felt any more as far as the islands
+  // are concerned: a card the zone has claimed must not also grow a felt handle of its own, or the
+  // reader is given two tabs for one card and whichever they take lifts a different thing.
+  const claimed = new Set<string>();
+  (rule.held?.(root, aloft) ?? []).forEach(({ under, pieces }, i) => {
+    for (const piece of pieces) claimed.add(piece.id);
+    if (pieces.length === 0) return; // a place holding nothing has nothing to lift, and no handle
+    const tab = gripFor(root, [under], -1 - i, spec);
+    add(root, tab);
+    held.set(tab.id, pieces);
+  });
+  heapsOf(root, (id) => aloft(id) || claimed.has(id), rule).forEach((group, i) => {
     const tab = gripFor(root, group, i, spec);
     add(root, tab);
     held.set(tab.id, group);

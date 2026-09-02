@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockFlips } from "../../src/index.js";
 import { grabScene } from "./gestureScene.js";
-import { magnetMap, PULL, zoneNear } from "./magnetMap.js";
+import { CARD_SHARE, HELD_SHARE, magnetMap, PULL, zoneHolds, zoneNear } from "./magnetMap.js";
+import { mergeRule } from "./mergeMap.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 
@@ -23,6 +24,10 @@ export default meta;
 interface MagnetArgs extends StackArgs {
   /** How far the zone reaches past its own border, root units. `0` and only a release ON it counts. */
   pull: number;
+  /** How much two CARDS must overlap before they are one heap with a handle, 0..1. */
+  cardShare: number;
+  /** How much of a card must lie inside the zone before the zone counts it as its own, 0..1. */
+  heldShare: number;
 }
 
 /**
@@ -30,6 +35,15 @@ interface MagnetArgs extends StackArgs {
  * that radius is drawn around it, so what the reader is changing is on the glass and not in a rule.
  */
 const PULL_KNOB = documented("arg.pull", { control: { type: "number", min: 0, step: 0.05 } }, "magnetism");
+
+/**
+ * TWO SHARES, and they answer two different questions. `cardShare` is about a HEAP — how much two
+ * cards must overlap before they are one thing with one handle, which is the ordinary rule of every
+ * stacking desk on the shelf. `heldShare` is about a PLACE — how much of a card must be inside the
+ * zone before the zone calls it its own, which nothing else on the shelf asks at all.
+ */
+const CARD_KNOB = documented("arg.cardShare", { control: { type: "number", min: 0, max: 1, step: 0.05 } }, "magnetism");
+const HELD_KNOB = documented("arg.heldShare", { control: { type: "number", min: 0, max: 1, step: 0.05 } }, "magnetism");
 
 /**
  * MAGNETISM — a zone takes a card let go of NEAR it, not only ON it.
@@ -54,7 +68,7 @@ const PULL_KNOB = documented("arg.pull", { control: { type: "number", min: 0, st
  * player is asking it anything.
  */
 export const Magnetism: StoryObj<MagnetArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, pull }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, cardDrop, chipDrop, dieDrop, pull, cardShare, heldShare }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -65,14 +79,14 @@ export const Magnetism: StoryObj<MagnetArgs> = {
       () => magnetMap(pull),
       false,
       0,
-      undefined,
+      // Cards heap by being COVERED, as they do everywhere; the zone holds by a share of its own.
+      { ...mergeRule(cardShare), held: zoneHolds(heldShare) },
       undefined,
       zoneNear,
     ),
-  // Stacking off: a heap's handle would take the whole deck the moment a finger touched it, and this
-  // page is about one card going somewhere. Dropping on, so a release away from the zone still falls
-  // — the zone gets first refusal and the fall is what happens when it says no.
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, pull: PULL },
-  argTypes: { ...STACK_KNOBS, pull: PULL_KNOB },
+  // Dropping on, so a release away from the zone still falls — the zone gets first refusal, and the
+  // fall is what happens when it says no.
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, pull: PULL, cardShare: CARD_SHARE, heldShare: HELD_SHARE },
+  argTypes: { ...STACK_KNOBS, pull: PULL_KNOB, cardShare: CARD_KNOB, heldShare: HELD_KNOB },
   parameters: { gkDocStory: "magnetism.scene" },
 };
