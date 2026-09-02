@@ -385,40 +385,47 @@ export const DIE_SCATTER = 2.6;
 export const DIE_FAN = 34;
 
 /**
- * ABOVE THIS SPEED A RELEASE IS A THROW, units/s AT ZOOM 1 — whatever the piece's ordinary way of
- * leaving is.
+ * ABOVE THIS SPEED A RELEASE IS A THROW — GLASS PIXELS PER SECOND, because that is what a finger
+ * moves in. Whatever the piece's ordinary way of leaving is.
  *
  * `settle` is a putting-down, and a putting-down is a thing a slow hand does. Read as "this piece
  * can never be thrown" it would mean a card flicked across the desk simply appearing where the
  * finger stopped, which is not a card and not a throw. So the way a piece leaves is its DEFAULT,
  * and a hand moving faster than this overrules it.
  *
- * AT ZOOM 1, because the hand is on the GLASS and the desk is behind it — see `swungAt`.
+ * ON THE GLASS AND NOWHERE ELSE. Said in units of desk, this number means a different gesture on
+ * every view: zoomed out to deal a hand, the same unhurried pass over the same screen crosses two
+ * or three times the desk it crossed before, so a carry became a throw because the camera moved.
+ * A flick is a property of a hand and a screen, and the screen is where it is measured.
  */
-export const THROWN_AT = 1.5;
+export const THROWN_AT = 150;
 
 /**
- * THE HAND'S SWING AS THE PLAYER MADE IT — the carried speed, put back into the terms the desk's
- * own numbers are written in.
+ * THE PART OF THE GESTURE THAT WAS A FLICK, in units of desk — or nothing, for a hand that was only
+ * carrying. THE ONE PLACE the display and the desk meet.
  *
- * A carry is measured in UNITS OF DESK, because that is what the pieces are measured in. But the
- * hand is on the GLASS, and how many units of desk a finger crosses depends entirely on how far out
- * the view is: zoomed out to deal a hand, the same unhurried carry across the same screen covers
- * two or three times the desk it covered before, and every one of those numbers doubles or trebles
- * with it. So a gentle pass over the felt clears the throwing threshold, and clears it hard: the
- * card is flung, the flight is long, and nothing about the gesture was a flick.
+ * `swing` is the finger's own speed on the glass, measured where the finger is (`wireDrag`), in
+ * pixels per second. Not a speed read back off the carry's springs and multiplied by the zoom to
+ * undo the division that put it there: a number run from the display onto the canvas and back out
+ * through the camera is three conversions deep, and every one of them is a place to be wrong by a
+ * factor nobody can see. The finger's speed on the screen is a thing that is simply KNOWN.
  *
- * The player did not change what they did — the camera did. So the swing is put back into what it
- * would have been at zoom 1, and every number downstream (the threshold, the reach, the aim) is
- * then reading the gesture rather than reading the zoom.
+ * WHAT IS TAKEN IS THE EXCESS (`threwAt`) and never the whole of it. Carrying is moving: a card let
+ * go of on the way across the desk was not thrown anywhere, and taking the whole speed made every
+ * unhurried pass end in a flight. What is left after the threshold is what the hand actually spent
+ * on throwing.
  *
- * A THROW THEREFORE CROSSES THE SAME DESK AT ANY ZOOM. The desk is the world, and a flick sends a
- * card as far across it whether you are standing over the board or looking at all of it — which is
- * also why this is one multiplication and not a correction applied in several places.
+ * ...AND IT IS DIVIDED BY THE SCALE EXACTLY ONCE, here, because the flight is a thing that happens
+ * on the desk and the desk is measured in units. Everything above this line is the gesture and
+ * everything below it is the world.
  */
-export function swungAt(hand: Vec | undefined, zoom: number): Vec | undefined {
-  if (!hand || zoom <= 0) return hand;
-  return { x: hand.x * zoom, y: hand.y * zoom };
+export function flickOf(swing: Vec | undefined, perUnit: number): Vec | undefined {
+  if (!swing || perUnit <= 0) return undefined;
+  const speed = Math.hypot(swing.x, swing.y);
+  const flick = threwAt(speed);
+  if (flick <= 0) return undefined;
+  const at = flick / speed / perUnit;
+  return { x: swing.x * at, y: swing.y * at };
 }
 
 /**
@@ -444,7 +451,7 @@ export function threwAt(speed: number): number {
  * moving fast enough to overrule it.
  */
 export function thrown(piece: Node, speed: number, ways: Parameters<typeof dropOf>[1] = {}): boolean {
-  return dropOf(piece, ways).fall !== "settle" || speed >= THROWN_AT;
+  return dropOf(piece, ways).fall !== "settle" || speed > 0;
 }
 
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
@@ -565,7 +572,7 @@ export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
  * nobody able to say why.
  */
 export function shoves(speed: number, holds = true): boolean {
-  return !holds || speed >= THROWN_AT;
+  return !holds || speed > 0;
 }
 
 /**

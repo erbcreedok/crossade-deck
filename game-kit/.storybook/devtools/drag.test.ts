@@ -15,6 +15,7 @@ import {
   Container,
   Draggable,
   fieldsOf,
+  FLING,
   Inviting,
   NO_COAT,
   freeLayout,
@@ -29,6 +30,7 @@ import {
   type Painter,
   type Quad,
   type TransformableFields,
+  type Vec,
 } from "../../src/index.js";
 import { currentSettings } from "./catalogSettings.js";
 import { HUD_UNIT_CHOICES } from "./hudUnitChoices.js";
@@ -49,8 +51,12 @@ const scene: typeof buildScene = (root, options = {}, settings = currentSettings
   buildScene(root, options, settings, stubPainter);
 
 /** jsdom has no `PointerEvent`; a mouse event of that type carries everything the wiring reads. */
-const finger = (type: string, x: number, y: number): MouseEvent =>
-  Object.assign(new MouseEvent(type, { clientX: x, clientY: y }), { pointerId: 1 });
+const finger = (type: string, x: number, y: number, ms?: number): MouseEvent => {
+  const e = Object.assign(new MouseEvent(type, { clientX: x, clientY: y }), { pointerId: 1 });
+  // `timeStamp` is read-only on a real Event, and the wiring reads it to know how fast a hand moved.
+  if (ms !== undefined) Object.defineProperty(e, "timeStamp", { value: ms, configurable: true });
+  return e;
+};
 
 const seatOf = (n: Node): { x: number; y: number } => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
 
@@ -282,6 +288,41 @@ describe("the drag wiring's order", () => {
     s.host.view.dispatchEvent(finger("pointermove", 120, 0));
     s.host.view.dispatchEvent(finger("pointerup", 120, 0));
     expect(worn(), "the hand is off: a lit zone over an empty felt is a lie").toBe("");
+    s.dispose();
+  });
+
+  it("drag.the-hand-is-measured-where-the-hand-is — pixels a second, and a pause is a stop", () => {
+    // A finger's speed on a screen is a thing that is simply KNOWN: two points and the time between
+    // them. What the desk used to get instead was three conversions deep — the finger's pixels
+    // divided by the scale to become units, fed to a chase spring, the SPRING'S velocity read
+    // instead of the hand's, and multiplied back out through the camera. Every one of those is a
+    // place to be wrong by a factor nobody can see on the glass.
+    const root = desk();
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    const swings: (Vec | undefined)[] = [];
+    wireDrag(s, { onRelease: (v) => { swings.push(v); return true; } });
+
+    // A HAND THAT KEEPS GOING: 75 glass pixels every 50ms is 1500 a second, and the number handed
+    // over says so — in PIXELS, not in units of somebody's desk.
+    //
+    // Within a hair rather than exactly: half of each new sample is taken (`FLING.smoothing`), so a
+    // steady hand is approached and never quite reached — which is the point of it. One jittery
+    // frame must not become the throw.
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 0));
+    for (let i = 1; i <= 8; i++) s.host.view.dispatchEvent(finger("pointermove", i * 75, 0, i * 50));
+    s.host.view.dispatchEvent(finger("pointerup", 600, 0, 400));
+    expect(swings[0]!.x, "the finger's own speed, in pixels a second").toBeGreaterThan(1500 * 0.99);
+    expect(swings[0]!.x).toBeLessThanOrEqual(1500);
+
+    // ...AND A HAND THAT STOPPED. Carry a card, pause over the spot, let go: that is a putting-down,
+    // and it must not inherit the speed the hand had on the way there. Past the kit's own gap a
+    // finger is at rest, not moving slowly.
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 1000));
+    for (let i = 1; i <= 8; i++) s.host.view.dispatchEvent(finger("pointermove", i * 75, 0, 1000 + i * 50));
+    s.host.view.dispatchEvent(finger("pointerup", 600, 0, 1400 + FLING.maxGap * 1000 + 20));
+    expect(Math.hypot(swings[1]!.x, swings[1]!.y), "a pause before letting go is a putting-down").toBe(0);
     s.dispose();
   });
 

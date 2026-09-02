@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { add, Bounded, caps, Container, freeLayout, node, rect, registerLayout, Surfaced, type Node } from "../../src/index.js";
-import { alsoInTheWay, bumped, dropOf, kindOf, MAP, shoves, THROWN_AT, thrown, type DropFeel, type Piece } from "./gestureMap.js";
+import { alsoInTheWay, bumped, dropOf, kindOf, MAP, shoves, thrown, type DropFeel, type Piece } from "./gestureMap.js";
 import { collisionMap, roomOn } from "./collisionMap.js";
 
 const BUMP = { roomFor: roomOn(1), bounce: 0.7, scatter: 2.6, holds: true };
@@ -72,20 +72,23 @@ describe("a putting-down does not shove", () => {
     // felt. What tells the two apart is the only thing that differs — whether the hand was going
     // anywhere — and the desk is the only one who knows.
     expect(shoves(0), "let go standing still").toBe(false);
-    expect(shoves(THROWN_AT * 4), "sent somewhere").toBe(true);
+    expect(shoves(4), "sent somewhere").toBe(true);
 
     // ...ON A DESK THAT ASKED FOR THE DISTINCTION. A desk that did not is untouched: everything that
     // reaches anything shoves it, however gently it was let go, which is what `Mechanics/Collision`
     // has always done and must go on doing. Two desks, two answers, and neither is the other's bug.
     expect(shoves(0, false), "the plain desk, unchanged").toBe(true);
-    expect(shoves(THROWN_AT * 4, false)).toBe(true);
+    expect(shoves(4, false)).toBe(true);
 
-    // THE SAME THRESHOLD the shelf already uses for whether a released piece flies at all. A second
-    // number here would be a second definition of the word, and the day they drifted there would be
-    // a release that flies without shoving and nobody able to say why.
+    // ONE DEFINITION OF THE WORD, and neither of these two holds it. What counts as a flick is
+    // decided once, where the hand is, and in the terms the hand moves in (`flickOf`, on the glass);
+    // what arrives here is a throw that has already been decided, so "was there a throw" is "is
+    // there any speed left". A second threshold at this end would be a second definition, and the
+    // day they drifted there would be a release that flies without shoving and nobody able to say
+    // why — which is why the number `THROWN_AT` does not appear below this line at all.
     const desk = collisionMap();
     const card = piecesOf(desk, "card")[0]!;
-    for (const speed of [0, THROWN_AT - 0.01, THROWN_AT, THROWN_AT * 3]) {
+    for (const speed of [0, 0.001, 1, 40]) {
       // A card settles rather than flies, so `thrown` is answering on speed alone — which is the
       // half of it this shares.
       expect(shoves(speed, true), `at ${speed}`).toBe(thrown(card, speed));

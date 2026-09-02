@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apply, Camera, type Vec } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, swungAt, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, flickOf, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -521,36 +521,31 @@ describe("the stacking desk", () => {
     });
   });
 
-  it("map.a-throw-is-the-gesture-and-not-the-zoom — the same flick at any view", () => {
-    // A carry is measured in units of DESK, because that is what the pieces are measured in. The
-    // hand is on the GLASS, and how many units a finger crosses depends entirely on how far out the
-    // view is: zoomed out to deal a hand, the same unhurried pass over the same screen covers two or
-    // three times the desk it covered before. So an ordinary carry cleared the throwing threshold,
-    // and cleared it hard — the card flung, the flight long, and nothing about it a flick.
+  it("map.a-throw-is-the-gesture-and-not-the-zoom — measured on the glass, converted once", () => {
+    // A finger's speed on a screen is a thing that is simply KNOWN: two points and the time between
+    // them. The number the desk used to get was three conversions deep — the finger's pixels divided
+    // by the scale to become units, fed to a chase spring, the SPRING'S velocity read instead of the
+    // hand's, and multiplied back by the zoom to undo the first division. Every one of those is a
+    // place to be wrong by a factor nobody can see, and one of them was: zoomed out to deal a hand,
+    // an unhurried pass over the felt cleared the throwing threshold and cleared it hard.
     //
-    // ONE FINGER MOVEMENT, three views. What the desk is handed must be the same number in all three.
-    const glass = 900; // pixels per second, the speed the player's finger actually has
-    const base = 100; // pixels per unit at zoom 1 — the desk's own etalon
-    const swings = [0.4, 1, 2.5].map((zoom) => {
-      // What the carry reports at that zoom: the finger's pixels, in the units they cover there.
-      const carried = { x: glass / (base * zoom), y: 0 };
-      return swungAt(carried, zoom)!.x;
-    });
-    for (const swing of swings) expect(swing, "one gesture, one number").toBeCloseTo(glass / base, 9);
-
-    // ...AND THE THRESHOLD THEREFORE MEANS THE SAME THING AT EVERY ZOOM. A slow carry is a
-    // putting-down whether the reader is over the board or looking at all of it.
-    const gentle = THROWN_AT * 0.6;
-    for (const zoom of [0.4, 1, 2.5]) {
-      const carried = { x: gentle / zoom, y: 0 };
-      expect(swungAt(carried, zoom)!.x, "a gentle carry is never a throw").toBeLessThan(THROWN_AT);
+    // So the threshold is a GLASS number and the meeting of display and desk is one division.
+    const flick = { x: THROWN_AT * 4, y: 0 };
+    // ONE GESTURE, THREE VIEWS: whether it was a throw cannot depend on the camera at all.
+    for (const perUnit of [40, 100, 250]) {
+      expect(flickOf(flick, perUnit), "a flick is a flick at any zoom").toBeDefined();
+      expect(flickOf({ x: THROWN_AT * 0.6, y: 0 }, perUnit), "and a carry is never one").toBeUndefined();
     }
-    // A real flick still is one, everywhere.
-    for (const zoom of [0.4, 1, 2.5]) {
-      const carried = { x: (THROWN_AT * 3) / zoom, y: 0 };
-      expect(swungAt(carried, zoom)!.x, "and a flick still is").toBeGreaterThan(THROWN_AT);
+    // ...AND WHAT CROSSES INTO THE DESK IS THE EXCESS, divided by the scale exactly once. Carrying is
+    // moving: taking the whole speed made every unhurried pass end in a flight.
+    for (const perUnit of [40, 100, 250]) {
+      expect(flickOf(flick, perUnit)!.x, "the flick's excess, in units").toBeCloseTo((flick.x - THROWN_AT) / perUnit, 9);
     }
-    // Nothing to convert is nothing: a release with no speed is a putting-down and stays one.
-    expect(swungAt(undefined, 0.4)).toBeUndefined();
+    // The heading survives the crossing untouched — a throw goes where it was aimed.
+    const slanted = flickOf({ x: THROWN_AT * 3, y: THROWN_AT * 3 }, 100)!;
+    expect(slanted.x, "square on: the two axes keep their proportion").toBeCloseTo(slanted.y, 9);
+    // Nothing to convert is nothing, and neither is a glass that has no size.
+    expect(flickOf(undefined, 100)).toBeUndefined();
+    expect(flickOf(flick, 0)).toBeUndefined();
   });
 });

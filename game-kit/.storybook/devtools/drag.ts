@@ -26,6 +26,7 @@ import {
   toUnits,
   transformsOf,
   Transformable,
+  FLING,
   wearInvites,
   wearKeen,
   type CarryItem,
@@ -237,6 +238,18 @@ interface Wiring {
   undoInvites: (() => void) | undefined;
   /** The zone currently lit as the one that would TAKE this, and the call that unlights it. */
   keen: { readonly zone: Node; readonly off: () => void } | undefined;
+  /**
+   * THE FINGER'S OWN SPEED, in GLASS PIXELS PER SECOND, kept while a drag is under way.
+   *
+   * Measured here because here is where the finger is. The alternative — reading the carry's chase
+   * springs and converting back out through the camera — is three conversions deep: the finger's
+   * pixels are divided by the scale to become units, fed to a spring, the SPRING'S velocity is read
+   * instead of the hand's, and then multiplied by the zoom to undo the first division. Every one of
+   * those is a place to be wrong by a factor nobody can see on the glass, and one of them was.
+   *
+   * A hand's speed on a screen is a thing that is simply known: two points and the time between them.
+   */
+  swing: { v: Point; at: Point; ms: number } | undefined;
 }
 
 const WIRED = new WeakMap<HTMLElement, Wiring>();
@@ -261,6 +274,37 @@ const lineAngle = (a: Point, b: Point): number => (Math.atan2(b.y - a.y, b.x - a
 /** A node's own angle right now, which is where a released turn may be sent back to. */
 const angleOf = (n: Node): number => fieldsOf<TransformableFields>(n, "Transformable")?.angle ?? 0;
 
+/**
+ * FOLD ONE MORE SAMPLE INTO THE HAND'S SPEED — two points and the time between them, smoothed.
+ *
+ * SMOOTHED, because one jittery frame must not become the throw: a finger reports its position at
+ * whatever rate the device feels like, and a single short interval between two nearly identical
+ * points reads as a violent flick. Half of the newest sample is the kit's own answer to that
+ * (`FLING.smoothing`), settled by hand against a real finger for the camera and true of any finger.
+ *
+ * A LONG GAP IS A HAND AT REST, not a slow one. Past `FLING.maxGap` the finger stopped moving and
+ * started again, so what came before is not part of this motion — which is exactly the case of
+ * carrying a card, pausing over the spot, and letting go: a putting-down, and it must not inherit
+ * the speed the hand had on the way there.
+ */
+function trackSwing(w: Wiring, at: Point, ms: number): void {
+  const was = w.swing;
+  if (!was) return;
+  const dt = (ms - was.ms) / 1000;
+  if (dt <= 0) return;
+  if (dt > FLING.maxGap) {
+    w.swing = { v: { x: 0, y: 0 }, at, ms };
+    return;
+  }
+  const fresh = { x: (at.x - was.at.x) / dt, y: (at.y - was.at.y) / dt };
+  const keep = 1 - FLING.smoothing;
+  w.swing = {
+    v: { x: fresh.x * FLING.smoothing + was.v.x * keep, y: fresh.y * FLING.smoothing + was.v.y * keep },
+    at,
+    ms,
+  };
+}
+
 /** Attach the demo drag to an `animate` scene (idempotent), and hand the scene back. */
 export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const standing = WIRED.get(s.el);
@@ -268,7 +312,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     standing.opts = opts; // the same canvas, new knobs — never a second set of listeners
     return s;
   }
-  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined, keen: undefined };
+  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined, keen: undefined, swing: undefined };
   WIRED.set(s.el, w);
   const view = s.host.view;
 
@@ -348,6 +392,8 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       const t = poses.get(c.id) ?? at;
       return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y }, ...still };
     });
+    // The hand starts at rest: a finger that has only just landed has thrown nothing.
+    w.swing = { v: { x: 0, y: 0 }, at: g, ms: e.timeStamp };
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = {
       items,
@@ -529,6 +575,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       return;
     }
     if (!w.drag || w.drag.pointer !== e.pointerId || !s.motions) return;
+    trackSwing(w, glassOf(view, e), e.timeStamp);
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     const at = { x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y };
     s.motions.dragTo(at);
@@ -579,9 +626,17 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       w.opts.onTap(drag.hit);
       return;
     }
-    // A scene that throws on release takes the nodes here — the finger's speed is still on the
-    // springs, read before anything is released.
-    if (w.opts.onRelease?.(motions.velocity(), drag.items)) return;
+    // A scene that throws on release takes the nodes here, and it is handed THE FINGER'S OWN SPEED
+    // on the glass — the gesture, in the terms the gesture was made in. What the desk does with it
+    // is the desk's business; what it must not have to do is reconstruct it.
+    //
+    // The pointerup is folded in first, so a hand that came to a stop before lifting reads as
+    // stopped: holding a card still for a moment and letting go is a putting-down, and it used to
+    // be a throw at whatever speed the springs still had on them.
+    trackSwing(w, glassOf(view, e), e.timeStamp);
+    const swing = w.swing?.v;
+    w.swing = undefined;
+    if (w.opts.onRelease?.(swing, drag.items)) return;
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     // Nothing in these scenes accepts a drop, so every release is a refused one — see `drop`. The
     // seat is the seat the run was ALLOWED, not the point the finger was at: inside a tray a hand

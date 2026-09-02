@@ -55,8 +55,8 @@ import {
   regrasp,
   MAP,
   ANCHOR_MARK,
+  flickOf,
   flockTo,
-  swungAt,
   deskRoom,
   mapWalls,
   regrip,
@@ -279,21 +279,18 @@ export function grabScene(
     const scale = glassScale();
     return scale > 0 ? px / scale : MAP.w;
   };
-  /** Pixels per unit right now — what one unit of desk is worth on this glass at this zoom. */
-  const glassScale = (): number => {
-    const view = built.camera?.transform();
-    return view ? Math.hypot(view.a, view.b) : built.host.unit();
-  };
   /**
-   * HOW FAR OUT THE VIEW IS, as a factor of the desk's own etalon. `1` is life size.
+   * PIXELS PER UNIT RIGHT NOW — what one unit of desk is worth on this glass at this zoom, and the
+   * one number that turns a gesture into a distance.
    *
    * Read every time it is asked and never captured: the reader zooms between one gesture and the
    * next, and a number taken once at load would be answering about a view that is no longer there.
    */
-  const zoomNow = (): number => {
-    const base = built.host.unit();
-    return base > 0 ? glassScale() / base : 1;
+  const glassScale = (): number => {
+    const view = built.camera?.transform();
+    return view ? Math.hypot(view.a, view.b) : built.host.unit();
   };
+
   /**
    * THE ZONE THIS CARRY WOULD BE HANDED TO IF THE HAND LET GO NOW — asked exactly as the release
    * asks it, down to the refusal to hand a run back to the place it was lifted out of.
@@ -467,12 +464,11 @@ export function grabScene(
             // was carried over and set down — and a card flicked at somebody's area is aimed just as
             // plainly. So the zone is asked about where the throw will come to REST (`restsAt`),
             // which is arithmetic and not a guess.
-            // THE SWING AS THE PLAYER MADE IT, not as the zoom reports it. Dealing a hand from a
-            // zoomed-out view, the same unhurried carry crosses two or three times the desk it
-            // crossed before — so an ordinary pass over the felt cleared the throwing threshold and
-            // cleared it hard. See `swungAt`: one multiplication, and everything below reads the
-            // gesture instead of the camera.
-            const swing = swungAt(letGo === "throw" ? v : undefined, zoomNow());
+            // THE FINGER'S OWN SPEED, measured where the finger is and turned into a throw exactly
+            // once. `v` arrives in GLASS PIXELS PER SECOND — not a number read off the carry's
+            // springs and multiplied back by the zoom to undo the division that put it there. Above
+            // this line everything is the gesture; below it, everything is the desk (`flickOf`).
+            const swing = letGo === "throw" ? flickOf(v, glassScale()) : undefined;
             aimed = aimOf(built, items, swing, ways, bump);
             // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
             // page that had both would otherwise always fall: this runs BEFORE the drop is decided,
