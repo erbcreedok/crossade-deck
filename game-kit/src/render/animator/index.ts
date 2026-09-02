@@ -612,6 +612,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       for (let j = i + 1; j < solid.length; j++) {
         const [, a] = solid[i]!;
         const [, b] = solid[j]!;
+        // DIFFERENT WORLDS NEVER MEET. A card is solid to a card and thin air to a die, which is
+        // one desk and two answers — see `SlideOptions.solid`.
+        if (a.solid !== b.solid) continue;
         const hit = separate(a.body, b.body, a.girth + b.girth, Math.min(a.bodyBounce, b.bodyBounce));
         if (!hit) continue;
         a.body = hit.a;
@@ -634,10 +637,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     // few milliseconds behind the one before it — so a body can be at rest before the last of its
     // own run has even left the hand. Counting only what is already moving, the first one down is
     // put away and forgotten exactly in time for the last one to land on it.
-    const rolling = [...flights].some(([, f]) => f.girth > 0 && (!f.started || !f.over(f.body)));
+    // ...AND PER WORLD. A card has no reason to be held up by a die still rolling: nothing in that
+    // world can reach it, so waiting for it would only delay the moment its seat is written.
+    const rolling = new Set<string>();
+    for (const [, f] of flights) if (f.girth > 0 && (!f.started || !f.over(f.body))) rolling.add(f.solid);
     for (const [id, f] of [...flights]) {
       if (!f.started || !f.over(f.body)) continue;
-      if (f.girth > 0 && rolling) continue;
+      if (f.girth > 0 && rolling.has(f.solid)) continue;
       land(id, f);
     }
     // Advance the choreographies: commit once, at the phase; drop each when it lands. Commits first

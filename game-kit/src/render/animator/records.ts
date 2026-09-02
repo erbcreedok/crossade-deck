@@ -158,6 +158,8 @@ export interface Flight {
   readonly girth: number;
   /** What it gives back off another body, 0..1. */
   readonly bodyBounce: number;
+  /** The world it is solid in — see `SlideOptions.solid`. Bodies of different worlds never meet. */
+  readonly solid: string;
   readonly done: ((rest: { readonly at: Vec; readonly angle: number }) => void) | undefined;
 }
 

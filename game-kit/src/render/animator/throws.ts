@@ -55,6 +55,7 @@ export function throws(rt: Runtime): Throws {
         // more — two pieces leaving a scene do not have to queue.
         girth: 0,
         bodyBounce: 0,
+        solid: "",
       });
     },
     slide(id, opts) {
@@ -95,6 +96,7 @@ export function throws(rt: Runtime): Throws {
         onDesk: true,
         girth: opts.girth ?? 0,
         bodyBounce: opts.bodyBounce ?? cfg.bounce,
+        solid: opts.solid ?? "",
       });
     },
   };

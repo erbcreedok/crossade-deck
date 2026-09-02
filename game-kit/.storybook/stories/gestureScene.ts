@@ -29,6 +29,7 @@ import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
 import {
+  alsoInTheWay,
   bumped,
   DIE_FAN,
   DIE_HOP,
@@ -349,7 +350,7 @@ export function letFall(
   // and nothing in the physics will: same hand, same instant, same speed. So the pieces that say
   // they scatter are fanned about the throw — each with its own heading and its own push along it,
   // counted from the middle of the run outwards so the whole handful still goes where it was sent.
-  const feelOf = (n: Node): DropFeel => bumped(dropOf(n, ways), bump);
+  const feelOf = (n: Node): DropFeel => bumped(dropOf(n, ways), n, bump);
   const scattering = falling.filter((n) => feelOf(n).scatter > 0);
   const aim = hand && (hand.x !== 0 || hand.y !== 0) ? polar(hand).angle : DOWN_THE_DESK;
   const dropped = fallOrder(falling).map(({ piece, delayMs }) => ({
@@ -361,7 +362,31 @@ export function letFall(
     walls: mapWalls(piece),
     delayMs,
   }));
+  // WHAT IS ALREADY LYING THERE IS ALSO IN THE WAY — for the length of this throw it becomes a body
+  // too: at rest, at its own seat, going nowhere. It draws exactly where it already is and writes
+  // back exactly where it ends up, and being a body it gets shoved when something runs into it,
+  // which is what a chip does when a die lands on it. See `alsoInTheWay`.
+  const standing = alsoInTheWay(
+    root,
+    new Set(dropped.map((d) => d.id)),
+    new Set(dropped.filter((d) => d.feel.girth > 0).map((d) => d.feel.solid)),
+    feelOf,
+  );
   s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
+  for (const still of standing) {
+    const feel = feelOf(still);
+    m.slide(still.id, {
+      speed: 0,
+      angle: 0,
+      girth: feel.girth,
+      solid: feel.solid,
+      bodyBounce: feel.bodyBounce ?? feel.bounce,
+      ...(feel.friction === undefined ? {} : { friction: feel.friction }),
+      walls: mapWalls(still),
+      wallKick: 0,
+      onDone: (at) => landed(s, still.id, at),
+    });
+  }
   // THE GESTURE IS OVER EVEN WHEN NOTHING FLIES, and it has to say so. The announcement rides the
   // LANDING, which is right for a piece that falls and nothing at all for a piece that only settles:
   // a heap of cards files no flight, so nothing ever lands, so nothing is ever announced — and a
@@ -399,6 +424,7 @@ export function letFall(
       // as they are travelling, so a pair of dice can never come to rest one over the other.
       ...(feel.girth > 0 ? { girth: feel.girth } : {}),
       ...(feel.bodyBounce === undefined ? {} : { bodyBounce: feel.bodyBounce }),
+      ...(feel.solid ? { solid: feel.solid } : {}),
     };
     const piece = byId(s.host.root, id);
     if (piece && feel.fall === "roll") {

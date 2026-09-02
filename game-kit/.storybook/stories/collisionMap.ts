@@ -32,7 +32,7 @@ import {
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
-import { installMapArt, MAP, warmingNodes } from "./gestureMap.js";
+import { installMapArt, kindOf, MAP, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
 import { installMergeArt, mergeChip } from "./mergeMap.js";
 
 /** A piece put down on this desk stays where it was put — nothing here accepts a drop. */
@@ -40,6 +40,39 @@ const PUT_DOWN = Draggable({ onReject: "stay" });
 
 /** What is on this desk: a handful of dice to throw, and pieces that are meant to stack, for contrast. */
 export const CROWD = { dice: 6, chips: 5, cards: 2 };
+
+/**
+ * THE TWO WORLDS ON THIS DESK, and which piece is solid in which.
+ *
+ * Everything that is a THING knocks about with everything else that is: a die off a die, a die off a
+ * chip, a chip off a chip. That is one world, and it is the bigger one.
+ *
+ * Cards are the other. A card is solid to a card — deal a hand and no card buries another — and thin
+ * air to everything else, because a card is a thing you put things ON. A card that bounced off a die
+ * could never be dealt onto one, and a chip that could not be set down on a card would make half the
+ * games anybody plays impossible.
+ *
+ * The names are compared and never read: what matters is that the two are different words.
+ */
+const HARD = "hard";
+const PAPER = "paper";
+
+/**
+ * WHAT TAKES UP ROOM HERE — read off what the piece IS, never off its name (`guard.id-is-opaque`).
+ *
+ * `room` is the panel's factor, not a length: three sizes of piece on one desk, and a single number
+ * could only ever be right for one of them (`roomBy`).
+ */
+export function roomOn(room: number): Bump["roomFor"] {
+  return (piece) => {
+    const kind = kindOf(piece);
+    if (kind === "card") return { girth: roomBy(piece, room), solid: PAPER };
+    if (kind === "die" || kind === "chip") return { girth: roomBy(piece, room), solid: HARD };
+    // A handle is not a thing on the desk and never flies; anything else here takes no room, which
+    // is what every piece on every other desk says.
+    return undefined;
+  };
+}
 
 /** The pile the dice belong to — the merging desk's own word for it, and the same rule reads both. */
 export const DIE_HEAP = "die";

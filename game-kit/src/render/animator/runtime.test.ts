@@ -1560,6 +1560,22 @@ describe("the shiver is big enough to see", () => {
     expect(down.size, "both came to rest").toBe(2);
     expect(down.get("d")!.x - down.get("c")!.x, "the early one was still there when the late one arrived").toBeGreaterThanOrEqual(0.99);
 
+    // ...AND TWO WORLDS NEVER MEET. "Solid" is not one question: dice and chips knock each other
+    // about, and a card is a thing you put things ON. A card that bounced off a die could never be
+    // dealt onto one, so the two are solid in different worlds and pass straight through each other
+    // — while each is still perfectly solid to its own kind.
+    const worlds = bench();
+    const paper = node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0.1, y: 0 } }));
+    add(worlds.desk, paper);
+    worlds.host.setRoot(worlds.desk);
+    const c5 = fakeClock();
+    const m5 = attachMotion(worlds.host, worlds.painter, { settleMs: 100, settleEase: "linear", clock: c5.clock })!;
+    const ends = new Map<string, { x: number; y: number }>();
+    m5.slide("c", { speed: 2, angle: 0, friction: 8, girth: 0.5, solid: "hard", onDone: (at) => ends.set("c", at.at) });
+    m5.slide("d", { speed: 2, angle: 0, friction: 8, girth: 0.5, solid: "paper", onDone: (at) => ends.set("d", at.at) });
+    for (let t = 16; t < 3000 && !c5.idle(); t += 16) c5.tick(t);
+    expect(Math.abs(ends.get("c")!.x - ends.get("d")!.x), "the die and the card went straight through each other").toBeCloseTo(0.1, 2);
+
     // And a body that never said how much room it takes is left alone entirely — a card lands on a
     // card, and a desk where nothing could cover anything would not be a desk.
     const flat = bench();

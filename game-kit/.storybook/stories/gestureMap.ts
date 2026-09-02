@@ -301,6 +301,8 @@ export interface DropFeel {
   readonly girth: number;
   /** What it gives back off ANOTHER piece, 0..1. Absent, the desk's own `bounce`. */
   readonly bodyBounce?: number;
+  /** The world it is solid in — see `SlideOptions.solid`. Pieces of different worlds never meet. */
+  readonly solid: string;
   /**
    * HOW FAR APART A HANDFUL OF THEM GOES, units/s, and in a fan.
    *
@@ -323,18 +325,80 @@ export interface DropFeel {
  * reader turning a knob, because a card landing on a card is what a desk is for.
  */
 export interface Bump {
-  /** How much room a colliding piece takes, root units. `0` switches collision off. */
-  readonly girth: number;
-  /** What it gives back off ANOTHER piece, 0..1. */
+  /**
+   * HOW MUCH ROOM THIS PIECE TAKES AND WHICH WORLD IT TAKES IT IN — `undefined` for one that takes
+   * none at all, which is what every piece on every other desk says.
+   *
+   * Asked per PIECE, and it has to be: a desk holds a card, a chip and a die, three sizes, and one
+   * number could only ever be right for one of them — the same reason the border is asked per piece
+   * (`mapWalls`). And the world is the other half of the answer, because "solid" is not one
+   * question: dice and chips knock each other about, cards LIE on what is under them, and a card
+   * that bounced off a die could never be dealt onto one.
+   */
+  readonly roomFor: (piece: Node) => { readonly girth: number; readonly solid: string } | undefined;
+  /** What a piece gives back off ANOTHER piece, 0..1. */
   readonly bounce: number;
   /** How hard a handful pushes itself apart, units/s. */
   readonly scatter: number;
 }
 
-/** The desk's own numbers, patched by whatever the panel had an opinion about. */
-export function bumped(feel: DropFeel, bump?: Bump): DropFeel {
-  if (!bump || feel.girth <= 0) return feel;
-  return { ...feel, girth: bump.girth, bodyBounce: bump.bounce, scatter: bump.scatter };
+/**
+ * The desk's own numbers, replaced by the panel's wherever the panel has an opinion.
+ *
+ * REPLACED, not patched: a page about collision may hand room to a piece the desk gives none to, and
+ * take it away from one the desk does. Absent, nothing here happens at all and every desk on the
+ * shelf keeps exactly the feel it had.
+ */
+export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
+  if (!bump) return feel;
+  const room = bump.roomFor(piece);
+  if (!room) return { ...feel, girth: 0, scatter: 0 };
+  return { ...feel, girth: room.girth, solid: room.solid, bodyBounce: bump.bounce, scatter: bump.scatter };
+}
+
+/**
+ * WHAT ELSE ON THE DESK IS IN THE WAY OF THIS THROW.
+ *
+ * Collision is between BODIES, and a piece that is not moving is not one: it landed, its seat was
+ * written, the physics forgot it. So a die thrown across a desk sails over every chip already on the
+ * felt and comes to rest on one — the same complaint the mechanic exists to answer, wearing "but it
+ * was not moving" as an excuse. For the length of the throw these become bodies too.
+ *
+ * Only the ones that could actually be hit: something already in the run has its own body, and
+ * something solid in a world nobody is throwing INTO cannot be reached by anything in this throw.
+ * A piece that takes no room at all is never in anybody's way, which is every piece on every desk
+ * but this one.
+ */
+export function alsoInTheWay(
+  root: Node,
+  moving: ReadonlySet<string>,
+  worlds: ReadonlySet<string>,
+  feel: (piece: Node) => DropFeel,
+): Node[] {
+  if (worlds.size === 0) return [];
+  return root.children.filter((n) => {
+    if (moving.has(n.id)) return false;
+    const own = feel(n);
+    return own.girth > 0 && worlds.has(own.solid);
+  });
+}
+
+/**
+ * HOW MUCH ROOM A PIECE TAKES BY ITS OWN SIZE — half its narrowest side, times whatever the panel says.
+ *
+ * A factor rather than a length, because the pieces are three sizes: at `1` each takes exactly as
+ * much room as it is wide, so two of a kind come to rest edge to edge, and that reads right for all
+ * three without anybody choosing a number per piece.
+ *
+ * The NARROWEST side, and the cost is worth naming: the room is a disc (`separate` says why), so a
+ * card measured across its width will let two cards overlap when they are stacked end to end. For a
+ * card the alternative is worse — measured by its height, two cards side by side would refuse to
+ * come within a card's length of each other, which is not a desk anybody has played on.
+ */
+export function roomBy(piece: Node, factor: number): number {
+  const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
+  const size = shape ? extentOf(shape) : { w: 0, h: 0 };
+  return (Math.min(size.w, size.h) / 2) * factor;
 }
 
 /**
@@ -357,7 +421,7 @@ export function dropOf(
     // Half the die's own side: a disc through the flat of its faces, which is where two dice on a
     // felt actually stop each other. See `SlideOptions.girth` on why round is the right shape here.
     const side = extentOf(fieldsOf<BoundedFields>(piece, "Bounded")?.bounds ?? rect(0, 0)).w;
-    return { fall: ways.die ?? "roll", throwGain: 1, gravity: 22, bounce: 0.7, wallBounce: 0.7, girth: side / 2, scatter: DIE_SCATTER };
+    return { fall: ways.die ?? "roll", throwGain: 1, gravity: 22, bounce: 0.7, wallBounce: 0.7, girth: side / 2, solid: "", scatter: DIE_SCATTER };
   }
   // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
   // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
@@ -367,7 +431,7 @@ export function dropOf(
   // ...and THROWN it planes: a whole face on the felt, so it goes where it was sent and slides a
   // long way doing it. Nothing about `settle` says a card cannot be thrown — see `thrown`.
   if (caps(piece).has("Flippable")) {
-    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 11, bounce: 0, wallBounce: 0.45, girth: 0, scatter: 0 };
+    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 11, bounce: 0, wallBounce: 0.45, girth: 0, solid: "", scatter: 0 };
   }
   // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
   // then it is simply there.
@@ -379,9 +443,9 @@ export function dropOf(
   // A chip is small and heavy for its size: it stops being pushed the moment it is let go, so it
   // takes barely half of what the hand had and the felt eats that quickly.
   if (kindOf(piece) === "chip") {
-    return { fall: ways.chip ?? "fall", throwGain: 0.45, friction: 9, gravity: 20, bounce: 0.35, wallBounce: 0.5, girth: 0, scatter: 0 };
+    return { fall: ways.chip ?? "fall", throwGain: 0.45, friction: 9, gravity: 20, bounce: 0.35, wallBounce: 0.5, girth: 0, solid: "", scatter: 0 };
   }
-  return { fall: "fall", throwGain: 0.7, gravity: 26, bounce: 0.001, wallBounce: 0.001, girth: 0, scatter: 0 };
+  return { fall: "fall", throwGain: 0.7, gravity: 26, bounce: 0.001, wallBounce: 0.001, girth: 0, solid: "", scatter: 0 };
 }
 
 /**

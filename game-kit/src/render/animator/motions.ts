@@ -177,6 +177,21 @@ export type SlideOptions = {
   /** Restitution against ANOTHER BODY, 0..1 — the desk's own `bounce` absent. */
   readonly bodyBounce?: number | undefined;
   /**
+   * WHICH WORLD IT IS SOLID IN — bodies solid in the same world cannot pass through each other, and
+   * bodies in different worlds never meet at all.
+   *
+   * Because "solid" is not one question. On a desk with dice, chips and cards on it, the dice and
+   * the chips are things that knock each other about, and the cards are things that LIE on what is
+   * under them: a card that bounced off a die would be a card that could never be dealt onto one.
+   * A single flag can only say "everything collides" or "nothing does", and neither is a desk.
+   *
+   * The name is a partition and nothing more — it is never read, only compared, so a game may call
+   * its worlds whatever its own rules call them. The default is the unnamed world, which every body
+   * shares: on a desk where only one kind of piece takes up room the distinction never has to be
+   * made, and the gate is the girth, not the name.
+   */
+  readonly solid?: string | undefined;
+  /**
    * What pulls it back DOWN, units/s². Patchable per throw for the same reason a `launch`'s is: how
    * heavy a thing falls is what tells one thing from another, and a desk holding a card, a die and a
    * carved piece is a desk where one number for all three is a desk of identical objects.
