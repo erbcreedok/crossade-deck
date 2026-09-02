@@ -184,6 +184,10 @@ interface Screen {
   readonly ink: string;
   readonly dot: HTMLElement;
   scene?: Scene;
+  /** Re-read the handles this screen did not draw — see `regrasp`. */
+  grasp?: () => void;
+  /** What this screen is currently mirroring for somebody else — started ONCE, then only steered. */
+  mirroring?: readonly string[] | undefined;
 }
 
 /**
@@ -201,7 +205,8 @@ function follow(screen: Screen, ids: readonly string[], at: Vec | undefined, don
   const s = screen.scene;
   if (!s) return;
   if (done || !at) {
-    for (const id of ids) s.motions?.release(id);
+    for (const id of screen.mirroring ?? ids) s.motions?.release(id);
+    screen.mirroring = undefined;
     screen.dot.style.display = "none";
     return;
   }
@@ -211,7 +216,13 @@ function follow(screen: Screen, ids: readonly string[], at: Vec | undefined, don
     screen.dot.style.left = `${view.a * at.x + view.c * at.y + view.e}px`;
     screen.dot.style.top = `${view.b * at.x + view.d * at.y + view.f}px`;
   }
-  if (!s.motions?.busy(ids[0] ?? "")) {
+  // STARTED ONCE, THEN ONLY STEERED. A carry begun again on every pointer-move is a carry that
+  // never gets past its own first frame: the springs are re-seeded at the anchor each time, so the
+  // run stops trailing, stops leaning, and — with a heap of thirty-six under one handle — spends
+  // every frame building thirty-six records to throw away. That is what made carrying the deck hang.
+  if (screen.mirroring?.length !== ids.length || screen.mirroring.some((id, i) => id !== ids[i])) {
+    for (const id of screen.mirroring ?? []) s.motions?.release(id);
+    screen.mirroring = [...ids];
     s.motions?.grab(ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), { anchor: at, lift });
   }
   s.motions?.dragTo(at);
@@ -256,12 +267,16 @@ export const Live: StoryObj<MagnetArgs> = {
       const others = (): Screen[] => screens.filter((one) => one !== mine);
       pane.appendChild(
         magnetScene(a, () => desk, liveTune(a.pull, zoneSpread(a)), {
-          ready: (s) => {
+          ready: (s, grasp) => {
             mine.scene = s;
+            mine.grasp = grasp;
           },
           // EVERY OTHER SCREEN, told. A host is only ever told by being told.
+          // EVERY OTHER SCREEN, told — and told to re-READ the handles rather than redraw them.
+          // Two screens both redrawing the tabs destroy each other's: the map each kept then points
+          // at ids no longer in the tree, and a handle sails off across the desk carrying nothing.
           changed: () => {
-            for (const one of others()) one.scene?.setRoot(desk);
+            for (const one of others()) one.grasp?.();
           },
           hand: (ids, at, done) => {
             for (const one of others()) follow(one, ids, at, done, held);

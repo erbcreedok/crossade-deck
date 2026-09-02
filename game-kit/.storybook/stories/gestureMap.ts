@@ -688,7 +688,19 @@ export interface HeapRule {
    * resting pose with the style composed onto it, so a face-down card's mirror is in there and reads
    * as a half circle. The desk that decided the fan is the one that knows what the angle was.
    */
-  readonly fan?: (group: readonly Node[], gripW: number) => readonly { readonly at: Vec; readonly deg: number }[];
+  readonly fan?: (
+    group: readonly Node[],
+    gripW: number,
+    /**
+     * HOW MUCH ROOM THE HAND IS ALLOWED, in root units — what the reader can actually SEE.
+     *
+     * Not the desk. A desk is as big as the game wants and a screen is as big as it is, and a hand
+     * measured against the first runs off the second: the outer cards sit past the glass, where
+     * nobody can read them and nobody can reach them. What a spread is bounded by is the room it is
+     * being held IN, and that room is the viewport.
+     */
+    room: number,
+  ) => readonly { readonly at: Vec; readonly deg: number }[];
   /**
    * WHAT THE DESK DOES TO WHAT HAS JUST BEEN PUT DOWN, once the tree says where everything is.
    *
@@ -878,6 +890,41 @@ export function regrip(
     const tab = gripFor(root, group, i, spec);
     add(root, tab);
     held.set(tab.id, group);
+  });
+  return held;
+}
+
+/**
+ * THE HANDLES ALREADY ON THE DESK, paired with the heaps they stand for — for a screen that did not
+ * draw them.
+ *
+ * Two screens over one tree is two screens over one set of tabs, and only one of them can have put
+ * them there: `regrip` throws every handle away and makes it afresh, so a second screen calling it
+ * destroys the very tab the first screen's finger is about to land on. The map it kept then points
+ * at ids that are no longer in the tree, `runOf` finds nothing under the tab, and the handle sails
+ * off across the desk carrying nothing at all. Which is exactly what it did.
+ *
+ * So a screen that did not draw the tabs does not redraw them: it reads the ones that are there and
+ * pairs them with the heaps, in the order `regrip` makes both — places first, then islands. The
+ * order is the correspondence, and it is the same order on every screen because it is the same tree.
+ */
+export function regrasp(
+  root: Node,
+  aloft: (id: string) => boolean = () => false,
+  rule: HeapRule = TOUCHING,
+): Map<string, readonly Node[]> {
+  const held = new Map<string, readonly Node[]>();
+  const tabs = root.children.filter(isGrip);
+  const claimed = new Set<string>();
+  const runs: (readonly Node[])[] = [];
+  for (const { pieces } of rule.held?.(root, aloft) ?? []) {
+    for (const piece of pieces) claimed.add(piece.id);
+    if (pieces.length > 0) runs.push(pieces);
+  }
+  runs.push(...heapsOf(root, (id) => aloft(id) || claimed.has(id), rule));
+  runs.forEach((run, i) => {
+    const tab = tabs[i];
+    if (tab) held.set(tab.id, run);
   });
   return held;
 }

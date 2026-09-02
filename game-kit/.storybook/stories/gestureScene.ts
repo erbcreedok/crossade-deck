@@ -48,6 +48,7 @@ import {
   GRIP_HOLD,
   isGrip,
   isPlaceGrip,
+  regrasp,
   MAP,
   mapWalls,
   regrip,
@@ -186,6 +187,24 @@ export function grabScene(
   });
   // How high the hand is actually holding it, once the switch and the page have both had their say.
   const held = lift ?? (physics ? DEFAULT_TUNING.lift : 1);
+  /** What is in the air or in a hand — never in a heap, on any screen. */
+  const airborne = (): ((id: string) => boolean) => {
+    const carried = inHand ? heaps.get(inHand) : undefined;
+    return (id: string): boolean =>
+      (built.motions?.busy(id) ?? false) || (carried?.some((n) => n.id === id) ?? false);
+  };
+
+  /**
+   * READ THE HANDLES SOMEBODY ELSE DREW. A screen that did not draw them must not redraw them —
+   * `regrip` throws every tab away and makes it afresh, so a second screen doing that destroys the
+   * very tab the first screen's finger is about to land on.
+   */
+  const grasp = (): void => {
+    if (!stacking) return;
+    heaps = regrasp(built.host.root, airborne(), rule);
+    built.host.setRoot(built.host.root);
+  };
+
   /** Redraw the handles for whatever is touching now, and show them. */
   const settle = (): void => {
     if (!stacking) return;
@@ -208,8 +227,21 @@ export function grabScene(
   // ...AND THE PANEL'S NUMBERS ARE RE-APPLIED TO THE DESK THAT IS ALREADY STANDING. The desk is not
   // rebuilt on an argument change, so anything a control writes INTO it — a zone's reach, a named
   // arrangement — has to be written again here, or the knob would only take effect on a page reload.
+  /**
+   * HOW WIDE THE DESK IS THROUGH THIS GLASS, in root units — the room a hand held up has.
+   *
+   * Read off the view every time it is asked, never captured: a reader who zooms out has more room
+   * and one who zooms in has less, and a hand measured once at load would be answering about a
+   * screen that is no longer there.
+   */
+  const seenWide = (): number => {
+    const view = built.camera?.transform();
+    const px = built.host.viewport().width;
+    const scale = view ? Math.hypot(view.a, view.b) : built.host.unit();
+    return scale > 0 ? px / scale : MAP.w;
+  };
   rule?.tune?.(built.host.root);
-  mirror?.ready(built);
+  mirror?.ready(built, grasp);
   settle();
   return wireDrag(built, {
     view: () => built.camera!.transform(),
@@ -238,7 +270,7 @@ export function grabScene(
             // as it was: the fan has to be the card's OWN pose by then, or putting it down would
             // straighten it. Which is also why the turn is data the desk hands over and never a
             // number read back off a carried pose — that pose has the card's mirror composed into it.
-            const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w) : undefined;
+            const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w, seenWide()) : undefined;
             posed?.forEach((seat, i) => {
               const piece = run[i];
               if (!piece) return;
@@ -254,7 +286,7 @@ export function grabScene(
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) => {
             if (!isGrip(hit)) return undefined;
             const pieces = run.slice(1);
-            const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w) : undefined;
+            const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w, seenWide()) : undefined;
             return [{ x: 0, y: 0 }, ...(posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w))];
           },
           feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
@@ -316,6 +348,17 @@ export function grabScene(
     ...(letGo
       ? {
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) => {
+            // THE HAND HAS LET GO, AND THE OTHER SCREENS ARE TOLD SO HERE.
+            //
+            // The wiring reports a finished carry from inside its own drop, and a release the scene
+            // TAKES never reaches that line — a throw, or a zone taking a hand, returns `true` and
+            // the drop is skipped entirely. Left to the wiring, the far screen goes on holding a
+            // card that was thrown a minute ago: lifted, leaning, following a finger that let go.
+            //
+            // Said first, before anything is decided, because it is true either way: whatever
+            // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
+            // change that every screen is told about (`changed`).
+            mirror?.hand(items.map((it) => it.id), undefined, true);
             // A THROW IS AIMED TOO. Asked where the piece was LET GO of, a magnet catches only what
             // was carried over and set down — and a card flicked at somebody's area is aimed just as
             // plainly. So the zone is asked about where the throw will come to REST (`restsAt`),
@@ -475,7 +518,7 @@ function aimOf(
  */
 export interface Mirror {
   /** This screen, handed over once it exists, so the caller can wire the other direction. */
-  readonly ready: (s: Scene) => void;
+  readonly ready: (s: Scene, grasp: () => void) => void;
   /** This screen changed the tree everybody is reading. */
   readonly changed: () => void;
   /** This screen's hand: what it holds, where it is, and whether it has let go. */

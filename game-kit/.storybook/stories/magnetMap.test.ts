@@ -152,6 +152,22 @@ describe("how a place poses what it lifts", () => {
     expect(spread[0]!.at.y).toBeGreaterThan(spread[2]!.at.y);
   });
 
+  it("magnet.a-hand-is-bounded-by-the-GLASS — not by how big the desk happens to be", () => {
+    // A desk is as big as the game wants and a screen is as big as it is. Measured against the
+    // first, the outer cards of a big hand sit past the glass — unreadable and unreachable, which
+    // is the opposite of what a hand is for.
+    const desk = magnetMap();
+    const cards = desk.children.filter((n) => heapOf(n) === "card").slice(0, 8);
+    const wide = fan(cards, GRIP.w, 12);
+    const narrow = fan(cards, GRIP.w, 3);
+    const span = (seats: readonly { at: { x: number } }[]): number =>
+      Math.max(...seats.map((s) => s.at.x)) - Math.min(...seats.map((s) => s.at.x));
+    expect(span(narrow), "a small screen holds a smaller hand").toBeLessThan(span(wide));
+    expect(span(narrow), "and the hand fits inside it").toBeLessThanOrEqual(3);
+    // ...and shrinking the room does not turn a fan into a stack: it is still a spread, in order.
+    for (let i = 1; i < narrow.length; i++) expect(narrow[i]!.at.x).toBeGreaterThan(narrow[i - 1]!.at.x);
+  });
+
   it("magnet.a-hand-of-one-is-not-a-fan — and no tilt asked for is a straight line", () => {
     const desk = magnetMap();
     const cards = desk.children.filter((n) => heapOf(n) === "card");

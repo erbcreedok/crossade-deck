@@ -376,8 +376,11 @@ export function fitStep(count: number, room: number, look: Spread): number {
  * closing does not also drift up or down the finger.
  */
 export function zoneFan(look: Spread, tilt: number) {
-  return (group: readonly Node[], gripW: number): { at: Vec; deg: number }[] => {
-    const step = fitStep(group.length, MAP.w, look);
+  return (group: readonly Node[], gripW: number, room = MAP.w): { at: Vec; deg: number }[] => {
+    // THE ROOM IS WHAT THE READER CAN SEE, and never the desk: a desk is as big as the game wants
+    // and a screen is as big as it is. Measured against the first, the outer cards of a big hand sit
+    // past the glass — unreadable and unreachable, which is the opposite of what a hand is for.
+    const step = fitStep(group.length, room, look);
     const half = (step * Math.max(0, group.length - 1)) / 2;
     // The radius that makes the OUTERMOST card lean by exactly `tilt`. No tilt asked for, no arc:
     // the hand is a straight line of upright cards, which is a legitimate thing to want to see.

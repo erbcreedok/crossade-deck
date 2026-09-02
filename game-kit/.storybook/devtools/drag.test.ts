@@ -172,4 +172,38 @@ describe("the drag wiring's order", () => {
     s2.dispose();
   });
 
+
+  it("drag.a-taken-release-never-reports-the-hand-letting-go — the scene must say it itself", () => {
+    // `onCarry` with `done` comes from inside the wiring's OWN drop, and a release the scene TAKES
+    // never reaches it: `onRelease` answers true and the drop is skipped entirely. Anything a desk
+    // hangs off that report simply does not happen — which on a shared desk means the other screen
+    // goes on holding a card that was thrown a minute ago, lifted and leaning, following a finger
+    // that let go.
+    const heard: string[] = [];
+    const s = scene(desk(), { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s, {
+      onRelease: () => true,
+      onCarry: ({ done }) => heard.push(done ? "let go" : "moving"),
+    });
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    s.host.view.dispatchEvent(finger("pointerup", 120, 0));
+    expect(heard, "the hand moved and was never reported to have stopped").toEqual(["moving"]);
+    s.dispose();
+
+    // ...and a release the scene does NOT take is reported, which is the ordinary path.
+    heard.length = 0;
+    const s2 = scene(desk(), { animate: true });
+    document.body.appendChild(s2.el);
+    measure(s2.el);
+    wireDrag(s2, { onRelease: () => false, onCarry: ({ done }) => heard.push(done ? "let go" : "moving") });
+    s2.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    s2.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    s2.host.view.dispatchEvent(finger("pointerup", 120, 0));
+    expect(heard.at(-1)).toBe("let go");
+    s2.dispose();
+  });
+
 });
