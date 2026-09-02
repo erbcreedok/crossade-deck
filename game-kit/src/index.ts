@@ -207,10 +207,11 @@ export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/gripp
 export { castsShadow, ShadowCaster, shadowFrom, type ShadowCasterFields } from "./core/atoms/shadow.js";
 export { faceOf, Rollable, rollable, setFace, sidesOf, withFace, type RollableFields } from "./core/atoms/rollable.js";
 export { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit, lightVector, shadowOf, type Frame, type Light, type LitFields, type Shadow } from "./core/atoms/lit.js";
-// The invite: what a willing zone wears while a drag it would take is in flight. The Acceptor's
+// The invite: what a willing zone wears while a drag it would take is in flight, and what the one
+// being AIMED at wears on top of that (`keen`) — where it MAY go, and where it WILL. The Acceptor's
 // verdict decides (`willingZones`); a game with function-rules picks zones itself and uses the
 // low door (`wearInvite`). Grab dresses, release undresses — the closure is the whole protocol.
-export { Inviting, inviteOf, wearInvite, type InvitingFields } from "./core/atoms/inviting.js";
+export { Inviting, inviteOf, keenOf, wearInvite, wearKeen, type InvitingFields } from "./core/atoms/inviting.js";
 export { wearInvites, willingZones } from "./core/invite.js";
 // The card turn, as data: a recipe name, a turn count (parity, summed), a reflection axis, a back
 // surface. What the turn DOES is a recipe in `render/flips.ts`; the engine mixes it in blind.

@@ -272,6 +272,22 @@ export function grabScene(
     const scale = view ? Math.hypot(view.a, view.b) : built.host.unit();
     return scale > 0 ? px / scale : MAP.w;
   };
+  /**
+   * THE ZONE THIS CARRY WOULD BE HANDED TO IF THE HAND LET GO NOW — asked exactly as the release
+   * asks it, down to the refusal to hand a run back to the place it was lifted out of.
+   */
+  const zoneAimed = (ids: readonly string[], at: Vec): Node | undefined => {
+    // WHAT THE HAND IS ACTUALLY HOLDING. `carried` is written by a desk that stacks, and carries the
+    // seats a run stands in; a desk without stacking never writes it, and the wiring's own list of
+    // ids is the whole of what is in the hand there. Only the ids and the seats are read either way.
+    const run = carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } }));
+    // THE LEAD'S OWN POINT, not the hand's. `at` is where the RUN is anchored — under a handle that
+    // is the tab, and a hand splayed into a fan stands its cards a long way from it. A zone asked
+    // about the anchor would be answering about a place no card is.
+    const it = run.find((one) => !isGrip(byId(built.host.root, one.id) ?? node("")));
+    const point = it ? { x: at.x + it.offset.x, y: at.y + it.offset.y } : at;
+    return ((z) => (z && z === liftedFrom ? undefined : z))(zoneFor(built, run, zones, point));
+  };
   rule?.tune?.(built.host.root);
   mirror?.ready(built, grasp);
   settle();
@@ -279,7 +295,13 @@ export function grabScene(
     view: () => built.camera!.transform(),
     // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
     // moving here is invisible over there unless it is reported and mirrored.
+    // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
+    // moving here is invisible over there unless it is reported and mirrored.
     ...(mirror ? { onCarry: ({ at, done }) => mirror.hand(carried, at, done) } : {}),
+    // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
+    // it is the same question the release answers — down to refusing to hand a run back to the
+    // place it was lifted out of, so a card being pulled OUT of an area never glows to go back in.
+    ...(zones ? { aimAt: (_root: Node, ids: readonly string[], at: Vec) => zoneAimed(ids, at) } : {}),
     // A PILE HIDES ALL BUT A SLIVER OF WHAT IS UNDER ITS TOP, and a finger that lands on a sliver
     // gets a card nobody was aiming at. Below this much showing a piece does not answer at all: the
     // touch goes to whatever is covering it, and so on up the pile.

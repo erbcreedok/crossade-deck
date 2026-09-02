@@ -26,7 +26,7 @@ import {
   type Node,
   type TransformableFields,
 } from "../../src/index.js";
-import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
+import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, poseOnLanding } from "./magnetMap.js";
 import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats, threwAt, THROWN_AT } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
@@ -196,7 +196,7 @@ describe("how a place poses what it lifts", () => {
     expect(new Set(flat.map((seat) => seat.at.y)).size, "all at one height").toBe(1);
   });
 
-  it("magnet.a-place-squares-what-it-HAS — by where it lies, never by whose child it is", () => {
+  it("magnet.a-place-takes-what-it-HAS — by where it lies, never by whose child it is", () => {
     // A drop leaves pieces as they were, fan and all — that is what a drop IS. A place is the
     // exception: the row it lays its cards out in has no opinion about turns, so the turn a lift
     // put on them has to be taken off by the desk that put it there.
@@ -215,11 +215,42 @@ describe("how a place poses what it lifts", () => {
     compose(child, Transformable({ at: { x: 0, y: 0 }, angle: 24 }));
     remove(desk, child);
     add(zone, child);
-    zoneSquares(HELD_SHARE)(desk, [child.id, lying.id, outside.id]);
+    poseOnLanding(HELD_SHARE)(desk, [child.id, lying.id, outside.id]);
     const turn = (n: Node): number | undefined => fieldsOf<TransformableFields>(n, "Transformable")?.angle;
     expect(turn(child), "handed to it").toBe(0);
     expect(turn(lying), "merely lying in it — the case a hand put back is").toBe(0);
-    expect(turn(outside), "on the felt, left exactly as it was").toBe(24);
+    expect(turn(outside), "on the felt and alone, left exactly as it was — a lone turn is its own").toBe(24);
+    // ...AND WHAT IT HOLDS, IT TAKES. Lying in a zone and belonging to the felt is a zone holding a
+    // fan it cannot straighten: the row is an arrangement, and an arrangement lays out CHILDREN.
+    expect(lying.parent, "the zone's, so its row lays it out").toBe(zone);
+    expect(child.parent, "already its own, and not disturbed").toBe(zone);
+    expect(outside.parent, "the felt's, and it stays the felt's").toBe(desk);
+  });
+
+  it("magnet.a-run-put-down-on-the-felt-squares-up — on the card the finger had", () => {
+    // A drop used to leave a run exactly as the hand had it, fan and all: a hand splayed in the air
+    // was put back down still splayed, lying across the felt like something spilled. The fan is how
+    // a run is HELD, not how it lies, so what lands takes the pose of where it landed — and on the
+    // felt that is the pile.
+    //
+    // ON THE LEAD, which does not move at all. The card under the finger is the one the player
+    // aimed; a pile that assembled itself half an inch off it would be the desk correcting them.
+    const desk = magnetMap();
+    const run = desk.children.filter((n) => heapOf(n) === "card").slice(0, 3);
+    const fan = [
+      { x: 0, y: -1 },
+      { x: 0.8, y: -0.9 },
+      { x: 1.6, y: -0.8 },
+    ];
+    run.forEach((card, i) => compose(card, Transformable({ at: fan[i]!, angle: 12 * i })));
+    poseOnLanding(HELD_SHARE)(desk, run.map((n) => n.id));
+    const seatOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!;
+    expect(seatOf(run[0]!).at, "the lead stays exactly where the hand left it").toEqual(fan[0]);
+    for (const card of run) expect(seatOf(card).angle, "the lean a lift put on them comes off").toBe(0);
+    // Squared, not spread: what was 0.8 apart is now the pile's own step, which is a sliver.
+    const step = Math.hypot(seatOf(run[1]!).at!.x - fan[0]!.x, seatOf(run[1]!).at!.y - fan[0]!.y);
+    expect(step, "a pile, not a row").toBeLessThan(0.2);
+    expect(step, "and a pile is not one card either — the step is still there").toBeGreaterThan(0);
   });
 });
 

@@ -9,17 +9,21 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  Acceptor,
   add,
   Bounded,
   Container,
   Draggable,
   fieldsOf,
+  Inviting,
+  NO_COAT,
   freeLayout,
   node,
   rect,
   registerLayout,
   Surfaced,
   Transformable,
+  type CoatedFields,
   type Mark,
   type Node,
   type Painter,
@@ -230,9 +234,54 @@ describe("the drag wiring's order", () => {
     s.host.view.dispatchEvent(finger("pointerdown", 0, 0));
     s.host.view.dispatchEvent(finger("pointermove", 120, 0));
     s.host.view.dispatchEvent(finger("pointerup", 120, 0));
-    expect(asked, "asked once, about the piece").toEqual(["card"]);
+    // TWICE, AND ABOUT THE PIECE BOTH TIMES: once while the hand is moving, because the zone that
+    // would take it lights up so a player can aim (`aimAt`, falling back to this), and once when the
+    // hand lets go. What is pinned is WHAT it is asked about — the piece, never the point alone.
+    expect(new Set(asked), "always about the piece").toEqual(new Set(["card"]));
+    expect(asked.length, "the carry's aim, then the release").toBe(2);
     // ...and a refused release is the ordinary one: the piece stays where the finger left it.
     expect(seatOf(root.children[0]!).x).not.toBe(0);
+    s.dispose();
+  });
+
+  it("drag.the-zone-that-would-take-it-says-so-while-there-is-time-to-aim", () => {
+    // A zone may reach past its own border, so the border cannot answer "have I got there yet":
+    // carried across the felt, a player has only their own guess, and finds out they missed by
+    // missing. So the zone that would take the release wears its aim coat WHILE the hand is up.
+    //
+    // LIT BY THE VERY ANSWER THE RELEASE WILL USE. A light with its own idea of near enough is
+    // worse than no light: it promises a zone that then does not take the card, and a reader
+    // believes the light over the outcome.
+    const root = desk();
+    const zone = node(
+      "zone",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "story.drag.free" }),
+      Transformable({ at: { x: 2, y: 0 } }),
+      Acceptor({}),
+      Inviting({ coat: NO_COAT, keen: { recipe: "wash", level: 0.3, tint: "accent" } }),
+    );
+    add(root, zone);
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    let near = false;
+    wireDrag(s, { zoneAt: () => (near ? zone : undefined) });
+    const worn = (): string => fieldsOf<CoatedFields>(zone, "Coated")?.self.recipe ?? "";
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 40, 0));
+    expect(worn(), "not there yet, and the zone says nothing").toBe("");
+    near = true;
+    s.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    expect(worn(), "over it now — this is the one that takes it").toBe("wash");
+    // ...AND OUT AGAIN when the answer changes back, which is the half a light usually gets wrong.
+    near = false;
+    s.host.view.dispatchEvent(finger("pointermove", 160, 0));
+    expect(worn(), "aimed away, so the promise is withdrawn").toBe("");
+    near = true;
+    s.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    s.host.view.dispatchEvent(finger("pointerup", 120, 0));
+    expect(worn(), "the hand is off: a lit zone over an empty felt is a lie").toBe("");
     s.dispose();
   });
 

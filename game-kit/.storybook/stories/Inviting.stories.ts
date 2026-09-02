@@ -3,6 +3,10 @@ import {
   Acceptor,
   add,
   Bounded,
+  caps,
+  extentOf,
+  fieldsOf,
+  footprint,
   coatNames,
   Container,
   Draggable,
@@ -17,6 +21,9 @@ import {
   Surfaced,
   Transformable,
   Valued,
+  type Node,
+  type TransformableFields,
+  type Vec,
 } from "../../src/index.js";
 import { wireDrag } from "../devtools/drag.js";
 import { scene } from "../devtools/scene.js";
@@ -36,11 +43,31 @@ const meta: Meta = {
   parameters: {
     gkDoc: "inviting.component",
     gkAtom: "Inviting",
-    // The atom's one field: all three knobs of the coat live on the one scene.
-    gkFields: { coat: ["Invite"] },
+    // Two fields, two coats, both on the one scene: what a WILLING zone wears, and what the one
+    // being AIMED at wears instead while the hand is over it.
+    gkFields: { coat: ["Invite"], keen: ["Invite"] },
   },
 };
 export default meta;
+
+/**
+ * THE ZONE THE DRAGGED PIECE IS OVER — this desk's answer to "who would take it if I let go now",
+ * which is the question the aim coat is the answer to being SEEN.
+ *
+ * The plain answer, because this desk is plain: one zone, standing where it was put, and no reach
+ * past its own border. A desk whose zones forgive a near miss has a wider answer to give and gives
+ * it itself (`Mechanics/Magnetism`) — what the atom shows is the LOOK, and the look is the same
+ * either way.
+ */
+const over = (root: Node, at: Vec): Node | undefined =>
+  root.children.find((zone) => {
+    if (!caps(zone).has("Acceptor")) return false;
+    const box = footprint(zone);
+    const home = fieldsOf<TransformableFields>(zone, "Transformable")?.at;
+    if (!box || !home) return false;
+    const { w, h } = extentOf(box);
+    return Math.abs(at.x - home.x) <= w / 2 && Math.abs(at.y - home.y) <= h / 2;
+  });
 
 const SIZE = { control: { type: "number", min: 0, step: 0.1 } };
 const PLACE = { control: { type: "number", step: 0.1 } };
@@ -50,6 +77,7 @@ const TOKEN = { control: "text" };
 const RANK = { control: { type: "range", min: 1, max: 13, step: 1 } };
 /** Shown only when a recipe is named: an absent coat has no strength and no colour to be asked about. */
 const COATED = { if: { arg: "coat.recipe", neq: "" } };
+const KEEN = { if: { arg: "keen.recipe", neq: "" } };
 
 interface InviteArgs {
   deskLayout: string;
@@ -66,6 +94,8 @@ interface InviteArgs {
    *  nested slot made the snippet read `{ coat: { recipe, level, tint } }` over `const recipe = …`
    *  — the panel and the code describing the same thing in two different shapes. */
   coat: { recipe: string; level: number; tint: string };
+  /** THE SECOND COAT, the same shape: what the zone the hand is OVER wears, on top of willing. */
+  keen: { recipe: string; level: number; tint: string };
   sevenW: number;
   sevenH: number;
   sevenSurface: string;
@@ -101,6 +131,7 @@ export const Invite = {
     zoneY,
     accepts,
     coat,
+    keen,
     sevenW,
     sevenH,
     sevenSurface,
@@ -133,7 +164,7 @@ export const Invite = {
         Surfaced({ surface: zoneSurface }),
         Transformable({ at: { x: zoneX, y: zoneY } }),
         Acceptor({ accept: { eq: ["el.values.rank", accepts] } }),
-        Inviting({ coat }),
+        Inviting({ coat, keen }),
       ),
     );
     add(
@@ -158,7 +189,9 @@ export const Invite = {
         Draggable(),
       ),
     );
-    return wireDrag(scene(desk, { animate: true })).el;
+    // THE AIM IS A QUESTION THE DESK ANSWERS. This one answers it the plain way — the zone the
+    // dragged piece is over — which is what a desk with one zone and no reach means by aiming.
+    return wireDrag(scene(desk, { animate: true }), { zoneAt: over }).el;
   },
   args: {
     deskLayout: "story.invite.free",
@@ -172,6 +205,7 @@ export const Invite = {
     zoneY: 0,
     accepts: 7,
     coat: { recipe: "ring", level: 0.7, tint: "accent" },
+    keen: { recipe: "wash", level: 0.25, tint: "accent" },
     sevenW: 1,
     sevenH: 1.4,
     sevenSurface: "story.invite.seven",
@@ -207,6 +241,10 @@ export const Invite = {
     "coat.recipe": documented("arg.coatRecipe", { control: "select", options: ["", ...coatNames()] }, "seven zone/inviting"),
     "coat.level": documented("arg.coatLevel", { control: { type: "number", min: 0, max: 1, step: 0.05 }, ...COATED }, "seven zone/inviting"),
     "coat.tint": documented("arg.coatTint", { control: "select", options: ["", ...PAINTS], ...COATED }, "seven zone/inviting"),
+    keen: hiddenRow(),
+    "keen.recipe": documented("arg.keenRecipe", { control: "select", options: ["", ...coatNames()] }, "seven zone/inviting"),
+    "keen.level": documented("arg.keenLevel", { control: { type: "number", min: 0, max: 1, step: 0.05 }, ...KEEN }, "seven zone/inviting"),
+    "keen.tint": documented("arg.keenTint", { control: "select", options: ["", ...PAINTS], ...KEEN }, "seven zone/inviting"),
     sevenW: documented("arg.w", SIZE, "seven card/bounds"),
     sevenH: documented("arg.h", SIZE, "seven card/bounds"),
     sevenSurface: documented("arg.registerAs", TOKEN, "seven card/surface"),

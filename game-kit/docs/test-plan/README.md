@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**67 слоёв · 1533 кейсов заявлено · 1360 расписано поимённо.**
+**67 слоёв · 1537 кейсов заявлено · 1364 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -36,7 +36,7 @@
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
 | [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 61 | 61 |
-| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 93 | 93 |
+| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 94 | 94 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
@@ -69,7 +69,7 @@
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 11 | 11 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
-| [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 3 | 3 |
+| [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 4 | 4 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
 | [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 21 | 21 |
 | [UNIT · тасовка и кувырок — истина, случай, хореография](47-shuffle-and-roll.md) | `vitest + a fake clock` | 17 | 17 |
@@ -89,7 +89,7 @@
 | [UNIT · реестр анимаций — вид, который дизайнер назвал сам](61-motion-registry.md) | `vitest` | 22 | 22 |
 | [UNIT · жесты — свайп, тряска, месиво](62-gestures.md) | `vitest` | 25 | 25 |
 | [UNIT · касание и кучи](63-overlap.md) | `vitest (headless, no WebGL)` | 8 | 8 |
-| [UNIT · сборка стеков — что становится одной кучей](64-stack-merging.md) | `vitest (headless, no WebGL)` | 8 | 8 |
+| [UNIT · сборка стеков — что становится одной кучей](64-stack-merging.md) | `vitest (headless, no WebGL)` | 9 | 9 |
 | [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 6 | 6 |
-| [UNIT · магнетизм — какой зоне принадлежит отпускание](66-magnetism.md) | `vitest (headless, no WebGL)` | 19 | 19 |
+| [UNIT · магнетизм — какой зоне принадлежит отпускание](66-magnetism.md) | `vitest (headless, no WebGL)` | 20 | 20 |
 | [UNIT · live — общий стол на двоих](67-live.md) | `vitest (headless, no WebGL)` | 4 | 4 |

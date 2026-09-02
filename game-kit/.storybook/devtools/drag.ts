@@ -27,6 +27,7 @@ import {
   transformsOf,
   Transformable,
   wearInvites,
+  wearKeen,
   type CarryItem,
   type CarryTuning,
   type Node,
@@ -118,6 +119,26 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * where a card's edge is (`Mechanics/Magnetism`).
    */
   readonly zoneAt?: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined;
+  /**
+   * WHICH ZONE WOULD TAKE THIS RUN IF THE HAND LET GO NOW — asked on every move, so the zone that
+   * is going to get it can SAY SO while there is still time to aim somewhere else.
+   *
+   * A zone reaches past its own border, so the border cannot answer "have I got there yet": carried
+   * across the felt, a player has only their own guess, and finds out they missed by missing.
+   *
+   * Its own seam rather than `zoneAt` reused, because the two are asked in different states. A
+   * release knows the point the piece was let go of and a throw knows where it will come to rest;
+   * a carry in flight knows neither, and a run led by a HANDLE cannot even be asked through
+   * `zoneAt` — the lead of such a run is a control, and a zone takes pieces, not controls. Absent,
+   * the wiring falls back to `zoneAt` about the run's first piece, which is the whole answer on a
+   * desk where a hand carries one thing.
+   *
+   * `at` IS HANDED OVER because nothing else can supply it. A carry is an override and never a tree
+   * write, so the tree still says the deck the card came out of, and a desk that went looking for
+   * the run's pose would measure the distance from a card that is no longer there. The hand knows,
+   * and the hand is here: this is the same point the drop is going to use, walls and all.
+   */
+  readonly aimAt?: ((root: Node, ids: readonly NodeId[], at: Vec) => Node | undefined) | undefined;
   /**
    * THE DROP, TAKEN OVER — called once a zone has been found and before anything is moved. Return
    * `true` and the wiring does nothing else: the scene has taken the drop.
@@ -214,6 +235,8 @@ interface Wiring {
     | undefined;
   /** Undresses every zone the grab invited — release calls it, and it is the whole protocol. */
   undoInvites: (() => void) | undefined;
+  /** The zone currently lit as the one that would TAKE this, and the call that unlights it. */
+  keen: { readonly zone: Node; readonly off: () => void } | undefined;
 }
 
 const WIRED = new WeakMap<HTMLElement, Wiring>();
@@ -245,7 +268,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     standing.opts = opts; // the same canvas, new knobs — never a second set of listeners
     return s;
   }
-  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined };
+  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined, keen: undefined };
   WIRED.set(s.el, w);
   const view = s.host.view;
 
@@ -269,6 +292,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
         for (const it of w.drag.items) motions.release(it.id);
         w.undoInvites?.();
         w.undoInvites = undefined;
+        aim(undefined);
         w.drag = undefined;
         // NO threshold here, unlike the camera's twist. There the slop exists because every pinch
         // is a little bit of a twist and a plain zoom must not turn the desk; two fingers on a
@@ -353,6 +377,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
         w.drag = undefined;
         w.undoInvites?.();
         w.undoInvites = undefined;
+        aim(undefined);
         if (taken && w.opts.onWall?.(hit2, taken.items)) return;
         if (taken) drop(taken.items, hit2.at);
       },
@@ -361,6 +386,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
         w.drag = undefined;
         w.undoInvites?.();
         w.undoInvites = undefined;
+        aim(undefined);
         if (taken) drop(taken.items, at);
       },
     });
@@ -466,6 +492,25 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     return true;
   };
 
+  /**
+   * PUT THE AIM LIGHT ON `want` — and take it off whatever had it. Nothing to do when the answer
+   * has not changed, which is most frames: this runs on every pointermove.
+   */
+  const aim = (want: Node | undefined): void => {
+    if (want === w.keen?.zone) return;
+    w.keen?.off();
+    w.keen = want ? { zone: want, off: wearKeen(want) } : undefined;
+    s.host.setRoot(s.host.root);
+  };
+
+  /** Who would take the run in hand, asked the way the desk wants it asked. */
+  const aimed = (ids: readonly NodeId[], at: Vec): Node | undefined => {
+    const root = s.host.root;
+    if (w.opts.aimAt) return w.opts.aimAt(root, ids, at);
+    const lead = ids[0] ? byId(root, ids[0]) : undefined;
+    return lead ? w.opts.zoneAt?.(root, at, lead) : undefined;
+  };
+
   const onMove = (e: PointerEvent): void => {
     const downs = DOWN.get(s.el);
     if (downs?.has(e.pointerId)) downs.set(e.pointerId, glassOf(view, e));
@@ -487,7 +532,16 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
     const at = { x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y };
     s.motions.dragTo(at);
-    w.opts.onCarry?.({ ids: w.drag.items.map((it) => it.id), at, done: false });
+    const ids = w.drag.items.map((it) => it.id);
+    // INSIDE THE WALLS, exactly as the drop will be: within a tray the hand may stand a leash's
+    // length past the border while the run itself is held at it, and aiming at where the FINGER is
+    // would light a zone the run cannot actually reach.
+    const held = inside(w.drag.tray, at);
+    // THE ZONE THAT WOULD TAKE IT SAYS SO, and it says so by the same answer the release will use —
+    // a light with its own idea of "near enough" promises a zone that then does not take the card,
+    // and a reader believes the light over the outcome.
+    aim(aimed(ids, held));
+    w.opts.onCarry?.({ ids, at, done: false });
   };
 
   const onUp = (e: PointerEvent): void => {
@@ -514,6 +568,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     w.drag = undefined;
     w.undoInvites?.();
     w.undoInvites = undefined;
+    aim(undefined);
     // A TAP: the finger landed on something, stayed put and left again. It is the same gesture a
     // drag is, told apart only by how far it went and how long it stayed — so it is decided here,
     // once, and the scene is handed one answer instead of two events to compare.

@@ -20,7 +20,7 @@ import {
   zoneFan,
   zoneHolds,
   zoneNear,
-  zoneSquares,
+  poseOnLanding,
   type Spread,
 } from "./magnetMap.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
@@ -116,7 +116,7 @@ const magnetRule = (a: MagnetArgs, tune: (root: Node) => void) => ({
   ...mergeRule(a.cardShare),
   held: zoneHolds(a.heldShare),
   fan: zoneFan({ gapMin: a.fanGapMin, gapMax: a.fanGapMax, wideMin: a.fanWideMin, wideMax: a.fanWideMax }, a.fanTilt),
-  settled: zoneSquares(a.heldShare),
+  settled: poseOnLanding(a.heldShare),
   tune,
 });
 

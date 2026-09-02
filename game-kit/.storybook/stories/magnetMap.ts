@@ -20,8 +20,11 @@ import {
   Acceptor,
   add,
   caps,
+  Inviting,
+  NO_COAT,
   fieldsOf,
   byId,
+  remove,
   extentOf,
   heapOf,
   Heaping,
@@ -38,6 +41,7 @@ import {
   Draggable,
   freeLayout,
   Grabber,
+  installStockCoats,
   installStockGrabs,
   node,
   Reaching,
@@ -58,7 +62,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -121,6 +125,11 @@ function installMagnetArt(zone: Spread): void {
   // The grab rules are installed here as an ordinary consumer would: unregistered, a `Grabber`
   // names a rule nothing resolves and the container hands back nothing at all.
   installStockGrabs();
+  // ...AND SO ARE THE COAT RECIPES. A coat is a NAME (`wash`, `ring`) looked up in a registry, and a
+  // name nobody registered resolves to nothing and paints nothing — silently, which is the whole
+  // trap: the zone declares its aim light, the wiring puts it on, and the glass shows no difference
+  // at all. The same class of miss as an unregistered surface (`desk.a-name-nobody-registered...`).
+  installStockCoats();
   registerLayout(DESK_LAYOUT, freeLayout);
   registerLayout(ZONE_LAYOUT, handLayout(zone, ZONE_PAD));
   registerSurface(ZONE_SURFACE, {
@@ -164,6 +173,15 @@ export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
       Container({ layout: ZONE_LAYOUT }),
       // Everything is welcome: what this desk is about is WHERE the zone is, not what it will take.
       Acceptor({}),
+      // ...AND IT SAYS SO WHILE THE HAND IS OVER IT. A zone reaches past its own border, so the
+      // border cannot answer "have I got there yet" — carried across the felt, a player has only
+      // their own guess until they let go, and finds out they missed by missing.
+      //
+      // NOTHING FOR BEING MERELY WILLING (`coat` left empty): this desk has one zone, and a light
+      // that comes on at the grab and stays on for the whole carry says only "there is a zone",
+      // which the border already said. What is news is WHICH ONE TAKES IT, and on a desk of one
+      // that is news exactly while the hand is near enough.
+      Inviting({ coat: NO_COAT, keen: { recipe: "wash", level: 0.22, tint: "accent" } }),
       // ...and the zone answers the same question for whatever is taken back OUT of it again.
       Grabber({ grab: "one" }),
       Reaching({ reach: pull }),
@@ -404,29 +422,80 @@ export function zoneFan(look: Spread, tilt: number) {
 }
 
 /**
- * A PLACE RE-POSES WHAT IT HAS — everything a zone holds goes flat again once it is put down.
+ * WHAT A DROP DOES TO THE POSE IT LANDED IN — and it is two different answers on one desk.
  *
- * A drop leaves pieces as they were, fan and all; that is what a drop IS, and a fan let go of on the
- * felt stays a fan. A place is the exception, because how its things lie is its own business: the
- * row it lays them out in has no opinion about turns (no layout here has), so the turn a lift put on
- * them has to be taken off by the desk that put it there.
+ * A drop used to leave pieces exactly as they were, fan and all: a hand splayed in the air was put
+ * back down still splayed, lying across the felt like something spilled. Nothing about a hand LEAVING
+ * a hand says it should keep the shape a hand gave it — the fan is how a run is held, not how it
+ * lies — so a run that lands takes the pose of WHERE IT LANDED.
  *
- * BY THE SAME TEST THE HANDLE USES, not by parentage. A hand let go of over its own zone is never
- * handed to it — a run led by a handle is led by a control, and a zone takes cards, not controls
- * (`zoneNear`) — so the cards come down ON the zone and the zone counts them by lying in it. Asked
- * about children only, this straightened exactly the cards that had been dealt in one at a time and
- * left every hand ever put back looking like a fan dropped in a box.
+ * ON THE FELT that is the pile: squared up on the card the finger had, which is the pose every heap
+ * on this shelf lies in and the pose the handle will lift it in again.
+ *
+ * IN THE ZONE it is the row, and the zone lays that out itself. All this does is give it the cards:
+ * a run let go of OVER a zone is never handed to it — a run led by a handle is led by a control, and
+ * a zone takes cards, not controls (`zoneNear`) — so the cards come down on top of the zone, lying
+ * in it by every test that matters and belonging to the felt by parentage. Which is a zone holding
+ * a fan it cannot straighten. What it holds, it takes, and then its own arrangement does the rest.
+ *
+ * BY LYING IN IT, never by parentage (`zoneHolds`). Asked about children only, this straightened
+ * exactly the cards that had been dealt in one at a time, and left every hand ever put back looking
+ * like a fan dropped in a box.
  */
-export function zoneSquares(share: number): NonNullable<HeapRule["settled"]> {
+export function poseOnLanding(share: number): NonNullable<HeapRule["settled"]> {
   return (root, ids) => {
-    const held = new Set(zoneHolds(share)(root, () => false).flatMap(({ pieces }) => pieces.map((n) => n.id)));
+    const zones = zoneHolds(share)(root, () => false);
+    const held = new Map<string, Node>();
+    for (const { under, pieces } of zones) for (const p of pieces) held.set(p.id, under);
+    const felt: Node[] = [];
     for (const id of ids) {
       const piece = byId(root, id);
-      if (!piece || !held.has(id)) continue;
+      if (!piece) continue;
+      const zone = held.get(id);
+      if (!zone) {
+        felt.push(piece);
+        continue;
+      }
+      // THE TURN COMES OFF EITHER WAY: no arrangement on the shelf has an opinion about angles, so
+      // the lean a lift put on a card has to be taken off by the desk that put it there.
       const own = fieldsOf<TransformableFields>(piece, "Transformable");
       compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
+      if (piece.parent !== zone) {
+        if (piece.parent) remove(piece.parent, piece);
+        add(zone, piece);
+      }
     }
+    squareUp(felt);
   };
+}
+
+/**
+ * THE RUN THAT LANDED ON THE FELT, STACKED ON ITS OWN LEAD — the pile pose, written where the hand
+ * actually left the cards.
+ *
+ * ON THE LEAD and not at some tidy spot of the desk's choosing: the card under the finger is the one
+ * the player aimed, and a pile that assembled itself half an inch away from it would be the desk
+ * correcting the player rather than obeying them. So the lead does not move at all, and the rest
+ * come to it.
+ *
+ * The seats are the ordinary stack's (`stackSeats`), taken RELATIVE to the first — that function
+ * answers in a handle's frame, and there is no handle here until the next `settle` draws one.
+ */
+function squareUp(run: readonly Node[]): void {
+  const lead = run[0];
+  if (!lead || run.length < 2) return;
+  const at = fieldsOf<TransformableFields>(lead, "Transformable")?.at;
+  if (!at) return;
+  const seats = stackSeats(run);
+  const zero = seats[0] ?? { x: 0, y: 0 };
+  run.forEach((piece, i) => {
+    const seat = seats[i] ?? zero;
+    const own = fieldsOf<TransformableFields>(piece, "Transformable");
+    compose(
+      piece,
+      Transformable({ ...(own ?? {}), angle: 0, at: { x: at.x + seat.x - zero.x, y: at.y + seat.y - zero.y } }),
+    );
+  });
 }
 
 

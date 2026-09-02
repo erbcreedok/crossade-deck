@@ -12,6 +12,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  coatRecipe,
+  hasCoat,
+  resetCoats,
+  type InvitingFields,
   add,
   Bounded,
   compose,
@@ -33,6 +37,8 @@ import {
 import { cards as crossadeCards } from "@game-presets/cards";
 import { deckMap, gestureMap, heapsOf, regrip, stackMap } from "./gestureMap.js";
 import { mergeChip, mergeMap, mergeRule, mergeSeats, MERGE_SHARE } from "./mergeMap.js";
+import { magnetMap } from "./magnetMap.js";
+import { liveMap } from "./liveMap.js";
 
 const RULE = mergeRule(MERGE_SHARE);
 
@@ -85,6 +91,38 @@ describe("every desk registers what it names", () => {
       const missing = [...new Set(named)].filter((s) => !surfaceRecord(s));
       expect(missing, `${what}: named but never registered`).toEqual([]);
     }
+  });
+
+  it("desk.a-coat-nobody-registered-is-not-an-error-either — the same trap, one layer down", () => {
+    // A COAT IS A NAME TOO. `wash`, `ring`, `censor` are looked up in a registry exactly as a
+    // surface is, and a name nobody registered resolves to nothing and paints nothing, in the same
+    // silence: the zone declares its aim light, the wiring puts it on, and the glass shows no
+    // difference at all. Which is what happened — the light was built, tested and wired, and the
+    // desk it was built FOR had never installed a single recipe, so a whole evening's feature was
+    // invisible and correct at once.
+    //
+    // Reset first, so a desk that only works because some OTHER story installed the recipes fails
+    // here. That is the same reason the surfaces above are reset: a registry is global, and a test
+    // run in one process is the one place where everybody else's installers are already there.
+    // EVERY DESK ON THE SHELF, and the total is what has to be non-zero. Asked desk by desk, this
+    // would fail on the ones that deliberately light nothing — the live desk answers no zone at all,
+    // by its own page's choice — and a guard that has to be edited whenever a desk says less about
+    // itself is a guard people learn to edit rather than to read.
+    let seen = 0;
+    for (const [what, build] of [["magnetism", magnetMap], ["live", liveMap], ["merging", mergeMap], ["gestures", gestureMap]] as const) {
+      resetCoats();
+      const root = build();
+      const named = [...walk(root)]
+        .flatMap((n) => {
+          const wear = fieldsOf<InvitingFields>(n, "Inviting");
+          return wear ? [wear.coat, wear.keen] : [];
+        })
+        .filter((coat) => hasCoat(coat))
+        .map((coat) => coat.recipe);
+      seen += named.length;
+      expect([...new Set(named)].filter((r) => !coatRecipe(r)), `${what}: named but never registered`).toEqual([]);
+    }
+    expect(seen, "a shelf where nothing invites anything has nothing to check").toBeGreaterThan(0);
   });
 });
 

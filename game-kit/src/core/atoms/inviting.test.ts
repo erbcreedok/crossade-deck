@@ -4,7 +4,7 @@ import { Acceptor } from "./acceptor.js";
 import { Bounded } from "./bounded.js";
 import { Coated, NO_COAT, type CoatedFields } from "./coated.js";
 import { Container } from "./container.js";
-import { Inviting, inviteOf, wearInvite, type InvitingFields } from "./inviting.js";
+import { Inviting, inviteOf, wearInvite, wearKeen, type InvitingFields } from "./inviting.js";
 import { wearInvites, willingZones } from "../invite.js";
 import { Valued } from "./valued.js";
 import { rect } from "../../presets/shapes.js";
@@ -72,5 +72,39 @@ describe("the inviting zone", () => {
     undressAll();
     expect(fieldsOf<CoatedFields>(a, "Coated")?.self ?? NO_COAT).toEqual(NO_COAT);
     expect(fieldsOf<CoatedFields>(b, "Coated")?.self ?? NO_COAT).toEqual(NO_COAT);
+  });
+
+  it("atom.inviting.aimed-is-a-second-sentence — where it MAY go, and where it WILL", () => {
+    // Two questions, and a desk with more than one zone needs both answered differently. `coat` is
+    // WHERE MAY THIS GO — every willing zone says so at the grab and goes on saying it for the whole
+    // carry. `keen` is WHERE WILL IT GO IF I LET GO NOW, which is true of one zone at a time and
+    // changes under the hand.
+    const keen = { recipe: "wash", level: 0.22, tint: "accent" };
+    const both = zone("both", 7, Inviting({ keen }));
+    const off = wearKeen(both);
+    expect(fieldsOf<CoatedFields>(both, "Coated")?.self, "the aimed coat, not the willing one").toEqual(keen);
+    off();
+    expect(fieldsOf<CoatedFields>(both, "Coated")?.self ?? NO_COAT).toEqual(NO_COAT);
+
+    // A ZONE MAY SAY ONE AND NOT THE OTHER, and saying nothing has to mean nothing happens. An
+    // empty coat put on is NOT the same as no coat put on: it would take the zone's own standing
+    // look off for the length of the drag and hand it back afterwards, which is a flicker with a
+    // cause nobody could find. This desk has one zone, where "there is a zone here" is not news.
+    const prior = { recipe: "ring", level: 0.4, tint: "accent" };
+    const aimOnly = zone("aim only", 7, Inviting({ coat: NO_COAT, keen }), Coated({ self: prior, cast: NO_COAT }));
+    const putBack = wearInvite(aimOnly);
+    // WHILE IT IS ON, which is the only moment the difference exists: an empty coat dressed and
+    // undressed puts everything back, and a test that only looked afterwards would see nothing.
+    expect(fieldsOf<CoatedFields>(aimOnly, "Coated")?.self, "willing says nothing, so nothing moved").toEqual(prior);
+    putBack();
+    expect(fieldsOf<CoatedFields>(aimOnly, "Coated")?.self, "and nothing to put back either").toEqual(prior);
+    wearKeen(aimOnly);
+    expect(fieldsOf<CoatedFields>(aimOnly, "Coated")?.self, "...and aimed says everything").toEqual(keen);
+
+    // A bare `Inviting()` is silent on aiming: the stock ring is what a WILLING zone wears, and a
+    // zone that never asked for an aim light must not light up under the hand.
+    const plain = zone("plain", 7, Inviting());
+    wearKeen(plain);
+    expect(fieldsOf<CoatedFields>(plain, "Coated")?.self ?? NO_COAT, "nothing declared, nothing worn").toEqual(NO_COAT);
   });
 });
