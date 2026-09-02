@@ -262,7 +262,10 @@ export { safeArea, type Room } from "./render/safeArea.js";
 export { grownOutline, islands, outlinesTouch, overlapFraction, placedOutline } from "./core/overlap.js";
 // WHICH PILE A PIECE MAY JOIN, as a name it carries — so "may these two become one thing" is data
 // on the node and not a chain of tests about what each of them happens to be.
-export { Heaping, heapOf, heapsTogether, reachOf, type HeapingFields } from "./core/atoms/heaping.js";
+export { Heaping, heapOf, heapsTogether, type HeapingFields } from "./core/atoms/heaping.js";
+// HOW FAR PAST ITS OWN EDGE A NODE STILL COUNTS AS BEING AT SOMETHING — the space around a box, as a
+// field, so "near" is one answer on the node instead of a number buried in every rule that needs it.
+export { Reaching, reachOf, type ReachingFields } from "./core/atoms/reaching.js";
 // A CONTROL IS MEASURED IN PIXELS — a node that keeps its size on the glass whatever the view does.
 export { Screened, screened, screenScale, type ScreenedFields } from "./core/atoms/screened.js";
 // The motion runtime — the one clock. Use `attachMotion` instead of `attachPainter` on a scene that

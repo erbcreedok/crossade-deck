@@ -35,7 +35,7 @@ const meta: Meta = {
   parameters: {
     gkDoc: "heaping.component",
     gkAtom: "Heaping",
-    gkFields: { heap: ["heap"], reach: ["reach"] },
+    gkFields: { heap: ["heap"] },
   },
 };
 export default meta;
@@ -53,10 +53,12 @@ interface HeapingArgs extends StackArgs {
 
 const HEAP = documented("arg.heap", { control: "select", options: NAMES }, "heaping");
 /**
- * HOW FAR OUT A PIECE LOOKS FOR ITS OWN KIND. At nothing it must be COVERED to belong, which is
- * what a card means by a pile; above nothing it takes anything of its pile inside that
- * neighbourhood, which is what a chip means by one. Turn it down here and the two chips that are
- * merely beside each other stop being a pile.
+ * HOW FAR OUT A PIECE LOOKS FOR ITS OWN KIND — `Reaching`'s field, on this page because the two
+ * atoms only mean anything together: a name says WHOM a piece may join and a reach says how CLOSE
+ * that has to be, and neither alone makes a pile. At nothing a piece must be COVERED to belong,
+ * which is what a card means by a pile; above nothing it takes anything of its pile inside that
+ * neighbourhood, which is what a chip means by one. The atom's own page is `Mechanics/Magnetism`,
+ * where a ZONE reaches — the case that shows the reach is nothing to do with piles.
  */
 const REACH = documented("arg.reach", { control: { type: "number", min: 0, step: 0.02 } }, "heaping");
 

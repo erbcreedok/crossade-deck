@@ -140,6 +140,9 @@ export function grabScene(
   rule?: HeapRule,
   // WHAT TAKES UP ROOM, as the panel's answer rather than the pieces' own. Absent, the desk's own.
   bump?: Bump,
+  // WHICH ZONE A RELEASE BELONGS TO. Absent, no release belongs to any — which is what every desk on
+  // this shelf said before one of them grew a zone.
+  zones?: (root: Node, at: Vec, lead: Node) => Node | undefined,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -250,12 +253,21 @@ export function grabScene(
     // where the finger was, and putting down is the thing those pages say is not what happens.
     // A throw is a drop with the hand's speed still on it — one call, and the piece falls from the
     // hand's height WHILE it travels, which is what a thrown thing does.
+    // A ZONE IS ASKED WHERE THE PIECE IS DRAWN, not where the finger is: the finger may be outside
+    // the border the carry clamped the piece to, and it is the PIECE a zone is taking.
+    ...(zones ? { zoneAt: zones } : {}),
     ...(letGo
       ? {
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) =>
             // A heap let go of by its handle was never lifted, so it has no height to fall from —
             // the run comes down from wherever the hand was actually holding it.
-            ((mine: string | undefined) =>
+            // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
+            // page that had both would otherwise always fall: `onRelease` runs BEFORE the drop is
+            // decided, so a fall filed here is a fall the zone never gets to see. Answering `false`
+            // hands the release back to the ordinary path, which is where zones live.
+            zoneFor(built, items, zones)
+              ? false
+              : ((mine: string | undefined) =>
               letFall(built, items, held, letGo === "throw" ? v : undefined, () => {
                 // ONLY IF IT IS STILL MINE. This runs twice — once as the pieces leave, and again
                 // on every landing, which can be a second later. By then another gesture may have a
@@ -308,6 +320,19 @@ const DOWN_THE_DESK = 90;
 
 /** Two velocities as one — the throw the hand gave it plus its own share of the opening. */
 const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
+
+/**
+ * THE ZONE THE RUN IS BEING LET GO OVER, if any — asked at the piece's DRAWN place.
+ *
+ * Where the piece is and where the finger is are not the same point: the carry clamps the run inside
+ * the border while the finger may be well outside it, and it is the PIECE a zone is taking.
+ */
+function zoneFor(s: Scene, items: readonly CarryItem[], zones?: (root: Node, at: Vec, lead: Node) => Node | undefined): Node | undefined {
+  const it = items[0];
+  const lead = it ? byId(s.host.root, it.id) : undefined;
+  const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
+  return zones && drawn && lead ? zones(s.host.root, apply(drawn, { x: 0, y: 0 }), lead) : undefined;
+}
 
 export function letFall(
   s: Scene,

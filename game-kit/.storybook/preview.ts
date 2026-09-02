@@ -164,7 +164,7 @@ const preview: Preview = {
           // will and will not take. They sit after the engine because they are written on top of it
           // — every page here is catalog code using the same doors a game would.
           "Mechanics",
-          ["Stack merging", "Collision"],
+          ["Stack merging", "Collision", "Magnetism"],
           // THE SPACE BEFORE ITS CONTENTS. A desk lives without a camera; a camera does not live
           // without a desk — and everything below her is checkable with no renderer at all, which
           // is why she is the first rung where a page has to be looked at rather than only read.

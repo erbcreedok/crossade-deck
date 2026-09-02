@@ -33,6 +33,7 @@ import {
   facing,
   freeLayout,
   Heaping,
+  Reaching,
   heapOf,
   heapsTogether,
   node,
@@ -119,7 +120,8 @@ export function mergeChip(id: string, value: number, at: Vec, heap = chipHeap(va
     Surfaced({ surface: chipSurface(value) }),
     Transformable({ at }),
     Valued({ values: { chip: value } }),
-    Heaping({ heap, reach }),
+    Heaping({ heap }),
+    Reaching({ reach }),
     PUT_DOWN,
   );
 }
@@ -300,7 +302,8 @@ export function mergeMap(reach = MERGE_REACH): Node {
     compose(d6, PUT_DOWN);
     // A DIE IS GATHERED, NOT STACKED. Nobody piles dice up: they are thrown, and what makes them one
     // roll is that they came to rest near each other.
-    compose(d6, Heaping({ heap: dieHeap, reach }));
+    compose(d6, Heaping({ heap: dieHeap }));
+    compose(d6, Reaching({ reach }));
     add(desk, d6);
   }
   for (const warm of warmingNodes()) add(desk, warm);

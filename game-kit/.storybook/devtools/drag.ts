@@ -108,8 +108,16 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * A callback and not a pick of our own, for the reason `trayOf` and `runOf` are callbacks: which
    * node counts as a drop TARGET is the game's knowledge. A plain pick answers with the topmost
    * thing drawn, and over a zone holding cards that is a card.
+   *
+   * The PIECE comes too, because "is it over the zone" is not the only question a desk may ask: a
+   * zone that forgives a near miss has to measure from the piece's own edge, and a point cannot say
+   * where a card's edge is (`Mechanics/Magnetism`).
+   *
+   * The PIECE comes too, because "is it over the zone" is not the only question a desk may ask: a
+   * zone that forgives a near miss has to measure from the piece's own edge, and a point cannot say
+   * where a card's edge is (`Mechanics/Magnetism`).
    */
-  readonly zoneAt?: ((root: Node, at: Vec) => Node | undefined) | undefined;
+  readonly zoneAt?: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined;
   /**
    * THE DROP, TAKEN OVER — called once a zone has been found and before anything is moved. Return
    * `true` and the wiring does nothing else: the scene has taken the drop.
@@ -429,7 +437,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const landed = (items: readonly CarryItem[], seat: Vec, root: Node): boolean => {
     const lead = items[0] ? byId(root, items[0].id) : undefined;
     const source = lead?.parent ?? undefined;
-    const target = lead ? w.opts.zoneAt?.(root, seat) : undefined;
+    const target = lead ? w.opts.zoneAt?.(root, seat, lead) : undefined;
     if (!lead || !source || !target || target === source) return false;
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);

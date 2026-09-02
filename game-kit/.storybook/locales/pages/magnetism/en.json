@@ -1,0 +1,30 @@
+{
+  "docs.magnetism.component": [
+    "A DROP IS DECIDED BY A POINT: the finger comes up somewhere, and whatever container is under",
+    "that somewhere gets the card. That is exact, and it is the wrong kind of exact.",
+    "",
+    "A player aiming a card at their own area is not aiming at a pixel. They move it over there and",
+    "let go, and \"over there\" is a place with a size. Miss the zone by the width of the card's own",
+    "border and the card stays on the felt — which reads as the desk refusing a move that was plainly",
+    "made, and is the single most common way a good rule feels broken.",
+    "",
+    "So a zone REACHES. Everything within that much of its edge is still it. Nothing else about the",
+    "drop changes: the same seam, the same accept rule, the same re-parent, the same layout."
+  ],
+  "docs.magnetism.scene": [
+    "MAGNETISM — a zone takes a card let go of NEAR it, not only ON it.",
+    "",
+    "Thirty-six cards in a deck and one bordered zone across the felt. Drag a card over and let go",
+    "short of the border: it goes in anyway, and squares up with whatever is already there. Let go",
+    "further out and it stays where it was put.",
+    "",
+    "The pull is a number on the panel, and turning on `bounds` draws it: the zone's border swept by",
+    "a disc of that radius. Turn it to zero and the desk is every other desk — the release has to",
+    "land inside the border.",
+    "",
+    "It is NOT a pull on the carried card. A held thing rides the hand one to one, which is a law of",
+    "this kit; a card that started drifting towards the zone under the finger would read as a dropped",
+    "frame rather than as attraction. The magnet acts at the release — which is also the only moment",
+    "a player is asking it anything."
+  ]
+}

@@ -10,7 +10,7 @@ import { apply, compose, IDENTITY, move, scale, type Transform } from "../../cor
 import { type Mark } from "./quads.js";
 import { type PlanInput } from "./input.js";
 import { transformsOf } from "./transforms.js";
-import { reachOf } from "../../core/atoms/heaping.js";
+import { reachOf } from "../../core/atoms/reaching.js";
 import { grownOutline } from "../../core/overlap.js";
 
 const ORIGIN_ARM = 0.1;
@@ -149,9 +149,9 @@ export function boundsMarks({ root, unit, width, height, viewer, view, overrides
     const px = (p: Point): Point => apply(toGlass, p);
     marks.push({ id: n.id, closed: true, points: outlineOf(shape).map(px), paint: "debug", width: 1 });
 
-    // AND THE REACH, when the piece has one — the neighbourhood it counts its own kind within.
+    // AND THE REACH, when the node has one — the space around the box it still counts as being at.
     //
-    // Drawn here and not left to the game, for the same reason the footprint is: `Heaping.reach` is
+    // Drawn here and not left to the game, for the same reason the footprint is: `Reaching.reach` is
     // real and invisible, so a reader turning the number cannot see what they changed. It is drawn
     // as what it IS — the box swept by a disc of that radius, edges out and corners rounded — rather
     // than as a bigger box, which would claim a reach that grows towards the corners.

@@ -24,6 +24,7 @@ import {
   Container,
   Draggable,
   Heaping,
+  Reaching,
   node,
   rect,
   Surfaced,
@@ -110,7 +111,8 @@ export function collisionMap(reach = MERGE_REACH): Node {
     compose(d6, PUT_DOWN);
     // A die heaps with a die and with nothing else — the same word the merging desk uses, because
     // it is the same claim: what may be picked up together is what says the same pile.
-    compose(d6, Heaping({ heap: DIE_HEAP, reach }));
+    compose(d6, Heaping({ heap: DIE_HEAP }));
+    compose(d6, Reaching({ reach }));
     add(desk, d6);
   }
   for (let i = 0; i < CROWD.chips; i++) {
@@ -159,7 +161,8 @@ export function landingMap(reach = MERGE_REACH): Node {
   for (let i = 0; i < LANDING.dice; i++) {
     const d6 = die(`die ${i}`, { kind: "d6", at: { x: -0.75 + (i % 3) * 0.75, y: -2.3 + Math.floor(i / 3) * 0.75 }, face: (i % 6) + 1 });
     compose(d6, PUT_DOWN);
-    compose(d6, Heaping({ heap: DIE_HEAP, reach }));
+    compose(d6, Heaping({ heap: DIE_HEAP }));
+    compose(d6, Reaching({ reach }));
     add(desk, d6);
   }
   crossadeCards()
