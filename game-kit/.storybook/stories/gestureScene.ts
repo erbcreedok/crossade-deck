@@ -13,6 +13,7 @@ import {
   add,
   apply,
   byId,
+  caps,
   node,
   remove,
   velocityOf,
@@ -152,12 +153,30 @@ export function grabScene(
   // THE OTHER SCREENS ON THIS DESK, if there are any. Absent, this scene is alone with its tree,
   // which is what every page on the shelf but one is.
   mirror?: Mirror,
+  /**
+   * WHAT ONE UNIT IS WORTH IN PIXELS on this page. Absent, the host's own etalon, which is sized for
+   * one scene filling a page — and a page holding two of them stacked shows each a crop of the desk
+   * at that size, which is how two areas a reader was told to aim between end up off the glass.
+   */
+  unit?: number,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
   let heaps = new Map<string, readonly Node[]>();
   /** The handle a finger has hold of right now, if any — see `regrip`'s `keep`. */
   let inHand: string | undefined;
+  /**
+   * THE PLACE THIS RUN WAS LIFTED OUT OF, for as long as the gesture lasts.
+   *
+   * A zone that reaches for a card it just gave up is a zone nothing can be taken out of. Pull a
+   * card clear and let go: you are still within its pull — you always are, that is what a pull IS —
+   * and it takes the card straight back. With two areas near each other the card simply hops from
+   * one to the other and there is no way on the desk to put it down anywhere else.
+   *
+   * So the place a run CAME from does not take it back in the same gesture. Everything else still
+   * does, including that same place on the next one — this is about a gesture, not a grudge.
+   */
+  let liftedFrom: Node | undefined;
   /**
    * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
    *
@@ -177,6 +196,7 @@ export function grabScene(
       // The map is laid out AROUND zero, so its corner is at minus half — the camera is told the
       // rect and not the size, or three quarters of it would be unreachable.
       content: { x: -MAP.w / 2, y: -MAP.h / 2, w: MAP.w, h: MAP.h },
+      ...(unit === undefined ? {} : { unit }),
       // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and
       // over bare map the same finger drives the view. The two never argue about a hand.
       claims: draggable,
@@ -260,8 +280,13 @@ export function grabScene(
           runOf: (_root: Node, hit: Node) => {
             // Remembered for as long as the gesture lasts, so nothing redraws the tab in the hand.
             inHand = isGrip(hit) ? hit.id : undefined;
-            if (!isGrip(hit)) return [hit];
+            if (!isGrip(hit)) {
+              liftedFrom = hit.parent && caps(hit.parent).has("Acceptor") ? hit.parent : undefined;
+              return [hit];
+            }
             const run = heaps.get(hit.id) ?? [];
+            const owner = run[0]?.parent;
+            liftedFrom = owner && caps(owner).has("Acceptor") ? owner : undefined;
             // A PLACE POSES WHAT IT LIFTS, and it poses it as the run leaves the desk — the same
             // moment the stack squares up, and for the same reason: a hand closing on a row of cards
             // splays them, it does not carry a row about and splay it on arrival.
@@ -296,8 +321,9 @@ export function grabScene(
           onSettled: (root: Node, ids: readonly string[]) => {
             // Once per gesture and synchronously with its drop, so there is no staleness to guard.
             inHand = undefined;
-            // The aim belongs to the release that made it and to nothing after it.
+            // The aim and the place it came from belong to the gesture that made them.
             aimed = undefined;
+            liftedFrom = undefined;
             // WHAT WAS JUST PUT DOWN GOES ON TOP, and it does not move to get there: a card let go
             // of over a heap is lying ON the heap, not under it, and the only thing that says which
             // is the order they are drawn in. It is also the order they will stand in when the
@@ -344,7 +370,15 @@ export function grabScene(
     // hand's height WHILE it travels, which is what a thrown thing does.
     // A ZONE IS ASKED WHERE THE PIECE IS DRAWN, not where the finger is: the finger may be outside
     // the border the carry clamped the piece to, and it is the PIECE a zone is taking.
-    ...(zones ? { zoneAt: (root: Node, at: Vec, lead: Node) => zones(root, aimed ?? at, lead) } : {}),
+    ...(zones
+      ? {
+          zoneAt: (root: Node, at: Vec, lead: Node) => {
+            const zone = zones(root, aimed ?? at, lead);
+            // ...BUT NOT BACK WHERE IT CAME FROM. See `liftedFrom`.
+            return zone && zone === liftedFrom ? undefined : zone;
+          },
+        }
+      : {}),
     ...(letGo
       ? {
           onRelease: (v: Vec | undefined, items: readonly CarryItem[]) => {
@@ -359,6 +393,10 @@ export function grabScene(
             // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
             // change that every screen is told about (`changed`).
             mirror?.hand(items.map((it) => it.id), undefined, true);
+            // ...and the place it came from belongs to the gesture that is now over. Cleared FIRST,
+            // so nothing below can read a lift that has already ended.
+            const cameFrom = liftedFrom;
+            liftedFrom = undefined;
             // A THROW IS AIMED TOO. Asked where the piece was LET GO of, a magnet catches only what
             // was carried over and set down — and a card flicked at somebody's area is aimed just as
             // plainly. So the zone is asked about where the throw will come to REST (`restsAt`),
@@ -369,7 +407,9 @@ export function grabScene(
             // so a fall filed here is a fall the zone never gets to see. Answering `false` hands the
             // release back to the ordinary path, which is where zones live — and the piece is taken
             // the moment it leaves the finger rather than flown there and pulled back.
-            const zone = zoneFor(built, items, zones, aimed);
+            const zone = ((z: Node | undefined) => (z && z === cameFrom ? undefined : z))(
+              zoneFor(built, items, zones, aimed),
+            );
             if (zone) {
               // A RUN LED BY A HANDLE IS HANDED OVER HERE; anything else the wiring re-parents
               // itself, with its accept rules and its displacement, which is where that belongs.
@@ -546,6 +586,17 @@ export function letFall(
     // The DRAWN origin: the carry lays the run at the anchor the walls allowed, so this is already
     // inside the border — the finger's own point never is. Root units are the seat's units here,
     // as the map is the root and stands at the origin.
+    // ...AND IT BELONGS TO THE DESK AGAIN. A piece let go of where no place claimed it is on the
+    // felt, and the felt is the root: the seat written just below is in ROOT units, so a piece still
+    // parented to a zone would read that seat against the zone and land somewhere else entirely —
+    // and then the zone's own arrangement would put it back in the row regardless.
+    //
+    // Which is why a card could not be taken out of an area at all. Pulling it clear moved a picture
+    // of it; the tree still said it was in the hand, and the next layout pass proved it.
+    if (n.parent && n.parent !== root) {
+      remove(n.parent, n);
+      add(root, n);
+    }
     const own = fieldsOf<TransformableFields>(n, "Transformable");
     compose(n, Transformable({ ...(own ?? {}), at: apply(pose, { x: 0, y: 0 }) }));
     toFront(n);

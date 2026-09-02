@@ -42,6 +42,16 @@ import { cards as crossadeCards } from "@game-presets/cards";
 import { installMapArt, MAP, warmingNodes } from "./gestureMap.js";
 import { handLayout, PULL, ZONE_SPREAD, type Spread } from "./magnetMap.js";
 
+/**
+ * WHAT ONE UNIT IS WORTH ON A LIVE PANE, in pixels.
+ *
+ * Smaller than the house etalon on purpose: that one is sized for a single scene filling a page, and
+ * this page stacks two. At the house size each pane shows a crop, and the two areas a reader is
+ * meant to aim BETWEEN sit off the glass — which makes the common ground unreachable rather than
+ * merely small.
+ */
+export const LIVE_UNIT = 56;
+
 /** The two seats this page seats, and the colour each is drawn in. */
 export const SEATS = [
   { seat: "south", ink: "accent" },
@@ -51,13 +61,19 @@ export const SEATS = [
 /** What is on the shared desk. */
 export const LIVE = { cards: 36 };
 
-const ZONE = { w: 3.6, h: 1.9 };
+const ZONE = { w: 3.4, h: 1.4 };
 const ZONE_SURFACE = "live.zone";
 const ZONE_LAYOUT = "live.hand";
 const DESK_LAYOUT = "live.free";
 
-/** Where each seat's own area stands — across the desk from each other, as two players sit. */
-const AREA: Record<string, number> = { south: 2.1, north: -2.1 };
+/**
+ * WHERE EACH SEAT'S OWN AREA STANDS — and how much felt is left between them.
+ *
+ * The gap is the point. Two areas near each other are two magnets near each other: a card pulled
+ * out of one is inside the other's reach before it is anywhere, so there is nowhere on the desk to
+ * simply PUT something down. The common ground between them has to be big enough to be a place.
+ */
+const AREA: Record<string, number> = { south: 2.05, north: -2.05 };
 
 /** A piece put down outside a zone stays where it was put. */
 const PUT_DOWN = Draggable({ onReject: "stay" });

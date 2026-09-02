@@ -84,7 +84,12 @@ export const CARD_SHARE = 0.1;
  * a thing you are meant to read, and one that stayed the width of the zone it came from would be a
  * squashed row held at an angle. The row is bounded by its zone and closes up instead.
  */
-export const FAN_SPREAD: Spread = { gapMin: 0.18, gapMax: 0.62, wideMin: 0.24, wideMax: 1 };
+/**
+ * A HAND OPENS AS IT GROWS AND THEN STOPS. The ceiling is well under the glass on purpose: a fan
+ * that took the whole screen would be a fan nobody can hold — a big hand in every card game anybody
+ * has played is a TIGHT one, and what grows with the count is how packed it is, not how wide.
+ */
+export const FAN_SPREAD: Spread = { gapMin: 0.05, gapMax: 0.5, wideMin: 0.16, wideMax: 0.62 };
 export const ZONE_SPREAD: Spread = { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 };
 
 /** How far the outermost card of a fan leans, degrees. `0` is a straight line of upright cards. */

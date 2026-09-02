@@ -206,4 +206,34 @@ describe("the drag wiring's order", () => {
     s2.dispose();
   });
 
+
+  it("drag.the-zone-a-run-came-from-is-asked-with-the-rest — and the scene may refuse it", () => {
+    // A zone that reaches for a card it just gave up is a zone nothing can be taken out of: pull a
+    // card clear and let go, and you are still within its pull — you always are, that is what a pull
+    // IS — so it takes the card straight back. With two areas near each other the card just hops
+    // between them and there is nowhere on the desk to put anything down.
+    //
+    // The wiring cannot know that: which zone a release belongs to is the scene's answer
+    // (`zoneAt`), and so is "not that one". What is pinned here is that the scene GETS the question
+    // with everything it needs to answer it — the point AND the piece — on every release.
+    const root = desk();
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    const asked: string[] = [];
+    wireDrag(s, {
+      zoneAt: (_root, _at, lead) => {
+        asked.push(lead.id);
+        return undefined; // the scene refuses: nothing takes this release
+      },
+    });
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 120, 0));
+    s.host.view.dispatchEvent(finger("pointerup", 120, 0));
+    expect(asked, "asked once, about the piece").toEqual(["card"]);
+    // ...and a refused release is the ordinary one: the piece stays where the finger left it.
+    expect(seatOf(root.children[0]!).x).not.toBe(0);
+    s.dispose();
+  });
+
 });

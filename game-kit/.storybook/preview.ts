@@ -168,6 +168,11 @@ const preview: Preview = {
           // THE SPACE BEFORE ITS CONTENTS. A desk lives without a camera; a camera does not live
           // without a desk — and everything below her is checkable with no renderer at all, which
           // is why she is the first rung where a page has to be looked at rather than only read.
+          // LIVE is not a mechanic and not a canvas: it is the same desk in front of two people,
+          // which is the one thing a mechanic cannot be tried against on a single screen. It sits
+          // after the mechanics because every page in it is one of those with a second pair of eyes.
+          "Live",
+          ["Shared desk"],
           "Canvas",
           ["Camera", "Seats"],
           "Elements",

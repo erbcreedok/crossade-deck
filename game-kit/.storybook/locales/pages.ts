@@ -32,6 +32,7 @@ import type gestures from "./pages/gestures/en.json";
 import type merging from "./pages/merging/en.json";
 import type collision from "./pages/collision/en.json";
 import type magnetism from "./pages/magnetism/en.json";
+import type live from "./pages/live/en.json";
 import type heaping from "./pages/heaping/en.json";
 import type focusable from "./pages/focusable/en.json";
 import type hudButton from "./pages/hudButton/en.json";
@@ -106,6 +107,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   placeable: { en: () => import("./pages/placeable/en.json"), ru: () => import("./pages/placeable/ru.json") },
   actionable: { en: () => import("./pages/actionable/en.json"), ru: () => import("./pages/actionable/ru.json") },
   gestures: { en: () => import("./pages/gestures/en.json"), ru: () => import("./pages/gestures/ru.json") },
+  live: { en: () => import("./pages/live/en.json"), ru: () => import("./pages/live/ru.json") },
   magnetism: { en: () => import("./pages/magnetism/en.json"), ru: () => import("./pages/magnetism/ru.json") },
   collision: { en: () => import("./pages/collision/en.json"), ru: () => import("./pages/collision/ru.json") },
   merging: { en: () => import("./pages/merging/en.json"), ru: () => import("./pages/merging/ru.json") },
@@ -196,6 +198,7 @@ export type PageKey = keyof (typeof node &
   typeof merging &
   typeof collision &
   typeof magnetism &
+  typeof live &
   typeof heaping &
   typeof focusable &
   typeof hudButton &
