@@ -259,6 +259,24 @@ export const DIE_FAN = 34;
 export const THROWN_AT = 1.5;
 
 /**
+ * WHAT A HAND ACTUALLY THREW, in units/s — the speed it had OVER the throwing speed, not all of it.
+ *
+ * Carrying is moving. A hand crossing the desk with a card in it is going somewhere at three or
+ * four units a second, and taking that as the throw means every ordinary putting-down is a flick:
+ * let go while still walking the card over and it sails off, which is what a hand never does and
+ * what nobody asked it to do.
+ *
+ * It also puts a CLIFF at the threshold. Below it nothing flies at all; a hair above it and the
+ * piece leaves at full carrying speed — the same gesture, a millimetre apart, giving nothing and
+ * giving everything. Measured as the excess, a throw begins at nothing exactly where it begins to
+ * be a throw, and grows from there: what travels is the part of the gesture that was a THROW, and
+ * the part that was merely carrying is left where carrying leaves things.
+ */
+export function threwAt(speed: number): number {
+  return Math.max(0, speed - THROWN_AT);
+}
+
+/**
  * Does this piece FLY when the hand lets go at `speed`? Its own way of leaving, unless the hand was
  * moving fast enough to overrule it.
  */

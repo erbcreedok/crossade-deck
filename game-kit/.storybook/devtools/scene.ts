@@ -258,6 +258,40 @@ const TOUCH_RING = 26;
 /** One ruler for the whole page: the answers are cached, so twenty stories measure a caption once. */
 const ruler = domTextMeasure();
 
+/** The one style element the shell's rules live in — installed once, on the first scene. */
+const SHELL_RULES = "data-catalog-shell-rules";
+
+/**
+ * A SCENE IS NOT A DOCUMENT, and the whole of it has to say so — not only the glass.
+ *
+ * The kit already tells the CANVAS this (`data-gk-glass-rules`), and it is enough for a long press
+ * that lands on a card. It is not enough for one that lands a few pixels off: the toolbar's labels
+ * and the note in the corner are text, a phone offers to select text, and iOS opens its magnifying
+ * loupe over the whole scene to help — a lens sitting on top of the very card being dragged.
+ *
+ * A STYLESHEET and not an inline style, for one reason worth writing down: an inline declaration is
+ * parsed by the browser that receives it, and a property that browser does not know is DROPPED. The
+ * one that actually stops the loupe (`-webkit-touch-callout`) is exactly such a property everywhere
+ * except the phones it matters on, so written inline it survives in the CSSOM of no engine that
+ * could be used to check it. In a sheet the rule is kept verbatim, applied where it is understood
+ * and ignored where it is not — which is what a vendor property is for.
+ */
+function shellRules(): void {
+  if (document.head.querySelector(`style[${SHELL_RULES}]`)) return;
+  const sheet = document.createElement("style");
+  sheet.setAttribute(SHELL_RULES, "");
+  sheet.textContent = [
+    "[data-scene-shell]{",
+    "  touch-action: none;",
+    "  user-select: none;",
+    "  -webkit-user-select: none;",
+    "  -webkit-touch-callout: none;",
+    "  overscroll-behavior: none;",
+    "}",
+  ].join("\n");
+  document.head.appendChild(sheet);
+}
+
 export function scene(
   root: Node | (() => Node),
   options: SceneOptions = {},
@@ -312,6 +346,8 @@ export function scene(
   }
 
   const el = document.createElement("div");
+  // The whole scene, chrome included, says it is not text to be selected — see `shellRules`.
+  el.setAttribute("data-scene-shell", "");
   el.style.cssText = [
     "position:relative",
     "height:100%",
@@ -330,6 +366,7 @@ export function scene(
   // Floating it is what the note at the other corner has always done. The scene keeps its
   // corners free by construction — content is laid out around the origin — so chrome in one
   // costs nothing, while a track costs every scene the same strip forever.
+  shellRules();
   const stage = document.createElement("div");
   stage.style.cssText = [
     "position:absolute",

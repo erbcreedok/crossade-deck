@@ -591,4 +591,24 @@ describe("the lazy painter against a renderer that starts late", () => {
     expect(fake!.sizedTo).toEqual([[390, 500]]);
     expect(fake!.drawnAfterStart).toBeGreaterThan(0);
   });
+
+  it("shell.a-desk-is-not-a-document — nothing on the glass is text to be selected", () => {
+    // Held down, a phone treats any surface as text: iOS opens its magnifying loupe over the glass
+    // and a caret follows the finger — a lens sitting on top of the very card being dragged. There
+    // is nothing here to select and no callout to offer, and the browser only stops guessing when it
+    // is told all of it. `touch-action` is the same sentence about scrolling: the pointer is the
+    // desk's, and a drag must not become a page scroll under it.
+    const s = scene(node("desk"), {});
+    document.body.appendChild(s.el);
+    expect(s.el.hasAttribute("data-scene-shell"), "the whole scene, chrome included").toBe(true);
+    // Read off the SHEET, not off an inline style: a browser drops an inline property it does not
+    // know, and the one that actually stops the loupe is exactly such a property everywhere except
+    // the phones it matters on. In a sheet the rule is kept verbatim.
+    const rules = document.head.querySelector("style[data-catalog-shell-rules]")?.textContent ?? "";
+    for (const said of ["touch-action: none", "user-select: none", "-webkit-touch-callout: none", "overscroll-behavior: none"]) {
+      expect(rules, said).toContain(said);
+    }
+    s.dispose();
+  });
+
 });

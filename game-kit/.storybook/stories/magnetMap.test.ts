@@ -27,7 +27,7 @@ import {
   type TransformableFields,
 } from "../../src/index.js";
 import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, zoneSquares } from "./magnetMap.js";
-import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats } from "./gestureMap.js";
+import { GRIP, heapBox, isGrip, regrip, restsAt, stackSeats, threwAt, THROWN_AT } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
 /** A card off the desk itself — the real shape, not a stand-in built to make the sums come out. */
@@ -97,6 +97,21 @@ describe("which zone a release belongs to", () => {
 
 
 describe("where a throw will come to rest", () => {
+  it("magnet.a-throw-is-the-speed-ABOVE-the-throwing-speed — carrying is not throwing", () => {
+    // A hand crossing the desk with a card in it is going somewhere at three or four units a second.
+    // Take that as the throw and every ordinary putting-down is a flick: let go while still walking
+    // the card over and it sails off, which is what a hand never does.
+    expect(threwAt(0), "standing still").toBe(0);
+    expect(threwAt(THROWN_AT * 0.9), "carrying, under the threshold").toBe(0);
+    // NO CLIFF AT THE THRESHOLD. Below it nothing flies; a hair above it the piece used to leave at
+    // full carrying speed — the same gesture a millimetre apart giving nothing and giving
+    // everything. It begins at nothing exactly where it begins to be a throw.
+    expect(threwAt(THROWN_AT)).toBe(0);
+    expect(threwAt(THROWN_AT + 0.01)).toBeCloseTo(0.01, 9);
+    // ...and grows from there, one for one: what travels is the part of the gesture that was a throw.
+    expect(threwAt(THROWN_AT + 6)).toBeCloseTo(6, 9);
+  });
+
   it("magnet.a-throw-is-aimed-too — asked where it will STOP, not where the finger came up", () => {
     // A magnet that only catches a piece put down near a zone is half a magnet: a card flicked at
     // somebody's area is aimed just as plainly as one carried there, and a desk that answered "you

@@ -41,6 +41,7 @@ import {
   DIE_SPIN,
   DIE_SPIN_DRAG,
   shoves,
+  threwAt,
   deckMap,
   dropOf,
   fallOrder,
@@ -676,7 +677,12 @@ export function letFall(
   for (const { id, feel, walls, delayMs, fan } of dropped) {
     // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
     // chip stops being pushed the moment it is let go, a card goes where it was sent.
-    const flight = hand ? polar({ x: hand.x * feel.throwGain, y: hand.y * feel.throwGain }) : { speed: 0, angle: 0 };
+    // ITS OWN SHARE OF WHAT THE HAND THREW — and what a hand threw is the speed it had OVER the
+    // throwing speed (`threwAt`), never all of it: carrying is moving, and a card let go of on the
+    // way across the desk was not thrown anywhere.
+    const flight = hand
+      ? { speed: threwAt(Math.hypot(hand.x, hand.y)) * feel.throwGain, angle: polar(hand).angle }
+      : { speed: 0, angle: 0 };
     // The hand's own throw, plus this piece's share of the opening. A run of one has no fan to take
     // and is left exactly as it was: one die thrown is a die thrown where you threw it.
     const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));
