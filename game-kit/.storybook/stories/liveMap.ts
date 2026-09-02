@@ -30,6 +30,9 @@ import {
   node,
   Reaching,
   rect,
+  installStockCoats,
+  Inviting,
+  NO_COAT,
   registerSurface,
   roundedRect,
   setFacing,
@@ -39,7 +42,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, LAMP, installMapArt, MAP, onTheDesk, PUT_DOWN, warmingNodes } from "./gestureMap.js";
+import { CASTS, LAMP, installMapArt, MAP, onTheDesk, PUT_DOWN, warmingNodes, zoneKeen, zoneLine } from "./gestureMap.js";
 import { handLayout, PULL, ZONE_SPREAD, type Spread } from "./magnetMap.js";
 
 /**
@@ -87,16 +90,19 @@ const AREA: Record<string, number> = { south: 2.05, north: -2.05 };
 export function installLiveArt(zone: Spread): void {
   installMapArt();
   installStockGrabs();
+  // ...AND THE COAT RECIPES. A coat is a NAME looked up in a registry, and a name nobody registered
+  // resolves to nothing and paints nothing — in silence (`desk.a-coat-nobody-registered...`).
+  installStockCoats();
   registerLayout(DESK_LAYOUT, freeLayout);
   registerLayout(ZONE_LAYOUT, handLayout(zone, 0.12));
   for (const { seat, ink } of SEATS) {
     registerSurface(zoneSurface(seat), {
       layers: [{ paint: "sunkBg" }],
       radius: 0.22,
-      // THE BORDER IS THE AREA. Nothing else on the felt says where it begins, and an area a player
-      // cannot see the edge of is an area they cannot aim at — which is the very thing the reach is
-      // there to forgive. Same weight as the magnetism desk's, so one shelf means one thing.
-      stroke: { color: ink, width: 0.05 },
+      // A LABEL, NOT AN EVENT — dashed and quiet, saying only whose patch this is. What "solid"
+      // means is saved for the one thing worth an event: this is the zone taking the card
+      // (`zoneKeen`). The shelf's own vocabulary, so every desk on it says these two the same way.
+      stroke: zoneLine(ink),
     });
   }
 }
@@ -116,7 +122,7 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
     LAMP,
     Grabber({ grab: "one" }),
   );
-  for (const { seat } of SEATS) {
+  for (const { seat, ink } of SEATS) {
     add(
       desk,
       node(
@@ -128,6 +134,10 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
         Acceptor({}),
         Grabber({ grab: "one" }),
         Reaching({ reach: pull }),
+        // ...AND IT SAYS SO WHILE THE HAND IS OVER IT: the dashed label goes solid, in the seat's
+        // own ink. Nothing for being merely willing — on a desk where every area takes every card,
+        // "you may put it here" is true of both of them and all the time, which is not news.
+        Inviting({ coat: NO_COAT, keen: zoneKeen(ink) }),
       ),
     );
   }

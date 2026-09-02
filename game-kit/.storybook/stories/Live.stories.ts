@@ -137,14 +137,23 @@ export const Live: StoryObj<MagnetArgs> = {
           hand: (items, at, done) => {
             for (const one of others()) follow(one, items, at, done, held);
           },
-        }, LIVE_UNIT, false),
+        }, LIVE_UNIT),
       );
       pane.appendChild(dot);
       wall.appendChild(pane);
     }
     return wall;
   },
-  args: { ...MAGNET_ARGS },
+  // NO PULL, AND THAT IS WHAT "no magnetism here" MEANS — not that the areas are scenery.
+  //
+  // An area takes what is put ON it and nothing that merely lands near it: a card let go of over
+  // your own patch goes in, a card let go of beside it stays on the felt. The reach is what turns
+  // that into magnetism, and this page sets it to nothing — raise the knob and the magnetism page's
+  // behaviour is back, which is the honest way for a switch to be off.
+  //
+  // Zones OFF entirely was the previous answer, and it went too far: with nothing to ask, no card
+  // could enter an area at all, and the areas were two boxes that could not be used or lit.
+  args: { ...MAGNET_ARGS, pull: 0 },
   argTypes: { ...MAGNET_KNOBS },
   parameters: { gkDocStory: "live.scene" },
 };

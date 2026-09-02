@@ -62,7 +62,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, type HeapRule } from "./gestureMap.js";
+import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, zoneKeen, zoneLine, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -135,10 +135,10 @@ function installMagnetArt(zone: Spread): void {
   registerSurface(ZONE_SURFACE, {
     layers: [{ paint: "sunkBg" }],
     radius: 0.24,
-    // THE BORDER IS THE ZONE. Nothing else on the felt says where it begins, and a zone a player
-    // cannot see the edge of is a zone they cannot aim at — which is the very thing the reach is
-    // there to forgive.
-    stroke: { color: "accent", width: 0.05 },
+    // A LABEL, NOT AN EVENT — dashed and quiet, saying only that this patch is somebody's. What
+    // "solid" means is kept for the one thing worth an event: this is the zone taking the card
+    // (`zoneKeen`). The shelf's own vocabulary, so every desk on it says these two the same way.
+    stroke: zoneLine("accent"),
   });
 }
 
@@ -181,7 +181,7 @@ export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
       // that comes on at the grab and stays on for the whole carry says only "there is a zone",
       // which the border already said. What is news is WHICH ONE TAKES IT, and on a desk of one
       // that is news exactly while the hand is near enough.
-      Inviting({ coat: NO_COAT, keen: { recipe: "wash", level: 0.22, tint: "accent" } }),
+      Inviting({ coat: NO_COAT, keen: zoneKeen("accent") }),
       // ...and the zone answers the same question for whatever is taken back OUT of it again.
       Grabber({ grab: "one" }),
       Reaching({ reach: pull }),

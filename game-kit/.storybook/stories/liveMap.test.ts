@@ -5,7 +5,7 @@
 // each, and every card face up — because the page deliberately teaches sharing and not hiding.
 
 import { describe, expect, it } from "vitest";
-import { caps, facing, fieldsOf, heapOf, surfaceRecord, type Node, type SurfacedFields, type TransformableFields } from "../../src/index.js";
+import { caps, facing, fieldsOf, heapOf, keenOf, surfaceRecord, type Node, type SurfacedFields, type TransformableFields } from "../../src/index.js";
 import { liveMap, LIVE, SEATS } from "./liveMap.js";
 
 const areas = (desk: Node): Node[] => desk.children.filter((n) => caps(n).has("Acceptor"));
@@ -49,7 +49,7 @@ describe("the shared desk", () => {
     for (const area of areas(desk)) expect(caps(area).has("Grabber"), "and each area").toBe(true);
   });
 
-  it("live.an-area-is-drawn-in-its-owners-colour — a border the colour of the felt is no border", () => {
+  it("live.an-area-is-dashed-in-its-owners-colour-and-solid-only-under-the-hand", () => {
     // Both areas were one surface, stroked in `panelBorder` — a token a hair off the felt it is
     // drawn on. On a desktop that is a faint line; on a phone it is nothing at all, and the page
     // where knowing WHOSE area you are looking at is the whole subject showed two invisible boxes.
@@ -65,6 +65,15 @@ describe("the shared desk", () => {
       expect(drawn, `${named}: named but never registered`).toBeDefined();
       const stroke = drawn?.stroke;
       expect(stroke?.color, "an area with no border has no edge to aim at").toBeTruthy();
+      // ...AND IT IS A LABEL, NOT AN EVENT. A solid line claims something at every moment of the
+      // game, when all it is saying is "this patch is somebody's"; said solid it reads as the zone
+      // being ON, and then the zone lighting up for real has nothing left to change into.
+      expect(stroke?.dash, "dashed: a boundary drawn on the felt, not a thing standing on it").toBeDefined();
+      // The loud one is the SAME colour and solid, worn only while the hand is over it — one
+      // outline in two states, so nothing is added to or taken off the glass.
+      const keen = keenOf(area);
+      expect(keen?.recipe, "and solid is kept for the zone that is taking the card").toBe("ring");
+      expect(keen?.tint, "the same ink: what changed is that this one is taking it").toBe(stroke!.color);
       inks.add(String(stroke!.color));
     }
     // EACH SEAT'S OWN, and the page's own list of them — not a colour invented here.

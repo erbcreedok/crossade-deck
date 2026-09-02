@@ -56,6 +56,9 @@ import {
   type ValuedFields,
   type Vec,
   type Walls,
+  type Coat,
+  type Paint,
+  type Stroke,
 } from "../../src/index.js";
 import { cards as crossadeCards, deckByCardId } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
@@ -79,6 +82,40 @@ export const MAP = { w: 8, h: 8 };
  * IT MOVES NOTHING BUT THE VIEW. The desk's border is still a wall to the PIECES (`mapWalls`): the
  * slack is somewhere to look from, never somewhere to put anything.
  */
+/**
+ * HOW A DROP ZONE STANDS WHEN NOTHING IS OVER IT — its owner's colour, dashed, and quiet.
+ *
+ * TWO DIFFERENT SENTENCES, and a solid border says the wrong one. A zone drawn in a hard line is
+ * claiming something at every moment of the game, and what it is actually saying is only "this
+ * patch is somebody's" — a label, not an event. Said in a solid stroke it reads as the zone being
+ * ON, so when the zone really does light up there is nothing left for it to change into.
+ *
+ * DASHED is what makes it a label. A broken line is a boundary drawn on the felt rather than a
+ * thing standing on it, which is exactly what an area is; and it leaves the whole of "solid" free
+ * to mean the one thing worth an event — this is the one that will take the card.
+ *
+ * IN UNITS, so the dashes are the same size on a desk of any zoom and there are simply more of them
+ * around a bigger area: a pattern that scaled would be a picture of a border rather than a border.
+ */
+export function zoneLine(ink: Paint): Stroke {
+  return { color: ink, width: 0.035, opacity: 0.55, dash: { on: 0.2, off: 0.16, corner: "dash" } };
+}
+
+/**
+ * ...AND WHAT IT WEARS WHILE THE HAND IS OVER IT — the same colour, solid, and loud.
+ *
+ * A RING, because a ring is a STROKE and a stroke replaces the surface's own border for as long as
+ * it is worn: the dashed label becomes one unbroken line and goes back to dashes when the hand
+ * moves on. One outline, two states, and nothing on the glass has to be added or taken away.
+ *
+ * The same ink as the quiet line, on purpose. A zone that lit up in a different colour would be
+ * answering a different question — the reader would have to learn which colour meant "yours" and
+ * which meant "taking it", when the only thing that changed is that this one is taking it.
+ */
+export function zoneKeen(ink: Paint): Coat {
+  return { recipe: "ring", level: 0.75, tint: ink };
+}
+
 export const ROAM = 0.25;
 
 /**
