@@ -89,6 +89,28 @@ describe("node.compose", () => {
     expect(n.atoms.get("Bounded")!.fields).toEqual({ size: "2x2" });
   });
 
+  it("node.caps.answers-once — the same node asked twice gives the same set, until its atoms change", () => {
+    // `caps` is a fixpoint over the atoms' requirements, and `fieldsOf` asks it on EVERY read: a
+    // scene plan of two hundred nodes asked it tens of thousands of times a frame, at two hundred
+    // frames a second under a carried piece, and that was the hang on a phone. The answer only
+    // depends on WHICH atoms are on the node, so it is kept until that changes — by `compose`,
+    // by `decompose`, or by anybody reaching into `atoms` directly, which the check reads too.
+    const n = node("n", Bounded({}));
+    const first = caps(n);
+    expect(caps(n), "asked again: the same set, not a new one").toBe(first);
+    compose(n, Surfaced({}));
+    expect(caps(n), "an atom composed: a fresh answer").not.toBe(first);
+    expect(caps(n).has("Surfaced")).toBe(true);
+    const second = caps(n);
+    decompose(n, "Surfaced");
+    expect(caps(n), "an atom removed: a fresh answer").not.toBe(second);
+    expect(caps(n).has("Surfaced")).toBe(false);
+    const third = caps(n);
+    n.atoms.set("Surfaced", Surfaced({})); // reaching in, past compose
+    expect(caps(n), "reached into directly: still a fresh answer").not.toBe(third);
+    expect(caps(n).has("Surfaced")).toBe(true);
+  });
+
   it("node.id.given — a node is NAMED, it does not name itself", () => {
     // The id is an input because the same node is read from more than one place: another
     // device, a save reopened tomorrow, a live mock. A counter hidden in `node()` is unique

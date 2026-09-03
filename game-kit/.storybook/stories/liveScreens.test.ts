@@ -43,11 +43,13 @@ describe("a hand mirrored onto another screen", () => {
     follow(screen, [{ id: pawn.id, offset: { x: 0, y: 0 } }], { x: 0.5, y: -0.5 }, false, 1.3, {});
     const carried = far.motions!.poses()?.get(pawn.id);
     expect(carried, "the far screen now holds him off his square").toBeDefined();
-    expect(drawn, "and has PAINTED it — a carry nobody drew is a cursor over a still board").toBeGreaterThan(before);
     // Told a new anchor, the far screen has a frame to run: the loop is armed, and once it has
-    // stepped the man is drawn AT the new anchor, not where the hand first closed on him.
+    // stepped the man is drawn AT the new anchor, not where the hand first closed on him — PAINTED
+    // by that frame, and not by an extra plan on every move: a steer costs no paint of its own.
     expect(frame, "a frame is asked for — the springs have somewhere to go").not.toBeNull();
+    expect(drawn, "and the steer itself paints nothing — the frame will").toBe(before);
     tick(60);
+    expect(drawn, "the frames PAINTED it — a carry nobody drew is a cursor over a still board").toBeGreaterThan(before);
     const rode = far.motions!.poses()?.get(pawn.id)!;
     expect(rode.e, "rides the anchor: x").toBeCloseTo(0.5, 2);
     expect(rode.f, "rides the anchor: y").toBeCloseTo(-0.5, 2);

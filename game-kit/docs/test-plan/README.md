@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**68 слоёв · 1559 кейсов заявлено · 1386 расписано поимённо.**
+**68 слоёв · 1560 кейсов заявлено · 1387 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -28,7 +28,7 @@
 |---|---|---|---|
 | [UNIT · Fit and align](01-fit-and-align.md) | `vitest (headless, no WebGL)` | 12 | 12 |
 | [UNIT · Contour and dashes](02-contour-and-dashes.md) | `vitest (headless, no WebGL)` | 20 | 20 |
-| [UNIT · Node and composition](03-node-and-composition.md) | `vitest (headless, no WebGL)` | 37 | 36 |
+| [UNIT · Node and composition](03-node-and-composition.md) | `vitest (headless, no WebGL)` | 38 | 37 |
 | [UNIT · Root, host and the inspector](04-root-host-and-inspector.md) | `vitest + a DOM fake` | 29 | 28 |
 | [UNIT · requirement chains](05-requirement-chains.md) | `vitest` | 10 | 6 |
 | [UNIT · four classes of inheritance](06-inheritance-classes.md) | `vitest + a fake tree` | 26 | 10 |

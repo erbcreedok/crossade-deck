@@ -91,7 +91,32 @@ export function decompose(n: Node, name: string): Node {
  * not disabled. Requirements may be alternatives, so this is a fixpoint: keep dropping
  * unsatisfied atoms until nothing changes.
  */
+/**
+ * WHAT A NODE HAS IS REMEMBERED UNTIL ITS ATOMS CHANGE. `caps` is a fixpoint over the atoms'
+ * requirements, and `fieldsOf` asks it on every read — a scene plan of two hundred nodes asks it
+ * tens of thousands of times a frame, at two hundred frames a second under a carried piece, which
+ * on a phone was the hang. The answer depends only on WHICH atoms the node carries, so it is kept
+ * against that list and given again while the list is the same. Read off the node itself on each
+ * ask, not off a flag `compose` sets: whoever reaches into `atoms` directly changes the answer too.
+ */
+const REMEMBERED = new WeakMap<Node, { readonly names: readonly string[]; readonly has: Set<string> }>();
+
+function sameNames(names: readonly string[], atoms: ReadonlyMap<string, Atom>): boolean {
+  if (names.length !== atoms.size) return false;
+  let i = 0;
+  for (const name of atoms.keys()) if (names[i++] !== name) return false;
+  return true;
+}
+
 export function caps(n: Node): Set<string> {
+  const kept = REMEMBERED.get(n);
+  if (kept && sameNames(kept.names, n.atoms)) return kept.has;
+  const has = closure(n);
+  REMEMBERED.set(n, { names: [...n.atoms.keys()], has });
+  return has;
+}
+
+function closure(n: Node): Set<string> {
   let present = new Set(n.atoms.keys());
   for (;;) {
     const next = new Set<string>();

@@ -64,10 +64,9 @@ export function follow(
     screen.mirroring = [...ids];
     s.motions?.grab(items, { ...feel, anchor: at, lift });
   }
+  // ...AND THE CLOCK DRAWS IT. `dragTo` arms this screen's own loop, and the loop paints the man
+  // riding the anchor frame by frame — the same frames the near screen paints him on. A paint
+  // here as well, on every move, was a whole extra plan per pointer event on top of the two loops
+  // already running: three plans a frame for one moving man, and the hang that came with it.
   s.motions?.dragTo(at);
-  // ...AND DRAWN. An override is a number in the clock until a frame paints it, and this screen's
-  // clock is woken by ITS OWN gestures — of which a mirrored hand is not one. Told the carry and
-  // never told to draw, the far screen held the man off his square in its arithmetic and went on
-  // showing him standing on it: a cursor gliding about over a board where nothing moved.
-  s.motions?.redraw();
 }

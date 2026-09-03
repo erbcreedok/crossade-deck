@@ -1,6 +1,6 @@
 ## UNIT · Node and composition
 
-`vitest (headless, no WebGL)` · 37 кейсов, расписано 36
+`vitest (headless, no WebGL)` · 38 кейсов, расписано 37
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -15,6 +15,7 @@
 | `compose.remove-atom` | atom X is composed out | the method is called | it is **undefined** (absent), not a thrown 'disabled' error |
 | `compose.assoc` | atoms a,b,c | `compose(a,compose(b,c))` vs `compose(a,b,c)` | identical caps set — composition is associative |
 | `compose.commut` | the same atoms in any order | two compositions compared | equal — order does not change the node |
+| `node.caps.answers-once` | узел с атомом; тот же узел после `compose`, после `decompose`, после прямого `atoms.set` | `caps` дважды подряд | тот же самый Set (по идентичности), а после каждой из трёх перемен — новый и верный. `fieldsOf` спрашивает `caps` на каждое чтение, план сцены на 200 узлов — десятки тысяч раз за кадр при 200 кадрах в секунду под несомой фигурой: на телефоне это и было «виснет». Ответ зависит только от списка атомов и хранится против него; список читается с узла при каждом вопросе, а не по флагу из `compose` |
 | `compose.dedupe` | the same atom twice | composed | present once; second is a no-op, not a duplicate |
 | `node.id.given` | a node built with an authored name | its id is read | it is the name that was given — a node is NAMED, it does not name itself |
 | `node.id.local-allocator` | `localIds()` in an instance answering to nobody | two ids minted | they differ; the allocator is explicit, never ambient |
