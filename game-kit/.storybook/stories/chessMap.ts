@@ -31,6 +31,7 @@ import {
   freeLayout,
   Grabber,
   Inviting,
+  Lit,
   installStockGrabs,
   installStockOccupied,
   node,
@@ -55,7 +56,7 @@ import {
 } from "../../src/index.js";
 import { svg } from "./stockAssets.js";
 import { currentSettings } from "../devtools/catalogSettings.js";
-import { CASTS, installMapArt, LAMP, MAP, PUT_DOWN, warmingNodes, zoneKeen } from "./gestureMap.js";
+import { CASTS, installMapArt, PUT_DOWN, warmingNodes, zoneKeen } from "./gestureMap.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
 export const CHESS_SEATS = [
@@ -75,10 +76,10 @@ export const BOARD = 8;
  * five files of it is showing something that is not chess. Eight squares and a tray a side is
  * twelve units across, and this is what puts twelve units on a phone.
  */
-export const CHESS_UNIT = 34;
+export const CHESS_UNIT = 38;
 
 /** How much of a cell a piece takes up. Under one, so the cell's own colour reads all round it. */
-const PIECE = 0.78;
+const PIECE = 0.88;
 
 /**
  * WHERE THE TAKEN PIECES GO — one tray a side, off the board.
@@ -96,6 +97,8 @@ const DARK = "chess.cell.dark";
 const CELL_LAYOUT = "chess.cell";
 const TRAY_LAYOUT = "chess.tray";
 const BOARD_LAYOUT = "chess.board";
+const BOARD_SURFACE = "chess.board.face";
+const TRAY_SURFACE = "chess.tray";
 const TAKEN = "chess.taken";
 
 /**
@@ -106,12 +109,13 @@ const TAKEN = "chess.taken";
  * drawn by hand here would be twelve hand-drawn silhouettes, every one of them a worse version of
  * a shape that has been settled for two hundred years and is in every font on every machine.
  *
- * THE OUTLINED GLYPHS FOR BOTH SIDES, tinted, rather than the solid ones for black. The solid
- * glyphs are a different WEIGHT, not a different colour: side by side they read as two sets from
- * two boxes. Same outline, two inks, and which is which is never in doubt on a dark desk where a
- * "white" piece cannot be white.
+ * THE SOLID GLYPHS FOR BOTH SIDES, tinted — never the outlined ones for white and the solid ones
+ * for black. Those two are different WEIGHTS, not different colours: an outline is a hairline at the
+ * size a square is on a phone, and next to a filled man it reads as a ghost rather than as the other
+ * army. One shape, two inks, and a thin rim of the opposite one so a dark man reads on a dark square
+ * and a light man on a light one.
  */
-const FIGURES = { king: "♔", queen: "♕", rook: "♖", bishop: "♗", knight: "♘", pawn: "♙" } as const;
+const FIGURES = { king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight: "♞", pawn: "♟" } as const;
 export type Figure = keyof typeof FIGURES;
 
 /**
@@ -121,14 +125,23 @@ export type Figure = keyof typeof FIGURES;
  * against nothing at all and the glyph comes out the browser's default black on a black desk. The
  * palette still holds the only hexes there are; this asks it for one rather than declaring it.
  */
-const outline = (): string => paint(currentSettings().viewer.theme ?? "dark", "sunkBg");
+/**
+ * HOW THICK THE HAIRLINE ROUND A MAN IS — and it is not the same for both armies.
+ *
+ * A rim is there to keep a man off the square he stands on, and the two armies need different
+ * amounts of that. The light man is a solid pale shape and needs a dark edge to sit on a pale
+ * square. The dark man needs almost nothing: given a light rim at the same weight, the rim WINS at
+ * the size a square is on a phone — the fill vanishes into the line and both sides come out white,
+ * which is what they did.
+ */
+const rimWidth = (seat: string): number => (seat === "white" ? 2.5 : 1);
 
-const figure = (glyph: string, ink: string): string =>
+const figure = (glyph: string, ink: string, rim: string, width: number): string =>
   svg(
     100,
     100,
-    `<text x="50" y="52" text-anchor="middle" dominant-baseline="central" font-size="92" ` +
-      `fill="${ink}" stroke="${outline()}" stroke-width="2.5" paint-order="stroke" ` +
+    `<text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-size="96" ` +
+      `fill="${ink}" stroke="${rim}" stroke-width="${width}" paint-order="stroke" ` +
       `font-family="'Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',serif">${glyph}</text>`,
   );
 
@@ -144,7 +157,11 @@ const pictureOf = (seat: string, what: Figure): string => `chess.${seat}.${what}
  * and on a dark desk the light man is the page's text colour, which is the one thing on it that is
  * guaranteed to read.
  */
-const inkOf = (seat: string): string => paint(currentSettings().viewer.theme ?? "dark", seat === "white" ? "text" : "stageBg");
+const hex = (token: "text" | "stageBg" | "sunkBg" | "panelBorder"): string =>
+  paint(currentSettings().viewer.theme ?? "dark", token);
+const inkOf = (seat: string): string => hex(seat === "white" ? "text" : "stageBg");
+/** The opposite ink, thinly, so each army reads on the squares of its own colour as well. */
+const rimOf = (seat: string): string => hex(seat === "white" ? "sunkBg" : "panelBorder");
 
 export function installChessArt(): void {
   installMapArt();
@@ -156,17 +173,34 @@ export function installChessArt(): void {
   registerLayout(CELL_LAYOUT, rowLayout({ gap: 0.04, align: "center" }));
   // A tray is a column, because what is in it is a LIST: taken pieces are counted, not arranged.
   registerLayout(TRAY_LAYOUT, rowLayout({ gap: 0.06, padding: 0.12, align: "center", direction: "column" }));
-  registerSurface(LIGHT, { layers: [{ paint: "panelBg" }] });
-  registerSurface(DARK, { layers: [{ paint: "sunkBg" }] });
-  registerSurface("chess.tray", {
+  // A BOARD HAS TO READ AS A BOARD. Every grey this theme owns lives between `#11` and `#2c` — a
+  // panel beside a sunken well, which is a difference nobody was ever meant to see across a whole
+  // surface — so two of them side by side gave sixty-four squares of one dark slab. The light square
+  // is therefore BUILT: the desk's own text colour, laid thinly over the sunken ground, which is the
+  // same trick the kit uses for every wash and invents no colour of its own.
+  // BOTH ARMIES NEED GROUND TO READ AGAINST, so neither square is the desk's own black. A dark man
+  // on a black square is not a dark man, he is a hole — which is what happened: the rim meant to
+  // help him read swallowed the fill, and both sides came out white. So the dark square is lifted
+  // off the ground a little and the light one a good deal, and the two men are the two ends of the
+  // palette with a hairline of the other.
+  registerSurface(LIGHT, { layers: [{ paint: "sunkBg" }, { paint: "text", opacity: 0.58 }] });
+  registerSurface(DARK, { layers: [{ paint: "sunkBg" }, { paint: "text", opacity: 0.18 }] });
+  // THE BOARD'S OWN EDGE. Sixty-four squares with nothing around them float; a frame is what says
+  // where the board ends and the room begins, and it is the one thing the trays stand outside of.
+  registerSurface(BOARD_SURFACE, {
+    layers: [{ paint: "stageBg" }],
+    radius: 0.18,
+    stroke: { color: "panelBorder", width: 0.06 },
+  });
+  registerSurface(TRAY_SURFACE, {
     layers: [{ paint: "sunkBg" }],
     radius: 0.16,
-    stroke: { color: "panelBorder", width: 0.03, opacity: 0.7, dash: { on: 0.18, off: 0.14, corner: "dash" } },
+    stroke: { color: "panelBorder", width: 0.04, opacity: 0.8 },
   });
   for (const { seat } of CHESS_SEATS) {
     for (const [what, glyph] of Object.entries(FIGURES)) {
       const name = pictureOf(seat, what as Figure);
-      registerAsset(name, { src: figure(glyph, inkOf(seat)), w: PIECE, h: PIECE });
+      registerAsset(name, { src: figure(glyph, inkOf(seat), rimOf(seat), rimWidth(seat)), w: PIECE, h: PIECE });
       registerSurface(name, { layers: [{ image: name, fit: "contain" }] });
     }
   }
@@ -204,9 +238,14 @@ export function chessMap(reach = 0): Node {
   for (const { seat } of CHESS_SEATS) registerOccupied(takenTo(seat), capture(trayOf(seat)));
   const desk = node(
     "board",
-    Bounded({ bounds: rect(MAP.w, MAP.h) }),
+    Bounded({ bounds: rect(BOARD, BOARD) }),
+    Surfaced({ surface: BOARD_SURFACE }),
     Container({ layout: BOARD_LAYOUT }),
-    LAMP,
+    // THE BOARD'S OWN LAMP. A man lying on a square casts NOTHING: he is flat on the board, and a
+    // shadow under a resting piece is a dark plate under every one of thirty-two — which is what it
+    // looked like, and it read as the squares being wrong rather than as height. A man in the air
+    // casts, because that is the one thing a shadow is for here: seeing that he is up.
+    Lit({ shadow: { base: 0, perZ: 0.04, lifted: 0.3, opacity: 0.45 } }),
     // A finger on a piece takes that piece — never the square under it, and never the board.
     Grabber({ grab: "one" }),
   );
@@ -258,8 +297,8 @@ function tray(seat: string): Node {
   return node(
     trayOf(seat),
     Bounded({ bounds: rect(TRAY.w, TRAY.h) }),
-    Surfaced({ surface: "chess.tray" }),
-    Transformable({ at: { x: (seat === "white" ? 1 : -1) * (MAP.w / 2 + TRAY.w / 2 + 0.4), y: 0 } }),
+    Surfaced({ surface: TRAY_SURFACE }),
+    Transformable({ at: { x: (seat === "white" ? 1 : -1) * (BOARD / 2 + TRAY.w / 2 + 0.4), y: 0 } }),
     Container({ layout: TRAY_LAYOUT }),
     Acceptor({}),
     Grabber({ grab: "one" }),
