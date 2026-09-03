@@ -52,7 +52,10 @@ import {
   GRIP,
   GRIP_HOLD,
   GRIP_MISS,
+  isDrawn,
   isGrip,
+  landingBox,
+  landingMark,
   isPlaceGrip,
   regrasp,
   MAP,
@@ -198,6 +201,18 @@ export function grabScene(
    * one card.
    */
   let carried: readonly CarryItem[] = [];
+  /** How many landing marks this scene has drawn — ids are names and nothing reads them. */
+  let marksDrawn = 0;
+  /**
+   * THE PICTURE OF WHERE THIS RUN WILL COME DOWN, and where it stands relative to the hand.
+   *
+   * A carry is an override and never a tree write — that is the law, and it is about PIECES: what
+   * the hand is holding must not be written down until it is let go of, or a drop would have nothing
+   * to write. A mark is not a piece. It is scenery the desk draws for the length of one gesture, it
+   * is on the felt rather than in the hand, and it is one node: writing it costs a layout pass on a
+   * desk of forty, which is what the desk does anyway every time the aim light changes.
+   */
+  let landing: { readonly node: Node; readonly seat: Vec } | undefined;
   /**
    * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
    *
@@ -295,6 +310,44 @@ export function grabScene(
   };
 
   /**
+   * MOVE THE LANDING MARK UNDER THE HAND, or take it off the desk when the gesture is over.
+   *
+   * Written rather than carried, and this is the one place on the shelf where that is right. A carry
+   * is an override because what the hand is HOLDING must not be written until it is let go of; a
+   * mark is not held and is not a piece — it is scenery the desk draws for the length of one gesture
+   * and throws away, and it is one node on a desk of forty.
+   */
+  /**
+   * PUT THE SILHOUETTE ON THE FELT for a run that is being lifted — the shape of what will BE there,
+   * standing where the anchor will leave it.
+   *
+   * `seats` are the run's own landing seats in the anchor's frame, so the picture is drawn from the
+   * very arithmetic the landing will use: the outline is those seats swept by one piece's box, and
+   * its middle is offset from the anchor by whatever that sweep works out to.
+   */
+  const markLanding = (run: readonly Node[], seats: readonly Vec[], anchorAt: Vec): Node | undefined => {
+    if (run.length === 0) return undefined;
+    const box = landingBox(run, seats);
+    const mark = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++);
+    add(built.host.root, mark);
+    landing = { node: mark, seat: box.at };
+    // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
+    // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
+    // a clock that has never heard of it, and the override goes nowhere.
+    built.host.setRoot(built.host.root);
+    return mark;
+  };
+
+  const showLanding = (at: Vec | undefined): void => {
+    const mark = landing;
+    if (!mark) return;
+    if (at) return; // the carry is moving it; a written seat would only fight the override
+    if (mark.node.parent) remove(mark.node.parent, mark.node);
+    landing = undefined;
+    built.host.setRoot(built.host.root);
+  };
+
+  /**
    * THE ZONE THIS CARRY WOULD BE HANDED TO IF THE HAND LET GO NOW — asked exactly as the release
    * asks it, down to the refusal to hand a run back to the place it was lifted out of.
    */
@@ -317,7 +370,11 @@ export function grabScene(
     // moving here is invisible over there unless it is reported and mirrored.
     // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
     // moving here is invisible over there unless it is reported and mirrored.
-    ...(mirror ? { onCarry: ({ at, done }) => mirror.hand(carried, at, done) } : {}),
+    // MY HAND, TOLD TO THE OTHER SCREENS — and the picture of where it lands, moved under it.
+    onCarry: ({ at, done }) => {
+      mirror?.hand(carried, at, done);
+      showLanding(done ? undefined : at);
+    },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
     // it is the same question the release answers — down to refusing to hand a run back to the
     // place it was lifted out of, so a card being pulled OUT of an area never glows to go back in.
@@ -336,7 +393,13 @@ export function grabScene(
             inHand = isGrip(hit) ? hit.id : undefined;
             if (!isGrip(hit)) {
               liftedFrom = hit.parent && caps(hit.parent).has("Acceptor") ? hit.parent : undefined;
-              return [hit];
+              // A CARD LIFTED ALONE GETS ONE TOO. It is the same question — where will this be when
+              // I let go — and a hand carrying one card in the air is no better placed to answer it
+              // than a hand carrying thirty-six: the card is lifted, so it is drawn bigger and
+              // higher than it will lie.
+              showLanding(undefined);
+              const alone = markLanding([hit], [{ x: 0, y: 0 }], seatIn(hit));
+              return alone ? [hit, alone] : [hit];
             }
             // ...AND IT BECOMES THE LANDING MARK for as long as the run is up. The tab takes no
             // lift, so it is already travelling flat on the felt at the very point the run will
@@ -365,6 +428,12 @@ export function grabScene(
             // as it was: the fan has to be the card's OWN pose by then, or putting it down would
             // straighten it. Which is also why the turn is data the desk hands over and never a
             // number read back off a carried pose — that pose has the card's mirror composed into it.
+            // THE PICTURE OF WHERE THIS LANDS, handed to the hand as one more thing it is carrying.
+            // No lift, so it stays on the felt; seated where the run's first card will stand, so it
+            // IS the answer rather than a hint at it. It follows the finger for free — a carry is an
+            // override, and an override costs the tree nothing while the hand is moving.
+            showLanding(undefined); // whatever the last gesture left, if anything ever does
+            const mark = markLanding(run, stackSeats(run, grip.w), seatIn(hit));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w, seenWide()) : undefined;
             posed?.forEach((seat, i) => {
               const piece = run[i];
@@ -372,22 +441,28 @@ export function grabScene(
               const own = fieldsOf<TransformableFields>(piece, "Transformable");
               compose(piece, Transformable({ ...(own ?? {}), angle: seat.deg }));
             });
-            return [hit, ...run];
+            return mark ? [hit, ...run, mark] : [hit, ...run];
           },
           // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
-          stillOf: (_root: Node, hit: Node, run: readonly Node[]) => (isGrip(hit) ? run.map((n) => isGrip(n)) : undefined),
+          // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
+          // The tab and the landing mark are the desk's own pictures: no lift and no lean, so both
+          // stay the size they will be and lie flat while the cards ride at the hand's height.
+          stillOf: (_root: Node, hit: Node, run: readonly Node[]) => run.map((n) => isDrawn(n)),
           // ...AND THE HEAP IS SQUARED UP AS IT COMES OFF THE DESK, not when it is put down. The
           // handle is the anchor, so the stack hangs off the finger exactly where the tab was.
           offsetOf: (_root: Node, hit: Node, run: readonly Node[]) => {
             if (!isGrip(hit)) {
-              carried = run.map((n) => ({ id: n.id, offset: { x: 0, y: 0 } }));
+              // A card and, when there is one, the picture of where it will land — which stands at
+              // the card's own landing spot, so its offset from the hand is nothing at all.
+              carried = run.map((n) => ({ id: n.id, offset: { x: 0, y: 0 }, still: isDrawn(n) }));
               return undefined;
             }
-            const pieces = run.slice(1);
+            const pieces = run.slice(1).filter((n) => !isDrawn(n));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w, seenWide()) : undefined;
-            const seats = [{ x: 0, y: 0 }, ...(posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w))];
+            const held = posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w);
+            const seats = [{ x: 0, y: 0 }, ...held, ...(landing ? [landing.seat] : [])];
             // ...and remembered as the hand is holding it, so another screen can lay it out the same.
-            carried = run.map((n, i) => ({ id: n.id, offset: seats[i] ?? { x: 0, y: 0 }, still: isGrip(n) }));
+            carried = run.map((n, i) => ({ id: n.id, offset: seats[i] ?? { x: 0, y: 0 }, still: isDrawn(n) }));
             return seats;
           },
           feelOf: (_root: Node, hit: Node) => (isGrip(hit) ? HANDLE_IS_THE_GRAB : undefined),
@@ -469,6 +544,10 @@ export function grabScene(
             // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
             // change that every screen is told about (`changed`).
             mirror?.hand(items, undefined, true);
+            // ...AND THE PICTURE OF WHERE IT LANDS GOES WITH THE GESTURE. A release the scene TAKES
+            // never reaches the wiring's own drop, so the carry's `done` never comes: left to that,
+            // the last thing the reader sees is a ghost of a stack standing on empty felt.
+            showLanding(undefined);
             // ...and the place it came from belongs to the gesture that is now over. Cleared FIRST,
             // so nothing below can read a lift that has already ended.
             const cameFrom = liftedFrom;
@@ -481,7 +560,7 @@ export function grabScene(
             // once. `v` arrives in GLASS PIXELS PER SECOND — not a number read off the carry's
             // springs and multiplied back by the zoom to undo the division that put it there. Above
             // this line everything is the gesture; below it, everything is the desk (`flickOf`).
-            const swing = letGo === "throw" ? flickOf(v, glassScale()) : undefined;
+            const swing = letGo === "throw" ? flickOf(v, glassScale(), built.motions?.tuning().friction ?? 0) : undefined;
             aimed = aimOf(built, items, swing, ways, bump);
             // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
             // page that had both would otherwise always fall: this runs BEFORE the drop is decided,
@@ -611,7 +690,7 @@ function handOver(s: Scene, zone: Node, items: readonly CarryItem[]): void {
   for (const it of items) {
     const piece = byId(root, it.id);
     s.motions?.release(it.id);
-    if (!piece || isGrip(piece) || !piece.parent) continue;
+    if (!piece || isDrawn(piece) || !piece.parent) continue;
     remove(piece.parent, piece);
     add(zone, piece);
   }
@@ -691,14 +770,14 @@ function formationOf(
   falling: readonly Node[],
   hand: Vec | undefined,
   feelOf: (n: Node) => DropFeel,
-): Map<string, { readonly speed: number; readonly angle: number }> {
-  const out = new Map<string, { readonly speed: number; readonly angle: number }>();
+): Map<string, { readonly speed: number; readonly angle: number; readonly friction: number }> {
+  const out = new Map<string, { readonly speed: number; readonly angle: number; readonly friction: number }>();
   const first = items[0];
   const anchor = first ? put.find((n) => n.id === first.id && isGrip(n)) : undefined;
   // A run with no handle is a run of one, and one piece is its own formation.
   if (!anchor || !hand) return out;
   const flying = new Set(falling.map((n) => n.id));
-  const run = put.filter((n) => !isGrip(n) && flying.has(n.id) && feelOf(n).scatter === 0 && feelOf(n).girth === 0);
+  const run = put.filter((n) => !isDrawn(n) && flying.has(n.id) && feelOf(n).scatter === 0 && feelOf(n).girth === 0);
   const feel = run[0] ? feelOf(run[0]!) : undefined;
   if (!feel) return out;
   const drag = feel.friction ?? s.motions?.tuning().friction ?? 0;
@@ -785,7 +864,7 @@ export function letFall(
   // between a hand that lands in formation and one that is put into formation. See `formationOf`.
   const flock = formationOf(s, items, put, falling, hand, feelOf);
   const aim = hand && (hand.x !== 0 || hand.y !== 0) ? polar(hand).angle : DOWN_THE_DESK;
-  const dropped = fallOrder(falling).map(({ piece, delayMs }) => ({
+  const dropped = fallOrder(falling, flock).map(({ piece, delayMs }) => ({
     id: piece.id,
     feel: feelOf(piece),
     fan: fanOf(scattering.indexOf(piece), scattering.length, aim),
@@ -843,8 +922,9 @@ export function letFall(
     // ITS OWN SHARE OF WHAT THE HAND THREW — and what a hand threw is the speed it had OVER the
     // throwing speed (`threwAt`), never all of it: carrying is moving, and a card let go of on the
     // way across the desk was not thrown anywhere.
+    const seat = flock.get(id);
     const flight =
-      flock.get(id) ??
+      seat ??
       (hand
         ? { speed: threwAt(Math.hypot(hand.x, hand.y)) * feel.throwGain, angle: polar(hand).angle }
         : { speed: 0, angle: 0 });
@@ -853,7 +933,7 @@ export function letFall(
     const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));
     const body = {
       ...own,
-      ...(feel.friction === undefined ? {} : { friction: feel.friction }),
+      ...(seat ? { friction: seat.friction } : feel.friction === undefined ? {} : { friction: feel.friction }),
       ...(delayMs > 0 ? { delayMs } : {}),
       up: (lift - 1) / RISE,
       gravity: feel.gravity,

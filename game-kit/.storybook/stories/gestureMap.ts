@@ -203,6 +203,17 @@ export function installMapArt(): void {
   // unregistered name is SKIPPED (one bad reference must not take a scene down), so the control is
   // simply drawn into nothing and the page looks as though stacking had been switched off.
   registerAsset(GRIP_RIDGES, { src: GRIP_BARS, w: GRIP.w, h: GRIP.h });
+  // A GHOST AND NOT A CARD: no fill at all, a dashed outline in the muted ink. It has to be read as
+  // a PLACE — the felt showing through where the stack will stand — and anything filled would read
+  // as a card already lying there, which is the one thing it must never be mistaken for.
+  registerSurface(MARK_SURFACE, {
+    layers: [],
+    // BRIGHT ENOUGH TO READ THROUGH A SHADOW. The thing being carried is in the AIR, so it throws a
+    // shadow, and the shadow falls exactly where the silhouette is — that is not a coincidence, it
+    // is the same place twice: where this will land. A hairline in the muted ink simply vanished
+    // under it, which made the one picture the reader needed the one they could not see.
+    stroke: { color: "text", width: 0.04, opacity: 0.85, dash: { on: 0.16, off: 0.12, corner: "dash" } },
+  });
   registerSurface(GRIP_SURFACE, {
     layers: [{ paint: "panelBg" }, { image: GRIP_RIDGES, fit: "contain" }],
     radius: GRIP.h / 2,
@@ -420,14 +431,34 @@ export const THROWN_AT = 150;
  * on the desk and the desk is measured in units. Everything above this line is the gesture and
  * everything below it is the world.
  */
-export function flickOf(swing: Vec | undefined, perUnit: number): Vec | undefined {
+export function flickOf(swing: Vec | undefined, perUnit: number, drag = 0): Vec | undefined {
   if (!swing || perUnit <= 0) return undefined;
   const speed = Math.hypot(swing.x, swing.y);
   const flick = threwAt(speed);
   if (flick <= 0) return undefined;
   const at = flick / speed / perUnit;
-  return { x: swing.x * at, y: swing.y * at };
+  const world = { x: swing.x * at, y: swing.y * at };
+  // ...AND THEN IT IS ASKED WHETHER IT WOULD GO ANYWHERE.
+  //
+  // A speed alone cannot answer "was that a throw", which is why every number tried for it has been
+  // wrong in one direction or the other. What a hand MEANT is legible in where the piece would end
+  // up: this is how a phone tells a flick from a careful scroll, and it is the same arithmetic the
+  // zone is already asked (`restsAt`, `v²/2a`). Under `THROW_REACH` the piece would land a third of
+  // a card from where it was let go of, which is a putting-down that took a run-up — and flying it
+  // means a whole animation, a whole stagger and a whole reassembly to move it almost nowhere.
+  const far = drag > 0 ? (flick / perUnit) ** 2 / (2 * drag) : Infinity;
+  return far >= THROW_REACH ? world : undefined;
 }
+
+/**
+ * A THROW THAT WOULD NOT CARRY A PIECE THIS FAR IS A PUTTING-DOWN, in units.
+ *
+ * About a third of a card. Below it nothing that matters is different: the piece ends up where the
+ * hand left it either way, and the only thing the flight adds is TIME — a stagger, a landing, and a
+ * run reassembling itself, all to travel a distance nobody can see. Above it the hand plainly sent
+ * the piece somewhere, and the flight is the picture of that.
+ */
+export const THROW_REACH = 0.35;
 
 /**
  * WHAT A HAND ACTUALLY THREW, in units/s — the speed it had OVER the throwing speed, not all of it.
@@ -621,18 +652,35 @@ export function flockTo(
   feel: DropFeel,
   drag: number,
   seats: readonly Vec[] = stackSeats(run),
-): { readonly speed: number; readonly angle: number }[] {
+): { readonly speed: number; readonly angle: number; readonly friction: number }[] {
   const home = restsAt(anchorAt, hand, feel, drag);
   // THE DRAG THE THROW WILL ACTUALLY FEEL. A piece may state its own (`DropFeel.friction`) and the
   // desk's is only the fallback — solved against the desk's while flying under its own, every seat
   // would be missed by the ratio between them, which is a formation that lands somewhere else.
   const pull = feel.friction ?? drag;
+  // HOW LONG THE THROW LASTS — the ANCHOR'S own flight, and every piece is given that same time.
+  //
+  // Not each its own. A run leaves the hand as a fan, so the far card has three times the outer
+  // one's distance to cover; solved separately, each gets the speed its own gap deserves and lands
+  // when its own arithmetic says — which is a hand arriving as a QUEUE over the better part of two
+  // seconds, tearing itself apart on the way down. Worse, the length of the animation was then set
+  // by how wide the fan was rather than by how hard the throw was, so a gentle flick of thirty-six
+  // cards took longer than a hard one of three.
+  //
+  // One time for the hand, and it is the time the THROW deserves: a slide of speed `v` under drag
+  // `a` runs for `v/a`. Each piece is then given the speed and the drag that cover ITS distance in
+  // exactly that time — `v = 2d/T` and `a = v/T`, the same constant-deceleration slide the desk
+  // files for everything else. They set off together, they arrive together, and the whole thing
+  // lasts as long as the hand meant it to.
+  const flight = Math.hypot(hand.x, hand.y) * feel.throwGain;
+  const span = pull > 0 ? flight / pull : 0;
   return run.map((piece, i) => {
     const seat = seats[i] ?? { x: 0, y: 0 };
     const from = fieldsOf<TransformableFields>(piece, "Transformable")?.at ?? { x: 0, y: 0 };
     const to = { x: home.x + seat.x, y: home.y + seat.y };
     const gap = Math.hypot(to.x - from.x, to.y - from.y);
-    return { speed: pull > 0 ? Math.sqrt(2 * pull * gap) : 0, angle: polar({ x: to.x - from.x, y: to.y - from.y }).angle };
+    const speed = span > 0 ? (2 * gap) / span : 0;
+    return { speed, friction: span > 0 ? speed / span : pull, angle: polar({ x: to.x - from.x, y: to.y - from.y }).angle };
   });
 }
 
@@ -756,6 +804,7 @@ export function toFront(piece: Node): void {
 const CHIP = 0.5;
 const CHIP_SURFACE = "gesture.map.chip";
 const GRIP_SURFACE = "gesture.map.grip";
+const MARK_SURFACE = "gesture.map.mark";
 const GRIP_RIDGES = "gesture.map.grip.ridges";
 
 /** The one denomination on this desk — six of a kind, so what groups them is touching and not value. */
@@ -846,7 +895,7 @@ function chip(id: string, at: Vec): Node {
  * A die rolls, a card turns over, a chip states a denomination and a handle states that it is one.
  * A fifth piece added tomorrow is sorted by what it has, not by somebody remembering a list.
  */
-export type Piece = "die" | "card" | "chip" | "grip" | "warm" | "";
+export type Piece = "die" | "card" | "chip" | "grip" | "mark" | "warm" | "";
 
 export function kindOf(n: Node): Piece {
   if (caps(n).has("Rollable")) return "die";
@@ -854,6 +903,7 @@ export function kindOf(n: Node): Piece {
   const values = fieldsOf<ValuedFields>(n, "Valued")?.values;
   if (values?.["warm"] !== undefined) return "warm";
   if (values?.["grip"] !== undefined) return "grip";
+  if (values?.["mark"] !== undefined) return "mark";
   if (values?.["chip"] !== undefined) return "chip";
   return "";
 }
@@ -1002,6 +1052,68 @@ export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false
 /** A handle says so on itself. Its id is a NAME and nothing reads it — membership is looked up. */
 export const isGrip = (n: Node): boolean => kindOf(n) === "grip";
 
+/** The picture of where a carried run will come down. Like a handle, it is drawn and never played. */
+export const isMark = (n: Node): boolean => kindOf(n) === "mark";
+
+/**
+ * A CONTROL OR A PICTURE — anything on the desk that is not a piece of the game.
+ *
+ * Handles and landing marks are both drawn by the desk, both ride a carry, and neither is ever
+ * seated, heaped, handed to a zone or counted in a run. They are asked about together everywhere,
+ * so they are asked with one word: a second list of exceptions somewhere is a place for the two to
+ * drift, and the drift shows up as a tab laid out in a hand of cards.
+ */
+export const isDrawn = (n: Node): boolean => isGrip(n) || isMark(n);
+
+/**
+ * THE PICTURE OF WHERE THIS RUN WILL COME DOWN — a card-shaped outline, standing on the felt under
+ * the hand that is holding the run.
+ *
+ * Because a hand carrying a stack is holding it in the AIR, and the air is not where it lands. The
+ * cards ride at the hand's height, splayed, a card's width above the tab; the tab travels flat on
+ * the felt at the point the run is anchored on. Neither of those is the answer to "where will this
+ * stack STAND", and a player carrying thirty-six cards across a desk was being asked to work it out.
+ *
+ * IT RIDES THE CARRY AND IS NEVER WRITTEN. Given to the hand as one more thing being carried — with
+ * no lift, so it stays on the felt, and at the seat the run's first card will take — it follows the
+ * finger for free, every frame, without a single write to the tree while the hand is moving.
+ */
+export function landingMark(at: Vec, box: { readonly w: number; readonly h: number }, nth: number): Node {
+  return node(
+    `landing mark ${nth}`,
+    Bounded({ bounds: roundedRect(box.w, box.h, Math.min(box.w, box.h) * 0.08) }),
+    Surfaced({ surface: MARK_SURFACE }),
+    Transformable({ at }),
+    Valued({ values: { mark: nth } }),
+  );
+}
+
+/**
+ * THE SILHOUETTE THIS RUN WILL LEAVE ON THE FELT, and where its middle stands relative to the anchor.
+ *
+ * The shape of what will BE there, not of what is being held. A hand is carried splayed and in the
+ * air; what lands is a squared pile lying flat, and its outline is the run's seats swept by one
+ * piece's own box (`stackSeats` — the very seats the landing will write). One card gives one card;
+ * thirty-six give a card and the pile's own step, which is a card and a sliver.
+ *
+ * WITH ITS LANDING POSE, which is upright: a pile has no lean, so neither has the picture of one.
+ * A silhouette wearing the fan's angle would be a picture of the hand rather than of the landing.
+ */
+export function landingBox(
+  run: readonly Node[],
+  seats: readonly Vec[],
+): { readonly at: Vec; readonly w: number; readonly h: number } {
+  const shape = run[0] ? fieldsOf<BoundedFields>(run[0], "Bounded")?.bounds : undefined;
+  const own = shape ? extentOf(shape) : { w: 1, h: 1.4 };
+  const xs = seats.map((seat) => seat.x);
+  const ys = seats.map((seat) => seat.y);
+  const x0 = Math.min(...xs) - own.w / 2;
+  const x1 = Math.max(...xs) + own.w / 2;
+  const y0 = Math.min(...ys) - own.h / 2;
+  const y1 = Math.max(...ys) + own.h / 2;
+  return { at: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, w: x1 - x0, h: y1 - y0 };
+}
+
 /**
  * The box a heap covers, in root units — what "the common perimeter" means when the answer has to
  * be a place a handle can stand.
@@ -1121,7 +1233,7 @@ export function regrip(
   // out by that zone as though it were a card, and never swept away again by a pass that only looked
   // at the desk's own children. One stale tab is one control that lifts a heap that is not there.
   for (const owner of [root, ...root.children]) {
-    for (const old of owner.children.filter(isGrip)) if (old.id !== keep) remove(owner, old);
+    for (const old of owner.children.filter(isDrawn)) if (old.id !== keep) remove(owner, old);
   }
   // A PLACE'S OWN HANDLE FIRST, and what it holds is not on the felt any more as far as the islands
   // are concerned: a card the zone has claimed must not also grow a felt handle of its own, or the
@@ -1261,11 +1373,19 @@ export const STACK_POUR = 620;
  * A HANDLE IS NOT AMONG THEM. It is a control, and a control does not fall — it is redrawn under
  * wherever the pieces land.
  */
-export function fallOrder(pieces: readonly Node[]): { readonly piece: Node; readonly delayMs: number }[] {
-  const falling = pieces.filter((n) => !isGrip(n));
+export function fallOrder(
+  pieces: readonly Node[],
+  together: ReadonlyMap<string, unknown> = new Map(),
+): { readonly piece: Node; readonly delayMs: number }[] {
+  const falling = pieces.filter((n) => !isDrawn(n));
   const gaps = Math.max(1, falling.length - 1);
   const step = Math.min(STACK_FALL_STEP, STACK_POUR / gaps);
-  return falling.map((piece, i) => ({ piece, delayMs: Math.round(i * step) }));
+  // A HAND FLYING IN FORMATION IS NOT A POUR. The stagger is what makes a heap tip out of a hand
+  // rather than arrive as a slab — right for pieces that simply fall where they were let go of, and
+  // wrong for a run that is being THROWN somewhere, which sets off together and arrives together
+  // (`flockTo`). Staggered on top of that, the formation lands as a queue: exactly the tearing the
+  // one arrival time exists to end, put back by the thing that was meant to make it read well.
+  return falling.map((piece, i) => ({ piece, delayMs: together.has(piece.id) ? 0 : Math.round(i * step) }));
 }
 
 

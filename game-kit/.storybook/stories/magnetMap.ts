@@ -61,7 +61,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, zoneKeen, zoneLine, type HeapRule } from "./gestureMap.js";
+import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isDrawn, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, zoneKeen, zoneLine, type HeapRule } from "./gestureMap.js";
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -440,7 +440,7 @@ export function poseOnLanding(share: number): NonNullable<HeapRule["settled"]> {
     // A HANDLE IS NOT A CARD and is never seated, never handed over and never counted in the run —
     // it is a picture of the heap, thrown away and redrawn by the next `settle`.
     const anchor = all.find((n) => isGrip(n));
-    const run = all.filter((n) => !isGrip(n));
+    const run = all.filter((n) => !isDrawn(n));
     const lead = anchor ?? run[0];
     if (!lead || run.length === 0) return;
     const zone = placeOf(root, lead, share);

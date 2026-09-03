@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apply, Camera, type Vec } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, flickOf, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingBox, restsAt, regrip, flickOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -497,7 +497,7 @@ describe("the stacking desk", () => {
     run.forEach((piece, i) => {
       // The desk states headings in DEGREES, as every `slide` on it does.
       const rad = (thrownTo[i]!.angle * Math.PI) / 180;
-      const lands = restsAt(seatOf(piece), { x: Math.cos(rad), y: Math.sin(rad) }, { ...feel, throwGain: thrownTo[i]!.speed }, drag);
+      const lands = restsAt(seatOf(piece), { x: Math.cos(rad), y: Math.sin(rad) }, { ...feel, throwGain: thrownTo[i]!.speed, friction: thrownTo[i]!.friction }, drag);
       const want = { x: home.x + seats[i]!.x, y: home.y + seats[i]!.y };
       expect(lands.x, `piece ${i} stops at its seat`).toBeCloseTo(want.x, 6);
       expect(lands.y).toBeCloseTo(want.y, 6);
@@ -507,6 +507,25 @@ describe("the stacking desk", () => {
     const spread = Math.hypot(seats[2]!.x - seats[0]!.x, seats[2]!.y - seats[0]!.y);
     expect(spread, "they arrive stacked, not strung out").toBeLessThan(0.3);
 
+    // ...AND THEY ARRIVE TOGETHER. A run leaves the hand as a fan, so the far card has three times
+    // the near one's distance to cover; solved separately each lands when its own arithmetic says,
+    // and the hand comes down as a QUEUE, tearing itself apart on the way. Worse, the length of the
+    // animation was then set by how WIDE the fan was rather than by how hard the throw was.
+    //
+    // A slide of speed `v` under drag `a` runs for `v/a` — so equal `v/a` is one arrival.
+    // ...AND THEY SET OFF TOGETHER TOO. The stagger is what makes a heap tip OUT of a hand rather
+    // than arrive as a slab — right for pieces that fall where they were let go of, and wrong for a
+    // run being thrown somewhere: laid on top of one arrival time it puts the queue straight back.
+    const poured = fallOrder(run);
+    expect(Math.max(...poured.map((p) => p.delayMs)), "a heap tipping out is staggered").toBeGreaterThan(0);
+    const flying = fallOrder(run, new Map(run.map((n) => [n.id, true])));
+    for (const one of flying) expect(one.delayMs, "a formation is not a pour").toBe(0);
+
+    const spans = thrownTo.map((t) => t.speed / t.friction);
+    for (const span of spans) expect(span, "one hand, one flight time").toBeCloseTo(spans[0]!, 9);
+    // And that time is the THROW'S: the anchor's own flight, not the widest card's.
+    expect(spans[0]!, "as long as the hand meant, and no longer").toBeCloseTo((Math.hypot(hand.x, hand.y) * feel.throwGain) / drag, 9);
+
     // AND IT IS SOLVED AGAINST THE DRAG THE PIECE WILL ACTUALLY FEEL. A piece may state its own
     // (`DropFeel.friction`) and the desk's is only the fallback: solved against the desk's while
     // flying under its own, every seat is missed by the ratio between them — a formation that lands
@@ -515,7 +534,7 @@ describe("the stacking desk", () => {
     const ownHome = restsAt(at, hand, own, drag);
     flockTo(run, at, hand, own, drag).forEach((throwAt, i) => {
       const rad = (throwAt.angle * Math.PI) / 180;
-      const lands = restsAt(seatOf(run[i]!), { x: Math.cos(rad), y: Math.sin(rad) }, { ...own, throwGain: throwAt.speed }, drag);
+      const lands = restsAt(seatOf(run[i]!), { x: Math.cos(rad), y: Math.sin(rad) }, { ...own, throwGain: throwAt.speed, friction: throwAt.friction }, drag);
       expect(lands.x, `piece ${i} keeps its seat under its own drag`).toBeCloseTo(ownHome.x + seats[i]!.x, 6);
       expect(lands.y).toBeCloseTo(ownHome.y + seats[i]!.y, 6);
     });
@@ -547,5 +566,47 @@ describe("the stacking desk", () => {
     // Nothing to convert is nothing, and neither is a glass that has no size.
     expect(flickOf(undefined, 100)).toBeUndefined();
     expect(flickOf(flick, 0)).toBeUndefined();
+
+    // ...AND THEN IT IS ASKED WHETHER IT WOULD GO ANYWHERE. A speed alone cannot answer "was that a
+    // throw", which is why every number tried for it was wrong in one direction or the other: what
+    // a hand MEANT is legible in where the piece would END UP. This is how a phone tells a flick
+    // from a careful scroll, and it is the same arithmetic the zone is already asked.
+    const drag = 6;
+    // Barely over the threshold: the piece would land a hair from where it was let go of, and
+    // flying it means a whole animation to move it almost nowhere.
+    const nudge = { x: THROWN_AT * 1.05, y: 0 };
+    expect(flickOf(nudge, 100, drag), "a throw that goes nowhere is a putting-down").toBeUndefined();
+    expect(flickOf(nudge, 100, 0), "and with no drag named, nothing is refused").toBeDefined();
+    // A real one still flies: the excess over the threshold, projected, clears the reach easily.
+    const sent = flickOf({ x: THROWN_AT * 6, y: 0 }, 100, drag);
+    expect(sent, "a flick that crosses the desk is a throw").toBeDefined();
+    expect((sent!.x ** 2) / (2 * drag), "and it was measured by where it lands").toBeGreaterThan(THROW_REACH);
+  });
+
+  it("map.a-landing-mark-is-the-shape-of-what-will-BE-there — not of what is being held", () => {
+    // A hand is carried splayed and in the air; what lands is a squared pile lying flat. The picture
+    // a player needs is of the second, and it is drawn from the very seats the landing will write —
+    // one piece's own box swept along them — so the outline cannot drift from the outcome.
+    const one = [node("a", Bounded({ bounds: rect(1, 1.4) }))];
+    const alone = landingBox(one, [{ x: 0, y: 0 }]);
+    expect(alone.w, "one card is one card").toBeCloseTo(1, 9);
+    expect(alone.h).toBeCloseTo(1.4, 9);
+    expect(alone.at, "and it stands where it will stand").toEqual({ x: 0, y: 0 });
+
+    // A PILE IS A CARD AND A SLIVER: the step is what the seats say, so the outline grows by exactly
+    // the sliver a pile of that many actually takes, and its middle sits where the pile's middle is.
+    const many = Array.from({ length: 12 }, (_v, i) => node(`c${i}`, Bounded({ bounds: rect(1, 1.4) })));
+    const seats = stackSeats(many);
+    const pile = landingBox(many, seats);
+    expect(pile.w, "a card wide, and a hair more").toBeGreaterThanOrEqual(1);
+    expect(pile.w, "never a fan's width").toBeLessThan(1.3);
+    expect(pile.h).toBeGreaterThanOrEqual(1.4);
+    const mid = (Math.min(...seats.map((s) => s.y)) + Math.max(...seats.map((s) => s.y))) / 2;
+    expect(pile.at.y, "centred on the seats, not on the anchor").toBeCloseTo(mid, 9);
+    // A HAND HELD AS A FAN would be three or four cards wide; the mark never is, because it is not
+    // drawn from the hand at all.
+    const fanned = landingBox(many, many.map((_n, i) => ({ x: i * 0.5, y: 0 })));
+    expect(fanned.w, "asked about a fan, it answers about a fan").toBeGreaterThan(pile.w * 3);
+    expect(fanned.at.x, "and centred on that spread, not on the first card").toBeCloseTo(2.75, 9);
   });
 });
