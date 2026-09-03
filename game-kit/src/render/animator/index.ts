@@ -552,9 +552,19 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       }
       if (cy.trail > 0) {
         const to = heldAt(cy);
-        cy.tails = cy.tails.map((t, i) =>
-          i === 0 ? t : { x: stepSpring(t.x, to.x, tailCfg(cy, i), dt), y: stepSpring(t.y, to.y, tailCfg(cy, i), dt) },
-        );
+        cy.tails = cy.tails.map((t, i) => {
+          if (i === 0) return t;
+          // WHAT THE HAND POINTS WITH DOES NOT TRAIL — it is AT the hand, not chasing it. A trail is
+          // the LOAD hanging off a hand and catching up; a piece marked `still` is not load at all
+          // but the hand's own instrument, the handle being held and the picture of where this is
+          // going, and an instrument that lagged would be pointing at somewhere the hand has left.
+          //
+          // Not merely a stiffer spring: a spring always lags a moving target, and these ride at the
+          // END of a run where the trail is softest — the tab and the mark drifted furthest of
+          // anything on the desk, which is exactly backwards.
+          if (cy.items[i]?.still) return { x: { pos: to.x, vel: 0 }, y: { pos: to.y, vel: 0 } };
+          return { x: stepSpring(t.x, to.x, tailCfg(cy, i), dt), y: stepSpring(t.y, to.y, tailCfg(cy, i), dt) };
+        });
       }
       layCarry(cy);
       if (cy.walls) wallCheck(cy);

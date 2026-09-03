@@ -28,6 +28,7 @@ import {
   RISE,
   Transformable,
   type CarryItem,
+  type CarryOptions,
   type Node,
   type TransformableFields,
   type Vec,
@@ -382,11 +383,10 @@ export function grabScene(
     view: () => built.camera!.transform(),
     // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
     // moving here is invisible over there unless it is reported and mirrored.
-    // MY HAND, TOLD TO THE OTHER SCREENS. A carry is an override and never a tree write, so a hand
-    // moving here is invisible over there unless it is reported and mirrored.
-    // MY HAND, TOLD TO THE OTHER SCREENS — and the picture of where it lands, moved under it.
-    onCarry: ({ at, done }) => {
-      mirror?.hand(carried, at, done);
+    // MY HAND, TOLD TO THE OTHER SCREENS — with its FEEL, or it is not the same hand over there —
+    // and the picture of where it lands, moved under it.
+    onCarry: ({ at, done, feel }) => {
+      mirror?.hand(carried, at, done, feel);
       showLanding(done ? undefined : at);
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
@@ -567,7 +567,7 @@ export function grabScene(
             // Said first, before anything is decided, because it is true either way: whatever
             // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
             // change that every screen is told about (`changed`).
-            mirror?.hand(items, undefined, true);
+            mirror?.hand(items, undefined, true, {});
             // HOW FAR THE LOAD WAS HANGING, read BEFORE the picture is taken off the desk: the
             // landing is the picture's place, so the number that says where the picture WAS is the
             // number the landing needs — and taking the picture away first threw it away with it.
@@ -751,6 +751,9 @@ function aimOf(
  * gliding about and the card it is holding standing perfectly still — which is not a shared desk,
  * it is two people looking at different ones.
  */
+/** What a carry FEELS like — everything the clock was told about it bar where and inside what. */
+export type CarryFeel = Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap">;
+
 export interface Mirror {
   /** This screen, handed over once it exists, so the caller can wire the other direction. */
   readonly ready: (s: Scene, grasp: () => void) => void;
@@ -764,7 +767,7 @@ export interface Mirror {
    * out by and puts every piece at the anchor: a deck of thirty-six arrives as one card, and the two
    * screens show plainly different things while claiming to show one desk.
    */
-  readonly hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean) => void;
+  readonly hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean, feel: CarryFeel) => void;
 }
 
 /**

@@ -27,6 +27,7 @@ import {
   transformsOf,
   Transformable,
   FLING,
+  type CarryOptions,
   wearInvites,
   wearKeen,
   type CarryItem,
@@ -170,7 +171,7 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * drop is a proposal about where a card BELONGS, a gesture is a picture of a hand in motion. One
    * is judged and echoed; the other is retransmitted and forgotten.
    */
-  readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean }) => void) | undefined;
+  readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean; readonly feel: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> }) => void) | undefined;
   /**
    * THE GESTURE IS OVER AND THE TREE NOW SAYS WHERE EVERYTHING IS — the last thing that happens.
    *
@@ -243,6 +244,15 @@ interface Wiring {
         readonly from: Point;
         readonly atMs: number;
         readonly hit: Node;
+        /**
+         * WHAT THE CLOCK WAS TOLD THIS CARRY FEELS LIKE — the knobs and the desk's own word for this
+         * piece, merged exactly as the grab merged them.
+         *
+         * Kept so it can be REPORTED. A hand mirrored to another screen without its feel is not the
+         * same hand: the near screen splays a deck into an accordion behind the finger and the far
+         * one slides a brick, and two people watching one board plainly see two different desks.
+         */
+        readonly feel: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap">;
       }
     | undefined;
   /** Undresses every zone the grab invited — release calls it, and it is the whole protocol. */
@@ -411,6 +421,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       delta: w.opts.underFinger ? { x: 0, y: 0 } : { x: anchor.x - p.x, y: anchor.y - p.y },
       pointer: e.pointerId,
       tray: undefined,
+      feel: {},
       from: g,
       atMs: e.timeStamp,
       hit,
@@ -420,11 +431,11 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // The knobs go through by NAME: what the panel says is what the clock gets.
     const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, showsEnough: _shows, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
     const tray = trayOf?.(root, hit);
-    w.drag = { ...w.drag, tray };
+    const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}) };
+    w.drag = { ...w.drag, tray, feel: felt };
     motions.grab(items, {
       anchor,
-      ...feel,
-      ...(feelOf?.(root, hit) ?? {}),
+      ...felt,
       ...(tray ? { walls: tray } : {}),
       // THE BORDER ENDS THE GESTURE, and the wiring's own bookkeeping ends with it: the finger is
       // still down, so the drag has to be forgotten here or the pointerup would drop the piece a
@@ -486,7 +497,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
 
   const drop = (items: readonly CarryItem[], seat: Vec): void => {
     const root = s.host.root;
-    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true });
+    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: w.drag?.feel ?? {} });
     if (landed(items, seat, root)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
       // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
@@ -599,7 +610,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // a light with its own idea of "near enough" promises a zone that then does not take the card,
     // and a reader believes the light over the outcome.
     aim(aimed(ids, held));
-    w.opts.onCarry?.({ ids, at, done: false });
+    w.opts.onCarry?.({ ids, at, done: false, feel: w.drag.feel });
   };
 
   const onUp = (e: PointerEvent): void => {

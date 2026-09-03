@@ -1325,10 +1325,16 @@ export function stackSeats(group: readonly Node[], gripW = GRIP.w, want: Vec = S
   const step = { x: want.x * fit, y: want.y * fit };
   // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
   // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
+  // CENTRED ON THE HANDLE, because that is where the handle stands: `gripFor` puts the tab under the
+  // MIDDLE of what it lifts. Counted from the first card instead, the pile it puts down drifts off
+  // sideways by half its own spread — and with thirty-six cards that is the better part of a card,
+  // so the tab and the pile it stands for ended up in visibly different places. Which is also what
+  // the picture of the landing was showing, correctly and uselessly.
+  const mid = (group.length - 1) / 2;
   return group.map((piece, i) => {
     const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
     const half = shape ? extentOf(shape).h / 2 : 0;
-    return { x: i * step.x || 0, y: -clear - half + i * step.y || 0 };
+    return { x: (i - mid) * step.x || 0, y: -clear - half + (i - mid) * step.y || 0 };
   });
 }
 

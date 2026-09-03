@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apply, Camera, type Vec } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingBox, restsAt, regrip, flickOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingBox, restsAt, regrip, flickOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -179,6 +179,9 @@ describe("the gesture map", () => {
     expect(pieces.map((n) => n.id)).toContain("die");
   });
 });
+
+/** Where the middle of a pile of these would sit if it were centred: the tab's clearance and a half. */
+const clearOf = (piece: Node): number => GRIP.w / GRIP_RATIO / 2 + GRIP_GAP + extentOf(fieldsOf<BoundedFields>(piece, "Bounded")!.bounds).h / 2;
 
 describe("the stacking desk", () => {
   const at = (desk: Node, id: string, x: number, y: number): void => {
@@ -420,7 +423,15 @@ describe("the stacking desk", () => {
     const seats = stackSeats(cards);
     // The first card's own bottom edge sits clear of the tab, above it — never over its middle.
     expect(seats[0]!.y + half).toBeLessThan(-GRIP.h / 2);
-    expect(seats[0]!.x).toBe(0);
+    // ...AND THE PILE IS CENTRED ON THE TAB, because that is where the tab stands: `gripFor` puts it
+    // under the MIDDLE of what it lifts. Counted from the first card instead, the pile drifts off
+    // sideways by half its own spread — with thirty-six cards the better part of a card, so the tab
+    // and the pile it stands for ended up in visibly different places, and the picture of the
+    // landing showed that gap correctly and uselessly.
+    const mids = seats.map((seat) => seat.x);
+    expect((Math.min(...mids) + Math.max(...mids)) / 2, "the pile's middle is over the tab").toBeCloseTo(0, 10);
+    const tall = seats.map((seat) => seat.y);
+    expect((Math.min(...tall) + Math.max(...tall)) / 2 + clearOf(cards[0]!), "and so is its height").toBeCloseTo(0, 10);
     // Each one a hair further up the glass than the last, and the step is even.
     expect(seats[1]!.y).toBeLessThan(seats[0]!.y);
     expect(seats[2]!.y - seats[1]!.y).toBeCloseTo(seats[1]!.y - seats[0]!.y, 10);

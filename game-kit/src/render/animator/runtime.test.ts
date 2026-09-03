@@ -378,6 +378,40 @@ describe("the motion runtime", () => {
     expect(b.xOf("e")).toBeCloseTo(b.xOf("c"), 1);
   });
 
+  it("motion.what-the-hand-points-with-does-not-trail — an instrument is not load", () => {
+    // A run's trail is the LOAD hanging off the hand and catching up. A piece marked `still` is not
+    // load: it is the hand's own instrument — the handle being held, and the picture of where this
+    // is going — and an instrument that lagged would be pointing at somewhere the hand has left.
+    //
+    // WORSE, THESE RIDE AT THE END OF A RUN, where the trail is at its softest: the tab and the mark
+    // drifted furthest of anything on the desk, which is exactly backwards. On a phone that read as
+    // the marker sliding off the handle it belongs to.
+    const b = bench();
+    add(b.desk, node("load", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    add(b.desk, node("mark", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, trail: 3 })!;
+    const rest = b.xOf("c");
+    m.grab(
+      [
+        { id: "c", offset: { x: 0, y: 0 }, still: true },
+        { id: "load", offset: { x: 0, y: 0 } },
+        { id: "mark", offset: { x: 0, y: 0 }, still: true },
+      ],
+      { anchor: { x: 0, y: 0 } },
+    );
+    let t = 0;
+    for (let i = 1; i <= 20; i++) {
+      m.dragTo({ x: i * 0.3, y: 0 });
+      c.tick((t += 16));
+    }
+    // The hand is at six units. What it points with is there; what hangs off it is behind.
+    expect(b.xOf("c") - rest, "the handle, at the hand").toBeCloseTo(6, 6);
+    expect(b.xOf("mark") - rest, "and the mark, at the hand — LAST in the run and still not late").toBeCloseTo(6, 6);
+    expect(b.xOf("load") - rest, "while the load trails, which is what a trail is for").toBeLessThan(5.5);
+  });
+
   it("motion.a-trail-is-across-the-run-not-per-piece — a deck must not drag like an anchor", () => {
     // Counted per piece, a lag is paid again for every piece: the last card of a hand of five trails
     // a little and the last of a deck of thirty-six trails nine times as much. The deck then comes
