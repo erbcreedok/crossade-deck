@@ -563,6 +563,10 @@ export {
 export {
   accentWash,
   installTheme,
+  // ONE HEX, HANDED OVER — the sanctioned exception to "call sites never see a colour". Something
+  // that cannot read a CSS variable (a picture built as a data URI is its own little document) has
+  // to be given the value; the hexes still live only in the palette, and this asks it for one.
+  paint,
   themeCss,
   PALETTES,
   SCALE,

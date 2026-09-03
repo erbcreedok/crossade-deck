@@ -172,7 +172,11 @@ const preview: Preview = {
           // which is the one thing a mechanic cannot be tried against on a single screen. It sits
           // after the mechanics because every page in it is one of those with a second pair of eyes.
           "Live",
-          ["Shared desk"],
+          // The shared desk first: it is the shelf's own mechanics with a second pair of eyes on
+          // them. Chess after it, because a BOARD is a different kind of desk — sixty-four places
+          // that were there before anything was on them — and it is only worth reading once the
+          // desk that has no places at all has been.
+          ["Shared desk", "Chess"],
           "Canvas",
           ["Camera", "Seats"],
           "Elements",

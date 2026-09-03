@@ -1,0 +1,39 @@
+{
+  "docs.chess.component": [
+    "A BOARD IS A DESK MADE OF PLACES, and that is the one thing this page adds.",
+    "",
+    "Every desk on the shelf so far is about things that lie WHERE THEY WERE PUT: a heap is an",
+    "accident of what is touching what, an area is a place with a size that forgives a near miss,",
+    "and a release lands wherever the hand left it. A board is the other kind entirely — sixty-four",
+    "places that were there before anything was on them, each exactly one piece wide, and a piece is",
+    "never between two of them.",
+    "",
+    "So a felt asks WHERE and a board asks WHICH. Nothing else here is new: a cell is an acceptor",
+    "like any area, the picture of where a lifted piece will land moves into the cell the anchor is",
+    "over, that cell lights because it is the one that would take it, and a piece dropped on an",
+    "occupied square sends the sitter to its owner's tray — which is what the kit's own capture was",
+    "written for, in those words, before there was a board to use it."
+  ],
+  "docs.chess.scene": [
+    "CHESS — one board, two people, and no rules at all.",
+    "",
+    "Pick a piece up on either screen and it comes up on both. The square under the anchor lights,",
+    "and the dashed picture of where the piece will stand moves into that square, so where it is",
+    "going is answered before the hand lets go — which on a board is the only question there is.",
+    "Drop it on an occupied square and the piece standing there goes to its owner's tray.",
+    "",
+    "WHICH ONE, NOT WHERE. Every other place on this shelf forgives a near miss, because a hand",
+    "aiming at an area is aiming at somewhere with a size. A square has a size too and forgives",
+    "nothing: the cells touch, so 'the nearest' is meaningless — every one of them is nought away",
+    "from a piece lying across four — and the answer is the square the anchor is standing IN.",
+    "",
+    "The reach knob is that difference as one number. At zero this is a board. Raise it and the",
+    "squares start forgiving, and the board becomes a felt with lines drawn on it.",
+    "",
+    "NO RULES, deliberately. Whose turn it is, what a knight may do, whether that was check: those",
+    "are a game's, and this shelf holds mechanics. A board with rules is a chess program; a board",
+    "without them is the thing every chess program is built on, and it is the part a kit has to get",
+    "right first. Move a rook diagonally and nothing objects — the desk has no opinion, which is",
+    "exactly what makes it a desk rather than an opponent."
+  ]
+}
