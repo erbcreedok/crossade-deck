@@ -60,6 +60,7 @@ import {
   regrasp,
   MAP,
   ANCHOR_MARK,
+  CARRY_CLEAR,
   flickOf,
   flockTo,
   deskRoom,
@@ -212,7 +213,7 @@ export function grabScene(
    * is on the felt rather than in the hand, and it is one node: writing it costs a layout pass on a
    * desk of forty, which is what the desk does anyway every time the aim light changes.
    */
-  let landing: { readonly node: Node; readonly seat: Vec } | undefined;
+  let landing: { readonly node: Node; readonly seat: Vec; readonly hover: Vec } | undefined;
   /**
    * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
    *
@@ -330,11 +331,20 @@ export function grabScene(
     const box = landingBox(run, seats);
     const mark = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++);
     add(built.host.root, mark);
-    landing = { node: mark, seat: box.at };
+    // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
+    // this is going; the load hangs above them both, because a load drawn ON the finger covers the
+    // one thing the gesture is for (`CARRY_CLEAR`).
+    landing = { node: mark, seat: box.at, hover: { x: 0, y: box.at.y - box.h * CARRY_CLEAR } };
     // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
     // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
     // a clock that has never heard of it, and the override goes nowhere.
+    //
+    // ...AND EVERY OTHER SCREEN IS TOLD TOO. One tree, several hosts: a node added here is in the
+    // board everybody is reading, and a host is only ever told by being TOLD. Left out, the far
+    // screen draws a desk that is genuinely missing something this one has — two people looking at
+    // one board and seeing different pictures, which is the one thing a shared desk may not do.
     built.host.setRoot(built.host.root);
+    mirror?.changed();
     return mark;
   };
 
@@ -345,6 +355,7 @@ export function grabScene(
     if (mark.node.parent) remove(mark.node.parent, mark.node);
     landing = undefined;
     built.host.setRoot(built.host.root);
+    mirror?.changed();
   };
 
   /**
@@ -388,6 +399,11 @@ export function grabScene(
     // "pull a card out of the heap instead of the heap".
     ...(stacking
       ? {
+          // THE FINGER IS THE HOLDER on a desk that lifts what it takes. The load hangs clear of it
+          // (`CARRY_CLEAR`), so there is nothing left for the grab offset to protect — and with it,
+          // the picture of the landing sat wherever the finger happened to touch the card rather
+          // than under the finger doing the aiming.
+          underFinger: true,
           runOf: (_root: Node, hit: Node) => {
             // Remembered for as long as the gesture lasts, so nothing redraws the tab in the hand.
             inHand = isGrip(hit) ? hit.id : undefined;
@@ -454,12 +470,17 @@ export function grabScene(
             if (!isGrip(hit)) {
               // A card and, when there is one, the picture of where it will land — which stands at
               // the card's own landing spot, so its offset from the hand is nothing at all.
-              carried = run.map((n) => ({ id: n.id, offset: { x: 0, y: 0 }, still: isDrawn(n) }));
+              carried = run.map((n) => ({ id: n.id, offset: isDrawn(n) ? { x: 0, y: 0 } : (landing?.hover ?? { x: 0, y: 0 }), still: isDrawn(n) }));
+              return carried.map((it) => it.offset);
               return undefined;
             }
             const pieces = run.slice(1).filter((n) => !isDrawn(n));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w, seenWide()) : undefined;
-            const held = posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w);
+            const lift = landing?.hover ?? { x: 0, y: 0 };
+            const held = (posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w)).map((seat) => ({
+              x: seat.x + lift.x,
+              y: seat.y + lift.y,
+            }));
             const seats = [{ x: 0, y: 0 }, ...held, ...(landing ? [landing.seat] : [])];
             // ...and remembered as the hand is holding it, so another screen can lay it out the same.
             carried = run.map((n, i) => ({ id: n.id, offset: seats[i] ?? { x: 0, y: 0 }, still: isDrawn(n) }));
@@ -544,6 +565,10 @@ export function grabScene(
             // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
             // change that every screen is told about (`changed`).
             mirror?.hand(items, undefined, true);
+            // HOW FAR THE LOAD WAS HANGING, read BEFORE the picture is taken off the desk: the
+            // landing is the picture's place, so the number that says where the picture WAS is the
+            // number the landing needs — and taking the picture away first threw it away with it.
+            const drop = landing?.hover ?? { x: 0, y: 0 };
             // ...AND THE PICTURE OF WHERE IT LANDS GOES WITH THE GESTURE. A release the scene TAKES
             // never reaches the wiring's own drop, so the carry's `done` never comes: left to that,
             // the last thing the reader sees is a ghost of a stack standing on empty felt.
@@ -594,7 +619,7 @@ export function grabScene(
               // leave every hand ever put back exactly as the hand had splayed it.
               rule?.settled?.(built.host.root, items.map((it) => it.id));
               settle();
-            }, ways, bump);
+            }, ways, bump, drop);
           },
         }
       : {}),
@@ -812,6 +837,7 @@ export function letFall(
   after?: () => void,
   ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
   bump?: Bump,
+  hover: Vec = { x: 0, y: 0 },
 ): boolean {
   const m = s.motions;
   const drawn = m?.poses();
@@ -836,8 +862,13 @@ export function letFall(
       remove(n.parent, n);
       add(root, n);
     }
+    // WHERE IT WILL LIE, NOT WHERE IT WAS HELD. A load is carried clear of the finger so that the
+    // picture of its landing is not covered by it (`CARRY_CLEAR`); the landing is that picture's
+    // place, which is the drawn place with the hanging taken back off. The handle and the mark never
+    // hung, so nothing is taken off them.
+    const at = apply(pose, { x: 0, y: 0 });
     const own = fieldsOf<TransformableFields>(n, "Transformable");
-    compose(n, Transformable({ ...(own ?? {}), at: apply(pose, { x: 0, y: 0 }) }));
+    compose(n, Transformable({ ...(own ?? {}), at: isDrawn(n) ? at : { x: at.x - hover.x, y: at.y - hover.y } }));
     toFront(n);
     m.release(it.id);
     put.push(n);

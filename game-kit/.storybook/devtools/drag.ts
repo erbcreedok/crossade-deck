@@ -141,6 +141,17 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    */
   readonly aimAt?: ((root: Node, ids: readonly NodeId[], at: Vec) => Node | undefined) | undefined;
   /**
+   * THE FINGER IS THE HOLDER: the run is anchored ON it, not where the piece happened to be grabbed.
+   *
+   * Off — the stock answer — the finger-to-origin offset rides the whole gesture, so a piece does
+   * not jump under the hand when it is picked up. That is right for a desk where what you take stays
+   * under your finger, and wrong for one where it is LIFTED clear of it: there the load is drawn off
+   * the finger anyway, so keeping the grab offset buys nothing and costs the one thing that matters
+   * — the picture of where this lands ends up wherever you happened to touch, half a card from the
+   * finger pointing at it, and two players aiming at the same spot put their cards in two places.
+   */
+  readonly underFinger?: boolean | undefined;
+  /**
    * THE DROP, TAKEN OVER — called once a zone has been found and before anything is moved. Return
    * `true` and the wiring does nothing else: the scene has taken the drop.
    *
@@ -397,7 +408,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = {
       items,
-      delta: { x: anchor.x - p.x, y: anchor.y - p.y },
+      delta: w.opts.underFinger ? { x: 0, y: 0 } : { x: anchor.x - p.x, y: anchor.y - p.y },
       pointer: e.pointerId,
       tray: undefined,
       from: g,

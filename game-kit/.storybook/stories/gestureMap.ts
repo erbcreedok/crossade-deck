@@ -1178,6 +1178,21 @@ export interface GripSpec {
  */
 export const GRIP_MISS = GRIP.w / 2;
 
+/**
+ * HOW FAR WHAT IS BEING CARRIED HANGS OFF THE FINGER, as a factor of its own height.
+ *
+ * THE FINGER IS THE HOLDER, and what hangs on it is the handle and the picture of where the load is
+ * going. The load itself hangs ABOVE, clear of both. Drawn ON the finger it covers the one thing the
+ * gesture is FOR: a player carrying a card across a desk could not see where the card was going,
+ * because the card was in the way of the answer — and the answer is the whole reason there is a
+ * picture at all. A held thing may lag the finger by a mile and it may sit some way off it; what it
+ * may not do is stand on top of the place it is being sent to.
+ *
+ * A FACTOR of the load's height and not a fixed gap, so a card clears a card and a pile clears a
+ * pile: what has to be cleared is the picture of the landing, and the landing is the load's own size.
+ */
+export const CARRY_CLEAR = 1.15;
+
 const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
 
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */
