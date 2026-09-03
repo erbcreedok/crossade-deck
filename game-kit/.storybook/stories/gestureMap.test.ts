@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apply, Camera, type Vec } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingBox, restsAt, regrip, flickOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingAt, landingBox, restsAt, regrip, flickOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -616,6 +616,13 @@ describe("the stacking desk", () => {
     expect(pile.at.y, "centred on the seats, not on the anchor").toBeCloseTo(mid, 9);
     // A HAND HELD AS A FAN would be three or four cards wide; the mark never is, because it is not
     // drawn from the hand at all.
+    // ...AND IT STANDS WHERE THE PLACE IS. Under the anchor on the felt; IN a zone that would take
+    // the run, because a zone lays its own things out and where they will lie there is its business.
+    // Aim at somebody's area and the picture moves into it — the answer before the hand has let go.
+    const zone = node("area", Bounded({ bounds: rect(3.4, 1.4) }), Transformable({ at: { x: 0, y: 2 } }));
+    expect(landingAt({ x: 1, y: -1 }, { x: 0, y: -0.8 }, undefined), "on the felt, under the anchor").toEqual({ x: 1, y: -1.8 });
+    expect(landingAt({ x: 1, y: -1 }, { x: 0, y: -0.8 }, zone), "and in the zone, when the zone takes it").toEqual({ x: 0, y: 2 });
+
     const fanned = landingBox(many, many.map((_n, i) => ({ x: i * 0.5, y: 0 })));
     expect(fanned.w, "asked about a fan, it answers about a fan").toBeGreaterThan(pile.w * 3);
     expect(fanned.at.x, "and centred on that spread, not on the first card").toBeCloseTo(2.75, 9);

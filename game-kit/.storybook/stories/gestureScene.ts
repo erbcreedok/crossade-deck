@@ -55,6 +55,7 @@ import {
   GRIP_MISS,
   isDrawn,
   isGrip,
+  landingAt,
   landingBox,
   landingMark,
   isPlaceGrip,
@@ -214,7 +215,7 @@ export function grabScene(
    * is on the felt rather than in the hand, and it is one node: writing it costs a layout pass on a
    * desk of forty, which is what the desk does anyway every time the aim light changes.
    */
-  let landing: { readonly node: Node; readonly seat: Vec; readonly hover: Vec } | undefined;
+  let landing: { readonly node: Node; readonly seat: Vec; readonly hover: Vec; readonly w: number; readonly h: number } | undefined;
   /**
    * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
    *
@@ -338,7 +339,7 @@ export function grabScene(
     // FROM THE LOAD'S OWN PLACE, not from the anchor. The run is already seated at `box.at` — a pile
     // stands over its handle — so starting the clearance there as well counts that step twice, and
     // the load ends up two cards and a bit above the finger instead of one.
-    landing = { node: mark, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR } };
+    landing = { node: mark, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR }, w: box.w, h: box.h };
     // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
     // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
     // a clock that has never heard of it, and the override goes nowhere.
@@ -352,15 +353,25 @@ export function grabScene(
     return mark;
   };
 
-  const showLanding = (at: Vec | undefined): void => {
+  const showLanding = (at: Vec | undefined, zone?: Node | undefined): void => {
     const mark = landing;
     if (!mark) return;
-    if (at) return; // the carry is moving it; a written seat would only fight the override
-    if (mark.node.parent) remove(mark.node.parent, mark.node);
-    landing = undefined;
+    if (!at) {
+      if (mark.node.parent) remove(mark.node.parent, mark.node);
+      landing = undefined;
+      built.host.setRoot(built.host.root);
+      mirror?.changed();
+      return;
+    }
+    // THE PICTURE IS OF THE PLACE, and when a zone would take this run the place is the ZONE. Not a
+    // pile-shaped outline under the anchor: a zone lays its own things out in its own arrangement,
+    // so where these cards will lie there is the zone's business and not the felt's. Aim at somebody
+    // s area and the picture moves into it, which is the answer before the hand has let go.
+    const own = fieldsOf<TransformableFields>(mark.node, "Transformable");
+    compose(mark.node, Transformable({ ...(own ?? {}), at: landingAt(at, mark.seat, zone) }));
     built.host.setRoot(built.host.root);
-    mirror?.changed();
   };
+
 
   /**
    * THE ZONE THIS CARRY WOULD BE HANDED TO IF THE HAND LET GO NOW — asked exactly as the release
@@ -385,9 +396,11 @@ export function grabScene(
     // moving here is invisible over there unless it is reported and mirrored.
     // MY HAND, TOLD TO THE OTHER SCREENS — with its FEEL, or it is not the same hand over there —
     // and the picture of where it lands, moved under it.
-    onCarry: ({ at, done, feel }) => {
+    onCarry: ({ ids, at, done, feel }) => {
       mirror?.hand(carried, at, done, feel);
-      showLanding(done ? undefined : at);
+      // ...AND THE PICTURE OF WHERE IT LANDS GOES WHERE THAT IS — asked by the very question that
+      // lights the zone, so the light and the picture can never say two different things.
+      showLanding(done ? undefined : at, zones ? zoneAimed(ids, at) : undefined);
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
     // it is the same question the release answers — down to refusing to hand a run back to the
@@ -417,8 +430,8 @@ export function grabScene(
               // than a hand carrying thirty-six: the card is lifted, so it is drawn bigger and
               // higher than it will lie.
               showLanding(undefined);
-              const alone = markLanding([hit], [{ x: 0, y: 0 }], seatIn(hit));
-              return alone ? [hit, alone] : [hit];
+              markLanding([hit], [{ x: 0, y: 0 }], seatIn(hit));
+              return [hit];
             }
             // ...AND IT BECOMES THE LANDING MARK for as long as the run is up. The tab takes no
             // lift, so it is already travelling flat on the felt at the very point the run will
@@ -452,7 +465,7 @@ export function grabScene(
             // IS the answer rather than a hint at it. It follows the finger for free — a carry is an
             // override, and an override costs the tree nothing while the hand is moving.
             showLanding(undefined); // whatever the last gesture left, if anything ever does
-            const mark = markLanding(run, stackSeats(run, grip.w), seatIn(hit));
+            markLanding(run, stackSeats(run, grip.w), seatIn(hit));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w, seenWide()) : undefined;
             posed?.forEach((seat, i) => {
               const piece = run[i];
@@ -460,7 +473,7 @@ export function grabScene(
               const own = fieldsOf<TransformableFields>(piece, "Transformable");
               compose(piece, Transformable({ ...(own ?? {}), angle: seat.deg }));
             });
-            return mark ? [hit, ...run, mark] : [hit, ...run];
+            return [hit, ...run];
           },
           // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
           // The tab is the hand's own and takes no lift or lean; everything hanging off it does.
@@ -484,7 +497,7 @@ export function grabScene(
               x: seat.x + lift.x,
               y: seat.y + lift.y,
             }));
-            const seats = [{ x: 0, y: 0 }, ...held, ...(landing ? [landing.seat] : [])];
+            const seats = [{ x: 0, y: 0 }, ...held];
             // ...and remembered as the hand is holding it, so another screen can lay it out the same.
             carried = run.map((n, i) => ({ id: n.id, offset: seats[i] ?? { x: 0, y: 0 }, still: isDrawn(n) }));
             return seats;

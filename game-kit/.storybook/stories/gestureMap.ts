@@ -1099,6 +1099,24 @@ export function landingMark(at: Vec, box: { readonly w: number; readonly h: numb
  * WITH ITS LANDING POSE, which is upright: a pile has no lean, so neither has the picture of one.
  * A silhouette wearing the fan's angle would be a picture of the hand rather than of the landing.
  */
+/**
+ * WHERE THE PICTURE OF THE LANDING STANDS — under the anchor, or IN the zone that would take it.
+ *
+ * The picture is of the PLACE, and when a zone would take this run the place is the zone: a zone
+ * lays its own things out in its own arrangement, so where these cards will lie there is the zone's
+ * business and not the felt's. Aim at somebody's area and the picture moves into it — the answer
+ * before the hand has let go, and given by the very question that lights the zone, so the light and
+ * the picture can never say two different things.
+ *
+ * IT KEEPS ITS OWN SIZE either way. Grown to the zone's outline it would trace the border the zone
+ * already draws — a second line on the first, saying nothing the first did not. What has news in it
+ * is the same thing as always: the shape of what will be lying there.
+ */
+export function landingAt(anchor: Vec, seat: Vec, zone: Node | undefined): Vec {
+  const home = zone ? fieldsOf<TransformableFields>(zone, "Transformable")?.at : undefined;
+  return home ?? { x: anchor.x + seat.x, y: anchor.y + seat.y };
+}
+
 export function landingBox(
   run: readonly Node[],
   seats: readonly Vec[],
