@@ -72,7 +72,7 @@ const SCATTER = documented(
  * a second code path — it is the same throw with every piece saying it takes no room.
  */
 export const Collision: StoryObj<CollisionArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, mergeReach, holding }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, landing, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, mergeReach, holding }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -91,6 +91,10 @@ export const Collision: StoryObj<CollisionArgs> = {
       // On THIS scene the holding is off: everything that reaches anything shoves it, however gently
       // it was let go. That a putting-down leaves the furniture alone is the next scene's subject.
       { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: holding },
+      undefined,
+      undefined,
+      undefined,
+      landing,
     ),
   args: {
     ...STACK_ARGS,
@@ -127,7 +131,7 @@ export const Collision: StoryObj<CollisionArgs> = {
  * piece flies at all, so "thrown" means one thing here and not two.
  */
 export const Landing: StoryObj<CollisionArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, holding, mergeReach }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, landing, cardDrop, chipDrop, dieDrop, colliding, room, knock, scatter, holding, mergeReach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -140,6 +144,10 @@ export const Landing: StoryObj<CollisionArgs> = {
       0,
       mergeRule(MERGE_SHARE),
       { roomFor: colliding ? roomOn(room) : () => undefined, bounce: knock, scatter, holds: holding },
+      undefined,
+      undefined,
+      undefined,
+      landing,
     ),
   // THE THROW IS OFF and the holding is ON — that pair is the scene. Turn the holding off and it is
   // the scene above: everything that reaches anything shoves it, however gently it was let go. Turn

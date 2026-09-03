@@ -50,12 +50,19 @@ export interface StackArgs extends ThrowArgs {
   gripMax: number;
   /** How far a finger may MISS the tab and still take it, in units. The picture does not change. */
   gripMiss: number;
+  /** Off, and a lifted thing says nothing about where it is going — the desk before the picture. */
+  landing: boolean;
 }
 
 // A CONTROL IS AIMED AT WITH A FINGERTIP AND DRAWN FOR AN EYE. The tab is a few pixels tall on
 // purpose — one drawn as a slab would be a slab — and a fingertip covers forty-odd pixels of glass
 // while hiding the target on the way down. `0` and the tab is hit exactly as it is drawn, which is
 // the page before this number existed and is worth trying once to feel what it was.
+// A LIFTED THING IS IN THE AIR, and the air is not where it lands. Off, and a player carrying a
+// hand across a board is working out where it will come down from the one thing that is not where
+// it will come down: the cards, held clear of the finger and splayed.
+export const LANDING = documented("arg.landing", { if: { arg: "stacking" } }, "grip");
+
 export const GRIP_MISS_KNOB = documented("arg.gripMiss", { control: { type: "number", min: 0, step: 0.05 }, if: { arg: "stacking" } }, "grip");
 
 export const GRIP_W = documented("arg.gripWidth", { control: { type: "number", min: 0.1, step: 0.05 }, if: { arg: "stacking" } }, "grip");
@@ -98,6 +105,7 @@ export const STACK_ARGS: StackArgs = {
   gripMin: GRIP_HOLD.min,
   gripMax: GRIP_HOLD.max,
   gripMiss: GRIP_MISS,
+  landing: true,
   cardDrop: "settle",
   chipDrop: "fall",
   dieDrop: "roll",
@@ -114,6 +122,7 @@ export const STACK_KNOBS = {
   gripMin: GRIP_MIN,
   gripMax: GRIP_MAX,
   gripMiss: GRIP_MISS_KNOB,
+  landing: LANDING,
   cardDrop: CARD_WAY,
   chipDrop: CHIP_WAY,
   dieDrop: DIE_WAY,

@@ -85,7 +85,7 @@ const twoPairs = (heap: string, reach: number) => (): Node => {
  * chip the left pile's name, and a handle grows under it too. Pull either and it comes up as a stack.
  */
 export const Heap: StoryObj<HeapingArgs> = {
-  render: ({ physics, lifted, lift, gripWidth, gripMin, gripMax, gripMiss, heap, reach }) =>
+  render: ({ physics, lifted, lift, gripWidth, gripMin, gripMax, gripMiss, landing, heap, reach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -97,6 +97,11 @@ export const Heap: StoryObj<HeapingArgs> = {
       false,
       0,
       mergeRule(MERGE_SHARE),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      landing,
     ),
   args: { ...STACK_ARGS, lifted: true, heap: NAMES[0], reach: MERGE_REACH },
   argTypes: { ...STACK_KNOBS, heap: HEAP, reach: REACH },

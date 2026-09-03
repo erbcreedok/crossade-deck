@@ -74,7 +74,7 @@ const SHARE = documented("arg.mergeShare", { control: { type: "number", min: 0, 
  * throw, the handles, the tap that turns a card over. This page adds one number.
  */
 export const StackMerging: StoryObj<MergeArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, flipping, showsEnough, mergeShare, mergeReach }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, landing, cardDrop, chipDrop, dieDrop, flipping, showsEnough, mergeShare, mergeReach }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -89,6 +89,11 @@ export const StackMerging: StoryObj<MergeArgs> = {
       // the old rule exactly — anything of the same kind that touches at all is one heap — so the
       // reader can put the bug back and watch it happen.
       mergeRule(mergeShare),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      landing,
     ),
   args: {
     ...STACK_ARGS,

@@ -1083,10 +1083,18 @@ export function landingMark(at: Vec, box: { readonly w: number; readonly h: numb
     `landing mark ${nth}`,
     Bounded({ bounds: roundedRect(box.w, box.h, Math.min(box.w, box.h) * 0.08) }),
     Surfaced({ surface: MARK_SURFACE }),
-    Transformable({ at }),
+    // UNDER WHAT IS BEING CARRIED. The picture and the load are drawn together — both ride the hand,
+    // so the plan puts them in the same rank and the order inside it is the z. Left at the desk's
+    // own, the mark is the newest child and lands on TOP of the very cards it is a picture for, and
+    // a hand of thirty-six is read through a cage. Below them it is a shape on the felt, which is
+    // what it is: the load leans over it and the outline still reads all the way round.
+    Transformable({ at, z: MARK_UNDER }),
     Valued({ values: { mark: nth } }),
   );
 }
+
+/** How far below everything else the landing picture is drawn. Deep enough that nothing sorts under it. */
+const MARK_UNDER = -1000;
 
 /**
  * THE SILHOUETTE THIS RUN WILL LEAVE ON THE FELT, and where its middle stands relative to the anchor.
@@ -1209,16 +1217,16 @@ export const GRIP_MISS = GRIP.w / 2;
  * A FACTOR of the load's height and not a fixed gap, so a card clears a card and a pile clears a
  * pile: what has to be cleared is the picture of the landing, and the landing is the load's own size.
  *
- * HALF, not the whole. Edge to edge is ONE — the load and the picture just touching — and that is
- * the number this began at. It is too much: on a phone the load ends up a card's height off the
- * finger, which reads as a thing that got away from you rather than a thing in your hand, and the
- * further it is from the place it is going, the less the picture of that place is worth.
+ * A THIRD, not the whole. Edge to edge is ONE — the load and the picture just touching — and that
+ * is the number this began at. It is far too much: on a phone the load ends up a card's height off
+ * the finger, which reads as a thing that got away from you rather than a thing in your hand, and
+ * the further the load is from the place it is going, the less the picture of that place is worth.
  *
- * So the load sits over the top half of the picture and the bottom half stays open. What had to be
- * fixed was a load standing ON the answer; a load leaning over it, with the answer still plainly
- * there to read, is a hand holding something.
+ * What had to be fixed was a load standing ON the answer and hiding it. It does not hide it any
+ * more: the picture is drawn UNDER what is being carried, so the whole outline reads however far the
+ * load leans over it, and this number is now only about how a held thing should sit in a hand.
  */
-export const CARRY_CLEAR = 0.5;
+export const CARRY_CLEAR = 0.32;
 
 const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
 

@@ -177,6 +177,12 @@ export function grabScene(
    * at that size, which is how two areas a reader was told to aim between end up off the glass.
    */
   unit?: number,
+  /**
+   * DRAW THE PICTURE OF WHERE A LIFTED RUN WILL LAND. Off, and a lifted thing says nothing about
+   * where it is going — which is the desk before this feature, and worth turning off once to feel
+   * what carrying a hand across a board was like without it.
+   */
+  landingShown = true,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -339,7 +345,7 @@ export function grabScene(
    * its middle is offset from the anchor by whatever that sweep works out to.
    */
   const markLanding = (run: readonly Node[], seats: readonly Vec[], anchorAt: Vec): Node | undefined => {
-    if (run.length === 0) return undefined;
+    if (!landingShown || run.length === 0) return undefined;
     const box = landingBox(run, seats);
     const mark = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++);
     add(built.host.root, mark);

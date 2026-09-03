@@ -152,5 +152,6 @@ export const magnetScene = (
     magnet ? zoneNear : undefined,
     mirror,
     unit,
+    a.landing,
   );
 

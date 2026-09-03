@@ -449,7 +449,7 @@ export const StackThrow: StoryObj<StackArgs> = {
  * and nothing turns — a gesture that stayed was never a tap.
  */
 export const Flip: StoryObj<FlipArgs> = {
-  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, cardDrop, chipDrop, dieDrop, flipping, showsEnough }) =>
+  render: ({ physics, lifted, lift, dropping, throwing, stacking, gripWidth, gripMin, gripMax, gripMiss, landing, cardDrop, chipDrop, dieDrop, flipping, showsEnough }) =>
     grabScene(
       physics,
       lifted ? lift : undefined,
@@ -460,6 +460,12 @@ export const Flip: StoryObj<FlipArgs> = {
       "deck",
       flipping,
       showsEnough,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      landing,
     ),
   args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, flipping: true, showsEnough: SHOWS_DEFAULT },
   argTypes: { ...STACK_KNOBS, flipping: FLIPPING, showsEnough: SHOWS },
