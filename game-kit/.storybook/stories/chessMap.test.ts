@@ -174,6 +174,12 @@ describe("a move on the real board, end to end", () => {
     expect(Math.abs(seat.x), "inside the felt").toBeLessThan(felt.w / 2);
     expect(Math.abs(seat.y)).toBeLessThan(felt.h / 2);
     expect(squareAt(desk, seat), "and on no square — on the felt beside the board").toBe(desk);
+    // ...IN THE FIRST PLACE OF THE ROW, which is the felt's top-left corner and nowhere near the
+    // squares. The felt also holds a warming speck for every picture on the shelf; counted as men,
+    // they seated the first man taken in the seventh row — on a4, standing on the board he had just
+    // been taken off. The row is made of men, and he is the first.
+    expect(seat.y, "the top row of the felt, above the board").toBeLessThan(-BOARD / 2 - 1);
+    expect(seat.x, "and its first place, at the left").toBeLessThan(-BOARD / 2 - 1);
     s.dispose();
   });
 

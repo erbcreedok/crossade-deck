@@ -376,6 +376,12 @@ describe("the drag wiring's order", () => {
     // What is counted is what LIES LOOSE in the zone: the men, never the furniture.
     for (const name of ["place a", "place b", "place c"])
       add(tray, node(name, Bounded({ bounds: rect(0.5, 0.5) }), Container({ layout: "drag.cell" }), Transformable({ at: { x: 0, y: 0 } })));
+    // ...NOR THE SPECKS NOBODY CAN TOUCH. A desk keeps a hundred warming nodes on its felt — off the
+    // map, untouchable, one per picture — and counted as men they put the first man taken in the
+    // hundred-and-second seat: the seventh row of a felt fourteen wide, which is on the board. The
+    // row is made of what a hand could pick up: a man is Draggable, furniture and specks are not.
+    for (let i = 0; i < 20; i += 1)
+      add(tray, node(`speck ${i}`, Bounded({ bounds: rect(0.02, 0.02) }), Surfaced(), Transformable({ at: { x: 9, y: 9 + i } })));
     const s = scene(root, { animate: true });
     document.body.appendChild(s.el);
     measure(s.el);
@@ -420,6 +426,12 @@ describe("the drag wiring's order", () => {
     over = a;
     s.host.view.dispatchEvent(finger("pointermove", 100, 0));
     expect(levelOf(a), "reached: lit at once, at full").toBeCloseTo(0.4, 9);
+    // ...AND THE FADE IS FRAMES, NOT CHANGES. Every publish of the tree lays the desk out again for
+    // every listener on every screen; six of them per place the hand crossed was the desk rebuilt
+    // thirty times a second under a moving hand — the hang the fade was meant to cure. Crossing
+    // into `b` publishes twice: the light moving, and the old light going out for good.
+    let published = 0;
+    const unhear = s.host.onChange(() => { published += 1; });
     over = b;
     s.host.view.dispatchEvent(finger("pointermove", 200, 0));
     expect(levelOf(b), "the next one: lit at once").toBeCloseTo(0.4, 9);
@@ -430,6 +442,8 @@ describe("the drag wiring's order", () => {
     expect(halfway, "and plainly dimmer than it was").toBeLessThan(0.4);
     await new Promise((r) => setTimeout(r, 400));
     expect(levelOf(a), "gone once the fade is over").toBe(0);
+    expect(published, "the tree was published twice: the light moved, and the old one went out").toBe(2);
+    unhear();
     expect(levelOf(b), "while the one under the hand holds").toBeCloseTo(0.4, 9);
     s.host.view.dispatchEvent(finger("pointerup", 200, 0));
     expect(levelOf(b), "the hand is off: out at once").toBe(0);

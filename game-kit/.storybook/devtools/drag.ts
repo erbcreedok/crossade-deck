@@ -525,10 +525,12 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       if (!to) return;
       remove(from, sitter);
       // HIS PLACE IN THE ROW IS AMONG THE MEN, NOT AMONG THE FURNITURE. A zone with the board IN it
-      // holds sixty-four places and a face before it holds one taken man; counted as men, they put
-      // the first man taken in the sixty-sixth seat, off the desk entirely. What lies loose in the
-      // zone is what the row is made of — anything that is itself a place is the zone's furniture.
-      const nth = to.children.filter((n) => !caps(n).has("Container")).length;
+      // holds sixty-four places, a face and a hundred warming specks before it holds one taken man;
+      // counted as men, they put the first man taken in the hundred-and-second seat — which on a
+      // felt fourteen wide is the seventh row, and the seventh row is ON THE BOARD: the man taken
+      // was standing on a4, and the next on b4. The row is made of what a HAND could pick up here:
+      // a place is furniture, a speck nobody can touch is furniture, a man is not.
+      const nth = to.children.filter((n) => caps(n).has("Draggable")).length;
       add(to, sitter);
       const box = fieldsOf<BoundedFields>(to, "Bounded")?.bounds;
       const room = box ? extentOf(box) : undefined;
@@ -682,7 +684,13 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       }
       const cast = fieldsOf<CoatedFields>(zone, "Coated")?.cast ?? NO_COAT;
       compose(zone, Coated({ self: { ...worn, level: from * (1 - done / FADE_STEPS) }, cast }));
-      s.host.setRoot(s.host.root);
+      // A STEP OF THE FADE IS A FRAME, NOT A CHANGE. Published, every step laid the desk out again
+      // for every listener on every screen — the note, the toolbar, the inspector, the other
+      // screens' plans — six times per place the hand crossed, which on a board of sixty-four
+      // places under a moving hand is the desk rebuilt thirty times a second: the hang the fade
+      // was meant to cure. So a step only repaints this screen; the tree is published once, when
+      // the light is off for good, and a screen that did not see the steps saw a light go out.
+      s.motions?.redraw();
       setTimeout(step, FADE_MS / FADE_STEPS);
     };
     setTimeout(step, FADE_MS / FADE_STEPS);
