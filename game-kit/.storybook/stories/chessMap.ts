@@ -39,7 +39,6 @@ import {
   NO_COAT,
   Owned,
   ShadowCaster,
-  ellipse,
   Reaching,
   rect,
   registerAsset,
@@ -154,6 +153,8 @@ const figure = (glyph: string, ink: string, rim: string, width: number): string 
 
 /** A piece's picture is named by what it IS and whose it is — nothing reads the name but the registry. */
 const pictureOf = (seat: string, what: Figure): string => `chess.${seat}.${what}`;
+/** THE SHADOW OF A PIECE IS THE PIECE: the same glyph, filled with shadow, one per figure and nobody's. */
+export const shadowOf = (what: Figure): string => `chess.shadow.${what}`;
 
 /**
  * IVORY AND EBONY, which is what a chess set is made of — and on a wooden board both read at a
@@ -215,6 +216,11 @@ export function installChessArt(): void {
       registerSurface(name, { layers: [{ image: name, fit: "contain" }] });
     }
   }
+  // ...AND WHAT EACH FIGURE LAYS ON THE DESK: itself, in shadow. Not a spot, not an oval, not a box —
+  // a knight's shadow is knight-shaped, and the only honest way to a knight-shaped shadow is to draw
+  // the knight again in shadow ink. The lamp's opacity makes it a shadow; the glyph makes it his.
+  for (const [what, glyph] of Object.entries(FIGURES))
+    registerAsset(shadowOf(what as Figure), { src: figure(glyph, "black", "black", 0), w: PIECE, h: PIECE });
 }
 
 /**
@@ -355,12 +361,12 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // (`guard.id-is-opaque`) — and not off the square, which he leaves the moment he is picked up.
     Owned({ box: seat }),
     PUT_DOWN,
-    // A SPOT AT HIS FEET, and nothing at rest. What falls is a pool the width of his base, not the
-    // square box around a knight-shaped figure — and the felt's lamp gives a standing man no fall at
-    // all, so at rest the pool is not painted (a fall of nothing is no shadow). Lifted, he casts:
-    // that is the one thing a shadow is for here, and it is the thing the far screen needs most —
-    // a man in somebody else's hand, plainly off the board.
-    ShadowCaster({ spot: ellipse(PIECE * 0.3, PIECE * 0.12) }),
+    // HIS OWN SHAPE FALLS, and nothing at rest. Not the square box around a knight-shaped figure and
+    // not a pool at his feet: the shadow is the man himself in shadow ink (`shadowOf`). The felt's
+    // lamp gives a standing man no fall at all, so at rest nothing is painted (a fall of nothing is
+    // no shadow). Lifted, he casts — the one thing a shadow is for here, and the thing the far screen
+    // needs most: a man in somebody else's hand, plainly off the board.
+    ShadowCaster({ picture: shadowOf(what) }),
   );
   // WHOEVER IS TAKEN GOES TO HIS OWN SIDE'S TRAY, so the record a square names is the record of the
   // man STANDING on it — nobody's tray holds anybody else's men. Named the other way round, white's

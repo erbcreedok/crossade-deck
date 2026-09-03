@@ -6,8 +6,8 @@
 // the shelf's own and is guarded where it lives.
 
 import { describe, expect, it } from "vitest";
-import { caps, fieldsOf, extentOf, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
-import { BOARD, chessMap, CHESS_SEATS, COMMON, isCell, squareAt } from "./chessMap.js";
+import { assetRecord, caps, fieldsOf, extentOf, shadowPicture, shadowSpot, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
+import { BOARD, chessMap, CHESS_SEATS, COMMON, isCell, shadowOf, squareAt } from "./chessMap.js";
 import { scene as buildScene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
 import { currentSettings } from "../devtools/catalogSettings.js";
@@ -87,6 +87,28 @@ describe("a board is a desk made of places", () => {
   });
 });
 
+
+describe("what a man lays on the desk", () => {
+  it("chess.a-mans-shadow-is-the-man — his own glyph in shadow ink, never a spot, never a box", () => {
+    // A knight's shadow is knight-shaped, and the only honest way to one is to draw the knight again
+    // in shadow ink. Every man names that drawing, it is registered at his own size, and it is HIS
+    // figure's: the knight and the pawn do not share one — that was the forgery the atom warns of.
+    const desk = chessMap();
+    const srcs = new Map<string, string>();
+    for (const one of men(desk)) {
+      const picture = shadowPicture(one);
+      expect(picture, `${one.id} names the drawing that falls`).toBeDefined();
+      expect(shadowSpot(one), "and no spot instead of it").toBeUndefined();
+      const asset = assetRecord(picture!)!;
+      expect(asset, "which is registered").toBeDefined();
+      expect(asset.w, "at his own size").toBeCloseTo(extentOf(fieldsOf<BoundedFields>(one, "Bounded")!.bounds).w, 9);
+      srcs.set(picture!, asset.src);
+    }
+    expect(srcs.size, "one shadow drawing per figure, six figures").toBe(6);
+    expect(new Set(srcs.values()).size, "and six different drawings").toBe(6);
+    expect(srcs.get(shadowOf("knight")), "the knight's is the knight's").not.toBe(srcs.get(shadowOf("pawn")));
+  });
+});
 
 describe("a move on the real board, end to end", () => {
   // The wiring's own fixture: no WebGL, a painter that draws nothing, and the hud unit pinned so a

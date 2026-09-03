@@ -17,10 +17,10 @@
 import { type Node, type NodeId } from "../../core/node.js";
 import { extentOf, footprint } from "../../core/atoms/bounded.js";
 import { type Shadow } from "../../core/atoms/lit.js";
-import { boxOf } from "./parts.js";
+import { boxOf, layerOf } from "./parts.js";
 import { LAYER_HEIGHT } from "./depth.js";
 import { areaOf, type SurfacedFields } from "../../core/atoms/surfaced.js";
-import { shadowFrom, shadowSpot } from "../../core/atoms/shadow.js";
+import { shadowFrom, shadowPicture, shadowSpot } from "../../core/atoms/shadow.js";
 import { fieldsOf } from "../../core/node.js";
 import { resolveZ } from "../../core/atoms/transformable.js";
 import { type ResolveContext } from "../../core/resolve.js";
@@ -101,6 +101,14 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
   const toGlass = compose(move(lamp.fall.x * off, lamp.fall.y * off), compose(lamp.toView, lying));
   const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
   const ext = extentOf(shape);
+  // WHAT DARKENS THE CONTOUR: the shadow ink, or — for a caster that names the drawing that falls —
+  // that drawing, fitted to the contour as its own picture is fitted to the piece, at the same
+  // darkness. The knight's shadow is then the knight, and the plan still reads no picture's alpha:
+  // whoever drew the piece drew its shadow too.
+  const picture = shadowPicture(n);
+  const layer = picture
+    ? layerOf({ image: picture, fit: "contain", opacity: lamp.depth.opacity }, ext, lamp.unit)
+    : { paint: "shadow", image: undefined, opacity: lamp.depth.opacity };
   return {
     id: `${n.id}::shadow`,
     layer: "shadow",
@@ -109,7 +117,7 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
     w: ext.w * lamp.unit,
     h: ext.h * lamp.unit,
     points,
-    layers: [{ paint: "shadow", image: undefined, opacity: lamp.depth.opacity }],
+    layers: [layer],
     transform: compose(toGlass, scale(lamp.unit > 0 ? 1 / lamp.unit : 0)),
     stroke: undefined,
     z,

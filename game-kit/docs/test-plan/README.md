@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**68 слоёв · 1556 кейсов заявлено · 1383 расписано поимённо.**
+**68 слоёв · 1559 кейсов заявлено · 1386 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -35,7 +35,7 @@
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 103 | 102 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
-| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 63 | 63 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 64 | 64 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 97 | 97 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
@@ -68,7 +68,7 @@
 | [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 48 | 48 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 12 | 12 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
-| [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 8 | 8 |
+| [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 9 | 9 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 4 | 4 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
 | [UNIT · launch и slide — баллистика на одних часах](46-launch-and-slide.md) | `vitest + a fake clock` | 21 | 21 |
@@ -93,4 +93,4 @@
 | [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 6 | 6 |
 | [UNIT · магнетизм — какой зоне принадлежит отпускание](66-magnetism.md) | `vitest (headless, no WebGL)` | 20 | 20 |
 | [UNIT · live — общий стол на двоих](67-live.md) | `vitest (headless, no WebGL)` | 6 | 6 |
-| [UNIT · шахматы — доска как стол из МЕСТ](68-chess.md) | `vitest (headless, no WebGL)` | 5 | 5 |
+| [UNIT · шахматы — доска как стол из МЕСТ](68-chess.md) | `vitest (headless, no WebGL)` | 6 | 6 |

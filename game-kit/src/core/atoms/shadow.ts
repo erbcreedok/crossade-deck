@@ -31,18 +31,31 @@ export interface ShadowCasterFields {
    * pawn's shadow the first time a second kind of figure arrives.
    */
   readonly spot: Shape | undefined;
+  /**
+   * THE DRAWING THAT FALLS, when the caster HAS one: an asset name, the picture of this piece
+   * filled with shadow and nothing else. Laid over the node's own box at the shadow's darkness, so
+   * what is on the desk is the knight's shape under the knight — the honest silhouette, taken from
+   * the drawing itself and not read off its alpha, by whoever drew the piece and can draw it again.
+   * Absent for everything that IS its own shape, and for a drawing nobody made a shadow of.
+   */
+  readonly picture: string | undefined;
 }
 
 export const ShadowCaster = defineAtom<ShadowCasterFields>({
   name: "ShadowCaster",
   requires: ["Bounded"],
-  defaults: { from: "silhouette", spot: undefined }, // the shadow of a drawn piece IS its silhouette
-  classes: { from: "own", spot: "own" },
+  defaults: { from: "silhouette", spot: undefined, picture: undefined }, // the shadow of a drawn piece IS its silhouette
+  classes: { from: "own", spot: "own", picture: "own" },
 });
 
 /** The contour this node lays down instead of its own, when it says one. */
 export function shadowSpot(n: Node): Shape | undefined {
   return fieldsOf<ShadowCasterFields>(n, "ShadowCaster")?.spot;
+}
+
+/** The drawing this node lays down as its shadow, when it names one. */
+export function shadowPicture(n: Node): string | undefined {
+  return fieldsOf<ShadowCasterFields>(n, "ShadowCaster")?.picture;
 }
 
 /** The declared contour choice, or `undefined` when the node casts nothing at all. */

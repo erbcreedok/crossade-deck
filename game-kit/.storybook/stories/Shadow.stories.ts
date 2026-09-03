@@ -11,6 +11,7 @@ import {
   Lit,
   node,
   rect,
+  registerAsset,
   registerLayout,
   registerSurface,
   ShadowCaster,
@@ -45,7 +46,7 @@ const meta: Meta = {
     gkDoc: "shadowCaster.component",
     gkAtom: "ShadowCaster",
     // The atom's one field, reachable from both scenes.
-    gkFields: { from: ["Cast", "Stack"], spot: ["Cast"] },
+    gkFields: { from: ["Cast", "Stack"], spot: ["Cast"], picture: ["Cast"] },
   },
 };
 export default meta;
@@ -98,8 +99,25 @@ interface CastArgs {
   spotWide: number;
   /** How far below its middle the spot sits — a standing figure's shadow is at its BASE. */
   spotDrop: number;
+  /**
+   * THE DRAWING THAT FALLS: the spark lays a picture of itself in shadow ink instead of a contour.
+   * The honest silhouette of a drawn piece — the knight's shadow is the knight — made the only way
+   * it can be made, by whoever drew the piece drawing it again. Nothing reads a picture's alpha.
+   */
+  sparkDrawn: boolean;
   sparkFrom: "footprint" | "silhouette";
 }
+
+/** The spark's own star, drawn in shadow ink: a polygon in a box the size of the star's extent. */
+const starShadow = (points: number, outer: number, inner: number): string => {
+  const pts: string[] = [];
+  for (let i = 0; i < points * 2; i += 1) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = -Math.PI / 2 + (i * Math.PI) / points;
+    pts.push(`${(50 + (Math.cos(a) * r * 50) / outer).toFixed(2)},${(50 + (Math.sin(a) * r * 50) / outer).toFixed(2)}`);
+  }
+  return "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="${pts.join(" ")}" fill="black"/></svg>`);
+};
 
 export const Cast: StoryObj<CastArgs> = {
   // A rounded card and a star token under one lamp. `from` picks the contour that falls — on the
@@ -130,9 +148,11 @@ export const Cast: StoryObj<CastArgs> = {
     sparkZ,
     spotWide,
     spotDrop,
+    sparkDrawn,
     sparkFrom,
   }) => {
     registerSurface(cardSurface, { layers: [{ paint: cardPaint }], radius: cardRadius });
+    registerAsset(`${sparkSurface}/shadow`, { src: starShadow(starPoints, starOuterR, starInnerR), w: starOuterR * 2, h: starOuterR * 2 });
     registerSurface(sparkSurface, { layers: [{ paint: sparkPaint }] });
     registerLayout(deskLayout, freeLayout);
     const desk = node("desk", Container({ layout: deskLayout }), Lit({ light: { frame, angle } }));
@@ -156,9 +176,12 @@ export const Cast: StoryObj<CastArgs> = {
         Transformable({ at: { x: sparkX, y: sparkY }, z: sparkZ }),
         // A CONTOUR THIS LAYS DOWN INSTEAD OF ITS OWN, when its own would be a lie. Zero and there
         // is none: the star casts a star, which is right for everything that IS its own shape.
+        // ...OR THE DRAWING ITSELF, in shadow ink: what a drawn figure honestly lays is its own
+        // picture, drawn again by whoever drew it — the star's shadow is the star.
         ShadowCaster({
           from: sparkFrom,
           ...(spotWide > 0 ? { spot: transformShape(ellipse(spotWide, spotWide * 0.42), { offsetY: spotDrop }) } : {}),
+          ...(sparkDrawn ? { picture: `${sparkSurface}/shadow` } : {}),
         }),
         Draggable(),
       ),
@@ -189,6 +212,7 @@ export const Cast: StoryObj<CastArgs> = {
     sparkZ: 1,
     spotWide: 0,
     spotDrop: 0.4,
+    sparkDrawn: false,
     sparkFrom: "silhouette",
   },
   argTypes: {
@@ -215,6 +239,7 @@ export const Cast: StoryObj<CastArgs> = {
     sparkZ: documented("arg.z", HEIGHT, "spark/transformable"),
     spotWide: documented("arg.spotWide", { control: { type: "number", min: 0, step: 0.05 } }, "spark/shadowCaster"),
     spotDrop: documented("arg.spotDrop", { control: { type: "number", step: 0.05 }, if: { arg: "spotWide" } }, "spark/shadowCaster"),
+    sparkDrawn: documented("arg.sparkDrawn", { control: "boolean" }, "spark/shadowCaster"),
     sparkFrom: contour("spark/shadowCaster"),
   },
   parameters: { gkDocStory: "shadowCaster.cast" },

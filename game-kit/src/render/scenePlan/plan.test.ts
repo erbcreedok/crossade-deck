@@ -1022,6 +1022,26 @@ describe("the hybrid: baked or live", () => {
     expect(inspect(root).map((n) => n.id)).toEqual(["r", "painted", "bare"]);
   });
 
+  it("plan.a-caster-may-lay-its-own-drawing — the named picture, fitted to the box, at the shadow's darkness", () => {
+    // The spot below depicts nothing. This depicts the RIGHT thing: a caster that names the drawing
+    // that falls lays that drawing — the knight in shadow ink, drawn by whoever drew the knight —
+    // over its own box, as dark as the lamp says, and with no ink of the plan's own under it: the
+    // picture's shape IS the shadow, and a colour under it would put the box back.
+    const desk = node("desk", Container({ layout: "free" }), Lit({ shadow: { base: 0.4, perZ: 0, lifted: 0, opacity: 0.5 } }));
+    registerAsset("plan.knight-shadow", { src: "data:knight-shadow", w: 1, h: 1 });
+    const man = node("man", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), ShadowCaster({ picture: "plan.knight-shadow" }));
+    add(desk, man);
+    const plan = scenePlan({ root: desk, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
+    const q = plan.find((one) => one.id === "man::shadow")!;
+    expect(q, "he casts").toBeDefined();
+    const layer = q.layers[0]!;
+    expect(layer.image?.src, "the drawing that falls is the one he named").toBe("data:knight-shadow");
+    expect(layer.paint, "and nothing of the plan's own under it").toBeUndefined();
+    expect(layer.opacity, "as dark as the lamp says").toBeCloseTo(0.5, 9);
+    expect(layer.image?.w, "fitted to his box, in pixels").toBeCloseTo(100, 6);
+    expect(layer.image?.h).toBeCloseTo(100, 6);
+  });
+
   it("plan.a-caster-may-lay-something-other-than-itself — a drawing in a box casts the box", () => {
     // A knight is a knight-shaped hole in a square, so the SQUARE is what falls: a rectangle a size
     // the eye cannot match to anything, sitting under a figure it plainly does not belong to. The

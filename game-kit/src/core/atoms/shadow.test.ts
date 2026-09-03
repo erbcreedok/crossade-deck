@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { add, fieldsOf, node, remove } from "../node.js";
 import { Bounded } from "./bounded.js";
 import { Container } from "./container.js";
-import { castsShadow, ShadowCaster, type ShadowCasterFields } from "./shadow.js";
+import { castsShadow, ShadowCaster, shadowPicture, type ShadowCasterFields } from "./shadow.js";
 import { DEFAULT_LIGHT, DEFAULT_SHADOW, lightVector, Lit, shadowOf } from "./lit.js";
 import { rect } from "../../presets/shapes.js";
 
@@ -17,6 +17,14 @@ describe("the shadow caster", () => {
     expect(
       fieldsOf<ShadowCasterFields>(node("s2", box(), ShadowCaster({ from: "footprint" })), "ShadowCaster")?.from,
     ).toBe("footprint");
+  });
+
+  it("atom.shadow.may-name-the-drawing-that-falls — a picture, read back; nothing by default", () => {
+    // A knight's shadow is the knight. Nothing here can read a picture's alpha, so the honest
+    // silhouette is DRAWN — by whoever drew the piece — and the caster names it. Absent for
+    // everything that is its own shape: a card's shadow is the card's box, and always was.
+    expect(fieldsOf<ShadowCasterFields>(node("s3", box(), ShadowCaster()), "ShadowCaster")?.picture).toBeUndefined();
+    expect(shadowPicture(node("s4", box(), ShadowCaster({ picture: "knight/shadow" })))).toBe("knight/shadow");
   });
 
   it("atom.shadow.a-resting-stack-casts-once — the nearest casting owner speaks for the subtree", () => {
