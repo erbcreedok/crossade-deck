@@ -244,7 +244,10 @@ export function grabScene(
   // A DESK HANDED OVER AS A FACTORY IS BUILT ONCE and is the reader's from then on — turning a knob
   // must not sweep away the cards they dealt. See `scene`.
   const make = typeof desk === "function" ? desk : desk === "deck" ? deckMap : desk === "stack" ? stackMap : gestureMap;
-  const built = scene(make, {
+  // BUILT ONCE, AND MEASURED BEFORE THE CAMERA IS TOLD ABOUT IT: the room the view is held inside is
+  // this desk's own, and a desk with trays beside it is wider than the felt in the middle of it.
+  const standing = make();
+  const built = scene(() => standing, {
     animate: true,
     camera: {
       limits: MAP_ZOOM,
@@ -252,7 +255,7 @@ export function grabScene(
       // the glass and the felt's edge becomes a wall the view stops dead against — every pan ending
       // in a stop with nothing beyond it, and a piece by the border never reachable to the middle of
       // the glass. `deskRoom` gives the eye somewhere to stand; the pieces are still walled in.
-      content: deskRoom(),
+      content: deskRoom(standing),
       ...(unit === undefined ? {} : { unit }),
       // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and
       // over bare map the same finger drives the view. The two never argue about a hand.

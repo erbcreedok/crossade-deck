@@ -24,6 +24,7 @@ import {
   Acceptor,
   add,
   Bounded,
+  caps,
   compose,
   Container,
   Displacer,
@@ -87,7 +88,9 @@ const PIECE = 0.94;
  * what has been taken. The kit's own word for this is `capture(to)`, and the example in its doc is
  * this exact tray.
  */
-const TRAY = { w: 2.2, h: 8 };
+const TRAY = { w: 3.4, h: 8 };
+/** How much felt stands between the board and a tray — a margin, so the camera is not pressed. */
+const TRAY_GAP = 0.9;
 export const trayOf = (seat: string): string => `${seat} tray`;
 
 const LIGHT = "chess.cell.light";
@@ -164,8 +167,10 @@ export function installChessArt(): void {
   // A CELL HOLDS ONE PIECE, IN THE MIDDLE OF IT. A row of one is a piece centred, which is the whole
   // arrangement a square needs — and it stays right if a desk ever puts two there.
   registerLayout(CELL_LAYOUT, rowLayout({ gap: 0.04, align: "center" }));
-  // A tray is a column, because what is in it is a LIST: taken pieces are counted, not arranged.
-  registerLayout(TRAY_LAYOUT, rowLayout({ gap: 0.06, padding: 0.12, align: "center", direction: "column" }));
+  // A TRAY TAKES A MAN ANYWHERE IN IT. Off the board there is no grid and no reason for one: what
+  // is in a tray is a heap of taken men, and a player putting one down beside another is arranging
+  // nothing. A column would be the tray having an opinion about a thing nobody is playing.
+  registerLayout(TRAY_LAYOUT, freeLayout);
   // A BOARD HAS TO READ AS A BOARD. Every grey this theme owns lives between `#11` and `#2c` — a
   // panel beside a sunken well, which is a difference nobody was ever meant to see across a whole
   // surface — so two of them side by side gave sixty-four squares of one dark slab. The light square
@@ -302,7 +307,7 @@ function tray(seat: string): Node {
     trayOf(seat),
     Bounded({ bounds: rect(TRAY.w, TRAY.h) }),
     Surfaced({ surface: TRAY_SURFACE }),
-    Transformable({ at: { x: (seat === "white" ? 1 : -1) * (BOARD / 2 + TRAY.w / 2 + 0.4), y: 0 } }),
+    Transformable({ at: { x: (seat === "white" ? 1 : -1) * (BOARD / 2 + TRAY.w / 2 + TRAY_GAP), y: 0 } }),
     Container({ layout: TRAY_LAYOUT }),
     Acceptor({}),
     Grabber({ grab: "one" }),
@@ -338,7 +343,10 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // now lets a caster name a spot instead (`ShadowCaster.spot`), which is the honest answer for a
     // desk where figures stand about on felt. A board is not that desk.)
   );
-  compose(spot, Displacer({ occupied: takenTo(seat === "white" ? "black" : "white") }));
+  // WHOEVER IS TAKEN GOES TO HIS OWN SIDE'S TRAY, so the record a square names is the record of the
+  // man STANDING on it — nobody's tray holds anybody else's men. Named the other way round, white's
+  // losses piled up in black's tray, which is a scoreboard that reads backwards.
+  compose(spot, Displacer({ occupied: takenTo(seat) }));
   add(spot, piece);
 }
 
@@ -352,12 +360,19 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
  * what the hand aimed.
  */
 export function squareAt(root: Node, at: Vec): Node | undefined {
-  for (const spot of root.children) {
-    if (!isCell(spot)) continue;
-    const own = fieldsOf<TransformableFields>(spot, "Transformable")?.at;
-    if (own && Math.abs(at.x - own.x) <= 0.5 && Math.abs(at.y - own.y) <= 0.5) return spot;
-  }
-  return undefined;
+  const cell = root.children.find((spot) => isCell(spot) && within(spot, at, 0.5, 0.5));
+  if (cell) return cell;
+  // ...AND OFF THE BOARD, THE TRAY. A man may be put down anywhere in a tray — there is no grid off
+  // the board and no reason for one: what is in a tray is a heap of taken men, and a player setting
+  // one beside another is arranging nothing. So the tray answers for its whole area, and where in
+  // it the man ends up is where the hand left him.
+  return root.children.find((box) => caps(box).has("Acceptor") && !isCell(box) && within(box, at, TRAY.w / 2, TRAY.h / 2));
+}
+
+/** Is this point inside that node's box, by its own half-widths? */
+function within(n: Node, at: Vec, halfW: number, halfH: number): boolean {
+  const own = fieldsOf<TransformableFields>(n, "Transformable")?.at;
+  return !!own && Math.abs(at.x - own.x) <= halfW && Math.abs(at.y - own.y) <= halfH;
 }
 
 /** A square of this board says so on itself — its id is a name, and nothing reads names. */

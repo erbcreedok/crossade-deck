@@ -10,18 +10,26 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   Acceptor,
+  capture,
   add,
   Bounded,
   Container,
+  compose,
+  Displacer,
   Draggable,
+  byId,
   fieldsOf,
   FLING,
+  Grabber,
   Inviting,
   NO_COAT,
   freeLayout,
   node,
   rect,
   registerLayout,
+  installStockGrabs,
+  installStockOccupied,
+  registerOccupied,
   Surfaced,
   Transformable,
   type CoatedFields,
@@ -323,6 +331,61 @@ describe("the drag wiring's order", () => {
     for (let i = 1; i <= 8; i++) s.host.view.dispatchEvent(finger("pointermove", i * 75, 0, 1000 + i * 50));
     s.host.view.dispatchEvent(finger("pointerup", 600, 0, 1400 + FLING.maxGap * 1000 + 20));
     expect(Math.hypot(swings[1]!.x, swings[1]!.y), "a pause before letting go is a putting-down").toBe(0);
+    s.dispose();
+  });
+
+  it("drag.the-sitter-goes-where-the-plan-says — a capture is a thing the runtime DOES", () => {
+    // The plan has carried this since the kit had places at all, and its own comment calls it
+    // "opaque plan data for the RUNTIME": the seam decides it, and something has to DO it. Nothing
+    // did. A board declaring that a man landing on an occupied square takes the sitter got two men
+    // on one square instead — which is not a capture, and not even a bug you can see until the
+    // second one moves.
+    const root = desk();
+    installStockGrabs();
+    installStockOccupied();
+    registerLayout("drag.cell", freeLayout);
+    registerOccupied("drag.taken", capture("tray"));
+    // A CONTAINER SAYS WHAT A TOUCH TAKES OUT OF IT, or the move is denied before any zone is asked:
+    // the plan starts by asking the SOURCE for its load, and a container with no `Grabber` hands
+    // back nothing at all.
+    compose(root, Grabber({ grab: "one" }));
+    const cell = node(
+      "cell",
+      Bounded({ bounds: rect(1, 1) }),
+      Container({ layout: "drag.cell" }),
+      Transformable({ at: { x: 2, y: 0 } }),
+      Acceptor({}),
+      Grabber({ grab: "one" }),
+      Displacer({ occupied: "drag.taken" }),
+    );
+    const tray = node(
+      "tray",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "drag.cell" }),
+      Transformable({ at: { x: 5, y: 0 } }),
+      Acceptor({}),
+    );
+    const sitter = node("sitter", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Draggable());
+    add(cell, sitter);
+    add(root, cell);
+    add(root, tray);
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s, { zoneAt: () => cell });
+    // The card is dragged onto the occupied cell.
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 60, 0, 50));
+    s.host.view.dispatchEvent(finger("pointerup", 60, 0, 60));
+    expect(byId(root, "card")?.parent?.id, "the man who arrived takes the square").toBe("cell");
+    expect(sitter.parent?.id, "and the man who was there goes where the plan said").toBe("tray");
+    // ...AND HE IS PUT DOWN IN IT, not left standing on the square he was taken from. A free zone
+    // lays nothing out, so a sitter who kept his own seat would still be on the board.
+    // The first man taken stands in the tray's first place — not at the seat he had on the square,
+    // which a free zone would have left him holding, and which is a seat on the BOARD.
+    const at = fieldsOf<TransformableFields>(sitter, "Transformable")!.at!;
+    expect(at.x, "put down IN the tray, in its first place").toBeCloseTo(-0.75, 9);
+    expect(at.y).toBeCloseTo(-0.75, 9);
     s.dispose();
   });
 

@@ -26,8 +26,13 @@ import {
   toUnits,
   transformsOf,
   Transformable,
+  add,
+  extentOf,
   FLING,
+  remove,
+  type BoundedFields,
   type CarryOptions,
+  type OccupiedOutcome,
   wearInvites,
   wearKeen,
   type CarryItem,
@@ -472,6 +477,57 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
    * as the demo desks are unposed free layouts, where parent space IS root space.
    */
   /**
+   * WHAT BECOMES OF THE MAN WHO WAS ALREADY THERE — the plan says, and this is where it happens.
+   *
+   * The plan has carried this since the kit had places at all (`MovePlan.occupied`), and its own
+   * comment calls it "opaque plan data for the RUNTIME": the seam decided it, and something has to
+   * DO it. Nothing did. A board declaring that a man landing on an occupied square takes the sitter
+   * got two men on one square instead, which is not a capture and not even a bug you can see until
+   * the second one moves.
+   *
+   * `capture` sends him to the zone the plan names — a tray beside the board, a discard, a bank.
+   * It is a plain re-parent, so the reconcile that follows flies him there from where he stood: the
+   * animation is the tree change being told, and there is nothing else to schedule.
+   *
+   * AND NOT ON TOP OF THE LAST ONE. A zone that lays its own men out will lay him out; a free one
+   * would leave him wherever he was standing, which is on the board he was just taken from. So a
+   * free zone gets him put down IN it, beside whoever is already there.
+   */
+  const displace = (what: OccupiedOutcome | undefined, sitter: Node | undefined, from: Node, root: Node): void => {
+    if (!what || !sitter) return;
+    // A TABLE AND NOT A BRANCH. Behaviour never reads a sort (`guard.no-kind`), and the kit's answer
+    // to "several things this could be" is the same everywhere: a name looked up in a registry —
+    // layouts, grabs, coats, and the occupied records that produced this very outcome. So the
+    // outcome NAMES what happens and this holds the doers: a new one is an entry, never a branch.
+    DISPLACE[what.kind]?.(what, sitter, from, root);
+  };
+
+  /** What the runtime does about a sitter, by the name the plan gave. */
+  const DISPLACE: Record<string, (what: OccupiedOutcome, sitter: Node, from: Node, root: Node) => void> = {
+    capture: (what, sitter, from, root) => {
+      const to = "to" in what ? byId(root, what.to) : undefined;
+      if (!to) return;
+      remove(from, sitter);
+      const nth = to.children.length;
+      add(to, sitter);
+      const box = fieldsOf<BoundedFields>(to, "Bounded")?.bounds;
+      const room = box ? extentOf(box) : undefined;
+      if (!room) return;
+      // A LOOSE ROW THAT WRAPS, in the zone's own space: enough to see them all and no more of an
+      // opinion than that. Anybody may pick one up and put it down elsewhere in the zone.
+      const step = Math.max(0.4, room.w / 4);
+      const cols = Math.max(1, Math.floor(room.w / step));
+      compose(sitter, Transformable({
+        at: {
+          x: -room.w / 2 + step * ((nth % cols) + 0.5),
+          y: -room.h / 2 + step * (Math.floor(nth / cols) + 0.5),
+        },
+      }));
+    },
+  };
+;
+
+  /**
    * Where a container stands in ROOT units — the sum of the `at`s up its chain.
    *
    * Exact for the free layouts these desks are built from, which is the case the catalog has: a
@@ -540,6 +596,8 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const req = { source, touched: lead, target, carried: { angle: angleOf(lead) } };
     const plan = planMove(req);
     if (plan.verdict !== "allow") return false; // refused, or waiting on a person: the piece goes home
+    // WHO WAS SITTING THERE, read BEFORE the load arrives — a moment later the target holds both.
+    const sitter = target.children.find((c) => !plan.load.includes(c.id));
     // THE SEAT IS IN THE TARGET'S SPACE, and this is the one line the whole re-parent turns on.
     // `seat` arrives in root units — that is where the finger was — but a pose is read against its
     // OWNER, and poses compose down the chain. Written raw into a zone standing at +1.5, a drop at
@@ -555,6 +613,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       }
     }
     applyMove(req, plan);
+    displace(plan.occupied, sitter, target, root);
     for (const it of items) s.motions?.release(it.id);
     s.host.setRoot(root);
     return true;
