@@ -45,10 +45,6 @@ import {
   registerSurface,
   rowLayout,
   Surfaced,
-  ShadowCaster,
-  ellipse,
-  paint,
-  transformShape,
   Transformable,
   Valued,
   capture,
@@ -58,7 +54,6 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { svg } from "./stockAssets.js";
-import { currentSettings } from "../devtools/catalogSettings.js";
 import { installMapArt, PUT_DOWN, warmingNodes, zoneKeen } from "./gestureMap.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
@@ -82,7 +77,7 @@ export const BOARD = 8;
 export const CHESS_UNIT = 38;
 
 /** How much of a cell a piece takes up. Under one, so the cell's own colour reads all round it. */
-const PIECE = 0.88;
+const PIECE = 0.94;
 
 /**
  * WHERE THE TAKEN PIECES GO — one tray a side, off the board.
@@ -122,11 +117,10 @@ const FIGURES = { king: "♚", queen: "♛", rook: "♜", bishop: "♝", knight:
 export type Figure = keyof typeof FIGURES;
 
 /**
- * A HEX AND NOT A TOKEN, and this is the one place the kit sanctions it (`paint`).
- *
- * A picture is a data URI — its own little document — so a CSS variable written into it resolves
- * against nothing at all and the glyph comes out the browser's default black on a black desk. The
- * palette still holds the only hexes there are; this asks it for one rather than declaring it.
+ * A COLOUR THE PICTURE CAN READ. A picture is a data URI — its own little document — so a CSS
+ * variable written into it resolves against nothing at all and the glyph comes out the browser's
+ * default black on whatever it is standing on. A CSS NAME is a colour with a name, which is what
+ * `guard.no-raw-colour` is asking for, and it survives the crossing into a document of its own.
  */
 /**
  * HOW THICK THE HAIRLINE ROUND A MAN IS — and it is not the same for both armies.
@@ -143,7 +137,7 @@ const figure = (glyph: string, ink: string, rim: string, width: number): string 
   svg(
     100,
     100,
-    `<text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-size="96" ` +
+    `<text x="50" y="55" text-anchor="middle" dominant-baseline="central" font-size="98" ` +
       `fill="${ink}" stroke="${rim}" stroke-width="${width}" paint-order="stroke" ` +
       `font-family="'Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',serif">${glyph}</text>`,
   );
@@ -152,19 +146,15 @@ const figure = (glyph: string, ink: string, rim: string, width: number): string 
 const pictureOf = (seat: string, what: Figure): string => `chess.${seat}.${what}`;
 
 /**
- * THE INK EACH SIDE'S FIGURES ARE DRAWN IN — theme tokens, asked at install time.
+ * IVORY AND EBONY, which is what a chess set is made of — and on a wooden board both read at a
+ * glance, which two greys on two greys never did.
  *
- * Not `accent`/`alert`: those are the SEATS' colours, worn by a player's cursor and by the square
- * they are aiming at, and a piece wearing them would say "this is being pointed at" all game long.
- * A chess set is light men and dark men, so the desk's own lightest and darkest are exactly right —
- * and on a dark desk the light man is the page's text colour, which is the one thing on it that is
- * guaranteed to read.
+ * The rim is the OTHER man's colour, thinly: it is what keeps the ivory man off a light square and
+ * the ebony man off a dark one, and it is the whole reason a set has two colours rather than one
+ * shape in two sizes.
  */
-const hex = (token: "text" | "stageBg" | "sunkBg" | "panelBorder"): string =>
-  paint(currentSettings().viewer.theme ?? "dark", token);
-const inkOf = (seat: string): string => hex(seat === "white" ? "text" : "stageBg");
-/** The opposite ink, thinly, so each army reads on the squares of its own colour as well. */
-const rimOf = (seat: string): string => hex(seat === "white" ? "sunkBg" : "panelBorder");
+const inkOf = (seat: string): string => (seat === "white" ? "oldlace" : "black");
+const rimOf = (seat: string): string => (seat === "white" ? "black" : "oldlace");
 
 export function installChessArt(): void {
   installMapArt();
@@ -181,19 +171,25 @@ export function installChessArt(): void {
   // surface — so two of them side by side gave sixty-four squares of one dark slab. The light square
   // is therefore BUILT: the desk's own text colour, laid thinly over the sunken ground, which is the
   // same trick the kit uses for every wash and invents no colour of its own.
-  // BOTH ARMIES NEED GROUND TO READ AGAINST, so neither square is the desk's own black. A dark man
-  // on a black square is not a dark man, he is a hole — which is what happened: the rim meant to
-  // help him read swallowed the fill, and both sides came out white. So the dark square is lifted
-  // off the ground a little and the light one a good deal, and the two men are the two ends of the
-  // palette with a hairline of the other.
-  registerSurface(LIGHT, { layers: [{ paint: "sunkBg" }, { paint: "text", opacity: 0.58 }] });
-  registerSurface(DARK, { layers: [{ paint: "sunkBg" }, { paint: "text", opacity: 0.18 }] });
+  // A BOARD IS WOOD, and the desk's palette has none.
+  //
+  // The theme owns the CHROME — panels, wells, borders, one gold — and every grey it holds sits
+  // between `#11` and `#2c`, because that is what a dark instrument panel is made of. A chessboard
+  // built out of two of them is two shades of the same near-black, which is what it was: legible as
+  // a diagram and unrecognisable as a board.
+  //
+  // NAMED COLOURS, not hexes. A game's own board is not the theme's business and never will be —
+  // no palette that has to serve a HUD is going to grow a burlywood — but a literal hex here is
+  // how a palette stops being one (`guard.no-raw-colour`). A CSS name is a colour with a NAME, which
+  // is the whole of what that rule is asking for.
+  registerSurface(LIGHT, { layers: [{ paint: "burlywood" }] });
+  registerSurface(DARK, { layers: [{ paint: "sienna" }] });
   // THE BOARD'S OWN EDGE. Sixty-four squares with nothing around them float; a frame is what says
   // where the board ends and the room begins, and it is the one thing the trays stand outside of.
   registerSurface(BOARD_SURFACE, {
-    layers: [{ paint: "stageBg" }],
-    radius: 0.18,
-    stroke: { color: "panelBorder", width: 0.06 },
+    layers: [{ paint: "saddlebrown" }],
+    radius: 0.1,
+    stroke: { color: "saddlebrown", width: 0.14 },
   });
   registerSurface(TRAY_SURFACE, {
     layers: [{ paint: "sunkBg" }],
@@ -244,11 +240,16 @@ export function chessMap(reach = 0): Node {
     Bounded({ bounds: rect(BOARD, BOARD) }),
     Surfaced({ surface: BOARD_SURFACE }),
     Container({ layout: BOARD_LAYOUT }),
-    // THE BOARD'S OWN LAMP. A man lying on a square casts NOTHING: he is flat on the board, and a
-    // shadow under a resting piece is a dark plate under every one of thirty-two — which is what it
-    // looked like, and it read as the squares being wrong rather than as height. A man in the air
-    // casts, because that is the one thing a shadow is for here: seeing that he is up.
-    Lit({ shadow: { base: 0, perZ: 0.04, lifted: 0.3, opacity: 0.45 } }),
+    // THE BOARD'S OWN LAMP, AND IT IS OFF UNTIL SOMETHING IS PICKED UP.
+    //
+    // A man standing on a square casts NOTHING. He is not hovering over the board, he is ON it, and
+    // a shadow under a resting piece is a smear under every one of thirty-two — thirty-two of them
+    // and the board reads as dirty rather than as lit. Height is the only thing a shadow says here,
+    // and at rest there is no height to say.
+    //
+    // In the air he casts, because then there IS something to say: he is up, and the square he is
+    // over is not the square he came from.
+    Lit({ shadow: { base: 0, perZ: 0, lifted: 0.34, opacity: 0.4 } }),
     // A finger on a piece takes that piece — never the square under it, and never the board.
     Grabber({ grab: "one" }),
   );
@@ -321,17 +322,21 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // side is a fact about the man, not about the square he happened to be standing on.
     Owned({ box: trayOf(seat) }),
     PUT_DOWN,
-    // A SPOT AT ITS BASE, and never this man's own box.
+    // NO SHADOW AT ALL, and on a board that is the honest answer.
     //
-    // A knight is a knight-shaped hole in a square, so the square is what falls: a rectangle a size
-    // the eye cannot match to anything, under a figure it plainly does not belong to — which is
-    // exactly what it looked like. The honest silhouette can only be taken from the drawing, and
-    // nothing here can read a picture's alpha. So: a spot, which depicts nothing and therefore
-    // cannot depict the wrong thing — and never a hand-drawn "outline of a figure in general",
-    // which would give the knight the pawn's shadow the day a second kind of figure arrives.
+    // A man is not hovering over a square, he is ON it — and there are thirty-two of him. Anything
+    // laid under each one is thirty-two marks the board did not have, and the board stops reading as
+    // wood and starts reading as dirty. That is what it looked like.
     //
-    // AS WIDE AS THE MAN. Narrower, it hides entirely under the glyph and reads as no shadow at all.
-    ShadowCaster({ spot: transformShape(ellipse(PIECE * 0.3, PIECE * 0.13), { offsetY: PIECE * 0.44 }) }),
+    // What a shadow is FOR here is height, and the only height on a board is a man in a hand — and
+    // that is already said, twice over and better: the man is drawn bigger while he is held, and the
+    // square he will land on is lit under him. A shadow would be a third telling of the same thing,
+    // paid for by every resting man on the board.
+    //
+    // (It would also have to lie about its shape. A knight is a knight-shaped hole in a square, so
+    // what falls is the SQUARE — a rectangle under a figure it plainly does not belong to. The kit
+    // now lets a caster name a spot instead (`ShadowCaster.spot`), which is the honest answer for a
+    // desk where figures stand about on felt. A board is not that desk.)
   );
   compose(spot, Displacer({ occupied: takenTo(seat === "white" ? "black" : "white") }));
   add(spot, piece);
