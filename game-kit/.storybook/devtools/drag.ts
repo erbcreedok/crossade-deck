@@ -27,10 +27,13 @@ import {
   transformsOf,
   Transformable,
   add,
+  Coated,
   extentOf,
+  NO_COAT,
   FLING,
   remove,
   type BoundedFields,
+  type CoatedFields,
   type CarryOptions,
   type OccupiedOutcome,
   wearInvites,
@@ -291,6 +294,10 @@ const DOWN = new WeakMap<HTMLElement, Map<number, Point>>();
  * enough that a deliberate press is never mistaken for a tap, short enough that a tap never feels
  * like it has to be hurried.
  */
+/** How long a place keeps its light after the hand has left it, ms, and in how many steps. */
+const FADE_MS = 260;
+const FADE_STEPS = 6;
+
 const TAP_SLOP = 8;
 const TAP_MS = 300;
 
@@ -625,9 +632,43 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
    */
   const aim = (want: Node | undefined): void => {
     if (want === w.keen?.zone) return;
-    w.keen?.off();
+    const was = w.keen;
     w.keen = want ? { zone: want, off: wearKeen(want) } : undefined;
+    // ON AT ONCE, OFF SLOWLY — while the hand is still carrying. A light that snaps off the instant
+    // the hand crosses a line reads as a flicker on a grid (sixty-four places, every one a hard edge
+    // the eye catches), and a flicker under a moving hand is what a hang looks like. So the place
+    // the hand just LEFT keeps its light and lets it go over a few steps, while the place it arrived
+    // at is lit now. But when the hand is OFF there is nothing to aim any more: a zone still glowing
+    // over an empty felt is a lie, and it goes out at once.
+    if (was) {
+      if (want) fadeOut(was.zone, was.off);
+      else was.off();
+    }
     s.host.setRoot(s.host.root);
+  };
+
+  /** Let one zone's light go over `FADE_MS`, then take the coat off properly. */
+  const fadeOut = (zone: Node, off: () => void): void => {
+    const worn = fieldsOf<CoatedFields>(zone, "Coated")?.self;
+    if (!worn) return off();
+    const from = worn.level;
+    let done = 0;
+    // A HANDFUL OF STEPS on a plain timer, not a frame callback: each step is the desk laid out and
+    // planned again, and the eye cannot tell six steps of a quarter-second fade from sixty. A timer
+    // also fires wherever a scene runs — a page, a test — which a frame callback does not.
+    const step = (): void => {
+      done += 1;
+      if (done >= FADE_STEPS) {
+        off();
+        s.host.setRoot(s.host.root);
+        return;
+      }
+      const cast = fieldsOf<CoatedFields>(zone, "Coated")?.cast ?? NO_COAT;
+      compose(zone, Coated({ self: { ...worn, level: from * (1 - done / FADE_STEPS) }, cast }));
+      s.host.setRoot(s.host.root);
+      setTimeout(step, FADE_MS / FADE_STEPS);
+    };
+    setTimeout(step, FADE_MS / FADE_STEPS);
   };
 
   /** Who would take the run in hand, asked the way the desk wants it asked. */

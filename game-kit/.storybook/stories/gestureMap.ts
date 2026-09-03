@@ -329,11 +329,15 @@ export function gestureMap(): Node {
  * wider than the tree says it is, and a border that ignored that would let exactly that sliver of
  * card cross it. Pass `1` for a carry with no pop.
  */
-export function mapWalls(piece: Node, lift = 1): Walls {
+export function mapWalls(piece: Node, lift = 1, box: { readonly w: number; readonly h: number } = MAP): Walls {
   const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
   const size = shape ? extentOf(shape) : { w: 0, h: 0 };
-  const x = MAP.w / 2 - (size.w * lift) / 2;
-  const y = MAP.h / 2 - (size.h * lift) / 2;
+  // THE DESK'S OWN BOX, not the shelf's stock one. A desk wider than the map — a felt with a board
+  // in the middle of it — walled at the map's size holds the hand inside the middle eight units of
+  // fourteen: a man could be carried to the board's edge and no further, and the felt beyond it,
+  // drawn and accepting, could never be reached.
+  const x = box.w / 2 - (size.w * lift) / 2;
+  const y = box.h / 2 - (size.h * lift) / 2;
   // A piece bigger than the map has nowhere to stand: the box collapses to the middle rather than
   // turning inside out, which is what a negative half would do.
   return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };

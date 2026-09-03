@@ -627,4 +627,19 @@ describe("the stacking desk", () => {
     expect(fanned.w, "asked about a fan, it answers about a fan").toBeGreaterThan(pile.w * 3);
     expect(fanned.at.x, "and centred on that spread, not on the first card").toBeCloseTo(2.75, 9);
   });
+
+  it("map.the-wall-is-the-desks-own-edge — a felt wider than the map is walled at its own size", () => {
+    // A desk wider than the map — a felt with a board in the middle of it — walled at the map's size
+    // holds the hand inside the middle eight units of fourteen: a man could be carried to the
+    // board's edge and no further, and the felt beyond it, drawn and accepting, could never be
+    // reached. The wall is the DESK'S edge, whatever the shelf's stock size is.
+    const man = piece(1, 1);
+    const stock = mapWalls(man);
+    expect(stock.x1, "the shelf's own map, as before").toBeCloseTo(MAP.w / 2 - 0.5, 9);
+    const felt = mapWalls(man, 1, { w: 14, h: 14 });
+    expect(felt.x1, "a wider desk, a wider wall").toBeCloseTo(7 - 0.5, 9);
+    expect(felt.y0, "on every side").toBeCloseTo(-(7 - 0.5), 9);
+    // ...and a raised piece is wider on the glass, so the wall it meets is nearer by the difference.
+    expect(mapWalls(man, 1.3, { w: 14, h: 14 }).x1).toBeCloseTo(7 - 0.65, 9);
+  });
 });

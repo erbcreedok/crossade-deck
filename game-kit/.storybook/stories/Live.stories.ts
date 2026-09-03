@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { installStockCarries, installStockCoats, installStockFlips, t, type CarryItem, type Vec } from "../../src/index.js";
-import { type Mirror, type CarryFeel } from "./gestureScene.js";
+import { installStockCarries, installStockCoats, installStockFlips, t } from "../../src/index.js";
+import { type Mirror } from "./gestureScene.js";
+import { follow, type Screen } from "./liveScreens.js";
 import { liveMap, liveTune, LIVE_UNIT, SEATS } from "./liveMap.js";
-import { type Scene } from "../devtools/scene.js";
 import { MAGNET_ARGS, MAGNET_KNOBS, magnetScene, zoneSpread, type MagnetArgs } from "./magnetScene.js";
 
 // LIVE — the same desk in front of two people, which is the one thing a mechanic cannot be tried
@@ -26,61 +26,6 @@ export default meta;
 /** How big another hand's cursor is drawn, in screen pixels. */
 const DOT = 18;
 
-/** One screen of the live desk: its seat, its colour, its scene once it exists, and its cursor. */
-interface Screen {
-  readonly seat: string;
-  readonly ink: string;
-  readonly dot: HTMLElement;
-  scene?: Scene;
-  /** Re-read the handles this screen did not draw — see `regrasp`. */
-  grasp?: () => void;
-  /** What this screen is currently mirroring for somebody else — started ONCE, then only steered. */
-  mirroring?: readonly string[] | undefined;
-}
-
-/**
- * SHOW A HAND THAT IS NOT THIS SCREEN'S. Two things, and they are two because a cursor is a picture
- * of a PERSON and a carry is what their hand is doing to the desk.
- *
- * The carry is mirrored with the same three calls the local wiring makes, so what this screen draws
- * is a carry and not a picture of one: the card moves, leans and pops exactly as it does over there.
- * Without it the far screen shows a cursor gliding about and the card standing perfectly still.
- *
- * The cursor is drawn over the GLASS and never on the desk: a piece is what anything on the felt
- * would be — touchable, heapable, and in everybody's way.
- */
-function follow(screen: Screen, items: readonly CarryItem[], at: Vec | undefined, done: boolean, lift: number, feel: CarryFeel): void {
-  const s = screen.scene;
-  if (!s) return;
-  const ids = items.map((it) => it.id);
-  if (done || !at) {
-    for (const id of screen.mirroring ?? ids) s.motions?.release(id);
-    screen.mirroring = undefined;
-    screen.dot.style.display = "none";
-    return;
-  }
-  const view = s.camera?.transform();
-  if (view) {
-    screen.dot.style.display = "block";
-    screen.dot.style.left = `${view.a * at.x + view.c * at.y + view.e}px`;
-    screen.dot.style.top = `${view.b * at.x + view.d * at.y + view.f}px`;
-  }
-  // STARTED ONCE, THEN ONLY STEERED. A carry begun again on every pointer-move is a carry that
-  // never gets past its own first frame: the springs are re-seeded at the anchor each time, so the
-  // run stops trailing, stops leaning, and — with a heap of thirty-six under one handle — spends
-  // every frame building thirty-six records to throw away. That is what made carrying the deck hang.
-  if (screen.mirroring?.length !== ids.length || screen.mirroring.some((id, i) => id !== ids[i])) {
-    for (const id of screen.mirroring ?? []) s.motions?.release(id);
-    screen.mirroring = [...ids];
-    // THE SAME SHAPE, not the same names: laid out by the offsets the other hand is holding it at,
-    // or a deck of thirty-six arrives here as one card sitting on the anchor.
-    // THE SAME FEEL, or it is not the same hand. Told only the anchor and the height, this screen
-    // slid a brick where the other splayed an accordion — same run, same offsets, and plainly two
-    // different desks to the two people watching them.
-    s.motions?.grab(items, { ...feel, anchor: at, lift });
-  }
-  s.motions?.dragTo(at);
-}
 
 /**
  * LIVE — one desk, two screens, and everything the page above does.

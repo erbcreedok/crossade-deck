@@ -258,7 +258,7 @@ describe("the drag wiring's order", () => {
     s.dispose();
   });
 
-  it("drag.the-zone-that-would-take-it-says-so-while-there-is-time-to-aim", () => {
+  it("drag.the-zone-that-would-take-it-says-so-while-there-is-time-to-aim", async () => {
     // A zone may reach past its own border, so the border cannot answer "have I got there yet":
     // carried across the felt, a player has only their own guess, and finds out they missed by
     // missing. So the zone that would take the release wears its aim coat WHILE the hand is up.
@@ -289,6 +289,7 @@ describe("the drag wiring's order", () => {
     s.host.view.dispatchEvent(finger("pointermove", 120, 0));
     expect(worn(), "over it now — this is the one that takes it").toBe("wash");
     // ...AND OUT AGAIN when the answer changes back, which is the half a light usually gets wrong.
+    // Aimed at NOTHING, the light goes at once: there is no place to hand the promise on to.
     near = false;
     s.host.view.dispatchEvent(finger("pointermove", 160, 0));
     expect(worn(), "aimed away, so the promise is withdrawn").toBe("");
@@ -386,6 +387,44 @@ describe("the drag wiring's order", () => {
     const at = fieldsOf<TransformableFields>(sitter, "Transformable")!.at!;
     expect(at.x, "put down IN the tray, in its first place").toBeCloseTo(-0.75, 9);
     expect(at.y).toBeCloseTo(-0.75, 9);
+    s.dispose();
+  });
+
+  it("drag.a-place-the-hand-has-left-lets-its-light-go-slowly — and the place it reached is lit at once", async () => {
+    // A light that snaps off the instant the hand crosses a line reads as a flicker on a grid —
+    // sixty-four places, every one of them a hard edge the eye catches — and a flicker under a
+    // moving hand is what a hang looks like. So the place the hand just LEFT keeps its light and
+    // lets it go over a few steps, while the place it arrived at is lit now. Only a hand that is
+    // OFF takes the light with it at once: a zone glowing over an empty felt is a lie.
+    const root = desk();
+    const keen = { recipe: "wash", level: 0.4, tint: "accent" };
+    const a = node("a", Bounded({ bounds: rect(2, 2) }), Container({ layout: "story.drag.free" }), Transformable({ at: { x: 2, y: 0 } }), Acceptor({}), Inviting({ coat: NO_COAT, keen }));
+    const b = node("b", Bounded({ bounds: rect(2, 2) }), Container({ layout: "story.drag.free" }), Transformable({ at: { x: 5, y: 0 } }), Acceptor({}), Inviting({ coat: NO_COAT, keen }));
+    add(root, a);
+    add(root, b);
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    let over: Node | undefined;
+    wireDrag(s, { zoneAt: () => over });
+    const levelOf = (n: Node): number => fieldsOf<CoatedFields>(n, "Coated")?.self.level ?? 0;
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0));
+    over = a;
+    s.host.view.dispatchEvent(finger("pointermove", 100, 0));
+    expect(levelOf(a), "reached: lit at once, at full").toBeCloseTo(0.4, 9);
+    over = b;
+    s.host.view.dispatchEvent(finger("pointermove", 200, 0));
+    expect(levelOf(b), "the next one: lit at once").toBeCloseTo(0.4, 9);
+    expect(levelOf(a), "the one just left: still lit").toBeGreaterThan(0);
+    await new Promise((r) => setTimeout(r, 120));
+    const halfway = levelOf(a);
+    expect(halfway, "...letting go").toBeGreaterThan(0);
+    expect(halfway, "and plainly dimmer than it was").toBeLessThan(0.4);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(levelOf(a), "gone once the fade is over").toBe(0);
+    expect(levelOf(b), "while the one under the hand holds").toBeCloseTo(0.4, 9);
+    s.host.view.dispatchEvent(finger("pointerup", 200, 0));
+    expect(levelOf(b), "the hand is off: out at once").toBe(0);
     s.dispose();
   });
 

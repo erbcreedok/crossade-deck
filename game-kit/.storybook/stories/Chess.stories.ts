@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { installStockCarries, installStockCoats, t, type CarryItem, type Node, type Vec } from "../../src/index.js";
-import { type CarryFeel, type Mirror, grabScene } from "./gestureScene.js";
+import { installStockCarries, installStockCoats, t, type Node, type Vec } from "../../src/index.js";
+import { type Mirror, grabScene } from "./gestureScene.js";
+import { follow, type Screen } from "./liveScreens.js";
 import { chessMap, chessRoom, CHESS_SEATS, CHESS_UNIT, squareAt } from "./chessMap.js";
-import { type Scene } from "../devtools/scene.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 
@@ -42,48 +42,6 @@ interface ChessArgs extends StackArgs {
  */
 const REACH = documented("arg.cellReach", { control: { type: "number", min: 0, step: 0.05 } }, "chess");
 
-/** One screen of the board: its seat, its colour, its scene once it exists, and its cursor. */
-interface Screen {
-  readonly seat: string;
-  readonly ink: string;
-  readonly dot: HTMLElement;
-  scene?: Scene;
-  grasp?: () => void;
-  mirroring?: readonly string[] | undefined;
-}
-
-/**
- * SHOW A HAND THAT IS NOT THIS SCREEN'S — the shared desk's own two things, unchanged.
- *
- * The carry is mirrored with the same calls the local wiring makes, and with the same FEEL: told
- * only the anchor, this screen would slide a piece where the other one lifts and leans it, and two
- * people at one board would be watching two different boards.
- */
-function follow(screen: Screen, items: readonly CarryItem[], at: Vec | undefined, done: boolean, lift: number, feel: CarryFeel): void {
-  const s = screen.scene;
-  if (!s) return;
-  const ids = items.map((it) => it.id);
-  if (done || !at) {
-    for (const id of screen.mirroring ?? ids) s.motions?.release(id);
-    screen.mirroring = undefined;
-    screen.dot.style.display = "none";
-    return;
-  }
-  const view = s.camera?.transform();
-  if (view) {
-    screen.dot.style.display = "block";
-    screen.dot.style.left = `${view.a * at.x + view.c * at.y + view.e}px`;
-    screen.dot.style.top = `${view.b * at.x + view.d * at.y + view.f}px`;
-  }
-  // STARTED ONCE, THEN ONLY STEERED — a carry begun again on every move never gets past its own
-  // first frame: the springs are re-seeded at the anchor, so nothing trails and nothing leans.
-  if (screen.mirroring?.length !== ids.length || screen.mirroring.some((id, i) => id !== ids[i])) {
-    for (const id of screen.mirroring ?? []) s.motions?.release(id);
-    screen.mirroring = [...ids];
-    s.motions?.grab(items, { ...feel, anchor: at, lift });
-  }
-  s.motions?.dragTo(at);
-}
 
 /**
  * CHESS — one board, two people, and no rules at all.

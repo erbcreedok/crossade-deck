@@ -38,6 +38,8 @@ import {
   node,
   NO_COAT,
   Owned,
+  ShadowCaster,
+  ellipse,
   Reaching,
   rect,
   registerAsset,
@@ -81,20 +83,22 @@ export const CHESS_UNIT = 38;
 const PIECE = 0.94;
 
 /**
- * THE COMMON ZONE — one, beside the board, belonging to nobody and open to both.
+ * THE COMMON ZONE IS THE DESK, and the board stands in the middle of it.
+ *
+ * Not a place beside the board that men are sent to — a place with the board INSIDE it, that every
+ * man may cross freely. A separate tray, however big, has a wall between it and the board: a man put
+ * down on the felt beside it belongs to nobody, keeps a seat he cannot be laid out by, and cannot be
+ * got back. One felt with the squares in the middle of it has no wall anywhere: on a square a man is
+ * on that square, off the squares he is wherever the hand left him, and both are the same desk.
  *
  * ONE and not a tray a side. Two of them is two private places, and a private place is a rule: it
- * says whose a taken man is and where he may be put, which is exactly the sort of thing this shelf
- * does not decide. One shared area says the true thing instead — this is off the board — and leaves
- * everything else to the people at it.
+ * says whose a taken man is and where he may be put, which this shelf does not decide.
  *
- * A capture has to put the man SOMEWHERE, and "nowhere" is not a place: one that vanished is one
- * nobody can count, and what has been taken is the first thing asked after a trade.
+ * ROOMY, with a margin round the board on every side, so a camera has felt to stand on and a man has
+ * somewhere to be that is not a square.
  */
-const ZONE = { w: 9.6, h: 3.2 };
-/** How much felt stands between the board and the zone — a margin, so the camera is not pressed. */
-const ZONE_GAP = 1.1;
 export const COMMON = "common zone";
+export const FELT = { w: 14, h: 14 };
 
 const LIGHT = "chess.cell.light";
 const DARK = "chess.cell.dark";
@@ -243,15 +247,10 @@ const cellId = (file: number, rank: number): string => `cell ${String.fromCharCo
  * it cannot be reached or looked at. Told this, the whole desk is somewhere the eye can go.
  */
 export function chessRoom(): { x: number; y: number; w: number; h: number } {
-  // THE TRUE EXTENT, not a box centred on the board. The zone hangs BELOW the board, so the desk is
-  // not symmetric about zero: measured as a height around the origin, the room was empty felt above
-  // the board and cut the zone's bottom off. A modest margin, not the shelf's roam: a desk that opens
-  // fitted is a desk whose margin is shown all the time, and a quarter of it shown all the time is a
-  // board at half size.
-  const wide = Math.max(BOARD, ZONE.w) + MARGIN * 2;
-  const top = -BOARD / 2 - MARGIN;
-  const bottom = BOARD / 2 + ZONE_GAP + ZONE.h + MARGIN;
-  return { x: -wide / 2, y: top, w: wide, h: bottom - top };
+  // THE FELT AND A SMALL MARGIN. A desk that opens fitted is a desk whose margin is shown all the
+  // time, so it is a modest one and not the shelf's roam: a quarter of the room shown all the time
+  // is a board at half size.
+  return { x: -FELT.w / 2 - MARGIN, y: -FELT.h / 2 - MARGIN, w: FELT.w + MARGIN * 2, h: FELT.h + MARGIN * 2 };
 }
 
 /** Felt shown round the whole desk when it opens fitted, units. */
@@ -261,10 +260,13 @@ export function chessMap(reach = 0): Node {
   installChessArt();
   registerOccupied(TAKEN, capture(COMMON));
   const desk = node(
-    "board",
-    Bounded({ bounds: rect(BOARD, BOARD) }),
-    Surfaced({ surface: BOARD_SURFACE }),
+    COMMON,
+    Bounded({ bounds: rect(FELT.w, FELT.h) }),
+    Surfaced({ surface: TRAY_SURFACE }),
     Container({ layout: BOARD_LAYOUT }),
+    // THE FELT TAKES A MAN ANYWHERE ON IT — that is what makes it a zone and not scenery. Off the
+    // squares there is no grid and no reason for one; a man is wherever the hand left him.
+    Acceptor({}),
     // THE BOARD'S OWN LAMP, AND IT IS OFF UNTIL SOMETHING IS PICKED UP.
     //
     // A man standing on a square casts NOTHING. He is not hovering over the board, he is ON it, and
@@ -274,9 +276,23 @@ export function chessMap(reach = 0): Node {
     //
     // In the air he casts, because then there IS something to say: he is up, and the square he is
     // over is not the square he came from.
-    Lit({ shadow: { base: 0, perZ: 0, lifted: 0.34, opacity: 0.4 } }),
+    Lit({ shadow: { base: 0, perZ: 0, lifted: 0.3, opacity: 0.42 } }),
     // A finger on a piece takes that piece — never the square under it, and never the board.
     Grabber({ grab: "one" }),
+  );
+  // THE BOARD'S FACE IS GROUND, like the cells on it. The plan paints everything that HOLDS things
+  // first and everything that stands on them after — and a cell is a container, so it is ground. A
+  // face that was not would be painted after the cells, over them: one brown square with sixty-four
+  // squares underneath it that nobody could see. Which is what it was.
+  add(
+    desk,
+    node(
+      "board face",
+      Bounded({ bounds: rect(BOARD + 0.24, BOARD + 0.24) }),
+      Surfaced({ surface: BOARD_SURFACE }),
+      Container({ layout: BOARD_LAYOUT }),
+      Transformable({ at: { x: 0, y: 0 } }),
+    ),
   );
   for (let rank = 0; rank < BOARD; rank++) {
     for (let file = 0; file < BOARD; file++) {
@@ -291,7 +307,7 @@ export function chessMap(reach = 0): Node {
       stand(desk, file, pawns, seat, "pawn");
     });
   }
-  add(desk, commonZone());
+
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
@@ -325,18 +341,6 @@ function cell(file: number, rank: number, reach: number): Node {
   );
 }
 
-/** The common zone, below the board: everybody's, and it arranges nothing. */
-function commonZone(): Node {
-  return node(
-    COMMON,
-    Bounded({ bounds: rect(ZONE.w, ZONE.h) }),
-    Surfaced({ surface: TRAY_SURFACE }),
-    Transformable({ at: { x: 0, y: BOARD / 2 + ZONE.h / 2 + ZONE_GAP } }),
-    Container({ layout: TRAY_LAYOUT }),
-    Acceptor({}),
-    Grabber({ grab: "one" }),
-  );
-}
 
 /** Put a piece on a square. It is the cell's CHILD, so where it stands is the cell's arrangement. */
 function stand(desk: Node, file: number, rank: number, seat: string, what: Figure): void {
@@ -351,21 +355,12 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // (`guard.id-is-opaque`) — and not off the square, which he leaves the moment he is picked up.
     Owned({ box: seat }),
     PUT_DOWN,
-    // NO SHADOW AT ALL, and on a board that is the honest answer.
-    //
-    // A man is not hovering over a square, he is ON it — and there are thirty-two of him. Anything
-    // laid under each one is thirty-two marks the board did not have, and the board stops reading as
-    // wood and starts reading as dirty. That is what it looked like.
-    //
-    // What a shadow is FOR here is height, and the only height on a board is a man in a hand — and
-    // that is already said, twice over and better: the man is drawn bigger while he is held, and the
-    // square he will land on is lit under him. A shadow would be a third telling of the same thing,
-    // paid for by every resting man on the board.
-    //
-    // (It would also have to lie about its shape. A knight is a knight-shaped hole in a square, so
-    // what falls is the SQUARE — a rectangle under a figure it plainly does not belong to. The kit
-    // now lets a caster name a spot instead (`ShadowCaster.spot`), which is the honest answer for a
-    // desk where figures stand about on felt. A board is not that desk.)
+    // A SPOT AT HIS FEET, and nothing at rest. What falls is a pool the width of his base, not the
+    // square box around a knight-shaped figure — and the felt's lamp gives a standing man no fall at
+    // all, so at rest the pool is not painted (a fall of nothing is no shadow). Lifted, he casts:
+    // that is the one thing a shadow is for here, and it is the thing the far screen needs most —
+    // a man in somebody else's hand, plainly off the board.
+    ShadowCaster({ spot: ellipse(PIECE * 0.3, PIECE * 0.12) }),
   );
   // WHOEVER IS TAKEN GOES TO HIS OWN SIDE'S TRAY, so the record a square names is the record of the
   // man STANDING on it — nobody's tray holds anybody else's men. Named the other way round, white's
@@ -386,17 +381,17 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
 export function squareAt(root: Node, at: Vec): Node | undefined {
   const cell = root.children.find((spot) => isCell(spot) && within(spot, at, 0.5, 0.5));
   if (cell) return cell;
-  // ...AND OFF THE BOARD, THE TRAY. A man may be put down anywhere in a tray — there is no grid off
-  // the board and no reason for one: what is in a tray is a heap of taken men, and a player setting
-  // one beside another is arranging nothing. So the tray answers for its whole area, and where in
-  // it the man ends up is where the hand left him.
-  return root.children.find((box) => caps(box).has("Acceptor") && !isCell(box) && within(box, at, ZONE.w / 2, ZONE.h / 2));
+  // ...AND OFF THE SQUARES, THE FELT ITSELF. A man may be put down anywhere on it: off the board
+  // there is no grid and no reason for one, and where he ends up is where the hand left him. The
+  // felt is the desk, so a man lifted from it and put back on it has not changed hands at all.
+  return within(root, at, FELT.w / 2, FELT.h / 2) ? root : undefined;
 }
 
 /** Is this point inside that node's box, by its own half-widths? */
 function within(n: Node, at: Vec, halfW: number, halfH: number): boolean {
-  const own = fieldsOf<TransformableFields>(n, "Transformable")?.at;
-  return !!own && Math.abs(at.x - own.x) <= halfW && Math.abs(at.y - own.y) <= halfH;
+  // The desk itself has no pose: it IS the origin everything else is laid out around.
+  const own = fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
+  return Math.abs(at.x - own.x) <= halfW && Math.abs(at.y - own.y) <= halfH;
 }
 
 /** A square of this board says so on itself — its id is a name, and nothing reads names. */

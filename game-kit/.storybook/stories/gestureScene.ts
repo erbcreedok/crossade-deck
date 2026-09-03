@@ -11,6 +11,7 @@
 
 import {
   Coated,
+  extentOf,
   NO_COAT,
   Private,
   add,
@@ -27,6 +28,7 @@ import {
   polar,
   RISE,
   Transformable,
+  type BoundedFields,
   type CarryItem,
   type CarryOptions,
   type Node,
@@ -445,7 +447,11 @@ export function grabScene(
     // MY HAND, TOLD TO THE OTHER SCREENS — with its FEEL, or it is not the same hand over there —
     // and the picture of where it lands, moved under it.
     onCarry: ({ ids, at, done, feel }) => {
-      mirror?.hand(carried, at, done, feel);
+      // WHAT THE HAND IS ACTUALLY HOLDING. `carried` is written by a desk that stacks; a desk without
+      // stacking never writes it, and told an empty run the far screen showed a cursor gliding about
+      // and the piece standing perfectly still — which is what the board did. The wiring's own list
+      // of ids is the whole of what is in the hand there.
+      mirror?.hand(carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), at, done, feel);
       // ...AND THE PICTURE OF WHERE IT LANDS GOES WHERE THAT IS — asked by the very question that
       // lights the zone, so the light and the picture can never say two different things.
       showLanding(done ? undefined : at, zones ? zoneAimed(ids, at) : undefined, feel);
@@ -579,7 +585,9 @@ export function grabScene(
     // THE MAP'S BORDER IS A WALL, and the piece is inside it for the whole gesture — see
     // `NEVER_THROUGH`. The height is handed in because the wall is the DRAWN edge of the piece:
     // raise a piece and it is wider, and a border that ignored that would let the difference out.
-    trayOf: (_root, hit) => mapWalls(hit, isGrip(hit) ? 1 : held),
+    // ...and the wall is the DESK'S edge. A desk that named its own room is a desk that is not the
+    // shelf's stock size, and its felt reaches wherever its own box says it does.
+    trayOf: (root, hit) => mapWalls(hit, isGrip(hit) ? 1 : held, room ? boxOfDesk(root) : undefined),
     ...NEVER_THROUGH,
     // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
     // the switch never has to restate a number the kit already decided.
@@ -894,6 +902,12 @@ function otherGrips(root: Node, mine: Node): Node[] {
     for (const tab of owner.children) if (isGrip(tab) && tab.id !== mine.id) out.push(tab);
   }
   return out;
+}
+
+/** How big a desk is by its own word, or the shelf's stock size when it has none. */
+function boxOfDesk(root: Node): { readonly w: number; readonly h: number } | undefined {
+  const shape = fieldsOf<BoundedFields>(root, "Bounded")?.bounds;
+  return shape ? extentOf(shape) : undefined;
 }
 
 export function letFall(

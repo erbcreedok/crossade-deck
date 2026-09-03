@@ -1058,4 +1058,18 @@ describe("the hybrid: baked or live", () => {
     expect(wide("spot").w, "the spot's own width").toBeCloseTo(60, 6);
     expect(wide("spot").h, "and it is flat, as a thing lying on a desk is").toBeCloseTo(24, 6);
   });
+  it("plan.a-fall-of-nothing-is-no-shadow — a lamp that gives a resting caster no fall paints none", () => {
+    // The layer's darkness is a constant, so a caster whose lamp gives it no fall at rest still
+    // painted a full-strength shadow exactly under itself — a smear under every man on a board,
+    // reading as dirt rather than as height. Height is the only thing a shadow says; with none to
+    // say, it says nothing. Lifted, the same caster has height, and casts.
+    const root = node("desk", Container({ layout: "free" }), Bounded({ bounds: rect(8, 8) }), Surfaced(), Lit({ shadow: { base: 0, perZ: 0, lifted: 0.3, opacity: 0.4 } }));
+    add(root, node("man", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), ShadowCaster()));
+    const rest = scenePlan({ root, unit: 10, width: 400, height: 400, viewer: DEFAULT_VIEWER }).map((q) => q.id);
+    expect(rest, "standing: no shadow layer at all").not.toContain("man::shadow");
+    // In a HAND: `carried` is what the lamp reads for the lift (`raised` is only the paint order).
+    const up = scenePlan({ root, unit: 10, width: 400, height: 400, viewer: DEFAULT_VIEWER, raised: new Set(["man"]), carried: new Set(["man"]) }).map((q) => q.id);
+    expect(up, "lifted: he casts").toContain("man::shadow");
+  });
+
 });

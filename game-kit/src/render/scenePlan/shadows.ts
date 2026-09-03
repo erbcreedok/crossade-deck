@@ -80,6 +80,11 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
   // UNITS, so it is turned into layers before the lamp is asked: a die half a unit off the felt is
   // ten card-thicknesses up, and its shadow drops away by that much rather than by a hair.
   const off = (lamp.depth.base + lamp.depth.perZ * (z + (ride ?? 0) / LAYER_HEIGHT) + (inHand ? lamp.depth.lifted : 0)) * perUnit;
+  // A FALL OF NOTHING IS NO SHADOW. The layer's darkness is a constant, so a caster whose lamp gives
+  // it no fall at rest still painted a full-strength shadow exactly under itself — a smear under
+  // every man on a board, reading as dirt rather than as height. Height is the only thing a shadow
+  // says; with none to say, it says nothing.
+  if (off === 0) return undefined;
   // A SHADOW IS UNDER ITS PIECE. Always, without exception and without a branch: it is drawn from
   // the pose the piece is DRAWN at, so it travels with it, turns with it and stretches with it.
   //

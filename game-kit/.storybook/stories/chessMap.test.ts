@@ -6,7 +6,7 @@
 // the shelf's own and is guarded where it lives.
 
 import { describe, expect, it } from "vitest";
-import { byId, caps, fieldsOf, extentOf, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
+import { caps, fieldsOf, extentOf, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
 import { BOARD, chessMap, CHESS_SEATS, COMMON, isCell, squareAt } from "./chessMap.js";
 import { scene as buildScene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
@@ -58,8 +58,9 @@ describe("a board is a desk made of places", () => {
     expect(over, "past the edge there is another square, not a gap").toBeDefined();
     expect(over, "and it is not this one").not.toBe(spot);
     expect(seatOf(over!).x - home.x, "the very next file").toBeCloseTo(1, 9);
-    // Off the board entirely is nothing — a board has an edge, and beyond it there are no places.
-    expect(squareAt(desk, { x: BOARD, y: BOARD }), "off the board").toBeUndefined();
+    // Off the squares is the felt — one desk, no wall — and off the FELT is nothing at all.
+    expect(squareAt(desk, { x: BOARD / 2 + 0.5, y: 0 }), "off the squares, still the desk").toBe(desk);
+    expect(squareAt(desk, { x: BOARD, y: BOARD }), "off the felt").toBeUndefined();
   });
 
   it("chess.a-set-of-thirty-two-standing-where-everybody-sets-them-up", () => {
@@ -75,15 +76,14 @@ describe("a board is a desk made of places", () => {
       const ranks = [...new Set(mine.map((one) => Math.round(seatOf(one.parent!).y * 100) / 100))];
       expect(ranks.length, `${seat} stands on two ranks`).toBe(2);
     }
-    // ...AND ONE COMMON ZONE, off the board and belonging to nobody. A capture has to put the man
-    // SOMEWHERE — one that vanished is one nobody can count — and ONE place rather than a tray a
-    // side, because two of them is two PRIVATE places, and a private place is a rule: it says whose
-    // a taken man is and where he may be put, which this shelf does not decide.
-    const zone = desk.children.find((n) => n.id === COMMON);
-    expect(zone, "the common zone").toBeDefined();
-    expect(caps(zone!).has("Acceptor"), "and it takes what is sent to it").toBe(true);
-    expect(Math.abs(seatOf(zone!).y), "off the board, not on it").toBeGreaterThan(BOARD / 2);
-    expect(desk.children.filter((n) => caps(n).has("Acceptor") && !isCell(n)).length, "one, not one each").toBe(1);
+    // ...AND THE FELT ITSELF IS THE COMMON ZONE, with the board in the middle of it. Not a place
+    // beside the board men are sent to — a tray, however big, has a wall between it and the board —
+    // but one desk every man may cross freely. A capture has to put the man SOMEWHERE, and here
+    // "somewhere" is the felt he was already standing on.
+    expect(desk.id, "the desk is the common zone").toBe(COMMON);
+    expect(caps(desk).has("Acceptor"), "and it takes a man anywhere on it").toBe(true);
+    expect(desk.children.filter((n) => caps(n).has("Acceptor") && !isCell(n)).length, "no tray beside the board").toBe(0);
+    expect(squareAt(desk, { x: BOARD / 2 + 1, y: 0 }), "off the squares, the felt answers").toBe(desk);
   });
 });
 
@@ -153,16 +153,21 @@ describe("a move on the real board, end to end", () => {
     // is arranging nothing. So the zone takes him and leaves him exactly where he was put down.
     const desk = chessMap();
     const s = stand(desk);
-    const zone = byId(desk, COMMON)!;
-    const home = fieldsOf<TransformableFields>(zone, "Transformable")!.at!;
     const a1 = cellAt(desk, { x: -3.5, y: 3.5 });
     const rook = a1.children[0]!;
-    const spot = { x: home.x - 2, y: home.y + 0.5 };
+    const spot = { x: -5.5, y: 2 };
     dragTo(s, { x: -3.5, y: 3.5 }, spot);
-    expect(rook.parent, "the zone took him").toBe(zone);
+    expect(rook.parent, "the felt took him").toBe(desk);
     const at = fieldsOf<TransformableFields>(rook, "Transformable")!.at!;
-    expect(at.x, "where the hand left him, in the zone's own space").toBeCloseTo(spot.x - home.x, 3);
-    expect(at.y).toBeCloseTo(spot.y - home.y, 3);
+    expect(at.x, "where the hand left him").toBeCloseTo(spot.x, 3);
+    expect(at.y).toBeCloseTo(spot.y, 3);
+    // ...AND BACK AGAIN: no wall between the felt and the board. What was taken off can be put on
+    // — onto an EMPTY square here; taking is its own law and its own guard above. Taken from where
+    // he is DRAWN: the seat is written at once and the clock eases him there, and a finger lands on
+    // what the eye sees, not on what the tree says.
+    const drawn = s.motions?.poses()?.get(rook.id) ?? { e: spot.x, f: spot.y };
+    dragTo(s, { x: drawn.e, y: drawn.f }, { x: -3.5, y: 1.5 });
+    expect(rook.parent, "and back onto a square").toBe(cellAt(desk, { x: -3.5, y: 1.5 }));
     s.dispose();
   });
 });
