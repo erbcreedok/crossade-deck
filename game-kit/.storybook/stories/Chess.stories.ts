@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockCoats, t, type CarryItem, type Node, type Vec } from "../../src/index.js";
 import { type CarryFeel, type Mirror, grabScene } from "./gestureScene.js";
-import { chessMap, CHESS_SEATS, CHESS_UNIT, squareAt } from "./chessMap.js";
+import { chessMap, chessRoom, CHESS_SEATS, CHESS_UNIT, squareAt } from "./chessMap.js";
 import { type Scene } from "../devtools/scene.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
@@ -161,6 +161,7 @@ export const Chess: StoryObj<ChessArgs> = {
           mirror,
           CHESS_UNIT,
           a.landing,
+          chessRoom(),
         ),
       );
       pane.appendChild(dot);
@@ -168,7 +169,11 @@ export const Chess: StoryObj<ChessArgs> = {
     }
     return wall;
   },
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, reach: 0 },
+  // NO LANDING PICTURE, so no hover either. On a board the lit square IS the picture of where the
+  // man lands, and a man held clear of the finger means the finger is over one square while the man
+  // is drawn over the next — the light and the man on two different cells, which reads as the light
+  // being wrong. Held ON the square, man and light say one thing.
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, reach: 0 },
   argTypes: { ...STACK_KNOBS, reach: REACH },
   parameters: { gkDocStory: "chess.scene" },
 };

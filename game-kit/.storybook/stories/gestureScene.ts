@@ -183,6 +183,15 @@ export function grabScene(
    * what carrying a hand across a board was like without it.
    */
   landingShown = true,
+  /**
+   * THE STRETCH THE VIEW IS HELD INSIDE, when this desk is not the shelf's own size.
+   *
+   * A board has a zone beside it, and a camera told the shelf's stock rectangle holds the view
+   * inside one the zone is OUTSIDE of: the view stops at the board's edge with the zone past the
+   * wall, reachable by nothing and lookable at by nobody. Absent, the shelf's own room, which is
+   * every page but the one with something standing beside its felt.
+   */
+  room?: { x: number; y: number; w: number; h: number },
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -244,10 +253,7 @@ export function grabScene(
   // A DESK HANDED OVER AS A FACTORY IS BUILT ONCE and is the reader's from then on — turning a knob
   // must not sweep away the cards they dealt. See `scene`.
   const make = typeof desk === "function" ? desk : desk === "deck" ? deckMap : desk === "stack" ? stackMap : gestureMap;
-  // BUILT ONCE, AND MEASURED BEFORE THE CAMERA IS TOLD ABOUT IT: the room the view is held inside is
-  // this desk's own, and a desk with trays beside it is wider than the felt in the middle of it.
-  const standing = make();
-  const built = scene(() => standing, {
+  const built = scene(make, {
     animate: true,
     camera: {
       limits: MAP_ZOOM,
@@ -255,14 +261,17 @@ export function grabScene(
       // the glass and the felt's edge becomes a wall the view stops dead against — every pan ending
       // in a stop with nothing beyond it, and a piece by the border never reachable to the middle of
       // the glass. `deskRoom` gives the eye somewhere to stand; the pieces are still walled in.
-      content: deskRoom(standing),
+      content: room ?? deskRoom(),
       ...(unit === undefined ? {} : { unit }),
       // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and
       // over bare map the same finger drives the view. The two never argue about a hand.
       claims: draggable,
       // Opened in the middle at zoom 1, where the pieces are life-size and the map is not: a phone
       // holds about half of it, so there is somewhere to carry a piece TO from the first touch.
-      start: { at: { x: 0, y: 0 }, zoom: 1 },
+      // A DESK THAT NAMES ITS ROOM WANTS TO BE SEEN WHOLE: a board with a zone under it is taller
+      // than a pane at life size, and opened at zoom 1 the zone is off the glass — on one screen and
+      // not the other, whichever pane happened to be shorter. Fitted, every pane shows the same desk.
+      start: { at: room ? { x: room.x + room.w / 2, y: room.y + room.h / 2 } : { x: 0, y: 0 }, zoom: room ? "fit" : 1 },
     },
   });
   // How high the hand is actually holding it, once the switch and the page have both had their say.

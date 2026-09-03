@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // THE BOARD — what is true of a desk made of PLACES, before anybody looks at it.
 //
 // Pure and headless: sixty-four cells and thirty-two men are a set-up, and which cell a point falls
@@ -5,8 +6,13 @@
 // the shelf's own and is guarded where it lives.
 
 import { describe, expect, it } from "vitest";
-import { caps, fieldsOf, extentOf, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
-import { BOARD, chessMap, CHESS_SEATS, isCell, squareAt, trayOf } from "./chessMap.js";
+import { byId, caps, fieldsOf, extentOf, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
+import { BOARD, chessMap, CHESS_SEATS, COMMON, isCell, squareAt } from "./chessMap.js";
+import { scene as buildScene } from "../devtools/scene.js";
+import { wireDrag } from "../devtools/drag.js";
+import { currentSettings } from "../devtools/catalogSettings.js";
+import { HUD_UNIT_CHOICES } from "../devtools/hudUnitChoices.js";
+import type { Painter } from "../../src/index.js";
 
 const cells = (desk: Node): Node[] => desk.children.filter(isCell);
 const men = (desk: Node): Node[] => cells(desk).flatMap((spot) => spot.children);
@@ -69,18 +75,99 @@ describe("a board is a desk made of places", () => {
       const ranks = [...new Set(mine.map((one) => Math.round(seatOf(one.parent!).y * 100) / 100))];
       expect(ranks.length, `${seat} stands on two ranks`).toBe(2);
     }
-    // ...AND A TRAY EACH, off the board, because a capture has to put the man SOMEWHERE: one that
-    // vanished would be one nobody can count, and what has been taken is the first thing asked.
-    for (const { seat } of CHESS_SEATS) {
-      const tray = desk.children.find((n) => n.id === trayOf(seat));
-      expect(tray, `${seat}'s tray`).toBeDefined();
-      expect(caps(tray!).has("Acceptor"), "and it takes what is sent to it").toBe(true);
-      expect(Math.abs(seatOf(tray!).x), "off the board, not on it").toBeGreaterThan(BOARD / 2);
-    }
+    // ...AND ONE COMMON ZONE, off the board and belonging to nobody. A capture has to put the man
+    // SOMEWHERE — one that vanished is one nobody can count — and ONE place rather than a tray a
+    // side, because two of them is two PRIVATE places, and a private place is a rule: it says whose
+    // a taken man is and where he may be put, which this shelf does not decide.
+    const zone = desk.children.find((n) => n.id === COMMON);
+    expect(zone, "the common zone").toBeDefined();
+    expect(caps(zone!).has("Acceptor"), "and it takes what is sent to it").toBe(true);
+    expect(Math.abs(seatOf(zone!).y), "off the board, not on it").toBeGreaterThan(BOARD / 2);
+    expect(desk.children.filter((n) => caps(n).has("Acceptor") && !isCell(n)).length, "one, not one each").toBe(1);
   });
 });
 
-/** Whose man this is — said on the piece, since a capture sends it to its own side's tray. */
+
+describe("a move on the real board, end to end", () => {
+  // The wiring's own fixture: no WebGL, a painter that draws nothing, and the hud unit pinned so a
+  // desk point is a known number of glass pixels. ANIMATED, because a carry lives on the clock: a
+  // scene without motions has nothing to grab with, and the wiring — rightly — starts no drag at all.
+  const stubPainter = (): Painter => ({ ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} });
+  const scene = (root: Node) => buildScene(root, { animate: true }, currentSettings(), stubPainter);
+  const measure = (el: HTMLElement): void => {
+    const select = el.querySelector("[data-hud-unit]") as HTMLSelectElement;
+    select.value = String(HUD_UNIT_CHOICES.find((c) => c === 60) ?? "auto");
+    select.dispatchEvent(new Event("change"));
+  };
+  const stand = (desk: Node) => {
+    document.body.innerHTML = "";
+    const s = scene(desk);
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s, { zoneAt: (root, at) => squareAt(root, at) });
+    return s;
+  };
+
+  /** A finger on the glass: the wiring reads a client point and a pointer id, nothing more. */
+  const finger = (type: string, x: number, y: number): MouseEvent =>
+    Object.assign(new MouseEvent(type, { clientX: x, clientY: y }), { pointerId: 1 });
+
+  /** Glass pixels of a desk point, through the scene's own unit — the board is laid out around zero. */
+  const glassOf = (s: ReturnType<typeof stand>, at: { x: number; y: number }) => {
+    const v = s.host.viewport();
+    const u = s.host.unit();
+    return { x: v.width / 2 + at.x * u, y: v.height / 2 + at.y * u };
+  };
+
+  const dragTo = (s: ReturnType<typeof stand>, from: { x: number; y: number }, to: { x: number; y: number }): void => {
+    const a = glassOf(s, from);
+    const b = glassOf(s, to);
+    s.host.view.dispatchEvent(finger("pointerdown", a.x, a.y));
+    for (let i = 1; i <= 4; i++) s.host.view.dispatchEvent(finger("pointermove", a.x + ((b.x - a.x) * i) / 4, a.y + ((b.y - a.y) * i) / 4));
+    s.host.view.dispatchEvent(finger("pointerup", b.x, b.y));
+  };
+
+  const cellAt = (desk: Node, at: { x: number; y: number }): Node => squareAt(desk, at)!;
+
+  it("chess.a-man-put-on-an-occupied-square-takes-it — and the sitter goes to the common zone", () => {
+    // Declared on the square (`Displacer` → `capture(COMMON)`) and, until the runtime did it, only
+    // declared: a board got two men on one square. This drives the REAL desk through the REAL wiring,
+    // because the jsdom guard on the wiring proves the mechanism and this proves the board uses it.
+    const desk = chessMap();
+    const s = stand(desk);
+    const e2 = cellAt(desk, { x: 0.5, y: 2.5 });
+    const e7 = cellAt(desk, { x: 0.5, y: -2.5 });
+    const white = e2.children[0]!;
+    const black = e7.children[0]!;
+    expect(white && black, "both pawns stand where they were set up").toBeTruthy();
+    dragTo(s, { x: 0.5, y: 2.5 }, { x: 0.5, y: -2.5 });
+    expect(white.parent, "the man who arrived takes the square").toBe(e7);
+    expect(black.parent?.id, "and the man who was there goes to the common zone").toBe(COMMON);
+    expect(e7.children.length, "one to a square, never two").toBe(1);
+    s.dispose();
+  });
+
+  it("chess.off-the-board-a-man-goes-anywhere-in-the-zone — where the hand left him", () => {
+    // On the board a man is on a square or the next one. In the common zone there is no grid and no
+    // reason for one: what is in it is a heap of taken men, and a player setting one beside another
+    // is arranging nothing. So the zone takes him and leaves him exactly where he was put down.
+    const desk = chessMap();
+    const s = stand(desk);
+    const zone = byId(desk, COMMON)!;
+    const home = fieldsOf<TransformableFields>(zone, "Transformable")!.at!;
+    const a1 = cellAt(desk, { x: -3.5, y: 3.5 });
+    const rook = a1.children[0]!;
+    const spot = { x: home.x - 2, y: home.y + 0.5 };
+    dragTo(s, { x: -3.5, y: 3.5 }, spot);
+    expect(rook.parent, "the zone took him").toBe(zone);
+    const at = fieldsOf<TransformableFields>(rook, "Transformable")!.at!;
+    expect(at.x, "where the hand left him, in the zone's own space").toBeCloseTo(spot.x - home.x, 3);
+    expect(at.y).toBeCloseTo(spot.y - home.y, 3);
+    s.dispose();
+  });
+});
+
+/** Whose man this is — said on the man himself, never parsed out of his name. */
 function ownedBy(piece: Node, seat: string): boolean {
-  return fieldsOf<{ readonly box: string }>(piece, "Owned")?.box === trayOf(seat);
+  return fieldsOf<{ readonly box: string }>(piece, "Owned")?.box === seat;
 }

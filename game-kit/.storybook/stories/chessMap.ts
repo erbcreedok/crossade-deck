@@ -55,7 +55,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { svg } from "./stockAssets.js";
-import { installMapArt, PUT_DOWN, warmingNodes, zoneKeen } from "./gestureMap.js";
+import { installMapArt, PUT_DOWN, warmingNodes } from "./gestureMap.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
 export const CHESS_SEATS = [
@@ -81,17 +81,20 @@ export const CHESS_UNIT = 38;
 const PIECE = 0.94;
 
 /**
- * WHERE THE TAKEN PIECES GO — one tray a side, off the board.
+ * THE COMMON ZONE — one, beside the board, belonging to nobody and open to both.
  *
- * Because a capture has to put the piece SOMEWHERE, and "nowhere" is not a place: a piece that
- * vanished would be a piece nobody can count, and the first question anybody asks after a trade is
- * what has been taken. The kit's own word for this is `capture(to)`, and the example in its doc is
- * this exact tray.
+ * ONE and not a tray a side. Two of them is two private places, and a private place is a rule: it
+ * says whose a taken man is and where he may be put, which is exactly the sort of thing this shelf
+ * does not decide. One shared area says the true thing instead — this is off the board — and leaves
+ * everything else to the people at it.
+ *
+ * A capture has to put the man SOMEWHERE, and "nowhere" is not a place: one that vanished is one
+ * nobody can count, and what has been taken is the first thing asked after a trade.
  */
-const TRAY = { w: 3.4, h: 8 };
-/** How much felt stands between the board and a tray — a margin, so the camera is not pressed. */
-const TRAY_GAP = 0.9;
-export const trayOf = (seat: string): string => `${seat} tray`;
+const ZONE = { w: 9.6, h: 3.2 };
+/** How much felt stands between the board and the zone — a margin, so the camera is not pressed. */
+const ZONE_GAP = 1.1;
+export const COMMON = "common zone";
 
 const LIGHT = "chess.cell.light";
 const DARK = "chess.cell.dark";
@@ -211,14 +214,10 @@ export function installChessArt(): void {
 }
 
 /**
- * A PIECE PUT DOWN ON AN OCCUPIED SQUARE TAKES WHAT IS THERE — and what is taken goes to a tray.
- *
- * Registered per side because a capture has to name the place the sitter goes, and where it goes
- * depends on WHOSE it is. Two records, and the square picks by the colour of the piece standing on
- * it — which is the one thing about chess that is not a rule but an arrangement: nobody's tray holds
- * anybody else's men.
+ * A PIECE PUT DOWN ON AN OCCUPIED SQUARE TAKES WHAT IS THERE — and what is taken goes to the common
+ * zone. One record, because there is one place: the zone is nobody's.
  */
-const takenTo = (seat: string): string => `${TAKEN}.${seat}`;
+
 
 /** The back rank, in the order everybody sets it up in. */
 const BACK: readonly Figure[] = ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"];
@@ -237,9 +236,30 @@ const cellId = (file: number, rank: number): string => `cell ${String.fromCharCo
  * page — worth having as a knob, because the difference between a board and a felt is exactly this
  * number, and a reader who has never thought about that can find it out by moving it.
  */
+/**
+ * THE STRETCH THE VIEW IS HELD INSIDE — the board, the zone beside it, and a margin round the lot.
+ *
+ * Told only the board, the camera stops at its edge and the zone is past the wall: it is drawn, and
+ * it cannot be reached or looked at. Told this, the whole desk is somewhere the eye can go.
+ */
+export function chessRoom(): { x: number; y: number; w: number; h: number } {
+  // THE TRUE EXTENT, not a box centred on the board. The zone hangs BELOW the board, so the desk is
+  // not symmetric about zero: measured as a height around the origin, the room was empty felt above
+  // the board and cut the zone's bottom off. A modest margin, not the shelf's roam: a desk that opens
+  // fitted is a desk whose margin is shown all the time, and a quarter of it shown all the time is a
+  // board at half size.
+  const wide = Math.max(BOARD, ZONE.w) + MARGIN * 2;
+  const top = -BOARD / 2 - MARGIN;
+  const bottom = BOARD / 2 + ZONE_GAP + ZONE.h + MARGIN;
+  return { x: -wide / 2, y: top, w: wide, h: bottom - top };
+}
+
+/** Felt shown round the whole desk when it opens fitted, units. */
+const MARGIN = 0.4;
+
 export function chessMap(reach = 0): Node {
   installChessArt();
-  for (const { seat } of CHESS_SEATS) registerOccupied(takenTo(seat), capture(trayOf(seat)));
+  registerOccupied(TAKEN, capture(COMMON));
   const desk = node(
     "board",
     Bounded({ bounds: rect(BOARD, BOARD) }),
@@ -270,8 +290,8 @@ export function chessMap(reach = 0): Node {
       stand(desk, file, home, seat, what);
       stand(desk, file, pawns, seat, "pawn");
     });
-    add(desk, tray(seat));
   }
+  add(desk, commonZone());
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
@@ -297,17 +317,21 @@ function cell(file: number, rank: number, reach: number): Node {
     // ...AND IT SAYS SO WHILE THE HAND IS OVER IT. Nothing for being merely willing: every cell on
     // the board would take the piece, so "you may put it here" is true sixty-four times over and is
     // not news. What is news is WHICH ONE, and that is true of one cell at a time.
-    Inviting({ coat: NO_COAT, keen: zoneKeen("accent") }),
+    // A WASH, NOT A RING. The shelf's ring is a stroke half outside the contour — right for an area
+    // standing alone on felt, and wrong on a grid, where half of it lies on the neighbours and the
+    // lit square reads as a square drawn crooked. A wash fills exactly the cell and nothing else,
+    // which on a board is the whole message: THIS one.
+    Inviting({ coat: NO_COAT, keen: { recipe: "wash", level: 0.5, tint: "accent" } }),
   );
 }
 
-/** A tray, off the board, holding what its owner has lost. */
-function tray(seat: string): Node {
+/** The common zone, below the board: everybody's, and it arranges nothing. */
+function commonZone(): Node {
   return node(
-    trayOf(seat),
-    Bounded({ bounds: rect(TRAY.w, TRAY.h) }),
+    COMMON,
+    Bounded({ bounds: rect(ZONE.w, ZONE.h) }),
     Surfaced({ surface: TRAY_SURFACE }),
-    Transformable({ at: { x: (seat === "white" ? 1 : -1) * (BOARD / 2 + TRAY.w / 2 + TRAY_GAP), y: 0 } }),
+    Transformable({ at: { x: 0, y: BOARD / 2 + ZONE.h / 2 + ZONE_GAP } }),
     Container({ layout: TRAY_LAYOUT }),
     Acceptor({}),
     Grabber({ grab: "one" }),
@@ -323,9 +347,9 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     Bounded({ bounds: rect(PIECE, PIECE) }),
     Surfaced({ surface: pictureOf(seat, what) }),
     Valued({ values: { chess: 1 } }),
-    // WHOSE IT IS, said on the piece — a capture has to send it to its own side's tray, and the
-    // side is a fact about the man, not about the square he happened to be standing on.
-    Owned({ box: trayOf(seat) }),
+    // WHOSE MAN HE IS, said on himself. Not read off his id — an id is a NAME and nothing parses one
+    // (`guard.id-is-opaque`) — and not off the square, which he leaves the moment he is picked up.
+    Owned({ box: seat }),
     PUT_DOWN,
     // NO SHADOW AT ALL, and on a board that is the honest answer.
     //
@@ -346,7 +370,7 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
   // WHOEVER IS TAKEN GOES TO HIS OWN SIDE'S TRAY, so the record a square names is the record of the
   // man STANDING on it — nobody's tray holds anybody else's men. Named the other way round, white's
   // losses piled up in black's tray, which is a scoreboard that reads backwards.
-  compose(spot, Displacer({ occupied: takenTo(seat) }));
+  compose(spot, Displacer({ occupied: TAKEN }));
   add(spot, piece);
 }
 
@@ -366,7 +390,7 @@ export function squareAt(root: Node, at: Vec): Node | undefined {
   // the board and no reason for one: what is in a tray is a heap of taken men, and a player setting
   // one beside another is arranging nothing. So the tray answers for its whole area, and where in
   // it the man ends up is where the hand left him.
-  return root.children.find((box) => caps(box).has("Acceptor") && !isCell(box) && within(box, at, TRAY.w / 2, TRAY.h / 2));
+  return root.children.find((box) => caps(box).has("Acceptor") && !isCell(box) && within(box, at, ZONE.w / 2, ZONE.h / 2));
 }
 
 /** Is this point inside that node's box, by its own half-widths? */

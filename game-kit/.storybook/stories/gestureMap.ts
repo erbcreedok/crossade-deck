@@ -145,37 +145,11 @@ export const ROAM = 0.25;
  * a camera told only the size would hold the view inside one quarter of it while every clamp read
  * perfectly correct.
  */
-export function deskRoom(desk?: Node, roam: number = ROAM): { x: number; y: number; w: number; h: number } {
-  // THE DESK'S OWN SIZE, and everything standing OUTSIDE it. A board has trays beside it; a page
-  // that asked the shelf's stock size for its room gave the camera a rectangle the trays were not
-  // in, and the view stopped dead at the board's edge with the trays past the wall — reachable by
-  // nothing and lookable at by nobody.
-  const box = desk ? spreadOf(desk) : { w: MAP.w, h: MAP.h };
+export function deskRoom(box: { w: number; h: number } = MAP, roam: number = ROAM): { x: number; y: number; w: number; h: number } {
   const pad = { x: box.w * roam, y: box.h * roam };
   return { x: -box.w / 2 - pad.x, y: -box.h / 2 - pad.y, w: box.w + pad.x * 2, h: box.h + pad.y * 2 };
 }
 
-/**
- * HOW WIDE A DESK IS WITH EVERYTHING ON IT — its own box, grown to hold every child's placed box.
- *
- * Its own box alone is not the answer: a tray, a rack, a discard pile stands BESIDE the felt rather
- * than on it, and a camera told only about the felt holds the view inside a rectangle those are
- * outside of. What the eye must be able to reach is everything the desk draws.
- */
-function spreadOf(desk: Node): { w: number; h: number } {
-  const own = fieldsOf<BoundedFields>(desk, "Bounded")?.bounds;
-  let wide = own ? extentOf(own).w / 2 : MAP.w / 2;
-  let tall = own ? extentOf(own).h / 2 : MAP.h / 2;
-  for (const child of desk.children) {
-    const box = fieldsOf<BoundedFields>(child, "Bounded")?.bounds;
-    const at = fieldsOf<TransformableFields>(child, "Transformable")?.at;
-    if (!box || !at) continue;
-    const size = extentOf(box);
-    wide = Math.max(wide, Math.abs(at.x) + size.w / 2);
-    tall = Math.max(tall, Math.abs(at.y) + size.h / 2);
-  }
-  return { w: wide * 2, h: tall * 2 };
-}
 
 /** The knight's own box, in units — a chess piece stands taller than it is wide. */
 const KNIGHT = { w: 0.9, h: 1.1 };
