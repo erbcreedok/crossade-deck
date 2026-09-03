@@ -20,7 +20,7 @@ import { type Shadow } from "../../core/atoms/lit.js";
 import { boxOf } from "./parts.js";
 import { LAYER_HEIGHT } from "./depth.js";
 import { areaOf, type SurfacedFields } from "../../core/atoms/surfaced.js";
-import { shadowFrom } from "../../core/atoms/shadow.js";
+import { shadowFrom, shadowSpot } from "../../core/atoms/shadow.js";
 import { fieldsOf } from "../../core/node.js";
 import { resolveZ } from "../../core/atoms/transformable.js";
 import { type ResolveContext } from "../../core/resolve.js";
@@ -53,7 +53,9 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
   const from = shadowFrom(n);
   if (!from) return undefined;
   const area = areaOf(shown);
-  const shape = lamp.spread(shown) ?? footprint(shown) ?? (area ? boxOf(area) : undefined);
+  // WHAT IT SAYS IT LAYS DOWN, first of all. A piece whose picture is a drawing inside a box casts
+  // that box otherwise — a rectangle under a figure it plainly does not belong to (`ShadowCaster`).
+  const shape = shadowSpot(n) ?? lamp.spread(shown) ?? footprint(shown) ?? (area ? boxOf(area) : undefined);
   if (!shape) return undefined;
   // The silhouette is the contour as DRAWN — corners and all; the footprint is the bare box.
   const record =

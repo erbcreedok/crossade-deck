@@ -4,6 +4,8 @@ import {
   Bounded,
   Container,
   Draggable,
+  ellipse,
+  transformShape,
   freeLayout,
   installStockCarries,
   Lit,
@@ -43,7 +45,7 @@ const meta: Meta = {
     gkDoc: "shadowCaster.component",
     gkAtom: "ShadowCaster",
     // The atom's one field, reachable from both scenes.
-    gkFields: { from: ["Cast", "Stack"] },
+    gkFields: { from: ["Cast", "Stack"], spot: ["Cast"] },
   },
 };
 export default meta;
@@ -84,6 +86,18 @@ interface CastArgs {
   sparkX: number;
   sparkY: number;
   sparkZ: number;
+  /**
+   * HOW WIDE A SPOT THE SPARK LAYS INSTEAD OF ITS OWN SHAPE. `0` and it lays its own, which is
+   * right for everything that IS its own shape — a star is a star.
+   *
+   * It is not right for a piece whose picture is a DRAWING inside a box: that box is what falls,
+   * a rectangle under a figure it plainly does not belong to. The honest silhouette can only be
+   * taken from the drawing, and nothing here reads a picture's alpha — so a spot, which depicts
+   * nothing and therefore cannot depict the wrong thing.
+   */
+  spotWide: number;
+  /** How far below its middle the spot sits — a standing figure's shadow is at its BASE. */
+  spotDrop: number;
   sparkFrom: "footprint" | "silhouette";
 }
 
@@ -114,6 +128,8 @@ export const Cast: StoryObj<CastArgs> = {
     sparkX,
     sparkY,
     sparkZ,
+    spotWide,
+    spotDrop,
     sparkFrom,
   }) => {
     registerSurface(cardSurface, { layers: [{ paint: cardPaint }], radius: cardRadius });
@@ -138,7 +154,12 @@ export const Cast: StoryObj<CastArgs> = {
         Bounded({ bounds: star(starPoints, starOuterR, starInnerR) }),
         Surfaced({ surface: sparkSurface }),
         Transformable({ at: { x: sparkX, y: sparkY }, z: sparkZ }),
-        ShadowCaster({ from: sparkFrom }),
+        // A CONTOUR THIS LAYS DOWN INSTEAD OF ITS OWN, when its own would be a lie. Zero and there
+        // is none: the star casts a star, which is right for everything that IS its own shape.
+        ShadowCaster({
+          from: sparkFrom,
+          ...(spotWide > 0 ? { spot: transformShape(ellipse(spotWide, spotWide * 0.42), { offsetY: spotDrop }) } : {}),
+        }),
         Draggable(),
       ),
     );
@@ -166,6 +187,8 @@ export const Cast: StoryObj<CastArgs> = {
     sparkX: 1.1,
     sparkY: 0.1,
     sparkZ: 1,
+    spotWide: 0,
+    spotDrop: 0.4,
     sparkFrom: "silhouette",
   },
   argTypes: {
@@ -190,6 +213,8 @@ export const Cast: StoryObj<CastArgs> = {
     sparkX: documented("arg.x", PLACE, "spark/transformable"),
     sparkY: documented("arg.y", PLACE, "spark/transformable"),
     sparkZ: documented("arg.z", HEIGHT, "spark/transformable"),
+    spotWide: documented("arg.spotWide", { control: { type: "number", min: 0, step: 0.05 } }, "spark/shadowCaster"),
+    spotDrop: documented("arg.spotDrop", { control: { type: "number", step: 0.05 }, if: { arg: "spotWide" } }, "spark/shadowCaster"),
     sparkFrom: contour("spark/shadowCaster"),
   },
   parameters: { gkDocStory: "shadowCaster.cast" },

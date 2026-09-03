@@ -23,7 +23,8 @@ import { registerEffect, resetEffects } from "../effects.js";
 import { registerSurface, resetSurfaces } from "../surfaces.js";
 import { installStockSurfaces } from "../../presets/surfaces.js";
 import { polyline } from "../../core/path.js";
-import { circle, rect } from "../../presets/shapes.js";
+import { circle, ellipse, rect } from "../../presets/shapes.js";
+import { transformShape } from "../../core/path.js";
 import { inspect } from "../../core/inspect.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
@@ -1019,5 +1020,42 @@ describe("the hybrid: baked or live", () => {
     const plan = scenePlan({ root, unit: 100, width: 600, height: 600, viewer: DEFAULT_VIEWER });
     expect(plan.map((q) => q.id)).toEqual(["painted"]);
     expect(inspect(root).map((n) => n.id)).toEqual(["r", "painted", "bare"]);
+  });
+
+  it("plan.a-caster-may-lay-something-other-than-itself — a drawing in a box casts the box", () => {
+    // A knight is a knight-shaped hole in a square, so the SQUARE is what falls: a rectangle a size
+    // the eye cannot match to anything, sitting under a figure it plainly does not belong to. The
+    // honest silhouette can only be TAKEN from the drawing, and nothing here can read a picture's
+    // alpha — the merged pass masks with contours, so a snapshot goes in as a rectangle and a frame
+    // is what you see. That was tried once and paid for.
+    //
+    // So a caster may say what it lays down: a spot at the base, which depicts nothing and therefore
+    // cannot depict the wrong thing. Never an outline "of a figure in general" — that is a forgery,
+    // and it hands the knight the pawn's shadow the day a second kind of figure arrives.
+    const desk = node("desk", Container({ layout: "free" }), Lit({ shadow: { base: 0.4, perZ: 0, lifted: 0, opacity: 0.5 } }));
+    const box = rect(1, 1);
+    const own = node("own", Bounded({ bounds: box }), Surfaced(), Transformable({ at: { x: -2, y: 0 } }), ShadowCaster());
+    const spot = node(
+      "spot",
+      Bounded({ bounds: box }),
+      Surfaced(),
+      Transformable({ at: { x: 2, y: 0 } }),
+      ShadowCaster({ spot: transformShape(ellipse(0.3, 0.12), { offsetY: 0.44 }) }),
+    );
+    add(desk, own);
+    add(desk, spot);
+    const plan = scenePlan({ root: desk, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
+    const wide = (id: string): { w: number; h: number } => {
+      const q = plan.find((one) => one.id === `${id}::shadow`)!;
+      const xs = q.points.map((p) => p.x);
+      const ys = q.points.map((p) => p.y);
+      return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    };
+    // The one that says nothing lays its own box, exactly as it always did.
+    expect(wide("own").w, "its own shape, unchanged").toBeCloseTo(100, 6);
+    expect(wide("own").h).toBeCloseTo(100, 6);
+    // The one that names a spot lays the spot — and it is a spot, not a box: much wider than tall.
+    expect(wide("spot").w, "the spot's own width").toBeCloseTo(60, 6);
+    expect(wide("spot").h, "and it is flat, as a thing lying on a desk is").toBeCloseTo(24, 6);
   });
 });

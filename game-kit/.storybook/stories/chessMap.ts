@@ -45,7 +45,10 @@ import {
   registerSurface,
   rowLayout,
   Surfaced,
+  ShadowCaster,
+  ellipse,
   paint,
+  transformShape,
   Transformable,
   Valued,
   capture,
@@ -56,7 +59,7 @@ import {
 } from "../../src/index.js";
 import { svg } from "./stockAssets.js";
 import { currentSettings } from "../devtools/catalogSettings.js";
-import { CASTS, installMapArt, PUT_DOWN, warmingNodes, zoneKeen } from "./gestureMap.js";
+import { installMapArt, PUT_DOWN, warmingNodes, zoneKeen } from "./gestureMap.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
 export const CHESS_SEATS = [
@@ -318,7 +321,17 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // side is a fact about the man, not about the square he happened to be standing on.
     Owned({ box: trayOf(seat) }),
     PUT_DOWN,
-    CASTS,
+    // A SPOT AT ITS BASE, and never this man's own box.
+    //
+    // A knight is a knight-shaped hole in a square, so the square is what falls: a rectangle a size
+    // the eye cannot match to anything, under a figure it plainly does not belong to — which is
+    // exactly what it looked like. The honest silhouette can only be taken from the drawing, and
+    // nothing here can read a picture's alpha. So: a spot, which depicts nothing and therefore
+    // cannot depict the wrong thing — and never a hand-drawn "outline of a figure in general",
+    // which would give the knight the pawn's shadow the day a second kind of figure arrives.
+    //
+    // AS WIDE AS THE MAN. Narrower, it hides entirely under the glyph and reads as no shadow at all.
+    ShadowCaster({ spot: transformShape(ellipse(PIECE * 0.3, PIECE * 0.13), { offsetY: PIECE * 0.44 }) }),
   );
   compose(spot, Displacer({ occupied: takenTo(seat === "white" ? "black" : "white") }));
   add(spot, piece);

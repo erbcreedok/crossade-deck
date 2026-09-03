@@ -208,7 +208,7 @@ export { Private, visibleTo, type PrivateFields } from "./core/atoms/private.js"
 // Grip is privacy's permission twin: which seats may LIFT a subtree, the open table liftable by all.
 export { Grippable, grippableBy, type GrippableFields } from "./core/atoms/grippable.js";
 // The shadow and the one light: a caster declares WHICH contour falls; the root's lamp says where.
-export { castsShadow, ShadowCaster, shadowFrom, type ShadowCasterFields } from "./core/atoms/shadow.js";
+export { castsShadow, ShadowCaster, shadowFrom, shadowSpot, type ShadowCasterFields } from "./core/atoms/shadow.js";
 export { faceOf, Rollable, rollable, setFace, sidesOf, withFace, type RollableFields } from "./core/atoms/rollable.js";
 export { DEFAULT_LIGHT, DEFAULT_SHADOW, Lit, lightVector, shadowOf, type Frame, type Light, type LitFields, type Shadow } from "./core/atoms/lit.js";
 // The invite: what a willing zone wears while a drag it would take is in flight, and what the one
