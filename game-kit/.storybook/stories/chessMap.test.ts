@@ -144,6 +144,14 @@ describe("a move on the real board, end to end", () => {
     expect(white.parent, "the man who arrived takes the square").toBe(e7);
     expect(black.parent?.id, "and the man who was there goes to the common zone").toBe(COMMON);
     expect(e7.children.length, "one to a square, never two").toBe(1);
+    // ...AND IS PUT DOWN ON THE FELT, OFF THE SQUARES. The felt holds sixty-four places and a face
+    // before it holds one taken man; a row that counted those as men seated the first man taken
+    // sixty places down, off the desk, and the owner saw the taken man simply vanish.
+    const seat = fieldsOf<TransformableFields>(black, "Transformable")!.at!;
+    const felt = extentOf(fieldsOf<BoundedFields>(desk, "Bounded")!.bounds);
+    expect(Math.abs(seat.x), "inside the felt").toBeLessThan(felt.w / 2);
+    expect(Math.abs(seat.y)).toBeLessThan(felt.h / 2);
+    expect(squareAt(desk, seat), "and on no square — on the felt beside the board").toBe(desk);
     s.dispose();
   });
 

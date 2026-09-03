@@ -370,6 +370,12 @@ describe("the drag wiring's order", () => {
     add(cell, sitter);
     add(root, cell);
     add(root, tray);
+    // THE TRAY IS NOT EMPTY OF NODES, ONLY OF MEN. A zone with the board IN it — the chess desk's
+    // felt — holds sixty-four places and a face before it holds a single taken man, and a row that
+    // counted PLACES as men put the first man taken in the sixty-sixth seat, off the desk entirely.
+    // What is counted is what LIES LOOSE in the zone: the men, never the furniture.
+    for (const name of ["place a", "place b", "place c"])
+      add(tray, node(name, Bounded({ bounds: rect(0.5, 0.5) }), Container({ layout: "drag.cell" }), Transformable({ at: { x: 0, y: 0 } })));
     const s = scene(root, { animate: true });
     document.body.appendChild(s.el);
     measure(s.el);
@@ -384,9 +390,11 @@ describe("the drag wiring's order", () => {
     // lays nothing out, so a sitter who kept his own seat would still be on the board.
     // The first man taken stands in the tray's first place — not at the seat he had on the square,
     // which a free zone would have left him holding, and which is a seat on the BOARD.
+    // ...and the step of the row is the man's OWN size: a row stepped by a quarter of the zone lays
+    // a felt fourteen wide out in four columns, and the second row of that is on the board.
     const at = fieldsOf<TransformableFields>(sitter, "Transformable")!.at!;
-    expect(at.x, "put down IN the tray, in its first place").toBeCloseTo(-0.75, 9);
-    expect(at.y).toBeCloseTo(-0.75, 9);
+    expect(at.x, "put down IN the tray, in its first place, one man wide").toBeCloseTo(-0.5, 9);
+    expect(at.y).toBeCloseTo(-0.5, 9);
     s.dispose();
   });
 

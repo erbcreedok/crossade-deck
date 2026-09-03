@@ -12,6 +12,7 @@
 // replaces the knobs.
 
 import {
+  caps,
   applyMove,
   byId,
   compose,
@@ -441,7 +442,15 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
     // The knobs go through by NAME: what the panel says is what the clock gets.
-    const { runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, showsEnough: _shows, feelOf, may: _may, onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, ...feel } = w.opts;
+    // THE FEEL AND NOTHING ELSE. Every hook the wiring itself answers to is named here and left
+    // out, or it rides into the clock as a "knob" — and from there onto every screen the carry is
+    // mirrored to, where a far screen's clock would be holding this screen's callbacks.
+    const {
+      runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, showsEnough: _shows, feelOf, may: _may,
+      onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, onCarry: _onCarry, onSettled: _onSettled,
+      onDrop: _onDrop, zoneAt: _zoneAt, aimAt: _aimAt, underFinger: _under,
+      ...feel
+    } = w.opts;
     const tray = trayOf?.(root, hit);
     const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}) };
     w.drag = { ...w.drag, tray, feel: felt };
@@ -515,14 +524,22 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       const to = "to" in what ? byId(root, what.to) : undefined;
       if (!to) return;
       remove(from, sitter);
-      const nth = to.children.length;
+      // HIS PLACE IN THE ROW IS AMONG THE MEN, NOT AMONG THE FURNITURE. A zone with the board IN it
+      // holds sixty-four places and a face before it holds one taken man; counted as men, they put
+      // the first man taken in the sixty-sixth seat, off the desk entirely. What lies loose in the
+      // zone is what the row is made of — anything that is itself a place is the zone's furniture.
+      const nth = to.children.filter((n) => !caps(n).has("Container")).length;
       add(to, sitter);
       const box = fieldsOf<BoundedFields>(to, "Bounded")?.bounds;
       const room = box ? extentOf(box) : undefined;
       if (!room) return;
       // A LOOSE ROW THAT WRAPS, in the zone's own space: enough to see them all and no more of an
-      // opinion than that. Anybody may pick one up and put it down elsewhere in the zone.
-      const step = Math.max(0.4, room.w / 4);
+      // opinion than that. Anybody may pick one up and put it down elsewhere in the zone. Stepped
+      // by the MAN'S OWN SIZE: a row stepped by a share of the zone lays a felt fourteen wide out in
+      // four columns, and the second row of that is on the board.
+      const own = fieldsOf<BoundedFields>(sitter, "Bounded")?.bounds;
+      const size = own ? extentOf(own) : undefined;
+      const step = Math.max(0.4, size ? Math.max(size.w, size.h) : room.w / 4);
       const cols = Math.max(1, Math.floor(room.w / step));
       compose(sitter, Transformable({
         at: {

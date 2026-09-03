@@ -17,6 +17,7 @@
 
 import {
   attachMotion,
+  type MotionOptions,
   type TuningPatch,
   attachPainter,
   Camera,
@@ -207,8 +208,10 @@ export interface SceneOptions {
   /**
    * The game's tuning for an `animate` scene — any subset of `MotionTuning`, handed to `attachMotion`
    * AS IS. A story's controls are these fields under these names; nothing translates in between.
+   * The clock rides along for the same reason the runtime takes one: a guard that has to see a
+   * frame HAPPEN drives it by hand, and a scene that hid the clock could only be watched, not proven.
    */
-  readonly motion?: TuningPatch;
+  readonly motion?: TuningPatch & Pick<MotionOptions, "clock">;
   /**
    * PUT A CAMERA ON THIS CANVAS: the desk is then looked AT rather than merely fitted into the view,
    * and the finger pans, pinches and wheels it (`wireCamera`).

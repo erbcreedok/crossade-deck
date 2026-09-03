@@ -47,6 +47,7 @@ export function follow(
     for (const id of screen.mirroring ?? ids) s.motions?.release(id);
     screen.mirroring = undefined;
     screen.dot.style.display = "none";
+    s.motions?.redraw();
     return;
   }
   const view = s.camera?.transform();
@@ -64,4 +65,9 @@ export function follow(
     s.motions?.grab(items, { ...feel, anchor: at, lift });
   }
   s.motions?.dragTo(at);
+  // ...AND DRAWN. An override is a number in the clock until a frame paints it, and this screen's
+  // clock is woken by ITS OWN gestures — of which a mirrored hand is not one. Told the carry and
+  // never told to draw, the far screen held the man off his square in its arithmetic and went on
+  // showing him standing on it: a cursor gliding about over a board where nothing moved.
+  s.motions?.redraw();
 }
