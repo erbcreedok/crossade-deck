@@ -334,7 +334,10 @@ export function grabScene(
     // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
     // this is going; the load hangs above them both, because a load drawn ON the finger covers the
     // one thing the gesture is for (`CARRY_CLEAR`).
-    landing = { node: mark, seat: box.at, hover: { x: 0, y: box.at.y - box.h * CARRY_CLEAR } };
+    // FROM THE LOAD'S OWN PLACE, not from the anchor. The run is already seated at `box.at` — a pile
+    // stands over its handle — so starting the clearance there as well counts that step twice, and
+    // the load ends up two cards and a bit above the finger instead of one.
+    landing = { node: mark, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR } };
     // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
     // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
     // a clock that has never heard of it, and the override goes nowhere.
