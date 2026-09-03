@@ -1209,12 +1209,16 @@ export const GRIP_MISS = GRIP.w / 2;
  * A FACTOR of the load's height and not a fixed gap, so a card clears a card and a pile clears a
  * pile: what has to be cleared is the picture of the landing, and the landing is the load's own size.
  *
- * AND BARELY OVER ONE, because this is a clearance and not a distance. One is edge to edge; the
- * fraction over it is the hairline between them. Held any higher the load stops reading as the thing
- * in your hand and starts reading as a thing that got away from you — and the further it is from the
- * place it is going, the less the picture of that place is worth.
+ * HALF, not the whole. Edge to edge is ONE — the load and the picture just touching — and that is
+ * the number this began at. It is too much: on a phone the load ends up a card's height off the
+ * finger, which reads as a thing that got away from you rather than a thing in your hand, and the
+ * further it is from the place it is going, the less the picture of that place is worth.
+ *
+ * So the load sits over the top half of the picture and the bottom half stays open. What had to be
+ * fixed was a load standing ON the answer; a load leaning over it, with the answer still plainly
+ * there to read, is a hand holding something.
  */
-export const CARRY_CLEAR = 1.06;
+export const CARRY_CLEAR = 0.5;
 
 const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
 
