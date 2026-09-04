@@ -106,6 +106,7 @@ import { svg } from "./stockAssets.js";
 
 /** How big the map is, in units — see `gestureMap` on why it is bigger than any glass. */
 export const MAP = { w: 8, h: 8 };
+
 /**
  * HOW MUCH ROOM BEYOND THE DESK THE CAMERA IS GIVEN, as a fraction of the desk's own size.
  *
@@ -135,6 +136,7 @@ export const MAP = { w: 8, h: 8 };
  *
  * IN UNITS, so the dashes are the same size on a desk of any zoom and there are simply more of them
  * around a bigger area: a pattern that scaled would be a picture of a border rather than a border.
+ */
 export function zoneLine(ink: Paint): Stroke {
   return { color: ink, width: 0.035, opacity: 0.55, dash: { on: 0.2, off: 0.16, corner: "dash" } };
 }
