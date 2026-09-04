@@ -17,7 +17,7 @@ import { catalogText, LOCALES, type CatalogLocale, type CatalogText } from "./lo
 import { inspectorBodyStyle, inspectorMarkup } from "./devtools/inspectorPanel.js";
 import { type InspectReport } from "./devtools/inspectorBus.js";
 import { STORY_MISSING } from "storybook/internal/core-events";
-import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "./inspectChannel.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH, GK_INSPECT_WHO } from "./inspectChannel.js";
 import { storySource } from "./devtools/storySource.js";
 import "./devtools/snippetValues.js";
 import { pinTextSize } from "./devtools/textSize.js";
@@ -239,10 +239,15 @@ const NodeTreePanel: React.FC<{ active: boolean }> = ({ active }) => {
     const handler = (next: InspectReport): void => {
       setReports((prev) => ({ ...prev, [next.sceneId]: next }));
     };
+    const onWho = (): void => {
+      channel.emit(GK_INSPECT_WATCH);
+    };
     channel.on(GK_INSPECT, handler);
+    channel.on(GK_INSPECT_WHO, onWho);
     channel.emit(GK_INSPECT_WATCH);
     return () => {
       channel.off(GK_INSPECT, handler);
+      channel.off(GK_INSPECT_WHO, onWho);
       channel.emit(GK_INSPECT_UNWATCH);
     };
   }, [active]);

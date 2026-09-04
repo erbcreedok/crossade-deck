@@ -8,3 +8,4 @@
 export const GK_INSPECT = "gameKit/inspect";
 export const GK_INSPECT_WATCH = "gameKit/inspect:watch";
 export const GK_INSPECT_UNWATCH = "gameKit/inspect:unwatch";
+export const GK_INSPECT_WHO = "gameKit/inspect:who";

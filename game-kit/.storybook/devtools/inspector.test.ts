@@ -6,7 +6,7 @@ import { catalogText } from "../locales/catalog.js";
 import { clearInspect, liveReports, onInspect, publishInspect, setNextSceneId, takeSceneId, wireInspectBridge } from "./inspectorBus.js";
 import { inspectorMarkup } from "./inspectorPanel.js";
 import { inspectorOpen, inspectorTab, setInspectorOpen, setInspectorTab } from "./inspectorPrefs.js";
-import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "../inspectChannel.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH, GK_INSPECT_WHO } from "../inspectChannel.js";
 import { registerSnippetValue, storySource, stripMember } from "./storySource.js";
 
 beforeEach(() => {
@@ -105,6 +105,42 @@ describe("the tree finds its reader", () => {
     expect(events.filter((e) => e.name === GK_INSPECT)).toHaveLength(2);
 
     stopBridge();
+  });
+
+  it("inspector.bridge-recreated — a recreated bridge asks who is watching and resumes reporting on answer", () => {
+    const events: { name: string; data: unknown }[] = [];
+    const channelListeners: Record<string, ((...args: unknown[]) => void)[]> = {};
+    const channel = {
+      on(name: string, fn: (...args: unknown[]) => void) {
+        channelListeners[name] = channelListeners[name] ?? [];
+        channelListeners[name]!.push(fn);
+      },
+      off(name: string, fn: (...args: unknown[]) => void) {
+        channelListeners[name] = (channelListeners[name] ?? []).filter((l) => l !== fn);
+      },
+      emit(name: string, data?: unknown) {
+        events.push({ name, data });
+        for (const fn of [...(channelListeners[name] ?? [])]) fn(data);
+      },
+    };
+
+    let active = true;
+    channel.on(GK_INSPECT_WHO, () => {
+      if (active) channel.emit(GK_INSPECT_WATCH);
+    });
+
+    publishInspect({ sceneId: "r1", nodes: inspect(node("r_root")) });
+
+    const stop1 = wireInspectBridge(channel);
+    expect(events.filter((e) => e.name === GK_INSPECT_WHO)).toHaveLength(1);
+    expect(events.filter((e) => e.name === GK_INSPECT)).toHaveLength(1);
+
+    stop1();
+    const stop2 = wireInspectBridge(channel);
+    expect(events.filter((e) => e.name === GK_INSPECT_WHO)).toHaveLength(2);
+    expect(events.filter((e) => e.name === GK_INSPECT)).toHaveLength(2);
+
+    stop2();
   });
 });
 

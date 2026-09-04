@@ -14,7 +14,7 @@
 // component, so several scenes are alive at once and each block must find its own.
 
 import { type InspectNode } from "../../src/index.js";
-import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "../inspectChannel.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH, GK_INSPECT_WHO } from "../inspectChannel.js";
 
 export interface InspectReport {
   /** Who published. The catalog names scenes after stories, so a block can find its own. */
@@ -100,6 +100,7 @@ export function wireInspectBridge(channel: InspectChannel): () => void {
   const stopBus = onInspect((report) => {
     if (watchers > 0) channel.emit(GK_INSPECT, report);
   });
+  channel.emit(GK_INSPECT_WHO);
   return () => {
     channel.off(GK_INSPECT_WATCH, onWatch);
     channel.off(GK_INSPECT_UNWATCH, onUnwatch);
