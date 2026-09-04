@@ -17,12 +17,8 @@
 // names, not theme tokens — a piece is content, and it does not follow the theme.
 
 import {
-  Forgiving,
-  installStockCoats,
   add,
   apply,
-  surfaceNames,
-  surfaceRecord,
   Bounded,
   caps,
   circle,
@@ -30,40 +26,48 @@ import {
   Container,
   Draggable,
   extentOf,
+  facing,
   fieldsOf,
+  Forgiving,
+  freeLayout,
+  installStockCoats,
   islands,
+  Lit,
+  node,
   outlineOf,
   outlinesTouch,
   placedOutline,
-  remove,
-  roundedRect,
-  Lit,
-  Screened,
-  ShadowCaster,
-  transformsOf,
-  freeLayout,
-  node,
+  polar,
   rect,
   registerAsset,
-  reorder,
   registerLayout,
   registerSurface,
-  facing,
+  remove,
+  reorder,
+  roundedRect,
+  Screened,
   setFacing,
+  ShadowCaster,
+  stackSeats,
   Surfaced,
+  surfaceNames,
+  surfaceRecord,
   Transformable,
-  Valued,
+  transformsOf,
   type BoundedFields,
-  type Node,
-  type ValuedFields,
-  polar,
-  type TransformableFields,
-  type Vec,
-  type Walls,
   type Coat,
+  type Node,
   type Paint,
   type Stroke,
+  type TransformableFields,
+  type ValuedFields,
+  type Vec,
+  type Walls,
+  Valued,
 } from "../../src/index.js";
+// The numbers and seats of a fall are the KIT'S (`render/fall.ts`) — re-exported so every page and
+// test on this shelf keeps its import, and there is one value per name and not two that drift.
+export { DIE_FAN, DIE_HOP, DIE_SCATTER, DIE_SPIN, DIE_SPIN_DRAG, STACK_FALL_STEP, STACK_POUR, STACK_STEP, STACK_THICK, stackSeats, toFront } from "../../src/index.js";
 
 export {
   alsoInTheWay,
@@ -354,48 +358,6 @@ export function gestureMap(): Node {
 
 
 /**
- * How fast a dropped die goes over, degrees/s, when the hand gave it no turn of its own.
- *
- * A die let go of ROLLS — that is what a die is for, and a die that came down flat and simply lay
- * there would be a counter. Off the tuning's own `spinFriction` this is about two thirds of a second
- * of turning, which is long enough to read as a roll and short enough not to be a wait.
- */
-export const DIE_SPIN = 1400;
-/**
- * How fast that turn bleeds away, degrees/s² — steeper than the desk's own, so a faster roll is not
- * also a longer one. A die that kept turning for three seconds is a die nobody is waiting for.
- */
-export const DIE_SPIN_DRAG = 900;
-/**
- * HOW HARD A ROLLED DIE COMES OFF THE DESK, units/s of rise.
- *
- * A die does not skate. Dropped from the hand's height alone it arrives at about five units a
- * second and gives back a fraction of that — a hop of two pixels, which is a die that landed, not
- * one that rolled. This is the kick a wrist gives it, and it buys the thing the whole gesture is
- * about: it leaves the felt, comes down, turns its run a little, and does it again.
- */
-export const DIE_HOP = 3;
-
-/**
- * HOW HARD A HANDFUL OF DICE PUSHES ITSELF APART, units/s — and it is a real throw, not a nudge.
- *
- * Two dice tipped out of a hand do not land side by side because somebody aimed them there; they
- * land apart because they were never going the same way. This is that: enough speed for each to
- * make its own way across the felt, so a drop of two reads as two dice thrown rather than as one
- * die that split.
- */
-export const DIE_SCATTER = 2.6;
-
-/**
- * HOW WIDE THE FAN IS, degrees between one die of a run and the next.
- *
- * Wide enough that they part at once and narrow enough that a throw still goes where it was aimed:
- * a handful thrown at the far corner must arrive at the far corner, spread out, not sprayed across
- * the whole desk.
- */
-export const DIE_FAN = 34;
-
-/**
  * ABOVE THIS SPEED A RELEASE IS A THROW — GLASS PIXELS PER SECOND, because that is what a finger
  * moves in. Whatever the piece's ordinary way of leaving is.
  *
@@ -410,22 +372,6 @@ export const DIE_FAN = 34;
  * A flick is a property of a hand and a screen, and the screen is where it is measured.
  */
 
-
-/**
- * PUT A PIECE ON TOP of everything else on the desk — the last thing dropped covers what is under it.
- *
- * Tree order, and not a height: equal `z` keeps the order the children stand in (the plan sorts
- * stably), so "in front" is a place in the list. Written as a height it would be a lie about the
- * third dimension — the piece is ON the desk, not hovering over it — and every drop would raise the
- * pile a little further off the felt forever.
- */
-export function toFront(piece: Node): void {
-  const owner = piece.parent;
-  if (!owner) return;
-  const i = owner.children.indexOf(piece);
-  if (i < 0 || i === owner.children.length - 1) return;
-  reorder(owner, [...owner.children.keys()].filter((k) => k !== i).concat(i));
-}
 
 
 // ---- THE STACKING DESK ------------------------------------------------------------------------
@@ -483,21 +429,6 @@ export const GRIP = { w: 0.6, h: 0.6 / GRIP_RATIO };
 export const GRIP_HOLD = { min: 0.8, max: 1 };
 /** How far under the heap's own edge the tab sits, in units. */
 export const GRIP_GAP = 0.06;
-/**
- * How far apart the pieces of a lifted stack stand, in units — the same trick `stackLayout` uses:
- * thickness is an `at` offset and never a `z`, or a heap would rise off the felt as it grew.
- */
-export const STACK_STEP = { x: 0.012, y: -0.03 };
-/**
- * HOW THICK A LIFTED HEAP MAY GET, in units, however many pieces are in it.
- *
- * A step per piece is right for a few and absurd for thirty: at three cards it is the thickness you
- * can see, at thirty it is nearly a whole card of spread and the deck comes up a fan. A real deck
- * does not grow like that either — a card's thickness is not a card's WIDTH, and what the eye reads
- * off a pile is its edge, not its count. So the step shrinks to fit: a small heap is unchanged and a
- * big one is a deck.
- */
-export const STACK_THICK = 0.22;
 /**
  * How close is TOUCHING, in units. Not zero: to a player two cards a hair apart on a felt are
  * touching, and a heap that would not form until the pixels met would read as broken.
@@ -974,35 +905,6 @@ export function regrasp(
   return held;
 }
 
-/**
- * Where each piece of a lifted heap stands, relative to the handle that lifted it.
- *
- * BY ITS BOTTOM CENTRE, not its middle. A handle is under a heap, and what is under a thing meets
- * it at its bottom edge — hung by their middles the pieces sit ON the tab with half of each below
- * it, which is a stack skewered on its own handle rather than one standing on it. The gap it stands
- * at is the gap it was DRAWN at (`GRIP_GAP`), so nothing moves relative to anything at the lift.
- */
-export function stackSeats(group: readonly Node[], gripW = GRIP.w, want: Vec = STACK_STEP, thick = STACK_THICK): Vec[] {
-  const clear = gripW / GRIP_RATIO / 2 + GRIP_GAP;
-  // The step a heap this big can afford — see `STACK_THICK`. One piece has no step to take.
-  const spread = Math.max(1, group.length - 1);
-  const fit = Math.min(1, thick / (Math.abs(want.y) * spread));
-  const step = { x: want.x * fit, y: want.y * fit };
-  // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
-  // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
-  // CENTRED ON THE HANDLE, because that is where the handle stands: `gripFor` puts the tab under the
-  // MIDDLE of what it lifts. Counted from the first card instead, the pile it puts down drifts off
-  // sideways by half its own spread — and with thirty-six cards that is the better part of a card,
-  // so the tab and the pile it stands for ended up in visibly different places. Which is also what
-  // the picture of the landing was showing, correctly and uselessly.
-  const mid = (group.length - 1) / 2;
-  return group.map((piece, i) => {
-    const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
-    const half = shape ? extentOf(shape).h / 2 : 0;
-    return { x: (i - mid) * step.x || 0, y: -clear - half + (i - mid) * step.y || 0 };
-  });
-}
-
 /** The stacking desk: six cards, six chips and a die, laid out so nothing touches anything. */
 export function stackMap(): Node {
   installMapArt();
@@ -1034,25 +936,6 @@ export function stackMap(): Node {
   return desk;
 }
 
-
-/**
- * How long apart the pieces of a dropped heap leave the hand, ms.
- *
- * Small on purpose: the whole stack still lands inside one fall, and what the eye reads is a POUR
- * rather than a queue. Wider and it stops being one thing coming down and becomes several things
- * dropped one after another, which is a different gesture.
- */
-export const STACK_FALL_STEP = 55;
-
-/**
- * HOW LONG A POUR MAY LAST ALL TOLD, ms, however many pieces are in it.
- *
- * The same shape as the pile's thickness, and the same reason: a step per piece is right for a few
- * and absurd for many. Five cards take four steps and read as a pour; thirty-six would take
- * thirty-five and read as a queue you are waiting on. So the step shrinks to fit — a small heap is
- * unchanged, a big one takes a little longer than a small one and not thirty times longer.
- */
-export const STACK_POUR = 620;
 
 
 

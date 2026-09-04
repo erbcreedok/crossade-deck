@@ -151,33 +151,66 @@ export const THROWN_AT = 150;
  */
 export const THROW_REACH = 0.35;
 
-/** How long apart the pieces of a dropped heap leave the hand, ms. */
+/**
+ * How long apart the pieces of a dropped heap leave the hand, ms.
+ *
+ * Small on purpose: the whole stack still lands inside one fall, and what the eye reads is a POUR
+ * rather than a queue. Wider and it stops being one thing coming down and becomes several things
+ * dropped one after another, which is a different gesture.
+ */
 export const STACK_FALL_STEP = 55;
 
-/** HOW LONG A POUR MAY LAST ALL TOLD, ms, however many pieces are in it. */
+/**
+ * HOW LONG A POUR MAY LAST ALL TOLD, ms, however many pieces are in it.
+ *
+ * The same shape as the pile's thickness, and the same reason: a step per piece is right for a few
+ * and absurd for many. Five cards take four steps and read as a pour; thirty-six would take
+ * thirty-five and read as a queue you are waiting on. So the step shrinks to fit — a small heap is
+ * unchanged, a big one takes a little longer than a small one and not thirty times longer.
+ */
 export const STACK_POUR = 620;
 
+/**
+ * HOW WIDE THE FAN IS, degrees between one die of a run and the next.
+ *
+ * Wide enough that they part at once and narrow enough that a throw still goes where it was aimed:
+ * a handful thrown at the far corner must arrive at the far corner, spread out, not sprayed across
+ * the whole desk.
+ */
 export const DIE_FAN = 34;
-export const DIE_HOP = 0.08;
-export const DIE_SPIN = 720;
-export const DIE_SPIN_DRAG = 5;
-const DIE_SCATTER = 3.5;
+/**
+ * HOW HARD A ROLLED DIE COMES OFF THE DESK, units/s of rise.
+ *
+ * A die does not skate. Dropped from the hand's height alone it arrives at about five units a
+ * second and gives back a fraction of that — a hop of two pixels, which is a die that landed, not
+ * one that rolled. This is the kick a wrist gives it, and it buys the thing the whole gesture is
+ * about: it leaves the felt, comes down, turns its run a little, and does it again.
+ */
+export const DIE_HOP = 3;
+/**
+ * How fast a dropped die goes over, degrees/s, when the hand gave it no turn of its own.
+ *
+ * A die let go of ROLLS — that is what a die is for, and a die that came down flat and simply lay
+ * there would be a counter. Off the tuning's own `spinFriction` this is about two thirds of a second
+ * of turning, which is long enough to read as a roll and short enough not to be a wait.
+ */
+export const DIE_SPIN = 1400;
+/**
+ * How fast that turn bleeds away, degrees/s² — steeper than the desk's own, so a faster roll is not
+ * also a longer one. A die that kept turning for three seconds is a die nobody is waiting for.
+ */
+export const DIE_SPIN_DRAG = 900;
+/**
+ * HOW HARD A HANDFUL OF DICE PUSHES ITSELF APART, units/s — and it is a real throw, not a nudge.
+ *
+ * Two dice tipped out of a hand do not land side by side because somebody aimed them there; they
+ * land apart because they were never going the same way. This is that: enough speed for each to
+ * make its own way across the felt, so a drop of two reads as two dice thrown rather than as one
+ * die that split.
+ */
+export const DIE_SCATTER = 2.6;
 const DEFAULT_MAP = { w: 8, h: 8 };
 
-/**
- * WHAT A HAND ACTUALLY THREW, in units/s — the speed it had OVER the throwing speed, not all of it.
- *
- * Carrying is moving. A hand crossing the desk with a card in it is going somewhere at three or
- * four units a second, and taking that as the throw means every ordinary putting-down is a flick:
- * let go while still walking the card over and it sails off, which is what a hand never does and
- * what nobody asked it to do.
- *
- * It also puts a CLIFF at the threshold. Below it nothing flies at all; a hair above it and the
- * piece leaves at full carrying speed — the same gesture, a millimetre apart, giving nothing and
- * giving everything. Measured as the excess, a throw begins at nothing exactly where it begins to
- * be a throw, and grows from there: what travels is the part of the gesture that was a THROW, and
- * the part that was merely carrying is left where carrying leaves things.
- */
 export function threwAt(speed: number): number {
   return Math.max(0, speed - THROWN_AT);
 }
@@ -208,10 +241,32 @@ export function flickOf(swing: Vec | undefined, perUnit: number, drag = 0): Vec 
   if (flick <= 0) return undefined;
   const at = flick / speed / perUnit;
   const world = { x: swing.x * at, y: swing.y * at };
+  // ...AND THEN IT IS ASKED WHETHER IT WOULD GO ANYWHERE.
+  //
+  // A speed alone cannot answer "was that a throw", which is why every number tried for it has been
+  // wrong in one direction or the other. What a hand MEANT is legible in where the piece would end
+  // up: this is how a phone tells a flick from a careful scroll, and it is the same arithmetic the
+  // zone is already asked (`restsAt`, `v²/2a`). Under `THROW_REACH` the piece would land a third of
+  // a card from where it was let go of, which is a putting-down that took a run-up — and flying it
+  // means a whole animation, a whole stagger and a whole reassembly to move it almost nowhere.
   const far = drag > 0 ? (flick / perUnit) ** 2 / (2 * drag) : Infinity;
   return far >= THROW_REACH ? world : undefined;
 }
 
+/**
+ * WHAT A HAND ACTUALLY THREW, in units/s — the speed it had OVER the throwing speed, not all of it.
+ *
+ * Carrying is moving. A hand crossing the desk with a card in it is going somewhere at three or
+ * four units a second, and taking that as the throw means every ordinary putting-down is a flick:
+ * let go while still walking the card over and it sails off, which is what a hand never does and
+ * what nobody asked it to do.
+ *
+ * It also puts a CLIFF at the threshold. Below it nothing flies at all; a hair above it and the
+ * piece leaves at full carrying speed — the same gesture, a millimetre apart, giving nothing and
+ * giving everything. Measured as the excess, a throw begins at nothing exactly where it begins to
+ * be a throw, and grows from there: what travels is the part of the gesture that was a THROW, and
+ * the part that was merely carrying is left where carrying leaves things.
+ */
 /**
  * THE FLIGHT A HAND GIVES A PIECE, from a swing that is already the excess in units (`flickOf`).
  *
@@ -281,6 +336,11 @@ export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
  * above has none either — it finds room and settles. What tells the two apart is the only thing that
  * differs: whether the hand was going anywhere. A desk that did not ask is unchanged: everything
  * that reaches anything shoves it, which is what a desk without the rule has always done.
+ *
+ * The SAME threshold that decides whether a released piece flies at all (`thrown`), so "thrown"
+ * means one thing on this shelf and not two. A second number here would be a second definition of
+ * the word, and the day they drifted apart there would be a release that flies without shoving and
+ * nobody able to say why.
  */
 export function shoves(speed: number, holds = true): boolean {
   return !holds || speed > 0;
@@ -292,6 +352,15 @@ export function shoves(speed: number, holds = true): boolean {
  * A slide bleeds a fixed amount of speed per second — constant deceleration — so the distance it
  * will cover is arithmetic and not a guess: `v² / 2a`, the same sum a first physics lesson does. It
  * is exact for the flight the desk actually files, which is what makes it worth asking at all.
+ *
+ * Worth asking because a magnet that only catches a piece PUT DOWN near a zone is half a magnet. A
+ * card flicked at somebody's area is aimed just as plainly as one carried there, and a desk that
+ * answered "you let go too far away" to a throw that was going to land in the zone anyway would be
+ * refusing the more confident of the two gestures.
+ *
+ * Walls are not in it: a throw that would bounce ends up somewhere this does not predict. That is
+ * the honest limit, and it is the right side to be wrong on — a throw hard enough to reach a wall is
+ * not a throw anybody meant to drop into a zone a few units away.
  */
 export function restsAt(from: Vec, hand: Vec | undefined, feel: DropFeel, friction: number): Vec {
   if (!hand) return from;
@@ -302,14 +371,45 @@ export function restsAt(from: Vec, hand: Vec | undefined, feel: DropFeel, fricti
   return { x: from.x + (hand.x / Math.hypot(hand.x, hand.y)) * far, y: from.y + (hand.y / Math.hypot(hand.x, hand.y)) * far };
 }
 
-const STACK_STEP = { x: 0.012, y: -0.03 };
-const STACK_THICK = 0.22;
+/**
+ * How far apart the pieces of a lifted stack stand, in units — the same trick `stackLayout` uses:
+ * thickness is an `at` offset and never a `z`, or a heap would rise off the felt as it grew.
+ */
+export const STACK_STEP = { x: 0.012, y: -0.03 };
+/**
+ * HOW THICK A LIFTED HEAP MAY GET, in units, however many pieces are in it.
+ *
+ * A step per piece is right for a few and absurd for thirty: at three cards it is the thickness you
+ * can see, at thirty it is nearly a whole card of spread and the deck comes up a fan. A real deck
+ * does not grow like that either — a card's thickness is not a card's WIDTH, and what the eye reads
+ * off a pile is its edge, not its count. So the step shrinks to fit: a small heap is unchanged and a
+ * big one is a deck.
+ */
+export const STACK_THICK = 0.22;
 
+/**
+ * Where each piece of a lifted heap stands, relative to the handle that lifted it.
+ *
+ * BY ITS BOTTOM CENTRE, not its middle. A handle is under a heap, and what is under a thing meets
+ * it at its bottom edge — hung by their middles the pieces sit ON the tab with half of each below
+ * it, which is a stack skewered on its own handle rather than one standing on it. The gap it stands
+ * at is the gap it was DRAWN at (`GRIP_GAP`), so nothing moves relative to anything at the lift.
+ */
 export function stackSeats(group: readonly Node[], gripW = 0.6, want: Vec = STACK_STEP, thick = STACK_THICK): Vec[] {
+  // The handle's proportions and the gap it is drawn at are the catalog's (`GRIP_RATIO`, `GRIP_GAP`
+  // in its gesture map); the numbers are repeated here so the seats stay where the handle draws.
   const clear = gripW / 4 / 2 + 0.06;
+  // The step a heap this big can afford — see `STACK_THICK`. One piece has no step to take.
   const spread = Math.max(1, group.length - 1);
   const fit = Math.min(1, thick / (Math.abs(want.y) * spread));
   const step = { x: want.x * fit, y: want.y * fit };
+  // `|| 0` folds the −0 that `0 * −step` yields at index 0 back to +0, exactly as `stackLayout`
+  // does: a negative zero is a real coordinate footgun — it fails `Object.is` and leaks downstream.
+  // CENTRED ON THE HANDLE, because that is where the handle stands: `gripFor` puts the tab under the
+  // MIDDLE of what it lifts. Counted from the first card instead, the pile it puts down drifts off
+  // sideways by half its own spread — and with thirty-six cards that is the better part of a card,
+  // so the tab and the pile it stands for ended up in visibly different places. Which is also what
+  // the picture of the landing was showing, correctly and uselessly.
   const mid = (group.length - 1) / 2;
   return group.map((piece, i) => {
     const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
@@ -321,6 +421,15 @@ export function stackSeats(group: readonly Node[], gripW = 0.6, want: Vec = STAC
 /**
  * EVERY PIECE OF A THROWN RUN, AIMED AT ITS OWN PLACE IN THE FORMATION — its speed and its heading,
  * in the run's order, so it comes to rest exactly at its seat around where the ANCHOR stops.
+ *
+ * A thrown run is otherwise a handful of separate throws that happen to share a hand: each piece
+ * leaves from where the fan put it and travels its own distance, so the hand arrives on the felt as
+ * the same spread it was held in — a stack in name only. Tidying that up after the landing is what
+ * a correction looks like; aiming each piece at its seat makes them converge on the way down.
+ *
+ * SOLVED, NOT GUESSED. A slide of speed `v` under drag `a` stops after `v²/2a`, so the speed that
+ * stops at distance `d` is `sqrt(2ad)` — the exact inverse of `restsAt`, which is what the zone is
+ * asked about, so where the run is AIMED and where it LANDS are one number and not two.
  */
 export function flockTo(
   run: readonly Node[],
@@ -331,7 +440,24 @@ export function flockTo(
   seats: readonly Vec[] = stackSeats(run),
 ): { readonly speed: number; readonly angle: number; readonly friction: number }[] {
   const home = restsAt(anchorAt, hand, feel, drag);
+  // THE DRAG THE THROW WILL ACTUALLY FEEL. A piece may state its own (`DropFeel.friction`) and the
+  // desk's is only the fallback — solved against the desk's while flying under its own, every seat
+  // would be missed by the ratio between them, which is a formation that lands somewhere else.
   const pull = feel.friction ?? drag;
+  // HOW LONG THE THROW LASTS — the ANCHOR'S own flight, and every piece is given that same time.
+  //
+  // Not each its own. A run leaves the hand as a fan, so the far card has three times the outer
+  // one's distance to cover; solved separately, each gets the speed its own gap deserves and lands
+  // when its own arithmetic says — which is a hand arriving as a QUEUE over the better part of two
+  // seconds, tearing itself apart on the way down. Worse, the length of the animation was then set
+  // by how wide the fan was rather than by how hard the throw was, so a gentle flick of thirty-six
+  // cards took longer than a hard one of three.
+  //
+  // One time for the hand, and it is the time the THROW deserves: a slide of speed `v` under drag
+  // `a` runs for `v/a`. Each piece is then given the speed and the drag that cover ITS distance in
+  // exactly that time — `v = 2d/T` and `a = v/T`, the same constant-deceleration slide the desk
+  // files for everything else. They set off together, they arrive together, and the whole thing
+  // lasts as long as the hand meant it to.
   const flight = Math.hypot(hand.x, hand.y) * feel.throwGain;
   const span = pull > 0 ? flight / pull : 0;
   return run.map((piece, i) => {
@@ -346,6 +472,16 @@ export function flockTo(
 
 /**
  * WHAT ELSE ON THE DESK IS IN THE WAY OF THIS THROW.
+ *
+ * Collision is between BODIES, and a piece that is not moving is not one: it landed, its seat was
+ * written, the physics forgot it. So a die thrown across a desk sails over every chip already on the
+ * felt and comes to rest on one — the same complaint the mechanic exists to answer, wearing "but it
+ * was not moving" as an excuse. For the length of the throw these become bodies too.
+ *
+ * Only the ones that could actually be hit: something already in the run has its own body, and
+ * something solid in a world nobody is throwing INTO cannot be reached by anything in this throw.
+ * A piece that takes no room at all is never in anybody's way, which is every piece on every desk
+ * but this one.
  */
 export function alsoInTheWay(
   root: Node,
@@ -363,6 +499,15 @@ export function alsoInTheWay(
 
 /**
  * HOW MUCH ROOM A PIECE TAKES BY ITS OWN SIZE — half its narrowest side, times whatever the panel says.
+ *
+ * A factor rather than a length, because the pieces are three sizes: at `1` each takes exactly as
+ * much room as it is wide, so two of a kind come to rest edge to edge, and that reads right for all
+ * three without anybody choosing a number per piece.
+ *
+ * The NARROWEST side, and the cost is worth naming: the room is a disc (`separate` says why), so a
+ * card measured across its width will let two cards overlap when they are stacked end to end. For a
+ * card the alternative is worse — measured by its height, two cards side by side would refuse to
+ * come within a card's length of each other, which is not a desk anybody has played on.
  */
 export function roomBy(piece: Node, factor: number): number {
   const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
@@ -371,13 +516,27 @@ export function roomBy(piece: Node, factor: number): number {
 }
 
 /**
- * IT MOVES NOTHING BUT THE VIEW. The desk's border is still a wall to the PIECES (`mapWalls`)
+ * THE MAP'S OWN BORDER, as the tray a carried piece may not be taken out of.
+ *
+ * The walls clamp the ANCHOR — the piece's origin — so they are the map inset by the piece's own
+ * half: clamp the origin to the map's edge instead and half the card hangs over the side. Asked per
+ * piece, because the four pieces are four sizes and one number could only be right for one of them.
+ *
+ * `lift` is the pop the carry is holding it at: a piece drawn six percent bigger is six percent
+ * wider than the tree says it is, and a border that ignored that would let exactly that sliver of
+ * card cross it. Pass `1` for a carry with no pop.
  */
 export function mapWalls(piece: Node, lift = 1, box: { readonly w: number; readonly h: number } = DEFAULT_MAP): Walls {
   const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
   const size = shape ? extentOf(shape) : { w: 0, h: 0 };
+  // THE DESK'S OWN BOX, not the shelf's stock one. A desk wider than the map — a felt with a board
+  // in the middle of it — walled at the map's size holds the hand inside the middle eight units of
+  // fourteen: a man could be carried to the board's edge and no further, and the felt beyond it,
+  // drawn and accepting, could never be reached.
   const x = box.w / 2 - (size.w * lift) / 2;
   const y = box.h / 2 - (size.h * lift) / 2;
+  // A piece bigger than the map has nowhere to stand: the box collapses to the middle rather than
+  // turning inside out, which is what a negative half would do.
   return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };
 }
 
@@ -406,6 +565,13 @@ function isDrawn(n: Node): boolean {
 
 /**
  * WHO LEAVES THE HAND WHEN, for a run being let go of — the handle never, the rest a step apart.
+ *
+ * The bottom of the stack goes first and the top last, so the pieces land on top of what is already
+ * down rather than under it, and the heap pours instead of dropping as a slab. A run of one has no
+ * stagger to have: `0`, and the ordinary drop is unchanged, which is every other page on the shelf.
+ *
+ * A HANDLE IS NOT AMONG THEM. It is a control, and a control does not fall — it is redrawn under
+ * wherever the pieces land.
  */
 export function fallOrder(
   pieces: readonly Node[],
@@ -414,11 +580,21 @@ export function fallOrder(
   const falling = pieces.filter((n) => !isDrawn(n));
   const gaps = Math.max(1, falling.length - 1);
   const step = Math.min(STACK_FALL_STEP, STACK_POUR / gaps);
+  // A HAND FLYING IN FORMATION IS NOT A POUR. The stagger is what makes a heap tip out of a hand
+  // rather than arrive as a slab — right for pieces that simply fall where they were let go of, and
+  // wrong for a run that is being THROWN somewhere, which sets off together and arrives together
+  // (`flockTo`). Staggered on top of that, the formation lands as a queue: exactly the tearing the
+  // one arrival time exists to end, put back by the thing that was meant to make it read well.
   return falling.map((piece, i) => ({ piece, delayMs: together.has(piece.id) ? 0 : Math.round(i * step) }));
 }
 
 /**
  * PUT A PIECE ON TOP of everything else on the desk — the last thing dropped covers what is under it.
+ *
+ * Tree order, and not a height: equal `z` keeps the order the children stand in (the plan sorts
+ * stably), so "in front" is a place in the list. Written as a height it would be a lie about the
+ * third dimension — the piece is ON the desk, not hovering over it — and every drop would raise the
+ * pile a little further off the felt forever.
  */
 export function toFront(piece: Node): void {
   const owner = piece.parent;
@@ -428,25 +604,94 @@ export function toFront(piece: Node): void {
   reorder(owner, [...owner.children.keys()].filter((k) => k !== i).concat(i));
 }
 
+/**
+ * LET GO OF THE PIECES — they are in the air, and the air is where they are let go of.
+ *
+ * Three things happen, in this order and for a reason each:
+ *
+ *   THE SEAT IS WRITTEN FIRST. It is the truth — this is where the piece now lives — and a fall is
+ *   only a look. A flight starts from the node's REST, so the seat has to be there before the drop
+ *   is asked for, or the piece would fall at the place it was picked up from.
+ *
+ *   THE PIECE COMES TO THE FRONT. The last thing dropped covers what is under it, which is what a
+ *   desk does; tree order and not a height, see `toFront`.
+ *
+ *   AND THEN IT FALLS, from exactly the height the hand was holding it at. The hand's height is a
+ *   SCALE (`lift`) and a fall's is a LENGTH, and `RISE` is the one rate between them — asked here
+ *   rather than guessed, because a second answer to it is a piece that jumps the instant it is
+ *   released. How it comes down is the piece's own business (`dropOf`).
+ *
+ * `hand` is the speed the hand still had on it: absent, the piece drops where it stood; present, the
+ * same fall carries that speed across the desk and the map's border reflects it. A slow release is
+ * then not a special case at all — it is a throw of nearly no speed, which is a drop.
+ */
+/**
+ * WHERE THIS ONE OF THE HANDFUL GOES — the fan, in degrees, or nothing at all.
+ *
+ * Counted from the middle outwards, so a run of two parts evenly about the throw and a run of one
+ * is not fanned at all: a single die thrown goes where it was thrown, and a rule that nudged it
+ * aside would be the desk disagreeing with the hand.
+ */
 export function fanOf(nth: number, of: number, aim: number): number | undefined {
   if (nth < 0 || of < 2) return undefined;
   return aim + (nth - (of - 1) / 2) * DIE_FAN;
 }
 
+/** Which way a handful goes when the hand had no direction of its own: away from the reader. */
 const DOWN_THE_DESK = 90;
+/** Two velocities as one — the throw the hand gave it plus its own share of the opening. */
 const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
 
+/** Where a node stands right now, in root units — the seat a landing or a release just wrote. */
 export function seatIn(n: Node): Vec {
   return fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
 }
 
+/**
+ * THE SEAT A FLIGHT ENDED ON, written into the tree — in the flight's own frame.
+ *
+ * Composed and not fed through `setRoot`: the runtime reads the tree itself on the very frame a
+ * landing is reported, so the seat is found equal and nothing flies. Routed through a notify it
+ * would arrive a frame late, and that frame is the piece back at the hand.
+ *
+ * Root units are the seat's units here, as the map is the root and stands at the origin.
+ */
 export function landed(s: FallScene, id: string, at: { readonly at: Vec; readonly angle: number }): void {
   const n = byId(s.host.root, id);
   if (!n) return;
   const own = fieldsOf<TransformableFields>(n, "Transformable");
+  // THE SEAT ONLY, never the turn. A flight reports its turn as the resting pose's own plus whatever
+  // it spun, and the resting pose of a FACE-DOWN card is a mirror — a matrix a turn is read out of
+  // as a half circle, because that is what a mirror looks like to `atan2`. Written back it lands the
+  // card upside down. Nothing on this desk turns while it flies except the die, and the die writes
+  // its own landing (`throwDie`), so there is no turn here to keep.
   compose(n, Transformable({ ...(own ?? {}), at: at.at }));
 }
 
+/**
+ * EVERY PIECE OF A THROWN RUN, AIMED AT ITS OWN PLACE IN THE FORMATION — id to a throw that lands
+ * exactly there. Empty when this run has no formation to keep.
+ *
+ * THE DESTINATION IS THE ANCHOR'S. A run carried by its handle is anchored on that handle: it is
+ * what the hand had hold of and what the hand aimed, so where IT comes to rest is where the run
+ * comes to rest (`restsAt`, the same arithmetic the zone is asked about). The pieces are then seated
+ * around that point exactly as they are seated around the handle in the hand (`stackSeats`), which
+ * is why the hand keeps its shape through the whole flight instead of being reassembled on arrival.
+ *
+ * A thrown run used to be a handful of separate throws that happened to share a hand: each piece
+ * left from where the fan had put it and travelled its own distance, so the hand arrived on the felt
+ * as the same spread it had been held in — a stack in name only, tidied up afterwards. Tidying up
+ * after a landing is what a correction looks like.
+ *
+ * A THROW IS SOLVED, NOT GUESSED. A slide of speed `v` under drag `a` stops after `v²/2a`, so the
+ * speed that stops at a given distance is `sqrt(2ad)`: the flight is aimed at the seat and ends
+ * there, with the same slowing-down every other throw on the desk has.
+ *
+ * WHO FLIES LIKE THIS IS DATA AND NOT A KIND. A piece that scatters is being opened out on purpose,
+ * and a piece that takes up room is going to be shoved by its neighbours anyway: either one aimed at
+ * a seat would be aimed at a seat it cannot keep. What is left — a thing that neither scatters nor
+ * takes room — is a card, and a hand of them lands as a hand.
+ */
 export function formationOf(
   s: FallScene,
   items: readonly CarryItem[],
@@ -458,6 +703,7 @@ export function formationOf(
   const out = new Map<string, { readonly speed: number; readonly angle: number; readonly friction: number }>();
   const first = items[0];
   const anchor = first ? put.find((n) => n.id === first.id && isGrip(n)) : undefined;
+  // A run with no handle is a run of one, and one piece is its own formation.
   if (!anchor || !hand) return out;
   const flying = new Set(falling.map((n) => n.id));
   const run = put.filter((n) => !isDrawn(n) && flying.has(n.id) && feelOf(n).scatter === 0 && feelOf(n).girth === 0);
@@ -465,6 +711,7 @@ export function formationOf(
   if (!feel) return out;
   const drag = feel.friction ?? s.motions?.tuning().friction ?? 0;
   if (drag <= 0) return out;
+  // The run travels as ONE, so the anchor is carried by the run's own physics and not by a control's.
   flockTo(run, seatIn(anchor), hand, feel, drag).forEach((throwAt, i) => {
     const piece = run[i];
     if (piece) out.set(piece.id, throwAt);
