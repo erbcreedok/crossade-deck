@@ -17,7 +17,7 @@ import { catalogText, LOCALES, type CatalogLocale, type CatalogText } from "./lo
 import { inspectorBodyStyle, inspectorMarkup } from "./devtools/inspectorPanel.js";
 import { type InspectReport } from "./devtools/inspectorBus.js";
 import { STORY_MISSING } from "storybook/internal/core-events";
-import { GK_INSPECT } from "./inspectChannel.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "./inspectChannel.js";
 import { storySource } from "./devtools/storySource.js";
 import "./devtools/snippetValues.js";
 import { pinTextSize } from "./devtools/textSize.js";
@@ -232,9 +232,20 @@ const NodeTreePanel: React.FC<{ active: boolean }> = ({ active }) => {
   // Reports are kept per scene, and a scene is named after its story: the panel shows the
   // story on screen, not whichever scene last spoke.
   const [reports, setReports] = useState<Record<string, InspectReport>>({});
-  useChannel({
-    [GK_INSPECT]: (next: InspectReport) => setReports((prev) => ({ ...prev, [next.sceneId]: next })),
-  });
+
+  useEffect(() => {
+    if (!active) return;
+    const channel = addons.getChannel();
+    const handler = (next: InspectReport): void => {
+      setReports((prev) => ({ ...prev, [next.sceneId]: next }));
+    };
+    channel.on(GK_INSPECT, handler);
+    channel.emit(GK_INSPECT_WATCH);
+    return () => {
+      channel.off(GK_INSPECT, handler);
+      channel.emit(GK_INSPECT_UNWATCH);
+    };
+  }, [active]);
 
   if (!active) return null;
   const storyId = api.getUrlState().storyId;

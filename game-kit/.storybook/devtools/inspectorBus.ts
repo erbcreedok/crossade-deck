@@ -14,11 +14,18 @@
 // component, so several scenes are alive at once and each block must find its own.
 
 import { type InspectNode } from "../../src/index.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "../inspectChannel.js";
 
 export interface InspectReport {
   /** Who published. The catalog names scenes after stories, so a block can find its own. */
   readonly sceneId: string;
   readonly nodes: readonly InspectNode[];
+}
+
+export interface InspectChannel {
+  on(event: string, listener: (...args: any[]) => void): void;
+  off(event: string, listener: (...args: any[]) => void): void;
+  emit(event: string, ...args: any[]): void;
 }
 
 type Listener = (report: InspectReport) => void;
@@ -54,7 +61,16 @@ export function takeSceneId(key?: string): string {
   return id;
 }
 
+function sameReport(prev: InspectReport | undefined, next: InspectReport): boolean {
+  if (!prev) return false;
+  if (prev.nodes === next.nodes) return true;
+  if (prev.nodes.length !== next.nodes.length) return false;
+  return JSON.stringify(prev.nodes) === JSON.stringify(next.nodes);
+}
+
 export function publishInspect(report: InspectReport): void {
+  const prev = reports.get(report.sceneId);
+  if (sameReport(prev, report)) return;
   reports.set(report.sceneId, report);
   for (const l of listeners) l(report);
 }
@@ -64,6 +80,31 @@ export function onInspect(listener: Listener): () => void {
   listeners.add(listener);
   for (const r of reports.values()) listener(r);
   return () => listeners.delete(listener);
+}
+
+/**
+ * Bridges the bus across the iframe channel, emitting only when at least one watcher is listening.
+ * A watcher announces interest with `GK_INSPECT_WATCH` and receives all live reports immediately.
+ */
+export function wireInspectBridge(channel: InspectChannel): () => void {
+  let watchers = 0;
+  const onWatch = (): void => {
+    watchers += 1;
+    for (const r of liveReports()) channel.emit(GK_INSPECT, r);
+  };
+  const onUnwatch = (): void => {
+    watchers = Math.max(0, watchers - 1);
+  };
+  channel.on(GK_INSPECT_WATCH, onWatch);
+  channel.on(GK_INSPECT_UNWATCH, onUnwatch);
+  const stopBus = onInspect((report) => {
+    if (watchers > 0) channel.emit(GK_INSPECT, report);
+  });
+  return () => {
+    channel.off(GK_INSPECT_WATCH, onWatch);
+    channel.off(GK_INSPECT_UNWATCH, onUnwatch);
+    stopBus();
+  };
 }
 
 /** A disposed scene stops speaking for a tree that is no longer on screen. */

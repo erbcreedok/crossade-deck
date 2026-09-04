@@ -6,3 +6,5 @@
 // showed nothing. A late subscriber cannot hear a one-shot event — the panel reads the story's
 // parameters instead. Anything a panel may open onto belongs in a place that can be READ.
 export const GK_INSPECT = "gameKit/inspect";
+export const GK_INSPECT_WATCH = "gameKit/inspect:watch";
+export const GK_INSPECT_UNWATCH = "gameKit/inspect:unwatch";

@@ -3,9 +3,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { add, inspect, node } from "../../src/index.js";
 import { catalogText } from "../locales/catalog.js";
-import { clearInspect, liveReports, onInspect, publishInspect, setNextSceneId, takeSceneId } from "./inspectorBus.js";
+import { clearInspect, liveReports, onInspect, publishInspect, setNextSceneId, takeSceneId, wireInspectBridge } from "./inspectorBus.js";
 import { inspectorMarkup } from "./inspectorPanel.js";
 import { inspectorOpen, inspectorTab, setInspectorOpen, setInspectorTab } from "./inspectorPrefs.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "../inspectChannel.js";
 import { registerSnippetValue, storySource, stripMember } from "./storySource.js";
 
 beforeEach(() => {
@@ -46,6 +47,64 @@ describe("the tree finds its reader", () => {
 
   it("inspector.markup-empty — no scene reporting yet is a blank tree, not a crash", () => {
     expect(inspectorMarkup([], catalogText("en"))).toContain(catalogText("en").text("inspector.title"));
+  });
+
+  it("inspector.bus-dedupes — identical report in a row is not published", () => {
+    const root = node("b_dedupe");
+    let calls = 0;
+    const stop = onInspect(() => {
+      calls += 1;
+    });
+    publishInspect({ sceneId: "d1", nodes: inspect(root) });
+    expect(calls).toBe(1);
+    publishInspect({ sceneId: "d1", nodes: inspect(root) });
+    expect(calls, "second publish of identical report is suppressed").toBe(1);
+
+    add(root, node("child"));
+    publishInspect({ sceneId: "d1", nodes: inspect(root) });
+    expect(calls, "publish after change goes through").toBe(2);
+    stop();
+  });
+
+  it("inspector.bridge-watchers — the channel is silent without watchers, and hears all live reports on watch", () => {
+    const events: { name: string; data: unknown }[] = [];
+    const channel = {
+      on(name: string, fn: (...args: unknown[]) => void) {
+        listeners[name] = listeners[name] ?? [];
+        listeners[name]!.push(fn);
+      },
+      off(name: string, fn: (...args: unknown[]) => void) {
+        listeners[name] = (listeners[name] ?? []).filter((l) => l !== fn);
+      },
+      emit(name: string, data?: unknown) {
+        events.push({ name, data });
+        for (const fn of listeners[name] ?? []) fn(data);
+      },
+    };
+    const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
+
+    const stopBridge = wireInspectBridge(channel);
+    publishInspect({ sceneId: "w1", nodes: inspect(node("w_root")) });
+
+    // Without watchers, channel emits nothing
+    expect(events.filter((e) => e.name === GK_INSPECT)).toHaveLength(0);
+
+    // Watcher connects: gets live reports immediately
+    channel.emit(GK_INSPECT_WATCH);
+    const inspectEvents = events.filter((e) => e.name === GK_INSPECT);
+    expect(inspectEvents).toHaveLength(1);
+    expect((inspectEvents[0]!.data as { sceneId: string }).sceneId).toBe("w1");
+
+    // While watched, new publishes arrive
+    publishInspect({ sceneId: "w2", nodes: inspect(node("w_root_2")) });
+    expect(events.filter((e) => e.name === GK_INSPECT)).toHaveLength(2);
+
+    // Watcher disconnects: channel goes silent
+    channel.emit(GK_INSPECT_UNWATCH);
+    publishInspect({ sceneId: "w3", nodes: inspect(node("w_root_3")) });
+    expect(events.filter((e) => e.name === GK_INSPECT)).toHaveLength(2);
+
+    stopBridge();
   });
 });
 

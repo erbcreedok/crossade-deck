@@ -20,7 +20,7 @@ import { loadedPage, loadPage, pageOf, type PageKey, type PageText } from "./loc
 import { type InspectReport } from "./devtools/inspectorBus.js";
 import { inspectorMarkup } from "./devtools/inspectorPanel.js";
 import { inspectorOpen, inspectorTab, setInspectorOpen, setInspectorTab, type PanelTab } from "./devtools/inspectorPrefs.js";
-import { GK_INSPECT } from "./inspectChannel.js";
+import { GK_INSPECT, GK_INSPECT_UNWATCH, GK_INSPECT_WATCH } from "./inspectChannel.js";
 import { dark, light } from "./theme.js";
 
 // The page CHROME — the wrapper, the headings, the inline code — is styled by a global sheet
@@ -115,8 +115,10 @@ function useReports(): Record<string, InspectReport> {
     const handler = (report: InspectReport): void =>
       setReports((prev) => ({ ...prev, [report.sceneId]: report }));
     ctx.channel.on(GK_INSPECT, handler);
+    ctx.channel.emit(GK_INSPECT_WATCH);
     return () => {
       ctx.channel.off(GK_INSPECT, handler);
+      ctx.channel.emit(GK_INSPECT_UNWATCH);
     };
   }, [ctx]);
   return reports;

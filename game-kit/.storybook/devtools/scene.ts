@@ -735,8 +735,8 @@ export function scene(
   // carried piece, a fade ending, a drop — ran this whole thing at once: a second plan of the desk
   // for the "nothing is drawn" line, the inspector's report, the toolbar — on the input path, per
   // change, and that was a third of what a carry cost. The picture is painted by the host's own
-  // listeners as it always was; the words about it follow on the next tick, once for however
-  // many changes came in one breath.
+  // listeners as it always was; the words about it follow no faster than the eye can read (at most
+  // four times a second), once for however many changes came in that window.
   let noteDue = false;
   host.onChange(() => {
     if (noteDue) return;
@@ -744,7 +744,7 @@ export function scene(
     setTimeout(() => {
       noteDue = false;
       if (LIVE.get(id) === built) refresh();
-    }, 0);
+    }, 250);
   });
 
   // A catalog change reaches a MOUNTED scene without rebuilding it — and never overrides the

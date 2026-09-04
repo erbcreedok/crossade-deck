@@ -4,9 +4,8 @@ import { GLOBALS_UPDATED } from "storybook/internal/core-events";
 import { installTheme, t, type ThemeName } from "../src/index.js";
 import { catalogText, type CatalogLocale } from "./locales/catalog.js";
 import { currentSettings, setCatalogSettings } from "./devtools/catalogSettings.js";
-import { onInspect, setNextSceneId } from "./devtools/inspectorBus.js";
+import { setNextSceneId, wireInspectBridge } from "./devtools/inspectorBus.js";
 import { DocsPage } from "./DocsPage.js";
-import { GK_INSPECT } from "./inspectChannel.js";
 import { storySource } from "./devtools/storySource.js";
 import { pinTextSize } from "./devtools/textSize.js";
 import "./devtools/snippetValues.js";
@@ -83,8 +82,8 @@ function apply(globals: Record<string, unknown>): void {
 if (typeof document !== "undefined") {
   const channel = addons.getChannel();
   channel.on(GLOBALS_UPDATED, ({ globals }: { globals: Record<string, unknown> }) => apply(globals));
-  // A scene publishes its tree; the manager's panel is on the other side of the iframe.
-  onInspect((report) => channel.emit(GK_INSPECT, report));
+  // A scene publishes its tree only when someone is watching.
+  wireInspectBridge(channel);
 }
 
 const preview: Preview = {

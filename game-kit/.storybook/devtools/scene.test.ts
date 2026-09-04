@@ -183,23 +183,32 @@ describe("a canvas carries its own settings", () => {
     s.dispose();
   });
 
-  it("scene.a-change-is-not-the-time-to-write-the-note — ten changes in one breath, one report, on the next tick", async () => {
+  it("scene.a-change-is-not-the-time-to-write-the-note — ten changes in one breath, one report, on the next tick", () => {
     // Every publish of the tree ran the shell's note, the inspector's report and the toolbar at
     // once — a second whole plan of the desk, on the input path, per change; under a carried piece
     // on a board that was a third of what the carry cost. The picture is painted at once as ever;
-    // the words about it follow on the next tick, once.
-    setNextSceneId("story:breath");
-    const root = node("desk", Container({ layout: "story.free" }));
-    let reports = 0;
-    const off = onInspect((r) => { if (r.sceneId === "story:breath") reports += 1; });
-    const s = buildScene(root, {}, currentSettings(), stubPainter);
-    reports = 0; // the build itself writes the note once, at once — that one is earned
-    for (let i = 0; i < 10; i += 1) s.host.setRoot(root);
-    expect(reports, "nothing written on the input path").toBe(0);
-    await new Promise((r) => setTimeout(r, 5));
-    expect(reports, "one report for the whole breath").toBe(1);
-    off();
-    s.dispose();
+    // the words about it follow no faster than the eye can read (at most four times a second),
+    // once for however many changes came in that window.
+    vi.useFakeTimers();
+    try {
+      setNextSceneId("story:breath");
+      const root = node("desk", Container({ layout: "story.free" }));
+      let reports = 0;
+      const off = onInspect((r) => { if (r.sceneId === "story:breath") reports += 1; });
+      const s = buildScene(root, {}, currentSettings(), stubPainter);
+      reports = 0; // the build itself writes the note once, at once — that one is earned
+      for (let i = 0; i < 10; i += 1) {
+        s.host.setRoot(node(`desk_${i}`));
+        vi.advanceTimersByTime(10);
+      }
+      expect(reports, "nothing written on the input path").toBe(0);
+      vi.advanceTimersByTime(250);
+      expect(reports, "one report for the whole breath").toBe(1);
+      off();
+      s.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("scene.note-earns-its-words — 'nothing is drawn' belongs only to an empty plan", () => {
