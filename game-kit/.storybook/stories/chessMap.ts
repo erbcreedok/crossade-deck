@@ -351,6 +351,15 @@ function cell(file: number, rank: number, reach: number): Node {
     // makes a node a square of this board is that it says it is one, not that it is called `cell e4`.
     Valued({ values: { cell: 1 } }),
     Acceptor({}),
+    // EVERY SQUARE TAKES, not only the ones set up with a man on them. The record used to be composed
+    // onto a square as its first man was stood on it, so the thirty-two starting squares captured
+    // and the thirty-two empty ones in the middle quietly stacked two, three men on one place —
+    // and the whole middle of the board, where the game actually happens, was not a board. What a
+    // square does about a sitter is the SQUARE'S law, said once where the square is made.
+    // WHOEVER IS TAKEN GOES TO HIS OWN SIDE, so the record names what happens to the man STANDING
+    // there — nobody's men land on the wrong side. Named the other way round, white's losses piled up
+    // on black's side, which is a scoreboard that reads backwards.
+    Displacer({ occupied: TAKEN }),
     Grabber({ grab: "one" }),
     Reaching({ reach }),
     // ...AND IT SAYS SO WHILE THE HAND IS OVER IT. Nothing for being merely willing: every cell on
@@ -385,10 +394,6 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // needs most: a man in somebody else's hand, plainly off the board.
     ShadowCaster({ picture: shadowOf(what) }),
   );
-  // WHOEVER IS TAKEN GOES TO HIS OWN SIDE'S TRAY, so the record a square names is the record of the
-  // man STANDING on it — nobody's tray holds anybody else's men. Named the other way round, white's
-  // losses piled up in black's tray, which is a scoreboard that reads backwards.
-  compose(spot, Displacer({ occupied: TAKEN }));
   add(spot, piece);
 }
 

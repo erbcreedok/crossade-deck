@@ -183,6 +183,22 @@ describe("a move on the real board, end to end", () => {
     s.dispose();
   });
 
+  it("chess.an-empty-square-takes-too — the middle of the board is a board", () => {
+    // The law is the square's, not the first man's: a square nobody was set up on must take a man
+    // dropped on a man standing there, or the whole middle of the board stacks men three deep.
+    const desk = chessMap();
+    const s = stand(desk);
+    const e4 = cellAt(desk, { x: 0.5, y: 0.5 });
+    expect(e4.children.length, "e4 starts empty").toBe(0);
+    dragTo(s, { x: 0.5, y: 2.5 }, { x: 0.5, y: 0.5 }); // white pawn e2 → e4
+    dragTo(s, { x: 0.5, y: -2.5 }, { x: 0.5, y: 0.5 }); // black pawn e7 → e4: takes
+    expect(e4.children.length, "one to a square, on a square that started empty too").toBe(1);
+    expect(ownedBy(e4.children[0]!, "black"), "the man who arrived stands there").toBe(true);
+    const taken = desk.children.filter((n) => caps(n).has("Draggable") && ownedBy(n, "white"));
+    expect(taken.length, "the white pawn went to the common zone").toBe(1);
+    s.dispose();
+  });
+
   it("chess.beside-landing — white captured pieces land left, black land right, ninth in second column", () => {
     const desk = chessMap();
     const s = stand(desk);
