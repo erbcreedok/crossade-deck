@@ -1,0 +1,41 @@
+{
+  "docs.fall.component": [
+    "When a gesture ends, what a hand was holding is let go of: slow hands settle, fast hands throw, and heavy things fall. Everything here is pure kit data and ballistic calculations.",
+    "",
+    "## Three ways to leave a hand",
+    "",
+    "A piece states how it leaves a hand through `DropFeel.fall` (`settle | fall | roll`), read directly from what the piece IS (`dropOf`):",
+    "",
+    "- **`settle`** is the quiet putting-down: the piece eases to the seat the finger chose, the pop unwinding on the way. Nothing is thrown, so there is nothing to schedule and nothing to re-order first. This is a card's default.",
+    "- **`fall`** is the drop proper: a body let go of at the hand's height, coming down under its own weight and bouncing as its own material does (`bounce`, `wallBounce`). This is a chip's default.",
+    "- **`roll`** is for bodies with faces (`Rollable`): a die does not skate or land flat — it rolls (`DIE_SPIN = 1400` deg/s, `DIE_SPIN_DRAG = 900` deg/s²). A wrist kick `DIE_HOP = 3` units/s gives it air to leave the felt, turn, and roll again.",
+    "",
+    "## Speed on the glass (`THROWN_AT = 150`)",
+    "",
+    "Above 150 pixels per second on the display glass, a release becomes a throw. It is measured **on the glass and nowhere else**:",
+    "",
+    "- In desk units, camera zoom would change gesture meaning: zoomed out, the same unhurried pass over the glass crosses three times the desk units, turning a gentle carry into a throw because the camera moved.",
+    "- Only the **excess speed** is taken (`threwAt(speed) = Math.max(0, speed - THROWN_AT)`). Carrying is moving: walking a card across the desk at 3–4 units/s shouldn't sail off. Measuring excess prevents a sharp cliff where 149 px/s does nothing and 151 px/s flings the card across the board.",
+    "",
+    "## Reach threshold (`THROW_REACH = 0.35`)",
+    "",
+    "About a third of a card. A throw that wouldn't carry a piece this far is treated as a putting-down (`settle`). Below it, flying adds animation time, stagger, and reassembly to move a distance nobody can see.",
+    "",
+    "## Dropping stacks and pouring",
+    "",
+    "When a stack is dropped, pieces leave the hand in sequence (`STACK_FALL_STEP = 55` ms), bottom first and top last, so the eye reads a **pour** rather than a slab. The total pour time is capped at `STACK_POUR = 620` ms so thirty-six cards don't turn into a two-second queue.",
+    "",
+    "For dice, `DIE_FAN = 34` deg and `DIE_SCATTER = 2.6` units/s spread a handful out evenly so they arrive as multiple thrown dice instead of one splitting die.",
+    "",
+    "## Formation flight (`flockTo`)",
+    "",
+    "When a run of cards is thrown, where it comes to rest is solved analytically: `restsAt = v² / (2 * drag)`. All cards in the run share the anchor's flight duration `span = flight / pull`. Each card receives its own velocity `2d / span` and drag to arrive at its formation seat simultaneously as a neat stack.",
+    "",
+    "## Tree order on landing (`toFront`)",
+    "",
+    "The last dropped piece covers what is under it. This is expressed in **tree order**, never `z`: adding height would lift dropped cards further off the felt on every drop forever."
+  ],
+  "docs.fall.fall": [
+    "Interactive demonstration of `fall.ts`. Pick up cards, chips, or dice. Release slowly to observe their natural landing (`settle` for cards, `fall` with bounce for chips, `roll` with spin and hop for dice). Flick above 150 px/s to send them flying across the desk."
+  ]
+}

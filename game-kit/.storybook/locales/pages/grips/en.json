@@ -1,0 +1,39 @@
+{
+  "docs.grips.component": [
+    "Grips are drag handles drawn under a heap so a player can lift and move the entire stack with one finger.",
+    "",
+    "## Controls vs game pieces (`isDrawn`)",
+    "",
+    "A handle is drawn scenery, not a game piece: it has no weight, doesn't fall, doesn't fly when thrown, and is never placed into a deck or zone (`isDrawn = isGrip || isMark`).",
+    "",
+    "## Dimensions and proportions",
+    "",
+    "- **`GRIP_RATIO = 4`**: width `GRIP.w = 0.6`, height `h = 0.6 / 4 = 0.15`. Proportions make it immediately recognizable as a pull-tab rather than a tile or button.",
+    "- **`GRIP_GAP = 0.06`**: the small gap under the heap's bottom edge where the tab sits.",
+    "- **Centred on the heap**: positioned under the horizontal centre of the heap's common bounds (`heapBox`).",
+    "",
+    "## Sized for the finger (`Screened`, `GRIP_HOLD`)",
+    "",
+    "A handle is sized for the human fingertip, not the desk (`Screened` atom):",
+    "",
+    "- The ceiling is `max = 1.0`: zooming in scales the desk while the tab stays its natural finger size.",
+    "- The floor is `min = 0.8`: zooming out lets the tab shrink slightly so it doesn't dwarf tiny cards.",
+    "",
+    "## Forgiving touch target (`Forgiving`, `GRIP_MISS = 0.3`)",
+    "",
+    "A handle tab is thin (0.15 units tall) for visual subtlety, but fingertips cover ~40 pixels of glass and obscure targets. `Forgiving({ miss: GRIP.w / 2 })` gives it a 0.3-unit forgiving touch radius.",
+    "",
+    "**It never steals**: standard hit-testing runs first. `Forgiving` only claims touches that would have landed on empty felt. A finger touching a card always gets the card.",
+    "",
+    "## Identity and animation (`handlesDrawn`)",
+    "",
+    "A handle is ephemeral scenery. If handles were named by array indices, removing one heap would cause adjacent handles to swap IDs — the animator would see an existing handle's resting pose jump and slide it across the table. Naming each afresh (`handlesDrawn++`) creates a new node that appears at rest without flying in.",
+    "",
+    "## The `regrip` lifecycle",
+    "",
+    "Recomputed after any piece moves. Stale tabs are removed. **A handle in hand is not redrawn**: the tab currently held by a finger (`keep`) is preserved throughout the gesture so the carried stack doesn't vanish mid-drag."
+  ],
+  "docs.grips.grips": [
+    "Interactive demonstration of `grips.ts`. Build and merge heaps: watch how grip handles appear, maintain finger proportions via `Screened`, forgive touches via `Forgiving`, and update cleanly on heap merge."
+  ]
+}
