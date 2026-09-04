@@ -20,16 +20,13 @@ import {
 
   Coated,
   wouldAccept,
-  extentOf,
   mark,
   NO_COAT,
   Private,
-  add,
   apply,
   byId,
   caps,
   node,
-  remove,
   velocityOf,
   compose,
   DEFAULT_TUNING,
@@ -43,7 +40,10 @@ import {
   fanOf,
   seatIn,
   landed,
-  type BoundedFields,
+  handOver,
+  otherGrips,
+  boxOfDesk,
+  type Mirror as KitMirror,
   type CarryItem,
   type CarryOptions,
   type Node,
@@ -53,6 +53,7 @@ import {
 } from "../../src/index.js";
 
 export { formationOf, fanOf, seatIn, landed } from "../../src/index.js";
+export type Mirror = KitMirror<Scene>;
 import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
@@ -787,60 +788,6 @@ const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
 
 
 /**
- * GIVE THE RUN TO THE ZONE, here in the scene, and say the release is dealt with.
- *
- * The wiring can re-parent a drop of its own, and does it well — accept rules, displacement, the
- * lot. What it cannot do is a run led by a HANDLE: it moves the run's lead, and the lead of such a
- * run is a tab. So a hand put into a zone is handed over here instead, and the handle stays exactly
- * what it is — a picture, thrown away and redrawn by the next `settle`.
- *
- * Nothing is written about WHERE anything goes: the zone's own arrangement does that, and the
- * reconcile that follows eases every card from where the hand was holding it into the row. Which is
- * what "it lines up as it lands" means — not a snap after the fact.
- */
-function handOver(s: Scene, zone: Node, items: readonly CarryItem[]): void {
-  const root = s.host.root;
-  for (const it of items) {
-    const piece = byId(root, it.id);
-    s.motions?.release(it.id);
-    if (!piece || isDrawn(piece) || !piece.parent) continue;
-    remove(piece.parent, piece);
-    add(zone, piece);
-  }
-  s.host.setRoot(root);
-}
-
-
-
-/**
- * THE OTHER SCREENS ON ONE DESK.
- *
- * Two hosts over one tree is what two people at one board ARE, and it needs exactly two things said.
- * A host is only ever told by being TOLD, so a change made here has to be announced (`changed`); and
- * a carry is an OVERRIDE and never a tree write, so a hand moving here is invisible over there
- * unless it is reported (`hand`) and mirrored. Without the second, the far screen sees a cursor
- * gliding about and the card it is holding standing perfectly still — which is not a shared desk,
- * it is two people looking at different ones.
- */
-
-
-export interface Mirror {
-  /** This screen, handed over once it exists, so the caller can wire the other direction. */
-  readonly ready: (s: Scene, grasp: () => void) => void;
-  /** This screen changed the tree everybody is reading. */
-  readonly changed: () => void;
-  /**
-   * This screen's hand: what it holds, WHERE EACH OF THOSE STANDS IN IT, where the hand is, and
-   * whether it has let go.
-   *
-   * The offsets are half the message. Told only the names, the far screen has nothing to lay the run
-   * out by and puts every piece at the anchor: a deck of thirty-six arrives as one card, and the two
-   * screens show plainly different things while claiming to show one desk.
-   */
-  readonly hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean, feel: CarryFeel) => void;
-}
-
-/**
  * EVERY PIECE OF A THROWN RUN, AIMED AT ITS OWN PLACE IN THE FORMATION — id to a throw that lands
  * exactly there. Empty when this run has no formation to keep.
  *
@@ -866,22 +813,6 @@ export interface Mirror {
  */
 
 
-
-
-/** Every handle on the desk except this one — wherever a zone may have re-homed it. */
-function otherGrips(root: Node, mine: Node): Node[] {
-  const out: Node[] = [];
-  for (const owner of [root, ...root.children]) {
-    for (const tab of owner.children) if (isGrip(tab) && tab.id !== mine.id) out.push(tab);
-  }
-  return out;
-}
-
-/** How big a desk is by its own word, or the shelf's stock size when it has none. */
-function boxOfDesk(root: Node): { readonly w: number; readonly h: number } | undefined {
-  const shape = fieldsOf<BoundedFields>(root, "Bounded")?.bounds;
-  return shape ? extentOf(shape) : undefined;
-}
 
 export function letFall(
   s: Scene,
