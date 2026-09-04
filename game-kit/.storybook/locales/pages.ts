@@ -71,6 +71,10 @@ import type tiltable from "./pages/tiltable/en.json";
 import type transformable from "./pages/transformable/en.json";
 import type valued from "./pages/valued/en.json";
 import type tests from "./pages/tests/en.json";
+import type reaching from "./pages/reaching/en.json";
+import type forgiving from "./pages/forgiving/en.json";
+import type screened from "./pages/screened/en.json";
+import type marked from "./pages/marked/en.json";
 
 type Loader = () => Promise<{ default: Record<string, string | string[]> }>;
 
@@ -167,6 +171,10 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   liveCards: { en: () => import("./pages/liveCards/en.json"), ru: () => import("./pages/liveCards/ru.json") },
   motion: { en: () => import("./pages/motion/en.json"), ru: () => import("./pages/motion/ru.json") },
   tests: { en: () => import("./pages/tests/en.json"), ru: () => import("./pages/tests/ru.json") },
+  reaching: { en: () => import("./pages/reaching/en.json"), ru: () => import("./pages/reaching/ru.json") },
+  forgiving: { en: () => import("./pages/forgiving/en.json"), ru: () => import("./pages/forgiving/ru.json") },
+  screened: { en: () => import("./pages/screened/en.json"), ru: () => import("./pages/screened/ru.json") },
+  marked: { en: () => import("./pages/marked/en.json"), ru: () => import("./pages/marked/ru.json") },
 };
 
 /** Every page that has prose. A story naming one that is not here shows no prose, and says so. */
@@ -224,7 +232,11 @@ export type PageKey = keyof (typeof node &
   typeof liveCards &
   typeof canvasCamera &
   typeof motion &
-  typeof tests);
+  typeof tests &
+  typeof reaching &
+  typeof forgiving &
+  typeof screened &
+  typeof marked);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */
 export interface PageText extends CatalogText {

@@ -1,0 +1,28 @@
+{
+  "docs.screened.component": [
+    "`Screened` ensures a node preserves its physical size on the glass regardless of camera zoom.",
+    "",
+    "World elements on a desk scale naturally with the camera: zoom in, and a card gets larger.",
+    "However, on-screen controls (drag handles, selection badges, resize pins) are sized for a fingertip,",
+    "and fingertips do not expand with camera zoom. A control that scaled with the view would become",
+    "unhittable when zoomed out and huge when zoomed in.",
+    "",
+    "```ts",
+    "import { node, Bounded, Screened, rect } from \"game-kit\";",
+    "",
+    "const handle = node(\"pin\",",
+    "  Bounded({ bounds: rect(0.4, 0.4) }),",
+    "  Screened({ min: 0.8, max: 1.5 }));",
+    "```",
+    "",
+    "## Floor and ceiling",
+    "",
+    "Holding pixels constant is only right within a reasonable range. If zoomed out excessively,",
+    "a fixed-pixel handle would overshadow the entire desk; zoomed in, it would shrink to a speck.",
+    "`min` and `max` provide bounds so the node follows the camera outside that range."
+  ],
+  "docs.screened.screen": [
+    "A card with a control badge attached. Pan and zoom the view using the mouse wheel or touch gesture:",
+    "the card scales with the world, while the screened badge retains its size on the glass."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "docs.marked.component": [
+    "`Marked` records \"who did what\" on a node: the actor, action type, origin, and timestamp.",
+    "",
+    "In multiplayer or replay, other participants need to see recent moves, captures, or discards.",
+    "Because the mark lives directly in the node tree, it travels naturally across the network and into",
+    "snapshots. The viewer's policy (`visibleMark()`) decides whether to display it, accounting for",
+    "time-to-live (TTL) and whether own moves should be shown.",
+    "",
+    "```ts",
+    "import { node, Bounded, mark, installStockMarks, installStockMarkIcons } from \"game-kit\";",
+    "",
+    "installStockMarks();",
+    "installStockMarkIcons();",
+    "",
+    "const piece = mark(",
+    "  node(\"pawn\", Bounded({ bounds: rect(1, 1) })),",
+    "  { by: \"south\", mark: \"moved\" }",
+    ");",
+    "```",
+    "",
+    "## Stock marks and icons",
+    "",
+    "The kit ships standard action marks (`lifted`, `moved`, `captured`, `removed`, `flipped`, `thrown`,",
+    "`action`), rendered as corner badges tinted with the player's ink colour."
+  ],
+  "docs.marked.mark": [
+    "A piece bearing an action mark. Switch the mark type and player seat in the panel: the corner",
+    "badge reflects the action icon and the actor's assigned color."
+  ]
+}
