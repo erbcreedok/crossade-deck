@@ -1,0 +1,26 @@
+game-kit/.storybook/devtools/scene.test.ts
+  h_2b92b67d011bfc 24,186-204
+game-kit/.storybook/devtools/scene.ts
+  h_2b92b67d011bfc 734-748,756
+game-kit/docs/test-plan/08-per-atom-contract.md
+  h_2b92b67d011bfc 3,23
+game-kit/docs/test-plan/11-catalog-shell.md
+  h_2b92b67d011bfc 3,18
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,36,39
+game-kit/src/render/stage.test.ts
+  h_2b92b67d011bfc 57-93
+game-kit/src/render/stage.ts
+  h_2b92b67d011bfc 9,130-135,140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a54a803aa2695bfebbc3461a523e46bec9cd075c",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
