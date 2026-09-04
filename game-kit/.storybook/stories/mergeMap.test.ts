@@ -35,7 +35,7 @@ import {
   type SurfacedFields,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { ANCHOR_MARK, deckMap, gestureMap, heapsOf, regrip, stackMap } from "./gestureMap.js";
+import { ANCHOR_MARK, deckMap, gestureMap, heapsOf, regrip, stackMap , kindOf , heapKindOf } from "./gestureMap.js";
 import { mergeChip, mergeMap, mergeRule, mergeSeats, MERGE_SHARE } from "./mergeMap.js";
 import { magnetMap } from "./magnetMap.js";
 import { liveMap } from "./liveMap.js";
@@ -61,7 +61,7 @@ function card(nth: number, at: { x: number; y: number }, side: "up" | "down"): N
 
 /** The ids of every heap the rule finds, sorted so the assertion is about membership, not order. */
 const heapIds = (root: Node): string[][] =>
-  heapsOf(root, () => false, RULE)
+  heapsOf(root, heapKindOf, () => false, RULE)
     .map((g) => g.map((n) => n.id).sort())
     .sort((a, b) => (a[0] ?? "").localeCompare(b[0] ?? ""));
 
@@ -83,7 +83,7 @@ describe("every desk registers what it names", () => {
       // something is heaped, so a desk can register everything it opens with and still have no
       // picture for the one control it grows. Both desks that open with a deck on them grow one
       // here; the others share the same installer, which is what the deck ones prove is called.
-      regrip(root);
+      regrip(root, heapKindOf);
       const named = [...walk(root)]
         .map((n) => fieldsOf<SurfacedFields>(n, "Surfaced")?.surface)
         .filter((s): s is string => !!s);
@@ -157,7 +157,7 @@ describe("what becomes one pile", () => {
     const meant = desk(card(0, { x: 0, y: 0 }, "up"), card(1, { x: 0.4, y: 0 }, "up"));
     expect(heapIds(meant).flat().length).toBe(2);
     // And at a share of nothing the old desk is back, exactly — which is what the panel's `0` is for.
-    expect(heapsOf(barely, () => false, mergeRule(0)).length).toBe(1);
+    expect(heapsOf(barely, heapKindOf, () => false, mergeRule(0)).length).toBe(1);
   });
 
   it("merge.a-gathered-piece-only-has-to-be-NEAR — a card has to be under something", () => {

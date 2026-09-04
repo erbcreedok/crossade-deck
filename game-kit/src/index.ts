@@ -696,3 +696,5 @@ export {
   type SlotsOptions,
   type StackLayoutOptions,
 } from "./presets/layouts.js";
+export * from "./render/heaps.js";
+export * from "./render/grips.js";
