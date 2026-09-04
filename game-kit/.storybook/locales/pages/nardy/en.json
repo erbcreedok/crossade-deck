@@ -1,0 +1,38 @@
+{
+  "docs.nardy.component": [
+    "A POINT IS A PILE WITH A LAW, and that is the whole of what this page adds.",
+    "",
+    "The chess page turned the desk into places: sixty-four of them, each one man wide, and a man is",
+    "on a square or on the next. A nardy point is a place of the other kind — a COLUMN. It takes a",
+    "checker of its own colour, or any checker when it is empty; it stands them one over the next from",
+    "the rim toward the middle; and when the column would run past the point (fifteen on the head, at",
+    "the start), it squeezes them evenly rather than spilling them. All three are the point's own",
+    "data: an accept rule, a `pileLayout`, and the layout's notion of where the NEXT seat is.",
+    "",
+    "A hand takes a column the way a hand takes a run of cards: the checker it touched and every one",
+    "above it, the touched one being the grip. The picture of where the column lands stands on top",
+    "of the pile that is already there — the point's own layout is asked where one more would go, so",
+    "the picture and the landing can never disagree.",
+    "",
+    "THE DICE ARE THE SECOND HALF. A die thrown beside the board stays in the band it was thrown in;",
+    "a die thrown on the board stays on the board; and while a hand carries a die it crosses the edge",
+    "freely. The wall is the throw's and never the hand's, decided at the moment of release."
+  ],
+  "docs.nardy.scene": [
+    "LONG NARDY — one board, two people, no rules.",
+    "",
+    "Both heads are set: fifteen white on 24, fifteen black on 12, each squeezed into a point five",
+    "checkers long. Lift the bottom checker of a column and the whole column comes with it; lift one",
+    "in the middle and everything above it comes. Aim at a point and it lights, and the dashed picture",
+    "stands where the column will lie — on top of what is there. A point of the other colour refuses,",
+    "and the column goes home.",
+    "",
+    "Off the points the felt takes anything anywhere: a checker beside the board lies where the hand",
+    "left it, which is what a real table does. Flick a die and it flies inside the walls of wherever",
+    "it was let go: the board, or the band beside it.",
+    "",
+    "NO RULES, on purpose. Whose turn it is, how far a die lets a checker go, when a checker may",
+    "leave — those are the game, and this shelf is the desk. Two people at one board are trusted with",
+    "the rules exactly as they are at a real one."
+  ]
+}
