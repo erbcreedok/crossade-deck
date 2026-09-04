@@ -883,7 +883,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         tails: items.map(() => ({ x: springAt(anchor.x), y: springAt(anchor.y) })),
         // WHERE THE HAND FOUND EACH PIECE, against where the run now says it belongs — MINUS the
         // lead's own, which is the whole of keeping this from fighting the law above it.
+        //
+        // A PIECE MARKED `still` HAS NO GAP. It is the hand's own picture — a handle, the outline of
+        // a landing — and a picture is where it is said to be, not where it was last drawn. Gathered
+        // like a card, a landing mark taken back into the hand glided in from wherever the desk had
+        // left it: out from under the deck it was lifted off, or in from the zone it was parked in.
         gaps: items.map((it, i) => {
+          if (it.still) return { x: 0, y: 0 };
           const lead = gapOf(items[0]!, anchor);
           const own = i === 0 ? lead : gapOf(it, anchor);
           return { x: own.x - lead.x, y: own.y - lead.y };

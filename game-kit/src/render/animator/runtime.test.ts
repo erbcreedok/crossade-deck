@@ -281,6 +281,18 @@ describe("the motion runtime", () => {
     expect(b2.xOf("d")).toBeCloseTo(before, 6);
   });
 
+  it("motion.a-still-piece-is-not-gathered — a picture appears where it is said to be", () => {
+    // A landing mark taken back into the hand after a throw that did not happen used to glide in
+    // from wherever the desk had left it. It is scenery, not a card: no gap, no road, it is there.
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 3, y: 0 } })));
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, settleMs: 300, settleEase: "linear", lift: 1 });
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 0, y: 0 }, still: true }], { anchor: { x: 0, y: 0 } });
+    c.tick(16);
+    expect(b.xOf("d")).toBeCloseTo(b.xOf("c"), 6);
+  });
+
   it("motion.a-look-does-not-move-what-a-finger-can-reach — a flipping card keeps its hit box", () => {
     // A card turning over is squeezed to its own EDGE at the midpoint. A hit box that followed it
     // there collapses, the finger falls through to whatever lies under it, and a fast hand turns
