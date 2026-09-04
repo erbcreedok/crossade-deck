@@ -8,8 +8,8 @@ import { documented } from "./surfaceControls.js";
 
 // LIVE / CHESS — a board is a desk made of PLACES, and this is the page that says what that changes.
 //
-// Its own page and not a variation of the shared desk, because the desks answer the same question
-// differently. A felt asks WHERE and a board asks WHICH: a card lies wherever it was let go of and a
+// Its own page and not a variation of the cards page — both tables are shared desks, and they answer
+// the question differently. A felt asks WHERE and a board asks WHICH: a card lies wherever it was let go of and a
 // knight is on e4, never between e4 and d4. Everything else on this page is imported unchanged —
 // the carry, the picture of the landing, the light on the place that would take it, the mirroring —
 // which is the claim being made: a board is not new machinery, it is sixty-four small places with no

@@ -18,8 +18,8 @@ installStockCoats();
 installStockFlips();
 
 const meta: Meta = {
-  title: "Live/Shared desk",
-  parameters: { gkDoc: "live.component" },
+  title: "Live/Cards",
+  parameters: { gkDoc: "cards.component" },
 };
 export default meta;
 
@@ -49,7 +49,7 @@ const DOT = 18;
  * cards hidden, a reader watching one screen cannot tell "they have not moved" from "they moved
  * something I may not see".
  */
-export const Live: StoryObj<MagnetArgs> = {
+export const Cards: StoryObj<MagnetArgs> = {
   render: (a) => {
     const wall = document.createElement("div");
     wall.style.cssText = "display:grid;grid-template-rows:1fr 1fr;gap:8px;height:100%;min-height:520px";
@@ -103,5 +103,5 @@ export const Live: StoryObj<MagnetArgs> = {
   // could enter an area at all, and the areas were two boxes that could not be used or lit.
   args: { ...MAGNET_ARGS, pull: 0 },
   argTypes: { ...MAGNET_KNOBS },
-  parameters: { gkDocStory: "live.scene" },
+  parameters: { gkDocStory: "cards.scene" },
 };

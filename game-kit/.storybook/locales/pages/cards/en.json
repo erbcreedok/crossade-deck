@@ -1,14 +1,21 @@
 {
   "docs.cards.component": [
-    "A full **55-card set** — 52 standard cards, two jokers and one brand card — built by the **`@game-presets/cards` add-on**, a package that sits on top of game-kit.",
+    "THE SAME DESK WITH CARDS IN FRONT OF TWO PEOPLE — the one thing a mechanic cannot be tried against on a single screen, while Live/Chess is the same shared desk with a board.",
     "",
-    "## An add-on, not the core",
+    "Its own section and not a scene under Mechanics, because it is not a mechanic. Everything on this page is the magnetism page's, unchanged and imported rather than restated: what is added here is a second pair of eyes, and every seam it needs exists so that adding them changes nothing about the mechanic itself."
+  ],
+  "docs.cards.scene": [
+    "LIVE — one desk, two screens, and neither of them is the truth.",
     "",
-    "Everything here — the suit shapes, the card faces, the back pattern, the `cards()` builder — ships in `@game-presets/cards`, not in the engine. game-kit itself carries no image and no deck: it provides `deck()`, `Surfaced`, `Flippable` and the surface and asset registries, and the add-on brings the content. A game installs the add-on to get a recognizable deck out of the box.",
+    "Everything the page above does, with the one difference that decides whether any of it was really built: the board is somewhere else. Drag a card on the top screen and let go near an area — it goes in, and it goes in on the bottom screen too, because what moved was the board they share and not the picture in front of you.",
     "",
-    "## How a card is made",
+    "A finger PROPOSES. A drop resolved on one screen alone would be real for one pair of eyes and would never have happened for the other, so the move goes to the board everybody shares and the authoritative answer comes back to everyone — including the seat that sent it. Turn the latency up and watch the two halves of that: the card lands under your own finger at once (position is reversible, so predicting it is safe) and appears on the other screen when the word arrives.",
     "",
-    "Each card is one node: `Bounded` for its size, `Surfaced` for its face texture, `Flippable` so it turns over to the shared back, and `Valued` for its typed fields — suit, rank, colour. The suit marks are vector shapes; the faces are SVG textures the add-on draws and ships as data URIs, so a red suit stays red whichever way the desk is themed."
+    "EVERY SEAT SEES EVERY CARD. Hiding is a real thing and the kit does it, but it is a second subject, and a page teaching two at once teaches neither: with cards hidden, a reader watching one screen cannot tell \"they have not moved\" from \"they moved something I may not see\".",
+    "",
+    "AND EVERY HAND IS ON THE DESK, in its own colour — a ring on what somebody else is holding, and a cursor wherever their finger is. The cursor is drawn even when they hold nothing, because a hand you cannot see is a player who has left.",
+    "",
+    "The two screens are two SCENES, not one drawn twice: two hosts, two clocks, two cameras, because that is what two devices are. The far seat sits opposite and sees the desk from there — a player who had to read their own area upside down would be reading somebody else's table."
   ],
   "docs.cards.hand": [
     "A dealt hand, faces up: the ace and queen of spades, the ten of hearts, the seven of diamonds and the king of clubs — a pip card, a court card and an ace, across all four suits."
