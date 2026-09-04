@@ -51,8 +51,9 @@
       "import": "./src/index.ts"
     },
     "./pixi": {
-      "development": "./src/render/pixi.ts",
-      "import": "./src/render/pixi.ts"
+      "types": "./src/render/pixi/index.ts",
+      "development": "./src/render/pixi/index.ts",
+      "import": "./src/render/pixi/index.ts"
     }
   },
   "dependencies": {

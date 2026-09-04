@@ -35,6 +35,7 @@ import { barTree, FELT, hubTree } from "./grid.js";
 import { wirePress } from "./press.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
 import { goTo, onRoute, routeOf } from "./route.js";
+import { ensureAccount } from "../account/account.js";
 
 /** The shelf is about nine units across and six down. ONE fit, because the region never changes. */
 function fitUnit(v: { width: number; height: number }): number {
@@ -52,6 +53,7 @@ const MIN_BUSY_MS = 250;
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
+  void ensureAccount();
   // The theme is installed for exactly one reason, worth naming: every colour the hub draws is a
   // literal from `palette.ts`, so a palette switch changes nothing here — EXCEPT the ink of a cast
   // shadow, which the plan resolves from the `shadow` token. Dark gives black, which is what a hard
