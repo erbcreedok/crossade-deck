@@ -1,0 +1,14 @@
+game-kit/.storybook/stories/gestureMap.ts
+  h_2b92b67d011bfc 109,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "73f7071703cedae36962527f0134c23bfd90e19a",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
