@@ -54,7 +54,7 @@
   "arg.dashOff": "Gap length, in units.",
   "arg.dashOn": "Dash length, in UNITS. Absolute — stretch the box and you get MORE dashes, not longer ones.",
   "arg.dealt": "Whether the pack has been dealt into a row. Flip it and every card springs from the stack to its own seat, keeping its identity across the change.",
-  "arg.dieDrop": "How the DIE leaves the hand, and it has a third way open to it: `roll`. A die let go of goes over — always, not only when it was thrown hard, because that is what a die is for and one that came down flat and lay there would be a counter. Its face changes as it travels and the last one is the result, shown while there is still a roll left to see it on.",
+  "arg.dieDrop": "How the DIE leaves the hand, and it has a third way open to it: `roll`. A die let go of goes over — always, not only when it was thrown hard, because that is what a die is for and one that came down flat and lay there would be a counter. Its face changes as it travels and the last one is the result, shown while there is still a roll left to see it on. `toss` is `roll` with a condition: a die set down gently keeps its face, and goes over only when the hand threw it.",
   "arg.does": "The word this control reports when pressed, written into `values` — the kit never interprets it.",
   "arg.driftX": "Where each next card lands relative to the one under it, across. Thickness is position, not `z`.",
   "arg.driftY": "The same drift, down the screen. Negative climbs up-screen, the way a pile actually looks.",

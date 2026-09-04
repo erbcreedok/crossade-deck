@@ -201,6 +201,33 @@ describe("the fall runtime", () => {
     expect(mapWalls(p, 1.3, { w: 14, h: 14 }).x1).toBeCloseTo(7 - 0.65, 9);
   });
 
+  it("fall.toss-goes-over-only-when-thrown — a die set down keeps its face, a die flicked rolls; and the desk may wall the flight", () => {
+    // A die moved out of the way is not a throw. `roll` goes over always, which is right for a
+    // dice page and wrong beside a board: there the number changes only when the hand threw.
+    registerLayout("fall.free", freeLayout);
+    const root = node("root", Container({ layout: "fall.free" }));
+    const die = node("die", Bounded({ bounds: rect(0.5, 0.5) }), Valued({ values: { face: 5 } }), Rollable(), Transformable({ at: { x: 0, y: 0 } }));
+    add(root, die);
+    const host = mount(document.createElement("div"), root);
+    const painter = { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
+    const motions = attachMotion(host, painter);
+    const scene: FallScene = { host, motions };
+    const rolls: string[] = [];
+    const walls: unknown[] = [];
+    const onRoll = (_m: unknown, _root: unknown, piece: { id: string }, opts: { walls?: unknown }) => {
+      rolls.push(piece.id);
+      walls.push(opts.walls);
+    };
+    motions.grab([{ id: "die", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    expect(letFall(scene, [{ id: "die", offset: { x: 0, y: 0 } }], 1, undefined, undefined, { die: "toss" }, undefined, undefined, onRoll)).toBe(true);
+    expect(rolls, "set down: no roll").toEqual([]);
+    motions.grab([{ id: "die", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    const band = { x0: 1, y0: -2, x1: 3, y1: 2 };
+    expect(letFall(scene, [{ id: "die", offset: { x: 0, y: 0 } }], 1, { x: 400, y: 0 }, undefined, { die: "toss" }, undefined, undefined, onRoll, () => band)).toBe(true);
+    expect(rolls, "thrown: it goes over").toEqual(["die"]);
+    expect(walls[0], "and flies inside the walls the desk gave it").toEqual(band);
+  });
+
   it("fall.bare-scene-fall — letFall executes slide on bare host and motions", () => {
     registerLayout("fall.free", freeLayout);
     const root = node("root", Container({ layout: "fall.free" }));

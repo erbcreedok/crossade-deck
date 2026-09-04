@@ -34,7 +34,12 @@ export interface FallScene {
  * a felt IS a putting-down, while a chip dropped on one is a thing landing. The desk lets each say
  * which it is, and the panel lets a reader disagree.
  */
-export type LetGo = "settle" | "fall" | "roll";
+/**
+ * `toss` is `roll` with a condition: a die let go of gently is SET DOWN, face as it was, and it goes
+ * over only when the hand threw it. A game with dice beside the board wants exactly this — a die
+ * moved out of the way is not a throw, and a throw is the one thing that may change the number.
+ */
+export type LetGo = "settle" | "fall" | "roll" | "toss";
 
 /** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
 export interface DropFeel {
@@ -825,7 +830,7 @@ export function letFall(
       ...(feel.solid ? { solid: feel.solid } : {}),
     };
     const piece = byId(s.host.root, id);
-    if (piece && feel.fall === "roll" && onRoll) {
+    if (piece && (feel.fall === "roll" || (feel.fall === "toss" && flight.speed > 0)) && onRoll) {
       onRoll(m, s.host.root, piece, {
         ...body,
         spin: DIE_SPIN * (Math.sign(hand?.x ?? 0) || 1),

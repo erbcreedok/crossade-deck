@@ -92,7 +92,7 @@ export const CARD_WAY = documented("arg.cardDrop", { control: "select", options:
 export const CHIP_WAY = documented("arg.chipDrop", { control: "select", options: WAYS, if: { arg: "dropping" } }, "release");
 // The die gets a third: `roll` is a way of leaving a hand that only a thing with faces HAS, so it is
 // on the one control where it means something and on neither of the others.
-export const DIE_WAY = documented("arg.dieDrop", { control: "select", options: [...WAYS, "roll"], if: { arg: "dropping" } }, "release");
+export const DIE_WAY = documented("arg.dieDrop", { control: "select", options: [...WAYS, "roll", "toss"], if: { arg: "dropping" } }, "release");
 
 export const STACK_ARGS: StackArgs = {
   physics: true,
