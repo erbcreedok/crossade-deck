@@ -21,7 +21,11 @@ const KAPPA = 0.552284749831;
 function rect(w: number, h: number): Shape {
   const x = w / 2;
   const y = h / 2;
+  // A SHAPE STARTS SOMEWHERE. `start` is where the outline is entered before the first segment,
+  // and a shape without one has no first point: the outline walk reads `undefined.x` and the whole
+  // plan dies on the first frame the mark is drawn. Copied without it once; never again.
   return {
+    start: { x: -x, y: -y },
     segments: [{ to: { x, y: -y } }, { to: { x, y } }, { to: { x: -x, y } }, { to: { x: -x, y: -y } }],
   };
 }
@@ -41,7 +45,7 @@ function roundedRect(w: number, h: number, radius: number): Shape {
     { to: { x: -x, y: -y + r } },
     { c1: { x: -x, y: -y + r - k }, c2: { x: -x + r - k, y: -y }, to: { x: -x + r, y: -y } },
   ];
-  return { segments };
+  return { start: { x: -x + r, y: -y }, segments };
 }
 
 

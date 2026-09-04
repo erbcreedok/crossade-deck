@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { node, Bounded, rect, Transformable, type Node } from "../../src/index.js";
-import { landingBox, landingAt, throwGate } from "./landing.js";
+import { node, Bounded, rect, Transformable, fieldsOf, extentOf, type Node, type BoundedFields } from "../../src/index.js";
+import { landingBox, landingAt, landingMark, throwGate } from "./landing.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -48,5 +48,19 @@ describe("landing", () => {
     // below half -> false
     speed = 4;
     expect(gate({ x: 4, y: 0 })).toBe(false);
+  });
+});
+
+describe("landing mark shape", () => {
+  it("landing.the-mark-has-a-shape-to-draw — its outline starts somewhere, and its extent is the box it was asked for", () => {
+    // The mark's outline was copied here without its `start`, and the first frame that drew a
+    // mark died reading the first point of nothing. The outline is asked for the same way the
+    // painter asks for it, so a shape that cannot be walked fails here and not on the desk.
+    const mark = landingMark({ x: 0, y: 0 }, { w: 1, h: 1.4 }, 0);
+    const shape = fieldsOf<BoundedFields>(mark, "Bounded")?.bounds;
+    expect(shape?.start).toBeDefined();
+    const ext = extentOf(shape!);
+    expect(ext.w).toBeCloseTo(1, 6);
+    expect(ext.h).toBeCloseTo(1.4, 6);
   });
 });
