@@ -1,0 +1,34 @@
+{
+  "docs.heaps.component": [
+    "On a desk, cards lie on cards and chips on chips. A heap is not a declared container — it is an emergent island of touching pieces.",
+    "",
+    "## Touching slack (`TOUCH_SLACK = 0.04`)",
+    "",
+    "To a player, two cards a hair apart on a felt are touching. Requiring an exact mathematical intersection of zero would feel brittle and broken. `TOUCH_SLACK = 0.04` units provides the forgiveness needed for natural heap formation.",
+    "",
+    "## Affinity (`sameKind`)",
+    "",
+    "Only pieces of matching kind heap together: cards join cards, chips join chips of their own denomination, and dice never heap (each die is individual).",
+    "",
+    "## The `HeapRule` seam",
+    "",
+    "What may lie in one heap is governed by four questions asked at four separate times:",
+    "",
+    "1. **`joins(a, b)`**: May these two pieces ever form a heap? (Semantic affinity, no geometry).",
+    "2. **`meets(a, b, oa, ob)`**: Are their outlines close enough? (Pure geometry with `TOUCH_SLACK` or overlap share).",
+    "3. **`admits(group)`**: Which pieces of the found island does the heap keep? (Evaluated bottom-first after islands are found, allowing rules based on top coverage).",
+    "4. **`seats(group, gripW)`**: Where each piece stands when the heap is lifted by its handle.",
+    "",
+    "## Aloft exclusion",
+    "",
+    "A piece currently in the air or being carried by a hand (`aloft(id)`) cannot be in any heap: it left the heap the moment it was picked up. Including it would cause handles to pull flying cards out of the air.",
+    "",
+    "## Finding islands (`heapsOf`, `heapBox`)",
+    "",
+    "- `heapsOf` computes connected components via union-find (`islands`). Lone pieces are dropped: a single card is not a heap, and a handle under it would be a dead control.",
+    "- `heapBox` calculates the common perimeter and bottom coordinate where the stack handle will stand."
+  ],
+  "docs.heaps.heaps": [
+    "Interactive demonstration of `heaps.ts`. Cards and chips start separated. Push two cards or two chips together: as soon as their outlines meet within `TOUCH_SLACK = 0.04`, they join into a heap and a handle appears beneath them."
+  ]
+}

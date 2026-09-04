@@ -75,6 +75,10 @@ import type reaching from "./pages/reaching/en.json";
 import type forgiving from "./pages/forgiving/en.json";
 import type screened from "./pages/screened/en.json";
 import type marked from "./pages/marked/en.json";
+import type fall from "./pages/fall/en.json";
+import type landing from "./pages/landing/en.json";
+import type heaps from "./pages/heaps/en.json";
+import type grips from "./pages/grips/en.json";
 
 type Loader = () => Promise<{ default: Record<string, string | string[]> }>;
 
@@ -175,6 +179,10 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   forgiving: { en: () => import("./pages/forgiving/en.json"), ru: () => import("./pages/forgiving/ru.json") },
   screened: { en: () => import("./pages/screened/en.json"), ru: () => import("./pages/screened/ru.json") },
   marked: { en: () => import("./pages/marked/en.json"), ru: () => import("./pages/marked/ru.json") },
+  fall: { en: () => import("./pages/fall/en.json"), ru: () => import("./pages/fall/ru.json") },
+  landing: { en: () => import("./pages/landing/en.json"), ru: () => import("./pages/landing/ru.json") },
+  heaps: { en: () => import("./pages/heaps/en.json"), ru: () => import("./pages/heaps/ru.json") },
+  grips: { en: () => import("./pages/grips/en.json"), ru: () => import("./pages/grips/ru.json") },
 };
 
 /** Every page that has prose. A story naming one that is not here shows no prose, and says so. */
@@ -236,7 +244,11 @@ export type PageKey = keyof (typeof node &
   typeof reaching &
   typeof forgiving &
   typeof screened &
-  typeof marked);
+  typeof marked &
+  typeof fall &
+  typeof landing &
+  typeof heaps &
+  typeof grips);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */
 export interface PageText extends CatalogText {

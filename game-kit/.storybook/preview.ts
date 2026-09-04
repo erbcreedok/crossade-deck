@@ -158,7 +158,7 @@ const preview: Preview = {
           "Add-ons",
           ["Cards", "Dice"],
           "Engine",
-          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion", "Gestures"],
+          ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion", "Gestures", "Fall", "Landing", "Heaps", "Grips"],
           // MECHANICS are the DESK's rules, not the kit's: which pieces belong together, what a heap
           // will and will not take. They sit after the engine because they are written on top of it
           // — every page here is catalog code using the same doors a game would.
