@@ -17,6 +17,7 @@ import {
   compose,
   Displacer,
   Draggable,
+  Flippable,
   byId,
   fieldsOf,
   FLING,
@@ -28,6 +29,7 @@ import {
   rect,
   registerLayout,
   registerLanding,
+  installStockFlips,
   installStockGrabs,
   installStockOccupied,
   registerOccupied,
@@ -46,6 +48,7 @@ import { currentSettings } from "./catalogSettings.js";
 import { HUD_UNIT_CHOICES } from "./hudUnitChoices.js";
 import { scene as buildScene } from "./scene.js";
 import { wireDrag } from "./drag.js";
+import { grabScene } from "../stories/gestureScene.js";
 
 /** An etalon, or a jsdom viewport of nothing has nothing to hit — the shell's own tests do this. */
 function measure(el: HTMLElement): void {
@@ -584,5 +587,73 @@ describe("the drag wiring's order", () => {
     expect(swingSpeed?.x).toBeGreaterThan(0);
     s.host.view.dispatchEvent(finger("pointerup", 60, 0, 60));
     s.dispose();
+  });
+
+  it("drag.action-marks-flipped-on-tap", async () => {
+    installStockFlips();
+    registerLayout("drag.flip.free", freeLayout);
+    const rootNode = node("desk", Container({ layout: "drag.flip.free" }));
+    const cardNode = node("card", Bounded({ bounds: rect(1, 1.4) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Flippable({ turns: 0 }), Draggable());
+    add(rootNode, cardNode);
+
+    const el = grabScene(true, 1, "drop", false, { w: 1, min: 1, max: 1, miss: 0 }, {}, () => rootNode, true, 0, undefined, undefined, undefined, undefined, 60, true, undefined, "south");
+    document.body.appendChild(el);
+    measure(el);
+    const view = el.querySelector("canvas")!;
+    const cx = view.width / 2;
+    const cy = view.height / 2;
+    view.dispatchEvent(finger("pointerdown", cx, cy, 0));
+    view.dispatchEvent(finger("pointerup", cx, cy, 50));
+    await new Promise((r) => setTimeout(r, 200));
+
+    const marked = fieldsOf<MarkedFields>(cardNode, "Marked");
+    expect(marked).toBeDefined();
+    expect(marked?.by).toBe("south");
+    expect(marked?.mark).toBe("flipped");
+  });
+
+  it("drag.action-marks-thrown-on-fast-release", () => {
+    registerLayout("drag.throw.free", freeLayout);
+    const rootNode = node("desk", Container({ layout: "drag.throw.free" }));
+    const cardNode = node("card", Bounded({ bounds: rect(1, 1.4) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Draggable());
+    add(rootNode, cardNode);
+
+    const el = grabScene(true, 1, "throw", false, { w: 1, min: 1, max: 1, miss: 0 }, {}, () => rootNode, false, 0, undefined, undefined, undefined, undefined, 60, true, undefined, "white");
+    document.body.appendChild(el);
+    measure(el);
+    const view = el.querySelector("canvas")!;
+    const cx = view.width / 2;
+    const cy = view.height / 2;
+
+    view.dispatchEvent(finger("pointerdown", cx, cy, 0));
+    for (let i = 1; i <= 5; i++) view.dispatchEvent(finger("pointermove", cx + i * 100, cy, i * 20));
+    view.dispatchEvent(finger("pointerup", cx + 500, cy, 100));
+
+    const marked = fieldsOf<MarkedFields>(cardNode, "Marked");
+    expect(marked).toBeDefined();
+    expect(marked?.by).toBe("white");
+    expect(marked?.mark).toBe("thrown");
+    expect(marked?.from).toEqual({ x: 0, y: 0 });
+  });
+
+  it("drag.action-marks-no-thrown-on-slow-release", () => {
+    registerLayout("drag.slow.free", freeLayout);
+    const rootNode = node("desk", Container({ layout: "drag.slow.free" }));
+    const cardNode = node("card", Bounded({ bounds: rect(1, 1.4) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Draggable());
+    add(rootNode, cardNode);
+
+    const el = grabScene(true, 1, "throw", false, { w: 1, min: 1, max: 1, miss: 0 }, {}, () => rootNode, false, 0, undefined, undefined, undefined, undefined, 60, true, undefined, "white");
+    document.body.appendChild(el);
+    measure(el);
+    const view = el.querySelector("canvas")!;
+    const cx = view.width / 2;
+    const cy = view.height / 2;
+
+    view.dispatchEvent(finger("pointerdown", cx, cy, 0));
+    view.dispatchEvent(finger("pointermove", cx + 10, cy, 100));
+    view.dispatchEvent(finger("pointerup", cx + 10, cy, 1000));
+
+    const marked = fieldsOf<MarkedFields>(cardNode, "Marked");
+    expect(marked?.mark).not.toBe("thrown");
   });
 });

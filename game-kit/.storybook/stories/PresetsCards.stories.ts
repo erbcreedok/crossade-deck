@@ -13,6 +13,7 @@ import {
   Container,
   freeLayout,
   installStockShuffles,
+  mark,
   node,
   permutation,
   rect,
@@ -112,6 +113,7 @@ export const Shuffle: StoryObj<ShuffleArgs> = {
       if (!live || !was) return;
       const order = permutation(HAND.length, seededRng(a.seed + a.shuffled + was.taps));
       LAST.set(s.el, { ...was, order: order.map((i) => was.order[i]!) });
+      if (s.actor) mark(live, { by: s.actor, mark: "shuffled" });
       s.motions?.shuffle("hand", () => reorder(live, order), { recipe: a.recipe });
     };
     TAP = () => {

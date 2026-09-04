@@ -12,6 +12,7 @@
 import {
   Coated,
   extentOf,
+  mark,
   NO_COAT,
   Private,
   add,
@@ -614,6 +615,9 @@ export function grabScene(
           onTap: (piece: Node) => {
             built.motions?.flip(piece.id, () => {
               turnOver(piece);
+              if (actor) {
+                mark(piece, { by: actor, mark: "flipped" });
+              }
               built.host.setRoot(built.host.root);
             });
           },
@@ -1049,6 +1053,12 @@ export function letFall(
   // those inside half a second, and the desk stopped answering — the drop of a deck HUNG.
   after?.();
   let left = dropped.length;
+  const fromPositions = new Map<string, Vec>();
+  for (const it of items) {
+    const n = byId(s.host.root, it.id);
+    if (n) fromPositions.set(it.id, seatIn(n));
+  }
+
   for (const { id, feel, walls, delayMs, fan } of dropped) {
     // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
     // chip stops being pushed the moment it is let go, a card goes where it was sent.
@@ -1060,6 +1070,13 @@ export function letFall(
     // die was put down exactly where it was let go of, with the hand's whole swing thrown away.
     const seat = flock.get(id);
     const flight = seat ?? (hand ? flightOf(hand, feel.throwGain) : { speed: 0, angle: 0 });
+    if (s.actor && flight.speed > 0) {
+      const piece = byId(s.host.root, id);
+      if (piece) {
+        const from = fromPositions.get(id);
+        mark(piece, { by: s.actor, mark: "thrown", ...(from ? { from } : {}) });
+      }
+    }
     // The hand's own throw, plus this piece's share of the opening. A run of one has no fan to take
     // and is left exactly as it was: one die thrown is a die thrown where you threw it.
     const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));

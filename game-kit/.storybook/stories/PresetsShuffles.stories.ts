@@ -16,6 +16,7 @@ import {
   DEFAULT_TUNING,
   freeLayout,
   installStockShuffles,
+  mark,
   node,
   overhand,
   permutation,
@@ -167,6 +168,7 @@ function shelf(recipe: string): StoryObj<RecipeArgs> {
         if (!live || !was?.order) return;
         const order = permutation(a.count, seededRng(a.seed + a.shuffled + was.taps));
         LAST.set(s.el, { ...was, order: order.map((i) => was.order![i]!) });
+        if (s.actor) mark(live, { by: s.actor, mark: "shuffled" });
         s.motions?.shuffle("row", () => reorder(live, order), { recipe: name });
       };
       TAP.set(recipe, () => {
