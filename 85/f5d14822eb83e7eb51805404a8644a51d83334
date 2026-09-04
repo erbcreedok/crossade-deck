@@ -1,0 +1,87 @@
+apps/hub/package.json
+  s_97c5179defe02d::t_82f93a0a51d31b 14
+game-kit/docs/test-plan/README.md
+  s_97c5179defe02d::t_fffa4d861842c3 10
+  s_97c5179defe02d::t_c32635048fb953 95-96
+game-kit/package.json
+  s_97c5179defe02d::t_8a917dc11ca6ee 21
+game-presets/desks/src/index.ts
+  s_97c5179defe02d::t_c56ce5a6d7112e 3-16,37
+  s_97c5179defe02d::t_846366a1efaf97 1-2
+  s_97c5179defe02d::t_103665783f33c4 17-19,34-36
+  s_97c5179defe02d::t_332534e2f612b9 38-40
+  s_605cb0d8750ee2::t_631d28294ad0c1 20-33,41-59
+game-kit/docs/test-plan/67-live.md
+  s_97c5179defe02d::t_041488a52adcd8 3
+  s_97c5179defe02d::t_8d8024ff660885 1,5-7
+game-kit/docs/test-plan/68-chess.md
+  s_97c5179defe02d::t_8d8024ff660885 1,5-7
+  s_97c5179defe02d::t_041488a52adcd8 3
+game-presets/desks/docs/test-plan.md
+  s_97c5179defe02d::t_fa81072c514d57 3,7,43
+  s_97c5179defe02d::t_7e2cde60ffd5a5 1-2,4-6,8-42,44-59
+game-kit/.storybook/stories/magnetMap.ts
+  s_97c5179defe02d::t_084487396882a5 61-66
+game-kit/.storybook/stories/chessMap.wiring.test.ts
+  s_97c5179defe02d::t_754c02b1578b78 8
+  s_97c5179defe02d::t_d3e1ba2bd8ecaa 7
+  s_605cb0d8750ee2::t_c31508b4cfc5af 2-4
+package-lock.json
+  s_97c5179defe02d::t_0d66d0ac1bd551 22,54,392-405,1066-1069
+game-kit/.storybook/stories/Cards.stories.ts
+  s_605cb0d8750ee2::t_75528b3a608b4a 5
+game-kit/.storybook/stories/Chess.stories.ts
+  s_605cb0d8750ee2::t_5dddae27b856c5 5
+game-kit/.storybook/stories/Nardy.stories.ts
+  s_605cb0d8750ee2::t_539df45b265a8e 14
+game-kit/.storybook/stories/gestureMap.ts
+  s_605cb0d8750ee2::t_1ed9a14ef390a0 55,93-98
+game-kit/.storybook/stories/liveScreens.test.ts
+  s_605cb0d8750ee2::t_ace258f4c8228c 5
+game-kit/.storybook/stories/mergeMap.test.ts
+  s_605cb0d8750ee2::t_ac84e5756ce4a4 41
+game-presets/desks/package.json
+  s_605cb0d8750ee2::t_9f873e87fbaae8 1-31
+game-presets/desks/src/chessMap.test.ts
+  s_605cb0d8750ee2::t_0a2b89aa273759 1-109
+game-presets/desks/src/chessMap.ts
+  s_605cb0d8750ee2::t_9b4031b3df68fb 58-59
+game-presets/desks/src/felt.ts
+  s_605cb0d8750ee2::t_35ce3a3e830a63 1-355
+game-presets/desks/src/liveMap.test.ts
+  s_605cb0d8750ee2::t_350cb3f3755a3b 8
+game-presets/desks/src/liveMap.ts
+  s_605cb0d8750ee2::t_f912b7e46c50fd 42,44-58
+game-presets/desks/src/nardyMap.test.ts
+  s_605cb0d8750ee2::t_1fcc5b9a22a2a8 6
+game-presets/desks/src/nardyMap.ts
+  s_605cb0d8750ee2::t_5e374b9aae477e 66,68
+game-presets/desks/tsconfig.json
+  s_605cb0d8750ee2::t_c11881b7c012b8 1-21
+game-presets/desks/vitest.config.ts
+  s_605cb0d8750ee2::t_9c32a7a0dd4690 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "85f5d14822eb83e7eb51805404a8644a51d83334",
+  "prompts": {},
+  "sessions": {
+    "s_605cb0d8750ee2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a92970c911161dafa",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_97c5179defe02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fd54eca-32a0-450d-97ef-f21e47696f10",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
