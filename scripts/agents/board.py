@@ -51,7 +51,7 @@ async function tick(){
     <div class="head"><span class="name">${a.name}</span><span class="state ${a.state}">${a.state}</span>
       ${a.state==="running"||a.state==="preparing"?`<button onclick="kill('${a.name}')">стоп</button>`:""}</div>
     <div class="task">${esc(a.task||"")}</div>
-    <div class="meta"><span>${a.model||""}</span><span>ветка ${a.branch||""}</span><span>шагов ${a.steps||0}${a.budget?` / ${a.budget.steps}`:""}</span><span>инструментов ${a.tools||0}</span><span>токенов ${((a.tokens||0)/1000).toFixed(0)}k${a.budget?` / ${(a.budget.tokens/1000).toFixed(0)}k`:""}</span><span>идёт ${fmt(a.started)}</span>${a.finished?`<span>закончил ${fmt(a.finished)} назад</span>`:""}${a.commit?`<span>коммит: ${esc(a.commit)}</span>`:""}${a.ahead?`<span>+${a.ahead} к main</span>`:""}</div>
+    <div class="meta"><span>${a.model||""}</span><span>ветка ${a.branch||""}</span><span>шагов ${a.steps||0}${a.budget?` / ${a.budget.steps}`:""}</span><span>инструментов ${a.tools||0}</span><span>токенов ${((a.tokens||0)/1000).toFixed(0)}k${a.budget?` / ${(a.budget.tokens/1000).toFixed(0)}k`:""}</span><span>идёт ${fmt(a.started)}</span>${a.finished?`<span>закончил ${fmt(a.finished)} назад</span>`:""}${a.cost!=null?`<span>$${Number(a.cost).toFixed(2)}</span>`:""}${a.limits?`<span>лимит 5ч ${a.limits.five_hour}% · нед ${a.limits.seven_day}%</span>`:""}${a.commit?`<span>коммит: ${esc(a.commit)}</span>`:""}${a.ahead?`<span>+${a.ahead} к main</span>`:""}</div>
     ${a.links&&a.links.length?`<div class="links">где смотреть: ${a.links.map(l=>`<a href="${l.url}" target="_blank">${esc(l.name)}</a>`).join("")}</div>`:""}
     <pre>${esc(a.tail||"")}</pre>
     ${a.response?`<div class="resp">${esc(a.response)}</div>`:""}

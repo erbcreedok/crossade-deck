@@ -3,6 +3,8 @@
 Исполнитель без окна: один агент Antigravity (`agy`) на один git worktree.
 
   agent.py run  <имя> <модель> <задача.md> [шагов] [токенов]
+      модель: имя из `agy models` (Antigravity, лимит Google) или `claude:sonnet` / `claude:opus`
+      (Claude Code CLI, лимит подписки Claude) — два исполнителя, одна доска
                                              — поднять воркtree, положить задачу, запустить агента в фоне;
                                                бюджет по умолчанию 150 шагов / 300k токенов — дальше стоп
   agent.py kill <имя>                        — остановить агента
@@ -21,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENTS = ROOT / ".agent" / "agents"
 WORKTREES = ROOT / ".worktrees"
 AGY = os.path.expanduser("~/.local/bin/agy")
+CLAUDE = os.path.expanduser("~/.local/bin/claude")
 TAIL_LINES = 40
 
 
@@ -120,9 +123,18 @@ def run(name: str, model: str, task: Path, max_steps: int = DEFAULT_STEPS, max_t
 
 def watch(name, model, wt: Path, d: Path, prompt: str, max_steps: int, max_tokens: int):
     log = open(d / "log.ndjson", "a")
+    # ДВА ИСПОЛНИТЕЛЯ, ОДИН ПОТОК. Antigravity и Claude Code оба умеют работать без окна и оба
+    # говорят NDJSON — разными словами; здесь это переводится в одну ленту для доски.
+    claude = model.startswith("claude:")
+    cmd = (
+        [CLAUDE, "-p", prompt, "--model", model.split(":", 1)[1], "--output-format", "stream-json",
+         "--verbose", "--dangerously-skip-permissions"]
+        if claude
+        else [AGY, "--model", model, "--output-format", "stream-json", "--dangerously-skip-permissions",
+              "--print-timeout", "3h", f"--print={prompt}"]
+    )
     proc = subprocess.Popen(
-        [AGY, "--model", model, "--output-format", "stream-json", "--dangerously-skip-permissions",
-         "--print-timeout", "3h", f"--print={prompt}"],
+        cmd,
         cwd=wt, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
         # В СВОЕЙ ГРУППЕ ПРОЦЕССОВ. Наблюдатель и агент были в одной: «убить агента» убивало и
         # наблюдателя, и доска до конца дней показывала «работает» тому, кого уже нет.
@@ -142,7 +154,27 @@ def watch(name, model, wt: Path, d: Path, prompt: str, max_steps: int, max_token
             tail.append(line.rstrip()[:200])
             continue
         ev = e.get("event")
-        if ev == "step_update":
+        if claude:
+            t = e.get("type")
+            if t == "assistant":
+                for part in (e.get("message") or {}).get("content") or []:
+                    if part.get("type") == "tool_use":
+                        tools += 1
+                        steps += 1
+                        inp = part.get("input") or {}
+                        what = inp.get("command") or inp.get("file_path") or inp.get("pattern") or inp.get("path") or ""
+                        tail.append(f"▸ {part.get('name')}  {str(what)[:160]}")
+                    elif part.get("type") == "text" and part.get("text", "").strip():
+                        tail.append("💬 " + part["text"].strip().replace("\n", " ")[:300])
+                u = (e.get("message") or {}).get("usage") or {}
+                tokens += u.get("output_tokens", 0) + u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+            elif t == "rate_limit_event":
+                w = ((e.get("rate_limit_info") or {}).get("unifiedWindows") or {})
+                write_status(d, limits={k: round((v or {}).get("utilization", 0) * 100) for k, v in w.items()})
+            elif t == "result" or ("is_error" in e and "total_cost_usd" in e):
+                result = {"status": "ERROR" if e.get("is_error") else "SUCCESS", "response": e.get("result") or "",
+                          "cost": e.get("total_cost_usd"), "error": e.get("result") if e.get("is_error") else ""}
+        elif ev == "step_update":
             su = e["step_update"]
             if su.get("state") != "DONE" and su.get("step_type") != "tool":
                 continue
@@ -180,7 +212,7 @@ def watch(name, model, wt: Path, d: Path, prompt: str, max_steps: int, max_token
     state = "budget" if over else ("done" if ok else "failed")
     write_status(d, state=state, finished=now(), exit=proc.returncode, over=over,
                  commit=commit, ahead=int(ahead or 0), main=main,
-                 response=(result or {}).get("response", "")[-1500:], tokens=tokens)
+                 response=(result or {}).get("response", "")[-1500:], tokens=tokens, cost=(result or {}).get("cost"))
     (d / "pid").unlink(missing_ok=True)
 
 
