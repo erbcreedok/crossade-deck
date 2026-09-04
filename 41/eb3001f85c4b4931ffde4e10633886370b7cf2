@@ -1,0 +1,56 @@
+game-kit/.storybook/stories/Occupied.stories.ts
+  s_4d96c75e177e78::t_8da13159d2d6e6 1-151
+game-kit/.storybook/locales/pages/occupied/ru.json
+  s_4d96c75e177e78::t_70c7577e65889d 1-31
+game-kit/.storybook/locales/pages.ts
+  s_4d96c75e177e78::t_fc550bf60c709e 57
+  s_4d96c75e177e78::t_d5573b55de7b44 21
+  s_4d96c75e177e78::t_2604d82f9848c1 91-93
+  s_4d96c75e177e78::t_2f272e9270a901 49
+  s_4d96c75e177e78::t_b4e22e03388541 201-203
+game-kit/.storybook/locales/pages/acceptor/ru.json
+  s_4d96c75e177e78::t_523adb2743d244 1-29
+game-kit/.storybook/stories/Keeps.stories.ts
+  s_4d96c75e177e78::t_95de1eb901ac29 94
+  s_4d96c75e177e78::t_313f8fe40c4d54 1-92,95-120
+  s_4d96c75e177e78::t_2bc6c27d3032e8 93
+game-kit/.storybook/preview.ts
+  s_4d96c75e177e78::t_f20ac6f1f8755c 150
+game-kit/.storybook/locales/chrome/ru.json
+  s_4d96c75e177e78::t_8697ef0b2a610c 186
+  s_4d96c75e177e78::t_e60e7d56d03246 129
+  s_4d96c75e177e78::t_736778a8d4bab3 208
+  s_4d96c75e177e78::t_d376a67aba106a 31
+game-kit/.storybook/stories/Acceptor.stories.ts
+  s_4d96c75e177e78::t_f8932e8d99aae7 1-98,100-136
+  s_4d96c75e177e78::t_2fcc976a10cd4d 99
+game-kit/.storybook/locales/chrome/en.json
+  s_4d96c75e177e78::t_52f58c3cc812d5 129
+  s_4d96c75e177e78::t_fff528b3ebf0ff 186
+  s_4d96c75e177e78::t_9fd3d798c6203a 31
+  s_4d96c75e177e78::t_813ad485232b63 208
+game-kit/.storybook/locales/pages/keeps/en.json
+  s_4d96c75e177e78::t_cf2d791e6a3a43 1-27
+game-kit/.storybook/locales/pages/acceptor/en.json
+  s_4d96c75e177e78::t_68e41c7d5f02fa 1-29
+game-kit/.storybook/locales/pages/occupied/en.json
+  s_4d96c75e177e78::t_c2a059a7147039 1-32
+game-kit/.storybook/locales/pages/keeps/ru.json
+  s_4d96c75e177e78::t_812381f07198d2 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "41eb3001f85c4b4931ffde4e10633886370b7cf2",
+  "prompts": {},
+  "sessions": {
+    "s_4d96c75e177e78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3ec4e42e-f74d-4b43-853e-97d80cfc7530",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
