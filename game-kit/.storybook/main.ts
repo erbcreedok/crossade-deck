@@ -19,6 +19,9 @@ function here(pkg: string): string {
 
 // The catalog is the kit's documentation, so it is plain HTML: our scenes are a view plus
 // our own panels, and a framework renderer would only add a layer between them.
+/** Where a tunnel hands the catalog out from — by suffix, so a fresh address needs nothing edited. */
+const TUNNEL_HOSTS = [".trycloudflare.com", ".ngrok-free.app", ".ngrok.app", ".ts.net"];
+
 const config: StorybookConfig = {
   // The stories live HERE, beside the page that renders them and the words they read: they
   // document the kit, they are not part of it. `src/` ships in a game; this directory does not.
@@ -40,7 +43,18 @@ const config: StorybookConfig = {
   // RELATIVE asset paths. The showcase is served from a SUBPATH (`/crossade-deck/` on GitHub
   // Pages), and an absolute base turns every asset into a 404 there while looking perfectly
   // fine on localhost — the failure only appears once it is published.
-  viteFinal: async (cfg) => ({ ...cfg, base: "./" }),
+  //
+  // ...AND ANY HOST THAT REACHES THE DEV SERVER THROUGH A TUNNEL. Vite answers "403 Invalid host"
+  // to a `Host` header it does not know, which is every trycloudflare / ngrok address — a catalog
+  // shown from a phone outside the WiFi is exactly that. Named by suffix, so a fresh tunnel address
+  // (they change on every start) needs nothing edited; on localhost the list changes nothing.
+  // Two gates, one list: Storybook's own middleware answers 403 first, Vite's would second.
+  core: { allowedHosts: TUNNEL_HOSTS },
+  viteFinal: async (cfg) => ({
+    ...cfg,
+    base: "./",
+    server: { ...cfg.server, allowedHosts: TUNNEL_HOSTS },
+  }),
 };
 
 export default config;
