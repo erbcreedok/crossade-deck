@@ -28,6 +28,8 @@ export interface MarkPolicy {
   readonly showOwn: boolean;
   /** Who the viewer is (matches `Marked.by` for own actions). */
   readonly me?: string;
+  /** Optional mapping of seat/player keys to paint tokens for mark rendering. */
+  readonly inks?: Record<string, string> | undefined;
 }
 
 export interface ViewerSettings {

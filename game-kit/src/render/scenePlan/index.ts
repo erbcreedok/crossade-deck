@@ -49,73 +49,51 @@ import { shadowQuad, type ShadowLamp } from "./shadows.js";
 import { transformsOf } from "./transforms.js";
 import { pitchStand, viewTransform } from "./marks.js";
 import { standing } from "./parts.js";
+import { markQuads, type MarkContext } from "./markQuads.js";
 
 export * from "./quads.js";
 export * from "./input.js";
 export { bakePlan } from "./bake.js";
 export { gridMarks, boundsMarks, pitchStand, viewTransform } from "./marks.js";
+export { markQuads } from "./markQuads.js";
 export { transformsOf } from "./transforms.js";
 export { LAYER_HEIGHT } from "./depth.js";
 export type { ResolveContext };
 
-export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, grounded, measure }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, grounded, measure, now }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = view ?? viewTransform(unit, width, height);
-  /**
-   * STANDING A BILLBOARD BACK UP, in screen space — the exact inverse of the camera's squash.
-   *
-   * A desk laid back is drawn short, and everything lying on it with it. What a table actually
-   * looks like is the cloth lying and the CARDS standing: at full height, where they sit. That is
-   * `Oriented: "viewer"` doing what it has always said — a node framed to the onlooker is
-   * indifferent to how the world it stands in is turned — and it is the same sentence for a turn
-   * and for a tilt, so the atom needs no new field.
-   *
-   * `undefined` when the desk is not laid back at all, so an ordinary scene composes nothing extra.
-   */
   const standUp = pitchStand(pitch);
-  // How much of the view's scale a screen-sized node has to give back: at zoom 1 the view IS the
-  // unit and there is nothing to undo, so the whole thing is absent rather than a scale of one.
   const viewScale = Math.hypot(toView.a, toView.b);
-  /** What the view is worth as a multiple of the etalon — the "zoom" a screened node argues with. */
   const viewOverUnit = viewScale > 0 && unit > 0 ? viewScale / unit : 1;
-  // The lamp's arithmetic — how far a shadow falls (units, so zoom never changes the shadow-to-
-  // size ratio), how much each point of resolved `z` adds, how dark the ink lies — is the DESK's
-  // data (`Lit.shadow`, root-only), read once per plan. A per-piece length would be a second
-  // light by the back door, so nothing below asks the caster.
   const depth = shadowOf(root);
   const out: Quad[] = [];
-  // The direction every shadow falls — ONE formula, read once: the light is a root-only field.
   const fall = lightVector(root);
 
-  /** Shadow quads whose caster is in flight — they rise with it. */
   const airborne = new Set<NodeId>();
 
-  /** Everything the shadow law is asked with — built once, so `shadows.ts` reads no scene itself. */
   const lamp: ShadowLamp = { nodes, overrides, carried, grounded, toView, depth, fall, unit, spread: (holder) => spreadOf(holder) };
+  const markCtx: MarkContext = { viewer, unit, toView, nodes, overrides, standUp, now };
 
   const visit = (n: Node): void => {
     const ctx = contextFor(n, unit, viewer);
 
-    // THE ONE SEAM. Every runtime mechanic reaches the paint through here and nowhere else: the
-    // node to draw (a card's other face is a substitute node), and the coats to mix over its
-    // surface (a highlight, a censor). The list is empty until a mechanic registers itself, and
-    // then this walk still knows none of them by name. The pose shift a reflect asks for is folded
-    // in `transformsOf` instead, so it reaches the CHILDREN too; here only the paint is mixed.
-    //
-    // The CHILDREN come from the shown node too — a substitute face brings its whole subtree, and
-    // the front's content does not bleed through the back. That is why this is a recursion over
-    // what the effects answered, not a walk over the authored tree.
     const { node, coats } = applyEffects(n, ctx);
     if (castsShadow(n)) {
       const cast = shadowQuad(n, node, ctx, lamp);
       if (cast) {
         out.push(cast);
-        // A shadow rises with the piece it belongs to: sorted as a resting quad it would sink under
-        // every resting piece the moment its caster left the desk.
         if (raised?.has(n.id)) airborne.add(cast.id);
       }
     }
     paint(n, node, coats, ctx);
+
+    const mq = markQuads(n, ctx, markCtx);
+    for (const q of mq) {
+      out.push(q);
+      if (raised?.has(n.id)) airborne.add(q.id);
+    }
+
     for (const child of node.children) visit(child);
   };
 
@@ -321,11 +299,9 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     if (caps(n).has("Container")) grounds.add(n.id);
   });
   const aloft = (q: Quad): number => (raised?.has(q.id) || airborne.has(q.id) ? 1 : 0);
-  const shade = (q: Quad): number => (q.layer === "shadow" ? 0 : 1);
-  // FIVE RANKS, and they are one sentence: the ground, then each height's shadows, then that
-  // height's pieces. Pieces at ONE height never shadow each other — resting or carried, they are
-  // touching, and there is no gap between touching things for a shadow to live in — while a piece
-  // ABOVE another still casts on it, because there the gap is the whole point.
-  const rank = (q: Quad): number => (grounds.has(q.id) ? 0 : 1 + aloft(q) * 2 + shade(q));
+  const shade = (q: Quad): number => (q.layer === "shadow" ? 0 : q.layer === "mark" ? 2 : 1);
+  // SEVEN RANKS: ground (0), resting shadows (1), resting pieces (2), resting marks (3),
+  // raised shadows (4), raised pieces (5), raised marks (6).
+  const rank = (q: Quad): number => (grounds.has(q.id) ? 0 : 1 + aloft(q) * 3 + shade(q));
   return out.sort((a, b) => rank(a) - rank(b) || a.z - b.z);
 }

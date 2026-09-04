@@ -72,6 +72,8 @@ export interface PlanInput {
    * skipped, not thrown, exactly as an unregistered surface name is.
    */
   readonly measure?: TextMeasure | undefined;
+  /** Timestamp in ms (Date.now()) to evaluate mark TTL against. */
+  readonly now?: number | undefined;
 }
 
 /**

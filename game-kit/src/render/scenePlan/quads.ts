@@ -101,11 +101,11 @@ export interface QuadText {
 export interface Quad {
   readonly id: NodeId;
   /**
-   * Set on a quad of the SHADOW layer — drawn in one pass under everything at rest. Its id is
-   * the caster's with a `::shadow` suffix, which no lookup resolves: a shadow cannot be picked,
-   * baked, or mistaken for a piece. Absent on every quad that IS a piece.
+   * Set on a quad of the SHADOW or MARK layer — drawn in one pass.
+   * `shadow`: drawn under everything at rest.
+   * `mark`: action mark badges and movement lines.
    */
-  readonly layer?: "shadow";
+  readonly layer?: "shadow" | "mark" | undefined;
   /** Centre, in pixels from the top-left of the view. */
   readonly x: number;
   readonly y: number;

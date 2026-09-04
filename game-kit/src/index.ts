@@ -256,7 +256,18 @@ export { project } from "./core/project.js";
 // arithmetic answers "where would it land", so the two cannot disagree. See `core/part.ts`.
 export { partAt, type Parted } from "./core/part.js";
 export { Marked, mark, unmark, visibleMark, type MarkedFields } from "./core/atoms/marked.js";
-export { installStockMarks, markNames, markRecord, registerMark, resetMarks, type MarkRecord } from "./core/marks.js";
+export {
+  inkRecord,
+  installStockMarks,
+  markNames,
+  markRecord,
+  registerInk,
+  registerMark,
+  resetInks,
+  resetMarks,
+  resolveInk,
+  type MarkRecord,
+} from "./core/marks.js";
 export { svg } from "./render/svg.js";
 export { installStockMarkIcons } from "./presets/marks/icons.js";
 export { DEFAULT_VIEWER, withViewer, type MarkPolicy, type ThemeName, type ViewerSettings } from "./core/viewer.js";
@@ -411,6 +422,7 @@ export {
   bakePlan,
   boundsMarks,
   gridMarks,
+  markQuads,
   scenePlan,
   transformsOf,
   viewTransform,

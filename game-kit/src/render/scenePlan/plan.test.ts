@@ -26,6 +26,9 @@ import { polyline } from "../../core/path.js";
 import { circle, ellipse, rect } from "../../presets/shapes.js";
 import { transformShape } from "../../core/path.js";
 import { inspect } from "../../core/inspect.js";
+import { mark } from "../../core/atoms/marked.js";
+import { installStockMarks } from "../../core/marks.js";
+import { installStockMarkIcons } from "../../presets/marks/icons.js";
 
 const box = (w: number, h: number) => Bounded({ bounds: rect(w, h) });
 const plan = (root: Parameters<typeof scenePlan>[0]["root"], unit = 100) =>
@@ -1092,4 +1095,59 @@ describe("the hybrid: baked or live", () => {
     expect(up, "lifted: he casts").toContain("man::shadow");
   });
 
+  it("marks.badge-in-top-right-corner — node with mark produces mark quad in corner filled with player ink", () => {
+    installStockMarks();
+    installStockMarkIcons();
+    const root = node("root", Container({ layout: "free" }));
+    const piece = mark(
+      node("p1", Bounded({ bounds: rect(2, 2) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })),
+      { by: "south", mark: "moved" },
+    );
+    add(root, piece);
+    const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
+    const markQuad = quads.find((q) => q.id === "p1::mark");
+    expect(markQuad).toBeDefined();
+    expect(markQuad!.layer).toBe("mark");
+    expect(markQuad!.layers[0]!.paint).toBe("gold");
+    expect(markQuad!.x).toBeCloseTo(500, 6);
+    expect(markQuad!.y).toBeCloseTo(200, 6);
+  });
+
+  it("marks.policy-hides-mark — viewer policy hides viewer own mark when showOwn is false", () => {
+    installStockMarks();
+    installStockMarkIcons();
+    const root = node("root", Container({ layout: "free" }));
+    const piece = mark(
+      node("p1", Bounded({ bounds: rect(2, 2) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })),
+      { by: "south", mark: "moved" },
+    );
+    add(root, piece);
+    const viewer = { ...DEFAULT_VIEWER, marks: { me: "south", showOwn: false } };
+    const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer });
+    const markQuad = quads.find((q) => q.id === "p1::mark");
+    expect(markQuad).toBeUndefined();
+  });
+
+  it("marks.from-produces-dashed-vector — marked.from produces dashed line vector quad under badge", () => {
+    installStockMarks();
+    installStockMarkIcons();
+    const root = node("root", Container({ layout: "free" }));
+    const piece = mark(
+      node("p1", Bounded({ bounds: rect(2, 2) }), Surfaced(), Transformable({ at: { x: 2, y: 0 } })),
+      { by: "north", mark: "moved", from: { x: 0, y: 0 } },
+    );
+    add(root, piece);
+    const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
+    const lineQuad = quads.find((q) => q.id === "p1::mark-line");
+    const badgeQuad = quads.find((q) => q.id === "p1::mark");
+    expect(lineQuad).toBeDefined();
+    expect(badgeQuad).toBeDefined();
+    expect(lineQuad!.layer).toBe("mark");
+    expect(lineQuad!.stroke!.color).toBe("teal");
+    expect(lineQuad!.stroke!.dashes).toBeDefined();
+    expect(lineQuad!.stroke!.dashes!.length).toBeGreaterThan(0);
+    const lineIdx = quads.indexOf(lineQuad!);
+    const badgeIdx = quads.indexOf(badgeQuad!);
+    expect(lineIdx).toBeLessThan(badgeIdx);
+  });
 });

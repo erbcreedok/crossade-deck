@@ -321,7 +321,7 @@ function turn(a: Point, b: Point, c: Point): number {
  * one. That is what puts a dash on both corners of every side rather than leaving one of them
  * to land in a gap.
  */
-function dashOpen(
+export function dashOpen(
   path: readonly Point[],
   on: number,
   off: number,
