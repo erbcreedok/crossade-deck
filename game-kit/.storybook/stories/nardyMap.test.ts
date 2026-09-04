@@ -3,8 +3,8 @@
 // the game, which the page deliberately does not decide.
 
 import { describe, expect, it } from "vitest";
-import { caps, fieldsOf, placeChildren, wouldAccept, type Node, type TransformableFields } from "../../src/index.js";
-import { COMMON, FELT, isChecker, isPoint, nardyMap, numberOf, pointAt, pointUnder, runOf, seatsOf, wallsOf } from "./nardyMap.js";
+import { caps, compose, fieldsOf, placeChildren, Transformable, wouldAccept, type Node, type TransformableFields } from "../../src/index.js";
+import { COMMON, FELT, isChecker, isPoint, mayThrow, nardyMap, numberOf, pointAt, pointUnder, regripDice, runOf, seatsOf, wallsOf } from "./nardyMap.js";
 
 const points = (desk: Node): Node[] => desk.children.filter(isPoint);
 const pointN = (desk: Node, n: number): Node => points(desk).find((p) => numberOf(p) === n)!;
@@ -84,5 +84,33 @@ describe("a nardy board is a desk whose places are piles", () => {
     // A checker gets the whole felt: it may cross the board and leave it.
     const felt = wallsOf(checker, { x: 0, y: 0 })!;
     expect(felt.x1).toBeGreaterThan(inside.x1);
+  });
+
+  it("nardy.a-column-is-never-thrown-and-the-dice-go-by-their-handle — one checker flies, a column is set down; the pair lies side by side over a handle that follows it", () => {
+    const desk = nardyMap();
+    const head = pointN(desk, 12);
+    const one = [{ id: head.children[14]!.id, offset: { x: 0, y: 0 } }];
+    const column = head.children.slice(10).map((c) => ({ id: c.id, offset: { x: 0, y: 0 } }));
+    expect(mayThrow(one, desk), "one checker may fly").toBe(true);
+    expect(mayThrow(column, desk), "a column may not").toBe(false);
+    const grip = desk.children.find((n) => n.id === "dice handle")!;
+    const dice = desk.children.filter((n) => caps(n).has("Rollable"));
+    expect(mayThrow([grip, ...dice].map((n) => ({ id: n.id, offset: { x: 0, y: 0 } })), desk), "the pair, by its handle").toBe(true);
+    // The handle takes both dice, side by side over it.
+    const run = runOf(desk, grip);
+    expect(run).toEqual([grip, ...dice]);
+    const seats = seatsOf(desk, grip, run);
+    expect(seats[1]!.x).toBeLessThan(0);
+    expect(seats[2]!.x).toBeGreaterThan(0);
+    expect(seats[1]!.y).toBeLessThan(0);
+    // ...and follows them wherever they come to lie: under the lowest, in the middle of both.
+    compose(dice[1]!, Transformable({ ...(fieldsOf<TransformableFields>(dice[1]!, "Transformable") ?? {}), at: { x: 9, y: 5 } }));
+    regripDice(desk);
+    const at = seatOf(grip);
+    expect(at.y).toBeGreaterThan(5.4);
+    expect(at.x).toBeGreaterThan(8.4);
+    expect(at.x).toBeLessThan(9);
+    // A die, or its handle, never aims at a point.
+    expect(pointUnder(desk, pointAt(19).at, grip)).toBeUndefined();
   });
 });

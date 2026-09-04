@@ -41,9 +41,22 @@ import {
   Surfaced,
   Transformable,
   Valued,
+  compose,
   wouldAccept,
   mapWalls,
   extentOf,
+  roundedRect,
+  Draggable,
+  GRIP,
+  GRIP_RATIO,
+  GRIP_GAP,
+  GRIP_MISS,
+  GRIP_HOLD,
+  Screened,
+  Forgiving,
+  heapBox,
+  isGrip,
+  type CarryItem,
   type BoundedFields,
   type Node,
   type TransformableFields,
@@ -203,13 +216,19 @@ export function nardyMap(reach = 0): Node {
     if (!head) continue;
     for (let i = 0; i < CHECKERS; i++) add(head, checker(seat, i));
   }
-  // TWO DICE BESIDE THE BOARD, in the band on the right — thrown from there they stay there, thrown
-  // on the board they stay on the board (`wallsOf`).
+  // TWO DICE BESIDE THE BOARD, side by side in the band on the right, with a handle under the pair
+  // — the pair is what a hand throws, and the handle is what it throws it by. Thrown from there they
+  // stay there, thrown on the board they stay on the board (`wallsOf`); wherever they come to rest,
+  // the handle is put back under them (`regripDice`).
+  const dice: Node[] = [];
   for (const [i, face] of [3, 5].entries()) {
-    const d6 = die(`die ${i + 1}`, { kind: "d6", at: { x: BOARD.w / 2 + FRAME + 2.2, y: -0.7 + i * 1.4 }, face });
+    const d6 = die(`die ${i + 1}`, { kind: "d6", at: { x: DICE_AT.x - 0.55 + i * 1.1, y: DICE_AT.y }, face });
     onTheDesk(d6);
     add(desk, d6);
+    dice.push(d6);
   }
+  add(desk, diceGrip());
+  regripDice(desk);
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
@@ -258,6 +277,42 @@ function checker(seat: string, nth: number): Node {
   );
 }
 
+/** Where the pair of dice lies to begin with: in the band to the right of the board. */
+const DICE_AT = { x: BOARD.w / 2 + FRAME + 2.2, y: 0 };
+
+/**
+ * THE HANDLE UNDER THE DICE — a stack handle like the shelf's own (`grips`), drawn once for the pair
+ * rather than found by touching: two dice are one throw whether or not they lie against each other,
+ * and a handle that vanished the moment they scattered would be gone exactly when it is wanted.
+ */
+function diceGrip(): Node {
+  const h = GRIP.w / GRIP_RATIO;
+  return node(
+    "dice handle",
+    Bounded({ bounds: roundedRect(GRIP.w * 2, h, h / 2) }),
+    Surfaced({ surface: "gesture.map.grip" }),
+    Transformable({ at: { x: 0, y: 0 } }),
+    Valued({ values: { grip: 0, dice: 1 } }),
+    Screened({ min: GRIP_HOLD.min, max: GRIP_HOLD.max }),
+    Forgiving({ miss: GRIP_MISS }),
+    Draggable({ onReject: "stay" }),
+  );
+}
+
+const isDiceGrip = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valued")?.values?.["dice"] !== undefined;
+const diceOf = (root: Node): Node[] => root.children.filter(isDie);
+
+/** Put the handle back under the pair, wherever the pair has come to lie. */
+export function regripDice(root: Node): void {
+  const grip = root.children.find(isDiceGrip);
+  const dice = diceOf(root);
+  if (!grip || dice.length === 0) return;
+  const { mid, bottom } = heapBox(root, dice);
+  const h = GRIP.w / GRIP_RATIO;
+  const own = fieldsOf<TransformableFields>(grip, "Transformable");
+  compose(grip, Transformable({ ...(own ?? {}), at: { x: mid, y: bottom + GRIP_GAP + h / 2 } }));
+}
+
 /** Which point this is, or nothing for anything that is not a point. */
 export const numberOf = (n: Node): number | undefined => {
   const v = fieldsOf<ValuedFields>(n, "Valued")?.values?.["point"];
@@ -273,6 +328,7 @@ const isDie = (n: Node): boolean => caps(n).has("Rollable");
  * a point a checker is alone, and a die is always alone.
  */
 export function runOf(root: Node, hit: Node): readonly Node[] {
+  if (isDiceGrip(hit)) return [hit, ...diceOf(root)];
   if (!isChecker(hit) || !hit.parent || !isPoint(hit.parent)) return [hit];
   return runBelow(root, hit);
 }
@@ -283,6 +339,13 @@ export function runOf(root: Node, hit: Node): readonly Node[] {
  * A little tighter than on the point, so a hand of five reads as a hand and not a ladder.
  */
 export function seatsOf(_root: Node, hit: Node, run: readonly Node[]): readonly Vec[] {
+  // THE PAIR HANGS OVER ITS HANDLE, side by side, as it lay: the handle is the anchor and takes no
+  // lift, the dice ride above it at the hand's height.
+  if (isDiceGrip(hit)) {
+    const dice = run.filter(isDie);
+    const h = GRIP.w / GRIP_RATIO;
+    return run.map((n) => (isDie(n) ? { x: (dice.indexOf(n) - (dice.length - 1) / 2) * 1.1, y: -(GRIP_GAP + h / 2 + 0.5) } : { x: 0, y: 0 }));
+  }
   const from = hit.parent && isPoint(hit.parent) ? pointAt(numberOf(hit.parent)!).up : true;
   const sign = from ? -1 : 1;
   // `|| 0` folds the −0 of the first seat back to +0, as every layout on this shelf does.
@@ -298,7 +361,7 @@ export function seatsOf(_root: Node, hit: Node, run: readonly Node[]): readonly 
  * and saying it there is what sends a refused checker home rather than leaving it on the felt.
  */
 export function pointUnder(root: Node, at: Vec, lead: Node): Node | undefined {
-  if (isDie(lead)) return undefined;
+  if (isDie(lead) || isDiceGrip(lead)) return undefined;
   let best: Node | undefined;
   let nearest = Infinity;
   for (const p of root.children) {
@@ -348,6 +411,29 @@ export function wallsOf(piece: Node, at: Vec): Walls | undefined {
   if (at.x > bw) return inset(bw, -fh, fw, fh);
   if (at.y < -bh) return inset(-fw, -fh, fw, -bh);
   return inset(-fw, bh, fw, fh);
+}
+
+/**
+ * WHAT MAY BE THROWN: one checker, and the dice — never a column. A column let go of fast is set
+ * down where it is; a hand that wanted to throw checkers across the board throws them one at a time.
+ */
+export function mayThrow(items: readonly CarryItem[], root: Node): boolean {
+  const pieces = items.map((it) => root.children.find((n) => n.id === it.id) ?? byIdDeep(root, it.id)).filter((n): n is Node => n !== undefined && !isGrip(n) && !isDiceGrip(n));
+  return pieces.every(isDie) || pieces.filter(isChecker).length <= 1;
+}
+
+function byIdDeep(root: Node, id: string): Node | undefined {
+  for (const c of root.children) {
+    if (c.id === id) return c;
+    const deep = byIdDeep(c, id);
+    if (deep) return deep;
+  }
+  return undefined;
+}
+
+/** After anything comes to rest, the handle goes back under the dice. */
+export function settled(root: Node): void {
+  regripDice(root);
 }
 
 /** Where a node stands, for the tests: its own `at`. */

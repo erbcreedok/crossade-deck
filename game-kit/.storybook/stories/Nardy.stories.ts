@@ -11,7 +11,7 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockCoats, installStockMarkIcons, installStockMarks, t, type Node, type Vec } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { nardyMap, nardyRoom, NARDY_SEATS, NARDY_UNIT, pointUnder, runOf, seatsOf, wallsOf } from "./nardyMap.js";
+import { mayThrow, nardyMap, nardyRoom, NARDY_SEATS, NARDY_UNIT, pointUnder, runOf, seatsOf, settled, wallsOf } from "./nardyMap.js";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 
@@ -90,7 +90,7 @@ export const Nardy: StoryObj<NardyArgs> = {
           i === 0
             ? { marks: { inks, showOwn: false, me: seat } }
             : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
-          { runOf, offsetOf: seatsOf, wallsOf },
+          { runOf, offsetOf: seatsOf, wallsOf, mayThrow, settled },
         ),
       );
       pane.appendChild(dot);
@@ -101,7 +101,9 @@ export const Nardy: StoryObj<NardyArgs> = {
   // THE LANDING PICTURE IS ON, unlike chess: on a point the picture is not the lit place, it is the
   // seat on top of the pile — and that is news, because a pile five deep lands a checker somewhere
   // the eye has to be shown.
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, landing: true, reach: 0 },
+  // A DIE SET DOWN KEEPS ITS FACE (`toss`): only a throw changes the number, so a die moved out of
+  // the way is not a roll — and a player who sees the landing picture knows the drop is a drop.
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, landing: true, reach: 0, dieDrop: "toss" },
   argTypes: { ...STACK_KNOBS, reach: REACH },
   parameters: { gkDocStory: "nardy.scene" },
 };

@@ -222,6 +222,10 @@ export function grabScene(
     readonly runOf?: (root: Node, hit: Node) => readonly Node[];
     readonly offsetOf?: (root: Node, hit: Node, run: readonly Node[]) => readonly Vec[] | undefined;
     readonly wallsOf?: (piece: Node, at: Vec) => Walls | undefined;
+    /** Whether this run may be THROWN at all — a column of checkers is set down however fast the hand was. */
+    readonly mayThrow?: (items: readonly CarryItem[], root: Node) => boolean;
+    /** The desk came to rest after these — a handle can be put back under what it belongs to. */
+    readonly settled?: (root: Node, ids: readonly string[]) => void;
   },
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
@@ -308,6 +312,12 @@ export function grabScene(
 
   /** Redraw the handles for whatever is touching now, and show them. */
   const settle = (): void => {
+    // A DESK WITH ITS OWN LAW ABOUT PIECES has said what it had to say (`pieces.settled`) — and a
+    // handle put back under the dice is a tree write every screen has to be told about.
+    if (!stacking && pieces?.settled) {
+      built.host.setRoot(built.host.root);
+      mirror?.changed();
+    }
     if (!stacking) return;
     // WHAT THE CLOCK IS CARRYING IS NOT IN A HEAP. A thrown card is in the air, not lying on the
     // felt, and a handle that still counted it would pull it back out of its own flight the moment
@@ -583,7 +593,10 @@ export function grabScene(
             const lift = landingPic.current?.hover ?? { x: 0, y: 0 };
             const own = run.filter((n) => !isDrawn(n));
             const seats = (pieces.offsetOf?.(root, hit, own) ?? own.map(() => ({ x: 0, y: 0 }))).map((seat) => ({ x: seat.x + lift.x, y: seat.y + lift.y }));
-            const all = [...seats, ...(landingPic.current ? [landingPic.current.seat] : [])];
+            // BY THE RUN'S OWN ORDER, whatever is in it: a handle rides at the anchor, the landing
+            // picture at its seat, and the pieces take the desk's seats in turn. Laid out as one
+            // list of pieces-then-picture, a run led by a handle had every seat one piece off.
+            const all = run.map((n) => (isMark(n) ? (landingPic.current?.seat ?? { x: 0, y: 0 }) : isDrawn(n) ? { x: 0, y: 0 } : seats[own.indexOf(n)] ?? { x: 0, y: 0 }));
             carried = run.map((n, i) => ({ id: n.id, offset: all[i] ?? { x: 0, y: 0 }, still: isDrawn(n) }));
             return all;
           },
@@ -595,6 +608,7 @@ export function grabScene(
               const piece = byId(root, id);
               if (piece) toFront(piece);
             }
+            pieces.settled?.(root, ids);
             settle();
           },
         }
@@ -682,7 +696,9 @@ export function grabScene(
             // once. `v` arrives in GLASS PIXELS PER SECOND — not a number read off the carry's
             // springs and multiplied back by the zoom to undo the division that put it there. Above
             // this line everything is the gesture; below it, everything is the desk (`flickOf`).
-            const swing = flickVector(v);
+            // A RUN THE DESK WILL NOT LET FLY is let go of as if the hand had stopped: no swing, so
+            // it comes down where it is. The hand's speed is not a lie, it is simply not for this.
+            const swing = pieces?.mayThrow && !pieces.mayThrow(items, built.host.root) ? undefined : flickVector(v);
             aimed = aimOf(built, items, swing, ways, bump);
             // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
             // page that had both would otherwise always fall: this runs BEFORE the drop is decided,
@@ -721,6 +737,7 @@ export function grabScene(
               // that only ran on the wiring's path would re-pose a card dealt in one at a time and
               // leave every hand ever put back exactly as the hand had splayed it.
               rule?.settled?.(built.host.root, falling.map((it) => it.id));
+              pieces?.settled?.(built.host.root, falling.map((it) => it.id));
               settle();
             }, ways, bump, drop, pieces?.wallsOf);
           },
