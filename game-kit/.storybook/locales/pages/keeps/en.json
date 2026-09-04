@@ -1,0 +1,27 @@
+{
+  "docs.keeps.component": [
+    "`Keeper` answers which of a child's capabilities still act while it sits INSIDE this",
+    "container. Shape is like `bounds`: no atom at all means everything is allowed, and a list is",
+    "a NARROWING. There is no `allow_manual_flip: false` — the canon forbids negation flags —",
+    "restriction works by ABSENCE from an allow-list, never by a negative.",
+    "",
+    "```ts",
+    "import { node, Container, Keeper, keepsAllows } from \"game-kit\";",
+    "",
+    "const discard = node(\"discard\",",
+    "  Container({ layout: \"free\" }), Keeper({ keeps: [\"drag\"] }));",
+    "",
+    "keepsAllows(discard, \"drag\"); // true  — a card may be carried out",
+    "keepsAllows(discard, \"flip\"); // false — not flipped in place",
+    "```",
+    "",
+    "The kit does not gate anything on its own: `keepsAllows` is a question a caller asks before",
+    "acting, the same way this page's tap does before it turns the card over."
+  ],
+  "docs.keeps.zone": [
+    "One zone, one card. Pick what the zone keeps: no atom (open — the tap always flips it),",
+    "`[\"drag\"]` (the card leaves the zone freely but a tap does nothing), or an empty list (the",
+    "closed case — nothing beyond what a bare `Draggable` already does). Dragging the card out is",
+    "never gated on this shelf: that is `Grabber`'s law, a separate question from `Keeper`'s."
+  ]
+}

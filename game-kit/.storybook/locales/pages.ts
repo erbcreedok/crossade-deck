@@ -18,6 +18,7 @@ import { catalogText, type CatalogKey, type CatalogLocale, type CatalogText, typ
 
 // Types only — erased at compile time, so naming the bundles here costs nothing at runtime and
 // keeps every prose key checkable by `tsc` instead of by hope.
+import type acceptor from "./pages/acceptor/en.json";
 import type bounded from "./pages/bounded/en.json";
 import type canvasCamera from "./pages/canvasCamera/en.json";
 import type canvasSeats from "./pages/canvasSeats/en.json";
@@ -45,6 +46,7 @@ import type gettingStarted from "./pages/gettingStarted/en.json";
 import type grippable from "./pages/grippable/en.json";
 import type intro from "./pages/intro/en.json";
 import type inviting from "./pages/inviting/en.json";
+import type keeps from "./pages/keeps/en.json";
 import type labeled from "./pages/labeled/en.json";
 import type lit from "./pages/lit/en.json";
 import type owned from "./pages/owned/en.json";
@@ -52,6 +54,7 @@ import type poser from "./pages/poser/en.json";
 import type placeable from "./pages/placeable/en.json";
 import type motion from "./pages/motion/en.json";
 import type node from "./pages/node/en.json";
+import type occupied from "./pages/occupied/en.json";
 import type presetsBounds from "./pages/presetsBounds/en.json";
 import type presetsComponents from "./pages/presetsComponents/en.json";
 import type presetsCoats from "./pages/presetsCoats/en.json";
@@ -85,6 +88,9 @@ type Loader = () => Promise<{ default: Record<string, string | string[]> }>;
 
 const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   node: { en: () => import("./pages/node/en.json"), ru: () => import("./pages/node/ru.json") },
+  acceptor: { en: () => import("./pages/acceptor/en.json"), ru: () => import("./pages/acceptor/ru.json") },
+  occupied: { en: () => import("./pages/occupied/en.json"), ru: () => import("./pages/occupied/ru.json") },
+  keeps: { en: () => import("./pages/keeps/en.json"), ru: () => import("./pages/keeps/ru.json") },
   root: { en: () => import("./pages/root/en.json"), ru: () => import("./pages/root/ru.json") },
   bounded: { en: () => import("./pages/bounded/en.json"), ru: () => import("./pages/bounded/ru.json") },
   surfaced: { en: () => import("./pages/surfaced/en.json"), ru: () => import("./pages/surfaced/ru.json") },
@@ -192,6 +198,9 @@ export const PAGE_NAMES = Object.keys(PAGES);
 
 /** Every prose key in the catalog — the union of the reference bundles, checked by `tsc`. */
 export type PageKey = keyof (typeof node &
+  typeof acceptor &
+  typeof occupied &
+  typeof keeps &
   typeof root &
   typeof engine &
   typeof bounded &

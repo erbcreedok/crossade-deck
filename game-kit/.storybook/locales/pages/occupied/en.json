@@ -1,0 +1,32 @@
+{
+  "docs.occupied.component": [
+    "`Occupied` is what becomes of the one ALREADY in the slot when a drop lands on it —",
+    "`reject`, `merge`, `swap`, or `capture{to}`. This is NOT the `Acceptor`'s job: the rule",
+    "answers \"may this one enter\" and is silent about the sitter. Mixing the two was a smell of",
+    "an earlier client — the rule that lets a piece in should not also decide the fate of the",
+    "piece it lands on.",
+    "",
+    "The outcome is DATA describing what moves, carried by `Displacer` on the container:",
+    "",
+    "```ts",
+    "import { node, Container, Acceptor, Displacer, capture,",
+    "  registerOccupied, installStockOccupied } from \"game-kit\";",
+    "",
+    "installStockOccupied(); // reject · swap · merge, under their own names",
+    "registerOccupied(\"taken\", capture(\"tray\"));",
+    "",
+    "const cell = node(\"cell\",",
+    "  Container({ layout: \"free\" }), Acceptor({}),",
+    "  Displacer({ occupied: \"taken\" }));",
+    "```",
+    "",
+    "A container without a `Displacer` never clobbers a sitter: the conservative default is",
+    "`reject`, whether the container carries the atom at all or names a policy nobody registered."
+  ],
+  "docs.occupied.cell": [
+    "One cell, one sitter, and a spare piece to drop on it. Pick the policy: `reject` bounces the",
+    "incomer home, `merge` leaves both standing in the cell, `capture` sends the sitter to the",
+    "tray beside it and the incomer takes the slot. `swap` reads correctly in the registry but has",
+    "no picture on this shelf — nothing here carries it out yet."
+  ]
+}
