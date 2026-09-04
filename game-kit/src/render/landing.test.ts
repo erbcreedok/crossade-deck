@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { node, Bounded, rect, Transformable, fieldsOf, extentOf, type Node, type BoundedFields } from "../../src/index.js";
+import { add, node, Bounded, Container, pileLayout, rect, registerLayout, Transformable, fieldsOf, extentOf, type Node, type BoundedFields } from "../../src/index.js";
 import { landingBox, landingAt, landingMark, throwGate } from "./landing.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
@@ -31,6 +31,20 @@ describe("landing", () => {
     // landingAt with zone
     const zone = node("z", Transformable({ at: { x: 50, y: 50 } }));
     expect(landingAt({ x: 10, y: 10 }, { x: 1, y: 2 }, zone)).toEqual({ x: 50, y: 50 });
+  });
+
+  it("landing.in-a-zone-that-lays-out-the-picture-takes-the-next-seat — on top of the pile, not in the middle", () => {
+    // A nardy point two checkers deep: the third lands on top of the second, and that is where the
+    // picture stands. A zone with a layout but no box for the picture, or with no layout, keeps
+    // its middle — the answer every zone gave before piles could be aimed at.
+    registerLayout("landing.point", pileLayout({ direction: "up" }));
+    const zone = node("zp", Container({ layout: "landing.point" }), Bounded({ bounds: rect(1, 5) }), Transformable({ at: { x: 50, y: 50 } }));
+    add(zone, node("zp-a", Bounded({ bounds: rect(1, 1) }), Transformable({ at: { x: 0, y: 0 } })));
+    add(zone, node("zp-b", Bounded({ bounds: rect(1, 1) }), Transformable({ at: { x: 0, y: 0 } })));
+    expect(landingAt({ x: 10, y: 10 }, { x: 0, y: 0 }, zone, { w: 1, h: 1 })).toEqual({ x: 50, y: 50 });
+    expect(landingAt({ x: 10, y: 10 }, { x: 0, y: 0 }, zone)).toEqual({ x: 50, y: 50 });
+    const empty = node("zq", Container({ layout: "landing.point" }), Bounded({ bounds: rect(1, 5) }), Transformable({ at: { x: 0, y: 0 } }));
+    expect(landingAt({ x: 10, y: 10 }, { x: 0, y: 0 }, empty, { w: 1, h: 1 })).toEqual({ x: 0, y: 2 });
   });
 
   it("landing.hysteresis-stops-the-picture-from-flickering", () => {

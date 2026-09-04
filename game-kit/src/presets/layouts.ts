@@ -7,7 +7,7 @@
 // scale by type. A seat in the circle does not turn the card to face the middle: facing is
 // the child's own `angle`, set by whoever owns the child, not smuggled in by the arrangement.
 
-import { extentOf, type Point } from "../core/atoms/bounded.js";
+import { extentOf, type Point, type Shape } from "../core/atoms/bounded.js";
 import { nearestSeat, type LayoutChild, type LayoutRecord } from "../core/atoms/container.js";
 import type { LayoutAlign } from "../core/atoms/layouts.js";
 import { finite, oneOf } from "../core/guard.js";
@@ -171,4 +171,61 @@ export function stackLayout({ offset = { x: 0, y: 0 }, padding = 0 }: StackLayou
     // real coordinate footgun (it fails `Object.is` equality and leaks into downstream math).
     place: (children: readonly LayoutChild[]): readonly (Point | undefined)[] => children.map((_, i) => ({ x: i * dx || 0, y: i * dy || 0 })),
   };
+}
+
+export interface PileOptions {
+  /** Which way the pile grows from the zone's edge: a nardy point grows from the rim toward the middle. */
+  readonly direction: "up" | "down" | "left" | "right";
+  /** How far each piece stands from the one below, in units. Absent = the piece's own size along the pile. */
+  readonly step?: number;
+  /**
+   * The longest the pile may be, in units, before it is squeezed — absent = the zone's own box along
+   * the direction, and with no box at all a pile is never squeezed.
+   */
+  readonly fit?: number;
+  /** Room left around the tight wrap, in units — read by `contentExtent` alone. */
+  readonly padding?: number;
+}
+
+/**
+ * A pile that GROWS from one edge: the first piece sits against the rim, every next one a step
+ * further in, and the whole column is squeezed when it would run past `fit`. This is a point on a
+ * nardy board — fifteen checkers on the head fit on a point five checkers long because the pile
+ * compresses, not because it spills over the middle.
+ *
+ * SQUEEZED, not cut: what the layout does with sixteen pieces on a point four long is put them all
+ * there, overlapping evenly, so the count still reads (the top piece shows whole and the rest show
+ * their rims). The alternative — a pile that stops placing at the fifth piece — leaves the sixth
+ * standing where its own `at` says, which is nowhere, and a piece nowhere is a piece lost.
+ *
+ * NO `indexAt`, like `stackLayout`: a pile is aimed at as a whole, never at a piece inside it.
+ * What "the next seat" is — where a piece dropped on this pile will come to rest — is the last
+ * entry of `place` for one more child, which is what the landing picture asks (`landingAt`).
+ */
+export function pileLayout({ direction, step, fit, padding = 0 }: PileOptions): LayoutRecord {
+  const dir = oneOf(direction, ["up", "down", "left", "right"], "up", "pileLayout.direction");
+  const pad = finite(padding, 0, "pileLayout.padding");
+  const along = dir === "up" || dir === "down";
+  // Toward the middle: an "up" pile starts at the bottom rim and its y DEcreases (y grows downward).
+  const sign = dir === "up" || dir === "left" ? -1 : 1;
+  const place = (children: readonly LayoutChild[], box?: Shape): readonly (Point | undefined)[] => {
+    const n = children.length;
+    if (n === 0) return [];
+    const sizes = children.map((c) => (c.footprint ? extentOf(c.footprint) : { w: 0, h: 0 }));
+    const own = sizes.map((s) => (along ? s.h : s.w));
+    const first = own[0] ?? 0;
+    const room = box ? (along ? extentOf(box).h : extentOf(box).w) : undefined;
+    const length = fit ?? room;
+    // One step for the whole column: a pile of one kind of piece has one thickness, and a mixed
+    // pile squeezed unevenly would read as two piles.
+    const wanted = step ?? first;
+    const tight = length !== undefined && n > 1 ? Math.min(wanted, Math.max(0, (length - first) / (n - 1))) : wanted;
+    // The rim is the far edge of the zone's box; without a box the pile grows from the zone's origin.
+    const rim = room !== undefined ? -sign * (room / 2) + sign * (first / 2) : 0;
+    return children.map((_, i) => {
+      const main = rim + sign * tight * i || 0;
+      return along ? { x: 0, y: main } : { x: main, y: 0 };
+    });
+  };
+  return { padding: pad, place };
 }

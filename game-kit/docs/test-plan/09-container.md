@@ -1,6 +1,6 @@
 ## UNIT · Container — slot, layout, spreading
 
-`vitest` · 105 кейсов, расписано 93
+`vitest` · 107 кейсов, расписано 95
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -97,3 +97,5 @@
 | `container.children-are-state` ⏳ | the spec serialized | the payload inspected | `children` is state and is absent from the spec; the config is spec and is sent once |
 | `container.is-a-figure` ⏳ | a container | drag / flip / selection / shadow applied to the whole | all work — it is a full figure, not a special case |
 | `container.no-state-diffs` | the whole src tree | scanned for state-diff / mechanics registries | zero — 'deck ↔ fan' is a layout reference swap |
+| `preset.pile.grows-from-the-rim` | зона 1×5 с `pileLayout({direction:"up"})`, три фишки 1×1 | позиции посчитаны | первая у нижнего края `{0,2}`, дальше по одной вверх: `{0,1}`, `{0,0}` — стопка растёт от борта к середине |
+| `preset.pile.squeezes-past-the-fit` | зона 1×5, `direction:"down"`, пятнадцать фишек | позиции посчитаны | первая у верхнего края, пятнадцатая всё ещё внутри зоны (`y=2`), шаг между всеми одинаковый — голова длинных нард ужимается, а не вываливается |

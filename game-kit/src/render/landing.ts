@@ -1,5 +1,6 @@
 import { add, byId, compose, fieldsOf, node, remove, type Node } from "../core/node.js";
-import { extentOf, Bounded, type BoundedFields } from "../core/atoms/bounded.js";
+import { extentOf, footprint, Bounded, type BoundedFields } from "../core/atoms/bounded.js";
+import { layoutChildren, layoutRecord, type ContainerFields, type LayoutChild } from "../core/atoms/container.js";
 import { Transformable, type TransformableFields } from "../core/atoms/transformable.js";
 import { Private } from "../core/atoms/private.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
@@ -110,9 +111,24 @@ export function landingMark(at: Vec, box: { readonly w: number; readonly h: numb
  * already draws — a second line on the first, saying nothing the first did not. What has news in it
  * is the same thing as always: the shape of what will be lying there.
  */
-export function landingAt(anchor: Vec, seat: Vec, zone: Node | undefined): Vec {
+export function landingAt(anchor: Vec, seat: Vec, zone: Node | undefined, box?: { readonly w: number; readonly h: number }): Vec {
   const home = zone ? fieldsOf<TransformableFields>(zone, "Transformable")?.at : undefined;
-  return home ?? { x: anchor.x + seat.x, y: anchor.y + seat.y };
+  if (!home || !zone) return { x: anchor.x + seat.x, y: anchor.y + seat.y };
+  // ...AND IN THE ZONE, AT THE SEAT IT WILL TAKE. A zone that lays its children out has one more
+  // seat than it has children, and that seat — not the zone's middle — is where this run will lie:
+  // on a nardy point the picture stands on TOP of the pile already there, and on a point five deep
+  // it stands where the squeeze will put it. Asked of the layout itself with one phantom child of
+  // the run's own size, so the picture and the landing can never disagree. A zone with no layout,
+  // or one that places nobody (`free`), keeps the old answer: its middle.
+  const record = fieldsOf<ContainerFields>(zone, "Container");
+  const layout = record ? layoutRecord(record.layout) : undefined;
+  if (layout && box) {
+    const phantom: LayoutChild = { id: "landing", footprint: rect(box.w, box.h), at: undefined };
+    const placed = layout.place([...layoutChildren(zone), phantom], footprint(zone));
+    const next = placed[placed.length - 1];
+    if (next) return { x: home.x + next.x, y: home.y + next.y };
+  }
+  return home;
 }
 
 /**
@@ -328,7 +344,7 @@ export function landingPicture(
     if (zone === parked && !back) return;
     if (zone) {
       const own = fieldsOf<TransformableFields>(landing.node, "Transformable");
-      compose(landing.node, Transformable({ ...(own ?? {}), at: landingAt(at, landing.seat, zone) }));
+      compose(landing.node, Transformable({ ...(own ?? {}), at: landingAt(at, landing.seat, zone, { w: landing.w, h: landing.h }) }));
       scene.motions?.release(landing.node.id);
       parked = zone;
       scene.host.setRoot(scene.host.root);

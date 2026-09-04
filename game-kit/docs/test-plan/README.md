@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**72 слоёв · 1608 кейсов заявлено · 1433 расписано поимённо.**
+**72 слоёв · 1611 кейсов заявлено · 1436 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -34,7 +34,7 @@
 | [UNIT · four classes of inheritance](06-inheritance-classes.md) | `vitest + a fake tree` | 26 | 10 |
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 106 | 106 |
-| [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
+| [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 107 | 95 |
 | [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 68 | 68 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 108 | 105 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
@@ -97,4 +97,4 @@
 | [UNIT · NodeSpec и Revised — сериализация дерева](69-spec.md) | `vitest (headless, no WebGL)` | 4 | 4 |
 | [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 3 | 3 |
 | [UNIT · fall — бросок, падение и посадка](71-fall.md) | `vitest` | 9 | 9 |
-| [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 4 | 4 |
+| [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 5 | 5 |

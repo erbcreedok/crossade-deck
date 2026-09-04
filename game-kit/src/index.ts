@@ -691,6 +691,8 @@ export {
   radialLayout,
   slotsLayout,
   stackLayout,
+  pileLayout,
+  type PileOptions,
   type GridOptions,
   type RadialOptions,
   type SlotsOptions,

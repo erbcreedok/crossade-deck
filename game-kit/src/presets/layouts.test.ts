@@ -4,7 +4,7 @@ import { Bounded } from "../core/atoms/bounded.js";
 import { Container, placeChildren, registerLayout, resetLayouts, type LayoutChild } from "../core/atoms/container.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { freeLayout, rowLayout } from "../core/atoms/layouts.js";
-import { gridLayout, radialLayout, slotsLayout, stackLayout } from "./layouts.js";
+import { gridLayout, pileLayout, radialLayout, slotsLayout, stackLayout } from "./layouts.js";
 import { rect } from "./shapes.js";
 
 // Placed through a real tree, not by calling `place` with hand-built children: what these
@@ -379,5 +379,32 @@ describe("layout inverse", () => {
     // A free canvas is a heap: a point on it is a position, not a seat. `free` provides no
     // `indexAt`, and that ABSENCE is how a heap's "no seat" is expressed — nothing to name.
     expect(freeLayout.indexAt).toBeUndefined();
+  });
+});
+
+describe("pileLayout", () => {
+  it("preset.pile.grows-from-the-rim — the first piece sits against the edge, the next a step further in", () => {
+    // A nardy point: the zone is a triangle five checkers long, the pile grows from the board's rim
+    // toward the middle. "Up" means the rim is the BOTTOM edge and y decreases piece by piece.
+    registerLayout("point", pileLayout({ direction: "up" }));
+    const root = node("pl1", Container({ layout: "point" }), box(1, 5));
+    ["a", "b", "c"].forEach((id) => add(root, node(`pl1${id}`, box(1, 1))));
+    const placed = placeChildren(root);
+    expect(placed.get("pl1a")).toEqual({ x: 0, y: 2 });
+    expect(placed.get("pl1b")).toEqual({ x: 0, y: 1 });
+    expect(placed.get("pl1c")).toEqual({ x: 0, y: 0 });
+  });
+
+  it("preset.pile.squeezes-past-the-fit — fifteen on a point five long all stay on the point", () => {
+    // The head of a long-nardy game: fifteen checkers on one point. Squeezed evenly, the first is
+    // still at the rim, the LAST is still inside the zone, and every step between them is equal.
+    registerLayout("point", pileLayout({ direction: "down" }));
+    const root = node("pl2", Container({ layout: "point" }), box(1, 5));
+    for (let i = 0; i < 15; i++) add(root, node(`pl2-${i}`, box(1, 1)));
+    const placed = placeChildren(root);
+    expect(placed.get("pl2-0")).toEqual({ x: 0, y: -2 });
+    expect(placed.get("pl2-14")!.y).toBeCloseTo(2, 6);
+    const step = placed.get("pl2-1")!.y - placed.get("pl2-0")!.y;
+    for (let i = 1; i < 15; i++) expect(placed.get(`pl2-${i}`)!.y - placed.get(`pl2-${i - 1}`)!.y).toBeCloseTo(step, 6);
   });
 });
