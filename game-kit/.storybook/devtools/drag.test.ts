@@ -27,6 +27,7 @@ import {
   node,
   rect,
   registerLayout,
+  registerLanding,
   installStockGrabs,
   installStockOccupied,
   registerOccupied,
@@ -447,6 +448,47 @@ describe("the drag wiring's order", () => {
     expect(levelOf(b), "while the one under the hand holds").toBeCloseTo(0.4, 9);
     s.host.view.dispatchEvent(finger("pointerup", 200, 0));
     expect(levelOf(b), "the hand is off: out at once").toBe(0);
+    s.dispose();
+  });
+
+  it("drag.capture-custom-landing — uses registered landing placement if available", () => {
+    const root = desk();
+    installStockGrabs();
+    installStockOccupied();
+    registerLayout("drag.cell", freeLayout);
+    registerLanding("test.landing", () => ({ x: 7, y: 8 }));
+    registerOccupied("drag.taken.custom", capture("tray", "test.landing"));
+    compose(root, Grabber({ grab: "one" }));
+    const cell = node(
+      "cell",
+      Bounded({ bounds: rect(1, 1) }),
+      Container({ layout: "drag.cell" }),
+      Transformable({ at: { x: 2, y: 0 } }),
+      Acceptor({}),
+      Grabber({ grab: "one" }),
+      Displacer({ occupied: "drag.taken.custom" }),
+    );
+    const tray = node(
+      "tray",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "drag.cell" }),
+      Transformable({ at: { x: 5, y: 0 } }),
+      Acceptor({}),
+    );
+    const sitter = node("sitter", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Draggable());
+    add(cell, sitter);
+    add(root, cell);
+    add(root, tray);
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s, { zoneAt: () => cell });
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 60, 0, 50));
+    s.host.view.dispatchEvent(finger("pointerup", 60, 0, 60));
+    expect(sitter.parent?.id).toBe("tray");
+    const at = fieldsOf<TransformableFields>(sitter, "Transformable")!.at!;
+    expect(at).toEqual({ x: 7, y: 8 });
     s.dispose();
   });
 

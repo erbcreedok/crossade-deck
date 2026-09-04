@@ -42,6 +42,7 @@ import {
   Reaching,
   rect,
   registerAsset,
+  registerLanding,
   registerLayout,
   registerOccupied,
   registerSurface,
@@ -91,7 +92,9 @@ const PIECE = 0.94;
  * on that square, off the squares he is wherever the hand left him, and both are the same desk.
  *
  * ONE and not a tray a side. Two of them is two private places, and a private place is a rule: it
- * says whose a taken man is and where he may be put, which this shelf does not decide.
+ * says whose a taken man is and where he may be put, which this shelf does not decide. The placement
+ * within the common zone is determined by the `chess.beside` landing record, placing captured white pieces
+ * on the left and black pieces on the right.
  *
  * ROOMY, with a margin round the board on every side, so a camera has felt to stand on and a man has
  * somewhere to be that is not a square.
@@ -221,6 +224,20 @@ export function installChessArt(): void {
   // the knight again in shadow ink. The lamp's opacity makes it a shadow; the glyph makes it his.
   for (const [what, glyph] of Object.entries(FIGURES))
     registerAsset(shadowOf(what as Figure), { src: figure(glyph, "black", "black", 0), w: PIECE, h: PIECE });
+
+  registerLanding("chess.beside", (sitter: Node, zone: Node, _room: { w: number; h: number }): Vec => {
+    const seat = fieldsOf<{ readonly box: string }>(sitter, "Owned")?.box;
+    const siblings = zone.children.filter(
+      (n) => n !== sitter && caps(n).has("Draggable") && fieldsOf<{ readonly box: string }>(n, "Owned")?.box === seat,
+    );
+    const nth = siblings.length;
+    const col = Math.floor(nth / BOARD);
+    const row = nth % BOARD;
+    const sign = seat === "white" ? -1 : 1;
+    const x = sign * (BOARD / 2 + PIECE * 0.9 + col * PIECE);
+    const y = -BOARD / 2 + PIECE / 2 + row * PIECE;
+    return { x, y };
+  });
 }
 
 /**
@@ -264,7 +281,7 @@ const MARGIN = 0.4;
 
 export function chessMap(reach = 0): Node {
   installChessArt();
-  registerOccupied(TAKEN, capture(COMMON));
+  registerOccupied(TAKEN, capture(COMMON, "chess.beside"));
   const desk = node(
     COMMON,
     Bounded({ bounds: rect(FELT.w, FELT.h) }),

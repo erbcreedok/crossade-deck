@@ -6,7 +6,7 @@
 // the shelf's own and is guarded where it lives.
 
 import { describe, expect, it } from "vitest";
-import { assetRecord, caps, fieldsOf, extentOf, shadowPicture, shadowSpot, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
+import { add, assetRecord, Bounded, caps, Container, Draggable, fieldsOf, extentOf, landingRecord, node, Owned, rect, shadowPicture, shadowSpot, Transformable, type BoundedFields, type Node, type TransformableFields } from "../../src/index.js";
 import { BOARD, chessMap, CHESS_SEATS, COMMON, isCell, shadowOf, squareAt } from "./chessMap.js";
 import { scene as buildScene } from "../devtools/scene.js";
 import { wireDrag } from "../devtools/drag.js";
@@ -178,8 +178,46 @@ describe("a move on the real board, end to end", () => {
     // squares. The felt also holds a warming speck for every picture on the shelf; counted as men,
     // they seated the first man taken in the seventh row — on a4, standing on the board he had just
     // been taken off. The row is made of men, and he is the first.
-    expect(seat.y, "the top row of the felt, above the board").toBeLessThan(-BOARD / 2 - 1);
-    expect(seat.x, "and its first place, at the left").toBeLessThan(-BOARD / 2 - 1);
+    expect(seat.x, "black captured piece lands right of the board").toBeGreaterThan(BOARD / 2);
+    expect(seat.y, "aligned near top of board").toBeCloseTo(-BOARD / 2 + 0.94 / 2, 3);
+    s.dispose();
+  });
+
+  it("chess.beside-landing — white captured pieces land left, black land right, ninth in second column", () => {
+    const desk = chessMap();
+    const s = stand(desk);
+    const e2 = cellAt(desk, { x: 0.5, y: 2.5 });
+    const e7 = cellAt(desk, { x: 0.5, y: -2.5 });
+    const whitePawn = e2.children[0]!;
+    const blackPawn = e7.children[0]!;
+    dragTo(s, { x: 0.5, y: 2.5 }, { x: 0.5, y: -2.5 });
+
+    const blackSeat1 = fieldsOf<TransformableFields>(blackPawn, "Transformable")!.at!;
+    expect(blackSeat1.x, "black captured piece lands right of board").toBeGreaterThan(BOARD / 2);
+
+    dragTo(s, { x: -0.5, y: -3.5 }, { x: 0.5, y: -2.5 });
+    const whiteSeat1 = fieldsOf<TransformableFields>(whitePawn, "Transformable")!.at!;
+    expect(whiteSeat1.x, "white captured piece lands left of board").toBeLessThan(-BOARD / 2);
+
+    // A SECOND WHITE MAN TAKEN — by the queen now standing on e7 coming down onto d2. The mover is
+    // never the one who lands beside the board; the sitter is.
+    const d2 = cellAt(desk, { x: -0.5, y: 2.5 });
+    const whitePawn2 = d2.children[0]!;
+    dragTo(s, { x: 0.5, y: -2.5 }, { x: -0.5, y: 2.5 });
+    const whiteSeat2 = fieldsOf<TransformableFields>(whitePawn2, "Transformable")!.at!;
+    expect(whiteSeat2.x).toBeCloseTo(whiteSeat1.x, 3);
+    expect(whiteSeat2.y, "second white piece lands below the first").toBeGreaterThan(whiteSeat1.y);
+
+    const landing = landingRecord("chess.beside")!;
+    const zone = node("testZone", Container({ layout: "chess.tray" }));
+    for (let i = 0; i < 8; i++) {
+      add(zone, node(`w${i}`, Bounded({ bounds: rect(1, 1) }), Draggable(), Owned({ box: "white" }), Transformable({ at: { x: 0, y: 0 } })));
+    }
+    const piece9 = node("w8", Bounded({ bounds: rect(1, 1) }), Draggable(), Owned({ box: "white" }), Transformable({ at: { x: 0, y: 0 } }));
+    add(zone, piece9);
+    const pos9 = landing(piece9, zone, { w: 14, h: 14 });
+    expect(pos9.x, "ninth white piece lands in second column further left").toBeLessThan(whiteSeat1.x);
+    expect(pos9.y, "ninth white piece starts top row").toBeCloseTo(-BOARD / 2 + 0.94 / 2, 3);
     s.dispose();
   });
 

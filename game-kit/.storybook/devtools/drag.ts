@@ -21,6 +21,7 @@ import {
   restAngle,
   rotatable,
   glassOf,
+  landingRecord,
   onRejectOf,
   pick,
   planMove,
@@ -524,17 +525,24 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       const to = "to" in what ? byId(root, what.to) : undefined;
       if (!to) return;
       remove(from, sitter);
+      add(to, sitter);
+      const box = fieldsOf<BoundedFields>(to, "Bounded")?.bounds;
+      const room = box ? extentOf(box) : undefined;
+      if (!room) return;
+      const landingName = "landing" in what ? what.landing : undefined;
+      const customFn = landingName ? landingRecord(landingName) : undefined;
+      if (customFn) {
+        const at = customFn(sitter, to, room);
+        compose(sitter, Transformable({ at }));
+        return;
+      }
       // HIS PLACE IN THE ROW IS AMONG THE MEN, NOT AMONG THE FURNITURE. A zone with the board IN it
       // holds sixty-four places, a face and a hundred warming specks before it holds one taken man;
       // counted as men, they put the first man taken in the hundred-and-second seat — which on a
       // felt fourteen wide is the seventh row, and the seventh row is ON THE BOARD: the man taken
       // was standing on a4, and the next on b4. The row is made of what a HAND could pick up here:
       // a place is furniture, a speck nobody can touch is furniture, a man is not.
-      const nth = to.children.filter((n) => caps(n).has("Draggable")).length;
-      add(to, sitter);
-      const box = fieldsOf<BoundedFields>(to, "Bounded")?.bounds;
-      const room = box ? extentOf(box) : undefined;
-      if (!room) return;
+      const nth = to.children.filter((n) => n !== sitter && caps(n).has("Draggable")).length;
       // A LOOSE ROW THAT WRAPS, in the zone's own space: enough to see them all and no more of an
       // opinion than that. Anybody may pick one up and put it down elsewhere in the zone. Stepped
       // by the MAN'S OWN SIZE: a row stepped by a share of the zone lays a felt fourteen wide out in

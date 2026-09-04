@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { node } from "../node.js";
 import { Container } from "./container.js";
-import { capture, Displacer, installStockOccupied, merge, reject, resolveOccupied, resetOccupied, swap } from "./occupied.js";
+import { capture, Displacer, installStockOccupied, landingRecord, merge, registerLanding, reject, resetLanding, resetOccupied, resolveOccupied, swap } from "./occupied.js";
 
 beforeEach(() => {
   resetOccupied();
+  resetLanding();
   installStockOccupied();
 });
 
@@ -24,6 +25,18 @@ describe("occupied", () => {
   it("occupied.capture-names-the-destination — the sitter is taken away to a named zone", () => {
     // capture bakes its argument into the record, so the outcome carries WHERE the sitter goes.
     expect(capture("tray").resolve()).toEqual({ kind: "capture", to: "tray" });
+  });
+
+  it("occupied.capture-with-landing — optional landing name is carried in outcome", () => {
+    expect(capture("common", "chess.beside").resolve()).toEqual({ kind: "capture", to: "common", landing: "chess.beside" });
+  });
+
+  it("occupied.landing-registry — landingRecord registers and retrieves placement functions, reset Landing clears", () => {
+    const dummy = () => ({ x: 1, y: 2 });
+    registerLanding("custom", dummy);
+    expect(landingRecord("custom")).toBe(dummy);
+    resetLanding();
+    expect(landingRecord("custom")).toBeUndefined();
   });
 
   it("occupied.default-is-reject — a container that is not a Displacer does not clobber", () => {

@@ -9,6 +9,7 @@
 
 import { defineAtom } from "../atom.js";
 import { fieldsOf, type Node } from "../node.js";
+import type { Vec } from "../transform.js";
 
 export type OccupiedOutcome =
   /** The drop is refused; nobody moves. */
@@ -18,7 +19,10 @@ export type OccupiedOutcome =
   /** Both stay — the slot holds more than one now (a pile grows, a meld forms). */
   | { readonly kind: "merge" }
   /** The sitter is taken away to zone `to`, the incomer takes the slot. */
-  | { readonly kind: "capture"; readonly to: string };
+  | { readonly kind: "capture"; readonly to: string; readonly landing?: string };
+
+/** A named function that places a captured piece in the destination zone coordinates. */
+export type LandingPlacement = (sitter: Node, zone: Node, room: { w: number; h: number }) => Vec;
 
 // A record declares `admits` — does the incomer end up in the slot? — beside `resolve()`, so a
 // caller asks that yes/no directly and never has to READ the outcome's tag to learn it (the canon:
@@ -33,11 +37,22 @@ export const reject: OccupiedRecord = { admits: false, resolve: () => ({ kind: "
 export const swap: OccupiedRecord = { admits: true, resolve: () => ({ kind: "swap" }) };
 export const merge: OccupiedRecord = { admits: true, resolve: () => ({ kind: "merge" }) };
 /** The sitter is captured to zone `to` — e.g. a taken chess piece to its owner's tray. */
-export function capture(to: string): OccupiedRecord {
-  return { admits: true, resolve: () => ({ kind: "capture", to }) };
+export function capture(to: string, landing?: string): OccupiedRecord {
+  return { admits: true, resolve: () => ({ kind: "capture", to, ...(landing ? { landing } : {}) }) };
 }
 
 const OCCUPIED = new Map<string, OccupiedRecord>();
+const LANDING = new Map<string, LandingPlacement>();
+
+export function registerLanding(name: string, fn: LandingPlacement): void {
+  LANDING.set(name, fn);
+}
+export function landingRecord(name: string): LandingPlacement | undefined {
+  return LANDING.get(name);
+}
+export function resetLanding(): void {
+  LANDING.clear();
+}
 
 export function registerOccupied(name: string, record: OccupiedRecord): void {
   OCCUPIED.set(name, record);
@@ -48,6 +63,7 @@ export function occupiedRecord(name: string): OccupiedRecord | undefined {
 /** Test seam only — the registry is process-wide and suites must not leak into each other. */
 export function resetOccupied(): void {
   OCCUPIED.clear();
+  LANDING.clear();
 }
 /** Register the parameterless three under their names; `capture` is named by the consumer with its `to`. */
 export function installStockOccupied(): void {

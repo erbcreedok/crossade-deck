@@ -1,6 +1,6 @@
 ## UNIT · Container policies — grab · occupied · keeps
 
-`vitest` · 15 кейсов, расписано 15
+`vitest` · 17 кейсов, расписано 17
 
 Три политики контейнера, каждая — маленький атом над Container. `grab` — что уходит из-под
 пальца; `occupied` — судьба жильца слота; `keeps` — какие способности ребёнка действуют внутри.
@@ -18,6 +18,8 @@
 | `occupied.swap-trades-places` | запись `swap` | `resolve` | `{swap}` — вошедший в слот, жилец назад |
 | `occupied.merge-keeps-both` | запись `merge` | `resolve` | `{merge}` — в слоте теперь больше одного |
 | `occupied.capture-names-the-destination` | `capture("tray")` | `resolve` | `{capture, to:"tray"}` — исход несёт, КУДА уходит жилец |
+| `occupied.capture-with-landing` | `capture("common", "chess.beside")` | `resolve` | `{capture, to:"common", landing:"chess.beside"}` — опциональное имя посадки |
+| `occupied.landing-registry` | `registerLanding("custom", fn)` | `landingRecord` | регистрирует и отдает функцию посадки; `resetLanding` чистит |
 | `occupied.default-is-reject` | контейнер без Displacer | `resolveOccupied` | `{reject}` — консервативно: не затирать |
 | `occupied.from-the-tree` | Displacer `swap` | `resolveOccupied` | читает политику контейнера → `{swap}` |
 | `keeps.no-keeper-allows-all` | контейнер без Keeper | `keepsAllows` | всё разрешено — отсутствие атома есть открытая дверь |
