@@ -1,0 +1,24 @@
+apps/hub/src/table/index.ts
+  h_2b92b67d011bfc 5,66-73,84,126
+game-kit/docs/test-plan/70-drag.md
+  h_2b92b67d011bfc 3,9
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,98
+game-kit/src/index.ts
+  h_2b92b67d011bfc 209
+game-kit/src/render/drag.test.ts
+  h_2b92b67d011bfc 23,101-143
+game-kit/src/render/drag.ts
+  h_2b92b67d011bfc 228-229,820,827-841
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0f736f16398ce66b35836923f8f2fc44612921dc",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
