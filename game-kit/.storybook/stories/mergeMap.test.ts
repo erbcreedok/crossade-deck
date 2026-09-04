@@ -38,7 +38,7 @@ import { cards as crossadeCards } from "@game-presets/cards";
 import { ANCHOR_MARK, deckMap, gestureMap, heapsOf, regrip, stackMap , kindOf , heapKindOf } from "./gestureMap.js";
 import { mergeChip, mergeMap, mergeRule, mergeSeats, MERGE_SHARE } from "./mergeMap.js";
 import { magnetMap } from "./magnetMap.js";
-import { liveMap } from "./liveMap.js";
+import { liveMap } from "@game-presets/desks";
 
 const RULE = mergeRule(MERGE_SHARE);
 
