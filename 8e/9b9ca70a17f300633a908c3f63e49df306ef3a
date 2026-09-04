@@ -1,0 +1,26 @@
+game-kit/.storybook/DocsPage.tsx
+  h_2b92b67d011bfc 23,117-119,121,125
+game-kit/.storybook/devtools/inspector.test.ts
+  h_2b92b67d011bfc 9,109-144
+game-kit/.storybook/devtools/inspectorBus.ts
+  h_2b92b67d011bfc 17,103
+game-kit/.storybook/inspectChannel.ts
+  h_2b92b67d011bfc 11
+game-kit/.storybook/manager.tsx
+  h_2b92b67d011bfc 20,242-244,246,250
+game-kit/docs/test-plan/11-catalog-shell.md
+  h_2b92b67d011bfc 3,44
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "8e9b9ca70a17f300633a908c3f63e49df306ef3a",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
