@@ -1,0 +1,16 @@
+scripts/agents/agent.py
+  h_2b92b67d011bfc 1-233
+scripts/agents/board.py
+  h_2b92b67d011bfc 1-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0081606365166c28c3ba27c4fd1691d87f52b46f",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
