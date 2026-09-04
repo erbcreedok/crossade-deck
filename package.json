@@ -4,7 +4,8 @@
   "workspaces": [
     "game-kit",
     "game-presets/*",
-    "apps/*"
+    "apps/*",
+    "bot"
   ],
   "scripts": {
     "kit": "npm run dev --workspace game-kit",
