@@ -28,7 +28,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, poseOnLanding } from "./magnetMap.js";
-import { GRIP, heapBox, isGrip, MAP, regrip, restsAt, stackSeats, threwAt, THROWN_AT } from "./gestureMap.js";
+import { GRIP, heapBox, isGrip, MAP, regrip, restsAt, stackSeats, threwAt, THROWN_AT , kindOf , heapKindOf } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 
 /** A card off the desk itself — the real shape, not a stand-in built to make the sums come out. */
@@ -413,7 +413,7 @@ describe("what the zone is holding", () => {
     const zone = desk.children[0]!;
     // One card, high inside the zone: its own bottom edge is a long way above the zone's.
     const card = laid(desk, 0, { x: 0, y: 1.3 });
-    const held = regrip(desk, undefined, NEVER, undefined, { ...mergeRule(CARD_SHARE), held: zoneHolds(HELD_SHARE) });
+    const held = regrip(desk, heapKindOf, undefined, NEVER, undefined, { ...mergeRule(CARD_SHARE), held: zoneHolds(HELD_SHARE) });
     const tab = desk.children.find(isGrip)!;
     expect([...held.get(tab.id)!].map((n) => n.id), "and it lifts the cards, never the zone").toEqual([card.id]);
     const seat = fieldsOf<TransformableFields>(tab, "Transformable")!.at!;
@@ -434,7 +434,7 @@ describe("what the zone is holding", () => {
     laid(desk, 0, { x: 0, y: 1.8 });
     const stowaway = node("stack handle stray", Bounded({ bounds: rect(0.6, 0.15) }), Valued({ values: { grip: 0 } }));
     add(zone, stowaway);
-    regrip(desk, undefined, NEVER, undefined, { ...mergeRule(CARD_SHARE), held: zoneHolds(HELD_SHARE) });
+    regrip(desk, heapKindOf, undefined, NEVER, undefined, { ...mergeRule(CARD_SHARE), held: zoneHolds(HELD_SHARE) });
     expect(zone.children.filter(isGrip), "the zone holds cards, never controls").toEqual([]);
     // ...and the desk has exactly the handles it should: the zone's own, and the deck's — thirty-odd
     // cards on one spot are a heap like any other, and it is the stray that had to go.

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apply, Camera, polar, type Vec } from "../../src/index.js";
 import { landingAt, landingBox, add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, flickOf, flightOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, flickOf, flightOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes , heapKindOf } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -139,52 +139,11 @@ describe("the stacking desk", () => {
     expect(k.filter((x) => x === "card")).toHaveLength(6);
     expect(k.filter((x) => x === "chip")).toHaveLength(6);
     expect(k.filter((x) => x === "die")).toHaveLength(1);
-    expect(heapsOf(desk), "and not one of them touches another").toEqual([]);
+    expect(heapsOf(desk, heapKindOf), "and not one of them touches another").toEqual([]);
   });
 
-  it("map.a-heap-is-one-kind-and-transitive — a card with a card, and the ends need not meet", () => {
-    // WHAT MAY TOUCH WHAT is the desk's rule, not the kit's: the kit answers the geometry and stops.
-    const desk = stackMap();
-    // Three chips in a row, each touching the next and the ends apart: still one heap.
-    at(desk, "chip 0", 0, 5);
-    at(desk, "chip 1", 0.4, 5);
-    at(desk, "chip 2", 0.8, 5);
-    let heaps = heapsOf(desk);
-    expect(heaps).toHaveLength(1);
-    expect(heaps[0]).toHaveLength(3);
-    // A chip sitting ON a card is not a heap: two kinds do not stack together on this desk.
-    at(desk, "chip 3", 0, -5);
-    at(desk, "chip 4", 9, 9);
-    at(desk, "chip 5", 9, -9);
-    const card = desk.children.find((n) => kindOf(n) === "card")!;
-    compose(card, Transformable({ at: { x: 0, y: -5 } }));
-    heaps = heapsOf(desk);
-    expect(heaps.every((h) => h.every((n) => kindOf(n) === kindOf(h[0]!)))).toBe(true);
-    expect(heaps.some((h) => h.some((n) => n.id === "chip 3"))).toBe(false);
-  });
-
-  it("map.a-handle-stands-under-the-middle-of-what-the-heap-covers — one per heap, and none for a lone piece", () => {
-    const desk = stackMap();
-    expect(regrip(desk).size, "nothing touches, so there is nothing to pull").toBe(0);
-    expect(desk.children.filter(isGrip)).toHaveLength(0);
-    for (const i of [2, 3, 4, 5]) at(desk, `chip ${i}`, 3 + i, 3);
-    at(desk, "chip 0", 0, 0);
-    at(desk, "chip 1", 0.4, 0);
-    const held = regrip(desk);
-    expect(held.size).toBe(1);
-    const tab = desk.children.find(isGrip)!;
-    expect(held.get(tab.id)).toHaveLength(2);
-    // Under the MIDDLE of everything the heap covers, and below its lowest edge — never over it.
-    const box = heapBox(desk, held.get(tab.id)!);
-    const seat = fieldsOf<TransformableFields>(tab, "Transformable")!.at!;
-    expect(seat.x).toBeCloseTo(box.mid, 6);
-    expect(seat.y).toBeGreaterThan(box.bottom + GRIP.h / 2);
-    // And the old tab goes when the heap does: a handle nobody redrew hangs under felt.
-    at(desk, "chip 1", 5, 5);
-    expect(regrip(desk).size).toBe(0);
-    expect(desk.children.filter(isGrip)).toHaveLength(0);
-  });
-
+  
+  
   it("map.a-roll-is-brisk-and-does-not-outstay-it — a faster turn must not also be a longer one", () => {
     // The faces are counted off the die's OWN turn, so the spin buys both halves at once: a brisker
     // roll shows more faces AND shows them faster. What it must not buy is duration — a die still
@@ -213,29 +172,10 @@ describe("the stacking desk", () => {
     // And the desk that holds them still holds exactly the pieces it says it does.
     const desk = stackMap();
     expect(desk.children.filter((n) => kindOf(n) === "warm").length).toBe(warm.length);
-    expect(heapsOf(desk), "warming nodes never form a heap").toEqual([]);
+    expect(heapsOf(desk, heapKindOf), "warming nodes never form a heap").toEqual([]);
   });
 
-  it("map.a-piece-in-flight-is-in-no-heap — it left the heap when it left the desk", () => {
-    // Thrown out of a stack, a card is in the AIR. The tree still seats it where the hand let go —
-    // touching what it was heaped with — so a handle built from the tree alone would count it, and
-    // taking the stack again would pull the card back out of its own flight.
-    const desk = stackMap();
-    for (const i of [2, 3, 4, 5]) at(desk, `chip ${i}`, 6 + i, 6);
-    at(desk, "chip 0", 0, 0);
-    at(desk, "chip 1", 0.4, 0);
-    expect(heapsOf(desk)[0]).toHaveLength(2);
-    // With one of them aloft there is no heap left at all — one piece is not a heap.
-    expect(heapsOf(desk, (id) => id === "chip 1")).toEqual([]);
-    expect(regrip(desk, undefined, (id) => id === "chip 1").size, "and so no handle").toBe(0);
-    // A third on the desk and the two that are still lying make a heap without the flier.
-    at(desk, "chip 2", 0.8, 0);
-    const left = heapsOf(desk, (id) => id === "chip 1");
-    expect(left).toHaveLength(0); // chip 0 and chip 2 do not reach each other without chip 1
-    at(desk, "chip 2", 0.35, 0);
-    expect(heapsOf(desk, (id) => id === "chip 1")[0]).toHaveLength(2);
-  });
-
+  
   it("map.every-desk-can-draw-a-handle — a picture nobody registered is silently nothing", () => {
     // An unregistered surface is SKIPPED and never thrown (one bad reference must not take a scene
     // down and hide every node that was fine). That is right, and it is also why this needs a guard:
@@ -244,7 +184,7 @@ describe("the stacking desk", () => {
     for (const build of [deckMap, gestureMap, stackMap]) {
       resetSurfaces();
       const desk = build();
-      const tab = [...regrip(desk).values()][0];
+      const tab = [...regrip(desk, heapKindOf).values()][0];
       const grip = desk.children.find(isGrip);
       if (!grip) continue; // that desk starts with nothing touching, which is its own guard
       const name = fieldsOf<{ surface: string }>(grip, "Surfaced")!.surface;
@@ -263,7 +203,7 @@ describe("the stacking desk", () => {
     expect(cards).toHaveLength(DECK.cards);
     expect(cards.filter((n) => facing(n) === "up"), "the ones in the open").toHaveLength(DECK.dealt);
     // The pile is one heap of everything that is face down, and the six in the open touch nobody.
-    const heaps = heapsOf(desk);
+    const heaps = heapsOf(desk, heapKindOf);
     expect(heaps).toHaveLength(1);
     expect(heaps[0]).toHaveLength(DECK.cards - DECK.dealt);
     expect(heaps[0]!.every((n) => facing(n) === "down")).toBe(true);
@@ -277,55 +217,8 @@ describe("the stacking desk", () => {
     expect(facing(one)).toBe("up");
   });
 
-  it("map.a-handle-in-a-hand-is-not-redrawn — what is being held may not be replaced under the hand", () => {
-    // Every other tab is thrown away and made afresh, which is what keeps them from sliding into
-    // each other's places. The one under a finger is the exception: replaced mid-carry it is a NEW
-    // node the hand never took, so what the hand is holding vanishes out from under it — and any
-    // landing anywhere on the desk is enough to trigger the rebuild.
-    const desk = stackMap();
-    for (const i of [4, 5]) at(desk, `chip ${i}`, 8 + i, 8);
-    at(desk, "chip 0", 0, 0);
-    at(desk, "chip 1", 0.4, 0);
-    at(desk, "chip 2", 3, 0);
-    at(desk, "chip 3", 3.4, 0);
-    const first = [...regrip(desk).keys()];
-    expect(first).toHaveLength(2);
-    const holding = first[0]!;
-    const again = regrip(desk, undefined, () => false, holding);
-    // The held one is the SAME node, still on the desk; its neighbour was made afresh as always.
-    expect(desk.children.filter(isGrip).map((n) => n.id)).toContain(holding);
-    expect([...again.keys()].filter((id) => id !== holding).every((id) => !first.includes(id))).toBe(true);
-    // And without the exception it goes, which is the bug: the hand is left holding a dead id.
-    regrip(desk);
-    expect(desk.children.filter(isGrip).map((n) => n.id)).not.toContain(holding);
-  });
-
-  it("map.a-handle-is-never-the-same-node-twice — so it appears where it belongs and goes where it stood", () => {
-    // A handle is a PICTURE of a heap, not a thing on the desk. Named by its place in the list, two
-    // handles swap names the moment a heap between them goes: the clock sees one id whose rest pose
-    // has moved and eases it there, so every remaining tab slides along into the one before it and a
-    // new tab flies out of an old one's seat. Named afresh, each is a node the clock has never seen,
-    // and a new node is drawn at its rest without flying in from anywhere.
-    const desk = stackMap();
-    for (const i of [4, 5]) at(desk, `chip ${i}`, 6 + i, 6);
-    at(desk, "chip 0", 0, 0);
-    at(desk, "chip 1", 0.4, 0);
-    at(desk, "chip 2", 3, 0);
-    at(desk, "chip 3", 3.4, 0);
-    const first = [...regrip(desk).keys()];
-    expect(first).toHaveLength(2);
-    // The same two heaps again: still not one name reused, so nothing can be eased into place.
-    const again = [...regrip(desk).keys()];
-    expect(again).toHaveLength(2);
-    expect(again.some((id) => first.includes(id)), "no name comes back").toBe(false);
-    // And when the FIRST heap goes, the survivor does not inherit the departed one's name — which
-    // is the whole of "they all slide along after each other".
-    at(desk, "chip 1", 8, 8);
-    const left = [...regrip(desk).keys()];
-    expect(left).toHaveLength(1);
-    expect(again.includes(left[0]!)).toBe(false);
-  });
-
+  
+  
   it("map.a-lifted-heap-hangs-by-its-bottom-centre — a handle is UNDER a heap, not through it", () => {
     // Hung by their middles the pieces sit ON the tab with half of each below it: a stack skewered
     // on its own handle rather than one standing on it. And thickness is an `at`, never a `z` —

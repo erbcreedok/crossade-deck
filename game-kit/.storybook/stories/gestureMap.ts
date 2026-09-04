@@ -17,6 +17,8 @@
 // names, not theme tokens — a piece is content, and it does not follow the theme.
 
 import {
+  heapsOf, heapBox, regrip, regrasp, TOUCHING, type HeapRule, type GripSpec, GRIP_RATIO, GRIP, GRIP_HOLD, GRIP_GAP, GRIP_MISS, GRIP_SPEC, isPlaceGrip, isGrip, isMark, isDrawn,
+
   CARRY_CLEAR,
   landingMark,
   landingAt,
@@ -74,6 +76,7 @@ import {
 } from "../../src/index.js";
 // The numbers and seats of a fall are the KIT'S (`render/fall.ts`) — re-exported so every page and
 // test on this shelf keeps its import, and there is one value per name and not two that drift.
+export { heapsOf, heapBox, regrip, regrasp, TOUCHING, type HeapRule, type GripSpec, GRIP_RATIO, GRIP, GRIP_HOLD, GRIP_GAP, GRIP_MISS, GRIP_SPEC, isPlaceGrip, isGrip, isMark, isDrawn };
 export { DIE_FAN, DIE_HOP, DIE_SCATTER, DIE_SPIN, DIE_SPIN_DRAG, STACK_FALL_STEP, STACK_POUR, STACK_STEP, STACK_THICK, stackSeats, toFront } from "../../src/index.js";
 
 export {
@@ -104,36 +107,6 @@ import { svg } from "./stockAssets.js";
 /** How big the map is, in units — see `gestureMap` on why it is bigger than any glass. */
 export const MAP = { w: 8, h: 8 };
 
-/**
- * HOW MUCH ROOM BEYOND THE DESK THE CAMERA IS GIVEN, as a fraction of the desk's own size.
- *
- * A camera told the desk EXACTLY is held so that the desk always covers the glass, and the felt's
- * edge becomes a wall the view stops dead against. That is correct and it is horrible to use: every
- * pan ends in a stop with nothing on the other side of it, and a piece lying by the border can never
- * be brought to the middle of the glass to be looked at. What the view is FOR is looking, and looking
- * at the edge of a thing means having a little of the outside in shot.
- *
- * A FRACTION and not a number of units, so it says the same thing about any desk this shelf grows —
- * a quarter of a desk of slack reads the same on one twice the size.
- *
- * IT MOVES NOTHING BUT THE VIEW. The desk's border is still a wall to the PIECES (`mapWalls`): the
- * slack is somewhere to look from, never somewhere to put anything.
- */
-/**
- * HOW A DROP ZONE STANDS WHEN NOTHING IS OVER IT — its owner's colour, dashed, and quiet.
- *
- * TWO DIFFERENT SENTENCES, and a solid border says the wrong one. A zone drawn in a hard line is
- * claiming something at every moment of the game, and what it is actually saying is only "this
- * patch is somebody's" — a label, not an event. Said in a solid stroke it reads as the zone being
- * ON, so when the zone really does light up there is nothing left for it to change into.
- *
- * DASHED is what makes it a label. A broken line is a boundary drawn on the felt rather than a
- * thing standing on it, which is exactly what an area is; and it leaves the whole of "solid" free
- * to mean the one thing worth an event — this is the one that will take the card.
- *
- * IN UNITS, so the dashes are the same size on a desk of any zoom and there are simply more of them
- * around a bigger area: a pattern that scaled would be a picture of a border rather than a border.
- */
 export function zoneLine(ink: Paint): Stroke {
   return { color: ink, width: 0.035, opacity: 0.55, dash: { on: 0.2, off: 0.16, corner: "dash" } };
 }
@@ -418,24 +391,6 @@ const GRIP_BARS = svg(
 );
 
 /**
- * How big the grip's tab is, in units — wide and low, so it reads as a handle and hides nothing.
- *
- * The width is the number; the height follows it, because the SHAPE is what makes a tab read as one
- * and a tab that changed proportion with its size would stop being the same control.
- */
-export const GRIP_RATIO = 4;
-export const GRIP = { w: 0.6, h: 0.6 / GRIP_RATIO };
-/**
- * How far the view may take the handle down before it is held, and how far up — see `Screened`.
- *
- * The ceiling is ONE and goes no higher: a handle has a size that suits the finger, and there is
- * nothing above it to want. Zoomed in, the desk grows and the tab stays the size it always was;
- * zoomed out, it is allowed to come down a little rather than tower over the heap it belongs to.
- */
-export const GRIP_HOLD = { min: 0.8, max: 1 };
-/** How far under the heap's own edge the tab sits, in units. */
-export const GRIP_GAP = 0.06;
-/**
  * How close is TOUCHING, in units. Not zero: to a player two cards a hair apart on a felt are
  * touching, and a heap that would not form until the pixels met would read as broken.
  */
@@ -469,6 +424,11 @@ function chip(id: string, at: Vec): Node {
  */
 export type Piece = "die" | "card" | "chip" | "grip" | "mark" | "warm" | "";
 
+export function heapKindOf(n: Node): string {
+  const k = kindOf(n);
+  return k === "card" || k === "chip" ? k : "";
+}
+
 export function kindOf(n: Node): Piece {
   if (caps(n).has("Rollable")) return "die";
   if (caps(n).has("Flippable")) return "card";
@@ -480,162 +440,10 @@ export function kindOf(n: Node): Piece {
   return "";
 }
 
-/** True for the pieces this desk lets form a heap together — a card with a card, a chip with a chip. */
-export function sameKind(a: Node, b: Node): boolean {
-  const k = kindOf(a);
-  return (k === "card" || k === "chip") && k === kindOf(b);
-}
 
-/**
- * WHAT MAY LIE IN ONE HEAP, and how a heap stands once it is lifted — a desk's answer, not the kit's.
- *
- * Every desk on this shelf so far has had the same one (same kind, touching, one step per piece) and
- * so it was written into `heapsOf` directly. A desk with a stricter rule is not a special case of
- * that one: `Mechanics/Stack merging` asks how MUCH two pieces overlap and which way up they are
- * lying, and neither question can be phrased as a tweak to "do the outlines meet". So the questions
- * became a seam, and the shelf's original answer became one implementation of it.
- *
- * Three questions, and they are three because they are asked at three different moments: `joins` per
- * PAIR while the islands are being found, `admits` per ISLAND once one has been, and `seats` when a
- * handle picks one up. A rule that had to answer all three at once could not say "these two touch
- * enough, and yet this one is not in the heap" — which is the whole of rules 3 to 6 down there.
- */
-export interface HeapRule {
-  /** May these two lie in one heap? Asked for every pair whose boxes are near enough to bother. */
-  readonly joins: (a: Node, b: Node) => boolean;
-  /**
-   * ...AND ARE THEY CLOSE ENOUGH? THE geometry question, asked with the two pieces and the two
-   * outlines as they actually stand.
-   *
-   * Apart from `joins` because it is a different question about a different thing: `joins` is about
-   * what the two pieces ARE and has no geometry in it, this is about where they happen to be lying
-   * and has nothing else. A throw that leaves a card with one corner over a pile has answered the
-   * first question yes and the second no, and that is exactly the accident this exists for.
-   *
-   * The pieces come with the outlines because "close enough" is not one number: a card has to be
-   * COVERED and a chip only has to be NEAR, and which of those a piece means is written on the
-   * piece (`Heaping.reach`), not chosen here.
-   */
-  readonly meets: (a: Node, b: Node, oa: readonly Vec[], ob: readonly Vec[]) => boolean;
-  /** Which of an island's pieces the heap actually takes. Given in paint order, bottom first. */
-  readonly admits: (group: readonly Node[]) => readonly Node[];
-  /** Where each piece stands under the handle that lifted them, in the handle's own frame. */
-  readonly seats: (group: readonly Node[], gripW: number) => Vec[];
-  /**
-   * HOW A RUN LIFTED BY A PLACE'S HANDLE STANDS — its seats AND its turns. Absent, the ordinary
-   * squared stack, which is what every handle on the shelf has lifted so far.
-   *
-   * A place may pose what it holds differently from how a heap poses itself, and differently again
-   * from how it poses them while they are lying in it. A hand of cards is the case everybody knows:
-   * laid out in a row on the felt, splayed into a fan the moment it comes up, and back into a row
-   * the moment it is put down again. Three poses, one set of cards, and the only thing that says
-   * which is where they are and whether they are moving.
-   *
-   * The turn is DATA and not something read back off the glass: a carried pose is the piece's own
-   * resting pose with the style composed onto it, so a face-down card's mirror is in there and reads
-   * as a half circle. The desk that decided the fan is the one that knows what the angle was.
-   */
-  readonly fan?: (
-    group: readonly Node[],
-    gripW: number,
-    /**
-     * HOW MUCH ROOM THE HAND IS ALLOWED, in root units — what the reader can actually SEE.
-     *
-     * Not the desk. A desk is as big as the game wants and a screen is as big as it is, and a hand
-     * measured against the first runs off the second: the outer cards sit past the glass, where
-     * nobody can read them and nobody can reach them. What a spread is bounded by is the room it is
-     * being held IN, and that room is the viewport.
-     */
-    room: number,
-  ) => readonly { readonly at: Vec; readonly deg: number }[];
-  /**
-   * WHAT THE DESK DOES TO WHAT HAS JUST BEEN PUT DOWN, once the tree says where everything is.
-   *
-   * A drop leaves pieces as they were — that is the whole of a drop, and a fan let go of on the felt
-   * stays a fan. A PLACE is the exception: it has an opinion about how its things lie, and what it
-   * takes it re-poses. Nothing else on the shelf needs this, so it is absent everywhere else.
-   */
-  readonly settled?: (root: Node, ids: readonly string[]) => void;
-  /**
-   * THE PANEL'S NUMBERS, WRITTEN INTO A DESK THAT IS ALREADY STANDING.
-   *
-   * A desk is furniture and is not rebuilt because a knob moved — a reader who has dealt a hand
-   * would lose it to the very control that was meant to show them something. So anything a control
-   * puts INTO the tree (a zone's reach) or into a registry the tree names (an arrangement) is
-   * written again here, on every render, to the desk the reader is already working in.
-   */
-  readonly tune?: (root: Node) => void;
-  /**
-   * HEAPS THAT TOUCHING CANNOT FIND — a place that HOLDS things, rather than things that hold each
-   * other.
-   *
-   * A heap on the felt is an accident of where pieces came to rest: nobody declared it, it is simply
-   * what is touching what, and it appears and vanishes as pieces move. A ZONE is the opposite claim
-   * — it is a place, it was there before anything was put in it, and its handle belongs to it and
-   * not to whatever happens to be lying in it today. Islands cannot express that, and a zone squeezed
-   * into one would be a piece: liftable, carryable, and gone the moment somebody dragged it.
-   *
-   * `under` is the node the handle stands beneath — the zone itself, so the tab is always in the same
-   * place — and `pieces` is what the handle lifts, which is never the zone.
-   */
-  readonly held?: (root: Node, aloft: (id: string) => boolean) => readonly { readonly under: Node; readonly pieces: readonly Node[] }[];
-}
 
-/** The shelf's original answer: a card with a card, a chip with a chip, touching, one step apart. */
-export const TOUCHING: HeapRule = {
-  joins: sameKind,
-  meets: (_a, _b, oa, ob) => outlinesTouch(oa, ob, TOUCH_SLACK),
-  admits: (group) => group,
-  seats: stackSeats,
-};
 
-/**
- * THE HEAPS ON THE DESK RIGHT NOW — every set of pieces of one kind joined by a chain of touches.
- *
- * The kit answers "do these two outlines overlap"; WHICH pieces are allowed to is this desk's rule
- * and lives here. Groups of one are dropped: a lone card is not a heap, and a handle under it would
- * be a control that does nothing.
- */
-export function heapsOf(root: Node, aloft: (id: string) => boolean = () => false, rule: HeapRule = TOUCHING): Node[][] {
-  const poses = transformsOf(root);
-  // A HEAP IS WHAT IS LYING ON THE DESK. A piece the clock is taking somewhere is not lying
-  // anywhere: it left the heap at the moment it was taken out of it, and a handle that still
-  // counted it would pull a card back out of the air it was thrown into.
-  const pieces = root.children.filter((n) => rule.joins(n, n) && !aloft(n.id));
-  const outline = new Map<string, ReturnType<typeof placedOutline>>();
-  for (const n of pieces) {
-    const shape = fieldsOf<BoundedFields>(n, "Bounded")?.bounds;
-    const at = poses.get(n.id);
-    if (shape && at) outline.set(n.id, placedOutline(outlineOf(shape), at));
-  }
-  const touch = (a: Node, b: Node): boolean => {
-    const oa = outline.get(a.id);
-    const ob = outline.get(b.id);
-    return !!oa && !!ob && rule.joins(a, b) && rule.meets(a, b, oa, ob);
-  };
-  // ADMITTED AFTER THE ISLAND IS FOUND, never during. Which pieces a heap takes can depend on the
-  // whole island — on which of them is on top of it — and a union-find asks about pairs and knows
-  // nothing about tops. Cut afterwards, and what is left of one is a heap only if two are left.
-  return islands(pieces.filter((n) => outline.has(n.id)), touch)
-    .map((group) => [...rule.admits(group)])
-    .filter((group) => group.length > 1);
-}
 
-/** A handle says so on itself. Its id is a NAME and nothing reads it — membership is looked up. */
-export const isGrip = (n: Node): boolean => kindOf(n) === "grip";
-
-/** The picture of where a carried run will come down. Like a handle, it is drawn and never played. */
-export const isMark = (n: Node): boolean => kindOf(n) === "mark";
-
-/**
- * A CONTROL OR A PICTURE — anything on the desk that is not a piece of the game.
- *
- * Handles and landing marks are both drawn by the desk, both ride a carry, and neither is ever
- * seated, heaped, handed to a zone or counted in a run. They are asked about together everywhere,
- * so they are asked with one word: a second list of exceptions somewhere is a place for the two to
- * drift, and the drift shows up as a tab laid out in a hand of cards.
- */
-export const isDrawn = (n: Node): boolean => isGrip(n) || isMark(n);
 
 /**
  * THE PICTURE OF WHERE THIS RUN WILL COME DOWN — a card-shaped outline, standing on the felt under
@@ -646,163 +454,14 @@ export const isDrawn = (n: Node): boolean => isGrip(n) || isMark(n);
  * the felt at the point the run is anchored on. Neither of those is the answer to "where will this
  * stack STAND", and a player carrying thirty-six cards across a desk was being asked to work it out.
 
-/**
- * The box a heap covers, in root units — what "the common perimeter" means when the answer has to
- * be a place a handle can stand.
- */
-export function heapBox(root: Node, group: readonly Node[]): { readonly mid: number; readonly bottom: number } {
-  const poses = transformsOf(root);
-  let x0 = Infinity;
-  let x1 = -Infinity;
-  let y1 = -Infinity;
-  for (const n of group) {
-    const shape = fieldsOf<BoundedFields>(n, "Bounded")?.bounds;
-    const at = poses.get(n.id);
-    if (!shape || !at) continue;
-    for (const p of placedOutline(outlineOf(shape), at)) {
-      if (p.x < x0) x0 = p.x;
-      if (p.x > x1) x1 = p.x;
-      if (p.y > y1) y1 = p.y;
-    }
-  }
-  return { mid: (x0 + x1) / 2, bottom: y1 };
-}
 
-/**
- * HOW MANY HANDLES HAVE EVER BEEN DRAWN — the next one's name, and never a name used before.
- *
- * A handle is a PICTURE of a heap, not a thing on the desk, and the difference is its identity. Named
- * by their place in the list, two handles swap names the moment a heap between them goes: the clock
- * sees one id whose rest pose has moved and eases it there, so every remaining tab slides along into
- * the one before it, and a new tab flies out of an old one's seat instead of appearing under its own
- * heap. Named afresh, each is a node the clock has never seen — and a new node is drawn at its rest
- * and does not fly in from nowhere (`motion.a-new-node-appears-without-flying`). It appears where it
- * belongs and goes where it stood.
- */
-let handlesDrawn = 0;
 
-export interface GripSpec {
-  /** The tab's width in units; its height follows by `GRIP_RATIO`. */
-  readonly w: number;
-  /** How far the view may take it down and up before it is held — see `Screened`. */
-  readonly min: number;
-  readonly max: number;
-  /**
-   * HOW FAR A FINGER MAY MISS THE TAB and still take it, in units — see `Forgiving`.
-   *
-   * A tab is a few pixels tall on purpose: one drawn as a slab would be a slab, and the heap it
-   * stands under is the thing the reader is meant to be looking at. But a fingertip covers forty-odd
-   * pixels of glass and hides the target on the way down, so a control that is honest to the EYE is
-   * a control that has to be aimed at twice. The answer is not to draw it bigger.
-   *
-   * IT NEVER STEALS: what is drawn is offered first, and only touches that would have found nothing
-   * at all reach this (`pick`). A finger on a card gets the card.
-   */
-  readonly miss: number;
-}
 
-/**
- * HALF A TAB'S WIDTH, forgiven all round.
- *
- * Which is about a fingertip: the tab is drawn to a constant size on the glass (`Screened`), so this
- * is a constant number of pixels too — the same forgiveness at every zoom, because the thing being
- * forgiven is a finger and a finger does not zoom.
- */
-export const GRIP_MISS = GRIP.w / 2;
 
-/**
- * HOW FAR WHAT IS BEING CARRIED HANGS OFF THE FINGER, as a factor of its own height.
- *
- * THE FINGER IS THE HOLDER, and what hangs on it is the handle and the picture of where the load is
- * going. The load itself hangs ABOVE, clear of both. Drawn ON the finger it covers the one thing the
- * gesture is FOR: a player carrying a card across a desk could not see where the card was going,
- * because the card was in the way of the answer — and the answer is the whole reason there is a
- * picture at all. A held thing may lag the finger by a mile and it may sit some way off it; what it
- * may not do is stand on top of the place it is being sent to.
- *
- * A FACTOR of the load's height and not a fixed gap, so a card clears a card and a pile clears a
- * pile: what has to be cleared is the picture of the landing, and the landing is the load's own size.
- *
- * A THIRD, not the whole. Edge to edge is ONE — the load and the picture just touching — and that
- * is the number this began at. It is far too much: on a phone the load ends up a card's height off
- * the finger, which reads as a thing that got away from you rather than a thing in your hand, and
- * the further the load is from the place it is going, the less the picture of that place is worth.
- */
-const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
 
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */
-/**
- * A HANDLE'S OWN WORD FOR WHOSE IT IS — a heap's, or a place's.
- *
- * The two are lifted differently (`HeapRule.fan`), and the difference has to be readable off the tab
- * a finger landed on. Said on the node, as a field, because everything on this desk is: the
- * alternative is the scene keeping a list of which tabs it made how, and a list is a thing that goes
- * stale between the moment it is written and the moment somebody drops a card.
- */
-export const isPlaceGrip = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valued")?.values?.["place"] !== undefined;
 
-function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec, ofPlace = false): Node {
-  const { mid, bottom } = heapBox(root, under);
-  const h = spec.w / GRIP_RATIO;
-  return node(
-    `stack handle ${handlesDrawn++}`,
-    Bounded({ bounds: roundedRect(spec.w, h, h / 2) }),
-    Surfaced({ surface: GRIP_SURFACE }),
-    Transformable({ at: { x: mid, y: bottom + GRIP_GAP + h / 2 } }),
-    Valued({ values: ofPlace ? { grip: nth, place: 1 } : { grip: nth } }),
-    // A HANDLE IS SIZED FOR THE FINGER, not for the desk: the same pixels at every zoom, the way
-    // every drag handle in every application anybody has ever used is drawn.
-    Screened({ min: spec.min, max: spec.max }),
-    // ...AND IT IS EASIER TO CATCH THAN TO SEE. The picture stays exactly the size it was.
-    Forgiving({ miss: spec.miss }),
-    Draggable({ onReject: "stay" }),
-  );
-}
 
-/**
- * REBUILD THE HANDLES for whatever is touching right now, and say which pieces each one holds.
- *
- * Called after anything moves, because that is the only time the answer can have changed. The old
- * tabs go first: a handle is a picture of a heap, and a picture nobody redrew is a handle hanging
- * under a heap that has walked away from it.
- */
-export function regrip(
-  root: Node,
-  spec: GripSpec = GRIP_SPEC,
-  aloft: (id: string) => boolean = () => false,
-  keep?: string,
-  rule: HeapRule = TOUCHING,
-): Map<string, readonly Node[]> {
-  const held = new Map<string, readonly Node[]>();
-  // A HANDLE A HAND IS HOLDING IS NOT REDRAWN. Every other tab is thrown away and made afresh — that
-  // is what keeps them from sliding into each other's places — but the one under a finger belongs to
-  // the gesture until the gesture ends. Replaced mid-carry it is a new node the hand never took, and
-  // what the hand is holding vanishes out from under it.
-  // WHEREVER THEY ENDED UP, not only at the top. A handle is drawn as a child of the desk, but a
-  // desk with zones on it can re-home a node — and a tab that found its way inside one would be laid
-  // out by that zone as though it were a card, and never swept away again by a pass that only looked
-  // at the desk's own children. One stale tab is one control that lifts a heap that is not there.
-  for (const owner of [root, ...root.children]) {
-    for (const old of owner.children.filter(isDrawn)) if (old.id !== keep) remove(owner, old);
-  }
-  // A PLACE'S OWN HANDLE FIRST, and what it holds is not on the felt any more as far as the islands
-  // are concerned: a card the zone has claimed must not also grow a felt handle of its own, or the
-  // reader is given two tabs for one card and whichever they take lifts a different thing.
-  const claimed = new Set<string>();
-  (rule.held?.(root, aloft) ?? []).forEach(({ under, pieces }, i) => {
-    for (const piece of pieces) claimed.add(piece.id);
-    if (pieces.length === 0) return; // a place holding nothing has nothing to lift, and no handle
-    const tab = gripFor(root, [under], -1 - i, spec, true);
-    add(root, tab);
-    held.set(tab.id, pieces);
-  });
-  heapsOf(root, (id) => aloft(id) || claimed.has(id), rule).forEach((group, i) => {
-    const tab = gripFor(root, group, i, spec);
-    add(root, tab);
-    held.set(tab.id, group);
-  });
-  return held;
-}
 
 /**
  * THE HANDLES ALREADY ON THE DESK, paired with the heaps they stand for — for a screen that did not
@@ -818,26 +477,6 @@ export function regrip(
  * pairs them with the heaps, in the order `regrip` makes both — places first, then islands. The
  * order is the correspondence, and it is the same order on every screen because it is the same tree.
  */
-export function regrasp(
-  root: Node,
-  aloft: (id: string) => boolean = () => false,
-  rule: HeapRule = TOUCHING,
-): Map<string, readonly Node[]> {
-  const held = new Map<string, readonly Node[]>();
-  const tabs = root.children.filter(isGrip);
-  const claimed = new Set<string>();
-  const runs: (readonly Node[])[] = [];
-  for (const { pieces } of rule.held?.(root, aloft) ?? []) {
-    for (const piece of pieces) claimed.add(piece.id);
-    if (pieces.length > 0) runs.push(pieces);
-  }
-  runs.push(...heapsOf(root, (id) => aloft(id) || claimed.has(id), rule));
-  runs.forEach((run, i) => {
-    const tab = tabs[i];
-    if (tab) held.set(tab.id, run);
-  });
-  return held;
-}
 
 /** The stacking desk: six cards, six chips and a die, laid out so nothing touches anything. */
 export function stackMap(): Node {

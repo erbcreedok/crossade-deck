@@ -9,6 +9,7 @@
 // border never loses, that a handle has no physics of its own, that the seat is written before the
 // fall is asked for — is stated here once, so a new page inherits it by existing.
 
+import { kindOf , heapKindOf } from "./gestureMap.js";
 import {
   type CarryFeel,
   landingPicture,
@@ -288,7 +289,7 @@ export function grabScene(
    */
   const grasp = (): void => {
     if (!stacking) return;
-    heaps = regrasp(built.host.root, airborne(), rule);
+    heaps = regrasp(built.host.root, heapKindOf, airborne(), rule);
     built.host.setRoot(built.host.root);
   };
 
@@ -302,7 +303,7 @@ export function grabScene(
     const carried = inHand ? heaps.get(inHand) : undefined;
     const aloft = (id: string): boolean =>
       (built.motions?.busy(id) ?? false) || (carried?.some((n) => n.id === id) ?? false);
-    heaps = regrip(built.host.root, grip, aloft, inHand, rule);
+    heaps = regrip(built.host.root, heapKindOf, grip, aloft, inHand, rule);
     // The held handle keeps its own run: it was taken with those pieces and it puts down those
     // pieces, whatever the desk has rearranged itself into meanwhile.
     if (inHand && carried) heaps.set(inHand, carried);
