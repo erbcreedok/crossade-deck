@@ -6,7 +6,7 @@
 // a seam at all.
 
 import { bakeable } from "../core/atoms/bakeable.js";
-import { byId, type Node, type NodeId } from "../core/node.js";
+import { walk, type Node, type NodeId } from "../core/node.js";
 import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { type Painter } from "./painter.js";
@@ -127,11 +127,17 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
   const retain = options.retain === true;
   const plan = retain ? whole.filter((q) => q.layer !== "shadow" && options.raised?.has(q.id)) : whole;
   const bake = options.bake ?? bakeable;
+  // THE OWNERS, FROM ONE WALK. Asked by id per quad, each answer was a walk of the whole tree —
+  // two hundred walks of two hundred nodes on every frame, which under a carried piece at two
+  // frames a screen was the single largest thing the page did. One walk, one map, one frame.
+  const owners = new Map<NodeId, Node>();
+  walk(host.root, (n) => { owners.set(n.id, n); });
+  if (host.hudRoot) walk(host.hudRoot, (n) => { owners.set(n.id, n); });
   const drawn = bakePlan(plan, (quad) => {
     // A quad whose node cannot be found is left LIVE: live is the mode that is always
     // correct, and guessing "bake" for something we could not ask about is how a stroke
     // silently stops scaling with its node.
-    const owner = byId(host.root, quad.id);
+    const owner = owners.get(quad.id);
     return owner ? bake(owner) : false;
   });
   const marks = retain ? [] : [...gridMarks(input), ...boundsMarks(input)];

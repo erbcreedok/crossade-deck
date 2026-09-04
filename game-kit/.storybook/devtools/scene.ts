@@ -731,7 +731,21 @@ export function scene(
     publishInspect({ sceneId: id, nodes: inspect(showing) });
   };
   refresh();
-  host.onChange(refresh);
+  // A CHANGE IS NOT THE TIME TO WRITE THE NOTE. Every publish of the tree — a light moving under a
+  // carried piece, a fade ending, a drop — ran this whole thing at once: a second plan of the desk
+  // for the "nothing is drawn" line, the inspector's report, the toolbar — on the input path, per
+  // change, and that was a third of what a carry cost. The picture is painted by the host's own
+  // listeners as it always was; the words about it follow on the next tick, once for however
+  // many changes came in one breath.
+  let noteDue = false;
+  host.onChange(() => {
+    if (noteDue) return;
+    noteDue = true;
+    setTimeout(() => {
+      noteDue = false;
+      if (LIVE.get(id) === built) refresh();
+    }, 0);
+  });
 
   // A catalog change reaches a MOUNTED scene without rebuilding it — and never overrides the
   // etalon this canvas was set to by hand.
@@ -739,6 +753,7 @@ export function scene(
     fromCatalog = next;
     installTheme(document, next.viewer.theme);
     pushViewer(); // notifies listeners, so the note, the bar and the tree re-read it
+    refresh(); // ...and the words at once: a catalog change is a person at the controls, not the input path
   };
   const stopFollowing = onSettingsChange(applySettings);
 

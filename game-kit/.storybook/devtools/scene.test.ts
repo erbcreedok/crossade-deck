@@ -21,7 +21,7 @@ import {
 } from "../../src/index.js";
 import { catalogText } from "../locales/catalog.js";
 import { currentSettings } from "./catalogSettings.js";
-import { liveReports, setNextSceneId } from "./inspectorBus.js";
+import { liveReports, onInspect, setNextSceneId } from "./inspectorBus.js";
 import { lazyPixiPainter, scene as buildScene, type Scene } from "./scene.js";
 
 // jsdom has no WebGL, so a real painter cannot be built here — it fails asynchronously, which
@@ -180,6 +180,25 @@ describe("a canvas carries its own settings", () => {
     s.motions!.grab([{ id: "sB", offset: { x: 0, y: 0 } }], { anchor: { x: 2, y: 0 } });
     const after = drawn.find((q) => q.id === "sB")!.transform;
     expect(after.e).not.toBe(before.e);
+    s.dispose();
+  });
+
+  it("scene.a-change-is-not-the-time-to-write-the-note — ten changes in one breath, one report, on the next tick", async () => {
+    // Every publish of the tree ran the shell's note, the inspector's report and the toolbar at
+    // once — a second whole plan of the desk, on the input path, per change; under a carried piece
+    // on a board that was a third of what the carry cost. The picture is painted at once as ever;
+    // the words about it follow on the next tick, once.
+    setNextSceneId("story:breath");
+    const root = node("desk", Container({ layout: "story.free" }));
+    let reports = 0;
+    const off = onInspect((r) => { if (r.sceneId === "story:breath") reports += 1; });
+    const s = buildScene(root, {}, currentSettings(), stubPainter);
+    reports = 0; // the build itself writes the note once, at once — that one is earned
+    for (let i = 0; i < 10; i += 1) s.host.setRoot(root);
+    expect(reports, "nothing written on the input path").toBe(0);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(reports, "one report for the whole breath").toBe(1);
+    off();
     s.dispose();
   });
 

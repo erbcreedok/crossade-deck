@@ -54,6 +54,43 @@ function paint(options: PaintOptions = {}): Map<string, Quad> {
 /** Baked is exactly "the matrix was spent" — the quad carries the identity afterwards. */
 const wasBaked = (quads: Map<string, Quad>, id: string): boolean => quads.get(id)!.transform === IDENTITY;
 
+describe("what a frame costs", () => {
+  it("stage.a-frame-walks-the-tree-once — sixteen times the nodes is about sixteen times the frame, never a hundred", () => {
+    // The bake predicate is asked per quad, and it needs the quad's OWNER. Looked up by id, each
+    // answer was a walk of the whole tree — two hundred walks of two hundred nodes on every frame,
+    // which under a carried piece was the single largest thing the page did. One walk builds the
+    // map, and the frame grows with the tree, not with its square.
+    resetLayouts();
+    registerLayout("free", freeLayout);
+    resetSurfaces();
+    installStockSurfaces();
+    const painter: Painter = { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
+    const frameOf = (count: number): number => {
+      const root = node("desk", Container({ layout: "free" }));
+      for (let i = 0; i < count; i += 1) add(root, node(`n${i}`, Bounded(), Surfaced(), Bakeable(), Transformable({ at: { x: i % 20, y: Math.floor(i / 20) } })));
+      const host = mount(document.createElement("div"), root);
+      const stop = attachPainter(host, painter);
+      // The least of several, so a stray pause of the machine does not decide the law.
+      let best = Number.POSITIVE_INFINITY;
+      for (let k = 0; k < 5; k += 1) {
+        const t0 = performance.now();
+        host.setRoot(root);
+        best = Math.min(best, performance.now() - t0);
+      }
+      stop();
+      host.unmount();
+      return best;
+    };
+    frameOf(100); // warm the code paths once
+    const small = frameOf(100);
+    const large = frameOf(1600);
+    // Sixteen times the nodes. A linear frame is about sixteen times the small one; a frame with a
+    // square law in it is a hundred times and more, and the window between them is wide enough
+    // that no stray pause of the machine can carry a square law across it.
+    expect(large / small, "sixteen times the nodes: about sixteen times the frame, never a hundred").toBeLessThan(40);
+  });
+});
+
 describe("who bakes what", () => {
   it("stage.bake-asks-the-node — the default takes no configuring at all", () => {
     // The whole shape of the decision: a fact about a card lives ON the card, and a consumer
