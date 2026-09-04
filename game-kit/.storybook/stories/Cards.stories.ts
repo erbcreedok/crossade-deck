@@ -19,7 +19,7 @@ installStockFlips();
 
 const meta: Meta = {
   title: "Live/Cards",
-  parameters: { gkDoc: "cards.component" },
+  parameters: { gkDoc: "liveCards.component" },
 };
 export default meta;
 
@@ -103,5 +103,5 @@ export const Cards: StoryObj<MagnetArgs> = {
   // could enter an area at all, and the areas were two boxes that could not be used or lit.
   args: { ...MAGNET_ARGS, pull: 0 },
   argTypes: { ...MAGNET_KNOBS },
-  parameters: { gkDocStory: "cards.scene" },
+  parameters: { gkDocStory: "liveCards.scene" },
 };
