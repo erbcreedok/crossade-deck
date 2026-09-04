@@ -12,6 +12,14 @@ describe("KitRoom", () => {
     return { client, welcome };
   }
 
+  async function create(opts: Record<string, unknown> = {}) {
+    const client = await server().sdk.create("kit_room", opts);
+    const welcomePromise = new Promise<Record<string, unknown>>((resolve) => client.onMessage("welcome", resolve));
+    client.send("hello");
+    const welcome = await welcomePromise;
+    return { client, welcome };
+  }
+
   it("двое вошли → у обоих welcome с разными местами, третий — зритель", async () => {
     const a = await join({ accountId: "acc-1", name: "Alice" });
     const b = await join({ accountId: "acc-2", name: "Bob" });
@@ -20,6 +28,14 @@ describe("KitRoom", () => {
     expect((a.welcome.you as { seat: string }).seat).toBe("p1");
     expect((b.welcome.you as { seat: string }).seat).toBe("p2");
     expect((c.welcome.you as { seat: string | null }).seat).toBeNull();
+  });
+
+  it("options.game едет в welcome; без него поля game нет", async () => {
+    const withGame = await create({ accountId: "acc-nardy", game: "nardy" });
+    expect(withGame.welcome.game).toBe("nardy");
+
+    const withoutGame = await create({ accountId: "acc-plain" });
+    expect(withoutGame.welcome.game).toBeUndefined();
   });
 
   it("set с верным baseRev → второй получил tree с rev + 1; отправитель эха не получает", async () => {

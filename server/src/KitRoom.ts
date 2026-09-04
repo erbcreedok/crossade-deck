@@ -1,11 +1,13 @@
 import { Room, Client } from "@colyseus/core";
 import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
 import { guestIdentity } from "./sandboxNames.js";
+import { setRoomGame, clearRoomGame } from "./roomGames.js";
 
 export interface KitJoinOptions {
   accountId?: string;
   name?: string;
   seats?: number;
+  game?: string;
 }
 
 export interface KitRosterItem {
@@ -18,6 +20,7 @@ export interface KitRosterItem {
 export class KitRoom extends Room {
   private code = "";
   private maxSeats = 2;
+  private game?: string;
   private rev = 0;
   private tree: unknown = null;
   private members: KitRosterItem[] = [];
@@ -26,6 +29,10 @@ export class KitRoom extends Room {
   onCreate(options: KitJoinOptions = {}): void {
     if (typeof options?.seats === "number" && options.seats > 0) {
       this.maxSeats = Math.floor(options.seats);
+    }
+    if (typeof options?.game === "string") {
+      this.game = options.game;
+      setRoomGame(this.roomId, this.game);
     }
     this.code = registerInviteCode(this.roomId);
     this.setMetadata({ code: this.code });
@@ -41,6 +48,7 @@ export class KitRoom extends Room {
         },
         code: this.code,
         roomId: this.roomId,
+        ...(this.game ? { game: this.game } : {}),
         rev: this.rev,
         tree: this.tree,
         roster: this.roster(),
@@ -127,6 +135,7 @@ export class KitRoom extends Room {
 
   onDispose(): void {
     releaseInviteCode(this.code);
+    clearRoomGame(this.roomId);
   }
 
   private nextFreeSeat(): string | null {
