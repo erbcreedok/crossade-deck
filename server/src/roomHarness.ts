@@ -5,6 +5,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { CardRoom } from "./CardRoom.js";
 import { TestRoom } from "./TestRoom.js";
 import { SandboxRoom } from "./SandboxRoom.js";
+import { KitRoom } from "./KitRoom.js";
 
 // Общая обвязка тестов комнаты: поднять сервер, поделить его на все случаи одного файла,
 // прибрать между тестами. Вынесено из CardRoom.test.ts, который вырос до тысячи строк и
@@ -31,6 +32,7 @@ export const TEST_PORTS = {
   play: 2668,
   move: 2669,
   sandbox: 2670,
+  kit: 2671,
 } as const;
 
 export function createGameServer() {
@@ -38,6 +40,7 @@ export function createGameServer() {
   server.define("card_room", CardRoom);
   server.define("test_room", TestRoom);
   server.define("sandbox_room", SandboxRoom);
+  server.define("kit_room", KitRoom);
   return server;
 }
 

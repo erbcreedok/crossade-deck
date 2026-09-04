@@ -45,3 +45,10 @@ never interpret.
 
 Custom accounts (short recovery code, no password). Firebase is scaffolded for later
 (`server/src/auth.ts`) but not configured or used until keys are supplied.
+
+## Rooms
+
+- `CardRoom`: full card game engine (Durak/Klondike mechanics, schema, votes, bots).
+- `SandboxRoom`: live sandbox relay (snapshots, cursors, presence).
+- `KitRoom`: game tree relay (`Root` tree as opaque JSON, revision checks `baseRev`, seat management by `accountId` with reconnection grace window).
+
