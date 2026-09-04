@@ -5,10 +5,10 @@
 // the wrong thing and the border still LOOKS enforced, with half a card hanging over the side.
 
 import { describe, expect, it } from "vitest";
-import { apply, Camera, type Vec } from "../../src/index.js";
+import { apply, Camera, polar, type Vec } from "../../src/index.js";
 import { add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingAt, landingBox, restsAt, regrip, flickOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, landingAt, landingBox, restsAt, regrip, flickOf, flightOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -549,6 +549,20 @@ describe("the stacking desk", () => {
       expect(lands.x, `piece ${i} keeps its seat under its own drag`).toBeCloseTo(ownHome.x + seats[i]!.x, 6);
       expect(lands.y).toBeCloseTo(ownHome.y + seats[i]!.y, 6);
     });
+  });
+
+  it("map.the-threshold-is-paid-once — what crosses into the desk is taken whole", () => {
+    // `flickOf` hands the desk the EXCESS over the throwing speed, already in units. The flight
+    // built from it must take that number whole: subtracting the glass threshold a second time,
+    // from a number now measured in units rather than pixels, compares a finger against a hundred
+    // and fifty units a second — faster than any hand — and answers "not a throw" to every throw
+    // there is. Which is what happened: every stack, chip and die dropped where it was let go of.
+    const hand = flickOf({ x: THROWN_AT * 4, y: 0 }, 100)!; // 4.5 units/s of excess
+    const flight = flightOf(hand, 1);
+    expect(flight.speed, "the whole excess, not the excess minus a pixel number").toBeCloseTo(Math.hypot(hand.x, hand.y), 9);
+    expect(flight.speed, "and it is a flight").toBeGreaterThan(0);
+    expect(flightOf(hand, 2).speed, "the piece's own gain scales it").toBeCloseTo(flight.speed * 2, 9);
+    expect(flightOf({ x: 0, y: -3 }, 1).angle, "the heading is the hand's").toBeCloseTo(polar({ x: 0, y: -3 }).angle, 9);
   });
 
   it("map.a-throw-is-the-gesture-and-not-the-zoom — measured on the glass, converted once", () => {

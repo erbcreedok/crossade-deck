@@ -48,7 +48,6 @@ import {
   DIE_SPIN,
   DIE_SPIN_DRAG,
   shoves,
-  threwAt,
   deckMap,
   dropOf,
   fallOrder,
@@ -58,6 +57,7 @@ import {
   GRIP_MISS,
   isDrawn,
   isGrip,
+  isMark,
   landingAt,
   landingBox,
   landingMark,
@@ -67,6 +67,7 @@ import {
   ANCHOR_MARK,
   CARRY_CLEAR,
   flickOf,
+  flightOf,
   flockTo,
   deskRoom,
   mapWalls,
@@ -642,6 +643,16 @@ export function grabScene(
             // happens next, the hand is off. Where the card ENDS UP arrives separately, as the tree
             // change that every screen is told about (`changed`).
             mirror?.hand(items, undefined, true, {});
+            // THE PIECES, AND NOT THE PICTURE OF WHERE THEY LAND. The landing mark rides the carry
+            // like a handle does, so it arrives here in `items` — and a fall that asked the clock
+            // for ITS pose found none and gave the whole release back to the ordinary drop. Which
+            // is how every throw on the shelf turned into a putting-down the day the mark appeared:
+            // not the threshold, not the speed, one picture in the list. Read now, before the
+            // picture is taken off the desk below and can no longer be told from a piece.
+            const pieces = items.filter((one) => {
+              const n = byId(built.host.root, one.id);
+              return n !== undefined && !isMark(n);
+            });
             // HOW FAR THE LOAD WAS HANGING, read BEFORE the picture is taken off the desk: the
             // landing is the picture's place, so the number that says where the picture WAS is the
             // number the landing needs — and taking the picture away first threw it away with it.
@@ -688,13 +699,13 @@ export function grabScene(
             // different handle in hand, and a stale callback clearing that would destroy the tab
             // under the live finger and leave the hand holding an id that no longer exists.
             const mine = inHand;
-            return letFall(built, items, held, swing, () => {
+            return letFall(built, pieces, held, swing, () => {
               if (inHand === mine) inHand = undefined;
               // A PLACE HAS THE LAST WORD HERE TOO. The wiring announces a drop it decided itself
               // (`onSettled`); a release the scene took never reaches that line at all, and a rule
               // that only ran on the wiring's path would re-pose a card dealt in one at a time and
               // leave every hand ever put back exactly as the hand had splayed it.
-              rule?.settled?.(built.host.root, items.map((it) => it.id));
+              rule?.settled?.(built.host.root, pieces.map((it) => it.id));
               settle();
             }, ways, bump, drop);
           },
@@ -1036,15 +1047,14 @@ export function letFall(
   for (const { id, feel, walls, delayMs, fan } of dropped) {
     // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
     // chip stops being pushed the moment it is let go, a card goes where it was sent.
-    // ITS OWN SHARE OF WHAT THE HAND THREW — and what a hand threw is the speed it had OVER the
-    // throwing speed (`threwAt`), never all of it: carrying is moving, and a card let go of on the
-    // way across the desk was not thrown anywhere.
+    // ITS OWN SHARE OF WHAT THE HAND THREW. `hand` arrives ALREADY as the excess over the throwing
+    // speed, in units (`flickOf` took the threshold off on the glass, once, and divided by the
+    // scale once) — so it is taken whole here. Taking the threshold off a second time, from a
+    // number now measured in units rather than pixels, left nothing of any throw a hand could
+    // make: a hundred and fifty units a second is faster than a finger, and every stack, chip and
+    // die was put down exactly where it was let go of, with the hand's whole swing thrown away.
     const seat = flock.get(id);
-    const flight =
-      seat ??
-      (hand
-        ? { speed: threwAt(Math.hypot(hand.x, hand.y)) * feel.throwGain, angle: polar(hand).angle }
-        : { speed: 0, angle: 0 });
+    const flight = seat ?? (hand ? flightOf(hand, feel.throwGain) : { speed: 0, angle: 0 });
     // The hand's own throw, plus this piece's share of the opening. A run of one has no fan to take
     // and is left exactly as it was: one die thrown is a die thrown where you threw it.
     const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));

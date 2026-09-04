@@ -479,6 +479,17 @@ export const THROW_REACH = 0.35;
  * be a throw, and grows from there: what travels is the part of the gesture that was a THROW, and
  * the part that was merely carrying is left where carrying leaves things.
  */
+/**
+ * THE FLIGHT A HAND GIVES A PIECE, from a swing that is already the excess in units (`flickOf`).
+ *
+ * One multiplication and no threshold: the threshold was paid on the glass, in pixels, exactly
+ * once. A second one here — the bug this function exists to keep out — compared units against a
+ * pixel number and answered "not a throw" to every throw there is.
+ */
+export function flightOf(hand: Vec, throwGain: number): { speed: number; angle: number } {
+  return { speed: Math.hypot(hand.x, hand.y) * throwGain, angle: polar(hand).angle };
+}
+
 export function threwAt(speed: number): number {
   return Math.max(0, speed - THROWN_AT);
 }
