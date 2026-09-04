@@ -24,3 +24,8 @@ export function bump(root: Node): Node {
   compose(root, Revised({ rev: nextRev }));
   return root;
 }
+
+export function setRev(root: Node, rev: number): Node {
+  compose(root, Revised({ rev }));
+  return root;
+}

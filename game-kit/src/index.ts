@@ -47,7 +47,7 @@ export {
 
 export { allAtoms, classOf, defineAtom, type Atom, type AtomDef, type InheritClass, type Requirement } from "./core/atom.js";
 export { fromSpec, toSpec, treeFromJson, treeJson, type NodeSpec } from "./core/spec.js";
-export { bump, Revised, revOf, type RevisedFields } from "./core/atoms/revised.js";
+export { bump, Revised, revOf, setRev, type RevisedFields } from "./core/atoms/revised.js";
 
 // ---- core: the atoms ---------------------------------------------------------------------
 // The load-bearing ladder, in dependency order. Each one is a separate import so a consumer

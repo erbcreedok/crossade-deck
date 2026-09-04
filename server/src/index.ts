@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 });
 
 const httpServer = createServer(app);
-const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
+const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer, maxPayload: 1024 * 1024 }) });
 
 gameServer.define("card_room", CardRoom);
 // Тестовая комната с ботами за столом — площадка для посадки/вёрстки/дроп-зон.

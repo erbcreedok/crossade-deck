@@ -7,4 +7,4 @@
 | `spec.roundtrip` | дерево Node | `toSpec` → `JSON` → `fromSpec` | возвращает равнозначный спек и совпадающие caps и fields |
 | `spec.project-preserves-serialization` | спроецированное дерево | `toSpec` до и после roundtrip | даёт идентичный NodeSpec |
 | `spec.unknown-atom-throws` | спек с неизвестным атомом | `fromSpec` | бросает ошибку с именем узла и атома |
-| `spec.revised-atom-bump` | корень Node | `revOf` / `bump` | `revOf` по умолчанию 0, `bump` увеличивает rev на 1 |
+| `spec.revised-atom-bump` | корень Node | `revOf` / `bump` / `setRev` | `revOf` по умолчанию 0, `bump` увеличивает rev на 1, `setRev` задаёт ревизию |

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@apps/klondike": "*",
+    "colyseus.js": "^0.15.0",
     "game-kit": "*",
     "pixi.js": "^8.19.0"
   },

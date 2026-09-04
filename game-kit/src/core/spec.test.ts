@@ -12,7 +12,7 @@ import { Owned } from "./atoms/owned.js";
 import { Private } from "./atoms/private.js";
 import { rect } from "../presets/shapes.js";
 import { fromSpec, toSpec, treeFromJson, treeJson, type NodeSpec } from "./spec.js";
-import { bump, Revised, revOf } from "./atoms/revised.js";
+import { bump, Revised, revOf, setRev } from "./atoms/revised.js";
 import { project } from "./project.js";
 
 describe("spec: toSpec / fromSpec & Revised", () => {
@@ -80,7 +80,7 @@ describe("spec: toSpec / fromSpec & Revised", () => {
     expect(() => fromSpec(badSpec)).toThrow(/card-x/);
   });
 
-  it("spec.revised-atom-bump — revOf defaults to 0 when absent, bump increments rev by 1", () => {
+  it("spec.revised-atom-bump — revOf defaults to 0 when absent, bump increments rev by 1, setRev sets it", () => {
     const root = node("root");
     expect(revOf(root)).toBe(0);
 
@@ -89,6 +89,9 @@ describe("spec: toSpec / fromSpec & Revised", () => {
 
     bump(root);
     expect(revOf(root)).toBe(2);
+
+    setRev(root, 10);
+    expect(revOf(root)).toBe(10);
   });
 
   it("guard.spec-holds-no-functions — NodeSpec contains only data primitives", () => {

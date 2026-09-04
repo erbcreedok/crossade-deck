@@ -1,0 +1,123 @@
+import { Client } from "colyseus.js";
+import { fromSpec, node, revOf, setRev, toSpec, treeFromJson, type Node } from "game-kit";
+import type { Account } from "../account/account.js";
+import { serverUrl } from "../account/server.js";
+
+export interface Table {
+  readonly root: Node;
+  readonly rev: number;
+  readonly seat: string | null;
+  readonly code: string;
+  readonly roomId: string;
+  send(next: Node): void;
+  onTree(listener: (root: Node, from: string) => void): () => void;
+  leave(): void;
+}
+
+export interface JoinTableOptions {
+  game: string;
+  room?: string;
+  account?: Account;
+  seats?: number;
+  /** Test seam: custom client */
+  client?: any;
+}
+
+function parseTree(tree: unknown): Node {
+  if (typeof tree === "string") return treeFromJson(tree);
+  if (tree && typeof tree === "object") return fromSpec(tree as any);
+  return node("desk");
+}
+
+export async function joinTable(opts: JoinTableOptions): Promise<Table> {
+  const httpUrl = serverUrl();
+  const wsUrl = httpUrl.replace(/^http/, "ws");
+  const client = opts.client ?? new Client(wsUrl);
+
+  const roomOptions: Record<string, unknown> = {};
+  if (opts.account) {
+    roomOptions.accountId = opts.account.id;
+    roomOptions.name = opts.account.name;
+  }
+  if (opts.seats) {
+    roomOptions.seats = opts.seats;
+  }
+
+  let colyseusRoom: any;
+  if (opts.room) {
+    const res = await fetch(`${httpUrl}/rooms/by-code/${encodeURIComponent(opts.room)}`);
+    if (!res.ok) throw new Error("room_not_found");
+    const { roomId } = (await res.json()) as { roomId: string };
+    colyseusRoom = await client.joinById(roomId, roomOptions);
+  } else {
+    colyseusRoom = await client.create("kit_room", roomOptions);
+  }
+
+  const welcomePromise = new Promise<{
+    you: { seat: string | null; accountId?: string; name: string };
+    code: string;
+    roomId: string;
+    rev: number;
+    tree: unknown;
+    roster: unknown[];
+  }>((resolve) => {
+    colyseusRoom.onMessage("welcome", (msg: any) => resolve(msg));
+  });
+
+  colyseusRoom.send("hello");
+  const welcome = await welcomePromise;
+
+  let currentRev = welcome.rev ?? 0;
+  let currentRoot = parseTree(welcome.tree);
+  setRev(currentRoot, currentRev);
+
+  const listeners = new Set<(root: Node, from: string) => void>();
+
+  colyseusRoom.onMessage("tree", (msg: { rev: number; tree: unknown; from: string }) => {
+    currentRev = msg.rev;
+    currentRoot = parseTree(msg.tree);
+    setRev(currentRoot, currentRev);
+    for (const listener of listeners) {
+      listener(currentRoot, msg.from);
+    }
+  });
+
+  colyseusRoom.onMessage("stale", (msg: { rev: number; tree: unknown }) => {
+    currentRev = msg.rev;
+    currentRoot = parseTree(msg.tree);
+    setRev(currentRoot, currentRev);
+    for (const listener of listeners) {
+      listener(currentRoot, "server");
+    }
+  });
+
+  const table: Table = {
+    get root() {
+      return currentRoot;
+    },
+    get rev() {
+      return currentRev;
+    },
+    seat: welcome.you?.seat ?? null,
+    code: welcome.code,
+    roomId: colyseusRoom.id || welcome.roomId,
+    send(next: Node) {
+      const baseRev = revOf(next) || currentRev;
+      colyseusRoom.send("set", { baseRev, tree: toSpec(next) });
+      currentRev = baseRev + 1;
+      setRev(next, currentRev);
+      currentRoot = next;
+    },
+    onTree(listener: (root: Node, from: string) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    leave() {
+      colyseusRoom.leave();
+    },
+  };
+
+  return table;
+}
