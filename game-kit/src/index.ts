@@ -206,6 +206,7 @@ export {
 } from "./render/swipe.js";
 export { SHAKE_LEG, wireShake, type Shake, type ShakeWiring, type Shaking } from "./render/shake.js";
 export { KNEAD_QUANTUM, KNEAD_STIR, wireKnead, type Knead, type KneadWiring } from "./render/knead.js";
+export { runBelow, wireDrag, type DragOptions, type DragScene } from "./render/drag.js";
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
 // A control that answers a finger: what it WEARS hovered and held, and how deep it sinks. The
 // meaning of the press is `Valued`, read by the consumer — this atom is the look and the depth.

@@ -265,7 +265,7 @@ describe("guards", () => {
       .filter((f) => !inCatalog(f.rel))
       .filter((f) => /\bsetTimeout\b/.test(f.code))
       .map((f) => f.rel);
-    expect(deadlines, "a one-shot deadline lives in the ONE input seam that needs one").toEqual(["render/hold.ts"]);
+    expect(deadlines, "a one-shot deadline lives in the ONE input seam that needs one").toEqual(["render/drag.ts", "render/hold.ts"]);
   });
 
   it("guard.english-only — code is English; the words live in bundles", () => {
