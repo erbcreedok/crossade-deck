@@ -22,9 +22,37 @@ export function storedAccount(): Account | undefined {
   }
 }
 
+/**
+ * A Telegram Mini App carries its own identity in `initData` — signed by the bot token, so the
+ * server can trust it without a password. It is exchanged for the same kind of account a guest
+ * gets (`POST /auth/telegram`), so the rest of the app never has to know which door a player came
+ * in through.
+ */
+export async function telegramAccount(initData: string): Promise<Account | undefined> {
+  try {
+    const res = await fetch(`${serverUrl()}/auth/telegram`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData }),
+    });
+    if (!res.ok) return undefined;
+    const account = (await res.json()) as Account;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+    return account;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function ensureAccount(): Promise<Account | undefined> {
   const existing = storedAccount();
   if (existing) return existing;
+
+  const initData = (globalThis as any).Telegram?.WebApp?.initData;
+  if (typeof initData === "string" && initData.length > 0) {
+    const viaTelegram = await telegramAccount(initData);
+    if (viaTelegram) return viaTelegram;
+  }
 
   try {
     const res = await fetch(`${serverUrl()}/accounts`, {

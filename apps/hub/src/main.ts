@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 import { holdThePage } from "game-kit";
 import { startHub } from "./hub/shell.js";
+import { goTo, routeOf } from "./hub/route.js";
+import { serverUrl } from "./account/server.js";
 
 const chrome = document.querySelector<HTMLElement>("#chrome");
 const stage = document.querySelector<HTMLElement>("#stage");
@@ -11,6 +13,28 @@ const stage = document.querySelector<HTMLElement>("#stage");
 // anything is mounted — the kit never says it on a consumer's behalf, because a page of prose
 // wants none of this.
 holdThePage();
+
+/**
+ * A Mini App opened from a table's own link (`t.me/bot?startapp=CODE`) carries the code in
+ * `start_param`, not in the URL — Telegram controls the address bar, the bot only gets to pass
+ * this one string. Resolved to a game with the same lookup a pasted `#chess?room=CODE` link would
+ * use, and written to the route BEFORE the hub boots, so it opens the table directly and never
+ * shows the shelf first.
+ */
+async function openStartParamTable(): Promise<void> {
+  const code = (globalThis as any).Telegram?.WebApp?.initDataUnsafe?.start_param;
+  if (typeof code !== "string" || code.length === 0 || routeOf()) return;
+  try {
+    const res = await fetch(`${serverUrl()}/rooms/by-code/${encodeURIComponent(code)}`);
+    if (!res.ok) return;
+    const { game } = (await res.json()) as { game?: string };
+    if (game) goTo(game, "replace", code);
+  } catch {
+    // No server, no code, no game — the shelf is still there to fall back on.
+  }
+}
+
+await openStartParamTable();
 
 const stop = chrome && stage ? startHub(chrome, stage) : undefined;
 

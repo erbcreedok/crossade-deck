@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ensureAccount, renameAccount, restoreAccount, storedAccount, type Account } from "./account.js";
+import { ensureAccount, renameAccount, restoreAccount, storedAccount, telegramAccount, type Account } from "./account.js";
 
 describe("account management", () => {
   beforeEach(() => {
@@ -48,6 +48,29 @@ describe("account management", () => {
     const account = await ensureAccount();
     expect(account).toBeUndefined();
     expect(storedAccount()).toBeUndefined();
+  });
+
+  it("ensureAccount goes through /auth/telegram when Telegram initData is present", async () => {
+    const fakeAccount: Account = { id: "acc-tg", name: "TG Player", recoveryHash: "TGCODE" };
+    (globalThis as any).Telegram = { WebApp: { initData: "query_id=abc&user=%7B%7D&hash=deadbeef" } };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => fakeAccount });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const account = await ensureAccount();
+
+    expect(account).toEqual(fakeAccount);
+    expect(storedAccount()).toEqual(fakeAccount);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/auth/telegram"), expect.objectContaining({ method: "POST" }));
+    delete (globalThis as any).Telegram;
+  });
+
+  it("telegramAccount posts initData and stores the returned account", async () => {
+    const fakeAccount: Account = { id: "acc-tg", name: "TG Player", recoveryHash: "TGCODE" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => fakeAccount }));
+
+    const account = await telegramAccount("query_id=abc");
+    expect(account).toEqual(fakeAccount);
+    expect(storedAccount()).toEqual(fakeAccount);
   });
 
   it("restoreAccount replaces saved account on success", async () => {

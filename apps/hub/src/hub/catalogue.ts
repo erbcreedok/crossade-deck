@@ -27,8 +27,18 @@ export const CATALOGUE: readonly GameEntry[] = [
     load: async () => (await import("@apps/klondike")).startSolitaire,
   },
   {
-    id: "table",
-    label: "Стол",
+    id: "cards",
+    label: "Карты",
+    load: async () => (await import("../table/index.js")).startTable,
+  },
+  {
+    id: "chess",
+    label: "Шахматы",
+    load: async () => (await import("../table/index.js")).startTable,
+  },
+  {
+    id: "nardy",
+    label: "Нарды",
     load: async () => (await import("../table/index.js")).startTable,
   },
 ];

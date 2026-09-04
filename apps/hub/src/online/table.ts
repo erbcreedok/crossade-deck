@@ -50,7 +50,17 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     const { roomId } = (await res.json()) as { roomId: string };
     colyseusRoom = await client.joinById(roomId, roomOptions);
   } else {
-    colyseusRoom = await client.create("kit_room", roomOptions);
+    // A table with no code yet is one nobody has joined: create it through the same HTTP door a
+    // link would use, so the room carries `game` from the start (`GET /rooms/by-code` reads it
+    // back off `roomGames.ts`, which only knows what `POST /rooms` told it).
+    const res = await fetch(`${httpUrl}/rooms`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game: opts.game, ...(opts.seats ? { seats: opts.seats } : {}) }),
+    });
+    if (!res.ok) throw new Error("room_create_failed");
+    const { roomId } = (await res.json()) as { roomId: string };
+    colyseusRoom = await client.joinById(roomId, roomOptions);
   }
 
   const welcomePromise = new Promise<{
