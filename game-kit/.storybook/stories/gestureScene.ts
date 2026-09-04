@@ -12,12 +12,14 @@
 import { kindOf , heapKindOf } from "./gestureMap.js";
 import {
   type CarryFeel,
+  type Walls,
   landingPicture,
   throwGate,
   zoneFor,
   aimOf,
 
   Coated,
+  wouldAccept,
   extentOf,
   mark,
   NO_COAT,
@@ -210,6 +212,17 @@ export function grabScene(
   room?: { x: number; y: number; w: number; h: number },
   actor?: string,
   viewer?: Partial<ViewerSettings>,
+  /**
+   * WHAT A DESK WITH ITS OWN LAW ABOUT PIECES SAYS — and only that. A nardy point is not a heap
+   * (`stacking`) and not a square (`zones` alone): a checker lifted from a point takes the ones
+   * above it, the run stands in a column in the hand, and a die thrown beside the board stays
+   * beside it. Three answers, given as data, for a desk that is neither of the two the shelf knew.
+   */
+  pieces?: {
+    readonly runOf?: (root: Node, hit: Node) => readonly Node[];
+    readonly offsetOf?: (root: Node, hit: Node, run: readonly Node[]) => readonly Vec[] | undefined;
+    readonly wallsOf?: (piece: Node, at: Vec) => Walls | undefined;
+  },
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -548,6 +561,44 @@ export function grabScene(
     // raise a piece and it is wider, and a border that ignored that would let the difference out.
     // ...and the wall is the DESK'S edge. A desk that named its own room is a desk that is not the
     // shelf's stock size, and its felt reaches wherever its own box says it does.
+    ...(!stacking && pieces?.runOf
+      ? {
+          // A RUN THE DESK NAMES, carried the way the desk says, with the picture of its landing
+          // under it — the same three hooks the stacking desk answers with heaps and handles,
+          // answered here with the desk's own data.
+          runOf: (root: Node, hit: Node) => {
+            const run = pieces.runOf!(root, hit);
+            // BACK ONTO THE SAME PLACE IS A MOVE HERE. A run of cards is never handed back to the
+            // hand it was lifted out of (`liftedFrom`); a column of checkers set down on the point
+            // it came from is simply on that point again, and the wiring puts it back for us.
+            liftedFrom = undefined;
+            landingPic.end();
+            const lead = run[0];
+            const seats = pieces.offsetOf?.(root, hit, run) ?? run.map(() => ({ x: 0, y: 0 }));
+            const mark = lead ? landingPic.mark(run, seats, seatIn(lead)) : undefined;
+            return mark ? [...run, mark] : [...run];
+          },
+          stillOf: (_root: Node, _hit: Node, run: readonly Node[]) => run.map((n) => isDrawn(n)),
+          offsetOf: (root: Node, hit: Node, run: readonly Node[]) => {
+            const lift = landingPic.current?.hover ?? { x: 0, y: 0 };
+            const own = run.filter((n) => !isDrawn(n));
+            const seats = (pieces.offsetOf?.(root, hit, own) ?? own.map(() => ({ x: 0, y: 0 }))).map((seat) => ({ x: seat.x + lift.x, y: seat.y + lift.y }));
+            const all = [...seats, ...(landingPic.current ? [landingPic.current.seat] : [])];
+            carried = run.map((n, i) => ({ id: n.id, offset: all[i] ?? { x: 0, y: 0 }, still: isDrawn(n) }));
+            return all;
+          },
+          onSettled: (root: Node, ids: readonly string[]) => {
+            inHand = undefined;
+            aimed = undefined;
+            liftedFrom = undefined;
+            for (const id of ids) {
+              const piece = byId(root, id);
+              if (piece) toFront(piece);
+            }
+            settle();
+          },
+        }
+      : {}),
     trayOf: (root, hit) => mapWalls(hit, isGrip(hit) ? 1 : held, room ? boxOfDesk(root) : undefined),
     ...NEVER_THROUGH,
     // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
@@ -607,7 +658,7 @@ export function grabScene(
             // is how every throw on the shelf turned into a putting-down the day the mark appeared:
             // not the threshold, not the speed, one picture in the list. Read now, before the
             // picture is taken off the desk below and can no longer be told from a piece.
-            const pieces = items.filter((one) => {
+            const falling = items.filter((one) => {
               const n = byId(built.host.root, one.id);
               return n !== undefined && !isMark(n);
             });
@@ -644,7 +695,13 @@ export function grabScene(
             if (zone) {
               // A RUN LED BY A HANDLE IS HANDED OVER HERE; anything else the wiring re-parents
               // itself, with its accept rules and its displacement, which is where that belongs.
-              if (!items.some((one) => isGrip(byId(built.host.root, one.id) ?? node("")))) return false;
+              //
+              // A DESK WITH ITS OWN RUNS hands the whole column over — unless the place refuses it,
+              // and then the wiring's own drop is left to send the column home.
+              if (pieces?.runOf) {
+                const lead = byId(built.host.root, items[0]?.id ?? "");
+                if (!lead || !wouldAccept(zone, lead)) return false;
+              } else if (!items.some((one) => isGrip(byId(built.host.root, one.id) ?? node("")))) return false;
               handOver(built, zone, items);
               rule?.settled?.(built.host.root, items.map((one) => one.id));
               inHand = undefined;
@@ -657,15 +714,15 @@ export function grabScene(
             // different handle in hand, and a stale callback clearing that would destroy the tab
             // under the live finger and leave the hand holding an id that no longer exists.
             const mine = inHand;
-            return letFall(built, pieces, held, swing, () => {
+            return letFall(built, falling, held, swing, () => {
               if (inHand === mine) inHand = undefined;
               // A PLACE HAS THE LAST WORD HERE TOO. The wiring announces a drop it decided itself
               // (`onSettled`); a release the scene took never reaches that line at all, and a rule
               // that only ran on the wiring's path would re-pose a card dealt in one at a time and
               // leave every hand ever put back exactly as the hand had splayed it.
-              rule?.settled?.(built.host.root, pieces.map((it) => it.id));
+              rule?.settled?.(built.host.root, falling.map((it) => it.id));
               settle();
-            }, ways, bump, drop);
+            }, ways, bump, drop, pieces?.wallsOf);
           },
         }
       : {}),
@@ -818,6 +875,7 @@ export function letFall(
   ways: { card?: LetGo; chip?: LetGo; die?: LetGo } = {},
   bump?: Bump,
   hover: Vec = { x: 0, y: 0 },
+  wallsOf?: (piece: Node, at: Vec) => Walls | undefined,
 ): boolean {
-  return letFallInKit(s, items, lift, hand, after, ways, bump, hover, throwDie);
+  return letFallInKit(s, items, lift, hand, after, ways, bump, hover, throwDie, wallsOf);
 }

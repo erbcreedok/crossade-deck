@@ -729,6 +729,7 @@ export function letFall(
   bump?: Bump,
   hover: Vec = { x: 0, y: 0 },
   onRoll?: (m: Motions, root: Node, piece: Node, opts: any) => void,
+  wallsOf?: (piece: Node, at: Vec) => Walls | undefined,
 ): boolean {
   const m = s.motions;
   const drawn = m?.poses();
@@ -760,7 +761,11 @@ export function letFall(
     id: piece.id,
     feel: feelOf(piece),
     fan: fanOf(scattering.indexOf(piece), scattering.length, aim),
-    walls: mapWalls(piece),
+    // THE DESK SAYS WHERE A FLIGHT MAY GO, when it has an opinion — asked with the piece where it is
+    // being let go of, because that is what decides it: a die thrown from beside a board stays beside
+    // it, a die thrown on the board stays on the board, and only the point of release tells which.
+    // A desk that says nothing gets the map's own border, as every desk on this shelf did.
+    walls: wallsOf?.(piece, seatIn(piece)) ?? mapWalls(piece),
     delayMs,
   }));
   const standing = alsoInTheWay(
