@@ -21,6 +21,15 @@
  */
 export type ThemeName = "dark" | "light";
 
+export interface MarkPolicy {
+  /** Hold mark until overwritten when absent; extinguish after ttlMs milliseconds when set. */
+  readonly ttlMs?: number;
+  /** Whether to show marks for the viewer's own actions. */
+  readonly showOwn: boolean;
+  /** Who the viewer is (matches `Marked.by` for own actions). */
+  readonly me?: string;
+}
+
 export interface ViewerSettings {
   /** Dark or light. Local, like motion-reduce. */
   readonly theme: ThemeName;
@@ -42,7 +51,7 @@ export interface ViewerSettings {
    *
    * A second debug layer, and separate from `debugBounds` because it answers a different
    * question: the outline says where a node is, the grid says how big anything is — without a
-   * node being involved at all. A reader describing a size in units can read it off the scene
+   * node being formed at all. A reader describing a size in units can read it off the scene
    * instead of counting on trust.
    */
   readonly debugGrid?: boolean;
@@ -57,6 +66,8 @@ export interface ViewerSettings {
    * so a change mid-flight is smooth — the flight keeps its progress and only its pace changes.
    */
   readonly motionSpeed?: number;
+  /** Onlooker policy for displaying action marks on nodes. */
+  readonly marks?: MarkPolicy;
 }
 
 export const DEFAULT_VIEWER: ViewerSettings = { theme: "dark" };

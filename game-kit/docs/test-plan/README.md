@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**68 слоёв · 1572 кейсов заявлено · 1399 расписано поимённо.**
+**68 слоёв · 1577 кейсов заявлено · 1405 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -33,7 +33,7 @@
 | [UNIT · requirement chains](05-requirement-chains.md) | `vitest` | 10 | 6 |
 | [UNIT · four classes of inheritance](06-inheritance-classes.md) | `vitest + a fake tree` | 26 | 10 |
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
-| [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 104 | 103 |
+| [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 106 | 106 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 105 | 93 |
 | [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 64 | 64 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 102 | 102 |
@@ -53,7 +53,7 @@
 | [E2E](25-e2e.md) | `Playwright against the built Storybook` | 47 | 47 |
 | [UNIT · AcceptRule — the zone's predicate](26-accept.md) | `vitest` | 20 | 20 |
 | [UNIT · Container policies — grab · occupied · keeps](27-container-policies.md) | `vitest` | 17 | 17 |
-| [UNIT · Element data atoms — Valued · Owned · Labeled · Placeable](28-element-atoms.md) | `vitest` | 6 | 6 |
+| [UNIT · Element data atoms — Valued · Owned · Labeled · Placeable](28-element-atoms.md) | `vitest` | 9 | 9 |
 | [UNIT · Interaction & visibility atoms — Draggable · Rotatable · Focusable · Actionable · Private](29-interaction-atoms.md) | `vitest` | 13 | 13 |
 | [UNIT · Flippable — the card turn](30-flippable.md) | `vitest` | 44 | 44 |
 | [UNIT · Tiltable — the card tap](31-tiltable.md) | `vitest` | 13 | 13 |

@@ -255,7 +255,11 @@ export { project } from "./core/project.js";
 // The gap a hand opens while a card is held over it — a preview that is also the promise: the same
 // arithmetic answers "where would it land", so the two cannot disagree. See `core/part.ts`.
 export { partAt, type Parted } from "./core/part.js";
-export { DEFAULT_VIEWER, withViewer, type ThemeName, type ViewerSettings } from "./core/viewer.js";
+export { Marked, mark, unmark, visibleMark, type MarkedFields } from "./core/atoms/marked.js";
+export { installStockMarks, markNames, markRecord, registerMark, resetMarks, type MarkRecord } from "./core/marks.js";
+export { svg } from "./render/svg.js";
+export { installStockMarkIcons } from "./presets/marks/icons.js";
+export { DEFAULT_VIEWER, withViewer, type MarkPolicy, type ThemeName, type ViewerSettings } from "./core/viewer.js";
 
 // ---- render: pixels ---------------------------------------------------------------------
 export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/host.js";

@@ -1,6 +1,6 @@
 ## UNIT · per-atom contract
 
-`vitest` · 104 кейсов, расписано 103
+`vitest` · 106 кейсов, расписано 106
 
 | id | Дано | Когда | Тогда |
 |---|---|---|---|
@@ -107,3 +107,6 @@
 | `atom.owned.recall` ⏳ | two boxes of the SAME set on one table | `{eq:[el.box,target.box]}` evaluated | only one's own are recalled; identical cards from different boxes are different nodes |
 | `atom.valued.paths` ⏳ | Valued{rank,suit} | a rule reads `el.values.rank` | legal; `el.values.race` in a set without race → validator error |
 | `atom.actionable.press` ⏳ | Actionable | press() | emits the bound command; nothing when the atom is absent |
+| `marked.overwrites` | узел с `Marked` | `mark` | записаны поля, повторный вызов перетирает |
+| `marked.unmark` | узел с `Marked` | `unmark` | атом удаляется без остатка |
+| `marked.visible-mark-branches` | узел с `Marked` и `ViewerSettings` | `visibleMark` | проверяются 4 ветви: нет атома, свой скрыт, время вышло, возвращаются поля |
