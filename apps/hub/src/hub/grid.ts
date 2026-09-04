@@ -35,7 +35,7 @@ import { GROUND, MAIN, NOTE, RING, SLOT, TILE, TITLE } from "../look/surfaces.js
 const TILE_W = 2.6;
 const TILE_H = 2.2;
 /** How many places the shelf shows. Empty ones say where the next game goes. */
-const PLACES = 3;
+const PLACES = 4;
 
 const FREE = "hub/free";
 const GRID = "hub/grid";

@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { joinTable } from "./table.js";
 import { node, revOf, toSpec, Container, Bounded, rect } from "game-kit";
+
+// A table with no code yet is created through the HTTP door (`POST /rooms`), same as a real link
+// would use — see online/table.ts. The socket layer is faked by `FakeColyseusClient` below; only
+// this one HTTP call needs a stub.
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => ({ roomId: "room-123" }) })),
+  );
+});
 
 class FakeColyseusRoom {
   id = "room-123";

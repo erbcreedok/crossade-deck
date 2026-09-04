@@ -1,49 +1,44 @@
-import { cards, installClassicSkin } from "@game-presets/cards";
+import { runOf, seatsOf, squareAt, pointUnder } from "@game-presets/desks";
 import {
   attachMotion,
   wireDrag,
   unwireDrag,
-  add,
   attachPainter,
-  Bounded,
-  compose,
-  Container,
-  Draggable,
-  freeLayout,
+  byId,
+  extentOf,
+  footprint,
   holdThePage,
   installStockCarries,
   installStockFlips,
   installStockLayouts,
   installStockSurfaces,
   installTheme,
+  landingPicture,
   mount,
-  node,
-  registerLayout,
   setRev,
-  Transformable,
+  type Node,
+  type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { storedAccount } from "../account/account.js";
 import { goTo, placeOf } from "../hub/route.js";
 import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
+import { isTableGame, mapFor, type TableGame } from "./mapFor.js";
 
-function buildInitialDesk() {
-  installClassicSkin();
+function buildInitialDesk(game: TableGame): Node {
   installStockSurfaces();
   installStockLayouts();
   installStockCarries();
   installStockFlips();
-  registerLayout("table.free", freeLayout);
+  return mapFor(game);
+}
 
-  const deskNode = node("desk", Container({ layout: "table.free" }));
-  const deckCards = cards().slice(0, 36);
-  deckCards.forEach((c, idx) => {
-    compose(c, Transformable({ at: { x: (idx % 9) * 1.3 - 5.2, y: Math.floor(idx / 9) * 1.6 - 2.4 } }));
-    compose(c, Draggable({ onReject: "stay" }));
-    add(deskNode, c);
-  });
-  return deskNode;
+/** The zone a run is over, per game — the same question `zoneAt` and a drop both ask. */
+function zoneAtFor(game: TableGame): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
+  if (game === "chess") return (root, at) => squareAt(root, at);
+  if (game === "nardy") return (root, at, lead) => pointUnder(root, at, lead);
+  return undefined;
 }
 
 export function startTable(container: HTMLElement): Teardown {
@@ -51,18 +46,44 @@ export function startTable(container: HTMLElement): Teardown {
   const stopHold = holdThePage();
 
   const currentPlace = placeOf();
+  const game: TableGame = isTableGame(currentPlace.game) ? currentPlace.game : "cards";
   const account = storedAccount();
 
   let unbindOnTree: (() => void) | undefined;
   let currentTable: Table | null = null;
   let isNetworkUpdate = false;
 
-  let initialRoot = buildInitialDesk();
+  let initialRoot = buildInitialDesk(game);
   const host = mount(container, initialRoot);
   const vp = host.viewport();
   const painter = pixiPainter(host.view, { width: vp.width, height: vp.height, resolution: vp.dpr });
   const stopPainter = attachPainter(host, painter);
   const motions = attachMotion(host, painter);
+
+  // FIT THE BOARD TO WHATEVER SCREEN IT LANDED ON. The three boards are drawn at very different
+  // sizes in their own units (a nardy felt is nearly three times a chess one across), and the
+  // fixed default `hudUnit` a plain `mount` picks is tuned to neither — a phone would show a
+  // handful of points and nothing else. Refit on every resize, the same way the hub's shelf does.
+  let lastFitUnit = -1;
+  const fitToRoot = (): void => {
+    const shape = footprint(host.root);
+    if (!shape) return;
+    const { w, h } = extentOf(shape);
+    if (w <= 0 || h <= 0) return;
+    const v = host.viewport();
+    const unit = Math.max(8, Math.min(v.width / (w * 1.06), v.height / (h * 1.06)));
+    if (Math.abs(unit - lastFitUnit) < 0.5) return;
+    lastFitUnit = unit;
+    host.setViewer({ ...host.viewer(), hudUnit: unit });
+  };
+  fitToRoot();
+  const stopFitting = host.onChange(fitToRoot);
+
+  // THE PICTURE OF WHERE A CARRIED RUN WILL COME DOWN — one per view, shown while a hand moves and
+  // ended the instant it lets go (`onCarry` below).
+  const landingPic = landingPicture({ host, motions }, { shown: true });
+
+  const zoneAt = zoneAtFor(game);
 
   // ONE wiring per view, not two. wireDrag is idempotent on the same element: a second call with
   // the same `el` only replaces the options object, never attaches more listeners. So we call it
@@ -70,10 +91,28 @@ export function startTable(container: HTMLElement): Teardown {
   // hand the seat to every subsequent gesture. Two calls on different scene objects but the same
   // view would still be one set of listeners; two calls on the same scene object are the same thing.
   const dragScene = { host, motions, el: host.view };
-  wireDrag(dragScene);
+  const dragOptions = {
+    ...(zoneAt ? { zoneAt } : {}),
+    // A COLUMN OF CHECKERS IS ONE RUN, and the hand's whole answer to "what stood above the one I
+    // touched" (`runOf`) and "where does each of them sit, relative to the anchor" (`seatsOf`, the
+    // point's own idea of a column). Chess and cards move one piece at a time and need neither.
+    ...(game === "nardy" ? { runOf, offsetOf: seatsOf } : {}),
+    onCarry: ({ ids, at, done, feel }: { ids: readonly string[]; at: Vec; done: boolean; feel: any }) => {
+      if (done) {
+        landingPic.end();
+        return;
+      }
+      if (!zoneAt) return;
+      const root = host.root;
+      const lead = ids[0] ? byId(root, ids[0]) : undefined;
+      const zone = lead ? zoneAt(root, at, lead) : undefined;
+      landingPic.show(at, zone, feel, []);
+    },
+  };
+  wireDrag(dragScene, dragOptions);
 
   joinTable({
-    game: "table",
+    game,
     ...(currentPlace.room ? { room: currentPlace.room } : {}),
     ...(account ? { account } : {}),
     seats: 2,
@@ -81,10 +120,10 @@ export function startTable(container: HTMLElement): Teardown {
     .then((table) => {
       currentTable = table;
       if (table.seat) {
-        wireDrag(dragScene, { actor: table.seat });
+        wireDrag(dragScene, { ...dragOptions, actor: table.seat });
       }
       if (table.code) {
-        goTo("table", "replace", table.code);
+        goTo(game, "replace", table.code);
       }
       let sRoot = table.root;
       if (sRoot.children.length === 0) {
@@ -123,6 +162,7 @@ export function startTable(container: HTMLElement): Teardown {
   return () => {
     unbindOnTree?.();
     currentTable?.leave();
+    stopFitting();
     unwireDrag(dragScene.el);
     motions.stop();
     stopPainter();
