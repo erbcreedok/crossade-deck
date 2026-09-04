@@ -75,6 +75,7 @@ import {
   ANCHOR_MARK,
   CARRY_CLEAR,
   flickOf,
+  THROWN_AT,
   flightOf,
   flockTo,
   deskRoom,
@@ -359,6 +360,22 @@ export function grabScene(
   const flickVector = (v?: Vec): Vec | undefined =>
     letGo === "throw" ? flickOf(v, glassScale(), built.motions?.tuning().friction ?? 0) : undefined;
   const wouldFly = (v?: Vec): boolean => flickVector(v) !== undefined;
+  /**
+   * WHETHER THE HAND IS THROWING RIGHT NOW — with a memory, so the picture does not flicker.
+   *
+   * The throw threshold is one number and the hand crosses it many times in a single carry. Read
+   * bare, the landing picture blinked at the threshold; worse, the first crossing used to take the
+   * picture OFF THE DESK for good, because hiding was implemented as ending the gesture's picture —
+   * a hand that sped up for a moment and then set the card down carefully saw no picture at all,
+   * and the next carry looked "broken" for the same reason. So: the hand is throwing from the
+   * moment it would fly, and is not throwing again only once it has slowed to half the threshold.
+   */
+  let flying = false;
+  const throwingNow = (v?: Vec): boolean => {
+    if (wouldFly(v)) flying = true;
+    else if (!v || Math.hypot(v.x, v.y) < THROWN_AT / 2) flying = false;
+    return flying;
+  };
 
   /**
    * MOVE THE LANDING MARK UNDER THE HAND, or take it off the desk when the gesture is over.
@@ -401,9 +418,25 @@ export function grabScene(
     return mark;
   };
 
+  /**
+   * TAKE THE PICTURE OFF THE DESK WITHOUT FORGETTING IT — the hand is throwing, and a throw has no
+   * landing to show. The mark survives (`landing` keeps it) so a hand that slows down again gets
+   * the same picture back, in the same gesture; only `showLanding(undefined)` ends it for good.
+   */
+  const hideLanding = (): void => {
+    const mark = landing;
+    if (!mark || !mark.node.parent) return;
+    remove(mark.node.parent, mark.node);
+    built.motions?.release(mark.node.id);
+    parked = undefined;
+    built.host.setRoot(built.host.root);
+    mirror?.changed();
+  };
   const showLanding = (at: Vec | undefined, zone: Node | undefined, feel: CarryFeel): void => {
     const mark = landing;
     if (!mark) return;
+    // ...AND BACK ON THE DESK, if a throw that did not happen took it off.
+    if (at && !mark.node.parent) add(built.host.root, mark.node);
     if (!at) {
       if (mark.node.parent) remove(mark.node.parent, mark.node);
       landing = undefined;
@@ -472,8 +505,14 @@ export function grabScene(
       mirror?.hand(carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), at, done, feel);
       // ...AND THE PICTURE OF WHERE IT LANDS GOES WHERE THAT IS — asked by the very question that
       // lights the zone, so the light and the picture can never say two different things.
-      const fly = wouldFly(swing);
-      showLanding(done || fly ? undefined : at, zones ? zoneAimed(ids, at) : undefined, feel);
+      if (done) {
+        flying = false;
+        showLanding(undefined, undefined, feel);
+      } else if (throwingNow(swing)) {
+        hideLanding();
+      } else {
+        showLanding(at, zones ? zoneAimed(ids, at) : undefined, feel);
+      }
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
     // it is the same question the release answers — down to refusing to hand a run back to the
