@@ -1,0 +1,18 @@
+.gitignore
+  h_2b92b67d011bfc 34-35
+game-kit/.storybook/stories/gestureMap.ts
+  h_2b92b67d011bfc 109-137
+game-kit/src/render/grips.ts
+  h_2b92b67d011bfc 147-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d8acb20cb005988b6e7c22c1aac061fb8d679119",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
