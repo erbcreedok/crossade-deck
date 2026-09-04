@@ -53,7 +53,22 @@ function roundedRect(w: number, h: number, radius: number): Shape {
 export type CarryFeel = Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap">;
 
 /**
- * WHAT HAD TO BE FIXED was a load standing ON the answer and hiding it. It does not hide it any
+ * THE FINGER IS THE HOLDER, and what hangs on it is the handle and the picture of where the load is
+ * going. The load itself hangs ABOVE, clear of both. Drawn ON the finger it covers the one thing the
+ * gesture is FOR: a player carrying a card across a desk could not see where the card was going,
+ * because the card was in the way of the answer — and the answer is the whole reason there is a
+ * picture at all. A held thing may lag the finger by a mile and it may sit some way off it; what it
+ * may not do is stand on top of the place it is being sent to.
+ *
+ * A FACTOR of the load's height and not a fixed gap, so a card clears a card and a pile clears a
+ * pile: what has to be cleared is the picture of the landing, and the landing is the load's own size.
+ *
+ * A THIRD, not the whole. Edge to edge is ONE — the load and the picture just touching — and that
+ * is the number this began at. It is far too much: on a phone the load ends up a card's height off
+ * the finger, which reads as a thing that got away from you rather than a thing in your hand, and
+ * the further the load is from the place it is going, the less the picture of that place is worth.
+ *
+ * What had to be fixed was a load standing ON the answer and hiding it. It does not hide it any
  * more: the picture is drawn UNDER what is being carried, so the whole outline reads however far the
  * load leans over it, and this number is now only about how a held thing should sit in a hand.
  */
@@ -100,6 +115,17 @@ export function landingAt(anchor: Vec, seat: Vec, zone: Node | undefined): Vec {
   return home ?? { x: anchor.x + seat.x, y: anchor.y + seat.y };
 }
 
+/**
+ * THE SILHOUETTE THIS RUN WILL LEAVE ON THE FELT, and where its middle stands relative to the anchor.
+ *
+ * The shape of what will BE there, not of what is being held. A hand is carried splayed and in the
+ * air; what lands is a squared pile lying flat, and its outline is the run's seats swept by one
+ * piece's own box (`stackSeats` — the very seats the landing will write). One card gives one card;
+ * thirty-six give a card and the pile's own step, which is a card and a sliver.
+ *
+ * WITH ITS LANDING POSE, which is upright: a pile has no lean, so neither has the picture of one.
+ * A silhouette wearing the fan's angle would be a picture of the hand rather than of the landing.
+ */
 export function landingBox(
   run: readonly Node[],
   seats: readonly Vec[],
@@ -115,6 +141,12 @@ export function landingBox(
   return { at: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, w: x1 - x0, h: y1 - y0 };
 }
 
+/**
+ * THE ZONE THE RUN IS BEING LET GO OVER, if any — asked at the piece's DRAWN place.
+ *
+ * Where the piece is and where the finger is are not the same point: the carry clamps the run inside
+ * the border while the finger may be well outside it, and it is the PIECE a zone is taking.
+ */
 /**
  * THE ZONE THIS RELEASE BELONGS TO — asked about the run's first PIECE, never about its handle.
  *
@@ -186,7 +218,25 @@ export function landingPicture(
   scene: { readonly host: Host; readonly motions?: Motions },
   opts: { shown: boolean; onChange?: () => void }
 ) {
+  /**
+   * THE PICTURE OF WHERE THIS RUN WILL COME DOWN, and where it stands relative to the hand.
+   *
+   * A carry is an override and never a tree write — that is the law, and it is about PIECES: what
+   * the hand is holding must not be written down until it is let go of, or a drop would have nothing
+   * to write. A mark is not a piece. It is scenery the desk draws for the length of one gesture, it
+   * is on the felt rather than in the hand, and it is one node: writing it costs a layout pass on a
+   * desk of forty, which is what the desk does anyway every time the aim light changes.
+   */
   let landing: { readonly node: Node; readonly seat: Vec; readonly hover: Vec; readonly w: number; readonly h: number } | undefined;
+  /**
+   * WHICH ZONE THE PICTURE IS PARKED IN, when it is in one.
+   *
+   * A picture on the felt is CARRIED — it rides the hand's own springs and costs the desk nothing
+   * per frame. A picture in a zone does not move at all: the place is the zone, and the zone does not
+   * follow the finger about. So the only moments anything has to be written are the moments the
+   * answer CHANGES, which is a handful per gesture — and never the sixty a second a moving finger
+   * asks for. Written every move, this hung the desk.
+   */
   let parked: Node | undefined;
   let hidden = false;
   let marksDrawn = 0;
@@ -206,23 +256,19 @@ export function landingPicture(
     // player has no use for where somebody else's card might come down — a second outline gliding
     // about their desk is noise at best and, mirrored a frame late, a lie. So the mark is opened to
     // its own seat only, and a screen that knows whose it is draws nothing for anyone else.
-    //
-    // NO HOVER OFFSETS. The silhouette is drawn on the desk, not in the hand, and it represents
-    // where the cards will land, which is exactly the point they were lifted from (`anchorAt`):
-    // add `hover` to that and the shape jumps up to trace the bottom of the held cards instead of
-    // tracing the desk. A card lifted straight up comes straight down, and a silhouette that moved
-    // means it won't.
     const markNode = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++, scene.host.viewer().marks?.me);
-    // ...AND HOW TO HIDE IT, which is the rest of the picture. The offset is the difference between
-    // the hand's anchor and the middle of the mark (`box.at`); the hover is the hand's own height.
-    // Taken together, they are the vector from the mark to the hand. And that is what a carry needs
-    // to keep the picture on the felt while the hand moves above it.
-    //
-    // The box is what the picture was drawn with, kept so the carry can know how wide the thing is
-    // without reading the tree it is holding. (It used to ask the mark's bounds, which are the same,
-    // but the tree cannot be asked questions while it is being written.)
-    landing = { node: markNode, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR }, w: box.w, h: box.h };
     add(scene.host.root, markNode);
+    // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
+    // this is going; the load hangs above them both, because a load drawn ON the finger covers the
+    // one thing the gesture is for (`CARRY_CLEAR`).
+    // FROM THE LOAD'S OWN PLACE, not from the anchor. The run is already seated at `box.at` — a pile
+    // stands over its handle — so starting the clearance there as well counts that step twice, and
+    // the load ends up two cards and a bit above the finger instead of one.
+    landing = { node: markNode, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR }, w: box.w, h: box.h };
+    // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
+    // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
+    // a clock that has never heard of it, and the override goes nowhere.
+    //
     // ...AND EVERY OTHER SCREEN IS TOLD TOO. One tree, several hosts: a node added here is in the
     // board everybody is reading, and a host is only ever told by being TOLD. Left out, the far
     // screen draws a desk that is genuinely missing something this one has — two people looking at
