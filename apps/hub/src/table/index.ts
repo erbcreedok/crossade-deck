@@ -2,6 +2,7 @@ import { cards, installClassicSkin } from "@game-presets/cards";
 import {
   attachMotion,
   wireDrag,
+  unwireDrag,
   add,
   attachPainter,
   Bounded,
@@ -62,8 +63,14 @@ export function startTable(container: HTMLElement): Teardown {
   const painter = pixiPainter(host.view, { width: vp.width, height: vp.height, resolution: vp.dpr });
   const stopPainter = attachPainter(host, painter);
   const motions = attachMotion(host, painter);
-  
-  wireDrag({ host, motions, el: host.view });
+
+  // ONE wiring per view, not two. wireDrag is idempotent on the same element: a second call with
+  // the same `el` only replaces the options object, never attaches more listeners. So we call it
+  // once here to register the pointer handlers, and again after joinTable — with { actor } — to
+  // hand the seat to every subsequent gesture. Two calls on different scene objects but the same
+  // view would still be one set of listeners; two calls on the same scene object are the same thing.
+  const dragScene = { host, motions, el: host.view };
+  wireDrag(dragScene);
 
   joinTable({
     game: "table",
@@ -74,7 +81,7 @@ export function startTable(container: HTMLElement): Teardown {
     .then((table) => {
       currentTable = table;
       if (table.seat) {
-        wireDrag({ host, motions, el: host.view, actor: table.seat }, { actor: table.seat });
+        wireDrag(dragScene, { actor: table.seat });
       }
       if (table.code) {
         goTo("table", "replace", table.code);
@@ -116,6 +123,7 @@ export function startTable(container: HTMLElement): Teardown {
   return () => {
     unbindOnTree?.();
     currentTable?.leave();
+    unwireDrag(dragScene.el);
     motions.stop();
     stopPainter();
     host.unmount();

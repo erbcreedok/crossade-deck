@@ -206,7 +206,7 @@ export {
 } from "./render/swipe.js";
 export { SHAKE_LEG, wireShake, type Shake, type ShakeWiring, type Shaking } from "./render/shake.js";
 export { KNEAD_QUANTUM, KNEAD_STIR, wireKnead, type Knead, type KneadWiring } from "./render/knead.js";
-export { runBelow, wireDrag, type DragOptions, type DragScene } from "./render/drag.js";
+export { runBelow, unwireDrag, wireDrag, type DragOptions, type DragScene } from "./render/drag.js";
 export {
   alsoInTheWay,
   bumped,

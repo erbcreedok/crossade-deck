@@ -20,6 +20,7 @@ import {
   registerLayout,
   Surfaced,
   Transformable,
+  unwireDrag,
   wireDrag,
   type Painter,
   type TransformableFields,
@@ -96,5 +97,48 @@ describe("wireDrag in kit", () => {
   });
   it("drag.willing-option", () => {
     // dummy test
+  });
+  it("drag.unwire-clears-listeners — unwireDrag removes pointer listeners so events are no longer handled", () => {
+    installStockSurfaces();
+    installStockGrabs();
+    registerLayout("drag.unwire.free", freeLayout);
+
+    const root = node("desk2", Container({ layout: "drag.unwire.free" }), Grabber());
+    const card = node(
+      "card2",
+      Bounded({ bounds: rect(1, 1) }),
+      Surfaced(),
+      Transformable({ at: { x: 0, y: 0 } }),
+      Draggable({ onReject: "stay" }),
+    );
+    add(root, card);
+
+    const div = document.createElement("div");
+    Object.defineProperty(div, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    document.body.appendChild(div);
+
+    const host = mount(div, root, { hudUnit: 64, theme: "dark" });
+    Object.defineProperty(host.view, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    const motions = attachMotion(host, stubPainter());
+
+    let settled = false;
+    const scene = { host, motions, el: host.view };
+    wireDrag(scene, { onSettled: () => { settled = true; } });
+
+    // After unwire the listeners are gone — a full gesture must not trigger onSettled.
+    unwireDrag(host.view);
+
+    host.view.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    host.view.dispatchEvent(finger("pointermove", 350, 200, 50));
+    host.view.dispatchEvent(finger("pointerup", 350, 200, 100));
+
+    expect(settled).toBe(false);
+
+    motions.stop();
+    host.unmount();
   });
 });

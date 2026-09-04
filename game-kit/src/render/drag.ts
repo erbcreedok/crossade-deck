@@ -225,6 +225,8 @@ interface Turn {
 
 interface Wiring {
   opts: DragOptions;
+  /** Pointer handlers kept so `unwireDrag` can call `removeEventListener` for each one. */
+  handlers?: { down: (e: PointerEvent) => void; move: (e: PointerEvent) => void; up: (e: PointerEvent) => void } | undefined;
   /** The turn in hand, if the second finger has landed on a `Rotatable` piece. */
   turn: Turn | undefined;
   /**
@@ -815,9 +817,25 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     drop(drag.items, inside(drag.tray, { x: p.x + drag.delta.x, y: p.y + drag.delta.y }), drag, glassOf(view, e));
   };
 
+  w.handlers = { down: onDown, move: onMove, up: onUp };
   view.addEventListener("pointerdown", onDown);
   view.addEventListener("pointermove", onMove);
   view.addEventListener("pointerup", onUp);
   view.addEventListener("pointercancel", onUp);
   return s;
+}
+
+/**
+ * Remove the listeners that `wireDrag` attached to `el` and clear the wiring entry.
+ *
+ * Safe to call even if `wireDrag` was never called for this element — it is a no-op then.
+ */
+export function unwireDrag(el: HTMLElement): void {
+  const w = WIRED.get(el);
+  if (!w?.handlers) return;
+  el.removeEventListener("pointerdown", w.handlers.down);
+  el.removeEventListener("pointermove", w.handlers.move);
+  el.removeEventListener("pointerup", w.handlers.up);
+  el.removeEventListener("pointercancel", w.handlers.up);
+  WIRED.delete(el);
 }
