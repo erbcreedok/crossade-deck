@@ -64,6 +64,28 @@ import {
   type Paint,
   type Stroke,
 } from "../../src/index.js";
+
+export {
+  alsoInTheWay,
+  bumped,
+  dropOf,
+  fallOrder,
+  flickOf,
+  flightOf,
+  flockTo,
+  mapWalls,
+  restsAt,
+  roomBy,
+  shoves,
+  threwAt,
+  thrown,
+  THROW_REACH,
+  THROWN_AT,
+  type Bump,
+  type DropFeel,
+  type LetGo,
+} from "../../src/index.js";
+
 import { cards as crossadeCards, deckByCardId } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
 import { svg } from "./stockAssets.js";
@@ -329,35 +351,7 @@ export function gestureMap(): Node {
  * wider than the tree says it is, and a border that ignored that would let exactly that sliver of
  * card cross it. Pass `1` for a carry with no pop.
  */
-export function mapWalls(piece: Node, lift = 1, box: { readonly w: number; readonly h: number } = MAP): Walls {
-  const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
-  const size = shape ? extentOf(shape) : { w: 0, h: 0 };
-  // THE DESK'S OWN BOX, not the shelf's stock one. A desk wider than the map — a felt with a board
-  // in the middle of it — walled at the map's size holds the hand inside the middle eight units of
-  // fourteen: a man could be carried to the board's edge and no further, and the felt beyond it,
-  // drawn and accepting, could never be reached.
-  const x = box.w / 2 - (size.w * lift) / 2;
-  const y = box.h / 2 - (size.h * lift) / 2;
-  // A piece bigger than the map has nowhere to stand: the box collapses to the middle rather than
-  // turning inside out, which is what a negative half would do.
-  return { x0: Math.min(-x, 0), y0: Math.min(-y, 0), x1: Math.max(x, 0), y1: Math.max(y, 0) };
-}
 
-/**
- * THE TWO WAYS A THING CAN LEAVE A HAND on this desk.
- *
- * `settle` is the ordinary putting-down every page on the shelf started with: the piece eases to the
- * seat the finger chose, the pop unwinding on the way, and that is all. Nothing is thrown, so there
- * is nothing to schedule and nothing to re-order first — which is why it is the quiet one.
- *
- * `fall` is the drop proper: a body let go of at the hand's height, coming down under its own weight
- * and bouncing as its own material does. It buys the weight and costs the machinery.
- *
- * A card wants the first and a chip the second, and that is not a contradiction: a card put down on
- * a felt IS a putting-down, while a chip dropped on one is a thing landing. The desk lets each say
- * which it is, and the panel lets a reader disagree.
- */
-export type LetGo = "settle" | "fall" | "roll";
 
 /**
  * How fast a dropped die goes over, degrees/s, when the hand gave it no turn of its own.
@@ -415,382 +409,7 @@ export const DIE_FAN = 34;
  * or three times the desk it crossed before, so a carry became a throw because the camera moved.
  * A flick is a property of a hand and a screen, and the screen is where it is measured.
  */
-export const THROWN_AT = 150;
 
-/**
- * THE PART OF THE GESTURE THAT WAS A FLICK, in units of desk — or nothing, for a hand that was only
- * carrying. THE ONE PLACE the display and the desk meet.
- *
- * `swing` is the finger's own speed on the glass, measured where the finger is (`wireDrag`), in
- * pixels per second. Not a speed read back off the carry's springs and multiplied by the zoom to
- * undo the division that put it there: a number run from the display onto the canvas and back out
- * through the camera is three conversions deep, and every one of them is a place to be wrong by a
- * factor nobody can see. The finger's speed on the screen is a thing that is simply KNOWN.
- *
- * WHAT IS TAKEN IS THE EXCESS (`threwAt`) and never the whole of it. Carrying is moving: a card let
- * go of on the way across the desk was not thrown anywhere, and taking the whole speed made every
- * unhurried pass end in a flight. What is left after the threshold is what the hand actually spent
- * on throwing.
- *
- * ...AND IT IS DIVIDED BY THE SCALE EXACTLY ONCE, here, because the flight is a thing that happens
- * on the desk and the desk is measured in units. Everything above this line is the gesture and
- * everything below it is the world.
- */
-export function flickOf(swing: Vec | undefined, perUnit: number, drag = 0): Vec | undefined {
-  if (!swing || perUnit <= 0) return undefined;
-  const speed = Math.hypot(swing.x, swing.y);
-  const flick = threwAt(speed);
-  if (flick <= 0) return undefined;
-  const at = flick / speed / perUnit;
-  const world = { x: swing.x * at, y: swing.y * at };
-  // ...AND THEN IT IS ASKED WHETHER IT WOULD GO ANYWHERE.
-  //
-  // A speed alone cannot answer "was that a throw", which is why every number tried for it has been
-  // wrong in one direction or the other. What a hand MEANT is legible in where the piece would end
-  // up: this is how a phone tells a flick from a careful scroll, and it is the same arithmetic the
-  // zone is already asked (`restsAt`, `v²/2a`). Under `THROW_REACH` the piece would land a third of
-  // a card from where it was let go of, which is a putting-down that took a run-up — and flying it
-  // means a whole animation, a whole stagger and a whole reassembly to move it almost nowhere.
-  const far = drag > 0 ? (flick / perUnit) ** 2 / (2 * drag) : Infinity;
-  return far >= THROW_REACH ? world : undefined;
-}
-
-/**
- * A THROW THAT WOULD NOT CARRY A PIECE THIS FAR IS A PUTTING-DOWN, in units.
- *
- * About a third of a card. Below it nothing that matters is different: the piece ends up where the
- * hand left it either way, and the only thing the flight adds is TIME — a stagger, a landing, and a
- * run reassembling itself, all to travel a distance nobody can see. Above it the hand plainly sent
- * the piece somewhere, and the flight is the picture of that.
- */
-export const THROW_REACH = 0.35;
-
-/**
- * WHAT A HAND ACTUALLY THREW, in units/s — the speed it had OVER the throwing speed, not all of it.
- *
- * Carrying is moving. A hand crossing the desk with a card in it is going somewhere at three or
- * four units a second, and taking that as the throw means every ordinary putting-down is a flick:
- * let go while still walking the card over and it sails off, which is what a hand never does and
- * what nobody asked it to do.
- *
- * It also puts a CLIFF at the threshold. Below it nothing flies at all; a hair above it and the
- * piece leaves at full carrying speed — the same gesture, a millimetre apart, giving nothing and
- * giving everything. Measured as the excess, a throw begins at nothing exactly where it begins to
- * be a throw, and grows from there: what travels is the part of the gesture that was a THROW, and
- * the part that was merely carrying is left where carrying leaves things.
- */
-/**
- * THE FLIGHT A HAND GIVES A PIECE, from a swing that is already the excess in units (`flickOf`).
- *
- * One multiplication and no threshold: the threshold was paid on the glass, in pixels, exactly
- * once. A second one here — the bug this function exists to keep out — compared units against a
- * pixel number and answered "not a throw" to every throw there is.
- */
-export function flightOf(hand: Vec, throwGain: number): { speed: number; angle: number } {
-  return { speed: Math.hypot(hand.x, hand.y) * throwGain, angle: polar(hand).angle };
-}
-
-export function threwAt(speed: number): number {
-  return Math.max(0, speed - THROWN_AT);
-}
-
-/**
- * Does this piece FLY when the hand lets go at `speed`? Its own way of leaving, unless the hand was
- * moving fast enough to overrule it.
- */
-export function thrown(piece: Node, speed: number, ways: Parameters<typeof dropOf>[1] = {}): boolean {
-  return dropOf(piece, ways).fall !== "settle" || speed > 0;
-}
-
-/** What a piece does once the hand lets go of it — how it comes down, and how it comes off a wall. */
-export interface DropFeel {
-  /** Eased to its seat, or dropped from the hand's height under its own weight. */
-  readonly fall: LetGo;
-  /**
-   * How much of the HAND's speed this piece takes when it is thrown, 0..1.
-   *
-   * Not everything leaves a hand at the speed the hand had. A chip is small and heavy for its size
-   * and stops being pushed the moment it is let go; a card has a whole face on the felt and goes
-   * where it was sent. One gain for all of them made the lightest thing on the desk the fastest,
-   * which is the opposite of what a hand feels.
-   */
-  readonly throwGain: number;
-  /** How fast the desk eats its speed, units/s². Absent, the tuning's own. */
-  readonly friction?: number;
-  /** Units/s² — how heavy it is. A big number is a short, hard fall. */
-  readonly gravity: number;
-  /** 0..1 of the landing speed handed back. `0` lands and stays. */
-  readonly bounce: number;
-  /**
-   * 0..1 of the speed a WALL hands back. Its own number, and not the desk's: a felt and a rail are
-   * not the same material, and it is the pair that says what a piece is made of — a card is dead on
-   * the cloth and still comes off a border.
-   */
-  readonly wallBounce: number;
-  /**
-   * HOW MUCH ROOM IT TAKES FROM ITS OWN KIND, root units, and `0` for a piece that takes none.
-   *
-   * Zero is right for nearly everything on a desk: cards land on cards, chips land on chips, and a
-   * pile is what a desk is FOR. A die is the exception, because a die is read rather than stacked —
-   * two of them one over the other is one die with a shadow and one result nobody can see.
-   */
-  readonly girth: number;
-  /** What it gives back off ANOTHER piece, 0..1. Absent, the desk's own `bounce`. */
-  readonly bodyBounce?: number;
-  /** The world it is solid in — see `SlideOptions.solid`. Pieces of different worlds never meet. */
-  readonly solid: string;
-  /**
-   * HOW FAR APART A HANDFUL OF THEM GOES, units/s, and in a fan.
-   *
-   * Two dice let go of by the same hand at the same instant take the same speed in the same
-   * direction, and physics has nothing to say about that: they travel as one and arrive as one.
-   * What a hand actually does is open, and a handful thrown from an opening hand spreads. So each
-   * piece of a run gets its own heading, fanned about the throw, and its own small push along it —
-   * the push is what makes a DROP scatter too, where there is no throw to fan.
-   */
-  readonly scatter: number;
-}
-
-/**
- * A PANEL'S SAY OVER WHAT TAKES UP ROOM — how much, how hard it knocks, how far a handful spreads.
- *
- * The desk's own answers are on the pieces (`dropOf`) and are the ones a reader should meet first.
- * This is for the page that is ABOUT the collision: a girth of nothing switches it off entirely and
- * leaves the desk as it was before the feature, which is the same promise every other switch on the
- * shelf makes. It reaches only the pieces that collide at all — a card is not given a girth by a
- * reader turning a knob, because a card landing on a card is what a desk is for.
- */
-export interface Bump {
-  /**
-   * HOW MUCH ROOM THIS PIECE TAKES AND WHICH WORLD IT TAKES IT IN — `undefined` for one that takes
-   * none at all, which is what every piece on every other desk says.
-   *
-   * Asked per PIECE, and it has to be: a desk holds a card, a chip and a die, three sizes, and one
-   * number could only ever be right for one of them — the same reason the border is asked per piece
-   * (`mapWalls`). And the world is the other half of the answer, because "solid" is not one
-   * question: dice and chips knock each other about, cards LIE on what is under them, and a card
-   * that bounced off a die could never be dealt onto one.
-   */
-  readonly roomFor: (piece: Node) => { readonly girth: number; readonly solid: string } | undefined;
-  /** What a piece gives back off ANOTHER piece, 0..1. */
-  readonly bounce: number;
-  /** How hard a handful pushes itself apart, units/s. */
-  readonly scatter: number;
-  /**
-   * DOES WHAT IS ALREADY LYING THERE HOLD ITS PLACE when something is merely PUT DOWN beside it?
-   *
-   * A page's own switch, and off by default, because it is a second answer and not a correction to
-   * the first. Off, everything that gets in the way is an ordinary body: shoved by whatever reaches
-   * it, however gently it was let go. On, a release below the throwing speed leaves the furniture
-   * exactly where it stood — still solid, so nothing lands on top of it, simply not pushed.
-   *
-   * Two pages, two answers, and neither is the other's bug: `Mechanics/Collision` is the desk where
-   * everything moving knocks everything about, and `Mechanics/Landing` is the desk where a thing put
-   * down beside another thing does not shove it aside.
-   */
-  readonly holds: boolean;
-}
-
-/**
- * The desk's own numbers, replaced by the panel's wherever the panel has an opinion.
- *
- * REPLACED, not patched: a page about collision may hand room to a piece the desk gives none to, and
- * take it away from one the desk does. Absent, nothing here happens at all and every desk on the
- * shelf keeps exactly the feel it had.
- */
-export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
-  if (!bump) return feel;
-  const room = bump.roomFor(piece);
-  if (!room) return { ...feel, girth: 0, scatter: 0 };
-  return { ...feel, girth: room.girth, solid: room.solid, bodyBounce: bump.bounce, scatter: bump.scatter };
-}
-
-/**
- * DOES THIS RELEASE SHOVE WHAT IS ALREADY LYING THERE?
- *
- * Only a throw does, and only on a desk that asked for the distinction (`Bump.holds`). A piece put
- * down beside another piece has no business flicking it across the felt, and a piece dropped from
- * above has none either — it finds room and settles. What tells the two apart is the only thing that
- * differs: whether the hand was going anywhere. A desk that did not ask is unchanged: everything
- * that reaches anything shoves it, which is what a desk without the rule has always done.
- *
- * The SAME threshold that decides whether a released piece flies at all (`thrown`), so "thrown"
- * means one thing on this shelf and not two. A second number here would be a second definition of
- * the word, and the day they drifted apart there would be a release that flies without shoving and
- * nobody able to say why.
- */
-export function shoves(speed: number, holds = true): boolean {
-  return !holds || speed > 0;
-}
-
-/**
- * WHERE A THROW WILL COME TO REST, before it has travelled a single frame.
- *
- * A slide bleeds a fixed amount of speed per second — constant deceleration — so the distance it
- * will cover is arithmetic and not a guess: `v² / 2a`, the same sum a first physics lesson does. It
- * is exact for the flight the desk actually files, which is what makes it worth asking at all.
- *
- * Worth asking because a magnet that only catches a piece PUT DOWN near a zone is half a magnet. A
- * card flicked at somebody's area is aimed just as plainly as one carried there, and a desk that
- * answered "you let go too far away" to a throw that was going to land in the zone anyway would be
- * refusing the more confident of the two gestures.
- *
- * Walls are not in it: a throw that would bounce ends up somewhere this does not predict. That is
- * the honest limit, and it is the right side to be wrong on — a throw hard enough to reach a wall is
- * not a throw anybody meant to drop into a zone a few units away.
- */
-export function restsAt(from: Vec, hand: Vec | undefined, feel: DropFeel, friction: number): Vec {
-  if (!hand) return from;
-  const speed = Math.hypot(hand.x, hand.y) * feel.throwGain;
-  const drag = feel.friction ?? friction;
-  if (speed <= 0 || drag <= 0) return from;
-  const far = (speed * speed) / (2 * drag);
-  return { x: from.x + (hand.x / Math.hypot(hand.x, hand.y)) * far, y: from.y + (hand.y / Math.hypot(hand.x, hand.y)) * far };
-}
-
-/**
- * EVERY PIECE OF A THROWN RUN, AIMED AT ITS OWN PLACE IN THE FORMATION — its speed and its heading,
- * in the run's order, so it comes to rest exactly at its seat around where the ANCHOR stops.
- *
- * A thrown run is otherwise a handful of separate throws that happen to share a hand: each piece
- * leaves from where the fan put it and travels its own distance, so the hand arrives on the felt as
- * the same spread it was held in — a stack in name only. Tidying that up after the landing is what
- * a correction looks like; aiming each piece at its seat makes them converge on the way down.
- *
- * SOLVED, NOT GUESSED. A slide of speed `v` under drag `a` stops after `v²/2a`, so the speed that
- * stops at distance `d` is `sqrt(2ad)` — the exact inverse of `restsAt`, which is what the zone is
- * asked about, so where the run is AIMED and where it LANDS are one number and not two.
- */
-export function flockTo(
-  run: readonly Node[],
-  anchorAt: Vec,
-  hand: Vec,
-  feel: DropFeel,
-  drag: number,
-  seats: readonly Vec[] = stackSeats(run),
-): { readonly speed: number; readonly angle: number; readonly friction: number }[] {
-  const home = restsAt(anchorAt, hand, feel, drag);
-  // THE DRAG THE THROW WILL ACTUALLY FEEL. A piece may state its own (`DropFeel.friction`) and the
-  // desk's is only the fallback — solved against the desk's while flying under its own, every seat
-  // would be missed by the ratio between them, which is a formation that lands somewhere else.
-  const pull = feel.friction ?? drag;
-  // HOW LONG THE THROW LASTS — the ANCHOR'S own flight, and every piece is given that same time.
-  //
-  // Not each its own. A run leaves the hand as a fan, so the far card has three times the outer
-  // one's distance to cover; solved separately, each gets the speed its own gap deserves and lands
-  // when its own arithmetic says — which is a hand arriving as a QUEUE over the better part of two
-  // seconds, tearing itself apart on the way down. Worse, the length of the animation was then set
-  // by how wide the fan was rather than by how hard the throw was, so a gentle flick of thirty-six
-  // cards took longer than a hard one of three.
-  //
-  // One time for the hand, and it is the time the THROW deserves: a slide of speed `v` under drag
-  // `a` runs for `v/a`. Each piece is then given the speed and the drag that cover ITS distance in
-  // exactly that time — `v = 2d/T` and `a = v/T`, the same constant-deceleration slide the desk
-  // files for everything else. They set off together, they arrive together, and the whole thing
-  // lasts as long as the hand meant it to.
-  const flight = Math.hypot(hand.x, hand.y) * feel.throwGain;
-  const span = pull > 0 ? flight / pull : 0;
-  return run.map((piece, i) => {
-    const seat = seats[i] ?? { x: 0, y: 0 };
-    const from = fieldsOf<TransformableFields>(piece, "Transformable")?.at ?? { x: 0, y: 0 };
-    const to = { x: home.x + seat.x, y: home.y + seat.y };
-    const gap = Math.hypot(to.x - from.x, to.y - from.y);
-    const speed = span > 0 ? (2 * gap) / span : 0;
-    return { speed, friction: span > 0 ? speed / span : pull, angle: polar({ x: to.x - from.x, y: to.y - from.y }).angle };
-  });
-}
-
-/**
- * WHAT ELSE ON THE DESK IS IN THE WAY OF THIS THROW.
- *
- * Collision is between BODIES, and a piece that is not moving is not one: it landed, its seat was
- * written, the physics forgot it. So a die thrown across a desk sails over every chip already on the
- * felt and comes to rest on one — the same complaint the mechanic exists to answer, wearing "but it
- * was not moving" as an excuse. For the length of the throw these become bodies too.
- *
- * Only the ones that could actually be hit: something already in the run has its own body, and
- * something solid in a world nobody is throwing INTO cannot be reached by anything in this throw.
- * A piece that takes no room at all is never in anybody's way, which is every piece on every desk
- * but this one.
- */
-export function alsoInTheWay(
-  root: Node,
-  moving: ReadonlySet<string>,
-  worlds: ReadonlySet<string>,
-  feel: (piece: Node) => DropFeel,
-): Node[] {
-  if (worlds.size === 0) return [];
-  return root.children.filter((n) => {
-    if (moving.has(n.id)) return false;
-    const own = feel(n);
-    return own.girth > 0 && worlds.has(own.solid);
-  });
-}
-
-/**
- * HOW MUCH ROOM A PIECE TAKES BY ITS OWN SIZE — half its narrowest side, times whatever the panel says.
- *
- * A factor rather than a length, because the pieces are three sizes: at `1` each takes exactly as
- * much room as it is wide, so two of a kind come to rest edge to edge, and that reads right for all
- * three without anybody choosing a number per piece.
- *
- * The NARROWEST side, and the cost is worth naming: the room is a disc (`separate` says why), so a
- * card measured across its width will let two cards overlap when they are stacked end to end. For a
- * card the alternative is worse — measured by its height, two cards side by side would refuse to
- * come within a card's length of each other, which is not a desk anybody has played on.
- */
-export function roomBy(piece: Node, factor: number): number {
-  const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
-  const size = shape ? extentOf(shape) : { w: 0, h: 0 };
-  return (Math.min(size.w, size.h) / 2) * factor;
-}
-
-/**
- * WHAT A PIECE DOES WHEN IT IS LET GO OF — read off what the piece IS, never off its name.
- *
- * A die is the thing with faces to go over (`Rollable`); a card is the thing with a back to turn to
- * (`Flippable`); a carved piece is neither, which is exactly what a chess piece is on this desk. So
- * the answer comes from the model, and a fourth piece added tomorrow is sorted by what it carries
- * rather than by somebody remembering to add it to a list — which is also the only reading
- * `guard.id-is-opaque` allows: an id says WHICH, never WHAT.
- */
-export function dropOf(
-  piece: Node,
-  ways: { readonly card?: LetGo; readonly chip?: LetGo; readonly die?: LetGo } = {},
-): DropFeel {
-  // A DIE IS THROWN DOWN, and the desk throws it back: hard, fast, and it hops before it settles.
-  // Thrown, it is also the liveliest thing off a border: hard, light for its size, and the only
-  // piece here anybody expects to come back across the desk at them.
-  if (caps(piece).has("Rollable")) {
-    // Half the die's own side: a disc through the flat of its faces, which is where two dice on a
-    // felt actually stop each other. See `SlideOptions.girth` on why round is the right shape here.
-    const side = extentOf(fieldsOf<BoundedFields>(piece, "Bounded")?.bounds ?? rect(0, 0)).w;
-    return { fall: ways.die ?? "roll", throwGain: 1, gravity: 22, bounce: 0.7, wallBounce: 0.7, girth: side / 2, solid: "", scatter: DIE_SCATTER };
-  }
-  // A CARD TAKES ITS TIME — it is the lightest thing on the desk and the only one with enough face
-  // to catch air. Slower than the other two and not SLOW: at a quarter of the die's pull it hung in
-  // the air for over a second, which reads as a page loading rather than as a card falling. Two
-  // thirds of it is a fall you can see is gentler without waiting for it. Paper does not bounce.
-  // Off a wall it does come back, though — it is dead on the cloth, not dead altogether.
-  // ...and THROWN it planes: a whole face on the felt, so it goes where it was sent and slides a
-  // long way doing it. Nothing about `settle` says a card cannot be thrown — see `thrown`.
-  if (caps(piece).has("Flippable")) {
-    return { fall: ways.card ?? "settle", throwGain: 0.9, friction: 4.5, gravity: 11, bounce: 0, wallBounce: 0.45, girth: 0, solid: "", scatter: 0 };
-  }
-  // A CARVED PIECE DOES NOT BOUNCE. It lands like the lump of wood it is — as fast as the die, and
-  // then it is simply there.
-  //
-  // A thousandth and not a quarter, and the number is the owner's own word: a tenth of a percent is
-  // "not at all" written down, and it is written down rather than left at zero so that the ORDER of
-  // the three still says something — a die is lively, a card is fair, and a carved piece is the end
-  // of the scale rather than a piece the scale forgot. Nobody will see it, which is the point.
-  // A chip is small and heavy for its size: it stops being pushed the moment it is let go, so it
-  // takes barely half of what the hand had and the felt eats that quickly.
-  if (kindOf(piece) === "chip") {
-    return { fall: ways.chip ?? "fall", throwGain: 0.45, friction: 9, gravity: 20, bounce: 0.35, wallBounce: 0.5, girth: 0, solid: "", scatter: 0 };
-  }
-  return { fall: "fall", throwGain: 0.7, gravity: 26, bounce: 0.001, wallBounce: 0.001, girth: 0, solid: "", scatter: 0 };
-}
 
 /**
  * PUT A PIECE ON TOP of everything else on the desk — the last thing dropped covers what is under it.
@@ -1435,30 +1054,7 @@ export const STACK_FALL_STEP = 55;
  */
 export const STACK_POUR = 620;
 
-/**
- * WHO LEAVES THE HAND WHEN, for a run being let go of — the handle never, the rest a step apart.
- *
- * The bottom of the stack goes first and the top last, so the pieces land on top of what is already
- * down rather than under it, and the heap pours instead of dropping as a slab. A run of one has no
- * stagger to have: `0`, and the ordinary drop is unchanged, which is every other page on the shelf.
- *
- * A HANDLE IS NOT AMONG THEM. It is a control, and a control does not fall — it is redrawn under
- * wherever the pieces land.
- */
-export function fallOrder(
-  pieces: readonly Node[],
-  together: ReadonlyMap<string, unknown> = new Map(),
-): { readonly piece: Node; readonly delayMs: number }[] {
-  const falling = pieces.filter((n) => !isDrawn(n));
-  const gaps = Math.max(1, falling.length - 1);
-  const step = Math.min(STACK_FALL_STEP, STACK_POUR / gaps);
-  // A HAND FLYING IN FORMATION IS NOT A POUR. The stagger is what makes a heap tip out of a hand
-  // rather than arrive as a slab — right for pieces that simply fall where they were let go of, and
-  // wrong for a run that is being THROWN somewhere, which sets off together and arrives together
-  // (`flockTo`). Staggered on top of that, the formation lands as a queue: exactly the tearing the
-  // one arrival time exists to end, put back by the thing that was meant to make it read well.
-  return falling.map((piece, i) => ({ piece, delayMs: together.has(piece.id) ? 0 : Math.round(i * step) }));
-}
+
 
 
 /**

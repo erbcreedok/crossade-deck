@@ -522,7 +522,7 @@ SVG и Canvas2D, они переносятся в другой бэкенд бе
 | слой | что там | кого имеет право импортировать |
 |---|---|---|
 | `core/` | модель: `node`, `atom`, `resolve`, `inspect`, `viewer`, `shapes`, `transform`, `atoms/` | только себя |
-| `render/` | пиксели: `host` (владеет `view`), `theme`, `surfaces`, `scenePlan`, `stage`, `contour`, `drag`, `pixi` | себя и `core` |
+| `render/` | пиксели: `host` (владеет `view`), `theme`, `surfaces`, `scenePlan`, `stage`, `contour`, `drag`, `fall`, `pixi` | себя и `core` |
 
 **В `src/` — только то, что уезжает в игру.** Каталог (стори, страницы доков, инспектор, оболочка
 сцены, все слова) живёт в `.storybook/`: он ДОКУМЕНТИРУЕТ кит, а не является его частью, и входит в

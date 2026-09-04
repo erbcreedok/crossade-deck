@@ -29,6 +29,11 @@ import {
   polar,
   RISE,
   Transformable,
+  letFall as letFallInKit,
+  formationOf,
+  fanOf,
+  seatIn,
+  landed,
   type BoundedFields,
   type CarryItem,
   type CarryOptions,
@@ -37,6 +42,8 @@ import {
   type Vec,
   type ViewerSettings,
 } from "../../src/index.js";
+
+export { formationOf, fanOf, seatIn, landed } from "../../src/index.js";
 import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
 import { scene, type Scene } from "../devtools/scene.js";
@@ -751,10 +758,7 @@ export function grabScene(
  * is not fanned at all: a single die thrown goes where it was thrown, and a rule that nudged it
  * aside would be the desk disagreeing with the hand.
  */
-function fanOf(nth: number, of: number, aim: number): number | undefined {
-  if (nth < 0 || of < 2) return undefined;
-  return aim + (nth - (of - 1) / 2) * DIE_FAN;
-}
+
 
 /** Which way a handful goes when the hand had no direction of its own: away from the reader. */
 const DOWN_THE_DESK = 90;
@@ -888,37 +892,9 @@ export interface Mirror {
  * a seat would be aimed at a seat it cannot keep. What is left — a thing that neither scatters nor
  * takes room — is a card, and a hand of them lands as a hand.
  */
-function formationOf(
-  s: Scene,
-  items: readonly CarryItem[],
-  put: readonly Node[],
-  falling: readonly Node[],
-  hand: Vec | undefined,
-  feelOf: (n: Node) => DropFeel,
-): Map<string, { readonly speed: number; readonly angle: number; readonly friction: number }> {
-  const out = new Map<string, { readonly speed: number; readonly angle: number; readonly friction: number }>();
-  const first = items[0];
-  const anchor = first ? put.find((n) => n.id === first.id && isGrip(n)) : undefined;
-  // A run with no handle is a run of one, and one piece is its own formation.
-  if (!anchor || !hand) return out;
-  const flying = new Set(falling.map((n) => n.id));
-  const run = put.filter((n) => !isDrawn(n) && flying.has(n.id) && feelOf(n).scatter === 0 && feelOf(n).girth === 0);
-  const feel = run[0] ? feelOf(run[0]!) : undefined;
-  if (!feel) return out;
-  const drag = feel.friction ?? s.motions?.tuning().friction ?? 0;
-  if (drag <= 0) return out;
-  // The run travels as ONE, so the anchor is carried by the run's own physics and not by a control's.
-  flockTo(run, seatIn(anchor), hand, feel, drag).forEach((throwAt, i) => {
-    const piece = run[i];
-    if (piece) out.set(piece.id, throwAt);
-  });
-  return out;
-}
 
-/** Where a node stands right now, in root units — the seat a landing or a release just wrote. */
-function seatIn(n: Node): Vec {
-  return fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
-}
+
+
 
 /** Every handle on the desk except this one — wherever a zone may have re-homed it. */
 function otherGrips(root: Node, mine: Node): Node[] {
@@ -945,215 +921,5 @@ export function letFall(
   bump?: Bump,
   hover: Vec = { x: 0, y: 0 },
 ): boolean {
-  const m = s.motions;
-  const drawn = m?.poses();
-  if (!m || !drawn) return false;
-  const root = s.host.root;
-  const put: Node[] = [];
-  for (const it of items) {
-    const n = byId(root, it.id);
-    const pose = drawn.get(it.id);
-    if (!n || !pose) return false; // nothing written yet, so the ordinary drop still answers
-    // The DRAWN origin: the carry lays the run at the anchor the walls allowed, so this is already
-    // inside the border — the finger's own point never is. Root units are the seat's units here,
-    // as the map is the root and stands at the origin.
-    // ...AND IT BELONGS TO THE DESK AGAIN. A piece let go of where no place claimed it is on the
-    // felt, and the felt is the root: the seat written just below is in ROOT units, so a piece still
-    // parented to a zone would read that seat against the zone and land somewhere else entirely —
-    // and then the zone's own arrangement would put it back in the row regardless.
-    //
-    // Which is why a card could not be taken out of an area at all. Pulling it clear moved a picture
-    // of it; the tree still said it was in the hand, and the next layout pass proved it.
-    if (n.parent && n.parent !== root) {
-      remove(n.parent, n);
-      add(root, n);
-    }
-    // WHERE IT WILL LIE, NOT WHERE IT WAS HELD. A load is carried clear of the finger so that the
-    // picture of its landing is not covered by it (`CARRY_CLEAR`); the landing is that picture's
-    // place, which is the drawn place with the hanging taken back off. The handle and the mark never
-    // hung, so nothing is taken off them.
-    const at = apply(pose, { x: 0, y: 0 });
-    const own = fieldsOf<TransformableFields>(n, "Transformable");
-    compose(n, Transformable({ ...(own ?? {}), at: isDrawn(n) ? at : { x: at.x - hover.x, y: at.y - hover.y } }));
-    toFront(n);
-    m.release(it.id);
-    put.push(n);
-  }
-  // A PIECE THAT ONLY SETTLES HAS ALREADY DONE EVERYTHING IT IS GOING TO DO. Its seat is written and
-  // the hand has let go, so the reconcile above is easing it there with the pop unwinding on the
-  // way — which is the whole of the ordinary putting-down, and the reason it never flickers: there
-  // is nothing to schedule and nothing to re-order first.
-  // A PUTTING-DOWN IS A THING A SLOW HAND DOES. Above the throwing speed even a piece that would
-  // have been set down flies instead — a card flicked across the desk is not a card appearing where
-  // the finger stopped.
-  const speed = hand ? Math.hypot(hand.x, hand.y) : 0;
-  const falling = put.filter((n) => thrown(n, speed, ways));
-  // WHO LEAVES WHEN: the handle never, the rest a step apart, so a heap POURS out of the hand
-  // instead of coming down as a slab. A run of one has no stagger to have.
-  // WHO GOES WHICH WAY. A handful let go of at once travels as one unless something opens it out,
-  // and nothing in the physics will: same hand, same instant, same speed. So the pieces that say
-  // they scatter are fanned about the throw — each with its own heading and its own push along it,
-  // counted from the middle of the run outwards so the whole handful still goes where it was sent.
-  const feelOf = (n: Node): DropFeel => bumped(dropOf(n, ways), n, bump);
-  const scattering = falling.filter((n) => feelOf(n).scatter > 0);
-  // WHERE THE RUN IS GOING, and every piece of it is thrown THERE rather than merely thataway: they
-  // converge on the way down instead of being gathered when they arrive, which is the difference
-  // between a hand that lands in formation and one that is put into formation. See `formationOf`.
-  const flock = formationOf(s, items, put, falling, hand, feelOf);
-  const aim = hand && (hand.x !== 0 || hand.y !== 0) ? polar(hand).angle : DOWN_THE_DESK;
-  const dropped = fallOrder(falling, flock).map(({ piece, delayMs }) => ({
-    id: piece.id,
-    feel: feelOf(piece),
-    fan: fanOf(scattering.indexOf(piece), scattering.length, aim),
-    // The border at the piece's OWN size: a throw spends its travel on the felt, and the sliver of
-    // the pop it is still wearing on the way down is not what a bounce should be measured off.
-    walls: mapWalls(piece),
-    delayMs,
-  }));
-  // WHAT IS ALREADY LYING THERE IS ALSO IN THE WAY — for the length of this throw it becomes a body
-  // too: at rest, at its own seat, going nowhere. It draws exactly where it already is and writes
-  // back exactly where it ends up, and being a body it gets shoved when something runs into it,
-  // which is what a chip does when a die lands on it. See `alsoInTheWay`.
-  const standing = alsoInTheWay(
-    root,
-    new Set(dropped.map((d) => d.id)),
-    new Set(dropped.filter((d) => d.feel.girth > 0).map((d) => d.feel.solid)),
-    feelOf,
-  );
-  s.host.setRoot(root); // one notify: the seats and the new order are the tree's now
-  // A PUTTING-DOWN DOES NOT SHOVE THE FURNITURE (`shoves`). Below the throwing speed the standing
-  // pieces hold their places — solid, so nothing comes to rest on them, and immovable, so nothing
-  // sends them skidding merely because something was set down next to them.
-  const knocking = shoves(speed, bump?.holds ?? false);
-  for (const still of standing) {
-    const feel = feelOf(still);
-    m.slide(still.id, {
-      speed: 0,
-      angle: 0,
-      girth: feel.girth,
-      solid: feel.solid,
-      ...(knocking ? {} : { anchored: true }),
-      bodyBounce: feel.bodyBounce ?? feel.bounce,
-      ...(feel.friction === undefined ? {} : { friction: feel.friction }),
-      walls: mapWalls(still),
-      wallKick: 0,
-      onDone: (at) => landed(s, still.id, at),
-    });
-  }
-  // THE GESTURE IS OVER EVEN WHEN NOTHING FLIES, and it has to say so. The announcement rides the
-  // LANDING, which is right for a piece that falls and nothing at all for a piece that only settles:
-  // a heap of cards files no flight, so nothing ever lands, so nothing is ever announced — and a
-  // scene that redraws anything from the tree (the handles) never hears that the tree moved.
-  // ANNOUNCED ONCE NOW — what flew has just left its heap, and what only settles has arrived — and
-  // once more when the LAST of them lands.
-  //
-  // Once, not per landing. Announcing is a whole redraw of the handles: every heap on the desk
-  // re-derived (which is every pair of pieces tested against every other), the tree re-notified and
-  // the inspector re-walked. Thirty cards landing a few milliseconds apart asked for thirty of
-  // those inside half a second, and the desk stopped answering — the drop of a deck HUNG.
-  after?.();
-  let left = dropped.length;
-  const fromPositions = new Map<string, Vec>();
-  for (const it of items) {
-    const n = byId(s.host.root, it.id);
-    if (n) fromPositions.set(it.id, seatIn(n));
-  }
-
-  for (const { id, feel, walls, delayMs, fan } of dropped) {
-    // ITS OWN SHARE OF THE HAND'S SPEED. Not everything leaves a hand at the speed the hand had: a
-    // chip stops being pushed the moment it is let go, a card goes where it was sent.
-    // ITS OWN SHARE OF WHAT THE HAND THREW. `hand` arrives ALREADY as the excess over the throwing
-    // speed, in units (`flickOf` took the threshold off on the glass, once, and divided by the
-    // scale once) — so it is taken whole here. Taking the threshold off a second time, from a
-    // number now measured in units rather than pixels, left nothing of any throw a hand could
-    // make: a hundred and fifty units a second is faster than a finger, and every stack, chip and
-    // die was put down exactly where it was let go of, with the hand's whole swing thrown away.
-    const seat = flock.get(id);
-    const flight = seat ?? (hand ? flightOf(hand, feel.throwGain) : { speed: 0, angle: 0 });
-    if (s.actor && flight.speed > 0) {
-      const piece = byId(s.host.root, id);
-      if (piece) {
-        const from = fromPositions.get(id);
-        mark(piece, { by: s.actor, mark: "thrown", ...(from ? { from } : {}) });
-      }
-    }
-    // The hand's own throw, plus this piece's share of the opening. A run of one has no fan to take
-    // and is left exactly as it was: one die thrown is a die thrown where you threw it.
-    const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));
-    const body = {
-      ...own,
-      ...(seat ? { friction: seat.friction } : feel.friction === undefined ? {} : { friction: feel.friction }),
-      ...(delayMs > 0 ? { delayMs } : {}),
-      up: (lift - 1) / RISE,
-      gravity: feel.gravity,
-      bounce: feel.bounce,
-      wallBounce: feel.wallBounce,
-      // A BORDER ONLY REFLECTS HERE. The kit's own default has a wall pop a hopping body upwards,
-      // which is a die in the rail of its own tray and nothing else: every release on this desk is
-      // a piece coming DOWN, so a border would throw it back up into the air it was falling out of.
-      wallKick: 0,
-      walls,
-      // ...AND IT KEEPS ITS ROOM. Two pieces that both state a girth are pushed apart for as long
-      // as they are travelling, so a pair of dice can never come to rest one over the other.
-      ...(feel.girth > 0 ? { girth: feel.girth } : {}),
-      ...(feel.bodyBounce === undefined ? {} : { bodyBounce: feel.bodyBounce }),
-      ...(feel.solid ? { solid: feel.solid } : {}),
-    };
-    const piece = byId(s.host.root, id);
-    if (piece && feel.fall === "roll") {
-      // A DIE LET GO OF ROLLS. Not "a die thrown hard enough rolls" — always, because that is what a
-      // die is for, and one that came down flat and lay there would be a counter. The turn is the
-      // hand's when the hand gave it one and its own otherwise, so a die simply dropped still goes
-      // over. The add-on owns the rest: the face changes as the body travels and the LAST one is
-      // the result, shown while there is still a roll left to see it on — and the seat and the face
-      // are written into the tree when it stops, which is what `onDone` does for everything else.
-      throwDie(m, s.host.root, piece, {
-        ...body,
-        spin: DIE_SPIN * (Math.sign(hand?.x ?? 0) || 1),
-        // Its own drag, steeper than the desk's: a faster roll must not also be a longer one, and
-        // the faces are counted off the TURN, so a brisker turn is also a brisker count.
-        spinFriction: DIE_SPIN_DRAG,
-        // ...and it leaves the felt. A die that only fell out of the hand gives back a hop of two
-        // pixels, which is a die that landed rather than one that rolled.
-        hop: DIE_HOP,
-        outcome: { rng: Math.random },
-        onRest: () => {
-          if (--left <= 0) after?.();
-        },
-      });
-      continue;
-    }
-    m.slide(id, {
-      ...body,
-      // WHERE IT STOPPED IS WHERE IT NOW LIVES, and it has to be written or the piece does not stay
-      // there: the seat in the tree is still the point it was let go of, and the reconcile that
-      // follows a landing would fly it all the way back to the hand. A flight is a LOOK; the seat is
-      // the truth, and the truth is only true once somebody writes it down.
-      onDone: (at) => {
-        landed(s, id, at);
-        if (--left <= 0) after?.();
-      },
-    });
-  }
-  return true;
-}
-/**
- * THE SEAT A FLIGHT ENDED ON, written into the tree — in the flight's own frame.
- *
- * Composed and not fed through `setRoot`: the runtime reads the tree itself on the very frame a
- * landing is reported, so the seat is found equal and nothing flies. Routed through a notify it
- * would arrive a frame late, and that frame is the piece back at the hand.
- *
- * Root units are the seat's units here, as the map is the root and stands at the origin.
- */
-function landed(s: Scene, id: string, at: { readonly at: Vec; readonly angle: number }): void {
-  const n = byId(s.host.root, id);
-  if (!n) return;
-  const own = fieldsOf<TransformableFields>(n, "Transformable");
-  // THE SEAT ONLY, never the turn. A flight reports its turn as the resting pose's own plus whatever
-  // it spun, and the resting pose of a FACE-DOWN card is a mirror — a matrix a turn is read out of
-  // as a half circle, because that is what a mirror looks like to `atan2`. Written back it lands the
-  // card upside down. Nothing on this desk turns while it flies except the die, and the die writes
-  // its own landing (`throwDie`), so there is no turn here to keep.
-  compose(n, Transformable({ ...(own ?? {}), at: at.at }));
+  return letFallInKit(s, items, lift, hand, after, ways, bump, hover, throwDie);
 }

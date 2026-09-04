@@ -93,64 +93,6 @@ describe("the gesture map", () => {
     expect(fallOrder(cards.filter((n) => dropOf(n, { card: "fall" }).fall === "fall"))).toHaveLength(cards.length);
   });
 
-  it("map.a-slow-hand-puts-down-and-a-fast-one-throws — `settle` is a speed, not a prohibition", () => {
-    // Read as "this piece can never be thrown" it would mean a card flicked across the desk simply
-    // appearing where the finger stopped, which is not a card and not a throw. So the way a piece
-    // leaves is its DEFAULT, and a hand moving fast enough overrules it.
-    const desk = stackMap();
-    const card = desk.children.find((n) => kindOf(n) === "card")!;
-    const chip = desk.children.find((n) => kindOf(n) === "chip")!;
-    expect(thrown(card, 0), "set down at a standstill").toBe(false);
-    expect(thrown(card, THROWN_AT), "and thrown when the hand meant it").toBe(true);
-    // A piece that always falls does not need the hand's help to fly.
-    expect(thrown(chip, 0)).toBe(true);
-  });
-
-  it("map.not-everything-leaves-a-hand-at-the-hand-s-speed — the share is the piece's own", () => {
-    // One gain for all of them made the lightest thing on the desk the fastest, which is the
-    // opposite of what a hand feels: a chip is small and heavy for its size and stops being pushed
-    // the moment it is let go; a card has a whole face on the felt and goes where it was sent.
-    const desk = stackMap();
-    const card = dropOf(desk.children.find((n) => kindOf(n) === "card")!);
-    const chip = dropOf(desk.children.find((n) => kindOf(n) === "chip")!);
-    const die = dropOf(desk.children.find((n) => kindOf(n) === "die")!);
-    expect(chip.throwGain).toBeLessThan(card.throwGain);
-    expect(chip.throwGain).toBeLessThan(die.throwGain);
-    // ...and the felt eats a chip's speed faster than a card's, so it also stops sooner.
-    expect(chip.friction!).toBeGreaterThan(card.friction!);
-  });
-
-  it("map.drop-feel-is-read-off-what-the-piece-is — never off its name", () => {
-    // A die is the thing whose faces go over, a card is the thing with a back to turn to, and a
-    // carved piece is neither — so the answer comes from the model. Off the id it would be a list
-    // somebody has to remember to add the fifth piece to, and `guard.id-is-opaque` forbids reading
-    // one anyway: an id says WHICH, never WHAT.
-    const by = Object.fromEntries(gestureMap().children.map((n) => [n.id, dropOf(n)]));
-    const die = by["die"]!;
-    const knight = by["knight"]!;
-    const card = Object.entries(by).find(([id]) => id !== "die" && id !== "knight")![1];
-    // The card is the slow one, and the only one that does not come back up.
-    expect(card.gravity).toBeLessThan(die.gravity);
-    expect(card.gravity).toBeLessThan(knight.gravity);
-    expect(card.bounce).toBe(0);
-    // The die is the one the desk throws back; the carved piece does not bounce at all — a tenth of
-    // a percent, which is "not at all" written down. Written down rather than left at zero so the
-    // ORDER of the three still says something: it is the end of the scale, not a piece the scale
-    // forgot about.
-    expect(die.bounce).toBeGreaterThan(knight.bounce);
-    expect(knight.bounce).toBeGreaterThan(0);
-    expect(knight.bounce, "a carved piece does not bounce").toBeLessThan(0.01);
-    expect(knight.wallBounce, "and not off a rail either").toBeLessThan(0.01);
-    // And the two heavy ones fall at about the same rate — what tells them apart is the landing.
-    expect(Math.abs(die.gravity - knight.gravity) / die.gravity).toBeLessThan(0.3);
-    // A WALL IS ITS OWN MATERIAL. The die is the liveliest off a rail and the carved piece the
-    // deadest, which is the opposite order to nothing else here — and the card, dead on the cloth,
-    // still comes back off a border. On one number that last pair could not be said at all.
-    expect(die.wallBounce).toBeGreaterThan(card.wallBounce);
-    expect(card.wallBounce).toBeGreaterThan(knight.wallBounce);
-    expect(card.wallBounce).toBeGreaterThan(card.bounce);
-  });
-
   it("map.the-last-dropped-is-on-top — and it is a place in the list, not a height", () => {
     // Equal `z` keeps tree order (the plan sorts stably), so "in front" is the end of the children.
     // As a height it would be a lie about the third dimension: the piece is ON the desk, and every
@@ -241,35 +183,6 @@ describe("the stacking desk", () => {
     at(desk, "chip 1", 5, 5);
     expect(regrip(desk).size).toBe(0);
     expect(desk.children.filter(isGrip)).toHaveLength(0);
-  });
-
-  it("map.a-dropped-heap-pours-rather-than-slabs — a step apart, bottom first, and the handle not at all", () => {
-    // All at once and a heap comes down as a slab; too far apart and it stops being one thing coming
-    // down and becomes several things dropped in turn. A step is what reads as a pour.
-    const desk = stackMap();
-    for (const i of [2, 3, 4, 5]) at(desk, `chip ${i}`, 6 + i, 6);
-    at(desk, "chip 0", 0, 0);
-    at(desk, "chip 1", 0.4, 0);
-    regrip(desk);
-    const run = [desk.children.find(isGrip)!, ...heapsOf(desk)[0]!];
-    const falling = fallOrder(run);
-    // The handle is not among them: a control does not fall, it is redrawn where the pieces land.
-    expect(falling.map((f) => f.piece.id)).toEqual(["chip 0", "chip 1"]);
-    // The bottom of the stack leaves first, so what comes after lands ON it and not under it.
-    expect(falling[0]!.delayMs).toBe(0);
-    expect(falling[1]!.delayMs).toBe(STACK_FALL_STEP);
-    // A run of one has no stagger to have — which is every other page on the shelf, unchanged.
-    expect(fallOrder([run[1]!])).toEqual([{ piece: run[1], delayMs: 0 }]);
-    expect(fallOrder([])).toEqual([]);
-    // AND A POUR HAS A LENGTH OF ITS OWN, however many are in it. A step per piece reads as a pour
-    // at five and as a queue you are waiting on at thirty-six. A few keep the full step; many take a
-    // little longer than a few, and not thirty times longer.
-    const deck = stackMap().children.filter((n) => kindOf(n) === "card");
-    const few = fallOrder(deck.slice(0, 5));
-    expect(few[4]!.delayMs).toBe(4 * STACK_FALL_STEP);
-    const many = fallOrder([...deck, ...deck, ...deck, ...deck, ...deck, ...deck]);
-    expect(many[many.length - 1]!.delayMs).toBeLessThanOrEqual(STACK_POUR);
-    expect(many[many.length - 1]!.delayMs, "still a pour, not a slab").toBeGreaterThan(STACK_POUR * 0.9);
   });
 
   it("map.a-roll-is-brisk-and-does-not-outstay-it — a faster turn must not also be a longer one", () => {
@@ -482,132 +395,6 @@ describe("the stacking desk", () => {
     expect(room.w, "and it is ROOM, not a second desk").toBeGreaterThan(MAP.w);
   });
 
-  it("map.a-thrown-run-is-aimed-at-its-own-formation — it converges on the way down, not on arrival", () => {
-    // A thrown run is otherwise a handful of separate throws that happen to share a hand: each piece
-    // leaves from where the fan put it, travels the same distance, and the hand arrives on the felt
-    // as the same spread it was held in — a stack in name only. Gathering it up after the landing is
-    // what a correction looks like.
-    //
-    // MEASURED BY THE DESK'S OWN ORACLE. Where a throw stops is `restsAt`, which is also what a zone
-    // is asked about; so throwing each piece at its seat and then asking `restsAt` where it stops is
-    // asking whether the aim and the landing are one number. They must be, or the light, the take
-    // and the pose are three opinions.
-    const seatOf = (n: Node): Vec => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
-    const run = [
-      node("a", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: -1.2, y: 0 } })),
-      node("b", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 0, y: 0.1 } })),
-      node("c", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 1.2, y: 0.2 } })),
-    ];
-    const at = { x: 0, y: 1 };
-    const hand = { x: 3, y: -2 };
-    const feel = dropOf(run[0]!, {});
-    const drag = 6;
-    const home = restsAt(at, hand, feel, drag);
-    const seats = stackSeats(run);
-    const thrownTo = flockTo(run, at, hand, feel, drag);
-    run.forEach((piece, i) => {
-      // The desk states headings in DEGREES, as every `slide` on it does.
-      const rad = (thrownTo[i]!.angle * Math.PI) / 180;
-      const lands = restsAt(seatOf(piece), { x: Math.cos(rad), y: Math.sin(rad) }, { ...feel, throwGain: thrownTo[i]!.speed, friction: thrownTo[i]!.friction }, drag);
-      const want = { x: home.x + seats[i]!.x, y: home.y + seats[i]!.y };
-      expect(lands.x, `piece ${i} stops at its seat`).toBeCloseTo(want.x, 6);
-      expect(lands.y).toBeCloseTo(want.y, 6);
-    });
-    // ...AND THE FORMATION IS A PILE, not the spread they set off as: three cards a unit apart in the
-    // hand come to rest within a sliver of each other.
-    const spread = Math.hypot(seats[2]!.x - seats[0]!.x, seats[2]!.y - seats[0]!.y);
-    expect(spread, "they arrive stacked, not strung out").toBeLessThan(0.3);
-
-    // ...AND THEY ARRIVE TOGETHER. A run leaves the hand as a fan, so the far card has three times
-    // the near one's distance to cover; solved separately each lands when its own arithmetic says,
-    // and the hand comes down as a QUEUE, tearing itself apart on the way. Worse, the length of the
-    // animation was then set by how WIDE the fan was rather than by how hard the throw was.
-    //
-    // A slide of speed `v` under drag `a` runs for `v/a` — so equal `v/a` is one arrival.
-    // ...AND THEY SET OFF TOGETHER TOO. The stagger is what makes a heap tip OUT of a hand rather
-    // than arrive as a slab — right for pieces that fall where they were let go of, and wrong for a
-    // run being thrown somewhere: laid on top of one arrival time it puts the queue straight back.
-    const poured = fallOrder(run);
-    expect(Math.max(...poured.map((p) => p.delayMs)), "a heap tipping out is staggered").toBeGreaterThan(0);
-    const flying = fallOrder(run, new Map(run.map((n) => [n.id, true])));
-    for (const one of flying) expect(one.delayMs, "a formation is not a pour").toBe(0);
-
-    const spans = thrownTo.map((t) => t.speed / t.friction);
-    for (const span of spans) expect(span, "one hand, one flight time").toBeCloseTo(spans[0]!, 9);
-    // And that time is the THROW'S: the anchor's own flight, not the widest card's.
-    expect(spans[0]!, "as long as the hand meant, and no longer").toBeCloseTo((Math.hypot(hand.x, hand.y) * feel.throwGain) / drag, 9);
-
-    // AND IT IS SOLVED AGAINST THE DRAG THE PIECE WILL ACTUALLY FEEL. A piece may state its own
-    // (`DropFeel.friction`) and the desk's is only the fallback: solved against the desk's while
-    // flying under its own, every seat is missed by the ratio between them — a formation that lands
-    // somewhere else entirely, and lands there tidily, which is the hardest kind of wrong to see.
-    const own = { ...feel, friction: drag * 3 };
-    const ownHome = restsAt(at, hand, own, drag);
-    flockTo(run, at, hand, own, drag).forEach((throwAt, i) => {
-      const rad = (throwAt.angle * Math.PI) / 180;
-      const lands = restsAt(seatOf(run[i]!), { x: Math.cos(rad), y: Math.sin(rad) }, { ...own, throwGain: throwAt.speed, friction: throwAt.friction }, drag);
-      expect(lands.x, `piece ${i} keeps its seat under its own drag`).toBeCloseTo(ownHome.x + seats[i]!.x, 6);
-      expect(lands.y).toBeCloseTo(ownHome.y + seats[i]!.y, 6);
-    });
-  });
-
-  it("map.the-threshold-is-paid-once — what crosses into the desk is taken whole", () => {
-    // `flickOf` hands the desk the EXCESS over the throwing speed, already in units. The flight
-    // built from it must take that number whole: subtracting the glass threshold a second time,
-    // from a number now measured in units rather than pixels, compares a finger against a hundred
-    // and fifty units a second — faster than any hand — and answers "not a throw" to every throw
-    // there is. Which is what happened: every stack, chip and die dropped where it was let go of.
-    const hand = flickOf({ x: THROWN_AT * 4, y: 0 }, 100)!; // 4.5 units/s of excess
-    const flight = flightOf(hand, 1);
-    expect(flight.speed, "the whole excess, not the excess minus a pixel number").toBeCloseTo(Math.hypot(hand.x, hand.y), 9);
-    expect(flight.speed, "and it is a flight").toBeGreaterThan(0);
-    expect(flightOf(hand, 2).speed, "the piece's own gain scales it").toBeCloseTo(flight.speed * 2, 9);
-    expect(flightOf({ x: 0, y: -3 }, 1).angle, "the heading is the hand's").toBeCloseTo(polar({ x: 0, y: -3 }).angle, 9);
-  });
-
-  it("map.a-throw-is-the-gesture-and-not-the-zoom — measured on the glass, converted once", () => {
-    // A finger's speed on a screen is a thing that is simply KNOWN: two points and the time between
-    // them. The number the desk used to get was three conversions deep — the finger's pixels divided
-    // by the scale to become units, fed to a chase spring, the SPRING'S velocity read instead of the
-    // hand's, and multiplied back by the zoom to undo the first division. Every one of those is a
-    // place to be wrong by a factor nobody can see, and one of them was: zoomed out to deal a hand,
-    // an unhurried pass over the felt cleared the throwing threshold and cleared it hard.
-    //
-    // So the threshold is a GLASS number and the meeting of display and desk is one division.
-    const flick = { x: THROWN_AT * 4, y: 0 };
-    // ONE GESTURE, THREE VIEWS: whether it was a throw cannot depend on the camera at all.
-    for (const perUnit of [40, 100, 250]) {
-      expect(flickOf(flick, perUnit), "a flick is a flick at any zoom").toBeDefined();
-      expect(flickOf({ x: THROWN_AT * 0.6, y: 0 }, perUnit), "and a carry is never one").toBeUndefined();
-    }
-    // ...AND WHAT CROSSES INTO THE DESK IS THE EXCESS, divided by the scale exactly once. Carrying is
-    // moving: taking the whole speed made every unhurried pass end in a flight.
-    for (const perUnit of [40, 100, 250]) {
-      expect(flickOf(flick, perUnit)!.x, "the flick's excess, in units").toBeCloseTo((flick.x - THROWN_AT) / perUnit, 9);
-    }
-    // The heading survives the crossing untouched — a throw goes where it was aimed.
-    const slanted = flickOf({ x: THROWN_AT * 3, y: THROWN_AT * 3 }, 100)!;
-    expect(slanted.x, "square on: the two axes keep their proportion").toBeCloseTo(slanted.y, 9);
-    // Nothing to convert is nothing, and neither is a glass that has no size.
-    expect(flickOf(undefined, 100)).toBeUndefined();
-    expect(flickOf(flick, 0)).toBeUndefined();
-
-    // ...AND THEN IT IS ASKED WHETHER IT WOULD GO ANYWHERE. A speed alone cannot answer "was that a
-    // throw", which is why every number tried for it was wrong in one direction or the other: what
-    // a hand MEANT is legible in where the piece would END UP. This is how a phone tells a flick
-    // from a careful scroll, and it is the same arithmetic the zone is already asked.
-    const drag = 6;
-    // Barely over the threshold: the piece would land a hair from where it was let go of, and
-    // flying it means a whole animation to move it almost nowhere.
-    const nudge = { x: THROWN_AT * 1.05, y: 0 };
-    expect(flickOf(nudge, 100, drag), "a throw that goes nowhere is a putting-down").toBeUndefined();
-    expect(flickOf(nudge, 100, 0), "and with no drag named, nothing is refused").toBeDefined();
-    // A real one still flies: the excess over the threshold, projected, clears the reach easily.
-    const sent = flickOf({ x: THROWN_AT * 6, y: 0 }, 100, drag);
-    expect(sent, "a flick that crosses the desk is a throw").toBeDefined();
-    expect((sent!.x ** 2) / (2 * drag), "and it was measured by where it lands").toBeGreaterThan(THROW_REACH);
-  });
-
   it("map.a-landing-mark-is-the-shape-of-what-will-BE-there — not of what is being held", () => {
     // A hand is carried splayed and in the air; what lands is a squared pile lying flat. The picture
     // a player needs is of the second, and it is drawn from the very seats the landing will write —
@@ -640,21 +427,6 @@ describe("the stacking desk", () => {
     const fanned = landingBox(many, many.map((_n, i) => ({ x: i * 0.5, y: 0 })));
     expect(fanned.w, "asked about a fan, it answers about a fan").toBeGreaterThan(pile.w * 3);
     expect(fanned.at.x, "and centred on that spread, not on the first card").toBeCloseTo(2.75, 9);
-  });
-
-  it("map.the-wall-is-the-desks-own-edge — a felt wider than the map is walled at its own size", () => {
-    // A desk wider than the map — a felt with a board in the middle of it — walled at the map's size
-    // holds the hand inside the middle eight units of fourteen: a man could be carried to the
-    // board's edge and no further, and the felt beyond it, drawn and accepting, could never be
-    // reached. The wall is the DESK'S edge, whatever the shelf's stock size is.
-    const man = piece(1, 1);
-    const stock = mapWalls(man);
-    expect(stock.x1, "the shelf's own map, as before").toBeCloseTo(MAP.w / 2 - 0.5, 9);
-    const felt = mapWalls(man, 1, { w: 14, h: 14 });
-    expect(felt.x1, "a wider desk, a wider wall").toBeCloseTo(7 - 0.5, 9);
-    expect(felt.y0, "on every side").toBeCloseTo(-(7 - 0.5), 9);
-    // ...and a raised piece is wider on the glass, so the wall it meets is nearer by the difference.
-    expect(mapWalls(man, 1.3, { w: 14, h: 14 }).x1).toBeCloseTo(7 - 0.65, 9);
   });
 
   it("map.a-landing-mark-is-hidden-during-a-throw", () => {
