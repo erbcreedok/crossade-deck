@@ -1,5 +1,7 @@
 import { cards, installClassicSkin } from "@game-presets/cards";
 import {
+  attachMotion,
+  wireDrag,
   add,
   attachPainter,
   Bounded,
@@ -59,6 +61,11 @@ export function startTable(container: HTMLElement): Teardown {
   const vp = host.viewport();
   const painter = pixiPainter(host.view, { width: vp.width, height: vp.height, resolution: vp.dpr });
   const stopPainter = attachPainter(host, painter);
+  const motions = attachMotion(host, painter);
+  
+  const actor = account?.id;
+  wireDrag({ host, motions, el: host.view, actor }, { actor });
+
 
   joinTable({
     game: "table",
@@ -108,6 +115,7 @@ export function startTable(container: HTMLElement): Teardown {
   return () => {
     unbindOnTree?.();
     currentTable?.leave();
+    motions.stop();
     stopPainter();
     host.unmount();
     stopHold();

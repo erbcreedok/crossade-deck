@@ -17,7 +17,7 @@ import { Transformable, type TransformableFields } from "../core/atoms/transform
 import { restAngle, rotatable } from "../core/atoms/rotatable.js";
 import { Coated, NO_COAT, type CoatedFields } from "../core/atoms/coated.js";
 import { draggable, onRejectOf } from "../core/atoms/draggable.js";
-import { wearKeen } from "../core/atoms/inviting.js";
+import { wearKeen, wearInvite } from "../core/atoms/inviting.js";
 import { wearInvites } from "../core/invite.js";
 import { mark } from "../core/atoms/marked.js";
 import { applyMove, planMove } from "../core/move.js";
@@ -117,7 +117,7 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * zone that forgives a near miss has to measure from the piece's own edge, and a point cannot say
    * where a card's edge is (`Mechanics/Magnetism`).
    */
-  readonly zoneAt?: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined;
+  readonly zoneAt?: ((root: Node, at: Vec, lead: Node, g?: Vec) => Node | undefined) | undefined;
   /**
    * WHICH ZONE WOULD TAKE THIS RUN IF THE HAND LET GO NOW — asked on every move, so the zone that
    * is going to get it can SAY SO while there is still time to aim somewhere else.
@@ -137,7 +137,9 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * the run's pose would measure the distance from a card that is no longer there. The hand knows,
    * and the hand is here: this is the same point the drop is going to use, walls and all.
    */
-  readonly aimAt?: ((root: Node, ids: readonly NodeId[], at: Vec) => Node | undefined) | undefined;
+  readonly aimAt?: ((root: Node, ids: readonly NodeId[], at: Vec, g?: Vec) => Node | undefined) | undefined;
+  /** The zones that would accept this run, dressed with invites on drag start. */
+  readonly willing?: ((root: Node, hit: Node, run: readonly Node[]) => readonly Node[]) | undefined;
   /**
    * THE FINGER IS THE HOLDER: the run is anchored ON it, not where the piece happened to be grabbed.
    *
@@ -432,7 +434,13 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       fromParent: hit.parent ?? undefined,
     };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
-    w.undoInvites = wearInvites(root, hit);
+    const willing = w.opts.willing ? w.opts.willing(root, hit, run) : undefined;
+    if (willing) {
+      const undos = willing.map(wearInvite);
+      w.undoInvites = () => undos.forEach((undo: () => void) => undo());
+    } else {
+      w.undoInvites = wearInvites(root, hit);
+    }
     // The knobs go through by NAME: what the panel says is what the clock gets.
     // THE FEEL AND NOTHING ELSE. Every hook the wiring itself answers to is named here and left
     // out, or it rides into the clock as a "knob" — and from there onto every screen the carry is
@@ -580,10 +588,10 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
-  const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>): void => {
+  const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>, g?: Vec): void => {
     const root = s.host.root;
     w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: dragInfo?.feel ?? {}, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
-    if (landed(items, seat, root, dragInfo)) {
+    if (landed(items, seat, root, dragInfo, g)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
       // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
       w.opts.onSettled?.(s.host.root, items.map((it) => it.id));
@@ -621,10 +629,10 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
    * The seat is written BEFORE the move so a free zone keeps the piece where the finger let it go —
    * `applyMove` spreads the node's own pose and rewrites only the grains the zone answered.
    */
-  const landed = (items: readonly CarryItem[], seat: Vec, root: Node, dragInfo?: NonNullable<Wiring["drag"]>): boolean => {
+  const landed = (items: readonly CarryItem[], seat: Vec, root: Node, dragInfo?: NonNullable<Wiring["drag"]>, g?: Vec): boolean => {
     const lead = items[0] ? byId(root, items[0].id) : undefined;
     const source = lead?.parent ?? undefined;
-    const target = lead ? w.opts.zoneAt?.(root, seat, lead) : undefined;
+    const target = lead ? w.opts.zoneAt?.(root, seat, lead, g) : undefined;
     if (!lead || !source || !target || target === source) return false;
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);
@@ -712,11 +720,11 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
   };
 
   /** Who would take the run in hand, asked the way the desk wants it asked. */
-  const aimed = (ids: readonly NodeId[], at: Vec): Node | undefined => {
+  const aimed = (ids: readonly NodeId[], at: Vec, g?: Vec): Node | undefined => {
     const root = s.host.root;
-    if (w.opts.aimAt) return w.opts.aimAt(root, ids, at);
+    if (w.opts.aimAt) return w.opts.aimAt(root, ids, at, g);
     const lead = ids[0] ? byId(root, ids[0]) : undefined;
-    return lead ? w.opts.zoneAt?.(root, at, lead) : undefined;
+    return lead ? w.opts.zoneAt?.(root, at, lead, g) : undefined;
   };
 
   const onMove = (e: PointerEvent): void => {
@@ -749,7 +757,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     // THE ZONE THAT WOULD TAKE IT SAYS SO, and it says so by the same answer the release will use —
     // a light with its own idea of "near enough" promises a zone that then does not take the card,
     // and a reader believes the light over the outcome.
-    aim(aimed(ids, held));
+    aim(aimed(ids, held, glassOf(view, e)));
     w.opts.onCarry?.({ ids, at, done: false, feel: w.drag.feel, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
   };
 
@@ -804,7 +812,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     // seat is the seat the run was ALLOWED, not the point the finger was at: inside a tray a hand
     // may stand a leash's length past a wall, and letting go there must not write the piece out of
     // the box the whole gesture just refused to let it leave.
-    drop(drag.items, inside(drag.tray, { x: p.x + drag.delta.x, y: p.y + drag.delta.y }), drag);
+    drop(drag.items, inside(drag.tray, { x: p.x + drag.delta.x, y: p.y + drag.delta.y }), drag, glassOf(view, e));
   };
 
   view.addEventListener("pointerdown", onDown);

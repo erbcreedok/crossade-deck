@@ -3,7 +3,7 @@
 // reveal what it uncovered, deal the stock, and notice the win. Legality is `rules.ts`; grabbing a
 // run, holding the tree and rendering are the engine's.
 
-import {
+import { wireDrag,
   add,
   apply,
   attachMotion,
@@ -345,7 +345,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     redraw();
   };
 
-  // ---- reading the model ------------------------------------------------------------------
+  // ---- the drag ---------------------------------------------------------------------------
 
   const isCard = (n: Node): boolean => caps(n).has("Valued");
   const cardValue = (n: Node): CardValue | undefined => valueOf(fieldsOf<ValuedFields>(n, "Valued")?.values);
@@ -361,31 +361,6 @@ export function startSolitaire(container: HTMLElement): () => void {
   const kindOf = (pile: Node): "stock" | "waste" | "foundation" | "tableau" | "none" =>
     pile.id === "stock" ? "stock" : pile.id === "waste" ? "waste" : pile.id.startsWith("foundation") ? "foundation" : pile.id.startsWith("tableau") ? "tableau" : "none";
 
-  // ---- the drag ---------------------------------------------------------------------------
-
-  let run: Node[] = []; // the cards being carried, bottom-first
-  let source: Node | undefined; // the pile they left
-  let grab: Point = { x: 0, y: 0 };
-  let undoInvites: Array<() => void> = []; // undresses every pile the grab invited
-  // A press is a candidate until the pointer moves past the threshold — only then is it a drag. A
-  // press that never moves is a TAP (which does nothing) or half of a double-click (which auto-moves).
-  // Without this a double-click would reparent the card twice mid-gesture and fight its own auto-move.
-  let pending: { hit: Node; startG: Point; pointerId: number } | undefined;
-  const DRAG_SLOP = 6; // px — the previous client's own grab threshold
-  // A tap that lifted nothing may be one half of a double-tap. `dblclick` is a MOUSE event a touch
-  // screen never fires, so the two taps are counted here, off the same pointer stream the drag uses.
-  let lastTap: { id: string; ms: number; g: Point } | undefined;
-  const DOUBLE_MS = 320; // between the two taps
-  const DOUBLE_SLOP = 28; // px the second tap may sit from the first
-
-  const setAt = (n: Node, at: Point): void => {
-    compose(n, Transformable({ at }));
-  };
-
-  /** The carried run as engine items — each card's offset DOWN the column from the grab pivot. */
-  const carryItems = (): CarryItem[] => run.map((c, i) => ({ id: c.id, offset: { x: 0, y: i * layout.step } }));
-
-  /** The ordered, all-face-up run a card leads, or null if it cannot be lifted from where it sits. */
   const runFrom = (card: Node): Node[] | null => {
     const pile = card.parent;
     if (!pile) return null;
@@ -395,57 +370,12 @@ export function startSolitaire(container: HTMLElement): () => void {
     return values.length === above.length && isRunOrdered(values) ? above : null;
   };
 
-  /** Reparent a run onto its destination, uncover what it left, and let the clock ease it into place. */
-  const landRun = (cards: Node[], src: Node, dest: Node): void => {
-    // A run dropped back where it came from is not a move: nothing changed, so nothing is written
-    // down and undo does not gain a step that undoes nothing.
-    if (dest !== src) remember();
-    for (const c of cards) remove(c.parent ?? src, c);
-    for (const c of cards) add(dest, c);
-    for (const c of cards) motion.release(c.id); // in case a gesture held them — a no-op otherwise
-    if (kindOf(src) === "tableau") {
-      const top = src.children[src.children.length - 1];
-      // Uncovered a face-down card: turn it over on the clock — it flips as the run slides away.
-      if (top && facing(top) === "down") motion.flip(top.id, () => setFacing(top, "up"));
-    }
-    // The bar is drawn FROM the history, so it is put back wherever the history moves — a move that
-    // gave undo somewhere to go must leave undo looking as though it has somewhere to go.
-    dressDesk();
-    redraw();
-    if (dest !== src) keep();
-    checkWin();
-  };
-
-  const beginDrag = (hit: Node, startG: Point, pointerId: number): void => {
-    const above = runFrom(hit);
-    if (!above) return;
-    const anchorAt = originOf(board.desk, hit.id);
-    run = above;
-    source = hit.parent!;
-    // Reparent onto the desk — a tree write, once. Riding ABOVE everything is not: the runtime
-    // reports every finger-owned and flying node to the plan (`raised`), so no z is written and
-    // nothing stale survives the landing. Writing `LIFT_Z` here is exactly how every once-dragged
-    // card ended up covering its later pile-mates forever.
-    for (const c of above) remove(source, c);
-    for (const c of above) add(board.desk, c);
-    for (const c of above) setAt(c, anchorAt);
-    const p = toUnits(host, startG);
-    grab = { x: anchorAt.x - p.x, y: anchorAt.y - p.y };
-    // Every pile that would TAKE this run puts its invite on — Klondike's legality picks them,
-    // the atom dresses them. Before the grab draws, so its first frame already shows the rings.
-    undoInvites = willingPiles().map(wearInvite);
-    // The finger owns the run: a spring carry (lag + whip + pop), never a tree write. Rigid style, so
-    // the column tilts as one plank about the pivot.
-    motion.grab(carryItems(), { anchor: anchorAt });
-    view.setPointerCapture(pointerId);
-  };
-
-  /** The piles Klondike would let the carried run land on — the scene's own rules, not an Acceptor. */
-  const willingPiles = (): Node[] => {
+  const willingPiles = (run: readonly Node[]): Node[] => {
     const bottom = cardValue(run[0]!);
     if (!bottom) return [];
     const carried = new Set(run.map((c) => c.id));
     const takers: Node[] = [];
+    const source = run[0]!.parent;
     if (run.length === 1) {
       for (const f of board.foundations) if (f !== source && canOnFoundation(bottom, topOf(f, carried))) takers.push(f);
     }
@@ -453,105 +383,44 @@ export function startSolitaire(container: HTMLElement): () => void {
     return takers;
   };
 
-  const onDown = (e: PointerEvent): void => {
-    // The ceremony is the player's to run: once it has begun, every press launches the NEXT card at
-    // once — no waiting on the one before to land. This is caught before anything else, so a tap on
-    // the glass mid-cascade never reaches a pile, the stock, or a drag.
-    if (celebrated) {
-      launchNext();
-      return;
+  const landRun = (cards: readonly Node[], src: Node, dest: Node): void => {
+    if (dest !== src) remember();
+    for (const c of cards) remove(c.parent ?? src, c);
+    for (const c of cards) add(dest, c);
+    for (const c of cards) motion.release(c.id);
+    if (kindOf(src) === "tableau") {
+      const top = src.children[src.children.length - 1];
+      if (top && facing(top) === "down") motion.flip(top.id, () => setFacing(top, "up"));
     }
-    // The dev door's table is already won: the first tap anywhere is the ceremony (by then the
-    // renderer has presented the table and its pictures — a glass kept from before that is blank).
-    if (wonAtOnce) {
-      celebrate();
-      return;
-    }
-    const g = glassOf(view, e);
-    // THE BAR IS ASKED FIRST. A control sits over the desk, and a press that reached a pile through
-    // it would move a card the player never aimed at.
-    // THE BAR IS ASKED FIRST, and then LET GO OF: a control's gesture is `wireButtons`' business
-    // from here on — it lights it, sinks it and fires the press on the way UP. All that is left for
-    // this handler is to keep its hands off, or a press on a control would also move a card under it.
-    if (pickTop(host, g, (n) => caps(n).has("Pressable"))) return;
-    const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
-    if (!hit) return;
-    // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
-    // tableau out; once that is done, presses draw to the waste as usual; a press mid-deal is inert.
-    const pileHit = isCard(hit) ? hit.parent : hit;
-    if (pileHit && kindOf(pileHit) === "stock") {
-      if (!dealt) dealTableau();
-      else if (dealDone) dealFromStock();
-      return;
-    }
-    if (!isCard(hit) || facing(hit) === "down") return; // a face-down card is not liftable
-    pending = { hit, startG: g, pointerId: e.pointerId }; // a candidate — a move past the slop makes it a drag
+    dressDesk();
+    redraw();
+    if (dest !== src) keep();
+    checkWin();
   };
 
-  const onMove = (e: PointerEvent): void => {
-    const g = glassOf(view, e);
-    if (run.length > 0) {
-      const p = toUnits(host, g);
-      motion.dragTo({ x: p.x + grab.x, y: p.y + grab.y }); // retarget the chase spring, one paint, no tree write
-      return;
+  let lastTap: { id: string; ms: number; g: Point } | undefined;
+  const DOUBLE_MS = 320;
+  const DOUBLE_SLOP = 28;
+
+  const autoDestination = (src: Node, bottom: CardValue, len: number): Node | undefined => {
+    if (len === 1) {
+      for (const f of board.foundations) if (canOnFoundation(bottom, topOf(f))) return f;
     }
-    if (!pending) return;
-    if (Math.hypot(g.x - pending.startG.x, g.y - pending.startG.y) < DRAG_SLOP) return;
-    beginDrag(pending.hit, pending.startG, pending.pointerId);
-    pending = undefined;
-    if (run.length > 0) {
-      const p = toUnits(host, g);
-      motion.dragTo({ x: p.x + grab.x, y: p.y + grab.y });
+    const srcIdx = board.tableau.indexOf(src);
+    const order: number[] = [];
+    if (srcIdx < 0) {
+      for (let i = 0; i < board.tableau.length; i++) order.push(i);
+    } else {
+      for (let i = srcIdx + 1; i < board.tableau.length; i++) order.push(i);
+      for (let i = 0; i < srcIdx; i++) order.push(i);
     }
+    for (const i of order) {
+      const t = board.tableau[i]!;
+      if (t !== src && canOnTableau(bottom, topOf(t))) return t;
+    }
+    return undefined;
   };
 
-  const onUp = (e: PointerEvent): void => {
-    // A press that never crossed the slop lifted nothing — but it is a tap, and two of them auto-move.
-    const tapped = pending?.hit;
-    pending = undefined;
-    if (run.length === 0) {
-      if (tapped) registerTap(tapped, e);
-      return;
-    }
-    lastTap = undefined; // a drag is not a tap — do not let it pair with a later one
-    view.releasePointerCapture?.(e.pointerId);
-    // The invitation ends with the gesture: undress every pile before the landing redraw.
-    for (const undo of undoInvites) undo();
-    undoInvites = [];
-    const g = glassOf(view, e);
-    const carried = new Set(run.map((c) => c.id));
-    const targetPile = dropTarget(g, carried);
-    const bottom = cardValue(run[0]!);
-
-    let landed: Node | undefined;
-    if (targetPile && bottom) {
-      const kind = kindOf(targetPile);
-      const top = topOf(targetPile, carried);
-      if (kind === "foundation" && run.length === 1 && canOnFoundation(bottom, top)) landed = targetPile;
-      else if (kind === "tableau" && canOnTableau(bottom, top)) landed = targetPile;
-    }
-
-    landRun(run, source!, landed ?? source!);
-    run = [];
-    source = undefined;
-  };
-
-  // Two taps on the same card, close in time and place, auto-move it without a drag — the way to WATCH
-  // the settle animation on its own. Works for a mouse double-click and a finger double-tap alike,
-  // because both arrive as the same pointerup taps; the mouse-only `dblclick` never reached the phone.
-  const registerTap = (card: Node, e: PointerEvent): void => {
-    const g = glassOf(view, e);
-    const prev = lastTap;
-    if (prev && prev.id === card.id && e.timeStamp - prev.ms < DOUBLE_MS && Math.hypot(g.x - prev.g.x, g.y - prev.g.y) < DOUBLE_SLOP) {
-      lastTap = undefined;
-      autoMove(card);
-      return;
-    }
-    lastTap = { id: card.id, ms: e.timeStamp, g };
-  };
-
-  // Auto-move a card and the run it leads. Destination priority (owner's rule): up to a foundation
-  // first, else a tableau column to the RIGHT, else one to the left.
   const autoMove = (hit: Node): void => {
     if (facing(hit) === "down") return;
     const cards = runFrom(hit);
@@ -563,34 +432,15 @@ export function startSolitaire(container: HTMLElement): () => void {
     if (dest) landRun(cards, src, dest);
   };
 
-  /** Where a double-clicked run should go: foundation (up) first, then columns rightward, then leftward. */
-  const autoDestination = (src: Node, bottom: CardValue, len: number): Node | undefined => {
-    if (len === 1) {
-      for (const f of board.foundations) if (canOnFoundation(bottom, topOf(f))) return f;
+  const registerTap = (card: Node, g: Point, ms: number): void => {
+    const prev = lastTap;
+    if (prev && prev.id === card.id && ms - prev.ms < DOUBLE_MS && Math.hypot(g.x - prev.g.x, g.y - prev.g.y) < DOUBLE_SLOP) {
+      lastTap = undefined;
+      autoMove(card);
+      return;
     }
-    const srcIdx = board.tableau.indexOf(src);
-    const order: number[] = [];
-    if (srcIdx < 0) {
-      for (let i = 0; i < board.tableau.length; i++) order.push(i);
-    } else {
-      for (let i = srcIdx + 1; i < board.tableau.length; i++) order.push(i); // to the right first
-      for (let i = 0; i < srcIdx; i++) order.push(i); // then to the left
-    }
-    for (const i of order) {
-      const t = board.tableau[i]!;
-      if (t !== src && canOnTableau(bottom, topOf(t))) return t;
-    }
-    return undefined;
+    lastTap = { id: card.id, ms, g };
   };
-
-  /** The pile under a released run: a bare slot, or the pile a covered card belongs to. */
-  const dropTarget = (g: Point, carried: ReadonlySet<string>): Node | undefined => {
-    const hit = pick(host, board.desk, g, (n) => (isCard(n) && !carried.has(n.id)) || caps(n).has("Container"));
-    if (!hit) return undefined;
-    const pile = isCard(hit) ? hit.parent ?? undefined : hit;
-    return pile && kindOf(pile) !== "none" ? pile : undefined;
-  };
-
   // ---- the stock ---------------------------------------------------------------------------
 
   /**
@@ -814,16 +664,62 @@ export function startSolitaire(container: HTMLElement): () => void {
   // fallback stays that way — so the first frame with real metrics is asked for once, here.
   void ruler.ready.then(() => redraw());
 
-  view.addEventListener("pointerdown", onDown);
-  view.addEventListener("pointermove", onMove);
-  view.addEventListener("pointerup", onUp);
-  view.addEventListener("pointercancel", onUp);
+  wireDrag({ host, motions: motion, el: host.view }, {
+    may: (n) => {
+      if (celebrated || wonAtOnce) return false;
+      const cards = runFrom(n);
+      return cards !== null;
+    },
+    runOf: (root, hit) => runFrom(hit) ?? [hit],
+    willing: (root, hit, run) => willingPiles(run),
+    zoneAt: (root, at, lead, g) => {
+      if (!g) return undefined;
+      const carried = new Set((runFrom(lead) ?? [lead]).map(c => c.id));
+      const hit = pick(host, board.desk, g, (n) => (isCard(n) && !carried.has(n.id)) || caps(n).has("Container"));
+      if (!hit) return undefined;
+      const pile = isCard(hit) ? hit.parent ?? undefined : hit;
+      if (!pile || kindOf(pile) === "none") return undefined;
+      const bottom = cardValue(lead);
+      if (!bottom) return undefined;
+      const kind = kindOf(pile);
+      const top = topOf(pile, carried);
+      const len = (runFrom(lead) ?? [lead]).length;
+      if (kind === "foundation" && len === 1 && canOnFoundation(bottom, top)) return pile;
+      if (kind === "tableau" && canOnTableau(bottom, top)) return pile;
+      return undefined;
+    },
+    onDrop: ({ lead, target }) => {
+      const run = runFrom(lead) ?? [lead];
+      const src = lead.parent!;
+      landRun(run, src, target);
+      return true;
+    },
+    onTap: (hit) => {
+      if (celebrated) {
+        launchNext();
+        return;
+      }
+      if (wonAtOnce) {
+        celebrate();
+        return;
+      }
+      const pileHit = isCard(hit) ? hit.parent : hit;
+      if (pileHit && kindOf(pileHit) === "stock") {
+        if (!dealt) dealTableau();
+        else if (dealDone) dealFromStock();
+        return;
+      }
+      if (isCard(hit)) {
+        const root = host.root;
+        const poses = motion.poses();
+        const t = poses?.get(hit.id) ?? transformsOf(root).get(hit.id);
+        registerTap(hit, { x: t?.e ?? 0, y: t?.f ?? 0 }, performance.now());
+      }
+    }
+  });
 
   return () => {
-    view.removeEventListener("pointerdown", onDown);
-    view.removeEventListener("pointermove", onMove);
-    view.removeEventListener("pointerup", onUp);
-    view.removeEventListener("pointercancel", onUp);
+    stopButtons();
     stopButtons();
     if (dealTimer) clearTimeout(dealTimer);
     motion.stop();

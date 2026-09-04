@@ -94,4 +94,7 @@ describe("wireDrag in kit", () => {
     motions.stop();
     host.unmount();
   });
+  it("drag.willing-option", () => {
+    // dummy test
+  });
 });
