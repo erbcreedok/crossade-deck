@@ -1,0 +1,29 @@
+{
+  "docs.acceptor.component": [
+    "`Acceptor` is what makes a container a ZONE: it answers whether an element may enter.",
+    "",
+    "The rule is DATA (`AcceptRule`), read by a pure machine — never a callback stashed on the",
+    "node. A container with no `Acceptor` is not a zone at all: it accepts nobody, rather than",
+    "throwing. What `occupied` does with a sitter already there is a separate question, answered",
+    "by `Displacer` — `Acceptor` is silent about who is already inside.",
+    "",
+    "```ts",
+    "import { node, Container, Acceptor } from \"game-kit\";",
+    "",
+    "const zone = node(\"shelf\",",
+    "  Container({ layout: \"free\" }),",
+    "  Acceptor({ accept: { lt: [\"target.count\", 3] } }));",
+    "```",
+    "",
+    "## Absence is the refusal",
+    "",
+    "No rule stated means the default empty `and: []`, which the algebra reads as allow-everything —",
+    "a bare `Acceptor` is the open door, and a zone narrows by SETTING a rule. No atom at all is the",
+    "other extreme: judged by nobody, so nobody gets in."
+  ],
+  "docs.acceptor.zones": [
+    "The LEFT area is a plain container — no `Acceptor`, so a card let go over it always bounces",
+    "home. The RIGHT one wears the atom with the rule you pick: the open door, or a capacity read",
+    "off the zone's own child count. Set the capacity to 0 and even the first drop is refused."
+  ]
+}
