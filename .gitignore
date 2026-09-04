@@ -30,3 +30,4 @@ client2/test-results/
 .agent/NEXT.md
 .agent/REPORT.md
 .agent/tmp/
+.agent/queue/

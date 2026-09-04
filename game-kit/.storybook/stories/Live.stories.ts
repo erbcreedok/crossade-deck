@@ -83,7 +83,7 @@ export const Live: StoryObj<MagnetArgs> = {
             for (const one of others()) one.grasp?.();
           },
           hand: (items, at, done, feel) => {
-            for (const one of others()) follow(one, items, at, done, held, feel);
+            for (const one of others()) follow(one, items, at, done, held, feel, mine.seat);
           },
         }, LIVE_UNIT),
       );

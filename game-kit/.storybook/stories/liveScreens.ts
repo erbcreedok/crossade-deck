@@ -39,12 +39,14 @@ export function follow(
   done: boolean,
   lift: number,
   feel: CarryFeel,
+  fromSeat?: string,
 ): void {
   const s = screen.scene;
   if (!s) return;
+  const hand = `mirror:${fromSeat ?? screen.seat}`;
   const ids = items.map((it) => it.id);
   if (done || !at) {
-    for (const id of screen.mirroring ?? ids) s.motions?.release(id);
+    for (const id of screen.mirroring ?? ids) s.motions?.release(id, hand);
     screen.mirroring = undefined;
     screen.dot.style.display = "none";
     s.motions?.redraw();
@@ -60,13 +62,13 @@ export function follow(
   // first frame: the springs are re-seeded at the anchor, so nothing trails and nothing leans, and a
   // heap of thirty-six spends every frame building records to throw away.
   if (screen.mirroring?.length !== ids.length || screen.mirroring.some((id, i) => id !== ids[i])) {
-    for (const id of screen.mirroring ?? []) s.motions?.release(id);
+    for (const id of screen.mirroring ?? []) s.motions?.release(id, hand);
     screen.mirroring = [...ids];
-    s.motions?.grab(items, { ...feel, anchor: at, lift });
+    s.motions?.grab(items, { ...feel, anchor: at, lift, hand });
   }
   // ...AND THE CLOCK DRAWS IT. `dragTo` arms this screen's own loop, and the loop paints the man
   // riding the anchor frame by frame — the same frames the near screen paints him on. A paint
   // here as well, on every move, was a whole extra plan per pointer event on top of the two loops
   // already running: three plans a frame for one moving man, and the hang that came with it.
-  s.motions?.dragTo(at);
+  s.motions?.dragTo(at, hand);
 }

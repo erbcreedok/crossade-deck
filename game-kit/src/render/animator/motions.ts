@@ -73,6 +73,13 @@ export type CarryOptions = {
   /** The grab pivot in root units — where the finger is now. Seeds the springs, so nothing jumps. */
   readonly anchor: Vec;
   /**
+   * Which hand owns this carry, default "local".
+   *
+   * A "hand" is WHO carries, not what is carried: two screens over one shared tree are two hands.
+   * A node cannot be in two hands at once — a second grab of the same node steals it from the first hand.
+   */
+  readonly hand?: string | undefined;
+  /**
    * THE TRAY THE RUN MAY NOT LEAVE, root units — the box the ANCHOR is held inside, which is the
    * same thing a `slide` bounces off (inset it by the piece's own half: `wallsOf(root, tray, half)`).
    *
@@ -296,7 +303,7 @@ export interface Motions {
   /** A finger now owns this node: track its tree pose 1:1, do not ease it. */
   hold(id: NodeId): void;
   /** Hand the node back: the next tree change eases it from here to its rest pose. */
-  release(id: NodeId): void;
+  release(id: NodeId, hand?: string): void;
   /**
    * Begin a spring carry of a RUN of nodes. Their poses become the finger's — an OVERRIDE, never a
    * tree write — laid out each frame by the `CarryStyle` from the springed anchor. The springs are
@@ -304,10 +311,10 @@ export interface Motions {
    * `dragTo` on every pointer-move and `release` on each node when the gesture ends.
    */
   grab(items: readonly CarryItem[], opts: CarryOptions): void;
-  /** Move the finger: retarget the chase springs. The run trails to the new anchor and leans en route. */
-  dragTo(anchor: Vec): void;
-  /** The carry's speed right now (root units/s) — what a throw on release inherits. `undefined` when nothing is carried. */
-  velocity(): Vec | undefined;
+  /** Move the finger of the given hand (default "local"): retarget the chase springs. The run trails to the new anchor and leans en route. */
+  dragTo(anchor: Vec, hand?: string): void;
+  /** The carry's speed right now for the given hand (default "local", root units/s) — what a throw on release inherits. `undefined` when nothing is carried by that hand. */
+  velocity(hand?: string): Vec | undefined;
   /**
    * Turn a node over on the clock. It squeezes to an edge and back — `|cos|` of a half-turn — and
    * `commit` runs at the EDGE, where the card has no width to show the swap. `commit` is the actual

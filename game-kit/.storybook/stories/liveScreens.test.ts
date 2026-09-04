@@ -60,4 +60,72 @@ describe("a hand mirrored onto another screen", () => {
     expect(dot.style.display).toBe("none");
     far.dispose();
   });
+
+  it("live.two-screens-two-hands-moving-one-does-not-affect-the-other — two screens, two hands drag independently", () => {
+    const desk = chessMap();
+    let drawnA = 0;
+    let drawnB = 0;
+    const stubA = (): Painter => ({ ready: Promise.resolve(), draw: () => { drawnA += 1; }, resize: () => {}, destroy: () => {} });
+    const stubB = (): Painter => ({ ready: Promise.resolve(), draw: () => { drawnB += 1; }, resize: () => {}, destroy: () => {} });
+    let now = 0;
+    let frameA: ((ms: number) => void) | null = null;
+    let frameB: ((ms: number) => void) | null = null;
+    const clockA = { now: () => now, frame: (cb: (ms: number) => void) => { frameA = cb; return () => { frameA = null; }; } };
+    const clockB = { now: () => now, frame: (cb: (ms: number) => void) => { frameB = cb; return () => { frameB = null; }; } };
+    const tick = (n: number): void => {
+      for (let i = 0; i < n; i += 1) {
+        now += 16;
+        const cbA = frameA; frameA = null; cbA?.(now);
+        const cbB = frameB; frameB = null; cbB?.(now);
+      }
+    };
+    const sceneA = buildScene(desk, { animate: true, motion: { clock: clockA }, camera: { limits: { minZoom: 0.5, maxZoom: 2.5 }, content: chessRoom(), unit: CHESS_UNIT } }, currentSettings(), stubA);
+    const sceneB = buildScene(desk, { animate: true, motion: { clock: clockB }, camera: { limits: { minZoom: 0.5, maxZoom: 2.5 }, content: chessRoom(), unit: CHESS_UNIT } }, currentSettings(), stubB);
+    document.body.appendChild(sceneA.el);
+    document.body.appendChild(sceneB.el);
+    const dotA = document.createElement("div");
+    const dotB = document.createElement("div");
+    const screenA: Screen = { seat: "white", ink: "action", dot: dotA, scene: sceneA };
+    const screenB: Screen = { seat: "black", ink: "alert", dot: dotB, scene: sceneB };
+
+    const pawnWhite = squareAt(desk, { x: 0.5, y: 2.5 })!.children[0]!;
+    const pawnBlack = squareAt(desk, { x: 1.5, y: -2.5 })!.children[0]!;
+
+    // Screen A grabs white pawn locally and mirrors to screen B
+    sceneA.motions!.grab([{ id: pawnWhite.id, offset: { x: 0, y: 0 } }], { anchor: { x: 0.5, y: 1.0 }, hand: "local" });
+    follow(screenB, [{ id: pawnWhite.id, offset: { x: 0, y: 0 } }], { x: 0.5, y: 1.0 }, false, 1.3, {}, "white");
+
+    // Screen B grabs black pawn locally and mirrors to screen A
+    sceneB.motions!.grab([{ id: pawnBlack.id, offset: { x: 0, y: 0 } }], { anchor: { x: 1.5, y: -1.0 }, hand: "local" });
+    follow(screenA, [{ id: pawnBlack.id, offset: { x: 0, y: 0 } }], { x: 1.5, y: -1.0 }, false, 1.3, {}, "black");
+
+    // Move screen A's hand
+    sceneA.motions!.dragTo({ x: 0.5, y: 0.0 }, "local");
+    follow(screenB, [{ id: pawnWhite.id, offset: { x: 0, y: 0 } }], { x: 0.5, y: 0.0 }, false, 1.3, {}, "white");
+
+    // Move screen B's hand
+    sceneB.motions!.dragTo({ x: 1.5, y: 0.0 }, "local");
+    follow(screenA, [{ id: pawnBlack.id, offset: { x: 0, y: 0 } }], { x: 1.5, y: 0.0 }, false, 1.3, {}, "black");
+
+    tick(60);
+
+    // On scene A: pawnWhite is at 0.5, 0.0; pawnBlack is at 1.5, 0.0
+    const posWhiteOnA = sceneA.motions!.poses()?.get(pawnWhite.id)!;
+    const posBlackOnA = sceneA.motions!.poses()?.get(pawnBlack.id)!;
+    expect(posWhiteOnA.e).toBeCloseTo(0.5, 2);
+    expect(posWhiteOnA.f).toBeCloseTo(0.0, 2);
+    expect(posBlackOnA.e).toBeCloseTo(1.5, 2);
+    expect(posBlackOnA.f).toBeCloseTo(0.0, 2);
+
+    // On scene B: pawnWhite is at 0.5, 0.0; pawnBlack is at 1.5, 0.0
+    const posWhiteOnB = sceneB.motions!.poses()?.get(pawnWhite.id)!;
+    const posBlackOnB = sceneB.motions!.poses()?.get(pawnBlack.id)!;
+    expect(posWhiteOnB.e).toBeCloseTo(0.5, 2);
+    expect(posWhiteOnB.f).toBeCloseTo(0.0, 2);
+    expect(posBlackOnB.e).toBeCloseTo(1.5, 2);
+    expect(posBlackOnB.f).toBeCloseTo(0.0, 2);
+
+    sceneA.dispose();
+    sceneB.dispose();
+  });
 });

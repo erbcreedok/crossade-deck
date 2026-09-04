@@ -721,6 +721,64 @@ describe("the motion runtime", () => {
     const restX = b.xOf("c");
     expect(b.xOf("d")).toBeGreaterThan(restX);
   });
+
+  it("motion.supports-multi-hand-dragging — two hands carry different pieces simultaneously", () => {
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1 });
+
+    const restC = b.xOf("c");
+    const restD = b.xOf("d");
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 2, y: 0 }, hand: "handA" });
+    m.grab([{ id: "d", offset: { x: 0, y: 0 } }], { anchor: { x: 5, y: 0 }, hand: "handB" });
+
+    m.dragTo({ x: 3, y: 0 }, "handA");
+    m.dragTo({ x: 8, y: 0 }, "handB");
+
+    let t = 0;
+    c.tick((t += 16));
+
+    expect(b.xOf("c") - restC).toBeCloseTo(3, 2);
+    expect(b.xOf("d") - restD).toBeCloseTo(8, 2);
+
+    m.release("c", "handA");
+    m.dragTo({ x: 9, y: 0 }, "handB");
+    c.tick((t += 16));
+
+    expect(b.xOf("d") - restD).toBeCloseTo(9, 2);
+  });
+
+  it("motion.steals-piece-when-grabbed-by-another-hand — a second hand steals a carried piece", () => {
+    const b = bench();
+    add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    b.host.setRoot(b.desk);
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1 });
+
+    const restC = b.xOf("c");
+    const restD = b.xOf("d");
+
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 1, y: 0 } }], { anchor: { x: 0, y: 0 }, hand: "handA" });
+    let t = 0;
+    c.tick((t += 16));
+
+    m.grab([{ id: "d", offset: { x: 0, y: 0 } }], { anchor: { x: 10, y: 0 }, hand: "handB" });
+    c.tick((t += 16));
+
+    m.dragTo({ x: 12, y: 0 }, "handB");
+    m.dragTo({ x: 4, y: 0 }, "handA");
+    c.tick((t += 16));
+
+    expect(b.xOf("c") - restC).toBeCloseTo(4, 2);
+    expect(b.xOf("d") - restD).toBeCloseTo(12, 2);
+
+    // If second hand steals the only piece of handA, handA is removed
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 20, y: 0 }, hand: "handB" });
+    expect(m.velocity("handA")).toBeUndefined();
+  });
 });
 
 describe("a flip on the clock", () => {

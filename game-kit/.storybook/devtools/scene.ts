@@ -793,6 +793,7 @@ export function scene(
   };
   LIVE.set(id, built);
   BY_ELEMENT.set(el, built);
+  if (typeof window !== "undefined") (window as unknown as { __LIVE_SCENES__?: Map<string, Scene> }).__LIVE_SCENES__ = LIVE;
   return built;
 }
 

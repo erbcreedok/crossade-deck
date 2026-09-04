@@ -98,7 +98,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   // Nodes a finger is dragging: their pose is the FINGER's, an override, not the tree's. A drag never
   // touches the tree — the carry step only writes here — so a pointer-move costs one paint, not a reconcile.
   const carried = new Set<NodeId>();
-  let carrying: Carry | null = null;
+  const carries = new Map<string, Carry>();
   // Choreographies keyed by their subject — a node for a turn or a tumble, a container for a shuffle —
   // so a second call on the same subject replaces the first: the latest word wins, as everywhere here.
   const choreos = new Map<NodeId, Choreo>();
@@ -303,12 +303,43 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * any other, and a game that means it to stay writes the seat in its callback: the reconcile that
    * write brings simply retargets a motion that is already under way.
    */
-  const letGo = (cy: Carry): void => {
+  const removeFromCarry = (cy: Carry, id: NodeId): boolean => {
+    const idx = cy.items.findIndex((it) => it.id === id);
+    if (idx === -1) return false;
+    const newItems = cy.items.filter((_, i) => i !== idx);
+    if (newItems.length === 0) return true;
+    const keptIndices = cy.items.map((_, i) => i).filter((i) => i !== idx);
+    cy.items = newItems;
+    cy.tails = keptIndices.map((i) => cy.tails[i] ?? { x: springAt(cy.target.x), y: springAt(cy.target.y) });
+    const leadGap = cy.gaps[keptIndices[0]!] ?? { x: 0, y: 0 };
+    cy.gaps = keptIndices.map((i) => {
+      const g = cy.gaps[i] ?? { x: 0, y: 0 };
+      return { x: g.x - leadGap.x, y: g.y - leadGap.y };
+    });
+    const newBases = new Map<NodeId, Transform>();
+    for (const it of newItems) {
+      const b = cy.bases.get(it.id);
+      if (b) newBases.set(it.id, b);
+    }
+    (cy as { bases: ReadonlyMap<NodeId, Transform> }).bases = newBases;
+    return false;
+  };
+
+  const letGo = (cy: Carry, handKey?: string): void => {
     for (const it of cy.items) {
       carried.delete(it.id);
       held.delete(it.id);
     }
-    if (carrying === cy) carrying = null;
+    if (handKey) {
+      carries.delete(handKey);
+    } else {
+      for (const [k, c] of carries) {
+        if (c === cy) {
+          carries.delete(k);
+          break;
+        }
+      }
+    }
     reconcile();
   };
 
@@ -322,7 +353,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * piece which cannot follow is not holding it any more. Anything gentler is a run straining after
    * a finger it cannot reach, which is what a piece in a box does.
    */
-  const wallCheck = (cy: Carry): void => {
+  const wallCheck = (cy: Carry, handKey: string): void => {
     const at = heldAt(cy);
     const outX = cy.target.x - at.x;
     const outY = cy.target.y - at.y;
@@ -341,12 +372,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         speed: into,
         velocity: { x: (cy.sx.vel - 2 * into * nx) * cy.wallBounce, y: (cy.sy.vel - 2 * into * ny) * cy.wallBounce },
       };
-      letGo(cy);
+      letGo(cy, handKey);
       cy.onWall?.(hit);
       return;
     }
     if (out > cy.leash) {
-      letGo(cy);
+      letGo(cy, handKey);
       cy.onSnap?.(ids, at);
     }
   };
@@ -535,8 +566,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     }
     // Advance the carry springs: chase the finger, pop the lift, and lay the run out from where the
     // springs now are — the lag and the lean both fall out of the spring state, no separate tween.
-    if (carrying) {
-      const cy = carrying;
+    for (const [handKey, cy] of [...carries]) {
       if (instant) {
         cy.sx = springAt(cy.target.x);
         cy.sy = springAt(cy.target.y);
@@ -554,20 +584,12 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         const to = heldAt(cy);
         cy.tails = cy.tails.map((t, i) => {
           if (i === 0) return t;
-          // WHAT THE HAND POINTS WITH DOES NOT TRAIL — it is AT the hand, not chasing it. A trail is
-          // the LOAD hanging off a hand and catching up; a piece marked `still` is not load at all
-          // but the hand's own instrument, the handle being held and the picture of where this is
-          // going, and an instrument that lagged would be pointing at somewhere the hand has left.
-          //
-          // Not merely a stiffer spring: a spring always lags a moving target, and these ride at the
-          // END of a run where the trail is softest — the tab and the mark drifted furthest of
-          // anything on the desk, which is exactly backwards.
           if (cy.items[i]?.still) return { x: { pos: to.x, vel: 0 }, y: { pos: to.y, vel: 0 } };
           return { x: stepSpring(t.x, to.x, tailCfg(cy, i), dt), y: stepSpring(t.y, to.y, tailCfg(cy, i), dt) };
         });
       }
       layCarry(cy);
-      if (cy.walls) wallCheck(cy);
+      if (cy.walls) wallCheck(cy, handKey);
     }
     // Advance the flights: a stagger holds a body at rest until its turn; then the physics.
     for (const [id, f] of [...flights]) {
@@ -695,7 +717,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     if (committed) reconcile();
     for (const [key, ch] of [...choreos]) if (instant || progressOf(ch) >= 1) choreos.delete(key);
     draw();
-    if (active.size > 0 || choreos.size > 0 || flights.size > 0 || (carrying && !carrySettled(carrying))) ensureLoop();
+    const carriesUnsettled = [...carries.values()].some((cy) => !carrySettled(cy));
+    if (active.size > 0 || choreos.size > 0 || flights.size > 0 || carriesUnsettled) ensureLoop();
   };
 
   const ensureLoop = (): void => {
@@ -750,7 +773,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     flights.set(id, f);
     held.delete(id);
     carried.delete(id);
-    if (carrying && carrying.items.every((it) => !carried.has(it.id))) carrying = null;
+    for (const [k, cy] of [...carries]) {
+      if (cy.items.every((it) => !carried.has(it.id))) carries.delete(k);
+    }
     ensureLoop();
   };
 
@@ -780,14 +805,24 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       held.add(id);
       active.delete(id);
     },
-    release(id) {
+    release(id, hand) {
       held.delete(id);
       carried.delete(id);
-      // The run empties one node at a time (the scene releases per card). When the last is gone the
-      // carry is over — the springs and target go with it, and the next reconcile eases the nodes home.
-      if (carrying && carrying.items.every((it) => !carried.has(it.id))) carrying = null;
+      if (hand) {
+        const cy = carries.get(hand);
+        if (cy) {
+          const empty = removeFromCarry(cy, id);
+          if (empty) carries.delete(hand);
+        }
+      } else {
+        for (const [k, cy] of [...carries]) {
+          const empty = removeFromCarry(cy, id);
+          if (empty) carries.delete(k);
+        }
+      }
     },
     grab(items, opts) {
+      const handKey = opts.hand ?? "local";
       // THE FINGER IS THE LATEST WORD. Whatever the clock was doing to these nodes ends HERE, and it
       // ends by LANDING rather than by being thrown away: a throw the hand caught is a throw that
       // finished where it was caught, so the seat and the face it was carrying are written, and the
@@ -805,10 +840,29 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
           choreos.delete(key);
         }
       }
+      // Steal items from any other hand that holds them
+      for (const it of items) {
+        for (const [k, cy] of [...carries]) {
+          if (k === handKey) continue;
+          const empty = removeFromCarry(cy, it.id);
+          if (empty) carries.delete(k);
+        }
+      }
+      // If this hand already has a carry, release items not included in the new grab
+      const oldHandCarry = carries.get(handKey);
+      if (oldHandCarry) {
+        for (const oldIt of oldHandCarry.items) {
+          if (!items.some((it) => it.id === oldIt.id)) {
+            carried.delete(oldIt.id);
+            held.delete(oldIt.id);
+          }
+        }
+        carries.delete(handKey);
+      }
       reconcile();
       const t = tune({ ...tuning, ...opts });
       const anchor = opts.anchor;
-      carrying = {
+      const cy: Carry = {
         items,
         style: carry(t.carry),
         target: anchor,
@@ -829,14 +883,6 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         tails: items.map(() => ({ x: springAt(anchor.x), y: springAt(anchor.y) })),
         // WHERE THE HAND FOUND EACH PIECE, against where the run now says it belongs — MINUS the
         // lead's own, which is the whole of keeping this from fighting the law above it.
-        //
-        // A grab places the run under the finger AT ONCE: that is what a hand closing on a thing
-        // does, and a position lag there reads as sluggishness rather than as weight. So the piece
-        // the hand has hold of never eases anywhere — its gap is subtracted from every other, and
-        // what is left is the run's own SHAPE. Move the whole run and every gap is the same vector,
-        // the residues are nothing, and the placement is instant as it always was. ARRANGE it — a
-        // heap pulled into a stack by its handle — and the residues are what each piece still has to
-        // travel to fall into line, which is a settle and not a snap.
         gaps: items.map((it, i) => {
           const lead = gapOf(items[0]!, anchor);
           const own = i === 0 ? lead : gapOf(it, anchor);
@@ -852,22 +898,25 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         onWall: opts.onWall,
         onSnap: opts.onSnap,
       };
+      carries.set(handKey, cy);
       for (const it of items) {
         carried.add(it.id);
         held.add(it.id);
         active.delete(it.id);
       }
-      layCarry(carrying); // paint the run under the finger at once
+      layCarry(cy); // paint the run under the finger at once
       draw();
-      if (!carrySettled(carrying)) ensureLoop(); // a pop or an off-anchor seat needs the loop; a bare grab does not
+      if (!carrySettled(cy)) ensureLoop(); // a pop or an off-anchor seat needs the loop; a bare grab does not
     },
-    dragTo(anchor) {
-      if (!carrying) return;
-      carrying.target = anchor;
+    dragTo(anchor, hand = "local") {
+      const cy = carries.get(hand);
+      if (!cy) return;
+      cy.target = anchor;
       ensureLoop();
     },
-    velocity() {
-      return carrying ? { x: carrying.sx.vel, y: carrying.sy.vel } : undefined;
+    velocity(hand = "local") {
+      const cy = carries.get(hand);
+      return cy ? { x: cy.sx.vel, y: cy.sy.vel } : undefined;
     },
     ...choreographies(rt),
     ...throws(rt),
@@ -904,7 +953,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       choreos.clear();
       flights.clear();
       carried.clear();
-      carrying = null;
+      carries.clear();
     },
   };
 }

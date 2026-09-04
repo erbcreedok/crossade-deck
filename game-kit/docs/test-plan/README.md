@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**68 слоёв · 1565 кейсов заявлено · 1392 расписано поимённо.**
+**68 слоёв · 1568 кейсов заявлено · 1395 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -65,7 +65,7 @@
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 34 | 34 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
-| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 48 | 48 |
+| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 50 | 50 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 12 | 12 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 13 | 13 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 9 | 9 |
@@ -92,5 +92,5 @@
 | [UNIT · сборка стеков — что становится одной кучей](64-stack-merging.md) | `vitest (headless, no WebGL)` | 9 | 9 |
 | [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 6 | 6 |
 | [UNIT · магнетизм — какой зоне принадлежит отпускание](66-magnetism.md) | `vitest (headless, no WebGL)` | 20 | 20 |
-| [UNIT · live — общий стол на двоих](67-live.md) | `vitest (headless, no WebGL)` | 6 | 6 |
+| [UNIT · live — общий стол на двоих](67-live.md) | `vitest (headless, no WebGL)` | 7 | 7 |
 | [UNIT · шахматы — доска как стол из МЕСТ](68-chess.md) | `vitest (headless, no WebGL)` | 6 | 6 |

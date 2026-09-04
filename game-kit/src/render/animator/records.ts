@@ -13,7 +13,7 @@ import { type Tumbling } from "./physics.js";
 
 /** The live state of a spring carry — the springs, the target, and the style + tune to play them. */
 export interface Carry {
-  readonly items: readonly CarryItem[];
+  items: readonly CarryItem[];
   readonly style: CarryStyle;
   target: Vec;
   sx: SpringState;
