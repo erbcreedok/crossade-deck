@@ -55,9 +55,8 @@ import {
   type TransformableFields,
   type ValuedFields,
   type Vec,
-} from "../../src/index.js";
-import { svg } from "./stockAssets.js";
-import { installMapArt, PUT_DOWN, warmingNodes } from "./gestureMap.js";
+} from "game-kit";
+import { installMapArt, PUT_DOWN, svg, warmingNodes } from "./felt.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
 export const CHESS_SEATS = [

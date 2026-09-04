@@ -3,7 +3,7 @@
 // the game, which the page deliberately does not decide.
 
 import { describe, expect, it } from "vitest";
-import { caps, compose, fieldsOf, placeChildren, Transformable, wouldAccept, type Node, type TransformableFields } from "../../src/index.js";
+import { caps, compose, fieldsOf, placeChildren, Transformable, wouldAccept, type Node, type TransformableFields } from "game-kit";
 import { COMMON, FELT, isChecker, isPoint, mayThrow, nardyMap, numberOf, pointAt, pointUnder, regripDice, runOf, seatsOf, wallsOf } from "./nardyMap.js";
 
 const points = (desk: Node): Node[] => desk.children.filter(isPoint);

@@ -2,7 +2,7 @@
 // THE OTHER SCREEN'S HAND — what `follow` does to a scene that did not start the carry.
 import { describe, expect, it } from "vitest";
 import { mark, visibleMark, type Painter, type ViewerSettings } from "../../src/index.js";
-import { chessMap, chessRoom, CHESS_UNIT, squareAt } from "./chessMap.js";
+import { chessMap, chessRoom, CHESS_UNIT, squareAt } from "@game-presets/desks";
 import { follow, type Screen } from "./liveScreens.js";
 import { scene as buildScene } from "../devtools/scene.js";
 import { currentSettings } from "../devtools/catalogSettings.js";

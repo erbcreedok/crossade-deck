@@ -5,7 +5,7 @@
 // each, and every card face up — because the page deliberately teaches sharing and not hiding.
 
 import { describe, expect, it } from "vitest";
-import { caps, facing, fieldsOf, heapOf, keenOf, surfaceRecord, type Node, type SurfacedFields, type TransformableFields } from "../../src/index.js";
+import { caps, facing, fieldsOf, heapOf, keenOf, surfaceRecord, type Node, type SurfacedFields, type TransformableFields } from "game-kit";
 import { liveMap, LIVE, SEATS } from "./liveMap.js";
 
 const areas = (desk: Node): Node[] => desk.children.filter((n) => caps(n).has("Acceptor"));

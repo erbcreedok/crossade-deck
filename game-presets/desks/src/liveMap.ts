@@ -39,10 +39,23 @@ import {
   Transformable,
   type Node,
   type Vec,
-} from "../../src/index.js";
+} from "game-kit";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, LAMP, installMapArt, MAP, onTheDesk, PUT_DOWN, warmingNodes, zoneKeen, zoneLine } from "./gestureMap.js";
-import { handLayout, PULL, ZONE_SPREAD, type Spread } from "./magnetMap.js";
+import {
+  CASTS,
+  handLayout,
+  installMapArt,
+  LAMP,
+  MAP,
+  onTheDesk,
+  PULL,
+  PUT_DOWN,
+  warmingNodes,
+  zoneKeen,
+  zoneLine,
+  ZONE_SPREAD,
+  type Spread,
+} from "./felt.js";
 
 /**
  * WHAT ONE UNIT IS WORTH ON A LIVE PANE, in pixels.

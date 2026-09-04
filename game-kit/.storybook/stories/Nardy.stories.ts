@@ -11,7 +11,7 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockCoats, installStockMarkIcons, installStockMarks, t, type Node, type Vec } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { mayThrow, nardyMap, nardyRoom, NARDY_SEATS, NARDY_UNIT, pointUnder, runOf, seatsOf, settled, wallsOf } from "./nardyMap.js";
+import { mayThrow, nardyMap, nardyRoom, NARDY_SEATS, NARDY_UNIT, pointUnder, runOf, seatsOf, settled, wallsOf } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 

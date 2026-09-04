@@ -52,16 +52,18 @@ import {
   Surfaced,
   Transformable,
   type BoundedFields,
-  type LayoutChild,
-  type LayoutRecord,
   type Node,
-  type Point,
-  type Shape,
   type TransformableFields,
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isDrawn, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, zoneKeen, zoneLine, type HeapRule } from "./gestureMap.js";
+// `handLayout`/`Spread`/`fitStep`/`PULL`/`ZONE_SPREAD` moved to `@game-presets/desks`'s felt — the
+// live desk lays its two areas out by the same four numbers a hand of cards is fitted by, so the
+// shape is a shared one and not this page's alone. Imported back and re-exported, one value per
+// name and not two that drift.
+import { fitStep, handLayout, PULL, ZONE_SPREAD, type Spread } from "@game-presets/desks";
+export { fitStep, handLayout, PULL, ZONE_SPREAD, type Spread };
 
 /** How many cards the deck holds, and where it and the zone stand. */
 export const MAGNET = { cards: 36 };
@@ -93,18 +95,9 @@ export const CARD_SHARE = 0.1;
  * has played is a TIGHT one, and what grows with the count is how packed it is, not how wide.
  */
 export const FAN_SPREAD: Spread = { gapMin: 0.05, gapMax: 0.5, wideMin: 0.16, wideMax: 0.62 };
-export const ZONE_SPREAD: Spread = { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 };
 
 /** How far the outermost card of a fan leans, degrees. `0` is a straight line of upright cards. */
 export const FAN_TILT = 26;
-
-/**
- * How far the zone reaches past its own edge, root units — see `Reaching`.
- *
- * Measured edge to edge, so this is a gap of bare felt between the card and the border and reads as
- * one: a finger's width of forgiveness, not "somewhere in the general direction".
- */
-export const PULL = 0.4;
 
 /** The zone's own box, in units — a hand's worth of cards wide, and a card and a half tall. */
 const ZONE = { w: 3.4, h: 2 };
@@ -274,31 +267,6 @@ function toEdge(a: Vec, b: Vec, p: Vec): number {
 
 
 /**
- * A HAND LAID OUT IN A ROW, by the same four numbers the fan uses — and it is the same question:
- * how far apart may these cards be, and how wide may the lot of them get.
- *
- * What differs is the room. A hand in the air is bounded by the desk; a hand lying in a zone is
- * bounded by the zone, and that bound is HARD — a row that outgrew its border would read as the
- * zone having failed to hold what it was given. Given no box the layout places nobody: inventing an
- * edge is worse than saying there is none, which is the same silence a free canvas gives.
- */
-export function handLayout(look: Spread, padding = 0): LayoutRecord {
-  const place = (children: readonly LayoutChild[], box?: Shape): readonly (Point | undefined)[] => {
-    if (!box) return children.map(() => undefined);
-    const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 0), 0);
-    // The room a card's own CENTRE may stand in: the box, less the padding, less the card itself.
-    const room = Math.max(0, extentOf(box).w - 2 * padding - widest);
-    const step = fitStep(children.length, room, look);
-    const from = -(step * (children.length - 1)) / 2;
-    return children.map((_child, i) => ({ x: from + step * i, y: 0 }));
-  };
-  // NO ADDRESSES. A hand is not a set of slots: a card given to it JOINS it, and where it ends up
-  // is a consequence of how many there are rather than of where the finger was. `indexAt` is
-  // optional for exactly this — a layout with no seats to point at says so by not answering.
-  return { padding, place };
-}
-
-/**
  * WHAT THE ZONE IS HOLDING — its own children, and anything else lying far enough inside it.
  *
  * Parentage alone is not the answer. A card put down by a hand belongs to the zone by having been
@@ -336,50 +304,6 @@ export function zoneHolds(share: number): NonNullable<HeapRule["held"]> {
   };
 }
 
-
-/**
- * WHAT A SPREAD OF CARDS IS ALLOWED TO BE — the same four numbers for a hand in the air and a hand
- * lying in its zone, because it is the same question asked in two places.
- *
- * TWO BOUNDS ON THE STEP and two on the WHOLE. A step alone cannot say "a hand of twenty may be
- * wider than a hand of three but not wider than the desk"; a width alone cannot say "two cards must
- * not sit a hand's length apart just because there is room". Neither is derivable from the other,
- * and every card game anybody has played has an opinion about both.
- *
- * The widths are FRACTIONS of the room the spread lives in — the desk for a hand in the air, the
- * zone's own box for one lying in it — so the numbers mean the same thing on either side and survive
- * a change of size on either.
- */
-export interface Spread {
-  /** Units between neighbouring card centres: the closest they may ever be, and the furthest. */
-  readonly gapMin: number;
-  readonly gapMax: number;
-  /** The whole spread's width, as a fraction of the room it is in. */
-  readonly wideMin: number;
-  readonly wideMax: number;
-}
-
-/**
- * THE STEP THIS MANY CARDS ACTUALLY TAKE, in units.
- *
- * With a stated order, because the four bounds can contradict each other and something has to lose.
- * The line between them is what a bound is FOR:
- *
- *   CEILINGS ARE ABOUT NOT OVERFLOWING, and they always win. The room is one — a spread never leaves
- *   the place it is in, which is not a preference but what an edge means — and the width ceiling is
- *   the same kind of statement about a smaller box the reader drew inside it.
- *   FLOORS ARE ABOUT COMFORT: cards no closer than this, a hand no narrower than that. They lift the
- *   step when there is headroom and give way the moment a ceiling disagrees.
- *   THE COMFORTABLE STEP sits between them, taken whenever nothing else has an opinion.
- */
-export function fitStep(count: number, room: number, look: Spread): number {
-  if (count < 2) return 0;
-  const gaps = count - 1;
-  const hard = Math.min(room / gaps, (room * look.wideMax) / gaps);
-  const want = Math.min(look.gapMax, hard);
-  const floor = Math.max(look.gapMin, (room * look.wideMin) / gaps);
-  return Math.min(hard, Math.max(want, floor));
-}
 
 /**
  * A HAND SPLAYED — laid out by its WIDTH, and turned to match.

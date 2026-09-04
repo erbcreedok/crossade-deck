@@ -63,9 +63,9 @@ import {
   type ValuedFields,
   type Vec,
   type Walls,
-} from "../../src/index.js";
+} from "game-kit";
 import { die } from "@game-presets/dice";
-import { installMapArt, PUT_DOWN, onTheDesk, warmingNodes } from "./gestureMap.js";
+import { installMapArt, onTheDesk, PUT_DOWN, warmingNodes } from "./felt.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its marks'. */
 export const NARDY_SEATS = [

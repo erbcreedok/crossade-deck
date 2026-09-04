@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockCoats, installStockFlips, installStockMarkIcons, installStockMarks, t } from "../../src/index.js";
 import { type Mirror } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { liveMap, liveTune, LIVE_UNIT, SEATS } from "./liveMap.js";
+import { liveMap, liveTune, LIVE_UNIT, SEATS } from "@game-presets/desks";
 import { MAGNET_ARGS, MAGNET_KNOBS, magnetScene, zoneSpread, type MagnetArgs } from "./magnetScene.js";
 
 // LIVE — the same desk in front of two people, which is the one thing a mechanic cannot be tried
