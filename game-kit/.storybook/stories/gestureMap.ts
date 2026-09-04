@@ -17,6 +17,12 @@
 // names, not theme tokens — a piece is content, and it does not follow the theme.
 
 import {
+  CARRY_CLEAR,
+  landingMark,
+  landingAt,
+  landingBox,
+  MARK_SURFACE,
+
   add,
   apply,
   Bounded,
@@ -386,7 +392,6 @@ export function gestureMap(): Node {
 const CHIP = 0.5;
 const CHIP_SURFACE = "gesture.map.chip";
 const GRIP_SURFACE = "gesture.map.grip";
-const MARK_SURFACE = "gesture.map.mark";
 const GRIP_RIDGES = "gesture.map.grip.ridges";
 
 /** The one denomination on this desk — six of a kind, so what groups them is touching and not value. */
@@ -640,75 +645,6 @@ export const isDrawn = (n: Node): boolean => isGrip(n) || isMark(n);
  * cards ride at the hand's height, splayed, a card's width above the tab; the tab travels flat on
  * the felt at the point the run is anchored on. Neither of those is the answer to "where will this
  * stack STAND", and a player carrying thirty-six cards across a desk was being asked to work it out.
- *
- * IT RIDES THE CARRY AND IS NEVER WRITTEN. Given to the hand as one more thing being carried — with
- * no lift, so it stays on the felt, and at the seat the run's first card will take — it follows the
- * finger for free, every frame, without a single write to the tree while the hand is moving.
- */
-export function landingMark(at: Vec, box: { readonly w: number; readonly h: number }, nth: number, seat?: string): Node {
-  return node(
-    `landing mark ${nth}`,
-    Bounded({ bounds: roundedRect(box.w, box.h, Math.min(box.w, box.h) * 0.08) }),
-    // WHOSE PICTURE IT IS. A seat that is known opens the mark to that seat alone; a desk with no
-    // seats (a single-screen story) leaves it open, because there is nobody to hide it from.
-    ...(seat ? [Private({ access: [seat] })] : []),
-    Surfaced({ surface: MARK_SURFACE }),
-    // UNDER WHAT IS BEING CARRIED. The picture and the load are drawn together — both ride the hand,
-    // so the plan puts them in the same rank and the order inside it is the z. Left at the desk's
-    // own, the mark is the newest child and lands on TOP of the very cards it is a picture for, and
-    // a hand of thirty-six is read through a cage. Below them it is a shape on the felt, which is
-    // what it is: the load leans over it and the outline still reads all the way round.
-    Transformable({ at, z: MARK_UNDER }),
-    Valued({ values: { mark: nth } }),
-  );
-}
-
-/** How far below everything else the landing picture is drawn. Deep enough that nothing sorts under it. */
-const MARK_UNDER = -1000;
-
-/**
- * THE SILHOUETTE THIS RUN WILL LEAVE ON THE FELT, and where its middle stands relative to the anchor.
- *
- * The shape of what will BE there, not of what is being held. A hand is carried splayed and in the
- * air; what lands is a squared pile lying flat, and its outline is the run's seats swept by one
- * piece's own box (`stackSeats` — the very seats the landing will write). One card gives one card;
- * thirty-six give a card and the pile's own step, which is a card and a sliver.
- *
- * WITH ITS LANDING POSE, which is upright: a pile has no lean, so neither has the picture of one.
- * A silhouette wearing the fan's angle would be a picture of the hand rather than of the landing.
- */
-/**
- * WHERE THE PICTURE OF THE LANDING STANDS — under the anchor, or IN the zone that would take it.
- *
- * The picture is of the PLACE, and when a zone would take this run the place is the zone: a zone
- * lays its own things out in its own arrangement, so where these cards will lie there is the zone's
- * business and not the felt's. Aim at somebody's area and the picture moves into it — the answer
- * before the hand has let go, and given by the very question that lights the zone, so the light and
- * the picture can never say two different things.
- *
- * IT KEEPS ITS OWN SIZE either way. Grown to the zone's outline it would trace the border the zone
- * already draws — a second line on the first, saying nothing the first did not. What has news in it
- * is the same thing as always: the shape of what will be lying there.
- */
-export function landingAt(anchor: Vec, seat: Vec, zone: Node | undefined): Vec {
-  const home = zone ? fieldsOf<TransformableFields>(zone, "Transformable")?.at : undefined;
-  return home ?? { x: anchor.x + seat.x, y: anchor.y + seat.y };
-}
-
-export function landingBox(
-  run: readonly Node[],
-  seats: readonly Vec[],
-): { readonly at: Vec; readonly w: number; readonly h: number } {
-  const shape = run[0] ? fieldsOf<BoundedFields>(run[0], "Bounded")?.bounds : undefined;
-  const own = shape ? extentOf(shape) : { w: 1, h: 1.4 };
-  const xs = seats.map((seat) => seat.x);
-  const ys = seats.map((seat) => seat.y);
-  const x0 = Math.min(...xs) - own.w / 2;
-  const x1 = Math.max(...xs) + own.w / 2;
-  const y0 = Math.min(...ys) - own.h / 2;
-  const y1 = Math.max(...ys) + own.h / 2;
-  return { at: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, w: x1 - x0, h: y1 - y0 };
-}
 
 /**
  * The box a heap covers, in root units — what "the common perimeter" means when the answer has to
@@ -791,13 +727,7 @@ export const GRIP_MISS = GRIP.w / 2;
  * is the number this began at. It is far too much: on a phone the load ends up a card's height off
  * the finger, which reads as a thing that got away from you rather than a thing in your hand, and
  * the further the load is from the place it is going, the less the picture of that place is worth.
- *
- * What had to be fixed was a load standing ON the answer and hiding it. It does not hide it any
- * more: the picture is drawn UNDER what is being carried, so the whole outline reads however far the
- * load leans over it, and this number is now only about how a held thing should sit in a hand.
  */
-export const CARRY_CLEAR = 0.32;
-
 const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
 
 /** The handle for one heap: a wide low tab under the middle of everything the heap covers. */

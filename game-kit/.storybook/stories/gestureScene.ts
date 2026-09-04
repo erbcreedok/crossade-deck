@@ -10,6 +10,12 @@
 // fall is asked for — is stated here once, so a new page inherits it by existing.
 
 import {
+  type CarryFeel,
+  landingPicture,
+  throwGate,
+  zoneFor,
+  aimOf,
+
   Coated,
   extentOf,
   mark,
@@ -66,14 +72,10 @@ import {
   isDrawn,
   isGrip,
   isMark,
-  landingAt,
-  landingBox,
-  landingMark,
   isPlaceGrip,
   regrasp,
   MAP,
   ANCHOR_MARK,
-  CARRY_CLEAR,
   flickOf,
   THROWN_AT,
   flightOf,
@@ -234,29 +236,7 @@ export function grabScene(
    * one card.
    */
   let carried: readonly CarryItem[] = [];
-  /** How many landing marks this scene has drawn — ids are names and nothing reads them. */
-  let marksDrawn = 0;
-  /**
-   * THE PICTURE OF WHERE THIS RUN WILL COME DOWN, and where it stands relative to the hand.
-   *
-   * A carry is an override and never a tree write — that is the law, and it is about PIECES: what
-   * the hand is holding must not be written down until it is let go of, or a drop would have nothing
-   * to write. A mark is not a piece. It is scenery the desk draws for the length of one gesture, it
-   * is on the felt rather than in the hand, and it is one node: writing it costs a layout pass on a
-   * desk of forty, which is what the desk does anyway every time the aim light changes.
-   */
-  let landing: { readonly node: Node; readonly seat: Vec; readonly hover: Vec; readonly w: number; readonly h: number } | undefined;
-  /**
-   * WHICH ZONE THE PICTURE IS PARKED IN, when it is in one.
-   *
-   * A picture on the felt is CARRIED — it rides the hand's own springs and costs the desk nothing
-   * per frame. A picture in a zone does not move at all: the place is the zone, and the zone does not
-   * follow the finger about. So the only moments anything has to be written are the moments the
-   * answer CHANGES, which is a handful per gesture — and never the sixty a second a moving finger
-   * asks for. Written every move, this hung the desk.
-   */
-  let parked: Node | undefined;
-  /**
+    /**
    * WHERE THIS RELEASE IS AIMED, for as long as the release lasts.
    *
    * The wiring asks a zone about the point the finger came up at, and a throw is not aimed at that
@@ -293,6 +273,7 @@ export function grabScene(
   });
   // How high the hand is actually holding it, once the switch and the page have both had their say.
   const held = lift ?? (physics ? DEFAULT_TUNING.lift : 1);
+  const landingPic = landingPicture(built, { shown: landingShown, onChange: () => mirror?.changed() });
   /** What is in the air or in a hand — never in a heap, on any screen. */
   const airborne = (): ((id: string) => boolean) => {
     const carried = inHand ? heaps.get(inHand) : undefined;
@@ -370,13 +351,8 @@ export function grabScene(
    * and the next carry looked "broken" for the same reason. So: the hand is throwing from the
    * moment it would fly, and is not throwing again only once it has slowed to half the threshold.
    */
-  let flying = false;
-  let rest: ReturnType<typeof setTimeout> | undefined;
-  const throwingNow = (v?: Vec): boolean => {
-    if (wouldFly(v)) flying = true;
-    else if (!v || Math.hypot(v.x, v.y) < THROWN_AT / 2) flying = false;
-    return flying;
-  };
+    let rest: ReturnType<typeof setTimeout> | undefined;
+  const throwingNow = throwGate(wouldFly, THROWN_AT / 2);
 
   /**
    * MOVE THE LANDING MARK UNDER THE HAND, or take it off the desk when the gesture is over.
@@ -386,110 +362,7 @@ export function grabScene(
    * mark is not held and is not a piece — it is scenery the desk draws for the length of one gesture
    * and throws away, and it is one node on a desk of forty.
    */
-  /**
-   * PUT THE SILHOUETTE ON THE FELT for a run that is being lifted — the shape of what will BE there,
-   * standing where the anchor will leave it.
-   *
-   * `seats` are the run's own landing seats in the anchor's frame, so the picture is drawn from the
-   * very arithmetic the landing will use: the outline is those seats swept by one piece's box, and
-   * its middle is offset from the anchor by whatever that sweep works out to.
-   */
-  const markLanding = (run: readonly Node[], seats: readonly Vec[], anchorAt: Vec): Node | undefined => {
-    if (!landingShown || run.length === 0) return undefined;
-    const box = landingBox(run, seats);
-    // FOR THIS PAIR OF EYES. The picture is scenery for the hand that is carrying, and the other
-    // player has no use for where somebody else's card might come down — a second outline gliding
-    // about their desk is noise at best and, mirrored a frame late, a lie. So the mark is opened to
-    // its own seat only, and a screen that knows whose it is draws nothing for anyone else.
-    const mark = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++, built.host.viewer().marks?.me);
-    add(built.host.root, mark);
-    // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
-    // this is going; the load hangs above them both, because a load drawn ON the finger covers the
-    // one thing the gesture is for (`CARRY_CLEAR`).
-    // FROM THE LOAD'S OWN PLACE, not from the anchor. The run is already seated at `box.at` — a pile
-    // stands over its handle — so starting the clearance there as well counts that step twice, and
-    // the load ends up two cards and a bit above the finger instead of one.
-    landing = { node: mark, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR }, w: box.w, h: box.h };
-    // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
-    // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
-    // a clock that has never heard of it, and the override goes nowhere.
-    //
-    // ...AND EVERY OTHER SCREEN IS TOLD TOO. One tree, several hosts: a node added here is in the
-    // board everybody is reading, and a host is only ever told by being TOLD. Left out, the far
-    // screen draws a desk that is genuinely missing something this one has — two people looking at
-    // one board and seeing different pictures, which is the one thing a shared desk may not do.
-    built.host.setRoot(built.host.root);
-    mirror?.changed();
-    return mark;
-  };
-
-  /**
-   * TAKE THE PICTURE OFF THE DESK WITHOUT FORGETTING IT — the hand is throwing, and a throw has no
-   * landing to show. The mark survives (`landing` keeps it) so a hand that slows down again gets
-   * the same picture back, in the same gesture; only `showLanding(undefined)` ends it for good.
-   */
-  let hidden = false;
-  const hideLanding = (): void => {
-    const mark = landing;
-    if (!mark || !mark.node.parent) return;
-    remove(mark.node.parent, mark.node);
-    built.motions?.release(mark.node.id);
-    parked = undefined;
-    hidden = true;
-    built.host.setRoot(built.host.root);
-    mirror?.changed();
-  };
-  const showLanding = (at: Vec | undefined, zone: Node | undefined, feel: CarryFeel): void => {
-    const mark = landing;
-    if (!mark) return;
-    // ...AND BACK ON THE DESK, if a throw that did not happen took it off — and back onto the HAND,
-    // which is the part that was missed once: hiding released the mark, and a mark put back into
-    // the tree and not re-grabbed stands wherever the tree last had it, which is where the card was
-    // lifted from. A picture of the landing pinned to the lift-off point is the wrong picture, and
-    // the "nothing changed" shortcut below must not be allowed to keep it there.
-    const back = hidden && at !== undefined;
-    if (back) {
-      add(built.host.root, mark.node);
-      hidden = false;
-      mirror?.changed();
-    }
-    if (!at) {
-      if (mark.node.parent) remove(mark.node.parent, mark.node);
-      landing = undefined;
-      parked = undefined;
-      hidden = false;
-      built.host.setRoot(built.host.root);
-      mirror?.changed();
-      return;
-    }
-    // THE PICTURE IS OF THE PLACE, and when a zone would take this run the place is the ZONE: a zone
-    // lays its own things out in its own arrangement, so where these cards will lie there is the
-    // zone's business and not the felt's. Aim at somebody's area and the picture moves into it,
-    // which is the answer before the hand has let go.
-    //
-    // AND IT IS WRITTEN ONLY WHEN THAT ANSWER CHANGES. On the felt the picture is CARRIED — it rides
-    // the hand's own springs and costs the desk nothing per frame. In a zone it does not move at
-    // all: a zone does not follow a finger about. So the moments anything is written are a handful
-    // per gesture instead of the sixty a second a moving finger asks for, which is what hung the
-    // desk: every one of those was a whole desk laid out, planned and painted again.
-    if (zone === parked && !back) return;
-    if (zone) {
-      const own = fieldsOf<TransformableFields>(mark.node, "Transformable");
-      compose(mark.node, Transformable({ ...(own ?? {}), at: landingAt(at, mark.seat, zone) }));
-      built.motions?.release(mark.node.id);
-      parked = zone;
-      built.host.setRoot(built.host.root);
-      return;
-    }
-    // ...AND BACK ONTO THE HAND when the aim leaves. The whole run is re-seeded, which is a thing to
-    // do a few times in a gesture and never per frame: begun again on every move, a carry never gets
-    // past its own first frame — the springs are re-seeded at the anchor, the run stops trailing,
-    // and a heap of thirty-six spends every frame building records to throw away.
-    parked = undefined;
-    built.motions?.grab(carried, { ...feel, anchor: at });
-  };
-;
-
+  
 
   /**
    * THE ZONE THIS CARRY WOULD BE HANDED TO IF THE HAND LET GO NOW — asked exactly as the release
@@ -530,17 +403,17 @@ export function grabScene(
       if (rest !== undefined) clearTimeout(rest);
       rest = undefined;
       if (done) {
-        flying = false;
-        showLanding(undefined, undefined, feel);
+        throwingNow(undefined);
+        landingPic.end();
       } else if (throwingNow(swing)) {
-        hideLanding();
+        landingPic.hide();
         rest = setTimeout(() => {
           rest = undefined;
-          flying = false;
-          if (landing) showLanding(at, zones ? zoneAimed(ids, at) : undefined, feel);
+          throwingNow(undefined);
+          if (landingPic.current) landingPic.show(at, zones ? zoneAimed(ids, at) : undefined, feel, carried);
         }, HAND_AT_REST_MS);
       } else {
-        showLanding(at, zones ? zoneAimed(ids, at) : undefined, feel);
+        landingPic.show(at, zones ? zoneAimed(ids, at) : undefined, feel, carried);
       }
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
@@ -570,8 +443,8 @@ export function grabScene(
               // I let go — and a hand carrying one card in the air is no better placed to answer it
               // than a hand carrying thirty-six: the card is lifted, so it is drawn bigger and
               // higher than it will lie.
-              showLanding(undefined, undefined, {});
-              const alone = markLanding([hit], [{ x: 0, y: 0 }], seatIn(hit));
+              landingPic.end();
+              const alone = landingPic.mark([hit], [{ x: 0, y: 0 }], seatIn(hit));
               return alone ? [hit, alone] : [hit];
             }
             // ...AND IT BECOMES THE LANDING MARK for as long as the run is up. The tab takes no
@@ -605,8 +478,8 @@ export function grabScene(
             // No lift, so it stays on the felt; seated where the run's first card will stand, so it
             // IS the answer rather than a hint at it. It follows the finger for free — a carry is an
             // override, and an override costs the tree nothing while the hand is moving.
-            showLanding(undefined, undefined, {}); // whatever the last gesture left, if anything ever does
-            const mark = markLanding(run, stackSeats(run, grip.w), seatIn(hit));
+            landingPic.end(); // whatever the last gesture left, if anything ever does
+            const mark = landingPic.mark(run, stackSeats(run, grip.w), seatIn(hit));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w, seenWide()) : undefined;
             posed?.forEach((seat, i) => {
               const piece = run[i];
@@ -627,18 +500,18 @@ export function grabScene(
             if (!isGrip(hit)) {
               // A card and, when there is one, the picture of where it will land — which stands at
               // the card's own landing spot, so its offset from the hand is nothing at all.
-              carried = run.map((n) => ({ id: n.id, offset: isDrawn(n) ? { x: 0, y: 0 } : (landing?.hover ?? { x: 0, y: 0 }), still: isDrawn(n) }));
+              carried = run.map((n) => ({ id: n.id, offset: isDrawn(n) ? { x: 0, y: 0 } : (landingPic.current?.hover ?? { x: 0, y: 0 }), still: isDrawn(n) }));
               return carried.map((it) => it.offset);
               return undefined;
             }
             const pieces = run.slice(1).filter((n) => !isDrawn(n));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(pieces, grip.w, seenWide()) : undefined;
-            const lift = landing?.hover ?? { x: 0, y: 0 };
+            const lift = landingPic.current?.hover ?? { x: 0, y: 0 };
             const held = (posed ? posed.map((s) => s.at) : (rule?.seats ?? stackSeats)(pieces, grip.w)).map((seat) => ({
               x: seat.x + lift.x,
               y: seat.y + lift.y,
             }));
-            const seats = [{ x: 0, y: 0 }, ...held, ...(landing ? [landing.seat] : [])];
+            const seats = [{ x: 0, y: 0 }, ...held, ...(landingPic.current ? [landingPic.current.seat] : [])];
             // ...and remembered as the hand is holding it, so another screen can lay it out the same.
             carried = run.map((n, i) => ({ id: n.id, offset: seats[i] ?? { x: 0, y: 0 }, still: isDrawn(n) }));
             return seats;
@@ -740,11 +613,11 @@ export function grabScene(
             // HOW FAR THE LOAD WAS HANGING, read BEFORE the picture is taken off the desk: the
             // landing is the picture's place, so the number that says where the picture WAS is the
             // number the landing needs — and taking the picture away first threw it away with it.
-            const drop = landing?.hover ?? { x: 0, y: 0 };
+            const drop = landingPic.current?.hover ?? { x: 0, y: 0 };
             // ...AND THE PICTURE OF WHERE IT LANDS GOES WITH THE GESTURE. A release the scene TAKES
             // never reaches the wiring's own drop, so the carry's `done` never comes: left to that,
             // the last thing the reader sees is a ghost of a stack standing on empty felt.
-            showLanding(undefined, undefined, {});
+            landingPic.end();
             // ...and the place it came from belongs to the gesture that is now over. Cleared FIRST,
             // so nothing below can read a lift that has already ended.
             const cameFrom = liftedFrom;
@@ -836,38 +709,7 @@ const DOWN_THE_DESK = 90;
 /** Two velocities as one — the throw the hand gave it plus its own share of the opening. */
 const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
 
-/**
- * THE ZONE THE RUN IS BEING LET GO OVER, if any — asked at the piece's DRAWN place.
- *
- * Where the piece is and where the finger is are not the same point: the carry clamps the run inside
- * the border while the finger may be well outside it, and it is the PIECE a zone is taking.
- */
-/**
- * THE ZONE THIS RELEASE BELONGS TO — asked about the run's first PIECE, never about its handle.
- *
- * A run led by a handle is led by a control, and a zone takes cards and not controls: asked about
- * the tab, every hand ever carried over a zone is refused, and the cards come down on top of it
- * instead of into it.
- */
-function zoneFor(
-  s: Scene,
-  items: readonly CarryItem[],
-  zones: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined,
-  aim: Vec | undefined,
-): Node | undefined {
-  if (!zones) return undefined;
-  // THE RUN'S ANCHOR, which is its handle when it has one and the piece itself when it has not — and
-  // it is `items[0]` either way, because that is how a run is assembled (`runOf`: `[hit, ...run]`).
-  //
-  // A card was asked before, and that made the answer depend on which card the fan happened to put
-  // nearest the zone: a hand splayed across the felt reaches into an area its owner never aimed at,
-  // and a stack let go of at the edge went in because one corner of one card did. What a hand aims
-  // is the thing it is holding.
-  const it = items[0];
-  const lead = it ? byId(s.host.root, it.id) : undefined;
-  const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
-  return drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead) : undefined;
-}
+
 
 /**
  * GIVE THE RUN TO THE ZONE, here in the scene, and say the release is dealt with.
@@ -893,21 +735,7 @@ function handOver(s: Scene, zone: Node, items: readonly CarryItem[]): void {
   s.host.setRoot(root);
 }
 
-/** Where the lead of this release will come to rest — the point a zone should be asked about. */
-function aimOf(
-  s: Scene,
-  items: readonly CarryItem[],
-  hand: Vec | undefined,
-  ways: { card?: LetGo; chip?: LetGo; die?: LetGo },
-  bump: Bump | undefined,
-): Vec | undefined {
-  const it = items[0];
-  const lead = it ? byId(s.host.root, it.id) : undefined;
-  const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
-  if (!lead || !drawn) return undefined;
-  const from = apply(drawn, { x: 0, y: 0 });
-  return restsAt(from, hand, bumped(dropOf(lead, ways), lead, bump), s.motions?.tuning().friction ?? 0);
-}
+
 
 /**
  * THE OTHER SCREENS ON ONE DESK.
@@ -919,8 +747,7 @@ function aimOf(
  * gliding about and the card it is holding standing perfectly still — which is not a shared desk,
  * it is two people looking at different ones.
  */
-/** What a carry FEELS like — everything the clock was told about it bar where and inside what. */
-export type CarryFeel = Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap">;
+
 
 export interface Mirror {
   /** This screen, handed over once it exists, so the caller can wire the other direction. */

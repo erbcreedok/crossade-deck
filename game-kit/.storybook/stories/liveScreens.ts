@@ -5,7 +5,7 @@
 // a bug in it is one bug, fixed in one place, for every desk on the shelf.
 
 import { type CarryItem, type Vec } from "../../src/index.js";
-import { type CarryFeel } from "./gestureScene.js";
+import { type CarryFeel } from "../../src/index.js";
 import { type Scene } from "../devtools/scene.js";
 
 /** One screen of a live desk: its seat, its colour, its scene once it exists, and its cursor. */
