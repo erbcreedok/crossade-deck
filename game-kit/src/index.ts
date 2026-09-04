@@ -258,6 +258,9 @@ export {
   type CarryFeel,
 } from "./render/landing.js";
 
+export { handOver, otherGrips, boxOfDesk } from "./render/handover.js";
+export { follow, type Mirror, type Scene, type Screen } from "./render/mirror.js";
+
 export { Focusable, focusable, type FocusableFields } from "./core/atoms/focusable.js";
 // A control that answers a finger: what it WEARS hovered and held, and how deep it sinks. The
 // meaning of the press is `Valued`, read by the consumer — this atom is the look and the depth.

@@ -4,8 +4,7 @@
 // mirrored here, once, so a page that adds a second pair of eyes adds this and nothing else — and so
 // a bug in it is one bug, fixed in one place, for every desk on the shelf.
 
-import { type CarryItem, type Vec } from "../../src/index.js";
-import { type CarryFeel } from "../../src/index.js";
+import { type CarryItem, type CarryFeel, type Vec, type Transform, follow as followInKit, type Scene as MirrorScene } from "../../src/index.js";
 import { type Scene } from "../devtools/scene.js";
 
 /** One screen of a live desk: its seat, its colour, its scene once it exists, and its cursor. */
@@ -41,34 +40,20 @@ export function follow(
   feel: CarryFeel,
   fromSeat?: string,
 ): void {
-  const s = screen.scene;
-  if (!s) return;
-  const hand = `mirror:${fromSeat ?? screen.seat}`;
-  const ids = items.map((it) => it.id);
-  if (done || !at) {
-    for (const id of screen.mirroring ?? ids) s.motions?.release(id, hand);
-    screen.mirroring = undefined;
-    screen.dot.style.display = "none";
-    s.motions?.redraw();
-    return;
-  }
-  const view = s.camera?.transform();
-  if (view) {
-    screen.dot.style.display = "block";
-    screen.dot.style.left = `${view.a * at.x + view.c * at.y + view.e}px`;
-    screen.dot.style.top = `${view.b * at.x + view.d * at.y + view.f}px`;
-  }
-  // STARTED ONCE, THEN ONLY STEERED — a carry begun again on every move never gets past its own
-  // first frame: the springs are re-seeded at the anchor, so nothing trails and nothing leans, and a
-  // heap of thirty-six spends every frame building records to throw away.
-  if (screen.mirroring?.length !== ids.length || screen.mirroring.some((id, i) => id !== ids[i])) {
-    for (const id of screen.mirroring ?? []) s.motions?.release(id, hand);
-    screen.mirroring = [...ids];
-    s.motions?.grab(items, { ...feel, anchor: at, lift, hand });
-  }
-  // ...AND THE CLOCK DRAWS IT. `dragTo` arms this screen's own loop, and the loop paints the man
-  // riding the anchor frame by frame — the same frames the near screen paints him on. A paint
-  // here as well, on every move, was a whole extra plan per pointer event on top of the two loops
-  // already running: three plans a frame for one moving man, and the hang that came with it.
-  s.motions?.dragTo(at, hand);
+  const mirrorScreen = {
+    seat: screen.seat,
+    scene: screen.scene as MirrorScene | undefined,
+    mirroring: screen.mirroring,
+    onCursor: (cursorAt: Vec | undefined, view: Transform | undefined) => {
+      if (!cursorAt || !view) {
+        screen.dot.style.display = "none";
+        return;
+      }
+      screen.dot.style.display = "block";
+      screen.dot.style.left = `${view.a * cursorAt.x + view.c * cursorAt.y + view.e}px`;
+      screen.dot.style.top = `${view.b * cursorAt.x + view.d * cursorAt.y + view.f}px`;
+    },
+  };
+  followInKit(mirrorScreen, items, at, done, lift, feel, fromSeat);
+  screen.mirroring = mirrorScreen.mirroring;
 }
