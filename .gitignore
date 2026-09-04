@@ -31,3 +31,5 @@ client2/test-results/
 .agent/REPORT.md
 .agent/tmp/
 .agent/queue/
+# Воркtree агентов-исполнителей — scripts/agents
+.worktrees/

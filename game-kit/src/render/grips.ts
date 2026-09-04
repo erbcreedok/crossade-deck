@@ -144,6 +144,17 @@ export const GRIP_SPEC: GripSpec = { w: GRIP.w, miss: GRIP_MISS, ...GRIP_HOLD };
  */
 export const isPlaceGrip = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valued")?.values?.["place"] !== undefined;
 
+/**
+ * HOW MANY HANDLES HAVE EVER BEEN DRAWN — the next one's name, and never a name used before.
+ *
+ * A handle is a PICTURE of a heap, not a thing on the desk, and the difference is its identity. Named
+ * by their place in the list, two handles swap names the moment a heap between them goes: the clock
+ * sees one id whose rest pose has moved and eases it there, so every remaining tab slides along into
+ * the one before it, and a new tab flies out of an old one's seat instead of appearing under its own
+ * heap. Named afresh, each is a node the clock has never seen — and a new node is drawn at its rest
+ * and does not fly in from nowhere (`motion.a-new-node-appears-without-flying`). It appears where it
+ * belongs and goes where it stood.
+ */
 let handlesDrawn = 0;
 const GRIP_SURFACE = "gesture.map.grip";
 

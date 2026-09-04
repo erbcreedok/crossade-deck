@@ -106,7 +106,35 @@ import { svg } from "./stockAssets.js";
 
 /** How big the map is, in units — see `gestureMap` on why it is bigger than any glass. */
 export const MAP = { w: 8, h: 8 };
-
+/**
+ * HOW MUCH ROOM BEYOND THE DESK THE CAMERA IS GIVEN, as a fraction of the desk's own size.
+ *
+ * A camera told the desk EXACTLY is held so that the desk always covers the glass, and the felt's
+ * edge becomes a wall the view stops dead against. That is correct and it is horrible to use: every
+ * pan ends in a stop with nothing on the other side of it, and a piece lying by the border can never
+ * be brought to the middle of the glass to be looked at. What the view is FOR is looking, and looking
+ * at the edge of a thing means having a little of the outside in shot.
+ *
+ * A FRACTION and not a number of units, so it says the same thing about any desk this shelf grows —
+ * a quarter of a desk of slack reads the same on one twice the size.
+ *
+ * IT MOVES NOTHING BUT THE VIEW. The desk's border is still a wall to the PIECES (`mapWalls`): the
+ * slack is somewhere to look from, never somewhere to put anything.
+ */
+/**
+ * HOW A DROP ZONE STANDS WHEN NOTHING IS OVER IT — its owner's colour, dashed, and quiet.
+ *
+ * TWO DIFFERENT SENTENCES, and a solid border says the wrong one. A zone drawn in a hard line is
+ * claiming something at every moment of the game, and what it is actually saying is only "this
+ * patch is somebody's" — a label, not an event. Said in a solid stroke it reads as the zone being
+ * ON, so when the zone really does light up there is nothing left for it to change into.
+ *
+ * DASHED is what makes it a label. A broken line is a boundary drawn on the felt rather than a
+ * thing standing on it, which is exactly what an area is; and it leaves the whole of "solid" free
+ * to mean the one thing worth an event — this is the one that will take the card.
+ *
+ * IN UNITS, so the dashes are the same size on a desk of any zoom and there are simply more of them
+ * around a bigger area: a pattern that scaled would be a picture of a border rather than a border.
 export function zoneLine(ink: Paint): Stroke {
   return { color: ink, width: 0.035, opacity: 0.55, dash: { on: 0.2, off: 0.16, corner: "dash" } };
 }
