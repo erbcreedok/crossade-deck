@@ -1,0 +1,40 @@
+game-kit/.storybook/locales/pages.ts
+  h_2b92b67d011bfc 78-81,182-185,247-251
+game-kit/.storybook/locales/pages/fall/en.json
+  h_2b92b67d011bfc 1-41
+game-kit/.storybook/locales/pages/fall/ru.json
+  h_2b92b67d011bfc 1-41
+game-kit/.storybook/locales/pages/grips/en.json
+  h_2b92b67d011bfc 1-39
+game-kit/.storybook/locales/pages/grips/ru.json
+  h_2b92b67d011bfc 1-39
+game-kit/.storybook/locales/pages/heaps/en.json
+  h_2b92b67d011bfc 1-34
+game-kit/.storybook/locales/pages/heaps/ru.json
+  h_2b92b67d011bfc 1-34
+game-kit/.storybook/locales/pages/landing/en.json
+  h_2b92b67d011bfc 1-34
+game-kit/.storybook/locales/pages/landing/ru.json
+  h_2b92b67d011bfc 1-34
+game-kit/.storybook/preview.ts
+  h_2b92b67d011bfc 161
+game-kit/.storybook/stories/EngineFall.stories.ts
+  h_2b92b67d011bfc 1-64
+game-kit/.storybook/stories/EngineGrips.stories.ts
+  h_2b92b67d011bfc 1-75
+game-kit/.storybook/stories/EngineHeaps.stories.ts
+  h_2b92b67d011bfc 1-59
+game-kit/.storybook/stories/EngineLanding.stories.ts
+  h_2b92b67d011bfc 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "398e80525d81ef446860376ffd618a6cb0f64fca",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
