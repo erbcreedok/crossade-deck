@@ -8,6 +8,7 @@ export interface Account {
   name: string;
   recoveryHash: string;
   createdAt: number;
+  telegramId?: string;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +17,7 @@ const DATA_FILE = path.join(DATA_DIR, "accounts.json");
 
 const accounts = new Map<string, Account>();
 const byHash = new Map<string, string>(); // normalized recoveryHash -> accountId
+const byTelegramId = new Map<string, string>(); // telegramId -> accountId
 
 function normalizeHash(hash: string): string {
   return hash.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -28,6 +30,7 @@ function load() {
     for (const account of raw) {
       accounts.set(account.id, account);
       byHash.set(account.recoveryHash, account.id);
+      if (account.telegramId) byTelegramId.set(account.telegramId, account.id);
     }
   } catch {
     // повреждённый/пустой файл — начинаем с чистого листа
@@ -57,7 +60,7 @@ function generateRecoveryHash(): string {
   }).join("");
 }
 
-export function createAccount(name?: string): Account {
+export function createAccount(name?: string, telegramId?: string): Account {
   const id = randomUUID();
   let recoveryHash = generateRecoveryHash();
   while (byHash.has(recoveryHash)) recoveryHash = generateRecoveryHash();
@@ -67,15 +70,22 @@ export function createAccount(name?: string): Account {
     name: name?.trim().slice(0, 24) || "Player",
     recoveryHash,
     createdAt: Date.now(),
+    ...(telegramId ? { telegramId } : {}),
   };
   accounts.set(id, account);
   byHash.set(recoveryHash, id);
+  if (telegramId) byTelegramId.set(telegramId, id);
   scheduleSave();
   return account;
 }
 
 export function findAccountById(id: string): Account | undefined {
   return accounts.get(id);
+}
+
+export function findAccountByTelegramId(telegramId: string): Account | undefined {
+  const id = byTelegramId.get(telegramId);
+  return id ? accounts.get(id) : undefined;
 }
 
 export function findAccountByRecoveryHash(hash: string): Account | undefined {

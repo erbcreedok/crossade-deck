@@ -13,6 +13,7 @@ import {
   createAccount,
   findAccountById,
   findAccountByRecoveryHash,
+  findAccountByTelegramId,
   renameAccount,
   regenerateRecoveryHash,
 } from "./accounts.js";
@@ -47,6 +48,23 @@ describe("createAccount", () => {
   it("never issues the same recovery code twice", () => {
     const codes = new Set(Array.from({ length: 300 }, () => createAccount().recoveryHash));
     expect(codes.size).toBe(300);
+  });
+});
+
+describe("findAccountByTelegramId", () => {
+  it("finds the account created with that telegramId", () => {
+    const account = createAccount("Henry", "tg-42");
+    expect(findAccountByTelegramId("tg-42")?.id).toBe(account.id);
+    expect(account.telegramId).toBe("tg-42");
+  });
+
+  it("returns undefined for an unknown telegramId", () => {
+    expect(findAccountByTelegramId("tg-does-not-exist")).toBeUndefined();
+  });
+
+  it("omits telegramId on accounts created without it", () => {
+    const account = createAccount("Ivy");
+    expect(account.telegramId).toBeUndefined();
   });
 });
 

@@ -46,9 +46,21 @@ never interpret.
 Custom accounts (short recovery code, no password). Firebase is scaffolded for later
 (`server/src/auth.ts`) but not configured or used until keys are supplied.
 
+Telegram Mini App login (`POST /auth/telegram`) verifies `initData`'s HMAC signature
+(`telegramAuth.ts`) against `process.env.TELEGRAM_BOT_TOKEN` and finds-or-creates an account
+keyed by `telegramId` (`accounts.ts`). Responds 503 without crashing when the token isn't
+configured.
+
 ## Rooms
 
 - `CardRoom`: full card game engine (Durak/Klondike mechanics, schema, votes, bots).
 - `SandboxRoom`: live sandbox relay (snapshots, cursors, presence).
-- `KitRoom`: game tree relay (`Root` tree as opaque JSON, revision checks `baseRev`, seat management by `accountId` with reconnection grace window).
+- `KitRoom`: game tree relay (`Root` tree as opaque JSON, revision checks `baseRev`, seat
+  management by `accountId` with reconnection grace window). `POST /rooms` spawns one directly
+  via `matchMaker.createRoom` (no WS join needed) for a given `game`; the invite code and `game`
+  it was created with are both returned by `GET /rooms/by-code/:code` (`roomGames.ts` tracks
+  `roomId → game` since the room itself isn't reachable from the HTTP layer).
+
+`server/src/index.ts` only boots `createApp()` from `server/src/app.ts` — the express app and the
+Colyseus server are built there so tests can exercise routes without listening on the real port.
 
