@@ -39,7 +39,7 @@ function buildInitialDesk() {
   const deckCards = cards().slice(0, 36);
   deckCards.forEach((c, idx) => {
     compose(c, Transformable({ at: { x: (idx % 9) * 1.3 - 5.2, y: Math.floor(idx / 9) * 1.6 - 2.4 } }));
-    compose(c, Draggable());
+    compose(c, Draggable({ onReject: "stay" }));
     add(deskNode, c);
   });
   return deskNode;
@@ -63,9 +63,7 @@ export function startTable(container: HTMLElement): Teardown {
   const stopPainter = attachPainter(host, painter);
   const motions = attachMotion(host, painter);
   
-  const actor = account?.id;
-  wireDrag({ host, motions, el: host.view, actor }, { actor });
-
+  wireDrag({ host, motions, el: host.view });
 
   joinTable({
     game: "table",
@@ -75,6 +73,9 @@ export function startTable(container: HTMLElement): Teardown {
   })
     .then((table) => {
       currentTable = table;
+      if (table.seat) {
+        wireDrag({ host, motions, el: host.view, actor: table.seat }, { actor: table.seat });
+      }
       if (table.code) {
         goTo("table", "replace", table.code);
       }
