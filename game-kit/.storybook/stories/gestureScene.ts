@@ -348,6 +348,10 @@ export function grabScene(
     return view ? Math.hypot(view.a, view.b) : built.host.unit();
   };
 
+  const flickVector = (v?: Vec): Vec | undefined =>
+    letGo === "throw" ? flickOf(v, glassScale(), built.motions?.tuning().friction ?? 0) : undefined;
+  const wouldFly = (v?: Vec): boolean => flickVector(v) !== undefined;
+
   /**
    * MOVE THE LANDING MARK UNDER THE HAND, or take it off the desk when the gesture is over.
    *
@@ -452,7 +456,7 @@ export function grabScene(
     // moving here is invisible over there unless it is reported and mirrored.
     // MY HAND, TOLD TO THE OTHER SCREENS — with its FEEL, or it is not the same hand over there —
     // and the picture of where it lands, moved under it.
-    onCarry: ({ ids, at, done, feel }) => {
+    onCarry: ({ ids, at, done, feel, swing }) => {
       // WHAT THE HAND IS ACTUALLY HOLDING. `carried` is written by a desk that stacks; a desk without
       // stacking never writes it, and told an empty run the far screen showed a cursor gliding about
       // and the piece standing perfectly still — which is what the board did. The wiring's own list
@@ -460,7 +464,8 @@ export function grabScene(
       mirror?.hand(carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), at, done, feel);
       // ...AND THE PICTURE OF WHERE IT LANDS GOES WHERE THAT IS — asked by the very question that
       // lights the zone, so the light and the picture can never say two different things.
-      showLanding(done ? undefined : at, zones ? zoneAimed(ids, at) : undefined, feel);
+      const fly = wouldFly(swing);
+      showLanding(done || fly ? undefined : at, zones ? zoneAimed(ids, at) : undefined, feel);
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
     // it is the same question the release answers — down to refusing to hand a run back to the
@@ -673,7 +678,7 @@ export function grabScene(
             // once. `v` arrives in GLASS PIXELS PER SECOND — not a number read off the carry's
             // springs and multiplied back by the zoom to undo the division that put it there. Above
             // this line everything is the gesture; below it, everything is the desk (`flickOf`).
-            const swing = letGo === "throw" ? flickOf(v, glassScale(), built.motions?.tuning().friction ?? 0) : undefined;
+            const swing = flickVector(v);
             aimed = aimOf(built, items, swing, ways, bump);
             // A ZONE GETS FIRST REFUSAL. Falling and being taken are two different endings, and a
             // page that had both would otherwise always fall: this runs BEFORE the drop is decided,

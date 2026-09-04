@@ -184,7 +184,7 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * drop is a proposal about where a card BELONGS, a gesture is a picture of a hand in motion. One
    * is judged and echoed; the other is retransmitted and forgotten.
    */
-  readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean; readonly feel: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> }) => void) | undefined;
+  readonly onCarry?: ((carry: { readonly ids: readonly NodeId[]; readonly at: Vec; readonly done: boolean; readonly feel: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap">; readonly swing?: Vec | undefined }) => void) | undefined;
   /**
    * THE GESTURE IS OVER AND THE TREE NOW SAYS WHERE EVERYTHING IS — the last thing that happens.
    *
@@ -598,7 +598,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
 
   const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>): void => {
     const root = s.host.root;
-    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: dragInfo?.feel ?? {} });
+    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: dragInfo?.feel ?? {}, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
     if (landed(items, seat, root, dragInfo)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
       // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
@@ -766,7 +766,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // a light with its own idea of "near enough" promises a zone that then does not take the card,
     // and a reader believes the light over the outcome.
     aim(aimed(ids, held));
-    w.opts.onCarry?.({ ids, at, done: false, feel: w.drag.feel });
+    w.opts.onCarry?.({ ids, at, done: false, feel: w.drag.feel, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
   };
 
   const onUp = (e: PointerEvent): void => {

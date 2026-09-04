@@ -566,4 +566,23 @@ describe("the drag wiring's order", () => {
     expect(aggressorMark?.mark).toBe("moved");
     s.dispose();
   });
+
+  it("drag.on-carry-reports-hand-swing-speed", () => {
+    const root = desk();
+    const s = scene(root, { animate: true });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    let swingSpeed: Vec | undefined;
+    wireDrag(s, {
+      onCarry: ({ swing }) => {
+        swingSpeed = swing;
+      },
+    });
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 60, 0, 50));
+    expect(swingSpeed).toBeDefined();
+    expect(swingSpeed?.x).toBeGreaterThan(0);
+    s.host.view.dispatchEvent(finger("pointerup", 60, 0, 60));
+    s.dispose();
+  });
 });

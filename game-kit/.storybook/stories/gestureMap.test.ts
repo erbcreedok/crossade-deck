@@ -656,4 +656,21 @@ describe("the stacking desk", () => {
     // ...and a raised piece is wider on the glass, so the wall it meets is nearer by the difference.
     expect(mapWalls(man, 1.3, { w: 14, h: 14 }).x1).toBeCloseTo(7 - 0.65, 9);
   });
+
+  it("map.a-landing-mark-is-hidden-during-a-throw", () => {
+    // A hand moving fast during a throw gesture produces a fling vector (`flickOf`), which hides the landing mark.
+    // A slow hand or a drop gesture ("drop") does not produce a fling vector, so the landing mark is shown.
+    const perUnit = 100;
+    const friction = 6;
+    const fastSwing = { x: THROWN_AT * 6, y: 0 };
+    const slowSwing = { x: 10, y: 0 };
+
+    const wouldFly = (swing: Vec | undefined, letGo: "throw" | "drop" | undefined) =>
+      letGo === "throw" && flickOf(swing, perUnit, friction) !== undefined;
+
+    expect(wouldFly(fastSwing, "throw"), "fast swing on throw: will fly, landing mark hidden").toBe(true);
+    expect(wouldFly(slowSwing, "throw"), "slow swing on throw: will not fly, landing mark shown").toBe(false);
+    expect(wouldFly(fastSwing, "drop"), "fast swing on drop: drop never flies, landing mark shown").toBe(false);
+    expect(wouldFly(slowSwing, "drop"), "slow swing on drop: drop never flies, landing mark shown").toBe(false);
+  });
 });
