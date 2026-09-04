@@ -116,8 +116,15 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * The PIECE comes too, because "is it over the zone" is not the only question a desk may ask: a
    * zone that forgives a near miss has to measure from the piece's own edge, and a point cannot say
    * where a card's edge is (`Mechanics/Magnetism`).
+   *
+   * `glass` IS THE FINGER, in glass pixels — beside `at`, the same point in root units. A zone
+   * mostly wants `at`: where the piece is resting, in the desk's own coordinates. It exists for the
+   * one zone that does not
+   * — one that reaches under the finger for the pile actually under it (`pick`, which is built for
+   * glass points and knows nothing about root units) — and a point converted back out of `at` would
+   * be the piece's own anchor, not the point the hand is over.
    */
-  readonly zoneAt?: ((root: Node, at: Vec, lead: Node, g?: Vec) => Node | undefined) | undefined;
+  readonly zoneAt?: ((root: Node, at: Vec, lead: Node, glass?: Vec) => Node | undefined) | undefined;
   /**
    * WHICH ZONE WOULD TAKE THIS RUN IF THE HAND LET GO NOW — asked on every move, so the zone that
    * is going to get it can SAY SO while there is still time to aim somewhere else.
@@ -136,9 +143,22 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * write, so the tree still says the deck the card came out of, and a desk that went looking for
    * the run's pose would measure the distance from a card that is no longer there. The hand knows,
    * and the hand is here: this is the same point the drop is going to use, walls and all.
+   *
+   * `glass` rides alongside `at` for the reason `zoneAt` carries it: a desk that finds its target by
+   * asking what the finger is over, rather than what the run is over, needs the point in glass
+   * pixels — `at` is root units and cannot be converted back into "what's drawn under here".
    */
-  readonly aimAt?: ((root: Node, ids: readonly NodeId[], at: Vec, g?: Vec) => Node | undefined) | undefined;
-  /** The zones that would accept this run, dressed with invites on drag start. */
+  readonly aimAt?: ((root: Node, ids: readonly NodeId[], at: Vec, glass?: Vec) => Node | undefined) | undefined;
+  /**
+   * WHICH ZONES TO DRESS WITH AN INVITE AT THE GRAB — the run's OWN answer, in place of the wiring's
+   * stock one (`wearInvites`, every zone the tree's rules would accept it into). Absent, the stock
+   * answer stands: the RULES decide who is willing, and every zone they allow lights up together.
+   *
+   * `willing` hands that decision to the zone list itself, for a desk whose rules cannot say yes or
+   * no without more than the tree already carries — a run led by a control that is not a piece, or
+   * an invite that only some of several otherwise-legal zones ought to show. Undressed the same way
+   * either path: on release, whichever list dressed the zones is the one that undresses them.
+   */
   readonly willing?: ((root: Node, hit: Node, run: readonly Node[]) => readonly Node[]) | undefined;
   /**
    * THE FINGER IS THE HOLDER: the run is anchored ON it, not where the piece happened to be grabbed.
@@ -590,10 +610,10 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
-  const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>, g?: Vec): void => {
+  const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>, glass?: Vec): void => {
     const root = s.host.root;
     w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: dragInfo?.feel ?? {}, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
-    if (landed(items, seat, root, dragInfo, g)) {
+    if (landed(items, seat, root, dragInfo, glass)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
       // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
       w.opts.onSettled?.(s.host.root, items.map((it) => it.id));
@@ -631,10 +651,10 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
    * The seat is written BEFORE the move so a free zone keeps the piece where the finger let it go —
    * `applyMove` spreads the node's own pose and rewrites only the grains the zone answered.
    */
-  const landed = (items: readonly CarryItem[], seat: Vec, root: Node, dragInfo?: NonNullable<Wiring["drag"]>, g?: Vec): boolean => {
+  const landed = (items: readonly CarryItem[], seat: Vec, root: Node, dragInfo?: NonNullable<Wiring["drag"]>, glass?: Vec): boolean => {
     const lead = items[0] ? byId(root, items[0].id) : undefined;
     const source = lead?.parent ?? undefined;
-    const target = lead ? w.opts.zoneAt?.(root, seat, lead, g) : undefined;
+    const target = lead ? w.opts.zoneAt?.(root, seat, lead, glass) : undefined;
     if (!lead || !source || !target || target === source) return false;
     if (w.opts.onDrop?.({ lead, target, seat })) {
       for (const it of items) s.motions?.release(it.id);
@@ -722,11 +742,11 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
   };
 
   /** Who would take the run in hand, asked the way the desk wants it asked. */
-  const aimed = (ids: readonly NodeId[], at: Vec, g?: Vec): Node | undefined => {
+  const aimed = (ids: readonly NodeId[], at: Vec, glass?: Vec): Node | undefined => {
     const root = s.host.root;
-    if (w.opts.aimAt) return w.opts.aimAt(root, ids, at, g);
+    if (w.opts.aimAt) return w.opts.aimAt(root, ids, at, glass);
     const lead = ids[0] ? byId(root, ids[0]) : undefined;
-    return lead ? w.opts.zoneAt?.(root, at, lead, g) : undefined;
+    return lead ? w.opts.zoneAt?.(root, at, lead, glass) : undefined;
   };
 
   const onMove = (e: PointerEvent): void => {

@@ -14,6 +14,7 @@ import {
   Grabber,
   installStockGrabs,
   installStockSurfaces,
+  Inviting,
   mount,
   node,
   rect,
@@ -22,6 +23,7 @@ import {
   Transformable,
   unwireDrag,
   wireDrag,
+  type CoatedFields,
   type Painter,
   type TransformableFields,
 } from "../index.js";
@@ -95,8 +97,68 @@ describe("wireDrag in kit", () => {
     motions.stop();
     host.unmount();
   });
-  it("drag.willing-option", () => {
-    // dummy test
+  it("drag.willing-option — willing dresses only the zones it names, and undresses them on release", () => {
+    installStockSurfaces();
+    installStockGrabs();
+    registerLayout("drag.willing.free", freeLayout);
+
+    const root = node("desk3", Container({ layout: "drag.willing.free" }), Grabber());
+    const zone = node(
+      "zone3",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "drag.willing.free" }),
+      Acceptor({ accept: { and: [] } }),
+      Inviting(),
+      Transformable({ at: { x: 5, y: 0 } }),
+    );
+    const other = node(
+      "other3",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "drag.willing.free" }),
+      Acceptor({ accept: { and: [] } }),
+      Inviting(),
+      Transformable({ at: { x: -5, y: 0 } }),
+    );
+    const card = node(
+      "card3",
+      Bounded({ bounds: rect(1, 1) }),
+      Surfaced(),
+      Transformable({ at: { x: 0, y: 0 } }),
+      Draggable({ onReject: "stay" }),
+    );
+    add(root, zone);
+    add(root, other);
+    add(root, card);
+
+    const div = document.createElement("div");
+    Object.defineProperty(div, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    document.body.appendChild(div);
+
+    const host = mount(div, root, { hudUnit: 64, theme: "dark" });
+    Object.defineProperty(host.view, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    const motions = attachMotion(host, stubPainter());
+
+    const scene = { host, motions, el: host.view };
+    wireDrag(scene, {
+      willing: (r) => [byId(r, "zone3")!],
+    });
+
+    const wornOf = (id: string): boolean => (fieldsOf<CoatedFields>(byId(host.root, id)!, "Coated")?.self.recipe ?? "") !== "";
+
+    host.view.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    expect(wornOf("zone3")).toBe(true);
+    expect(wornOf("other3")).toBe(false);
+
+    host.view.dispatchEvent(finger("pointerup", 300, 200, 100));
+    expect(wornOf("zone3")).toBe(false);
+    expect(wornOf("other3")).toBe(false);
+
+    motions.stop();
+    host.unmount();
   });
   it("drag.unwire-clears-listeners — unwireDrag removes pointer listeners so events are no longer handled", () => {
     installStockSurfaces();
