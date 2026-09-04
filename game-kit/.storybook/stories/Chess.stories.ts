@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { installStockCarries, installStockCoats, t, type Node, type Vec } from "../../src/index.js";
+import { installStockCarries, installStockCoats, installStockMarkIcons, installStockMarks, t, type Node, type Vec } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
 import { chessMap, chessRoom, CHESS_SEATS, CHESS_UNIT, squareAt } from "./chessMap.js";
@@ -17,6 +17,9 @@ import { documented } from "./surfaceControls.js";
 
 installStockCarries();
 installStockCoats();
+// The marks a live desk writes, and their glyphs: without the glyphs the badge is a blank disc.
+installStockMarks();
+installStockMarkIcons();
 
 const meta: Meta = {
   title: "Live/Chess",
@@ -122,8 +125,12 @@ export const Chess: StoryObj<ChessArgs> = {
           a.landing,
           chessRoom(),
           seat,
+          // NEVER ONE'S OWN. A mark is for the player who looked away; the hand that made the
+          // move watched it. Showing it to its own author left the top screen wearing every mark
+          // it ever earned, with nothing to ever take one off. The two screens differ only in
+          // how long somebody ELSE'S mark lives: forever, until overwritten — or five seconds.
           i === 0
-            ? { marks: { inks, showOwn: true } }
+            ? { marks: { inks, showOwn: false, me: seat } }
             : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
         ),
       );

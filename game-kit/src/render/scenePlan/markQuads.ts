@@ -12,12 +12,19 @@ import { type ResolveContext } from "../../core/resolve.js";
 import { apply, compose, IDENTITY, move, scale, type Transform } from "../../core/transform.js";
 import { type Shape } from "../../core/atoms/bounded.js";
 import { assetRecord } from "../assets.js";
-import { dashOpen, surfaceOutline } from "../contour.js";
+import { surfaceOutline } from "../contour.js";
 import { type PlanInput } from "./input.js";
-import { boxOf, layerOf, standing } from "./parts.js";
+import { boxOf, layerOf, standing, strokeOf } from "./parts.js";
 import { type Quad, type QuadLayer } from "./quads.js";
 
-const MARK_BADGE_SIZE = 0.36;
+/** The badge's share of the piece's smaller side on the glass, and the floor a finger can read. */
+const MARK_BADGE_SHARE = 0.34;
+const MARK_BADGE_MIN_PX = 11;
+/** The glyph's share of the disc. */
+const MARK_GLYPH_SHARE = 0.7;
+/** The halo's stroke, in the piece's own units, and how loud it is. A hair, and not a highlight. */
+const MARK_HALO_WIDTH = 0.045;
+const MARK_HALO_OPACITY = 0.8;
 const KAPPA = 0.5522847498307936;
 
 function circleShape(r: number): Shape {
@@ -69,73 +76,59 @@ export function markQuads(n: Node, ctx: ResolveContext, mc: MarkContext): Quad[]
   const ink = resolveInk(marked.by, mc.viewer.marks?.inks);
   const quads: Quad[] = [];
 
-  // 1. Movement vector (dashed line from `marked.from` to node center, under circle badge)
-  if (marked.from) {
-    const fromPx = apply(mc.toView, marked.from);
-    const toPx = apply(toGlass, { x: 0, y: 0 });
-    const dist = Math.hypot(toPx.x - fromPx.x, toPx.y - fromPx.y);
-    if (dist > 1e-3) {
-      const lineCx = (fromPx.x + toPx.x) / 2;
-      const lineCy = (fromPx.y + toPx.y) / 2;
-      const dashes = dashOpen([fromPx, toPx], 6, 4, "stretch");
-      quads.push({
-        id: `${n.id}::mark-line` as NodeId,
-        layer: "mark",
-        x: lineCx,
-        y: lineCy,
-        w: Math.abs(toPx.x - fromPx.x),
-        h: Math.abs(toPx.y - fromPx.y),
-        points: [fromPx, toPx],
-        transform: IDENTITY,
-        layers: [],
-        stroke: {
-          color: ink,
-          width: 1.5,
-          opacity: 1,
-          alignment: 0.5,
-          cap: "round",
-          join: "miter",
-          miterLimit: 10,
-          dash: { on: 6, off: 4, adjust: "stretch", corner: "none" },
-          dashes,
-        },
-        z,
-      });
-    }
+  // NO TRAIL. A dashed line from where the piece came was the first thing drawn here, and it was
+  // the loudest thing on the desk: a mark is a whisper for the one player who looked away, not a
+  // diagram for everybody. `from` stays in the data (a hover, a replay may want it); the plan
+  // draws the piece itself and a small badge, nothing else.
+  //
+  // THE HALO — the piece's OWN outline, a hair outside it, in the actor's ink. Quiet because it is
+  // the shape the eye already knows, only tinted; it says "somebody touched this" before the eye
+  // reads the badge that says who and what.
+  const haloPoints = surfaceOutline(shape, 0).map((p) => ({ x: p.x * mc.unit, y: p.y * mc.unit }));
+  const halo = strokeOf({ color: ink, width: MARK_HALO_WIDTH, opacity: MARK_HALO_OPACITY, alignment: 1, join: "round" }, haloPoints, mc.unit);
+  if (halo) {
+    const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
+    quads.push({
+      id: `${n.id}::mark-halo` as NodeId,
+      layer: "mark",
+      x: cx,
+      y: cy,
+      w: ext.w * viewScale,
+      h: ext.h * viewScale,
+      points: haloPoints,
+      transform: compose(toGlass, scale(mc.unit > 0 ? 1 / mc.unit : 0)),
+      layers: [],
+      stroke: halo,
+      z,
+    });
   }
-
-  // 2. Mark badge circle + icon overlaid at top-right corner of node's bounding box
-  const cornerLocal = { x: ext.w / 2, y: -ext.h / 2 };
-  const badgePos = apply(toGlass, cornerLocal);
-
-  const shapeCircle = circleShape(MARK_BADGE_SIZE);
-  const circlePointsLocal = surfaceOutline(shapeCircle, 0).map((p) => ({ x: p.x * mc.unit, y: p.y * mc.unit }));
-  const badgeTransform = compose(move(badgePos.x, badgePos.y), scale((mc.unit > 0 ? 1 / mc.unit : 0) / viewOverUnit));
-
-  const fillLayer: QuadLayer = {
-    paint: ink,
-    image: undefined,
-    opacity: 1,
-  };
-
+  // THE BADGE — a small disc at the piece's top-right corner, sized by the PIECE AS DRAWN: a third
+  // of its smaller side, and never under a floor a finger can still read. Sized in units it was
+  // eight pixels on a chess board and invisible; sized by the etalon it would be the same on a
+  // card and a chip, which are not the same size on the glass. It is in pixels from here down.
+  const pieceW = Math.hypot(toGlass.a * ext.w, toGlass.b * ext.w);
+  const pieceH = Math.hypot(toGlass.c * ext.h, toGlass.d * ext.h);
+  const badgePx = Math.max(MARK_BADGE_MIN_PX, MARK_BADGE_SHARE * Math.min(pieceW, pieceH));
+  const badgePos = apply(toGlass, { x: ext.w / 2, y: -ext.h / 2 });
+  const badgePoints = surfaceOutline(circleShape(badgePx / 2), 0);
   const rec = markRecord(marked.mark);
   const iconName = rec?.icon ?? `mark.${marked.mark}`;
-  const asset = assetRecord(iconName);
-  const layers: QuadLayer[] = [fillLayer];
-  if (asset) {
-    const iconLayer = layerOf({ image: iconName, fit: "contain", opacity: 1 }, { w: MARK_BADGE_SIZE, h: MARK_BADGE_SIZE }, mc.unit);
-    layers.push(iconLayer);
+  const layers: QuadLayer[] = [{ paint: ink, image: undefined, opacity: 0.92 }];
+  if (assetRecord(iconName)) {
+    // The glyph, a little inside the disc — `layerOf` takes a size and a unit; here the unit is
+    // the pixel, so the size is the glyph's box on the glass.
+    const glyph = badgePx * MARK_GLYPH_SHARE;
+    layers.push(layerOf({ image: iconName, fit: "contain", opacity: 1 }, { w: glyph, h: glyph }, 1));
   }
-
   quads.push({
     id: `${n.id}::mark` as NodeId,
     layer: "mark",
     x: badgePos.x,
     y: badgePos.y,
-    w: MARK_BADGE_SIZE * mc.unit,
-    h: MARK_BADGE_SIZE * mc.unit,
-    points: circlePointsLocal,
-    transform: badgeTransform,
+    w: badgePx,
+    h: badgePx,
+    points: badgePoints,
+    transform: move(badgePos.x, badgePos.y),
     layers,
     stroke: undefined,
     z,

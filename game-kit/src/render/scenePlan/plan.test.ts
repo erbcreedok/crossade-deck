@@ -1128,7 +1128,10 @@ describe("the hybrid: baked or live", () => {
     expect(markQuad).toBeUndefined();
   });
 
-  it("marks.from-produces-dashed-vector — marked.from produces dashed line vector quad under badge", () => {
+  it("marks.a-halo-and-a-badge-and-no-trail — `from` stays data; the plan draws the piece's own outline tinted, and a badge", () => {
+    // The dashed line from where the piece came was the loudest thing on the desk, and a mark is a
+    // whisper for the one player who looked away. So: the piece's own outline, a hair outside it,
+    // in the actor's ink — and a small badge. Nothing that reaches across the desk.
     installStockMarks();
     installStockMarkIcons();
     const root = node("root", Container({ layout: "free" }));
@@ -1138,16 +1141,17 @@ describe("the hybrid: baked or live", () => {
     );
     add(root, piece);
     const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
-    const lineQuad = quads.find((q) => q.id === "p1::mark-line");
-    const badgeQuad = quads.find((q) => q.id === "p1::mark");
-    expect(lineQuad).toBeDefined();
-    expect(badgeQuad).toBeDefined();
-    expect(lineQuad!.layer).toBe("mark");
-    expect(lineQuad!.stroke!.color).toBe("teal");
-    expect(lineQuad!.stroke!.dashes).toBeDefined();
-    expect(lineQuad!.stroke!.dashes!.length).toBeGreaterThan(0);
-    const lineIdx = quads.indexOf(lineQuad!);
-    const badgeIdx = quads.indexOf(badgeQuad!);
-    expect(lineIdx).toBeLessThan(badgeIdx);
+    expect(quads.find((q) => q.id === "p1::mark-line"), "no trail, whatever `from` says").toBeUndefined();
+    const halo = quads.find((q) => q.id === "p1::mark-halo");
+    const badge = quads.find((q) => q.id === "p1::mark");
+    expect(halo, "the halo").toBeDefined();
+    expect(badge, "the badge").toBeDefined();
+    expect(halo!.layer).toBe("mark");
+    expect(halo!.stroke!.color, "in the actor's ink").toBe("teal");
+    expect(halo!.stroke!.alignment, "a hair OUTSIDE the piece, never over it").toBe(1);
+    expect(halo!.layers.length, "a stroke and no fill: the piece is drawn by the piece").toBe(0);
+    // The halo is the piece's own footprint: a 2×2 box at unit 100 is 200 px across.
+    expect(halo!.w).toBeCloseTo(200, 6);
+    expect(quads.indexOf(halo!), "under the badge").toBeLessThan(quads.indexOf(badge!));
   });
 });

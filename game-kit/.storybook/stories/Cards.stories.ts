@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html";
-import { installStockCarries, installStockCoats, installStockFlips, t } from "../../src/index.js";
+import { installStockCarries, installStockCoats, installStockFlips, installStockMarkIcons, installStockMarks, t } from "../../src/index.js";
 import { type Mirror } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
 import { liveMap, liveTune, LIVE_UNIT, SEATS } from "./liveMap.js";
@@ -16,6 +16,9 @@ import { MAGNET_ARGS, MAGNET_KNOBS, magnetScene, zoneSpread, type MagnetArgs } f
 installStockCarries();
 installStockCoats();
 installStockFlips();
+// The marks a live desk writes, and their glyphs: without the glyphs the badge is a blank disc.
+installStockMarks();
+installStockMarkIcons();
 
 const meta: Meta = {
   title: "Live/Cards",
@@ -94,8 +97,12 @@ export const Cards: StoryObj<MagnetArgs> = {
           LIVE_UNIT,
           true,
           seat,
+          // NEVER ONE'S OWN. A mark is for the player who looked away; the hand that made the
+          // move watched it. Showing it to its own author left the top screen wearing every mark
+          // it ever earned, with nothing to ever take one off. The two screens differ only in
+          // how long somebody ELSE'S mark lives: forever, until overwritten — or five seconds.
           i === 0
-            ? { marks: { inks, showOwn: true } }
+            ? { marks: { inks, showOwn: false, me: seat } }
             : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
         ),
       );
