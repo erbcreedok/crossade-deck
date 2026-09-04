@@ -75,8 +75,9 @@ export const Chess: StoryObj<ChessArgs> = {
     const board = chessMap(a.reach);
     const screens: Screen[] = [];
     const held = a.lifted ? a.lift : 1;
+    const inks = Object.fromEntries(CHESS_SEATS.map(({ seat, ink }) => [seat, ink]));
 
-    for (const { seat, ink } of CHESS_SEATS) {
+    CHESS_SEATS.forEach(({ seat, ink }, i) => {
       const pane = document.createElement("div");
       pane.style.cssText = "position:relative;min-height:340px;overflow:hidden";
       const dot = document.createElement("div");
@@ -120,11 +121,15 @@ export const Chess: StoryObj<ChessArgs> = {
           CHESS_UNIT,
           a.landing,
           chessRoom(),
+          seat,
+          i === 0
+            ? { marks: { inks, showOwn: true } }
+            : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
         ),
       );
       pane.appendChild(dot);
       wall.appendChild(pane);
-    }
+    });
     return wall;
   },
   // NO LANDING PICTURE, so no hover either. On a board the lit square IS the picture of where the

@@ -40,6 +40,7 @@ import {
   type OccupiedOutcome,
   wearInvites,
   wearKeen,
+  mark,
   type CarryItem,
   type CarryTuning,
   type Node,
@@ -58,6 +59,8 @@ import { type Scene } from "./scene.js";
  * per-gesture patch — plus the two things a scene has to say about its own rules.
  */
 export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined } & {
+  /** Who holds the finger on this scene (e.g. seat key). Overrides Scene.actor when set. */
+  readonly actor?: string | undefined;
   /** The run a grabbed node leads. Absent, a card travels alone. */
   readonly runOf?: ((root: Node, hit: Node) => readonly Node[]) | undefined;
   /**
@@ -254,6 +257,8 @@ interface Wiring {
         readonly from: Point;
         readonly atMs: number;
         readonly hit: Node;
+        readonly fromPos: Vec;
+        readonly fromParent: Node | undefined;
         /**
          * WHAT THE CLOCK WAS TOLD THIS CARRY FEELS LIKE — the knobs and the desk's own word for this
          * piece, merged exactly as the grab merged them.
@@ -439,6 +444,8 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
       from: g,
       atMs: e.timeStamp,
       hit,
+      fromPos: anchor,
+      fromParent: hit.parent ?? undefined,
     };
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     w.undoInvites = wearInvites(root, hit);
@@ -522,6 +529,10 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   /** What the runtime does about a sitter, by the name the plan gave. */
   const DISPLACE: Record<string, (what: OccupiedOutcome, sitter: Node, from: Node, root: Node) => void> = {
     capture: (what, sitter, from, root) => {
+      const actor = w.opts.actor ?? s.actor;
+      if (actor) {
+        mark(sitter, { by: actor, mark: "captured", from: worldSeat(sitter) });
+      }
       const to = "to" in what ? byId(root, what.to) : undefined;
       if (!to) return;
       remove(from, sitter);
@@ -585,14 +596,22 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
   const inside = (tray: Walls | undefined, at: Vec): Vec =>
     tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
 
-  const drop = (items: readonly CarryItem[], seat: Vec): void => {
+  const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>): void => {
     const root = s.host.root;
-    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: w.drag?.feel ?? {} });
-    if (landed(items, seat, root)) {
+    w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: dragInfo?.feel ?? {} });
+    if (landed(items, seat, root, dragInfo)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
       // a zone taking the drop is still a drop, and a scene redrawing from the tree needs to know.
       w.opts.onSettled?.(s.host.root, items.map((it) => it.id));
       return;
+    }
+    const actor = w.opts.actor ?? s.actor;
+    if (actor && items[0]) {
+      const lead = byId(root, items[0].id);
+      if (lead) {
+        const leftBoard = dragInfo?.fromParent && dragInfo.fromParent !== root;
+        mark(lead, { by: actor, mark: leftBoard ? "removed" : "moved", ...(dragInfo?.fromPos ? { from: dragInfo.fromPos } : {}) });
+      }
     }
     for (const it of items) {
       const n = byId(root, it.id);
@@ -618,7 +637,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
    * The seat is written BEFORE the move so a free zone keeps the piece where the finger let it go —
    * `applyMove` spreads the node's own pose and rewrites only the grains the zone answered.
    */
-  const landed = (items: readonly CarryItem[], seat: Vec, root: Node): boolean => {
+  const landed = (items: readonly CarryItem[], seat: Vec, root: Node, dragInfo?: NonNullable<Wiring["drag"]>): boolean => {
     const lead = items[0] ? byId(root, items[0].id) : undefined;
     const source = lead?.parent ?? undefined;
     const target = lead ? w.opts.zoneAt?.(root, seat, lead) : undefined;
@@ -630,6 +649,10 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     const req = { source, touched: lead, target, carried: { angle: angleOf(lead) } };
     const plan = planMove(req);
     if (plan.verdict !== "allow") return false; // refused, or waiting on a person: the piece goes home
+    const actor = w.opts.actor ?? s.actor;
+    if (actor) {
+      mark(lead, { by: actor, mark: "moved", ...(dragInfo?.fromPos ? { from: dragInfo.fromPos } : {}) });
+    }
     // WHO WAS SITTING THERE, read BEFORE the load arrives — a moment later the target holds both.
     const sitter = target.children.find((c) => !plan.load.includes(c.id));
     // THE SEAT IS IN THE TARGET'S SPACE, and this is the one line the whole re-parent turns on.
@@ -797,7 +820,7 @@ export function wireDrag(s: Scene, opts: DragOptions = {}): Scene {
     // seat is the seat the run was ALLOWED, not the point the finger was at: inside a tray a hand
     // may stand a leash's length past a wall, and letting go there must not write the piece out of
     // the box the whole gesture just refused to let it leave.
-    drop(drag.items, inside(drag.tray, { x: p.x + drag.delta.x, y: p.y + drag.delta.y }));
+    drop(drag.items, inside(drag.tray, { x: p.x + drag.delta.x, y: p.y + drag.delta.y }), drag);
   };
 
   view.addEventListener("pointerdown", onDown);

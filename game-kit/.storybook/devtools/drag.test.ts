@@ -35,6 +35,7 @@ import {
   Transformable,
   type CoatedFields,
   type Mark,
+  type MarkedFields,
   type Node,
   type Painter,
   type Quad,
@@ -492,4 +493,77 @@ describe("the drag wiring's order", () => {
     s.dispose();
   });
 
+  it("drag.action-marks — writes moved mark on drop when actor is present", () => {
+    const root = desk();
+    const card = root.children[0]!;
+    const s = scene(root, { animate: true, actor: "south" });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s);
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 120, 120, 50));
+    s.host.view.dispatchEvent(finger("pointerup", 120, 120, 100));
+
+    const marked = fieldsOf<MarkedFields>(card, "Marked");
+    expect(marked).toBeDefined();
+    expect(marked?.by).toBe("south");
+    expect(marked?.mark).toBe("moved");
+    expect(marked?.from).toEqual({ x: 0, y: 0 });
+    s.dispose();
+  });
+
+  it("drag.action-marks — writes captured mark on victim and moved mark on aggressor", () => {
+    const root = desk();
+    installStockGrabs();
+    installStockOccupied();
+    registerLayout("drag.cell.marks", freeLayout);
+    registerLanding("test.landing.marks", () => ({ x: 7, y: 8 }));
+    registerOccupied("drag.taken.marks", capture("tray", "test.landing.marks"));
+    compose(root, Grabber({ grab: "one" }));
+    const cell = node(
+      "cell",
+      Bounded({ bounds: rect(1, 1) }),
+      Container({ layout: "drag.cell.marks" }),
+      Transformable({ at: { x: 2, y: 0 } }),
+      Acceptor({}),
+      Grabber({ grab: "one" }),
+      Displacer({ occupied: "drag.taken.marks" }),
+    );
+    const tray = node(
+      "tray",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "drag.cell.marks" }),
+      Transformable({ at: { x: 5, y: 0 } }),
+      Acceptor({}),
+    );
+    const sitter = node("sitter", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Draggable());
+    add(cell, sitter);
+    add(root, cell);
+    add(root, tray);
+
+    const aggressor = node("aggressor", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Draggable());
+    add(root, aggressor);
+
+    const s = scene(root, { animate: true, actor: "white" });
+    document.body.appendChild(s.el);
+    measure(s.el);
+    wireDrag(s, { zoneAt: () => cell });
+
+    // Drag aggressor onto cell
+    s.host.view.dispatchEvent(finger("pointerdown", 0, 0, 0));
+    s.host.view.dispatchEvent(finger("pointermove", 60, 0, 50));
+    s.host.view.dispatchEvent(finger("pointerup", 60, 0, 60));
+
+    expect(sitter.parent?.id).toBe("tray");
+    const sitterMark = fieldsOf<MarkedFields>(sitter, "Marked");
+    expect(sitterMark).toBeDefined();
+    expect(sitterMark?.by).toBe("white");
+    expect(sitterMark?.mark).toBe("captured");
+
+    const aggressorMark = fieldsOf<MarkedFields>(aggressor, "Marked");
+    expect(aggressorMark).toBeDefined();
+    expect(aggressorMark?.by).toBe("white");
+    expect(aggressorMark?.mark).toBe("moved");
+    s.dispose();
+  });
 });

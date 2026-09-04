@@ -5,7 +5,7 @@
 // scene called "Magnet args" that renders nothing. Two pages need these — the one desk and the two
 // screens looking at one — so they live where a module lives.
 
-import { type Node } from "../../src/index.js";
+import { type Node, type ViewerSettings } from "../../src/index.js";
 import { grabScene, type Mirror } from "./gestureScene.js";
 import { mergeRule } from "./mergeMap.js";
 import {
@@ -136,6 +136,8 @@ export const magnetScene = (
   mirror?: Mirror,
   unit?: number,
   magnet = true,
+  actor?: string,
+  viewer?: Partial<ViewerSettings>,
 ): HTMLElement =>
   grabScene(
     a.physics,
@@ -153,5 +155,8 @@ export const magnetScene = (
     mirror,
     unit,
     a.landing,
+    undefined,
+    actor,
+    viewer,
   );
 

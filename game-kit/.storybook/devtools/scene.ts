@@ -84,6 +84,8 @@ export interface Scene {
   readonly motions?: Motions;
   /** The camera of a `camera` scene — the same object the story tuned, for a check to read. */
   readonly camera?: Camera;
+  /** Who is acting on this scene (e.g. seat key like "south" or "white"). */
+  readonly actor?: string;
   /** Re-apply theme, language and the rest without rebuilding the scene. */
   setSettings(next: CatalogSettings): void;
   /** Show a different tree in the same view — see `scene()` on why this is not a rebuild. */
@@ -222,6 +224,10 @@ export interface SceneOptions {
    * middle on every keystroke in the panel.
    */
   readonly camera?: CameraScene;
+  /** Who holds the finger on this scene (e.g. seat key). */
+  readonly actor?: string | undefined;
+  /** Viewer settings overrides for this canvas. */
+  readonly viewer?: Partial<ViewerSettings> | undefined;
 }
 
 /** Everything the catalog's shell needs to stand a camera up — the kit's own fields, by name. */
@@ -695,7 +701,11 @@ export function scene(
 
   /** The catalog's settings plus the two that belong to THIS canvas. */
   function viewerFor(base: ViewerSettings): ViewerSettings {
-    return { ...withHudUnit(base, hudChoice), debugBounds: boundsOn, debugGrid: gridOn };
+    const defaultMarks = options.viewer?.marks;
+    const marks = defaultMarks
+      ? { ...defaultMarks, ...base.marks, inks: base.marks?.inks ?? defaultMarks.inks }
+      : base.marks;
+    return { ...withHudUnit(base, hudChoice), debugBounds: boundsOn, debugGrid: gridOn, ...(marks ? { marks } : {}) };
   }
 
   const note = document.createElement("div");
@@ -761,6 +771,7 @@ export function scene(
     el,
     host,
     id,
+    ...(options.actor ? { actor: options.actor } : {}),
     ...(motions ? { motions } : {}),
     ...(camera ? { camera } : {}),
     ready: firstFrame,

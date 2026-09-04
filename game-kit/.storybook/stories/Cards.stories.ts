@@ -58,8 +58,9 @@ export const Cards: StoryObj<MagnetArgs> = {
     const desk = liveMap(a.pull, zoneSpread(a));
     const screens: Screen[] = [];
     const held = a.lifted ? a.lift : 1;
+    const inks = Object.fromEntries(SEATS.map(({ seat, ink }) => [seat, ink]));
 
-    for (const { seat, ink } of SEATS) {
+    SEATS.forEach(({ seat, ink }, i) => {
       const pane = document.createElement("div");
       pane.style.cssText = "position:relative;min-height:240px;overflow:hidden";
       const dot = document.createElement("div");
@@ -70,26 +71,37 @@ export const Cards: StoryObj<MagnetArgs> = {
       screens.push(mine);
       const others = (): Screen[] => screens.filter((one) => one !== mine);
       pane.appendChild(
-        magnetScene(a, () => desk, liveTune(a.pull, zoneSpread(a)), {
-          ready: (s, grasp) => {
-            mine.scene = s;
-            mine.grasp = grasp;
+        magnetScene(
+          a,
+          () => desk,
+          liveTune(a.pull, zoneSpread(a)),
+          {
+            ready: (s, grasp) => {
+              mine.scene = s;
+              mine.grasp = grasp;
+            },
+            // EVERY OTHER SCREEN, told. A host is only ever told by being told.
+            // EVERY OTHER SCREEN, told — and told to re-READ the handles rather than redraw them.
+            // Two screens both redrawing the tabs destroy each other's: the map each kept then points
+            // at ids no longer in the tree, and a handle sails off across the desk carrying nothing.
+            changed: () => {
+              for (const one of others()) one.grasp?.();
+            },
+            hand: (items, at, done, feel) => {
+              for (const one of others()) follow(one, items, at, done, held, feel, mine.seat);
+            },
           },
-          // EVERY OTHER SCREEN, told. A host is only ever told by being told.
-          // EVERY OTHER SCREEN, told — and told to re-READ the handles rather than redraw them.
-          // Two screens both redrawing the tabs destroy each other's: the map each kept then points
-          // at ids no longer in the tree, and a handle sails off across the desk carrying nothing.
-          changed: () => {
-            for (const one of others()) one.grasp?.();
-          },
-          hand: (items, at, done, feel) => {
-            for (const one of others()) follow(one, items, at, done, held, feel, mine.seat);
-          },
-        }, LIVE_UNIT),
+          LIVE_UNIT,
+          true,
+          seat,
+          i === 0
+            ? { marks: { inks, showOwn: true } }
+            : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
+        ),
       );
       pane.appendChild(dot);
       wall.appendChild(pane);
-    }
+    });
     return wall;
   },
   // NO PULL, AND THAT IS WHAT "no magnetism here" MEANS — not that the areas are scenery.

@@ -34,6 +34,7 @@ import {
   type Node,
   type TransformableFields,
   type Vec,
+  type ViewerSettings,
 } from "../../src/index.js";
 import { throwDie } from "@game-presets/dice";
 import { wireDrag } from "../devtools/drag.js";
@@ -194,6 +195,8 @@ export function grabScene(
    * every page but the one with something standing beside its felt.
    */
   room?: { x: number; y: number; w: number; h: number },
+  actor?: string,
+  viewer?: Partial<ViewerSettings>,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -257,6 +260,8 @@ export function grabScene(
   const make = typeof desk === "function" ? desk : desk === "deck" ? deckMap : desk === "stack" ? stackMap : gestureMap;
   const built = scene(make, {
     animate: true,
+    ...(actor ? { actor } : {}),
+    ...(viewer ? { viewer } : {}),
     camera: {
       limits: MAP_ZOOM,
       // THE DESK PLUS THE ROOM TO LOOK AT IT. Told the desk exactly, the camera holds it covering
