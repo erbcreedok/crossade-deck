@@ -33,3 +33,6 @@ client2/test-results/
 .agent/queue/
 # Воркtree агентов-исполнителей — scripts/agents
 .worktrees/
+# Секреты сервера и бота — никогда в git
+server/.env
+bot/.env
