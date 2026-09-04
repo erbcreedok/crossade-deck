@@ -904,6 +904,23 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         onWall: opts.onWall,
         onSnap: opts.onSnap,
       };
+      // THE SAME HAND TAKING HOLD AGAIN IS NOT A NEW HAND. A run is re-grabbed mid-gesture for a
+      // change of LOAD — the picture of the landing taken back after a throw that did not happen, a
+      // handle re-drawn — and the hand did not open: the finger is where it was, the cards are as
+      // high as they were, the tail is as far behind as it had fallen. Seeded afresh, every one of
+      // those restarts: the lift pops again, the follow springs snap to the anchor, and the card in
+      // the hand TWITCHES the moment the outline appears under it. So what the old carry had is
+      // kept — the hand's own springs whole, and each piece's tail and gap where the piece persists.
+      if (oldHandCarry) {
+        cy.sx = oldHandCarry.sx;
+        cy.sy = oldHandCarry.sy;
+        cy.sl = oldHandCarry.sl;
+        cy.sa = oldHandCarry.sa;
+        cy.gatheredMs = oldHandCarry.gatheredMs;
+        const kept = (i: number) => oldHandCarry.items.findIndex((o) => o.id === items[i]!.id);
+        cy.tails = cy.tails.map((tail, i) => oldHandCarry.tails[kept(i)] ?? tail);
+        cy.gaps = cy.gaps.map((gap, i) => oldHandCarry.gaps[kept(i)] ?? gap);
+      }
       carries.set(handKey, cy);
       for (const it of items) {
         carried.add(it.id);

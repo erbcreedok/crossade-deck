@@ -281,6 +281,34 @@ describe("the motion runtime", () => {
     expect(b2.xOf("d")).toBeCloseTo(before, 6);
   });
 
+  it("motion.the-same-hand-taking-hold-again-is-not-a-new-hand — a re-grab mid-gesture does not twitch", () => {
+    // The landing outline comes back into the hand after a throw that did not happen, and the run is
+    // grabbed again to take it. Seeded afresh, the lift popped again and the follow springs snapped
+    // to the anchor: the card in the hand twitched. What the old carry had is kept instead — so the
+    // frame after a re-grab is the frame the gesture would have drawn anyway.
+    const play = (regrab: boolean) => {
+      const b = bench();
+      add(b.desk, node("d", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+      add(b.desk, node("mark", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+      const c = fakeClock();
+      const m = attachMotion(b.host, b.painter, { clock: c.clock, settleMs: 300, lift: 1.2, trail: 1 });
+      const run = [{ id: "c", offset: { x: 0, y: 0 } }, { id: "d", offset: { x: 1, y: 0 } }, { id: "mark", offset: { x: 0, y: 0 }, still: true }];
+      m.grab(run, { anchor: { x: 0, y: 0 } });
+      let t = 0;
+      for (let i = 0; i < 6; i++) { c.tick((t += 16)); m.dragTo({ x: i * 0.5, y: 0 }); }
+      // The same hand, the same run — taken hold of again mid-flight, as the desk does to bring the
+      // landing picture back after a throw that did not happen.
+      if (regrab) m.grab(run, { anchor: { x: 2.5, y: 0 } });
+      c.tick((t += 16));
+      return { c: b.xOf("c"), d: b.xOf("d"), sc: b.tOf("c").a };
+    };
+    const plain = play(false);
+    const again = play(true);
+    expect(again.c).toBeCloseTo(plain.c, 6);
+    expect(again.d).toBeCloseTo(plain.d, 6);
+    expect(again.sc).toBeCloseTo(plain.sc, 6);
+  });
+
   it("motion.a-still-piece-is-not-gathered — a picture appears where it is said to be", () => {
     // A landing mark taken back into the hand after a throw that did not happen used to glide in
     // from wherever the desk had left it. It is scenery, not a card: no gap, no road, it is there.
