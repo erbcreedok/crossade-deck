@@ -7,9 +7,18 @@
 # is reported as is; a dead or missing one is replaced, and the catalog itself is started first if
 # nothing listens on :9567. Idempotent — run it as often as you like.
 #
-#   scripts/kit-tunnel.sh          # prints the https://…trycloudflare.com address, nothing else on stdout
-#   scripts/kit-tunnel.sh --fresh  # kills the tunnel and mints a new address regardless
+#   scripts/kit-tunnel.sh                    # prints the https://…trycloudflare.com address, nothing else on stdout
+#   scripts/kit-tunnel.sh --fresh            # kills the tunnel and mints a new address regardless
+#   scripts/kit-tunnel.sh live-chess--chess  # prints the address OF THAT STORY, full screen (what a phone wants)
+#   scripts/kit-tunnel.sh --fresh live-chess--chess
 set -euo pipefail
+FRESH=""; STORY=""
+for arg in "$@"; do
+  case "$arg" in
+    --fresh) FRESH=1 ;;
+    *) STORY="$arg" ;;
+  esac
+done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$ROOT/.agent/tmp/tunnel.log"
 SB_LOG="$ROOT/.agent/tmp/storybook.log"
@@ -18,6 +27,9 @@ mkdir -p "$ROOT/.agent/tmp"
 export PATH="$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH"
 
 say() { echo "$*" >&2; }
+# A story id turns the bare address into the place to LOOK: the canvas alone, full screen, which is
+# what a phone wants; without one, the catalog's front door.
+out() { if [[ -n "$STORY" ]]; then echo "$1/iframe.html?id=$STORY&viewMode=story"; else echo "$1"; fi; }
 
 # 1. The catalog itself.
 if ! curl -sf -o /dev/null "http://localhost:$PORT/index.json"; then
@@ -33,10 +45,10 @@ fi
 # 2. A tunnel that is alive AND whose address still answers is the answer.
 url_from_log() { grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$LOG" 2>/dev/null | tail -1 || true; }
 alive() { pgrep -f "cloudflared tunnel --url http://127.0.0.1:$PORT" >/dev/null; }
-if [[ "${1:-}" != "--fresh" ]] && alive; then
+if [[ -z "$FRESH" ]] && alive; then
   URL="$(url_from_log)"
   if [[ -n "$URL" ]] && curl -sf -o /dev/null --max-time 15 "$URL/index.json"; then
-    echo "$URL"; exit 0
+    out "$URL"; exit 0
   fi
   say "tunnel process is up but its address no longer answers — replacing"
 fi
@@ -54,8 +66,8 @@ for _ in $(seq 1 30); do
 done
 [[ -n "$URL" ]] || { say "cloudflared gave no address — see $LOG"; exit 1; }
 for _ in $(seq 1 15); do
-  curl -sf -o /dev/null --max-time 10 "$URL/index.json" && { echo "$URL"; exit 0; }
+  curl -sf -o /dev/null --max-time 10 "$URL/index.json" && { out "$URL"; exit 0; }
   sleep 2
 done
 say "address minted but not answering yet: $URL — try again in a minute"
-echo "$URL"
+out "$URL"
