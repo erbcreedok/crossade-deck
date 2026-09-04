@@ -1,0 +1,51 @@
+apps/hub/src/hub/catalogue.ts
+  s_cd58e22f555142::t_9d031b8d6998cd 30-41
+apps/hub/src/table/index.ts
+  s_cd58e22f555142::t_1d465cff325969 7
+  s_cd58e22f555142::t_68b5c7da783dc8 16,19-20,27,29,34-35,37-41,49,56,82-87,94-95,101-102,104,110-112,115,123,126
+  s_cd58e22f555142::t_1bc6291aad31c4 8-9
+  s_cd58e22f555142::t_628977099b0e86 1
+  s_cd58e22f555142::t_9333e541f0a62b 63-81
+  s_cd58e22f555142::t_f584c906056495 165
+  s_cd58e22f555142::t_e37ec3fc3c8b6e 96-100,103,105-106,108-109
+  s_cd58e22f555142::t_1e5d287edb6418 107
+apps/hub/index.html
+  s_cd58e22f555142::t_55bc0d5b3763d8 50-52
+apps/hub/src/account/account.ts
+  s_cd58e22f555142::t_e5e35d50c8f02a 25-46,51-55
+  s_cd58e22f555142::t_ed32d8ef68f402 56
+apps/hub/src/main.ts
+  s_cd58e22f555142::t_1d4f9ebe666cc6 4-5,17-37
+  s_cd58e22f555142::t_17c1932c264a62 38
+apps/hub/src/table/mapFor.ts
+  s_cd58e22f555142::t_5ab74e26c17577 1-18
+apps/hub/src/online/table.ts
+  s_cd58e22f555142::t_aa819a30aca7ae 53-63
+apps/hub/src/hub/grid.ts
+  s_cd58e22f555142::t_333eb83abfb37d 38
+apps/hub/src/table/mapFor.test.ts
+  s_cd58e22f555142::t_b4b4654a9abf1b 6
+  s_cd58e22f555142::t_d47614967f5207 1-5,7-28
+apps/hub/src/account/account.test.ts
+  s_cd58e22f555142::t_e2982fe9ca1f47 53-75
+  s_cd58e22f555142::t_8dd59aa5086b7c 3
+apps/hub/src/online/table.test.ts
+  s_cd58e22f555142::t_a2b8f36e6f1901 1,5-13
+  s_cd58e22f555142::t_f700ca7586ffee 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "71413ccc57f522e9870b0376fe1c348377d551ee",
+  "prompts": {},
+  "sessions": {
+    "s_cd58e22f555142": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "99811d1d-1012-4072-b2e3-eeda8b62a432",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
