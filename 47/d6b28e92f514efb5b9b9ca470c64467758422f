@@ -1,0 +1,20 @@
+game-kit/docs/test-plan/40-motion.md
+  h_2b92b67d011bfc 3,65
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,68
+game-kit/src/render/animator/index.ts
+  h_2b92b67d011bfc 907-923
+game-kit/src/render/animator/runtime.test.ts
+  h_2b92b67d011bfc 284-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "47d6b28e92f514efb5b9b9ca470c64467758422f",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
