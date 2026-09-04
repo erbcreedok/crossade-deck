@@ -150,9 +150,19 @@ def agents(host: str = "localhost"):
             j["tail"] = t.read_text()[-6000:] if t.exists() else ""
             j["links"] = links_for(j.get("name", d.name), host)
             out.append(j)
-    order = {"running": 0, "preparing": 1, "failed": 2, "budget": 3, "killed": 4, "done": 5}
-    out.sort(key=lambda j: (order.get(j.get("state"), 9), j.get("started", "")), reverse=False)
+    # WHO IS WORKING, THEN WHO FINISHED LAST. A dead run from this afternoon is not news; the one
+    # that just finished is. Only what is alive gets pinned to the top.
+    alive = {"running": 0, "preparing": 0}
+    out.sort(key=lambda j: (alive.get(j.get("state"), 1), -_ts(j.get("finished") or j.get("updated") or j.get("started") or "")))
     return out
+
+
+def _ts(iso: str) -> float:
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(iso).timestamp()
+    except ValueError:
+        return 0.0
 
 
 class H(BaseHTTPRequestHandler):
