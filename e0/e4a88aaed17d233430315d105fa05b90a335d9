@@ -1,0 +1,24 @@
+apps/hub/src/table/index.ts
+  h_2b92b67d011bfc 3-4,64-68,118
+apps/klondike/src/solitaire/scene.ts
+  h_2b92b67d011bfc 6,348,373,378,386-393,395-398,401-403,414-415,424-432,435-443,667-719,722
+game-kit/docs/test-plan/70-drag.md
+  h_2b92b67d011bfc 3,8
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,98
+game-kit/src/render/drag.test.ts
+  h_2b92b67d011bfc 97-99
+game-kit/src/render/drag.ts
+  h_2b92b67d011bfc 20,120,140-142,437-443,591,594,632,635,723,725,727,760,815
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e0e4a88aaed17d233430315d105fa05b90a335d9",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
