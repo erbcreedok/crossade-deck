@@ -1,0 +1,30 @@
+{
+  "docs.forgiving.component": [
+    "`Forgiving` specifies how far a touch or click may miss this node and still grab it.",
+    "",
+    "Controls are aimed at with fingertips but drawn for human eyes. A drag handle or thin tab is",
+    "deliberately narrow — drawn as a thick slab, it would look clumsy — while a fingertip covers",
+    "dozens of glass pixels, obscuring the target on the way down. The honest solution is not to draw",
+    "it artificially huge, but to forgive near misses.",
+    "",
+    "```ts",
+    "import { node, Bounded, Forgiving, Draggable, rect } from \"game-kit\";",
+    "",
+    "const tab = node(\"handle\",",
+    "  Bounded({ bounds: rect(1.2, 0.25) }),",
+    "  Forgiving({ miss: 0.4 }),",
+    "  Draggable());",
+    "```",
+    "",
+    "## It never steals",
+    "",
+    "Hit testing first checks every node exactly as drawn. Only if nothing would otherwise be hit",
+    "does the second pass offer the touch to forgiving nodes. A finger landing squarely on an adjacent",
+    "card always gets that card, no matter how forgiving the nearby tab is."
+  ],
+  "docs.forgiving.miss": [
+    "A narrow handle on the desk. With `miss: 0`, touching even slightly outside the drawn box hits",
+    "nothing. Increase `miss`, and touches in the margin around the handle still grab and drag it,",
+    "while direct touches on the neighbouring card remain unaffected."
+  ]
+}

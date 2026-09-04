@@ -1,0 +1,28 @@
+{
+  "docs.reaching.component": [
+    "`Reaching` defines how far past its own outline a node still counts as being at something.",
+    "",
+    "A bounding box says where an element is. It says nothing about the space around it, yet game",
+    "rules constantly care about that space: two adjacent chips forming a single pot, a card dropped",
+    "near a zone belonging to that zone, or pieces a hair apart counting as touching.",
+    "",
+    "```ts",
+    "import { node, Bounded, Reaching, rect } from \"game-kit\";",
+    "",
+    "const piece = node(\"token\",",
+    "  Bounded({ bounds: rect(1, 1) }),",
+    "  Reaching({ reach: 0.5 }));",
+    "```",
+    "",
+    "## Measured from the outline",
+    "",
+    "Reach is measured in root units outward from the node's outline, not from its center. A reach from",
+    "the center would vary at every edge of any non-circular shape, which is not what \"near\" means.",
+    "Turn on `bounds` to inspect it: the box is swept by a disc of that radius, extending edges and",
+    "rounding corners."
+  ],
+  "docs.reaching.reach": [
+    "A piece on the desk reaching out toward a target. With `bounds` enabled, the reach boundary is",
+    "drawn as an expanded halo around the piece. Adjust `reach` to see the attraction perimeter grow."
+  ]
+}
