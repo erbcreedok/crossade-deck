@@ -664,6 +664,43 @@ export function startSolitaire(container: HTMLElement): () => void {
   // fallback stays that way — so the first frame with real metrics is asked for once, here.
   void ruler.ready.then(() => redraw());
 
+  /**
+   * WHAT A PRESS DOES BEFORE IT IS A DRAG. The kit's wiring answers to pieces a hand may LIFT, and
+   * it decides a tap on the way UP — so everything that is not a lift never reaches it: the stock is
+   * a face-down pile nobody drags, and the ceremony has no pieces in it at all. Those presses are
+   * answered here, on the way DOWN, exactly as the scene did before it stood on `wireDrag`.
+   */
+  const onDown = (e: PointerEvent): void => {
+    // The ceremony is the player's to run: once it has begun, every press launches the NEXT card at
+    // once — no waiting on the one before to land. This is caught before anything else, so a tap on
+    // the glass mid-cascade never reaches a pile, the stock, or a drag.
+    if (celebrated) {
+      launchNext();
+      return;
+    }
+    // The dev door's table is already won: the first tap anywhere is the ceremony (by then the
+    // renderer has presented the table and its pictures — a glass kept from before that is blank).
+    if (wonAtOnce) {
+      celebrate();
+      return;
+    }
+    const g = glassOf(view, e);
+    // THE BAR IS ASKED FIRST, and then LET GO OF: a control's gesture is `wireButtons`' business
+    // from here on — it lights it, sinks it and fires the press on the way UP. All that is left for
+    // this handler is to keep its hands off, or a press on a control would also move a card under it.
+    if (pickTop(host, g, (n) => caps(n).has("Pressable"))) return;
+    const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
+    if (!hit) return;
+    // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
+    // tableau out; once that is done, presses draw to the waste as usual; a press mid-deal is inert.
+    const pileHit = isCard(hit) ? hit.parent : hit;
+    if (pileHit && kindOf(pileHit) === "stock") {
+      if (!dealt) dealTableau();
+      else if (dealDone) dealFromStock();
+    }
+  };
+  view.addEventListener("pointerdown", onDown);
+
   wireDrag({ host, motions: motion, el: host.view }, {
     may: (n) => {
       if (celebrated || wonAtOnce) return false;
@@ -694,21 +731,9 @@ export function startSolitaire(container: HTMLElement): () => void {
       landRun(run, src, target);
       return true;
     },
+    // A tap the wiring hands over is a tap on a card a hand may lift — the stock and the ceremony
+    // were answered on the way down (`onDown`); what is left is the double-tap that auto-moves.
     onTap: (hit) => {
-      if (celebrated) {
-        launchNext();
-        return;
-      }
-      if (wonAtOnce) {
-        celebrate();
-        return;
-      }
-      const pileHit = isCard(hit) ? hit.parent : hit;
-      if (pileHit && kindOf(pileHit) === "stock") {
-        if (!dealt) dealTableau();
-        else if (dealDone) dealFromStock();
-        return;
-      }
       if (isCard(hit)) {
         const root = host.root;
         const poses = motion.poses();
@@ -719,7 +744,7 @@ export function startSolitaire(container: HTMLElement): () => void {
   });
 
   return () => {
-    stopButtons();
+    view.removeEventListener("pointerdown", onDown);
     stopButtons();
     if (dealTimer) clearTimeout(dealTimer);
     motion.stop();

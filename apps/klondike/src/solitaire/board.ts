@@ -15,6 +15,7 @@ import {
   registerLayout,
   remove,
   setFacing,
+  Draggable,
   ShadowCaster,
   Transformable,
   bottomOf,
@@ -247,6 +248,10 @@ export function buildBoard(layout: TableLayout = ROOMY): SolitaireBoard {
   for (const card of shuffledPips()) {
     setFacing(card, "down");
     compose(card, ShadowCaster({ from: "silhouette" })); // casts only once lifted out of a pile
+    // A CARD CAN BE LIFTED — said on the card, because the kit's wiring picks what says so and
+    // nothing else. Which cards a hand may take (face up, the head of a run) is the game's answer
+    // and stays in the scene's `may`; a refused drop flies HOME, the pile it was lifted from.
+    compose(card, Draggable({ onReject: "home" }));
     add(stock, card);
   }
 
