@@ -25,3 +25,8 @@ client2/docs/atoms-map.pdf
 # Артефакты прогона Playwright (скриншоты/трейсы упавших тестов) — производные, пересоздаются
 test-results/
 client2/test-results/
+
+# оркестрация: задача и отчёт в полёте, история — в коммитах
+.agent/NEXT.md
+.agent/REPORT.md
+.agent/tmp/
