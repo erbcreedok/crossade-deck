@@ -371,6 +371,7 @@ export function grabScene(
    * moment it would fly, and is not throwing again only once it has slowed to half the threshold.
    */
   let flying = false;
+  let rest: ReturnType<typeof setTimeout> | undefined;
   const throwingNow = (v?: Vec): boolean => {
     if (wouldFly(v)) flying = true;
     else if (!v || Math.hypot(v.x, v.y) < THROWN_AT / 2) flying = false;
@@ -396,7 +397,11 @@ export function grabScene(
   const markLanding = (run: readonly Node[], seats: readonly Vec[], anchorAt: Vec): Node | undefined => {
     if (!landingShown || run.length === 0) return undefined;
     const box = landingBox(run, seats);
-    const mark = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++);
+    // FOR THIS PAIR OF EYES. The picture is scenery for the hand that is carrying, and the other
+    // player has no use for where somebody else's card might come down — a second outline gliding
+    // about their desk is noise at best and, mirrored a frame late, a lie. So the mark is opened to
+    // its own seat only, and a screen that knows whose it is draws nothing for anyone else.
+    const mark = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++, built.host.viewer().marks?.me);
     add(built.host.root, mark);
     // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
     // this is going; the load hangs above them both, because a load drawn ON the finger covers the
@@ -423,24 +428,36 @@ export function grabScene(
    * landing to show. The mark survives (`landing` keeps it) so a hand that slows down again gets
    * the same picture back, in the same gesture; only `showLanding(undefined)` ends it for good.
    */
+  let hidden = false;
   const hideLanding = (): void => {
     const mark = landing;
     if (!mark || !mark.node.parent) return;
     remove(mark.node.parent, mark.node);
     built.motions?.release(mark.node.id);
     parked = undefined;
+    hidden = true;
     built.host.setRoot(built.host.root);
     mirror?.changed();
   };
   const showLanding = (at: Vec | undefined, zone: Node | undefined, feel: CarryFeel): void => {
     const mark = landing;
     if (!mark) return;
-    // ...AND BACK ON THE DESK, if a throw that did not happen took it off.
-    if (at && !mark.node.parent) add(built.host.root, mark.node);
+    // ...AND BACK ON THE DESK, if a throw that did not happen took it off — and back onto the HAND,
+    // which is the part that was missed once: hiding released the mark, and a mark put back into
+    // the tree and not re-grabbed stands wherever the tree last had it, which is where the card was
+    // lifted from. A picture of the landing pinned to the lift-off point is the wrong picture, and
+    // the "nothing changed" shortcut below must not be allowed to keep it there.
+    const back = hidden && at !== undefined;
+    if (back) {
+      add(built.host.root, mark.node);
+      hidden = false;
+      mirror?.changed();
+    }
     if (!at) {
       if (mark.node.parent) remove(mark.node.parent, mark.node);
       landing = undefined;
       parked = undefined;
+      hidden = false;
       built.host.setRoot(built.host.root);
       mirror?.changed();
       return;
@@ -455,7 +472,7 @@ export function grabScene(
     // all: a zone does not follow a finger about. So the moments anything is written are a handful
     // per gesture instead of the sixty a second a moving finger asks for, which is what hung the
     // desk: every one of those was a whole desk laid out, planned and painted again.
-    if (zone === parked) return;
+    if (zone === parked && !back) return;
     if (zone) {
       const own = fieldsOf<TransformableFields>(mark.node, "Transformable");
       compose(mark.node, Transformable({ ...(own ?? {}), at: landingAt(at, mark.seat, zone) }));
@@ -505,11 +522,23 @@ export function grabScene(
       mirror?.hand(carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), at, done, feel);
       // ...AND THE PICTURE OF WHERE IT LANDS GOES WHERE THAT IS — asked by the very question that
       // lights the zone, so the light and the picture can never say two different things.
+      // A FINGER THAT RESTS EMITS NOTHING. The hand is judged on every move, and a hand that flew
+      // and then stopped dead makes no move to be judged on: the last word was "throwing", and the
+      // picture stayed off the desk for as long as the finger stayed still — which on a phone is
+      // most of a careful drop. So a hide sets ONE deadline, cleared by the next move; a hand that
+      // is still when it fires has stopped throwing, whatever its last speed said.
+      if (rest !== undefined) clearTimeout(rest);
+      rest = undefined;
       if (done) {
         flying = false;
         showLanding(undefined, undefined, feel);
       } else if (throwingNow(swing)) {
         hideLanding();
+        rest = setTimeout(() => {
+          rest = undefined;
+          flying = false;
+          if (landing) showLanding(at, zones ? zoneAimed(ids, at) : undefined, feel);
+        }, HAND_AT_REST_MS);
       } else {
         showLanding(at, zones ? zoneAimed(ids, at) : undefined, feel);
       }
@@ -800,6 +829,8 @@ export function grabScene(
 
 
 /** Which way a handful goes when the hand had no direction of its own: away from the reader. */
+/** How long a hand that was throwing has to stay still before it is a hand that has stopped. */
+const HAND_AT_REST_MS = 120;
 const DOWN_THE_DESK = 90;
 
 /** Two velocities as one — the throw the hand gave it plus its own share of the opening. */

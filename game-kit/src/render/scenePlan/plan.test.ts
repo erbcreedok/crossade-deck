@@ -11,6 +11,7 @@ import { Surfaced } from "../../core/atoms/surfaced.js";
 import { Transformable } from "../../core/atoms/transformable.js";
 import { Oriented } from "../../core/atoms/oriented.js";
 import { Screened } from "../../core/atoms/screened.js";
+import { Private } from "../../core/atoms/private.js";
 import { Labeled } from "../../core/atoms/labeled.js";
 import { type TextMeasure } from "../textMetrics.js";
 import { add, node, type NodeId } from "../../core/node.js";
@@ -1126,6 +1127,22 @@ describe("the hybrid: baked or live", () => {
     const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer });
     const markQuad = quads.find((q) => q.id === "p1::mark");
     expect(markQuad).toBeUndefined();
+  });
+
+  it("plan.private-seat-skips — a subtree closed to the viewer's seat is not planned; a viewer with no seat sees it", () => {
+    // Two hosts over one truth have no projection to hide behind, so the plan does what the
+    // projection would have: a `Private` subtree the seat may not see is left out, children and all.
+    const root = node("root", Container({ layout: "free" }));
+    const mine = node("mine", Bounded({ bounds: rect(2, 2) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }), Private({ access: ["south"] }));
+    const inside = node("inside", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }));
+    add(mine, inside);
+    add(root, mine);
+    const ids = (viewer: typeof DEFAULT_VIEWER): string[] =>
+      scenePlan({ root, unit: 100, width: 800, height: 600, viewer }).map((q) => q.id);
+    expect(ids({ ...DEFAULT_VIEWER, marks: { me: "north", showOwn: true } })).not.toContain("mine");
+    expect(ids({ ...DEFAULT_VIEWER, marks: { me: "north", showOwn: true } })).not.toContain("inside");
+    expect(ids({ ...DEFAULT_VIEWER, marks: { me: "south", showOwn: true } })).toContain("mine");
+    expect(ids(DEFAULT_VIEWER)).toContain("mine");
   });
 
   it("marks.a-halo-and-a-badge-and-no-trail — `from` stays data; the plan draws the piece's own outline tinted, and a badge", () => {

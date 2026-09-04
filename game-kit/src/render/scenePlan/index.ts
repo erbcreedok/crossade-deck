@@ -17,6 +17,7 @@
 /** A picture placed in the area, in PIXELS — where it goes and whether it tiles. */
 
 import { caps, walk, type Node, type NodeId } from "../../core/node.js";
+import { visibleTo } from "../../core/atoms/private.js";
 import { placeChildren } from "../../core/atoms/container.js";
 import { extentOf, footprint, outlineOf, type Point, type Shape } from "../../core/atoms/bounded.js";
 import { castsShadow, shadowFrom } from "../../core/atoms/shadow.js";
@@ -99,6 +100,14 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
   const markCtx: MarkContext = { viewer, unit, toView, nodes, overrides, standUp, now };
 
   const visit = (n: Node): void => {
+    // NOT FOR THESE EYES. Privacy is a fact of the tree and lives in the projection (`project`),
+    // and a screen that sits on a projection never meets a `Private` node it may not see. A screen
+    // that sits on the TRUTH — two hosts over one desk, as the catalog's live pages do — has no
+    // projection to hide behind, and the only honest thing it can do with a subtree closed to its
+    // viewer is what the projection would have done: leave it out, children and all. A viewer with
+    // no seat is shown everything, as before; a seat is a promise the tree can now be taken up on.
+    const me = viewer.marks?.me;
+    if (me !== undefined && !visibleTo(n, me)) return;
     const ctx = contextFor(n, unit, viewer);
 
     // THE ONE SEAM. Every runtime mechanic reaches the paint through here and nowhere else: the

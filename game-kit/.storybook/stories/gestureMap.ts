@@ -49,6 +49,7 @@ import {
   setFacing,
   ShadowCaster,
   stackSeats,
+  Private,
   Surfaced,
   surfaceNames,
   surfaceRecord,
@@ -644,10 +645,13 @@ export const isDrawn = (n: Node): boolean => isGrip(n) || isMark(n);
  * no lift, so it stays on the felt, and at the seat the run's first card will take — it follows the
  * finger for free, every frame, without a single write to the tree while the hand is moving.
  */
-export function landingMark(at: Vec, box: { readonly w: number; readonly h: number }, nth: number): Node {
+export function landingMark(at: Vec, box: { readonly w: number; readonly h: number }, nth: number, seat?: string): Node {
   return node(
     `landing mark ${nth}`,
     Bounded({ bounds: roundedRect(box.w, box.h, Math.min(box.w, box.h) * 0.08) }),
+    // WHOSE PICTURE IT IS. A seat that is known opens the mark to that seat alone; a desk with no
+    // seats (a single-screen story) leaves it open, because there is nobody to hide it from.
+    ...(seat ? [Private({ access: [seat] })] : []),
     Surfaced({ surface: MARK_SURFACE }),
     // UNDER WHAT IS BEING CARRIED. The picture and the load are drawn together — both ride the hand,
     // so the plan puts them in the same rank and the order inside it is the z. Left at the desk's
