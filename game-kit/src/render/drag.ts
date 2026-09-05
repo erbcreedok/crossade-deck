@@ -27,7 +27,7 @@ import { glassOf, pick, toUnits } from "./pointer.js";
 import { transformsOf } from "./scenePlan/index.js";
 import { FLING } from "./camera/index.js";
 import { type CarryItem, type CarryOptions, type Motions, type WallHit } from "./animator/index.js";
-import { type Walls } from "../core/ballistic.js";
+import { insideWalls, type Walls } from "../core/ballistic.js";
 import { type CarryTuning } from "../core/motion.js";
 import { type Host } from "./host.js";
 
@@ -607,8 +607,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
   };
 
   /** A point as the tray allows it — the same clamp the carry itself is under. */
-  const inside = (tray: Walls | undefined, at: Vec): Vec =>
-    tray ? { x: Math.min(tray.x1, Math.max(tray.x0, at.x)), y: Math.min(tray.y1, Math.max(tray.y0, at.y)) } : at;
+  const inside = (tray: Walls | undefined, at: Vec): Vec => (tray ? insideWalls(tray, at) : at);
 
   const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>, glass?: Vec): void => {
     const root = s.host.root;

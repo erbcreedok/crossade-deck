@@ -73,11 +73,48 @@ export function stepFall(b: Body, cfg: FallConfig, dt: number): Body {
 }
 
 /** An axis-aligned box in root units — the walls of a tray a sliding body stays inside. */
-export interface Walls {
+export interface BoxWalls {
   readonly x0: number;
   readonly y0: number;
   readonly x1: number;
   readonly y1: number;
+}
+
+/**
+ * A ROUND tray, in root units — a felt with no corners, which a rectangle cannot say however many
+ * numbers it is given. A body inside it is inside a DISC, and what stops it is the one wall it has,
+ * everywhere normal to the line from the middle.
+ */
+export interface RingWalls {
+  readonly cx: number;
+  readonly cy: number;
+  readonly r: number;
+}
+
+/** The tray a carried or sliding body stays inside: a box or a disc. */
+export type Walls = BoxWalls | RingWalls;
+
+/**
+ * WHICH OF THE TWO A TRAY IS — asked HERE and nowhere else.
+ *
+ * The shape of a wall is arithmetic, and arithmetic about walls lives in this file: a hand's clamp
+ * (`insideWalls`) and a slide's bounce (`stepSlide`) are the only two readers there are, and both
+ * are below. A consumer names a tray and never asks what sort it is.
+ */
+const isRing = (w: Walls): w is RingWalls => (w as RingWalls).r !== undefined;
+
+/**
+ * THE NEAREST POINT THE TRAY ALLOWS — the clamp a carried run is under, and the one a wall-check
+ * measures "how far past it is the finger" from.
+ */
+export function insideWalls(w: Walls, at: Vec): Vec {
+  if (!isRing(w)) return { x: Math.min(w.x1, Math.max(w.x0, at.x)), y: Math.min(w.y1, Math.max(w.y0, at.y)) };
+  const dx = at.x - w.cx;
+  const dy = at.y - w.cy;
+  const gap = Math.hypot(dx, dy);
+  if (gap <= w.r) return at;
+  // Dead centre cannot be outside a disc, so `gap` is never zero here and the direction is real.
+  return { x: w.cx + (dx / gap) * w.r, y: w.cy + (dy / gap) * w.r };
 }
 
 export interface SlideConfig {
@@ -156,7 +193,26 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
   const w = cfg.walls;
   const off = cfg.wallBounce ?? cfg.bounce;
   let kicked = false;
-  if (w) {
+  if (w && isRing(w)) {
+    // ONE WALL, AND ITS NORMAL IS WHEREVER THE BODY MET IT. A box reflects the component that
+    // crossed an axis; a disc has no axes, so the reflection is about the line from the middle —
+    // `v - (1 + off) * (v·n) n`, which IS the box's `-v * off` written for a normal that turns.
+    const dx = x - w.cx;
+    const dy = y - w.cy;
+    const gap = Math.hypot(dx, dy);
+    if (gap > w.r) {
+      const nx = dx / gap;
+      const ny = dy / gap;
+      const into = vx * nx + vy * ny;
+      if (into > 0) {
+        x = w.cx + nx * w.r;
+        y = w.cy + ny * w.r;
+        vx -= (1 + off) * into * nx;
+        vy -= (1 + off) * into * ny;
+        kicked = true;
+      }
+    }
+  } else if (w) {
     if (x < w.x0 && vx < 0) { x = w.x0; vx = -vx * off; kicked = true; }
     else if (x > w.x1 && vx > 0) { x = w.x1; vx = -vx * off; kicked = true; }
     if (y < w.y0 && vy < 0) { y = w.y0; vy = -vy * off; kicked = true; }

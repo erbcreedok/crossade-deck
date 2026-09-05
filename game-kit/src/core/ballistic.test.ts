@@ -1,7 +1,7 @@
 // The pure ballistics — a fall down the screen and a slide across the desk, stepped by hand.
 
 import { describe, expect, it } from "vitest";
-import { bodyAt, polar, separate, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
+import { bodyAt, insideWalls, polar, separate, slideRests, stepFall, stepSlide, velocityOf, type Body } from "./ballistic.js";
 
 const DT = 1 / 60;
 
@@ -140,6 +140,40 @@ describe("ballistic", () => {
     const hit = path.findIndex((b) => b.vel.x < 0);
     expect(hit).toBeGreaterThan(0);
     expect(path[hit]!.vel.x).toBeCloseTo(-2); // 4 → −2 at half restitution
+  });
+
+  it("ballistic.a-round-wall-reflects — a disc has one wall and its normal turns with the body", () => {
+    // A felt with no corners cannot be said with four numbers, and a throw aimed off the middle is
+    // where the difference shows: the box would let it out along the diagonal, the disc turns it.
+    const start: Body = { pos: { x: 0, y: 0 }, vel: velocityOf(6, 30), angle: 0, spin: 0, up: 0, upVel: 0 };
+    const cfg = { friction: 2, spinFriction: 0, bounce: 0.5, walls: { cx: 0, cy: 0, r: 2 } };
+    const path = runSlide(start, cfg, 300);
+    for (const b of path) expect(Math.hypot(b.pos.x, b.pos.y)).toBeLessThanOrEqual(2 + 1e-9);
+    // ...and it comes to REST inside, not pinned trembling against the edge.
+    const last = path[path.length - 1]!;
+    expect(slideRests(last, 0.01, 0.01)).toBe(true);
+    expect(Math.hypot(last.pos.x, last.pos.y)).toBeLessThanOrEqual(2 + 1e-9);
+    // The bounce is about the line from the middle: the outward component flips and scales.
+    const hit = path.findIndex((b, i) => i > 0 && Math.hypot(b.pos.x, b.pos.y) >= 2 - 1e-9);
+    expect(hit).toBeGreaterThan(0);
+    const before = path[hit - 1]!;
+    const after = path[hit]!;
+    const nx = after.pos.x / 2;
+    const ny = after.pos.y / 2;
+    expect(before.vel.x * nx + before.vel.y * ny).toBeGreaterThan(0);
+    expect(after.vel.x * nx + after.vel.y * ny).toBeLessThan(0);
+  });
+
+  it("ballistic.a-clamp-knows-both-trays — a point outside comes back to the border it crossed", () => {
+    // The one answer a carried run is held to, and the one a wall-check measures from.
+    expect(insideWalls({ x0: -1, y0: -1, x1: 1, y1: 1 }, { x: 5, y: 0.5 })).toEqual({ x: 1, y: 0.5 });
+    const ring = { cx: 0, cy: 0, r: 3 };
+    // A point outside lands ON the circle, on the same line out of the middle.
+    const held = insideWalls(ring, { x: 8, y: 6 });
+    expect(Math.hypot(held.x, held.y)).toBeCloseTo(3);
+    expect(held.x / held.y).toBeCloseTo(8 / 6);
+    // ...and a point already inside is not moved at all.
+    expect(insideWalls(ring, { x: 1, y: -1 })).toEqual({ x: 1, y: -1 });
   });
 });
 

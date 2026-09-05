@@ -445,6 +445,7 @@ export {
 export { permutation, rollDie, seededRng, type Rng } from "./core/rng.js";
 export {
   bodyAt,
+  insideWalls,
   polar,
   slideRests,
   stepFall,
@@ -453,6 +454,8 @@ export {
   type Body,
   type FallConfig,
   type SlideConfig,
+  type BoxWalls,
+  type RingWalls,
   type Walls,
 } from "./core/ballistic.js";
 export {
