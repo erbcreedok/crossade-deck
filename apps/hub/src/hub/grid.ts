@@ -39,6 +39,24 @@ const PLACES = 4;
 
 const FREE = "hub/free";
 const GRID = "hub/grid";
+/** The same shelf folded in two — a phone held upright has no room for four tiles abreast. */
+const GRID_NARROW = "hub/grid/narrow";
+const GAP = 0.42;
+
+/**
+ * HOW THE SHELF IS LAID OUT for a given glass: four abreast where there is room, two by two where
+ * there is not. Decided by the glass's own shape, not by pixels: a phone upright is narrower than
+ * it is tall, and that is the whole of what "no room abreast" means.
+ */
+export function shelfColumns(v: { readonly width: number; readonly height: number }): number {
+  return v.width < v.height ? 2 : PLACES;
+}
+
+/** The shelf's own size in units, for `columns` across — what a fit has to make room for. */
+export function shelfSize(columns: number): { readonly w: number; readonly h: number } {
+  const rows = Math.ceil(PLACES / columns);
+  return { w: columns * TILE_W + (columns - 1) * GAP, h: rows * TILE_H + (rows - 1) * GAP };
+}
 const INSET = "hub/inset";
 const FAN = "hub/fan";
 
@@ -48,7 +66,8 @@ function installLayouts(): void {
   if (laid) return;
   laid = true;
   registerLayout(FREE, freeLayout);
-  registerLayout(GRID, gridLayout({ columns: PLACES, gap: 0.42, padding: 0 }));
+  registerLayout(GRID, gridLayout({ columns: PLACES, gap: GAP, padding: 0 }));
+  registerLayout(GRID_NARROW, gridLayout({ columns: 2, gap: GAP, padding: 0 }));
   // The face sits dead centre of its plate; so does a caption inside the face.
   registerLayout(INSET, { place: (children) => children.map(() => ({ x: 0, y: 0 })) });
   registerLayout(FAN, freeLayout);
@@ -149,7 +168,7 @@ function feltOf(): Node {
 }
 
 /** The shelf: the title over a row of places, the first of which are the games there are. */
-export function hubTree(): Node {
+export function hubTree(columns: number = PLACES): Node {
   installLayouts();
   const desk = node(
     "desk",
@@ -166,11 +185,12 @@ export function hubTree(): Node {
       "title",
       Bounded({ bounds: rect(7, 0.9) }),
       Labeled({ label: "Crossade", style: TITLE }),
-      Transformable({ at: { x: 0, y: -2.1 } }),
+      // Above the shelf, however tall the shelf is: two rows of tiles stand taller than one.
+      Transformable({ at: { x: 0, y: -shelfSize(columns).h / 2 - 1.0 } }),
     ),
   );
 
-  const shelf = node("shelf", Container({ layout: GRID }), Transformable({ at: { x: 0, y: 0.3 } }));
+  const shelf = node("shelf", Container({ layout: columns < PLACES ? GRID_NARROW : GRID }), Transformable({ at: { x: 0, y: 0.3 } }));
   add(desk, shelf);
   for (const entry of CATALOGUE) add(shelf, tileOf(entry));
   for (let i = CATALOGUE.length; i < PLACES; i++) add(shelf, slotOf(i));

@@ -31,15 +31,20 @@ import { installHubLook } from "../look/surfaces.js";
 import { CLUB_U, PALETTE } from "../look/palette.js";
 import { beat } from "./beat.js";
 import { AT_REST, driftStep, type Drift } from "./drift.js";
-import { barTree, FELT, hubTree } from "./grid.js";
+import { barTree, FELT, hubTree, shelfColumns, shelfSize } from "./grid.js";
 import { wirePress } from "./press.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
 import { goTo, onRoute, routeOf } from "./route.js";
 import { ensureAccount } from "../account/account.js";
 
-/** The shelf is about nine units across and six down. ONE fit, because the region never changes. */
+/**
+ * The shelf's own size, plus the title above it and a margin round the lot. Not one number any
+ * more: four tiles abreast on a wide glass, two by two on a phone held upright (`shelfColumns`),
+ * and the fit follows whichever the glass gets.
+ */
 function fitUnit(v: { width: number; height: number }): number {
-  return Math.max(16, Math.min(v.width / 9.2, v.height / 6.4));
+  const shelf = shelfSize(shelfColumns(v));
+  return Math.max(16, Math.min(v.width / (shelf.w + 0.6), v.height / (shelf.h + 3.2)));
 }
 
 /** The strip the hub keeps for itself while a game runs, in CSS pixels — matches the stylesheet. */
@@ -70,7 +75,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   // needs to invent nothing: `host.setViewer({ ...host.viewer(), motionSpeed })`. The drift below
   // watches it, and at zero it does not merely stand still, it leaves the clock.
   const settled = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
-  const host: Host = mount(chrome, hubTree(), { ...DEFAULT_VIEWER, hudUnit: 64, motionSpeed: settled ? 0 : 1 });
+  const host: Host = mount(chrome, hubTree(shelfColumns(chrome.getBoundingClientRect())), { ...DEFAULT_VIEWER, hudUnit: 64, motionSpeed: settled ? 0 : 1 });
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   const ruler = hubRuler();
@@ -116,8 +121,16 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   };
 
   let lastUnit = -1;
+  let lastColumns = -1;
   const applyFit = (): void => {
-    const u = fitUnit(host.viewport());
+    const v = host.viewport();
+    // TURNED OVER: a phone rotated is a different shelf, not the same one smaller.
+    const columns = shelfColumns(v);
+    if (columns !== lastColumns && !playing) {
+      lastColumns = columns;
+      host.setRoot(hubTree(columns));
+    }
+    const u = fitUnit(v);
     if (u === lastUnit) return;
     lastUnit = u;
     host.setViewer({ ...host.viewer(), hudUnit: u });
@@ -136,7 +149,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     const unit = host.unit();
     const topY = (STRIP_PX / 2 - v.height / 2) / unit;
     // Three quarters of the ribbon, so the plate has air above and below it.
-    host.setRoot(playing ? barTree({ topY, height: (STRIP_PX * 0.75) / unit }) : hubTree());
+    host.setRoot(playing ? barTree({ topY, height: (STRIP_PX * 0.75) / unit }) : hubTree(shelfColumns(host.viewport())));
     // The tree is new and its felt starts in the corner; the pattern is not new. Put it back where
     // it had crawled to, or opening a game would snap the weave and closing it would snap it again.
     const ground = byId(host.root, FELT);

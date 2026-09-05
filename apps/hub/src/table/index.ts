@@ -41,6 +41,9 @@ function zoneAtFor(game: TableGame): ((root: Node, at: Vec, lead: Node) => Node 
   return undefined;
 }
 
+/** The inks seats are marked in, in seat order — the same pair every live page on the shelf uses. */
+const SEAT_INKS = ["accent", "alert", "textMuted", "text"] as const;
+
 export function startTable(container: HTMLElement): Teardown {
   installTheme(document, "dark");
   const stopHold = holdThePage();
@@ -122,6 +125,13 @@ export function startTable(container: HTMLElement): Teardown {
       if (table.seat) {
         wireDrag(dragScene, { ...dragOptions, actor: table.seat });
       }
+      // WHOSE HAND DID WHAT, in a colour the desk actually has. The server names seats `p1`, `p2`…
+      // and a mark is drawn in its actor's ink; asked for a paint called "p1" the painter threw, and
+      // the throw happened inside `setRoot` — before the tree was ever sent, so the other player saw
+      // nothing move. Seats get the shelf's own inks, own marks are not shown (see Live/Cards), and
+      // the far player's marks fade after a while.
+      const inks = Object.fromEntries(SEAT_INKS.map((ink, i) => [`p${i + 1}`, ink]));
+      host.setViewer({ ...host.viewer(), marks: { inks, ttlMs: 5000, showOwn: false, ...(table.seat ? { me: table.seat } : {}) } });
       if (table.code) {
         goTo(game, "replace", table.code);
       }
