@@ -1,0 +1,20 @@
+apps/hub/src/hub/grid.ts
+  s_6ae737829b3914::t_2d4aed61b9850b 121-122
+  s_6ae737829b3914::t_28d60d2afd326f 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6e0d946df907f406577242710d2b4d96d242b390",
+  "prompts": {},
+  "sessions": {
+    "s_6ae737829b3914": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6322cea0-d48e-4eda-871a-6a83cf6bd712",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
