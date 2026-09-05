@@ -11,6 +11,7 @@
 import {
   add,
   Bounded,
+  circle,
   Container,
   Coated,
   freeLayout,
@@ -18,6 +19,7 @@ import {
   Labeled,
   Lit,
   node,
+  polygon,
   rect,
   registerLayout,
   registerSurface,
@@ -59,6 +61,14 @@ export function shelfSize(columns: number): { readonly w: number; readonly h: nu
 }
 const INSET = "hub/inset";
 const FAN = "hub/fan";
+/** A card's back, face down — for the tile that shows a hand rather than a game of patience. */
+const CARD_BACK = "hub/fan/back";
+/** A chess piece's silhouette — simple shapes, no art asset, recognisable at tile size. */
+const PIECE = "hub/piece";
+/** Nardy: a lunka (the board's own triangle) and a checker sitting in one. */
+const PIT = "hub/pit";
+const CHECKER_A = "hub/checker/a";
+const CHECKER_B = "hub/checker/b";
 
 let laid = false;
 
@@ -73,9 +83,14 @@ function installLayouts(): void {
   registerLayout(FAN, freeLayout);
   registerSurface(FAN, { layers: [{ paint: PALETTE.ink }], stroke: { color: PALETTE.black, width: 0.05, alignment: 1 } });
   registerSurface(`${FAN}/pip`, { layers: [{ paint: PALETTE.danger }] });
+  registerSurface(CARD_BACK, { layers: [{ paint: PALETTE.gold }], stroke: { color: PALETTE.black, width: 0.05, alignment: 1 } });
+  registerSurface(PIECE, { layers: [{ paint: PALETTE.ink }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
+  registerSurface(PIT, { layers: [{ paint: PALETTE.gold }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
+  registerSurface(CHECKER_A, { layers: [{ paint: PALETTE.ink }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
+  registerSurface(CHECKER_B, { layers: [{ paint: PALETTE.danger }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
 }
 
-/** Three little cards, splayed — what a game of cards looks like at tile size. */
+/** Three little cards, splayed — what a game of patience looks like at tile size. */
 function fanOf(id: string): Node {
   const holder = node(`${id}/art`, Container({ layout: FAN }), Transformable({ at: { x: 0, y: -0.34 } }));
   const card = (name: string, at: { x: number; y: number }, angle: number): Node =>
@@ -86,6 +101,61 @@ function fanOf(id: string): Node {
   add(middle, node(`${id}/art/pip`, Bounded({ bounds: rect(0.14, 0.14) }), Surfaced({ surface: `${FAN}/pip` })));
   add(holder, middle);
   return holder;
+}
+
+/** Two cards face down and one turned up — a hand of cards, not a cascade of them. */
+function handOf(id: string): Node {
+  const holder = node(`${id}/art`, Container({ layout: FAN }), Transformable({ at: { x: 0, y: -0.34 } }));
+  const back = (name: string, at: { x: number; y: number }, angle: number): Node =>
+    node(name, Bounded({ bounds: rect(0.46, 0.66) }), Surfaced({ surface: CARD_BACK }), Transformable({ at, angle }));
+  add(holder, back(`${id}/art/l`, { x: -0.3, y: 0.05 }, -18));
+  add(holder, back(`${id}/art/r`, { x: 0.3, y: 0.05 }, 18));
+  const up = node(`${id}/art/m`, Bounded({ bounds: rect(0.46, 0.66) }), Surfaced({ surface: FAN }), Transformable({ at: { x: 0, y: -0.05 } }));
+  add(up, node(`${id}/art/pip`, Bounded({ bounds: rect(0.14, 0.14) }), Surfaced({ surface: `${FAN}/pip` })));
+  add(holder, up);
+  return holder;
+}
+
+/** A king and a pawn, standing — what a chessboard looks like at tile size. */
+function chessArtOf(id: string): Node {
+  const holder = node(`${id}/art`, Container({ layout: FREE }), Transformable({ at: { x: 0, y: -0.28 } }));
+  const king = node(`${id}/art/king`, Container({ layout: FREE }), Transformable({ at: { x: -0.32, y: 0 } }));
+  add(king, node(`${id}/art/king/body`, Bounded({ bounds: rect(0.24, 0.5) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: 0.1 } })));
+  add(king, node(`${id}/art/king/head`, Bounded({ bounds: circle(0.1) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.2 } })));
+  add(king, node(`${id}/art/king/crossV`, Bounded({ bounds: rect(0.04, 0.14) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.35 } })));
+  add(king, node(`${id}/art/king/crossH`, Bounded({ bounds: rect(0.12, 0.04) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.35 } })));
+  add(holder, king);
+  const pawn = node(`${id}/art/pawn`, Container({ layout: FREE }), Transformable({ at: { x: 0.32, y: 0.1 } }));
+  add(pawn, node(`${id}/art/pawn/body`, Bounded({ bounds: rect(0.2, 0.34) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: 0.08 } })));
+  add(pawn, node(`${id}/art/pawn/head`, Bounded({ bounds: circle(0.08) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.12 } })));
+  add(holder, pawn);
+  return holder;
+}
+
+/** Three lunki with a checker apiece — what a nardy board looks like at tile size. */
+function nardyArtOf(id: string): Node {
+  const holder = node(`${id}/art`, Container({ layout: FREE }), Transformable({ at: { x: 0, y: -0.24 } }));
+  const pit = (i: number, x: number): Node =>
+    node(`${id}/art/pit${i}`, Bounded({ bounds: polygon(3, 0.24) }), Surfaced({ surface: PIT }), Transformable({ at: { x, y: 0.12 } }));
+  add(holder, pit(0, -0.42));
+  add(holder, pit(1, 0));
+  add(holder, pit(2, 0.42));
+  add(holder, node(`${id}/art/checkerA`, Bounded({ bounds: circle(0.1) }), Surfaced({ surface: CHECKER_A }), Transformable({ at: { x: -0.42, y: 0.16 } })));
+  add(holder, node(`${id}/art/checkerB`, Bounded({ bounds: circle(0.1) }), Surfaced({ surface: CHECKER_B }), Transformable({ at: { x: 0, y: 0.16 } })));
+  return holder;
+}
+
+/** Which art a tile draws, by the catalogue id `Valued.game` names — a registry, not a switch. */
+const TILE_ART: Record<string, (id: string) => Node> = {
+  cards: handOf,
+  chess: chessArtOf,
+  nardy: nardyArtOf,
+};
+
+/** The art a tile shows: the game's own registered look, or the fan every unlisted game gets. */
+function artOf(entryId: string, id: string): Node {
+  const build = TILE_ART[entryId] ?? fanOf;
+  return build(id);
 }
 
 /** One tile: the gold plate, the panel inside it, the art and the caption inside that. */
@@ -111,7 +181,7 @@ function tileOf(entry: GameEntry): Node {
     Coated(),
   );
   add(plate, face);
-  add(face, fanOf(`tile/${entry.id}`));
+  add(face, artOf(entry.id, `tile/${entry.id}`));
   add(
     face,
     node(

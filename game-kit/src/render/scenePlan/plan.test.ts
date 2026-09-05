@@ -212,6 +212,22 @@ describe("scenePlan", () => {
     ]);
   });
 
+  it("plan.a-nested-container-is-not-ground — only the root's own quad sorts to the very bottom", () => {
+    // Regression: `grounds` used to collect every node with `Container`, which named a card's own
+    // plate and face "ground" too (a plate holds a face, a face holds its art) and sorted them
+    // under the desk's own painted felt — an ordinary `Bounded` rectangle with no `Container` on
+    // it, and therefore NOT caught by the old check. The felt covered every plate in the scene.
+    const root = node("desk", Container({ layout: "free" }));
+    add(root, node("felt", box(10, 10), Surfaced()));
+    const plate = node("plate", box(2, 2), Surfaced(), Container({ layout: "free" }));
+    const face = node("face", box(1.5, 1.5), Surfaced(), Container({ layout: "free" }));
+    add(plate, face);
+    add(root, plate);
+    const ids = plan(root).map((q) => q.id);
+    expect(ids.indexOf("felt")).toBeLessThan(ids.indexOf("plate"));
+    expect(ids.indexOf("plate")).toBeLessThan(ids.indexOf("face"));
+  });
+
   // A ruler whose answers are chosen here: ten pixels a character, flat. See `textLayout.test.ts`.
   const ruler: TextMeasure = {
     ready: Promise.resolve(),
