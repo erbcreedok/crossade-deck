@@ -24,6 +24,7 @@ import { storedAccount } from "../account/account.js";
 import { goTo, placeOf } from "../hub/route.js";
 import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
+import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, type TableGame } from "./mapFor.js";
 
 function buildInitialDesk(game: TableGame): Node {
@@ -31,7 +32,11 @@ function buildInitialDesk(game: TableGame): Node {
   installStockLayouts();
   installStockCarries();
   installStockFlips();
-  return mapFor(game);
+  const root = mapFor(game);
+  // Re-dresses the board's own backdrop in the hub's look — AFTER the map above has registered its
+  // own, so the override is the one left standing.
+  installTableLook();
+  return root;
 }
 
 /** The zone a run is over, per game — the same question `zoneAt` and a drop both ask. */
@@ -69,12 +74,23 @@ export function startTable(container: HTMLElement): Teardown {
   // handful of points and nothing else. Refit on every resize, the same way the hub's shelf does.
   let lastFitUnit = -1;
   const fitToRoot = (): void => {
-    const shape = footprint(host.root);
+    // FIT TO THE BOARD ITSELF where there is one — chess and nardy sit their playing surface
+    // ("board face") inside a felt with a wide roam margin round it, and now that the felt draws
+    // nothing (`installTableLook`) fitting the FELT's box leaves the board the same fraction of the
+    // screen it always was, felt or no felt. Cards has no such inset: its root IS the playing area.
+    const target = byId(host.root, "board face") ?? host.root;
+    const shape = footprint(target);
     if (!shape) return;
     const { w, h } = extentOf(shape);
     if (w <= 0 || h <= 0) return;
     const v = host.viewport();
-    const unit = Math.max(8, Math.min(v.width / (w * 1.06), v.height / (h * 1.06)));
+    // PORTRAIT FITS THE WIDTH, not the shorter of the two: a phone held upright has room to spare
+    // top-to-bottom (the camera pans there) but none to spare side-to-side, and a board fit to
+    // whichever ratio is smaller came out half the screen wide the moment the height ratio lost.
+    const unit =
+      v.width <= v.height
+        ? Math.max(8, v.width / (w * 1.04))
+        : Math.max(8, Math.min(v.width / (w * 1.06), v.height / (h * 1.06)));
     if (Math.abs(unit - lastFitUnit) < 0.5) return;
     lastFitUnit = unit;
     host.setViewer({ ...host.viewer(), hudUnit: unit });

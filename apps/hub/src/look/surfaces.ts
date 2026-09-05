@@ -122,3 +122,27 @@ export function installHubLook(): void {
     fill: PALETTE.inkDim,
   });
 }
+
+// THE DESK'S OWN SUKNO, RE-DRESSED. `chessMap`, `nardyMap` and `liveMap` each register their board's
+// backdrop under their own name (`"chess.tray"`, `"nardy.felt"`, `"gesture.map"`) with the kit's dark
+// theme colour and, for cards, a grey grid tiled over it — right on a catalogue page, wrong on a hub
+// whose own felt is already drawn behind it. `registerSurface` keeps only the LAST record filed under
+// a name, so calling it again here — after the board has registered its own — replaces the record
+// without touching the map that filed it.
+//
+// TRANSPARENT, not a colour: the hub's own felt already shows behind the game region, and a board on
+// top of it needs no ground of its own — the pieces and zones stand directly on the hub's own weave.
+const CHESS_TRAY = "chess.tray";
+const NARDY_FELT = "nardy.felt";
+const GESTURE_MAP = "gesture.map";
+
+/**
+ * Re-registers the three boards' own backdrop surfaces so a table reads as part of the hub rather
+ * than as a window into the kit's catalogue. Called by the table AFTER it builds its desk (the map
+ * files re-register their names every time they run, so this has to run every time too, and the
+ * later `registerSurface` call wins).
+ */
+export function installTableLook(): void {
+  installHubLook();
+  for (const name of [CHESS_TRAY, NARDY_FELT, GESTURE_MAP]) registerSurface(name, { layers: [] });
+}
