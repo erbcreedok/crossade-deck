@@ -226,13 +226,50 @@ export function registerLeash(name: string, rule: Leash): void {
  */
 export type PinRule = (v: PresenceView, pin: PresencePin) => Vec;
 
-const PINS = new Map<string, PinRule>([
-  ["screen", (v, pin) => pinnedToGlass(v, pin.at)],
-  ["desk", (v, pin) => (LEASHES.get("leash" in pin ? pin.leash : "") ?? ((_v, at) => at))(v, pin.at)],
+/**
+ * THE SAME PIN READ BACKWARDS — a hand moved the picture to `at`, and this says which pin would put
+ * it there.
+ *
+ * It is the OTHER HALF of the same entry rather than a registry of its own, and that is the whole
+ * lesson of the bug it was written for: a pin can be worked out but not written back is a picture a
+ * finger can move and nothing can keep. Dragged, the avatar was re-pinned with the desk point the
+ * carry speaks in — and a SCREEN pin is written in fractions of the glass, so the next frame read
+ * "two units" as "two glass-widths" and the person was flung a screen and a half off the felt.
+ * Registered together, a pin that cannot answer this does not exist to be picked up in the first
+ * place.
+ */
+export type PinBack = (v: PresenceView, at: Vec, pin: PresencePin) => PresencePin;
+
+/** One way of fastening an avatar: where it puts them, and what it takes to move them. */
+export interface PinKind {
+  readonly at: PinRule;
+  readonly from: PinBack;
+}
+
+/** Where a desk point sits on somebody's glass, as fractions of it — the units a screen pin holds. */
+function glassFraction(v: PresenceView, at: Vec): Vec {
+  const g = apply(presenceTransform(v), at);
+  return { x: v.glass.w === 0 ? 0 : g.x / v.glass.w, y: v.glass.h === 0 ? 0 : g.y / v.glass.h };
+}
+
+const PINS = new Map<string, PinKind>([
+  [
+    "screen",
+    { at: (v, pin) => pinnedToGlass(v, pin.at), from: (v, at) => ({ mode: "screen", at: glassFraction(v, at) }) },
+  ],
+  [
+    "desk",
+    {
+      at: (v, pin) => (LEASHES.get("leash" in pin ? pin.leash : "") ?? ((_v, at) => at))(v, pin.at),
+      // THE SPOT ITSELF, and the leash it was standing on kept: a hand that moved the picture said
+      // where on the felt this person is, not what happens when the view walks off them.
+      from: (_v, at, pin) => ({ mode: "desk", at, leash: "leash" in pin ? pin.leash : "lock" }),
+    },
+  ],
 ]);
 
-export function registerPin(name: string, rule: PinRule): void {
-  PINS.set(name, rule);
+export function registerPin(name: string, kind: PinKind): void {
+  PINS.set(name, kind);
 }
 
 /**
@@ -244,8 +281,25 @@ export function registerPin(name: string, rule: PinRule): void {
  * name must not take the desk down with it (CANONS §1).
  */
 export function avatarAt(p: Presence): Vec {
-  const rule = PINS.get(p.pin.mode);
-  return rule ? rule(p.view, p.pin) : p.pin.at;
+  const kind = PINS.get(p.pin.mode);
+  return kind ? kind.at(p.view, p.pin) : p.pin.at;
+}
+
+/**
+ * THE PIN A HAND JUST MADE — this person, put down at the desk point `at`, in the units their own
+ * pin is written in.
+ *
+ * The inverse of `avatarAt` and its companion in one respect that matters: fed straight back into
+ * it, this pin puts the avatar exactly where the finger left it, on any zoom and any turn of the
+ * view. That is the property a dragged picture lives or dies by, and it is arithmetic — so it holds
+ * on every screen, for one's own avatar and for the far side reading the message.
+ *
+ * An unregistered pin is left as it was rather than throwing: an unknown name must not take the desk
+ * down with it (CANONS §1), and a picture that refuses to move says so quietly.
+ */
+export function repin(p: Presence, at: Vec): PresencePin {
+  const kind = PINS.get(p.pin.mode);
+  return kind ? kind.from(p.view, at, p.pin) : p.pin;
 }
 
 /**

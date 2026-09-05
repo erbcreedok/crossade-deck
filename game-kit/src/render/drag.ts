@@ -17,6 +17,7 @@ import { Transformable, type TransformableFields } from "../core/atoms/transform
 import { restAngle, rotatable } from "../core/atoms/rotatable.js";
 import { Coated, NO_COAT, type CoatedFields } from "../core/atoms/coated.js";
 import { draggable, onRejectOf } from "../core/atoms/draggable.js";
+import { screened } from "../core/atoms/screened.js";
 import { wearKeen, wearInvite } from "../core/atoms/inviting.js";
 import { wearInvites } from "../core/invite.js";
 import { mark } from "../core/atoms/marked.js";
@@ -434,7 +435,12 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     const arranged = w.opts.offsetOf?.(root, hit, run);
     const own = w.opts.stillOf?.(root, hit, run);
     const items = run.map((c, i) => {
-      const still = own?.[i] ? { still: true } : {};
+      // A NODE HELD AT ITS SIZE ON THE GLASS IS A CONTROL, and a control is the hand's own: it takes
+      // no pop and no bank, because both of those are what being PICKED UP looks like and this was
+      // never lying on the felt (`Screened`). Read off the capability rather than asked of the
+      // scene, so a desk that grew one gets it right without knowing it had to say so — an avatar
+      // dragged with the pieces' physics on it grew in the hand and leaned away from the finger.
+      const still = own?.[i] || screened(c) ? { still: true } : {};
       const seat = arranged?.[i];
       if (seat) return { id: c.id, offset: seat, ...still };
       const t = poses.get(c.id) ?? at;
