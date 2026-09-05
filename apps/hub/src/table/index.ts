@@ -155,6 +155,18 @@ export function startTable(container: HTMLElement): Teardown {
     const room = roomFor(game, host.root);
     return Math.max(1, Math.min(v.width / room.w, v.height / room.h));
   };
+  // ONE UNIT FOR THE CAMERA AND THE PLAN. A `Screened` node (the dice handle) measures itself
+  // against the HOST's unit — and the host's own is the shelf's, tuned for a hand of cards and
+  // several times the camera's. Against that etalon the handle was told the view had shrunk
+  // sixfold and grew sixfold to make up for it: a bar across half the glass. Told the camera's
+  // unit, "zoom 1" is the same number to both and the handle is its drawn size.
+  let unitTold = -1;
+  const tellUnit = (): void => {
+    const u = unitOf();
+    if (Math.abs(u - unitTold) < 0.01) return;
+    unitTold = u;
+    host.setViewer({ ...host.viewer(), hudUnit: u });
+  };
   const cameraControl = wireCamera({
     host,
     camera,
@@ -192,6 +204,7 @@ export function startTable(container: HTMLElement): Teardown {
     if (cameraOpened || v.width <= 1 || v.height <= 1) return;
     cameraOpened = true;
     const room = roomFor(game, host.root);
+    tellUnit();
     cameraControl.refresh(); // the glass and the room must be known before a fit is measured
     // THE ROOM IS WHERE THE EYE MAY GO; THE BOARD IS WHAT IT OPENS ON. Fitted to the whole room a
     // chess board came up a third of a phone wide — the room is the felt, the zone under it and
@@ -219,6 +232,7 @@ export function startTable(container: HTMLElement): Teardown {
   };
   openCamera();
   const stopFitting = host.onChange(() => {
+    tellUnit();
     cameraControl.refresh(); // a resize is a new glass, and the clamp has to know
     openCamera();
   });
