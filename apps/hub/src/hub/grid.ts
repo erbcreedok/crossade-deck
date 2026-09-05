@@ -13,6 +13,7 @@ import {
   Bounded,
   Container,
   Coated,
+  ellipse,
   freeLayout,
   gridLayout,
   Labeled,
@@ -117,8 +118,8 @@ function chessArtOf(id: string): Node {
 /** A white and a black checker with a die between them — the board's own pieces, at tile size. */
 function nardyArtOf(id: string): Node {
   const holder = node(`${id}/art`, Container({ layout: FREE }), Transformable({ at: { x: 0, y: -0.24 } }));
-  add(holder, node(`${id}/art/checkerA`, Bounded({ bounds: rect(0.26, 0.26) }), Surfaced({ surface: checkerSurface("white") }), Transformable({ at: { x: -0.34, y: 0.12 } })));
-  add(holder, node(`${id}/art/checkerB`, Bounded({ bounds: rect(0.26, 0.26) }), Surfaced({ surface: checkerSurface("black") }), Transformable({ at: { x: 0, y: 0.12 } })));
+  add(holder, node(`${id}/art/checkerA`, Bounded({ bounds: ellipse(0.13, 0.13) }), Surfaced({ surface: checkerSurface("white") }), Transformable({ at: { x: -0.34, y: 0.12 } })));
+  add(holder, node(`${id}/art/checkerB`, Bounded({ bounds: ellipse(0.13, 0.13) }), Surfaced({ surface: checkerSurface("black") }), Transformable({ at: { x: 0, y: 0.12 } })));
   const dieHolder = node(`${id}/art/dieHolder`, Container({ layout: FREE }), Transformable({ at: { x: 0.36, y: 0.12 }, scale: 0.4 }));
   add(dieHolder, die(`${id}/art/die`, { kind: "d6", face: 6 }));
   add(holder, dieHolder);
