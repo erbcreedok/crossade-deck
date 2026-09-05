@@ -1,0 +1,37 @@
+game-kit/.storybook/stories/avatars.ts
+  s_95be32036b3300::t_b8134545e89a90 96-104
+game-presets/desks/src/seatPlace.test.ts
+  s_95be32036b3300::t_c22c5778152de4 1-67,78-117
+  s_95be32036b3300::t_0cfc857527b63b 68-77
+game-presets/desks/docs/test-plan.md
+  s_95be32036b3300::t_ad6eba40523c8a 80-97
+game-presets/desks/src/seatPlace.ts
+  s_95be32036b3300::t_25daefd689b5a7 1-54,56-86,88-89,91-170
+  s_95be32036b3300::t_34467408854355 55
+  s_95be32036b3300::t_f6a8ac6906e60a 87,90
+game-presets/desks/src/index.ts
+  s_95be32036b3300::t_5109beaa186be7 58-70
+game-presets/desks/src/chessMap.ts
+  s_95be32036b3300::t_fee6abbf5e0ff4 61,307-309
+game-presets/desks/src/roundMap.ts
+  s_95be32036b3300::t_c961fd3d638f32 50,116-118,122
+game-presets/desks/src/nardyMap.ts
+  s_95be32036b3300::t_d04b082b4e3375 196-198
+  s_95be32036b3300::t_5109beaa186be7 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "25053beb957f62d09cdb379f07ef26aca29c8d75",
+  "prompts": {},
+  "sessions": {
+    "s_95be32036b3300": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59e9f493-8a54-49f1-89ba-9822aca0cc0c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
