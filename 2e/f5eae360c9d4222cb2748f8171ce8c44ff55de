@@ -1,0 +1,24 @@
+apps/hub/src/look/surfaces.ts
+  s_2c69ae1969faac::t_d66ee1c9af6f8e 142-143
+  s_2c69ae1969faac::t_92d54617a46d2e 125-141,144-148
+apps/hub/src/table/index.ts
+  s_2c69ae1969faac::t_43f0e8ad9636f6 77-82
+  s_2c69ae1969faac::t_0255668ccd0296 27,35-39
+  s_2c69ae1969faac::t_e6d762310e0972 87-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2ef5eae360c9d4222cb2748f8171ce8c44ff55de",
+  "prompts": {},
+  "sessions": {
+    "s_2c69ae1969faac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8c92c26-2fc3-4335-9c4a-96452c84816d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
