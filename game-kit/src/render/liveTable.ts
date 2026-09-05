@@ -491,7 +491,6 @@ export function liveTable<S extends LiveStage = LiveStage>(
               state: "online",
               holding: false,
               view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
-              pin: { mode: "desk", at: place.at, leash: "lock" },
             };
           },
           seats.idleReturn ?? {},

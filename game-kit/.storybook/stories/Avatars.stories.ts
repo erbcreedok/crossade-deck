@@ -5,10 +5,8 @@ import {
   installStockCoats,
   installStockMarkIcons,
   installStockMarks,
-  leash,
   placeAvatars,
   registerTextStyle,
-  repin,
   t,
   watchPresence,
   PRESENCE_TEXT,
@@ -56,33 +54,19 @@ const DOT = 18;
 /** The name under a disc: small, quiet and the desk's own face. */
 const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
 
-/** Where a screen-pinned avatar opens: the reader's own lower left, with a margin off both edges. */
-const CORNER: Vec = { x: 0.14, y: 0.84 };
-
-/** How far off the middle of the felt a desk-pinned reader opens — one a side, in units. */
-const SIDE = 2.2;
-
 interface AvatarArgs extends StackArgs {
-  /** Whether one's own picture is fastened to the glass or to a spot of the felt. */
-  pin: string;
-  /** What a desk-pinned avatar does when the view walks off it. */
-  leash: string;
   /** Draw the outline of the far player's view on this one. */
   showBounds: boolean;
 }
 
-const PIN = documented("arg.avatarPin", { control: { type: "inline-radio" }, options: ["screen", "desk"] }, "avatars");
-const LEASH = documented("arg.avatarLeash", { control: { type: "inline-radio" }, options: ["lock", "chase"] }, "avatars");
 const BOUNDS = documented("arg.avatarBounds", { control: { type: "boolean" } }, "avatars");
 
 /**
  * AVATARS — one desk, two people, and each of them visible to the other.
  *
- * Pan the top screen and its own disc travels the felt: pinned to the SCREEN the picture rides that
- * reader's glass, so on the bottom screen it moves — which is exactly the message being sent, "I am
- * looking over here now". Pinned to the DESK it stands on a spot of the felt instead, and then the
- * leash decides what happens when the view walks away from it: `lock` will not let the view go, and
- * `chase` presses the picture against the border it went out through.
+ * Pan the top screen and its own disc travels the felt with it: the disc stands under the MIDDLE of
+ * that reader's glass, so on the bottom screen it moves exactly as far as the view did — which is
+ * exactly the message being sent, "I am looking over here now".
  *
  * The state is on the disc. Switch to another tab and both discs go quiet with a muted mark — the
  * tab is the person, and a tab nobody is looking at is a person who is not looking. Pick anything
@@ -102,13 +86,6 @@ export const Avatars: StoryObj<AvatarArgs> = {
     const screens: Screen[] = [];
     const held = a.lifted ? a.lift : 1;
     const frames = new Map<string, HTMLElement>();
-    /** Where each person's own picture is fastened right now — moved by dragging it. */
-    // A DESK PIN OPENS ON A SPOT OF ITS OWN, one a side. Both on the middle of the felt is two
-    // people standing in the same place — the later disc simply covers the earlier one, and the page
-    // shows one person where it means to show two.
-    const pinned = new Map<string, Vec>(
-      SEATS.map(({ seat }, i) => [seat, a.pin === "screen" ? CORNER : { x: 0, y: i === 0 ? SIDE : -SIDE }]),
-    );
     const states = new Map<string, PresenceState>(SEATS.map(({ seat }) => [seat, "online"]));
     const holding = new Set<string>();
     /**
@@ -149,7 +126,6 @@ export const Avatars: StoryObj<AvatarArgs> = {
       screens.flatMap((one) => {
         const view = viewOf(one);
         if (!view) return [];
-        const at = pinned.get(one.seat)!;
         return [
           {
             seat: one.seat,
@@ -158,7 +134,6 @@ export const Avatars: StoryObj<AvatarArgs> = {
             state: states.get(one.seat)!,
             holding: holding.has(one.seat),
             view,
-            pin: a.pin === "screen" ? { mode: "screen", at } : { mode: "desk", at, leash: a.leash },
           },
         ];
       });
@@ -228,18 +203,10 @@ export const Avatars: StoryObj<AvatarArgs> = {
     /**
      * EVERYBODY, PLACED — and then every screen told, because a host is only ever told by being told.
      *
-     * Rebuilt rather than patched: a state repaints the disc, a view moves it and a drag re-pins it,
-     * and all three can happen between two frames.
+     * Rebuilt rather than patched: a state repaints the disc and a view moves it, and both can
+     * happen between two frames.
      */
     const place = (all: readonly Presence[]): void => {
-      // THE OWN CAMERA IS HELD TO THE OWN PICTURE FIRST, or the leash would be a frame behind: `lock`
-      // moves the camera, and a placement read before that move is a placement of the old view.
-      if (a.pin === "desk") {
-        for (const one of screens) {
-          const camera = one.scene?.camera;
-          if (camera) leash(camera, pinned.get(one.seat)!, a.leash);
-        }
-      }
       placeAvatars(desk, all);
       for (const one of screens) {
         one.scene?.setRoot(desk);
@@ -290,12 +257,6 @@ export const Avatars: StoryObj<AvatarArgs> = {
           for (const one of others()) follow(one, items, at, done, held, feel, mineScreen.seat);
           // A HAND WITH SOMETHING IN IT IS A STATE, and one's own picture is not "something".
           const carryingSelf = items.some((it) => it.id === avatarId(seat));
-          // WHERE THE FINGER PUT IT, IN THE PIN'S OWN UNITS — `repin`, never the carry's point as it
-          // stands. A carry speaks the DESK's units and a screen pin is written in fractions of the
-          // glass: written in raw, two units of felt were read back as two glass-widths on the very
-          // next frame, and the picture left the desk the instant it was touched.
-          const moved = carryingSelf ? presences().find((one) => one.seat === seat) : undefined;
-          if (moved && at) pinned.set(seat, repin(moved, at).at);
           if (done) holding.delete(seat);
           else if (!carryingSelf) holding.add(seat);
           if (carryingSelf || done) publish();
@@ -347,8 +308,8 @@ export const Avatars: StoryObj<AvatarArgs> = {
     observer.observe(document.body, { childList: true, subtree: true });
     return wall;
   },
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, pin: "screen", leash: "chase", showBounds: false },
-  argTypes: { ...STACK_KNOBS, pin: PIN, leash: LEASH, showBounds: BOUNDS },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, showBounds: false },
+  argTypes: { ...STACK_KNOBS, showBounds: BOUNDS },
   parameters: { gkDocStory: "avatars.scene" },
 };
 

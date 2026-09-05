@@ -516,7 +516,6 @@ export function startTable(container: HTMLElement): Teardown {
               state: "online",
               holding: false,
               view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
-              pin: { mode: "desk", at: home.at, leash: "lock" },
             };
           },
           {},

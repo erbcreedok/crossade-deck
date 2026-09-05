@@ -102,8 +102,8 @@ describe("a seat is drawn", () => {
     const desk = roundMap();
     const place = roundPlaces(SEATS.length)[0]!;
     const seat = SEATS[0]!.seat;
-    // A presence with a place and a desk pin at that place — what every consumer opens with, and
-    // the one thing that makes the ring and the disc read as one picture.
+    // A presence with a place, looking AT that place — what every consumer opens with, and the one
+    // thing that makes the ring and the disc read as one picture.
     const avatar = avatarNode(
       {
         seat,
@@ -112,8 +112,7 @@ describe("a seat is drawn", () => {
         ink: SEATS[0]!.ink,
         state: "online",
         holding: false,
-        view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 400, h: 800 } },
-        pin: { mode: "desk", at: place.at, leash: "chase" },
+        view: { target: place.at, zoom: 1, rotation: 0, glass: { w: 400, h: 800 } },
       },
     );
     expect(avatar.id).toBe(avatarId(seat));

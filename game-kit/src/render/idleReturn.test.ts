@@ -20,17 +20,10 @@ describe("idleReturn", () => {
       ink: "white",
       state: "online",
       holding: false,
-      view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 1000, h: 1000 } },
-      pin: { mode: "screen", at: { x: 0, y: 0 } }
+      view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 1000, h: 1000 } }
     };
     
-    let pinned: any;
-    
-    const tracker = idleReturn(cam, () => p, { 
-      afterMs: 6000, 
-      glideMs: 600, 
-      setPin: (pin) => pinned = pin 
-    });
+    const tracker = idleReturn(cam, () => p, { afterMs: 6000, glideMs: 600 });
     
     expect(cam.target.x).toBe(50);
     
@@ -47,8 +40,6 @@ describe("idleReturn", () => {
     expect(cam.target.x).toBeCloseTo(0);
     expect(cam.target.y).toBeCloseTo(0);
     expect(cam.rotation).toBeCloseTo(0);
-    
-    expect(pinned).toEqual({ mode: "desk", at: { x: 0, y: 0 }, leash: "chase" });
   });
 
   it("idleReturn.resets-timer", () => {
@@ -64,8 +55,7 @@ describe("idleReturn", () => {
       ink: "white",
       state: "online",
       holding: false,
-      view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 1000, h: 1000 } },
-      pin: { mode: "screen", at: { x: 0, y: 0 } }
+      view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 1000, h: 1000 } }
     };
     
     const tracker = idleReturn(cam, () => p, { afterMs: 6000, glideMs: 600 });
@@ -83,10 +73,11 @@ describe("idleReturn", () => {
     // set its owner down on felt they had got up from.
     const cam = new Camera({ minZoom: 0.25, maxZoom: 4 });
     cam.setScreen(1000, 1000);
-    cam.setContent({ x: -1000, y: -1000, w: 2000, h: 2000 }, 1);
+    // A DESK WIDER THAN THE GLASS, so the eye may actually stand off the middle: fitted to a small
+    // desk the camera clamps every pan back to the centre, and the arrival would be the clamp's.
+    cam.setContent({ x: -10000, y: -10000, w: 20000, h: 20000 }, 1);
     cam.lookAt({ x: 50, y: 50 });
     let place = { at: { x: 0, y: 0 }, facing: 0 };
-    let landed: unknown;
     const tracker = idleReturn(
       cam,
       (): Presence => ({
@@ -97,9 +88,8 @@ describe("idleReturn", () => {
         state: "online",
         holding: false,
         view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 1000, h: 1000 } },
-        pin: { mode: "screen", at: { x: 0.5, y: 0.5 } },
       }),
-      { afterMs: 6000, glideMs: 600, setPin: (pin) => (landed = pin) },
+      { afterMs: 6000, glideMs: 600 },
     );
     // The chair is dragged BEFORE the countdown runs out — which is the whole of the case.
     place = { at: { x: 20, y: -10 }, facing: 0 };
@@ -109,7 +99,9 @@ describe("idleReturn", () => {
     const toOld = 50 + (0 - 50) * (1 - Math.pow(1 - 100 / 600, 3));
     expect(cam.target.x).toBeGreaterThan(toOld + 1);
     tracker.step(700);
-    // ...and the spot it finally sits down on is the place as it stands NOW.
-    expect(landed).toEqual({ mode: "desk", at: { x: 20, y: -10 }, leash: "chase" });
+    // ...and the spot it finally sits down on is the place as it stands NOW — and with it the disc,
+    // which is the felt under the middle of this view and nothing else (`avatarAt`).
+    expect(cam.target.x).toBeCloseTo(20);
+    expect(cam.target.y).toBeCloseTo(-10);
   });
 });

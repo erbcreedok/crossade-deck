@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-// PRESENCE — the four things a shared desk gets wrong when nobody holds them down.
+// PRESENCE — the things a shared desk gets wrong when nobody holds them down.
 //
 // Where somebody else's picture stands is arithmetic on THEIR view, so it is checkable without a
 // glass, without a socket and without a second tab — which is the whole reason the message carries a
@@ -11,11 +11,7 @@ import { Camera } from "./camera/index.js";
 import {
   avatarAt,
   avatarId,
-  deskPoint,
-  leash,
   placeAvatars,
-  presenceTransform,
-  repin,
   watchPresence,
   type Presence,
   type PresenceDoc,
@@ -41,58 +37,30 @@ function person(seat: string, over: Partial<Presence> = {}): Presence {
     state: "online",
     holding: false,
     view: { target: { x: 0, y: 0 }, zoom: 50, rotation: 0, glass: GLASS },
-    pin: { mode: "screen", at: { x: 0.1, y: 0.9 } },
     ...over,
   };
 }
 
 describe("presence", () => {
-  it("presence.a-far-avatar-stands-where-their-own-camera-put-it — a turned view puts them the other way about", () => {
-    // The bottom-left corner of a view is the bottom-left corner of THAT view. Turned 180°, their
-    // own lower left is up and to the right of the desk's middle — and a screen that read the pin
-    // against its own axes instead of theirs would seat them across the desk from where they are.
-    const square = avatarAt(person("south"));
-    expect(square.x).toBeLessThan(0);
-    expect(square.y).toBeGreaterThan(0);
+  it("presence.a-far-avatar-stands-in-the-middle-of-their-own-view — the disc IS where they look", () => {
+    // A PERSON IS WHERE THEY ARE LOOKING, and the felt under the middle of their glass is the whole
+    // of that sentence. Panned, the disc goes exactly as far as the view went — anything else would
+    // be a second place for the same person, and the desk would have to say which of the two is
+    // them.
+    const still = avatarAt(person("south"));
+    expect(still).toEqual({ x: 0, y: 0 });
 
-    const turned = avatarAt(person("north", { view: { ...person("north").view, rotation: 180 } }));
-    expect(turned.x).toBeGreaterThan(0);
-    expect(turned.y).toBeLessThan(0);
-    // The same distance from the middle, only the other way round: a turn moves nobody on the desk.
-    expect(Math.hypot(turned.x, turned.y)).toBeCloseTo(Math.hypot(square.x, square.y), 6);
-  });
+    const panned = person("south", { view: { target: { x: 3, y: -1.5 }, zoom: 50, rotation: 0, glass: GLASS } });
+    expect(avatarAt(panned)).toEqual({ x: 3, y: -1.5 });
 
-  it("presence.a-lock-will-not-let-the-view-leave-its-own-avatar — the camera gives, not the picture", () => {
-    const camera = new Camera({ minZoom: 0.2, maxZoom: 4 });
-    camera.setScreen(GLASS.w, GLASS.h);
-    camera.setContent({ x: -50, y: -50, w: 100, h: 100 }, 50);
-    const spot = { x: 0, y: 0 };
-    camera.lookAt({ x: 8, y: 0 });
-    const drawn = leash(camera, spot, "lock");
-    // The picture did not move — a desk pin means a spot on the felt, and a lock is about the VIEW.
-    expect(drawn).toEqual(spot);
-    const onGlass = { x: camera.transform().e, y: camera.transform().f };
-    expect(onGlass.x).toBeGreaterThan(0);
-    expect(onGlass.x).toBeLessThanOrEqual(GLASS.w);
-  });
+    // A TURN MOVES NOBODY. Their head is tipped, their seat is not: the disc is drawn the reader's
+    // way up (`Oriented: "viewer"`) and stands on the same felt.
+    const turned = person("north", { view: { target: { x: 3, y: -1.5 }, zoom: 50, rotation: 180, glass: GLASS } });
+    expect(avatarAt(turned)).toEqual({ x: 3, y: -1.5 });
 
-  it("presence.a-chase-presses-the-avatar-against-the-edge-it-left-by — and along it, not into a corner", () => {
-    // Panned far to the right, the spot goes off the LEFT of the glass, so the picture is pressed
-    // against the left border — and stays at the height it had, because only one axis was left by.
-    const far = person("south", {
-      view: { target: { x: 20, y: 0 }, zoom: 50, rotation: 0, glass: GLASS },
-      pin: { mode: "desk", at: { x: 0, y: 0.4 }, leash: "chase" },
-    });
-    const chased = avatarAt(far);
-    expect(chased.x).toBeGreaterThan(0);
-    expect(chased.y).toBeCloseTo(0.4, 6);
-
-    // ...and a spot that is on the glass is not touched at all.
-    const near = person("south", {
-      view: { target: { x: 0, y: 0 }, zoom: 50, rotation: 0, glass: GLASS },
-      pin: { mode: "desk", at: { x: 0.4, y: 0.4 }, leash: "chase" },
-    });
-    expect(avatarAt(near)).toEqual({ x: 0.4, y: 0.4 });
+    // ...and a zoom is not a move either — a reader who leaned in did not get up.
+    const near = person("north", { view: { target: { x: 3, y: -1.5 }, zoom: 200, rotation: 0, glass: GLASS } });
+    expect(avatarAt(near)).toEqual({ x: 3, y: -1.5 });
   });
 
   it("presence.a-hidden-tab-is-away-and-not-gone — the socket is up and the moves still arrive", () => {
@@ -138,36 +106,6 @@ describe("presence", () => {
     expect(desk.children.map((n) => n.id)).toEqual([avatarId("south")]);
   });
 
-
-  it("presence.a-dragged-avatar-lands-where-the-finger-left-it — the pin is written in its own units", () => {
-    // THE PROPERTY THE WHOLE DRAG STANDS ON: put the picture down at a desk point, and the pin that
-    // comes back puts it at that very point again. Checked at two zooms, because that is where the
-    // bug lived — a screen pin is FRACTIONS OF THE GLASS and a carry speaks the desk's units, so a
-    // point written in raw was read back multiplied by the whole width of the screen.
-    for (const zoom of [0.5, 2]) {
-      const view = { target: { x: 0, y: 0 }, zoom, rotation: 0, glass: GLASS };
-      for (const pin of [
-        { mode: "screen", at: { x: 0.5, y: 0.5 } } as const,
-        { mode: "desk", at: { x: 0, y: 0 }, leash: "lock" } as const,
-      ]) {
-        const who = person("south", { view, pin });
-        const was = apply(presenceTransform(view), avatarAt(who));
-        // A HUNDRED AND TWENTY PIXELS OF FINGER, which is what a hand does — not units, which is
-        // what nobody's hand does.
-        const wanted = deskPoint(view, { x: was.x + 120, y: was.y });
-        const moved = { ...who, pin: repin(who, wanted) };
-        expect(avatarAt(moved).x).toBeCloseTo(wanted.x, 6);
-        expect(avatarAt(moved).y).toBeCloseTo(wanted.y, 6);
-        const now = apply(presenceTransform(view), avatarAt(moved));
-        expect(now.x - was.x, `${pin.mode} at zoom ${zoom}`).toBeCloseTo(120, 6);
-        expect(now.y - was.y).toBeCloseTo(0, 6);
-      }
-    }
-    // ...and a desk pin keeps the leash it was standing on: a hand said WHERE, not what happens
-    // when the view walks off it.
-    const desked = person("south", { pin: { mode: "desk", at: { x: 0, y: 0 }, leash: "chase" } });
-    expect(repin(desked, { x: 1, y: 2 })).toEqual({ mode: "desk", at: { x: 1, y: 2 }, leash: "chase" });
-  });
 
   it("presence.no-finger-reaches-the-disc — a drag on an avatar carries nothing and moves nothing", () => {
     // AN AVATAR IS A READING, not a thing. It says where its owner is looking, and a finger that
@@ -218,7 +156,7 @@ function avatarHand(zoom: number) {
   registerLayout("presence.free", freeLayout);
   const desk = node("desk", Container({ layout: "presence.free" }), Grabber());
   const who = (): Presence =>
-    person("south", { view: { target: { x: 0, y: 0 }, zoom: camera.pixelsPerUnit, rotation: 0, glass: GLASS }, pin: { mode: "screen", at: { x: 0.5, y: 0.5 } } });
+    person("south", { view: { target: { x: 0, y: 0 }, zoom: camera.pixelsPerUnit, rotation: 0, glass: GLASS } });
 
   const div = document.createElement("div");
   const box = { left: 0, top: 0, width: GLASS.w, height: GLASS.h, x: 0, y: 0, toJSON: () => {} };

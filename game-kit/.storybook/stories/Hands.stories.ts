@@ -78,9 +78,6 @@ const DOT = 18;
 /** The name under a disc: small, quiet and the desk's own face. */
 const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
 
-/** How far off the middle each reader's own disc opens, in units — one a side, on the rim. */
-const SIDE = ROUND_R - 1;
-
 interface HandArgs extends StackArgs {
   /** Whether the bottom reader has shut their own hand. */
   lock: boolean;
@@ -114,8 +111,6 @@ export const Hands: StoryObj<HandArgs> = {
     const desk = roundMap();
     const screens: Screen[] = [];
     const held = a.lifted ? a.lift : 1;
-    /** Where each person's own disc stands — one a side of the felt, moved by dragging it. */
-    const pinned = new Map<string, Vec>(SEATS.map(({ seat }, i) => [seat, { x: 0, y: i === 0 ? SIDE : -SIDE }]));
     const states = new Map<string, PresenceState>(SEATS.map(({ seat }) => [seat, "online"]));
     const holding = new Set<string>();
     /** Whose hand is shut. The bottom seat's opens from the knob; either is turned by its own tap. */
@@ -153,10 +148,6 @@ export const Hands: StoryObj<HandArgs> = {
             state: states.get(one.seat)!,
             holding: holding.has(one.seat),
             view,
-            // ON THE DESK and never on the glass. A hand belongs beside a PERSON, and a person
-            // pinned to their own screen is at a different spot of the felt every time they pan —
-            // which would be a patch of table sliding about under the cards lying in it.
-            pin: { mode: "desk", at: pinned.get(one.seat)!, leash: "chase" },
           },
         ];
       });
@@ -252,7 +243,6 @@ export const Hands: StoryObj<HandArgs> = {
         hand: (items, at, done, feel) => {
           for (const one of others()) follow(one, items, at, done, held, feel, mineScreen.seat);
           const carryingSelf = items.some((it) => it.id === avatarId(seat));
-          if (carryingSelf && at) pinned.set(seat, at);
           if (done) holding.delete(seat);
           else if (!carryingSelf) holding.add(seat);
           if (carryingSelf || done) publish();

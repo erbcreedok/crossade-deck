@@ -1,6 +1,6 @@
 // THE PEOPLE AT A LIVE DESK — the wiring every live page needs and none should write twice.
 //
-// `Live/Avatars` built it once to teach the pin and the leash, and `Live/Hands` built it again to
+// `Live/Avatars` built it once to teach where a person stands, and `Live/Hands` built it again to
 // hang a patch of felt off each disc. Then every live desk on the shelf wanted the same thing —
 // cards, chess, nardy — and a third and a fourth copy of it would be four answers to "where does
 // this person stand", which on a shared desk is the one question two screens may not disagree about.
@@ -152,13 +152,6 @@ export function withAvatars(o: AvatarsOptions): Avatars {
           holding: holding.has(one.seat),
           view,
           ...(place ? { place } : {}),
-          // IN ITS OWN RING, AND DRAGGED ALONG BY ITS OWNER'S VIEW — `desk` at the place with a
-          // `chase`: at rest the disc stands in the chair, and when its owner pans away from their
-          // own seat it slides along the edge of their glass rather than being left behind. Not a
-          // screen pin: fastened to a fraction of the glass, every player looking at the middle of
-          // the table would be drawn standing on the deck. Not a lock either — a lock moves the
-          // CAMERA, and a reader may look wherever they like.
-          pin: { mode: "desk", at: place?.at ?? { x: 0, y: 0 }, leash: "chase" },
         },
       ];
     });

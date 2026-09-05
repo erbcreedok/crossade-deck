@@ -9,8 +9,8 @@
 // AND WHERE THEY SIT IS THEIR OWN CAMERA. Nothing else on a shared desk answers it: a seat index is
 // a number the game invented, and a game that has none would have no answer at all. How a person
 // turned, moved and zoomed their view IS the direction they are looking at the desk from, so the
-// avatar's place on the felt is read out of their view and their pin, and it is read the same way on
-// every screen because the view is the message.
+// avatar STANDS IN THE MIDDLE OF THAT VIEW — the felt under the centre of their glass — and it is
+// read the same way on every screen because the view is the message.
 //
 // AN AVATAR IS A NODE, not a picture on the HUD, and that is a decision with a reason rather than a
 // convenience: the first version is a coloured disc, and the ones after it walk about — a crocodile,
@@ -34,7 +34,6 @@ import { type Paint } from "../core/paint.js";
 import { registerAsset } from "./assets.js";
 import { registerSurface } from "./surfaces.js";
 import { svg } from "./svg.js";
-import { type Camera } from "./camera/index.js";
 
 /**
  * HOW A PERSON'S VIEW ARRIVES on somebody else's screen — the whole of what the far side needs to
@@ -57,17 +56,6 @@ export interface PresenceView {
   readonly glass: { readonly w: number; readonly h: number };
 }
 
-/**
- * WHAT THE AVATAR IS FASTENED TO, and it is one of two things.
- *
- * Pinned to the SCREEN it rides its owner's glass — the bottom-left corner of their own view — and
- * travels the desk as they pan. Pinned to the DESK it stands on a spot of the felt and stays there,
- * and then the view can leave it behind; `leash` is what happens next.
- */
-export type PresencePin =
-  | { readonly mode: "screen"; readonly at: Vec }
-  | { readonly mode: "desk"; readonly at: Vec; readonly leash: string };
-
 /** Online · the tab is not being looked at · gone from the desk · not connected. */
 export type PresenceState = "online" | "away" | "left" | "offline";
 
@@ -85,7 +73,6 @@ export interface Presence {
   /** Whether there is something in that hand right now. */
   readonly holding: boolean;
   readonly view: PresenceView;
-  readonly pin: PresencePin;
 }
 
 /**
@@ -101,8 +88,6 @@ const DISC = 0.55;
 const CAPTION = { w: 1.7, h: 0.3, at: 0.48 };
 /** The state's own small mark, on the disc's lower right. */
 const BADGE = { size: 0.18, at: 0.19 };
-/** How close to the edge of the glass a chased avatar is allowed, in screen pixels. */
-const EDGE = 34;
 /** The face inside the disc, as a fraction of it — under one, so the seat's ink reads all round. */
 const FACE = 0.82;
 
@@ -181,151 +166,19 @@ export function deskPoint(v: PresenceView, glass: Vec): Vec {
   return inv ? apply(inv, glass) : glass;
 }
 
-/** Where a fraction of the glass lands on the desk. `{x:0,y:1}` is the bottom-left corner. */
-function pinnedToGlass(v: PresenceView, at: Vec): Vec {
-  return deskPoint(v, { x: at.x * v.glass.w, y: at.y * v.glass.h });
-}
-
 /**
- * THE POINT, PRESSED BACK AGAINST THE EDGE IT LEFT BY. What "the avatar chases the view" means:
- * the desk keeps the spot, and the picture of the person slides along whichever border of the glass
- * they went out through, so they are never off screen and never lying about where they stand.
- */
-function chased(v: PresenceView, at: Vec): Vec {
-  const g = apply(presenceTransform(v), at);
-  const lo = EDGE;
-  const inside = {
-    x: Math.min(Math.max(g.x, lo), Math.max(lo, v.glass.w - lo)),
-    y: Math.min(Math.max(g.y, lo), Math.max(lo, v.glass.h - lo)),
-  };
-  if (inside.x === g.x && inside.y === g.y) return at;
-  return deskPoint(v, inside);
-}
-
-/**
- * WHAT A LEASH DOES TO A DESK-PINNED AVATAR, by name — a registry and not two branches, because the
- * third answer (a soft tether, a spring, a leash that only holds one axis) is a game's to write and
- * must not be a patch to this file.
- */
-export type Leash = (v: PresenceView, at: Vec) => Vec;
-
-const LEASHES = new Map<string, Leash>([
-  // THE VIEW IS HELD, NOT THE PICTURE. Under a lock the avatar simply stays where it was put; what
-  // gives is the CAMERA, and only its owner's (`leash`). Every other screen reads the spot unchanged.
-  ["lock", (_v, at) => at],
-  ["chase", chased],
-]);
-
-export function registerLeash(name: string, rule: Leash): void {
-  LEASHES.set(name, rule);
-}
-
-/**
- * WHERE A PIN PUTS THE AVATAR, by name. Same reason as the leashes: a pin that follows a piece, or
- * one that sits over a zone, is data a game adds rather than a case added here.
- */
-export type PinRule = (v: PresenceView, pin: PresencePin) => Vec;
-
-/**
- * THE SAME PIN READ BACKWARDS — a hand moved the picture to `at`, and this says which pin would put
- * it there.
+ * WHERE THIS PERSON STANDS ON THE DESK — the felt under the MIDDLE OF THEIR GLASS, and nothing else.
+ * The one question the whole file exists to answer, and it is answered from the message alone, so a
+ * screen works it out for somebody else exactly as it works it out for itself and the two can never
+ * disagree about who is sitting where.
  *
- * It is the OTHER HALF of the same entry rather than a registry of its own, and that is the whole
- * lesson of the bug it was written for: a pin can be worked out but not written back is a picture a
- * finger can move and nothing can keep. Dragged, the avatar was re-pinned with the desk point the
- * carry speaks in — and a SCREEN pin is written in fractions of the glass, so the next frame read
- * "two units" as "two glass-widths" and the person was flung a screen and a half off the felt.
- * Registered together, a pin that cannot answer this does not exist to be picked up in the first
- * place.
- */
-export type PinBack = (v: PresenceView, at: Vec, pin: PresencePin) => PresencePin;
-
-/** One way of fastening an avatar: where it puts them, and what it takes to move them. */
-export interface PinKind {
-  readonly at: PinRule;
-  readonly from: PinBack;
-}
-
-/** Where a desk point sits on somebody's glass, as fractions of it — the units a screen pin holds. */
-function glassFraction(v: PresenceView, at: Vec): Vec {
-  const g = apply(presenceTransform(v), at);
-  return { x: v.glass.w === 0 ? 0 : g.x / v.glass.w, y: v.glass.h === 0 ? 0 : g.y / v.glass.h };
-}
-
-const PINS = new Map<string, PinKind>([
-  [
-    "screen",
-    { at: (v, pin) => pinnedToGlass(v, pin.at), from: (v, at) => ({ mode: "screen", at: glassFraction(v, at) }) },
-  ],
-  [
-    "desk",
-    {
-      at: (v, pin) => (LEASHES.get("leash" in pin ? pin.leash : "") ?? ((_v, at) => at))(v, pin.at),
-      // THE SPOT ITSELF, and the leash it was standing on kept: a hand that moved the picture said
-      // where on the felt this person is, not what happens when the view walks off them.
-      from: (_v, at, pin) => ({ mode: "desk", at, leash: "leash" in pin ? pin.leash : "lock" }),
-    },
-  ],
-]);
-
-export function registerPin(name: string, kind: PinKind): void {
-  PINS.set(name, kind);
-}
-
-/**
- * WHERE THIS PERSON STANDS ON THE DESK. The one question the whole file exists to answer, and it is
- * answered from the message alone — so a screen works it out for somebody else exactly as it works
- * it out for itself, and the two can never disagree about who is sitting where.
- *
- * A pin nobody registered leaves the avatar at the pin's own point, rather than throwing: an unknown
- * name must not take the desk down with it (CANONS §1).
+ * An avatar IS what its owner is looking at. Not a spot they were once put down on and not a corner
+ * of their screen: those are two places that drift apart the moment the view moves, and then the
+ * desk has to say which of them is the person. There is one answer here, so there is nothing to
+ * drift. One's own picture stands in one's own middle too, which is the same sentence read at home.
  */
 export function avatarAt(p: Presence): Vec {
-  const kind = PINS.get(p.pin.mode);
-  return kind ? kind.at(p.view, p.pin) : p.pin.at;
-}
-
-/**
- * THE PIN A HAND JUST MADE — this person, put down at the desk point `at`, in the units their own
- * pin is written in.
- *
- * The inverse of `avatarAt` and its companion in one respect that matters: fed straight back into
- * it, this pin puts the avatar exactly where the finger left it, on any zoom and any turn of the
- * view. That is the property a dragged picture lives or dies by, and it is arithmetic — so it holds
- * on every screen, for one's own avatar and for the far side reading the message.
- *
- * An unregistered pin is left as it was rather than throwing: an unknown name must not take the desk
- * down with it (CANONS §1), and a picture that refuses to move says so quietly.
- */
-export function repin(p: Presence, at: Vec): PresencePin {
-  const kind = PINS.get(p.pin.mode);
-  return kind ? kind.from(p.view, at, p.pin) : p.pin;
-}
-
-/**
- * THE OWN CAMERA, HELD TO ITS OWN AVATAR — the other half of a desk pin, and the half that only the
- * person themselves can play.
- *
- * `lock` moves the CAMERA: the view is panned back just far enough that the spot is on the glass
- * again, so a desk-pinned avatar cannot be left behind. `chase` moves the PICTURE and returns where
- * it now stands, leaving the view where the hand put it.
- *
- * Both return the point to draw at, so a caller need not know which of the two it asked for.
- */
-export function leash(camera: Camera, at: Vec, mode: string): Vec {
-  const v: PresenceView = {
-    target: camera.target,
-    zoom: camera.pixelsPerUnit,
-    rotation: camera.rotation,
-    glass: camera.glass,
-  };
-  if (mode !== "lock") return (LEASHES.get(mode) ?? ((_v, p) => p))(v, at);
-  const g = apply(presenceTransform(v), at);
-  const want = chased(v, at);
-  if (want === at) return at;
-  const to = apply(presenceTransform(v), want);
-  camera.panBy(to.x - g.x, to.y - g.y);
-  return at;
+  return p.view.target;
 }
 
 // ---- the node ------------------------------------------------------------------------------

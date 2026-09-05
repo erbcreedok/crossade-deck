@@ -46,7 +46,7 @@ describe("hubPeople: the people at the hub's desk", () => {
     expect(byId(desk, avatarId("p1"))).toBeDefined();
     expect(byId(desk, avatarId("p2"))).toBeUndefined();
 
-    wiring.heard({ kind: "presence", from: "p2", view: VIEW, pin: { mode: "desk", at: { x: 0, y: -4 }, leash: "chase" }, state: "online", holding: false, shut: false });
+    wiring.heard({ kind: "presence", from: "p2", view: VIEW, state: "online", holding: false, shut: false });
     expect(byId(desk, avatarId("p2"))).toBeDefined();
   });
 
@@ -56,7 +56,7 @@ describe("hubPeople: the people at the hub's desk", () => {
     const { wiring } = people(desk, "p1", clock);
 
     wiring.roster(ROSTER);
-    wiring.heard({ kind: "presence", from: "p2", view: VIEW, pin: { mode: "desk", at: { x: 0, y: -4 }, leash: "chase" }, state: "online", holding: false, shut: false });
+    wiring.heard({ kind: "presence", from: "p2", view: VIEW, state: "online", holding: false, shut: false });
     expect(byId(desk, avatarId("p2"))).toBeDefined();
 
     wiring.roster([ROSTER[0]!]);
@@ -129,7 +129,6 @@ describe("hubPeople: the people at the hub's desk", () => {
       kind: "presence",
       from: "p2",
       view: VIEW,
-      pin: { mode: "screen", at: { x: 0.5, y: 0.5 } },
       state: "online",
       holding: false,
       shut: false,

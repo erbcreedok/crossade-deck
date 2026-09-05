@@ -1,10 +1,9 @@
 import { type Camera } from "./camera/index.js";
-import { type Presence, type PresencePin } from "./presence.js";
+import { type Presence } from "./presence.js";
 
 export interface IdleReturnOpts {
   afterMs?: number;
   glideMs?: number;
-  setPin?: (pin: PresencePin) => void;
 }
 
 export interface IdleReturnTracker {
@@ -76,7 +75,6 @@ export function idleReturn(
 
         if (p >= 1) {
           gliding = false;
-          if (opts.setPin) opts.setPin({ mode: "desk", at, leash: "chase" });
         }
       }
     }

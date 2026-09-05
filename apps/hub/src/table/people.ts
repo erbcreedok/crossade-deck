@@ -108,7 +108,6 @@ export interface HubPeople {
 /** What one person's `relay {kind:"presence"}` carries, beyond the seat the room writes on it. */
 interface PresenceWire {
   readonly view: PresenceView;
-  readonly pin: Presence["pin"];
   readonly state: PresenceState;
   readonly holding: boolean;
   readonly shut: boolean;
@@ -162,12 +161,6 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
       holding: myHolding,
       view,
       ...(place ? { place } : {}),
-      // IN ITS OWN RING, AND DRAGGED ALONG BY ITS OWNER'S VIEW — `desk` at the place with a
-      // `chase`: at rest the disc stands in the chair, and when its owner pans away from their own
-      // seat it slides along the edge of their glass rather than being left behind. Not a screen
-      // pin: fastened to a fraction of the glass, every player looking at the middle of the table
-      // would be drawn standing on the deck.
-      pin: { mode: "desk", at: place?.at ?? { x: 0, y: 0 }, leash: "chase" },
     };
   };
 
@@ -186,7 +179,6 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
         holding: wire.holding,
         view: wire.view,
         ...(place ? { place } : {}),
-        pin: wire.pin,
       });
     }
     return all;
@@ -237,7 +229,6 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     if (!mine) return;
     const wire: PresenceWire = {
       view: mine.view,
-      pin: mine.pin,
       state: mine.state,
       holding: mine.holding,
       shut: myShut,
@@ -298,10 +289,9 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
       // A SEAT IS THE ROOM'S TO WRITE, never the sender's, and my own never arrives from outside.
       if (typeof seat !== "string" || seat === o.mine()) return true;
       const wire = msg as unknown as PresenceWire;
-      if (!wire.view || !wire.pin) return true;
+      if (!wire.view) return true;
       far.set(seat, {
         view: wire.view,
-        pin: wire.pin,
         state: wire.state ?? "online",
         holding: wire.holding === true,
         shut: wire.shut === true,
