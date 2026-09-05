@@ -56,6 +56,7 @@ import {
   installStockSurfaces,
   installTheme,
   liveTable,
+  Camera,
   setRev,
   t,
   type CameraContent,
@@ -82,6 +83,34 @@ import { hubPeople, inkOf, SEAT_INKS, type HubPeople } from "./people.js";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
+
+/**
+ * WHICH `position` VALUES ALREADY HOLD AN ABSOLUTE CHILD. Everything but `static` does, and the
+ * question has to be asked of the COMPUTED style, never of the inline one.
+ *
+ * The hub's `#stage` is `position:absolute; top:56px; …; bottom:0` in the page's own stylesheet, and
+ * its inline `position` is empty — so a guard reading `element.style.position` finds nothing, writes
+ * `relative`, and the inline rule beats the stylesheet: the region loses its `top`/`bottom` and
+ * collapses out of the flow to the canvas's intrinsic 2:1, a glass 197px tall on a 800px phone. The
+ * desk then opens fitted to that strip and reads as a coin on the felt.
+ */
+const POSITIONED = ["relative", "absolute", "fixed", "sticky"];
+
+/** Does this container still need a `position` of its own before a dot may be pinned inside it? */
+export function needsPositioning(position: string): boolean {
+  return !POSITIONED.includes(position);
+}
+
+/**
+ * WHERE A FAR HAND'S CURSOR SITS ON THIS GLASS, in the container's own pixels.
+ *
+ * `at` is the anchor in the DESK's units — the same number on every screen — and `view` is THIS
+ * screen's camera, so the point is turned into pixels by the eye that is looking, never by the one
+ * that sent it. The result is offset from the container's top-left corner, which the canvas fills.
+ */
+export function dotAt(at: Vec, view: Transform): { readonly left: number; readonly top: number } {
+  return { left: view.a * at.x + view.c * at.y + view.e, top: view.b * at.x + view.d * at.y + view.f };
+}
 
 function buildInitialDesk(game: TableGame): Node {
   installStockSurfaces();
@@ -188,6 +217,36 @@ function openZoom(
   return game === "cards"
     ? (ctx.view.width * CARDS_OVERFILL) / (bw * ctx.unit)
     : Math.min(ctx.view.width / ((bw + OPEN_RIM * 2) * ctx.unit), ctx.view.height / ((bh + OPEN_RIM * 2) * ctx.unit));
+}
+
+/**
+ * A UNIT IS WHAT MAKES THE ROOM FILL THE GLASS AT ZOOM 1 — see the `unit` option below, which is
+ * where the number is actually handed to the wiring. Named here because the idle glide has to work
+ * out the same opening zoom the view opened on, and an opening measured against a second, slightly
+ * different etalon would come home to a picture the desk never opened on.
+ */
+function unitFor(game: TableGame, root: Node, view: { readonly width: number; readonly height: number }): number {
+  const room = roomFor(game, root);
+  return Math.max(1, Math.min(view.width / room.w, view.height / room.h));
+}
+
+/**
+ * THE CAMERA THE IDLE GLIDE IS GIVEN — this very one, answering ONE question differently.
+ *
+ * `idleReturn` brings a view nobody has touched home to `camera.fitZoom()`: the whole room on the
+ * glass. That is home for a desk that OPENS fitted, and it is not home for any desk here — the
+ * round table opens overfilling the glass on purpose (`CARDS_OVERFILL`) and a board opens on the
+ * board rather than on the room. Left to the fit, a table nobody had touched for six seconds shrank
+ * to a coin by itself, undoing the opening while the player watched.
+ *
+ * So the glide is handed a view of this same camera whose "fit" is the zoom the desk actually opened
+ * on. Every other read and every write goes straight through to the camera itself — the glide still
+ * moves the eye to its seat and turns it the seat's way.
+ */
+export function homeAt(camera: Camera, zoom: () => number): Camera {
+  return new Proxy(camera, {
+    get: (target, key) => (key === "fitZoom" ? zoom : Reflect.get(target, key, target)),
+  });
 }
 
 /**
@@ -312,7 +371,7 @@ export function startTable(container: HTMLElement): Teardown {
    * A POINT ON THE GLASS FOR EACH FAR SEAT — the catalog's own dot (`Live/*` stories), coloured in
    * that seat's ink so a cursor reads as the same person the mark on the desk names.
    */
-  container.style.position ||= "relative";
+  if (needsPositioning(getComputedStyle(container).position)) container.style.position = "relative";
   const farDots = new Map<string, HTMLDivElement>();
   const farDot = (seat: string): HTMLDivElement => {
     let dot = farDots.get(seat);
@@ -341,8 +400,9 @@ export function startTable(container: HTMLElement): Teardown {
             return;
           }
           dot.style.display = "block";
-          dot.style.left = `${view.a * at.x + view.c * at.y + view.e}px`;
-          dot.style.top = `${view.b * at.x + view.d * at.y + view.f}px`;
+          const { left, top } = dotAt(at, view);
+          dot.style.left = `${left}px`;
+          dot.style.top = `${top}px`;
         },
       };
       farScreens.set(from, one);
@@ -386,10 +446,7 @@ export function startTable(container: HTMLElement): Teardown {
     // (tuned for a hand of cards), and a nardy desk measured in it wants a zoom of a quarter to fit —
     // below the floor the limits allow, so the clamp left the board four times too big. Sized off
     // the room instead, "fit" is zoom 1 and the limits are a real range round it.
-    unit: (root, view) => {
-      const room = roomFor(game, root);
-      return Math.max(1, Math.min(view.width / room.w, view.height / room.h));
-    },
+    unit: (root, view) => unitFor(game, root, view),
     // ...AND THE SAME NUMBER IS THE HUD ETALON. A `Screened` node (the dice handle) measures itself
     // against the host's own, several times the camera's: told the view had shrunk sixfold it grew
     // sixfold to make up for it, a bar across half the glass.
@@ -411,6 +468,18 @@ export function startTable(container: HTMLElement): Teardown {
   });
   standing = live;
 
+  /**
+   * THE ZOOM THIS DESK OPENED ON, worked out again from the glass as it stands now — the very sum
+   * `liveTable`'s own opening does (`open`, then held between the room's fit and the far limit),
+   * so "home" and "opening" cannot drift apart into two different pictures.
+   */
+  const openHome = (): number => {
+    const view = live.host.viewport();
+    const root = live.host.root;
+    const wish = openZoom(game, { root, room: roomFor(game, root), unit: unitFor(game, root, view), view });
+    return live.camera ? Math.max(live.camera.fitZoom(), Math.min(wish, CAM_ZOOM.maxZoom)) : wish;
+  };
+
   joinTable({
     game,
     ...(currentPlace.room ? { room: currentPlace.room } : {}),
@@ -431,7 +500,10 @@ export function startTable(container: HTMLElement): Teardown {
       const place = placesFor(game)[seatIndex];
       if (live.camera && place) {
         idle = idleReturn(
-          live.camera,
+          // HOME IS WHERE THE VIEW OPENED, not the fit — see `homeAt`. Measured afresh on each
+          // step rather than remembered from the opening, because the glass may have been turned
+          // over since, and a remembered number would bring the eye home to the old phone.
+          homeAt(live.camera, () => openHome()),
           () => ({
             seat: "",
             place,
