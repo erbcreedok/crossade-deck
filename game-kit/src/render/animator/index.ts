@@ -36,7 +36,7 @@ import { carry, lean, screenLean, type CarryStyle } from "../../core/atoms/carry
 import { orientationOf } from "../../core/atoms/oriented.js";
 import { contextFor } from "../../core/resolve.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
-import { bodyAt, separate, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
+import { bodyAt, insideWalls, separate, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
 import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
@@ -302,7 +302,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   const heldAt = (cy: Carry): Vec => {
     const w = cy.walls;
     if (!w) return cy.target;
-    return { x: Math.min(w.x1, Math.max(w.x0, cy.target.x)), y: Math.min(w.y1, Math.max(w.y0, cy.target.y)) };
+    return insideWalls(w, cy.target);
   };
 
   /**

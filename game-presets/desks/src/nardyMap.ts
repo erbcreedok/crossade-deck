@@ -64,7 +64,7 @@ import {
   type TransformableFields,
   type ValuedFields,
   type Vec,
-  type Walls,
+  type BoxWalls,
 } from "game-kit";
 import { die } from "@game-presets/dice";
 import { installMapArt, onTheDesk, PUT_DOWN, warmingNodes } from "./felt.js";
@@ -422,7 +422,7 @@ export const NARDY_BUMP: Bump = {
  *
  * A checker gets the felt: it may fly across the board and off it, and only the felt's edge stops it.
  */
-export function wallsOf(piece: Node, at: Vec): Walls | undefined {
+export function wallsOf(piece: Node, at: Vec): BoxWalls | undefined {
   if (!isDie(piece)) return mapWalls(piece, 1, FELT);
   const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
   const size = shape ? extentOf(shape) : { w: 1, h: 1 };
@@ -432,7 +432,7 @@ export function wallsOf(piece: Node, at: Vec): Walls | undefined {
   const bh = BOARD.h / 2 + FRAME;
   const fw = FELT.w / 2;
   const fh = FELT.h / 2;
-  const inset = (x0: number, y0: number, x1: number, y1: number): Walls => ({ x0: x0 + rx, y0: y0 + ry, x1: x1 - rx, y1: y1 - ry });
+  const inset = (x0: number, y0: number, x1: number, y1: number): BoxWalls => ({ x0: x0 + rx, y0: y0 + ry, x1: x1 - rx, y1: y1 - ry });
   if (Math.abs(at.x) <= bw && Math.abs(at.y) <= bh) return inset(-bw, -bh, bw, bh);
   if (at.x < -bw) return inset(-fw, -fh, -bw, fh);
   if (at.x > bw) return inset(bw, -fh, fw, fh);

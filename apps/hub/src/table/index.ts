@@ -9,6 +9,8 @@ import {
   settled,
   squareAt,
   pointUnder,
+  roundRoom,
+  roundWalls,
   wallsOf as nardyWallsOf,
 } from "@game-presets/desks";
 import { throwFromCarry } from "@game-presets/dice";
@@ -23,9 +25,11 @@ import {
   attachPainter,
   byId,
   caps,
+  compose,
   draggable,
   dropOf,
   extentOf,
+  fieldsOf,
   footprint,
   holdThePage,
   installStockCarries,
@@ -33,15 +37,19 @@ import {
   installStockLayouts,
   installStockSurfaces,
   installTheme,
+  isDrawn,
   landed,
   landingPicture,
   mapWalls,
   mount,
+  seatIn,
   setRev,
   shoves,
+  Transformable,
   type CameraContent,
   type CarryItem,
   type Node,
+  type TransformableFields,
   type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
@@ -84,15 +92,14 @@ const CAM_MARGIN = 2.5;
 const OPEN_RIM = 1.2;
 
 /**
- * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (chess and nardy already draw a
- * felt wider than their board face) plus a further margin, wide enough that a captured piece or a
+ * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (each desk on this shelf draws a
+ * felt wider than the board face) plus a further margin, wide enough that a captured piece or a
  * thrown die has somewhere to land beside the board rather than off the glass.
  *
- * Cards has no room of its own: its root IS the playing area, so the margin is drawn round its
- * footprint directly.
+ * A desk with no room of its own falls back to its own footprint with the margin round it.
  */
 function roomFor(game: TableGame, root: Node): CameraContent {
-  const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : undefined;
+  const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : game === "cards" ? roundRoom() : undefined;
   if (room) {
     return {
       x: room.x - CAM_MARGIN,
@@ -211,8 +218,12 @@ export function startTable(container: HTMLElement): Teardown {
     // the margins, most of it empty on the first frame. So the opening zoom fits the BOARD plus a
     // rim of `OPEN_RIM` units — enough to see a taken piece set down beside it — and the room stays
     // the limit a pan runs into, not the picture.
+    // ...AND A DESK WHOSE ROOT IS THE PLAYING AREA HAS NO SEPARATE FACE. The round table is one
+    // felt: asked for a "board face" it has none, and the fit fell back to the whole ROOM — the
+    // circle plus two margins — which opens a table twelve units across on a glass measured for
+    // twenty. Its own footprint is the face, and it is the same picture the other two open on.
     const face = byId(host.root, "board face");
-    const box = face ? footprint(face) : undefined;
+    const box = face ? footprint(face) : game === "cards" ? footprint(host.root) : undefined;
     let { w: bw, h: bh } = box ? extentOf(box) : { w: room.w, h: room.h };
     // THE DICE LIVE OUTSIDE THE BOARD — in the band beside it — and an opening fitted to the board
     // alone put them past the edge of a phone. The view opens centred on the board, so the farthest
@@ -240,6 +251,18 @@ export function startTable(container: HTMLElement): Teardown {
   // THE PICTURE OF WHERE A CARRIED RUN WILL COME DOWN — one per view, shown while a hand moves and
   // ended the instant it lets go (`onCarry` below).
   const landingPic = landingPicture({ host, motions }, { shown: true });
+  /**
+   * HOW FAR THE LOAD IS HANGING ABOVE THE FINGER, kept from the release until the drop is written.
+   *
+   * The card is drawn CLEAR of the hand (`CARRY_CLEAR`) so the picture of the landing is not hidden
+   * under the very thing it is a picture of — and a card drawn a card-height above the finger would
+   * otherwise be put down a card-height above it too, which is the picture lying by exactly the
+   * clearance that made it visible. So the drop takes the clearance back off and the card comes down
+   * ON the outline, easing there from the hand's height like anything else the tree moves.
+   *
+   * Read at the release, because `landingPic.end()` throws the number away with the picture.
+   */
+  let carriedClear: Vec = { x: 0, y: 0 };
 
   const zoneAt = zoneAtFor(game);
 
@@ -335,15 +358,62 @@ export function startTable(container: HTMLElement): Teardown {
           },
         }
       : {}),
+    // THE ROUND FELT IS A WALL AND NOT A DRAWING: a card may be carried to the edge of the circle
+    // and no further, and the tray the hand is held inside is the very one a throw bounces off
+    // (`roundWalls`) — asked twice, the two could differ, and a card carried somewhere it cannot be
+    // thrown is a border in two places.
+    ...(game === "cards"
+      ? {
+          trayOf: (_root: Node, hit: Node) => roundWalls(hit),
+          // THE FINGER IS THE HOLDER, so the picture of the landing stands under the finger doing
+          // the aiming rather than wherever the card happened to be touched.
+          underFinger: true,
+          // ...AND THE PICTURE IS MADE AT THE LIFT. `show` moves a mark that already exists; nothing
+          // in the hub ever made one, so every carry on this table showed nothing. A card lifted
+          // alone gets one too: it is drawn bigger and higher than it will lie, so a hand carrying
+          // one is no better placed to answer "where does this land" than a hand carrying thirty-six.
+          runOf: (_root: Node, hit: Node) => {
+            landingPic.end(); // whatever the last gesture left, if anything ever does
+            const picture = landingPic.mark([hit], [{ x: 0, y: 0 }], seatIn(hit));
+            return picture ? [hit, picture] : [hit];
+          },
+          // The picture is the desk's own and takes no lift and no lean: it stays the size it will
+          // be and lies flat on the felt while the card rides at the hand's height.
+          stillOf: (_root: Node, _hit: Node, run: readonly Node[]) => run.map((n) => isDrawn(n)),
+          // ...AND THE LOAD IS PUSHED CLEAR OF THE PICTURE. Both hang off the same finger, so drawn
+          // at the same point the card covers the outline exactly and the gesture shows nothing.
+          // The picture keeps the finger's own place, because that is where the card is going.
+          offsetOf: (_root: Node, _hit: Node, run: readonly Node[]) => {
+            const clear = landingPic.current?.hover ?? { x: 0, y: 0 };
+            return run.map((n) => (isDrawn(n) ? { x: 0, y: 0 } : clear));
+          },
+          // WHERE IT ACTUALLY COMES DOWN — see `carriedClear`. The wiring puts a piece down where it
+          // was drawn, and where it was drawn is the clearance above the outline.
+          onSettled: (root: Node, ids: readonly string[]) => {
+            if (carriedClear.x === 0 && carriedClear.y === 0) return;
+            const lead = ids[0] ? byId(root, ids[0]) : undefined;
+            const own = lead ? fieldsOf<TransformableFields>(lead, "Transformable") : undefined;
+            const clear = carriedClear;
+            carriedClear = { x: 0, y: 0 };
+            if (!lead || !own?.at) return;
+            compose(lead, Transformable({ ...own, at: { x: own.at.x - clear.x, y: own.at.y - clear.y } }));
+            host.setRoot(root);
+          },
+        }
+      : {}),
     onCarry: ({ ids, at, done, feel }: { ids: readonly string[]; at: Vec; done: boolean; feel: any }) => {
       if (done) {
+        carriedClear = landingPic.current?.hover ?? { x: 0, y: 0 };
         landingPic.end();
         return;
       }
-      if (!zoneAt) return;
+      // A DESK WITH NO ZONES STILL HAS A LANDING. The picture answers "where will this be when I
+      // let go", and that question is asked of every desk here — gated on `zoneAt`, the one desk
+      // whose felt takes a card anywhere showed no outline at all, which is the desk that needed
+      // it most: there is no zone lighting up to say it instead.
       const root = host.root;
       const lead = ids[0] ? byId(root, ids[0]) : undefined;
-      const zone = lead ? zoneAt(root, at, lead) : undefined;
+      const zone = zoneAt && lead ? zoneAt(root, at, lead) : undefined;
       landingPic.show(at, zone, feel, []);
     },
   };

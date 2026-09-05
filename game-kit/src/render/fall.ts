@@ -10,7 +10,7 @@ import { Coated, NO_COAT } from "../core/atoms/coated.js";
 import { mark } from "../core/atoms/marked.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
 import { apply, compose as composeTransforms, type Vec } from "../core/transform.js";
-import { polar, velocityOf, type Walls } from "../core/ballistic.js";
+import { polar, velocityOf, type BoxWalls, type Walls } from "../core/ballistic.js";
 import { RISE, type CarryItem, type Motions } from "./animator/index.js";
 import { type Host } from "./host.js";
 
@@ -531,7 +531,7 @@ export function roomBy(piece: Node, factor: number): number {
  * wider than the tree says it is, and a border that ignored that would let exactly that sliver of
  * card cross it. Pass `1` for a carry with no pop.
  */
-export function mapWalls(piece: Node, lift = 1, box: { readonly w: number; readonly h: number } = DEFAULT_MAP): Walls {
+export function mapWalls(piece: Node, lift = 1, box: { readonly w: number; readonly h: number } = DEFAULT_MAP): BoxWalls {
   const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
   const size = shape ? extentOf(shape) : { w: 0, h: 0 };
   // THE DESK'S OWN BOX, not the shelf's stock one. A desk wider than the map — a felt with a board
