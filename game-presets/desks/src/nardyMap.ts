@@ -51,11 +51,13 @@ import {
   GRIP_RATIO,
   GRIP_GAP,
   GRIP_MISS,
-  GRIP_HOLD,
   Screened,
   Forgiving,
   heapBox,
   isGrip,
+  roomBy,
+  DIE_SCATTER,
+  type Bump,
   type CarryItem,
   type BoundedFields,
   type Node,
@@ -284,6 +286,13 @@ const DICE_AT = { x: BOARD.w / 2 + FRAME + 2.2, y: 0 };
  * THE HANDLE UNDER THE DICE — a stack handle like the shelf's own (`grips`), drawn once for the pair
  * rather than found by touching: two dice are one throw whether or not they lie against each other,
  * and a handle that vanished the moment they scattered would be gone exactly when it is wanted.
+ *
+ * `Screened({ min: 1, max: 1 })`, NOT `GRIP_HOLD` — this board is far bigger in units than the
+ * shelf's stock desks, so a camera that fits it lands on a scale much smaller than the HUD etalon
+ * `GRIP_HOLD`'s floor was written against; the floor kept lifting the tab back up to that etalon's
+ * own size, and on a board this size that reads as a bar with no edge, not a handle under a pair.
+ * Locked to `1`, the tab is always its own drawn width — the pair plus a little — at whatever scale
+ * the board itself is drawn at, on the catalog's pane and on a phone alike.
  */
 function diceGrip(): Node {
   const h = GRIP.w / GRIP_RATIO;
@@ -293,7 +302,7 @@ function diceGrip(): Node {
     Surfaced({ surface: "gesture.map.grip" }),
     Transformable({ at: { x: 0, y: 0 } }),
     Valued({ values: { grip: 0, dice: 1 } }),
-    Screened({ min: GRIP_HOLD.min, max: GRIP_HOLD.max }),
+    Screened({ min: 1, max: 1 }),
     Forgiving({ miss: GRIP_MISS }),
     Draggable({ onReject: "stay" }),
   );
@@ -386,6 +395,24 @@ export function pointUnder(root: Node, at: Vec, lead: Node): Node | undefined {
 export function takes(zone: Node, lead: Node): boolean {
   return wouldAccept(zone, lead);
 }
+
+/**
+ * WHAT TAKES UP ROOM ON THIS BOARD — a die off a die and a checker off a checker, the same law
+ * `Mechanics/Collision` teaches, said as this board's own data rather than left unset.
+ *
+ * Thrown beside a board this crowded, two dice used to be able to land one over the other — one die
+ * with a shadow and the second result gone — and a die thrown into the head shoved fifteen checkers
+ * nobody asked to move. `roomFor` gives both a girth (`roomBy`, a touch under edge-to-edge, so a
+ * pair lies snug rather than spaced) and a WORLD: dice and checkers share one, so a die still knocks
+ * a checker aside, and a handle — asked with nothing else lying about this shelf's controls — takes
+ * none at all.
+ */
+export const NARDY_BUMP: Bump = {
+  roomFor: (piece) => (isDie(piece) || isChecker(piece) ? { girth: roomBy(piece, 0.9), solid: "nardy-piece" } : undefined),
+  bounce: 0.7,
+  scatter: DIE_SCATTER,
+  holds: false,
+};
 
 /**
  * WHERE A THROWN PIECE MAY FLY. A die thrown on the board stays on the board; a die thrown beside it

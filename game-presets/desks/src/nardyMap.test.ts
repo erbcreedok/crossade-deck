@@ -3,8 +3,10 @@
 // the game, which the page deliberately does not decide.
 
 import { describe, expect, it } from "vitest";
-import { caps, compose, fieldsOf, placeChildren, Transformable, wouldAccept, type Node, type TransformableFields } from "game-kit";
-import { COMMON, FELT, isChecker, isPoint, mayThrow, nardyMap, numberOf, pointAt, pointUnder, regripDice, runOf, seatsOf, wallsOf } from "./nardyMap.js";
+import { caps, compose, fieldsOf, placeChildren, Transformable, wouldAccept, type Node, type TransformableFields, type Vec } from "game-kit";
+import { COMMON, FELT, isChecker, isPoint, mayThrow, nardyMap, NARDY_BUMP, numberOf, pointAt, pointUnder, regripDice, runOf, seatsOf, wallsOf } from "./nardyMap.js";
+
+const screenedOf = (n: Node) => fieldsOf<{ min: number; max: number }>(n, "Screened");
 
 const points = (desk: Node): Node[] => desk.children.filter(isPoint);
 const pointN = (desk: Node, n: number): Node => points(desk).find((p) => numberOf(p) === n)!;
@@ -112,5 +114,38 @@ describe("a nardy board is a desk whose places are piles", () => {
     expect(at.x).toBeLessThan(9);
     // A die, or its handle, never aims at a point.
     expect(pointUnder(desk, pointAt(19).at, grip)).toBeUndefined();
+  });
+
+  it("nardy.the-dice-handle-never-grows-past-its-own-drawn-width — a small bracket under the pair, not a floor-lifted bar", () => {
+    // A bracket, not a slab: its own width is the pair plus a little, never a whole point's worth.
+    const desk = nardyMap();
+    const grip = desk.children.find((n) => n.id === "dice handle")!;
+    const shape = fieldsOf<{ bounds: { start: Vec; segments: ReadonlyArray<{ to: Vec }> } }>(grip, "Bounded")!.bounds;
+    const xs = [shape.start, ...shape.segments.map((s) => s.to)].map((p) => p.x);
+    const width = Math.max(...xs) - Math.min(...xs);
+    const dice = desk.children.filter((n) => caps(n).has("Rollable"));
+    const pairWidth = Math.max(...dice.map((d) => seatOf(d).x)) - Math.min(...dice.map((d) => seatOf(d).x));
+    expect(width).toBeLessThanOrEqual(pairWidth + 0.6);
+    // AND `Screened` MAY NOT GROW IT BACK: a `min` above `1` is the HUD-etalon floor that turned this
+    // bracket into a bar spanning past the board on a phone (`GRIP_HOLD` was written for the shelf's
+    // ordinary, much smaller desks). Locked to `1`, the tab is always its own drawn width, whatever
+    // scale the board itself is drawn at.
+    const screened = screenedOf(grip)!;
+    expect(screened.min).toBe(1);
+    expect(screened.max).toBe(1);
+  });
+
+  it("nardy.dice-and-checkers-take-up-room-in-one-world — the handle takes none", () => {
+    const desk = nardyMap();
+    const die = desk.children.find((n) => caps(n).has("Rollable"))!;
+    const checker = pointN(desk, 24).children[0]!;
+    const grip = desk.children.find((n) => n.id === "dice handle")!;
+    const dieRoom = NARDY_BUMP.roomFor(die);
+    const checkerRoom = NARDY_BUMP.roomFor(checker);
+    expect(dieRoom?.girth).toBeGreaterThan(0);
+    expect(checkerRoom?.girth).toBeGreaterThan(0);
+    // ONE WORLD: a die knocks a checker aside, and a checker knocks a die.
+    expect(dieRoom?.solid).toBe(checkerRoom?.solid);
+    expect(NARDY_BUMP.roomFor(grip)).toBeUndefined();
   });
 });

@@ -16,6 +16,7 @@ export {
 export {
   installNardyArt,
   mayThrow,
+  NARDY_BUMP,
   NARDY_SEATS,
   NARDY_UNIT,
   nardyMap,

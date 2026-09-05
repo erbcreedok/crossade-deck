@@ -31,6 +31,7 @@ import {
   invert,
   node,
   polar,
+  RISE,
   Rollable,
   rollDie as drawFace,
   seededRng,
@@ -243,6 +244,17 @@ const SPIN_PER_SPEED = 100;
 /** A die let go at 6 units/s comes off the desk at 3 — half its speed goes into the first bounce. */
 const HOP_PER_SPEED = 0.5;
 
+/**
+ * HOW HIGH A THROWN DIE MAY CLIMB, as the drawn scale (`1 + up * RISE`) its apex reaches.
+ *
+ * `hop` off a hard flick grows with the flick's own speed (`HOP_PER_SPEED`) and nothing capped it:
+ * a shove hard enough sent the apex past a card's height, which on a phone read as the die leaving
+ * the board rather than a bounce across it. A die is READ at rest, never in the air, so how far it
+ * gets to rise is cosmetic — capped here at a third again its own size, the same ceiling a lifted
+ * hand is held to (`DEFAULT_TUNING.lift`), so nothing on this desk climbs further than a hand does.
+ */
+const MAX_DICE_LIFT = 1.35;
+
 /** The half of a throw that is already a VECTOR — the finger's on release, the wall's on a bounce. */
 type Flick = Omit<ThrowDieOptions, "speed" | "angle"> & {
   readonly spinGain?: number | undefined;
@@ -260,7 +272,14 @@ function flick(motions: Motions, root: Node, d: Node, v: Vec, opts: Flick): numb
   const spin = rest.spin ?? speed * (spinGain ?? SPIN_PER_SPEED) * (Math.sign(v.x) || 1);
   // ...and it BOUNCES: a die thrown across a desk leaves it, and every landing turns its run a
   // little. Off the same speed, so a shove skips it across and a nudge barely lifts it.
-  const hop = rest.hop ?? speed * (hopGain ?? HOP_PER_SPEED);
+  const rawHop = rest.hop ?? speed * (hopGain ?? HOP_PER_SPEED);
+  // ...BUT NEVER HIGHER THAN `MAX_DICE_LIFT` LETS IT: `up`'s peak is `hop² / (2 * gravity)`, the same
+  // inverse a slide's own distance is solved by (`restsAt`), so the hop that stops at that peak is
+  // `sqrt(2 * peak * gravity)` — capped rather than the hop itself, so a gentle drop is untouched and
+  // only a flick hard enough to have overshot the ceiling is brought back down to it.
+  const gravity = rest.gravity ?? motions.tuning().gravity;
+  const maxHop = Math.sqrt(2 * ((MAX_DICE_LIFT - 1) / RISE) * gravity);
+  const hop = rest.hop === undefined ? Math.min(rawHop, maxHop) : rawHop;
   return throwDie(motions, root, d, { ...rest, speed, angle, spin, hop });
 }
 
