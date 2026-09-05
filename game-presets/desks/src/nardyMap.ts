@@ -118,7 +118,7 @@ const HEAD = { white: 24, black: 12 } as const;
 const CHECKERS = 15;
 
 /** A checker's picture is its colour, and the rim is the other colour, thinly, so both read on wood. */
-const checkerSurface = (seat: string): string => `nardy.checker.${seat}`;
+export const checkerSurface = (seat: string): string => `nardy.checker.${seat}`;
 
 export function installNardyArt(): void {
   installMapArt();

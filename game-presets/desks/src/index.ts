@@ -9,11 +9,13 @@ export {
   COMMON as CHESS_COMMON,
   installChessArt,
   isCell,
+  pictureOf,
   shadowOf,
   squareAt,
   type Figure,
 } from "./chessMap.js";
 export {
+  checkerSurface,
   installNardyArt,
   mayThrow,
   NARDY_BUMP,
