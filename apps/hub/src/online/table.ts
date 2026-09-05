@@ -3,14 +3,40 @@ import { fromSpec, node, revOf, setRev, toSpec, treeFromJson, type Node } from "
 import type { Account } from "../account/account.js";
 import { serverUrl } from "../account/server.js";
 
+/** One person in the room, as the server names them. */
+export interface RosterItem {
+  readonly seat: string | null;
+  readonly name: string;
+  readonly away?: boolean;
+}
+
+/**
+ * A MESSAGE THAT IS NOT A TREE — a hand still in the air, a view that moved. It carries its own
+ * `kind` and whatever that kind means; `from` is the sender's seat, written by the room.
+ */
+export interface RelayMessage {
+  readonly kind: string;
+  readonly from?: string;
+  readonly [field: string]: unknown;
+}
+
 export interface Table {
   readonly root: Node;
   readonly rev: number;
   readonly seat: string | null;
   readonly code: string;
   readonly roomId: string;
+  /** Everybody at this table right now — the last roster the room sent. */
+  readonly roster: readonly RosterItem[];
   send(next: Node): void;
   onTree(listener: (root: Node, from: string) => void): () => void;
+  /**
+   * SAY SOMETHING THAT IS NOT A CHANGE TO THE DESK. A gesture is worth nothing a second later, so
+   * it never becomes a revision: the room passes it on as it stands and the tree does not move.
+   */
+  sendRelay(msg: RelayMessage): void;
+  onRelay(listener: (msg: RelayMessage) => void): () => void;
+  onRoster(listener: (roster: readonly RosterItem[]) => void): () => void;
   leave(): void;
 }
 
@@ -63,13 +89,34 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     colyseusRoom = await client.joinById(roomId, roomOptions);
   }
 
+  const relayListeners = new Set<(msg: RelayMessage) => void>();
+  const rosterListeners = new Set<(roster: readonly RosterItem[]) => void>();
+  let currentRoster: readonly RosterItem[] = [];
+  /**
+   * WHETHER THE ROOM HAS ALREADY NAMED EVERYBODY — the roster in the `welcome` is a snapshot taken
+   * when `hello` was answered, and somebody joining in that same breath is announced by a `roster`
+   * message that can land FIRST. Registered before `hello` goes out for that reason; the older
+   * snapshot must not then overwrite the newer list.
+   */
+  let heardRoster = false;
+
+  colyseusRoom.onMessage("relay", (msg: RelayMessage) => {
+    for (const listener of relayListeners) listener(msg);
+  });
+
+  colyseusRoom.onMessage("roster", (msg: { roster: RosterItem[] }) => {
+    heardRoster = true;
+    currentRoster = msg.roster ?? [];
+    for (const listener of rosterListeners) listener(currentRoster);
+  });
+
   const welcomePromise = new Promise<{
     you: { seat: string | null; accountId?: string; name: string };
     code: string;
     roomId: string;
     rev: number;
     tree: unknown;
-    roster: unknown[];
+    roster: RosterItem[];
   }>((resolve) => {
     colyseusRoom.onMessage("welcome", (msg: any) => resolve(msg));
   });
@@ -80,6 +127,8 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
   let currentRev = welcome.rev ?? 0;
   let currentRoot = parseTree(welcome.tree);
   setRev(currentRoot, currentRev);
+
+  if (!heardRoster) currentRoster = welcome.roster ?? [];
 
   const listeners = new Set<(root: Node, from: string) => void>();
 
@@ -111,6 +160,9 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     seat: welcome.you?.seat ?? null,
     code: welcome.code,
     roomId: colyseusRoom.id || welcome.roomId,
+    get roster() {
+      return currentRoster;
+    },
     send(next: Node) {
       const baseRev = revOf(next) || currentRev;
       colyseusRoom.send("set", { baseRev, tree: toSpec(next) });
@@ -122,6 +174,21 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+      };
+    },
+    sendRelay(msg: RelayMessage) {
+      colyseusRoom.send("relay", msg);
+    },
+    onRelay(listener: (msg: RelayMessage) => void) {
+      relayListeners.add(listener);
+      return () => {
+        relayListeners.delete(listener);
+      };
+    },
+    onRoster(listener: (roster: readonly RosterItem[]) => void) {
+      rosterListeners.add(listener);
+      return () => {
+        rosterListeners.delete(listener);
       };
     },
     leave() {

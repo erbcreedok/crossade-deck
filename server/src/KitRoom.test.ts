@@ -95,6 +95,28 @@ describe("KitRoom", () => {
     expect(late.welcome.tree).toEqual(treeV2);
   });
 
+  it("relay доходит второму с from отправителя, первому не возвращается, rev не растёт", async () => {
+    const a = await join({ accountId: "acc-1" });
+    const b = await join({ accountId: "acc-2" });
+
+    let aGotRelay = false;
+    a.client.onMessage("relay", () => {
+      aGotRelay = true;
+    });
+
+    const bRelayPromise = new Promise<Record<string, unknown>>((resolve) => b.client.onMessage("relay", resolve));
+    a.client.send("relay", { kind: "hand", at: { x: 1, y: 2 }, done: false });
+
+    const got = await bRelayPromise;
+    expect(got.kind).toBe("hand");
+    expect(got.from).toBe("p1");
+    expect(got.at).toEqual({ x: 1, y: 2 });
+    expect(aGotRelay).toBe(false);
+
+    const late = await join({ accountId: "acc-late" });
+    expect(late.welcome.rev).toBe(0);
+  });
+
   it("обрыв + возврат тем же accountId в пределах окна → то же место; без accountId — нет", async () => {
     const a = await join({ accountId: "acc-persistent", name: "Player 1" });
     expect((a.welcome.you as { seat: string }).seat).toBe("p1");

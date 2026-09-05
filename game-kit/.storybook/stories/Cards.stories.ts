@@ -7,11 +7,11 @@ import {
   installStockMarkIcons,
   installStockMarks,
   t,
+  zoneNear,
   type Node,
   type Vec,
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
-import { zoneNear } from "./magnetMap.js";
 import { follow, type Screen } from "./liveScreens.js";
 import { handTakes, isHand, LIVE_UNIT, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";

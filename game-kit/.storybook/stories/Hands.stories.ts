@@ -12,6 +12,7 @@ import {
   registerTextStyle,
   t,
   watchPresence,
+  zoneNear,
   PRESENCE_TEXT,
   type Node,
   type Presence,
@@ -20,7 +21,6 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
-import { zoneNear } from "./magnetMap.js";
 import { follow, type Screen } from "./liveScreens.js";
 import {
   growHand,

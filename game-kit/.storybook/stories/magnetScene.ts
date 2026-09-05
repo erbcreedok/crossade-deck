@@ -5,7 +5,7 @@
 // scene called "Magnet args" that renders nothing. Two pages need these — the one desk and the two
 // screens looking at one — so they live where a module lives.
 
-import { type Node, type ViewerSettings } from "../../src/index.js";
+import { zoneNear, type Node, type ViewerSettings } from "../../src/index.js";
 import { grabScene, type Mirror } from "./gestureScene.js";
 import { mergeRule } from "./mergeMap.js";
 import {
@@ -19,7 +19,6 @@ import {
   ZONE_SPREAD,
   zoneFan,
   zoneHolds,
-  zoneNear,
   poseOnLanding,
   type Spread,
 } from "./magnetMap.js";

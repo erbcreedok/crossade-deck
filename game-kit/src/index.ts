@@ -260,6 +260,7 @@ export {
 
 export { handOver, otherGrips, boxOfDesk } from "./render/handover.js";
 export { follow, type Mirror, type Scene, type Screen } from "./render/mirror.js";
+export { zoneNear } from "./render/zoneNear.js";
 // WHO IS AT THE DESK AND WHERE THEY SIT — the permanent half of what a mirror says in flashes.
 export {
   avatarAt,

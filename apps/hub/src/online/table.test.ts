@@ -33,7 +33,7 @@ class FakeColyseusRoom {
           roomId: "room-123",
           rev: 5,
           tree: { id: "desk", atoms: {}, children: [] },
-          roster: [],
+          roster: [{ seat: "p1", name: "Alice" }],
         });
       }
     }
@@ -107,6 +107,43 @@ describe("joinTable online adapter", () => {
     expect(table.root.id).toBe("desk-v2");
     expect(notifiedFrom).toBe("p2");
     expect(notifiedRoot?.id).toBe("desk-v2");
+  });
+
+  it("sendRelay uploads the message as is; onRelay hands an arriving one over with its `from`", async () => {
+    const client = new FakeColyseusClient();
+    const table = await joinTable({ game: "table", client });
+
+    table.sendRelay({ kind: "hand", done: false });
+    const sent = client.room.sentMessages.find((m) => m.type === "relay");
+    expect(sent?.message).toEqual({ kind: "hand", done: false });
+
+    let got: any = null;
+    table.onRelay((msg) => {
+      got = msg;
+    });
+    client.room.emit("relay", { kind: "presence", from: "p2", state: "online" });
+    expect(got?.kind).toBe("presence");
+    expect(got?.from).toBe("p2");
+  });
+
+  it("roster comes in with the welcome and is replaced by every roster message", async () => {
+    const client = new FakeColyseusClient();
+    const table = await joinTable({ game: "table", client });
+
+    expect(table.roster).toEqual([{ seat: "p1", name: "Alice" }]);
+
+    let told: any = null;
+    table.onRoster((roster) => {
+      told = roster;
+    });
+    const both = [
+      { seat: "p1", name: "Alice" },
+      { seat: "p2", name: "Bob" },
+    ];
+    client.room.emit("roster", { roster: both });
+
+    expect(table.roster).toEqual(both);
+    expect(told).toEqual(both);
   });
 
   it("stale message replaces root, updates rev, and notifies onTree with from: server", async () => {

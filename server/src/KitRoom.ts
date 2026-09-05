@@ -74,6 +74,16 @@ export class KitRoom extends Room {
       const fromSeat = member ? member.seat : null;
       this.broadcast("tree", { rev: this.rev, tree: this.tree, from: fromSeat }, { except: client });
     });
+
+    // A GESTURE IS NOT A TREE. A hand still in the air and where somebody is looking are worth
+    // nothing a second later, so they are passed on as they are — the tree is not touched and `rev`
+    // does not move, or every mouse move would be a revision the next real change had to lose to.
+    // The room only says WHO it came from: a seat cannot be claimed by the sender.
+    this.onMessage("relay", (client, msg: Record<string, unknown>) => {
+      if (!msg || typeof msg !== "object" || typeof msg.kind !== "string") return;
+      const member = this.clientMemberMap.get(client.sessionId);
+      this.broadcast("relay", { ...msg, from: member ? member.seat : null }, { except: client });
+    });
   }
 
   onJoin(client: Client, options: KitJoinOptions = {}): void {

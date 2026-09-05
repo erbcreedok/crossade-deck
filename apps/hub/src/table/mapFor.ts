@@ -3,6 +3,10 @@
 // from `index.ts` so a unit test can hit it without mounting a host or opening a socket.
 import { chessMap, nardyMap, roundMap } from "@game-presets/desks";
 import type { Node } from "game-kit";
+import { hubSeats } from "./people.js";
+
+/** How many people this shelf's desks seat — the same two the room is created with. */
+export const TABLE_SEATS = 2;
 
 export type TableGame = "cards" | "chess" | "nardy";
 
@@ -17,8 +21,9 @@ export function mapFor(id: string | undefined): Node {
   // THE ROUND TABLE and not the catalog's live desk. That one seats two hand areas, because the
   // page it belongs to is about a card changing owner; a table people sit at has no zone that is
   // somebody's, and its felt is a circle a card cannot be taken out of (`roundMap`).
-  // NO HANDS YET. A hand stands at its owner's avatar, and this shelf seats no avatars so far —
-  // dealt seats without them put two black boxes at fixed points on the felt, the very thing the
-  // round table was made to get rid of. Empty seat list, no hands; the avatars come with them.
-  return roundMap([]);
+  // A HAND PER SEAT, under the room's OWN names for them (`p1`, `p2`). The hands come with the
+  // people: a patch of felt belonging to somebody who is not here would be the fixed box the round
+  // table was made to get rid of, and the desk re-places each one against its owner's disc the
+  // moment that person's view arrives (`hubPeople`).
+  return roundMap(hubSeats(TABLE_SEATS));
 }

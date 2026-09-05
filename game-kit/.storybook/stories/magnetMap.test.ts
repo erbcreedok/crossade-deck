@@ -26,8 +26,9 @@ import {
   type Node,
   type TransformableFields,
   type Vec,
+  zoneNear,
 } from "../../src/index.js";
-import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, zoneNear, poseOnLanding } from "./magnetMap.js";
+import { CARD_SHARE, FAN_TILT, fitStep, handLayout, HELD_SHARE, magnetMap, PULL, zoneFan, zoneHolds, poseOnLanding } from "./magnetMap.js";
 import { GRIP, heapBox, isGrip, MAP, regrip, restsAt, stackSeats, threwAt, THROWN_AT , kindOf , heapKindOf } from "./gestureMap.js";
 import { mergeRule } from "./mergeMap.js";
 

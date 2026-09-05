@@ -17,6 +17,7 @@ import {
   nardyPlaces,
   nardyRoom,
   NARDY_BUMP,
+  ROUND_R,
   roundPlaces,
   runOf,
   seatOf,
@@ -24,6 +25,8 @@ import {
   settled,
   squareAt,
   pointUnder,
+  handTakes,
+  isHand,
   roundRoom,
   roundWalls,
   wallsOf as nardyWallsOf,
@@ -33,6 +36,14 @@ import { throwDie } from "@game-presets/dice";
 import {
   byId,
   caps,
+  DEFAULT_TUNING,
+  follow,
+  grippableBy,
+  watchPresence,
+  zoneNear,
+  type CarryItem,
+  type PresenceView,
+  type Screen,
   extentOf,
   footprint,
   GRIP_SPEC,
@@ -63,7 +74,8 @@ import { goTo, placeOf } from "../hub/route.js";
 import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
-import { isTableGame, mapFor, type TableGame } from "./mapFor.js";
+import { isTableGame, mapFor, TABLE_SEATS, type TableGame } from "./mapFor.js";
+import { hubPeople, SEAT_INKS, type HubPeople } from "./people.js";
 
 function buildInitialDesk(game: TableGame): Node {
   installStockSurfaces();
@@ -79,14 +91,19 @@ function heapKindOf(n: Node): string {
 }
 
 /** The zone a run is over, per game — the same question `zoneAt` and a drop both ask. */
-function zoneAtFor(game: TableGame): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
+function zoneAtFor(game: TableGame, seat: () => string | null): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
   if (game === "chess") return (root, at) => squareAt(root, at);
   if (game === "nardy") return (root, at, lead) => pointUnder(root, at, lead);
-  return undefined;
+  // THE NEAREST HAND WITHIN REACH, AND ONLY IF IT WOULD TAKE THE CARD FROM THIS SEAT. One question
+  // asked once: a hand the drop is going to refuse must not light up inviting the card first, and
+  // both the light and the drop read this line (see the catalog's `Live/Cards`).
+  return (root, at, lead) => {
+    const mine = seat();
+    if (!mine) return undefined;
+    const zone = zoneNear(root, at, lead);
+    return zone && isHand(zone) && handTakes(zone, lead, mine) ? zone : undefined;
+  };
 }
-
-/** The inks seats are marked in, in seat order — the same pair every live page on the shelf uses. */
-const SEAT_INKS = ["accent", "alert", "textMuted", "text"] as const;
 
 /** The seats' own places on this desk, the shelf's `seatPlaces(2)` per game — read for the idle glide. */
 function placesFor(game: TableGame): readonly SeatPlace[] {
@@ -174,10 +191,11 @@ function openZoom(
  * by, so "the hub plays the desk the shelf shows" is something a reader can check line by line
  * rather than take on trust.
  */
-function playFor(game: TableGame): LiveTableOptions<LiveStage> {
-  const zones = zoneAtFor(game);
+function playFor(game: TableGame, seat: () => string | null): LiveTableOptions<LiveStage> {
+  const zones = zoneAtFor(game, seat);
   if (game === "cards") {
     return {
+      ...(zones ? { zones } : {}),
       // WHAT IS TOUCHING WHAT IS A HEAP, and a heap gets a handle — the deck's own tab.
       stacking: true,
       heapKindOf,
@@ -252,8 +270,8 @@ export function startTable(container: HTMLElement): Teardown {
   /**
    * MY CHANGE, TOLD TO THE ROOM. The wiring announces every tree write it makes here (`changed`), so
    * the wire is one line rather than a wrapper round `setRoot` that could not tell my write from the
-   * one that had just arrived. A hand in flight is not mirrored yet: the server carries trees, not
-   * gestures, and the far screen sees the piece land rather than travel.
+   * one that had just arrived. A HAND STILL IN THE AIR goes the other way (`relay`): it is not a
+   * change to the desk and must never become a revision, or every pointer move would be one.
    */
   /**
    * The desk, once it exists — and it does not while it is being built. The wiring announces its
@@ -271,16 +289,52 @@ export function startTable(container: HTMLElement): Teardown {
   let idle: IdleReturnTracker | undefined;
   let leaveIdleClock: (() => void) | undefined;
   let stopIdlePointer: (() => void) | undefined;
+  /** The people at this desk, once the room has said who they are. */
+  let people: HubPeople | undefined;
+  let stopWatching: (() => void) | undefined;
+  let unbindOnRelay: (() => void) | undefined;
+  let unbindOnRoster: (() => void) | undefined;
+  /**
+   * THE FAR SCREENS, ONE PER SEAT — this glass, wearing somebody else's name.
+   *
+   * `follow` keeps its own record of what it is already carrying ON the screen it is told about
+   * (`mirroring`), so two people carrying at once over one shared record would each release the
+   * other's run. One `Screen` per seat and the record is per person, which is what it is about.
+   */
+  const farScreens = new Map<string, Screen>();
+  const farScreen = (from: string): Screen => {
+    let one = farScreens.get(from);
+    if (!one) {
+      one = { seat: from };
+      farScreens.set(from, one);
+    }
+    one.scene = standing ? { host: standing.host, ...(standing.motions ? { motions: standing.motions } : {}), ...(standing.camera ? { camera: standing.camera } : {}) } : undefined;
+    return one;
+  };
+  /** How high a mirrored hand holds what it is carrying — the same lift this desk's own carry uses. */
+  const held = DEFAULT_TUNING.lift;
+  /**
+   * WHAT THIS SCREEN'S CAMERA IS WORTH AS A MESSAGE — `zoom` is SCREEN PIXELS PER UNIT and not the
+   * camera's own factor, because one screen's etalon is not the other's (see `PresenceView`).
+   */
+  const viewNow = (): PresenceView | undefined => {
+    const camera = standing?.camera;
+    if (!camera) return undefined;
+    return { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: camera.glass };
+  };
   const mirror: Mirror<LiveStage> = {
     ready: () => {},
     changed: () => {
       if (currentTable && standing) currentTable.send(standing.host.root);
     },
-    hand: () => {},
+    hand: (items, at, done, feel) => {
+      currentTable?.sendRelay({ kind: "hand", items: items as unknown as CarryItem[], at, done, feel });
+      people?.handed(items, at, done);
+    },
   };
 
   const live = liveTable<LiveStage>(container, initialRoot, {
-    ...playFor(game),
+    ...playFor(game, () => seat),
     painter: (view, size) => pixiPainter(view, size),
     clock,
     mirror,
@@ -302,6 +356,19 @@ export function startTable(container: HTMLElement): Teardown {
     // sixfold to make up for it, a bar across half the glass.
     hudUnit: true,
     open: (ctx) => openZoom(game, ctx),
+    // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what
+    // puts the far reader's own disc, and the hand beside it, where they are actually sitting.
+    onView: () => people?.publish(),
+    // A HAND THAT CHANGED SIZE without anybody having moved: a card landing in one is a change to
+    // the furniture alone, and the patch has to be re-measured against its owner.
+    onDeskChanged: () => people?.settled(),
+    // A SHUT HAND CANNOT BE REACHED INTO. Refused at the PICK and not at the drop, because what a
+    // shut hand refuses is the gesture ever starting — a card that lifted out and flew back would
+    // read as the desk having dropped it.
+    may: (n: Node) => (seat ? grippableBy(n, seat) : true),
+    // ...AND THE OWNER IS THE ONE WHO SHUTS IT, by a tap on their own disc. Anything else falls
+    // through to whatever this desk already does with a tap.
+    taps: (piece: Node) => people?.tapped(piece) === true,
   });
   standing = live;
 
@@ -309,7 +376,7 @@ export function startTable(container: HTMLElement): Teardown {
     game,
     ...(currentPlace.room ? { room: currentPlace.room } : {}),
     ...(account ? { account } : {}),
-    seats: 2,
+    seats: TABLE_SEATS,
   })
     .then((table) => {
       currentTable = table;
@@ -382,6 +449,45 @@ export function startTable(container: HTMLElement): Teardown {
 
       unbindOnTree = table.onTree((newRoot) => {
         live.setRoot(newRoot, "net");
+        // THE PEOPLE GO BACK ON THE TREE THAT JUST ARRIVED. The discs travel with it — every screen
+        // places the same set out of the same messages — but the tree that came in was written a
+        // round trip ago, and the reader whose view moved since is standing where they were then.
+        people?.publish();
+      });
+
+      // THE PEOPLE AT THIS DESK, once the room can be asked who they are. Their discs and their
+      // hands are the catalog's (`Live/Cards — with avatars`); what differs is only where the
+      // answers come from — the wire, and not a second pane in this document.
+      people = hubPeople({
+        desk: () => live.host.root,
+        mine: () => seat,
+        places: placesFor(game),
+        view: () => viewNow(),
+        // A HAND PER PERSON ON THE CARD TABLE, and none on a board: a piece on a board is on a
+        // square, and a patch of felt beside a player would be a place the game has no word for.
+        ...(game === "cards" ? { hands: ROUND_R } : {}),
+        send: (msg) => table.sendRelay(msg),
+        draw: () => {
+          live.setRoot(live.host.root, "net");
+        },
+      });
+      people.roster(table.roster);
+      unbindOnRoster = table.onRoster((roster) => people?.roster(roster));
+      // A HIDDEN TAB IS NOBODY'S SCREEN — the one piece of state a browser will actually tell us.
+      stopWatching = watchPresence(document, (state) => people?.state(state));
+
+      unbindOnRelay = table.onRelay((msg) => {
+        if (people?.heard(msg)) return;
+        if (msg.kind !== "hand" || typeof msg.from !== "string") return;
+        // A FAR HAND, DRAWN WITH THE SAME CALLS THE NEAR ONE MAKES — and with the same feel: told
+        // only the anchor, this screen would slide a piece where the other one lifts and leans it.
+        const { items, at, done, feel } = msg as unknown as {
+          items: readonly CarryItem[];
+          at: Vec | undefined;
+          done: boolean;
+          feel: Parameters<Mirror<LiveStage>["hand"]>[3];
+        };
+        follow(farScreen(msg.from), items ?? [], at, done === true, held, feel, msg.from);
       });
     })
     .catch((err) => {
@@ -390,6 +496,9 @@ export function startTable(container: HTMLElement): Teardown {
 
   return () => {
     unbindOnTree?.();
+    unbindOnRelay?.();
+    unbindOnRoster?.();
+    stopWatching?.();
     currentTable?.leave();
     leaveIdleClock?.();
     stopIdlePointer?.();
