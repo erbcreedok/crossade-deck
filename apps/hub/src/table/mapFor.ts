@@ -17,5 +17,8 @@ export function mapFor(id: string | undefined): Node {
   // THE ROUND TABLE and not the catalog's live desk. That one seats two hand areas, because the
   // page it belongs to is about a card changing owner; a table people sit at has no zone that is
   // somebody's, and its felt is a circle a card cannot be taken out of (`roundMap`).
-  return roundMap();
+  // NO HANDS YET. A hand stands at its owner's avatar, and this shelf seats no avatars so far —
+  // dealt seats without them put two black boxes at fixed points on the felt, the very thing the
+  // round table was made to get rid of. Empty seat list, no hands; the avatars come with them.
+  return roundMap([]);
 }
