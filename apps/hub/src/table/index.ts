@@ -1,12 +1,25 @@
-import { mayThrow, runOf, seatOf, seatsOf, settled, squareAt, pointUnder, wallsOf as nardyWallsOf } from "@game-presets/desks";
+import {
+  chessRoom,
+  mayThrow,
+  nardyRoom,
+  runOf,
+  seatsOf,
+  settled,
+  squareAt,
+  pointUnder,
+  wallsOf as nardyWallsOf,
+} from "@game-presets/desks";
 import { throwFromCarry } from "@game-presets/dice";
 import {
   attachMotion,
+  Camera,
+  wireCamera,
   wireDrag,
   unwireDrag,
   attachPainter,
   byId,
   caps,
+  draggable,
   extentOf,
   footprint,
   holdThePage,
@@ -18,12 +31,14 @@ import {
   landingPicture,
   mount,
   setRev,
+  type CameraContent,
   type CarryItem,
   type Node,
   type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { storedAccount } from "../account/account.js";
+import { beat } from "../hub/beat.js";
 import { goTo, placeOf } from "../hub/route.js";
 import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
@@ -52,6 +67,35 @@ function zoneAtFor(game: TableGame): ((root: Node, at: Vec, lead: Node) => Node 
 /** The inks seats are marked in, in seat order — the same pair every live page on the shelf uses. */
 const SEAT_INKS = ["accent", "alert", "textMuted", "text"] as const;
 
+/** How far the view may zoom, either way — the same range the catalog's map opens with. */
+const CAM_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
+
+/** Room round the board's own room, in units, so there is somewhere to lay a piece taken off it. */
+const CAM_MARGIN = 2.5;
+
+/**
+ * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (chess and nardy already draw a
+ * felt wider than their board face) plus a further margin, wide enough that a captured piece or a
+ * thrown die has somewhere to land beside the board rather than off the glass.
+ *
+ * Cards has no room of its own: its root IS the playing area, so the margin is drawn round its
+ * footprint directly.
+ */
+function roomFor(game: TableGame, root: Node): CameraContent {
+  const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : undefined;
+  if (room) {
+    return {
+      x: room.x - CAM_MARGIN,
+      y: room.y - CAM_MARGIN,
+      w: room.w + CAM_MARGIN * 2,
+      h: room.h + CAM_MARGIN * 2,
+    };
+  }
+  const shape = footprint(root);
+  const { w, h } = shape ? extentOf(shape) : { w: 0, h: 0 };
+  return { x: -w / 2 - CAM_MARGIN, y: -h / 2 - CAM_MARGIN, w: w + CAM_MARGIN * 2, h: h + CAM_MARGIN * 2 };
+}
+
 export function startTable(container: HTMLElement): Teardown {
   installTheme(document, "dark");
   const stopHold = holdThePage();
@@ -68,47 +112,63 @@ export function startTable(container: HTMLElement): Teardown {
   const host = mount(container, initialRoot);
   const vp = host.viewport();
   const painter = pixiPainter(host.view, { width: vp.width, height: vp.height, resolution: vp.dpr });
-  const stopPainter = attachPainter(host, painter);
-  const motions = attachMotion(host, painter);
 
-  // FIT THE BOARD TO WHATEVER SCREEN IT LANDED ON. The three boards are drawn at very different
-  // sizes in their own units (a nardy felt is nearly three times a chess one across), and the
-  // fixed default `hudUnit` a plain `mount` picks is tuned to neither — a phone would show a
-  // handful of points and nothing else. Refit on every resize, the same way the hub's shelf does.
-  let lastFitUnit = -1;
-  const fitToRoot = (): void => {
-    // FIT TO THE BOARD ITSELF where there is one — chess and nardy sit their playing surface
-    // ("board face") inside a felt with a wide roam margin round it, and now that the felt draws
-    // nothing (`installTableLook`) fitting the FELT's box leaves the board the same fraction of the
-    // screen it always was, felt or no felt. Cards has no such inset: its root IS the playing area.
-    const target = byId(host.root, "board face") ?? host.root;
-    const shape = footprint(target);
-    if (!shape) return;
-    let { w, h } = extentOf(shape);
-    if (w <= 0 || h <= 0) return;
-    // THE DICE LIVE OUTSIDE THE BOARD — in the band beside it — and a fit to the board alone put
-    // them past the edge of a phone. The view is centred on the board, so what is needed is the
-    // farthest die counted twice: as far as it sits on one side, that much room on the other.
-    for (const piece of host.root.children) {
-      if (!caps(piece).has("Rollable")) continue;
-      const { x, y } = seatOf(piece);
-      w = Math.max(w, 2 * (Math.abs(x) + 0.8));
-      h = Math.max(h, 2 * (Math.abs(y) + 0.8));
-    }
-    const v = host.viewport();
-    // PORTRAIT FITS THE WIDTH, not the shorter of the two: a phone held upright has room to spare
-    // top-to-bottom (the camera pans there) but none to spare side-to-side, and a board fit to
-    // whichever ratio is smaller came out half the screen wide the moment the height ratio lost.
-    const unit =
-      v.width <= v.height
-        ? Math.max(8, v.width / (w * 1.04))
-        : Math.max(8, Math.min(v.width / (w * 1.06), v.height / (h * 1.06)));
-    if (Math.abs(unit - lastFitUnit) < 0.5) return;
-    lastFitUnit = unit;
-    host.setViewer({ ...host.viewer(), hudUnit: unit });
+  // THE CAMERA — the board opens FIT, with room round it for a captured piece or a thrown die
+  // (`roomFor`), and a finger over bare felt pans and pinches the view instead of dragging nothing
+  // (`docs/design/camera.md`, the same wiring the catalog's `Live/*` stories open under).
+  const camera = new Camera(CAM_ZOOM);
+  const view = (): ReturnType<Camera["transform"]> => camera.transform();
+  const pitch = (): number => camera.pitch;
+  const stopPainter = attachPainter(host, painter, { view, pitch });
+  const motions = attachMotion(host, painter, { view, pitch });
+
+  // A THROW OR A PINCH NEEDS A CLOCK, and the camera has none of its own (`guard.one-clock`): the
+  // table keeps its own `beat` (`hub.one-clock` guards a HUB shelf against a second loop of its
+  // own, and this screen is not the shelf), joined only while a fling is actually moving.
+  const repaintCamera = (): void => motions.redraw();
+  const cameraClock = beat(repaintCamera);
+  let leaveClock: (() => void) | undefined;
+  const wakeCamera = (): void => {
+    if (leaveClock) return;
+    leaveClock = cameraClock.join((_seconds, dt) => {
+      const going = cameraControl.step(dt);
+      if (!going) {
+        leaveClock?.();
+        leaveClock = undefined;
+      }
+      return true;
+    });
   };
-  fitToRoot();
-  const stopFitting = host.onChange(fitToRoot);
+  const cameraControl = wireCamera({
+    host,
+    camera,
+    content: () => roomFor(game, host.root),
+    // A FINGER OVER A PIECE MOVES THE PIECE; over bare felt it pans and pinches the view — the same
+    // arbitration the catalog's map opens with, read off the same `draggable` capability `wireDrag`
+    // already asks the tree for.
+    claims: draggable,
+    onView: wakeCamera,
+  });
+
+  // WHERE THE VIEW OPENS — once, and not before there is a glass to open it on (a Storybook-style
+  // shell hands the element back before it is laid out, and a host asked for its size that early
+  // reports one pixel by one). A LATCH, not a line: re-applying it on every resize would drag a
+  // reader who has already panned back to the middle of the board.
+  let cameraOpened = false;
+  const openCamera = (): void => {
+    const v = host.viewport();
+    if (cameraOpened || v.width <= 1 || v.height <= 1) return;
+    cameraOpened = true;
+    const room = roomFor(game, host.root);
+    camera.setZoom(camera.fitZoom());
+    camera.lookAt({ x: room.x + room.w / 2, y: room.y + room.h / 2 });
+    repaintCamera();
+  };
+  openCamera();
+  const stopFitting = host.onChange(() => {
+    cameraControl.refresh(); // a resize is a new glass, and the clamp has to know
+    openCamera();
+  });
 
   // THE PICTURE OF WHERE A CARRIED RUN WILL COME DOWN — one per view, shown while a hand moves and
   // ended the instant it lets go (`onCarry` below).
@@ -156,6 +216,9 @@ export function startTable(container: HTMLElement): Teardown {
   // view would still be one set of listeners; two calls on the same scene object are the same thing.
   const dragScene = { host, motions, el: host.view };
   const dragOptions = {
+    // A FINGER'S TOUCH IS READ THROUGH THE SAME CAMERA THE PAINTER DRAWS THROUGH, or a tap and the
+    // picture it landed on would disagree the moment the view is panned or zoomed off its rest.
+    view,
     ...(zoneAt ? { zoneAt } : {}),
     // A COLUMN OF CHECKERS IS ONE RUN, and the hand's whole answer to "what stood above the one I
     // touched" (`runOf`) and "where does each of them sit, relative to the anchor" (`seatsOf`, the
@@ -247,6 +310,8 @@ export function startTable(container: HTMLElement): Teardown {
     unbindOnTree?.();
     currentTable?.leave();
     stopFitting();
+    cameraClock.stop();
+    cameraControl.stop();
     unwireDrag(dragScene.el);
     motions.stop();
     stopPainter();
