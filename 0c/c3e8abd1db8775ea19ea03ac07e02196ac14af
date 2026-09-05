@@ -1,0 +1,39 @@
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_24cff4b360b617::t_0db4732cc7827c 3
+  s_24cff4b360b617::t_2014505093cb5c 116-117
+game-kit/docs/test-plan/70-drag.md
+  s_24cff4b360b617::t_c7d487e59c910f 3,10
+apps/hub/src/table/index.ts
+  s_24cff4b360b617::t_d25cedf27bf12e 412-419
+game-kit/.storybook/stories/gestureScene.test.ts
+  s_24cff4b360b617::t_eda2d04371b5e0 24
+  s_24cff4b360b617::t_e5390232f6d09a 1-7,9-23,25-28
+  s_24cff4b360b617::t_87c6867d861f15 8
+game-kit/docs/test-plan/README.md
+  s_24cff4b360b617::t_e839ecdebd8e24 10,98
+  s_24cff4b360b617::t_0db4732cc7827c 39
+game-kit/.storybook/stories/gestureScene.ts
+  s_24cff4b360b617::t_595625107c044c 751
+  s_24cff4b360b617::t_e20b96f02a8035 163-171,173-177
+  s_24cff4b360b617::t_3b51110f1388c2 172
+  s_24cff4b360b617::t_c07d4251dd5e51 162
+game-kit/src/render/drag.test.ts
+  s_24cff4b360b617::t_2ec9df0acab9ea 206-251
+  s_24cff4b360b617::t_deae6b7869be45 203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0cc3e8abd1db8775ea19ea03ac07e02196ac14af",
+  "prompts": {},
+  "sessions": {
+    "s_24cff4b360b617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41d0d1bf-efd5-4957-95ea-2101d984ddd3",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
