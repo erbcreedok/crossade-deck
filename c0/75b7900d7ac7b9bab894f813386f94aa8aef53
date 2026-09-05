@@ -1,0 +1,26 @@
+apps/hub/src/table/index.ts
+  h_2b92b67d011bfc 412-419
+game-kit/.storybook/stories/gestureScene.test.ts
+  h_2b92b67d011bfc 1-28
+game-kit/.storybook/stories/gestureScene.ts
+  h_2b92b67d011bfc 163-178,804
+game-kit/docs/test-plan/11-catalog-shell.md
+  h_2b92b67d011bfc 3,116-117
+game-kit/docs/test-plan/70-drag.md
+  h_2b92b67d011bfc 3,10
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,39,98
+game-kit/src/render/drag.test.ts
+  h_2b92b67d011bfc 203-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c075b7900d7ac7b9bab894f813386f94aa8aef53",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
