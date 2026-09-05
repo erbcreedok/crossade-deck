@@ -14,6 +14,7 @@ import {
   type CarryFeel,
   type Walls,
   landingPicture,
+  screened,
   throwGate,
   zoneFor,
   aimOf,
@@ -690,7 +691,7 @@ export function grabScene(
             // picture is taken off the desk below and can no longer be told from a piece.
             const falling = items.filter((one) => {
               const n = byId(built.host.root, one.id);
-              return n !== undefined && !isMark(n);
+              return n !== undefined && !isMark(n) && !screened(n);
             });
             // HOW FAR THE LOAD WAS HANGING, read BEFORE the picture is taken off the desk: the
             // landing is the picture's place, so the number that says where the picture WAS is the
@@ -700,6 +701,13 @@ export function grabScene(
             // never reaches the wiring's own drop, so the carry's `done` never comes: left to that,
             // the last thing the reader sees is a ghost of a stack standing on empty felt.
             landingPic.end();
+            // A CONTROL IS NOT THROWN AND IS NOT PUT INTO A ZONE. A node held at its size on the
+            // glass was never lying on the felt to be picked off it (`Screened`), so there is
+            // nothing for a fall to be a fall FROM: it stays exactly where the hand let go, and the
+            // release is handed back to the ordinary drop, which writes that very seat and settles
+            // on it. Given to the fall instead, an avatar left the finger at the hand's own speed
+            // and came down half a desk away.
+            if (falling.length === 0) return false;
             // ...and the place it came from belongs to the gesture that is now over. Cleared FIRST,
             // so nothing below can read a lift that has already ended.
             const cameFrom = liftedFrom;

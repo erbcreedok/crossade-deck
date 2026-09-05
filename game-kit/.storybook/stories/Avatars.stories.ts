@@ -8,6 +8,7 @@ import {
   leash,
   placeAvatars,
   registerTextStyle,
+  repin,
   t,
   watchPresence,
   PRESENCE_TEXT,
@@ -289,7 +290,12 @@ export const Avatars: StoryObj<AvatarArgs> = {
           for (const one of others()) follow(one, items, at, done, held, feel, mineScreen.seat);
           // A HAND WITH SOMETHING IN IT IS A STATE, and one's own picture is not "something".
           const carryingSelf = items.some((it) => it.id === avatarId(seat));
-          if (carryingSelf && at) pinned.set(seat, at);
+          // WHERE THE FINGER PUT IT, IN THE PIN'S OWN UNITS — `repin`, never the carry's point as it
+          // stands. A carry speaks the DESK's units and a screen pin is written in fractions of the
+          // glass: written in raw, two units of felt were read back as two glass-widths on the very
+          // next frame, and the picture left the desk the instant it was touched.
+          const moved = carryingSelf ? presences().find((one) => one.seat === seat) : undefined;
+          if (moved && at) pinned.set(seat, repin(moved, at).at);
           if (done) holding.delete(seat);
           else if (!carryingSelf) holding.add(seat);
           if (carryingSelf || done) publish();
