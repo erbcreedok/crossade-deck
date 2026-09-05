@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**76 слоёв · 1627 кейсов заявлено · 1454 расписано поимённо.**
+**76 слоёв · 1631 кейсов заявлено · 1458 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -35,8 +35,8 @@
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 106 | 106 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 107 | 95 |
-| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 71 | 71 |
-| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 108 | 107 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 73 | 73 |
+| [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 109 | 108 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
 | [PROPERTY-BASED](14-property-based.md) | `fast-check` | 14 | 5 |
@@ -96,7 +96,7 @@
 | [UNIT · шахматы — доска, через реальную проводку](68-chess.md) | `vitest (headless, no WebGL, jsdom)` | 4 | 4 |
 | [UNIT · NodeSpec и Revised — сериализация дерева](69-spec.md) | `vitest (headless, no WebGL)` | 4 | 4 |
 | [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 4 | 4 |
-| [UNIT · fall — бросок, падение и посадка](71-fall.md) | `vitest` | 10 | 10 |
+| [UNIT · fall — бросок, падение и посадка](71-fall.md) | `vitest` | 11 | 11 |
 | [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 5 | 5 |
 | [UNIT · mirror — чужая рука на своём экране](74-mirror.md) | `vitest + jsdom + фейковые часы` | 2 | 2 |
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |

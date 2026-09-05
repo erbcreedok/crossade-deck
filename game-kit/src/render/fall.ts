@@ -804,14 +804,21 @@ export function letFall(
     if (n) fromPositions.set(it.id, seatIn(n));
   }
 
+  // ONE MARK PER TOUCH, NEVER ONE PER CARD. A release is a single gesture, however many pieces it
+  // let go of — a whole stack thrown at once is one throw, not thirty-six, and a mark on every card
+  // of it reads as a border painted around the pile rather than a note about the hand that moved it.
+  // So only the first piece a release actually flies is marked; the rest of the run says nothing on
+  // its own, which is what a stack lying in one ink already says.
+  let marked = false;
   for (const { id, feel, walls, delayMs, fan } of dropped) {
     const seat = flock.get(id);
     const flight = seat ?? (hand ? flightOf(hand, feel.throwGain) : { speed: 0, angle: 0 });
-    if (s.actor && flight.speed > 0) {
+    if (s.actor && flight.speed > 0 && !marked) {
       const piece = byId(s.host.root, id);
       if (piece) {
         const from = fromPositions.get(id);
         mark(piece, { by: s.actor, mark: "thrown", ...(from ? { from } : {}) });
+        marked = true;
       }
     }
     const own = fan === undefined ? flight : polar(sum(velocityOf(flight.speed, flight.angle), velocityOf(feel.scatter, fan)));
