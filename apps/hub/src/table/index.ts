@@ -122,8 +122,9 @@ export function startTable(container: HTMLElement): Teardown {
   const camera = new Camera(CAM_ZOOM);
   const view = (): ReturnType<Camera["transform"]> => camera.transform();
   const pitch = (): number => camera.pitch;
-  const stopPainter = attachPainter(host, painter, { view, pitch });
-  const motions = attachMotion(host, painter, { view, pitch });
+  const rotation = (): number => camera.rotation;
+  const stopPainter = attachPainter(host, painter, { view, pitch, rotation });
+  const motions = attachMotion(host, painter, { view, pitch, rotation });
 
   // A THROW OR A PINCH NEEDS A CLOCK, and the camera has none of its own (`guard.one-clock`): the
   // table keeps its own `beat` (`hub.one-clock` guards a HUB shelf against a second loop of its
@@ -168,6 +169,17 @@ export function startTable(container: HTMLElement): Teardown {
   // reports one pixel by one). A LATCH, not a line: re-applying it on every resize would drag a
   // reader who has already panned back to the middle of the board.
   let cameraOpened = false;
+  /**
+   * WHICH SEAT THIS GLASS IS, once the server has said — `p1`/`p2`, never a game's own names: the
+   * room is one server room for every game, and chess is the only one that cares which of the two
+   * it is. Known only after `joinTable` resolves, which is AFTER the camera has usually already
+   * opened (`openCamera` is a latch on the first real layout, and the network round trip is slower
+   * than that on any connection worth calling one) — so the turn below is applied twice: once here,
+   * for the rare case the seat is already known, and once where the seat actually arrives.
+   */
+  let seat: string | null = null;
+  /** Chess only: the second seat looks at the SAME board turned 180°, own back rank nearest it. */
+  const seatTurn = (): number => (game === "chess" && seat === "p2" ? 180 : 0);
   const openCamera = (): void => {
     const v = host.viewport();
     if (cameraOpened || v.width <= 1 || v.height <= 1) return;
@@ -195,6 +207,7 @@ export function startTable(container: HTMLElement): Teardown {
     const open = Math.min(v.width / ((bw + OPEN_RIM * 2) * unit), v.height / ((bh + OPEN_RIM * 2) * unit));
     camera.setZoom(Math.max(camera.fitZoom(), Math.min(open, CAM_ZOOM.maxZoom)));
     camera.lookAt({ x: room.x + room.w / 2, y: room.y + room.h / 2 });
+    camera.turnTo(seatTurn());
     repaintCamera();
   };
   openCamera();
@@ -292,6 +305,14 @@ export function startTable(container: HTMLElement): Teardown {
   })
     .then((table) => {
       currentTable = table;
+      seat = table.seat;
+      // THE TURN, NOW THAT THE SEAT IS ACTUALLY KNOWN — `openCamera` already applied it if the seat
+      // happened to arrive first; this is the ordinary case, where the glass was already open and
+      // looking at the board from the wrong side of it for however long the round trip took.
+      if (cameraOpened) {
+        camera.turnTo(seatTurn());
+        repaintCamera();
+      }
       if (table.seat) {
         wireDrag(dragScene, { ...dragOptions, actor: table.seat });
       }

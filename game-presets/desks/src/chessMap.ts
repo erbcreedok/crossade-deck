@@ -37,6 +37,7 @@ import {
   installStockOccupied,
   node,
   NO_COAT,
+  Oriented,
   Owned,
   ShadowCaster,
   Reaching,
@@ -385,6 +386,13 @@ function stand(desk: Node, file: number, rank: number, seat: string, what: Figur
     // WHOSE MAN HE IS, said on himself. Not read off his id — an id is a NAME and nothing parses one
     // (`guard.id-is-opaque`) — and not off the square, which he leaves the moment he is picked up.
     Owned({ box: seat }),
+    // A FIGURE IS A PICTURE WITH A TOP, AND THE BOARD IS NOT. Black's seat looks at the board from
+    // the far side — its camera is turned 180° so the pieces read as black's own men in front of it
+    // — but a knight drawn upside down is not "the same knight, seen from the other side": it is a
+    // broken glyph. `Oriented: "viewer"` is the billboard already used for captions and marks; here
+    // it says the same thing about a chess piece — its own picture stands upright on WHICHEVER
+    // screen it is drawn on, whatever the seat's camera does to the board underneath it.
+    Oriented({ orientation: "viewer" }),
     PUT_DOWN,
     // HIS OWN SHAPE FALLS, and nothing at rest. Not the square box around a knight-shaped figure and
     // not a pool at his feet: the shadow is the man himself in shadow ink (`shadowOf`). The felt's

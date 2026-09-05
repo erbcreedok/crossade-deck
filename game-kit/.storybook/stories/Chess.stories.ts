@@ -132,6 +132,13 @@ export const Chess: StoryObj<ChessArgs> = {
           i === 0
             ? { marks: { inks, showOwn: false, me: seat } }
             : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
+          // NO DESK-SPECIFIC PIECE LAW — a board answers `zones` alone, same as the seam above.
+          undefined,
+          // BLACK LOOKS AT THE SAME BOARD FROM THE OTHER SIDE OF IT — the camera opens turned 180°
+          // so his own back rank sits nearest him, exactly as it does at a real table. Every man
+          // stays upright on his screen regardless (`Oriented: "viewer"` on every piece,
+          // `chessMap.ts`): only the ROOM turns, never the pictures standing in it.
+          seat === "black" ? 180 : undefined,
         ),
       );
       pane.appendChild(dot);

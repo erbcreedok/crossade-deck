@@ -41,7 +41,7 @@ import { fitBox } from "../fitBox.js";
 import { type Paint } from "../../core/paint.js";
 import { surfaceRecord, type GradientStop, type LineCap, type LineJoin, type PaintLayer, type Stroke } from "../surfaces.js";
 import { polyline } from "../../core/path.js";
-import { apply, chain, compose, IDENTITY, invert, move, pose, scale, type Transform } from "../../core/transform.js";
+import { apply, chain, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform } from "../../core/transform.js";
 import { LAYER_HEIGHT } from "./depth.js";
 import { type PlanInput } from "./input.js";
 import { boxOf, layerOf, strokeOf } from "./parts.js";
@@ -61,7 +61,7 @@ export { transformsOf } from "./transforms.js";
 export { LAYER_HEIGHT } from "./depth.js";
 export type { ResolveContext };
 
-export function scenePlan({ root, unit, width, height, viewer, view, pitch, overrides, raised, carried, grounded, measure, now }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, view, pitch, rotation, overrides, raised, carried, grounded, measure, now }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = view ?? viewTransform(unit, width, height);
   /**
@@ -76,6 +76,16 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
    * `undefined` when the desk is not laid back at all, so an ordinary scene composes nothing extra.
    */
   const standUp = pitchStand(pitch);
+  /**
+   * THE SCREEN-SPACE UNDO OF THE CAMERA'S OWN TURN, about a billboard's own origin — the same trick
+   * as `standUp`, for the other half of the view's roll. A node framed to the viewer is indifferent
+   * to how the desk and its owners are turned (`transformsOf` already cuts that chain); this is the
+   * other place a turn can still reach it — the CAMERA's, baked into `toView`/`view` and unreadable
+   * back out of that matrix, which is why it is handed over as a plain number beside it, exactly as
+   * `pitch` is. `undefined` when the camera has not turned at all, so an unturned view composes
+   * nothing extra.
+   */
+  const unturn = rotation ? rotate(-rotation) : undefined;
   // How much of the view's scale a screen-sized node has to give back: at zoom 1 the view IS the
   // unit and there is nothing to undo, so the whole thing is absent rather than a scale of one.
   const viewScale = Math.hypot(toView.a, toView.b);
@@ -246,7 +256,12 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     const lying = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
     // A node framed to the VIEWER stands out of the tilted plane; everything else lies on it. The
     // stand is about the node's OWN origin, so it gains height without walking up the screen.
-    const stood = standUp && orientationOf(ctx) === "viewer" ? standing(lying, standUp) : lying;
+    const billboard = orientationOf(ctx) === "viewer";
+    const stood = standUp && billboard ? standing(lying, standUp) : lying;
+    // AND, FOR THE SAME NODE, THE CAMERA'S OWN TURN COMES BACK OFF — about its own origin again, so
+    // a chess piece stands upright on the black player's screen exactly as it does on the white
+    // player's, whichever way the seat's camera looks at the board.
+    const unturned = unturn && billboard ? standing(stood, unturn) : stood;
     // A CONTROL IS MEASURED IN PIXELS. The view's own scale is taken back about the node's own
     // origin, so a handle is the same size at every zoom — which is what a handle is in every
     // application that has ever drawn one, because it is sized for the finger and a finger does not
@@ -259,7 +274,7 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, over
     const hold = caps(node).has("Screened")
       ? screenScale(fieldsOf<ScreenedFields>(node, "Screened"), viewOverUnit) / viewOverUnit
       : 1;
-    const toGlass = Math.abs(hold - 1) > 1e-9 ? standing(stood, scale(hold)) : stood;
+    const toGlass = Math.abs(hold - 1) > 1e-9 ? standing(unturned, scale(hold)) : unturned;
     // A ZERO UNIT IS NOT A DIVISION. A container with no size on screen — hidden, or measured
     // before layout — reports a unit of zero, and `1 / 0` puts NaN through the whole matrix.
     // Everything downstream then reads as "rotated", because NaN is not equal to zero either,

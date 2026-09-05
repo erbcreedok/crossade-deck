@@ -28,6 +28,13 @@ export interface Carry {
   readonly tiltFactor: number;
   readonly tiltMax: number;
   /**
+   * Is the run framed to the VIEWER (`Oriented: "viewer"`) — a chess piece, never a card lying flat
+   * on the desk? Decided once, at the grab, from the pieces actually picked up: it says whether the
+   * bank is read off the desk's own `x` (`lean`) or off the ONLOOKER's screen `x` (`screenLean`),
+   * which only differ once a camera has turned.
+   */
+  readonly viewerFramed: boolean;
+  /**
    * EACH PIECE'S OWN RESTING POSE, captured when the hand closed on it.
    *
    * A style builds a carried pose from nothing — a point, a lean, a lift — which is right for where

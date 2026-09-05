@@ -228,6 +228,14 @@ export function grabScene(
     /** The desk came to rest after these — a handle can be put back under what it belongs to. */
     readonly settled?: (root: Node, ids: readonly string[]) => void;
   },
+  /**
+   * THE SEAT'S OWN ANGLE, in degrees — a screen looking at the SAME desk from the other side of it.
+   *
+   * Chess is where this first matters: the black player's board is the white player's, turned, and
+   * without this every screen opens looking at it from the white side regardless of who is sitting
+   * there. Absent, the camera opens at 0°, which is every other page on the shelf.
+   */
+  turn?: number,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -282,6 +290,7 @@ export function grabScene(
       // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and
       // over bare map the same finger drives the view. The two never argue about a hand.
       claims: draggable,
+      ...(turn === undefined ? {} : { turn }),
       // Opened in the middle at zoom 1, where the pieces are life-size and the map is not: a phone
       // holds about half of it, so there is somewhere to carry a piece TO from the first touch.
       // A DESK THAT NAMES ITS ROOM WANTS TO BE SEEN WHOLE: a board with a zone under it is taller

@@ -35,6 +35,12 @@ export type MotionOptions = TuningPatch & {
   readonly view?: (() => Transform) | undefined;
   /** How far the camera is laid back, beside the view — passed straight to the frame. */
   readonly pitch?: (() => number) | undefined;
+  /**
+   * The camera's own turn, degrees — beside the view, passed straight to the frame, and read here
+   * too: a carried node framed to the viewer banks against the direction it moves ON THE GLASS, and
+   * that needs the camera's turn to tell world velocity from screen velocity (`screenLean`).
+   */
+  readonly rotation?: (() => number) | undefined;
 };
 
 /** One node in a carried run, with its base layout offset from the grab pivot (root units). */
