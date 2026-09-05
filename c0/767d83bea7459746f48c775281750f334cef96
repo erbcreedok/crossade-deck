@@ -1,0 +1,14 @@
+apps/hub/src/table/index.ts
+  h_2b92b67d011bfc 158-169,207,235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c0767d83bea7459746f48c775281750f334cef96",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
