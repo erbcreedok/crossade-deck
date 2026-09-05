@@ -27,7 +27,6 @@ import {
   apply,
   byId,
   caps,
-  node,
   velocityOf,
   compose,
   DEFAULT_TUNING,
@@ -160,6 +159,22 @@ const NEVER_THROUGH = { wallSpeed: Infinity, leash: Infinity } as const;
  * carry, and a reader who has zoomed to a tenth is looking at a problem the page is not about.
  */
 const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
+
+/**
+ * IS A HANDLE AMONG WHAT IS BEING HANDED TO A ZONE — asked of `items` as they stand in the tree
+ * RIGHT NOW, never of whatever `runOf` drew.
+ *
+ * An item may have already left the tree by the time a zone is found: the landing picture rides
+ * along in `items` (`runOf`'s own `[hit, picture]`) and is removed the moment the release starts
+ * (`landingPic.end()`), before this is ever asked. A missing node answers "not a handle" — it is
+ * not one — and must not be conjured into an empty-id node just to ask `isGrip` of it, which is a
+ * node the model refuses to make at all.
+ */
+export const isHandleAmong = (root: Node, items: readonly CarryItem[]): boolean =>
+  items.some((one) => {
+    const n = byId(root, one.id);
+    return n !== undefined && isGrip(n);
+  });
 
 /**
  * The one scene every grab page stands on — they differ by their arguments, and by nothing else.
@@ -786,7 +801,7 @@ export function grabScene(
               if (pieces?.runOf) {
                 const lead = byId(built.host.root, items[0]?.id ?? "");
                 if (!lead || !wouldAccept(zone, lead)) return false;
-              } else if (!items.some((one) => isGrip(byId(built.host.root, one.id) ?? node("")))) return false;
+              } else if (!isHandleAmong(built.host.root, items)) return false;
               handOver(built, zone, items);
               rule?.settled?.(built.host.root, items.map((one) => one.id));
               inHand = undefined;

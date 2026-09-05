@@ -409,9 +409,14 @@ export function startTable(container: HTMLElement): Teardown {
     ...(game === "cards"
       ? {
           trayOf: (_root: Node, hit: Node) => roundWalls(hit),
-          // THE FINGER IS THE HOLDER, so the picture of the landing stands under the finger doing
-          // the aiming rather than wherever the card happened to be touched.
-          underFinger: true,
+          // NOT `underFinger`: the felt has no zones to aim at (`roundMap.ts` — "NO HAND AREAS"), so
+          // there is nobody for a finger-locked anchor to help aim at, only the ordinary cost of one
+          // — the anchor keeps the offset between the finger and wherever on the card it landed
+          // (`wireDrag`'s own `delta`), so a card carried away and brought back to the very point it
+          // was picked up from comes down exactly where it stood, a hair off the finger if the finger
+          // never was dead centre on it. Locked to the finger instead, that same hair is baked into
+          // the SEAT the drop writes — the card returns under the finger, not into the pile it left,
+          // and a stack a finger did not land on dead centre never closes back up.
           // ...AND THE PICTURE IS MADE AT THE LIFT. `show` moves a mark that already exists; nothing
           // in the hub ever made one, so every carry on this table showed nothing. A card lifted
           // alone gets one too: it is drawn bigger and higher than it will lie, so a hand carrying
