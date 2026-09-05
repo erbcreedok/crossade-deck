@@ -36,6 +36,7 @@ import type collision from "./pages/collision/en.json";
 import type magnetism from "./pages/magnetism/en.json";
 import type chess from "./pages/chess/en.json";
 import type nardy from "./pages/nardy/en.json";
+import type avatars from "./pages/avatars/en.json";
 import type heaping from "./pages/heaping/en.json";
 import type focusable from "./pages/focusable/en.json";
 import type hudButton from "./pages/hudButton/en.json";
@@ -125,6 +126,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   gestures: { en: () => import("./pages/gestures/en.json"), ru: () => import("./pages/gestures/ru.json") },
   chess: { en: () => import("./pages/chess/en.json"), ru: () => import("./pages/chess/ru.json") },
   nardy: { en: () => import("./pages/nardy/en.json"), ru: () => import("./pages/nardy/ru.json") },
+  avatars: { en: () => import("./pages/avatars/en.json"), ru: () => import("./pages/avatars/ru.json") },
   magnetism: { en: () => import("./pages/magnetism/en.json"), ru: () => import("./pages/magnetism/ru.json") },
   collision: { en: () => import("./pages/collision/en.json"), ru: () => import("./pages/collision/ru.json") },
   merging: { en: () => import("./pages/merging/en.json"), ru: () => import("./pages/merging/ru.json") },
@@ -260,7 +262,8 @@ export type PageKey = keyof (typeof node &
   typeof landing &
   typeof heaps &
   typeof grips &
-  typeof nardy);
+  typeof nardy &
+  typeof avatars);
 
 /** A page's own words, plus the chrome — one object, so a caption cannot be half-swapped. */
 export interface PageText extends CatalogText {

@@ -154,6 +154,23 @@ export class Camera {
     return Math.max(0.02, Math.cos((this.pitch * Math.PI) / 180));
   }
 
+  /**
+   * HOW BIG THE GLASS IS — what `setScreen` was told, given back.
+   *
+   * A READING, like `x` and `y` below: anything that has to say where a point of the desk lands
+   * relative to the EDGES of the view — a leash holding an avatar on screen, a minimap — needs the
+   * rectangle, and measuring it a second time off the DOM is how two answers to one question start
+   * to disagree by a frame.
+   */
+  get glass(): { w: number; h: number } {
+    return { w: this.screenW, h: this.screenH };
+  }
+
+  /** Screen pixels per unit right now — the total, etalon and zoom together. A READING. */
+  get pixelsPerUnit(): number {
+    return this.k;
+  }
+
   /** Where the desk's origin landed on the glass. A READING of the transform, never the state. */
   get x(): number {
     return this.transform().e;
