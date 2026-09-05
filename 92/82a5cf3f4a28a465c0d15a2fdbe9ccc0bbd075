@@ -1,0 +1,14 @@
+.agent/rules/orchestrator.md
+  h_2b92b67d011bfc 36-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9282a5cf3f4a28a465c0d15a2fdbe9ccc0bbd075",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
