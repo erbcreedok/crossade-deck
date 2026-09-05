@@ -192,8 +192,10 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       if (!alive) return;
       stopSweep();
       setMode("play");
-      running = start(stage);
+      // The address first, the game second: a table reads WHICH game it is from the hash, so a
+      // press that started the game before naming it would open every tile as cards.
       if (write) goTo(id);
+      running = start(stage);
     } catch {
       // A blip, or a game that will not parse. Without this the hub sits in a dead screen with a
       // spinning tile and no way out — the one failure a launcher must not have.
