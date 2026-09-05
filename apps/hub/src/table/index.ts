@@ -1,10 +1,12 @@
-import { runOf, seatsOf, squareAt, pointUnder } from "@game-presets/desks";
+import { mayThrow, runOf, seatsOf, settled, squareAt, pointUnder, wallsOf as nardyWallsOf } from "@game-presets/desks";
+import { throwFromCarry } from "@game-presets/dice";
 import {
   attachMotion,
   wireDrag,
   unwireDrag,
   attachPainter,
   byId,
+  caps,
   extentOf,
   footprint,
   holdThePage,
@@ -16,6 +18,7 @@ import {
   landingPicture,
   mount,
   setRev,
+  type CarryItem,
   type Node,
   type Vec,
 } from "game-kit";
@@ -104,6 +107,39 @@ export function startTable(container: HTMLElement): Teardown {
 
   const zoneAt = zoneAtFor(game);
 
+  // NARDY'S DICE THROW: a die is `Rollable`, and letting go of it WITH SPEED rolls a fresh face and
+  // slides it across the band it was thrown in (`wallsOf` — the board or whichever side of it); a
+  // gentle let-go falls through and the die is simply put down, face as it was. `mayThrow` keeps a
+  // column of checkers out of this branch — the one thing this shelf never throws.
+  const onDiceRelease = (velocity: Vec | undefined, items: readonly CarryItem[]): boolean => {
+    const root = host.root;
+    if (!mayThrow(items, root)) return false;
+    const poses = motions.poses();
+    let inFlight = 0;
+    let threw = false;
+    for (const it of items) {
+      const piece = byId(root, it.id);
+      if (!piece || !caps(piece).has("Rollable")) continue;
+      const pose = poses?.get(it.id);
+      const at = pose ? { x: pose.e, y: pose.f } : { x: 0, y: 0 };
+      const walls = nardyWallsOf(piece, at);
+      inFlight += 1;
+      const face = throwFromCarry(motions, root, piece, {
+        outcome: { rng: Math.random },
+        ...(walls ? { walls } : {}),
+        onRest: () => {
+          inFlight -= 1;
+          if (inFlight <= 0) {
+            settled(root);
+            host.setRoot(root);
+          }
+        },
+      });
+      if (face !== undefined) threw = true;
+    }
+    return threw;
+  };
+
   // ONE wiring per view, not two. wireDrag is idempotent on the same element: a second call with
   // the same `el` only replaces the options object, never attaches more listeners. So we call it
   // once here to register the pointer handlers, and again after joinTable — with { actor } — to
@@ -115,7 +151,20 @@ export function startTable(container: HTMLElement): Teardown {
     // A COLUMN OF CHECKERS IS ONE RUN, and the hand's whole answer to "what stood above the one I
     // touched" (`runOf`) and "where does each of them sit, relative to the anchor" (`seatsOf`, the
     // point's own idea of a column). Chess and cards move one piece at a time and need neither.
-    ...(game === "nardy" ? { runOf, offsetOf: seatsOf } : {}),
+    ...(game === "nardy"
+      ? {
+          runOf,
+          offsetOf: seatsOf,
+          onRelease: onDiceRelease,
+          // A DIE PUT DOWN GENTLY never reaches `onDiceRelease`'s throw (it falls through to the
+          // ordinary drop below), and a checker moved off the head can leave the handle floating
+          // over empty felt — so every settle, thrown or not, puts it back under the pair.
+          onSettled: (r: Node) => {
+            settled(r);
+            host.setRoot(r);
+          },
+        }
+      : {}),
     onCarry: ({ ids, at, done, feel }: { ids: readonly string[]; at: Vec; done: boolean; feel: any }) => {
       if (done) {
         landingPic.end();
