@@ -1,0 +1,31 @@
+apps/hub/src/table/index.ts
+  s_e76c26065d321f::t_5831958f69e0e4 403-405
+  s_e76c26065d321f::t_3d9a672a80d3f1 471-482
+  s_e76c26065d321f::t_08f1e026380ac7 97
+  s_e76c26065d321f::t_9fdab525e3fa3b 246
+  s_e76c26065d321f::t_5c0e67bcf507e5 87-96,98-114
+  s_e76c26065d321f::t_1459c64e199c51 59,449
+  s_e76c26065d321f::t_6cf14eee3d89aa 374
+  s_e76c26065d321f::t_6ea2ded134f2d9 503-506
+  s_e76c26065d321f::t_a3b8392c563b7b 222-245,247-251
+apps/hub/src/table/glass.test.ts
+  s_e76c26065d321f::t_d0bbe9cf81af1d 2,8-9,12-46,91-92
+  s_e76c26065d321f::t_96696109eacbbe 1,3-7
+  s_e76c26065d321f::t_57677e3d6816c8 10-11,47-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c2c3138efb695a00c31cce093c29f0d699f8a323",
+  "prompts": {},
+  "sessions": {
+    "s_e76c26065d321f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1ccfb24-97a6-476e-af4f-d93723b944e9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
