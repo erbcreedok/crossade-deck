@@ -1,0 +1,55 @@
+game-kit/.storybook/locales/chrome/en.json
+  s_24cff4b360b617::t_703ac52789ec42 352
+game-kit/.storybook/locales/chrome/ru.json
+  s_24cff4b360b617::t_c22912722f68a0 356
+game-kit/.storybook/locales/pages.ts
+  s_24cff4b360b617::t_a5be27e86b402b 26,187,256
+game-kit/.storybook/locales/pages/hands/en.json
+  s_24cff4b360b617::t_40902203e56797 1-43
+game-kit/.storybook/locales/pages/hands/ru.json
+  s_24cff4b360b617::t_fcb4bfed3e553d 1-40
+game-kit/.storybook/preview.ts
+  s_24cff4b360b617::t_c00f7ab99ee875 180
+game-kit/.storybook/stories/Hands.stories.ts
+  s_24cff4b360b617::t_a6fdeba92792bb 1-328
+game-kit/.storybook/stories/gestureScene.ts
+  s_24cff4b360b617::t_a489b9958ae3fa 245-271,359-361,663-676,691
+game-kit/docs/test-plan/26-accept.md
+  s_24cff4b360b617::t_b792d7e130a707 3,29
+game-kit/docs/test-plan/README.md
+  s_24cff4b360b617::t_cc8f13bdee3dc5 10,54
+game-kit/src/core/accept.test.ts
+  s_24cff4b360b617::t_49221bf62fb836 130-145
+game-kit/src/core/accept.ts
+  s_24cff4b360b617::t_2d451cc57616e1 39-48,90-94
+game-kit/src/core/atoms/acceptor.ts
+  s_24cff4b360b617::t_40e3be767da5b8 67-69,74-77
+game-presets/desks/docs/test-plan.md
+  s_24cff4b360b617::t_43d5aca7007685 63-79
+game-presets/desks/src/handZone.test.ts
+  s_24cff4b360b617::t_d0f710f6a5f427 1-146
+game-presets/desks/src/handZone.ts
+  s_24cff4b360b617::t_6a09adaf3583ce 1-279
+game-presets/desks/src/index.ts
+  s_24cff4b360b617::t_691f9f7327f6e5 39-55
+game-presets/desks/src/roundMap.test.ts
+  s_24cff4b360b617::t_4d5c04e4cd3ae1 8,15,17-20
+game-presets/desks/src/roundMap.ts
+  s_24cff4b360b617::t_9b1b8e578887ee 7-15,41,46-47,96,106-117,133-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0c128f78f3935dc387c1fba7c3b93f2e4a3500e5",
+  "prompts": {},
+  "sessions": {
+    "s_24cff4b360b617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41d0d1bf-efd5-4957-95ea-2101d984ddd3",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
