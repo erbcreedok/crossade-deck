@@ -102,7 +102,7 @@ const CAM_MARGIN = 2.5;
 const OPEN_RIM = 1.2;
 
 /** How far the round table's circle overfills the glass at opening, cards only — no side seen. */
-const CARDS_OVERFILL = 1.25;
+const CARDS_OVERFILL = 1.05;
 
 /**
  * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (each desk on this shelf draws a
