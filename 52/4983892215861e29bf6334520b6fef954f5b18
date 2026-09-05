@@ -1,0 +1,43 @@
+apps/hub/src/table/index.ts
+  s_03b7d76c4864e0::t_cfd44bf98c7506 12-13,28,32,40,45,48,52,95-96,99,102,221-224,226,254-265,361-403,406,410-413,416
+apps/hub/src/table/mapFor.ts
+  s_03b7d76c4864e0::t_5d9ad019a1aaf1 4,17-20
+game-kit/docs/test-plan/46-launch-and-slide.md
+  s_03b7d76c4864e0::t_6807017ffc1439 3,21-22
+game-kit/src/core/ballistic.test.ts
+  s_03b7d76c4864e0::t_ca7305c3bc22f9 4,144-177
+game-kit/src/core/ballistic.ts
+  s_03b7d76c4864e0::t_368bebb9c8273b 76,83-119,196-215
+game-kit/src/index.ts
+  s_03b7d76c4864e0::t_bc4b364527ae2e 448,457-458
+game-kit/src/render/animator/index.ts
+  s_03b7d76c4864e0::t_ef15bf7e5405a8 39,305
+game-kit/src/render/drag.ts
+  s_03b7d76c4864e0::t_226a3f8366be7c 30,610
+game-kit/src/render/fall.ts
+  s_03b7d76c4864e0::t_1cbed5095193de 13,534
+game-presets/desks/src/index.ts
+  s_03b7d76c4864e0::t_b8331824846379 38
+game-presets/desks/src/nardyMap.ts
+  s_03b7d76c4864e0::t_84ee8c82a3e63d 67,425,435
+game-presets/desks/src/roundMap.test.ts
+  s_03b7d76c4864e0::t_2b14e52e3168c2 1-64
+game-presets/desks/src/roundMap.ts
+  s_03b7d76c4864e0::t_576ca42187c79b 1-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "524983892215861e29bf6334520b6fef954f5b18",
+  "prompts": {},
+  "sessions": {
+    "s_03b7d76c4864e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6589070-f8de-44dc-90cd-de1017e0a8e9",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
