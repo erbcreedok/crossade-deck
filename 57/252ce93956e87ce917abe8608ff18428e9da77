@@ -1,0 +1,23 @@
+game-kit/docs/test-plan/77-idle-return.md
+  s_5bf40fff1190e2::t_1bb07cec741ef9 1-8
+game-kit/docs/test-plan/README.md
+  s_5bf40fff1190e2::t_2e6b4f0683e430 10,104
+game-presets/desks/src/roundMap.ts
+  s_5bf40fff1190e2::t_7928fbdf6bcb73 43,151-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "57252ce93956e87ce917abe8608ff18428e9da77",
+  "prompts": {},
+  "sessions": {
+    "s_5bf40fff1190e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0c2972626488fcd8",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
