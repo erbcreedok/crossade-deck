@@ -242,6 +242,33 @@ export function grabScene(
    * something standing on the felt. Absent, nobody asks, which is every page but that one.
    */
   onView?: () => void,
+  /**
+   * AN EXTRA GATE ON THE PICK, beside "is it draggable" — the SEAT'S permission.
+   *
+   * A desk where a place can be shut needs it, and it cannot be answered by the drop: a drop is
+   * asked at the end of a gesture, and what a shut hand refuses is the gesture ever STARTING. The
+   * usual answer is `grippableBy(n, seat)`; absent, every draggable thing takes every finger, which
+   * is every page on the shelf that has no owners.
+   */
+  may?: (n: Node) => boolean,
+  /**
+   * THE PAGE'S OWN ANSWER TO A TAP, asked first — `true` means the page took it.
+   *
+   * The same shape as `onRelease`, for the same reason: a tap means one thing on a card (turn it
+   * over) and another on a thing that is not a card, and which of those is a fact about the desk
+   * rather than about the gesture. Absent, or answering `false`, and the tap goes on to whatever
+   * this scene was already doing with one.
+   */
+  taps?: (piece: Node) => boolean,
+  /**
+   * THE DESK CAME TO REST AND THE PAGE HAS SOMETHING TO SAY ABOUT IT.
+   *
+   * A page whose furniture is DERIVED from the tree — a hand that is the size of what is in it —
+   * has to be given the moment to re-derive it, and there is exactly one such moment: after the drop
+   * has been written and before the next frame is planned. Absent, nothing asks, which is every page
+   * whose desk is the same shape at the end of a gesture as it was at the start.
+   */
+  onDeskChanged?: (root: Node) => void,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -329,6 +356,9 @@ export function grabScene(
 
   /** Redraw the handles for whatever is touching now, and show them. */
   const settle = (): void => {
+    // FIRST, and whatever else this desk is: a page that re-derives its own furniture must do it
+    // before anything reads the tree again, or one frame is drawn against the shape it just left.
+    onDeskChanged?.(built.host.root);
     // A DESK WITH ITS OWN LAW ABOUT PIECES has said what it had to say (`pieces.settled`) — and a
     // handle put back under the dice is a tree write every screen has to be told about.
     if (!stacking && pieces?.settled) {
@@ -630,6 +660,20 @@ export function grabScene(
           },
         }
       : {}),
+    ...(may ? { may } : {}),
+    // THE ORDINARY DROP'S OWN ENDING, for the desk that neither stacks nor names its own runs.
+    // Both of those answer `onSettled` themselves above; a plain desk answers nobody, and until
+    // something did, a page with derived furniture had no moment to re-derive it in.
+    ...(!stacking && !pieces?.runOf && onDeskChanged
+      ? {
+          onSettled: () => {
+            inHand = undefined;
+            aimed = undefined;
+            liftedFrom = undefined;
+            settle();
+          },
+        }
+      : {}),
     trayOf: (root, hit) => mapWalls(hit, isGrip(hit) ? 1 : held, room ? boxOfDesk(root) : undefined),
     ...NEVER_THROUGH,
     // Physics ON is the kit's own carry, by absence: an unnamed field is `DEFAULT_TUNING`'s, so
@@ -644,6 +688,7 @@ export function grabScene(
     ...(flipping
       ? {
           onTap: (piece: Node) => {
+            if (taps?.(piece)) return;
             built.motions?.flip(piece.id, () => {
               turnOver(piece);
               if (actor) {

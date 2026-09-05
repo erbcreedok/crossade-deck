@@ -36,6 +36,16 @@ export interface TargetSubject {
   readonly top?: Subject;
   /** Whose zone it is, when it says. Absent is a zone belonging to nobody, and the path is missing. */
   readonly owner?: string;
+  /**
+   * THE CONTAINER'S OWN DATA (`Valued`), for `target.values.X` paths.
+   *
+   * The element's values were here from the start and the container's were not, because until a
+   * zone had a state of its own there was nothing to read: every rule was about the thing being
+   * offered. A hand with a lock on it is the second asker — whether the zone takes this card
+   * depends on a number written on the ZONE, and a rule that could not reach it would have to be
+   * rebuilt in code every time the lock turned, which is exactly what "rules are data" is not.
+   */
+  readonly values?: Readonly<Record<string, unknown>>;
 }
 
 /** Who is doing it. Absent where nobody said — a move made by the game itself, or an old caller. */
@@ -77,6 +87,11 @@ function resolvePath(path: string, ctx: AcceptContext): unknown | typeof MISSING
   if (parts[0] === "target") {
     if (parts[1] === "count" && parts.length === 2) return ctx.target.count;
     if (parts[1] === "owner" && parts.length === 2) return ctx.target.owner ?? MISSING;
+    if (parts[1] === "values" && parts.length === 3) {
+      const key = parts[2]!;
+      const values = ctx.target.values;
+      return values && key in values ? values[key] : MISSING;
+    }
     if (parts[1] === "top") return readSubject(ctx.target.top, parts.slice(2));
     return MISSING;
   }
