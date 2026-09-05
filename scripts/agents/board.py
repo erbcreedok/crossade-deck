@@ -17,50 +17,67 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 9570
 PAGE = r"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Агенты · crossade-deck</title>
 <style>
-body{margin:0;background:#111;color:#ddd;font:14px/1.4 ui-monospace,Menlo,monospace}
-header{padding:10px 14px;border-bottom:1px solid #333;display:flex;gap:16px;align-items:baseline}
-header b{color:#fff}header span{color:#888}
-.grid{display:grid;gap:12px;padding:12px;grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
-.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0}
-.head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.name{font-weight:700;color:#fff;font-size:16px}
-.state{padding:2px 8px;border-radius:999px;font-size:12px}
-.running{background:#1f3a2a;color:#7fdc9a}.done{background:#1f2f3f;color:#8ac4ff}.failed,.killed{background:#3f1f1f;color:#ff9a9a}.budget{background:#3f2f1f;color:#ffc48a}.preparing{background:#3a3520;color:#e6d27a}
-.meta{color:#999;font-size:12px;display:flex;flex-wrap:wrap;gap:10px}
-.task{color:#ccc;white-space:pre-wrap}
-pre{margin:0;background:#0d0d0d;border-radius:8px;padding:8px;max-height:260px;overflow:auto;font-size:12px;color:#bbb;white-space:pre-wrap;word-break:break-word}
-button{background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:6px;padding:4px 10px;cursor:pointer}
-button:hover{background:#3a2a2a}
-.resp{color:#8ac4ff;white-space:pre-wrap;font-size:12px;max-height:120px;overflow:auto}
-.empty{padding:40px;color:#666;text-align:center}
-a{color:#8ac4ff;text-decoration:none}a:hover{text-decoration:underline}
-.links{display:flex;flex-wrap:wrap;gap:10px;font-size:12px}
-#doors a{margin-right:10px}#doors .off{color:#555}
+:root{color-scheme:dark}
+body{margin:0;background:#16181c;color:#c3c7cd;font:14px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+header{padding:10px 14px;border-bottom:1px solid #24272d;display:flex;gap:10px 14px;align-items:baseline;flex-wrap:wrap;font-size:13px}
+header b{color:#e8eaee;font-weight:600}header span{color:#7d828b}
+a{color:#79a6e0;text-decoration:none}a:hover{text-decoration:underline}
+#doors a{margin-right:10px}#doors .off{color:#4a4e56}
+.row{border-bottom:1px solid #202329;padding:10px 14px;cursor:pointer}
+.row:active{background:#1b1e23}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.name{font-weight:600;color:#e8eaee}
+.state{padding:1px 8px;border-radius:999px;font-size:11px;letter-spacing:.02em}
+.running{background:#1d3327;color:#8fd6a6}.done{background:#1f2937;color:#8fb6e8}.failed,.killed{background:#3a1f22;color:#e8969b}.budget{background:#3a2c1f;color:#e8bd8f}.preparing{background:#35301d;color:#e0d08a}
+.when{color:#7d828b;font-size:12px}
+.task{color:#a9aeb6;font-size:13px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.last{color:#5f646d;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+.more{display:none;margin-top:8px}
+.row.open .more{display:block}
+.row.open .task,.row.open .last{white-space:pre-wrap}
+.meta{color:#7d828b;font-size:12px;display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:6px}
+pre{margin:0;background:#101215;border-radius:8px;padding:8px;max-height:260px;overflow:auto;font-size:11px;line-height:1.4;color:#9a9fa8;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,Menlo,monospace}
+button{background:#23262c;color:#c3c7cd;border:1px solid #33373f;border-radius:6px;padding:2px 9px;cursor:pointer;font-size:12px}
+.resp{color:#8fb6e8;white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto;margin-top:6px}
+.links{font-size:12px;margin-top:6px}.links a{margin-right:10px}
+.empty{padding:40px;color:#5f646d;text-align:center}
 </style></head><body>
-<header><b>Агенты</b><span id="sum">…</span><span id="doors"></span><span style="margin-left:auto" id="clock"></span></header>
-<div class="grid" id="grid"></div>
+<header><b>Агенты</b><span id="sum">…</span><span id="doors"></span><span id="lim"></span><span style="margin-left:auto" id="clock"></span></header>
+<div id="list"></div>
 <script>
-const fmt=s=>{if(!s)return"";const d=(Date.now()-Date.parse(s))/1000;return d<60?Math.round(d)+"с":d<3600?Math.round(d/60)+"м":(d/3600).toFixed(1)+"ч"};
+const open=new Set();
+const hm=s=>s?new Date(s).toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"}):"";
+const dur=(a,b)=>{if(!a)return"";const d=((b?Date.parse(b):Date.now())-Date.parse(a))/60000;return d<1?"<1м":d<60?Math.round(d)+"м":(d/60).toFixed(1)+"ч"};
+const ago=s=>{if(!s)return"";const d=(Date.now()-Date.parse(s))/60000;return d<60?Math.round(d)+"м назад":d<1440?(d/60).toFixed(1)+"ч назад":Math.round(d/1440)+"д назад"};
+const day=s=>s?new Date(s).toLocaleDateString("ru",{day:"2-digit",month:"2-digit"}):"";
 async function tick(){
   const r=await fetch("/api/agents");const {agents:list,doors}=await r.json();
   document.getElementById("doors").innerHTML=doors.map(d=>d.up?`<a href="${d.url}" target="_blank">${d.name}</a>`:`<span class="off">${d.name} ·</span>`).join("");
-  const g=document.getElementById("grid");
-  if(!list.length){g.innerHTML='<div class="empty">Никто не работает. Запусти: scripts/agents/agent.py run &lt;имя&gt; &lt;модель&gt; &lt;задача.md&gt;</div>';}
-  else g.innerHTML=list.map(a=>`
-  <div class="card">
-    <div class="head"><span class="name">${a.name}</span><span class="state ${a.state}">${a.state}</span>
-      ${a.state==="running"||a.state==="preparing"?`<button onclick="kill('${a.name}')">стоп</button>`:""}</div>
-    <div class="task">${esc(a.task||"")}</div>
-    <div class="meta"><span>${a.model||""}</span><span>ветка ${a.branch||""}</span><span>шагов ${a.steps||0}${a.budget?` / ${a.budget.steps}`:""}</span><span>инструментов ${a.tools||0}</span><span>токенов ${((a.tokens||0)/1000).toFixed(0)}k${a.budget?` / ${(a.budget.tokens/1000).toFixed(0)}k`:""}</span><span>идёт ${fmt(a.started)}</span>${a.finished?`<span>закончил ${fmt(a.finished)} назад</span>`:""}${a.cost!=null?`<span>$${Number(a.cost).toFixed(2)}</span>`:""}${a.limits?`<span>лимит 5ч ${a.limits.five_hour}% · нед ${a.limits.seven_day}%</span>`:""}${a.commit?`<span>коммит: ${esc(a.commit)}</span>`:""}${a.ahead?`<span>+${a.ahead} к main</span>`:""}</div>
-    ${a.links&&a.links.length?`<div class="links">где смотреть: ${a.links.map(l=>`<a href="${l.url}" target="_blank">${esc(l.name)}</a>`).join("")}</div>`:""}
-    <pre>${esc(a.tail||"")}</pre>
-    ${a.response?`<div class="resp">${esc(a.response)}</div>`:""}
-  </div>`).join("");
+  const el=document.getElementById("list");
+  if(!list.length){el.innerHTML='<div class="empty">Никто не работает.</div>';return;}
+  const today=new Date().toLocaleDateString("ru",{day:"2-digit",month:"2-digit"});
+  el.innerHTML=list.map(a=>{
+    const live=a.state==="running"||a.state==="preparing";
+    const d=day(a.started); const dd=d&&d!==today?d+" ":"";
+    const when=live?`${dd}${hm(a.started)} → идёт ${dur(a.started)}`:`${dd}${hm(a.started)}–${hm(a.finished||a.updated)} · ${dur(a.started,a.finished||a.updated)} · ${ago(a.finished||a.updated)}`;
+    return `<div class="row ${open.has(a.name)?"open":""}" onclick="tog('${a.name}')">
+      <div class="top"><span class="name">${a.name}</span><span class="state ${a.state}">${a.state}</span><span class="when">${when}</span><span class="when">шагов ${a.steps||0}${a.cost!=null?` · $${Number(a.cost).toFixed(2)}`:""}</span>${live?`<button onclick="event.stopPropagation();kill('${a.name}')">стоп</button>`:""}</div>
+      <div class="task">${esc((a.task||"").replace(/^#\s*/,""))}</div>
+      ${live?`<div class="last">${esc(a.last||"")}</div>`:""}
+      <div class="more">
+        <div class="meta"><span>${a.model||""}</span><span>ветка ${a.branch||""}</span><span>токенов ${((a.tokens||0)/1000).toFixed(0)}k${a.budget?` / ${(a.budget.tokens/1000).toFixed(0)}k`:""}</span>${a.over?`<span>${esc(a.over)}</span>`:""}${a.commit?`<span>коммит: ${esc(a.commit)}</span>`:""}${a.ahead?`<span>+${a.ahead} к main</span>`:""}</div>
+        ${a.links&&a.links.length?`<div class="links">где смотреть: ${a.links.map(l=>`<a href="${l.url}" target="_blank" onclick="event.stopPropagation()">${esc(l.name)}</a>`).join("")}</div>`:""}
+        <pre>${esc(a.tail||"")}</pre>
+        ${a.response?`<div class="resp">${esc(a.response)}</div>`:""}
+      </div></div>`}).join("");
   const run=list.filter(a=>a.state==="running").length;
   document.getElementById("sum").textContent=`${run} в работе · ${list.length} всего`;
+  const L=list.find(a=>a.limits&&a.limits.five_hour!=null);
+  document.getElementById("lim").textContent=L?`лимит 5ч ${L.limits.five_hour}% · нед ${L.limits.seven_day}%`:"";
   document.getElementById("clock").textContent=new Date().toLocaleTimeString();
 }
-function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+function tog(n){open.has(n)?open.delete(n):open.add(n);tick()}
+function esc(s){return String(s).replace(/\/Users\/giyers\/Desktop\/crossade-deck\/\.worktrees\/[^\/\s]+\//g,"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
 async function kill(n){if(!confirm("Остановить "+n+"?"))return;await fetch("/api/kill/"+n,{method:"POST"});tick()}
 tick();setInterval(tick,3000);
 </script></body></html>"""
@@ -154,6 +171,10 @@ def agents(host: str = "localhost"):
     # that just finished is. Only what is alive gets pinned to the top.
     alive = {"running": 0, "preparing": 0}
     out.sort(key=lambda j: (alive.get(j.get("state"), 1), -_ts(j.get("finished") or j.get("updated") or j.get("started") or "")))
+    # ЛИМИТ — один на всех: тот, что видел последний обновлённый агент.
+    fresh = max((j for j in out if j.get("limits")), key=lambda j: _ts(j.get("updated") or ""), default=None)
+    if fresh:
+        out[0]["limits"] = fresh["limits"]
     return out
 
 

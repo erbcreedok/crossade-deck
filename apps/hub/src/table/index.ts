@@ -1,4 +1,4 @@
-import { mayThrow, runOf, seatsOf, settled, squareAt, pointUnder, wallsOf as nardyWallsOf } from "@game-presets/desks";
+import { mayThrow, runOf, seatOf, seatsOf, settled, squareAt, pointUnder, wallsOf as nardyWallsOf } from "@game-presets/desks";
 import { throwFromCarry } from "@game-presets/dice";
 import {
   attachMotion,
@@ -84,8 +84,17 @@ export function startTable(container: HTMLElement): Teardown {
     const target = byId(host.root, "board face") ?? host.root;
     const shape = footprint(target);
     if (!shape) return;
-    const { w, h } = extentOf(shape);
+    let { w, h } = extentOf(shape);
     if (w <= 0 || h <= 0) return;
+    // THE DICE LIVE OUTSIDE THE BOARD — in the band beside it — and a fit to the board alone put
+    // them past the edge of a phone. The view is centred on the board, so what is needed is the
+    // farthest die counted twice: as far as it sits on one side, that much room on the other.
+    for (const piece of host.root.children) {
+      if (!caps(piece).has("Rollable")) continue;
+      const { x, y } = seatOf(piece);
+      w = Math.max(w, 2 * (Math.abs(x) + 0.8));
+      h = Math.max(h, 2 * (Math.abs(y) + 0.8));
+    }
     const v = host.viewport();
     // PORTRAIT FITS THE WIDTH, not the shorter of the two: a phone held upright has room to spare
     // top-to-bottom (the camera pans there) but none to spare side-to-side, and a board fit to

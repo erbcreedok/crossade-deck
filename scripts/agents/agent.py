@@ -93,7 +93,7 @@ def prompt_for(wt: Path, name: str) -> str:
 # ---------------------------------------------------------------- run
 
 DEFAULT_STEPS = 150
-DEFAULT_TOKENS = 300_000
+DEFAULT_TOKENS = 2_000_000
 
 
 def run(name: str, model: str, task: Path, max_steps: int = DEFAULT_STEPS, max_tokens: int = DEFAULT_TOKENS):
@@ -167,7 +167,9 @@ def watch(name, model, wt: Path, d: Path, prompt: str, max_steps: int, max_token
                     elif part.get("type") == "text" and part.get("text", "").strip():
                         tail.append("💬 " + part["text"].strip().replace("\n", " ")[:300])
                 u = (e.get("message") or {}).get("usage") or {}
-                tokens += u.get("output_tokens", 0) + u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+                # Только то, что модель прочла и написала заново. Запись в кэш — это весь контекст ещё раз
+                # на каждом шаге; считать её — значит убить агента за минуту на шестнадцатом шаге.
+                tokens += u.get("output_tokens", 0) + u.get("input_tokens", 0)
             elif t == "rate_limit_event":
                 w = ((e.get("rate_limit_info") or {}).get("unifiedWindows") or {})
                 write_status(d, limits={k: round((v or {}).get("utilization", 0) * 100) for k, v in w.items()})
