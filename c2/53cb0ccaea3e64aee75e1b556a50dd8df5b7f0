@@ -1,0 +1,57 @@
+game-presets/desks/src/liveMap.ts
+  s_161e83bae09d21::t_771be66c310ba4 22,160
+game-kit/src/render/animator/records.ts
+  s_161e83bae09d21::t_771be66c310ba4 24-26
+game-kit/src/render/animator/motions.ts
+  s_161e83bae09d21::t_771be66c310ba4 105-110
+game-kit/src/render/liveTable.ts
+  s_161e83bae09d21::t_08575184750bb9 360,465-491
+  s_161e83bae09d21::t_b1a6d750a33067 361-366
+  s_161e83bae09d21::t_be6e3ce33ca80b 408
+  s_161e83bae09d21::t_9bf793ebe92990 603-605
+  s_161e83bae09d21::t_c29a4c995c2f66 48,52-58
+  s_161e83bae09d21::t_29bf450f7825aa 332-351
+  s_161e83bae09d21::t_f58806b0f6cb7d 451-463
+game-kit/src/render/drag.ts
+  s_161e83bae09d21::t_f2e32fb137f875 625,638
+  s_161e83bae09d21::t_771be66c310ba4 25,327-328,486-488,626-637
+  s_161e83bae09d21::t_4e7081dd453b04 657-658
+game-kit/src/render/drag.test.ts
+  s_161e83bae09d21::t_15da6f09ad83e8 10,31
+  s_161e83bae09d21::t_1e95061ed48900 254-339
+game-presets/desks/src/roundMap.ts
+  s_161e83bae09d21::t_771be66c310ba4 24,128
+game-kit/docs/test-plan/README.md
+  s_161e83bae09d21::t_dd27cdbccc9738 10,70,98
+game-kit/docs/test-plan/70-drag.md
+  s_161e83bae09d21::t_e0128dc97d5747 11-12
+  s_161e83bae09d21::t_519751a16a4ee7 3
+game-kit/docs/test-plan/42-drag-feel.md
+  s_161e83bae09d21::t_45cbd90e0e5683 3,39
+game-kit/src/core/atoms/carry.test.ts
+  s_161e83bae09d21::t_2a608273368035 7-8
+  s_161e83bae09d21::t_ee6f2e928bf465 105-110
+game-kit/src/core/atoms/carry.ts
+  s_161e83bae09d21::t_771be66c310ba4 21-37
+game-kit/src/index.ts
+  s_161e83bae09d21::t_771be66c310ba4 502-503
+game-kit/src/render/animator/index.ts
+  s_161e83bae09d21::t_f2e32fb137f875 890
+  s_161e83bae09d21::t_771be66c310ba4 283,451-452,588,596,887-889,901-902,928,948-949
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c253cb0ccaea3e64aee75e1b556a50dd8df5b7f0",
+  "prompts": {},
+  "sessions": {
+    "s_161e83bae09d21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0278b6d5-4924-47a4-a82c-9b96d54d8a73",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
