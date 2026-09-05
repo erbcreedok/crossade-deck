@@ -30,6 +30,12 @@ export interface MarkPolicy {
   readonly me?: string;
   /** Optional mapping of seat/player keys to paint tokens for mark rendering. */
   readonly inks?: Record<string, string> | undefined;
+  /**
+   * Draw the small glyph disc on top of the glow — off by default. A mark is a whisper (a soft
+   * glow in the actor's ink, or a touch dot), and the badge is a second, louder claim about WHAT
+   * happened that most desks never asked for. A page that wants the glyph back turns this on.
+   */
+  readonly badge?: boolean | undefined;
 }
 
 export interface ViewerSettings {

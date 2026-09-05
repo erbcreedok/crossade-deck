@@ -1169,7 +1169,7 @@ describe("the hybrid: baked or live", () => {
     expect(up, "lifted: he casts").toContain("man::shadow");
   });
 
-  it("marks.badge-in-top-right-corner — node with mark produces mark quad in corner filled with player ink", () => {
+  it("marks.badge-off-by-default — the glow alone is the mark, unless the viewer's policy asks for the glyph", () => {
     installStockMarks();
     installStockMarkIcons();
     const root = node("root", Container({ layout: "free" }));
@@ -1179,6 +1179,24 @@ describe("the hybrid: baked or live", () => {
     );
     add(root, piece);
     const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
+    expect(quads.find((q) => q.id === "p1::mark"), "no badge by default").toBeUndefined();
+    const glow = quads.find((q) => q.id === "p1::mark-halo");
+    expect(glow, "the glow").toBeDefined();
+    expect(glow!.layer).toBe("mark");
+    expect(glow!.layers[0]!.paint).toBe("gold");
+  });
+
+  it("marks.badge-in-top-right-corner — a viewer that asks for the badge gets it, filled with player ink", () => {
+    installStockMarks();
+    installStockMarkIcons();
+    const root = node("root", Container({ layout: "free" }));
+    const piece = mark(
+      node("p1", Bounded({ bounds: rect(2, 2) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })),
+      { by: "south", mark: "moved" },
+    );
+    add(root, piece);
+    const viewer = { ...DEFAULT_VIEWER, marks: { showOwn: true, badge: true } };
+    const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer });
     const markQuad = quads.find((q) => q.id === "p1::mark");
     expect(markQuad).toBeDefined();
     expect(markQuad!.layer).toBe("mark");
@@ -1218,10 +1236,12 @@ describe("the hybrid: baked or live", () => {
     expect(ids(DEFAULT_VIEWER)).toContain("mine");
   });
 
-  it("marks.a-halo-and-a-badge-and-no-trail — `from` stays data; the plan draws the piece's own outline tinted, and a badge", () => {
+  it("marks.a-glow-and-no-trail-and-no-badge — `from` stays data; the plan draws a soft, blurred wash of the piece's own outline", () => {
     // The dashed line from where the piece came was the loudest thing on the desk, and a mark is a
-    // whisper for the one player who looked away. So: the piece's own outline, a hair outside it,
-    // in the actor's ink — and a small badge. Nothing that reaches across the desk.
+    // whisper for the one player who looked away. A hard stroke around the whole card was the next
+    // thing that was too loud: a second frame drawn ON the card. So: a blurred FILL of the piece's
+    // own outline, in the actor's ink, and nothing that reaches across the desk — no trail, no badge
+    // unless the viewer's policy asks for one.
     installStockMarks();
     installStockMarkIcons();
     const root = node("root", Container({ layout: "free" }));
@@ -1232,16 +1252,27 @@ describe("the hybrid: baked or live", () => {
     add(root, piece);
     const quads = scenePlan({ root, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER });
     expect(quads.find((q) => q.id === "p1::mark-line"), "no trail, whatever `from` says").toBeUndefined();
-    const halo = quads.find((q) => q.id === "p1::mark-halo");
-    const badge = quads.find((q) => q.id === "p1::mark");
-    expect(halo, "the halo").toBeDefined();
-    expect(badge, "the badge").toBeDefined();
-    expect(halo!.layer).toBe("mark");
-    expect(halo!.stroke!.color, "in the actor's ink").toBe("teal");
-    expect(halo!.stroke!.alignment, "a hair OUTSIDE the piece, never over it").toBe(1);
-    expect(halo!.layers.length, "a stroke and no fill: the piece is drawn by the piece").toBe(0);
-    // The halo is the piece's own footprint: a 2×2 box at unit 100 is 200 px across.
-    expect(halo!.w).toBeCloseTo(200, 6);
-    expect(quads.indexOf(halo!), "under the badge").toBeLessThan(quads.indexOf(badge!));
+    expect(quads.find((q) => q.id === "p1::mark"), "no badge unless the policy asks for one").toBeUndefined();
+    const glow = quads.find((q) => q.id === "p1::mark-halo");
+    expect(glow, "the glow").toBeDefined();
+    expect(glow!.layer).toBe("mark");
+    expect(glow!.stroke, "a fill, not a stroke — no hard edge around the card").toBeUndefined();
+    expect(glow!.layers[0]!.paint, "in the actor's ink").toBe("teal");
+    expect(glow!.layers[0]!.opacity, "a wash, not a solid tint").toBeLessThan(1);
+    expect(glow!.filter?.name, "soft — blurred, not a crisp fill").toBe("blur");
+    // The glow is the piece's own footprint: a 2×2 box at unit 100 is 200 px across.
+    expect(glow!.w).toBeCloseTo(200, 6);
   });
+
+  it("plan.a-later-piece-at-the-same-height-draws-after — a new card lands on top, not under", () => {
+    // Regression check for the z-order the owner reported broken: a card added to the tree LATER,
+    // at the same z as one already resting, must still come out AFTER it — on top, the way `toFront`
+    // (`fall.ts`) always intends a fresh drop to be found.
+    const root = node("zo1", Container({ layout: "free" }), Surfaced());
+    add(root, node("under", box(1, 1.4), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    add(root, node("over", box(1, 1.4), Surfaced(), Transformable({ at: { x: 0.02, y: 0.02 } })));
+    const ids = plan(root).map((q) => q.id);
+    expect(ids.indexOf("under")).toBeLessThan(ids.indexOf("over"));
+  });
+
 });

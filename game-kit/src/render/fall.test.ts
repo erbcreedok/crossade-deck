@@ -6,6 +6,7 @@ import {
   add,
   attachMotion,
   Bounded,
+  byId,
   caps,
   compose,
   Container,
@@ -21,6 +22,7 @@ import {
   Transformable,
   Valued,
   type BoundedFields,
+  type MarkedFields,
   type Node,
   type TransformableFields,
   type Vec,
@@ -242,5 +244,31 @@ describe("the fall runtime", () => {
     const scene: FallScene = { host, motions };
     const ok = letFall(scene, [{ id: "card", offset: { x: 0, y: 0 } }], 1, { x: 300, y: 0 });
     expect(ok).toBe(true);
+  });
+
+  it("fall.one-mark-per-touch — a thrown run of cards is marked once, not on every card of it", () => {
+    // A release is one gesture: a stack of cards thrown at once is one throw, and a mark on every
+    // card of it read as a hard border painted around the whole pile — not a note about the hand.
+    registerLayout("fall.free", freeLayout);
+    const root = node("root", Container({ layout: "fall.free" }));
+    const a = node("a", Bounded({ bounds: rect(1, 1.4) }), Flippable(), Transformable({ at: { x: 0, y: 0 } }));
+    const b = node("b", Bounded({ bounds: rect(1, 1.4) }), Flippable(), Transformable({ at: { x: 0.01, y: 0.01 } }));
+    add(root, a);
+    add(root, b);
+
+    const host = mount(document.createElement("div"), root);
+    const painter = { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
+    const motions = attachMotion(host, painter);
+    const items = [
+      { id: "a", offset: { x: 0, y: 0 } },
+      { id: "b", offset: { x: 0, y: 0 } },
+    ];
+    motions.grab(items, { anchor: { x: 0, y: 0 } });
+
+    const scene: FallScene = { host, motions, actor: "south" };
+    letFall(scene, items, 1, { x: 400, y: 0 });
+
+    const marks = ["a", "b"].map((id) => fieldsOf<MarkedFields>(byId(root, id)!, "Marked")?.mark);
+    expect(marks.filter((m) => m === "thrown"), "exactly one card carries the mark").toHaveLength(1);
   });
 });

@@ -116,7 +116,7 @@ function liveCards(a: CardsArgs): HTMLElement {
         a.physics,
         a.lifted ? a.lift : undefined,
         a.dropping ? (a.throwing ? "throw" : "drop") : undefined,
-        false,
+        a.stacking,
         { w: a.gripWidth, min: a.gripMin, max: a.gripMax, miss: a.gripMiss },
         { card: a.cardDrop, chip: a.chipDrop, die: a.dieDrop },
         () => desk,
