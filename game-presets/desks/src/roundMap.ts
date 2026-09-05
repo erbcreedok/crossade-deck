@@ -50,7 +50,7 @@ export const ROUND_R = 6;
  */
 const RIM = 1.2;
 
-const ROUND_SURFACE = "round.felt";
+export const ROUND_SURFACE = "round.felt";
 const ROUND_LAYOUT = "round.free";
 
 /**

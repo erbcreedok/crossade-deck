@@ -8,6 +8,7 @@
 // none. Nothing has to be switched off.
 
 import { registerAsset, registerSurface, registerTextStyle } from "game-kit";
+import { ROUND_SURFACE } from "@game-presets/desks";
 import { BORDER_U, CLUB_U, PALETTE } from "./palette.js";
 
 /** The three roles the owner picked, all carrying Kazakh. A role is a name; this is what it means. */
@@ -145,4 +146,14 @@ const GESTURE_MAP = "gesture.map";
 export function installTableLook(): void {
   installHubLook();
   for (const name of [CHESS_TRAY, NARDY_FELT, GESTURE_MAP]) registerSurface(name, { layers: [] });
+  // THE ROUND TABLE IS ITS OWN GROUND, not a board laid over the hub's already-visible felt — the
+  // other three go transparent because the hub's weave already shows behind them; this one IS the
+  // whole visible table, so it gets the hub's own tone instead of the kit's plain sunken grey. A
+  // shade darker than the wallpaper (`feltDark`, the same one the club glyph is cut from) so the
+  // table reads as furniture standing on the felt, and a thin gold rim marks where a card may not
+  // be carried past.
+  registerSurface(ROUND_SURFACE, {
+    layers: [{ paint: PALETTE.feltDark }],
+    stroke: { color: PALETTE.gold, width: 0.04 },
+  });
 }
