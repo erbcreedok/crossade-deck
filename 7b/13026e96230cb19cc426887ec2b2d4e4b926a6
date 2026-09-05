@@ -1,0 +1,26 @@
+apps/hub/src/table/index.ts
+  s_aed72f37e1464b::t_d6865187229b58 125-127,129-130,132-140
+  s_aed72f37e1464b::t_befea33d336f74 313
+  s_aed72f37e1464b::t_cc6de90993b516 219-221
+  s_aed72f37e1464b::t_011b6848ace2fd 116-124,128,131,141-158,160-165,167-171
+  s_aed72f37e1464b::t_4c3a2b59dddd2c 1-11,15-16,22,34
+  s_aed72f37e1464b::t_69641843aa142b 314
+  s_aed72f37e1464b::t_6130d35dad4608 70-98
+  s_aed72f37e1464b::t_fe3dd936bc74d6 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7b13026e96230cb19cc426887ec2b2d4e4b926a6",
+  "prompts": {},
+  "sessions": {
+    "s_aed72f37e1464b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec552c25-45cd-4ae3-b887-49137e3403d1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
