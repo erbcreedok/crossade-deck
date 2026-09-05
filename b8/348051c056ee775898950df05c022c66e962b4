@@ -1,0 +1,34 @@
+game-kit/.storybook/stories/Cards.stories.ts
+  h_2b92b67d011bfc 119
+game-kit/.storybook/stories/Cards.stories.wiring.test.ts
+  h_2b92b67d011bfc 1-26
+game-kit/docs/test-plan/10-scene-plan.md
+  h_2b92b67d011bfc 3,49,79-80,83
+game-kit/docs/test-plan/11-catalog-shell.md
+  h_2b92b67d011bfc 3,118
+game-kit/docs/test-plan/71-fall.md
+  h_2b92b67d011bfc 3,19
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,38-39,99
+game-kit/src/core/viewer.ts
+  h_2b92b67d011bfc 33-38
+game-kit/src/render/fall.test.ts
+  h_2b92b67d011bfc 9,25,248-273
+game-kit/src/render/fall.ts
+  h_2b92b67d011bfc 807-812,816,821
+game-kit/src/render/scenePlan/markQuads.ts
+  h_2b92b67d011bfc 17,25-33,88,90-93,95,106-108,112-146
+game-kit/src/render/scenePlan/plan.test.ts
+  h_2b92b67d011bfc 1172,1182-1199,1239,1241-1244,1255-1275,1277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b8348051c056ee775898950df05c022c66e962b4",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
