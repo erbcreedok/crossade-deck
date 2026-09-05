@@ -465,3 +465,10 @@ export function settled(root: Node): void {
 
 /** Where a node stands, for the tests: its own `at`. */
 export const seatOf = (n: Node): Vec => fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
+
+export function seatPlaces(_n: number): readonly { readonly at: Vec; readonly facing: number }[] {
+  return [
+    { at: { x: 0, y: BOARD.h / 2 + 1 }, facing: 0 },
+    { at: { x: 0, y: -(BOARD.h / 2 + 1) }, facing: 180 },
+  ];
+}

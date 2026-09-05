@@ -590,6 +590,7 @@ export {
   type CameraState,
   type Fling,
 } from "./render/camera/index.js";
+export { idleReturn, type IdleReturnOpts } from "./render/idleReturn.js";
 // The two gestures whose meaning is the same in every game there will ever be — a press, and the
 // hand moving the view. Everything else a game wires itself out of `glassOf`/`toUnits`/`pick`.
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
