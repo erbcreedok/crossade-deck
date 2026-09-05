@@ -27,6 +27,7 @@ import {
   Surfaced,
   Transformable,
   type Clock,
+  type MarkedFields,
   type Node,
   type Painter,
   type TransformableFields,
@@ -244,6 +245,43 @@ describe("the live desk", () => {
     live.idle!.input();
     live.idle!.step(999);
     expect(camera.target, "a reset countdown has not glided yet").toEqual({ x: 1, y: 1 });
+    live.stop();
+  });
+
+  it("liveTable.a-plain-desks-drop-tells-the-mirror — a calm release resyncs the far screen, mark and all", () => {
+    // A DESK THAT NEITHER STACKS NOR NAMES ITS OWN RUNS (the shelf's `Live/Cards` with avatars, at
+    // `stacking: false`) used to answer `settle()` only if a consumer passed `onDeskChanged`, and
+    // `settle()` itself returned before `mirror?.changed()` unless the desk stacked. A card dropped
+    // on this desk wrote its `mark(..., "moved")` (`fall.ts`) but the partner's screen was never told
+    // to look at the tree again — the glow existed and was never drawn.
+    const { root } = desk();
+    const c = fakeClock();
+    const shell = stage(root, c.clock, false);
+    // `letFall` (`fall.ts`) reads its actor off the STAGE, the way `scene()` wires it for a real
+    // page — `liveTable`'s own `actor` option only reaches the flip-mark branch below.
+    (shell as unknown as { actor?: string }).actor = "south";
+    let changed = 0;
+    let markAtLastChange: string | undefined;
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      letGo: "drop",
+      actor: "south",
+      mirror: {
+        ready: () => {},
+        changed: () => {
+          changed += 1;
+          markAtLastChange = fieldsOf<MarkedFields>(byId(shell.host.root, "card")!, "Marked")?.mark;
+        },
+        hand: () => {},
+      },
+    });
+
+    shell.el.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    shell.el.dispatchEvent(finger("pointermove", 340, 200, 16));
+    shell.el.dispatchEvent(finger("pointerup", 340, 200, 32));
+
+    expect(changed, "the mirror was told after the drop settled").toBeGreaterThan(0);
+    expect(markAtLastChange, "the tree it was told about already carries the mark").toBe("moved");
     live.stop();
   });
 

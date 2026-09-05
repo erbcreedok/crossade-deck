@@ -271,4 +271,28 @@ describe("the fall runtime", () => {
     const marks = ["a", "b"].map((id) => fieldsOf<MarkedFields>(byId(root, id)!, "Marked")?.mark);
     expect(marks.filter((m) => m === "thrown"), "exactly one card carries the mark").toHaveLength(1);
   });
+
+  it("fall.a-calm-drop-still-marks-the-touch — no swing earns no `thrown`, but the release still says `moved`", () => {
+    // A CARD SET DOWN WITHOUT A SWING never trips `thrown` (`flight.speed` stays 0), and it used to
+    // leave the release with no mark at all — the far screen had nothing to show for a touch that
+    // plainly happened. The one-mark-per-touch rule still owes SOMETHING for a calm release; it is
+    // just not the flight glyph.
+    registerLayout("fall.free", freeLayout);
+    const root = node("root", Container({ layout: "fall.free" }));
+    const card = node("card", Bounded({ bounds: rect(1, 1.4) }), Flippable(), Transformable({ at: { x: 0, y: 0 } }));
+    add(root, card);
+
+    const host = mount(document.createElement("div"), root);
+    const painter = { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
+    const motions = attachMotion(host, painter);
+    const items = [{ id: "card", offset: { x: 0, y: 0 } }];
+    motions.grab(items, { anchor: { x: 0, y: 0 } });
+
+    const scene: FallScene = { host, motions, actor: "south" };
+    // NO `hand` — the finger let go where it was, not with a throw behind it.
+    letFall(scene, items, 1, undefined);
+
+    const marked = fieldsOf<MarkedFields>(byId(root, "card")!, "Marked");
+    expect(marked?.mark, "a calm release still marks the touch").toBe("moved");
+  });
 });
