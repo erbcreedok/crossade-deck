@@ -1,0 +1,18 @@
+apps/hub/src/main.ts
+  h_2b92b67d011bfc 37-43
+deploy/hub.Dockerfile
+  h_2b92b67d011bfc 7-8,18,21,37-42
+deploy/local/com.crossade.bot.plist
+  h_2b92b67d011bfc 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "8d6a0e38107bbe6a428d1c3738288e148cab660c",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
