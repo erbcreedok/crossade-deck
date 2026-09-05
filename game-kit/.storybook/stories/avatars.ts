@@ -26,6 +26,7 @@ import {
   type Presence,
   type PresenceState,
   type PresenceView,
+  type SeatPlace,
   type Vec,
 } from "../../src/index.js";
 import { type Screen } from "./liveScreens.js";
@@ -52,6 +53,13 @@ export interface AvatarsOptions {
   readonly page: string;
   /** Where each person's disc OPENS, in the desk's own units. Dragging it writes a new spot. */
   readonly at: (i: number) => Vec;
+  /**
+   * THE SEAT'S OWN PLACE at this desk — the shelf's `seatPlaces(n)`, by index, so `liveTable`'s idle
+   * glide has somewhere named to return a wandered view to. Absent, no `Presence` here carries a
+   * `place` and nothing about idle return changes: this is the same desk without a seat, not a
+   * broken one.
+   */
+  readonly places?: readonly SeatPlace[];
   /**
    * THE RIM A HAND IS MEASURED AGAINST, when this desk has hands. Absent, it has none — which is
    * every board on the shelf: a piece on a board is on a square, and a patch of felt beside a
@@ -123,6 +131,11 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     o.screens.flatMap((one) => {
       const view = viewOf(one);
       if (!view) return [];
+      // THE SEAT'S OWN PLACE, by the SEAT and not by the screen's position in the array — a screen
+      // is filled in as a page opens its panes, and the order they arrive in is not the order the
+      // seats were declared in.
+      const seatIndex = o.seats.findIndex((s) => s.seat === one.seat);
+      const place = o.places && seatIndex >= 0 ? o.places[seatIndex] : undefined;
       return [
         {
           seat: one.seat,
@@ -131,6 +144,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
           state: states.get(one.seat)!,
           holding: holding.has(one.seat),
           view,
+          ...(place ? { place } : {}),
           // ON THE DESK and never on the glass. A person pinned to their own screen is at a
           // different spot of the felt every time they pan, and on a desk where a hand stands
           // beside them that is a patch of table sliding about under the cards lying in it.

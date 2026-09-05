@@ -11,10 +11,13 @@
 // belongs in `liveTable`, where every consumer gets it.
 
 import {
+  chessPlaces,
   chessRoom,
   mayThrow,
+  nardyPlaces,
   nardyRoom,
   NARDY_BUMP,
+  roundPlaces,
   runOf,
   seatOf,
   seatsOf,
@@ -35,6 +38,7 @@ import {
   GRIP_SPEC,
   heapOf,
   holdThePage,
+  idleReturn,
   installStockCarries,
   installStockFlips,
   installStockLayouts,
@@ -43,11 +47,13 @@ import {
   liveTable,
   setRev,
   type CameraContent,
+  type IdleReturnTracker,
   type LiveClock,
   type LiveStage,
   type LiveTableOptions,
   type Mirror,
   type Node,
+  type SeatPlace,
   type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
@@ -81,6 +87,13 @@ function zoneAtFor(game: TableGame): ((root: Node, at: Vec, lead: Node) => Node 
 
 /** The inks seats are marked in, in seat order — the same pair every live page on the shelf uses. */
 const SEAT_INKS = ["accent", "alert", "textMuted", "text"] as const;
+
+/** The seats' own places on this desk, the shelf's `seatPlaces(2)` per game — read for the idle glide. */
+function placesFor(game: TableGame): readonly SeatPlace[] {
+  if (game === "chess") return chessPlaces(2);
+  if (game === "nardy") return nardyPlaces(2);
+  return roundPlaces(2);
+}
 
 /** How far the view may zoom, either way — the same range the catalog's map opens with. */
 const CAM_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
@@ -249,6 +262,15 @@ export function startTable(container: HTMLElement): Teardown {
    * been assigned yet. There is no room to tell at that moment either: the wire is joined later.
    */
   let standing: ReturnType<typeof liveTable> | undefined;
+  /**
+   * THE IDLE GLIDE, once the seat is known — the hub has no avatar to hand `liveTable`'s own `seats`
+   * option (that option asks for a `mine` INDEX at construction time, and the seat only arrives from
+   * `joinTable` afterwards), so it is built directly on the same camera and joined to the same clock
+   * the hub already runs its fling on. Absent until `joinTable` resolves.
+   */
+  let idle: IdleReturnTracker | undefined;
+  let leaveIdleClock: (() => void) | undefined;
+  let stopIdlePointer: (() => void) | undefined;
   const mirror: Mirror<LiveStage> = {
     ready: () => {},
     changed: () => {
@@ -296,6 +318,41 @@ export function startTable(container: HTMLElement): Teardown {
       // the board from the wrong side of it for however long the round trip took.
       live.camera?.turnTo(seatTurn());
       live.motions?.redraw();
+      // ...AND THE IDLE GLIDE, ON THE SAME SEAT — WITHOUT AN AVATAR ON THE FELT. This is the "only
+      // idle return" half of `seats`, built straight off `idleReturn` rather than off `liveTable`'s
+      // own option, for the reason above the declaration.
+      const seatIndex = seat === "p2" ? 1 : 0;
+      const place = placesFor(game)[seatIndex];
+      if (live.camera && place) {
+        idle = idleReturn(
+          live.camera,
+          () => ({
+            seat: "",
+            place,
+            name: "",
+            ink: "accent",
+            state: "online",
+            holding: false,
+            view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
+            pin: { mode: "desk", at: place.at, leash: "lock" },
+          }),
+          {},
+        );
+        // ANY POINTER DOWN ON THIS GLASS IS AN INPUT — see `liveTable.ts`'s own listener for `seats`.
+        const onDown = (): void => idle?.input();
+        container.addEventListener("pointerdown", onDown, true);
+        stopIdlePointer = () => container.removeEventListener("pointerdown", onDown, true);
+        // THE SAME CLOCK THE FLING BORROWS, joined for the whole life of the table rather than only
+        // while something is moving: the idle countdown has to keep counting while the view is dead
+        // still, which is exactly what the camera's own borrow (`clock` above) never does.
+        leaveIdleClock = cameraClock.join((_seconds, dt) => {
+          idle?.step(dt * 1000);
+          // THE GLIDE MOVES THE CAMERA DIRECTLY (`idleReturn`), never through `wake`'s own repaint —
+          // that path only runs while a fling is being stepped, and this join outlives every fling.
+          live.motions?.redraw();
+          return false;
+        });
+      }
       // WHOSE HAND DID WHAT, in a colour the desk actually has. The server names seats `p1`, `p2`…
       // and a mark is drawn in its actor's ink; asked for a paint called "p1" the painter threw, and
       // the throw happened inside `setRoot` — before the tree was ever sent, so the other player saw
@@ -334,6 +391,8 @@ export function startTable(container: HTMLElement): Teardown {
   return () => {
     unbindOnTree?.();
     currentTable?.leave();
+    leaveIdleClock?.();
+    stopIdlePointer?.();
     cameraClock.stop();
     live.stop();
     stopHold();
