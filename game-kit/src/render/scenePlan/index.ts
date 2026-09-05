@@ -104,7 +104,12 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
   const airborne = new Set<NodeId>();
 
   /** Everything the shadow law is asked with — built once, so `shadows.ts` reads no scene itself. */
-  const lamp: ShadowLamp = { nodes, overrides, carried, grounded, toView, depth, fall, unit, spread: (holder) => spreadOf(holder) };
+  const lamp: ShadowLamp = {
+    nodes, overrides, carried, grounded, toView, depth, fall, unit, spread: (holder) => spreadOf(holder),
+    ...(standUp || unturn
+      ? { billboard: (t: Transform) => { const stood = standUp ? standing(t, standUp) : t; return unturn ? standing(stood, unturn) : stood; } }
+      : {}),
+  };
   // Everything a mark is drawn with — the viewer decides whether it shows at all (`visibleMark`),
   // the plan only says where: a badge in the corner, a trail from where the piece came.
   const markCtx: MarkContext = { viewer, unit, toView, nodes, overrides, standUp, now };

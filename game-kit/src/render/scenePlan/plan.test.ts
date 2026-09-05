@@ -314,6 +314,25 @@ describe("scenePlan", () => {
     expect(turn(flat.find((q) => q.id === "badge")!.transform)).toBeCloseTo(0);
   });
 
+  it("plan.a-billboard-s-shadow-stands-with-it — the knight's silhouette is not a second, turned knight", () => {
+    // The shadow is the piece's own drawing (`ShadowCaster.picture`), so it is framed the way the
+    // piece is: a billboard cancels the camera's turn, and its shadow cancels it with it. Left
+    // lying, the shadow was a turned knight sliding out from under an upright one.
+    const desk = node("desk", Container({ layout: "free" }), Lit({ shadow: { base: 0.4, perZ: 0, lifted: 0, opacity: 0.5 } }));
+    registerAsset("plan.knight-shadow-2", { src: "data:knight-shadow", w: 1, h: 1 });
+    add(desk, node("man", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 1, y: 0.5 } }), ShadowCaster({ picture: "plan.knight-shadow-2" }), Oriented({ orientation: "viewer" })));
+    const c = new Camera({ minZoom: 0.1, maxZoom: 8 });
+    c.setScreen(400, 300);
+    c.setContent({ x: -10, y: -10, w: 20, h: 20 }, 40);
+    c.turnTo(180);
+    const quads = scenePlan({ root: desk, unit: 40, width: 400, height: 300, viewer: DEFAULT_VIEWER, view: c.transform(), rotation: c.rotation });
+    const turn = (t: { a: number; b: number }) => (Math.atan2(t.b, t.a) * 180) / Math.PI;
+    const man = quads.find((q) => q.id === "man")!.transform;
+    const shade = quads.find((q) => q.id === "man::shadow")!.transform;
+    expect(turn(man)).toBeCloseTo(0);
+    expect(turn(shade), "the shadow is upright with its caster").toBeCloseTo(0);
+  });
+
   it("plan.a-turned-piece-turns-its-silhouette-not-its-shadow — the fall ignores every angle", () => {
     // The canon's law: light does not care how a piece is turned. The SHAPE of the shadow turns
     // with the drawn geometry, but the offset between piece and shadow is the lamp's alone —

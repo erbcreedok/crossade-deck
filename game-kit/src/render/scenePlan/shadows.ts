@@ -24,6 +24,7 @@ import { shadowFrom, shadowPicture, shadowSpot } from "../../core/atoms/shadow.j
 import { fieldsOf } from "../../core/node.js";
 import { resolveZ } from "../../core/atoms/transformable.js";
 import { type ResolveContext } from "../../core/resolve.js";
+import { orientationOf } from "../../core/atoms/oriented.js";
 import { type Shape } from "../../core/atoms/bounded.js";
 import { apply, compose, IDENTITY, move, scale, type Transform, type Vec } from "../../core/transform.js";
 import { surfaceOutline } from "../contour.js";
@@ -45,6 +46,13 @@ export interface ShadowLamp {
   readonly unit: number;
   /** The contour a container's CONTENT wraps to, when it has one. */
   spread(holder: Node): Shape | undefined;
+  /**
+   * WHAT STANDS A BILLBOARD UP, applied to its glass transform — the pitch's stand and the camera's
+   * turn taken back about the node's own origin, exactly as the plan does for the piece itself.
+   * A shadow is the piece's own silhouette: drawn lying while the knight stands upright, it was a
+   * second, turned knight sliding out from under the first. Absent when nothing is turned or tilted.
+   */
+  readonly billboard?: (t: Transform) => Transform;
 }
 
 /** The caster's shadow as a quad of the SHADOW layer, or nothing when the node casts none. */
@@ -98,7 +106,9 @@ export function shadowQuad(n: Node, shown: Node, ctx: ResolveContext, lamp: Shad
   // the old branches were reaching for: a piece in a hand or in the air is further from its
   // shadow, never detached from it.
   const lying = lamp.overrides?.get(n.id) ?? lamp.nodes.get(n.id) ?? IDENTITY;
-  const toGlass = compose(move(lamp.fall.x * off, lamp.fall.y * off), compose(lamp.toView, lying));
+  // A billboard's shadow is framed the way the billboard is — see `ShadowLamp.billboard`.
+  const framed = lamp.billboard && orientationOf(ctx) === "viewer" ? lamp.billboard(compose(lamp.toView, lying)) : compose(lamp.toView, lying);
+  const toGlass = compose(move(lamp.fall.x * off, lamp.fall.y * off), framed);
   const { x: cx, y: cy } = apply(toGlass, { x: 0, y: 0 });
   const ext = extentOf(shape);
   // WHAT DARKENS THE CONTOUR: the shadow ink, or — for a caster that names the drawing that falls —
