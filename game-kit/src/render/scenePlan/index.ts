@@ -16,7 +16,7 @@
 
 /** A picture placed in the area, in PIXELS — where it goes and whether it tiles. */
 
-import { caps, walk, type Node, type NodeId } from "../../core/node.js";
+import { caps, type Node, type NodeId } from "../../core/node.js";
 import { visibleTo } from "../../core/atoms/private.js";
 import { placeChildren } from "../../core/atoms/container.js";
 import { extentOf, footprint, outlineOf, type Point, type Shape } from "../../core/atoms/bounded.js";
@@ -355,10 +355,16 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
   // paints its felt, and a raised card's shadow slid beneath the very cards it hung over. Left in
   // its natural place for all, a stack shadowed itself. Split by resting and raised alone, a stack
   // in the HAND shadowed itself.
-  const grounds = new Set<NodeId>();
-  walk(root, (n) => {
-    if (caps(n).has("Container")) grounds.add(n.id);
-  });
+  //
+  // GROUND IS THE ROOT'S OWN QUAD, AND ONLY THAT — the one node `visit` starts from, drawn before
+  // its own subtree can put anything on the glass at all. `caps(n).has("Container")` once stood in
+  // for it, on the reasoning that only a desk holds children — true the day a plan only ever grew
+  // one container deep. A tile is a container too now (the plate holds the face, the face holds the
+  // art), and that check named every one of them "ground": each tile plate and face sorted to the
+  // very bottom of the WHOLE scene, under the felt it was supposed to sit on top of, and the felt —
+  // an ordinary painted rectangle, no `Container` on it — covered every plate and ring in the hub.
+  // Ids are unique in a tree, so at most one quad ever answers to `root.id`.
+  const grounds = new Set<NodeId>([root.id]);
   const aloft = (q: Quad): number => (raised?.has(q.id) || airborne.has(q.id) ? 1 : 0);
   const shade = (q: Quad): number => (q.layer === "shadow" ? 0 : q.layer === "mark" ? 2 : 1);
   // FIVE RANKS, and they are one sentence: the ground, then each height's shadows, then that
