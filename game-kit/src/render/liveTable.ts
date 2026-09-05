@@ -45,9 +45,17 @@ import { type GripSpec, GRIP, GRIP_HOLD, GRIP_MISS, isDrawn, isGrip, isMark, isP
 import { boxOfDesk, handOver, otherGrips } from "./handover.js";
 import { type HeapRule } from "./heaps.js";
 import { mount, type Host, type Viewport } from "./host.js";
+import { idleReturn, type IdleReturnTracker } from "./idleReturn.js";
 import { aimOf, landingPicture, throwGate, zoneFor } from "./landing.js";
 import { type Mirror } from "./mirror.js";
 import { type Painter } from "./painter.js";
+import { type Presence } from "./presence.js";
+
+/** One place at a desk — the shelf's own `seatPlaces(n)` answer, read here without knowing the game. */
+export interface SeatPlace {
+  readonly at: Vec;
+  readonly facing: number;
+}
 
 /**
  * THE CARRY WITH THE PHYSICS TAKEN OUT — the piece is exactly where the finger is, at the size it
@@ -321,6 +329,26 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
   readonly open?: (ctx: { readonly root: Node; readonly room: CameraContent; readonly unit: number; readonly view: Viewport }) => number | undefined;
   /** How far the view may zoom, either way. Absent, `DESK_ZOOM`. */
   readonly limits?: CameraLimits;
+  /**
+   * WHERE THE SEATS ARE, and whether a view left idle drifts back to the one this screen sits at.
+   *
+   * `places` is the shelf's own `seatPlaces(n)`; `mine` says which of them is THIS screen's own —
+   * the seat the idle glide returns to, read the same way `turn` reads which side a screen is
+   * looking at the desk from. Absent, no seat is minded and an idle view simply stays wherever a
+   * reader left it, which is every desk that does not know who is sitting where.
+   *
+   * THE COUNTDOWN IS THE CONSUMER'S CLOCK, not this file's (`guard.one-clock`, see the file header):
+   * `liveTable` wires `input()` on its own gestures — a pick, a carry — but a clock that must keep
+   * counting while the view is dead still cannot be the same one the camera sleeps whenever nothing
+   * is moving (see `wireCamera`'s own idle sleep). So `step` is left on the returned `idle` handle for
+   * whoever already runs a heartbeat to call, exactly as `clock` is handed in for a fling.
+   */
+  readonly seats?: {
+    readonly places: readonly SeatPlace[];
+    readonly mine: number;
+    /** Absent, the idle glide's own defaults (6000ms/600ms). `false` turns it off. */
+    readonly idleReturn?: { readonly afterMs?: number; readonly glideMs?: number } | false;
+  };
 }
 
 /** A live desk, and the two things a consumer outside this file still has to do to it. */
@@ -329,6 +357,13 @@ export interface LiveTable {
   readonly host: Host;
   readonly motions?: Motions | undefined;
   readonly camera?: Camera | undefined;
+  /**
+   * THE IDLE GLIDE, when `seats` named one — absent otherwise. `input()` is already wired to this
+   * screen's own gestures (a pick, a carry); a consumer with a persistent heartbeat calls `step(dtMs)`
+   * on it, and one with a further pan/zoom wiring of its own (a scene the kit was not handed, see
+   * `stage`) calls `input()` on that too, exactly as it would tell the kit about any other gesture.
+   */
+  readonly idle?: IdleReturnTracker | undefined;
   /**
    * Show a different tree on this desk. `"me"` is this screen's own change and is announced to the
    * others (`Mirror.changed`); `"net"` is a change that arrived FROM them — announced back, it
@@ -370,6 +405,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     trayOf,
     anchorMark,
     onRoll,
+    seats,
   } = opts;
 
   // THE DESK'S OWN LOOK, before a single frame: a surface registered after the first draw is a
@@ -412,8 +448,47 @@ export function liveTable<S extends LiveStage = LiveStage>(
    */
   let aimed: Vec | undefined;
 
-  const built = opts.stage ?? (buildStage(container, desk, opts) as unknown as S);
+  // A BOX AND NOT A DIRECT CALL: a stage of its own is built below, before the idle tracker can
+  // exist (it needs the camera THAT BUILD hands back) — so its `onView` is wired to whatever this
+  // box holds by the time a pan or a pinch actually fires it, filled in a few lines further down.
+  const idleOnPan: { current?: () => void } = {};
+  const built =
+    opts.stage ??
+    (buildStage(container, desk, {
+      ...opts,
+      onView: () => {
+        idleOnPan.current?.();
+        opts.onView?.();
+      },
+    }) as unknown as S);
   const own = opts.stage ? undefined : (built as unknown as BuiltStage);
+  /**
+   * THE IDLE GLIDE, standing on THIS screen's own camera and THIS screen's own seat — see `seats`.
+   * A stub `Presence` carries only what `idleReturn` reads off it (`place`); the rest of the shape
+   * is never asked, so it is never worth threading a whole presence in just to build one.
+   */
+  const mySeat = seats?.places[seats.mine];
+  const idle: IdleReturnTracker | undefined =
+    seats && mySeat && built.camera && seats.idleReturn !== false
+      ? idleReturn(
+          built.camera,
+          (): Presence => ({
+            seat: "",
+            place: mySeat,
+            name: "",
+            ink: "accent",
+            state: "online",
+            holding: false,
+            view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
+            pin: { mode: "desk", at: mySeat.at, leash: "lock" },
+          }),
+          seats.idleReturn ?? {},
+        )
+      : undefined;
+  // ANY POINTER DOWN ON THIS GLASS IS AN INPUT, whatever it lands on: a pan across bare felt starts
+  // with the same event a pick does, and a countdown that only heard about a successful grab would
+  // glide the view away from underneath a reader who has their finger on it but has not moved yet.
+  if (idle) built.el.addEventListener("pointerdown", () => idle.input(), true);
   // How high the hand is actually holding it, once the switch and the consumer have both had their say.
   const held = lift ?? (physics ? DEFAULT_TUNING.lift : 1);
   const landingPic = landingPicture(built, { shown: landingShown, onChange: () => mirror?.changed() });
@@ -525,6 +600,9 @@ export function liveTable<S extends LiveStage = LiveStage>(
     // MY HAND, TOLD TO THE OTHER SCREENS — with its FEEL, or it is not the same hand over there —
     // and the picture of where it lands, moved under it.
     onCarry: ({ ids, at, done, feel, swing }) => {
+      // A CARRY IS INPUT TOO — the same reason the pointerdown listener above exists: a reader whose
+      // hand is on a piece must not have the view glide out from under it mid-gesture.
+      idle?.input();
       // WHAT THE HAND IS ACTUALLY HOLDING. `carried` is written by a desk that stacks; a desk without
       // stacking never writes it, and told an empty run the far screen showed a cursor gliding about
       // and the piece standing perfectly still — which is what the board did. The wiring's own list

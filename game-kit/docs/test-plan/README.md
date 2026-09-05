@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**77 слоёв · 1635 кейсов заявлено · 1462 расписано поимённо.**
+**77 слоёв · 1638 кейсов заявлено · 1465 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -67,7 +67,7 @@
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
 | [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 52 | 52 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 12 | 12 |
-| [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 16 | 16 |
+| [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 17 | 17 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 9 | 9 |
 | [UNIT · Inviting — приглашение готовой зоны](44-inviting.md) | `vitest` | 4 | 4 |
 | [PRESET · Pile — стопка одним литералом данных](45-pile.md) | `vitest` | 4 | 4 |
@@ -95,7 +95,7 @@
 | [UNIT · live — дальний экран и люди за столом](67-live.md) | `vitest (headless, no WebGL) + jsdom` | 3 | 3 |
 | [UNIT · шахматы — доска, через реальную проводку](68-chess.md) | `vitest (headless, no WebGL, jsdom)` | 4 | 4 |
 | [UNIT · NodeSpec и Revised — сериализация дерева](69-spec.md) | `vitest (headless, no WebGL)` | 4 | 4 |
-| [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 4 | 4 |
+| [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 6 | 6 |
 | [UNIT · fall — бросок, падение и посадка](71-fall.md) | `vitest` | 11 | 11 |
 | [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 5 | 5 |
 | [UNIT · mirror — чужая рука на своём экране](74-mirror.md) | `vitest + jsdom + фейковые часы` | 2 | 2 |

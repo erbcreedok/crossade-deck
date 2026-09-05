@@ -21,6 +21,9 @@ export interface Carry {
   sl: SpringState;
   /** The BANK — the lean actually drawn, chasing the lean the speed asks for. Degrees. */
   sa: SpringState;
+  /** The orient spring, chasing `targetOrient` — the run's base world angle. Degrees. */
+  so: SpringState;
+  targetOrient: number;
   readonly liftTo: number;
   readonly follow: SpringConfig;
   readonly liftCfg: SpringConfig;

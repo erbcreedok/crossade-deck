@@ -4,7 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 import { apply } from "../transform.js";
-import { carry, installStockCarries, lean, looseCarry, resetCarries, rigidCarry, screenLean, type CarryContext } from "./carry.js";
+import { node } from "../node.js";
+import { Carry, carry, carryOrientOf, installStockCarries, lean, looseCarry, resetCarries, rigidCarry, screenLean, type CarryContext } from "./carry.js";
 
 const base = (over: Partial<CarryContext> = {}): CarryContext => ({
   anchor: { x: 2, y: 3 },
@@ -99,6 +100,12 @@ describe("carry", () => {
     // screen's x, and a pure x-velocity contributes nothing to it.
     expect(screenLean({ x: 0, y: 50 }, 0.02, 17, 90)).toBeCloseTo(lean(-50, 0.02, 17));
     expect(screenLean({ x: 50, y: 0 }, 0.02, 17, 90)).toBeCloseTo(0);
+  });
+
+  it("carry.orientOf-default-is-keep — a node with no Carry, or Carry with no orient, keeps its own turn; holder is named", () => {
+    expect(carryOrientOf(node("bare"))).toBe("keep");
+    const card = node("card", Carry({ orient: "holder" }));
+    expect(carryOrientOf(card)).toBe("holder");
   });
 
   it("carry.registry — names resolve, unknown falls back to rigid, reset clears", () => {

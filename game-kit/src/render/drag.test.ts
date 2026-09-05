@@ -7,6 +7,7 @@ import {
   attachMotion,
   byId,
   Bounded,
+  Carry,
   Container,
   Draggable,
   fieldsOf,
@@ -27,6 +28,7 @@ import {
   type Painter,
   type TransformableFields,
 } from "../index.js";
+import { chain, move, rotate, scale } from "../core/transform.js";
 
 function stubPainter(): Painter {
   return { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
@@ -248,6 +250,92 @@ describe("wireDrag in kit", () => {
     const at = fieldsOf<TransformableFields>(settledCard!, "Transformable")?.at;
     expect(at?.x).toBeCloseTo(0, 5);
     expect(at?.y).toBeCloseTo(0, 5);
+
+    motions.stop();
+    host.unmount();
+  });
+  it("drag.orients-carried-card-to-holder — a card marked Carry({orient:'holder'}) turns to face a camera turned 180°, and keeps that turn once dropped", () => {
+    installStockSurfaces();
+    installStockGrabs();
+    registerLayout("drag.orient.free", freeLayout);
+
+    const root = node("desk5", Container({ layout: "drag.orient.free" }), Grabber());
+    const card = node(
+      "card5",
+      Bounded({ bounds: rect(1, 1.4) }),
+      Surfaced(),
+      Transformable({ at: { x: 0, y: 0 }, angle: 0 }),
+      Draggable({ onReject: "stay" }),
+      Carry({ orient: "holder" }),
+    );
+    add(root, card);
+
+    const div = document.createElement("div");
+    Object.defineProperty(div, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    document.body.appendChild(div);
+
+    const host = mount(div, root, { hudUnit: 64, theme: "dark" });
+    Object.defineProperty(host.view, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    const motions = attachMotion(host, stubPainter());
+
+    // A camera turned 180° — the seat looking at this desk from the far side of it.
+    const view = chain([move(300, 200), scale(64), rotate(180)]);
+    const scene = { host, motions, el: host.view };
+    wireDrag(scene, { view: () => view });
+
+    host.view.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    host.view.dispatchEvent(finger("pointermove", 340, 200, 50));
+    host.view.dispatchEvent(finger("pointerup", 340, 200, 100));
+
+    const settledCard = byId(host.root, "card5");
+    const angle = fieldsOf<TransformableFields>(settledCard!, "Transformable")?.angle ?? 0;
+    expect(((angle % 360) + 360) % 360).toBeCloseTo(180, 5);
+
+    motions.stop();
+    host.unmount();
+  });
+  it("drag.node-without-carry-orient-does-not-rotate — a card with no Carry keeps whatever angle it landed with, camera turn or not", () => {
+    installStockSurfaces();
+    installStockGrabs();
+    registerLayout("drag.no-orient.free", freeLayout);
+
+    const root = node("desk6", Container({ layout: "drag.no-orient.free" }), Grabber());
+    const card = node(
+      "card6",
+      Bounded({ bounds: rect(1, 1.4) }),
+      Surfaced(),
+      Transformable({ at: { x: 0, y: 0 }, angle: 0 }),
+      Draggable({ onReject: "stay" }),
+    );
+    add(root, card);
+
+    const div = document.createElement("div");
+    Object.defineProperty(div, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    document.body.appendChild(div);
+
+    const host = mount(div, root, { hudUnit: 64, theme: "dark" });
+    Object.defineProperty(host.view, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    const motions = attachMotion(host, stubPainter());
+
+    const view = chain([move(300, 200), scale(64), rotate(180)]);
+    const scene = { host, motions, el: host.view };
+    wireDrag(scene, { view: () => view });
+
+    host.view.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    host.view.dispatchEvent(finger("pointermove", 340, 200, 50));
+    host.view.dispatchEvent(finger("pointerup", 340, 200, 100));
+
+    const settledCard = byId(host.root, "card6");
+    const angle = fieldsOf<TransformableFields>(settledCard!, "Transformable")?.angle ?? 0;
+    expect(angle).toBe(0);
 
     motions.stop();
     host.unmount();

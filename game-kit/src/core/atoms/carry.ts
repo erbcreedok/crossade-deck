@@ -18,6 +18,23 @@
 
 import { apply, compose, move, pose, rotate, type Transform, type Vec } from "../transform.js";
 import { clampAbs } from "../spring.js";
+import { defineAtom } from "../atom.js";
+import { fieldsOf, type Node } from "../node.js";
+
+export interface CarryFields {
+  readonly orient?: "holder" | "keep" | undefined;
+}
+
+export const Carry = defineAtom<CarryFields>({
+  name: "Carry",
+  classes: { orient: "own" },
+  requires: [],
+  defaults: { orient: "keep" },
+});
+
+export function carryOrientOf(n: Node): "holder" | "keep" {
+  return fieldsOf<CarryFields>(n, "Carry")?.orient ?? "keep";
+}
 
 /**
  * The lean a speed ASKS FOR, in DEGREES (what `rotate` speaks). `factor` turns speed (root units per

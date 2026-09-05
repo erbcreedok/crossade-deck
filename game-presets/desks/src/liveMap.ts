@@ -19,6 +19,7 @@ import {
   add,
   caps,
   Bounded,
+  Carry,
   freeLayout,
   registerLayout,
   compose,
@@ -156,6 +157,7 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
       compose(card, Transformable({ at: { x: -1.2 + i * 0.004, y: -0.1 - i * 0.012 } }));
       onTheDesk(card);
       compose(card, Heaping({ heap: "card" }));
+      compose(card, Carry({ orient: "holder" }));
       setFacing(card, "up");
       add(desk, card);
     });

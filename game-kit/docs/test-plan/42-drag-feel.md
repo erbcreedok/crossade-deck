@@ -1,6 +1,6 @@
 ## UNIT · drag feel — the spring and the carry styles
 
-`vitest (headless, no WebGL)` · 16 кейсов, расписано 16
+`vitest (headless, no WebGL)` · 17 кейсов, расписано 17
 
 «Красивый» драг живёт на оси «Transform в полёте» (`docs/design/transaction.md`). ПОЗИЦИЯ — 1:1 под
 пальцем, без хвоста: то, что держит рука, за рукой не тащится, а лаг позиции читается вялостью, не
@@ -36,3 +36,4 @@
 | `carry.screenLean-follows-the-camera` | одна и та же скорость стола, камера 0° и 180° | `screenLean` дважды | на развёрнутой камере знак крена переворачивается — то же самое движение читается как обратное на экране места напротив |
 | `carry.screenLean-at-90` | скорость по каждой из осей стола, камера на 90° | `screenLean` | экранный `x` при повороте на 90° — это столовый `y` (с переворотом знака), чистый столовый `x` крена не даёт |
 | `carry.registry` | реестр стилей | `installStockCarries`, `carry(name)`, `resetCarries` | имена резолвятся, неизвестное → `rigid` (не бросает), fallback переживает пустой реестр |
+| `carry.orientOf-default-is-keep` | узел без Carry и узел с Carry({orient:"holder"}) | вызов `carryOrientOf` | без Carry — "keep"; с `orient:"holder"` — "holder" |
