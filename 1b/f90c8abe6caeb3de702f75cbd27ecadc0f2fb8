@@ -1,0 +1,35 @@
+game-presets/desks/src/index.ts
+  s_b763f387170b87::t_6bc70ac1085000 38
+apps/hub/src/table/index.ts
+  s_b763f387170b87::t_d53742dfb0bf47 141-146,148-150
+  s_b763f387170b87::t_3945547ecb7e1b 165-179
+  s_b763f387170b87::t_260a6386c9ead4 34-35,43,48-49
+  s_b763f387170b87::t_0340ae77de9ee9 81-85
+  s_b763f387170b87::t_9793aea0f991a4 275-282
+  s_b763f387170b87::t_2559c47e774116 421-428,438-444,451-464
+  s_b763f387170b87::t_dc905979c20de2 104-106
+  s_b763f387170b87::t_b6fb4813eef706 523,534
+apps/hub/index.html
+  s_b763f387170b87::t_05c2979e7c5540 23-30
+game-presets/desks/src/roundMap.ts
+  s_b763f387170b87::t_2a49a4a70d8d0b 53
+apps/hub/src/look/surfaces.ts
+  s_b763f387170b87::t_c30c94a63cfc8f 11
+  s_b763f387170b87::t_a5d0af98983fad 149-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1bf90c8abe6caeb3de702f75cbd27ecadc0f2fb8",
+  "prompts": {},
+  "sessions": {
+    "s_b763f387170b87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "323c91fb-5de1-4d71-85ce-59414f858ffc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
