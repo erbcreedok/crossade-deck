@@ -735,3 +735,5 @@ export {
 } from "./presets/layouts.js";
 export * from "./render/heaps.js";
 export * from "./render/grips.js";
+// THE LIVE DESK — one wiring for every carrying desk, catalog and product alike.
+export * from "./render/liveTable.js";
