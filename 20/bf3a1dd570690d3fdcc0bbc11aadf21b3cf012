@@ -1,0 +1,32 @@
+bot/src/links.ts
+  s_3345f9a469fa95::t_b6bd53ee8f01aa 7-9,17-21,23,28-31
+bot/src/links.test.ts
+  s_3345f9a469fa95::t_3c6d128138f755 2,8,12-15,17,20,23-25,28-33
+apps/hub/index.html
+  s_3345f9a469fa95::t_ba98aa2c51da07 43-57
+  s_3345f9a469fa95::t_39f0bd1d7126a8 64-67
+apps/hub/src/main.ts
+  s_3345f9a469fa95::t_8b1d17af22e143 6,10-25
+bot/src/index.ts
+  s_3345f9a469fa95::t_2e715c63206bac 6,14
+apps/hub/src/telegram.ts
+  s_3345f9a469fa95::t_d6ddce42728d0a 1-13
+apps/hub/src/telegram.test.ts
+  s_3345f9a469fa95::t_4e8114981a06fe 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "20bf3a1dd570690d3fdcc0bbc11aadf21b3cf012",
+  "prompts": {},
+  "sessions": {
+    "s_3345f9a469fa95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d09d0aeb-70ac-4abf-bd85-9f937bdd6bd2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
