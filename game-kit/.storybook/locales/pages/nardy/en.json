@@ -34,5 +34,24 @@
     "NO RULES, on purpose. Whose turn it is, how far a die lets a checker go, when a checker may",
     "leave — those are the game, and this shelf is the desk. Two people at one board are trusted with",
     "the rules exactly as they are at a real one."
-  ]
+  ],
+  "docs.nardy.avatars": [
+    "THE SAME BOARD WITH THE TWO PLAYERS DRAWN BESIDE IT.",
+    "",
+    "The cursor says what a hand is doing and says nothing while it is still, so a board with a quiet",
+    "opponent is a board with one player at it. The disc is the other half of the message, and where",
+    "it stands is read out of that player's own camera: pan the top screen and their disc travels the",
+    "felt on the bottom one, which is exactly what 'I am looking over here now' is.",
+    "",
+    "The state is on the disc. Switch to another tab and both go quiet with a muted mark. Lift a",
+    "column of checkers and the holder's disc takes a ring, which is the one thing everybody else is",
+    "waiting on.",
+    "",
+    "No hands here, and that is what a board IS: a patch of felt a player owns is a place, and on a",
+    "board every place belongs to the game rather than to anybody sitting at it.",
+    "",
+    "Turn the avatars knob off and the board is the scene above."
+  ],
+  "docs.nardy.name.white": "Ann Lee",
+  "docs.nardy.name.black": "Bo Ridge"
 }
