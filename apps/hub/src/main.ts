@@ -34,9 +34,13 @@ async function openStartParamTable(): Promise<void> {
   }
 }
 
-await openStartParamTable();
-
-const stop = chrome && stage ? startHub(chrome, stage) : undefined;
+// NOT A TOP-LEVEL AWAIT: the hub's build targets the phones it is for (safari14 among them), and
+// a module that awaits at its top level does not load there at all. The boot waits inside a
+// promise instead, which is the same order of events with a wider set of browsers.
+let stop: (() => void) | undefined;
+void openStartParamTable().then(() => {
+  stop = chrome && stage ? startHub(chrome, stage) : undefined;
+});
 
 // Dev only: tear the previous hub down before a hot update mounts the next. Without it every edit
 // STACKS another canvas and its listeners on the page, the stale ones keep eating input, and the

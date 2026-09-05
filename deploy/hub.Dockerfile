@@ -4,8 +4,8 @@
 # локом, а хаб импортирует и кит, и игры по имени пакета (`game-kit`, `@apps/klondike`). Собрать
 # его из папки apps/hub означало бы построить второе дерево зависимостей рядом с первым.
 #
-# Адрес сервера сюда не приезжает ВООБЩЕ: хаб ни с чем не разговаривает, он грузит игру ленивым
-# чанком в той же странице. Поэтому образ один на все окружения и build-аргументов у него нет.
+# Адрес сервера сюда ПРИЕЗЖАЕТ — с тех пор, как у хаба есть онлайн-столы: см. ARG ниже. Косынка
+# по-прежнему грузится ленивым чанком в той же странице и ни с чем не разговаривает.
 
 FROM node:22-alpine AS build
 WORKDIR /app
@@ -15,8 +15,10 @@ COPY package.json package-lock.json ./
 COPY game-kit/package.json game-kit/
 COPY game-presets/cards/package.json game-presets/cards/
 COPY game-presets/dice/package.json game-presets/dice/
+COPY game-presets/desks/package.json game-presets/desks/
 COPY apps/hub/package.json apps/hub/
 COPY apps/klondike/package.json apps/klondike/
+COPY bot/package.json bot/
 RUN npm ci
 
 # Баг npm с необязательными зависимостями (npm/cli#4828): лок сгенерирован на macOS, и
@@ -32,6 +34,12 @@ RUN npm i --no-save "@rollup/rollup-linux-x64-musl@$(node -p "require('rollup/pa
 COPY game-kit/ game-kit/
 COPY game-presets/ game-presets/
 COPY apps/ apps/
+# THE SERVER'S ADDRESS, since the hub now does talk to one: the online tables live on the game
+# server, and a page on Fly has to know where that is. Baked at build time (Vite inlines
+# `import.meta.env.VITE_SERVER_URL`); absent, the hub falls back to the page's own host on :2567,
+# which is what local development wants. Passed as `--build-arg VITE_SERVER_URL=...`.
+ARG VITE_SERVER_URL=""
+ENV VITE_SERVER_URL=$VITE_SERVER_URL
 RUN npm run build --workspace @apps/hub
 
 FROM nginx:alpine AS runtime
