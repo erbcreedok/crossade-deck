@@ -1,0 +1,29 @@
+scripts/agents/agent.py
+  s_debef2ca0d2779::t_9e7c6a9e313f09 96,170-172
+scripts/agents/board.py
+  s_b5499c57996b39::t_ca94da280ba159 20-43,45-46,48-52,56-72,75-76,79-80,174-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "54f4d01679275780b92e76c1b355e3350d930d41",
+  "prompts": {},
+  "sessions": {
+    "s_b5499c57996b39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fdce205-57a2-4705-a0e1-0a0c16bfdcbe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_debef2ca0d2779": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc44c3e7-a60b-4727-abb4-ad5ec0c09f1d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
