@@ -265,7 +265,15 @@ describe("guards", () => {
       .filter((f) => !inCatalog(f.rel))
       .filter((f) => /\bsetTimeout\b/.test(f.code))
       .map((f) => f.rel);
-    expect(deadlines, "a one-shot deadline lives in the ONE input seam that needs one").toEqual(["render/drag.ts", "render/hold.ts"]);
+    //
+    // The live desk is the third, and by the same reasoning: a hand that was throwing and then
+    // stopped dead makes no move to be judged on, so the landing picture has no event left to come
+    // back on. One deadline, cleared by the very next move — see `HAND_AT_REST_MS`.
+    expect(deadlines, "a one-shot deadline lives in the input seams that need one").toEqual([
+      "render/drag.ts",
+      "render/hold.ts",
+      "render/liveTable.ts",
+    ]);
   });
 
   it("guard.english-only — code is English; the words live in bundles", () => {
