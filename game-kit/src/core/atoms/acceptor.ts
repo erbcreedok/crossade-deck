@@ -64,11 +64,17 @@ export function subjectOf(node: Node): Subject {
 /** The container as a drop target: how many it holds, and its top (the LAST child — a pile grows up). */
 export function targetOf(container: Node): TargetSubject {
   const kids = container.children;
-  const target: { count: number; top?: Subject; owner?: string } = { count: kids.length };
+  const target: { count: number; top?: Subject; owner?: string; values?: Readonly<Record<string, unknown>> } = {
+    count: kids.length,
+  };
   const last = kids[kids.length - 1];
   if (last) target.top = subjectOf(last);
   const owner = fieldsOf<{ owner: string }>(container, "Poser")?.owner;
   if (owner) target.owner = owner; // empty string = nobody's zone, so `target.owner` is missing
+  // The zone's OWN data, read from the same atom an element's values come from: a container that
+  // carries none leaves the field absent, and every `target.values.X` path is then simply missing.
+  const valued = fieldsOf<ValuedLike>(container, "Valued");
+  if (valued) target.values = valued.values;
   return target;
 }
 

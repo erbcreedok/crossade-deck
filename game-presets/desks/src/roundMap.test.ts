@@ -5,16 +5,19 @@
 import { describe, expect, it } from "vitest";
 import { caps, extentOf, fieldsOf, footprint, heapOf, insideWalls, surfaceRecord, type Node, type SurfacedFields, type TransformableFields } from "game-kit";
 import { LIVE } from "./liveMap.js";
+import { isHand } from "./handZone.js";
 import { ROUND_R, roundMap, roundRoom, roundWalls } from "./roundMap.js";
 
 const cards = (desk: Node): Node[] => desk.children.filter((n) => heapOf(n) === "card");
 const seatOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
 
 describe("the round desk", () => {
-  it("round.one-felt-and-no-hand-areas — a shared table has nowhere that is somebody's", () => {
+  it("round.one-felt-and-a-hand-per-person — the only places on it belong to people", () => {
     const desk = roundMap();
-    // Not one zone: an area on this desk would be an owner, and this desk has no owners.
-    expect(desk.children.filter((n) => caps(n).has("Acceptor"))).toEqual([]);
+    // Every zone here is somebody's HAND. There is still no shared tray, no discard and no plate:
+    // what a card is DOING is a game's knowledge, and two anonymous areas on a felt this size would
+    // be two magnets fighting over every drop. Whose hand it is, is not anonymous.
+    expect(desk.children.filter((n) => caps(n).has("Acceptor")).every(isHand)).toBe(true);
     // ...and the felt is ROUND. Measured off the drawn shape rather than the number, because the
     // number is what the wall is built from and a felt drawn to a different one is the bug.
     const box = footprint(desk)!;

@@ -23,6 +23,7 @@ import type bounded from "./pages/bounded/en.json";
 import type canvasCamera from "./pages/canvasCamera/en.json";
 import type canvasSeats from "./pages/canvasSeats/en.json";
 import type cards from "./pages/cards/en.json";
+import type hands from "./pages/hands/en.json";
 import type liveCards from "./pages/liveCards/en.json";
 import type coated from "./pages/coated/en.json";
 import type container from "./pages/container/en.json";
@@ -183,6 +184,7 @@ const PAGES: Record<string, Record<CatalogLocale, Loader>> = {
   dice: { en: () => import("./pages/dice/en.json"), ru: () => import("./pages/dice/ru.json") },
   cards: { en: () => import("./pages/cards/en.json"), ru: () => import("./pages/cards/ru.json") },
   liveCards: { en: () => import("./pages/liveCards/en.json"), ru: () => import("./pages/liveCards/ru.json") },
+  hands: { en: () => import("./pages/hands/en.json"), ru: () => import("./pages/hands/ru.json") },
   motion: { en: () => import("./pages/motion/en.json"), ru: () => import("./pages/motion/ru.json") },
   tests: { en: () => import("./pages/tests/en.json"), ru: () => import("./pages/tests/ru.json") },
   reaching: { en: () => import("./pages/reaching/en.json"), ru: () => import("./pages/reaching/ru.json") },
@@ -251,6 +253,7 @@ export type PageKey = keyof (typeof node &
   typeof presetsFlips &
   typeof cards &
   typeof liveCards &
+  typeof hands &
   typeof canvasCamera &
   typeof motion &
   typeof tests &

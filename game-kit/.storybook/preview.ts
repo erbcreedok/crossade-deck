@@ -177,7 +177,7 @@ const preview: Preview = {
           // that were there before anything was on them — and it is only worth reading once the
           // desk that has no places at all has been. Nardy last: a board whose places are PILES,
           // which is only worth reading once a board of single places has been.
-          ["Cards", "Chess", "Nardy", "Avatars"],
+          ["Cards", "Chess", "Nardy", "Avatars", "Hands"],
           "Canvas",
           ["Camera", "Seats"],
           "Elements",

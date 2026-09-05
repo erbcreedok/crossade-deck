@@ -4,10 +4,15 @@
 // a diagonal along which a piece is furthest from every hand at once. The round felt has one
 // distance and one border, so "the middle" and "the edge" are the only two places there are.
 //
-// NO HAND AREAS. `liveMap` seats two of them, one per player, because the page it belongs to is
-// about a card changing owner. Here there is no owner to change to: the desk is one shared surface,
-// a hand puts a card down where it likes, and what a card is DOING is a game's knowledge and not
-// this desk's. Two areas on a felt this size would be two magnets fighting over every drop.
+// NO ANONYMOUS AREAS. `liveMap` seats two boxes at two fixed points and a player is whoever happens
+// to be nearest one; here there is no such thing to be near. What a card is DOING is a game's
+// knowledge and not this desk's, and two nameless areas on a felt this size would be two magnets
+// fighting over every drop.
+//
+// WHAT THERE IS instead is a HAND PER PERSON (`handZone`), which is not the same thing: it is not a
+// place on the felt that a card may go, it is a place a PLAYER has, and it stands wherever that
+// player's avatar is. Empty it is a mark; dealt to, it grows to what it holds; and its owner may
+// shut it, after which nobody else puts anything in or takes anything out.
 //
 // The border is a WALL and not a drawing (`roundWalls`): a card may not be carried across it and a
 // card thrown at it comes back. A desk whose edge is only painted is a desk whose pieces are lost
@@ -33,11 +38,13 @@ import {
   fieldsOf,
   type BoundedFields,
   type Node,
+  type Paint,
   type RingWalls,
 } from "game-kit";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { installMapArt, LAMP, onTheDesk, warmingNodes } from "./felt.js";
-import { LIVE } from "./liveMap.js";
+import { growHand, handZone, placeHand } from "./handZone.js";
+import { LIVE, SEATS } from "./liveMap.js";
 
 /** How far the felt reaches from the middle, in units — the one measurement a round desk has. */
 export const ROUND_R = 6;
@@ -86,7 +93,7 @@ export function installRoundArt(): void {
  * The deck is the same pack `liveMap` deals from and the same count, because a desk with fewer
  * cards on it is a different desk and not a smaller one — the pack is the game's, not the table's.
  */
-export function roundMap(): Node {
+export function roundMap(seats: readonly { readonly seat: string; readonly ink: Paint }[] = SEATS): Node {
   installRoundArt();
   const desk = node(
     "round desk",
@@ -96,6 +103,18 @@ export function roundMap(): Node {
     LAMP,
     Grabber({ grab: "one" }),
   );
+  // A HAND PER PLACE, standing where that place opens.
+  //
+  // The desk seats them at the rim on its own, because a desk built with nobody at it still has to
+  // be a desk: a page that has avatars re-places every hand against its own person (`placeHand`),
+  // and one that has none — the hub's card table — gets them where a player would sit anyway. The
+  // spot is worked out by the SAME line either way, from a stand-in standing on the rim, so the two
+  // cannot drift apart.
+  seats.forEach(({ seat, ink }, i) => {
+    const hand = handZone(seat, ink);
+    growHand(hand);
+    placeHand(desk, seatMark(i, seats.length), hand, ROUND_R);
+  });
   crossadeCards()
     .slice(0, LIVE.cards)
     .forEach((card, i) => {
@@ -109,6 +128,23 @@ export function roundMap(): Node {
     });
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
+}
+
+/**
+ * WHERE A PLACE OPENS, when nobody is sitting in it yet — a point on the rim, one per seat, evenly
+ * round the table and starting at the bottom, which is where the reader's own place is.
+ *
+ * A bare node and not a picture: `placeHand` asks a person for two things only, the spot they stand
+ * on and how big they are drawn, and a stand-in that answers both is the whole of what an empty
+ * chair is.
+ */
+function seatMark(i: number, of: number): Node {
+  const turn = (Math.PI * 2 * i) / of;
+  return node(
+    `seat ${i}`,
+    Bounded({ bounds: circle(0.55 / 2) }),
+    Transformable({ at: { x: Math.sin(turn) * (ROUND_R - 1), y: Math.cos(turn) * (ROUND_R - 1) } }),
+  );
 }
 
 /**

@@ -36,6 +36,23 @@ export {
   takes,
   wallsOf,
 } from "./nardyMap.js";
+export {
+  growHand,
+  HAND,
+  HAND_LOCK,
+  HAND_VALUE,
+  handAccept,
+  handId,
+  handLocked,
+  handOwner,
+  handSurface,
+  handTakes,
+  handZone,
+  installHandArt,
+  isHand,
+  placeHand,
+  setHandLock,
+} from "./handZone.js";
 export { installLiveArt, LIVE, LIVE_UNIT, liveMap, liveTune, SEATS } from "./liveMap.js";
 export { installRoundArt, ROUND_R, ROUND_SURFACE, roundMap, roundRoom, roundWalls } from "./roundMap.js";
 export {

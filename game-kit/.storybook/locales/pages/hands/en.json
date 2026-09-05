@@ -1,0 +1,43 @@
+{
+  "docs.hands.component": [
+    "A HAND THAT BELONGS TO A PERSON, not to a spot on the felt.",
+    "",
+    "The areas on the live desk are places the DESK decided on: two boxes at two fixed points, and a",
+    "player is whoever happens to be nearest one. At a round table there is nothing to be near —",
+    "where somebody sits is read out of their own camera — so the hand is fastened to the AVATAR",
+    "instead, and it stands on whichever side of that person has felt left before the edge.",
+    "",
+    "And it is the size of what is in it. Empty it is a mark saying only 'this is somebody's'; dealt",
+    "to, it grows; past the width the table can spare it stops growing and the cards close up",
+    "instead. A fixed box would be a permanent hole in the middle of the table for a player holding",
+    "nothing, which at a round desk is most players most of the time.",
+    "",
+    "Everybody sees every hand, face and all. Hiding is a real thing and the kit does it, and it is a",
+    "second subject: with the cards hidden a reader watching one screen could not tell 'they did",
+    "nothing' from 'they did something I may not see'. What is here is the other half — who may reach",
+    "into a hand that is not theirs, and that is the owner's to decide."
+  ],
+  "docs.hands.scene": [
+    "HANDS — two people at a round table, each with a patch of felt of their own.",
+    "",
+    "Deal to yourself and to the other player: take a card off the deck in the middle and let it go",
+    "over either hand. It goes in, on both screens, and the patch grows to hold it — including the",
+    "patch that is not yours, because putting a card into somebody's hand is the ordinary thing a",
+    "player at a table does and this desk has no rule saying otherwise.",
+    "",
+    "Drag your own disc and your hand travels with it, and it changes sides when the side it was on",
+    "runs out of table. Nothing decides that but the two points: a player at the top has felt below",
+    "them, and one at the right has felt to the left.",
+    "",
+    "Then shut the hand — tap your own disc, or turn the knob for the bottom seat. It is washed in",
+    "its owner's colour, and from the other screen it stops answering: a card let go of over it is",
+    "not taken and comes back, and a card lying in it cannot be picked up at all, so the finger drives",
+    "the camera instead. From its OWN screen nothing has changed, because the lock is about everybody",
+    "else.",
+    "",
+    "NO SERVER. The two screens are two views of one tree, and the lock is a number on the zone rather",
+    "than a state in either screen — which is why the two cannot disagree about whether it is on."
+  ],
+  "docs.hands.name.south": "Ann Lee",
+  "docs.hands.name.north": "Bo Ridge"
+}

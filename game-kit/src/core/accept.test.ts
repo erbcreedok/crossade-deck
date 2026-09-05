@@ -127,6 +127,22 @@ describe("AcceptRule", () => {
     expect(evaluate(mine, { ...ctx, actor: { seat: "north" } })).toBe("deny");
   });
 
+  it("accept.a-rule-can-read-the-zones-own-state — a lock is a number on the zone, not a branch", () => {
+    // The element's values were readable from the start and the container's were not, because until
+    // a zone had a state of its own every rule was about the thing being OFFERED. A hand with a lock
+    // on it is the second asker: whether it takes this card turns on a number written on the ZONE,
+    // and without the path the lock would have to be rebuilt in code every time it was turned.
+    const open = { or: [{ not: { eq: ["target.values.lock", 1] } }, { eq: ["actor.seat", "south"] }] } as const;
+    const el = { caps: new Set<string>(), values: {}, traits: new Set<string>() };
+    const shut = { el, target: { count: 0, values: { lock: 1 } } };
+    expect(evaluate(open, { ...shut, actor: { seat: "north" } })).toBe("deny");
+    expect(evaluate(open, { ...shut, actor: { seat: "south" } })).toBe("allow");
+    expect(evaluate(open, { el, target: { count: 0, values: { lock: 0 } }, actor: { seat: "north" } })).toBe("allow");
+    // A container that carries no values at all has no lock: the path is missing, the comparison is
+    // a quiet no, and the negation over it reads as the open door it was before this existed.
+    expect(evaluate(open, { el, target: { count: 0 }, actor: { seat: "north" } })).toBe("allow");
+  });
+
   it("accept.an-unsaid-actor-is-missing-not-empty — an old caller denies rather than passes", () => {
     const mine = { eq: ["actor.seat", "target.owner"] } as const;
     expect(evaluate(mine, { el: { caps: new Set<string>(), values: {}, traits: new Set<string>() }, target: { count: 0, owner: "south" } })).toBe("deny");
