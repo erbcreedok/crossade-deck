@@ -53,7 +53,11 @@ function bench() {
   const painter: Painter = { ready: Promise.resolve(), draw: (plan) => { last = plan; }, resize: () => {}, destroy: () => {} };
   const host = mount(document.createElement("div"), desk);
   const xOf = (id: string): number => last.find((q) => q.id === id)!.x;
-  return { desk, d, host, painter, xOf };
+  const scaleOf = (id: string): number => {
+    const q = last.find((quad) => quad.id === id)!;
+    return Math.hypot(q.transform.a, q.transform.b);
+  };
+  return { desk, d, host, painter, xOf, scaleOf };
 }
 
 describe("kinds, skin, builder", () => {
@@ -258,5 +262,27 @@ describe("the throws, on the one clock", () => {
     expect(fieldsOf<TransformableFields>(b.d, "Transformable")!.angle!).toBeGreaterThan(0);
     // A slow release: nothing carried after the throw, so a second call is a drop.
     expect(throwFromCarry(m, b.desk, b.d, { outcome: 6 })).toBeUndefined();
+  });
+
+  it("dice.a-hard-flick-never-climbs-past-its-own-ceiling — apex capped at MAX_DICE_LIFT of the die's own size", () => {
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock });
+    b.host.setRoot(b.desk);
+    const rest = b.scaleOf("d6");
+    // A SHOVE, not a flick: a violent drag off the finger, the exact case that used to send the
+    // apex off the top of a phone before the hop itself was capped.
+    m.grab([{ id: "d6", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    m.dragTo({ x: 40, y: 0 });
+    c.tick(16);
+    c.tick(32);
+    throwFromCarry(m, b.desk, b.d, { outcome: 6 });
+    let peak = rest;
+    for (let t = 48; t <= 3000 && !c.idle(); t += 16) {
+      c.tick(t);
+      b.host.setRoot(b.desk);
+      peak = Math.max(peak, b.scaleOf("d6"));
+    }
+    expect(peak / rest).toBeLessThanOrEqual(1.35 + 1e-6);
   });
 });

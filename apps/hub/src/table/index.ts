@@ -2,6 +2,7 @@ import {
   chessRoom,
   mayThrow,
   nardyRoom,
+  NARDY_BUMP,
   runOf,
   seatOf,
   seatsOf,
@@ -12,7 +13,9 @@ import {
 } from "@game-presets/desks";
 import { throwFromCarry } from "@game-presets/dice";
 import {
+  alsoInTheWay,
   attachMotion,
+  bumped,
   Camera,
   wireCamera,
   wireDrag,
@@ -21,6 +24,7 @@ import {
   byId,
   caps,
   draggable,
+  dropOf,
   extentOf,
   footprint,
   holdThePage,
@@ -29,9 +33,12 @@ import {
   installStockLayouts,
   installStockSurfaces,
   installTheme,
+  landed,
   landingPicture,
+  mapWalls,
   mount,
   setRev,
+  shoves,
   type CameraContent,
   type CarryItem,
   type Node,
@@ -213,10 +220,16 @@ export function startTable(container: HTMLElement): Teardown {
   // slides it across the band it was thrown in (`wallsOf` — the board or whichever side of it); a
   // gentle let-go falls through and the die is simply put down, face as it was. `mayThrow` keeps a
   // column of checkers out of this branch — the one thing this shelf never throws.
+  // THE SAME `Bump` THE CATALOG PASSES INTO `letFall` (`NARDY_BUMP`), applied here by hand: this
+  // release goes through `throwFromCarry`, not `letFall`, so the room a die and a checker take from
+  // each other (`bumped`) and the pieces already lying there (`alsoInTheWay`) are wired in on this
+  // path too — a die thrown here must knock the same way it does in the catalog's own story.
+  const feelOf = (n: Node) => bumped(dropOf(n), n, NARDY_BUMP);
   const onDiceRelease = (velocity: Vec | undefined, items: readonly CarryItem[]): boolean => {
     const root = host.root;
     if (!mayThrow(items, root)) return false;
     const poses = motions.poses();
+    const speed = velocity ? Math.hypot(velocity.x, velocity.y) : 0;
     let inFlight = 0;
     let threw = false;
     for (const it of items) {
@@ -225,10 +238,14 @@ export function startTable(container: HTMLElement): Teardown {
       const pose = poses?.get(it.id);
       const at = pose ? { x: pose.e, y: pose.f } : { x: 0, y: 0 };
       const walls = nardyWallsOf(piece, at);
+      const feel = feelOf(piece);
       inFlight += 1;
       const face = throwFromCarry(motions, root, piece, {
         outcome: { rng: Math.random },
         ...(walls ? { walls } : {}),
+        ...(feel.girth > 0 ? { girth: feel.girth } : {}),
+        ...(feel.solid ? { solid: feel.solid } : {}),
+        ...(feel.bodyBounce === undefined ? {} : { bodyBounce: feel.bodyBounce }),
         onRest: () => {
           inFlight -= 1;
           if (inFlight <= 0) {
@@ -238,6 +255,27 @@ export function startTable(container: HTMLElement): Teardown {
         },
       });
       if (face !== undefined) threw = true;
+    }
+    if (threw) {
+      // WHAT THE THROW MAY KNOCK INTO: everything else in the die's own world (`"nardy-piece"`) —
+      // the other die if it settled first, and every checker still on the board.
+      const thrownIds = new Set(items.map((it) => it.id));
+      const standing = alsoInTheWay(root, thrownIds, new Set(["nardy-piece"]), feelOf);
+      const knocking = shoves(speed, NARDY_BUMP.holds);
+      for (const still of standing) {
+        const feel = feelOf(still);
+        motions.slide(still.id, {
+          speed: 0,
+          angle: 0,
+          girth: feel.girth,
+          solid: feel.solid,
+          ...(knocking ? {} : { anchored: true }),
+          bodyBounce: feel.bodyBounce ?? feel.bounce,
+          walls: mapWalls(still),
+          wallKick: 0,
+          onDone: (at) => landed({ host }, still.id, at),
+        });
+      }
     }
     return threw;
   };
