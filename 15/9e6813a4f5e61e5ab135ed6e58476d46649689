@@ -1,0 +1,90 @@
+game-kit/src/render/animator/motions.ts
+  s_50df1c646905df::t_860bf1e6d0bc4e 38-43
+game-kit/src/core/atoms/carry.ts
+  s_50df1c646905df::t_3e2f608a180493 19
+  s_50df1c646905df::t_b0397b1dfed8d0 37-53
+game-kit/docs/test-plan/42-drag-feel.md
+  s_50df1c646905df::t_175c5f847aa129 3,35-37
+game-kit/src/render/animator/index.ts
+  s_50df1c646905df::t_3153db10099cb7 35-37
+  s_50df1c646905df::t_e710abd624cba7 876-882,885
+  s_50df1c646905df::t_e2de288acf51c5 262-270
+  s_50df1c646905df::t_a0da7fda03ed92 257
+game-presets/desks/src/chessMap.ts
+  s_50df1c646905df::t_7299a4ad85eaff 389-395
+  s_50df1c646905df::t_bf2f8eee4ed045 40
+game-kit/src/render/scenePlan/index.ts
+  s_50df1c646905df::t_5f14a3b3d052f5 44
+  s_50df1c646905df::t_c5233523b88bcf 79-88
+  s_50df1c646905df::t_783b80898ad1ae 64
+  s_50df1c646905df::t_fe66fc81bd7804 259-264
+  s_50df1c646905df::t_5a234d6b5e98d5 277
+game-kit/docs/test-plan/10-scene-plan.md
+  s_50df1c646905df::t_175c5f847aa129 3,53
+game-kit/docs/test-plan/README.md
+  s_50df1c646905df::t_48408900a1a12a 10
+  s_50df1c646905df::t_175c5f847aa129 38,70
+game-kit/.storybook/stories/gestureScene.ts
+  s_50df1c646905df::t_39b61592ca36c6 231-238
+  s_50df1c646905df::t_b9992374b4d18b 293
+game-kit/.storybook/stories/Chess.stories.ts
+  s_50df1c646905df::t_39540b9c9f1475 137-141
+  s_50df1c646905df::t_e54dd32c7254c9 135-136
+game-kit/src/render/scenePlan/plan.test.ts
+  s_50df1c646905df::t_bc88e73df26e06 279-310,312-313,315-316
+  s_50df1c646905df::t_d7f6d74ca1c995 311,314
+game-kit/.storybook/devtools/scene.ts
+  s_50df1c646905df::t_49dfb707709857 546-548
+  s_50df1c646905df::t_ee74ac099b2ace 562,587,603
+game-kit/src/render/animator/records.ts
+  s_50df1c646905df::t_b1ef897c962df6 32-33
+  s_50df1c646905df::t_040baf6475ee25 31,34-36
+  s_73c5709c9b8c1c::t_882a3f1f00608a 30
+game-kit/src/render/scenePlan/input.ts
+  s_50df1c646905df::t_96eb9e4eb92b36 35-42
+  s_50df1c646905df::t_4533650b77d7ea 34
+apps/hub/src/table/index.ts
+  s_50df1c646905df::t_2d911f5c738131 172-182
+  s_50df1c646905df::t_cc344ddd3db707 210
+  s_50df1c646905df::t_066ba5f813de4e 125-127
+  s_50df1c646905df::t_5b1cf14345fdb2 308-315
+game-presets/desks/src/chessMap.test.ts
+  s_50df1c646905df::t_3b0a98c8d1653a 37-48
+  s_50df1c646905df::t_e3532a34facb37 8
+game-presets/desks/docs/test-plan.md
+  s_50df1c646905df::t_2b3af824107583 7,22
+game-kit/src/render/stage.ts
+  s_50df1c646905df::t_b8687c2a8b16fd 119
+  s_50df1c646905df::t_ed1c114fb25728 134
+  s_50df1c646905df::t_08676ad127e0c3 92-100
+game-kit/src/core/atoms/carry.test.ts
+  s_50df1c646905df::t_0b4d95f738023e 98
+  s_50df1c646905df::t_484daae68d78b0 85
+  s_50df1c646905df::t_715a88a84b7808 7
+  s_50df1c646905df::t_4492bc1330234e 100
+  s_50df1c646905df::t_68592ec6e79f7c 77-84,86-97,99,101-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "159e6813a4f5e61e5ab135ed6e58476d46649689",
+  "prompts": {},
+  "sessions": {
+    "s_50df1c646905df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eda26aed-e6af-4ae1-af78-9bba641838dd",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_73c5709c9b8c1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6727b287-5176-4ca9-b8a9-9a3b11e48a2d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
