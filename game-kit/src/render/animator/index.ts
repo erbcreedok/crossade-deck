@@ -280,6 +280,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
     springSettled(cy.sa, wantLean(cy), BANK_EPS) &&
+    springSettled(cy.so, cy.targetOrient, BANK_EPS) &&
     gathering(cy) <= 0 &&
     (cy.trail <= 0 ||
       cy.tails.every((t, i) => i === 0 || (springSettled(t.x, heldAt(cy).x, CARRY_EPS) && springSettled(t.y, heldAt(cy).y, CARRY_EPS))));
@@ -447,7 +448,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       const seat = left > 0 ? { x: chased.x + gap.x * left, y: chased.y + gap.y * left } : chased;
       // A piece marked `still` is the hand's own — a handle, and a handle does not pop or bank.
       const pop = it.still ? 1 : cy.sl.pos;
-      const styled = cy.style({ anchor: seat, offset: it.offset, leanDeg: it.still ? 0 : leanDeg, lift: pop, i, n });
+      const totalLean = leanDeg + cy.so.pos;
+      const styled = cy.style({ anchor: seat, offset: it.offset, leanDeg: it.still ? 0 : totalLean, lift: pop, i, n });
       // SEATED ON WHAT THE PIECE IS. The style says where it goes, how it leans and how it is
       // lifted; its own resting pose says what it looks like — a mirror, a turn of its own — and a
       // carry must not take that off. Read back as a point, a turn and a size, it composes onto the
@@ -583,6 +585,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         cy.sy = springAt(cy.target.y);
         cy.sl = springAt(cy.liftTo);
         cy.sa = springAt(wantLean(cy));
+        cy.so = springAt(cy.targetOrient);
       } else {
         cy.sx = stepSpring(cy.sx, cy.target.x, cy.follow, dt);
         cy.sy = stepSpring(cy.sy, cy.target.y, cy.follow, dt);
@@ -590,6 +593,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         // The bank chases AFTER the chase spring moved: within one frame the lean is answering the
         // speed this frame has, one step behind it and never a step ahead.
         cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
+        cy.so = stepSpring(cy.so, cy.targetOrient, cy.bankCfg, dt);
       }
       if (cy.trail > 0) {
         const to = heldAt(cy);
@@ -880,6 +884,10 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         const owner = byId(host.root, it.id);
         return owner ? orientationOf(contextFor(owner, 1)) === "viewer" : false;
       });
+      const bases = new Map(items.map((it) => [it.id, transformsOf(host.root).get(it.id) ?? IDENTITY]));
+      const base0 = items[0] ? (bases.get(items[0].id) ?? IDENTITY) : IDENTITY;
+      const targetOrient = opts.orientDeg !== undefined ? shortWay(opts.orientDeg - turnOf(base0)) : 0;
+
       const cy: Carry = {
         items,
         viewerFramed,
@@ -890,6 +898,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         sl: springAt(1),
         // Flat: a card is picked up level, whatever the hand was doing before it closed.
         sa: springAt(0),
+        so: springAt(0),
+        targetOrient,
         liftTo: t.lift,
         follow: { stiffness: t.followStiffness, damping: t.followDamping },
         liftCfg: { stiffness: t.liftStiffness, damping: t.liftDamping },
@@ -915,7 +925,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         }),
         gatheredMs: warped,
         // What each piece IS, as against where the carry puts it — see `Carry.bases`.
-        bases: new Map(items.map((it) => [it.id, transformsOf(host.root).get(it.id) ?? IDENTITY])),
+        bases,
         walls: opts.walls,
         wallSpeed: t.wallSpeed,
         wallBounce: t.wallBounce,
@@ -935,6 +945,8 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         cy.sy = oldHandCarry.sy;
         cy.sl = oldHandCarry.sl;
         cy.sa = oldHandCarry.sa;
+        cy.so = oldHandCarry.so;
+        cy.targetOrient = targetOrient;
         cy.gatheredMs = oldHandCarry.gatheredMs;
         const kept = (i: number) => oldHandCarry.items.findIndex((o) => o.id === items[i]!.id);
         cy.tails = cy.tails.map((tail, i) => oldHandCarry.tails[kept(i)] ?? tail);

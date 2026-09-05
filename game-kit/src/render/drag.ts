@@ -22,6 +22,7 @@ import { wearKeen, wearInvite } from "../core/atoms/inviting.js";
 import { wearInvites } from "../core/invite.js";
 import { mark } from "../core/atoms/marked.js";
 import { applyMove, planMove } from "../core/move.js";
+import { carryOrientOf } from "../core/atoms/carry.js";
 import { landingRecord, type OccupiedOutcome } from "../core/atoms/occupied.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { glassOf, pick, toUnits } from "./pointer.js";
@@ -323,6 +324,8 @@ const lineAngle = (a: Point, b: Point): number => (Math.atan2(b.y - a.y, b.x - a
 /** A node's own angle right now, which is where a released turn may be sent back to. */
 const angleOf = (n: Node): number => fieldsOf<TransformableFields>(n, "Transformable")?.angle ?? 0;
 
+const turnOfMatrix = (t: Transform | undefined): number => t ? Math.atan2(t.b, t.a) * 180 / Math.PI : 0;
+
 /**
  * FOLD ONE MORE SAMPLE INTO THE HAND'S SPEED — two points and the time between them, smoothed.
  *
@@ -480,7 +483,9 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       ...feel
     } = w.opts;
     const tray = trayOf?.(root, hit);
-    const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}) };
+    const orient = items[0] ? carryOrientOf(byId(root, items[0].id)!) : "keep";
+    const orientDeg = orient === "holder" ? -turnOfMatrix(w.opts.view?.()) : undefined;
+    const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}), ...(orientDeg !== undefined ? { orientDeg } : {}) };
     w.drag = { ...w.drag, tray, feel: felt };
     motions.grab(items, {
       anchor,
@@ -617,6 +622,20 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
 
   const drop = (items: readonly CarryItem[], seat: Vec, dragInfo?: NonNullable<Wiring["drag"]>, glass?: Vec): void => {
     const root = s.host.root;
+
+    const orientDeg = dragInfo?.feel.orientDeg;
+    if (orientDeg !== undefined && items[0]) {
+      const lead = byId(root, items[0].id);
+      const base0Angle = lead ? angleOf(lead) : 0;
+      for (const it of items) {
+        const n = byId(root, it.id);
+        if (n) {
+          const own = fieldsOf<TransformableFields>(n, "Transformable");
+          compose(n, Transformable({ ...(own ?? {}), angle: (own?.angle ?? 0) + orientDeg - base0Angle }));
+        }
+      }
+    }
+
     w.opts.onCarry?.({ ids: items.map((it) => it.id), at: seat, done: true, feel: dragInfo?.feel ?? {}, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
     if (landed(items, seat, root, dragInfo, glass)) {
       // LAST, and after the tree has been written — see `onSettled`. Announced on this path too:
@@ -635,7 +654,8 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     for (const it of items) {
       const n = byId(root, it.id);
       if (n && onRejectOf(n) === "stay") {
-        compose(n, Transformable({ at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
+        const own = fieldsOf<TransformableFields>(n, "Transformable");
+        compose(n, Transformable({ ...(own ?? {}), at: { x: seat.x + it.offset.x, y: seat.y + it.offset.y } }));
       }
       s.motions?.release(it.id);
     }

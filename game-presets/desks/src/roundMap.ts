@@ -21,6 +21,7 @@
 import {
   add,
   Bounded,
+  Carry,
   circle,
   compose,
   Container,
@@ -124,6 +125,7 @@ export function roundMap(seats: readonly { readonly seat: string; readonly ink: 
       compose(card, Transformable({ at: { x: i * 0.004, y: -i * 0.012 } }));
       onTheDesk(card);
       compose(card, Heaping({ heap: "card" }));
+      compose(card, Carry({ orient: "holder" }));
       setFacing(card, "up");
       add(desk, card);
     });

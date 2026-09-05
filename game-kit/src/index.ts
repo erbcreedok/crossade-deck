@@ -499,6 +499,8 @@ export {
   carry,
   installStockCarries,
   lean,
+  Carry,
+  carryOrientOf,
   looseCarry,
   registerCarry,
   resetCarries,

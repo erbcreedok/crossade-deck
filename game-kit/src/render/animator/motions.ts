@@ -102,6 +102,12 @@ export type CarryOptions = {
    * the run is left standing at `at` — where the game decides whether that is its new seat.
    */
   readonly onSnap?: ((ids: readonly NodeId[], at: Vec) => void) | undefined;
+  /**
+   * The base angle of the run relative to the world, degrees. Added to the run's layout offsets
+   * and to each piece's own resting angle. Usually the holder's camera rotation negated,
+   * so a picked-up fan points straight at the player holding it, wherever they sit.
+   */
+  readonly orientDeg?: number | undefined;
 } & { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined };
 
 /** A throw down the SCREEN: gravity pulls, a floor bounces, the body leaves the glass sideways. */
