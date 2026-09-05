@@ -1,0 +1,47 @@
+game-kit/docs/test-plan/README.md
+  s_22643a1f2fc3c8::t_02be63cd3e5714 10
+  s_22643a1f2fc3c8::t_866dc38841c715 103
+game-kit/.storybook/stories/avatars.ts
+  s_22643a1f2fc3c8::t_395b14048e888d 3
+apps/hub/src/table/people.ts
+  s_22643a1f2fc3c8::t_5006e6915ccb37 292
+apps/hub/src/table/people.test.ts
+  s_22643a1f2fc3c8::t_5006e6915ccb37 49,59
+game-presets/desks/src/seatPlace.test.ts
+  s_22643a1f2fc3c8::t_395b14048e888d 105-106,115
+game-kit/.storybook/stories/Avatars.stories.ts
+  s_22643a1f2fc3c8::t_bef4cef6eccf6f 67-69,206-207,311-312
+game-kit/.storybook/locales/pages/avatars/ru.json
+  s_22643a1f2fc3c8::t_6a927e6cc30230 23-25,31-33
+game-kit/.storybook/locales/pages/avatars/en.json
+  s_22643a1f2fc3c8::t_6a927e6cc30230 23-26,32-34
+game-kit/src/render/idleReturn.ts
+  s_22643a1f2fc3c8::t_a27863de6f2828 2
+game-kit/src/render/presence.ts
+  s_22643a1f2fc3c8::t_abee9be7505e08 170-173,175-178,181
+  s_22643a1f2fc3c8::t_2a3b1bde3ccf4f 12-13
+game-kit/docs/test-plan/76-presence.md
+  s_22643a1f2fc3c8::t_866dc38841c715 3,5-6,9-13,17
+game-kit/src/render/presence.test.ts
+  s_22643a1f2fc3c8::t_3e7dc68cc21421 3,159
+  s_22643a1f2fc3c8::t_ddebf1ad69cfc3 45-63
+game-kit/src/render/idleReturn.test.ts
+  s_22643a1f2fc3c8::t_b6c3161bb6c511 76-78
+  s_22643a1f2fc3c8::t_3e7dc68cc21421 23,26,58,92,102-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b5aeeb29bf486ebd6d98771f8dacd7c31716ee1c",
+  "prompts": {},
+  "sessions": {
+    "s_22643a1f2fc3c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f39f0f5f-a882-42f8-929d-40a7edbe09f3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
