@@ -47,6 +47,7 @@ import { cards as crossadeCards } from "@game-presets/cards";
 import { installMapArt, LAMP, onTheDesk, warmingNodes } from "./felt.js";
 import { growHand, handZone, placeHand } from "./handZone.js";
 import { LIVE, SEATS } from "./liveMap.js";
+import { seatChairs } from "./seatPlace.js";
 
 /** How far the felt reaches from the middle, in units — the one measurement a round desk has. */
 export const ROUND_R = 6;
@@ -112,10 +113,13 @@ export function roundMap(seats: readonly { readonly seat: string; readonly ink: 
   // and one that has none — the hub's card table — gets them where a player would sit anyway. The
   // spot is worked out by the SAME line either way, from a stand-in standing on the rim, so the two
   // cannot drift apart.
+  // THE CHAIRS FIRST, before a single card: a place is a thing on this felt, and equals in the plan
+  // are ranked by document order — a chair added after the deck would be an outline over the cards.
+  const chairs = seatChairs(desk, seatPlaces(seats.length), seats.map(({ seat, ink }) => ({ seat, ink, name: seat })));
   seats.forEach(({ seat, ink }, i) => {
     const hand = handZone(seat, ink);
     growHand(hand);
-    placeHand(desk, seatMark(i, seats.length), hand, ROUND_R);
+    placeHand(desk, chairs[i]!, hand, ROUND_R);
   });
   crossadeCards()
     .slice(0, LIVE.cards)
@@ -131,23 +135,6 @@ export function roundMap(seats: readonly { readonly seat: string; readonly ink: 
     });
   for (const warm of warmingNodes()) add(desk, warm);
   return desk;
-}
-
-/**
- * WHERE A PLACE OPENS, when nobody is sitting in it yet — a point on the rim, one per seat, evenly
- * round the table and starting at the bottom, which is where the reader's own place is.
- *
- * A bare node and not a picture: `placeHand` asks a person for two things only, the spot they stand
- * on and how big they are drawn, and a stand-in that answers both is the whole of what an empty
- * chair is.
- */
-function seatMark(i: number, of: number): Node {
-  const turn = (Math.PI * 2 * i) / of;
-  return node(
-    `seat ${i}`,
-    Bounded({ bounds: circle(0.55 / 2) }),
-    Transformable({ at: { x: Math.sin(turn) * (ROUND_R - 1), y: Math.cos(turn) * (ROUND_R - 1) } }),
-  );
 }
 
 export function seatPlaces(n: number): readonly { readonly at: Vec; readonly facing: number }[] {

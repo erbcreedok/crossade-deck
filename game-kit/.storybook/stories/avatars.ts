@@ -93,8 +93,15 @@ export interface Avatars {
  */
 export function withAvatars(o: AvatarsOptions): Avatars {
   registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
-  /** Where each person's own disc stands right now — moved by dragging it. */
-  const pinned = new Map<string, Vec>(o.seats.map(({ seat }, i) => [seat, o.at(i)]));
+  /**
+   * WHERE EACH PERSON'S OWN DISC STANDS RIGHT NOW — moved by dragging it, and it OPENS ON THE CHAIR.
+   *
+   * The seat's own place when this desk has one, and only then the page's opening spot: the chair is
+   * drawn at `seatPlaces(n)` and the disc is the person sitting in it, so a page whose two numbers
+   * differed by a unit would draw every player standing just beside their own seat — and the idle
+   * glide, which returns to the PLACE, would then move somebody who had not moved.
+   */
+  const pinned = new Map<string, Vec>(o.seats.map(({ seat }, i) => [seat, o.places?.[i]?.at ?? o.at(i)]));
   const states = new Map<string, PresenceState>(o.seats.map(({ seat }) => [seat, "online"]));
   const holding = new Set<string>();
   /** Whose hand is shut. Turned by its owner's tap, and only on a desk that has hands at all. */

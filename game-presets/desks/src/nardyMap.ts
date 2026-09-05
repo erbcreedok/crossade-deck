@@ -68,6 +68,7 @@ import {
 } from "game-kit";
 import { die } from "@game-presets/dice";
 import { installMapArt, onTheDesk, PUT_DOWN, warmingNodes } from "./felt.js";
+import { seatChairs } from "./seatPlace.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its marks'. */
 export const NARDY_SEATS = [
@@ -192,6 +193,9 @@ export function nardyMap(reach = 0): Node {
     Lit({ shadow: { base: 0, perZ: 0, lifted: 0.3, opacity: 0.42 } }),
     Grabber({ grab: "one" }),
   );
+  // THE PLACES THEMSELVES, before the board and the checkers: a seat is a thing on this felt and it
+  // is under everything that is played on it (`seatPlace.ts`).
+  seatChairs(desk, seatPlaces(NARDY_SEATS.length), NARDY_SEATS.map(({ seat, ink }) => ({ seat, ink, name: seat })));
   add(
     desk,
     node(

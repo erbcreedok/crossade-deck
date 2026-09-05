@@ -55,6 +55,19 @@ export {
   placeHand,
   setHandLock,
 } from "./handZone.js";
+export {
+  CHAIR,
+  CHAIR_VALUE,
+  chairId,
+  chairSurface,
+  installSeatArt,
+  isChair,
+  SEAT_TEXT,
+  seatChair,
+  seatChairs,
+  type SeatLook,
+  type SeatOfDesk,
+} from "./seatPlace.js";
 export { installLiveArt, LIVE, LIVE_UNIT, liveMap, liveTune, SEATS } from "./liveMap.js";
 export { installRoundArt, ROUND_R, ROUND_SURFACE, roundMap, roundRoom, roundWalls, seatPlaces as roundPlaces } from "./roundMap.js";
 export {

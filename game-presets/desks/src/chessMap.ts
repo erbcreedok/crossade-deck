@@ -58,6 +58,7 @@ import {
   type Vec,
 } from "game-kit";
 import { installMapArt, PUT_DOWN, svg, warmingNodes } from "./felt.js";
+import { seatChairs } from "./seatPlace.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
 export const CHESS_SEATS = [
@@ -303,6 +304,9 @@ export function chessMap(reach = 0): Node {
     // A finger on a piece takes that piece — never the square under it, and never the board.
     Grabber({ grab: "one" }),
   );
+  // THE PLACES THEMSELVES, before the board and the men: a seat is a thing on this felt and it is
+  // under everything that is played on it (`seatPlace.ts`).
+  seatChairs(desk, seatPlaces(CHESS_SEATS.length), CHESS_SEATS.map(({ seat, ink }) => ({ seat, ink, name: seat })));
   // THE BOARD'S FACE IS GROUND, like the cells on it. The plan paints everything that HOLDS things
   // first and everything that stands on them after — and a cell is a container, so it is ground. A
   // face that was not would be painted after the cells, over them: one brown square with sixty-four
