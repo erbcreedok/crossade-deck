@@ -1,0 +1,19 @@
+apps/hub/src/table/mapFor.ts
+  s_33ba456da3c675::t_c04d3cf7c29cc9 20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "dfe26ba22161e7e67c41a2a00ea5502c3ec82756",
+  "prompts": {},
+  "sessions": {
+    "s_33ba456da3c675": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7e7a1a0-be6f-4aba-a360-ed0229d591f1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
