@@ -206,6 +206,7 @@ export function startSolitaire(container: HTMLElement): () => void {
    * so the far end is what gets dropped when the stack is full.
    */
   const remember = (): void => {
+    clearHint();
     past.push(snapshot(board, dealt));
     if (past.length > MAX_PAST) past.shift();
   };
@@ -237,8 +238,14 @@ export function startSolitaire(container: HTMLElement): () => void {
   // out of the player's hands, and a hint they did not want costs one press to ignore. The state
   // stands HERE because the bar reads it: a control is drawn from what is true, so what is true has
   // to exist before the first bar is built.
+  //
+  // A LIT HINT DOES NOT OUTLIVE ITS MOMENT — the owner's second rule, after the first one shipped
+  // lit and never went dark. It goes out on ANY touch of the table that is not the second press on
+  // its own button (`onDown`), on any move that changes the table (`remember`, which every move
+  // runs through), and on its own after four seconds nobody answered it (`hintTimer`).
   let hinted: { card: Node; dest: Node } | undefined;
   let undoHint: Array<() => void> = [];
+  let hintTimer: ReturnType<typeof setTimeout> | undefined;
 
   // THE BAR IS REBUILT, NEVER MUTATED. Whether undo has anywhere to go is the game's state, and the
   // control is drawn FROM it — so the tree cannot disagree with the history about what is possible.
@@ -539,6 +546,10 @@ export function startSolitaire(container: HTMLElement): () => void {
     for (const off of undoHint) off();
     undoHint = [];
     hinted = undefined;
+    if (hintTimer) {
+      clearTimeout(hintTimer);
+      hintTimer = undefined;
+    }
   };
 
   /** The first legal move found, read the same way the double-tap reads one. */
@@ -572,6 +583,11 @@ export function startSolitaire(container: HTMLElement): () => void {
     hinted = found;
     // The same ring a willing pile wears under a drag — the player already knows what it means.
     undoHint = [wearInvite(found.dest), wearInvite(found.card)];
+    hintTimer = setTimeout(() => {
+      clearHint();
+      dressDesk();
+      redraw();
+    }, 4000);
     dressDesk();
     redraw();
   };
@@ -689,6 +705,14 @@ export function startSolitaire(container: HTMLElement): () => void {
     // from here on — it lights it, sinks it and fires the press on the way UP. All that is left for
     // this handler is to keep its hands off, or a press on a control would also move a card under it.
     if (pickTop(host, g, (n) => caps(n).has("Pressable"))) return;
+    // ANY touch of the table that is not the second press on the hint button itself (already let
+    // through above) puts a lit hint out — the player looked elsewhere, so the light no longer says
+    // anything true about what they are about to do.
+    if (hinted) {
+      clearHint();
+      dressDesk();
+      redraw();
+    }
     const hit = pick(host, board.desk, g, (n) => isCard(n) || caps(n).has("Container"));
     if (!hit) return;
     // A press on the stock deals, it does not drag — resolve that first. The FIRST press lays the
@@ -747,6 +771,7 @@ export function startSolitaire(container: HTMLElement): () => void {
     view.removeEventListener("pointerdown", onDown);
     stopButtons();
     if (dealTimer) clearTimeout(dealTimer);
+    if (hintTimer) clearTimeout(hintTimer);
     motion.stop();
     painter.destroy();
     host.unmount();
