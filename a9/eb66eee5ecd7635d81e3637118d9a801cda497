@@ -1,0 +1,61 @@
+game-kit/.storybook/stories/Hands.stories.ts
+  s_bb50e143b631d0::t_ea796ffcb6df1c 15
+game-kit/.storybook/stories/magnetMap.test.ts
+  s_bb50e143b631d0::t_a8fda770f1f9ac 29
+  s_bb50e143b631d0::t_f0eff91e371946 31
+game-kit/.storybook/stories/Cards.stories.ts
+  s_bb50e143b631d0::t_f0eff91e371946 10
+game-kit/src/index.ts
+  s_bb50e143b631d0::t_560172016e6371 263
+game-kit/src/render/zoneNear.ts
+  s_bb50e143b631d0::t_560172016e6371 10,12
+  s_bb50e143b631d0::t_71dc6f1f96bc4d 1-9,11,14-88
+  s_bb50e143b631d0::t_95082137d3c243 13
+apps/hub/src/table/index.ts
+  s_bb50e143b631d0::t_67ebabf89ba3ca 359-367,369-371
+  s_bb50e143b631d0::t_42a98434d85935 94,97-105,194-195,198
+  s_bb50e143b631d0::t_beb56a98200e3b 20,316-324,452-469,473-490,499-501
+  s_bb50e143b631d0::t_5118561332390e 28-29,39-46,77
+  s_bb50e143b631d0::t_07cee3a0397dca 78
+  s_bb50e143b631d0::t_c48cbf85fc1dcc 273-274,292-315,330-333,337
+  s_bb50e143b631d0::t_114ad1e2cbcc03 368,470-472
+  s_bb50e143b631d0::t_b410e03e6edba3 379
+server/src/KitRoom.ts
+  s_bb50e143b631d0::t_fc5c0c0f4265ac 77-86
+apps/hub/src/table/people.test.ts
+  s_bb50e143b631d0::t_34e2db1159f6c3 1-119
+apps/hub/src/table/people.ts
+  s_bb50e143b631d0::t_ab13067d172ba7 101
+  s_bb50e143b631d0::t_d908fcc05fcd84 1-41,43,54-100,102-308
+  s_bb50e143b631d0::t_07cee3a0397dca 42
+  s_bb50e143b631d0::t_30c1c071d57dde 44-53
+game-kit/.storybook/stories/magnetScene.ts
+  s_bb50e143b631d0::t_bef09f45eb3d38 8
+apps/hub/src/online/table.ts
+  s_bb50e143b631d0::t_ccd0e028c15446 6-22,29-30,33-39,119,163-165,179-193
+  s_bb50e143b631d0::t_c365d6768620b5 92-112,131
+  s_bb50e143b631d0::t_afc69bfcee3f34 132
+apps/hub/src/table/mapFor.ts
+  s_bb50e143b631d0::t_30c1c071d57dde 6-9,24-28
+apps/hub/src/online/table.test.ts
+  s_bb50e143b631d0::t_30b172e4db4019 36,112-147
+  s_bb50e143b631d0::t_b688007e0186e1 148
+server/src/KitRoom.test.ts
+  s_bb50e143b631d0::t_4a4e5ed23c07d7 98-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a9eb66eee5ecd7635d81e3637118d9a801cda497",
+  "prompts": {},
+  "sessions": {
+    "s_bb50e143b631d0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac9a435e-029c-40b8-961a-8bc9e262422d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
