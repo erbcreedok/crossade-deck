@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**77 слоёв · 1639 кейсов заявлено · 1466 расписано поимённо.**
+**77 слоёв · 1641 кейсов заявлено · 1468 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -96,10 +96,10 @@
 | [UNIT · шахматы — доска, через реальную проводку](68-chess.md) | `vitest (headless, no WebGL, jsdom)` | 4 | 4 |
 | [UNIT · NodeSpec и Revised — сериализация дерева](69-spec.md) | `vitest (headless, no WebGL)` | 4 | 4 |
 | [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 6 | 6 |
-| [UNIT · fall — бросок, падение и посадка](71-fall.md) | `vitest` | 11 | 11 |
+| [UNIT · fall — бросок, падение и посадка](71-fall.md) | `vitest` | 12 | 12 |
 | [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 5 | 5 |
 | [UNIT · mirror — чужая рука на своём экране](74-mirror.md) | `vitest + jsdom + фейковые часы` | 2 | 2 |
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |
 | [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 8 | 8 |
 | [UNIT · idleReturn — возврат камеры](77-idle-return.md) | `vitest (headless, no WebGL)` | 2 | 2 |
-| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 5 | 5 |
+| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 6 | 6 |

@@ -515,24 +515,23 @@ export function liveTable<S extends LiveStage = LiveStage>(
     // FIRST, and whatever else this desk is: a consumer that re-derives its own furniture must do it
     // before anything reads the tree again, or one frame is drawn against the shape it just left.
     onDeskChanged?.(built.host.root);
-    // A DESK WITH ITS OWN LAW ABOUT PIECES has said what it had to say (`pieces.settled`) — and a
-    // handle put back under the dice is a tree write every screen has to be told about.
-    if (!stacking && pieces?.settled) {
-      built.host.setRoot(built.host.root);
-      mirror?.changed();
-    }
-    if (!stacking || !heapKindOf) return;
     // WHAT THE CLOCK IS CARRYING IS NOT IN A HEAP. A thrown card is in the air, not lying on the
     // felt, and a handle that still counted it would pull it back out of its own flight the moment
     // somebody took the stack again — the piece has to leave the heap when it leaves the desk. What
     // a HAND is carrying is not lying there either, for the same reason.
-    const inTheHand = inHand ? heaps.get(inHand) : undefined;
-    const aloft = (id: string): boolean =>
-      (built.motions?.busy(id) ?? false) || (inTheHand?.some((n) => n.id === id) ?? false);
-    heaps = regrip(built.host.root, heapKindOf, grip, aloft, inHand, rule);
-    // The held handle keeps its own run: it was taken with those pieces and it puts down those
-    // pieces, whatever the desk has rearranged itself into meanwhile.
-    if (inHand && inTheHand) heaps.set(inHand, inTheHand);
+    if (stacking && heapKindOf) {
+      const inTheHand = inHand ? heaps.get(inHand) : undefined;
+      const aloft = (id: string): boolean =>
+        (built.motions?.busy(id) ?? false) || (inTheHand?.some((n) => n.id === id) ?? false);
+      heaps = regrip(built.host.root, heapKindOf, grip, aloft, inHand, rule);
+      // The held handle keeps its own run: it was taken with those pieces and it puts down those
+      // pieces, whatever the desk has rearranged itself into meanwhile.
+      if (inHand && inTheHand) heaps.set(inHand, inTheHand);
+    }
+    // A GESTURE JUST ENDED ON THIS DESK, whatever shape it is — a heap regripped above, a mark this
+    // touch wrote (`fall.ts`), a plain seat a card was let go at. Every one of those is a tree change
+    // the other screens have not seen: told only here, or a desk with no heaps and no derived
+    // furniture (a plain live map) never resyncs its partner after a drop at all.
     built.host.setRoot(built.host.root);
     // ...AND SO DOES EVERY OTHER SCREEN LOOKING AT THIS DESK. One tree, several hosts: a change made
     // here is a change to the board they are all reading, and a host is only ever told by being told.
@@ -800,9 +799,10 @@ export function liveTable<S extends LiveStage = LiveStage>(
       : {}),
     ...(may ? { may } : {}),
     // THE ORDINARY DROP'S OWN ENDING, for the desk that neither stacks nor names its own runs.
-    // Both of those answer `onSettled` themselves above; a plain desk answers nobody, and until
-    // something did, a desk with derived furniture had no moment to re-derive it in.
-    ...(!stacking && !pieces?.runOf && onDeskChanged
+    // Both of those answer `onSettled` themselves above — and this one always does too, `onDeskChanged`
+    // or not: a plain desk still owes its mirror a `settle()` once the drop is written, or a mark
+    // this touch just earned (`fall.ts`) sits in the tree with nobody else ever told to look again.
+    ...(!stacking && !pieces?.runOf
       ? {
           onSettled: () => {
             inHand = undefined;
