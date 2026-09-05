@@ -3,7 +3,7 @@ import { loadEnv } from "./env.js";
 import { GAMES, type Game } from "./games.js";
 import { gameOfCommand, gameOfNewArg } from "./commands.js";
 import { createRoom } from "./rooms.js";
-import { dmMessage, groupMessage } from "./links.js";
+import { roomMessage } from "./links.js";
 
 const env = loadEnv();
 const bot = new Bot(env.botToken);
@@ -11,13 +11,7 @@ const bot = new Bot(env.botToken);
 async function replyWithNewRoom(ctx: any, game: Game): Promise<void> {
   const by = ctx.from ? String(ctx.from.id) : undefined;
   const room = await createRoom(env.serverUrl, game, by);
-  if (ctx.chat?.type === "private") {
-    const { text, keyboard } = dmMessage(env.hubUrl, room);
-    await ctx.reply(text, { reply_markup: keyboard });
-    return;
-  }
-  const me = await bot.api.getMe();
-  const { text, keyboard } = groupMessage(env.hubUrl, room, me.username, env.appName);
+  const { text, keyboard } = roomMessage(env.hubUrl, room, env.appName);
   await ctx.reply(text, { reply_markup: keyboard });
 }
 
