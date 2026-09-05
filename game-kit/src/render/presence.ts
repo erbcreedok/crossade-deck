@@ -23,7 +23,6 @@
 import { apply, chain, invert, move, rotate, scale, type Transform, type Vec } from "../core/transform.js";
 import { polyline } from "../core/path.js";
 import { Bounded, type Shape } from "../core/atoms/bounded.js";
-import { Draggable } from "../core/atoms/draggable.js";
 import { Labeled } from "../core/atoms/labeled.js";
 import { Oriented } from "../core/atoms/oriented.js";
 import { Screened } from "../core/atoms/screened.js";
@@ -405,10 +404,12 @@ function installLook(p: Presence): void {
  * `Screened` because it is sized for the EYE and not for the felt — a face that shrank with the zoom
  * would be a speck on a board seen whole, which is the one view a desk with four people opens at.
  *
- * `Draggable` only when it is one's OWN: a picture of somebody else is not a thing to be moved
- * about, and the absence of the atom is the whole of that refusal (CANONS §1, no negation flags).
+ * NOT `Draggable`, and not one's own either: an avatar is a READING of where its owner is looking,
+ * so a finger that moved the disc would be moving a measurement. What a person moves when they want
+ * to sit somewhere else is their PLACE (`seatChair`), and the disc follows the camera to it. The
+ * absence of the atom is the whole of that refusal (CANONS §1, no negation flags).
  */
-export function avatarNode(p: Presence, mine: boolean): Node {
+export function avatarNode(p: Presence): Node {
   installLook(p);
   const root = node(
     avatarId(p.seat),
@@ -419,8 +420,7 @@ export function avatarNode(p: Presence, mine: boolean): Node {
     Screened({ screened: true }),
     // AN AVATAR SAYS IT IS ONE. What makes a node a person at this desk is that it says so, not that
     // it is called something (`guard.id-is-opaque`).
-    Valued({ values: { [AVATAR_VALUE]: 1, seatPlace: p.place } }),
-    ...(mine ? [Draggable({ onReject: "stay" })] : []),
+    Valued({ values: { [AVATAR_VALUE]: 1 } }),
   );
   add(
     root,
@@ -463,11 +463,11 @@ export const PRESENCE_TEXT = "presence.name";
  * repaints it, the view moves it, and a name can be corrected. What is NOT rebuilt is the place in
  * the tree — a node standing under the same id stays the same node to a mirror and to a drag.
  */
-export function placeAvatars(root: Node, presences: readonly Presence[], mine: string | undefined): void {
+export function placeAvatars(root: Node, presences: readonly Presence[]): void {
   for (const p of presences) {
     const standing = byId(root, avatarId(p.seat));
     if (standing?.parent) remove(standing.parent, standing);
-    add(root, avatarNode(p, p.seat === mine));
+    add(root, avatarNode(p));
   }
   // WHOEVER IS NO LONGER IN THE MESSAGE IS NO LONGER AT THE DESK. Left standing, a player who closed
   // the tab would sit there for the rest of the evening, which is a lie the desk tells.

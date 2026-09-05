@@ -504,16 +504,21 @@ export function startTable(container: HTMLElement): Teardown {
           // step rather than remembered from the opening, because the glass may have been turned
           // over since, and a remembered number would bring the eye home to the old phone.
           homeAt(live.camera, () => openHome()),
-          () => ({
-            seat: "",
-            place,
-            name: "",
-            ink: "accent",
-            state: "online",
-            holding: false,
-            view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
-            pin: { mode: "desk", at: place.at, leash: "lock" },
-          }),
+          // WHERE MY PLACE IS NOW, asked every step and never remembered: a chair can be dragged,
+          // and a home read once would bring the eye back to a seat I have since got up from.
+          () => {
+            const home = people?.placeOf(seat ?? "") ?? place;
+            return {
+              seat: "",
+              place: home,
+              name: "",
+              ink: "accent",
+              state: "online",
+              holding: false,
+              view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
+              pin: { mode: "desk", at: home.at, leash: "lock" },
+            };
+          },
           {},
         );
         // ANY POINTER DOWN ON THIS GLASS IS AN INPUT — see `liveTable.ts`'s own listener for `seats`.

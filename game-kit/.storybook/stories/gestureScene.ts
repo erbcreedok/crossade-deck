@@ -173,6 +173,7 @@ export function grabScene(
   seats?: {
     readonly places: readonly SeatPlace[];
     readonly mine: number;
+    readonly placeNow?: () => SeatPlace | undefined;
     readonly idleReturn?: { readonly afterMs?: number; readonly glideMs?: number } | false;
   },
   /**

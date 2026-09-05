@@ -43,15 +43,6 @@ interface ChessArgs extends StackArgs {
 }
 
 /**
- * WHERE A PERSON OPENS, in units off the middle — just inside the felt, past the board's own edge.
- *
- * A board is not a felt and there is no patch of it that is anybody's, so a disc standing ON the
- * squares would be a piece the game has no word for. It stands on the border instead, on the side
- * that player is looking from.
- */
-const SIDE = 6;
-
-/**
  * THE DIFFERENCE BETWEEN A BOARD AND A FELT, AS ONE NUMBER — and it is worth moving.
  *
  * At `0` a piece is on the square it is over and there is no other answer, which is what a board IS.
@@ -89,7 +80,7 @@ function liveChess(a: ChessArgs): HTMLElement {
     // and on a board every place belongs to the game rather than to anybody sitting at it.
     const places = chessPlaces(2);
     const people = a.avatars
-      ? withAvatars({ desk: board, seats: CHESS_SEATS, screens, page: "chess", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), wall, places })
+      ? withAvatars({ desk: board, seats: CHESS_SEATS, screens, page: "chess", wall, places })
       : undefined;
     // A SIMPLE HEARTBEAT FOR THE IDLE GLIDE — see `Cards.stories.ts` for why this is a plain
     // interval rather than a clock of the page's own.
@@ -172,6 +163,8 @@ function liveChess(a: ChessArgs): HTMLElement {
             ? {
                 places,
                 mine: CHESS_SEATS.findIndex((s) => s.seat === seat),
+                // A PLACE CAN BE DRAGGED, so home is asked for rather than remembered.
+                placeNow: () => people?.placeOf(seat),
                 idleReturn: a.idleReturn ? { afterMs: a.idleMs ?? 6000, glideMs: 600 } : false,
               }
             : undefined,

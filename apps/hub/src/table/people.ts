@@ -4,7 +4,7 @@
 // screen is on somebody else's phone, so the same four questions — who is here, where do they
 // stand, what is in their hand, and are they still looking — are answered by what arrives on the
 // wire (`relay`) instead. Everything downstream of the answers is the kit's own and is not restated:
-// `placeAvatars` puts the discs on the felt, `growHand`/`placeHand` keep a hand beside its owner.
+// `placeAvatars` puts the discs on the felt, `growHand`/`placeHand` keep a hand beside its place.
 //
 // WHY A PRESENCE IS NOT A TREE WRITE. A view that moved is worth nothing a second later, and sent
 // as a revision it would beat every real change to the desk in a race the desk must win. So it goes
@@ -12,11 +12,9 @@
 // people it has been told about into its OWN copy of the tree.
 
 import {
-  avatarId,
   byId,
   placeAvatars,
   registerTextStyle,
-  repin,
   PRESENCE_TEXT,
   type CarryItem,
   type Node,
@@ -27,7 +25,7 @@ import {
   type SeatPlace,
   type Vec,
 } from "game-kit";
-import { growHand, handId, placeHand, setHandLock } from "@game-presets/desks";
+import { chairId, growHand, handId, placeHand, setHandLock, standChair } from "@game-presets/desks";
 import type { RelayMessage, RosterItem } from "../online/table.js";
 
 /** The name under a disc — the catalog's own, so a desk looks the same in the hub as on the shelf. */
@@ -65,7 +63,10 @@ export interface HubPeopleOptions {
   readonly desk: () => Node;
   /** This screen's own seat, once the room has said. */
   readonly mine: () => string | null;
-  /** The seats' own places at this desk, in seat order — `seatPlaces(n)` on the shelf. */
+  /**
+   * The seats' own OPENING places at this desk, in seat order — `seatPlaces(n)` on the shelf. Only
+   * the opening ones: a player may drag their own chair, after which `placeOf` is the answer.
+   */
   readonly places: readonly SeatPlace[];
   /** This screen's camera, as a message. Absent while the glass has not been laid out yet. */
   readonly view: () => PresenceView | undefined;
@@ -96,10 +97,12 @@ export interface HubPeople {
   handed(items: readonly CarryItem[], at: Vec | undefined, done: boolean): void;
   /** This tab stopped being looked at, or started again. */
   state(state: PresenceState): void;
-  /** A tap on one's OWN disc turns one's own lock. Anything else is not this wiring's. */
+  /** A tap on one's OWN chair turns one's own lock. Anything else is not this wiring's. */
   tapped(piece: Node): boolean;
   /** Everybody the room has named, in seat order. */
   seats(): readonly string[];
+  /** Where a seat's place stands RIGHT NOW — the opening one until its owner drags the chair. */
+  placeOf(seat: string): SeatPlace | undefined;
 }
 
 /** What one person's `relay {kind:"presence"}` carries, beyond the seat the room writes on it. */
@@ -109,6 +112,12 @@ interface PresenceWire {
   readonly state: PresenceState;
   readonly holding: boolean;
   readonly shut: boolean;
+  /**
+   * WHERE THIS PERSON'S CHAIR NOW STANDS. On the wire and not left to the tree, because a place is
+   * the one thing about this desk both screens must agree on for the hands to line up, and a tree
+   * arriving a revision late would put the far reader's patch under the cards it was dealt.
+   */
+  readonly place?: SeatPlace;
 }
 
 export function hubPeople(o: HubPeopleOptions): HubPeople {
@@ -123,10 +132,13 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
 
   let myState: PresenceState = "online";
   let myHolding = false;
-  /** Whether MY hand is shut — turned by a tap on my own disc, and told to everybody else. */
+  /** Whether MY hand is shut — turned by a tap on my own chair, and told to everybody else. */
   let myShut = false;
-  /** Where my own disc stands. Absent until a place is known; dragging the disc writes a new spot. */
-  let myPin: Presence["pin"] | undefined;
+  /**
+   * WHERE A SEAT'S PLACE HAS BEEN MOVED TO — mine by my own finger, everybody else's off the wire.
+   * Empty is the desk as it opened, and `o.places` answers.
+   */
+  const moved = new Map<string, SeatPlace>();
 
   let lastSent = 0;
   /** What was last put on the wire, so a view that did not move is not news. */
@@ -134,7 +146,7 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
 
   const placeOf = (seat: string): SeatPlace | undefined => {
     const i = seated.indexOf(seat);
-    return i >= 0 ? o.places[i] : undefined;
+    return moved.get(seat) ?? (i >= 0 ? o.places[i] : undefined);
   };
 
   const mineNow = (): Presence | undefined => {
@@ -142,7 +154,6 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     const view = o.view();
     if (!seat || !view) return undefined;
     const place = placeOf(seat);
-    const pin = myPin ?? { mode: "desk" as const, at: place?.at ?? { x: 0, y: 0 }, leash: "chase" };
     return {
       seat,
       name: names.get(seat) ?? seat,
@@ -151,7 +162,12 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
       holding: myHolding,
       view,
       ...(place ? { place } : {}),
-      pin,
+      // IN ITS OWN RING, AND DRAGGED ALONG BY ITS OWNER'S VIEW — `desk` at the place with a
+      // `chase`: at rest the disc stands in the chair, and when its owner pans away from their own
+      // seat it slides along the edge of their glass rather than being left behind. Not a screen
+      // pin: fastened to a fraction of the glass, every player looking at the middle of the table
+      // would be drawn standing on the deck.
+      pin: { mode: "desk", at: place?.at ?? { x: 0, y: 0 }, leash: "chase" },
     };
   };
 
@@ -190,11 +206,22 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     const desk = o.desk();
     for (const seat of seated) {
       const hand = byId(desk, handId(seat));
-      const avatar = byId(desk, avatarId(seat));
+      const chair = byId(desk, chairId(seat));
       if (!hand) continue;
       setHandLock(hand, shutOf(seat));
       growHand(hand);
-      if (avatar) placeHand(desk, avatar, hand, o.hands);
+      // AGAINST THE CHAIR and never against the disc: the patch belongs to the PLACE, so a reader
+      // panning their own view leaves it exactly where it was, cards and all.
+      if (chair) placeHand(desk, chair, hand, o.hands);
+    }
+  };
+
+  /** Every chair, stood where its place now is — this screen's own finger and the wire, one line. */
+  const layChairs = (): void => {
+    const desk = o.desk();
+    for (const seat of seated) {
+      const place = placeOf(seat);
+      if (place) standChair(desk, seat, place.at);
     }
   };
 
@@ -214,6 +241,7 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
       state: mine.state,
       holding: mine.holding,
       shut: myShut,
+      ...(mine.place ? { place: mine.place } : {}),
     };
     const said = JSON.stringify(wire);
     if (said === lastWire) return;
@@ -236,7 +264,8 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     placing = true;
     try {
       if (all.length > 0) {
-        placeAvatars(o.desk(), all, o.mine() ?? undefined);
+        placeAvatars(o.desk(), all);
+        layChairs();
         layHands();
         o.draw();
       }
@@ -249,6 +278,7 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
   return {
     publish: () => publish(false),
     settled: () => {
+      layChairs();
       layHands();
       o.draw();
     },
@@ -275,21 +305,26 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
         state: wire.state ?? "online",
         holding: wire.holding === true,
         shut: wire.shut === true,
+        ...(wire.place ? { place: wire.place } : {}),
       });
+      // THEY MOVED THEIR OWN CHAIR, and this screen's copy of the desk has to follow: a place is
+      // the anchor a hand is measured against, so a ring left behind is a patch left behind.
+      if (wire.place) moved.set(seat, wire.place);
       publish(false);
       return true;
     },
     handed: (items, at, done) => {
       const seat = o.mine();
       if (!seat) return;
-      // A HAND WITH SOMETHING IN IT IS A STATE, and one's own picture is not "something".
-      const carryingSelf = items.some((it) => it.id === avatarId(seat));
-      // WHERE THE FINGER PUT IT, IN THE PIN'S OWN UNITS — `repin`, never the carry's point as it
-      // stands. A carry speaks the DESK's units and a pin may be written in fractions of the glass.
-      const moved = carryingSelf ? mineNow() : undefined;
-      if (moved && at) myPin = repin(moved, at);
-      myHolding = done ? false : !carryingSelf;
-      if (carryingSelf || done) publish(true);
+      // A HAND WITH SOMETHING IN IT IS A STATE, and one's own chair is not "something".
+      const carryingSeat = items.some((it) => it.id === chairId(seat));
+      // WHERE THE FINGER PUT THE CHAIR IS WHERE I NOW SIT — written straight into the place, in the
+      // desk's own units, which is what a carry speaks and what a place is kept in. The facing is
+      // NOT touched: dragging a chair moves a seat, it does not turn it round.
+      const was = placeOf(seat);
+      if (carryingSeat && at && was) moved.set(seat, { at, facing: was.facing });
+      myHolding = done ? false : !carryingSeat;
+      if (carryingSeat || done) publish(true);
     },
     state: (state) => {
       myState = state;
@@ -297,12 +332,13 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     },
     tapped: (piece) => {
       const seat = o.mine();
-      // ...AND THE OWNER IS THE ONE WHO SHUTS IT. On the disc, because the disc is already the
-      // thing on this desk that means "you".
-      if (o.hands === undefined || !seat || piece.id !== avatarId(seat)) return false;
+      // ...AND THE OWNER IS THE ONE WHO SHUTS IT. On the CHAIR, because the chair is the thing on
+      // this desk that means "you" — nothing a finger does reaches the disc at all.
+      if (o.hands === undefined || !seat || piece.id !== chairId(seat)) return false;
       myShut = !myShut;
       publish(true);
       return true;
     },
+    placeOf,
   };
 }

@@ -127,14 +127,14 @@ describe("presence", () => {
 
   it("presence.the-desk-keeps-one-person-per-seat — and drops whoever left the table", () => {
     const desk = node("desk", Container({}));
-    placeAvatars(desk, [person("south"), person("north")], "south");
+    placeAvatars(desk, [person("south"), person("north")]);
     expect(desk.children.length).toBe(2);
 
     // Fed again, the same two people are still two people — not four.
-    placeAvatars(desk, [person("south"), person("north")], "south");
+    placeAvatars(desk, [person("south"), person("north")]);
     expect(desk.children.length).toBe(2);
 
-    placeAvatars(desk, [person("south")], "south");
+    placeAvatars(desk, [person("south")]);
     expect(desk.children.map((n) => n.id)).toEqual([avatarId("south")]);
   });
 
@@ -169,43 +169,31 @@ describe("presence", () => {
     expect(repin(desked, { x: 1, y: 2 })).toEqual({ mode: "desk", at: { x: 1, y: 2 }, leash: "chase" });
   });
 
-  it("presence.ones-own-avatar-follows-the-finger-one-to-one — and a tap does not move it", () => {
+  it("presence.no-finger-reaches-the-disc — a drag on an avatar carries nothing and moves nothing", () => {
+    // AN AVATAR IS A READING, not a thing. It says where its owner is looking, and a finger that
+    // could move it would be a finger moving a measurement — the far screen would then be told
+    // this person is sitting somewhere their camera says they are not.
+    //
+    // WHAT A PERSON MOVES INSTEAD is their PLACE (`seatChair`), which is a thing on the felt and
+    // carries the hand with it. Checked at two zooms, because a picture that refuses the finger at
+    // one zoom and follows it at another is the same fault wearing a different number.
     for (const zoom of [0.5, 2]) {
       const hand = avatarHand(zoom);
       const before = hand.at();
-
       hand.down(200, 150);
       for (let i = 1; i <= 12; i++) hand.move(200 + i * 10, 150);
-      const carried = hand.carried!;
-      // ON THE GLASS, which is where the finger is: 120 pixels of hand, 120 pixels of picture, at
-      // either end of the zoom. In units that is a different number each time, and that difference
-      // is exactly what a desk gets wrong when it moves a picture by the finger's units.
-      const went = apply(hand.view(), carried);
-      const from = apply(hand.view(), before);
-      expect(went.x - from.x, `zoom ${zoom}`).toBeCloseTo(120, 3);
-      expect(went.y - from.y).toBeCloseTo(0, 3);
-      // ...AND THE PIN IS UPDATED, so the far screen reads the same place off the message alone.
-      const pin = repin(hand.who(), carried);
-      expect(avatarAt({ ...hand.who(), pin }).x).toBeCloseTo(carried.x, 6);
+      expect(hand.carried, `zoom ${zoom}: a drag on a disc reports no carry`).toBeUndefined();
       hand.up(320, 150);
-
-      // A TAP IS NOT A CARRY. The finger landed on the picture and left again without going
-      // anywhere, so nothing was moved and nothing was reported to move. Its own hand, because a
-      // tap is a gesture that starts on an avatar standing still — this one has just been dragged.
-      const tap = avatarHand(zoom);
-      const stood = tap.at();
-      tap.down(200, 150);
-      tap.up(200, 150, 40);
-      expect(tap.carried, "a tap reports no carry").toBeUndefined();
-      expect(tap.at()).toEqual(stood);
+      expect(hand.at(), `zoom ${zoom}: the disc did not move`).toEqual(before);
     }
   });
 
-  it("presence.only-ones-own-avatar-can-be-picked-up — somebody else's picture is not a thing to move", () => {
+  it("presence.no-avatar-can-be-picked-up — one's own is no more a thing to move than anybody else's", () => {
     const desk = node("desk", Container({}));
-    placeAvatars(desk, [person("south"), person("north")], "south");
-    expect(caps(byId(desk, avatarId("south"))!).has("Draggable")).toBe(true);
-    expect(caps(byId(desk, avatarId("north"))!).has("Draggable")).toBe(false);
+    placeAvatars(desk, [person("south"), person("north")]);
+    for (const seat of ["south", "north"]) {
+      expect(caps(byId(desk, avatarId(seat))!).has("Draggable"), seat).toBe(false);
+    }
   });
 });
 
@@ -243,7 +231,7 @@ function avatarHand(zoom: number) {
   camera.setZoom(zoom);
   camera.lookAt({ x: 0, y: 0 });
 
-  placeAvatars(desk, [who()], "south");
+  placeAvatars(desk, [who()]);
   const host = mount(div, desk, { hudUnit: 64, theme: "dark" });
   Object.defineProperty(host.view, "getBoundingClientRect", { value: () => box });
   const motions = attachMotion(host, stubPainter());

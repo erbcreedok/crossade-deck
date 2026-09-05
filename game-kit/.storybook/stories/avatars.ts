@@ -8,16 +8,14 @@
 // So it lives here, beside `liveScreens.ts` and for its reason: a cursor is what a hand is DOING and
 // an avatar is the person doing it, both belong to every live page, and a bug in either is one bug.
 //
-// WHAT A PAGE STILL DECIDES is only what it is a page about: which seats, where a disc opens on ITS
-// felt, and whether this desk has hands at all. A board has none — a chess piece is on a square and
-// nowhere else — and a card table has one per person.
+// WHAT A PAGE STILL DECIDES is only what it is a page about: which seats, where their places are on
+// ITS felt, and whether this desk has hands at all. A board has none — a chess piece is on a square
+// and nowhere else — and a card table has one per person.
 
 import {
-  avatarId,
   byId,
   placeAvatars,
   registerTextStyle,
-  repin,
   watchPresence,
   PRESENCE_TEXT,
   type CarryItem,
@@ -30,7 +28,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { type Screen } from "./liveScreens.js";
-import { growHand, handId, placeHand, setHandLock } from "@game-presets/desks";
+import { chairId, growHand, handId, placeHand, setHandLock, standChair } from "@game-presets/desks";
 import { currentSettings, onSettingsChange } from "../devtools/catalogSettings.js";
 import { loadPage, type PageText } from "../locales/pages.js";
 
@@ -51,13 +49,13 @@ export interface AvatarsOptions {
   readonly screens: readonly Screen[];
   /** The prose bundle whose `docs.<page>.name.<seat>` the discs wear. */
   readonly page: string;
-  /** Where each person's disc OPENS, in the desk's own units. Dragging it writes a new spot. */
-  readonly at: (i: number) => Vec;
   /**
-   * THE SEAT'S OWN PLACE at this desk — the shelf's `seatPlaces(n)`, by index, so `liveTable`'s idle
-   * glide has somewhere named to return a wandered view to. Absent, no `Presence` here carries a
-   * `place` and nothing about idle return changes: this is the same desk without a seat, not a
-   * broken one.
+   * THE SEAT'S OWN PLACE at this desk — the shelf's `seatPlaces(n)`, by index, and the ANCHOR of
+   * everything below: the chair stands there, the hand stands beside it, and `liveTable`'s idle
+   * glide returns a wandered view to it. Only the OPENING place: its owner may drag their chair
+   * somewhere else, after which `placeOf` is the answer and this list is only where they started.
+   * Absent, no `Presence` here carries a `place` and nothing about idle return changes: this is the
+   * same desk without a seat, not a broken one.
    */
   readonly places?: readonly SeatPlace[];
   /**
@@ -79,8 +77,10 @@ export interface Avatars {
   readonly handed: (seat: string, items: readonly CarryItem[], at: Vec | undefined, done: boolean) => void;
   /** A finger came down in this pane — the stand-in for "mine" where one tree serves two screens. */
   readonly claim: (seat: string) => void;
-  /** A tap on one's OWN disc turns one's own lock. Anything else is not this wiring's. */
+  /** A tap on one's OWN chair turns one's own lock. Anything else is not this wiring's. */
   readonly tapped: (seat: string, piece: Node) => boolean;
+  /** Where a seat's place stands RIGHT NOW — the opening one until its owner drags the chair. */
+  readonly placeOf: (seat: string) => SeatPlace | undefined;
 }
 
 /**
@@ -94,14 +94,15 @@ export interface Avatars {
 export function withAvatars(o: AvatarsOptions): Avatars {
   registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
   /**
-   * WHERE EACH PERSON'S OWN DISC STANDS RIGHT NOW — moved by dragging it, and it OPENS ON THE CHAIR.
+   * WHERE EACH SEAT'S PLACE STANDS RIGHT NOW — the opening one, until its owner drags their chair.
    *
-   * The seat's own place when this desk has one, and only then the page's opening spot: the chair is
-   * drawn at `seatPlaces(n)` and the disc is the person sitting in it, so a page whose two numbers
-   * differed by a unit would draw every player standing just beside their own seat — and the idle
-   * glide, which returns to the PLACE, would then move somebody who had not moved.
+   * The one truth on this page about who sits where: the chair is put here, the hand is measured
+   * against here, the idle glide returns here, and the far screen reads it off `Presence.place`.
+   * Kept beside the tree rather than read out of it, because a tree is rebuilt and a place is not.
    */
-  const pinned = new Map<string, Vec>(o.seats.map(({ seat }, i) => [seat, o.places?.[i]?.at ?? o.at(i)]));
+  const placed = new Map<string, SeatPlace>(
+    o.seats.flatMap(({ seat }, i) => (o.places?.[i] ? [[seat, o.places[i]!] as [string, SeatPlace]] : [])),
+  );
   const states = new Map<string, PresenceState>(o.seats.map(({ seat }) => [seat, "online"]));
   const holding = new Set<string>();
   /** Whose hand is shut. Turned by its owner's tap, and only on a desk that has hands at all. */
@@ -141,8 +142,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       // THE SEAT'S OWN PLACE, by the SEAT and not by the screen's position in the array — a screen
       // is filled in as a page opens its panes, and the order they arrive in is not the order the
       // seats were declared in.
-      const seatIndex = o.seats.findIndex((s) => s.seat === one.seat);
-      const place = o.places && seatIndex >= 0 ? o.places[seatIndex] : undefined;
+      const place = placed.get(one.seat);
       return [
         {
           seat: one.seat,
@@ -152,10 +152,13 @@ export function withAvatars(o: AvatarsOptions): Avatars {
           holding: holding.has(one.seat),
           view,
           ...(place ? { place } : {}),
-          // ON THE DESK and never on the glass. A person pinned to their own screen is at a
-          // different spot of the felt every time they pan, and on a desk where a hand stands
-          // beside them that is a patch of table sliding about under the cards lying in it.
-          pin: { mode: "desk", at: pinned.get(one.seat)!, leash: "chase" },
+          // IN ITS OWN RING, AND DRAGGED ALONG BY ITS OWNER'S VIEW — `desk` at the place with a
+          // `chase`: at rest the disc stands in the chair, and when its owner pans away from their
+          // own seat it slides along the edge of their glass rather than being left behind. Not a
+          // screen pin: fastened to a fraction of the glass, every player looking at the middle of
+          // the table would be drawn standing on the deck. Not a lock either — a lock moves the
+          // CAMERA, and a reader may look wherever they like.
+          pin: { mode: "desk", at: place?.at ?? { x: 0, y: 0 }, leash: "chase" },
         },
       ];
     });
@@ -171,11 +174,21 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     if (o.hands === undefined) return;
     for (const { seat } of o.seats) {
       const hand = byId(o.desk, handId(seat));
-      const avatar = byId(o.desk, avatarId(seat));
+      const chair = byId(o.desk, chairId(seat));
       if (!hand) continue;
       setHandLock(hand, shut.get(seat) === true);
       growHand(hand);
-      if (avatar) placeHand(o.desk, avatar, hand, o.hands);
+      // AGAINST THE CHAIR and never against the disc: the patch belongs to the PLACE, so a reader
+      // panning their own view leaves it exactly where it was, cards and all.
+      if (chair) placeHand(o.desk, chair, hand, o.hands);
+    }
+  };
+
+  /** Every chair, stood where its place now is — the owner's drag written back onto both screens. */
+  const layChairs = (): void => {
+    for (const { seat } of o.seats) {
+      const place = placed.get(seat);
+      if (place) standChair(o.desk, seat, place.at);
     }
   };
 
@@ -202,7 +215,8 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     last = now;
     placing = true;
     try {
-      placeAvatars(o.desk, all, mine);
+      placeAvatars(o.desk, all);
+      layChairs();
       layHands();
       tellScreens();
     } finally {
@@ -217,6 +231,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
    * compares people: a card landing in a hand is a change to the furniture alone.
    */
   const settled = (): void => {
+    layChairs();
     layHands();
     tellScreens();
   };
@@ -243,15 +258,16 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     publish,
     settled,
     handed: (seat, items, at, done) => {
-      // A HAND WITH SOMETHING IN IT IS A STATE, and one's own picture is not "something".
-      const carryingSelf = items.some((it) => it.id === avatarId(seat));
-      // WHERE THE FINGER PUT IT, IN THE PIN'S OWN UNITS — `repin`, never the carry's point as it
-      // stands. A carry speaks the DESK's units and a pin may be written in fractions of the glass.
-      const moved = carryingSelf ? presences().find((one) => one.seat === seat) : undefined;
-      if (moved && at) pinned.set(seat, repin(moved, at).at);
+      // A HAND WITH SOMETHING IN IT IS A STATE, and one's own chair is not "something".
+      const carryingSeat = items.some((it) => it.id === chairId(seat));
+      // WHERE THE FINGER PUT THE CHAIR IS WHERE THIS PERSON NOW SITS — written straight into the
+      // place, in the desk's own units, which is what a carry speaks and what a place is kept in.
+      // The facing is NOT touched: dragging a chair moves a seat, it does not turn it round.
+      const was = placed.get(seat);
+      if (carryingSeat && at && was) placed.set(seat, { at, facing: was.facing });
       if (done) holding.delete(seat);
-      else if (!carryingSelf) holding.add(seat);
-      if (carryingSelf || done) publish();
+      else if (!carryingSeat) holding.add(seat);
+      if (carryingSeat || done) publish();
     },
     claim: (seat) => {
       if (mine === seat) return;
@@ -259,13 +275,15 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       publish();
     },
     tapped: (seat, piece) => {
-      // ...AND THE OWNER IS THE ONE WHO SHUTS IT. On the disc, because the disc is already the
-      // thing on this desk that means "you": it is the only node a reader may pick up that is
-      // theirs, so it is the only one a tap can be about without asking whose it is.
-      if (o.hands === undefined || piece.id !== avatarId(seat)) return false;
+      // ...AND THE OWNER IS THE ONE WHO SHUTS IT. On the CHAIR, because the chair is the thing on
+      // this desk that means "you": it is the only node a reader may pick up that is theirs, so it
+      // is the only one a tap can be about without asking whose it is. Not on the disc — nothing a
+      // finger does reaches the disc at all.
+      if (o.hands === undefined || piece.id !== chairId(seat)) return false;
       shut.set(seat, shut.get(seat) !== true);
       publish();
       return true;
     },
+    placeOf: (seat) => placed.get(seat),
   };
 }

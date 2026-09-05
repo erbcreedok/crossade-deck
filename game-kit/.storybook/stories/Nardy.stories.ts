@@ -40,15 +40,6 @@ interface NardyArgs extends StackArgs {
   idleMs: number;
 }
 
-/**
- * WHERE A PERSON OPENS, in units off the middle — on the felt past the board's own long edge.
- *
- * A board is not a felt and no part of it is anybody's, so a disc standing ON the points would be a
- * checker the game has no word for. It stands on the border instead, on the side that player looks
- * from — the same place the dice are thrown beside.
- */
-const SIDE = 7.5;
-
 const REACH = documented("arg.pointReach", { control: { type: "number", min: 0, step: 0.05 } }, "nardy");
 const AVATARS = documented("arg.avatars", { control: { type: "boolean" } }, "nardy");
 const IDLE_RETURN = documented("arg.idleReturn", { control: { type: "boolean" } }, "nardy");
@@ -72,7 +63,7 @@ function liveNardy(a: NardyArgs): HTMLElement {
     // and on a board every place belongs to the game rather than to anybody sitting at it.
     const places = nardyPlaces(2);
     const people = a.avatars
-      ? withAvatars({ desk: board, seats: NARDY_SEATS, screens, page: "nardy", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), wall, places })
+      ? withAvatars({ desk: board, seats: NARDY_SEATS, screens, page: "nardy", wall, places })
       : undefined;
     // A SIMPLE HEARTBEAT FOR THE IDLE GLIDE — see `Cards.stories.ts` for why this is a plain
     // interval rather than a clock of the page's own.
@@ -144,6 +135,8 @@ function liveNardy(a: NardyArgs): HTMLElement {
             ? {
                 places,
                 mine: NARDY_SEATS.findIndex((s) => s.seat === seat),
+                // A PLACE CAN BE DRAGGED, so home is asked for rather than remembered.
+                placeNow: () => people?.placeOf(seat),
                 idleReturn: a.idleReturn ? { afterMs: a.idleMs ?? 6000, glideMs: 600 } : false,
               }
             : undefined,

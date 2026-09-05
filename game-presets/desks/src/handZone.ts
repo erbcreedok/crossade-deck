@@ -1,10 +1,12 @@
-// THE HAND AT THE AVATAR — a player's own patch of felt, standing where the player is.
+// THE HAND AT THE PLACE — a player's own patch of felt, standing where that player's chair stands.
 //
 // The rectangles `liveMap` seats are places the DESK decided on: two boxes at two fixed points, and
-// a player is whoever happens to be nearest one. That is backwards on a round table, where where a
-// person sits is read out of their own camera (`presence.ts`) and can be anywhere on the rim. So the
-// hand is fastened to the AVATAR instead: the picture of the person moves, the patch moves with it,
-// and neither has to be told where the other is.
+// a player is whoever happens to be nearest one. That is backwards on a round table, where a person
+// sits wherever their own chair is (`seatPlace.ts`) and can be anywhere on the rim. So the hand is
+// fastened to the PLACE: the chair is the anchor, the patch stands beside it, and moving one moves
+// the other. NOT to the avatar — the disc is a reading of where its owner is LOOKING, and a hand
+// fastened to it would be a patch of table sliding about under the cards lying in it every time
+// they panned.
 //
 // IT IS DYNAMIC, and that is not decoration. A fixed box on a felt this size is a permanent hole in
 // the middle of the table for a player holding nothing, and too small for one holding twelve. Empty
@@ -73,7 +75,7 @@ export const HAND_VALUE = "hand";
 export const HAND = { empty: { w: 1.2, h: 0.6 }, max: { w: 3.4 }, pad: 0.12, radius: 0.22 };
 
 /**
- * HOW FAR THE HAND STANDS OFF ITS AVATAR, in units — and generous, on purpose.
+ * HOW FAR THE HAND STANDS OFF ITS PLACE, in units — and generous, on purpose.
  *
  * An avatar is `Screened`: it is drawn at a size the FELT does not know, held for the eye rather
  * than scaled with the zoom, so on a table seen whole a disc measured at half a unit covers two. A
@@ -241,21 +243,21 @@ const SIDES: readonly Vec[] = [
 ];
 
 /**
- * PUT THE HAND BESIDE ITS AVATAR — on whichever side has the most felt left before the edge.
+ * PUT THE HAND BESIDE ITS PLACE — on whichever side has the most felt left before the edge.
  *
- * The side is not a setting because there is nothing to set: a player sitting at the top of a round
- * table has room below them and none above, and one sitting at the right has room to the left. Asked
- * as "which of the four sides leaves the most room to the rim", both fall out of the same line, and
- * a player who drags their avatar somewhere else gets the right answer without anybody deciding it.
+ * `anchor` is the node the place IS: the seat's chair on a desk that draws one. The side is not a
+ * setting because there is nothing to set: a player sitting at the top of a round table has room
+ * below them and none above, and one sitting at the right has room to the left. Asked as "which of
+ * the four sides leaves the most room to the rim", both fall out of the same line, and a player who
+ * drags their chair somewhere else gets the right answer without anybody deciding it.
  *
  * The room is measured to the HAND'S OWN far corner and not to its centre, because a patch three
  * units wide standing a hair inside the rim is still half off the table. Both nodes are read in the
- * desk's own space, which is where an avatar and a hand both stand.
+ * desk's own space, which is where a chair and a hand both stand.
  */
-export function placeHand(root: Node, avatar: Node, zone: Node, edge: number): void {
-  const seatPlace = fieldsOf<ValuedFields>(avatar, "Valued")?.values?.["seatPlace"] as { at: Vec; facing: number } | undefined;
-  const at = seatPlace?.at ?? fieldsOf<TransformableFields>(avatar, "Transformable")?.at ?? { x: 0, y: 0 };
-  const face = footprint(avatar);
+export function placeHand(root: Node, anchor: Node, zone: Node, edge: number): void {
+  const at = fieldsOf<TransformableFields>(anchor, "Transformable")?.at ?? { x: 0, y: 0 };
+  const face = footprint(anchor);
   const half = face ? extentOf(face) : { w: 0, h: 0 };
   const box = footprint(zone);
   const size = box ? extentOf(box) : { w: 0, h: 0 };

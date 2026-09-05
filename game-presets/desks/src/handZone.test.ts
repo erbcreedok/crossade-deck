@@ -69,7 +69,7 @@ describe("the hand at the avatar", () => {
     expect(size(zone).h).toBeGreaterThan(CARD.h);
   });
 
-  it("hand.a-hand-stands-on-the-side-of-its-avatar-with-room — never off the rim", () => {
+  it("hand.a-hand-stands-on-the-side-of-its-place-with-room — never off the rim", () => {
     // A PLAYER AT THE TOP OF THE TABLE has felt below them and none above; one at the right has felt
     // to the left. Both fall out of the same question, which is why the side is not a setting.
     const cases: readonly [{ x: number; y: number }, (at: { x: number; y: number }, from: { x: number; y: number }) => void][] = [
@@ -80,11 +80,11 @@ describe("the hand at the avatar", () => {
     ];
     for (const [from, check] of cases) {
       const desk = node("desk");
-      const avatar = avatarAt(from);
+      const place = avatarAt(from);
       const zone = handZone("south", "accent");
       for (let i = 0; i < 4; i += 1) add(zone, card(`c${i}`));
       growHand(zone);
-      placeHand(desk, avatar, zone, ROUND_R);
+      placeHand(desk, place, zone, ROUND_R);
       const at = footAt(zone);
       check(at, from);
       // ...and it is ON the felt, corner and all: a patch three units wide standing a hair inside

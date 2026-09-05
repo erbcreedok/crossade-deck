@@ -346,6 +346,12 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
   readonly seats?: {
     readonly places: readonly SeatPlace[];
     readonly mine: number;
+    /**
+     * WHERE MY OWN PLACE IS NOW, on a desk where a place can be MOVED — its owner drags their chair
+     * and the view has to come home to where it went, not to where it opened. Absent, `places[mine]`
+     * stands for ever, which is every desk whose seats are geometry.
+     */
+    readonly placeNow?: () => SeatPlace | undefined;
     /** Absent, the idle glide's own defaults (6000ms/600ms). `false` turns it off. */
     readonly idleReturn?: { readonly afterMs?: number; readonly glideMs?: number } | false;
   };
@@ -467,21 +473,27 @@ export function liveTable<S extends LiveStage = LiveStage>(
    * A stub `Presence` carries only what `idleReturn` reads off it (`place`); the rest of the shape
    * is never asked, so it is never worth threading a whole presence in just to build one.
    */
-  const mySeat = seats?.places[seats.mine];
+  const mySeat = (): SeatPlace | undefined => seats?.placeNow?.() ?? seats?.places[seats.mine];
   const idle: IdleReturnTracker | undefined =
-    seats && mySeat && built.camera && seats.idleReturn !== false
+    seats && mySeat() && built.camera && seats.idleReturn !== false
       ? idleReturn(
           built.camera,
-          (): Presence => ({
-            seat: "",
-            place: mySeat,
-            name: "",
-            ink: "accent",
-            state: "online",
-            holding: false,
-            view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
-            pin: { mode: "desk", at: mySeat.at, leash: "lock" },
-          }),
+          // ASKED EVERY STEP and never remembered: a place is draggable, and a home read once at
+          // build time would bring the eye back to a chair its owner has since got up from.
+          (): Presence | undefined => {
+            const place = mySeat();
+            if (!place) return undefined;
+            return {
+              seat: "",
+              place,
+              name: "",
+              ink: "accent",
+              state: "online",
+              holding: false,
+              view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
+              pin: { mode: "desk", at: place.at, leash: "lock" },
+            };
+          },
           seats.idleReturn ?? {},
         )
       : undefined;

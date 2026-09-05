@@ -240,7 +240,7 @@ export const Avatars: StoryObj<AvatarArgs> = {
           if (camera) leash(camera, pinned.get(one.seat)!, a.leash);
         }
       }
-      placeAvatars(desk, all, mine);
+      placeAvatars(desk, all);
       for (const one of screens) {
         one.scene?.setRoot(desk);
         outline(one);

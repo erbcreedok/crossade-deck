@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { avatarId, byId, installStockSurfaces, type Node, type PresenceView } from "game-kit";
-import { handId, roundPlaces, ROUND_R } from "@game-presets/desks";
+import { avatarId, byId, fieldsOf, installStockSurfaces, type Node, type PresenceView, type TransformableFields } from "game-kit";
+import { chairId, handId, roundPlaces, ROUND_R } from "@game-presets/desks";
 import { mapFor } from "./mapFor.js";
 import { hubPeople, PRESENCE_EVERY_MS } from "./people.js";
 import type { RelayMessage } from "../online/table.js";
@@ -31,6 +31,9 @@ function people(desk: Node, mine: string | null, clock: { ms: number }) {
   });
   return { wiring, sent, drawn: () => drawn };
 }
+
+const at = (n: Node): { x: number; y: number } =>
+  fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
 
 describe("hubPeople: the people at the hub's desk", () => {
   it("the roster puts a disc on the felt for every seat that is here", () => {
@@ -84,30 +87,71 @@ describe("hubPeople: the people at the hub's desk", () => {
     expect(clock.ms).toBeLessThan(1000 + PRESENCE_EVERY_MS);
   });
 
-  it("a seat's own hand stands beside its own disc", () => {
+  it("a seat's own hand stands beside its own place", () => {
     const desk = mapFor("cards");
     const clock = { ms: 0 };
     const { wiring } = people(desk, "p1", clock);
 
     wiring.roster(ROSTER);
-    const hand = byId(desk, handId("p1"));
-    const avatar = byId(desk, avatarId("p1"));
-    expect(hand).toBeDefined();
-    expect(avatar).toBeDefined();
+    expect(byId(desk, handId("p1"))).toBeDefined();
+    expect(byId(desk, avatarId("p1"))).toBeDefined();
+    expect(byId(desk, chairId("p1"))).toBeDefined();
   });
 
-  it("a tap on my own disc turns my own lock and tells the room; a tap on anything else is not mine", () => {
+  it("moving my own chair moves my place, my hand and the message about me", () => {
+    // THE ANCHOR IS THE CHAIR. A hand fastened to the disc would slide about under the cards in it
+    // every time its owner looked somewhere else, and the far screen would draw it somewhere else
+    // again — so the place goes on the wire and both screens stand the ring by the same number.
+    const desk = mapFor("cards");
+    const clock = { ms: 0 };
+    const { wiring, sent } = people(desk, "p1", clock);
+    wiring.roster(ROSTER);
+    const wasHand = at(byId(desk, handId("p1"))!);
+    const wasPlace = wiring.placeOf("p1")!;
+
+    clock.ms += 1000;
+    wiring.handed([{ id: chairId("p1") }] as never, { x: 1.5, y: -2 }, true);
+    expect(wiring.placeOf("p1")?.at).toEqual({ x: 1.5, y: -2 });
+    // The facing is untouched: dragging a chair moves a seat, it does not turn it round.
+    expect(wiring.placeOf("p1")?.facing).toBe(wasPlace.facing);
+    expect(at(byId(desk, chairId("p1"))!)).toEqual({ x: 1.5, y: -2 });
+    expect(at(byId(desk, handId("p1"))!)).not.toEqual(wasHand);
+    expect((sent[sent.length - 1] as { place?: { at: unknown } }).place?.at).toEqual({ x: 1.5, y: -2 });
+  });
+
+  it("a far seat that moved its chair moves it on this screen too", () => {
+    const desk = mapFor("cards");
+    const clock = { ms: 0 };
+    const { wiring } = people(desk, "p1", clock);
+    wiring.roster(ROSTER);
+    const wasHand = at(byId(desk, handId("p2"))!);
+    wiring.heard({
+      kind: "presence",
+      from: "p2",
+      view: VIEW,
+      pin: { mode: "screen", at: { x: 0.5, y: 0.5 } },
+      state: "online",
+      holding: false,
+      shut: false,
+      place: { at: { x: -3, y: 1 }, facing: 180 },
+    });
+    expect(wiring.placeOf("p2")?.at).toEqual({ x: -3, y: 1 });
+    expect(at(byId(desk, chairId("p2"))!)).toEqual({ x: -3, y: 1 });
+    expect(at(byId(desk, handId("p2"))!)).not.toEqual(wasHand);
+  });
+
+  it("a tap on my own chair turns my own lock and tells the room; a tap on anything else is not mine", () => {
     const desk = mapFor("cards");
     const clock = { ms: 0 };
     const { wiring, sent } = people(desk, "p1", clock);
 
     wiring.roster(ROSTER);
-    const mine = byId(desk, avatarId("p1"))!;
-    expect(wiring.tapped(mine)).toBe(true);
+    expect(wiring.tapped(byId(desk, chairId("p1"))!)).toBe(true);
     expect(sent[sent.length - 1]?.shut).toBe(true);
 
-    const other = byId(desk, handId("p1"))!;
-    expect(wiring.tapped(other)).toBe(false);
+    // NOT ON THE DISC. Nothing a finger does reaches it at all — it is a reading of a camera.
+    expect(wiring.tapped(byId(desk, avatarId("p1"))!)).toBe(false);
+    expect(wiring.tapped(byId(desk, handId("p1"))!)).toBe(false);
   });
 
   it("a message that is not a presence is not this wiring's", () => {

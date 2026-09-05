@@ -65,6 +65,7 @@ export {
   SEAT_TEXT,
   seatChair,
   seatChairs,
+  standChair,
   type SeatLook,
   type SeatOfDesk,
 } from "./seatPlace.js";

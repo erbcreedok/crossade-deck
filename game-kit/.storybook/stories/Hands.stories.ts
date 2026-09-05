@@ -194,7 +194,7 @@ export const Hands: StoryObj<HandArgs> = {
       last = now;
       placing = true;
       try {
-        placeAvatars(desk, all, mine);
+        placeAvatars(desk, all);
         layHands();
         for (const one of screens) one.scene?.setRoot(desk);
       } finally {

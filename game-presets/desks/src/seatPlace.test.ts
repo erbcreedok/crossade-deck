@@ -12,6 +12,7 @@ import {
   byId,
   caps,
   fieldsOf,
+  grippableBy,
   surfaceRecord,
   type LabeledFields,
   type Node,
@@ -22,7 +23,7 @@ import { CHESS_SEATS, chessMap, seatPlaces as chessPlaces } from "./chessMap.js"
 import { NARDY_SEATS, nardyMap, seatPlaces as nardyPlaces } from "./nardyMap.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
-import { chairId, chairSurface, isChair, seatChair } from "./seatPlace.js";
+import { chairId, chairSurface, isChair, seatChair, standChair } from "./seatPlace.js";
 
 const chairs = (desk: Node): Node[] => desk.children.filter(isChair);
 const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
@@ -50,9 +51,13 @@ describe("a seat is drawn", () => {
         // one answer (`seatPlaces`), or a view returning home lands beside the chair it came from.
         expect(poseOf(chair).x).toBeCloseTo(places[i]!.at.x);
         expect(poseOf(chair).y).toBeCloseTo(places[i]!.at.y);
-        // A chair is scenery: nothing may be dropped in it and nothing may pick it up.
+        // Nothing may be dropped IN a chair — it is not a place a card may go.
         expect(caps(chair).has("Acceptor")).toBe(false);
-        expect(caps(chair).has("Draggable")).toBe(false);
+        // ...but its OWNER may move it, and only its owner: where a person sits is theirs to decide,
+        // and a ring any passing finger could drag is a player being reseated by somebody else.
+        expect(caps(chair).has("Draggable")).toBe(true);
+        expect(grippableBy(chair, seat)).toBe(true);
+        for (const other of seats) if (other.seat !== seat) expect(grippableBy(chair, other.seat)).toBe(false);
       });
     });
 
@@ -72,7 +77,9 @@ describe("a seat is drawn", () => {
       const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
       const order = walk(desk);
       const last = chairs(desk).reduce((n, chair) => Math.max(n, order.indexOf(chair)), -1);
-      const pieces = order.filter((n) => caps(n).has("Draggable"));
+      // The chairs themselves are draggable now (their own owner moves them), so "a piece" is what
+      // is PLAYED on the desk — everything else that may be lifted.
+      const pieces = order.filter((n) => caps(n).has("Draggable") && !isChair(n));
       expect(pieces.length, "a desk with nothing on it proves nothing about what is under what").toBeGreaterThan(0);
       for (const piece of pieces) expect(order.indexOf(piece)).toBeGreaterThan(last);
     });
@@ -108,10 +115,25 @@ describe("a seat is drawn", () => {
         view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 400, h: 800 } },
         pin: { mode: "desk", at: place.at, leash: "chase" },
       },
-      true,
     );
     expect(avatar.id).toBe(avatarId(seat));
     expect(poseOf(avatar).x).toBeCloseTo(poseOf(byId(desk, chairId(seat))!).x);
     expect(poseOf(avatar).y).toBeCloseTo(poseOf(byId(desk, chairId(seat))!).y);
+  });
+});
+
+describe("a seat can be moved", () => {
+  it("seat.a-place-goes-where-its-owner-put-it — and the chair on every screen goes with it", () => {
+    // The ring is the ANCHOR, so moving it IS moving the seat: one writer (`standChair`), fed the
+    // place both screens read off `Presence.place`, or the two desks disagree about who sits where.
+    const desk = roundMap();
+    const seat = SEATS[0]!.seat;
+    const was = poseOf(byId(desk, chairId(seat))!);
+    standChair(desk, seat, { x: -2, y: 3 });
+    expect(poseOf(byId(desk, chairId(seat))!)).toEqual({ x: -2, y: 3 });
+    expect(poseOf(byId(desk, chairId(seat))!)).not.toEqual(was);
+    // A seat nobody has heard of is skipped rather than thrown at: an unknown name must not take
+    // the desk down with it (CANONS §1).
+    expect(() => standChair(desk, "nobody", { x: 0, y: 0 })).not.toThrow();
   });
 });

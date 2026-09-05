@@ -48,9 +48,6 @@ export default meta;
 /** How big another hand's cursor is drawn, in screen pixels. */
 const DOT = 18;
 
-/** How far off the middle each reader's own disc opens, in units — one a side, on the rim. */
-const SIDE = ROUND_R - 1;
-
 interface CardsArgs extends StackArgs {
   /** Whether the people are at this desk at all — and with them, their hands. */
   avatars: boolean;
@@ -86,7 +83,7 @@ function liveCards(a: CardsArgs): HTMLElement {
   const inks = Object.fromEntries(SEATS.map(({ seat, ink }) => [seat, ink]));
   const places = roundPlaces(2);
   const people = a.avatars
-    ? withAvatars({ desk, seats: SEATS, screens, page: "liveCards", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), hands: ROUND_R, wall, places })
+    ? withAvatars({ desk, seats: SEATS, screens, page: "liveCards", hands: ROUND_R, wall, places })
     : undefined;
   // A SIMPLE HEARTBEAT FOR THE IDLE GLIDE — `liveTable`'s own `idle.step` is left for whoever
   // already runs a clock (`liveTable.ts`), and this page runs none of its own until a reader asks
@@ -181,6 +178,8 @@ function liveCards(a: CardsArgs): HTMLElement {
           ? {
               places,
               mine: SEATS.findIndex((s) => s.seat === seat),
+              // A PLACE CAN BE DRAGGED, so home is asked for rather than remembered.
+              placeNow: () => people?.placeOf(seat),
               idleReturn: a.idleReturn ? { afterMs: a.idleMs ?? 6000, glideMs: 600 } : false,
             }
           : undefined,

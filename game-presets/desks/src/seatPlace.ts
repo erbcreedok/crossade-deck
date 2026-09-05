@@ -3,10 +3,10 @@
 //
 // A desk knows its PLACES (`seatPlaces`) long before it knows its people: they are geometry, worked
 // out from the shape of the felt, and they are the same on every screen. The avatar is not that. An
-// avatar is a person's EYES — it is read out of their own camera (`presence.ts`), it walks off with
-// them when they pan, and it may be picked up and put down. A desk that drew only the avatar had
-// nothing left on it when somebody looked away: the place they were sitting at vanished with them,
-// and a board with three wandered players read as a board nobody had joined.
+// avatar is a person's EYES — it is read out of their own camera (`presence.ts`) and walks off with
+// them when they pan. A desk that drew only the avatar had nothing left on it when somebody looked
+// away: the place they were sitting at vanished with them, and a board with three wandered players
+// read as a board nobody had joined.
 //
 // So the two are separate things and the chair is the permanent one. It is the ANCHOR — flat on the
 // sukno, in the place's own ink, a little bigger than the disc so the disc sits INSIDE it and the
@@ -18,14 +18,26 @@
 // says with a dashed line — and drawing it in some seat's colour would be claiming it for a player
 // who is not there.
 //
-// IT IS SCENERY. No `Acceptor`, no `Draggable`, no `Grabber` and no shadow: a chair is not a place a
-// card may go and not a thing a finger may take. It is added to the desk BEFORE the pieces, so the
-// document order that ranks equals in the plan puts it under every card and every man on the board.
+// NOTHING MAY BE PUT IN IT. No `Acceptor`, no `Grabber` and no shadow: a chair is not a place a card
+// may go. It is added to the desk BEFORE the pieces, so the document order that ranks equals in the
+// plan puts it under every card and every man on the board.
+//
+// BUT ITS OWNER MAY MOVE IT, and only its owner. Where a person sits is the one thing about a desk
+// that is theirs to decide, and it is decided by dragging the CHAIR — the anchor, with their hand
+// (`placeHand`) riding along — never by dragging the disc, which is a reading of their camera and
+// not a thing. So the ring is `Draggable` and `Grippable` by the one seat it belongs to: a finger
+// from any other screen is refused at the pick (`grippableBy`), which is the whole of that refusal
+// (CANONS §1, no negation flags). A place nobody holds is gripped by a name nobody answers to and
+// so is nobody's to move.
 
 import {
   add,
   Bounded,
+  byId,
   circle,
+  compose,
+  Draggable,
+  Grippable,
   Labeled,
   node,
   Oriented,
@@ -39,6 +51,7 @@ import {
   fieldsOf,
   type Node,
   type Paint,
+  type TransformableFields,
   type ValuedFields,
   type Vec,
 } from "game-kit";
@@ -124,6 +137,10 @@ export function seatChair(seat: string, place: { readonly at: Vec }, look?: Seat
     Oriented({ orientation: "viewer" }),
     Screened({ screened: true }),
     Valued({ values: { [CHAIR_VALUE]: 1 } }),
+    // STAY where the finger let go: a place is wherever its owner put it, and there is no target to
+    // refuse it — a chair that flew home on every release could not be moved at all.
+    Draggable({ onReject: "stay" }),
+    Grippable({ by: [seat] }),
   );
   if (look?.name !== undefined) {
     add(
@@ -167,4 +184,19 @@ export function seatChairs(
     add(desk, chair);
     return chair;
   });
+}
+
+/**
+ * THE CHAIR, MOVED TO WHERE ITS PLACE NOW IS — the one writer of a seat's position on the felt.
+ *
+ * A place that can be dragged is a place two screens have to agree about, and they agree by both
+ * reading the same `Presence.place`: the owner's finger writes it, the wire carries it, and this
+ * puts every screen's own ring where it says. Missing chair is skipped rather than thrown — a desk
+ * that seats nobody is still a desk (CANONS §1).
+ */
+export function standChair(desk: Node, seat: string, at: Vec): void {
+  const chair = byId(desk, chairId(seat));
+  if (!chair) return;
+  const own = fieldsOf<TransformableFields>(chair, "Transformable");
+  compose(chair, Transformable({ ...(own ?? {}), at }));
 }
