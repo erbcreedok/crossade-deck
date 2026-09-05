@@ -236,6 +236,11 @@ export function grabScene(
    * there. Absent, the camera opens at 0°, which is every other page on the shelf.
    */
   turn?: number,
+  /**
+   * THE VIEW MOVED, told to the page — for the one desk where where somebody is LOOKING is itself
+   * something standing on the felt. Absent, nobody asks, which is every page but that one.
+   */
+  onView?: () => void,
 ): HTMLElement {
   // THE HEAPS AS THEY STAND, by the handle that lifts each — rebuilt whenever anything moves, since
   // that is the only time the answer can have changed.
@@ -291,6 +296,7 @@ export function grabScene(
       // over bare map the same finger drives the view. The two never argue about a hand.
       claims: draggable,
       ...(turn === undefined ? {} : { turn }),
+      ...(onView ? { onView } : {}),
       // Opened in the middle at zoom 1, where the pieces are life-size and the map is not: a phone
       // holds about half of it, so there is somewhere to carry a piece TO from the first touch.
       // A DESK THAT NAMES ITS ROOM WANTS TO BE SEEN WHOLE: a board with a zone under it is taller

@@ -244,6 +244,12 @@ export interface CameraScene {
   /** How far the desk is laid back, in degrees. Live: a re-render feeds the standing camera. */
   readonly pitch?: number | undefined;
   /**
+   * THE VIEW MOVED — the seam a page needs when where somebody is LOOKING is itself part of the
+   * desk. The shell already wakes its own loop on this; a consumer that seats players by their
+   * cameras has to hear the same thing, and polling for it would be a second clock.
+   */
+  readonly onView?: (() => void) | undefined;
+  /**
    * The view's angle, in degrees — applied when it CHANGES and at no other time.
    *
    * Not on every feed, or a panel would fight the fingers: twist the desk by hand, touch any other
@@ -615,6 +621,7 @@ export function scene(
     };
     const wake = (): void => {
       dirty = true;
+      cam?.onView?.();
       if (running) return;
       running = true;
       lastMs = performance.now();
