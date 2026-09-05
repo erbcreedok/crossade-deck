@@ -33,5 +33,27 @@
     "The two screens are two SCENES, not one drawn twice: two hosts, two clocks, two cameras, because",
     "that is what two devices are. The far seat sits opposite and sees the desk from there — a player",
     "who had to read their own area upside down would be reading somebody else's table."
-  ]
+  ],
+  "docs.liveCards.avatars": [
+    "CARDS WITH THE PEOPLE ON THE DESK — and a hand each, standing where its owner stands.",
+    "",
+    "Every other live scene shows what somebody's hand is doing and nothing about the person doing",
+    "it: the cursor appears when they move and is gone the moment they stop, so a desk with a quiet",
+    "second player is a desk with one player at it. The disc is the permanent half of that message,",
+    "and where it stands is read out of that reader's own camera.",
+    "",
+    "And the hand follows the person. Deal to yourself and to the other player — take a card off the",
+    "deck and let it go over either patch: it goes in, on both screens, and the patch grows to hold",
+    "it. Drag your own disc and your hand travels with it, changing sides when the side it was on",
+    "runs out of table.",
+    "",
+    "Tap your own disc and the hand shuts. It is washed in its owner's colour, and from the other",
+    "screen it stops answering: a card let go of over it comes back, and a card lying in it cannot",
+    "be picked up at all. From its OWN screen nothing has changed, because the lock is about",
+    "everybody else.",
+    "",
+    "Turn the avatars knob off and the desk is the scene above — no people, and therefore no hands."
+  ],
+  "docs.liveCards.name.south": "Ann Lee",
+  "docs.liveCards.name.north": "Bo Ridge"
 }

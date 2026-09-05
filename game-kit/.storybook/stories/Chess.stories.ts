@@ -5,6 +5,7 @@ import { follow, type Screen } from "./liveScreens.js";
 import { chessMap, chessRoom, CHESS_SEATS, CHESS_UNIT, squareAt } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
+import { withAvatars } from "./avatars.js";
 
 // LIVE / CHESS — a board is a desk made of PLACES, and this is the page that says what that changes.
 //
@@ -33,7 +34,18 @@ const DOT = 18;
 interface ChessArgs extends StackArgs {
   /** How far past its own edge a square still takes a piece, in units. `0` is a board. */
   reach: number;
+  /** Whether the two people are drawn on the felt beside their own board.  */
+  avatars: boolean;
 }
+
+/**
+ * WHERE A PERSON OPENS, in units off the middle — just inside the felt, past the board's own edge.
+ *
+ * A board is not a felt and there is no patch of it that is anybody's, so a disc standing ON the
+ * squares would be a piece the game has no word for. It stands on the border instead, on the side
+ * that player is looking from.
+ */
+const SIDE = 6;
 
 /**
  * THE DIFFERENCE BETWEEN A BOARD AND A FELT, AS ONE NUMBER — and it is worth moving.
@@ -46,28 +58,16 @@ interface ChessArgs extends StackArgs {
 const REACH = documented("arg.cellReach", { control: { type: "number", min: 0, step: 0.05 } }, "chess");
 
 
+const AVATARS = documented("arg.avatars", { control: { type: "boolean" } }, "chess");
+
 /**
- * CHESS — one board, two people, and no rules at all.
+ * THE ONE SCENE BOTH STORIES STAND ON — they differ by whether anybody is sitting at the board.
  *
- * Pick a piece up on either screen and it comes up on both. The square under the anchor lights, and
- * the dashed picture of where the piece will stand moves into that square — so where it is going is
- * answered before the hand lets go, which on a board is the only question there is. Drop it on an
- * occupied square and the piece standing there goes to its owner's tray beside the board.
- *
- * WHICH ONE, NOT WHERE. Every other place on this shelf forgives a near miss, because a hand aiming
- * at an area is aiming at somewhere with a size. A square has a size too and forgives NOTHING: the
- * cells touch, so "the nearest" is meaningless — every one of them is nought away from a piece lying
- * across four — and the answer is the square the anchor is standing IN. That is the whole of what a
- * board adds, and it is one function (`squareAt`).
- *
- * NO RULES, and that is deliberate. Whose turn it is, what a knight may do, whether that was check:
- * those are a game's, and this shelf holds mechanics. A board with rules is a chess program; a board
- * without them is the thing every chess program is built on, and it is the part a kit has to get
- * right first. Move a rook diagonally and nothing objects — the desk has no opinion, which is
- * exactly what makes it a desk rather than an opponent.
+ * One render and not two, because the board is the same board: sixty-four squares do not change
+ * when a person walks up to them. What arrives with the people is the permanent half of the message
+ * the cursor only ever gives while a hand is moving.
  */
-export const Chess: StoryObj<ChessArgs> = {
-  render: (a) => {
+function liveChess(a: ChessArgs): HTMLElement {
     const wall = document.createElement("div");
     // TALLER THAN THE SHARED DESK'S WALL, because a board has to be seen WHOLE and there are two of
     // them stacked: where a piece is means nothing except against the other sixty-three squares, so a
@@ -79,10 +79,16 @@ export const Chess: StoryObj<ChessArgs> = {
     const screens: Screen[] = [];
     const held = a.lifted ? a.lift : 1;
     const inks = Object.fromEntries(CHESS_SEATS.map(({ seat, ink }) => [seat, ink]));
+    // NO HANDS ON A BOARD — the people and nothing else. A hand is a patch of felt a player owns,
+    // and on a board every place belongs to the game rather than to anybody sitting at it.
+    const people = a.avatars
+      ? withAvatars({ desk: board, seats: CHESS_SEATS, screens, page: "chess", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), wall })
+      : undefined;
 
     CHESS_SEATS.forEach(({ seat, ink }, i) => {
       const pane = document.createElement("div");
       pane.style.cssText = "position:relative;min-height:340px;overflow:hidden";
+      pane.addEventListener("pointerdown", () => people?.claim(seat), true);
       const dot = document.createElement("div");
       dot.style.cssText =
         `position:absolute;z-index:4;width:${DOT}px;height:${DOT}px;border-radius:50%;pointer-events:none;` +
@@ -94,12 +100,14 @@ export const Chess: StoryObj<ChessArgs> = {
         ready: (s, grasp) => {
           mine.scene = s;
           mine.grasp = grasp;
+          people?.publish();
         },
         changed: () => {
           for (const one of others()) one.grasp?.();
         },
         hand: (items, at, done, feel) => {
           for (const one of others()) follow(one, items, at, done, held, feel, mine.seat);
+          people?.handed(seat, items, at, done);
         },
       };
       pane.appendChild(
@@ -139,18 +147,65 @@ export const Chess: StoryObj<ChessArgs> = {
           // stays upright on his screen regardless (`Oriented: "viewer"` on every piece,
           // `chessMap.ts`): only the ROOM turns, never the pictures standing in it.
           seat === "black" ? 180 : undefined,
+          // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news.
+          people ? () => people.publish() : undefined,
         ),
       );
       pane.appendChild(dot);
       wall.appendChild(pane);
     });
-    return wall;
-  },
+  return wall;
+}
+
+/**
+ * CHESS — one board, two people, and no rules at all.
+ *
+ * Pick a piece up on either screen and it comes up on both. The square under the anchor lights, and
+ * the dashed picture of where the piece will stand moves into that square — so where it is going is
+ * answered before the hand lets go, which on a board is the only question there is. Drop it on an
+ * occupied square and the piece standing there goes to its owner's tray beside the board.
+ *
+ * WHICH ONE, NOT WHERE. Every other place on this shelf forgives a near miss, because a hand aiming
+ * at an area is aiming at somewhere with a size. A square has a size too and forgives NOTHING: the
+ * cells touch, so "the nearest" is meaningless — every one of them is nought away from a piece lying
+ * across four — and the answer is the square the anchor is standing IN. That is the whole of what a
+ * board adds, and it is one function (`squareAt`).
+ *
+ * NO RULES, and that is deliberate. Whose turn it is, what a knight may do, whether that was check:
+ * those are a game's, and this shelf holds mechanics. A board with rules is a chess program; a board
+ * without them is the thing every chess program is built on, and it is the part a kit has to get
+ * right first. Move a rook diagonally and nothing objects — the desk has no opinion, which is
+ * exactly what makes it a desk rather than an opponent.
+ */
+export const Chess: StoryObj<ChessArgs> = {
+  render: liveChess,
   // NO LANDING PICTURE, so no hover either. On a board the lit square IS the picture of where the
   // man lands, and a man held clear of the finger means the finger is over one square while the man
   // is drawn over the next — the light and the man on two different cells, which reads as the light
   // being wrong. Held ON the square, man and light say one thing.
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, reach: 0 },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, reach: 0, avatars: false },
   argTypes: { ...STACK_KNOBS, reach: REACH },
   parameters: { gkDocStory: "chess.scene" },
+};
+
+/**
+ * CHESS · WITH AVATARS — the same board with the two players drawn beside it.
+ *
+ * The cursor says what a hand is DOING and says nothing while it is still: a board with a quiet
+ * opponent is a board with one player at it. The disc is the other half of the message, and where it
+ * stands is read out of that player's own camera — pan the top screen and their disc travels the
+ * felt on the bottom one, which is exactly what "I am looking over here now" is.
+ *
+ * The state is on the disc. Switch to another tab and both go quiet with a muted mark; pick a piece
+ * up and the holder's disc takes a ring, which is the one thing everybody else is waiting on. Drag
+ * your own disc and it goes where the finger left it.
+ *
+ * Turn `avatars` off and the board is the scene above.
+ */
+export const ChessWithAvatars: StoryObj<ChessArgs> = {
+  name: "Chess · with avatars",
+  render: liveChess,
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, reach: 0, avatars: true },
+  argTypes: { ...STACK_KNOBS, reach: REACH, avatars: AVATARS },
+  parameters: { gkDocStory: "chess.avatars" },
 };
