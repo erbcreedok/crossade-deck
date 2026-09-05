@@ -1,0 +1,41 @@
+game-kit/docs/test-plan/README.md
+  s_cd42187a5cf28d::t_f9e2d42b7b5288 10,38
+apps/hub/src/hub/grid.ts
+  s_cd42187a5cf28d::t_2b6fde602ce566 22
+  s_cd42187a5cf28d::t_191989e3c6658f 14
+  s_cd42187a5cf28d::t_d5ca24381ff4c7 64-71,86-90,93,106-142,145-159
+  s_cd42187a5cf28d::t_4f8c8a0794020a 143-144
+  s_cd42187a5cf28d::t_a4384ac95a50aa 184
+  s_d6a5578edc929a::t_a5df5a9429130e 160
+game-kit/src/render/scenePlan/plan.test.ts
+  s_cd42187a5cf28d::t_b39b1e4bcb97af 215-230
+game-kit/src/render/scenePlan/index.ts
+  s_cd42187a5cf28d::t_d99811a91d973b 19,358-367
+game-kit/docs/test-plan/10-scene-plan.md
+  s_cd42187a5cf28d::t_158ad1c609e730 49
+  s_cd42187a5cf28d::t_d4023176f8a64b 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f596129fe71036d923651e4924c2e64db74694da",
+  "prompts": {},
+  "sessions": {
+    "s_cd42187a5cf28d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32d50a29-fc33-4cfb-a283-6140eb266c18",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d6a5578edc929a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ae357b-b272-4945-85c4-5faec932f56e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
