@@ -22,9 +22,11 @@ import {
   liveTable,
   isHandleAmong as isHandleAmongInKit,
   letFall as letFallInKit,
+  type LiveTable,
   type Mirror as KitMirror,
   type CarryItem,
   type Node,
+  type SeatPlace,
   type Vec,
   type ViewerSettings,
 } from "../../src/index.js";
@@ -163,6 +165,23 @@ export function grabScene(
    * whose desk is the same shape at the end of a gesture as it was at the start.
    */
   onDeskChanged?: (root: Node) => void,
+  /**
+   * WHERE THE SEATS ARE AT THIS DESK, and whether an idle view glides back to this screen's own —
+   * the same option `liveTable` itself takes (`LiveTableOptions.seats`), threaded through unchanged.
+   * Absent, no seat is minded, which is every page on the shelf until a reader asks for one.
+   */
+  seats?: {
+    readonly places: readonly SeatPlace[];
+    readonly mine: number;
+    readonly idleReturn?: { readonly afterMs?: number; readonly glideMs?: number } | false;
+  },
+  /**
+   * THE LIVE DESK ITSELF, handed back before its element is torn out of this function's return —
+   * the one way a page's own heartbeat can reach `idle.step` (`liveTable.ts`'s own note on `seats`:
+   * the countdown is the CONSUMER's clock, not the kit's). Returns a teardown, called if the page is
+   * ever asked to build a fresh one; absent, nobody outside this call ever sees the `LiveTable`.
+   */
+  onLive?: (live: LiveTable) => (() => void) | void,
 ): HTMLElement {
   // A DESK HANDED OVER AS A FACTORY IS BUILT ONCE and is the reader's from then on — turning a knob
   // must not sweep away the cards they dealt. See `scene`.
@@ -195,7 +214,7 @@ export function grabScene(
   // ...AND THE PANEL'S NUMBERS ARE RE-APPLIED TO THE DESK THAT IS ALREADY STANDING. The desk is not
   // rebuilt on an argument change, so anything a control writes INTO it — a zone's reach, a named
   // arrangement — has to be written again here, or the knob would only take effect on a page reload.
-  return liveTable<Scene>(built.el, built.host.root, {
+  const live = liveTable<Scene>(built.el, built.host.root, {
     stage: built,
     physics,
     ...(lift === undefined ? {} : { lift }),
@@ -216,6 +235,7 @@ export function grabScene(
     ...(may ? { may } : {}),
     ...(taps ? { taps } : {}),
     ...(onDeskChanged ? { onDeskChanged } : {}),
+    ...(seats ? { seats } : {}),
     // WHAT A PIECE HEAPS BY — the shelf's own answer, off what a piece carries and never off its
     // name (`guard.id-is-opaque`).
     heapKindOf,
@@ -223,7 +243,9 @@ export function grabScene(
     anchorMark: ANCHOR_MARK,
     // ...AND A DIE ROLLS THE DICE ADD-ON'S WAY. The kit ships no dice; the page that has them says so.
     onRoll: throwDie,
-  }).el;
+  });
+  onLive?.(live);
+  return live.el;
 }
 
 /**

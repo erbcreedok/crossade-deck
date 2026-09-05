@@ -208,6 +208,45 @@ describe("the live desk", () => {
     live.stop();
   });
 
+  it("liveTable.seats-idle-return — an idle view glides back to this screen's own place", () => {
+    const { root } = desk();
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    const camera = shell.camera!;
+    // A ROOM WIDER THAN THE GLASS, so a pan away from the seat is not immediately clamped back to
+    // it — the camera CENTRES an axis with room to spare (`Camera.clamp`), and the default content
+    // is a bare 1x1 unit box, smaller than any pan at all.
+    camera.setContent({ x: -100, y: -100, w: 200, h: 200 }, 20);
+    camera.setScreen(400, 400);
+    // AWAY FROM THE SEAT, so the glide has somewhere to travel back from.
+    camera.lookAt({ x: 1, y: 1 });
+
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      seats: {
+        places: [{ at: { x: 0, y: 0 }, facing: 0 }],
+        mine: 0,
+        idleReturn: { afterMs: 1000, glideMs: 200 },
+      },
+    });
+
+    expect(live.idle, "a seat was named, so this screen gets the idle glide").toBeDefined();
+    // BEFORE THE DEADLINE, NOTHING MOVES — a countdown that glided early would leave a reader's
+    // pan undone the moment they lifted a finger to think.
+    live.idle!.step(999);
+    expect(camera.target).toEqual({ x: 1, y: 1 });
+    // PAST IT, THE VIEW GLIDES ALL THE WAY HOME — the deadline plus the whole glide.
+    live.idle!.step(1 + 200);
+    expect(camera.target.x, "the glide reached the seat's own place").toBeCloseTo(0, 5);
+    expect(camera.target.y).toBeCloseTo(0, 5);
+    // AN INPUT RESETS THE COUNTDOWN — a finger back on the glass is not an idle reader.
+    camera.lookAt({ x: 1, y: 1 });
+    live.idle!.input();
+    live.idle!.step(999);
+    expect(camera.target, "a reset countdown has not glided yet").toEqual({ x: 1, y: 1 });
+    live.stop();
+  });
+
   it("liveTable.stop-takes-everything-off — no listener, no shell, nothing left holding the tree", () => {
     const { root } = desk();
     const c = fakeClock();

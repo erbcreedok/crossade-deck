@@ -975,6 +975,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     host: built.host,
     ...(built.motions ? { motions: built.motions } : {}),
     ...(built.camera ? { camera: built.camera } : {}),
+    ...(idle ? { idle } : {}),
     setRoot(next: Node, from: "me" | "net") {
       if (from === "net") {
         // THE TABS IN A TREE THAT ARRIVED ARE WHICHEVER SCREEN MADE THE CHANGE'S OWN, already

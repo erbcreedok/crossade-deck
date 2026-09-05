@@ -13,7 +13,7 @@ import {
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { zoneNear } from "./magnetMap.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { handTakes, isHand, LIVE_UNIT, ROUND_R, roundMap, roundRoom, SEATS } from "@game-presets/desks";
+import { handTakes, isHand, LIVE_UNIT, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 import { withAvatars } from "./avatars.js";
@@ -54,9 +54,15 @@ const SIDE = ROUND_R - 1;
 interface CardsArgs extends StackArgs {
   /** Whether the people are at this desk at all — and with them, their hands. */
   avatars: boolean;
+  /** Whether a view left idle glides back to this reader's own seat. Only means anything with `avatars` on. */
+  idleReturn: boolean;
+  /** How long a view may sit idle before it glides back, in ms. */
+  idleMs: number;
 }
 
 const AVATARS = documented("arg.avatars", { control: { type: "boolean" } }, "liveCards");
+const IDLE_RETURN = documented("arg.idleReturn", { control: { type: "boolean" } }, "liveCards");
+const IDLE_MS = documented("arg.idleMs", { control: { type: "number", min: 500, step: 500 } }, "liveCards");
 
 /**
  * THE ONE SCENE BOTH STORIES STAND ON — they differ by whether anybody is sitting at the desk.
@@ -78,9 +84,20 @@ function liveCards(a: CardsArgs): HTMLElement {
   const screens: Screen[] = [];
   const held = a.lifted ? a.lift : 1;
   const inks = Object.fromEntries(SEATS.map(({ seat, ink }) => [seat, ink]));
+  const places = roundPlaces(2);
   const people = a.avatars
-    ? withAvatars({ desk, seats: SEATS, screens, page: "liveCards", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), hands: ROUND_R, wall })
+    ? withAvatars({ desk, seats: SEATS, screens, page: "liveCards", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), hands: ROUND_R, wall, places })
     : undefined;
+  // A SIMPLE HEARTBEAT FOR THE IDLE GLIDE — `liveTable`'s own `idle.step` is left for whoever
+  // already runs a clock (`liveTable.ts`), and this page runs none of its own until a reader asks
+  // for the return: a plain interval, torn down when the story's own wall leaves the document.
+  const idleTimers: (() => void)[] = [];
+  const idleObserver = new MutationObserver(() => {
+    if (wall.isConnected) return;
+    for (const stop of idleTimers.splice(0)) stop();
+    idleObserver.disconnect();
+  });
+  idleObserver.observe(document.body, { childList: true, subtree: true });
 
   SEATS.forEach(({ seat, ink }, i) => {
     const pane = document.createElement("div");
@@ -160,6 +177,21 @@ function liveCards(a: CardsArgs): HTMLElement {
         (n: Node) => grippableBy(n, seat),
         (piece: Node) => people?.tapped(seat, piece) === true,
         people ? () => people.settled() : undefined,
+        a.avatars
+          ? {
+              places,
+              mine: SEATS.findIndex((s) => s.seat === seat),
+              idleReturn: a.idleReturn ? { afterMs: a.idleMs ?? 6000, glideMs: 600 } : false,
+            }
+          : undefined,
+        a.avatars
+          ? (live) => {
+              const id = setInterval(() => live.idle?.step(200), 200);
+              const stop = () => clearInterval(id);
+              idleTimers.push(stop);
+              return stop;
+            }
+          : undefined,
       ),
     );
     pane.appendChild(dot);
@@ -191,7 +223,7 @@ function liveCards(a: CardsArgs): HTMLElement {
  */
 export const Cards: StoryObj<CardsArgs> = {
   render: liveCards,
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, avatars: false },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, avatars: false, idleReturn: false, idleMs: 6000 },
   argTypes: { ...STACK_KNOBS },
   parameters: { gkDocStory: "liveCards.scene" },
 };
@@ -214,7 +246,7 @@ export const Cards: StoryObj<CardsArgs> = {
 export const CardsWithAvatars: StoryObj<CardsArgs> = {
   name: "Cards · with avatars",
   render: liveCards,
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, avatars: true },
-  argTypes: { ...STACK_KNOBS, avatars: AVATARS },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, avatars: true, idleReturn: false, idleMs: 6000 },
+  argTypes: { ...STACK_KNOBS, avatars: AVATARS, idleReturn: IDLE_RETURN, idleMs: IDLE_MS },
   parameters: { gkDocStory: "liveCards.avatars" },
 };

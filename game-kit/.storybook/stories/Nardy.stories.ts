@@ -11,7 +11,7 @@ import type { Meta, StoryObj } from "@storybook/html";
 import { installStockCarries, installStockCoats, installStockMarkIcons, installStockMarks, t, type Node, type Vec } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { mayThrow, nardyMap, NARDY_BUMP, nardyRoom, NARDY_SEATS, NARDY_UNIT, pointUnder, runOf, seatsOf, settled, wallsOf } from "@game-presets/desks";
+import { mayThrow, nardyMap, NARDY_BUMP, nardyPlaces, nardyRoom, NARDY_SEATS, NARDY_UNIT, pointUnder, runOf, seatsOf, settled, wallsOf } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 import { withAvatars } from "./avatars.js";
@@ -34,6 +34,10 @@ interface NardyArgs extends StackArgs {
   reach: number;
   /** Whether the two people are drawn on the felt beside their own board. */
   avatars: boolean;
+  /** Whether a view left idle glides back to this reader's own seat. Only means anything with `avatars` on. */
+  idleReturn: boolean;
+  /** How long a view may sit idle before it glides back, in ms. */
+  idleMs: number;
 }
 
 /**
@@ -47,6 +51,8 @@ const SIDE = 7.5;
 
 const REACH = documented("arg.pointReach", { control: { type: "number", min: 0, step: 0.05 } }, "nardy");
 const AVATARS = documented("arg.avatars", { control: { type: "boolean" } }, "nardy");
+const IDLE_RETURN = documented("arg.idleReturn", { control: { type: "boolean" } }, "nardy");
+const IDLE_MS = documented("arg.idleMs", { control: { type: "number", min: 500, step: 500 } }, "nardy");
 
 /**
  * THE ONE SCENE BOTH STORIES STAND ON — they differ by whether anybody is sitting at the board.
@@ -64,9 +70,19 @@ function liveNardy(a: NardyArgs): HTMLElement {
     const inks = Object.fromEntries(NARDY_SEATS.map(({ seat, ink }) => [seat, ink]));
     // NO HANDS ON A BOARD — the people and nothing else. A hand is a patch of felt a player owns,
     // and on a board every place belongs to the game rather than to anybody sitting at it.
+    const places = nardyPlaces(2);
     const people = a.avatars
-      ? withAvatars({ desk: board, seats: NARDY_SEATS, screens, page: "nardy", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), wall })
+      ? withAvatars({ desk: board, seats: NARDY_SEATS, screens, page: "nardy", at: (i) => ({ x: 0, y: i === 0 ? SIDE : -SIDE }), wall, places })
       : undefined;
+    // A SIMPLE HEARTBEAT FOR THE IDLE GLIDE — see `Cards.stories.ts` for why this is a plain
+    // interval rather than a clock of the page's own.
+    const idleTimers: (() => void)[] = [];
+    const idleObserver = new MutationObserver(() => {
+      if (wall.isConnected) return;
+      for (const stop of idleTimers.splice(0)) stop();
+      idleObserver.disconnect();
+    });
+    idleObserver.observe(document.body, { childList: true, subtree: true });
 
     NARDY_SEATS.forEach(({ seat, ink }, i) => {
       const pane = document.createElement("div");
@@ -121,6 +137,24 @@ function liveNardy(a: NardyArgs): HTMLElement {
           undefined,
           // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news.
           people ? () => people.publish() : undefined,
+          undefined,
+          undefined,
+          undefined,
+          a.avatars
+            ? {
+                places,
+                mine: NARDY_SEATS.findIndex((s) => s.seat === seat),
+                idleReturn: a.idleReturn ? { afterMs: a.idleMs ?? 6000, glideMs: 600 } : false,
+              }
+            : undefined,
+          a.avatars
+            ? (live) => {
+                const id = setInterval(() => live.idle?.step(200), 200);
+                const stop = () => clearInterval(id);
+                idleTimers.push(stop);
+                return stop;
+              }
+            : undefined,
         ),
       );
       pane.appendChild(dot);
@@ -136,7 +170,7 @@ export const Nardy: StoryObj<NardyArgs> = {
   // the eye has to be shown.
   // A DIE SET DOWN KEEPS ITS FACE (`toss`): only a throw changes the number, so a die moved out of
   // the way is not a roll — and a player who sees the landing picture knows the drop is a drop.
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, landing: true, reach: 0, dieDrop: "toss", avatars: false },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, landing: true, reach: 0, dieDrop: "toss", avatars: false, idleReturn: false, idleMs: 6000 },
   argTypes: { ...STACK_KNOBS, reach: REACH },
   parameters: { gkDocStory: "nardy.scene" },
 };
@@ -157,7 +191,7 @@ export const Nardy: StoryObj<NardyArgs> = {
 export const NardyWithAvatars: StoryObj<NardyArgs> = {
   name: "Nardy · with avatars",
   render: liveNardy,
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, landing: true, reach: 0, dieDrop: "toss", avatars: true },
-  argTypes: { ...STACK_KNOBS, reach: REACH, avatars: AVATARS },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: true, stacking: false, landing: true, reach: 0, dieDrop: "toss", avatars: true, idleReturn: false, idleMs: 6000 },
+  argTypes: { ...STACK_KNOBS, reach: REACH, avatars: AVATARS, idleReturn: IDLE_RETURN, idleMs: IDLE_MS },
   parameters: { gkDocStory: "nardy.avatars" },
 };
