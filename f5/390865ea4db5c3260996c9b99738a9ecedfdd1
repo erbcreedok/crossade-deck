@@ -1,0 +1,19 @@
+apps/hub/src/table/index.ts
+  s_c582cf0fe4fb79::t_139640b71f959a 105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f5390865ea4db5c3260996c9b99738a9ecedfdd1",
+  "prompts": {},
+  "sessions": {
+    "s_c582cf0fe4fb79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-adeaa760a7572275b",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
