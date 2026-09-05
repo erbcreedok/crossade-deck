@@ -40,6 +40,7 @@ import {
   type Node,
   type Paint,
   type RingWalls,
+  type Vec,
 } from "game-kit";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { installMapArt, LAMP, onTheDesk, warmingNodes } from "./felt.js";
@@ -145,6 +146,16 @@ function seatMark(i: number, of: number): Node {
     Bounded({ bounds: circle(0.55 / 2) }),
     Transformable({ at: { x: Math.sin(turn) * (ROUND_R - 1), y: Math.cos(turn) * (ROUND_R - 1) } }),
   );
+}
+
+export function seatPlaces(n: number): readonly { readonly at: Vec; readonly facing: number }[] {
+  return Array.from({ length: n }).map((_, i) => {
+    const turn = (Math.PI * 2 * i) / n;
+    return {
+      at: { x: Math.sin(turn) * (ROUND_R - 1), y: Math.cos(turn) * (ROUND_R - 1) },
+      facing: (turn * 180) / Math.PI,
+    };
+  });
 }
 
 /**

@@ -431,3 +431,10 @@ function within(n: Node, at: Vec, halfW: number, halfH: number): boolean {
 
 /** A square of this board says so on itself — its id is a name, and nothing reads names. */
 export const isCell = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valued")?.values?.["cell"] !== undefined;
+
+export function seatPlaces(_n: number): readonly { readonly at: Vec; readonly facing: number }[] {
+  return [
+    { at: { x: 0, y: BOARD / 2 + 1 }, facing: 0 },
+    { at: { x: 0, y: -(BOARD / 2 + 1) }, facing: 180 },
+  ];
+}

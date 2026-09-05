@@ -75,6 +75,7 @@ export type PresenceState = "online" | "away" | "left" | "offline";
 /** One person at the desk, as everybody else's screen is told about them. */
 export interface Presence {
   readonly seat: string;
+  readonly place?: { readonly at: Vec; readonly facing: number };
   /** Already written in the reader's language — the kit knows no localization (CANONS §6). */
   readonly name: string;
   /** A picture inside the disc. Absent, the initials of the name are drawn instead. */
@@ -418,7 +419,7 @@ export function avatarNode(p: Presence, mine: boolean): Node {
     Screened({ screened: true }),
     // AN AVATAR SAYS IT IS ONE. What makes a node a person at this desk is that it says so, not that
     // it is called something (`guard.id-is-opaque`).
-    Valued({ values: { [AVATAR_VALUE]: 1 } }),
+    Valued({ values: { [AVATAR_VALUE]: 1, seatPlace: p.place } }),
     ...(mine ? [Draggable({ onReject: "stay" })] : []),
   );
   add(

@@ -253,7 +253,8 @@ const SIDES: readonly Vec[] = [
  * desk's own space, which is where an avatar and a hand both stand.
  */
 export function placeHand(root: Node, avatar: Node, zone: Node, edge: number): void {
-  const at = fieldsOf<TransformableFields>(avatar, "Transformable")?.at ?? { x: 0, y: 0 };
+  const seatPlace = fieldsOf<ValuedFields>(avatar, "Valued")?.values?.["seatPlace"] as { at: Vec; facing: number } | undefined;
+  const at = seatPlace?.at ?? fieldsOf<TransformableFields>(avatar, "Transformable")?.at ?? { x: 0, y: 0 };
   const face = footprint(avatar);
   const half = face ? extentOf(face) : { w: 0, h: 0 };
   const box = footprint(zone);

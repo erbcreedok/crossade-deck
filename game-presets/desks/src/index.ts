@@ -10,6 +10,7 @@ export {
   installChessArt,
   isCell,
   pictureOf,
+  seatPlaces as chessPlaces,
   shadowOf,
   squareAt,
   type Figure,
@@ -31,6 +32,7 @@ export {
   regripDice,
   runOf,
   seatOf,
+  seatPlaces as nardyPlaces,
   seatsOf,
   settled,
   takes,
@@ -54,7 +56,7 @@ export {
   setHandLock,
 } from "./handZone.js";
 export { installLiveArt, LIVE, LIVE_UNIT, liveMap, liveTune, SEATS } from "./liveMap.js";
-export { installRoundArt, ROUND_R, ROUND_SURFACE, roundMap, roundRoom, roundWalls } from "./roundMap.js";
+export { installRoundArt, ROUND_R, ROUND_SURFACE, roundMap, roundRoom, roundWalls, seatPlaces as roundPlaces } from "./roundMap.js";
 export {
   ANCHOR_MARK,
   CASTS,
