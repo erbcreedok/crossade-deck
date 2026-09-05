@@ -30,7 +30,20 @@ describe("verifyTelegramInitData", () => {
 
     const user = verifyTelegramInitData(initData, BOT_TOKEN, now);
 
-    expect(user).toEqual({ id: 12345, first_name: "Alice", username: "alice_tg" });
+    expect(user).toEqual({ id: 12345, first_name: "Alice", last_name: undefined, username: "alice_tg" });
+  });
+
+  it("passes through last_name when Telegram sends it", () => {
+    const now = 1_700_000_000_000;
+    const initData = buildInitData({
+      auth_date: String(Math.floor(now / 1000)),
+      query_id: "AAH_query",
+      user: JSON.stringify({ id: 12345, first_name: "Ербол", last_name: "Алибаев", username: "erbol" }),
+    });
+
+    const user = verifyTelegramInitData(initData, BOT_TOKEN, now);
+
+    expect(user?.last_name).toBe("Алибаев");
   });
 
   it("rejects a tampered signature", () => {

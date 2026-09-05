@@ -57,7 +57,9 @@ import {
   installTheme,
   liveTable,
   setRev,
+  t,
   type CameraContent,
+  type Palette,
   type IdleReturnTracker,
   type LiveClock,
   type LiveStage,
@@ -65,6 +67,7 @@ import {
   type Mirror,
   type Node,
   type SeatPlace,
+  type Transform,
   type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
@@ -75,7 +78,10 @@ import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, TABLE_SEATS, type TableGame } from "./mapFor.js";
-import { hubPeople, SEAT_INKS, type HubPeople } from "./people.js";
+import { hubPeople, inkOf, SEAT_INKS, type HubPeople } from "./people.js";
+
+/** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
+const CURSOR_DOT = 18;
 
 function buildInitialDesk(game: TableGame): Node {
   installStockSurfaces();
@@ -302,10 +308,43 @@ export function startTable(container: HTMLElement): Teardown {
    * other's run. One `Screen` per seat and the record is per person, which is what it is about.
    */
   const farScreens = new Map<string, Screen>();
+  /**
+   * A POINT ON THE GLASS FOR EACH FAR SEAT — the catalog's own dot (`Live/*` stories), coloured in
+   * that seat's ink so a cursor reads as the same person the mark on the desk names.
+   */
+  container.style.position ||= "relative";
+  const farDots = new Map<string, HTMLDivElement>();
+  const farDot = (seat: string): HTMLDivElement => {
+    let dot = farDots.get(seat);
+    if (!dot) {
+      dot = document.createElement("div");
+      dot.style.cssText =
+        `position:absolute;z-index:4;width:${CURSOR_DOT}px;height:${CURSOR_DOT}px;border-radius:50%;` +
+        `pointer-events:none;display:none;transform:translate(-50%,-50%);` +
+        // SEAT INKS ARE ALWAYS PALETTE TOKENS (`SEAT_INKS`), the widened `Paint` return type just
+        // does not say so — the same narrowing the catalog's own `SEATS as const` gets for free.
+        `background:${t(inkOf(seat, people?.seats() ?? []) as keyof Palette)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
+      container.appendChild(dot);
+      farDots.set(seat, dot);
+    }
+    return dot;
+  };
   const farScreen = (from: string): Screen => {
     let one = farScreens.get(from);
     if (!one) {
-      one = { seat: from };
+      one = {
+        seat: from,
+        onCursor: (at: Vec | undefined, view: Transform | undefined) => {
+          const dot = farDot(from);
+          if (!at || !view) {
+            dot.style.display = "none";
+            return;
+          }
+          dot.style.display = "block";
+          dot.style.left = `${view.a * at.x + view.c * at.y + view.e}px`;
+          dot.style.top = `${view.b * at.x + view.d * at.y + view.f}px`;
+        },
+      };
       farScreens.set(from, one);
     }
     one.scene = standing ? { host: standing.host, ...(standing.motions ? { motions: standing.motions } : {}), ...(standing.camera ? { camera: standing.camera } : {}) } : undefined;
@@ -503,6 +542,7 @@ export function startTable(container: HTMLElement): Teardown {
     leaveIdleClock?.();
     stopIdlePointer?.();
     cameraClock.stop();
+    for (const dot of farDots.values()) dot.remove();
     live.stop();
     stopHold();
   };

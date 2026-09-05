@@ -128,7 +128,11 @@ export function createApp() {
     if (!user) return res.status(401).json({ error: "unauthorized" });
 
     const telegramId = String(user.id);
-    const account = findAccountByTelegramId(telegramId) ?? createAccount(user.first_name ?? user.username, telegramId);
+    // ПОЛНОЕ ИМЯ, А НЕ ТОЛЬКО ПЕРВОЕ — инициалы на аватаре в хабе берут первые буквы ДВУХ слов
+    // (`initials` в game-kit), и без фамилии игрок с распространённым именем ничем не отличим от
+    // другого на том же столе.
+    const fullName = [user.first_name, user.last_name].filter((part): part is string => Boolean(part?.trim())).join(" ");
+    const account = findAccountByTelegramId(telegramId) ?? createAccount(fullName || user.username, telegramId);
     res.json(account);
   });
 

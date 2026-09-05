@@ -126,6 +126,22 @@ describe("POST /auth/telegram", () => {
     expect(secondBody.id).toBe(firstBody.id);
   });
 
+  it("first_name и last_name → аккаунт с полным именем (инициалы аватара берут оба слова)", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = BOT_TOKEN;
+    const initData = buildInitData({
+      auth_date: String(Math.floor(Date.now() / 1000)),
+      user: JSON.stringify({ id: 780, first_name: "Ербол", last_name: "Алибаев", username: "erbol" }),
+    });
+
+    const res = await fetch(`${BASE}/auth/telegram`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData }),
+    });
+    const body = await res.json();
+    expect(body.name).toBe("Ербол Алибаев");
+  });
+
   it("битая подпись → 401", async () => {
     process.env.TELEGRAM_BOT_TOKEN = BOT_TOKEN;
     const initData = buildInitData(telegramFields(778)).replace(/hash=[0-9a-f]+/, "hash=deadbeef");

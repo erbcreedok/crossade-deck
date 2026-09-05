@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 export interface TelegramUser {
   id: number;
   first_name?: string;
+  last_name?: string;
   username?: string;
 }
 
@@ -41,7 +42,7 @@ export function verifyTelegramInitData(initData: string, botToken: string, now =
   try {
     const user = JSON.parse(userRaw);
     if (typeof user?.id !== "number") return null;
-    return { id: user.id, first_name: user.first_name, username: user.username };
+    return { id: user.id, first_name: user.first_name, last_name: user.last_name, username: user.username };
   } catch {
     return null;
   }
