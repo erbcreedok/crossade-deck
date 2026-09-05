@@ -3,6 +3,7 @@ import {
   mayThrow,
   nardyRoom,
   runOf,
+  seatOf,
   seatsOf,
   settled,
   squareAt,
@@ -72,6 +73,8 @@ const CAM_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
 
 /** Room round the board's own room, in units, so there is somewhere to lay a piece taken off it. */
 const CAM_MARGIN = 2.5;
+/** Felt shown round the board when the table opens, units — room for a piece taken off it. */
+const OPEN_RIM = 1.2;
 
 /**
  * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (chess and nardy already draw a
@@ -139,10 +142,20 @@ export function startTable(container: HTMLElement): Teardown {
       return true;
     });
   };
+  const unitOf = (): number => {
+    const v = host.viewport();
+    const room = roomFor(game, host.root);
+    return Math.max(1, Math.min(v.width / room.w, v.height / room.h));
+  };
   const cameraControl = wireCamera({
     host,
     camera,
     content: () => roomFor(game, host.root),
+    // A UNIT IS WHAT MAKES THE ROOM FILL THE GLASS AT ZOOM 1. The host's own unit is the shelf's
+    // (tuned for a hand of cards), and a nardy desk measured in it wants a zoom of a quarter to fit —
+    // below the floor the limits allow, so the clamp left the board four times too big. Sized off
+    // the room instead, "fit" is zoom 1 and the limits are a real range round it.
+    unit: unitOf,
     // A FINGER OVER A PIECE MOVES THE PIECE; over bare felt it pans and pinches the view — the same
     // arbitration the catalog's map opens with, read off the same `draggable` capability `wireDrag`
     // already asks the tree for.
@@ -160,7 +173,27 @@ export function startTable(container: HTMLElement): Teardown {
     if (cameraOpened || v.width <= 1 || v.height <= 1) return;
     cameraOpened = true;
     const room = roomFor(game, host.root);
-    camera.setZoom(camera.fitZoom());
+    cameraControl.refresh(); // the glass and the room must be known before a fit is measured
+    // THE ROOM IS WHERE THE EYE MAY GO; THE BOARD IS WHAT IT OPENS ON. Fitted to the whole room a
+    // chess board came up a third of a phone wide — the room is the felt, the zone under it and
+    // the margins, most of it empty on the first frame. So the opening zoom fits the BOARD plus a
+    // rim of `OPEN_RIM` units — enough to see a taken piece set down beside it — and the room stays
+    // the limit a pan runs into, not the picture.
+    const face = byId(host.root, "board face");
+    const box = face ? footprint(face) : undefined;
+    let { w: bw, h: bh } = box ? extentOf(box) : { w: room.w, h: room.h };
+    // THE DICE LIVE OUTSIDE THE BOARD — in the band beside it — and an opening fitted to the board
+    // alone put them past the edge of a phone. The view opens centred on the board, so the farthest
+    // die counts twice: as far as it sits on one side, that much room on the other.
+    for (const piece of host.root.children) {
+      if (!caps(piece).has("Rollable")) continue;
+      const { x, y } = seatOf(piece);
+      bw = Math.max(bw, 2 * (Math.abs(x) + 0.8));
+      bh = Math.max(bh, 2 * (Math.abs(y) + 0.8));
+    }
+    const unit = unitOf();
+    const open = Math.min(v.width / ((bw + OPEN_RIM * 2) * unit), v.height / ((bh + OPEN_RIM * 2) * unit));
+    camera.setZoom(Math.max(camera.fitZoom(), Math.min(open, CAM_ZOOM.maxZoom)));
     camera.lookAt({ x: room.x + room.w / 2, y: room.y + room.h / 2 });
     repaintCamera();
   };
