@@ -543,6 +543,9 @@ export function scene(
   const viewOf = camera ? () => camera.transform() : undefined;
   /** Beside the view and from the same camera, so the two can never disagree. */
   const pitchOf = camera ? () => camera.pitch : undefined;
+  /** Beside the view too, and for the same reason `pitchOf` is: a `viewer`-framed node needs the
+   * camera's own turn to stand back to its own angle (`PlanInput.rotation`). */
+  const rotationOf = camera ? () => camera.rotation : undefined;
 
   // A motion scene runs the one clock (and needs the stock easings) instead of the still painter;
   // both hand back a teardown of the same shape, so the rest of the shell does not care which.
@@ -556,6 +559,7 @@ export function scene(
         ...(options.bake ? { bake: options.bake } : {}),
         ...(viewOf ? { view: viewOf } : {}),
         ...(pitchOf ? { pitch: pitchOf } : {}),
+        ...(rotationOf ? { rotation: rotationOf } : {}),
       }))
     : undefined;
   PRESSED.set(id, options.press);
@@ -580,6 +584,7 @@ export function scene(
         ...(options.bake ? { bake: options.bake } : {}),
         ...(viewOf ? { view: viewOf } : {}),
         ...(pitchOf ? { pitch: pitchOf } : {}),
+        ...(rotationOf ? { rotation: rotationOf } : {}),
       });
 
   // THE CATALOG RUNS THE CAMERA'S CLOCK, because the kit refuses to (`guard.one-clock`): a throw is
@@ -595,7 +600,7 @@ export function scene(
       // note, the toolbar and the inspector too, and at sixty frames a second that is the whole
       // tree walked and published for a desk that only slid four pixels.
       if (motions) motions.redraw();
-      else renderFrame(host, painter, { measure: ruler, view: () => camera.transform(), pitch: () => camera.pitch });
+      else renderFrame(host, painter, { measure: ruler, view: () => camera.transform(), pitch: () => camera.pitch, rotation: () => camera.rotation });
     };
     const tick = (nowMs: number): void => {
       const dt = Math.min(0.1, (nowMs - lastMs) / 1000);

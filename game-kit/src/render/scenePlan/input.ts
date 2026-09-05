@@ -32,6 +32,15 @@ export interface PlanInput {
    */
   readonly pitch?: number | undefined;
   /**
+   * THE CAMERA'S OWN TURN, in degrees — the number the view's roll was built from, beside `pitch`
+   * for the same reason: a matrix carrying a roll and a squash cannot be taken apart into the two
+   * again. Read for ONE thing: a node framed to the viewer (`Oriented: "viewer"`) is turned back
+   * to its own angle, so a seat looking at the desk from the far side still sees its badges and its
+   * pieces upright rather than spun with the room. Absent (or zero), every node turns with the view,
+   * which is every scene that has no camera in it.
+   */
+  readonly rotation?: number | undefined;
+  /**
    * In-flight pose overrides, by node id, in ROOT-UNIT space (the same space `transformsOf`
    * answers in). Present only while a node is mid-settle: the motion runtime hands the plan the
    * node's CURRENT flight pose so it draws there instead of at its resting pose. Absent for a still

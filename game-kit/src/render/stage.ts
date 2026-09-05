@@ -89,6 +89,15 @@ export interface PaintOptions {
    * tilted plane.
    */
   readonly pitch?: (() => number) | undefined;
+  /**
+   * THE CAMERA'S OWN TURN, degrees — asked fresh, beside the view and the pitch it was built with.
+   *
+   * Three getters that have to agree, and they do because one camera answers all of them. Not dug
+   * out of the matrix either, for the same reason `pitch` is not: a rolled, squashed matrix cannot
+   * be taken back apart into the numbers it was built from. Read for one thing: standing a
+   * `viewer`-framed node back to its own angle (`PlanInput.rotation`).
+   */
+  readonly rotation?: (() => number) | undefined;
 }
 
 /**
@@ -107,6 +116,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     viewer: host.viewer(),
     view: options.view?.(),
     pitch: options.pitch?.(),
+    rotation: options.rotation?.(),
     overrides: options.overrides,
     raised: options.raised,
     carried: options.carried,
@@ -121,7 +131,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
   // a card either. A scene with no HUD is exactly the scene it was before there were two.
   const desk = scenePlan(input);
   const screen = host.hudRoot
-    ? scenePlan({ ...input, root: host.hudRoot, view: undefined, pitch: undefined })
+    ? scenePlan({ ...input, root: host.hudRoot, view: undefined, pitch: undefined, rotation: undefined })
     : [];
   const whole = screen.length === 0 ? desk : [...desk, ...screen];
   const retain = options.retain === true;

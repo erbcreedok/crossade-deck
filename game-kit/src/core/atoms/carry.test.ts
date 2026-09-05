@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { apply } from "../transform.js";
-import { carry, installStockCarries, lean, looseCarry, resetCarries, rigidCarry, type CarryContext } from "./carry.js";
+import { carry, installStockCarries, lean, looseCarry, resetCarries, rigidCarry, screenLean, type CarryContext } from "./carry.js";
 
 const base = (over: Partial<CarryContext> = {}): CarryContext => ({
   anchor: { x: 2, y: 3 },
@@ -72,6 +72,33 @@ describe("carry", () => {
     expect(lean(100, 0.02, 17)).toBeCloseTo(2); // 100·0.02
     expect(lean(10000, 0.02, 17)).toBe(17); // clamped
     expect(lean(-10000, 0.02, 17)).toBe(-17); // clamped, other way
+  });
+
+  it("carry.screenLean-with-no-turn — reduces to the plain table lean", () => {
+    // A camera facing straight on (`rotationDeg = 0`) has nothing to turn the velocity by, so a
+    // billboard's bank must read exactly what an ordinary run's does.
+    expect(screenLean({ x: 100, y: 0 }, 0.02, 17, 0)).toBeCloseTo(lean(100, 0.02, 17));
+    expect(screenLean({ x: -40, y: 15 }, 0.02, 17, 0)).toBeCloseTo(lean(-40, 0.02, 17));
+  });
+
+  it("carry.screenLean-follows-the-camera — the same drag banks the same way on both seats", () => {
+    // A piece moving in the SAME direction on the desk reads as moving the OPPOSITE way on a
+    // camera turned 180° — the seat looking at the board from the far side. The bank must follow
+    // what THAT seat sees on its own glass, so it comes out with the opposite sign of the near
+    // seat's, not the same one: two players banking the "same" carry oppositely is the one thing
+    // that would look wrong to either of them, because each is reading their own screen.
+    const vel = { x: 120, y: 0 };
+    const near = screenLean(vel, 0.02, 17, 0);
+    const far = screenLean(vel, 0.02, 17, 180);
+    expect(near).toBeCloseTo(2.4); // 120 · 0.02
+    expect(far).toBeCloseTo(-near);
+  });
+
+  it("carry.screenLean-at-90 — a quarter turn reads the OTHER table axis as the screen's x", () => {
+    // At 90°, the screen's x is the desk's y, turned; a pure y-velocity on the desk becomes the
+    // screen's x, and a pure x-velocity contributes nothing to it.
+    expect(screenLean({ x: 0, y: 50 }, 0.02, 17, 90)).toBeCloseTo(lean(-50, 0.02, 17));
+    expect(screenLean({ x: 50, y: 0 }, 0.02, 17, 90)).toBeCloseTo(0);
   });
 
   it("carry.registry — names resolve, unknown falls back to rigid, reset clears", () => {

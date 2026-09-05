@@ -16,7 +16,7 @@
 // geometry (a hand splayed on an arc, each card at its own angle) is a card-flavoured thing and
 // belongs to the cards preset, not here — it would recompute the offsets, which these two do not.
 
-import { compose, move, pose, type Transform, type Vec } from "../transform.js";
+import { apply, compose, move, pose, rotate, type Transform, type Vec } from "../transform.js";
 import { clampAbs } from "../spring.js";
 
 /**
@@ -32,6 +32,23 @@ import { clampAbs } from "../spring.js";
  */
 export function lean(velX: number, factor: number, maxDeg: number): number {
   return clampAbs(velX * factor, maxDeg);
+}
+
+/**
+ * THE SAME LEAN, asked with a velocity that is in the DESK's units but read against the ONLOOKER's
+ * own screen — what a node framed to the viewer (`Oriented: "viewer"`) needs instead of `lean`.
+ *
+ * A world-framed run leans by its `x` in TABLE coordinates because it never turns relative to the
+ * table it is dragged across. A billboard is drawn upright on the GLASS regardless of the camera's
+ * turn (`scenePlan`'s `rotation`), so its bank must answer the same question in the same frame: the
+ * table velocity is turned into screen space by the camera's own rotation before the bank reads its
+ * `x` — the same "against the direction of travel" a seat on the far side of the table sees, however
+ * that camera is turned. A `rotationDeg` of 0 (no camera, or a camera facing straight on) reduces to
+ * `lean` exactly.
+ */
+export function screenLean(vel: Vec, factor: number, maxDeg: number, rotationDeg: number): number {
+  const screen = rotationDeg ? apply(rotate(rotationDeg), vel) : vel;
+  return lean(screen.x, factor, maxDeg);
 }
 
 /** What a style needs to place one carried card, in root-unit space. */

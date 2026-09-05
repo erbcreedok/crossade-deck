@@ -276,6 +276,44 @@ describe("scenePlan", () => {
     expect(size(at("badge"))).toBeCloseTo(size(at("rides")));
   });
 
+  it("plan.a-billboard-ignores-the-camera-s-own-turn — a seat on the far side sees it upright too", () => {
+    // The camera's roll is the OTHER half of a view's turn — baked into `view`/`toView` and handed
+    // over beside it as `rotation`, the same seam `pitch` already uses, because a matrix carrying a
+    // roll cannot be taken back apart into the number it was built from. A billboard must cancel it
+    // exactly as it cancels an owner's turn: place and size untouched, only the angle cut.
+    const root = node("desk", Container({ layout: "free" }), Surfaced());
+    add(root, node("piece", box(1, 1), Surfaced(), Transformable({ at: { x: 1, y: 0.5 } })));
+    add(root, node("badge", box(1, 1), Surfaced(), Transformable({ at: { x: 1, y: 0.5 } }), Oriented({ orientation: "viewer" })));
+    const c = new Camera({ minZoom: 0.1, maxZoom: 8 });
+    c.setScreen(400, 300);
+    c.setContent({ x: -10, y: -10, w: 20, h: 20 }, 40);
+    c.turnTo(180);
+    const quads = scenePlan({
+      root,
+      unit: 40,
+      width: 400,
+      height: 300,
+      viewer: DEFAULT_VIEWER,
+      view: c.transform(),
+      rotation: c.rotation,
+    });
+    const at = (id: string) => quads.find((q) => q.id === id)!.transform;
+    const turn = (t: { a: number; b: number }) => (Math.atan2(t.b, t.a) * 180) / Math.PI;
+    const size = (t: { a: number; b: number }) => Math.hypot(t.a, t.b);
+    // The ordinary piece turns with the whole view, upside down along with the room.
+    expect(Math.abs(turn(at("piece")))).toBeCloseTo(180);
+    // The billboard's quad angle is 0 — it stands upright on the glass however the camera looks.
+    expect(turn(at("badge"))).toBeCloseTo(0);
+    // Its place on the glass and its size still match the ordinary node's — only the angle differs.
+    expect(at("badge").e).toBeCloseTo(at("piece").e);
+    expect(at("badge").f).toBeCloseTo(at("piece").f);
+    expect(size(at("badge"))).toBeCloseTo(size(at("piece")));
+    // With no camera turn at all, cancelling nothing costs nothing: the billboard is still upright.
+    c.turnTo(0);
+    const flat = scenePlan({ root, unit: 40, width: 400, height: 300, viewer: DEFAULT_VIEWER, view: c.transform(), rotation: c.rotation });
+    expect(turn(flat.find((q) => q.id === "badge")!.transform)).toBeCloseTo(0);
+  });
+
   it("plan.a-turned-piece-turns-its-silhouette-not-its-shadow — the fall ignores every angle", () => {
     // The canon's law: light does not care how a piece is turned. The SHAPE of the shadow turns
     // with the drawn geometry, but the offset between piece and shadow is the lamp's alone —

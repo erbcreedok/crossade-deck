@@ -32,7 +32,9 @@
 import { byId, fieldsOf, type Node, type NodeId } from "../../core/node.js";
 import { easing, flipScale, sample, tune, type CarryTuning, type Motion, type MotionTuning, type TuningPatch } from "../../core/motion.js";
 import { springAt, springSettled, stepSpring, type SpringConfig, type SpringState } from "../../core/spring.js";
-import { carry, lean, type CarryStyle } from "../../core/atoms/carry.js";
+import { carry, lean, screenLean, type CarryStyle } from "../../core/atoms/carry.js";
+import { orientationOf } from "../../core/atoms/oriented.js";
+import { contextFor } from "../../core/resolve.js";
 import { layoutRecord, type ContainerFields, type Settle } from "../../core/atoms/container.js";
 import { bodyAt, separate, slideRests, stepFall, stepSlide, velocityOf, type Body, type Walls } from "../../core/ballistic.js";
 import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
@@ -252,11 +254,20 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       measure: options.measure,
       ...(options.view ? { view: options.view } : {}),
       ...(options.pitch ? { pitch: options.pitch } : {}),
+      ...(options.rotation ? { rotation: options.rotation } : {}),
       ...(options.bake ? { bake: options.bake } : {}),
     });
 
   /** The bank this frame's speed is ASKING for — what the lean spring chases, degrees. */
-  const wantLean = (cy: Carry): number => lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);
+  /**
+   * The bank a carry's own speed asks for — off the TABLE's `x` for an ordinary run, off the
+   * ONLOOKER's screen `x` for one framed to the viewer (`Carry.viewerFramed`), so the same drag
+   * reads as "banking against the direction of travel" on a camera turned any way at all.
+   */
+  const wantLean = (cy: Carry): number =>
+    cy.viewerFramed
+      ? screenLean({ x: cy.sx.vel, y: cy.sy.vel }, cy.tiltFactor, cy.tiltMax, options.rotation?.() ?? 0)
+      : lean(cy.sx.vel, cy.tiltFactor, cy.tiltMax);
 
   /**
    * True once a carry's springs have all but arrived and stopped — the gate the loop sleeps on.
@@ -862,8 +873,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       reconcile();
       const t = tune({ ...tuning, ...opts });
       const anchor = opts.anchor;
+      // WHOSE FRAME THE BANK IS READ IN — decided once, from the pieces the hand actually closed
+      // on: any one of them framed to the viewer (a chess piece, never a card lying on the felt)
+      // is enough to ask `wantLean` for the screen's `x` instead of the table's.
+      const viewerFramed = items.some((it) => {
+        const owner = byId(host.root, it.id);
+        return owner ? orientationOf(contextFor(owner, 1)) === "viewer" : false;
+      });
       const cy: Carry = {
         items,
+        viewerFramed,
         style: carry(t.carry),
         target: anchor,
         sx: springAt(anchor.x),

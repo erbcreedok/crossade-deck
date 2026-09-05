@@ -5,7 +5,7 @@
 // the shelf's own and is guarded where it lives (`chessMap.wiring.test.ts`, in the catalog).
 
 import { describe, expect, it } from "vitest";
-import { assetRecord, caps, extentOf, fieldsOf, shadowPicture, shadowSpot, type BoundedFields, type Node, type TransformableFields } from "game-kit";
+import { assetRecord, caps, extentOf, fieldsOf, orientationOf, contextFor, shadowPicture, shadowSpot, type BoundedFields, type Node, type TransformableFields } from "game-kit";
 import { BOARD, chessMap, CHESS_SEATS, COMMON, isCell, shadowOf, squareAt } from "./chessMap.js";
 
 const cells = (desk: Node): Node[] => desk.children.filter(isCell);
@@ -32,6 +32,18 @@ describe("a board is a desk made of places", () => {
     for (let i = 1; i < files.length; i++) expect(files[i]! - files[i - 1]!, "a unit apart").toBeCloseTo(1, 9);
     // ...and laid out AROUND zero, like every desk here, so the camera's rect and the board's agree.
     expect(files[0]! + files[files.length - 1]!, "centred on the desk").toBeCloseTo(0, 9);
+  });
+
+  it("chess.every-man-stands-up-for-whoever-is-looking — a figure is framed to the viewer", () => {
+    // A figure is a picture with a top; the board it stands on is not. Black's seat looks at the
+    // board with its camera turned 180° so the men read as black's own — a knight drawn upside down
+    // instead would be a broken glyph, not "the same knight from the other side". Every man on the
+    // board answers `orientation: "viewer"`, so `scenePlan` stands him upright on whichever screen
+    // draws him, whatever the seat's camera does underneath him.
+    const desk = chessMap();
+    const pieces = men(desk);
+    expect(pieces.length, "one set-up's worth of men").toBeGreaterThan(0);
+    for (const piece of pieces) expect(orientationOf(contextFor(piece, 1)), piece.id).toBe("viewer");
   });
 
   it("chess.the-square-the-anchor-is-IN-and-never-the-nearest", () => {
