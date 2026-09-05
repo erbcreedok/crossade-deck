@@ -1,0 +1,80 @@
+game-kit/.storybook/stories/avatars.ts
+  s_8ae2e28dd89c96::t_1b93568aa29f0a 134-138,147
+  s_8ae2e28dd89c96::t_ede138e425dfab 29
+  s_8ae2e28dd89c96::t_9773c200740cbd 57-62
+  s_8ae2e28dd89c96::t_f505bcec2d6af1 56
+game-kit/.storybook/locales/chrome/ru.json
+  s_8ae2e28dd89c96::t_64ec7ab69ad9cb 360-362
+apps/hub/src/table/index.ts
+  s_8ae2e28dd89c96::t_3e78006a80b0d4 265-273
+  s_8ae2e28dd89c96::t_a45163916f018a 91-97
+  s_8ae2e28dd89c96::t_55ccbe3c0e103b 394-395
+  s_8ae2e28dd89c96::t_06cf3f456671c4 14,17,20
+  s_8ae2e28dd89c96::t_1bef308d22189f 41,50,56
+  s_8ae2e28dd89c96::t_16d2435cb36b76 350-353
+  s_8ae2e28dd89c96::t_ad4f27a4b1e880 321-349,354-355
+game-kit/.storybook/stories/Chess.stories.ts
+  s_8ae2e28dd89c96::t_f2ff4aee583cfd 220
+  s_8ae2e28dd89c96::t_25013218c2dc39 39-42
+  s_8ae2e28dd89c96::t_0e5489756ba4f0 242-243
+  s_8ae2e28dd89c96::t_c9e6fcdbb99ad6 5
+  s_8ae2e28dd89c96::t_9aa9216a16714e 66-67
+  s_8ae2e28dd89c96::t_af527deca81596 90,92,94-102
+  s_8ae2e28dd89c96::t_5f28ebd6456105 168-185
+game-kit/.storybook/stories/Nardy.stories.ts
+  s_8ae2e28dd89c96::t_720d2f65253171 194-195
+  s_8ae2e28dd89c96::t_e641c4083e6d74 140-157
+  s_8ae2e28dd89c96::t_50e3008977a1c7 54-55
+  s_8ae2e28dd89c96::t_dd20e53d3b5a85 14
+  s_8ae2e28dd89c96::t_4638831a3a906a 37-40
+  s_8ae2e28dd89c96::t_27b21122d20643 173
+  s_8ae2e28dd89c96::t_a4e04ae258e97d 73,75,77-85
+game-kit/src/index.ts
+  s_8ae2e28dd89c96::t_33f78f9559dec0 595
+game-kit/docs/test-plan/78-live-table.md
+  s_8ae2e28dd89c96::t_8aa47b9db566a3 3
+  s_8ae2e28dd89c96::t_3869c8663411b9 14
+game-kit/.storybook/locales/chrome/en.json
+  s_8ae2e28dd89c96::t_f736ea3c35b31a 356-358
+game-kit/src/render/liveTable.ts
+  s_8ae2e28dd89c96::t_040b070eb65de3 978
+game-kit/src/render/liveTable.test.ts
+  s_8ae2e28dd89c96::t_16bf1690fd276e 211-215,223-236,238-242,244-245,247-249
+  s_8ae2e28dd89c96::t_8ce55547bba1fc 237,243,246
+  s_8ae2e28dd89c96::t_63095af3fc40e4 216-218
+  s_8ae2e28dd89c96::t_0148e522d20b78 219
+  s_8ae2e28dd89c96::t_2a9e009363577a 220-221
+  s_8ae2e28dd89c96::t_80fcc47ed8d33d 222
+game-kit/docs/test-plan/README.md
+  s_8ae2e28dd89c96::t_688fd9c6d2d558 105
+  s_8ae2e28dd89c96::t_62535f4d463873 10
+game-kit/.storybook/stories/Cards.stories.ts
+  s_8ae2e28dd89c96::t_be987343d2477a 16
+  s_8ae2e28dd89c96::t_b2449c88bfe06f 180-194
+  s_8ae2e28dd89c96::t_16bd7399d5c893 249-250
+  s_8ae2e28dd89c96::t_7a765409add820 57-60,64-65
+  s_8ae2e28dd89c96::t_dd2822b3007027 226
+  s_8ae2e28dd89c96::t_fbf518cf7c374b 87,89,91-100
+game-kit/.storybook/stories/gestureScene.ts
+  s_8ae2e28dd89c96::t_dc20ef258402d8 238
+  s_8ae2e28dd89c96::t_ea18bd93d92773 217
+  s_8ae2e28dd89c96::t_8c98b257442e00 25,29
+  s_8ae2e28dd89c96::t_b3db26f5cd6902 168-184
+  s_8ae2e28dd89c96::t_64a65b980de045 246-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "dd3508da8dd9d2641b8f359b2e0966b6d408aff3",
+  "prompts": {},
+  "sessions": {
+    "s_8ae2e28dd89c96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a86ff102-f911-4465-9925-8d69c05f0384",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
