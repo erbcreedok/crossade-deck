@@ -1,0 +1,42 @@
+game-kit/.storybook/locales/chrome/en.json
+  h_2b92b67d011bfc 355-356
+game-kit/.storybook/locales/chrome/ru.json
+  h_2b92b67d011bfc 359-360
+game-kit/.storybook/locales/pages/chess/en.json
+  h_2b92b67d011bfc 38-57
+game-kit/.storybook/locales/pages/chess/ru.json
+  h_2b92b67d011bfc 37-56
+game-kit/.storybook/locales/pages/liveCards/en.json
+  h_2b92b67d011bfc 36-58
+game-kit/.storybook/locales/pages/liveCards/ru.json
+  h_2b92b67d011bfc 35-55
+game-kit/.storybook/locales/pages/nardy/en.json
+  h_2b92b67d011bfc 37-56
+game-kit/.storybook/locales/pages/nardy/ru.json
+  h_2b92b67d011bfc 36-55
+game-kit/.storybook/stories/Cards.stories.ts
+  h_2b92b67d011bfc 2-14,16-19,25,28-33,51-169,172,174-176,183-186,192-195,198-220
+game-kit/.storybook/stories/Chess.stories.ts
+  h_2b92b67d011bfc 8,37-38,41-49,61-62,64,66-68,70,82-86,91,103,110,150-151,157-181,186,190-211
+game-kit/.storybook/stories/Nardy.stories.ts
+  h_2b92b67d011bfc 17,35-36,39-47,49,51-58,65-69,74,86,93,121-123,129-133,139,143-163
+game-kit/.storybook/stories/avatars.test.ts
+  h_2b92b67d011bfc 1-77
+game-kit/.storybook/stories/avatars.ts
+  h_2b92b67d011bfc 1-250
+game-kit/docs/test-plan/67-live.md
+  h_2b92b67d011bfc 3,9-13,17-18
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0ceac930f59aa33da143933786ae3387e6c9202c",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
