@@ -1,0 +1,32 @@
+game-presets/desks/src/chessMap.ts
+  s_b777b356cb20c9::t_4e1bfa2abeb4fe 158
+apps/hub/package.json
+  s_b777b356cb20c9::t_6a5d793f08598b 14,16
+apps/hub/src/hub/grid.ts
+  s_b777b356cb20c9::t_34189471a30c2d 30-32
+  s_b777b356cb20c9::t_f3b549d5c23f7c 77-80,83-84,86-90,94-106,109,112-113,117,120-124,130-131
+  s_b777b356cb20c9::t_8c0a9441663d45 136,138
+  s_b777b356cb20c9::t_1e58c3bff16770 34
+game-presets/desks/src/nardyMap.ts
+  s_b777b356cb20c9::t_6855a5878a2470 121
+game-presets/desks/src/index.ts
+  s_b777b356cb20c9::t_13f5bd7eec764f 12,18
+package-lock.json
+  s_b777b356cb20c9::t_62f8e3638d98fb 23,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "22c4b26ddf6b97ce4c40fe0cf87fc8a9ad79222e",
+  "prompts": {},
+  "sessions": {
+    "s_b777b356cb20c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fec91b81-4b9b-4a26-9b98-9c06957b9602",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
