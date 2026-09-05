@@ -1,0 +1,58 @@
+game-presets/dice/src/dice.test.ts
+  s_73c5709c9b8c1c::t_826d44757e1c1b 56-60
+  s_73c5709c9b8c1c::t_296f0df26e0285 266-287
+game-kit/.storybook/stories/Nardy.stories.ts
+  s_73c5709c9b8c1c::t_9e2477c6d64c4c 14
+  s_73c5709c9b8c1c::t_1015368d481390 83
+game-presets/desks/src/nardyMap.ts
+  s_73c5709c9b8c1c::t_5b4598e9e94e00 400-416
+  s_73c5709c9b8c1c::t_b03acc8db9e47a 289-295,305
+  s_73c5709c9b8c1c::t_02dada2f59080e 58-60
+  s_73c5709c9b8c1c::t_b16cd06e26c15f 399
+game-presets/desks/src/index.ts
+  s_73c5709c9b8c1c::t_06f8d00c64e89e 19
+game-presets/desks/docs/test-plan.md
+  s_b8021be7a17848::t_79e84d6de61b94 25,40-41
+game-presets/dice/docs/test-plan.md
+  s_b8021be7a17848::t_44582d99f3c7bb 18
+game-presets/dice/src/dice.ts
+  s_73c5709c9b8c1c::t_df31ef8f5c381a 247-257
+  s_73c5709c9b8c1c::t_5a1f1d5f34db78 282
+  s_73c5709c9b8c1c::t_f0dba97f6a7e5c 34
+  s_73c5709c9b8c1c::t_6da74465c5db9c 275-281
+apps/hub/src/table/index.ts
+  s_b8021be7a17848::t_84809467283b6b 223-227,232,241,246-248,259-278
+  s_b8021be7a17848::t_c43737caa2eafd 5,16,18,27,36,38,41
+  s_b8021be7a17848::t_680d35b66c6e9d 279
+game-presets/desks/src/nardyMap.test.ts
+  s_73c5709c9b8c1c::t_cb46eea1a6352e 7
+  s_73c5709c9b8c1c::t_6229e5d426dce9 9
+  s_73c5709c9b8c1c::t_5ac763672e2713 137-150
+  s_73c5709c9b8c1c::t_4d7a1db60b27ba 6
+  s_73c5709c9b8c1c::t_320708a955ed8c 118-136
+  s_73c5709c9b8c1c::t_fe1da3f00c1977 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b847e92009b9d470a5707d15b643fb685a00f339",
+  "prompts": {},
+  "sessions": {
+    "s_73c5709c9b8c1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6727b287-5176-4ca9-b8a9-9a3b11e48a2d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b8021be7a17848": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33c70cab-763b-4be9-a830-42e058c6eeb9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
