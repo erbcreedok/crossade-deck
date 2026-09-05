@@ -11,7 +11,6 @@
 import {
   add,
   Bounded,
-  circle,
   Container,
   Coated,
   freeLayout,
@@ -19,7 +18,6 @@ import {
   Labeled,
   Lit,
   node,
-  polygon,
   rect,
   registerLayout,
   registerSurface,
@@ -29,8 +27,11 @@ import {
   Valued,
   type Node,
 } from "game-kit";
+import { BACK_SURFACE, crossade, faceSurface, installClassicSkin } from "@game-presets/cards";
+import { checkerSurface, installChessArt, installNardyArt, pictureOf } from "@game-presets/desks";
+import { die } from "@game-presets/dice";
 import { CATALOGUE, type GameEntry } from "./catalogue.js";
-import { PALETTE, RING_U } from "../look/palette.js";
+import { RING_U } from "../look/palette.js";
 import { GROUND, MAIN, NOTE, RING, SLOT, TILE, TITLE } from "../look/surfaces.js";
 
 /** A tile's outer plate, in units. The face is `RING_U` smaller on every side. */
@@ -61,14 +62,6 @@ export function shelfSize(columns: number): { readonly w: number; readonly h: nu
 }
 const INSET = "hub/inset";
 const FAN = "hub/fan";
-/** A card's back, face down — for the tile that shows a hand rather than a game of patience. */
-const CARD_BACK = "hub/fan/back";
-/** A chess piece's silhouette — simple shapes, no art asset, recognisable at tile size. */
-const PIECE = "hub/piece";
-/** Nardy: a lunka (the board's own triangle) and a checker sitting in one. */
-const PIT = "hub/pit";
-const CHECKER_A = "hub/checker/a";
-const CHECKER_B = "hub/checker/b";
 
 let laid = false;
 
@@ -81,80 +74,68 @@ function installLayouts(): void {
   // The face sits dead centre of its plate; so does a caption inside the face.
   registerLayout(INSET, { place: (children) => children.map(() => ({ x: 0, y: 0 })) });
   registerLayout(FAN, freeLayout);
-  registerSurface(FAN, { layers: [{ paint: PALETTE.ink }], stroke: { color: PALETTE.black, width: 0.05, alignment: 1 } });
-  registerSurface(`${FAN}/pip`, { layers: [{ paint: PALETTE.danger }] });
-  registerSurface(CARD_BACK, { layers: [{ paint: PALETTE.gold }], stroke: { color: PALETTE.black, width: 0.05, alignment: 1 } });
-  registerSurface(PIECE, { layers: [{ paint: PALETTE.ink }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
-  registerSurface(PIT, { layers: [{ paint: PALETTE.gold }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
-  registerSurface(CHECKER_A, { layers: [{ paint: PALETTE.ink }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
-  registerSurface(CHECKER_B, { layers: [{ paint: PALETTE.danger }], stroke: { color: PALETTE.black, width: 0.04, alignment: 1 } });
+  // The games' own art, so a tile shows the same chessman, checker or card back the game plays with.
+  installClassicSkin();
+  installChessArt();
+  installNardyArt();
 }
 
-/** Three little cards, splayed — what a game of patience looks like at tile size. */
-function fanOf(id: string): Node {
+/** Three cards, splayed, sharing one surface each — a back for a cascade, a face for a hand. */
+function fannedCards(id: string, surfaces: readonly [string, string, string]): Node {
   const holder = node(`${id}/art`, Container({ layout: FAN }), Transformable({ at: { x: 0, y: -0.34 } }));
-  const card = (name: string, at: { x: number; y: number }, angle: number): Node =>
-    node(name, Bounded({ bounds: rect(0.46, 0.66) }), Surfaced({ surface: FAN }), Transformable({ at, angle }));
-  add(holder, card(`${id}/art/l`, { x: -0.3, y: 0.05 }, -18));
-  add(holder, card(`${id}/art/r`, { x: 0.3, y: 0.05 }, 18));
-  const middle = card(`${id}/art/m`, { x: 0, y: -0.05 }, 0);
-  add(middle, node(`${id}/art/pip`, Bounded({ bounds: rect(0.14, 0.14) }), Surfaced({ surface: `${FAN}/pip` })));
-  add(holder, middle);
+  const card = (name: string, at: { x: number; y: number }, angle: number, surface: string): Node =>
+    node(name, Bounded({ bounds: rect(0.46, 0.66) }), Surfaced({ surface }), Transformable({ at, angle }));
+  add(holder, card(`${id}/art/l`, { x: -0.3, y: 0.05 }, -18, surfaces[0]));
+  add(holder, card(`${id}/art/r`, { x: 0.3, y: 0.05 }, 18, surfaces[1]));
+  add(holder, card(`${id}/art/m`, { x: 0, y: -0.05 }, 0, surfaces[2]));
   return holder;
 }
 
-/** Two cards face down and one turned up — a hand of cards, not a cascade of them. */
-function handOf(id: string): Node {
-  const holder = node(`${id}/art`, Container({ layout: FAN }), Transformable({ at: { x: 0, y: -0.34 } }));
-  const back = (name: string, at: { x: number; y: number }, angle: number): Node =>
-    node(name, Bounded({ bounds: rect(0.46, 0.66) }), Surfaced({ surface: CARD_BACK }), Transformable({ at, angle }));
-  add(holder, back(`${id}/art/l`, { x: -0.3, y: 0.05 }, -18));
-  add(holder, back(`${id}/art/r`, { x: 0.3, y: 0.05 }, 18));
-  const up = node(`${id}/art/m`, Bounded({ bounds: rect(0.46, 0.66) }), Surfaced({ surface: FAN }), Transformable({ at: { x: 0, y: -0.05 } }));
-  add(up, node(`${id}/art/pip`, Bounded({ bounds: rect(0.14, 0.14) }), Surfaced({ surface: `${FAN}/pip` })));
-  add(holder, up);
-  return holder;
+/** Three real backs, splayed — what a cascade of patience looks like, face down. */
+function backsOf(id: string): Node {
+  return fannedCards(id, [BACK_SURFACE, BACK_SURFACE, BACK_SURFACE]);
 }
 
-/** A king and a pawn, standing — what a chessboard looks like at tile size. */
+/** The set's own faces — an ace, a king and a queen — splayed the way a hand fans out. */
+function facesOf(id: string): Node {
+  const specOf = (cardId: string) => crossade().find((c) => c.id === cardId)!;
+  return fannedCards(id, [
+    faceSurface(specOf("spade-A")),
+    faceSurface(specOf("heart-K")),
+    faceSurface(specOf("diamond-Q")),
+  ]);
+}
+
+/** A white knight and a black king, standing — the pieces the board plays with, at tile size. */
 function chessArtOf(id: string): Node {
   const holder = node(`${id}/art`, Container({ layout: FREE }), Transformable({ at: { x: 0, y: -0.28 } }));
-  const king = node(`${id}/art/king`, Container({ layout: FREE }), Transformable({ at: { x: -0.32, y: 0 } }));
-  add(king, node(`${id}/art/king/body`, Bounded({ bounds: rect(0.24, 0.5) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: 0.1 } })));
-  add(king, node(`${id}/art/king/head`, Bounded({ bounds: circle(0.1) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.2 } })));
-  add(king, node(`${id}/art/king/crossV`, Bounded({ bounds: rect(0.04, 0.14) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.35 } })));
-  add(king, node(`${id}/art/king/crossH`, Bounded({ bounds: rect(0.12, 0.04) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.35 } })));
-  add(holder, king);
-  const pawn = node(`${id}/art/pawn`, Container({ layout: FREE }), Transformable({ at: { x: 0.32, y: 0.1 } }));
-  add(pawn, node(`${id}/art/pawn/body`, Bounded({ bounds: rect(0.2, 0.34) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: 0.08 } })));
-  add(pawn, node(`${id}/art/pawn/head`, Bounded({ bounds: circle(0.08) }), Surfaced({ surface: PIECE }), Transformable({ at: { x: 0, y: -0.12 } })));
-  add(holder, pawn);
+  add(holder, node(`${id}/art/knight`, Bounded({ bounds: rect(0.6, 0.6) }), Surfaced({ surface: pictureOf("white", "knight") }), Transformable({ at: { x: -0.32, y: 0 } })));
+  add(holder, node(`${id}/art/king`, Bounded({ bounds: rect(0.6, 0.6) }), Surfaced({ surface: pictureOf("black", "king") }), Transformable({ at: { x: 0.32, y: 0 } })));
   return holder;
 }
 
-/** Three lunki with a checker apiece — what a nardy board looks like at tile size. */
+/** A white and a black checker with a die between them — the board's own pieces, at tile size. */
 function nardyArtOf(id: string): Node {
   const holder = node(`${id}/art`, Container({ layout: FREE }), Transformable({ at: { x: 0, y: -0.24 } }));
-  const pit = (i: number, x: number): Node =>
-    node(`${id}/art/pit${i}`, Bounded({ bounds: polygon(3, 0.24) }), Surfaced({ surface: PIT }), Transformable({ at: { x, y: 0.12 } }));
-  add(holder, pit(0, -0.42));
-  add(holder, pit(1, 0));
-  add(holder, pit(2, 0.42));
-  add(holder, node(`${id}/art/checkerA`, Bounded({ bounds: circle(0.1) }), Surfaced({ surface: CHECKER_A }), Transformable({ at: { x: -0.42, y: 0.16 } })));
-  add(holder, node(`${id}/art/checkerB`, Bounded({ bounds: circle(0.1) }), Surfaced({ surface: CHECKER_B }), Transformable({ at: { x: 0, y: 0.16 } })));
+  add(holder, node(`${id}/art/checkerA`, Bounded({ bounds: rect(0.26, 0.26) }), Surfaced({ surface: checkerSurface("white") }), Transformable({ at: { x: -0.34, y: 0.12 } })));
+  add(holder, node(`${id}/art/checkerB`, Bounded({ bounds: rect(0.26, 0.26) }), Surfaced({ surface: checkerSurface("black") }), Transformable({ at: { x: 0, y: 0.12 } })));
+  const dieHolder = node(`${id}/art/dieHolder`, Container({ layout: FREE }), Transformable({ at: { x: 0.36, y: 0.12 }, scale: 0.4 }));
+  add(dieHolder, die(`${id}/art/die`, { kind: "d6", face: 6 }));
+  add(holder, dieHolder);
   return holder;
 }
 
 /** Which art a tile draws, by the catalogue id `Valued.game` names — a registry, not a switch. */
 const TILE_ART: Record<string, (id: string) => Node> = {
-  cards: handOf,
+  klondike: backsOf,
+  cards: facesOf,
   chess: chessArtOf,
   nardy: nardyArtOf,
 };
 
-/** The art a tile shows: the game's own registered look, or the fan every unlisted game gets. */
+/** The art a tile shows: the game's own registered look, or the cascade every unlisted game gets. */
 function artOf(entryId: string, id: string): Node {
-  const build = TILE_ART[entryId] ?? fanOf;
+  const build = TILE_ART[entryId] ?? backsOf;
   return build(id);
 }
 

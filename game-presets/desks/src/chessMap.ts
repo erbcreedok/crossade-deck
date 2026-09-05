@@ -155,7 +155,7 @@ const figure = (glyph: string, ink: string, rim: string, width: number): string 
   );
 
 /** A piece's picture is named by what it IS and whose it is — nothing reads the name but the registry. */
-const pictureOf = (seat: string, what: Figure): string => `chess.${seat}.${what}`;
+export const pictureOf = (seat: string, what: Figure): string => `chess.${seat}.${what}`;
 /** THE SHADOW OF A PIECE IS THE PIECE: the same glyph, filled with shadow, one per figure and nobody's. */
 export const shadowOf = (what: Figure): string => `chess.shadow.${what}`;
 
