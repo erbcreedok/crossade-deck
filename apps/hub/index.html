@@ -40,12 +40,31 @@
       #chrome { position: absolute; inset: 0; touch-action: none; }
       #stage { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; touch-action: none; }
       #shell[data-mode="hub"] #stage { display: none; }
+
+      /* Only inside a Telegram webview, only over a running table — a Mini App is not registered
+         yet, so the plain link a player tapped opened here instead of a real browser. */
+      #tg-banner {
+        display: none;
+        position: absolute; left: 0; right: 0; top: 56px; z-index: 5;
+        align-items: center; justify-content: space-between; gap: 8px;
+        padding: 6px 10px; background: #0b241a; color: #f4e8c1;
+        font: 13px/1.3 system-ui, sans-serif;
+      }
+      #shell[data-telegram="1"][data-mode="play"] #tg-banner { display: flex; }
+      #tg-banner button {
+        flex: none; border: none; border-radius: 6px; padding: 4px 10px;
+        background: #f4e8c1; color: #0b241a; font: inherit; font-weight: 600;
+      }
     </style>
   </head>
   <body>
     <div id="shell" data-mode="hub">
       <div id="chrome"></div>
       <div id="stage"></div>
+      <div id="tg-banner">
+        <span>Открой в Safari/Chrome — там удобнее</span>
+        <button id="tg-banner-open" type="button">Открыть</button>
+      </div>
     </div>
     <!-- Harmless outside Telegram: it defines `window.Telegram.WebApp` when the page is opened as
          a Mini App and does nothing at all in a plain browser tab. -->

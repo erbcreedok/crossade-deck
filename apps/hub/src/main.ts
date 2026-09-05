@@ -3,9 +3,26 @@ import { holdThePage } from "game-kit";
 import { startHub } from "./hub/shell.js";
 import { goTo, routeOf } from "./hub/route.js";
 import { serverUrl } from "./account/server.js";
+import { isTelegramWebview } from "./telegram.js";
 
 const chrome = document.querySelector<HTMLElement>("#chrome");
 const stage = document.querySelector<HTMLElement>("#stage");
+const shell = document.querySelector<HTMLElement>("#shell");
+
+/**
+ * The Mini App is not registered in BotFather yet, so a player who taps the bot's plain link
+ * inside Telegram lands in its webview, not a real browser — smaller viewport, no address bar,
+ * none of the browser's own gestures. `openLink` is Telegram's own escape hatch out of that view.
+ */
+function wireTelegramBanner(): void {
+  const webApp = (globalThis as any).Telegram?.WebApp;
+  if (!isTelegramWebview(webApp, navigator.userAgent)) return;
+  shell?.setAttribute("data-telegram", "1");
+  document.querySelector<HTMLButtonElement>("#tg-banner-open")?.addEventListener("click", () => {
+    webApp?.openLink(location.href);
+  });
+}
+wireTelegramBanner();
 // THE PAGE IS THE GAME'S TOO. A canvas comes held by `mount`; the document around it does not,
 // and on a phone that document is where the damage is: a pull at the left edge navigates BACK out
 // of the game, a pull downwards rubber-bands it (and inside a Telegram webview, closes it), a
