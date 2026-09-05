@@ -20,7 +20,14 @@
       rel="stylesheet"
     />
     <style>
-      html, body { margin: 0; height: 100%; background: #173d2d; overflow: hidden; }
+      /* NO SYSTEM SELECTION ANYWHERE ON THE PAGE. A long press on the canvas is a drag or a throw,
+         never a text selection — iOS answers a held finger with its own magnifier loupe unless told
+         otherwise, and that loupe fired on every card carried in the hub, the lobby and Klondike
+         alike (one page, one shell — see the region comment below). */
+      html, body {
+        margin: 0; height: 100%; background: #173d2d; overflow: hidden;
+        -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+      }
       /*
         TWO REGIONS, AND THE HUB'S NEVER CHANGES SIZE.
 

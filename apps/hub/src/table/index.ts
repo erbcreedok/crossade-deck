@@ -31,6 +31,8 @@ import {
   extentOf,
   fieldsOf,
   footprint,
+  GRIP_SPEC,
+  heapOf,
   holdThePage,
   installStockCarries,
   installStockFlips,
@@ -38,10 +40,13 @@ import {
   installStockSurfaces,
   installTheme,
   isDrawn,
+  isGrip,
   landed,
   landingPicture,
   mapWalls,
   mount,
+  regrasp,
+  regrip,
   seatIn,
   setRev,
   shoves,
@@ -73,6 +78,11 @@ function buildInitialDesk(game: TableGame): Node {
   return root;
 }
 
+/** A piece heaps by the name it carries (`Heaping`) — cards only, on this shelf. */
+function heapKindOf(n: Node): string {
+  return heapOf(n) ?? "";
+}
+
 /** The zone a run is over, per game — the same question `zoneAt` and a drop both ask. */
 function zoneAtFor(game: TableGame): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
   if (game === "chess") return (root, at) => squareAt(root, at);
@@ -90,6 +100,9 @@ const CAM_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
 const CAM_MARGIN = 2.5;
 /** Felt shown round the board when the table opens, units — room for a piece taken off it. */
 const OPEN_RIM = 1.2;
+
+/** How far the round table's circle overfills the glass at opening, cards only — no side seen. */
+const CARDS_OVERFILL = 1.25;
 
 /**
  * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (each desk on this shelf draws a
@@ -125,7 +138,16 @@ export function startTable(container: HTMLElement): Teardown {
   let currentTable: Table | null = null;
   let isNetworkUpdate = false;
 
+  // THE DECK'S OWN HANDLE, cards only — see `heapKindOf`. `heaps` is what each tab currently holds,
+  // read by the drag wiring's `runOf` below; `inHand` is the tab a local gesture is carrying, kept
+  // out of the next redraw exactly the way `gestureScene.ts` keeps it (`regrip`'s own `keep` arg).
+  let heaps: Map<string, readonly Node[]> = new Map();
+  let inHand: string | undefined;
+
   let initialRoot = buildInitialDesk(game);
+  // THE FIRST TAB, before there is a glass or a network tree to draw it into — one screen dealing a
+  // fresh table needs it from the very first frame, not from the first gesture.
+  if (game === "cards") heaps = regrip(initialRoot, heapKindOf, GRIP_SPEC);
   const host = mount(container, initialRoot);
   const vp = host.viewport();
   const painter = pixiPainter(host.view, { width: vp.width, height: vp.height, resolution: vp.dpr });
@@ -139,6 +161,21 @@ export function startTable(container: HTMLElement): Teardown {
   const rotation = (): number => camera.rotation;
   const stopPainter = attachPainter(host, painter, { view, pitch, rotation });
   const motions = attachMotion(host, painter, { view, pitch, rotation });
+
+  /** Nothing in the air or in a hand ever counts as lying on the felt — the same guard `gestureScene.ts` reads off its own clock. */
+  const aloftCards = (id: string): boolean => motions.busy(id);
+  /** MY OWN CHANGE: throw every tab away and draw it afresh — see `regrip`. */
+  const regripCards = (root: Node): void => {
+    heaps = regrip(root, heapKindOf, GRIP_SPEC, aloftCards, inHand);
+  };
+  /**
+   * A CHANGE THAT ARRIVED OVER THE WIRE: the tabs in `root` are whichever screen made the change's
+   * own, already sitting in the tree it sent — `regrasp` only relabels which pieces each already
+   * holds, so a tab this screen's own finger is on is never pulled out from under it mid-gesture.
+   */
+  const regraspCards = (root: Node): void => {
+    heaps = regrasp(root, heapKindOf, aloftCards);
+  };
 
   // A THROW OR A PINCH NEEDS A CLOCK, and the camera has none of its own (`guard.one-clock`): the
   // table keeps its own `beat` (`hub.one-clock` guards a HUB shelf against a second loop of its
@@ -235,7 +272,14 @@ export function startTable(container: HTMLElement): Teardown {
       bh = Math.max(bh, 2 * (Math.abs(y) + 0.8));
     }
     const unit = unitOf();
-    const open = Math.min(v.width / ((bw + OPEN_RIM * 2) * unit), v.height / ((bh + OPEN_RIM * 2) * unit));
+    // THE ROUND TABLE OPENS OVERFILLING THE GLASS ON PURPOSE — a fit that shows the whole rim reads
+    // as a coin on a phone; the owner wants the circle wider than the screen, its sides run off the
+    // edges and only the top is ever in view. `bw` here is the circle's own diameter (its footprint
+    // is square), so the target is that diameter times `CARDS_OVERFILL`, not the usual board+rim fit.
+    const open =
+      game === "cards"
+        ? (v.width * CARDS_OVERFILL) / (bw * unit)
+        : Math.min(v.width / ((bw + OPEN_RIM * 2) * unit), v.height / ((bh + OPEN_RIM * 2) * unit));
     camera.setZoom(Math.max(camera.fitZoom(), Math.min(open, CAM_ZOOM.maxZoom)));
     camera.lookAt({ x: room.x + room.w / 2, y: room.y + room.h / 2 });
     camera.turnTo(seatTurn());
@@ -374,6 +418,14 @@ export function startTable(container: HTMLElement): Teardown {
           // one is no better placed to answer "where does this land" than a hand carrying thirty-six.
           runOf: (_root: Node, hit: Node) => {
             landingPic.end(); // whatever the last gesture left, if anything ever does
+            // A HANDLE LIFTS THE HEAP IT STANDS UNDER, itself included — left behind, the tab would
+            // hang under felt the heap has just walked away from (`gestureScene.ts`'s own `runOf`
+            // for a grip). A card that is not a handle still lifts alone, same as before.
+            if (isGrip(hit)) {
+              inHand = hit.id;
+              return [hit, ...(heaps.get(hit.id) ?? [])];
+            }
+            inHand = undefined;
             const picture = landingPic.mark([hit], [{ x: 0, y: 0 }], seatIn(hit));
             return picture ? [hit, picture] : [hit];
           },
@@ -383,20 +435,33 @@ export function startTable(container: HTMLElement): Teardown {
           // ...AND THE LOAD IS PUSHED CLEAR OF THE PICTURE. Both hang off the same finger, so drawn
           // at the same point the card covers the outline exactly and the gesture shows nothing.
           // The picture keeps the finger's own place, because that is where the card is going.
-          offsetOf: (_root: Node, _hit: Node, run: readonly Node[]) => {
+          //
+          // A HANDLE CARRIES ITS HEAP RIGID: the deck already lies all but on top of itself
+          // (`roundMap.ts`'s own sliver offsets), so every piece under the tab keeps the finger's
+          // own point rather than the landing picture's, which only ever tracked a single lifted
+          // card.
+          offsetOf: (_root: Node, hit: Node, run: readonly Node[]) => {
+            if (isGrip(hit)) return run.map(() => ({ x: 0, y: 0 }));
             const clear = landingPic.current?.hover ?? { x: 0, y: 0 };
             return run.map((n) => (isDrawn(n) ? { x: 0, y: 0 } : clear));
           },
           // WHERE IT ACTUALLY COMES DOWN — see `carriedClear`. The wiring puts a piece down where it
           // was drawn, and where it was drawn is the clearance above the outline.
           onSettled: (root: Node, ids: readonly string[]) => {
-            if (carriedClear.x === 0 && carriedClear.y === 0) return;
-            const lead = ids[0] ? byId(root, ids[0]) : undefined;
-            const own = lead ? fieldsOf<TransformableFields>(lead, "Transformable") : undefined;
-            const clear = carriedClear;
-            carriedClear = { x: 0, y: 0 };
-            if (!lead || !own?.at) return;
-            compose(lead, Transformable({ ...own, at: { x: own.at.x - clear.x, y: own.at.y - clear.y } }));
+            inHand = undefined;
+            if (carriedClear.x !== 0 || carriedClear.y !== 0) {
+              const lead = ids[0] ? byId(root, ids[0]) : undefined;
+              const own = lead ? fieldsOf<TransformableFields>(lead, "Transformable") : undefined;
+              const clear = carriedClear;
+              carriedClear = { x: 0, y: 0 };
+              if (lead && own?.at) {
+                compose(lead, Transformable({ ...own, at: { x: own.at.x - clear.x, y: own.at.y - clear.y } }));
+              }
+            }
+            // THE TABS ARE REDRAWN AFTER EVERY DROP, whichever card moved — the heap a handle stands
+            // under is an accident of what is touching what right now, and a drop is the moment that
+            // can change.
+            regripCards(root);
             host.setRoot(root);
           },
         }
@@ -455,6 +520,7 @@ export function startTable(container: HTMLElement): Teardown {
         table.send(sRoot);
       } else {
         initialRoot = sRoot;
+        if (game === "cards") regraspCards(sRoot);
         isNetworkUpdate = true;
         host.setRoot(sRoot);
         isNetworkUpdate = false;
@@ -465,6 +531,7 @@ export function startTable(container: HTMLElement): Teardown {
       }
 
       unbindOnTree = table.onTree((newRoot) => {
+        if (game === "cards") regraspCards(newRoot);
         isNetworkUpdate = true;
         host.setRoot(newRoot);
         isNetworkUpdate = false;
