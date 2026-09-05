@@ -203,4 +203,53 @@ describe("wireDrag in kit", () => {
     motions.stop();
     host.unmount();
   });
+  it("drag.round-trip-off-centre — grabbed off its own middle, carried away and brought back to the very point it was picked up from, a piece lands exactly where it stood", () => {
+    installStockSurfaces();
+    installStockGrabs();
+    registerLayout("drag.round-trip.free", freeLayout);
+
+    const root = node("desk4", Container({ layout: "drag.round-trip.free" }), Grabber());
+    const card = node(
+      "card4",
+      Bounded({ bounds: rect(1, 1.4) }),
+      Surfaced(),
+      Transformable({ at: { x: 0, y: 0 } }),
+      Draggable({ onReject: "stay" }),
+    );
+    add(root, card);
+
+    const div = document.createElement("div");
+    Object.defineProperty(div, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    document.body.appendChild(div);
+
+    const host = mount(div, root, { hudUnit: 64, theme: "dark" });
+    Object.defineProperty(host.view, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    });
+    const motions = attachMotion(host, stubPainter());
+
+    const scene = { host, motions, el: host.view };
+    // NO `underFinger` — the default every desk with no zones to aim at should keep: the anchor
+    // rides the finger's own delta, so a piece that came back to the exact glass point it was
+    // taken from comes down on the exact seat it left, however far off its own middle the finger
+    // first landed.
+    wireDrag(scene, {});
+
+    // The finger lands 20 glass px off the card's own middle (300,200 is the card's centre at
+    // this mount's scale) — a wholly ordinary miss, not a corner case.
+    host.view.dispatchEvent(finger("pointerdown", 320, 210, 0));
+    host.view.dispatchEvent(finger("pointermove", 470, 210, 50));
+    host.view.dispatchEvent(finger("pointermove", 320, 210, 100));
+    host.view.dispatchEvent(finger("pointerup", 320, 210, 150));
+
+    const settledCard = byId(host.root, "card4");
+    const at = fieldsOf<TransformableFields>(settledCard!, "Transformable")?.at;
+    expect(at?.x).toBeCloseTo(0, 5);
+    expect(at?.y).toBeCloseTo(0, 5);
+
+    motions.stop();
+    host.unmount();
+  });
 });
