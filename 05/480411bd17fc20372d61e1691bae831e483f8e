@@ -1,0 +1,62 @@
+game-kit/.storybook/locales/chrome/ru.json
+  s_03b7d76c4864e0::t_2f5b9e2077fcfa 355-358
+game-kit/src/render/camera/index.ts
+  s_03b7d76c4864e0::t_8178196a6b7076 157-173
+game-kit/.storybook/locales/pages/avatars/ru.json
+  s_03b7d76c4864e0::t_9c1eaed70bb872 1-40,43
+  s_03b7d76c4864e0::t_8d079e0dd613ec 41-42
+game-kit/.storybook/preview.ts
+  s_03b7d76c4864e0::t_927f96808378df 180
+game-kit/src/index.ts
+  s_03b7d76c4864e0::t_51d8af4bb1b850 263-274,276-287
+  s_03b7d76c4864e0::t_b6e98dba7acf85 275
+game-kit/docs/test-plan/76-presence.md
+  s_03b7d76c4864e0::t_28b56fa3d01b51 1-16
+game-kit/.storybook/stories/Avatars.stories.ts
+  s_03b7d76c4864e0::t_a6d383dfcf97e8 227-232
+  s_03b7d76c4864e0::t_3506683401743c 203-211,213,216-226,233,242
+  s_03b7d76c4864e0::t_8d079e0dd613ec 155
+  s_03b7d76c4864e0::t_a556351c597801 118,199
+  s_03b7d76c4864e0::t_1b5a7757a92511 26,120-128,130-138,254-255
+  s_03b7d76c4864e0::t_fdc7e83cb51f22 1-25,27-55,57-58,60,64-104,111-117,119,129,139-154,156-198,200-202,212,214-215,234-241,243-253,256-356
+  s_03b7d76c4864e0::t_59fa7b6294aff4 56,59
+  s_03b7d76c4864e0::t_a87f56ba59928b 61-63,105-110
+game-kit/docs/test-plan/README.md
+  s_03b7d76c4864e0::t_28b56fa3d01b51 103
+  s_03b7d76c4864e0::t_612233229a797d 10
+game-kit/.storybook/stories/gestureScene.ts
+  s_03b7d76c4864e0::t_9a9328ae941ded 239-243,299
+game-kit/.storybook/locales/pages.ts
+  s_03b7d76c4864e0::t_927f96808378df 39,129,265-266
+game-kit/src/render/presence.ts
+  s_03b7d76c4864e0::t_ceac0ea3ef39ef 169,180,195,269,272
+  s_03b7d76c4864e0::t_59fa7b6294aff4 91-99,101,103
+  s_03b7d76c4864e0::t_3df1f37ace1c66 25,32-33,365-367,417-423,426,430-431,434
+  s_03b7d76c4864e0::t_ec15b10a3c88df 1-24,26-31,34-90,100,102,104-168,170-179,181-194,196-268,270-271,273-364,368-416,424-425,427-429,432-433,435-464
+game-kit/.storybook/devtools/scene.ts
+  s_03b7d76c4864e0::t_9a571990d4b3d2 247-251,624
+  s_03b7d76c4864e0::t_e7833c18ccba8b 246
+game-kit/src/render/presence.test.ts
+  s_03b7d76c4864e0::t_c996fe539ecee2 1-126
+game-kit/.storybook/locales/chrome/en.json
+  s_03b7d76c4864e0::t_2f5b9e2077fcfa 351-354
+game-kit/.storybook/locales/pages/avatars/en.json
+  s_03b7d76c4864e0::t_9c1eaed70bb872 1-41,44
+  s_03b7d76c4864e0::t_8d079e0dd613ec 42-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "05480411bd17fc20372d61e1691bae831e483f8e",
+  "prompts": {},
+  "sessions": {
+    "s_03b7d76c4864e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6589070-f8de-44dc-90cd-de1017e0a8e9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
