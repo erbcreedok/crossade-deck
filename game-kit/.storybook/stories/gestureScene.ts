@@ -20,6 +20,7 @@ import {
   type Walls,
   draggable,
   liveTable,
+  liveCameraHud,
   isHandleAmong as isHandleAmongInKit,
   letFall as letFallInKit,
   type LiveTable,
@@ -246,6 +247,13 @@ export function grabScene(
     onRoll: throwDie,
   });
   onLive?.(live);
+  // THE CAMERA'S OWN TWO CONTROLS, on every page that stands a live desk up — the kit's, wired in
+  // one line (`liveCameraHud`). The place button appears only where this page named seats, because
+  // that is where there is a place to be taken back to; north is on every one of them.
+  //
+  // It is hung for as long as the desk stands and taken down with it: the desk is built ONCE per
+  // page and handed to the reader, so a teardown of its own would have nothing to fire on.
+  liveCameraHud(live);
   return live.el;
 }
 

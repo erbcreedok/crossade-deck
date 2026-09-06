@@ -39,6 +39,71 @@ function bench(limits = { minZoom: 0.25, maxZoom: 4 }): Camera {
   return c;
 }
 
+describe("the turn asked for", () => {
+  // A VIEW SWUNG BACK TO NORTH is not a journey home: the aim and the zoom stay exactly where the
+  // reader left them, and only the rotation moves. None of that is checkable by eye — a glide that
+  // quietly re-aimed the camera looks like a nice animation until the piece being watched is gone.
+
+  it("camera.a-turn-asked-for-eases-to-the-mark", () => {
+    const c = bench();
+    c.turnTo(40);
+    c.glideTurnTo(0, 600);
+    expect(c.flinging).toBe(true);
+    c.stepFling(0.3);
+    expect(c.rotation).toBeGreaterThan(0);
+    expect(c.rotation).toBeLessThan(40);
+    // Run it out: it ends ON the mark and stops asking for frames.
+    expect(c.stepFling(0.3)).toBe(false);
+    expect(c.rotation).toBeCloseTo(0, 6);
+    expect(c.flinging).toBe(false);
+  });
+
+  it("camera.a-turn-asked-for-moves-nothing-else", () => {
+    const c = bench();
+    c.lookAt({ x: 700, y: 900 });
+    c.setZoom(2);
+    const at = { ...c.target };
+    const zoom = c.zoom;
+    c.turnTo(90);
+    c.glideTurnTo(0, 600);
+    c.stepFling(0.3);
+    c.stepFling(0.3);
+    expect(c.rotation).toBeCloseTo(0, 6);
+    expect(c.zoom).toBeCloseTo(zoom, 6);
+    expect(c.target.x).toBeCloseTo(at.x, 6);
+    expect(c.target.y).toBeCloseTo(at.y, 6);
+  });
+
+  it("camera.a-turn-asked-for-goes-the-short-way", () => {
+    const c = bench();
+    c.turnTo(350);
+    c.glideTurnTo(0, 600);
+    c.stepFling(0.15);
+    // Forward through 360, never back through the whole circle: the reading only ever grows.
+    expect(c.rotation).toBeGreaterThan(350);
+    c.stepFling(1);
+    expect(c.rotation).toBeCloseTo(360, 6);
+  });
+
+  it("camera.a-finger-takes-the-turn-back", () => {
+    const c = bench();
+    c.turnTo(40);
+    c.glideTurnTo(0, 600);
+    c.grab(); // a hand landed: whatever the view was doing, it stops under it
+    expect(c.flinging).toBe(false);
+    const held = c.rotation;
+    expect(c.stepFling(1)).toBe(false);
+    expect(c.rotation).toBe(held);
+  });
+
+  it("camera.a-turn-already-there-is-not-a-glide", () => {
+    const c = bench();
+    c.glideTurnTo(0);
+    expect(c.flinging).toBe(false);
+    expect(c.rotation).toBe(0);
+  });
+});
+
 describe("the camera", () => {
   it("camera.the-view-never-leaves-its-bounds — however hard it is pushed", () => {
     const c = bench();

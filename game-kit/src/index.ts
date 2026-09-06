@@ -592,6 +592,18 @@ export {
   type Fling,
 } from "./render/camera/index.js";
 export { idleReturn, type IdleReturnOpts, type IdleReturnTracker } from "./render/idleReturn.js";
+// The camera's own two controls on the glass — `liveCameraHud(live)` is the whole of the wiring
+// for a `liveTable`, and `cameraHud` is the pair itself for a consumer that owns its own screen.
+export {
+  cameraHud,
+  CAMERA_HUD,
+  CAMERA_HUD_HOME,
+  CAMERA_HUD_NORTH,
+  CAMERA_HUD_SIZE,
+  type CameraHud,
+  type CameraHudOptions,
+  liveCameraHud,
+} from "./presets/cameraHud.js";
 // The two gestures whose meaning is the same in every game there will ever be — a press, and the
 // hand moving the view. Everything else a game wires itself out of `glassOf`/`toUnits`/`pick`.
 export { wireButtons, type ButtonWiring, type Meaning } from "./render/buttons.js";
