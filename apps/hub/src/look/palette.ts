@@ -58,8 +58,8 @@ export const CLUB_U = 9.2 / 18;
 
 /**
  * The diamond sparkle's own tile, in units — the same reasoning as `CLUB_U`, a fraction of the
- * screen rather than a control's pixels. client1 spaces its diamonds far apart (a 520px canvas
- * tiled at 340px, itself far coarser than the 72px club weave), so the port keeps that sparseness:
- * twice the club's tile, one glyph to a tile.
+ * screen rather than a control's pixels. client1 draws its scatter on a 520px canvas but tiles it
+ * at 340px — a 0.65 scale-down, not the canvas's own size — so the port scales `CLUB_U`'s 72px tile
+ * by that same 340/72 ratio rather than by the 520px the glyphs are drawn at.
  */
-export const SPARK_U = CLUB_U * 2;
+export const SPARK_U = CLUB_U * (340 / 72);

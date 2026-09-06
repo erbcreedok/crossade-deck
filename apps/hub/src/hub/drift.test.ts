@@ -5,7 +5,7 @@
 // `core/motion` and `render/animator`: a step is checkable without a browser, a frame is not.
 
 import { describe, expect, it } from "vitest";
-import { AT_REST, DRIFT, driftStep } from "./drift.js";
+import { AT_REST, DRIFT, DRIFT_DIAMONDS, driftStep } from "./drift.js";
 
 describe("the felt's drift", () => {
   it("drift.a-full-period-comes-back-to-the-start — the pattern is seamless", () => {
@@ -47,5 +47,16 @@ describe("the felt's drift", () => {
     expect(driftStep(AT_REST, Number.POSITIVE_INFINITY, 1)).toEqual(AT_REST);
     expect(driftStep(AT_REST, Number.NaN, 1)).toEqual(AT_REST);
     expect(driftStep(AT_REST, -1, 1)).toEqual(AT_REST);
+  });
+});
+
+describe("the sparkle's own drift", () => {
+  it("drift.diamonds-go-straight-diagonal — one tile across for one tile down over 140s", () => {
+    const after = driftStep(AT_REST, DRIFT_DIAMONDS.seconds, 1, DRIFT_DIAMONDS);
+    expect(after.x).toBeCloseTo(0, 10);
+    expect(after.y).toBeCloseTo(0, 10);
+    const early = driftStep(AT_REST, 70, 1, DRIFT_DIAMONDS);
+    expect(early.x).toBeCloseTo(0.5, 10);
+    expect(early.y).toBeCloseTo(0.5, 10);
   });
 });

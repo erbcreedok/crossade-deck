@@ -72,37 +72,37 @@ function clubTile(): string {
 
 // THE DIAMOND, AS A BITMAP OVER A TRANSPARENT TILE.
 //
-// client1 ships this glyph as `public/bg-diamonds.svg` — a scatter of hand-placed pixel diamonds,
-// each shimmering on its own SMIL clock. One glyph per tile, the same simplification the club
-// weave already makes, keeps the source a shape a reader can see rather than a list of rects; the
-// shimmer itself is not baked into the picture (a `Coated` wash animates it instead, in `shell.ts`)
-// because a still asset cannot carry a clock of its own.
-const DIAMOND = [
-  "....#....",
-  "...###...",
-  "..#####..",
-  ".#######.",
-  "#########",
-  ".#######.",
-  "..#####..",
-  "...###...",
-  "....#....",
+// client1 ships this glyph as `public/bg-diamonds.svg` — five hand-placed pixel diamonds scattered
+// (not gridded) over a 520×520 canvas, each shimmering on its own SMIL clock. All five are the SAME
+// 7-row rhombus (1,3,5,7,5,3,1 pixels a row) at different cell sizes and positions — verbatim from
+// that file, read as `{ atX, atY, cell }` per diamond rather than as 125 individual `<rect>`s, the
+// same row-is-the-source move the club weave makes for its own glyph.
+const DIAMOND = ["...#...", "..###..", ".#####.", "#######", ".#####.", "..###..", "...#..."];
+
+/** The five scatters — `atX`/`atY` the bounding box's own top-left corner, `cell` its pixel size. */
+export const DIAMOND_SCATTER: ReadonlyArray<{ readonly atX: number; readonly atY: number; readonly cell: number }> = [
+  { atX: 87, atY: 212, cell: 4 },
+  { atX: 34, atY: 47, cell: 5 },
+  { atX: 39, atY: 475, cell: 5 },
+  { atX: 119, atY: 29, cell: 5 },
+  { atX: 232, atY: 224, cell: 3 },
 ];
 
-/** The tile the sparkle repeats on — wider than the club's, so the glyphs read as scattered. */
-function diamondTile(color: string): string {
-  const CELL = 4;
-  const SIDE = 144;
-  const GLYPH = DIAMOND.length * CELL;
-  const AT = (SIDE - GLYPH) / 2;
-  const body = DIAMOND.flatMap((row, y) =>
-    [...row].map((cell, x) =>
-      cell === "#"
-        ? `<rect x="${AT + x * CELL}" y="${AT + y * CELL}" width="${CELL}" height="${CELL}" fill="${color}"/>`
-        : "",
+/** client1's own canvas: 520×520, tiled at 340 css px — the scale that keeps the scatter's sparseness. */
+const DIAMOND_SIDE = 520;
+
+/** The tile the sparkle repeats on — client1's own 520×520 scatter, not a single centred glyph. */
+export function diamondTile(color: string): string {
+  const body = DIAMOND_SCATTER.flatMap(({ atX, atY, cell }) =>
+    DIAMOND.flatMap((row, y) =>
+      [...row].map((c, x) =>
+        c === "#"
+          ? `<rect x="${atX + x * cell}" y="${atY + y * cell}" width="${cell}" height="${cell}" fill="${color}"/>`
+          : "",
+      ),
     ),
   ).join("");
-  const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIDE}" height="${SIDE}" viewBox="0 0 ${SIDE} ${SIDE}" shape-rendering="crispEdges">${body}</svg>`;
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="${DIAMOND_SIDE}" height="${DIAMOND_SIDE}" viewBox="0 0 ${DIAMOND_SIDE} ${DIAMOND_SIDE}" shape-rendering="crispEdges">${body}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(doc)}`;
 }
 

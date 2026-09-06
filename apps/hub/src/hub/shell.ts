@@ -28,9 +28,9 @@ import {
 import { pixiPainter } from "game-kit/pixi";
 import { hubRuler } from "../look/fonts.js";
 import { installHubLook } from "../look/surfaces.js";
-import { CLUB_U, PALETTE } from "../look/palette.js";
+import { CLUB_U, PALETTE, SPARK_U } from "../look/palette.js";
 import { beat } from "./beat.js";
-import { AT_REST, driftStep, type Drift } from "./drift.js";
+import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
 import { barTree, FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID } from "./grid.js";
 import { wirePress } from "./press.js";
 import { twinkleLevel, twinkleStep } from "./twinkle.js";
@@ -108,6 +108,20 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     return true;
   };
 
+  // WHERE THE SPARKLE HAS CRAWLED TO — client1's `drift-diamonds`, kept out here for the same
+  // reason `felt` is: the tree is rebuilt on every `setMode` and the scatter must not jump back to
+  // the corner each time.
+  let sparkleDrift: Drift = AT_REST;
+  const driftSparkle = (_seconds: number, dt: number): boolean => {
+    const next = driftStep(sparkleDrift, dt, host.viewer().motionSpeed ?? 1, DRIFT_DIAMONDS);
+    if (next === sparkleDrift) return false;
+    sparkleDrift = next;
+    const layer = byId(host.root, SPARKLE_ID);
+    if (!layer) return false;
+    compose(layer, Transformable({ at: { x: sparkleDrift.x * SPARK_U, y: sparkleDrift.y * SPARK_U } }));
+    return true;
+  };
+
   // WHERE THE SHIMMER HAS GOT TO — kept out here for the same reason `felt` is: the tree is
   // rebuilt on every `setMode` and the sparkle must not flash back to full brightness each time.
   let sparklePhase = 0;
@@ -127,16 +141,20 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   // Joined and dropped with the switch rather than left running and told to do nothing: at
   // `motionSpeed: 0` the hub asks for no frames at all, which is what "power saving" has to mean.
   let stopDrift: (() => void) | undefined;
+  let stopSparkleDrift: (() => void) | undefined;
   let stopTwinkle: (() => void) | undefined;
   const followMotion = (): void => {
     const wanted = (host.viewer().motionSpeed ?? 1) > 0;
     if (wanted === (stopDrift !== undefined)) return;
     if (wanted) {
       stopDrift = clock.join(drift);
+      stopSparkleDrift = clock.join(driftSparkle);
       stopTwinkle = clock.join(twinkle);
     } else {
       stopDrift?.();
       stopDrift = undefined;
+      stopSparkleDrift?.();
+      stopSparkleDrift = undefined;
       stopTwinkle?.();
       stopTwinkle = undefined;
     }
@@ -176,7 +194,11 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     // it had crawled to, or opening a game would snap the weave and closing it would snap it again.
     const ground = byId(host.root, FELT);
     if (ground) compose(ground, Transformable({ at: { x: felt.x * CLUB_U, y: felt.y * CLUB_U } }));
-    // Same reasoning, for the sparkle's shimmer rather than its crawl: a fresh tree's sparkle
+    // Same reasoning, for the sparkle's own crawl: a fresh tree's scatter starts in the corner,
+    // and `drift-diamonds` is not new either.
+    const sparkleLayer = byId(host.root, SPARKLE_ID);
+    if (sparkleLayer) compose(sparkleLayer, Transformable({ at: { x: sparkleDrift.x * SPARK_U, y: sparkleDrift.y * SPARK_U } }));
+    // Same reasoning again, for the sparkle's shimmer rather than its crawl: a fresh tree's sparkle
     // starts at full brightness, and the shimmer is not new.
     writeSparkle();
     lastUnit = -1;

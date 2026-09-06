@@ -18,15 +18,29 @@ export interface Drift {
 
 export const AT_REST: Drift = { x: 0, y: 0 };
 
+/** A journey: how many tiles a drift crosses, in how many seconds, at the designed pace. */
+export interface Journey {
+  readonly tilesX: number;
+  readonly tilesY: number;
+  readonly seconds: number;
+}
+
 /**
  * client1's own numbers: `drift-clubs` runs 90s from `0 0` to `720px 432px` over a 72px tile —
  * ten tiles across and six down. Kept as the journey it is rather than reduced to a speed, so the
  * line can be read against the stylesheet it came from.
  */
-export const DRIFT = { tilesX: 10, tilesY: 6, seconds: 90 } as const;
+export const DRIFT: Journey = { tilesX: 10, tilesY: 6, seconds: 90 };
 
 /**
- * Advance the felt by `dt` seconds at `speed` times the designed pace, and WRAP.
+ * client1's `drift-diamonds`: the sparkle's own crawl, separate from the felt's — a straight
+ * diagonal (one tile across for one tile down) over 140s, slower and shallower than the club weave
+ * so the two patterns never fall into step and repeat the same beat.
+ */
+export const DRIFT_DIAMONDS: Journey = { tilesX: 1, tilesY: 1, seconds: 140 };
+
+/**
+ * Advance a drift by `dt` seconds at `speed` times `journey`'s designed pace, and WRAP.
  *
  * Wrapped because the pattern repeats: a tile over is the same picture, so the node never has to
  * travel — and a drift that ran all evening without this would carry the felt several thousand
@@ -35,14 +49,14 @@ export const DRIFT = { tilesX: 10, tilesY: 6, seconds: 90 } as const;
  * `speed` is the viewer's `motionSpeed`, and `0` means STILL — not slow. Nothing accumulates while
  * it is zero, so a reader who turns motion off and back on finds the pattern where they left it.
  */
-export function driftStep(from: Drift, dtSeconds: number, speed: number): Drift {
+export function driftStep(from: Drift, dtSeconds: number, speed: number, journey: Journey = DRIFT): Drift {
   // A hidden tab hands back a huge `dt` on the frame it wakes up. Guarded rather than clamped: a
   // clamp would still lurch a fraction of a tile, and nobody is owed the drift they slept through.
   if (!(dtSeconds > 0) || !(speed > 0) || !Number.isFinite(dtSeconds)) return from;
-  const gone = (dtSeconds * speed) / DRIFT.seconds;
+  const gone = (dtSeconds * speed) / journey.seconds;
   return {
-    x: wrap(from.x + gone * DRIFT.tilesX),
-    y: wrap(from.y + gone * DRIFT.tilesY),
+    x: wrap(from.x + gone * journey.tilesX),
+    y: wrap(from.y + gone * journey.tilesY),
   };
 }
 
