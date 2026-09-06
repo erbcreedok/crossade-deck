@@ -1,0 +1,19 @@
+game-presets/desks/src/nardyMap.test.ts
+  s_3e3d377e2062a5::t_9ecbaef594fdcb 61-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "21905ecd258f774358ba590bce0689a77e1fb9bd",
+  "prompts": {},
+  "sessions": {
+    "s_3e3d377e2062a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b73179a-0f56-4fc0-9f67-ad1eb3283d8b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
