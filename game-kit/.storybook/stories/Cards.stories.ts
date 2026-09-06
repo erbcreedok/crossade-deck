@@ -232,6 +232,8 @@ function liveCards(a: CardsArgs): HTMLElement {
               return stop;
             }
           : undefined,
+        // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only.
+        people ? (_meaning, control: Node) => people.pressed(seat, control) : undefined,
       ),
     );
     pane.appendChild(dot);

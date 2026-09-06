@@ -15,9 +15,10 @@
 //     back; the child turned back sums to even and shows its front — no per-id bookkeeping anywhere.
 
 import { fieldsOf, type Node } from "../core/node.js";
-import { type FlippableFields } from "../core/atoms/flippable.js";
+import { type Facing, type FlippableFields } from "../core/atoms/flippable.js";
+import { type PoserFields, watchedRecord } from "../core/atoms/pose.js";
 import { Surfaced, type SurfacedFields } from "../core/atoms/surfaced.js";
-import { sumAlongChain } from "../core/resolve.js";
+import { sumAlongChain, type ResolveContext } from "../core/resolve.js";
 import { IDENTITY, reflect } from "../core/transform.js";
 import { registerEffect, type Effect } from "./effects.js";
 
@@ -136,11 +137,34 @@ export const flipEffect: Effect = (n, ctx) => {
   // The axis is runtime data and a broken source must not NaN the matrix — every descendant would
   // inherit the poison. The default line is the safe answer: the turn still happens, about 90.
   const axis = Number.isFinite(own.axis) ? own.axis : 90;
+  // THE SECOND AXIS OF FACING, read for THESE EYES. A zone may say how everybody ELSE relates to
+  // the side its owner sees (`Poser.others` — a shut hand shows its owner faces and the table
+  // backs). `project` writes that into a projection; a screen sitting on the truth has none, so
+  // the rule is read here, where the picture is made, for the seat the plan is drawn for. It only
+  // ever turns a face into a back for the others: the card itself is not written to.
+  const shown = watchedSide(ctx, summedOdd ? "down" : "up");
   return {
-    node: summedOdd ? rec.turn(n) : n,
+    node: shown === "down" ? rec.turn(n) : n,
     pre: ownOdd && rec.reflects ? reflect(axis) : IDENTITY,
   };
 };
+
+/**
+ * WHICH SIDE THE VIEWER IS SHOWN of a card lying in a zone with an `others` rule — the zone is the
+ * node's direct owner, the rule belongs to it and applies to what it holds. Eyes with no seat, a
+ * zone with no rule, an unregistered rule: the owner's own side, unchanged.
+ */
+function watchedSide(ctx: ResolveContext, owner: Facing): Facing {
+  const me = ctx.viewer.marks?.me;
+  if (me === undefined) return owner;
+  const zone = ctx.chain[ctx.chain.length - 2];
+  const rules = zone ? fieldsOf<PoserFields>(zone, "Poser") : undefined;
+  if (!rules?.others) return owner;
+  const record = watchedRecord(rules.others);
+  if (!record) return owner;
+  const mine = rules.owner === "" || rules.owner === me;
+  return record({ owner, mine });
+}
 
 /** Parity that is correct for negatives and floors a fractional count — a turn is whole. */
 function mod2(turns: number): number {

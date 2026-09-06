@@ -30,6 +30,7 @@ import { attachMotion, type CarryItem, type Motions } from "./animator/index.js"
 import { Camera, type CameraContent, type CameraLimits } from "./camera/index.js";
 import { wireCamera } from "./cameraInput.js";
 import { fingerOf, refollow, unwireDrag, wireDrag } from "./drag.js";
+import { wireButtons, type Meaning } from "./buttons.js";
 import {
   flickOf,
   letFall,
@@ -328,6 +329,13 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
    */
   readonly taps?: (piece: Node) => boolean;
   /**
+   * A PRESS ON A CONTROL STANDING ON THE DESK — the bar above a hand. The press is the kit's own
+   * (`wireButtons`), wired here once through this desk's camera; what it MEANS is on the control
+   * (`Valued`) and this answers it. `true` says the tree was written, and the room is told exactly
+   * as it is after a drop. Absent, the desk has no controls of its own to answer for.
+   */
+  readonly presses?: (meaning: Meaning, control: Node) => boolean;
+  /**
    * THE DESK CAME TO REST AND THE PAGE HAS SOMETHING TO SAY ABOUT IT.
    *
    * A page whose furniture is DERIVED from the tree — a hand that is the size of what is in it —
@@ -470,6 +478,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     pieces,
     may,
     taps,
+    presses,
     onDeskChanged,
     heapKindOf,
     trayOf,
@@ -1162,6 +1171,20 @@ export function liveTable<S extends LiveStage = LiveStage>(
       : {}),
   }).el;
 
+  // THE DESK'S OWN CONTROLS, answered once. Every press on the glass is reported (the camera's pair
+  // has a wiring of its own and answers only what is its); one this desk answers wrote the tree,
+  // and the room is told the way a drop tells it.
+  const stopPressing = presses
+    ? wireButtons({
+        host: built.host,
+        ...(built.camera ? { view: () => built.camera!.transform() } : {}),
+        onPress: (meaning, control) => {
+          // `settle` writes the tree back and tells the room, the way every landing does.
+          if (presses(meaning, control)) settle();
+        },
+      })
+    : undefined;
+
   /**
    * THE RIM PAN — a finger holding a piece against the edge of the glass brings the desk to it.
    *
@@ -1251,6 +1274,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     },
     stop() {
       stopReseating?.();
+      stopPressing?.();
       stopRim();
       leaveRim?.();
       leaveRim = undefined;

@@ -182,6 +182,10 @@ export const Hands: StoryObj<HandArgs> = {
           // nothing a finger does reaches the disc at all.
           (piece: Node) => people.tapped(seat, piece),
           () => people.settled(),
+          undefined,
+          undefined,
+          // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only.
+          (_meaning, control: Node) => people.pressed(seat, control),
         ),
       );
       pane.appendChild(dot);

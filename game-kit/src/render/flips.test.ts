@@ -5,6 +5,9 @@ import { Surfaced, type SurfacedFields } from "../core/atoms/surfaced.js";
 import { Flippable } from "../core/atoms/flippable.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { contextFor } from "../core/resolve.js";
+import { Container } from "../core/atoms/container.js";
+import { installStockGrains, Poser } from "../core/atoms/pose.js";
+import { DEFAULT_VIEWER, type ViewerSettings } from "../core/viewer.js";
 import { apply, type Transform } from "../core/transform.js";
 import { rect } from "../presets/shapes.js";
 import { contentSwap, flipEffect, flipNames, flipRecord, installStockFlips, registerFlip, resetFlips } from "./flips.js";
@@ -20,6 +23,7 @@ describe("flips — the registry and the effect", () => {
     resetEffects();
     resetFlips();
     installStockFlips();
+    installStockGrains();
   });
 
   it("flip.register-and-lookup — a recipe is found by name, a dangling one is undefined", () => {
@@ -49,6 +53,34 @@ describe("flips — the registry and the effect", () => {
     const out = flipEffect(ace, contextFor(ace, 100));
     // Summed parity is odd (stack 1 + card 0), so the shown node wears the back surface.
     expect(fieldsOf<SurfacedFields>(out.node, "Surfaced")!.surface).toBe("cardBack");
+  });
+
+  it("flip.a-watched-zone-shows-others-the-back — the owner sees what they set, everybody else the back", () => {
+    // THE SECOND AXIS OF FACING, ON THE TRUTH. `project` writes it into a projection (`showSides`),
+    // and a screen sitting on a projection never needs this; a screen sitting on the TRUTH — two
+    // panes over one desk, or a hub screen drawing the room's own tree — has no projection to hide
+    // behind, and the zone's rule has to be read where the picture is made: by the effect, for the
+    // eyes the plan is drawn for (`viewer.marks.me`). The rule is the zone's (`Poser.others`) and
+    // applies to what it HOLDS; nothing is written to the card.
+    const hand = node("southHand", Container({ layout: "free" }), Poser({ others: "back", owner: "south" }));
+    const ace = card("aceCard", { flip: "turnOver", back: "cardBack", turns: 0 });
+    add(hand, ace);
+    const eyes = (me: string): ViewerSettings => ({ ...DEFAULT_VIEWER, marks: { showOwn: true, me } });
+    const seen = (me: string | undefined) => fieldsOf<SurfacedFields>(flipEffect(ace, contextFor(ace, 100, me === undefined ? DEFAULT_VIEWER : eyes(me))).node, "Surfaced")!.surface;
+    expect(seen("north"), "a neighbour is shown the back").toBe("cardBack");
+    expect(seen("south"), "the owner sees the face they set").toBe("front");
+    expect(seen(undefined), "eyes with no seat see the truth").toBe("front");
+    // ...AND A CARD THE OWNER TURNED DOWN IS DOWN FOR THEM AND STILL DOWN FOR OTHERS — the rule
+    // never turns a back into a face.
+    const two = card("twoCard", { flip: "turnOver", back: "cardBack", turns: 1 });
+    add(hand, two);
+    expect(fieldsOf<SurfacedFields>(flipEffect(two, contextFor(two, 100, eyes("south"))).node, "Surfaced")!.surface).toBe("cardBack");
+    expect(fieldsOf<SurfacedFields>(flipEffect(two, contextFor(two, 100, eyes("north"))).node, "Surfaced")!.surface).toBe("cardBack");
+    // A ZONE WITH THE STOCK RULE (`same`, or none) shows everybody the owner's side.
+    const open = node("openHand", Container({ layout: "free" }));
+    const king = card("kingCard", { flip: "turnOver", back: "cardBack", turns: 0 });
+    add(open, king);
+    expect(fieldsOf<SurfacedFields>(flipEffect(king, contextFor(king, 100, eyes("north"))).node, "Surfaced")!.surface).toBe("front");
   });
 
   it("flip.turnOver-empty-back-shows-the-front — a turn never blanks the card", () => {

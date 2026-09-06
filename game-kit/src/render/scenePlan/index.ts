@@ -232,6 +232,52 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
     return out.laid.lines.length > 0 ? { font: out.font, fill: style.fill, lines: out.laid.lines } : undefined;
   };
 
+  /**
+   * ONE MAP FROM A NODE'S OWN COORDINATES TO THE GLASS — its pose, its owners' poses, the view; and
+   * then, about its own origin, whatever a node takes back from the view: a billboard's stand and
+   * unturn, a control's hold on its pixels.
+   *
+   * INHERITED FROM ITS OWNER. What stands IN a screened or viewer-framed node is drawn in that
+   * owner's frame exactly as the owner is drawn — seat and size alike — so a bar of four buttons
+   * held on the glass is a bar at every zoom (each held to its pixels but seated in desk units, the
+   * four closed into one lump zoomed out and spread across the table zoomed in), and a glyph in an
+   * upright bar is upright too. Written as "the owner's glass map, then the step from the owner's
+   * pose to mine": for an owner that takes nothing back that is the plain view of my own pose, to
+   * the last digit, which is every ordinary piece.
+   */
+  const glass = new Map<string, Transform>();
+  const glassOf = (n: Node, node: Node, ctx: ResolveContext): Transform => {
+    const known = glass.get(n.id);
+    if (known) return known;
+    const world = overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY;
+    const owner = n.parent;
+    let lying = compose(toView, world);
+    if (owner) {
+      const ownerWorld = overrides?.get(owner.id) ?? nodes.get(owner.id) ?? IDENTITY;
+      const back = invert(ownerWorld);
+      const ownerGlass = glassOf(owner, owner, contextFor(owner, unit, viewer));
+      if (back) lying = compose(ownerGlass, compose(back, world));
+    }
+    // A node framed to the VIEWER stands out of the tilted plane; everything else lies on it. The
+    // stand is about the node's OWN origin, so it gains height without walking up the screen.
+    const billboard = orientationOf(ctx) === "viewer";
+    const stood = standUp && billboard ? standing(lying, standUp) : lying;
+    // AND, FOR THE SAME NODE, THE CAMERA'S OWN TURN COMES BACK OFF — about its own origin again, so
+    // a chess piece stands upright on the black player's screen exactly as it does on the white
+    // player's, whichever way the seat's camera looks at the board.
+    const unturned = unturn && billboard ? standing(stood, unturn) : stood;
+    // A CONTROL IS MEASURED IN PIXELS — between a floor and a ceiling. The view's own scale is taken
+    // back about the node's own ORIGIN, so a handle holds its place on the thing it is a handle for
+    // instead of walking across the glass; and only as far as its bounds allow, because a handle
+    // that kept its pixels for ever ends up dwarfing the desk at one end and a speck at the other.
+    const hold = caps(node).has("Screened")
+      ? screenScale(fieldsOf<ScreenedFields>(node, "Screened"), viewOverUnit) / viewOverUnit
+      : 1;
+    const out = Math.abs(hold - 1) > 1e-9 ? standing(unturned, scale(hold)) : unturned;
+    glass.set(n.id, out);
+    return out;
+  };
+
   const paint = (
     n: Node,
     node: Node,
@@ -258,28 +304,7 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
     // node's own origin and the matrix carries everything else. A mid-settle override, when the
     // motion runtime supplies one, stands in for the resting pose here — same space, so nothing
     // else in the pipeline learns that the node is in flight.
-    const lying = compose(toView, overrides?.get(n.id) ?? nodes.get(n.id) ?? IDENTITY);
-    // A node framed to the VIEWER stands out of the tilted plane; everything else lies on it. The
-    // stand is about the node's OWN origin, so it gains height without walking up the screen.
-    const billboard = orientationOf(ctx) === "viewer";
-    const stood = standUp && billboard ? standing(lying, standUp) : lying;
-    // AND, FOR THE SAME NODE, THE CAMERA'S OWN TURN COMES BACK OFF — about its own origin again, so
-    // a chess piece stands upright on the black player's screen exactly as it does on the white
-    // player's, whichever way the seat's camera looks at the board.
-    const unturned = unturn && billboard ? standing(stood, unturn) : stood;
-    // A CONTROL IS MEASURED IN PIXELS. The view's own scale is taken back about the node's own
-    // origin, so a handle is the same size at every zoom — which is what a handle is in every
-    // application that has ever drawn one, because it is sized for the finger and a finger does not
-    // grow with the picture. About its ORIGIN, so it holds its place on the thing it is a handle for
-    // instead of walking across the glass as the view moves.
-    // A CONTROL IS MEASURED IN PIXELS — between a floor and a ceiling. The view's own scale is taken
-    // back about the node's own ORIGIN, so a handle holds its place on the thing it is a handle for
-    // instead of walking across the glass; and only as far as its bounds allow, because a handle
-    // that kept its pixels for ever ends up dwarfing the desk at one end and a speck at the other.
-    const hold = caps(node).has("Screened")
-      ? screenScale(fieldsOf<ScreenedFields>(node, "Screened"), viewOverUnit) / viewOverUnit
-      : 1;
-    const toGlass = Math.abs(hold - 1) > 1e-9 ? standing(unturned, scale(hold)) : unturned;
+    const toGlass = glassOf(n, node, ctx);
     // A ZERO UNIT IS NOT A DIVISION. A container with no size on screen — hidden, or measured
     // before layout — reports a unit of zero, and `1 / 0` puts NaN through the whole matrix.
     // Everything downstream then reads as "rotated", because NaN is not equal to zero either,

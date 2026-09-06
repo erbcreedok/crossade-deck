@@ -12,8 +12,12 @@ import {
   add,
   apply,
   attachMotion,
+  button,
   byId,
   Bounded,
+  circle,
+  installStockCoats,
+  installStockControls,
   Carry,
   compose,
   Container,
@@ -953,6 +957,45 @@ describe("the live desk", () => {
     expect(shell.camera!.x, "away from the rim the view rests").toBeCloseTo(settledX, 6);
     shell.el.dispatchEvent(finger("pointerup", 300, on.y, 1400));
     c.tick(60);
+    live.stop();
+  });
+
+  it("liveTable.a-press-on-a-control-of-the-desk-is-answered-and-told — the desk's own buttons, wired once", () => {
+    // A DESK MAY HAVE CONTROLS ON IT — the bar above a hand — and a press is the one gesture the
+    // kit owns (`wireButtons`). The live desk wires it once for whoever hands in `presses`, through
+    // its own camera; a press the consumer answers with `true` wrote the tree, and the room is told
+    // exactly as it is after a drop (`mirror.changed`). One the consumer declines leaves nothing.
+    const { root } = desk();
+    installStockCoats();
+    installStockControls();
+    add(root, button("shut", { bounds: circle(0.4), means: { does: "shut" }, at: { x: 1, y: 1 } }));
+    add(root, button("nope", { bounds: circle(0.4), means: { does: "nope" }, at: { x: -1, y: -1 } }));
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -4, y: -4, w: 8, h: 8 }, shell.host.unit());
+    let changed = 0;
+    const pressed: string[] = [];
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      mirror: { ready: () => {}, changed: () => (changed += 1), hand: () => {} },
+      presses: (meaning) => {
+        pressed.push(String(meaning["does"]));
+        return meaning["does"] === "shut";
+      },
+    });
+    const told = changed;
+    const tap = (id: string): void => {
+      const on = apply(shell.camera!.transform(), seatOf(shell.host.root, id));
+      shell.el.dispatchEvent(finger("pointerdown", on.x, on.y, 0));
+      shell.el.dispatchEvent(finger("pointerup", on.x, on.y, 80));
+    };
+    tap("shut");
+    expect(pressed).toEqual(["shut"]);
+    expect(changed, "an answered press is told to the room").toBe(told + 1);
+    tap("nope");
+    expect(pressed).toEqual(["shut", "nope"]);
+    expect(changed, "a declined press is not").toBe(told + 1);
     live.stop();
   });
 

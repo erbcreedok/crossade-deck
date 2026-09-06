@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**79 слоёв · 1700 кейсов заявлено · 1527 расписано поимённо.**
+**79 слоёв · 1704 кейсов заявлено · 1531 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -35,7 +35,7 @@
 | [UNIT · ResolveContext](07-resolve-context.md) | `vitest + a fake clock` | 12 | 4 |
 | [UNIT · per-atom contract](08-per-atom-contract.md) | `vitest` | 107 | 107 |
 | [UNIT · Container — slot, layout, spreading](09-container.md) | `vitest` | 107 | 95 |
-| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 73 | 73 |
+| [UNIT · the scene plan](10-scene-plan.md) | `vitest (headless, no WebGL)` | 74 | 74 |
 | [UNIT · оболочка каталога](11-catalog-shell.md) | `vitest + jsdom` | 111 | 110 |
 | [UNIT · the two measures](12-two-measures.md) | `vitest` | 8 | 5 |
 | [UNIT · границы по сетке](13-zombies-correct-grid.md) | `vitest` | 15 | 15 |
@@ -64,7 +64,7 @@
 | [UNIT · the effects list — the runtime seam](36-effects.md) | `vitest` | 5 | 5 |
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 34 | 34 |
-| [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 15 | 15 |
+| [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 16 | 16 |
 | [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 52 | 52 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 12 | 12 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 17 | 17 |
@@ -92,7 +92,7 @@
 | [UNIT · сборка стеков — что становится одной кучей](64-stack-merging.md) | `vitest (headless, no WebGL)` | 9 | 9 |
 | [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 6 | 6 |
 | [UNIT · магнетизм — какой зоне принадлежит отпускание](66-magnetism.md) | `vitest (headless, no WebGL)` | 21 | 21 |
-| [UNIT · live — дальний экран и люди за столом](67-live.md) | `vitest (headless, no WebGL) + jsdom` | 10 | 10 |
+| [UNIT · live — дальний экран и люди за столом](67-live.md) | `vitest (headless, no WebGL) + jsdom` | 11 | 11 |
 | [UNIT · шахматы — доска, через реальную проводку](68-chess.md) | `vitest (headless, no WebGL, jsdom)` | 4 | 4 |
 | [UNIT · NodeSpec и Revised — сериализация дерева](69-spec.md) | `vitest (headless, no WebGL)` | 4 | 4 |
 | [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 6 | 6 |
@@ -102,6 +102,6 @@
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |
 | [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 11 | 11 |
 | [UNIT · idleReturn — возврат камеры](77-idle-return.md) | `vitest (headless, no WebGL)` | 5 | 5 |
-| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 22 | 22 |
+| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 23 | 23 |
 | [UNIT · HUD камеры — две кнопки в углу](79-camera-hud.md) | `vitest + jsdom` | 6 | 6 |
 | [UNIT · homeZoom — дом, который влезает в стекло](80-home-view.md) | `vitest (headless, no WebGL)` | 5 | 5 |

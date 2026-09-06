@@ -16,7 +16,7 @@ import { Labeled } from "../../core/atoms/labeled.js";
 import { type TextMeasure } from "../textMetrics.js";
 import { add, node, type NodeId } from "../../core/node.js";
 import { DEFAULT_VIEWER } from "../../core/viewer.js";
-import { apply, compose, IDENTITY, move, scale, type Transform } from "../../core/transform.js";
+import { apply, compose, IDENTITY, move, rotate, scale, type Transform } from "../../core/transform.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan, transformsOf, type Quad } from "./index.js";
 import { Camera } from "../camera/index.js";
 import { registerAsset } from "../assets.js";
@@ -798,6 +798,38 @@ describe("bounds marks", () => {
       .filter((m) => m.closed)
       .map((m) => m.points[0]!.x);
     expect(xs).toEqual([300, 400]);
+  });
+
+  it("plan.what-is-in-a-screened-node-is-held-with-it — a row of controls scales as a row, and stands up with it", () => {
+    // A CONTROL WITH THINGS IN IT — a bar of four buttons above a hand — is held on the glass as a
+    // whole, or it is no bar: each button held to its pixels but seated in desk units closed up
+    // into one lump when the view zoomed out and spread across the table when it zoomed in. So the
+    // hold is inherited: what stands in a screened node is drawn in its owner's frame as the
+    // owner is drawn, seat and size alike — and the same for the stand and the unturn a viewer-
+    // framed owner takes, so a glyph in an upright bar is upright too.
+    registerSurface("plain", { layers: [{ paint: "accent" }] });
+    const bar = node("bar", box(2, 0.5), Surfaced({ surface: "plain" }), Transformable({ at: { x: 1, y: 0 } }), Screened(), Oriented({ orientation: "viewer" }));
+    const left = node("left", box(0.5, 0.5), Surfaced({ surface: "plain" }), Transformable({ at: { x: -0.75, y: 0 } }));
+    const right = node("right", box(0.5, 0.5), Surfaced({ surface: "plain" }), Transformable({ at: { x: 0.75, y: 0 } }));
+    add(bar, left);
+    add(bar, right);
+    const quads = (view?: Transform, rotation?: number) =>
+      scenePlan({ root: bar, unit: 100, width: 800, height: 600, viewer: DEFAULT_VIEWER, ...(view ? { view } : {}), ...(rotation === undefined ? {} : { rotation }) });
+    const drawn = (q: Quad): number => Math.hypot(q.transform.a, q.transform.b);
+    const seat = (q: Quad): { x: number; y: number } => apply(q.transform, { x: 0, y: 0 });
+    const find = (qs: readonly Quad[], id: string): Quad => qs.find((q) => q.id === id)!;
+    const one = quads();
+    const zoomed = quads(compose(move(400, 300), scale(200)));
+    // The buttons keep their pixels, as the bar does...
+    expect(drawn(find(zoomed, "left"))).toBeCloseTo(drawn(find(one, "left")), 6);
+    // ...AND THEIR DISTANCE APART, measured on the glass: a row that is a row at every zoom.
+    const apart = (qs: readonly Quad[]) => seat(find(qs, "right")).x - seat(find(qs, "left")).x;
+    expect(apart(zoomed)).toBeCloseTo(apart(one), 6);
+    // ...AND THEY STAND UPRIGHT WITH IT: the view turned by 90°, the bar unturns (`viewer`), and so
+    // do its buttons — the row still lies along the glass's own x.
+    const turned = quads(compose(move(400, 300), compose(rotate(90), scale(100))), 90);
+    expect(Math.abs(seat(find(turned, "right")).y - seat(find(turned, "left")).y)).toBeLessThan(1e-6);
+    expect(apart(turned)).toBeCloseTo(apart(one), 6);
   });
 
   it("plan.a-screened-node-keeps-its-size-on-the-glass — a control is measured in pixels", () => {

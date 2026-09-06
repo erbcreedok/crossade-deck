@@ -25,7 +25,7 @@ import { type CarryItem } from "./animator/index.js";
 import { type SeatPlace } from "./liveTable.js";
 import { isHome, placeAvatars, PRESENCE_TEXT, type Presence } from "./presence.js";
 import { registerTextStyle } from "./textStyles.js";
-import { chairId, dressChair, fitChair, growHand, standChair } from "@game-presets/desks";
+import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, growHand, handHidden, handLocked, setChairPin, setHandHidden, standChair } from "@game-presets/desks";
 
 /** The name under a disc: small, quiet and the desk's own face. */
 const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
@@ -115,6 +115,12 @@ export interface Avatars {
   readonly handed: (seat: string, items: readonly CarryItem[], at: Vec | undefined, done: boolean) => void;
   /** A tap on one's OWN ring takes that reader's view home. Anything else is not this wiring's. */
   readonly tapped: (seat: string, piece: Node) => boolean;
+  /**
+   * A PRESS ON A CONTROL OF THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin. Answered for
+   * the owner only; a control that is not the bar's, or is somebody else's, is not this wiring's.
+   * Answers `true` when the tree was written, so the caller can tell the room.
+   */
+  readonly pressed: (seat: string, control: Node) => boolean;
   /** Where a seat's place stands RIGHT NOW — the opening one until its owner drags the chair. */
   readonly placeOf: (seat: string) => SeatPlace | undefined;
   /**
@@ -151,8 +157,21 @@ export function withAvatars(o: AvatarsOptions): Avatars {
   );
   /** Whose hand is holding something — `handed()`'s own, laid over whatever `mine()` says. */
   const holding = new Set<string>();
-  /** Whose hand is shut. Turned by its owner's tap, and only on a desk that has hands at all. */
-  const shut = new Map<string, boolean>(o.seats.map(({ seat }, i) => [seat, o.locked?.[i] === true]));
+  /**
+   * WHOSE HAND OPENS SHUT — written onto the chair ONCE, the first time the desk is laid, and
+   * never held here after that. The lock is a number on the chair (`HAND_LOCK`) and the chair is
+   * on every screen's tree: a map of "shut" kept beside the tree was a second truth, and on the far
+   * screen it was the wrong one — every publish there re-dressed the chair open again.
+   */
+  let seeded = false;
+  const seedLocks = (): void => {
+    if (seeded || o.hands === undefined) return;
+    seeded = true;
+    o.seats.forEach(({ seat }, i) => {
+      const ring = byId(desk(), chairId(seat));
+      if (ring && o.locked?.[i] === true) dressChair(ring, { shut: true });
+    });
+  };
 
   /** What the far side last said about each of its seats — this side's own is never in here. */
   const far = new Map<string, Presence>();
@@ -187,7 +206,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       // THE RING IS THE HAND, so there is nothing to put beside anything: it stands where its owner
       // sits and it is the size of what is in it. Both facts are written in ONE call, because they
       // are one picture — see `dressChair`.
-      dressChair(ring, { shut: o.hands !== undefined && shut.get(seat) === true, home: home.has(seat) });
+      dressChair(ring, { home: home.has(seat) });
       if (o.hands !== undefined) {
         growHand(ring);
         // ...AND THE FURNITURE FOLLOWS THE BOX: the tick back on the rim, the name back under it.
@@ -229,11 +248,12 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     if (placing) return;
     const all = presences();
     if (all.length === 0) return;
-    const now = JSON.stringify([all, [...shut]]);
+    const now = JSON.stringify(all);
     if (now === last) return;
     last = now;
     placing = true;
     try {
+      seedLocks();
       readHome(all);
       placeAvatars(desk(), all);
       layChairs();
@@ -302,6 +322,21 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       // off the felt, and that is read back off the view like everybody else's (`readHome`).
       if (piece.id !== chairId(seat)) return false;
       o.goHome?.(seat);
+      return true;
+    },
+    pressed: (seat, control) => {
+      const press = barPress(control);
+      if (!press || press.seat !== seat) return false;
+      const ring = byId(desk(), chairId(seat));
+      if (!ring) return false;
+      // EACH IS ONE WRITE ON THE CHAIR, and the chair is the truth on every screen: the lock and
+      // the pin are numbers on it, hiding is its zone rule, a flip is the cards' own sides. Then
+      // the place is re-dressed — which lights the bar off those very numbers (`dressBar`).
+      if (press.what === "lock") dressChair(ring, { shut: !handLocked(ring) });
+      else if (press.what === "hide") setHandHidden(ring, !handHidden(ring));
+      else if (press.what === "flip") flipHand(ring);
+      else setChairPin(ring, !chairPinned(ring));
+      layHands();
       return true;
     },
     placeOf: (seat) => placed.get(seat),

@@ -9,8 +9,21 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  add,
   avatarId,
+  Bounded,
   byId,
+  contextFor,
+  DEFAULT_VIEWER,
+  facing,
+  Flippable,
+  flipEffect,
+  installStockFlips,
+  node,
+  rect,
+  Surfaced,
+  Transformable,
+  type CoatedFields,
   homeTarget,
   caps,
   grippableBy,
@@ -24,7 +37,7 @@ import {
   type SurfacedFields,
   type TransformableFields,
 } from "../index.js";
-import { chairHome, chairId, chairTickId, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
+import { chairButtonId, chairHome, chairId, chairPinned, chairTickId, handHidden, handLocked, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
 import { mayTake } from "@game-presets/desks";
 
 /** A camera that has nothing else — the one thing `withAvatars` asks a screen for. */
@@ -191,6 +204,59 @@ describe("the people at a live desk", () => {
     // whatever the scene was already doing with one.
     expect(people.tapped(mine, byId(desk, chairId(theirs))!)).toBe(false);
     expect(asked).toEqual([mine]);
+  });
+
+  it("live.the-bar-is-pressed-by-its-owner-alone — shut, hide, turn over, pin: four writes on the chair, read by every screen", () => {
+    // THE BAR ABOVE A HAND (`handBar.ts`) is the one place a finger says what a hand is. Each press
+    // is one write on the chair — the lock and the pin are numbers on it, hiding is its zone rule,
+    // a flip is the cards' own sides — and the chair is on every screen's tree, so the OTHER screen
+    // reads the state off the same node: lit controls, refused reaches, backs instead of faces.
+    installStockFlips();
+    const desk = roundMap(SEATS);
+    const screens = [screenOf("south", "accent", 0), screenOf("north", "alert", 180)];
+    const people = wire(desk, screens);
+    people.publish();
+    const ring = byId(desk, chairId("south"))!;
+    const card = (id: string) => node(id, Bounded({ bounds: rect(1, 1.4) }), Surfaced({ surface: "front" }), Transformable({ at: { x: 0, y: 0 } }), Flippable({ flip: "turnOver", back: "cardBack" }));
+    add(ring, card("ace"));
+    add(ring, card("two"));
+    const control = (what: "lock" | "hide" | "flip" | "pin") => byId(desk, chairButtonId("south", what))!;
+
+    // NOBODY ELSE'S FINGER: north pressing south's bar is not this wiring's.
+    expect(people.pressed("north", control("lock"))).toBe(false);
+    expect(handLocked(ring)).toBe(false);
+    // ...AND A PIECE THAT IS NOT THE BAR'S is not either.
+    expect(people.pressed("south", ring)).toBe(false);
+
+    expect(people.pressed("south", control("lock"))).toBe(true);
+    expect(handLocked(ring), "shut").toBe(true);
+    expect(grippableBy(byId(desk, "ace")!, "north"), "…and north cannot reach in").toBe(false);
+    expect(fieldsOf<CoatedFields>(control("lock"), "Coated"), "…and the control is lit").toBeDefined();
+
+    expect(people.pressed("south", control("hide"))).toBe(true);
+    expect(handHidden(ring)).toBe(true);
+    // THE OTHER SCREEN SEES BACKS — read where the picture is made, for its own eyes.
+    const shown = (me: string, id: string) =>
+      fieldsOf<SurfacedFields>(flipEffect(byId(desk, id)!, contextFor(byId(desk, id)!, 100, { ...DEFAULT_VIEWER, marks: { showOwn: false, me } })).node, "Surfaced")!.surface;
+    expect(shown("north", "ace")).toBe("cardBack");
+    expect(shown("south", "ace")).toBe("front");
+
+    expect(people.pressed("south", control("flip"))).toBe(true);
+    expect(facing(byId(desk, "ace")!)).toBe("down");
+    expect(facing(byId(desk, "two")!)).toBe("down");
+    expect(ring.children.map((n) => n.id), "the order is untouched").toEqual(["ace", "two"]);
+    expect(fieldsOf<CoatedFields>(control("flip"), "Coated"), "a flip is not a state and lights nothing").toBeUndefined();
+
+    expect(people.pressed("south", control("pin"))).toBe(true);
+    expect(chairPinned(ring)).toBe(true);
+    expect(mayTake(ring, "south"), "a pinned chair moves for nobody").toBe(false);
+
+    // ...AND EACH PRESSED AGAIN IS THE STATE OFF AGAIN.
+    people.pressed("south", control("lock"));
+    people.pressed("south", control("hide"));
+    people.pressed("south", control("pin"));
+    expect([handLocked(ring), handHidden(ring), chairPinned(ring)]).toEqual([false, false, false]);
+    expect(shown("north", "ace"), "shown again, north sees the side south set").toBe("cardBack");
   });
 
   it("live.only-the-owner-may-move-a-place — and nothing at all may move a disc", () => {

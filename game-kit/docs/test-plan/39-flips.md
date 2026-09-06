@@ -1,6 +1,6 @@
 ## UNIT · flips — the registry and the flip effect
 
-`vitest` · 15 кейсов, расписано 15
+`vitest` · 16 кейсов, расписано 16
 
 Реестр рецептов переворота (зеркало `surfaces`) + одна функция-эффект в списке. `mirror` — чистая
 геометрия; `turnOver` — отражение И своп изнаночной поверхности. Отражение по СВОЕЙ чётности `turns`,
@@ -13,6 +13,7 @@
 | `flip.mirror-reflects-and-swaps-nothing` | рецепт mirror | `turn(n)` | reflects:true, тот же узел (геометрия делает всё) |
 | `flip.effect-reflects-on-own-odd-parity` | own turns 1 vs 0 | `flipEffect` | `pre` det −1 vs IDENTITY |
 | `flip.effect-swaps-content-on-summed-odd` | стопка turns=1, карта turnOver back | `flipEffect` | shown-узел носит изнанку |
+| `flip.a-watched-zone-shows-others-the-back` | зона с `Poser({others:"back", owner:"south"})`, в ней карта лицом вверх; вторая — перевёрнутая хозяином; зона без правила | `flipEffect` с `viewer.marks.me` = north / south / без места | north видит рубашку, south — лицо, без места — правду (лицо); карта, перевёрнутая хозяином, — рубашка и ему, и соседу (правило не делает из рубашки лицо); зона без правила — всем сторону хозяина. Вторая ось facing читается там, где делается картинка, — экран на ПРАВДЕ (две панели над одним столом, хаб) не имеет проекции, чтобы за ней прятаться |
 | `flip.turnOver-empty-back-shows-the-front` | back "" | `flipEffect` | фронт, переворот не бланчит |
 | `flip.dangling-recipe-leaves-the-node-unturned` | flip `nosuch` | `flipEffect` | узел как есть, без отражения, не throw |
 | `flip.two-reflections-cancel` | стопка+карта обе turns=1 через `transformsOf` | det детей | один флип det<0, два — det>0 (кейс A) |

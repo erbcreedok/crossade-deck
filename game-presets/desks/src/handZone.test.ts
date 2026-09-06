@@ -13,6 +13,12 @@ import {
   Bounded,
   byId,
   caps,
+  compose,
+  facing,
+  fieldsOf,
+  Flippable,
+  type PoserFields,
+  setFacing,
   extentOf,
   footprint,
   GRIP_SPEC,
@@ -26,7 +32,7 @@ import {
   Transformable,
   type Node,
 } from "game-kit";
-import { growHand, HAND, HAND_LAYOUT, handLocked, handRoom, handTakes, handWidth, isHand } from "./handZone.js";
+import { flipHand, growHand, HAND, HAND_LAYOUT, handHidden, handLocked, handRoom, handTakes, handWidth, isHand, setHandHidden } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
@@ -139,5 +145,34 @@ describe("the hand at the place", () => {
     // The grip is GONE and not emptied — absence is the off switch, and `by: []` would have been
     // "locked to everybody", which is the exact opposite of an open hand.
     expect(caps(zone).has("Grippable")).toBe(false);
+  });
+
+  it("hand.a-hidden-hand-shows-others-the-back — the owner sees what they set, and a flip turns every card in place", () => {
+    // HIDING IS THE KIT'S SECOND AXIS OF FACING (`Poser.others`): a hidden hand shows its owner the
+    // sides they set and everybody else the back, and it is written on the ZONE, so both screens
+    // read one truth and nothing is written to the cards. Open is the opening state.
+    const zone = hand("south");
+    expect(handHidden(zone)).toBe(false);
+    setHandHidden(zone, true);
+    expect(handHidden(zone)).toBe(true);
+    const rules = fieldsOf<PoserFields>(zone, "Poser")!;
+    expect(rules.others).toBe("back");
+    expect(rules.owner).toBe("south");
+    setHandHidden(zone, false);
+    expect(handHidden(zone)).toBe(false);
+    expect(fieldsOf<PoserFields>(zone, "Poser")?.others ?? "").toBe("");
+
+    // A FLIP TURNS EVERY CARD IN THE HAND, IN PLACE: each card's own side goes over, and the order
+    // is untouched — a flip is not a shuffle and not a status, it is one act on what is there.
+    const a = card("a");
+    const b = card("b");
+    const c = card("c");
+    for (const one of [a, b, c]) add(zone, compose(one, Flippable({ flip: "turnOver", back: "cardBack" })));
+    setFacing(byId(zone, "b")!, "down");
+    flipHand(zone);
+    expect(zone.children.map((n) => n.id)).toEqual(["a", "b", "c"]);
+    expect(zone.children.map((n) => facing(n))).toEqual(["down", "up", "down"]);
+    flipHand(zone);
+    expect(zone.children.map((n) => facing(n))).toEqual(["up", "down", "up"]);
   });
 });

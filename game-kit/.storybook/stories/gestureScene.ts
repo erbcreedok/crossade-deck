@@ -25,6 +25,7 @@ import {
   letFall as letFallInKit,
   type LiveTable,
   type LiveClock,
+  type Meaning,
   type Mirror as KitMirror,
   type CarryItem,
   type Node,
@@ -206,6 +207,12 @@ export function grabScene(
    * ever asked to build a fresh one; absent, nobody outside this call ever sees the `LiveTable`.
    */
   onLive?: (live: LiveTable) => (() => void) | void,
+  /**
+   * A PRESS ON A CONTROL STANDING ON THE DESK — the bar above a hand — the same option `liveTable`
+   * takes (`LiveTableOptions.presses`), threaded through unchanged. Absent, the desk has no controls
+   * of its own, which is every page on the shelf that seats nobody.
+   */
+  presses?: (meaning: Meaning, control: Node) => boolean,
 ): HTMLElement {
   // A DESK HANDED OVER AS A FACTORY IS BUILT ONCE and is the reader's from then on — turning a knob
   // must not sweep away the cards they dealt. See `scene`.
@@ -262,6 +269,7 @@ export function grabScene(
     ...(pieces ? { pieces } : {}),
     ...(may ? { may } : {}),
     ...(taps ? { taps } : {}),
+    ...(presses ? { presses } : {}),
     ...(onDeskChanged ? { onDeskChanged } : {}),
     ...(seats ? { seats } : {}),
     // WHAT A PIECE HEAPS BY — the shelf's own answer, off what a piece carries and never off its

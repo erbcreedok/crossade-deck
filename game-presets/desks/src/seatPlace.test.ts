@@ -53,6 +53,7 @@ import {
   standChair,
 } from "./seatPlace.js";
 import { growHand, handLocked, isHand } from "./handZone.js";
+import { chairBarId } from "./handBar.js";
 
 const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
 // Walked and not read off `desk.children`: a ring lives in the seats' own layer (`CHAIR_LAYER`), so
@@ -157,7 +158,9 @@ describe("a seat is drawn", () => {
         for (const sibling of owner.children) {
           const named = byId(desk, chairNameId(sibling.id)) !== undefined || fieldsOf<LabeledFields>(sibling, "Labeled") !== undefined;
           const ticks = seats.some(({ seat }) => chairTickId(seat) === sibling.id);
-          expect(isChair(sibling) || isAvatar(sibling) || named || ticks, `${owner.id} holds people only`).toBe(true);
+          // ...and the bar's controls, the chair's furniture on the same ground (`handBar.ts`).
+          const bar = seats.some(({ seat }) => chairBarId(seat) === sibling.id);
+          expect(isChair(sibling) || isAvatar(sibling) || named || ticks || bar, `${owner.id} holds people only`).toBe(true);
         }
         // ...and the layer is not a place either: nothing arranges what is in it and nothing may be
         // dropped in it, or the layer would be the same fault one node further down.

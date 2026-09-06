@@ -55,6 +55,8 @@ export interface Avatars {
   readonly claim: (seat: string) => void;
   /** A tap on one's OWN ring takes that reader's view home. Anything else is not this wiring's. */
   readonly tapped: (seat: string, piece: Node) => boolean;
+  /** A press on the bar above one's OWN hand — shut, hide, turn over, pin. See the kit's `Avatars.pressed`. */
+  readonly pressed: (seat: string, control: Node) => boolean;
   /** Where a seat's place stands RIGHT NOW — the opening one until its owner drags the chair. */
   readonly placeOf: (seat: string) => SeatPlace | undefined;
 }
@@ -200,6 +202,13 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       kit.publish();
     },
     tapped: (seat, piece) => kit.tapped(seat, piece),
+    pressed: (seat, control) => {
+      // A PRESS WROTE THE ONE TREE, and both panes draw it: the other screen is told the way a
+      // drop tells it (`tellScreens`).
+      if (!kit.pressed(seat, control)) return false;
+      tellScreens();
+      return true;
+    },
     placeOf: (seat) => kit.placeOf(seat),
   };
 }

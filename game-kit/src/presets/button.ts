@@ -38,6 +38,7 @@ import { Coated, NO_COAT, type Coat } from "../core/atoms/coated.js";
 import { Actionable } from "../core/atoms/actionable.js";
 import { Container } from "../core/atoms/container.js";
 import { Labeled } from "../core/atoms/labeled.js";
+import { Oriented } from "../core/atoms/oriented.js";
 import { Pressable } from "../core/atoms/pressable.js";
 import { ShadowCaster } from "../core/atoms/shadow.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
@@ -84,6 +85,13 @@ export interface ButtonSpec {
   readonly icon?: string;
   /** What the icon is worth, in units. Absent, three quarters of the box's shorter side. */
   readonly iconSize?: number;
+  /**
+   * THE ICON STANDS UPRIGHT TO THE VIEWER while the control itself lies as its owner lies — for a
+   * control standing ON THE DESK, in a frame that turns with a seat: a padlock read upside down is
+   * a padlock read wrong, and the plate is a circle that does not care. Absent, the icon lies with
+   * its control, which is every control on a HUD, where nothing turns.
+   */
+  readonly upright?: boolean;
   /**
    * The control is present but declines to act — worn as the coat, not as a flag. There is no
    * `disabled` in the kit: the press still reports, the handler says no, and this is what the
@@ -167,6 +175,7 @@ export function button(id: string, spec: ButtonSpec = {}): Node {
         Bounded({ bounds: rect(size, size) }),
         Surfaced({ surface: iconSurface(spec.icon) }),
         Transformable({ at: { x: aside, y: 0 } }),
+        ...(spec.upright ? [Oriented({ orientation: "viewer" })] : []),
       ),
     );
   }

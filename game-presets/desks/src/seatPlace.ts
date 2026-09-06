@@ -57,6 +57,7 @@ import {
   Grabber,
   Grippable,
   grippableBy,
+  installStockGrains,
   Inviting,
   isPlaceGrip,
   Labeled,
@@ -84,6 +85,7 @@ import {
 } from "game-kit";
 import { handLayout, PULL, zoneKeen, ZONE_SPREAD, type Spread } from "./felt.js";
 import { HAND, HAND_LAYOUT, HAND_LOCK, HAND_VALUE, handAccept, handLocked, handRoom } from "./handZone.js";
+import { dressBar, fitBar, seatBar } from "./handBar.js";
 
 /**
  * HOW BIG AN EMPTY CHAIR IS, in units — and it is the HAND'S own empty size (`HAND.empty`), because
@@ -140,6 +142,13 @@ export function chairTickId(seat: string): string {
 /** Whether its owner is looking AT this place right now. `1` is home; the ring is then filled. */
 export const CHAIR_HOME = "home";
 
+/**
+ * WHETHER THE CHAIR IS PINNED — `1` and nobody moves it, its owner included. A state of its own,
+ * apart from the lock: a player may open their cards and still not want to be moved, or shut them
+ * and not mind. Written on the chair, so both screens read one truth.
+ */
+export const CHAIR_PIN = "pin";
+
 /** The caption's role. A PLACE'S NAME, not a font — what it is worth is the theme's to re-decide. */
 export const SEAT_TEXT = "desk.seat.name";
 
@@ -179,6 +188,17 @@ export function chairHome(n: Node): boolean {
   return fieldsOf<ValuedFields>(n, "Valued")?.values[CHAIR_HOME] === 1;
 }
 
+/** Whether the chair is pinned. A chair that never had the field is free, which is what a bare one is. */
+export function chairPinned(n: Node): boolean {
+  return fieldsOf<ValuedFields>(n, "Valued")?.values[CHAIR_PIN] === 1;
+}
+
+/** PIN THE CHAIR, or free it — the one writer of the field. The cards in it answer to the lock alone. */
+export function setChairPin(chair: Node, pinned: boolean): void {
+  const own = fieldsOf<ValuedFields>(chair, "Valued")?.values ?? {};
+  compose(chair, Valued({ values: { ...own, [CHAIR_PIN]: pinned ? 1 : 0 } }));
+}
+
 /**
  * MAY THIS FINGER LIFT THIS — the seat's whole permission, and the one line a live page hands to
  * `liveTable`'s `may`.
@@ -193,6 +213,8 @@ export function chairHome(n: Node): boolean {
  * dealt from is not an open hand.
  */
 export function mayTake(n: Node, seat: string): boolean {
+  // A PINNED CHAIR MOVES FOR NOBODY — its owner included; they unpin it first (`CHAIR_PIN`).
+  if (isChair(n) && chairPinned(n)) return false;
   // ...AND SO IS THE HAND'S OWN HANDLE (`handRule`): the tab that lifts a whole hand says whose it
   // is the way the ring does, and a hand lifted whole by a neighbour is a hand dealt away.
   const owner = isChair(n) || isPlaceGrip(n) ? fieldsOf<{ box: string }>(n, "Owned")?.box : undefined;
@@ -214,6 +236,9 @@ const SHUT_WASH = 0.22;
  */
 export function installSeatArt(seat?: string, ink?: Paint, look: Spread = ZONE_SPREAD, grip: Pick<GripSpec, "w"> = GRIP_SPEC): void {
   registerTextStyleOnce();
+  // THE SIDE RULES a hidden hand names (`Poser.others: "back"`) are a registry the kit ships and
+  // the consumer installs; a desk that forgot would hide nothing, in silence.
+  installStockGrains();
   registerLayout(HAND_LAYOUT, handLayout(look, HAND.pad, handRoom(grip)));
   registerSurface(chairSurface(), {
     layers: [],
@@ -398,6 +423,12 @@ export function seatChairs(
     // and has no owner to be looking anywhere, so it gets no direction either.
     if (seat && place.facing !== undefined) add(layer, seatTick(seat.seat, place, place.facing));
     if (seat?.name !== undefined) add(layer, seatName(seat.seat, place, seat.name));
+    // THE BAR, for a held hand: four controls past the far rim (`handBar.ts`), placed by `fitChair`
+    // like the tick and the name — furniture of the chair, standing beside it in the layer.
+    if (seat) {
+      for (const control of seatBar(seat.seat, chair, seat.ink)) add(layer, control);
+      fitChair(desk, seat.seat);
+    }
     return chair;
   });
 }
@@ -474,9 +505,13 @@ export function fitChair(desk: Node, seat: string): void {
     compose(tick, Transformable({ ...(own ?? {}), ...tickPose({ at }, facing, reach) }));
   }
   const name = byId(desk, chairNameId(seat));
-  if (!name) return;
-  const its = fieldsOf<TransformableFields>(name, "Transformable");
-  compose(name, Transformable({ ...(its ?? {}), at: namePose({ at }, facing, reach) }));
+  if (name) {
+    const its = fieldsOf<TransformableFields>(name, "Transformable");
+    compose(name, Transformable({ ...(its ?? {}), at: namePose({ at }, facing, reach) }));
+  }
+  // ...AND THE BAR along the far rim, lit as the chair's states say.
+  fitBar(desk, seat, at, facing, reach);
+  dressBar(desk, seat);
 }
 
 /**

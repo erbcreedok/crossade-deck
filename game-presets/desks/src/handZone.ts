@@ -15,10 +15,11 @@
 // it is a small mark saying only "this is somebody's"; filled it grows to what it holds and stops
 // growing at a width the desk can spare, after which the cards close up instead (`handLayout`).
 //
-// EVERYBODY SEES EVERY HAND. Hiding is a real thing and the kit does it (`Private`, `project`), and
-// it is a SECOND subject: a page that hid the cards could not tell a reader whether the other player
-// had done nothing or had done something they were not allowed to see. So the cards lie face up and
-// what this file is about is the other half — who may REACH into a hand that is not theirs.
+// EVERYBODY SEES EVERY HAND, unless its owner HIDES it — and hiding is the kit's own second axis of
+// facing (`Poser.others`, read by the flip effect for the eyes a screen is drawn for): the owner
+// sees the sides they set and everybody else sees backs. Nothing is written to a card, so a hand
+// shown again shows exactly what its owner left. The other half is who may REACH into a hand that
+// is not theirs.
 //
 // THE LOCK IS THAT ANSWER, and it is data on the node rather than a branch anywhere:
 //   - the state is a number the zone carries (`Valued`, `HAND_LOCK`), so both screens read one truth;
@@ -30,11 +31,17 @@
 import {
   Bounded,
   canAccept,
+  caps,
   circle,
   compose,
   extentOf,
+  facing,
   fieldsOf,
   footprint,
+  Poser,
+  type PoserFields,
+  setFacing,
+  Valued,
   GRIP_GAP,
   GRIP_RATIO,
   GRIP_SPEC,
@@ -51,6 +58,9 @@ export const HAND_LOCK = "lock";
 
 /** The mark a hand wears so a desk can find its own again — an id is a name and nothing parses one. */
 export const HAND_VALUE = "hand";
+
+/** The key HIDING is written under, on the zone's own `Valued`. `1` is hidden, `0` is shown. */
+export const HAND_HIDE = "hide";
 
 /**
  * WHAT A HAND MEASURES, in units.
@@ -158,4 +168,33 @@ export function growHand(zone: Node, look: Spread = ZONE_SPREAD, grip: Pick<Grip
   const w = handWidth(kids.length, widest, look);
   const h = tallest + 2 * HAND.pad + handRoom(grip);
   compose(zone, Bounded({ bounds: roundedRect(w, h, HAND.pad) }));
+}
+
+/**
+ * HIDE THE HAND — the owner sees the sides they set, everybody else sees backs.
+ *
+ * The kit's own second axis of facing (`Poser.others`): written on the ZONE, as the lock is, so both
+ * screens read one truth and nothing is written to a card — a hidden hand turned back into an open
+ * one shows exactly the sides its owner left. `same` is the stock rule for an open hand; the number
+ * beside it is what the bar's control reads its light off, and what a mirror of the hand reads too.
+ */
+export function setHandHidden(zone: Node, hidden: boolean): void {
+  const own = fieldsOf<ValuedFields>(zone, "Valued")?.values ?? {};
+  compose(zone, Valued({ values: { ...own, [HAND_HIDE]: hidden ? 1 : 0 } }));
+  const rules = fieldsOf<PoserFields>(zone, "Poser");
+  compose(zone, Poser({ ...(rules ?? {}), others: hidden ? "back" : "", owner: handOwner(zone) ?? "" }));
+}
+
+/** Whether the hand is hidden. A hand that never had the field is shown, which is what a bare zone is. */
+export function handHidden(zone: Node): boolean {
+  return fieldsOf<ValuedFields>(zone, "Valued")?.values[HAND_HIDE] === 1;
+}
+
+/**
+ * TURN EVERY CARD IN THE HAND OVER, IN PLACE. Each card's own side goes over and the order is left
+ * alone: a flip is one act on what is there, not a shuffle and not a status — which is why the
+ * bar's control for it has nothing to light.
+ */
+export function flipHand(zone: Node): void {
+  for (const card of zone.children) if (caps(card).has("Flippable")) setFacing(card, facing(card) === "up" ? "down" : "up");
 }

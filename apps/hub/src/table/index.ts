@@ -523,6 +523,9 @@ export function startTable(container: HTMLElement): Teardown {
     // A TAP ON ONE'S OWN RING TAKES THAT READER HOME. Anything else falls through to whatever this
     // desk already does with a tap.
     taps: (piece: Node) => (seat ? avatars?.tapped(seat, piece) === true : false),
+    // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only; the
+    // wiring tells the room the way it tells it a drop (`settle`).
+    presses: (_meaning, control: Node) => (seat ? avatars?.pressed(seat, control) === true : false),
   });
   standing = live;
   /**

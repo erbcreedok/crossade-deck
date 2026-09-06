@@ -49,9 +49,14 @@ export {
   handOwner,
   handRoom,
   handWidth,
+  HAND_HIDE,
+  handHidden,
+  setHandHidden,
+  flipHand,
   handTakes,
   isHand,
 } from "./handZone.js";
+export { BAR, BAR_WHATS, barPress, chairBarId, chairButtonId, dressBar, fitBar, installBarArt, seatBar, type BarWhat } from "./handBar.js";
 export { FAN_SPREAD, FAN_TILT, gripOwner, handFan, handRule, handsOf, HELD_SHARE, heapKindOf } from "./handRule.js";
 export {
   CHAIR,
@@ -76,6 +81,9 @@ export {
   standChair,
   fitChair,
   chairReach,
+  CHAIR_PIN,
+  chairPinned,
+  setChairPin,
   type SeatLook,
   type SeatOfDesk,
 } from "./seatPlace.js";
