@@ -69,13 +69,7 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     roomOptions.seats = opts.seats;
   }
 
-  let colyseusRoom: any;
-  if (opts.room) {
-    const res = await fetch(`${httpUrl}/rooms/by-code/${encodeURIComponent(opts.room)}`);
-    if (!res.ok) throw new Error("room_not_found");
-    const { roomId } = (await res.json()) as { roomId: string };
-    colyseusRoom = await client.joinById(roomId, roomOptions);
-  } else {
+  const createRoom = async (): Promise<any> => {
     // A table with no code yet is one nobody has joined: create it through the same HTTP door a
     // link would use, so the room carries `game` from the start (`GET /rooms/by-code` reads it
     // back off `roomGames.ts`, which only knows what `POST /rooms` told it).
@@ -86,7 +80,23 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     });
     if (!res.ok) throw new Error("room_create_failed");
     const { roomId } = (await res.json()) as { roomId: string };
-    colyseusRoom = await client.joinById(roomId, roomOptions);
+    return client.joinById(roomId, roomOptions);
+  };
+
+  let colyseusRoom: any;
+  if (opts.room) {
+    // A code from a link that has gone dead (the room restarted, or the code simply expired) is
+    // not a reason to leave a player looking at a desk with no seat — the same door that a fresh
+    // link uses opens a new table of the same game instead.
+    const res = await fetch(`${httpUrl}/rooms/by-code/${encodeURIComponent(opts.room)}`);
+    if (res.ok) {
+      const { roomId } = (await res.json()) as { roomId: string };
+      colyseusRoom = await client.joinById(roomId, roomOptions);
+    } else {
+      colyseusRoom = await createRoom();
+    }
+  } else {
+    colyseusRoom = await createRoom();
   }
 
   const relayListeners = new Set<(msg: RelayMessage) => void>();

@@ -60,6 +60,29 @@ class FakeColyseusClient {
 }
 
 describe("joinTable online adapter", () => {
+  it("room code not found: creates a new room of the same game instead of failing", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push(url);
+        if (url.includes("/rooms/by-code/")) return { ok: false, json: async () => ({}) };
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body)).game).toBe("cards");
+        return { ok: true, json: async () => ({ roomId: "room-456" }) };
+      }),
+    );
+
+    const client = new FakeColyseusClient();
+    const table = await joinTable({ game: "cards", room: "DEAD", client });
+
+    expect(calls.some((u) => u.includes("/rooms/by-code/DEAD"))).toBe(true);
+    expect(calls.some((u) => u.endsWith("/rooms"))).toBe(true);
+    expect(table.seat).toBe("p1");
+    expect(table.code).toBe("1234");
+  });
+
+
   it("processes welcome message: sets root, rev, seat, code, roomId", async () => {
     const client = new FakeColyseusClient();
     const table = await joinTable({ game: "table", client });
