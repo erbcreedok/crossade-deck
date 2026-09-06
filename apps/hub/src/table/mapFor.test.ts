@@ -1,5 +1,5 @@
-import { chairId, chairNameId, isChair, isHand } from "@game-presets/desks";
-import { byId, fieldsOf, type LabeledFields, type Node } from "game-kit";
+import { chairId, chairNameId, chairSurface, isChair, isHand } from "@game-presets/desks";
+import { byId, fieldsOf, type LabeledFields, type Node, type SurfacedFields } from "game-kit";
 import { describe, it, expect } from "vitest";
 import { isTableGame, mapFor, syncSeatChairs } from "./mapFor.js";
 
@@ -34,6 +34,19 @@ describe("mapFor: which board a table game id builds", () => {
     expect(isTableGame("nardy")).toBe(true);
     expect(isTableGame("klondike")).toBe(false);
     expect(isTableGame(undefined)).toBe(false);
+  });
+
+  it("hub.no-dashed-outline-at-a-held-place — a place somebody holds wears their ink, never an outline", () => {
+    // A DASHED OUTLINE IS WHAT AN UNHELD PLACE LOOKS LIKE (`chairSurface()` — grey and dashed,
+    // because a place nobody holds is a drawing OF a place). Standing at a place its owner is
+    // actually sitting at, it reads as a second ring round the first, and the desk then says both
+    // "somebody sits here" and "nobody does" about one seat.
+    const desk = mapFor("cards");
+    syncSeatChairs(desk, AT(["p1", "Ана"], ["p2", "Бек"]));
+    const outlined = every(desk).filter(
+      (n) => fieldsOf<SurfacedFields>(n, "Surfaced")?.surface === chairSurface(),
+    );
+    expect(outlined.map((n) => n.id), "every ring on this desk is somebody's").toEqual([]);
   });
 
   it("opens the round table with no rings — the roster is not known yet", () => {

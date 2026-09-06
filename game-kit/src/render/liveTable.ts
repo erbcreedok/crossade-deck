@@ -45,11 +45,11 @@ import { type GripSpec, GRIP, GRIP_HOLD, GRIP_MISS, isDrawn, isGrip, isMark, isP
 import { boxOfDesk, handOver, otherGrips } from "./handover.js";
 import { type HeapRule } from "./heaps.js";
 import { mount, type Host, type Viewport } from "./host.js";
-import { idleReturn, type IdleReturnTracker } from "./idleReturn.js";
+import { GLIDE_MS, idleReturn, type IdleReturnTracker } from "./idleReturn.js";
 import { aimOf, landingPicture, throwGate, zoneFor } from "./landing.js";
 import { type Mirror } from "./mirror.js";
 import { type Painter } from "./painter.js";
-import { type Presence } from "./presence.js";
+import { isHome, type Presence } from "./presence.js";
 
 /**
  * THE ROUND TABLE'S OWN HOME SPAN — table diameter = 1.5× the glass (owner ask), for `seats.homeSpan`.
@@ -388,6 +388,15 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
      * by both, or the desk would open at one zoom and glide to another the first time anybody left.
      */
     readonly homeSpan?: number;
+    /**
+     * WHAT `homeSpan` IS MEASURED ACROSS, in units — absent, the room's own width.
+     *
+     * The two are one number on a desk whose room IS its felt (the shelf's `roundRoom`). They part
+     * on a desk that widened its room so that every seat can actually be brought under its reader
+     * (the hub's `roomOfDesk`): there the room is the felt plus half a glass behind each place, and
+     * a span measured across it would put the table at a third of the size the owner asked for.
+     */
+    readonly homeWidth?: number;
   };
 }
 
@@ -497,6 +506,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     (buildStage(container, desk, {
       ...opts,
       ...(seats?.homeSpan !== undefined ? { homeSpan: seats.homeSpan } : {}),
+      ...(seats?.homeWidth !== undefined ? { homeWidth: seats.homeWidth } : {}),
       onView: () => {
         idleOnPan.current?.();
         opts.onView?.();
@@ -533,10 +543,70 @@ export function liveTable<S extends LiveStage = LiveStage>(
           },
           {
             ...(seats.idleReturn === false ? { afterMs: Infinity } : (seats.idleReturn ?? {})),
-            ...(seats.homeSpan !== undefined ? { homeZoom: () => built.camera!.spanZoom(seats.homeSpan!) } : {}),
+            ...(seats.homeSpan !== undefined
+              ? { homeZoom: () => built.camera!.spanZoom(seats.homeSpan!, seats.homeWidth) }
+              : {}),
           },
         )
       : undefined;
+  /**
+   * A GLASS THAT CHANGED SIZE DOES NOT GET ITS READER OUT OF THEIR SEAT.
+   *
+   * Where a camera has to be AIMED for a place to stand on the home anchor depends on the glass —
+   * the anchor is a fraction of it (`HOME_ANCHOR`) and the fitted zoom is measured against it. So a
+   * glass that grew or shrank under a view that was sitting at home leaves that view aimed at a
+   * point which is no longer home: `isHome` turns false, the ring empties and a disc is drawn on the
+   * felt beside it, for a reader who never moved. A phone hiding its address bar is the ordinary way
+   * this happens, and the desk opens with it.
+   *
+   * So the reading is taken BEFORE (`seated`, refreshed on every step of the glide) and the glide is
+   * re-run to its end in one step on the new glass. Only for a reader who WAS home: one who had
+   * panned away is left where they panned to, which is the whole of what the idle countdown is for.
+   */
+  const glassNow = (): { readonly w: number; readonly h: number } => ({
+    w: built.camera?.glass.w ?? 0,
+    h: built.camera?.glass.h ?? 0,
+  });
+  let lastGlass = glassNow();
+  let seated = false;
+  const readSeat = (): void => {
+    const place = mySeat();
+    const cam = built.camera;
+    seated = Boolean(
+      place &&
+        cam &&
+        isHome({ target: cam.target, zoom: cam.pixelsPerUnit, rotation: cam.rotation, glass: cam.glass }, place),
+    );
+  };
+  const glideMs = (seats && seats.idleReturn !== false ? seats.idleReturn?.glideMs : undefined) ?? GLIDE_MS;
+  const tracker: IdleReturnTracker | undefined = idle
+    ? {
+        input: () => idle.input(),
+        goHome: () => {
+          idle.goHome();
+          readSeat();
+        },
+        // THE READING IS TAKEN WITH THE GLASS THE STEP RAN ON, which is why it is taken here and not
+        // asked for after the resize: by then the only glass left to ask about is the new one.
+        step: (dtMs: number) => {
+          idle.step(dtMs);
+          readSeat();
+        },
+      }
+    : undefined;
+  readSeat();
+  const stopReseating = idle
+    ? built.host.onChange(() => {
+        const now = glassNow();
+        if (now.w === lastGlass.w && now.h === lastGlass.h) return;
+        lastGlass = now;
+        if (!seated) return;
+        idle.goHome();
+        idle.step(glideMs);
+        readSeat();
+        built.motions?.redraw();
+      })
+    : undefined;
   // ANY POINTER DOWN ON THIS GLASS IS AN INPUT, whatever it lands on: a pan across bare felt starts
   // with the same event a pick does, and a countdown that only heard about a successful grab would
   // glide the view away from underneath a reader who has their finger on it but has not moved yet.
@@ -1049,7 +1119,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     host: built.host,
     ...(built.motions ? { motions: built.motions } : {}),
     ...(built.camera ? { camera: built.camera } : {}),
-    ...(idle ? { idle } : {}),
+    ...(tracker ? { idle: tracker } : {}),
     setRoot(next: Node, from: "me" | "net") {
       if (from === "net") {
         // THE TABS IN A TREE THAT ARRIVED ARE WHICHEVER SCREEN MADE THE CHANGE'S OWN, already
@@ -1063,6 +1133,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
       mirror?.changed();
     },
     stop() {
+      stopReseating?.();
       if (rest !== undefined) clearTimeout(rest);
       unwireDrag(el);
       own?.stop();
@@ -1094,6 +1165,8 @@ interface StageOptions {
   readonly open?: (ctx: { readonly root: Node; readonly room: CameraContent; readonly unit: number; readonly view: Viewport }) => number | undefined;
   /** THE SAME `seats.homeSpan`, read here too — see `LiveTableOptions.seats.homeSpan`. */
   readonly homeSpan?: number;
+  /** THE SAME `seats.homeWidth` — see `LiveTableOptions.seats.homeWidth`. */
+  readonly homeWidth?: number;
 }
 
 /**
@@ -1188,7 +1261,7 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
     const wish = opts.open?.({ root: host.root, room, unit: unitOf(), view: v });
     // HOME, WHEN THE DESK NAMED ONE (`homeSpan`) — the same reading `idleReturn`'s own glide lands
     // on, so the desk opens exactly where a tap on the ring would take it right back to.
-    const home = opts.homeSpan !== undefined ? camera.spanZoom(opts.homeSpan) : camera.fitZoom();
+    const home = opts.homeSpan !== undefined ? camera.spanZoom(opts.homeSpan, opts.homeWidth) : camera.fitZoom();
     // A WISH IS NOT A WAY OUT OF THE LIMITS: whatever the desk asks for is held between the zoom
     // that fits the room and the furthest the camera is allowed in.
     camera.setZoom(Math.max(camera.fitZoom(), Math.min(wish ?? home, limits.maxZoom)));

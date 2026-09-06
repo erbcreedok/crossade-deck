@@ -12,10 +12,10 @@
 // held where somebody looked is a rule that comes back the next time this desk is touched.
 
 import { readFileSync } from "node:fs";
-import { chessPlaces, nardyPlaces, roundPlaces } from "@game-presets/desks";
-import { Camera, idleReturn, isHome, type CameraContent, type Presence, type SeatPlace } from "game-kit";
+import { chessPlaces, nardyPlaces, ROUND_R, roundPlaces } from "@game-presets/desks";
+import { Camera, idleReturn, isHome, ROUND_HOME_SPAN, type CameraContent, type Presence, type SeatPlace } from "game-kit";
 import { describe, expect, it } from "vitest";
-import { roomOfDesk, unitOfDesk } from "./index.js";
+import { homeZoomOfDesk, roomOfDesk, unitOfDesk } from "./index.js";
 import { type TableGame } from "./mapFor.js";
 
 /** A phone held upright — the glass every one of these numbers is measured against. */
@@ -82,6 +82,50 @@ describe("the desk opens at this screen's own place", () => {
     const place = roundPlaces(2)[0]!;
     const camera = openedAt(place, { x: -12.5, y: -12.5, w: 25, h: 25 }, unitOfDesk("cards"));
     expect(isHome(viewOf(camera), place)).toBe(false);
+  });
+});
+
+describe("home is one zoom, and the felt is the width it is measured across", () => {
+  /** The camera the hub stands the desk on — this glass, this desk's own room and etalon. */
+  const cameraOn = (game: TableGame): Camera => {
+    const { room, unit } = glassOf(game);
+    const camera = new Camera({ minZoom: 0.5, maxZoom: 2.5 });
+    camera.setScreen(GLASS.w, GLASS.h);
+    camera.setContent(room, unit);
+    return camera;
+  };
+
+  it("hub.home-zoom-is-the-shelf's-own-number — the round felt spans 1.5 glasses, measured across the felt", () => {
+    const home = homeZoomOfDesk("cards")!;
+    expect(home.span, "the number is the kit's, not a 1.5 of this desk's own").toBe(ROUND_HOME_SPAN);
+    expect(home.width, "measured across the TABLE — the room is the felt plus half a glass behind it").toBe(ROUND_R * 2);
+    const camera = cameraOn("cards");
+    const zoom = camera.spanZoom(home.span, home.width);
+    expect(ROUND_R * 2 * unitOfDesk("cards") * zoom, "the table is 1.5 glasses wide").toBeCloseTo(GLASS.w * ROUND_HOME_SPAN, 5);
+    // THE GUARD'S OWN PROOF THE WIDTH MATTERS: measured across the widened room, the same ask ends
+    // up under the floor the camera is held at, which is the whole-table-from-across-the-room
+    // picture the desk used to open at.
+    expect(camera.spanZoom(home.span)).toBeLessThan(zoom);
+  });
+
+  it("hub.one-zoom-for-opening-and-returning — the glide lands exactly where the desk opened", () => {
+    const place = roundPlaces(2)[0]!;
+    const camera = cameraOn("cards");
+    const home = homeZoomOfDesk("cards")!;
+    const opened = camera.spanZoom(home.span, home.width);
+    camera.setZoom(opened);
+    camera.lookAt({ x: 0, y: 0 });
+    const sitting = (): Presence => ({ seat: "p1", place, name: "", ink: "accent", state: "online", holding: false, view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } } });
+    const glide = idleReturn(camera, sitting, { glideMs: 600, homeZoom: () => camera.spanZoom(home.span, home.width) });
+    glide.goHome();
+    glide.step(600);
+    expect(camera.zoom, "one number for both moments a view arrives home").toBeCloseTo(opened, 5);
+    expect(isHome(viewOf(camera), place), "and it is home at that zoom").toBe(true);
+  });
+
+  it("hub.a-board-names-no-span — chess and nardy are played on the whole board, which is the fit", () => {
+    expect(homeZoomOfDesk("chess")).toBeUndefined();
+    expect(homeZoomOfDesk("nardy")).toBeUndefined();
   });
 });
 

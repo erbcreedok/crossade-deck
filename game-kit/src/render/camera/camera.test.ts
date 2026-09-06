@@ -473,4 +473,22 @@ describe("the camera", () => {
     // A fit shows the WHOLE room; a span of 1.5 is well past that — the felt overflows the glass.
     expect(c.spanZoom(1.5)).toBeGreaterThan(c.fitZoom());
   });
+
+  it("camera.span-is-measured-across-what-was-asked-about — a room wider than the felt is not the felt", () => {
+    // A DESK THAT WIDENED ITS ROOM so every seat can be brought under its reader (the hub's
+    // `roomOfDesk`): the felt is 12 units across and the room three times that. "The table is 1.5
+    // glasses" is a sentence about the TABLE, so the width it is measured across is named.
+    const c = new Camera({ minZoom: 0.01, maxZoom: 50 });
+    c.setScreen(393, 800);
+    c.setContent({ x: -18, y: -18, w: 36, h: 36 }, 1);
+    expect(c.spanZoom(1.5, 12) * 12, "the felt spans 1.5 glasses").toBeCloseTo(393 * 1.5, 6);
+    // The guard's own proof the two differ: measured across the room, the same ask is three times
+    // smaller and the table opens as a coin on the felt.
+    expect(c.spanZoom(1.5)).toBeCloseTo(c.spanZoom(1.5, 12) / 3, 6);
+    // ...and the limits still have the last word, whatever it is measured across.
+    const floored = new Camera({ minZoom: 0.5, maxZoom: 4 });
+    floored.setScreen(393, 800);
+    floored.setContent({ x: -18, y: -18, w: 36, h: 36 }, 100);
+    expect(floored.spanZoom(1.5, 12)).toBe(0.5);
+  });
 });

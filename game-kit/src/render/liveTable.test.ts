@@ -37,7 +37,7 @@ import {
 } from "../index.js";
 import { Camera } from "./camera/index.js";
 import { liveTable } from "./liveTable.js";
-import { homeTarget } from "./presence.js";
+import { homeTarget, isHome } from "./presence.js";
 
 function stubPainter(): Painter {
   return { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
@@ -300,6 +300,95 @@ describe("the live desk", () => {
     live.idle!.goHome();
     live.idle!.step(600);
     expect(camera.zoom).toBeCloseTo(spanZoom, 5);
+    live.stop();
+  });
+
+  it("liveTable.seats-home-width — the span is measured across the felt, not across the room round it", () => {
+    // A DESK THAT WIDENED ITS ROOM so every seat can be brought under its reader (the hub's
+    // `roomOfDesk`): the felt is 10 units across and the room 30. "The table is 1.5 glasses" is a
+    // sentence about the TABLE, and the same number decides the opening zoom and the glide.
+    const { root } = desk();
+    const div = document.createElement("div");
+    glass(div); // 600×400, from the test's own stub
+    document.body.appendChild(div);
+
+    const live = liveTable(div, root, {
+      painter: () => stubPainter(),
+      room: { x: -15, y: -15, w: 30, h: 30 },
+      unit: 1,
+      limits: { minZoom: 0.01, maxZoom: 200 },
+      seats: { places: [{ at: { x: 0, y: 0 }, facing: 0 }], mine: 0, homeSpan: 1.5, homeWidth: 10 },
+    });
+    const camera = live.camera!;
+    const spanZoom = (600 * 1.5) / 10; // glass.w × 1.5 ÷ the FELT's width, at unit 1
+    expect(camera.zoom, "opened across the felt, not across the room").toBeCloseTo(spanZoom, 5);
+    // The guard's own proof the two differ: across the room it would be three times smaller.
+    expect(camera.spanZoom(1.5)).toBeCloseTo(spanZoom / 3, 5);
+
+    camera.lookAt({ x: 5, y: 5 });
+    camera.setZoom(1);
+    live.idle!.goHome();
+    live.idle!.step(600);
+    expect(camera.zoom, "and the glide lands on the very same number").toBeCloseTo(spanZoom, 5);
+    live.stop();
+  });
+
+  it("liveTable.a-new-glass-keeps-its-reader-seated — an address bar hiding is not getting up", () => {
+    // WHERE A CAMERA IS AIMED FOR A PLACE TO STAND AT HOME depends on the glass (`HOME_ANCHOR` is a
+    // fraction of it). A phone that hides its address bar hands the desk a taller glass under a view
+    // that was sitting at home, and the view is then aimed at a point that is no longer home: the
+    // ring empties and a disc is drawn beside it, for a reader who never moved.
+    const { root } = desk();
+    const div = document.createElement("div");
+    let size = { width: 393, height: 700 };
+    Object.defineProperty(div, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, x: 0, y: 0, ...size, toJSON: () => {} }),
+      configurable: true,
+    });
+    // THE RESIZE, DRIVEN BY HAND: jsdom lays nothing out and observes nothing, so the host's own
+    // observer is a stub whose callback this test fires itself.
+    let resized: (() => void) | undefined;
+    (window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+      constructor(fn: () => void) {
+        resized = fn;
+      }
+      observe(): void {}
+      disconnect(): void {}
+    };
+    document.body.appendChild(div);
+
+    const place = { at: { x: 0, y: 5 }, facing: 0 };
+    const live = liveTable(div, root, {
+      painter: () => stubPainter(),
+      // THE ROOM IS THE FELT PLUS ROOM BEHIND THE SEAT, exactly as a desk that seats anybody has to
+      // be (`lookAt` centres an axis with room to spare, and a centred eye is at nobody's place).
+      room: { x: -30, y: -30, w: 60, h: 60 },
+      unit: 20,
+      limits: { minZoom: 0.01, maxZoom: 50 },
+      seats: { places: [place], mine: 0, idleReturn: { afterMs: 6000, glideMs: 600 }, homeSpan: 1, homeWidth: 10 },
+    });
+    const camera = live.camera!;
+    const seatedNow = (): boolean =>
+      isHome({ target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: camera.glass }, place);
+    live.idle!.goHome();
+    live.idle!.step(600);
+    expect(seatedNow(), "the desk opens at this screen's own place").toBe(true);
+
+    size = { width: 393, height: 800 };
+    resized!();
+    expect(camera.glass.h, "the glass really did change").toBe(800);
+    expect(seatedNow(), "a taller glass does not take a reader out of their seat").toBe(true);
+
+    // ...AND A READER WHO HAD PANNED AWAY IS LEFT WHERE THEY PANNED TO: the resize is not a tap on
+    // the ring, and a view yanked home from under a finger is the whole reason the countdown exists.
+    live.idle!.input();
+    camera.lookAt({ x: -8, y: -8 });
+    live.idle!.step(1);
+    const wandered = { ...camera.target };
+    size = { width: 393, height: 700 };
+    resized!();
+    expect(camera.target.x, "nobody was carried home who had walked off").toBeCloseTo(wandered.x, 5);
+    expect(camera.target.y).toBeCloseTo(wandered.y, 5);
     live.stop();
   });
 

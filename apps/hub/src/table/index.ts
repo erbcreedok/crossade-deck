@@ -54,6 +54,7 @@ import {
   installStockSurfaces,
   installTheme,
   liveTable,
+  ROUND_HOME_SPAN,
   withAvatars,
   setRev,
   t,
@@ -197,6 +198,28 @@ export function roomOfDesk(game: TableGame, glass: { readonly width: number; rea
  * `Screened` node measured against one while the camera used the other draws itself to make up the
  * difference.
  */
+/**
+ * WHAT "HOME" IS WORTH AS A ZOOM ON THIS DESK — the kit's own number (`ROUND_HOME_SPAN`, owner: the
+ * round table's diameter is 1.5× the glass), and what that number is measured ACROSS.
+ *
+ * ONE READING FOR BOTH MOMENTS a view can arrive home: `liveTable` hands it to the opening zoom and
+ * to the idle glide alike (`seats.homeSpan`), so the desk opens exactly where a tap on the ring — or
+ * a view left alone — takes it right back to. Without it the hub opened fitted to its own room and
+ * the glide landed on the same fit, which on a phone is the whole table seen from across the room.
+ *
+ * MEASURED ACROSS THE FELT AND NOT THE ROOM. This desk's room is the felt PLUS half a glass behind
+ * every seat (`roomOfDesk`), which is the only reason a place can be brought under its reader at
+ * all; a span measured across THAT would say "the table is 1.5 glasses" about a stretch of empty
+ * felt three times the table, and the table would open at a third of the size that was asked for.
+ *
+ * A BOARD NAMES NONE. Chess and nardy are played on the whole board at once, and the fit the kit
+ * falls back to is the picture wanted there.
+ */
+export function homeZoomOfDesk(game: TableGame): { readonly span: number; readonly width: number } | undefined {
+  if (game === "chess" || game === "nardy") return undefined;
+  return { span: ROUND_HOME_SPAN, width: ROUND_R * 2 };
+}
+
 export function unitOfDesk(game: TableGame): number {
   if (game === "chess") return CHESS_UNIT;
   if (game === "nardy") return NARDY_UNIT;
@@ -283,6 +306,8 @@ export function startTable(container: HTMLElement): Teardown {
   const mySeatIndex = (): number => (seat === "p2" ? 1 : 0);
 
   let initialRoot = buildInitialDesk(game);
+  /** What home is worth as a zoom here — read once, and by both moments a view arrives at it. */
+  const homeZoom = homeZoomOfDesk(game);
 
   // A THROW OR A PINCH NEEDS A CLOCK, and the kit's camera has none of its own (`guard.one-clock`):
   // the hub's own `beat` is joined while a fling is moving and left the moment it rests. The redraw
@@ -438,6 +463,7 @@ export function startTable(container: HTMLElement): Teardown {
       mine: 0,
       placeNow: () => avatars?.placeOf(seat ?? "") ?? placesFor(game)[mySeatIndex()],
       idleReturn: { glideMs: HOME_GLIDE_MS },
+      ...(homeZoom ? { homeSpan: homeZoom.span, homeWidth: homeZoom.width } : {}),
     },
     // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what
     // puts the far reader's own disc where they are actually sitting — or takes it off the felt

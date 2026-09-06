@@ -13,6 +13,13 @@ export interface IdleReturnOpts {
   homeZoom?: () => number;
 }
 
+/**
+ * HOW LONG THE GLIDE HOME TAKES by default, in ms — named because a second moment runs the same
+ * glide to its end in ONE step (`liveTable`: a glass that changed size), and a number known to one
+ * of the two would leave the view part of the way to a place it then eased the rest of the way into.
+ */
+export const GLIDE_MS = 600;
+
 export interface IdleReturnTracker {
   input(): void;
   step(dtMs: number): void;
@@ -33,7 +40,7 @@ export function idleReturn(
   opts: IdleReturnOpts = {}
 ): IdleReturnTracker {
   const afterMs = opts.afterMs ?? 6000;
-  const glideMs = opts.glideMs ?? 600;
+  const glideMs = opts.glideMs ?? GLIDE_MS;
   const homeZoom = opts.homeZoom ?? ((): number => camera.fitZoom());
 
   let idleMs = 0;
