@@ -7,8 +7,20 @@
 // owns, and a scene that quietly kept the discs would draw two people who are not there. Neither
 // shows up in a screenshot of a desk somebody is already playing on.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { avatarId, byId, caps, grippableBy, fieldsOf, type Node, type TransformableFields } from "../../src/index.js";
+import {
+  avatarId,
+  byId,
+  caps,
+  grippableBy,
+  fieldsOf,
+  surfaceRecord,
+  type Node,
+  type SurfacedFields,
+  type TransformableFields,
+} from "../../src/index.js";
 import { chairId, handId, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
 import { withAvatars } from "./avatars.js";
 import { type Screen } from "./liveScreens.js";
@@ -107,6 +119,48 @@ describe("the people at a live desk", () => {
     // A DISC IS NOT PICKED UP AT ALL: it is a reading of a camera, not a thing on the desk.
     expect(caps(byId(desk, avatarId(mine))!).has("Draggable")).toBe(false);
   });
+
+
+  it("live.one-ink-per-place — everything of a seat is drawn in that seat's colour and in no other", () => {
+    // THE WHOLE OF WHAT A COLOUR SAYS AT A SHARED DESK is "this is the same person". A ring in one
+    // ink with a disc in another beside it is two people where there is one, and the reader whose
+    // own colour it is has no way to tell which of the two is them.
+    const desk = roundMap(SEATS);
+    const screens = [screenOf("south", "accent", 0), screenOf("north", "alert", Math.PI)];
+    wire(desk, screens).publish();
+    const inks = SEATS.map(({ ink }) => ink as string);
+    SEATS.forEach(({ seat, ink }, i) => {
+      const theirs = inks[1 - i]!;
+      for (const id of [chairId(seat), avatarId(seat), handId(seat)]) {
+        const node = byId(desk, id)!;
+        expect(node, id).toBeDefined();
+        const record = surfaceRecord(fieldsOf<SurfacedFields>(node, "Surfaced")!.surface)!;
+        const paints = [...record.layers.map((l) => l.paint), record.stroke?.color].filter(Boolean);
+        // ITS OWN INK IS ON IT, and the other seat's is nowhere on it. Both halves: a node painted
+        // in neither colour is as wrong as one painted in the wrong one, and only the first check
+        // catches the felt-coloured hand nobody can see is theirs.
+        expect(paints, `${id} in its own ink`).toContain(ink);
+        expect(paints, `${id} free of ${theirs}`).not.toContain(theirs);
+      }
+    });
+  });
+
+  // THE CURSOR IS THE ONE MARK OF A SEAT THAT IS NOT ON THE DESK — a div over the glass, painted by
+  // the page and not by a surface, and it was painted the wrong colour on every live page: the dot
+  // was given the ink of the PANE it sits in, while the finger it draws is always the other seat's.
+  // Read as source, because the colour is set on a DOM node by a page that needs two hosts, a
+  // pointer and a WebGL canvas to be built at all — and the bug is one word in one line.
+  const LIVE_PAGES = ["Hands", "Cards", "Chess", "Nardy"];
+  for (const page of LIVE_PAGES) {
+    it(`live.a-cursor-wears-its-owner-s-ink — ${page} paints the dot at the end the finger is at`, () => {
+      // From the package root and not from `import.meta.url`: this file runs under jsdom, where
+      // that URL is the document's and not this module's, and the read lands outside the repo.
+      const source = readFileSync(join(process.cwd(), ".storybook/stories", `${page}.stories.ts`), "utf8");
+      // Painted where the hand is REPORTED (`mirror.hand` owns `ink`), and not where the dot is made.
+      expect(source).toContain("one.dot.style.background = t(ink)");
+      expect(source).not.toContain("transform:translate(-50%,-50%);background:${t(ink)}");
+    });
+  }
 
   it("live.a-desk-without-avatars-has-neither-a-person-nor-a-hand — an empty patch belongs to nobody", () => {
     const desk = roundMap([]);

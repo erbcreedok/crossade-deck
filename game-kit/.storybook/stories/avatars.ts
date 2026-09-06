@@ -64,6 +64,13 @@ export interface AvatarsOptions {
    * player would be a place the game has no word for.
    */
   readonly hands?: number;
+  /**
+   * WHOSE HAND IS SHUT WHEN THE PAGE OPENS, by seat index — a page with a knob for it hands it in.
+   *
+   * Only the opening state: a tap on one's own chair turns it from then on, and this list is then
+   * only what it was set to. Absent, every hand opens open, which is every page that has no knob.
+   */
+  readonly locked?: readonly boolean[];
   /** The story's own element — the listeners below are dropped when it leaves the document. */
   readonly wall: HTMLElement;
 }
@@ -106,7 +113,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
   const states = new Map<string, PresenceState>(o.seats.map(({ seat }) => [seat, "online"]));
   const holding = new Set<string>();
   /** Whose hand is shut. Turned by its owner's tap, and only on a desk that has hands at all. */
-  const shut = new Map<string, boolean>(o.seats.map(({ seat }) => [seat, false]));
+  const shut = new Map<string, boolean>(o.seats.map(({ seat }, i) => [seat, o.locked?.[i] === true]));
   let mine: string = o.seats[0]!.seat;
 
   /**

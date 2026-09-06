@@ -99,7 +99,7 @@ function liveChess(a: ChessArgs): HTMLElement {
       const dot = document.createElement("div");
       dot.style.cssText =
         `position:absolute;z-index:4;width:${DOT}px;height:${DOT}px;border-radius:50%;pointer-events:none;` +
-        `display:none;transform:translate(-50%,-50%);background:${t(ink)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
+        `display:none;transform:translate(-50%,-50%);box-shadow:0 0 0 2px ${t("sunkBg")}`;
       const mine: Screen = { seat, ink, dot };
       screens.push(mine);
       const others = (): Screen[] => screens.filter((one) => one !== mine);
@@ -113,7 +113,13 @@ function liveChess(a: ChessArgs): HTMLElement {
           for (const one of others()) one.grasp?.();
         },
         hand: (items, at, done, feel) => {
-          for (const one of others()) follow(one, items, at, done, held, feel, mine.seat);
+          // A CURSOR IS DRAWN IN THE INK OF WHOSE FINGER IT IS, and not of the pane it appears in:
+          // the dot lives in the other screen's corner, but the person it is a picture of is this one.
+          // Painted at its owner's end, so every mark of a seat is the one colour everywhere.
+          for (const one of others()) {
+            one.dot.style.background = t(ink);
+            follow(one, items, at, done, held, feel, mine.seat);
+          }
           people?.handed(seat, items, at, done);
         },
       };

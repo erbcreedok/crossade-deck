@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**77 слоёв · 1641 кейсов заявлено · 1468 расписано поимённо.**
+**77 слоёв · 1642 кейсов заявлено · 1469 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -92,7 +92,7 @@
 | [UNIT · сборка стеков — что становится одной кучей](64-stack-merging.md) | `vitest (headless, no WebGL)` | 9 | 9 |
 | [UNIT · столкновение — кто кому твёрдый](65-collision.md) | `vitest (headless, no WebGL)` | 6 | 6 |
 | [UNIT · магнетизм — какой зоне принадлежит отпускание](66-magnetism.md) | `vitest (headless, no WebGL)` | 20 | 20 |
-| [UNIT · live — дальний экран и люди за столом](67-live.md) | `vitest (headless, no WebGL) + jsdom` | 5 | 5 |
+| [UNIT · live — дальний экран и люди за столом](67-live.md) | `vitest (headless, no WebGL) + jsdom` | 6 | 6 |
 | [UNIT · шахматы — доска, через реальную проводку](68-chess.md) | `vitest (headless, no WebGL, jsdom)` | 4 | 4 |
 | [UNIT · NodeSpec и Revised — сериализация дерева](69-spec.md) | `vitest (headless, no WebGL)` | 4 | 4 |
 | [UNIT · wireDrag — проводка переноса в ките](70-drag.md) | `vitest + jsdom` | 6 | 6 |
