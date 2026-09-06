@@ -13,7 +13,7 @@ import {
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { handTakes, isHand, LIVE_UNIT, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
+import { handRule, handTakes, isHand, LIVE_UNIT, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 import { withAvatars } from "./avatars.js";
@@ -139,7 +139,9 @@ export const Hands: StoryObj<HandArgs> = {
           a.physics,
           a.lifted ? a.lift : undefined,
           "drop",
-          false,
+          // STACKING ON, so the hand's own handle is drawn under the cards (`handRule`) — a hand
+          // without one can only be dealt to, never lifted whole.
+          a.stacking,
           { w: a.gripWidth, min: a.gripMin, max: a.gripMax, miss: a.gripMiss },
           { card: a.cardDrop, chip: a.chipDrop, die: a.dieDrop },
           () => desk,
@@ -147,7 +149,8 @@ export const Hands: StoryObj<HandArgs> = {
           // it does with a card is turn it over, which is the right thing at a card table anyway.
           true,
           0,
-          undefined,
+          // WHAT A HAND HOLDS — the dealing desk's own rule, the same one `Live/Cards` plays by.
+          handRule(),
           undefined,
           // THE ZONE A RELEASE BELONGS TO — the nearest hand within reach, AND ONLY IF IT WOULD TAKE
           // IT FROM THIS SEAT. One question asked once: a zone the drop is going to refuse must not
@@ -187,7 +190,7 @@ export const Hands: StoryObj<HandArgs> = {
 
     return wall;
   },
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, lock: false },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: true, landing: true, lock: false },
   argTypes: { ...STACK_KNOBS, lock: LOCK },
   parameters: { gkDocStory: "hands.scene" },
 };

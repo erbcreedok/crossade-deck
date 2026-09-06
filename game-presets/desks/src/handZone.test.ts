@@ -15,14 +15,18 @@ import {
   caps,
   extentOf,
   footprint,
+  GRIP_SPEC,
   grippableBy,
+  layoutChildren,
+  layoutRecord,
+  remove,
   installStockCoats,
   node,
   rect,
   Transformable,
   type Node,
 } from "game-kit";
-import { growHand, HAND, handLocked, handTakes, isHand } from "./handZone.js";
+import { growHand, HAND, HAND_LAYOUT, handLocked, handRoom, handTakes, handWidth, isHand } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
@@ -41,10 +45,10 @@ const hand = (seat: string): Node => seatChair(seat, { at: { x: 0, y: 0 } }, { i
 const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
 
 describe("the hand at the place", () => {
-  it("hand.a-hand-is-the-size-of-what-is-in-it — empty it is a mark, full it stops at the ceiling", () => {
+  it("hand.a-hand-is-a-ring-until-it-holds-a-card — then a box round the row, capped at eight cards, with room below for the grip", () => {
     const zone = hand("south");
-    // EMPTY IS A MARK. A permanent full-size box on the felt is a hole in the table for a player
-    // holding nothing, which on a round desk is most players most of the time.
+    // EMPTY IS A MARK, and a RING: a permanent full-size box on the felt is a hole in the table for
+    // a player holding nothing, which on a round desk is most players most of the time.
     expect(size(zone).w).toBeCloseTo(HAND.empty);
     expect(size(zone).h).toBeCloseTo(HAND.empty);
 
@@ -54,16 +58,34 @@ describe("the hand at the place", () => {
       growHand(zone);
       widths.push(size(zone).w);
     }
-    // One card is already wider than the mark, and every card after it is at least as wide as the
-    // one before: a hand that shrank as it was dealt to would be reporting the opposite of the truth.
-    expect(widths[0]!).toBeGreaterThan(HAND.empty);
+    // ONE CARD IS A BOX: the ring becomes the rectangle round the card, and every card after it makes
+    // the box at least as wide as the one before — a hand that shrank as it was dealt to would be
+    // reporting the opposite of the truth.
+    expect(widths[0]!).toBeCloseTo(CARD.w + 2 * HAND.pad);
     for (let i = 1; i < widths.length; i += 1) expect(widths[i]!).toBeGreaterThanOrEqual(widths[i - 1]!);
-    // ...and it stops. Past the ceiling the CARDS close up instead — which is `handLayout`'s job and
-    // the reason the ring is allowed to stop growing at all.
-    expect(Math.max(...widths)).toBeCloseTo(HAND.max);
-    // A RING, so it is as tall as it is wide: what is in it lies across a circle and not in a box.
-    expect(size(zone).h).toBeCloseTo(size(zone).w);
-    expect(size(zone).h).toBeGreaterThan(CARD.h);
+    // ...AND IT STOPS AT EIGHT. Past that the CARDS close up instead — which is `handLayout`'s job
+    // and the reason the box is allowed to stop growing at all.
+    expect(widths[7]!).toBeCloseTo(handWidth(8));
+    expect(widths[11]!).toBeCloseTo(widths[7]!);
+    // A BOX, NOT A RING: as tall as the card plus the padding — plus the ROOM UNDER IT for the
+    // hand's own handle (`handRoom`), which is drawn under the cards and must not lie across them.
+    expect(size(zone).h).toBeCloseTo(CARD.h + 2 * HAND.pad + handRoom());
+    expect(size(zone).h).toBeLessThan(size(zone).w);
+    // ...AND THE ROOM IS THE GRIP'S OWN: a wider handle asks for a taller box, so a desk that
+    // changes its tab never has to come and edit the hand.
+    growHand(zone, undefined, { ...GRIP_SPEC, w: GRIP_SPEC.w * 2 });
+    expect(size(zone).h).toBeCloseTo(CARD.h + 2 * HAND.pad + handRoom({ ...GRIP_SPEC, w: GRIP_SPEC.w * 2 }));
+    growHand(zone);
+    // ...AND THE CARDS SIT ABOVE THAT ROOM, not across the middle of the box: the row is laid out in
+    // the part of the box that is the hand's, and the handle hangs in the rest (`handLayout`'s
+    // `below`, registered with the same grip the box is grown for — `installSeatArt`).
+    const rows = layoutRecord(HAND_LAYOUT)!.place(layoutChildren(zone), footprint(zone));
+    for (const at of rows) expect(at!.y).toBeCloseTo(-handRoom() / 2);
+    // EMPTIED, IT IS THE RING AGAIN.
+    for (const c of [...zone.children]) remove(zone, c);
+    growHand(zone);
+    expect(size(zone).w).toBeCloseTo(HAND.empty);
+    expect(size(zone).h).toBeCloseTo(HAND.empty);
   });
 
   it("hand.a-hand-is-the-place-itself — one node, standing where its owner sits", () => {

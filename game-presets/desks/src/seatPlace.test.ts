@@ -7,6 +7,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  add,
+  Bounded,
+  extentOf,
+  footprint,
+  node,
+  rect,
+  Transformable,
   AVATAR_VALUE,
   avatarId,
   avatarNode,
@@ -40,10 +47,12 @@ import {
   setHandLock,
   setSeatHome,
   chairTickId,
+  CHAIR,
   CHAIR_TICK,
+  fitChair,
   standChair,
 } from "./seatPlace.js";
-import { handLocked, isHand } from "./handZone.js";
+import { growHand, handLocked, isHand } from "./handZone.js";
 
 const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
 // Walked and not read off `desk.children`: a ring lives in the seats' own layer (`CHAIR_LAYER`), so
@@ -209,8 +218,8 @@ describe("a seat is drawn", () => {
       // puts straight ahead: `rotate(-facing)` of screen-up, which is (-sin, -cos). Written with the
       // sign the other way, a place at the right of the felt wore its tick on the OUTSIDE of the
       // ring, looking away from the desk it was sat at.
-      expect(poseOf(tick!).x).toBeCloseTo(place.at.x - Math.sin(rad) * CHAIR_TICK.at);
-      expect(poseOf(tick!).y).toBeCloseTo(place.at.y - Math.cos(rad) * CHAIR_TICK.at);
+      expect(poseOf(tick!).x).toBeCloseTo(place.at.x - Math.sin(rad) * (CHAIR.d / 2));
+      expect(poseOf(tick!).y).toBeCloseTo(place.at.y - Math.cos(rad) * (CHAIR.d / 2));
       // ...AND LYING ACROSS THE LOOK: level on its owner's own glass, which turns the desk by
       // `facing`, so on the desk it stands at `-facing` — the disc's own law (`avatarNode`).
       expect(apart(angleOf(tick!), -place.facing)).toBeCloseTo(0);
@@ -226,15 +235,56 @@ describe("a seat is drawn", () => {
     const moved = { x: 2, y: -3 };
     standChair(desk, SEATS[0]!.seat, moved);
     const rad0 = (places[0]!.facing * Math.PI) / 180;
-    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).x).toBeCloseTo(moved.x - Math.sin(rad0) * CHAIR_TICK.at);
-    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).y).toBeCloseTo(moved.y - Math.cos(rad0) * CHAIR_TICK.at);
+    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).x).toBeCloseTo(moved.x - Math.sin(rad0) * (CHAIR.d / 2));
+    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).y).toBeCloseTo(moved.y - Math.cos(rad0) * (CHAIR.d / 2));
     // ...AND TOLD A FACING, it goes round: the holder let go of the ring looking from 90°, and the
     // tick has to sit where THAT glass looks — on the ring's left on the desk, level on that glass.
     standChair(desk, SEATS[0]!.seat, moved, 90);
     const tick90 = byId(desk, chairTickId(SEATS[0]!.seat))!;
-    expect(poseOf(tick90).x).toBeCloseTo(moved.x - CHAIR_TICK.at);
+    expect(poseOf(tick90).x).toBeCloseTo(moved.x - (CHAIR.d / 2));
     expect(poseOf(tick90).y).toBeCloseTo(moved.y);
     expect(apart(angleOf(tick90), -90)).toBeCloseTo(0);
+  });
+
+  it("seat.the-chair-is-turned-to-its-facing — the box, and the row in it, stand square to their owner", () => {
+    // A RING DOES NOT CARE, BUT A HAND DOES: the box a dealt place grows into is a row of cards, and a
+    // row laid along the desk's own x is a hand its owner at the side of the table reads end-on. The
+    // chair stands at `-facing`, the same turn the tick and the disc stand at, so what is IN it lies
+    // level on its owner's own glass — and it is one number on one node, inherited by every card.
+    const desk = roundMap();
+    const places = roundPlaces(SEATS.length);
+    for (const [i, { seat }] of SEATS.entries()) {
+      expect(apart(angleOf(byId(desk, chairId(seat))!), -places[i]!.facing)).toBeCloseTo(0);
+    }
+    // ...AND IT GOES ROUND WHEN THE PLACE IS TURNED, with its tick: a place let go of under a turned
+    // camera faces the way its holder looked, box and all.
+    standChair(desk, SEATS[0]!.seat, { x: 1, y: 1 }, 90);
+    expect(apart(angleOf(byId(desk, chairId(SEATS[0]!.seat))!), -90)).toBeCloseTo(0);
+    // A PLACE NOBODY HOLDS HAS NO OWNER TO BE SQUARE TO, and stands as it was built.
+    expect(angleOf(seatChair("north", { at: { x: 0, y: -5 } }))).toBe(0);
+  });
+
+  it("seat.the-tick-and-the-name-follow-the-box — a hand that grew keeps its furniture on its rim", () => {
+    // THE TICK SITS ON THE RIM AND THE NAME HANGS UNDER IT. Both are measured from the chair's
+    // centre, and a chair dealt to is no longer the mark it was built as: left at the ring's own
+    // radius, the tick stood inside the box and the name lay across the bottom card. So both are
+    // re-measured off the box the chair now IS (`fitChair`), on the owner's own side of it.
+    const desk = roundMap();
+    const seat = SEATS[0]!.seat;
+    const chair = byId(desk, chairId(seat))!;
+    const facing = roundPlaces(SEATS.length)[0]!.facing;
+    const rad = (facing * Math.PI) / 180;
+    for (let i = 0; i < 3; i += 1) add(chair, node(`c${i}`, Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 0, y: 0 } })));
+    growHand(chair);
+    fitChair(desk, seat);
+    const reach = extentOf(footprint(chair)!).h / 2;
+    const at = poseOf(chair);
+    const tick = poseOf(byId(desk, chairTickId(seat))!);
+    expect(Math.hypot(tick.x - at.x, tick.y - at.y), "the tick is on the box's rim").toBeCloseTo(reach);
+    expect(tick.x).toBeCloseTo(at.x - Math.sin(rad) * reach);
+    const name = poseOf(byId(desk, chairNameId(seat))!);
+    expect(name.y - at.y, "the name hangs under the box, on the owner's side").toBeCloseTo(Math.cos(rad) * (reach + CHAIR.caption.gap));
+    expect(name.x - at.x).toBeCloseTo(Math.sin(rad) * (reach + CHAIR.caption.gap));
   });
 
   it("seat.the-avatar-opens-on-its-own-chair — the disc stands IN the ring, not beside it", () => {

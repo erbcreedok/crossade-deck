@@ -35,7 +35,12 @@ import {
   extentOf,
   fieldsOf,
   footprint,
+  GRIP_GAP,
+  GRIP_RATIO,
+  GRIP_SPEC,
+  roundedRect,
   type AcceptRule,
+  type GripSpec,
   type Node,
   type ValuedFields,
 } from "game-kit";
@@ -48,19 +53,39 @@ export const HAND_LOCK = "lock";
 export const HAND_VALUE = "hand";
 
 /**
- * WHAT A HAND MEASURES, in units — a DIAMETER, because the hand is the ring the seat is drawn as.
+ * WHAT A HAND MEASURES, in units.
  *
- * `empty` is a MARK and not a box: wide enough to read as somebody's place, small enough that four
- * of them round a six-unit felt leave the middle of the table free. `max` is the widest a hand is
- * ever allowed to get — past it the cards overlap instead of the ring spreading, which is what a
- * real hand does and what `handLayout` already knows how to do.
- *
- * A DIAMETER AND NOT A WIDTH: a row of cards is laid across the ring, and the circle that holds a
- * row `w` wide and `h` tall is the one whose diameter is their diagonal. Measured by the width
- * alone, the corners of the end cards would sit outside the very outline that is supposed to hold
- * them, on every hand of more than one card.
+ * `empty` is the DIAMETER of the mark a hand holding nothing is — a ring, wide enough to read as
+ * somebody's place and small enough that four of them round a six-unit felt leave the middle of the
+ * table free. The moment it holds a card it is a BOX round the row: `pad` of felt on every side,
+ * growing a step (`Spread.gapMax`) per card up to `cards` of them — past that the box stops and the
+ * cards close up instead, which is what a real hand does and what `handLayout` already knows how to
+ * do. A ring and not a box while empty because an empty box is a hole in the table; a box and not a
+ * ring once dealt to because a row of cards is a rectangle, and the circle that holds one is mostly
+ * felt.
  */
-export const HAND = { empty: 1.35, max: 4.2, pad: 0.16 };
+export const HAND = { empty: 1.35, cards: 8, pad: 0.16 };
+
+/**
+ * THE ROOM UNDER THE ROW FOR THE HAND'S OWN HANDLE — the tab `regrip` hangs under a place, in units.
+ *
+ * The handle is drawn UNDER the cards, and the box holds it: a tab hanging outside the outline is a
+ * control that belongs to nothing the eye can see, and one lying across the bottom card covers
+ * whatever is on it. So the box is taller by the handle's height and its gap, read off the very spec
+ * the tab is drawn from — change the handle and the hand follows, without anybody editing this file.
+ */
+export function handRoom(grip: Pick<GripSpec, "w"> = GRIP_SPEC): number {
+  return grip.w / GRIP_RATIO + GRIP_GAP;
+}
+
+/**
+ * HOW WIDE A HAND OF THIS MANY CARDS IS, in units — the row at the spread's own step, plus the
+ * padding, and never wider than a hand of `HAND.cards`.
+ */
+export function handWidth(count: number, cardW = 1, look: Spread = ZONE_SPREAD): number {
+  const n = Math.min(count, HAND.cards);
+  return cardW + (n - 1) * look.gapMax + 2 * HAND.pad;
+}
 
 /** The arrangement a hand lays its cards out in — registered where the ring is built. */
 export const HAND_LAYOUT = "hand.row";
@@ -107,27 +132,30 @@ export function handTakes(zone: Node, el: Node, actor?: string): boolean {
 }
 
 /**
- * THE HAND, RESIZED TO WHAT IS IN IT — the ring's own diameter, and nothing else about it.
+ * THE HAND, RESIZED TO WHAT IS IN IT — the chair's own outline, and nothing else about it.
  *
- * Empty it is the mark; holding something it is the DIAGONAL of the row lying in it plus the
- * padding — the smallest circle that actually contains what it was given — until the ceiling, where
- * it stops and the cards close up instead (`handLayout` reads the same box back and squeezes them).
- * The step it grows by is the spread's OWN `gapMax`, so a hand at rest is laid out exactly as wide
- * as it asked to be and the layout has nothing to squeeze.
+ * Empty it is the ring; holding something it is the BOX round the row — `handWidth` across, a card
+ * plus the padding tall, plus the room under the row for the hand's own handle (`handRoom`) — until
+ * the ceiling at `HAND.cards`, where the width stops and the cards close up instead (`handLayout`
+ * reads the same box back and squeezes them). The step it grows by is the spread's OWN `gapMax`, so
+ * a hand at rest is laid out exactly as wide as it asked to be and the layout has nothing to squeeze.
  *
  * Measured off the children's drawn outlines rather than a card's size written down here: a desk
  * that deals something other than cards must not have to come and edit this file.
  */
-export function growHand(zone: Node, look: Spread = ZONE_SPREAD): void {
+export function growHand(zone: Node, look: Spread = ZONE_SPREAD, grip: Pick<GripSpec, "w"> = GRIP_SPEC): void {
   const kids = zone.children;
+  if (kids.length === 0) {
+    compose(zone, Bounded({ bounds: circle(HAND.empty / 2) }));
+    return;
+  }
   const sizes = kids.map((c) => {
     const shape = footprint(c);
     return shape ? extentOf(shape) : { w: 0, h: 0 };
   });
   const widest = sizes.reduce((w, s) => Math.max(w, s.w), 0);
   const tallest = sizes.reduce((h, s) => Math.max(h, s.h), 0);
-  const row = kids.length === 0 ? 0 : widest + (kids.length - 1) * look.gapMax;
-  const wanted = kids.length === 0 ? HAND.empty : Math.hypot(row, tallest) + 2 * HAND.pad;
-  const d = Math.max(HAND.empty, Math.min(HAND.max, wanted));
-  compose(zone, Bounded({ bounds: circle(d / 2) }));
+  const w = handWidth(kids.length, widest, look);
+  const h = tallest + 2 * HAND.pad + handRoom(grip);
+  compose(zone, Bounded({ bounds: roundedRect(w, h, HAND.pad) }));
 }

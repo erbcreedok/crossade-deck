@@ -37,6 +37,7 @@ import { Screened } from "../core/atoms/screened.js";
 import { Forgiving } from "../core/atoms/forgiving.js";
 import { Draggable } from "../core/atoms/draggable.js";
 import { heapBox, heapFrame, heapsOf, type HeapRule, TOUCHING } from "./heaps.js";
+import { Owned, type OwnedFields } from "../core/atoms/owned.js";
 
 /**
  * WHAT A PIECE IS, off what it carries and never off its name — `guard.id-is-opaque`, which caught
@@ -158,11 +159,16 @@ export const isPlaceGrip = (n: Node): boolean => fieldsOf<ValuedFields>(n, "Valu
 let handlesDrawn = 0;
 const GRIP_SURFACE = "gesture.map.grip";
 
-function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec, ofPlace = false): Node {
+function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec, ofPlace = false, place?: Node): Node {
   const box = heapBox(root, under);
   const h = spec.w / GRIP_RATIO;
+  // A PLACE'S HANDLE IS THE PLACE'S OWNER'S. The tab says whose it is the way the place does
+  // (`Owned`), so a desk's own permission (`mayTake`) can refuse every other finger: a hand lifted
+  // whole by a neighbour is a hand dealt away. A place nobody owns gives a tab anybody may take.
+  const owner = ofPlace && place ? fieldsOf<OwnedFields>(place, "Owned")?.box : undefined;
   return node(
     `stack handle ${handlesDrawn++}`,
+    ...(owner !== undefined && owner !== "" ? [Owned({ box: owner })] : []),
     Bounded({ bounds: roundedRect(spec.w, h, h / 2) }),
     Surfaced({ surface: GRIP_SURFACE }),
     // UNDER THE PILE IN THE PILE'S OWN FRAME, and turned with it: a handle is the picture of THIS
@@ -214,7 +220,12 @@ export function regrip(
   (actualRule.held?.(root, aloft) ?? []).forEach(({ under, pieces }, i) => {
     for (const piece of pieces) claimed.add(piece.id);
     if (pieces.length === 0) return; // a place holding nothing has nothing to lift, and no handle
-    const tab = gripFor(root, [under], -1 - i, spec, true);
+    // UNDER WHAT THE PLACE HOLDS, inside the place: a place grown round its cards keeps room under
+    // them for exactly this tab (`handRoom`), and a tab hung under the place's OUTLINE stood
+    // outside the box, over the name. What lies on the place from outside is not measured — a
+    // stray thrown across the rim would drag the tab off with it.
+    const inside = under.children.filter((p) => pieces.includes(p));
+    const tab = gripFor(root, inside.length > 0 ? inside : [under], -1 - i, spec, true, under);
     add(root, tab);
     held.set(tab.id, pieces);
   });

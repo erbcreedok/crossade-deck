@@ -27,6 +27,7 @@ import {
   settled,
   squareAt,
   pointUnder,
+  handRule,
   handTakes,
   isHand,
   mayTake,
@@ -270,6 +271,10 @@ function playFor(game: TableGame, seat: () => string | null): LiveTableOptions<L
       // WHAT IS TOUCHING WHAT IS A HEAP, and a heap gets a handle — the deck's own tab.
       stacking: true,
       heapKindOf,
+      // ...AND A HAND IS ITS OWNER'S ARRAY (`handRule`): its own handle lifts its cards and whatever
+      // was thrown onto the box while it is open, and nothing on the felt is islanded with a card
+      // inside a hand. The same rule the catalog's `Live/Cards` plays by.
+      rule: handRule(),
       grip: GRIP_SPEC,
       // A THROW IS ON: a card flicked across the felt travels, which is the whole of a card table.
       letGo: "throw",

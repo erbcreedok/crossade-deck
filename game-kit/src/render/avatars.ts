@@ -25,7 +25,7 @@ import { type CarryItem } from "./animator/index.js";
 import { type SeatPlace } from "./liveTable.js";
 import { isHome, placeAvatars, PRESENCE_TEXT, type Presence } from "./presence.js";
 import { registerTextStyle } from "./textStyles.js";
-import { chairId, dressChair, growHand, standChair } from "@game-presets/desks";
+import { chairId, dressChair, fitChair, growHand, standChair } from "@game-presets/desks";
 
 /** The name under a disc: small, quiet and the desk's own face. */
 const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
@@ -188,7 +188,11 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       // sits and it is the size of what is in it. Both facts are written in ONE call, because they
       // are one picture — see `dressChair`.
       dressChair(ring, { shut: o.hands !== undefined && shut.get(seat) === true, home: home.has(seat) });
-      if (o.hands !== undefined) growHand(ring);
+      if (o.hands !== undefined) {
+        growHand(ring);
+        // ...AND THE FURNITURE FOLLOWS THE BOX: the tick back on the rim, the name back under it.
+        fitChair(desk(), seat);
+      }
     }
   };
 

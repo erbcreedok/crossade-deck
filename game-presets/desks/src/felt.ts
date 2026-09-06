@@ -299,7 +299,7 @@ export const ZONE_SPREAD: Spread = { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wid
  * zone having failed to hold what it was given. Given no box the layout places nobody: inventing an
  * edge is worse than saying there is none, which is the same silence a free canvas gives.
  */
-export function handLayout(look: Spread, padding = 0): LayoutRecord {
+export function handLayout(look: Spread, padding = 0, below = 0): LayoutRecord {
   const place = (children: readonly LayoutChild[], box?: Shape): readonly (Point | undefined)[] => {
     if (!box) return children.map(() => undefined);
     const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 0), 0);
@@ -307,7 +307,9 @@ export function handLayout(look: Spread, padding = 0): LayoutRecord {
     const room = Math.max(0, extentOf(box).w - 2 * padding - widest);
     const step = fitStep(children.length, room, look);
     const from = -(step * (children.length - 1)) / 2;
-    return children.map((_child, i) => ({ x: from + step * i, y: 0 }));
+    // ABOVE THE ROOM KEPT UNDER THE ROW (`below`): a hand's box holds its own handle beneath the
+    // cards, so the row is centred in the part of the box that is the cards', not in the whole.
+    return children.map((_child, i) => ({ x: from + step * i, y: -below / 2 }));
   };
   // NO ADDRESSES. A hand is not a set of slots: a card given to it JOINS it, and where it ends up
   // is a consequence of how many there are rather than of where the finger was. `indexAt` is

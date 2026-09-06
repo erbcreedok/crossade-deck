@@ -13,7 +13,7 @@ import {
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { handTakes, isHand, LIVE_UNIT, mayTake, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
+import { handRule, handTakes, isHand, LIVE_UNIT, mayTake, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 import { withAvatars } from "./avatars.js";
@@ -156,7 +156,10 @@ function liveCards(a: CardsArgs): HTMLElement {
         // it does with a card is turn it over, which is the right thing at a card table anyway.
         true,
         0,
-        undefined,
+        // WHAT A HAND HOLDS, as the desk's own rule (`handRule`): the hand's handle lifts its own
+        // cards and whatever was thrown onto the box while it is open, and nothing on the felt is
+        // ever islanded with a card inside a hand. Without hands there are no hands to hold.
+        a.avatars ? handRule() : undefined,
         undefined,
         // THE ZONE A RELEASE BELONGS TO — the nearest hand within reach, AND ONLY IF IT WOULD TAKE
         // IT FROM THIS SEAT. One question asked once: a zone the drop is going to refuse must not
@@ -283,7 +286,7 @@ export const Cards: StoryObj<CardsArgs> = {
 export const CardsWithAvatars: StoryObj<CardsArgs> = {
   name: "Cards · with avatars",
   render: liveCards,
-  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, avatars: true, idleReturn: false, idleMs: 6000 },
+  args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: true, landing: true, avatars: true, idleReturn: false, idleMs: 6000 },
   argTypes: { ...STACK_KNOBS, avatars: AVATARS, idleReturn: IDLE_RETURN, idleMs: IDLE_MS },
   parameters: { gkDocStory: "liveCards.avatars" },
 };

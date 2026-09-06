@@ -47,9 +47,12 @@ export {
   handAccept,
   handLocked,
   handOwner,
+  handRoom,
+  handWidth,
   handTakes,
   isHand,
 } from "./handZone.js";
+export { FAN_SPREAD, FAN_TILT, gripOwner, handFan, handRule, handsOf, HELD_SHARE, heapKindOf } from "./handRule.js";
 export {
   CHAIR,
   CHAIR_HOME,
@@ -71,6 +74,8 @@ export {
   setHandLock,
   setSeatHome,
   standChair,
+  fitChair,
+  chairReach,
   type SeatLook,
   type SeatOfDesk,
 } from "./seatPlace.js";
