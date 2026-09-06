@@ -18,6 +18,10 @@
 // saying what they hold, and they cannot come apart. It grows to what it is holding and shrinks back
 // when the cards leave.
 //
+// AND IT WEARS ITS OWN DIRECTION — a short tick on the rim where the place looks (`CHAIR_TICK`).
+// A ring is symmetric, so without it a seat says where somebody is and not which way round they are
+// sitting, which on a round felt is the difference between the two ends of the same deal.
+//
 // AN EMPTY CHAIR IS A DIFFERENT PICTURE and not a dimmer one: grey and dashed, with no name under
 // it. Dashed because a place nobody holds is an outline of a place — the same thing a plan drawing
 // says with a dashed line — and drawing it in some seat's colour would be claiming it for a player
@@ -86,8 +90,36 @@ import { HAND, HAND_LAYOUT, HAND_LOCK, HAND_VALUE, handAccept, handLocked } from
  */
 export const CHAIR = { d: HAND.empty, line: 0.035, caption: { w: 1.7, h: 0.26, at: HAND.empty / 2 + 0.28 } };
 
+/**
+ * THE TICK ON THE RIM THAT SAYS WHICH WAY THIS PLACE LOOKS — a short bar across the outline, in
+ * units, and nothing more than that.
+ *
+ * A ring is symmetric and so says WHERE somebody sits and not which way they are turned; on a round
+ * felt those are two different facts, because the seat opposite is looking at the same cards from
+ * the other end. The place's own `facing` is the answer and it is already known here — it is the
+ * angle the owner's camera opens at — so the ring wears it.
+ *
+ * A TICK AND NOT A WEDGE. The wedge belongs to the DISC, which is a reading of where somebody is
+ * looking RIGHT NOW and moves whenever they pan; a place's facing never moves at all, and drawing
+ * the two alike would be one picture for a fact and for a measurement.
+ */
+export const CHAIR_TICK = { w: 0.26, h: 0.07, at: HAND.empty / 2 };
+
 /** The mark a chair wears so a desk can find its own again — an id is a name and nothing parses one. */
 export const CHAIR_VALUE = "chair";
+
+/** The surface the facing tick is painted with, one per seat — its owner's own ink. */
+export function chairTickSurface(seat: string): string {
+  return `desk.seat.${seat}.facing`;
+}
+
+/**
+ * THE ID OF THE TICK BESIDE A CHAIR — a node of its own, for the caption's own reason: the ring
+ * arranges what is IN it (`handLayout`), so a tick made a child would be dealt into somebody's hand.
+ */
+export function chairTickId(seat: string): string {
+  return `${chairId(seat)} facing`;
+}
 
 /** Whether its owner is looking AT this place right now. `1` is home; the ring is then filled. */
 export const CHAIR_HOME = "home";
@@ -170,6 +202,7 @@ export function installSeatArt(seat?: string, ink?: Paint, look: Spread = ZONE_S
     stroke: { color: "textFaint", width: CHAIR.line, opacity: 0.8, dash: { on: 0.1, off: 0.08 } },
   });
   if (seat === undefined || ink === undefined) return;
+  registerSurface(chairTickSurface(seat), { layers: [{ paint: ink, opacity: 0.85 }] });
   const stroke = { color: ink, width: CHAIR.line, opacity: 0.85 };
   for (const home of [false, true]) {
     for (const shut of [false, true]) {
@@ -249,6 +282,32 @@ export function seatChair(seat: string, place: { readonly at: Vec }, look?: Seat
   );
 }
 
+/**
+ * WHERE THE TICK SITS AND HOW IT LIES — on the rim, in the direction the place looks.
+ *
+ * `facing` is the angle that place's own camera opens at, clockwise on the glass, and a screen
+ * turned by it puts the felt straight ahead at the TOP. So the direction of the look on the felt is
+ * the up-vector turned by `facing`, and the bar lies across it — which is the same turn again.
+ */
+function tickPose(place: { readonly at: Vec }, facing: number): { readonly at: Vec; readonly angle: number } {
+  const rad = (facing * Math.PI) / 180;
+  return {
+    at: { x: place.at.x + Math.sin(rad) * CHAIR_TICK.at, y: place.at.y - Math.cos(rad) * CHAIR_TICK.at },
+    angle: facing,
+  };
+}
+
+/** The tick on a chair's rim — a node of its own, so the ring can arrange cards without arranging it. */
+function seatTick(seat: string, place: { readonly at: Vec }, facing: number): Node {
+  const pose = tickPose(place, facing);
+  return node(
+    chairTickId(seat),
+    Bounded({ bounds: rect(CHAIR_TICK.w, CHAIR_TICK.h) }),
+    Surfaced({ surface: chairTickSurface(seat) }),
+    Transformable({ at: pose.at, angle: pose.angle }),
+  );
+}
+
 /** The name under a chair — a billboard, because a caption drawn upside down is a broken picture. */
 function seatName(seat: string, place: { readonly at: Vec }, label: string): Node {
   return node(
@@ -279,7 +338,7 @@ export interface SeatOfDesk {
  */
 export function seatChairs(
   desk: Node,
-  places: readonly { readonly at: Vec }[],
+  places: readonly { readonly at: Vec; readonly facing?: number }[],
   seats: readonly SeatOfDesk[],
   /** Whether this desk DEALS — on, every held ring is also its owner's hand. Off is every board. */
   hands = false,
@@ -293,6 +352,9 @@ export function seatChairs(
       seat ? { ink: seat.ink, hand: hands, ...(seat.name !== undefined ? { name: seat.name } : {}) } : undefined,
     );
     add(layer, chair);
+    // A TICK ONLY WHERE THERE IS SOMEBODY TO BE TURNED. An unheld place is an outline of a place
+    // and has no owner to be looking anywhere, so it gets no direction either.
+    if (seat && place.facing !== undefined) add(layer, seatTick(seat.seat, place, place.facing));
     if (seat?.name !== undefined) add(layer, seatName(seat.seat, place, seat.name));
     return chair;
   });
@@ -338,6 +400,13 @@ export function standChair(desk: Node, seat: string, at: Vec): void {
   if (!chair) return;
   const own = fieldsOf<TransformableFields>(chair, "Transformable");
   compose(chair, Transformable({ ...(own ?? {}), at }));
+  // THE TICK GOES WITH IT, and it keeps the angle it was built with: dragging a chair moves a seat,
+  // it does not turn it round (`Avatars.handed` writes the same rule into the place itself).
+  const tick = byId(desk, chairTickId(seat));
+  if (tick) {
+    const pose = fieldsOf<TransformableFields>(tick, "Transformable");
+    compose(tick, Transformable({ ...(pose ?? {}), at: tickPose({ at }, pose?.angle ?? 0).at }));
+  }
   const name = byId(desk, chairNameId(seat));
   if (!name) return;
   const its = fieldsOf<TransformableFields>(name, "Transformable");

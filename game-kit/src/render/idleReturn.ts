@@ -1,5 +1,5 @@
 import { type Camera } from "./camera/index.js";
-import { type Presence } from "./presence.js";
+import { homeTarget, type Presence } from "./presence.js";
 
 export interface IdleReturnOpts {
   /** How long a view may sit untouched before it glides home. `Infinity` never glides on its own. */
@@ -67,10 +67,16 @@ export function idleReturn(
       if (!p || !p.place) return;
       const { at, facing } = p.place;
       const targetZoom = camera.fitZoom();
+      // WHERE THE EYE HAS TO BE AIMED for the place to stand on the home anchor — the camera's own
+      // word for its aim is the MIDDLE of the glass, and home is the low middle (`HOME_ANCHOR`).
+      // Worked out at the zoom and turn the glide is HEADING FOR and not at the ones it is leaving,
+      // or the destination would move under the glide every frame and never be arrived at.
+      const perUnit = camera.zoom === 0 ? camera.pixelsPerUnit : (camera.pixelsPerUnit / camera.zoom) * targetZoom;
+      const home = homeTarget({ at }, { zoom: perUnit, rotation: facing, glass: camera.glass });
 
       if (!gliding && idleMs > afterMs) {
-        const dx = camera.target.x - at.x;
-        const dy = camera.target.y - at.y;
+        const dx = camera.target.x - home.x;
+        const dy = camera.target.y - home.y;
         const dz = camera.zoom - targetZoom;
         let dr = (camera.rotation - facing) % 360;
         if (dr > 180) dr -= 360;
@@ -87,8 +93,8 @@ export function idleReturn(
         const t = 1 - Math.pow(1 - p, 3); // easeOutCubic
 
         camera.lookAt({
-          x: startX + (at.x - startX) * t,
-          y: startY + (at.y - startY) * t
+          x: startX + (home.x - startX) * t,
+          y: startY + (home.y - startY) * t
         });
         camera.setZoom(startZoom + (targetZoom - startZoom) * t);
         

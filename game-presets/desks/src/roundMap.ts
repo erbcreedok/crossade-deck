@@ -59,7 +59,7 @@ export const ROUND_R = 6;
  * the felt does not change the picture the table opens on at all.
  *
  * What it changes is where the eye may GO. A player's place is on the RIM (`seatPlaces`, at
- * `ROUND_R - 1`), and sitting at one's own place means having it in the middle of one's own glass —
+ * `ROUND_R - 1`), and sitting at one's own place means having it on the HOME ANCHOR of one's own glass —
  * which is what a tap on the ring asks for and what the idle glide does by itself (`idleReturn`,
  * `isHome`). The camera is held inside this room, so a room that stopped a table's width past the
  * middle stopped the eye a table's width short of the seat: the glide ran, clamped, and came to rest

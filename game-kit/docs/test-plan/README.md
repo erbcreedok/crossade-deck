@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**77 слоёв · 1658 кейсов заявлено · 1485 расписано поимённо.**
+**77 слоёв · 1660 кейсов заявлено · 1487 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -100,6 +100,6 @@
 | [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 5 | 5 |
 | [UNIT · mirror — чужая рука на своём экране](74-mirror.md) | `vitest + jsdom + фейковые часы` | 2 | 2 |
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |
-| [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 9 | 9 |
+| [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 11 | 11 |
 | [UNIT · idleReturn — возврат камеры](77-idle-return.md) | `vitest (headless, no WebGL)` | 4 | 4 |
 | [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 12 | 12 |

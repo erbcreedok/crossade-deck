@@ -9,8 +9,9 @@
 // AND WHERE THEY SIT IS THEIR OWN CAMERA. Nothing else on a shared desk answers it: a seat index is
 // a number the game invented, and a game that has none would have no answer at all. How a person
 // turned, moved and zoomed their view IS the direction they are looking at the desk from, so the
-// avatar STANDS IN THE MIDDLE OF THAT VIEW — the felt under the centre of their glass — and it is
-// read the same way on every screen because the view is the message.
+// avatar STANDS WHERE THAT VIEW SITS — the felt under the low middle of their glass, the very point
+// their own ring stands on when they are at home (`HOME_ANCHOR`) — and it is read the same way on
+// every screen because the view is the message.
 //
 // AN AVATAR IS A NODE, not a picture on the HUD, and that is a decision with a reason rather than a
 // convenience: the first version is a coloured disc, and the ones after it walk about — a crocodile,
@@ -89,6 +90,20 @@ const CAPTION = { w: 1.7, h: 0.3, at: 0.48 };
 const BADGE = { size: 0.18, at: 0.19 };
 /** The face inside the disc, as a fraction of it — under one, so the seat's ink reads all round. */
 const FACE = 0.82;
+/**
+ * THE WEDGE THAT SAYS WHICH WAY THIS PERSON IS FACING — in units, measured out from the disc's
+ * middle, and quiet.
+ *
+ * A disc alone says WHERE somebody is standing and says nothing about which way they are turned,
+ * which on a shared desk is half of "where they are sitting": two readers at the same spot looking
+ * opposite ways are looking at two different halves of the felt. The disc is already turned by its
+ * owner's camera, so the wedge is a fixed shape on it and the angle costs nothing.
+ *
+ * It starts OUTSIDE the face and not at the anchor: the disc is a circle with initials in it, and a
+ * clin drawn across them would be a badge over somebody's name. `spread` widens outwards, so it
+ * reads as a cone opening in the direction of the look rather than as a needle pointing at it.
+ */
+const CONE = { from: DISC / 2, to: DISC * 1.15, near: 0.05, spread: 0.17, fade: 0.42 };
 
 /**
  * A COLOUR THE PICTURE CAN READ. A picture is a data URI — a document of its own — so a theme token
@@ -166,18 +181,64 @@ export function deskPoint(v: PresenceView, glass: Vec): Vec {
 }
 
 /**
- * WHERE THIS PERSON STANDS ON THE DESK — the felt under the MIDDLE OF THEIR GLASS, and nothing else.
- * The one question the whole file exists to answer, and it is answered from the message alone, so a
- * screen works it out for somebody else exactly as it works it out for itself and the two can never
- * disagree about who is sitting where.
+ * WHERE ONE'S OWN PLACE STANDS ON ONE'S OWN GLASS WHEN ONE IS SITTING AT IT, as a fraction of the
+ * glass — the LOW MIDDLE, not the middle.
+ *
+ * A person at a table is not hovering over the middle of it: they are at the near edge looking
+ * across, and the whole of the desk they are playing on is IN FRONT of them. Sat in the middle of
+ * the glass, half the screen is the felt behind one's own back — the one part of the table that
+ * never has anything on it — and the cards being played are crowded into the top half.
+ *
+ * ONE NUMBER, and everything about home is read off it: the glide brings a view here
+ * (`idleReturn`), `isHome` asks whether a view is here, and the disc stands on the felt under this
+ * very point (`avatarAt`). Asked twice they would drift, and a desk would then draw somebody's
+ * disc a screen's-worth away from the ring it is supposed to be hiding inside.
+ *
+ * Low and not AT the bottom: the ring is a thing with a size and a name under it, and an anchor on
+ * the very edge would hang both off the glass.
+ */
+export const HOME_ANCHOR = { x: 0.5, y: 0.82 };
+
+/** The home anchor in SCREEN PIXELS on a given glass — the same point, measured. */
+export function homeGlassPoint(glass: PresenceView["glass"]): Vec {
+  return { x: glass.w * HOME_ANCHOR.x, y: glass.h * HOME_ANCHOR.y };
+}
+
+/**
+ * WHAT A CAMERA MUST LOOK AT FOR A PLACE TO STAND ON THE HOME ANCHOR — the desk point that goes in
+ * the middle of the glass when the ring is to sit low and centred.
+ *
+ * The camera's own word for where it is aimed is the MIDDLE of the glass (`lookAt`), and home is
+ * not the middle any more, so the two differ by exactly the anchor's offset from the centre —
+ * measured in pixels, turned into units by that glass's own scale, and turned back out of the
+ * screen's rotation, because a reader at 180° has their low edge on the other side of the felt.
+ */
+export function homeTarget(
+  place: { readonly at: Vec },
+  view: { readonly zoom: number; readonly rotation: number; readonly glass: PresenceView["glass"] },
+): Vec {
+  const anchor = homeGlassPoint(view.glass);
+  const off = { x: anchor.x - view.glass.w / 2, y: anchor.y - view.glass.h / 2 };
+  if (view.zoom === 0) return place.at;
+  const back = apply(rotate(-view.rotation), { x: off.x / view.zoom, y: off.y / view.zoom });
+  return { x: place.at.x - back.x, y: place.at.y - back.y };
+}
+
+/**
+ * WHERE THIS PERSON STANDS ON THE DESK — the felt under the HOME ANCHOR of their glass, and nothing
+ * else. The one question the whole file exists to answer, and it is answered from the message
+ * alone, so a screen works it out for somebody else exactly as it works it out for itself and the
+ * two can never disagree about who is sitting where.
  *
  * An avatar IS what its owner is looking at. Not a spot they were once put down on and not a corner
  * of their screen: those are two places that drift apart the moment the view moves, and then the
  * desk has to say which of them is the person. There is one answer here, so there is nothing to
- * drift. One's own picture stands in one's own middle too, which is the same sentence read at home.
+ * drift. It is the ANCHOR and not the centre of the glass because that is where a person sits on
+ * their own screen (`HOME_ANCHOR`) — read at home it lands exactly on one's own ring, which is what
+ * makes "the ring IS them while they are in it" a picture rather than a claim.
  */
 export function avatarAt(p: Presence): Vec {
-  return p.view.target;
+  return deskPoint(p.view, homeGlassPoint(p.view.glass));
 }
 
 /**
@@ -197,8 +258,9 @@ function apart(a: number, b: number): number {
 }
 
 /**
- * IS THIS PERSON LOOKING AT THEIR OWN PLACE — the middle of their glass on it, their screen turned
- * to it, and (when the reader knows what home is worth in pixels) their zoom at it.
+ * IS THIS PERSON LOOKING AT THEIR OWN PLACE — the home anchor of their glass on it (`HOME_ANCHOR`,
+ * the low middle and not the middle), their screen turned to it, and (when the reader knows what
+ * home is worth in pixels) their zoom at it.
  *
  * Read off the MESSAGE and nothing else, so every screen at the desk gets the same answer about
  * everybody, which is the whole point: "who is at their seat" is a fact of the desk, not of the
@@ -215,7 +277,15 @@ export function isHome(
   place: { readonly at: Vec; readonly facing: number },
   homeZoom?: number,
 ): boolean {
-  if (Math.hypot(view.target.x - place.at.x, view.target.y - place.at.y) > HOME.near) return false;
+  const aimed = homeTarget(place, view);
+  // HOW FAR THE ANCHOR ITSELF MOVES WHEN THE PINCH IS NUDGED, and the position is given exactly
+  // that much more room. The anchor is a fraction of the GLASS, so where a camera has to be aimed
+  // for a ring to stand on it depends on the zoom — and the zoom is allowed to be `HOME.zoom` off
+  // (below). Judged on `HOME.near` alone, a reader whose pinch drifted inside the tolerance the
+  // very next line grants them would be read as having got up: two rules, disagreeing about one
+  // view. Derived rather than a second number, so the two can never come apart.
+  const drop = Math.hypot(aimed.x - place.at.x, aimed.y - place.at.y);
+  if (Math.hypot(view.target.x - aimed.x, view.target.y - aimed.y) > HOME.near + drop * HOME.zoom) return false;
   if (apart(view.rotation, place.facing) > HOME.turn) return false;
   if (homeZoom === undefined || homeZoom === 0) return true;
   return Math.abs(view.zoom - homeZoom) / homeZoom <= HOME.zoom;
@@ -241,10 +311,21 @@ function faceSurface(seat: string): string {
 function faceAsset(seat: string): string {
   return `presence.face.picture.${seat}`;
 }
+function coneSurface(seat: string): string {
+  return `presence.cone.${seat}`;
+}
 
 /** The id an avatar answers to. Built here, never parsed — an id is a name (`guard.id-is-opaque`). */
 export function avatarId(seat: string): string {
   return `avatar ${seat}`;
+}
+
+/**
+ * THE ID OF THE WEDGE ON A DISC — built here, never parsed, so a reader that wants the direction
+ * asks for it by name instead of matching the shape of an id (`guard.id-is-opaque`).
+ */
+export function avatarConeId(seat: string): string {
+  return `${avatarId(seat)} cone`;
 }
 
 /**
@@ -272,6 +353,11 @@ function installLook(p: Presence): void {
     // person: a hand with something in it is the difference between "they are here" and "they are
     // doing something", and it is the state everybody else is waiting on.
     ...(p.holding ? { stroke: { color: "accent", width: 0.09, alignment: 0 } } : {}),
+  });
+  // SCREEN-UP ON THE OWNER'S GLASS is what the disc's own turn already means (see `avatarNode`), so
+  // the wedge is drawn straight up the node's own local axis and needs no angle of its own.
+  registerSurface(coneSurface(p.seat), {
+    layers: [{ paint: p.ink, opacity: look.fade * CONE.fade }],
   });
   registerSurface(badgeSurface(p.seat), {
     layers: [{ paint: look.badge }],
@@ -326,6 +412,22 @@ export function avatarNode(p: Presence): Node {
     // AN AVATAR SAYS IT IS ONE. What makes a node a person at this desk is that it says so, not that
     // it is called something (`guard.id-is-opaque`).
     Valued({ values: { [AVATAR_VALUE]: 1 } }),
+  );
+  add(
+    root,
+    node(
+      avatarConeId(p.seat),
+      Bounded({
+        bounds: polyline([
+          { x: -CONE.near, y: -CONE.from },
+          { x: -CONE.spread, y: -CONE.to },
+          { x: CONE.spread, y: -CONE.to },
+          { x: CONE.near, y: -CONE.from },
+        ]),
+      }),
+      Surfaced({ surface: coneSurface(p.seat) }),
+      Transformable({ at: { x: 0, y: 0 } }),
+    ),
   );
   add(
     root,

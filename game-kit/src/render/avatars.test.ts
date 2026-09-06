@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   avatarId,
   byId,
+  homeTarget,
   caps,
   grippableBy,
   fieldsOf,
@@ -121,9 +122,11 @@ describe("the people at a live desk", () => {
     const desk = roundMap(SEATS);
     const places = roundPlaces(SEATS.length);
     const screens = SEATS.map(({ seat, ink }, i) => screenOf(seat, ink as string, places[i]!.facing));
-    // Every camera aimed at its own place, which is what every live page opens on after a glide.
+    // Every camera aimed so its own place stands on the home anchor, which is what every live page
+    // opens on after a glide — the LOW middle of the glass and not the middle (`homeTarget`).
     screens.forEach((one, i) => {
-      one.camera!.target = places[i]!.at;
+      const cam = one.camera!;
+      cam.target = homeTarget(places[i]!, { zoom: cam.pixelsPerUnit, rotation: places[i]!.facing, glass: cam.glass });
     });
     const people = wire(desk, screens);
     people.publish();

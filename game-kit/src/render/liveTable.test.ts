@@ -37,6 +37,7 @@ import {
 } from "../index.js";
 import { Camera } from "./camera/index.js";
 import { liveTable } from "./liveTable.js";
+import { homeTarget } from "./presence.js";
 
 function stubPainter(): Painter {
   return { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
@@ -259,8 +260,11 @@ describe("the live desk", () => {
     expect(camera.target).toEqual({ x: 1, y: 1 });
     // PAST IT, THE VIEW GLIDES ALL THE WAY HOME — the deadline plus the whole glide.
     live.idle!.step(1 + 200);
-    expect(camera.target.x, "the glide reached the seat's own place").toBeCloseTo(0, 5);
-    expect(camera.target.y).toBeCloseTo(0, 5);
+    // AIMED SHORT OF THE RING BY THE ANCHOR'S OWN OFFSET (`homeTarget`): a seat stands at the LOW
+    // middle of its owner's glass, and the camera's word for its aim is the middle.
+    const home = homeTarget({ at: { x: 0, y: 0 } }, { zoom: camera.pixelsPerUnit, rotation: 0, glass: camera.glass });
+    expect(camera.target.x, "the glide reached the seat's own place").toBeCloseTo(home.x, 5);
+    expect(camera.target.y).toBeCloseTo(home.y, 5);
     // AN INPUT RESETS THE COUNTDOWN — a finger back on the glass is not an idle reader.
     camera.lookAt({ x: 1, y: 1 });
     live.idle!.input();

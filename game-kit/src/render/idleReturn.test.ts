@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { idleReturn } from "./idleReturn.js";
 import { Camera } from "./camera/index.js";
-import { type Presence } from "./presence.js";
+import { homeTarget, type Presence } from "./presence.js";
 
 describe("idleReturn", () => {
   it("idleReturn.glides-camera-to-seat-place", () => {
@@ -100,9 +100,12 @@ describe("idleReturn", () => {
     expect(cam.target.x).toBeGreaterThan(toOld + 1);
     tracker.step(700);
     // ...and the spot it finally sits down on is the place as it stands NOW — and with it the disc,
-    // which is the felt under the middle of this view and nothing else (`avatarAt`).
-    expect(cam.target.x).toBeCloseTo(20);
-    expect(cam.target.y).toBeCloseTo(-10);
+    // which is the felt under the HOME ANCHOR of this view and nothing else (`avatarAt`). The eye is
+    // aimed short of the ring by exactly the anchor's own offset (`homeTarget`), because "the camera
+    // looks at X" means X is in the MIDDLE of the glass and a seat is at the low middle of it.
+    const home = homeTarget(place, { zoom: cam.pixelsPerUnit, rotation: 0, glass: cam.glass });
+    expect(cam.target.x).toBeCloseTo(home.x);
+    expect(cam.target.y).toBeCloseTo(home.y);
   });
 
   it("idleReturn.a-tap-goes-home-without-the-countdown — and it goes home with the wait turned off", () => {

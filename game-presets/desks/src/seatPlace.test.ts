@@ -10,6 +10,7 @@ import {
   AVATAR_VALUE,
   avatarId,
   avatarNode,
+  homeTarget,
   byId,
   placeAvatars,
   type Presence,
@@ -37,6 +38,8 @@ import {
   seatChair,
   setHandLock,
   setSeatHome,
+  chairTickId,
+  CHAIR_TICK,
   standChair,
 } from "./seatPlace.js";
 import { handLocked, isHand } from "./handZone.js";
@@ -136,10 +139,12 @@ describe("a seat is drawn", () => {
         const owner = one.parent!;
         expect(owner, `${one.id} does not stand in the desk's own list`).not.toBe(desk);
         // The layer holds people AND the words under them: a caption is the ring's name and belongs
-        // beside it, but never IN it (see `chairNameId`).
+        // beside it, but never IN it (see `chairNameId`). The facing tick is beside a ring for the
+        // very same reason and is allowed here on the very same ground (see `chairTickId`).
         for (const sibling of owner.children) {
           const named = byId(desk, chairNameId(sibling.id)) !== undefined || fieldsOf<LabeledFields>(sibling, "Labeled") !== undefined;
-          expect(isChair(sibling) || isAvatar(sibling) || named, `${owner.id} holds people only`).toBe(true);
+          const ticks = seats.some(({ seat }) => chairTickId(seat) === sibling.id);
+          expect(isChair(sibling) || isAvatar(sibling) || named || ticks, `${owner.id} holds people only`).toBe(true);
         }
         // ...and the layer is not a place either: nothing arranges what is in it and nothing may be
         // dropped in it, or the layer would be the same fault one node further down.
@@ -176,6 +181,36 @@ describe("a seat is drawn", () => {
     expect(surfaceRecord(chairSurface())?.stroke?.color).not.toBe("accent");
   });
 
+  it("seat.the-ring-wears-its-own-facing — a tick on the rim, where that place looks", () => {
+    // A RING IS SYMMETRIC, so on a round felt it says WHERE somebody sits and not which way round
+    // they are sitting — and the seat opposite is looking at the same cards from the other end. The
+    // place's own `facing` is the answer and it is already known when the chair is built.
+    const desk = roundMap();
+    const places = roundPlaces(SEATS.length);
+    for (const [i, { seat }] of SEATS.entries()) {
+      const tick = byId(desk, chairTickId(seat));
+      expect(tick, `${seat} says which way it looks`).toBeDefined();
+      const place = places[i]!;
+      const rad = (place.facing * Math.PI) / 180;
+      // ON THE RIM, in the direction of the look — the up-vector of a glass turned by `facing`.
+      expect(poseOf(tick!).x).toBeCloseTo(place.at.x + Math.sin(rad) * CHAIR_TICK.at);
+      expect(poseOf(tick!).y).toBeCloseTo(place.at.y - Math.cos(rad) * CHAIR_TICK.at);
+      // NOT A CHILD OF THE RING. The ring arranges what is IN it (`handLayout`), so a tick made a
+      // child would be dealt into somebody's hand — the caption's own reason, twice over.
+      expect(tick!.parent).not.toBe(byId(desk, chairId(seat)));
+    }
+    // A PLACE NOBODY HOLDS HAS NO DIRECTION: an outline is a place, not a person, and there is
+    // nobody at it to be turned anywhere.
+    expect(byId(roundMap([]), chairTickId("0"))).toBeUndefined();
+    // ...AND IT TRAVELS WITH THE CHAIR, keeping its angle: dragging a ring moves a seat, it does
+    // not turn it round.
+    const moved = { x: 2, y: -3 };
+    standChair(desk, SEATS[0]!.seat, moved);
+    const rad0 = (places[0]!.facing * Math.PI) / 180;
+    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).x).toBeCloseTo(moved.x + Math.sin(rad0) * CHAIR_TICK.at);
+    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).y).toBeCloseTo(moved.y - Math.cos(rad0) * CHAIR_TICK.at);
+  });
+
   it("seat.the-avatar-opens-on-its-own-chair — the disc stands IN the ring, not beside it", () => {
     const desk = roundMap();
     const place = roundPlaces(SEATS.length)[0]!;
@@ -190,7 +225,9 @@ describe("a seat is drawn", () => {
         ink: SEATS[0]!.ink,
         state: "online",
         holding: false,
-        view: { target: place.at, zoom: 1, rotation: 0, glass: { w: 400, h: 800 } },
+        // AIMED SO THE RING STANDS ON THE HOME ANCHOR — which is what "looking at one's own place"
+        // now means, and it is no longer the middle of the glass (`HOME_ANCHOR`).
+        view: { target: homeTarget(place, { zoom: 1, rotation: 0, glass: { w: 400, h: 800 } }), zoom: 1, rotation: 0, glass: { w: 400, h: 800 } },
       },
     );
     expect(avatar.id).toBe(avatarId(seat));

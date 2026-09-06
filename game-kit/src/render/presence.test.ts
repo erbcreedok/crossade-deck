@@ -11,7 +11,11 @@ import { Camera } from "./camera/index.js";
 import {
   AVATAR_LAYER,
   avatarAt,
+  avatarConeId,
+  avatarNode,
   avatarId,
+  HOME_ANCHOR,
+  homeTarget,
   isHome,
   placeAvatars,
   watchPresence,
@@ -19,6 +23,7 @@ import {
   type PresenceDoc,
 } from "./presence.js";
 import { add, byId, caps, fieldsOf, node, type Node } from "../core/node.js";
+import { outlineOf, type BoundedFields } from "../core/atoms/bounded.js";
 import { Acceptor } from "../core/atoms/acceptor.js";
 import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout } from "../core/atoms/container.js";
@@ -47,25 +52,65 @@ function person(seat: string, over: Partial<Presence> = {}): Presence {
 }
 
 describe("presence", () => {
-  it("presence.a-far-avatar-stands-in-the-middle-of-their-own-view — the disc IS where they look", () => {
-    // A PERSON IS WHERE THEY ARE LOOKING, and the felt under the middle of their glass is the whole
-    // of that sentence. Panned, the disc goes exactly as far as the view went — anything else would
-    // be a second place for the same person, and the desk would have to say which of the two is
-    // them.
+  it("presence.a-far-avatar-stands-under-the-home-anchor — the disc IS where they sit", () => {
+    // A PERSON IS WHERE THEY ARE LOOKING FROM, and the felt under the LOW MIDDLE of their glass is
+    // the whole of that sentence (`HOME_ANCHOR`): a player at a table is at the near edge of it,
+    // not hovering over the middle. Panned, the disc goes exactly as far as the view went —
+    // anything else would be a second place for the same person, and the desk would have to say
+    // which of the two is them.
+    const drop = (GLASS.h * (HOME_ANCHOR.y - 0.5)) / 50;
     const still = avatarAt(person("south"));
-    expect(still).toEqual({ x: 0, y: 0 });
+    expect(still.x).toBeCloseTo(0);
+    expect(still.y).toBeCloseTo(drop);
 
     const panned = person("south", { view: { target: { x: 3, y: -1.5 }, zoom: 50, rotation: 0, glass: GLASS } });
-    expect(avatarAt(panned)).toEqual({ x: 3, y: -1.5 });
+    expect(avatarAt(panned).x).toBeCloseTo(3);
+    expect(avatarAt(panned).y).toBeCloseTo(-1.5 + drop);
 
-    // A TURN MOVES NOBODY. Their head is tipped, their seat is not: the disc is drawn the reader's
-    // way up (`Oriented: "viewer"`) and stands on the same felt.
+    // A TURN MOVES THE ANCHOR ROUND WITH THE SCREEN. Their seat is still the near edge of THEIR
+    // glass, and the near edge of a screen held upside down is the other side of the felt.
     const turned = person("north", { view: { target: { x: 3, y: -1.5 }, zoom: 50, rotation: 180, glass: GLASS } });
-    expect(avatarAt(turned)).toEqual({ x: 3, y: -1.5 });
+    expect(avatarAt(turned).x).toBeCloseTo(3);
+    expect(avatarAt(turned).y).toBeCloseTo(-1.5 - drop);
 
-    // ...and a zoom is not a move either — a reader who leaned in did not get up.
+    // ...and a zoom moves it less, because a reader who leaned in sees less felt between the
+    // middle of their glass and its edge — the anchor is a fraction of the GLASS, not of the desk.
     const near = person("north", { view: { target: { x: 3, y: -1.5 }, zoom: 200, rotation: 0, glass: GLASS } });
-    expect(avatarAt(near)).toEqual({ x: 3, y: -1.5 });
+    expect(avatarAt(near).y).toBeCloseTo(-1.5 + drop / 4);
+  });
+
+  it("presence.the-anchor-is-asked-once — the disc at home lands exactly on its own ring", () => {
+    // THE ONE THING THE ANCHOR IS FOR. `isHome` says a view is home and `avatarAt` says where that
+    // person stands; read off two numbers they would drift, and a desk would take the disc off the
+    // felt at a moment when it was standing a screen's-worth from the ring it is hiding inside.
+    const place = { at: { x: 3, y: -2 }, facing: 90 };
+    const view = { target: homeTarget(place, { zoom: 40, rotation: 90, glass: GLASS }), zoom: 40, rotation: 90, glass: GLASS };
+    expect(isHome(view, place)).toBe(true);
+    const standing = avatarAt(person("east", { place, view }));
+    expect(standing.x).toBeCloseTo(place.at.x);
+    expect(standing.y).toBeCloseTo(place.at.y);
+  });
+
+  it("presence.the-disc-wears-the-look-it-is-turned-in — a wedge, and it is not on the initials", () => {
+    // A DISC SAYS WHERE SOMEBODY IS AND NOT WHICH WAY THEY ARE TURNED, and on a shared desk that is
+    // half of "where they are sitting": two readers standing on the same felt looking opposite ways
+    // are looking at two different halves of the game. The disc is already turned by its owner's
+    // camera, so the wedge is a fixed shape drawn straight up its own axis and the angle is free.
+    const disc = avatarNode(person("south"));
+    const cone = byId(disc, avatarConeId("south"));
+    expect(cone, "the disc says which way its owner is looking").toBeDefined();
+    const points = outlineOf(fieldsOf<BoundedFields>(cone!, "Bounded")!.bounds);
+    // UP THE NODE'S OWN AXIS — every corner above the anchor, and the far end wider than the near
+    // one, which is what makes it a cone opening at the look rather than a needle pointing at it.
+    expect(points.every((p) => p.y < 0), "the wedge points the way the disc is turned").toBe(true);
+    const near = Math.max(...points.map((p) => Math.abs(p.x)).filter((_, i) => i === 0 || i === 3));
+    const far = Math.max(...points.map((p) => Math.abs(p.x)));
+    expect(far, "it opens outwards").toBeGreaterThan(near);
+    // ...AND IT STARTS OFF THE FACE. The disc is a circle with initials in it, and a clin drawn
+    // across them is a badge over somebody's name.
+    expect(Math.min(...points.map((p) => -p.y)), "clear of the initials").toBeGreaterThanOrEqual(
+      Math.max(...points.map((p) => Math.abs(p.x))),
+    );
   });
 
   it("presence.a-hidden-tab-is-away-and-not-gone — the socket is up and the moves still arrive", () => {
@@ -240,7 +285,15 @@ function avatarHand(zoom: number) {
 
 describe("who is at their own place", () => {
   const place = { at: { x: 3, y: -2 }, facing: 90 };
-  const looking = { target: place.at, zoom: 40, rotation: place.facing, glass: { w: 390, h: 800 } };
+  const GLASS_UP = { w: 390, h: 800 };
+  // THE VIEW OF SOMEBODY SITTING AT THIS PLACE — aimed so the ring stands on the home anchor, which
+  // is what "home" means and is no longer the middle of the glass (`HOME_ANCHOR`).
+  const looking = {
+    target: homeTarget(place, { zoom: 40, rotation: place.facing, glass: GLASS_UP }),
+    zoom: 40,
+    rotation: place.facing,
+    glass: GLASS_UP,
+  };
   const seated = (seat: string, view: typeof looking): Presence => ({
     seat,
     place,
@@ -255,8 +308,8 @@ describe("who is at their own place", () => {
     expect(isHome(looking, place)).toBe(true);
     // A HAIR OFF IS STILL HOME. The glide itself stops at a threshold (`idleReturn`), so a stricter
     // reading here would leave a reader who HAS come home drawn as away for ever.
-    expect(isHome({ ...looking, target: { x: 3.05, y: -2 } }, place)).toBe(true);
-    expect(isHome({ ...looking, target: { x: 4, y: -2 } }, place), "a pan away is away").toBe(false);
+    expect(isHome({ ...looking, target: { x: looking.target.x + 0.05, y: looking.target.y } }, place)).toBe(true);
+    expect(isHome({ ...looking, target: { x: looking.target.x + 1, y: looking.target.y } }, place), "a pan away is away").toBe(false);
     expect(isHome({ ...looking, rotation: 130 }, place), "turned away is away").toBe(false);
     // Round the back of the circle: 359° from 1° is two degrees apart, not three hundred and fifty.
     expect(isHome({ ...looking, rotation: 90.5 }, place)).toBe(true);

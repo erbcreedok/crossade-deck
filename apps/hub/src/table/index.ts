@@ -46,6 +46,7 @@ import {
   type Screen,
   GRIP_SPEC,
   heapOf,
+  HOME_ANCHOR,
   holdThePage,
   installStockCarries,
   installStockFlips,
@@ -160,7 +161,7 @@ const HOME_GLIDE_MS = 600;
  * can actually be brought under the reader on THIS glass.
  *
  * THE ROOM IS THE ONLY THING THAT DECIDES WHETHER A PLAYER CAN SIT DOWN. A place is on the rim, and
- * sitting at it means having it in the MIDDLE of one's own glass — which is what `isHome` reads,
+ * sitting at it means having it on the HOME ANCHOR of one's own glass — which is what `isHome` reads,
  * what the ring fills for and what the disc comes off the felt for. But `Camera.lookAt` clamps: a
  * room narrower than the glass is CENTRED rather than pinned, so the eye asked for a seat is put
  * back in the middle of the desk and nobody at it is ever home. The shelf's own margin (`roundMap`'s
@@ -176,7 +177,12 @@ const HOME_GLIDE_MS = 600;
 export function roomOfDesk(game: TableGame, glass: { readonly width: number; readonly height: number }): CameraContent {
   const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : roundRoom();
   const behind = Math.max(glass.width, glass.height) / 2 / (unitOfDesk(game) * CAM_ZOOM.minZoom);
-  const reach = Math.max(...placesFor(game).map(({ at }) => Math.hypot(at.x, at.y))) + behind;
+  // ...AND THE EYE IS NOT AIMED AT THE SEAT. A place stands at the LOW middle of its owner's glass
+  // (`HOME_ANCHOR`), so the point the camera is actually asked to look at is that much FURTHER back
+  // than the ring — and it is the AIM the clamp refuses, not the ring. Measured at the widest the
+  // view may ever be, exactly as `behind` is, because that is where the drop is worth the most felt.
+  const drop = (HOME_ANCHOR.y - 0.5) * glass.height / (unitOfDesk(game) * CAM_ZOOM.minZoom);
+  const reach = Math.max(...placesFor(game).map(({ at }) => Math.hypot(at.x, at.y))) + behind + drop;
   // GROWN ROUND THE ROOM'S OWN MIDDLE, never shrunk: a desk that already declares more felt than
   // this asks for is a desk that has its own reason to, and half a glass is a floor, not a size.
   const cx = room.x + room.w / 2;
