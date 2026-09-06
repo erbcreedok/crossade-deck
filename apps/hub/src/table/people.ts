@@ -4,7 +4,8 @@
 // screen is on somebody else's phone, so the same four questions — who is here, where do they
 // stand, what is in their hand, and are they still looking — are answered by what arrives on the
 // wire (`relay`) instead. Everything downstream of the answers is the kit's own and is not restated:
-// `placeAvatars` puts the discs on the felt, `growHand`/`placeHand` keep a hand beside its place.
+// `placeAvatars` puts the discs on the felt, `dressChair`/`growHand` keep every ring saying what is
+// true of it and sized to what is in it.
 //
 // WHY A PRESENCE IS NOT A TREE WRITE. A view that moved is worth nothing a second later, and sent
 // as a revision it would beat every real change to the desk in a race the desk must win. So it goes
@@ -13,6 +14,7 @@
 
 import {
   byId,
+  isHome,
   placeAvatars,
   registerTextStyle,
   PRESENCE_TEXT,
@@ -25,7 +27,7 @@ import {
   type SeatPlace,
   type Vec,
 } from "game-kit";
-import { chairId, growHand, handId, placeHand, setHandLock, standChair } from "@game-presets/desks";
+import { chairId, dressChair, growHand, standChair } from "@game-presets/desks";
 import type { RelayMessage, RosterItem } from "../online/table.js";
 
 /** The name under a disc — the catalog's own, so a desk looks the same in the hub as on the shelf. */
@@ -80,6 +82,13 @@ export interface HubPeopleOptions {
   readonly send: (msg: RelayMessage) => void;
   /** The tree was written — this screen has to draw it again. */
   readonly draw: () => void;
+  /**
+   * TAKE THIS SCREEN'S OWN VIEW HOME — the camera's glide, asked of whoever holds the camera.
+   *
+   * A tap on one's own ring means "put me back at my place", and the place is already known here
+   * while the camera is not. Absent, a tap on a ring does nothing.
+   */
+  readonly goHome?: () => void;
   /** The clock, injectable so a test can move it without waiting. */
   readonly now?: () => number;
 }
@@ -97,7 +106,7 @@ export interface HubPeople {
   handed(items: readonly CarryItem[], at: Vec | undefined, done: boolean): void;
   /** This tab stopped being looked at, or started again. */
   state(state: PresenceState): void;
-  /** A tap on one's OWN chair turns one's own lock. Anything else is not this wiring's. */
+  /** A tap on one's OWN ring takes this screen's view home. Anything else is not this wiring's. */
   tapped(piece: Node): boolean;
   /** Everybody the room has named, in seat order. */
   seats(): readonly string[];
@@ -113,8 +122,8 @@ interface PresenceWire {
   readonly shut: boolean;
   /**
    * WHERE THIS PERSON'S CHAIR NOW STANDS. On the wire and not left to the tree, because a place is
-   * the one thing about this desk both screens must agree on for the hands to line up, and a tree
-   * arriving a revision late would put the far reader's patch under the cards it was dealt.
+   * the one thing about this desk both screens must agree on for the rings to line up, and a tree
+   * arriving a revision late would draw the far reader's ring, cards and all, where they no longer are.
    */
   readonly place?: SeatPlace;
 }
@@ -131,7 +140,7 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
 
   let myState: PresenceState = "online";
   let myHolding = false;
-  /** Whether MY hand is shut — turned by a tap on my own chair, and told to everybody else. */
+  /** Whether MY hand is shut — the opening state, and told to everybody else. */
   let myShut = false;
   /**
    * WHERE A SEAT'S PLACE HAS BEEN MOVED TO — mine by my own finger, everybody else's off the wire.
@@ -194,18 +203,28 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
    * thing it no longer is, and half of it would be off the rim the moment the card lands.
    */
   const layHands = (): void => {
-    if (o.hands === undefined) return;
     const desk = o.desk();
     for (const seat of seated) {
-      const hand = byId(desk, handId(seat));
-      const chair = byId(desk, chairId(seat));
-      if (!hand) continue;
-      setHandLock(hand, shutOf(seat));
-      growHand(hand);
-      // AGAINST THE CHAIR and never against the disc: the patch belongs to the PLACE, so a reader
-      // panning their own view leaves it exactly where it was, cards and all.
-      if (chair) placeHand(desk, chair, hand, o.hands);
+      const ring = byId(desk, chairId(seat));
+      if (!ring) continue;
+      // THE RING IS THE HAND, so there is nothing to put beside anything: it stands where its owner
+      // sits and it is the size of what is in it. Both facts are written in ONE call, because they
+      // are one picture — see `dressChair`.
+      dressChair(ring, { shut: o.hands !== undefined && shutOf(seat), home: home.has(seat) });
+      if (o.hands !== undefined) growHand(ring);
     }
+  };
+
+  /**
+   * WHO IS LOOKING AT THEIR OWN PLACE — worked out for EVERYBODY off what they said, not just for
+   * this screen. Somebody at their own seat is drawn as the ring and has no disc at all, and a
+   * reader has to be able to see that the other player has come home: the only thing that says so
+   * is their own view against their own place (`isHome`), which every screen reads the same way.
+   */
+  const home = new Set<string>();
+  const readHome = (all: readonly Presence[]): void => {
+    home.clear();
+    for (const p of all) if (p.place && isHome(p.view, p.place)) home.add(p.seat);
   };
 
   /** Every chair, stood where its place now is — this screen's own finger and the wire, one line. */
@@ -255,6 +274,7 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     placing = true;
     try {
       if (all.length > 0) {
+        readHome(all);
         placeAvatars(o.desk(), all);
         layChairs();
         layHands();
@@ -269,6 +289,7 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
   return {
     publish: () => publish(false),
     settled: () => {
+      readHome(everybody());
       layChairs();
       layHands();
       o.draw();
@@ -322,11 +343,14 @@ export function hubPeople(o: HubPeopleOptions): HubPeople {
     },
     tapped: (piece) => {
       const seat = o.mine();
-      // ...AND THE OWNER IS THE ONE WHO SHUTS IT. On the CHAIR, because the chair is the thing on
-      // this desk that means "you" — nothing a finger does reaches the disc at all.
-      if (o.hands === undefined || !seat || piece.id !== chairId(seat)) return false;
-      myShut = !myShut;
-      publish(true);
+      // A TAP ON ONE'S OWN RING IS "TAKE ME BACK THERE". On the RING, because the ring is the thing
+      // on this desk that means "you" — nothing a finger does reaches the disc at all.
+      //
+      // The glide is the camera's and is asked of whoever holds one (`o.goHome`): this file holds
+      // numbers and nodes. Coming home fills the ring and takes the disc off the felt, and that is
+      // read back off the view like everybody else's (`readHome`).
+      if (!seat || piece.id !== chairId(seat)) return false;
+      o.goHome?.();
       return true;
     },
     placeOf,

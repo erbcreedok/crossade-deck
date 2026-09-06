@@ -104,4 +104,39 @@ describe("idleReturn", () => {
     expect(cam.target.x).toBeCloseTo(20);
     expect(cam.target.y).toBeCloseTo(-10);
   });
+
+  it("idleReturn.a-tap-goes-home-without-the-countdown — and it goes home with the wait turned off", () => {
+    // THE COUNTDOWN AND THE ASK ARE TWO WAYS INTO ONE GLIDE. A desk with the idle return switched
+    // off still has a place to go home to, and a tap on one's own ring is how a reader says so — so
+    // `afterMs: Infinity` must turn off the WAITING and not the place.
+    const cam = new Camera({ minZoom: 0.25, maxZoom: 4 });
+    cam.setScreen(1000, 1000);
+    cam.setContent({ x: -1000, y: -1000, w: 2000, h: 2000 }, 1);
+    cam.lookAt({ x: 50, y: 50 });
+    cam.turnTo(90);
+    const tracker = idleReturn(
+      cam,
+      (): Presence => ({
+        seat: "white",
+        place: { at: { x: 0, y: 0 }, facing: 0 },
+        name: "Player",
+        ink: "white",
+        state: "online",
+        holding: false,
+        view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 1000, h: 1000 } },
+      }),
+      { afterMs: Infinity, glideMs: 600 },
+    );
+    // WAITED OUT, NOTHING HAPPENS: the countdown is off, and a view left alone stays where it is.
+    tracker.step(60_000);
+    expect(cam.target.x).toBeCloseTo(50);
+
+    tracker.goHome();
+    tracker.step(700);
+    // Position, zoom AND turn — the whole opening view of that place, not just the point.
+    expect(cam.target.x).toBeCloseTo(0);
+    expect(cam.target.y).toBeCloseTo(0);
+    expect(cam.rotation).toBeCloseTo(0);
+    expect(cam.zoom).toBeCloseTo(cam.fitZoom());
+  });
 });

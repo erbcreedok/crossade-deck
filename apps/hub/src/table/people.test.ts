@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { avatarId, byId, fieldsOf, installStockSurfaces, type Node, type PresenceView, type TransformableFields } from "game-kit";
-import { chairId, handId, roundPlaces, ROUND_R } from "@game-presets/desks";
+import { chairHome, chairId, isHand, roundPlaces, ROUND_R } from "@game-presets/desks";
 import { mapFor } from "./mapFor.js";
 import { hubPeople, PRESENCE_EVERY_MS } from "./people.js";
 import type { RelayMessage } from "../online/table.js";
@@ -16,6 +16,7 @@ const ROSTER = [
 
 function people(desk: Node, mine: string | null, clock: { ms: number }) {
   const sent: RelayMessage[] = [];
+  const homed: true[] = [];
   let drawn = 0;
   const wiring = hubPeople({
     desk: () => desk,
@@ -28,8 +29,9 @@ function people(desk: Node, mine: string | null, clock: { ms: number }) {
       drawn += 1;
     },
     now: () => clock.ms,
+    goHome: () => homed.push(true),
   });
-  return { wiring, sent, drawn: () => drawn };
+  return { wiring, sent, homed, drawn: () => drawn };
 }
 
 const at = (n: Node): { x: number; y: number } =>
@@ -87,15 +89,18 @@ describe("hubPeople: the people at the hub's desk", () => {
     expect(clock.ms).toBeLessThan(1000 + PRESENCE_EVERY_MS);
   });
 
-  it("a seat's own hand stands beside its own place", () => {
+  it("a seat's own hand IS its own place", () => {
     const desk = mapFor("cards");
     const clock = { ms: 0 };
     const { wiring } = people(desk, "p1", clock);
 
     wiring.roster(ROSTER);
-    expect(byId(desk, handId("p1"))).toBeDefined();
+    // ONE NODE. The ring a player sits at is the patch their cards lie in, so there is no second
+    // thing to keep beside a first and nothing to be re-measured against the rim.
+    const ring = byId(desk, chairId("p1"))!;
+    expect(ring).toBeDefined();
+    expect(isHand(ring)).toBe(true);
     expect(byId(desk, avatarId("p1"))).toBeDefined();
-    expect(byId(desk, chairId("p1"))).toBeDefined();
   });
 
   it("moving my own chair moves my place, my hand and the message about me", () => {
@@ -106,7 +111,6 @@ describe("hubPeople: the people at the hub's desk", () => {
     const clock = { ms: 0 };
     const { wiring, sent } = people(desk, "p1", clock);
     wiring.roster(ROSTER);
-    const wasHand = at(byId(desk, handId("p1"))!);
     const wasPlace = wiring.placeOf("p1")!;
 
     clock.ms += 1000;
@@ -115,7 +119,6 @@ describe("hubPeople: the people at the hub's desk", () => {
     // The facing is untouched: dragging a chair moves a seat, it does not turn it round.
     expect(wiring.placeOf("p1")?.facing).toBe(wasPlace.facing);
     expect(at(byId(desk, chairId("p1"))!)).toEqual({ x: 1.5, y: -2 });
-    expect(at(byId(desk, handId("p1"))!)).not.toEqual(wasHand);
     expect((sent[sent.length - 1] as { place?: { at: unknown } }).place?.at).toEqual({ x: 1.5, y: -2 });
   });
 
@@ -124,7 +127,6 @@ describe("hubPeople: the people at the hub's desk", () => {
     const clock = { ms: 0 };
     const { wiring } = people(desk, "p1", clock);
     wiring.roster(ROSTER);
-    const wasHand = at(byId(desk, handId("p2"))!);
     wiring.heard({
       kind: "presence",
       from: "p2",
@@ -136,21 +138,47 @@ describe("hubPeople: the people at the hub's desk", () => {
     });
     expect(wiring.placeOf("p2")?.at).toEqual({ x: -3, y: 1 });
     expect(at(byId(desk, chairId("p2"))!)).toEqual({ x: -3, y: 1 });
-    expect(at(byId(desk, handId("p2"))!)).not.toEqual(wasHand);
   });
 
-  it("a tap on my own chair turns my own lock and tells the room; a tap on anything else is not mine", () => {
+  it("a tap on my own ring takes my view home; a tap on anything else is not mine", () => {
     const desk = mapFor("cards");
     const clock = { ms: 0 };
-    const { wiring, sent } = people(desk, "p1", clock);
+    const { wiring, homed } = people(desk, "p1", clock);
 
     wiring.roster(ROSTER);
     expect(wiring.tapped(byId(desk, chairId("p1"))!)).toBe(true);
-    expect(sent[sent.length - 1]?.shut).toBe(true);
+    expect(homed).toHaveLength(1);
 
     // NOT ON THE DISC. Nothing a finger does reaches it at all — it is a reading of a camera.
     expect(wiring.tapped(byId(desk, avatarId("p1"))!)).toBe(false);
-    expect(wiring.tapped(byId(desk, handId("p1"))!)).toBe(false);
+    // ...AND NOT ON SOMEBODY ELSE'S RING: a place is its owner's, and so is what is said with it.
+    expect(wiring.tapped(byId(desk, chairId("p2"))!)).toBe(false);
+    expect(homed).toHaveLength(1);
+  });
+
+  it("looking at my own place fills the ring and takes my disc off the felt", () => {
+    // ON EVERY SCREEN, and off what was said rather than off who is asking: a reader has to be able
+    // to see that the OTHER player has come home, and the only thing that says so is their view
+    // against their place.
+    const desk = mapFor("cards");
+    const clock = { ms: 0 };
+    const { wiring } = people(desk, "p1", clock);
+    wiring.roster(ROSTER);
+    // p1's own view is the middle of the desk, and p1's place is on the rim — so p1 is away.
+    expect(byId(desk, avatarId("p1"))).toBeDefined();
+    expect(chairHome(byId(desk, chairId("p1"))!)).toBe(false);
+
+    const place = roundPlaces(2)[1]!;
+    wiring.heard({
+      kind: "presence",
+      from: "p2",
+      view: { ...VIEW, target: place.at, rotation: place.facing },
+      state: "online",
+      holding: false,
+      shut: false,
+    });
+    expect(byId(desk, avatarId("p2")), "at home there is no disc").toBeUndefined();
+    expect(chairHome(byId(desk, chairId("p2"))!), "the ring is filled instead").toBe(true);
   });
 
   it("a message that is not a presence is not this wiring's", () => {

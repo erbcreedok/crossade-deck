@@ -9,10 +9,10 @@
 // knowledge and not this desk's, and two nameless areas on a felt this size would be two magnets
 // fighting over every drop.
 //
-// WHAT THERE IS instead is a HAND PER PERSON (`handZone`), which is not the same thing: it is not a
-// place on the felt that a card may go, it is a place a PLAYER has, and it stands wherever that
-// player's avatar is. Empty it is a mark; dealt to, it grows to what it holds; and its owner may
-// shut it, after which nobody else puts anything in or takes anything out.
+// WHAT THERE IS instead is a HAND PER PERSON, which is not the same thing: it is not a place on the
+// felt that a card may go, it is a place a PLAYER has, and it is the very ring that player sits at
+// (`seatPlace.ts`). Empty it is a mark; dealt to, it grows to what it holds; and its owner may shut
+// it, after which nobody else puts anything in or takes anything out.
 //
 // The border is a WALL and not a drawing (`roundWalls`): a card may not be carried across it and a
 // card thrown at it comes back. A desk whose edge is only painted is a desk whose pieces are lost
@@ -45,7 +45,6 @@ import {
 } from "game-kit";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { installMapArt, LAMP, onTheDesk, warmingNodes } from "./felt.js";
-import { growHand, handZone, placeHand } from "./handZone.js";
 import { LIVE, SEATS } from "./liveMap.js";
 import { seatChairs } from "./seatPlace.js";
 
@@ -53,12 +52,24 @@ import { seatChairs } from "./seatPlace.js";
 export const ROUND_R = 6;
 
 /**
- * Felt shown OUTSIDE the circle when the desk opens, units — the same modest rim chess opens with.
+ * Felt the camera may go OUTSIDE the circle, units — and it is nearly a table's worth, on purpose.
  *
- * Room for the camera to stand off the table rather than a second table's worth of nothing: a
- * quarter of the glass given to margin all the time is a desk drawn at three quarters of its size.
+ * A modest rim is what the desk OPENS with, and that part has not changed: the opening zoom is the
+ * fit, and the fit here bottoms out at the camera's own `minZoom`, so how much room is declared past
+ * the felt does not change the picture the table opens on at all.
+ *
+ * What it changes is where the eye may GO. A player's place is on the RIM (`seatPlaces`, at
+ * `ROUND_R - 1`), and sitting at one's own place means having it in the middle of one's own glass —
+ * which is what a tap on the ring asks for and what the idle glide does by itself (`idleReturn`,
+ * `isHome`). The camera is held inside this room, so a room that stopped a table's width past the
+ * middle stopped the eye a table's width short of the seat: the glide ran, clamped, and came to rest
+ * somewhere in the middle of the felt — after which NOBODY at the desk was ever at their own place,
+ * and the picture that says so (the filled ring, the disc taken off the felt) could never be seen.
+ *
+ * So the room is the felt PLUS enough behind a seat to put that seat under the reader: the place's
+ * own distance from the middle, plus half a portrait phone's worth of desk at the opening zoom.
  */
-const RIM = 1.2;
+const RIM = 6.5;
 
 export const ROUND_SURFACE = "round.felt";
 const ROUND_LAYOUT = "round.free";
@@ -106,21 +117,13 @@ export function roundMap(seats: readonly { readonly seat: string; readonly ink: 
     LAMP,
     Grabber({ grab: "one" }),
   );
-  // A HAND PER PLACE, standing where that place opens.
+  // A HAND PER PLACE, and it IS the place: the ring a player sits at is the patch their cards lie
+  // in (`seatChairs(…, hands)`), so a desk built with nobody at it is still a desk with places on
+  // it, and a page that has avatars has nothing further to put anywhere.
   //
-  // The desk seats them at the rim on its own, because a desk built with nobody at it still has to
-  // be a desk: a page that has avatars re-places every hand against its own person (`placeHand`),
-  // and one that has none — the hub's card table — gets them where a player would sit anyway. The
-  // spot is worked out by the SAME line either way, from a stand-in standing on the rim, so the two
-  // cannot drift apart.
   // THE CHAIRS FIRST, before a single card: a place is a thing on this felt, and equals in the plan
   // are ranked by document order — a chair added after the deck would be an outline over the cards.
-  const chairs = seatChairs(desk, seatPlaces(seats.length), seats.map(({ seat, ink }) => ({ seat, ink, name: seat })));
-  seats.forEach(({ seat, ink }, i) => {
-    const hand = handZone(seat, ink);
-    growHand(hand);
-    placeHand(desk, chairs[i]!, hand, ROUND_R);
-  });
+  seatChairs(desk, seatPlaces(seats.length), seats.map(({ seat, ink }) => ({ seat, ink, name: seat })), true);
   crossadeCards()
     .slice(0, LIVE.cards)
     .forEach((card, i) => {

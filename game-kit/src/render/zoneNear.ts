@@ -41,16 +41,29 @@ export function zoneNear(root: Node, at: Vec, lead: Node): Node | undefined {
   const piece = shape ? placedOutline(outlineOf(shape), move(at.x, at.y)) : [at];
   let best: Node | undefined;
   let closest = Infinity;
-  for (const zone of root.children) {
-    if (!caps(zone).has("Acceptor")) continue;
-    const box = fieldsOf<BoundedFields>(zone, "Bounded")?.bounds;
-    const pose = poses.get(zone.id);
-    if (!box || !pose) continue;
-    const gap = gapBetween(piece, placedOutline(outlineOf(box), pose));
-    if (gap > reachOf(zone) || gap >= closest) continue;
-    closest = gap;
-    best = zone;
-  }
+  // EVERY ZONE ON THE DESK, however it is filed. A zone is not always a child of the felt: a place
+  // that is also somebody's hand stands in the desk's LAYER of places, so that nothing which reads
+  // the felt's own children mistakes it for a piece. Asked of the top level alone, the answer for
+  // such a desk is "no zone anywhere" — and a card let go over an open hand lands on the felt.
+  //
+  // The walk STOPS AT A ZONE and does not go into it: what is inside a hand is the cards in it, and
+  // a card is not somewhere a release belongs.
+  const visit = (owner: Node): void => {
+    for (const zone of owner.children) {
+      if (!caps(zone).has("Acceptor")) {
+        visit(zone);
+        continue;
+      }
+      const box = fieldsOf<BoundedFields>(zone, "Bounded")?.bounds;
+      const pose = poses.get(zone.id);
+      if (!box || !pose) continue;
+      const gap = gapBetween(piece, placedOutline(outlineOf(box), pose));
+      if (gap > reachOf(zone) || gap >= closest) continue;
+      closest = gap;
+      best = zone;
+    }
+  };
+  visit(root);
   return best;
 }
 

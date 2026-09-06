@@ -27,7 +27,19 @@ import { CHESS_SEATS, chessMap, seatPlaces as chessPlaces } from "./chessMap.js"
 import { NARDY_SEATS, nardyMap, seatPlaces as nardyPlaces } from "./nardyMap.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
-import { chairId, chairSurface, isChair, seatChair, standChair } from "./seatPlace.js";
+import {
+  chairHome,
+  chairId,
+  chairNameId,
+  chairSurface,
+  isChair,
+  mayTake,
+  seatChair,
+  setHandLock,
+  setSeatHome,
+  standChair,
+} from "./seatPlace.js";
+import { handLocked, isHand } from "./handZone.js";
 
 const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
 // Walked and not read off `desk.children`: a ring lives in the seats' own layer (`CHAIR_LAYER`), so
@@ -47,8 +59,10 @@ const person = (seat: string, ink: string): Presence => ({
 const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
 const inkOf = (n: Node): unknown =>
   surfaceRecord(fieldsOf<SurfacedFields>(n, "Surfaced")!.surface)?.stroke?.color;
-const captionOf = (chair: Node): string | undefined =>
-  fieldsOf<LabeledFields>(chair.children[0] ?? chair, "Labeled")?.label;
+// The name is a NODE OF ITS OWN beside the ring, not a child of it: the ring arranges what is in it
+// (`handLayout`), and a caption inside that row would be a word dealt into somebody's hand.
+const captionOf = (desk: Node, seat: string): string | undefined =>
+  fieldsOf<LabeledFields>(byId(desk, chairNameId(seat)) ?? desk, "Labeled")?.label;
 
 describe("a seat is drawn", () => {
   const desks: readonly [string, () => Node, readonly { readonly seat: string; readonly ink: string }[], readonly { at: { x: number; y: number } }[]][] = [
@@ -69,13 +83,18 @@ describe("a seat is drawn", () => {
         // one answer (`seatPlaces`), or a view returning home lands beside the chair it came from.
         expect(poseOf(chair).x).toBeCloseTo(places[i]!.at.x);
         expect(poseOf(chair).y).toBeCloseTo(places[i]!.at.y);
-        // Nothing may be dropped IN a chair — it is not a place a card may go.
-        expect(caps(chair).has("Acceptor")).toBe(false);
-        // ...but its OWNER may move it, and only its owner: where a person sits is theirs to decide,
-        // and a ring any passing finger could drag is a player being reseated by somebody else.
+        // A DESK THAT DEALS PUTS THE CARDS IN THE RING, and a board has nothing to put anywhere:
+        // a man is on a square and nowhere else. The two pictures are one node either way.
+        expect(caps(chair).has("Acceptor")).toBe(name === "round");
+        expect(isHand(chair)).toBe(name === "round");
+        // Its OWNER may move it, and only its owner: where a person sits is theirs to decide, and a
+        // ring any passing finger could drag is a player being reseated by somebody else.
         expect(caps(chair).has("Draggable")).toBe(true);
-        expect(grippableBy(chair, seat)).toBe(true);
-        for (const other of seats) if (other.seat !== seat) expect(grippableBy(chair, other.seat)).toBe(false);
+        expect(mayTake(chair, seat)).toBe(true);
+        for (const other of seats) if (other.seat !== seat) expect(mayTake(chair, other.seat)).toBe(false);
+        // ...and the refusal is NOT a grip. A grip cuts the whole subtree, so a ring gripped to its
+        // owner would be a hand nobody could ever be dealt from — which is what the LOCK is for.
+        for (const other of seats) expect(grippableBy(chair, other.seat)).toBe(true);
       });
     });
 
@@ -116,8 +135,11 @@ describe("a seat is drawn", () => {
       for (const one of people) {
         const owner = one.parent!;
         expect(owner, `${one.id} does not stand in the desk's own list`).not.toBe(desk);
+        // The layer holds people AND the words under them: a caption is the ring's name and belongs
+        // beside it, but never IN it (see `chairNameId`).
         for (const sibling of owner.children) {
-          expect(isChair(sibling) || isAvatar(sibling), `${owner.id} holds people only`).toBe(true);
+          const named = byId(desk, chairNameId(sibling.id)) !== undefined || fieldsOf<LabeledFields>(sibling, "Labeled") !== undefined;
+          expect(isChair(sibling) || isAvatar(sibling) || named, `${owner.id} holds people only`).toBe(true);
         }
         // ...and the layer is not a place either: nothing arranges what is in it and nothing may be
         // dropped in it, or the layer would be the same fault one node further down.
@@ -128,7 +150,7 @@ describe("a seat is drawn", () => {
 
       // AND THE BOARD IS STILL WHOLE. Every man that was on a square is on the square he was on:
       // a disc that took a place would show up here as a piece short.
-      const holders = walk(desk).filter((n) => caps(n).has("Acceptor"));
+      const holders = walk(desk).filter((n) => caps(n).has("Acceptor") && !isChair(n));
       for (const holder of holders) {
         for (const child of holder.children) {
           expect(isChair(child) || isAvatar(child), `${holder.id} holds only what is played`).toBe(false);
@@ -138,11 +160,15 @@ describe("a seat is drawn", () => {
   }
 
   it("seat.an-empty-chair-has-no-name — a place nobody holds is an outline and says nothing", () => {
-    const held = seatChair("south", { at: { x: 0, y: 5 } }, { ink: "accent", name: "south" });
+    const desk = roundMap();
     const free = seatChair("north", { at: { x: 0, y: -5 } });
-    expect(captionOf(held)).toBe("south");
+    expect(captionOf(desk, SEATS[0]!.seat)).toBe(SEATS[0]!.seat);
+    expect(byId(desk, chairId(SEATS[0]!.seat))!.children).toHaveLength(0);
     expect(free.children).toHaveLength(0);
-    expect(captionOf(free)).toBeUndefined();
+    expect(captionOf(free, "north")).toBeUndefined();
+    // ...and nothing may be put in one: an unheld place is nobody's hand.
+    expect(caps(free).has("Acceptor")).toBe(false);
+    expect(mayTake(free, "north"), "a place nobody holds is nobody's to move").toBe(true);
     // ...and it is DASHED and grey, rather than the same ring turned down: a place drawn in a
     // seat's colour is a place claimed for a player who is not there.
     expect(fieldsOf<SurfacedFields>(free, "Surfaced")?.surface).toBe(chairSurface());
@@ -186,5 +212,53 @@ describe("a seat can be moved", () => {
     // A seat nobody has heard of is skipped rather than thrown at: an unknown name must not take
     // the desk down with it (CANONS §1).
     expect(() => standChair(desk, "nobody", { x: 0, y: 0 })).not.toThrow();
+  });
+});
+
+describe("a seat says whether its owner is looking at it", () => {
+  it("seat.home-fills-the-ring — and away it is the bare outline again", () => {
+    // THE ONE PICTURE THAT REPLACES THE DISC. A person at their own place has no avatar drawn
+    // (`placeAvatars` skips them), so the ring has to say by itself that somebody is in it — and
+    // "filled with their own ink" is the only thing an outline can become without becoming a
+    // different shape.
+    const desk = roundMap();
+    const seat = SEATS[0]!.seat;
+    const ring = byId(desk, chairId(seat))!;
+    expect(chairHome(ring)).toBe(false);
+    const away = fieldsOf<SurfacedFields>(ring, "Surfaced")!.surface;
+    expect(surfaceRecord(away)!.layers, "an outline is what a place IS").toHaveLength(0);
+
+    setSeatHome(ring, true);
+    expect(chairHome(ring)).toBe(true);
+    const home = fieldsOf<SurfacedFields>(ring, "Surfaced")!.surface;
+    expect(home).not.toBe(away);
+    expect(surfaceRecord(home)!.layers.length, "home is filled").toBeGreaterThan(0);
+    expect(surfaceRecord(home)!.stroke?.color, "and it is still the same place").toBe(SEATS[0]!.ink);
+
+    setSeatHome(ring, false);
+    expect(fieldsOf<SurfacedFields>(ring, "Surfaced")!.surface).toBe(away);
+  });
+
+  it("seat.home-and-the-lock-are-two-facts-and-one-picture — neither paints over the other", () => {
+    // Written separately they would: the second call would decide the whole surface, and a shut
+    // hand would come open to the eye the moment its owner looked at it.
+    const desk = roundMap();
+    const ring = byId(desk, chairId(SEATS[0]!.seat))!;
+    setSeatHome(ring, true);
+    setHandLock(ring, true);
+    expect(chairHome(ring)).toBe(true);
+    expect(handLocked(ring)).toBe(true);
+    expect(fieldsOf<SurfacedFields>(ring, "Surfaced")!.surface).toBe(
+      chairSurface(SEATS[0]!.seat, { home: true, shut: true }),
+    );
+  });
+
+  it("seat.the-name-travels-with-the-place — a caption left behind is a name lying on empty felt", () => {
+    const desk = roundMap();
+    const seat = SEATS[0]!.seat;
+    standChair(desk, seat, { x: -2, y: 3 });
+    const name = byId(desk, chairNameId(seat))!;
+    expect(poseOf(name).x).toBeCloseTo(-2);
+    expect(poseOf(name).y).toBeGreaterThan(3);
   });
 });

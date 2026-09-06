@@ -12,6 +12,7 @@ import {
   AVATAR_LAYER,
   avatarAt,
   avatarId,
+  isHome,
   placeAvatars,
   watchPresence,
   type Presence,
@@ -236,3 +237,59 @@ function avatarHand(zoom: number) {
     up: (x: number, y: number, step = 16) => fire("pointerup", x, y, step),
   };
 }
+
+describe("who is at their own place", () => {
+  const place = { at: { x: 3, y: -2 }, facing: 90 };
+  const looking = { target: place.at, zoom: 40, rotation: place.facing, glass: { w: 390, h: 800 } };
+  const seated = (seat: string, view: typeof looking): Presence => ({
+    seat,
+    place,
+    name: seat,
+    ink: "accent",
+    state: "online",
+    holding: false,
+    view,
+  });
+
+  it("presence.home-is-the-view-on-the-place — position and turn, and the zoom only when it is known", () => {
+    expect(isHome(looking, place)).toBe(true);
+    // A HAIR OFF IS STILL HOME. The glide itself stops at a threshold (`idleReturn`), so a stricter
+    // reading here would leave a reader who HAS come home drawn as away for ever.
+    expect(isHome({ ...looking, target: { x: 3.05, y: -2 } }, place)).toBe(true);
+    expect(isHome({ ...looking, target: { x: 4, y: -2 } }, place), "a pan away is away").toBe(false);
+    expect(isHome({ ...looking, rotation: 130 }, place), "turned away is away").toBe(false);
+    // Round the back of the circle: 359° from 1° is two degrees apart, not three hundred and fifty.
+    expect(isHome({ ...looking, rotation: 90.5 }, place)).toBe(true);
+    // THE ZOOM IS ONLY ASKED WHEN THE READER CAN SAY WHAT HOME IS WORTH IN PIXELS — only the owner's
+    // own screen knows its etalon, so a far reader compares what it can and says nothing about the rest.
+    expect(isHome(looking, place, 40)).toBe(true);
+    expect(isHome(looking, place, 80), "zoomed right in is not the opening view").toBe(false);
+    expect(isHome({ ...looking, zoom: 41 }, place, 40), "a nudge of the pinch is still home").toBe(true);
+  });
+
+  it("presence.at-home-there-is-no-disc — the place is the person while they are in it", () => {
+    // A DISC ON A FILLED RING IS THE SAME PERSON TWICE. Away it is the only thing that says where
+    // they went; home it is a second picture of somebody already drawn.
+    const desk = node("desk");
+    placeAvatars(desk, [seated("south", looking), seated("north", { ...looking, target: { x: 0, y: 0 } })]);
+    expect(byId(desk, avatarId("south")), "home").toBeUndefined();
+    expect(byId(desk, avatarId("north")), "away").toBeDefined();
+
+    // ...AND IT COMES BACK when they look away again, and goes when they come home — the sweep has
+    // to work both ways or a disc left standing is a person in two places.
+    placeAvatars(desk, [seated("south", { ...looking, target: { x: -4, y: 1 } }), seated("north", looking)]);
+    expect(byId(desk, avatarId("south"))).toBeDefined();
+    expect(byId(desk, avatarId("north"))).toBeUndefined();
+  });
+
+  it("presence.a-disc-is-turned-the-way-its-owner-is-turned — the angle IS half the message", () => {
+    // WHICH WAY UP somebody is holding the desk is part of where they are sitting, and a disc that
+    // faced every reader alike would be a person with no direction at all.
+    const desk = node("desk");
+    placeAvatars(desk, [seated("south", { ...looking, target: { x: 0, y: 0 }, rotation: 35 })]);
+    const disc = byId(desk, avatarId("south"))!;
+    expect(fieldsOf<TransformableFields>(disc, "Transformable")?.angle).toBeCloseTo(-35);
+    // ...and it is NOT a billboard: a node indifferent to every turn cannot report one.
+    expect(caps(disc).has("Oriented")).toBe(false);
+  });
+});

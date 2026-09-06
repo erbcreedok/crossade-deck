@@ -27,6 +27,7 @@ import {
   pointUnder,
   handTakes,
   isHand,
+  mayTake,
   roundRoom,
   roundWalls,
   wallsOf as nardyWallsOf,
@@ -38,7 +39,6 @@ import {
   caps,
   DEFAULT_TUNING,
   follow,
-  grippableBy,
   watchPresence,
   zoneNear,
   type CarryItem,
@@ -453,17 +453,20 @@ export function startTable(container: HTMLElement): Teardown {
     hudUnit: true,
     open: (ctx) => openZoom(game, ctx),
     // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what
-    // puts the far reader's own disc, and the hand beside it, where they are actually sitting.
+    // puts the far reader's own disc where they are actually sitting — or takes it off the felt
+    // altogether, once they are looking at their own place again.
     onView: () => people?.publish(),
     // A HAND THAT CHANGED SIZE without anybody having moved: a card landing in one is a change to
-    // the furniture alone, and the patch has to be re-measured against its owner.
+    // the furniture alone, and the ring has to be re-measured against what is now in it.
     onDeskChanged: () => people?.settled(),
     // A SHUT HAND CANNOT BE REACHED INTO. Refused at the PICK and not at the drop, because what a
     // shut hand refuses is the gesture ever starting — a card that lifted out and flew back would
     // read as the desk having dropped it.
-    may: (n: Node) => (seat ? grippableBy(n, seat) : true),
-    // ...AND THE OWNER IS THE ONE WHO SHUTS IT, by a tap on their own disc. Anything else falls
-    // through to whatever this desk already does with a tap.
+    // ...and a RING is its owner's alone to move, which is not a grip: a grip cuts the subtree, so a
+    // ring gripped to its owner would be a hand nobody could ever be dealt from (`mayTake`).
+    may: (n: Node) => (seat ? mayTake(n, seat) : true),
+    // A TAP ON ONE'S OWN RING TAKES THAT READER HOME. Anything else falls through to whatever this
+    // desk already does with a tap.
     taps: (piece: Node) => people?.tapped(piece) === true,
   });
   standing = live;
@@ -571,7 +574,7 @@ export function startTable(container: HTMLElement): Teardown {
       });
 
       // THE PEOPLE AT THIS DESK, once the room can be asked who they are. Their discs and their
-      // hands are the catalog's (`Live/Cards — with avatars`); what differs is only where the
+      // rings are the catalog's (`Live/Cards — with avatars`); what differs is only where the
       // answers come from — the wire, and not a second pane in this document.
       people = hubPeople({
         desk: () => live.host.root,
@@ -585,6 +588,9 @@ export function startTable(container: HTMLElement): Teardown {
         draw: () => {
           live.setRoot(live.host.root, "net");
         },
+        // A TAP ON ONE'S OWN RING IS "TAKE ME BACK THERE" — the same glide the idle return runs, on
+        // this screen's own tracker, asked for instead of fallen into.
+        goHome: () => idle?.goHome(),
       });
       people.roster(table.roster);
       unbindOnRoster = table.onRoster((roster) => people?.roster(roster));

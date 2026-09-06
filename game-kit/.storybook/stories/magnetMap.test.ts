@@ -46,6 +46,27 @@ const handle = (at: Vec): Node =>
   node(`stack handle ${tabs++}`, Bounded({ bounds: rect(GRIP.w, GRIP.w / 4) }), Valued({ values: { grip: 0 } }), Transformable({ at }));
 
 describe("which zone a release belongs to", () => {
+  it("magnet.a-zone-is-found-wherever-it-is-filed — a place in a layer is still a place", () => {
+    // THE FAULT THIS EXISTS FOR: a hand that is also somebody's SEAT stands in the desk's layer of
+    // places (`@game-presets/desks`, `CHAIR_LAYER`), so that nothing reading the felt's own children
+    // mistakes it for a piece. Asked of the top level alone, such a desk answers "no zone anywhere"
+    // — and a card let go over an open hand lands on the felt beside it.
+    const desk = magnetMap(PULL);
+    const zone = zoneOf(desk);
+    const lead = leadOf(desk);
+    remove(desk, zone);
+    const layer = node("places layer");
+    add(layer, zone);
+    add(desk, layer);
+    expect(zoneNear(desk, { x: 0, y: 1.8 }, lead), "one storey down is still on the desk").toBe(zone);
+
+    // ...AND THE WALK STOPS AT A ZONE. What is inside a hand is the cards in it, and a card is not
+    // somewhere a release belongs — a zone nested in a zone would be one.
+    const inner = node("a card that accepts", Bounded({ bounds: rect(1, 1.4) }), ACCEPTS, Reaching({ reach: PULL }), Transformable({ at: { x: 0, y: 0 } }));
+    add(zone, inner);
+    expect(zoneNear(desk, { x: 0, y: 1.8 }, lead), "the hand, never what is in it").toBe(zone);
+  });
+
   it("magnet.a-release-short-of-the-border-still-belongs — and one further out does not", () => {
     const desk = magnetMap(PULL);
     const zone = zoneOf(desk);

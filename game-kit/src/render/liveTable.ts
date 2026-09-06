@@ -489,8 +489,11 @@ export function liveTable<S extends LiveStage = LiveStage>(
    * is never asked, so it is never worth threading a whole presence in just to build one.
    */
   const mySeat = (): SeatPlace | undefined => seats?.placeNow?.() ?? seats?.places[seats.mine];
+  // BUILT WHENEVER THERE IS A SEAT TO GO HOME TO, and not only when the countdown is armed: `false`
+  // turns off the WAITING, not the place — a tap on one's own ring still asks to be taken back to
+  // it (`goHome`), and a tracker that did not exist would make one knob silently disable two things.
   const idle: IdleReturnTracker | undefined =
-    seats && mySeat() && built.camera && seats.idleReturn !== false
+    seats && mySeat() && built.camera
       ? idleReturn(
           built.camera,
           // ASKED EVERY STEP and never remembered: a place is draggable, and a home read once at
@@ -508,7 +511,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
               view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
             };
           },
-          seats.idleReturn ?? {},
+          seats.idleReturn === false ? { afterMs: Infinity } : (seats.idleReturn ?? {}),
         )
       : undefined;
   // ANY POINTER DOWN ON THIS GLASS IS AN INPUT, whatever it lands on: a pan across bare felt starts

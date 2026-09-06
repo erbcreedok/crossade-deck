@@ -14,6 +14,7 @@
 
 import {
   byId,
+  isHome,
   placeAvatars,
   registerTextStyle,
   watchPresence,
@@ -28,7 +29,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { type Screen } from "./liveScreens.js";
-import { chairId, growHand, handId, placeHand, setHandLock, standChair } from "@game-presets/desks";
+import { chairId, dressChair, growHand, standChair } from "@game-presets/desks";
 import { currentSettings, onSettingsChange } from "../devtools/catalogSettings.js";
 import { loadPage, type PageText } from "../locales/pages.js";
 
@@ -51,8 +52,8 @@ export interface AvatarsOptions {
   readonly page: string;
   /**
    * THE SEAT'S OWN PLACE at this desk — the shelf's `seatPlaces(n)`, by index, and the ANCHOR of
-   * everything below: the chair stands there, the hand stands beside it, and `liveTable`'s idle
-   * glide returns a wandered view to it. Only the OPENING place: its owner may drag their chair
+   * everything below: the ring stands there, the cards dealt to that player lie in it, and
+   * `liveTable`'s idle glide returns a wandered view to it. Only the OPENING place: its owner may drag their chair
    * somewhere else, after which `placeOf` is the answer and this list is only where they started.
    * Absent, no `Presence` here carries a `place` and nothing about idle return changes: this is the
    * same desk without a seat, not a broken one.
@@ -67,10 +68,19 @@ export interface AvatarsOptions {
   /**
    * WHOSE HAND IS SHUT WHEN THE PAGE OPENS, by seat index — a page with a knob for it hands it in.
    *
-   * Only the opening state: a tap on one's own chair turns it from then on, and this list is then
-   * only what it was set to. Absent, every hand opens open, which is every page that has no knob.
+   * The opening state and, for now, the only one: a tap on one's own ring is "take me home"
+   * (`goHome`), so nothing at the desk turns the lock while the page is running. Absent, every hand
+   * opens open, which is every page that has no knob.
    */
   readonly locked?: readonly boolean[];
+  /**
+   * TAKE THIS SEAT'S OWN VIEW HOME — the camera's glide, asked of whoever holds the camera.
+   *
+   * A tap on one's own ring means "put me back at my place", and the place is already known here
+   * while the camera is not: a page owns its screens, this owns the people. Absent, a tap on a ring
+   * does nothing, which is every page whose panes have no camera to move.
+   */
+  readonly goHome?: (seat: string) => void;
   /** The story's own element — the listeners below are dropped when it leaves the document. */
   readonly wall: HTMLElement;
 }
@@ -84,7 +94,7 @@ export interface Avatars {
   readonly handed: (seat: string, items: readonly CarryItem[], at: Vec | undefined, done: boolean) => void;
   /** A finger came down in this pane — the stand-in for "mine" where one tree serves two screens. */
   readonly claim: (seat: string) => void;
-  /** A tap on one's OWN chair turns one's own lock. Anything else is not this wiring's. */
+  /** A tap on one's OWN ring takes that reader's view home. Anything else is not this wiring's. */
   readonly tapped: (seat: string, piece: Node) => boolean;
   /** Where a seat's place stands RIGHT NOW — the opening one until its owner drags the chair. */
   readonly placeOf: (seat: string) => SeatPlace | undefined;
@@ -103,8 +113,8 @@ export function withAvatars(o: AvatarsOptions): Avatars {
   /**
    * WHERE EACH SEAT'S PLACE STANDS RIGHT NOW — the opening one, until its owner drags their chair.
    *
-   * The one truth on this page about who sits where: the chair is put here, the hand is measured
-   * against here, the idle glide returns here, and the far screen reads it off `Presence.place`.
+   * The one truth on this page about who sits where: the ring is put here, the idle glide returns
+   * here, and the far screen reads it off `Presence.place`.
    * Kept beside the tree rather than read out of it, because a tree is rebuilt and a place is not.
    */
   const placed = new Map<string, SeatPlace>(
@@ -164,24 +174,29 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     });
 
   /**
-   * EVERY HAND, RE-DERIVED — its size from what is in it, its place from its own person.
-   *
-   * In this order and never the other: the side with the most room is measured with the patch at
-   * the size it is about to be drawn at, and a hand placed before it grew would be placed as the
-   * smaller thing it no longer is — half of it off the rim the moment the card lands.
+   * EVERY PLACE, RE-DRESSED — what is true of it, and how big what is in it has made it.
    */
   const layHands = (): void => {
-    if (o.hands === undefined) return;
     for (const { seat } of o.seats) {
-      const hand = byId(o.desk, handId(seat));
-      const chair = byId(o.desk, chairId(seat));
-      if (!hand) continue;
-      setHandLock(hand, shut.get(seat) === true);
-      growHand(hand);
-      // AGAINST THE CHAIR and never against the disc: the patch belongs to the PLACE, so a reader
-      // panning their own view leaves it exactly where it was, cards and all.
-      if (chair) placeHand(o.desk, chair, hand, o.hands);
+      const ring = byId(o.desk, chairId(seat));
+      if (!ring) continue;
+      // THE RING IS THE HAND, so there is nothing to put beside anything: it stands where its owner
+      // sits and it is the size of what is in it. Both facts are written in ONE call, because they
+      // are one picture — see `dressChair`.
+      dressChair(ring, { shut: o.hands !== undefined && shut.get(seat) === true, home: home.has(seat) });
+      if (o.hands !== undefined) growHand(ring);
     }
+  };
+
+  /**
+   * WHO IS LOOKING AT THEIR OWN PLACE — worked out for EVERYBODY off what they said, not just for
+   * this screen. A reader has to be able to see that the other player has come home, and the only
+   * thing that says so is their own view against their own place (`isHome`).
+   */
+  const home = new Set<string>();
+  const readHome = (all: readonly Presence[]): void => {
+    home.clear();
+    for (const p of all) if (p.place && isHome(p.view, p.place)) home.add(p.seat);
   };
 
   /** Every chair, stood where its place now is — the owner's drag written back onto both screens. */
@@ -215,6 +230,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     last = now;
     placing = true;
     try {
+      readHome(all);
       placeAvatars(o.desk, all);
       layChairs();
       layHands();
@@ -231,6 +247,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
    * compares people: a card landing in a hand is a change to the furniture alone.
    */
   const settled = (): void => {
+    readHome(presences());
     layChairs();
     layHands();
     tellScreens();
@@ -275,13 +292,16 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       publish();
     },
     tapped: (seat, piece) => {
-      // ...AND THE OWNER IS THE ONE WHO SHUTS IT. On the CHAIR, because the chair is the thing on
-      // this desk that means "you": it is the only node a reader may pick up that is theirs, so it
-      // is the only one a tap can be about without asking whose it is. Not on the disc — nothing a
-      // finger does reaches the disc at all.
-      if (o.hands === undefined || piece.id !== chairId(seat)) return false;
-      shut.set(seat, shut.get(seat) !== true);
-      publish();
+      // A TAP ON ONE'S OWN RING IS "TAKE ME BACK THERE". On the RING, because the ring is the thing
+      // on this desk that means "you": it is the only node a reader may pick up that is theirs, so
+      // it is the only one a tap can be about without asking whose it is. Not on the disc — nothing
+      // a finger does reaches the disc at all.
+      //
+      // The glide is the camera's and so is asked of the camera (`o.goHome`): this wiring holds
+      // numbers and nodes, and a screen is neither. Coming home fills the ring and takes the disc
+      // off the felt, and that is read back off the view like everybody else's (`readHome`).
+      if (piece.id !== chairId(seat)) return false;
+      o.goHome?.(seat);
       return true;
     },
     placeOf: (seat) => placed.get(seat),

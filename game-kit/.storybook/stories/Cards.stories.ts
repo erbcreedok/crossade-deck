@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import {
-  grippableBy,
   installStockCarries,
   installStockCoats,
   installStockFlips,
@@ -8,12 +7,13 @@ import {
   installStockMarks,
   t,
   zoneNear,
+  type LiveTable,
   type Node,
   type Vec,
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { handTakes, isHand, LIVE_UNIT, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
+import { handTakes, isHand, LIVE_UNIT, mayTake, ROUND_R, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 import { withAvatars } from "./avatars.js";
@@ -82,8 +82,20 @@ function liveCards(a: CardsArgs): HTMLElement {
   const held = a.lifted ? a.lift : 1;
   const inks = Object.fromEntries(SEATS.map(({ seat, ink }) => [seat, ink]));
   const places = roundPlaces(2);
+  // EVERY PANE'S OWN LIVE DESK, by seat — the one way a tap on a ring can reach the camera that has
+  // to move (`liveTable`'s `idle.goHome`). Filled in as each pane is built, below.
+  const desks = new Map<string, LiveTable>();
   const people = a.avatars
-    ? withAvatars({ desk, seats: SEATS, screens, page: "liveCards", hands: ROUND_R, wall, places })
+    ? withAvatars({
+        desk,
+        seats: SEATS,
+        screens,
+        page: "liveCards",
+        hands: ROUND_R,
+        wall,
+        places,
+        goHome: (seat) => desks.get(seat)?.idle?.goHome(),
+      })
     : undefined;
   // A SIMPLE HEARTBEAT FOR THE IDLE GLIDE — `liveTable`'s own `idle.step` is left for whoever
   // already runs a clock (`liveTable.ts`), and this page runs none of its own until a reader asks
@@ -177,7 +189,7 @@ function liveCards(a: CardsArgs): HTMLElement {
         // A SHUT HAND CANNOT BE REACHED INTO. Refused at the PICK and not at the drop, because
         // what a shut hand refuses is the gesture ever starting — a card that lifted out and flew
         // back would read as the desk having dropped it.
-        (n: Node) => grippableBy(n, seat),
+        (n: Node) => mayTake(n, seat),
         (piece: Node) => people?.tapped(seat, piece) === true,
         people ? () => people.settled() : undefined,
         a.avatars
@@ -191,7 +203,27 @@ function liveCards(a: CardsArgs): HTMLElement {
           : undefined,
         a.avatars
           ? (live) => {
-              const id = setInterval(() => live.idle?.step(200), 200);
+              desks.set(seat, live);
+              // A PANE OPENS AT ITS OWN PLACE, and that is not a nicety: `home` is the view a place
+              // has (`isHome`), the idle glide and a tap on the ring both go THERE, and a desk that
+              // opened in the middle would open with both readers drawn as having wandered off
+              // before anybody had touched anything.
+              //
+              // Asked of the glide rather than set on the camera, so that the opening view and the
+              // one a tap returns to are the SAME view by construction — and after the stage has
+              // laid its own glass out, which is what decides the fitted zoom it ends on.
+              requestAnimationFrame(() => live.idle?.goHome());
+              const id = setInterval(() => {
+                live.idle?.step(200);
+                // THE GLIDE MOVES THE CAMERA DIRECTLY (`idleReturn`) and repaints nothing: this
+                // page's own heartbeat is the only thing that knows a frame just changed, and
+                // without this the view arrives home in the numbers and stays put on the glass.
+                live.motions?.redraw();
+                // ...AND WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK. `onView` is the FINGER's
+                // report, and the glide is not a finger: without this the view arrives home and the
+                // desk goes on drawing that reader as having wandered off, disc and all.
+                people?.publish();
+              }, 200);
               const stop = () => clearInterval(id);
               idleTimers.push(stop);
               return stop;
@@ -240,11 +272,11 @@ export const Cards: StoryObj<CardsArgs> = {
  * the cursor appears when they move and is gone the moment they stop. The disc is the permanent
  * half of that message, and where it stands is read out of that reader's own camera.
  *
- * AND THE HAND FOLLOWS THE PERSON. Deal to yourself and to the other player — take a card off the
- * deck and let it go over either patch: it goes in, on both screens, and the patch grows to hold it.
- * Drag your own disc and your hand travels with it, changing sides when the side it was on runs out
- * of table. Tap your own disc and the hand shuts: washed in your colour, it takes nothing from
- * anybody else and gives nothing up to them, and from its OWN screen nothing has changed.
+ * AND THE HAND IS THE PLACE. Deal to yourself and to the other player — take a card off the deck
+ * and let it go over either ring: it goes in, on both screens, and the ring grows to hold it. Hold
+ * your own ring and drag it and your cards travel inside it. Tap it and your view goes HOME —
+ * position, zoom and turn all back to your own seat — after which the ring fills with your colour
+ * and your disc is not drawn at all, because the ring is you while you are in it.
  *
  * Turn `avatars` off and the desk is the scene above — no people, and therefore no hands.
  */

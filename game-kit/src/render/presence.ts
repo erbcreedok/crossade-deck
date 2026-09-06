@@ -24,7 +24,6 @@ import { apply, chain, invert, move, rotate, scale, type Transform, type Vec } f
 import { polyline } from "../core/path.js";
 import { Bounded, type Shape } from "../core/atoms/bounded.js";
 import { Labeled } from "../core/atoms/labeled.js";
-import { Oriented } from "../core/atoms/oriented.js";
 import { Screened } from "../core/atoms/screened.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
@@ -181,6 +180,52 @@ export function avatarAt(p: Presence): Vec {
   return p.view.target;
 }
 
+/**
+ * HOW CLOSE COUNTS AS HOME — the same numbers the idle glide calls "already there" (`idleReturn`).
+ *
+ * Asked twice they would drift, and then a desk would glide a view home and go on drawing the
+ * person as away, or stop gliding at a place that never filled the ring.
+ */
+export const HOME = { near: 0.1, turn: 1, zoom: 0.05 };
+
+/** How far apart two headings are, in degrees, the short way round — never more than 180. */
+function apart(a: number, b: number): number {
+  let d = (a - b) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return Math.abs(d);
+}
+
+/**
+ * IS THIS PERSON LOOKING AT THEIR OWN PLACE — the middle of their glass on it, their screen turned
+ * to it, and (when the reader knows what home is worth in pixels) their zoom at it.
+ *
+ * Read off the MESSAGE and nothing else, so every screen at the desk gets the same answer about
+ * everybody, which is the whole point: "who is at their seat" is a fact of the desk, not of the
+ * screen asking. A person at home has their ring filled and their disc not drawn at all — the ring
+ * IS them while they are in it, and a disc standing in a filled ring would be the same person twice.
+ *
+ * `homeZoom` is what a fitted view is worth in SCREEN PIXELS PER UNIT on the OWNER'S glass, and it
+ * is optional because only the owner's own screen can work it out (`camera.fitZoom`) — a far reader
+ * knows the sender's glass but not their etalon. Absent, the zoom is not asked, which is the honest
+ * reading: a view aimed at the right point from the right side is home whatever it is magnified to.
+ */
+export function isHome(
+  view: PresenceView,
+  place: { readonly at: Vec; readonly facing: number },
+  homeZoom?: number,
+): boolean {
+  if (Math.hypot(view.target.x - place.at.x, view.target.y - place.at.y) > HOME.near) return false;
+  if (apart(view.rotation, place.facing) > HOME.turn) return false;
+  if (homeZoom === undefined || homeZoom === 0) return true;
+  return Math.abs(view.zoom - homeZoom) / homeZoom <= HOME.zoom;
+}
+
+/** Whether the person this presence is about is sitting at their own place right now. */
+export function atHome(p: Presence, homeZoom?: number): boolean {
+  return p.place !== undefined && isHome(p.view, p.place, homeZoom);
+}
+
 // ---- the node ------------------------------------------------------------------------------
 
 /** The disc's own surface, one per seat: re-registered as the state changes, so the name is stable. */
@@ -252,8 +297,9 @@ function installLook(p: Presence): void {
  * ONE AVATAR — the disc in the seat's ink, the face inside it, the state's mark on its corner and
  * the name under it.
  *
- * `Oriented: "viewer"` because it is a picture with a TOP: the black player's camera is turned, and
- * a person drawn upside down is not "the same person from the other side", it is a broken picture.
+ * TURNED BY ITS OWNER'S CAMERA, because it is a picture with a TOP and that top is the message: it
+ * says which way up that person is holding the desk, and a disc that faced every reader alike would
+ * be a person with no direction — the one thing a disc standing away from its seat is for.
  * `Screened` because it is sized for the EYE and not for the felt — a face that shrank with the zoom
  * would be a speck on a board seen whole, which is the one view a desk with four people opens at.
  *
@@ -268,8 +314,14 @@ export function avatarNode(p: Presence): Node {
     avatarId(p.seat),
     Bounded({ bounds: box(DISC, DISC) }),
     Surfaced({ surface: discSurface(p.seat) }),
-    Transformable({ at: avatarAt(p) }),
-    Oriented({ orientation: "viewer" }),
+    // TURNED THE WAY ITS OWNER IS TURNED — a disc is not only WHERE somebody is looking from but
+    // WHICH WAY UP they are holding the desk, and that is half of "where they are sitting". Their
+    // screen turns the desk by `rotation`, so what stands upright on it stands at `-rotation` on the
+    // felt, and every other screen adds its own turn to that and reads the difference. Their own
+    // screen adds exactly the turn that cancels it, so at home one's own disc is upright.
+    Transformable({ at: avatarAt(p), angle: -p.view.rotation }),
+    // NOT `Oriented: "viewer"`. A billboard is indifferent to every turn there is, which is right
+    // for a caption and wrong for the one node whose whole message is an angle.
     Screened({ screened: true }),
     // AN AVATAR SAYS IT IS ONE. What makes a node a person at this desk is that it says so, not that
     // it is called something (`guard.id-is-opaque`).
@@ -316,13 +368,23 @@ export const PRESENCE_TEXT = "presence.name";
  * repaints it, the view moves it, and a name can be corrected. What is NOT rebuilt is the place in
  * the tree — a node standing under the same id stays the same node to a mirror and to a drag.
  */
-export function placeAvatars(root: Node, presences: readonly Presence[]): void {
+export function placeAvatars(
+  root: Node,
+  presences: readonly Presence[],
+  /** What a fitted view is worth on that person's own glass, when the caller can say — see `isHome`. */
+  homeZoom?: (p: Presence) => number | undefined,
+): void {
   // NOT INTO THE DESK'S OWN LIST — into the people's layer (`AVATAR_LAYER`), which is what keeps a
   // disc out of a square and out of every arrangement the desk has.
   const layer = avatarLayer(root);
   for (const p of presences) {
     const standing = byId(root, avatarId(p.seat));
     if (standing?.parent) remove(standing.parent, standing);
+    // NOBODY IS DRAWN TWICE. A person looking at their own place IS the ring standing there, filled
+    // — and a disc on top of it would be the same person over themselves, at the one moment the two
+    // pictures agree least: the ring says "this seat is occupied" and the disc says "somebody is
+    // over here". Away, the disc is the only thing that says where they went.
+    if (atHome(p, homeZoom?.(p))) continue;
     add(layer, avatarNode(p));
   }
   // WHOEVER IS NO LONGER IN THE MESSAGE IS NO LONGER AT THE DESK. Left standing, a player who closed
@@ -331,7 +393,7 @@ export function placeAvatars(root: Node, presences: readonly Presence[]): void {
   // An avatar SAYS SO ON ITSELF and is not recognised by its id — an id is a name and nothing parses
   // one (`guard.id-is-opaque`). Told to look for a shape of id, this would also have swept away
   // whatever else a game happened to have named alike.
-  const here = new Set(presences.map((p) => avatarId(p.seat)));
+  const here = new Set(presences.filter((p) => !atHome(p, homeZoom?.(p))).map((p) => avatarId(p.seat)));
   for (const child of [...layer.children]) {
     if (!isAvatar(child)) continue;
     if (!here.has(child.id)) remove(layer, child);
