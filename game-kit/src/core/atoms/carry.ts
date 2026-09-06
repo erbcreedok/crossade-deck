@@ -37,6 +37,22 @@ export function carryOrientOf(n: Node): "holder" | "keep" {
 }
 
 /**
+ * THE TURN A HOLDER-FACING PIECE RESTS AT, given the holder's own view matrix — in DEGREES.
+ *
+ * The view turns the table onto the glass, so a piece lying at `A` is drawn at `A + R`. "Upright to
+ * whoever is holding it" is therefore `A = -R`, and that one negation is the whole of this: the
+ * carry aims the in-hand pose at it, and the landing writes the same number into the tree, so the
+ * turn the hand had does not change when the hand lets go.
+ *
+ * Read off the MATRIX and not off a camera's `rotation` field, because the two paths that need it —
+ * the drag's own drop and the scene's throw — must not be able to disagree: the view is what the
+ * finger was already read through, and a desk with no view at all is a desk facing north.
+ */
+export function holderTurn(view: Transform | undefined): number {
+  return view ? -Math.atan2(view.b, view.a) * 180 / Math.PI : 0;
+}
+
+/**
  * The lean a speed ASKS FOR, in DEGREES (what `rotate` speaks). `factor` turns speed (root units per
  * second — the chase spring's velocity, which is the finger's speed smoothed) into degrees; `maxDeg`
  * is the saturation, so a brisk flick pins the lean instead of spinning. Sign follows the direction

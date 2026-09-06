@@ -13,6 +13,8 @@ import {
   attachMotion,
   byId,
   Bounded,
+  Carry,
+  compose,
   Container,
   Draggable,
   fieldsOf,
@@ -153,6 +155,34 @@ function stage(root: Node, clock: Clock, withCamera = true) {
  * reference held across a gesture describes the desk as it was before the gesture, and every check
  * against it reads "nothing moved".
  */
+/**
+ * THE SAME DESK, with the card marked as wanting to lie the way its holder saw it (`Carry`).
+ * A turned camera is the whole of the case: the piece is drawn upright on the holder's glass while
+ * it is in the hand, and the turn that put it there has to survive the landing.
+ */
+function deskFacingHolder(): { root: Node } {
+  installStockSurfaces();
+  installStockGrabs();
+  registerLayout("live.free", freeLayout);
+  const root = node("desk", Bounded({ bounds: rect(8, 8) }), Container({ layout: "live.free" }), Grabber());
+  const card = node(
+    "card",
+    Bounded({ bounds: rect(1, 1.4) }),
+    Surfaced(),
+    Transformable({ at: { x: 0, y: 0 }, angle: 0 }),
+    Draggable({ onReject: "stay" }),
+    Carry({ orient: "holder" }),
+  );
+  add(root, card);
+  return { root };
+}
+
+/** The turn a piece is resting at, folded into a half-open circle so `-270` and `90` compare equal. */
+const turnOf = (root: Node, id: string): number => {
+  const deg = fieldsOf<TransformableFields>(byId(root, id)!, "Transformable")?.angle ?? 0;
+  return ((deg % 360) + 360) % 360;
+};
+
 const seatOf = (root: Node, id: string) => fieldsOf<TransformableFields>(byId(root, id)!, "Transformable")?.at ?? { x: 0, y: 0 };
 
 describe("the live desk", () => {
@@ -602,6 +632,57 @@ describe("the live desk", () => {
     expect(atRelease, "the release wrote a seat").toBeGreaterThan(0);
     c.tick(120);
     expect(seatOf(shell.host.root, "card").x, "the throw carried it on past the release").toBeGreaterThan(atRelease);
+    live.stop();
+  });
+
+  it("liveTable.a-thrown-card-lands-as-its-holder-held-it — the flight keeps the holder's turn, in the tree", () => {
+    // A THROW IS A RELEASE THE SCENE TAKES, and it never reaches the wiring's own drop — which is
+    // the one place the holder's turn was being written into the tree. So a card that was drawn
+    // upright in the hand of a seat looking along a turned camera came down pointing north: the
+    // picture had it right for the whole of the carry and the landing threw the answer away.
+    const { root } = deskFacingHolder();
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    // The glass the stub reports, given to the camera by hand: a camera that was never sized reads
+    // every finger against a one-pixel screen, and the card is nowhere near where the test aims.
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -4, y: -4, w: 8, h: 8 }, shell.host.unit());
+    shell.camera!.turnTo(90);
+    const live = liveTable(shell.el.ownerDocument.body, root, { stage: shell, letGo: "throw" });
+
+    shell.el.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    for (let i = 1; i <= 5; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", 300 + i * 40, 200, i * 16));
+      c.tick(1);
+    }
+    shell.el.dispatchEvent(finger("pointerup", 500, 200, 96));
+    // THE TURN IS WRITTEN AT THE RELEASE, before the flight: the seat arrives later, the pose does not.
+    expect(turnOf(shell.host.root, "card"), "the turn the hand held it at survives the throw").toBeCloseTo(270, 5);
+    c.tick(200);
+    expect(turnOf(shell.host.root, "card"), "…and the landing does not undo it").toBeCloseTo(270, 5);
+    live.stop();
+  });
+
+  it("liveTable.a-throw-turns-nothing-that-did-not-ask — a card with no Carry keeps the angle its game gave it", () => {
+    // The other half of the law: a piece that never asked to face its holder must not be turned.
+    // Absent is not zero — a default written where nothing was written before would flatten every
+    // angle a game had put on its own pieces.
+    const { root } = desk();
+    const card = byId(root, "card")!;
+    const own = fieldsOf<TransformableFields>(card, "Transformable");
+    compose(card, Transformable({ ...(own ?? {}), angle: 30 }));
+    const c = fakeClock();
+    const shell = stage(root, c.clock, false);
+    const live = liveTable(shell.el.ownerDocument.body, root, { stage: shell, letGo: "throw" });
+
+    shell.el.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    for (let i = 1; i <= 5; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", 300 + i * 40, 200, i * 16));
+      c.tick(1);
+    }
+    shell.el.dispatchEvent(finger("pointerup", 500, 200, 96));
+    c.tick(200);
+    expect(turnOf(shell.host.root, "card"), "the angle the game gave it is its own").toBeCloseTo(30, 5);
     live.stop();
   });
 

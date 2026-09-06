@@ -27,6 +27,23 @@ describe("heapsOf", () => {
     expect(heaps2[0]!.map((n) => n.id)).toEqual(["p1", "p2", "p3"]);
   });
 
+  it("heaps.a-turned-card-still-joins-the-pile — a piece lying at its holder's angle is heaped by its real shape", () => {
+    // A DROP NOW WRITES A TURN. A holder-facing piece comes to rest at the angle its holder saw it
+    // at, so the pile it lands on meets a card that is not square with the rest. The reach is a
+    // separating-axis test over the PLACED outline, so the turn is already in it — and the two cards
+    // here prove it both ways: at the same seat they touch only BECAUSE one of them is turned.
+    const tall = (id: string, x: number, deg: number) =>
+      node(id, Bounded({ bounds: rect(0.5, 2) }), Transformable({ at: { x, y: 0 }, angle: deg }), Flippable({ flip: "" }));
+
+    const desk = node("desk");
+    desk.children.push(tall("flat", 0, 0), tall("turned", 1, 90));
+    expect(heapsOf(desk, kindOf).map((h) => h.map((n) => n.id)), "turned, it lies across the other").toEqual([["flat", "turned"]]);
+
+    const square = node("desk2");
+    square.children.push(tall("flat", 0, 0), tall("alongside", 1, 0));
+    expect(heapsOf(square, kindOf), "square with it at the same seat, the two are a hand apart").toEqual([]);
+  });
+
   it("heaps.a-piece-in-flight-is-in-no-heap — it left the heap when it left the desk", () => {
     const desk = node("desk");
     const p1 = piece("p1", "chip", 0, 0);

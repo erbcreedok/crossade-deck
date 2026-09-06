@@ -24,6 +24,7 @@ import { Transformable, type TransformableFields } from "../core/atoms/transform
 import { type Walls } from "../core/ballistic.js";
 import { DEFAULT_TUNING, installStockEasings } from "../core/motion.js";
 import { byId, caps, compose, fieldsOf, type Node } from "../core/node.js";
+import { carryOrientOf, holderTurn } from "../core/atoms/carry.js";
 import { type Vec } from "../core/transform.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { attachMotion, type CarryItem, type Motions } from "./animator/index.js";
@@ -1088,6 +1089,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
             // different handle in hand, and a stale callback clearing that would destroy the tab
             // under the live finger and leave the hand holding an id that no longer exists.
             const mine = inHand;
+            const held0 = byId(built.host.root, falling[0]?.id ?? "");
             return letFall(
               built,
               falling,
@@ -1108,6 +1110,10 @@ export function liveTable<S extends LiveStage = LiveStage>(
               drop,
               onRoll,
               pieces?.wallsOf,
+              // A PIECE THAT ASKED TO LIE THE WAY IT WAS HELD KEEPS THAT TURN THROUGH THE FLIGHT.
+              // The wiring writes it on its own drop; a throw never gets there, so it is worked out
+              // again here from the same view the finger was read through (`holderTurn`).
+              held0 && carryOrientOf(held0) === "holder" ? holderTurn(built.camera?.transform()) : undefined,
             );
           },
         }

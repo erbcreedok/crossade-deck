@@ -648,6 +648,11 @@ const DOWN_THE_DESK = 90;
 /** Two velocities as one — the throw the hand gave it plus its own share of the opening. */
 const sum = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y });
 
+/** A node's own turn right now, in degrees — `0` for a node that has none, and for no node at all. */
+function angleIn(n: Node | undefined): number {
+  return n ? fieldsOf<TransformableFields>(n, "Transformable")?.angle ?? 0 : 0;
+}
+
 /** Where a node stands right now, in root units — the seat a landing or a release just wrote. */
 export function seatIn(n: Node): Vec {
   return fieldsOf<TransformableFields>(n, "Transformable")?.at ?? { x: 0, y: 0 };
@@ -736,12 +741,27 @@ export function letFall(
   hover: Vec = { x: 0, y: 0 },
   onRoll?: (m: Motions, root: Node, piece: Node, opts: any) => void,
   wallsOf?: (piece: Node, at: Vec) => Walls | undefined,
+  /**
+   * THE TURN THE HOLDER HAD IT AT (`holderTurn`), when the run asked to lie the way it was held.
+   *
+   * A throw is a release the SCENE takes: it never reaches the wiring's own drop, which is where a
+   * holder-facing piece has its turn written into the tree. So the number arrives here too, or the
+   * card is drawn upright in the hand for the whole carry and comes down pointing north.
+   *
+   * Absent means "nobody asked", and that is not the same as zero: writing a default would flatten
+   * whatever angle the game itself had put on the piece.
+   */
+  orientDeg?: number | undefined,
 ): boolean {
   const m = s.motions;
   const drawn = m?.poses();
   if (!m || !drawn) return false;
   const root = s.host.root;
   const put: Node[] = [];
+  // THE LEAD'S OWN TURN, READ BEFORE ANYTHING IS WRITTEN. A run keeps its shape: the piece the hand
+  // had hold of goes to the holder's turn, and the rest are moved by the same amount, so a fan let
+  // go of turned is the same fan. Read afterwards it would be the turn already written.
+  const base0 = orientDeg === undefined ? 0 : angleIn(byId(root, items[0]?.id ?? ""));
   for (const it of items) {
     const n = byId(root, it.id);
     const pose = drawn.get(it.id);
@@ -752,7 +772,14 @@ export function letFall(
     }
     const at = apply(pose, { x: 0, y: 0 });
     const own = fieldsOf<TransformableFields>(n, "Transformable");
-    compose(n, Transformable({ ...(own ?? {}), at: isDrawn(n) ? at : { x: at.x - hover.x, y: at.y - hover.y } }));
+    compose(n, Transformable({
+      ...(own ?? {}),
+      at: isDrawn(n) ? at : { x: at.x - hover.x, y: at.y - hover.y },
+      // NOT READ BACK OFF THE DRAWN POSE. A carried pose is the piece's resting pose with the style
+      // composed onto it, so a face-down card's mirror is in the matrix and `atan2` reads it as a
+      // half circle — the same trap `landed` names below. The turn is DATA, and it is handed in.
+      ...(orientDeg === undefined ? {} : { angle: (own?.angle ?? 0) + orientDeg - base0 }),
+    }));
     toFront(n);
     m.release(it.id);
     put.push(n);

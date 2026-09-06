@@ -22,7 +22,7 @@ import { wearKeen, wearInvite } from "../core/atoms/inviting.js";
 import { wearInvites } from "../core/invite.js";
 import { mark } from "../core/atoms/marked.js";
 import { applyMove, planMove } from "../core/move.js";
-import { carryOrientOf } from "../core/atoms/carry.js";
+import { carryOrientOf, holderTurn } from "../core/atoms/carry.js";
 import { landingRecord, type OccupiedOutcome } from "../core/atoms/occupied.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { glassOf, pick, toUnits } from "./pointer.js";
@@ -324,8 +324,6 @@ const lineAngle = (a: Point, b: Point): number => (Math.atan2(b.y - a.y, b.x - a
 /** A node's own angle right now, which is where a released turn may be sent back to. */
 const angleOf = (n: Node): number => fieldsOf<TransformableFields>(n, "Transformable")?.angle ?? 0;
 
-const turnOfMatrix = (t: Transform | undefined): number => t ? Math.atan2(t.b, t.a) * 180 / Math.PI : 0;
-
 /**
  * FOLD ONE MORE SAMPLE INTO THE HAND'S SPEED — two points and the time between them, smoothed.
  *
@@ -484,7 +482,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     } = w.opts;
     const tray = trayOf?.(root, hit);
     const orient = items[0] ? carryOrientOf(byId(root, items[0].id)!) : "keep";
-    const orientDeg = orient === "holder" ? -turnOfMatrix(w.opts.view?.()) : undefined;
+    const orientDeg = orient === "holder" ? holderTurn(w.opts.view?.()) : undefined;
     const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}), ...(orientDeg !== undefined ? { orientDeg } : {}) };
     w.drag = { ...w.drag, tray, feel: felt };
     motions.grab(items, {
