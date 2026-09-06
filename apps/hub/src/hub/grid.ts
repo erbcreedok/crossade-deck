@@ -33,7 +33,7 @@ import { checkerSurface, installChessArt, installNardyArt, pictureOf } from "@ga
 import { die } from "@game-presets/dice";
 import { CATALOGUE, type GameEntry } from "./catalogue.js";
 import { RING_U } from "../look/palette.js";
-import { GROUND, MAIN, NOTE, RING, SLOT, TILE, TITLE } from "../look/surfaces.js";
+import { GROUND, MAIN, NOTE, RING, SLOT, SPARKLE, SPARKLE_DIM, TILE, TITLE } from "../look/surfaces.js";
 
 /** A tile's outer plate, in units. The face is `RING_U` smaller on every side. */
 const TILE_W = 2.6;
@@ -219,6 +219,21 @@ function feltOf(): Node {
   return node(FELT, Bounded({ bounds: rect(60, 60) }), Surfaced({ surface: GROUND }), Transformable());
 }
 
+/**
+ * THE SPARKLE — a diamond scatter over the felt, its own node so the shimmer (`twinkle.ts`, wired
+ * in `shell.ts`) can paint it without touching the felt underneath.
+ *
+ * THE SAME ID in both trees, for the same reason `FELT` is: `shell.ts` looks it up by name every
+ * frame and must not care whether the shelf or the game's bar is up. Only the SURFACE differs —
+ * bright in the lobby, muted on the table — because that is the one thing client1's `.pixel-bg--game`
+ * changes and the felt underneath does not.
+ */
+export const SPARKLE_ID = "sparkle";
+
+function sparkleOf(surface: string): Node {
+  return node(SPARKLE_ID, Bounded({ bounds: rect(60, 60) }), Surfaced({ surface }), Transformable());
+}
+
 /** The shelf: the title over a row of places, the first of which are the games there are. */
 export function hubTree(columns: number = PLACES): Node {
   installLayouts();
@@ -230,6 +245,7 @@ export function hubTree(columns: number = PLACES): Node {
     Lit({ shadow: { base: 0.16, perZ: 0.1, lifted: 0.12, opacity: 0.55 } }),
   );
   add(desk, feltOf());
+  add(desk, sparkleOf(SPARKLE));
 
   add(
     desk,
@@ -264,6 +280,7 @@ export function barTree(strip: { readonly topY: number; readonly height: number 
   installLayouts();
   const bar = node("bar", Container({ layout: FREE }));
   add(bar, feltOf());
+  add(bar, sparkleOf(SPARKLE_DIM));
   // Measured against the STRIP, not against the shelf: the unit in force is the shelf's, and a
   // control sized in shelf units would stand taller than the ribbon it lives in.
   const w = strip.height * 2.8;

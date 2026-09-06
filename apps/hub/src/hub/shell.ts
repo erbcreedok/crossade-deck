@@ -31,8 +31,9 @@ import { installHubLook } from "../look/surfaces.js";
 import { CLUB_U, PALETTE } from "../look/palette.js";
 import { beat } from "./beat.js";
 import { AT_REST, driftStep, type Drift } from "./drift.js";
-import { barTree, FELT, hubTree, shelfColumns, shelfSize } from "./grid.js";
+import { barTree, FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID } from "./grid.js";
 import { wirePress } from "./press.js";
+import { twinkleLevel, twinkleStep } from "./twinkle.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
 import { goTo, onRoute, routeOf } from "./route.js";
 import { ensureAccount } from "../account/account.js";
@@ -107,16 +108,37 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     return true;
   };
 
+  // WHERE THE SHIMMER HAS GOT TO — kept out here for the same reason `felt` is: the tree is
+  // rebuilt on every `setMode` and the sparkle must not flash back to full brightness each time.
+  let sparklePhase = 0;
+  const writeSparkle = (): void => {
+    const layer = byId(host.root, SPARKLE_ID);
+    if (!layer) return;
+    compose(layer, Coated({ self: { recipe: "wash", level: twinkleLevel(sparklePhase), tint: PALETTE.felt }, cast: NO_COAT }));
+  };
+  const twinkle = (_seconds: number, dt: number): boolean => {
+    const next = twinkleStep(sparklePhase, dt, host.viewer().motionSpeed ?? 1);
+    if (next === sparklePhase) return false;
+    sparklePhase = next;
+    writeSparkle();
+    return true;
+  };
+
   // Joined and dropped with the switch rather than left running and told to do nothing: at
   // `motionSpeed: 0` the hub asks for no frames at all, which is what "power saving" has to mean.
   let stopDrift: (() => void) | undefined;
+  let stopTwinkle: (() => void) | undefined;
   const followMotion = (): void => {
     const wanted = (host.viewer().motionSpeed ?? 1) > 0;
     if (wanted === (stopDrift !== undefined)) return;
-    if (wanted) stopDrift = clock.join(drift);
-    else {
+    if (wanted) {
+      stopDrift = clock.join(drift);
+      stopTwinkle = clock.join(twinkle);
+    } else {
       stopDrift?.();
       stopDrift = undefined;
+      stopTwinkle?.();
+      stopTwinkle = undefined;
     }
   };
 
@@ -154,6 +176,9 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     // it had crawled to, or opening a game would snap the weave and closing it would snap it again.
     const ground = byId(host.root, FELT);
     if (ground) compose(ground, Transformable({ at: { x: felt.x * CLUB_U, y: felt.y * CLUB_U } }));
+    // Same reasoning, for the sparkle's shimmer rather than its crawl: a fresh tree's sparkle
+    // starts at full brightness, and the shimmer is not new.
+    writeSparkle();
     lastUnit = -1;
     applyFit();
   };

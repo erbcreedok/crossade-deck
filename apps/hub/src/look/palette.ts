@@ -30,6 +30,8 @@ export const PALETTE = {
   danger: "#e0483f",
   /** The keyline and the hard drop shadow. */
   black: "#0b0704",
+  /** The gold sparkle, muted for the table screen — client1's `grayscale(.5) brightness(.85)`. */
+  sparkleDim: "#b09a5c",
 } as const;
 
 // LENGTHS. client1 is a pixel design and its numbers are pixels; the kit measures in units, so the
@@ -53,3 +55,11 @@ export const PRESS_PX = 3;
  * 9.2/18 of a unit, and it keeps its density on a phone as well as on a monitor.
  */
 export const CLUB_U = 9.2 / 18;
+
+/**
+ * The diamond sparkle's own tile, in units — the same reasoning as `CLUB_U`, a fraction of the
+ * screen rather than a control's pixels. client1 spaces its diamonds far apart (a 520px canvas
+ * tiled at 340px, itself far coarser than the 72px club weave), so the port keeps that sparseness:
+ * twice the club's tile, one glyph to a tile.
+ */
+export const SPARK_U = CLUB_U * 2;

@@ -9,7 +9,7 @@
 
 import { registerAsset, registerSurface, registerTextStyle } from "game-kit";
 import { ROUND_SURFACE } from "@game-presets/desks";
-import { BORDER_U, CLUB_U, PALETTE } from "./palette.js";
+import { BORDER_U, CLUB_U, PALETTE, SPARK_U } from "./palette.js";
 
 /** The three roles the owner picked, all carrying Kazakh. A role is a name; this is what it means. */
 export const TITLE = "hub/title";
@@ -20,6 +20,10 @@ export const GROUND = "hub/ground";
 export const RING = "hub/ring";
 export const TILE = "hub/tile";
 export const SLOT = "hub/slot";
+
+/** The sparkle over the felt, bright in the lobby, muted on the table (`installHubLook` below). */
+export const SPARKLE = "hub/sparkle";
+export const SPARKLE_DIM = "hub/sparkle-dim";
 
 // THE CLUB, AS A BITMAP AND NOT AS FORTY RECTANGLES.
 //
@@ -66,6 +70,42 @@ function clubTile(): string {
   return `data:image/svg+xml,${encodeURIComponent(doc)}`;
 }
 
+// THE DIAMOND, AS A BITMAP OVER A TRANSPARENT TILE.
+//
+// client1 ships this glyph as `public/bg-diamonds.svg` — a scatter of hand-placed pixel diamonds,
+// each shimmering on its own SMIL clock. One glyph per tile, the same simplification the club
+// weave already makes, keeps the source a shape a reader can see rather than a list of rects; the
+// shimmer itself is not baked into the picture (a `Coated` wash animates it instead, in `shell.ts`)
+// because a still asset cannot carry a clock of its own.
+const DIAMOND = [
+  "....#....",
+  "...###...",
+  "..#####..",
+  ".#######.",
+  "#########",
+  ".#######.",
+  "..#####..",
+  "...###...",
+  "....#....",
+];
+
+/** The tile the sparkle repeats on — wider than the club's, so the glyphs read as scattered. */
+function diamondTile(color: string): string {
+  const CELL = 4;
+  const SIDE = 144;
+  const GLYPH = DIAMOND.length * CELL;
+  const AT = (SIDE - GLYPH) / 2;
+  const body = DIAMOND.flatMap((row, y) =>
+    [...row].map((cell, x) =>
+      cell === "#"
+        ? `<rect x="${AT + x * CELL}" y="${AT + y * CELL}" width="${CELL}" height="${CELL}" fill="${color}"/>`
+        : "",
+    ),
+  ).join("");
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIDE}" height="${SIDE}" viewBox="0 0 ${SIDE} ${SIDE}" shape-rendering="crispEdges">${body}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(doc)}`;
+}
+
 let installed = false;
 
 /**
@@ -81,6 +121,15 @@ export function installHubLook(): void {
   // scale while the desk is sized past any viewport.
   registerAsset(GROUND, { src: clubTile(), w: CLUB_U, h: CLUB_U });
   registerSurface(GROUND, { layers: [{ paint: PALETTE.felt }, { image: GROUND, fit: "repeat" }] });
+
+  // THE SPARKLE: no ground paint of its own — it lays over the felt already drawn beneath it, so
+  // a transparent tile is the only correct layer. Bright in the lobby, a duller gold and a lower
+  // opacity on the table — client1's `.pixel-bg--game` (opacity .55, grayscale, dimmer brightness),
+  // approximated the way this look approximates every filter: a second literal colour, not a shader.
+  registerAsset(SPARKLE, { src: diamondTile(PALETTE.gold), w: SPARK_U, h: SPARK_U });
+  registerSurface(SPARKLE, { layers: [{ image: SPARKLE, fit: "repeat" }] });
+  registerAsset(SPARKLE_DIM, { src: diamondTile(PALETTE.sparkleDim), w: SPARK_U, h: SPARK_U });
+  registerSurface(SPARKLE_DIM, { layers: [{ image: SPARKLE_DIM, fit: "repeat", opacity: 0.55 }] });
 
   // The gold plate. The tile's face sits inside it, so what shows is a ring the width of the
   // difference — client1's `box-shadow: 0 0 0 4px` spread, expressed as geometry.
