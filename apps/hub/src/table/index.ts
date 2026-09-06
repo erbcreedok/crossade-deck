@@ -79,6 +79,7 @@ import { joinTable, type RosterItem, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
+import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
@@ -220,6 +221,33 @@ export function homeZoomOfDesk(game: TableGame): { readonly span: number; readon
   if (game === "chess" || game === "nardy") return undefined;
   return { span: ROUND_HOME_SPAN, width: ROUND_R * 2 };
 }
+
+/**
+ * WHAT IS COVERING THE TOP OF THE DESK'S OWN REGION, in CSS pixels — handed to the kit
+ * (`seats.insets`), which brings home in until the WHOLE desk fits under it (`homeZoom`). Without
+ * it a phone with a short glass opened on a table whose far rim was off the top of the screen.
+ *
+ * THE HUB'S OWN STRIP WITH THE WAY BACK IS NOT IN THIS NUMBER, and that is the point of measuring
+ * rather than adding one up: the game's region already starts below the strip (`#stage`, 56px in
+ * the page's own stylesheet), so counting the strip here would take the same band off the desk
+ * twice. What is here is whatever the page lays OVER that region — the Telegram banner, pinned to
+ * the top of the stage and there only inside a webview.
+ */
+export function topInsetOfStage(container: Element, covers?: readonly Element[]): number {
+  const over = covers ?? Array.from(document.querySelectorAll(STAGE_COVERS));
+  const top = container.getBoundingClientRect().top;
+  let inset = 0;
+  for (const one of over) {
+    if (getComputedStyle(one).display === "none") continue;
+    const box = one.getBoundingClientRect();
+    if (box.height <= 0) continue;
+    inset = Math.max(inset, box.bottom - top);
+  }
+  return inset;
+}
+
+/** Everything the page is allowed to lay over a running desk — see `topInsetOfStage`. */
+const STAGE_COVERS = "#tg-banner";
 
 export function unitOfDesk(game: TableGame): number {
   if (game === "chess") return CHESS_UNIT;
@@ -465,6 +493,8 @@ export function startTable(container: HTMLElement): Teardown {
       placeNow: () => avatars?.placeOf(seat ?? "") ?? placesFor(game)[mySeatIndex()],
       idleReturn: { glideMs: HOME_GLIDE_MS },
       ...(homeZoom ? { homeSpan: homeZoom.span, homeWidth: homeZoom.width } : {}),
+      // WHAT IS OVER THE TOP OF THIS REGION, so the desk opens WHOLE under it (`topInsetOfStage`).
+      insets: { top: topInsetOfStage(container) },
     },
     // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what
     // puts the far reader's own disc where they are actually sitting — or takes it off the felt
@@ -490,6 +520,11 @@ export function startTable(container: HTMLElement): Teardown {
     taps: (piece: Node) => (seat ? avatars?.tapped(seat, piece) === true : false),
   });
   standing = live;
+  /**
+   * THE DESK IS COVERED UNTIL IT KNOWS WHOSE SIDE IT IS SEEN FROM — raised once the seat has
+   * arrived and the view has been taken home, and never before (`curtain.ts`).
+   */
+  const cover = curtain(container);
   // THE CAMERA'S OWN TWO CONTROLS IN THE CORNER — the kit's, wired in one line. North is on every
   // desk; the place button appears because this desk names seats, and it asks for exactly what a tap
   // on one's own ring asks for, so the two can never take a reader to two different places.
@@ -605,6 +640,12 @@ export function startTable(container: HTMLElement): Teardown {
         redraw();
       });
 
+      // THE COVER COMES OFF ON A FRAME THAT IS ALREADY HOME — the view was taken to this screen's
+      // own place above, the tree that arrived is standing, and the chairs are up. Everything the
+      // owner used to watch happen (a middle-of-the-room table, a chair popping in, the camera
+      // sliding after it) happened while the desk was still hidden. See `curtain.ts`.
+      cover.raise();
+
       unbindOnRelay = table.onRelay((msg) => {
         if (peopleWire?.heard(msg)) {
           redraw();
@@ -624,6 +665,10 @@ export function startTable(container: HTMLElement): Teardown {
     })
     .catch((err) => {
       console.error("joinTable error:", err);
+      // A DESK NOBODY COULD JOIN IS STILL SHOWN. The cover is there because the seat is not known
+      // yet, and a join that failed is an answer too — held down, it would leave a player looking
+      // at a blank rectangle with no way to tell it from a dead screen.
+      cover.raise();
     });
 
   return () => {
@@ -637,6 +682,7 @@ export function startTable(container: HTMLElement): Teardown {
     for (const dot of farDots.values()) dot.remove();
     // TELLS THE KIT'S OWN `Avatars` TO STOP LISTENING — see the marker's own comment above: without
     // this, the persistent `#stage` never disconnects and the wiring goes on hearing the relay.
+    cover.raise();
     peopleWall.remove();
     hud?.stop();
     live.stop();

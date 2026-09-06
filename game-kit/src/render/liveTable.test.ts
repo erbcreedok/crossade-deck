@@ -39,7 +39,7 @@ import {
 } from "../index.js";
 import { Camera } from "./camera/index.js";
 import { liveTable } from "./liveTable.js";
-import { homeTarget, isHome } from "./presence.js";
+import { HOME_ANCHOR, homeTarget, isHome } from "./presence.js";
 
 function stubPainter(): Painter {
   return { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
@@ -52,9 +52,9 @@ const finger = (type: string, x: number, y: number, ms = 0): MouseEvent => {
 };
 
 /** A glass of a fixed size — jsdom lays nothing out, and a host asked its size answers one by one. */
-function glass(el: { getBoundingClientRect?: unknown }): void {
+function glass(el: { getBoundingClientRect?: unknown }, size = { width: 600, height: 400 }): void {
   Object.defineProperty(el, "getBoundingClientRect", {
-    value: () => ({ left: 0, top: 0, width: 600, height: 400, x: 0, y: 0, toJSON: () => {} }),
+    value: () => ({ left: 0, top: 0, ...size, x: 0, y: 0, toJSON: () => {} }),
     configurable: true,
   });
 }
@@ -309,7 +309,10 @@ describe("the live desk", () => {
     // 25×25 room here keeps the arithmetic checkable by hand.
     const { root } = desk();
     const div = document.createElement("div");
-    glass(div); // 600×400, from the test's own stub
+    // A TALL GLASS, so that the ask is the only thing deciding: on a short one the desk is brought
+    // in until the whole of it fits above the home anchor (`homeZoom`), which is a different law
+    // and has its own test below.
+    glass(div, { width: 600, height: 1200 });
     document.body.appendChild(div);
 
     const live = liveTable(div, root, {
@@ -339,7 +342,7 @@ describe("the live desk", () => {
     // sentence about the TABLE, and the same number decides the opening zoom and the glide.
     const { root } = desk();
     const div = document.createElement("div");
-    glass(div); // 600×400, from the test's own stub
+    glass(div, { width: 600, height: 1200 }); // tall, so only the ask decides — see the test above
     document.body.appendChild(div);
 
     const live = liveTable(div, root, {
@@ -360,6 +363,39 @@ describe("the live desk", () => {
     live.idle!.goHome();
     live.idle!.step(600);
     expect(camera.zoom, "and the glide lands on the very same number").toBeCloseTo(spanZoom, 5);
+    live.stop();
+  });
+
+  it("liveTable.seats-insets — a short glass under a consumer's own bar opens on the WHOLE desk", () => {
+    // THE DESK MUST BE WHOLE between whatever covers the top of the glass and the place at the home
+    // anchor. The hub's own strip is not a node on this desk and the kit cannot see it, so the
+    // consumer hands the number in (`seats.insets`) and home is brought in until the far rim clears
+    // it — a table smaller than the ask and entire, rather than the ask with its top off the screen.
+    const { root } = desk();
+    const div = document.createElement("div");
+    glass(div, { width: 393, height: 740 });
+    document.body.appendChild(div);
+
+    const live = liveTable(div, root, {
+      painter: () => stubPainter(),
+      room: { x: -15, y: -15, w: 30, h: 30 },
+      unit: 1,
+      limits: { minZoom: 0.01, maxZoom: 200 },
+      seats: { places: [{ at: { x: 0, y: 10 }, facing: 0 }], mine: 0, homeSpan: 1.5, homeWidth: 20, insets: { top: 70 } },
+    });
+    const camera = live.camera!;
+    /** Where the top of the felt lands on the glass, in screen pixels, at the zoom standing now. */
+    const topOfFelt = (): number => 740 * HOME_ANCHOR.y - 20 * camera.pixelsPerUnit;
+    expect(camera.zoom, "smaller than the ask, because the ask would not fit").toBeLessThan((393 * 1.5) / 20);
+    expect(topOfFelt(), "and the whole of the desk is under the bar").toBeGreaterThanOrEqual(70);
+
+    // ...AND THE GLIDE LANDS ON THE VERY SAME NUMBER, or a view left alone would slide to a picture
+    // the desk never opened with.
+    const opened = camera.zoom;
+    camera.setZoom(1);
+    live.idle!.goHome();
+    live.idle!.step(600);
+    expect(camera.zoom).toBeCloseTo(opened, 5);
     live.stop();
   });
 

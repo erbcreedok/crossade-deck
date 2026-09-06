@@ -46,6 +46,7 @@ import { type GripSpec, GRIP, GRIP_HOLD, GRIP_MISS, isDrawn, isGrip, isMark, isP
 import { boxOfDesk, handOver, otherGrips } from "./handover.js";
 import { type HeapRule } from "./heaps.js";
 import { mount, type Host, type Viewport } from "./host.js";
+import { homeZoom, type HomeInsets } from "./homeView.js";
 import { GLIDE_MS, idleReturn, type IdleReturnTracker } from "./idleReturn.js";
 import { aimOf, landingPicture, throwGate, zoneFor } from "./landing.js";
 import { type Mirror } from "./mirror.js";
@@ -398,6 +399,12 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
      * a span measured across it would put the table at a third of the size the owner asked for.
      */
     readonly homeWidth?: number;
+    /**
+     * WHAT IS ALREADY COVERING THE TOP OF THE GLASS, in screen pixels — a consumer's own bar over
+     * the desk's own region. The kit cannot see it (it is not a node on this desk), and the desk
+     * still has to be WHOLE under it: home is brought in until the far rim clears it (`homeZoom`).
+     */
+    readonly insets?: HomeInsets;
   };
 }
 
@@ -508,6 +515,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
       ...opts,
       ...(seats?.homeSpan !== undefined ? { homeSpan: seats.homeSpan } : {}),
       ...(seats?.homeWidth !== undefined ? { homeWidth: seats.homeWidth } : {}),
+      ...(seats?.insets ? { insets: seats.insets } : {}),
       onView: () => {
         idleOnPan.current?.();
         opts.onView?.();
@@ -545,7 +553,17 @@ export function liveTable<S extends LiveStage = LiveStage>(
           {
             ...(seats.idleReturn === false ? { afterMs: Infinity } : (seats.idleReturn ?? {})),
             ...(seats.homeSpan !== undefined
-              ? { homeZoom: () => built.camera!.spanZoom(seats.homeSpan!, seats.homeWidth) }
+              ? {
+                  homeZoom: () =>
+                    built.camera!.spanZoom(
+                      homeZoom(
+                        built.camera!.glass,
+                        { span: seats.homeSpan!, ...(seats.homeWidth !== undefined ? { width: seats.homeWidth } : {}) },
+                        seats.insets ?? {},
+                      ),
+                      seats.homeWidth,
+                    ),
+                }
               : {}),
           },
         )
@@ -1178,6 +1196,8 @@ interface StageOptions {
   readonly homeSpan?: number;
   /** THE SAME `seats.homeWidth` — see `LiveTableOptions.seats.homeWidth`. */
   readonly homeWidth?: number;
+  /** THE SAME `seats.insets` — see `LiveTableOptions.seats.insets`. */
+  readonly insets?: HomeInsets;
 }
 
 /**
@@ -1272,7 +1292,17 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
     const wish = opts.open?.({ root: host.root, room, unit: unitOf(), view: v });
     // HOME, WHEN THE DESK NAMED ONE (`homeSpan`) — the same reading `idleReturn`'s own glide lands
     // on, so the desk opens exactly where a tap on the ring would take it right back to.
-    const home = opts.homeSpan !== undefined ? camera.spanZoom(opts.homeSpan, opts.homeWidth) : camera.fitZoom();
+    const home =
+      opts.homeSpan !== undefined
+        ? camera.spanZoom(
+            homeZoom(
+              camera.glass,
+              { span: opts.homeSpan, ...(opts.homeWidth !== undefined ? { width: opts.homeWidth } : {}) },
+              opts.insets ?? {},
+            ),
+            opts.homeWidth,
+          )
+        : camera.fitZoom();
     // A WISH IS NOT A WAY OUT OF THE LIMITS: whatever the desk asks for is held between the zoom
     // that fits the room and the furthest the camera is allowed in.
     camera.setZoom(Math.max(camera.fitZoom(), Math.min(wish ?? home, limits.maxZoom)));

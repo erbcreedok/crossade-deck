@@ -591,6 +591,7 @@ export {
   type CameraState,
   type Fling,
 } from "./render/camera/index.js";
+export { homeZoom, HOME_MARGIN, type HomeInsets, type HomeRoom } from "./render/homeView.js";
 export { idleReturn, type IdleReturnOpts, type IdleReturnTracker } from "./render/idleReturn.js";
 // The camera's own two controls on the glass — `liveCameraHud(live)` is the whole of the wiring
 // for a `liveTable`, and `cameraHud` is the pair itself for a consumer that owns its own screen.
