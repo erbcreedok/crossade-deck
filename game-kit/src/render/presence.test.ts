@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { Camera } from "./camera/index.js";
 import {
+  AVATAR_LAYER,
   avatarAt,
   avatarId,
   placeAvatars,
@@ -16,8 +17,11 @@ import {
   type Presence,
   type PresenceDoc,
 } from "./presence.js";
-import { byId, caps, fieldsOf, node } from "../core/node.js";
+import { add, byId, caps, fieldsOf, node, type Node } from "../core/node.js";
+import { Acceptor } from "../core/atoms/acceptor.js";
+import { Bounded } from "../core/atoms/bounded.js";
 import { Container, registerLayout } from "../core/atoms/container.js";
+import { rect } from "../presets/shapes.js";
 import { Grabber } from "../core/atoms/grab.js";
 import { freeLayout } from "../core/atoms/layouts.js";
 import { type TransformableFields } from "../core/atoms/transformable.js";
@@ -95,15 +99,43 @@ describe("presence", () => {
 
   it("presence.the-desk-keeps-one-person-per-seat — and drops whoever left the table", () => {
     const desk = node("desk", Container({}));
+    const layer = (): Node => byId(desk, AVATAR_LAYER)!;
     placeAvatars(desk, [person("south"), person("north")]);
-    expect(desk.children.length).toBe(2);
+    expect(layer().children.length).toBe(2);
 
     // Fed again, the same two people are still two people — not four.
     placeAvatars(desk, [person("south"), person("north")]);
-    expect(desk.children.length).toBe(2);
+    expect(layer().children.length).toBe(2);
 
     placeAvatars(desk, [person("south")]);
-    expect(desk.children.map((n) => n.id)).toEqual([avatarId("south")]);
+    expect(layer().children.map((n) => n.id)).toEqual([avatarId("south")]);
+  });
+
+  it("presence.a-disc-is-not-a-piece — the people stand in a layer of the desk, never in its own list", () => {
+    // WHERE A DISC IS PUT decides what the rest of the desk thinks it is. Among the desk's own
+    // children it is a piece to everything that reads them — a container arranges it like a card,
+    // a square's `Displacer` sends whoever stands there away, an `Acceptor` counts it as what is
+    // now in the place — and on a board that reads as an avatar standing on a square instead of a
+    // man. So the disc goes in a layer that holds nothing else, and that layer holds no `Container`
+    // and no `Acceptor` at all.
+    registerLayout("presence.grid", freeLayout);
+    const desk = node("desk", Container({ layout: "presence.grid" }), Acceptor({}));
+    const piece = node("man", Bounded({ bounds: rect(1, 1) }));
+    add(desk, piece);
+    placeAvatars(desk, [person("south"), person("north")]);
+
+    // The desk's own list is what it was, plus ONE node that is not a person.
+    expect(desk.children.map((n) => n.id)).toEqual(["man", AVATAR_LAYER]);
+    const layer = byId(desk, AVATAR_LAYER)!;
+    for (const atom of ["Container", "Acceptor", "Displacer", "Grabber", "Keeper"]) {
+      expect(caps(layer).has(atom), `the layer has no ${atom}`).toBe(false);
+    }
+    // ...and it is the LAST child, so the discs are painted over everything: equals in the plan are
+    // ranked by document order, and a desk grows furniture after the people arrived.
+    add(desk, node("late furniture"));
+    placeAvatars(desk, [person("south"), person("north")]);
+    expect(desk.children[desk.children.length - 1]!.id).toBe(AVATAR_LAYER);
+    expect(byId(desk, avatarId("south"))!.parent!.id).toBe(AVATAR_LAYER);
   });
 
 

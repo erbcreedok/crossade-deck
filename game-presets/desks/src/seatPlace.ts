@@ -178,12 +178,37 @@ export function seatChairs(
   places: readonly { readonly at: Vec }[],
   seats: readonly SeatOfDesk[],
 ): readonly Node[] {
+  const layer = chairLayer(desk);
   return places.map((place, i) => {
     const seat = seats[i];
     const chair = seatChair(seat?.seat ?? `${i}`, place, seat ? { ink: seat.ink, ...(seat.name !== undefined ? { name: seat.name } : {}) } : undefined);
-    add(desk, chair);
+    add(layer, chair);
     return chair;
   });
+}
+
+/**
+ * THE LAYER THE CHAIRS STAND IN — a node of the desk that holds rings and nothing else.
+ *
+ * A ring is no more a piece than a disc is. Put among the desk's own children it is one to
+ * everything that reads them: an arrangement seats it, a square's `Displacer` sends whoever stands
+ * there away, a drop counts it as what is now in the place. On a board that reads as an outline
+ * standing on e4 instead of a man; the layer is what makes it impossible rather than merely untrue
+ * today.
+ *
+ * No `Container` on it and no `Acceptor`: nothing arranges what is in it and nothing may be dropped
+ * in it, and its children keep the pose `seatChair` wrote. It is made HERE and so is the desk's
+ * FIRST child — `seatChairs` is called before the pieces, and equals in the plan are ranked by
+ * document order, so every ring is under every card and every man on the board.
+ */
+export const CHAIR_LAYER = "seat layer";
+
+function chairLayer(desk: Node): Node {
+  const standing = byId(desk, CHAIR_LAYER);
+  if (standing) return standing;
+  const layer = node(CHAIR_LAYER);
+  add(desk, layer);
+  return layer;
 }
 
 /**

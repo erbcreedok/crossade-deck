@@ -317,10 +317,13 @@ export const PRESENCE_TEXT = "presence.name";
  * the tree — a node standing under the same id stays the same node to a mirror and to a drag.
  */
 export function placeAvatars(root: Node, presences: readonly Presence[]): void {
+  // NOT INTO THE DESK'S OWN LIST — into the people's layer (`AVATAR_LAYER`), which is what keeps a
+  // disc out of a square and out of every arrangement the desk has.
+  const layer = avatarLayer(root);
   for (const p of presences) {
     const standing = byId(root, avatarId(p.seat));
     if (standing?.parent) remove(standing.parent, standing);
-    add(root, avatarNode(p));
+    add(layer, avatarNode(p));
   }
   // WHOEVER IS NO LONGER IN THE MESSAGE IS NO LONGER AT THE DESK. Left standing, a player who closed
   // the tab would sit there for the rest of the evening, which is a lie the desk tells.
@@ -329,14 +332,41 @@ export function placeAvatars(root: Node, presences: readonly Presence[]): void {
   // one (`guard.id-is-opaque`). Told to look for a shape of id, this would also have swept away
   // whatever else a game happened to have named alike.
   const here = new Set(presences.map((p) => avatarId(p.seat)));
-  for (const child of [...root.children]) {
+  for (const child of [...layer.children]) {
     if (!isAvatar(child)) continue;
-    if (!here.has(child.id)) remove(root, child);
+    if (!here.has(child.id)) remove(layer, child);
   }
 }
 
 /** The mark an avatar wears so the desk can find its own again. */
 export const AVATAR_VALUE = "presence";
+
+/**
+ * THE LAYER THE PEOPLE STAND IN — a node of the desk that holds discs and nothing else.
+ *
+ * A disc is not a piece. Put among the desk's own children it becomes one to everything that reads
+ * them: a container's arrangement seats it like a card, a square's `Displacer` sends whoever is
+ * standing there to the tray, and an `Acceptor` counts it as the thing that is now in the place. A
+ * board is the sharpest case — a disc dropped into the desk's own list is a man on e4 that no game
+ * put there — but the fault is the same on a felt, and it is a fault of PARENTAGE rather than of
+ * arithmetic.
+ *
+ * So the layer, and it carries no `Container`, no `Acceptor` and no `Displacer` at all: nothing
+ * arranges what is in it, nothing may be dropped in it, and its children keep their own pose. What
+ * makes the discs read on top is that it is the desk's LAST child — equals in the plan are ranked
+ * by document order — and it is kept there on every placement, because a desk grows furniture after
+ * the people arrived.
+ */
+export const AVATAR_LAYER = "presence layer";
+
+function avatarLayer(desk: Node): Node {
+  const standing = byId(desk, AVATAR_LAYER);
+  const layer = standing ?? node(AVATAR_LAYER);
+  if (standing?.parent === desk && desk.children[desk.children.length - 1] === standing) return layer;
+  if (layer.parent) remove(layer.parent, layer);
+  add(desk, layer);
+  return layer;
+}
 
 function isAvatar(n: Node): boolean {
   return Boolean(fieldsOf<ValuedFields>(n, "Valued")?.values[AVATAR_VALUE]);
