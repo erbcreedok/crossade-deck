@@ -1,0 +1,24 @@
+game-kit/src/render/landing.ts
+  s_2cd23d7834a0dc::t_32f2bbee917406 363-386,392
+game-kit/src/render/landing.test.ts
+  s_2cd23d7834a0dc::t_815e124475df2b 69-120
+  s_2cd23d7834a0dc::t_c7fc7095272705 2-4
+game-kit/src/render/liveTable.ts
+  s_2cd23d7834a0dc::t_24d1b662db5b55 1125-1129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "772d55b3668c638d7c15c306e28425ec2237ee76",
+  "prompts": {},
+  "sessions": {
+    "s_2cd23d7834a0dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f7c4d04-3850-44b9-9798-7182185b2e84",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
