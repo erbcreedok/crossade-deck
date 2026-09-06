@@ -33,7 +33,7 @@ import {
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
 import { die } from "@game-presets/dice";
-import { CASTS, LAMP, installMapArt, kindOf, MAP, onTheDesk, PUT_DOWN, roomBy, warmingNodes, type Bump } from "./gestureMap.js";
+import { CASTS, LAMP, installMapArt, kindOf, MAP, onTheDesk, PUT_DOWN, roomBy, type Bump } from "./gestureMap.js";
 import { installMergeArt, mergeChip, MERGE_REACH } from "./mergeMap.js";
 
 
@@ -124,7 +124,6 @@ export function collisionMap(reach = MERGE_REACH): Node {
       onTheDesk(card);
       add(desk, card);
     });
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 
@@ -172,6 +171,5 @@ export function landingMap(reach = MERGE_REACH): Node {
       onTheDesk(card);
       add(desk, card);
     });
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }

@@ -640,6 +640,13 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
       else lateRetain = retain;
       if (started) apply(plan, marks, theme);
     },
+    // ASKED FOR EARLY, THROUGH THE VERY SAME DOOR A PLAN ASKS THROUGH (`textureFor`) — so a
+    // picture warmed here and a picture drawn later are one load and one cache entry, and the
+    // frame that finally names it finds it already standing.
+    warm(sources) {
+      if (!alive) return;
+      for (const src of sources) textureFor(src);
+    },
     resize(width, height) {
       if (!alive) return;
       if (started) app.renderer.resize(width, height);

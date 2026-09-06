@@ -93,7 +93,6 @@ export {
   PUT_DOWN,
   ROAM,
   svg,
-  warmingNodes,
   zoneKeen,
   zoneLine,
   ZONE_SPREAD,

@@ -51,7 +51,6 @@ import {
   onTheDesk,
   PULL,
   PUT_DOWN,
-  warmingNodes,
   zoneKeen,
   zoneLine,
   ZONE_SPREAD,
@@ -161,7 +160,6 @@ export function liveMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
       setFacing(card, "up");
       add(desk, card);
     });
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 

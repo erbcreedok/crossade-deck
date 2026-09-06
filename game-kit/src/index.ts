@@ -361,7 +361,7 @@ export { mount, HUD_UNIT_FRACTION, type Host, type Viewport } from "./render/hos
 // The native gestures a browser puts on top of a canvas — off the glass by `mount`, off the page
 // only when a standalone asks (a catalog page is prose, and prose is meant to be selectable).
 export { holdTheGlass, holdThePage } from "./render/native.js";
-export { attachPainter, renderFrame } from "./render/stage.js";
+export { attachPainter, renderFrame, warmPictures } from "./render/stage.js";
 // The one thing the HUD tells the camera, and the only wire between them: the rectangle of glass its
 // docked controls have not taken. See `render/safeArea.ts`.
 export { safeArea, type Room } from "./render/safeArea.js";

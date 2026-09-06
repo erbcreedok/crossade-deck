@@ -56,7 +56,7 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isDrawn, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, warmingNodes, zoneKeen, zoneLine, type HeapRule } from "./gestureMap.js";
+import { CASTS, LAMP, GRIP_GAP, GRIP_RATIO, installMapArt, isDrawn, isGrip, MAP, onTheDesk, PUT_DOWN, stackSeats, zoneKeen, zoneLine, type HeapRule } from "./gestureMap.js";
 // `handLayout`/`Spread`/`fitStep`/`PULL`/`ZONE_SPREAD` moved to `@game-presets/desks`'s felt — the
 // live desk lays its two areas out by the same four numbers a hand of cards is fitted by, so the
 // shape is a shared one and not this page's alone. Imported back and re-exported, one value per
@@ -184,7 +184,6 @@ export function magnetMap(pull = PULL, zone: Spread = ZONE_SPREAD): Node {
       setFacing(card, "down");
       add(desk, card);
     });
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 

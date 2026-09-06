@@ -32,6 +32,20 @@ export interface Painter {
    * onlooker asked — the model does not know this layer exists.
    */
   draw(plan: readonly Quad[], marks: readonly Mark[], theme: ThemeName, options?: DrawOptions): void;
+  /**
+   * ASK FOR THESE PICTURES NOW, before any plan mentions them.
+   *
+   * A renderer loads a texture the first time a plan asks to draw it, and until it lands the layer
+   * draws nothing (`textureFor`) — which is right, and is also why a die stutters through its first
+   * roll: it changes picture ten times a second and every face it has not shown yet is a frame of
+   * nothing. Warming is a question for the RENDERER's own cache, so it is asked of the renderer;
+   * the alternative the shelf used to run — a tiny node per picture, parked off the felt so that a
+   * PLAN would mention them all — put the whole asset registry on the desk as a strip of sprites.
+   *
+   * Absent is the ordinary case: a painter with no cache of its own has nothing to warm, and the
+   * lack of the capability is the refusal (there is no `warm: false`).
+   */
+  warm?(sources: readonly string[]): void;
   /** In CSS pixels. Device pixels are the painter's own business. */
   resize(width: number, height: number): void;
   destroy(): void;

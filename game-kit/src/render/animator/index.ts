@@ -40,7 +40,7 @@ import { bodyAt, insideWalls, separate, slideRests, stepFall, stepSlide, velocit
 import { apply, compose, IDENTITY, invert, move, pose, rotate, scale, type Transform, type Vec } from "../../core/transform.js";
 import { type Host } from "../host.js";
 import { type Painter } from "../painter.js";
-import { renderFrame } from "../stage.js";
+import { renderFrame, warmPictures } from "../stage.js";
 import { type TextMeasure } from "../textMetrics.js";
 import { transformsOf, viewTransform } from "../scenePlan/index.js";
 
@@ -91,6 +91,9 @@ const rafClock: Clock = {
 };
 
 export function attachMotion(host: Host, painter: Painter, options: MotionOptions = {}): Motions {
+  // THE PICTURES ARE ASKED FOR AT THE BINDING, exactly as the still painter's own `attachPainter`
+  // asks for them: a scene driven by the clock is the one that most needs them already there.
+  warmPictures(painter);
   let tuning: MotionTuning = tune(options);
   const clock = options.clock ?? rafClock;
 

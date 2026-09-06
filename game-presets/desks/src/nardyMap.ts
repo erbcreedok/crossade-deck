@@ -67,7 +67,7 @@ import {
   type BoxWalls,
 } from "game-kit";
 import { die } from "@game-presets/dice";
-import { installMapArt, onTheDesk, PUT_DOWN, warmingNodes } from "./felt.js";
+import { installMapArt, onTheDesk, PUT_DOWN } from "./felt.js";
 import { seatChairs } from "./seatPlace.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its marks'. */
@@ -235,7 +235,6 @@ export function nardyMap(reach = 0): Node {
   }
   add(desk, diceGrip());
   regripDice(desk);
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 

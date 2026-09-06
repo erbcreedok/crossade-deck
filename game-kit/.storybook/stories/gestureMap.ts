@@ -94,8 +94,8 @@ import { die } from "@game-presets/dice";
 // (the knight, the grid, the grip handle) are shared furniture for a shelf of sandbox desks and not
 // the kit's own. Imported back and re-exported, so every page and test on this shelf keeps its
 // import and there is one value per name and not two that drift.
-import { ANCHOR_MARK, CASTS, deskRoom, installMapArt, KNIGHT, KNIGHT_SURFACE, LAMP, MAP, MAP_SURFACE, onTheDesk, PUT_DOWN, ROAM, warmingNodes, zoneKeen, zoneLine } from "@game-presets/desks";
-export { ANCHOR_MARK, CASTS, deskRoom, installMapArt, LAMP, MAP, onTheDesk, PUT_DOWN, ROAM, warmingNodes, zoneKeen, zoneLine };
+import { ANCHOR_MARK, CASTS, deskRoom, installMapArt, KNIGHT, KNIGHT_SURFACE, LAMP, MAP, MAP_SURFACE, onTheDesk, PUT_DOWN, ROAM, zoneKeen, zoneLine } from "@game-presets/desks";
+export { ANCHOR_MARK, CASTS, deskRoom, installMapArt, LAMP, MAP, onTheDesk, PUT_DOWN, ROAM, zoneKeen, zoneLine };
 
 /**
  * The map, with its four pieces on it — two cards, a d6 and a knight, laid out around the middle so
@@ -137,7 +137,6 @@ export function gestureMap(): Node {
     CASTS,
     ),
   );
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 
@@ -313,7 +312,6 @@ export function stackMap(): Node {
   const d6 = die("die", { kind: "d6", at: { x: 1.7, y: 0.75 }, face: 5 });
   onTheDesk(d6);
   add(desk, d6);
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 
@@ -358,7 +356,6 @@ export function deckMap(): Node {
     setFacing(card, open ? "up" : "down");
     add(desk, card);
   });
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 

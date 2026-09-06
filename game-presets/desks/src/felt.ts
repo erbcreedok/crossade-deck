@@ -240,45 +240,6 @@ export function onTheDesk(piece: Node): Node {
   return piece;
 }
 
-/** How big a warming node is, in units — as small as a thing can be and still be asked for. */
-const WARM = 0.02;
-
-/**
- * WARM EVERY PICTURE THE DESK MIGHT SHOW, by ASKING FOR IT — one tiny node per picture, parked off
- * the map where no camera can reach.
- *
- * The painter loads a texture the first time a PLAN asks to draw it, and until it lands the layer
- * draws nothing at all (`textureFor`: a picture that has not arrived is skipped, so one slow emblem
- * cannot blank a table). That is right, and it is also why a die stutters through its first roll:
- * it changes picture ten times a second, and every face it has not shown yet is a frame of nothing.
- *
- * Decoding the image by hand does not help — the painter has its own cache, keyed by source, and it
- * fills only from its own loads. What DOES fill it is a plan that mentions the picture, so that is
- * what this is: the first frame asks for all of them at once, and every one is there by the time
- * anybody wants it.
- *
- * Asked of the SURFACE registry rather than of the dice, so nothing here has to know what a face
- * is: whatever has been registered with a picture in it by the time the desk is built gets warmed.
- */
-export function warmingNodes(): Node[] {
-  const out: Node[] = [];
-  for (const name of surfaceNames()) {
-    const layers = surfaceRecord(name)?.layers ?? [];
-    if (!layers.some((l) => l.image)) continue;
-    out.push(
-      node(
-        `warm ${name}`,
-        Bounded({ bounds: rect(WARM, WARM) }),
-        Surfaced({ surface: name }),
-        // Off the map and off the camera's own content, so nothing can be looked at or touched.
-        Transformable({ at: { x: MAP.w, y: MAP.h + out.length * WARM * 2 } }),
-        Valued({ values: { warm: 1 } }),
-      ),
-    );
-  }
-  return out;
-}
-
 // ---- THE SHARED HAND / ROW SPREAD --------------------------------------------------------------
 //
 // `handLayout`, `Spread` and `fitStep` are `magnetMap`'s own numbers for a hand of cards, and the

@@ -57,7 +57,7 @@ import {
   type ValuedFields,
   type Vec,
 } from "game-kit";
-import { installMapArt, PUT_DOWN, svg, warmingNodes } from "./felt.js";
+import { installMapArt, PUT_DOWN, svg } from "./felt.js";
 import { seatChairs } from "./seatPlace.js";
 
 /** The two players, and the colour each is drawn in — a seat's ink is its cursor's and its cells'. */
@@ -335,7 +335,6 @@ export function chessMap(reach = 0): Node {
     });
   }
 
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 

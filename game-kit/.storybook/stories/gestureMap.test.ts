@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apply, Camera, polar, type Vec } from "../../src/index.js";
 import { landingAt, landingBox, add, Bounded, Container, freeLayout, node, rect, registerLayout, type Node } from "../../src/index.js";
 import { caps, compose, extentOf, facing, fieldsOf, resetSurfaces, surfaceRecord, Transformable, type BoundedFields, type TransformableFields } from "../../src/index.js";
-import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, flickOf, flightOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, warmingNodes , heapKindOf } from "./gestureMap.js";
+import { DECK, deckMap, DIE_SPIN, DIE_SPIN_DRAG, dropOf, STACK_POUR, STACK_STEP, STACK_THICK, turnOver, THROWN_AT, thrown, fallOrder, gestureMap, GRIP, GRIP_GAP, GRIP_RATIO, heapBox, heapsOf, isGrip, kindOf, MAP, mapWalls, deskRoom, flockTo, restsAt, regrip, flickOf, flightOf, THROW_REACH, STACK_FALL_STEP, stackMap, stackSeats, toFront, heapKindOf } from "./gestureMap.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -158,24 +158,17 @@ describe("the stacking desk", () => {
     expect(faces / seconds, "faces a second — a blur, which is what a rolling die is").toBeGreaterThan(8);
   });
 
-  it("map.the-pictures-are-warmed-by-asking-for-them — off the map, and out of everything's way", () => {
-    // The painter loads a texture the first time a PLAN asks to draw it, and until it lands the
-    // layer draws nothing — which is why a die stutters through its first roll. So the first frame
-    // asks for all of them at once. Parked where no camera reaches and no rule counts them.
-    const warm = warmingNodes();
-    expect(warm.length, "every registered picture").toBeGreaterThan(6);
-    for (const n of warm) {
-      expect(kindOf(n), "not a piece, so no heap and no handle ever sees it").toBe("warm");
-      const at = fieldsOf<TransformableFields>(n, "Transformable")!.at!;
-      expect(Math.abs(at.x) > MAP.w / 2 || Math.abs(at.y) > MAP.h / 2, "off the map").toBe(true);
-    }
-    // And the desk that holds them still holds exactly the pieces it says it does.
+  it("map.no-atlas-on-the-felt — a desk carries pieces, never the asset registry", () => {
+    // The pictures used to be warmed with NODES — one tiny sprite per registered picture, parked
+    // just off the map so that a PLAN would name them all and the renderer would load them. What
+    // that put on the desk was the whole registry, as a strip of eighty images beside the felt.
+    // The question belongs to the renderer's own cache and is asked there (`Painter.warm`).
     const desk = stackMap();
-    expect(desk.children.filter((n) => kindOf(n) === "warm").length).toBe(warm.length);
-    expect(heapsOf(desk, heapKindOf), "warming nodes never form a heap").toEqual([]);
+    const stray = desk.children.filter((n) => kindOf(n) === "warm");
+    expect(stray.map((n) => n.id), "nothing on the desk is there to be loaded rather than played").toEqual([]);
+    expect(heapsOf(desk, heapKindOf), "and nothing off the map forms a heap").toEqual([]);
   });
 
-  
   it("map.every-desk-can-draw-a-handle — a picture nobody registered is silently nothing", () => {
     // An unregistered surface is SKIPPED and never thrown (one bad reference must not take a scene
     // down and hide every node that was fine). That is right, and it is also why this needs a guard:

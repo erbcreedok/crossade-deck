@@ -118,10 +118,6 @@ describe("what else is in the way", () => {
     for (const card of cards) expect(inTheWay, "a card is thin air to a die").not.toContain(card.id);
     // Neither is anything already in the run — it has a body of its own already.
     for (const one of dice) expect(inTheWay).not.toContain(one.id);
-    // Nor the desk's furniture: a warming node takes no room, so it is in nobody's way.
-    const warm = map.children.filter((n) => kindOf(n) === "warm");
-    expect(warm.length, "there is furniture on this desk to be ignored").toBeGreaterThan(0);
-    for (const one of warm) expect(inTheWay).not.toContain(one.id);
   });
 
   it("collision.a-throw-into-no-world-disturbs-nothing — which is every other desk on the shelf", () => {

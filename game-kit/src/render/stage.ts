@@ -9,6 +9,7 @@ import { bakeable } from "../core/atoms/bakeable.js";
 import { walk, type Node, type NodeId } from "../core/node.js";
 import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
+import { assetNames, assetRecord } from "./assets.js";
 import { type Painter } from "./painter.js";
 import { bakePlan, boundsMarks, gridMarks, scenePlan } from "./scenePlan/index.js";
 import { type TextMeasure } from "./textMetrics.js";
@@ -154,7 +155,26 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
   painter.draw(drawn, marks, host.viewer().theme, { retain });
 }
 
+/**
+ * EVERY PICTURE THE REGISTRY KNOWS, ASKED FOR AT ONCE — the renderer's own cache filled before a
+ * plan has named a single one of them (`Painter.warm`).
+ *
+ * A texture arrives late by design, and a piece that changes picture faster than a load takes —
+ * a die through its first roll — shows a frame of nothing for each face it has not worn yet. So
+ * the pictures are asked for the moment a tree is bound to a renderer, which is here.
+ *
+ * ASKED OF THE ASSET REGISTRY and not of the dice, the cards or the men, so nothing here has to
+ * know what a face is: whatever has been registered by the time a desk is bound gets warmed.
+ */
+export function warmPictures(painter: Painter): void {
+  painter.warm?.(assetNames().flatMap((name) => {
+    const src = assetRecord(name)?.src;
+    return src === undefined ? [] : [src];
+  }));
+}
+
 export function attachPainter(host: Host, painter: Painter, options: PaintOptions = {}): () => void {
+  warmPictures(painter);
   const redraw = (): void => renderFrame(host, painter, options);
   redraw();
   return host.onChange(redraw);

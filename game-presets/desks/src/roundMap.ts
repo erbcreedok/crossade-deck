@@ -44,7 +44,7 @@ import {
   type Vec,
 } from "game-kit";
 import { cards as crossadeCards } from "@game-presets/cards";
-import { installMapArt, LAMP, onTheDesk, warmingNodes } from "./felt.js";
+import { installMapArt, LAMP, onTheDesk } from "./felt.js";
 import { LIVE, SEATS } from "./liveMap.js";
 import { seatChairs } from "./seatPlace.js";
 
@@ -136,7 +136,6 @@ export function roundMap(seats: readonly { readonly seat: string; readonly ink: 
       setFacing(card, "up");
       add(desk, card);
     });
-  for (const warm of warmingNodes()) add(desk, warm);
   return desk;
 }
 
