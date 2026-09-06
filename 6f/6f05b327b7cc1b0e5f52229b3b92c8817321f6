@@ -1,0 +1,40 @@
+apps/hub/src/hub/shell.ts
+  s_30beae0ff1770f::t_0da89c7d8e0df5 111-126,130,134-137,140-141
+  s_30beae0ff1770f::t_b0dd1320b0360e 34,36
+  s_30beae0ff1770f::t_c3aefd68dea981 179-181
+apps/hub/src/look/surfaces.ts
+  s_30beae0ff1770f::t_d45eb84046605f 12
+  s_30beae0ff1770f::t_de6640bfb2e8a2 73-108
+  s_30beae0ff1770f::t_071e3c24322dd5 24-27
+  s_30beae0ff1770f::t_dcb5109318524b 125-133
+apps/hub/src/hub/grid.ts
+  s_30beae0ff1770f::t_19fef4c0aacea8 36
+  s_30beae0ff1770f::t_7ce437451e37bb 248
+  s_30beae0ff1770f::t_5e3671764fd9f3 283
+  s_30beae0ff1770f::t_9f822a9a06547a 222-236
+apps/hub/src/hub/twinkle.ts
+  s_30beae0ff1770f::t_e88cb7907d26f4 1-33
+apps/hub/src/hub/grid.test.ts
+  s_30beae0ff1770f::t_cadd259a705c32 1-23
+apps/hub/src/hub/twinkle.test.ts
+  s_30beae0ff1770f::t_a011fcfebc690c 1-31
+apps/hub/src/look/palette.ts
+  s_30beae0ff1770f::t_9f8e21d5a0295e 33-34
+  s_30beae0ff1770f::t_8e595ffb044943 58-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6f6f05b327b7cc1b0e5f52229b3b92c8817321f6",
+  "prompts": {},
+  "sessions": {
+    "s_30beae0ff1770f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f6cbdfac-9adb-4381-989d-dfc4f12336ea",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
