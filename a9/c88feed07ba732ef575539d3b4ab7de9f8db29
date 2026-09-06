@@ -1,0 +1,41 @@
+game-kit/.storybook/stories/avatars.ts
+  s_b3d4243dd9bb42::t_c77bc470c97105 116
+  s_b3d4243dd9bb42::t_5e485820767010 67-73
+game-kit/docs/test-plan/67-live.md
+  s_b3d4243dd9bb42::t_5f3945b51e2e1e 3,20
+game-kit/.storybook/stories/Cards.stories.ts
+  s_b3d4243dd9bb42::t_62164be36e8f85 128
+  s_b3d4243dd9bb42::t_e2f84010be8df7 106,124-127,129-130
+game-kit/docs/test-plan/README.md
+  s_b3d4243dd9bb42::t_b1965bcf016ac3 10,95
+game-kit/.storybook/stories/Nardy.stories.ts
+  s_b3d4243dd9bb42::t_e2f84010be8df7 85,99-105
+game-kit/.storybook/stories/avatars.test.ts
+  s_b3d4243dd9bb42::t_5644b2862225ca 11,156-158
+  s_b3d4243dd9bb42::t_f022884da12a87 10,13-23,123-155,159-163
+  s_b3d4243dd9bb42::t_a598363120bf4c 164
+game-kit/.storybook/stories/Chess.stories.ts
+  s_b3d4243dd9bb42::t_e2f84010be8df7 102,116-122
+game-kit/.storybook/stories/Hands.stories.ts
+  s_b3d4243dd9bb42::t_4c2e5df169d97b 26,37
+  s_b3d4243dd9bb42::t_87018d61d95e31 88-102
+  s_b3d4243dd9bb42::t_15e6615ed13f04 108,112,120,123,127-134,165-166,171
+  s_b3d4243dd9bb42::t_ff651076f8f24a 176-181
+  s_b3d4243dd9bb42::t_77c5ce8310ee75 16,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a9c88feed07ba732ef575539d3b4ab7de9f8db29",
+  "prompts": {},
+  "sessions": {
+    "s_b3d4243dd9bb42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bdd7125-1daa-4894-a095-c4328ba1c1f4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
