@@ -439,9 +439,15 @@ export function startTable(container: HTMLElement): Teardown {
    * THE DESK IS TOLD TO DRAW ITSELF AGAIN — `Avatars` writes discs, rings and hands straight into
    * `standing.host.root` (the same tree, by the thunk it was handed), and a write to the tree is not
    * by itself a repaint: nothing else here re-renders on a timer while the camera stands still.
+   *
+   * A PLAIN REPAINT (`motions.redraw`), never `host.setRoot`: the tree object is already the one
+   * standing, so `setRoot` would only be telling the host to swap it for itself — but the host
+   * answers every swap by firing `onChange`, which re-fits the camera and calls `onView`, which is
+   * THIS DESK'S OWN `onView` below — the one that calls `redraw()`. A screen open on its own felt,
+   * touched by nobody, span forever between the two before the first frame ever reached the glass.
    */
   const redraw = (): void => {
-    if (standing) standing.setRoot(standing.host.root, "net");
+    standing?.motions?.redraw();
   };
   const mirror: Mirror<LiveStage> = {
     ready: () => {},
