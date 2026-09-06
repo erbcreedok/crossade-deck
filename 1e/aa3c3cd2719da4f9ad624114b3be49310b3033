@@ -1,0 +1,19 @@
+apps/hub/src/table/index.ts
+  s_920c03f75ae242::t_da43c1d5f5003c 442-447,450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1eaa3c3cd2719da4f9ad624114b3be49310b3033",
+  "prompts": {},
+  "sessions": {
+    "s_920c03f75ae242": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5865724e-87c5-4f18-8502-3bcd85d2ece3",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
