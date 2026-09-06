@@ -1,0 +1,20 @@
+game-kit/docs/test-plan/78-live-table.md
+  h_2b92b67d011bfc 3,16-20
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,105
+game-kit/src/render/liveTable.test.ts
+  h_2b92b67d011bfc 21,34,36,76-93,309-450
+game-kit/src/render/liveTable.ts
+  h_2b92b67d011bfc 97-111,590-602,627,648,695-701,816-817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "87acbbe37330de295471ece47202f00828d31cf2",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
