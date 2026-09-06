@@ -28,9 +28,11 @@ import {
   node,
   rect,
   registerLayout,
+  registerSurface,
   Surfaced,
   Transformable,
   type Clock,
+  type BoundedFields,
   type MarkedFields,
   type Node,
   type Painter,
@@ -39,6 +41,7 @@ import {
   type ValuedFields,
 } from "../index.js";
 import { Camera } from "./camera/index.js";
+import { GRIP_SPEC, isDrawn } from "./grips.js";
 import { liveTable } from "./liveTable.js";
 import { HOME_ANCHOR, homeTarget, isHome } from "./presence.js";
 
@@ -196,6 +199,36 @@ function deskWithFeltRing(): { root: Node } {
     Draggable({ onReject: "stay" }),
   );
   add(root, ring);
+  return { root };
+}
+
+/**
+ * A DESK WITH A DECK ON IT — three cards touching, so the wiring draws them a handle (`regrip`).
+ *
+ * The surfaces the handle and the picture of the landing wear are the CATALOG's names: the kit ships
+ * no art, and a node whose surface nobody registered is left out of the plan — which means left out
+ * of the pick, and a tab no finger can land on.
+ */
+function deskWithADeck(): { root: Node } {
+  installStockSurfaces();
+  installStockGrabs();
+  registerLayout("live.free", freeLayout);
+  registerSurface("gesture.map.grip", { layers: [] });
+  registerSurface("gesture.map.mark", { layers: [] });
+  const root = node("desk", Bounded({ bounds: rect(8, 8) }), Container({ layout: "live.free" }), Grabber());
+  for (let i = 0; i < 3; i += 1) {
+    add(
+      root,
+      node(
+        `card${i}`,
+        Bounded({ bounds: rect(1, 1.4) }),
+        Surfaced(),
+        Transformable({ at: { x: i * 0.004, y: -i * 0.012 } }),
+        Draggable({ onReject: "stay" }),
+        Carry({ orient: "holder" }),
+      ),
+    );
+  }
   return { root };
 }
 
@@ -780,6 +813,61 @@ describe("the live desk", () => {
     // from the outline that promised where it was going.
     const seat = seatOf(shell.host.root, "card");
     expect(Math.hypot(seat.x - at.x, seat.y - at.y), "…at the point the picture stood on").toBeLessThan(0.15);
+    live.stop();
+  });
+
+  it("liveTable.a-deck-is-carried-as-one-body — the handle, the cards and the outline take one turn", () => {
+    // A RUN LED BY A HANDLE IS LED BY A CONTROL, and a control never lies the way its holder held
+    // it. Asked of the TAB, the carry was told nobody wanted the holder's turn: the deck hung off
+    // to the side of its own handle, the picture of the landing stood beside the pile rather than
+    // under it, and the cards still came down turned — two answers to one question, from two
+    // different nodes (`drag.ts`'s `orientDeg`, the same law `zoneFor` is written to).
+    const { root } = deskWithADeck();
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -4, y: -4, w: 8, h: 8 }, shell.host.unit());
+    shell.camera!.turnTo(90);
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      letGo: "drop",
+      stacking: true,
+      heapKindOf: (n: Node) => (fieldsOf<BoundedFields>(n, "Bounded") && !isDrawn(n) ? "card" : ""),
+      grip: GRIP_SPEC,
+    });
+    const tab = shell.host.root.children.find((n) => fieldsOf<ValuedFields>(n, "Valued")?.values?.["grip"] !== undefined)!;
+    expect(tab, "a heap on the felt is given a handle").toBeDefined();
+    const on = apply(shell.camera!.transform(), fieldsOf<TransformableFields>(tab, "Transformable")!.at!);
+
+    // SLOWLY, so the hand is never judged to be throwing — a throw takes the picture off the desk.
+    shell.el.dispatchEvent(finger("pointerdown", on.x, on.y, 0));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", on.x + i * 8, on.y, i * 200));
+      c.tick(1);
+    }
+    c.tick(40); // let the springs arrive, so what is drawn is what is aimed at
+
+    const mark = shell.host.root.children.find((n) => fieldsOf<ValuedFields>(n, "Valued")?.values?.["mark"] !== undefined);
+    expect(mark, "a picture of the landing is drawn under a lifted deck").toBeDefined();
+    const poses = shell.motions!.poses()!;
+    const drawn = (id: string) => apply(poses.get(id)!, { x: 0, y: 0 });
+    // ONE BODY: the handle at the finger, the outline above it and the pile above that — all along
+    // the holder's own up, which under a camera turned by 90° is the desk's own `-x`.
+    const hand = drawn(tab.id);
+    const outline = drawn(mark!.id);
+    const load = drawn("card0");
+    expect(outline.y - hand.y, "the outline stands square with the hand, not off to one side").toBeCloseTo(0, 2);
+    expect(load.y - hand.y, "…and so does the load").toBeCloseTo(0, 2);
+    expect(outline.x, "the outline is clear of the finger, along the holder's own up").toBeLessThan(hand.x);
+    expect(load.x, "…and the load is clear of the outline").toBeLessThan(outline.x);
+
+    shell.el.dispatchEvent(finger("pointerup", on.x + 32, on.y, 1000));
+    c.tick(60);
+    // ...AND THE PICTURE WAS THE LANDING. Same point and same turn: the outline promised where the
+    // deck was going, and the deck went there.
+    expect(turnOf(shell.host.root, "card0"), "the deck came down at the holder's turn").toBeCloseTo(270, 5);
+    const seat = seatOf(shell.host.root, "card0");
+    expect(Math.hypot(seat.x - outline.x, seat.y - outline.y), "…at the point the picture stood on").toBeLessThan(0.15);
     live.stop();
   });
 

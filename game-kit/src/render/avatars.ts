@@ -207,7 +207,7 @@ export function withAvatars(o: AvatarsOptions): Avatars {
   const layChairs = (): void => {
     for (const { seat } of o.seats) {
       const place = placed.get(seat);
-      if (place) standChair(desk(), seat, place.at);
+      if (place) standChair(desk(), seat, place.at, place.facing);
     }
   };
 
@@ -269,9 +269,20 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       const carryingSeat = items.some((it) => it.id === chairId(seat));
       // WHERE THE FINGER PUT THE CHAIR IS WHERE THIS PERSON NOW SITS — written straight into the
       // place, in the desk's own units, which is what a carry speaks and what a place is kept in.
-      // The facing is NOT touched: dragging a chair moves a seat, it does not turn it round.
+      //
+      // ...AND AT THE TURN ITS HOLDER WAS LOOKING FROM, on the release and only there. A card lies
+      // the way its holder held it (`holderTurn`), and a place is the one thing on the felt that
+      // says which way somebody is sitting: a reader who spun their view and moved their ring was
+      // left sat at the old angle, so the tick on the rim pointed where nobody was and coming home
+      // glided the view back to a facing its owner had left. Read off the same message everybody
+      // else reads their turn from (`PresenceView.rotation`), so both screens land on one number.
+      //
+      // ON THE RELEASE, because a facing rewritten every frame of a carry is the reader's own view
+      // turning under their finger: the ring would follow the camera about while it was being held,
+      // and `isHome` would flicker for the whole gesture.
       const was = placed.get(seat);
-      if (carryingSeat && at && was) placed.set(seat, { at, facing: was.facing });
+      const facing = done ? o.transport.mine().find((p) => p.seat === seat)?.view.rotation : undefined;
+      if (carryingSeat && at && was) placed.set(seat, { at, facing: facing ?? was.facing });
       if (done) holding.delete(seat);
       else if (!carryingSeat) holding.add(seat);
       if (carryingSeat || done) publish();

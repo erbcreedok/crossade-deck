@@ -23,6 +23,7 @@ import { wearInvites } from "../core/invite.js";
 import { mark } from "../core/atoms/marked.js";
 import { applyMove, planMove } from "../core/move.js";
 import { carryOrientOf, holderTurn, ridesFelt } from "../core/atoms/carry.js";
+import { isDrawn } from "./grips.js";
 import { landingRecord, type OccupiedOutcome } from "../core/atoms/occupied.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { glassOf, pick, toUnits } from "./pointer.js";
@@ -481,7 +482,15 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       ...feel
     } = w.opts;
     const tray = trayOf?.(root, hit);
-    const orient = items[0] ? carryOrientOf(byId(root, items[0].id)!) : "keep";
+    // ASKED OF THE RUN'S FIRST PIECE, never of its handle — the same law `zoneFor` is written to.
+    //
+    // A run led by a handle is led by a CONTROL, and a control never lies the way its holder held
+    // it: asked of the tab, a deck carried on a turned camera was carried square while the cards in
+    // it came down at the holder's turn. The stack hung off to the side of its own handle, the
+    // picture of the landing stood beside the pile rather than under it, and the two answers to
+    // "which way is this going to lie" were given by two different nodes.
+    const lead = items.map((it) => byId(root, it.id)).find((n) => n !== undefined && !isDrawn(n));
+    const orient = lead ? carryOrientOf(lead) : "keep";
     const orientDeg = orient === "holder" ? holderTurn(w.opts.view?.()) : undefined;
     const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}), ...(orientDeg !== undefined ? { orientDeg } : {}) };
     w.drag = { ...w.drag, tray, feel: felt };

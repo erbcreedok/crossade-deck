@@ -18,6 +18,7 @@ import {
   caps,
   fieldsOf,
   grippableBy,
+  ridesFelt,
   surfaceRecord,
   type LabeledFields,
   type Node,
@@ -179,6 +180,15 @@ describe("a seat is drawn", () => {
     expect(fieldsOf<SurfacedFields>(free, "Surfaced")?.surface).toBe(chairSurface());
     expect(surfaceRecord(chairSurface())?.stroke?.dash).toBeTruthy();
     expect(surfaceRecord(chairSurface())?.stroke?.color).not.toBe("accent");
+  });
+
+  it("seat.a-ring-rides-the-felt — a place is slid, never lifted and never thrown", () => {
+    // A CHAIR IS NOT A CARD. The wiring tells the two apart by how the thing is CARRIED
+    // (`ridesFelt`), and a ring that never said so was carried as a piece: a contour of a landing
+    // appeared under a dragged seat and a flicked one flew off across the felt.
+    const desk = roundMap();
+    expect(ridesFelt(byId(desk, chairId(SEATS[0]!.seat))!), "a chair on a dealt desk slides").toBe(true);
+    expect(ridesFelt(seatChair("north", { at: { x: 0, y: -5 } })), "…and so does a place nobody holds").toBe(true);
   });
 
   it("seat.the-ring-wears-its-own-facing — a tick on the rim, where that place looks", () => {

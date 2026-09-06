@@ -503,6 +503,7 @@ export {
   looseCarry,
   registerCarry,
   resetCarries,
+  ridesFelt,
   rigidCarry,
   type CarryContext,
   type CarryStyle,

@@ -24,7 +24,7 @@ import {
   type SurfacedFields,
   type TransformableFields,
 } from "../index.js";
-import { chairHome, chairId, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
+import { chairHome, chairId, chairTickId, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
 import { mayTake } from "@game-presets/desks";
 
 /** A camera that has nothing else — the one thing `withAvatars` asks a screen for. */
@@ -114,6 +114,30 @@ describe("the people at a live desk", () => {
     people.handed(seat, [{ id: chairId(seat) }] as never, { x: 0, y: -(ROUND_R - 1) }, true);
     expect(people.placeOf(seat)?.at).toEqual({ x: 0, y: -(ROUND_R - 1) });
     expect(at(byId(desk, chairId(seat))!)).toEqual({ x: 0, y: -(ROUND_R - 1) });
+  });
+
+  it("live.a-dropped-ring-takes-the-holder-s-turn — a place is left facing the way it was carried", () => {
+    // A CARD LIES THE WAY ITS HOLDER HELD IT (`holderTurn`), and a place is the one thing on the
+    // felt that says which way somebody is sitting. Left at the turn it was built with, a reader
+    // who spun their view and dragged their ring across the desk sat at the same seat as before:
+    // the tick pointed where nobody was, and coming home glided the view back to the old angle.
+    const desk = roundMap(SEATS);
+    const screens = [screenOf("south", "accent", 0), screenOf("north", "alert", 180)];
+    const people = wire(desk, screens);
+    people.publish();
+    const seat = SEATS[0]!.seat;
+    const was = people.placeOf(seat)!.facing;
+
+    screens[0]!.camera!.rotation = was + 90;
+    people.handed(seat, [{ id: chairId(seat) }] as never, { x: 1, y: 1 }, false);
+    expect(people.placeOf(seat)?.facing, "mid-carry the place has not turned yet").toBe(was);
+
+    people.handed(seat, [{ id: chairId(seat) }] as never, { x: 1, y: 1 }, true);
+    expect(people.placeOf(seat)?.facing, "let go, it faces the way its owner was looking").toBe(was + 90);
+    // ...AND THE TICK ON THE RIM SAYS SO. The facing is only visible as that one bar: a place whose
+    // number turned while its mark did not is a desk that says two things about one seat.
+    const tick = byId(desk, chairTickId(seat))!;
+    expect(fieldsOf<TransformableFields>(tick, "Transformable")?.angle).toBe(was + 90);
   });
 
   it("live.at-home-the-ring-is-the-person — filled, and no disc drawn over it", () => {

@@ -5,7 +5,7 @@ import { Transformable, type TransformableFields } from "../core/atoms/transform
 import { Private } from "../core/atoms/private.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Valued } from "../core/atoms/valued.js";
-import { apply, type Vec } from "../core/transform.js";
+import { apply, rotate, type Vec } from "../core/transform.js";
 
  // Wait, is isDrawn used? No, only in handOver which we are not moving. Wait, zoneFor uses isDrawn? No, zoneFor doesn't.
 import { type CarryItem, type CarryOptions, type Motions } from "./animator/index.js";
@@ -295,7 +295,14 @@ export function landingPicture(
     // AT THE TURN THE DROP WILL WRITE. The mark rides the hand as one more carried thing and it is
     // `still`, so the carry leaves its own pose alone (`layCarry`) — the angle written here is the
     // angle drawn for the whole of the gesture, and it is the very number `letFall` lands at.
-    const markNode = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++, scene.host.viewer().marks?.me, angle);
+    // ...AND THE FORMATION IS TURNED THE WAY IT WILL LIE. `landingBox` sweeps the run's seats in the
+    // STACK's own frame — which is the frame the outline is drawn in, because the mark wears the
+    // landing's turn — so where that outline STANDS relative to the finger has to be turned by the
+    // same angle. Left square, a deck carried under a turned camera hung off its handle sideways and
+    // the outline stood beside the pile rather than under it: one gesture saying two things.
+    const turn = angle ? rotate(angle) : undefined;
+    const seat = turn ? apply(turn, box.at) : box.at;
+    const markNode = landingMark({ x: anchorAt.x + seat.x, y: anchorAt.y + seat.y }, box, marksDrawn++, scene.host.viewer().marks?.me, angle);
     add(scene.host.root, markNode);
     // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
     // this is going; the load hangs above them both, because a load drawn ON the finger covers the
@@ -303,7 +310,11 @@ export function landingPicture(
     // FROM THE LOAD'S OWN PLACE, not from the anchor. The run is already seated at `box.at` — a pile
     // stands over its handle — so starting the clearance there as well counts that step twice, and
     // the load ends up two cards and a bit above the finger instead of one.
-    landing = { node: markNode, seat: box.at, hover: { x: 0, y: -box.h * CARRY_CLEAR }, w: box.w, h: box.h };
+    // THE CLEARANCE IS LEFT SQUARE, and it is the one number here that is: the load is not `still`,
+    // so the carry turns its offset with the run (`rigidCarry`) and the fall takes the same turn off
+    // again (`letFall`). Turned here as well it would be turned twice, and the piece would come down
+    // a whole clearance the wrong side of the outline that promised where it was going.
+    landing = { node: markNode, seat, hover: { x: 0, y: -box.h * CARRY_CLEAR }, w: box.w, h: box.h };
     // TOLD BEFORE THE HAND CLOSES. A carry is an override on ids the clock already knows, and the
     // clock knows what the last draw drew: a node added and grabbed in the same breath is grabbed by
     // a clock that has never heard of it, and the override goes nowhere.

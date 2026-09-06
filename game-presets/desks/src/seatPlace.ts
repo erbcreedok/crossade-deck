@@ -46,6 +46,7 @@ import {
   add,
   Bounded,
   byId,
+  Carry,
   circle,
   compose,
   Container,
@@ -264,6 +265,11 @@ export function seatChair(seat: string, place: { readonly at: Vec }, look?: Seat
     // STAY where the finger let go: a place is wherever its owner put it, and there is no target to
     // refuse it — a chair that flew home on every release could not be moved at all.
     Draggable({ onReject: "stay" }),
+    // ALONG THE SUKNO, never off it. A ring is slid the way a beer mat is: no pop, no bank, no
+    // picture of a landing under it and no flight when it is let go of in motion — the three things
+    // a carry does for a PIECE, and a place asks none of them. Said by the thing itself, because
+    // the ring stopped being glass-sized the day it grew to hold cards (`ridesFelt`).
+    Carry({ ride: "felt" }),
     // WHOSE PLACE IT IS, said on the node — `mayTake` reads it, and so does everything else that
     // has to know a ring from a card. A place nobody holds is owned by nobody and moved by nobody.
     ...(look ? [Owned({ box: seat })] : []),
@@ -395,17 +401,20 @@ function chairLayer(desk: Node): Node {
  * The NAME goes with it. It is a node of its own so the ring can arrange cards without arranging
  * words, and a caption left behind would be a player's name lying on the felt they got up from.
  */
-export function standChair(desk: Node, seat: string, at: Vec): void {
+export function standChair(desk: Node, seat: string, at: Vec, facing?: number): void {
   const chair = byId(desk, chairId(seat));
   if (!chair) return;
   const own = fieldsOf<TransformableFields>(chair, "Transformable");
   compose(chair, Transformable({ ...(own ?? {}), at }));
-  // THE TICK GOES WITH IT, and it keeps the angle it was built with: dragging a chair moves a seat,
-  // it does not turn it round (`Avatars.handed` writes the same rule into the place itself).
+  // THE TICK GOES WITH IT, and it goes round with it too: a place is left facing the way its holder
+  // was looking when they let it go (`Avatars.handed`), and a tick still pointing at the angle the
+  // ring was BUILT with is a picture of a seat nobody is sitting at. Told no facing, it keeps the
+  // one it has — a desk that never turns its places has nothing to say here.
   const tick = byId(desk, chairTickId(seat));
   if (tick) {
     const pose = fieldsOf<TransformableFields>(tick, "Transformable");
-    compose(tick, Transformable({ ...(pose ?? {}), at: tickPose({ at }, pose?.angle ?? 0).at }));
+    const turn = facing ?? pose?.angle ?? 0;
+    compose(tick, Transformable({ ...(pose ?? {}), ...tickPose({ at }, turn) }));
   }
   const name = byId(desk, chairNameId(seat));
   if (!name) return;
