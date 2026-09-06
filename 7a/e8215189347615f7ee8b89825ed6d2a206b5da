@@ -1,0 +1,21 @@
+apps/hub/src/online/table.test.ts
+  s_097d9b5a02d238::t_3bd790a08dba32 63-85
+apps/hub/src/online/table.ts
+  s_097d9b5a02d238::t_558054e43197ee 72,83-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7ae8215189347615f7ee8b89825ed6d2a206b5da",
+  "prompts": {},
+  "sessions": {
+    "s_097d9b5a02d238": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c1d73ed-2be8-47e5-8988-704a5dd2bfe9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
