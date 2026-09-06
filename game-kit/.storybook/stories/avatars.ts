@@ -109,6 +109,17 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     for (const one of o.screens) one.scene?.setRoot(o.desk);
   };
 
+  /**
+   * ONE PUBLICATION AT A TIME, ACROSS THE PAGE'S OWN HALF TOO — `tellScreens` calls a real scene's
+   * `setRoot`, which can wake `cameraInput` and call the page's `onView` SYNCHRONOUSLY before
+   * `setRoot` returns; every live page wires `onView` straight to `people.publish()`. The kit's own
+   * `publish` already guards ITS half with `placing`, but that latch never covers `tellScreens` —
+   * it is the page's, not the kit's — so without a latch here the re-entrant call runs this same
+   * function again, which calls `tellScreens` again, which wakes the camera again: a loop with no
+   * floor, the one the kit's own comment already names, just missing on the caller's side of it.
+   */
+  let placing = false;
+
   const transport: AvatarsTransport = {
     mine: (): Presence[] =>
       o.screens.flatMap((one) => {
@@ -163,12 +174,24 @@ export function withAvatars(o: AvatarsOptions): Avatars {
 
   return {
     publish: () => {
-      kit.publish();
-      tellScreens();
+      if (placing) return;
+      placing = true;
+      try {
+        kit.publish();
+        tellScreens();
+      } finally {
+        placing = false;
+      }
     },
     settled: () => {
-      kit.settled();
-      tellScreens();
+      if (placing) return;
+      placing = true;
+      try {
+        kit.settled();
+        tellScreens();
+      } finally {
+        placing = false;
+      }
     },
     handed: (seat, items, at, done) => kit.handed(seat, items, at, done),
     claim: (seat) => {

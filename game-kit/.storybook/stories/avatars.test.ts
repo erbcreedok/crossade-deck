@@ -207,6 +207,29 @@ describe("the people at a live desk", () => {
     });
   }
 
+  it("live.publish-does-not-loop-when-setRoot-wakes-the-camera-synchronously — a real scene's setRoot can call the page's own onView before returning, and that must not re-enter publish forever", () => {
+    // THE REAL SHAPE OF THE BUG: `host.setRoot` runs `cameraInput.refresh`, which can call the
+    // page's `onView` SYNCHRONOUSLY, before `setRoot` itself returns — and a live page wires
+    // `onView` straight to `people.publish()`. The fake below stands for that one fact about a
+    // real scene; everything else about it (`() => {}` in the tests above) is deliberately mute.
+    const desk = roundMap(SEATS);
+    let peopleRef: { publish: () => void } | undefined;
+    const screens: Screen[] = [
+      {
+        seat: "south",
+        ink: "accent",
+        dot: document.createElement("div"),
+        scene: {
+          camera: { target: { x: 0, y: 0 }, pixelsPerUnit: 40, rotation: 0, glass: { w: 390, h: 400 } },
+          setRoot: () => peopleRef!.publish(),
+        },
+      } as unknown as Screen,
+    ];
+    const people = wire(desk, screens);
+    peopleRef = people;
+    expect(() => people.publish()).not.toThrow();
+  });
+
   it("live.a-desk-without-avatars-has-neither-a-person-nor-a-hand — an empty patch belongs to nobody", () => {
     const desk = roundMap([]);
     for (const { seat } of SEATS) {
