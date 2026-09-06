@@ -642,6 +642,20 @@ describe("scenePlan", () => {
       "high",
     ]);
   });
+
+  it("plan.a-screened-control-casts-no-shadow — an avatar disc or a seat's ring lies on no felt", () => {
+    // A shadow says HEIGHT ABOVE THE DESK, and a control (`Screened` — an avatar's disc, a seat's
+    // own ring, a cursor) is never held at a place on the felt at all: it is sized for the eye, not
+    // the table, the same fact `isControl` in `liveTable.ts` already reads to skip a drag's contour
+    // and `markQuads.ts` to skip a touch mark. A `ShadowCaster` that reached one anyway (as it does
+    // once an avatar loses its own `Oriented: "viewer"`) drew a degenerate quad hanging off its
+    // corner — there is no felt under a control for it to fall onto.
+    const root = node("s1", Container({ layout: "free" }));
+    add(root, node("control", box(1, 1), Surfaced(), ShadowCaster(), Screened({ screened: true })));
+    add(root, node("piece", box(1, 1), Surfaced(), ShadowCaster()));
+    const shadows = plan(root).filter((q) => q.layer === "shadow").map((q) => q.id);
+    expect(shadows).toEqual(["piece::shadow"]);
+  });
 });
 
 describe("a partial layer", () => {

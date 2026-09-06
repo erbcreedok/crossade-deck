@@ -11,6 +11,7 @@
 import { defineAtom } from "../atom.js";
 import { caps, fieldsOf, type Node } from "../node.js";
 import { type Shape } from "./bounded.js";
+import { screened } from "./screened.js";
 
 export interface ShadowCasterFields {
   /** Which contour falls on the desk: the box's `footprint`, or the drawn `silhouette`. */
@@ -67,9 +68,16 @@ export function shadowFrom(n: Node): "footprint" | "silhouette" | undefined {
  * Does THIS node lay a shadow? It does when it carries the atom and no owner casts for it: the
  * stack's shadow is the stack's, and fifty-two per-card shadows under a squared deck would be
  * one shadow drawn fifty-two times.
+ *
+ * A CONTROL NEVER CASTS ONE, whatever it carries — an avatar's disc, a seat's own ring, a cursor
+ * are held at their size on the GLASS (`Screened`), not lying on the felt, so there is no height
+ * above the desk for a shadow to say. The same atom already keeps a control out of a drag's
+ * contour (`isControl` in `liveTable.ts`) and off a touch mark (`markQuads.ts`); a shadow is a
+ * third question about the same fact and reads it off the same place.
  */
 export function castsShadow(n: Node): boolean {
   if (!caps(n).has("ShadowCaster")) return false;
+  if (screened(n)) return false;
   for (let up = n.parent; up; up = up.parent) if (caps(up).has("ShadowCaster")) return false;
   return true;
 }
