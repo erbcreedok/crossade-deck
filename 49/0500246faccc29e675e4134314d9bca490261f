@@ -1,0 +1,21 @@
+apps/hub/src/table/people.ts
+  s_9c17d410c5d625::t_a954cc9e777435 89-99,145-151
+apps/hub/src/table/people.test.ts
+  s_9c17d410c5d625::t_363dc862093da3 123-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "490500246faccc29e675e4134314d9bca490261f",
+  "prompts": {},
+  "sessions": {
+    "s_9c17d410c5d625": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8e6c574-e003-4c40-b530-87b52aa8269f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
