@@ -80,7 +80,11 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   const first = host.viewport();
   const painter = pixiPainter(host.view, { width: first.width, height: first.height, resolution: first.dpr });
   const ruler = hubRuler();
-  const stopPainting = attachPainter(host, painter, { measure: ruler });
+  // ATTACHED ONLY AFTER THE ROUTE IS KNOWN (below): `attachPainter` paints `host.root` the instant
+  // it is called, and at this point `host.root` is still the placeholder passed to `mount` above.
+  // A table opened by hash or by `startapp` must never have that placeholder — the lobby — be the
+  // first thing painted, so the mode is set from the route BEFORE this fires.
+  let stopPainting: () => void;
 
   let playing = false;
   let running: Teardown | undefined;
@@ -273,14 +277,19 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     },
   });
 
-  setMode("hub");
+  // THE URL IS THE PLACE, READ BEFORE THE FIRST PAINT. A reload lands back in the game the player
+  // was in, and the browser's own Back leaves it — which is the gesture a phone user reaches for
+  // before finding any button. Restoring writes nothing: the address is already right, and writing
+  // it again would push a second identical entry onto the history for every reload.
+  //
+  // Read here, before `attachPainter` below, so a table named by the hash (or by Telegram's
+  // `startapp`, resolved to the route in `main.ts` before this runs) never has the lobby as its
+  // first painted frame: the mode is set from the route, THEN the painter is attached to it.
+  const opened = routeOf();
+  setMode(opened ? "play" : "hub");
+  stopPainting = attachPainter(host, painter, { measure: ruler });
   followMotion();
 
-  // THE URL IS THE PLACE. A reload lands back in the game the player was in, and the browser's own
-  // Back leaves it — which is the gesture a phone user reaches for before finding any button.
-  // Restoring writes nothing: the address is already right, and writing it again would push a
-  // second identical entry onto the history for every reload.
-  const opened = routeOf();
   if (opened) void enter(opened, false);
 
   const stopRouting = onRoute((id) => {
